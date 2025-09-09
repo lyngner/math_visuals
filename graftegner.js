@@ -3,6 +3,7 @@
    ========================================================= */
 
 var SIMPLE = "f(x)=x^2-2\npoints=0";
+var DEFAULT_POINTS_START = [ [2, 3], [-3, 1] ];
 
 var ADV = {
   axis: {
@@ -17,7 +18,7 @@ var ADV = {
     zoom: { enabled: true,  wheel: true, needShift: false, factorX: 1.2, factorY: 1.2 }
   },
   points: {
-    start:  [ [2, 3], [-3, 1] ],
+    start:  DEFAULT_POINTS_START.slice(),
     startX: [  1 ],
     showCoordsOnHover: true,
     decimals: 2,
@@ -77,6 +78,22 @@ function decideMode(parsed){
   return hasExplicit ? "functions" : "pointsOnly";
 }
 var MODE = decideMode(SIMPLE_PARSED);
+
+function inferPointsFromFunctionText(fnText){
+  if(!fnText) return null;
+  var m = fnText.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/);
+  var rhs = m ? m[2] : fnText;
+  rhs = rhs.replace(/\s+/g, '').toLowerCase();
+
+  if(/^ax\+b$/.test(rhs)){ return { points: 2 }; }
+
+  var m2 = rhs.match(/^ax([+-]\d+(?:\.\d+)?)$/);
+  if(m2){
+    var b = parseFloat(m2[1]);
+    return { points: 2, start: [ { pos:[0, b], fixed:true }, [1, b+1] ] };
+  }
+  return null;
+}
 
 /* --------- uttrykk → funksjon ---------- */
 function parseFunctionSpec(spec){
@@ -370,7 +387,11 @@ function buildPointsOnly(){
   var pts=[];
   for(var i=0;i<count;i++){
     (function(i){
-      var P=brd.create("point", starts[i].slice(), {name:"",size:3,face:"o",fillColor:"#fff",strokeColor:"#9333ea",withLabel:true,showInfobox:false});
+      var spec = starts[i];
+      var coords = Array.isArray(spec) ? spec.slice() : spec.pos.slice();
+      var attr = {name:"",size:3,face:"o",fillColor:"#fff",strokeColor:"#9333ea",withLabel:true,showInfobox:false};
+      if(!Array.isArray(spec) && spec.fixed){ attr.fixed = true; }
+      var P=brd.create("point", coords, attr);
       if(ADV.points.snap.enabled){
         var sx=stepX(), sy=stepY();
         var snap=function(){ P.moveTo([nearestMultiple(P.X(),sx), nearestMultiple(P.Y(),sy)]); };
@@ -438,6 +459,7 @@ function parseScreenInput(s){
   if(!m) return null; return [ +m[1], +m[2], +m[3], +m[4] ];
 }
 function readUIOverrides(){
+  ADV.points.start = DEFAULT_POINTS_START.slice();
   var fn1 = document.getElementById("fn1").value.trim();
   var dom1 = parseDomainInput(document.getElementById("dom1").value);
   var fn2 = document.getElementById("fn2").value.trim();
@@ -450,6 +472,13 @@ function readUIOverrides(){
   ADV.axis.labels.y = (document.getElementById("axisYLabel").value.trim() || "y");
 
   ADV.screen = screen || null;
+
+  var inf = inferPointsFromFunctionText(fn1);
+  if(inf){
+    pointsCount = inf.points;
+    if(inf.start){ ADV.points.start = inf.start; }
+    document.getElementById("pointsCount").value = String(pointsCount);
+  }
 
   var lines=[];
   if(fn1){
