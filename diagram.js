@@ -236,7 +236,9 @@ document.getElementById('btnCheck').addEventListener('click', ()=>{
   updateStatus(ok ? 'Riktig! 🎉' : 'Prøv igjen 🙂');
 });
 
-document.getElementById('btnApplyCfg').addEventListener('click', ()=>{
+document.querySelector('.settings').addEventListener('input', applyCfg);
+
+function applyCfg(){
   const lbls = parseList(document.getElementById('cfgLabels').value);
   const starts = parseNumList(document.getElementById('cfgStart').value);
   const answers = parseNumList(document.getElementById('cfgAnswer').value);
@@ -253,8 +255,7 @@ document.getElementById('btnApplyCfg').addEventListener('click', ()=>{
   const tolVal = parseFloat(document.getElementById('cfgTolerance').value);
   CFG.tolerance = isNaN(tolVal) ? 0 : tolVal;
   initFromCfg();
-  updateStatus('Innstillinger oppdatert.');
-});
+}
 
 /* =========================================================
    HJELPERE
