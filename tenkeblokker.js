@@ -61,10 +61,14 @@ addTo(gFrame,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-frame'});
 const handleShadow = addTo(gHandle,'circle',{cx:R, cy:(TOP+BOT)/2+2, r:20, class:'tb-handle-shadow'});
 const handle       = addTo(gHandle,'circle',{cx:R, cy:(TOP+BOT)/2,   r:18, class:'tb-handle'});
 const stepper      = document.querySelector('.tb-stepper');
+const btnSvg       = document.getElementById('btnSvg');
+const btnPng       = document.getElementById('btnPng');
 
 // ---------- Interaksjon ----------
-document.getElementById('tbMinus').addEventListener('click', ()=> setN(n-1));
-document.getElementById('tbPlus') .addEventListener('click', ()=> setN(n+1));
+document.getElementById('tbMinus').addEventListener('click', ()=> setK(k-1));
+document.getElementById('tbPlus') .addEventListener('click', ()=> setK(k+1));
+btnSvg?.addEventListener('click', ()=> downloadSVG(svg, 'tenkeblokker.svg'));
+btnPng?.addEventListener('click', ()=> downloadPNG(svg, 'tenkeblokker.png', 2));
 
 handle.addEventListener('pointerdown', onDragStart);
 function onDragStart(e){
@@ -107,6 +111,51 @@ function clientToSvg(clientX, clientY){
   const sx = VBW / rect.width;
   const sy = VBH / rect.height;
   return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
+}
+
+function svgToString(svgEl){
+  const clone = svgEl.cloneNode(true);
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+}
+function downloadSVG(svgEl, filename){
+  const data = svgToString(svgEl);
+  const blob = new Blob([data], {type:'image/svg+xml;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.endsWith('.svg') ? filename : filename + '.svg';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function downloadPNG(svgEl, filename, scale=2, bg='#fff'){
+  const vb = svgEl.viewBox.baseVal;
+  const w = vb?.width  || svgEl.clientWidth  || 900;
+  const h = vb?.height || svgEl.clientHeight || 420;
+  const data = svgToString(svgEl);
+  const blob = new Blob([data], {type:'image/svg+xml;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = ()=>{
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(blob=>{
+      const urlPng = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlPng;
+      a.download = filename.endsWith('.png') ? filename : filename + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(urlPng),1000);
+    }, 'image/png');
+  };
+  img.src = url;
 }
 
 // Firkantparentes (rett linje med «hak» i begge ender)
