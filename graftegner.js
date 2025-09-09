@@ -271,7 +271,8 @@ placeAxisNames();
 var gridV=[],gridH=[];
 function shouldLockAspect(){
   if(ADV.lockAspect===true) return true;
-  return Math.abs(+ADV.axis.grid.majorX-(+ADV.axis.grid.majorY))<1e-12;
+  if(ADV.screen==null) return Math.abs(+ADV.axis.grid.majorX-(+ADV.axis.grid.majorY))<1e-12;
+  return false;
 }
 var enforcing=false;
 function enforceAspectStrict(){
