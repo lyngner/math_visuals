@@ -31,20 +31,22 @@
   function drawCircle(n, filled){
     const r = 0.45;
     const cx = 0.5, cy = 0.5;
+    const center = board.create('point', [cx,cy], {visible:false, name:''});
     for(let i=0;i<n;i++){
       const a1 = 2*Math.PI*i/n;
       const a2 = 2*Math.PI*(i+1)/n;
-      const p1 = [cx + r*Math.cos(a1), cy + r*Math.sin(a1)];
-      const p2 = [cx + r*Math.cos(a2), cy + r*Math.sin(a2)];
-      board.create('sector', [[cx,cy], p1, p2], {
+      const p1 = board.create('point', [cx + r*Math.cos(a1), cy + r*Math.sin(a1)], {visible:false, name:''});
+      const p2 = board.create('point', [cx + r*Math.cos(a2), cy + r*Math.sin(a2)], {visible:false, name:''});
+      board.create('sector', [center, p1, p2], {
         withLines:true,
-        strokeColor:'#333',
-        fillColor: filled.includes(i)?'#6baaaa':'#fff',
+        strokeColor:'#fff',
+        strokeWidth:4,
+        fillColor: filled.includes(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
         highlight:false
       });
     }
-    board.create('circle', [[cx,cy], r], {strokeColor:'#333', fillColor:'none', highlight:false});
+    board.create('circle', [center, r], {strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false});
   }
 
   function drawRect(n, division, filled){
@@ -69,12 +71,19 @@
         }
       }
       board.create('polygon', pts, {
-        borders:{strokeColor:'#333'},
-        fillColor: filled.includes(i)?'#6baaaa':'#fff',
+        borders:{strokeColor:'#fff', strokeWidth:4},
+        vertices:{visible:false, name:''},
+        fillColor: filled.includes(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
         highlight:false
       });
     }
+    board.create('polygon', [[0,0],[1,0],[1,1],[0,1]], {
+      borders:{strokeColor:'#333', strokeWidth:6},
+      vertices:{visible:false, name:''},
+      fillColor:'none',
+      highlight:false
+    });
   }
 
   function drawTriangle(n, division, filled){
@@ -91,12 +100,19 @@
         pts=[[1-t1,t1],[1-t2,t2],[0,0]];
       }
       board.create('polygon', pts, {
-        borders:{strokeColor:'#333'},
-        fillColor: filled.includes(i)?'#6baaaa':'#fff',
+        borders:{strokeColor:'#fff', strokeWidth:4},
+        vertices:{visible:false, name:''},
+        fillColor: filled.includes(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
         highlight:false
       });
     }
+    board.create('polygon', [[0,0],[1,0],[0,1]], {
+      borders:{strokeColor:'#333', strokeWidth:6},
+      vertices:{visible:false, name:''},
+      fillColor:'none',
+      highlight:false
+    });
   }
 
   shapeSel.addEventListener('change', draw);
