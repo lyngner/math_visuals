@@ -47,23 +47,26 @@ const ADV = {
 };
 
 /* ============ DERIVERT KONFIG FOR RENDER (IKKE REDIGER) ============ */
-const CFG = {
-  nBeads: SIMPLE.nBeads,
-  startIndex: clamp(SIMPLE.startIndex, 0, SIMPLE.nBeads),
-  groupSize: ADV.groupSize,
+function makeCFG(){
+  return {
+    nBeads: SIMPLE.nBeads,
+    startIndex: clamp(SIMPLE.startIndex, 0, SIMPLE.nBeads),
+    groupSize: ADV.groupSize,
 
-  rBase: ADV.rBase,
-  gapBase: ADV.gapBase,
-  wireY: ADV.wireY,
+    rBase: ADV.rBase,
+    gapBase: ADV.gapBase,
+    wireY: ADV.wireY,
 
-  kW: ADV.kW,
-  kH: ADV.kH,
-  clipGapRatio: ADV.clipGapRatio,
+    kW: ADV.kW,
+    kH: ADV.kH,
+    clipGapRatio: ADV.clipGapRatio,
 
-  assets: ADV.assets,
-  a11y: ADV.a11y,
-  ui: ADV.ui
-};
+    assets: ADV.assets,
+    a11y: ADV.a11y,
+    ui: ADV.ui
+  };
+}
+let CFG = makeCFG();
 
 /* ============ DOM & VIEWBOX ============ */
 const svg   = document.getElementById("beadSVG");
@@ -88,17 +91,16 @@ const overlay = rect(0,0,VB_W,VB_H,{
 overlay.style.cursor = "ew-resize";
 svg.appendChild(overlay);
 
-/* ============ STATE (init FØR første draw) ============ */
+/* ============ STATE (init via applyConfig) ============ */
 let r, gap, pitch, CLIP_W, CLIP_H, CLIP_GAP;
 let centers = [];
 let gapMids = [];
-let idx   = clamp(CFG.startIndex, 0, CFG.nBeads); // antall perler til venstre
+let idx = 0; // antall perler til venstre
 let clipY = 0;
 let CLIP_Y_MIN = -100, CLIP_Y_MAX = 100;
 
-/* ============ LAYOUT + FØRSTE TEGNING ============ */
-layout();
-draw();
+setupSettingsUI();
+applyConfig();
 
 /* ============ INTERAKSJON ============ */
 let dragging = false;
@@ -255,6 +257,41 @@ function nearestIndex(x){
     if(x < gapMids[mid]) hi = mid; else lo = mid;
   }
   return (Math.abs(x - gapMids[lo]) <= Math.abs(x - gapMids[hi])) ? lo : hi;
+}
+
+function applyConfig(){
+  CFG = makeCFG();
+  idx = clamp(CFG.startIndex, 0, CFG.nBeads);
+  clipY = 0;
+  overlay.setAttribute("aria-valuemax", String(CFG.nBeads));
+  overlay.setAttribute("aria-valuenow", String(idx));
+  layout();
+  draw();
+}
+
+function setupSettingsUI(){
+  const nInput = document.getElementById("cfg-nBeads");
+  const startInput = document.getElementById("cfg-startIndex");
+  const correctInput = document.getElementById("cfg-correct");
+  if(!nInput || !startInput || !correctInput) return;
+
+  nInput.value = SIMPLE.nBeads;
+  startInput.value = SIMPLE.startIndex;
+  if (SIMPLE.correct?.value != null) correctInput.value = SIMPLE.correct.value;
+  startInput.max = correctInput.max = SIMPLE.nBeads;
+
+  function update(){
+    SIMPLE.nBeads = parseInt(nInput.value) || SIMPLE.nBeads;
+    startInput.max = correctInput.max = SIMPLE.nBeads;
+    SIMPLE.startIndex = parseInt(startInput.value) || 0;
+    const c = parseInt(correctInput.value);
+    if(!isNaN(c)) SIMPLE.correct = { mode:"leftCount", value:c };
+    applyConfig();
+  }
+
+  nInput.addEventListener("change", update);
+  startInput.addEventListener("change", update);
+  correctInput.addEventListener("change", update);
 }
 
 /* ===== Riktig/vurdering ===== */
