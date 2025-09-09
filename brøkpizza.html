@@ -7,29 +7,50 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css" />
 
   <style>
-    :root { --purple:#5B2AA5; --rim:#333; --dash:#444; }
-    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
-    .wrap { display:grid; gap:18px; padding:16px; }
+    :root { --purple:#5B2AA5; --rim:#333; --dash:#444; --gap:18px; }
+    html,body { height:100%; }
+    body {
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color:#111827; background:#f7f8fb; padding:20px;
+    }
+    .wrap { max-width:1200px; margin:0 auto; }
+    .grid { display:grid; gap:var(--gap); grid-template-columns:1fr 360px; align-items:start; }
+    @media (max-width:980px){ .grid { grid-template-columns:1fr; } }
+    .card {
+      background:#fff; border:1px solid #e5e7eb; border-radius:14px;
+      box-shadow:0 1px 2px rgba(0,0,0,.04); padding:14px;
+      display:flex; flex-direction:column; gap:10px;
+    }
+    .card h2 { margin:0 0 6px 2px; font-size:16px; font-weight:600; color:#374151; }
+    .toolbar { display:flex; gap:10px; justify-content:flex-end; }
+    .btn {
+      appearance:none; border:1px solid #d1d5db; background:#fff; border-radius:10px;
+      padding:8px 12px; font-size:14px; cursor:pointer; transition:box-shadow .2s, transform .02s;
+    }
+    .btn:hover { box-shadow:0 2px 8px rgba(0,0,0,.06); }
+    .btn:active { transform:translateY(1px); }
+    label { font-size:13px; color:#4b5563; }
+    input[type="number"], select {
+      border:1px solid #d1d5db; border-radius:10px; padding:8px 10px;
+      font-size:14px; background:#fff; width:100%; box-sizing:border-box;
+    }
+    fieldset { border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin:0; display:flex; flex-direction:column; gap:8px; }
+    legend { font-weight:600; font-size:13px; color:#374151; padding:0 4px; }
+    .checkbox-row { display:flex; align-items:center; gap:6px; }
+    .sep { height:1px; background:#eef0f3; margin:8px 0; }
 
-    /* To kolonner som standard; topp-ankret så JS kan justere header-høyder */
+    /* To kolonner med pizzaer; JS justerer header-høyder */
     .grid2 {
       display:grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap:24px;
       align-items:start;
     }
-
     .pizzaPanel { display:grid; place-items:center; gap:10px; }
-
-    /* Header-slot – fylles av JS med brøk/tekst for å få sentre på linje */
     .panelHeader { width:100%; display:grid; place-items:center; }
-
-    /* Stakket brøk (vises bare når text:"frac") */
     .frac { font-size:28px; line-height:1; text-align:center; }
     .frac .num { display:block; border-bottom:2px solid #000; margin-bottom:4px; }
     .frac .den { display:block; }
-
-    /* Pizza / SVG – enda mindre før stacking */
     svg.pizza { width: clamp(100px, 40vw, 420px); height:auto; background:#fff; }
     .rim { fill:none; stroke:var(--rim); stroke-width:6; }
     .sector { stroke:#fff; stroke-width:6; }
@@ -37,8 +58,6 @@
     .sector-empty { fill:#fff; }
     .dash { stroke:var(--dash); stroke-dasharray:6 6; stroke-width:2; }
     .handle { fill:#e9e6f7; stroke:#333; stroke-width:2; cursor:pointer; }
-
-    /* Stepper (nevner-knapper) */
     .stepper {
       display:flex; align-items:center; gap:12px;
       padding:6px 10px; border:1px solid #cfcfcf; border-radius:12px;
@@ -49,11 +68,7 @@
       background:#fff; font-size:20px; cursor:pointer;
     }
     .stepper span { min-width:32px; text-align:center; font-variant-numeric:tabular-nums; font-size:16px; }
-
-    /* UU: fokusring for tastatur på slider-overlay (hele pizzaen) */
     .a11y:focus { outline:none; stroke:#1e88e5; stroke-width:3; }
-
-    /* Stabler UNDER hverandre først når vinduet blir veldig smalt */
     @media (max-width: 420px) {
       .grid2 { grid-template-columns: 1fr; gap: 16px; }
       svg.pizza { width: clamp(240px, 92vw, 420px); }
@@ -62,37 +77,98 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid2">
-      <!-- Pizza 1 -->
-      <div class="pizzaPanel">
-        <!-- Flyttes inn i .panelHeader av JS -->
-        <div id="frac1" class="frac" aria-live="polite">
-          <span class="num">8</span><span class="den">10</span>
-        </div>
+    <div class="grid">
 
-        <svg id="pizza1" class="pizza" viewBox="-210 -210 420 420" aria-label="Brøkpizza 1"></svg>
+      <div class="card">
+        <h2>Brøksirkler</h2>
+        <div class="grid2">
+          <!-- Pizza 1 -->
+          <div id="panel1" class="pizzaPanel">
+            <!-- Flyttes inn i .panelHeader av JS -->
+            <div id="frac1" class="frac" aria-live="polite">
+              <span class="num">8</span><span class="den">10</span>
+            </div>
 
-        <div class="stepper" aria-label="Antall sektorer pizza 1">
-          <button id="nMinus1" type="button" aria-label="Færre sektorer">−</button>
-          <span id="nVal1">10</span>
-          <button id="nPlus1"  type="button" aria-label="Flere sektorer">+</button>
+            <svg id="pizza1" class="pizza" viewBox="-210 -210 420 420" aria-label="Brøkpizza 1"></svg>
+
+            <div class="stepper" aria-label="Antall sektorer pizza 1">
+              <button id="nMinus1" type="button" aria-label="Færre sektorer">−</button>
+              <span id="nVal1">10</span>
+              <button id="nPlus1"  type="button" aria-label="Flere sektorer">+</button>
+            </div>
+          </div>
+
+          <!-- Pizza 2 -->
+          <div id="panel2" class="pizzaPanel">
+            <div id="frac2" class="frac" aria-live="polite">
+              <span class="num">4</span><span class="den">10</span>
+            </div>
+
+            <svg id="pizza2" class="pizza" viewBox="-210 -210 420 420" aria-label="Brøkpizza 2"></svg>
+
+            <div class="stepper" aria-label="Antall sektorer pizza 2">
+              <button id="nMinus2" type="button" aria-label="Færre sektorer">−</button>
+              <span id="nVal2">10</span>
+              <button id="nPlus2"  type="button" aria-label="Flere sektorer">+</button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Pizza 2 -->
-      <div class="pizzaPanel">
-        <div id="frac2" class="frac" aria-live="polite">
-          <span class="num">4</span><span class="den">10</span>
+      <div class="card">
+        <h2>Innstillinger</h2>
+        <div>
+          <fieldset>
+            <legend>Pizza 1</legend>
+            <div class="checkbox-row"><input id="p1Show" type="checkbox" checked><label for="p1Show">Vis</label></div>
+            <label for="p1T">Teller (t)</label>
+            <input id="p1T" type="number" value="3" min="0">
+            <label for="p1N">Nevner (n)</label>
+            <input id="p1N" type="number" value="10" min="1">
+            <div class="checkbox-row"><input id="p1LockN" type="checkbox"><label for="p1LockN">Lås nevner</label></div>
+            <div class="checkbox-row"><input id="p1LockT" type="checkbox"><label for="p1LockT">Lås teller</label></div>
+            <label for="p1Text">Tekst</label>
+            <select id="p1Text">
+              <option value="none">none</option>
+              <option value="frac" selected>frac</option>
+              <option value="percent">percent</option>
+              <option value="decimal">decimal</option>
+            </select>
+            <label for="p1MinN">Min n</label>
+            <input id="p1MinN" type="number" value="1" min="1">
+            <label for="p1MaxN">Maks n</label>
+            <input id="p1MaxN" type="number" value="24" min="1">
+          </fieldset>
+
+          <div class="sep"></div>
+
+          <fieldset>
+            <legend>Pizza 2</legend>
+            <div class="checkbox-row"><input id="p2Show" type="checkbox" checked><label for="p2Show">Vis</label></div>
+            <label for="p2T">Teller (t)</label>
+            <input id="p2T" type="number" value="4" min="0">
+            <label for="p2N">Nevner (n)</label>
+            <input id="p2N" type="number" value="10" min="1">
+            <div class="checkbox-row"><input id="p2LockN" type="checkbox" checked><label for="p2LockN">Lås nevner</label></div>
+            <div class="checkbox-row"><input id="p2LockT" type="checkbox"><label for="p2LockT">Lås teller</label></div>
+            <label for="p2Text">Tekst</label>
+            <select id="p2Text">
+              <option value="none">none</option>
+              <option value="frac">frac</option>
+              <option value="percent" selected>percent</option>
+              <option value="decimal">decimal</option>
+            </select>
+            <label for="p2MinN">Min n</label>
+            <input id="p2MinN" type="number" value="1" min="1">
+            <label for="p2MaxN">Maks n</label>
+            <input id="p2MaxN" type="number" value="24" min="1">
+          </fieldset>
         </div>
-
-        <svg id="pizza2" class="pizza" viewBox="-210 -210 420 420" aria-label="Brøkpizza 2"></svg>
-
-        <div class="stepper" aria-label="Antall sektorer pizza 2">
-          <button id="nMinus2" type="button" aria-label="Færre sektorer">−</button>
-          <span id="nVal2">10</span>
-          <button id="nPlus2"  type="button" aria-label="Flere sektorer">+</button>
+        <div class="toolbar">
+          <button id="btnApply" class="btn" type="button">Oppdater</button>
         </div>
       </div>
+
     </div>
   </div>
 
