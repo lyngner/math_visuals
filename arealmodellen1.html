@@ -33,6 +33,11 @@
     }
     .settings button { cursor: pointer; }
 
+    .settings .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .settings .row label { flex: 1; }
+    .settings .row label.chk { flex: 0; flex-direction: row; align-items: center; }
+    .settings .row label.chk input { margin-right: 6px; }
+
     .c1 { fill: #e07c7c; }
     .c2 { fill: #f0c667; }
     .c3 { fill: #7fb2d6; }
@@ -58,18 +63,24 @@
       <div class="card">
         <h2>Innstillinger</h2>
         <div class="settings">
-          <label>Høyde
-            <input id="height" type="number" value="16" min="2">
-          </label>
-          <label>Lengde
-            <input id="length" type="number" value="17" min="2">
-          </label>
-          <label>Håndtak høyde
-            <input id="heightHandle" type="number" value="5" min="1">
-          </label>
-          <label>Håndtak lengde
-            <input id="lengthHandle" type="number" value="3" min="1">
-          </label>
+          <div class="row">
+            <label>Lengde
+              <input id="length" type="number" value="17" min="2">
+            </label>
+            <label>Håndtak lengde
+              <input id="lengthHandle" type="number" value="3" min="1">
+            </label>
+            <label class="chk"><input id="showLengthHandle" type="checkbox" checked> Vis håndtak</label>
+          </div>
+          <div class="row">
+            <label>Høyde
+              <input id="height" type="number" value="16" min="2">
+            </label>
+            <label>Håndtak høyde
+              <input id="heightHandle" type="number" value="5" min="1">
+            </label>
+            <label class="chk"><input id="showHeightHandle" type="checkbox" checked> Vis håndtak</label>
+          </div>
           <label><input id="grid" type="checkbox"> Vis rutenett</label>
           <label><input id="splitLines" type="checkbox" checked> Delingslinjer</label>
           <label>Forfatter
