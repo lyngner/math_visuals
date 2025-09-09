@@ -97,6 +97,54 @@ const S = {
   kb: { btn: null, live: null, focused: false, origHandleSize: null }
 };
 
+/* ============================== Config fra HTML ============================== */
+function readConfigFromHtml(){
+  const len = parseInt(document.getElementById("lenCells")?.value,10);
+  if(Number.isFinite(len)) CFG.SIMPLE.length.cells = len;
+  const lenMax = parseInt(document.getElementById("lenMax")?.value,10);
+  if(Number.isFinite(lenMax)) CFG.SIMPLE.length.max = lenMax;
+  const hei = parseInt(document.getElementById("heiCells")?.value,10);
+  if(Number.isFinite(hei)) CFG.SIMPLE.height.cells = hei;
+  const heiMax = parseInt(document.getElementById("heiMax")?.value,10);
+  if(Number.isFinite(heiMax)) CFG.SIMPLE.height.max = heiMax;
+  CFG.SIMPLE.showGrid = document.getElementById("chkGrid")?.checked ?? CFG.SIMPLE.showGrid;
+  const snap = parseInt(document.getElementById("snap")?.value,10);
+  if(Number.isFinite(snap)) CFG.SIMPLE.snap = snap;
+  const areaLabel = document.getElementById("areaLabel")?.value;
+  if(areaLabel != null) CFG.SIMPLE.areaLabel = areaLabel;
+  if(!CFG.SIMPLE.challenge) CFG.SIMPLE.challenge = {};
+  CFG.SIMPLE.challenge.enabled = document.getElementById("chkChallenge")?.checked ?? false;
+  const chArea = parseInt(document.getElementById("challengeArea")?.value,10);
+  if(Number.isFinite(chArea)) CFG.SIMPLE.challenge.area = chArea;
+  CFG.SIMPLE.challenge.dedupeOrderless = document.getElementById("chkDedupe")?.checked ?? false;
+  CFG.SIMPLE.challenge.autoExpandMax = document.getElementById("chkAutoExpand")?.checked ?? false;
+}
+
+function applySimpleConfig(){
+  S.w = CFG.SIMPLE.length.cells;
+  S.h = CFG.SIMPLE.height.cells;
+  S.w0 = S.w;
+  S.h0 = S.h;
+  S.maxW = Math.max(
+    CFG.SIMPLE.length.max,
+    (CFG.SIMPLE.challenge?.enabled && CFG.SIMPLE.challenge?.autoExpandMax) ? (CFG.SIMPLE.challenge?.area || 0) : 0
+  );
+  S.maxH = Math.max(
+    CFG.SIMPLE.height.max,
+    (CFG.SIMPLE.challenge?.enabled && CFG.SIMPLE.challenge?.autoExpandMax) ? (CFG.SIMPLE.challenge?.area || 0) : 0
+  );
+  S.ch.enabled = !!(CFG.SIMPLE.challenge && CFG.SIMPLE.challenge.enabled);
+  S.ch.N = (CFG.SIMPLE.challenge && CFG.SIMPLE.challenge.area) || null;
+  S.ch.dedupeOrderless = !!(CFG.SIMPLE.challenge && CFG.SIMPLE.challenge.dedupeOrderless);
+}
+
+function initFromHtml(){
+  readConfigFromHtml();
+  applySimpleConfig();
+  if(S.board) JXG.JSXGraph.freeBoard(S.board);
+  createBoard();
+}
+
 /* ============================== Hjelpere ============================== */
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
 const quantize=(v,step)=>(step<=0?v:Math.round(v/step)*step);
@@ -559,16 +607,9 @@ function downloadInteractiveHTML(){
 
 /* ============================== Init ============================== */
 document.addEventListener("DOMContentLoaded", () => {
-  if(S.ch.enabled && S.ch.N) S.ch.allPairs=factorPairsSorted(S.ch.N);
-  createBoard();
-
-  const chkGrid=document.getElementById("chkGrid");
-  if(chkGrid){
-    chkGrid.checked = CFG.SIMPLE.showGrid;
-    chkGrid.addEventListener("change",()=>{
-      CFG.SIMPLE.showGrid = chkGrid.checked;
-      drawInnerGrid();
-      S.board.update();
-    });
-  }
+  initFromHtml();
+  document.querySelectorAll('#settingsMenu input, #settingsMenu select').forEach(el => {
+    el.addEventListener('change', initFromHtml);
+    el.addEventListener('input', initFromHtml);
+  });
 });
