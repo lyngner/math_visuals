@@ -5,21 +5,39 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Math Visuals</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 40px; background: #f7f8fb; color: #111827; }
-    h1 { font-size: 24px; }
+    body {
+      margin: 0;
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      height: 100vh;
+      font-family: system-ui, sans-serif;
+      background: #f7f8fb;
+      color: #111827;
+    }
+    nav {
+      padding: 20px;
+      border-right: 1px solid #e5e7eb;
+    }
+    h1 { font-size: 20px; margin-top: 0; }
     ul { list-style: none; padding: 0; }
     li { margin: 8px 0; }
     a { color: #147a9c; text-decoration: none; }
     a:hover { text-decoration: underline; }
+    iframe {
+      border: 0;
+      width: 100%;
+      height: 100%;
+    }
   </style>
 </head>
 <body>
-  <h1>Velg visualisering</h1>
   <nav>
+    <h1>Velg visualisering</h1>
     <ul>
-      <li><a href="nkant.html">nKant</a></li>
-      <li><a href="#">(flere kommer)</a></li>
+      <li><a href="nkant.html" target="content">nKant</a></li>
+      <li><a href="#" target="content">(flere kommer)</a></li>
     </ul>
   </nav>
+  <iframe name="content" src="nkant.html" title="Innhold"></iframe>
 </body>
 </html>
