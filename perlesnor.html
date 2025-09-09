@@ -19,11 +19,20 @@
     .clip:active{ cursor:grabbing; }
 
     .slider:focus{ outline:none; stroke:#1e88e5; stroke-width:3; }
+    #settings{ margin-bottom:16px; }
+    #settings label{ display:block; margin:4px 0; }
+    #settings input{ width:4rem; margin-left:8px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <!-- Litt høyere arbeidsflate -->
+    <details id="settings">
+      <summary>⚙️ Innstillinger</summary>
+      <label>Antall perler<input id="cfg-nBeads" type="number" min="1"></label>
+      <label>Startposisjon<input id="cfg-startIndex" type="number" min="0"></label>
+      <label>Fasit venstre<input id="cfg-correct" type="number" min="0"></label>
+    </details>
     <svg id="beadSVG" viewBox="0 0 1400 460" role="img" aria-label="Perlesnor med klype"></svg>
   </div>
 
