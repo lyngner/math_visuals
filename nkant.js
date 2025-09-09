@@ -322,13 +322,13 @@ function drawTriangleToGroup(g, rect, specStr, adv){
 
 function drawQuadToGroup(g, rect, specStr, adv){
   const s = parseSpec(specStr);
-  const a=s.a, b=s.b, c=s.c, d=s.d;
-  if(!(a>0 && b>0 && c>0 && d>0)) throw new Error("Firkant: må ha a, b, c, d > 0.");
-  const angleKey = ["A","B","C","D"].find(k => k in s);
-  if(!angleKey) throw new Error("Firkant: angi én vinkel (A, B, C eller D).");
+  let {a,b,c,d,A:AngA,B:AngB,C:AngC,D:AngD} = s;
+  if(!(a>0 && b>0 && c>0)) throw new Error("Firkant: må ha a, b, c > 0.");
+  const angleKeys = ["A","B","C","D"].filter(k => k in s);
+  if(angleKeys.length===0) throw new Error("Firkant: angi vinkel (minst én).");
 
   const A0={x:0,y:0}, B0={x:a,y:0}; let C0, D0;
-
+  
   const pickCCW_D = (C, D1, D2) => {
     const area1 = polygonArea([A0,B0,C,D1]);
     const area2 = polygonArea([A0,B0,C,D2]);
@@ -337,40 +337,60 @@ function drawQuadToGroup(g, rect, specStr, adv){
     return (area1 >= area2) ? D1 : D2;
   };
 
-  if(angleKey === "A"){
-    const theta = rad(s.A);
-    D0 = {x: A0.x + d*Math.cos(theta), y: A0.y + d*Math.sin(theta)};
-    const Cs = circleCircle(B0, b, D0, c);
-    if(Cs.length===0) throw new Error("Firkant (A): ingen løsning – sjekk mål.");
-    C0 = (Cs.length===1) ? Cs[0] : (polygonArea([A0,B0,Cs[0],D0]) > polygonArea([A0,B0,Cs[1],D0]) ? Cs[0] : Cs[1]);
-  } else if(angleKey === "B"){
-    const theta = Math.PI - rad(s.B);
-    C0 = {x: B0.x + b*Math.cos(theta), y: B0.y + b*Math.sin(theta)};
-    const Ds = circleCircle(A0, d, C0, c);
-    if(Ds.length===0) throw new Error("Firkant (B): ingen løsning – sjekk mål.");
-    D0 = (Ds.length===1) ? Ds[0] : pickCCW_D(C0, Ds[0], Ds[1]);
-  } else {
-    const Cs = circleCircle(A0, b, B0, a);
-    if(Cs.length===0) throw new Error(`Firkant (${angleKey}): ingen løsning – sjekk mål.`);
-    C0 = (Cs[0].y >= (Cs[1]?.y ?? -1e9) ? Cs[0] : (Cs[1] || Cs[0]));
-    const Ds = circleCircle(A0, d, C0, c);
-    if(Ds.length===0) throw new Error(`Firkant (${angleKey}): ingen løsning – sjekk mål.`);
-    if(Ds.length===1){ D0 = Ds[0]; }
-    else{
-      if(angleKey === "C"){
-        const cand = Ds.map(Dc => ({D: Dc, ang: angleAt(C0, B0, Dc)}));
-        cand.sort((u,v)=> Math.abs(u.ang - s.C) - Math.abs(v.ang - s.C));
-        D0 = cand[0].D;
-        if(polygonArea([A0,B0,C0,D0]) < 0) D0 = (Ds[0]===D0 ? Ds[1] : Ds[0]);
-      } else if(angleKey === "D"){
-        const cand = Ds.map(Dc => ({D: Dc, ang: angleAt(Dc, C0, A0)}));
-        cand.sort((u,v)=> Math.abs(u.ang - s.D) - Math.abs(v.ang - s.D));
-        D0 = cand[0].D;
-        if(polygonArea([A0,B0,C0,D0]) < 0) D0 = (Ds[0]===D0 ? Ds[1] : Ds[0]);
-      } else {
-        D0 = pickCCW_D(C0, Ds[0], Ds[1]);
+  if(angleKeys.length===1 && d>0){
+    const angleKey = angleKeys[0];
+    if(angleKey === "A"){
+      const theta = rad(AngA);
+      D0 = {x: A0.x + d*Math.cos(theta), y: A0.y + d*Math.sin(theta)};
+      const Cs = circleCircle(B0, b, D0, c);
+      if(Cs.length===0) throw new Error("Firkant (A): ingen løsning – sjekk mål.");
+      C0 = (Cs.length===1) ? Cs[0] : (polygonArea([A0,B0,Cs[0],D0]) > polygonArea([A0,B0,Cs[1],D0]) ? Cs[0] : Cs[1]);
+    } else if(angleKey === "B"){
+      const theta = Math.PI - rad(AngB);
+      C0 = {x: B0.x + b*Math.cos(theta), y: B0.y + b*Math.sin(theta)};
+      const Ds = circleCircle(A0, d, C0, c);
+      if(Ds.length===0) throw new Error("Firkant (B): ingen løsning – sjekk mål.");
+      D0 = (Ds.length===1) ? Ds[0] : pickCCW_D(C0, Ds[0], Ds[1]);
+    } else {
+      const Cs = circleCircle(A0, b, B0, a);
+      if(Cs.length===0) throw new Error(`Firkant (${angleKey}): ingen løsning – sjekk mål.`);
+      C0 = (Cs[0].y >= (Cs[1]?.y ?? -1e9) ? Cs[0] : (Cs[1] || Cs[0]));
+      const Ds = circleCircle(A0, d, C0, c);
+      if(Ds.length===0) throw new Error(`Firkant (${angleKey}): ingen løsning – sjekk mål.`);
+      if(Ds.length===1){ D0 = Ds[0]; }
+      else{
+        if(angleKey === "C"){
+          const cand = Ds.map(Dc => ({D: Dc, ang: angleAt(C0, B0, Dc)}));
+          cand.sort((u,v)=> Math.abs(u.ang - AngC) - Math.abs(v.ang - AngC));
+          D0 = cand[0].D;
+          if(polygonArea([A0,B0,C0,D0]) < 0) D0 = (Ds[0]===D0 ? Ds[1] : Ds[0]);
+        } else if(angleKey === "D"){
+          const cand = Ds.map(Dc => ({D: Dc, ang: angleAt(Dc, C0, A0)}));
+          cand.sort((u,v)=> Math.abs(u.ang - AngD) - Math.abs(v.ang - AngD));
+          D0 = cand[0].D;
+          if(polygonArea([A0,B0,C0,D0]) < 0) D0 = (Ds[0]===D0 ? Ds[1] : Ds[0]);
+        } else {
+          D0 = pickCCW_D(C0, Ds[0], Ds[1]);
+        }
       }
     }
+  } else if(angleKeys.length===2 && !d){
+    if(angleKeys.includes("B") && angleKeys.includes("D")){
+      const thetaB = Math.PI - rad(AngB);
+      C0 = {x: B0.x + b*Math.cos(thetaB), y: B0.y + b*Math.sin(thetaB)};
+      const AC = dist(A0, C0);
+      const cosD = Math.cos(rad(AngD)), sinD = Math.sin(rad(AngD));
+      const disc = AC*AC - (c*sinD)*(c*sinD);
+      if(disc < 0) throw new Error("Firkant (B&D): ingen løsning – sjekk mål.");
+      d = c*cosD + Math.sqrt(disc);
+      const Ds = circleCircle(A0, d, C0, c);
+      if(Ds.length===0) throw new Error("Firkant (B&D): ingen løsning – sjekk mål.");
+      D0 = (Ds.length===1) ? Ds[0] : pickCCW_D(C0, Ds[0], Ds[1]);
+    } else {
+      throw new Error("Firkant: to vinkler støttes bare for B og D.");
+    }
+  } else {
+    throw new Error("Firkant: støttes med d+1 vinkel eller to vinkler B og D.");
   }
 
   const base=[A0,B0,C0,D0];
@@ -412,7 +432,7 @@ function collectJobsFromSpecs(text){
   for(const line of lines){
     const obj = parseSpec(line);
     if(Object.keys(obj).length===0) continue;
-    const isQuad = ("d" in obj) && (("A" in obj)||("B" in obj)||("C" in obj)||("D" in obj));
+    const isQuad = ("d" in obj) || ("D" in obj);
     jobs.push({type: isQuad ? "quad" : "tri", spec: line});
     if(jobs.length>=2) break;
   }
