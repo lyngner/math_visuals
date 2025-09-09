@@ -23,16 +23,18 @@ const M = {l:80, r:30, t:40, b:70};
 const innerW = W - M.l - M.r;
 const innerH = H - M.t - M.b;
 
-/* Lagrekkefølge: grid, akser, søyler, håndtak, a11y, verdier (øverst), labels */
+/* Lagrekkefølge: grid, akser, søyler, håndtak, låser, a11y, verdier (øverst), labels */
 const gGrid   = add('g');
 const gAxis   = add('g');
 const gBars   = add('g');
 const gHands  = add('g');
+const gLocks  = add('g');
 const gA11y   = add('g');
 const gVals   = add('g');
 const gLabels = add('g');
 
 let values = [];
+let locked = [];
 let N = 0;
 
 let yMax = 0;
@@ -56,6 +58,7 @@ function initFromCfg(){
   xBand = innerW / N;
   barW  = xBand * 0.6;
   yMax  = CFG.yMax ?? niceMax([...CFG.start, ...CFG.answer]);
+  locked = Array(N).fill(false);
   lastFocusIndex = null;
   document.getElementById('chartTitle').textContent = CFG.title || '';
   drawAxesAndGrid();
@@ -89,11 +92,11 @@ function drawAxesAndGrid(){
   const yLab = addTo(gLabels,'text',{x:M.l-56, y:M.t + innerH/2, class:'yLabel'});
   yLab.setAttribute('transform',`rotate(-90, ${M.l-56}, ${M.t + innerH/2})`);
   yLab.textContent = CFG.axisYLabel || '';
-  addTo(gLabels,'text',{x:M.l + innerW - 10, y:H - 24, class:'yLabel'}).textContent = CFG.axisXLabel || '';
+  addTo(gLabels,'text',{x:M.l + innerW/2, y:H - 24, class:'xAxisLabel'}).textContent = CFG.axisXLabel || '';
 }
 
 function drawBars(){
-  gBars.innerHTML=''; gVals.innerHTML=''; gHands.innerHTML=''; gA11y.innerHTML='';
+  gBars.innerHTML=''; gVals.innerHTML=''; gHands.innerHTML=''; gLocks.innerHTML=''; gA11y.innerHTML='';
 
   values.forEach((v,i)=>{
     const cx = xPos(i);
@@ -105,18 +108,26 @@ function drawBars(){
       y: y,
       width: barW,
       height: Math.max(2, (H-M.b) - y),
-      class:'bar'
+      class: 'bar' + (locked[i] ? ' locked' : '')
     });
     rect.dataset.index = i;
     rect.addEventListener('pointerdown', onDragStart);
 
     // 2) HÅNDTAK (draggbar)
     addTo(gHands,'circle',{cx:cx, cy:y-2+2, r:16, class:'handleShadow'});
-    const h = addTo(gHands,'circle',{cx:cx, cy:y-2, r:14, class:'handle'});
+    const h = addTo(gHands,'circle',{cx:cx, cy:y-2, r:14, class:'handle' + (locked[i] ? ' locked' : '')});
     h.dataset.index = i;
     h.addEventListener('pointerdown', onDragStart);
 
-    // 3) A11y‐overlay (fokus + tastatur + stor klikkflate)
+    // 3) LÅS-ikon
+    let ly = y - 26;
+    if(ly < M.t + 16) ly = M.t + 16;
+    const lock = addTo(gLocks,'text',{x:cx, y:ly, class:'lock', 'text-anchor':'middle'});
+    lock.textContent = locked[i] ? '🔒' : '🔓';
+    lock.dataset.index = i;
+    lock.addEventListener('click', toggleLock);
+
+    // 4) A11y‐overlay (fokus + tastatur + stor klikkflate)
     const a11y = addTo(gA11y,'rect',{
       x: cx - xBand*0.5,
       y: M.t,
@@ -133,6 +144,7 @@ function drawBars(){
       'aria-valuenow': String(v),
       'aria-valuetext': `${CFG.labels[i]}: ${fmt(v)}`
     });
+    if(locked[i]) a11y.setAttribute('aria-disabled','true');
     a11y.dataset.index = i;
     a11y.addEventListener('pointerdown', onDragStart);
     a11y.addEventListener('keydown', onKeyAdjust);
@@ -142,7 +154,7 @@ function drawBars(){
       a11y.focus({ preventScroll: true });
     }
 
-    // 4) Verdi (øverst, ikke-interaktiv)
+    // 5) Verdi (øverst, ikke-interaktiv)
     const txt = addTo(gVals,'text',{x:cx, y:y-10, class:'value'});
     txt.textContent = fmt(v);
   });
@@ -153,6 +165,7 @@ function drawBars(){
    ========================================================= */
 function onDragStart(e){
   const idx = +e.currentTarget.dataset.index;
+  if (locked[idx]) return;
   lastFocusIndex = idx;
 
   const move = ev=>{
@@ -174,6 +187,7 @@ function onDragStart(e){
    ========================================================= */
 function onKeyAdjust(e){
   const idx = +e.currentTarget.dataset.index;
+  if (locked[idx]) return;
   lastFocusIndex = idx;
 
   const step = CFG.snap || 1;
@@ -199,6 +213,7 @@ function onKeyAdjust(e){
    STATE / BEREGNING
    ========================================================= */
 function setValue(idx, newVal, announce=false){
+  if (locked[idx]) return;
   const snapped = snap(newVal, CFG.snap || 1);
   const v = clamp(snapped, yMin, yMax);
   values[idx] = v;
@@ -206,6 +221,12 @@ function setValue(idx, newVal, announce=false){
   if(announce){
     updateStatus(`${CFG.labels[idx]}: ${fmt(v)}`);
   }
+}
+
+function toggleLock(e){
+  const idx = +e.currentTarget.dataset.index;
+  locked[idx] = !locked[idx];
+  drawBars();
 }
 
 function yToValue(py){
