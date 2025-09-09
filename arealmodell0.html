@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Arealmodell 0</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraph.css" />
+  <style>
+    html,body{height:100%;margin:0;}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#fff;}
+    #box{width:100%;height:calc(100vh - 56px);}
+    .toolbar{display:flex;gap:8px;padding:8px;}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraphcore.js"></script>
+</head>
+<body>
+  <div id="box" class="jxgbox" aria-label="Arealmodell rektangel"></div>
+  <div class="toolbar">
+    <button id="btnReset" type="button">Reset</button>
+    <button id="btnSvg" type="button">Last ned SVG</button>
+    <button id="btnSvgInteractive" type="button">Last ned interaktiv SVG</button>
+    <button id="btnHtml" type="button">Last ned interaktiv HTML</button>
+  </div>
+  <script src="arealmodell0.js"></script>
+</body>
+</html>
