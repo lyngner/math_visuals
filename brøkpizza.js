@@ -276,6 +276,154 @@ const EXPORT_SVG_STYLE = `
 .fracLine{stroke:#000;stroke-width:2}
 `;
 
+const INTERACTIVE_SVG_SCRIPT = `
+/*<![CDATA[*/
+(function(){
+  "use strict";
+  var root=document.currentScript.parentNode, TAU=Math.PI*2;
+  function el(n,a){var e=document.createElementNS("http://www.w3.org/2000/svg",n); for(var k in a){e.setAttribute(k,a[k]);} return e;}
+  function arc(r,a0,a1){var raw=a1-a0,s=((raw%TAU)+TAU)%TAU,full=Math.abs(s)<1e-6&&Math.abs(raw)>1e-6;
+    if(full) return "M "+r+" 0 A "+r+" "+r+" 0 1 1 "+(-r)+" 0 A "+r+" "+r+" 0 1 1 "+r+" 0 Z";
+    var sw=1,lg=s>Math.PI?1:0,x0=r*Math.cos(a0),y0=r*Math.sin(a0),x1=r*Math.cos(a1),y1=r*Math.sin(a1);
+    return "M 0 0 L "+x0+" "+y0+" A "+r+" "+r+" 0 "+lg+" "+sw+" "+x1+" "+y1+" Z";
+  }
+  function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
+  function fmt(x){var s=(Math.round(x*100)/100).toFixed(2);return s.replace(/\.?0+$/,"");}
+
+  var textMode=root.getAttribute("data-textmode")||"none";
+  var nmin=+root.getAttribute("data-nmin")||1, nmax=+root.getAttribute("data-nmax")||24;
+  var n=+root.getAttribute("data-n")||10, k=+root.getAttribute("data-k")||0, R=+root.getAttribute("data-r")||180;
+
+  var fill=root.querySelector('[data-role="fill"]')||root.querySelectorAll("g")[0];
+  var linesB=root.querySelector('[data-role="linesB"]')||el("g",{}); if(!linesB.parentNode) root.appendChild(linesB);
+  var linesW=root.querySelector('[data-role="linesW"]')||el("g",{}); if(!linesW.parentNode) root.appendChild(linesW);
+  var handle=root.querySelector(".handle");
+  var clipFilled=root.querySelector('clipPath[id$="clipFilled"]');
+  var clipEmpty=root.querySelector('clipPath[id$="clipEmpty"]');
+
+  function setHandle(a){ if(!handle){ handle=el("circle",{r:10,"class":"handle"}); root.appendChild(handle); }
+    handle.setAttribute("cx",R*Math.cos(a)); handle.setAttribute("cy",R*Math.sin(a)); }
+
+  function rebuildLines(){
+    while(linesB.firstChild) linesB.removeChild(linesB.firstChild);
+    while(linesW.firstChild) linesW.removeChild(linesW.firstChild);
+    var step=TAU/n;
+    for(var i=0;i<n;i++){
+      var a=i*step, x=R*Math.cos(a), y=R*Math.sin(a);
+      var b=el("line",{x1:0,y1:0,x2:x,y2:y,"class":"dash"});
+      var w=el("line",{x1:0,y1:0,x2:x,y2:y,"class":"dash"}); w.setAttribute("stroke","#fff");
+      linesB.appendChild(b); linesW.appendChild(w);
+    }
+  }
+  function rebuildSectors(){
+    while(fill.firstChild) fill.removeChild(fill.firstChild);
+    var step=TAU/n;
+    for(var i=0;i<n;i++){ var a0=i*step,a1=a0+step,f=i<k;
+      fill.appendChild(el("path",{d:arc(R,a0,a1),"class":"sector "+(f?"sector-fill":"sector-empty")}));
+    }
+    if(clipFilled&&clipEmpty){
+      while(clipFilled.firstChild) clipFilled.removeChild(clipFilled.firstChild);
+      while(clipEmpty.firstChild)  clipEmpty.removeChild(clipEmpty.firstChild);
+      var aEnd=k*step;
+      if(k<=0) clipEmpty.appendChild(el("circle",{cx:0,cy:0,r:R}));
+      else if(k>=n) clipFilled.appendChild(el("circle",{cx:0,cy:0,r:R}));
+      else { clipFilled.appendChild(el("path",{d:arc(R,0,aEnd)})); clipEmpty.appendChild(el("path",{d:arc(R,aEnd,TAU)})); }
+      setHandle(aEnd);
+    }
+  }
+
+  /* ---- TEKST OVER ---- */
+  var textLayer=el("g",{id:"textLayer"}); root.appendChild(textLayer);
+  var yTop=-R-30; // over sirkelen
+  var tMeta=null,tNum=null,tDen=null,tLine=null;
+  if(textMode==="percent"||textMode==="decimal"){
+    tMeta=el("text",{x:0,y:yTop,"class":"meta"}); textLayer.appendChild(tMeta);
+  }else if(textMode==="frac"){
+    var HALF=18;
+    tNum =el("text",{x:0,y:yTop-12,"class":"fracNum"});
+    tDen =el("text",{x:0,y:yTop+24,"class":"fracDen"});
+    tLine=el("line",{x1:-HALF,y1:yTop,x2:HALF,y2:yTop,"class":"fracLine"});
+    textLayer.appendChild(tNum); textLayer.appendChild(tLine); textLayer.appendChild(tDen);
+  }
+  function updateTexts(){
+    if(textMode==="percent"&&tMeta){ var p=n?(k/n*100):0; tMeta.textContent=fmt(p)+" %"; }
+    else if(textMode==="decimal"&&tMeta){ var d=n?(k/n):0; tMeta.textContent=fmt(d); }
+    else if(textMode==="frac"&&tNum&&tDen){ var g=gcd(k,n); tNum.textContent=(k/g).toString(); tDen.textContent=(n/g).toString(); }
+  }
+
+  /* ---- KNAPPER UNDER ---- */
+  var controls=el("g",{id:"nControls"});
+  var BW=46,BH=30,GAP=28;
+  var y=R+34;
+  var xMinus=-(BW+GAP), xPlus=GAP;
+  var btnMinus=el("rect",{x:xMinus,y:y,width:BW,height:BH,rx:8,ry:8,"class":"btn",tabindex:0});
+  var btnPlus =el("rect",{x:xPlus ,y:y,width:BW,height:BH,rx:8,ry:8,"class":"btn",tabindex:0});
+  var lblMinus=el("text",{x:xMinus+BW/2,y:y+BH/2,"class":"btnLabel"}); lblMinus.textContent="−";
+  var lblPlus =el("text",{x:xPlus +BW/2,y:y+BH/2,"class":"btnLabel"});  lblPlus.textContent="+";
+  var nValText=el("text",{x:0,y:y+BH/2,"class":"btnLabel"}); nValText.textContent=String(n);
+  controls.appendChild(btnMinus); controls.appendChild(btnPlus);
+  controls.appendChild(lblMinus); controls.appendChild(lblPlus); controls.appendChild(nValText);
+  root.appendChild(controls);
+
+  function setN(nn){
+    nn=Math.max(nmin,Math.min(nmax,Math.round(nn)));
+    if(nn===n) return;
+    n=nn; if(k>n) k=n;
+    nValText.textContent=String(n);
+    rebuildSectors(); rebuildLines(); updateTexts();
+  }
+
+  var dragging=false;
+  if(handle){
+    handle.setAttribute("tabindex","0");
+    handle.addEventListener("pointerdown",function(e){dragging=true;try{handle.setPointerCapture(e.pointerId);}catch(_){}});
+    handle.addEventListener("pointerup",function(e){dragging=false;try{handle.releasePointerCapture(e.pointerId);}catch(_){}});
+    root.addEventListener("pointerleave",function(){dragging=false;});
+    root.addEventListener("pointermove",function(e){
+      if(!dragging) return;
+      var pt=root.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
+      var p=pt.matrixTransform(root.getScreenCTM().inverse());
+      var ang=Math.atan2(p.y,p.x); if(ang<0) ang+=TAU;
+      var step=TAU/n; k=Math.max(0,Math.min(n,Math.round(ang/step)));
+      rebuildSectors(); updateTexts();
+    });
+    root.addEventListener("click",function(e){
+      if(e.target===handle||e.target===btnMinus||e.target===btnPlus) return;
+      var pt=root.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
+      var p=pt.matrixTransform(root.getScreenCTM().inverse());
+      var ang=Math.atan2(p.y,p.x); if(ang<0) ang+=TAU;
+      var step=TAU/n; k=Math.max(0,Math.min(n,Math.round(ang/step)));
+      rebuildSectors(); updateTexts();
+    });
+    handle.addEventListener("keydown",function(e){
+      var used=false;
+      switch(e.key){
+        case "ArrowRight": case "ArrowUp":   k=Math.min(n,k+1); used=true; break;
+        case "ArrowLeft":  case "ArrowDown": k=Math.max(0,k-1); used=true; break;
+        case "Home": k=0; used=true; break;
+        case "End":  k=n; used=true; break;
+      }
+      if(used){ e.preventDefault(); rebuildSectors(); updateTexts(); }
+    });
+  }
+  function clickMinus(){ setN(n-1); }
+  function clickPlus(){ setN(n+1); }
+  btnMinus.addEventListener("click",clickMinus);
+  btnPlus .addEventListener("click",clickPlus);
+  btnMinus.addEventListener("keydown",function(e){
+    if(e.key==="Enter"||e.key===" "||e.key==="-"||e.key==="ArrowLeft"){e.preventDefault();clickMinus();}
+    if(e.key==="PageDown"){e.preventDefault();setN(n-5);}
+  });
+  btnPlus.addEventListener("keydown",function(e){
+    if(e.key==="Enter"||e.key===" "||e.key==="+"||e.key==="ArrowRight"){e.preventDefault();clickPlus();}
+    if(e.key==="PageUp"){e.preventDefault();setN(n+5);}
+  });
+
+  rebuildLines(); rebuildSectors(); updateTexts();
+})();
+/*]]>*/
+`;
+
 /* =======================
    Nedlasting: statisk SVG
    ======================= */
@@ -371,159 +519,9 @@ function downloadInteractiveSVG(svgEl, filename="pizza-interaktiv.svg") {
   clone.setAttribute("data-nmax", String(nMax));
 
   // Inline-skript (med rettet parentes-feil)
-  const scriptCode = `
-/*<![CDATA[*/
-(function(){
-  "use strict";
-  var root=document.documentElement, TAU=Math.PI*2;
-  function el(n,a){var e=document.createElementNS("http://www.w3.org/2000/svg",n); for(var k in a){e.setAttribute(k,a[k]);} return e;}
-  function arc(r,a0,a1){var raw=a1-a0,s=((raw%TAU)+TAU)%TAU,full=Math.abs(s)<1e-6&&Math.abs(raw)>1e-6;
-    if(full) return "M "+r+" 0 A "+r+" "+r+" 0 1 1 "+(-r)+" 0 A "+r+" "+r+" 0 1 1 "+r+" 0 Z";
-    var sw=1,lg=s>Math.PI?1:0,x0=r*Math.cos(a0),y0=r*Math.sin(a0),x1=r*Math.cos(a1),y1=r*Math.sin(a1);
-    return "M 0 0 L "+x0+" "+y0+" A "+r+" "+r+" 0 "+lg+" "+sw+" "+x1+" "+y1+" Z";
-  }
-  function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
-  function fmt(x){var s=(Math.round(x*100)/100).toFixed(2);return s.replace(/\\.?0+$/,"");}
-
-  var textMode=root.getAttribute("data-textmode")||"none";
-  var nmin=+root.getAttribute("data-nmin")||1, nmax=+root.getAttribute("data-nmax")||24;
-  var n=+root.getAttribute("data-n")||10, k=+root.getAttribute("data-k")||0, R=+root.getAttribute("data-r")||180;
-
-  var fill=root.querySelector('[data-role="fill"]')||root.querySelectorAll("g")[0];
-  var linesB=root.querySelector('[data-role="linesB"]')||el("g",{}); if(!linesB.parentNode) root.appendChild(linesB);
-  var linesW=root.querySelector('[data-role="linesW"]')||el("g",{}); if(!linesW.parentNode) root.appendChild(linesW);
-  var handle=root.querySelector(".handle");
-  var clipFilled=root.querySelector('clipPath[id$="clipFilled"]');
-  var clipEmpty=root.querySelector('clipPath[id$="clipEmpty"]');
-
-  function setHandle(a){ if(!handle){ handle=el("circle",{r:10,"class":"handle"}); root.appendChild(handle); }
-    handle.setAttribute("cx",R*Math.cos(a)); handle.setAttribute("cy",R*Math.sin(a)); }
-
-  function rebuildLines(){
-    while(linesB.firstChild) linesB.removeChild(linesB.firstChild);
-    while(linesW.firstChild) linesW.removeChild(linesW.firstChild);
-    var step=TAU/n;
-    for(var i=0;i<n;i++){
-      var a=i*step, x=R*Math.cos(a), y=R*Math.sin(a);
-      var b=el("line",{x1:0,y1:0,x2:x,y2:y,"class":"dash"});
-      var w=el("line",{x1:0,y1:0,x2:x,y2:y,"class":"dash"}); w.setAttribute("stroke","#fff");
-      linesB.appendChild(b); linesW.appendChild(w);
-    }
-  }
-  function rebuildSectors(){
-    while(fill.firstChild) fill.removeChild(fill.firstChild);
-    var step=TAU/n;
-    for(var i=0;i<n;i++){ var a0=i*step,a1=a0+step,f=i<k;
-      fill.appendChild(el("path",{d:arc(R,a0,a1),"class":"sector "+(f?"sector-fill":"sector-empty")}));
-    }
-    if(clipFilled&&clipEmpty){
-      while(clipFilled.firstChild) clipFilled.removeChild(clipFilled.firstChild);
-      while(clipEmpty.firstChild)  clipEmpty.removeChild(clipEmpty.firstChild);
-      var aEnd=k*step;
-      if(k<=0) clipEmpty.appendChild(el("circle",{cx:0,cy:0,r:R}));
-      else if(k>=n) clipFilled.appendChild(el("circle",{cx:0,cy:0,r:R}));
-      else { clipFilled.appendChild(el("path",{d:arc(R,0,aEnd)})); clipEmpty.appendChild(el("path",{d:arc(R,aEnd,TAU)})); }
-      setHandle(aEnd);
-    }
-  }
-
-  /* ---- TEKST OVER ---- */
-  var textLayer=el("g",{id:"textLayer"}); root.appendChild(textLayer);
-  var yTop=-R-30; // over sirkelen
-  var tMeta=null,tNum=null,tDen=null,tLine=null;
-  if(textMode==="percent"||textMode==="decimal"){
-    tMeta=el("text",{x:0,y:yTop,"class":"meta"}); textLayer.appendChild(tMeta);
-  }else if(textMode==="frac"){
-    var HALF=18;        // kortere strek
-    tNum =el("text",{x:0,y:yTop-12,"class":"fracNum"});
-    tDen =el("text",{x:0,y:yTop+24,"class":"fracDen"});
-    tLine=el("line",{x1:-HALF,y1:yTop,x2:HALF,y2:yTop,"class":"fracLine"});
-    textLayer.appendChild(tNum); textLayer.appendChild(tLine); textLayer.appendChild(tDen);
-  }
-  function updateTexts(){
-    if(textMode==="percent"&&tMeta){ var p=n?(k/n*100):0; tMeta.textContent=fmt(p)+" %"; }
-    else if(textMode==="decimal"&&tMeta){ var d=n?(k/n):0; tMeta.textContent=fmt(d); }
-    else if(textMode==="frac"&&tNum&&tDen){ var g=gcd(k,n); tNum.textContent=(k/g).toString(); tDen.textContent=(n/g).toString(); }
-  }
-
-  /* ---- KNAPPER UNDER ---- */
-  var controls=el("g",{id:"nControls"});
-  var BW=46,BH=30,GAP=28;
-  var y=R+34;
-  var xMinus=-(BW+GAP), xPlus=GAP;
-  var btnMinus=el("rect",{x:xMinus,y:y,width:BW,height:BH,rx:8,ry:8,"class":"btn",tabindex:0});
-  var btnPlus =el("rect",{x:xPlus ,y:y,width:BW,height:BH,rx:8,ry:8,"class":"btn",tabindex:0});
-  var lblMinus=el("text",{x:xMinus+BW/2,y:y+BH/2,"class":"btnLabel"}); lblMinus.textContent="−";
-  var lblPlus =el("text",{x:xPlus +BW/2,y:y+BH/2,"class":"btnLabel"});  lblPlus.textContent="+";
-  var nValText=el("text",{x:0,y:y+BH/2,"class":"btnLabel"}); nValText.textContent=String(n);
-  controls.appendChild(btnMinus); controls.appendChild(btnPlus);
-  controls.appendChild(lblMinus); controls.appendChild(lblPlus); controls.appendChild(nValText);
-  root.appendChild(controls);
-
-  function setN(nn){
-    nn=Math.max(nmin,Math.min(nmax,Math.round(nn)));
-    if(nn===n) return;
-    n=nn; if(k>n) k=n;
-    nValText.textContent=String(n);
-    rebuildSectors(); rebuildLines(); updateTexts();
-  }
-
-  // Interaksjon for k (teller)
-  var dragging=false;
-  if(handle){
-    handle.setAttribute("tabindex","0");
-    handle.addEventListener("pointerdown",function(e){dragging=true;try{handle.setPointerCapture(e.pointerId);}catch(_){}})
-    handle.addEventListener("pointerup",function(e){dragging=false;try{handle.releasePointerCapture(e.pointerId);}catch(_){}})
-    root.addEventListener("pointerleave",function(){dragging=false;});
-    root.addEventListener("pointermove",function(e){
-      if(!dragging) return;
-      var pt=root.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
-      var p=pt.matrixTransform(root.getScreenCTM().inverse());
-      var ang=Math.atan2(p.y,p.x); if(ang<0) ang+=TAU;
-      var step=TAU/n; k=Math.max(0,Math.min(n,Math.round(ang/step)));
-      rebuildSectors(); updateTexts();
-    });
-    root.addEventListener("click",function(e){
-      if(e.target===handle||e.target===btnMinus||e.target===btnPlus) return;
-      var pt=root.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
-      var p=pt.matrixTransform(root.getScreenCTM().inverse());
-      var ang=Math.atan2(p.y,p.x); if(ang<0) ang+=TAU;
-      var step=TAU/n; k=Math.max(0,Math.min(n,Math.round(ang/step)));
-      rebuildSectors(); updateTexts();
-    });
-    handle.addEventListener("keydown",function(e){
-      var used=false;
-      switch(e.key){
-        case "ArrowRight": case "ArrowUp":   k=Math.min(n,k+1); used=true; break;
-        case "ArrowLeft":  case "ArrowDown": k=Math.max(0,k-1); used=true; break;
-        case "Home": k=0; used=true; break;
-        case "End":  k=n; used=true; break;
-      }
-      if(used){ e.preventDefault(); rebuildSectors(); updateTexts(); }
-    });
-  }
-  function clickMinus(){ setN(n-1); }
-  function clickPlus(){ setN(n+1); }
-  btnMinus.addEventListener("click",clickMinus);
-  btnPlus .addEventListener("click",clickPlus);
-  btnMinus.addEventListener("keydown",function(e){
-    if(e.key==="Enter"||e.key===" "||e.key==="-"||e.key==="ArrowLeft"){e.preventDefault();clickMinus();}
-    if(e.key==="PageDown"){e.preventDefault();setN(n-5);}
-  });
-  btnPlus.addEventListener("keydown",function(e){
-    if(e.key==="Enter"||e.key===" "||e.key==="+"||e.key==="ArrowRight"){e.preventDefault();clickPlus();}
-    if(e.key==="PageUp"){e.preventDefault();setN(n+5);}
-  });
-
-  // Init
-  rebuildLines(); rebuildSectors(); updateTexts();
-})();
-/*]]>*/
-  `;
-
   const scriptEl = document.createElementNS("http://www.w3.org/2000/svg","script");
   scriptEl.setAttribute("type","application/ecmascript");
-  scriptEl.appendChild(document.createTextNode(scriptCode));
+  scriptEl.appendChild(document.createTextNode(INTERACTIVE_SVG_SCRIPT));
   clone.appendChild(scriptEl);
 
   const xml = new XMLSerializer().serializeToString(clone);
@@ -540,38 +538,96 @@ function downloadInteractiveSVG(svgEl, filename="pizza-interaktiv.svg") {
   URL.revokeObjectURL(url);
 }
 
-/* =======================
-   UI-knapper under hver pizza i appen
-   ======================= */
-function addDownloadButtons(svgId) {
-  const svg = document.getElementById(svgId);
-  if(!svg) return;
-  const panel = svg.closest(".pizzaPanel") || svg.parentNode;
+function getVisiblePizzas(){
+  return PIZZA_DOM
+    .map(m => document.getElementById(m.svgId))
+    .filter(svg => svg && svg.closest(".pizzaPanel")?.style.display !== "none");
+}
 
-  const wrap = document.createElement("div");
-  wrap.style.display = "flex";
-  wrap.style.gap = "8px";
-  wrap.style.flexWrap = "wrap";
-  wrap.style.alignItems = "center";
-  wrap.style.marginTop = "6px";
+function downloadAllPizzasSVG(filename="broksirkler.svg"){
+  const svgs=getVisiblePizzas();
+  if(!svgs.length) return;
+  const gap=24, size=420;
+  const w=size*svgs.length + gap*(svgs.length-1);
+  const h=size;
+  const root=mk("svg",{xmlns:"http://www.w3.org/2000/svg", "xmlns:xlink":"http://www.w3.org/1999/xlink", width:w, height:h, viewBox:`0 0 ${w} ${h}`});
+  const bg=mk("rect",{x:0,y:0,width:w,height:h,fill:"#fff"});
+  root.appendChild(bg);
+  const styleEl=mk("style",{type:"text/css"});
+  styleEl.appendChild(document.createTextNode(EXPORT_SVG_STYLE));
+  root.appendChild(styleEl);
+  svgs.forEach((svg,i)=>{
+    const clone=svg.cloneNode(true);
+    clone.querySelectorAll(".handle, .a11y").forEach(el=>el.remove());
+    clone.setAttribute("x", i*(size+gap));
+    clone.setAttribute("y", 0);
+    clone.setAttribute("width", size);
+    clone.setAttribute("height", size);
+    root.appendChild(clone);
+  });
+  const xml=new XMLSerializer().serializeToString(root);
+  const file=`<?xml version="1.0" encoding="UTF-8"?>\n`+xml;
+  const blob=new Blob([file],{type:"image/svg+xml;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
 
-  const mkBtn = (label)=> {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = label;
-    b.setAttribute("aria-label", label);
-    b.style.cssText = "padding:6px 10px;border:1px solid #cfcfcf;border-radius:8px;background:#fff;cursor:pointer;";
-    return b;
-  };
+function downloadAllPizzasInteractiveSVG(filename="broksirkler-interaktiv.svg"){
+  const svgs=getVisiblePizzas();
+  if(!svgs.length) return;
+  const gap=24, size=420, M_TOP=78, M_BOTTOM=96;
+  const w=size*svgs.length + gap*(svgs.length-1);
+  const h=size + M_TOP + M_BOTTOM;
+  const root=mk("svg",{xmlns:"http://www.w3.org/2000/svg", "xmlns:xlink":"http://www.w3.org/1999/xlink", width:w, height:h, viewBox:`0 0 ${w} ${h}`});
+  const bg=mk("rect",{x:0,y:0,width:w,height:h,fill:"#fff"});
+  root.appendChild(bg);
+  const styleEl=mk("style",{type:"text/css"});
+  styleEl.appendChild(document.createTextNode(EXPORT_SVG_STYLE));
+  root.appendChild(styleEl);
+  svgs.forEach((svg,i)=>{
+    const clone=svg.cloneNode(true);
+    const inst=REG.get(svg);
+    const textMode=inst?.textMode || "none";
+    const nMin=inst?.minN ?? 1;
+    const nMax=inst?.maxN ?? 24;
+    const n=clone.querySelectorAll(".sector").length || 1;
+    const k=clone.querySelectorAll(".sector-fill").length || 0;
+    const rEl=clone.querySelector("circle.rim");
+    const R=rEl?parseFloat(rEl.getAttribute("r")||"180"):180;
+    const hndl=clone.querySelector(".handle");
+    if(hndl && hndl.parentNode && hndl.parentNode.style) hndl.parentNode.style.display="";
+    clone.setAttribute("data-n", String(n));
+    clone.setAttribute("data-k", String(k));
+    clone.setAttribute("data-r", String(R));
+    clone.setAttribute("data-textmode", textMode);
+    clone.setAttribute("data-nmin", String(nMin));
+    clone.setAttribute("data-nmax", String(nMax));
+    clone.setAttribute("x", i*(size+gap));
+    clone.setAttribute("y", M_TOP);
+    clone.setAttribute("width", size);
+    clone.setAttribute("height", size);
+    const scriptEl=document.createElementNS("http://www.w3.org/2000/svg","script");
+    scriptEl.setAttribute("type","application/ecmascript");
+    scriptEl.appendChild(document.createTextNode(INTERACTIVE_SVG_SCRIPT));
+    clone.appendChild(scriptEl);
+    root.appendChild(clone);
+  });
+  const xml=new XMLSerializer().serializeToString(root);
+  const file=`<?xml version="1.0" encoding="UTF-8"?>\n`+xml;
+  const blob=new Blob([file],{type:"image/svg+xml;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
 
-  const btnStatic = mkBtn("Last ned SVG");
-  btnStatic.addEventListener("click", ()=> downloadSVG(svg, svgId + ".svg"));
-
-  const btnInteractive = mkBtn("Last ned interaktiv SVG");
-  btnInteractive.addEventListener("click", ()=> downloadInteractiveSVG(svg, svgId + "-interaktiv.svg"));
-
-  wrap.append(btnStatic, btnInteractive);
-  panel.appendChild(wrap);
+function setupGlobalDownloadButtons(){
+  const btnStatic=document.getElementById("btnStaticAll");
+  const btnInteractive=document.getElementById("btnInteractiveAll");
+  if(btnStatic) btnStatic.addEventListener("click",()=>downloadAllPizzasSVG());
+  if(btnInteractive) btnInteractive.addEventListener("click",()=>downloadAllPizzasInteractiveSVG());
 }
 
 /* =======================
@@ -604,13 +660,13 @@ function initFromHtml(){
       lockNumerator:   !!pcfg.lockT
     });
 
-    addDownloadButtons(map.svgId);
   });
   scheduleCenterAlign();
 }
 
 window.addEventListener("load", () => {
   initFromHtml();
+  setupGlobalDownloadButtons();
   document.querySelectorAll("input, select").forEach(el => {
     el.addEventListener("input", initFromHtml);
     el.addEventListener("change", initFromHtml);
