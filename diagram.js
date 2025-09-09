@@ -2,6 +2,7 @@
    KONFIG – forfatter styrer alt her
    ========================================================= */
 const CFG = {
+  title: 'Diagram',
   labels: ['1','2','4','6','Ingen'],      // x-etiketter
   start:  [8,0,7,0,0],                    // startverdier
   answer: [10,6,3,1,4],                   // fasit
@@ -56,6 +57,7 @@ function initFromCfg(){
   barW  = xBand * 0.6;
   yMax  = CFG.yMax ?? niceMax([...CFG.start, ...CFG.answer]);
   lastFocusIndex = null;
+  document.getElementById('chartTitle').textContent = CFG.title || '';
   drawAxesAndGrid();
   drawBars();
 }
@@ -239,6 +241,7 @@ document.getElementById('btnApplyCfg').addEventListener('click', ()=>{
   const starts = parseNumList(document.getElementById('cfgStart').value);
   const answers = parseNumList(document.getElementById('cfgAnswer').value);
   const yMaxVal = parseFloat(document.getElementById('cfgYMax').value);
+  CFG.title = document.getElementById('cfgTitle').value;
   CFG.labels = lbls;
   CFG.start  = alignLength(starts, lbls.length, 0);
   CFG.answer = alignLength(answers, lbls.length, 0);

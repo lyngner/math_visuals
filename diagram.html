@@ -38,13 +38,13 @@
 
     /* Akser og rutenett */
     .axis{stroke:#222;stroke-width:3;fill:none}
-    .grid{stroke:#999;stroke-dasharray:6 6;stroke-width:1;opacity:.6}
+    .grid{stroke:#999;stroke-width:1;opacity:.6}
     .yTickText{fill:#333;font-size:14px;text-anchor:end}
     .xLabel{fill:#333;font-size:18px;text-anchor:middle}
     .yLabel{fill:#333;font-size:18px}
 
     /* Søyler + vurderingsrammer */
-    .bar{fill:#5B2AA5;fill-opacity:1;opacity:1}
+    .bar{fill:#7c3aed;fill-opacity:1;opacity:1}
     .bar.badge-ok{stroke:#2e7d32;stroke-width:4}
     .bar.badge-no{stroke:#c62828;stroke-width:4}
 
@@ -64,7 +64,7 @@
   <div class="wrap">
     <div class="grid">
       <div class="card">
-        <h2>Diagram</h2>
+        <h2 id="chartTitle">Diagram</h2>
         <div class="figure">
           <svg id="barsvg" viewBox="0 0 900 560" aria-label="Interaktivt stolpediagram"></svg>
         </div>
@@ -79,6 +79,9 @@
       <div class="card">
         <h2>Innstillinger</h2>
         <div class="settings">
+          <label>Overskrift
+            <input id="cfgTitle" type="text" value="Diagram">
+          </label>
           <label>Etiketter (kommaseparert)
             <input id="cfgLabels" type="text" value="1,2,4,6,Ingen">
           </label>
