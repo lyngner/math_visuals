@@ -16,7 +16,7 @@ const ADV = {
 };
 
 /* ============ DERIVERT KONFIG FOR RENDER (IKKE REDIGER) ============ */
-const CFG = {
+let CFG = {
   total: SIMPLE.total,
   minN: SIMPLE.minN,
   maxN: SIMPLE.maxN,
@@ -49,9 +49,7 @@ const gBrace  = add('g');     // parentes + TOTAL
 addTo(gBase ,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-rect-empty'});
 addTo(gFrame,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-frame'});
 
-// Firkantparentes + total
-drawBracketSquare(L, R, BRACE_Y, CFG.bracketTick);
-addTo(gBrace,'text',{x:(L+R)/2, y:BRACE_Y - CFG.labelOffsetY, class:'tb-total'}).textContent = CFG.total;
+// Firkantparentes + total tegnes i applyConfig()
 
 // Håndtak
 const handleShadow = addTo(gHandle,'circle',{cx:R, cy:(TOP+BOT)/2+2, r:20, class:'tb-handle-shadow'});
@@ -118,6 +116,21 @@ function drawBracketSquare(x0, x1, y, tick){
   gBrace.appendChild(path);
 }
 
+function applyConfig(){
+  CFG = {
+    total: SIMPLE.total,
+    minN: SIMPLE.minN,
+    maxN: SIMPLE.maxN,
+    bracketTick: ADV.bracketTick,
+    labelOffsetY: ADV.labelOffsetY
+  };
+  n = clamp(SIMPLE.startN, CFG.minN, CFG.maxN);
+  k = clamp(SIMPLE.startK, 0, n);
+  drawBracketSquare(L, R, BRACE_Y, CFG.bracketTick);
+  addTo(gBrace,'text',{x:(L+R)/2, y:BRACE_Y - CFG.labelOffsetY, class:'tb-total'}).textContent = CFG.total;
+  redraw();
+}
+
 // ---------- Tegning ----------
 function redraw(){
   gFill.innerHTML = '';
@@ -159,5 +172,36 @@ function setK(next){
   redraw();
 }
 
+function setupSettingsUI(){
+  const totalInput = document.getElementById('cfg-total');
+  const nInput = document.getElementById('cfg-startN');
+  const kInput = document.getElementById('cfg-startK');
+  const minInput = document.getElementById('cfg-minN');
+  const maxInput = document.getElementById('cfg-maxN');
+  if(!totalInput || !nInput || !kInput || !minInput || !maxInput) return;
+
+  totalInput.value = SIMPLE.total;
+  nInput.value = SIMPLE.startN;
+  kInput.value = SIMPLE.startK;
+  minInput.value = SIMPLE.minN;
+  maxInput.value = SIMPLE.maxN;
+
+  function update(){
+    SIMPLE.total = parseInt(totalInput.value) || SIMPLE.total;
+    SIMPLE.startN = parseInt(nInput.value) || SIMPLE.startN;
+    SIMPLE.startK = parseInt(kInput.value) || SIMPLE.startK;
+    SIMPLE.minN = parseInt(minInput.value) || SIMPLE.minN;
+    SIMPLE.maxN = parseInt(maxInput.value) || SIMPLE.maxN;
+    applyConfig();
+  }
+
+  totalInput.addEventListener('change', update);
+  nInput.addEventListener('change', update);
+  kInput.addEventListener('change', update);
+  minInput.addEventListener('change', update);
+  maxInput.addEventListener('change', update);
+}
+
 // init
-redraw();
+setupSettingsUI();
+applyConfig();
