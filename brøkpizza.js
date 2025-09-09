@@ -609,7 +609,10 @@ function initFromHtml(){
   scheduleCenterAlign();
 }
 
-window.addEventListener("load", ()=>{
+window.addEventListener("load", () => {
   initFromHtml();
-  document.getElementById("btnApply")?.addEventListener("click", initFromHtml);
+  document.querySelectorAll("input, select").forEach(el => {
+    el.addEventListener("input", initFromHtml);
+    el.addEventListener("change", initFromHtml);
+  });
 });
