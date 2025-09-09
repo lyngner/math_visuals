@@ -64,14 +64,14 @@ const CFG = {
 /* ========================================================= */
 
 function readConfigFromHtml(){
-  const rows = parseInt(document.getElementById("rows")?.value,10);
-  if(Number.isFinite(rows)) CFG.SIMPLE.height.cells = rows;
-  const cols = parseInt(document.getElementById("cols")?.value,10);
-  if(Number.isFinite(cols)) CFG.SIMPLE.length.cells = cols;
-  const rHandle = parseInt(document.getElementById("rowsHandle")?.value,10);
-  if(Number.isFinite(rHandle)) CFG.SIMPLE.height.handle = rHandle;
-  const cHandle = parseInt(document.getElementById("colsHandle")?.value,10);
-  if(Number.isFinite(cHandle)) CFG.SIMPLE.length.handle = cHandle;
+  const height = parseInt(document.getElementById("height")?.value,10);
+  if(Number.isFinite(height)) CFG.SIMPLE.height.cells = height;
+  const length = parseInt(document.getElementById("length")?.value,10);
+  if(Number.isFinite(length)) CFG.SIMPLE.length.cells = length;
+  const hHandle = parseInt(document.getElementById("heightHandle")?.value,10);
+  if(Number.isFinite(hHandle)) CFG.SIMPLE.height.handle = hHandle;
+  const lHandle = parseInt(document.getElementById("lengthHandle")?.value,10);
+  if(Number.isFinite(lHandle)) CFG.SIMPLE.length.handle = lHandle;
   CFG.ADV.grid = document.getElementById("grid")?.checked ?? CFG.ADV.grid;
   CFG.ADV.splitLines = document.getElementById("splitLines")?.checked ?? CFG.ADV.splitLines;
 }
@@ -698,6 +698,21 @@ function initFromHtml(){
   readConfigFromHtml();
   render();
 }
+
+function setSimpleConfig(o={}){
+  if(o.height != null) CFG.SIMPLE.height.cells = Math.round(o.height);
+  if(o.length != null) CFG.SIMPLE.length.cells = Math.round(o.length);
+  if(o.heightHandle != null) CFG.SIMPLE.height.handle = Math.round(o.heightHandle);
+  if(o.lengthHandle != null) CFG.SIMPLE.length.handle = Math.round(o.lengthHandle);
+  const setVal = (id,v)=>{ const el=document.getElementById(id); if(el && v!=null) el.value=v; };
+  setVal("height", CFG.SIMPLE.height.cells);
+  setVal("length", CFG.SIMPLE.length.cells);
+  setVal("heightHandle", CFG.SIMPLE.height.handle);
+  setVal("lengthHandle", CFG.SIMPLE.length.handle);
+  render();
+}
+
+window.setArealmodellBConfig = setSimpleConfig;
 
 window.addEventListener('load', () => {
   initFromHtml();
