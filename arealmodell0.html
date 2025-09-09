@@ -32,7 +32,31 @@
     <div class="settings">
       <h2>Innstillinger</h2>
       <div id="settingsMenu" class="settings-menu">
+        <label>Lengde (celler)
+          <input id="lenCells" type="number" value="1" min="1">
+        </label>
+        <label>Maks lengde
+          <input id="lenMax" type="number" value="12" min="1">
+        </label>
+        <label>Høyde (celler)
+          <input id="heiCells" type="number" value="1" min="1">
+        </label>
+        <label>Maks høyde
+          <input id="heiMax" type="number" value="12" min="1">
+        </label>
+        <label>Snap
+          <input id="snap" type="number" value="1" min="1">
+        </label>
+        <label>Areal-tekst
+          <input id="areaLabel" type="text" value="areal">
+        </label>
         <label><input type="checkbox" id="chkGrid" checked> Vis rutenett</label>
+        <label><input type="checkbox" id="chkChallenge" checked> Oppgave-modus</label>
+        <label>Oppgave-areal
+          <input id="challengeArea" type="number" value="12" min="1">
+        </label>
+        <label><input type="checkbox" id="chkDedupe" checked> To kolonner</label>
+        <label><input type="checkbox" id="chkAutoExpand" checked> Auto maks</label>
       </div>
     </div>
   </div>

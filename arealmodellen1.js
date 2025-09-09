@@ -63,7 +63,20 @@ const CFG = {
 };
 /* ========================================================= */
 
-window.addEventListener("load", () => {
+function readConfigFromHtml(){
+  const rows = parseInt(document.getElementById("rows")?.value,10);
+  if(Number.isFinite(rows)) CFG.SIMPLE.height.cells = rows;
+  const cols = parseInt(document.getElementById("cols")?.value,10);
+  if(Number.isFinite(cols)) CFG.SIMPLE.length.cells = cols;
+  const rHandle = parseInt(document.getElementById("rowsHandle")?.value,10);
+  if(Number.isFinite(rHandle)) CFG.SIMPLE.height.handle = rHandle;
+  const cHandle = parseInt(document.getElementById("colsHandle")?.value,10);
+  if(Number.isFinite(cHandle)) CFG.SIMPLE.length.handle = cHandle;
+  CFG.ADV.grid = document.getElementById("grid")?.checked ?? CFG.ADV.grid;
+  CFG.ADV.splitLines = document.getElementById("splitLines")?.checked ?? CFG.ADV.splitLines;
+}
+
+function render(){
   const ADV = CFG.ADV, SV = CFG.SIMPLE;
 
   const UNIT = +ADV.unit || 40;
@@ -142,6 +155,7 @@ window.addEventListener("load", () => {
 
   // DOM
   const svg = document.getElementById(ADV.svgId);
+  svg.innerHTML = "";
   set(svg, "viewBox", `0 0 ${VBW} ${VBH}`);
   set(svg, "preserveAspectRatio", "xMidYMid meet");
   Object.assign(svg.style, {
@@ -406,14 +420,16 @@ window.addEventListener("load", () => {
   }
 
   // Reset
-  document.getElementById("btnReset")?.addEventListener("click", () => {
+  const btnReset = document.getElementById("btnReset");
+  if(btnReset) btnReset.onclick = () => {
     sx = clampInt(initLeftCols,   1, COLS-1) * UNIT;
     sy = clampInt(initBottomRows, 1, ROWS-1) * UNIT;
     scheduleRedraw();
-  });
+  };
 
   // ===== Eksporter interaktiv SVG =====
-  document.getElementById("btnSvg")?.addEventListener("click", () => {
+  const btnSvg = document.getElementById("btnSvg");
+  if(btnSvg) btnSvg.onclick = () => {
     const includeHandles = (showLeftHandle || showBottomHandle) || ADV.export?.includeHandlesIfHidden;
 
     const svgStr = buildInteractiveSvgString({
@@ -433,10 +449,11 @@ window.addEventListener("load", () => {
       safePad: ADV.fit?.safePad || {top:8,right:8,bottom:64,left:8}
     });
     downloadText(ADV.export?.filename || "arealmodell_interaktiv.svg", svgStr, "image/svg+xml");
-  });
+  };
 
   // ===== Eksporter interaktiv HTML =====
-  document.getElementById("btnHtml")?.addEventListener("click", () => {
+  const btnHtml = document.getElementById("btnHtml");
+  if(btnHtml) btnHtml.onclick = () => {
     const includeHandles = (showLeftHandle || showBottomHandle) || ADV.export?.includeHandlesIfHidden;
 
     const htmlStr = buildInteractiveHtmlString({
@@ -457,7 +474,7 @@ window.addEventListener("load", () => {
     });
     const fname = ADV.export?.filenameHtml || "arealmodell_interaktiv.html";
     downloadText(fname, htmlStr, "text/html;charset=utf-8");
-  });
+  };
 
   // ===== helpers =====
   function downloadText(filename, text, mime){
@@ -675,4 +692,17 @@ window.addEventListener("load", () => {
       "</body></html>"
     ].join("");
   }
+}
+
+function initFromHtml(){
+  readConfigFromHtml();
+  render();
+}
+
+window.addEventListener('load', () => {
+  initFromHtml();
+  document.querySelectorAll('.settings input').forEach(el => {
+    el.addEventListener('change', initFromHtml);
+    el.addEventListener('input', initFromHtml);
+  });
 });
