@@ -159,10 +159,8 @@ function render(){
   set(svg, "viewBox", `0 0 ${VBW} ${VBH}`);
   set(svg, "preserveAspectRatio", "xMidYMid meet");
   Object.assign(svg.style, {
-    width: "100vw",
-    height: "auto",
     maxHeight: (ADV.fit?.maxVh ?? 100) + "vh",
-    maxWidth:  (ADV.fit?.maxVw ?? 100) + "vw",
+    maxWidth: "100%",
     display: "block",
     touchAction: "none"
   });
@@ -329,11 +327,15 @@ function render(){
   // ---- Responsiv skalering ----
   function fitToViewport(){
     const SAFE = ADV.fit?.safePad || {top:8,right:8,bottom:64,left:8};
-    const availW = Math.max(100, window.innerWidth  - (SAFE.left + SAFE.right));
+    const availW = Math.max(100, svg.parentElement.clientWidth - (SAFE.left + SAFE.right));
     const availH = Math.max(100, window.innerHeight - (SAFE.top  + SAFE.bottom));
     const s = Math.min(availW / VBW, availH / VBH);
-    svg.setAttribute("width",  VBW * s);
-    svg.setAttribute("height", VBH * s);
+    const w = VBW * s;
+    const h = VBH * s;
+    svg.setAttribute("width",  w);
+    svg.setAttribute("height", h);
+    svg.style.width = w + "px";
+    svg.style.height = h + "px";
     refreshSvgRect();
   }
 
