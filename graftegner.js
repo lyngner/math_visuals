@@ -275,8 +275,16 @@ function rebuildFunctionSegmentsFor(g){
   for(var i=0;i<xs.length-1;i++){
     var a=xs[i], b=xs[i+1], leftOpen=(i>0), rightOpen=(i<xs.length-2);
     if(leftOpen) a+=eps; if(rightOpen) b-=eps; if(b<=a) continue;
-    g.segs.push( brd.create("functiongraph",[safe, function(){return a;}, function(){return b;}],
-      {strokeColor:g.color, strokeWidth:4,fixed:true,highlight:false}) );
+    // Use numeric bounds for each segment to avoid capturing mutable
+    // variables in closures, which could cause the graph to disappear
+    // when the view changes.
+    g.segs.push(
+      brd.create(
+        "functiongraph",
+        [safe, a, b],
+        {strokeColor:g.color, strokeWidth:4, fixed:true, highlight:false}
+      )
+    );
   }
 }
 function updateAllBrackets(){
