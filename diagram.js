@@ -31,24 +31,34 @@ const gA11y   = add('g');
 const gVals   = add('g');
 const gLabels = add('g');
 
-let values = CFG.start.slice();
-const N = CFG.labels.length;
+let values = [];
+let N = 0;
 
-let yMax = CFG.yMax ?? niceMax([...CFG.start, ...CFG.answer]);
+let yMax = 0;
 const yMin = 0;
 
 // skalaer
-const xBand = innerW / N;
-const barW  = xBand * 0.6;
+let xBand = 0;
+let barW  = 0;
 function xPos(i){ return M.l + xBand*i + xBand/2; }
 function yPos(v){ return M.t + innerH - (v - yMin) / (yMax - yMin) * innerH; }
 
 // husk sist fokusert søyle mellom redraw
 let lastFocusIndex = null;
 
-drawAxesAndGrid();
-drawBars();
+initFromCfg();
 updateStatus('Dra i søylene/håndtaket – eller bruk tastaturet.');
+
+function initFromCfg(){
+  values = CFG.start.slice();
+  N = CFG.labels.length;
+  xBand = innerW / N;
+  barW  = xBand * 0.6;
+  yMax  = CFG.yMax ?? niceMax([...CFG.start, ...CFG.answer]);
+  lastFocusIndex = null;
+  drawAxesAndGrid();
+  drawBars();
+}
 
 /* =========================================================
    RENDER
@@ -224,6 +234,25 @@ document.getElementById('btnCheck').addEventListener('click', ()=>{
   updateStatus(ok ? 'Riktig! 🎉' : 'Prøv igjen 🙂');
 });
 
+document.getElementById('btnApplyCfg').addEventListener('click', ()=>{
+  const lbls = parseList(document.getElementById('cfgLabels').value);
+  const starts = parseNumList(document.getElementById('cfgStart').value);
+  const answers = parseNumList(document.getElementById('cfgAnswer').value);
+  const yMaxVal = parseFloat(document.getElementById('cfgYMax').value);
+  CFG.labels = lbls;
+  CFG.start  = alignLength(starts, lbls.length, 0);
+  CFG.answer = alignLength(answers, lbls.length, 0);
+  CFG.yMax   = isNaN(yMaxVal) ? undefined : yMaxVal;
+  CFG.axisXLabel = document.getElementById('cfgAxisXLabel').value;
+  CFG.axisYLabel = document.getElementById('cfgAxisYLabel').value;
+  const snapVal = parseFloat(document.getElementById('cfgSnap').value);
+  CFG.snap = isNaN(snapVal) ? 1 : snapVal;
+  const tolVal = parseFloat(document.getElementById('cfgTolerance').value);
+  CFG.tolerance = isNaN(tolVal) ? 0 : tolVal;
+  initFromCfg();
+  updateStatus('Innstillinger oppdatert.');
+});
+
 /* =========================================================
    HJELPERE
    ========================================================= */
@@ -245,6 +274,18 @@ function clientToSvg(clientX, clientY){
 function fmt(x){ return (Math.round(x*100)/100).toString().replace('.',','); }
 function snap(v, s){ return Math.round(v / s) * s; }
 function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+
+function parseList(str){
+  return str.split(',').map(s=>s.trim()).filter(s=>s.length>0);
+}
+function parseNumList(str){
+  return parseList(str).map(s=>Number(s.replace(',', '.'))).map(v=>isNaN(v)?0:v);
+}
+function alignLength(arr, len, fill=0){
+  if(arr.length < len) return arr.concat(Array(len-arr.length).fill(fill));
+  if(arr.length > len) return arr.slice(0,len);
+  return arr;
+}
 
 function niceMax(arr){
   const m = Math.max(...arr);

@@ -38,6 +38,14 @@
     .btn:hover{background:#f7f7f7}
     .toolbar{display:flex;gap:10px}
     .status{min-height:1.8em;font-size:16px}
+
+    /* Innstillinger */
+    details{margin-top:16px;width:100%}
+    details[open]{display:block}
+    details summary{cursor:pointer;font-weight:600;font-size:16px}
+    .settings{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+    .settings label{display:flex;flex-direction:column;font-size:14px}
+    .settings input{padding:6px;border:1px solid #cfcfcf;border-radius:8px;font-size:14px}
   </style>
 </head>
 <body>
@@ -51,6 +59,37 @@
     </div>
 
     <div id="status" class="status" role="status" aria-live="polite"></div>
+
+    <details>
+      <summary>Innstillinger</summary>
+      <div class="settings">
+        <label>Etiketter (kommaseparert)
+          <input id="cfgLabels" type="text" value="1,2,4,6,Ingen">
+        </label>
+        <label>Startverdier
+          <input id="cfgStart" type="text" value="8,0,7,0,0">
+        </label>
+        <label>Fasitverdier
+          <input id="cfgAnswer" type="text" value="10,6,3,1,4">
+        </label>
+        <label>Maks y (valgfritt)
+          <input id="cfgYMax" type="text" value="15">
+        </label>
+        <label>Navn på x-akse
+          <input id="cfgAxisXLabel" type="text" value="Ant. bøker">
+        </label>
+        <label>Navn på y-akse
+          <input id="cfgAxisYLabel" type="text" value="Antall elever">
+        </label>
+        <label>Steg (snap)
+          <input id="cfgSnap" type="text" value="1">
+        </label>
+        <label>Toleranse
+          <input id="cfgTolerance" type="text" value="0">
+        </label>
+        <button id="btnApplyCfg" class="btn" type="button">Bruk innstillinger</button>
+      </div>
+    </details>
   </div>
 
   <!-- Legg JS i egen fil eller her: -->
