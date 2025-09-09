@@ -555,7 +555,6 @@ function bindUI(){
   const btnSvg = $("#btnSvg");
   const btnPng = $("#btnPng");
   const btnReset = $("#btnReset");
-  const inpAdv = $("#advConfig");
 
   const f1Sides=$("#f1Sides"), f1Angles=$("#f1Angles");
   const f2Sides=$("#f2Sides"), f2Angles=$("#f2Angles");
@@ -587,10 +586,6 @@ function bindUI(){
   // init
   DEFAULT_SPECS = inpSpecs?.value || "";
   STATE.specsText = DEFAULT_SPECS;
-  if(inpAdv){
-    try{ deepAssign(ADV_CONFIG, JSON.parse(inpAdv.value)); }catch(_){ }
-    inpAdv.addEventListener("input", ()=>{ try{ deepAssign(ADV_CONFIG, JSON.parse(inpAdv.value)); renderCombined(); }catch(_){ }});
-  }
 
   inpSpecs.value = STATE.specsText;
   f1Sides.value  = STATE.fig1.sides.default;
