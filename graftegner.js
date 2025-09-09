@@ -479,6 +479,10 @@ document.getElementById("btnApply").addEventListener("click", function(){
     });
   });
   axX=brd.defaultAxes.x; axY=brd.defaultAxes.y;
+  // When reinitializing the board the previous text objects are destroyed.
+  // Reset the references so new axis labels are created for the fresh board.
+  xName = null;
+  yName = null;
   placeAxisNames();
   axX.defaultTicks.setAttribute({drawLabels:true,precision:ADV.axis.grid.labelPrecision,ticksDistance:+ADV.axis.grid.majorX||1,minorTicks:0,label:{anchorX:"middle",anchorY:"top",offset:[0,-8]}});
   axY.defaultTicks.setAttribute({drawLabels:true,precision:ADV.axis.grid.labelPrecision,ticksDistance:+ADV.axis.grid.majorY||1,minorTicks:0,label:{anchorX:"right",anchorY:"middle",offset:[-8,0]}});
