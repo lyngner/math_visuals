@@ -544,9 +544,9 @@ function getVisiblePizzas(){
     .filter(svg => svg && svg.closest(".pizzaPanel")?.style.display !== "none");
 }
 
-function downloadAllPizzasSVG(filename="broksirkler.svg"){
+function buildAllPizzasSVG(){
   const svgs=getVisiblePizzas();
-  if(!svgs.length) return;
+  if(!svgs.length) return null;
   const gap=24, size=420;
   const w=size*svgs.length + gap*(svgs.length-1);
   const h=size;
@@ -566,12 +566,33 @@ function downloadAllPizzasSVG(filename="broksirkler.svg"){
     root.appendChild(clone);
   });
   const xml=new XMLSerializer().serializeToString(root);
-  const file=`<?xml version="1.0" encoding="UTF-8"?>\n`+xml;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n`+xml;
+}
+
+function downloadAllPizzasSVG(filename="broksirkler.svg"){
+  const file=buildAllPizzasSVG();
+  if(!file) return;
   const blob=new Blob([file],{type:"image/svg+xml;charset=utf-8"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
   a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
+}
+
+function downloadAllPizzasPNG(filename="broksirkler.png"){
+  const file=buildAllPizzasSVG();
+  if(!file) return;
+  const blob=new Blob([file],{type:"image/svg+xml;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const img=new Image();
+  img.onload=()=>{
+    const w=img.width,h=img.height;
+    const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+    const ctx=canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(b=>{ const urlPng=URL.createObjectURL(b); const a=document.createElement('a'); a.href=urlPng; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(urlPng); },'image/png');
+  };
+  img.src=url;
 }
 
 function downloadAllPizzasInteractiveSVG(filename="broksirkler-interaktiv.svg"){
@@ -626,8 +647,10 @@ function downloadAllPizzasInteractiveSVG(filename="broksirkler-interaktiv.svg"){
 function setupGlobalDownloadButtons(){
   const btnStatic=document.getElementById("btnStaticAll");
   const btnInteractive=document.getElementById("btnInteractiveAll");
+  const btnPng=document.getElementById("btnPngAll");
   if(btnStatic) btnStatic.addEventListener("click",()=>downloadAllPizzasSVG());
   if(btnInteractive) btnInteractive.addEventListener("click",()=>downloadAllPizzasInteractiveSVG());
+  if(btnPng) btnPng.addEventListener("click",()=>downloadAllPizzasPNG());
 }
 
 /* =======================

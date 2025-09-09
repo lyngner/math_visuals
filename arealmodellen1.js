@@ -427,12 +427,9 @@ function render(){
     scheduleRedraw();
   };
 
-  // ===== Eksporter interaktiv SVG =====
-  const btnSvg = document.getElementById("btnSvg");
-  if(btnSvg) btnSvg.onclick = () => {
+  function buildExportOptions(){
     const includeHandles = (showLeftHandle || showBottomHandle) || ADV.export?.includeHandlesIfHidden;
-
-    const svgStr = buildInteractiveSvgString({
+    return {
       unit: UNIT, rows: ROWS, cols: COLS,
       margins: { ML, MR, MT, MB },
       width: W, height: H, vbw: VBW, vbh: VBH,
@@ -447,7 +444,24 @@ function render(){
       icons: { horizUrl: ADV.handleIcons.horiz, vertUrl: ADV.handleIcons.vert },
       edgeGap: EDGE_GAP,
       safePad: ADV.fit?.safePad || {top:8,right:8,bottom:64,left:8}
-    });
+    };
+  }
+
+  const btnSvgStatic = document.getElementById("btnSvgStatic");
+  if(btnSvgStatic) btnSvgStatic.onclick = () => {
+    const svgStr = buildBaseSvgMarkup(buildExportOptions(), true);
+    downloadText(ADV.export?.filenameStatic || "arealmodell.svg", svgStr, "image/svg+xml");
+  };
+
+  const btnPng = document.getElementById("btnPng");
+  if(btnPng) btnPng.onclick = () => {
+    const svgStr = buildBaseSvgMarkup(buildExportOptions(), true);
+    downloadPNGFromString(svgStr, ADV.export?.filenamePng || "arealmodell.png");
+  };
+
+  const btnSvg = document.getElementById("btnSvg");
+  if(btnSvg) btnSvg.onclick = () => {
+    const svgStr = buildInteractiveSvgString(buildExportOptions());
     downloadText(ADV.export?.filename || "arealmodell_interaktiv.svg", svgStr, "image/svg+xml");
   };
 
@@ -484,6 +498,30 @@ function render(){
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  function downloadPNGFromString(svgStr, filename){
+    const blob = new Blob([svgStr], {type:'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const w = img.width, h = img.height;
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0,0,w,h);
+      ctx.drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(b=>{
+        const urlPng = URL.createObjectURL(b);
+        const a = document.createElement('a');
+        a.href = urlPng; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(urlPng),1000);
+      }, 'image/png');
+    };
+    img.src = url;
   }
 
   // === FARGER/typografi ===

@@ -462,18 +462,39 @@ document.getElementById("btnReset").addEventListener("click", function(){
   updateAfterViewChange();
 });
 document.getElementById("btnSvg").addEventListener("click", function(){
-  var src=brd.renderer.svgRoot.cloneNode(true);
-  src.removeAttribute("style");
-  var w=brd.canvasWidth,h=brd.canvasHeight;
-  src.setAttribute("width",  String(w));
-  src.setAttribute("height", String(h));
-  src.setAttribute("viewBox","0 0 "+w+" "+h);
-  src.setAttribute("xmlns","http://www.w3.org/2000/svg");
-  src.setAttribute("xmlns:xlink","http://www.w3.org/1999/xlink");
-  var xml=new XMLSerializer().serializeToString(src).replace(/\swidth="[^"]*"\s(?=.*width=")/," ").replace(/\sheight="[^"]*"\s(?=.*height=")/," ");
+  var xml = getSvgString();
   var blob=new Blob([xml],{type:"image/svg+xml;charset=utf-8"});
   var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="graf.svg"; a.click(); URL.revokeObjectURL(a.href);
 });
+document.getElementById("btnPng").addEventListener("click", function(){
+  var xml = getSvgString();
+  var blob=new Blob([xml],{type:"image/svg+xml;charset=utf-8"});
+  var url=URL.createObjectURL(blob);
+  var img=new Image();
+  img.onload=function(){
+    var w=img.width,h=img.height;
+    var c=document.createElement("canvas"); c.width=w; c.height=h;
+    var ctx=c.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h);
+    URL.revokeObjectURL(url);
+    c.toBlob(function(b){
+      var urlPng=URL.createObjectURL(b); var a=document.createElement("a");
+      a.href=urlPng; a.download="graf.png"; a.click(); URL.revokeObjectURL(urlPng);
+    },"image/png");
+  };
+  img.src=url;
+});
+
+function getSvgString(){
+  var src=brd.renderer.svgRoot.cloneNode(true);
+  src.removeAttribute("style");
+  var w=brd.canvasWidth,h=brd.canvasHeight;
+  src.setAttribute("width",String(w));
+  src.setAttribute("height",String(h));
+  src.setAttribute("viewBox","0 0 "+w+" "+h);
+  src.setAttribute("xmlns","http://www.w3.org/2000/svg");
+  src.setAttribute("xmlns:xlink","http://www.w3.org/1999/xlink");
+  return new XMLSerializer().serializeToString(src).replace(/\swidth="[^"]*"\s(?=.*width=")/," ").replace(/\sheight="[^"]*"\s(?=.*height=")/," ");
+}
 
 /* ---------- UI → SIMPLE ---------- */
 function parseDomainInput(s){
