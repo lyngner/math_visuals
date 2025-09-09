@@ -74,8 +74,8 @@ function isExplicitRHS(rhs){
   return s.length===0;
 }
 function decideMode(parsed){
-  var hasExplicit = parsed.funcs.some(function(f){ return isExplicitRHS(f.rhs); });
-  return hasExplicit ? "functions" : "pointsOnly";
+  var hasPlaceholder = parsed.funcs.some(function(f){ return !isExplicitRHS(f.rhs); });
+  return hasPlaceholder ? "pointsOnly" : "functions";
 }
 var MODE = decideMode(SIMPLE_PARSED);
 
