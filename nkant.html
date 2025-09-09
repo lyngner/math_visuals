@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Nkant – én SVG med 1–2 figurer</title>
+  <style>
+    :root { --gap: 18px; }
+    html,body { height: 100%; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans";
+           color: #111827; background: #f7f8fb; padding: 20px; }
+    .wrap { max-width: 1200px; margin: 0 auto; }
+    .grid { display: grid; gap: var(--gap); grid-template-columns: 1fr 480px; align-items: start; }
+    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.04);
+            padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .card h2 { margin: 0 0 6px 2px; font-size: 16px; font-weight: 600; color: #374151; }
+    .figure { border-radius: 10px; background: #fafbfc; overflow: hidden; border: 1px solid #eef0f3; }
+    .figure svg { width: 100%; height: 360px; display: block; }
+    .toolbar { display: flex; gap: 10px; justify-content: flex-end; }
+    .btn { appearance: none; border: 1px solid #d1d5db; background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 14px;
+           cursor: pointer; transition: box-shadow .2s, transform .02s; }
+    .btn:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); } .btn:active { transform: translateY(1px); }
+    label { font-size: 13px; color: #4b5563; }
+    textarea, select, input[type="text"] { border: 1px solid #d1d5db; border-radius: 10px; padding: 8px 10px; font-size: 14px; background: #fff; width: 100%; }
+    .small { font-size: 12px; color: #6b7280; }
+    .sep { height: 1px; background: #eef0f3; margin: 8px 0; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: 36px 1fr 1fr; gap: 8px; align-items: center; }
+    .legend { font-weight: 600; font-size: 13px; color: #374151; margin-top: 8px; }
+    .radio-row { display: flex; gap: 14px; align-items: center; }
+    .tight { padding: 4px 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <h2>Figur(er)</h2>
+        <div class="figure">
+          <svg id="paper" viewBox="0 0 600 420" preserveAspectRatio="xMidYMid meet" aria-label=""></svg>
+        </div>
+        <div class="toolbar">
+          <button id="btnReset" class="btn" type="button">Reset</button>
+          <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
+          <button id="btnPng" class="btn" type="button">Last ned PNG</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Innstillinger</h2>
+
+        <label for="inpSpecs">SPECS (skriv 1–2 linjer, én figur per linje)</label>
+        <textarea id="inpSpecs" rows="4" spellcheck="false" placeholder="Eksempler:
+a=3, b=5, c=4
+a=5, b=5, c=5, d=5, B=90"></textarea>
+        <div class="small">Eksempler: "a=3, b=5, c=4" (trekant), "a=5, b=5, c=5, d=5, B=90" (firkant – må ha d og én vinkel A/B/C/D).</div>
+
+        <div class="sep"></div>
+
+        <!-- Figur 1 -->
+        <div class="form-row">
+          <div>
+            <label>Figur 1 – standard sider</label>
+            <select id="f1Sides">
+              <option value="none">none</option>
+              <option value="value">value</option>
+              <option value="custom">custom</option>
+              <option value="custom+value">custom+value</option>
+            </select>
+          </div>
+          <div>
+            <label>Figur 1 – standard vinkler/punkter</label>
+            <select id="f1Angles">
+              <option value="none">none</option>
+              <option value="mark">mark</option>
+              <option value="mark+value">mark+value</option>
+              <option value="custom">custom</option>
+              <option value="custom+mark">custom+mark</option>
+              <option value="custom+mark+value">custom+mark+value</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="legend">Figur 1 – enkelt<strong>side</strong></div>
+        <div class="grid-3">
+          <label>a</label>
+          <select id="f1SideA">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
+            <option value="custom">custom</option><option value="custom+value">custom+value</option>
+          </select>
+          <input id="f1SideATxt" class="tight" type="text" placeholder="a" />
+        </div>
+        <div class="grid-3">
+          <label>b</label>
+          <select id="f1SideB">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
+            <option value="custom">custom</option><option value="custom+value">custom+value</option>
+          </select>
+          <input id="f1SideBTxt" class="tight" type="text" placeholder="b" />
+        </div>
+        <div class="grid-3">
+          <label>c</label>
+          <select id="f1SideC">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
+            <option value="custom">custom</option><option value="custom+value">custom+value</option>
+          </select>
+          <input id="f1SideCTxt" class="tight" type="text" placeholder="c" />
+        </div>
+        <div class="grid-3">
+          <label>d</label>
+          <select id="f1SideD">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
+            <option value="custom">custom</option><option value="custom+value">custom+value</option>
+          </select>
+          <input id="f1SideDTxt" class="tight" type="text" placeholder="d" />
+        </div>
+
+        <div class="legend">Figur 1 – <strong>Vinkler/punkter</strong> (per punkt)</div>
+        <div class="grid-3">
+          <label>A</label>
+          <select id="f1AngA">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
+            <option value="mark+value">mark+value</option><option value="custom">custom</option>
+            <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
+          </select>
+          <input id="f1AngATxt" class="tight" type="text" placeholder="A" />
+        </div>
+        <div class="grid-3">
+          <label>B</label>
+          <select id="f1AngB">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
+            <option value="mark+value">mark+value</option><option value="custom">custom</option>
+            <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
+          </select>
+          <input id="f1AngBTxt" class="tight" type="text" placeholder="B" />
+        </div>
+        <div class="grid-3">
+          <label>C</label>
+          <select id="f1AngC">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
+            <option value="mark+value">mark+value</option><option value="custom">custom</option>
+            <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
+          </select>
+          <input id="f1AngCTxt" class="tight" type="text" placeholder="C" />
+        </div>
+        <div class="grid-3">
+          <label>D</label>
+          <select id="f1AngD">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
+            <option value="mark+value">mark+value</option><option value="custom">custom</option>
+            <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
+          </select>
+          <input id="f1AngDTxt" class="tight" type="text" placeholder="D" />
+        </div>
+
+        <div class="sep"></div>
+
+        <!-- Figur 2 -->
+        <div class="form-row">
+          <div>
+            <label>Figur 2 – standard sider</label>
+            <select id="f2Sides">
+              <option value="none">none</option>
+              <option value="value">value</option>
+              <option value="custom">custom</option>
+              <option value="custom+value">custom+value</option>
+            </select>
+          </div>
+          <div>
+            <label>Figur 2 – standard vinkler/punkter</label>
+            <select id="f2Angles">
+              <option value="none">none</option>
+              <option value="mark">mark</option>
+              <option value="mark+value">mark+value</option>
+              <option value="custom">custom</option>
+              <option value="custom+mark">custom+mark</option>
+              <option value="custom+mark+value">custom+mark+value</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="legend">Figur 2 – enkelt<strong>side</strong></div>
+        <div class="grid-3">
+          <label>a</label>
+          <select id="f2SideA">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
+            <option value="custom">custom</option><option value="custom+value">custom+value</option>
+          </select>
+          <input id="f2SideATxt" class="tight" type="text" placeholder="a" />
+        </div>
+        <div class="grid-3">
+          <label>b</label>
+          <select id="f2SideB">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
+            <option value="custom">custom</option><option value="custom+value">custom+value</option>
+          </select>
+          <input id="f2SideBTxt" class="tight" type="text" placeholder="b" />
+        </div>
+        <div class="grid-3">
+          <label>c</label>
+          <select id="f2SideC">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
+            <option value="custom">custom</option><option value="custom+value">custom+value</option>
+          </select>
+          <input id="f2SideCTxt" class="tight" type="text" placeholder="c" />
+        </div>
+        <div class="grid-3">
+          <label>d</label>
+          <select id="f2SideD">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
+            <option value="custom">custom</option><option value="custom+value">custom+value</option>
+          </select>
+          <input id="f2SideDTxt" class="tight" type="text" placeholder="d" />
+        </div>
+
+        <div class="legend">Figur 2 – <strong>Vinkler/punkter</strong> (per punkt)</div>
+        <div class="grid-3">
+          <label>A</label>
+          <select id="f2AngA">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
+            <option value="mark+value">mark+value</option><option value="custom">custom</option>
+            <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
+          </select>
+          <input id="f2AngATxt" class="tight" type="text" placeholder="A" />
+        </div>
+        <div class="grid-3">
+          <label>B</label>
+          <select id="f2AngB">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
+            <option value="mark+value">mark+value</option><option value="custom">custom</option>
+            <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
+          </select>
+          <input id="f2AngBTxt" class="tight" type="text" placeholder="B" />
+        </div>
+        <div class="grid-3">
+          <label>C</label>
+          <select id="f2AngC">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
+            <option value="mark+value">mark+value</option><option value="custom">custom</option>
+            <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
+          </select>
+          <input id="f2AngCTxt" class="tight" type="text" placeholder="C" />
+        </div>
+        <div class="grid-3">
+          <label>D</label>
+          <select id="f2AngD">
+            <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
+            <option value="mark+value">mark+value</option><option value="custom">custom</option>
+            <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
+          </select>
+          <input id="f2AngDTxt" class="tight" type="text" placeholder="D" />
+        </div>
+
+        <div class="sep"></div>
+        <div class="radio-row">
+          <label>Plassering:</label>
+          <label><input type="radio" name="layout" value="row" checked> Ved siden av hverandre</label>
+          <label><input type="radio" name="layout" value="col"> Under hverandre</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
