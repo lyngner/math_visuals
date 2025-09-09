@@ -9,7 +9,8 @@ const SIMPLE = {
   maxN: 12,
   showWhole: true,    // vis parentes + total
   showStepper: true,  // vis pluss/minus-knapper
-  showHandle: true    // vis håndtak
+  showHandle: true,   // vis håndtak
+  texts: []           // egendefinerte tekster i blokker
 };
 
 /* ============ ADV KONFIG (VALGFRITT) ============ */
@@ -32,6 +33,7 @@ let CFG = {
 
 let n = clamp(SIMPLE.startN, CFG.minN, CFG.maxN);
 let k = clamp(SIMPLE.startK, 0, n);
+let cellTexts = Array.from({length:n}, (_,i)=>SIMPLE.texts[i] || '');
 
 // ---------- SVG-oppsett ----------
 const svg = document.getElementById('thinkBlocks');
@@ -47,6 +49,7 @@ const gBase   = add('g');     // bakgrunn
 const gFill   = add('g');     // fylte blokker
 const gSep    = add('g');     // skillelinjer
 const gVals   = add('g');     // tall i blokker
+const gHit    = add('g');     // usynlige klikkflater
 const gFrame  = add('g');     // svart ramme
 const gHandle = add('g');     // håndtak
 const gBrace  = add('g');     // parentes + TOTAL
@@ -185,6 +188,7 @@ function applyConfig(){
   };
   n = clamp(SIMPLE.startN, CFG.minN, CFG.maxN);
   k = clamp(SIMPLE.startK, 0, n);
+  cellTexts = Array.from({length:n}, (_,i)=>SIMPLE.texts[i] || '');
   gBrace.innerHTML = '';
   if(CFG.showWhole){
     drawBracketSquare(L, R, BRACE_Y, CFG.bracketTick);
@@ -203,26 +207,39 @@ function redraw(){
   gFill.innerHTML = '';
   gSep.innerHTML  = '';
   gVals.innerHTML = '';
+  gHit.innerHTML  = '';
 
   const cellW = (R-L)/n;
-
-  // fylte celler
-  for(let i=0;i<k;i++){
-    addTo(gFill,'rect',{x:L+i*cellW,y:TOP,width:cellW,height:BOT-TOP,class:'tb-rect'});
-  }
-  // skillelinjer
-  for(let i=1;i<n;i++){
-    const x = L + i*cellW;
-    addTo(gSep,'line',{x1:x,y1:TOP,x2:x,y2:BOT,class:'tb-sep'});
-  }
-  // verdier i fylte celler
   const per = CFG.total / n;
-  for(let i=0;i<k;i++){
-    const cx = L + (i+0.5)*cellW;
+
+  for(let i=0;i<n;i++){
+    const x = L + i*cellW;
+
+    if(i < k){
+      addTo(gFill,'rect',{x:x,y:TOP,width:cellW,height:BOT-TOP,class:'tb-rect'});
+    }
+
+    if(i > 0){
+      addTo(gSep,'line',{x1:x,y1:TOP,x2:x,y2:BOT,class:'tb-sep'});
+    }
+
+    const cx = x + cellW/2;
     const cy = (TOP+BOT)/2;
-    addTo(gVals,'text',{x:cx,y:cy,class:'tb-val'}).textContent = fmt(per);
+    const txt = cellTexts[i] !== '' ? cellTexts[i] : (i < k ? fmt(per) : '');
+    if(txt){
+      addTo(gVals,'text',{x:cx,y:cy,class:'tb-val'}).textContent = txt;
+    }
+
+    const hit = addTo(gHit,'rect',{x:x,y:TOP,width:cellW,height:BOT-TOP,fill:'transparent',cursor:'text'});
+    hit.addEventListener('dblclick', ()=>{
+      const t = prompt('Tekst for blokk', cellTexts[i] || '');
+      if(t !== null){
+        cellTexts[i] = t;
+        redraw();
+      }
+    });
   }
-  // håndtak-pos
+
   const hx = L + k*cellW;
   handle.setAttribute('cx', hx);
   handleShadow.setAttribute('cx', hx);
@@ -232,6 +249,8 @@ function redraw(){
 function setN(next){
   n = clamp(next, CFG.minN, CFG.maxN);
   if(k>n) k = n;
+  if(cellTexts.length < n) cellTexts = cellTexts.concat(Array(n - cellTexts.length).fill(''));
+  else if(cellTexts.length > n) cellTexts = cellTexts.slice(0,n);
   redraw();
 }
 function setK(next){
