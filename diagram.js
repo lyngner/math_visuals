@@ -10,7 +10,8 @@ const CFG = {
   snap:   1,                              // trinn-størrelse
   tolerance: 0,                           // tillatt avvik per søyle ved "Sjekk"
   axisXLabel: 'Ant. bøker',
-  axisYLabel: 'Antall elever'
+  axisYLabel: 'Antall elever',
+  locked: []                              // søyler uten håndtak (1=låst)
 };
 
 /* =========================================================
@@ -23,12 +24,11 @@ const M = {l:80, r:30, t:40, b:70};
 const innerW = W - M.l - M.r;
 const innerH = H - M.t - M.b;
 
-/* Lagrekkefølge: grid, akser, søyler, håndtak, låser, a11y, verdier (øverst), labels */
+/* Lagrekkefølge: grid, akser, søyler, håndtak, a11y, verdier (øverst), labels */
 const gGrid   = add('g');
 const gAxis   = add('g');
 const gBars   = add('g');
 const gHands  = add('g');
-const gLocks  = add('g');
 const gA11y   = add('g');
 const gVals   = add('g');
 const gLabels = add('g');
@@ -58,7 +58,7 @@ function initFromCfg(){
   xBand = innerW / N;
   barW  = xBand * 0.6;
   yMax  = CFG.yMax ?? niceMax([...CFG.start, ...CFG.answer]);
-  locked = Array(N).fill(false);
+  locked = alignLength(CFG.locked || [], N, false);
   lastFocusIndex = null;
   document.getElementById('chartTitle').textContent = CFG.title || '';
   drawAxesAndGrid();
@@ -96,7 +96,7 @@ function drawAxesAndGrid(){
 }
 
 function drawBars(){
-  gBars.innerHTML=''; gVals.innerHTML=''; gHands.innerHTML=''; gLocks.innerHTML=''; gA11y.innerHTML='';
+  gBars.innerHTML=''; gVals.innerHTML=''; gHands.innerHTML=''; gA11y.innerHTML='';
 
   values.forEach((v,i)=>{
     const cx = xPos(i);
@@ -114,20 +114,14 @@ function drawBars(){
     rect.addEventListener('pointerdown', onDragStart);
 
     // 2) HÅNDTAK (draggbar)
-    addTo(gHands,'circle',{cx:cx, cy:y-2+2, r:16, class:'handleShadow'});
-    const h = addTo(gHands,'circle',{cx:cx, cy:y-2, r:14, class:'handle' + (locked[i] ? ' locked' : '')});
-    h.dataset.index = i;
-    h.addEventListener('pointerdown', onDragStart);
+    if (!locked[i]) {
+      addTo(gHands,'circle',{cx:cx, cy:y-2+2, r:16, class:'handleShadow'});
+      const h = addTo(gHands,'circle',{cx:cx, cy:y-2, r:14, class:'handle'});
+      h.dataset.index = i;
+      h.addEventListener('pointerdown', onDragStart);
+    }
 
-    // 3) LÅS-ikon
-    let ly = y - 26;
-    if(ly < M.t + 16) ly = M.t + 16;
-    const lock = addTo(gLocks,'text',{x:cx, y:ly, class:'lock', 'text-anchor':'middle'});
-    lock.textContent = locked[i] ? '🔒' : '🔓';
-    lock.dataset.index = i;
-    lock.addEventListener('click', toggleLock);
-
-    // 4) A11y‐overlay (fokus + tastatur + stor klikkflate)
+    // 3) A11y‐overlay (fokus + tastatur + stor klikkflate)
     const a11y = addTo(gA11y,'rect',{
       x: cx - xBand*0.5,
       y: M.t,
@@ -154,7 +148,7 @@ function drawBars(){
       a11y.focus({ preventScroll: true });
     }
 
-    // 5) Verdi (øverst, ikke-interaktiv)
+    // 4) Verdi (øverst, ikke-interaktiv)
     const txt = addTo(gVals,'text',{x:cx, y:y-10, class:'value'});
     txt.textContent = fmt(v);
   });
@@ -223,12 +217,6 @@ function setValue(idx, newVal, announce=false){
   }
 }
 
-function toggleLock(e){
-  const idx = +e.currentTarget.dataset.index;
-  locked[idx] = !locked[idx];
-  drawBars();
-}
-
 function yToValue(py){
   const frac = (H - M.b - py) / innerH;     // inverse av yPos
   return yMin + frac * (yMax - yMin);
@@ -275,6 +263,8 @@ function applyCfg(){
   CFG.snap = isNaN(snapVal) ? 1 : snapVal;
   const tolVal = parseFloat(document.getElementById('cfgTolerance').value);
   CFG.tolerance = isNaN(tolVal) ? 0 : tolVal;
+  const lockedVals = parseNumList(document.getElementById('cfgLocked').value).map(v=>v!==0);
+  CFG.locked = alignLength(lockedVals, lbls.length, false);
   initFromCfg();
 }
 

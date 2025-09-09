@@ -49,7 +49,7 @@
     .yLabel{fill:#333;font-size:18px}
 
     /* Søyler + vurderingsrammer */
-    .bar{fill:#7c3aed;fill-opacity:1;opacity:1}
+    .bar{fill:none;stroke:#000;stroke-width:4}
     .bar.badge-ok{stroke:#2e7d32;stroke-width:4}
     .bar.badge-no{stroke:#c62828;stroke-width:4}
 
@@ -61,9 +61,8 @@
     .value{fill:#111;font-size:16px;text-anchor:middle;paint-order:stroke fill;stroke:#fff;stroke-width:6;pointer-events:none}
 
     /* Låsing */
-    .bar.locked{fill:#d1d5db;cursor:not-allowed}
+    .bar.locked{cursor:not-allowed}
     .handle.locked{fill:#e5e7eb;cursor:not-allowed}
-    .lock{cursor:pointer;font-size:20px;user-select:none}
 
     /* Fokus + tastatur (A11y-overlay) */
     .a11y{cursor:ns-resize;fill:transparent;stroke:none}
@@ -117,6 +116,9 @@
           </label>
           <label>Toleranse
             <input id="cfgTolerance" type="text" value="0">
+          </label>
+          <label>Fjern håndtak (0/1, kommaseparert)
+            <input id="cfgLocked" type="text" value="">
           </label>
         </div>
       </div>
