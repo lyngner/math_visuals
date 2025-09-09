@@ -1,13 +1,31 @@
 /* =======================
-   SIMPLE-KONFIG
+   KONFIG FRA HTML
    ======================= */
-const MODE = "SIMPLE"; // "SIMPLE" | "ADV"
-const SIMPLE = {
-  pizzas: [
-    { show:true, t:3, n:10, lockN:false, lockT:false, text:"frac",    minN:1, maksN:24 },
-    { show:true, t:4, n:10, lockN:true,  lockT:false,  text:"percent", minN:1, maksN:24 }
-  ]
-};
+const SIMPLE = { pizzas: [] };
+const PANEL_HTML = [];
+
+function readConfigFromHtml(){
+  const pizzas = [];
+  for(let i=1;i<=2;i++){
+    const show   = document.getElementById(`p${i}Show`)?.checked ?? false;
+    const t      = parseInt(document.getElementById(`p${i}T`)?.value,10);
+    const n      = parseInt(document.getElementById(`p${i}N`)?.value,10);
+    const lockN  = document.getElementById(`p${i}LockN`)?.checked ?? false;
+    const lockT  = document.getElementById(`p${i}LockT`)?.checked ?? false;
+    const text   = document.getElementById(`p${i}Text`)?.value ?? "none";
+    const minN   = parseInt(document.getElementById(`p${i}MinN`)?.value,10);
+    const maxN   = parseInt(document.getElementById(`p${i}MaxN`)?.value,10);
+    pizzas.push({
+      show,
+      t: isFinite(t)?t:0,
+      n: isFinite(n)?n:1,
+      lockN, lockT, text,
+      minN: isFinite(minN)?minN:1,
+      maksN: isFinite(maxN)?maxN:24
+    });
+  }
+  return { pizzas };
+}
 
 /* =======================
    Grunnoppsett
@@ -559,24 +577,31 @@ function addDownloadButtons(svgId) {
 /* =======================
    Init
    ======================= */
-function initSimple(){
-  SIMPLE.pizzas.slice(0,2).forEach((cfg,i)=>{
-    const map=PIZZA_DOM[i];
-    const panel=document.getElementById(map.svgId)?.closest(".pizzaPanel");
-    if(panel) panel.style.display = cfg?.show ? "" : "none";
-    if(!cfg?.show) return;
+function initFromHtml(){
+  const cfg = readConfigFromHtml();
+  SIMPLE.pizzas = cfg.pizzas;
+  REG.clear();
 
-    const minN=Math.max(1, cfg.minN ?? 1);
-    const maxN=Math.max(minN, cfg.maksN ?? 24);
+  PIZZA_DOM.forEach((map,i)=>{
+    const panel=document.getElementById(map.svgId)?.closest(".pizzaPanel");
+    if(!panel) return;
+    if(PANEL_HTML[i]==null) PANEL_HTML[i]=panel.innerHTML;
+    panel.innerHTML = PANEL_HTML[i];
+    const pcfg = cfg.pizzas[i];
+    panel.style.display = pcfg?.show ? "" : "none";
+    if(!pcfg?.show) return;
+
+    const minN=Math.max(1, pcfg.minN ?? 1);
+    const maxN=Math.max(minN, pcfg.maksN ?? 24);
 
     new Pizza({
       ...map,
-      n: cfg.n ?? 1,
-      k: Math.min(cfg.t ?? 0, cfg.n ?? 1),
+      n: pcfg.n ?? 1,
+      k: Math.min(pcfg.t ?? 0, pcfg.n ?? 1),
       minN, maxN,
-      textMode: (cfg.text ?? "none"),
-      lockDenominator: !!cfg.lockN,
-      lockNumerator:   !!cfg.lockT
+      textMode: (pcfg.text ?? "none"),
+      lockDenominator: !!pcfg.lockN,
+      lockNumerator:   !!pcfg.lockT
     });
 
     addDownloadButtons(map.svgId);
@@ -584,4 +609,7 @@ function initSimple(){
   scheduleCenterAlign();
 }
 
-window.addEventListener("load", ()=>{ initSimple(); });
+window.addEventListener("load", ()=>{
+  initFromHtml();
+  document.getElementById("btnApply")?.addEventListener("click", initFromHtml);
+});

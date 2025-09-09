@@ -5,10 +5,8 @@
    • Ved custom*: punktnavn vises utenfor langs vinkelhalveringen; vinkelverdi inne i sektoren
    ========================================================== */
 
-/* ---------- DEFAULT SPECS (2 linjer = 2 figurer i samme bilde) ---------- */
-const DEFAULT_SPECS =
-`a=3, b=5, c=5
-a=5, b=5, c=5, d=5, A=90`;
+/* ---------- DEFAULT SPECS (leses fra HTML) ---------- */
+let DEFAULT_SPECS = "";
 
 /* ---------- ADV (dine verdier) ---------- */
 const ADV_CONFIG = {
@@ -31,7 +29,7 @@ const ADV_CONFIG = {
 
 /* ---------- STATE (UI) ---------- */
 const STATE = {
-  specsText: DEFAULT_SPECS,
+  specsText: "",
   fig1: {
     sides:  { default: "value", a:"inherit", b:"inherit", c:"inherit", d:"inherit",
               aText:"a", bText:"b", cText:"c", dText:"d" },
@@ -69,6 +67,18 @@ const rad  = d => d * Math.PI / 180;
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const clampCos = x => clamp(x, -1, 1);
 const fmt = n => (Math.round(n*10)/10).toString().replace(".", ",");
+
+function deepAssign(target, src){
+  if(!src) return;
+  Object.entries(src).forEach(([k,v])=>{
+    if(v && typeof v === "object" && !Array.isArray(v)){
+      if(!target[k] || typeof target[k] !== "object") target[k] = {};
+      deepAssign(target[k], v);
+    } else {
+      target[k] = v;
+    }
+  });
+}
 
 function add(parent, name, attrs = {}){
   const el = document.createElementNS("http://www.w3.org/2000/svg", name);
@@ -545,6 +555,7 @@ function bindUI(){
   const btnSvg = $("#btnSvg");
   const btnPng = $("#btnPng");
   const btnReset = $("#btnReset");
+  const inpAdv = $("#advConfig");
 
   const f1Sides=$("#f1Sides"), f1Angles=$("#f1Angles");
   const f2Sides=$("#f2Sides"), f2Angles=$("#f2Angles");
@@ -574,6 +585,13 @@ function bindUI(){
   }
 
   // init
+  DEFAULT_SPECS = inpSpecs?.value || "";
+  STATE.specsText = DEFAULT_SPECS;
+  if(inpAdv){
+    try{ deepAssign(ADV_CONFIG, JSON.parse(inpAdv.value)); }catch(_){ }
+    inpAdv.addEventListener("input", ()=>{ try{ deepAssign(ADV_CONFIG, JSON.parse(inpAdv.value)); renderCombined(); }catch(_){ }});
+  }
+
   inpSpecs.value = STATE.specsText;
   f1Sides.value  = STATE.fig1.sides.default;
   f1Angles.value = STATE.fig1.angles.default;
