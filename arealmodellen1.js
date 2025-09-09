@@ -34,6 +34,8 @@ const CFG = {
       cells: ["c1","c2","c3","c4"]
     },
 
+    colors: ["#e07c7c", "#f0c667", "#7fb2d6", "#8bb889"],
+
     fit: {
       maxVh: 100,
       maxVw: 100,
@@ -469,29 +471,25 @@ window.addEventListener("load", () => {
 
   // === FARGER/typografi ===
   function getInlineStyleDefaults(){
+    const cols = ADV.colors || ["#e07c7c", "#f0c667", "#7fb2d6", "#8bb889"];
     return `
 .outer { fill: white; stroke: #333; stroke-width: 3; pointer-events: none; }
 .split { stroke: #333; stroke-width: 3; transition: stroke-width .12s ease; pointer-events: none; }
 .split.ok { stroke-width: 6; }
 .cell  { stroke: #333; stroke-width: 2; pointer-events: none; }
 
-/* Originale myke nyanser */
-.c1 { fill: #DF8F82; }
-.c2 { fill: #EDC66E; }
-.c3 { fill: #82B7D4; }
-.c4 { fill: #95B892; }
+.c1 { fill: ${cols[0]}; }
+.c2 { fill: ${cols[1]}; }
+.c3 { fill: ${cols[2]}; }
+.c4 { fill: ${cols[3]}; }
 
-.grid line { stroke: #000; stroke-opacity: .28; stroke-width: 1; stroke-dasharray: 2 8; pointer-events: none; }
+.grid line { stroke: #000; stroke-opacity: .28; stroke-width: 1; pointer-events: none; }
 .labelCell { font: 600 22px system-ui, -apple-system, Segoe UI, Roboto, Arial; fill: #222; pointer-events: none; }
 .labelEdge { font: 600 26px system-ui, -apple-system, Segoe UI, Roboto, Arial; fill: #333; pointer-events: none; }
 
 .handleImg { pointer-events: none; }
 .handleHit, .hot, svg { touch-action: none; }
 .handleHit { fill: rgba(0,0,0,0.004); cursor: grab; pointer-events: all; }
-.handleHit.dragging { cursor: grabbing; }
-.hot { fill: transparent; pointer-events: all; }
-
-svg, .labelCell, .labelEdge { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: rgba(0,0,0,0); }
 `;
   }
 
