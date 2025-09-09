@@ -2,16 +2,16 @@
    KONFIG – forfatter styrer alt her
    ========================================================= */
 const CFG = {
-  title: 'Diagram',
-  labels: ['1','2','4','6','Ingen'],      // x-etiketter
-  start:  [8,0,7,0,0],                    // startverdier
-  answer: [10,6,3,1,4],                   // fasit
-  yMax:   15,                             // maks på y-aksen (valgfritt; auto hvis utelatt)
-  snap:   1,                              // trinn-størrelse
-  tolerance: 0,                           // tillatt avvik per søyle ved "Sjekk"
-  axisXLabel: 'Ant. bøker',
+  title: 'Favorittidretter i 5B',
+  labels: ['Klatring','Fotball','Håndball','Basket','Tennis','Bowling'],
+  start:  [6,7,3,5,8,2],
+  answer: [6,7,3,5,8,2],
+  yMax:   8,
+  snap:   1,
+  tolerance: 0,
+  axisXLabel: 'Idrett',
   axisYLabel: 'Antall elever',
-  locked: []                              // søyler uten håndtak (1=låst)
+  locked: []
 };
 
 /* =========================================================
