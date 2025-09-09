@@ -1,25 +1,68 @@
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css" />
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Arealmodell B</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css" />
+  <style>
+    :root { --gap: 18px; }
+    html,body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color: #111827;
+      background: #f7f8fb;
+      padding: 20px;
+    }
+    .wrap { max-width: 1200px; margin: 0 auto; }
+    .grid { display: grid; gap: var(--gap); grid-template-columns: 1fr 360px; align-items: start; }
+    @media (max-width:980px){ .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: #fff; border: 1px solid #e5e7eb; border-radius: 14px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04); padding: 14px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .card h2 { margin: 0 0 6px 2px; font-size: 16px; font-weight: 600; color: #374151; }
+    svg { width: 100%; height: auto; background: #fff; display: block; }
+    .settings label { font-size: 13px; color: #4b5563; display: flex; flex-direction: column; }
+    .settings input {
+      border: 1px solid #d1d5db; border-radius: 10px;
+      padding: 8px 10px; font-size: 14px; background: #fff;
+    }
 
-<div class="wrap">
-  <svg id="area" preserveAspectRatio="xMidYMid meet" aria-label="Arealmodell"></svg>
-</div>
+    .c1 { fill: #e07c7c; }
+    .c2 { fill: #f0c667; }
+    .c3 { fill: #7fb2d6; }
+    .c4 { fill: #8bb889; }
 
-<style>
-  .wrap { max-width: 1100px; margin: 16px auto; padding: 0 12px; }
-  /* Responsiv: fyll bredden, behold proporsjoner via viewBox */
-  svg { width: 100%; height: auto; background: #fff; display:block; }
+    .outer { fill: none; stroke: #333; stroke-width: 3.5; }
+    .split { stroke: #333; stroke-width: 2.5; }
+    .grid  { stroke: #000; stroke-width: 0.8; stroke-dasharray: 2 5; opacity: .35; }
+    .handle { fill: #ecebf6; stroke: #333; stroke-width: 2; cursor: grab; }
+    .handle:active { cursor: grabbing; }
 
-  .c1 { fill: #e07c7c; }
-  .c2 { fill: #f0c667; }
-  .c3 { fill: #7fb2d6; }
-  .c4 { fill: #8bb889; }
-
-  .outer { fill: none; stroke: #333; stroke-width: 3.5; }
-  .split { stroke: #333; stroke-width: 2.5; }
-  .grid  { stroke: #000; stroke-width: 0.8; stroke-dasharray: 2 5; opacity: .35; }
-  .handle { fill: #ecebf6; stroke: #333; stroke-width: 2; cursor: grab; }
-  .handle:active { cursor: grabbing; }
-
-  .labelCell { fill: #000; opacity: .7; font-size: 22px; font-family: "Segoe UI", system-ui, Arial, sans-serif; }
-  .labelEdge { fill: #000; font-size: 28px; font-family: "Georgia", "Times New Roman", serif; }
-</style>
+    .labelCell { fill: #000; opacity: .7; font-size: 22px; font-family: "Segoe UI", system-ui, Arial, sans-serif; }
+    .labelEdge { fill: #000; font-size: 28px; font-family: "Georgia", "Times New Roman", serif; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <h2>Arealmodell</h2>
+        <svg id="area" preserveAspectRatio="xMidYMid meet" aria-label="Arealmodell"></svg>
+      </div>
+      <div class="card">
+        <h2>Innstillinger</h2>
+        <div class="settings">
+          <label>Forfatter
+            <input id="author" type="text" />
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="arealmodellen1.js"></script>
+</body>
+</html>
