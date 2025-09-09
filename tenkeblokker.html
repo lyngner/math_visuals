@@ -44,10 +44,29 @@
     .tb-handle{fill:#f1f1f6;stroke:#555;stroke-width:2;cursor:pointer}
 
     /* Stepper */
-    .tb-stepper{display:flex;align-items:center;gap:0;border:1px solid #cfcfcf;border-radius:16px;padding:6px;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.08)}
-    .tb-stepper button{width:64px;height:48px;border:0;background:#fff;font-size:28px;cursor:pointer}
+    .tb-stepper{
+      display:flex;
+      align-items:center;
+      border:1px solid #cfcfcf;
+      border-radius:16px;
+      background:#fff;
+      box-shadow:0 6px 24px rgba(0,0,0,.08);
+      overflow:hidden;
+    }
+    .tb-stepper button{
+      width:64px;
+      height:48px;
+      border:0;
+      background:#fff;
+      font-size:28px;
+      cursor:pointer;
+    }
     .tb-stepper button:active{transform:translateY(1px)}
-    .tb-divider{width:1px;height:36px;background:#d6d6e3;margin:0 6px}
+    .tb-divider{
+      width:1px;
+      background:#d6d6e3;
+      align-self:stretch;
+    }
 
     .tb-toolbar{display:flex;gap:10px;justify-content:flex-end}
     .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s}
