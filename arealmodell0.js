@@ -562,12 +562,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if(S.ch.enabled && S.ch.N) S.ch.allPairs=factorPairsSorted(S.ch.N);
   createBoard();
 
-  const btnSettings=document.getElementById("btnSettings");
-  const menu=document.getElementById("settingsMenu");
   const chkGrid=document.getElementById("chkGrid");
-  if(btnSettings && menu){
-    btnSettings.addEventListener("click",()=>{menu.hidden=!menu.hidden;});
-  }
   if(chkGrid){
     chkGrid.checked = CFG.SIMPLE.showGrid;
     chkGrid.addEventListener("change",()=>{
