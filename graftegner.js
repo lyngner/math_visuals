@@ -13,7 +13,7 @@ var ADV = {
   screen: null,
   lockAspect: true,
   interactions: {
-    pan:  { enabled: true,  needShift: false },
+    pan:  { enabled: false, needShift: false },
     zoom: { enabled: true,  wheel: true, needShift: false, factorX: 1.2, factorY: 1.2 }
   },
   points: {
@@ -263,10 +263,10 @@ var graphs=[];
 function colorFor(i){ var def=["#9333ea","#475569","#ef4444","#0ea5e9","#10b981","#f59e0b"]; return def[i%def.length]; }
 function removeSegments(g){ if(g.segs){ g.segs.forEach(function(s){ brd.removeObject(s);}); g.segs=[]; } }
 function rebuildFunctionSegmentsFor(g){
-  removeSegments(g);
   var bb=brd.getBoundingBox(), L=bb[0], R=bb[2];
   if(g.domain && g.domain.length===2){ L=Math.max(L,g.domain[0]); R=Math.min(R,g.domain[1]); }
   if(!(R>L)) return;
+  removeSegments(g);
   var vas=ADV.asymptote.detect && ADV.asymptote.showVertical ? detectVerticalAsymptotes(g.fn,L,R,800,ADV.asymptote.hugeY) : [];
   var xs=[L].concat(vas.filter(function(x){return x>L && x<R;})).concat([R]).sort(function(a,b){return a-b;});
   var eps=(R-L)*1e-6;
@@ -435,6 +435,7 @@ function readUIOverrides(){
   var dom2 = parseDomainInput(document.getElementById("dom2").value);
   var screen = parseScreenInput(document.getElementById("screen").value);
   var pointsCount = +document.getElementById("pointsCount").value;
+  ADV.interactions.pan.enabled = document.getElementById("panEnabled").checked;
 
   ADV.axis.labels.x = (document.getElementById("axisXLabel").value.trim() || "x");
   ADV.axis.labels.y = (document.getElementById("axisYLabel").value.trim() || "y");
