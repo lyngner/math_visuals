@@ -289,19 +289,21 @@ function rebuildFunctionSegmentsFor(g){
   var eps=(R-L)*1e-6;
   function safe(x){ var y; try{y=g.fn(x);}catch(_){y=NaN;} return isFinite(y)?y:NaN; }
   g.segs=[];
-  for(var i=0;i<xs.length-1;i++){
-    var a=xs[i], b=xs[i+1], leftOpen=(i>0), rightOpen=(i<xs.length-2);
-    if(leftOpen) a+=eps; if(rightOpen) b-=eps; if(b<=a) continue;
+  for (let i=0; i<xs.length-1; i++) {
+    let a = xs[i], b = xs[i+1];
+    const leftOpen = (i > 0), rightOpen = (i < xs.length-2);
+    if (leftOpen) a += eps;
+    if (rightOpen) b -= eps;
+    if (b <= a) continue;
     // Use numeric bounds for each segment to avoid capturing mutable
     // variables in closures, which could cause the graph to disappear
     // when the view changes.
-    g.segs.push(
-      brd.create(
-        "functiongraph",
-        [safe, a, b],
-        {strokeColor:g.color, strokeWidth:4, fixed:true, highlight:false}
-      )
+    const seg = brd.create(
+      "functiongraph",
+      [safe, a, b],
+      { strokeColor: g.color, strokeWidth: 4, fixed: true, highlight: false, visible: true }
     );
+    g.segs.push(seg);
   }
 }
 function updateAllBrackets(){
