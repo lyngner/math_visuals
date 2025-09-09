@@ -25,10 +25,21 @@
     .tb-stepper button{width:64px;height:48px;border:0;background:#fff;font-size:28px;cursor:pointer}
     .tb-stepper button:active{transform:translateY(1px)}
     .tb-divider{width:1px;height:36px;background:#d6d6e3;margin:0 6px}
+    #settings{margin-bottom:16px}
+    #settings label{display:block;margin:4px 0}
+    #settings input{width:4rem;margin-left:8px}
   </style>
 </head>
 <body>
   <div class="tb-wrap">
+    <details id="settings">
+      <summary>⚙️ Innstillinger</summary>
+      <label>Totalt<input id="cfg-total" type="number" min="1"></label>
+      <label>Start blokker<input id="cfg-startN" type="number" min="1"></label>
+      <label>Fylte blokker<input id="cfg-startK" type="number" min="0"></label>
+      <label>Min blokker<input id="cfg-minN" type="number" min="1"></label>
+      <label>Maks blokker<input id="cfg-maxN" type="number" min="1"></label>
+    </details>
     <svg id="thinkBlocks" viewBox="0 0 900 420" aria-label="Tenkeblokker"></svg>
 
     <div class="tb-stepper" aria-label="Antall blokker">
