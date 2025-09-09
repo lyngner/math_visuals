@@ -452,37 +452,38 @@ function updateAfterViewChange(){
   graphs.forEach(rebuildFunctionSegmentsFor);
   updateAllBrackets();
 }
-brd.on("boundingbox", updateAfterViewChange);
-window.addEventListener("resize", function(){ JXG.JSXGraph.resizeBoards(); updateAfterViewChange(); });
+  brd.on("boundingbox", updateAfterViewChange);
+  window.addEventListener("resize", function(){ JXG.JSXGraph.resizeBoards(); updateAfterViewChange(); });
 
-/* ---------- Reset & SVG ---------- */
-document.getElementById("btnReset").addEventListener("click", function(){
-  var scr = ADV.screen!=null ? ADV.screen : (MODE==="functions"?computeAutoSquareFunctions():computeAutoSquarePoints());
-  brd.setBoundingBox(toBB(scr), true);
-  updateAfterViewChange();
-});
-document.getElementById("btnSvg").addEventListener("click", function(){
-  var xml = getSvgString();
-  var blob=new Blob([xml],{type:"image/svg+xml;charset=utf-8"});
-  var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="graf.svg"; a.click(); URL.revokeObjectURL(a.href);
-});
-document.getElementById("btnPng").addEventListener("click", function(){
-  var xml = getSvgString();
-  var blob=new Blob([xml],{type:"image/svg+xml;charset=utf-8"});
-  var url=URL.createObjectURL(blob);
-  var img=new Image();
-  img.onload=function(){
-    var w=img.width,h=img.height;
-    var c=document.createElement("canvas"); c.width=w; c.height=h;
-    var ctx=c.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h);
-    URL.revokeObjectURL(url);
-    c.toBlob(function(b){
-      var urlPng=URL.createObjectURL(b); var a=document.createElement("a");
-      a.href=urlPng; a.download="graf.png"; a.click(); URL.revokeObjectURL(urlPng);
-    },"image/png");
-  };
-  img.src=url;
-});
+  /* ---------- Reset & SVG ---------- */
+  document.getElementById("btnDraw").addEventListener("click", rebuildBoard);
+  document.getElementById("btnReset").addEventListener("click", function(){
+    var scr = ADV.screen!=null ? ADV.screen : (MODE==="functions"?computeAutoSquareFunctions():computeAutoSquarePoints());
+    brd.setBoundingBox(toBB(scr), true);
+    updateAfterViewChange();
+  });
+  document.getElementById("btnSvg").addEventListener("click", function(){
+    var xml = getSvgString();
+    var blob=new Blob([xml],{type:"image/svg+xml;charset=utf-8"});
+    var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="graf.svg"; a.click(); URL.revokeObjectURL(a.href);
+  });
+  document.getElementById("btnPng").addEventListener("click", function(){
+    var xml = getSvgString();
+    var blob=new Blob([xml],{type:"image/svg+xml;charset=utf-8"});
+    var url=URL.createObjectURL(blob);
+    var img=new Image();
+    img.onload=function(){
+      var w=img.width,h=img.height;
+      var c=document.createElement("canvas"); c.width=w; c.height=h;
+      var ctx=c.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      c.toBlob(function(b){
+        var urlPng=URL.createObjectURL(b); var a=document.createElement("a");
+        a.href=urlPng; a.download="graf.png"; a.click(); URL.revokeObjectURL(urlPng);
+      },"image/png");
+    };
+    img.src=url;
+  });
 
 function getSvgString(){
   var src=brd.renderer.svgRoot.cloneNode(true);
