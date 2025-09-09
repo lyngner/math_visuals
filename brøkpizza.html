@@ -35,9 +35,10 @@
       font-size:14px; background:#fff; width:100%; box-sizing:border-box;
     }
     fieldset { border:1px solid #e5e7eb; border-radius:10px; padding:10px; margin:0; display:flex; flex-direction:column; gap:8px; }
+    .settings { display:flex; gap:var(--gap); }
+    .settings fieldset { flex:1; }
     legend { font-weight:600; font-size:13px; color:#374151; padding:0 4px; }
     .checkbox-row { display:flex; align-items:center; gap:6px; }
-    .sep { height:1px; background:#eef0f3; margin:8px 0; }
 
     /* To kolonner med pizzaer; JS justerer header-høyder */
     .grid2 {
@@ -121,7 +122,7 @@
 
       <div class="card">
         <h2>Innstillinger</h2>
-        <div>
+        <div class="settings">
           <fieldset>
             <legend>Pizza 1</legend>
             <div class="checkbox-row"><input id="p1Show" type="checkbox" checked><label for="p1Show">Vis</label></div>
@@ -143,8 +144,6 @@
             <label for="p1MaxN">Maks n</label>
             <input id="p1MaxN" type="number" value="24" min="1">
           </fieldset>
-
-          <div class="sep"></div>
 
           <fieldset>
             <legend>Pizza 2</legend>
