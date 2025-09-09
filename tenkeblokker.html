@@ -7,9 +7,32 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css" />
 
   <style>
-    .tb-wrap{display:grid;place-items:center;gap:16px;padding:20px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    :root { --gap:18px; }
+    html,body { height:100%; }
+    body {
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color:#111827; background:#f7f8fb; padding:20px;
+    }
+    .wrap { max-width:1200px; margin:0 auto; }
+    .grid { display:grid; gap:var(--gap); grid-template-columns:1fr 360px; align-items:start; }
+    @media (max-width:980px){ .grid { grid-template-columns:1fr; } }
+    .card {
+      background:#fff; border:1px solid #e5e7eb; border-radius:14px;
+      box-shadow:0 1px 2px rgba(0,0,0,.04); padding:14px;
+      display:flex; flex-direction:column; gap:10px;
+    }
+    .card h2 { margin:0 0 6px 2px; font-size:16px; font-weight:600; color:#374151; }
+    label { font-size:13px; color:#4b5563; }
+    input[type="number"] {
+      border:1px solid #d1d5db; border-radius:10px;
+      padding:8px 10px; font-size:14px; background:#fff;
+      width:100%; box-sizing:border-box;
+    }
+    .checkbox-row { display:flex; align-items:center; gap:6px; }
+
     /* SVG */
-    #thinkBlocks{width:min(900px,92vw);height:auto;background:#fff}
+    #thinkBlocks{width:100%;height:auto;background:#fff}
     .tb-rect{fill:#e8eedf}
     .tb-rect-empty{fill:#ffffff}
     .tb-frame{fill:none;stroke:#333;stroke-width:6}
@@ -25,27 +48,33 @@
     .tb-stepper button{width:64px;height:48px;border:0;background:#fff;font-size:28px;cursor:pointer}
     .tb-stepper button:active{transform:translateY(1px)}
     .tb-divider{width:1px;height:36px;background:#d6d6e3;margin:0 6px}
-    #settings{margin-bottom:16px}
-    #settings label{display:block;margin:4px 0}
-    #settings input{width:4rem;margin-left:8px}
   </style>
 </head>
 <body>
-  <div class="tb-wrap">
-    <details id="settings">
-      <summary>⚙️ Innstillinger</summary>
-      <label>Totalt<input id="cfg-total" type="number" min="1"></label>
-      <label>Start blokker<input id="cfg-startN" type="number" min="1"></label>
-      <label>Fylte blokker<input id="cfg-startK" type="number" min="0"></label>
-      <label>Min blokker<input id="cfg-minN" type="number" min="1"></label>
-      <label>Maks blokker<input id="cfg-maxN" type="number" min="1"></label>
-    </details>
-    <svg id="thinkBlocks" viewBox="0 0 900 420" aria-label="Tenkeblokker"></svg>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <h2>Tenkeblokker</h2>
+        <svg id="thinkBlocks" viewBox="0 0 900 420" aria-label="Tenkeblokker"></svg>
 
-    <div class="tb-stepper" aria-label="Antall blokker">
-      <button id="tbMinus" type="button" aria-label="Færre blokker">−</button>
-      <div class="tb-divider"></div>
-      <button id="tbPlus"  type="button" aria-label="Flere blokker">+</button>
+        <div class="tb-stepper" aria-label="Antall blokker">
+          <button id="tbMinus" type="button" aria-label="Færre blokker">−</button>
+          <div class="tb-divider"></div>
+          <button id="tbPlus"  type="button" aria-label="Flere blokker">+</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Innstillinger</h2>
+        <label>Totalt<input id="cfg-total" type="number" min="1"></label>
+        <label>Start blokker<input id="cfg-startN" type="number" min="1"></label>
+        <label>Fylte blokker<input id="cfg-startK" type="number" min="0"></label>
+        <label>Min blokker<input id="cfg-minN" type="number" min="1"></label>
+        <label>Maks blokker<input id="cfg-maxN" type="number" min="1"></label>
+        <div class="checkbox-row"><input id="cfg-showWhole" type="checkbox" checked><label for="cfg-showWhole">Vis «hele»</label></div>
+        <div class="checkbox-row"><input id="cfg-showStepper" type="checkbox" checked><label for="cfg-showStepper">Vis pluss/minus</label></div>
+        <div class="checkbox-row"><input id="cfg-showHandle" type="checkbox" checked><label for="cfg-showHandle">Vis håndtak</label></div>
+      </div>
     </div>
   </div>
 

@@ -6,7 +6,10 @@ const SIMPLE = {
   startN: 5,       // antall blokker (nevner)
   startK: 4,       // antall fylte blokker (teller)
   minN: 2,
-  maxN: 12
+  maxN: 12,
+  showWhole: true,    // vis parentes + total
+  showStepper: true,  // vis pluss/minus-knapper
+  showHandle: true    // vis håndtak
 };
 
 /* ============ ADV KONFIG (VALGFRITT) ============ */
@@ -21,7 +24,10 @@ let CFG = {
   minN: SIMPLE.minN,
   maxN: SIMPLE.maxN,
   bracketTick: ADV.bracketTick,
-  labelOffsetY: ADV.labelOffsetY
+  labelOffsetY: ADV.labelOffsetY,
+  showWhole: SIMPLE.showWhole,
+  showStepper: SIMPLE.showStepper,
+  showHandle: SIMPLE.showHandle
 };
 
 let n = clamp(SIMPLE.startN, CFG.minN, CFG.maxN);
@@ -54,6 +60,7 @@ addTo(gFrame,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-frame'});
 // Håndtak
 const handleShadow = addTo(gHandle,'circle',{cx:R, cy:(TOP+BOT)/2+2, r:20, class:'tb-handle-shadow'});
 const handle       = addTo(gHandle,'circle',{cx:R, cy:(TOP+BOT)/2,   r:18, class:'tb-handle'});
+const stepper      = document.querySelector('.tb-stepper');
 
 // ---------- Interaksjon ----------
 document.getElementById('tbMinus').addEventListener('click', ()=> setN(n-1));
@@ -122,12 +129,23 @@ function applyConfig(){
     minN: SIMPLE.minN,
     maxN: SIMPLE.maxN,
     bracketTick: ADV.bracketTick,
-    labelOffsetY: ADV.labelOffsetY
+    labelOffsetY: ADV.labelOffsetY,
+    showWhole: SIMPLE.showWhole,
+    showStepper: SIMPLE.showStepper,
+    showHandle: SIMPLE.showHandle
   };
   n = clamp(SIMPLE.startN, CFG.minN, CFG.maxN);
   k = clamp(SIMPLE.startK, 0, n);
-  drawBracketSquare(L, R, BRACE_Y, CFG.bracketTick);
-  addTo(gBrace,'text',{x:(L+R)/2, y:BRACE_Y - CFG.labelOffsetY, class:'tb-total'}).textContent = CFG.total;
+  gBrace.innerHTML = '';
+  if(CFG.showWhole){
+    drawBracketSquare(L, R, BRACE_Y, CFG.bracketTick);
+    addTo(gBrace,'text',{x:(L+R)/2, y:BRACE_Y - CFG.labelOffsetY, class:'tb-total'}).textContent = CFG.total;
+    gBrace.style.display = '';
+  } else {
+    gBrace.style.display = 'none';
+  }
+  stepper.style.display = CFG.showStepper ? '' : 'none';
+  gHandle.style.display  = CFG.showHandle ? '' : 'none';
   redraw();
 }
 
@@ -178,13 +196,19 @@ function setupSettingsUI(){
   const kInput = document.getElementById('cfg-startK');
   const minInput = document.getElementById('cfg-minN');
   const maxInput = document.getElementById('cfg-maxN');
-  if(!totalInput || !nInput || !kInput || !minInput || !maxInput) return;
+  const showWholeInput = document.getElementById('cfg-showWhole');
+  const showStepperInput = document.getElementById('cfg-showStepper');
+  const showHandleInput = document.getElementById('cfg-showHandle');
+  if(!totalInput || !nInput || !kInput || !minInput || !maxInput || !showWholeInput || !showStepperInput || !showHandleInput) return;
 
   totalInput.value = SIMPLE.total;
   nInput.value = SIMPLE.startN;
   kInput.value = SIMPLE.startK;
   minInput.value = SIMPLE.minN;
   maxInput.value = SIMPLE.maxN;
+  showWholeInput.checked = SIMPLE.showWhole;
+  showStepperInput.checked = SIMPLE.showStepper;
+  showHandleInput.checked = SIMPLE.showHandle;
 
   function update(){
     SIMPLE.total = parseInt(totalInput.value) || SIMPLE.total;
@@ -192,6 +216,9 @@ function setupSettingsUI(){
     SIMPLE.startK = parseInt(kInput.value) || SIMPLE.startK;
     SIMPLE.minN = parseInt(minInput.value) || SIMPLE.minN;
     SIMPLE.maxN = parseInt(maxInput.value) || SIMPLE.maxN;
+    SIMPLE.showWhole = showWholeInput.checked;
+    SIMPLE.showStepper = showStepperInput.checked;
+    SIMPLE.showHandle = showHandleInput.checked;
     applyConfig();
   }
 
@@ -200,6 +227,9 @@ function setupSettingsUI(){
   kInput.addEventListener('change', update);
   minInput.addEventListener('change', update);
   maxInput.addEventListener('change', update);
+  showWholeInput.addEventListener('change', update);
+  showStepperInput.addEventListener('change', update);
+  showHandleInput.addEventListener('change', update);
 }
 
 // init
