@@ -354,6 +354,7 @@ function createBoard(){
     renderer: "svg",
     keepaspectratio:!!CFG.ADV.keepAspect1to1,
     axis:false, showNavigation:false,
+    showCopyright:false,
     pan:{enabled:false}, zoom:{enabled:false}
   });
 
@@ -507,7 +508,7 @@ function buildInnerJS(E){
 'window._oriented=new Set();',
 'function registerIfMatch(){var W=Math.round(H.X()),Hh=Math.round(H.Y());if(E.challenge&&E.challenge.enabled&&E.challenge.N&&W*Hh===E.challenge.N){window._oriented.add(W+"x"+Hh);}}',
 '// === Board ===',
-'S.board=JXG.JSXGraph.initBoard("jxgbox",{boundingbox:[0,1,1,0],renderer:"svg",keepaspectratio:true,axis:false,showNavigation:false,pan:{enabled:false},zoom:{enabled:false}});',
+'S.board=JXG.JSXGraph.initBoard("jxgbox",{boundingbox:[0,1,1,0],renderer:"svg",keepaspectratio:true,axis:false,showNavigation:false,showCopyright:false,pan:{enabled:false},zoom:{enabled:false}});',
 'var A=S.board.create("point",[0,0],{visible:false,fixed:true});',
 'var H=S.board.create("point",[E.startW,E.startH],{withLabel:false,showInfobox:false,face:"circle",size:E.handleRadius,strokeColor:E.colors.handleEdge,fillColor:E.colors.handleFill});',
 'var B=S.board.create("point",[function(){return H.X();},0],{visible:false,fixed:true});',
