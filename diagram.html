@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interaktivt stolpediagram (UU)</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css" />
+  <style>
+    .wrap{display:grid;place-items:center;gap:12px;padding:16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    svg{width:min(900px,95vw);height:auto;background:#fff}
+
+    /* Akser og rutenett */
+    .axis{stroke:#222;stroke-width:3;fill:none}
+    .grid{stroke:#999;stroke-dasharray:6 6;stroke-width:1;opacity:.6}
+    .yTickText{fill:#333;font-size:14px;text-anchor:end}
+    .xLabel{fill:#333;font-size:18px;text-anchor:middle}
+    .yLabel{fill:#333;font-size:18px}
+
+    /* Søyler + vurderingsrammer */
+    .bar{fill:#5B2AA5}
+    .bar.badge-ok{stroke:#2e7d32;stroke-width:4}
+    .bar.badge-no{stroke:#c62828;stroke-width:4}
+
+    /* Håndtak */
+    .handleShadow{fill:#000;opacity:.14}
+    .handle{fill:#f1f1f7;stroke:#555;stroke-width:2;cursor:pointer}
+
+    /* Verdi‐tekst over søyle (ikke-interaktiv) */
+    .value{fill:#111;font-size:16px;text-anchor:middle;paint-order:stroke fill;stroke:#fff;stroke-width:6;pointer-events:none}
+
+    /* Fokus + tastatur (A11y-overlay) */
+    .a11y{cursor:ns-resize}
+    .a11y:focus{outline:none;stroke:#1e88e5;stroke-width:3}
+
+    /* Knapper/status */
+    .btn{padding:8px 12px;border:1px solid #cfcfcf;border-radius:10px;background:#fff;cursor:pointer;font-size:14px;
+         box-shadow:0 2px 10px rgba(0,0,0,.06)}
+    .btn:hover{background:#f7f7f7}
+    .toolbar{display:flex;gap:10px}
+    .status{min-height:1.8em;font-size:16px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <svg id="barsvg" viewBox="0 0 900 560" aria-label="Interaktivt stolpediagram"></svg>
+
+    <div class="toolbar">
+      <button id="btnCheck" class="btn">Sjekk</button>
+      <button id="btnReset" class="btn">Nullstill</button>
+      <button id="btnShow"  class="btn">Vis fasit</button>
+    </div>
+
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </div>
+
+  <!-- Legg JS i egen fil eller her: -->
+  <script src="app.js"></script>
+</body>
+</html>
