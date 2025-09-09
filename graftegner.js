@@ -287,7 +287,7 @@ function sampleFeatures(fn, a, b, opts={}){
   // y-skjæring
   let yIntercept = null;
   if (0 >= a && 0 <= b) {
-    try{ const y0 = fn(0); if(Number.isFinite(y0)) yIntercept = y0; }catch(_){ }
+    try{ const y0 = fn(0); if(Number.isFinite(y0)) yIntercept = y0; }catch(_){}
   }
 
   // ekstremal
@@ -313,8 +313,8 @@ function sampleFeatures(fn, a, b, opts={}){
   // endepunkter
   let endVals = [];
   if(includeEndVals){
-    try{ const ya = fn(a); if(Number.isFinite(ya)) endVals.push({x:a,y:ya}); }catch(_){ }
-    try{ const yb = fn(b); if(Number.isFinite(yb)) endVals.push({x:b,y:yb}); }catch(_){ }
+    try{ const ya = fn(a); if(Number.isFinite(ya)) endVals.push({x:a,y:ya}); }catch(_){}
+    try{ const yb = fn(b); if(Number.isFinite(yb)) endVals.push({x:b,y:yb}); }catch(_){}
   }
 
   // robuste y-grenser via kvantiler
@@ -551,7 +551,7 @@ function measureTextPx(label){
   try{
     const t = label.rendNodeText || (label.rendNode && label.rendNode.getElementsByTagName('text')[0]);
     if(t && t.getBBox){ const bb=t.getBBox(); return {w:bb.width,h:bb.height}; }
-  }catch(_){ }
+  }catch(_){}
   const s=(label.plaintext||'f(x)').length, f=ADV.curveName.fontSize;
   return { w: s*f*0.6, h: f*1.1 };
 }
@@ -700,7 +700,7 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */) {
   try{
     const y1 = g.fn(xS + baseH), y2 = g.fn(xS - baseH);
     if (Number.isFinite(y1) && Number.isFinite(y2)) m = (y1 - y2) / (2 * baseH);
-  }catch(_){ }
+  }catch(_){}
 
   // enhets-tangent/-normal i px-rom
   let tx = 1 / rx, ty = m / ry;
