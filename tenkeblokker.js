@@ -1,16 +1,31 @@
 /* Tenkeblokker – full JS m/ firkantparentes */
 
-// ---------- Konfig ----------
-const TOTAL = 50;          // tallet i parentesen
-const MIN_N = 2;
-const MAX_N = 12;
+/* ============ ENKEL KONFIG (FORFATTER) ============ */
+const SIMPLE = {
+  total: 50,       // tallet i parentesen
+  startN: 5,       // antall blokker (nevner)
+  startK: 4,       // antall fylte blokker (teller)
+  minN: 2,
+  maxN: 12
+};
 
-let n = 5;                 // antall blokker (nevner)
-let k = 4;                 // antall fylte blokker (teller), 0..n
+/* ============ ADV KONFIG (VALGFRITT) ============ */
+const ADV = {
+  bracketTick: 16,   // lengde på «haken» ned i hver ende
+  labelOffsetY: 14   // løft tallet litt over parentes-linjen
+};
 
-// Parentes-utseende
-const BRACKET_TICK   = 16; // lengde på «haken» ned i hver ende
-const LABEL_OFFSET_Y = 14; // løft tallet litt over parentes-linjen
+/* ============ DERIVERT KONFIG FOR RENDER (IKKE REDIGER) ============ */
+const CFG = {
+  total: SIMPLE.total,
+  minN: SIMPLE.minN,
+  maxN: SIMPLE.maxN,
+  bracketTick: ADV.bracketTick,
+  labelOffsetY: ADV.labelOffsetY
+};
+
+let n = clamp(SIMPLE.startN, CFG.minN, CFG.maxN);
+let k = clamp(SIMPLE.startK, 0, n);
 
 // ---------- SVG-oppsett ----------
 const svg = document.getElementById('thinkBlocks');
@@ -35,8 +50,8 @@ addTo(gBase ,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-rect-empty'});
 addTo(gFrame,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-frame'});
 
 // Firkantparentes + total
-drawBracketSquare(L, R, BRACE_Y, BRACKET_TICK);
-addTo(gBrace,'text',{x:(L+R)/2, y:BRACE_Y - LABEL_OFFSET_Y, class:'tb-total'}).textContent = TOTAL;
+drawBracketSquare(L, R, BRACE_Y, CFG.bracketTick);
+addTo(gBrace,'text',{x:(L+R)/2, y:BRACE_Y - CFG.labelOffsetY, class:'tb-total'}).textContent = CFG.total;
 
 // Håndtak
 const handleShadow = addTo(gHandle,'circle',{cx:R, cy:(TOP+BOT)/2+2, r:20, class:'tb-handle-shadow'});
@@ -121,7 +136,7 @@ function redraw(){
     addTo(gSep,'line',{x1:x,y1:TOP,x2:x,y2:BOT,class:'tb-sep'});
   }
   // verdier i fylte celler
-  const per = TOTAL / n;
+  const per = CFG.total / n;
   for(let i=0;i<k;i++){
     const cx = L + (i+0.5)*cellW;
     const cy = (TOP+BOT)/2;
@@ -135,7 +150,7 @@ function redraw(){
 
 // ---------- State ----------
 function setN(next){
-  n = clamp(next, MIN_N, MAX_N);
+  n = clamp(next, CFG.minN, CFG.maxN);
   if(k>n) k = n;
   redraw();
 }
