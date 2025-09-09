@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Brøksirkler</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css" />
+
+  <style>
+    :root { --purple:#5B2AA5; --rim:#333; --dash:#444; }
+    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+    .wrap { display:grid; gap:18px; padding:16px; }
+
+    /* To kolonner som standard; topp-ankret så JS kan justere header-høyder */
+    .grid2 {
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap:24px;
+      align-items:start;
+    }
+
+    .pizzaPanel { display:grid; place-items:center; gap:10px; }
+
+    /* Header-slot – fylles av JS med brøk/tekst for å få sentre på linje */
+    .panelHeader { width:100%; display:grid; place-items:center; }
+
+    /* Stakket brøk (vises bare når text:"frac") */
+    .frac { font-size:28px; line-height:1; text-align:center; }
+    .frac .num { display:block; border-bottom:2px solid #000; margin-bottom:4px; }
+    .frac .den { display:block; }
+
+    /* Pizza / SVG – enda mindre før stacking */
+    svg.pizza { width: clamp(100px, 40vw, 420px); height:auto; background:#fff; }
+    .rim { fill:none; stroke:var(--rim); stroke-width:6; }
+    .sector { stroke:#fff; stroke-width:6; }
+    .sector-fill  { fill:var(--purple); }
+    .sector-empty { fill:#fff; }
+    .dash { stroke:var(--dash); stroke-dasharray:6 6; stroke-width:2; }
+    .handle { fill:#e9e6f7; stroke:#333; stroke-width:2; cursor:pointer; }
+
+    /* Stepper (nevner-knapper) */
+    .stepper {
+      display:flex; align-items:center; gap:12px;
+      padding:6px 10px; border:1px solid #cfcfcf; border-radius:12px;
+      box-shadow:0 2px 10px rgba(0,0,0,.06); background:#fff;
+    }
+    .stepper button {
+      width:40px; height:36px; border:1px solid #cfcfcf; border-radius:8px;
+      background:#fff; font-size:20px; cursor:pointer;
+    }
+    .stepper span { min-width:32px; text-align:center; font-variant-numeric:tabular-nums; font-size:16px; }
+
+    /* UU: fokusring for tastatur på slider-overlay (hele pizzaen) */
+    .a11y:focus { outline:none; stroke:#1e88e5; stroke-width:3; }
+
+    /* Stabler UNDER hverandre først når vinduet blir veldig smalt */
+    @media (max-width: 420px) {
+      .grid2 { grid-template-columns: 1fr; gap: 16px; }
+      svg.pizza { width: clamp(240px, 92vw, 420px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid2">
+      <!-- Pizza 1 -->
+      <div class="pizzaPanel">
+        <!-- Flyttes inn i .panelHeader av JS -->
+        <div id="frac1" class="frac" aria-live="polite">
+          <span class="num">8</span><span class="den">10</span>
+        </div>
+
+        <svg id="pizza1" class="pizza" viewBox="-210 -210 420 420" aria-label="Brøkpizza 1"></svg>
+
+        <div class="stepper" aria-label="Antall sektorer pizza 1">
+          <button id="nMinus1" type="button" aria-label="Færre sektorer">−</button>
+          <span id="nVal1">10</span>
+          <button id="nPlus1"  type="button" aria-label="Flere sektorer">+</button>
+        </div>
+      </div>
+
+      <!-- Pizza 2 -->
+      <div class="pizzaPanel">
+        <div id="frac2" class="frac" aria-live="polite">
+          <span class="num">4</span><span class="den">10</span>
+        </div>
+
+        <svg id="pizza2" class="pizza" viewBox="-210 -210 420 420" aria-label="Brøkpizza 2"></svg>
+
+        <div class="stepper" aria-label="Antall sektorer pizza 2">
+          <button id="nMinus2" type="button" aria-label="Færre sektorer">−</button>
+          <span id="nVal2">10</span>
+          <button id="nPlus2"  type="button" aria-label="Flere sektorer">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="pizza.js"></script>
+</body>
+</html>
