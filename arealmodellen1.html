@@ -25,11 +25,13 @@
     }
     .card h2 { margin: 0 0 6px 2px; font-size: 16px; font-weight: 600; color: #374151; }
     svg { width: 100%; height: auto; background: #fff; display: block; }
+    .settings { display: flex; flex-direction: column; gap: 10px; }
     .settings label { font-size: 13px; color: #4b5563; display: flex; flex-direction: column; }
-    .settings input {
+    .settings input, .settings button {
       border: 1px solid #d1d5db; border-radius: 10px;
       padding: 8px 10px; font-size: 14px; background: #fff;
     }
+    .settings button { cursor: pointer; }
 
     .c1 { fill: #e07c7c; }
     .c2 { fill: #f0c667; }
@@ -59,6 +61,9 @@
           <label>Forfatter
             <input id="author" type="text" />
           </label>
+          <button id="btnReset" type="button">Reset</button>
+          <button id="btnSvg" type="button">Last ned interaktiv SVG</button>
+          <button id="btnHtml" type="button">Last ned interaktiv HTML</button>
         </div>
       </div>
     </div>
