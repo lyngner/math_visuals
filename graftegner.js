@@ -96,24 +96,52 @@ function inferPointsFromFunctionText(fnText){
 }
 
 /* --------- uttrykk → funksjon ---------- */
-function parseFunctionSpec(spec){
-  var rhs = (spec||"").toString().trim();
-  var m = rhs.match(/^([a-zA-Z]\w*)\s*\(\s*x\s*\)\s*=\s*(.+)$/);
-  if(m){ rhs = m[2]; }
-  rhs = rhs
-    .replace(/\^/g,"**")
-    .replace(/(\d)([a-zA-Z(])/g,"$1*$2")
-    .replace(/([x\)])\(/g,"$1*(")
-    .replace(/x(\d)/g,"x*$1")
-    .replace(/\bln\(/gi,"log(")
-    .replace(/\bpi\b/gi,"PI")
-    .replace(/\be\b/gi,"E")
-    .replace(/\btau\b/gi,"(2*PI)");
-  var fn;
-  try{ fn = new Function("x","with(Math){return "+rhs+";}"); }
-  catch(_){ fn = function(){ return NaN; }; }
-  return fn;
-}
+  function replacePow(expr){
+    while(expr.indexOf('^') > -1){
+      var i = expr.indexOf('^');
+      var start = i - 1, level = 0;
+      while(start >= 0){
+        var c = expr[start];
+        if(c === ')'){ level++; }
+        else if(c === '('){ if(level === 0) break; level--; }
+        else if(level === 0 && "+-*/".indexOf(c) > -1){ break; }
+        start--;
+      }
+      var base = expr.slice(start + 1, i);
+      var end = i + 1;
+      if(expr[end] === '+' || expr[end] === '-') end++;
+      level = 0;
+      while(end < expr.length){
+        var c2 = expr[end];
+        if(c2 === '('){ level++; }
+        else if(c2 === ')'){ if(level === 0) break; level--; }
+        else if(level === 0 && "+-*/".indexOf(c2) > -1){ break; }
+        end++;
+      }
+      var exponent = expr.slice(i + 1, end);
+      expr = expr.slice(0, start + 1) + "Math.pow(" + base + "," + exponent + ")" + expr.slice(end);
+    }
+    return expr;
+  }
+  function parseFunctionSpec(spec){
+    var rhs = (spec||"").toString().trim();
+    var m = rhs.match(/^([a-zA-Z]\w*)\s*\(\s*x\s*\)\s*=\s*(.+)$/);
+    if(m){ rhs = m[2]; }
+    rhs = rhs
+      .replace(/\s+/g,"")
+      .replace(/(\d)([a-zA-Z(])/g,"$1*$2")
+      .replace(/([x\)])\(/g,"$1*(")
+      .replace(/x(\d)/g,"x*$1")
+      .replace(/\bln\(/gi,"log(")
+      .replace(/\bpi\b/gi,"PI")
+      .replace(/\be\b/gi,"E")
+      .replace(/\btau\b/gi,"(2*PI)");
+    rhs = replacePow(rhs);
+    var fn;
+    try{ fn = new Function("x","with(Math){return "+rhs+";}"); }
+    catch(_){ fn = function(){ return NaN; }; }
+    return fn;
+  }
 
 /* ------------- Hjelpere ------------- */
 function stepX(){ return (ADV.points.snap.stepX!=null ? ADV.points.snap.stepX : +ADV.axis.grid.majorX) || 1; }
