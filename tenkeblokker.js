@@ -33,7 +33,9 @@ let CFG = {
 
 let n = clamp(SIMPLE.startN, CFG.minN, CFG.maxN);
 let k = clamp(SIMPLE.startK, 0, n);
-let cellTexts = Array.from({length:n}, (_,i)=>SIMPLE.texts[i] || '');
+if(SIMPLE.texts.length < n) SIMPLE.texts = SIMPLE.texts.concat(Array(n - SIMPLE.texts.length).fill(''));
+else if(SIMPLE.texts.length > n) SIMPLE.texts = SIMPLE.texts.slice(0,n);
+let cellTexts = SIMPLE.texts.slice();
 
 // ---------- SVG-oppsett ----------
 const svg = document.getElementById('thinkBlocks');
@@ -188,7 +190,9 @@ function applyConfig(){
   };
   n = clamp(SIMPLE.startN, CFG.minN, CFG.maxN);
   k = clamp(SIMPLE.startK, 0, n);
-  cellTexts = Array.from({length:n}, (_,i)=>SIMPLE.texts[i] || '');
+  if(SIMPLE.texts.length < n) SIMPLE.texts = SIMPLE.texts.concat(Array(n - SIMPLE.texts.length).fill(''));
+  else if(SIMPLE.texts.length > n) SIMPLE.texts = SIMPLE.texts.slice(0,n);
+  cellTexts = SIMPLE.texts.slice();
   gBrace.innerHTML = '';
   if(CFG.showWhole){
     drawBracketSquare(L, R, BRACE_Y, CFG.bracketTick);
@@ -235,6 +239,7 @@ function redraw(){
       const t = prompt('Tekst for blokk', cellTexts[i] || '');
       if(t !== null){
         cellTexts[i] = t;
+        SIMPLE.texts[i] = t;
         redraw();
       }
     });
@@ -248,13 +253,17 @@ function redraw(){
 // ---------- State ----------
 function setN(next){
   n = clamp(next, CFG.minN, CFG.maxN);
+  SIMPLE.startN = n;
   if(k>n) k = n;
   if(cellTexts.length < n) cellTexts = cellTexts.concat(Array(n - cellTexts.length).fill(''));
   else if(cellTexts.length > n) cellTexts = cellTexts.slice(0,n);
+  if(SIMPLE.texts.length < n) SIMPLE.texts = SIMPLE.texts.concat(Array(n - SIMPLE.texts.length).fill(''));
+  else if(SIMPLE.texts.length > n) SIMPLE.texts = SIMPLE.texts.slice(0,n);
   redraw();
 }
 function setK(next){
   k = clamp(next, 0, n);
+  SIMPLE.startK = k;
   redraw();
 }
 
