@@ -3,8 +3,8 @@
    ========================================================= */
 const CFG = {
   SIMPLE: {
-    height: { cells: 16, handle: 5, show: true }, // rader, horisontal deling (fra bunn)
-    length: { cells: 17, handle: 3, show: true }, // kolonner, vertikal deling (fra venstre)
+    height: { cells: 16, handle: 5, show: true, showHandle: true }, // rader, horisontal deling (fra bunn)
+    length: { cells: 17, handle: 3, show: true, showHandle: true }, // kolonner, vertikal deling (fra venstre)
   },
   ADV: {
     svgId: "area",
@@ -72,6 +72,8 @@ function readConfigFromHtml(){
   if(Number.isFinite(hHandle)) CFG.SIMPLE.height.handle = hHandle;
   const lHandle = parseInt(document.getElementById("lengthHandle")?.value,10);
   if(Number.isFinite(lHandle)) CFG.SIMPLE.length.handle = lHandle;
+  CFG.SIMPLE.height.showHandle = document.getElementById("showHeightHandle")?.checked ?? CFG.SIMPLE.height.showHandle;
+  CFG.SIMPLE.length.showHandle = document.getElementById("showLengthHandle")?.checked ?? CFG.SIMPLE.length.showHandle;
   CFG.ADV.grid = document.getElementById("grid")?.checked ?? CFG.ADV.grid;
   CFG.ADV.splitLines = document.getElementById("splitLines")?.checked ?? CFG.ADV.splitLines;
 }
@@ -128,8 +130,8 @@ function render(){
   const initLeftCols   = (SV.length?.handle ?? Math.floor(COLS/2));
   const initBottomRows = (SV.height?.handle ?? Math.floor(ROWS/2));
 
-  const showLeftHandle   = showHeightAxis && (SV.height?.handle !== null);
-  const showBottomHandle = showLengthAxis && (SV.length?.handle !== null);
+  const showLeftHandle   = showHeightAxis && (SV.height?.showHandle !== false);
+  const showBottomHandle = showLengthAxis && (SV.length?.showHandle !== false);
 
   // helpers
   const NS  = "http://www.w3.org/2000/svg";
@@ -177,6 +179,11 @@ function render(){
   set(clipRect,"x",ML); set(clipRect,"y",MT); set(clipRect,"width",W); set(clipRect,"height",H);
   clip.appendChild(clipRect); defs.appendChild(clip);
 
+  const rTL = el("rect"), rTR = el("rect"), rBL = el("rect"), rBR = el("rect");
+  set(rTL,"class",classes.cells[0]); set(rTR,"class",classes.cells[1]);
+  set(rBL,"class",classes.cells[2]); set(rBR,"class",classes.cells[3]);
+  svg.append(rTL,rTR,rBL,rBR);
+
   const gridGroup = el("g"); set(gridGroup,"class",classes.grid); set(gridGroup,"clip-path","url(#clipR)");
   if (showGrid) {
     for (let x = ML + UNIT; x < ML + W; x += UNIT) {
@@ -187,11 +194,6 @@ function render(){
     }
   }
   svg.appendChild(gridGroup);
-
-  const rTL = el("rect"), rTR = el("rect"), rBL = el("rect"), rBR = el("rect");
-  set(rTL,"class",classes.cells[0]); set(rTR,"class",classes.cells[1]);
-  set(rBL,"class",classes.cells[2]); set(rBR,"class",classes.cells[3]);
-  svg.append(rTL,rTR,rBL,rBR);
 
   // delingslinjer
   let vLine=null,hLine=null;
@@ -604,12 +606,13 @@ function render(){
     parts.push('<style>'+o.colorsCSS+'</style>');
     parts.push('<defs><clipPath id="clipR"><rect x="'+ML+'" y="'+MT+'" width="'+o.width+'" height="'+o.height+'"/></clipPath></defs>');
     parts.push('<rect class="'+o.classes.outer+'" x="'+ML+'" y="'+MT+'" width="'+o.width+'" height="'+o.height+'"/>');
-    parts.push(gridStr);
 
     parts.push('<rect id="rTL" class="cell '+o.classes.cells[0]+'" x="'+ML+'" y="'+MT+'" width="'+o.sx+'" height="'+(o.height-o.sy)+'"></rect>');
     parts.push('<rect id="rTR" class="cell '+o.classes.cells[1]+'" x="'+(ML+o.sx)+'" y="'+MT+'" width="'+(o.width-o.sx)+'" height="'+(o.height-o.sy)+'"></rect>');
     parts.push('<rect id="rBL" class="cell '+o.classes.cells[2]+'" x="'+ML+'" y="'+(MT+o.height-o.sy)+'" width="'+o.sx+'" height="'+o.sy+'"></rect>');
     parts.push('<rect id="rBR" class="cell '+o.classes.cells[3]+'" x="'+(ML+o.sx)+'" y="'+(MT+o.height-o.sy)+'" width="'+(o.width-o.sx)+'" height="'+o.sy+'"></rect>');
+
+    parts.push(gridStr);
 
     parts.push(vLineStr, hLineStr, hotLeftStr, hotBottomStr, hLeftImg, hDownImg, hLeftHit, hDownHit);
 
@@ -744,11 +747,16 @@ function setSimpleConfig(o={}){
   if(o.length != null) CFG.SIMPLE.length.cells = Math.round(o.length);
   if(o.heightHandle != null) CFG.SIMPLE.height.handle = Math.round(o.heightHandle);
   if(o.lengthHandle != null) CFG.SIMPLE.length.handle = Math.round(o.lengthHandle);
+  if(o.showHeightHandle != null) CFG.SIMPLE.height.showHandle = !!o.showHeightHandle;
+  if(o.showLengthHandle != null) CFG.SIMPLE.length.showHandle = !!o.showLengthHandle;
   const setVal = (id,v)=>{ const el=document.getElementById(id); if(el && v!=null) el.value=v; };
-  setVal("height", CFG.SIMPLE.height.cells);
+  const setChk = (id,v)=>{ const el=document.getElementById(id); if(el) el.checked=!!v; };
   setVal("length", CFG.SIMPLE.length.cells);
-  setVal("heightHandle", CFG.SIMPLE.height.handle);
   setVal("lengthHandle", CFG.SIMPLE.length.handle);
+  setChk("showLengthHandle", CFG.SIMPLE.length.showHandle !== false);
+  setVal("height", CFG.SIMPLE.height.cells);
+  setVal("heightHandle", CFG.SIMPLE.height.handle);
+  setChk("showHeightHandle", CFG.SIMPLE.height.showHandle !== false);
   render();
 }
 
