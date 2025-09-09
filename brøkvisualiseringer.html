@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Brøkvisualiseringer</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css" />
+  <!-- JSXGraph -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraph.css">
+  <script src="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraphcore.js"></script>
+  <style>
+    :root { --gap:18px; }
+    html,body{height:100%;}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color:#111827; background:#f7f8fb; padding:20px;
+    }
+    .wrap{max-width:1200px;margin:0 auto;}
+    .grid{display:grid;gap:var(--gap);grid-template-columns:1fr 360px;align-items:start;}
+    @media(max-width:980px){.grid{grid-template-columns:1fr;}}
+    .card{
+      background:#fff;border:1px solid #e5e7eb;border-radius:14px;
+      box-shadow:0 1px 2px rgba(0,0,0,.04);padding:14px;display:flex;
+      flex-direction:column;gap:10px;
+    }
+    .card h2{margin:0 0 6px 2px;font-size:16px;font-weight:600;color:#374151;}
+    .figure{border-radius:10px;background:#fafbfc;overflow:hidden;border:1px solid #eef0f3;}
+    .figure #box{width:100%;height:420px;}
+    .settings{display:flex;flex-direction:column;gap:8px;}
+    .settings label{display:flex;flex-direction:column;font-size:13px;color:#4b5563;}
+    .settings input,.settings select{padding:8px 10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;background:#fff;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <h2>Figur</h2>
+        <div class="figure">
+          <div id="box"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Innstillinger</h2>
+        <div class="settings">
+          <label>Form
+            <select id="shape">
+              <option value="circle">sirkel</option>
+              <option value="rectangle">rektangel</option>
+              <option value="triangle">trekant</option>
+            </select>
+          </label>
+          <label>Antall deler
+            <input id="parts" type="number" min="1" value="4" />
+          </label>
+          <label>Delt
+            <select id="division">
+              <option value="horizontal">horisontalt</option>
+              <option value="vertical">vertikalt</option>
+              <option value="diagonal">diagonalt</option>
+            </select>
+          </label>
+          <label>Fylte deler (kommaseparert)
+            <input id="filled" type="text" value="0" />
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="brøkvisualiseringer.js"></script>
+</body>
+</html>
