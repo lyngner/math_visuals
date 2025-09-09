@@ -374,6 +374,8 @@ function createBoard(){
   if(btnReset) btnReset.onclick=doReset;
   const btnSvg=document.getElementById("btnSvg");
   if(btnSvg) btnSvg.onclick=downloadSvg;
+  const btnPng=document.getElementById("btnPng");
+  if(btnPng) btnPng.onclick=downloadPng;
   const btnSvgInt=document.getElementById("btnSvgInteractive");
   if(btnSvgInt) btnSvgInt.onclick=downloadInteractiveSVG;
   const btnHtml=document.getElementById("btnHtml");
@@ -485,6 +487,41 @@ function downloadSvg(){
   } catch (e) {
     console.error(e);
     alert("Kunne ikke eksportere SVG: " + e.message);
+  }
+}
+
+function downloadPng(){
+  try {
+    const svgText = serializeSvgFromBoard(S.board);
+    const blob=new Blob([svgText],{type:"image/svg+xml;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const w = img.width, h = img.height;
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0,0,w,h);
+      ctx.drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(b => {
+        const urlPng = URL.createObjectURL(b);
+        const a=document.createElement('a');
+        if ("download" in HTMLAnchorElement.prototype) {
+          a.href=urlPng; a.download=CFG.ADV.fileName.replace(/\.svg$/i,'.png');
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(()=>URL.revokeObjectURL(urlPng),0);
+        } else {
+          window.open(urlPng, "_blank");
+          setTimeout(()=>URL.revokeObjectURL(urlPng),4000);
+        }
+      }, 'image/png');
+    };
+    img.src = url;
+  } catch(e) {
+    console.error(e);
+    alert("Kunne ikke eksportere PNG: " + e.message);
   }
 }
 
