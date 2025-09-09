@@ -1,0 +1,25 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css" />
+
+<div class="wrap">
+  <svg id="area" preserveAspectRatio="xMidYMid meet" aria-label="Arealmodell"></svg>
+</div>
+
+<style>
+  .wrap { max-width: 1100px; margin: 16px auto; padding: 0 12px; }
+  /* Responsiv: fyll bredden, behold proporsjoner via viewBox */
+  svg { width: 100%; height: auto; background: #fff; display:block; }
+
+  .c1 { fill: #e07c7c; }
+  .c2 { fill: #f0c667; }
+  .c3 { fill: #7fb2d6; }
+  .c4 { fill: #8bb889; }
+
+  .outer { fill: none; stroke: #333; stroke-width: 3.5; }
+  .split { stroke: #333; stroke-width: 2.5; }
+  .grid  { stroke: #000; stroke-width: 0.8; stroke-dasharray: 2 5; opacity: .35; }
+  .handle { fill: #ecebf6; stroke: #333; stroke-width: 2; cursor: grab; }
+  .handle:active { cursor: grabbing; }
+
+  .labelCell { fill: #000; opacity: .7; font-size: 22px; font-family: "Segoe UI", system-ui, Arial, sans-serif; }
+  .labelEdge { fill: #000; font-size: 28px; font-family: "Georgia", "Times New Roman", serif; }
+</style>
