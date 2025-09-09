@@ -502,12 +502,25 @@ function rebuildBoard(){
   brd.on("boundingbox", updateAfterViewChange);
 }
 
+// Hjelpefunksjon for å begrense hvor ofte grafen bygges opp
+function debounce(fn, delay){
+  var timer;
+  return function(){
+    clearTimeout(timer);
+    var ctx = this, args = arguments;
+    timer = setTimeout(function(){ fn.apply(ctx, args); }, delay);
+  };
+}
+
+var rebuildBoardDebounced = debounce(rebuildBoard, 300);
+
 /* Lytt på alle innstillinger */
 Array.prototype.forEach.call(
   document.querySelectorAll('#uiOverrides input, #uiOverrides select'),
   function(el){
     var ev = el.tagName.toLowerCase() === 'select' ? 'change' : 'input';
-    el.addEventListener(ev, rebuildBoard);
+    var handler = (ev === 'input' && el.type === 'text') ? rebuildBoardDebounced : rebuildBoard;
+    el.addEventListener(ev, handler);
   }
 );
 
