@@ -6,6 +6,7 @@ const CFG = {
   SIMPLE: {
     length: { cells: 1, max: 12, show: true },   // x (bunn)
     height: { cells: 1, max: 12, show: true },   // y (venstre)
+    showGrid: true,
     snap: 1,
     // "areal" | "ruter" | "none" | egendefinert med ${N}
     areaLabel: "areal",
@@ -174,6 +175,7 @@ function moveHandleTo(nx,ny){ S.w=Math.round(nx); S.h=Math.round(ny); if(S.handl
 function clearInnerGrid(){ for(const g of S.gridLines){ S.board.removeObject(g); } S.gridLines.length=0; }
 function drawInnerGrid(){
   clearInnerGrid();
+  if(!CFG.SIMPLE.showGrid) return;
   const C=CFG.ADV.colors;
   for(let j=1;j<S.h;j++){
     S.gridLines.push(S.board.create("segment", [[0,j],[S.w,j]], {
@@ -448,7 +450,7 @@ function buildInnerJS(E){
 'function areaLabelText(mode,n){if(mode==null)return "Areal: "+n;var s=String(mode).toLowerCase();if(s==="none"||s==="off"||s==="hide")return "";if(s==="areal")return "Areal: "+n;if(s==="ruter"||s==="tiles"||s==="antall")return "Ruter: "+n;return String(mode).indexOf("${N}")>-1?String(mode).replace("${N}",String(n)):String(mode);}',
 'var S={w:E.startW,h:E.startH,board:null,handle:null,grid:[],colA:[],colB:[]};',
 'function clearGrid(){for(var i=0;i<S.grid.length;i++){S.board.removeObject(S.grid[i]);}S.grid.length=0;}',
-'function drawGrid(){clearGrid();for(var j=1;j<S.h;j++){S.grid.push(S.board.create("segment",[[0,j],[S.w,j]],{strokeColor:E.colors.grid,strokeWidth:E.grid.width,dash:E.grid.dash,layer:9,fixed:true,highlight:false}));}for(var i=1;i<S.w;i++){S.grid.push(S.board.create("segment",[[i,0],[i,S.h]],{strokeColor:E.colors.grid,strokeWidth:E.grid.width,dash:E.grid.dash,layer:9,fixed:true,highlight:false}));}}',
+'function drawGrid(){clearGrid();if(!E.showGrid)return;for(var j=1;j<S.h;j++){S.grid.push(S.board.create("segment",[[0,j],[S.w,j]],{strokeColor:E.colors.grid,strokeWidth:E.grid.width,dash:E.grid.dash,layer:9,fixed:true,highlight:false}));}for(var i=1;i<S.w;i++){S.grid.push(S.board.create("segment",[[i,0],[i,S.h]],{strokeColor:E.colors.grid,strokeWidth:E.grid.width,dash:E.grid.dash,layer:9,fixed:true,highlight:false}));}}',
 'function ensureLine(arr,i,xFn,yFn,ax){if(!arr[i])arr[i]=S.board.create("text",[xFn,yFn,function(){return "";}],{anchorX:ax,anchorY:"top",fixed:true,fontSize:E.fontSize,strokeColor:E.colors.text,highlight:false});return arr[i];}',
 'function clearExtra(arr,k){for(var i=k;i<arr.length;i++){arr[i].setText(function(){return "";});}}',
 'function adaptView(rows){var M=E.margin,out=E.labelOutside,gap=E.labelRowGap,LI=E.listsInside;var yTop=-(out+gap);var yLow=rows>0?(yTop-(rows-1)*LI.listLineGap):yTop;var y1=yLow-LI.bottomPad;S.board.setBoundingBox([-M.left,E.maxH+M.top,E.maxW+M.right,y1],true);var needL=E.minPadPx.left||20,needB=E.minPadPx.bottom||72;var W=S.board.canvasWidth||S.board.renderer.canvasRoot.clientWidth||0;var H=S.board.canvasHeight||S.board.renderer.canvasRoot.clientHeight||0;if(W>0&&H>0){var bb=S.board.getBoundingBox(),x1=bb[0],y2=bb[1],x2=bb[2],yb=bb[3];var pxX=W/(x2-x1),pxY=H/(y2-yb);var leftPx=(-out - x1)*pxX;if(leftPx<needL){x1-=(needL-leftPx)/pxX;}var rowsDepth=rows>0?(rows-1)*LI.listLineGap:0;var yLow2=yTop-rowsDepth;var bottomPx=(yLow2-yb)*pxY;if(bottomPx<needB){yb-=(needB-bottomPx)/pxY;}S.board.setBoundingBox([x1,y2,x2,yb],true);}S.board.update();}',
@@ -483,6 +485,7 @@ function downloadInteractiveSVG(){
   const E={
     maxW:S.maxW,maxH:S.maxH,startW:Math.max(1,S.w||1),startH:Math.max(1,S.h||1),
     snap:Math.max(1,CFG.SIMPLE.snap),
+    showGrid:CFG.SIMPLE.showGrid,
     colors:CFG.ADV.colors,opacity:CFG.ADV.opacity,stroke:CFG.ADV.stroke,
     grid:CFG.ADV.grid,margin:CFG.ADV.margin,labelOutside:CFG.ADV.labelOutside,
     labelRowGap:CFG.ADV.labelRowGap,listsInside:CFG.ADV.listsInside,
@@ -522,6 +525,7 @@ function downloadInteractiveHTML(){
   const E={
     maxW:S.maxW,maxH:S.maxH,startW:S.w,startH:S.h,
     snap:Math.max(1,CFG.SIMPLE.snap),
+    showGrid:CFG.SIMPLE.showGrid,
     colors:CFG.ADV.colors,opacity:CFG.ADV.opacity,stroke:CFG.ADV.stroke,
     grid:CFG.ADV.grid,margin:CFG.ADV.margin,labelOutside:CFG.ADV.labelOutside,
     labelRowGap:CFG.ADV.labelRowGap,listsInside:CFG.ADV.listsInside,
@@ -557,4 +561,19 @@ function downloadInteractiveHTML(){
 document.addEventListener("DOMContentLoaded", () => {
   if(S.ch.enabled && S.ch.N) S.ch.allPairs=factorPairsSorted(S.ch.N);
   createBoard();
+
+  const btnSettings=document.getElementById("btnSettings");
+  const menu=document.getElementById("settingsMenu");
+  const chkGrid=document.getElementById("chkGrid");
+  if(btnSettings && menu){
+    btnSettings.addEventListener("click",()=>{menu.hidden=!menu.hidden;});
+  }
+  if(chkGrid){
+    chkGrid.checked = CFG.SIMPLE.showGrid;
+    chkGrid.addEventListener("change",()=>{
+      CFG.SIMPLE.showGrid = chkGrid.checked;
+      drawInnerGrid();
+      S.board.update();
+    });
+  }
 });
