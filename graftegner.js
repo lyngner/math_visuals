@@ -11,7 +11,7 @@ var ADV = {
     grid:   { majorX: 1, majorY: 1, labelPrecision: 0 }
   },
   screen: null,
-  lockAspect: true,
+  lockAspect: false,
   interactions: {
     pan:  { enabled: false, needShift: false },
     zoom: { enabled: true,  wheel: true, needShift: false, factorX: 1.2, factorY: 1.2 }
@@ -434,6 +434,9 @@ function readUIOverrides(){
   var fn2 = document.getElementById("fn2").value.trim();
   var dom2 = parseDomainInput(document.getElementById("dom2").value);
   var screen = parseScreenInput(document.getElementById("screen").value);
+  var lockAspectEl = document.getElementById("lockAspect");
+  lockAspectEl.disabled = !screen;
+  ADV.lockAspect = !!screen && lockAspectEl.checked;
   var pointsCount = +document.getElementById("pointsCount").value;
   ADV.interactions.pan.enabled = document.getElementById("panEnabled").checked;
 
