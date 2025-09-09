@@ -559,15 +559,21 @@ function bindUI(){
   const f1Sides=$("#f1Sides"), f1Angles=$("#f1Angles");
   const f2Sides=$("#f2Sides"), f2Angles=$("#f2Angles");
 
+  const sideToggles = [], angToggles = [];
+
   function wireSide(figKey, key, selId, txtId, placeholder){
     const sel = $(selId), txt = $(txtId);
     const fig = STATE[figKey];
     sel.value = fig.sides[key] ?? "inherit";
     txt.value = fig.sides[key+"Text"] ?? placeholder;
-    function toggleTxt(){ txt.disabled = !sel.value.includes("custom"); }
+    function toggleTxt(){
+      const mode = sel.value === "inherit" ? fig.sides.default : sel.value;
+      txt.disabled = !String(mode).includes("custom");
+    }
     toggleTxt();
     sel.addEventListener("change", ()=>{ fig.sides[key] = sel.value; toggleTxt(); renderCombined(); });
     txt.addEventListener("input", ()=>{ fig.sides[key+"Text"] = txt.value; renderCombined(); });
+    sideToggles.push({figKey, toggleTxt});
   }
   function wireAng(figKey, key, selId, txtId, placeholder){
     const sel = $(selId), txt = $(txtId);
@@ -575,12 +581,13 @@ function bindUI(){
     sel.value = fig.angles[key] ?? "inherit";
     txt.value = fig.angles[key+"Text"] ?? placeholder;
     function toggleTxt(){
-      const v = sel.value; // aksepter både custom* og custum*
-      txt.disabled = !(v.startsWith("custom") || v.startsWith("custum"));
+      const v = sel.value === "inherit" ? fig.angles.default : sel.value; // aksepter både custom* og custum*
+      txt.disabled = !(String(v).startsWith("custom") || String(v).startsWith("custum"));
     }
     toggleTxt();
     sel.addEventListener("change", ()=>{ fig.angles[key] = sel.value; toggleTxt(); renderCombined(); });
     txt.addEventListener("input", ()=>{ fig.angles[key+"Text"] = txt.value; renderCombined(); });
+    angToggles.push({figKey, toggleTxt});
   }
 
   // init
@@ -595,10 +602,10 @@ function bindUI(){
   layoutRadios.forEach(r => r.checked = (r.value===STATE.layout));
 
   inpSpecs.addEventListener("input", ()=>{ STATE.specsText = inpSpecs.value; renderCombined(); });
-  f1Sides.addEventListener("change",  ()=>{ STATE.fig1.sides.default  = f1Sides.value;  renderCombined(); });
-  f1Angles.addEventListener("change", ()=>{ STATE.fig1.angles.default = f1Angles.value; renderCombined(); });
-  f2Sides.addEventListener("change",  ()=>{ STATE.fig2.sides.default  = f2Sides.value;  renderCombined(); });
-  f2Angles.addEventListener("change", ()=>{ STATE.fig2.angles.default = f2Angles.value; renderCombined(); });
+  f1Sides.addEventListener("change",  ()=>{ STATE.fig1.sides.default  = f1Sides.value;  sideToggles.filter(t=>t.figKey==="fig1").forEach(t=>t.toggleTxt()); renderCombined(); });
+  f1Angles.addEventListener("change", ()=>{ STATE.fig1.angles.default = f1Angles.value; angToggles.filter(t=>t.figKey==="fig1").forEach(t=>t.toggleTxt()); renderCombined(); });
+  f2Sides.addEventListener("change",  ()=>{ STATE.fig2.sides.default  = f2Sides.value;  sideToggles.filter(t=>t.figKey==="fig2").forEach(t=>t.toggleTxt()); renderCombined(); });
+  f2Angles.addEventListener("change", ()=>{ STATE.fig2.angles.default = f2Angles.value; angToggles.filter(t=>t.figKey==="fig2").forEach(t=>t.toggleTxt()); renderCombined(); });
 
   // figur 1
   wireSide("fig1","a","#f1SideA","#f1SideATxt","a");
@@ -671,6 +678,8 @@ function bindUI(){
       document.querySelector("#f1Side"+u).value="inherit"; document.querySelector("#f1Side"+u+"Txt").value=k;
       document.querySelector("#f2Side"+u).value="inherit"; document.querySelector("#f2Side"+u+"Txt").value=k;
     });
+    sideToggles.forEach(t=>t.toggleTxt());
+    angToggles.forEach(t=>t.toggleTxt());
 
     renderCombined();
   });
