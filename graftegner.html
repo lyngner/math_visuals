@@ -35,7 +35,13 @@
     }
     .btn:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
     .btn:active { transform: translateY(1px); }
-    label { font-size: 13px; color: #4b5563; }
+    label {
+      font-size: 13px;
+      color: #4b5563;
+      min-height: 38px;
+      display: flex;
+      align-items: flex-end;
+    }
     input[type="text"], select {
       border: 1px solid #d1d5db; border-radius: 10px; padding: 8px 10px;
       font-size: 14px; background: #fff; width: 100%; box-sizing: border-box;
@@ -47,6 +53,7 @@
     .row.single { display: grid; grid-template-columns: minmax(200px,1fr); gap: 10px; }
     .row.axes { display: grid; grid-template-columns: repeat(auto-fit,minmax(100px,1fr)); gap: 10px; }
     .select-compact { max-width: 64px; padding: 4px 6px; font-size: 12px; height: 32px; }
+    .row > div { display: flex; flex-direction: column; }
   </style>
 </head>
 <body>
