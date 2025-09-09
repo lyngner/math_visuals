@@ -457,40 +457,49 @@ function readUIOverrides(){
   MODE = decideMode(SIMPLE_PARSED);
 }
 
-/* ---------- Tegn ---------- */
-document.getElementById("btnApply").addEventListener("click", function(){
+/* ---------- Oppdater graf ved endringer ---------- */
+function rebuildBoard(){
   readUIOverrides();
 
   JXG.JSXGraph.freeBoard(brd);
-  graphs=[];
+  graphs = [];
   START_SCREEN = (ADV.screen!=null ? ADV.screen
-                  : (MODE==="functions"?computeAutoSquareFunctions():computeAutoSquarePoints()));
-  brd = JXG.JSXGraph.initBoard("board",{
+                  : (MODE === "functions" ? computeAutoSquareFunctions() : computeAutoSquarePoints()));
+  brd = JXG.JSXGraph.initBoard("board", {
     boundingbox: toBB(START_SCREEN),
-    axis:true, grid:false, showNavigation:false, showCopyright:false,
-    pan:{enabled:ADV.interactions.pan.enabled,needShift:false},
-    zoom:{enabled:ADV.interactions.zoom.enabled,wheel:true,needShift:false,
-          factorX:ADV.interactions.zoom.factorX,factorY:ADV.interactions.zoom.factorY}
+    axis: true, grid: false, showNavigation: false, showCopyright: false,
+    pan: { enabled: ADV.interactions.pan.enabled, needShift: false },
+    zoom: { enabled: ADV.interactions.zoom.enabled, wheel: true, needShift: false,
+            factorX: ADV.interactions.zoom.factorX, factorY: ADV.interactions.zoom.factorY }
   });
-  ["x","y"].forEach(function(ax){
+  ["x", "y"].forEach(function(ax){
     brd.defaultAxes[ax].setAttribute({
-      withLabel:false, strokeColor:ADV.axis.style.stroke, strokeWidth:ADV.axis.style.width,
-      firstArrow:false, lastArrow:true
+      withLabel: false, strokeColor: ADV.axis.style.stroke, strokeWidth: ADV.axis.style.width,
+      firstArrow: false, lastArrow: true
     });
   });
-  axX=brd.defaultAxes.x; axY=brd.defaultAxes.y;
+  axX = brd.defaultAxes.x; axY = brd.defaultAxes.y;
   // When reinitializing the board the previous text objects are destroyed.
   // Reset the references so new axis labels are created for the fresh board.
   xName = null;
   yName = null;
   placeAxisNames();
-  axX.defaultTicks.setAttribute({drawLabels:true,precision:ADV.axis.grid.labelPrecision,ticksDistance:+ADV.axis.grid.majorX||1,minorTicks:0,label:{anchorX:"middle",anchorY:"top",offset:[0,-8]}});
-  axY.defaultTicks.setAttribute({drawLabels:true,precision:ADV.axis.grid.labelPrecision,ticksDistance:+ADV.axis.grid.majorY||1,minorTicks:0,label:{anchorX:"right",anchorY:"middle",offset:[-8,0]}});
+  axX.defaultTicks.setAttribute({drawLabels:true, precision:ADV.axis.grid.labelPrecision, ticksDistance:+ADV.axis.grid.majorX||1, minorTicks:0, label:{anchorX:"middle", anchorY:"top", offset:[0,-8]}});
+  axY.defaultTicks.setAttribute({drawLabels:true, precision:ADV.axis.grid.labelPrecision, ticksDistance:+ADV.axis.grid.majorY||1, minorTicks:0, label:{anchorX:"right", anchorY:"middle", offset:[-8,0]}});
   rebuildGrid();
 
-  if(MODE==="functions"){ buildFunctions(); } else { buildPointsOnly(); }
+  if(MODE === "functions"){ buildFunctions(); } else { buildPointsOnly(); }
   brd.on("boundingbox", updateAfterViewChange);
-});
+}
+
+/* Lytt på alle innstillinger */
+Array.prototype.forEach.call(
+  document.querySelectorAll('#uiOverrides input, #uiOverrides select'),
+  function(el){
+    var ev = el.tagName.toLowerCase() === 'select' ? 'change' : 'input';
+    el.addEventListener(ev, rebuildBoard);
+  }
+);
 
 /* Første init */
 (function firstRun(){
