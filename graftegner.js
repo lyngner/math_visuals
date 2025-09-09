@@ -433,7 +433,8 @@ function parseDomainInput(s){
 }
 function parseScreenInput(s){
   var t=String(s||"").trim(); if(!t) return null;
-  var m=t.match(/^\[\s*([+-]?\d*\.?\d+)\s*,\s*([+-]?\d*\.?\d+)\s*,\s*([+-]?\d*\.?\d+)\s*,\s*([+-]?\d*\.?\d+)\s*\]$/);
+  // Allow both "[a,b,c,d]" and "a,b,c,d" syntaxes
+  var m=t.match(/^\[?\s*([+-]?\d*\.?\d+)\s*,\s*([+-]?\d*\.?\d+)\s*,\s*([+-]?\d*\.?\d+)\s*,\s*([+-]?\d*\.?\d+)\s*\]?$/);
   if(!m) return null; return [ +m[1], +m[2], +m[3], +m[4] ];
 }
 function readUIOverrides(){
