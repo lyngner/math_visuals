@@ -9,7 +9,8 @@ const SIMPLE = {
   maxN: 12,
   showWhole: true,    // vis parentes + total
   showStepper: true,  // vis pluss/minus-knapper
-  showHandle: true    // vis håndtak
+  showHandle: true,   // vis håndtak
+  valMode: 'rounded'  // 'rounded' | 'exact' | 'fraction' | 'percent'
 };
 
 /* ============ ADV KONFIG (VALGFRITT) ============ */
@@ -27,7 +28,8 @@ let CFG = {
   labelOffsetY: ADV.labelOffsetY,
   showWhole: SIMPLE.showWhole,
   showStepper: SIMPLE.showStepper,
-  showHandle: SIMPLE.showHandle
+  showHandle: SIMPLE.showHandle,
+  valMode: SIMPLE.valMode
 };
 
 let n = clamp(SIMPLE.startN, CFG.minN, CFG.maxN);
@@ -104,6 +106,19 @@ function addTo(group, name, attrs){
 }
 function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
 function fmt(x){ return (Math.round(x*100)/100).toString().replace('.',','); }
+function fmtVal(per){
+  switch(CFG.valMode){
+    case 'fraction':
+      return `1/${n}`;
+    case 'percent':
+      return fmt(100/n) + ' %';
+    case 'exact':
+      return per.toString().replace('.',',');
+    case 'rounded':
+    default:
+      return fmt(per);
+  }
+}
 
 // Skjerm-px → SVG viewBox-koordinater
 function clientToSvg(clientX, clientY){
@@ -181,7 +196,8 @@ function applyConfig(){
     labelOffsetY: ADV.labelOffsetY,
     showWhole: SIMPLE.showWhole,
     showStepper: SIMPLE.showStepper,
-    showHandle: SIMPLE.showHandle
+    showHandle: SIMPLE.showHandle,
+    valMode: SIMPLE.valMode
   };
   n = clamp(SIMPLE.startN, CFG.minN, CFG.maxN);
   k = clamp(SIMPLE.startK, 0, n);
@@ -217,10 +233,11 @@ function redraw(){
   }
   // verdier i fylte celler
   const per = CFG.total / n;
+  const valText = fmtVal(per);
   for(let i=0;i<k;i++){
     const cx = L + (i+0.5)*cellW;
     const cy = (TOP+BOT)/2;
-    addTo(gVals,'text',{x:cx,y:cy,class:'tb-val'}).textContent = fmt(per);
+    addTo(gVals,'text',{x:cx,y:cy,class:'tb-val'}).textContent = valText;
   }
   // håndtak-pos
   const hx = L + k*cellW;
@@ -248,7 +265,8 @@ function setupSettingsUI(){
   const showWholeInput = document.getElementById('cfg-showWhole');
   const showStepperInput = document.getElementById('cfg-showStepper');
   const showHandleInput = document.getElementById('cfg-showHandle');
-  if(!totalInput || !nInput || !kInput || !minInput || !maxInput || !showWholeInput || !showStepperInput || !showHandleInput) return;
+  const valModeSelect = document.getElementById('cfg-valMode');
+  if(!totalInput || !nInput || !kInput || !minInput || !maxInput || !showWholeInput || !showStepperInput || !showHandleInput || !valModeSelect) return;
 
   totalInput.value = SIMPLE.total;
   nInput.value = SIMPLE.startN;
@@ -258,6 +276,7 @@ function setupSettingsUI(){
   showWholeInput.checked = SIMPLE.showWhole;
   showStepperInput.checked = SIMPLE.showStepper;
   showHandleInput.checked = SIMPLE.showHandle;
+  valModeSelect.value = SIMPLE.valMode;
 
   function update(){
     SIMPLE.total = parseInt(totalInput.value) || SIMPLE.total;
@@ -268,6 +287,7 @@ function setupSettingsUI(){
     SIMPLE.showWhole = showWholeInput.checked;
     SIMPLE.showStepper = showStepperInput.checked;
     SIMPLE.showHandle = showHandleInput.checked;
+    SIMPLE.valMode = valModeSelect.value;
     applyConfig();
   }
 
@@ -279,6 +299,7 @@ function setupSettingsUI(){
   showWholeInput.addEventListener('change', update);
   showStepperInput.addEventListener('change', update);
   showHandleInput.addEventListener('change', update);
+  valModeSelect.addEventListener('change', update);
 }
 
 // init

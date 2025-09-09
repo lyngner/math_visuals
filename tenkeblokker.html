@@ -29,6 +29,11 @@
       padding:8px 10px; font-size:14px; background:#fff;
       width:100%; box-sizing:border-box;
     }
+    select {
+      border:1px solid #d1d5db; border-radius:10px;
+      padding:8px 10px; font-size:14px; background:#fff;
+      width:100%; box-sizing:border-box;
+    }
     .checkbox-row { display:flex; align-items:center; gap:6px; }
 
     /* SVG */
@@ -103,6 +108,14 @@
         <div class="checkbox-row"><input id="cfg-showWhole" type="checkbox" checked><label for="cfg-showWhole">Vis «hele»</label></div>
         <div class="checkbox-row"><input id="cfg-showStepper" type="checkbox" checked><label for="cfg-showStepper">Vis pluss/minus</label></div>
         <div class="checkbox-row"><input id="cfg-showHandle" type="checkbox" checked><label for="cfg-showHandle">Vis håndtak</label></div>
+        <label>Tallformat
+          <select id="cfg-valMode">
+            <option value="rounded">Avrundet</option>
+            <option value="exact">Ikke avrundet</option>
+            <option value="fraction">Brøk</option>
+            <option value="percent">Prosent</option>
+          </select>
+        </label>
       </div>
     </div>
   </div>
