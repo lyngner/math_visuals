@@ -42,7 +42,7 @@ const ADV = {
     grid:   { majorX: 1, majorY: 1, labelPrecision: 0 }
   },
   screen: parseScreen(paramStr('screen','')),
-  lockAspect: paramBool('lock'),
+  lockAspect: params.has('lock') ? paramBool('lock') : null,
 
   interactions: {
     pan:  { enabled: paramBool('pan'),  needShift: false },
@@ -355,7 +355,7 @@ function sampleFeatures(fn, a, b, opts={}){
 }
 
 /* ===================== Autozoom ===================== */
-function computeAutoSquareFunctions(){
+function computeAutoScreenFunctions(){
   const allUnbounded = SIMPLE_PARSED.funcs.every(f => !f.domain);
 
   // samle features
@@ -425,18 +425,20 @@ function computeAutoSquareFunctions(){
   xmin = Math.min(xmin, 0); xmax = Math.max(xmax, 0);
   ymin = Math.min(ymin, 0); ymax = Math.max(ymax, 0);
 
-  // padding og kvadrat
+  // padding (og ev. kvadrat)
   const padX = 0.08*(xmax - xmin || 10);
   const padY = 0.08*(ymax - ymin || 10);
   xmin -= padX; xmax += padX; ymin -= padY; ymax += padY;
-
-  const cx=(xmin+xmax)/2, cy=(ymin+ymax)/2;
-  const span=Math.max(xmax-xmin, ymax-ymin);
-  const half=span/2;
-  return [cx-half, cx+half, cy-half, cy+half];
+  if(shouldLockAspect()){
+    const cx=(xmin+xmax)/2, cy=(ymin+ymax)/2;
+    const span=Math.max(xmax-xmin, ymax-ymin);
+    const half=span/2;
+    return [cx-half, cx+half, cy-half, cy+half];
+  }
+  return [xmin, xmax, ymin, ymax];
 }
 
-function computeAutoSquarePoints(){
+function computeAutoScreenPoints(){
   const pts = ADV.points.start.slice(0,2);
   const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
   let xmin = Math.min(-5, ...xs), xmax = Math.max( 5, ...xs);
@@ -446,9 +448,13 @@ function computeAutoSquarePoints(){
   ymin = Math.min(ymin, 0); ymax = Math.max(ymax, 0);
 
   const cx = (xmin + xmax) / 2, cy = (ymin + ymax) / 2;
-  const span = Math.max(xmax - xmin, ymax - ymin, 10);
-  const half = span / 2 * 1.1;
-  return [cx-half, cx+half, cy-half, cy+half];
+  let halfX = Math.max(xmax - xmin, 10) / 2 * 1.1;
+  let halfY = Math.max(ymax - ymin, 10) / 2 * 1.1;
+  if(shouldLockAspect()){
+    const half = Math.max(halfX, halfY);
+    halfX = halfY = half;
+  }
+  return [cx-halfX, cx+halfX, cy-halfY, cy+halfY];
 }
 const toBB = scr => [scr[0], scr[3], scr[1], scr[2]];
 
@@ -457,8 +463,8 @@ JXG.Options.showCopyright = false;
 JXG.Options.showNavigation = false;
 
 const START_SCREEN =
-  ADV.screen ?? (MODE==='functions' ? computeAutoSquareFunctions()
-                                    : computeAutoSquarePoints());
+  ADV.screen ?? (MODE==='functions' ? computeAutoScreenFunctions()
+                                    : computeAutoScreenPoints());
 
 const brd = JXG.JSXGraph.initBoard('board',{
   boundingbox: toBB(START_SCREEN),
@@ -517,9 +523,11 @@ axY.defaultTicks.setAttribute({
   label: { anchorX:'right', anchorY:'middle', offset:[-8,0] }
 });
 
-/* ====== Lås 1:1 når lockAspect===true ELLER majorX===majorY ====== */
+/* ====== Lås 1:1 når lockAspect===true,
+   eller når lockAspect er null og majorX===majorY ====== */
 function shouldLockAspect(){
   if (ADV.lockAspect === true) return true;
+  if (ADV.lockAspect === false) return false;
   const sx = +ADV.axis.grid.majorX || 1;
   const sy = +ADV.axis.grid.majorY || 1;
   return Math.abs(sx - sy) < 1e-12;
@@ -976,7 +984,7 @@ function ensureCheckControls(){
 const btnReset=document.getElementById('btnReset');
 if(btnReset){
   btnReset.addEventListener('click', ()=>{
-    const scr = ADV.screen ?? (MODE==='functions'?computeAutoSquareFunctions():computeAutoSquarePoints());
+    const scr = ADV.screen ?? (MODE==='functions'?computeAutoScreenFunctions():computeAutoScreenPoints());
     brd.setBoundingBox(toBB(scr), true);
     updateAfterViewChange();
   });
@@ -1028,7 +1036,7 @@ function setupSettingsForm(){
     if(v('cfgFun2')) p.set('fun2', v('cfgFun2'));
     if(v('cfgDom2')) p.set('dom2', v('cfgDom2'));
     if(v('cfgScreen')) p.set('screen', v('cfgScreen'));
-    if(cb('cfgLock')) p.set('lock','1');
+    if(cb('cfgLock')) p.set('lock','1'); else p.set('lock','0');
     if(v('cfgAxisX') && v('cfgAxisX')!=='x') p.set('xName', v('cfgAxisX'));
     if(v('cfgAxisY') && v('cfgAxisY')!=='y') p.set('yName', v('cfgAxisY'));
     if(cb('cfgPan')) p.set('pan','1');
