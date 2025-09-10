@@ -16,7 +16,8 @@ function paramStr(id, def=''){ const v=params.get(id); return v==null?def:v; }
 function paramBool(id){ return params.get(id)==='1'; }
 function parseScreen(str){
   if(!str) return null;
-  const parts=str.split(',').map(s=>+s.trim());
+  const cleaned = str.replace(/^[\s\[]+|[\]\s]+$/g, '');
+  const parts = cleaned.split(',').map(s=>+s.trim());
   return parts.length===4 && parts.every(Number.isFinite) ? parts : null;
 }
 function buildSimple(){
