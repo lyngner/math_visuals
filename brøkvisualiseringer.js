@@ -5,6 +5,7 @@
   const filledInp= document.getElementById('filled');
   const wrongInp = document.getElementById('allowWrong');
   let board;
+  let filled = new Set();
 
   function initBoard(){
     if(board) JXG.JSXGraph.freeBoard(board);
@@ -15,24 +16,44 @@
   }
 
   function parseFilled(){
-    return filledInp.value.split(',').map(s=>parseInt(s.trim(),10)).filter(n=>!isNaN(n));
+    filled = new Set(
+      filledInp.value
+        .split(',')
+        .map(s=>parseInt(s.trim(),10))
+        .filter(n=>!isNaN(n))
+    );
+  }
+
+  function updateFilledInput(){
+    filledInp.value = Array.from(filled).sort((a,b)=>a-b).join(',');
+  }
+
+  function togglePart(i, element){
+    if(filled.has(i)){
+      filled.delete(i);
+      element.setAttribute({fillColor:'#fff'});
+    }else{
+      filled.add(i);
+      element.setAttribute({fillColor:'#5B2AA5'});
+    }
+    updateFilledInput();
   }
 
   function draw(){
     initBoard();
     let n = Math.max(1, parseInt(partsInp.value,10));
-    const filled = parseFilled();
+    parseFilled();
     const shape = shapeSel.value;
     const division = divSel.value;
     const allowWrong = wrongInp?.checked;
     if(shape==='rectangle' && division==='diagonal') n = 4;
-    if(shape==='circle') drawCircle(n, filled);
-    else if(shape==='rectangle') drawRect(n, division, filled);
-    else drawTriangle(n, division, filled, allowWrong);
+    if(shape==='circle') drawCircle(n);
+    else if(shape==='rectangle') drawRect(n, division);
+    else drawTriangle(n, division, allowWrong);
     applyClip(shape);
   }
 
-  function drawCircle(n, filled){
+  function drawCircle(n){
     const r = 0.45;
     const cx = 0.5, cy = 0.5;
     const pointOpts = {visible:false, fixed:true, name:'', label:{visible:false}};
@@ -44,14 +65,15 @@
       const p1 = board.create('point', [cx + r*Math.cos(a1), cy + r*Math.sin(a1)], pointOpts);
       const p2 = board.create('point', [cx + r*Math.cos(a2), cy + r*Math.sin(a2)], pointOpts);
       boundaryPts.push(p1);
-      board.create('sector', [center, p1, p2], {
+      const sector = board.create('sector', [center, p1, p2], {
         withLines:true,
         strokeColor:'#fff',
         strokeWidth:6,
-        fillColor: filled.includes(i)?'#5B2AA5':'#fff',
+        fillColor: filled.has(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
         highlight:false
       });
+      sector.on('down', () => togglePart(i, sector));
     }
     for(const p of boundaryPts){
       board.create('segment', [center, p], {
@@ -61,19 +83,20 @@
     board.create('circle', [center, r], {strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false});
   }
 
-  function drawRect(n, division, filled){
+  function drawRect(n, division){
     if(division==='diagonal'){
       const c = [0.5,0.5];
       const corners = [[0,0],[1,0],[1,1],[0,1]];
       for(let i=0;i<4;i++){
         const pts = [corners[i], corners[(i+1)%4], c];
-        board.create('polygon', pts, {
+        const poly = board.create('polygon', pts, {
           borders:{strokeColor:'#fff', strokeWidth:6},
           vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
-          fillColor: filled.includes(i)?'#5B2AA5':'#fff',
+          fillColor: filled.has(i)?'#5B2AA5':'#fff',
           fillOpacity:1,
           highlight:false
         });
+        poly.on('down', () => togglePart(i, poly));
         board.create('segment', [c, corners[i]], {
           strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
         });
@@ -88,13 +111,14 @@
           const y1 = i/n, y2 = (i+1)/n;
           pts = [[0,y1],[1,y1],[1,y2],[0,y2]];
         }
-        board.create('polygon', pts, {
+        const poly = board.create('polygon', pts, {
           borders:{strokeColor:'#fff', strokeWidth:6},
           vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
-          fillColor: filled.includes(i)?'#5B2AA5':'#fff',
+          fillColor: filled.has(i)?'#5B2AA5':'#fff',
           fillOpacity:1,
           highlight:false
         });
+        poly.on('down', () => togglePart(i, poly));
       }
       for(let i=1;i<n;i++){
         if(division==='vertical'){
@@ -118,7 +142,7 @@
     });
   }
 
-  function drawTriangle(n, division, filled, allowWrong){
+  function drawTriangle(n, division, allowWrong){
     for(let i=0;i<n;i++){
       let pts;
       if(division==='vertical'){
@@ -139,13 +163,14 @@
         const t1=i/n, t2=(i+1)/n;
         pts=[[1-t1,t1],[1-t2,t2],[0,0]];
       }
-      board.create('polygon', pts, {
+      const poly = board.create('polygon', pts, {
         borders:{strokeColor:'#fff', strokeWidth:6},
         vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
-        fillColor: filled.includes(i)?'#5B2AA5':'#fff',
+        fillColor: filled.has(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
         highlight:false
       });
+      poly.on('down', () => togglePart(i, poly));
     }
     if(division==='vertical'){
       for(let i=1;i<n;i++){
