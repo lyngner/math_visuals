@@ -163,22 +163,28 @@ function drawBars(){
    DRAGGING (mus/berøring)
    ========================================================= */
 function onDragStart(e){
-  const idx = +e.currentTarget.dataset.index;
+  e.preventDefault();
+  const target = e.currentTarget;
+  const idx = +target.dataset.index;
   if (locked[idx]) return;
   lastFocusIndex = idx;
 
   const move = ev=>{
+    ev.preventDefault();
     const p = clientToSvg(ev.clientX, ev.clientY);
     const clampedY = Math.min(H-M.b, Math.max(M.t, p.y));
     const v = yToValue(clampedY);
     setValue(idx, v, true);
   };
-  const up = ()=>{
-    window.removeEventListener('pointermove', move);
-    window.removeEventListener('pointerup', up);
+  const up = ev=>{
+    ev.preventDefault();
+    target.removeEventListener('pointermove', move);
+    target.removeEventListener('pointerup', up);
+    target.releasePointerCapture(ev.pointerId);
   };
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up);
+  target.setPointerCapture(e.pointerId);
+  target.addEventListener('pointermove', move, { passive: false });
+  target.addEventListener('pointerup', up, { passive: false });
 }
 
 /* =========================================================
