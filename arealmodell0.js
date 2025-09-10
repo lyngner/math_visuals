@@ -35,7 +35,7 @@ const CFG = {
 
     // Marger i ruteenheter (rundt 0..max-området)
     // Økt top-marg for å gi plass til etiketter ved maksimal høyde
-    margin: { left: 0.9, right: 1.2, top: 1.8, bottomBase: 0.9 },
+    margin: { left: 0.9, right: 1.2, top: 2.6, bottomBase: 0.9 },
 
     labelOutside: 0.6,   // avstand fra kant til sidekant-tall
     labelRowGap: 1.0,    // avstand sidekant-tall ↔ “Areal: …”
@@ -83,7 +83,6 @@ const S = {
   labelArea: null, labelLen: null, labelHei: null,
 
   // “tabell”-tekster
-  colA: [], colB: [],
 
   // oppgave
   ch: {
@@ -241,55 +240,44 @@ function drawInnerGrid(){
 }
 
 /* ============================== Lister (“tabell”) ============================== */
-function ensureLine(arr, idx, xFn, yFn, anchorX){
-  if(!arr[idx]){
-    arr[idx]=S.board.create("text",[xFn,yFn,()=>""],{
-      anchorX, anchorY:"top", fixed:true, fontSize:CFG.ADV.fontSize,
-      strokeColor:CFG.ADV.colors.text, layer:11, highlight:false
-    });
+function getListContainers(){
+  const box=document.getElementById(CFG.ADV.containerId);
+  let wrap=box.querySelector('.pairs-list');
+  if(!wrap){
+    wrap=document.createElement('div');
+    wrap.className='pairs-list';
+    const a=document.createElement('div'); a.id='listA'; a.className='col';
+    const b=document.createElement('div'); b.id='listB'; b.className='col';
+    wrap.appendChild(a); wrap.appendChild(b);
+    box.appendChild(wrap);
   }
-  return arr[idx];
+  return [wrap.querySelector('#listA'), wrap.querySelector('#listB')];
 }
-function clearExtra(arr, keep){ for(let i=keep;i<arr.length;i++){ arr[i].setText(()=> ""); } }
+
 function renderInBoardLists(){
-  const out=CFG.ADV.labelOutside, gap=CFG.ADV.labelRowGap, p=CFG.ADV.listsInside;
-  const y0   = () => -(out + gap);
-  const xR   = () => S.maxW - p.insetX;
-  const xL   = () => S.maxW - p.insetX - p.colGap;
+  const [colA, colB]=getListContainers();
+  if(!S.ch.enabled){
+    colA.innerHTML='';
+    colB.innerHTML='';
+    adaptView();
+    return;
+  }
 
   const linesA=[], linesB=[];
   if(S.ch.dedupeOrderless){
     for(const [a,b] of S.ch.allPairs){
-      if(S.ch.oriented.has(`${a}×${b}`))  linesA.push(`${a} · ${b} = ${S.ch.N}`);
+      if(S.ch.oriented.has(`${a}×${b}`)) linesA.push(`${a} · ${b} = ${S.ch.N}`);
       if(a!==b && S.ch.oriented.has(`${b}×${a}`)) linesB.push(`${b} · ${a} = ${S.ch.N}`);
     }
   } else {
-    const items=[...S.ch.oriented].map(s=>s.split("×").map(n=>parseInt(n,10)))
+    const items=[...S.ch.oriented].map(s=>s.split('×').map(n=>parseInt(n,10)))
       .sort((p,q)=>(p[0]-q[0])||(p[1]-q[1]));
     for(const [a,b] of items) linesA.push(`${a} · ${b} = ${S.ch.N}`);
   }
 
-  for(let i=0;i<linesA.length;i++){
-    const yFn = ((idx)=> ()=> y0() - idx*p.listLineGap)(i);
-    const t = ensureLine(S.colA, i, xL, yFn, "right");
-    t.setText(()=>linesA[i]);
-  }
-  clearExtra(S.colA, linesA.length);
-
-  if(S.ch.dedupeOrderless){
-    for(let i=0;i<linesB.length;i++){
-      const yFn = ((idx)=> ()=> y0() - idx*p.listLineGap)(i);
-      const t = ensureLine(S.colB, i, xR, yFn, "right");
-      t.setText(()=>linesB[i]);
-    }
-    clearExtra(S.colB, linesB.length);
-  } else {
-    clearExtra(S.colB, 0);
-  }
-
-  const rows = Math.max(linesA.length, linesB.length);
-  adaptView(rows);
-  S.board.update();
+  colA.innerHTML=linesA.map(t=>`<div>${t}</div>`).join('');
+  colB.innerHTML=linesB.map(t=>`<div>${t}</div>`).join('');
+  adaptView();
 }
 
 /* ============================== Board/tegn ============================== */
@@ -400,45 +388,26 @@ function snapHandleToCells(){
 function updateCountsFromHandle(){ S.w=Math.round(S.handle.X()); S.h=Math.round(S.handle.Y()); }
 
 /* ============================== Bounding – alltid plass til alt ============================== */
-function adaptView(rows=0){
+function adaptView(){
   const M = CFG.ADV.margin;
   const out=CFG.ADV.labelOutside, gap=CFG.ADV.labelRowGap;
-  const li = CFG.ADV.listsInside;
-
-  const yTextTop   = -(out + gap);
-  const yLowestRow = rows>0 ? (yTextTop - (rows-1)*li.listLineGap) : yTextTop;
-  const y1_base    = yLowestRow - li.bottomPad;
-  const bbWanted   = [-M.left, S.maxH + M.top, S.maxW + M.right, y1_base];
-
+  const bbWanted = [-M.left, S.maxH + M.top, S.maxW + M.right, -M.bottomBase];
   S.board.setBoundingBox(bbWanted, true);
 
   const needL=CFG.ADV.minPadPx.left, needB=CFG.ADV.minPadPx.bottom;
   const Wpx=S.board.canvasWidth||S.board.renderer.canvasRoot?.clientWidth||0;
   const Hpx=S.board.canvasHeight||S.board.renderer.canvasRoot?.clientHeight||0;
-
   if(Wpx>0 && Hpx>0){
     let [x1,y2,x2,y1]=S.board.getBoundingBox();
-    const pxPerX = Wpx / (x2-x1);
-    const pxPerY = Hpx / (y2-y1);
-
-    const leftGapPx = (-out - x1) * pxPerX;
-    if(leftGapPx < needL){
-      const delta = (needL - leftGapPx)/pxPerX;
-      x1 -= delta;
-    }
-
-    const yTextTop2   = -(out + gap);
-    const rowsDepth   = rows>0 ? (rows-1)*li.listLineGap : 0;
-    const yLowestRow2 = yTextTop2 - rowsDepth;
-    const bottomGapPx = (yLowestRow2 - y1) * pxPerY;
-    if(bottomGapPx < needB){
-      const delta = (needB - bottomGapPx)/pxPerY;
-      y1 -= delta;
-    }
-
+    const pxPerX=Wpx/(x2-x1);
+    const pxPerY=Hpx/(y2-y1);
+    const leftGapPx=(-out - x1)*pxPerX;
+    if(leftGapPx<needL){ x1 -= (needL-leftGapPx)/pxPerX; }
+    const yTextTop=-(out+gap);
+    const bottomGapPx=(yTextTop - y1)*pxPerY;
+    if(bottomGapPx<needB){ y1 -= (needB-bottomGapPx)/pxPerY; }
     S.board.setBoundingBox([x1,y2,x2,y1], true);
   }
-
   S.board.update();
 }
 
