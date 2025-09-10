@@ -70,7 +70,7 @@ const ADV = {
     fontSize: 16,
     layer: 30,
     fractions: [0.2, 0.8, 0.6, 0.4],
-    gapPx: 12,
+    gapPx: 20,
     plate: { paddingPx: 4, fill: '#fff', opacity: 0.6, radiusPx: 4 },
     marginFracX: 0.04,
     marginFracY: 0.04
