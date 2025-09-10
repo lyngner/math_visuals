@@ -104,8 +104,17 @@ overlay?.addEventListener('keydown', e=>{
   }
 });
 function onDragStart(e){
+  e.preventDefault();
   handle.setPointerCapture(e.pointerId);
+
+  const html = document.documentElement;
+  const prevHtmlOverscroll = html.style.overscrollBehavior;
+  const prevBodyOverscroll = document.body.style.overscrollBehavior;
+  html.style.overscrollBehavior = 'contain';
+  document.body.style.overscrollBehavior = 'contain';
+
   const move = ev=>{
+    ev.preventDefault();
     const p = clientToSvg(ev.clientX, ev.clientY);    // skjerm → viewBox
     const x = clamp(p.x, L, R);
     const cellW = (R-L)/n;
@@ -116,9 +125,11 @@ function onDragStart(e){
     handle.releasePointerCapture(e.pointerId);
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', up);
+    html.style.overscrollBehavior = prevHtmlOverscroll;
+    document.body.style.overscrollBehavior = prevBodyOverscroll;
   };
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up);
+  window.addEventListener('pointermove', move, { passive: false });
+  window.addEventListener('pointerup', up, { passive: false });
 }
 
 // ---------- Utils ----------
