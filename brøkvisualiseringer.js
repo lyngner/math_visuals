@@ -82,7 +82,8 @@
     }
     board.create('circle', [center, r], {
       strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false,
-      fixed:true, hasInnerPoints:false
+      fixed:true, hasInnerPoints:false,
+      cssStyle:'pointer-events:none;'
     });
   }
 
@@ -143,7 +144,8 @@
       fillColor:'none',
       highlight:false,
       fixed:true,
-      hasInnerPoints:false
+      hasInnerPoints:false,
+      cssStyle:'pointer-events:none;'
     });
   }
 
@@ -217,7 +219,8 @@
       fillColor:'none',
       highlight:false,
       fixed:true,
-      hasInnerPoints:false
+      hasInnerPoints:false,
+      cssStyle:'pointer-events:none;'
     });
   }
 
