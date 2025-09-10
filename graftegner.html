@@ -34,6 +34,8 @@
     .settings-row{ display:flex; gap:8px; flex-wrap:wrap; }
     .settings-row label{ flex:0 0 160px; }
     .settings-row label.points{ flex:0 0 80px; }
+    .settings-row--main label{ flex:1 1 0; max-width:none; }
+    .settings-row--main label.points{ flex:0 0 80px; max-width:80px; }
     .checkbox-label{ flex-direction:row; align-items:center; gap:6px; }
   </style>
 </head>
@@ -55,11 +57,14 @@
       <div class="card">
         <h2>Innstillinger</h2>
         <div class="settings">
-          <div class="settings-row">
+          <div class="settings-row settings-row--main">
             <label>Funksjon 1
               <input id="cfgFun1" type="text" value="f(x)=x^2-2">
             </label>
-            <label class="points">punkter
+            <label>Definisjon (valgfritt)
+              <input id="cfgDom1" type="text" value="" placeholder="[start, stopp]">
+            </label>
+            <label class="points">Punkter
               <select id="cfgPoints">
                 <option value="0">0</option>
                 <option value="1">1</option>
@@ -69,9 +74,6 @@
                 <option value="5">5</option>
                 <option value="6">6</option>
               </select>
-            </label>
-            <label>Definisjonsmengde (valgfritt)
-              <input id="cfgDom1" type="text" value="" placeholder="[start, stopp]">
             </label>
           </div>
           <div class="settings-row">
