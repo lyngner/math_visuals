@@ -4,6 +4,9 @@
   const divSel   = document.getElementById('division');
   const filledInp= document.getElementById('filled');
   const wrongInp = document.getElementById('allowWrong');
+  const minusBtn = document.getElementById('partsMinus');
+  const plusBtn  = document.getElementById('partsPlus');
+  const partsVal = document.getElementById('partsVal');
   let board;
   let filled = new Set();
 
@@ -48,6 +51,8 @@
     const division = divSel.value;
     const allowWrong = wrongInp?.checked;
     if(shape==='rectangle' && division==='diagonal') n = 4;
+    partsInp.value = String(n);
+    if(partsVal) partsVal.textContent = n;
     if(shape==='circle') drawCircle(n);
     else if(shape==='rectangle') drawRect(n, division);
     else drawTriangle(n, division, allowWrong);
@@ -250,6 +255,18 @@
   divSel.addEventListener('change', draw);
   filledInp.addEventListener('input', draw);
   wrongInp.addEventListener('change', draw);
+  minusBtn?.addEventListener('click', () => {
+    let n = parseInt(partsInp.value, 10);
+    n = isNaN(n) ? 1 : Math.max(1, n - 1);
+    partsInp.value = String(n);
+    partsInp.dispatchEvent(new Event('input'));
+  });
+  plusBtn?.addEventListener('click', () => {
+    let n = parseInt(partsInp.value, 10);
+    n = isNaN(n) ? 1 : n + 1;
+    partsInp.value = String(n);
+    partsInp.dispatchEvent(new Event('input'));
+  });
 
   draw();
 })();
