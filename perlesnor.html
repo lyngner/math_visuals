@@ -16,6 +16,7 @@
     }
     .wrap { max-width: 1200px; margin: 0 auto; }
     .grid { display: grid; gap: var(--gap); grid-template-columns: 1fr 480px; align-items: start; }
+    .side { display:flex; flex-direction:column; gap:var(--gap); }
     @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
     .card {
       background: #fff;
@@ -61,17 +62,23 @@
         <div class="figure">
           <svg id="beadSVG" viewBox="0 0 1400 460" role="img" aria-label="Perlesnor med klype"></svg>
         </div>
-        <div class="toolbar">
-          <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
-          <button id="btnPng" class="btn" type="button">Last ned PNG</button>
-        </div>
       </div>
 
-      <div class="card">
-        <h2>Innstillinger</h2>
-        <label>Antall perler<input id="cfg-nBeads" type="number" min="1"></label>
-        <label>Startposisjon<input id="cfg-startIndex" type="number" min="0"></label>
-        <label>Fasit venstre<input id="cfg-correct" type="number" min="0"></label>
+      <div class="side">
+        <div class="card">
+          <h2>Nedlasting</h2>
+          <div class="toolbar">
+            <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
+            <button id="btnPng" class="btn" type="button">Last ned PNG</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Innstillinger</h2>
+          <label>Antall perler<input id="cfg-nBeads" type="number" min="1"></label>
+          <label>Startposisjon<input id="cfg-startIndex" type="number" min="0"></label>
+          <label>Fasit venstre<input id="cfg-correct" type="number" min="0"></label>
+        </div>
       </div>
     </div>
   </div>

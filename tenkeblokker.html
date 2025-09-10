@@ -16,6 +16,7 @@
     }
     .wrap { max-width:1200px; margin:0 auto; }
     .grid { display:grid; gap:var(--gap); grid-template-columns:1fr 360px; align-items:start; }
+    .side { display:flex; flex-direction:column; gap:var(--gap); }
     @media (max-width:980px){ .grid { grid-template-columns:1fr; } }
     .card {
       background:#fff; border:1px solid #e5e7eb; border-radius:14px;
@@ -91,33 +92,39 @@
           <div class="tb-divider"></div>
           <button id="tbPlus"  type="button" aria-label="Flere blokker">+</button>
         </div>
+      </div>
 
-        <div class="tb-toolbar">
-          <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
-          <button id="btnPng" class="btn" type="button">Last ned PNG</button>
+      <div class="side">
+        <div class="card">
+          <h2>Nedlasting</h2>
+          <div class="tb-toolbar">
+            <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
+            <button id="btnPng" class="btn" type="button">Last ned PNG</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Innstillinger</h2>
+          <label>Totalt<input id="cfg-total" type="number" min="1"></label>
+          <label>Start blokker<input id="cfg-startN" type="number" min="1"></label>
+          <label>Fylte blokker<input id="cfg-startK" type="number" min="0"></label>
+          <label>Min blokker<input id="cfg-minN" type="number" min="1"></label>
+          <label>Maks blokker<input id="cfg-maxN" type="number" min="1"></label>
+          <div class="checkbox-row"><input id="cfg-showWhole" type="checkbox" checked><label for="cfg-showWhole">Vis «hele»</label></div>
+          <div class="checkbox-row"><input id="cfg-showStepper" type="checkbox" checked><label for="cfg-showStepper">Vis pluss/minus</label></div>
+          <div class="checkbox-row"><input id="cfg-showHandle" type="checkbox" checked><label for="cfg-showHandle">Vis håndtak</label></div>
+          <label>Tallformat
+            <select id="cfg-valMode">
+              <option value="rounded">Avrundet</option>
+              <option value="exact">Ikke avrundet</option>
+              <option value="fraction">Brøk</option>
+              <option value="percent">Prosent</option>
+            </select>
+          </label>
         </div>
       </div>
-
-      <div class="card">
-        <h2>Innstillinger</h2>
-        <label>Totalt<input id="cfg-total" type="number" min="1"></label>
-        <label>Start blokker<input id="cfg-startN" type="number" min="1"></label>
-        <label>Fylte blokker<input id="cfg-startK" type="number" min="0"></label>
-        <label>Min blokker<input id="cfg-minN" type="number" min="1"></label>
-        <label>Maks blokker<input id="cfg-maxN" type="number" min="1"></label>
-        <div class="checkbox-row"><input id="cfg-showWhole" type="checkbox" checked><label for="cfg-showWhole">Vis «hele»</label></div>
-        <div class="checkbox-row"><input id="cfg-showStepper" type="checkbox" checked><label for="cfg-showStepper">Vis pluss/minus</label></div>
-        <div class="checkbox-row"><input id="cfg-showHandle" type="checkbox" checked><label for="cfg-showHandle">Vis håndtak</label></div>
-        <label>Tallformat
-          <select id="cfg-valMode">
-            <option value="rounded">Avrundet</option>
-            <option value="exact">Ikke avrundet</option>
-            <option value="fraction">Brøk</option>
-            <option value="percent">Prosent</option>
-          </select>
-        </label>
-      </div>
     </div>
+  </div>
   </div>
 
   <script src="tenkeblokker.js"></script>

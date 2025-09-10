@@ -17,6 +17,7 @@
     }
     .wrap { max-width: 1200px; margin: 0 auto; }
     .grid { display: grid; gap: var(--gap); grid-template-columns: 1fr 360px; align-items: start; }
+    .side { display:flex; flex-direction:column; gap:var(--gap); }
     @media (max-width:980px){ .grid { grid-template-columns: 1fr; } }
     .card {
       background: #fff; border: 1px solid #e5e7eb; border-radius: 14px;
@@ -26,6 +27,7 @@
     .card h2 { margin: 0 0 6px 2px; font-size: 16px; font-weight: 600; color: #374151; }
     svg { width: 100%; height: auto; background: #fff; display: block; }
     .settings { display: flex; flex-direction: column; gap: 10px; }
+    .toolbar { display:flex; gap:10px; justify-content:flex-end; }
     .settings label { font-size: 13px; color: #4b5563; display: flex; flex-direction: column; }
     .settings input, .settings button {
       border: 1px solid #d1d5db; border-radius: 10px;
@@ -60,37 +62,44 @@
         <h2>Arealmodell</h2>
         <svg id="area" preserveAspectRatio="xMidYMid meet" aria-label="Arealmodell"></svg>
       </div>
-      <div class="card">
-        <h2>Innstillinger</h2>
-        <div class="settings">
-          <div class="row">
-            <label>Lengde
-              <input id="length" type="number" value="17" min="2">
-            </label>
-            <label>Startposisjon
-              <input id="lengthStart" type="number" value="3" min="1">
-            </label>
-            <label class="chk"><input id="showLengthHandle" type="checkbox" checked> Vis håndtak</label>
+      <div class="side">
+        <div class="card">
+          <h2>Nedlasting</h2>
+          <div class="toolbar">
+            <button id="btnSvgStatic" type="button">Last ned SVG</button>
+            <button id="btnPng" type="button">Last ned PNG</button>
+            <button id="btnSvg" type="button">Last ned interaktiv SVG</button>
+            <button id="btnHtml" type="button">Last ned interaktiv HTML</button>
           </div>
-          <div class="row">
-            <label>Høyde
-              <input id="height" type="number" value="16" min="2">
+        </div>
+        <div class="card">
+          <h2>Innstillinger</h2>
+          <div class="settings">
+            <div class="row">
+              <label>Lengde
+                <input id="length" type="number" value="17" min="2">
+              </label>
+              <label>Startposisjon
+                <input id="lengthStart" type="number" value="3" min="1">
+              </label>
+              <label class="chk"><input id="showLengthHandle" type="checkbox" checked> Vis håndtak</label>
+            </div>
+            <div class="row">
+              <label>Høyde
+                <input id="height" type="number" value="16" min="2">
+              </label>
+              <label>Startposisjon
+                <input id="heightStart" type="number" value="5" min="1">
+              </label>
+              <label class="chk"><input id="showHeightHandle" type="checkbox" checked> Vis håndtak</label>
+            </div>
+            <label><input id="grid" type="checkbox"> Vis rutenett</label>
+            <label><input id="splitLines" type="checkbox" checked> Delingslinjer</label>
+            <label>Forfatter
+              <input id="author" type="text" />
             </label>
-            <label>Startposisjon
-              <input id="heightStart" type="number" value="5" min="1">
-            </label>
-            <label class="chk"><input id="showHeightHandle" type="checkbox" checked> Vis håndtak</label>
+            <button id="btnReset" type="button">Reset</button>
           </div>
-          <label><input id="grid" type="checkbox"> Vis rutenett</label>
-          <label><input id="splitLines" type="checkbox" checked> Delingslinjer</label>
-          <label>Forfatter
-            <input id="author" type="text" />
-          </label>
-          <button id="btnReset" type="button">Reset</button>
-          <button id="btnSvgStatic" type="button">Last ned SVG</button>
-          <button id="btnPng" type="button">Last ned PNG</button>
-          <button id="btnSvg" type="button">Last ned interaktiv SVG</button>
-          <button id="btnHtml" type="button">Last ned interaktiv HTML</button>
         </div>
       </div>
     </div>

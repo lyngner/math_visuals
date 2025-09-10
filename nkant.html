@@ -11,6 +11,7 @@
            color: #111827; background: #f7f8fb; padding: 20px; }
     .wrap { max-width: 1200px; margin: 0 auto; }
     .grid { display: grid; gap: var(--gap); grid-template-columns: 1fr 480px; align-items: start; }
+    .side { display:flex; flex-direction:column; gap:var(--gap); }
     @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
     .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.04);
             padding: 14px; display: flex; flex-direction: column; gap: 10px; }
@@ -43,13 +44,20 @@
         </div>
         <div class="toolbar">
           <button id="btnReset" class="btn" type="button">Reset</button>
-          <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
-          <button id="btnPng" class="btn" type="button">Last ned PNG</button>
         </div>
       </div>
 
-      <div class="card">
-        <h2>Innstillinger</h2>
+      <div class="side">
+        <div class="card">
+          <h2>Nedlasting</h2>
+          <div class="toolbar">
+            <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
+            <button id="btnPng" class="btn" type="button">Last ned PNG</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Innstillinger</h2>
 
         <label for="inpSpecs">SPECS (skriv 1–2 linjer, én figur per linje)</label>
         <textarea id="inpSpecs" rows="4" spellcheck="false">a=3, b=5, c=5
@@ -271,6 +279,7 @@ a=5, b=5, c=5, B=90, D=110</textarea>
         </div>
       </div>
     </div>
+  </div>
   </div>
 
   <script src="nkant.js"></script>
