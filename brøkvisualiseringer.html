@@ -18,6 +18,7 @@
     .wrap{max-width:1200px;margin:0 auto;}
     .grid{display:grid;gap:var(--gap);grid-template-columns:1fr 360px;align-items:start;}
     @media(max-width:980px){.grid{grid-template-columns:1fr;}}
+    .side{display:flex;flex-direction:column;gap:var(--gap);}
     .grid2{
       display:grid;
       grid-template-columns:repeat(2,minmax(0,1fr));
@@ -78,10 +79,6 @@
               <span id="partsVal1">4</span>
               <button id="partsPlus1" type="button" aria-label="Flere deler">+</button>
             </div>
-            <div class="toolbar">
-              <button id="btnSvg1" class="btn" type="button">Last ned SVG</button>
-              <button id="btnPng1" class="btn" type="button">Last ned PNG</button>
-            </div>
           </div>
           <div id="panel2" class="figurePanel">
             <div class="figure"><div id="box2" class="box"></div></div>
@@ -90,68 +87,77 @@
               <span id="partsVal2">4</span>
               <button id="partsPlus2" type="button" aria-label="Flere deler">+</button>
             </div>
-            <div class="toolbar">
-              <button id="btnSvg2" class="btn" type="button">Last ned SVG</button>
-              <button id="btnPng2" class="btn" type="button">Last ned PNG</button>
-            </div>
           </div>
         </div>
       </div>
-      <div class="card">
-        <h2>Forfatters innstillinger</h2>
-        <div class="settings">
-          <fieldset>
-            <legend>Figur 1</legend>
-            <div class="checkbox-row"><input id="show1" type="checkbox" checked><label for="show1">Vis</label></div>
-            <label>Form
-              <select id="shape1">
-                <option value="circle">sirkel</option>
-                <option value="rectangle">rektangel</option>
-                <option value="triangle">trekant</option>
-              </select>
-            </label>
-            <label>Antall deler
-              <input id="parts1" type="number" min="1" value="4" />
-            </label>
-            <label>Delt
-              <select id="division1">
-                <option value="horizontal">horisontalt</option>
-                <option value="vertical">vertikalt</option>
-                <option value="diagonal">diagonalt</option>
-                <option value="grid">horisontalt og vertikalt</option>
-              </select>
-            </label>
-            <label>Fylte deler (kommaseparert, klikk på figuren for å fargelegge)
-              <input id="filled1" type="text" value="0" />
-            </label>
-            <div class="checkbox-row"><input id="allowWrong1" type="checkbox" /><label for="allowWrong1">Tillat gale illustrasjoner</label></div>
-          </fieldset>
-          <fieldset>
-            <legend>Figur 2</legend>
-            <div class="checkbox-row"><input id="show2" type="checkbox" checked><label for="show2">Vis</label></div>
-            <label>Form
-              <select id="shape2">
-                <option value="circle">sirkel</option>
-                <option value="rectangle">rektangel</option>
-                <option value="triangle">trekant</option>
-              </select>
-            </label>
-            <label>Antall deler
-              <input id="parts2" type="number" min="1" value="4" />
-            </label>
-            <label>Delt
-              <select id="division2">
-                <option value="horizontal">horisontalt</option>
-                <option value="vertical">vertikalt</option>
-                <option value="diagonal">diagonalt</option>
-                <option value="grid">horisontalt og vertikalt</option>
-              </select>
-            </label>
-            <label>Fylte deler (kommaseparert, klikk på figuren for å fargelegge)
-              <input id="filled2" type="text" value="0" />
-            </label>
-            <div class="checkbox-row"><input id="allowWrong2" type="checkbox" /><label for="allowWrong2">Tillat gale illustrasjoner</label></div>
-          </fieldset>
+      <div class="side">
+        <div class="card">
+          <h2>Last ned figurer</h2>
+          <div class="toolbar">
+            <button id="btnSvg1" class="btn" type="button">Last ned SVG</button>
+            <button id="btnPng1" class="btn" type="button">Last ned PNG</button>
+          </div>
+          <div class="toolbar">
+            <button id="btnSvg2" class="btn" type="button">Last ned SVG</button>
+            <button id="btnPng2" class="btn" type="button">Last ned PNG</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Forfatters innstillinger</h2>
+          <div class="settings">
+            <fieldset>
+              <legend>Figur 1</legend>
+              <div class="checkbox-row"><input id="show1" type="checkbox" checked><label for="show1">Vis</label></div>
+              <label>Form
+                <select id="shape1">
+                  <option value="circle">sirkel</option>
+                  <option value="rectangle">rektangel</option>
+                  <option value="triangle">trekant</option>
+                </select>
+              </label>
+              <label>Antall deler
+                <input id="parts1" type="number" min="1" value="4" />
+              </label>
+              <label>Delt
+                <select id="division1">
+                  <option value="horizontal">horisontalt</option>
+                  <option value="vertical">vertikalt</option>
+                  <option value="diagonal">diagonalt</option>
+                  <option value="grid">horisontalt og vertikalt</option>
+                </select>
+              </label>
+              <label>Fylte deler (kommaseparert, klikk på figuren for å fargelegge)
+                <input id="filled1" type="text" value="0" />
+              </label>
+              <div class="checkbox-row"><input id="allowWrong1" type="checkbox" /><label for="allowWrong1">Tillat gale illustrasjoner</label></div>
+            </fieldset>
+            <fieldset>
+              <legend>Figur 2</legend>
+              <div class="checkbox-row"><input id="show2" type="checkbox" checked><label for="show2">Vis</label></div>
+              <label>Form
+                <select id="shape2">
+                  <option value="circle">sirkel</option>
+                  <option value="rectangle">rektangel</option>
+                  <option value="triangle">trekant</option>
+                </select>
+              </label>
+              <label>Antall deler
+                <input id="parts2" type="number" min="1" value="4" />
+              </label>
+              <label>Delt
+                <select id="division2">
+                  <option value="horizontal">horisontalt</option>
+                  <option value="vertical">vertikalt</option>
+                  <option value="diagonal">diagonalt</option>
+                  <option value="grid">horisontalt og vertikalt</option>
+                </select>
+              </label>
+              <label>Fylte deler (kommaseparert, klikk på figuren for å fargelegge)
+                <input id="filled2" type="text" value="0" />
+              </label>
+              <div class="checkbox-row"><input id="allowWrong2" type="checkbox" /><label for="allowWrong2">Tillat gale illustrasjoner</label></div>
+            </fieldset>
+          </div>
         </div>
       </div>
     </div>
