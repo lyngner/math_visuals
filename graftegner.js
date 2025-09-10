@@ -10,24 +10,41 @@
    1:1-grid når majorX===majorY (eller lockAspect=true). Robust SVG-eksport.
    ========================================================= */
 
-/* ======================= ENKEL KONFIG (eksempel) ======================= */
-const SIMPLE = `
-f(x)=x^2
-Riktig: f(x)=2x-1
-`;
+/* ======================= URL-baserte innstillinger ======================= */
+const params = new URLSearchParams(location.search);
+function paramStr(id, def=''){ const v=params.get(id); return v==null?def:v; }
+function paramBool(id){ return params.get(id)==='1'; }
+function parseScreen(str){
+  if(!str) return null;
+  const parts=str.split(',').map(s=>+s.trim());
+  return parts.length===4 && parts.every(Number.isFinite) ? parts : null;
+}
+function buildSimple(){
+  const lines=[];
+  const fun1=paramStr('fun1','f(x)=x^2-2');
+  const dom1=paramStr('dom1','').trim();
+  if(fun1){ lines.push(dom1 ? `${fun1}, x in ${dom1}` : fun1); }
+  const fun2=paramStr('fun2','').trim();
+  const dom2=paramStr('dom2','').trim();
+  if(fun2){ lines.push(dom2 ? `${fun2}, x in ${dom2}` : fun2); }
+  const pts=paramStr('points','0').trim();
+  if(pts){ lines.push(`points=${pts}`); }
+  return lines.join('\n');
+}
+let SIMPLE = buildSimple();
 
 /* ====================== AVANSERT KONFIG ===================== */
 const ADV = {
   axis: {
-    labels: { x: 'x', y: 'y' },
+    labels: { x: paramStr('xName','x'), y: paramStr('yName','y') },
     style:  { stroke: '#111827', width: 2 },
     grid:   { majorX: 1, majorY: 1, labelPrecision: 0 }
   },
-  screen: null,              // [xmin,xmax,ymin,ymax] eller null for auto
-  lockAspect: true,          // 1:1 lås; låses også automatisk når majorX===majorY
+  screen: parseScreen(paramStr('screen','')),
+  lockAspect: paramBool('lock'),
 
   interactions: {
-    pan:  { enabled: true,  needShift: false },
+    pan:  { enabled: paramBool('pan'),  needShift: false },
     zoom: { enabled: true,  wheel: true, needShift: false, factorX: 1.2, factorY: 1.2 }
   },
 
@@ -979,5 +996,45 @@ if(btnSvg){
       .replace(/\sheight="[^"]*"\s(?=.*height=")/, ' ');
     const blob=new Blob([xml],{type:'image/svg+xml;charset=utf-8'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='graf.svg'; a.click(); URL.revokeObjectURL(a.href);
+  });
+}
+
+setupSettingsForm();
+
+function setupSettingsForm(){
+  const root = document.querySelector('.settings');
+  if(!root) return;
+  const g = id => document.getElementById(id);
+  g('cfgFun1').value = paramStr('fun1','f(x)=x^2-2');
+  g('cfgDom1').value = paramStr('dom1','');
+  g('cfgPoints').value = paramStr('points','0');
+  g('cfgFun2').value = paramStr('fun2','');
+  g('cfgDom2').value = paramStr('dom2','');
+  g('cfgScreen').value = paramStr('screen','');
+  g('cfgLock').checked = paramBool('lock');
+  g('cfgAxisX').value = paramStr('xName','x');
+  g('cfgAxisY').value = paramStr('yName','y');
+  g('cfgPan').checked = paramBool('pan');
+
+  let timer;
+  root.addEventListener('input', ()=>{
+    clearTimeout(timer);
+    timer = setTimeout(()=>{
+      const p = new URLSearchParams();
+      const v = id => g(id).value.trim();
+      const cb = id => g(id).checked;
+      if(v('cfgFun1')) p.set('fun1', v('cfgFun1'));
+      if(v('cfgDom1')) p.set('dom1', v('cfgDom1'));
+      const pts = v('cfgPoints');
+      if(pts && pts !== '0') p.set('points', pts);
+      if(v('cfgFun2')) p.set('fun2', v('cfgFun2'));
+      if(v('cfgDom2')) p.set('dom2', v('cfgDom2'));
+      if(v('cfgScreen')) p.set('screen', v('cfgScreen'));
+      if(cb('cfgLock')) p.set('lock','1');
+      if(v('cfgAxisX') && v('cfgAxisX')!=='x') p.set('xName', v('cfgAxisX'));
+      if(v('cfgAxisY') && v('cfgAxisY')!=='y') p.set('yName', v('cfgAxisY'));
+      if(cb('cfgPan')) p.set('pan','1');
+      location.search = p.toString();
+    }, 400);
   });
 }

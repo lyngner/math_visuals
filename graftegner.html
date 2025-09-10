@@ -3,44 +3,86 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Graf – punkter → funksjon</title>
+  <title>Graftegner</title>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraph.css">
 
   <style>
-    :root { --ink:#111827; --ring:#e5e7eb; }
-    body{ margin:0; padding:24px; background:#f8fafc;
-          font-family:system-ui,-apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif; color:var(--ink); }
-    .wrap{ max-width:1100px; margin:auto; }
-    #board{
-      width:100%; height:560px; background:#fff; border-radius:16px;
-      box-shadow:0 0 0 1px var(--ring) inset;
+    :root { --gap: 18px; }
+    html,body { height: 100%; }
+    body{
+      margin:0; padding:20px; background:#f7f8fb;
+      font-family:system-ui,-apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif; color:#111827;
     }
-
-    /* verktøylinje */
-    .toolbar{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px; }
-    .btn{ appearance:none; cursor:pointer; padding:8px 14px; border-radius:10px;
-          border:1px solid #d1d5db; background:#fff; }
-    /* “Sjekk”-delen plasseres inni toolbar, ikke flytende */
+    .wrap{ max-width:1200px; margin:0 auto; }
+    .grid{ display:grid; gap:var(--gap); grid-template-columns:1fr 420px; align-items:start; }
+    @media (max-width:980px){ .grid{ grid-template-columns:1fr; } }
+    .card{ background:#fff; border:1px solid #e5e7eb; border-radius:14px; box-shadow:0 1px 2px rgba(0,0,0,.04); padding:14px; display:flex; flex-direction:column; gap:10px; }
+    .card h2{ margin:0 0 6px 2px; font-size:16px; font-weight:600; color:#374151; }
+    .figure{ border-radius:10px; background:#fafbfc; overflow:hidden; border:1px solid #eef0f3; }
+    #board{ width:100%; height:560px; background:#fff; }
+    .toolbar{ display:flex; gap:12px; flex-wrap:wrap; justify-content:flex-end; }
+    .btn{ appearance:none; cursor:pointer; padding:8px 14px; border-radius:10px; border:1px solid #d1d5db; background:#fff; }
     .checkbar{ display:flex; gap:10px; align-items:center; }
-    .status{
-      padding:6px 10px; border-radius:10px; font-weight:600; border:1px solid transparent;
-    }
-    .status--ok   { color:#065f46; background:#ecfdf5; border-color:#a7f3d0; }
-    .status--err  { color:#b91c1c; background:#fef2f2; border-color:#fecaca; }
-    .status--info { color:#1f2937; background:#f3f4f6; border-color:#e5e7eb; }
+    .status{ padding:6px 10px; border-radius:10px; font-weight:600; border:1px solid transparent; }
+    .status--ok{ color:#065f46; background:#ecfdf5; border-color:#a7f3d0; }
+    .status--err{ color:#b91c1c; background:#fef2f2; border-color:#fecaca; }
+    .status--info{ color:#1f2937; background:#f3f4f6; border-color:#e5e7eb; }
+    .settings{ display:flex; flex-direction:column; gap:8px; }
+    .settings label{ display:flex; flex-direction:column; font-size:13px; color:#4b5563; }
+    .settings input[type="text"], .settings input[type="number"]{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:100%; }
+    .settings-row{ display:flex; gap:8px; }
+    .settings-row label{ flex:1; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div id="board" aria-label="JSXGraph-tavle"></div>
+    <div class="grid">
+      <div class="card">
+        <h2>Graf</h2>
+        <div class="figure">
+          <div id="board" aria-label="JSXGraph-tavle"></div>
+        </div>
+        <div class="toolbar" id="toolbar">
+          <div id="checkArea" class="checkbar"></div>
+          <button id="btnReset" class="btn">Nullstill zoom/pan</button>
+          <button id="btnSvg" class="btn">Last ned SVG</button>
+        </div>
+      </div>
 
-    <div class="toolbar" id="toolbar">
-      <!-- Her monterer JS “Sjekk”-knapp + status -->
-      <div id="checkArea" class="checkbar"></div>
-
-      <button id="btnReset" class="btn">Nullstill zoom/pan</button>
-      <button id="btnSvg" class="btn">Last ned SVG</button>
+      <div class="card">
+        <h2>Innstillinger</h2>
+        <div class="settings">
+          <label>Funksjon 1
+            <input id="cfgFun1" type="text" value="f(x)=x^2-2">
+          </label>
+          <label>Definisjonsmengde funksjon 1 (Valgfritt. Skriv [start, stopp])
+            <input id="cfgDom1" type="text" value="">
+          </label>
+          <label>Punkter (På funksjon 1)
+            <input id="cfgPoints" type="number" value="0">
+          </label>
+          <label>Funksjon 2 (Valgfritt)
+            <input id="cfgFun2" type="text" value="">
+          </label>
+          <label>Definisjonsmengde funksjon 2 (Valgfritt. Skriv [start, stopp])
+            <input id="cfgDom2" type="text" value="">
+          </label>
+          <label>Screen (Overstyrer autozoom hvis satt. Skriv minX, maxX, minY, maxY)
+            <input id="cfgScreen" type="text" value="">
+          </label>
+          <label><input id="cfgLock" type="checkbox"> Lås forhold 1:1 (krever screen)</label>
+          <div class="settings-row">
+            <label>Navn på x-akse (valgfritt)
+              <input id="cfgAxisX" type="text" value="x">
+            </label>
+            <label>Navn på y-akse (valgfritt)
+              <input id="cfgAxisY" type="text" value="y">
+            </label>
+          </div>
+          <label><input id="cfgPan" type="checkbox"> Tillat pan</label>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -48,3 +90,4 @@
   <script defer src="graftegner.js"></script>
 </body>
 </html>
+
