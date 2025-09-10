@@ -86,7 +86,8 @@ const overlay = rect(0,0,VB_W,VB_H,{
   fill:"transparent", class:"slider", tabindex:0, role:"slider",
   "aria-valuemin":"0", "aria-valuemax":String(CFG.nBeads),
   "aria-valuenow":"0",
-  "aria-label": CFG.a11y?.ariaLabel || "Posisjon for klypa. Bruk piltastene eller dra."
+  "aria-label": CFG.a11y?.ariaLabel || "Posisjon for klypa. Bruk piltastene eller dra.",
+  "aria-describedby":"beadHelp"
 });
 overlay.style.cursor = "ew-resize";
 svg.appendChild(overlay);
@@ -393,6 +394,25 @@ function svgToString(svgEl){
   const style = document.createElement('style');
   style.textContent = css;
   clone.insertBefore(style, clone.firstChild);
+
+  // Kopier beskrivelser referert av aria-describedby inn i SVG-en
+  const ids = new Set();
+  clone.querySelectorAll('[aria-describedby]').forEach(el => {
+    el.getAttribute('aria-describedby')
+      ?.split(/\s+/)
+      .forEach(id => ids.add(id));
+  });
+  ids.forEach(id => {
+    if(!id || clone.getElementById(id)) return;
+    const src = document.getElementById(id);
+    if(src){
+      const desc = document.createElementNS('http://www.w3.org/2000/svg','desc');
+      desc.setAttribute('id', id);
+      desc.textContent = src.textContent;
+      clone.insertBefore(desc, style.nextSibling);
+    }
+  });
+
   clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
   clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
