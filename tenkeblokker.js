@@ -67,8 +67,8 @@ const btnSvg       = document.getElementById('btnSvg');
 const btnPng       = document.getElementById('btnPng');
 
 // ---------- Interaksjon ----------
-document.getElementById('tbMinus').addEventListener('click', ()=> setK(k-1));
-document.getElementById('tbPlus') .addEventListener('click', ()=> setK(k+1));
+document.getElementById('tbMinus').addEventListener('click', ()=> setN(n-1));
+document.getElementById('tbPlus') .addEventListener('click', ()=> setN(n+1));
 btnSvg?.addEventListener('click', ()=> downloadSVG(svg, 'tenkeblokker.svg'));
 btnPng?.addEventListener('click', ()=> downloadPNG(svg, 'tenkeblokker.png', 2));
 
