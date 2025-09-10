@@ -72,7 +72,9 @@
         strokeWidth:6,
         fillColor: filled.has(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
-        highlight:false
+        highlight:false,
+        hasInnerPoints:true,
+        fixed:true
       });
       sector.on('down', () => togglePart(i, sector));
     }
@@ -99,7 +101,9 @@
           vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
           fillColor: filled.has(i)?'#5B2AA5':'#fff',
           fillOpacity:1,
-          highlight:false
+          highlight:false,
+          hasInnerPoints:true,
+          fixed:true
         });
         poly.on('down', () => togglePart(i, poly));
         board.create('segment', [c, corners[i]], {
@@ -121,7 +125,9 @@
           vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
           fillColor: filled.has(i)?'#5B2AA5':'#fff',
           fillOpacity:1,
-          highlight:false
+          highlight:false,
+          hasInnerPoints:true,
+          fixed:true
         });
         poly.on('down', () => togglePart(i, poly));
       }
@@ -176,7 +182,9 @@
         vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
         fillColor: filled.has(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
-        highlight:false
+        highlight:false,
+        hasInnerPoints:true,
+        fixed:true
       });
       poly.on('down', () => togglePart(i, poly));
     }
