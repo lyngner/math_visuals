@@ -34,7 +34,8 @@ const CFG = {
     grid: { width: 1, dash: 2 },
 
     // Marger i ruteenheter (rundt 0..max-området)
-    margin: { left: 0.9, right: 1.2, top: 1.2, bottomBase: 0.9 },
+    // Økt top-marg for å gi plass til etiketter ved maksimal høyde
+    margin: { left: 0.9, right: 1.2, top: 1.8, bottomBase: 0.9 },
 
     labelOutside: 0.6,   // avstand fra kant til sidekant-tall
     labelRowGap: 1.0,    // avstand sidekant-tall ↔ “Areal: …”
