@@ -63,8 +63,14 @@
     const btnPng   = document.getElementById(`btnPng${id}`);
     const showInp  = document.getElementById(`show${id}`);
     const panel    = document.getElementById(`panel${id}`);
+    const colorInputs = [
+      document.getElementById(`color${id}_1`),
+      document.getElementById(`color${id}_2`),
+      document.getElementById(`color${id}_3`),
+      document.getElementById(`color${id}_4`),
+    ];
     let board;
-    let filled = new Set();
+    let filled = new Map();
 
     function initBoard(){
       if(board) JXG.JSXGraph.freeBoard(board);
@@ -74,26 +80,36 @@
       });
     }
 
+    function getColors(){
+      return colorInputs.map(inp=>inp?.value).filter(Boolean);
+    }
+
     function parseFilled(){
-      filled = new Set(
+      filled = new Map(
         filledInp.value
           .split(',')
-          .map(s=>parseInt(s.trim(),10))
-          .filter(n=>!isNaN(n))
+          .map(pair=>pair.split(':').map(t=>parseInt(t.trim(),10)))
+          .filter(([i,c])=>!isNaN(i) && !isNaN(c))
       );
     }
 
     function updateFilledInput(){
-      filledInp.value = Array.from(filled).sort((a,b)=>a-b).join(',');
+      filledInp.value = Array.from(filled.entries())
+        .sort((a,b)=>a[0]-b[0])
+        .map(([i,c])=>`${i}:${c}`)
+        .join(',');
     }
 
     function togglePart(i, element){
-      if(filled.has(i)){
+      const colors = getColors();
+      const current = filled.get(i) || 0;
+      const next = (current + 1) % (colors.length + 1);
+      if(next===0){
         filled.delete(i);
         element.setAttribute({fillColor:'#fff', fillOpacity:1});
       }else{
-        filled.add(i);
-        element.setAttribute({fillColor:'#5B2AA5', fillOpacity:1});
+        filled.set(i,next);
+        element.setAttribute({fillColor:colors[next-1], fillOpacity:1});
       }
       updateFilledInput();
       board.update();
@@ -127,13 +143,18 @@
       division = divSel.value;
       partsInp.value = String(n);
       if(partsVal) partsVal.textContent = n;
-      if(shape==='circle') drawCircle(n, division, allowWrong);
-      else if(shape==='rectangle') drawRect(n, division);
-      else drawTriangle(n, division, allowWrong);
+      const colors = getColors();
+      const colorFor = idx => {
+        const c = filled.get(idx);
+        return c ? colors[c-1] || '#fff' : '#fff';
+      };
+      if(shape==='circle') drawCircle(n, division, allowWrong, colorFor);
+      else if(shape==='rectangle') drawRect(n, division, colorFor);
+      else drawTriangle(n, division, allowWrong, colorFor);
       applyClip(shape);
     }
 
-    function drawCircle(n, division, allowWrong){
+    function drawCircle(n, division, allowWrong, colorFor){
       const r = 0.45;
       const cx = 0.5, cy = 0.5;
       const pointOpts = {visible:false, fixed:true, name:'', label:{visible:false}};
@@ -149,7 +170,7 @@
             const poly=board.create('polygon', [[x1,y1],[x2,y1],[x2,y2],[x1,y2]], {
               borders:{strokeColor:'#fff', strokeWidth:6},
               vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
-              fillColor: filled.has(idx)?'#5B2AA5':'#fff',
+              fillColor: colorFor(idx),
               fillOpacity:1,
               highlight:false,
               hasInnerPoints:true,
@@ -180,15 +201,15 @@
           const p1 = board.create('point', [cx + r*Math.cos(a1), cy + r*Math.sin(a1)], pointOpts);
           const p2 = board.create('point', [cx + r*Math.cos(a2), cy + r*Math.sin(a2)], pointOpts);
           boundaryPts.push(p1);
-          const sector = board.create('sector', [center, p1, p2], {
-            withLines:true,
-            strokeColor:'#fff',
-            strokeWidth:6,
-            fillColor: filled.has(i)?'#5B2AA5':'#fff',
-            fillOpacity:1,
-            highlight:false,
-            hasInnerPoints:true,
-            fixed:true
+            const sector = board.create('sector', [center, p1, p2], {
+              withLines:true,
+              strokeColor:'#fff',
+              strokeWidth:6,
+              fillColor: colorFor(i),
+              fillOpacity:1,
+              highlight:false,
+              hasInnerPoints:true,
+              fixed:true
           });
           sector.on('down', () => togglePart(i, sector));
         }
@@ -205,7 +226,7 @@
       }
     }
 
-    function drawRect(n, division){
+    function drawRect(n, division, colorFor){
       if(division==='diagonal'){
         const c = [0.5,0.5];
         const corners = [[0,0],[1,0],[1,1],[0,1]];
@@ -214,7 +235,7 @@
           const poly = board.create('polygon', pts, {
             borders:{strokeColor:'#fff', strokeWidth:6},
             vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
-            fillColor: filled.has(i)?'#5B2AA5':'#fff',
+            fillColor: colorFor(i),
             fillOpacity:1,
             highlight:false,
             hasInnerPoints:true,
@@ -236,7 +257,7 @@
             const poly=board.create('polygon', pts, {
               borders:{strokeColor:'#fff', strokeWidth:6},
               vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
-              fillColor: filled.has(idx)?'#5B2AA5':'#fff',
+              fillColor: colorFor(idx),
               fillOpacity:1,
               highlight:false,
               hasInnerPoints:true,
@@ -266,7 +287,7 @@
           const poly = board.create('polygon', pts, {
             borders:{strokeColor:'#fff', strokeWidth:6},
             vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
-            fillColor: filled.has(i)?'#5B2AA5':'#fff',
+            fillColor: colorFor(i),
             fillOpacity:1,
             highlight:false,
             hasInnerPoints:true,
@@ -299,7 +320,7 @@
       });
     }
 
-    function drawTriangle(n, division, allowWrong){
+    function drawTriangle(n, division, allowWrong, colorFor){
       for(let i=0;i<n;i++){
         let pts;
         if(division==='vertical'){
@@ -323,7 +344,7 @@
         const poly = board.create('polygon', pts, {
           borders:{strokeColor:'#fff', strokeWidth:6},
           vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
-          fillColor: filled.has(i)?'#5B2AA5':'#fff',
+          fillColor: colorFor(i),
           fillOpacity:1,
           highlight:false,
           hasInnerPoints:true,
@@ -395,6 +416,7 @@
     divSel.addEventListener('change', draw);
     filledInp.addEventListener('input', draw);
     wrongInp.addEventListener('change', draw);
+    colorInputs.forEach(inp => inp?.addEventListener('input', draw));
     minusBtn?.addEventListener('click', () => {
       let n = parseInt(partsInp.value, 10);
       n = isNaN(n) ? 1 : Math.max(1, n - 1);
