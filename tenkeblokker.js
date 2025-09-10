@@ -161,8 +161,9 @@ function fmtVal(per){
 
 function addFractionVal(cx, cy, num, den){
   const lineW = 28;
+  const lineOffsetY = -2; // lift fraction bar slightly for better visual balance
   addTo(gVals,'text',{x:cx, y:cy-18, class:'tb-val'}).textContent = num;
-  addTo(gVals,'line',{x1:cx-lineW/2, y1:cy, x2:cx+lineW/2, y2:cy, stroke:'#111', 'stroke-width':2});
+  addTo(gVals,'line',{x1:cx-lineW/2, y1:cy+lineOffsetY, x2:cx+lineW/2, y2:cy+lineOffsetY, stroke:'#111', 'stroke-width':2});
   addTo(gVals,'text',{x:cx, y:cy+18, class:'tb-val'}).textContent = den;
 }
 
