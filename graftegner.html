@@ -31,10 +31,11 @@
     .status--info{ color:#1f2937; background:#f3f4f6; border-color:#e5e7eb; }
     .settings{ display:flex; flex-direction:column; gap:8px; }
     .settings label{ display:flex; flex-direction:column; font-size:13px; color:#4b5563; white-space:nowrap; }
-    .settings input[type="text"], .settings input[type="number"], .settings select{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:100%; }
+    .settings input[type="text"], .settings input[type="number"], .settings select{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:50%; }
     .settings-row{ display:flex; gap:8px; flex-wrap:nowrap; }
     .settings-row label{ flex:1; }
     .settings-row label.points{ flex:0 0 70px; }
+    .settings-row label.checkbox-label{ flex:0 0 auto; }
     .checkbox-label{ flex-direction:row; align-items:center; gap:6px; }
   </style>
 </head>
@@ -75,10 +76,6 @@
                 <option value="0">0</option>
                 <option value="1">1</option>
                 <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-                <option value="5">5</option>
-                <option value="6">6</option>
               </select>
             </label>
           </div>
@@ -90,10 +87,13 @@
               <input id="cfgDom2" type="text" value="" placeholder="[start, stopp]">
             </label>
           </div>
-          <label>Screen (overstyrer autozoom hvis satt)
-            <input id="cfgScreen" type="text" value="" placeholder="minX, maxX, minY, maxY">
-          </label>
-          <label class="checkbox-label"><input id="cfgLock" type="checkbox"> Lås forhold 1:1 (krever screen)</label>
+          <div class="settings-row">
+            <label>Screen (overstyrer autozoom hvis satt)
+              <input id="cfgScreen" type="text" value="" placeholder="minX, maxX, minY, maxY">
+            </label>
+            <label class="checkbox-label"><input id="cfgLock" type="checkbox"> Lås forhold 1:1 (krever screen)</label>
+            <label class="checkbox-label"><input id="cfgPan" type="checkbox"> Tillat pan</label>
+          </div>
           <div class="settings-row">
             <label>Navn på x-akse (valgfritt)
               <input id="cfgAxisX" type="text" value="x">
@@ -102,7 +102,6 @@
               <input id="cfgAxisY" type="text" value="y">
             </label>
           </div>
-          <label class="checkbox-label"><input id="cfgPan" type="checkbox"> Tillat pan</label>
         </div>
       </div>
     </div>
