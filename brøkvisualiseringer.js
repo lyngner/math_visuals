@@ -80,7 +80,10 @@
         strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
       });
     }
-    board.create('circle', [center, r], {strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false});
+    board.create('circle', [center, r], {
+      strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false,
+      fixed:true, hasInnerPoints:false
+    });
   }
 
   function drawRect(n, division){
@@ -138,7 +141,9 @@
       borders:{strokeColor:'#333', strokeWidth:6},
       vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
       fillColor:'none',
-      highlight:false
+      highlight:false,
+      fixed:true,
+      hasInnerPoints:false
     });
   }
 
@@ -210,7 +215,9 @@
       borders:{strokeColor:'#333', strokeWidth:6},
       vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
       fillColor:'none',
-      highlight:false
+      highlight:false,
+      fixed:true,
+      hasInnerPoints:false
     });
   }
 
