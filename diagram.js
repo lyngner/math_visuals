@@ -79,7 +79,7 @@ function drawAxesAndGrid(){
   const step = chooseStep(yMax);
   for(let y=0; y<=yMax + 1e-9; y+=step){
     const yy = yPos(y);
-    addTo(gGrid,'line',{x1:M.l, y1:yy, x2:W-M.r, y2:yy, class:'grid'});
+    addTo(gGrid,'line',{x1:M.l, y1:yy, x2:W-M.r, y2:yy, class:'gridline'});
     addTo(gGrid,'text',{x:M.l-6,y:yy+4,class:'yTickText'}).textContent = y;
   }
 
