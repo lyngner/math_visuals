@@ -432,7 +432,7 @@ const INTERACTIVE_SVG_SCRIPT = `
 `;
 
 /* =======================
-   Nedlasting: statisk SVG
+   Last ned figurer: statisk SVG
    ======================= */
 function downloadSVG(svgEl, filename="pizza.svg") {
   if(!svgEl) return;
@@ -471,7 +471,7 @@ function downloadSVG(svgEl, filename="pizza.svg") {
 }
 
 /* =======================
-   Nedlasting: interaktiv SVG
+   Last ned figurer: interaktiv SVG
    – brøk OVER, +/− UNDER, pen spacing
    ======================= */
 function downloadInteractiveSVG(svgEl, filename="pizza-interaktiv.svg") {
