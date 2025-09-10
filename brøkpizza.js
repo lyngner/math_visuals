@@ -15,11 +15,13 @@ function readConfigFromHtml(){
     const text   = document.getElementById(`p${i}Text`)?.value ?? "none";
     const minN   = parseInt(document.getElementById(`p${i}MinN`)?.value,10);
     const maxN   = parseInt(document.getElementById(`p${i}MaxN`)?.value,10);
+    const hideNVal = document.getElementById(`p${i}HideNVal`)?.checked ?? false;
     pizzas.push({
       show,
       t: isFinite(t)?t:0,
       n: isFinite(n)?n:1,
       lockN, lockT, text,
+      hideNVal,
       minN: isFinite(minN)?minN:1,
       maksN: isFinite(maxN)?maxN:24
     });
@@ -32,7 +34,8 @@ function readConfigFromHtml(){
    ======================= */
 const PIZZA_DEFAULTS = {
   minN: 1, maxN: 24, R: 180, stepN: 1, stepK: 1,
-  metaMode: "none", lockDenominator: false, lockNumerator: false
+  metaMode: "none", lockDenominator: false, lockNumerator: false,
+  showDenominatorValue: true
 };
 const PIZZA_DOM = [
   { svgId:"pizza1", fracId:"frac1", minusId:"nMinus1", plusId:"nPlus1", valId:"nVal1" },
@@ -96,10 +99,12 @@ class Pizza{
     this.nMinus=document.getElementById(cfg.minusId);
     this.nPlus=document.getElementById(cfg.plusId);
     this.nVal=document.getElementById(cfg.valId);
+    this.showDenominatorValue = cfg.showDenominatorValue !== false;
     this.fracBox=document.getElementById(cfg.fracId);
     this.fracNum=this.fracBox?.querySelector(".num") || null;
     this.fracDen=this.fracBox?.querySelector(".den") || null;
     if(!this.svg) throw new Error(`Mangler SVG med id="${cfg.svgId}"`);
+    if(this.nVal && !this.showDenominatorValue) this.nVal.style.display = "none";
 
     // Header-slot (over SVG)
     this.header=document.createElement("div");
@@ -222,7 +227,7 @@ class Pizza{
 
   draw(){
     const step=TAU/this.n, aEnd=this.k*step;
-    if(this.nVal) this.nVal.textContent=this.n;
+    if(this.nVal && this.showDenominatorValue) this.nVal.textContent=this.n;
 
     this.gFill.innerHTML="";
     for(let i=0;i<this.n;i++){
@@ -293,6 +298,7 @@ const INTERACTIVE_SVG_SCRIPT = `
   var textMode=root.getAttribute("data-textmode")||"none";
   var nmin=+root.getAttribute("data-nmin")||1, nmax=+root.getAttribute("data-nmax")||24;
   var n=+root.getAttribute("data-n")||10, k=+root.getAttribute("data-k")||0, R=+root.getAttribute("data-r")||180;
+  var showNVal=root.getAttribute("data-show-nval")!=="0";
 
   var fill=root.querySelector('[data-role="fill"]')||root.querySelectorAll("g")[0];
   var linesB=root.querySelector('[data-role="linesB"]')||el("g",{}); if(!linesB.parentNode) root.appendChild(linesB);
@@ -361,6 +367,7 @@ const INTERACTIVE_SVG_SCRIPT = `
   var lblMinus=el("text",{x:xMinus+BW/2,y:y+BH/2,"class":"btnLabel"}); lblMinus.textContent="−";
   var lblPlus =el("text",{x:xPlus +BW/2,y:y+BH/2,"class":"btnLabel"});  lblPlus.textContent="+";
   var nValText=el("text",{x:0,y:y+BH/2,"class":"btnLabel"}); nValText.textContent=String(n);
+  if(!showNVal) nValText.setAttribute("display","none");
   controls.appendChild(btnMinus); controls.appendChild(btnPlus);
   controls.appendChild(lblMinus); controls.appendChild(lblPlus); controls.appendChild(nValText);
   root.appendChild(controls);
@@ -369,7 +376,7 @@ const INTERACTIVE_SVG_SCRIPT = `
     nn=Math.max(nmin,Math.min(nmax,Math.round(nn)));
     if(nn===n) return;
     n=nn; if(k>n) k=n;
-    nValText.textContent=String(n);
+    if(showNVal) nValText.textContent=String(n);
     rebuildSectors(); rebuildLines(); updateTexts();
   }
 
@@ -499,6 +506,7 @@ function downloadInteractiveSVG(svgEl, filename="pizza-interaktiv.svg") {
   const textMode = inst?.textMode || "none";
   const nMin = inst?.minN ?? 1;
   const nMax = inst?.maxN ?? 24;
+  const showNVal = inst?.showDenominatorValue !== false;
 
   // n, k, R
   const n = clone.querySelectorAll(".sector").length || 1;
@@ -517,6 +525,7 @@ function downloadInteractiveSVG(svgEl, filename="pizza-interaktiv.svg") {
   clone.setAttribute("data-textmode", textMode);
   clone.setAttribute("data-nmin", String(nMin));
   clone.setAttribute("data-nmax", String(nMax));
+  clone.setAttribute("data-show-nval", showNVal ? "1" : "0");
 
   // Inline-skript (med rettet parentes-feil)
   const scriptEl = document.createElementNS("http://www.w3.org/2000/svg","script");
@@ -613,6 +622,7 @@ function downloadAllPizzasInteractiveSVG(filename="broksirkler-interaktiv.svg"){
     const textMode=inst?.textMode || "none";
     const nMin=inst?.minN ?? 1;
     const nMax=inst?.maxN ?? 24;
+    const showNVal=inst?.showDenominatorValue !== false;
     const n=clone.querySelectorAll(".sector").length || 1;
     const k=clone.querySelectorAll(".sector-fill").length || 0;
     const rEl=clone.querySelector("circle.rim");
@@ -625,6 +635,7 @@ function downloadAllPizzasInteractiveSVG(filename="broksirkler-interaktiv.svg"){
     clone.setAttribute("data-textmode", textMode);
     clone.setAttribute("data-nmin", String(nMin));
     clone.setAttribute("data-nmax", String(nMax));
+    clone.setAttribute("data-show-nval", showNVal ? "1" : "0");
     clone.setAttribute("x", i*(size+gap));
     clone.setAttribute("y", M_TOP);
     clone.setAttribute("width", size);
@@ -680,7 +691,8 @@ function initFromHtml(){
       minN, maxN,
       textMode: (pcfg.text ?? "none"),
       lockDenominator: !!pcfg.lockN,
-      lockNumerator:   !!pcfg.lockT
+      lockNumerator:   !!pcfg.lockT,
+      showDenominatorValue: !pcfg.hideNVal
     });
 
   });
