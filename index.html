@@ -66,6 +66,17 @@
         <li><a href="perlesnor.html" target="content">Perlesnor</a></li>
     </ul>
   </nav>
-  <iframe name="content" src="nkant.html" title="Innhold"></iframe>
+    <iframe name="content" title="Innhold"></iframe>
+    <script>
+      const iframe = document.querySelector('iframe');
+      const links = document.querySelectorAll('nav a');
+      const saved = localStorage.getItem('currentPage') || 'nkant.html';
+      iframe.src = saved;
+      links.forEach(link => {
+        link.addEventListener('click', () => {
+          localStorage.setItem('currentPage', link.getAttribute('href'));
+        });
+      });
+    </script>
 </body>
 </html>
