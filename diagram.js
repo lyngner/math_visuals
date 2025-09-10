@@ -165,11 +165,40 @@ function drawGroupedBars(){
   const barSingle = hasTwo ? barTotal/2 : barTotal;
   for(let i=0;i<N;i++){
     const x0 = xPos(i) - barTotal/2;
-    const y1 = yPos(values[i]);
-    addTo(gBars,'rect',{x:x0, y:y1, width:barSingle, height:Math.max(2,(H-M.b)-y1), class:'bar series0'});
+    // serie 1
+    const v1 = values[i];
+    const y1 = yPos(v1);
+    const rect1 = addTo(gBars,'rect',{x:x0, y:y1, width:barSingle, height:Math.max(2,(H-M.b)-y1), class:'bar series0'+(locked[i]?' locked':'')});
+    rect1.dataset.index = i;
+    rect1.dataset.series = 0;
+    rect1.dataset.base = 0;
+    rect1.addEventListener('pointerdown', onDragStart);
+    if(!locked[i]){
+      addTo(gHands,'circle',{cx:x0+barSingle/2, cy:y1-2+2, r:16, class:'handleShadow'});
+      const h1 = addTo(gHands,'circle',{cx:x0+barSingle/2, cy:y1-2, r:14, class:'handle'});
+      h1.dataset.index = i; h1.dataset.series = 0; h1.dataset.base = 0;
+      h1.addEventListener('pointerdown', onDragStart);
+    }
+    const a1 = addTo(gA11y,'rect',{x:x0, y:M.t, width:barSingle, height:innerH, fill:'transparent', class:'a11y', tabindex:0, role:'slider', 'aria-orientation':'vertical', 'aria-label':`${CFG.labels[i]}`, 'aria-valuemin':String(yMin), 'aria-valuemax':String(yMax), 'aria-valuenow':String(v1), 'aria-valuetext':`${CFG.labels[i]}: ${fmt(v1)}`});
+    if(locked[i]) a1.setAttribute('aria-disabled','true');
+    a1.dataset.index = i; a1.dataset.series = 0; a1.dataset.base = 0; a1.addEventListener('pointerdown', onDragStart); a1.addEventListener('keydown', onKeyAdjust);
+    const txt1 = addTo(gVals,'text',{x:x0+barSingle/2, y:y1-10, class:'value'}); txt1.textContent = fmt(v1);
+
     if(hasTwo){
-      const y2 = yPos(values2[i]);
-      addTo(gBars,'rect',{x:x0+barSingle, y:y2, width:barSingle, height:Math.max(2,(H-M.b)-y2), class:'bar series1'});
+      const v2 = values2[i];
+      const y2 = yPos(v2);
+      const x1 = x0 + barSingle;
+      const rect2 = addTo(gBars,'rect',{x:x1, y:y2, width:barSingle, height:Math.max(2,(H-M.b)-y2), class:'bar series1'+(locked[i]?' locked':'')});
+      rect2.dataset.index = i; rect2.dataset.series = 1; rect2.dataset.base = 0; rect2.addEventListener('pointerdown', onDragStart);
+      if(!locked[i]){
+        addTo(gHands,'circle',{cx:x1+barSingle/2, cy:y2-2+2, r:16, class:'handleShadow'});
+        const h2 = addTo(gHands,'circle',{cx:x1+barSingle/2, cy:y2-2, r:14, class:'handle'});
+        h2.dataset.index = i; h2.dataset.series = 1; h2.dataset.base = 0; h2.addEventListener('pointerdown', onDragStart);
+      }
+      const a2 = addTo(gA11y,'rect',{x:x1, y:M.t, width:barSingle, height:innerH, fill:'transparent', class:'a11y', tabindex:0, role:'slider', 'aria-orientation':'vertical', 'aria-label':`${CFG.labels[i]}`, 'aria-valuemin':String(yMin), 'aria-valuemax':String(yMax), 'aria-valuenow':String(v2), 'aria-valuetext':`${CFG.labels[i]}: ${fmt(v2)}`});
+      if(locked[i]) a2.setAttribute('aria-disabled','true');
+      a2.dataset.index = i; a2.dataset.series = 1; a2.dataset.base = 0; a2.addEventListener('pointerdown', onDragStart); a2.addEventListener('keydown', onKeyAdjust);
+      const txt2 = addTo(gVals,'text',{x:x1+barSingle/2, y:y2-10, class:'value'}); txt2.textContent = fmt(v2);
     }
   }
 }
@@ -180,11 +209,33 @@ function drawStackedBars(){
     const base = H-M.b;
     const v1 = values[i];
     const v2 = values2 ? values2[i] : 0;
+    const cx = xPos(i);
     const y1 = yPos(v1);
-    addTo(gBars,'rect',{x:xPos(i)-barTotal/2, y:y1, width:barTotal, height:Math.max(2,base-y1), class:'bar series0'});
+    const rect1 = addTo(gBars,'rect',{x:cx-barTotal/2, y:y1, width:barTotal, height:Math.max(2,base-y1), class:'bar series0'+(locked[i]?' locked':'')});
+    rect1.dataset.index = i; rect1.dataset.series = 0; rect1.dataset.base = 0; rect1.addEventListener('pointerdown', onDragStart);
+    if(!locked[i]){
+      addTo(gHands,'circle',{cx:cx, cy:y1-2+2, r:16, class:'handleShadow'});
+      const h1 = addTo(gHands,'circle',{cx:cx, cy:y1-2, r:14, class:'handle'});
+      h1.dataset.index = i; h1.dataset.series = 0; h1.dataset.base = 0; h1.addEventListener('pointerdown', onDragStart);
+    }
+    const a1 = addTo(gA11y,'rect',{x:cx-barTotal/2, y:y1, width:barTotal, height:base-y1, fill:'transparent', class:'a11y', tabindex:0, role:'slider', 'aria-orientation':'vertical', 'aria-label':`${CFG.labels[i]}`, 'aria-valuemin':String(yMin), 'aria-valuemax':String(yMax - v2), 'aria-valuenow':String(v1), 'aria-valuetext':`${CFG.labels[i]}: ${fmt(v1)}`});
+    if(locked[i]) a1.setAttribute('aria-disabled','true');
+    a1.dataset.index=i; a1.dataset.series=0; a1.dataset.base=0; a1.addEventListener('pointerdown', onDragStart); a1.addEventListener('keydown', onKeyAdjust);
+    addTo(gVals,'text',{x:cx, y:y1-10, class:'value'}).textContent = fmt(v1);
+
     if(values2){
       const y2 = yPos(v1+v2);
-      addTo(gBars,'rect',{x:xPos(i)-barTotal/2, y:y2, width:barTotal, height:Math.max(2,y1-y2), class:'bar series1'});
+      const rect2 = addTo(gBars,'rect',{x:cx-barTotal/2, y:y2, width:barTotal, height:Math.max(2,y1-y2), class:'bar series1'+(locked[i]?' locked':'')});
+      rect2.dataset.index = i; rect2.dataset.series = 1; rect2.dataset.base = v1; rect2.addEventListener('pointerdown', onDragStart);
+      if(!locked[i]){
+        addTo(gHands,'circle',{cx:cx, cy:y2-2+2, r:16, class:'handleShadow'});
+        const h2 = addTo(gHands,'circle',{cx:cx, cy:y2-2, r:14, class:'handle'});
+        h2.dataset.index = i; h2.dataset.series = 1; h2.dataset.base = v1; h2.addEventListener('pointerdown', onDragStart);
+      }
+      const a2 = addTo(gA11y,'rect',{x:cx-barTotal/2, y:y2, width:barTotal, height:y1-y2, fill:'transparent', class:'a11y', tabindex:0, role:'slider', 'aria-orientation':'vertical', 'aria-label':`${CFG.labels[i]}`, 'aria-valuemin':String(yMin), 'aria-valuemax':String(yMax), 'aria-valuenow':String(v2), 'aria-valuetext':`${CFG.labels[i]}: ${fmt(v2)}`});
+      if(locked[i]) a2.setAttribute('aria-disabled','true');
+      a2.dataset.index=i; a2.dataset.series=1; a2.dataset.base=v1; a2.addEventListener('pointerdown', onDragStart); a2.addEventListener('keydown', onKeyAdjust);
+      addTo(gVals,'text',{x:cx, y:y2-10, class:'value'}).textContent = fmt(v2);
     }
   }
 }
@@ -205,6 +256,8 @@ function drawBars(){
       class: 'bar series0' + (locked[i] ? ' locked' : '')
     });
     rect.dataset.index = i;
+    rect.dataset.series = 0;
+    rect.dataset.base = 0;
     rect.addEventListener('pointerdown', onDragStart);
 
     // 2) HÅNDTAK (draggbar)
@@ -212,6 +265,8 @@ function drawBars(){
       addTo(gHands,'circle',{cx:cx, cy:y-2+2, r:16, class:'handleShadow'});
       const h = addTo(gHands,'circle',{cx:cx, cy:y-2, r:14, class:'handle'});
       h.dataset.index = i;
+      h.dataset.series = 0;
+      h.dataset.base = 0;
       h.addEventListener('pointerdown', onDragStart);
     }
 
@@ -234,6 +289,8 @@ function drawBars(){
     });
     if(locked[i]) a11y.setAttribute('aria-disabled','true');
     a11y.dataset.index = i;
+    a11y.dataset.series = 0;
+    a11y.dataset.base = 0;
     a11y.addEventListener('pointerdown', onDragStart);
     a11y.addEventListener('keydown', onKeyAdjust);
 
@@ -255,15 +312,18 @@ function onDragStart(e){
   e.preventDefault();
   const target = e.currentTarget;
   const idx = +target.dataset.index;
+  const series = +target.dataset.series || 0;
   if (locked[idx]) return;
   lastFocusIndex = idx;
+
+  const base = +target.dataset.base || 0;
 
   const move = ev=>{
     ev.preventDefault();
     const p = clientToSvg(ev.clientX, ev.clientY);
     const clampedY = Math.min(H-M.b, Math.max(M.t, p.y));
-    const v = yToValue(clampedY);
-    setValue(idx, v, true);
+    const v = yToValue(clampedY) - base;
+    setValue(idx, v, true, series);
   };
   const up = ev=>{
     ev.preventDefault();
@@ -281,12 +341,13 @@ function onDragStart(e){
    ========================================================= */
 function onKeyAdjust(e){
   const idx = +e.currentTarget.dataset.index;
+  const series = +e.currentTarget.dataset.series || 0;
   if (locked[idx]) return;
   lastFocusIndex = idx;
 
   const step = CFG.snap || 1;
   const big  = step * 5;
-  let target = values[idx];
+  let target = series===0 ? values[idx] : (values2 ? values2[idx] : 0);
 
   switch(e.key){
     case 'ArrowUp':
@@ -296,24 +357,32 @@ function onKeyAdjust(e){
     case 'PageUp':     target += big;  break;
     case 'PageDown':   target -= big;  break;
     case 'Home':       target = 0;     break;
-    case 'End':        target = yMax;  break;
+    case 'End':        target = yMax - (series===0 ? (values2 ? values2[idx] : 0) : values[idx]); break;
     default: return;
   }
   e.preventDefault();
-  setValue(idx, target, true);
+  setValue(idx, target, true, series);
 }
 
 /* =========================================================
    STATE / BEREGNING
    ========================================================= */
-function setValue(idx, newVal, announce=false){
+function setValue(idx, newVal, announce=false, series=0){
   if (locked[idx]) return;
+  const other = series===0 ? (values2 ? values2[idx] : 0) : values[idx];
   const snapped = snap(newVal, CFG.snap || 1);
-  const v = clamp(snapped, yMin, yMax);
-  values[idx] = v;
-  drawBars(); // oppdater grafikk + aria
+  const v = clamp(snapped, yMin, yMax - other);
+  if(series===0){
+    values[idx] = v;
+  }else{
+    if(!values2) values2 = alignLength([], N, 0);
+    values2[idx] = v;
+  }
+  drawData(); // oppdater grafikk + aria
   if(announce){
-    updateStatus(`${CFG.labels[idx]}: ${fmt(v)}`);
+    const sName = seriesNames[series] || '';
+    const label = sName ? `${CFG.labels[idx]} – ${sName}` : `${CFG.labels[idx]}`;
+    updateStatus(`${label}: ${fmt(v)}`);
   }
 }
 
@@ -326,25 +395,26 @@ function yToValue(py){
    KNAPPER
    ========================================================= */
 document.getElementById('btnReset').addEventListener('click', ()=>{
-  if(values2 && values2.length && CFG.type !== 'bar') return;
   values = CFG.start.slice();
+  if(values2) values2 = CFG.start2 ? CFG.start2.slice() : null;
   clearBadges();
   lastFocusIndex = null;
-  drawBars();
+  drawData();
   updateStatus('Nullstilt.');
 });
 document.getElementById('btnShow').addEventListener('click', ()=>{
-  if(values2 && values2.length && CFG.type !== 'bar') return;
   values = CFG.answer.slice();
+  if(values2) values2 = CFG.answer2 ? CFG.answer2.slice() : null;
   lastFocusIndex = null;
-  drawBars();
+  drawData();
   markCorrectness();
   updateStatus('Dette er én fasit.');
 });
 document.getElementById('btnCheck').addEventListener('click', ()=>{
-  if(values2 && values2.length && CFG.type !== 'bar') return;
   markCorrectness();
-  const ok = isCorrect(values, CFG.answer, CFG.tolerance||0);
+  const ok1 = isCorrect(values, CFG.answer, CFG.tolerance||0);
+  const ok2 = values2 ? isCorrect(values2, CFG.answer2, CFG.tolerance||0) : true;
+  const ok = ok1 && ok2;
   updateStatus(ok ? 'Riktig! 🎉' : 'Prøv igjen 🙂');
 });
 
@@ -435,9 +505,13 @@ function clearBadges(){
 function markCorrectness(){
   clearBadges();
   const tol = CFG.tolerance||0;
-  [...gBars.children].forEach((rect,i)=>{
-    const v = values[i], a = CFG.answer[i];
-    const ok = Math.abs(v - a) <= tol;
+  [...gBars.children].forEach(rect=>{
+    const idx = +rect.dataset.index;
+    const series = +rect.dataset.series || 0;
+    const arr = series===0 ? values : values2;
+    const ans = series===0 ? CFG.answer : CFG.answer2;
+    if(!arr || !ans) return;
+    const ok = Math.abs(arr[idx] - ans[idx]) <= tol;
     rect.classList.add(ok ? 'badge-ok' : 'badge-no');
   });
 }
