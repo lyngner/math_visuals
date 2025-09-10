@@ -19,10 +19,11 @@
 
   function draw(){
     initBoard();
-    const n = Math.max(1, parseInt(partsInp.value,10));
+    let n = Math.max(1, parseInt(partsInp.value,10));
     const filled = parseFilled();
     const shape = shapeSel.value;
     const division = divSel.value;
+    if(shape==='rectangle' && division==='diagonal') n = 4;
     if(shape==='circle') drawCircle(n, filled);
     else if(shape==='rectangle') drawRect(n, division, filled);
     else drawTriangle(n, division, filled);
@@ -51,33 +52,37 @@
   }
 
   function drawRect(n, division, filled){
-    for(let i=0;i<n;i++){
-      let pts;
-      if(division==='vertical'){
-        const x1 = i/n, x2 = (i+1)/n;
-        pts = [[x1,0],[x2,0],[x2,1],[x1,1]];
-      }else if(division==='horizontal'){
-        const y1 = i/n, y2 = (i+1)/n;
-        pts = [[0,y1],[1,y1],[1,y2],[0,y2]];
-      }else{ // diagonal
-        const cFromArea = A => (A<=0.5)?Math.sqrt(2*A):2-Math.sqrt(2*(1-A));
-        const A1 = i/n, A2 = (i+1)/n;
-        const c1 = cFromArea(A1), c2 = cFromArea(A2);
-        if(c2<=1){
-          pts = [[0,c1],[0,c2],[c2,0],[c1,0]];
-        }else if(c1>=1){
-          pts = [[c1-1,1],[c2-1,1],[1,c2-1],[1,c1-1]];
-        }else{
-          pts = [[0,c1],[0,1],[c2-1,1],[1,c2-1],[1,0],[c1,0]];
-        }
+    if(division==='diagonal'){
+      const c = [0.5,0.5];
+      const corners = [[0,0],[1,0],[1,1],[0,1]];
+      for(let i=0;i<4;i++){
+        const pts = [corners[i], corners[(i+1)%4], c];
+        board.create('polygon', pts, {
+          borders:{strokeColor:'#fff', strokeWidth:6},
+          vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
+          fillColor: filled.includes(i)?'#5B2AA5':'#fff',
+          fillOpacity:1,
+          highlight:false
+        });
       }
-      board.create('polygon', pts, {
-        borders:{strokeColor:'#fff', strokeWidth:6},
-        vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
-        fillColor: filled.includes(i)?'#5B2AA5':'#fff',
-        fillOpacity:1,
-        highlight:false
-      });
+    }else{
+      for(let i=0;i<n;i++){
+        let pts;
+        if(division==='vertical'){
+          const x1 = i/n, x2 = (i+1)/n;
+          pts = [[x1,0],[x2,0],[x2,1],[x1,1]];
+        }else{ // horizontal
+          const y1 = i/n, y2 = (i+1)/n;
+          pts = [[0,y1],[1,y1],[1,y2],[0,y2]];
+        }
+        board.create('polygon', pts, {
+          borders:{strokeColor:'#fff', strokeWidth:6},
+          vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
+          fillColor: filled.includes(i)?'#5B2AA5':'#fff',
+          fillOpacity:1,
+          highlight:false
+        });
+      }
     }
     board.create('polygon', [[0,0],[1,0],[1,1],[0,1]], {
       borders:{strokeColor:'#333', strokeWidth:6},
