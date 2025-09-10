@@ -108,8 +108,6 @@ function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
 function fmt(x){ return (Math.round(x*100)/100).toString().replace('.',','); }
 function fmtVal(per){
   switch(CFG.valMode){
-    case 'fraction':
-      return `1/${n}`;
     case 'percent':
       return fmt(100/n) + ' %';
     case 'exact':
@@ -118,6 +116,13 @@ function fmtVal(per){
     default:
       return fmt(per);
   }
+}
+
+function addFractionVal(cx, cy, num, den){
+  const lineW = 28;
+  addTo(gVals,'text',{x:cx, y:cy-18, class:'tb-val'}).textContent = num;
+  addTo(gVals,'line',{x1:cx-lineW/2, y1:cy, x2:cx+lineW/2, y2:cy, stroke:'#111', 'stroke-width':2});
+  addTo(gVals,'text',{x:cx, y:cy+18, class:'tb-val'}).textContent = den;
 }
 
 // Skjerm-px → SVG viewBox-koordinater
@@ -233,11 +238,19 @@ function redraw(){
   }
   // verdier i fylte celler
   const per = CFG.total / n;
-  const valText = fmtVal(per);
-  for(let i=0;i<k;i++){
-    const cx = L + (i+0.5)*cellW;
-    const cy = (TOP+BOT)/2;
-    addTo(gVals,'text',{x:cx,y:cy,class:'tb-val'}).textContent = valText;
+  if(CFG.valMode === 'fraction'){
+    for(let i=0;i<k;i++){
+      const cx = L + (i+0.5)*cellW;
+      const cy = (TOP+BOT)/2;
+      addFractionVal(cx, cy, 1, n);
+    }
+  } else {
+    const valText = fmtVal(per);
+    for(let i=0;i<k;i++){
+      const cx = L + (i+0.5)*cellW;
+      const cy = (TOP+BOT)/2;
+      addTo(gVals,'text',{x:cx,y:cy,class:'tb-val'}).textContent = valText;
+    }
   }
   // håndtak-pos
   const hx = L + k*cellW;
