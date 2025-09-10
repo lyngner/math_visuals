@@ -27,6 +27,7 @@
     if(shape==='circle') drawCircle(n, filled);
     else if(shape==='rectangle') drawRect(n, division, filled);
     else drawTriangle(n, division, filled);
+    applyClip(shape);
   }
 
   function drawCircle(n, filled){
@@ -34,18 +35,25 @@
     const cx = 0.5, cy = 0.5;
     const pointOpts = {visible:false, fixed:true, name:'', label:{visible:false}};
     const center = board.create('point', [cx,cy], pointOpts);
+    const boundaryPts = [];
     for(let i=0;i<n;i++){
       const a1 = 2*Math.PI*i/n;
       const a2 = 2*Math.PI*(i+1)/n;
       const p1 = board.create('point', [cx + r*Math.cos(a1), cy + r*Math.sin(a1)], pointOpts);
       const p2 = board.create('point', [cx + r*Math.cos(a2), cy + r*Math.sin(a2)], pointOpts);
+      boundaryPts.push(p1);
       board.create('sector', [center, p1, p2], {
         withLines:true,
-        strokeColor:'#333',
+        strokeColor:'#fff',
         strokeWidth:6,
         fillColor: filled.includes(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
         highlight:false
+      });
+    }
+    for(const p of boundaryPts){
+      board.create('segment', [center, p], {
+        strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
       });
     }
     board.create('circle', [center, r], {strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false});
@@ -58,11 +66,14 @@
       for(let i=0;i<4;i++){
         const pts = [corners[i], corners[(i+1)%4], c];
         board.create('polygon', pts, {
-          borders:{strokeColor:'#333', strokeWidth:6},
+          borders:{strokeColor:'#fff', strokeWidth:6},
           vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
           fillColor: filled.includes(i)?'#5B2AA5':'#fff',
           fillOpacity:1,
           highlight:false
+        });
+        board.create('segment', [c, corners[i]], {
+          strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
         });
       }
     }else{
@@ -76,12 +87,25 @@
           pts = [[0,y1],[1,y1],[1,y2],[0,y2]];
         }
         board.create('polygon', pts, {
-          borders:{strokeColor:'#333', strokeWidth:6},
+          borders:{strokeColor:'#fff', strokeWidth:6},
           vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
           fillColor: filled.includes(i)?'#5B2AA5':'#fff',
           fillOpacity:1,
           highlight:false
         });
+      }
+      for(let i=1;i<n;i++){
+        if(division==='vertical'){
+          const x=i/n;
+          board.create('segment', [[x,0],[x,1]], {
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+          });
+        }else{
+          const y=i/n;
+          board.create('segment', [[0,y],[1,y]], {
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+          });
+        }
       }
     }
     board.create('polygon', [[0,0],[1,0],[1,1],[0,1]], {
@@ -106,12 +130,34 @@
         pts=[[1-t1,t1],[1-t2,t2],[0,0]];
       }
       board.create('polygon', pts, {
-        borders:{strokeColor:'#333', strokeWidth:6},
+        borders:{strokeColor:'#fff', strokeWidth:6},
         vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
         fillColor: filled.includes(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
         highlight:false
       });
+    }
+    if(division==='vertical'){
+      for(let i=1;i<n;i++){
+        const x=i/n;
+        board.create('segment', [[x,0],[0,1]], {
+          strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+        });
+      }
+    }else if(division==='horizontal'){
+      for(let i=1;i<n;i++){
+        const y=i/n;
+        board.create('segment', [[0,y],[1,0]], {
+          strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+        });
+      }
+    }else{ // diagonal
+      for(let i=1;i<n;i++){
+        const t=i/n;
+        board.create('segment', [[1-t,t],[0,0]], {
+          strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+        });
+      }
     }
     board.create('polygon', [[0,0],[1,0],[0,1]], {
       borders:{strokeColor:'#333', strokeWidth:6},
@@ -119,6 +165,18 @@
       fillColor:'none',
       highlight:false
     });
+  }
+
+  function applyClip(shape){
+    const svg = board?.renderer?.svgRoot;
+    if(!svg) return;
+    if(shape==='triangle'){
+      svg.style.clipPath = 'polygon(0% 100%, 100% 100%, 0% 0%)';
+    }else if(shape==='rectangle'){
+      svg.style.clipPath = 'polygon(0% 100%, 100% 100%, 100% 0%, 0% 0%)';
+    }else{
+      svg.style.clipPath = '';
+    }
   }
 
   shapeSel.addEventListener('change', draw);
