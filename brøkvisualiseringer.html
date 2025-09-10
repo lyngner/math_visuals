@@ -63,6 +63,8 @@
     .settings label{display:flex;flex-direction:column;font-size:13px;color:#4b5563;}
     .settings input,.settings select{padding:8px 10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;background:#fff;}
     .checkbox-row{display:flex;align-items:center;gap:6px;}
+    .colors{display:flex;gap:6px;}
+    .colors input{flex:1;min-width:0;}
     .box svg *:focus{outline:none;}
   </style>
 </head>
@@ -126,8 +128,16 @@
                   <option value="grid">horisontalt og vertikalt</option>
                 </select>
               </label>
-              <label>Fylte deler (kommaseparert, klikk på figuren for å fargelegge)
-                <input id="filled1" type="text" value="0" />
+              <label>Farger
+                <div class="colors">
+                  <input id="color1_1" type="color" value="#5B2AA5" />
+                  <input id="color1_2" type="color" value="#E4572E" />
+                  <input id="color1_3" type="color" value="#17BEBB" />
+                  <input id="color1_4" type="color" value="#FFC914" />
+                </div>
+              </label>
+              <label>Fylte deler (indeks:farge, kommaseparert, klikk på figuren for å fargelegge)
+                <input id="filled1" type="text" value="0:1" />
               </label>
               <div class="checkbox-row"><input id="allowWrong1" type="checkbox" /><label for="allowWrong1">Tillat gale illustrasjoner</label></div>
             </fieldset>
@@ -152,8 +162,16 @@
                   <option value="grid">horisontalt og vertikalt</option>
                 </select>
               </label>
-              <label>Fylte deler (kommaseparert, klikk på figuren for å fargelegge)
-                <input id="filled2" type="text" value="0" />
+              <label>Farger
+                <div class="colors">
+                  <input id="color2_1" type="color" value="#5B2AA5" />
+                  <input id="color2_2" type="color" value="#E4572E" />
+                  <input id="color2_3" type="color" value="#17BEBB" />
+                  <input id="color2_4" type="color" value="#FFC914" />
+                </div>
+              </label>
+              <label>Fylte deler (indeks:farge, kommaseparert, klikk på figuren for å fargelegge)
+                <input id="filled2" type="text" value="0:1" />
               </label>
               <div class="checkbox-row"><input id="allowWrong2" type="checkbox" /><label for="allowWrong2">Tillat gale illustrasjoner</label></div>
             </fieldset>
