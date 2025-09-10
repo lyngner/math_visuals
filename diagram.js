@@ -448,10 +448,23 @@ function isCorrect(vs, ans, tol){
 
 function svgToString(svgEl){
   const clone = svgEl.cloneNode(true);
-  const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
+
+  // hent alle tilgjengelige stilregler (inkluderer linkede stilark)
+  let css = '';
+  for(const sheet of document.styleSheets){
+    try{
+      css += [...sheet.cssRules].map(r=>r.cssText).join('\n');
+    }catch(e){
+      // ignorer stilark som ikke kan leses pga. CORS
+    }
+  }
   const style = document.createElement('style');
   style.textContent = css;
   clone.insertBefore(style, clone.firstChild);
+
+  // fjern interaktive håndtak før eksport
+  clone.querySelectorAll('.handle, .handleShadow').forEach(el=>el.remove());
+
   clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
   clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
