@@ -245,7 +245,7 @@ class Pizza{
       for(let i=0;i<this.n;i++){
         const a=i*step,x=this.R*Math.cos(a),y=this.R*Math.sin(a);
         const lnB=mk("line",{x1:0,y1:0,x2:x,y2:y,class:"dash"});
-        const lnW=mk("line",{x1:0,y1:0,x2:x,y2:y,class:"dash"}); lnW.setAttribute("stroke","#333");
+        const lnW=mk("line",{x1:0,y1:0,x2:x,y2:y,class:"dash"});
         this.gLinesBlack.appendChild(lnB); this.gLinesWhite.appendChild(lnW);
       }
     }
@@ -269,10 +269,10 @@ class Pizza{
    ======================= */
 const EXPORT_SVG_STYLE = `
 .rim{fill:none;stroke:#333;stroke-width:6}
-.sector{stroke:#333;stroke-width:6}
+.sector{stroke:#fff;stroke-width:6}
 .sector-fill{fill:#5B2AA5}
 .sector-empty{fill:#fff}
-.dash{stroke:#333;stroke-dasharray:6 6;stroke-width:2}
+.dash{stroke:#000;stroke-dasharray:4 4;stroke-width:2}
 .handle{fill:#e9e6f7;stroke:#333;stroke-width:2;cursor:pointer}
 .a11y:focus{outline:none;stroke:#1e88e5;stroke-width:3}
 .btn{fill:#fff;stroke:#cfcfcf;stroke-width:1;cursor:pointer}
@@ -317,7 +317,7 @@ const INTERACTIVE_SVG_SCRIPT = `
     for(var i=0;i<n;i++){
       var a=i*step, x=R*Math.cos(a), y=R*Math.sin(a);
       var b=el("line",{x1:0,y1:0,x2:x,y2:y,"class":"dash"});
-      var w=el("line",{x1:0,y1:0,x2:x,y2:y,"class":"dash"}); w.setAttribute("stroke","#333");
+      var w=el("line",{x1:0,y1:0,x2:x,y2:y,"class":"dash"});
       linesB.appendChild(b); linesW.appendChild(w);
     }
   }
