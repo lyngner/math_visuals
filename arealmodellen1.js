@@ -200,8 +200,9 @@ function render(){
   if (showVLine) { vLine = el("line"); set(vLine,"class",classes.split); svg.append(vLine); }
   if (showHLine) { hLine = el("line"); set(hLine,"class",classes.split); svg.append(hLine); }
 
-  // håndtak + hit-soner
-  let handleLeft = null, handleDown = null, hitLeft = null, hitDown = null;
+  // håndtak + hit-soner + tastaturoverlay
+  let handleLeft = null, handleDown = null, hitLeft = null, hitDown = null,
+      a11yLeft = null, a11yLeftRect = null, a11yDown = null, a11yDownRect = null;
   if (showLeftHandle) {
     handleLeft = el("image");
     set(handleLeft, "class", classes.handle);
@@ -214,6 +215,21 @@ function render(){
     set(hitLeft, "class", "handleHit");
     set(hitLeft, "r", (HANDLE_SIZE*0.55));
     svg.append(hitLeft);
+
+    a11yLeft = el("g");
+    set(a11yLeft, "class", "handleOverlay");
+    set(a11yLeft, "tabindex", "0");
+    set(a11yLeft, "role", "slider");
+    set(a11yLeft, "aria-orientation", "vertical");
+    set(a11yLeft, "aria-label", "Høyde");
+    set(a11yLeft, "focusable", "true");
+    set(a11yLeft, "aria-valuemin", minRowsEachSide);
+    set(a11yLeft, "aria-valuemax", ROWS - minRowsEachSide);
+    a11yLeftRect = el("rect");
+    set(a11yLeftRect, "width", HANDLE_SIZE);
+    set(a11yLeftRect, "height", HANDLE_SIZE);
+    a11yLeft.appendChild(a11yLeftRect);
+    svg.append(a11yLeft);
   }
   if (showBottomHandle) {
     handleDown = el("image");
@@ -227,6 +243,21 @@ function render(){
     set(hitDown, "class", "handleHit");
     set(hitDown, "r", (HANDLE_SIZE*0.55));
     svg.append(hitDown);
+
+    a11yDown = el("g");
+    set(a11yDown, "class", "handleOverlay");
+    set(a11yDown, "tabindex", "0");
+    set(a11yDown, "role", "slider");
+    set(a11yDown, "aria-orientation", "horizontal");
+    set(a11yDown, "aria-label", "Lengde");
+    set(a11yDown, "focusable", "true");
+    set(a11yDown, "aria-valuemin", minColsEachSide);
+    set(a11yDown, "aria-valuemax", COLS - minColsEachSide);
+    a11yDownRect = el("rect");
+    set(a11yDownRect, "width", HANDLE_SIZE);
+    set(a11yDownRect, "height", HANDLE_SIZE);
+    a11yDown.appendChild(a11yDownRect);
+    svg.append(a11yDown);
   }
 
   // tekster
@@ -291,6 +322,17 @@ function render(){
     if (hitLeft)    { set(hitLeft,    "cx", hLeftCX); set(hitLeft,    "cy", hLeftCY); }
     if (hitDown)    { set(hitDown,    "cx", hDownCX); set(hitDown,    "cy", hDownCY); }
 
+    if (a11yLeftRect) { set(a11yLeftRect, "x", hLeftCX - HANDLE_SIZE/2); set(a11yLeftRect, "y", hLeftCY - HANDLE_SIZE/2); }
+    if (a11yLeft) {
+      set(a11yLeft, "aria-valuenow", hB);
+      set(a11yLeft, "aria-valuetext", `${hB} nederst, ${hT} øverst`);
+    }
+    if (a11yDownRect) { set(a11yDownRect, "x", hDownCX - HANDLE_SIZE/2); set(a11yDownRect, "y", hDownCY - HANDLE_SIZE/2); }
+    if (a11yDown) {
+      set(a11yDown, "aria-valuenow", wL);
+      set(a11yDown, "aria-valuetext", `${wL} venstre, ${wR} høyre`);
+    }
+
     // cell-etiketter
     set(tTL,"x",ML + sx/2);               set(tTL,"y",MT + (H - sy)/2 + 8);      tTL.textContent = formatCellLabel(wL, hT);
     set(tTR,"x",ML + sx + (W - sx)/2);    set(tTR,"y",MT + (H - sy)/2 + 8);      tTR.textContent = formatCellLabel(wR, hT);
@@ -322,8 +364,10 @@ function render(){
     // hold håndtak/hit-soner øverst
     if (handleLeft)  svg.append(handleLeft);
     if (hitLeft)     svg.append(hitLeft);
+    if (a11yLeft)    svg.append(a11yLeft);
     if (handleDown)  svg.append(handleDown);
     if (hitDown)     svg.append(hitDown);
+    if (a11yDown)    svg.append(a11yDown);
   }
 
   // ---- Responsiv skalering ----
@@ -412,6 +456,42 @@ function render(){
   if (dragHorizontal && hitDown) {
     hitDown.style.touchAction = "none";
     hitDown.addEventListener("pointerdown", e => { e.preventDefault(); startDrag("h", e); }, { passive: false });
+  }
+
+  if (a11yLeft) {
+    a11yLeft.addEventListener("keydown", e => {
+      let handled = true;
+      if (e.key === "ArrowUp") {
+        sy = clamp(sy + UNIT, minRowsEachSide*UNIT, (ROWS - minRowsEachSide)*UNIT);
+      } else if (e.key === "ArrowDown") {
+        sy = clamp(sy - UNIT, minRowsEachSide*UNIT, (ROWS - minRowsEachSide)*UNIT);
+      } else if (e.key === "Home") {
+        sy = minRowsEachSide*UNIT;
+      } else if (e.key === "End") {
+        sy = (ROWS - minRowsEachSide)*UNIT;
+      } else {
+        handled = false;
+      }
+      if (handled) { e.preventDefault(); scheduleRedraw(); }
+    });
+  }
+
+  if (a11yDown) {
+    a11yDown.addEventListener("keydown", e => {
+      let handled = true;
+      if (e.key === "ArrowRight") {
+        sx = clamp(sx + UNIT, minColsEachSide*UNIT, (COLS - minColsEachSide)*UNIT);
+      } else if (e.key === "ArrowLeft") {
+        sx = clamp(sx - UNIT, minColsEachSide*UNIT, (COLS - minColsEachSide)*UNIT);
+      } else if (e.key === "Home") {
+        sx = minColsEachSide*UNIT;
+      } else if (e.key === "End") {
+        sx = (COLS - minColsEachSide)*UNIT;
+      } else {
+        handled = false;
+      }
+      if (handled) { e.preventDefault(); scheduleRedraw(); }
+    });
   }
 
   if (clickToMove) {

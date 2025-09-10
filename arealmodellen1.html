@@ -51,6 +51,9 @@
     .handle { fill: #ecebf6; stroke: #333; stroke-width: 2; cursor: grab; }
     .handle:active { cursor: grabbing; }
 
+    .handleOverlay rect { fill: transparent; pointer-events: none; }
+    .handleOverlay:focus rect { stroke: #2563eb; stroke-width: 2; }
+
     .labelCell { fill: #000; opacity: .7; font-size: 22px; font-family: "Segoe UI", system-ui, Arial, sans-serif; }
     .labelEdge { fill: #000; font-size: 28px; font-family: "Georgia", "Times New Roman", serif; }
   </style>
