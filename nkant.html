@@ -28,10 +28,11 @@
     .sep { height: 1px; background: #eef0f3; margin: 8px 0; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
-    .grid-3 { display: grid; grid-template-columns: 24px max-content 60px; gap: 4px; align-items: center; }
+    .grid-3 { display: grid; grid-template-columns: 24px max-content 44px; gap: 4px; align-items: center; }
     .legend { font-weight: 600; font-size: 13px; color: #374151; margin-top: 8px; }
     .radio-row { display: flex; gap: 14px; align-items: center; }
-    .tight { padding: 4px 8px; }
+    .tight { padding: 4px 8px; width: 44px; }
+    input[type="text"]:disabled { background: #f3f4f6; color: #9ca3af; }
   </style>
 </head>
 <body>
