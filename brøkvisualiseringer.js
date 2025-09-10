@@ -41,7 +41,7 @@
       const p2 = board.create('point', [cx + r*Math.cos(a2), cy + r*Math.sin(a2)], pointOpts);
       board.create('sector', [center, p1, p2], {
         withLines:true,
-        strokeColor:'#fff',
+        strokeColor:'#333',
         strokeWidth:6,
         fillColor: filled.includes(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
@@ -58,7 +58,7 @@
       for(let i=0;i<4;i++){
         const pts = [corners[i], corners[(i+1)%4], c];
         board.create('polygon', pts, {
-          borders:{strokeColor:'#fff', strokeWidth:6},
+          borders:{strokeColor:'#333', strokeWidth:6},
           vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
           fillColor: filled.includes(i)?'#5B2AA5':'#fff',
           fillOpacity:1,
@@ -76,7 +76,7 @@
           pts = [[0,y1],[1,y1],[1,y2],[0,y2]];
         }
         board.create('polygon', pts, {
-          borders:{strokeColor:'#fff', strokeWidth:6},
+          borders:{strokeColor:'#333', strokeWidth:6},
           vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
           fillColor: filled.includes(i)?'#5B2AA5':'#fff',
           fillOpacity:1,
@@ -106,7 +106,7 @@
         pts=[[1-t1,t1],[1-t2,t2],[0,0]];
       }
       board.create('polygon', pts, {
-        borders:{strokeColor:'#fff', strokeWidth:6},
+        borders:{strokeColor:'#333', strokeWidth:6},
         vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
         fillColor: filled.includes(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
