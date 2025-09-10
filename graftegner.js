@@ -1016,25 +1016,26 @@ function setupSettingsForm(){
   g('cfgAxisY').value = paramStr('yName','y');
   g('cfgPan').checked = paramBool('pan');
 
-  let timer;
-  root.addEventListener('input', ()=>{
-    clearTimeout(timer);
-    timer = setTimeout(()=>{
-      const p = new URLSearchParams();
-      const v = id => g(id).value.trim();
-      const cb = id => g(id).checked;
-      if(v('cfgFun1')) p.set('fun1', v('cfgFun1'));
-      if(v('cfgDom1')) p.set('dom1', v('cfgDom1'));
-      const pts = v('cfgPoints');
-      if(pts && pts !== '0') p.set('points', pts);
-      if(v('cfgFun2')) p.set('fun2', v('cfgFun2'));
-      if(v('cfgDom2')) p.set('dom2', v('cfgDom2'));
-      if(v('cfgScreen')) p.set('screen', v('cfgScreen'));
-      if(cb('cfgLock')) p.set('lock','1');
-      if(v('cfgAxisX') && v('cfgAxisX')!=='x') p.set('xName', v('cfgAxisX'));
-      if(v('cfgAxisY') && v('cfgAxisY')!=='y') p.set('yName', v('cfgAxisY'));
-      if(cb('cfgPan')) p.set('pan','1');
-      location.search = p.toString();
-    }, 400);
+  const apply = () => {
+    const p = new URLSearchParams();
+    const v = id => g(id).value.trim();
+    const cb = id => g(id).checked;
+    if(v('cfgFun1')) p.set('fun1', v('cfgFun1'));
+    if(v('cfgDom1')) p.set('dom1', v('cfgDom1'));
+    const pts = v('cfgPoints');
+    if(pts && pts !== '0') p.set('points', pts);
+    if(v('cfgFun2')) p.set('fun2', v('cfgFun2'));
+    if(v('cfgDom2')) p.set('dom2', v('cfgDom2'));
+    if(v('cfgScreen')) p.set('screen', v('cfgScreen'));
+    if(cb('cfgLock')) p.set('lock','1');
+    if(v('cfgAxisX') && v('cfgAxisX')!=='x') p.set('xName', v('cfgAxisX'));
+    if(v('cfgAxisY') && v('cfgAxisY')!=='y') p.set('yName', v('cfgAxisY'));
+    if(cb('cfgPan')) p.set('pan','1');
+    location.search = p.toString();
+  };
+
+  root.addEventListener('change', apply);
+  root.addEventListener('keydown', e => {
+    if(e.key === 'Enter') apply();
   });
 }
