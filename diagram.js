@@ -446,7 +446,7 @@ function isCorrect(vs, ans, tol){
   return vs.every((v,i)=> Math.abs(v-ans[i]) <= tol);
 }
 
-function svgToString(svgEl){
+async function svgToString(svgEl){
   const clone = svgEl.cloneNode(true);
 
   // hent alle tilgjengelige stilregler (inkluderer linkede stilark)
@@ -455,7 +455,13 @@ function svgToString(svgEl){
     try{
       css += [...sheet.cssRules].map(r=>r.cssText).join('\n');
     }catch(e){
-      // ignorer stilark som ikke kan leses pga. CORS
+      // forsøk å hente CSS-innhold fra lenkede stilark ved CORS-feil
+      if(sheet.href){
+        try{
+          const res = await fetch(sheet.href);
+          if(res.ok) css += await res.text();
+        }catch(err){/* ignorer */}
+      }
     }
   }
   const style = document.createElement('style');
@@ -469,8 +475,8 @@ function svgToString(svgEl){
   clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
 }
-function downloadSVG(svgEl, filename){
-  const data = svgToString(svgEl);
+async function downloadSVG(svgEl, filename){
+  const data = await svgToString(svgEl);
   const blob = new Blob([data], {type:'image/svg+xml;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -479,11 +485,11 @@ function downloadSVG(svgEl, filename){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 1000);
 }
-function downloadPNG(svgEl, filename, scale=2, bg='#fff'){
+async function downloadPNG(svgEl, filename, scale=2, bg='#fff'){
   const vb = svgEl.viewBox.baseVal;
   const w = vb?.width  || svgEl.clientWidth  || 900;
   const h = vb?.height || svgEl.clientHeight || 560;
-  const data = svgToString(svgEl);
+  const data = await svgToString(svgEl);
   const blob = new Blob([data], {type:'image/svg+xml;charset=utf-8'});
   const url  = URL.createObjectURL(blob);
   const img = new Image();
