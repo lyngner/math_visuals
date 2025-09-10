@@ -43,56 +43,110 @@
     board.update();
   }
 
+  function gridDims(n){
+    let cols = Math.floor(Math.sqrt(n));
+    while(n % cols !== 0) cols--;
+    const rows = n / cols;
+    return {rows, cols};
+  }
+
   function draw(){
     initBoard();
     let n = Math.max(1, parseInt(partsInp.value,10));
     parseFilled();
     const shape = shapeSel.value;
-    const division = divSel.value;
+    let division = divSel.value;
     const allowWrong = wrongInp?.checked;
     if(shape==='rectangle' && division==='diagonal') n = 4;
+    const gridOpt = divSel.querySelector('option[value="grid"]');
+    const vertOpt = divSel.querySelector('option[value="vertical"]');
+    if(gridOpt){
+      gridOpt.hidden = n % 2 === 1 || (shape==='circle' && !allowWrong) || (shape==='triangle');
+      if(gridOpt.hidden && division==='grid') divSel.value = 'horizontal';
+    }
+    if(vertOpt){
+      vertOpt.hidden = (shape==='circle' && !allowWrong);
+      if(vertOpt.hidden && division==='vertical') divSel.value = 'horizontal';
+    }
+    division = divSel.value;
     partsInp.value = String(n);
     if(partsVal) partsVal.textContent = n;
-    if(shape==='circle') drawCircle(n);
+    if(shape==='circle') drawCircle(n, division, allowWrong);
     else if(shape==='rectangle') drawRect(n, division);
     else drawTriangle(n, division, allowWrong);
     applyClip(shape);
   }
 
-  function drawCircle(n){
+  function drawCircle(n, division, allowWrong){
     const r = 0.45;
     const cx = 0.5, cy = 0.5;
     const pointOpts = {visible:false, fixed:true, name:'', label:{visible:false}};
-    const center = board.create('point', [cx,cy], pointOpts);
-    const boundaryPts = [];
-    for(let i=0;i<n;i++){
-      const a1 = 2*Math.PI*i/n;
-      const a2 = 2*Math.PI*(i+1)/n;
-      const p1 = board.create('point', [cx + r*Math.cos(a1), cy + r*Math.sin(a1)], pointOpts);
-      const p2 = board.create('point', [cx + r*Math.cos(a2), cy + r*Math.sin(a2)], pointOpts);
-      boundaryPts.push(p1);
-      const sector = board.create('sector', [center, p1, p2], {
-        withLines:true,
-        strokeColor:'#fff',
-        strokeWidth:6,
-        fillColor: filled.has(i)?'#5B2AA5':'#fff',
-        fillOpacity:1,
-        highlight:false,
-        hasInnerPoints:true,
-        fixed:true
+    if(allowWrong && (division==='vertical' || division==='horizontal' || division==='grid')){
+      let rows=1, cols=n;
+      if(division==='horizontal'){ rows=n; cols=1; }
+      else if(division==='grid'){ const d=gridDims(n); rows=d.rows; cols=d.cols; }
+      for(let rIdx=0;rIdx<rows;rIdx++){
+        for(let cIdx=0;cIdx<cols;cIdx++){
+          const idx=rIdx*cols+cIdx;
+          const x1=cIdx/cols, x2=(cIdx+1)/cols;
+          const y1=rIdx/rows, y2=(rIdx+1)/rows;
+          const poly=board.create('polygon', [[x1,y1],[x2,y1],[x2,y2],[x1,y2]], {
+            borders:{strokeColor:'#fff', strokeWidth:6},
+            vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
+            fillColor: filled.has(idx)?'#5B2AA5':'#fff',
+            fillOpacity:1,
+            highlight:false,
+            hasInnerPoints:true,
+            fixed:true
+          });
+          poly.on('down', () => togglePart(idx, poly));
+        }
+      }
+      for(let i=1;i<cols;i++){
+        const x=i/cols;
+        board.create('segment', [[x,0],[x,1]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true});
+      }
+      for(let j=1;j<rows;j++){
+        const y=j/rows;
+        board.create('segment', [[0,y],[1,y]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true});
+      }
+      board.create('circle', [[cx,cy], r], {
+        strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false,
+        fixed:true, hasInnerPoints:false,
+        cssStyle:'pointer-events:none;'
       });
-      sector.on('down', () => togglePart(i, sector));
-    }
-    for(const p of boundaryPts){
-      board.create('segment', [center, p], {
-        strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+    }else{
+      const center = board.create('point', [cx,cy], pointOpts);
+      const boundaryPts = [];
+      for(let i=0;i<n;i++){
+        const a1 = 2*Math.PI*i/n;
+        const a2 = 2*Math.PI*(i+1)/n;
+        const p1 = board.create('point', [cx + r*Math.cos(a1), cy + r*Math.sin(a1)], pointOpts);
+        const p2 = board.create('point', [cx + r*Math.cos(a2), cy + r*Math.sin(a2)], pointOpts);
+        boundaryPts.push(p1);
+        const sector = board.create('sector', [center, p1, p2], {
+          withLines:true,
+          strokeColor:'#fff',
+          strokeWidth:6,
+          fillColor: filled.has(i)?'#5B2AA5':'#fff',
+          fillOpacity:1,
+          highlight:false,
+          hasInnerPoints:true,
+          fixed:true
+        });
+        sector.on('down', () => togglePart(i, sector));
+      }
+      for(const p of boundaryPts){
+        board.create('segment', [center, p], {
+          strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+        });
+      }
+      board.create('circle', [center, r], {
+        strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false,
+        fixed:true, hasInnerPoints:false,
+        cssStyle:'pointer-events:none;'
       });
     }
-    board.create('circle', [center, r], {
-      strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false,
-      fixed:true, hasInnerPoints:false,
-      cssStyle:'pointer-events:none;'
-    });
   }
 
   function drawRect(n, division){
@@ -114,6 +168,34 @@
         board.create('segment', [c, corners[i]], {
           strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
         });
+      }
+    }else if(division==='grid'){
+      const {rows, cols} = gridDims(n);
+      for(let rIdx=0;rIdx<rows;rIdx++){
+        for(let cIdx=0;cIdx<cols;cIdx++){
+          const idx=rIdx*cols+cIdx;
+          const x1=cIdx/cols, x2=(cIdx+1)/cols;
+          const y1=rIdx/rows, y2=(rIdx+1)/rows;
+          const pts=[[x1,y1],[x2,y1],[x2,y2],[x1,y2]];
+          const poly=board.create('polygon', pts, {
+            borders:{strokeColor:'#fff', strokeWidth:6},
+            vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
+            fillColor: filled.has(idx)?'#5B2AA5':'#fff',
+            fillOpacity:1,
+            highlight:false,
+            hasInnerPoints:true,
+            fixed:true
+          });
+          poly.on('down', () => togglePart(idx, poly));
+        }
+      }
+      for(let i=1;i<cols;i++){
+        const x=i/cols;
+        board.create('segment', [[x,0],[x,1]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true});
+      }
+      for(let j=1;j<rows;j++){
+        const y=j/rows;
+        board.create('segment', [[0,y],[1,y]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true});
       }
     }else{
       for(let i=0;i<n;i++){
@@ -245,6 +327,8 @@
       svg.style.clipPath = 'polygon(-2% 102%, 102% 102%, -2% -2%)';
     }else if(shape==='rectangle'){
       svg.style.clipPath = 'polygon(-2% 102%, 102% 102%, 102% -2%, -2% -2%)';
+    }else if(shape==='circle'){
+      svg.style.clipPath = 'circle(45% at 50% 50%)';
     }else{
       svg.style.clipPath = '';
     }
