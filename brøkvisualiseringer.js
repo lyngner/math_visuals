@@ -104,11 +104,11 @@
       }
       for(let i=1;i<cols;i++){
         const x=i/cols;
-        board.create('segment', [[x,0],[x,1]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true});
+        board.create('segment', [[x,0],[x,1]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'});
       }
       for(let j=1;j<rows;j++){
         const y=j/rows;
-        board.create('segment', [[0,y],[1,y]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true});
+        board.create('segment', [[0,y],[1,y]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'});
       }
       board.create('circle', [[cx,cy], r], {
         strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false,
@@ -138,7 +138,7 @@
       }
       for(const p of boundaryPts){
         board.create('segment', [center, p], {
-          strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+          strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
         });
       }
       board.create('circle', [center, r], {
@@ -166,7 +166,7 @@
         });
         poly.on('down', () => togglePart(i, poly));
         board.create('segment', [c, corners[i]], {
-          strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+          strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
         });
       }
     }else if(division==='grid'){
@@ -191,11 +191,11 @@
       }
       for(let i=1;i<cols;i++){
         const x=i/cols;
-        board.create('segment', [[x,0],[x,1]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true});
+        board.create('segment', [[x,0],[x,1]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'});
       }
       for(let j=1;j<rows;j++){
         const y=j/rows;
-        board.create('segment', [[0,y],[1,y]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true});
+        board.create('segment', [[0,y],[1,y]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'});
       }
     }else{
       for(let i=0;i<n;i++){
@@ -222,12 +222,12 @@
         if(division==='vertical'){
           const x=i/n;
           board.create('segment', [[x,0],[x,1]], {
-            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
         }else{
           const y=i/n;
           board.create('segment', [[0,y],[1,y]], {
-            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
         }
       }
@@ -280,11 +280,11 @@
         const x=i/n;
         if(allowWrong){
           board.create('segment', [[x,0],[x,1-x]], {
-            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
         }else{
           board.create('segment', [[x,0],[0,1]], {
-            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
         }
       }
@@ -293,11 +293,11 @@
         const y=i/n;
         if(allowWrong){
           board.create('segment', [[0,y],[1-y,y]], {
-            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
         }else{
           board.create('segment', [[0,y],[1,0]], {
-            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
         }
       }
@@ -305,7 +305,7 @@
       for(let i=1;i<n;i++){
         const t=i/n;
         board.create('segment', [[1-t,t],[0,0]], {
-          strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+          strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
         });
       }
     }
