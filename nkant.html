@@ -27,7 +27,7 @@
     .sep { height: 1px; background: #eef0f3; margin: 8px 0; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
-    .grid-3 { display: grid; grid-template-columns: 36px 1fr 80px; gap: 8px; align-items: center; }
+    .grid-3 { display: grid; grid-template-columns: 24px max-content 60px; gap: 4px; align-items: center; }
     .legend { font-weight: 600; font-size: 13px; color: #374151; margin-top: 8px; }
     .radio-row { display: flex; gap: 14px; align-items: center; }
     .tight { padding: 4px 8px; }
@@ -58,9 +58,10 @@ a=5, b=5, c=5, B=90, D=110</textarea>
         <div class="sep"></div>
 
         <!-- Figur 1 -->
+        <div class="legend">Figur 1</div>
         <div class="form-row">
           <div>
-            <label>Figur 1 – standard sider</label>
+            <label>Standard sider</label>
             <select id="f1Sides">
               <option value="none">none</option>
               <option value="value">value</option>
@@ -69,7 +70,7 @@ a=5, b=5, c=5, B=90, D=110</textarea>
             </select>
           </div>
           <div>
-            <label>Figur 1 – standard vinkler/punkter</label>
+            <label>Standard vinkler/punkter</label>
             <select id="f1Angles">
               <option value="none">none</option>
               <option value="mark">mark</option>
@@ -83,7 +84,7 @@ a=5, b=5, c=5, B=90, D=110</textarea>
 
         <div class="form-row">
           <div>
-            <div class="legend">Figur 1 – enkelt<strong>side</strong></div>
+            <div class="legend">Enkeltside</div>
             <div class="grid-3">
               <label>a</label>
               <select id="f1SideA">
@@ -118,7 +119,7 @@ a=5, b=5, c=5, B=90, D=110</textarea>
             </div>
           </div>
           <div>
-            <div class="legend">Figur 1 – <strong>Vinkler/punkter</strong> (per punkt)</div>
+            <div class="legend"><strong>Vinkler/punkter</strong> (per punkt)</div>
             <div class="grid-3">
               <label>A</label>
               <select id="f1AngA">
@@ -161,9 +162,10 @@ a=5, b=5, c=5, B=90, D=110</textarea>
         <div class="sep"></div>
 
         <!-- Figur 2 -->
+        <div class="legend">Figur 2</div>
         <div class="form-row">
           <div>
-            <label>Figur 2 – standard sider</label>
+            <label>Standard sider</label>
             <select id="f2Sides">
               <option value="none">none</option>
               <option value="value">value</option>
@@ -172,7 +174,7 @@ a=5, b=5, c=5, B=90, D=110</textarea>
             </select>
           </div>
           <div>
-            <label>Figur 2 – standard vinkler/punkter</label>
+            <label>Standard vinkler/punkter</label>
             <select id="f2Angles">
               <option value="none">none</option>
               <option value="mark">mark</option>
@@ -186,7 +188,7 @@ a=5, b=5, c=5, B=90, D=110</textarea>
 
         <div class="form-row">
           <div>
-            <div class="legend">Figur 2 – enkelt<strong>side</strong></div>
+            <div class="legend">Enkeltside</div>
             <div class="grid-3">
               <label>a</label>
               <select id="f2SideA">
@@ -221,7 +223,7 @@ a=5, b=5, c=5, B=90, D=110</textarea>
             </div>
           </div>
           <div>
-            <div class="legend">Figur 2 – <strong>Vinkler/punkter</strong> (per punkt)</div>
+            <div class="legend"><strong>Vinkler/punkter</strong> (per punkt)</div>
             <div class="grid-3">
               <label>A</label>
               <select id="f2AngA">
