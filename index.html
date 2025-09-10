@@ -19,7 +19,7 @@
       border-right: 1px solid #e5e7eb;
     }
     h1 { font-size: 20px; margin-top: 0; }
-    ul { list-style: none; padding: 0; }
+    ul { list-style: none; padding: 0; margin: 0; }
     li { margin: 8px 0; }
     a { color: #147a9c; text-decoration: none; }
     a:hover { text-decoration: underline; }
@@ -27,6 +27,27 @@
       border: 0;
       width: 100%;
       height: 100%;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+      }
+      nav {
+        border-right: none;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 10px;
+        overflow-x: auto;
+      }
+      nav ul {
+        display: flex;
+        gap: 12px;
+      }
+      nav li {
+        margin: 0;
+        white-space: nowrap;
+      }
     }
   </style>
 </head>
