@@ -85,13 +85,16 @@
   <div class="wrap">
     <div class="grid">
       <div class="card">
-        <svg id="thinkBlocks" viewBox="0 0 900 420" aria-label="Tenkeblokker"></svg>
+        <svg id="thinkBlocks" viewBox="0 0 900 420" aria-label="Tenkeblokker">
+          <rect id="tbOverlay" tabindex="0" role="slider" aria-label="Fylte blokker" aria-valuemin="0" fill="transparent" style="pointer-events:none"></rect>
+        </svg>
 
         <div class="tb-stepper" aria-label="Blokker">
           <button id="tbMinus" type="button" aria-label="Færre blokker">−</button>
           <div class="tb-divider"></div>
           <button id="tbPlus"  type="button" aria-label="Flere blokker">+</button>
         </div>
+        <div id="tbLive" aria-live="polite" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;"></div>
       </div>
 
       <div class="side">
