@@ -534,7 +534,8 @@ async function svgToString(svgEl){
                    'stroke-dasharray'];
     props.forEach(p=>{
       const val = comp.getPropertyValue(p);
-      if(val && val !== 'none' && val !== 'normal' && val !== '0px'){
+      // Include 'none' for fill and stroke to preserve transparency
+      if(val && val !== 'normal' && val !== '0px'){
         dst.setAttribute(p, val);
       }
     });
