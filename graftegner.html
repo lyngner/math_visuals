@@ -30,9 +30,10 @@
     .status--info{ color:#1f2937; background:#f3f4f6; border-color:#e5e7eb; }
     .settings{ display:flex; flex-direction:column; gap:8px; }
     .settings label{ display:flex; flex-direction:column; font-size:13px; color:#4b5563; max-width:160px; }
-    .settings input[type="text"], .settings input[type="number"]{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:100%; max-width:160px; }
+    .settings input[type="text"], .settings input[type="number"], .settings select{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:100%; max-width:160px; }
     .settings-row{ display:flex; gap:8px; flex-wrap:wrap; }
     .settings-row label{ flex:0 0 160px; }
+    .settings-row label.points{ flex:0 0 80px; }
     .checkbox-label{ flex-direction:row; align-items:center; gap:6px; }
   </style>
 </head>
@@ -58,18 +59,26 @@
             <label>Funksjon 1
               <input id="cfgFun1" type="text" value="f(x)=x^2-2">
             </label>
-            <label>Definisjonsmengde funksjon 1 (valgfritt)
+            <label class="points">punkter
+              <select id="cfgPoints">
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+              </select>
+            </label>
+            <label>Definisjonsmengde (valgfritt)
               <input id="cfgDom1" type="text" value="" placeholder="[start, stopp]">
             </label>
           </div>
-          <label>Punkter (på funksjon 1)
-            <input id="cfgPoints" type="number" value="0">
-          </label>
           <div class="settings-row">
             <label>Funksjon 2 (valgfritt)
               <input id="cfgFun2" type="text" value="">
             </label>
-            <label>Definisjonsmengde funksjon 2 (valgfritt)
+            <label>Definisjonsmengde (valgfritt)
               <input id="cfgDom2" type="text" value="" placeholder="[start, stopp]">
             </label>
           </div>
