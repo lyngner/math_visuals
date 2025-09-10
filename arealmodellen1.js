@@ -68,10 +68,10 @@ function readConfigFromHtml(){
   if(Number.isFinite(height)) CFG.SIMPLE.height.cells = height;
   const length = parseInt(document.getElementById("length")?.value,10);
   if(Number.isFinite(length)) CFG.SIMPLE.length.cells = length;
-  const hHandle = parseInt(document.getElementById("heightHandle")?.value,10);
-  if(Number.isFinite(hHandle)) CFG.SIMPLE.height.handle = hHandle;
-  const lHandle = parseInt(document.getElementById("lengthHandle")?.value,10);
-  if(Number.isFinite(lHandle)) CFG.SIMPLE.length.handle = lHandle;
+  const hStart = parseInt(document.getElementById("heightStart")?.value,10);
+  if(Number.isFinite(hStart)) CFG.SIMPLE.height.handle = hStart;
+  const lStart = parseInt(document.getElementById("lengthStart")?.value,10);
+  if(Number.isFinite(lStart)) CFG.SIMPLE.length.handle = lStart;
   CFG.SIMPLE.height.showHandle = document.getElementById("showHeightHandle")?.checked ?? CFG.SIMPLE.height.showHandle;
   CFG.SIMPLE.length.showHandle = document.getElementById("showLengthHandle")?.checked ?? CFG.SIMPLE.length.showHandle;
   CFG.ADV.grid = document.getElementById("grid")?.checked ?? CFG.ADV.grid;
@@ -745,17 +745,19 @@ function initFromHtml(){
 function setSimpleConfig(o={}){
   if(o.height != null) CFG.SIMPLE.height.cells = Math.round(o.height);
   if(o.length != null) CFG.SIMPLE.length.cells = Math.round(o.length);
-  if(o.heightHandle != null) CFG.SIMPLE.height.handle = Math.round(o.heightHandle);
-  if(o.lengthHandle != null) CFG.SIMPLE.length.handle = Math.round(o.lengthHandle);
+  if(o.heightStart != null) CFG.SIMPLE.height.handle = Math.round(o.heightStart);
+  else if(o.heightHandle != null) CFG.SIMPLE.height.handle = Math.round(o.heightHandle);
+  if(o.lengthStart != null) CFG.SIMPLE.length.handle = Math.round(o.lengthStart);
+  else if(o.lengthHandle != null) CFG.SIMPLE.length.handle = Math.round(o.lengthHandle);
   if(o.showHeightHandle != null) CFG.SIMPLE.height.showHandle = !!o.showHeightHandle;
   if(o.showLengthHandle != null) CFG.SIMPLE.length.showHandle = !!o.showLengthHandle;
   const setVal = (id,v)=>{ const el=document.getElementById(id); if(el && v!=null) el.value=v; };
   const setChk = (id,v)=>{ const el=document.getElementById(id); if(el) el.checked=!!v; };
   setVal("length", CFG.SIMPLE.length.cells);
-  setVal("lengthHandle", CFG.SIMPLE.length.handle);
+  setVal("lengthStart", CFG.SIMPLE.length.handle);
   setChk("showLengthHandle", CFG.SIMPLE.length.showHandle !== false);
   setVal("height", CFG.SIMPLE.height.cells);
-  setVal("heightHandle", CFG.SIMPLE.height.handle);
+  setVal("heightStart", CFG.SIMPLE.height.handle);
   setChk("showHeightHandle", CFG.SIMPLE.height.showHandle !== false);
   render();
 }
