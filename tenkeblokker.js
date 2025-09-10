@@ -37,7 +37,8 @@ let k = clamp(SIMPLE.startK, 0, n);
 
 // ---------- SVG-oppsett ----------
 const svg = document.getElementById('thinkBlocks');
-svg.innerHTML = '';
+const overlay = document.getElementById('tbOverlay');
+const live = document.getElementById('tbLive');
 
 const VBW = 900, VBH = 420;                  // MÅ samsvare med viewBox i HTML
 const L = 70, R = VBW - 70;                  // venstre/høyre marg
@@ -52,6 +53,13 @@ const gVals   = add('g');     // tall i blokker
 const gFrame  = add('g');     // svart ramme
 const gHandle = add('g');     // håndtak
 const gBrace  = add('g');     // parentes + TOTAL
+if(overlay){
+  svg.appendChild(overlay);
+  overlay.setAttribute('x', L);
+  overlay.setAttribute('y', TOP);
+  overlay.setAttribute('width', R-L);
+  overlay.setAttribute('height', BOT-TOP);
+}
 
 // Bakgrunn + ramme
 addTo(gBase ,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-rect-empty'});
@@ -73,6 +81,28 @@ btnSvg?.addEventListener('click', ()=> downloadSVG(svg, 'tenkeblokker.svg'));
 btnPng?.addEventListener('click', ()=> downloadPNG(svg, 'tenkeblokker.png', 2));
 
 handle.addEventListener('pointerdown', onDragStart);
+overlay?.addEventListener('keydown', e=>{
+  switch(e.key){
+    case 'ArrowRight':
+    case 'ArrowUp':
+      setK(k+1);
+      e.preventDefault();
+      break;
+    case 'ArrowLeft':
+    case 'ArrowDown':
+      setK(k-1);
+      e.preventDefault();
+      break;
+    case 'Home':
+      setK(0);
+      e.preventDefault();
+      break;
+    case 'End':
+      setK(n);
+      e.preventDefault();
+      break;
+  }
+});
 function onDragStart(e){
   handle.setPointerCapture(e.pointerId);
   const move = ev=>{
@@ -260,6 +290,16 @@ function redraw(){
   const hx = L + k*cellW;
   handle.setAttribute('cx', hx);
   handleShadow.setAttribute('cx', hx);
+  updateAria();
+}
+
+function updateAria(){
+  if(!overlay) return;
+  overlay.setAttribute('aria-valuenow', k);
+  overlay.setAttribute('aria-valuemax', n);
+  const text = `${k} av ${n} blokker fylt`;
+  overlay.setAttribute('aria-valuetext', text);
+  if(live) live.textContent = text;
 }
 
 // ---------- State ----------
