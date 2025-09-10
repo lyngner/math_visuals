@@ -3,6 +3,7 @@
   const partsInp = document.getElementById('parts');
   const divSel   = document.getElementById('division');
   const filledInp= document.getElementById('filled');
+  const wrongInp = document.getElementById('allowWrong');
   let board;
 
   function initBoard(){
@@ -23,10 +24,11 @@
     const filled = parseFilled();
     const shape = shapeSel.value;
     const division = divSel.value;
+    const allowWrong = wrongInp?.checked;
     if(shape==='rectangle' && division==='diagonal') n = 4;
     if(shape==='circle') drawCircle(n, filled);
     else if(shape==='rectangle') drawRect(n, division, filled);
-    else drawTriangle(n, division, filled);
+    else drawTriangle(n, division, filled, allowWrong);
     applyClip(shape);
   }
 
@@ -116,15 +118,23 @@
     });
   }
 
-  function drawTriangle(n, division, filled){
+  function drawTriangle(n, division, filled, allowWrong){
     for(let i=0;i<n;i++){
       let pts;
       if(division==='vertical'){
         const x1=i/n, x2=(i+1)/n;
-        pts=[[x1,0],[x2,0],[0,1]];
+        if(allowWrong){
+          pts=[[x1,0],[x2,0],[x2,1-x2],[x1,1-x1]];
+        }else{
+          pts=[[x1,0],[x2,0],[0,1]];
+        }
       }else if(division==='horizontal'){
         const y1=i/n, y2=(i+1)/n;
-        pts=[[0,y1],[0,y2],[1,0]];
+        if(allowWrong){
+          pts=[[0,y1],[1-y1,y1],[1-y2,y2],[0,y2]];
+        }else{
+          pts=[[0,y1],[0,y2],[1,0]];
+        }
       }else{ // diagonal
         const t1=i/n, t2=(i+1)/n;
         pts=[[1-t1,t1],[1-t2,t2],[0,0]];
@@ -140,16 +150,28 @@
     if(division==='vertical'){
       for(let i=1;i<n;i++){
         const x=i/n;
-        board.create('segment', [[x,0],[0,1]], {
-          strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
-        });
+        if(allowWrong){
+          board.create('segment', [[x,0],[x,1-x]], {
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+          });
+        }else{
+          board.create('segment', [[x,0],[0,1]], {
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+          });
+        }
       }
     }else if(division==='horizontal'){
       for(let i=1;i<n;i++){
         const y=i/n;
-        board.create('segment', [[0,y],[1,0]], {
-          strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
-        });
+        if(allowWrong){
+          board.create('segment', [[0,y],[1-y,y]], {
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+          });
+        }else{
+          board.create('segment', [[0,y],[1,0]], {
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true
+          });
+        }
       }
     }else{ // diagonal
       for(let i=1;i<n;i++){
@@ -171,9 +193,9 @@
     const svg = board?.renderer?.svgRoot;
     if(!svg) return;
     if(shape==='triangle'){
-      svg.style.clipPath = 'polygon(0% 100%, 100% 100%, 0% 0%)';
+      svg.style.clipPath = 'polygon(-2% 102%, 102% 102%, -2% -2%)';
     }else if(shape==='rectangle'){
-      svg.style.clipPath = 'polygon(0% 100%, 100% 100%, 100% 0%, 0% 0%)';
+      svg.style.clipPath = 'polygon(-2% 102%, 102% 102%, 102% -2%, -2% -2%)';
     }else{
       svg.style.clipPath = '';
     }
@@ -183,6 +205,7 @@
   partsInp.addEventListener('input', draw);
   divSel.addEventListener('change', draw);
   filledInp.addEventListener('input', draw);
+  wrongInp.addEventListener('change', draw);
 
   draw();
 })();

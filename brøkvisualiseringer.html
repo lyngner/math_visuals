@@ -28,6 +28,7 @@
     .figure #box{width:100%;height:420px;}
     .settings{display:flex;flex-direction:column;gap:8px;}
     .settings label{display:flex;flex-direction:column;font-size:13px;color:#4b5563;}
+    .settings label.row{flex-direction:row;align-items:center;gap:8px;}
     .settings input,.settings select{padding:8px 10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;background:#fff;}
   </style>
 </head>
@@ -63,6 +64,7 @@
           <label>Fylte deler (kommaseparert)
             <input id="filled" type="text" value="0" />
           </label>
+          <label class="row"><input id="allowWrong" type="checkbox" /> Tillat gale illustrasjoner</label>
         </div>
       </div>
     </div>
