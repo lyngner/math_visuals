@@ -18,6 +18,7 @@
     }
     .wrap{max-width:1200px;margin:0 auto;}
     .grid{display:grid;gap:var(--gap);grid-template-columns:1fr 360px;align-items:start;}
+    .side{display:flex;flex-direction:column;gap:var(--gap);}
     @media(max-width:980px){.grid{grid-template-columns:1fr;}}
     .card{
       background:#fff;border:1px solid #e5e7eb;border-radius:14px;
@@ -52,15 +53,21 @@
         <div id="box" class="jxgbox" aria-label="Arealmodell rektangel"></div>
         <div class="toolbar">
           <button id="btnReset" class="btn" type="button">Reset</button>
-          <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
-          <button id="btnPng" class="btn" type="button">Last ned PNG</button>
-          <button id="btnSvgInteractive" class="btn" type="button">Last ned interaktiv SVG</button>
-          <button id="btnHtml" class="btn" type="button">Last ned interaktiv HTML</button>
         </div>
       </div>
-      <div class="card">
-        <h2>Innstillinger</h2>
-        <div id="settingsMenu" class="settings">
+      <div class="side">
+        <div class="card">
+          <h2>Nedlasting</h2>
+          <div class="toolbar">
+            <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
+            <button id="btnPng" class="btn" type="button">Last ned PNG</button>
+            <button id="btnSvgInteractive" class="btn" type="button">Last ned interaktiv SVG</button>
+            <button id="btnHtml" class="btn" type="button">Last ned interaktiv HTML</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Innstillinger</h2>
+          <div id="settingsMenu" class="settings">
           <div class="row">
             <label>Lengde (celler)
               <input id="lenCells" type="number" value="1" min="1">
@@ -93,6 +100,7 @@
         </div>
       </div>
     </div>
+  </div>
   </div>
   <script src="arealmodell0.js"></script>
 </body>
