@@ -12,7 +12,7 @@ const CFG = {
     areaLabel: "areal",
     // Oppgave-modus (tegn alle rektangler med areal N)
     challenge: {
-      enabled: true,
+      enabled: false,
       area: 12,
       dedupeOrderless: true,   // to kolonner (a · b og b · a)
       autoExpandMax: true      // øk max slik at N lar seg representere
@@ -116,8 +116,6 @@ function readConfigFromHtml(){
   CFG.SIMPLE.challenge.enabled = document.getElementById("chkChallenge")?.checked ?? false;
   const chArea = parseInt(document.getElementById("challengeArea")?.value,10);
   if(Number.isFinite(chArea)) CFG.SIMPLE.challenge.area = chArea;
-  CFG.SIMPLE.challenge.dedupeOrderless = document.getElementById("chkDedupe")?.checked ?? false;
-  CFG.SIMPLE.challenge.autoExpandMax = document.getElementById("chkAutoExpand")?.checked ?? false;
 }
 
 function applySimpleConfig(){
