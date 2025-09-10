@@ -32,11 +32,11 @@
     .settings{ display:flex; flex-direction:column; gap:8px; }
     .settings label{ display:flex; flex-direction:column; font-size:13px; color:#4b5563; white-space:nowrap; }
     .settings input[type="text"], .settings input[type="number"], .settings select{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:50%; }
-    .settings-row{ display:flex; gap:8px; flex-wrap:nowrap; }
+    .settings-row{ display:flex; gap:8px; flex-wrap:wrap; }
     .settings-row label{ flex:1; }
     .settings-row label.points{ flex:0 0 70px; }
-    .settings-row label.checkbox-label{ flex:0 0 auto; }
-    .checkbox-label{ flex-direction:row; align-items:center; gap:6px; }
+    .settings-row label.checkbox-label{ flex:1 1 200px; }
+    .checkbox-label{ flex-direction:row; align-items:center; gap:6px; white-space:normal; }
   </style>
 </head>
 <body>
@@ -91,6 +91,8 @@
             <label>Screen (overstyrer autozoom hvis satt)
               <input id="cfgScreen" type="text" value="" placeholder="minX, maxX, minY, maxY">
             </label>
+          </div>
+          <div class="settings-row">
             <label class="checkbox-label"><input id="cfgLock" type="checkbox"> Lås forhold 1:1 (krever screen)</label>
             <label class="checkbox-label"><input id="cfgPan" type="checkbox"> Tillat pan</label>
           </div>
