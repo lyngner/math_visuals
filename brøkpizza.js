@@ -147,6 +147,10 @@ class Pizza{
     this.slider.style.pointerEvents="none";
     this.gA11y.appendChild(this.slider);
 
+    // <title>/<desc> for eksport og live-oppdatering
+    this.titleEl = this.svg.querySelector('title');
+    this.descEl  = this.svg.querySelector('desc');
+
     // Låse-logikk
     this.fullyLocked = !!(cfg.lockDenominator && cfg.lockNumerator);
     if(this.fullyLocked){
@@ -223,6 +227,8 @@ class Pizza{
     this.slider.setAttribute("aria-valuemax",String(this.n));
     this.slider.setAttribute("aria-valuenow",String(this.k));
     this.slider.setAttribute("aria-valuetext",`${this.k} av ${this.n}${simp}, ${dec} som desimal, ${pct}`);
+    if(this.titleEl) this.titleEl.textContent = `Brøkpizza: ${this.k}/${this.n}`;
+    if(this.descEl)  this.descEl.textContent  = `Viser ${this.n} sektorer totalt, ${this.k} av dem er fylt`;
   }
 
   draw(){
@@ -304,6 +310,7 @@ const INTERACTIVE_SVG_SCRIPT = `
   var linesB=root.querySelector('[data-role="linesB"]')||el("g",{}); if(!linesB.parentNode) root.appendChild(linesB);
   var linesW=root.querySelector('[data-role="linesW"]')||el("g",{}); if(!linesW.parentNode) root.appendChild(linesW);
   var handle=root.querySelector(".handle");
+  var a11y=root.querySelector('.a11y');
   var clipFilled=root.querySelector('clipPath[id$="clipFilled"]');
   var clipEmpty=root.querySelector('clipPath[id$="clipEmpty"]');
 
@@ -320,6 +327,19 @@ const INTERACTIVE_SVG_SCRIPT = `
       var w=el("line",{x1:0,y1:0,x2:x,y2:y,"class":"dash"});
       linesB.appendChild(b); linesW.appendChild(w);
     }
+  }
+  function updateAria(){
+    if(!a11y) return;
+    var g=gcd(k,n), dec=fmt(n?k/n:0), pct=fmt(n?k/n*100:0)+" %";
+    var simp=g>1?" ("+(k/g)+"/"+(n/g)+")":"";
+    a11y.setAttribute("aria-valuemin","0");
+    a11y.setAttribute("aria-valuemax",String(n));
+    a11y.setAttribute("aria-valuenow",String(k));
+    a11y.setAttribute("aria-valuetext",k+" av "+n+simp+", "+dec+" som desimal, "+pct);
+    var t=root.querySelector('title');
+    var d=root.querySelector('desc');
+    if(t) t.textContent="Brøkpizza: "+k+"/"+n;
+    if(d) d.textContent="Viser "+n+" sektorer totalt, "+k+" av dem er fylt";
   }
   function rebuildSectors(){
     while(fill.firstChild) fill.removeChild(fill.firstChild);
@@ -377,7 +397,7 @@ const INTERACTIVE_SVG_SCRIPT = `
     if(nn===n) return;
     n=nn; if(k>n) k=n;
     if(showNVal) nValText.textContent=String(n);
-    rebuildSectors(); rebuildLines(); updateTexts();
+    rebuildSectors(); rebuildLines(); updateTexts(); updateAria();
   }
 
   var dragging=false;
@@ -392,7 +412,7 @@ const INTERACTIVE_SVG_SCRIPT = `
       var p=pt.matrixTransform(root.getScreenCTM().inverse());
       var ang=Math.atan2(p.y,p.x); if(ang<0) ang+=TAU;
       var step=TAU/n; k=Math.max(0,Math.min(n,Math.round(ang/step)));
-      rebuildSectors(); updateTexts();
+      rebuildSectors(); updateTexts(); updateAria();
     });
     root.addEventListener("click",function(e){
       if(e.target===handle||e.target===btnMinus||e.target===btnPlus) return;
@@ -400,7 +420,7 @@ const INTERACTIVE_SVG_SCRIPT = `
       var p=pt.matrixTransform(root.getScreenCTM().inverse());
       var ang=Math.atan2(p.y,p.x); if(ang<0) ang+=TAU;
       var step=TAU/n; k=Math.max(0,Math.min(n,Math.round(ang/step)));
-      rebuildSectors(); updateTexts();
+      rebuildSectors(); updateTexts(); updateAria();
     });
     handle.addEventListener("keydown",function(e){
       var used=false;
@@ -410,7 +430,7 @@ const INTERACTIVE_SVG_SCRIPT = `
         case "Home": k=0; used=true; break;
         case "End":  k=n; used=true; break;
       }
-      if(used){ e.preventDefault(); rebuildSectors(); updateTexts(); }
+      if(used){ e.preventDefault(); rebuildSectors(); updateTexts(); updateAria(); }
     });
   }
   function clickMinus(){ setN(n-1); }
@@ -426,7 +446,7 @@ const INTERACTIVE_SVG_SCRIPT = `
     if(e.key==="PageUp"){e.preventDefault();setN(n+5);}
   });
 
-  rebuildLines(); rebuildSectors(); updateTexts();
+  rebuildLines(); rebuildSectors(); updateTexts(); updateAria();
 })();
 /*]]>*/
 `;
@@ -513,6 +533,14 @@ function downloadInteractiveSVG(svgEl, filename="pizza-interaktiv.svg") {
   const k = clone.querySelectorAll(".sector-fill").length || 0;
   const rEl = clone.querySelector("circle.rim");
   const R = rEl ? parseFloat(rEl.getAttribute("r")||"180") : 180;
+
+  // Oppdater beskrivelses-elementer slik at eksportert SVG forklarer
+  // gjeldende brøk og totalt sektortall. Dette gjør at både skjermlesere
+  // og videre interaksjon via innebygd skript starter med korrekt tekst.
+  const tEl = clone.querySelector('title');
+  const dEl = clone.querySelector('desc');
+  if(tEl) tEl.textContent = `Brøkpizza: ${k}/${n}`;
+  if(dEl) dEl.textContent = `Viser ${n} sektorer totalt, ${k} av dem er fylt`;
 
   // Sørg for at handle vises
   const hndl = clone.querySelector(".handle");
@@ -629,6 +657,12 @@ function downloadAllPizzasInteractiveSVG(filename="broksirkler-interaktiv.svg"){
     const R=rEl?parseFloat(rEl.getAttribute("r")||"180"):180;
     const hndl=clone.querySelector(".handle");
     if(hndl && hndl.parentNode && hndl.parentNode.style) hndl.parentNode.style.display="";
+    // Sikre at hver eksportert SVG får oppdatert <title>/<desc>
+    // slik at tilgjengelighetsbeskrivelsen matcher gjeldende brøk.
+    const tEl=clone.querySelector('title');
+    const dEl=clone.querySelector('desc');
+    if(tEl) tEl.textContent=`Brøkpizza: ${k}/${n}`;
+    if(dEl) dEl.textContent=`Viser ${n} sektorer totalt, ${k} av dem er fylt`;
     clone.setAttribute("data-n", String(n));
     clone.setAttribute("data-k", String(k));
     clone.setAttribute("data-r", String(R));
