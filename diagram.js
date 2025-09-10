@@ -523,24 +523,22 @@ function isCorrect(vs, ans, tol){
 async function svgToString(svgEl){
   const clone = svgEl.cloneNode(true);
 
-  // hent alle tilgjengelige stilregler (inkluderer linkede stilark)
-  let css = '';
-  for(const sheet of document.styleSheets){
-    try{
-      css += [...sheet.cssRules].map(r=>r.cssText).join('\n');
-    }catch(e){
-      // forsøk å hente CSS-innhold fra lenkede stilark ved CORS-feil
-      if(sheet.href){
-        try{
-          const res = await fetch(sheet.href);
-          if(res.ok) css += await res.text();
-        }catch(err){/* ignorer */}
+  // Kopier beregnede stilverdier som attributter for å unngå svarte figurer
+  const srcEls   = svgEl.querySelectorAll('*');
+  const cloneEls = clone.querySelectorAll('*');
+  srcEls.forEach((src, i)=>{
+    const dst   = cloneEls[i];
+    const comp  = getComputedStyle(src);
+    const props = ['fill','stroke','stroke-width','font-family','font-size','font-weight',
+                   'opacity','text-anchor','paint-order','stroke-linecap','stroke-linejoin',
+                   'stroke-dasharray'];
+    props.forEach(p=>{
+      const val = comp.getPropertyValue(p);
+      if(val && val !== 'none' && val !== 'normal' && val !== '0px'){
+        dst.setAttribute(p, val);
       }
-    }
-  }
-  const style = document.createElement('style');
-  style.textContent = css;
-  clone.insertBefore(style, clone.firstChild);
+    });
+  });
 
   // fjern interaktive håndtak før eksport
   clone.querySelectorAll('.handle, .handleShadow').forEach(el=>el.remove());
