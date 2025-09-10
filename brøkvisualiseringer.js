@@ -31,12 +31,13 @@
   function togglePart(i, element){
     if(filled.has(i)){
       filled.delete(i);
-      element.setAttribute({fillColor:'#fff'});
+      element.setAttribute({fillColor:'#fff', fillOpacity:1});
     }else{
       filled.add(i);
-      element.setAttribute({fillColor:'#5B2AA5'});
+      element.setAttribute({fillColor:'#5B2AA5', fillOpacity:1});
     }
     updateFilledInput();
+    board.update();
   }
 
   function draw(){
