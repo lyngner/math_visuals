@@ -2,15 +2,20 @@
    KONFIG – forfatter styrer alt her
    ========================================================= */
 const CFG = {
-  title: 'Favorittidretter i 5B',
-  labels: ['Klatring','Fotball','Håndball','Basket','Tennis','Bowling'],
-  start:  [6,7,3,5,8,2],
-  answer: [6,7,3,5,8,2],
-  yMax:   8,
+  type: 'stacked',
+  title: 'Skjermtid per dag',
+  labels: ['1','2','3','4','5','6','7'],
+  series1: 'Gutter',
+  series2: 'Jenter',
+  start:  [1,6,1,1,2,1,0],
+  start2: [1,3,2,0,2,0,0],
+  answer: [1,6,1,1,2,1,0],
+  answer2:[1,3,2,0,2,0,0],
+  yMax:   9,
   snap:   1,
   tolerance: 0,
-  axisXLabel: 'Idrett',
-  axisYLabel: 'Antall elever',
+  axisXLabel: 'Timer per dag',
+  axisYLabel: 'Antall personer',
   locked: []
 };
 
@@ -24,7 +29,7 @@ const M = {l:80, r:30, t:40, b:70};
 const innerW = W - M.l - M.r;
 const innerH = H - M.t - M.b;
 
-/* Lagrekkefølge: grid, akser, søyler, håndtak, a11y, verdier (øverst), labels */
+/* Lagrekkefølge: grid, akser, dataserier, håndtak, a11y, verdier (øverst), labels, legend */
 const gGrid   = add('g');
 const gAxis   = add('g');
 const gBars   = add('g');
@@ -32,8 +37,11 @@ const gHands  = add('g');
 const gA11y   = add('g');
 const gVals   = add('g');
 const gLabels = add('g');
+const gLegend = add('g');
 
 let values = [];
+let values2 = null;
+let seriesNames = [];
 let locked = [];
 let N = 0;
 
@@ -55,19 +63,31 @@ function yPos(v){ return M.t + innerH - (v - yMin) / (yMax - yMin) * innerH; }
 let lastFocusIndex = null;
 
 initFromCfg();
-updateStatus('Dra i søylene/håndtaket – eller bruk tastaturet.');
 
 function initFromCfg(){
   values = CFG.start.slice();
+  values2 = CFG.start2 ? CFG.start2.slice() : null;
+  seriesNames = [CFG.series1 || '', CFG.series2 || ''];
   N = CFG.labels.length;
   xBand = innerW / N;
   barW  = xBand * 0.6;
-  yMax  = CFG.yMax ?? niceMax([...CFG.start, ...CFG.answer]);
+  const allVals = [...CFG.start, ...(CFG.start2||[]), ...(CFG.answer||[]), ...(CFG.answer2||[])];
+  yMax  = CFG.yMax ?? niceMax(allVals);
   locked = alignLength(CFG.locked || [], N, false);
   lastFocusIndex = null;
   document.getElementById('chartTitle').textContent = CFG.title || '';
+
+  // disable stacking/grouping options when only one dataserie
+  const typeSel = document.getElementById('cfgType');
+  const hasTwo = values2 && values2.length;
+  [...typeSel.options].forEach(opt=>{
+    if(!hasTwo && (opt.value==='stacked' || opt.value==='grouped')) opt.disabled = true;
+    else opt.disabled = false;
+  });
+
   drawAxesAndGrid();
-  drawBars();
+  drawData();
+  updateStatus(CFG.type==='bar' && !hasTwo ? 'Dra i søylene/håndtaket – eller bruk tastaturet.' : '');
 }
 
 /* =========================================================
@@ -100,6 +120,75 @@ function drawAxesAndGrid(){
   addTo(gLabels,'text',{x:M.l + innerW/2, y:H - 24, class:'xAxisLabel'}).textContent = CFG.axisXLabel || '';
 }
 
+function drawData(){
+  gBars.innerHTML=''; gVals.innerHTML=''; gHands.innerHTML=''; gA11y.innerHTML=''; gLegend.innerHTML='';
+  const hasTwo = values2 && values2.length;
+  if(CFG.type === 'line'){
+    drawLines();
+  }else if(hasTwo && CFG.type === 'grouped'){
+    drawGroupedBars();
+  }else if(hasTwo && CFG.type === 'stacked'){
+    drawStackedBars();
+  }else{
+    drawBars();
+  }
+  drawLegend();
+}
+
+function drawLegend(){
+  const names = [];
+  if(seriesNames[0]) names.push({name:seriesNames[0], cls:'series0'});
+  if(values2 && values2.length && seriesNames[1]) names.push({name:seriesNames[1], cls:'series1'});
+  names.forEach((s,i)=>{
+    const x = M.l + i*120;
+    const y = M.t - 10;
+    addTo(gLegend,'rect',{x:x, y:y-10, width:20, height:10, class:'legendbox '+s.cls});
+    addTo(gLegend,'text',{x:x+26,y:y,class:'legendtext'}).textContent = s.name;
+  });
+}
+
+function drawLines(){
+  const datasets = [values];
+  if(values2 && values2.length) datasets.push(values2);
+  datasets.forEach((arr,idx)=>{
+    const path = arr.map((v,i)=> (i?'L':'M') + xPos(i) + ',' + yPos(v)).join(' ');
+    addTo(gBars,'path',{d:path,class:'line series'+idx});
+    arr.forEach((v,i)=>{
+      addTo(gBars,'circle',{cx:xPos(i), cy:yPos(v), r:4, class:'line-dot series'+idx});
+    });
+  });
+}
+
+function drawGroupedBars(){
+  const hasTwo = values2 && values2.length;
+  const barTotal = xBand*0.6;
+  const barSingle = hasTwo ? barTotal/2 : barTotal;
+  for(let i=0;i<N;i++){
+    const x0 = xPos(i) - barTotal/2;
+    const y1 = yPos(values[i]);
+    addTo(gBars,'rect',{x:x0, y:y1, width:barSingle, height:Math.max(2,(H-M.b)-y1), class:'bar series0'});
+    if(hasTwo){
+      const y2 = yPos(values2[i]);
+      addTo(gBars,'rect',{x:x0+barSingle, y:y2, width:barSingle, height:Math.max(2,(H-M.b)-y2), class:'bar series1'});
+    }
+  }
+}
+
+function drawStackedBars(){
+  const barTotal = xBand*0.6;
+  for(let i=0;i<N;i++){
+    const base = H-M.b;
+    const v1 = values[i];
+    const v2 = values2 ? values2[i] : 0;
+    const y1 = yPos(v1);
+    addTo(gBars,'rect',{x:xPos(i)-barTotal/2, y:y1, width:barTotal, height:Math.max(2,base-y1), class:'bar series0'});
+    if(values2){
+      const y2 = yPos(v1+v2);
+      addTo(gBars,'rect',{x:xPos(i)-barTotal/2, y:y2, width:barTotal, height:Math.max(2,y1-y2), class:'bar series1'});
+    }
+  }
+}
+
 function drawBars(){
   gBars.innerHTML=''; gVals.innerHTML=''; gHands.innerHTML=''; gA11y.innerHTML='';
 
@@ -113,7 +202,7 @@ function drawBars(){
       y: y,
       width: barW,
       height: Math.max(2, (H-M.b) - y),
-      class: 'bar' + (locked[i] ? ' locked' : '')
+      class: 'bar series0' + (locked[i] ? ' locked' : '')
     });
     rect.dataset.index = i;
     rect.addEventListener('pointerdown', onDragStart);
@@ -231,6 +320,7 @@ function yToValue(py){
    KNAPPER
    ========================================================= */
 document.getElementById('btnReset').addEventListener('click', ()=>{
+  if(values2 && values2.length && CFG.type !== 'bar') return;
   values = CFG.start.slice();
   clearBadges();
   lastFocusIndex = null;
@@ -238,6 +328,7 @@ document.getElementById('btnReset').addEventListener('click', ()=>{
   updateStatus('Nullstilt.');
 });
 document.getElementById('btnShow').addEventListener('click', ()=>{
+  if(values2 && values2.length && CFG.type !== 'bar') return;
   values = CFG.answer.slice();
   lastFocusIndex = null;
   drawBars();
@@ -245,6 +336,7 @@ document.getElementById('btnShow').addEventListener('click', ()=>{
   updateStatus('Dette er én fasit.');
 });
 document.getElementById('btnCheck').addEventListener('click', ()=>{
+  if(values2 && values2.length && CFG.type !== 'bar') return;
   markCorrectness();
   const ok = isCorrect(values, CFG.answer, CFG.tolerance||0);
   updateStatus(ok ? 'Riktig! 🎉' : 'Prøv igjen 🙂');
@@ -255,12 +347,19 @@ document.querySelector('.settings').addEventListener('input', applyCfg);
 function applyCfg(){
   const lbls = parseList(document.getElementById('cfgLabels').value);
   const starts = parseNumList(document.getElementById('cfgStart').value);
+  const starts2 = parseNumList(document.getElementById('cfgStart2').value);
   const answers = parseNumList(document.getElementById('cfgAnswer').value);
+  const answers2 = parseNumList(document.getElementById('cfgAnswer2').value);
   const yMaxVal = parseFloat(document.getElementById('cfgYMax').value);
   CFG.title = document.getElementById('cfgTitle').value;
+  CFG.type = document.getElementById('cfgType').value;
+  CFG.series1 = document.getElementById('cfgSeries1').value;
+  CFG.series2 = document.getElementById('cfgSeries2').value;
   CFG.labels = lbls;
   CFG.start  = alignLength(starts, lbls.length, 0);
+  CFG.start2 = alignLength(starts2, lbls.length, 0);
   CFG.answer = alignLength(answers, lbls.length, 0);
+  CFG.answer2= alignLength(answers2, lbls.length, 0);
   CFG.yMax   = isNaN(yMaxVal) ? undefined : yMaxVal;
   CFG.axisXLabel = document.getElementById('cfgAxisXLabel').value;
   CFG.axisYLabel = document.getElementById('cfgAxisYLabel').value;
