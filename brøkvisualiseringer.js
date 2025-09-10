@@ -31,16 +31,17 @@
   function drawCircle(n, filled){
     const r = 0.45;
     const cx = 0.5, cy = 0.5;
-    const center = board.create('point', [cx,cy], {visible:false, name:''});
+    const pointOpts = {visible:false, fixed:true, name:'', label:{visible:false}};
+    const center = board.create('point', [cx,cy], pointOpts);
     for(let i=0;i<n;i++){
       const a1 = 2*Math.PI*i/n;
       const a2 = 2*Math.PI*(i+1)/n;
-      const p1 = board.create('point', [cx + r*Math.cos(a1), cy + r*Math.sin(a1)], {visible:false, name:''});
-      const p2 = board.create('point', [cx + r*Math.cos(a2), cy + r*Math.sin(a2)], {visible:false, name:''});
+      const p1 = board.create('point', [cx + r*Math.cos(a1), cy + r*Math.sin(a1)], pointOpts);
+      const p2 = board.create('point', [cx + r*Math.cos(a2), cy + r*Math.sin(a2)], pointOpts);
       board.create('sector', [center, p1, p2], {
         withLines:true,
         strokeColor:'#fff',
-        strokeWidth:4,
+        strokeWidth:6,
         fillColor: filled.includes(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
         highlight:false
@@ -71,8 +72,8 @@
         }
       }
       board.create('polygon', pts, {
-        borders:{strokeColor:'#fff', strokeWidth:4},
-        vertices:{visible:false, name:''},
+        borders:{strokeColor:'#fff', strokeWidth:6},
+        vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
         fillColor: filled.includes(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
         highlight:false
@@ -80,7 +81,7 @@
     }
     board.create('polygon', [[0,0],[1,0],[1,1],[0,1]], {
       borders:{strokeColor:'#333', strokeWidth:6},
-      vertices:{visible:false, name:''},
+      vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
       fillColor:'none',
       highlight:false
     });
@@ -100,8 +101,8 @@
         pts=[[1-t1,t1],[1-t2,t2],[0,0]];
       }
       board.create('polygon', pts, {
-        borders:{strokeColor:'#fff', strokeWidth:4},
-        vertices:{visible:false, name:''},
+        borders:{strokeColor:'#fff', strokeWidth:6},
+        vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
         fillColor: filled.includes(i)?'#5B2AA5':'#fff',
         fillOpacity:1,
         highlight:false
@@ -109,7 +110,7 @@
     }
     board.create('polygon', [[0,0],[1,0],[0,1]], {
       borders:{strokeColor:'#333', strokeWidth:6},
-      vertices:{visible:false, name:''},
+      vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
       fillColor:'none',
       highlight:false
     });
