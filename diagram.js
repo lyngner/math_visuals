@@ -343,6 +343,10 @@ function isCorrect(vs, ans, tol){
 
 function svgToString(svgEl){
   const clone = svgEl.cloneNode(true);
+  const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
+  const style = document.createElement('style');
+  style.textContent = css;
+  clone.insertBefore(style, clone.firstChild);
   clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
   clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
