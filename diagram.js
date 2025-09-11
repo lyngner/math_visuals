@@ -330,13 +330,17 @@ function onDragStart(e){
   };
   const up = ev=>{
     ev.preventDefault();
-    target.removeEventListener('pointermove', move);
-    target.removeEventListener('pointerup', up);
-    target.releasePointerCapture(ev.pointerId);
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    if(target.releasePointerCapture){
+      try{ target.releasePointerCapture(ev.pointerId); }catch{}
+    }
   };
-  target.setPointerCapture(e.pointerId);
-  target.addEventListener('pointermove', move, { passive: false });
-  target.addEventListener('pointerup', up, { passive: false });
+  window.addEventListener('pointermove', move, { passive: false });
+  window.addEventListener('pointerup', up, { passive: false });
+  if(target.setPointerCapture){
+    try{ target.setPointerCapture(e.pointerId); }catch{}
+  }
 }
 
 /* =========================================================
