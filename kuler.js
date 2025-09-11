@@ -86,22 +86,21 @@ function render(){
   CFG.bowls.forEach((bCfg, idx) => {
     const g = mk("g", {class:"bowl"});
     const midX = VB_W / 2;
-    const rimY = 150;
-    const bowlWidth = 400;
-    const bowlDepth = 100;
-    const bowlInner = mk("path", {
-      d: `M${midX - bowlWidth/2} ${rimY} Q${midX} ${rimY + bowlDepth} ${midX + bowlWidth/2} ${rimY} Q${midX} ${rimY + bowlDepth * 0.8} ${midX - bowlWidth/2} ${rimY}`,
-      fill: "#f3f4f6",
-      stroke: "#9ca3af",
-      "stroke-width": 4
+    const bowlSvgW = 273;
+    const bowlSvgH = 251;
+    const rimSvgY = 41;
+    const bowlScale = VB_H / bowlSvgH;
+    const bowlWidth = bowlSvgW * bowlScale;
+    const rimY = rimSvgY * bowlScale;
+    const bowlDepth = VB_H - rimY;
+    const bowlImg = mk("image", {
+      href: "images/bowl.svg",
+      x: 0,
+      y: 0,
+      width: VB_W,
+      height: VB_H,
+      preserveAspectRatio: "xMidYMax meet"
     });
-    const bowlRim = mk("ellipse", {
-      cx: midX, cy: rimY, rx: bowlWidth/2, ry: 40,
-      fill: "#fff",
-      stroke: "#9ca3af",
-      "stroke-width": 4
-    });
-    g.appendChild(bowlInner);
 
     const gBeads = mk("g", {class:"beads"});
     const nBeads = bCfg.colors.length;
@@ -123,8 +122,8 @@ function render(){
       });
       gBeads.appendChild(bead);
     }
+    g.appendChild(bowlImg);
     g.appendChild(gBeads);
-    g.appendChild(bowlRim);
     gBowls.appendChild(g);
     bowls.push({group:g, beads:gBeads, cfg:bCfg});
   });
