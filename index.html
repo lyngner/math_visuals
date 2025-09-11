@@ -86,8 +86,8 @@
 <body>
   <header>
     <h1>Math Visuals</h1>
-    <button id="menu-toggle" aria-label="Meny">☰</button>
-    <nav data-open="false">
+    <button id="menu-toggle" aria-label="Meny" aria-expanded="false" aria-controls="main-nav">☰</button>
+    <nav id="main-nav" data-open="false">
       <ul>
           <li><a href="graftegner.html" target="content">Graftegner</a></li>
           <li><a href="nkant.html" target="content">nKant</a></li>
@@ -105,7 +105,7 @@
     <script>
       const iframe = document.querySelector('iframe');
       const links = document.querySelectorAll('nav a');
-      const menu = document.querySelector('header nav');
+      const menu = document.getElementById('main-nav');
       const saved = localStorage.getItem('currentPage') || 'nkant.html';
       iframe.src = saved;
       links.forEach(link => {
@@ -119,6 +119,7 @@
       toggleBtn.addEventListener('click', () => {
         const open = menu.getAttribute('data-open') === 'true';
         menu.setAttribute('data-open', String(!open));
+        toggleBtn.setAttribute('aria-expanded', String(!open));
       });
     </script>
   </body>
