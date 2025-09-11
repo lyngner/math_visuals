@@ -77,6 +77,15 @@
   updateColorVisibility();
 
   function createGrid(el){
+    // Store existing colors before rebuilding the grid
+    const prevColors=[];
+    el.querySelectorAll('.row').forEach((row,r)=>{
+      prevColors[r]=[];
+      row.querySelectorAll('.cell').forEach((cell,c)=>{
+        prevColors[r][c]=cell.dataset.color||'0';
+      });
+    });
+
     el.innerHTML='';
     el.style.setProperty('--cols',cols);
     el.style.setProperty('--rows',rows);
@@ -91,7 +100,8 @@
       for(let c=0;c<cols;c++){
         const cell=document.createElement('div');
         cell.className='cell';
-        cell.dataset.color='0';
+        // Restore previously set color if available
+        cell.dataset.color=prevColors?.[r]?.[c]||'0';
         cell.addEventListener('click',()=>{
           const colors=getColors();
           let idx=parseInt(cell.dataset.color,10)||0;
