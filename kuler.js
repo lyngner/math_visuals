@@ -7,7 +7,7 @@ const SIMPLE = {
         { color: "blue", count: 4 },
         { color: "green", count: 4 },
         { color: "yellow", count: 4 },
-        { color: "orange", count: 4 },
+        { color: "pink", count: 4 },
         { color: "purple", count: 4 }
       ]
     }
@@ -20,12 +20,12 @@ const ADV = {
   beadGap: 12,
   assets: {
     beads: {
-      red:    "#f87171",
-      blue:   "#60a5fa",
-      green:  "#4ade80",
-      yellow: "#fde047",
-      orange: "#fb923c",
-      purple: "#c084fc"
+      red:    "images/redDots.svg",
+      blue:   "images/blueWave.svg",
+      green:  "images/greenStar.svg",
+      yellow: "images/yellowGrid.svg",
+      pink:   "images/pinkLabyrinth.svg",
+      purple: "images/purpleZigzag.svg"
     }
   }
 };
@@ -112,8 +112,15 @@ function render(){
       const radius = Math.sqrt(Math.random());
       const cx = midX + rx * radius * Math.cos(angle);
       const cy = rimY + ry * radius * Math.sin(angle);
-      const color = bCfg.colors[i % bCfg.colors.length];
-      const bead = mk("circle", {cx, cy, r: CFG.beadRadius, fill: color, class: "bead beadShadow"});
+      const src = bCfg.colors[i % bCfg.colors.length];
+      const bead = mk("image", {
+        href: src,
+        x: cx - CFG.beadRadius,
+        y: cy - CFG.beadRadius,
+        width: CFG.beadRadius * 2,
+        height: CFG.beadRadius * 2,
+        class: "bead beadShadow"
+      });
       gBeads.appendChild(bead);
     }
     g.appendChild(gBeads);
