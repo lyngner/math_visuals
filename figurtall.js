@@ -193,6 +193,139 @@
   colsMinus?.addEventListener('click',()=>{ if(cols>1){ cols--; updateCols(); }});
   colsPlus?.addEventListener('click',()=>{ if(cols<20){ cols++; updateCols(); }});
 
+  const btnSvg=document.getElementById('btnSvg');
+  const btnPng=document.getElementById('btnPng');
+
+  function svgToString(svgEl){
+    const clone=svgEl.cloneNode(true);
+    clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+    clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+    return '<?xml version="1.0" encoding="UTF-8"?>\n'+new XMLSerializer().serializeToString(clone);
+  }
+
+  function downloadSVG(svgEl,filename){
+    const data=svgToString(svgEl);
+    const blob=new Blob([data],{type:'image/svg+xml;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=filename.endsWith('.svg')?filename:filename+'.svg';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+
+  function downloadPNG(svgEl,filename,scale=2,bg='#fff'){
+    const vb=svgEl.viewBox.baseVal;
+    const w=vb?.width||svgEl.clientWidth||cols*40;
+    const h=vb?.height||svgEl.clientHeight||rows*40;
+    const data=svgToString(svgEl);
+    const blob=new Blob([data],{type:'image/svg+xml;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.round(w*scale);
+      canvas.height=Math.round(h*scale);
+      const ctx=canvas.getContext('2d');
+      ctx.fillStyle=bg;
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(blob=>{
+        const urlPng=URL.createObjectURL(blob);
+        const a=document.createElement('a');
+        a.href=urlPng;
+        a.download=filename.endsWith('.png')?filename:filename+'.png';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(urlPng),1000);
+      },'image/png');
+    };
+    img.src=url;
+  }
+
+  function buildExportSvg(){
+    const colors=getColors();
+    const cellSize=40;
+    const figW=cols*cellSize + (offset? cellSize/2 : 0);
+    const figH=rows*cellSize;
+    const nameH=24;
+    const gap=20;
+    const totalH=boxes.length*(figH+nameH+gap)-gap;
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox',`0 0 ${figW} ${totalH}`);
+    svg.setAttribute('width',figW);
+    svg.setAttribute('height',totalH);
+    let y=0;
+    boxes.forEach(box=>{
+      const panel=box.closest('.figurePanel');
+      const name=panel.querySelector('.nameInput')?.value||'';
+      const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('transform',`translate(0,${y})`);
+      box.querySelectorAll('.row').forEach((rowEl,r)=>{
+        rowEl.querySelectorAll('.cell').forEach((cellEl,c)=>{
+          const idx=parseInt(cellEl.dataset.color,10)||0;
+          const x=c*cellSize + (offset && r%2===1 ? cellSize/2 : 0);
+          const yPos=r*cellSize;
+          const base=document.createElementNS('http://www.w3.org/2000/svg','rect');
+          base.setAttribute('x',x);
+          base.setAttribute('y',yPos);
+          base.setAttribute('width',cellSize);
+          base.setAttribute('height',cellSize);
+          base.setAttribute('fill','#fff');
+          if(showGrid){
+            base.setAttribute('stroke','#d1d5db');
+            base.setAttribute('stroke-width','1');
+          }
+          g.appendChild(base);
+          if(idx>0){
+            if(circleMode){
+              const circ=document.createElementNS('http://www.w3.org/2000/svg','circle');
+              circ.setAttribute('cx',x+cellSize/2);
+              circ.setAttribute('cy',yPos+cellSize/2);
+              circ.setAttribute('r',cellSize/2);
+              circ.setAttribute('fill',colors[idx-1]);
+              g.appendChild(circ);
+            }else{
+              const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+              rect.setAttribute('x',x);
+              rect.setAttribute('y',yPos);
+              rect.setAttribute('width',cellSize);
+              rect.setAttribute('height',cellSize);
+              rect.setAttribute('fill',colors[idx-1]);
+              if(showGrid){
+                rect.setAttribute('stroke','#d1d5db');
+                rect.setAttribute('stroke-width','1');
+              }
+              g.appendChild(rect);
+            }
+          }
+        });
+      });
+      if(name){
+        const text=document.createElementNS('http://www.w3.org/2000/svg','text');
+        text.setAttribute('x',figW/2);
+        text.setAttribute('y',figH+16);
+        text.setAttribute('text-anchor','middle');
+        text.setAttribute('font-size','16');
+        text.setAttribute('font-family','system-ui, sans-serif');
+        text.textContent=name;
+        g.appendChild(text);
+      }
+      svg.appendChild(g);
+      y+=figH+nameH+gap;
+    });
+    return svg;
+  }
+
+  btnSvg?.addEventListener('click',()=>{
+    const svg=buildExportSvg();
+    downloadSVG(svg,'figurtall.svg');
+  });
+  btnPng?.addEventListener('click',()=>{
+    const svg=buildExportSvg();
+    downloadPNG(svg,'figurtall.png',2);
+  });
+
   updateRows();
   updateCols();
 })();
