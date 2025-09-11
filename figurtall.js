@@ -1,10 +1,10 @@
 (function(){
   const boxes=[];
-  // Default grid size set to 3x3 for triangular numbers
+  // Default grid size set to 3x3 with aligned rows
   let rows=3;
   let cols=3;
   let circleMode=true;
-  let offset=true;
+  let offset=false;
   let showGrid=false;
 
   const colorCountInp=document.getElementById('colorCount');
@@ -338,9 +338,9 @@
     rows=3; cols=3;
     rowsVal.textContent=rows;
     colsVal.textContent=cols;
-    circleMode=true; offset=true; showGrid=false;
+    circleMode=true; offset=false; showGrid=false;
     circleInp.checked=true;
-    offsetInp.checked=true;
+    offsetInp.checked=false;
     gridInp.checked=false;
     colorCount=1;
     colorCountInp.value='1';
