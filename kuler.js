@@ -4,7 +4,11 @@ const SIMPLE = {
     {
       colorCounts: [
         { color: "red", count: 4 },
-        { color: "blue", count: 4 }
+        { color: "blue", count: 4 },
+        { color: "green", count: 4 },
+        { color: "yellow", count: 4 },
+        { color: "orange", count: 4 },
+        { color: "purple", count: 4 }
       ]
     }
   ]
@@ -15,10 +19,13 @@ const ADV = {
   beadRadius: 20,
   beadGap: 12,
   assets: {
-    bowl: "https://test.kikora.no/img/drive/illustrasjoner/Matteobjekter/Hjelpemidler/bowl.svg",
     beads: {
-      red:  "https://test.kikora.no/img/drive/figures/games/spheres/redDots.svg",
-      blue: "https://test.kikora.no/img/drive/figures/games/spheres/blueWave.svg"
+      red:    "#f87171",
+      blue:   "#60a5fa",
+      green:  "#4ade80",
+      yellow: "#fde047",
+      orange: "#fb923c",
+      purple: "#c084fc"
     }
   }
 };
@@ -29,15 +36,14 @@ function makeCFG(){
     bowls: SIMPLE.bowls.map(b => {
       const colors = [];
       (b.colorCounts || []).forEach(cc => {
-        const src = ADV.assets.beads[cc.color];
-        if(src) for(let i=0;i<cc.count;i++) colors.push(src);
+        const col = ADV.assets.beads[cc.color];
+        if(col) for(let i=0;i<cc.count;i++) colors.push(col);
       });
       if(!colors.length) colors.push(...Object.values(ADV.assets.beads));
       return { colors };
     }),
     beadRadius: ADV.beadRadius,
-    beadGap: ADV.beadGap,
-    assets: { bowl: ADV.assets.bowl }
+    beadGap: ADV.beadGap
   };
 }
 let CFG = makeCFG();
@@ -79,27 +85,39 @@ function render(){
   bowls.length = 0;
   CFG.bowls.forEach((bCfg, idx) => {
     const g = mk("g", {class:"bowl"});
-    const bowlImg = img(CFG.assets.bowl, 0, 150, VB_W, 100, "bowlImg");
-    g.appendChild(bowlImg);
+    const midX = VB_W / 2;
+    const rimY = 150;
+    const bowlWidth = 400;
+    const bowlDepth = 100;
+    const bowlInner = mk("path", {
+      d: `M${midX - bowlWidth/2} ${rimY} Q${midX} ${rimY + bowlDepth} ${midX + bowlWidth/2} ${rimY} Q${midX} ${rimY + bowlDepth * 0.8} ${midX - bowlWidth/2} ${rimY}`,
+      fill: "#f3f4f6",
+      stroke: "#9ca3af",
+      "stroke-width": 4
+    });
+    const bowlRim = mk("ellipse", {
+      cx: midX, cy: rimY, rx: bowlWidth/2, ry: 40,
+      fill: "#fff",
+      stroke: "#9ca3af",
+      "stroke-width": 4
+    });
+    g.appendChild(bowlInner);
 
     const gBeads = mk("g", {class:"beads"});
     const nBeads = bCfg.colors.length;
-    const totalWidth = nBeads * 2 * CFG.beadRadius + (nBeads - 1) * CFG.beadGap;
-    const startX = (VB_W - totalWidth) / 2 + CFG.beadRadius;
-    const step = 2 * CFG.beadRadius + CFG.beadGap;
-    const baseY = 150 - CFG.beadRadius;
-    const midX = VB_W / 2;
-    const halfW = totalWidth / 2;
-    const BOWL_DEPTH = 60;
+    const rx = bowlWidth/2 - CFG.beadRadius;
+    const ry = bowlDepth - CFG.beadRadius;
     for(let i=0;i<nBeads;i++){
-      const cx = startX + i * step;
-      const t = halfW ? (cx - midX) / halfW : 0;
-      const cy = baseY + BOWL_DEPTH * (1 - t * t);
-      const href = bCfg.colors[i % bCfg.colors.length];
-      const bead = img(href, cx - CFG.beadRadius, cy - CFG.beadRadius, 2*CFG.beadRadius, 2*CFG.beadRadius, "bead beadShadow");
+      const angle = Math.random() * Math.PI;
+      const radius = Math.sqrt(Math.random());
+      const cx = midX + rx * radius * Math.cos(angle);
+      const cy = rimY + ry * radius * Math.sin(angle);
+      const color = bCfg.colors[i % bCfg.colors.length];
+      const bead = mk("circle", {cx, cy, r: CFG.beadRadius, fill: color, class: "bead beadShadow"});
       gBeads.appendChild(bead);
     }
     g.appendChild(gBeads);
+    g.appendChild(bowlRim);
     gBowls.appendChild(g);
     bowls.push({group:g, beads:gBeads, cfg:bCfg});
   });
@@ -117,5 +135,4 @@ function updateFromInputs(){
 /* ===== helpers ===== */
 function mk(n,attrs={}){ const e=document.createElementNS("http://www.w3.org/2000/svg",n);
   for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v); return e; }
-function img(href,x,y,w,h,cls=""){ return mk("image",{href,x,y,width:w,height:h, class:cls}); }
 function cap(s){ return s[0].toUpperCase()+s.slice(1); }
