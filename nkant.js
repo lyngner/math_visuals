@@ -173,9 +173,16 @@ function parseSpecFreeform(str){
       tok.split(/,+/).forEach(n => { if(n) nums.push(parseFloat(n)); });
     }
   });
-  if(/kvadrat/.test(text)){
-    const s = nums[0] ?? 1;
-    Object.assign(out, {a:s, b:s, c:s, d:s, B:90});
+
+  if(/(kvadrat|firkant)/.test(text)){
+    if(nums.length >= 2){
+      const w = nums[0];
+      const h = nums[1];
+      Object.assign(out, {a:w, c:w, b:h, d:h, B:90});
+    }else{
+      const s = nums[0] ?? 1;
+      Object.assign(out, {a:s, b:s, c:s, d:s, B:90});
+    }
     return out;
   }
 
@@ -186,9 +193,24 @@ function parseSpecFreeform(str){
     return out;
   }
 
-  if(/rettvinkle[dt]/.test(text) && /trekant/.test(text) && nums.length === 2){
-    const [x,y] = nums;
-    out.a = x; out.b = y; out.c = Math.hypot(x,y); out.C = 90;
+  if(/likesidet/.test(text) && /trekant/.test(text)){
+    const s = nums[0] ?? 1;
+    Object.assign(out, {a:s, b:s, c:s});
+    return out;
+  }
+
+  if(/rettvinkle[dt]/.test(text) && /trekant/.test(text)){
+    if(nums.length === 2){
+      const [x,y] = nums;
+      out.a = x; out.b = y; out.c = Math.hypot(x,y); out.C = 90;
+    }else if(nums.length === 0){
+      Object.assign(out, {a:3, b:4, c:5, C:90});
+    }
+    return out;
+  }
+
+  if(/trekant/.test(text) && nums.length === 0){
+    Object.assign(out, {a:3, b:4, c:5});
     return out;
   }
 
@@ -703,6 +725,7 @@ function bindUI(){
   const btnSvg = $("#btnSvg");
   const btnPng = $("#btnPng");
   const btnReset = $("#btnReset");
+  const btnDraw = $("#btnDraw");
 
   const f1Sides=$("#f1Sides"), f1Angles=$("#f1Angles");
   const f2Sides=$("#f2Sides"), f2Angles=$("#f2Angles");
@@ -749,7 +772,7 @@ function bindUI(){
   f2Angles.value = STATE.fig2.angles.default;
   layoutRadios.forEach(r => r.checked = (r.value===STATE.layout));
 
-  // Oppdater kun når bruker trykker Enter eller forlater feltet
+  // Oppdater når bruker trykker Enter, forlater feltet eller trykker Tegn-knappen
   inpSpecs.addEventListener("blur", () => {
     if (STATE.specsText !== inpSpecs.value) {
       STATE.specsText = inpSpecs.value;
@@ -766,6 +789,13 @@ function bindUI(){
   f1Angles.addEventListener("change", ()=>{ STATE.fig1.angles.default = f1Angles.value; angToggles.filter(t=>t.figKey==="fig1").forEach(t=>t.toggleTxt()); renderCombined(); });
   f2Sides.addEventListener("change",  ()=>{ STATE.fig2.sides.default  = f2Sides.value;  sideToggles.filter(t=>t.figKey==="fig2").forEach(t=>t.toggleTxt()); renderCombined(); });
   f2Angles.addEventListener("change", ()=>{ STATE.fig2.angles.default = f2Angles.value; angToggles.filter(t=>t.figKey==="fig2").forEach(t=>t.toggleTxt()); renderCombined(); });
+
+  if(btnDraw){
+    btnDraw.addEventListener("click", () => {
+      STATE.specsText = inpSpecs.value;
+      renderCombined();
+    });
+  }
 
   // figur 1
   wireSide("fig1","a","#f1SideA","#f1SideATxt","a");
