@@ -4,8 +4,8 @@
   let rows=3;
   let cols=3;
   let circleMode=true;
-  let offset=false;
-  let showGrid=false;
+  let offset=true;
+  let showGrid=true;
 
   const colorCountInp=document.getElementById('colorCount');
   const colorInputs=[];
@@ -338,10 +338,10 @@
     rows=3; cols=3;
     rowsVal.textContent=rows;
     colsVal.textContent=cols;
-    circleMode=true; offset=false; showGrid=false;
+    circleMode=true; offset=true; showGrid=true;
     circleInp.checked=true;
-    offsetInp.checked=false;
-    gridInp.checked=false;
+    offsetInp.checked=true;
+    gridInp.checked=true;
     colorCount=1;
     colorCountInp.value='1';
     updateColorVisibility();
@@ -350,10 +350,10 @@
     container.querySelectorAll('.figurePanel').forEach(p=>p.remove());
     figureCount=0;
 
-    // Recreate three blank figures so all color fields start empty
-    addFigure('Figur 1');
-    addFigure('Figur 2');
-    addFigure('Figur 3');
+    // Recreate default triangular figures
+    addFigure('Figur 1', [[0,1]]);
+    addFigure('Figur 2', [[0,1],[1,0],[1,1]]);
+    addFigure('Figur 3', [[0,1],[1,0],[1,1],[2,0],[2,1],[2,2]]);
 
     updateGridVisibility();
   }
