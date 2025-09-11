@@ -175,14 +175,14 @@ function parseSpecFreeform(str){
   });
   if(/kvadrat/.test(text)){
     const s = nums[0] ?? 1;
-    Object.assign(out, {a:s, b:s, c:s, d:s, B:90, D:90});
+    Object.assign(out, {a:s, b:s, c:s, d:s, B:90});
     return out;
   }
 
   if(/rektangel/.test(text)){
     const w = nums[0] ?? 1;
     const h = nums[1] ?? w;
-    Object.assign(out, {a:w, c:w, b:h, d:h, B:90, D:90});
+    Object.assign(out, {a:w, c:w, b:h, d:h, B:90});
     return out;
   }
 
