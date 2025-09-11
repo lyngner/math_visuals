@@ -2,20 +2,17 @@
    KONFIG – forfatter styrer alt her
    ========================================================= */
 const CFG = {
-  type: 'stacked',
-  title: 'Skjermtid per dag',
-  labels: ['1','2','3','4','5','6','7'],
-  series1: 'Gutter',
-  series2: 'Jenter',
-  start:  [1,6,1,1,2,1,0],
-  start2: [1,3,2,0,2,0,0],
-  answer: [1,6,1,1,2,1,0],
-  answer2:[1,3,2,0,2,0,0],
-  yMax:   9,
+  type: 'bar',
+  title: 'Favorittidretter i 5B',
+  labels: ['Klatring','Fotball','Håndball','Basket','Tennis','Bowling'],
+  series1: '',
+  start:  [6,7,3,5,8,2],
+  answer: [6,7,3,5,8,2],
+  yMax:   8,
   snap:   1,
   tolerance: 0,
-  axisXLabel: 'Timer per dag',
-  axisYLabel: 'Antall personer',
+  axisXLabel: 'Idrett',
+  axisYLabel: 'Antall elever',
   locked: []
 };
 
