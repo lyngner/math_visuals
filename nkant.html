@@ -19,6 +19,8 @@
     .figure { border-radius: 10px; background: #fafbfc; overflow: hidden; border: 1px solid #eef0f3; }
     .figure svg { width: 100%; height: 360px; display: block; }
     .toolbar { display: flex; gap: 10px; justify-content: flex-end; }
+    .specs-row { display:flex; gap:10px; align-items:flex-start; }
+    .specs-row textarea { flex:1; width:auto; }
     .btn { appearance: none; border: 1px solid #d1d5db; background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 14px;
            cursor: pointer; transition: box-shadow .2s, transform .02s; }
     .btn:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); } .btn:active { transform: translateY(1px); }
@@ -60,9 +62,9 @@
           <h2>Forfatters innstillinger</h2>
 
         <label for="inpSpecs">SPECS eller fritekst (skriv 1–2 linjer, én figur per linje)</label>
-        <textarea id="inpSpecs" rows="4" spellcheck="false">a=3, b=5, c=5
+        <div class="specs-row">
+          <textarea id="inpSpecs" rows="4" spellcheck="false">a=3, b=5, c=5
 a=5, b=5, c=5, B=90, D=110</textarea>
-        <div class="toolbar">
           <button id="btnDraw" class="btn" type="button">Tegn</button>
         </div>
         <div class="small">Eksempler: "a=3, b=5, c=4" (trekant), "a=5, b=5, c=5, d=5, B=90" (firkant – d og én vinkel), "a=5, b=5, c=5, B=90, D=110" (firkant – tre sider og to vinkler B og D).</div>
