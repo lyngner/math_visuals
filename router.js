@@ -1,17 +1,17 @@
 const routes = {
-  '/graftegner': 'graftegner.html',
-  '/nkant': 'nkant.html',
-  '/diagram': 'diagram/index.html',
-  '/brøkpizza': 'brøkpizza.html',
-  '/brøkvisualiseringer': 'brøkvisualiseringer.html',
-  '/tenkeblokker': 'tenkeblokker.html',
-  '/arealmodell0': 'arealmodell0.html',
-  '/arealmodellen1': 'arealmodellen1.html',
-  '/perlesnor': 'perlesnor.html'
+  'graftegner': 'graftegner.html',
+  'nkant': 'nkant.html',
+  'diagram': 'diagram/index.html',
+  'brøkpizza': 'brøkpizza.html',
+  'brøkvisualiseringer': 'brøkvisualiseringer.html',
+  'tenkeblokker': 'tenkeblokker.html',
+  'arealmodell0': 'arealmodell0.html',
+  'arealmodellen1': 'arealmodellen1.html',
+  'perlesnor': 'perlesnor.html'
 };
 
 async function loadPage(path, addToHistory = true) {
-  const route = decodeURI(path);
+  const route = decodeURI(path).replace(/^\//, '');
   const fragment = routes[route];
   const content = document.getElementById('content');
   if (!fragment) {
@@ -37,13 +37,13 @@ async function loadPage(path, addToHistory = true) {
 window.loadPage = loadPage;
 
 function init() {
-  const initial = decodeURI(location.pathname);
-  const path = routes[initial] ? initial : '/nkant';
+  const initial = decodeURI(location.pathname.replace(/^\//, '').split('/').pop());
+  const path = routes[initial] ? initial : 'nkant';
   loadPage(path, false);
 }
 
 window.addEventListener('popstate', (e) => {
-  const route = e.state?.route || decodeURI(location.pathname);
+  const route = e.state?.route || decodeURI(location.pathname.replace(/^\//, '').split('/').pop());
   loadPage(route, false);
 });
 
