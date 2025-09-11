@@ -53,7 +53,12 @@ svg.appendChild(gBowls);
 /* ============ STATE ============ */
 const bowls = [];
 
-render();
+const redInput = document.getElementById("redCount");
+const blueInput = document.getElementById("blueCount");
+redInput.addEventListener("input", updateFromInputs);
+blueInput.addEventListener("input", updateFromInputs);
+
+updateFromInputs();
 
 /* ============ FUNKSJONER ============ */
 function render(){
@@ -85,6 +90,18 @@ function render(){
     gBowls.appendChild(g);
     bowls.push({group:g, beads:gBeads, cfg:bCfg});
   });
+}
+
+function updateFromInputs(){
+  const red = parseInt(redInput.value) || 0;
+  const blue = parseInt(blueInput.value) || 0;
+  const bowl = SIMPLE.bowls[0];
+  bowl.colorCounts = [
+    { color: "red", count: red },
+    { color: "blue", count: blue }
+  ];
+  CFG = makeCFG();
+  render();
 }
 
 /* ===== helpers ===== */
