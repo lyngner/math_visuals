@@ -1,11 +1,11 @@
 (function(){
   const boxes=[];
-  // Default grid size set to 4x4
-  let rows=4;
-  let cols=4;
-  let circleMode=false;
-  let offset=false;
-  let showGrid=true;
+  // Default grid size set to 3x3 for triangular numbers
+  let rows=3;
+  let cols=3;
+  let circleMode=true;
+  let offset=true;
+  let showGrid=false;
 
   const colorCountInp=document.getElementById('colorCount');
   const colorInputs=[];
@@ -153,7 +153,7 @@
   const addBtn=document.getElementById('addFigure');
   let figureCount=0;
 
-  function addFigure(){
+  function addFigure(name='',pattern=[]){
     figureCount++;
     const panel=document.createElement('div');
     panel.className='figurePanel';
@@ -166,12 +166,19 @@
     boxes.push(box);
     createGrid(box);
     container.insertBefore(panel,addBtn);
+    if(name) panel.querySelector('.nameInput').value=name;
+    if(pattern && pattern.length){
+      pattern.forEach(([r,c])=>{
+        const row=box.querySelectorAll('.row')[r];
+        const cell=row?.querySelectorAll('.cell')[c];
+        if(cell) cell.dataset.color='1';
+      });
+    }
     updateCellColors();
+    return panel;
   }
 
-  for(let i=0;i<3;i++) addFigure();
-
-  addBtn.addEventListener('click',addFigure);
+  addBtn.addEventListener('click',()=>addFigure());
 
   const rowsMinus=document.getElementById('rowsMinus');
   const rowsPlus=document.getElementById('rowsPlus');
@@ -195,6 +202,7 @@
 
   const btnSvg=document.getElementById('btnSvg');
   const btnPng=document.getElementById('btnPng');
+  const resetBtn=document.getElementById('resetBtn');
 
   function svgToString(svgEl){
     const clone=svgEl.cloneNode(true);
@@ -326,7 +334,33 @@
     downloadPNG(svg,'figurtall.png',2);
   });
 
+  function resetAll(){
+    rows=3; cols=3;
+    rowsVal.textContent=rows;
+    colsVal.textContent=cols;
+    circleMode=true; offset=true; showGrid=false;
+    circleInp.checked=true;
+    offsetInp.checked=true;
+    gridInp.checked=false;
+    colorCount=1;
+    colorCountInp.value='1';
+    updateColorVisibility();
+
+    boxes.length=0;
+    container.querySelectorAll('.figurePanel').forEach(p=>p.remove());
+    figureCount=0;
+
+    addFigure('Figur 1',[[0,1]]);
+    addFigure('Figur 2',[[0,1],[1,0],[1,1]]);
+    addFigure('Figur 3',[[0,1],[1,0],[1,1],[2,0],[2,1],[2,2]]);
+
+    updateGridVisibility();
+  }
+
+  resetBtn?.addEventListener('click',resetAll);
+
   updateRows();
   updateCols();
+  resetAll();
 })();
 
