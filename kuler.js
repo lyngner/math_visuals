@@ -68,7 +68,7 @@ const colors = Object.keys(ADV.assets.beads);
 const counts = {};
 const displays = {};
 let beadRadius = CFG.beadRadius;
-let sizeDisplay;
+let sizeDisplay, sizeSlider;
 let dragBead = null;
 let dragOffX = 0, dragOffY = 0;
 colors.forEach(color => {
@@ -101,6 +101,12 @@ sizeLabel.textContent = "Kulestørrelse";
 const sizeMinus = document.createElement("button");
 sizeMinus.type = "button";
 sizeMinus.textContent = "−";
+const sizeInput = document.createElement("input");
+sizeInput.type = "range";
+sizeInput.min = "5";
+sizeInput.max = "60";
+sizeInput.value = beadRadius;
+sizeInput.style.flex = "1";
 const sizeSpan = document.createElement("span");
 sizeSpan.className = "count";
 sizeSpan.textContent = beadRadius;
@@ -109,9 +115,11 @@ sizePlus.type = "button";
 sizePlus.textContent = "+";
 sizeMinus.addEventListener("click", () => changeSize(-2));
 sizePlus.addEventListener("click", () => changeSize(2));
-sizeRow.append(sizeLabel, sizeMinus, sizeSpan, sizePlus);
+sizeInput.addEventListener("input", () => setSize(parseInt(sizeInput.value)));
+sizeRow.append(sizeLabel, sizeMinus, sizeInput, sizePlus, sizeSpan);
 controls.appendChild(sizeRow);
 sizeDisplay = sizeSpan;
+sizeSlider = sizeInput;
 
 render();
 
@@ -190,8 +198,13 @@ function change(color, delta){
 }
 
 function changeSize(delta){
-    beadRadius = Math.max(5, beadRadius + delta);
+    setSize(beadRadius + delta);
+  }
+
+function setSize(value){
+    beadRadius = Math.max(5, value);
     sizeDisplay.textContent = beadRadius;
+    if(sizeSlider) sizeSlider.value = beadRadius;
     updateConfig();
   }
 
