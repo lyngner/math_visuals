@@ -60,10 +60,12 @@
         <div class="card">
           <h2>Forfatters innstillinger</h2>
 
-        <label for="inpSpecs">SPECS (skriv 1–2 linjer, én figur per linje)</label>
+        <label for="inpSpecs">SPECS eller fritekst (skriv 1–2 linjer, én figur per linje)</label>
         <textarea id="inpSpecs" rows="4" spellcheck="false">a=3, b=5, c=5
 a=5, b=5, c=5, B=90, D=110</textarea>
         <div class="small">Eksempler: "a=3, b=5, c=4" (trekant), "a=5, b=5, c=5, d=5, B=90" (firkant – d og én vinkel), "a=5, b=5, c=5, B=90, D=110" (firkant – tre sider og to vinkler B og D).</div>
+        <div class="small">Du kan også skrive fritekst, f.eks. «trekant med sider 3,4,5 og rett vinkel i B».</div>
+        <div class="small">Fritekst tolkes av en AI. Maks to linjer totalt; kun bokstavene a–d (sider) og A–D (vinkler) gjenkjennes. Ukjent eller ugyldig tekst faller tilbake til vanlig "a=3"-format.</div>
         <div class="sep"></div>
 
         <!-- Figur 1 -->

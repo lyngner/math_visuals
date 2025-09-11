@@ -148,6 +148,46 @@ function parseSpec(str){
   return out;
 }
 
+async function parseSpecAI(str){
+  try{
+    const apiKey = window.OPENAI_API_KEY;
+    if(!apiKey) throw new Error('missing api key');
+
+    const body = {
+      model: 'gpt-4o-mini',
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: 'Returner kun JSON med tall for a,b,c,d,A,B,C,D.' },
+        { role: 'user', content: str }
+      ]
+    };
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    const txt = data.choices?.[0]?.message?.content;
+    if(!txt) throw new Error('no content');
+    const parsed = JSON.parse(txt);
+    const out = {};
+    Object.entries(parsed).forEach(([k,v])=>{
+      if(/^[abcdABCD]$/.test(k)){
+        const n = parseFloat(String(v).replace(',', '.'));
+        if(isFinite(n)) out[k] = n;
+      }
+    });
+    if(Object.keys(out).length===0) return parseSpec(str);
+    return out;
+  }catch(err){
+    console.warn('parseSpecAI fallback', err);
+    return parseSpec(str);
+  }
+}
+
 /* ---------- VISNINGSTEKSTER ---------- */
 // Sider: none | value | custom | custom+value
 function buildSideText(mode, valueStr, customText){
@@ -283,8 +323,8 @@ function errorBox(g, rect, msg){
   add(g,"text",{x:rect.x+20, y:rect.y+36, fill:"#c00", "font-size":16}).textContent = msg;
 }
 
-function drawTriangleToGroup(g, rect, specStr, adv){
-  const s = parseSpec(specStr);
+function drawTriangleToGroup(g, rect, spec, adv){
+  const s = (typeof spec === 'string') ? parseSpec(spec) : spec;
   const sol = solveTriangle(s);
 
   // y-opp konfig
@@ -320,8 +360,8 @@ function drawTriangleToGroup(g, rect, specStr, adv){
   add(g,"polygon",{points:ptsTo(poly), fill:"none", stroke:STYLE.edgeStroke, "stroke-width": STYLE.edgeWidth, "stroke-linejoin":"round","stroke-linecap":"round"});
 }
 
-function drawQuadToGroup(g, rect, specStr, adv){
-  const s = parseSpec(specStr);
+function drawQuadToGroup(g, rect, spec, adv){
+  const s = (typeof spec === 'string') ? parseSpec(spec) : spec;
   let {a,b,c,d,A:AngA,B:AngB,C:AngC,D:AngD} = s;
   if(!(a>0 && b>0 && c>0)) throw new Error("Firkant: må ha a, b, c > 0.");
   const angleKeys = ["A","B","C","D"].filter(k => k in s);
@@ -426,14 +466,14 @@ function drawQuadToGroup(g, rect, specStr, adv){
 /* ---------- ORKESTRERING ---------- */
 const BASE_W = 600, BASE_H = 420, GAP = 60;
 
-function collectJobsFromSpecs(text){
+async function collectJobsFromSpecs(text){
   const lines = String(text).split(/\n/).map(s=>s.trim()).filter(Boolean);
   const jobs = [];
   for(const line of lines){
-    const obj = parseSpec(line);
+    const obj = await parseSpecAI(line);
     if(Object.keys(obj).length===0) continue;
     const isQuad = ("d" in obj) || ("D" in obj);
-    jobs.push({type: isQuad ? "quad" : "tri", spec: line});
+    jobs.push({type: isQuad ? "quad" : "tri", obj});
     if(jobs.length>=2) break;
   }
   return jobs;
@@ -519,16 +559,16 @@ function buildAdvForFig(figState){
   return { sides: {mode: sidesMode, text: sidesText}, angles: {mode: angMode, text: angText} };
 }
 
-function renderCombined(){
+async function renderCombined(){
   const svg = document.getElementById("paper");
   svg.innerHTML = "";
 
-  const jobs = collectJobsFromSpecs(STATE.specsText);
+  const jobs = await collectJobsFromSpecs(STATE.specsText);
   const n = jobs.length;
 
   if(n===0){
     svg.setAttribute("viewBox", `0 0 ${BASE_W} ${BASE_H}`);
-    add(svg,"text",{x:20,y:40,fill:"#6b7280","font-size":18}).textContent = "Skriv 1–2 SPECS-linjer for å tegne figur(er).";
+    add(svg,"text",{x:20,y:40,fill:"#6b7280","font-size":18}).textContent = "Skriv 1–2 SPECS- eller tekstlinjer for å tegne figur(er).";
     svg.setAttribute("aria-label","");
     return;
   }
@@ -558,11 +598,11 @@ function renderCombined(){
   }
 
   for(let i=0;i<n;i++){
-    const {type, spec} = jobs[i];
+    const {type, obj} = jobs[i];
     const adv = buildAdvForFig(i===0 ? STATE.fig1 : STATE.fig2);
     try{
-      if(type==="tri") drawTriangleToGroup(groups[i], rects[i], spec, adv);
-      else            drawQuadToGroup(groups[i], rects[i], spec, adv);
+      if(type==="tri") drawTriangleToGroup(groups[i], rects[i], obj, adv);
+      else            drawQuadToGroup(groups[i], rects[i], obj, adv);
     }catch(e){
       errorBox(groups[i], rects[i], String(e.message||e));
     }
