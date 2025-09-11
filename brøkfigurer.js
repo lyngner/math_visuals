@@ -100,7 +100,6 @@
     const partsVal = document.getElementById(`partsVal${id}`);
     const btnSvg   = document.getElementById(`btnSvg${id}`);
     const btnPng   = document.getElementById(`btnPng${id}`);
-    const showInp  = document.getElementById(`show${id}`);
     const panel    = document.getElementById(`panel${id}`);
     const toolbar  = btnSvg?.parentElement;
     let board;
@@ -536,16 +535,7 @@
       const svg = board?.renderer?.svgRoot;
       if(svg) downloadPNG(svg, `brok${id}.png`, 2);
     });
-    showInp?.addEventListener('change', () => {
-      panel.style.display = showInp.checked ? '' : 'none';
-      if(toolbar) toolbar.style.display = showInp.checked ? '' : 'none';
-    });
-    if(showInp && !showInp.checked){
-      panel.style.display='none';
-      if(toolbar) toolbar.style.display='none';
-    }
-
-    return {draw, panel, toolbar, showInp};
+    return {draw, panel, toolbar};
   }
 
   figures[1] = setupFigure(1);
@@ -558,7 +548,6 @@
     fieldset2.style.display = '';
     figures[2].panel.style.display = '';
     figures[2].toolbar.style.display = '';
-    if(figures[2].showInp) figures[2].showInp.checked = true;
     figures[2].draw();
   });
 })();

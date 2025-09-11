@@ -7,7 +7,6 @@ const PANEL_HTML = [];
 function readConfigFromHtml(){
   const pizzas = [];
   for(let i=1;i<=2;i++){
-    const show   = document.getElementById(`p${i}Show`)?.checked ?? false;
     const t      = parseInt(document.getElementById(`p${i}T`)?.value,10);
     const n      = parseInt(document.getElementById(`p${i}N`)?.value,10);
     const lockN  = document.getElementById(`p${i}LockN`)?.checked ?? false;
@@ -17,7 +16,6 @@ function readConfigFromHtml(){
     const maxN   = parseInt(document.getElementById(`p${i}MaxN`)?.value,10);
     const hideNVal = document.getElementById(`p${i}HideNVal`)?.checked ?? false;
     pizzas.push({
-      show,
       t: isFinite(t)?t:0,
       n: isFinite(n)?n:1,
       lockN, lockT, text,
@@ -711,9 +709,8 @@ function initFromHtml(){
     if(!panel) return;
     if(PANEL_HTML[i]==null) PANEL_HTML[i]=panel.innerHTML;
     panel.innerHTML = PANEL_HTML[i];
+    if(panel.style.display === "none") return;
     const pcfg = cfg.pizzas[i];
-    panel.style.display = pcfg?.show ? "" : "none";
-    if(!pcfg?.show) return;
 
     const minN=Math.max(1, pcfg.minN ?? 1);
     const maxN=Math.max(minN, pcfg.maksN ?? 24);
@@ -741,8 +738,6 @@ window.addEventListener("load", () => {
   addBtn?.addEventListener('click', () => {
     addBtn.style.display = 'none';
     if(fieldset2) fieldset2.style.display = '';
-    const show2 = document.getElementById('p2Show');
-    if(show2) show2.checked = true;
     const panel2 = document.getElementById('panel2');
     if(panel2) panel2.style.display = '';
     initFromHtml();
