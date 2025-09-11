@@ -30,8 +30,10 @@
     .bead{cursor:grab;}
     .bead:active{cursor:grabbing;}
     .beadShadow{filter:drop-shadow(0 1px 1px rgba(0,0,0,.25));}
-    .downloadBtns{display:flex;gap:6px;flex-wrap:wrap;}
-    .downloadBtns button{border:1px solid #d1d5db;border-radius:6px;background:#fff;padding:6px 10px;cursor:pointer;}
+    .toolbar{display:flex;gap:10px;justify-content:flex-end;}
+    .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s;}
+    .btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.06);}
+    .btn:active{transform:translateY(1px);}
   </style>
 </head>
 <body>
@@ -44,12 +46,15 @@
       </div>
       <div class="side">
         <div class="card">
+          <h2>Last ned figurer</h2>
+          <div class="toolbar">
+            <button id="downloadSVG" class="btn" type="button">Last ned SVG</button>
+            <button id="downloadPNG" class="btn" type="button">Last ned PNG</button>
+          </div>
+        </div>
+        <div class="card">
           <h2>Forfatters innstillinger</h2>
           <div id="controls"></div>
-          <div class="downloadBtns">
-            <button id="downloadSVG" type="button">Last ned SVG</button>
-            <button id="downloadPNG" type="button">Last ned PNG</button>
-          </div>
         </div>
       </div>
     </div>
