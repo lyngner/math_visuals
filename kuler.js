@@ -1,7 +1,7 @@
 /* ============ ENKEL KONFIG (FORFATTER) ============ */
 const SIMPLE = {
   // Global radius for all beads. Optional – falls back to ADV.beadRadius.
-  beadRadius: 20,
+  beadRadius: 30,
   bowls: [
     {
       colorCounts: [
@@ -19,7 +19,7 @@ const SIMPLE = {
 /* ============ ADV KONFIG (TEKNISK/VALGFRITT) ============ */
 // Technical defaults. beadRadius here is only used if SIMPLE.beadRadius is not set.
 const ADV = {
-  beadRadius: 20,
+  beadRadius: 30,
   beadGap: 12,
   assets: {
     beads: {
@@ -158,10 +158,14 @@ function render(){
       const cy = rimY + bowlDepth;
       const rx = bowlWidth / 2 - CFG.beadRadius;
       const ry = bowlDepth - CFG.beadRadius;
+      const minX = VB_W * 0.3;
+      const maxX = VB_W * 0.7;
+      const minY = VB_H * 0.5;
+      const maxY = VB_H * 0.9;
       let x, y;
       do {
-        x = cx + (Math.random() * 2 - 1) * rx;
-        y = cy - Math.random() * ry;
+        x = minX + Math.random() * (maxX - minX);
+        y = minY + Math.random() * (maxY - minY);
       } while (((x - cx) ** 2) / (rx ** 2) + ((y - cy) ** 2) / (ry ** 2) > 1);
       return { x, y };
     }
