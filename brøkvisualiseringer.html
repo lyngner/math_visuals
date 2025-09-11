@@ -79,7 +79,7 @@
     .settings input,.settings select{padding:8px 10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;background:#fff;}
     .checkbox-row{display:flex;align-items:center;gap:6px;}
     .colors{display:flex;flex-wrap:wrap;gap:6px;}
-    .colors input{flex:1 0 40px;min-width:0;}
+    .colors input{flex:0 0 40px;width:40px;height:40px;}
     .box svg *:focus{outline:none;}
   </style>
 </head>
@@ -125,7 +125,7 @@
           <fieldset>
             <legend>Farger</legend>
             <label>Antall farger
-              <input id="colorCount" type="number" min="1" max="7" value="7" />
+              <input id="colorCount" type="number" min="1" max="6" value="6" />
             </label>
             <div class="colors">
               <input id="color_1" type="color" value="#d0a3ff" />
@@ -134,7 +134,6 @@
               <input id="color_4" type="color" value="#86658c" />
               <input id="color_5" type="color" value="#b65780" />
               <input id="color_6" type="color" value="#d44b4c" />
-              <input id="color_7" type="color" value="#5c3b76" />
             </div>
           </fieldset>
           <div class="settings">
