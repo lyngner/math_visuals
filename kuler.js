@@ -61,6 +61,19 @@ svg.appendChild(gBowls);
 const bowls = [];
 const controls = document.getElementById("controls");
 const inputs = {};
+const sizeLabel = document.createElement("label");
+sizeLabel.textContent = "Kulestørrelse";
+const sizeInput = document.createElement("input");
+sizeInput.type = "number";
+sizeInput.min = "1";
+sizeInput.value = ADV.beadRadius;
+sizeLabel.appendChild(sizeInput);
+controls.appendChild(sizeLabel);
+sizeInput.addEventListener("input", () => {
+  ADV.beadRadius = parseFloat(sizeInput.value) || 0;
+  CFG = makeCFG();
+  render();
+});
 Object.keys(ADV.assets.beads).forEach(color => {
   const label = document.createElement("label");
   label.textContent = `${cap(color)} kuler`;
