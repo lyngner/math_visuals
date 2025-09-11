@@ -111,6 +111,9 @@ sizeDisplay = sizeSpan;
 
 render();
 
+document.getElementById("downloadSVG").addEventListener("click", downloadSVG);
+document.getElementById("downloadPNG").addEventListener("click", downloadPNG);
+
 /* ============ FUNKSJONER ============ */
 function render(){
   gBowls.innerHTML = "";
@@ -224,3 +227,57 @@ function svgPoint(evt){
 function mk(n,attrs={}){ const e=document.createElementNS("http://www.w3.org/2000/svg",n);
   for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v); return e; }
 function cap(s){ return s[0].toUpperCase()+s.slice(1); }
+
+async function inlineImages(svgEl){
+  const imgs = svgEl.querySelectorAll("image");
+  await Promise.all(Array.from(imgs).map(async img => {
+    const src = img.getAttribute("href");
+    const res = await fetch(src);
+    const blob = await res.blob();
+    const dataUrl = await new Promise(res => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result);
+      reader.readAsDataURL(blob);
+    });
+    img.setAttribute("href", dataUrl);
+  }));
+}
+
+async function downloadSVG(){
+  const clone = svg.cloneNode(true);
+  await inlineImages(clone);
+  const data = new XMLSerializer().serializeToString(clone);
+  const blob = new Blob([data], {type:"image/svg+xml"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "kuler.svg";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function downloadPNG(){
+  const clone = svg.cloneNode(true);
+  await inlineImages(clone);
+  const data = new XMLSerializer().serializeToString(clone);
+  const svgBlob = new Blob([data], {type:"image/svg+xml"});
+  const url = URL.createObjectURL(svgBlob);
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = VB_W;
+    canvas.height = VB_H;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(blob => {
+      const pngUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = pngUrl;
+      a.download = "kuler.png";
+      a.click();
+      URL.revokeObjectURL(pngUrl);
+    });
+  };
+  img.src = url;
+}
