@@ -497,19 +497,19 @@ const brd = JXG.JSXGraph.initBoard('board',{
 let xName=null,yName=null;
 function placeAxisNames(){
   const [xmin,ymax,xmax,ymin]=brd.getBoundingBox();
-  const rx=xmax-xmin, ry=ymax-ymin, off=0.02;
+  const rx=xmax-xmin, ry=ymax-ymin, off=0.04;
   if(!xName){
     xName = brd.create('text',[0,0,()=>ADV.axis.labels.x||'x'],
-      {anchorX:'right',anchorY:'bottom',fixed:true,fontSize:16, layer:40,
+      {anchorX:'right',anchorY:'top',fixed:true,fontSize:20, layer:40,
        color:ADV.axis.style.stroke, cssStyle:'pointer-events:none;user-select:none;'});
   }
   if(!yName){
     yName = brd.create('text',[0,0,()=>ADV.axis.labels.y||'y'],
-      {anchorX:'left',anchorY:'top',fixed:true,fontSize:16, layer:40,
+      {anchorX:'right',anchorY:'top',fixed:true,fontSize:20, layer:40,
        color:ADV.axis.style.stroke, cssStyle:'pointer-events:none;user-select:none;'});
   }
-  xName.moveTo([xmax-off*rx, 0+off*ry]);
-  yName.moveTo([0+off*rx, ymax-off*ry]);
+  xName.moveTo([xmax-off*rx, 0-off*ry]);
+  yName.moveTo([0-off*rx, ymax-off*ry]);
 }
 placeAxisNames();
 
