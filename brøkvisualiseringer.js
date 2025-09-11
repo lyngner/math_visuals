@@ -123,6 +123,14 @@
       return {rows, cols};
     }
 
+    function hasProperFactor(n){
+      if(n < 4) return false;
+      for(let i=2;i*i<=n;i++){
+        if(n % i === 0) return true;
+      }
+      return false;
+    }
+
     function draw(){
       initBoard();
       let n = Math.max(1, parseInt(partsInp.value,10));
@@ -130,12 +138,12 @@
       const shape = shapeSel.value;
       let division = divSel.value;
       const allowWrong = wrongInp?.checked;
-      if(shape==='rectangle' && division==='diagonal') n = 4;
+      if((shape==='rectangle' || shape==='square') && division==='diagonal') n = 4;
       const gridOpt = divSel.querySelector('option[value="grid"]');
       const vertOpt = divSel.querySelector('option[value="vertical"]');
       const triOpt  = divSel.querySelector('option[value="triangular"]');
       if(gridOpt){
-        gridOpt.hidden = n % 2 === 1 || (shape==='circle' && !allowWrong) || (shape==='triangle');
+        gridOpt.hidden = !hasProperFactor(n) || (shape==='circle' && !allowWrong) || (shape==='triangle');
         if(gridOpt.hidden && division==='grid') divSel.value = 'horizontal';
       }
       if(vertOpt){
@@ -159,7 +167,7 @@
         return c ? colors[c-1] || '#fff' : '#fff';
       };
       if(shape==='circle') drawCircle(n, division, allowWrong, colorFor);
-      else if(shape==='rectangle') drawRect(n, division, colorFor);
+      else if(shape==='rectangle' || shape==='square') drawRect(n, division, colorFor);
       else drawTriangle(n, division, allowWrong, colorFor);
       applyClip(shape, division);
     }
@@ -483,7 +491,7 @@
         }else{
           svg.style.clipPath = 'polygon(-2% 102%, 102% 102%, -2% -2%)';
         }
-      }else if(shape==='rectangle'){
+      }else if(shape==='rectangle' || shape==='square'){
         svg.style.clipPath = 'polygon(-2% 102%, 102% 102%, 102% -2%, -2% -2%)';
       }else if(shape==='circle'){
         svg.style.clipPath = 'circle(45% at 50% 50%)';
