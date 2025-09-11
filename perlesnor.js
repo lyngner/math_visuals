@@ -1,6 +1,6 @@
 /* ============ ENKEL KONFIG (FORFATTER) ============ */
 const SIMPLE = {
-  nBeads: 25,       // totalt antall perler
+  nBeads: 10,       // totalt antall perler
   startIndex: 2,    // startposisjon for klypa (antall til venstre)
 
   // Fasit (velg én form):
