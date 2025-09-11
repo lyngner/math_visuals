@@ -105,22 +105,21 @@
     <script>
       const iframe = document.querySelector('iframe');
       const links = document.querySelectorAll('nav a');
+      const menu = document.querySelector('header nav');
       const saved = localStorage.getItem('currentPage') || 'nkant.html';
       iframe.src = saved;
       links.forEach(link => {
         link.addEventListener('click', () => {
           localStorage.setItem('currentPage', link.getAttribute('href'));
-          const menu = document.querySelector('header nav');
           menu.setAttribute('data-open', 'false');
         });
       });
 
       const toggleBtn = document.getElementById('menu-toggle');
-      const menu = document.querySelector('header nav');
       toggleBtn.addEventListener('click', () => {
         const open = menu.getAttribute('data-open') === 'true';
         menu.setAttribute('data-open', String(!open));
       });
     </script>
-</body>
+  </body>
 </html>
