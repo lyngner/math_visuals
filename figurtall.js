@@ -350,9 +350,10 @@
     container.querySelectorAll('.figurePanel').forEach(p=>p.remove());
     figureCount=0;
 
-    addFigure('Figur 1',[[0,1]]);
-    addFigure('Figur 2',[[0,1],[1,0],[1,1]]);
-    addFigure('Figur 3',[[0,1],[1,0],[1,1],[2,0],[2,1],[2,2]]);
+    // Recreate three blank figures so all color fields start empty
+    addFigure('Figur 1');
+    addFigure('Figur 2');
+    addFigure('Figur 3');
 
     updateGridVisibility();
   }
