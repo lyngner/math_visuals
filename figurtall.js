@@ -1,7 +1,9 @@
 (function(){
   const boxes=[];
-  let size=10;
+  let rows=10;
+  let cols=10;
   let circleMode=false;
+  let offset=false;
 
   const colorCountInp=document.getElementById('colorCount');
   const colorInputs=[];
@@ -16,10 +18,18 @@
     return colorInputs.slice(0,colorCount).map(inp=>inp.value);
   }
 
+  function updateCellShape(cell){
+    if(circleMode && cell.dataset.color!=='0'){
+      cell.classList.add('circle');
+    }else{
+      cell.classList.remove('circle');
+    }
+  }
+
   function updateCellColors(){
     const colors=getColors();
     boxes.forEach(box=>{
-      [...box.children].forEach(cell=>{
+      box.querySelectorAll('.cell').forEach(cell=>{
         let idx=parseInt(cell.dataset.color,10)||0;
         if(idx===0){
           cell.style.backgroundColor='#fff';
@@ -30,6 +40,7 @@
         }else{
           cell.style.backgroundColor=colors[idx-1];
         }
+        updateCellShape(cell);
       });
     });
   }
@@ -50,19 +61,29 @@
 
   function createGrid(el){
     el.innerHTML='';
-    el.style.setProperty('--size',size);
-    for(let i=0;i<size*size;i++){
-      const cell=document.createElement('div');
-      cell.className='cell';
-      cell.dataset.color='0';
-      cell.addEventListener('click',()=>{
-        const colors=getColors();
-        let idx=parseInt(cell.dataset.color,10)||0;
-        idx=(idx+1)%(colors.length+1);
-        cell.dataset.color=String(idx);
-        cell.style.backgroundColor=idx?colors[idx-1]:'#fff';
-      });
-      el.appendChild(cell);
+    el.style.setProperty('--cols',cols);
+    el.style.setProperty('--rows',rows);
+    el.style.setProperty('--aspect',rows/cols);
+    el.style.setProperty('--cellSize',(100/cols)+'%');
+    for(let r=0;r<rows;r++){
+      const row=document.createElement('div');
+      row.className='row';
+      if(offset && r%2===1) row.classList.add('offset');
+      for(let c=0;c<cols;c++){
+        const cell=document.createElement('div');
+        cell.className='cell';
+        cell.dataset.color='0';
+        cell.addEventListener('click',()=>{
+          const colors=getColors();
+          let idx=parseInt(cell.dataset.color,10)||0;
+          idx=(idx+1)%(colors.length+1);
+          cell.dataset.color=String(idx);
+          cell.style.backgroundColor=idx?colors[idx-1]:'#fff';
+          updateCellShape(cell);
+        });
+        row.appendChild(cell);
+      }
+      el.appendChild(row);
     }
   }
 
@@ -71,15 +92,18 @@
     updateCellColors();
   }
 
-  function updateShape(){
-    boxes.forEach(box=>box.classList.toggle('circle',circleMode));
-  }
-
   const circleInp=document.getElementById('circleMode');
   circleMode=!!circleInp?.checked;
   circleInp?.addEventListener('change',()=>{
     circleMode=circleInp.checked;
-    updateShape();
+    updateCellColors();
+  });
+
+  const offsetInp=document.getElementById('offsetRows');
+  offset=!!offsetInp?.checked;
+  offsetInp?.addEventListener('change',()=>{
+    offset=offsetInp.checked;
+    redrawAll();
   });
 
   const container=document.getElementById('figureContainer');
@@ -98,23 +122,35 @@
     const box=panel.querySelector('.box');
     boxes.push(box);
     createGrid(box);
-    box.classList.toggle('circle',circleMode);
     container.insertBefore(panel,addBtn);
+    updateCellColors();
   }
 
   for(let i=0;i<3;i++) addFigure();
 
   addBtn.addEventListener('click',addFigure);
 
-  const minus=document.getElementById('sizeMinus');
-  const plus=document.getElementById('sizePlus');
-  const val=document.getElementById('sizeVal');
-  function updateSize(){
-    val.textContent=size;
+  const rowsMinus=document.getElementById('rowsMinus');
+  const rowsPlus=document.getElementById('rowsPlus');
+  const rowsVal=document.getElementById('rowsVal');
+  function updateRows(){
+    rowsVal.textContent=rows;
     redrawAll();
   }
-  minus?.addEventListener('click',()=>{ if(size>1){ size--; updateSize(); }});
-  plus?.addEventListener('click',()=>{ if(size<20){ size++; updateSize(); }});
-  updateSize();
+  rowsMinus?.addEventListener('click',()=>{ if(rows>1){ rows--; updateRows(); }});
+  rowsPlus?.addEventListener('click',()=>{ if(rows<20){ rows++; updateRows(); }});
+
+  const colsMinus=document.getElementById('colsMinus');
+  const colsPlus=document.getElementById('colsPlus');
+  const colsVal=document.getElementById('colsVal');
+  function updateCols(){
+    colsVal.textContent=cols;
+    redrawAll();
+  }
+  colsMinus?.addEventListener('click',()=>{ if(cols>1){ cols--; updateCols(); }});
+  colsPlus?.addEventListener('click',()=>{ if(cols<20){ cols++; updateCols(); }});
+
+  updateRows();
+  updateCols();
 })();
 
