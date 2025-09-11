@@ -82,7 +82,7 @@
               <button id="partsPlus1" type="button" aria-label="Flere deler">+</button>
             </div>
           </div>
-          <div id="panel2" class="figurePanel">
+          <div id="panel2" class="figurePanel" style="display:none">
             <div class="figure"><div id="box2" class="box"></div></div>
             <div class="stepper" aria-label="Antall deler">
               <button id="partsMinus2" type="button" aria-label="Færre deler">−</button>
@@ -99,7 +99,7 @@
             <button id="btnSvg1" class="btn" type="button">Last ned SVG</button>
             <button id="btnPng1" class="btn" type="button">Last ned PNG</button>
           </div>
-          <div class="toolbar">
+          <div class="toolbar" style="display:none">
             <button id="btnSvg2" class="btn" type="button">Last ned SVG</button>
             <button id="btnPng2" class="btn" type="button">Last ned PNG</button>
           </div>
@@ -113,7 +113,7 @@
               <label>Form
                 <select id="shape1">
                   <option value="circle">sirkel</option>
-                  <option value="rectangle">rektangel</option>
+                  <option value="rectangle" selected>rektangel</option>
                   <option value="triangle">trekant</option>
                 </select>
               </label>
@@ -147,11 +147,11 @@
             </fieldset>
             <fieldset>
               <legend>Figur 2</legend>
-              <div class="checkbox-row"><input id="show2" type="checkbox" checked><label for="show2">Vis</label></div>
+              <div class="checkbox-row"><input id="show2" type="checkbox"><label for="show2">Vis</label></div>
               <label>Form
                 <select id="shape2">
                   <option value="circle">sirkel</option>
-                  <option value="rectangle">rektangel</option>
+                  <option value="rectangle" selected>rektangel</option>
                   <option value="triangle">trekant</option>
                 </select>
               </label>

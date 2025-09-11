@@ -63,6 +63,7 @@
     const btnPng   = document.getElementById(`btnPng${id}`);
     const showInp  = document.getElementById(`show${id}`);
     const panel    = document.getElementById(`panel${id}`);
+    const toolbar  = btnSvg?.parentElement;
     const colorInputs = [];
     for (let i = 1; ; i++) {
       const inp = document.getElementById(`color${id}_` + i);
@@ -519,8 +520,12 @@
     });
     showInp?.addEventListener('change', () => {
       panel.style.display = showInp.checked ? '' : 'none';
+      if(toolbar) toolbar.style.display = showInp.checked ? '' : 'none';
     });
-    if(showInp && !showInp.checked) panel.style.display='none';
+    if(showInp && !showInp.checked){
+      panel.style.display='none';
+      if(toolbar) toolbar.style.display='none';
+    }
 
     draw();
   }
