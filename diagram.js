@@ -548,6 +548,27 @@ async function svgToString(svgEl){
     });
   });
 
+  // legg til overskrift fra h2-elementet i eksporten
+  const titleEl = document.getElementById('chartTitle');
+  const titleText = titleEl?.textContent?.trim();
+  if(titleText){
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.textContent = titleText;
+    t.setAttribute('x', W/2);
+    t.setAttribute('y', M.t/2);
+    t.setAttribute('text-anchor','middle');
+    const comp = getComputedStyle(titleEl);
+    const color = comp.getPropertyValue('color');
+    if(color) t.setAttribute('fill', color);
+    const ff = comp.getPropertyValue('font-family');
+    if(ff) t.setAttribute('font-family', ff);
+    const fs = comp.getPropertyValue('font-size');
+    if(fs) t.setAttribute('font-size', fs);
+    const fw = comp.getPropertyValue('font-weight');
+    if(fw && fw !== 'normal') t.setAttribute('font-weight', fw);
+    clone.insertBefore(t, clone.firstChild);
+  }
+
   // fjern interaktive håndtak før eksport
   clone.querySelectorAll('.handle, .handleShadow').forEach(el=>el.remove());
 

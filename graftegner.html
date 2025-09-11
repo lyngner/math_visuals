@@ -64,28 +64,9 @@
         <div class="card">
           <h2>Forfatters innstillinger</h2>
           <div class="settings">
+          <div id="funcRows"></div>
           <div class="settings-row">
-            <label>Funksjon 1
-              <input id="cfgFun1" type="text" value="f(x)=x^2-2">
-            </label>
-            <label>Definisjon (valgfritt)
-              <input id="cfgDom1" type="text" value="" placeholder="[start, stopp]">
-            </label>
-            <label class="points">Punkter
-              <select id="cfgPoints">
-                <option value="0">0</option>
-                <option value="1">1</option>
-                <option value="2">2</option>
-              </select>
-            </label>
-          </div>
-          <div class="settings-row">
-            <label>Funksjon 2 (valgfritt)
-              <input id="cfgFun2" type="text" value="">
-            </label>
-            <label>Definisjon (valgfritt)
-              <input id="cfgDom2" type="text" value="" placeholder="[start, stopp]">
-            </label>
+            <button id="addFunc" type="button" class="btn" aria-label="Legg til funksjon">+</button>
           </div>
           <div class="settings-row">
             <label>Screen (overstyrer autozoom hvis satt)

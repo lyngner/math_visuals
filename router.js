@@ -10,6 +10,15 @@ const routes = {
   'perlesnor': 'perlesnor.html'
 };
 
+const links = document.querySelectorAll('nav a');
+
+function setActive(route) {
+  links.forEach(link => {
+    const hrefRoute = link.getAttribute('href').replace(/^\/+/, '');
+    link.classList.toggle('active', hrefRoute === route);
+  });
+}
+
 async function loadPage(path, addToHistory = true) {
   const route = decodeURI(path).replace(/^\/+/, '');
   const fragment = routes[route];
@@ -62,6 +71,7 @@ async function loadPage(path, addToHistory = true) {
     history.pushState({ route }, '', '/' + route);
   }
   localStorage.setItem('currentPage', route);
+  setActive(route);
 }
 
 window.loadPage = loadPage;
