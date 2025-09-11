@@ -15,9 +15,11 @@ const ADV = {
   beadRadius: 20,
   beadGap: 12,
   assets: {
-    bowl:     "https://test.kikora.no/img/drive/illustrasjoner/Matteobjekter/Hjelpemidler/bowl.svg",
-    beadRed:  "https://test.kikora.no/img/drive/figures/games/spheres/redDots.svg",
-    beadBlue: "https://test.kikora.no/img/drive/figures/games/spheres/blueWave.svg"
+    bowl: "https://test.kikora.no/img/drive/illustrasjoner/Matteobjekter/Hjelpemidler/bowl.svg",
+    beads: {
+      red:  "https://test.kikora.no/img/drive/figures/games/spheres/redDots.svg",
+      blue: "https://test.kikora.no/img/drive/figures/games/spheres/blueWave.svg"
+    }
   }
 };
 
@@ -27,16 +29,15 @@ function makeCFG(){
     bowls: SIMPLE.bowls.map(b => {
       const colors = [];
       (b.colorCounts || []).forEach(cc => {
-        const key = "bead" + cc.color[0].toUpperCase() + cc.color.slice(1);
-        const src = ADV.assets[key];
+        const src = ADV.assets.beads[cc.color];
         if(src) for(let i=0;i<cc.count;i++) colors.push(src);
       });
-      if(!colors.length) colors.push(ADV.assets.beadRed, ADV.assets.beadBlue);
+      if(!colors.length) colors.push(...Object.values(ADV.assets.beads));
       return { colors };
     }),
     beadRadius: ADV.beadRadius,
     beadGap: ADV.beadGap,
-    assets: ADV.assets
+    assets: { bowl: ADV.assets.bowl }
   };
 }
 let CFG = makeCFG();
@@ -52,11 +53,23 @@ svg.appendChild(gBowls);
 
 /* ============ STATE ============ */
 const bowls = [];
-
-const redInput = document.getElementById("redCount");
-const blueInput = document.getElementById("blueCount");
-redInput.addEventListener("input", updateFromInputs);
-blueInput.addEventListener("input", updateFromInputs);
+const controls = document.getElementById("controls");
+const inputs = {};
+Object.keys(ADV.assets.beads).forEach(color => {
+  const label = document.createElement("label");
+  label.textContent = `${cap(color)} kuler`;
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = "0";
+  const bowl = SIMPLE.bowls[0];
+  const existing = (bowl.colorCounts || []).find(cc => cc.color === color);
+  input.value = existing ? existing.count : 0;
+  input.dataset.color = color;
+  label.appendChild(input);
+  controls.appendChild(label);
+  inputs[color] = input;
+  input.addEventListener("input", updateFromInputs);
+});
 
 updateFromInputs();
 
@@ -93,13 +106,10 @@ function render(){
 }
 
 function updateFromInputs(){
-  const red = parseInt(redInput.value) || 0;
-  const blue = parseInt(blueInput.value) || 0;
   const bowl = SIMPLE.bowls[0];
-  bowl.colorCounts = [
-    { color: "red", count: red },
-    { color: "blue", count: blue }
-  ];
+  bowl.colorCounts = Object.entries(inputs).map(([color, inp]) => ({
+    color, count: parseInt(inp.value) || 0
+  }));
   CFG = makeCFG();
   render();
 }
@@ -108,3 +118,4 @@ function updateFromInputs(){
 function mk(n,attrs={}){ const e=document.createElementNS("http://www.w3.org/2000/svg",n);
   for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v); return e; }
 function img(href,x,y,w,h,cls=""){ return mk("image",{href,x,y,width:w,height:h, class:cls}); }
+function cap(s){ return s[0].toUpperCase()+s.slice(1); }
