@@ -1,7 +1,8 @@
 (function(){
   const boxes=[];
-  let rows=10;
-  let cols=10;
+  // Default grid size set to 4x4
+  let rows=4;
+  let cols=4;
   let circleMode=false;
   let offset=false;
   let showGrid=true;
@@ -79,7 +80,8 @@
     el.innerHTML='';
     el.style.setProperty('--cols',cols);
     el.style.setProperty('--rows',rows);
-    el.style.setProperty('--aspect',rows/cols);
+    // Maintain square cells by ensuring width/height ratio equals cols/rows
+    el.style.setProperty('--aspect',cols/rows);
     el.style.setProperty('--cellSize',(100/cols)+'%');
     el.classList.toggle('hide-grid', !showGrid);
     for(let r=0;r<rows;r++){
