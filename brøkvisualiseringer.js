@@ -50,11 +50,35 @@
     img.src = url;
   }
 
+  const figures = [];
+  const colorCountInp = document.getElementById('colorCount');
+  const colorInputs = [];
+  for(let i=1;;i++){
+    const inp = document.getElementById('color_' + i);
+    if(!inp) break;
+    colorInputs.push(inp);
+  }
+  let colorCount = parseInt(colorCountInp?.value,10) || colorInputs.length;
+  function getColors(){
+    return colorInputs.slice(0,colorCount).map(inp=>inp.value);
+  }
+  function updateColorVisibility(){
+    colorInputs.forEach((inp,idx)=>{
+      inp.style.display = idx < colorCount ? '' : 'none';
+    });
+    figures.forEach(f=>f?.draw());
+  }
+  colorCountInp?.addEventListener('input', ()=>{
+    colorCount = Math.max(1, Math.min(colorInputs.length, parseInt(colorCountInp.value,10) || 1));
+    updateColorVisibility();
+  });
+  colorInputs.forEach(inp=>inp.addEventListener('input', ()=> figures.forEach(f=>f?.draw())));
+  updateColorVisibility();
+
   function setupFigure(id){
     const shapeSel = document.getElementById(`shape${id}`);
     const partsInp = document.getElementById(`parts${id}`);
     const divSel   = document.getElementById(`division${id}`);
-    const filledInp= document.getElementById(`filled${id}`);
     const wrongInp = document.getElementById(`allowWrong${id}`);
     const minusBtn = document.getElementById(`partsMinus${id}`);
     const plusBtn  = document.getElementById(`partsPlus${id}`);
@@ -64,12 +88,6 @@
     const showInp  = document.getElementById(`show${id}`);
     const panel    = document.getElementById(`panel${id}`);
     const toolbar  = btnSvg?.parentElement;
-    const colorInputs = [];
-    for (let i = 1; ; i++) {
-      const inp = document.getElementById(`color${id}_` + i);
-      if (!inp) break;
-      colorInputs.push(inp);
-    }
     let board;
     let filled = new Map();
 
@@ -79,26 +97,6 @@
         boundingbox:[0,1,1,0], axis:false, showCopyright:false,
         showNavigation:false, keepaspectratio:true
       });
-    }
-
-    function getColors(){
-      return colorInputs.map(inp=>inp?.value).filter(Boolean);
-    }
-
-    function parseFilled(){
-      filled = new Map(
-        filledInp.value
-          .split(',')
-          .map(pair=>pair.split(':').map(t=>parseInt(t.trim(),10)))
-          .filter(([i,c])=>!isNaN(i) && !isNaN(c))
-      );
-    }
-
-    function updateFilledInput(){
-      filledInp.value = Array.from(filled.entries())
-        .sort((a,b)=>a[0]-b[0])
-        .map(([i,c])=>`${i}:${c}`)
-        .join(',');
     }
 
     function togglePart(i, element){
@@ -112,7 +110,6 @@
         filled.set(i,next);
         element.setAttribute({fillColor:colors[next-1], fillOpacity:1});
       }
-      updateFilledInput();
       board.update();
     }
 
@@ -132,9 +129,9 @@
     }
 
     function draw(){
+      if(panel.style.display==='none') return;
       initBoard();
       let n = Math.max(1, parseInt(partsInp.value,10));
-      parseFilled();
       const shape = shapeSel.value;
       let division = divSel.value;
       const allowWrong = wrongInp?.checked;
@@ -503,9 +500,7 @@
     shapeSel.addEventListener('change', draw);
     partsInp.addEventListener('input', draw);
     divSel.addEventListener('change', draw);
-    filledInp.addEventListener('input', draw);
     wrongInp.addEventListener('change', draw);
-    colorInputs.forEach(inp => inp?.addEventListener('input', draw));
     minusBtn?.addEventListener('click', () => {
       let n = parseInt(partsInp.value, 10);
       n = isNaN(n) ? 1 : Math.max(1, n - 1);
@@ -535,10 +530,21 @@
       if(toolbar) toolbar.style.display='none';
     }
 
-    draw();
+    return {draw, panel, toolbar, showInp};
   }
 
-  setupFigure(1);
-  setupFigure(2);
+  figures[1] = setupFigure(1);
+  figures[1].draw();
+  figures[2] = setupFigure(2);
+  const addBtn = document.getElementById('addFigure');
+  const fieldset2 = document.getElementById('fieldset2');
+  addBtn?.addEventListener('click', ()=>{
+    addBtn.style.display = 'none';
+    fieldset2.style.display = '';
+    figures[2].panel.style.display = '';
+    figures[2].toolbar.style.display = '';
+    if(figures[2].showInp) figures[2].showInp.checked = true;
+    figures[2].draw();
+  });
 })();
 
