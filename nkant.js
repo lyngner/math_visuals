@@ -196,25 +196,66 @@ function parseSpecFreeform(str){
       const h = nums[1];
       Object.assign(out, {a:w, c:w, b:h, d:h, B:90});
     }else{
-      // velg tilfeldig rektangel eller parallellogram
-      const w = rand(1,5);
-      const h = rand(1,5);
-      const B = rand(60,120);
-      Object.assign(out, {a:w, c:w, b:h, d:h, B});
+      const s = nums[0] ?? rand(1,5);
+      Object.assign(out, {a:s, b:s, c:s, d:s, B:90});
     }
     return out;
   }
 
   if(/rektangel/.test(text)){
-    const w = nums[0] ?? 1;
-    const h = nums[1] ?? w;
+    let w, h;
+    if(nums.length >= 2){
+      [w, h] = nums;
+    }else if(nums.length === 1){
+      w = nums[0];
+      h = rand(1,5);
+      if(Math.abs(h - w) < 1e-6) h += 1;
+    }else{
+      w = rand(1,5);
+      h = rand(1,5);
+      if(Math.abs(h - w) < 1e-6) h += 1;
+    }
     Object.assign(out, {a:w, c:w, b:h, d:h, B:90});
+    return out;
+  }
+
+  if(/parallellogram/.test(text)){
+    const w = nums[0] ?? rand(1,5);
+    const h = nums[1] ?? rand(1,5);
+    let B = nums[2] ?? rand(60,120);
+    if(Math.abs(B - 90) < 1e-6) B = 60;
+    Object.assign(out, {a:w, c:w, b:h, d:h, B});
+    return out;
+  }
+
+  if(/rombe/.test(text)){
+    const s = nums[0] ?? rand(1,5);
+    let B = nums[1] ?? rand(60,120);
+    if(Math.abs(B - 90) < 1e-6) B = 60;
+    Object.assign(out, {a:s, b:s, c:s, d:s, B});
     return out;
   }
 
   if(/likesidet/.test(text) && /trekant/.test(text)){
     const s = nums[0] ?? 1;
     Object.assign(out, {a:s, b:s, c:s});
+    return out;
+  }
+
+  if(/likebeint/.test(text) && /trekant/.test(text)){
+    let s, base;
+    if(nums.length >= 2){
+      s = nums[0];
+      base = nums[1];
+    }else if(nums.length === 1){
+      s = nums[0];
+      base = Math.min(2*s - 0.1, rand(1, 2*s - 0.1));
+    }else{
+      s = rand(2,6);
+      base = rand(1, 2*s - 0.5);
+    }
+    if(base >= 2*s) base = 2*s - 0.1;
+    Object.assign(out, {a:s, b:s, c:base});
     return out;
   }
 
