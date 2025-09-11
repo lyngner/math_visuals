@@ -63,6 +63,8 @@ const controls = document.getElementById("controls");
 const colors = Object.keys(ADV.assets.beads);
 const counts = {};
 const displays = {};
+let beadRadius = ADV.beadRadius;
+let sizeDisplay;
 let dragBead = null;
 let dragOffX = 0, dragOffY = 0;
 colors.forEach(color => {
@@ -87,6 +89,25 @@ colors.forEach(color => {
   controls.appendChild(row);
   displays[color] = countSpan;
 });
+
+const sizeRow = document.createElement("div");
+sizeRow.className = "ctrlRow";
+const sizeLabel = document.createElement("span");
+sizeLabel.textContent = "Kulestørrelse";
+const sizeMinus = document.createElement("button");
+sizeMinus.type = "button";
+sizeMinus.textContent = "−";
+const sizeSpan = document.createElement("span");
+sizeSpan.className = "count";
+sizeSpan.textContent = beadRadius;
+const sizePlus = document.createElement("button");
+sizePlus.type = "button";
+sizePlus.textContent = "+";
+sizeMinus.addEventListener("click", () => changeSize(-2));
+sizePlus.addEventListener("click", () => changeSize(2));
+sizeRow.append(sizeLabel, sizeMinus, sizeSpan, sizePlus);
+controls.appendChild(sizeRow);
+sizeDisplay = sizeSpan;
 
 render();
 
@@ -151,8 +172,15 @@ function change(color, delta){
   updateConfig();
 }
 
+function changeSize(delta){
+  beadRadius = Math.max(5, beadRadius + delta);
+  sizeDisplay.textContent = beadRadius;
+  updateConfig();
+}
+
 function updateConfig(){
   SIMPLE.bowls[0].colorCounts = colors.map(c => ({ color: c, count: counts[c] }));
+  ADV.beadRadius = beadRadius;
   CFG = makeCFG();
   render();
 }
