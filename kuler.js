@@ -4,7 +4,11 @@ const SIMPLE = {
     {
       colorCounts: [
         { color: "blue", count: 2 },
-        { color: "red", count: 3 }
+        { color: "red", count: 3 },
+        { color: "green", count: 0 },
+        { color: "yellow", count: 0 },
+        { color: "pink", count: 0 },
+        { color: "purple", count: 0 }
       ]
     }
   ]
@@ -17,7 +21,11 @@ const ADV = {
   assets: {
     beads: {
       blue:   "images/blueWave.svg",
-      red:    "images/redDots.svg"
+      red:    "images/redDots.svg",
+      green:  "images/greenStar.svg",
+      yellow: "images/yellowGrid.svg",
+      pink:   "images/pinkLabyrinth.svg",
+      purple: "images/purpleZigzag.svg"
     }
   }
 };
@@ -107,20 +115,24 @@ function render(){
 
     const gBeads = mk("g", {class:"beads"});
     const nBeads = bCfg.colors.length;
-    const rx = bowlWidth/2 - CFG.beadRadius;
-    const ry = bowlDepth - CFG.beadRadius;
+    const beadD = CFG.beadRadius * 2;
+    const perRow = Math.max(1, Math.floor((bowlWidth + CFG.beadGap) / (beadD + CFG.beadGap)));
+    const startCy = rimY + bowlDepth - CFG.beadRadius;
     for(let i=0;i<nBeads;i++){
-      const angle = Math.random() * Math.PI;
-      const radius = Math.sqrt(Math.random());
-      const cx = midX + rx * radius * Math.cos(angle);
-      const cy = rimY + ry * radius * Math.sin(angle);
+      const row = Math.floor(i / perRow);
+      const col = i % perRow;
+      const beadsInRow = Math.min(perRow, nBeads - row * perRow);
+      const rowWidth = beadsInRow * beadD + Math.max(0, beadsInRow - 1) * CFG.beadGap;
+      const startCx = midX - rowWidth / 2 + CFG.beadRadius;
+      const cx = startCx + col * (beadD + CFG.beadGap);
+      const cy = startCy - row * (beadD + CFG.beadGap);
       const src = bCfg.colors[i % bCfg.colors.length];
       const bead = mk("image", {
         href: src,
         x: cx - CFG.beadRadius,
         y: cy - CFG.beadRadius,
-        width: CFG.beadRadius * 2,
-        height: CFG.beadRadius * 2,
+        width: beadD,
+        height: beadD,
         class: "bead beadShadow"
       });
       bead.addEventListener("pointerdown", startDrag);
