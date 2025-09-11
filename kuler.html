@@ -12,6 +12,9 @@
       background: #f7f8fb;
       color: #111827;
     }
+    #controls label {
+      margin-right: 1rem;
+    }
     svg {
       width: 100%;
       height: auto;
@@ -19,6 +22,14 @@
   </style>
 </head>
 <body>
+  <div id="controls">
+    <label>Røde kuler:
+      <input id="redCount" type="number" min="0" value="4" />
+    </label>
+    <label>Blå kuler:
+      <input id="blueCount" type="number" min="0" value="4" />
+    </label>
+  </div>
   <svg id="bowlSVG"></svg>
   <script src="kuler.js"></script>
 </body>
