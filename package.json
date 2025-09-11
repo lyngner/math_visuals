@@ -5,7 +5,7 @@
   "main": "arealmodell0.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "npx http-server"
+    "start": "npx http-server -c-1"
   },
   "keywords": [],
   "author": "",
