@@ -1,5 +1,7 @@
 /* ============ ENKEL KONFIG (FORFATTER) ============ */
 const SIMPLE = {
+  // Global radius for all beads. Optional – falls back to ADV.beadRadius.
+  beadRadius: 20,
   bowls: [
     {
       colorCounts: [
@@ -15,6 +17,7 @@ const SIMPLE = {
 };
 
 /* ============ ADV KONFIG (TEKNISK/VALGFRITT) ============ */
+// Technical defaults. beadRadius here is only used if SIMPLE.beadRadius is not set.
 const ADV = {
   beadRadius: 20,
   beadGap: 12,
@@ -32,6 +35,7 @@ const ADV = {
 
 /* ============ DERIVERT KONFIG FOR RENDER (IKKE REDIGER) ============ */
 function makeCFG(){
+  const beadRadius = SIMPLE.beadRadius ?? ADV.beadRadius;
   return {
     bowls: SIMPLE.bowls.map(b => {
       const colors = [];
@@ -42,7 +46,7 @@ function makeCFG(){
       if(!colors.length) colors.push(...Object.values(ADV.assets.beads));
       return { colors };
     }),
-    beadRadius: ADV.beadRadius,
+    beadRadius,
     beadGap: ADV.beadGap
   };
 }
@@ -63,7 +67,7 @@ const controls = document.getElementById("controls");
 const colors = Object.keys(ADV.assets.beads);
 const counts = {};
 const displays = {};
-let beadRadius = ADV.beadRadius;
+let beadRadius = CFG.beadRadius;
 let sizeDisplay;
 let dragBead = null;
 let dragOffX = 0, dragOffY = 0;
@@ -186,17 +190,17 @@ function change(color, delta){
 }
 
 function changeSize(delta){
-  beadRadius = Math.max(5, beadRadius + delta);
-  sizeDisplay.textContent = beadRadius;
-  updateConfig();
-}
+    beadRadius = Math.max(5, beadRadius + delta);
+    sizeDisplay.textContent = beadRadius;
+    updateConfig();
+  }
 
 function updateConfig(){
-  SIMPLE.bowls[0].colorCounts = colors.map(c => ({ color: c, count: counts[c] }));
-  ADV.beadRadius = beadRadius;
-  CFG = makeCFG();
-  render();
-}
+    SIMPLE.bowls[0].colorCounts = colors.map(c => ({ color: c, count: counts[c] }));
+    SIMPLE.beadRadius = beadRadius;
+    CFG = makeCFG();
+    render();
+  }
 
 function startDrag(e){
   dragBead = e.target;
