@@ -30,6 +30,8 @@
     .bead{cursor:grab;}
     .bead:active{cursor:grabbing;}
     .beadShadow{filter:drop-shadow(0 1px 1px rgba(0,0,0,.25));}
+    .downloadBtns{display:flex;gap:6px;flex-wrap:wrap;}
+    .downloadBtns button{border:1px solid #d1d5db;border-radius:6px;background:#fff;padding:6px 10px;cursor:pointer;}
   </style>
 </head>
 <body>
@@ -44,6 +46,10 @@
         <div class="card">
           <h2>Forfatters innstillinger</h2>
           <div id="controls"></div>
+          <div class="downloadBtns">
+            <button id="downloadSVG" type="button">Last ned SVG</button>
+            <button id="downloadPNG" type="button">Last ned PNG</button>
+          </div>
         </div>
       </div>
     </div>
