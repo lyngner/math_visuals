@@ -63,12 +63,12 @@
     const btnPng   = document.getElementById(`btnPng${id}`);
     const showInp  = document.getElementById(`show${id}`);
     const panel    = document.getElementById(`panel${id}`);
-    const colorInputs = [
-      document.getElementById(`color${id}_1`),
-      document.getElementById(`color${id}_2`),
-      document.getElementById(`color${id}_3`),
-      document.getElementById(`color${id}_4`),
-    ];
+    const colorInputs = [];
+    for (let i = 1; ; i++) {
+      const inp = document.getElementById(`color${id}_` + i);
+      if (!inp) break;
+      colorInputs.push(inp);
+    }
     let board;
     let filled = new Map();
 
