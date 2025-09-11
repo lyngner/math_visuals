@@ -20,10 +20,9 @@
     @media(max-width:980px){.grid{grid-template-columns:1fr;}}
     .side{display:flex;flex-direction:column;gap:var(--gap);}
     .grid2{
-      display:flex;
-      flex-wrap:wrap;
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
       gap:24px;
-      justify-content:flex-start;
       align-items:start;
     }
     .figurePanel{display:grid;place-items:center;gap:10px;}
@@ -39,10 +38,11 @@
       font-size:48px;
       color:#6b7280;
       cursor:pointer;
+      justify-self:center;
     }
     @media(max-width:420px){
-      .grid2{flex-direction:column;gap:16px;}
-      .figure .box{width:clamp(240px,92vw,420px);}
+      .grid2{grid-template-columns:1fr;gap:16px;}
+      .figure .box{width:clamp(240px,92vw,360px);}
     }
     .card{
       background:#fff;border:1px solid #e5e7eb;border-radius:14px;
@@ -52,7 +52,7 @@
     .card h2{margin:0 0 6px 2px;font-size:16px;font-weight:600;color:#374151;}
     .figure{border-radius:10px;background:#fff;overflow:visible;border:none;}
     .figure .box{
-      width:clamp(100px,40vw,420px);
+      width:clamp(100px,32vw,360px);
       aspect-ratio:1;
       margin:0 auto;
     }
