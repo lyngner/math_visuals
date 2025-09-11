@@ -48,13 +48,16 @@ const ADV = {
 
 /* ============ DERIVERT KONFIG FOR RENDER (IKKE REDIGER) ============ */
 function makeCFG(){
+  const rBase = SIMPLE.beadRadius ?? ADV.rBase;
+  const scale = rBase / ADV.rBase;
+  const gapBase = ADV.gapBase * scale;
   return {
     nBeads: SIMPLE.nBeads,
     startIndex: clamp(SIMPLE.startIndex, 0, SIMPLE.nBeads),
     groupSize: ADV.groupSize,
 
-    rBase: ADV.rBase,
-    gapBase: ADV.gapBase,
+    rBase,
+    gapBase,
     wireY: ADV.wireY,
 
     kW: ADV.kW,
