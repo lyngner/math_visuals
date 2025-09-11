@@ -1014,6 +1014,42 @@ if(btnSvg){
   });
 }
 
+const btnPng=document.getElementById('btnPng');
+if(btnPng){
+  btnPng.addEventListener('click', ()=>{
+    const src = brd.renderer.svgRoot.cloneNode(true);
+    src.removeAttribute('style');
+    const w = brd.canvasWidth, h = brd.canvasHeight;
+    src.setAttribute('width',  `${w}`);
+    src.setAttribute('height', `${h}`);
+    src.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    src.setAttribute('xmlns','http://www.w3.org/2000/svg');
+    src.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+    const xml = new XMLSerializer().serializeToString(src)
+      .replace(/\swidth="[^"]*"\s(?=.*width=")/, ' ')
+      .replace(/\sheight="[^"]*"\s(?=.*height=")/, ' ');
+    const svgBlob = new Blob([xml], {type:'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'graf.png';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+    };
+    img.src = url;
+  });
+}
+
 setupSettingsForm();
 
 function setupSettingsForm(){
