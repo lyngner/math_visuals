@@ -71,6 +71,11 @@
             <button id="addFunc" type="button" class="btn" aria-label="Legg til funksjon">+</button>
           </div>
           <div class="settings-row">
+            <label>Punktkoordinater
+              <input id="cfgCoords" type="text" value="" placeholder="x1,y1; x2,y2">
+            </label>
+          </div>
+          <div class="settings-row">
             <label>Screen (overstyrer autozoom hvis satt)
               <input id="cfgScreen" type="text" value="" placeholder="minX, maxX, minY, maxY">
             </label>
@@ -78,6 +83,7 @@
           <div class="settings-row">
             <label class="checkbox-label"><input id="cfgLock" type="checkbox"> Lås forhold 1:1 (krever screen)</label>
             <label class="checkbox-label"><input id="cfgPan" type="checkbox"> Tillat pan</label>
+            <label class="checkbox-label"><input id="cfgQ1" type="checkbox"> Bare 1. kvadrant</label>
           </div>
           <div class="settings-row axis-names">
             <label>Navn på akser</label>

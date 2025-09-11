@@ -36,6 +36,8 @@ function buildSimple(){
   }
   const pts = paramStr('points','0').trim();
   if(pts){ lines.push(`points=${pts}`); }
+  const coords = paramStr('coords','').trim();
+  if(coords){ lines.push(`coords=${coords}`); }
   return lines.join('\n');
 }
 let SIMPLE = buildSimple();
@@ -49,6 +51,7 @@ const ADV = {
   },
   screen: parseScreen(paramStr('screen','')),
   lockAspect: params.has('lock') ? paramBool('lock') : null,
+  firstQuadrant: paramBool('q1'),
 
   interactions: {
     pan:  { enabled: paramBool('pan'),  needShift: false },
@@ -110,7 +113,7 @@ const ADV = {
 /* ======================= Parser / modus ======================= */
 function parseSimple(txt){
   const lines = (txt||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  const out = { funcs:[], pointsCount:0, startX:[], answer:null, raw:txt };
+  const out = { funcs:[], pointsCount:0, startX:[], extraPoints:[], answer:null, raw:txt };
   const fnRe = /^([a-zA-Z]\w*)\s*\(\s*x\s*\)\s*=\s*([^,]+?)(?:\s*,\s*x\s*in\s*(.+))?$/i;
 
   for(const L of lines){
@@ -127,6 +130,13 @@ function parseSimple(txt){
     }
     const pm = L.match(/^points\s*=\s*(\d+)/i);
     if(pm){ out.pointsCount = +pm[1]; continue; }
+
+    const cm = L.match(/^coords\s*=\s*(.+)$/i);
+    if(cm){
+      const pts = cm[1].split(';').map(s=>s.trim()).filter(Boolean).map(p=>p.split(',').map(t=>+t.trim()).filter(Number.isFinite));
+      for(const pt of pts){ if(pt.length===2) out.extraPoints.push(pt); }
+      continue;
+    }
 
     const sm = L.match(/^startx\s*=\s*(.+)$/i);
     if(sm){ out.startX = sm[1].split(',').map(s=>+s.trim()).filter(Number.isFinite); continue; }
@@ -467,10 +477,16 @@ const toBB = scr => [scr[0], scr[3], scr[1], scr[2]];
 /* ===================== Init JSXGraph ===================== */
 JXG.Options.showCopyright = false;
 JXG.Options.showNavigation = false;
-
-const START_SCREEN =
-  ADV.screen ?? (MODE==='functions' ? computeAutoScreenFunctions()
-                                    : computeAutoScreenPoints());
+function initialScreen(){
+  let scr = ADV.screen ?? (MODE==='functions' ? computeAutoScreenFunctions()
+                                              : computeAutoScreenPoints());
+  if(ADV.firstQuadrant){
+    if(scr[0] < 0) scr[0] = 0;
+    if(scr[2] < 0) scr[2] = 0;
+  }
+  return scr;
+}
+const START_SCREEN = initialScreen();
 
 const brd = JXG.JSXGraph.initBoard('board',{
   boundingbox: toBB(START_SCREEN),
@@ -926,12 +942,25 @@ function parseAnswerToMB(answerLine){
   }catch(_){ return null; }
 }
 
+function addFixedPoints(){
+  if(!Array.isArray(SIMPLE_PARSED.extraPoints)) return;
+  for(const pt of SIMPLE_PARSED.extraPoints){
+    const P = brd.create('point', pt.slice(), {name:'', size:3, face:'o', fillColor:'#fff', strokeColor:'#111827', withLabel:true, fixed:true, showInfobox:false});
+    if(ADV.points.showCoordsOnHover){
+      P.label.setAttribute({visible:false});
+      P.on('over', ()=>{ P.label.setText(()=>fmtCoordsStatic(P)); P.label.setAttribute({visible:true}); });
+      P.on('out',  ()=> P.label.setAttribute({visible:false}));
+    }
+  }
+}
+
 /* ================= bygg valgt modus ================= */
 if(MODE==='functions'){
   buildFunctions();
 }else{
   buildPointsLine();
 }
+addFixedPoints();
 
 /* ================= Oppdater / resize ================= */
 function updateAfterViewChange(){
@@ -990,7 +1019,7 @@ function ensureCheckControls(){
 const btnReset=document.getElementById('btnReset');
 if(btnReset){
   btnReset.addEventListener('click', ()=>{
-    const scr = ADV.screen ?? (MODE==='functions'?computeAutoScreenFunctions():computeAutoScreenPoints());
+    const scr = initialScreen();
     brd.setBoundingBox(toBB(scr), true);
     updateAfterViewChange();
   });
@@ -1100,11 +1129,13 @@ function setupSettingsForm(){
     createRow(index, '', '', false);
   });
 
+  g('cfgCoords').value = paramStr('coords','');
   g('cfgScreen').value = paramStr('screen','');
   g('cfgLock').checked = paramBool('lock');
   g('cfgAxisX').value = paramStr('xName','x');
   g('cfgAxisY').value = paramStr('yName','y');
   g('cfgPan').checked = paramBool('pan');
+  g('cfgQ1').checked = paramBool('q1');
 
   const apply = () => {
     const p = new URLSearchParams();
@@ -1120,11 +1151,13 @@ function setupSettingsForm(){
     });
     const pts = g('cfgPoints') ? g('cfgPoints').value.trim() : '0';
     if(pts && pts !== '0') p.set('points', pts);
+    if(g('cfgCoords').value.trim()) p.set('coords', g('cfgCoords').value.trim());
     if(g('cfgScreen').value.trim()) p.set('screen', g('cfgScreen').value.trim());
     if(g('cfgLock').checked) p.set('lock','1'); else p.set('lock','0');
     if(g('cfgAxisX').value.trim() && g('cfgAxisX').value.trim() !== 'x') p.set('xName', g('cfgAxisX').value.trim());
     if(g('cfgAxisY').value.trim() && g('cfgAxisY').value.trim() !== 'y') p.set('yName', g('cfgAxisY').value.trim());
     if(g('cfgPan').checked) p.set('pan','1');
+    if(g('cfgQ1').checked) p.set('q1','1');
     location.search = p.toString();
   };
 
