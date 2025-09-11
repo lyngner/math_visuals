@@ -132,6 +132,7 @@
       if(shape==='rectangle' && division==='diagonal') n = 4;
       const gridOpt = divSel.querySelector('option[value="grid"]');
       const vertOpt = divSel.querySelector('option[value="vertical"]');
+      const triOpt  = divSel.querySelector('option[value="triangular"]');
       if(gridOpt){
         gridOpt.hidden = n % 2 === 1 || (shape==='circle' && !allowWrong) || (shape==='triangle');
         if(gridOpt.hidden && division==='grid') divSel.value = 'horizontal';
@@ -140,7 +141,15 @@
         vertOpt.hidden = (shape==='circle' && !allowWrong);
         if(vertOpt.hidden && division==='vertical') divSel.value = 'horizontal';
       }
+      if(triOpt){
+        triOpt.hidden = (shape!=='triangle');
+        if(triOpt.hidden && division==='triangular') divSel.value = 'horizontal';
+      }
       division = divSel.value;
+      if(shape==='triangle' && division==='triangular'){
+        const m = Math.max(1, Math.round(Math.sqrt(n)));
+        n = m*m;
+      }
       partsInp.value = String(n);
       if(partsVal) partsVal.textContent = n;
       const colors = getColors();
@@ -151,7 +160,7 @@
       if(shape==='circle') drawCircle(n, division, allowWrong, colorFor);
       else if(shape==='rectangle') drawRect(n, division, colorFor);
       else drawTriangle(n, division, allowWrong, colorFor);
-      applyClip(shape);
+      applyClip(shape, division);
     }
 
     function drawCircle(n, division, allowWrong, colorFor){
@@ -321,6 +330,73 @@
     }
 
     function drawTriangle(n, division, allowWrong, colorFor){
+      if(division==='triangular'){
+        const m = Math.round(Math.sqrt(n));
+        const rows=[];
+        for(let r=0;r<=m;r++){
+          const y=r/m;
+          const xStart=0.5 - r/(2*m);
+          const row=[];
+          for(let c=0;c<=r;c++){
+            row.push([xStart + c/m, y]);
+          }
+          rows.push(row);
+        }
+        let idx=0;
+        for(let r=1;r<=m;r++){
+          for(let c=0;c<r;c++){
+            const pts=[rows[r][c], rows[r][c+1], rows[r-1][c]];
+            const poly=board.create('polygon', pts, {
+              borders:{strokeColor:'#fff', strokeWidth:6},
+              vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
+              fillColor: colorFor(idx),
+              fillOpacity:1,
+              highlight:false,
+              hasInnerPoints:true,
+              fixed:true
+            });
+            poly.on('down', () => togglePart(idx, poly));
+            idx++;
+          }
+        }
+        for(let r=0;r<m;r++){
+          for(let c=0;c<rows[r].length-1;c++){
+            const pts=[rows[r][c], rows[r][c+1], rows[r+1][c+1]];
+            const poly=board.create('polygon', pts, {
+              borders:{strokeColor:'#fff', strokeWidth:6},
+              vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
+              fillColor: colorFor(idx),
+              fillOpacity:1,
+              highlight:false,
+              hasInnerPoints:true,
+              fixed:true
+            });
+            poly.on('down', () => togglePart(idx, poly));
+            idx++;
+          }
+        }
+        for(let r=1;r<m;r++){
+          board.create('segment', [rows[r][0], rows[r][r]], {
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
+          });
+          board.create('segment', [rows[r][0], rows[m][r]], {
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
+          });
+          board.create('segment', [rows[r][r], rows[m][m-r]], {
+            strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
+          });
+        }
+        board.create('polygon', [[0,1],[1,1],[0.5,0]], {
+          borders:{strokeColor:'#333', strokeWidth:6},
+          vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
+          fillColor:'none',
+          highlight:false,
+          fixed:true,
+          hasInnerPoints:false,
+          cssStyle:'pointer-events:none;'
+        });
+        return;
+      }
       for(let i=0;i<n;i++){
         let pts;
         if(division==='vertical'){
@@ -397,11 +473,15 @@
       });
     }
 
-    function applyClip(shape){
+    function applyClip(shape, division){
       const svg = board?.renderer?.svgRoot;
       if(!svg) return;
       if(shape==='triangle'){
-        svg.style.clipPath = 'polygon(-2% 102%, 102% 102%, -2% -2%)';
+        if(division==='triangular'){
+          svg.style.clipPath = 'polygon(50% -2%, -2% 102%, 102% 102%)';
+        }else{
+          svg.style.clipPath = 'polygon(-2% 102%, 102% 102%, -2% -2%)';
+        }
       }else if(shape==='rectangle'){
         svg.style.clipPath = 'polygon(-2% 102%, 102% 102%, 102% -2%, -2% -2%)';
       }else if(shape==='circle'){
