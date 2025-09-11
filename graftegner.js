@@ -21,14 +21,20 @@ function parseScreen(str){
   return parts.length===4 && parts.every(Number.isFinite) ? parts : null;
 }
 function buildSimple(){
-  const lines=[];
-  const fun1=paramStr('fun1','f(x)=x^2-2');
-  const dom1=paramStr('dom1','').trim();
-  if(fun1){ lines.push(dom1 ? `${fun1}, x in ${dom1}` : fun1); }
-  const fun2=paramStr('fun2','').trim();
-  const dom2=paramStr('dom2','').trim();
-  if(fun2){ lines.push(dom2 ? `${fun2}, x in ${dom2}` : fun2); }
-  const pts=paramStr('points','0').trim();
+  const lines = [];
+  let i = 1;
+  while(true){
+    const key = `fun${i}`;
+    const fun = paramStr(key, i === 1 ? 'f(x)=x^2-2' : '').trim();
+    const dom = paramStr(`dom${i}`, '').trim();
+    if(i === 1 || params.has(key)){
+      if(fun){ lines.push(dom ? `${fun}, x in ${dom}` : fun); }
+      i++;
+    } else {
+      break;
+    }
+  }
+  const pts = paramStr('points','0').trim();
   if(pts){ lines.push(`points=${pts}`); }
   return lines.join('\n');
 }
@@ -1013,12 +1019,51 @@ setupSettingsForm();
 function setupSettingsForm(){
   const root = document.querySelector('.settings');
   if(!root) return;
+  const funcRows = document.getElementById('funcRows');
+  const addBtn = document.getElementById('addFunc');
   const g = id => document.getElementById(id);
-  g('cfgFun1').value = paramStr('fun1','f(x)=x^2-2');
-  g('cfgDom1').value = paramStr('dom1','');
-  g('cfgPoints').value = paramStr('points','0');
-  g('cfgFun2').value = paramStr('fun2','');
-  g('cfgDom2').value = paramStr('dom2','');
+
+  const createRow = (index, funVal = '', domVal = '', includePoints = false) => {
+    const row = document.createElement('div');
+    row.className = 'settings-row func-row';
+    row.innerHTML = `
+      <label>Funksjon ${index}
+        <input type="text" data-fun value="${funVal}">
+      </label>
+      <label>Definisjon (valgfritt)
+        <input type="text" data-dom value="${domVal}" placeholder="[start, stopp]">
+      </label>
+      ${includePoints ? `
+      <label class="points">Punkter
+        <select id="cfgPoints">
+          <option value="0">0</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+        </select>
+      </label>` : ''}
+    `;
+    funcRows.appendChild(row);
+    if(includePoints){ g('cfgPoints').value = paramStr('points','0'); }
+  };
+
+  let i = 1;
+  while(true){
+    const key = `fun${i}`;
+    const fun = paramStr(key, i === 1 ? 'f(x)=x^2-2' : '');
+    const dom = paramStr(`dom${i}`, '');
+    if(i === 1 || params.has(key)){
+      createRow(i, fun, dom, i === 1);
+      i++;
+    } else {
+      break;
+    }
+  }
+
+  addBtn.addEventListener('click', () => {
+    const index = funcRows.querySelectorAll('.func-row').length + 1;
+    createRow(index, '', '', false);
+  });
+
   g('cfgScreen').value = paramStr('screen','');
   g('cfgLock').checked = paramBool('lock');
   g('cfgAxisX').value = paramStr('xName','x');
@@ -1027,19 +1072,23 @@ function setupSettingsForm(){
 
   const apply = () => {
     const p = new URLSearchParams();
-    const v = id => g(id).value.trim();
-    const cb = id => g(id).checked;
-    if(v('cfgFun1')) p.set('fun1', v('cfgFun1'));
-    if(v('cfgDom1')) p.set('dom1', v('cfgDom1'));
-    const pts = v('cfgPoints');
+    let idx = 1;
+    funcRows.querySelectorAll('.func-row').forEach(row => {
+      const fun = row.querySelector('input[data-fun]').value.trim();
+      const dom = row.querySelector('input[data-dom]').value.trim();
+      if(fun){
+        p.set(`fun${idx}`, fun);
+        if(dom) p.set(`dom${idx}`, dom);
+        idx++;
+      }
+    });
+    const pts = g('cfgPoints') ? g('cfgPoints').value.trim() : '0';
     if(pts && pts !== '0') p.set('points', pts);
-    if(v('cfgFun2')) p.set('fun2', v('cfgFun2'));
-    if(v('cfgDom2')) p.set('dom2', v('cfgDom2'));
-    if(v('cfgScreen')) p.set('screen', v('cfgScreen'));
-    if(cb('cfgLock')) p.set('lock','1'); else p.set('lock','0');
-    if(v('cfgAxisX') && v('cfgAxisX')!=='x') p.set('xName', v('cfgAxisX'));
-    if(v('cfgAxisY') && v('cfgAxisY')!=='y') p.set('yName', v('cfgAxisY'));
-    if(cb('cfgPan')) p.set('pan','1');
+    if(g('cfgScreen').value.trim()) p.set('screen', g('cfgScreen').value.trim());
+    if(g('cfgLock').checked) p.set('lock','1'); else p.set('lock','0');
+    if(g('cfgAxisX').value.trim() && g('cfgAxisX').value.trim() !== 'x') p.set('xName', g('cfgAxisX').value.trim());
+    if(g('cfgAxisY').value.trim() && g('cfgAxisY').value.trim() !== 'y') p.set('yName', g('cfgAxisY').value.trim());
+    if(g('cfgPan').checked) p.set('pan','1');
     location.search = p.toString();
   };
 
