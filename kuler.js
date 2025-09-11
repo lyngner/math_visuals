@@ -154,6 +154,8 @@ function startDrag(e){
   dragOffY = pt.y - y;
   svg.addEventListener("pointermove", onDrag);
   svg.addEventListener("pointerup", endDrag);
+  svg.addEventListener("pointercancel", endDrag);
+  try{svg.setPointerCapture(e.pointerId);}catch(_){}
 }
 
 function onDrag(e){
@@ -163,9 +165,11 @@ function onDrag(e){
   dragBead.setAttribute("y", pt.y - dragOffY);
 }
 
-function endDrag(){
+function endDrag(e){
   svg.removeEventListener("pointermove", onDrag);
   svg.removeEventListener("pointerup", endDrag);
+  svg.removeEventListener("pointercancel", endDrag);
+  try{svg.releasePointerCapture(e.pointerId);}catch(_){}
   dragBead = null;
 }
 
