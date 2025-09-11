@@ -81,6 +81,13 @@ function initFromCfg(){
     if(!hasTwo && (opt.value==='stacked' || opt.value==='grouped')) opt.disabled = true;
     else opt.disabled = false;
   });
+  const order = hasTwo
+    ? ['bar','grouped','stacked','line']
+    : ['bar','line','grouped','stacked'];
+  order.forEach(val=>{
+    const opt = typeSel.querySelector(`option[value="${val}"]`);
+    if(opt) typeSel.appendChild(opt);
+  });
 
   drawAxesAndGrid();
   drawData();
