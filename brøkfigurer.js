@@ -58,11 +58,26 @@
     if(!inp) break;
     colorInputs.push(inp);
   }
-  let colorCount = parseInt(colorCountInp?.value,10) || colorInputs.length;
+  const DEFAULT_COLOR_SETS = {
+    1:['#6C1BA2'],
+    2:['#534477','#BF4474'],
+    3:['#534477','#6C1BA2','#BF4474'],
+    4:['#534477','#B25FE3','#6C1BA2','#BF4474'],
+    5:['#534477','#B25FE3','#6C1BA2','#873E79','#BF4474'],
+    6:['#534477','#B25FE3','#6C1BA2','#873E79','#BF4474','#E31C3D']
+  };
+  function setDefaultColors(n){
+    const arr = DEFAULT_COLOR_SETS[n] || DEFAULT_COLOR_SETS[6];
+    colorInputs.forEach((inp,idx)=>{
+      if(arr[idx]) inp.value = arr[idx];
+    });
+  }
+  let colorCount = parseInt(colorCountInp?.value,10) || 1;
   function getColors(){
     return colorInputs.slice(0,colorCount).map(inp=>inp.value);
   }
   function updateColorVisibility(){
+    setDefaultColors(colorCount);
     colorInputs.forEach((inp,idx)=>{
       inp.style.display = idx < colorCount ? '' : 'none';
     });
