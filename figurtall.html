@@ -67,6 +67,13 @@
       background:#fff;
       cursor:pointer;
     }
+    .box.circle{
+      gap:2px;
+    }
+    .box.circle .cell{
+      border-radius:50%;
+      border:none;
+    }
     .stepper{
       display:flex;align-items:center;gap:12px;
       padding:6px 10px;border:1px solid #cfcfcf;border-radius:12px;
@@ -107,6 +114,7 @@
               <span id="sizeVal">10</span>
               <button id="sizePlus" type="button" aria-label="Flere ruter">+</button>
             </div>
+            <label><input id="circleMode" type="checkbox" /> Bruk sirkler</label>
           </fieldset>
           <fieldset>
             <legend>Farger</legend>

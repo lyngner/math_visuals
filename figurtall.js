@@ -1,6 +1,7 @@
 (function(){
   const boxes=[];
   let size=10;
+  let circleMode=false;
 
   const colorCountInp=document.getElementById('colorCount');
   const colorInputs=[];
@@ -70,6 +71,17 @@
     updateCellColors();
   }
 
+  function updateShape(){
+    boxes.forEach(box=>box.classList.toggle('circle',circleMode));
+  }
+
+  const circleInp=document.getElementById('circleMode');
+  circleMode=!!circleInp?.checked;
+  circleInp?.addEventListener('change',()=>{
+    circleMode=circleInp.checked;
+    updateShape();
+  });
+
   const container=document.getElementById('figureContainer');
   const addBtn=document.getElementById('addFigure');
   let figureCount=0;
@@ -86,6 +98,7 @@
     const box=panel.querySelector('.box');
     boxes.push(box);
     createGrid(box);
+    box.classList.toggle('circle',circleMode);
     container.insertBefore(panel,addBtn);
   }
 
