@@ -67,6 +67,7 @@ const rad  = d => d * Math.PI / 180;
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const clampCos = x => clamp(x, -1, 1);
 const fmt = n => (Math.round(n*10)/10).toString().replace(".", ",");
+const rand = (min, max) => min + Math.random() * (max - min);
 
 function deepAssign(target, src){
   if(!src) return;
@@ -152,6 +153,15 @@ function parseSpec(str){
 function parseSpecFreeform(str){
   const out = {};
   if(!str) return out;
+
+  // Håndter eksplisitte nøkkel/verdi-par før vi normaliserer teksten
+  const pairRegex = /([abcdABCD])\s*=\s*([0-9]+(?:[.,][0-9]+)?)/g;
+  let m;
+  while((m = pairRegex.exec(str))){
+    out[m[1]] = parseFloat(m[2].replace(',', '.'));
+  }
+  if(Object.keys(out).length > 0) return out;
+
   let text = str.toLowerCase();
 
   const angMatch = text.match(/rett\s*vinkel\s*(?:i|ved)?\s*([abcd])/);
@@ -180,8 +190,11 @@ function parseSpecFreeform(str){
       const h = nums[1];
       Object.assign(out, {a:w, c:w, b:h, d:h, B:90});
     }else{
-      const s = nums[0] ?? 1;
-      Object.assign(out, {a:s, b:s, c:s, d:s, B:90});
+      // velg tilfeldig rektangel eller parallellogram
+      const w = rand(1,5);
+      const h = rand(1,5);
+      const B = rand(60,120);
+      Object.assign(out, {a:w, c:w, b:h, d:h, B});
     }
     return out;
   }
@@ -204,13 +217,19 @@ function parseSpecFreeform(str){
       const [x,y] = nums;
       out.a = x; out.b = y; out.c = Math.hypot(x,y); out.C = 90;
     }else if(nums.length === 0){
-      Object.assign(out, {a:3, b:4, c:5, C:90});
+      const k = rand(1,4);
+      Object.assign(out, {a:3*k, b:4*k, c:5*k, C:90});
     }
     return out;
   }
 
   if(/trekant/.test(text) && nums.length === 0){
-    Object.assign(out, {a:3, b:4, c:5});
+    const a = rand(2,6);
+    const b = rand(2,6);
+    const cMin = Math.abs(a-b) + 0.5;
+    const cMax = a + b - 0.5;
+    const c = rand(cMin, cMax);
+    Object.assign(out, {a, b, c});
     return out;
   }
 
@@ -243,8 +262,12 @@ function objToSpec(obj){
 }
 
 async function parseSpecAI(str){
+  const direct = parseSpec(str);
+  if(Object.keys(direct).length > 0) return direct;
+
   const quick = parseSpecFreeform(str);
   if(Object.keys(quick).length > 0) return quick;
+
   try{
     const apiKey = window.OPENAI_API_KEY;
     if(!apiKey) throw new Error('missing api key');
