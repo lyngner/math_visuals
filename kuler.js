@@ -140,21 +140,31 @@ function render(){
     const gBeads = mk("g", {class:"beads"});
     const nBeads = bCfg.colors.length;
     const beadD = CFG.beadRadius * 2;
-    const perRow = Math.max(1, Math.floor((bowlWidth + CFG.beadGap) / (beadD + CFG.beadGap)));
-    const startCy = rimY + bowlDepth - CFG.beadRadius;
+    const placed = [];
+    function randPos(){
+      const cx = midX;
+      const cy = rimY + bowlDepth;
+      const rx = bowlWidth / 2 - CFG.beadRadius;
+      const ry = bowlDepth - CFG.beadRadius;
+      let x, y;
+      do {
+        x = cx + (Math.random() * 2 - 1) * rx;
+        y = cy - Math.random() * ry;
+      } while (((x - cx) ** 2) / (rx ** 2) + ((y - cy) ** 2) / (ry ** 2) > 1);
+      return { x, y };
+    }
     for(let i=0;i<nBeads;i++){
-      const row = Math.floor(i / perRow);
-      const col = i % perRow;
-      const beadsInRow = Math.min(perRow, nBeads - row * perRow);
-      const rowWidth = beadsInRow * beadD + Math.max(0, beadsInRow - 1) * CFG.beadGap;
-      const startCx = midX - rowWidth / 2 + CFG.beadRadius;
-      const cx = startCx + col * (beadD + CFG.beadGap);
-      const cy = startCy - row * (beadD + CFG.beadGap);
+      let pos, tries = 0;
+      do {
+        pos = randPos();
+        tries++;
+      } while (placed.some(p => (p.x - pos.x) ** 2 + (p.y - pos.y) ** 2 < (beadD + CFG.beadGap) ** 2) && tries < 1000);
+      placed.push(pos);
       const src = bCfg.colors[i % bCfg.colors.length];
       const bead = mk("image", {
         href: src,
-        x: cx - CFG.beadRadius,
-        y: cy - CFG.beadRadius,
+        x: pos.x - CFG.beadRadius,
+        y: pos.y - CFG.beadRadius,
         width: beadD,
         height: beadD,
         class: "bead beadShadow"
