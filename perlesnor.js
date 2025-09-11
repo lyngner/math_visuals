@@ -2,6 +2,7 @@
 const SIMPLE = {
   nBeads: 25,       // totalt antall perler
   startIndex: 2,    // startposisjon for klypa (antall til venstre)
+  beadRadius: 42,   // radius på perlene
 
   // Fasit (velg én form):
   // correct: 8, // short-hand: leftCount = 8
@@ -48,13 +49,15 @@ const ADV = {
 
 /* ============ DERIVERT KONFIG FOR RENDER (IKKE REDIGER) ============ */
 function makeCFG(){
+  const rBase = SIMPLE.beadRadius ?? ADV.rBase;
+  const gapBase = ADV.gapBase * (rBase / ADV.rBase);
   return {
     nBeads: SIMPLE.nBeads,
     startIndex: clamp(SIMPLE.startIndex, 0, SIMPLE.nBeads),
     groupSize: ADV.groupSize,
 
-    rBase: ADV.rBase,
-    gapBase: ADV.gapBase,
+    rBase,
+    gapBase,
     wireY: ADV.wireY,
 
     kW: ADV.kW,
@@ -278,11 +281,13 @@ function applyConfig(){
 function setupSettingsUI(){
   const nInput = document.getElementById("cfg-nBeads");
   const startInput = document.getElementById("cfg-startIndex");
+  const beadInput = document.getElementById("cfg-beadRadius");
   const correctInput = document.getElementById("cfg-correct");
-  if(!nInput || !startInput || !correctInput) return;
+  if(!nInput || !startInput || !correctInput || !beadInput) return;
 
   nInput.value = SIMPLE.nBeads;
   startInput.value = SIMPLE.startIndex;
+  beadInput.value = SIMPLE.beadRadius;
   if (SIMPLE.correct?.value != null) correctInput.value = SIMPLE.correct.value;
   startInput.max = correctInput.max = SIMPLE.nBeads;
 
@@ -290,6 +295,8 @@ function setupSettingsUI(){
     SIMPLE.nBeads = parseInt(nInput.value) || SIMPLE.nBeads;
     startInput.max = correctInput.max = SIMPLE.nBeads;
     SIMPLE.startIndex = parseInt(startInput.value) || 0;
+    const br = parseFloat(beadInput.value);
+    if(!isNaN(br)) SIMPLE.beadRadius = br;
     const c = parseInt(correctInput.value);
     if(!isNaN(c)) SIMPLE.correct = { mode:"leftCount", value:c };
     applyConfig();
@@ -297,6 +304,7 @@ function setupSettingsUI(){
 
   nInput.addEventListener("change", update);
   startInput.addEventListener("change", update);
+  beadInput.addEventListener("change", update);
   correctInput.addEventListener("change", update);
 }
 
