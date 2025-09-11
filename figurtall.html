@@ -18,13 +18,13 @@
     .side{display:flex;flex-direction:column;gap:var(--gap);}
     .grid2{
       display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
+      grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
       gap:24px;
       align-items:start;
     }
     .figurePanel{display:grid;place-items:center;gap:10px;}
     .addFigureBtn{
-      width:clamp(80px,20vw,160px);
+      width:100%;
       aspect-ratio:1;
       border:2px dashed #cfcfcf;
       border-radius:10px;
@@ -35,11 +35,9 @@
       font-size:48px;
       color:#6b7280;
       cursor:pointer;
-      justify-self:center;
     }
     @media(max-width:420px){
       .grid2{grid-template-columns:1fr;gap:16px;}
-      .figure .box{width:clamp(240px,92vw,360px);}
     }
     .card{
       background:#fff;border:1px solid #e5e7eb;border-radius:14px;
@@ -47,9 +45,13 @@
       flex-direction:column;gap:10px;
     }
     .card h2{margin:0 0 6px 2px;font-size:16px;font-weight:600;color:#374151;}
+    .toolbar{display:flex;gap:10px;justify-content:flex-end;}
+    .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s;}
+    .btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.06);}
+    .btn:active{transform:translateY(1px);}
     .figure{border-radius:10px;background:#fff;overflow:visible;border:none;}
     .figure .box{
-      width:clamp(100px,32vw,360px);
+      width:100%;
       aspect-ratio:1;
       display:grid;
       grid-template-columns:repeat(var(--size),1fr);
@@ -72,6 +74,7 @@
       background:#fff;font-size:20px;cursor:pointer;
     }
     .stepper span{min-width:32px;text-align:center;font-variant-numeric:tabular-nums;font-size:16px;}
+    .nameInput{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:6px 8px;font-size:14px;box-sizing:border-box;}
   </style>
 </head>
 <body>
@@ -79,27 +82,22 @@
     <div class="grid">
       <div class="card">
         <h2>Figurer</h2>
-        <div class="grid2">
-          <div id="panel1" class="figurePanel">
-            <div class="figure"><div id="box1" class="box" style="--size:10"></div></div>
-            <div class="stepper" aria-label="Størrelse">
-              <button id="sizeMinus1" type="button" aria-label="Færre ruter">−</button>
-              <span id="sizeVal1">10</span>
-              <button id="sizePlus1" type="button" aria-label="Flere ruter">+</button>
-            </div>
-          </div>
+        <div id="figureContainer" class="grid2">
           <button id="addFigure" class="addFigureBtn" type="button" aria-label="Legg til figur">+</button>
-          <div id="panel2" class="figurePanel" style="display:none">
-            <div class="figure"><div id="box2" class="box" style="--size:10"></div></div>
-            <div class="stepper" aria-label="Størrelse">
-              <button id="sizeMinus2" type="button" aria-label="Færre ruter">−</button>
-              <span id="sizeVal2">10</span>
-              <button id="sizePlus2" type="button" aria-label="Flere ruter">+</button>
-            </div>
-          </div>
         </div>
       </div>
-      <div class="side"></div>
+      <div class="side">
+        <div class="card">
+          <h2>Last ned figurer</h2>
+          <div class="toolbar">
+            <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
+            <button id="btnPng" class="btn" type="button">Last ned PNG</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Forfatters innstillinger</h2>
+        </div>
+      </div>
     </div>
   </div>
   <script src="figurtall.js"></script>

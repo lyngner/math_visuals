@@ -12,27 +12,45 @@
     }
   }
 
-  function setupFigure(id){
-    const box=document.getElementById(`box${id}`);
-    const minus=document.getElementById(`sizeMinus${id}`);
-    const plus=document.getElementById(`sizePlus${id}`);
-    const val=document.getElementById(`sizeVal${id}`);
-    let size=parseInt(val.textContent,10)||10;
+  function setupFigure(panel){
+    const box=panel.querySelector('.box');
+    const minus=panel.querySelector('.sizeMinus');
+    const plus=panel.querySelector('.sizePlus');
+    const val=panel.querySelector('.sizeVal');
+    let size=10;
     function redraw(){
       createGrid(box,size);
       val.textContent=size;
     }
-    minus?.addEventListener('click', ()=>{ if(size>1){ size--; redraw(); }});
-    plus?.addEventListener('click', ()=>{ if(size<20){ size++; redraw(); }});
+    minus.addEventListener('click', ()=>{ if(size>1){ size--; redraw(); }});
+    plus.addEventListener('click', ()=>{ if(size<20){ size++; redraw(); }});
     redraw();
   }
 
-  setupFigure(1);
+  const container=document.getElementById('figureContainer');
   const addBtn=document.getElementById('addFigure');
-  addBtn?.addEventListener('click', ()=>{
-    const panel2=document.getElementById('panel2');
-    panel2.style.display='';
-    setupFigure(2);
-    addBtn.style.display='none';
-  });
+  let figureCount=0;
+
+  function addFigure(){
+    figureCount++;
+    const panel=document.createElement('div');
+    panel.className='figurePanel';
+    panel.dataset.id=figureCount;
+    panel.innerHTML=`
+      <div class="figure"><div class="box" style="--size:10"></div></div>
+      <div class="stepper" aria-label="Størrelse">
+        <button class="sizeMinus" type="button" aria-label="Færre ruter">−</button>
+        <span class="sizeVal">10</span>
+        <button class="sizePlus" type="button" aria-label="Flere ruter">+</button>
+      </div>
+      <input class="nameInput" type="text" placeholder="Navn" />
+    `;
+    container.insertBefore(panel, addBtn);
+    setupFigure(panel);
+  }
+
+  for(let i=0;i<3;i++) addFigure();
+
+  addBtn.addEventListener('click', addFigure);
 })();
+
