@@ -71,6 +71,9 @@
       background:#fff;
       cursor:pointer;
     }
+    .box.hide-grid .cell{
+      border:none;
+    }
     .row.offset{
       transform:translateX(calc(var(--cellSize)/2));
     }
@@ -127,6 +130,7 @@
                 <button id="colsPlus" type="button" aria-label="Flere kolonner">+</button>
               </div>
             </label>
+            <label><input id="showGrid" type="checkbox" checked /> Vis rutenett</label>
             <label><input id="offsetRows" type="checkbox" /> Forskyv annenhver rad</label>
             <label><input id="circleMode" type="checkbox" /> Bruk sirkler</label>
           </fieldset>
