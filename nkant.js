@@ -137,7 +137,8 @@ function addHaloText(parent, x, y, txt, fontSizePx, extraAttrs = {}){
 function parseSpec(str){
   const out = {};
   if(!str) return out;
-  str.split(/[,;\n]/).forEach(chunk=>{
+  str = str.replace(/\bog\b/gi, ',');
+  str.split(/[\s,;\n]+/).forEach(chunk=>{
     const [kRaw, vRaw] = chunk.split("=");
     if(!kRaw || !vRaw) return;
     const key = kRaw.trim().replace(/\s+/g,""); // a,b,c,d,A,B,C,D
@@ -160,8 +161,8 @@ function parseSpecFreeform(str){
     text = text.replace(angMatch[0], "");
   }
   let sidePart = text;
-  const mSides = text.match(/sider?\s+(.*)/);
-  if(mSides) sidePart = mSides[1];
+  const mSides = text.match(/(sider?|sidelengder?)\s+(.*)/);
+  if(mSides) sidePart = mSides[2];
 
   const nums = [];
   sidePart.split(/[^0-9.,]+/).forEach(tok => {
@@ -172,6 +173,24 @@ function parseSpecFreeform(str){
       tok.split(/,+/).forEach(n => { if(n) nums.push(parseFloat(n)); });
     }
   });
+  if(/kvadrat/.test(text)){
+    const s = nums[0] ?? 1;
+    Object.assign(out, {a:s, b:s, c:s, d:s, B:90, D:90});
+    return out;
+  }
+
+  if(/rektangel/.test(text)){
+    const w = nums[0] ?? 1;
+    const h = nums[1] ?? w;
+    Object.assign(out, {a:w, c:w, b:h, d:h, B:90, D:90});
+    return out;
+  }
+
+  if(/rettvinkle[dt]/.test(text) && /trekant/.test(text) && nums.length === 2){
+    const [x,y] = nums;
+    out.a = x; out.b = y; out.c = Math.hypot(x,y); out.C = 90;
+    return out;
+  }
 
   if(nums.length >= 3){
     const sides = nums.slice(0,3);
@@ -192,6 +211,13 @@ function parseSpecFreeform(str){
     }
   }
   return out;
+}
+
+function objToSpec(obj){
+  const order = ["a","b","c","d","A","B","C","D"];
+  return order.filter(k => k in obj)
+              .map(k => `${k}=${fmt(obj[k])}`)
+              .join(', ');
 }
 
 async function parseSpecAI(str){
@@ -515,14 +541,24 @@ function drawQuadToGroup(g, rect, spec, adv){
 const BASE_W = 600, BASE_H = 420, GAP = 60;
 
 async function collectJobsFromSpecs(text){
-  const lines = String(text).split(/\n/).map(s=>s.trim()).filter(Boolean);
+  const lines = String(text).split(/\n/);
   const jobs = [];
-  for(const line of lines){
+  const newLines = [];
+  for(const raw of lines){
+    const line = raw.trim();
+    if(!line){ newLines.push(""); continue; }
+    if(jobs.length >= 2){ newLines.push(line); continue; }
     const obj = await parseSpecAI(line);
-    if(Object.keys(obj).length===0) continue;
+    if(Object.keys(obj).length===0){ newLines.push(line); continue; }
     const isQuad = ("d" in obj) || ("D" in obj);
     jobs.push({type: isQuad ? "quad" : "tri", obj});
-    if(jobs.length>=2) break;
+    newLines.push(objToSpec(obj));
+  }
+  const newText = newLines.join("\n");
+  if(newText !== text){
+    STATE.specsText = newText;
+    const el = document.querySelector("#inpSpecs");
+    if(el) el.value = newText;
   }
   return jobs;
 }
