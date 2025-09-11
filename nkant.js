@@ -148,7 +148,55 @@ function parseSpec(str){
   return out;
 }
 
+function parseSpecFreeform(str){
+  const out = {};
+  if(!str) return out;
+  let text = str.toLowerCase();
+
+  const angMatch = text.match(/rett\s*vinkel\s*(?:i|ved)?\s*([abcd])/);
+  if(angMatch){
+    const letter = angMatch[1].toUpperCase();
+    out[letter] = 90;
+    text = text.replace(angMatch[0], "");
+  }
+  let sidePart = text;
+  const mSides = text.match(/sider?\s+(.*)/);
+  if(mSides) sidePart = mSides[1];
+
+  const nums = [];
+  sidePart.split(/[^0-9.,]+/).forEach(tok => {
+    if(!tok) return;
+    if(/^\d+[.,]\d+$/.test(tok)){
+      nums.push(parseFloat(tok.replace(',', '.')));
+    }else{
+      tok.split(/,+/).forEach(n => { if(n) nums.push(parseFloat(n)); });
+    }
+  });
+
+  if(nums.length >= 3){
+    const sides = nums.slice(0,3);
+    const assignRemaining = (letters, values)=>{ letters.forEach((L,i)=> out[L] = values[i]); };
+    if(out.A === 90 || out.B === 90 || out.C === 90){
+      const max = Math.max(...sides);
+      const idx = sides.indexOf(max);
+      const others = sides.slice(0,idx).concat(sides.slice(idx+1));
+      if(out.A === 90){
+        out.a = max; assignRemaining(["b","c"], others);
+      }else if(out.B === 90){
+        out.b = max; assignRemaining(["a","c"], others);
+      }else if(out.C === 90){
+        out.c = max; assignRemaining(["a","b"], others);
+      }
+    }else{
+      assignRemaining(["a","b","c"], sides);
+    }
+  }
+  return out;
+}
+
 async function parseSpecAI(str){
+  const quick = parseSpecFreeform(str);
+  if(Object.keys(quick).length > 0) return quick;
   try{
     const apiKey = window.OPENAI_API_KEY;
     if(!apiKey) throw new Error('missing api key');
