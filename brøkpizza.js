@@ -736,6 +736,17 @@ function initFromHtml(){
 window.addEventListener("load", () => {
   initFromHtml();
   setupGlobalDownloadButtons();
+  const addBtn = document.getElementById('addPizza');
+  const fieldset2 = document.getElementById('fieldset2');
+  addBtn?.addEventListener('click', () => {
+    addBtn.style.display = 'none';
+    if(fieldset2) fieldset2.style.display = '';
+    const show2 = document.getElementById('p2Show');
+    if(show2) show2.checked = true;
+    const panel2 = document.getElementById('panel2');
+    if(panel2) panel2.style.display = '';
+    initFromHtml();
+  });
   document.querySelectorAll("input, select").forEach(el => {
     el.addEventListener("input", initFromHtml);
     el.addEventListener("change", initFromHtml);
