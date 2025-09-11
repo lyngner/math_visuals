@@ -1,5 +1,8 @@
 (function(){
-  function createGrid(el, size){
+  const boxes=[];
+  let size=10;
+
+  function createGrid(el){
     el.innerHTML='';
     el.style.setProperty('--size', size);
     for(let i=0;i<size*size;i++){
@@ -12,19 +15,8 @@
     }
   }
 
-  function setupFigure(panel){
-    const box=panel.querySelector('.box');
-    const minus=panel.querySelector('.sizeMinus');
-    const plus=panel.querySelector('.sizePlus');
-    const val=panel.querySelector('.sizeVal');
-    let size=10;
-    function redraw(){
-      createGrid(box,size);
-      val.textContent=size;
-    }
-    minus.addEventListener('click', ()=>{ if(size>1){ size--; redraw(); }});
-    plus.addEventListener('click', ()=>{ if(size<20){ size++; redraw(); }});
-    redraw();
+  function redrawAll(){
+    boxes.forEach(box=>createGrid(box));
   }
 
   const container=document.getElementById('figureContainer');
@@ -37,20 +29,32 @@
     panel.className='figurePanel';
     panel.dataset.id=figureCount;
     panel.innerHTML=`
-      <div class="figure"><div class="box" style="--size:10"></div></div>
-      <div class="stepper" aria-label="Størrelse">
-        <button class="sizeMinus" type="button" aria-label="Færre ruter">−</button>
-        <span class="sizeVal">10</span>
-        <button class="sizePlus" type="button" aria-label="Flere ruter">+</button>
-      </div>
+      <div class="figure"><div class="box"></div></div>
       <input class="nameInput" type="text" placeholder="Navn" />
     `;
+    const box=panel.querySelector('.box');
+    boxes.push(box);
+    createGrid(box);
     container.insertBefore(panel, addBtn);
-    setupFigure(panel);
   }
 
   for(let i=0;i<3;i++) addFigure();
 
   addBtn.addEventListener('click', addFigure);
-})();
 
+  const minus=document.getElementById('sizeMinus');
+  const plus=document.getElementById('sizePlus');
+  const val=document.getElementById('sizeVal');
+  function updateSize(){
+    val.textContent=size;
+    redrawAll();
+  }
+  minus?.addEventListener('click', ()=>{ if(size>1){ size--; updateSize(); }});
+  plus?.addEventListener('click', ()=>{ if(size<20){ size++; updateSize(); }});
+  updateSize();
+
+  const colorInp=document.getElementById('color');
+  colorInp?.addEventListener('input', ()=>{
+    document.documentElement.style.setProperty('--purple', colorInp.value);
+  });
+})();

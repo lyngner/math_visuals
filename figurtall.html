@@ -49,6 +49,9 @@
     .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s;}
     .btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.06);}
     .btn:active{transform:translateY(1px);}
+    .card>fieldset{display:flex;flex-direction:column;gap:8px;border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:0;}
+    legend{font-weight:600;font-size:13px;color:#374151;padding:0 4px;}
+    .card input[type="color"]{width:40px;height:40px;padding:0;border:none;}
     .figure{border-radius:10px;background:#fff;overflow:visible;border:none;width:100%;justify-self:stretch;}
     .figure .box{
       width:100%;
@@ -96,6 +99,18 @@
         </div>
         <div class="card">
           <h2>Forfatters innstillinger</h2>
+          <fieldset>
+            <legend>Ruter</legend>
+            <div class="stepper" aria-label="Antall ruter">
+              <button id="sizeMinus" type="button" aria-label="Færre ruter">&minus;</button>
+              <span id="sizeVal">10</span>
+              <button id="sizePlus" type="button" aria-label="Flere ruter">+</button>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Farge</legend>
+            <input id="color" type="color" value="#5B2AA5" />
+          </fieldset>
         </div>
       </div>
     </div>
