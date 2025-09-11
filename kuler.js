@@ -3,12 +3,8 @@ const SIMPLE = {
   bowls: [
     {
       colorCounts: [
-        { color: "red", count: 4 },
-        { color: "blue", count: 4 },
-        { color: "green", count: 4 },
-        { color: "yellow", count: 4 },
-        { color: "pink", count: 4 },
-        { color: "purple", count: 4 }
+        { color: "blue", count: 2 },
+        { color: "red", count: 3 }
       ]
     }
   ]
@@ -20,12 +16,8 @@ const ADV = {
   beadGap: 12,
   assets: {
     beads: {
-      red:    "images/redDots.svg",
       blue:   "images/blueWave.svg",
-      green:  "images/greenStar.svg",
-      yellow: "images/yellowGrid.svg",
-      pink:   "images/pinkLabyrinth.svg",
-      purple: "images/purpleZigzag.svg"
+      red:    "images/redDots.svg"
     }
   }
 };
@@ -60,24 +52,35 @@ svg.appendChild(gBowls);
 /* ============ STATE ============ */
 const bowls = [];
 const controls = document.getElementById("controls");
-const inputs = {};
-Object.keys(ADV.assets.beads).forEach(color => {
-  const label = document.createElement("label");
+const colors = Object.keys(ADV.assets.beads);
+const counts = {};
+const displays = {};
+let dragBead = null;
+let dragOffX = 0, dragOffY = 0;
+colors.forEach(color => {
+  const existing = (SIMPLE.bowls[0].colorCounts || []).find(cc => cc.color === color);
+  counts[color] = existing ? existing.count : 0;
+  const row = document.createElement("div");
+  row.className = "ctrlRow";
+  const label = document.createElement("span");
   label.textContent = `${cap(color)} kuler`;
-  const input = document.createElement("input");
-  input.type = "number";
-  input.min = "0";
-  const bowl = SIMPLE.bowls[0];
-  const existing = (bowl.colorCounts || []).find(cc => cc.color === color);
-  input.value = existing ? existing.count : 0;
-  input.dataset.color = color;
-  label.appendChild(input);
-  controls.appendChild(label);
-  inputs[color] = input;
-  input.addEventListener("input", updateFromInputs);
+  const minus = document.createElement("button");
+  minus.type = "button";
+  minus.textContent = "−";
+  const countSpan = document.createElement("span");
+  countSpan.className = "count";
+  countSpan.textContent = counts[color];
+  const plus = document.createElement("button");
+  plus.type = "button";
+  plus.textContent = "+";
+  minus.addEventListener("click", () => change(color, -1));
+  plus.addEventListener("click", () => change(color, 1));
+  row.append(label, minus, countSpan, plus);
+  controls.appendChild(row);
+  displays[color] = countSpan;
 });
 
-updateFromInputs();
+render();
 
 /* ============ FUNKSJONER ============ */
 function render(){
@@ -121,6 +124,7 @@ function render(){
         height: CFG.beadRadius * 2,
         class: "bead beadShadow"
       });
+      bead.addEventListener("pointerdown", startDrag);
       gBeads.appendChild(bead);
     }
     g.appendChild(gBeads);
@@ -130,13 +134,47 @@ function render(){
   });
 }
 
-function updateFromInputs(){
-  const bowl = SIMPLE.bowls[0];
-  bowl.colorCounts = Object.entries(inputs).map(([color, inp]) => ({
-    color, count: parseInt(inp.value) || 0
-  }));
+function change(color, delta){
+  counts[color] = Math.max(0, counts[color] + delta);
+  displays[color].textContent = counts[color];
+  updateConfig();
+}
+
+function updateConfig(){
+  SIMPLE.bowls[0].colorCounts = colors.map(c => ({ color: c, count: counts[c] }));
   CFG = makeCFG();
   render();
+}
+
+function startDrag(e){
+  dragBead = e.target;
+  const pt = svgPoint(e);
+  const x = parseFloat(dragBead.getAttribute("x"));
+  const y = parseFloat(dragBead.getAttribute("y"));
+  dragOffX = pt.x - x;
+  dragOffY = pt.y - y;
+  svg.addEventListener("pointermove", onDrag);
+  svg.addEventListener("pointerup", endDrag);
+}
+
+function onDrag(e){
+  if(!dragBead) return;
+  const pt = svgPoint(e);
+  dragBead.setAttribute("x", pt.x - dragOffX);
+  dragBead.setAttribute("y", pt.y - dragOffY);
+}
+
+function endDrag(){
+  svg.removeEventListener("pointermove", onDrag);
+  svg.removeEventListener("pointerup", endDrag);
+  dragBead = null;
+}
+
+function svgPoint(evt){
+  const p = svg.createSVGPoint();
+  p.x = evt.clientX;
+  p.y = evt.clientY;
+  return p.matrixTransform(svg.getScreenCTM().inverse());
 }
 
 /* ===== helpers ===== */
