@@ -57,20 +57,24 @@
     .figure{border-radius:10px;background:#fff;overflow:visible;border:none;width:100%;justify-self:stretch;}
     .figure .box{
       width:100%;
-      aspect-ratio:1;
+      aspect-ratio:var(--aspect);
+      display:flex;
+      flex-direction:column;
+    }
+    .box .row{
+      flex:1;
       display:grid;
-      grid-template-columns:repeat(var(--size),1fr);
-      grid-template-rows:repeat(var(--size),1fr);
+      grid-template-columns:repeat(var(--cols),1fr);
     }
     .cell{
       border:1px solid #d1d5db;
       background:#fff;
       cursor:pointer;
     }
-    .box.circle{
-      gap:2px;
+    .row.offset{
+      transform:translateX(calc(var(--cellSize)/2));
     }
-    .box.circle .cell{
+    .cell.circle{
       border-radius:50%;
       border:none;
     }
@@ -109,11 +113,21 @@
           <h2>Forfatters innstillinger</h2>
           <fieldset>
             <legend>Ruter</legend>
-            <div class="stepper" aria-label="Antall ruter">
-              <button id="sizeMinus" type="button" aria-label="Færre ruter">&minus;</button>
-              <span id="sizeVal">10</span>
-              <button id="sizePlus" type="button" aria-label="Flere ruter">+</button>
-            </div>
+            <label>Rader
+              <div class="stepper" aria-label="Antall ruter i høyden">
+                <button id="rowsMinus" type="button" aria-label="Færre rader">&minus;</button>
+                <span id="rowsVal">10</span>
+                <button id="rowsPlus" type="button" aria-label="Flere rader">+</button>
+              </div>
+            </label>
+            <label>Kolonner
+              <div class="stepper" aria-label="Antall ruter i bredden">
+                <button id="colsMinus" type="button" aria-label="Færre kolonner">&minus;</button>
+                <span id="colsVal">10</span>
+                <button id="colsPlus" type="button" aria-label="Flere kolonner">+</button>
+              </div>
+            </label>
+            <label><input id="offsetRows" type="checkbox" /> Forskyv annenhver rad</label>
             <label><input id="circleMode" type="checkbox" /> Bruk sirkler</label>
           </fieldset>
           <fieldset>
