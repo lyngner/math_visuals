@@ -749,7 +749,19 @@ function bindUI(){
   f2Angles.value = STATE.fig2.angles.default;
   layoutRadios.forEach(r => r.checked = (r.value===STATE.layout));
 
-  inpSpecs.addEventListener("input", ()=>{ STATE.specsText = inpSpecs.value; renderCombined(); });
+  // Oppdater kun når bruker trykker Enter eller forlater feltet
+  inpSpecs.addEventListener("blur", () => {
+    if (STATE.specsText !== inpSpecs.value) {
+      STATE.specsText = inpSpecs.value;
+      renderCombined();
+    }
+  });
+  inpSpecs.addEventListener("keyup", (e) => {
+    if (e.key === "Enter") {
+      STATE.specsText = inpSpecs.value;
+      renderCombined();
+    }
+  });
   f1Sides.addEventListener("change",  ()=>{ STATE.fig1.sides.default  = f1Sides.value;  sideToggles.filter(t=>t.figKey==="fig1").forEach(t=>t.toggleTxt()); renderCombined(); });
   f1Angles.addEventListener("change", ()=>{ STATE.fig1.angles.default = f1Angles.value; angToggles.filter(t=>t.figKey==="fig1").forEach(t=>t.toggleTxt()); renderCombined(); });
   f2Sides.addEventListener("change",  ()=>{ STATE.fig2.sides.default  = f2Sides.value;  sideToggles.filter(t=>t.figKey==="fig2").forEach(t=>t.toggleTxt()); renderCombined(); });
