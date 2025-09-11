@@ -4,6 +4,7 @@
   let cols=10;
   let circleMode=false;
   let offset=false;
+  let showGrid=true;
 
   const colorCountInp=document.getElementById('colorCount');
   const colorInputs=[];
@@ -65,6 +66,7 @@
     el.style.setProperty('--rows',rows);
     el.style.setProperty('--aspect',rows/cols);
     el.style.setProperty('--cellSize',(100/cols)+'%');
+    el.classList.toggle('hide-grid', !showGrid);
     for(let r=0;r<rows;r++){
       const row=document.createElement('div');
       row.className='row';
@@ -87,9 +89,16 @@
     }
   }
 
+  function updateGridVisibility(){
+    boxes.forEach(box=>{
+      box.classList.toggle('hide-grid', !showGrid);
+    });
+  }
+
   function redrawAll(){
     boxes.forEach(box=>createGrid(box));
     updateCellColors();
+    updateGridVisibility();
   }
 
   const circleInp=document.getElementById('circleMode');
@@ -104,6 +113,13 @@
   offsetInp?.addEventListener('change',()=>{
     offset=offsetInp.checked;
     redrawAll();
+  });
+
+  const gridInp=document.getElementById('showGrid');
+  showGrid=!!gridInp?.checked;
+  gridInp?.addEventListener('change',()=>{
+    showGrid=gridInp.checked;
+    updateGridVisibility();
   });
 
   const container=document.getElementById('figureContainer');
