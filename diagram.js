@@ -182,7 +182,7 @@ function drawGroupedBars(){
     const a1 = addTo(gA11y,'rect',{x:x0, y:M.t, width:barSingle, height:innerH, fill:'transparent', class:'a11y', tabindex:0, role:'slider', 'aria-orientation':'vertical', 'aria-label':`${CFG.labels[i]}`, 'aria-valuemin':String(yMin), 'aria-valuemax':String(yMax), 'aria-valuenow':String(v1), 'aria-valuetext':`${CFG.labels[i]}: ${fmt(v1)}`});
     if(locked[i]) a1.setAttribute('aria-disabled','true');
     a1.dataset.index = i; a1.dataset.series = 0; a1.dataset.base = 0; a1.addEventListener('pointerdown', onDragStart); a1.addEventListener('keydown', onKeyAdjust);
-    const txt1 = addTo(gVals,'text',{x:x0+barSingle/2, y:y1-10, class:'value'}); txt1.textContent = fmt(v1);
+    // Verdietikettene fjernet
 
     if(hasTwo){
       const v2 = values2[i];
@@ -198,7 +198,7 @@ function drawGroupedBars(){
       const a2 = addTo(gA11y,'rect',{x:x1, y:M.t, width:barSingle, height:innerH, fill:'transparent', class:'a11y', tabindex:0, role:'slider', 'aria-orientation':'vertical', 'aria-label':`${CFG.labels[i]}`, 'aria-valuemin':String(yMin), 'aria-valuemax':String(yMax), 'aria-valuenow':String(v2), 'aria-valuetext':`${CFG.labels[i]}: ${fmt(v2)}`});
       if(locked[i]) a2.setAttribute('aria-disabled','true');
       a2.dataset.index = i; a2.dataset.series = 1; a2.dataset.base = 0; a2.addEventListener('pointerdown', onDragStart); a2.addEventListener('keydown', onKeyAdjust);
-      const txt2 = addTo(gVals,'text',{x:x1+barSingle/2, y:y2-10, class:'value'}); txt2.textContent = fmt(v2);
+      // Verdietikettene fjernet
     }
   }
 }
@@ -221,7 +221,7 @@ function drawStackedBars(){
     const a1 = addTo(gA11y,'rect',{x:cx-barTotal/2, y:y1, width:barTotal, height:base-y1, fill:'transparent', class:'a11y', tabindex:0, role:'slider', 'aria-orientation':'vertical', 'aria-label':`${CFG.labels[i]}`, 'aria-valuemin':String(yMin), 'aria-valuemax':String(yMax - v2), 'aria-valuenow':String(v1), 'aria-valuetext':`${CFG.labels[i]}: ${fmt(v1)}`});
     if(locked[i]) a1.setAttribute('aria-disabled','true');
     a1.dataset.index=i; a1.dataset.series=0; a1.dataset.base=0; a1.addEventListener('pointerdown', onDragStart); a1.addEventListener('keydown', onKeyAdjust);
-    addTo(gVals,'text',{x:cx, y:y1-10, class:'value'}).textContent = fmt(v1);
+    // Verdietikettene fjernet
 
     if(values2){
       const y2 = yPos(v1+v2);
@@ -235,7 +235,7 @@ function drawStackedBars(){
       const a2 = addTo(gA11y,'rect',{x:cx-barTotal/2, y:y2, width:barTotal, height:y1-y2, fill:'transparent', class:'a11y', tabindex:0, role:'slider', 'aria-orientation':'vertical', 'aria-label':`${CFG.labels[i]}`, 'aria-valuemin':String(yMin), 'aria-valuemax':String(yMax), 'aria-valuenow':String(v2), 'aria-valuetext':`${CFG.labels[i]}: ${fmt(v2)}`});
       if(locked[i]) a2.setAttribute('aria-disabled','true');
       a2.dataset.index=i; a2.dataset.series=1; a2.dataset.base=v1; a2.addEventListener('pointerdown', onDragStart); a2.addEventListener('keydown', onKeyAdjust);
-      addTo(gVals,'text',{x:cx, y:y2-10, class:'value'}).textContent = fmt(v2);
+      // Verdietikettene fjernet
     }
   }
 }
@@ -300,8 +300,7 @@ function drawBars(){
     }
 
     // 4) Verdi (øverst, ikke-interaktiv)
-    const txt = addTo(gVals,'text',{x:cx, y:y-10, class:'value'});
-    txt.textContent = fmt(v);
+    // Verdietikettene fjernet
   });
 }
 
