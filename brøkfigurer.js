@@ -350,6 +350,10 @@
     }
 
     function drawTriangle(n, division, allowWrong, colorFor){
+      const h = Math.sqrt(3) / 2;
+      const toEq = ([x, y]) => [x + 0.5 * y, y * h];
+      const toEqTri = ([x, y]) => [x, (1 - y) * h];
+
       if(division==='triangular'){
         const m = Math.round(Math.sqrt(n));
         const rows=[];
@@ -358,7 +362,7 @@
           const xStart=0.5 - r/(2*m);
           const row=[];
           for(let c=0;c<=r;c++){
-            row.push([xStart + c/m, y]);
+            row.push(toEqTri([xStart + c/m, y]));
           }
           rows.push(row);
         }
@@ -406,7 +410,7 @@
             strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
         }
-        board.create('polygon', [[0,1],[1,1],[0.5,0]], {
+        board.create('polygon', [toEqTri([0,1]), toEqTri([1,1]), toEqTri([0.5,0])], {
           borders:{strokeColor:'#333', strokeWidth:6},
           vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
           fillColor:'none',
@@ -437,6 +441,7 @@
           const t1=i/n, t2=(i+1)/n;
           pts=[[1-t1,t1],[1-t2,t2],[0,0]];
         }
+        pts = pts.map(toEq);
         const poly = board.create('polygon', pts, {
           borders:{strokeColor:'#fff', strokeWidth:6},
           vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
@@ -452,11 +457,11 @@
         for(let i=1;i<n;i++){
           const x=i/n;
           if(allowWrong){
-            board.create('segment', [[x,0],[x,1-x]], {
+            board.create('segment', [toEq([x,0]), toEq([x,1-x])], {
               strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
             });
           }else{
-            board.create('segment', [[x,0],[0,1]], {
+            board.create('segment', [toEq([x,0]), toEq([0,1])], {
               strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
             });
           }
@@ -465,11 +470,11 @@
         for(let i=1;i<n;i++){
           const y=i/n;
           if(allowWrong){
-            board.create('segment', [[0,y],[1-y,y]], {
+            board.create('segment', [toEq([0,y]), toEq([1-y,y])], {
               strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
             });
           }else{
-            board.create('segment', [[0,y],[1,0]], {
+            board.create('segment', [toEq([0,y]), toEq([1,0])], {
               strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
             });
           }
@@ -477,12 +482,12 @@
       }else{ // diagonal
         for(let i=1;i<n;i++){
           const t=i/n;
-          board.create('segment', [[1-t,t],[0,0]], {
+          board.create('segment', [toEq([1-t,t]), toEq([0,0])], {
             strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
         }
       }
-      board.create('polygon', [[0,0],[1,0],[0,1]], {
+      board.create('polygon', [toEq([0,0]), toEq([1,0]), toEq([0,1])], {
         borders:{strokeColor:'#333', strokeWidth:6},
         vertices:{visible:false, name:'', fixed:true, label:{visible:false}},
         fillColor:'none',
@@ -497,11 +502,7 @@
       const svg = board?.renderer?.svgRoot;
       if(!svg) return;
       if(shape==='triangle'){
-        if(division==='triangular'){
-          svg.style.clipPath = 'polygon(50% -2%, -2% 102%, 102% 102%)';
-        }else{
-          svg.style.clipPath = 'polygon(-2% 102%, 102% 102%, -2% -2%)';
-        }
+        svg.style.clipPath = 'polygon(50% -2%, -2% 102%, 102% 102%)';
       }else if(shape==='rectangle' || shape==='square'){
         svg.style.clipPath = 'polygon(-2% 102%, 102% 102%, 102% -2%, -2% -2%)';
       }else if(shape==='circle'){
