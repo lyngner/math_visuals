@@ -184,7 +184,13 @@ function parseSpecFreeform(str){
     }
   });
 
-  if(/(kvadrat|firkant)/.test(text)){
+  if(/kvadrat/.test(text)){
+    const s = nums[0] ?? rand(1,5);
+    Object.assign(out, {a:s, b:s, c:s, d:s, B:90});
+    return out;
+  }
+
+  if(/firkant/.test(text)){
     if(nums.length >= 2){
       const w = nums[0];
       const h = nums[1];
