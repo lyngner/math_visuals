@@ -1,13 +1,18 @@
 /* ============ ENKEL KONFIG (FORFATTER) ============ */
 const SIMPLE = {
   bowls: [
-    { nBeads: 8, colors: [] }
+    {
+      colorCounts: [
+        { color: "red", count: 4 },
+        { color: "blue", count: 4 }
+      ]
+    }
   ]
 };
 
 /* ============ ADV KONFIG (TEKNISK/VALGFRITT) ============ */
 const ADV = {
-  beadRadius: 30,
+  beadRadius: 20,
   beadGap: 12,
   assets: {
     bowl:     "https://test.kikora.no/img/drive/illustrasjoner/Matteobjekter/Hjelpemidler/bowl.svg",
@@ -19,10 +24,16 @@ const ADV = {
 /* ============ DERIVERT KONFIG FOR RENDER (IKKE REDIGER) ============ */
 function makeCFG(){
   return {
-    bowls: SIMPLE.bowls.map(b => ({
-      nBeads: b.nBeads,
-      colors: (b.colors && b.colors.length) ? b.colors : [ADV.assets.beadRed, ADV.assets.beadBlue]
-    })),
+    bowls: SIMPLE.bowls.map(b => {
+      const colors = [];
+      (b.colorCounts || []).forEach(cc => {
+        const key = "bead" + cc.color[0].toUpperCase() + cc.color.slice(1);
+        const src = ADV.assets[key];
+        if(src) for(let i=0;i<cc.count;i++) colors.push(src);
+      });
+      if(!colors.length) colors.push(ADV.assets.beadRed, ADV.assets.beadBlue);
+      return { colors };
+    }),
     beadRadius: ADV.beadRadius,
     beadGap: ADV.beadGap,
     assets: ADV.assets
@@ -54,14 +65,21 @@ function render(){
     g.appendChild(bowlImg);
 
     const gBeads = mk("g", {class:"beads"});
-    const totalWidth = bCfg.nBeads * 2 * CFG.beadRadius + (bCfg.nBeads - 1) * CFG.beadGap;
-    let x = (VB_W - totalWidth) / 2;
-    const y = 150 - CFG.beadRadius;
-    for(let i=0;i<bCfg.nBeads;i++){
+    const nBeads = bCfg.colors.length;
+    const totalWidth = nBeads * 2 * CFG.beadRadius + (nBeads - 1) * CFG.beadGap;
+    const startX = (VB_W - totalWidth) / 2 + CFG.beadRadius;
+    const step = 2 * CFG.beadRadius + CFG.beadGap;
+    const baseY = 150 - CFG.beadRadius;
+    const midX = VB_W / 2;
+    const halfW = totalWidth / 2;
+    const BOWL_DEPTH = 60;
+    for(let i=0;i<nBeads;i++){
+      const cx = startX + i * step;
+      const t = halfW ? (cx - midX) / halfW : 0;
+      const cy = baseY + BOWL_DEPTH * (1 - t * t);
       const href = bCfg.colors[i % bCfg.colors.length];
-      const bead = img(href, x, y, 2*CFG.beadRadius, 2*CFG.beadRadius, "bead beadShadow");
+      const bead = img(href, cx - CFG.beadRadius, cy - CFG.beadRadius, 2*CFG.beadRadius, 2*CFG.beadRadius, "bead beadShadow");
       gBeads.appendChild(bead);
-      x += 2*CFG.beadRadius + CFG.beadGap;
     }
     g.appendChild(gBeads);
     gBowls.appendChild(g);
