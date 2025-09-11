@@ -1,20 +1,23 @@
 const iframe = document.querySelector('iframe');
-const links = document.querySelectorAll('nav a');
+const nav = document.querySelector('nav');
 const saved = localStorage.getItem('currentPage') || 'nkant.html';
 iframe.src = saved;
 
 function setActive(current) {
-  links.forEach(link => {
+  nav.querySelectorAll('a').forEach(link => {
     link.classList.toggle('active', link.getAttribute('href') === current);
   });
 }
 
 setActive(saved);
 
-links.forEach(link => {
-  link.addEventListener('click', () => {
-    const href = link.getAttribute('href');
-    localStorage.setItem('currentPage', href);
-    setActive(href);
-  });
+nav.addEventListener('click', event => {
+  const link = event.target.closest('a');
+  if (!link) return;
+  event.preventDefault();
+  const href = link.getAttribute('href');
+  iframe.src = href;
+  localStorage.setItem('currentPage', href);
+  setActive(href);
 });
+
