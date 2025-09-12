@@ -1117,7 +1117,7 @@ function setupSettingsForm(){
     const fun = paramStr(key, i === 1 ? 'f(x)=x^2-2' : '');
     const dom = paramStr(`dom${i}`, '');
     if(i === 1 || params.has(key)){
-      createRow(i, fun, dom, i === 1);
+      createRow(i, fun, dom, i === 1 && MODE === 'functions');
       i++;
     } else {
       break;
