@@ -156,8 +156,9 @@
       brickContainer.appendChild(fig);
     }
 
-    const total = antallX * antallY * bredde * hoyde * dybde;
-    expression.textContent = `${antallX} × ${antallY} × ${bredde} × ${hoyde} × ${dybde} = ${total}`;
+    const perFig = bredde * hoyde * dybde;
+    const total = antallX * antallY * perFig;
+    expression.textContent = `${antallX} × ${antallY} × (${bredde} × ${hoyde} × ${dybde}) = ${antallX * antallY} × ${perFig} = ${total}`;
   }
 
   [cfgAntallX, cfgAntallY, cfgBredde, cfgHoyde, cfgDybde].forEach(el =>{
