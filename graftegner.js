@@ -1085,17 +1085,42 @@ function setupSettingsForm(){
   const root = document.querySelector('.settings');
   if(!root) return;
   const funcRows = document.getElementById('funcRows');
-  const addBtn = document.getElementById('addFunc');
+  const addBtn = document.createElement('button');
+  addBtn.id = 'addFunc';
+  addBtn.type = 'button';
+  addBtn.className = 'btn';
+  addBtn.textContent = '+';
+  addBtn.setAttribute('aria-label','Legg til funksjon');
   const g = id => document.getElementById(id);
+
+  const isCoords = str => /^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?(?:\s*;\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?)*\s*$/.test(str);
+  const isExplicitFun = str => {
+    const m = str.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/) || str.match(/^y\s*=\s*(.+)$/);
+    const rhs = m ? m[1] : str;
+    if(!/x/.test(rhs)) return false;
+    return isExplicitRHS(rhs);
+  };
+
+  const toggleDomain = input => {
+    const row = input.closest('.func-row');
+    const domLabel = row.querySelector('label.domain');
+    if(isExplicitFun(input.value.trim())){
+      domLabel.style.display = '';
+    }else{
+      domLabel.style.display = 'none';
+      const domInput = domLabel.querySelector('input[data-dom]');
+      if(domInput) domInput.value = '';
+    }
+  };
 
   const createRow = (index, funVal = '', domVal = '', includePoints = false) => {
     const row = document.createElement('div');
     row.className = 'settings-row func-row';
     row.innerHTML = `
-      <label>Funksjon ${index}
+      <label>${index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index}
         <input type="text" data-fun value="${funVal}">
       </label>
-      <label>Definisjon (valgfritt)
+      <label class="domain">Definisjon (valgfritt)
         <input type="text" data-dom value="${domVal}" placeholder="[start, stopp]">
       </label>
       ${includePoints ? `
@@ -1108,28 +1133,41 @@ function setupSettingsForm(){
       </label>` : ''}
     `;
     funcRows.appendChild(row);
+    const funInput = row.querySelector('input[data-fun]');
+    funInput.addEventListener('input', () => toggleDomain(funInput));
+    toggleDomain(funInput);
     if(includePoints){ g('cfgPoints').value = paramStr('points','0'); }
+    return row;
+  };
+
+  const appendAddBtn = () => {
+    if(addBtn.parentElement) addBtn.parentElement.removeChild(addBtn);
+    const lastRow = funcRows.querySelector('.func-row:last-child');
+    if(lastRow) lastRow.appendChild(addBtn);
   };
 
   let i = 1;
+  const initCoords = paramStr('coords','');
+  const hasCoords = initCoords !== '';
   while(true){
     const key = `fun${i}`;
-    const fun = paramStr(key, i === 1 ? 'f(x)=x^2-2' : '');
+    const fun = (i === 1 && hasCoords) ? initCoords : paramStr(key, i === 1 ? 'f(x)=x^2-2' : '');
     const dom = paramStr(`dom${i}`, '');
     if(i === 1 || params.has(key)){
-      createRow(i, fun, dom, i === 1 && MODE === 'functions');
+      createRow(i, fun, dom, i === 1 && MODE === 'functions' && !hasCoords);
       i++;
     } else {
       break;
     }
   }
 
+  appendAddBtn();
+
   addBtn.addEventListener('click', () => {
     const index = funcRows.querySelectorAll('.func-row').length + 1;
     createRow(index, '', '', false);
+    appendAddBtn();
   });
-
-  g('cfgCoords').value = paramStr('coords','');
   g('cfgScreen').value = paramStr('screen','');
   g('cfgLock').checked = paramBool('lock');
   g('cfgAxisX').value = paramStr('xName','x');
@@ -1140,10 +1178,13 @@ function setupSettingsForm(){
   const apply = () => {
     const p = new URLSearchParams();
     let idx = 1;
-    funcRows.querySelectorAll('.func-row').forEach(row => {
+    funcRows.querySelectorAll('.func-row').forEach((row, rowIdx) => {
       const fun = row.querySelector('input[data-fun]').value.trim();
       const dom = row.querySelector('input[data-dom]').value.trim();
-      if(fun){
+      if(!fun) return;
+      if(rowIdx === 0 && isCoords(fun)){
+        p.set('coords', fun);
+      } else {
         p.set(`fun${idx}`, fun);
         if(dom) p.set(`dom${idx}`, dom);
         idx++;
@@ -1151,7 +1192,6 @@ function setupSettingsForm(){
     });
     const pts = g('cfgPoints') ? g('cfgPoints').value.trim() : '0';
     if(pts && pts !== '0') p.set('points', pts);
-    if(g('cfgCoords').value.trim()) p.set('coords', g('cfgCoords').value.trim());
     if(g('cfgScreen').value.trim()) p.set('screen', g('cfgScreen').value.trim());
     if(g('cfgLock').checked) p.set('lock','1'); else p.set('lock','0');
     if(g('cfgAxisX').value.trim() && g('cfgAxisX').value.trim() !== 'x') p.set('xName', g('cfgAxisX').value.trim());
