@@ -6,6 +6,7 @@
   const cfgDybde = document.getElementById('cfg-dybde');
   const brickContainer = document.getElementById('brickContainer');
   const expression = document.getElementById('expression');
+  const BRICK_SRC = 'images/brick1.svg';
 
   function iso(x,y,z,tileW,tileH,unitH){
     return {
@@ -55,7 +56,8 @@
 
     bricks.forEach(({pos})=>{
       const img = document.createElementNS(svg.namespaceURI,'image');
-      img.setAttributeNS('http://www.w3.org/1999/xlink','href','images/brick1.svg');
+      img.setAttributeNS('http://www.w3.org/1999/xlink','href', BRICK_SRC);
+      img.setAttribute('href', BRICK_SRC);
       img.setAttribute('width', imgW);
       img.setAttribute('height', imgH);
       img.setAttribute('x', pos.x - offsetX - minX);
