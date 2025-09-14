@@ -5,6 +5,7 @@
   const cfgHoyde = document.getElementById('cfg-hoyde');
   const cfgDybde = document.getElementById('cfg-dybde');
   const cfgDuration = document.getElementById('cfg-duration');
+  const cfgShowBtn = document.getElementById('cfg-showBtn');
   const brickContainer = document.getElementById('brickContainer');
   const playBtn = document.getElementById('playBtn');
   const expression = document.getElementById('expression');
@@ -53,8 +54,8 @@
     const h = maxY - minY;
     const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
     svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-    svg.setAttribute('width', w);
-    svg.setAttribute('height', h);
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
 
     bricks.forEach(({pos})=>{
       const img = document.createElementNS(svg.namespaceURI,'image');
@@ -78,7 +79,8 @@
     const dybde = parseInt(cfgDybde.value,10) || 0;
 
     brickContainer.innerHTML = '';
-    brickContainer.style.gridTemplateColumns = `repeat(${antallX}, auto)`;
+    brickContainer.style.gridTemplateColumns = `repeat(${antallX}, 1fr)`;
+    brickContainer.style.gridTemplateRows = `repeat(${antallY}, 1fr)`;
     for(let i = 0; i < antallX * antallY; i++){
       const fig = createBrick(bredde, hoyde, dybde);
       fig.setAttribute('aria-label', `${bredde}x${hoyde}x${dybde} kloss`);
@@ -94,6 +96,11 @@
     el.addEventListener('input', render);
   });
 
+  cfgShowBtn.addEventListener('change', () => {
+    updateVisibility();
+    render();
+  });
+
   playBtn.addEventListener('click', () => {
     const duration = parseInt(cfgDuration.value, 10) || 0;
     render();
@@ -101,13 +108,22 @@
     brickContainer.style.display = 'grid';
     expression.style.display = 'block';
     setTimeout(() => {
-      brickContainer.style.display = 'none';
-      expression.style.display = 'none';
-      playBtn.style.display = 'inline-block';
+      updateVisibility();
     }, duration * 1000);
   });
 
-  brickContainer.style.display = 'none';
-  expression.style.display = 'none';
+  function updateVisibility(){
+    if(cfgShowBtn.checked){
+      playBtn.style.display = 'inline-flex';
+      brickContainer.style.display = 'none';
+      expression.style.display = 'none';
+    } else {
+      playBtn.style.display = 'none';
+      brickContainer.style.display = 'grid';
+      expression.style.display = 'block';
+    }
+  }
+
   render();
+  updateVisibility();
 })();
