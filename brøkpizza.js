@@ -81,6 +81,19 @@ function alignPanelsByCenter() {
 function scheduleCenterAlign(){ cancelAnimationFrame(_centerRaf); _centerRaf=requestAnimationFrame(alignPanelsByCenter); }
 window.addEventListener("resize", scheduleCenterAlign);
 
+function fitPizzasToLine(){
+  const container=document.querySelector(".grid2");
+  if(!container) return;
+  container.style.zoom="";
+  const totalWidth=container.scrollWidth;
+  const availWidth=container.clientWidth;
+  if(totalWidth>0){
+    const scale=Math.min(1, availWidth/totalWidth);
+    container.style.zoom=String(scale);
+  }
+}
+window.addEventListener("resize", fitPizzasToLine);
+
 /* =======================
    Pizza-klasse
    ======================= */
@@ -776,6 +789,7 @@ function initFromHtml(){
   });
 
   scheduleCenterAlign();
+  fitPizzasToLine();
 }
 
 window.addEventListener("load", () => {
