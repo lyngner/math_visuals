@@ -3,15 +3,15 @@
 /* ============ ENKEL KONFIG (FORFATTER) ============ */
 const SIMPLE = {
   total: 50,       // tallet i parentesen
-  startN: 5,       // antall blokker (nevner)
-  startK: 4,       // antall fylte blokker (teller)
+  startN: 1,       // antall kolonner
+  startK: 0,       // antall fylte blokker
   startM: 1,       // antall rader
-  minN: 2,
-  maxN: 12,
+  minN: 1,
+  maxN: 3,
   minM: 1,
-  maxM: 12,
+  maxM: 2,
   showWhole: true,    // vis parentes + total
-  showStepper: true,  // vis pluss/minus-knapper
+  showStepper: true,  // vis pluss-knapper
   showHandle: true,   // vis håndtak
   valMode: 'rounded'  // 'rounded' | 'exact' | 'fraction' | 'percent'
 };
@@ -76,16 +76,14 @@ addTo(gFrame,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-frame'});
 // Håndtak
 const handleShadow = addTo(gHandle,'circle',{cx:R, cy:(TOP+BOT)/2+2, r:20, class:'tb-handle-shadow'});
 const handle       = addTo(gHandle,'circle',{cx:R, cy:(TOP+BOT)/2,   r:18, class:'tb-handle'});
-const stepperN     = document.getElementById('tbStepN');
-const stepperM     = document.getElementById('tbStepM');
+const addColBtn    = document.getElementById('tbAddCol');
+const addRowBtn    = document.getElementById('tbAddRow');
 const btnSvg       = document.getElementById('btnSvg');
 const btnPng       = document.getElementById('btnPng');
 
 // ---------- Interaksjon ----------
-document.getElementById('tbMinus').addEventListener('click', ()=> setN(n-1));
-document.getElementById('tbPlus') .addEventListener('click', ()=> setN(n+1));
-document.getElementById('tbRowMinus').addEventListener('click', ()=> setM(m-1));
-document.getElementById('tbRowPlus') .addEventListener('click', ()=> setM(m+1));
+addColBtn?.addEventListener('click', ()=> setN(n+1));
+addRowBtn?.addEventListener('click', ()=> setM(m+1));
 btnSvg?.addEventListener('click', ()=> downloadSVG(svg, 'tenkeblokker.svg'));
 btnPng?.addEventListener('click', ()=> downloadPNG(svg, 'tenkeblokker.png', 2));
 
@@ -282,8 +280,8 @@ function applyConfig(){
   } else {
     gBrace.style.display = 'none';
   }
-  stepperN.style.display = CFG.showStepper ? '' : 'none';
-  stepperM.style.display = CFG.showStepper ? '' : 'none';
+  if(addColBtn) addColBtn.style.display = CFG.showStepper ? '' : 'none';
+  if(addRowBtn) addRowBtn.style.display = CFG.showStepper ? '' : 'none';
   gHandle.style.display  = CFG.showHandle ? '' : 'none';
   redraw();
 }
@@ -349,6 +347,7 @@ function redraw(){
   handleShadow.setAttribute('cx', hx);
   handleShadow.setAttribute('cy', hy+2);
   updateAria();
+  updateAddButtons();
 }
 
 function updateAria(){
@@ -358,6 +357,15 @@ function updateAria(){
   const text = `${k} av ${n*m} blokker fylt`;
   overlay.setAttribute('aria-valuetext', text);
   if(live) live.textContent = text;
+}
+
+function updateAddButtons(){
+  if(addColBtn){
+    addColBtn.style.visibility = n < CFG.maxN ? 'visible' : 'hidden';
+  }
+  if(addRowBtn){
+    addRowBtn.style.visibility = m < CFG.maxM ? 'visible' : 'hidden';
+  }
 }
 
 // ---------- State ----------
