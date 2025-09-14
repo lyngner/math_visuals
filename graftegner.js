@@ -50,7 +50,7 @@ const ADV = {
     grid:   { majorX: 1, majorY: 1, labelPrecision: 0 }
   },
   screen: parseScreen(paramStr('screen','')),
-  lockAspect: params.has('lock') ? paramBool('lock') : null,
+  lockAspect: params.has('lock') ? paramBool('lock') : true,
   firstQuadrant: paramBool('q1'),
 
   interactions: {
@@ -1169,7 +1169,7 @@ function setupSettingsForm(){
     appendAddBtn();
   });
   g('cfgScreen').value = paramStr('screen','');
-  g('cfgLock').checked = paramBool('lock');
+  g('cfgLock').checked = params.has('lock') ? paramBool('lock') : true;
   g('cfgAxisX').value = paramStr('xName','x');
   g('cfgAxisY').value = paramStr('yName','y');
   g('cfgPan').checked = paramBool('pan');

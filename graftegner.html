@@ -38,7 +38,7 @@
     .checkbox-row{ display:flex; align-items:center; gap:6px; }
     .settings fieldset{ border:1px solid #e5e7eb; border-radius:10px; padding:10px; }
     .settings fieldset legend{ padding:0 4px; font-size:13px; color:#374151; }
-    .axis-names{ gap:12px; align-items:center; }
+    .axis-names{ gap:12px; align-items:flex-start; flex-direction:column; }
     .axis-names label{ flex:0 0 auto; }
     .axis-label{ flex-direction:row; align-items:center; gap:4px; }
     .axis-label input{ width:80px; }
@@ -76,7 +76,7 @@
             <label>Screen (overstyrer autozoom hvis satt)
               <input id="cfgScreen" type="text" value="" placeholder="minX, maxX, minY, maxY">
             </label>
-            <div class="checkbox-row"><input id="cfgLock" type="checkbox"><label for="cfgLock">Lås forhold 1:1 (krever screen)</label></div>
+            <div class="checkbox-row"><input id="cfgLock" type="checkbox" checked><label for="cfgLock">Lås forhold 1:1 (krever screen)</label></div>
             <div class="checkbox-row"><input id="cfgPan" type="checkbox"><label for="cfgPan">Tillat pan</label></div>
             <div class="checkbox-row"><input id="cfgQ1" type="checkbox"><label for="cfgQ1">Bare 1. kvadrant</label></div>
             <div class="settings-row axis-names">
