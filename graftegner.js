@@ -133,7 +133,11 @@ function parseSimple(txt){
 
     const cm = L.match(/^coords\s*=\s*(.+)$/i);
     if(cm){
-      const pts = cm[1].split(';').map(s=>s.trim()).filter(Boolean).map(p=>p.split(',').map(t=>+t.trim()).filter(Number.isFinite));
+      const pts = cm[1]
+        .split(';')
+        .map(s=>s.trim().replace(/^\(|\)$/g,''))
+        .filter(Boolean)
+        .map(p=>p.split(',').map(t=>+t.trim()).filter(Number.isFinite));
       for(const pt of pts){ if(pt.length===2) out.extraPoints.push(pt); }
       continue;
     }
@@ -1093,7 +1097,7 @@ function setupSettingsForm(){
   addBtn.setAttribute('aria-label','Legg til funksjon');
   const g = id => document.getElementById(id);
 
-  const isCoords = str => /^\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?(?:\s*;\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?)*\s*$/.test(str);
+  const isCoords = str => /^\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?)(?:\s*;\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?))*\s*$/.test(str);
   const isExplicitFun = str => {
     const m = str.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/) || str.match(/^y\s*=\s*(.+)$/);
     const rhs = m ? m[1] : str;
@@ -1113,7 +1117,7 @@ function setupSettingsForm(){
     }
   };
 
-  const createRow = (index, funVal = '', domVal = '', includePoints = false) => {
+  const createRow = (index, funVal = '', domVal = '') => {
     const row = document.createElement('div');
     row.className = 'settings-row func-row';
     row.innerHTML = `
@@ -1123,20 +1127,11 @@ function setupSettingsForm(){
       <label class="domain">Definisjon (valgfritt)
         <input type="text" data-dom value="${domVal}" placeholder="[start, stopp]">
       </label>
-      ${includePoints ? `
-      <label class="points">Punkter
-        <select id="cfgPoints">
-          <option value="0">0</option>
-          <option value="1">1</option>
-          <option value="2">2</option>
-        </select>
-      </label>` : ''}
     `;
     funcRows.appendChild(row);
     const funInput = row.querySelector('input[data-fun]');
     funInput.addEventListener('input', () => toggleDomain(funInput));
     toggleDomain(funInput);
-    if(includePoints){ g('cfgPoints').value = paramStr('points','0'); }
     return row;
   };
 
@@ -1154,7 +1149,7 @@ function setupSettingsForm(){
     const fun = (i === 1 && hasCoords) ? initCoords : paramStr(key, i === 1 ? 'f(x)=x^2-2' : '');
     const dom = paramStr(`dom${i}`, '');
     if(i === 1 || params.has(key)){
-      createRow(i, fun, dom, i === 1 && MODE === 'functions' && !hasCoords);
+      createRow(i, fun, dom);
       i++;
     } else {
       break;
@@ -1165,7 +1160,7 @@ function setupSettingsForm(){
 
   addBtn.addEventListener('click', () => {
     const index = funcRows.querySelectorAll('.func-row').length + 1;
-    createRow(index, '', '', false);
+    createRow(index, '', '');
     appendAddBtn();
   });
   g('cfgScreen').value = paramStr('screen','');
@@ -1190,8 +1185,6 @@ function setupSettingsForm(){
         idx++;
       }
     });
-    const pts = g('cfgPoints') ? g('cfgPoints').value.trim() : '0';
-    if(pts && pts !== '0') p.set('points', pts);
     if(g('cfgScreen').value.trim()) p.set('screen', g('cfgScreen').value.trim());
     if(g('cfgLock').checked) p.set('lock','1'); else p.set('lock','0');
     if(g('cfgAxisX').value.trim() && g('cfgAxisX').value.trim() !== 'x') p.set('xName', g('cfgAxisX').value.trim());
