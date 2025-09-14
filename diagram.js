@@ -38,6 +38,7 @@ const gLegend = add('g');
 
 let values = [];
 let values2 = null;
+let series2Enabled = false;
 let seriesNames = [];
 let locked = [];
 let N = 0;
@@ -48,6 +49,14 @@ const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
 btnSvg?.addEventListener('click', ()=> downloadSVG(svg, 'diagram.svg'));
 btnPng?.addEventListener('click', ()=> downloadPNG(svg, 'diagram.png', 2));
+const addSeriesBtn = document.getElementById('addSeries');
+const series2Fields = document.getElementById('series2Fields');
+addSeriesBtn?.addEventListener('click', () => {
+  series2Enabled = true;
+  addSeriesBtn.style.display = 'none';
+  if(series2Fields) series2Fields.style.display = '';
+  applyCfg();
+});
 const yMin = 0;
 
 // skalaer
@@ -63,8 +72,8 @@ initFromCfg();
 
 function initFromCfg(){
   values = CFG.start.slice();
-  values2 = CFG.start2 ? CFG.start2.slice() : null;
-  seriesNames = [CFG.series1 || '', CFG.series2 || ''];
+  values2 = series2Enabled && CFG.start2 ? CFG.start2.slice() : null;
+  seriesNames = [CFG.series1 || '', series2Enabled ? CFG.series2 || '' : ''];
   N = CFG.labels.length;
   xBand = innerW / N;
   barW  = xBand * 0.6;
@@ -73,6 +82,13 @@ function initFromCfg(){
   locked = alignLength(CFG.locked || [], N, false);
   lastFocusIndex = null;
   document.getElementById('chartTitle').textContent = CFG.title || '';
+
+  if(addSeriesBtn){
+    addSeriesBtn.style.display = series2Enabled ? 'none' : '';
+  }
+  if(series2Fields){
+    series2Fields.style.display = series2Enabled ? '' : 'none';
+  }
 
   // disable stacking/grouping options when only one dataserie
   const typeSel = document.getElementById('cfgType');
@@ -430,19 +446,25 @@ document.querySelector('.settings').addEventListener('input', applyCfg);
 function applyCfg(){
   const lbls = parseList(document.getElementById('cfgLabels').value);
   const starts = parseNumList(document.getElementById('cfgStart').value);
-  const starts2 = parseNumList(document.getElementById('cfgStart2').value);
   const answers = parseNumList(document.getElementById('cfgAnswer').value);
-  const answers2 = parseNumList(document.getElementById('cfgAnswer2').value);
   const yMaxVal = parseFloat(document.getElementById('cfgYMax').value);
   CFG.title = document.getElementById('cfgTitle').value;
   CFG.type = document.getElementById('cfgType').value;
   CFG.series1 = document.getElementById('cfgSeries1').value;
-  CFG.series2 = document.getElementById('cfgSeries2').value;
   CFG.labels = lbls;
   CFG.start  = alignLength(starts, lbls.length, 0);
-  CFG.start2 = alignLength(starts2, lbls.length, 0);
   CFG.answer = alignLength(answers, lbls.length, 0);
-  CFG.answer2= alignLength(answers2, lbls.length, 0);
+  if(series2Enabled){
+    CFG.series2 = document.getElementById('cfgSeries2').value;
+    const starts2 = parseNumList(document.getElementById('cfgStart2').value);
+    const answers2 = parseNumList(document.getElementById('cfgAnswer2').value);
+    CFG.start2 = alignLength(starts2, lbls.length, 0);
+    CFG.answer2 = alignLength(answers2, lbls.length, 0);
+  } else {
+    CFG.series2 = undefined;
+    CFG.start2 = null;
+    CFG.answer2 = null;
+  }
   CFG.yMax   = isNaN(yMaxVal) ? undefined : yMaxVal;
   CFG.axisXLabel = document.getElementById('cfgAxisXLabel').value;
   CFG.axisYLabel = document.getElementById('cfgAxisYLabel').value;
