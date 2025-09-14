@@ -2,13 +2,17 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.grid').forEach(grid => {
     const side = grid.querySelector('.side');
     if (!side) return;
+
+    // mål startbredden før splitteren legges til slik at vi bevarer
+    // sidens opprinnelige bredde på ulike sider
+    const initialWidth = side.getBoundingClientRect().width;
+
     const splitter = document.createElement('div');
     splitter.className = 'splitter';
     grid.insertBefore(splitter, side);
+    grid.classList.add('split-enabled');
 
-    // sett startbredden som CSS-variabel slik at ulike sider beholder
-    // sin opprinnelige bredde
-    grid.style.setProperty('--side-width', `${side.getBoundingClientRect().width}px`);
+    grid.style.setProperty('--side-width', `${initialWidth}px`);
 
     let startX = 0;
     let startWidth = 0;
