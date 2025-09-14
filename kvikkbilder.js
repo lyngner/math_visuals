@@ -4,7 +4,9 @@
   const cfgBredde = document.getElementById('cfg-bredde');
   const cfgHoyde = document.getElementById('cfg-hoyde');
   const cfgDybde = document.getElementById('cfg-dybde');
+  const cfgDuration = document.getElementById('cfg-duration');
   const brickContainer = document.getElementById('brickContainer');
+  const playBtn = document.getElementById('playBtn');
   const expression = document.getElementById('expression');
   const BRICK_SRC = 'images/brick1.svg';
 
@@ -92,5 +94,20 @@
     el.addEventListener('input', render);
   });
 
+  playBtn.addEventListener('click', () => {
+    const duration = parseInt(cfgDuration.value, 10) || 0;
+    render();
+    playBtn.style.display = 'none';
+    brickContainer.style.display = 'grid';
+    expression.style.display = 'block';
+    setTimeout(() => {
+      brickContainer.style.display = 'none';
+      expression.style.display = 'none';
+      playBtn.style.display = 'inline-block';
+    }, duration * 1000);
+  });
+
+  brickContainer.style.display = 'none';
+  expression.style.display = 'none';
   render();
 })();
