@@ -10,6 +10,7 @@
   const cfgDybde = document.getElementById('cfg-dybde');
   const cfgDurationKlosser = document.getElementById('cfg-duration-klosser');
   const cfgShowBtn = document.getElementById('cfg-showBtn');
+  cfgShowBtn.checked = true;
 
   const cfgAntall = document.getElementById('cfg-antall');
   const cfgDurationMonster = document.getElementById('cfg-duration-monster');
