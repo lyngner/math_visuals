@@ -35,8 +35,9 @@
     .settings-row{ display:flex; gap:8px; flex-wrap:wrap; }
     .settings-row label{ flex:1; }
     .settings-row label.points{ flex:0 0 70px; }
-    .settings-row label.checkbox-label{ flex:1 1 200px; }
-    .checkbox-label{ flex-direction:row; align-items:center; gap:6px; white-space:normal; }
+    .checkbox-row{ display:flex; align-items:center; gap:6px; }
+    .settings fieldset{ border:1px solid #e5e7eb; border-radius:10px; padding:10px; }
+    .settings fieldset legend{ padding:0 4px; font-size:13px; color:#374151; }
     .axis-names{ gap:12px; align-items:center; }
     .axis-names label{ flex:0 0 auto; }
     .axis-label{ flex-direction:row; align-items:center; gap:4px; }
@@ -70,25 +71,24 @@
           <h2>Forfatters innstillinger</h2>
           <div class="settings">
           <div id="funcRows"></div>
-          <div class="settings-row">
+          <fieldset>
+            <legend>Koordinatsystem</legend>
             <label>Screen (overstyrer autozoom hvis satt)
               <input id="cfgScreen" type="text" value="" placeholder="minX, maxX, minY, maxY">
             </label>
-          </div>
-          <div class="settings-row">
-            <label class="checkbox-label"><input id="cfgLock" type="checkbox"> Lås forhold 1:1 (krever screen)</label>
-            <label class="checkbox-label"><input id="cfgPan" type="checkbox"> Tillat pan</label>
-            <label class="checkbox-label"><input id="cfgQ1" type="checkbox"> Bare 1. kvadrant</label>
-          </div>
-          <div class="settings-row axis-names">
-            <label>Navn på akser</label>
-            <label class="axis-label">x:
-              <input id="cfgAxisX" type="text" value="x">
-            </label>
-            <label class="axis-label">y:
-              <input id="cfgAxisY" type="text" value="y">
-            </label>
-          </div>
+            <div class="checkbox-row"><input id="cfgLock" type="checkbox"><label for="cfgLock">Lås forhold 1:1 (krever screen)</label></div>
+            <div class="checkbox-row"><input id="cfgPan" type="checkbox"><label for="cfgPan">Tillat pan</label></div>
+            <div class="checkbox-row"><input id="cfgQ1" type="checkbox"><label for="cfgQ1">Bare 1. kvadrant</label></div>
+            <div class="settings-row axis-names">
+              <label>Navn på akser</label>
+              <label class="axis-label">x:
+                <input id="cfgAxisX" type="text" value="x">
+              </label>
+              <label class="axis-label">y:
+                <input id="cfgAxisY" type="text" value="y">
+              </label>
+            </div>
+          </fieldset>
         </div>
       </div>
     </div>
