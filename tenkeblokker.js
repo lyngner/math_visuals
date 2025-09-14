@@ -6,10 +6,11 @@ const SIMPLE = {
   startN: 1,       // antall kolonner
   startK: 0,       // antall fylte blokker
   startM: 1,       // antall rader
+  blockCols: [],   // kolonnegrenser for tykke linjer
   minN: 1,
   maxN: 3,
   minM: 1,
-  maxM: 2,
+  maxM: 3,
   showWhole: true,    // vis parentes + total
   showStepper: true,  // vis pluss-knapper
   showHandle: true,   // vis håndtak
@@ -34,7 +35,8 @@ let CFG = {
   showWhole: SIMPLE.showWhole,
   showStepper: SIMPLE.showStepper,
   showHandle: SIMPLE.showHandle,
-  valMode: SIMPLE.valMode
+  valMode: SIMPLE.valMode,
+  blockCols: SIMPLE.blockCols || []
 };
 
 let n = clamp(SIMPLE.startN, CFG.minN, CFG.maxN);
@@ -267,7 +269,8 @@ function applyConfig(){
     showWhole: SIMPLE.showWhole,
     showStepper: SIMPLE.showStepper,
     showHandle: SIMPLE.showHandle,
-    valMode: SIMPLE.valMode
+    valMode: SIMPLE.valMode,
+    blockCols: SIMPLE.blockCols || []
   };
   n = clamp(SIMPLE.startN, CFG.minN, CFG.maxN);
   m = clamp(SIMPLE.startM, CFG.minM, CFG.maxM);
@@ -305,13 +308,23 @@ function redraw(){
     }
   }
   // skillelinjer
-  for(let i=1;i<n;i++){
+  for(let j=0;j<m;j++){
+    const y1 = TOP + j*cellH;
+    const y2 = y1 + cellH;
+    for(let i=1;i<n;i++){
+      if(CFG.blockCols.includes(i)) continue;
+      const x = L + i*cellW;
+      addTo(gSep,'line',{x1:x,y1:y1,x2:x,y2:y2,class:'tb-sep'});
+    }
+  }
+  for(const i of CFG.blockCols){
+    if(i<=0 || i>=n) continue;
     const x = L + i*cellW;
-    addTo(gSep,'line',{x1:x,y1:TOP,x2:x,y2:BOT,class:'tb-sep'});
+    addTo(gSep,'line',{x1:x,y1:TOP,x2:x,y2:BOT,class:'tb-block-sep'});
   }
   for(let j=1;j<m;j++){
     const y = TOP + j*cellH;
-    addTo(gSep,'line',{x1:L,y1:y,x2:R,y2:y,class:'tb-sep'});
+    addTo(gSep,'line',{x1:L,y1:y,x2:R,y2:y,class:'tb-block-sep'});
   }
   // verdier i fylte celler
   const per = CFG.total / (n*m);
