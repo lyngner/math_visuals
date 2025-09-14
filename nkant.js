@@ -742,6 +742,9 @@ async function renderCombined(){
   const jobs = await collectJobsFromSpecs(STATE.specsText);
   const n = jobs.length;
 
+  const fig2Settings = document.getElementById("fig2Settings");
+  if(fig2Settings) fig2Settings.style.display = n >= 2 ? "" : "none";
+
   if(n===0){
     svg.setAttribute("viewBox", `0 0 ${BASE_W} ${BASE_H}`);
     add(svg,"text",{x:20,y:40,fill:"#6b7280","font-size":18}).textContent = "Skriv 1–2 SPECS- eller tekstlinjer for å tegne figur(er).";
