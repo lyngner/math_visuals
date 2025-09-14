@@ -10,10 +10,10 @@
   const cfgDybde = document.getElementById('cfg-dybde');
   const cfgDurationKlosser = document.getElementById('cfg-duration-klosser');
   const cfgShowBtn = document.getElementById('cfg-showBtn');
-  cfgShowBtn.checked = true;
 
   const cfgAntall = document.getElementById('cfg-antall');
   const cfgDurationMonster = document.getElementById('cfg-duration-monster');
+  const cfgShowBtnMonster = document.getElementById('cfg-showBtn-monster');
 
   const brickContainer = document.getElementById('brickContainer');
   const patternContainer = document.getElementById('patternContainer');
@@ -186,6 +186,19 @@
     patternContainer.style.display='none';
   }
 
+  function updateVisibilityMonster(){
+    brickContainer.style.display='none';
+    if(cfgShowBtnMonster.checked){
+      playBtn.style.display='inline-flex';
+      patternContainer.style.display='none';
+      expression.style.display='none';
+    } else {
+      playBtn.style.display='none';
+      patternContainer.style.display='block';
+      expression.style.display='block';
+    }
+  }
+
   function updateType(){
     if(cfgType.value==='klosser'){
       klosserConfig.style.display='block';
@@ -195,11 +208,8 @@
     }else{
       klosserConfig.style.display='none';
       monsterConfig.style.display='block';
-      brickContainer.style.display='none';
-      playBtn.style.display='inline-flex';
-      expression.style.display='none';
-      patternContainer.style.display='none';
       renderMonster();
+      updateVisibilityMonster();
     }
   }
 
@@ -209,6 +219,10 @@
   cfgShowBtn.addEventListener('change', () => {
     updateVisibilityKlosser();
     renderKlosser();
+  });
+  cfgShowBtnMonster.addEventListener('change', () => {
+    updateVisibilityMonster();
+    renderMonster();
   });
   cfgAntall.addEventListener('input', renderMonster);
   cfgType.addEventListener('change', updateType);
@@ -230,9 +244,7 @@
       patternContainer.style.display='block';
       expression.style.display='block';
       setTimeout(()=>{
-        patternContainer.style.display='none';
-        expression.style.display='none';
-        playBtn.style.display='inline-flex';
+        updateVisibilityMonster();
       }, duration*1000);
     }
   });

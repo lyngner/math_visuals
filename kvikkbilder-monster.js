@@ -1,6 +1,7 @@
 (function(){
   const cfgAntall = document.getElementById('cfg-antall');
   const cfgDuration = document.getElementById('cfg-duration');
+  const cfgShowBtn = document.getElementById('cfg-showBtn');
   const patternContainer = document.getElementById('patternContainer');
   const playBtn = document.getElementById('playBtn');
   const expression = document.getElementById('expression');
@@ -72,7 +73,23 @@
     expression.textContent=faktorer.length?`${faktorer.join(' × ')} = ${n}`:`${n}`;
   }
 
+  function updateVisibility(){
+    if(cfgShowBtn.checked){
+      playBtn.style.display='inline-block';
+      patternContainer.style.display='none';
+      expression.style.display='none';
+    }else{
+      playBtn.style.display='none';
+      patternContainer.style.display='block';
+      expression.style.display='block';
+    }
+  }
+
   cfgAntall.addEventListener('input',render);
+  cfgShowBtn.addEventListener('change', () => {
+    updateVisibility();
+    if(!cfgShowBtn.checked) render();
+  });
 
   playBtn.addEventListener('click',()=>{
     const duration=parseInt(cfgDuration.value,10)||0;
@@ -81,13 +98,9 @@
     patternContainer.style.display='block';
     expression.style.display='block';
     setTimeout(()=>{
-      patternContainer.style.display='none';
-      expression.style.display='none';
-      playBtn.style.display='inline-block';
+      updateVisibility();
     }, duration*1000);
   });
-
-  patternContainer.style.display='none';
-  expression.style.display='none';
+  updateVisibility();
   render();
 })();
