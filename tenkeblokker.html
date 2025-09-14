@@ -49,31 +49,22 @@
     .tb-handle-shadow{fill:#000;opacity:.12}
     .tb-handle{fill:#f1f1f6;stroke:#555;stroke-width:2;cursor:pointer}
 
-    /* Stepper */
-    .tb-stepper{
-      display:flex;
-      align-items:center;
+      /* Add buttons */
+      .tb-wrap{position:relative;display:inline-block;}
+    .tb-add-btn{
+      position:absolute;
+      width:40px;height:40px;
       border:1px solid #cfcfcf;
       border-radius:16px;
       background:#fff;
-      box-shadow:0 6px 24px rgba(0,0,0,.08);
-      overflow:hidden;
-      margin:0 auto;
-    }
-    .tb-stepper button{
-      width:40px;
-      height:40px;
-      border:0;
-      background:#fff;
       font-size:24px;
       cursor:pointer;
+      box-shadow:0 6px 24px rgba(0,0,0,.08);
+      display:flex;align-items:center;justify-content:center;
     }
-    .tb-stepper button:active{transform:translateY(1px)}
-    .tb-divider{
-      width:1px;
-      background:#d6d6e3;
-      align-self:stretch;
-    }
+    .tb-add-btn:active{transform:translateY(1px)}
+    .tb-right{top:50%;left:100%;transform:translate(10px,-50%);}
+    .tb-bottom{top:100%;left:50%;transform:translate(-50%,10px);}
 
     .tb-toolbar{display:flex;gap:10px;justify-content:flex-end}
     .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s}
@@ -86,21 +77,14 @@
   <div class="wrap">
     <div class="grid">
       <div class="card">
-        <svg id="thinkBlocks" viewBox="0 0 900 420" aria-label="Tenkeblokker">
-          <rect id="tbOverlay" tabindex="0" role="slider" aria-label="Fylte blokker" aria-valuemin="0" fill="transparent" style="pointer-events:none"></rect>
-        </svg>
-
-        <div id="tbStepN" class="tb-stepper" aria-label="Blokker">
-          <button id="tbMinus" type="button" aria-label="Færre blokker">−</button>
-          <div class="tb-divider"></div>
-          <button id="tbPlus"  type="button" aria-label="Flere blokker">+</button>
+        <div class="tb-wrap">
+          <svg id="thinkBlocks" viewBox="0 0 900 420" aria-label="Tenkeblokker">
+            <rect id="tbOverlay" tabindex="0" role="slider" aria-label="Fylte blokker" aria-valuemin="0" fill="transparent" style="pointer-events:none"></rect>
+          </svg>
+          <button id="tbAddCol" class="tb-add-btn tb-right" type="button" aria-label="Legg til kolonne">+</button>
+          <button id="tbAddRow" class="tb-add-btn tb-bottom" type="button" aria-label="Legg til rad">+</button>
+          <div id="tbLive" aria-live="polite" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;"></div>
         </div>
-        <div id="tbStepM" class="tb-stepper" aria-label="Rader">
-          <button id="tbRowMinus" type="button" aria-label="Færre rader">−</button>
-          <div class="tb-divider"></div>
-          <button id="tbRowPlus"  type="button" aria-label="Flere rader">+</button>
-        </div>
-        <div id="tbLive" aria-live="polite" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;"></div>
       </div>
 
       <div class="side">
