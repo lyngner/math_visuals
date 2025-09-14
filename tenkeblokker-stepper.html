@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8" />
+<title>Tenkeblokker</title>
+<style>
+  #blocks{display:flex;gap:20px;flex-wrap:wrap}
+  .tb-block-wrapper{display:flex;flex-direction:column;align-items:center}
+  .tb-block{display:flex;border:2px solid #333;height:100px;width:300px}
+  .tb-segment{flex:1;display:flex;align-items:center;justify-content:center;border-right:1px dashed #777;background:#e8eedf;font-size:24px}
+  .tb-segment:last-child{border-right:none}
+  .tb-stepper{display:flex;gap:10px;margin-top:10px}
+  .tb-stepper button{width:40px;height:40px;font-size:24px}
+  #addBlock{margin-top:20px;width:40px;height:40px;font-size:24px}
+</style>
+</head>
+<body>
+<div id="blocks"></div>
+<button id="addBlock" type="button">+</button>
+<script src="tenkeblokker-stepper.js"></script>
+</body>
+</html>
