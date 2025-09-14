@@ -84,13 +84,24 @@ window.addEventListener("resize", scheduleCenterAlign);
 function fitPizzasToLine(){
   const container=document.querySelector(".grid2");
   if(!container) return;
-  container.style.zoom="";
-  const totalWidth=container.scrollWidth;
+  const panels=[...container.querySelectorAll(".pizzaPanel")].filter(p=>p.style.display!=="none");
+  if(!panels.length) return;
+  const ops=[...container.querySelectorAll(".opDisplay")].filter(op=>op.style.display!=="none");
+  const addBtn=document.getElementById("addPizza");
+  const extras=[...ops];
+  if(addBtn && addBtn.style.display!=="none") extras.push(addBtn);
   const availWidth=container.parentElement?.clientWidth ?? container.clientWidth;
-  if(totalWidth>0){
-    const scale=Math.min(1, availWidth/totalWidth);
-    container.style.zoom=String(scale);
-  }
+  const extrasWidth=extras.reduce((sum,el)=>sum+el.getBoundingClientRect().width,0);
+  const cs=getComputedStyle(container);
+  const gap=parseFloat(cs.columnGap||cs.gap||"0");
+  const totalItems=panels.length+extras.length;
+  const totalGap=gap*Math.max(0,totalItems-1);
+  let maxW=(availWidth-extrasWidth-totalGap)/panels.length;
+  maxW=Math.min(420,Math.max(100,maxW));
+  panels.forEach(p=>{
+    const svg=p.querySelector("svg.pizza");
+    if(svg) svg.style.width=`${maxW}px`;
+  });
 }
 window.addEventListener("resize", fitPizzasToLine);
 
