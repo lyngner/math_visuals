@@ -103,43 +103,31 @@
     expression.textContent = `${antallX} × ${antallY} × (${bredde} × ${hoyde} × ${dybde}) = ${antallX * antallY} × ${perFig} = ${total}`;
   }
 
-  function faktoriser(n){
-    const res=[];
-    let p=2;
-    while(n>1){
-      while(n%p===0){
-        res.push(p);
-        n/=p;
-      }
-      p++;
-    }
-    return res.sort((a,b)=>b-a);
+  function finnFaktorer(n){
+    let cols=Math.floor(Math.sqrt(n));
+    while(cols>1 && n%cols!==0) cols--;
+    const rows=cols? n/cols : 0;
+    return {cols, rows};
   }
 
-  function byggMonster(faktorer){
-    if(faktorer.length===0) return [{x:0,y:0}];
-    const p=faktorer[0];
-    const rest=faktorer.slice(1);
-    const sub=byggMonster(rest);
-    const res=[];
-    const step=2*Math.PI/p;
-    const scale=1-1/p;
-    for(let i=0;i<p;i++){
-      const angle=i*step;
-      const tx=Math.cos(angle);
-      const ty=Math.sin(angle);
-      sub.forEach(pt=>{
-        res.push({x:tx+pt.x*scale,y:ty+pt.y*scale});
-      });
+  function byggMonster(n){
+    if(n<=0) return [];
+    const {cols, rows}=finnFaktorer(n);
+    const points=[];
+    const xOff=-(cols-1)/2;
+    const yOff=-(rows-1)/2;
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        points.push({x:xOff+c, y:yOff+r});
+      }
     }
-    return res;
+    return points;
   }
 
   function renderMonster(){
     const n=parseInt(cfgAntall.value,10)||0;
-    const faktorer=faktoriser(n);
     patternContainer.innerHTML='';
-    const points=byggMonster(faktorer);
+    const points=byggMonster(n);
     if(!points.length){
       expression.textContent=`${n}`;
       return;
@@ -170,7 +158,8 @@
       svg.appendChild(c);
     });
     patternContainer.appendChild(svg);
-    expression.textContent=faktorer.length?`${faktorer.join(' × ')} = ${n}`:`${n}`;
+    const {cols, rows}=finnFaktorer(n);
+    expression.textContent=(cols>1 && rows>1)?`${cols} × ${rows} = ${n}`:`${n}`;
   }
 
   function updateVisibilityKlosser(){
