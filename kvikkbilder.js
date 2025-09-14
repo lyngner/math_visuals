@@ -122,17 +122,13 @@
     const sub=byggMonster(rest);
     const res=[];
     const step=2*Math.PI/p;
+    const scale=1-1/p;
     for(let i=0;i<p;i++){
       const angle=i*step;
-      const rot=angle+Math.PI/2;
-      const cos=Math.cos(rot);
-      const sin=Math.sin(rot);
       const tx=Math.cos(angle);
       const ty=Math.sin(angle);
       sub.forEach(pt=>{
-        const xr=pt.x*cos-pt.y*sin;
-        const yr=pt.x*sin+pt.y*cos;
-        res.push({x:tx+xr,y:ty+yr});
+        res.push({x:tx+pt.x*scale,y:ty+pt.y*scale});
       });
     }
     return res;
