@@ -90,10 +90,15 @@
           <rect id="tbOverlay" tabindex="0" role="slider" aria-label="Fylte blokker" aria-valuemin="0" fill="transparent" style="pointer-events:none"></rect>
         </svg>
 
-        <div class="tb-stepper" aria-label="Blokker">
+        <div id="tbStepN" class="tb-stepper" aria-label="Blokker">
           <button id="tbMinus" type="button" aria-label="Færre blokker">−</button>
           <div class="tb-divider"></div>
           <button id="tbPlus"  type="button" aria-label="Flere blokker">+</button>
+        </div>
+        <div id="tbStepM" class="tb-stepper" aria-label="Rader">
+          <button id="tbRowMinus" type="button" aria-label="Færre rader">−</button>
+          <div class="tb-divider"></div>
+          <button id="tbRowPlus"  type="button" aria-label="Flere rader">+</button>
         </div>
         <div id="tbLive" aria-live="polite" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;"></div>
       </div>
@@ -114,6 +119,9 @@
           <label>Fylte blokker<input id="cfg-startK" type="number" min="0"></label>
           <label>Min blokker<input id="cfg-minN" type="number" min="1"></label>
           <label>Maks blokker<input id="cfg-maxN" type="number" min="1"></label>
+          <label>Start rader<input id="cfg-startM" type="number" min="1"></label>
+          <label>Min rader<input id="cfg-minM" type="number" min="1"></label>
+          <label>Maks rader<input id="cfg-maxM" type="number" min="1"></label>
           <div class="checkbox-row"><input id="cfg-showWhole" type="checkbox" checked><label for="cfg-showWhole">Vis «hele»</label></div>
           <div class="checkbox-row"><input id="cfg-showStepper" type="checkbox" checked><label for="cfg-showStepper">Vis pluss/minus</label></div>
           <div class="checkbox-row"><input id="cfg-showHandle" type="checkbox" checked><label for="cfg-showHandle">Vis håndtak</label></div>
