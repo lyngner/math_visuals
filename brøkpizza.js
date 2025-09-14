@@ -86,7 +86,7 @@ function fitPizzasToLine(){
   if(!container) return;
   container.style.zoom="";
   const totalWidth=container.scrollWidth;
-  const availWidth=container.clientWidth;
+  const availWidth=container.parentElement?.clientWidth ?? container.clientWidth;
   if(totalWidth>0){
     const scale=Math.min(1, availWidth/totalWidth);
     container.style.zoom=String(scale);
