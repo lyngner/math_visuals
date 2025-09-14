@@ -13,8 +13,18 @@
     return {cols, rows};
   }
 
+  const customPatterns={
+    4:[
+      {x:-0.5,y:-0.5},
+      {x:0.5,y:-0.5},
+      {x:-0.5,y:0.5},
+      {x:0.5,y:0.5}
+    ]
+  };
+
   function byggMonster(n){
     if(n<=0) return [];
+    if(customPatterns[n]) return customPatterns[n];
     const {cols, rows}=finnFaktorer(n);
     const points=[];
     const xOff=-(cols-1)/2;
