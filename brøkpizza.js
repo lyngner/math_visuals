@@ -1,12 +1,12 @@
 /* =======================
    KONFIG FRA HTML
    ======================= */
-const SIMPLE = { pizzas: [] };
+const SIMPLE = { pizzas: [], ops: [] };
 const PANEL_HTML = [];
 
 function readConfigFromHtml(){
   const pizzas = [];
-  for(let i=1;i<=2;i++){
+  for(let i=1;i<=3;i++){
     const t      = parseInt(document.getElementById(`p${i}T`)?.value,10);
     const n      = parseInt(document.getElementById(`p${i}N`)?.value,10);
     const lockN  = document.getElementById(`p${i}LockN`)?.checked ?? false;
@@ -24,7 +24,12 @@ function readConfigFromHtml(){
       maksN: isFinite(maxN)?maxN:24
     });
   }
-  return { pizzas };
+  const ops = [];
+  for(let i=1;i<=2;i++){
+    const op = document.getElementById(`op${i}`)?.value || "";
+    ops.push(op);
+  }
+  return { pizzas, ops };
 }
 
 /* =======================
@@ -37,7 +42,8 @@ const PIZZA_DEFAULTS = {
 };
 const PIZZA_DOM = [
   { svgId:"pizza1", fracId:"frac1", minusId:"nMinus1", plusId:"nPlus1", valId:"nVal1" },
-  { svgId:"pizza2", fracId:"frac2", minusId:"nMinus2", plusId:"nPlus2", valId:"nVal2" }
+  { svgId:"pizza2", fracId:"frac2", minusId:"nMinus2", plusId:"nPlus2", valId:"nVal2" },
+  { svgId:"pizza3", fracId:"frac3", minusId:"nMinus3", plusId:"nPlus3", valId:"nVal3" }
 ];
 
 const TAU=Math.PI*2;
@@ -582,8 +588,9 @@ function getVisiblePizzas(){
 function buildAllPizzasSVG(){
   const svgs=getVisiblePizzas();
   if(!svgs.length) return null;
-  const gap=24, size=420;
-  const w=size*svgs.length + gap*(svgs.length-1);
+  const gap=24, size=420, opW=80, ops=SIMPLE.ops||[];
+  const opCount=ops.slice(0,svgs.length-1).filter(o=>o).length;
+  const w=size*svgs.length + gap*(svgs.length-1) + opW*opCount;
   const h=size;
   const root=mk("svg",{xmlns:"http://www.w3.org/2000/svg", "xmlns:xlink":"http://www.w3.org/1999/xlink", width:w, height:h, viewBox:`0 0 ${w} ${h}`});
   const bg=mk("rect",{x:0,y:0,width:w,height:h,fill:"#fff"});
@@ -591,14 +598,27 @@ function buildAllPizzasSVG(){
   const styleEl=mk("style",{type:"text/css"});
   styleEl.appendChild(document.createTextNode(EXPORT_SVG_STYLE));
   root.appendChild(styleEl);
+  let x=0;
   svgs.forEach((svg,i)=>{
     const clone=svg.cloneNode(true);
     clone.querySelectorAll(".handle, .a11y").forEach(el=>el.remove());
-    clone.setAttribute("x", i*(size+gap));
+    clone.setAttribute("x", x);
     clone.setAttribute("y", 0);
     clone.setAttribute("width", size);
     clone.setAttribute("height", size);
     root.appendChild(clone);
+    x += size;
+    const sign=ops[i];
+    if(i<svgs.length-1){
+      if(sign){
+        x += opW/2;
+        const t=mk("text",{x:x,y:size/2,"text-anchor":"middle","dominant-baseline":"middle","font-size":"80"});
+        t.textContent=sign;
+        root.appendChild(t);
+        x += opW/2;
+      }
+      x += gap;
+    }
   });
   const xml=new XMLSerializer().serializeToString(root);
   return `<?xml version="1.0" encoding="UTF-8"?>\n`+xml;
@@ -630,11 +650,12 @@ function downloadAllPizzasPNG(filename="broksirkler.png"){
   img.src=url;
 }
 
-function downloadAllPizzasInteractiveSVG(filename="broksirkler-interaktiv.svg"){
+function downloadAllPizzasInteractiveSVG(filename="broksirkler-interaktiv.svg"){ 
   const svgs=getVisiblePizzas();
   if(!svgs.length) return;
-  const gap=24, size=420, M_TOP=78, M_BOTTOM=96;
-  const w=size*svgs.length + gap*(svgs.length-1);
+  const gap=24, size=420, M_TOP=78, M_BOTTOM=96, opW=80, ops=SIMPLE.ops||[];
+  const opCount=ops.slice(0,svgs.length-1).filter(o=>o).length;
+  const w=size*svgs.length + gap*(svgs.length-1) + opW*opCount;
   const h=size + M_TOP + M_BOTTOM;
   const root=mk("svg",{xmlns:"http://www.w3.org/2000/svg", "xmlns:xlink":"http://www.w3.org/1999/xlink", width:w, height:h, viewBox:`0 0 ${w} ${h}`});
   const bg=mk("rect",{x:0,y:0,width:w,height:h,fill:"#fff"});
@@ -642,6 +663,7 @@ function downloadAllPizzasInteractiveSVG(filename="broksirkler-interaktiv.svg"){
   const styleEl=mk("style",{type:"text/css"});
   styleEl.appendChild(document.createTextNode(EXPORT_SVG_STYLE));
   root.appendChild(styleEl);
+  let x=0;
   svgs.forEach((svg,i)=>{
     const clone=svg.cloneNode(true);
     const inst=REG.get(svg);
@@ -668,7 +690,7 @@ function downloadAllPizzasInteractiveSVG(filename="broksirkler-interaktiv.svg"){
     clone.setAttribute("data-nmin", String(nMin));
     clone.setAttribute("data-nmax", String(nMax));
     clone.setAttribute("data-show-nval", showNVal ? "1" : "0");
-    clone.setAttribute("x", i*(size+gap));
+    clone.setAttribute("x", x);
     clone.setAttribute("y", M_TOP);
     clone.setAttribute("width", size);
     clone.setAttribute("height", size);
@@ -677,6 +699,18 @@ function downloadAllPizzasInteractiveSVG(filename="broksirkler-interaktiv.svg"){
     scriptEl.appendChild(document.createTextNode(INTERACTIVE_SVG_SCRIPT));
     clone.appendChild(scriptEl);
     root.appendChild(clone);
+    x += size;
+    const sign=ops[i];
+    if(i<svgs.length-1){
+      if(sign){
+        x += opW/2;
+        const t=mk("text",{x:x,y:M_TOP+size/2,"text-anchor":"middle","dominant-baseline":"middle","font-size":"80"});
+        t.textContent=sign;
+        root.appendChild(t);
+        x += opW/2;
+      }
+      x += gap;
+    }
   });
   const xml=new XMLSerializer().serializeToString(root);
   const file=`<?xml version="1.0" encoding="UTF-8"?>\n`+xml;
@@ -702,6 +736,7 @@ function setupGlobalDownloadButtons(){
 function initFromHtml(){
   const cfg = readConfigFromHtml();
   SIMPLE.pizzas = cfg.pizzas;
+  SIMPLE.ops = cfg.ops;
   REG.clear();
 
   PIZZA_DOM.forEach((map,i)=>{
@@ -727,6 +762,19 @@ function initFromHtml(){
     });
 
   });
+
+  cfg.ops.forEach((op,i)=>{
+    const el=document.getElementById(`opDisplay${i+1}`);
+    const nextPanel=document.getElementById(`panel${i+2}`);
+    if(!el) return;
+    if(op && nextPanel && nextPanel.style.display !== "none"){
+      el.textContent=op;
+      el.style.display="";
+    }else{
+      el.style.display="none";
+    }
+  });
+
   scheduleCenterAlign();
 }
 
@@ -735,11 +783,18 @@ window.addEventListener("load", () => {
   setupGlobalDownloadButtons();
   const addBtn = document.getElementById('addPizza');
   const fieldset2 = document.getElementById('fieldset2');
+  const fieldset3 = document.getElementById('fieldset3');
   addBtn?.addEventListener('click', () => {
-    addBtn.style.display = 'none';
-    if(fieldset2) fieldset2.style.display = '';
     const panel2 = document.getElementById('panel2');
-    if(panel2) panel2.style.display = '';
+    const panel3 = document.getElementById('panel3');
+    if(panel2 && panel2.style.display === 'none'){
+      panel2.style.display = '';
+      if(fieldset2) fieldset2.style.display = '';
+    }else if(panel3 && panel3.style.display === 'none'){
+      panel3.style.display = '';
+      if(fieldset3) fieldset3.style.display = '';
+      addBtn.style.display = 'none';
+    }
     initFromHtml();
   });
   document.querySelectorAll("input, select").forEach(el => {
