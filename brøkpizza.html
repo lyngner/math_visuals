@@ -46,7 +46,7 @@
       display:flex;
       gap:24px;
       align-items:start;
-      flex-wrap:wrap;
+      flex-wrap:nowrap;
       justify-content:center;
     }
     .pizzaPanel { display:grid; place-items:center; gap:10px; }
@@ -88,10 +88,6 @@
     }
     .stepper span { min-width:32px; text-align:center; font-variant-numeric:tabular-nums; font-size:16px; }
     .a11y:focus { outline:none; stroke:#1e88e5; stroke-width:3; }
-    @media (max-width: 420px) {
-      .grid2 { flex-direction:column; gap: 16px; }
-      svg.pizza { width: clamp(240px, 92vw, 420px); }
-    }
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
