@@ -482,6 +482,7 @@ const toBB = scr => [scr[0], scr[3], scr[1], scr[2]];
 /* ===================== Init JSXGraph ===================== */
 JXG.Options.showCopyright = false;
 JXG.Options.showNavigation = false;
+JXG.Options.text.display = 'internal';
 function initialScreen(){
   let scr = ADV.screen ?? (MODE==='functions' ? computeAutoScreenFunctions()
                                               : computeAutoScreenPoints());
@@ -521,12 +522,12 @@ function placeAxisNames(){
   const rx=xmax-xmin, ry=ymax-ymin, off=0.04;
   if(!xName){
     xName = brd.create('text',[0,0,()=>ADV.axis.labels.x||'x'],
-      {anchorX:'right',anchorY:'top',fixed:true,fontSize:20, layer:40,
+      {display:'internal',anchorX:'right',anchorY:'top',fixed:true,fontSize:20, layer:40,
        color:ADV.axis.style.stroke, cssStyle:'pointer-events:none;user-select:none;'});
   }
   if(!yName){
     yName = brd.create('text',[0,0,()=>ADV.axis.labels.y||'y'],
-      {anchorX:'right',anchorY:'top',fixed:true,fontSize:20, layer:40,
+      {display:'internal',anchorX:'right',anchorY:'top',fixed:true,fontSize:20, layer:40,
        color:ADV.axis.style.stroke, cssStyle:'pointer-events:none;user-select:none;'});
   }
   xName.moveTo([xmax-off*rx, 0-off*ry]);
@@ -541,13 +542,13 @@ axX.defaultTicks.setAttribute({
   ...tickBase,
   ticksDistance: +ADV.axis.grid.majorX || 1,
   minorTicks: 0,
-  label: { anchorX:'middle', anchorY:'top', offset:[0,-8] }
+  label: { display:'internal', anchorX:'middle', anchorY:'top', offset:[0,-8] }
 });
 axY.defaultTicks.setAttribute({
   ...tickBase,
   ticksDistance: +ADV.axis.grid.majorY || 1,
   minorTicks: 0,
-  label: { anchorX:'right', anchorY:'middle', offset:[-8,0] }
+  label: { display:'internal', anchorX:'right', anchorY:'middle', offset:[-8,0] }
 });
 
 /* ====== Lås 1:1 når lockAspect===true,
@@ -683,7 +684,7 @@ function makeSmartCurveLabel(g, idx, text){
   const label = brd.create('text',[0,0,()=>text],{
     color:g.color, fillColor:g.color, fontSize:ADV.curveName.fontSize,
     fixed:true, highlight:false, layer:ADV.curveName.layer,
-    anchorX:'left', anchorY:'middle',
+    anchorX:'left', anchorY:'middle', display:'internal',
     cssStyle:'pointer-events:none;user-select:none;'
   });
   ensurePlateFor(label);
