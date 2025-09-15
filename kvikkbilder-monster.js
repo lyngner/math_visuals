@@ -150,20 +150,20 @@
     if(!availableWidth){
       availableWidth=patternContainer.parentElement?.clientWidth||360;
     }
-    const maxPreferred=420;
-    const minPreferred=280;
+    const maxPreferred=560;
+    const minPreferred=320;
     let targetPx=Math.min(availableWidth,maxPreferred);
     if(availableWidth>=minPreferred){
       targetPx=Math.max(targetPx,minPreferred);
     }
     if(!Number.isFinite(targetPx)||targetPx<=0){
-      targetPx=360;
+      targetPx=420;
     }
     const maxDim=Math.max(vbW,vbH);
     const pxPerUnit=targetPx/maxDim;
     const widthPx=vbW*pxPerUnit;
     const heightPx=vbH*pxPerUnit;
-    const dotRadiusPx=4;
+    const dotRadiusPx=6;
     const dotRadius=dotRadiusPx/pxPerUnit;
     const svgNS='http://www.w3.org/2000/svg';
     const svg=document.createElementNS(svgNS,'svg');
