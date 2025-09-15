@@ -75,7 +75,7 @@
     });
   }
 
-  saveBtn?.addEventListener('click', ()=>{
+  saveBtn?.addEventListener('click', async ()=>{
     const examples = getExamples();
     const ex = collectConfig();
     examples.push(ex);
@@ -90,6 +90,19 @@
       if(cfg.STATE)  lines.push(`window.STATE=${JSON.stringify(cfg.STATE)};`);
       if(cfg.CFG)    lines.push(`window.CFG=${JSON.stringify(cfg.CFG)};`);
       if(cfg.CONFIG) lines.push(`window.CONFIG=${JSON.stringify(cfg.CONFIG)};`);
+
+      // Include all external scripts in the downloaded file
+      const scripts = Array.from(document.querySelectorAll('script[src]'))
+        .filter(s => !s.src.endsWith('examples.js'));
+      for(const s of scripts){
+        try{
+          const res = await fetch(s.src);
+          const txt = await res.text();
+          lines.push(`// Source: ${s.src}`);
+          lines.push(txt);
+        }catch{}
+      }
+
       const blob = new Blob([lines.join('\n')], {type:'application/javascript'});
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
