@@ -29,19 +29,16 @@
       justify-content:center;
       align-items:flex-start;
       padding:12px 4px 4px;
-      flex-wrap:wrap;
+      flex-wrap:nowrap;
+      overflow-x:auto;
     }
-    .tb-panels.two{gap:0;}
+    .tb-panels.two{gap:0;justify-content:flex-start;}
+    .tb-panels > *{flex:0 0 auto;}
     .tb-panel{display:flex;flex-direction:column;align-items:center;gap:16px;max-width:420px;}
     .tb-svg{width:min(420px,88vw);height:auto;background:#fff;}
     .tb-panels.two .tb-svg{width:min(420px,44vw);}
     .tb-header{width:100%;display:flex;flex-direction:column;align-items:center;gap:6px;}
     .tb-whole{font-size:24px;line-height:1;color:#111827;}
-    .tb-meta{display:flex;gap:12px;align-items:center;}
-    .tb-frac{font-size:28px;line-height:1;text-align:center;}
-    .tb-frac .num{display:block;border-bottom:2px solid #000;margin-bottom:4px;}
-    .tb-frac .den{display:block;}
-    .tb-percent{font-size:28px;line-height:1;}
     .tb-header:empty{display:none;}
     .tb-settings{display:flex;flex-direction:column;gap:var(--gap);}
     .addFigureBtn{
@@ -76,7 +73,8 @@
     .tb-stepper span{min-width:32px;text-align:center;font-variant-numeric:tabular-nums;font-size:16px;}
     .tb-stepper button:active{transform:translateY(1px)}
     label{font-size:13px;color:#4b5563;display:flex;flex-direction:column;}
-    input[type="number"]{border:1px solid #d1d5db;border-radius:10px;padding:8px 10px;font-size:14px;background:#fff;}
+    input[type="number"],
+    select{border:1px solid #d1d5db;border-radius:10px;padding:8px 10px;font-size:14px;background:#fff;}
     .checkbox-row{display:flex;align-items:center;gap:6px;font-size:13px;color:#4b5563;}
     .checkbox-row input{margin:0;}
     .checkbox-row label{display:inline;}
@@ -144,8 +142,13 @@
               <div class="checkbox-row"><input id="cfg-show-whole-1" type="checkbox" checked /><label for="cfg-show-whole-1">Vis hele</label></div>
               <div class="checkbox-row"><input id="cfg-lock-n-1" type="checkbox" /><label for="cfg-lock-n-1">Lås nevner</label></div>
               <div class="checkbox-row"><input id="cfg-hide-n-1" type="checkbox" /><label for="cfg-hide-n-1">Skjul n-verdi</label></div>
-              <div class="checkbox-row"><input id="cfg-show-frac-1" type="checkbox" checked /><label for="cfg-show-frac-1">Vis som brøk</label></div>
-              <div class="checkbox-row"><input id="cfg-show-percent-1" type="checkbox" /><label for="cfg-show-percent-1">Vis som prosent</label></div>
+              <label>Vis som
+                <select id="cfg-display-1">
+                  <option value="number">Tall</option>
+                  <option value="fraction">Brøk</option>
+                  <option value="percent">Prosent</option>
+                </select>
+              </label>
             </fieldset>
             <fieldset id="cfg-fieldset-2" style="display:none">
               <legend>Tenkeblokker 2</legend>
@@ -161,8 +164,13 @@
               <div class="checkbox-row"><input id="cfg-show-whole-2" type="checkbox" checked /><label for="cfg-show-whole-2">Vis hele</label></div>
               <div class="checkbox-row"><input id="cfg-lock-n-2" type="checkbox" /><label for="cfg-lock-n-2">Lås nevner</label></div>
               <div class="checkbox-row"><input id="cfg-hide-n-2" type="checkbox" /><label for="cfg-hide-n-2">Skjul n-verdi</label></div>
-              <div class="checkbox-row"><input id="cfg-show-frac-2" type="checkbox" checked /><label for="cfg-show-frac-2">Vis som brøk</label></div>
-              <div class="checkbox-row"><input id="cfg-show-percent-2" type="checkbox" /><label for="cfg-show-percent-2">Vis som prosent</label></div>
+              <label>Vis som
+                <select id="cfg-display-2">
+                  <option value="number">Tall</option>
+                  <option value="fraction">Brøk</option>
+                  <option value="percent">Prosent</option>
+                </select>
+              </label>
             </fieldset>
           </div>
         </div>
