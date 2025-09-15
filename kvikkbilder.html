@@ -24,27 +24,42 @@
       display:flex;flex-direction:column;gap:10px;
     }
     .card h2{margin:0 0 6px 2px;font-size:16px;font-weight:600;color:#374151;}
-    #brickContainer{
-      display:grid;
-      gap:10px;
-      justify-content:center;
+    .figure-area{
+      position:relative;
       width:min(80vmin,100%);
       aspect-ratio:1;
+      align-self:center;
+      margin:0 auto;
+    }
+    #brickContainer{
+      position:absolute;
+      inset:0;
+      display:grid;
+      gap:10px;
     }
     #brickContainer svg{width:100%;height:100%;}
-    #patternContainer{display:grid;gap:10px;justify-content:center;}
-    #patternContainer svg{height:auto;}
+    #patternContainer{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    #patternContainer svg{width:100%;height:100%;display:block;}
     #expression{text-align:center;font-size:24px;font-weight:600;}
     label{font-size:13px;color:#4b5563;display:flex;flex-direction:column;}
     input[type="number"], select{border:1px solid #d1d5db;border-radius:10px;padding:8px 10px;font-size:14px;background:#fff;}
     .checkbox-row{display:flex;align-items:center;gap:6px;}
     #playBtn{
-      align-self:center;
+      position:absolute;
+      top:50%;
+      left:50%;
+      transform:translate(-50%,-50%);
       padding:0;
-      font-size:40px;
+      font-size:64px;
       cursor:pointer;
-      width:100px;
-      height:100px;
+      width:160px;
+      height:160px;
       border:none;
       border-radius:50%;
       background:#10b981;
@@ -65,9 +80,11 @@
   <div class="wrap">
     <div class="grid">
       <div class="card">
-        <button id="playBtn" aria-label="Vis kvikkbilde">▶</button>
-        <div id="brickContainer" class="figure" aria-label="Kvikkbilder klosser"></div>
-        <div id="patternContainer" class="figure" aria-label="Kvikkbilder mønster"></div>
+        <div id="figureArea" class="figure-area">
+          <button id="playBtn" aria-label="Vis kvikkbilde">▶</button>
+          <div id="brickContainer" class="figure" aria-label="Kvikkbilder klosser"></div>
+          <div id="patternContainer" class="figure" aria-label="Kvikkbilder mønster"></div>
+        </div>
         <div id="expression"></div>
       </div>
       <div class="side">

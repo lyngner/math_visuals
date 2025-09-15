@@ -236,31 +236,75 @@
       expression.textContent=`${n}`;
       return;
     }
+
+    const radius=10;
+    const spacing=3;
+    const desiredCenterDistance=radius*2+spacing;
+
+    const seen=new Set();
+    const uniquePoints=[];
+    const precision=1e4;
+    points.forEach(p=>{
+      const key=`${Math.round(p.x*precision)}:${Math.round(p.y*precision)}`;
+      if(!seen.has(key)){
+        seen.add(key);
+        uniquePoints.push(p);
+      }
+    });
+
+    let minDist=Infinity;
+    for(let i=0;i<uniquePoints.length;i++){
+      for(let j=i+1;j<uniquePoints.length;j++){
+        const dx=uniquePoints[i].x-uniquePoints[j].x;
+        const dy=uniquePoints[i].y-uniquePoints[j].y;
+        const dist=Math.hypot(dx,dy);
+        if(dist>0 && dist<minDist) minDist=dist;
+      }
+    }
+    if(!Number.isFinite(minDist) || minDist<=0) minDist=desiredCenterDistance;
+    let scale=desiredCenterDistance/minDist;
+    if(!Number.isFinite(scale) || scale<=0) scale=1;
+    else if(scale<1) scale=1;
+
+    const scaledPoints=points.map(p=>({x:p.x*scale,y:p.y*scale}));
+
     let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-    points.forEach(({x,y})=>{
+    scaledPoints.forEach(({x,y})=>{
       if(x<minX) minX=x;
       if(x>maxX) maxX=x;
       if(y<minY) minY=y;
       if(y>maxY) maxY=y;
     });
-    const pad=1;
-    const vbX=minX-pad;
-    const vbY=minY-pad;
-    const vbW=maxX-minX+pad*2;
-    const vbH=maxY-minY+pad*2;
+
+    const pad=radius+spacing;
+    const contentWidth=maxX-minX;
+    const contentHeight=maxY-minY;
+    const baseW=contentWidth+pad*2;
+    const baseH=contentHeight+pad*2;
+    const minSize=radius*4;
+    const vbW=Math.max(baseW,minSize);
+    const vbH=Math.max(baseH,minSize);
+    const extraX=(vbW-baseW)/2;
+    const extraY=(vbH-baseH)/2;
+    const offsetX=pad+extraX-minX;
+    const offsetY=pad+extraY-minY;
+
     const svgNS='http://www.w3.org/2000/svg';
     const svg=document.createElementNS(svgNS,'svg');
-    svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
-    svg.setAttribute('width', vbW*28);
-    svg.setAttribute('height', vbH*28);
-    points.forEach(({x,y})=>{
+    svg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
+    svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+
+    scaledPoints.forEach(({x,y})=>{
       const c=document.createElementNS(svgNS,'circle');
-      c.setAttribute('cx', x);
-      c.setAttribute('cy', y);
-      c.setAttribute('r', 0.45);
+      c.setAttribute('cx', x+offsetX);
+      c.setAttribute('cy', y+offsetY);
+      c.setAttribute('r', radius);
       c.setAttribute('fill', '#534477');
       svg.appendChild(c);
     });
+
     patternContainer.appendChild(svg);
     const factors=primeFactors(n).filter(x=>x>1);
     expression.textContent=factors.length?`${factors.join(' × ')} = ${n}`:`${n}`;
@@ -268,7 +312,7 @@
 
   function updateVisibilityKlosser(){
     if(cfgShowBtn.checked){
-      playBtn.style.display = 'inline-flex';
+      playBtn.style.display = 'flex';
       brickContainer.style.display = 'none';
       expression.style.display = 'none';
     } else {
@@ -282,12 +326,12 @@
   function updateVisibilityMonster(){
     brickContainer.style.display='none';
     if(cfgShowBtnMonster.checked){
-      playBtn.style.display='inline-flex';
+      playBtn.style.display='flex';
       patternContainer.style.display='none';
       expression.style.display='none';
     } else {
       playBtn.style.display='none';
-      patternContainer.style.display='block';
+      patternContainer.style.display='flex';
       expression.style.display='block';
     }
   }
@@ -334,7 +378,7 @@
       const duration = parseInt(cfgDurationMonster.value,10)||0;
       renderMonster();
       playBtn.style.display='none';
-      patternContainer.style.display='block';
+      patternContainer.style.display='flex';
       expression.style.display='block';
       setTimeout(()=>{
         updateVisibilityMonster();
