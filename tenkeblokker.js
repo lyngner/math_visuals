@@ -45,7 +45,8 @@ CONFIG.showPercent = CONFIG.blocks[0].showPercent;
 
 // ---------- SVG-oppsett ----------
 const VBW = 900, VBH = 420;                  // MÅ samsvare med viewBox i HTML
-const L = 70, R = VBW - 70;                  // venstre/høyre marg
+const SIDE_MARGIN = 70;                      // tomrom på hver side av rammen
+const L = SIDE_MARGIN, R = VBW - SIDE_MARGIN; // venstre/høyre marg
 const TOP = 130, BOT = VBH - 60;             // ramme-topp/-bunn
 const BRACE_Y = 78;                          // høyde for parentes
 const BRACKET_TICK = 16;                     // lengde på «haken» ned i hver ende
@@ -176,8 +177,9 @@ function getExportSvg() {
   if (count === 1) return firstSvg;
 
   const ns = firstSvg.namespaceURI;
-  const gap = 0;
-  const width = count * VBW + (count - 1) * gap;
+  const overlap = count > 1 ? SIDE_MARGIN * 2 : 0;
+  const step = VBW - overlap;
+  const width = count > 0 ? VBW + (count - 1) * step : 0;
   const exportSvg = document.createElementNS(ns, 'svg');
   exportSvg.setAttribute('viewBox', `0 0 ${width} ${VBH}`);
   exportSvg.setAttribute('width', width);
@@ -193,8 +195,7 @@ function getExportSvg() {
     g.setAttribute('transform', `translate(${x},0)`);
     g.innerHTML = block.svg.innerHTML;
     exportSvg.appendChild(g);
-    x += VBW;
-    if (i < count - 1) x += gap;
+    if (i < count - 1) x += step;
   }
   return exportSvg;
 }
