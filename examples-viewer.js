@@ -19,12 +19,6 @@ function renderExamples(){
     arr.forEach((ex, idx) => {
       const wrap = document.createElement('div');
       wrap.className = 'example';
-      if(ex.svg){
-        const divSvg = document.createElement('div');
-        divSvg.innerHTML = ex.svg;
-        const svgEl = divSvg.firstElementChild;
-        if(svgEl) wrap.appendChild(svgEl);
-      }
       const iframe = document.createElement('iframe');
       iframe.setAttribute('loading', 'lazy');
       iframe.title = `Eksempel ${idx + 1} – ${path}`;
