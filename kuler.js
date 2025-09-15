@@ -62,15 +62,24 @@ const gBowls = mk("g",{class:"bowls"});
 svg.appendChild(gBowls);
 
 /* ============ STATE ============ */
+const STATE = (window.STATE && typeof window.STATE === "object") ? window.STATE : {};
+window.STATE = STATE;
+if(!Array.isArray(STATE.bowls)) STATE.bowls = [];
+
 const bowls = [];
 const controls = document.getElementById("controls");
 const colors = Object.keys(ADV.assets.beads);
+const assetToColor = Object.entries(ADV.assets.beads).reduce((acc, [color, src]) => {
+  acc[src] = color;
+  return acc;
+}, {});
 const counts = {};
 const displays = {};
 let beadRadius = CFG.beadRadius;
 let sizeDisplay, sizeSlider;
 let dragBead = null;
 let dragOffX = 0, dragOffY = 0;
+let dragInfo = null;
 colors.forEach(color => {
   const existing = (SIMPLE.bowls[0].colorCounts || []).find(cc => cc.color === color);
   counts[color] = existing ? existing.count : 0;
@@ -127,9 +136,21 @@ document.getElementById("downloadSVG").addEventListener("click", downloadSVG);
 document.getElementById("downloadPNG").addEventListener("click", downloadPNG);
 
 /* ============ FUNKSJONER ============ */
+function getBowlState(idx){
+  if(!STATE.bowls[idx] || typeof STATE.bowls[idx] !== "object" || Array.isArray(STATE.bowls[idx])){
+    STATE.bowls[idx] = {};
+  }
+  const bowlState = STATE.bowls[idx];
+  if(!bowlState.byColor || typeof bowlState.byColor !== "object"){
+    bowlState.byColor = {};
+  }
+  return bowlState;
+}
+
 function render(){
   gBowls.innerHTML = "";
   bowls.length = 0;
+  if(STATE.bowls.length > CFG.bowls.length) STATE.bowls.length = CFG.bowls.length;
   CFG.bowls.forEach((bCfg, idx) => {
     const g = mk("g", {class:"bowl"});
     const midX = VB_W / 2;
@@ -152,31 +173,42 @@ function render(){
     const gBeads = mk("g", {class:"beads"});
     const nBeads = bCfg.colors.length;
     const beadD = CFG.beadRadius * 2;
+    const bowlState = getBowlState(idx);
+    const colorPositions = bowlState.byColor;
+    const colorUsage = {};
     const placed = [];
+    const cx = midX;
+    const cy = rimY + bowlDepth;
+    const rx = bowlWidth / 2 - CFG.beadRadius;
+    const ry = bowlDepth - CFG.beadRadius;
+    const minX = VB_W * 0.3;
+    const maxX = VB_W * 0.7;
+    const minY = VB_H * 0.5;
+    const maxY = VB_H * 0.9;
     function randPos(){
-      const cx = midX;
-      const cy = rimY + bowlDepth;
-      const rx = bowlWidth / 2 - CFG.beadRadius;
-      const ry = bowlDepth - CFG.beadRadius;
-      const minX = VB_W * 0.3;
-      const maxX = VB_W * 0.7;
-      const minY = VB_H * 0.5;
-      const maxY = VB_H * 0.9;
-      let x, y;
-      do {
-        x = minX + Math.random() * (maxX - minX);
-        y = minY + Math.random() * (maxY - minY);
-      } while (((x - cx) ** 2) / (rx ** 2) + ((y - cy) ** 2) / (ry ** 2) > 1);
-      return { x, y };
+      let candidate = null;
+      for(let tries=0; tries<1000; tries++){
+        const x = minX + Math.random() * (maxX - minX);
+        const y = minY + Math.random() * (maxY - minY);
+        if(((x - cx) ** 2) / (rx ** 2) + ((y - cy) ** 2) / (ry ** 2) > 1) continue;
+        candidate = { x, y };
+        const collision = placed.some(p => (p.x - candidate.x) ** 2 + (p.y - candidate.y) ** 2 < (beadD + CFG.beadGap) ** 2);
+        if(!collision) return candidate;
+      }
+      return candidate || { x: cx, y: rimY + bowlDepth * 0.6 };
     }
     for(let i=0;i<nBeads;i++){
-      let pos, tries = 0;
-      do {
-        pos = randPos();
-        tries++;
-      } while (placed.some(p => (p.x - pos.x) ** 2 + (p.y - pos.y) ** 2 < (beadD + CFG.beadGap) ** 2) && tries < 1000);
-      placed.push(pos);
       const src = bCfg.colors[i % bCfg.colors.length];
+      const colorKey = assetToColor[src] || src;
+      const useIdx = colorUsage[colorKey] ?? 0;
+      const arr = Array.isArray(colorPositions[colorKey]) ? colorPositions[colorKey] : (colorPositions[colorKey] = []);
+      let pos = arr[useIdx];
+      if(!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)){
+        pos = randPos();
+        arr[useIdx] = pos;
+      }
+      placed.push(pos);
+      colorUsage[colorKey] = useIdx + 1;
       const bead = mk("image", {
         href: src,
         x: pos.x - CFG.beadRadius,
@@ -185,9 +217,22 @@ function render(){
         height: beadD,
         class: "bead beadShadow"
       });
+      bead.dataset.bowl = String(idx);
+      bead.dataset.color = colorKey;
+      bead.dataset.colorIndex = String(useIdx);
       bead.addEventListener("pointerdown", startDrag);
       gBeads.appendChild(bead);
     }
+
+    Object.keys(colorPositions).forEach(key => {
+      const used = colorUsage[key] ?? 0;
+      if(!Array.isArray(colorPositions[key])){
+        colorPositions[key] = [];
+      }else if(colorPositions[key].length > used){
+        colorPositions[key].length = used;
+      }
+    });
+
     g.appendChild(bowlImg);
     g.appendChild(gBeads);
     gBowls.appendChild(g);
@@ -221,6 +266,14 @@ function updateConfig(){
 
 function startDrag(e){
   dragBead = e.target;
+  const bowlIdx = Number.parseInt(dragBead.dataset.bowl, 10);
+  const colorIdx = Number.parseInt(dragBead.dataset.colorIndex, 10);
+  const colorKey = dragBead.dataset.color;
+  dragInfo = {
+    bowlIdx: Number.isNaN(bowlIdx) ? null : bowlIdx,
+    colorKey: typeof colorKey === "string" && colorKey ? colorKey : null,
+    colorIndex: Number.isNaN(colorIdx) ? null : colorIdx
+  };
   const pt = svgPoint(e);
   const x = parseFloat(dragBead.getAttribute("x"));
   const y = parseFloat(dragBead.getAttribute("y"));
@@ -237,6 +290,7 @@ function onDrag(e){
   const pt = svgPoint(e);
   dragBead.setAttribute("x", pt.x - dragOffX);
   dragBead.setAttribute("y", pt.y - dragOffY);
+  storeDragPosition();
 }
 
 function endDrag(e){
@@ -244,7 +298,22 @@ function endDrag(e){
   svg.removeEventListener("pointerup", endDrag);
   svg.removeEventListener("pointercancel", endDrag);
   try{svg.releasePointerCapture(e.pointerId);}catch(_){}
+  storeDragPosition();
   dragBead = null;
+  dragInfo = null;
+}
+
+function storeDragPosition(){
+  if(!dragBead || !dragInfo) return;
+  const { bowlIdx, colorKey, colorIndex } = dragInfo;
+  if(bowlIdx == null || colorKey == null || colorIndex == null) return;
+  const x = parseFloat(dragBead.getAttribute("x"));
+  const y = parseFloat(dragBead.getAttribute("y"));
+  if(!Number.isFinite(x) || !Number.isFinite(y)) return;
+  const bowlState = getBowlState(bowlIdx);
+  const colorPositions = bowlState.byColor;
+  const arr = Array.isArray(colorPositions[colorKey]) ? colorPositions[colorKey] : (colorPositions[colorKey] = []);
+  arr[colorIndex] = { x: x + CFG.beadRadius, y: y + CFG.beadRadius };
 }
 
 function svgPoint(evt){
