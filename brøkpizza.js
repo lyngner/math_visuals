@@ -91,16 +91,21 @@ function fitPizzasToLine(){
   const extras=[...ops];
   if(addBtn && addBtn.style.display!=="none") extras.push(addBtn);
   const availWidth=container.parentElement?.clientWidth ?? container.clientWidth;
+  if(!availWidth || !Number.isFinite(availWidth)) return;
   const extrasWidth=extras.reduce((sum,el)=>sum+el.getBoundingClientRect().width,0);
   const cs=getComputedStyle(container);
   const gap=parseFloat(cs.columnGap||cs.gap||"0");
   const totalItems=panels.length+extras.length;
   const totalGap=gap*Math.max(0,totalItems-1);
-  let maxW=(availWidth-extrasWidth-totalGap)/panels.length;
-  maxW=Math.min(420,Math.max(100,maxW));
-  panels.forEach(p=>{
-    const svg=p.querySelector("svg.pizza");
-    if(svg) svg.style.width=`${maxW}px`;
+  let computed=(availWidth-extrasWidth-totalGap)/panels.length;
+  if(!Number.isFinite(computed)) computed=container.clientWidth;
+  const MIN=160;
+  const MAX=420;
+  computed=Math.min(MAX,Math.max(MIN,computed));
+  container.style.setProperty("--panel-min",`${computed}px`);
+  panels.forEach(panel=>{
+    const svg=panel.querySelector("svg.pizza");
+    if(svg) svg.style.width="100%";
   });
 }
 window.addEventListener("resize", fitPizzasToLine);

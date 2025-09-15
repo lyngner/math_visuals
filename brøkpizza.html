@@ -43,16 +43,34 @@
 
     /* Kontainer for pizzaer og tegn mellom dem */
     .grid2 {
+      --panel-min: clamp(200px, 28vw, 360px);
       display:flex;
-      gap:24px;
-      align-items:start;
-      flex-wrap:nowrap;
+      flex-wrap:wrap;
+      gap:clamp(16px,2vw,24px);
+      align-items:flex-start;
       justify-content:center;
+      padding-bottom:8px;
     }
-    .pizzaPanel { display:grid; place-items:center; gap:10px; }
-    .opDisplay { font-size:60px; align-self:center; }
+    .pizzaPanel {
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:12px;
+      flex:1 1 var(--panel-min);
+      min-width:var(--panel-min);
+      max-width:420px;
+    }
+    .opDisplay {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:clamp(36px,5vw,60px);
+      flex:0 0 clamp(48px,6vw,80px);
+      min-height:48px;
+    }
     .addFigureBtn {
-      width:clamp(60px,15vw,120px);
+      flex:0 0 clamp(72px,calc(var(--panel-min,220px)*0.7),140px);
+      width:min(100%,clamp(72px,calc(var(--panel-min,220px)*0.7),140px));
       aspect-ratio:1;
       border:2px dashed #cfcfcf;
       border-radius:10px;
@@ -70,7 +88,7 @@
     .frac { font-size:28px; line-height:1; text-align:center; }
     .frac .num { display:block; border-bottom:2px solid #000; margin-bottom:4px; }
     .frac .den { display:block; }
-    svg.pizza { width: clamp(100px, 40vw, 420px); height:auto; background:#fff; }
+    svg.pizza { width:100%; max-width:420px; height:auto; background:#fff; }
     .rim { fill:none; stroke:var(--rim); stroke-width:6; }
     .sector { stroke:#fff; stroke-width:6; }
     .sector-fill  { fill:var(--purple); }
