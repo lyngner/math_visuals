@@ -236,6 +236,12 @@
       });
     }
 
+    function disableHitDetection(element){
+      if(element && typeof element.hasPoint === 'function'){
+        element.hasPoint = () => false;
+      }
+    }
+
     function togglePart(i, element){
       const colors = getColors();
       const current = filled.get(i) || 0;
@@ -338,11 +344,13 @@
         }
         for(let i=1;i<cols;i++){
           const x=i/cols;
-          board.create('segment', [[x,0],[x,1]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'});
+          const seg = board.create('segment', [[x,0],[x,1]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'});
+          disableHitDetection(seg);
         }
         for(let j=1;j<rows;j++){
           const y=j/rows;
-          board.create('segment', [[0,y],[1,y]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'});
+          const seg = board.create('segment', [[0,y],[1,y]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'});
+          disableHitDetection(seg);
         }
         board.create('circle', [[cx,cy], r], {
           strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false,
@@ -371,9 +379,10 @@
           sector.on('down', () => togglePart(i, sector));
         }
         for(const p of boundaryPts){
-          board.create('segment', [center, p], {
+          const seg = board.create('segment', [center, p], {
             strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
+          disableHitDetection(seg);
         }
         board.create('circle', [center, r], {
           strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false,
@@ -399,9 +408,10 @@
             fixed:true
           });
           poly.on('down', () => togglePart(i, poly));
-          board.create('segment', [c, corners[i]], {
+          const seg = board.create('segment', [c, corners[i]], {
             strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
+          disableHitDetection(seg);
         }
       }else if(division==='grid'){
         const {rows, cols} = gridDims(n);
@@ -425,11 +435,13 @@
         }
         for(let i=1;i<cols;i++){
           const x=i/cols;
-          board.create('segment', [[x,0],[x,1]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'});
+          const seg = board.create('segment', [[x,0],[x,1]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'});
+          disableHitDetection(seg);
         }
         for(let j=1;j<rows;j++){
           const y=j/rows;
-          board.create('segment', [[0,y],[1,y]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'});
+          const seg = board.create('segment', [[0,y],[1,y]], {strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'});
+          disableHitDetection(seg);
         }
       }else{
         for(let i=0;i<n;i++){
@@ -455,14 +467,16 @@
         for(let i=1;i<n;i++){
           if(division==='vertical'){
             const x=i/n;
-            board.create('segment', [[x,0],[x,1]], {
+            const seg = board.create('segment', [[x,0],[x,1]], {
               strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
             });
+            disableHitDetection(seg);
           }else{
             const y=i/n;
-            board.create('segment', [[0,y],[1,y]], {
+            const seg = board.create('segment', [[0,y],[1,y]], {
               strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
             });
+            disableHitDetection(seg);
           }
         }
       }
@@ -528,15 +542,18 @@
           }
         }
         for(let r=1;r<m;r++){
-          board.create('segment', [rows[r][0], rows[r][r]], {
+          const seg1 = board.create('segment', [rows[r][0], rows[r][r]], {
             strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
-          board.create('segment', [rows[r][0], rows[m][r]], {
+          disableHitDetection(seg1);
+          const seg2 = board.create('segment', [rows[r][0], rows[m][r]], {
             strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
-          board.create('segment', [rows[r][r], rows[m][m-r]], {
+          disableHitDetection(seg2);
+          const seg3 = board.create('segment', [rows[r][r], rows[m][m-r]], {
             strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
+          disableHitDetection(seg3);
         }
         board.create('polygon', [toEqTri([0,1]), toEqTri([1,1]), toEqTri([0.5,0])], {
           borders:{strokeColor:'#333', strokeWidth:6},
@@ -585,34 +602,39 @@
         for(let i=1;i<n;i++){
           const x=i/n;
           if(allowWrong){
-            board.create('segment', [toEq([x,0]), toEq([x,1-x])], {
+            const seg = board.create('segment', [toEq([x,0]), toEq([x,1-x])], {
               strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
             });
+            disableHitDetection(seg);
           }else{
-            board.create('segment', [toEq([x,0]), toEq([0,1])], {
+            const seg = board.create('segment', [toEq([x,0]), toEq([0,1])], {
               strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
             });
+            disableHitDetection(seg);
           }
         }
       }else if(division==='horizontal'){
         for(let i=1;i<n;i++){
           const y=i/n;
           if(allowWrong){
-            board.create('segment', [toEq([0,y]), toEq([1-y,y])], {
+            const seg = board.create('segment', [toEq([0,y]), toEq([1-y,y])], {
               strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
             });
+            disableHitDetection(seg);
           }else{
-            board.create('segment', [toEq([0,y]), toEq([1,0])], {
+            const seg = board.create('segment', [toEq([0,y]), toEq([1,0])], {
               strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
             });
+            disableHitDetection(seg);
           }
         }
       }else{ // diagonal
         for(let i=1;i<n;i++){
           const t=i/n;
-          board.create('segment', [toEq([1-t,t]), toEq([0,0])], {
+          const seg = board.create('segment', [toEq([1-t,t]), toEq([0,0])], {
             strokeColor:'#000', strokeWidth:2, dash:2, highlight:false, fixed:true, cssStyle:'pointer-events:none;'
           });
+          disableHitDetection(seg);
         }
       }
       board.create('polygon', [toEq([0,0]), toEq([1,0]), toEq([0,1])], {
