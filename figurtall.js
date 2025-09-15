@@ -1,11 +1,9 @@
 (function(){
   const boxes=[];
-  // Default grid size set to 3x3 with aligned rows
+  const MAX_DIM=20;
+  const MAX_COLORS=6;
   let rows=3;
   let cols=3;
-  let circleMode=true;
-  let offset=true;
-  let showGrid=true;
 
   const colorCountInp=document.getElementById('colorCount');
   const colorInputs=[];
@@ -22,20 +20,95 @@
     5:['#534477','#B25FE3','#6C1BA2','#873E79','#BF4474'],
     6:['#534477','#B25FE3','#6C1BA2','#873E79','#BF4474','#E31C3D']
   };
-  function setDefaultColors(n){
-    const arr=DEFAULT_COLOR_SETS[n]||DEFAULT_COLOR_SETS[6];
-    colorInputs.forEach((inp,idx)=>{
-      if(arr[idx]) inp.value=arr[idx];
-    });
+  const INITIAL_COLORS=colorInputs.map(inp=>inp.value);
+  const STATE=(typeof window.STATE==='object' && window.STATE)?window.STATE:{};
+  window.STATE=STATE;
+
+  function clampInt(value,min,max){
+    const num=parseInt(value,10);
+    if(!Number.isFinite(num)) return min;
+    return Math.max(min,Math.min(max,num));
   }
-  let colorCount=parseInt(colorCountInp?.value,10)||1;
+
+  function normalizeCells(cells,rowCount,colCount){
+    const matrix=Array.from({length:rowCount},()=>Array(colCount).fill(0));
+    if(!Array.isArray(cells)) return matrix;
+    for(let r=0;r<rowCount;r++){
+      const row=Array.isArray(cells[r])?cells[r]:[];
+      for(let c=0;c<colCount;c++){
+        const val=parseInt(row[c],10);
+        matrix[r][c]=Number.isFinite(val)&&val>0?val:0;
+      }
+    }
+    return matrix;
+  }
+
+  function ensureColors(count){
+    if(!Array.isArray(STATE.colors)) STATE.colors=INITIAL_COLORS.slice();
+    const fallback=DEFAULT_COLOR_SETS[count]||DEFAULT_COLOR_SETS[MAX_COLORS]||INITIAL_COLORS;
+    const needed=Math.max(count,INITIAL_COLORS.length,STATE.colors.length||0,MAX_COLORS);
+    for(let i=0;i<needed;i++){
+      if(typeof STATE.colors[i]!=='string' || !STATE.colors[i]){
+        const fb=fallback?.[i]??fallback?.[fallback.length-1]??INITIAL_COLORS[i%INITIAL_COLORS.length]??'#6C1BA2';
+        STATE.colors[i]=fb;
+      }
+    }
+    if(STATE.colors.length<needed) STATE.colors.length=needed;
+  }
+
+  function createFigureState(name,rowCount,colCount,coords){
+    const label=typeof name==='string' && name.trim()?name:`Figur ${STATE.figures?.length?STATE.figures.length+1:1}`;
+    const cells=normalizeCells([],rowCount,colCount);
+    (coords||[]).forEach(coord=>{
+      if(!Array.isArray(coord)) return;
+      const [r,c,colorIdx=1]=coord;
+      if(r>=0 && r<rowCount && c>=0 && c<colCount){
+        const idx=parseInt(colorIdx,10);
+        cells[r][c]=Number.isFinite(idx)&&idx>0?idx:1;
+      }
+    });
+    return {name:label,cells};
+  }
+
+  function sanitizeState(){
+    const maxColors=colorInputs.length||MAX_COLORS;
+    rows=clampInt(STATE.rows??rows,1,MAX_DIM);
+    cols=clampInt(STATE.cols??cols,1,MAX_DIM);
+    STATE.rows=rows;
+    STATE.cols=cols;
+    STATE.circleMode=STATE.circleMode!==false;
+    STATE.offset=STATE.offset!==false;
+    STATE.showGrid=STATE.showGrid!==false;
+    STATE.colorCount=clampInt(STATE.colorCount??(colorCountInp?colorCountInp.value:1),1,maxColors);
+    ensureColors(STATE.colorCount);
+    if(!Array.isArray(STATE.figures)) STATE.figures=[];
+    if(STATE.figures.length===0){
+      STATE.figures=[
+        createFigureState('Figur 1',rows,cols,[[0,1]]),
+        createFigureState('Figur 2',rows,cols,[[0,1],[1,0],[1,1]]),
+        createFigureState('Figur 3',rows,cols,[[0,1],[1,0],[1,1],[2,0],[2,1],[2,2]])
+      ];
+    }else{
+      STATE.figures=STATE.figures.map((fig,idx)=>{
+        const name=typeof fig?.name==='string' && fig.name.trim()?fig.name:`Figur ${idx+1}`;
+        return {name,cells:normalizeCells(fig?.cells,rows,cols)};
+      });
+    }
+  }
 
   function getColors(){
-    return colorInputs.slice(0,colorCount).map(inp=>inp.value);
+    ensureColors(STATE.colorCount);
+    return STATE.colors.slice(0,STATE.colorCount);
   }
 
-  function updateCellShape(cell){
-    if(circleMode && cell.dataset.color!=='0'){
+  function applyCellAppearance(cell,idx,colors){
+    cell.dataset.color=String(idx);
+    if(idx===0){
+      cell.style.backgroundColor='#fff';
+    }else{
+      cell.style.backgroundColor=colors[idx-1]||'#fff';
+    }
+    if(STATE.circleMode && idx!==0){
       cell.classList.add('circle');
     }else{
       cell.classList.remove('circle');
@@ -44,114 +117,99 @@
 
   function updateCellColors(){
     const colors=getColors();
-    boxes.forEach(box=>{
-      box.querySelectorAll('.cell').forEach(cell=>{
-        let idx=parseInt(cell.dataset.color,10)||0;
-        if(idx===0){
-          cell.style.backgroundColor='#fff';
-        }else if(idx>colors.length){
-          idx=0;
-          cell.dataset.color='0';
-          cell.style.backgroundColor='#fff';
-        }else{
-          cell.style.backgroundColor=colors[idx-1];
-        }
-        updateCellShape(cell);
-      });
+    container?.querySelectorAll('.cell').forEach(cell=>{
+      const figIndex=parseInt(cell.dataset.figIndex,10);
+      const r=parseInt(cell.dataset.row,10);
+      const c=parseInt(cell.dataset.col,10);
+      const fig=STATE.figures[figIndex];
+      if(!fig || !Array.isArray(fig.cells)) return;
+      let idxVal=fig.cells?.[r]?.[c]||0;
+      if(idxVal>colors.length){
+        idxVal=0;
+        if(fig.cells[r]) fig.cells[r][c]=0;
+      }
+      applyCellAppearance(cell,idxVal,colors);
     });
   }
 
   function updateColorVisibility(){
-    setDefaultColors(colorCount);
+    const count=STATE.colorCount;
+    ensureColors(count);
     colorInputs.forEach((inp,idx)=>{
-      inp.style.display=idx<colorCount?'':'none';
+      if(idx<count){
+        inp.style.display='';
+        inp.value=STATE.colors[idx];
+      }else{
+        inp.style.display='none';
+      }
     });
     updateCellColors();
   }
 
-  colorCountInp?.addEventListener('input',()=>{
-    colorCount=Math.max(1,Math.min(colorInputs.length,parseInt(colorCountInp.value,10)||1));
-    updateColorVisibility();
-  });
-  colorInputs.forEach(inp=>inp.addEventListener('input',updateCellColors));
-  updateColorVisibility();
-
-  function createGrid(el){
-    // Store existing colors before rebuilding the grid
-    const prevColors=[];
-    el.querySelectorAll('.row').forEach((row,r)=>{
-      prevColors[r]=[];
-      row.querySelectorAll('.cell').forEach((cell,c)=>{
-        prevColors[r][c]=cell.dataset.color||'0';
-      });
-    });
-
-    el.innerHTML='';
-    el.style.setProperty('--cols',cols);
-    el.style.setProperty('--rows',rows);
-    // Maintain square cells by ensuring width/height ratio equals cols/rows
-    el.style.setProperty('--aspect',cols/rows);
-    el.style.setProperty('--cellSize',(100/cols)+'%');
-    el.classList.toggle('hide-grid', !showGrid);
+  function createGridForFigure(boxEl,index){
+    const fig=STATE.figures[index];
+    boxEl.innerHTML='';
+    boxEl.style.setProperty('--cols',cols);
+    boxEl.style.setProperty('--rows',rows);
+    boxEl.style.setProperty('--aspect',cols/rows);
+    boxEl.style.setProperty('--cellSize',(100/cols)+'%');
+    boxEl.classList.toggle('hide-grid',!STATE.showGrid);
     for(let r=0;r<rows;r++){
-      const row=document.createElement('div');
-      row.className='row';
-      if(offset && r%2===1) row.classList.add('offset');
+      const rowEl=document.createElement('div');
+      rowEl.className='row';
+      if(STATE.offset && r%2===1) rowEl.classList.add('offset');
       for(let c=0;c<cols;c++){
         const cell=document.createElement('div');
         cell.className='cell';
-        // Restore previously set color if available
-        cell.dataset.color=prevColors?.[r]?.[c]||'0';
-        cell.addEventListener('click',()=>{
-          const colors=getColors();
-          let idx=parseInt(cell.dataset.color,10)||0;
-          idx=(idx+1)%(colors.length+1);
-          cell.dataset.color=String(idx);
-          cell.style.backgroundColor=idx?colors[idx-1]:'#fff';
-          updateCellShape(cell);
-        });
-        row.appendChild(cell);
+        const idxVal=fig?.cells?.[r]?.[c]||0;
+        cell.dataset.color=String(idxVal);
+        cell.dataset.figIndex=String(index);
+        cell.dataset.row=String(r);
+        cell.dataset.col=String(c);
+        cell.addEventListener('click',()=>cycleCell(index,r,c,cell));
+        rowEl.appendChild(cell);
       }
-      el.appendChild(row);
+      boxEl.appendChild(rowEl);
     }
   }
 
-  function updateGridVisibility(){
-    boxes.forEach(box=>{
-      box.classList.toggle('hide-grid', !showGrid);
+  function createPanelForFigure(index){
+    const panel=document.createElement('div');
+    panel.className='figurePanel';
+    panel.dataset.index=String(index);
+    panel.innerHTML=`
+      <div class="figure"><div class="box"></div></div>
+      <input class="nameInput" type="text" placeholder="Navn" />
+    `;
+    const boxEl=panel.querySelector('.box');
+    boxes.push(boxEl);
+    createGridForFigure(boxEl,index);
+    const nameInput=panel.querySelector('.nameInput');
+    const fig=STATE.figures[index];
+    const baseName=fig?.name || `Figur ${index+1}`;
+    nameInput.value=baseName;
+    STATE.figures[index].name=baseName;
+    nameInput.addEventListener('input',()=>{
+      STATE.figures[index].name=nameInput.value;
     });
+    return panel;
   }
-
-  function redrawAll(){
-    boxes.forEach(box=>createGrid(box));
-    updateCellColors();
-    updateGridVisibility();
-  }
-
-  const circleInp=document.getElementById('circleMode');
-  circleMode=!!circleInp?.checked;
-  circleInp?.addEventListener('change',()=>{
-    circleMode=circleInp.checked;
-    updateCellColors();
-  });
-
-  const offsetInp=document.getElementById('offsetRows');
-  offset=!!offsetInp?.checked;
-  offsetInp?.addEventListener('change',()=>{
-    offset=offsetInp.checked;
-    redrawAll();
-  });
-
-  const gridInp=document.getElementById('showGrid');
-  showGrid=!!gridInp?.checked;
-  gridInp?.addEventListener('change',()=>{
-    showGrid=gridInp.checked;
-    updateGridVisibility();
-  });
 
   const container=document.getElementById('figureContainer');
   const addBtn=document.getElementById('addFigure');
-  let figureCount=0;
+
+  function rebuildFigurePanels(){
+    if(!container) return;
+    boxes.length=0;
+    container.querySelectorAll('.figurePanel').forEach(panel=>panel.remove());
+    STATE.figures.forEach((_,idx)=>{
+      const panel=createPanelForFigure(idx);
+      container.insertBefore(panel,addBtn);
+    });
+    updateCellColors();
+    updateGridVisibility();
+    updateFigureLayout();
+  }
 
   const MIN_PANEL_WIDTH=80;
   const MAX_PANEL_WIDTH=260;
@@ -173,55 +231,94 @@
   }
   window.addEventListener('resize',updateFigureLayout);
 
-  function addFigure(name='',pattern=[]){
-    figureCount++;
-    const panel=document.createElement('div');
-    panel.className='figurePanel';
-    panel.dataset.id=figureCount;
-    panel.innerHTML=`
-      <div class="figure"><div class="box"></div></div>
-      <input class="nameInput" type="text" placeholder="Navn" />
-    `;
-    const box=panel.querySelector('.box');
-    boxes.push(box);
-    createGrid(box);
-    container.insertBefore(panel,addBtn);
-    const nameInput=panel.querySelector('.nameInput');
-    const resolvedName=name||`Figur ${figureCount}`;
-    nameInput.value=resolvedName;
-    if(pattern && pattern.length){
-      pattern.forEach(([r,c])=>{
-        const row=box.querySelectorAll('.row')[r];
-        const cell=row?.querySelectorAll('.cell')[c];
-        if(cell) cell.dataset.color='1';
-      });
-    }
-    updateCellColors();
-    updateFigureLayout();
-    return panel;
+  function updateGridVisibility(){
+    boxes.forEach(box=>box.classList.toggle('hide-grid',!STATE.showGrid));
   }
 
-  addBtn.addEventListener('click',()=>addFigure());
+  function cycleCell(figIndex,r,c,cell){
+    const colors=getColors();
+    const fig=STATE.figures[figIndex];
+    if(!fig) return;
+    const current=fig.cells?.[r]?.[c]||0;
+    const next=(current+1)%(colors.length+1);
+    fig.cells[r][c]=next;
+    applyCellAppearance(cell,next,colors);
+  }
 
   const rowsMinus=document.getElementById('rowsMinus');
   const rowsPlus=document.getElementById('rowsPlus');
   const rowsVal=document.getElementById('rowsVal');
-  function updateRows(){
-    rowsVal.textContent=rows;
-    redrawAll();
-  }
-  rowsMinus?.addEventListener('click',()=>{ if(rows>1){ rows--; updateRows(); }});
-  rowsPlus?.addEventListener('click',()=>{ if(rows<20){ rows++; updateRows(); }});
-
   const colsMinus=document.getElementById('colsMinus');
   const colsPlus=document.getElementById('colsPlus');
   const colsVal=document.getElementById('colsVal');
-  function updateCols(){
-    colsVal.textContent=cols;
-    redrawAll();
+
+  function applyStateToControls(){
+    if(rowsVal) rowsVal.textContent=rows;
+    if(colsVal) colsVal.textContent=cols;
+    const circleInp=document.getElementById('circleMode');
+    const offsetInp=document.getElementById('offsetRows');
+    const gridInp=document.getElementById('showGrid');
+    if(circleInp) circleInp.checked=!!STATE.circleMode;
+    if(offsetInp) offsetInp.checked=!!STATE.offset;
+    if(gridInp) gridInp.checked=!!STATE.showGrid;
+    if(colorCountInp) colorCountInp.value=String(STATE.colorCount);
+    updateColorVisibility();
   }
-  colsMinus?.addEventListener('click',()=>{ if(cols>1){ cols--; updateCols(); }});
-  colsPlus?.addEventListener('click',()=>{ if(cols<20){ cols++; updateCols(); }});
+
+  function setRows(next){
+    const clamped=clampInt(next,1,MAX_DIM);
+    if(clamped===rows) return;
+    STATE.rows=clamped;
+    render();
+  }
+
+  function setCols(next){
+    const clamped=clampInt(next,1,MAX_DIM);
+    if(clamped===cols) return;
+    STATE.cols=clamped;
+    render();
+  }
+
+  rowsMinus?.addEventListener('click',()=>{ if(rows>1) setRows(rows-1); });
+  rowsPlus?.addEventListener('click',()=>{ if(rows<MAX_DIM) setRows(rows+1); });
+  colsMinus?.addEventListener('click',()=>{ if(cols>1) setCols(cols-1); });
+  colsPlus?.addEventListener('click',()=>{ if(cols<MAX_DIM) setCols(cols+1); });
+
+  const circleInp=document.getElementById('circleMode');
+  circleInp?.addEventListener('change',()=>{
+    STATE.circleMode=circleInp.checked;
+    updateCellColors();
+  });
+
+  const offsetInp=document.getElementById('offsetRows');
+  offsetInp?.addEventListener('change',()=>{
+    STATE.offset=offsetInp.checked;
+    render();
+  });
+
+  const gridInp=document.getElementById('showGrid');
+  gridInp?.addEventListener('change',()=>{
+    STATE.showGrid=gridInp.checked;
+    updateGridVisibility();
+  });
+
+  colorCountInp?.addEventListener('input',()=>{
+    STATE.colorCount=clampInt(colorCountInp.value,1,colorInputs.length||MAX_COLORS);
+    render();
+  });
+
+  colorInputs.forEach((inp,idx)=>{
+    inp.addEventListener('input',()=>{
+      ensureColors(Math.max(idx+1,STATE.colorCount));
+      STATE.colors[idx]=inp.value;
+      updateCellColors();
+    });
+  });
+
+  addBtn?.addEventListener('click',()=>{
+    STATE.figures.push(createFigureState(`Figur ${STATE.figures.length+1}`,rows,cols,[]));
+    render();
+  });
 
   const btnSvg=document.getElementById('btnSvg');
   const btnPng=document.getElementById('btnPng');
@@ -277,7 +374,7 @@
   function buildExportSvg(){
     const colors=getColors();
     const cellSize=40;
-    const figW=cols*cellSize + (offset? cellSize/2 : 0);
+    const figW=cols*cellSize + (STATE.offset? cellSize/2 : 0);
     const figH=rows*cellSize;
     const nameH=24;
     const gap=20;
@@ -295,7 +392,7 @@
       box.querySelectorAll('.row').forEach((rowEl,r)=>{
         rowEl.querySelectorAll('.cell').forEach((cellEl,c)=>{
           const idx=parseInt(cellEl.dataset.color,10)||0;
-          const x=c*cellSize + (offset && r%2===1 ? cellSize/2 : 0);
+          const x=c*cellSize + (STATE.offset && r%2===1 ? cellSize/2 : 0);
           const yPos=r*cellSize;
           const base=document.createElementNS('http://www.w3.org/2000/svg','rect');
           base.setAttribute('x',x);
@@ -303,13 +400,13 @@
           base.setAttribute('width',cellSize);
           base.setAttribute('height',cellSize);
           base.setAttribute('fill','#fff');
-          if(showGrid){
+          if(STATE.showGrid){
             base.setAttribute('stroke','#d1d5db');
             base.setAttribute('stroke-width','1');
           }
           g.appendChild(base);
           if(idx>0){
-            if(circleMode){
+            if(STATE.circleMode){
               const circ=document.createElementNS('http://www.w3.org/2000/svg','circle');
               circ.setAttribute('cx',x+cellSize/2);
               circ.setAttribute('cy',yPos+cellSize/2);
@@ -323,7 +420,7 @@
               rect.setAttribute('width',cellSize);
               rect.setAttribute('height',cellSize);
               rect.setAttribute('fill',colors[idx-1]);
-              if(showGrid){
+              if(STATE.showGrid){
                 rect.setAttribute('stroke','#d1d5db');
                 rect.setAttribute('stroke-width','1');
               }
@@ -357,36 +454,31 @@
     downloadPNG(svg,'figurtall.png',2);
   });
 
-  function resetAll(){
-    rows=3; cols=3;
-    rowsVal.textContent=rows;
-    colsVal.textContent=cols;
-    circleMode=true; offset=true; showGrid=true;
-    circleInp.checked=true;
-    offsetInp.checked=true;
-    gridInp.checked=true;
-    colorCount=1;
-    colorCountInp.value='1';
-    updateColorVisibility();
-
-    boxes.length=0;
-    container.querySelectorAll('.figurePanel').forEach(p=>p.remove());
-    figureCount=0;
-
-    // Recreate default triangular figures
-    addFigure('Figur 1', [[0,1]]);
-    addFigure('Figur 2', [[0,1],[1,0],[1,1]]);
-    addFigure('Figur 3', [[0,1],[1,0],[1,1],[2,0],[2,1],[2,2]]);
-
-    updateGridVisibility();
-    updateFigureLayout();
+  function resetState(){
+    STATE.rows=3;
+    STATE.cols=3;
+    STATE.circleMode=true;
+    STATE.offset=true;
+    STATE.showGrid=true;
+    STATE.colorCount=1;
+    STATE.colors=INITIAL_COLORS.slice();
+    ensureColors(STATE.colorCount);
+    STATE.figures=[];
   }
 
-  resetBtn?.addEventListener('click',resetAll);
+  function render(){
+    sanitizeState();
+    applyStateToControls();
+    rebuildFigurePanels();
+  }
 
-  updateRows();
-  updateCols();
-  resetAll();
+  resetBtn?.addEventListener('click',()=>{
+    resetState();
+    render();
+  });
+
+  render();
   updateFigureLayout();
+  window.render=render;
 })();
 
