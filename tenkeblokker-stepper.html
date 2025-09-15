@@ -1,22 +1,77 @@
 <!doctype html>
 <html lang="no">
 <head>
-<meta charset="utf-8" />
-<title>Tenkeblokker</title>
-<style>
-  #blocks{display:flex;gap:20px;flex-wrap:wrap}
-  .tb-block-wrapper{display:flex;flex-direction:column;align-items:center}
-  .tb-block{display:flex;border:2px solid #333;height:100px;width:300px}
-  .tb-segment{flex:1;display:flex;align-items:center;justify-content:center;border-right:1px dashed #777;background:#e8eedf;font-size:24px}
-  .tb-segment:last-child{border-right:none}
-  .tb-stepper{display:flex;gap:10px;margin-top:10px}
-  .tb-stepper button{width:40px;height:40px;font-size:24px}
-  #addBlock{margin-top:20px;width:40px;height:40px;font-size:24px}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tenkeblokker</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css" />
+  <style>
+    :root { --gap:18px; }
+    html,body{height:100%;}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color:#111827;
+      background:#f7f8fb;
+      padding:20px;
+    }
+    .wrap{max-width:1200px;margin:0 auto;}
+    .grid{display:grid;gap:var(--gap);grid-template-columns:1fr 360px;align-items:start;}
+    .side{display:flex;flex-direction:column;gap:var(--gap);}
+    @media(max-width:980px){.grid{grid-template-columns:1fr;}}
+    .card{
+      background:#fff;border:1px solid #e5e7eb;border-radius:14px;
+      box-shadow:0 1px 2px rgba(0,0,0,.04);padding:14px;
+      display:flex;flex-direction:column;gap:12px;
+    }
+    .card h2{margin:0 0 6px 2px;font-size:16px;font-weight:600;color:#374151;}
+    .toolbar{display:flex;gap:10px;justify-content:flex-start;align-items:center;flex-wrap:wrap;}
+    .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s;}
+    .btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.06);}
+    .btn:active{transform:translateY(1px);}
+    .muted{font-size:13px;color:#6b7280;margin:0;}
+
+    #blocks{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;}
+    .tb-block-wrapper{display:flex;flex-direction:column;align-items:center;gap:12px;}
+    .tb-block{display:flex;border:2px solid #333;height:120px;width:360px;border-radius:12px;overflow:hidden;background:#fff;}
+    .tb-segment{flex:1;display:flex;align-items:center;justify-content:center;border-right:1px dashed #777;background:#e8eedf;font-size:24px;font-variant-numeric:tabular-nums;}
+    .tb-segment:last-child{border-right:none;}
+    .tb-stepper{display:flex;gap:10px;margin-top:4px;}
+    .tb-stepper button{width:40px;height:36px;font-size:24px;border:1px solid #cfcfcf;border-radius:8px;background:#fff;cursor:pointer;}
+    .tb-stepper button:active{transform:translateY(1px);}
+  </style>
+  <link rel="stylesheet" href="split.css" />
 </head>
 <body>
-<div id="blocks"></div>
-<button id="addBlock" type="button">+</button>
-<script src="tenkeblokker-stepper.js"></script>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <div id="blocks" aria-label="Tenkeblokker"></div>
+        <div class="toolbar">
+          <button id="addBlock" class="btn" type="button">Legg til blokk</button>
+        </div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <h2>Eksempler</h2>
+          <div class="toolbar">
+            <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>
+            <button id="btnDeleteExample" class="btn" type="button">Slett eksempel</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Eksporter</h2>
+          <p class="muted">Ingen eksport tilgjengelig.</p>
+        </div>
+        <div class="card">
+          <h2>Innstillinger</h2>
+          <p class="muted">Ingen ekstra innstillinger for denne visningen.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="tenkeblokker-stepper.js"></script>
+  <script src="examples.js"></script>
+  <script src="split.js"></script>
 </body>
 </html>

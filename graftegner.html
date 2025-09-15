@@ -22,7 +22,8 @@
     .card h2{ margin:0 0 6px 2px; font-size:16px; font-weight:600; color:#374151; }
     .figure{ border-radius:10px; background:#fafbfc; overflow:hidden; border:1px solid #eef0f3; }
     #board{ width:100%; height:560px; background:#fff; }
-    .toolbar{ display:flex; gap:12px; flex-wrap:wrap; justify-content:flex-end; }
+    .toolbar{ display:flex; gap:12px; flex-wrap:wrap; justify-content:flex-start; align-items:center; }
+    #toolbar{ justify-content:space-between; }
     .btn{ appearance:none; cursor:pointer; padding:8px 14px; border-radius:10px; border:1px solid #d1d5db; background:#fff; }
     .checkbar{ display:flex; gap:10px; align-items:center; }
     .status{ padding:6px 10px; border-radius:10px; font-weight:600; border:1px solid transparent; }
@@ -60,41 +61,47 @@
 
       <div class="side">
         <div class="card">
-          <h2>Last ned figurer</h2>
+          <h2>Eksempler</h2>
           <div class="toolbar">
-            <button id="btnSvg" class="btn">Last ned SVG</button>
-            <button id="btnPng" class="btn">Last ned PNG</button>
             <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>
             <button id="btnDeleteExample" class="btn" type="button">Slett eksempel</button>
           </div>
         </div>
 
         <div class="card">
-          <h2>Forfatters innstillinger</h2>
+          <h2>Eksporter</h2>
+          <div class="toolbar">
+            <button id="btnSvg" class="btn">Last ned SVG</button>
+            <button id="btnPng" class="btn">Last ned PNG</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Innstillinger</h2>
           <div class="settings">
-          <div id="funcRows"></div>
-          <fieldset>
-            <legend>Koordinatsystem</legend>
-            <label>Screen (overstyrer autozoom hvis satt)
-              <input id="cfgScreen" type="text" value="" placeholder="minX, maxX, minY, maxY">
-            </label>
-            <div class="checkbox-row"><input id="cfgLock" type="checkbox" checked><label for="cfgLock">Lås forhold 1:1 (krever screen)</label></div>
-            <div class="checkbox-row"><input id="cfgPan" type="checkbox"><label for="cfgPan">Tillat pan</label></div>
-            <div class="checkbox-row"><input id="cfgQ1" type="checkbox"><label for="cfgQ1">Bare 1. kvadrant</label></div>
-            <div class="settings-row axis-names">
-              <label>Navn på akser</label>
-              <label class="axis-label">x:
-                <input id="cfgAxisX" type="text" value="x">
+            <div id="funcRows"></div>
+            <fieldset>
+              <legend>Koordinatsystem</legend>
+              <label>Screen (overstyrer autozoom hvis satt)
+                <input id="cfgScreen" type="text" value="" placeholder="minX, maxX, minY, maxY">
               </label>
-              <label class="axis-label">y:
-                <input id="cfgAxisY" type="text" value="y">
-              </label>
-            </div>
-          </fieldset>
+              <div class="checkbox-row"><input id="cfgLock" type="checkbox" checked><label for="cfgLock">Lås forhold 1:1 (krever screen)</label></div>
+              <div class="checkbox-row"><input id="cfgPan" type="checkbox"><label for="cfgPan">Tillat pan</label></div>
+              <div class="checkbox-row"><input id="cfgQ1" type="checkbox"><label for="cfgQ1">Bare 1. kvadrant</label></div>
+              <div class="settings-row axis-names">
+                <label>Navn på akser</label>
+                <label class="axis-label">x:
+                  <input id="cfgAxisX" type="text" value="x">
+                </label>
+                <label class="axis-label">y:
+                  <input id="cfgAxisY" type="text" value="y">
+                </label>
+              </div>
+            </fieldset>
+          </div>
         </div>
       </div>
     </div>
-  </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraphcore.js"></script>
