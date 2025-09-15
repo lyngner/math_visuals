@@ -166,7 +166,9 @@
     boxes.push(box);
     createGrid(box);
     container.insertBefore(panel,addBtn);
-    if(name) panel.querySelector('.nameInput').value=name;
+    const nameInput=panel.querySelector('.nameInput');
+    const resolvedName=name||`Figur ${figureCount}`;
+    nameInput.value=resolvedName;
     if(pattern && pattern.length){
       pattern.forEach(([r,c])=>{
         const row=box.querySelectorAll('.row')[r];
