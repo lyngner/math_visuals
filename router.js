@@ -22,7 +22,29 @@ nav.addEventListener('click', event => {
   if (!link) return;
   event.preventDefault();
   const href = link.getAttribute('href');
-  iframe.src = href;
+  const currentSrc = iframe.getAttribute('src') || '';
+
+  const toPath = value => {
+    try {
+      return new URL(value, window.location.href).pathname;
+    } catch (error) {
+      return value;
+    }
+  };
+
+  const currentPath = currentSrc ? toPath(currentSrc) : null;
+  const targetPath = toPath(href);
+  const needsRefresh = currentPath === targetPath;
+
+  let cacheBustingSrc = href;
+  if (needsRefresh) {
+    const [pathAndQuery, ...hashParts] = href.split('#');
+    const hash = hashParts.length ? `#${hashParts.join('#')}` : '';
+    const separator = pathAndQuery.includes('?') ? '&' : '?';
+    cacheBustingSrc = `${pathAndQuery}${separator}t=${Date.now()}${hash}`;
+  }
+
+  iframe.src = cacheBustingSrc;
   localStorage.setItem('currentPage', href);
   setActive(href);
 });
