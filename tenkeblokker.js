@@ -2,8 +2,8 @@
 
 // ---------- Konfig ----------
 const DEFAULT_BLOCKS = [
-  { total: 50, n: 5, k: 4 },
-  { total: 50, n: 5, k: 3 }
+  { total: 50, n: 5, k: 4, showWhole: true, lockDenominator: false, hideNValue: false, showFraction: true, showPercent: false },
+  { total: 50, n: 5, k: 3, showWhole: true, lockDenominator: false, hideNValue: false, showFraction: true, showPercent: false }
 ];
 
 const CONFIG = {
@@ -16,6 +16,11 @@ const CONFIG = {
 CONFIG.total = CONFIG.blocks[0].total;
 CONFIG.n = CONFIG.blocks[0].n;
 CONFIG.k = CONFIG.blocks[0].k;
+CONFIG.showWhole = CONFIG.blocks[0].showWhole;
+CONFIG.lockDenominator = CONFIG.blocks[0].lockDenominator;
+CONFIG.hideNValue = CONFIG.blocks[0].hideNValue;
+CONFIG.showFraction = CONFIG.blocks[0].showFraction;
+CONFIG.showPercent = CONFIG.blocks[0].showPercent;
 
 // ---------- SVG-oppsett ----------
 const VBW = 900, VBH = 420;                  // MÅ samsvare med viewBox i HTML
@@ -67,6 +72,16 @@ function createSvgElement(parent, name, attrs = {}) {
 }
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function fmt(x) { return (Math.round(x * 100) / 100).toString().replace('.', ','); }
+function gcd(a, b) {
+  let x = Math.abs(Math.round(a));
+  let y = Math.abs(Math.round(b));
+  while (y) {
+    const t = y;
+    y = x % y;
+    x = t;
+  }
+  return x || 1;
+}
 
 // Skjerm-px → SVG viewBox-koordinater
 function clientToSvg(svgEl, clientX, clientY) {
@@ -151,7 +166,7 @@ function getExportSvg() {
   if (count === 1) return firstSvg;
 
   const ns = firstSvg.namespaceURI;
-  const gap = 80;
+  const gap = 0;
   const width = count * VBW + (count - 1) * gap;
   const exportSvg = document.createElementNS(ns, 'svg');
   exportSvg.setAttribute('viewBox', `0 0 ${width} ${VBH}`);
@@ -197,12 +212,45 @@ function createBlock(index) {
   block.handle       = createSvgElement(block.gHandle,'circle',{cx:R,cy:(TOP+BOT)/2,r:18,class:'tb-handle'});
   block.handle.addEventListener('pointerdown', e => onDragStart(block, e));
 
+  const header = document.getElementById(`tbHeader${index + 1}`);
+  if (header) {
+    header.innerHTML = '';
+    block.header = header;
+    block.wholeEl = document.createElement('div');
+    block.wholeEl.className = 'tb-whole';
+    header.appendChild(block.wholeEl);
+
+    block.metaEl = document.createElement('div');
+    block.metaEl.className = 'tb-meta';
+    block.fracEl = document.createElement('div');
+    block.fracEl.className = 'tb-frac';
+    block.fracNum = document.createElement('span');
+    block.fracNum.className = 'num';
+    block.fracDen = document.createElement('span');
+    block.fracDen.className = 'den';
+    block.fracEl.append(block.fracNum, block.fracDen);
+    block.percentEl = document.createElement('div');
+    block.percentEl.className = 'tb-percent';
+    block.metaEl.append(block.fracEl, block.percentEl);
+    header.appendChild(block.metaEl);
+  }
+
   const minus = document.getElementById(`tbMinus${index + 1}`);
   const plus  = document.getElementById(`tbPlus${index + 1}`);
-  minus?.addEventListener('click', () => setN(index, (CONFIG.blocks[index]?.n ?? CONFIG.minN) - 1));
-  plus?.addEventListener('click', () => setN(index, (CONFIG.blocks[index]?.n ?? CONFIG.minN) + 1));
+  minus?.addEventListener('click', () => {
+    normalizeConfig();
+    if (CONFIG.blocks[index]?.lockDenominator) return;
+    setN(index, (CONFIG.blocks[index]?.n ?? CONFIG.minN) - 1);
+  });
+  plus?.addEventListener('click', () => {
+    normalizeConfig();
+    if (CONFIG.blocks[index]?.lockDenominator) return;
+    setN(index, (CONFIG.blocks[index]?.n ?? CONFIG.minN) + 1);
+  });
   block.minusBtn = minus || null;
   block.plusBtn = plus || null;
+  block.nVal = document.getElementById(`tbNVal${index + 1}`) || null;
+  block.stepper = block.nVal?.closest('.tb-stepper') || minus?.closest('.tb-stepper') || null;
 
   BLOCKS[index] = block;
   return block;
@@ -253,11 +301,32 @@ function normalizeConfig() {
 
     if (typeof cfg.k !== 'number' || Number.isNaN(cfg.k)) cfg.k = defaults.k;
     cfg.k = clamp(cfg.k, 0, cfg.n);
+
+    cfg.showWhole = typeof cfg.showWhole === 'boolean' ? cfg.showWhole : (defaults.showWhole ?? true);
+    cfg.showWhole = !!cfg.showWhole;
+
+    cfg.lockDenominator = typeof cfg.lockDenominator === 'boolean' ? cfg.lockDenominator : !!defaults.lockDenominator;
+    cfg.lockDenominator = !!cfg.lockDenominator;
+
+    cfg.hideNValue = typeof cfg.hideNValue === 'boolean' ? cfg.hideNValue : !!defaults.hideNValue;
+    cfg.hideNValue = !!cfg.hideNValue;
+
+    cfg.showFraction = typeof cfg.showFraction === 'boolean' ? cfg.showFraction : (defaults.showFraction !== false);
+    cfg.showFraction = !!cfg.showFraction;
+
+    cfg.showPercent = typeof cfg.showPercent === 'boolean' ? cfg.showPercent : !!defaults.showPercent;
+    cfg.showPercent = !!cfg.showPercent;
   }
 
   if (typeof CONFIG.total === 'number') CONFIG.blocks[0].total = CONFIG.total;
   if (typeof CONFIG.n === 'number') CONFIG.blocks[0].n = clamp(CONFIG.n, CONFIG.minN, CONFIG.maxN);
   if (typeof CONFIG.k === 'number') CONFIG.blocks[0].k = clamp(CONFIG.k, 0, CONFIG.blocks[0].n);
+
+  if (typeof CONFIG.showWhole === 'boolean') CONFIG.blocks[0].showWhole = CONFIG.showWhole;
+  if (typeof CONFIG.lockDenominator === 'boolean') CONFIG.blocks[0].lockDenominator = CONFIG.lockDenominator;
+  if (typeof CONFIG.hideNValue === 'boolean') CONFIG.blocks[0].hideNValue = CONFIG.hideNValue;
+  if (typeof CONFIG.showFraction === 'boolean') CONFIG.blocks[0].showFraction = CONFIG.showFraction;
+  if (typeof CONFIG.showPercent === 'boolean') CONFIG.blocks[0].showPercent = CONFIG.showPercent;
 
   CONFIG.blocks[0].k = clamp(CONFIG.blocks[0].k, 0, CONFIG.blocks[0].n);
 
@@ -273,6 +342,11 @@ function syncLegacyConfig() {
   CONFIG.total = first.total;
   CONFIG.n = first.n;
   CONFIG.k = first.k;
+  CONFIG.showWhole = first.showWhole;
+  CONFIG.lockDenominator = first.lockDenominator;
+  CONFIG.hideNValue = first.hideNValue;
+  CONFIG.showFraction = first.showFraction;
+  CONFIG.showPercent = first.showPercent;
 }
 
 function updateVisibility() {
@@ -304,9 +378,14 @@ function drawBlock(index) {
       inputs.k.value = cfg.k;
       inputs.k.max = cfg.n;
     }
+    if (inputs.showWhole) inputs.showWhole.checked = !!cfg.showWhole;
+    if (inputs.lockN) inputs.lockN.checked = !!cfg.lockDenominator;
+    if (inputs.hideN) inputs.hideN.checked = !!cfg.hideNValue;
+    if (inputs.showFrac) inputs.showFrac.checked = !!cfg.showFraction;
+    if (inputs.showPercent) inputs.showPercent.checked = !!cfg.showPercent;
   }
 
-  block.totalText.textContent = cfg.total;
+  block.totalText.textContent = fmt(cfg.total);
 
   const cellW = (R - L) / cfg.n;
 
@@ -331,8 +410,38 @@ function drawBlock(index) {
   block.handle?.setAttribute('cx', hx);
   block.handleShadow?.setAttribute('cx', hx);
 
-  if (block.minusBtn) block.minusBtn.disabled = cfg.n <= CONFIG.minN;
-  if (block.plusBtn) block.plusBtn.disabled = cfg.n >= CONFIG.maxN;
+  const showWhole = !!cfg.showWhole;
+  const showFrac = !!cfg.showFraction;
+  const showPercent = !!cfg.showPercent;
+
+  if (block.gBrace) block.gBrace.style.display = showWhole ? '' : 'none';
+  if (block.wholeEl) {
+    block.wholeEl.textContent = `Hele = ${fmt(cfg.total)}`;
+    block.wholeEl.style.display = showWhole ? '' : 'none';
+  }
+
+  if (block.fracEl) {
+    const g = cfg.n ? gcd(cfg.k, cfg.n) : 1;
+    if (block.fracNum) block.fracNum.textContent = cfg.n ? Math.round(cfg.k / g) : 0;
+    if (block.fracDen) block.fracDen.textContent = cfg.n ? Math.round(cfg.n / g) : 1;
+    block.fracEl.style.display = showFrac ? '' : 'none';
+  }
+  if (block.percentEl) {
+    const pct = cfg.n ? (cfg.k / cfg.n) * 100 : 0;
+    block.percentEl.textContent = `${fmt(pct)} %`;
+    block.percentEl.style.display = showPercent ? '' : 'none';
+  }
+  if (block.metaEl) block.metaEl.style.display = (showFrac || showPercent) ? 'flex' : 'none';
+  if (block.header) block.header.style.display = (showWhole || showFrac || showPercent) ? '' : 'none';
+
+  if (block.stepper) block.stepper.style.display = cfg.lockDenominator ? 'none' : '';
+  if (block.nVal) {
+    block.nVal.textContent = cfg.n;
+    block.nVal.style.display = cfg.hideNValue ? 'none' : '';
+  }
+
+  if (block.minusBtn) block.minusBtn.disabled = cfg.lockDenominator || cfg.n <= CONFIG.minN;
+  if (block.plusBtn) block.plusBtn.disabled = cfg.lockDenominator || cfg.n >= CONFIG.maxN;
 }
 
 function draw() {
@@ -368,14 +477,37 @@ function setK(index, next) {
 
 function setupSettingsUI() {
   const maps = [
-    { total: 'cfg-total-1', n: 'cfg-n-1', k: 'cfg-k-1' },
-    { total: 'cfg-total-2', n: 'cfg-n-2', k: 'cfg-k-2' }
+    {
+      total: 'cfg-total-1',
+      n: 'cfg-n-1',
+      k: 'cfg-k-1',
+      showWhole: 'cfg-show-whole-1',
+      lockN: 'cfg-lock-n-1',
+      hideN: 'cfg-hide-n-1',
+      showFrac: 'cfg-show-frac-1',
+      showPercent: 'cfg-show-percent-1'
+    },
+    {
+      total: 'cfg-total-2',
+      n: 'cfg-n-2',
+      k: 'cfg-k-2',
+      showWhole: 'cfg-show-whole-2',
+      lockN: 'cfg-lock-n-2',
+      hideN: 'cfg-hide-n-2',
+      showFrac: 'cfg-show-frac-2',
+      showPercent: 'cfg-show-percent-2'
+    }
   ];
   maps.forEach((ids, index) => {
     const total = document.getElementById(ids.total);
     const n = document.getElementById(ids.n);
     const k = document.getElementById(ids.k);
-    settingsInputs[index] = { total, n, k };
+    const showWhole = document.getElementById(ids.showWhole);
+    const lockN = document.getElementById(ids.lockN);
+    const hideN = document.getElementById(ids.hideN);
+    const showFrac = document.getElementById(ids.showFrac);
+    const showPercent = document.getElementById(ids.showPercent);
+    settingsInputs[index] = { total, n, k, showWhole, lockN, hideN, showFrac, showPercent };
 
     total?.addEventListener('change', () => {
       const v = parseFloat(total.value);
@@ -393,6 +525,36 @@ function setupSettingsUI() {
     k?.addEventListener('change', () => {
       const v = parseInt(k.value, 10);
       if (!Number.isNaN(v)) setK(index, v);
+    });
+    showWhole?.addEventListener('change', () => {
+      normalizeConfig();
+      CONFIG.blocks[index].showWhole = !!showWhole.checked;
+      if (index === 0) CONFIG.showWhole = CONFIG.blocks[0].showWhole;
+      draw();
+    });
+    lockN?.addEventListener('change', () => {
+      normalizeConfig();
+      CONFIG.blocks[index].lockDenominator = !!lockN.checked;
+      if (index === 0) CONFIG.lockDenominator = CONFIG.blocks[0].lockDenominator;
+      draw();
+    });
+    hideN?.addEventListener('change', () => {
+      normalizeConfig();
+      CONFIG.blocks[index].hideNValue = !!hideN.checked;
+      if (index === 0) CONFIG.hideNValue = CONFIG.blocks[0].hideNValue;
+      draw();
+    });
+    showFrac?.addEventListener('change', () => {
+      normalizeConfig();
+      CONFIG.blocks[index].showFraction = !!showFrac.checked;
+      if (index === 0) CONFIG.showFraction = CONFIG.blocks[0].showFraction;
+      draw();
+    });
+    showPercent?.addEventListener('change', () => {
+      normalizeConfig();
+      CONFIG.blocks[index].showPercent = !!showPercent.checked;
+      if (index === 0) CONFIG.showPercent = CONFIG.blocks[0].showPercent;
+      draw();
     });
   });
 }

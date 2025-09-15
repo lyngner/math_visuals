@@ -25,15 +25,24 @@
     /* Figur */
     .tb-panels{
       display:flex;
-      flex-wrap:wrap;
-      gap:clamp(16px,2vw,28px);
+      gap:0;
       justify-content:center;
       align-items:flex-start;
       padding:12px 4px 4px;
+      flex-wrap:wrap;
     }
-    .tb-panel{display:flex;flex-direction:column;align-items:center;gap:16px;}
+    .tb-panels.two{gap:0;}
+    .tb-panel{display:flex;flex-direction:column;align-items:center;gap:16px;max-width:420px;}
     .tb-svg{width:min(420px,88vw);height:auto;background:#fff;}
-    .tb-panels.two .tb-svg{width:min(360px,44vw);}
+    .tb-panels.two .tb-svg{width:min(420px,44vw);}
+    .tb-header{width:100%;display:flex;flex-direction:column;align-items:center;gap:6px;}
+    .tb-whole{font-size:24px;line-height:1;color:#111827;}
+    .tb-meta{display:flex;gap:12px;align-items:center;}
+    .tb-frac{font-size:28px;line-height:1;text-align:center;}
+    .tb-frac .num{display:block;border-bottom:2px solid #000;margin-bottom:4px;}
+    .tb-frac .den{display:block;}
+    .tb-percent{font-size:28px;line-height:1;}
+    .tb-header:empty{display:none;}
     .tb-settings{display:flex;flex-direction:column;gap:var(--gap);}
     .addFigureBtn{
       width:clamp(60px,15vw,120px);
@@ -50,6 +59,7 @@
       justify-self:center;
       align-self:center;
     }
+    .tb-panels .addFigureBtn{margin-left:clamp(16px,2vw,28px);}
     .tb-rect{fill:#e8eedf}
     .tb-rect-empty{fill:#ffffff}
     .tb-frame{fill:none;stroke:#333;stroke-width:6}
@@ -60,13 +70,16 @@
     .tb-handle-shadow{fill:#000;opacity:.12}
     .tb-handle{fill:#f1f1f6;stroke:#555;stroke-width:2;cursor:pointer}
     /* Stepper */
-    .tb-stepper{display:flex;align-items:center;gap:0;border:1px solid #cfcfcf;border-radius:16px;
-                padding:6px;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.08)}
-    .tb-stepper button{width:64px;height:48px;border:0;background:#fff;font-size:28px;cursor:pointer}
+    .tb-stepper{display:flex;align-items:center;gap:12px;padding:6px 10px;border:1px solid #cfcfcf;border-radius:12px;
+                box-shadow:0 2px 10px rgba(0,0,0,.06);background:#fff;}
+    .tb-stepper button{width:40px;height:36px;border:1px solid #cfcfcf;border-radius:8px;background:#fff;font-size:20px;cursor:pointer}
+    .tb-stepper span{min-width:32px;text-align:center;font-variant-numeric:tabular-nums;font-size:16px;}
     .tb-stepper button:active{transform:translateY(1px)}
-    .tb-divider{width:1px;height:36px;background:#d6d6e3;margin:0 6px}
     label{font-size:13px;color:#4b5563;display:flex;flex-direction:column;}
     input[type="number"]{border:1px solid #d1d5db;border-radius:10px;padding:8px 10px;font-size:14px;background:#fff;}
+    .checkbox-row{display:flex;align-items:center;gap:6px;font-size:13px;color:#4b5563;}
+    .checkbox-row input{margin:0;}
+    .checkbox-row label{display:inline;}
     .toolbar{display:flex;gap:10px;justify-content:flex-end;}
     .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s;}
     .btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.06);}
@@ -82,19 +95,21 @@
       <div class="card">
         <div id="tbPanels" class="tb-panels">
           <div id="tbPanel1" class="tb-panel">
+            <div class="tb-header" id="tbHeader1"></div>
             <svg id="thinkBlocks1" class="tb-svg" viewBox="0 0 900 420" aria-label="Tenkeblokker 1"></svg>
             <div class="tb-stepper" aria-label="Antall blokker i tenkeblokker 1">
               <button id="tbMinus1" type="button" aria-label="Færre blokker">−</button>
-              <div class="tb-divider"></div>
+              <span id="tbNVal1">5</span>
               <button id="tbPlus1" type="button" aria-label="Flere blokker">+</button>
             </div>
           </div>
 
           <div id="tbPanel2" class="tb-panel" style="display:none">
+            <div class="tb-header" id="tbHeader2"></div>
             <svg id="thinkBlocks2" class="tb-svg" viewBox="0 0 900 420" aria-label="Tenkeblokker 2"></svg>
             <div class="tb-stepper" aria-label="Antall blokker i tenkeblokker 2">
               <button id="tbMinus2" type="button" aria-label="Færre blokker">−</button>
-              <div class="tb-divider"></div>
+              <span id="tbNVal2">5</span>
               <button id="tbPlus2" type="button" aria-label="Flere blokker">+</button>
             </div>
           </div>
@@ -126,6 +141,11 @@
               <label>Fylte blokker
                 <input id="cfg-k-1" type="number" min="0" max="5" value="4" />
               </label>
+              <div class="checkbox-row"><input id="cfg-show-whole-1" type="checkbox" checked /><label for="cfg-show-whole-1">Vis hele</label></div>
+              <div class="checkbox-row"><input id="cfg-lock-n-1" type="checkbox" /><label for="cfg-lock-n-1">Lås nevner</label></div>
+              <div class="checkbox-row"><input id="cfg-hide-n-1" type="checkbox" /><label for="cfg-hide-n-1">Skjul n-verdi</label></div>
+              <div class="checkbox-row"><input id="cfg-show-frac-1" type="checkbox" checked /><label for="cfg-show-frac-1">Vis som brøk</label></div>
+              <div class="checkbox-row"><input id="cfg-show-percent-1" type="checkbox" /><label for="cfg-show-percent-1">Vis som prosent</label></div>
             </fieldset>
             <fieldset id="cfg-fieldset-2" style="display:none">
               <legend>Tenkeblokker 2</legend>
@@ -138,6 +158,11 @@
               <label>Fylte blokker
                 <input id="cfg-k-2" type="number" min="0" max="5" value="3" />
               </label>
+              <div class="checkbox-row"><input id="cfg-show-whole-2" type="checkbox" checked /><label for="cfg-show-whole-2">Vis hele</label></div>
+              <div class="checkbox-row"><input id="cfg-lock-n-2" type="checkbox" /><label for="cfg-lock-n-2">Lås nevner</label></div>
+              <div class="checkbox-row"><input id="cfg-hide-n-2" type="checkbox" /><label for="cfg-hide-n-2">Skjul n-verdi</label></div>
+              <div class="checkbox-row"><input id="cfg-show-frac-2" type="checkbox" checked /><label for="cfg-show-frac-2">Vis som brøk</label></div>
+              <div class="checkbox-row"><input id="cfg-show-percent-2" type="checkbox" /><label for="cfg-show-percent-2">Vis som prosent</label></div>
             </fieldset>
           </div>
         </div>
