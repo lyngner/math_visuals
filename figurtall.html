@@ -47,11 +47,7 @@
       flex-direction:column;gap:10px;
     }
     .card h2{margin:0 0 6px 2px;font-size:16px;font-weight:600;color:#374151;}
-    .toolbar{display:flex;gap:10px;justify-content:flex-end;}
-    .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s;}
-    .btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.06);}
-    .btn:active{transform:translateY(1px);}
-    .card>fieldset{display:flex;flex-direction:column;gap:8px;border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:0;}
+    .toolbar{display:flex;gap:10px;justify-content:flex-end;}    .card>fieldset{display:flex;flex-direction:column;gap:8px;border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:0;}
     legend{font-weight:600;font-size:13px;color:#374151;padding:0 4px;}
     .card input[type="color"]{width:40px;height:40px;padding:0;border:none;}
     .colors{display:flex;flex-wrap:wrap;gap:6px;}
@@ -97,6 +93,7 @@
     .nameInput{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:6px 8px;font-size:14px;box-sizing:border-box;}
   </style>
   <link rel="stylesheet" href="split.css" />
+  <link rel="stylesheet" href="styles/toolbar.css" />
 </head>
 <body>
   <div class="wrap">
@@ -109,13 +106,7 @@
       <div class="side">
         <div class="card">
           <h2>Last ned figurer</h2>
-          <div class="toolbar">
-            <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
-            <button id="btnPng" class="btn" type="button">Last ned PNG</button>
-            <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>
-            <button id="btnDeleteExample" class="btn" type="button">Slett eksempel</button>
-            <button id="resetBtn" class="btn" type="button">Nullstill</button>
-          </div>
+          <div class="toolbar" id="downloadToolbar"></div>
         </div>
         <div class="card">
           <h2>Forfatters innstillinger</h2>
@@ -157,7 +148,17 @@
       </div>
     </div>
   </div>
-  <script src="figurtall.js"></script>
+  <script type="module">
+import { createToolbar } from "./components/toolbar.js";
+createToolbar("downloadToolbar", [
+  { id: "btnSvg", text: "Last ned SVG" },
+  { id: "btnPng", text: "Last ned PNG" },
+  { id: "btnSaveExample", text: "Lagre eksempel" },
+  { id: "btnDeleteExample", text: "Slett eksempel" },
+  { id: "resetBtn", text: "Nullstill" }
+]);
+</script>
+<script src="figurtall.js"></script>
   <script src="examples.js"></script>
   <script src="split.js"></script>
 

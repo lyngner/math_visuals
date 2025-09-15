@@ -68,11 +68,7 @@
       background:#fff;font-size:20px;cursor:pointer;
     }
     .stepper span{min-width:32px;text-align:center;font-variant-numeric:tabular-nums;font-size:16px;}
-    .toolbar{display:flex;gap:10px;justify-content:flex-end;}
-    .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s}
-    .btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
-    .btn:active{transform:translateY(1px)}
-    .settings{display:flex;gap:var(--gap);}
+    .toolbar{display:flex;gap:10px;justify-content:flex-end;}    .settings{display:flex;gap:var(--gap);}
     .card>fieldset{display:flex;flex-direction:column;gap:8px;border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:0;}
     .settings fieldset{flex:1;display:flex;flex-direction:column;gap:8px;border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:0;}
     legend{font-weight:600;font-size:13px;color:#374151;padding:0 4px;}
@@ -84,6 +80,7 @@
     .box svg *:focus{outline:none;}
   </style>
   <link rel="stylesheet" href="split.css" />
+  <link rel="stylesheet" href="styles/toolbar.css" />
 </head>
 <body>
   <div class="wrap">
@@ -112,18 +109,9 @@
       <div class="side">
         <div class="card">
           <h2>Last ned figurer</h2>
-          <div class="toolbar">
-            <button id="btnSvg1" class="btn" type="button">Last ned SVG</button>
-            <button id="btnPng1" class="btn" type="button">Last ned PNG</button>
-          </div>
-          <div class="toolbar" style="display:none">
-            <button id="btnSvg2" class="btn" type="button">Last ned SVG</button>
-            <button id="btnPng2" class="btn" type="button">Last ned PNG</button>
-          </div>
-          <div class="toolbar">
-            <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>
-            <button id="btnDeleteExample" class="btn" type="button">Slett eksempel</button>
-          </div>
+          <div class="toolbar" id="downloadToolbar1"></div>
+          <div class="toolbar" id="downloadToolbar2" style="display:none"></div>
+          <div class="toolbar" id="saveToolbar"></div>
         </div>
         <div class="card">
           <h2>Forfatters innstillinger</h2>
@@ -195,7 +183,22 @@
       </div>
     </div>
   </div>
-  <script src="brøkfigurer.js"></script>
+  <script type="module">
+import { createToolbar } from "./components/toolbar.js";
+createToolbar("downloadToolbar1", [
+  { id: "btnSvg1", text: "Last ned SVG" },
+  { id: "btnPng1", text: "Last ned PNG" }
+]);
+createToolbar("downloadToolbar2", [
+  { id: "btnSvg2", text: "Last ned SVG" },
+  { id: "btnPng2", text: "Last ned PNG" }
+]);
+createToolbar("saveToolbar", [
+  { id: "btnSaveExample", text: "Lagre eksempel" },
+  { id: "btnDeleteExample", text: "Slett eksempel" }
+]);
+</script>
+<script src="brøkfigurer.js"></script>
   <script src="examples.js"></script>
   <script src="split.js"></script>
 

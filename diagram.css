@@ -16,15 +16,7 @@ body {
 .card h2 { margin: 0 0 6px 2px; font-size: 16px; font-weight: 600; color: #374151; }
 .figure { border-radius: 10px; background: #fafbfc; overflow: hidden; border: 1px solid #eef0f3; }
 .figure svg { width: 100%; height: auto; display: block; background: #fff; }
-.toolbar { display: flex; gap: 10px; justify-content: flex-end; }
-.btn {
-  appearance: none; border: 1px solid #d1d5db; background: #fff; border-radius: 10px;
-  padding: 8px 12px; font-size: 14px; cursor: pointer;
-  transition: box-shadow .2s, transform .02s;
-}
-.btn:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
-.btn:active { transform: translateY(1px); }
-.status {
+.toolbar { display: flex; gap: 10px; justify-content: flex-end; }.status {
   position: absolute;
   width: 1px; height: 1px; margin: -1px;
   padding: 0; overflow: hidden; clip: rect(0,0,0,0);
