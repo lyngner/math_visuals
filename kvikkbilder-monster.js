@@ -138,21 +138,46 @@
       if(y<minY) minY=y;
       if(y>maxY) maxY=y;
     });
-    const pad=1;
+    const widthRaw=maxX-minX;
+    const heightRaw=maxY-minY;
+    const padBase=Math.max(widthRaw,heightRaw);
+    const pad=Math.max(0.05,padBase*0.12);
     const vbX=minX-pad;
     const vbY=minY-pad;
-    const vbW=maxX-minX+pad*2;
-    const vbH=maxY-minY+pad*2;
+    const vbW=widthRaw+pad*2;
+    const vbH=heightRaw+pad*2;
+    let availableWidth=patternContainer.clientWidth;
+    if(!availableWidth){
+      availableWidth=patternContainer.parentElement?.clientWidth||360;
+    }
+    const maxPreferred=420;
+    const minPreferred=280;
+    let targetPx=Math.min(availableWidth,maxPreferred);
+    if(availableWidth>=minPreferred){
+      targetPx=Math.max(targetPx,minPreferred);
+    }
+    if(!Number.isFinite(targetPx)||targetPx<=0){
+      targetPx=360;
+    }
+    const maxDim=Math.max(vbW,vbH);
+    const pxPerUnit=targetPx/maxDim;
+    const widthPx=vbW*pxPerUnit;
+    const heightPx=vbH*pxPerUnit;
+    const dotRadius=6/pxPerUnit;
     const svgNS='http://www.w3.org/2000/svg';
     const svg=document.createElementNS(svgNS,'svg');
     svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
-    svg.setAttribute('width', vbW*20);
-    svg.setAttribute('height', vbH*20);
+    svg.setAttribute('width', widthPx);
+    svg.setAttribute('height', heightPx);
+    svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+    svg.style.maxWidth='100%';
+    svg.style.height='auto';
+    svg.style.display='block';
     points.forEach(({x,y})=>{
       const c=document.createElementNS(svgNS,'circle');
       c.setAttribute('cx', x);
       c.setAttribute('cy', y);
-      c.setAttribute('r', 0.3);
+      c.setAttribute('r', dotRadius);
       c.setAttribute('fill', '#534477');
       svg.appendChild(c);
     });
