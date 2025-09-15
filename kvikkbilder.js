@@ -251,13 +251,13 @@
     const svgNS='http://www.w3.org/2000/svg';
     const svg=document.createElementNS(svgNS,'svg');
     svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
-    svg.setAttribute('width', vbW*20);
-    svg.setAttribute('height', vbH*20);
+    svg.setAttribute('width', vbW*28);
+    svg.setAttribute('height', vbH*28);
     points.forEach(({x,y})=>{
       const c=document.createElementNS(svgNS,'circle');
       c.setAttribute('cx', x);
       c.setAttribute('cy', y);
-      c.setAttribute('r', 0.3);
+      c.setAttribute('r', 0.45);
       c.setAttribute('fill', '#534477');
       svg.appendChild(c);
     });
