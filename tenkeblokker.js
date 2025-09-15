@@ -1,12 +1,19 @@
 /* Tenkeblokker – full JS m/ firkantparentes */
 
 // ---------- Konfig ----------
-const TOTAL = 50;          // tallet i parentesen
-const MIN_N = 2;
-const MAX_N = 12;
-
-let n = 5;                 // antall blokker (nevner)
-let k = 4;                 // antall fylte blokker (teller), 0..n
+const CONFIG = {
+  total: 50,
+  minN: 2,
+  maxN: 12,
+  n: 5,
+  k: 4
+};
+window.CONFIG = CONFIG;
+let TOTAL = CONFIG.total;          // tallet i parentesen
+let MIN_N = CONFIG.minN;
+let MAX_N = CONFIG.maxN;
+let n = CONFIG.n;                 // antall blokker (nevner)
+let k = CONFIG.k;                 // antall fylte blokker (teller), 0..n
 
 // Parentes-utseende
 const BRACKET_TICK   = 16; // lengde på «haken» ned i hver ende
@@ -36,7 +43,8 @@ addTo(gFrame,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-frame'});
 
 // Firkantparentes + total
 drawBracketSquare(L, R, BRACE_Y, BRACKET_TICK);
-addTo(gBrace,'text',{x:(L+R)/2, y:BRACE_Y - LABEL_OFFSET_Y, class:'tb-total'}).textContent = TOTAL;
+const totalText = addTo(gBrace,'text',{x:(L+R)/2, y:BRACE_Y - LABEL_OFFSET_Y, class:'tb-total'});
+totalText.textContent = TOTAL;
 
 // Håndtak
 const handleShadow = addTo(gHandle,'circle',{cx:R, cy:(TOP+BOT)/2+2, r:20, class:'tb-handle-shadow'});
@@ -136,13 +144,113 @@ function redraw(){
 // ---------- State ----------
 function setN(next){
   n = clamp(next, MIN_N, MAX_N);
+  CONFIG.n = n;
+  cfgN.value = n;
+  cfgK.max = n;
   if(k>n) k = n;
+  cfgK.value = k;
+  CONFIG.k = k;
   redraw();
 }
 function setK(next){
   k = clamp(next, 0, n);
+  CONFIG.k = k;
+  cfgK.value = k;
   redraw();
 }
 
+// ---------- Eksport & kontroller ----------
+const cfgTotal = document.getElementById('cfg-total');
+const cfgMinN  = document.getElementById('cfg-min-n');
+const cfgMaxN  = document.getElementById('cfg-max-n');
+const cfgN     = document.getElementById('cfg-n');
+const cfgK     = document.getElementById('cfg-k');
+
+cfgTotal.addEventListener('input', ()=>{
+  TOTAL = CONFIG.total = parseInt(cfgTotal.value,10) || 0;
+  totalText.textContent = TOTAL;
+  redraw();
+});
+cfgMinN.addEventListener('input', ()=>{
+  MIN_N = CONFIG.minN = parseInt(cfgMinN.value,10) || 1;
+  setN(n);
+});
+cfgMaxN.addEventListener('input', ()=>{
+  MAX_N = CONFIG.maxN = parseInt(cfgMaxN.value,10) || 1;
+  setN(n);
+});
+cfgN.addEventListener('input', ()=> setN(parseInt(cfgN.value,10) || n));
+cfgK.addEventListener('input', ()=> setK(parseInt(cfgK.value,10) || k));
+
+document.getElementById('btnSvg').addEventListener('click', ()=> downloadSVG(svg, 'tenkeblokker.svg'));
+document.getElementById('btnPng').addEventListener('click', ()=> downloadPNG(svg, 'tenkeblokker.png', 2));
+
+// ---------- SVG til fil ----------
+function svgToString(svgEl){
+  const clone = svgEl.cloneNode(true);
+  const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
+  const style = document.createElement('style');
+  style.textContent = css;
+  clone.insertBefore(style, clone.firstChild);
+
+  const ids = new Set();
+  clone.querySelectorAll('[aria-describedby]').forEach(el => {
+    el.getAttribute('aria-describedby')?.split(/\s+/).forEach(id => ids.add(id));
+  });
+  ids.forEach(id => {
+    if(!id || clone.getElementById(id)) return;
+    const src = document.getElementById(id);
+    if(src){
+      const desc = document.createElementNS('http://www.w3.org/2000/svg','desc');
+      desc.setAttribute('id', id);
+      desc.textContent = src.textContent;
+      clone.insertBefore(desc, style.nextSibling);
+    }
+  });
+
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+}
+function downloadSVG(svgEl, filename){
+  const data = svgToString(svgEl);
+  const blob = new Blob([data], {type:'image/svg+xml;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.endsWith('.svg') ? filename : filename + '.svg';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function downloadPNG(svgEl, filename, scale=2, bg='#fff'){
+  const vb = svgEl.viewBox.baseVal;
+  const w = vb?.width  || svgEl.clientWidth  || VBW;
+  const h = vb?.height || svgEl.clientHeight || VBH;
+  const data = svgToString(svgEl);
+  const blob = new Blob([data], {type:'image/svg+xml;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = ()=>{
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(blob=>{
+      const urlPng = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlPng;
+      a.download = filename.endsWith('.png') ? filename : filename + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(urlPng),1000);
+    }, 'image/png');
+  };
+  img.src = url;
+}
+
 // init
-redraw();
+setN(n);
+setK(k);
