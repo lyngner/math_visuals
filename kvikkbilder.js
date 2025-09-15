@@ -22,7 +22,7 @@
   const btnSvg = document.getElementById('btnSvg');
   const btnPng = document.getElementById('btnPng');
 
-  const BRICK_SRC = 'images/brick1.svg';
+  let BRICK_SRC;
 
   function iso(x,y,z,tileW,tileH,unitH){
     return {
@@ -32,6 +32,7 @@
   }
 
   function createBrick(bredde, hoyde, dybde){
+    if(!BRICK_SRC) return document.createElementNS('http://www.w3.org/2000/svg','svg');
     const tileW = 26;
     const tileH = 13;
     const unitH = 13;
@@ -85,6 +86,7 @@
   }
 
   function renderKlosser(){
+    if(!BRICK_SRC) return;
     const antallX = parseInt(cfgAntallX.value,10) || 0;
     const antallY = parseInt(cfgAntallY.value,10) || 0;
     const bredde = parseInt(cfgBredde.value,10) || 0;
@@ -308,7 +310,13 @@
     img.src = url;
   }
 
-  renderKlosser();
   renderMonster();
   updateType();
+  fetch('images/brick1.svg')
+    .then(r=>r.text())
+    .then(txt=>{
+      BRICK_SRC = `data:image/svg+xml;base64,${btoa(txt)}`;
+      renderKlosser();
+      updateType();
+    });
 })();
