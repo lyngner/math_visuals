@@ -107,7 +107,7 @@ function initFromCfg(){
 
   drawAxesAndGrid();
   drawData();
-  updateStatus(CFG.type==='bar' && !hasTwo ? 'Dra i søylene/håndtaket – eller bruk tastaturet.' : '');
+  updateStatus((CFG.type==='bar' || CFG.type==='line') && !hasTwo ? 'Dra i søylene/punktene – eller bruk tastaturet.' : '');
 }
 
 /* =========================================================
@@ -174,7 +174,18 @@ function drawLines(){
     const path = arr.map((v,i)=> (i?'L':'M') + xPos(i) + ',' + yPos(v)).join(' ');
     addTo(gBars,'path',{d:path,class:'line series'+idx});
     arr.forEach((v,i)=>{
-      addTo(gBars,'circle',{cx:xPos(i), cy:yPos(v), r:4, class:'line-dot series'+idx});
+      const cx = xPos(i);
+      const cy = yPos(v);
+      addTo(gBars,'circle',{cx:cx, cy:cy, r:4, class:'line-dot series'+idx});
+      if(!locked[i]){
+        addTo(gHands,'circle',{cx:cx, cy:cy+2, r:16, class:'handleShadow'});
+        const h = addTo(gHands,'circle',{cx:cx, cy:cy, r:14, class:'handle'});
+        h.dataset.index = i; h.dataset.series = idx; h.dataset.base = 0;
+        h.addEventListener('pointerdown', onDragStart);
+      }
+      const a11y = addTo(gA11y,'circle',{cx:cx, cy:cy, r:20, fill:'transparent', class:'a11y', tabindex:0, role:'slider', 'aria-orientation':'vertical', 'aria-label':`${CFG.labels[i]}`, 'aria-valuemin':String(yMin), 'aria-valuemax':String(yMax), 'aria-valuenow':String(v), 'aria-valuetext':`${CFG.labels[i]}: ${fmt(v)}`});
+      if(locked[i]) a11y.setAttribute('aria-disabled','true');
+      a11y.dataset.index = i; a11y.dataset.series = idx; a11y.dataset.base = 0; a11y.addEventListener('pointerdown', onDragStart); a11y.addEventListener('keydown', onKeyAdjust);
     });
   });
 }
