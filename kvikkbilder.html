@@ -36,7 +36,8 @@
     #patternContainer svg{height:auto;}
     #expression{text-align:center;font-size:24px;font-weight:600;}
     label{font-size:13px;color:#4b5563;display:flex;flex-direction:column;}
-    input[type="number"]{border:1px solid #d1d5db;border-radius:10px;padding:8px 10px;font-size:14px;background:#fff;}
+    input[type="number"], select{border:1px solid #d1d5db;border-radius:10px;padding:8px 10px;font-size:14px;background:#fff;}
+    .checkbox-row{display:flex;align-items:center;gap:6px;}
     #playBtn{
       align-self:center;
       padding:0;
@@ -104,20 +105,22 @@
             <label>Vis i sekunder
               <input id="cfg-duration-klosser" type="number" min="1" value="3">
             </label>
-            <label>Vis play-knapp
+            <div class="checkbox-row">
               <input id="cfg-showBtn" type="checkbox">
-            </label>
+              <label for="cfg-showBtn">Vis play-knapp</label>
+            </div>
           </div>
           <div id="monsterConfig">
-            <label>Vis play-knapp
-              <input id="cfg-showBtn-monster" type="checkbox">
-            </label>
             <label>Antall
               <input id="cfg-antall" type="number" min="1" value="9">
             </label>
             <label>Vis i sekunder
               <input id="cfg-duration-monster" type="number" min="1" value="3">
             </label>
+            <div class="checkbox-row">
+              <input id="cfg-showBtn-monster" type="checkbox">
+              <label for="cfg-showBtn-monster">Vis play-knapp</label>
+            </div>
           </div>
         </div>
       </div>
