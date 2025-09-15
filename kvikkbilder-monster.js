@@ -163,7 +163,8 @@
     const pxPerUnit=targetPx/maxDim;
     const widthPx=vbW*pxPerUnit;
     const heightPx=vbH*pxPerUnit;
-    const dotRadius=6/pxPerUnit;
+    const dotRadiusPx=4;
+    const dotRadius=dotRadiusPx/pxPerUnit;
     const svgNS='http://www.w3.org/2000/svg';
     const svg=document.createElementNS(svgNS,'svg');
     svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
