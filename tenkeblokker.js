@@ -1,16 +1,13 @@
-/* Tenkeblokker – full JS m/ firkantparentes */
+/* Tenkeblokker – med innstillinger */
 
 // ---------- Konfig ----------
-const TOTAL = 50;          // tallet i parentesen
-const MIN_N = 2;
-const MAX_N = 12;
-
-let n = 5;                 // antall blokker (nevner)
-let k = 4;                 // antall fylte blokker (teller), 0..n
-
-// Parentes-utseende
-const BRACKET_TICK   = 16; // lengde på «haken» ned i hver ende
-const LABEL_OFFSET_Y = 14; // løft tallet litt over parentes-linjen
+const CONFIG = {
+  total: 50,      // tallet i parentesen
+  n: 5,           // antall blokker (nevner)
+  k: 4,           // antall fylte blokker (teller)
+  minN: 2,
+  maxN: 12
+};
 
 // ---------- SVG-oppsett ----------
 const svg = document.getElementById('thinkBlocks');
@@ -20,6 +17,8 @@ const VBW = 900, VBH = 420;                  // MÅ samsvare med viewBox i HTML
 const L = 70, R = VBW - 70;                  // venstre/høyre marg
 const TOP = 130, BOT = VBH - 60;             // ramme-topp/-bunn
 const BRACE_Y = 78;                          // høyde for parentes
+const BRACKET_TICK = 16;                     // lengde på «haken» ned i hver ende
+const LABEL_OFFSET_Y = 14;                   // løft tallet litt over parentes-linjen
 
 // Lag i riktig tegnerekkefølge
 const gBase   = add('g');     // bakgrunn
@@ -36,15 +35,15 @@ addTo(gFrame,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-frame'});
 
 // Firkantparentes + total
 drawBracketSquare(L, R, BRACE_Y, BRACKET_TICK);
-addTo(gBrace,'text',{x:(L+R)/2, y:BRACE_Y - LABEL_OFFSET_Y, class:'tb-total'}).textContent = TOTAL;
+const totalText = addTo(gBrace,'text',{x:(L+R)/2, y:BRACE_Y - LABEL_OFFSET_Y, class:'tb-total'});
 
 // Håndtak
 const handleShadow = addTo(gHandle,'circle',{cx:R, cy:(TOP+BOT)/2+2, r:20, class:'tb-handle-shadow'});
 const handle       = addTo(gHandle,'circle',{cx:R, cy:(TOP+BOT)/2,   r:18, class:'tb-handle'});
 
 // ---------- Interaksjon ----------
-document.getElementById('tbMinus').addEventListener('click', ()=> setN(n-1));
-document.getElementById('tbPlus') .addEventListener('click', ()=> setN(n+1));
+document.getElementById('tbMinus').addEventListener('click', ()=> setN(CONFIG.n-1));
+document.getElementById('tbPlus') .addEventListener('click', ()=> setN(CONFIG.n+1));
 
 handle.addEventListener('pointerdown', onDragStart);
 function onDragStart(e){
@@ -52,7 +51,7 @@ function onDragStart(e){
   const move = ev=>{
     const p = clientToSvg(ev.clientX, ev.clientY);    // skjerm → viewBox
     const x = clamp(p.x, L, R);
-    const cellW = (R-L)/n;
+    const cellW = (R-L)/CONFIG.n;
     const snapK = Math.round((x-L)/cellW);            // 0..n (kan helt til høyre)
     setK(snapK);
   };
@@ -64,6 +63,14 @@ function onDragStart(e){
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', up);
 }
+
+const btnSvg = document.getElementById('btnSvg');
+const btnPng = document.getElementById('btnPng');
+btnSvg?.addEventListener('click', ()=> downloadSVG(svg, 'tenkeblokker.svg'));
+btnPng?.addEventListener('click', ()=> downloadPNG(svg, 'tenkeblokker.png', 2));
+
+let inpTotal, inpN, inpK;
+setupSettingsUI();
 
 // ---------- Utils ----------
 function add(name, attrs={}){
@@ -103,46 +110,128 @@ function drawBracketSquare(x0, x1, y, tick){
   gBrace.appendChild(path);
 }
 
+function svgToString(svgEl){
+  const clone = svgEl.cloneNode(true);
+  const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
+  const style = document.createElement('style');
+  style.textContent = css;
+  clone.insertBefore(style, clone.firstChild);
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+}
+function downloadSVG(svgEl, filename){
+  const data = svgToString(svgEl);
+  const blob = new Blob([data], {type:'image/svg+xml;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.endsWith('.svg') ? filename : filename + '.svg';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function downloadPNG(svgEl, filename, scale=2, bg='#fff'){
+  const vb = svgEl.viewBox?.baseVal;
+  const w = vb?.width || svgEl.clientWidth || 420;
+  const h = vb?.height|| svgEl.clientHeight || 420;
+  const data = svgToString(svgEl);
+  const blob = new Blob([data], {type:'image/svg+xml;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = ()=>{
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(blob=>{
+      const urlPng = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlPng;
+      a.download = filename.endsWith('.png') ? filename : filename + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(urlPng),1000);
+    },'image/png');
+  };
+  img.src = url;
+}
+
 // ---------- Tegning ----------
-function redraw(){
+function draw(){
   gFill.innerHTML = '';
   gSep.innerHTML  = '';
   gVals.innerHTML = '';
 
-  const cellW = (R-L)/n;
+  if(inpTotal) inpTotal.value = CONFIG.total;
+  if(inpN){
+    inpN.value = CONFIG.n;
+    inpN.min = CONFIG.minN;
+    inpN.max = CONFIG.maxN;
+  }
+  if(inpK){
+    inpK.value = CONFIG.k;
+    inpK.max = CONFIG.n;
+  }
+  totalText.textContent = CONFIG.total;
+
+  const cellW = (R-L)/CONFIG.n;
 
   // fylte celler
-  for(let i=0;i<k;i++){
+  for(let i=0;i<CONFIG.k;i++){
     addTo(gFill,'rect',{x:L+i*cellW,y:TOP,width:cellW,height:BOT-TOP,class:'tb-rect'});
   }
   // skillelinjer
-  for(let i=1;i<n;i++){
+  for(let i=1;i<CONFIG.n;i++){
     const x = L + i*cellW;
     addTo(gSep,'line',{x1:x,y1:TOP,x2:x,y2:BOT,class:'tb-sep'});
   }
   // verdier i fylte celler
-  const per = TOTAL / n;
-  for(let i=0;i<k;i++){
+  const per = CONFIG.total / CONFIG.n;
+  for(let i=0;i<CONFIG.k;i++){
     const cx = L + (i+0.5)*cellW;
     const cy = (TOP+BOT)/2;
     addTo(gVals,'text',{x:cx,y:cy,class:'tb-val'}).textContent = fmt(per);
   }
   // håndtak-pos
-  const hx = L + k*cellW;
+  const hx = L + CONFIG.k*cellW;
   handle.setAttribute('cx', hx);
   handleShadow.setAttribute('cx', hx);
 }
 
 // ---------- State ----------
 function setN(next){
-  n = clamp(next, MIN_N, MAX_N);
-  if(k>n) k = n;
-  redraw();
+  CONFIG.n = clamp(next, CONFIG.minN, CONFIG.maxN);
+  if(CONFIG.k > CONFIG.n) CONFIG.k = CONFIG.n;
+  draw();
 }
 function setK(next){
-  k = clamp(next, 0, n);
-  redraw();
+  CONFIG.k = clamp(next, 0, CONFIG.n);
+  draw();
+}
+
+function setupSettingsUI(){
+  inpTotal = document.getElementById('cfg-total');
+  inpN     = document.getElementById('cfg-n');
+  inpK     = document.getElementById('cfg-k');
+  inpTotal?.addEventListener('change', ()=>{
+    const v = parseFloat(inpTotal.value);
+    if(!Number.isNaN(v)) CONFIG.total = v;
+    draw();
+  });
+  inpN?.addEventListener('change', ()=>{
+    const v = parseInt(inpN.value,10);
+    if(!Number.isNaN(v)) setN(v);
+  });
+  inpK?.addEventListener('change', ()=>{
+    const v = parseInt(inpK.value,10);
+    if(!Number.isNaN(v)) setK(v);
+  });
 }
 
 // init
-redraw();
+window.CONFIG = CONFIG;
+window.draw = draw;
+draw();
