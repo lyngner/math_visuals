@@ -130,58 +130,79 @@
     const n=parseInt(cfgAntall.value,10)||0;
     patternContainer.innerHTML='';
     const points=byggMonster(n);
-    if(!points.length) return;
+    if(!points.length){
+      expression.textContent=`${n}`;
+      return;
+    }
+
+    const radius=10;
+    const spacing=3;
+    const desiredCenterDistance=radius*2+spacing;
+
+    const seen=new Set();
+    const uniquePoints=[];
+    const precision=1e4;
+    points.forEach(p=>{
+      const key=`${Math.round(p.x*precision)}:${Math.round(p.y*precision)}`;
+      if(!seen.has(key)){
+        seen.add(key);
+        uniquePoints.push(p);
+      }
+    });
+
+    let minDist=Infinity;
+    for(let i=0;i<uniquePoints.length;i++){
+      for(let j=i+1;j<uniquePoints.length;j++){
+        const dx=uniquePoints[i].x-uniquePoints[j].x;
+        const dy=uniquePoints[i].y-uniquePoints[j].y;
+        const dist=Math.hypot(dx,dy);
+        if(dist>0 && dist<minDist) minDist=dist;
+      }
+    }
+    if(!Number.isFinite(minDist) || minDist<=0) minDist=desiredCenterDistance;
+    let scale=desiredCenterDistance/minDist;
+    if(!Number.isFinite(scale) || scale<=0) scale=1;
+    else if(scale<1) scale=1;
+
+    const scaledPoints=points.map(p=>({x:p.x*scale,y:p.y*scale}));
+
     let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-    points.forEach(({x,y})=>{
+    scaledPoints.forEach(({x,y})=>{
       if(x<minX) minX=x;
       if(x>maxX) maxX=x;
       if(y<minY) minY=y;
       if(y>maxY) maxY=y;
     });
-    const widthRaw=maxX-minX;
-    const heightRaw=maxY-minY;
-    const padBase=Math.max(widthRaw,heightRaw);
-    const pad=Math.max(0.05,padBase*0.12);
-    const vbX=minX-pad;
-    const vbY=minY-pad;
-    const vbW=widthRaw+pad*2;
-    const vbH=heightRaw+pad*2;
-    let availableWidth=patternContainer.clientWidth;
-    if(!availableWidth){
-      availableWidth=patternContainer.parentElement?.clientWidth||360;
-    }
-    const maxPreferred=560;
-    const minPreferred=320;
-    let targetPx=Math.min(availableWidth,maxPreferred);
-    if(availableWidth>=minPreferred){
-      targetPx=Math.max(targetPx,minPreferred);
-    }
-    if(!Number.isFinite(targetPx)||targetPx<=0){
-      targetPx=420;
-    }
-    const maxDim=Math.max(vbW,vbH);
-    const pxPerUnit=targetPx/maxDim;
-    const widthPx=vbW*pxPerUnit;
-    const heightPx=vbH*pxPerUnit;
-    const dotRadiusPx=6;
-    const dotRadius=dotRadiusPx/pxPerUnit;
+
+    const pad=radius+spacing;
+    const contentWidth=maxX-minX;
+    const contentHeight=maxY-minY;
+    const baseW=contentWidth+pad*2;
+    const baseH=contentHeight+pad*2;
+    const minSize=radius*4;
+    const vbW=Math.max(baseW,minSize);
+    const vbH=Math.max(baseH,minSize);
+    const extraX=(vbW-baseW)/2;
+    const extraY=(vbH-baseH)/2;
+    const offsetX=pad+extraX-minX;
+    const offsetY=pad+extraY-minY;
+
     const svgNS='http://www.w3.org/2000/svg';
     const svg=document.createElementNS(svgNS,'svg');
-    svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
-    svg.setAttribute('width', widthPx);
-    svg.setAttribute('height', heightPx);
+    svg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
     svg.setAttribute('preserveAspectRatio','xMidYMid meet');
-    svg.style.maxWidth='100%';
-    svg.style.height='auto';
-    svg.style.display='block';
-    points.forEach(({x,y})=>{
+
+    scaledPoints.forEach(({x,y})=>{
       const c=document.createElementNS(svgNS,'circle');
-      c.setAttribute('cx', x);
-      c.setAttribute('cy', y);
-      c.setAttribute('r', dotRadius);
+      c.setAttribute('cx', x+offsetX);
+      c.setAttribute('cy', y+offsetY);
+      c.setAttribute('r', radius);
       c.setAttribute('fill', '#534477');
       svg.appendChild(c);
     });
+
     patternContainer.appendChild(svg);
     const factors=primeFactors(n).filter(x=>x>1);
     expression.textContent=factors.length?`${factors.join(' × ')} = ${n}`:`${n}`;
@@ -189,12 +210,12 @@
 
   function updateVisibility(){
     if(cfgShowBtn.checked){
-      playBtn.style.display='inline-block';
+      playBtn.style.display='flex';
       patternContainer.style.display='none';
       expression.style.display='none';
     }else{
       playBtn.style.display='none';
-      patternContainer.style.display='block';
+      patternContainer.style.display='flex';
       expression.style.display='block';
     }
   }
@@ -209,7 +230,7 @@
     const duration=parseInt(cfgDuration.value,10)||0;
     render();
     playBtn.style.display='none';
-    patternContainer.style.display='block';
+    patternContainer.style.display='flex';
     expression.style.display='block';
     setTimeout(()=>{
       updateVisibility();
