@@ -18,7 +18,7 @@
     .card h2 { margin: 0 0 6px 2px; font-size: 16px; font-weight: 600; color: #374151; }
     .figure { border-radius: 10px; background: #fafbfc; overflow: hidden; border: 1px solid #eef0f3; }
     .figure svg { width: 100%; height: 360px; display: block; }
-    .toolbar { display: flex; gap: 10px; justify-content: flex-end; }
+    .toolbar { display: flex; gap: 10px; justify-content: flex-start; align-items: center; flex-wrap: wrap; }
     .specs-row { display:flex; gap:10px; align-items:flex-start; }
     .specs-row textarea { flex:1; width:auto; }
     .btn { appearance: none; border: 1px solid #d1d5db; background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 14px;
@@ -52,17 +52,23 @@
 
       <div class="side">
         <div class="card">
-          <h2>Last ned figurer</h2>
+          <h2>Eksempler</h2>
           <div class="toolbar">
-            <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
-            <button id="btnPng" class="btn" type="button">Last ned PNG</button>
             <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>
             <button id="btnDeleteExample" class="btn" type="button">Slett eksempel</button>
           </div>
         </div>
 
         <div class="card">
-          <h2>Forfatters innstillinger</h2>
+          <h2>Eksporter</h2>
+          <div class="toolbar">
+            <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
+            <button id="btnPng" class="btn" type="button">Last ned PNG</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Innstillinger</h2>
 
         <label for="inpSpecs">Skriv spesifikasjoner eller fritekst (1–2 linjer per figur)</label>
         <div class="specs-row">
@@ -291,7 +297,6 @@ Rettvinklet trekant</textarea>
         </div>
       </div>
     </div>
-  </div>
   </div>
 
   <script src="nkant.js"></script>

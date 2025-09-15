@@ -29,7 +29,7 @@
     #box{width:clamp(280px,60vw,460px);aspect-ratio:1;margin:0 auto;position:relative;}
     .pairs-list{position:absolute;top:10px;right:10px;display:flex;gap:1.2em;text-align:right;pointer-events:none;font-size:16px;line-height:1.2;}
     .pairs-list .col{display:flex;flex-direction:column;gap:4px;}
-    .toolbar{display:flex;gap:10px;justify-content:flex-end;}
+    .toolbar{display:flex;gap:10px;justify-content:flex-start;align-items:center;flex-wrap:wrap;}
     .btn{
       appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;
       padding:8px 12px;font-size:14px;cursor:pointer;
@@ -60,52 +60,57 @@
       </div>
       <div class="side">
         <div class="card">
-          <h2>Last ned figurer</h2>
+          <h2>Eksempler</h2>
           <div class="toolbar">
-            <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
-            <button id="btnPng" class="btn" type="button">Last ned PNG</button>
-            <button id="btnSvgInteractive" class="btn" type="button">Last ned interaktiv SVG</button>
-            <button id="btnHtml" class="btn" type="button">Last ned interaktiv HTML</button>
             <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>
             <button id="btnDeleteExample" class="btn" type="button">Slett eksempel</button>
           </div>
         </div>
         <div class="card">
-          <h2>Forfatters innstillinger</h2>
+          <h2>Eksporter</h2>
+          <div class="toolbar">
+            <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
+            <button id="btnPng" class="btn" type="button">Last ned PNG</button>
+            <button id="btnSvgInteractive" class="btn" type="button">Last ned interaktiv SVG</button>
+            <button id="btnHtml" class="btn" type="button">Last ned interaktiv HTML</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Innstillinger</h2>
           <div id="settingsMenu" class="settings">
-          <div class="row">
-            <label>Lengde (celler)
-              <input id="lenCells" type="number" value="1" min="1">
+            <div class="row">
+              <label>Lengde (celler)
+                <input id="lenCells" type="number" value="1" min="1">
+              </label>
+              <label>Maks lengde
+                <input id="lenMax" type="number" value="12" min="1">
+              </label>
+            </div>
+            <div class="row">
+              <label>Høyde (celler)
+                <input id="heiCells" type="number" value="1" min="1">
+              </label>
+              <label>Maks høyde
+                <input id="heiMax" type="number" value="12" min="1">
+              </label>
+            </div>
+            <label>Snap
+              <input id="snap" type="number" value="1" min="1">
             </label>
-            <label>Maks lengde
-              <input id="lenMax" type="number" value="12" min="1">
+            <label>Areal-tekst
+              <input id="areaLabel" type="text" value="areal">
             </label>
-          </div>
-          <div class="row">
-            <label>Høyde (celler)
-              <input id="heiCells" type="number" value="1" min="1">
-            </label>
-            <label>Maks høyde
-              <input id="heiMax" type="number" value="12" min="1">
-            </label>
-          </div>
-          <label>Snap
-            <input id="snap" type="number" value="1" min="1">
-          </label>
-          <label>Areal-tekst
-            <input id="areaLabel" type="text" value="areal">
-          </label>
-          <label class="chk"><input type="checkbox" id="chkGrid" checked> Vis rutenett</label>
-          <div class="row">
-            <label class="chk"><input type="checkbox" id="chkChallenge"> Oppgave-modus</label>
-            <label>Oppgave-areal
-              <input id="challengeArea" type="number" value="12" min="1">
-            </label>
+            <label class="chk"><input type="checkbox" id="chkGrid" checked> Vis rutenett</label>
+            <div class="row">
+              <label class="chk"><input type="checkbox" id="chkChallenge"> Oppgave-modus</label>
+              <label>Oppgave-areal
+                <input id="challengeArea" type="number" value="12" min="1">
+              </label>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
   </div>
   <script src="arealmodell0.js"></script>
   <script src="examples.js"></script>
