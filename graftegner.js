@@ -175,6 +175,7 @@ function parseFunctionSpec(spec){
   const m = rhs.match(/^([a-zA-Z]\w*)\s*\(\s*x\s*\)\s*=\s*(.+)$/);
   if(m){ rhs=m[2]; }
   rhs = rhs
+    .replace(/(^|[=+\-*/])\s*([+-])\s*([a-zA-Z0-9._()]+)\s*\^/g, (m,p,s,b) => p+'0'+s+'('+b+')^')
     .replace(/\^/g,'**')
     .replace(/(\d)([a-zA-Z(])/g,'$1*$2')
     .replace(/([x\)])\(/g,'$1*(')
