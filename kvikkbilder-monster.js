@@ -2,6 +2,7 @@
   const cfgAntall = document.getElementById('cfg-antall');
   const cfgDuration = document.getElementById('cfg-duration');
   const cfgShowBtn = document.getElementById('cfg-showBtn');
+  const cfgShowExpression = document.getElementById('cfg-show-expression');
   const patternContainer = document.getElementById('patternContainer');
   const playBtn = document.getElementById('playBtn');
   const expression = document.getElementById('expression');
@@ -205,19 +206,25 @@
 
     patternContainer.appendChild(svg);
     const factors=primeFactors(n).filter(x=>x>1);
-    expression.textContent=factors.length?`${factors.join(' × ')} = ${n}`:`${n}`;
+    expression.textContent=factors.length?`${factors.join(' · ')} = ${n}`:`${n}`;
+  }
+
+  function applyExpressionVisibility(){
+    if(!expression) return;
+    const enabled = !cfgShowExpression || cfgShowExpression.checked;
+    const playVisible = playBtn.style.display !== 'none';
+    expression.style.display = (enabled && !playVisible) ? 'block' : 'none';
   }
 
   function updateVisibility(){
     if(cfgShowBtn.checked){
       playBtn.style.display='flex';
       patternContainer.style.display='none';
-      expression.style.display='none';
     }else{
       playBtn.style.display='none';
       patternContainer.style.display='flex';
-      expression.style.display='block';
     }
+    applyExpressionVisibility();
   }
 
   cfgAntall.addEventListener('input',render);
@@ -225,13 +232,14 @@
     updateVisibility();
     if(!cfgShowBtn.checked) render();
   });
+  cfgShowExpression?.addEventListener('change', applyExpressionVisibility);
 
   playBtn.addEventListener('click',()=>{
     const duration=parseInt(cfgDuration.value,10)||0;
     render();
     playBtn.style.display='none';
     patternContainer.style.display='flex';
-    expression.style.display='block';
+    applyExpressionVisibility();
     setTimeout(()=>{
       updateVisibility();
     }, duration*1000);
@@ -246,6 +254,7 @@
   });
   updateVisibility();
   render();
+  applyExpressionVisibility();
 
   function svgToString(svgEl){
     const clone = svgEl.cloneNode(true);
