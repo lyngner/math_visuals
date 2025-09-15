@@ -240,10 +240,7 @@ function createBlock(index) {
   const header = document.getElementById(`tbHeader${index + 1}`);
   if (header) {
     header.innerHTML = '';
-    block.header = header;
-    block.wholeEl = document.createElement('div');
-    block.wholeEl.className = 'tb-whole';
-    header.appendChild(block.wholeEl);
+    header.style.display = 'none';
   }
 
   const minus = document.getElementById(`tbMinus${index + 1}`);
@@ -448,11 +445,6 @@ function drawBlock(index) {
   const showWhole = !!cfg.showWhole;
 
   if (block.gBrace) block.gBrace.style.display = showWhole ? '' : 'none';
-  if (block.wholeEl) {
-    block.wholeEl.textContent = `Hele = ${fmt(cfg.total)}`;
-    block.wholeEl.style.display = showWhole ? '' : 'none';
-  }
-  if (block.header) block.header.style.display = showWhole ? '' : 'none';
 
   if (block.stepper) block.stepper.style.display = cfg.lockDenominator ? 'none' : '';
   if (block.nVal) {
