@@ -10,6 +10,7 @@
   const cfgDybde = document.getElementById('cfg-dybde');
   const cfgDurationKlosser = document.getElementById('cfg-duration-klosser');
   const cfgShowBtn = document.getElementById('cfg-showBtn');
+  const cfgShowExpression = document.getElementById('cfg-show-expression');
 
   const cfgAntall = document.getElementById('cfg-antall');
   const cfgDurationMonster = document.getElementById('cfg-duration-monster');
@@ -104,7 +105,8 @@
 
     const perFig = bredde * hoyde * dybde;
     const total = antallX * antallY * perFig;
-    expression.textContent = `${antallX} × ${antallY} × (${bredde} × ${hoyde} × ${dybde}) = ${antallX * antallY} × ${perFig} = ${total}`;
+    const dot = ' · ';
+    expression.textContent = `${antallX}${dot}${antallY}${dot}(${bredde}${dot}${hoyde}${dot}${dybde}) = ${antallX * antallY}${dot}${perFig} = ${total}`;
   }
 
   function primeFactors(n){
@@ -307,20 +309,26 @@
 
     patternContainer.appendChild(svg);
     const factors=primeFactors(n).filter(x=>x>1);
-    expression.textContent=factors.length?`${factors.join(' × ')} = ${n}`:`${n}`;
+    expression.textContent=factors.length?`${factors.join(' · ')} = ${n}`:`${n}`;
+  }
+
+  function applyExpressionVisibility(){
+    if(!expression) return;
+    const enabled = !cfgShowExpression || cfgShowExpression.checked;
+    const playVisible = playBtn.style.display !== 'none';
+    expression.style.display = (enabled && !playVisible) ? 'block' : 'none';
   }
 
   function updateVisibilityKlosser(){
     if(cfgShowBtn.checked){
       playBtn.style.display = 'flex';
       brickContainer.style.display = 'none';
-      expression.style.display = 'none';
     } else {
       playBtn.style.display = 'none';
       brickContainer.style.display = 'grid';
-      expression.style.display = 'block';
     }
     patternContainer.style.display='none';
+    applyExpressionVisibility();
   }
 
   function updateVisibilityMonster(){
@@ -328,12 +336,11 @@
     if(cfgShowBtnMonster.checked){
       playBtn.style.display='flex';
       patternContainer.style.display='none';
-      expression.style.display='none';
     } else {
       playBtn.style.display='none';
       patternContainer.style.display='flex';
-      expression.style.display='block';
     }
+    applyExpressionVisibility();
   }
 
   function updateType(){
@@ -363,6 +370,7 @@
   });
   cfgAntall.addEventListener('input', renderMonster);
   cfgType.addEventListener('change', updateType);
+  cfgShowExpression?.addEventListener('change', applyExpressionVisibility);
 
   playBtn.addEventListener('click', () => {
     if(cfgType.value==='klosser'){
@@ -370,7 +378,7 @@
       renderKlosser();
       playBtn.style.display = 'none';
       brickContainer.style.display = 'grid';
-      expression.style.display = 'block';
+      applyExpressionVisibility();
       setTimeout(() => {
         updateVisibilityKlosser();
       }, duration * 1000);
@@ -379,7 +387,7 @@
       renderMonster();
       playBtn.style.display='none';
       patternContainer.style.display='flex';
-      expression.style.display='block';
+      applyExpressionVisibility();
       setTimeout(()=>{
         updateVisibilityMonster();
       }, duration*1000);
@@ -446,6 +454,7 @@
 
   renderMonster();
   updateType();
+  applyExpressionVisibility();
   fetch('images/brick1.svg')
     .then(r=>r.text())
     .then(txt=>{
