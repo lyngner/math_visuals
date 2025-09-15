@@ -22,8 +22,21 @@ function renderExamples(){
       if(ex.svg){
         const divSvg = document.createElement('div');
         divSvg.innerHTML = ex.svg;
-        wrap.appendChild(divSvg.firstChild);
+        const svgEl = divSvg.firstElementChild;
+        if(svgEl) wrap.appendChild(svgEl);
       }
+      const iframe = document.createElement('iframe');
+      iframe.setAttribute('loading', 'lazy');
+      iframe.title = `Eksempel ${idx + 1} – ${path}`;
+      try {
+        const url = new URL(path, window.location.href);
+        url.searchParams.set('example', String(idx + 1));
+        iframe.src = url.href;
+      } catch {
+        const sep = path.includes('?') ? '&' : '?';
+        iframe.src = `${path}${sep}example=${idx + 1}`;
+      }
+      wrap.appendChild(iframe);
       const btns = document.createElement('div');
       btns.className = 'buttons';
       const loadBtn = document.createElement('button');
