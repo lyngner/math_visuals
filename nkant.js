@@ -797,7 +797,6 @@ function bindUI(){
   const layoutRadios = document.querySelectorAll('input[name="layout"]');
   const btnSvg = $("#btnSvg");
   const btnPng = $("#btnPng");
-  const btnReset = $("#btnReset");
   const btnDraw = $("#btnDraw");
 
   const f1Sides=$("#f1Sides"), f1Angles=$("#f1Angles");
@@ -907,45 +906,6 @@ function bindUI(){
     });
   }
 
-  btnReset?.addEventListener("click", ()=>{
-    Object.assign(STATE, {
-      specsText: DEFAULT_SPECS,
-      fig1: {
-        sides:{ default:"value", a:"inherit", b:"inherit", c:"inherit", d:"inherit",
-                aText:"a", bText:"b", cText:"c", dText:"d" },
-        angles:{ default:"custom+mark+value", A:"inherit", B:"inherit", C:"inherit", D:"inherit",
-                 AText:"A", BText:"B", CText:"C", DText:"D" }
-      },
-      fig2: {
-        sides:{ default:"none", a:"inherit", b:"inherit", c:"inherit", d:"inherit",
-                aText:"a", bText:"b", cText:"c", dText:"d" },
-        angles:{ default:"custom+mark+value", A:"inherit", B:"inherit", C:"inherit", D:"inherit",
-                 AText:"A", BText:"B", CText:"C", DText:"D" }
-      },
-      layout: "row"
-    });
-
-    inpSpecs.value = STATE.specsText;
-    f1Sides.value  = STATE.fig1.sides.default;
-    f1Angles.value = STATE.fig1.angles.default;
-    f2Sides.value  = STATE.fig2.sides.default;
-    f2Angles.value = STATE.fig2.angles.default;
-    document.querySelectorAll('input[name="layout"]').forEach(r=> r.checked = (r.value===STATE.layout));
-
-    ["A","B","C","D"].forEach(K=>{
-      const f = (p)=>{ document.querySelector(p+K).value="inherit"; document.querySelector(p+K+"Txt").value=K; };
-      f("#f1Ang"); f("#f2Ang");
-    });
-    ["a","b","c","d"].forEach(k=>{
-      const u = k.toUpperCase();
-      document.querySelector("#f1Side"+u).value="inherit"; document.querySelector("#f1Side"+u+"Txt").value=k;
-      document.querySelector("#f2Side"+u).value="inherit"; document.querySelector("#f2Side"+u+"Txt").value=k;
-    });
-    sideToggles.forEach(t=>t.toggleTxt());
-    angToggles.forEach(t=>t.toggleTxt());
-
-    renderCombined();
-  });
 }
 
 /* ---------- INIT ---------- */
