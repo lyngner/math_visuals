@@ -31,8 +31,15 @@
       padding:12px 4px 4px;
       flex-wrap:nowrap;
       overflow-x:auto;
+      --tb-svg-width:min(420px,88vw);
+      --tb-overlap:calc(var(--tb-svg-width) * 140 / 900);
     }
-    .tb-panels.two{gap:0;justify-content:flex-start;}
+    .tb-panels.two{
+      gap:0;
+      justify-content:flex-start;
+      --tb-svg-width:min(420px,44vw);
+    }
+    .tb-panels.two .tb-panel + .tb-panel{margin-left:calc(-1 * var(--tb-overlap));}
     .tb-panels > *{flex:0 0 auto;}
     .tb-panel{display:flex;flex-direction:column;align-items:center;gap:16px;max-width:420px;}
     .tb-svg{width:min(420px,88vw);height:auto;background:#fff;}
