@@ -5,6 +5,8 @@
   const patternContainer = document.getElementById('patternContainer');
   const playBtn = document.getElementById('playBtn');
   const expression = document.getElementById('expression');
+  const btnSvg = document.getElementById('btnSvg');
+  const btnPng = document.getElementById('btnPng');
 
   function primeFactors(n){
     const factors=[];
@@ -187,6 +189,63 @@
       updateVisibility();
     }, duration*1000);
   });
+  btnSvg?.addEventListener('click', ()=>{
+    const svg = patternContainer.querySelector('svg');
+    if(svg) downloadSVG(svg, 'kvikkbilder-monster.svg');
+  });
+  btnPng?.addEventListener('click', ()=>{
+    const svg = patternContainer.querySelector('svg');
+    if(svg) downloadPNG(svg, 'kvikkbilder-monster.png', 2);
+  });
   updateVisibility();
   render();
+
+  function svgToString(svgEl){
+    const clone = svgEl.cloneNode(true);
+    const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
+    const style = document.createElement('style');
+    style.textContent = css;
+    clone.insertBefore(style, clone.firstChild);
+    clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+    clone.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+  }
+  function downloadSVG(svgEl, filename){
+    const data = svgToString(svgEl);
+    const blob = new Blob([data], {type:'image/svg+xml;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename.endsWith('.svg') ? filename : filename + '.svg';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  function downloadPNG(svgEl, filename, scale=2, bg='#fff'){
+    const vb = svgEl.viewBox?.baseVal;
+    const w = vb?.width || svgEl.clientWidth || 420;
+    const h = vb?.height|| svgEl.clientHeight || 420;
+    const data = svgToString(svgEl);
+    const blob = new Blob([data], {type:'image/svg+xml;charset=utf-8'});
+    const url  = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = ()=>{
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(w * scale);
+      canvas.height = Math.round(h * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(blob=>{
+        const urlPng = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = urlPng;
+        a.download = filename.endsWith('.png') ? filename : filename + '.png';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(urlPng),1000);
+      },'image/png');
+    };
+    img.src = url;
+  }
 })();
