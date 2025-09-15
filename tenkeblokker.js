@@ -82,12 +82,17 @@ const addColBtn    = document.getElementById('tbAddCol');
 const addRowBtn    = document.getElementById('tbAddRow');
 const btnSvg       = document.getElementById('btnSvg');
 const btnPng       = document.getElementById('btnPng');
+const minusBtn     = document.getElementById('tbMinus');
+const plusBtn      = document.getElementById('tbPlus');
+const stepper      = document.getElementById('tbStepper');
 
 // ---------- Interaksjon ----------
 addColBtn?.addEventListener('click', ()=> setN(n+1));
 addRowBtn?.addEventListener('click', ()=> setM(m+1));
 btnSvg?.addEventListener('click', ()=> downloadSVG(svg, 'tenkeblokker.svg'));
 btnPng?.addEventListener('click', ()=> downloadPNG(svg, 'tenkeblokker.png', 2));
+minusBtn?.addEventListener('click', ()=> setK(k-1));
+plusBtn?.addEventListener('click', ()=> setK(k+1));
 
 handle.addEventListener('pointerdown', onDragStart);
 overlay?.addEventListener('keydown', e=>{
@@ -285,6 +290,7 @@ function applyConfig(){
   }
   if(addColBtn) addColBtn.style.display = CFG.showStepper ? '' : 'none';
   if(addRowBtn) addRowBtn.style.display = CFG.showStepper ? '' : 'none';
+  if(stepper) stepper.style.display = CFG.showStepper ? '' : 'none';
   gHandle.style.display  = CFG.showHandle ? '' : 'none';
   redraw();
 }
@@ -361,6 +367,7 @@ function redraw(){
   handleShadow.setAttribute('cy', hy+2);
   updateAria();
   updateAddButtons();
+  updateStepperButtons();
 }
 
 function updateAria(){
@@ -378,6 +385,15 @@ function updateAddButtons(){
   }
   if(addRowBtn){
     addRowBtn.style.visibility = m < CFG.maxM ? 'visible' : 'hidden';
+  }
+}
+
+function updateStepperButtons(){
+  if(minusBtn){
+    minusBtn.disabled = k <= 0;
+  }
+  if(plusBtn){
+    plusBtn.disabled = k >= n*m;
   }
 }
 

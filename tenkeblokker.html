@@ -67,6 +67,18 @@
     .tb-right{top:50%;left:100%;transform:translate(10px,-50%);}
     .tb-bottom{top:100%;left:50%;transform:translate(-50%,10px);}
 
+    .tb-stepper{display:flex;gap:10px;justify-content:center;margin-top:10px}
+    .tb-stepper button{
+      width:40px;height:40px;
+      border:1px solid #cfcfcf;
+      border-radius:10px;
+      background:#fff;
+      font-size:24px;
+      cursor:pointer;
+      box-shadow:0 2px 8px rgba(0,0,0,.06);
+    }
+    .tb-stepper button:active{transform:translateY(1px)}
+
     .tb-toolbar{display:flex;gap:10px;justify-content:flex-end}
     .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s}
     .btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
@@ -85,6 +97,10 @@
           <button id="tbAddCol" class="tb-add-btn tb-right" type="button" aria-label="Legg til kolonne">+</button>
           <button id="tbAddRow" class="tb-add-btn tb-bottom" type="button" aria-label="Legg til rad">+</button>
           <div id="tbLive" aria-live="polite" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;"></div>
+        </div>
+        <div id="tbStepper" class="tb-stepper">
+          <button id="tbMinus" type="button" aria-label="Fyll færre blokker">−</button>
+          <button id="tbPlus" type="button" aria-label="Fyll flere blokker">+</button>
         </div>
       </div>
 
