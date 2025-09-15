@@ -90,7 +90,20 @@ function fitPizzasToLine(){
   const addBtn=document.getElementById("addPizza");
   const extras=[...ops];
   if(addBtn && addBtn.style.display!=="none") extras.push(addBtn);
-  const availWidth=container.parentElement?.clientWidth ?? container.clientWidth;
+  const parent=container.parentElement;
+  let availWidth=container.clientWidth;
+  if(parent){
+    const parentStyles=getComputedStyle(parent);
+    const padL=parseFloat(parentStyles.paddingLeft||"0")||0;
+    const padR=parseFloat(parentStyles.paddingRight||"0")||0;
+    const parentInner=(parent.clientWidth||0)-padL-padR;
+    if(Number.isFinite(parentInner) && parentInner>0 && (!availWidth || parentInner<availWidth)){
+      availWidth=parentInner;
+    }
+  }
+  if((!availWidth || !Number.isFinite(availWidth) || availWidth<=0)){
+    availWidth=container.getBoundingClientRect().width;
+  }
   if(!availWidth || !Number.isFinite(availWidth)) return;
   const extrasWidth=extras.reduce((sum,el)=>sum+el.getBoundingClientRect().width,0);
   const cs=getComputedStyle(container);
