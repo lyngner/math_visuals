@@ -97,11 +97,17 @@ function fmt(x) { return (Math.round(x * 100) / 100).toString().replace('.', ','
 // Skjerm-px → SVG viewBox-koordinater
 function clientToSvg(svgEl, clientX, clientY) {
   const rect = svgEl.getBoundingClientRect();
-  const sx = VBW / rect.width;
-  const sy = VBH / rect.height;
+  const vb = svgEl.viewBox?.baseVal;
+  const width = vb?.width ?? VBW;
+  const height = vb?.height ?? VBH;
+  const minX = vb?.x ?? 0;
+  const minY = vb?.y ?? 0;
+  if (!rect.width || !rect.height) return { x: minX, y: minY };
+  const sx = width / rect.width;
+  const sy = height / rect.height;
   return {
-    x: (clientX - rect.left) * sx,
-    y: (clientY - rect.top) * sy
+    x: minX + (clientX - rect.left) * sx,
+    y: minY + (clientY - rect.top) * sy
   };
 }
 
@@ -198,6 +204,14 @@ function getExportSvg() {
     if (i < count - 1) x += step;
   }
   return exportSvg;
+}
+
+function getBlockViewBox(index) {
+  const count = clamp(CONFIG.activeBlocks || 1, 1, 2);
+  if (count <= 1) return { minX: 0, width: VBW };
+  const width = Math.max(VBW - SIDE_MARGIN, 1);
+  if (index === 0) return { minX: 0, width };
+  return { minX: SIDE_MARGIN, width };
 }
 
 function createBlock(index) {
@@ -367,6 +381,11 @@ function drawBlock(index) {
   const block = BLOCKS[index];
   const cfg = CONFIG.blocks[index];
   if (!block || !cfg) return;
+
+  const vb = getBlockViewBox(index);
+  if (block.svg && vb) {
+    block.svg.setAttribute('viewBox', `${vb.minX} 0 ${vb.width} ${VBH}`);
+  }
 
   block.gFill.innerHTML = '';
   block.gSep.innerHTML = '';
