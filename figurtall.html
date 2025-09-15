@@ -6,23 +6,27 @@
   <title>Figurtall</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css" />
   <style>
-    :root { --gap:18px; }
+    :root { --gap:18px; --card-min:240px; }
     html,body{height:100%;}
     body{
       margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       color:#111827; background:#f7f8fb; padding:20px;
     }
     .wrap{max-width:1200px;margin:0 auto;}
-    .grid{display:grid;gap:var(--gap);grid-template-columns:1fr 360px;align-items:start;}
+    .grid{display:grid;gap:var(--gap);grid-template-columns:minmax(0,1fr) clamp(260px,32vw,360px);align-items:start;}
     @media(max-width:980px){.grid{grid-template-columns:1fr;}}
     .side{display:flex;flex-direction:column;gap:var(--gap);}
     .grid2{
       display:grid;
-      grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
-      gap:24px;
-      align-items:start;
+      grid-template-columns:repeat(auto-fit,minmax(var(--card-min),1fr));
+      gap:clamp(16px,2vw,24px);
+      align-items:stretch;
     }
-    .figurePanel{display:grid;place-items:center;gap:10px;}
+    .figurePanel{
+      display:flex;
+      align-items:flex-start;
+      gap:clamp(12px,1.5vw,20px);
+    }
     .addFigureBtn{
       width:clamp(60px,15vw,120px);
       aspect-ratio:1;
@@ -38,8 +42,9 @@
       justify-self:center;
       align-self:center;
     }
-    @media(max-width:420px){
-      .grid2{grid-template-columns:1fr;gap:16px;}
+    @media(max-width:720px){
+      .grid2{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;}
+      .figurePanel{flex-direction:column;align-items:stretch;}
     }
     .card{
       background:#fff;border:1px solid #e5e7eb;border-radius:14px;
@@ -56,7 +61,23 @@
     .card input[type="color"]{width:40px;height:40px;padding:0;border:none;}
     .colors{display:flex;flex-wrap:wrap;gap:6px;}
     .colors input{flex:0 0 40px;width:40px;height:40px;}
-    .figure{border-radius:10px;background:#fff;overflow:visible;border:none;width:100%;justify-self:stretch;}
+    .figure{
+      border-radius:10px;
+      background:#fff;
+      overflow:visible;
+      border:none;
+      width:100%;
+    }
+    @media(min-width:721px){
+      .figure{
+        width:auto;
+        flex:0 0 clamp(130px,18vw,220px);
+      }
+      .nameInput{
+        flex:1 1 160px;
+        min-width:100px;
+      }
+    }
     .figure .box{
       width:100%;
       aspect-ratio:var(--aspect);
