@@ -1,6 +1,9 @@
 (function(){
   const key = 'examples_' + location.pathname;
   let initialLoadPerformed = false;
+  let currentExampleIndex = null;
+  let select = null;
+  let defaultEnsureScheduled = false;
   function getExamples(){
     try{ return JSON.parse(localStorage.getItem(key)) || []; }
     catch{ return []; }
@@ -72,7 +75,7 @@
 
   function triggerRefresh(index){
     const tried = new Set();
-    const candidates = ['render','renderAll','draw','drawAll','update','updateAll','init','initAll','initFromCfg','refresh','redraw','rerender','recalc','applyCfg','applyConfig','applyState','setup','rebuild'];
+    const candidates = ['render','renderAll','draw','drawAll','update','updateAll','init','initAll','initFromCfg','initFromHtml','refresh','redraw','rerender','recalc','applyCfg','applyConfig','applyState','setup','rebuild'];
     for(const name of candidates){
       const fn = window[name];
       if(typeof fn === 'function' && !tried.has(fn)){
@@ -118,7 +121,13 @@
         applied = true;
       }
     }
-    if(applied) triggerRefresh(index);
+    if(applied){
+      currentExampleIndex = index;
+      if(select && select.value !== String(index)){
+        select.value = String(index);
+      }
+      triggerRefresh(index);
+    }
     return applied;
   }
   // Load example if viewer requested
@@ -138,8 +147,8 @@
   const deleteBtn = document.getElementById('btnDeleteExample');
   if(!saveBtn && !deleteBtn) return;
 
-  const toolbar = saveBtn?.parentElement;
-  const select = document.createElement('select');
+  const toolbar = saveBtn?.parentElement || deleteBtn?.parentElement;
+  select = document.createElement('select');
   select.id = 'exampleSelect';
   select.addEventListener('change', ()=>{
     const idx = Number(select.value);
@@ -147,15 +156,51 @@
   });
   toolbar?.appendChild(select);
 
+  function updateDeleteButtonState(count){
+    if(deleteBtn) deleteBtn.disabled = count <= 1;
+  }
+
+  const requestedInitialIndex = parseInitialExampleIndex();
+
+  function attemptInitialLoad(){
+    if(initialLoadPerformed) return;
+    if(requestedInitialIndex == null) return;
+    const examples = getExamples();
+    if(requestedInitialIndex < 0 || requestedInitialIndex >= examples.length) return;
+    if(select) select.value = String(requestedInitialIndex);
+    const loadNow = ()=>{
+      if(initialLoadPerformed) return;
+      if(loadExample(requestedInitialIndex)) initialLoadPerformed = true;
+    };
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadNow, {once:true});
+    else setTimeout(loadNow, 0);
+  }
+
   function renderOptions(){
     const examples = getExamples();
-    select.innerHTML = '';
-    examples.forEach((_, idx)=>{
-      const opt = document.createElement('option');
-      opt.value = idx;
-      opt.textContent = idx + 1;
-      select.appendChild(opt);
-    });
+    if(select){
+      select.innerHTML = '';
+      examples.forEach((_, idx)=>{
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = idx + 1;
+        select.appendChild(opt);
+      });
+      if(examples.length === 0){
+        select.disabled = true;
+        select.value = '';
+        currentExampleIndex = null;
+      }else{
+        select.disabled = false;
+        if(currentExampleIndex == null || currentExampleIndex >= examples.length){
+          const fallback = currentExampleIndex == null ? 0 : examples.length - 1;
+          currentExampleIndex = Math.min(examples.length - 1, Math.max(0, fallback));
+        }
+        select.value = String(currentExampleIndex);
+      }
+    }
+    updateDeleteButtonState(examples.length);
+    attemptInitialLoad();
   }
 
   saveBtn?.addEventListener('click', async ()=>{
@@ -163,6 +208,7 @@
     const ex = collectConfig();
     examples.push(ex);
     store(examples);
+    currentExampleIndex = examples.length - 1;
     renderOptions();
     alert('Eksempel lagret');
 
@@ -202,12 +248,19 @@
   });
   deleteBtn?.addEventListener('click', ()=>{
     const examples = getExamples();
-    if(examples.length>0){
-      examples.pop();
-      store(examples);
-      renderOptions();
-      alert('Siste eksempel slettet');
+    if(examples.length <= 1){
+      return;
     }
+    examples.pop();
+    store(examples);
+    if(currentExampleIndex != null && currentExampleIndex >= examples.length){
+      currentExampleIndex = Math.max(0, examples.length - 1);
+    }
+    renderOptions();
+    if(currentExampleIndex != null && currentExampleIndex >= 0 && examples.length > 0){
+      loadExample(currentExampleIndex);
+    }
+    alert('Siste eksempel slettet');
   });
 
   renderOptions();
@@ -231,16 +284,35 @@
     return null;
   }
 
-  if(!initialLoadPerformed){
-    const initialIdx = parseInitialExampleIndex();
-    const examples = getExamples();
-    if(initialIdx != null && initialIdx >= 0 && initialIdx < examples.length){
-      if(select) select.value = String(initialIdx);
-      const loadNow = () => {
-        if(loadExample(initialIdx)) initialLoadPerformed = true;
-      };
-      if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadNow, {once:true});
-      else setTimeout(loadNow, 0);
-    }
+  function ensureDefaultExample(){
+    if(defaultEnsureScheduled) return;
+    defaultEnsureScheduled = true;
+    const ensure = ()=>{
+      let examples = getExamples();
+      let inserted = false;
+      if(!examples[0] || examples[0].isDefault !== true){
+        const defaultExample = collectConfig();
+        defaultExample.isDefault = true;
+        examples.unshift(defaultExample);
+        store(examples);
+        inserted = true;
+      }
+      examples = getExamples();
+      if(inserted){
+        currentExampleIndex = currentExampleIndex == null ? 0 : currentExampleIndex + 1;
+      }
+      if(currentExampleIndex == null && examples.length > 0){
+        currentExampleIndex = 0;
+      }
+      if(currentExampleIndex != null && examples.length > 0){
+        const maxIdx = examples.length - 1;
+        currentExampleIndex = Math.min(Math.max(currentExampleIndex, 0), maxIdx);
+      }
+      renderOptions();
+    };
+    if(document.readyState === 'complete') setTimeout(ensure, 0);
+    else window.addEventListener('load', ensure, {once:true});
   }
+
+  ensureDefaultExample();
 })();
