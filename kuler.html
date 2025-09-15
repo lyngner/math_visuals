@@ -30,10 +30,11 @@
     .bead{cursor:grab;}
     .bead:active{cursor:grabbing;}
     .beadShadow{filter:drop-shadow(0 1px 1px rgba(0,0,0,.25));}
-    .toolbar{display:flex;gap:10px;justify-content:flex-end;}
+    .toolbar{display:flex;gap:10px;justify-content:flex-start;align-items:center;flex-wrap:wrap;}
     .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s;}
     .btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.06);}
     .btn:active{transform:translateY(1px);}
+    .toolbar select{border:1px solid #d1d5db;border-radius:10px;padding:6px 10px;font-size:14px;background:#fff;}
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
@@ -47,12 +48,17 @@
       </div>
       <div class="side">
         <div class="card">
-          <h2>Last ned figurer</h2>
+          <h2>Eksempler</h2>
+          <div class="toolbar">
+            <button id="btnSaveExample" class="btn" type="button">Lagre eksempler</button>
+            <button id="btnDeleteExample" class="btn" type="button">Slette eksempler</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Eksporter</h2>
           <div class="toolbar">
             <button id="downloadSVG" class="btn" type="button">Last ned SVG</button>
             <button id="downloadPNG" class="btn" type="button">Last ned PNG</button>
-            <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>
-            <button id="btnDeleteExample" class="btn" type="button">Slett eksempel</button>
           </div>
         </div>
         <div class="card">
