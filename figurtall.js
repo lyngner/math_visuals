@@ -153,6 +153,26 @@
   const addBtn=document.getElementById('addFigure');
   let figureCount=0;
 
+  const MIN_PANEL_WIDTH=80;
+  const MAX_PANEL_WIDTH=260;
+
+  function updateFigureLayout(){
+    if(!container) return;
+    const panelCount=container.querySelectorAll('.figurePanel').length + (addBtn?1:0);
+    if(panelCount<=0) return;
+    const styles=getComputedStyle(container);
+    const gapStr=styles.columnGap||styles.gap||'0';
+    const gap=parseFloat(gapStr)||0;
+    const available=container.clientWidth;
+    if(available<=0) return;
+    let computed=(available - gap*(panelCount-1))/panelCount;
+    if(!Number.isFinite(computed)) return;
+    if(computed>MAX_PANEL_WIDTH) computed=MAX_PANEL_WIDTH;
+    if(computed<MIN_PANEL_WIDTH) computed=MIN_PANEL_WIDTH;
+    container.style.setProperty('--panel-min',`${computed}px`);
+  }
+  window.addEventListener('resize',updateFigureLayout);
+
   function addFigure(name='',pattern=[]){
     figureCount++;
     const panel=document.createElement('div');
@@ -177,6 +197,7 @@
       });
     }
     updateCellColors();
+    updateFigureLayout();
     return panel;
   }
 
@@ -358,6 +379,7 @@
     addFigure('Figur 3', [[0,1],[1,0],[1,1],[2,0],[2,1],[2,2]]);
 
     updateGridVisibility();
+    updateFigureLayout();
   }
 
   resetBtn?.addEventListener('click',resetAll);
@@ -365,5 +387,6 @@
   updateRows();
   updateCols();
   resetAll();
+  updateFigureLayout();
 })();
 
