@@ -8,11 +8,100 @@
   function store(examples){
     localStorage.setItem(key, JSON.stringify(examples));
   }
+  const BINDING_NAMES = ['STATE','CFG','CONFIG','SIMPLE'];
+
+  function getBinding(name){
+    if(name in window && window[name]) return window[name];
+    try{
+      switch(name){
+        case 'STATE':
+          return (typeof STATE !== 'undefined' && STATE) ? STATE : undefined;
+        case 'CFG':
+          return (typeof CFG !== 'undefined' && CFG) ? CFG : undefined;
+        case 'CONFIG':
+          return (typeof CONFIG !== 'undefined' && CONFIG) ? CONFIG : undefined;
+        case 'SIMPLE':
+          return (typeof SIMPLE !== 'undefined' && SIMPLE) ? SIMPLE : undefined;
+        default:
+          return undefined;
+      }
+    }catch{
+      return undefined;
+    }
+  }
+
+  function cloneValue(value){
+    if(value == null) return value;
+    try{
+      return JSON.parse(JSON.stringify(value));
+    }catch{
+      return value;
+    }
+  }
+
+  function replaceContents(target, source){
+    if(!target || source == null) return false;
+    if(Array.isArray(target) && Array.isArray(source)){
+      target.length = 0;
+      target.push(...source);
+      return true;
+    }
+    if(typeof target === 'object' && typeof source === 'object'){
+      Object.keys(target).forEach(key => {
+        if(!Object.prototype.hasOwnProperty.call(source, key)) delete target[key];
+      });
+      Object.assign(target, source);
+      return true;
+    }
+    return false;
+  }
+
+  function applyBinding(name, value){
+    if(value == null) return;
+    const target = getBinding(name);
+    if(replaceContents(target, value)){
+      if(name in window && window[name] !== target){
+        window[name] = target;
+      }
+      return;
+    }
+    const winVal = name in window ? window[name] : undefined;
+    if(replaceContents(winVal, value)) return;
+    window[name] = Array.isArray(value) ? value.slice() : (typeof value === 'object' ? {...value} : value);
+  }
+
+  function triggerRefresh(index){
+    const tried = new Set();
+    const candidates = ['render','renderAll','draw','drawAll','update','updateAll','init','initAll','initFromCfg','refresh','redraw','rerender','recalc','applyCfg','applyConfig','applyState','setup','rebuild'];
+    for(const name of candidates){
+      const fn = window[name];
+      if(typeof fn === 'function' && !tried.has(fn)){
+        try{ fn(); }
+        catch(_){}
+        tried.add(fn);
+      }
+    }
+    let dispatched = false;
+    if(typeof CustomEvent === 'function'){
+      try{
+        window.dispatchEvent(new CustomEvent('examples:loaded', {detail:{index}}));
+        dispatched = true;
+      }catch(_){ }
+    }
+    if(!dispatched){
+      try{ window.dispatchEvent(new Event('examples:loaded')); }
+      catch(_){ }
+    }
+  }
+
   function collectConfig(){
     const cfg = {};
-    if(window.STATE) cfg.STATE = window.STATE;
-    if(window.CFG)   cfg.CFG   = window.CFG;
-    if(window.CONFIG) cfg.CONFIG = window.CONFIG;
+    for(const name of BINDING_NAMES){
+      const binding = getBinding(name);
+      if(binding != null && typeof binding !== 'function'){
+        cfg[name] = cloneValue(binding);
+      }
+    }
     const svg = document.querySelector('svg');
     return {config: cfg, svg: svg ? svg.outerHTML : ''};
   }
@@ -22,13 +111,15 @@
     const ex = examples[index];
     if(!ex || !ex.config) return false;
     const cfg = ex.config;
-    if(cfg.STATE && window.STATE) Object.assign(window.STATE, cfg.STATE);
-    if(cfg.CFG && window.CFG) Object.assign(window.CFG, cfg.CFG);
-    if(cfg.CONFIG && window.CONFIG) Object.assign(window.CONFIG, cfg.CONFIG);
-    if(typeof window.render === 'function') window.render();
-    if(typeof window.draw === 'function') window.draw();
-    if(typeof window.update === 'function') window.update();
-    return true;
+    let applied = false;
+    for(const name of BINDING_NAMES){
+      if(cfg[name] != null){
+        applyBinding(name, cfg[name]);
+        applied = true;
+      }
+    }
+    if(applied) triggerRefresh(index);
+    return applied;
   }
   // Load example if viewer requested
   (function(){
@@ -82,6 +173,7 @@
       if(cfg.STATE)  lines.push(`window.STATE=${JSON.stringify(cfg.STATE)};`);
       if(cfg.CFG)    lines.push(`window.CFG=${JSON.stringify(cfg.CFG)};`);
       if(cfg.CONFIG) lines.push(`window.CONFIG=${JSON.stringify(cfg.CONFIG)};`);
+      if(cfg.SIMPLE) lines.push(`window.SIMPLE=${JSON.stringify(cfg.SIMPLE)};`);
 
       // Include all external scripts in the downloaded file
       const scripts = Array.from(document.querySelectorAll('script[src]'))
