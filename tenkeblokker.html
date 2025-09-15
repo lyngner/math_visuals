@@ -15,6 +15,7 @@
     .wrap{max-width:1200px;margin:0 auto;}
     .grid{display:grid;gap:var(--gap);grid-template-columns:1fr 360px;align-items:start;}
     .side{display:flex;flex-direction:column;gap:var(--gap);}
+    .card--settings{grid-column:1 / -1;}
     @media(max-width:980px){.grid{grid-template-columns:1fr;}}
     .card{
       background:#fff;border:1px solid #e5e7eb;border-radius:14px;
@@ -123,6 +124,55 @@
           <button id="tbAdd" class="addFigureBtn" type="button" aria-label="Legg til tenkeblokker">+</button>
         </div>
       </div>
+      <div class="card card--settings">
+        <h2>Innstillinger</h2>
+        <div class="tb-settings">
+          <fieldset id="cfg-fieldset-1">
+            <legend>Tenkeblokker 1</legend>
+            <label>Total
+              <input id="cfg-total-1" type="number" min="1" value="50" />
+            </label>
+            <label>Antall blokker
+              <input id="cfg-n-1" type="number" min="2" max="12" value="5" />
+            </label>
+            <label>Fylte blokker
+              <input id="cfg-k-1" type="number" min="0" max="5" value="4" />
+            </label>
+            <div class="checkbox-row"><input id="cfg-show-whole-1" type="checkbox" checked /><label for="cfg-show-whole-1">Vis hele</label></div>
+            <div class="checkbox-row"><input id="cfg-lock-n-1" type="checkbox" /><label for="cfg-lock-n-1">Lås nevner</label></div>
+            <div class="checkbox-row"><input id="cfg-hide-n-1" type="checkbox" /><label for="cfg-hide-n-1">Skjul n-verdi</label></div>
+            <label>Vis som
+              <select id="cfg-display-1">
+                <option value="number">Tall</option>
+                <option value="fraction">Brøk</option>
+                <option value="percent">Prosent</option>
+              </select>
+            </label>
+          </fieldset>
+          <fieldset id="cfg-fieldset-2" style="display:none">
+            <legend>Tenkeblokker 2</legend>
+            <label>Total
+              <input id="cfg-total-2" type="number" min="1" value="50" />
+            </label>
+            <label>Antall blokker
+              <input id="cfg-n-2" type="number" min="2" max="12" value="5" />
+            </label>
+            <label>Fylte blokker
+              <input id="cfg-k-2" type="number" min="0" max="5" value="3" />
+            </label>
+            <div class="checkbox-row"><input id="cfg-show-whole-2" type="checkbox" checked /><label for="cfg-show-whole-2">Vis hele</label></div>
+            <div class="checkbox-row"><input id="cfg-lock-n-2" type="checkbox" /><label for="cfg-lock-n-2">Lås nevner</label></div>
+            <div class="checkbox-row"><input id="cfg-hide-n-2" type="checkbox" /><label for="cfg-hide-n-2">Skjul n-verdi</label></div>
+            <label>Vis som
+              <select id="cfg-display-2">
+                <option value="number">Tall</option>
+                <option value="fraction">Brøk</option>
+                <option value="percent">Prosent</option>
+              </select>
+            </label>
+          </fieldset>
+        </div>
+      </div>
       <div class="side">
         <div class="card">
           <h2>Eksempler</h2>
@@ -136,55 +186,6 @@
           <div class="toolbar">
             <button id="btnSvg" class="btn" type="button">Last ned SVG</button>
             <button id="btnPng" class="btn" type="button">Last ned PNG</button>
-          </div>
-        </div>
-        <div class="card">
-          <h2>Innstillinger</h2>
-          <div class="tb-settings">
-            <fieldset id="cfg-fieldset-1">
-              <legend>Tenkeblokker 1</legend>
-              <label>Total
-                <input id="cfg-total-1" type="number" min="1" value="50" />
-              </label>
-              <label>Antall blokker
-                <input id="cfg-n-1" type="number" min="2" max="12" value="5" />
-              </label>
-              <label>Fylte blokker
-                <input id="cfg-k-1" type="number" min="0" max="5" value="4" />
-              </label>
-              <div class="checkbox-row"><input id="cfg-show-whole-1" type="checkbox" checked /><label for="cfg-show-whole-1">Vis hele</label></div>
-              <div class="checkbox-row"><input id="cfg-lock-n-1" type="checkbox" /><label for="cfg-lock-n-1">Lås nevner</label></div>
-              <div class="checkbox-row"><input id="cfg-hide-n-1" type="checkbox" /><label for="cfg-hide-n-1">Skjul n-verdi</label></div>
-              <label>Vis som
-                <select id="cfg-display-1">
-                  <option value="number">Tall</option>
-                  <option value="fraction">Brøk</option>
-                  <option value="percent">Prosent</option>
-                </select>
-              </label>
-            </fieldset>
-            <fieldset id="cfg-fieldset-2" style="display:none">
-              <legend>Tenkeblokker 2</legend>
-              <label>Total
-                <input id="cfg-total-2" type="number" min="1" value="50" />
-              </label>
-              <label>Antall blokker
-                <input id="cfg-n-2" type="number" min="2" max="12" value="5" />
-              </label>
-              <label>Fylte blokker
-                <input id="cfg-k-2" type="number" min="0" max="5" value="3" />
-              </label>
-              <div class="checkbox-row"><input id="cfg-show-whole-2" type="checkbox" checked /><label for="cfg-show-whole-2">Vis hele</label></div>
-              <div class="checkbox-row"><input id="cfg-lock-n-2" type="checkbox" /><label for="cfg-lock-n-2">Lås nevner</label></div>
-              <div class="checkbox-row"><input id="cfg-hide-n-2" type="checkbox" /><label for="cfg-hide-n-2">Skjul n-verdi</label></div>
-              <label>Vis som
-                <select id="cfg-display-2">
-                  <option value="number">Tall</option>
-                  <option value="fraction">Brøk</option>
-                  <option value="percent">Prosent</option>
-                </select>
-              </label>
-            </fieldset>
           </div>
         </div>
       </div>
