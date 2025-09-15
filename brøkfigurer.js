@@ -58,6 +58,53 @@
     if(!inp) break;
     colorInputs.push(inp);
   }
+  const addBtn = document.getElementById('addFigure');
+  const fieldset2 = document.getElementById('fieldset2');
+  const INITIAL_COLORS = colorInputs.map(inp => inp.value);
+  const clampInt = (value, min, max) => {
+    const num = parseInt(value, 10);
+    const base = Number.isFinite(num) ? num : min;
+    const clamped = Math.max(min, base);
+    return max != null ? Math.min(clamped, max) : clamped;
+  };
+  const STATE = (window.STATE && typeof window.STATE === 'object') ? window.STATE : {};
+  window.STATE = STATE;
+  if(!STATE.figures || typeof STATE.figures !== 'object') STATE.figures = {};
+  const maxColors = colorInputs.length || 1;
+  const defaultColorCount = clampInt(colorCountInp?.value ?? 1, 1, maxColors);
+  const stateColorCount = STATE.colorCount != null ? clampInt(STATE.colorCount, 1, maxColors) : null;
+  let colorCount = stateColorCount || defaultColorCount;
+  STATE.colorCount = colorCount;
+  if(!Array.isArray(STATE.colors)) STATE.colors = INITIAL_COLORS.slice();
+  if(STATE.colors.length < maxColors){
+    for(let i=STATE.colors.length;i<maxColors;i++){
+      const fallbackBase = INITIAL_COLORS.length ? INITIAL_COLORS[INITIAL_COLORS.length - 1] : '#6C1BA2';
+      STATE.colors[i] = INITIAL_COLORS[i] ?? fallbackBase;
+    }
+  }
+  function ensureFigureState(id){
+    const existing = STATE.figures[id];
+    const fig = (existing && typeof existing === 'object') ? existing : {};
+    const shapeEl = document.getElementById(`shape${id}`);
+    const partsEl = document.getElementById(`parts${id}`);
+    const divisionEl = document.getElementById(`division${id}`);
+    const wrongEl = document.getElementById(`allowWrong${id}`);
+    if(shapeEl && fig.shape == null) fig.shape = shapeEl.value;
+    if(partsEl && fig.parts == null){
+      const parsed = parseInt(partsEl.value,10);
+      fig.parts = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    }
+    if(divisionEl && fig.division == null) fig.division = divisionEl.value;
+    if(wrongEl && typeof fig.allowWrong !== 'boolean') fig.allowWrong = !!wrongEl.checked;
+    STATE.figures[id] = fig;
+    return fig;
+  }
+  ensureFigureState(1);
+  ensureFigureState(2);
+  if(typeof STATE.figure2Visible !== 'boolean'){
+    const panel2 = document.getElementById('panel2');
+    STATE.figure2Visible = panel2 ? panel2.style.display !== 'none' : false;
+  }
   const DEFAULT_COLOR_SETS = {
     1:['#6C1BA2'],
     2:['#534477','#BF4474'],
@@ -66,29 +113,105 @@
     5:['#534477','#B25FE3','#6C1BA2','#873E79','#BF4474'],
     6:['#534477','#B25FE3','#6C1BA2','#873E79','#BF4474','#E31C3D']
   };
-  function setDefaultColors(n){
-    const arr = DEFAULT_COLOR_SETS[n] || DEFAULT_COLOR_SETS[6];
-    colorInputs.forEach((inp,idx)=>{
-      if(arr[idx]) inp.value = arr[idx];
-    });
+  function ensureColorDefaults(count){
+    if(!Array.isArray(STATE.colors)) STATE.colors = INITIAL_COLORS.slice();
+    const arr = DEFAULT_COLOR_SETS[count] || DEFAULT_COLOR_SETS[6] || [];
+    for(let i=0;i<count;i++){
+      const hasColor = typeof STATE.colors[i] === 'string' && STATE.colors[i];
+      if(!hasColor){
+        const fallbackSet = arr[i] ?? arr[arr.length - 1];
+        const fallbackInitial = INITIAL_COLORS.length ? INITIAL_COLORS[Math.min(i, INITIAL_COLORS.length - 1)] : '#6C1BA2';
+        STATE.colors[i] = fallbackSet ?? fallbackInitial ?? '#6C1BA2';
+      }
+    }
+    if(STATE.colors.length < maxColors){
+      for(let i=STATE.colors.length;i<maxColors;i++){
+        const fallbackInitial = INITIAL_COLORS.length ? INITIAL_COLORS[Math.min(i, INITIAL_COLORS.length - 1)] : '#6C1BA2';
+        STATE.colors[i] = fallbackInitial ?? '#6C1BA2';
+      }
+    }
   }
-  let colorCount = parseInt(colorCountInp?.value,10) || 1;
   function getColors(){
-    return colorInputs.slice(0,colorCount).map(inp=>inp.value);
+    ensureColorDefaults(colorCount);
+    return STATE.colors.slice(0, colorCount);
   }
   function updateColorVisibility(){
-    setDefaultColors(colorCount);
     colorInputs.forEach((inp,idx)=>{
       inp.style.display = idx < colorCount ? '' : 'none';
     });
-    figures.forEach(f=>f?.draw());
   }
   colorCountInp?.addEventListener('input', ()=>{
-    colorCount = Math.max(1, Math.min(colorInputs.length, parseInt(colorCountInp.value,10) || 1));
-    updateColorVisibility();
+    const next = clampInt(colorCountInp.value, 1, maxColors);
+    if(STATE.colorCount !== next){
+      STATE.colorCount = next;
+    }
+    colorCount = STATE.colorCount;
+    ensureColorDefaults(colorCount);
+    window.render?.();
   });
-  colorInputs.forEach(inp=>inp.addEventListener('input', ()=> figures.forEach(f=>f?.draw())));
-  updateColorVisibility();
+  colorInputs.forEach((inp, idx)=>inp.addEventListener('input', ()=>{
+    if(!Array.isArray(STATE.colors)) STATE.colors = INITIAL_COLORS.slice();
+    STATE.colors[idx] = inp.value;
+    window.render?.();
+  }));
+
+  function applyStateToControls(){
+    colorCount = clampInt(STATE.colorCount, 1, maxColors);
+    STATE.colorCount = colorCount;
+    if(colorCountInp) colorCountInp.value = String(colorCount);
+    ensureColorDefaults(colorCount);
+    colorInputs.forEach((inp, idx)=>{
+      const color = STATE.colors[idx];
+      if(typeof color === 'string') inp.value = color;
+    });
+    for(let id=1; id<=2; id++){
+      const figState = ensureFigureState(id);
+      const shapeSel = document.getElementById(`shape${id}`);
+      if(shapeSel && figState.shape){
+        const options = Array.from(shapeSel.options || []);
+        if(options.some(opt=>opt.value === figState.shape)) shapeSel.value = figState.shape;
+        else figState.shape = shapeSel.value;
+      }
+      const partsInp = document.getElementById(`parts${id}`);
+      const partsVal = document.getElementById(`partsVal${id}`);
+      if(partsInp){
+        const parts = clampInt(figState.parts, 1);
+        figState.parts = parts;
+        partsInp.value = String(parts);
+        if(partsVal) partsVal.textContent = String(parts);
+      }else if(partsVal && figState.parts != null){
+        partsVal.textContent = String(figState.parts);
+      }
+      const divSel = document.getElementById(`division${id}`);
+      if(divSel && figState.division){
+        const options = Array.from(divSel.options || []);
+        if(options.some(opt=>opt.value === figState.division)) divSel.value = figState.division;
+      }
+      const wrongInp = document.getElementById(`allowWrong${id}`);
+      if(wrongInp && typeof figState.allowWrong === 'boolean') wrongInp.checked = figState.allowWrong;
+    }
+  }
+
+  function applyFigureVisibility(){
+    const showSecond = !!STATE.figure2Visible;
+    if(addBtn) addBtn.style.display = showSecond ? 'none' : '';
+    if(fieldset2) fieldset2.style.display = showSecond ? '' : 'none';
+    const second = figures[2];
+    if(second){
+      if(second.panel) second.panel.style.display = showSecond ? '' : 'none';
+      if(second.toolbar) second.toolbar.style.display = showSecond ? '' : 'none';
+    }
+  }
+
+  function renderAll(){
+    applyStateToControls();
+    applyFigureVisibility();
+    updateColorVisibility();
+    for(const fig of figures){
+      if(fig && typeof fig.draw === 'function') fig.draw();
+    }
+  }
+  window.render = renderAll;
 
   function setupFigure(id){
     const shapeSel = document.getElementById(`shape${id}`);
@@ -144,15 +267,16 @@
 
     function draw(){
       if(panel.style.display==='none') return;
+      const figState = ensureFigureState(id);
       initBoard();
-      let n = Math.max(1, parseInt(partsInp.value,10));
-      const shape = shapeSel.value;
-      let division = divSel.value;
-      const allowWrong = wrongInp?.checked;
+      let n = clampInt(partsInp?.value ?? figState.parts ?? 1, 1);
+      const shape = shapeSel?.value || figState.shape || 'rectangle';
+      let division = divSel?.value || figState.division || 'horizontal';
+      const allowWrong = wrongInp?.checked ?? !!figState.allowWrong;
       if((shape==='rectangle' || shape==='square') && division==='diagonal') n = 4;
-      const gridOpt = divSel.querySelector('option[value="grid"]');
-      const vertOpt = divSel.querySelector('option[value="vertical"]');
-      const triOpt  = divSel.querySelector('option[value="triangular"]');
+      const gridOpt = divSel?.querySelector('option[value="grid"]');
+      const vertOpt = divSel?.querySelector('option[value="vertical"]');
+      const triOpt  = divSel?.querySelector('option[value="triangular"]');
       if(gridOpt){
         gridOpt.hidden = !hasProperFactor(n) || (shape==='circle' && !allowWrong) || (shape==='triangle');
         if(gridOpt.hidden && division==='grid') divSel.value = 'horizontal';
@@ -165,13 +289,17 @@
         triOpt.hidden = (shape!=='triangle');
         if(triOpt.hidden && division==='triangular') divSel.value = 'horizontal';
       }
-      division = divSel.value;
+      division = divSel?.value || division;
       if(shape==='triangle' && division==='triangular'){
         const m = Math.max(1, Math.round(Math.sqrt(n)));
         n = m*m;
       }
-      partsInp.value = String(n);
-      if(partsVal) partsVal.textContent = n;
+      if(partsInp) partsInp.value = String(n);
+      if(partsVal) partsVal.textContent = String(n);
+      figState.parts = n;
+      figState.shape = shapeSel?.value || shape;
+      figState.division = division;
+      figState.allowWrong = !!(wrongInp?.checked ?? allowWrong);
       const colors = getColors();
       const colorFor = idx => {
         const c = filled.get(idx);
@@ -512,10 +640,26 @@
       }
     }
 
-    shapeSel.addEventListener('change', draw);
-    partsInp.addEventListener('input', draw);
-    divSel.addEventListener('change', draw);
-    wrongInp.addEventListener('change', draw);
+    shapeSel?.addEventListener('change', ()=>{
+      const figState = ensureFigureState(id);
+      figState.shape = shapeSel.value;
+      window.render();
+    });
+    partsInp?.addEventListener('input', ()=>{
+      const figState = ensureFigureState(id);
+      figState.parts = clampInt(partsInp.value, 1);
+      window.render();
+    });
+    divSel?.addEventListener('change', ()=>{
+      const figState = ensureFigureState(id);
+      figState.division = divSel.value;
+      window.render();
+    });
+    wrongInp?.addEventListener('change', ()=>{
+      const figState = ensureFigureState(id);
+      figState.allowWrong = !!wrongInp.checked;
+      window.render();
+    });
     minusBtn?.addEventListener('click', () => {
       let n = parseInt(partsInp.value, 10);
       n = isNaN(n) ? 1 : Math.max(1, n - 1);
@@ -540,16 +684,11 @@
   }
 
   figures[1] = setupFigure(1);
-  figures[1].draw();
   figures[2] = setupFigure(2);
-  const addBtn = document.getElementById('addFigure');
-  const fieldset2 = document.getElementById('fieldset2');
   addBtn?.addEventListener('click', ()=>{
-    addBtn.style.display = 'none';
-    fieldset2.style.display = '';
-    figures[2].panel.style.display = '';
-    figures[2].toolbar.style.display = '';
-    figures[2].draw();
+    STATE.figure2Visible = true;
+    window.render();
   });
+  window.render();
 })();
 
