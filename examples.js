@@ -77,10 +77,31 @@
 
   saveBtn?.addEventListener('click', ()=>{
     const examples = getExamples();
-    examples.push(collectConfig());
+    const ex = collectConfig();
+    examples.push(ex);
     store(examples);
     renderOptions();
     alert('Eksempel lagret');
+
+    // Also offer download of the example as a JS file
+    try{
+      const lines = [];
+      const cfg = ex.config || {};
+      if(cfg.STATE)  lines.push(`window.STATE=${JSON.stringify(cfg.STATE)};`);
+      if(cfg.CFG)    lines.push(`window.CFG=${JSON.stringify(cfg.CFG)};`);
+      if(cfg.CONFIG) lines.push(`window.CONFIG=${JSON.stringify(cfg.CONFIG)};`);
+      const blob = new Blob([lines.join('\n')], {type:'application/javascript'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const base = location.pathname.split('/').pop().replace(/\.html$/,'');
+      a.download = `${base}-example-${examples.length}.js`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{
+        URL.revokeObjectURL(a.href);
+        document.body.removeChild(a);
+      }, 1000);
+    }catch{}
   });
   deleteBtn?.addEventListener('click', ()=>{
     const examples = getExamples();
