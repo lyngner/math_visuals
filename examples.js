@@ -1,5 +1,6 @@
 (function(){
   const key = 'examples_' + location.pathname;
+  let initialLoadPerformed = false;
   function getExamples(){
     try{ return JSON.parse(localStorage.getItem(key)) || []; }
     catch{ return []; }
@@ -19,7 +20,7 @@
   function loadExample(index){
     const examples = getExamples();
     const ex = examples[index];
-    if(!ex || !ex.config) return;
+    if(!ex || !ex.config) return false;
     const cfg = ex.config;
     if(cfg.STATE && window.STATE) Object.assign(window.STATE, cfg.STATE);
     if(cfg.CFG && window.CFG) Object.assign(window.CFG, cfg.CFG);
@@ -27,6 +28,7 @@
     if(typeof window.render === 'function') window.render();
     if(typeof window.draw === 'function') window.draw();
     if(typeof window.update === 'function') window.update();
+    return true;
   }
   // Load example if viewer requested
   (function(){
@@ -35,17 +37,7 @@
     try{
       const {path, index} = JSON.parse(loadInfo);
       if(path === location.pathname){
-        const examples = getExamples();
-        const ex = examples[index];
-        if(ex && ex.config){
-          const cfg = ex.config;
-          if(cfg.STATE && window.STATE) Object.assign(window.STATE, cfg.STATE);
-          if(cfg.CFG && window.CFG) Object.assign(window.CFG, cfg.CFG);
-          if(cfg.CONFIG && window.CONFIG) Object.assign(window.CONFIG, cfg.CONFIG);
-          if(typeof window.render === 'function') window.render();
-          if(typeof window.draw === 'function') window.draw();
-          if(typeof window.update === 'function') window.update();
-        }
+        if(loadExample(index)) initialLoadPerformed = true;
       }
     }catch{}
     localStorage.removeItem('example_to_load');
@@ -127,4 +119,36 @@
   });
 
   renderOptions();
+
+  function parseInitialExampleIndex(){
+    const parseValue = (value)=>{
+      if(value == null) return null;
+      const num = Number(value);
+      if(!Number.isFinite(num) || !Number.isInteger(num)) return null;
+      if(num > 0) return num - 1;
+      if(num === 0) return 0;
+      return null;
+    };
+    if(typeof URLSearchParams !== 'undefined'){
+      const search = new URLSearchParams(window.location.search);
+      const fromSearch = parseValue(search.get('example'));
+      if(fromSearch != null) return fromSearch;
+    }
+    const hashMatch = window.location.hash && window.location.hash.match(/example=([0-9]+)/i);
+    if(hashMatch) return parseValue(hashMatch[1]);
+    return null;
+  }
+
+  if(!initialLoadPerformed){
+    const initialIdx = parseInitialExampleIndex();
+    const examples = getExamples();
+    if(initialIdx != null && initialIdx >= 0 && initialIdx < examples.length){
+      if(select) select.value = String(initialIdx);
+      const loadNow = () => {
+        if(loadExample(initialIdx)) initialLoadPerformed = true;
+      };
+      if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadNow, {once:true});
+      else setTimeout(loadNow, 0);
+    }
+  }
 })();
