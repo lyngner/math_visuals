@@ -2,9 +2,27 @@
 
 // ---------- Konfig ----------
 const DEFAULT_BLOCKS = [
-  { total: 50, n: 5, k: 4, showWhole: true, lockDenominator: false, hideNValue: false, showFraction: true, showPercent: false },
-  { total: 50, n: 5, k: 3, showWhole: true, lockDenominator: false, hideNValue: false, showFraction: true, showPercent: false }
+  { total: 50, n: 5, k: 4, showWhole: true, lockDenominator: false, hideNValue: false, valueDisplay: 'number' },
+  { total: 50, n: 5, k: 3, showWhole: true, lockDenominator: false, hideNValue: false, valueDisplay: 'number' }
 ];
+
+const DISPLAY_OPTIONS = ['number', 'fraction', 'percent'];
+
+function sanitizeDisplayMode(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return DISPLAY_OPTIONS.includes(normalized) ? normalized : null;
+}
+
+function applyDisplayMode(cfg, mode, fallback = 'number') {
+  if (!cfg) return 'number';
+  const normalizedFallback = sanitizeDisplayMode(fallback) || 'number';
+  const normalized = sanitizeDisplayMode(mode) || normalizedFallback;
+  cfg.valueDisplay = normalized;
+  cfg.showFraction = normalized === 'fraction';
+  cfg.showPercent = normalized === 'percent';
+  return normalized;
+}
 
 const CONFIG = {
   minN: 2,
@@ -19,6 +37,9 @@ CONFIG.k = CONFIG.blocks[0].k;
 CONFIG.showWhole = CONFIG.blocks[0].showWhole;
 CONFIG.lockDenominator = CONFIG.blocks[0].lockDenominator;
 CONFIG.hideNValue = CONFIG.blocks[0].hideNValue;
+const initialDisplay = sanitizeDisplayMode(CONFIG.blocks[0].valueDisplay) || 'number';
+applyDisplayMode(CONFIG.blocks[0], initialDisplay, initialDisplay);
+CONFIG.valueDisplay = CONFIG.blocks[0].valueDisplay;
 CONFIG.showFraction = CONFIG.blocks[0].showFraction;
 CONFIG.showPercent = CONFIG.blocks[0].showPercent;
 
@@ -72,17 +93,6 @@ function createSvgElement(parent, name, attrs = {}) {
 }
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function fmt(x) { return (Math.round(x * 100) / 100).toString().replace('.', ','); }
-function gcd(a, b) {
-  let x = Math.abs(Math.round(a));
-  let y = Math.abs(Math.round(b));
-  while (y) {
-    const t = y;
-    y = x % y;
-    x = t;
-  }
-  return x || 1;
-}
-
 // Skjerm-px → SVG viewBox-koordinater
 function clientToSvg(svgEl, clientX, clientY) {
   const rect = svgEl.getBoundingClientRect();
@@ -219,20 +229,6 @@ function createBlock(index) {
     block.wholeEl = document.createElement('div');
     block.wholeEl.className = 'tb-whole';
     header.appendChild(block.wholeEl);
-
-    block.metaEl = document.createElement('div');
-    block.metaEl.className = 'tb-meta';
-    block.fracEl = document.createElement('div');
-    block.fracEl.className = 'tb-frac';
-    block.fracNum = document.createElement('span');
-    block.fracNum.className = 'num';
-    block.fracDen = document.createElement('span');
-    block.fracDen.className = 'den';
-    block.fracEl.append(block.fracNum, block.fracDen);
-    block.percentEl = document.createElement('div');
-    block.percentEl.className = 'tb-percent';
-    block.metaEl.append(block.fracEl, block.percentEl);
-    header.appendChild(block.metaEl);
   }
 
   const minus = document.getElementById(`tbMinus${index + 1}`);
@@ -311,11 +307,14 @@ function normalizeConfig() {
     cfg.hideNValue = typeof cfg.hideNValue === 'boolean' ? cfg.hideNValue : !!defaults.hideNValue;
     cfg.hideNValue = !!cfg.hideNValue;
 
-    cfg.showFraction = typeof cfg.showFraction === 'boolean' ? cfg.showFraction : (defaults.showFraction !== false);
-    cfg.showFraction = !!cfg.showFraction;
-
-    cfg.showPercent = typeof cfg.showPercent === 'boolean' ? cfg.showPercent : !!defaults.showPercent;
-    cfg.showPercent = !!cfg.showPercent;
+    const defaultDisplay = sanitizeDisplayMode(defaults.valueDisplay) || 'number';
+    let desiredDisplay = sanitizeDisplayMode(cfg.valueDisplay);
+    if (!desiredDisplay) {
+      if (cfg.showPercent) desiredDisplay = 'percent';
+      else if (cfg.showFraction) desiredDisplay = 'fraction';
+      else desiredDisplay = defaultDisplay;
+    }
+    applyDisplayMode(cfg, desiredDisplay, defaultDisplay);
   }
 
   if (typeof CONFIG.total === 'number') CONFIG.blocks[0].total = CONFIG.total;
@@ -325,8 +324,13 @@ function normalizeConfig() {
   if (typeof CONFIG.showWhole === 'boolean') CONFIG.blocks[0].showWhole = CONFIG.showWhole;
   if (typeof CONFIG.lockDenominator === 'boolean') CONFIG.blocks[0].lockDenominator = CONFIG.lockDenominator;
   if (typeof CONFIG.hideNValue === 'boolean') CONFIG.blocks[0].hideNValue = CONFIG.hideNValue;
-  if (typeof CONFIG.showFraction === 'boolean') CONFIG.blocks[0].showFraction = CONFIG.showFraction;
-  if (typeof CONFIG.showPercent === 'boolean') CONFIG.blocks[0].showPercent = CONFIG.showPercent;
+
+  if (typeof CONFIG.valueDisplay === 'string') {
+    applyDisplayMode(CONFIG.blocks[0], CONFIG.valueDisplay, CONFIG.blocks[0].valueDisplay);
+  } else if (typeof CONFIG.showPercent === 'boolean' || typeof CONFIG.showFraction === 'boolean') {
+    if (CONFIG.showPercent) applyDisplayMode(CONFIG.blocks[0], 'percent', CONFIG.blocks[0].valueDisplay);
+    else if (CONFIG.showFraction) applyDisplayMode(CONFIG.blocks[0], 'fraction', CONFIG.blocks[0].valueDisplay);
+  }
 
   CONFIG.blocks[0].k = clamp(CONFIG.blocks[0].k, 0, CONFIG.blocks[0].n);
 
@@ -347,6 +351,7 @@ function syncLegacyConfig() {
   CONFIG.hideNValue = first.hideNValue;
   CONFIG.showFraction = first.showFraction;
   CONFIG.showPercent = first.showPercent;
+  CONFIG.valueDisplay = first.valueDisplay;
 }
 
 function updateVisibility() {
@@ -381,8 +386,10 @@ function drawBlock(index) {
     if (inputs.showWhole) inputs.showWhole.checked = !!cfg.showWhole;
     if (inputs.lockN) inputs.lockN.checked = !!cfg.lockDenominator;
     if (inputs.hideN) inputs.hideN.checked = !!cfg.hideNValue;
-    if (inputs.showFrac) inputs.showFrac.checked = !!cfg.showFraction;
-    if (inputs.showPercent) inputs.showPercent.checked = !!cfg.showPercent;
+    if (inputs.display) {
+      const mode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
+      inputs.display.value = mode;
+    }
   }
 
   block.totalText.textContent = fmt(cfg.total);
@@ -398,12 +405,20 @@ function drawBlock(index) {
     createSvgElement(block.gSep, 'line', { x1: x, y1: TOP, x2: x, y2: BOT, class: 'tb-sep' });
   }
 
-  const per = cfg.total / cfg.n;
-  for (let i = 0; i < cfg.k; i++) {
+  const displayMode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
+  const per = cfg.n ? cfg.total / cfg.n : 0;
+  const fracText = cfg.n ? `1/${cfg.n}` : '0';
+  const percentValue = cfg.n ? (100 / cfg.n) : 0;
+
+  for (let i = 0; i < cfg.n; i++) {
     const cx = L + (i + 0.5) * cellW;
     const cy = (TOP + BOT) / 2;
     const text = createSvgElement(block.gVals, 'text', { x: cx, y: cy, class: 'tb-val' });
-    text.textContent = fmt(per);
+    let label = '';
+    if (displayMode === 'fraction') label = fracText;
+    else if (displayMode === 'percent') label = `${fmt(percentValue)} %`;
+    else label = fmt(per);
+    text.textContent = label;
   }
 
   const hx = L + cfg.k * cellW;
@@ -411,28 +426,13 @@ function drawBlock(index) {
   block.handleShadow?.setAttribute('cx', hx);
 
   const showWhole = !!cfg.showWhole;
-  const showFrac = !!cfg.showFraction;
-  const showPercent = !!cfg.showPercent;
 
   if (block.gBrace) block.gBrace.style.display = showWhole ? '' : 'none';
   if (block.wholeEl) {
     block.wholeEl.textContent = `Hele = ${fmt(cfg.total)}`;
     block.wholeEl.style.display = showWhole ? '' : 'none';
   }
-
-  if (block.fracEl) {
-    const g = cfg.n ? gcd(cfg.k, cfg.n) : 1;
-    if (block.fracNum) block.fracNum.textContent = cfg.n ? Math.round(cfg.k / g) : 0;
-    if (block.fracDen) block.fracDen.textContent = cfg.n ? Math.round(cfg.n / g) : 1;
-    block.fracEl.style.display = showFrac ? '' : 'none';
-  }
-  if (block.percentEl) {
-    const pct = cfg.n ? (cfg.k / cfg.n) * 100 : 0;
-    block.percentEl.textContent = `${fmt(pct)} %`;
-    block.percentEl.style.display = showPercent ? '' : 'none';
-  }
-  if (block.metaEl) block.metaEl.style.display = (showFrac || showPercent) ? 'flex' : 'none';
-  if (block.header) block.header.style.display = (showWhole || showFrac || showPercent) ? '' : 'none';
+  if (block.header) block.header.style.display = showWhole ? '' : 'none';
 
   if (block.stepper) block.stepper.style.display = cfg.lockDenominator ? 'none' : '';
   if (block.nVal) {
@@ -484,8 +484,7 @@ function setupSettingsUI() {
       showWhole: 'cfg-show-whole-1',
       lockN: 'cfg-lock-n-1',
       hideN: 'cfg-hide-n-1',
-      showFrac: 'cfg-show-frac-1',
-      showPercent: 'cfg-show-percent-1'
+      display: 'cfg-display-1'
     },
     {
       total: 'cfg-total-2',
@@ -494,8 +493,7 @@ function setupSettingsUI() {
       showWhole: 'cfg-show-whole-2',
       lockN: 'cfg-lock-n-2',
       hideN: 'cfg-hide-n-2',
-      showFrac: 'cfg-show-frac-2',
-      showPercent: 'cfg-show-percent-2'
+      display: 'cfg-display-2'
     }
   ];
   maps.forEach((ids, index) => {
@@ -505,9 +503,8 @@ function setupSettingsUI() {
     const showWhole = document.getElementById(ids.showWhole);
     const lockN = document.getElementById(ids.lockN);
     const hideN = document.getElementById(ids.hideN);
-    const showFrac = document.getElementById(ids.showFrac);
-    const showPercent = document.getElementById(ids.showPercent);
-    settingsInputs[index] = { total, n, k, showWhole, lockN, hideN, showFrac, showPercent };
+    const display = document.getElementById(ids.display);
+    settingsInputs[index] = { total, n, k, showWhole, lockN, hideN, display };
 
     total?.addEventListener('change', () => {
       const v = parseFloat(total.value);
@@ -544,16 +541,16 @@ function setupSettingsUI() {
       if (index === 0) CONFIG.hideNValue = CONFIG.blocks[0].hideNValue;
       draw();
     });
-    showFrac?.addEventListener('change', () => {
+    display?.addEventListener('change', () => {
       normalizeConfig();
-      CONFIG.blocks[index].showFraction = !!showFrac.checked;
-      if (index === 0) CONFIG.showFraction = CONFIG.blocks[0].showFraction;
-      draw();
-    });
-    showPercent?.addEventListener('change', () => {
-      normalizeConfig();
-      CONFIG.blocks[index].showPercent = !!showPercent.checked;
-      if (index === 0) CONFIG.showPercent = CONFIG.blocks[0].showPercent;
+      const cfg = CONFIG.blocks[index];
+      if (!cfg) return;
+      applyDisplayMode(cfg, display.value, cfg.valueDisplay);
+      if (index === 0) {
+        CONFIG.valueDisplay = cfg.valueDisplay;
+        CONFIG.showFraction = cfg.showFraction;
+        CONFIG.showPercent = cfg.showPercent;
+      }
       draw();
     });
   });
