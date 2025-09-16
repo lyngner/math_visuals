@@ -61,12 +61,17 @@
       border: 1px solid #eef0f3;
       background: #fdfdfe;
       overflow: hidden;
-      min-height: 340px;
       display: flex;
       flex-direction: column;
+      min-height: 0;
     }
     .figure.is-hidden { display: none; }
-    .figureCanvas { flex: 1; }
+    .figureCanvas {
+      position: relative;
+      flex: 0 0 auto;
+      min-height: 320px;
+      aspect-ratio: 4 / 3;
+    }
     .figureCanvas canvas { width: 100%; height: 100%; display: block; }
     .figureLabel {
       position: absolute;
@@ -82,6 +87,7 @@
     @media (max-width: 720px) {
       .grid { grid-template-columns: 1fr; }
       .figure-grid { --figure-columns: 1; }
+      .figureCanvas { min-height: 280px; }
     }
   </style>
   <link rel="stylesheet" href="split.css" />
