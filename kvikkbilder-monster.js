@@ -213,6 +213,13 @@
     const rows=antallY>0?antallY:1;
     patternContainer.style.gridTemplateColumns=`repeat(${cols},minmax(0,1fr))`;
     patternContainer.style.gridTemplateRows=`repeat(${rows},minmax(0,1fr))`;
+    const maxDimension=Math.max(cols,rows);
+    const gapPx=maxDimension<=1?64:maxDimension===2?56:maxDimension===3?44:maxDimension===4?36:28;
+    const itemPaddingPx=Math.min(72,Math.max(18,Math.round(gapPx*0.65)));
+    const containerPaddingPx=Math.min(48,Math.max(12,Math.round(gapPx*0.4)));
+    patternContainer.style.setProperty('--pattern-gap',`${gapPx}px`);
+    patternContainer.style.setProperty('--pattern-item-padding',`${itemPaddingPx}px`);
+    patternContainer.style.setProperty('--pattern-padding',`${containerPaddingPx}px`);
 
     const points=byggMonster(n);
     const factors=primeFactors(n).filter(x=>x>1);
@@ -232,7 +239,10 @@
     const totalFigures=antallX*antallY;
     svg.setAttribute('aria-label', `Kvikkbilde ${n}`);
     for(let i=0;i<totalFigures;i++){
-      patternContainer.appendChild(svg.cloneNode(true));
+      const wrapper=document.createElement('div');
+      wrapper.className='pattern-item';
+      wrapper.appendChild(svg.cloneNode(true));
+      patternContainer.appendChild(wrapper);
     }
 
     if(totalFigures>1){
