@@ -4,31 +4,100 @@
     return;
   }
 
-  const ORBIT_CONTROLS_URL = 'https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js?module';
+  const ORBIT_CONTROLS_MODULE_URL = 'https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js?module';
+  const ORBIT_CONTROLS_SCRIPT_SRC = (() => {
+    if (typeof document === 'undefined') {
+      return 'vendor/three/examples/js/controls/OrbitControls.js';
+    }
+    const current = document.currentScript;
+    if (current && current.src) {
+      try {
+        return new URL('./vendor/three/examples/js/controls/OrbitControls.js', current.src).href;
+      } catch (_) {
+        // ignore and fall back to relative path below
+      }
+    }
+    return 'vendor/three/examples/js/controls/OrbitControls.js';
+  })();
   let orbitControlsPromise = null;
+
+  function ensureOrbitControlsScript() {
+    if (typeof document === 'undefined') {
+      return Promise.resolve('failed');
+    }
+    const existing = document.querySelector('script[data-orbit-controls]');
+    if (existing) {
+      const state = existing.dataset.loaded;
+      if (state === 'true') return Promise.resolve('loaded');
+      if (state === 'false') return Promise.resolve('failed');
+      return new Promise(resolve => {
+        const handleLoad = () => {
+          existing.dataset.loaded = 'true';
+          resolve('loaded');
+        };
+        const handleError = () => {
+          existing.dataset.loaded = 'false';
+          resolve('failed');
+        };
+        existing.addEventListener('load', handleLoad, { once: true });
+        existing.addEventListener('error', handleError, { once: true });
+      });
+    }
+
+    return new Promise(resolve => {
+      const script = document.createElement('script');
+      script.src = ORBIT_CONTROLS_SCRIPT_SRC;
+      script.async = true;
+      script.dataset.orbitControls = 'true';
+      script.addEventListener('load', () => {
+        script.dataset.loaded = 'true';
+        resolve('loaded');
+      }, { once: true });
+      script.addEventListener('error', () => {
+        script.dataset.loaded = 'false';
+        resolve('failed');
+      }, { once: true });
+      document.head.appendChild(script);
+    });
+  }
+
+  function getGlobalOrbitControls() {
+    return (typeof THREE !== 'undefined' && typeof THREE.OrbitControls === 'function')
+      ? THREE.OrbitControls
+      : null;
+  }
 
   function loadOrbitControls() {
     if (orbitControlsPromise) {
       return orbitControlsPromise;
     }
 
-    if (typeof THREE.OrbitControls === 'function') {
-      orbitControlsPromise = Promise.resolve(THREE.OrbitControls);
-      return orbitControlsPromise;
-    }
-
     orbitControlsPromise = (async () => {
-      try {
-        const module = await import(ORBIT_CONTROLS_URL);
-        if (module && typeof module.OrbitControls === 'function') {
-          THREE.OrbitControls = module.OrbitControls;
-          return module.OrbitControls;
-        }
-        console.warn('Fant ikke OrbitControls-modulen.');
-      } catch (error) {
-        console.warn('Klarte ikke laste OrbitControls-modulen.', error);
+      const globalControls = getGlobalOrbitControls();
+      if (globalControls) {
+        return globalControls;
       }
-      return null;
+
+      const scriptStatus = await ensureOrbitControlsScript();
+      const scriptedControls = getGlobalOrbitControls();
+      if (scriptedControls) {
+        return scriptedControls;
+      }
+
+      if (scriptStatus === 'failed') {
+        try {
+          const module = await import(ORBIT_CONTROLS_MODULE_URL);
+          if (module && typeof module.OrbitControls === 'function') {
+            THREE.OrbitControls = module.OrbitControls;
+            return module.OrbitControls;
+          }
+          console.warn('Fant ikke OrbitControls-modulen.');
+        } catch (error) {
+          console.warn('Klarte ikke laste OrbitControls-modulen.', error);
+        }
+      }
+
+      return getGlobalOrbitControls();
     })();
 
     return orbitControlsPromise;
