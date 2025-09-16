@@ -71,6 +71,10 @@ let lastFocusIndex = null;
 initFromCfg();
 
 function initFromCfg(){
+  const hasSeries2Config = (Array.isArray(CFG.start2) && CFG.start2.length > 0)
+    || (Array.isArray(CFG.answer2) && CFG.answer2.length > 0)
+    || (typeof CFG.series2 === 'string' && CFG.series2.trim().length > 0);
+  series2Enabled = hasSeries2Config;
   values = CFG.start.slice();
   values2 = series2Enabled && CFG.start2 ? CFG.start2.slice() : null;
   seriesNames = [CFG.series1 || '', series2Enabled ? CFG.series2 || '' : ''];
