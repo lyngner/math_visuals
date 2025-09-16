@@ -23,12 +23,24 @@
         : null;
       if (this.controls) {
         this.controls.enableDamping = true;
-        this.controls.enablePan = false;
+        this.controls.dampingFactor = 0.08;
+        this.controls.enablePan = true;
+        this.controls.enableZoom = true;
+        this.controls.screenSpacePanning = true;
+        this.controls.panSpeed = 0.7;
+        this.controls.rotateSpeed = 0.9;
+        this.controls.zoomSpeed = 0.9;
         this.controls.minDistance = 2.5;
         this.controls.maxDistance = 12;
         this.controls.target.set(0, 1.1, 0);
         this.controls.addEventListener('start', () => { this.userIsInteracting = true; });
-        this.controls.addEventListener('end', () => { this.userIsInteracting = false; });
+        this.controls.addEventListener('end', () => {
+          this.userIsInteracting = false;
+          this._syncStateFromControls();
+        });
+        this.controls.addEventListener('change', () => {
+          this._syncStateFromControls();
+        });
       }
 
       const ambient = new THREE.AmbientLight(0xffffff, 0.55);
@@ -115,11 +127,21 @@
     }
 
     _updateControlsDistances(baseDistance, currentDistance = baseDistance) {
-      if (!this.controls) return;
+      if (!this.controls || !(baseDistance > 0)) return;
       const minDistance = Math.max(0.6, baseDistance * 0.45);
       const maxDistance = Math.max(baseDistance * 3, currentDistance * 1.1, minDistance + 1.5);
       this.controls.minDistance = minDistance;
       this.controls.maxDistance = maxDistance;
+    }
+
+    _syncStateFromControls() {
+      if (!this.controls || !this.currentFrame) return;
+      if (this.currentFrame.center) {
+        this.currentFrame.center.copy(this.controls.target);
+      }
+      this.currentFrame.distance = this.camera.position.distanceTo(this.controls.target);
+      const baseDistance = this.currentFrame.baseDistance || this.currentFrame.distance || this.controls.minDistance;
+      this._updateControlsDistances(baseDistance, this.currentFrame.distance);
     }
 
     frameCurrentShape() {
@@ -142,7 +164,7 @@
       this.camera.position.copy(newPosition);
       if (this.controls) {
         this.controls.target.copy(center);
-        this._updateControlsDistances(requiredDistance);
+        this._updateControlsDistances(requiredDistance, requiredDistance);
         this.controls.update();
       } else {
         this.camera.lookAt(center);
@@ -150,6 +172,7 @@
       this.currentFrame = {
         center: center.clone(),
         size: size.clone(),
+        baseDistance: requiredDistance,
         distance: requiredDistance
       };
       this.camera.updateProjectionMatrix();
@@ -159,6 +182,7 @@
       if (!this.currentFrame) return;
       const center = this.currentFrame.center;
       const desiredDistance = Math.max(this._computeFitDistance(this.currentFrame.size) * this.fitMargin, 0.5);
+      this.currentFrame.baseDistance = desiredDistance;
       const toCamera = this.camera.position.clone().sub(center);
       if (!toCamera.lengthSq()) {
         toCamera.set(0, 0, 1);
@@ -175,6 +199,7 @@
         }
       }
       this.currentFrame.distance = this.camera.position.distanceTo(center);
+      this._updateControlsDistances(this.currentFrame.baseDistance, this.currentFrame.distance);
     }
 
     _applyFloatingOffset() {
