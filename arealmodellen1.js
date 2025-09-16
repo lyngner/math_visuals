@@ -549,14 +549,6 @@ function draw(){
     });
   }
 
-  // Reset
-  const btnReset = document.getElementById("btnReset");
-  if(btnReset) btnReset.onclick = () => {
-    sx = clampInt(initLeftCols,   1, COLS-1) * UNIT;
-    sy = clampInt(initBottomRows, 1, ROWS-1) * UNIT;
-    scheduleRedraw();
-  };
-
   function buildExportOptions(){
     const includeHandles = (showLeftHandle || showBottomHandle) || ADV.export?.includeHandlesIfHidden;
     return {
