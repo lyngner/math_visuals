@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Trefigurer</title>
+  <style>
+    :root { --gap: 18px; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans";
+      color: #111827;
+      background: #f7f8fb;
+      padding: 20px;
+    }
+    .wrap { max-width: 1200px; margin: 0 auto; }
+    .grid { display: grid; gap: var(--gap); grid-template-columns: 1fr 420px; align-items: start; }
+    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+    .side { display: flex; flex-direction: column; gap: var(--gap); }
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .card h2 { margin: 0 0 6px 2px; font-size: 16px; font-weight: 600; color: #374151; }
+    .toolbar { display: flex; gap: 10px; justify-content: flex-start; align-items: center; flex-wrap: wrap; }
+    .btn {
+      appearance: none;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: box-shadow .2s, transform .02s;
+    }
+    .btn:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    .btn:active { transform: translateY(1px); }
+    label { font-size: 13px; color: #4b5563; }
+    textarea { border: 1px solid #d1d5db; border-radius: 10px; padding: 8px 10px; font-size: 14px; background: #fff; width: 100%; }
+    .specs-row { display: flex; gap: 10px; align-items: flex-start; }
+    .specs-row textarea { flex: 1; }
+    .small { font-size: 12px; color: #6b7280; }
+    .figure-grid {
+      --figure-columns: 1;
+      display: grid;
+      gap: var(--gap);
+      grid-template-columns: repeat(var(--figure-columns), minmax(0, 1fr));
+      align-items: stretch;
+    }
+    .figure-grid[data-figures="2"] { --figure-columns: 2; }
+    .figure {
+      position: relative;
+      border-radius: 12px;
+      border: 1px solid #eef0f3;
+      background: #fdfdfe;
+      overflow: hidden;
+      min-height: 340px;
+      display: flex;
+      flex-direction: column;
+    }
+    .figure.is-hidden { display: none; }
+    .figureCanvas { flex: 1; }
+    .figureCanvas canvas { width: 100%; height: 100%; display: block; }
+    .figureLabel {
+      position: absolute;
+      inset: auto 12px 12px 12px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: rgba(17, 24, 39, .72);
+      color: #f9fafb;
+      font-size: 13px;
+      letter-spacing: .01em;
+      pointer-events: none;
+    }
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: 1fr; }
+      .figure-grid { --figure-columns: 1; }
+    }
+  </style>
+  <link rel="stylesheet" href="split.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <div id="figureGrid" class="figure-grid" data-figures="1">
+          <div class="figure" data-figure-index="0">
+            <div class="figureCanvas" id="figure0"></div>
+            <div class="figureLabel" aria-live="polite"></div>
+          </div>
+          <div class="figure is-hidden" data-figure-index="1">
+            <div class="figureCanvas" id="figure1"></div>
+            <div class="figureLabel" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <h2>Eksempler</h2>
+          <div class="toolbar">
+            <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>
+            <button id="btnDeleteExample" class="btn" type="button">Slett eksempel</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Innstillinger</h2>
+          <label for="inpSpecs">Skriv fritekst (én figur per linje)</label>
+          <div class="specs-row">
+            <textarea id="inpSpecs" rows="4" spellcheck="false">kule</textarea>
+            <button id="btnDraw" class="btn" type="button">Tegn</button>
+          </div>
+          <div class="small">Bruk ordene <strong>prisme</strong>, <strong>trekantet sylinder</strong>, <strong>firkantet sylinder</strong>, <strong>pyramide</strong> eller <strong>kule</strong>.</div>
+          <div class="small">Trykk Ctrl+Enter (eller ⌘+Enter) for å tegne mens du skriver.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.158.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="trefigurer.js"></script>
+  <script src="examples.js"></script>
+  <script src="split.js"></script>
+</body>
+</html>
