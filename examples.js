@@ -38,7 +38,7 @@
     const style = document.createElement('style');
     style.id = 'exampleTabStyles';
     style.textContent = `
-.example-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;margin-bottom:0;align-items:flex-end;border-bottom:1px solid #e5e7eb;padding-bottom:0;}
+.example-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;margin-bottom:0;align-items:flex-end;padding-bottom:0;}
 .example-tab{appearance:none;border:1px solid #d1d5db;border-bottom:none;background:#f3f4f6;color:#374151;border-radius:10px 10px 0 0;padding:6px 14px;font-size:14px;line-height:1;cursor:pointer;transition:background-color .2s,border-color .2s,color .2s;box-shadow:0 -1px 0 rgba(15,23,42,.08) inset;margin-bottom:-1px;}
 .example-tab:hover{background:#e5e7eb;}
 .example-tab.is-active{background:#fff;color:#111827;border-color:var(--purple,#5B2AA5);border-bottom:1px solid #fff;box-shadow:0 -2px 0 var(--purple,#5B2AA5) inset;}
@@ -66,9 +66,13 @@
         candidate = candidate.nextElementSibling;
         continue;
       }
+      if(candidate.classList.contains('card--settings') || candidate.getAttribute('data-card') === 'settings'){
+        settingsCard = candidate;
+        break;
+      }
       const heading = candidate.querySelector(':scope > h2');
       const text = heading ? heading.textContent.trim().toLowerCase() : '';
-      if(text === 'innstillinger'){
+      if(text === 'innstillinger' || text === 'innstilling'){
         settingsCard = candidate;
         break;
       }
