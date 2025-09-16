@@ -858,6 +858,11 @@ function bindUI(){
   f2Angles.value = STATE.fig2.angles.default;
   layoutRadios.forEach(r => r.checked = (r.value===STATE.layout));
 
+  // Oppdater lokal STATE mens bruker skriver, slik at lagring av eksempler får med uendrede endringer
+  inpSpecs.addEventListener("input", () => {
+    STATE.specsText = inpSpecs.value;
+  });
+
   // Oppdater når bruker trykker Enter, forlater feltet eller trykker Tegn-knappen
   inpSpecs.addEventListener("blur", () => {
     if (STATE.specsText !== inpSpecs.value) {
