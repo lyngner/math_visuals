@@ -36,6 +36,8 @@ function buildSimple(){
   }
   const pts = paramStr('points','0').trim();
   if(pts){ lines.push(`points=${pts}`); }
+  const startx = paramStr('startx','').trim();
+  if(startx){ lines.push(`startx=${startx}`); }
   const coords = paramStr('coords','').trim();
   if(coords){ lines.push(`coords=${coords}`); }
   return lines.join('\n');
@@ -1279,6 +1281,26 @@ function setupSettingsForm(){
   addBtn.setAttribute('aria-label','Legg til funksjon');
   const g = id => document.getElementById(id);
 
+  const gliderRow = document.createElement('div');
+  gliderRow.className = 'settings-row glider-row';
+  gliderRow.innerHTML = `
+    <label class="points">Punkter
+      <input type="number" data-points min="0" step="1">
+    </label>
+    <label>Plassering av punkter (glidende)
+      <input type="text" data-startx placeholder="-2, 0, 3">
+    </label>
+  `;
+  const fieldset = root.querySelector('fieldset');
+  if(fieldset){
+    root.insertBefore(gliderRow, fieldset);
+  }else{
+    root.appendChild(gliderRow);
+  }
+  gliderRow.style.display = 'none';
+  const gliderCountInput = gliderRow.querySelector('input[data-points]');
+  const gliderStartInput = gliderRow.querySelector('input[data-startx]');
+
   const isCoords = str => /^\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?)(?:\s*;\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?))*\s*$/.test(str);
   const isExplicitFun = str => {
     const m = str.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/) || str.match(/^y\s*=\s*(.+)$/i);
@@ -1292,6 +1314,48 @@ function setupSettingsForm(){
     if(!Number.isFinite(val)) return '';
     const str = String(val);
     return str.replace(/\.0+(?=$)/, '').replace(/(\.\d*?)0+(?=$)/, '$1');
+  };
+
+  const parseStartXValues = value => {
+    if(!value) return [];
+    const matches = String(value).match(/-?\d+(?:[.,]\d+)?/g);
+    if(!matches) return [];
+    return matches
+      .map(str => Number.parseFloat(str.replace(',', '.')))
+      .filter(Number.isFinite);
+  };
+
+  const getGliderCount = () => {
+    if(!gliderCountInput) return 0;
+    const n = Number.parseInt(gliderCountInput.value, 10);
+    if(!Number.isFinite(n)) return 0;
+    return n > 0 ? n : 0;
+  };
+
+  const shouldEnableGliders = () => {
+    const firstRowInput = funcRows?.querySelector('.func-row:first-child input[data-fun]');
+    if(!firstRowInput) return false;
+    const value = firstRowInput.value.trim();
+    if(!value) return false;
+    if(isCoords(value)) return false;
+    return isExplicitFun(value);
+  };
+
+  const updateStartInputState = () => {
+    if(!gliderStartInput) return;
+    const active = shouldEnableGliders();
+    const count = getGliderCount();
+    gliderStartInput.disabled = !active || count <= 0;
+  };
+
+  const updateGliderVisibility = () => {
+    if(!gliderRow) return;
+    const show = shouldEnableGliders();
+    gliderRow.style.display = show ? '' : 'none';
+    if(gliderCountInput){
+      gliderCountInput.disabled = !show;
+    }
+    updateStartInputState();
   };
 
   const buildSimpleFromForm = () => {
@@ -1319,14 +1383,16 @@ function setupSettingsForm(){
     const hasStartXLine = lines.some(L => /^\s*startx\s*=/i.test(L));
     const hasAnswerLine = lines.some(L => /^\s*riktig\s*:/i.test(L));
 
-    if(!hasPointsLine && Number.isFinite(SIMPLE_PARSED.pointsCount) && SIMPLE_PARSED.pointsCount > 0){
-      lines.push(`points=${SIMPLE_PARSED.pointsCount}`);
+    const glidersActive = shouldEnableGliders();
+    const gliderCount = glidersActive ? getGliderCount() : 0;
+    if(glidersActive && !hasPointsLine && gliderCount > 0){
+      lines.push(`points=${gliderCount}`);
     }
 
-    if(!hasStartXLine && Array.isArray(SIMPLE_PARSED.startX)){
-      const sx = SIMPLE_PARSED.startX.filter(Number.isFinite).map(formatNumber);
-      if(sx.length){
-        lines.push(`startx=${sx.join(', ')}`);
+    if(glidersActive && !hasStartXLine && gliderCount > 0){
+      const startValues = parseStartXValues(gliderStartInput?.value || '');
+      if(startValues.length){
+        lines.push(`startx=${startValues.map(formatNumber).join(', ')}`);
       }
     }
 
@@ -1353,6 +1419,16 @@ function setupSettingsForm(){
     if(typeof window !== 'undefined'){ window.SIMPLE = SIMPLE; }
   };
 
+  if(gliderCountInput){
+    gliderCountInput.addEventListener('input', () => {
+      updateStartInputState();
+      syncSimpleFromForm();
+    });
+  }
+  if(gliderStartInput){
+    gliderStartInput.addEventListener('input', syncSimpleFromForm);
+  }
+
   const toggleDomain = input => {
     const row = input.closest('.func-row');
     const domLabel = row.querySelector('label.domain');
@@ -1363,6 +1439,7 @@ function setupSettingsForm(){
       const domInput = domLabel.querySelector('input[data-dom]');
       if(domInput) domInput.value = '';
     }
+    updateGliderVisibility();
   };
 
   const createRow = (index, funVal = '', domVal = '') => {
@@ -1405,15 +1482,20 @@ function setupSettingsForm(){
     }
     const source = typeof simple === 'string' ? simple : (typeof window !== 'undefined' ? window.SIMPLE : SIMPLE);
     const text = typeof source === 'string' ? source : '';
+    if(typeof source === 'string'){
+      SIMPLE = source;
+      SIMPLE_PARSED = parseSimple(SIMPLE);
+    }
     const lines = text
       .split(/\r?\n/)
       .map(line => line.trim())
       .filter(line => line.length > 0);
-    if(lines.length === 0){
-      lines.push('');
+    const filteredLines = lines.filter(line => !/^\s*points\s*=/i.test(line) && !/^\s*startx\s*=/i.test(line));
+    if(filteredLines.length === 0){
+      filteredLines.push('');
     }
     funcRows.innerHTML = '';
-    lines.forEach((line, idx) => {
+    filteredLines.forEach((line, idx) => {
       let funVal = line;
       let domVal = '';
       const domMatch = line.match(/,\s*x\s*(?:in|∈)\s*(.+)$/i);
@@ -1424,10 +1506,17 @@ function setupSettingsForm(){
       createRow(idx + 1, funVal, domVal);
     });
     appendAddBtn();
-    if(typeof source === 'string'){
-      SIMPLE = source;
-      SIMPLE_PARSED = parseSimple(SIMPLE);
+    if(gliderCountInput){
+      const count = Number.isFinite(SIMPLE_PARSED?.pointsCount) ? SIMPLE_PARSED.pointsCount : 0;
+      gliderCountInput.value = count > 0 ? String(count) : '';
     }
+    if(gliderStartInput){
+      const startVals = Array.isArray(SIMPLE_PARSED?.startX)
+        ? SIMPLE_PARSED.startX.filter(Number.isFinite)
+        : [];
+      gliderStartInput.value = startVals.length ? startVals.map(formatNumber).join(', ') : '';
+    }
+    updateGliderVisibility();
     syncSimpleFromForm();
   };
 
@@ -1468,6 +1557,16 @@ function setupSettingsForm(){
         idx++;
       }
     });
+    if(shouldEnableGliders()){
+      const count = getGliderCount();
+      if(count > 0){
+        p.set('points', String(count));
+        const startVals = parseStartXValues(gliderStartInput?.value || '');
+        if(startVals.length){
+          p.set('startx', startVals.map(formatNumber).join(', '));
+        }
+      }
+    }
     if(g('cfgScreen').value.trim()) p.set('screen', g('cfgScreen').value.trim());
     if(g('cfgLock').checked) p.set('lock','1'); else p.set('lock','0');
     if(g('cfgAxisX').value.trim() && g('cfgAxisX').value.trim() !== 'x') p.set('xName', g('cfgAxisX').value.trim());
