@@ -56,6 +56,10 @@
       this.shapeGroup = new THREE.Group();
       this.scene.add(this.shapeGroup);
 
+      this.currentFrame = null;
+      this.rotationLocked = false;
+      this.fitMargin = 1.2;
+
       this._animate = this._animate.bind(this);
       this._handleResize = this._handleResize.bind(this);
 
@@ -81,16 +85,105 @@
 
       this.container.style.height = `${height}px`;
       this.renderer.setSize(width, height, false);
-      this.camera.aspect = width / height;
+      this.camera.aspect = width / Math.max(height, 1);
       this.camera.updateProjectionMatrix();
+      this._ensureFrameFits();
     }
 
     _animate() {
-      if (!this.userIsInteracting && this.shapeGroup.children.length) {
+      if (!this.rotationLocked && !this.userIsInteracting && this.shapeGroup.children.length) {
         this.shapeGroup.rotation.y += 0.006;
       }
       if (this.controls) this.controls.update();
       this.renderer.render(this.scene, this.camera);
+    }
+
+    _computeFitDistance(size) {
+      if (!size) return 0;
+      const halfFov = THREE.MathUtils.degToRad((this.camera.fov || 35) / 2);
+      const safeHalfFov = Math.max(halfFov, 0.001);
+      const aspect = this.camera.aspect || 1;
+      const halfHeight = Math.max(size.y / 2, 0.01);
+      const maxHorizontal = Math.max(size.x, size.z) / 2 || 0.01;
+      const distanceForHeight = halfHeight / Math.tan(safeHalfFov);
+      const halfHorizontalFov = Math.atan(Math.tan(safeHalfFov) * aspect);
+      const safeHalfHorizontal = Math.max(halfHorizontalFov, 0.001);
+      const distanceForWidth = maxHorizontal / Math.tan(safeHalfHorizontal);
+      return Math.max(distanceForHeight, distanceForWidth);
+    }
+
+    _updateControlsDistances(baseDistance, currentDistance = baseDistance) {
+      if (!this.controls) return;
+      const minDistance = Math.max(0.6, baseDistance * 0.45);
+      const maxDistance = Math.max(baseDistance * 3, currentDistance * 1.1, minDistance + 1.5);
+      this.controls.minDistance = minDistance;
+      this.controls.maxDistance = maxDistance;
+    }
+
+    frameCurrentShape() {
+      if (!this.currentShape) return;
+      this.currentShape.updateMatrixWorld(true);
+      this.shapeGroup.updateMatrixWorld(true);
+      const boundingBox = new THREE.Box3().setFromObject(this.currentShape);
+      if (boundingBox.isEmpty()) return;
+      const size = new THREE.Vector3();
+      boundingBox.getSize(size);
+      const center = new THREE.Vector3();
+      boundingBox.getCenter(center);
+      const direction = this.camera.position.clone().sub(this.controls ? this.controls.target : center);
+      if (!direction.lengthSq()) {
+        direction.set(0, 0, 1);
+      }
+      const requiredDistance = Math.max(this._computeFitDistance(size) * this.fitMargin, 0.5);
+      const offset = direction.normalize().multiplyScalar(requiredDistance);
+      const newPosition = center.clone().add(offset);
+      this.camera.position.copy(newPosition);
+      if (this.controls) {
+        this.controls.target.copy(center);
+        this._updateControlsDistances(requiredDistance);
+        this.controls.update();
+      } else {
+        this.camera.lookAt(center);
+      }
+      this.currentFrame = {
+        center: center.clone(),
+        size: size.clone(),
+        distance: requiredDistance
+      };
+      this.camera.updateProjectionMatrix();
+    }
+
+    _ensureFrameFits() {
+      if (!this.currentFrame) return;
+      const center = this.currentFrame.center;
+      const desiredDistance = Math.max(this._computeFitDistance(this.currentFrame.size) * this.fitMargin, 0.5);
+      const toCamera = this.camera.position.clone().sub(center);
+      if (!toCamera.lengthSq()) {
+        toCamera.set(0, 0, 1);
+      }
+      const currentDistance = toCamera.length();
+      if (currentDistance + 1e-4 < desiredDistance) {
+        const adjusted = toCamera.normalize().multiplyScalar(desiredDistance);
+        const newPosition = center.clone().add(adjusted);
+        this.camera.position.copy(newPosition);
+        if (this.controls) {
+          this.controls.update();
+        } else {
+          this.camera.lookAt(center);
+        }
+      }
+      this.currentFrame.distance = this.camera.position.distanceTo(center);
+    }
+
+    setRotationLocked(isLocked) {
+      this.rotationLocked = Boolean(isLocked);
+      if (this.rotationLocked) {
+        this.userIsInteracting = false;
+      }
+      if (this.controls) {
+        this.controls.enableRotate = !this.rotationLocked;
+        this.controls.update();
+      }
     }
 
     disposeCurrentShape() {
@@ -108,6 +201,7 @@
       });
       this.currentShape = null;
       this.shapeGroup.rotation.set(0, 0, 0);
+      this.currentFrame = null;
     }
 
     createMaterial(color) {
@@ -202,6 +296,7 @@
       if (!type) return;
       this.currentShape = this.createShape(type);
       this.shapeGroup.add(this.currentShape);
+      this.frameCurrentShape();
     }
 
     clear() {
@@ -218,6 +313,7 @@
 
   const textarea = document.getElementById('inpSpecs');
   const drawBtn = document.getElementById('btnDraw');
+  const lockRotationCheckbox = document.getElementById('chkLockRotation');
 
   const defaultInput = textarea ? textarea.value : 'kule';
   window.STATE = window.STATE || {};
@@ -227,6 +323,17 @@
   if (!Array.isArray(window.STATE.figures)) {
     window.STATE.figures = [];
   }
+  if (typeof window.STATE.rotationLocked !== 'boolean') {
+    window.STATE.rotationLocked = lockRotationCheckbox ? lockRotationCheckbox.checked : false;
+  }
+  if (lockRotationCheckbox) {
+    lockRotationCheckbox.checked = window.STATE.rotationLocked;
+  }
+
+  const applyRotationLock = locked => {
+    renderers.forEach(renderer => renderer.setRotationLocked(locked));
+  };
+  applyRotationLock(window.STATE.rotationLocked);
 
   function detectType(line) {
     const normalized = line.toLowerCase();
@@ -294,6 +401,14 @@
     drawBtn.addEventListener('click', () => {
       window.STATE.rawInput = textarea ? textarea.value : '';
       draw();
+    });
+  }
+
+  if (lockRotationCheckbox) {
+    lockRotationCheckbox.addEventListener('change', evt => {
+      const locked = Boolean(evt.target.checked);
+      window.STATE.rotationLocked = locked;
+      applyRotationLock(locked);
     });
   }
 
