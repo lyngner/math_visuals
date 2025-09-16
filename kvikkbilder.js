@@ -12,6 +12,8 @@
   const cfgShowBtn = document.getElementById('cfg-showBtn');
   const cfgShowExpression = document.getElementById('cfg-show-expression');
 
+  const cfgMonsterAntallX = document.getElementById('cfg-monster-antallX');
+  const cfgMonsterAntallY = document.getElementById('cfg-monster-antallY');
   const cfgAntall = document.getElementById('cfg-antall');
   const cfgDurationMonster = document.getElementById('cfg-duration-monster');
   const cfgShowBtnMonster = document.getElementById('cfg-showBtn-monster');
@@ -230,14 +232,8 @@
     return pts.map(p=>({x:p.x*scale, y:p.y*scale}));
   }
 
-  function renderMonster(){
-    const n=parseInt(cfgAntall.value,10)||0;
-    patternContainer.innerHTML='';
-    const points=byggMonster(n);
-    if(!points.length){
-      expression.textContent=`${n}`;
-      return;
-    }
+  function createPatternSvg(points){
+    if(!points.length) return null;
 
     const radius=10;
     const spacing=3;
@@ -307,9 +303,46 @@
       svg.appendChild(c);
     });
 
-    patternContainer.appendChild(svg);
+    return svg;
+  }
+
+  function renderMonster(){
+    const n=parseInt(cfgAntall.value,10)||0;
+    const antallX=parseInt(cfgMonsterAntallX.value,10)||0;
+    const antallY=parseInt(cfgMonsterAntallY.value,10)||0;
+    patternContainer.innerHTML='';
+
+    const cols=antallX>0?antallX:1;
+    const rows=antallY>0?antallY:1;
+    patternContainer.style.gridTemplateColumns=`repeat(${cols},minmax(0,1fr))`;
+    patternContainer.style.gridTemplateRows=`repeat(${rows},minmax(0,1fr))`;
+
+    const points=byggMonster(n);
     const factors=primeFactors(n).filter(x=>x>1);
-    expression.textContent=factors.length?`${factors.join(' · ')} = ${n}`:`${n}`;
+    const baseExpression=factors.length?`${factors.join(' · ')} = ${n}`:`${n}`;
+
+    if(!points.length || antallX<=0 || antallY<=0){
+      expression.textContent=baseExpression;
+      return;
+    }
+
+    const svg=createPatternSvg(points);
+    if(!svg){
+      expression.textContent=baseExpression;
+      return;
+    }
+
+    const totalFigures=antallX*antallY;
+    svg.setAttribute('aria-label', `Kvikkbilde ${n}`);
+    for(let i=0;i<totalFigures;i++){
+      patternContainer.appendChild(svg.cloneNode(true));
+    }
+
+    if(totalFigures>1){
+      expression.textContent=`${antallX} · ${antallY} · (${baseExpression}) = ${totalFigures} · ${n} = ${totalFigures*n}`;
+    }else{
+      expression.textContent=baseExpression;
+    }
   }
 
   function applyExpressionVisibility(){
@@ -338,7 +371,7 @@
       patternContainer.style.display='none';
     } else {
       playBtn.style.display='none';
-      patternContainer.style.display='flex';
+      patternContainer.style.display='grid';
     }
     applyExpressionVisibility();
   }
@@ -368,7 +401,9 @@
     updateVisibilityMonster();
     renderMonster();
   });
-  cfgAntall.addEventListener('input', renderMonster);
+  [cfgAntall,cfgMonsterAntallX,cfgMonsterAntallY].forEach(el=>{
+    el?.addEventListener('input', renderMonster);
+  });
   cfgType.addEventListener('change', updateType);
   cfgShowExpression?.addEventListener('change', applyExpressionVisibility);
 
@@ -386,7 +421,7 @@
       const duration = parseInt(cfgDurationMonster.value,10)||0;
       renderMonster();
       playBtn.style.display='none';
-      patternContainer.style.display='flex';
+      patternContainer.style.display='grid';
       applyExpressionVisibility();
       setTimeout(()=>{
         updateVisibilityMonster();

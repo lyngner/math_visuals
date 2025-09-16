@@ -41,9 +41,15 @@
     #patternContainer{
       position:absolute;
       inset:0;
-      display:flex;
-      align-items:center;
+      display:grid;
+      place-items:center;
       justify-content:center;
+      align-content:center;
+      justify-items:center;
+      gap:18px;
+      grid-template-columns:repeat(1,minmax(0,1fr));
+      grid-template-rows:repeat(1,minmax(0,1fr));
+      grid-auto-rows:minmax(0,1fr);
     }
     #patternContainer svg{width:100%;height:100%;display:block;}
     #expression{text-align:center;font-size:24px;font-weight:600;}
@@ -146,6 +152,14 @@
             </div>
           </div>
           <div id="monsterConfig">
+            <div class="field-row field-row--two">
+              <label>Antall X
+                <input id="cfg-monster-antallX" type="number" min="1" value="2">
+              </label>
+              <label>Antall Y
+                <input id="cfg-monster-antallY" type="number" min="1" value="2">
+              </label>
+            </div>
             <label>Antall
               <input id="cfg-antall" type="number" min="1" value="9">
             </label>
