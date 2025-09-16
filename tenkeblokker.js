@@ -444,7 +444,7 @@ function drawBlock(index) {
 
   const displayMode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
   const per = cfg.n ? cfg.total / cfg.n : 0;
-  const fracText = cfg.n ? `1/${cfg.n}` : '0';
+  const fracText = cfg.n ? `\frac{1}{${cfg.n}}` : '0';
   const percentValue = cfg.n ? (100 / cfg.n) : 0;
 
   for (let i = 0; i < cfg.n; i++) {
