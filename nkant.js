@@ -842,30 +842,64 @@ function bindUI(){
 
   function wireSide(figKey, key, selId, txtId, placeholder){
     const sel = $(selId), txt = $(txtId);
-    const fig = STATE[figKey];
-    sel.value = fig.sides[key] ?? "inherit";
-    txt.value = fig.sides[key+"Text"] ?? placeholder;
+    const textKey = key + "Text";
+    const getFig = () => STATE[figKey];
+    const getSides = () => getFig()?.sides;
+
+    const sides = getSides() || {};
+    sel.value = sides[key] ?? "inherit";
+    txt.value = sides[textKey] ?? placeholder;
+
     function toggleTxt(){
-      const mode = sel.value === "inherit" ? fig.sides.default : sel.value;
+      const curSides = getSides();
+      const fallback = curSides?.default ?? "";
+      const mode = sel.value === "inherit" ? fallback : sel.value;
       txt.disabled = !String(mode).includes("custom");
     }
+
     toggleTxt();
-    sel.addEventListener("change", ()=>{ fig.sides[key] = sel.value; toggleTxt(); renderCombined(); });
-    txt.addEventListener("input", ()=>{ fig.sides[key+"Text"] = txt.value; renderCombined(); });
+    sel.addEventListener("change", ()=>{
+      const curSides = getSides();
+      if(curSides) curSides[key] = sel.value;
+      toggleTxt();
+      renderCombined();
+    });
+    txt.addEventListener("input", ()=>{
+      const curSides = getSides();
+      if(curSides) curSides[textKey] = txt.value;
+      renderCombined();
+    });
     sideToggles.push({figKey, toggleTxt});
   }
   function wireAng(figKey, key, selId, txtId, placeholder){
     const sel = $(selId), txt = $(txtId);
-    const fig = STATE[figKey];
-    sel.value = fig.angles[key] ?? "inherit";
-    txt.value = fig.angles[key+"Text"] ?? placeholder;
+    const textKey = key + "Text";
+    const getFig = () => STATE[figKey];
+    const getAngles = () => getFig()?.angles;
+
+    const angles = getAngles() || {};
+    sel.value = angles[key] ?? "inherit";
+    txt.value = angles[textKey] ?? placeholder;
+
     function toggleTxt(){
-      const v = sel.value === "inherit" ? fig.angles.default : sel.value; // aksepter både custom* og custum*
-      txt.disabled = !(String(v).startsWith("custom") || String(v).startsWith("custum"));
+      const curAngles = getAngles();
+      const rawMode = sel.value === "inherit" ? (curAngles?.default ?? "") : sel.value;
+      const normalized = String(rawMode);
+      txt.disabled = !(normalized.startsWith("custom") || normalized.startsWith("custum"));
     }
+
     toggleTxt();
-    sel.addEventListener("change", ()=>{ fig.angles[key] = sel.value; toggleTxt(); renderCombined(); });
-    txt.addEventListener("input", ()=>{ fig.angles[key+"Text"] = txt.value; renderCombined(); });
+    sel.addEventListener("change", ()=>{
+      const curAngles = getAngles();
+      if(curAngles) curAngles[key] = sel.value;
+      toggleTxt();
+      renderCombined();
+    });
+    txt.addEventListener("input", ()=>{
+      const curAngles = getAngles();
+      if(curAngles) curAngles[textKey] = txt.value;
+      renderCombined();
+    });
     angToggles.push({figKey, toggleTxt});
   }
 
