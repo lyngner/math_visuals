@@ -149,7 +149,12 @@
     </div>
   </div>
   <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
-  <script src="https://unpkg.com/three@0.158.0/examples/js/controls/OrbitControls.js"></script>
+  <script
+    src="vendor/three/examples/js/controls/OrbitControls.js"
+    data-orbit-controls
+    onload="this.dataset.loaded='true'"
+    onerror="this.dataset.loaded='false'"
+  ></script>
   <script src="trefigurer.js"></script>
   <script src="examples.js"></script>
   <script src="split.js"></script>
