@@ -82,6 +82,7 @@ const assetToColor = Object.entries(ADV.assets.beads).reduce((acc, [color, src])
 const controlsWrap = document.getElementById("controls");
 const addBtn = document.getElementById("addBowl");
 const panelEls = [document.getElementById("panel1"), document.getElementById("panel2")];
+const removeBtn2 = document.getElementById("removeBowl2");
 const exportToolbar2 = document.getElementById("exportToolbar2");
 const gridEl = document.querySelector(".grid");
 
@@ -127,6 +128,10 @@ addBtn?.addEventListener("click", () => {
   SIMPLE.bowls[1] = { colorCounts: copyCounts, beadRadius: radiusSource };
   STATE.figure2Visible = true;
   render();
+});
+
+removeBtn2?.addEventListener("click", () => {
+  removeBowl(1);
 });
 
 const downloadButtons = [
@@ -318,6 +323,28 @@ function setSize(idx, value){
 
 function updateConfig(){
   syncSimpleFromFigures();
+  render();
+}
+
+function removeBowl(idx){
+  if(idx <= 0) return;
+  if(Array.isArray(SIMPLE.bowls)){
+    SIMPLE.bowls.splice(idx);
+  }
+  if(Array.isArray(STATE.bowls)){
+    STATE.bowls.splice(idx);
+  }
+  if(dragState && dragState.fig?.idx === idx){
+    const { fig, pointerId } = dragState;
+    if(fig?.svg){
+      fig.svg.removeEventListener("pointermove", onDrag);
+      fig.svg.removeEventListener("pointerup", endDrag);
+      fig.svg.removeEventListener("pointercancel", endDrag);
+      try{ fig.svg.releasePointerCapture(pointerId); }catch(_){ }
+    }
+    dragState = null;
+  }
+  STATE.figure2Visible = false;
   render();
 }
 
