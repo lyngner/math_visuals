@@ -49,77 +49,74 @@
         <div class="card">
           <h2>Innstillinger</h2>
           <div class="settings">
-          <label>Type
-            <select id="cfgType">
-              <option value="bar" selected>Stolpe</option>
-              <option value="line">Linje</option>
-              <option value="grouped">Grupperte stolper</option>
-              <option value="stacked">Stablede stolper</option>
-            </select>
-          </label>
-          <label>Overskrift
-            <input id="cfgTitle" type="text" value="Favorittidretter i 5B">
-          </label>
-          <div class="settings-row">
-            <label>Etiketter (kommaseparert)
-              <input id="cfgLabels" type="text" value="Klatring,Fotball,Håndball,Basket,Tennis,Bowling">
+          <fieldset>
+            <legend>Diagram</legend>
+            <label>Type
+              <select id="cfgType">
+                <option value="bar" selected>Stolpe</option>
+                <option value="line">Linje</option>
+                <option value="grouped">Grupperte stolper</option>
+                <option value="stacked">Stablede stolper</option>
+              </select>
             </label>
-            <label>Fjern håndtak (0/1, kommaseparert)
-              <input id="cfgLocked" type="text" value="">
+            <label>Overskrift
+              <input id="cfgTitle" type="text" value="Favorittidretter i 5B">
             </label>
-          </div>
-          <div class="settings-row">
-            <label>Serienavn 1
-              <input id="cfgSeries1" type="text" value="">
-            </label>
-          </div>
-          <div class="settings-row">
-            <label>Startverdier 1
-              <input id="cfgStart" type="text" value="6,7,3,5,8,2">
-            </label>
-          </div>
-          <div class="settings-row">
-            <label>Fasitverdier 1
-              <input id="cfgAnswer" type="text" value="6,7,3,5,8,2">
-            </label>
-          </div>
-          <div class="settings-row">
-            <button id="addSeries" class="btn" type="button" aria-label="Legg til dataserie">+</button>
-          </div>
-          <div id="series2Fields" style="display:none">
             <div class="settings-row">
-              <label>Serienavn 2
+              <label>Etiketter (kommaseparert)
+                <input id="cfgLabels" type="text" value="Klatring,Fotball,Håndball,Basket,Tennis,Bowling">
+              </label>
+              <label>Fjern håndtak (0/1, kommaseparert)
+                <input id="cfgLocked" type="text" value="">
+              </label>
+            </div>
+            <div class="settings-row">
+              <label>Maks y (valgfritt)
+                <input id="cfgYMax" type="text" value="8">
+              </label>
+              <label>Navn på x-akse
+                <input id="cfgAxisXLabel" type="text" value="Idrett">
+              </label>
+              <label>Navn på y-akse
+                <input id="cfgAxisYLabel" type="text" value="Antall elever">
+              </label>
+            </div>
+            <div class="settings-row">
+              <label>Steg (snap)
+                <input id="cfgSnap" type="text" value="1">
+              </label>
+              <label>Toleranse
+                <input id="cfgTolerance" type="text" value="0">
+              </label>
+            </div>
+          </fieldset>
+          <div class="series-settings">
+            <fieldset id="series1Fields">
+              <legend>Dataserie 1</legend>
+              <label>Serienavn
+                <input id="cfgSeries1" type="text" value="">
+              </label>
+              <label>Startverdier
+                <input id="cfgStart" type="text" value="6,7,3,5,8,2">
+              </label>
+              <label>Fasitverdier
+                <input id="cfgAnswer" type="text" value="6,7,3,5,8,2">
+              </label>
+            </fieldset>
+            <fieldset id="series2Fields" style="display:none">
+              <legend>Dataserie 2</legend>
+              <label>Serienavn
                 <input id="cfgSeries2" type="text" value="">
               </label>
-            </div>
-            <div class="settings-row">
-              <label>Startverdier 2
+              <label>Startverdier
                 <input id="cfgStart2" type="text" value="">
               </label>
-            </div>
-            <div class="settings-row">
-              <label>Fasitverdier 2
+              <label>Fasitverdier
                 <input id="cfgAnswer2" type="text" value="">
               </label>
-            </div>
+            </fieldset>
+            <button id="addSeries" class="addFigureBtn" type="button" aria-label="Legg til dataserie">+</button>
           </div>
-          <div class="settings-row">
-            <label>Maks y (valgfritt)
-              <input id="cfgYMax" type="text" value="8">
-            </label>
-            <label>Navn på x-akse
-              <input id="cfgAxisXLabel" type="text" value="Idrett">
-            </label>
-            <label>Navn på y-akse
-              <input id="cfgAxisYLabel" type="text" value="Antall elever">
-            </label>
-          </div>
-          <label>Steg (snap)
-            <input id="cfgSnap" type="text" value="1">
-          </label>
-          <label>Toleranse
-            <input id="cfgTolerance" type="text" value="0">
-          </label>
         </div>
       </div>
     </div>
