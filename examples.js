@@ -251,16 +251,40 @@
     if(examples.length <= 1){
       return;
     }
-    examples.pop();
-    store(examples);
-    if(currentExampleIndex != null && currentExampleIndex >= examples.length){
-      currentExampleIndex = Math.max(0, examples.length - 1);
+
+    const selectIndex = select ? Number(select.value) : NaN;
+    let indexToRemove = Number.isInteger(selectIndex) ? selectIndex : currentExampleIndex;
+    if(!Number.isInteger(indexToRemove)){
+      indexToRemove = examples.length - 1;
     }
+    indexToRemove = Math.max(0, Math.min(examples.length - 1, indexToRemove));
+
+    examples.splice(indexToRemove, 1);
+
+    examples.forEach((ex, idx)=>{
+      if(!ex || typeof ex !== 'object') return;
+      if(idx === 0){
+        ex.isDefault = true;
+      }else if(Object.prototype.hasOwnProperty.call(ex, 'isDefault')){
+        delete ex.isDefault;
+      }
+    });
+
+    store(examples);
+
+    if(examples.length === 0){
+      currentExampleIndex = null;
+    }else if(indexToRemove >= examples.length){
+      currentExampleIndex = examples.length - 1;
+    }else{
+      currentExampleIndex = indexToRemove;
+    }
+
     renderOptions();
     if(currentExampleIndex != null && currentExampleIndex >= 0 && examples.length > 0){
       loadExample(currentExampleIndex);
     }
-    alert('Siste eksempel slettet');
+    alert('Eksempel slettet');
   });
 
   renderOptions();
