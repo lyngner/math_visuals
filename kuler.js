@@ -80,6 +80,7 @@ const assetToColor = Object.entries(ADV.assets.beads).reduce((acc, [color, src])
   return acc;
 }, {});
 const controlsWrap = document.getElementById("controls");
+const figureGridEl = document.querySelector(".figureGrid");
 const addBtn = document.getElementById("addBowl");
 const panelEls = [document.getElementById("panel1"), document.getElementById("panel2")];
 const removeBtn2 = document.getElementById("removeBowl2");
@@ -457,6 +458,15 @@ function renderFigure(fig){
 function applyFigureVisibility(){
   const secondExists = !!figureViews[1];
   const showSecond = !!STATE.figure2Visible && secondExists;
+  const firstExists = !!figureViews[0];
+  const figureCount = firstExists ? (showSecond ? 2 : 1) : 0;
+  if(figureGridEl){
+    if(figureCount > 0){
+      figureGridEl.dataset.figures = String(figureCount);
+    }else{
+      delete figureGridEl.dataset.figures;
+    }
+  }
   if(controlsWrap) controlsWrap.classList.toggle("controlsWrap--split", showSecond);
   if(gridEl && showSecond !== lastShowSecond){
     if(showSecond){
