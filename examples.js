@@ -2,7 +2,8 @@
   const key = 'examples_' + location.pathname;
   let initialLoadPerformed = false;
   let currentExampleIndex = null;
-  let select = null;
+  let tabsContainer = null;
+  let tabButtons = [];
   let defaultEnsureScheduled = false;
   function getExamples(){
     try{ return JSON.parse(localStorage.getItem(key)) || []; }
@@ -12,6 +13,21 @@
     localStorage.setItem(key, JSON.stringify(examples));
   }
   const BINDING_NAMES = ['STATE','CFG','CONFIG','SIMPLE'];
+
+  function ensureTabStyles(){
+    if(document.getElementById('exampleTabStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'exampleTabStyles';
+    style.textContent = `
+.example-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:flex-end;border-bottom:1px solid #e5e7eb;padding-bottom:0;}
+.example-tab{appearance:none;border:1px solid #d1d5db;border-bottom:none;background:#f3f4f6;color:#374151;border-radius:10px 10px 0 0;padding:6px 14px;font-size:14px;line-height:1;cursor:pointer;transition:background-color .2s,border-color .2s,color .2s;box-shadow:0 -1px 0 rgba(15,23,42,.08) inset;margin-bottom:-1px;}
+.example-tab:hover{background:#e5e7eb;}
+.example-tab.is-active{background:#fff;color:#111827;border-color:var(--purple,#5B2AA5);border-bottom:1px solid #fff;box-shadow:0 -2px 0 var(--purple,#5B2AA5) inset;}
+.example-tab:focus-visible{outline:2px solid var(--purple,#5B2AA5);outline-offset:2px;}
+.example-tabs-empty{font-size:13px;color:#6b7280;padding:6px 0;}
+`;
+    document.head.appendChild(style);
+  }
 
   function getBinding(name){
     if(name in window && window[name]) return window[name];
@@ -123,12 +139,21 @@
     }
     if(applied){
       currentExampleIndex = index;
-      if(select && select.value !== String(index)){
-        select.value = String(index);
-      }
+      updateTabSelection();
       triggerRefresh(index);
     }
     return applied;
+  }
+
+  function updateTabSelection(){
+    if(!tabsContainer || !Array.isArray(tabButtons)) return;
+    tabButtons.forEach((btn, idx)=>{
+      if(!btn) return;
+      const isActive = idx === currentExampleIndex;
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      btn.tabIndex = isActive ? 0 : -1;
+    });
   }
   // Load example if viewer requested
   (function(){
@@ -147,14 +172,25 @@
   const deleteBtn = document.getElementById('btnDeleteExample');
   if(!saveBtn && !deleteBtn) return;
 
+  ensureTabStyles();
+
   const toolbar = saveBtn?.parentElement || deleteBtn?.parentElement;
-  select = document.createElement('select');
-  select.id = 'exampleSelect';
-  select.addEventListener('change', ()=>{
-    const idx = Number(select.value);
-    if(!Number.isNaN(idx)) loadExample(idx);
-  });
-  toolbar?.appendChild(select);
+  tabsContainer = document.createElement('div');
+  tabsContainer.id = 'exampleTabs';
+  tabsContainer.className = 'example-tabs';
+  tabsContainer.setAttribute('role', 'tablist');
+  tabsContainer.setAttribute('aria-orientation', 'horizontal');
+  tabsContainer.setAttribute('aria-label', 'Lagrede eksempler');
+  const toolbarParent = toolbar?.parentElement || toolbar;
+  if(toolbarParent){
+    if(toolbar?.nextSibling){
+      toolbarParent.insertBefore(tabsContainer, toolbar.nextSibling);
+    }else{
+      toolbarParent.appendChild(tabsContainer);
+    }
+  }else{
+    document.body.appendChild(tabsContainer);
+  }
 
   function updateDeleteButtonState(count){
     if(deleteBtn) deleteBtn.disabled = count <= 1;
@@ -167,7 +203,6 @@
     if(requestedInitialIndex == null) return;
     const examples = getExamples();
     if(requestedInitialIndex < 0 || requestedInitialIndex >= examples.length) return;
-    if(select) select.value = String(requestedInitialIndex);
     const loadNow = ()=>{
       if(initialLoadPerformed) return;
       if(loadExample(requestedInitialIndex)) initialLoadPerformed = true;
@@ -178,25 +213,49 @@
 
   function renderOptions(){
     const examples = getExamples();
-    if(select){
-      select.innerHTML = '';
-      examples.forEach((_, idx)=>{
-        const opt = document.createElement('option');
-        opt.value = idx;
-        opt.textContent = idx + 1;
-        select.appendChild(opt);
-      });
+    if(examples.length === 0){
+      currentExampleIndex = null;
+    }else if(currentExampleIndex == null || currentExampleIndex >= examples.length){
+      const fallback = currentExampleIndex == null ? 0 : examples.length - 1;
+      currentExampleIndex = Math.min(examples.length - 1, Math.max(0, fallback));
+    }
+
+    if(tabsContainer){
+      tabsContainer.innerHTML = '';
+      tabButtons = [];
       if(examples.length === 0){
-        select.disabled = true;
-        select.value = '';
-        currentExampleIndex = null;
+        const empty = document.createElement('div');
+        empty.className = 'example-tabs-empty';
+        empty.textContent = 'Ingen eksempler';
+        tabsContainer.appendChild(empty);
       }else{
-        select.disabled = false;
-        if(currentExampleIndex == null || currentExampleIndex >= examples.length){
-          const fallback = currentExampleIndex == null ? 0 : examples.length - 1;
-          currentExampleIndex = Math.min(examples.length - 1, Math.max(0, fallback));
-        }
-        select.value = String(currentExampleIndex);
+        examples.forEach((_, idx)=>{
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'example-tab';
+          btn.textContent = String(idx + 1);
+          btn.dataset.exampleIndex = String(idx);
+          btn.setAttribute('role', 'tab');
+          btn.addEventListener('click', ()=>{
+            loadExample(idx);
+          });
+          btn.addEventListener('keydown', (event)=>{
+            if(event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+            event.preventDefault();
+            if(!tabButtons.length) return;
+            const dir = event.key === 'ArrowRight' ? 1 : -1;
+            const total = tabButtons.length;
+            let next = idx;
+            do{
+              next = (next + dir + total) % total;
+            }while(next !== idx && !tabButtons[next]);
+            loadExample(next);
+            tabButtons[next]?.focus();
+          });
+          tabsContainer.appendChild(btn);
+          tabButtons.push(btn);
+        });
+        updateTabSelection();
       }
     }
     updateDeleteButtonState(examples.length);
@@ -252,8 +311,12 @@
       return;
     }
 
-    const selectIndex = select ? Number(select.value) : NaN;
-    let indexToRemove = Number.isInteger(selectIndex) ? selectIndex : currentExampleIndex;
+    let indexToRemove = Number.isInteger(currentExampleIndex) ? currentExampleIndex : NaN;
+    if(!Number.isInteger(indexToRemove)){
+      const activeTab = tabsContainer?.querySelector('.example-tab.is-active');
+      const parsed = activeTab ? Number(activeTab.dataset.exampleIndex) : NaN;
+      if(Number.isInteger(parsed)) indexToRemove = parsed;
+    }
     if(!Number.isInteger(indexToRemove)){
       indexToRemove = examples.length - 1;
     }
