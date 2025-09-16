@@ -50,6 +50,7 @@
     img.src = url;
   }
 
+  const SVG_NS = 'http://www.w3.org/2000/svg';
   const figures = [];
   const BOARD_MARGIN = 0.05;
   const BOARD_SIZE = 1 + BOARD_MARGIN * 2;
@@ -684,20 +685,62 @@
       const pad = CLIP_PAD_PERCENT;
       const padStr = pad.toFixed(2);
       const maxStr = (100 + pad).toFixed(2);
+      const clipId = `brokClip${id}`;
       let clipValue = '';
+      let clipUpdater = null;
       if(shape==='triangle'){
         clipValue = `polygon(50% -${padStr}%, -${padStr}% ${maxStr}%, ${maxStr}% ${maxStr}%)`;
       }else if(shape==='rectangle' || shape==='square'){
         clipValue = `polygon(-${padStr}% ${maxStr}%, ${maxStr}% ${maxStr}%, ${maxStr}% -${padStr}%, -${padStr}% -${padStr}%)`;
       }else if(shape==='circle'){
-        const circleBase = (CIRCLE_RADIUS / BOARD_SIZE) * 100;
-        const size = svg.clientWidth || svg.clientHeight || 360;
-        const strokePadding = (OUTLINE_STROKE_WIDTH / (2 * size)) * 100;
-        const circleClip = Math.min(50, circleBase + strokePadding);
-        clipValue = `circle(${circleClip.toFixed(3)}% at 50% 50%)`;
+        const circleBase = CIRCLE_RADIUS / BOARD_SIZE;
+        const size = Math.max(
+          svg.clientWidth || 0,
+          svg.clientHeight || 0,
+          svg.viewBox?.baseVal?.width || 0,
+          svg.viewBox?.baseVal?.height || 0,
+          360
+        );
+        const strokePadding = OUTLINE_STROKE_WIDTH / (2 * size);
+        const circleClip = Math.min(0.5, circleBase + strokePadding);
+        clipValue = `circle(${(circleClip * 100).toFixed(3)}% at 50% 50%)`;
+        clipUpdater = clipPath => {
+          clipPath.setAttribute('clipPathUnits', 'objectBoundingBox');
+          while(clipPath.firstChild) clipPath.removeChild(clipPath.firstChild);
+          const circle = document.createElementNS(SVG_NS, 'circle');
+          circle.setAttribute('cx', '0.5');
+          circle.setAttribute('cy', '0.5');
+          circle.setAttribute('r', circleClip.toFixed(6));
+          clipPath.appendChild(circle);
+        };
       }
       svg.style.clipPath = clipValue;
       svg.style.webkitClipPath = clipValue;
+      const defsLookup = () => {
+        let defs = svg.querySelector('defs');
+        if(!defs && clipUpdater){
+          defs = document.createElementNS(SVG_NS, 'defs');
+          svg.insertBefore(defs, svg.firstChild);
+        }
+        return defs;
+      };
+      if(clipUpdater){
+        const defs = defsLookup();
+        if(!defs) return;
+        let clipPath = defs.querySelector(`#${clipId}`);
+        if(!clipPath){
+          clipPath = document.createElementNS(SVG_NS, 'clipPath');
+          clipPath.setAttribute('id', clipId);
+          defs.appendChild(clipPath);
+        }
+        clipUpdater(clipPath);
+        svg.setAttribute('clip-path', `url(#${clipId})`);
+      }else{
+        svg.removeAttribute('clip-path');
+        const defs = defsLookup();
+        const clipPath = defs?.querySelector(`#${clipId}`);
+        if(clipPath) clipPath.remove();
+      }
     }
 
     shapeSel?.addEventListener('change', ()=>{
