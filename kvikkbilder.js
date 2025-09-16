@@ -27,6 +27,30 @@
 
   let BRICK_SRC;
 
+  const DEFAULT_CFG = {
+    type: 'klosser',
+    showExpression: true,
+    klosser: {
+      antallX: 5,
+      antallY: 2,
+      bredde: 2,
+      hoyde: 3,
+      dybde: 2,
+      duration: 3,
+      showBtn: false
+    },
+    monster: {
+      antallX: 2,
+      antallY: 2,
+      antall: 9,
+      duration: 3,
+      showBtn: false
+    }
+  };
+
+  const globalCfg = (typeof window.CFG === 'object' && window.CFG) ? window.CFG : {};
+  const CFG = window.CFG = globalCfg;
+
   function iso(x,y,z,tileW,tileH,unitH){
     return {
       x:(x - y) * tileW/2,
@@ -89,26 +113,30 @@
   }
 
   function renderKlosser(){
-    if(!BRICK_SRC) return;
-    const antallX = parseInt(cfgAntallX.value,10) || 0;
-    const antallY = parseInt(cfgAntallY.value,10) || 0;
-    const bredde = parseInt(cfgBredde.value,10) || 0;
-    const hoyde = parseInt(cfgHoyde.value,10) || 0;
-    const dybde = parseInt(cfgDybde.value,10) || 0;
+    const {antallX = 0, antallY = 0, bredde = 0, hoyde = 0, dybde = 0} = CFG.klosser || {};
+    const cols = Math.max(0, Math.trunc(antallX));
+    const rows = Math.max(0, Math.trunc(antallY));
+    const width = Math.max(1, Math.trunc(bredde));
+    const height = Math.max(1, Math.trunc(hoyde));
+    const depth = Math.max(1, Math.trunc(dybde));
 
     brickContainer.innerHTML = '';
-    brickContainer.style.gridTemplateColumns = `repeat(${antallX}, 1fr)`;
-    brickContainer.style.gridTemplateRows = `repeat(${antallY}, 1fr)`;
-    for(let i = 0; i < antallX * antallY; i++){
-      const fig = createBrick(bredde, hoyde, dybde);
-      fig.setAttribute('aria-label', `${bredde}x${hoyde}x${dybde} kloss`);
+    brickContainer.style.gridTemplateColumns = cols > 0 ? `repeat(${cols}, 1fr)` : '';
+    brickContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows}, 1fr)` : '';
+
+    const perFig = width * height * depth;
+    const total = cols * rows * perFig;
+    const dot = ' · ';
+    expression.textContent = `${cols}${dot}${rows}${dot}(${width}${dot}${height}${dot}${depth}) = ${cols * rows}${dot}${perFig} = ${total}`;
+
+    if(!BRICK_SRC) return;
+
+    const totalFigures = cols * rows;
+    for(let i = 0; i < totalFigures; i++){
+      const fig = createBrick(width, height, depth);
+      fig.setAttribute('aria-label', `${width}x${height}x${depth} kloss`);
       brickContainer.appendChild(fig);
     }
-
-    const perFig = bredde * hoyde * dybde;
-    const total = antallX * antallY * perFig;
-    const dot = ' · ';
-    expression.textContent = `${antallX}${dot}${antallY}${dot}(${bredde}${dot}${hoyde}${dot}${dybde}) = ${antallX * antallY}${dot}${perFig} = ${total}`;
   }
 
   function primeFactors(n){
@@ -307,109 +335,222 @@
   }
 
   function renderMonster(){
-    const n=parseInt(cfgAntall.value,10)||0;
-    const antallX=parseInt(cfgMonsterAntallX.value,10)||0;
-    const antallY=parseInt(cfgMonsterAntallY.value,10)||0;
+    const {antallX = 0, antallY = 0, antall = 0} = CFG.monster || {};
     patternContainer.innerHTML='';
 
-    const cols=antallX>0?antallX:1;
-    const rows=antallY>0?antallY:1;
-    patternContainer.style.gridTemplateColumns=`repeat(${cols},minmax(0,1fr))`;
-    patternContainer.style.gridTemplateRows=`repeat(${rows},minmax(0,1fr))`;
+    const cols = Math.max(0, Math.trunc(antallX));
+    const rows = Math.max(0, Math.trunc(antallY));
+    patternContainer.style.gridTemplateColumns = cols > 0 ? `repeat(${cols},minmax(0,1fr))` : '';
+    patternContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows},minmax(0,1fr))` : '';
 
-    const points=byggMonster(n);
-    const factors=primeFactors(n).filter(x=>x>1);
-    const baseExpression=factors.length?`${factors.join(' · ')} = ${n}`:`${n}`;
+    const count = Math.max(0, Math.trunc(antall));
+    const points = byggMonster(count);
+    const factors = primeFactors(count).filter(x=>x>1);
+    const baseExpression = factors.length ? `${factors.join(' · ')} = ${count}` : `${count}`;
 
-    if(!points.length || antallX<=0 || antallY<=0){
-      expression.textContent=baseExpression;
+    if(!points.length || cols<=0 || rows<=0){
+      expression.textContent = baseExpression;
       return;
     }
 
-    const svg=createPatternSvg(points);
+    const svg = createPatternSvg(points);
     if(!svg){
-      expression.textContent=baseExpression;
+      expression.textContent = baseExpression;
       return;
     }
 
-    const totalFigures=antallX*antallY;
-    svg.setAttribute('aria-label', `Kvikkbilde ${n}`);
+    const totalFigures = cols * rows;
+    svg.setAttribute('aria-label', `Kvikkbilde ${count}`);
     for(let i=0;i<totalFigures;i++){
       patternContainer.appendChild(svg.cloneNode(true));
     }
 
     if(totalFigures>1){
-      expression.textContent=`${antallX} · ${antallY} · (${baseExpression}) = ${totalFigures} · ${n} = ${totalFigures*n}`;
+      expression.textContent = `${cols} · ${rows} · (${baseExpression}) = ${totalFigures} · ${count} = ${totalFigures*count}`;
     }else{
-      expression.textContent=baseExpression;
+      expression.textContent = baseExpression;
     }
   }
 
   function applyExpressionVisibility(){
     if(!expression) return;
-    const enabled = !cfgShowExpression || cfgShowExpression.checked;
+    const enabled = CFG.showExpression !== false;
     const playVisible = playBtn.style.display !== 'none';
     expression.style.display = (enabled && !playVisible) ? 'block' : 'none';
   }
 
   function updateVisibilityKlosser(){
-    if(cfgShowBtn.checked){
+    patternContainer.style.display = 'none';
+    if(CFG.klosser?.showBtn){
       playBtn.style.display = 'flex';
       brickContainer.style.display = 'none';
     } else {
       playBtn.style.display = 'none';
       brickContainer.style.display = 'grid';
     }
-    patternContainer.style.display='none';
     applyExpressionVisibility();
   }
 
   function updateVisibilityMonster(){
-    brickContainer.style.display='none';
-    if(cfgShowBtnMonster.checked){
-      playBtn.style.display='flex';
-      patternContainer.style.display='none';
+    brickContainer.style.display = 'none';
+    if(CFG.monster?.showBtn){
+      playBtn.style.display = 'flex';
+      patternContainer.style.display = 'none';
     } else {
-      playBtn.style.display='none';
-      patternContainer.style.display='grid';
+      playBtn.style.display = 'none';
+      patternContainer.style.display = 'grid';
     }
     applyExpressionVisibility();
   }
 
-  function updateType(){
-    if(cfgType.value==='klosser'){
-      klosserConfig.style.display='block';
-      monsterConfig.style.display='none';
+  function clampInt(value, min, fallback){
+    const num = Number.parseInt(value, 10);
+    if(Number.isFinite(num)){
+      const safeMin = Number.isFinite(min) ? min : -Infinity;
+      return Math.max(safeMin, Math.trunc(num));
+    }
+    return fallback;
+  }
+
+  function sanitizeCfg(){
+    if(CFG.type !== 'monster' && CFG.type !== 'klosser'){
+      CFG.type = DEFAULT_CFG.type;
+    }
+    CFG.showExpression = CFG.showExpression !== false;
+
+    if(!CFG.klosser || typeof CFG.klosser !== 'object') CFG.klosser = {};
+    if(!CFG.monster || typeof CFG.monster !== 'object') CFG.monster = {};
+
+    const k = CFG.klosser;
+    const dk = DEFAULT_CFG.klosser;
+    k.antallX = clampInt(k.antallX, 0, dk.antallX);
+    k.antallY = clampInt(k.antallY, 0, dk.antallY);
+    k.bredde = clampInt(k.bredde, 1, dk.bredde);
+    k.hoyde = clampInt(k.hoyde, 1, dk.hoyde);
+    k.dybde = clampInt(k.dybde, 1, dk.dybde);
+    k.duration = clampInt(k.duration, 0, dk.duration);
+    k.showBtn = k.showBtn === true;
+
+    const m = CFG.monster;
+    const dm = DEFAULT_CFG.monster;
+    m.antallX = clampInt(m.antallX, 0, dm.antallX);
+    m.antallY = clampInt(m.antallY, 0, dm.antallY);
+    m.antall = clampInt(m.antall, 0, dm.antall);
+    m.duration = clampInt(m.duration, 0, dm.duration);
+    m.showBtn = m.showBtn === true;
+
+    return CFG;
+  }
+
+  function syncControlsToCfg(){
+    sanitizeCfg();
+    if(cfgType) cfgType.value = CFG.type;
+    if(cfgShowExpression) cfgShowExpression.checked = CFG.showExpression !== false;
+
+    if(cfgAntallX) cfgAntallX.value = CFG.klosser.antallX;
+    if(cfgAntallY) cfgAntallY.value = CFG.klosser.antallY;
+    if(cfgBredde) cfgBredde.value = CFG.klosser.bredde;
+    if(cfgHoyde) cfgHoyde.value = CFG.klosser.hoyde;
+    if(cfgDybde) cfgDybde.value = CFG.klosser.dybde;
+    if(cfgDurationKlosser) cfgDurationKlosser.value = CFG.klosser.duration;
+    if(cfgShowBtn) cfgShowBtn.checked = CFG.klosser.showBtn;
+
+    if(cfgMonsterAntallX) cfgMonsterAntallX.value = CFG.monster.antallX;
+    if(cfgMonsterAntallY) cfgMonsterAntallY.value = CFG.monster.antallY;
+    if(cfgAntall) cfgAntall.value = CFG.monster.antall;
+    if(cfgDurationMonster) cfgDurationMonster.value = CFG.monster.duration;
+    if(cfgShowBtnMonster) cfgShowBtnMonster.checked = CFG.monster.showBtn;
+  }
+
+  function renderView(){
+    sanitizeCfg();
+    if(CFG.type === 'klosser'){
+      if(klosserConfig) klosserConfig.style.display = 'block';
+      if(monsterConfig) monsterConfig.style.display = 'none';
       renderKlosser();
       updateVisibilityKlosser();
     }else{
-      klosserConfig.style.display='none';
-      monsterConfig.style.display='block';
+      if(klosserConfig) klosserConfig.style.display = 'none';
+      if(monsterConfig) monsterConfig.style.display = 'block';
       renderMonster();
       updateVisibilityMonster();
     }
   }
 
-  [cfgAntallX, cfgAntallY, cfgBredde, cfgHoyde, cfgDybde].forEach(el =>{
-    el.addEventListener('input', renderKlosser);
+  function render(){
+    syncControlsToCfg();
+    renderView();
+  }
+
+  window.render = render;
+
+  function bindNumberInput(input, targetGetter, key, min = 0){
+    if(!input) return;
+    input.addEventListener('input', () => {
+      const target = targetGetter();
+      if(!target) return;
+      const num = Number.parseInt(input.value, 10);
+      if(Number.isFinite(num)){
+        target[key] = Math.max(min, Math.trunc(num));
+        input.value = String(target[key]);
+      }
+      renderView();
+    });
+  }
+
+  sanitizeCfg();
+
+  bindNumberInput(cfgAntallX, () => CFG.klosser, 'antallX', 0);
+  bindNumberInput(cfgAntallY, () => CFG.klosser, 'antallY', 0);
+  bindNumberInput(cfgBredde, () => CFG.klosser, 'bredde', 1);
+  bindNumberInput(cfgHoyde, () => CFG.klosser, 'hoyde', 1);
+  bindNumberInput(cfgDybde, () => CFG.klosser, 'dybde', 1);
+
+  cfgDurationKlosser?.addEventListener('input', () => {
+    const num = Number.parseInt(cfgDurationKlosser.value, 10);
+    if(Number.isFinite(num)){
+      CFG.klosser.duration = Math.max(0, Math.trunc(num));
+      cfgDurationKlosser.value = String(CFG.klosser.duration);
+    }
   });
-  cfgShowBtn.addEventListener('change', () => {
-    updateVisibilityKlosser();
-    renderKlosser();
+
+  cfgShowBtn?.addEventListener('change', () => {
+    CFG.klosser.showBtn = !!cfgShowBtn.checked;
+    renderView();
   });
-  cfgShowBtnMonster.addEventListener('change', () => {
-    updateVisibilityMonster();
-    renderMonster();
+
+  bindNumberInput(cfgMonsterAntallX, () => CFG.monster, 'antallX', 0);
+  bindNumberInput(cfgMonsterAntallY, () => CFG.monster, 'antallY', 0);
+  bindNumberInput(cfgAntall, () => CFG.monster, 'antall', 0);
+
+  cfgDurationMonster?.addEventListener('input', () => {
+    const num = Number.parseInt(cfgDurationMonster.value, 10);
+    if(Number.isFinite(num)){
+      CFG.monster.duration = Math.max(0, Math.trunc(num));
+      cfgDurationMonster.value = String(CFG.monster.duration);
+    }
   });
-  [cfgAntall,cfgMonsterAntallX,cfgMonsterAntallY].forEach(el=>{
-    el?.addEventListener('input', renderMonster);
+
+  cfgShowBtnMonster?.addEventListener('change', () => {
+    CFG.monster.showBtn = !!cfgShowBtnMonster.checked;
+    renderView();
   });
-  cfgType.addEventListener('change', updateType);
-  cfgShowExpression?.addEventListener('change', applyExpressionVisibility);
+
+  cfgType?.addEventListener('change', () => {
+    CFG.type = cfgType.value === 'monster' ? 'monster' : 'klosser';
+    cfgType.value = CFG.type;
+    renderView();
+  });
+
+  cfgShowExpression?.addEventListener('change', () => {
+    CFG.showExpression = !!cfgShowExpression.checked;
+    applyExpressionVisibility();
+  });
 
   playBtn.addEventListener('click', () => {
-    if(cfgType.value==='klosser'){
-      const duration = parseInt(cfgDurationKlosser.value, 10) || 0;
+    sanitizeCfg();
+    if(CFG.type === 'klosser'){
+      const duration = Math.max(0, Number.isFinite(CFG.klosser.duration) ? CFG.klosser.duration : 0);
       renderKlosser();
       playBtn.style.display = 'none';
       brickContainer.style.display = 'grid';
@@ -418,14 +559,14 @@
         updateVisibilityKlosser();
       }, duration * 1000);
     }else{
-      const duration = parseInt(cfgDurationMonster.value,10)||0;
+      const duration = Math.max(0, Number.isFinite(CFG.monster.duration) ? CFG.monster.duration : 0);
       renderMonster();
-      playBtn.style.display='none';
-      patternContainer.style.display='grid';
+      playBtn.style.display = 'none';
+      patternContainer.style.display = 'grid';
       applyExpressionVisibility();
-      setTimeout(()=>{
+      setTimeout(() => {
         updateVisibilityMonster();
-      }, duration*1000);
+      }, duration * 1000);
     }
   });
 
@@ -487,14 +628,11 @@
     img.src = url;
   }
 
-  renderMonster();
-  updateType();
-  applyExpressionVisibility();
+  render();
   fetch('images/brick1.svg')
     .then(r=>r.text())
     .then(txt=>{
       BRICK_SRC = `data:image/svg+xml;base64,${btoa(txt)}`;
-      renderKlosser();
-      updateType();
+      renderView();
     });
 })();
