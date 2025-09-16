@@ -280,6 +280,13 @@
     }
     updateDeleteButtonState(examples.length);
     attemptInitialLoad();
+
+    if(!initialLoadPerformed && examples.length > 0){
+      let idx = Number.isInteger(currentExampleIndex) ? currentExampleIndex : 0;
+      if(idx < 0) idx = 0;
+      if(idx >= examples.length) idx = examples.length - 1;
+      if(loadExample(idx)) initialLoadPerformed = true;
+    }
   }
 
   saveBtn?.addEventListener('click', async ()=>{
