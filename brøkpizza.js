@@ -331,9 +331,8 @@ class Pizza{
         (this.textMode==="decimal") ? fmt(this.n?this.k/this.n:0) : "";
     }
     if(this.fracBox && this.textMode==="frac"){
-      const g=gcd(this.k,this.n);
-      if(this.fracNum) this.fracNum.textContent=this.k/g;
-      if(this.fracDen) this.fracDen.textContent=this.n/g;
+      if(this.fracNum) this.fracNum.textContent=this.k;
+      if(this.fracDen) this.fracDen.textContent=this.n;
     }
   }
   _updateAria(){
@@ -490,7 +489,7 @@ const INTERACTIVE_SVG_SCRIPT = `
   function updateTexts(){
     if(textMode==="percent"&&tMeta){ var p=n?(k/n*100):0; tMeta.textContent=fmt(p)+" %"; }
     else if(textMode==="decimal"&&tMeta){ var d=n?(k/n):0; tMeta.textContent=fmt(d); }
-    else if(textMode==="frac"&&tNum&&tDen){ var g=gcd(k,n); tNum.textContent=(k/g).toString(); tDen.textContent=(n/g).toString(); }
+    else if(textMode==="frac"&&tNum&&tDen){ tNum.textContent=String(k); tDen.textContent=String(n); }
   }
 
   /* ---- KNAPPER UNDER ---- */
