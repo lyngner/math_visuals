@@ -5,6 +5,7 @@
   let tabsContainer = null;
   let tabButtons = [];
   let defaultEnsureScheduled = false;
+  let tabsHostCard = null;
   function getExamples(){
     try{ return JSON.parse(localStorage.getItem(key)) || []; }
     catch{ return []; }
@@ -51,10 +52,57 @@
     document.head.appendChild(style);
   }
 
+  function adjustTabsSpacing(){
+    if(!tabsContainer || !tabsHostCard) return;
+    if(!tabsHostCard.isConnected){
+      tabsHostCard = null;
+      tabsContainer.style.removeProperty('margin-bottom');
+      return;
+    }
+    if(!tabsHostCard.classList.contains('card-has-settings')){
+      tabsContainer.style.removeProperty('margin-bottom');
+      return;
+    }
+    let gapValue = '';
+    try{
+      const styles = window.getComputedStyle(tabsHostCard);
+      gapValue = styles.getPropertyValue('row-gap');
+      if(!gapValue || gapValue === '0px' || gapValue === 'normal'){
+        gapValue = styles.getPropertyValue('gap');
+      }
+    }catch(_){ }
+    if(gapValue){
+      gapValue = gapValue.trim();
+    }
+    if(gapValue && gapValue !== '0px' && gapValue !== 'normal'){
+      const match = gapValue.match(/^(-?\d*\.?\d+)(.*)$/);
+      if(match){
+        const numeric = Number.parseFloat(match[1]);
+        if(Number.isFinite(numeric)){
+          const unit = match[2].trim() || 'px';
+          tabsContainer.style.marginBottom = `${numeric * -1}${unit}`;
+          return;
+        }
+      }
+      if(!gapValue.startsWith('-')){
+        tabsContainer.style.marginBottom = `-${gapValue}`;
+        return;
+      }
+      tabsContainer.style.marginBottom = gapValue;
+      return;
+    }
+    tabsContainer.style.marginBottom = '-6px';
+  }
+
   function moveSettingsIntoExampleCard(){
     if(!toolbar) return;
     const exampleCard = toolbar.closest('.card');
-    if(!exampleCard || exampleCard.classList.contains('card-has-settings')) return;
+    if(!exampleCard) return;
+    tabsHostCard = exampleCard;
+    if(exampleCard.classList.contains('card-has-settings')){
+      adjustTabsSpacing();
+      return;
+    }
     let candidate = exampleCard.nextElementSibling;
     let settingsCard = null;
     while(candidate){
@@ -79,7 +127,10 @@
       candidate = candidate.nextElementSibling;
     }
 
-    if(!settingsCard) return;
+    if(!settingsCard){
+      adjustTabsSpacing();
+      return;
+    }
 
     const settingsWrapper = document.createElement('div');
     settingsWrapper.className = 'example-settings';
@@ -89,6 +140,7 @@
     exampleCard.appendChild(settingsWrapper);
     settingsCard.remove();
     exampleCard.classList.add('card-has-settings');
+    adjustTabsSpacing();
   }
 
   function getBinding(name){
@@ -256,6 +308,7 @@
   }
 
   moveSettingsIntoExampleCard();
+  window.addEventListener('resize', adjustTabsSpacing);
 
   function updateDeleteButtonState(count){
     if(deleteBtn) deleteBtn.disabled = count <= 1;
