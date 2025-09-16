@@ -2,8 +2,8 @@
 
 // ---------- Konfig ----------
 const DEFAULT_BLOCKS = [
-  { total: 50, n: 1, k: 1, showWhole: true, lockDenominator: false, hideNValue: false, valueDisplay: 'number' },
-  { total: 50, n: 1, k: 0, showWhole: true, lockDenominator: false, hideNValue: false, valueDisplay: 'number' }
+  { total: 50, n: 1, k: 1, showWhole: true, lockDenominator: false, lockNumerator: false, hideNValue: false, valueDisplay: 'number' },
+  { total: 50, n: 1, k: 0, showWhole: true, lockDenominator: false, lockNumerator: false, hideNValue: false, valueDisplay: 'number' }
 ];
 
 const DISPLAY_OPTIONS = ['number', 'fraction', 'percent'];
@@ -36,6 +36,7 @@ CONFIG.n = CONFIG.blocks[0].n;
 CONFIG.k = CONFIG.blocks[0].k;
 CONFIG.showWhole = CONFIG.blocks[0].showWhole;
 CONFIG.lockDenominator = CONFIG.blocks[0].lockDenominator;
+CONFIG.lockNumerator = CONFIG.blocks[0].lockNumerator;
 CONFIG.hideNValue = CONFIG.blocks[0].hideNValue;
 const initialDisplay = sanitizeDisplayMode(CONFIG.blocks[0].valueDisplay) || 'number';
 applyDisplayMode(CONFIG.blocks[0], initialDisplay, initialDisplay);
@@ -275,6 +276,8 @@ function createBlock(index) {
 
 function onDragStart(block, e) {
   if (!block?.handle) return;
+  const cfgAtStart = CONFIG.blocks[block.index];
+  if (cfgAtStart?.lockNumerator) return;
   block.handle.setPointerCapture(e.pointerId);
   const move = ev => {
     const cfg = CONFIG.blocks[block.index];
@@ -325,6 +328,9 @@ function normalizeConfig() {
     cfg.lockDenominator = typeof cfg.lockDenominator === 'boolean' ? cfg.lockDenominator : !!defaults.lockDenominator;
     cfg.lockDenominator = !!cfg.lockDenominator;
 
+    cfg.lockNumerator = typeof cfg.lockNumerator === 'boolean' ? cfg.lockNumerator : !!defaults.lockNumerator;
+    cfg.lockNumerator = !!cfg.lockNumerator;
+
     cfg.hideNValue = typeof cfg.hideNValue === 'boolean' ? cfg.hideNValue : !!defaults.hideNValue;
     cfg.hideNValue = !!cfg.hideNValue;
 
@@ -344,6 +350,7 @@ function normalizeConfig() {
 
   if (typeof CONFIG.showWhole === 'boolean') CONFIG.blocks[0].showWhole = CONFIG.showWhole;
   if (typeof CONFIG.lockDenominator === 'boolean') CONFIG.blocks[0].lockDenominator = CONFIG.lockDenominator;
+  if (typeof CONFIG.lockNumerator === 'boolean') CONFIG.blocks[0].lockNumerator = CONFIG.lockNumerator;
   if (typeof CONFIG.hideNValue === 'boolean') CONFIG.blocks[0].hideNValue = CONFIG.hideNValue;
 
   if (typeof CONFIG.valueDisplay === 'string') {
@@ -369,6 +376,7 @@ function syncLegacyConfig() {
   CONFIG.k = first.k;
   CONFIG.showWhole = first.showWhole;
   CONFIG.lockDenominator = first.lockDenominator;
+  CONFIG.lockNumerator = first.lockNumerator;
   CONFIG.hideNValue = first.hideNValue;
   CONFIG.showFraction = first.showFraction;
   CONFIG.showPercent = first.showPercent;
@@ -413,6 +421,7 @@ function drawBlock(index) {
     }
     if (inputs.showWhole) inputs.showWhole.checked = !!cfg.showWhole;
     if (inputs.lockN) inputs.lockN.checked = !!cfg.lockDenominator;
+    if (inputs.lockK) inputs.lockK.checked = !!cfg.lockNumerator;
     if (inputs.hideN) inputs.hideN.checked = !!cfg.hideNValue;
     if (inputs.display) {
       const mode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
@@ -452,6 +461,8 @@ function drawBlock(index) {
   const hx = L + cfg.k * cellW;
   block.handle?.setAttribute('cx', hx);
   block.handleShadow?.setAttribute('cx', hx);
+  if (block.gHandle) block.gHandle.style.display = cfg.lockNumerator ? 'none' : '';
+  if (block.handle) block.handle.style.cursor = cfg.lockNumerator ? 'default' : 'pointer';
 
   const showWhole = !!cfg.showWhole;
 
@@ -506,6 +517,7 @@ function setupSettingsUI() {
       k: 'cfg-k-1',
       showWhole: 'cfg-show-whole-1',
       lockN: 'cfg-lock-n-1',
+      lockK: 'cfg-lock-k-1',
       hideN: 'cfg-hide-n-1',
       display: 'cfg-display-1'
     },
@@ -515,6 +527,7 @@ function setupSettingsUI() {
       k: 'cfg-k-2',
       showWhole: 'cfg-show-whole-2',
       lockN: 'cfg-lock-n-2',
+      lockK: 'cfg-lock-k-2',
       hideN: 'cfg-hide-n-2',
       display: 'cfg-display-2'
     }
@@ -525,9 +538,10 @@ function setupSettingsUI() {
     const k = document.getElementById(ids.k);
     const showWhole = document.getElementById(ids.showWhole);
     const lockN = document.getElementById(ids.lockN);
+    const lockK = document.getElementById(ids.lockK);
     const hideN = document.getElementById(ids.hideN);
     const display = document.getElementById(ids.display);
-    settingsInputs[index] = { total, n, k, showWhole, lockN, hideN, display };
+    settingsInputs[index] = { total, n, k, showWhole, lockN, lockK, hideN, display };
 
     total?.addEventListener('change', () => {
       const v = parseFloat(total.value);
@@ -556,6 +570,12 @@ function setupSettingsUI() {
       normalizeConfig();
       CONFIG.blocks[index].lockDenominator = !!lockN.checked;
       if (index === 0) CONFIG.lockDenominator = CONFIG.blocks[0].lockDenominator;
+      draw();
+    });
+    lockK?.addEventListener('change', () => {
+      normalizeConfig();
+      CONFIG.blocks[index].lockNumerator = !!lockK.checked;
+      if (index === 0) CONFIG.lockNumerator = CONFIG.blocks[0].lockNumerator;
       draw();
     });
     hideN?.addEventListener('change', () => {
