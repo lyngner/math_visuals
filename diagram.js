@@ -416,6 +416,7 @@ function setValue(idx, newVal, announce=false, series=0){
     if(!values2) values2 = alignLength([], N, 0);
     values2[idx] = v;
   }
+  syncConfigFromValues(series);
   drawData(); // oppdater grafikk + aria
   if(announce){
     const sName = seriesNames[series] || '';
@@ -427,6 +428,20 @@ function setValue(idx, newVal, announce=false, series=0){
 function yToValue(py){
   const frac = (H - M.b - py) / innerH;     // inverse av yPos
   return yMin + frac * (yMax - yMin);
+}
+
+function syncConfigFromValues(series){
+  const updateInput = (id, arr)=>{
+    const input = document.getElementById(id);
+    if(input) input.value = formatNumberList(arr);
+  };
+  if(series === 0){
+    CFG.start = values.slice();
+    updateInput('cfgStart', values);
+  } else if(series === 1 && values2){
+    CFG.start2 = values2.slice();
+    updateInput('cfgStart2', values2);
+  }
 }
 
 /* =========================================================
@@ -524,6 +539,19 @@ function alignLength(arr, len, fill=0){
   if(arr.length < len) return arr.concat(Array(len-arr.length).fill(fill));
   if(arr.length > len) return arr.slice(0,len);
   return arr;
+}
+
+function formatNumberList(arr){
+  return arr.map(formatNumber).join(',');
+}
+
+function formatNumber(value){
+  if(!Number.isFinite(value)) return '0';
+  let str = value.toFixed(6);
+  if(str.includes('.')){
+    str = str.replace(/0+$/,'').replace(/\.$/,'');
+  }
+  return str.length ? str : '0';
 }
 
 function niceMax(arr){
