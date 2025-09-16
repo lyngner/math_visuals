@@ -112,15 +112,13 @@ function renderFractionLabel(parent, cx, cy, numerator, denominator) {
 
   const numeratorY = -20;
   const denominatorY = 28;
-  const centerOffsetY = (numeratorY + denominatorY) / 2;
-  const lineY = centerOffsetY;
+  const fallbackCenter = (numeratorY + denominatorY) / 2;
   const maxLen = Math.max(numText.length, denText.length);
   const charWidth = 20;
   const halfWidth = Math.max(16, (maxLen * charWidth) / 2);
 
   const group = createSvgElement(parent, 'g', {
-    class: 'tb-frac',
-    transform: `translate(${cx}, ${cy - centerOffsetY})`
+    class: 'tb-frac'
   });
 
   const numeratorEl = createSvgElement(group, 'text', {
@@ -131,11 +129,11 @@ function renderFractionLabel(parent, cx, cy, numerator, denominator) {
   });
   numeratorEl.textContent = numText;
 
-  createSvgElement(group, 'line', {
+  const lineEl = createSvgElement(group, 'line', {
     x1: -halfWidth,
     x2: halfWidth,
-    y1: lineY,
-    y2: lineY,
+    y1: fallbackCenter,
+    y2: fallbackCenter,
     class: 'tb-frac-line'
   });
 
@@ -146,6 +144,29 @@ function renderFractionLabel(parent, cx, cy, numerator, denominator) {
     'text-anchor': 'middle'
   });
   denominatorEl.textContent = denText;
+
+  let appliedCenter = fallbackCenter;
+  const hasBBox = typeof numeratorEl.getBBox === 'function' && typeof denominatorEl.getBBox === 'function';
+
+  if (hasBBox) {
+    try {
+      const numeratorBBox = numeratorEl.getBBox();
+      const denominatorBBox = denominatorEl.getBBox();
+      const numeratorBottom = numeratorBBox.y + numeratorBBox.height;
+      const denominatorTop = denominatorBBox.y;
+      const visualLineY = (numeratorBottom + denominatorTop) / 2;
+      lineEl.setAttribute('y1', visualLineY);
+      lineEl.setAttribute('y2', visualLineY);
+
+      const fractionTop = Math.min(numeratorBBox.y, denominatorBBox.y);
+      const fractionBottom = Math.max(numeratorBottom, denominatorBBox.y + denominatorBBox.height);
+      appliedCenter = (fractionTop + fractionBottom) / 2;
+    } catch (err) {
+      // Ignore errors and fall back to preset positions
+    }
+  }
+
+  group.setAttribute('transform', `translate(${cx}, ${cy - appliedCenter})`);
 }
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function fmt(x) { return (Math.round(x * 100) / 100).toString().replace('.', ','); }
