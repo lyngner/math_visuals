@@ -4,6 +4,38 @@
     return;
   }
 
+  const ORBIT_CONTROLS_URL = 'https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js?module';
+  let orbitControlsPromise = null;
+
+  function loadOrbitControls() {
+    if (orbitControlsPromise) {
+      return orbitControlsPromise;
+    }
+
+    if (typeof THREE.OrbitControls === 'function') {
+      orbitControlsPromise = Promise.resolve(THREE.OrbitControls);
+      return orbitControlsPromise;
+    }
+
+    orbitControlsPromise = (async () => {
+      try {
+        const module = await import(ORBIT_CONTROLS_URL);
+        if (module && typeof module.OrbitControls === 'function') {
+          THREE.OrbitControls = module.OrbitControls;
+          return module.OrbitControls;
+        }
+        console.warn('Fant ikke OrbitControls-modulen.');
+      } catch (error) {
+        console.warn('Klarte ikke laste OrbitControls-modulen.', error);
+      }
+      return null;
+    })();
+
+    return orbitControlsPromise;
+  }
+
+  const controlsPromise = loadOrbitControls();
+
   class ShapeRenderer {
     constructor(container) {
       this.container = container;
@@ -18,30 +50,16 @@
       this.renderer.shadowMap.enabled = false;
       this.container.appendChild(this.renderer.domElement);
 
-      this.controls = typeof THREE.OrbitControls === 'function'
-        ? new THREE.OrbitControls(this.camera, this.renderer.domElement)
-        : null;
-      if (this.controls) {
-        this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.08;
-        this.controls.enablePan = true;
-        this.controls.enableZoom = true;
-        this.controls.screenSpacePanning = true;
-        this.controls.panSpeed = 0.7;
-        this.controls.rotateSpeed = 0.9;
-        this.controls.zoomSpeed = 0.9;
-        this.controls.minDistance = 2.5;
-        this.controls.maxDistance = 12;
-        this.controls.target.set(0, 1.1, 0);
-        this.controls.addEventListener('start', () => { this.userIsInteracting = true; });
-        this.controls.addEventListener('end', () => {
-          this.userIsInteracting = false;
-          this._syncStateFromControls();
-        });
-        this.controls.addEventListener('change', () => {
-          this._syncStateFromControls();
-        });
+      if (this.renderer.domElement && this.renderer.domElement.style) {
+        this.renderer.domElement.style.touchAction = 'none';
       }
+
+      this.controls = null;
+      controlsPromise.then(ControlsClass => {
+        if (ControlsClass) {
+          this._attachControls(ControlsClass);
+        }
+      });
 
       const ambient = new THREE.AmbientLight(0xffffff, 0.55);
       this.scene.add(ambient);
@@ -86,6 +104,45 @@
 
       this._handleResize();
       this.renderer.setAnimationLoop(this._animate);
+    }
+
+    _attachControls(ControlsClass) {
+      if (!ControlsClass || this.controls) return;
+      const controls = new ControlsClass(this.camera, this.renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.enablePan = true;
+      controls.enableZoom = true;
+      controls.screenSpacePanning = true;
+      controls.panSpeed = 0.7;
+      controls.rotateSpeed = 0.9;
+      controls.zoomSpeed = 0.9;
+      controls.minDistance = 2.5;
+      controls.maxDistance = 12;
+      if (this.currentFrame && this.currentFrame.center) {
+        controls.target.copy(this.currentFrame.center);
+      } else {
+        controls.target.set(0, 1.1, 0);
+      }
+      controls.addEventListener('start', () => { this.userIsInteracting = true; });
+      controls.addEventListener('end', () => {
+        this.userIsInteracting = false;
+        this._syncStateFromControls();
+      });
+      controls.addEventListener('change', () => {
+        this._syncStateFromControls();
+      });
+      this.controls = controls;
+      if (this.rotationLocked) {
+        this.controls.enableRotate = false;
+      }
+      if (this.currentFrame) {
+        const base = this.currentFrame.baseDistance || this.currentFrame.distance;
+        this._updateControlsDistances(base, this.currentFrame.distance);
+        this.controls.update();
+      } else {
+        this.controls.update();
+      }
     }
 
     _handleResize() {
