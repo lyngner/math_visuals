@@ -62,6 +62,8 @@ const panels = {
   addBtn: document.getElementById('tbAdd')
 };
 
+const settingsContainer = document.getElementById('tbSettings');
+
 createBlock(0);
 createBlock(1);
 
@@ -372,6 +374,7 @@ function updateVisibility() {
   if (panels.fieldset2) panels.fieldset2.style.display = showSecond ? '' : 'none';
   if (panels.addBtn) panels.addBtn.style.display = showSecond ? 'none' : '';
   panels.container?.classList.toggle('two', showSecond);
+  settingsContainer?.classList.toggle('two', showSecond);
 }
 
 function drawBlock(index) {
