@@ -376,18 +376,48 @@
     defaultEnsureScheduled = true;
     const ensure = ()=>{
       let examples = getExamples();
-      let inserted = false;
-      if(!examples[0] || examples[0].isDefault !== true){
+      let updated = false;
+
+      const firstValidIndex = examples.findIndex(ex => ex && typeof ex === 'object');
+      if(firstValidIndex === -1){
+        if(examples.length){
+          examples = [];
+          updated = true;
+        }
+      }else if(firstValidIndex > 0){
+        examples = examples.slice(firstValidIndex);
+        if(Number.isInteger(currentExampleIndex)){
+          currentExampleIndex = Math.max(0, currentExampleIndex - firstValidIndex);
+        }
+        updated = true;
+      }
+
+      if(examples.length === 0){
         const defaultExample = collectConfig();
         defaultExample.isDefault = true;
-        examples.unshift(defaultExample);
+        examples = [defaultExample];
+        currentExampleIndex = 0;
+        updated = true;
+      }else{
+        const first = examples[0];
+        if(first.isDefault !== true){
+          first.isDefault = true;
+          updated = true;
+        }
+        for(let i = 1; i < examples.length; i++){
+          const ex = examples[i];
+          if(ex && typeof ex === 'object' && Object.prototype.hasOwnProperty.call(ex, 'isDefault')){
+            delete ex.isDefault;
+            updated = true;
+          }
+        }
+      }
+
+      if(updated){
         store(examples);
-        inserted = true;
+        examples = getExamples();
       }
-      examples = getExamples();
-      if(inserted){
-        currentExampleIndex = currentExampleIndex == null ? 0 : currentExampleIndex + 1;
-      }
+
       if(currentExampleIndex == null && examples.length > 0){
         currentExampleIndex = 0;
       }
