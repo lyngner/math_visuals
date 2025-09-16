@@ -956,8 +956,10 @@ function buildFunctions(){
 }
 
 /* =================== LINJE FRA PUNKTER =================== */
-let A=null, B=null, moving=[];
 function buildPointsLine(){
+  A = null;
+  B = null;
+  moving = [];
   const first = SIMPLE_PARSED.funcs[0] ?? {rhs:'ax+b'};
   const rhs = first.rhs.replace(/\s+/g,'').toLowerCase();
 
@@ -1116,7 +1118,17 @@ function rebuildAll(){
 }
 
 window.addEventListener('resize', ()=>{
-  JXG.JSXGraph.resizeBoards();
+  const resizeBoards = JXG?.JSXGraph?.resizeBoards;
+  if(typeof resizeBoards === 'function'){
+    resizeBoards();
+  }else if(brd && typeof brd.resizeContainer === 'function'){
+    const cw = brd.containerObj?.clientWidth;
+    const ch = brd.containerObj?.clientHeight;
+    if(cw && ch){
+      brd.resizeContainer(cw, ch);
+      brd.update();
+    }
+  }
   updateAfterViewChange();
 });
 
