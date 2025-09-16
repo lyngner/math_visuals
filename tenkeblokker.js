@@ -102,6 +102,51 @@ function createSvgElement(parent, name, attrs = {}) {
   parent.appendChild(el);
   return el;
 }
+
+function renderFractionLabel(parent, cx, cy, numerator, denominator) {
+  if (!parent) return;
+
+  const numText = typeof numerator === 'number' ? numerator.toString() : `${numerator ?? ''}`;
+  const denText = typeof denominator === 'number' ? denominator.toString() : `${denominator ?? ''}`;
+  if (!numText || !denText) return;
+
+  const numeratorY = -20;
+  const denominatorY = 28;
+  const centerOffsetY = (numeratorY + denominatorY) / 2;
+  const lineY = centerOffsetY;
+  const maxLen = Math.max(numText.length, denText.length);
+  const charWidth = 20;
+  const halfWidth = Math.max(16, (maxLen * charWidth) / 2);
+
+  const group = createSvgElement(parent, 'g', {
+    class: 'tb-frac',
+    transform: `translate(${cx}, ${cy - centerOffsetY})`
+  });
+
+  const numeratorEl = createSvgElement(group, 'text', {
+    x: 0,
+    y: numeratorY,
+    class: 'tb-frac-num',
+    'text-anchor': 'middle'
+  });
+  numeratorEl.textContent = numText;
+
+  createSvgElement(group, 'line', {
+    x1: -halfWidth,
+    x2: halfWidth,
+    y1: lineY,
+    y2: lineY,
+    class: 'tb-frac-line'
+  });
+
+  const denominatorEl = createSvgElement(group, 'text', {
+    x: 0,
+    y: denominatorY,
+    class: 'tb-frac-den',
+    'text-anchor': 'middle'
+  });
+  denominatorEl.textContent = denText;
+}
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function fmt(x) { return (Math.round(x * 100) / 100).toString().replace('.', ','); }
 // Skjerm-px → SVG viewBox-koordinater
@@ -444,16 +489,19 @@ function drawBlock(index) {
 
   const displayMode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
   const per = cfg.n ? cfg.total / cfg.n : 0;
-  const fracText = cfg.n ? `\frac{1}{${cfg.n}}` : '0';
   const percentValue = cfg.n ? (100 / cfg.n) : 0;
 
   for (let i = 0; i < cfg.n; i++) {
     const cx = L + (i + 0.5) * cellW;
     const cy = (TOP + BOT) / 2;
+    if (displayMode === 'fraction' && cfg.n) {
+      renderFractionLabel(block.gVals, cx, cy, 1, cfg.n);
+      continue;
+    }
+
     const text = createSvgElement(block.gVals, 'text', { x: cx, y: cy, class: 'tb-val' });
     let label = '';
-    if (displayMode === 'fraction') label = fracText;
-    else if (displayMode === 'percent') label = `${fmt(percentValue)} %`;
+    if (displayMode === 'percent') label = `${fmt(percentValue)} %`;
     else label = fmt(per);
     text.textContent = label;
   }
