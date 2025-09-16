@@ -79,7 +79,7 @@ const ADV = {
     fontSize: 16,
     layer: 30,
     fractions: [0.2, 0.8, 0.6, 0.4],
-    gapPx: 20,
+    gapPx: 30,
     plate: { paddingPx: 4, fill: '#fff', opacity: 0.6, radiusPx: 4 },
     marginFracX: 0.04,
     marginFracY: 0.04
@@ -620,6 +620,10 @@ function ensurePlateFor(label){
   });
   label._plate={p1,p2,p3,p4};
 }
+function ensureLabelFront(label){
+  const node = label && label.rendNode;
+  if(node && node.parentNode){ node.parentNode.appendChild(node); }
+}
 function updatePlate(label){
   if(!label._plate) return;
   const [xmin,ymax,xmax,ymin]=brd.getBoundingBox();
@@ -725,6 +729,7 @@ function makeSmartCurveLabel(g, idx, text){
     label.moveTo(best.pos);
     label.setAttribute({anchorX: best.slope>=0?'left':'right'});
     updatePlate(label);
+    ensureLabelFront(label);
   }
   position();
   brd.on('boundingbox', position);
