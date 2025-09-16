@@ -14,6 +14,25 @@
   }
   const BINDING_NAMES = ['STATE','CFG','CONFIG','SIMPLE'];
 
+  function flushPendingChanges(){
+    const fields = document.querySelectorAll('input, textarea, select');
+    fields.forEach(field => {
+      ['input', 'change'].forEach(type => {
+        try{
+          field.dispatchEvent(new Event(type, {bubbles:true}));
+        }catch(_){ }
+      });
+    });
+    const syncFns = ['applyCfg', 'applyConfig'];
+    syncFns.forEach(name => {
+      const fn = window[name];
+      if(typeof fn === 'function'){
+        try{ fn(); }
+        catch(_){ }
+      }
+    });
+  }
+
   function ensureTabStyles(){
     if(document.getElementById('exampleTabStyles')) return;
     const style = document.createElement('style');
@@ -114,6 +133,7 @@
   }
 
   function collectConfig(){
+    flushPendingChanges();
     const cfg = {};
     for(const name of BINDING_NAMES){
       const binding = getBinding(name);
