@@ -14,15 +14,22 @@
   }
   const DEFAULT_COLOR_SETS={
     1:['#6C1BA2'],
-    2:['#534477','#BF4474'],
-    3:['#534477','#6C1BA2','#BF4474'],
-    4:['#534477','#B25FE3','#6C1BA2','#BF4474'],
-    5:['#534477','#B25FE3','#6C1BA2','#873E79','#BF4474'],
-    6:['#534477','#B25FE3','#6C1BA2','#873E79','#BF4474','#E31C3D']
+    2:['#BF4474','#534477'],
+    3:['#B25FE3','#6C1BA2','#BF4474'],
+    4:['#B25FE3','#6C1BA2','#534477','#BF4474'],
+    5:['#B25FE3','#6C1BA2','#534477','#873E79','#BF4474'],
+    6:['#B25FE3','#6C1BA2','#534477','#873E79','#BF4474','#E31C3D']
   };
-  const INITIAL_COLORS=colorInputs.map(inp=>inp.value);
   const STATE=(typeof window.STATE==='object' && window.STATE)?window.STATE:{};
   window.STATE=STATE;
+  const modifiedColorIndexes=new Set();
+  if(Array.isArray(STATE.colors)){
+    STATE.colors.forEach((color,idx)=>{
+      if(typeof color==='string' && color) modifiedColorIndexes.add(idx);
+    });
+  }
+  let autoPaletteEnabled=modifiedColorIndexes.size===0;
+  let lastAppliedPaletteSize=null;
 
   function clampInt(value,min,max){
     const num=parseInt(value,10);
@@ -44,16 +51,37 @@
   }
 
   function ensureColors(count){
-    if(!Array.isArray(STATE.colors)) STATE.colors=INITIAL_COLORS.slice();
-    const fallback=DEFAULT_COLOR_SETS[count]||DEFAULT_COLOR_SETS[MAX_COLORS]||INITIAL_COLORS;
-    const needed=Math.max(count,INITIAL_COLORS.length,STATE.colors.length||0,MAX_COLORS);
-    for(let i=0;i<needed;i++){
+    const palette=DEFAULT_COLOR_SETS[count]||DEFAULT_COLOR_SETS[MAX_COLORS]||['#6C1BA2'];
+    const fillPalette=DEFAULT_COLOR_SETS[MAX_COLORS]||palette;
+    if(autoPaletteEnabled){
+      if(lastAppliedPaletteSize!==count || !Array.isArray(STATE.colors)){
+        STATE.colors=palette.slice();
+      }
+    }else if(!Array.isArray(STATE.colors)){
+      STATE.colors=[];
+    }
+    if(!Array.isArray(STATE.colors)) STATE.colors=[];
+    const required=Math.max(count,MAX_COLORS);
+    for(let i=0;i<required;i++){
+      const withinCount=i<count;
+      const source=withinCount?palette:fillPalette;
+      let defaultColor='#6C1BA2';
+      if(Array.isArray(source) && source.length>0){
+        defaultColor=source[Math.min(i,source.length-1)] ?? '#6C1BA2';
+      }else if(Array.isArray(palette) && palette.length>0){
+        defaultColor=palette[Math.min(withinCount?i:palette.length-1,palette.length-1)] ?? '#6C1BA2';
+      }
+      const hasColor=typeof STATE.colors[i]==='string' && STATE.colors[i];
+      const shouldUseDefault=autoPaletteEnabled || !modifiedColorIndexes.has(i);
+      if(shouldUseDefault || !hasColor){
+        STATE.colors[i]=defaultColor||'#6C1BA2';
+      }
       if(typeof STATE.colors[i]!=='string' || !STATE.colors[i]){
-        const fb=fallback?.[i]??fallback?.[fallback.length-1]??INITIAL_COLORS[i%INITIAL_COLORS.length]??'#6C1BA2';
-        STATE.colors[i]=fb;
+        STATE.colors[i]='#6C1BA2';
       }
     }
-    if(STATE.colors.length<needed) STATE.colors.length=needed;
+    if(STATE.colors.length>required) STATE.colors.length=required;
+    lastAppliedPaletteSize=count;
   }
 
   function createFigureState(name,rowCount,colCount,coords){
@@ -325,6 +353,8 @@
 
   colorInputs.forEach((inp,idx)=>{
     inp.addEventListener('input',()=>{
+      modifiedColorIndexes.add(idx);
+      autoPaletteEnabled=modifiedColorIndexes.size===0;
       ensureColors(Math.max(idx+1,STATE.colorCount));
       STATE.colors[idx]=inp.value;
       updateCellColors();
@@ -485,7 +515,10 @@
     STATE.offset=true;
     STATE.showGrid=true;
     STATE.colorCount=1;
-    STATE.colors=INITIAL_COLORS.slice();
+    STATE.colors=[];
+    modifiedColorIndexes.clear();
+    autoPaletteEnabled=true;
+    lastAppliedPaletteSize=null;
     ensureColors(STATE.colorCount);
     STATE.figures=[];
   }
