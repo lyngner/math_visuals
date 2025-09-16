@@ -72,8 +72,14 @@
 
     _handleResize() {
       const width = this.container.clientWidth;
-      const height = this.container.clientHeight || Math.max(320, Math.round(width * 0.75));
       if (!width) return;
+
+      const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : null;
+      const maxHeight = viewportHeight ? viewportHeight * 0.7 : Infinity;
+      const preferred = width * 0.72;
+      const height = Math.max(280, Math.min(Math.round(preferred), 560, maxHeight));
+
+      this.container.style.height = `${height}px`;
       this.renderer.setSize(width, height, false);
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
