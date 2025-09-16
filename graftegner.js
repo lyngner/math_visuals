@@ -774,7 +774,6 @@ function rebuildFunctionSegmentsFor(g){
 function rebuildAllFunctionSegments(){ graphs.forEach(rebuildFunctionSegmentsFor); }
 
 /* =================== FUNKSJONER + BRACKETS =================== */
-const graphs=[];
 function makeSmartCurveLabel(g, idx, text){
   if(!ADV.curveName.show) return;
   const label = brd.create('text',[0,0,()=>text],{
