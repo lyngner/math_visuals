@@ -482,11 +482,17 @@ function applyFigureVisibility(){
   const showSecond = !!STATE.figure2Visible && secondExists;
   const firstExists = !!figureViews[0];
   const figureCount = firstExists ? (showSecond ? 2 : 1) : 0;
+  const addVisible = !showSecond && secondExists;
   if(figureGridEl){
     if(figureCount > 0){
       figureGridEl.dataset.figures = String(figureCount);
     }else{
       delete figureGridEl.dataset.figures;
+    }
+    if(addVisible){
+      figureGridEl.dataset.addVisible = "true";
+    }else{
+      delete figureGridEl.dataset.addVisible;
     }
   }
   if(controlsWrap) controlsWrap.classList.toggle("controlsWrap--split", showSecond);
@@ -501,7 +507,7 @@ function applyFigureVisibility(){
     }
   }
   lastShowSecond = showSecond;
-  if(addBtn) addBtn.style.display = (showSecond || !secondExists) ? "none" : "";
+  if(addBtn) addBtn.style.display = addVisible ? "" : "none";
   if(panelEls[1]) panelEls[1].style.display = showSecond ? "" : "none";
   if(exportToolbar2) exportToolbar2.style.display = showSecond ? "" : "none";
   if(figureViews[1]?.fieldset) figureViews[1].fieldset.style.display = showSecond ? "" : "none";

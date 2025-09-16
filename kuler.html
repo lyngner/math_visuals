@@ -22,11 +22,12 @@
       grid-template-columns:repeat(var(--figure-columns),minmax(0,1fr));
       align-items:start;
     }
-    .figureGrid[data-figures="2"]{--figure-columns:2;}
+    .figureGrid[data-figures="2"],
+    .figureGrid[data-add-visible="true"]{--figure-columns:2;}
     .figurePanel{display:flex;flex-direction:column;gap:12px;align-items:stretch;}
     .figurePanel .btn{align-self:center;}
     .removeFigureBtn[disabled]{opacity:0.5;cursor:not-allowed;}
-    .addFigureBtn{width:clamp(30px,7.5vw,60px);aspect-ratio:1;border:2px dashed #cfcfcf;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;color:#6b7280;cursor:pointer;justify-self:center;align-self:center;grid-column:1/-1;}
+    .addFigureBtn{width:clamp(30px,7.5vw,60px);aspect-ratio:1;border:2px dashed #cfcfcf;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;color:#6b7280;cursor:pointer;justify-self:center;align-self:flex-start;}
     @media(max-width:980px){.grid{grid-template-columns:1fr;}}
     @media(max-width:720px){.figureGrid{--figure-columns:1;}.addFigureBtn{width:clamp(30px,15vw,70px);}}
     .card{
@@ -52,9 +53,9 @@
     .btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.06);}
     .btn:active{transform:translateY(1px);}
     .toolbar select{border:1px solid #d1d5db;border-radius:10px;padding:6px 10px;font-size:14px;background:#fff;}
-    .controlsWrap{display:flex;flex-direction:column;gap:var(--gap);}
-    .controlsWrap.controlsWrap--split{flex-direction:row;flex-wrap:wrap;align-items:stretch;}
-    .controlsWrap.controlsWrap--split>.bowlFieldset{flex:1 1 240px;min-width:min(240px,100%);}
+    .controlsWrap{display:grid;gap:var(--gap);grid-template-columns:minmax(0,1fr);}
+    .controlsWrap.controlsWrap--split{grid-template-columns:repeat(2,minmax(0,1fr));}
+    @media(max-width:720px){.controlsWrap.controlsWrap--split{grid-template-columns:minmax(0,1fr);}}
     fieldset.bowlFieldset{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:0;display:flex;flex-direction:column;gap:8px;}
     fieldset.bowlFieldset legend{font-weight:600;font-size:13px;color:#374151;padding:0 4px;}
   </style>
