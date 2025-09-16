@@ -123,6 +123,36 @@ function fitPizzasToLine(){
 }
 window.addEventListener("resize", fitPizzasToLine);
 
+function hidePizzaPanel(index){
+  const panel=document.getElementById(`panel${index}`);
+  if(panel) panel.style.display="none";
+  const fieldset=document.getElementById(`fieldset${index}`);
+  if(fieldset) fieldset.style.display="none";
+}
+
+function setupRemovePizzaButtons(){
+  const addBtn=document.getElementById('addPizza');
+  const remove2=document.getElementById('removePizza2');
+  if(remove2 && !remove2.dataset.bound){
+    remove2.dataset.bound='true';
+    remove2.addEventListener('click',()=>{
+      hidePizzaPanel(3);
+      hidePizzaPanel(2);
+      if(addBtn) addBtn.style.display='';
+      initFromHtml();
+    });
+  }
+  const remove3=document.getElementById('removePizza3');
+  if(remove3 && !remove3.dataset.bound){
+    remove3.dataset.bound='true';
+    remove3.addEventListener('click',()=>{
+      hidePizzaPanel(3);
+      if(addBtn) addBtn.style.display='';
+      initFromHtml();
+    });
+  }
+}
+
 /* =======================
    Pizza-klasse
    ======================= */
@@ -819,6 +849,7 @@ function initFromHtml(){
 
   scheduleCenterAlign();
   fitPizzasToLine();
+  setupRemovePizzaButtons();
 }
 
 window.addEventListener("load", () => {
