@@ -41,6 +41,10 @@
       justify-self:center;
       align-self:center;
     }
+    .figurePanel .removeFigureBtn{
+      margin-top:2px;
+      align-self:center;
+    }
     @media(max-width:420px){
       .grid2{grid-template-columns:1fr;gap:16px;}
       .figure .box{width:clamp(240px,92vw,360px);}
@@ -106,6 +110,7 @@
               <span id="partsVal2">4</span>
               <button id="partsPlus2" type="button" aria-label="Flere deler">+</button>
             </div>
+            <button id="removeFigure" class="btn removeFigureBtn" type="button" aria-label="Fjern figur">Fjern figur</button>
           </div>
         </div>
       </div>

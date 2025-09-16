@@ -192,6 +192,22 @@
     nameInput.addEventListener('input',()=>{
       STATE.figures[index].name=nameInput.value;
     });
+    const removeBtn=document.createElement('button');
+    removeBtn.type='button';
+    removeBtn.className='removeFigureBtn';
+    removeBtn.textContent='Fjern figur';
+    if(STATE.figures.length<=1){
+      removeBtn.disabled=true;
+      removeBtn.setAttribute('aria-disabled','true');
+    }else{
+      removeBtn.disabled=false;
+      removeBtn.removeAttribute('aria-disabled');
+    }
+    removeBtn.setAttribute('aria-label',`Fjern figur ${index+1}`);
+    removeBtn.addEventListener('click',()=>{
+      removeFigure(index);
+    });
+    panel.appendChild(removeBtn);
     return panel;
   }
 
@@ -319,6 +335,12 @@
     STATE.figures.push(createFigureState(`Figur ${STATE.figures.length+1}`,rows,cols,[]));
     render();
   });
+
+  function removeFigure(index){
+    if(!Array.isArray(STATE.figures) || STATE.figures.length<=1) return;
+    STATE.figures.splice(index,1);
+    render();
+  }
 
   const btnSvg=document.getElementById('btnSvg');
   const btnPng=document.getElementById('btnPng');

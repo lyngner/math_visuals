@@ -59,6 +59,7 @@
     colorInputs.push(inp);
   }
   const addBtn = document.getElementById('addFigure');
+  const removeBtn = document.getElementById('removeFigure');
   const fieldset2 = document.getElementById('fieldset2');
   const INITIAL_COLORS = colorInputs.map(inp => inp.value);
   const clampInt = (value, min, max) => {
@@ -709,6 +710,10 @@
   figures[2] = setupFigure(2);
   addBtn?.addEventListener('click', ()=>{
     STATE.figure2Visible = true;
+    window.render();
+  });
+  removeBtn?.addEventListener('click', ()=>{
+    STATE.figure2Visible = false;
     window.render();
   });
   window.render();

@@ -114,6 +114,25 @@
     }
     .stepper span{min-width:32px;text-align:center;font-variant-numeric:tabular-nums;font-size:16px;}
     .nameInput{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:6px 8px;font-size:14px;box-sizing:border-box;}
+    .removeFigureBtn{
+      align-self:flex-end;
+      background:none;
+      border:none;
+      color:#ef4444;
+      cursor:pointer;
+      font-size:13px;
+      padding:4px 0;
+      transition:color .2s ease;
+    }
+    .removeFigureBtn:hover:not([disabled]){
+      color:#dc2626;
+      text-decoration:underline;
+    }
+    .removeFigureBtn[disabled]{
+      color:#9ca3af;
+      cursor:default;
+      text-decoration:none;
+    }
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
