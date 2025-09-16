@@ -29,6 +29,10 @@
     .figure{border-radius:10px;background:#fff;overflow:hidden;border:1px solid #eef0f3;width:100%;max-width:460px;margin:0 auto;}
     .figure svg{width:100%;height:auto;display:block;touch-action:none;}
     .ctrlRow{display:flex;align-items:center;gap:6px;font-size:14px;}
+    .controlsWrap.controlsWrap--split .ctrlRow{flex-wrap:wrap;}
+    .controlsWrap.controlsWrap--split .ctrlRow--size .ctrlLabel--size{flex:0 0 100%;}
+    .controlsWrap.controlsWrap--split .ctrlRow--size .count{flex:0 0 100%;text-align:right;}
+    .ctrlRow--size input[type="range"]{flex:1 1 160px;}
     .ctrlRow button{border:1px solid #d1d5db;border-radius:6px;background:#fff;width:24px;height:24px;line-height:1;}
     .ctrlRow .count{width:24px;text-align:center;}
     .bead{cursor:grab;}
@@ -41,7 +45,7 @@
     .toolbar select{border:1px solid #d1d5db;border-radius:10px;padding:6px 10px;font-size:14px;background:#fff;}
     .controlsWrap{display:flex;flex-direction:column;gap:var(--gap);}
     .controlsWrap.controlsWrap--split{flex-direction:row;flex-wrap:wrap;align-items:stretch;}
-    .controlsWrap.controlsWrap--split>.bowlFieldset{flex:1 1 280px;min-width:min(280px,100%);}
+    .controlsWrap.controlsWrap--split>.bowlFieldset{flex:1 1 240px;min-width:min(240px,100%);}
     fieldset.bowlFieldset{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:0;display:flex;flex-direction:column;gap:8px;}
     fieldset.bowlFieldset legend{font-weight:600;font-size:13px;color:#374151;padding:0 4px;}
   </style>

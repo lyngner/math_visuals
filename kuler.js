@@ -83,6 +83,20 @@ const controlsWrap = document.getElementById("controls");
 const addBtn = document.getElementById("addBowl");
 const panelEls = [document.getElementById("panel1"), document.getElementById("panel2")];
 const exportToolbar2 = document.getElementById("exportToolbar2");
+const gridEl = document.querySelector(".grid");
+
+const initialSideWidth = (() => {
+  if(!gridEl) return 360;
+  const inlineVal = Number.parseFloat(gridEl.style.getPropertyValue("--side-width"));
+  if(Number.isFinite(inlineVal)) return inlineVal;
+  try{
+    const computedVal = Number.parseFloat(getComputedStyle(gridEl).getPropertyValue("--side-width"));
+    if(Number.isFinite(computedVal)) return computedVal;
+  }catch(_){ }
+  return 360;
+})();
+
+let lastShowSecond = null;
 
 if(!Array.isArray(SIMPLE.bowls)) SIMPLE.bowls = [];
 if(typeof STATE.figure2Visible !== "boolean"){
@@ -128,8 +142,9 @@ downloadButtons.forEach(({ svgBtn, pngBtn, idx }) => {
 function createFigure(idx, svg, gBowls){
   const fieldset = document.createElement("fieldset");
   fieldset.className = "bowlFieldset";
+  fieldset.id = `kuler${idx + 1}`;
   const legend = document.createElement("legend");
-  legend.textContent = `Illustrasjon ${idx + 1}`;
+  legend.textContent = `Kuler ${idx + 1}`;
   fieldset.appendChild(legend);
 
   const counts = {};
@@ -158,8 +173,9 @@ function createFigure(idx, svg, gBowls){
   });
 
   const sizeRow = document.createElement("div");
-  sizeRow.className = "ctrlRow";
+  sizeRow.className = "ctrlRow ctrlRow--size";
   const sizeLabel = document.createElement("span");
+  sizeLabel.className = "ctrlLabel ctrlLabel--size";
   sizeLabel.textContent = "Kulestørrelse";
   const sizeMinus = document.createElement("button");
   sizeMinus.type = "button";
@@ -168,7 +184,7 @@ function createFigure(idx, svg, gBowls){
   sizeInput.type = "range";
   sizeInput.min = "5";
   sizeInput.max = "60";
-  sizeInput.style.flex = "1";
+  sizeInput.style.flex = "1 1 160px";
   const sizePlus = document.createElement("button");
   sizePlus.type = "button";
   sizePlus.textContent = "+";
@@ -415,6 +431,17 @@ function applyFigureVisibility(){
   const secondExists = !!figureViews[1];
   const showSecond = !!STATE.figure2Visible && secondExists;
   if(controlsWrap) controlsWrap.classList.toggle("controlsWrap--split", showSecond);
+  if(gridEl && showSecond !== lastShowSecond){
+    if(showSecond){
+      const current = Number.parseFloat(gridEl.style.getPropertyValue("--side-width"));
+      const base = Number.isFinite(current) ? current : initialSideWidth;
+      const desired = Math.max(base, 540);
+      gridEl.style.setProperty("--side-width", `${desired}px`);
+    }else{
+      gridEl.style.setProperty("--side-width", `${initialSideWidth}px`);
+    }
+  }
+  lastShowSecond = showSecond;
   if(addBtn) addBtn.style.display = (showSecond || !secondExists) ? "none" : "";
   if(panelEls[1]) panelEls[1].style.display = showSecond ? "" : "none";
   if(exportToolbar2) exportToolbar2.style.display = showSecond ? "" : "none";
