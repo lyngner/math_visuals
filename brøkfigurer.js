@@ -58,6 +58,7 @@
   const CLIP_PAD_EXTRA_PERCENT = 2;
   const CLIP_PAD_PERCENT = CLIP_PADDING_PERCENT + CLIP_PAD_EXTRA_PERCENT;
   const CIRCLE_RADIUS = 0.45;
+  const OUTLINE_STROKE_WIDTH = 6;
   const colorCountInp = document.getElementById('colorCount');
   const colorInputs = [];
   for(let i=1;;i++){
@@ -382,7 +383,7 @@
           disableHitDetection(seg);
         }
         board.create('circle', [[cx,cy], r], {
-          strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false,
+          strokeColor:'#333', strokeWidth:OUTLINE_STROKE_WIDTH, fillColor:'none', highlight:false,
           fixed:true, hasInnerPoints:false,
           cssStyle:'pointer-events:none;'
         });
@@ -414,7 +415,7 @@
           disableHitDetection(seg);
         }
         board.create('circle', [center, r], {
-          strokeColor:'#333', strokeWidth:6, fillColor:'none', highlight:false,
+          strokeColor:'#333', strokeWidth:OUTLINE_STROKE_WIDTH, fillColor:'none', highlight:false,
           fixed:true, hasInnerPoints:false,
           cssStyle:'pointer-events:none;'
         });
@@ -683,17 +684,20 @@
       const pad = CLIP_PAD_PERCENT;
       const padStr = pad.toFixed(2);
       const maxStr = (100 + pad).toFixed(2);
+      let clipValue = '';
       if(shape==='triangle'){
-        svg.style.clipPath = `polygon(50% -${padStr}%, -${padStr}% ${maxStr}%, ${maxStr}% ${maxStr}%)`;
+        clipValue = `polygon(50% -${padStr}%, -${padStr}% ${maxStr}%, ${maxStr}% ${maxStr}%)`;
       }else if(shape==='rectangle' || shape==='square'){
-        svg.style.clipPath = `polygon(-${padStr}% ${maxStr}%, ${maxStr}% ${maxStr}%, ${maxStr}% -${padStr}%, -${padStr}% -${padStr}%)`;
+        clipValue = `polygon(-${padStr}% ${maxStr}%, ${maxStr}% ${maxStr}%, ${maxStr}% -${padStr}%, -${padStr}% -${padStr}%)`;
       }else if(shape==='circle'){
         const circleBase = (CIRCLE_RADIUS / BOARD_SIZE) * 100;
-        const circleClip = Math.min(50, circleBase + CLIP_PADDING_PERCENT + 1);
-        svg.style.clipPath = `circle(${circleClip.toFixed(2)}% at 50% 50%)`;
-      }else{
-        svg.style.clipPath = '';
+        const size = svg.clientWidth || svg.clientHeight || 360;
+        const strokePadding = (OUTLINE_STROKE_WIDTH / (2 * size)) * 100;
+        const circleClip = Math.min(50, circleBase + strokePadding);
+        clipValue = `circle(${circleClip.toFixed(3)}% at 50% 50%)`;
       }
+      svg.style.clipPath = clipValue;
+      svg.style.webkitClipPath = clipValue;
     }
 
     shapeSel?.addEventListener('change', ()=>{
