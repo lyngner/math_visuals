@@ -148,12 +148,15 @@
       if (!this.currentShape) return;
       this.currentShape.updateMatrixWorld(true);
       this.shapeGroup.updateMatrixWorld(true);
-      const boundingBox = new THREE.Box3().setFromObject(this.currentShape);
-      if (boundingBox.isEmpty()) return;
+      const geometryBox = this._computeGeometryBoundingBox(this.currentShape);
+      const fullBox = new THREE.Box3().setFromObject(this.currentShape);
+      const effectiveBox = fullBox.isEmpty() ? geometryBox : fullBox;
+      if (!effectiveBox || effectiveBox.isEmpty()) return;
       const size = new THREE.Vector3();
-      boundingBox.getSize(size);
-      const center = new THREE.Vector3();
-      boundingBox.getCenter(center);
+      effectiveBox.getSize(size);
+      const center = geometryBox && !geometryBox.isEmpty()
+        ? geometryBox.getCenter(new THREE.Vector3())
+        : effectiveBox.getCenter(new THREE.Vector3());
       const direction = this.camera.position.clone().sub(this.controls ? this.controls.target : center);
       if (!direction.lengthSq()) {
         direction.set(0, 0, 1);
@@ -202,15 +205,40 @@
       this._updateControlsDistances(this.currentFrame.baseDistance, this.currentFrame.distance);
     }
 
+    _computeGeometryBoundingBox(object) {
+      if (!object) return null;
+      object.updateMatrixWorld(true);
+      const box = new THREE.Box3();
+      const tempBox = new THREE.Box3();
+      let hasBox = false;
+      object.traverse(node => {
+        if (!node.visible) return;
+        if (node.userData && node.userData.isMeasurement) return;
+        const geometry = node.geometry;
+        if (!geometry) return;
+        if (!geometry.boundingBox) geometry.computeBoundingBox();
+        if (!geometry.boundingBox) return;
+        tempBox.copy(geometry.boundingBox);
+        tempBox.applyMatrix4(node.matrixWorld);
+        if (!hasBox) {
+          box.copy(tempBox);
+          hasBox = true;
+        } else {
+          box.union(tempBox);
+        }
+      });
+      return hasBox ? box : null;
+    }
+
     _applyFloatingOffset() {
       if (!this.currentShape) return;
       this.currentShape.position.set(0, 0, 0);
       this.currentShape.updateMatrixWorld(true);
       if (this.isFloating) {
-        const box = new THREE.Box3().setFromObject(this.currentShape);
-        if (!box.isEmpty()) {
+        const geometryBox = this._computeGeometryBoundingBox(this.currentShape);
+        if (geometryBox && !geometryBox.isEmpty()) {
           const center = new THREE.Vector3();
-          box.getCenter(center);
+          geometryBox.getCenter(center);
           this.currentShape.position.copy(center.multiplyScalar(-1));
           this.currentShape.updateMatrixWorld(true);
         }
@@ -242,13 +270,19 @@
       if (!this.currentShape) return;
       this.shapeGroup.remove(this.currentShape);
       this.currentShape.traverse(obj => {
-        if (obj.geometry) obj.geometry.dispose();
+        if (obj.geometry && typeof obj.geometry.dispose === 'function') {
+          obj.geometry.dispose();
+        }
         if (obj.material) {
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach(mat => mat.dispose());
-          } else if (typeof obj.material.dispose === 'function') {
-            obj.material.dispose();
-          }
+          const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+          materials.forEach(mat => {
+            if (mat && mat.map && typeof mat.map.dispose === 'function') {
+              mat.map.dispose();
+            }
+            if (mat && typeof mat.dispose === 'function') {
+              mat.dispose();
+            }
+          });
         }
       });
       this.currentShape = null;
@@ -272,8 +306,188 @@
       );
     }
 
-    createShape(type) {
+    createLabelSprite(text) {
+      if (typeof text !== 'string') return null;
+      const trimmed = text.trim();
+      if (!trimmed) return null;
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      if (!context) return null;
+      const fontSize = 48;
+      const paddingX = 26;
+      const paddingY = 18;
+      context.font = `${fontSize}px "Inter", "Segoe UI", system-ui, sans-serif`;
+      const metrics = context.measureText(trimmed);
+      const rawWidth = metrics.width + paddingX * 2;
+      const rawHeight = fontSize + paddingY * 2;
+      const deviceRatio = typeof window !== 'undefined' && window.devicePixelRatio ? window.devicePixelRatio : 1;
+      const ratio = Math.min(Math.max(deviceRatio, 1), 2);
+      canvas.width = Math.ceil(rawWidth * ratio);
+      canvas.height = Math.ceil(rawHeight * ratio);
+      context.scale(ratio, ratio);
+      context.font = `${fontSize}px "Inter", "Segoe UI", system-ui, sans-serif`;
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      const width = rawWidth;
+      const height = rawHeight;
+      const borderRadius = Math.min(18, Math.min(width, height) / 2);
+      context.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      context.strokeStyle = 'rgba(148, 163, 184, 0.85)';
+      context.lineWidth = 2;
+      context.beginPath();
+      context.moveTo(borderRadius, 0);
+      context.lineTo(width - borderRadius, 0);
+      context.quadraticCurveTo(width, 0, width, borderRadius);
+      context.lineTo(width, height - borderRadius);
+      context.quadraticCurveTo(width, height, width - borderRadius, height);
+      context.lineTo(borderRadius, height);
+      context.quadraticCurveTo(0, height, 0, height - borderRadius);
+      context.lineTo(0, borderRadius);
+      context.quadraticCurveTo(0, 0, borderRadius, 0);
+      context.closePath();
+      context.fill();
+      context.stroke();
+      context.fillStyle = '#111827';
+      context.fillText(trimmed, width / 2, height / 2 + 2);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      if ('colorSpace' in texture && THREE.SRGBColorSpace) texture.colorSpace = THREE.SRGBColorSpace;
+      else if ('encoding' in texture && THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.generateMipmaps = false;
+
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false
+      });
+      const sprite = new THREE.Sprite(material);
+      const worldScale = 0.0052;
+      sprite.scale.set(width * worldScale, height * worldScale, 1);
+      sprite.renderOrder = 10;
+      sprite.userData.isMeasurement = true;
+      return sprite;
+    }
+
+    addMeasurementLine(targetGroup, start, end, options = {}) {
+      if (!targetGroup || !start || !end) return;
+      const points = [start.clone(), end.clone()];
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = new THREE.LineBasicMaterial({ color: options.color ?? 0x111827 });
+      const line = new THREE.Line(geometry, material);
+      line.userData.isMeasurement = true;
+      targetGroup.add(line);
+
+      const labelText = typeof options.label === 'string' ? options.label.trim() : '';
+      if (labelText.length) {
+        const sprite = this.createLabelSprite(labelText);
+        if (sprite) {
+          if (options.labelPosition) {
+            sprite.position.copy(options.labelPosition.clone());
+          } else {
+            const mid = start.clone().add(end).multiplyScalar(0.5);
+            if (options.labelOffset) {
+              mid.add(options.labelOffset.clone());
+            }
+            sprite.position.copy(mid);
+          }
+          targetGroup.add(sprite);
+        }
+      }
+    }
+
+    addRadiusMeasurement(targetGroup, dims, spec, type) {
+      const radiusValue = typeof dims.radius === 'number' && Number.isFinite(dims.radius) ? dims.radius : null;
+      if (!(radiusValue > 0)) return;
+      const label = typeof spec?.label === 'string' ? spec.label : '';
+      const hasLabel = label.trim().length > 0;
+      let start;
+      let end;
+      let labelOffset = null;
+      if (type === 'sphere') {
+        start = new THREE.Vector3(0, radiusValue, 0);
+        end = new THREE.Vector3(radiusValue, radiusValue, 0);
+        if (hasLabel) {
+          labelOffset = new THREE.Vector3(0, 0.24, 0);
+        }
+      } else {
+        const heightValue = typeof dims.height === 'number' && Number.isFinite(dims.height) ? dims.height : null;
+        let baseY = 0.2;
+        if (heightValue && heightValue > 0.2) {
+          baseY = Math.min(Math.max(heightValue * 0.12, 0.15), heightValue - 0.15);
+        }
+        start = new THREE.Vector3(0, baseY, 0);
+        end = new THREE.Vector3(radiusValue, baseY, 0);
+        if (hasLabel) {
+          labelOffset = new THREE.Vector3(0, 0.22, 0);
+        }
+      }
+      const options = { color: 0xef4444, label };
+      if (labelOffset) options.labelOffset = labelOffset;
+      this.addMeasurementLine(targetGroup, start, end, options);
+    }
+
+    addHeightMeasurement(targetGroup, dims, spec) {
+      const heightValue = typeof dims.height === 'number' && Number.isFinite(dims.height) ? dims.height : null;
+      if (!(heightValue > 0)) return;
+      const label = typeof spec?.label === 'string' ? spec.label : '';
+      const radiusValue = typeof dims.radius === 'number' && Number.isFinite(dims.radius) ? dims.radius : null;
+      const halfWidth = typeof dims.width === 'number' && Number.isFinite(dims.width) ? dims.width / 2 : null;
+      const halfDepth = typeof dims.depth === 'number' && Number.isFinite(dims.depth) ? dims.depth / 2 : null;
+      let offset = radiusValue;
+      if (!(offset > 0)) {
+        const extent = Math.max(halfWidth || 0, halfDepth || 0);
+        offset = extent;
+      }
+      if (!(offset > 0)) offset = 1.2;
+      const margin = 0.35;
+      const lineX = offset + margin;
+      const start = new THREE.Vector3(lineX, 0, 0);
+      const end = new THREE.Vector3(lineX, heightValue, 0);
+      let labelPosition = null;
+      if (label.trim().length) {
+        const midpoint = start.clone().add(end).multiplyScalar(0.5);
+        const center = new THREE.Vector3(0, heightValue / 2, 0);
+        const away = start.clone().sub(center);
+        away.y = 0;
+        if (!away.lengthSq()) {
+          away.set(0.3, 0, 0);
+        } else {
+          away.setLength(0.35);
+        }
+        away.y = 0.18;
+        labelPosition = midpoint.add(away);
+      }
+      const options = { color: 0xf97316, label };
+      if (labelPosition) options.labelPosition = labelPosition;
+      this.addMeasurementLine(targetGroup, start, end, options);
+    }
+
+    applyMeasurements(group, spec, dims, type) {
+      if (!group || !spec || typeof spec !== 'object') return;
+      const dimensionSpec = spec.dimensions;
+      if (!dimensionSpec) return;
+      const measurementGroup = new THREE.Group();
+      measurementGroup.name = 'measurements';
+      measurementGroup.userData.isMeasurement = true;
+      if (dimensionSpec.radius && dimensionSpec.radius.requested) {
+        this.addRadiusMeasurement(measurementGroup, dims, dimensionSpec.radius, type);
+      }
+      if (dimensionSpec.height && dimensionSpec.height.requested) {
+        this.addHeightMeasurement(measurementGroup, dims, dimensionSpec.height, type);
+      }
+      if (measurementGroup.children.length) {
+        group.add(measurementGroup);
+      }
+    }
+
+    createShape(spec) {
+      const resolvedType = spec && typeof spec === 'object' && spec.type ? spec.type : spec;
+      const type = typeof resolvedType === 'string' ? resolvedType : 'prism';
       const group = new THREE.Group();
+      const dims = { radius: null, height: null, width: null, depth: null };
       let geometry;
       let rotationY = 0;
       let materialColor = 0x3b82f6;
@@ -284,6 +498,8 @@
           geometry = new THREE.SphereGeometry(radius, 40, 32);
           geometry.translate(0, radius, 0);
           materialColor = 0x6366f1;
+          dims.radius = radius;
+          dims.height = radius * 2;
           break;
         }
         case 'pyramid': {
@@ -293,6 +509,11 @@
           geometry.translate(0, height / 2, 0);
           rotationY = Math.PI / 4;
           materialColor = 0xf59e0b;
+          dims.radius = radius;
+          dims.height = height;
+          const baseWidth = Math.sqrt(2) * radius;
+          dims.width = baseWidth;
+          dims.depth = baseWidth;
           break;
         }
         case 'triangular-cylinder': {
@@ -302,6 +523,8 @@
           geometry.translate(0, height / 2, 0);
           rotationY = Math.PI / 6;
           materialColor = 0x0ea5e9;
+          dims.radius = radius;
+          dims.height = height;
           break;
         }
         case 'square-cylinder': {
@@ -311,6 +534,8 @@
           geometry.translate(0, height / 2, 0);
           rotationY = Math.PI / 4;
           materialColor = 0x10b981;
+          dims.radius = radius;
+          dims.height = height;
           break;
         }
         case 'cylinder': {
@@ -319,6 +544,8 @@
           geometry = new THREE.CylinderGeometry(radius, radius, height, 32, 1, false);
           geometry.translate(0, height / 2, 0);
           materialColor = 0x0ea5e9;
+          dims.radius = radius;
+          dims.height = height;
           break;
         }
         case 'prism':
@@ -329,6 +556,9 @@
           geometry = new THREE.BoxGeometry(width, height, depth);
           geometry.translate(0, height / 2, 0);
           materialColor = 0x3b82f6;
+          dims.height = height;
+          dims.width = width;
+          dims.depth = depth;
           break;
         }
       }
@@ -339,14 +569,17 @@
         const edges = this.createEdges(geometry);
         group.add(edges);
       }
+
+      this.applyMeasurements(group, spec && typeof spec === 'object' ? spec : null, dims, type);
+
       group.rotation.y = rotationY;
       return group;
     }
 
-    setShape(type) {
+    setShape(spec) {
       this.disposeCurrentShape();
-      if (!type) return;
-      this.currentShape = this.createShape(type);
+      if (!spec) return;
+      this.currentShape = this.createShape(spec);
       this.shapeGroup.add(this.currentShape);
       this._applyFloatingOffset();
       this.frameCurrentShape();
@@ -369,7 +602,7 @@
   const lockRotationCheckbox = document.getElementById('chkLockRotation');
   const freeFigureCheckbox = document.getElementById('chkFreeFigure');
 
-  const defaultInput = textarea ? textarea.value : 'kule';
+  const defaultInput = textarea ? textarea.value : 'sylinder radius: r høyde: h';
   window.STATE = window.STATE || {};
   if (typeof window.STATE.rawInput !== 'string') {
     window.STATE.rawInput = defaultInput;
@@ -412,12 +645,51 @@
     return 'prism';
   }
 
+  function parseDimensions(line) {
+    const result = {};
+    if (!line) return result;
+    const segments = line.split(/(?=\b(?:radius|rad|høyde|hoyde)\b)/i);
+    for (const segment of segments) {
+      const match = segment.match(/^\s*\b(radius|rad|høyde|hoyde)\b/i);
+      if (!match) continue;
+      const keyword = match[1].toLowerCase();
+      const normalized = keyword.startsWith('r') ? 'radius' : 'height';
+      let remainder = segment.slice(match[0].length);
+      let hadSeparator = false;
+      const sepMatch = remainder.match(/^\s*([:=])/);
+      if (sepMatch) {
+        hadSeparator = true;
+        remainder = remainder.slice(sepMatch[0].length);
+      }
+      let label = remainder.trim();
+      if (label.startsWith('"') && label.endsWith('"') && label.length >= 2) {
+        label = label.slice(1, -1);
+      } else if (label.startsWith("'") && label.endsWith("'") && label.length >= 2) {
+        label = label.slice(1, -1);
+      } else if (label.startsWith('(') && label.endsWith(')') && label.length >= 2) {
+        label = label.slice(1, -1).trim();
+      } else if (label.startsWith('[') && label.endsWith(']') && label.length >= 2) {
+        label = label.slice(1, -1).trim();
+      }
+      label = label.replace(/[,;|]+$/g, '').replace(/\s{2,}/g, ' ').trim();
+      let finalLabel = label;
+      if (!finalLabel) {
+        finalLabel = hadSeparator ? '' : (normalized === 'radius' ? 'r' : 'h');
+      }
+      if (!result[normalized]) {
+        result[normalized] = { requested: true, label: finalLabel };
+      }
+    }
+    return result;
+  }
+
   function parseInput(rawInput) {
     const lines = rawInput.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     const figures = [];
     for (const line of lines) {
       const type = detectType(line);
-      figures.push({ input: line, type });
+      const dimensions = parseDimensions(line);
+      figures.push({ input: line, type, dimensions });
       if (figures.length >= renderers.length) break;
     }
     return figures;
@@ -439,7 +711,7 @@
       const info = figures[index];
       if (info) {
         wrapper.classList.remove('is-hidden');
-        renderer.setShape(info.type);
+        renderer.setShape(info);
         if (typeof renderer._handleResize === 'function') {
           renderer._handleResize();
         }
