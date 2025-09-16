@@ -40,7 +40,10 @@ function buildSimple(){
   if(coords){ lines.push(`coords=${coords}`); }
   return lines.join('\n');
 }
-let SIMPLE = buildSimple();
+let SIMPLE = (typeof window !== 'undefined' && typeof window.SIMPLE !== 'undefined')
+  ? window.SIMPLE
+  : buildSimple();
+if(typeof window !== 'undefined'){ window.SIMPLE = SIMPLE; }
 
 /* ====================== AVANSERT KONFIG ===================== */
 const ADV = {
@@ -186,7 +189,7 @@ function parseSimple(txt){
   }
   return out;
 }
-const SIMPLE_PARSED = parseSimple(SIMPLE);
+let SIMPLE_PARSED = parseSimple(SIMPLE);
 
 const ALLOWED_NAMES = [
   'sin','cos','tan','asin','acos','atan','sinh','cosh','tanh',
@@ -203,7 +206,20 @@ function decideMode(parsed){
   const anyPlaceholder = parsed.funcs.some(f => !isExplicitRHS(f.rhs));
   return anyPlaceholder ? 'points' : 'functions';
 }
-const MODE = decideMode(SIMPLE_PARSED);
+let MODE = decideMode(SIMPLE_PARSED);
+
+let START_SCREEN = null;
+let brd = null;
+let axX = null;
+let axY = null;
+let xName = null;
+let yName = null;
+let gridV = [];
+let gridH = [];
+let graphs = [];
+let A = null;
+let B = null;
+let moving = [];
 
 /* =============== uttrykk → funksjon ================= */
 function parseFunctionSpec(spec){
@@ -528,32 +544,89 @@ function initialScreen(){
   }
   return scr;
 }
-const START_SCREEN = initialScreen();
+function syncSimpleFromWindow(){
+  if(typeof window !== 'undefined' && typeof window.SIMPLE !== 'undefined'){
+    SIMPLE = window.SIMPLE;
+  }else if(typeof window !== 'undefined'){
+    window.SIMPLE = SIMPLE;
+  }
+}
 
-const brd = JXG.JSXGraph.initBoard('board',{
-  boundingbox: toBB(START_SCREEN),
-  axis: true,
-  grid: false,
-  showNavigation: false,
-  showCopyright: false,
-  pan:  { enabled: ADV.interactions.pan.enabled,  needShift: false },
-  zoom: { enabled: ADV.interactions.zoom.enabled, wheel: true,
-          needShift: false, factorX: ADV.interactions.zoom.factorX,
-          factorY: ADV.interactions.zoom.factorY }
-});
+function destroyBoard(){
+  if(brd){
+    try{ brd.off?.('boundingbox', updateAfterViewChange); }catch(_){ }
+    try{ JXG.JSXGraph.freeBoard(brd); }catch(_){ }
+  }
+  brd = null;
+  axX = null;
+  axY = null;
+  xName = null;
+  yName = null;
+  gridV = [];
+  gridH = [];
+  graphs = [];
+  A = null;
+  B = null;
+  moving = [];
+}
+
+function applyAxisStyles(){
+  if(!brd) return;
+  ['x','y'].forEach(ax=>{
+    brd.defaultAxes[ax].setAttribute({
+      withLabel:false,
+      strokeColor:ADV.axis.style.stroke,
+      strokeWidth:ADV.axis.style.width,
+      firstArrow:false,
+      lastArrow:true
+    });
+  });
+}
+
+function applyTickSettings(){
+  if(!axX || !axY) return;
+  const tickBase = { drawLabels:true, precision: ADV.axis.grid.labelPrecision };
+  axX.defaultTicks.setAttribute({
+    ...tickBase,
+    ticksDistance: +ADV.axis.grid.majorX || 1,
+    minorTicks: 0,
+    label: { display:'internal', anchorX:'middle', anchorY:'top', offset:[0,-8] }
+  });
+  axY.defaultTicks.setAttribute({
+    ...tickBase,
+    ticksDistance: +ADV.axis.grid.majorY || 1,
+    minorTicks: 0,
+    label: { display:'internal', anchorX:'right', anchorY:'middle', offset:[-8,0] }
+  });
+}
+
+function initBoard(){
+  START_SCREEN = initialScreen();
+  brd = JXG.JSXGraph.initBoard('board',{
+    boundingbox: toBB(START_SCREEN),
+    axis: true,
+    grid: false,
+    showNavigation: false,
+    showCopyright: false,
+    pan:  { enabled: ADV.interactions.pan.enabled,  needShift: false },
+    zoom: { enabled: ADV.interactions.zoom.enabled, wheel: true,
+            needShift: false, factorX: ADV.interactions.zoom.factorX,
+            factorY: ADV.interactions.zoom.factorY }
+  });
+  axX = brd.defaultAxes.x;
+  axY = brd.defaultAxes.y;
+  applyAxisStyles();
+  applyTickSettings();
+  xName = null;
+  yName = null;
+  placeAxisNames();
+  gridV = [];
+  gridH = [];
+}
 
 /* ---------- akser og navn ---------- */
-['x','y'].forEach(ax=>{
-  brd.defaultAxes[ax].setAttribute({
-    withLabel:false,
-    strokeColor:ADV.axis.style.stroke,
-    strokeWidth:ADV.axis.style.width,
-    firstArrow:false,
-    lastArrow:true
-  });
-});
-let xName=null,yName=null;
 function placeAxisNames(){
+  if(!brd) return;
   const [xmin,ymax,xmax,ymin]=brd.getBoundingBox();
   const rx=xmax-xmin, ry=ymax-ymin, off=0.04;
   if(!xName){
@@ -569,23 +642,6 @@ function placeAxisNames(){
   xName.moveTo([xmax-off*rx, 0-off*ry]);
   yName.moveTo([0-off*rx, ymax-off*ry]);
 }
-placeAxisNames();
-
-/* ---------- ticks / grid ---------- */
-const axX=brd.defaultAxes.x, axY=brd.defaultAxes.y;
-const tickBase = { drawLabels:true, precision: ADV.axis.grid.labelPrecision };
-axX.defaultTicks.setAttribute({
-  ...tickBase,
-  ticksDistance: +ADV.axis.grid.majorX || 1,
-  minorTicks: 0,
-  label: { display:'internal', anchorX:'middle', anchorY:'top', offset:[0,-8] }
-});
-axY.defaultTicks.setAttribute({
-  ...tickBase,
-  ticksDistance: +ADV.axis.grid.majorY || 1,
-  minorTicks: 0,
-  label: { display:'internal', anchorX:'right', anchorY:'middle', offset:[-8,0] }
-});
 
 /* ====== Lås 1:1 når lockAspect===true,
    eller når lockAspect er null og majorX===majorY ====== */
@@ -599,7 +655,7 @@ function shouldLockAspect(){
 
 let enforcing=false;
 function enforceAspectStrict(){
-  if(!shouldLockAspect() || enforcing) return;
+  if(!brd || !shouldLockAspect() || enforcing) return;
   enforcing=true;
   try{
     const [xmin,ymax,xmax,ymin]=brd.getBoundingBox();
@@ -615,11 +671,12 @@ function enforceAspectStrict(){
 }
 
 /* ---------- GRID (statisk) ---------- */
-let gridV=[], gridH=[];
 function rebuildGrid(){
-  for(const L of gridV) brd.removeObject(L);
-  for(const L of gridH) brd.removeObject(L);
-  gridV=[]; gridH=[];
+  if(!brd) return;
+  for(const L of gridV){ try{ brd.removeObject(L); }catch(_){ } }
+  for(const L of gridH){ try{ brd.removeObject(L); }catch(_){ } }
+  gridV=[];
+  gridH=[];
 
   enforceAspectStrict();
 
@@ -634,7 +691,6 @@ function rebuildGrid(){
   for(let x=x0; x<=xmax+1e-9; x+=sx) gridV.push(brd.create('line', [[x,ymin],[x,ymax]], attrs));
   for(let y=y0; y<=ymax+1e-9; y+=sy) gridH.push(brd.create('line', [[xmin,y],[xmax,y]], attrs));
 }
-rebuildGrid();
 
 /* =================== Grafnavn-bakplate =================== */
 function measureTextPx(label){
@@ -834,6 +890,7 @@ function updateAllBrackets(){
 }
 
 function buildFunctions(){
+  graphs = [];
   SIMPLE_PARSED.funcs.forEach((f,i)=>{
     const color=colorFor(i);
     const fn=parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
@@ -956,7 +1013,11 @@ function buildPointsLine(){
   // Fasit-sjekk (hvis "Riktig:" finnes)
   if (SIMPLE_PARSED.answer){
     const {btn, msg, setStatus} = ensureCheckControls();
-    btn.onclick = () => {
+    if(btn){ btn.style.display = ''; }
+    if(msg){ msg.style.display = ''; }
+    setStatus('info','');
+    if(btn){
+      btn.onclick = () => {
       const {m, b} = currentMB();
       const ans = parseAnswerToMB(SIMPLE_PARSED.answer);
       if(!ans){ setStatus('err','Kunne ikke tolke fasit.'); return; }
@@ -968,6 +1029,7 @@ function buildPointsLine(){
         setStatus('err', `Ikke helt. Nå: ${linearStr(m, b)}`);
       }
     };
+    }
   }
 }
 
@@ -1003,35 +1065,64 @@ function addFixedPoints(){
 }
 
 /* ================= bygg valgt modus ================= */
-if(MODE==='functions'){
-  buildFunctions();
-}else{
-  buildPointsLine();
+function hideCheckControls(){
+  const btn = document.getElementById('btnCheck');
+  const msg = document.getElementById('checkMsg');
+  if(btn){
+    btn.style.display = 'none';
+    btn.onclick = null;
+  }
+  if(msg){
+    msg.style.display = 'none';
+    msg.textContent = '';
+    msg.className = 'status status--info';
+  }
 }
-addFixedPoints();
 
 /* ================= Oppdater / resize ================= */
 function updateAfterViewChange(){
+  if(!brd) return;
   enforceAspectStrict();
   rebuildGrid();
-  axX.defaultTicks.setAttribute({ ticksDistance:+ADV.axis.grid.majorX||1, minorTicks:0, precision:ADV.axis.grid.labelPrecision });
-  axY.defaultTicks.setAttribute({ ticksDistance:+ADV.axis.grid.majorY||1, minorTicks:0, precision:ADV.axis.grid.labelPrecision });
+  applyTickSettings();
   placeAxisNames();
   if(MODE==='functions'){
     rebuildAllFunctionSegments();
     updateAllBrackets();
   }
 }
-brd.on('boundingbox', updateAfterViewChange);
 
-// Init
-enforceAspectStrict();
-rebuildGrid();
+function rebuildAll(){
+  syncSimpleFromWindow();
+  if(typeof window !== 'undefined'){ window.SIMPLE = SIMPLE; }
+  if(typeof SIMPLE !== 'string'){ SIMPLE = SIMPLE == null ? '' : String(SIMPLE); }
+  SIMPLE_PARSED = parseSimple(SIMPLE);
+  MODE = decideMode(SIMPLE_PARSED);
+
+  hideCheckControls();
+
+  destroyBoard();
+  initBoard();
+  if(!brd) return;
+
+  if(MODE==='functions'){
+    buildFunctions();
+  }else{
+    buildPointsLine();
+  }
+  addFixedPoints();
+
+  brd.on('boundingbox', updateAfterViewChange);
+  updateAfterViewChange();
+}
 
 window.addEventListener('resize', ()=>{
   JXG.JSXGraph.resizeBoards();
   updateAfterViewChange();
 });
+
+rebuildAll();
+window.render = rebuildAll;
 
 /* ====== Sjekk-knapp + status (monteres i #checkArea i HTML) ====== */
 function ensureCheckControls(){
