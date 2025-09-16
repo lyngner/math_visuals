@@ -136,6 +136,17 @@ function applySimpleConfig(){
   S.ch.dedupeOrderless = !!(CFG.SIMPLE.challenge && CFG.SIMPLE.challenge.dedupeOrderless);
 }
 
+function syncSimpleConfigFromState(){
+  CFG.SIMPLE.length.cells = S.w;
+  CFG.SIMPLE.height.cells = S.h;
+  S.w0 = S.w;
+  S.h0 = S.h;
+  const lenInput = document.getElementById("lenCells");
+  if(lenInput) lenInput.value = String(S.w);
+  const heiInput = document.getElementById("heiCells");
+  if(heiInput) heiInput.value = String(S.h);
+}
+
 function initFromHtml(){
   readConfigFromHtml();
   applySimpleConfig();
@@ -214,7 +225,16 @@ function ensureA11yControls(){
   updateLive();
 }
 function updateLive(){ if(S.kb.live) S.kb.live.textContent=`Bredde ${S.w}, høyde ${S.h}, areal ${S.w*S.h}.`; }
-function moveHandleTo(nx,ny){ S.w=Math.round(nx); S.h=Math.round(ny); if(S.handle) S.handle.moveTo([S.w,S.h]); tryRegisterFound(S.w,S.h); drawInnerGrid(); updateLive(); S.board.update(); }
+function moveHandleTo(nx,ny){
+  S.w=Math.round(nx);
+  S.h=Math.round(ny);
+  if(S.handle) S.handle.moveTo([S.w,S.h]);
+  tryRegisterFound(S.w,S.h);
+  drawInnerGrid();
+  updateLive();
+  syncSimpleConfigFromState();
+  S.board.update();
+}
 
 /* ============================== Grid inni rektangelet ============================== */
 /* Viktig: layer=9 -> over fyllet (fill ligger på 7) */
@@ -383,7 +403,11 @@ function snapHandleToCells(){
   const y=clamp(quantize(S.handle.Y(),step),1,S.maxH);
   S.handle.moveTo([x,y]);
 }
-function updateCountsFromHandle(){ S.w=Math.round(S.handle.X()); S.h=Math.round(S.handle.Y()); }
+function updateCountsFromHandle(){
+  S.w=Math.round(S.handle.X());
+  S.h=Math.round(S.handle.Y());
+  syncSimpleConfigFromState();
+}
 
 /* ============================== Bounding – alltid plass til alt ============================== */
 function adaptView(){
@@ -424,6 +448,7 @@ function doReset(){
   drawInnerGrid();
   updateLive();
   renderInBoardLists();
+  syncSimpleConfigFromState();
 }
 
 function serializeSvgFromBoard(board){

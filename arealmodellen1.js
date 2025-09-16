@@ -152,6 +152,24 @@ function render(){
   // state
   let sx = clampInt(initLeftCols,   1, COLS-1) * UNIT;
   let sy = clampInt(initBottomRows, 1, ROWS-1) * UNIT;
+  let lastSyncedLeft = null;
+  let lastSyncedBottom = null;
+
+  function syncSimpleHandles(){
+    const leftCols = Math.round(sx/UNIT);
+    const bottomRows = Math.round(sy/UNIT);
+    if(leftCols === lastSyncedLeft && bottomRows === lastSyncedBottom) return;
+    lastSyncedLeft = leftCols;
+    lastSyncedBottom = bottomRows;
+    if(!CFG.SIMPLE.length) CFG.SIMPLE.length = {};
+    if(!CFG.SIMPLE.height) CFG.SIMPLE.height = {};
+    CFG.SIMPLE.length.handle = leftCols;
+    CFG.SIMPLE.height.handle = bottomRows;
+    const lengthStart = document.getElementById('lengthStart');
+    if(lengthStart) lengthStart.value = String(leftCols);
+    const heightStart = document.getElementById('heightStart');
+    if(heightStart) heightStart.value = String(bottomRows);
+  }
 
   injectRuntimeStyles();
 
@@ -368,6 +386,8 @@ function render(){
     if (handleDown)  svg.append(handleDown);
     if (hitDown)     svg.append(hitDown);
     if (a11yDown)    svg.append(a11yDown);
+
+    syncSimpleHandles();
   }
 
   // ---- Responsiv skalering ----

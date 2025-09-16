@@ -41,9 +41,9 @@ const PIZZA_DEFAULTS = {
   showDenominatorValue: true
 };
 const PIZZA_DOM = [
-  { svgId:"pizza1", fracId:"frac1", minusId:"nMinus1", plusId:"nPlus1", valId:"nVal1" },
-  { svgId:"pizza2", fracId:"frac2", minusId:"nMinus2", plusId:"nPlus2", valId:"nVal2" },
-  { svgId:"pizza3", fracId:"frac3", minusId:"nMinus3", plusId:"nPlus3", valId:"nVal3" }
+  { svgId:"pizza1", fracId:"frac1", minusId:"nMinus1", plusId:"nPlus1", valId:"nVal1", index:0 },
+  { svgId:"pizza2", fracId:"frac2", minusId:"nMinus2", plusId:"nPlus2", valId:"nVal2", index:1 },
+  { svgId:"pizza3", fracId:"frac3", minusId:"nMinus3", plusId:"nPlus3", valId:"nVal3", index:2 }
 ];
 
 const TAU=Math.PI*2;
@@ -161,6 +161,7 @@ class Pizza{
   constructor(opts){
     const cfg={...PIZZA_DEFAULTS,...opts};
     this.cfg=cfg;
+    this.index = typeof cfg.index === "number" ? cfg.index : null;
 
     this.minN=Math.max(1, cfg.minN ?? 1);
     this.maxN=Math.max(this.minN, cfg.maxN ?? 24);
@@ -276,13 +277,52 @@ class Pizza{
     });
 
     this.draw();
+    this.syncSimpleConfig();
     REG.set(this.svg, this);
   }
 
   _pt(e){ const p=this.svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; return p.matrixTransform(this.svg.getScreenCTM().inverse()); }
-  _setTheta(a,updateK){ this.theta=norm(a); if(updateK){ const step=TAU/this.n; this.k=Math.max(0,Math.min(this.n,Math.round(this.theta/step))); } this.draw(); }
-  setN(n){ const nn=Math.max(this.minN,Math.min(this.maxN,Math.round(n))); this.n=nn; const step=TAU/this.n; this.k=Math.max(0,Math.min(this.n,Math.round(this.theta/step))); this.draw(); }
-  setK(k){ const kk=Math.max(0,Math.min(this.n,Math.round(k))); this.k=kk; this.theta=(this.k/this.n)*TAU; this.draw(); }
+  _setTheta(a,updateK){
+    this.theta=norm(a);
+    if(updateK){
+      const step=TAU/this.n;
+      this.k=Math.max(0,Math.min(this.n,Math.round(this.theta/step)));
+    }
+    this.draw();
+    if(updateK) this.syncSimpleConfig();
+  }
+  setN(n){
+    const nn=Math.max(this.minN,Math.min(this.maxN,Math.round(n)));
+    this.n=nn;
+    const step=TAU/this.n;
+    this.k=Math.max(0,Math.min(this.n,Math.round(this.theta/step)));
+    this.draw();
+    this.syncSimpleConfig();
+  }
+  setK(k){
+    const kk=Math.max(0,Math.min(this.n,Math.round(k)));
+    this.k=kk;
+    this.theta=(this.k/this.n)*TAU;
+    this.draw();
+    this.syncSimpleConfig();
+  }
+  syncSimpleConfig(){
+    if(this.index == null) return;
+    const idx = this.index;
+    if(Array.isArray(SIMPLE.pizzas)){
+      if(!SIMPLE.pizzas[idx]) SIMPLE.pizzas[idx] = {};
+      SIMPLE.pizzas[idx].n = this.n;
+      SIMPLE.pizzas[idx].t = this.k;
+    }
+    const field = id => document.getElementById(id);
+    const base = idx + 1;
+    const nField = field(`p${base}N`);
+    if(nField) nField.value = String(this.n);
+    const tField = field(`p${base}T`);
+    if(tField) tField.value = String(this.k);
+    const nVal = field(`nVal${base}`);
+    if(nVal) nVal.textContent = String(this.n);
+  }
 
   _updateTextAbove(){
     if(this.metaLine){
@@ -824,6 +864,7 @@ function initFromHtml(){
 
     new Pizza({
       ...map,
+      index: map.index ?? i,
       n: pcfg.n ?? 1,
       k: Math.min(pcfg.t ?? 0, pcfg.n ?? 1),
       minN, maxN,
