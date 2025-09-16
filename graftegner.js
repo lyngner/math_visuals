@@ -694,12 +694,48 @@ function rebuildGrid(){
 
 /* =================== Grafnavn-bakplate =================== */
 function measureTextPx(label){
-  try{
-    const t = label.rendNodeText || (label.rendNode && label.rendNode.getElementsByTagName('text')[0]);
-    if(t && t.getBBox){ const bb=t.getBBox(); return {w:bb.width,h:bb.height}; }
-  }catch(_){}
-  const s=(label.plaintext||'f(x)').length, f=ADV.curveName.fontSize;
-  return { w: s*f*0.6, h: f*1.1 };
+  const tryBBox = node => {
+    if(!node) return null;
+    try{
+      if(typeof node.getBBox === 'function'){
+        const bb = node.getBBox();
+        if(bb && Number.isFinite(bb.width) && Number.isFinite(bb.height)){
+          return { w: bb.width, h: bb.height };
+        }
+      }
+    }catch(_){ }
+    return null;
+  };
+  const tryRect = node => {
+    if(!node) return null;
+    try{
+      if(typeof node.getBoundingClientRect === 'function'){
+        const rect = node.getBoundingClientRect();
+        if(rect && Number.isFinite(rect.width) && Number.isFinite(rect.height)){
+          return { w: rect.width, h: rect.height };
+        }
+      }
+    }catch(_){ }
+    return null;
+  };
+
+  const nodes = [
+    label && label.rendNode,
+    label && label.rendNodeText && label.rendNodeText.parentNode,
+    label && label.rendNodeText
+  ];
+  for(const node of nodes){
+    const res = tryBBox(node);
+    if(res) return res;
+  }
+  for(const node of nodes){
+    const res = tryRect(node);
+    if(res) return res;
+  }
+
+  const text = (label && label.plaintext) || 'f(x)';
+  const f = (label && label.visProp && label.visProp.fontsize) || ADV.curveName.fontSize;
+  return { w: text.length * f * 0.6, h: f * 1.1 };
 }
 function ensurePlateFor(label){
   if(label._plate) return;
