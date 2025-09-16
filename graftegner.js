@@ -1334,20 +1334,26 @@ function setupSettingsForm(){
     row.className = 'settings-row func-row';
     row.innerHTML = `
       <label>${index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index}
-        <input type="text" data-fun value="${funVal}">
+        <input type="text" data-fun>
       </label>
       <label class="domain">Definisjon (valgfritt)
-        <input type="text" data-dom value="${domVal}" placeholder="[start, stopp]">
+        <input type="text" data-dom placeholder="[start, stopp]">
       </label>
     `;
     funcRows.appendChild(row);
     const funInput = row.querySelector('input[data-fun]');
-    funInput.addEventListener('input', () => { toggleDomain(funInput); syncSimpleFromForm(); });
     const domInput = row.querySelector('input[data-dom]');
+    if(funInput){
+      funInput.value = funVal || '';
+      funInput.addEventListener('input', () => { toggleDomain(funInput); syncSimpleFromForm(); });
+    }
     if(domInput){
+      domInput.value = domVal || '';
       domInput.addEventListener('input', syncSimpleFromForm);
     }
-    toggleDomain(funInput);
+    if(funInput){
+      toggleDomain(funInput);
+    }
     return row;
   };
 
@@ -1357,23 +1363,39 @@ function setupSettingsForm(){
     if(lastRow) lastRow.appendChild(addBtn);
   };
 
-  let i = 1;
-  const initCoords = paramStr('coords','');
-  const hasCoords = initCoords !== '';
-  while(true){
-    const key = `fun${i}`;
-    const fun = (i === 1 && hasCoords) ? initCoords : paramStr(key, i === 1 ? 'f(x)=x^2-2' : '');
-    const dom = paramStr(`dom${i}`, '');
-    if(i === 1 || params.has(key)){
-      createRow(i, fun, dom);
-      i++;
-    } else {
-      break;
+  const fillFormFromSimple = (simple) => {
+    if(addBtn.parentElement){
+      addBtn.parentElement.removeChild(addBtn);
     }
-  }
+    const source = typeof simple === 'string' ? simple : (typeof window !== 'undefined' ? window.SIMPLE : SIMPLE);
+    const text = typeof source === 'string' ? source : '';
+    const lines = text
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+    if(lines.length === 0){
+      lines.push('');
+    }
+    funcRows.innerHTML = '';
+    lines.forEach((line, idx) => {
+      let funVal = line;
+      let domVal = '';
+      const domMatch = line.match(/,\s*x\s*(?:in|∈)\s*(.+)$/i);
+      if(domMatch){
+        funVal = line.slice(0, domMatch.index).trim();
+        domVal = domMatch[1].trim();
+      }
+      createRow(idx + 1, funVal, domVal);
+    });
+    appendAddBtn();
+    if(typeof source === 'string'){
+      SIMPLE = source;
+      SIMPLE_PARSED = parseSimple(SIMPLE);
+    }
+    syncSimpleFromForm();
+  };
 
-  appendAddBtn();
-  syncSimpleFromForm();
+  fillFormFromSimple(SIMPLE);
 
   addBtn.addEventListener('click', () => {
     const index = funcRows.querySelectorAll('.func-row').length + 1;
@@ -1381,6 +1403,12 @@ function setupSettingsForm(){
     appendAddBtn();
     syncSimpleFromForm();
   });
+
+  if(typeof window !== 'undefined'){
+    window.addEventListener('examples:loaded', () => {
+      fillFormFromSimple(window.SIMPLE);
+    });
+  }
   g('cfgScreen').value = paramStr('screen','');
   g('cfgLock').checked = params.has('lock') ? paramBool('lock') : true;
   g('cfgAxisX').value = paramStr('xName','x');
