@@ -44,6 +44,27 @@ const STATE = {
   },
   layout: "row" // "row" | "col"
 };
+const DEFAULT_STATE = JSON.parse(JSON.stringify(STATE));
+
+function ensureStateDefaults(){
+  const fill = (target, defaults)=>{
+    if(!defaults || typeof defaults !== "object") return;
+    Object.keys(defaults).forEach(key => {
+      const defVal = defaults[key];
+      const curVal = target[key];
+      if(defVal && typeof defVal === "object" && !Array.isArray(defVal)){
+        if(!curVal || typeof curVal !== "object"){
+          target[key] = Array.isArray(defVal) ? defVal.slice() : {...defVal};
+        }
+        fill(target[key], defVal);
+      }else if(!(key in target)){
+        target[key] = Array.isArray(defVal) ? defVal.slice() : defVal;
+      }
+    });
+  };
+  fill(STATE, DEFAULT_STATE);
+  return STATE;
+}
 
 /* ---------- STIL ---------- */
 const STYLE = {
@@ -806,6 +827,7 @@ async function renderCombined(){
 
 /* ---------- UI BIND ---------- */
 function bindUI(){
+  ensureStateDefaults();
   const $ = sel => document.querySelector(sel);
   const inpSpecs = $("#inpSpecs");
   const layoutRadios = document.querySelectorAll('input[name="layout"]');
@@ -932,6 +954,81 @@ window.addEventListener("DOMContentLoaded", () => {
   bindUI();
   renderCombined();
 });
+
+function applyStateToUI(){
+  const specInput = document.getElementById("inpSpecs");
+  if(specInput) specInput.value = STATE.specsText ?? "";
+
+  const layout = STATE.layout || "row";
+  document.querySelectorAll('input[name="layout"]').forEach(radio => {
+    radio.checked = (radio.value === layout);
+  });
+
+  const updateFigure = (figState, prefix, sideFallback, angFallback)=>{
+    const sides = figState?.sides || {};
+    const angles = figState?.angles || {};
+
+    const defaultSides = sides.default ?? sideFallback;
+    const defaultAngles = angles.default ?? angFallback;
+
+    const sidesSel = document.getElementById(`${prefix}Sides`);
+    if(sidesSel) sidesSel.value = defaultSides;
+    const angSel = document.getElementById(`${prefix}Angles`);
+    if(angSel) angSel.value = defaultAngles;
+
+    const sideKeys = ["a","b","c","d"];
+    sideKeys.forEach(letter => {
+      const upper = letter.toUpperCase();
+      const sel = document.getElementById(`${prefix}Side${upper}`);
+      if(sel) sel.value = sides[letter] ?? "inherit";
+      const txt = document.getElementById(`${prefix}Side${upper}Txt`);
+      if(txt){
+        const val = sides[`${letter}Text`];
+        txt.value = val != null ? val : letter;
+      }
+      if(sel && txt){
+        const mode = sel.value === "inherit" ? (defaultSides ?? "") : sel.value;
+        txt.disabled = !String(mode).includes("custom");
+      }
+    });
+
+    const angKeys = ["A","B","C","D"];
+    angKeys.forEach(letter => {
+      const sel = document.getElementById(`${prefix}Ang${letter}`);
+      if(sel) sel.value = angles[letter] ?? "inherit";
+      const txt = document.getElementById(`${prefix}Ang${letter}Txt`);
+      if(txt){
+        const val = angles[`${letter}Text`];
+        txt.value = val != null ? val : letter;
+      }
+      if(sel && txt){
+        const rawMode = sel.value === "inherit" ? (defaultAngles ?? "") : sel.value;
+        const normalized = String(rawMode).toLowerCase();
+        txt.disabled = !(normalized.startsWith("custom") || normalized.startsWith("custum"));
+      }
+    });
+  };
+
+  updateFigure(STATE.fig1, "f1", "value", "custom+mark+value");
+  updateFigure(STATE.fig2, "f2", "none", "custom+mark+value");
+}
+
+function applyExamplesConfig(){
+  ensureStateDefaults();
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", applyExamplesConfig, {once:true});
+    return;
+  }
+  applyStateToUI();
+  renderCombined();
+}
+
+if(typeof window !== "undefined"){
+  window.applyConfig = applyExamplesConfig;
+  window.applyState = applyExamplesConfig;
+  window.render = applyExamplesConfig;
+  window.renderCombined = renderCombined;
+}
 
 /* ---------- GEOMETRI ---------- */
 function solveTriangle(g){

@@ -61,9 +61,34 @@ const CFG = {
     }
   }
 };
+const DEFAULT_SIMPLE_CFG = JSON.parse(JSON.stringify(CFG.SIMPLE));
+const DEFAULT_ADV_CFG = JSON.parse(JSON.stringify(CFG.ADV));
+
+function ensureCfgDefaults(){
+  const fill = (target, defaults)=>{
+    if(!defaults || typeof defaults !== 'object') return;
+    Object.keys(defaults).forEach(key => {
+      const defVal = defaults[key];
+      const curVal = target[key];
+      if(defVal && typeof defVal === 'object' && !Array.isArray(defVal)){
+        if(!curVal || typeof curVal !== 'object'){
+          target[key] = Array.isArray(defVal) ? defVal.slice() : {...defVal};
+        }
+        fill(target[key], defVal);
+      }else if(!(key in target)){
+        target[key] = Array.isArray(defVal) ? defVal.slice() : defVal;
+      }
+    });
+  };
+  if(!CFG.SIMPLE || typeof CFG.SIMPLE !== 'object') CFG.SIMPLE = {};
+  if(!CFG.ADV || typeof CFG.ADV !== 'object') CFG.ADV = {};
+  fill(CFG.SIMPLE, DEFAULT_SIMPLE_CFG);
+  fill(CFG.ADV, DEFAULT_ADV_CFG);
+}
 /* ========================================================= */
 
 function readConfigFromHtml(){
+  ensureCfgDefaults();
   const height = parseInt(document.getElementById("height")?.value,10);
   if(Number.isFinite(height)) CFG.SIMPLE.height.cells = height;
   const length = parseInt(document.getElementById("length")?.value,10);
@@ -78,7 +103,8 @@ function readConfigFromHtml(){
   CFG.ADV.splitLines = document.getElementById("splitLines")?.checked ?? CFG.ADV.splitLines;
 }
 
-function render(){
+function draw(){
+  ensureCfgDefaults();
   const ADV = CFG.ADV, SV = CFG.SIMPLE;
 
   const UNIT = +ADV.unit || 40;
@@ -843,6 +869,7 @@ function initFromHtml(){
 }
 
 function setSimpleConfig(o={}){
+  ensureCfgDefaults();
   if(o.height != null) CFG.SIMPLE.height.cells = Math.round(o.height);
   if(o.length != null) CFG.SIMPLE.length.cells = Math.round(o.length);
   if(o.heightStart != null) CFG.SIMPLE.height.handle = Math.round(o.heightStart);
@@ -864,6 +891,47 @@ function setSimpleConfig(o={}){
 
 window.setArealmodellBConfig = setSimpleConfig;
 
+function applyConfigToInputs(){
+  ensureCfgDefaults();
+  const simple = CFG.SIMPLE || {};
+  const adv = CFG.ADV || {};
+  const setVal = (id,value)=>{
+    const el=document.getElementById(id);
+    if(!el || value==null) return;
+    const str=String(value);
+    if(el.value!==str) el.value=str;
+  };
+  const setChk = (id,value)=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    const bool=!!value;
+    if(el.checked!==bool) el.checked=bool;
+  };
+
+  setVal('length', simple.length?.cells);
+  setVal('lengthStart', simple.length?.handle);
+  setChk('showLengthHandle', simple.length?.showHandle !== false);
+  setVal('height', simple.height?.cells);
+  setVal('heightStart', simple.height?.handle);
+  setChk('showHeightHandle', simple.height?.showHandle !== false);
+  setChk('grid', !!adv.grid);
+  setChk('splitLines', adv.splitLines !== false);
+}
+
+function applyExamplesConfig(){
+  ensureCfgDefaults();
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', applyExamplesConfig, {once:true});
+    return;
+  }
+  applyConfigToInputs();
+  draw();
+}
+
+function render(){
+  applyExamplesConfig();
+}
+
 window.addEventListener('load', () => {
   initFromHtml();
   document.querySelectorAll('.settings input').forEach(el => {
@@ -871,3 +939,9 @@ window.addEventListener('load', () => {
     el.addEventListener('input', initFromHtml);
   });
 });
+
+if(typeof window !== 'undefined'){
+  window.applyConfig = applyExamplesConfig;
+  window.applyState = applyExamplesConfig;
+  window.render = render;
+}

@@ -2,6 +2,7 @@
    KONFIG FRA HTML
    ======================= */
 const SIMPLE = { pizzas: [], ops: [] };
+if(typeof window !== 'undefined') window.SIMPLE = SIMPLE;
 const PANEL_HTML = [];
 
 function readConfigFromHtml(){
@@ -848,6 +849,7 @@ function initFromHtml(){
   const cfg = readConfigFromHtml();
   SIMPLE.pizzas = cfg.pizzas;
   SIMPLE.ops = cfg.ops;
+  let visibleCount = 0;
   REG.clear();
 
   PIZZA_DOM.forEach((map,i)=>{
@@ -855,7 +857,11 @@ function initFromHtml(){
     if(!panel) return;
     if(PANEL_HTML[i]==null) PANEL_HTML[i]=panel.innerHTML;
     panel.innerHTML = PANEL_HTML[i];
-    if(panel.style.display === "none") return;
+    const isVisible = panel.style.display !== "none";
+    if(!SIMPLE.pizzas[i]) SIMPLE.pizzas[i] = {};
+    SIMPLE.pizzas[i].visible = isVisible;
+    if(!isVisible) return;
+    visibleCount++;
     const pcfg = cfg.pizzas[i];
 
     const minN=Math.max(1, pcfg.minN ?? 1);
@@ -890,6 +896,13 @@ function initFromHtml(){
   scheduleCenterAlign();
   fitPizzasToLine();
   setupRemovePizzaButtons();
+
+  if(visibleCount<=0){
+    const firstPanel=document.getElementById('panel1');
+    if(firstPanel && firstPanel.style.display!=="none") visibleCount=1;
+    else visibleCount=0;
+  }
+  SIMPLE.visibleCount = visibleCount || 1;
 }
 
 window.addEventListener("load", () => {
@@ -916,3 +929,94 @@ window.addEventListener("load", () => {
     el.addEventListener("change", initFromHtml);
   });
 });
+
+function applySimpleConfigToInputs(){
+  const pizzas = Array.isArray(SIMPLE.pizzas) ? SIMPLE.pizzas : [];
+  const ops = Array.isArray(SIMPLE.ops) ? SIMPLE.ops : [];
+
+  const clampCount = val => {
+    const num = Number(val);
+    if(!Number.isFinite(num)) return null;
+    return Math.min(3, Math.max(1, Math.round(num)));
+  };
+
+  let visible = clampCount(SIMPLE.visibleCount);
+  if(visible == null){
+    visible = pizzas.reduce((acc,p,idx)=>{
+      if(idx===0) return acc+1;
+      if(p && (p.visible || p?.lockN || p?.lockT || p?.text || p?.t || p?.n)) return acc+1;
+      return acc;
+    },0);
+    if(!visible) visible = 1;
+  }
+
+  for(let i=1;i<=3;i++){
+    const panel=document.getElementById(`panel${i}`);
+    const fieldset=document.getElementById(`fieldset${i}`);
+    const shouldShow=i<=visible;
+    if(panel) panel.style.display=shouldShow?"":"none";
+    if(fieldset) fieldset.style.display=shouldShow?"":"none";
+    if(!SIMPLE.pizzas[i-1]) SIMPLE.pizzas[i-1] = {};
+    SIMPLE.pizzas[i-1].visible = shouldShow;
+  }
+
+  const addBtn=document.getElementById('addPizza');
+  if(addBtn) addBtn.style.display = visible>=3? 'none' : '';
+
+  SIMPLE.visibleCount = visible;
+
+  const ensurePizza = idx => {
+    const base=pizzas[idx]||{};
+    return {
+      t: Number.isFinite(base.t)?base.t: (idx===0?3:0),
+      n: Number.isFinite(base.n)?Math.max(1,base.n):10,
+      lockN: !!base.lockN,
+      lockT: !!base.lockT,
+      text: base.text ?? 'none',
+      hideNVal: !!base.hideNVal,
+      minN: Number.isFinite(base.minN)?base.minN:1,
+      maksN: Number.isFinite(base.maksN)?base.maksN:24
+    };
+  };
+
+  const setVal=(id,value)=>{
+    const el=document.getElementById(id);
+    if(el && value!=null) el.value=String(value);
+  };
+  const setChk=(id,checked)=>{
+    const el=document.getElementById(id);
+    if(el) el.checked=!!checked;
+  };
+
+  for(let i=1;i<=3;i++){
+    const cfg=ensurePizza(i-1);
+    setVal(`p${i}T`, cfg.t);
+    setVal(`p${i}N`, cfg.n);
+    setChk(`p${i}LockN`, cfg.lockN);
+    setChk(`p${i}LockT`, cfg.lockT);
+    setVal(`p${i}Text`, cfg.text);
+    setChk(`p${i}HideNVal`, cfg.hideNVal);
+    setVal(`p${i}MinN`, cfg.minN);
+    setVal(`p${i}MaxN`, cfg.maksN);
+    const textSel=document.getElementById(`p${i}Text`);
+    if(textSel && cfg.text) textSel.value=cfg.text;
+  }
+
+  ops.forEach((op,idx)=>{
+    setVal(`op${idx+1}`, op ?? "");
+  });
+}
+
+function applyExamplesConfig(){
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', applyExamplesConfig, {once:true});
+    return;
+  }
+  applySimpleConfigToInputs();
+  initFromHtml();
+}
+
+if(typeof window !== 'undefined'){
+  window.applyConfig = applyExamplesConfig;
+  window.render = applyExamplesConfig;
+}
