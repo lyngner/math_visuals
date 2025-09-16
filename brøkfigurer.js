@@ -51,6 +51,13 @@
   }
 
   const figures = [];
+  const BOARD_MARGIN = 0.05;
+  const BOARD_SIZE = 1 + BOARD_MARGIN * 2;
+  const BOARD_BOUNDING_BOX = [-BOARD_MARGIN, 1 + BOARD_MARGIN, 1 + BOARD_MARGIN, -BOARD_MARGIN];
+  const CLIP_PADDING_PERCENT = (BOARD_MARGIN / BOARD_SIZE) * 100;
+  const CLIP_PAD_EXTRA_PERCENT = 2;
+  const CLIP_PAD_PERCENT = CLIP_PADDING_PERCENT + CLIP_PAD_EXTRA_PERCENT;
+  const CIRCLE_RADIUS = 0.45;
   const colorCountInp = document.getElementById('colorCount');
   const colorInputs = [];
   for(let i=1;;i++){
@@ -253,7 +260,7 @@
     function initBoard(){
       if(board) JXG.JSXGraph.freeBoard(board);
       board = JXG.JSXGraph.initBoard(`box${id}`, {
-        boundingbox:[0,1,1,0], axis:false, showCopyright:false,
+        boundingbox: BOARD_BOUNDING_BOX, axis:false, showCopyright:false,
         showNavigation:false, keepaspectratio:true
       });
     }
@@ -340,7 +347,7 @@
     }
 
     function drawCircle(n, division, allowWrong, colorFor){
-      const r = 0.45;
+      const r = CIRCLE_RADIUS;
       const cx = 0.5, cy = 0.5;
       const pointOpts = {visible:false, fixed:true, name:'', label:{visible:false}};
       if(allowWrong && (division==='vertical' || division==='horizontal' || division==='grid')){
@@ -673,12 +680,17 @@
     function applyClip(shape, division){
       const svg = board?.renderer?.svgRoot;
       if(!svg) return;
+      const pad = CLIP_PAD_PERCENT;
+      const padStr = pad.toFixed(2);
+      const maxStr = (100 + pad).toFixed(2);
       if(shape==='triangle'){
-        svg.style.clipPath = 'polygon(50% -2%, -2% 102%, 102% 102%)';
+        svg.style.clipPath = `polygon(50% -${padStr}%, -${padStr}% ${maxStr}%, ${maxStr}% ${maxStr}%)`;
       }else if(shape==='rectangle' || shape==='square'){
-        svg.style.clipPath = 'polygon(-2% 102%, 102% 102%, 102% -2%, -2% -2%)';
+        svg.style.clipPath = `polygon(-${padStr}% ${maxStr}%, ${maxStr}% ${maxStr}%, ${maxStr}% -${padStr}%, -${padStr}% -${padStr}%)`;
       }else if(shape==='circle'){
-        svg.style.clipPath = 'circle(45% at 50% 50%)';
+        const circleBase = (CIRCLE_RADIUS / BOARD_SIZE) * 100;
+        const circleClip = Math.min(50, circleBase + CLIP_PADDING_PERCENT + 1);
+        svg.style.clipPath = `circle(${circleClip.toFixed(2)}% at 50% 50%)`;
       }else{
         svg.style.clipPath = '';
       }
