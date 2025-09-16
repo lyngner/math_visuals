@@ -52,12 +52,14 @@
       ground.rotation.x = -Math.PI / 2;
       ground.position.y = -0.02;
       this.scene.add(ground);
+      this.ground = ground;
 
       this.shapeGroup = new THREE.Group();
       this.scene.add(this.shapeGroup);
 
       this.currentFrame = null;
       this.rotationLocked = false;
+      this.isFloating = false;
       this.fitMargin = 1.2;
 
       this._animate = this._animate.bind(this);
@@ -173,6 +175,31 @@
         }
       }
       this.currentFrame.distance = this.camera.position.distanceTo(center);
+    }
+
+    _applyFloatingOffset() {
+      if (!this.currentShape) return;
+      this.currentShape.position.set(0, 0, 0);
+      this.currentShape.updateMatrixWorld(true);
+      if (this.isFloating) {
+        const box = new THREE.Box3().setFromObject(this.currentShape);
+        if (!box.isEmpty()) {
+          const center = new THREE.Vector3();
+          box.getCenter(center);
+          this.currentShape.position.copy(center.multiplyScalar(-1));
+          this.currentShape.updateMatrixWorld(true);
+        }
+      }
+      this.shapeGroup.updateMatrixWorld(true);
+    }
+
+    setFloating(isFloating) {
+      this.isFloating = Boolean(isFloating);
+      if (this.ground) {
+        this.ground.visible = !this.isFloating;
+      }
+      this._applyFloatingOffset();
+      this.frameCurrentShape();
     }
 
     setRotationLocked(isLocked) {
@@ -296,6 +323,7 @@
       if (!type) return;
       this.currentShape = this.createShape(type);
       this.shapeGroup.add(this.currentShape);
+      this._applyFloatingOffset();
       this.frameCurrentShape();
     }
 
@@ -314,6 +342,7 @@
   const textarea = document.getElementById('inpSpecs');
   const drawBtn = document.getElementById('btnDraw');
   const lockRotationCheckbox = document.getElementById('chkLockRotation');
+  const freeFigureCheckbox = document.getElementById('chkFreeFigure');
 
   const defaultInput = textarea ? textarea.value : 'kule';
   window.STATE = window.STATE || {};
@@ -326,14 +355,25 @@
   if (typeof window.STATE.rotationLocked !== 'boolean') {
     window.STATE.rotationLocked = lockRotationCheckbox ? lockRotationCheckbox.checked : false;
   }
+  if (typeof window.STATE.freeFigure !== 'boolean') {
+    window.STATE.freeFigure = freeFigureCheckbox ? freeFigureCheckbox.checked : false;
+  }
   if (lockRotationCheckbox) {
     lockRotationCheckbox.checked = window.STATE.rotationLocked;
+  }
+  if (freeFigureCheckbox) {
+    freeFigureCheckbox.checked = window.STATE.freeFigure;
   }
 
   const applyRotationLock = locked => {
     renderers.forEach(renderer => renderer.setRotationLocked(locked));
   };
   applyRotationLock(window.STATE.rotationLocked);
+
+  const applyFloating = floating => {
+    renderers.forEach(renderer => renderer.setFloating(floating));
+  };
+  applyFloating(window.STATE.freeFigure);
 
   function detectType(line) {
     const normalized = line.toLowerCase();
@@ -372,18 +412,15 @@
     figureWrappers.forEach((wrapper, index) => {
       const renderer = renderers[index];
       const info = figures[index];
-      const label = wrapper.querySelector('.figureLabel');
       if (info) {
         wrapper.classList.remove('is-hidden');
         renderer.setShape(info.type);
         if (typeof renderer._handleResize === 'function') {
           renderer._handleResize();
         }
-        if (label) label.textContent = info.input;
       } else {
         renderer.clear();
         wrapper.classList.add('is-hidden');
-        if (label) label.textContent = '';
       }
     });
   }
@@ -409,6 +446,14 @@
       const locked = Boolean(evt.target.checked);
       window.STATE.rotationLocked = locked;
       applyRotationLock(locked);
+    });
+  }
+
+  if (freeFigureCheckbox) {
+    freeFigureCheckbox.addEventListener('change', evt => {
+      const floating = Boolean(evt.target.checked);
+      window.STATE.freeFigure = floating;
+      applyFloating(floating);
     });
   }
 
