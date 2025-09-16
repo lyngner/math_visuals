@@ -114,20 +114,56 @@ const ADV = {
 function parseSimple(txt){
   const lines = (txt||'').split('\n').map(s=>s.trim()).filter(Boolean);
   const out = { funcs:[], pointsCount:0, startX:[], extraPoints:[], answer:null, raw:txt };
-  const fnRe = /^([a-zA-Z]\w*)\s*\(\s*x\s*\)\s*=\s*([^,]+?)(?:\s*,\s*x\s*in\s*(.+))?$/i;
+
+  const parseDomain = dom => {
+    if(!dom) return null;
+    const cleaned = dom.trim();
+    if(!cleaned) return null;
+    if(/^r$/i.test(cleaned) || /^ℝ$/i.test(cleaned)) return null;
+    const dm = cleaned.match(/^\[\s*([+-]?\d*\.?\d+)\s*,\s*([+-]?\d*\.?\d+)\s*\]$/i);
+    return dm ? [ +dm[1], +dm[2] ] : null;
+  };
+
+  const parseFunctionLine = line => {
+    const eqIdx = line.indexOf('=');
+    if(eqIdx < 0) return null;
+
+    const lhsRaw = line.slice(0, eqIdx).trim();
+    const rhsWithDom = line.slice(eqIdx + 1).trim();
+    if(!lhsRaw || !rhsWithDom) return null;
+
+    let name = null;
+    let label = null;
+
+    const lhsFn = lhsRaw.match(/^([a-zA-Z]\w*)\s*\(\s*x\s*\)$/i);
+    if(lhsFn){
+      name = lhsFn[1];
+      label = `${lhsFn[1]}(x)`;
+    }else{
+      const lhsVar = lhsRaw.match(/^([a-zA-Z]\w*)$/i);
+      if(!lhsVar) return null;
+      if(lhsVar[1].toLowerCase() !== 'y') return null;
+      name = lhsVar[1];
+      label = lhsVar[1];
+    }
+
+    let rhs = rhsWithDom;
+    let domain = null;
+    const domMatch = /,\s*x\s*(?:in|∈)\s*(.+)$/i.exec(rhsWithDom);
+    if(domMatch){
+      rhs = rhsWithDom.slice(0, domMatch.index).trim();
+      domain = parseDomain(domMatch[1]);
+    }
+
+    rhs = rhs.trim();
+    if(!rhs) return null;
+
+    return { name, rhs, domain, label };
+  };
 
   for(const L of lines){
-    const m = L.match(fnRe);
-    if(m){
-      const name = m[1], rhs = m[2].trim(), dom=(m[3]||'').trim();
-      let domain = null;
-      if(dom && !/^r$/i.test(dom)){
-        const dm = dom.match(/^\[\s*([+-]?\d*\.?\d+)\s*,\s*([+-]?\d*\.?\d+)\s*\]$/i);
-        if(dm) domain = [ +dm[1], +dm[2] ];
-      }
-      out.funcs.push({ name, rhs, domain });
-      continue;
-    }
+    const fun = parseFunctionLine(L);
+    if(fun){ out.funcs.push(fun); continue; }
     const pm = L.match(/^points\s*=\s*(\d+)/i);
     if(pm){ out.pointsCount = +pm[1]; continue; }
 
@@ -801,7 +837,8 @@ function buildFunctions(){
   SIMPLE_PARSED.funcs.forEach((f,i)=>{
     const color=colorFor(i);
     const fn=parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
-    const g = { name:f.name, color, domain:f.domain||null };
+    const label = f.label || `${f.name}(x)`;
+    const g = { name:f.name, color, domain:f.domain||null, label };
     g.fn = x => { try{ const y=fn(x); return Number.isFinite(y)?y:NaN; }catch(_){ return NaN; } };
     g.segs = [];
 
@@ -812,7 +849,7 @@ function buildFunctions(){
       { visible:false, strokeOpacity:0, fixed:true });
 
     graphs.push(g);
-    makeSmartCurveLabel(g, i, `${g.name}(x)`);
+    makeSmartCurveLabel(g, i, label);
   });
 
   rebuildAllFunctionSegments();
@@ -1106,7 +1143,7 @@ function setupSettingsForm(){
 
   const isCoords = str => /^\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?)(?:\s*;\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?))*\s*$/.test(str);
   const isExplicitFun = str => {
-    const m = str.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/) || str.match(/^y\s*=\s*(.+)$/);
+    const m = str.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/) || str.match(/^y\s*=\s*(.+)$/i);
     const rhs = m ? m[1] : str;
     if(!/x/.test(rhs)) return false;
     return isExplicitRHS(rhs);
