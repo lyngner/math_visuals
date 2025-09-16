@@ -83,6 +83,7 @@ const controlsWrap = document.getElementById("controls");
 const figureGridEl = document.querySelector(".figureGrid");
 const addBtn = document.getElementById("addBowl");
 const panelEls = [document.getElementById("panel1"), document.getElementById("panel2")];
+const removeBtn1 = document.getElementById("removeBowl1");
 const removeBtn2 = document.getElementById("removeBowl2");
 const exportToolbar2 = document.getElementById("exportToolbar2");
 const gridEl = document.querySelector(".grid");
@@ -129,6 +130,10 @@ addBtn?.addEventListener("click", () => {
   SIMPLE.bowls[1] = { colorCounts: copyCounts, beadRadius: radiusSource };
   STATE.figure2Visible = true;
   render();
+});
+
+removeBtn1?.addEventListener("click", () => {
+  removeBowl(0);
 });
 
 removeBtn2?.addEventListener("click", () => {
@@ -328,12 +333,25 @@ function updateConfig(){
 }
 
 function removeBowl(idx){
-  if(idx <= 0) return;
+  if(idx < 0) return;
   if(Array.isArray(SIMPLE.bowls)){
-    SIMPLE.bowls.splice(idx);
+    if(idx === 0){
+      if(SIMPLE.bowls.length <= 1) return;
+      SIMPLE.bowls.splice(0, 1);
+    }else{
+      SIMPLE.bowls.splice(idx);
+    }
   }
   if(Array.isArray(STATE.bowls)){
-    STATE.bowls.splice(idx);
+    if(idx === 0){
+      if(STATE.bowls.length > 1){
+        STATE.bowls.splice(0, 1);
+      }else if(STATE.bowls.length === 1){
+        STATE.bowls[0] = {};
+      }
+    }else{
+      STATE.bowls.splice(idx);
+    }
   }
   if(dragState && dragState.fig?.idx === idx){
     const { fig, pointerId } = dragState;
@@ -345,7 +363,11 @@ function removeBowl(idx){
     }
     dragState = null;
   }
-  STATE.figure2Visible = false;
+  if(Array.isArray(SIMPLE.bowls) && SIMPLE.bowls.length === 0){
+    const fallback = colors.map(color => ({ color, count: 0 }));
+    SIMPLE.bowls.push({ colorCounts: fallback, beadRadius: SIMPLE.beadRadius ?? ADV.beadRadius });
+  }
+  STATE.figure2Visible = Array.isArray(SIMPLE.bowls) ? SIMPLE.bowls.length > 1 : false;
   render();
 }
 
@@ -472,7 +494,7 @@ function applyFigureVisibility(){
     if(showSecond){
       const current = Number.parseFloat(gridEl.style.getPropertyValue("--side-width"));
       const base = Number.isFinite(current) ? current : initialSideWidth;
-      const desired = Math.max(base, 540);
+      const desired = Math.max(base, 500);
       gridEl.style.setProperty("--side-width", `${desired}px`);
     }else{
       gridEl.style.setProperty("--side-width", `${initialSideWidth}px`);
@@ -483,6 +505,10 @@ function applyFigureVisibility(){
   if(panelEls[1]) panelEls[1].style.display = showSecond ? "" : "none";
   if(exportToolbar2) exportToolbar2.style.display = showSecond ? "" : "none";
   if(figureViews[1]?.fieldset) figureViews[1].fieldset.style.display = showSecond ? "" : "none";
+  if(removeBtn1){
+    const extraBowl = Array.isArray(SIMPLE.bowls) ? SIMPLE.bowls.length > 1 : false;
+    removeBtn1.disabled = !(showSecond && extraBowl);
+  }
 }
 
 function getBowlState(idx){
