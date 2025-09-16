@@ -1240,6 +1240,72 @@ function setupSettingsForm(){
     return isExplicitRHS(rhs);
   };
 
+  const formatNumber = val => {
+    if(typeof val !== 'number') return '';
+    if(!Number.isFinite(val)) return '';
+    const str = String(val);
+    return str.replace(/\.0+(?=$)/, '').replace(/(\.\d*?)0+(?=$)/, '$1');
+  };
+
+  const buildSimpleFromForm = () => {
+    const rows = Array.from(funcRows.querySelectorAll('.func-row'));
+    const firstVal = rows[0]?.querySelector('input[data-fun]')?.value.trim() || '';
+    const firstIsCoords = !!firstVal && isCoords(firstVal);
+    const lines = [];
+
+    rows.forEach((row, idx) => {
+      const funInput = row.querySelector('input[data-fun]');
+      const domInput = row.querySelector('input[data-dom]');
+      if(!funInput) return;
+      const fun = funInput.value.trim();
+      if(!fun) return;
+      if(idx === 0 && firstIsCoords){
+        lines.push(`coords=${fun}`);
+        return;
+      }
+      const dom = domInput ? domInput.value.trim() : '';
+      lines.push(dom ? `${fun}, x in ${dom}` : fun);
+    });
+
+    const hasCoordsLine = lines.some(L => /^\s*coords\s*=/i.test(L));
+    const hasPointsLine = lines.some(L => /^\s*points\s*=/i.test(L));
+    const hasStartXLine = lines.some(L => /^\s*startx\s*=/i.test(L));
+    const hasAnswerLine = lines.some(L => /^\s*riktig\s*:/i.test(L));
+
+    if(!hasPointsLine && Number.isFinite(SIMPLE_PARSED.pointsCount) && SIMPLE_PARSED.pointsCount > 0){
+      lines.push(`points=${SIMPLE_PARSED.pointsCount}`);
+    }
+
+    if(!hasStartXLine && Array.isArray(SIMPLE_PARSED.startX)){
+      const sx = SIMPLE_PARSED.startX.filter(Number.isFinite).map(formatNumber);
+      if(sx.length){
+        lines.push(`startx=${sx.join(', ')}`);
+      }
+    }
+
+    if(!hasCoordsLine && Array.isArray(SIMPLE_PARSED.extraPoints)){
+      const coords = SIMPLE_PARSED.extraPoints
+        .filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite))
+        .map(pt => `(${formatNumber(pt[0])}, ${formatNumber(pt[1])})`);
+      if(coords.length){
+        lines.push(`coords=${coords.join('; ')}`);
+      }
+    }
+
+    if(!hasAnswerLine && SIMPLE_PARSED.answer){
+      lines.push(`riktig: ${SIMPLE_PARSED.answer}`);
+    }
+
+    return lines.join('\n');
+  };
+
+  const syncSimpleFromForm = () => {
+    const simple = buildSimpleFromForm();
+    if(simple === SIMPLE) return;
+    SIMPLE = simple;
+    if(typeof window !== 'undefined'){ window.SIMPLE = SIMPLE; }
+  };
+
   const toggleDomain = input => {
     const row = input.closest('.func-row');
     const domLabel = row.querySelector('label.domain');
@@ -1265,7 +1331,11 @@ function setupSettingsForm(){
     `;
     funcRows.appendChild(row);
     const funInput = row.querySelector('input[data-fun]');
-    funInput.addEventListener('input', () => toggleDomain(funInput));
+    funInput.addEventListener('input', () => { toggleDomain(funInput); syncSimpleFromForm(); });
+    const domInput = row.querySelector('input[data-dom]');
+    if(domInput){
+      domInput.addEventListener('input', syncSimpleFromForm);
+    }
     toggleDomain(funInput);
     return row;
   };
@@ -1292,11 +1362,13 @@ function setupSettingsForm(){
   }
 
   appendAddBtn();
+  syncSimpleFromForm();
 
   addBtn.addEventListener('click', () => {
     const index = funcRows.querySelectorAll('.func-row').length + 1;
     createRow(index, '', '');
     appendAddBtn();
+    syncSimpleFromForm();
   });
   g('cfgScreen').value = paramStr('screen','');
   g('cfgLock').checked = params.has('lock') ? paramBool('lock') : true;
@@ -1306,6 +1378,7 @@ function setupSettingsForm(){
   g('cfgQ1').checked = paramBool('q1');
 
   const apply = () => {
+    syncSimpleFromForm();
     const p = new URLSearchParams();
     let idx = 1;
     funcRows.querySelectorAll('.func-row').forEach((row, rowIdx) => {
