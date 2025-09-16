@@ -38,14 +38,53 @@
     const style = document.createElement('style');
     style.id = 'exampleTabStyles';
     style.textContent = `
-.example-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:flex-end;border-bottom:1px solid #e5e7eb;padding-bottom:0;}
+.example-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;margin-bottom:0;align-items:flex-end;border-bottom:1px solid #e5e7eb;padding-bottom:0;}
 .example-tab{appearance:none;border:1px solid #d1d5db;border-bottom:none;background:#f3f4f6;color:#374151;border-radius:10px 10px 0 0;padding:6px 14px;font-size:14px;line-height:1;cursor:pointer;transition:background-color .2s,border-color .2s,color .2s;box-shadow:0 -1px 0 rgba(15,23,42,.08) inset;margin-bottom:-1px;}
 .example-tab:hover{background:#e5e7eb;}
 .example-tab.is-active{background:#fff;color:#111827;border-color:var(--purple,#5B2AA5);border-bottom:1px solid #fff;box-shadow:0 -2px 0 var(--purple,#5B2AA5) inset;}
 .example-tab:focus-visible{outline:2px solid var(--purple,#5B2AA5);outline-offset:2px;}
 .example-tabs-empty{font-size:13px;color:#6b7280;padding:6px 0;}
+.card-has-settings .example-settings{margin-top:6px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;flex-direction:column;gap:10px;}
+.card-has-settings .example-settings > h2:first-child{margin-top:0;}
+.card-has-settings .example-tabs{margin-bottom:-6px;}
 `;
     document.head.appendChild(style);
+  }
+
+  function moveSettingsIntoExampleCard(){
+    if(!toolbar) return;
+    const exampleCard = toolbar.closest('.card');
+    if(!exampleCard || exampleCard.classList.contains('card-has-settings')) return;
+    let candidate = exampleCard.nextElementSibling;
+    let settingsCard = null;
+    while(candidate){
+      if(candidate.nodeType !== Node.ELEMENT_NODE){
+        candidate = candidate.nextElementSibling;
+        continue;
+      }
+      if(!candidate.classList.contains('card')){
+        candidate = candidate.nextElementSibling;
+        continue;
+      }
+      const heading = candidate.querySelector(':scope > h2');
+      const text = heading ? heading.textContent.trim().toLowerCase() : '';
+      if(text === 'innstillinger'){
+        settingsCard = candidate;
+        break;
+      }
+      candidate = candidate.nextElementSibling;
+    }
+
+    if(!settingsCard) return;
+
+    const settingsWrapper = document.createElement('div');
+    settingsWrapper.className = 'example-settings';
+    while(settingsCard.firstChild){
+      settingsWrapper.appendChild(settingsCard.firstChild);
+    }
+    exampleCard.appendChild(settingsWrapper);
+    settingsCard.remove();
+    exampleCard.classList.add('card-has-settings');
   }
 
   function getBinding(name){
@@ -211,6 +250,8 @@
   }else{
     document.body.appendChild(tabsContainer);
   }
+
+  moveSettingsIntoExampleCard();
 
   function updateDeleteButtonState(count){
     if(deleteBtn) deleteBtn.disabled = count <= 1;
