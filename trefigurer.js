@@ -21,15 +21,24 @@
       this.controls = typeof THREE.OrbitControls === 'function'
         ? new THREE.OrbitControls(this.camera, this.renderer.domElement)
         : null;
+
+      this.defaultCameraPosition = this.camera.position.clone();
+      this.defaultTarget = new THREE.Vector3(0, 1.1, 0);
+
       if (this.controls) {
         this.controls.enableDamping = true;
         this.controls.enablePan = false;
         this.controls.minDistance = 2.5;
         this.controls.maxDistance = 12;
-        this.controls.target.set(0, 1.1, 0);
+        this.controls.target.copy(this.defaultTarget);
         this.controls.addEventListener('start', () => { this.userIsInteracting = true; });
         this.controls.addEventListener('end', () => { this.userIsInteracting = false; });
+      } else {
+        this.camera.lookAt(this.defaultTarget);
       }
+
+      this.defaultCameraOffset = this.defaultCameraPosition.clone().sub(this.defaultTarget);
+      this.defaultCameraDistance = this.defaultCameraOffset.length();
 
       const ambient = new THREE.AmbientLight(0xffffff, 0.55);
       this.scene.add(ambient);
@@ -197,15 +206,51 @@
       return group;
     }
 
+    focusCurrentShape() {
+      if (!this.currentShape || !this.defaultCameraOffset) return;
+
+      const box = new THREE.Box3().setFromObject(this.currentShape);
+      if (!isFinite(box.min.x) || !isFinite(box.max.x)) return;
+
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const radius = Math.max(size.x, size.y, size.z) / 2;
+
+      const halfFov = THREE.MathUtils.degToRad(this.camera.fov * 0.5);
+      const minDistance = radius > 0 ? radius / Math.sin(Math.max(halfFov, 0.0001)) : 0;
+      const desiredDistance = Math.max(this.defaultCameraDistance, minDistance * 1.1);
+
+      const offsetDir = this.defaultCameraOffset.clone();
+      if (!offsetDir.lengthSq()) return;
+      const offset = offsetDir.normalize().multiplyScalar(desiredDistance);
+      const cameraPosition = center.clone().add(offset);
+      this.camera.position.copy(cameraPosition);
+
+      if (this.controls) {
+        this.controls.target.copy(center);
+        this.controls.update();
+      } else {
+        this.camera.lookAt(center);
+      }
+    }
+
     setShape(type) {
       this.disposeCurrentShape();
       if (!type) return;
       this.currentShape = this.createShape(type);
       this.shapeGroup.add(this.currentShape);
+      this.focusCurrentShape();
     }
 
     clear() {
       this.disposeCurrentShape();
+      this.camera.position.copy(this.defaultCameraPosition);
+      if (this.controls) {
+        this.controls.target.copy(this.defaultTarget);
+        this.controls.update();
+      } else {
+        this.camera.lookAt(this.defaultTarget);
+      }
     }
   }
 
