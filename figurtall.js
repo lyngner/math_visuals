@@ -378,17 +378,19 @@
     const figH=rows*cellSize;
     const nameH=24;
     const gap=20;
-    const totalH=boxes.length*(figH+nameH+gap)-gap;
+    const figCount=boxes.length;
+    const totalW=figCount>0 ? figCount*figW + gap*(figCount-1) : figW;
+    const totalH=figH + nameH;
     const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-    svg.setAttribute('viewBox',`0 0 ${figW} ${totalH}`);
-    svg.setAttribute('width',figW);
+    svg.setAttribute('viewBox',`0 0 ${totalW} ${totalH}`);
+    svg.setAttribute('width',totalW);
     svg.setAttribute('height',totalH);
-    let y=0;
+    let xOffset=0;
     boxes.forEach(box=>{
       const panel=box.closest('.figurePanel');
       const name=panel.querySelector('.nameInput')?.value||'';
       const g=document.createElementNS('http://www.w3.org/2000/svg','g');
-      g.setAttribute('transform',`translate(0,${y})`);
+      g.setAttribute('transform',`translate(${xOffset},0)`);
       box.querySelectorAll('.row').forEach((rowEl,r)=>{
         rowEl.querySelectorAll('.cell').forEach((cellEl,c)=>{
           const idx=parseInt(cellEl.dataset.color,10)||0;
@@ -440,7 +442,7 @@
         g.appendChild(text);
       }
       svg.appendChild(g);
-      y+=figH+nameH+gap;
+      xOffset+=figW+gap;
     });
     return svg;
   }
