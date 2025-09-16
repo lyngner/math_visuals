@@ -59,6 +59,27 @@ const CFG = {
     }
   }
 };
+const DEFAULT_SIMPLE_CFG = JSON.parse(JSON.stringify(CFG.SIMPLE));
+
+function ensureSimpleDefaults(){
+  const fill = (target, defaults)=>{
+    if(!defaults || typeof defaults !== 'object') return;
+    Object.keys(defaults).forEach(key => {
+      const defVal = defaults[key];
+      const curVal = target[key];
+      if(defVal && typeof defVal === 'object' && !Array.isArray(defVal)){
+        if(!curVal || typeof curVal !== 'object'){
+          target[key] = Array.isArray(defVal) ? defVal.slice() : {...defVal};
+        }
+        fill(target[key], defVal);
+      }else if(!(key in target)){
+        target[key] = Array.isArray(defVal) ? defVal.slice() : defVal;
+      }
+    });
+  };
+  if(!CFG.SIMPLE || typeof CFG.SIMPLE !== 'object') CFG.SIMPLE = {};
+  fill(CFG.SIMPLE, DEFAULT_SIMPLE_CFG);
+}
 
 /* ============================== State ============================== */
 const S = {
@@ -147,11 +168,16 @@ function syncSimpleConfigFromState(){
   if(heiInput) heiInput.value = String(S.h);
 }
 
-function initFromHtml(){
-  readConfigFromHtml();
+function rebuildFromConfig(){
+  ensureSimpleDefaults();
   applySimpleConfig();
   if(S.board) JXG.JSXGraph.freeBoard(S.board);
   createBoard();
+}
+
+function initFromHtml(){
+  readConfigFromHtml();
+  rebuildFromConfig();
 }
 
 /* ============================== Hjelpere ============================== */
@@ -644,3 +670,47 @@ document.addEventListener("DOMContentLoaded", () => {
     el.addEventListener('input', initFromHtml);
   });
 });
+
+function applyConfigToInputs(){
+  ensureSimpleDefaults();
+  const simple = CFG?.SIMPLE || {};
+  const len = simple.length || {};
+  const hei = simple.height || {};
+  const challenge = simple.challenge || {};
+  const setVal = (id, value)=>{
+    const el=document.getElementById(id);
+    if(el && value!=null && value!=="") el.value=String(value);
+  };
+  const setChk = (id, value)=>{
+    const el=document.getElementById(id);
+    if(el) el.checked=!!value;
+  };
+
+  setVal("lenCells", len.cells);
+  setVal("lenMax", len.max);
+  setVal("heiCells", hei.cells);
+  setVal("heiMax", hei.max);
+  setChk("chkGrid", simple.showGrid !== false);
+  if(simple.snap != null) setVal("snap", simple.snap);
+  const areaInput=document.getElementById("areaLabel");
+  if(areaInput && simple.areaLabel != null) areaInput.value=String(simple.areaLabel);
+  setChk("chkChallenge", !!challenge.enabled);
+  if(challenge.area != null) setVal("challengeArea", challenge.area);
+}
+
+function applyExamplesConfig(){
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", applyExamplesConfig, {once:true});
+    return;
+  }
+  ensureSimpleDefaults();
+  applyConfigToInputs();
+  rebuildFromConfig();
+}
+
+if(typeof window !== 'undefined'){
+  window.applyConfig = applyExamplesConfig;
+  window.applyState = applyExamplesConfig;
+  window.render = applyExamplesConfig;
+  window.rebuildFromConfig = rebuildFromConfig;
+}
