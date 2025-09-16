@@ -2,8 +2,8 @@
 
 // ---------- Konfig ----------
 const DEFAULT_BLOCKS = [
-  { total: 50, n: 5, k: 4, showWhole: true, lockDenominator: false, hideNValue: false, valueDisplay: 'number' },
-  { total: 50, n: 5, k: 3, showWhole: true, lockDenominator: false, hideNValue: false, valueDisplay: 'number' }
+  { total: 50, n: 1, k: 1, showWhole: true, lockDenominator: false, hideNValue: false, valueDisplay: 'number' },
+  { total: 50, n: 1, k: 0, showWhole: true, lockDenominator: false, hideNValue: false, valueDisplay: 'number' }
 ];
 
 const DISPLAY_OPTIONS = ['number', 'fraction', 'percent'];
@@ -25,7 +25,7 @@ function applyDisplayMode(cfg, mode, fallback = 'number') {
 }
 
 const CONFIG = {
-  minN: 2,
+  minN: 1,
   maxN: 12,
   blocks: DEFAULT_BLOCKS.map(block => ({ ...block })),
   activeBlocks: 1
@@ -289,7 +289,7 @@ function normalizeConfig() {
   if (!Array.isArray(CONFIG.blocks)) CONFIG.blocks = [];
   if (CONFIG.blocks.length > 2) CONFIG.blocks.length = 2;
 
-  if (typeof CONFIG.minN !== 'number') CONFIG.minN = 2;
+  if (typeof CONFIG.minN !== 'number') CONFIG.minN = 1;
   if (typeof CONFIG.maxN !== 'number') CONFIG.maxN = 12;
   CONFIG.minN = Math.max(1, CONFIG.minN);
   CONFIG.maxN = Math.max(CONFIG.minN, CONFIG.maxN);
