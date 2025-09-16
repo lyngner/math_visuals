@@ -260,14 +260,28 @@ function parseSpecFreeform(str){
   }
 
   if(/rettvinkle[dt]/.test(text) && /trekant/.test(text)){
+    const rightLetter = ["A","B","C"].find(L => out[L] === 90) || "C";
+    const legKeys = rightLetter === "A" ? ["b","c"]
+                   : rightLetter === "B" ? ["a","c"]
+                   : ["a","b"];
+
     if(nums.length === 2){
       const [x,y] = nums;
-      out.a = x; out.b = y; out.c = Math.hypot(x,y); out.C = 90;
-    }else if(nums.length === 0){
-      const k = rand(1,4);
-      Object.assign(out, {a:3*k, b:4*k, c:5*k, C:90});
+      out[legKeys[0]] = x;
+      out[legKeys[1]] = y;
+      out[rightLetter] = 90;
+      return out;
     }
-    return out;
+
+    if(nums.length === 0){
+      const k = rand(1,4);
+      out[legKeys[0]] = 3*k;
+      out[legKeys[1]] = 4*k;
+      out[rightLetter] = 90;
+      return out;
+    }
+
+    out[rightLetter] = 90;
   }
 
   if(/trekant/.test(text) && nums.length === 0){
