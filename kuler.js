@@ -414,6 +414,7 @@ function renderFigure(fig){
 function applyFigureVisibility(){
   const secondExists = !!figureViews[1];
   const showSecond = !!STATE.figure2Visible && secondExists;
+  if(controlsWrap) controlsWrap.classList.toggle("controlsWrap--split", showSecond);
   if(addBtn) addBtn.style.display = (showSecond || !secondExists) ? "none" : "";
   if(panelEls[1]) panelEls[1].style.display = showSecond ? "" : "none";
   if(exportToolbar2) exportToolbar2.style.display = showSecond ? "" : "none";
