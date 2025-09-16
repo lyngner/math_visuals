@@ -87,27 +87,69 @@ function initFromCfg(){
   lastFocusIndex = null;
   document.getElementById('chartTitle').textContent = CFG.title || '';
 
+  const typeInput = document.getElementById('cfgType');
+  const titleInput = document.getElementById('cfgTitle');
+  const labelsInput = document.getElementById('cfgLabels');
+  const lockedInput = document.getElementById('cfgLocked');
+  const yMaxInput = document.getElementById('cfgYMax');
+  const axisXInput = document.getElementById('cfgAxisXLabel');
+  const axisYInput = document.getElementById('cfgAxisYLabel');
+  const snapInput = document.getElementById('cfgSnap');
+  const tolInput = document.getElementById('cfgTolerance');
+  const series1Input = document.getElementById('cfgSeries1');
+  const startInput = document.getElementById('cfgStart');
+  const answerInput = document.getElementById('cfgAnswer');
+  const series2Input = document.getElementById('cfgSeries2');
+  const start2Input = document.getElementById('cfgStart2');
+  const answer2Input = document.getElementById('cfgAnswer2');
+
+  if(titleInput) titleInput.value = CFG.title || '';
+  if(labelsInput) labelsInput.value = (CFG.labels || []).join(',');
+  if(lockedInput){
+    const lockedStr = locked.some(Boolean)
+      ? locked.map(v => v ? '1' : '0').join(',')
+      : '';
+    lockedInput.value = lockedStr;
+  }
+  if(yMaxInput) yMaxInput.value = Number.isFinite(CFG.yMax) ? formatNumber(CFG.yMax) : '';
+  if(axisXInput) axisXInput.value = CFG.axisXLabel || '';
+  if(axisYInput) axisYInput.value = CFG.axisYLabel || '';
+  if(snapInput) snapInput.value = Number.isFinite(CFG.snap) ? formatNumber(CFG.snap) : '';
+  if(tolInput) tolInput.value = Number.isFinite(CFG.tolerance) ? formatNumber(CFG.tolerance) : '';
+  if(series1Input) series1Input.value = CFG.series1 || '';
+  if(startInput) startInput.value = formatNumberList(values);
+  if(answerInput) answerInput.value = formatNumberList(CFG.answer || []);
+
   if(addSeriesBtn){
     addSeriesBtn.style.display = series2Enabled ? 'none' : '';
   }
   if(series2Fields){
     series2Fields.style.display = series2Enabled ? '' : 'none';
   }
+  if(series2Input) series2Input.value = series2Enabled ? (CFG.series2 || '') : '';
+  if(start2Input) start2Input.value = series2Enabled && Array.isArray(values2) ? formatNumberList(values2) : '';
+  if(answer2Input) answer2Input.value = series2Enabled && Array.isArray(CFG.answer2) ? formatNumberList(CFG.answer2) : '';
 
   // disable stacking/grouping options when only one dataserie
-  const typeSel = document.getElementById('cfgType');
+  const typeSel = typeInput;
   const hasTwo = values2 && values2.length;
-  [...typeSel.options].forEach(opt=>{
-    if(!hasTwo && (opt.value==='stacked' || opt.value==='grouped')) opt.disabled = true;
-    else opt.disabled = false;
-  });
-  const order = hasTwo
-    ? ['bar','grouped','stacked','line']
-    : ['bar','line','grouped','stacked'];
-  order.forEach(val=>{
-    const opt = typeSel.querySelector(`option[value="${val}"]`);
-    if(opt) typeSel.appendChild(opt);
-  });
+  if(typeSel){
+    [...typeSel.options].forEach(opt=>{
+      if(!hasTwo && (opt.value==='stacked' || opt.value==='grouped')) opt.disabled = true;
+      else opt.disabled = false;
+    });
+    const order = hasTwo
+      ? ['bar','grouped','stacked','line']
+      : ['bar','line','grouped','stacked'];
+    order.forEach(val=>{
+      const opt = typeSel.querySelector(`option[value="${val}"]`);
+      if(opt) typeSel.appendChild(opt);
+    });
+    const allowedTypes = hasTwo ? ['bar','grouped','stacked','line'] : ['bar','line'];
+    const desiredType = allowedTypes.includes(CFG.type) ? CFG.type : 'bar';
+    typeSel.value = desiredType;
+    CFG.type = desiredType;
+  }
 
   drawAxesAndGrid();
   drawData();
