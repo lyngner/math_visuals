@@ -59,7 +59,8 @@ const panels = {
   container: document.getElementById('tbPanels'),
   panel2: document.getElementById('tbPanel2'),
   fieldset2: document.getElementById('cfg-fieldset-2'),
-  addBtn: document.getElementById('tbAdd')
+  addBtn: document.getElementById('tbAdd'),
+  removeBtn: document.getElementById('tbRemove')
 };
 
 const settingsContainer = document.getElementById('tbSettings');
@@ -80,6 +81,12 @@ btnPng?.addEventListener('click', () => {
 
 panels.addBtn?.addEventListener('click', () => {
   CONFIG.activeBlocks = 2;
+  updateVisibility();
+  draw();
+});
+
+panels.removeBtn?.addEventListener('click', () => {
+  CONFIG.activeBlocks = 1;
   updateVisibility();
   draw();
 });
@@ -373,6 +380,7 @@ function updateVisibility() {
   if (panels.panel2) panels.panel2.style.display = showSecond ? '' : 'none';
   if (panels.fieldset2) panels.fieldset2.style.display = showSecond ? '' : 'none';
   if (panels.addBtn) panels.addBtn.style.display = showSecond ? 'none' : '';
+  if (panels.removeBtn) panels.removeBtn.style.display = showSecond ? '' : 'none';
   panels.container?.classList.toggle('two', showSecond);
   settingsContainer?.classList.toggle('two', showSecond);
 }
