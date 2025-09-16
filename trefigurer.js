@@ -21,15 +21,26 @@
       this.controls = typeof THREE.OrbitControls === 'function'
         ? new THREE.OrbitControls(this.camera, this.renderer.domElement)
         : null;
+
+      this.defaultCameraPosition = this.camera.position.clone();
+      this.defaultTarget = new THREE.Vector3(0, 1.1, 0);
+      this.lastTarget = this.defaultTarget.clone();
+
       if (this.controls) {
         this.controls.enableDamping = true;
         this.controls.enablePan = false;
         this.controls.minDistance = 2.5;
         this.controls.maxDistance = 12;
-        this.controls.target.set(0, 1.1, 0);
+        this.defaultMaxDistance = this.controls.maxDistance;
+        this.controls.target.copy(this.defaultTarget);
         this.controls.addEventListener('start', () => { this.userIsInteracting = true; });
         this.controls.addEventListener('end', () => { this.userIsInteracting = false; });
+      } else {
+        this.camera.lookAt(this.defaultTarget);
       }
+
+      this.defaultCameraOffset = this.defaultCameraPosition.clone().sub(this.defaultTarget);
+      this.defaultCameraDistance = this.defaultCameraOffset.length();
 
       const ambient = new THREE.AmbientLight(0xffffff, 0.55);
       this.scene.add(ambient);
@@ -83,6 +94,10 @@
       this.renderer.setSize(width, height, false);
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
+
+      if (this.currentShape && !this.userIsInteracting) {
+        this.focusCurrentShape({ maintainDistance: true, maintainDirection: true });
+      }
     }
 
     _animate() {
@@ -197,15 +212,104 @@
       return group;
     }
 
+    focusCurrentShape(options = {}) {
+      if (!this.currentShape || !this.defaultCameraOffset) return;
+
+      const { maintainDirection = true, maintainDistance = true } = options;
+
+      const box = new THREE.Box3().setFromObject(this.currentShape);
+      if (!isFinite(box.min.x) || !isFinite(box.max.x)) return;
+
+      const sphere = box.getBoundingSphere(new THREE.Sphere());
+      if (!sphere || !isFinite(sphere.radius)) return;
+
+      const center = sphere.center;
+      const radius = Math.max(sphere.radius, 0);
+
+      const aspect = this.camera.aspect > 0 ? this.camera.aspect : 1;
+      const halfVertical = THREE.MathUtils.degToRad(this.camera.fov * 0.5);
+      const halfHorizontal = Math.atan(Math.tan(halfVertical) * aspect);
+      const epsilon = 0.0001;
+      const minDistanceVertical = radius > 0 ? radius / Math.sin(Math.max(halfVertical, epsilon)) : 0;
+      const minDistanceHorizontal = radius > 0 ? radius / Math.sin(Math.max(halfHorizontal, epsilon)) : 0;
+      const minDistance = Math.max(minDistanceVertical, minDistanceHorizontal) * 1.1;
+
+      if (this.controls && typeof this.controls.maxDistance === 'number' && typeof this.defaultMaxDistance === 'number') {
+        this.controls.maxDistance = Math.max(this.defaultMaxDistance, minDistance);
+      }
+
+      let referenceTarget;
+      if (maintainDirection && this.controls) {
+        referenceTarget = this.controls.target.clone();
+      } else if (maintainDirection && this.lastTarget) {
+        referenceTarget = this.lastTarget.clone();
+      } else {
+        referenceTarget = this.defaultTarget.clone();
+      }
+
+      let offset = maintainDirection
+        ? this.camera.position.clone().sub(referenceTarget)
+        : this.defaultCameraOffset.clone();
+      if (!offset.lengthSq()) {
+        offset = this.defaultCameraOffset.clone();
+      }
+
+      const currentDistance = offset.length() || this.defaultCameraDistance;
+
+      let desiredDistance = maintainDistance
+        ? Math.max(currentDistance, minDistance)
+        : Math.max(this.defaultCameraDistance, minDistance);
+
+      if (this.controls) {
+        if (typeof this.controls.maxDistance === 'number') {
+          desiredDistance = Math.min(desiredDistance, this.controls.maxDistance);
+        }
+        if (typeof this.controls.minDistance === 'number') {
+          desiredDistance = Math.max(desiredDistance, this.controls.minDistance);
+        }
+      }
+
+      if (!offset.lengthSq()) return;
+      offset.normalize().multiplyScalar(desiredDistance);
+
+      const cameraPosition = center.clone().add(offset);
+      this.camera.position.copy(cameraPosition);
+
+      if (this.controls) {
+        this.controls.target.copy(center);
+        this.controls.update();
+      } else {
+        this.camera.lookAt(center);
+      }
+
+      if (this.lastTarget) {
+        this.lastTarget.copy(center);
+      }
+    }
+
     setShape(type) {
       this.disposeCurrentShape();
       if (!type) return;
       this.currentShape = this.createShape(type);
       this.shapeGroup.add(this.currentShape);
+      this.focusCurrentShape();
     }
 
     clear() {
       this.disposeCurrentShape();
+      this.camera.position.copy(this.defaultCameraPosition);
+      if (this.controls) {
+        if (typeof this.defaultMaxDistance === 'number') {
+          this.controls.maxDistance = this.defaultMaxDistance;
+        }
+        this.controls.target.copy(this.defaultTarget);
+        this.controls.update();
+      } else {
+        this.camera.lookAt(this.defaultTarget);
+      }
+      if (this.lastTarget) {
+        this.lastTarget.copy(this.defaultTarget);
+      }
     }
   }
 
