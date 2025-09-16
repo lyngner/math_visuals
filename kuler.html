@@ -40,6 +40,8 @@
     .btn:active{transform:translateY(1px);}
     .toolbar select{border:1px solid #d1d5db;border-radius:10px;padding:6px 10px;font-size:14px;background:#fff;}
     .controlsWrap{display:flex;flex-direction:column;gap:var(--gap);}
+    .controlsWrap.controlsWrap--split{flex-direction:row;flex-wrap:wrap;align-items:stretch;}
+    .controlsWrap.controlsWrap--split>.bowlFieldset{flex:1 1 280px;min-width:min(280px,100%);}
     fieldset.bowlFieldset{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:0;display:flex;flex-direction:column;gap:8px;}
     fieldset.bowlFieldset legend{font-weight:600;font-size:13px;color:#374151;padding:0 4px;}
   </style>
