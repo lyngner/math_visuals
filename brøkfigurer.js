@@ -59,7 +59,8 @@
     colorInputs.push(inp);
   }
   const addBtn = document.getElementById('addFigure');
-  const removeBtn = document.getElementById('removeFigure');
+  const removeBtn1 = document.getElementById('removeFigure1');
+  const removeBtn2 = document.getElementById('removeFigure2');
   const fieldset2 = document.getElementById('fieldset2');
   const INITIAL_COLORS = colorInputs.map(inp => inp.value);
   const clampInt = (value, min, max) => {
@@ -197,6 +198,8 @@
     const showSecond = !!STATE.figure2Visible;
     if(addBtn) addBtn.style.display = showSecond ? 'none' : '';
     if(fieldset2) fieldset2.style.display = showSecond ? '' : 'none';
+    if(removeBtn2) removeBtn2.style.display = showSecond ? '' : 'none';
+    if(removeBtn1) removeBtn1.style.display = showSecond ? '' : 'none';
     const second = figures[2];
     if(second){
       if(second.panel) second.panel.style.display = showSecond ? '' : 'none';
@@ -703,7 +706,23 @@
       const svg = board?.renderer?.svgRoot;
       if(svg) downloadPNG(svg, `brok${id}.png`, 2);
     });
-    return {draw, panel, toolbar};
+    function getFilled(){
+      return new Map(filled);
+    }
+
+    function setFilled(next){
+      if(next instanceof Map){
+        filled = new Map(next);
+      }else if(Array.isArray(next)){
+        filled = new Map(next);
+      }else if(next && typeof next[Symbol.iterator] === 'function'){
+        filled = new Map(next);
+      }else{
+        filled = new Map();
+      }
+    }
+
+    return {draw, panel, toolbar, getFilled, setFilled};
   }
 
   figures[1] = setupFigure(1);
@@ -712,7 +731,20 @@
     STATE.figure2Visible = true;
     window.render();
   });
-  removeBtn?.addEventListener('click', ()=>{
+  removeBtn1?.addEventListener('click', ()=>{
+    if(!STATE.figure2Visible) return;
+    const fig1State = {...ensureFigureState(1)};
+    const fig2State = {...ensureFigureState(2)};
+    STATE.figures[1] = fig2State;
+    STATE.figures[2] = fig1State;
+    const fig1Filled = figures[1]?.getFilled?.() ?? new Map();
+    const fig2Filled = figures[2]?.getFilled?.() ?? new Map();
+    figures[1]?.setFilled?.(fig2Filled);
+    figures[2]?.setFilled?.(fig1Filled);
+    STATE.figure2Visible = false;
+    window.render();
+  });
+  removeBtn2?.addEventListener('click', ()=>{
     STATE.figure2Visible = false;
     window.render();
   });
