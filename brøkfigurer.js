@@ -62,7 +62,6 @@
   const removeBtn1 = document.getElementById('removeFigure1');
   const removeBtn2 = document.getElementById('removeFigure2');
   const fieldset2 = document.getElementById('fieldset2');
-  const INITIAL_COLORS = colorInputs.map(inp => inp.value);
   const clampInt = (value, min, max) => {
     const num = parseInt(value, 10);
     const base = Number.isFinite(num) ? num : min;
@@ -71,19 +70,20 @@
   };
   const STATE = (window.STATE && typeof window.STATE === 'object') ? window.STATE : {};
   window.STATE = STATE;
+  const modifiedColorIndexes = new Set();
+  if(Array.isArray(STATE.colors)){
+    STATE.colors.forEach((color, idx)=>{
+      if(typeof color === 'string' && color) modifiedColorIndexes.add(idx);
+    });
+  }
+  let autoPaletteEnabled = modifiedColorIndexes.size === 0;
+  let lastAppliedPaletteSize = null;
   if(!STATE.figures || typeof STATE.figures !== 'object') STATE.figures = {};
   const maxColors = colorInputs.length || 1;
   const defaultColorCount = clampInt(colorCountInp?.value ?? 1, 1, maxColors);
   const stateColorCount = STATE.colorCount != null ? clampInt(STATE.colorCount, 1, maxColors) : null;
   let colorCount = stateColorCount || defaultColorCount;
   STATE.colorCount = colorCount;
-  if(!Array.isArray(STATE.colors)) STATE.colors = INITIAL_COLORS.slice();
-  if(STATE.colors.length < maxColors){
-    for(let i=STATE.colors.length;i<maxColors;i++){
-      const fallbackBase = INITIAL_COLORS.length ? INITIAL_COLORS[INITIAL_COLORS.length - 1] : '#6C1BA2';
-      STATE.colors[i] = INITIAL_COLORS[i] ?? fallbackBase;
-    }
-  }
   function ensureFigureState(id){
     const existing = STATE.figures[id];
     const fig = (existing && typeof existing === 'object') ? existing : {};
@@ -109,29 +109,44 @@
   }
   const DEFAULT_COLOR_SETS = {
     1:['#6C1BA2'],
-    2:['#534477','#BF4474'],
-    3:['#534477','#6C1BA2','#BF4474'],
-    4:['#534477','#B25FE3','#6C1BA2','#BF4474'],
-    5:['#534477','#B25FE3','#6C1BA2','#873E79','#BF4474'],
-    6:['#534477','#B25FE3','#6C1BA2','#873E79','#BF4474','#E31C3D']
+    2:['#BF4474','#534477'],
+    3:['#B25FE3','#6C1BA2','#BF4474'],
+    4:['#B25FE3','#6C1BA2','#534477','#BF4474'],
+    5:['#B25FE3','#6C1BA2','#534477','#873E79','#BF4474'],
+    6:['#B25FE3','#6C1BA2','#534477','#873E79','#BF4474','#E31C3D']
   };
   function ensureColorDefaults(count){
-    if(!Array.isArray(STATE.colors)) STATE.colors = INITIAL_COLORS.slice();
-    const arr = DEFAULT_COLOR_SETS[count] || DEFAULT_COLOR_SETS[6] || [];
-    for(let i=0;i<count;i++){
+    const palette = DEFAULT_COLOR_SETS[count] || DEFAULT_COLOR_SETS[maxColors] || ['#6C1BA2'];
+    const fillPalette = DEFAULT_COLOR_SETS[maxColors] || palette;
+    if(autoPaletteEnabled){
+      if(lastAppliedPaletteSize !== count || !Array.isArray(STATE.colors)){
+        STATE.colors = palette.slice();
+      }
+    }else if(!Array.isArray(STATE.colors)){
+      STATE.colors = [];
+    }
+    if(!Array.isArray(STATE.colors)) STATE.colors = [];
+    const required = Math.max(count, maxColors);
+    for(let i=0;i<required;i++){
+      const withinCount = i < count;
+      const source = withinCount ? palette : fillPalette;
+      let defaultColor = '#6C1BA2';
+      if(Array.isArray(source) && source.length > 0){
+        defaultColor = source[Math.min(i, source.length - 1)] ?? '#6C1BA2';
+      }else if(Array.isArray(palette) && palette.length > 0){
+        defaultColor = palette[Math.min(withinCount ? i : palette.length - 1, palette.length - 1)] ?? '#6C1BA2';
+      }
       const hasColor = typeof STATE.colors[i] === 'string' && STATE.colors[i];
-      if(!hasColor){
-        const fallbackSet = arr[i] ?? arr[arr.length - 1];
-        const fallbackInitial = INITIAL_COLORS.length ? INITIAL_COLORS[Math.min(i, INITIAL_COLORS.length - 1)] : '#6C1BA2';
-        STATE.colors[i] = fallbackSet ?? fallbackInitial ?? '#6C1BA2';
+      const shouldUseDefault = autoPaletteEnabled || !modifiedColorIndexes.has(i);
+      if(shouldUseDefault || !hasColor){
+        STATE.colors[i] = defaultColor || '#6C1BA2';
+      }
+      if(typeof STATE.colors[i] !== 'string' || !STATE.colors[i]){
+        STATE.colors[i] = '#6C1BA2';
       }
     }
-    if(STATE.colors.length < maxColors){
-      for(let i=STATE.colors.length;i<maxColors;i++){
-        const fallbackInitial = INITIAL_COLORS.length ? INITIAL_COLORS[Math.min(i, INITIAL_COLORS.length - 1)] : '#6C1BA2';
-        STATE.colors[i] = fallbackInitial ?? '#6C1BA2';
-      }
-    }
+    if(STATE.colors.length > required) STATE.colors.length = required;
+    lastAppliedPaletteSize = count;
   }
   function getColors(){
     ensureColorDefaults(colorCount);
@@ -152,7 +167,10 @@
     window.render?.();
   });
   colorInputs.forEach((inp, idx)=>inp.addEventListener('input', ()=>{
-    if(!Array.isArray(STATE.colors)) STATE.colors = INITIAL_COLORS.slice();
+    modifiedColorIndexes.add(idx);
+    autoPaletteEnabled = modifiedColorIndexes.size === 0;
+    ensureColorDefaults(Math.max(idx + 1, colorCount));
+    if(!Array.isArray(STATE.colors)) STATE.colors = [];
     STATE.colors[idx] = inp.value;
     window.render?.();
   }));
