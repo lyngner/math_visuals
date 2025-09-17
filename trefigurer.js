@@ -914,7 +914,9 @@
   }
 
   const grid = document.getElementById('figureGrid');
-  const figureWrappers = Array.from(document.querySelectorAll('[data-figure-index]'));
+  const figureWrappers = Array.from(
+    document.querySelectorAll('#figureGrid > .figure[data-figure-index]')
+  );
   const rendererCount = figureWrappers.length;
 
   function ensureViewStateCapacity() {
