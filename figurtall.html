@@ -61,6 +61,12 @@
     .btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.06);}
     .btn:active{transform:translateY(1px);}
     .card>fieldset{display:flex;flex-direction:column;gap:8px;border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:0;}
+    .card--settings fieldset label{display:flex;align-items:center;gap:8px;font-size:14px;color:#374151;}
+    .card--settings fieldset .fieldLabel{flex-direction:column;align-items:center;gap:6px;text-align:center;}
+    .card--settings fieldset .fieldLabel span{display:block;}
+    .card--settings fieldset .fieldLabel .stepper{margin:0;}
+    .card--settings fieldset .toggleLabel{align-items:center;}
+    .card--settings fieldset .toggleLabel input{margin:0;}
     legend{font-weight:600;font-size:13px;color:#374151;padding:0 4px;}
     .card input[type="color"]{width:40px;height:40px;padding:0;border:none;}
     .colors{display:flex;flex-wrap:wrap;gap:6px;}
@@ -154,23 +160,25 @@
         <div class="card card--settings">
           <fieldset>
             <legend>Ruter</legend>
-            <label>Rader
+            <label class="fieldLabel">
+              <span>Rader</span>
               <div class="stepper" aria-label="Antall ruter i høyden">
                 <button id="rowsMinus" type="button" aria-label="Færre rader">&minus;</button>
                 <span id="rowsVal">3</span>
                 <button id="rowsPlus" type="button" aria-label="Flere rader">+</button>
               </div>
             </label>
-            <label>Kolonner
+            <label class="fieldLabel">
+              <span>Kolonner</span>
               <div class="stepper" aria-label="Antall ruter i bredden">
                 <button id="colsMinus" type="button" aria-label="Færre kolonner">&minus;</button>
                 <span id="colsVal">3</span>
                 <button id="colsPlus" type="button" aria-label="Flere kolonner">+</button>
               </div>
             </label>
-            <label><input id="showGrid" type="checkbox" /> Vis rutenett</label>
-            <label><input id="offsetRows" type="checkbox" /> Forskyv annenhver rad</label>
-            <label><input id="circleMode" type="checkbox" checked /> Bruk sirkler</label>
+            <label class="toggleLabel"><input id="showGrid" type="checkbox" /> Vis rutenett</label>
+            <label class="toggleLabel"><input id="offsetRows" type="checkbox" /> Forskyv annenhver rad</label>
+            <label class="toggleLabel"><input id="circleMode" type="checkbox" checked /> Bruk sirkler</label>
           </fieldset>
           <fieldset>
             <legend>Farger</legend>
