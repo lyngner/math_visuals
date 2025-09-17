@@ -333,6 +333,9 @@ function normalizeBlockConfig(raw, index, existing, previous) {
 function normalizeConfig(initial = false) {
   let structureChanged = false;
 
+  const previousRows = getHiddenNumber(CONFIG, '__lastNormalizedRows');
+  const previousCols = getHiddenNumber(CONFIG, '__lastNormalizedCols');
+
   if (typeof CONFIG.minN !== 'number' || Number.isNaN(CONFIG.minN)) CONFIG.minN = 1;
   if (typeof CONFIG.maxN !== 'number' || Number.isNaN(CONFIG.maxN)) CONFIG.maxN = 12;
   CONFIG.minN = Math.max(1, Math.floor(CONFIG.minN));
@@ -472,6 +475,10 @@ function normalizeConfig(initial = false) {
 
   CONFIG.activeBlocks = rows * cols;
   CONFIG.showCombinedWhole = toBoolean(CONFIG.showCombinedWhole, false);
+
+  const rowsChanged = Number.isFinite(previousRows) && previousRows !== rows;
+  const colsChanged = Number.isFinite(previousCols) && previousCols !== cols;
+  if (rowsChanged || colsChanged) structureChanged = true;
 
   setHiddenNumber(CONFIG, '__lastNormalizedRows', rows);
   setHiddenNumber(CONFIG, '__lastNormalizedCols', cols);
