@@ -281,6 +281,14 @@
       this._emitViewChange();
     }
 
+    syncViewState() {
+      if (this.controls && this.currentFrame) {
+        this._syncStateFromControls();
+        return;
+      }
+      this._emitViewChange();
+    }
+
     frameCurrentShape() {
       if (!this.currentShape) return;
       this.currentShape.updateMatrixWorld(true);
@@ -951,6 +959,18 @@
     });
   });
 
+  function syncAllViewStates() {
+    renderers.forEach(renderer => {
+      if (renderer && typeof renderer.syncViewState === 'function') {
+        renderer.syncViewState();
+      }
+    });
+  }
+
+  if (typeof window !== 'undefined' && window && typeof window.addEventListener === 'function') {
+    window.addEventListener('examples:collect', syncAllViewStates);
+  }
+
   function getStoredView(index) {
     ensureViewStateCapacity();
     const stored = window.STATE.views[index];
@@ -1445,6 +1465,10 @@
   }
 
   if (textarea) {
+    textarea.addEventListener('input', () => {
+      if (!window.STATE || typeof window.STATE !== 'object') return;
+      window.STATE.rawInput = textarea.value;
+    });
     textarea.addEventListener('keydown', evt => {
       if ((evt.metaKey || evt.ctrlKey) && evt.key === 'Enter') {
         evt.preventDefault();

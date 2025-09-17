@@ -256,6 +256,17 @@
 
   function collectConfig(){
     flushPendingChanges();
+    try{
+      if(typeof window !== 'undefined' && window){
+        const evt = typeof CustomEvent === 'function'
+          ? new CustomEvent('examples:collect')
+          : new Event('examples:collect');
+        window.dispatchEvent(evt);
+      }
+    }catch(_){
+      try{ window.dispatchEvent(new Event('examples:collect')); }
+      catch(_){ }
+    }
     const cfg = {};
     for(const name of BINDING_NAMES){
       const binding = getBinding(name);
