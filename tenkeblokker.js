@@ -69,6 +69,7 @@ const BRACKET_TICK_RATIO = 16 / VBH;
 const LABEL_OFFSET_RATIO = 14 / VBH;
 const DEFAULT_SVG_HEIGHT = 260;
 const ROW_GAP = 18;
+const DEFAULT_FRAME_INSET = 3;
 
 const BLOCKS = [];
 
@@ -157,25 +158,38 @@ function getBlockMetrics(block) {
   const right = width - left;
   const top = height * TOP_RATIO;
   const bottom = height * BOTTOM_RATIO;
+  const frameInset = getFrameInset(block);
+  const outerWidth = Math.max(0, right - left);
+  const outerHeight = Math.max(0, bottom - top);
+  const clampedInset = Math.min(frameInset, outerWidth / 2, outerHeight / 2);
+  const frameLeft = left + clampedInset;
+  const frameRight = right - clampedInset;
+  const frameTop = top + clampedInset;
+  const frameBottom = bottom - clampedInset;
   const braceY = height * BRACE_Y_RATIO;
   const bracketTick = height * BRACKET_TICK_RATIO;
   const labelOffsetY = height * LABEL_OFFSET_RATIO;
-  const innerWidth = Math.max(0, right - left);
-  const innerHeight = Math.max(0, bottom - top);
-  const centerX = left + innerWidth / 2;
+  const innerWidth = Math.max(0, frameRight - frameLeft);
+  const innerHeight = Math.max(0, frameBottom - frameTop);
+  const centerX = frameLeft + innerWidth / 2;
   return {
     width,
     height,
-    left,
-    right,
-    top,
-    bottom,
+    left: frameLeft,
+    right: frameRight,
+    top: frameTop,
+    bottom: frameBottom,
     braceY,
     bracketTick,
     labelOffsetY,
     innerWidth,
     innerHeight,
-    centerX
+    centerX,
+    frameInset: clampedInset,
+    outerLeft: left,
+    outerRight: right,
+    outerTop: top,
+    outerBottom: bottom
   };
 }
 
@@ -947,7 +961,7 @@ function onDragStart(block, event) {
     const metrics = block.metrics || getBlockMetrics(block);
     const innerWidth = metrics?.innerWidth ?? metrics?.width ?? VBW;
     const left = metrics?.left ?? 0;
-    const right = metrics ? metrics.left + innerWidth : innerWidth;
+    const right = metrics?.right ?? (left + innerWidth);
     const denom = currentCfg.n || 1;
     const cellW = innerWidth / denom;
     if (!(cellW > 0)) return;
@@ -962,6 +976,32 @@ function onDragStart(block, event) {
   };
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', up);
+}
+
+function getFrameInset(block) {
+  let inset = DEFAULT_FRAME_INSET;
+  if (!block) return inset;
+  const rectFrame = block.rectFrame;
+  if (rectFrame) {
+    const attr = rectFrame.getAttribute?.('stroke-width');
+    if (attr) {
+      const parsed = Number.parseFloat(attr);
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        inset = parsed / 2;
+      }
+    } else if (typeof window !== 'undefined' && window.getComputedStyle) {
+      try {
+        const computed = window.getComputedStyle(rectFrame).getPropertyValue('stroke-width');
+        const parsed = Number.parseFloat(String(computed).replace(',', '.'));
+        if (Number.isFinite(parsed) && parsed >= 0) {
+          inset = parsed / 2;
+        }
+      } catch (err) {
+        // ignore measurement errors
+      }
+    }
+  }
+  return inset;
 }
 
 function syncLegacyConfig() {
