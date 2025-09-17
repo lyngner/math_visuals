@@ -667,7 +667,9 @@
             updated = true;
           }
         }
-        if(providedDefaults.length > 0){
+        const hasCustomExamples = examples.some(ex => ex && typeof ex === 'object' && typeof ex.__builtinKey !== 'string');
+
+        if(providedDefaults.length > 0 && !hasCustomExamples){
           const existingKeys = new Set();
           examples.forEach(ex => {
             if(ex && typeof ex.__builtinKey === 'string'){ existingKeys.add(ex.__builtinKey); }
