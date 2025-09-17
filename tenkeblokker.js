@@ -571,10 +571,15 @@ function draw(skipNormalization = false) {
 }
 
 function updateAddButtons() {
-  if (addColumnBtn) addColumnBtn.style.display = CONFIG.cols >= 3 ? 'none' : '';
-  if (addRowBtn) addRowBtn.style.display = CONFIG.rows >= 3 ? 'none' : '';
-  if (removeColumnBtn) removeColumnBtn.style.display = CONFIG.cols <= 1 ? 'none' : '';
-  if (removeRowBtn) removeRowBtn.style.display = CONFIG.rows <= 1 ? 'none' : '';
+  const parsedCols = Number(CONFIG.cols);
+  const parsedRows = Number(CONFIG.rows);
+  const cols = Number.isFinite(parsedCols) ? parsedCols : 1;
+  const rows = Number.isFinite(parsedRows) ? parsedRows : 1;
+
+  if (addColumnBtn) addColumnBtn.style.display = cols >= 3 ? 'none' : '';
+  if (addRowBtn) addRowBtn.style.display = rows >= 3 ? 'none' : '';
+  if (removeColumnBtn) removeColumnBtn.style.display = cols <= 1 ? 'none' : '';
+  if (removeRowBtn) removeRowBtn.style.display = rows <= 1 ? 'none' : '';
 }
 
 function createBlock(row, col, cfg) {
