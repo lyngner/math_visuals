@@ -53,10 +53,14 @@
     .tb-header:empty{display:none;}
     .tb-panel .removeFigureBtn{align-self:center;}
     .tb-settings{
-      display:grid;
+      display:flex;
+      flex-wrap:wrap;
       gap:var(--gap);
-      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
-      align-items:start;
+      align-items:stretch;
+    }
+    .tb-settings fieldset{
+      flex:1 1 200px;
+      min-width:120px;
     }
     .addFigureBtn{
       width:clamp(30px,7.5vw,60px);
