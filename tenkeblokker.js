@@ -913,26 +913,67 @@ function drawCombinedWholeOverlay() {
   }
 
   const boardRect = board.getBoundingClientRect();
+  const figureWidth = width;
+  const figureHeight = height;
+  const vertical = shouldShowVerticalCombinedBrace(figureWidth, figureHeight);
+
+  let overlayWidth = figureWidth;
+  let overlayLeft = left - boardRect.left;
+  let bracketX = figureWidth;
+  let textX = figureWidth / 2;
+
+  let braceStartY = figureHeight * BRACE_Y_RATIO;
+  let braceTick = figureHeight * BRACKET_TICK_RATIO;
+  const labelOffsetY = LABEL_OFFSET_RATIO * figureHeight;
+
+  let textY = braceStartY - labelOffsetY;
+  let dominantBaseline = null;
+
+  if (vertical) {
+    const topInner = figureHeight * TOP_RATIO;
+    const bottomInner = figureHeight * BOTTOM_RATIO;
+    const gap = Math.max(figureWidth * 0.04, 20);
+    const labelSpace = Math.max(figureWidth * 0.18, 60);
+    bracketX = figureWidth + gap;
+    overlayWidth = bracketX + labelSpace;
+    braceStartY = topInner;
+    const braceEndY = bottomInner;
+    braceTick = Math.min(Math.max(figureWidth * BRACKET_TICK_RATIO, 12), Math.max(bracketX, 12));
+    textX = bracketX + labelSpace / 2;
+    textY = (topInner + bottomInner) / 2;
+    dominantBaseline = 'middle';
+
+    drawVerticalBracketSquare(overlay.group, braceStartY, braceEndY, bracketX, braceTick);
+  } else {
+    drawBracketSquare(overlay.group, 0, figureWidth, braceStartY, braceTick);
+  }
+
   overlay.svg.style.display = '';
-  overlay.svg.style.left = `${left - boardRect.left}px`;
+  overlay.svg.style.left = `${overlayLeft}px`;
   overlay.svg.style.top = `${top - boardRect.top}px`;
-  overlay.svg.style.width = `${width}px`;
-  overlay.svg.style.height = `${height}px`;
-  overlay.svg.setAttribute('width', width);
-  overlay.svg.setAttribute('height', height);
-  overlay.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  overlay.svg.style.width = `${overlayWidth}px`;
+  overlay.svg.style.height = `${figureHeight}px`;
+  overlay.svg.setAttribute('width', overlayWidth);
+  overlay.svg.setAttribute('height', figureHeight);
+  overlay.svg.setAttribute('viewBox', `0 0 ${overlayWidth} ${figureHeight}`);
   overlay.svg.setAttribute('preserveAspectRatio', 'none');
 
-  const braceY = BRACE_Y_RATIO * height;
-  const tick = BRACKET_TICK_RATIO * height;
-  drawBracketSquare(overlay.group, 0, width, braceY, tick);
-
   if (overlay.text) {
-    overlay.text.setAttribute('x', width / 2);
-    overlay.text.setAttribute('y', braceY - LABEL_OFFSET_RATIO * height);
+    overlay.text.setAttribute('x', textX);
+    overlay.text.setAttribute('y', textY);
+    overlay.text.setAttribute('text-anchor', 'middle');
+    if (dominantBaseline) overlay.text.setAttribute('dominant-baseline', dominantBaseline);
+    else overlay.text.removeAttribute('dominant-baseline');
     const total = getCombinedTotal();
     overlay.text.textContent = Number.isFinite(total) ? fmt(total) : '';
   }
+}
+
+function shouldShowVerticalCombinedBrace(width, height) {
+  if (!(width > 0) || !(height > 0)) return false;
+  if (CONFIG.cols === 1 && CONFIG.rows > 1) return true;
+  if (CONFIG.cols > 1) return false;
+  return height >= width * 1.1;
 }
 
 function onDragStart(block, event) {
@@ -1080,7 +1121,30 @@ function clientToSvg(svgEl, clientX, clientY) {
 }
 
 function drawBracketSquare(group, x0, x1, y, tick) {
-  if (!group) return;
+  const path = getOrCreateBracePath(group);
+  if (!path) return;
+  const d = [
+    `M ${x0} ${y}`, `v ${tick}`,
+    `M ${x0} ${y}`, `H ${x1}`,
+    `M ${x1} ${y}`, `v ${tick}`
+  ].join(' ');
+  path.setAttribute('d', d);
+}
+
+function drawVerticalBracketSquare(group, y0, y1, x, tick) {
+  const path = getOrCreateBracePath(group);
+  if (!path) return;
+  const clampedTick = Math.max(0, Math.min(tick, x));
+  const d = [
+    `M ${x} ${y0}`, `h ${-clampedTick}`,
+    `M ${x} ${y0}`, `V ${y1}`,
+    `M ${x} ${y1}`, `h ${-clampedTick}`
+  ].join(' ');
+  path.setAttribute('d', d);
+}
+
+function getOrCreateBracePath(group) {
+  if (!group) return null;
   const ns = group.ownerSVGElement?.namespaceURI || 'http://www.w3.org/2000/svg';
   let path = group.querySelector('path.tb-brace');
   if (!path) {
@@ -1090,12 +1154,7 @@ function drawBracketSquare(group, x0, x1, y, tick) {
     if (firstChild) group.insertBefore(path, firstChild);
     else group.appendChild(path);
   }
-  const d = [
-    `M ${x0} ${y}`, `v ${tick}`,
-    `M ${x0} ${y}`, `H ${x1}`,
-    `M ${x1} ${y}`, `v ${tick}`
-  ].join(' ');
-  path.setAttribute('d', d);
+  return path;
 }
 
 function svgToString(svgEl) {
