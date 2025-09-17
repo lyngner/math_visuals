@@ -263,12 +263,19 @@ function rebuildStructure() {
   grid.innerHTML = '';
   if (settingsContainer) settingsContainer.innerHTML = '';
 
+  const rowElements = [];
   for (let r = 0; r < CONFIG.rows; r++) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'tb-row';
+    rowEl.dataset.row = String(r);
+    rowElements.push(rowEl);
+    panelsFragment.appendChild(rowEl);
+
     for (let c = 0; c < CONFIG.cols; c++) {
       const cfg = CONFIG.blocks[r][c];
       const block = createBlock(r, c, cfg);
       BLOCKS.push(block);
-      if (block.panel) panelsFragment.appendChild(block.panel);
+      if (block.panel) rowEl.appendChild(block.panel);
       if (block.fieldset) settingsFragment.appendChild(block.fieldset);
     }
   }
@@ -305,11 +312,25 @@ function draw(skipNormalization = false) {
     }
   }
 
+  const rowTotals = Array.from({ length: CONFIG.rows }, () => 0);
+  const visibleBlocks = [];
+
   for (const block of BLOCKS) {
     const cfg = CONFIG.blocks?.[block.row]?.[block.col];
     if (!cfg) continue;
     block.cfg = cfg;
     block.index = block.row * CONFIG.cols + block.col;
+    visibleBlocks.push(block);
+
+    const totalValue = Number(cfg.total);
+    if (Number.isFinite(totalValue) && totalValue > 0 && rowTotals[block.row] !== undefined) {
+      rowTotals[block.row] += totalValue;
+    }
+  }
+
+  for (const block of visibleBlocks) {
+    const rowTotal = rowTotals[block.row];
+    updateBlockPanelLayout(block, rowTotal);
     drawBlock(block);
   }
 
@@ -537,6 +558,22 @@ function createBlock(row, col, cfg) {
   };
 
   return block;
+}
+
+function updateBlockPanelLayout(block, rowTotal) {
+  if (!block?.panel) return;
+  const cfg = block.cfg;
+  const totalValue = Number(cfg?.total);
+  const positiveTotal = Number.isFinite(totalValue) && totalValue > 0 ? totalValue : 0;
+  const hasRowTotal = Number.isFinite(rowTotal) && rowTotal > 0;
+
+  block.panel.style.flexBasis = '0px';
+  block.panel.style.flexShrink = '1';
+  if (hasRowTotal && positiveTotal > 0) {
+    block.panel.style.flexGrow = String(positiveTotal);
+  } else {
+    block.panel.style.flexGrow = '1';
+  }
 }
 
 function drawBlock(block) {
