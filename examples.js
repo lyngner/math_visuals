@@ -199,6 +199,50 @@
     }
   }
 
+  function sanitizeProvidedExample(example, idx){
+    if(!example || typeof example !== 'object') return null;
+    const sourceConfig = example.config;
+    if(!sourceConfig || typeof sourceConfig !== 'object') return null;
+    const config = {};
+    for(const name of BINDING_NAMES){
+      if(sourceConfig[name] != null){
+        config[name] = cloneValue(sourceConfig[name]);
+      }
+    }
+    if(Object.keys(config).length === 0) return null;
+    const sanitized = {config};
+    if(typeof example.svg === 'string') sanitized.svg = example.svg;
+    if(typeof example.title === 'string') sanitized.title = example.title;
+    if(typeof example.description === 'string') sanitized.description = example.description;
+    if(typeof example.exampleNumber === 'string' || typeof example.exampleNumber === 'number'){
+      sanitized.exampleNumber = String(example.exampleNumber).trim();
+    }else if(typeof example.label === 'string'){
+      sanitized.exampleNumber = example.label.trim();
+    }
+    if(example.isDefault === true) sanitized.isDefault = true;
+    if(typeof example.id === 'string' && example.id.trim().length){
+      sanitized.__builtinKey = example.id.trim();
+    }else{
+      sanitized.__builtinKey = `provided-${idx}`;
+    }
+    return sanitized;
+  }
+
+  function getProvidedExamples(){
+    if(typeof window === 'undefined') return [];
+    const provided = window.DEFAULT_EXAMPLES;
+    if(!Array.isArray(provided)) return [];
+    const sanitized = [];
+    provided.forEach((ex, idx)=>{
+      const normalized = sanitizeProvidedExample(ex, idx);
+      if(normalized) sanitized.push(normalized);
+    });
+    if(sanitized.length > 0 && !sanitized.some(ex => ex.isDefault)){
+      sanitized[0].isDefault = true;
+    }
+    return sanitized;
+  }
+
   function replaceContents(target, source){
     if(!target || source == null) return false;
     if(Array.isArray(target) && Array.isArray(source)){
@@ -407,13 +451,18 @@
         empty.textContent = 'Ingen eksempler';
         tabsContainer.appendChild(empty);
       }else{
-        examples.forEach((_, idx)=>{
+        examples.forEach((ex, idx)=>{
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'example-tab';
-          btn.textContent = String(idx + 1);
+          let label = String(idx + 1);
+          if(ex && typeof ex.exampleNumber === 'string' && ex.exampleNumber.trim()){
+            label = ex.exampleNumber.trim();
+          }
+          btn.textContent = label;
           btn.dataset.exampleIndex = String(idx);
           btn.setAttribute('role', 'tab');
+          btn.setAttribute('aria-label', `Eksempel ${label}`);
           btn.addEventListener('click', ()=>{
             loadExample(idx);
           });
@@ -577,12 +626,34 @@
         updated = true;
       }
 
+      const providedDefaults = getProvidedExamples();
       if(examples.length === 0){
-        const defaultExample = collectConfig();
-        defaultExample.isDefault = true;
-        examples = [defaultExample];
-        currentExampleIndex = 0;
-        updated = true;
+        if(providedDefaults.length > 0){
+          let defaultIdx = providedDefaults.findIndex(ex => ex.isDefault);
+          if(defaultIdx < 0) defaultIdx = 0;
+          examples = providedDefaults.map((ex, idx)=>{
+            const copy = {
+              config: cloneValue(ex.config),
+              svg: typeof ex.svg === 'string' ? ex.svg : ''
+            };
+            if(ex.__builtinKey) copy.__builtinKey = ex.__builtinKey;
+            if(ex.title) copy.title = ex.title;
+            if(ex.description) copy.description = ex.description;
+            if(ex.exampleNumber) copy.exampleNumber = ex.exampleNumber;
+            if(idx === defaultIdx){
+              copy.isDefault = true;
+            }
+            return copy;
+          });
+          currentExampleIndex = Math.min(Math.max(defaultIdx, 0), examples.length - 1);
+          updated = true;
+        }else{
+          const defaultExample = collectConfig();
+          defaultExample.isDefault = true;
+          examples = [defaultExample];
+          currentExampleIndex = 0;
+          updated = true;
+        }
       }else{
         const first = examples[0];
         if(first.isDefault !== true){
@@ -595,6 +666,29 @@
             delete ex.isDefault;
             updated = true;
           }
+        }
+        if(providedDefaults.length > 0){
+          const existingKeys = new Set();
+          examples.forEach(ex => {
+            if(ex && typeof ex.__builtinKey === 'string'){ existingKeys.add(ex.__builtinKey); }
+          });
+          let appended = false;
+          providedDefaults.forEach(ex => {
+            const key = ex.__builtinKey;
+            if(key && existingKeys.has(key)) return;
+            const copy = {
+              config: cloneValue(ex.config),
+              svg: typeof ex.svg === 'string' ? ex.svg : ''
+            };
+            if(key) copy.__builtinKey = key;
+            if(ex.title) copy.title = ex.title;
+            if(ex.description) copy.description = ex.description;
+            if(ex.exampleNumber) copy.exampleNumber = ex.exampleNumber;
+            examples.push(copy);
+            if(key) existingKeys.add(key);
+            appended = true;
+          });
+          if(appended) updated = true;
         }
       }
 
