@@ -394,9 +394,14 @@
     }
 
     setFloating(isFloating) {
-      this.isFloating = Boolean(isFloating);
+      const shouldFloat = Boolean(isFloating);
+      const changed = this.isFloating !== shouldFloat;
+      this.isFloating = shouldFloat;
       if (this.ground) {
         this.ground.visible = !this.isFloating;
+      }
+      if (!changed) {
+        return;
       }
       this._applyFloatingOffset();
       this.frameCurrentShape();
