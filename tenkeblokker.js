@@ -29,7 +29,8 @@ const CONFIG = {
   maxN: 12,
   blocks: DEFAULT_BLOCKS.map(block => ({ ...block })),
   activeBlocks: 1,
-  showCombinedWhole: false
+  showCombinedWhole: false,
+  stackBlocks: false
 };
 
 CONFIG.total = CONFIG.blocks[0].total;
@@ -53,6 +54,8 @@ const TOP = 130, BOT = VBH - 60;             // ramme-topp/-bunn
 const BRACE_Y = 78;                          // høyde for parentes
 const BRACKET_TICK = 16;                     // lengde på «haken» ned i hver ende
 const LABEL_OFFSET_Y = 14;                   // løft tallet litt over parentes-linjen
+const STACK_GAP_COMPACT = 0;                 // avstand mellom paneler uten ekstra plass
+const STACK_GAP_LOCKED = 56;                 // ekstra avstand når nevner-stepper må få plass
 
 const BLOCKS = [];
 const settingsInputs = [];
@@ -69,6 +72,11 @@ const settingsContainer = document.getElementById('tbSettings');
 const combinedWholeControls = {
   row: document.getElementById('cfg-show-combined-row'),
   checkbox: document.getElementById('cfg-show-combined-whole')
+};
+
+const stackControls = {
+  row: document.getElementById('cfg-stack-row'),
+  checkbox: document.getElementById('cfg-stack-blocks')
 };
 
 createBlock(0);
@@ -93,6 +101,12 @@ btnPng?.addEventListener('click', () => {
 combinedWholeControls.checkbox?.addEventListener('change', () => {
   normalizeConfig();
   CONFIG.showCombinedWhole = !!combinedWholeControls.checkbox.checked;
+  draw();
+});
+
+stackControls.checkbox?.addEventListener('change', () => {
+  normalizeConfig();
+  CONFIG.stackBlocks = !!stackControls.checkbox.checked;
   draw();
 });
 
@@ -223,12 +237,42 @@ function drawBracketSquare(group, x0, x1, y, tick) {
   path.setAttribute('d', d);
 }
 
+function isStackedLayout() {
+  const count = clamp(CONFIG.activeBlocks || 1, 1, 2);
+  return !!CONFIG.stackBlocks && count > 1;
+}
+
+function getStackGapValues() {
+  if (!isStackedLayout()) return [];
+  const count = clamp(CONFIG.activeBlocks || 1, 1, 2);
+  const gaps = [];
+  for (let i = 0; i < count - 1; i++) {
+    const cfg = CONFIG.blocks[i];
+    const needsGap = !!cfg?.lockNumerator;
+    gaps[i] = needsGap ? STACK_GAP_LOCKED : STACK_GAP_COMPACT;
+  }
+  return gaps;
+}
+
+function updateStackGap() {
+  if (!panels.container) return;
+  if (!isStackedLayout()) {
+    panels.container.style.removeProperty('--tb-stack-gap');
+    return;
+  }
+  const gaps = getStackGapValues();
+  const gap = gaps.length ? gaps[0] : STACK_GAP_COMPACT;
+  panels.container.style.setProperty('--tb-stack-gap', `${gap}px`);
+}
+
 function getBlockLayout(index) {
   const count = clamp(CONFIG.activeBlocks || 1, 1, 2);
   const baseWidth = Math.max(R - L, 1);
   let width = baseWidth;
 
-  if (count > 1) {
+  const stacked = isStackedLayout();
+
+  if (!stacked && count > 1) {
     let maxTotal = 0;
     const totals = [];
     for (let i = 0; i < count; i++) {
@@ -307,55 +351,109 @@ function getExportSvg() {
   if (count === 1) return firstSvg;
 
   const ns = firstSvg.namespaceURI;
-  const layouts = [];
-  let width = SIDE_MARGIN * 2;
-  for (let i = 0; i < count; i++) {
-    const layout = getBlockLayout(i);
-    layouts.push(layout);
-    width += layout?.width ?? 0;
+  const stacked = isStackedLayout();
+
+  if (!stacked) {
+    const layouts = [];
+    let width = SIDE_MARGIN * 2;
+    for (let i = 0; i < count; i++) {
+      const layout = getBlockLayout(i);
+      layouts.push(layout);
+      width += layout?.width ?? 0;
+    }
+    const exportSvg = document.createElementNS(ns, 'svg');
+    exportSvg.setAttribute('viewBox', `0 0 ${width} ${VBH}`);
+    exportSvg.setAttribute('width', width);
+    exportSvg.setAttribute('height', VBH);
+    exportSvg.setAttribute('xmlns', ns);
+    exportSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+    let x = 0;
+    for (let i = 0; i < count; i++) {
+      const block = BLOCKS[i];
+      if (!block) continue;
+      const g = document.createElementNS(ns, 'g');
+      g.setAttribute('transform', `translate(${x},0)`);
+      g.innerHTML = block.svg.innerHTML;
+      exportSvg.appendChild(g);
+      if (i < count - 1) x += layouts[i]?.width ?? 0;
+    }
+
+    if (CONFIG.showCombinedWhole) {
+      const totalWidth = layouts.reduce((sum, layout) => sum + (layout?.width ?? 0), 0);
+      if (totalWidth > 0) {
+        const startX = SIDE_MARGIN;
+        const endX = startX + totalWidth;
+        const braceGroup = createSvgElement(exportSvg, 'g', { class: 'tb-combined-brace' });
+        drawBracketSquare(braceGroup, startX, endX, BRACE_Y, BRACKET_TICK);
+        const textAttrs = {
+          x: (startX + endX) / 2,
+          y: BRACE_Y - LABEL_OFFSET_Y,
+          class: 'tb-total',
+          'text-anchor': 'middle'
+        };
+        const totalText = createSvgElement(braceGroup, 'text', textAttrs);
+        const totalValue = getCombinedTotal(count);
+        totalText.textContent = Number.isFinite(totalValue) ? fmt(totalValue) : '';
+      }
+    }
+    return exportSvg;
   }
+
   const exportSvg = document.createElementNS(ns, 'svg');
-  exportSvg.setAttribute('viewBox', `0 0 ${width} ${VBH}`);
-  exportSvg.setAttribute('width', width);
-  exportSvg.setAttribute('height', VBH);
   exportSvg.setAttribute('xmlns', ns);
   exportSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
 
-  let x = 0;
+  const gapValues = getStackGapValues();
+  let scale = 1;
+  const refRect = firstSvg.getBoundingClientRect();
+  if (refRect?.height) {
+    scale = VBH / refRect.height;
+  }
+  const gapUnits = gapValues.map(g => g * scale);
+  let height = VBH * count;
+  for (let i = 0; i < gapUnits.length; i++) {
+    height += gapUnits[i];
+  }
+  exportSvg.setAttribute('viewBox', `0 0 ${VBW} ${height}`);
+  exportSvg.setAttribute('width', VBW);
+  exportSvg.setAttribute('height', height);
+
+  let y = 0;
   for (let i = 0; i < count; i++) {
     const block = BLOCKS[i];
     if (!block) continue;
     const g = document.createElementNS(ns, 'g');
-    g.setAttribute('transform', `translate(${x},0)`);
+    g.setAttribute('transform', `translate(0,${y})`);
     g.innerHTML = block.svg.innerHTML;
     exportSvg.appendChild(g);
-    if (i < count - 1) x += layouts[i]?.width ?? 0;
-  }
-
-  if (count > 1 && CONFIG.showCombinedWhole) {
-    const totalWidth = layouts.reduce((sum, layout) => sum + (layout?.width ?? 0), 0);
-    if (totalWidth > 0) {
-      const startX = SIDE_MARGIN;
-      const endX = startX + totalWidth;
-      const braceGroup = createSvgElement(exportSvg, 'g', { class: 'tb-combined-brace' });
-      drawBracketSquare(braceGroup, startX, endX, BRACE_Y, BRACKET_TICK);
-      const textAttrs = {
-        x: (startX + endX) / 2,
-        y: BRACE_Y - LABEL_OFFSET_Y,
-        class: 'tb-total',
-        'text-anchor': 'middle'
-      };
-      const totalText = createSvgElement(braceGroup, 'text', textAttrs);
-      const totalValue = getCombinedTotal(count);
-      totalText.textContent = Number.isFinite(totalValue) ? fmt(totalValue) : '';
+    if (i < count - 1) {
+      y += VBH + (gapUnits[i] ?? 0);
     }
   }
+
+  if (CONFIG.showCombinedWhole) {
+    const startX = SIDE_MARGIN;
+    const endX = VBW - SIDE_MARGIN;
+    const braceGroup = createSvgElement(exportSvg, 'g', { class: 'tb-combined-brace' });
+    drawBracketSquare(braceGroup, startX, endX, BRACE_Y, BRACKET_TICK);
+    const textAttrs = {
+      x: (startX + endX) / 2,
+      y: BRACE_Y - LABEL_OFFSET_Y,
+      class: 'tb-total',
+      'text-anchor': 'middle'
+    };
+    const totalText = createSvgElement(braceGroup, 'text', textAttrs);
+    const totalValue = getCombinedTotal(count);
+    totalText.textContent = Number.isFinite(totalValue) ? fmt(totalValue) : '';
+  }
+
   return exportSvg;
 }
 
 function getBlockViewBox(index) {
   const count = clamp(CONFIG.activeBlocks || 1, 1, 2);
-  if (count <= 1) return { minX: 0, width: VBW };
+  if (count <= 1 || isStackedLayout()) return { minX: 0, width: VBW };
   const width = Math.max(VBW - SIDE_MARGIN, 1);
   if (index === 0) return { minX: 0, width };
   return { minX: SIDE_MARGIN, width };
@@ -602,6 +700,14 @@ function normalizeConfig() {
   if (typeof CONFIG.activeBlocks !== 'number') CONFIG.activeBlocks = 1;
   CONFIG.activeBlocks = clamp(CONFIG.activeBlocks, 1, 2);
 
+  if (typeof CONFIG.stackBlocks === 'string') {
+    const v = CONFIG.stackBlocks.trim().toLowerCase();
+    CONFIG.stackBlocks = v === 'true' || v === '1' || v === 'yes';
+  } else {
+    CONFIG.stackBlocks = !!CONFIG.stackBlocks;
+  }
+  if ((CONFIG.activeBlocks || 1) <= 1) CONFIG.stackBlocks = false;
+
   if (typeof CONFIG.showCombinedWhole === 'string') {
     const v = CONFIG.showCombinedWhole.trim().toLowerCase();
     CONFIG.showCombinedWhole = v === 'true' || v === '1' || v === 'yes';
@@ -625,16 +731,24 @@ function syncLegacyConfig() {
   CONFIG.showFraction = first.showFraction;
   CONFIG.showPercent = first.showPercent;
   CONFIG.valueDisplay = first.valueDisplay;
+  CONFIG.stackBlocks = isStackedLayout();
 }
 
 function updateVisibility() {
   const showSecond = (CONFIG.activeBlocks || 1) > 1;
+  const stacked = isStackedLayout();
   if (panels.panel2) panels.panel2.style.display = showSecond ? '' : 'none';
   if (panels.fieldset2) panels.fieldset2.style.display = showSecond ? '' : 'none';
   if (panels.addBtn) panels.addBtn.style.display = showSecond ? 'none' : '';
   if (panels.removeBtn) panels.removeBtn.style.display = showSecond ? '' : 'none';
-  panels.container?.classList.toggle('two', showSecond);
+  if (panels.container) {
+    panels.container.classList.toggle('two', showSecond);
+    panels.container.classList.toggle('stacked', stacked);
+    if (!stacked) panels.container.style.removeProperty('--tb-stack-gap');
+  }
   settingsContainer?.classList.toggle('two', showSecond);
+  if (stackControls.row) stackControls.row.style.display = showSecond ? '' : 'none';
+  if (stackControls.checkbox) stackControls.checkbox.disabled = !showSecond;
   if (combinedWholeControls.row) combinedWholeControls.row.style.display = showSecond ? '' : 'none';
   if (combinedWholeControls.checkbox) combinedWholeControls.checkbox.disabled = !showSecond;
 }
@@ -751,8 +865,12 @@ function drawBlock(index) {
 function draw() {
   normalizeConfig();
   updateVisibility();
+  updateStackGap();
   if (combinedWholeControls.checkbox) {
     combinedWholeControls.checkbox.checked = !!CONFIG.showCombinedWhole;
+  }
+  if (stackControls.checkbox) {
+    stackControls.checkbox.checked = !!CONFIG.stackBlocks && (CONFIG.activeBlocks || 1) > 1;
   }
   for (let i = 0; i < BLOCKS.length; i++) {
     drawBlock(i);

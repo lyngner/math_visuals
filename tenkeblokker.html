@@ -26,6 +26,7 @@
     .tb-panels{
       position:relative;
       display:flex;
+      flex-direction:row;
       gap:0;
       justify-content:center;
       align-items:flex-start;
@@ -34,11 +35,22 @@
       overflow-x:auto;
       --tb-svg-width:min(420px,88vw);
     }
-    .tb-panels.two{
+    .tb-panels.two:not(.stacked){
       gap:0;
       justify-content:flex-start;
       --tb-svg-width:calc(min(420px,44vw) * 830 / 900);
     }
+    .tb-panels.two.stacked{
+      --tb-svg-width:min(420px,88vw);
+    }
+    .tb-panels.stacked{
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-start;
+      row-gap:var(--tb-stack-gap, 24px);
+      overflow-x:visible;
+    }
+    .tb-panels.stacked > *{width:100%;}
     .tb-panels > *{flex:0 0 auto;}
     .tb-panel{display:flex;flex-direction:column;align-items:center;gap:16px;max-width:420px;}
     .tb-svg{width:var(--tb-svg-width);height:auto;background:#fff;}
@@ -75,6 +87,7 @@
       align-self:center;
     }
     .tb-panels .addFigureBtn{margin-left:clamp(16px,2vw,28px);}
+    .tb-panels.stacked .addFigureBtn{margin-left:0;margin-top:clamp(16px,2vw,28px);}
     .tb-rect{fill:#e8eedf}
     .tb-rect-empty{fill:#ffffff}
     .tb-frame{fill:none;stroke:#333;stroke-width:6}
@@ -233,6 +246,10 @@
                 </select>
               </label>
             </fieldset>
+            <div id="cfg-stack-row" class="checkbox-row" style="display:none">
+              <input id="cfg-stack-blocks" type="checkbox" />
+              <label for="cfg-stack-blocks">Legg blokker under hverandre</label>
+            </div>
             <div id="cfg-show-combined-row" class="checkbox-row" style="display:none">
               <input id="cfg-show-combined-whole" type="checkbox" />
               <label for="cfg-show-combined-whole">Vis helhet over begge</label>
