@@ -1291,8 +1291,8 @@ function setupSettingsForm(){
         <option value="2">2</option>
       </select>
     </label>
-    <label>Start posisjon, x
-      <input type="text" data-startx placeholder="-2, 0, 3">
+    <label>Startposisjon, x
+      <input type="text" data-startx value="1" placeholder="1">
     </label>
   `;
   const fieldset = root.querySelector('fieldset');
@@ -1526,7 +1526,7 @@ function setupSettingsForm(){
       const startVals = Array.isArray(SIMPLE_PARSED?.startX)
         ? SIMPLE_PARSED.startX.filter(Number.isFinite)
         : [];
-      gliderStartInput.value = startVals.length ? startVals.map(formatNumber).join(', ') : '';
+      gliderStartInput.value = startVals.length ? startVals.map(formatNumber).join(', ') : '1';
     }
     updateGliderVisibility();
     syncSimpleFromForm();
