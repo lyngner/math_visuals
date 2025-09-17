@@ -27,6 +27,164 @@ const DEFAULT_BLOCKS = [
   }
 ];
 
+const DEFAULT_TENKEBLOKKER_EXAMPLES = [
+  {
+    id: 'tenkeblokker-example-1',
+    exampleNumber: '1',
+    title: 'Brøk av en hel',
+    isDefault: true,
+    config: {
+      CONFIG: {
+        minN: 1,
+        maxN: 12,
+        rows: 1,
+        cols: 1,
+        blocks: [
+          [
+            {
+              total: 12,
+              n: 4,
+              k: 3,
+              showWhole: false,
+              lockDenominator: false,
+              lockNumerator: false,
+              hideNValue: false,
+              valueDisplay: 'fraction',
+              showCustomText: false,
+              customText: '',
+              showFraction: true,
+              showPercent: false
+            }
+          ]
+        ],
+        showCombinedWhole: false
+      }
+    }
+  },
+  {
+    id: 'tenkeblokker-example-2',
+    exampleNumber: '2',
+    title: 'To blokker med helhet',
+    config: {
+      CONFIG: {
+        minN: 1,
+        maxN: 12,
+        rows: 1,
+        cols: 2,
+        blocks: [
+          [
+            {
+              total: 8,
+              n: 4,
+              k: 4,
+              showWhole: true,
+              lockDenominator: false,
+              lockNumerator: false,
+              hideNValue: false,
+              valueDisplay: 'number',
+              showCustomText: false,
+              customText: '',
+              showFraction: false,
+              showPercent: false
+            },
+            {
+              total: 6,
+              n: 3,
+              k: 1,
+              showWhole: false,
+              lockDenominator: false,
+              lockNumerator: false,
+              hideNValue: true,
+              valueDisplay: 'percent',
+              showCustomText: false,
+              customText: '',
+              showFraction: false,
+              showPercent: true
+            }
+          ]
+        ],
+        showCombinedWhole: true
+      }
+    }
+  },
+  {
+    id: 'tenkeblokker-example-3',
+    exampleNumber: '3',
+    title: 'Flere representasjoner',
+    config: {
+      CONFIG: {
+        minN: 1,
+        maxN: 12,
+        rows: 2,
+        cols: 2,
+        blocks: [
+          [
+            {
+              total: 10,
+              n: 5,
+              k: 3,
+              showWhole: false,
+              lockDenominator: false,
+              lockNumerator: false,
+              hideNValue: false,
+              valueDisplay: 'fraction',
+              showCustomText: false,
+              customText: '',
+              showFraction: true,
+              showPercent: false
+            },
+            {
+              total: 4,
+              n: 1,
+              k: 1,
+              showWhole: false,
+              lockDenominator: false,
+              lockNumerator: false,
+              hideNValue: false,
+              valueDisplay: 'number',
+              showCustomText: true,
+              customText: '1\u00a0kg',
+              showFraction: false,
+              showPercent: false
+            }
+          ],
+          [
+            {
+              total: 6,
+              n: 3,
+              k: 2,
+              showWhole: false,
+              lockDenominator: false,
+              lockNumerator: false,
+              hideNValue: false,
+              valueDisplay: 'percent',
+              showCustomText: false,
+              customText: '',
+              showFraction: false,
+              showPercent: true
+            },
+            {
+              total: 9,
+              n: 3,
+              k: 3,
+              showWhole: false,
+              lockDenominator: false,
+              lockNumerator: false,
+              hideNValue: false,
+              valueDisplay: 'number',
+              showCustomText: false,
+              customText: '',
+              showFraction: false,
+              showPercent: false
+            }
+          ]
+        ],
+        showCombinedWhole: false
+      }
+    }
+  }
+];
+
 const DISPLAY_OPTIONS = ['number', 'fraction', 'percent'];
 
 function sanitizeDisplayMode(value) {
@@ -43,6 +201,31 @@ function applyDisplayMode(cfg, mode, fallback = 'number') {
   cfg.showFraction = normalized === 'fraction';
   cfg.showPercent = normalized === 'percent';
   return normalized;
+}
+
+function parseGridDimension(value, fallback = 1) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.round(value);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const normalized = Number.parseFloat(value.replace(',', '.'));
+    if (Number.isFinite(normalized) && normalized > 0) {
+      return Math.round(normalized);
+    }
+  }
+  return fallback;
+}
+
+function cloneExampleConfig(config) {
+  if (!config) return config;
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(config);
+    } catch (err) {
+      // ignore structuredClone errors and fall back to JSON copy
+    }
+  }
+  return JSON.parse(JSON.stringify(config));
 }
 
 function getHiddenNumber(target, key) {
@@ -140,29 +323,39 @@ const combinedWholeControls = {
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
 
+if (typeof window !== 'undefined') {
+  window.DEFAULT_EXAMPLES = DEFAULT_TENKEBLOKKER_EXAMPLES.map(example => ({
+    ...example,
+    config: {
+      ...example.config,
+      CONFIG: cloneExampleConfig(example.config?.CONFIG)
+    }
+  }));
+}
+
 const combinedWholeOverlay = createCombinedWholeOverlay();
 if (typeof window !== 'undefined') {
   window.addEventListener('resize', () => draw(true));
 }
 
 addColumnBtn?.addEventListener('click', () => {
-  if (CONFIG.cols >= 3) return;
-  const current = Number.isFinite(CONFIG.cols) ? CONFIG.cols : 1;
+  const current = parseGridDimension(CONFIG.cols, 1);
+  if (current >= 3) return;
   setHiddenFlag(CONFIG, '__colsDirty', true);
   CONFIG.cols = Math.min(3, current + 1);
   draw();
 });
 
 addRowBtn?.addEventListener('click', () => {
-  if (CONFIG.rows >= 3) return;
-  const current = Number.isFinite(CONFIG.rows) ? CONFIG.rows : 1;
+  const current = parseGridDimension(CONFIG.rows, 1);
+  if (current >= 3) return;
   setHiddenFlag(CONFIG, '__rowsDirty', true);
   CONFIG.rows = Math.min(3, current + 1);
   draw();
 });
 
 removeColumnBtn?.addEventListener('click', () => {
-  const current = Number.isFinite(CONFIG.cols) ? Math.round(CONFIG.cols) : 1;
+  const current = parseGridDimension(CONFIG.cols, 1);
   if (current <= 1) return;
   const next = Math.max(1, current - 1);
   setHiddenFlag(CONFIG, '__colsDirty', true);
@@ -178,7 +371,7 @@ removeColumnBtn?.addEventListener('click', () => {
 });
 
 removeRowBtn?.addEventListener('click', () => {
-  const current = Number.isFinite(CONFIG.rows) ? Math.round(CONFIG.rows) : 1;
+  const current = parseGridDimension(CONFIG.rows, 1);
   if (current <= 1) return;
   const next = Math.max(1, current - 1);
   setHiddenFlag(CONFIG, '__rowsDirty', true);
