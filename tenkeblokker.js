@@ -2,24 +2,24 @@
 
 const DEFAULT_BLOCKS = [
   {
-    total: 50,
+    total: 1,
     n: 1,
     k: 1,
-    showWhole: true,
-    lockDenominator: false,
-    lockNumerator: false,
+    showWhole: false,
+    lockDenominator: true,
+    lockNumerator: true,
     hideNValue: false,
     valueDisplay: 'number',
     showCustomText: false,
     customText: ''
   },
   {
-    total: 50,
+    total: 1,
     n: 1,
-    k: 0,
-    showWhole: true,
-    lockDenominator: false,
-    lockNumerator: false,
+    k: 1,
+    showWhole: false,
+    lockDenominator: true,
+    lockNumerator: true,
     hideNValue: false,
     valueDisplay: 'number',
     showCustomText: false,
@@ -286,13 +286,21 @@ function toBoolean(value, fallback = false) {
   return fallback;
 }
 
-function normalizeBlockConfig(raw, index, existing) {
+function normalizeBlockConfig(raw, index, existing, previous) {
   const defaults = getDefaultBlock(index);
   const target = existing && typeof existing === 'object' ? existing : { ...defaults };
   const source = raw && typeof raw === 'object' ? raw : {};
+  const isNew = raw == null;
 
   let total = Number(source.total);
-  if (!Number.isFinite(total) || total < 1) total = Number(defaults.total) || 1;
+  if (!Number.isFinite(total) || total < 1) {
+    const prevTotal = Number(previous?.total);
+    if (isNew && Number.isFinite(prevTotal) && prevTotal > 0) {
+      total = prevTotal;
+    } else {
+      total = Number(defaults.total) || 1;
+    }
+  }
   target.total = total;
 
   let n = Number(source.n);
@@ -374,7 +382,15 @@ function normalizeConfig(initial = false) {
       const row = [];
       for (let c = 0; c < cols; c++) {
         const raw = flat?.[index] || null;
-        row.push(normalizeBlockConfig(raw, index));
+        let previous = null;
+        if (index > 0) {
+          if (c > 0) previous = row[c - 1];
+          else if (r > 0) {
+            const prevRow = gridData[r - 1];
+            previous = Array.isArray(prevRow) ? prevRow[cols - 1] : null;
+          }
+        }
+        row.push(normalizeBlockConfig(raw, index, raw, previous));
         index += 1;
       }
       gridData.push(row);
@@ -422,7 +438,16 @@ function normalizeConfig(initial = false) {
       for (let c = 0; c < cols; c++) {
         const index = r * cols + c;
         const current = row[c];
-        row[c] = normalizeBlockConfig(current, index, current);
+        let previous = null;
+        if (index > 0) {
+          if (c > 0) {
+            previous = row[c - 1];
+          } else if (r > 0) {
+            const prevRow = CONFIG.blocks[r - 1];
+            previous = Array.isArray(prevRow) ? prevRow[cols - 1] : null;
+          }
+        }
+        row[c] = normalizeBlockConfig(current, index, current, previous);
       }
     }
     CONFIG.rows = rows;
