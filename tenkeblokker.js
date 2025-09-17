@@ -128,6 +128,8 @@ const board = document.getElementById('tbBoard');
 const grid = document.getElementById('tbGrid');
 const addColumnBtn = document.getElementById('tbAddColumn');
 const addRowBtn = document.getElementById('tbAddRow');
+const removeColumnBtn = document.getElementById('tbRemoveColumn');
+const removeRowBtn = document.getElementById('tbRemoveRow');
 const settingsContainer = document.getElementById('tbSettings');
 
 const combinedWholeControls = {
@@ -156,6 +158,34 @@ addRowBtn?.addEventListener('click', () => {
   const current = Number.isFinite(CONFIG.rows) ? CONFIG.rows : 1;
   setHiddenFlag(CONFIG, '__rowsDirty', true);
   CONFIG.rows = Math.min(3, current + 1);
+  draw();
+});
+
+removeColumnBtn?.addEventListener('click', () => {
+  const current = Number.isFinite(CONFIG.cols) ? Math.round(CONFIG.cols) : 1;
+  if (current <= 1) return;
+  const next = Math.max(1, current - 1);
+  setHiddenFlag(CONFIG, '__colsDirty', true);
+  CONFIG.cols = next;
+  if (Array.isArray(CONFIG.blocks)) {
+    for (const row of CONFIG.blocks) {
+      if (Array.isArray(row) && row.length > next) {
+        row.length = next;
+      }
+    }
+  }
+  draw();
+});
+
+removeRowBtn?.addEventListener('click', () => {
+  const current = Number.isFinite(CONFIG.rows) ? Math.round(CONFIG.rows) : 1;
+  if (current <= 1) return;
+  const next = Math.max(1, current - 1);
+  setHiddenFlag(CONFIG, '__rowsDirty', true);
+  CONFIG.rows = next;
+  if (Array.isArray(CONFIG.blocks) && CONFIG.blocks.length > next) {
+    CONFIG.blocks.length = next;
+  }
   draw();
 });
 
@@ -518,6 +548,8 @@ function draw(skipNormalization = false) {
 function updateAddButtons() {
   if (addColumnBtn) addColumnBtn.style.display = CONFIG.cols >= 3 ? 'none' : '';
   if (addRowBtn) addRowBtn.style.display = CONFIG.rows >= 3 ? 'none' : '';
+  if (removeColumnBtn) removeColumnBtn.style.display = CONFIG.cols <= 1 ? 'none' : '';
+  if (removeRowBtn) removeRowBtn.style.display = CONFIG.rows <= 1 ? 'none' : '';
 }
 
 function createBlock(row, col, cfg) {
