@@ -1029,6 +1029,8 @@
   const colorResetBtn = document.getElementById('btnResetColor');
   const rotationRange = document.getElementById('rngViewRotation');
   const rotationLabel = document.getElementById('lblViewRotation');
+  const elevationRange = document.getElementById('rngViewElevation');
+  const elevationLabel = document.getElementById('lblViewElevation');
   const zoomRange = document.getElementById('rngViewZoom');
   const zoomLabel = document.getElementById('lblViewZoom');
   const viewFigureLabels = Array.from(document.querySelectorAll('[data-view-figure-label]'));
@@ -1055,6 +1057,27 @@
     if (!transparencyLabel) return;
     const clamped = clampTransparency(value);
     transparencyLabel.textContent = `${clamped}%`;
+  }
+
+  const ELEVATION_MIN_DEGREES = -80;
+  const ELEVATION_MAX_DEGREES = 80;
+
+  function clampElevationDegrees(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return 0;
+    if (num < ELEVATION_MIN_DEGREES) return ELEVATION_MIN_DEGREES;
+    if (num > ELEVATION_MAX_DEGREES) return ELEVATION_MAX_DEGREES;
+    return num;
+  }
+
+  function updateElevationLabel(value) {
+    if (!elevationLabel) return;
+    if (!Number.isFinite(value)) {
+      elevationLabel.textContent = '–°';
+      return;
+    }
+    const clamped = clampElevationDegrees(value);
+    elevationLabel.textContent = `${Math.round(clamped)}°`;
   }
 
   function clampRotation(value) {
@@ -1219,7 +1242,15 @@
     const dz = position[2] - target[2];
     const horizontal = Math.sqrt(dx * dx + dz * dz);
     if (horizontal < 1e-6 && Math.abs(dy) < 1e-6) return 0;
-    return Math.atan2(dy, horizontal);
+    const angle = Math.atan2(dy, horizontal);
+    if (!Number.isFinite(angle)) return 0;
+    return angle;
+  }
+
+  function computeElevationDegreesFromView(view) {
+    const radians = computeElevationFromView(view);
+    if (!Number.isFinite(radians)) return 0;
+    return THREE.MathUtils.radToDeg(radians);
   }
 
   function applyViewControlChanges(options = {}) {
@@ -1247,7 +1278,10 @@
       const fallback = Math.sqrt(dx * dx + dy * dy + dz * dz);
       baseDistance = fallback > 0 ? fallback : 3;
     }
-    const elevation = computeElevationFromView(view);
+    const baseElevationDeg = computeElevationDegreesFromView(view);
+    const requestedElevationDeg = options.elevationDeg != null ? options.elevationDeg : baseElevationDeg;
+    const clampedElevationDeg = clampElevationDegrees(Number.isFinite(requestedElevationDeg) ? requestedElevationDeg : 0);
+    const elevation = THREE.MathUtils.degToRad(clampedElevationDeg);
     const distance = Math.max(baseDistance * (clampedZoom / 100), 0.2);
     const horizontal = Math.cos(elevation) * distance;
     const yaw = THREE.MathUtils.degToRad(clampedRotation);
@@ -1274,23 +1308,30 @@
     if (rotationRange) {
       rotationRange.disabled = !hasRenderable;
     }
+    if (elevationRange) {
+      elevationRange.disabled = !hasRenderable;
+    }
     if (zoomRange) {
       zoomRange.disabled = !hasRenderable;
     }
     if (!hasRenderable) {
       updateRotationLabel(Number.NaN);
+      updateElevationLabel(Number.NaN);
       updateZoomLabel(Number.NaN);
       return;
     }
     const view = getEffectiveView(target);
     if (!view) {
       updateRotationLabel(Number.NaN);
+      updateElevationLabel(Number.NaN);
       updateZoomLabel(Number.NaN);
       return;
     }
     const rotation = computeRotationDegreesFromView(view);
     const zoomPercent = computeZoomPercentFromView(view, renderer);
+    const elevationDeg = computeElevationDegreesFromView(view);
     const rotationValue = Number.isFinite(rotation) ? rotation : 0;
+    const elevationValue = Number.isFinite(elevationDeg) ? elevationDeg : 0;
     const zoomValue = Number.isFinite(zoomPercent) ? zoomPercent : 100;
     if (rotationRange) {
       const normalized = clampRotation(rotationValue);
@@ -1298,6 +1339,13 @@
       updateRotationLabel(normalized);
     } else {
       updateRotationLabel(rotationValue);
+    }
+    if (elevationRange) {
+      const clampedElevation = clampElevationDegrees(elevationValue);
+      elevationRange.value = String(Math.round(clampedElevation));
+      updateElevationLabel(clampedElevation);
+    } else {
+      updateElevationLabel(elevationValue);
     }
     if (zoomRange) {
       const clampedZoom = clampZoomPercent(zoomValue);
@@ -1763,6 +1811,17 @@
       }
       updateRotationLabel(value);
       applyViewControlChanges({ rotationDeg: value });
+    });
+  }
+
+  if (elevationRange) {
+    elevationRange.addEventListener('input', evt => {
+      const value = clampElevationDegrees(evt.target.value);
+      if (String(Math.round(value)) !== evt.target.value) {
+        evt.target.value = String(Math.round(value));
+      }
+      updateElevationLabel(value);
+      applyViewControlChanges({ elevationDeg: value });
     });
   }
 
