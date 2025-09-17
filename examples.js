@@ -734,27 +734,35 @@
         }
         if(availableDefaults.length > 0){
           const existingKeys = new Set();
+          let hasCustomExample = false;
           examples.forEach(ex => {
-            const key = normalizeKey(ex && ex.__builtinKey);
-            if(key) existingKeys.add(key);
-          });
-          let appended = false;
-          availableDefaults.forEach(ex => {
+            if(!ex || typeof ex !== 'object') return;
             const key = normalizeKey(ex.__builtinKey);
-            if(key && existingKeys.has(key)) return;
-            const copy = {
-              config: cloneValue(ex.config),
-              svg: typeof ex.svg === 'string' ? ex.svg : ''
-            };
-            if(key) copy.__builtinKey = key;
-            if(ex.title) copy.title = ex.title;
-            if(ex.description) copy.description = ex.description;
-            if(ex.exampleNumber) copy.exampleNumber = ex.exampleNumber;
-            examples.push(copy);
-            if(key) existingKeys.add(key);
-            appended = true;
+            if(key){
+              existingKeys.add(key);
+            }else{
+              hasCustomExample = true;
+            }
           });
-          if(appended) updated = true;
+          if(!hasCustomExample){
+            let appended = false;
+            availableDefaults.forEach(ex => {
+              const key = normalizeKey(ex.__builtinKey);
+              if(key && existingKeys.has(key)) return;
+              const copy = {
+                config: cloneValue(ex.config),
+                svg: typeof ex.svg === 'string' ? ex.svg : ''
+              };
+              if(key) copy.__builtinKey = key;
+              if(ex.title) copy.title = ex.title;
+              if(ex.description) copy.description = ex.description;
+              if(ex.exampleNumber) copy.exampleNumber = ex.exampleNumber;
+              examples.push(copy);
+              if(key) existingKeys.add(key);
+              appended = true;
+            });
+            if(appended) updated = true;
+          }
         }
       }
 
