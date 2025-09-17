@@ -43,7 +43,7 @@
     .tb-grid[data-cols="2"]{grid-template-columns:repeat(2,minmax(0,1fr));}
     .tb-grid[data-cols="3"]{grid-template-columns:repeat(3,minmax(0,1fr));}
     .tb-panel{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;max-width:420px;}
-    .tb-svg{width:var(--tb-svg-width,min(420px,88vw));height:auto;background:#fff;}
+    .tb-svg{width:min(var(--tb-svg-width,420px),88vw,100%);height:auto;background:#fff;}
     .tb-board .addFigureBtn{align-self:center;justify-self:center;}
     .tb-add-right{grid-column:2;grid-row:1;}
     .tb-add-bottom{grid-column:1;grid-row:2;}
