@@ -1304,6 +1304,7 @@ function setupSettingsForm(){
   gliderRow.style.display = 'none';
   const gliderCountInput = gliderRow.querySelector('[data-points]');
   const gliderStartInput = gliderRow.querySelector('input[data-startx]');
+  const gliderStartLabel = gliderStartInput ? gliderStartInput.closest('label') : null;
 
   const isCoords = str => /^\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?)(?:\s*;\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?))*\s*$/.test(str);
   const isExplicitFun = str => {
@@ -1351,6 +1352,9 @@ function setupSettingsForm(){
     const active = shouldEnableGliders();
     const count = getGliderCount();
     gliderStartInput.disabled = !active || count <= 0;
+    if(gliderStartLabel){
+      gliderStartLabel.style.display = active && count > 0 ? '' : 'none';
+    }
   };
 
   const updateGliderVisibility = () => {
