@@ -705,6 +705,22 @@
         currentExampleIndex = Math.min(Math.max(currentExampleIndex, 0), maxIdx);
       }
       renderOptions();
+
+      if(!initialLoadPerformed){
+        const refreshed = getExamples();
+        if(refreshed.length > 0){
+          let targetIndex = Number.isInteger(currentExampleIndex) ? currentExampleIndex : NaN;
+          if(!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= refreshed.length){
+            targetIndex = refreshed.findIndex(ex => ex && ex.isDefault === true);
+          }
+          if(!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= refreshed.length){
+            targetIndex = 0;
+          }
+          if(loadExample(targetIndex)){
+            initialLoadPerformed = true;
+          }
+        }
+      }
     };
     if(document.readyState === 'complete') setTimeout(ensure, 0);
     else window.addEventListener('load', ensure, {once:true});
