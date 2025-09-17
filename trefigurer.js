@@ -1035,6 +1035,10 @@
 
   if (typeof window !== 'undefined' && window && typeof window.addEventListener === 'function') {
     window.addEventListener('examples:collect', syncAllViewStates);
+    window.addEventListener('examples:loaded', () => {
+      ensureStateDefaults();
+      syncControlsFromState();
+    });
   }
 
   function getStoredView(index) {
@@ -1612,56 +1616,66 @@
   }
 
   const defaultInput = textarea ? textarea.value : 'sylinder radius: r høyde: h';
-  window.STATE = window.STATE || {};
-  ensureViewStateCapacity();
-  if (typeof window.STATE.rawInput !== 'string') {
-    window.STATE.rawInput = defaultInput;
-  }
-  if (!Array.isArray(window.STATE.figures)) {
-    window.STATE.figures = [];
-  }
-  if (typeof window.STATE.rotationLocked !== 'boolean') {
-    window.STATE.rotationLocked = lockRotationCheckbox ? lockRotationCheckbox.checked : false;
-  }
-  if (typeof window.STATE.freeFigure !== 'boolean') {
-    window.STATE.freeFigure = freeFigureCheckbox ? freeFigureCheckbox.checked : false;
-  }
-  const fallbackColor = colorInput && typeof colorInput.value === 'string' && colorInput.value
-    ? colorInput.value
-    : '#3b82f6';
-  if (typeof window.STATE.customColor !== 'string' || !parseColorHex(window.STATE.customColor)) {
-    window.STATE.customColor = fallbackColor;
-  }
-  if (typeof window.STATE.useCustomColor !== 'boolean') {
-    window.STATE.useCustomColor = false;
-  }
-  const initialTransparency = clampTransparency(window.STATE.transparency);
-  window.STATE.transparency = initialTransparency;
-  if (lockRotationCheckbox) {
-    lockRotationCheckbox.checked = window.STATE.rotationLocked;
-  }
-  if (freeFigureCheckbox) {
-    freeFigureCheckbox.checked = window.STATE.freeFigure;
-  }
-  if (colorInput) {
-    colorInput.value = window.STATE.customColor;
-  }
-  if (transparencyRange) {
-    transparencyRange.value = String(initialTransparency);
+
+  function ensureStateDefaults() {
+    window.STATE = window.STATE || {};
+    ensureViewStateCapacity();
+    if (typeof window.STATE.rawInput !== 'string') {
+      window.STATE.rawInput = defaultInput;
+    }
+    if (!Array.isArray(window.STATE.figures)) {
+      window.STATE.figures = [];
+    }
+    if (typeof window.STATE.rotationLocked !== 'boolean') {
+      window.STATE.rotationLocked = lockRotationCheckbox ? Boolean(lockRotationCheckbox.checked) : false;
+    }
+    if (typeof window.STATE.freeFigure !== 'boolean') {
+      window.STATE.freeFigure = freeFigureCheckbox ? Boolean(freeFigureCheckbox.checked) : false;
+    }
+    const fallbackColor = colorInput && typeof colorInput.value === 'string' && colorInput.value
+      ? colorInput.value
+      : '#3b82f6';
+    if (typeof window.STATE.customColor !== 'string' || !parseColorHex(window.STATE.customColor)) {
+      window.STATE.customColor = fallbackColor;
+    }
+    if (typeof window.STATE.useCustomColor !== 'boolean') {
+      window.STATE.useCustomColor = window.STATE.useCustomColor === 'true';
+    }
+    const clampedTransparency = clampTransparency(window.STATE.transparency);
+    window.STATE.transparency = clampedTransparency;
   }
 
   const applyRotationLock = locked => {
-    renderers.forEach(renderer => renderer.setRotationLocked(locked));
+    renderers.forEach(renderer => renderer.setRotationLocked(Boolean(locked)));
   };
-  applyRotationLock(window.STATE.rotationLocked);
 
   const applyFloating = floating => {
-    renderers.forEach(renderer => renderer.setFloating(floating));
+    renderers.forEach(renderer => renderer.setFloating(Boolean(floating)));
   };
-  applyFloating(window.STATE.freeFigure);
 
-  applyColor(window.STATE.useCustomColor, window.STATE.customColor);
-  applyTransparency(window.STATE.transparency);
+  function syncControlsFromState() {
+    if (!window.STATE || typeof window.STATE !== 'object') return;
+    if (lockRotationCheckbox) {
+      lockRotationCheckbox.checked = Boolean(window.STATE.rotationLocked);
+    }
+    if (freeFigureCheckbox) {
+      freeFigureCheckbox.checked = Boolean(window.STATE.freeFigure);
+    }
+    if (colorInput && typeof window.STATE.customColor === 'string') {
+      colorInput.value = window.STATE.customColor;
+    }
+    const transparencyValue = clampTransparency(window.STATE.transparency);
+    if (transparencyRange) {
+      transparencyRange.value = String(transparencyValue);
+    }
+    applyRotationLock(window.STATE.rotationLocked);
+    applyFloating(window.STATE.freeFigure);
+    applyColor(Boolean(window.STATE.useCustomColor), window.STATE.customColor);
+    applyTransparency(transparencyValue);
+  }
+
+  ensureStateDefaults();
+  syncControlsFromState();
   updateViewControlsUI(getActiveViewIndex());
 
   function detectType(line) {
