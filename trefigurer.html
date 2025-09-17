@@ -44,9 +44,20 @@
     .btn:active { transform: translateY(1px); }
     label { font-size: 13px; color: #4b5563; }
     textarea { border: 1px solid #d1d5db; border-radius: 10px; padding: 8px 10px; font-size: 14px; background: #fff; width: 100%; }
-    .specs-row { display: flex; gap: 10px; align-items: flex-start; }
-    .specs-row textarea { flex: 1; }
-    .small { font-size: 12px; color: #6b7280; }
+    .card--settings { gap: 16px; }
+    .settings-group { display: grid; gap: 14px; }
+    .settings-group--columns { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .setting { display: flex; flex-direction: column; gap: 8px; }
+    .setting__header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 13px; color: #374151; }
+    .setting__header label { font-weight: 600; }
+    .setting__label { font-size: 13px; font-weight: 600; color: #374151; }
+    .setting__value { font-size: 13px; color: #111827; font-variant-numeric: tabular-nums; }
+    .setting__controls { display: flex; gap: 10px; align-items: center; }
+    .setting__controls--split { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+    .setting__controls--color { display: inline-flex; gap: 8px; align-items: center; }
+    .setting__hint { font-size: 12px; color: #6b7280; line-height: 1.4; }
+    .setting__hint-list { margin: 0; padding-left: 18px; font-size: 12px; color: #6b7280; display: grid; gap: 4px; list-style: disc; }
+    .settings-checkboxes { display: grid; gap: 8px; }
     .figure-grid {
       --figure-columns: 1;
       display: grid;
@@ -78,34 +89,10 @@
       .figure-grid { --figure-columns: 1; }
       .figureCanvas { min-height: 280px; }
     }
-    .option-row {
-      margin-top: 10px;
-    }
-    .option-row__header {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .option-row--color {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .option-row--slider {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .option-hint {
-      font-size: 12px;
-      color: #6b7280;
-    }
-    .color-controls {
-      display: inline-flex;
-      gap: 8px;
-      align-items: center;
+    @media (max-width: 640px) {
+      .settings-group--columns { grid-template-columns: minmax(0, 1fr); }
+      .setting__controls--split { grid-template-columns: minmax(0, 1fr); }
+      .setting__controls--split .btn { justify-self: start; }
     }
     .color-input {
       width: 44px;
@@ -226,61 +213,69 @@
           </div>
         </div>
         <div class="card card--settings">
-          <label for="inpSpecs">Skriv fritekst (én figur per linje)</label>
-          <div class="specs-row">
-            <textarea id="inpSpecs" rows="4" spellcheck="false">sylinder radius: r høyde: h</textarea>
-            <button id="btnDraw" class="btn" type="button">Tegn</button>
-          </div>
-          <div class="small">Bruk ordene <strong>prisme</strong>, <strong>trekantet sylinder</strong>, <strong>firkantet sylinder</strong>, <strong>pyramide</strong> eller <strong>kule</strong>.</div>
-          <div class="small">Legg til <strong>radius</strong> og/eller <strong>høyde</strong> i linjen for å vise mål, for eksempel <code>sylinder radius: r høyde: h</code>.</div>
-          <div class="small">Du kan bruke <code>:</code> eller <code>=</code>, og skrive egen tekst (bruk gjerne anførselstegn om teksten har mellomrom). Lar du teksten stå tom, vises bare streken.</div>
-          <div class="small">Trykk Ctrl+Enter (eller ⌘+Enter) for å tegne mens du skriver.</div>
-          <div class="small">Dra i figuren for å rotere. Bruk høyre museknapp (eller to fingre) for å panorere og rullehjul eller pinch for å zoome.</div>
-          <div class="option-row option-row--slider option-row--view">
-            <div class="option-row__header">
-              <label for="rngViewRotation">Rotasjon (<span data-view-figure-label>Figur 1</span>): <span id="lblViewRotation">0°</span></label>
-              <div class="option-hint">Juster kameravinkelen horisontalt.</div>
+          <div class="setting setting--textarea">
+            <label class="setting__label" for="inpSpecs">Skriv fritekst (én figur per linje)</label>
+            <div class="setting__controls setting__controls--split">
+              <textarea id="inpSpecs" rows="4" spellcheck="false">sylinder radius: r høyde: h</textarea>
+              <button id="btnDraw" class="btn" type="button">Tegn</button>
             </div>
-            <input id="rngViewRotation" class="range-input" type="range" min="0" max="360" step="1" value="0" />
+            <ul class="setting__hint-list">
+              <li>Bruk ordene <strong>prisme</strong>, <strong>trekantet sylinder</strong>, <strong>firkantet sylinder</strong>, <strong>pyramide</strong> eller <strong>kule</strong>.</li>
+              <li>Legg til <strong>radius</strong> og/eller <strong>høyde</strong> i linjen for å vise mål, for eksempel <code>sylinder radius: r høyde: h</code>.</li>
+              <li>Dra i figuren for å rotere. Bruk høyre museknapp (eller to fingre) for å panorere og rullehjul eller pinch for å zoome.</li>
+            </ul>
           </div>
-          <div class="option-row option-row--slider option-row--view">
-            <div class="option-row__header">
-              <label for="rngViewElevation">Vinkel opp/ned (<span data-view-figure-label>Figur 1</span>): <span id="lblViewElevation">0°</span></label>
-              <div class="option-hint">Juster kameravinkelen vertikalt.</div>
+          <div class="settings-group settings-group--columns">
+            <div class="setting setting--slider">
+              <div class="setting__header">
+                <label for="rngViewRotation">Rotasjon (<span data-view-figure-label>Figur 1</span>)</label>
+                <span id="lblViewRotation" class="setting__value">0°</span>
+              </div>
+              <input id="rngViewRotation" class="range-input" type="range" min="0" max="360" step="1" value="0" />
+              <div class="setting__hint">Juster kameravinkelen horisontalt.</div>
             </div>
-            <input id="rngViewElevation" class="range-input" type="range" min="-80" max="80" step="1" value="0" />
-          </div>
-          <div class="option-row option-row--slider option-row--view">
-            <div class="option-row__header">
-              <label for="rngViewZoom">Zoom (<span data-view-figure-label>Figur 1</span>): <span id="lblViewZoom">100%</span></label>
-              <div class="option-hint">100% tilsvarer standardavstanden.</div>
+            <div class="setting setting--slider">
+              <div class="setting__header">
+                <label for="rngViewElevation">Vinkel opp/ned (<span data-view-figure-label>Figur 1</span>)</label>
+                <span id="lblViewElevation" class="setting__value">0°</span>
+              </div>
+              <input id="rngViewElevation" class="range-input" type="range" min="-80" max="80" step="1" value="0" />
+              <div class="setting__hint">Juster kameravinkelen vertikalt.</div>
             </div>
-            <input id="rngViewZoom" class="range-input" type="range" min="40" max="250" step="1" value="100" />
-          </div>
-          <div class="option-row option-row--color">
-            <div class="option-row__header">
-              <label for="inpColor">Farge</label>
-              <div class="option-hint">Gjelder alle figurer. Nullstill for å bruke standardfargen.</div>
-            </div>
-            <div class="color-controls">
-              <input id="inpColor" class="color-input" type="color" value="#3b82f6" aria-label="Velg farge" />
-              <button id="btnResetColor" class="btn btn--small" type="button">Nullstill</button>
+            <div class="setting setting--slider">
+              <div class="setting__header">
+                <label for="rngViewZoom">Zoom (<span data-view-figure-label>Figur 1</span>)</label>
+                <span id="lblViewZoom" class="setting__value">100%</span>
+              </div>
+              <input id="rngViewZoom" class="range-input" type="range" min="40" max="250" step="1" value="100" />
+              <div class="setting__hint">100% tilsvarer standardavstanden.</div>
             </div>
           </div>
-          <div class="option-row option-row--slider">
-            <div class="option-row__header">
-              <label for="rngTransparency">Gjennomsiktighet: <span id="lblTransparency">0%</span></label>
-              <div class="option-hint">0% er helt tett, 90% er svært gjennomsiktig.</div>
+          <div class="settings-group settings-group--columns">
+            <div class="setting setting--color">
+              <div class="setting__header">
+                <label for="inpColor">Farge</label>
+              </div>
+              <div class="setting__controls setting__controls--color">
+                <input id="inpColor" class="color-input" type="color" value="#3b82f6" aria-label="Velg farge" />
+                <button id="btnResetColor" class="btn btn--small" type="button">Nullstill</button>
+              </div>
+              <div class="setting__hint">Gjelder alle figurer. Nullstill for å bruke standardfargen.</div>
             </div>
-            <input id="rngTransparency" class="range-input" type="range" min="0" max="90" step="5" value="0" />
+            <div class="setting setting--slider">
+              <div class="setting__header">
+                <label for="rngTransparency">Gjennomsiktighet</label>
+                <span id="lblTransparency" class="setting__value">0%</span>
+              </div>
+              <input id="rngTransparency" class="range-input" type="range" min="0" max="90" step="5" value="0" />
+              <div class="setting__hint">0% er helt tett, 90% er svært gjennomsiktig.</div>
+            </div>
           </div>
-          <div class="option-row option-row--checkbox">
+          <div class="settings-checkboxes">
             <label class="checkbox">
               <input id="chkLockRotation" type="checkbox" />
               <span>Lås rotasjonen</span>
             </label>
-          </div>
-          <div class="option-row option-row--checkbox">
             <label class="checkbox">
               <input id="chkFreeFigure" type="checkbox" />
               <span>Fri figuren</span>
