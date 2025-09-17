@@ -16,6 +16,94 @@ const CFG = {
   locked: []
 };
 
+const DEFAULT_DIAGRAM_EXAMPLES = [
+  {
+    id: 'diagram-example-1',
+    exampleNumber: '1',
+    isDefault: true,
+    config: {
+      CFG: JSON.parse(JSON.stringify(CFG))
+    }
+  },
+  {
+    id: 'diagram-example-2',
+    exampleNumber: '2',
+    config: {
+      CFG: {
+        type: 'bar',
+        title: 'Bøker lest i 5A',
+        labels: ['Jan','Feb','Mar','Apr','Mai'],
+        series1: '',
+        start:  [3,5,6,4,7],
+        answer: [3,5,6,4,7],
+        yMax:   8,
+        snap:   1,
+        tolerance: 0,
+        axisXLabel: 'Måned',
+        axisYLabel: 'Antall bøker',
+        locked: []
+      }
+    }
+  },
+  {
+    id: 'diagram-example-3',
+    exampleNumber: '3',
+    config: {
+      CFG: {
+        type: 'grouped',
+        title: 'Fritidsaktiviteter',
+        labels: ['Korps','Teater','Fotball','Sjakk'],
+        series1: 'Jenter',
+        start:  [4,6,5,3],
+        answer: [4,6,5,3],
+        series2: 'Gutter',
+        start2: [3,2,7,4],
+        answer2:[3,2,7,4],
+        yMax:   8,
+        snap:   1,
+        tolerance: 0,
+        axisXLabel: 'Aktivitet',
+        axisYLabel: 'Antall elever',
+        locked: []
+      }
+    }
+  },
+  {
+    id: 'diagram-example-4',
+    exampleNumber: '4',
+    config: {
+      CFG: {
+        type: 'stacked',
+        title: 'Daglig skjermbruk',
+        labels: ['1','2','3','4','5','6','7'],
+        series1: 'Gutter',
+        start:  [2,5,5,2,3,2,1],
+        answer: [2,5,5,2,3,2,1],
+        series2: 'Jenter',
+        start2: [1,4,3,0,1,0,0],
+        answer2:[1,4,3,0,1,0,0],
+        yMax:   9,
+        snap:   1,
+        tolerance: 0,
+        axisXLabel: 'Timer per dag',
+        axisYLabel: 'Antall elever',
+        locked: []
+      }
+    }
+  }
+];
+
+window.DEFAULT_EXAMPLES = DEFAULT_DIAGRAM_EXAMPLES.map(ex => ({
+  ...ex,
+  config: {
+    ...ex.config,
+    CFG: ex.config?.CFG ? JSON.parse(JSON.stringify(ex.config.CFG)) : undefined,
+    STATE: ex.config?.STATE ? JSON.parse(JSON.stringify(ex.config.STATE)) : undefined,
+    CONFIG: ex.config?.CONFIG ? JSON.parse(JSON.stringify(ex.config.CONFIG)) : undefined,
+    SIMPLE: ex.config?.SIMPLE ? JSON.parse(JSON.stringify(ex.config.SIMPLE)) : undefined
+  }
+}));
+
 /* =========================================================
    OPPSETT
    ========================================================= */
