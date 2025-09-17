@@ -918,6 +918,7 @@
     document.querySelectorAll('#figureGrid > .figure[data-figure-index]')
   );
   const rendererCount = figureWrappers.length;
+  let activeViewIndex = 0;
 
   function ensureViewStateCapacity() {
     if (!window.STATE || typeof window.STATE !== 'object') {
@@ -932,18 +933,33 @@
     if (window.STATE.views.length > rendererCount) {
       window.STATE.views.length = rendererCount;
     }
+    let storedIndex = Number(window.STATE.lastViewIndex);
+    if (!Number.isInteger(storedIndex)) {
+      storedIndex = sanitizeViewIndex(activeViewIndex);
+    } else {
+      storedIndex = sanitizeViewIndex(storedIndex);
+    }
+    activeViewIndex = storedIndex;
+    window.STATE.lastViewIndex = storedIndex;
   }
 
   function storeViewState(index, view) {
     ensureViewStateCapacity();
+    const targetIndex = sanitizeViewIndex(index);
     if (!view || typeof view !== 'object') {
       window.STATE.views[index] = null;
+      if (targetIndex === getActiveViewIndex()) {
+        updateViewControlsUI(targetIndex);
+      }
       return;
     }
     const position = normalizeVectorArray(view.position);
     const target = normalizeVectorArray(view.target);
     if (!position && !target) {
       window.STATE.views[index] = null;
+      if (targetIndex === getActiveViewIndex()) {
+        updateViewControlsUI(targetIndex);
+      }
       return;
     }
     const stored = {};
@@ -952,12 +968,21 @@
     if (Number.isFinite(view.distance)) stored.distance = Number(view.distance);
     if (Number.isFinite(view.baseDistance)) stored.baseDistance = Number(view.baseDistance);
     window.STATE.views[index] = stored;
+    if (targetIndex === getActiveViewIndex()) {
+      updateViewControlsUI(targetIndex);
+    }
   }
 
   const renderers = figureWrappers.map((wrapper, index) => {
     const canvasWrap = wrapper.querySelector('.figureCanvas');
     return new ShapeRenderer(canvasWrap, {
       onViewChange: view => storeViewState(index, view)
+    });
+  });
+
+  figureWrappers.forEach((wrapper, index) => {
+    wrapper.addEventListener('pointerdown', () => {
+      setActiveViewIndex(index);
     });
   });
 
@@ -1002,6 +1027,11 @@
   const freeFigureCheckbox = document.getElementById('chkFreeFigure');
   const colorInput = document.getElementById('inpColor');
   const colorResetBtn = document.getElementById('btnResetColor');
+  const rotationRange = document.getElementById('rngViewRotation');
+  const rotationLabel = document.getElementById('lblViewRotation');
+  const zoomRange = document.getElementById('rngViewZoom');
+  const zoomLabel = document.getElementById('lblViewZoom');
+  const viewFigureLabels = Array.from(document.querySelectorAll('[data-view-figure-label]'));
   const transparencyRange = document.getElementById('rngTransparency');
   const transparencyLabel = document.getElementById('lblTransparency');
   const exportCard = document.getElementById('exportCard');
@@ -1025,6 +1055,257 @@
     if (!transparencyLabel) return;
     const clamped = clampTransparency(value);
     transparencyLabel.textContent = `${clamped}%`;
+  }
+
+  function clampRotation(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return 0;
+    let normalized = num % 360;
+    if (normalized < 0) normalized += 360;
+    if (normalized < 0) normalized = 0;
+    return normalized;
+  }
+
+  function updateRotationLabel(value) {
+    if (!rotationLabel) return;
+    if (!Number.isFinite(value)) {
+      rotationLabel.textContent = '–°';
+      return;
+    }
+    const normalized = clampRotation(value);
+    rotationLabel.textContent = `${Math.round(normalized)}°`;
+  }
+
+  function clampZoomPercent(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return 100;
+    return Math.min(Math.max(num, 40), 250);
+  }
+
+  function updateZoomLabel(value) {
+    if (!zoomLabel) return;
+    if (!Number.isFinite(value)) {
+      zoomLabel.textContent = '–%';
+      return;
+    }
+    const clamped = clampZoomPercent(value);
+    zoomLabel.textContent = `${Math.round(clamped)}%`;
+  }
+
+  function updateViewFigureLabelText(index) {
+    if (!viewFigureLabels.length) return;
+    const hasIndex = Number.isInteger(index) && index >= 0;
+    const labelText = hasIndex ? `Figur ${index + 1}` : 'Ingen figur';
+    viewFigureLabels.forEach(node => {
+      node.textContent = labelText;
+    });
+  }
+
+  function sanitizeViewIndex(index) {
+    if (!Number.isInteger(index)) return 0;
+    if (index < 0) return 0;
+    if (index >= rendererCount) {
+      return rendererCount > 0 ? rendererCount - 1 : 0;
+    }
+    return index;
+  }
+
+  function hasFigureAtIndex(index) {
+    const figures = getCurrentFigures();
+    if (!Array.isArray(figures)) return false;
+    return Boolean(figures[index]);
+  }
+
+  function findFirstVisibleFigureIndex() {
+    const figures = getCurrentFigures();
+    if (!Array.isArray(figures)) return null;
+    for (let i = 0; i < figures.length; i += 1) {
+      if (figures[i]) return i;
+    }
+    return null;
+  }
+
+  function getActiveViewIndex() {
+    return sanitizeViewIndex(activeViewIndex);
+  }
+
+  function setActiveViewIndex(index, options = {}) {
+    let target = sanitizeViewIndex(index);
+    if (!hasFigureAtIndex(target)) {
+      const first = findFirstVisibleFigureIndex();
+      if (Number.isInteger(first)) {
+        target = sanitizeViewIndex(first);
+      }
+    }
+    const changed = target !== activeViewIndex;
+    activeViewIndex = target;
+    if (window.STATE && typeof window.STATE === 'object') {
+      window.STATE.lastViewIndex = target;
+    }
+    if (options.force || changed) {
+      updateViewControlsUI(target);
+    }
+  }
+
+  function getRendererCameraView(index) {
+    const renderer = renderers[index];
+    if (!renderer || !renderer.camera) return null;
+    const cameraPosition = renderer.camera.position;
+    const targetVec = renderer.controls
+      ? renderer.controls.target
+      : renderer.currentFrame && renderer.currentFrame.center
+        ? renderer.currentFrame.center
+        : null;
+    if (!targetVec) return null;
+    const position = [cameraPosition.x, cameraPosition.y, cameraPosition.z];
+    const target = [targetVec.x, targetVec.y, targetVec.z];
+    const dx = position[0] - target[0];
+    const dy = position[1] - target[1];
+    const dz = position[2] - target[2];
+    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    let baseDistance = renderer.currentFrame && Number.isFinite(renderer.currentFrame.baseDistance)
+      ? renderer.currentFrame.baseDistance
+      : distance;
+    if (!(baseDistance > 0)) {
+      baseDistance = distance > 0 ? distance : 1;
+    }
+    return { position, target, distance, baseDistance };
+  }
+
+  function getEffectiveView(index) {
+    return getStoredView(index) || getRendererCameraView(index);
+  }
+
+  function computeRotationDegreesFromView(view) {
+    if (!view) return null;
+    const position = normalizeVectorArray(view.position);
+    const target = normalizeVectorArray(view.target);
+    if (!position || !target) return null;
+    const dx = position[0] - target[0];
+    const dz = position[2] - target[2];
+    if (Math.abs(dx) < 1e-6 && Math.abs(dz) < 1e-6) return 0;
+    let angle = Math.atan2(dx, dz);
+    if (!Number.isFinite(angle)) return 0;
+    let degrees = THREE.MathUtils.radToDeg(angle);
+    if (!Number.isFinite(degrees)) return 0;
+    degrees %= 360;
+    if (degrees < 0) degrees += 360;
+    if (degrees < 0) degrees = 0;
+    return degrees;
+  }
+
+  function computeZoomPercentFromView(view, renderer) {
+    if (!view) return null;
+    const distance = Number.isFinite(view.distance) ? Number(view.distance) : null;
+    let base = Number.isFinite(view.baseDistance) ? Number(view.baseDistance) : null;
+    if (!(base > 0) && renderer && renderer.currentFrame && Number.isFinite(renderer.currentFrame.baseDistance)) {
+      base = renderer.currentFrame.baseDistance;
+    }
+    if (!(base > 0)) {
+      if (distance && distance > 0) return 100;
+      return null;
+    }
+    const effectiveDistance = distance && distance > 0 ? distance : base;
+    return (effectiveDistance / base) * 100;
+  }
+
+  function computeElevationFromView(view) {
+    if (!view) return 0;
+    const position = normalizeVectorArray(view.position);
+    const target = normalizeVectorArray(view.target);
+    if (!position || !target) return 0;
+    const dx = position[0] - target[0];
+    const dy = position[1] - target[1];
+    const dz = position[2] - target[2];
+    const horizontal = Math.sqrt(dx * dx + dz * dz);
+    if (horizontal < 1e-6 && Math.abs(dy) < 1e-6) return 0;
+    return Math.atan2(dy, horizontal);
+  }
+
+  function applyViewControlChanges(options = {}) {
+    const index = getActiveViewIndex();
+    const renderer = renderers[index];
+    if (!renderer || !renderer.camera) return;
+    if (!hasFigureAtIndex(index) || !renderer.currentShape) return;
+    const view = getEffectiveView(index);
+    if (!view) return;
+    const target = normalizeVectorArray(view.target);
+    const position = normalizeVectorArray(view.position);
+    if (!target || !position) return;
+    const rotationDeg = options.rotationDeg != null ? options.rotationDeg : computeRotationDegreesFromView(view);
+    const zoomPercent = options.zoomPercent != null ? options.zoomPercent : computeZoomPercentFromView(view, renderer);
+    const clampedRotation = clampRotation(rotationDeg);
+    const clampedZoom = clampZoomPercent(zoomPercent);
+    let baseDistance = Number.isFinite(view.baseDistance) ? Number(view.baseDistance) : null;
+    if (!(baseDistance > 0) && renderer.currentFrame && Number.isFinite(renderer.currentFrame.baseDistance)) {
+      baseDistance = renderer.currentFrame.baseDistance;
+    }
+    if (!(baseDistance > 0)) {
+      const dx = position[0] - target[0];
+      const dy = position[1] - target[1];
+      const dz = position[2] - target[2];
+      const fallback = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      baseDistance = fallback > 0 ? fallback : 3;
+    }
+    const elevation = computeElevationFromView(view);
+    const distance = Math.max(baseDistance * (clampedZoom / 100), 0.2);
+    const horizontal = Math.cos(elevation) * distance;
+    const yaw = THREE.MathUtils.degToRad(clampedRotation);
+    const newPosition = [
+      target[0] + Math.sin(yaw) * horizontal,
+      target[1] + Math.sin(elevation) * distance,
+      target[2] + Math.cos(yaw) * horizontal
+    ];
+    const newView = {
+      position: newPosition,
+      target: target.slice(),
+      distance,
+      baseDistance
+    };
+    renderer.applyViewState(newView);
+  }
+
+  function updateViewControlsUI(index) {
+    const target = sanitizeViewIndex(index);
+    const renderer = renderers[target];
+    const figureExists = hasFigureAtIndex(target);
+    updateViewFigureLabelText(figureExists ? target : null);
+    const hasRenderable = figureExists && renderer && renderer.currentShape;
+    if (rotationRange) {
+      rotationRange.disabled = !hasRenderable;
+    }
+    if (zoomRange) {
+      zoomRange.disabled = !hasRenderable;
+    }
+    if (!hasRenderable) {
+      updateRotationLabel(Number.NaN);
+      updateZoomLabel(Number.NaN);
+      return;
+    }
+    const view = getEffectiveView(target);
+    if (!view) {
+      updateRotationLabel(Number.NaN);
+      updateZoomLabel(Number.NaN);
+      return;
+    }
+    const rotation = computeRotationDegreesFromView(view);
+    const zoomPercent = computeZoomPercentFromView(view, renderer);
+    const rotationValue = Number.isFinite(rotation) ? rotation : 0;
+    const zoomValue = Number.isFinite(zoomPercent) ? zoomPercent : 100;
+    if (rotationRange) {
+      const normalized = clampRotation(rotationValue);
+      rotationRange.value = String(Math.round(normalized));
+      updateRotationLabel(normalized);
+    } else {
+      updateRotationLabel(rotationValue);
+    }
+    if (zoomRange) {
+      const clampedZoom = clampZoomPercent(zoomValue);
+      zoomRange.value = String(Math.round(clampedZoom));
+      updateZoomLabel(clampedZoom);
+    } else {
+      updateZoomLabel(zoomValue);
+    }
   }
 
   function formatTypeLabel(type) {
@@ -1294,6 +1575,7 @@
 
   applyColor(window.STATE.useCustomColor, window.STATE.customColor);
   applyTransparency(window.STATE.transparency);
+  updateViewControlsUI(getActiveViewIndex());
 
   function detectType(line) {
     const normalized = line.toLowerCase();
@@ -1385,6 +1667,21 @@
       }
     });
     updateExportControls(figures);
+    if (!Array.isArray(figures) || !figures.some(Boolean)) {
+      setActiveViewIndex(0, { force: true });
+    } else {
+      const active = getActiveViewIndex();
+      if (figures[active]) {
+        setActiveViewIndex(active, { force: true });
+      } else {
+        const first = figures.findIndex(info => Boolean(info));
+        if (first !== -1) {
+          setActiveViewIndex(first, { force: true });
+        } else {
+          setActiveViewIndex(0, { force: true });
+        }
+      }
+    }
   }
 
   function draw() {
@@ -1455,6 +1752,28 @@
     colorResetBtn.addEventListener('click', () => {
       window.STATE.useCustomColor = false;
       applyColor(false, window.STATE.customColor);
+    });
+  }
+
+  if (rotationRange) {
+    rotationRange.addEventListener('input', evt => {
+      const value = clampRotation(evt.target.value);
+      if (String(Math.round(value)) !== evt.target.value) {
+        evt.target.value = String(Math.round(value));
+      }
+      updateRotationLabel(value);
+      applyViewControlChanges({ rotationDeg: value });
+    });
+  }
+
+  if (zoomRange) {
+    zoomRange.addEventListener('input', evt => {
+      const value = clampZoomPercent(evt.target.value);
+      if (String(Math.round(value)) !== evt.target.value) {
+        evt.target.value = String(Math.round(value));
+      }
+      updateZoomLabel(value);
+      applyViewControlChanges({ zoomPercent: value });
     });
   }
 
