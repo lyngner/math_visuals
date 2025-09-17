@@ -105,8 +105,14 @@
 
   const controlsPromise = loadOrbitControls();
 
+  function normalizeVectorArray(value) {
+    if (!Array.isArray(value) || value.length !== 3) return null;
+    const normalized = value.map(num => Number(num));
+    return normalized.every(Number.isFinite) ? normalized : null;
+  }
+
   class ShapeRenderer {
-    constructor(container) {
+    constructor(container, options = {}) {
       this.container = container;
       this.scene = new THREE.Scene();
       this.scene.background = new THREE.Color(0xf6f7fb);
@@ -126,6 +132,7 @@
       this.controls = null;
       this.materialColorOverride = null;
       this.materialOpacity = 1;
+      this.onViewChange = typeof options.onViewChange === 'function' ? options.onViewChange : null;
       controlsPromise.then(ControlsClass => {
         if (ControlsClass) {
           this._attachControls(ControlsClass);
@@ -214,6 +221,7 @@
       } else {
         this.controls.update();
       }
+      this._emitViewChange();
     }
 
     _handleResize() {
@@ -270,6 +278,7 @@
       this.currentFrame.distance = this.camera.position.distanceTo(this.controls.target);
       const baseDistance = this.currentFrame.baseDistance || this.currentFrame.distance || this.controls.minDistance;
       this._updateControlsDistances(baseDistance, this.currentFrame.distance);
+      this._emitViewChange();
     }
 
     frameCurrentShape() {
@@ -307,6 +316,7 @@
         distance: requiredDistance
       };
       this.camera.updateProjectionMatrix();
+      this._emitViewChange();
     }
 
     _ensureFrameFits() {
@@ -331,6 +341,7 @@
       }
       this.currentFrame.distance = this.camera.position.distanceTo(center);
       this._updateControlsDistances(this.currentFrame.baseDistance, this.currentFrame.distance);
+      this._emitViewChange();
     }
 
     _computeGeometryBoundingBox(object) {
@@ -416,6 +427,93 @@
       this.currentShape = null;
       this.shapeGroup.rotation.set(0, 0, 0);
       this.currentFrame = null;
+    }
+
+    _emitViewChange() {
+      if (typeof this.onViewChange !== 'function') return;
+      if (!this.camera) return;
+      const position = this.camera.position;
+      const targetVec = this.controls ? this.controls.target : (this.currentFrame && this.currentFrame.center);
+      if (!position || !targetVec) return;
+      const positionArray = [position.x, position.y, position.z];
+      const targetArray = [targetVec.x, targetVec.y, targetVec.z];
+      if (!positionArray.every(Number.isFinite) || !targetArray.every(Number.isFinite)) return;
+      const viewData = {
+        position: positionArray,
+        target: targetArray
+      };
+      const currentDistance = this.currentFrame && typeof this.currentFrame.distance === 'number'
+        ? this.currentFrame.distance
+        : position.distanceTo(targetVec);
+      if (Number.isFinite(currentDistance)) {
+        viewData.distance = currentDistance;
+      }
+      const baseDistance = this.currentFrame && typeof this.currentFrame.baseDistance === 'number'
+        ? this.currentFrame.baseDistance
+        : undefined;
+      if (Number.isFinite(baseDistance)) {
+        viewData.baseDistance = baseDistance;
+      }
+      this.onViewChange(viewData);
+    }
+
+    applyViewState(view) {
+      if (!view || typeof view !== 'object') return;
+      const positionArray = normalizeVectorArray(view.position);
+      const targetArray = normalizeVectorArray(view.target);
+      if (!positionArray && !targetArray) return;
+      if (positionArray) {
+        this.camera.position.set(positionArray[0], positionArray[1], positionArray[2]);
+      }
+      let targetVector = null;
+      if (targetArray) {
+        targetVector = new THREE.Vector3(targetArray[0], targetArray[1], targetArray[2]);
+        if (this.controls) {
+          this.controls.target.copy(targetVector);
+        }
+        if (!this.currentFrame) this.currentFrame = {};
+        if (this.currentFrame.center) {
+          this.currentFrame.center.copy(targetVector);
+        } else {
+          this.currentFrame.center = targetVector.clone();
+        }
+        this.camera.lookAt(targetVector);
+      } else if (this.currentFrame && this.currentFrame.center) {
+        targetVector = this.currentFrame.center.clone();
+      }
+
+      if (!this.currentFrame) {
+        this.currentFrame = { center: targetVector ? targetVector.clone() : null };
+      }
+      const providedDistance = Number.isFinite(view.distance) ? Number(view.distance) : null;
+      if (providedDistance != null) {
+        this.currentFrame.distance = providedDistance;
+      } else if (targetVector) {
+        this.currentFrame.distance = this.camera.position.distanceTo(targetVector);
+      }
+      const providedBase = Number.isFinite(view.baseDistance) ? Number(view.baseDistance) : null;
+      if (providedBase != null) {
+        this.currentFrame.baseDistance = providedBase;
+      } else if (this.currentFrame.distance != null && !Number.isFinite(this.currentFrame.baseDistance)) {
+        this.currentFrame.baseDistance = this.currentFrame.distance;
+      }
+      const base = this.currentFrame && Number.isFinite(this.currentFrame.baseDistance)
+        ? this.currentFrame.baseDistance
+        : this.currentFrame && Number.isFinite(this.currentFrame.distance)
+          ? this.currentFrame.distance
+          : undefined;
+      this._updateControlsDistances(base, this.currentFrame ? this.currentFrame.distance : undefined);
+      if (this.controls) {
+        this.controls.update();
+      } else if (targetVector) {
+        this.camera.lookAt(targetVector);
+      }
+      this._emitViewChange();
+    }
+
+    setViewChangeCallback(callback) {
+      this.onViewChange = typeof callback === 'function' ? callback : null;
+      this._emitViewChange();
     }
 
     _applyMaterialAppearance() {
@@ -781,10 +879,72 @@
 
   const grid = document.getElementById('figureGrid');
   const figureWrappers = Array.from(document.querySelectorAll('[data-figure-index]'));
-  const renderers = figureWrappers.map(wrapper => {
+  const rendererCount = figureWrappers.length;
+
+  function ensureViewStateCapacity() {
+    if (!window.STATE || typeof window.STATE !== 'object') {
+      window.STATE = {};
+    }
+    if (!Array.isArray(window.STATE.views)) {
+      window.STATE.views = [];
+    }
+    while (window.STATE.views.length < rendererCount) {
+      window.STATE.views.push(null);
+    }
+    if (window.STATE.views.length > rendererCount) {
+      window.STATE.views.length = rendererCount;
+    }
+  }
+
+  function storeViewState(index, view) {
+    ensureViewStateCapacity();
+    if (!view || typeof view !== 'object') {
+      window.STATE.views[index] = null;
+      return;
+    }
+    const position = normalizeVectorArray(view.position);
+    const target = normalizeVectorArray(view.target);
+    if (!position && !target) {
+      window.STATE.views[index] = null;
+      return;
+    }
+    const stored = {};
+    if (position) stored.position = position;
+    if (target) stored.target = target;
+    if (Number.isFinite(view.distance)) stored.distance = Number(view.distance);
+    if (Number.isFinite(view.baseDistance)) stored.baseDistance = Number(view.baseDistance);
+    window.STATE.views[index] = stored;
+  }
+
+  const renderers = figureWrappers.map((wrapper, index) => {
     const canvasWrap = wrapper.querySelector('.figureCanvas');
-    return new ShapeRenderer(canvasWrap);
+    return new ShapeRenderer(canvasWrap, {
+      onViewChange: view => storeViewState(index, view)
+    });
   });
+
+  function getStoredView(index) {
+    ensureViewStateCapacity();
+    const stored = window.STATE.views[index];
+    if (!stored || typeof stored !== 'object') return null;
+    const position = normalizeVectorArray(stored.position);
+    const target = normalizeVectorArray(stored.target);
+    if (!position && !target) return null;
+    const view = {};
+    if (position) view.position = position;
+    if (target) view.target = target;
+    if (Number.isFinite(stored.distance)) view.distance = Number(stored.distance);
+    if (Number.isFinite(stored.baseDistance)) view.baseDistance = Number(stored.baseDistance);
+    return view;
+  }
+
+  function applyStoredView(index) {
+    const renderer = renderers[index];
+    if (!renderer || typeof renderer.applyViewState !== 'function') return;
+    const view = getStoredView(index);
+    if (!view) return;
+    renderer.applyViewState(view);
+  }
 
   const textarea = document.getElementById('inpSpecs');
   const drawBtn = document.getElementById('btnDraw');
@@ -838,6 +998,7 @@
 
   const defaultInput = textarea ? textarea.value : 'sylinder radius: r høyde: h';
   window.STATE = window.STATE || {};
+  ensureViewStateCapacity();
   if (typeof window.STATE.rawInput !== 'string') {
     window.STATE.rawInput = defaultInput;
   }
@@ -956,6 +1117,7 @@
   }
 
   function updateFigures(figures) {
+    ensureViewStateCapacity();
     const count = Math.max(figures.length, 1);
     if (grid) {
       grid.dataset.figures = String(count);
@@ -969,6 +1131,7 @@
         if (typeof renderer._handleResize === 'function') {
           renderer._handleResize();
         }
+        applyStoredView(index);
       } else {
         renderer.clear();
         wrapper.classList.add('is-hidden');
