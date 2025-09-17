@@ -120,7 +120,7 @@
       this.camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
       this.camera.position.set(4.2, 3.6, 5.6);
 
-      this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       this.renderer.shadowMap.enabled = false;
       this.container.appendChild(this.renderer.domElement);
@@ -559,6 +559,34 @@
       this._applyMaterialAppearance();
     }
 
+    getBackgroundColorHex() {
+      if (this.scene && this.scene.background && typeof this.scene.background.getHexString === 'function') {
+        return `#${this.scene.background.getHexString()}`;
+      }
+      return '#ffffff';
+    }
+
+    captureSnapshot() {
+      if (!this.renderer || !this.renderer.domElement) return null;
+      const sourceCanvas = this.renderer.domElement;
+      const width = sourceCanvas.width;
+      const height = sourceCanvas.height;
+      if (!(width > 0 && height > 0)) return null;
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = width;
+      exportCanvas.height = height;
+      const context = exportCanvas.getContext('2d');
+      if (!context) return null;
+      const background = this.getBackgroundColorHex();
+      this.renderer.render(this.scene, this.camera);
+      context.save();
+      context.fillStyle = background;
+      context.fillRect(0, 0, width, height);
+      context.restore();
+      context.drawImage(sourceCanvas, 0, 0, width, height);
+      return { canvas: exportCanvas, width, height, background };
+    }
+
     createMaterial(color) {
       const override = this.materialColorOverride;
       const opacity = THREE.MathUtils.clamp(this.materialOpacity, 0.05, 1);
@@ -954,6 +982,9 @@
   const colorResetBtn = document.getElementById('btnResetColor');
   const transparencyRange = document.getElementById('rngTransparency');
   const transparencyLabel = document.getElementById('lblTransparency');
+  const exportCard = document.getElementById('exportCard');
+  const exportRows = Array.from(document.querySelectorAll('[data-export-index]'));
+  const exportButtons = Array.from(document.querySelectorAll('[data-export-button]'));
 
   function clampTransparency(value) {
     const num = Number(value);
@@ -972,6 +1003,200 @@
     if (!transparencyLabel) return;
     const clamped = clampTransparency(value);
     transparencyLabel.textContent = `${clamped}%`;
+  }
+
+  function formatTypeLabel(type) {
+    if (typeof type !== 'string' || !type) return '';
+    switch (type) {
+      case 'sphere':
+        return 'kule';
+      case 'pyramid':
+        return 'pyramide';
+      case 'triangular-cylinder':
+        return 'trekantet sylinder';
+      case 'square-cylinder':
+        return 'firkantet sylinder';
+      case 'cylinder':
+        return 'sylinder';
+      case 'prism':
+        return 'prisme';
+      default:
+        return type.replace(/[-_]+/g, ' ');
+    }
+  }
+
+  function getCurrentFigures() {
+    if (window.STATE && Array.isArray(window.STATE.figures)) {
+      return window.STATE.figures;
+    }
+    return [];
+  }
+
+  function getFigureDisplayLabel(info, index) {
+    if (!info) return `Figur ${index + 1}`;
+    const rawInput = typeof info.input === 'string' ? info.input.trim() : '';
+    if (rawInput) {
+      return `Figur ${index + 1}: ${rawInput}`;
+    }
+    const typeLabel = formatTypeLabel(info.type);
+    if (typeLabel) {
+      return `Figur ${index + 1}: ${typeLabel}`;
+    }
+    return `Figur ${index + 1}`;
+  }
+
+  function getExportFileBase(info, index) {
+    if (!info) {
+      return `figur-${index + 1}`;
+    }
+    const rawInput = typeof info.input === 'string' ? info.input.trim() : '';
+    if (rawInput) {
+      return rawInput;
+    }
+    const typeLabel = formatTypeLabel(info.type);
+    if (typeLabel) {
+      return typeLabel;
+    }
+    return `figur-${index + 1}`;
+  }
+
+  function toSafeFileName(parts) {
+    const usable = parts
+      .filter(part => typeof part === 'string' && part.trim().length)
+      .map(part => part.trim());
+    if (!usable.length) {
+      return 'figur';
+    }
+    let combined = usable.join('-');
+    if (typeof combined.normalize === 'function') {
+      combined = combined.normalize('NFKD');
+    }
+    combined = combined.replace(/[\u0300-\u036f]/g, '');
+    const sanitized = combined
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase();
+    return sanitized || 'figur';
+  }
+
+  function getExportFileName(index, format) {
+    const figures = getCurrentFigures();
+    const info = figures[index];
+    const base = getExportFileBase(info, index);
+    const identifier = `figur-${index + 1}`;
+    const parts = base && base.toLowerCase() === identifier ? [identifier] : [identifier, base];
+    const safe = toSafeFileName(parts);
+    const extension = typeof format === 'string' ? format.toLowerCase() : 'png';
+    return `${safe}.${extension}`;
+  }
+
+  function canvasToBlob(canvas) {
+    return new Promise(resolve => {
+      if (!canvas) {
+        resolve(null);
+        return;
+      }
+      if (typeof canvas.toBlob === 'function') {
+        canvas.toBlob(blob => {
+          resolve(blob || null);
+        }, 'image/png');
+        return;
+      }
+      try {
+        const dataUrl = canvas.toDataURL('image/png');
+        const commaIndex = dataUrl.indexOf(',');
+        const base64 = commaIndex >= 0 ? dataUrl.slice(commaIndex + 1) : dataUrl;
+        const binary = atob(base64);
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i += 1) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        resolve(new Blob([bytes], { type: 'image/png' }));
+      } catch (error) {
+        console.warn('Klarte ikke konvertere canvas til PNG.', error);
+        resolve(null);
+      }
+    });
+  }
+
+  function downloadBlob(blob, filename) {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || 'figur.png';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    requestAnimationFrame(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  function createSvgFromImage(pngDataUrl, width, height, background) {
+    if (typeof pngDataUrl !== 'string' || !pngDataUrl) return null;
+    if (!(width > 0) || !(height > 0)) return null;
+    const safeBackground = typeof background === 'string' && background.trim()
+      ? background.trim()
+      : '#ffffff';
+    return `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">\n` +
+      `  <rect width="100%" height="100%" fill="${safeBackground}" />\n` +
+      `  <image width="${width}" height="${height}" href="${pngDataUrl}" xlink:href="${pngDataUrl}" preserveAspectRatio="none" />\n` +
+      `</svg>`;
+  }
+
+  function updateExportControls(figures) {
+    if (!exportCard) return;
+    const hasAny = Array.isArray(figures) && figures.some(item => Boolean(item));
+    exportCard.style.display = hasAny ? '' : 'none';
+    exportRows.forEach(row => {
+      const index = Number(row.dataset.exportIndex);
+      const info = Array.isArray(figures) ? figures[index] : undefined;
+      const labelEl = row.querySelector('[data-export-label]');
+      const buttons = Array.from(row.querySelectorAll('[data-export-button]'));
+      if (info) {
+        row.classList.remove('is-hidden');
+        if (labelEl) {
+          labelEl.textContent = getFigureDisplayLabel(info, index);
+        }
+        buttons.forEach(btn => {
+          btn.disabled = false;
+        });
+      } else {
+        row.classList.add('is-hidden');
+        if (labelEl) {
+          labelEl.textContent = `Figur ${index + 1}`;
+        }
+        buttons.forEach(btn => {
+          btn.disabled = true;
+        });
+      }
+    });
+  }
+
+  async function exportFigure(index, format) {
+    const renderer = renderers[index];
+    if (!renderer || typeof renderer.captureSnapshot !== 'function') return;
+    const snapshot = renderer.captureSnapshot();
+    if (!snapshot || !snapshot.canvas) return;
+    if (format === 'png') {
+      const blob = await canvasToBlob(snapshot.canvas);
+      if (!blob) return;
+      const filename = getExportFileName(index, 'png');
+      downloadBlob(blob, filename);
+      return;
+    }
+    if (format === 'svg') {
+      const pngDataUrl = snapshot.canvas.toDataURL('image/png');
+      const svgContent = createSvgFromImage(pngDataUrl, snapshot.width, snapshot.height, snapshot.background);
+      if (!svgContent) return;
+      const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+      const filename = getExportFileName(index, 'svg');
+      downloadBlob(blob, filename);
+    }
   }
 
   function applyColor(useCustom, hex) {
@@ -1137,6 +1362,7 @@
         wrapper.classList.add('is-hidden');
       }
     });
+    updateExportControls(figures);
   }
 
   function draw() {
@@ -1147,6 +1373,29 @@
     updateForm(rawInput);
     updateFigures(figures);
   }
+
+  exportButtons.forEach(button => {
+    button.addEventListener('click', async evt => {
+      evt.preventDefault();
+      const format = button.dataset.exportFormat;
+      const index = Number(button.dataset.figureIndex);
+      if (!Number.isFinite(index)) return;
+      if (format !== 'png' && format !== 'svg') return;
+      const figures = getCurrentFigures();
+      if (!figures[index]) return;
+      const parentRow = button.closest('.export-row');
+      button.disabled = true;
+      try {
+        await exportFigure(index, format);
+      } catch (error) {
+        console.error('Klarte ikke eksportere figuren.', error);
+      } finally {
+        if (!parentRow || !parentRow.classList.contains('is-hidden')) {
+          button.disabled = false;
+        }
+      }
+    });
+  });
 
   if (drawBtn) {
     drawBtn.addEventListener('click', () => {
