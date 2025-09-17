@@ -148,6 +148,39 @@
     .checkbox span {
       line-height: 1.3;
     }
+    .card--export h2 {
+      margin-bottom: 4px;
+    }
+    .export-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .export-row + .export-row {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #e5e7eb;
+    }
+    .export-row__header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .export-row__title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+    }
+    .export-buttons {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .export-row.is-hidden {
+      display: none;
+    }
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
@@ -169,6 +202,27 @@
           <div class="toolbar">
             <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>
             <button id="btnDeleteExample" class="btn" type="button">Slett eksempel</button>
+          </div>
+        </div>
+        <div id="exportCard" class="card card--export">
+          <h2>Eksporter figurer</h2>
+          <div class="export-row" data-export-index="0">
+            <div class="export-row__header">
+              <span class="export-row__title" data-export-label>Figur 1</span>
+              <div class="export-buttons">
+                <button class="btn btn--small" type="button" data-export-button data-export-format="png" data-figure-index="0">Last ned PNG</button>
+                <button class="btn btn--small" type="button" data-export-button data-export-format="svg" data-figure-index="0">Last ned SVG</button>
+              </div>
+            </div>
+          </div>
+          <div class="export-row" data-export-index="1">
+            <div class="export-row__header">
+              <span class="export-row__title" data-export-label>Figur 2</span>
+              <div class="export-buttons">
+                <button class="btn btn--small" type="button" data-export-button data-export-format="png" data-figure-index="1">Last ned PNG</button>
+                <button class="btn btn--small" type="button" data-export-button data-export-format="svg" data-figure-index="1">Last ned SVG</button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="card card--settings">
