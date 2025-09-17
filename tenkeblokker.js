@@ -1,6 +1,5 @@
-/* Tenkeblokker – med innstillinger */
+/* Tenkeblokker – grid layout */
 
-// ---------- Konfig ----------
 const DEFAULT_BLOCKS = [
   { total: 50, n: 1, k: 1, showWhole: true, lockDenominator: false, lockNumerator: false, hideNValue: false, valueDisplay: 'number' },
   { total: 50, n: 1, k: 0, showWhole: true, lockDenominator: false, lockNumerator: false, hideNValue: false, valueDisplay: 'number' }
@@ -24,112 +23,784 @@ function applyDisplayMode(cfg, mode, fallback = 'number') {
   return normalized;
 }
 
+function getDefaultBlock(index = 0) {
+  const base = DEFAULT_BLOCKS[index] || DEFAULT_BLOCKS[DEFAULT_BLOCKS.length - 1];
+  return { ...base };
+}
+
 const CONFIG = {
   minN: 1,
   maxN: 12,
-  blocks: DEFAULT_BLOCKS.map(block => ({ ...block })),
-  activeBlocks: 1,
-  showCombinedWhole: false,
-  stackBlocks: false
+  rows: 1,
+  cols: 1,
+  blocks: [],
+  showCombinedWhole: false
 };
 
-CONFIG.total = CONFIG.blocks[0].total;
-CONFIG.n = CONFIG.blocks[0].n;
-CONFIG.k = CONFIG.blocks[0].k;
-CONFIG.showWhole = CONFIG.blocks[0].showWhole;
-CONFIG.lockDenominator = CONFIG.blocks[0].lockDenominator;
-CONFIG.lockNumerator = CONFIG.blocks[0].lockNumerator;
-CONFIG.hideNValue = CONFIG.blocks[0].hideNValue;
-const initialDisplay = sanitizeDisplayMode(CONFIG.blocks[0].valueDisplay) || 'number';
-applyDisplayMode(CONFIG.blocks[0], initialDisplay, initialDisplay);
-CONFIG.valueDisplay = CONFIG.blocks[0].valueDisplay;
-CONFIG.showFraction = CONFIG.blocks[0].showFraction;
-CONFIG.showPercent = CONFIG.blocks[0].showPercent;
-
-// ---------- SVG-oppsett ----------
-const VBW = 900, VBH = 420;                  // MÅ samsvare med viewBox i HTML
-const SIDE_MARGIN = 70;                      // tomrom på hver side av rammen
-const L = SIDE_MARGIN, R = VBW - SIDE_MARGIN; // venstre/høyre marg
-const TOP = 130, BOT = VBH - 60;             // ramme-topp/-bunn
-const BRACE_Y = 78;                          // høyde for parentes (øverst)
-const BRACE_Y_BOTTOM = BOT + 32;             // høyde for parentes under blokken
-const BRACKET_TICK = 16;                     // lengde på «haken» ned i hver ende
-const LABEL_OFFSET_Y = 14;                   // løft tallet litt over parentes-linjen
-const STACK_GAP_COMPACT = 0;                 // avstand mellom paneler uten ekstra plass
-const STACK_GAP_LOCKED = 56;                 // ekstra avstand når nevner-stepper må få plass
+const VBW = 900;
+const VBH = 420;
+const SIDE_MARGIN = 70;
+const L = SIDE_MARGIN;
+const R = VBW - SIDE_MARGIN;
+const TOP = 130;
+const BOT = VBH - 60;
+const BRACE_Y = 78;
+const BRACKET_TICK = 16;
+const LABEL_OFFSET_Y = 14;
 
 const BLOCKS = [];
-const settingsInputs = [];
 
-const panels = {
-  container: document.getElementById('tbPanels'),
-  panel2: document.getElementById('tbPanel2'),
-  fieldset2: document.getElementById('cfg-fieldset-2'),
-  addBtn: document.getElementById('tbAdd'),
-  removeBtn: document.getElementById('tbRemove')
-};
-
+const board = document.getElementById('tbBoard');
+const grid = document.getElementById('tbGrid');
+const addColumnBtn = document.getElementById('tbAddColumn');
+const addRowBtn = document.getElementById('tbAddRow');
 const settingsContainer = document.getElementById('tbSettings');
+
 const combinedWholeControls = {
   row: document.getElementById('cfg-show-combined-row'),
   checkbox: document.getElementById('cfg-show-combined-whole')
 };
 
-const stackControls = {
-  row: document.getElementById('cfg-stack-row'),
-  checkbox: document.getElementById('cfg-stack-blocks')
-};
-
-createBlock(0);
-createBlock(1);
+const btnSvg = document.getElementById('btnSvg');
+const btnPng = document.getElementById('btnPng');
 
 const combinedWholeOverlay = createCombinedWholeOverlay();
 if (typeof window !== 'undefined') {
   window.addEventListener('resize', () => drawCombinedWholeOverlay());
 }
 
-const btnSvg = document.getElementById('btnSvg');
-const btnPng = document.getElementById('btnPng');
+addColumnBtn?.addEventListener('click', () => {
+  if (CONFIG.cols >= 3) return;
+  const current = Number.isFinite(CONFIG.cols) ? CONFIG.cols : 1;
+  CONFIG.cols = Math.min(3, current + 1);
+  draw();
+});
+
+addRowBtn?.addEventListener('click', () => {
+  if (CONFIG.rows >= 3) return;
+  const current = Number.isFinite(CONFIG.rows) ? CONFIG.rows : 1;
+  CONFIG.rows = Math.min(3, current + 1);
+  draw();
+});
+
+combinedWholeControls.checkbox?.addEventListener('change', () => {
+  CONFIG.showCombinedWhole = !!combinedWholeControls.checkbox.checked;
+  draw(true);
+});
+
 btnSvg?.addEventListener('click', () => {
   const exportSvg = getExportSvg();
   if (exportSvg) downloadSVG(exportSvg, 'tenkeblokker.svg');
 });
+
 btnPng?.addEventListener('click', () => {
   const exportSvg = getExportSvg();
   if (exportSvg) downloadPNG(exportSvg, 'tenkeblokker.png', 2);
 });
 
-combinedWholeControls.checkbox?.addEventListener('change', () => {
-  normalizeConfig();
-  CONFIG.showCombinedWhole = !!combinedWholeControls.checkbox.checked;
-  draw();
-});
+normalizeConfig(true);
+rebuildStructure();
 
-stackControls.checkbox?.addEventListener('change', () => {
-  normalizeConfig();
-  CONFIG.stackBlocks = !!stackControls.checkbox.checked;
-  draw();
-});
+draw(true);
 
-panels.addBtn?.addEventListener('click', () => {
-  CONFIG.activeBlocks = 2;
-  updateVisibility();
-  draw();
-});
+window.CONFIG = CONFIG;
+window.draw = draw;
 
-panels.removeBtn?.addEventListener('click', () => {
-  CONFIG.activeBlocks = 1;
-  updateVisibility();
-  draw();
-});
+function toBoolean(value, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  }
+  return fallback;
+}
 
-setupSettingsUI();
+function normalizeBlockConfig(raw, index, existing) {
+  const defaults = getDefaultBlock(index);
+  const target = existing && typeof existing === 'object' ? existing : { ...defaults };
+  const source = raw && typeof raw === 'object' ? raw : {};
 
-// ---------- Utils ----------
+  let total = Number(source.total);
+  if (!Number.isFinite(total) || total < 1) total = Number(defaults.total) || 1;
+  target.total = total;
+
+  let n = Number(source.n);
+  if (!Number.isFinite(n)) n = Number(defaults.n) || 1;
+  target.n = Math.round(n);
+
+  let k = Number(source.k);
+  if (!Number.isFinite(k)) k = Number(defaults.k) || 0;
+  target.k = Math.round(k);
+
+  target.showWhole = toBoolean(source.showWhole, toBoolean(defaults.showWhole, true));
+  target.lockDenominator = toBoolean(source.lockDenominator, toBoolean(defaults.lockDenominator, false));
+  target.lockNumerator = toBoolean(source.lockNumerator, toBoolean(defaults.lockNumerator, false));
+  target.hideNValue = toBoolean(source.hideNValue, toBoolean(defaults.hideNValue, false));
+
+  let desiredDisplay = sanitizeDisplayMode(source.valueDisplay);
+  if (!desiredDisplay) {
+    if (toBoolean(source.showPercent)) desiredDisplay = 'percent';
+    else if (toBoolean(source.showFraction)) desiredDisplay = 'fraction';
+    else desiredDisplay = sanitizeDisplayMode(defaults.valueDisplay) || 'number';
+  }
+  applyDisplayMode(target, desiredDisplay, defaults.valueDisplay);
+
+  return target;
+}
+
+function normalizeConfig(initial = false) {
+  let structureChanged = false;
+
+  if (typeof CONFIG.minN !== 'number' || Number.isNaN(CONFIG.minN)) CONFIG.minN = 1;
+  if (typeof CONFIG.maxN !== 'number' || Number.isNaN(CONFIG.maxN)) CONFIG.maxN = 12;
+  CONFIG.minN = Math.max(1, Math.floor(CONFIG.minN));
+  CONFIG.maxN = Math.max(CONFIG.minN, Math.floor(CONFIG.maxN));
+
+  if (!Array.isArray(CONFIG.blocks)) {
+    CONFIG.blocks = [];
+    structureChanged = true;
+  }
+
+  const hasNested = CONFIG.blocks.some(item => Array.isArray(item));
+  if (!hasNested) {
+    const flat = CONFIG.blocks;
+    const activeRaw = Number.isFinite(CONFIG.activeBlocks) ? Math.round(CONFIG.activeBlocks) : (flat?.length || 1);
+    const active = clamp(activeRaw, 1, 9);
+    let rows = Number.isFinite(CONFIG.rows) ? Math.round(CONFIG.rows) : 0;
+    let cols = Number.isFinite(CONFIG.cols) ? Math.round(CONFIG.cols) : 0;
+    if (rows < 1) rows = active <= 3 ? 1 : Math.min(3, Math.ceil(active / 3));
+    if (cols < 1) cols = Math.min(3, Math.max(1, active));
+    rows = clamp(rows, 1, 3);
+    cols = clamp(cols, 1, 3);
+    while (rows * cols < active) {
+      if (cols < 3) cols += 1;
+      else if (rows < 3) rows += 1;
+      else break;
+    }
+    const gridData = [];
+    let index = 0;
+    for (let r = 0; r < rows; r++) {
+      const row = [];
+      for (let c = 0; c < cols; c++) {
+        const raw = flat?.[index] || null;
+        row.push(normalizeBlockConfig(raw, index));
+        index += 1;
+      }
+      gridData.push(row);
+    }
+    CONFIG.blocks = gridData;
+    CONFIG.rows = rows;
+    CONFIG.cols = cols;
+    structureChanged = true;
+  } else {
+    let rows = Number.isFinite(CONFIG.rows) ? Math.round(CONFIG.rows) : CONFIG.blocks.length || 1;
+    rows = clamp(rows, 1, 3);
+    let cols = Number.isFinite(CONFIG.cols) ? Math.round(CONFIG.cols) : 0;
+    if (!(cols >= 1)) {
+      cols = 1;
+      for (const row of CONFIG.blocks) {
+        if (Array.isArray(row) && row.length > cols) cols = Math.min(3, row.length);
+      }
+    }
+    cols = clamp(cols, 1, 3);
+
+    if (CONFIG.blocks.length !== rows) structureChanged = true;
+    CONFIG.blocks.length = rows;
+
+    for (let r = 0; r < rows; r++) {
+      let row = CONFIG.blocks[r];
+      if (!Array.isArray(row)) {
+        row = [];
+        CONFIG.blocks[r] = row;
+        structureChanged = true;
+      }
+      if (row.length !== cols) structureChanged = true;
+      row.length = cols;
+      for (let c = 0; c < cols; c++) {
+        const index = r * cols + c;
+        const current = row[c];
+        row[c] = normalizeBlockConfig(current, index, current);
+      }
+    }
+    CONFIG.rows = rows;
+    CONFIG.cols = cols;
+  }
+
+  const rows = CONFIG.rows;
+  const cols = CONFIG.cols;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cfg = CONFIG.blocks[r][c];
+      cfg.n = clamp(Math.round(Number(cfg.n) || CONFIG.minN), CONFIG.minN, CONFIG.maxN);
+      cfg.k = clamp(Math.round(Number(cfg.k) || 0), 0, cfg.n);
+      cfg.total = Number(cfg.total);
+      if (!Number.isFinite(cfg.total) || cfg.total < 1) cfg.total = 1;
+      cfg.showWhole = !!cfg.showWhole;
+      cfg.lockDenominator = !!cfg.lockDenominator;
+      cfg.lockNumerator = !!cfg.lockNumerator;
+      cfg.hideNValue = !!cfg.hideNValue;
+    }
+  }
+
+  CONFIG.activeBlocks = rows * cols;
+  CONFIG.showCombinedWhole = toBoolean(CONFIG.showCombinedWhole, false);
+
+  if (!initial && CONFIG.stackBlocks !== undefined) {
+    delete CONFIG.stackBlocks;
+    structureChanged = true;
+  }
+
+  return structureChanged;
+}
+function rebuildStructure() {
+  if (!grid) return;
+
+  const panelsFragment = document.createDocumentFragment();
+  const settingsFragment = document.createDocumentFragment();
+
+  BLOCKS.length = 0;
+  grid.innerHTML = '';
+  if (settingsContainer) settingsContainer.innerHTML = '';
+
+  for (let r = 0; r < CONFIG.rows; r++) {
+    for (let c = 0; c < CONFIG.cols; c++) {
+      const cfg = CONFIG.blocks[r][c];
+      const block = createBlock(r, c, cfg);
+      BLOCKS.push(block);
+      if (block.panel) panelsFragment.appendChild(block.panel);
+      if (block.fieldset) settingsFragment.appendChild(block.fieldset);
+    }
+  }
+
+  grid.setAttribute('data-cols', String(CONFIG.cols));
+  grid.appendChild(panelsFragment);
+  if (settingsContainer) settingsContainer.appendChild(settingsFragment);
+
+  updateAddButtons();
+}
+
+function draw(skipNormalization = false) {
+  if (!skipNormalization) {
+    const structureChanged = normalizeConfig();
+    if (structureChanged) {
+      rebuildStructure();
+      draw(true);
+      return;
+    }
+  }
+
+  if (grid) grid.setAttribute('data-cols', String(CONFIG.cols));
+  updateAddButtons();
+
+  const multiple = CONFIG.activeBlocks > 1;
+  if (combinedWholeControls.row) combinedWholeControls.row.style.display = multiple ? '' : 'none';
+  if (combinedWholeControls.checkbox) {
+    combinedWholeControls.checkbox.disabled = !multiple;
+    if (!multiple) {
+      combinedWholeControls.checkbox.checked = false;
+      CONFIG.showCombinedWhole = false;
+    } else {
+      combinedWholeControls.checkbox.checked = !!CONFIG.showCombinedWhole;
+    }
+  }
+
+  for (const block of BLOCKS) {
+    const cfg = CONFIG.blocks?.[block.row]?.[block.col];
+    if (!cfg) continue;
+    block.cfg = cfg;
+    block.index = block.row * CONFIG.cols + block.col;
+    drawBlock(block);
+  }
+
+  drawCombinedWholeOverlay();
+  syncLegacyConfig();
+}
+
+function updateAddButtons() {
+  if (addColumnBtn) addColumnBtn.style.display = CONFIG.cols >= 3 ? 'none' : '';
+  if (addRowBtn) addRowBtn.style.display = CONFIG.rows >= 3 ? 'none' : '';
+}
+
+function createBlock(row, col, cfg) {
+  const block = {
+    row,
+    col,
+    cfg,
+    uid: `tb-${row}-${col}-${Math.random().toString(36).slice(2, 8)}`
+  };
+
+  const panel = document.createElement('div');
+  panel.className = 'tb-panel';
+  panel.dataset.row = String(row);
+  panel.dataset.col = String(col);
+  block.panel = panel;
+
+  const header = document.createElement('div');
+  header.className = 'tb-header';
+  header.style.display = 'none';
+  block.header = header;
+  panel.appendChild(header);
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'tb-svg');
+  svg.setAttribute('viewBox', `0 0 ${VBW} ${VBH}`);
+  block.svg = svg;
+  panel.appendChild(svg);
+
+  block.gBase = createSvgElement(svg, 'g');
+  block.gFill = createSvgElement(svg, 'g');
+  block.gSep = createSvgElement(svg, 'g');
+  block.gVals = createSvgElement(svg, 'g');
+  block.gFrame = createSvgElement(svg, 'g');
+  block.gHandle = createSvgElement(svg, 'g');
+  block.gBrace = createSvgElement(svg, 'g');
+
+  block.rectEmpty = createSvgElement(block.gBase, 'rect', { x: L, y: TOP, width: R - L, height: BOT - TOP, class: 'tb-rect-empty' });
+  block.rectFrame = createSvgElement(block.gFrame, 'rect', { x: L, y: TOP, width: R - L, height: BOT - TOP, class: 'tb-frame' });
+  drawBracketSquare(block.gBrace, L, R, BRACE_Y, BRACKET_TICK);
+  block.totalText = createSvgElement(block.gBrace, 'text', { x: (L + R) / 2, y: BRACE_Y - LABEL_OFFSET_Y, class: 'tb-total' });
+
+  block.handleShadow = createSvgElement(block.gHandle, 'circle', { cx: R, cy: (TOP + BOT) / 2 + 2, r: 20, class: 'tb-handle-shadow' });
+  block.handle = createSvgElement(block.gHandle, 'circle', { cx: R, cy: (TOP + BOT) / 2, r: 18, class: 'tb-handle' });
+  block.handle.addEventListener('pointerdown', event => onDragStart(block, event));
+
+  const stepper = document.createElement('div');
+  stepper.className = 'tb-stepper';
+  block.stepper = stepper;
+
+  const minus = document.createElement('button');
+  minus.type = 'button';
+  minus.textContent = '−';
+  minus.setAttribute('aria-label', 'Færre blokker');
+  block.minusBtn = minus;
+
+  const nVal = document.createElement('span');
+  block.nVal = nVal;
+
+  const plus = document.createElement('button');
+  plus.type = 'button';
+  plus.textContent = '+';
+  plus.setAttribute('aria-label', 'Flere blokker');
+  block.plusBtn = plus;
+
+  minus.addEventListener('click', () => {
+    const next = (block.cfg?.n ?? CONFIG.minN) - 1;
+    setN(block, next);
+  });
+  plus.addEventListener('click', () => {
+    const next = (block.cfg?.n ?? CONFIG.minN) + 1;
+    setN(block, next);
+  });
+
+  stepper.append(minus, nVal, plus);
+  panel.appendChild(stepper);
+
+  const fieldset = document.createElement('fieldset');
+  block.fieldset = fieldset;
+
+  const legend = document.createElement('legend');
+  block.legend = legend;
+  fieldset.appendChild(legend);
+
+  const totalLabel = document.createElement('label');
+  totalLabel.textContent = 'Total';
+  const totalInput = document.createElement('input');
+  totalInput.type = 'number';
+  totalInput.min = '1';
+  totalInput.step = '1';
+  totalInput.value = String(cfg?.total ?? 1);
+  totalInput.addEventListener('change', () => {
+    const parsed = Number.parseFloat(totalInput.value.replace(',', '.'));
+    if (Number.isFinite(parsed) && parsed > 0) {
+      block.cfg.total = Math.max(parsed, 1);
+      draw(true);
+    }
+  });
+  totalLabel.appendChild(totalInput);
+  fieldset.appendChild(totalLabel);
+
+  const nLabel = document.createElement('label');
+  nLabel.textContent = 'Antall blokker';
+  const nInput = document.createElement('input');
+  nInput.type = 'number';
+  nInput.min = String(CONFIG.minN);
+  nInput.max = String(CONFIG.maxN);
+  nInput.step = '1';
+  nInput.value = String(cfg?.n ?? CONFIG.minN);
+  nInput.addEventListener('change', () => {
+    const parsed = Number.parseInt(nInput.value, 10);
+    if (!Number.isNaN(parsed)) setN(block, parsed);
+  });
+  nLabel.appendChild(nInput);
+  fieldset.appendChild(nLabel);
+
+  const kLabel = document.createElement('label');
+  kLabel.textContent = 'Fylte blokker';
+  const kInput = document.createElement('input');
+  kInput.type = 'number';
+  kInput.min = '0';
+  kInput.step = '1';
+  kInput.value = String(cfg?.k ?? 0);
+  kInput.addEventListener('change', () => {
+    const parsed = Number.parseInt(kInput.value, 10);
+    if (!Number.isNaN(parsed)) setK(block, parsed);
+  });
+  kLabel.appendChild(kInput);
+  fieldset.appendChild(kLabel);
+
+  const showWholeRow = document.createElement('div');
+  showWholeRow.className = 'checkbox-row';
+  const showWholeInput = document.createElement('input');
+  showWholeInput.type = 'checkbox';
+  showWholeInput.id = `${block.uid}-show-whole`;
+  showWholeInput.addEventListener('change', () => {
+    block.cfg.showWhole = !!showWholeInput.checked;
+    draw(true);
+  });
+  const showWholeLabel = document.createElement('label');
+  showWholeLabel.setAttribute('for', showWholeInput.id);
+  showWholeLabel.textContent = 'Vis hele';
+  showWholeRow.append(showWholeInput, showWholeLabel);
+  fieldset.appendChild(showWholeRow);
+
+  const lockNRow = document.createElement('div');
+  lockNRow.className = 'checkbox-row';
+  const lockNInput = document.createElement('input');
+  lockNInput.type = 'checkbox';
+  lockNInput.id = `${block.uid}-lock-n`;
+  lockNInput.addEventListener('change', () => {
+    block.cfg.lockDenominator = !!lockNInput.checked;
+    draw(true);
+  });
+  const lockNLabel = document.createElement('label');
+  lockNLabel.setAttribute('for', lockNInput.id);
+  lockNLabel.textContent = 'Lås nevner';
+  lockNRow.append(lockNInput, lockNLabel);
+  fieldset.appendChild(lockNRow);
+
+  const lockKRow = document.createElement('div');
+  lockKRow.className = 'checkbox-row';
+  const lockKInput = document.createElement('input');
+  lockKInput.type = 'checkbox';
+  lockKInput.id = `${block.uid}-lock-k`;
+  lockKInput.addEventListener('change', () => {
+    block.cfg.lockNumerator = !!lockKInput.checked;
+    draw(true);
+  });
+  const lockKLabel = document.createElement('label');
+  lockKLabel.setAttribute('for', lockKInput.id);
+  lockKLabel.textContent = 'Lås teller';
+  lockKRow.append(lockKInput, lockKLabel);
+  fieldset.appendChild(lockKRow);
+
+  const hideNRow = document.createElement('div');
+  hideNRow.className = 'checkbox-row';
+  const hideNInput = document.createElement('input');
+  hideNInput.type = 'checkbox';
+  hideNInput.id = `${block.uid}-hide-n`;
+  hideNInput.addEventListener('change', () => {
+    block.cfg.hideNValue = !!hideNInput.checked;
+    draw(true);
+  });
+  const hideNLabel = document.createElement('label');
+  hideNLabel.setAttribute('for', hideNInput.id);
+  hideNLabel.textContent = 'Skjul n-verdi';
+  hideNRow.append(hideNInput, hideNLabel);
+  fieldset.appendChild(hideNRow);
+
+  const displayLabel = document.createElement('label');
+  displayLabel.textContent = 'Vis som';
+  const displaySelect = document.createElement('select');
+  DISPLAY_OPTIONS.forEach(option => {
+    const opt = document.createElement('option');
+    opt.value = option;
+    opt.textContent = option === 'number' ? 'Tall' : option === 'fraction' ? 'Brøk' : 'Prosent';
+    displaySelect.appendChild(opt);
+  });
+  displaySelect.addEventListener('change', () => {
+    applyDisplayMode(block.cfg, displaySelect.value, block.cfg.valueDisplay);
+    draw(true);
+  });
+  displayLabel.appendChild(displaySelect);
+  fieldset.appendChild(displayLabel);
+
+  block.inputs = {
+    total: totalInput,
+    n: nInput,
+    k: kInput,
+    showWhole: showWholeInput,
+    lockN: lockNInput,
+    lockK: lockKInput,
+    hideN: hideNInput,
+    display: displaySelect
+  };
+
+  return block;
+}
+
+function drawBlock(block) {
+  const cfg = block?.cfg;
+  if (!block || !cfg) return;
+
+  const width = R - L;
+  const center = (L + R) / 2;
+
+  block.rectEmpty?.setAttribute('x', L);
+  block.rectEmpty?.setAttribute('width', width);
+  block.rectEmpty?.setAttribute('y', TOP);
+  block.rectEmpty?.setAttribute('height', BOT - TOP);
+
+  block.rectFrame?.setAttribute('x', L);
+  block.rectFrame?.setAttribute('width', width);
+  block.rectFrame?.setAttribute('y', TOP);
+  block.rectFrame?.setAttribute('height', BOT - TOP);
+
+  drawBracketSquare(block.gBrace, L, R, BRACE_Y, BRACKET_TICK);
+  if (block.totalText) {
+    block.totalText.setAttribute('x', center);
+    block.totalText.setAttribute('y', BRACE_Y - LABEL_OFFSET_Y);
+    block.totalText.textContent = fmt(cfg.total);
+  }
+
+  if (block.svg) {
+    block.svg.setAttribute('aria-label', `Tenkeblokker ${block.index + 1}`);
+  }
+  if (block.legend) {
+    block.legend.textContent = `Tenkeblokker ${block.index + 1}`;
+  }
+
+  if (block.stepper) {
+    block.stepper.setAttribute('aria-label', `Antall blokker i tenkeblokker ${block.index + 1}`);
+    block.stepper.style.display = cfg.lockDenominator ? 'none' : '';
+  }
+
+  if (block.nVal) {
+    block.nVal.textContent = cfg.n;
+    block.nVal.style.display = cfg.hideNValue ? 'none' : '';
+  }
+
+  if (block.minusBtn) block.minusBtn.disabled = cfg.lockDenominator || cfg.n <= CONFIG.minN;
+  if (block.plusBtn) block.plusBtn.disabled = cfg.lockDenominator || cfg.n >= CONFIG.maxN;
+
+  if (block.inputs) {
+    const { total, n, k, showWhole, lockN, lockK, hideN, display } = block.inputs;
+    if (total) total.value = cfg.total;
+    if (n) {
+      n.value = cfg.n;
+      n.min = String(CONFIG.minN);
+      n.max = String(CONFIG.maxN);
+      n.disabled = !!cfg.lockDenominator;
+    }
+    if (k) {
+      k.value = cfg.k;
+      k.max = String(cfg.n);
+      k.disabled = !!cfg.lockNumerator;
+    }
+    if (showWhole) showWhole.checked = !!cfg.showWhole;
+    if (lockN) lockN.checked = !!cfg.lockDenominator;
+    if (lockK) lockK.checked = !!cfg.lockNumerator;
+    if (hideN) hideN.checked = !!cfg.hideNValue;
+    if (display) {
+      const mode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
+      display.value = mode;
+    }
+  }
+
+  block.gFill.innerHTML = '';
+  block.gSep.innerHTML = '';
+  block.gVals.innerHTML = '';
+
+  const cellW = cfg.n ? width / cfg.n : 0;
+  if (cellW > 0) {
+    for (let i = 0; i < cfg.k; i++) {
+      createSvgElement(block.gFill, 'rect', { x: L + i * cellW, y: TOP, width: cellW, height: BOT - TOP, class: 'tb-rect' });
+    }
+    for (let i = 1; i < cfg.n; i++) {
+      const x = L + i * cellW;
+      createSvgElement(block.gSep, 'line', { x1: x, y1: TOP, x2: x, y2: BOT, class: 'tb-sep' });
+    }
+
+    const displayMode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
+    const per = cfg.n ? cfg.total / cfg.n : 0;
+    const percentValue = cfg.n ? (100 / cfg.n) : 0;
+
+    for (let i = 0; i < cfg.n; i++) {
+      const cx = L + (i + 0.5) * cellW;
+      const cy = (TOP + BOT) / 2;
+      if (displayMode === 'fraction') {
+        renderFractionLabel(block.gVals, cx, cy, 1, cfg.n);
+        continue;
+      }
+      const text = createSvgElement(block.gVals, 'text', { x: cx, y: cy, class: 'tb-val' });
+      const label = displayMode === 'percent' ? `${fmt(percentValue)} %` : fmt(per);
+      text.textContent = label;
+    }
+  }
+
+  const hx = cellW > 0 ? L + cfg.k * cellW : L;
+  block.handle?.setAttribute('cx', hx);
+  block.handleShadow?.setAttribute('cx', hx);
+  if (block.gHandle) block.gHandle.style.display = cfg.lockNumerator ? 'none' : '';
+  if (block.handle) block.handle.style.cursor = cfg.lockNumerator ? 'default' : 'pointer';
+
+  if (block.gBrace) block.gBrace.style.display = cfg.showWhole ? '' : 'none';
+}
+
+function setN(block, next) {
+  if (!block) return;
+  const cfg = block.cfg;
+  if (!cfg) return;
+  const clamped = clamp(Math.round(next), CONFIG.minN, CONFIG.maxN);
+  if (cfg.n === clamped) return;
+  cfg.n = clamped;
+  if (cfg.k > cfg.n) cfg.k = cfg.n;
+  draw(true);
+}
+
+function setK(block, next) {
+  if (!block) return;
+  const cfg = block.cfg;
+  if (!cfg) return;
+  const clamped = clamp(Math.round(next), 0, cfg.n);
+  if (cfg.k === clamped) return;
+  cfg.k = clamped;
+  draw(true);
+}
+
+function createCombinedWholeOverlay() {
+  if (!board) return null;
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('class', 'tb-combined-whole');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.display = 'none';
+  svg.style.width = '0';
+  svg.style.height = '0';
+  board.appendChild(svg);
+  const group = createSvgElement(svg, 'g', { class: 'tb-combined-brace' });
+  const text = createSvgElement(group, 'text', { class: 'tb-total', 'text-anchor': 'middle' });
+  return { svg, group, text };
+}
+
+function getCombinedTotal() {
+  let sum = 0;
+  for (let r = 0; r < CONFIG.rows; r++) {
+    for (let c = 0; c < CONFIG.cols; c++) {
+      const value = Number(CONFIG.blocks?.[r]?.[c]?.total);
+      if (!Number.isFinite(value)) return NaN;
+      sum += value;
+    }
+  }
+  return sum;
+}
+
+function getBlockClientMetrics(block) {
+  if (!block?.svg) return null;
+  const rect = block.svg.getBoundingClientRect();
+  if (!(rect?.width > 0) || !(rect?.height > 0)) return null;
+  return {
+    left: rect.left,
+    right: rect.right,
+    top: rect.top,
+    bottom: rect.bottom
+  };
+}
+
+function drawCombinedWholeOverlay() {
+  const overlay = combinedWholeOverlay;
+  if (!overlay?.svg || !board) return;
+  const multiple = CONFIG.activeBlocks > 1 && CONFIG.showCombinedWhole;
+  if (!multiple) {
+    overlay.svg.style.display = 'none';
+    return;
+  }
+
+  const metrics = BLOCKS.map(getBlockClientMetrics).filter(Boolean);
+  if (!metrics.length) {
+    overlay.svg.style.display = 'none';
+    return;
+  }
+
+  const left = Math.min(...metrics.map(m => m.left));
+  const right = Math.max(...metrics.map(m => m.right));
+  const top = Math.min(...metrics.map(m => m.top));
+  const bottom = Math.max(...metrics.map(m => m.bottom));
+  const width = right - left;
+  const height = bottom - top;
+  if (!(width > 0) || !(height > 0)) {
+    overlay.svg.style.display = 'none';
+    return;
+  }
+
+  const boardRect = board.getBoundingClientRect();
+  overlay.svg.style.display = '';
+  overlay.svg.style.left = `${left - boardRect.left}px`;
+  overlay.svg.style.top = `${top - boardRect.top}px`;
+  overlay.svg.style.width = `${width}px`;
+  overlay.svg.style.height = `${height}px`;
+  overlay.svg.setAttribute('width', width);
+  overlay.svg.setAttribute('height', height);
+  overlay.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  overlay.svg.setAttribute('preserveAspectRatio', 'none');
+
+  const braceY = (BRACE_Y / VBH) * height;
+  const tick = (BRACKET_TICK / VBH) * height;
+  drawBracketSquare(overlay.group, 0, width, braceY, tick);
+
+  if (overlay.text) {
+    overlay.text.setAttribute('x', width / 2);
+    overlay.text.setAttribute('y', braceY - (LABEL_OFFSET_Y / VBH) * height);
+    const total = getCombinedTotal();
+    overlay.text.textContent = Number.isFinite(total) ? fmt(total) : '';
+  }
+}
+
+function onDragStart(block, event) {
+  if (!block?.handle) return;
+  const cfg = block.cfg;
+  if (cfg?.lockNumerator) return;
+  block.handle.setPointerCapture(event.pointerId);
+  const move = ev => {
+    const currentCfg = block.cfg;
+    if (!currentCfg) return;
+    const p = clientToSvg(block.svg, ev.clientX, ev.clientY);
+    const width = R - L;
+    const denom = currentCfg.n || 1;
+    const cellW = width / denom;
+    if (!(cellW > 0)) return;
+    const x = clamp(p.x, L, R);
+    const snapK = Math.round((x - L) / cellW);
+    setK(block, snapK);
+  };
+  const up = () => {
+    block.handle.releasePointerCapture(event.pointerId);
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
+function syncLegacyConfig() {
+  const first = CONFIG.blocks?.[0]?.[0];
+  if (!first) return;
+  CONFIG.total = first.total;
+  CONFIG.n = first.n;
+  CONFIG.k = first.k;
+  CONFIG.showWhole = first.showWhole;
+  CONFIG.lockDenominator = first.lockDenominator;
+  CONFIG.lockNumerator = first.lockNumerator;
+  CONFIG.hideNValue = first.hideNValue;
+  CONFIG.showFraction = first.showFraction;
+  CONFIG.showPercent = first.showPercent;
+  CONFIG.valueDisplay = first.valueDisplay;
+  CONFIG.activeBlocks = CONFIG.rows * CONFIG.cols;
+}
 function createSvgElement(parent, name, attrs = {}) {
   const svgEl = parent.ownerSVGElement || parent;
   const el = document.createElementNS(svgEl.namespaceURI, name);
-  Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+  Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
   parent.appendChild(el);
   return el;
 }
@@ -193,15 +864,21 @@ function renderFractionLabel(parent, cx, cy, numerator, denominator) {
       const fractionBottom = Math.max(numeratorBottom, denominatorBBox.y + denominatorBBox.height);
       appliedCenter = (fractionTop + fractionBottom) / 2;
     } catch (err) {
-      // Ignore errors and fall back to preset positions
+      // ignore measurement errors
     }
   }
 
   group.setAttribute('transform', `translate(${cx}, ${cy - appliedCenter})`);
 }
-function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-function fmt(x) { return (Math.round(x * 100) / 100).toString().replace('.', ','); }
-// Skjerm-px → SVG viewBox-koordinater
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function fmt(value) {
+  return (Math.round(value * 100) / 100).toString().replace('.', ',');
+}
+
 function clientToSvg(svgEl, clientX, clientY) {
   const rect = svgEl.getBoundingClientRect();
   const vb = svgEl.viewBox?.baseVal;
@@ -218,7 +895,6 @@ function clientToSvg(svgEl, clientX, clientY) {
   };
 }
 
-// Firkantparentes (rett linje med «hak» i begge ender)
 function drawBracketSquare(group, x0, x1, y, tick) {
   if (!group) return;
   const ns = group.ownerSVGElement?.namespaceURI || 'http://www.w3.org/2000/svg';
@@ -231,66 +907,11 @@ function drawBracketSquare(group, x0, x1, y, tick) {
     else group.appendChild(path);
   }
   const d = [
-    `M ${x0} ${y}`, `v ${tick}`,          // venstre «hak»
-    `M ${x0} ${y}`, `H ${x1}`,            // topplinje
-    `M ${x1} ${y}`, `v ${tick}`           // høyre «hak»
+    `M ${x0} ${y}`, `v ${tick}`,
+    `M ${x0} ${y}`, `H ${x1}`,
+    `M ${x1} ${y}`, `v ${tick}`
   ].join(' ');
   path.setAttribute('d', d);
-}
-
-function isStackedLayout() {
-  const count = clamp(CONFIG.activeBlocks || 1, 1, 2);
-  return !!CONFIG.stackBlocks && count > 1;
-}
-
-function getStackGapValues() {
-  if (!isStackedLayout()) return [];
-  const count = clamp(CONFIG.activeBlocks || 1, 1, 2);
-  const gaps = [];
-  for (let i = 0; i < count - 1; i++) {
-    const cfg = CONFIG.blocks[i];
-    const needsGap = !!cfg?.lockNumerator;
-    gaps[i] = needsGap ? STACK_GAP_LOCKED : STACK_GAP_COMPACT;
-  }
-  return gaps;
-}
-
-function updateStackGap() {
-  if (!panels.container) return;
-  if (!isStackedLayout()) {
-    panels.container.style.removeProperty('--tb-stack-gap');
-    return;
-  }
-  const gaps = getStackGapValues();
-  const gap = gaps.length ? gaps[0] : STACK_GAP_COMPACT;
-  panels.container.style.setProperty('--tb-stack-gap', `${gap}px`);
-}
-
-function getBlockLayout(index) {
-  const count = clamp(CONFIG.activeBlocks || 1, 1, 2);
-  const baseWidth = Math.max(R - L, 1);
-  let width = baseWidth;
-
-  if (count > 1) {
-    let maxTotal = 0;
-    const totals = [];
-    for (let i = 0; i < count; i++) {
-      const cfg = CONFIG.blocks[i];
-      const raw = typeof cfg?.total === 'number' && !Number.isNaN(cfg.total) ? Math.abs(cfg.total) : 0;
-      totals[i] = raw;
-      if (raw > maxTotal) maxTotal = raw;
-    }
-    if (maxTotal > 0) {
-      const current = totals[index] ?? maxTotal;
-      width = baseWidth * (current / maxTotal);
-    }
-  }
-
-  width = Math.max(width, 1);
-  const left = L;
-  const right = left + width;
-  const center = left + width / 2;
-  return { left, right, width, center };
 }
 
 function svgToString(svgEl) {
@@ -303,16 +924,20 @@ function svgToString(svgEl) {
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
 }
+
 function downloadSVG(svgEl, filename) {
   const data = svgToString(svgEl);
   const blob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename.endsWith('.svg') ? filename : filename + '.svg';
-  document.body.appendChild(a); a.click(); a.remove();
+  a.download = filename.endsWith('.svg') ? filename : `${filename}.svg`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
 function downloadPNG(svgEl, filename, scale = 2, bg = '#fff') {
   const vb = svgEl.viewBox?.baseVal;
   const w = vb?.width || svgEl.clientWidth || 420;
@@ -323,19 +948,22 @@ function downloadPNG(svgEl, filename, scale = 2, bg = '#fff') {
   const img = new Image();
   img.onload = () => {
     const canvas = document.createElement('canvas');
-    canvas.width  = Math.round(w * scale);
+    canvas.width = Math.round(w * scale);
     canvas.height = Math.round(h * scale);
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     URL.revokeObjectURL(url);
-    canvas.toBlob(blob => {
-      const urlPng = URL.createObjectURL(blob);
+    canvas.toBlob(blobPng => {
+      if (!blobPng) return;
+      const urlPng = URL.createObjectURL(blobPng);
       const a = document.createElement('a');
       a.href = urlPng;
-      a.download = filename.endsWith('.png') ? filename : filename + '.png';
-      document.body.appendChild(a); a.click(); a.remove();
+      a.download = filename.endsWith('.png') ? filename : `${filename}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
       setTimeout(() => URL.revokeObjectURL(urlPng), 1000);
     }, 'image/png');
   };
@@ -343,730 +971,44 @@ function downloadPNG(svgEl, filename, scale = 2, bg = '#fff') {
 }
 
 function getExportSvg() {
-  normalizeConfig();
-  const count = clamp(CONFIG.activeBlocks || 1, 1, 2);
   const firstSvg = BLOCKS[0]?.svg;
   if (!firstSvg) return null;
-  if (count === 1) return firstSvg;
-
   const ns = firstSvg.namespaceURI;
-  const stacked = isStackedLayout();
-
-  if (!stacked) {
-    const layouts = [];
-    let width = SIDE_MARGIN * 2;
-    for (let i = 0; i < count; i++) {
-      const layout = getBlockLayout(i);
-      layouts.push(layout);
-      width += layout?.width ?? 0;
-    }
-    const exportSvg = document.createElementNS(ns, 'svg');
-    exportSvg.setAttribute('viewBox', `0 0 ${width} ${VBH}`);
-    exportSvg.setAttribute('width', width);
-    exportSvg.setAttribute('height', VBH);
-    exportSvg.setAttribute('xmlns', ns);
-    exportSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-
-    let x = 0;
-    for (let i = 0; i < count; i++) {
-      const block = BLOCKS[i];
-      if (!block) continue;
-      const g = document.createElementNS(ns, 'g');
-      g.setAttribute('transform', `translate(${x},0)`);
-      g.innerHTML = block.svg.innerHTML;
-      exportSvg.appendChild(g);
-      if (i < count - 1) x += layouts[i]?.width ?? 0;
-    }
-
-    if (CONFIG.showCombinedWhole) {
-      const totalWidth = layouts.reduce((sum, layout) => sum + (layout?.width ?? 0), 0);
-      if (totalWidth > 0) {
-        const startX = SIDE_MARGIN;
-        const endX = startX + totalWidth;
-        const braceGroup = createSvgElement(exportSvg, 'g', { class: 'tb-combined-brace' });
-        drawBracketSquare(braceGroup, startX, endX, BRACE_Y, BRACKET_TICK);
-        const textAttrs = {
-          x: (startX + endX) / 2,
-          y: BRACE_Y - LABEL_OFFSET_Y,
-          class: 'tb-total',
-          'text-anchor': 'middle'
-        };
-        const totalText = createSvgElement(braceGroup, 'text', textAttrs);
-        const totalValue = getCombinedTotal(count);
-        totalText.textContent = Number.isFinite(totalValue) ? fmt(totalValue) : '';
-      }
-    }
-    return exportSvg;
-  }
-
+  const rows = CONFIG.rows;
+  const cols = CONFIG.cols;
   const exportSvg = document.createElementNS(ns, 'svg');
+  const width = cols * VBW;
+  const height = rows * VBH;
+  exportSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  exportSvg.setAttribute('width', width);
+  exportSvg.setAttribute('height', height);
   exportSvg.setAttribute('xmlns', ns);
   exportSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
 
-  const gapValues = getStackGapValues();
-  let scale = 1;
-  const refRect = firstSvg.getBoundingClientRect();
-  if (refRect?.height) {
-    scale = VBH / refRect.height;
-  }
-  const gapUnits = gapValues.map(g => g * scale);
-  let height = VBH * count;
-  for (let i = 0; i < gapUnits.length; i++) {
-    height += gapUnits[i];
-  }
-  exportSvg.setAttribute('viewBox', `0 0 ${VBW} ${height}`);
-  exportSvg.setAttribute('width', VBW);
-  exportSvg.setAttribute('height', height);
-
-  let y = 0;
-  for (let i = 0; i < count; i++) {
-    const block = BLOCKS[i];
-    if (!block) continue;
+  for (const block of BLOCKS) {
+    if (!block?.svg) continue;
     const g = document.createElementNS(ns, 'g');
-    g.setAttribute('transform', `translate(0,${y})`);
+    const tx = block.col * VBW;
+    const ty = block.row * VBH;
+    g.setAttribute('transform', `translate(${tx},${ty})`);
     g.innerHTML = block.svg.innerHTML;
     exportSvg.appendChild(g);
-    if (i < count - 1) {
-      y += VBH + (gapUnits[i] ?? 0);
-    }
   }
 
-  if (CONFIG.showCombinedWhole) {
-    const startX = SIDE_MARGIN;
-    const endX = VBW - SIDE_MARGIN;
+  if (CONFIG.showCombinedWhole && CONFIG.activeBlocks > 1) {
+    const startX = L;
+    const endX = width - (VBW - R);
     const braceGroup = createSvgElement(exportSvg, 'g', { class: 'tb-combined-brace' });
     drawBracketSquare(braceGroup, startX, endX, BRACE_Y, BRACKET_TICK);
-    const textAttrs = {
+    const totalText = createSvgElement(braceGroup, 'text', {
       x: (startX + endX) / 2,
       y: BRACE_Y - LABEL_OFFSET_Y,
       class: 'tb-total',
       'text-anchor': 'middle'
-    };
-    const totalText = createSvgElement(braceGroup, 'text', textAttrs);
-    const totalValue = getCombinedTotal(count);
+    });
+    const totalValue = getCombinedTotal();
     totalText.textContent = Number.isFinite(totalValue) ? fmt(totalValue) : '';
   }
 
   return exportSvg;
 }
-
-function getBlockViewBox(index) {
-  const count = clamp(CONFIG.activeBlocks || 1, 1, 2);
-  if (count <= 1 || isStackedLayout()) return { minX: 0, width: VBW };
-  const width = Math.max(VBW - SIDE_MARGIN, 1);
-  if (index === 0) return { minX: 0, width };
-  return { minX: SIDE_MARGIN, width };
-}
-
-function createBlock(index) {
-  const svg = document.getElementById(`thinkBlocks${index + 1}`);
-  if (!svg) return null;
-  svg.innerHTML = '';
-
-  const block = { index, svg };
-  block.panel = document.getElementById(`tbPanel${index + 1}`) || null;
-  block.gBase   = createSvgElement(svg, 'g');     // bakgrunn
-  block.gFill   = createSvgElement(svg, 'g');     // fylte blokker
-  block.gSep    = createSvgElement(svg, 'g');     // skillelinjer
-  block.gVals   = createSvgElement(svg, 'g');     // tall i blokker
-  block.gFrame  = createSvgElement(svg, 'g');     // svart ramme
-  block.gHandle = createSvgElement(svg, 'g');     // håndtak
-  block.gBrace  = createSvgElement(svg, 'g');     // parentes + TOTAL
-
-  block.rectEmpty = createSvgElement(block.gBase,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-rect-empty'});
-  block.rectFrame = createSvgElement(block.gFrame,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-frame'});
-  drawBracketSquare(block.gBrace, L, R, BRACE_Y, BRACKET_TICK);
-  block.totalText = createSvgElement(block.gBrace,'text',{x:(L+R)/2,y:BRACE_Y - LABEL_OFFSET_Y,class:'tb-total'});
-
-  block.handleShadow = createSvgElement(block.gHandle,'circle',{cx:R,cy:(TOP+BOT)/2+2,r:20,class:'tb-handle-shadow'});
-  block.handle       = createSvgElement(block.gHandle,'circle',{cx:R,cy:(TOP+BOT)/2,r:18,class:'tb-handle'});
-  block.handle.addEventListener('pointerdown', e => onDragStart(block, e));
-
-  const header = document.getElementById(`tbHeader${index + 1}`);
-  if (header) {
-    header.innerHTML = '';
-    header.style.display = 'none';
-  }
-  block.header = header || null;
-
-  const minus = document.getElementById(`tbMinus${index + 1}`);
-  const plus  = document.getElementById(`tbPlus${index + 1}`);
-  minus?.addEventListener('click', () => {
-    normalizeConfig();
-    if (CONFIG.blocks[index]?.lockDenominator) return;
-    setN(index, (CONFIG.blocks[index]?.n ?? CONFIG.minN) - 1);
-  });
-  plus?.addEventListener('click', () => {
-    normalizeConfig();
-    if (CONFIG.blocks[index]?.lockDenominator) return;
-    setN(index, (CONFIG.blocks[index]?.n ?? CONFIG.minN) + 1);
-  });
-  block.minusBtn = minus || null;
-  block.plusBtn = plus || null;
-  block.nVal = document.getElementById(`tbNVal${index + 1}`) || null;
-  block.stepper = block.nVal?.closest('.tb-stepper') || minus?.closest('.tb-stepper') || null;
-
-  if (block.panel && block.stepper && index === 1) {
-    const row = document.createElement('div');
-    row.className = 'tb-inline-row tb-inline-show-whole';
-    const inlineId = `tb-inline-show-whole-${index + 1}`;
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.id = inlineId;
-    const label = document.createElement('label');
-    label.setAttribute('for', inlineId);
-    label.textContent = 'Vis hele';
-    row.append(checkbox, label);
-    row.style.display = 'none';
-    block.panel.insertBefore(row, block.stepper);
-    checkbox.addEventListener('change', () => {
-      normalizeConfig();
-      const cfg = CONFIG.blocks[index];
-      if (!cfg) return;
-      const nextValue = !!checkbox.checked;
-      if (cfg.showWhole === nextValue) return;
-      cfg.showWhole = nextValue;
-      draw();
-    });
-    block.inlineShowWholeRow = row;
-    block.inlineShowWholeInput = checkbox;
-  }
-
-  BLOCKS[index] = block;
-  return block;
-}
-
-function createCombinedWholeOverlay() {
-  const container = panels.container;
-  if (!container) return null;
-  const ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('class', 'tb-combined-whole');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.style.display = 'none';
-  svg.style.width = '0';
-  svg.style.height = '0';
-  container.appendChild(svg);
-  const group = createSvgElement(svg, 'g');
-  group.setAttribute('class', 'tb-combined-brace');
-  const text = createSvgElement(group, 'text', {
-    class: 'tb-total',
-    'text-anchor': 'middle'
-  });
-  return { svg, group, text };
-}
-
-function getCombinedTotal(count = clamp(CONFIG.activeBlocks || 1, 1, 2)) {
-  let sum = 0;
-  for (let i = 0; i < count; i++) {
-    const block = CONFIG.blocks[i];
-    if (!block) return NaN;
-    const value = typeof block.total === 'number' ? block.total : NaN;
-    if (!Number.isFinite(value)) return NaN;
-    sum += value;
-  }
-  return sum;
-}
-
-function getBlockClientMetrics(block) {
-  if (!block?.svg) return null;
-  const rect = block.svg.getBoundingClientRect();
-  if (!(rect?.width > 0) || !(rect?.height > 0)) return null;
-
-  const layout = block.layout || getBlockLayout(block.index);
-  const layoutLeft = typeof layout?.left === 'number' ? layout.left : NaN;
-  const layoutRight = typeof layout?.right === 'number' ? layout.right : NaN;
-  if (!Number.isFinite(layoutLeft) || !Number.isFinite(layoutRight)) return null;
-
-  const vb = block.svg.viewBox?.baseVal;
-  const vbMinX = typeof vb?.x === 'number' ? vb.x : 0;
-  const vbWidth = typeof vb?.width === 'number' && vb.width > 0 ? vb.width : VBW;
-  if (!(vbWidth > 0)) return null;
-
-  const scaleX = rect.width / vbWidth;
-  const left = rect.left + (layoutLeft - vbMinX) * scaleX;
-  const right = rect.left + (layoutRight - vbMinX) * scaleX;
-
-  return {
-    left,
-    right,
-    top: rect.top,
-    bottom: rect.bottom
-  };
-}
-
-function drawCombinedWholeOverlay() {
-  const overlay = combinedWholeOverlay;
-  if (!overlay?.svg) return;
-  const container = panels.container;
-  if (!container) return;
-
-  const count = clamp(CONFIG.activeBlocks || 1, 1, 2);
-  const showCombined = count > 1 && CONFIG.showCombinedWhole;
-  if (!showCombined) {
-    overlay.svg.style.display = 'none';
-    return;
-  }
-
-  const firstBlock = BLOCKS[0];
-  const secondBlock = BLOCKS[1];
-  if (!firstBlock?.svg || !secondBlock?.svg) {
-    overlay.svg.style.display = 'none';
-    return;
-  }
-
-  const metrics1 = getBlockClientMetrics(firstBlock);
-  const metrics2 = getBlockClientMetrics(secondBlock);
-  if (!metrics1 || !metrics2) {
-    overlay.svg.style.display = 'none';
-    return;
-  }
-
-  const containerRect = container.getBoundingClientRect();
-  const left = Math.min(metrics1.left, metrics2.left);
-  const right = Math.max(metrics1.right, metrics2.right);
-  const top = Math.min(metrics1.top, metrics2.top);
-  const bottom = Math.max(metrics1.bottom, metrics2.bottom);
-  const width = right - left;
-  const height = bottom - top;
-  if (!(width > 0) || !(height > 0)) {
-    overlay.svg.style.display = 'none';
-    return;
-  }
-
-  overlay.svg.style.display = '';
-  overlay.svg.style.left = `${left - containerRect.left}px`;
-  overlay.svg.style.top = `${top - containerRect.top}px`;
-  overlay.svg.style.width = `${width}px`;
-  overlay.svg.style.height = `${height}px`;
-  overlay.svg.setAttribute('width', width);
-  overlay.svg.setAttribute('height', height);
-  overlay.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-  overlay.svg.setAttribute('preserveAspectRatio', 'none');
-
-  const braceY = (BRACE_Y / VBH) * height;
-  const tick = (BRACKET_TICK / VBH) * height;
-  drawBracketSquare(overlay.group, 0, width, braceY, tick);
-
-  if (overlay.text) {
-    const labelY = braceY - (LABEL_OFFSET_Y / VBH) * height;
-    overlay.text.setAttribute('x', width / 2);
-    overlay.text.setAttribute('y', labelY);
-    const total = getCombinedTotal(count);
-    overlay.text.textContent = Number.isFinite(total) ? fmt(total) : '';
-  }
-}
-
-function onDragStart(block, e) {
-  if (!block?.handle) return;
-  const cfgAtStart = CONFIG.blocks[block.index];
-  if (cfgAtStart?.lockNumerator) return;
-  block.handle.setPointerCapture(e.pointerId);
-  const move = ev => {
-    const cfg = CONFIG.blocks[block.index];
-    if (!cfg) return;
-    const layout = block.layout || getBlockLayout(block.index);
-    const p = clientToSvg(block.svg, ev.clientX, ev.clientY);
-    const left = layout?.left ?? L;
-    const right = layout?.right ?? R;
-    const width = layout?.width ?? (R - L);
-    const denom = cfg.n || 1;
-    const cellW = width / denom;
-    if (cellW <= 0) return;
-    const x = clamp(p.x, left, right);
-    const snapK = Math.round((x - left) / cellW);            // 0..n (kan helt til høyre)
-    setK(block.index, snapK);
-  };
-  const up = () => {
-    block.handle.releasePointerCapture(e.pointerId);
-    window.removeEventListener('pointermove', move);
-    window.removeEventListener('pointerup', up);
-  };
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up);
-}
-
-function normalizeConfig() {
-  if (!Array.isArray(CONFIG.blocks)) CONFIG.blocks = [];
-  if (CONFIG.blocks.length > 2) CONFIG.blocks.length = 2;
-
-  if (typeof CONFIG.minN !== 'number') CONFIG.minN = 1;
-  if (typeof CONFIG.maxN !== 'number') CONFIG.maxN = 12;
-  CONFIG.minN = Math.max(1, CONFIG.minN);
-  CONFIG.maxN = Math.max(CONFIG.minN, CONFIG.maxN);
-
-  for (let i = 0; i < 2; i++) {
-    const defaults = DEFAULT_BLOCKS[i] || DEFAULT_BLOCKS[0];
-    let cfg = CONFIG.blocks[i];
-    if (!cfg || typeof cfg !== 'object') {
-      cfg = { ...defaults };
-      CONFIG.blocks[i] = cfg;
-    }
-    if (typeof cfg.total !== 'number' || Number.isNaN(cfg.total)) cfg.total = defaults.total;
-    if (cfg.total < 1) cfg.total = 1;
-
-    if (typeof cfg.n !== 'number' || Number.isNaN(cfg.n)) cfg.n = defaults.n;
-    cfg.n = clamp(cfg.n, CONFIG.minN, CONFIG.maxN);
-
-    if (typeof cfg.k !== 'number' || Number.isNaN(cfg.k)) cfg.k = defaults.k;
-    cfg.k = clamp(cfg.k, 0, cfg.n);
-
-    cfg.showWhole = typeof cfg.showWhole === 'boolean' ? cfg.showWhole : (defaults.showWhole ?? true);
-    cfg.showWhole = !!cfg.showWhole;
-
-    cfg.lockDenominator = typeof cfg.lockDenominator === 'boolean' ? cfg.lockDenominator : !!defaults.lockDenominator;
-    cfg.lockDenominator = !!cfg.lockDenominator;
-
-    cfg.lockNumerator = typeof cfg.lockNumerator === 'boolean' ? cfg.lockNumerator : !!defaults.lockNumerator;
-    cfg.lockNumerator = !!cfg.lockNumerator;
-
-    cfg.hideNValue = typeof cfg.hideNValue === 'boolean' ? cfg.hideNValue : !!defaults.hideNValue;
-    cfg.hideNValue = !!cfg.hideNValue;
-
-    const defaultDisplay = sanitizeDisplayMode(defaults.valueDisplay) || 'number';
-    let desiredDisplay = sanitizeDisplayMode(cfg.valueDisplay);
-    if (!desiredDisplay) {
-      if (cfg.showPercent) desiredDisplay = 'percent';
-      else if (cfg.showFraction) desiredDisplay = 'fraction';
-      else desiredDisplay = defaultDisplay;
-    }
-    applyDisplayMode(cfg, desiredDisplay, defaultDisplay);
-  }
-
-  if (typeof CONFIG.total === 'number') CONFIG.blocks[0].total = CONFIG.total;
-  if (typeof CONFIG.n === 'number') CONFIG.blocks[0].n = clamp(CONFIG.n, CONFIG.minN, CONFIG.maxN);
-  if (typeof CONFIG.k === 'number') CONFIG.blocks[0].k = clamp(CONFIG.k, 0, CONFIG.blocks[0].n);
-
-  if (typeof CONFIG.showWhole === 'boolean') CONFIG.blocks[0].showWhole = CONFIG.showWhole;
-  if (typeof CONFIG.lockDenominator === 'boolean') CONFIG.blocks[0].lockDenominator = CONFIG.lockDenominator;
-  if (typeof CONFIG.lockNumerator === 'boolean') CONFIG.blocks[0].lockNumerator = CONFIG.lockNumerator;
-  if (typeof CONFIG.hideNValue === 'boolean') CONFIG.blocks[0].hideNValue = CONFIG.hideNValue;
-
-  if (typeof CONFIG.valueDisplay === 'string') {
-    applyDisplayMode(CONFIG.blocks[0], CONFIG.valueDisplay, CONFIG.blocks[0].valueDisplay);
-  } else if (typeof CONFIG.showPercent === 'boolean' || typeof CONFIG.showFraction === 'boolean') {
-    if (CONFIG.showPercent) applyDisplayMode(CONFIG.blocks[0], 'percent', CONFIG.blocks[0].valueDisplay);
-    else if (CONFIG.showFraction) applyDisplayMode(CONFIG.blocks[0], 'fraction', CONFIG.blocks[0].valueDisplay);
-  }
-
-  CONFIG.blocks[0].k = clamp(CONFIG.blocks[0].k, 0, CONFIG.blocks[0].n);
-
-  if (typeof CONFIG.activeBlocks !== 'number') CONFIG.activeBlocks = 1;
-  CONFIG.activeBlocks = clamp(CONFIG.activeBlocks, 1, 2);
-
-  if (typeof CONFIG.stackBlocks === 'string') {
-    const v = CONFIG.stackBlocks.trim().toLowerCase();
-    CONFIG.stackBlocks = v === 'true' || v === '1' || v === 'yes';
-  } else {
-    CONFIG.stackBlocks = !!CONFIG.stackBlocks;
-  }
-  if ((CONFIG.activeBlocks || 1) <= 1) CONFIG.stackBlocks = false;
-
-  if (typeof CONFIG.showCombinedWhole === 'string') {
-    const v = CONFIG.showCombinedWhole.trim().toLowerCase();
-    CONFIG.showCombinedWhole = v === 'true' || v === '1' || v === 'yes';
-  } else {
-    CONFIG.showCombinedWhole = !!CONFIG.showCombinedWhole;
-  }
-
-  syncLegacyConfig();
-}
-
-function syncLegacyConfig() {
-  const first = CONFIG.blocks[0];
-  if (!first) return;
-  CONFIG.total = first.total;
-  CONFIG.n = first.n;
-  CONFIG.k = first.k;
-  CONFIG.showWhole = first.showWhole;
-  CONFIG.lockDenominator = first.lockDenominator;
-  CONFIG.lockNumerator = first.lockNumerator;
-  CONFIG.hideNValue = first.hideNValue;
-  CONFIG.showFraction = first.showFraction;
-  CONFIG.showPercent = first.showPercent;
-  CONFIG.valueDisplay = first.valueDisplay;
-  CONFIG.stackBlocks = isStackedLayout();
-}
-
-function updateVisibility() {
-  const showSecond = (CONFIG.activeBlocks || 1) > 1;
-  const stacked = isStackedLayout();
-  if (panels.panel2) panels.panel2.style.display = showSecond ? '' : 'none';
-  if (panels.fieldset2) panels.fieldset2.style.display = showSecond ? '' : 'none';
-  if (panels.addBtn) panels.addBtn.style.display = showSecond ? 'none' : '';
-  if (panels.removeBtn) panels.removeBtn.style.display = showSecond ? '' : 'none';
-  if (panels.container) {
-    panels.container.classList.toggle('two', showSecond);
-    panels.container.classList.toggle('stacked', stacked);
-    if (!stacked) panels.container.style.removeProperty('--tb-stack-gap');
-  }
-  settingsContainer?.classList.toggle('two', showSecond);
-  if (stackControls.row) stackControls.row.style.display = showSecond ? '' : 'none';
-  if (stackControls.checkbox) stackControls.checkbox.disabled = !showSecond;
-  if (combinedWholeControls.row) combinedWholeControls.row.style.display = showSecond ? '' : 'none';
-  if (combinedWholeControls.checkbox) combinedWholeControls.checkbox.disabled = !showSecond;
-}
-
-function drawBlock(index) {
-  const block = BLOCKS[index];
-  const cfg = CONFIG.blocks[index];
-  if (!block || !cfg) return;
-
-  const layout = getBlockLayout(index);
-  block.layout = layout;
-  const { left, right, width, center } = layout;
-  const stackedLayout = isStackedLayout();
-
-  const vb = getBlockViewBox(index);
-  if (block.svg && vb) {
-    block.svg.setAttribute('viewBox', `${vb.minX} 0 ${vb.width} ${VBH}`);
-  }
-
-  if (block.rectEmpty) {
-    block.rectEmpty.setAttribute('x', left);
-    block.rectEmpty.setAttribute('width', width);
-    block.rectEmpty.setAttribute('y', TOP);
-    block.rectEmpty.setAttribute('height', BOT - TOP);
-  }
-  if (block.rectFrame) {
-    block.rectFrame.setAttribute('x', left);
-    block.rectFrame.setAttribute('width', width);
-    block.rectFrame.setAttribute('y', TOP);
-    block.rectFrame.setAttribute('height', BOT - TOP);
-  }
-  let braceY = BRACE_Y;
-  let tick = BRACKET_TICK;
-  let labelY = BRACE_Y - LABEL_OFFSET_Y;
-  if (index === 1 && stackedLayout) {
-    braceY = BRACE_Y_BOTTOM;
-    tick = -BRACKET_TICK;
-    labelY = braceY + LABEL_OFFSET_Y;
-  }
-  drawBracketSquare(block.gBrace, left, right, braceY, tick);
-  if (block.totalText) {
-    block.totalText.setAttribute('x', center);
-    block.totalText.setAttribute('y', labelY);
-  }
-
-  block.gFill.innerHTML = '';
-  block.gSep.innerHTML = '';
-  block.gVals.innerHTML = '';
-
-  const inputs = settingsInputs[index];
-  if (inputs) {
-    if (inputs.total) inputs.total.value = cfg.total;
-    if (inputs.n) {
-      inputs.n.value = cfg.n;
-      inputs.n.min = CONFIG.minN;
-      inputs.n.max = CONFIG.maxN;
-    }
-    if (inputs.k) {
-      inputs.k.value = cfg.k;
-      inputs.k.max = cfg.n;
-    }
-    if (inputs.showWhole) inputs.showWhole.checked = !!cfg.showWhole;
-    if (inputs.lockN) inputs.lockN.checked = !!cfg.lockDenominator;
-    if (inputs.lockK) inputs.lockK.checked = !!cfg.lockNumerator;
-    if (inputs.hideN) inputs.hideN.checked = !!cfg.hideNValue;
-    if (inputs.display) {
-      const mode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
-      inputs.display.value = mode;
-    }
-  }
-
-  if (block.totalText) block.totalText.textContent = fmt(cfg.total);
-
-  const cellW = cfg.n ? width / cfg.n : 0;
-
-  if (cellW > 0) {
-    for (let i = 0; i < cfg.k; i++) {
-      createSvgElement(block.gFill, 'rect', { x: left + i * cellW, y: TOP, width: cellW, height: BOT - TOP, class: 'tb-rect' });
-    }
-
-    for (let i = 1; i < cfg.n; i++) {
-      const x = left + i * cellW;
-      createSvgElement(block.gSep, 'line', { x1: x, y1: TOP, x2: x, y2: BOT, class: 'tb-sep' });
-    }
-
-    const displayMode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
-    const per = cfg.n ? cfg.total / cfg.n : 0;
-    const percentValue = cfg.n ? (100 / cfg.n) : 0;
-
-    for (let i = 0; i < cfg.n; i++) {
-      const cx = left + (i + 0.5) * cellW;
-      const cy = (TOP + BOT) / 2;
-      if (displayMode === 'fraction' && cfg.n) {
-        renderFractionLabel(block.gVals, cx, cy, 1, cfg.n);
-        continue;
-      }
-
-      const text = createSvgElement(block.gVals, 'text', { x: cx, y: cy, class: 'tb-val' });
-      let label = '';
-      if (displayMode === 'percent') label = `${fmt(percentValue)} %`;
-      else label = fmt(per);
-      text.textContent = label;
-    }
-  }
-
-  const hx = cellW > 0 ? left + cfg.k * cellW : left;
-  block.handle?.setAttribute('cx', hx);
-  block.handleShadow?.setAttribute('cx', hx);
-  if (block.gHandle) block.gHandle.style.display = cfg.lockNumerator ? 'none' : '';
-  if (block.handle) block.handle.style.cursor = cfg.lockNumerator ? 'default' : 'pointer';
-
-  const showWhole = !!cfg.showWhole;
-
-  if (block.inlineShowWholeInput) {
-    block.inlineShowWholeInput.checked = showWhole;
-  }
-  if (block.inlineShowWholeRow) {
-    const activeCount = clamp(CONFIG.activeBlocks || 1, 1, 2);
-    const shouldShowInline = index === 1 && isStackedLayout() && index < activeCount;
-    block.inlineShowWholeRow.style.display = shouldShowInline ? '' : 'none';
-  }
-
-  if (block.gBrace) block.gBrace.style.display = showWhole ? '' : 'none';
-
-  if (block.stepper) block.stepper.style.display = cfg.lockDenominator ? 'none' : '';
-  if (block.nVal) {
-    block.nVal.textContent = cfg.n;
-    block.nVal.style.display = cfg.hideNValue ? 'none' : '';
-  }
-
-  if (block.minusBtn) block.minusBtn.disabled = cfg.lockDenominator || cfg.n <= CONFIG.minN;
-  if (block.plusBtn) block.plusBtn.disabled = cfg.lockDenominator || cfg.n >= CONFIG.maxN;
-}
-
-function draw() {
-  normalizeConfig();
-  updateVisibility();
-  updateStackGap();
-  if (combinedWholeControls.checkbox) {
-    combinedWholeControls.checkbox.checked = !!CONFIG.showCombinedWhole;
-  }
-  if (stackControls.checkbox) {
-    stackControls.checkbox.checked = !!CONFIG.stackBlocks && (CONFIG.activeBlocks || 1) > 1;
-  }
-  for (let i = 0; i < BLOCKS.length; i++) {
-    drawBlock(i);
-  }
-  drawCombinedWholeOverlay();
-  syncLegacyConfig();
-}
-
-function setN(index, next) {
-  normalizeConfig();
-  const cfg = CONFIG.blocks[index];
-  if (!cfg) return;
-  cfg.n = clamp(next, CONFIG.minN, CONFIG.maxN);
-  if (cfg.k > cfg.n) cfg.k = cfg.n;
-  if (index === 0) {
-    CONFIG.n = cfg.n;
-    CONFIG.k = cfg.k;
-  }
-  draw();
-}
-
-function setK(index, next) {
-  normalizeConfig();
-  const cfg = CONFIG.blocks[index];
-  if (!cfg) return;
-  cfg.k = clamp(next, 0, cfg.n);
-  if (index === 0) CONFIG.k = cfg.k;
-  draw();
-}
-
-function setupSettingsUI() {
-  const maps = [
-    {
-      total: 'cfg-total-1',
-      n: 'cfg-n-1',
-      k: 'cfg-k-1',
-      showWhole: 'cfg-show-whole-1',
-      lockN: 'cfg-lock-n-1',
-      lockK: 'cfg-lock-k-1',
-      hideN: 'cfg-hide-n-1',
-      display: 'cfg-display-1'
-    },
-    {
-      total: 'cfg-total-2',
-      n: 'cfg-n-2',
-      k: 'cfg-k-2',
-      showWhole: 'cfg-show-whole-2',
-      lockN: 'cfg-lock-n-2',
-      lockK: 'cfg-lock-k-2',
-      hideN: 'cfg-hide-n-2',
-      display: 'cfg-display-2'
-    }
-  ];
-  maps.forEach((ids, index) => {
-    const total = document.getElementById(ids.total);
-    const n = document.getElementById(ids.n);
-    const k = document.getElementById(ids.k);
-    const showWhole = document.getElementById(ids.showWhole);
-    const lockN = document.getElementById(ids.lockN);
-    const lockK = document.getElementById(ids.lockK);
-    const hideN = document.getElementById(ids.hideN);
-    const display = document.getElementById(ids.display);
-    settingsInputs[index] = { total, n, k, showWhole, lockN, lockK, hideN, display };
-
-    total?.addEventListener('change', () => {
-      const v = parseFloat(total.value);
-      if (!Number.isNaN(v)) {
-        normalizeConfig();
-        CONFIG.blocks[index].total = v;
-        if (index === 0) CONFIG.total = v;
-        draw();
-      }
-    });
-    n?.addEventListener('change', () => {
-      const v = parseInt(n.value, 10);
-      if (!Number.isNaN(v)) setN(index, v);
-    });
-    k?.addEventListener('change', () => {
-      const v = parseInt(k.value, 10);
-      if (!Number.isNaN(v)) setK(index, v);
-    });
-    showWhole?.addEventListener('change', () => {
-      normalizeConfig();
-      CONFIG.blocks[index].showWhole = !!showWhole.checked;
-      if (index === 0) CONFIG.showWhole = CONFIG.blocks[0].showWhole;
-      draw();
-    });
-    lockN?.addEventListener('change', () => {
-      normalizeConfig();
-      CONFIG.blocks[index].lockDenominator = !!lockN.checked;
-      if (index === 0) CONFIG.lockDenominator = CONFIG.blocks[0].lockDenominator;
-      draw();
-    });
-    lockK?.addEventListener('change', () => {
-      normalizeConfig();
-      CONFIG.blocks[index].lockNumerator = !!lockK.checked;
-      if (index === 0) CONFIG.lockNumerator = CONFIG.blocks[0].lockNumerator;
-      draw();
-    });
-    hideN?.addEventListener('change', () => {
-      normalizeConfig();
-      CONFIG.blocks[index].hideNValue = !!hideN.checked;
-      if (index === 0) CONFIG.hideNValue = CONFIG.blocks[0].hideNValue;
-      draw();
-    });
-    display?.addEventListener('change', () => {
-      normalizeConfig();
-      const cfg = CONFIG.blocks[index];
-      if (!cfg) return;
-      applyDisplayMode(cfg, display.value, cfg.valueDisplay);
-      if (index === 0) {
-        CONFIG.valueDisplay = cfg.valueDisplay;
-        CONFIG.showFraction = cfg.showFraction;
-        CONFIG.showPercent = cfg.showPercent;
-      }
-      draw();
-    });
-  });
-}
-
-// init
-window.CONFIG = CONFIG;
-window.draw = draw;
-draw();

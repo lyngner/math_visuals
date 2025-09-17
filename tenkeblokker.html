@@ -23,53 +23,38 @@
     }
     .card h2{margin:0 0 6px 2px;font-size:16px;font-weight:600;color:#374151;}
     /* Figur */
-    .tb-panels{
+    .tb-board{
       position:relative;
-      display:flex;
-      flex-direction:row;
-      gap:0;
-      justify-content:center;
-      align-items:flex-start;
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      grid-template-rows:minmax(0,1fr) auto;
+      gap:var(--gap);
+      align-items:start;
+    }
+    .tb-grid{
+      grid-column:1;
+      grid-row:1;
+      display:grid;
+      gap:var(--gap);
       padding:12px 4px 4px;
-      flex-wrap:nowrap;
-      overflow-x:auto;
-      --tb-svg-width:min(420px,88vw);
+      justify-items:center;
     }
-    .tb-panels.two:not(.stacked){
-      gap:0;
-      justify-content:flex-start;
-      --tb-svg-width:calc(min(420px,44vw) * 830 / 900);
-    }
-    .tb-panels.two.stacked{
-      --tb-svg-width:min(420px,88vw);
-    }
-    .tb-panels.stacked{
-      flex-direction:column;
-      align-items:center;
-      justify-content:flex-start;
-      row-gap:var(--tb-stack-gap, 24px);
-      overflow-x:visible;
-    }
-    .tb-panels.stacked > *{width:100%;}
-    .tb-panels > *{flex:0 0 auto;}
-    .tb-panel{display:flex;flex-direction:column;align-items:center;gap:16px;max-width:420px;}
-    .tb-svg{width:var(--tb-svg-width);height:auto;background:#fff;}
+    .tb-grid[data-cols="1"]{grid-template-columns:repeat(1,minmax(0,1fr));}
+    .tb-grid[data-cols="2"]{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .tb-grid[data-cols="3"]{grid-template-columns:repeat(3,minmax(0,1fr));}
+    .tb-panel{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;max-width:420px;}
+    .tb-svg{width:var(--tb-svg-width,min(420px,88vw));height:auto;background:#fff;}
+    .tb-board .addFigureBtn{align-self:center;justify-self:center;}
+    .tb-add-right{grid-column:2;grid-row:1;}
+    .tb-add-bottom{grid-column:1;grid-row:2;}
     .tb-header{width:100%;display:flex;flex-direction:column;align-items:center;gap:6px;}
     .tb-header:empty{display:none;}
     .tb-panel .removeFigureBtn{align-self:center;}
     .tb-settings{
-      display:flex;
-      flex-direction:column;
+      display:grid;
       gap:var(--gap);
-      align-items:stretch;
-    }
-    .tb-settings.two{
-      flex-direction:row;
-      flex-wrap:wrap;
-    }
-    .tb-settings.two fieldset{
-      flex:1 1 160px;
-      min-width:0;
+      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+      align-items:start;
     }
     .addFigureBtn{
       width:clamp(30px,7.5vw,60px);
@@ -86,8 +71,7 @@
       justify-self:center;
       align-self:center;
     }
-    .tb-panels .addFigureBtn{margin-left:clamp(16px,2vw,28px);}
-    .tb-panels.stacked .addFigureBtn{margin-left:0;margin-top:clamp(16px,2vw,28px);}
+    .tb-grid .addFigureBtn{margin:0;}
     .tb-rect{fill:#e8eedf}
     .tb-rect-empty{fill:#ffffff}
     .tb-frame{fill:none;stroke:#333;stroke-width:6}
@@ -137,29 +121,10 @@
   <div class="wrap">
     <div class="grid">
       <div class="card">
-        <div id="tbPanels" class="tb-panels">
-          <div id="tbPanel1" class="tb-panel">
-            <div class="tb-header" id="tbHeader1"></div>
-            <svg id="thinkBlocks1" class="tb-svg" viewBox="0 0 900 420" aria-label="Tenkeblokker 1"></svg>
-            <div class="tb-stepper" aria-label="Antall blokker i tenkeblokker 1">
-              <button id="tbMinus1" type="button" aria-label="Færre blokker">−</button>
-              <span id="tbNVal1">1</span>
-              <button id="tbPlus1" type="button" aria-label="Flere blokker">+</button>
-            </div>
-          </div>
-
-          <div id="tbPanel2" class="tb-panel" style="display:none">
-            <div class="tb-header" id="tbHeader2"></div>
-            <svg id="thinkBlocks2" class="tb-svg" viewBox="0 0 900 420" aria-label="Tenkeblokker 2"></svg>
-            <div class="tb-stepper" aria-label="Antall blokker i tenkeblokker 2">
-              <button id="tbMinus2" type="button" aria-label="Færre blokker">−</button>
-              <span id="tbNVal2">1</span>
-              <button id="tbPlus2" type="button" aria-label="Flere blokker">+</button>
-            </div>
-            <button id="tbRemove" class="btn removeFigureBtn" type="button" aria-label="Fjern figur">Fjern figur</button>
-          </div>
-
-          <button id="tbAdd" class="addFigureBtn" type="button" aria-label="Legg til tenkeblokker">+</button>
+        <div id="tbBoard" class="tb-board">
+          <div id="tbGrid" class="tb-grid" data-cols="1"></div>
+          <button id="tbAddColumn" class="addFigureBtn tb-add-right" type="button" aria-label="Legg til kolonne">+</button>
+          <button id="tbAddRow" class="addFigureBtn tb-add-bottom" type="button" aria-label="Legg til rad">+</button>
         </div>
       </div>
       <div class="side">
@@ -177,85 +142,10 @@
           </div>
         </div>
         <div class="card card--settings">
-          <div id="tbSettings" class="tb-settings">
-            <fieldset id="cfg-fieldset-1">
-              <legend>Tenkeblokker 1</legend>
-              <label>Total
-                <input id="cfg-total-1" type="number" min="1" value="50" />
-              </label>
-              <label>Antall blokker
-                <input id="cfg-n-1" type="number" min="1" max="12" value="1" />
-              </label>
-              <label>Fylte blokker
-                <input id="cfg-k-1" type="number" min="0" max="1" value="1" />
-              </label>
-              <div class="checkbox-row">
-                <input id="cfg-show-whole-1" type="checkbox" checked />
-                <label for="cfg-show-whole-1">Vis hele</label>
-              </div>
-              <div class="checkbox-row">
-                <input id="cfg-lock-n-1" type="checkbox" />
-                <label for="cfg-lock-n-1">Lås nevner</label>
-              </div>
-              <div class="checkbox-row">
-                <input id="cfg-lock-k-1" type="checkbox" />
-                <label for="cfg-lock-k-1">Lås teller</label>
-              </div>
-              <div class="checkbox-row">
-                <input id="cfg-hide-n-1" type="checkbox" />
-                <label for="cfg-hide-n-1">Skjul n-verdi</label>
-              </div>
-              <label>Vis som
-                <select id="cfg-display-1">
-                  <option value="number">Tall</option>
-                  <option value="fraction">Brøk</option>
-                  <option value="percent">Prosent</option>
-                </select>
-              </label>
-            </fieldset>
-            <fieldset id="cfg-fieldset-2" style="display:none">
-              <legend>Tenkeblokker 2</legend>
-              <label>Total
-                <input id="cfg-total-2" type="number" min="1" value="50" />
-              </label>
-              <label>Antall blokker
-                <input id="cfg-n-2" type="number" min="1" max="12" value="1" />
-              </label>
-              <label>Fylte blokker
-                <input id="cfg-k-2" type="number" min="0" max="1" value="0" />
-              </label>
-              <div class="checkbox-row">
-                <input id="cfg-show-whole-2" type="checkbox" checked />
-                <label for="cfg-show-whole-2">Vis hele</label>
-              </div>
-              <div class="checkbox-row">
-                <input id="cfg-lock-n-2" type="checkbox" />
-                <label for="cfg-lock-n-2">Lås nevner</label>
-              </div>
-              <div class="checkbox-row">
-                <input id="cfg-lock-k-2" type="checkbox" />
-                <label for="cfg-lock-k-2">Lås teller</label>
-              </div>
-              <div class="checkbox-row">
-                <input id="cfg-hide-n-2" type="checkbox" />
-                <label for="cfg-hide-n-2">Skjul n-verdi</label>
-              </div>
-              <label>Vis som
-                <select id="cfg-display-2">
-                  <option value="number">Tall</option>
-                  <option value="fraction">Brøk</option>
-                  <option value="percent">Prosent</option>
-                </select>
-              </label>
-            </fieldset>
-            <div id="cfg-stack-row" class="checkbox-row" style="display:none">
-              <input id="cfg-stack-blocks" type="checkbox" />
-              <label for="cfg-stack-blocks">Legg blokker under hverandre</label>
-            </div>
-            <div id="cfg-show-combined-row" class="checkbox-row" style="display:none">
-              <input id="cfg-show-combined-whole" type="checkbox" />
-              <label for="cfg-show-combined-whole">Vis helhet over begge</label>
-            </div>
+          <div id="tbSettings" class="tb-settings"></div>
+          <div id="cfg-show-combined-row" class="checkbox-row" style="display:none">
+            <input id="cfg-show-combined-whole" type="checkbox" />
+            <label for="cfg-show-combined-whole">Vis helhet over alle</label>
           </div>
         </div>
       </div>
