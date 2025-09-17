@@ -6,6 +6,33 @@
   let tabButtons = [];
   let defaultEnsureScheduled = false;
   let tabsHostCard = null;
+
+  const hasUrlOverrides = (() => {
+    if(typeof URLSearchParams === 'undefined') return false;
+    const search = new URLSearchParams(window.location.search);
+    for(const key of search.keys()){
+      if(key === 'example') continue;
+      if(/^fun\d+$/i.test(key) || /^dom\d+$/i.test(key)) return true;
+      switch(key){
+        case 'coords':
+        case 'points':
+        case 'startx':
+        case 'screen':
+        case 'xName':
+        case 'yName':
+        case 'pan':
+        case 'q1':
+        case 'lock':
+          return true;
+        default:
+          break;
+      }
+    }
+    return false;
+  })();
+  if(hasUrlOverrides){
+    initialLoadPerformed = true;
+  }
   function getExamples(){
     try{ return JSON.parse(localStorage.getItem(key)) || []; }
     catch{ return []; }
@@ -272,6 +299,7 @@
   }
   // Load example if viewer requested
   (function(){
+    if(hasUrlOverrides) return;
     const loadInfo = localStorage.getItem('example_to_load');
     if(!loadInfo) return;
     try{
