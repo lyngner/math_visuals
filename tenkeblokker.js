@@ -443,6 +443,33 @@ function getCombinedTotal(count = clamp(CONFIG.activeBlocks || 1, 1, 2)) {
   return sum;
 }
 
+function getBlockClientMetrics(block) {
+  if (!block?.svg) return null;
+  const rect = block.svg.getBoundingClientRect();
+  if (!(rect?.width > 0) || !(rect?.height > 0)) return null;
+
+  const layout = block.layout || getBlockLayout(block.index);
+  const layoutLeft = typeof layout?.left === 'number' ? layout.left : NaN;
+  const layoutRight = typeof layout?.right === 'number' ? layout.right : NaN;
+  if (!Number.isFinite(layoutLeft) || !Number.isFinite(layoutRight)) return null;
+
+  const vb = block.svg.viewBox?.baseVal;
+  const vbMinX = typeof vb?.x === 'number' ? vb.x : 0;
+  const vbWidth = typeof vb?.width === 'number' && vb.width > 0 ? vb.width : VBW;
+  if (!(vbWidth > 0)) return null;
+
+  const scaleX = rect.width / vbWidth;
+  const left = rect.left + (layoutLeft - vbMinX) * scaleX;
+  const right = rect.left + (layoutRight - vbMinX) * scaleX;
+
+  return {
+    left,
+    right,
+    top: rect.top,
+    bottom: rect.bottom
+  };
+}
+
 function drawCombinedWholeOverlay() {
   const overlay = combinedWholeOverlay;
   if (!overlay?.svg) return;
@@ -463,18 +490,18 @@ function drawCombinedWholeOverlay() {
     return;
   }
 
-  const rect1 = firstBlock.svg.getBoundingClientRect();
-  const rect2 = secondBlock.svg.getBoundingClientRect();
-  if (!rect1.width || !rect2.width) {
+  const metrics1 = getBlockClientMetrics(firstBlock);
+  const metrics2 = getBlockClientMetrics(secondBlock);
+  if (!metrics1 || !metrics2) {
     overlay.svg.style.display = 'none';
     return;
   }
 
   const containerRect = container.getBoundingClientRect();
-  const left = Math.min(rect1.left, rect2.left);
-  const right = Math.max(rect1.right, rect2.right);
-  const top = Math.min(rect1.top, rect2.top);
-  const bottom = Math.max(rect1.bottom, rect2.bottom);
+  const left = Math.min(metrics1.left, metrics2.left);
+  const right = Math.max(metrics1.right, metrics2.right);
+  const top = Math.min(metrics1.top, metrics2.top);
+  const bottom = Math.max(metrics1.bottom, metrics2.bottom);
   const width = right - left;
   const height = bottom - top;
   if (!(width > 0) || !(height > 0)) {
