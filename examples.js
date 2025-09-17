@@ -41,6 +41,49 @@
     localStorage.setItem(key, JSON.stringify(examples));
   }
   const BINDING_NAMES = ['STATE','CFG','CONFIG','SIMPLE'];
+  const DELETED_PROVIDED_KEY = key + '_deletedProvidedExamples';
+  let deletedProvidedExamples = null;
+
+  function normalizeKey(value){
+    return (typeof value === 'string' ? value.trim() : '') || '';
+  }
+
+  function getDeletedProvidedExamples(){
+    if(deletedProvidedExamples) return deletedProvidedExamples;
+    deletedProvidedExamples = new Set();
+    try{
+      const stored = localStorage.getItem(DELETED_PROVIDED_KEY);
+      if(stored){
+        const parsed = JSON.parse(stored);
+        if(Array.isArray(parsed)){
+          parsed.forEach(value => {
+            const key = normalizeKey(value);
+            if(key) deletedProvidedExamples.add(key);
+          });
+        }
+      }
+    }catch{
+      deletedProvidedExamples = new Set();
+    }
+    return deletedProvidedExamples;
+  }
+
+  function persistDeletedProvidedExamples(){
+    if(!deletedProvidedExamples) return;
+    try{
+      localStorage.setItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
+    }catch{}
+  }
+
+  function markProvidedExampleDeleted(value){
+    const key = normalizeKey(value);
+    if(!key) return;
+    const set = getDeletedProvidedExamples();
+    if(!set.has(key)){
+      set.add(key);
+      persistDeletedProvidedExamples();
+    }
+  }
 
   function flushPendingChanges(){
     const fields = document.querySelectorAll('input, textarea, select');
@@ -556,7 +599,13 @@
     }
     indexToRemove = Math.max(0, Math.min(examples.length - 1, indexToRemove));
 
-    examples.splice(indexToRemove, 1);
+    const removed = examples.splice(indexToRemove, 1);
+    if(removed && removed.length){
+      const removedExample = removed[0];
+      if(removedExample && typeof removedExample === 'object'){
+        markProvidedExampleDeleted(removedExample.__builtinKey);
+      }
+    }
 
     examples.forEach((ex, idx)=>{
       if(!ex || typeof ex !== 'object') return;
@@ -612,6 +661,18 @@
       let examples = getExamples();
       let updated = false;
 
+      const deletedProvided = getDeletedProvidedExamples();
+      let deletedUpdated = false;
+      examples.forEach(ex => {
+        if(!ex || typeof ex !== 'object') return;
+        const key = normalizeKey(ex.__builtinKey);
+        if(key && deletedProvided.has(key)){
+          deletedProvided.delete(key);
+          deletedUpdated = true;
+        }
+      });
+      if(deletedUpdated) persistDeletedProvidedExamples();
+
       const firstValidIndex = examples.findIndex(ex => ex && typeof ex === 'object');
       if(firstValidIndex === -1){
         if(examples.length){
@@ -627,11 +688,15 @@
       }
 
       const providedDefaults = getProvidedExamples();
+      const availableDefaults = providedDefaults.filter(ex => {
+        const key = normalizeKey(ex && ex.__builtinKey);
+        return !key || !deletedProvided.has(key);
+      });
       if(examples.length === 0){
-        if(providedDefaults.length > 0){
-          let defaultIdx = providedDefaults.findIndex(ex => ex.isDefault);
+        if(availableDefaults.length > 0){
+          let defaultIdx = availableDefaults.findIndex(ex => ex.isDefault);
           if(defaultIdx < 0) defaultIdx = 0;
-          examples = providedDefaults.map((ex, idx)=>{
+          examples = availableDefaults.map((ex, idx)=>{
             const copy = {
               config: cloneValue(ex.config),
               svg: typeof ex.svg === 'string' ? ex.svg : ''
@@ -667,14 +732,15 @@
             updated = true;
           }
         }
-        if(providedDefaults.length > 0){
+        if(availableDefaults.length > 0){
           const existingKeys = new Set();
           examples.forEach(ex => {
-            if(ex && typeof ex.__builtinKey === 'string'){ existingKeys.add(ex.__builtinKey); }
+            const key = normalizeKey(ex && ex.__builtinKey);
+            if(key) existingKeys.add(key);
           });
           let appended = false;
-          providedDefaults.forEach(ex => {
-            const key = ex.__builtinKey;
+          availableDefaults.forEach(ex => {
+            const key = normalizeKey(ex.__builtinKey);
             if(key && existingKeys.has(key)) return;
             const copy = {
               config: cloneValue(ex.config),
