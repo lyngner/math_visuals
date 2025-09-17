@@ -71,7 +71,7 @@ const ADV = {
     decimals: 2,
     guideArrows: true,   // bare i funksjons-modus
     snap: {
-      enabled: true,
+      enabled: params.has('snap') ? paramBool('snap') : true,
       mode: 'up',        // 'drag' | 'up'
       stepX: null,       // null => bruk axis.grid.majorX
       stepY: null        // null => bruk axis.grid.majorY
@@ -1284,10 +1284,14 @@ function setupSettingsForm(){
   const gliderRow = document.createElement('div');
   gliderRow.className = 'settings-row glider-row';
   gliderRow.innerHTML = `
-    <label class="points">Punkter
-      <input type="number" data-points min="0" step="1">
+    <label class="points">Antall punkter på grafen
+      <select data-points>
+        <option value="0">0</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+      </select>
     </label>
-    <label>Plassering av punkter (glidende)
+    <label>Start posisjon, x
       <input type="text" data-startx placeholder="-2, 0, 3">
     </label>
   `;
@@ -1298,7 +1302,7 @@ function setupSettingsForm(){
     root.appendChild(gliderRow);
   }
   gliderRow.style.display = 'none';
-  const gliderCountInput = gliderRow.querySelector('input[data-points]');
+  const gliderCountInput = gliderRow.querySelector('[data-points]');
   const gliderStartInput = gliderRow.querySelector('input[data-startx]');
 
   const isCoords = str => /^\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?)(?:\s*;\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?))*\s*$/.test(str);
@@ -1329,7 +1333,8 @@ function setupSettingsForm(){
     if(!gliderCountInput) return 0;
     const n = Number.parseInt(gliderCountInput.value, 10);
     if(!Number.isFinite(n)) return 0;
-    return n > 0 ? n : 0;
+    const clamped = Math.max(0, Math.min(2, n));
+    return clamped > 0 ? clamped : 0;
   };
 
   const shouldEnableGliders = () => {
@@ -1420,10 +1425,12 @@ function setupSettingsForm(){
   };
 
   if(gliderCountInput){
-    gliderCountInput.addEventListener('input', () => {
+    const onCountChange = () => {
       updateStartInputState();
       syncSimpleFromForm();
-    });
+    };
+    gliderCountInput.addEventListener('input', onCountChange);
+    gliderCountInput.addEventListener('change', onCountChange);
   }
   if(gliderStartInput){
     gliderStartInput.addEventListener('input', syncSimpleFromForm);
@@ -1508,7 +1515,8 @@ function setupSettingsForm(){
     appendAddBtn();
     if(gliderCountInput){
       const count = Number.isFinite(SIMPLE_PARSED?.pointsCount) ? SIMPLE_PARSED.pointsCount : 0;
-      gliderCountInput.value = count > 0 ? String(count) : '';
+      const clamped = Math.max(0, Math.min(2, count));
+      gliderCountInput.value = String(clamped);
     }
     if(gliderStartInput){
       const startVals = Array.isArray(SIMPLE_PARSED?.startX)
@@ -1540,6 +1548,10 @@ function setupSettingsForm(){
   g('cfgAxisY').value = paramStr('yName','y');
   g('cfgPan').checked = paramBool('pan');
   g('cfgQ1').checked = paramBool('q1');
+  const snapCheckbox = g('cfgSnap');
+  if(snapCheckbox){
+    snapCheckbox.checked = ADV.points.snap.enabled;
+  }
 
   const apply = () => {
     syncSimpleFromForm();
@@ -1572,6 +1584,10 @@ function setupSettingsForm(){
     if(g('cfgAxisX').value.trim() && g('cfgAxisX').value.trim() !== 'x') p.set('xName', g('cfgAxisX').value.trim());
     if(g('cfgAxisY').value.trim() && g('cfgAxisY').value.trim() !== 'y') p.set('yName', g('cfgAxisY').value.trim());
     if(g('cfgPan').checked) p.set('pan','1');
+    const snapInput = g('cfgSnap');
+    if(snapInput){
+      if(snapInput.checked) p.set('snap','1'); else p.set('snap','0');
+    }
     if(g('cfgQ1').checked) p.set('q1','1');
     location.search = p.toString();
   };
