@@ -711,7 +711,7 @@ function drawBlock(block) {
 
   if (block.svg) {
     block.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-    block.svg.setAttribute('aria-label', `Tenkeblokker ${block.index + 1}`);
+    block.svg.setAttribute('aria-label', `Tenkeblokk ${block.index + 1}`);
     block.svg.setAttribute('preserveAspectRatio', 'none');
   }
 
@@ -732,11 +732,11 @@ function drawBlock(block) {
     block.totalText.textContent = fmt(cfg.total);
   }
   if (block.legend) {
-    block.legend.textContent = `Tenkeblokker ${block.index + 1}`;
+    block.legend.textContent = `Tenkeblokk ${block.index + 1}`;
   }
 
   if (block.stepper) {
-    block.stepper.setAttribute('aria-label', `Antall blokker i tenkeblokker ${block.index + 1}`);
+    block.stepper.setAttribute('aria-label', `Antall blokker i tenkeblokk ${block.index + 1}`);
     block.stepper.style.display = cfg.lockDenominator ? 'none' : '';
   }
 
