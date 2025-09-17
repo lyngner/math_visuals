@@ -259,6 +259,48 @@
     let board;
     let filled = new Map();
 
+    function normalizeFilledEntries(value){
+      let iterable;
+      if(value instanceof Map){
+        iterable = value.entries();
+      }else if(Array.isArray(value)){
+        iterable = value;
+      }else if(value && typeof value[Symbol.iterator] === 'function'){
+        iterable = value;
+      }else if(value && typeof value === 'object'){
+        iterable = Object.entries(value);
+      }else{
+        iterable = [];
+      }
+      const normalized = new Map();
+      for(const entry of iterable){
+        if(entry == null) continue;
+        let pair;
+        if(Array.isArray(entry)) pair = entry;
+        else{
+          try{ pair = Array.from(entry); }
+          catch(_){ continue; }
+        }
+        if(!Array.isArray(pair) || pair.length < 2) continue;
+        const partIndex = Number.parseInt(pair[0], 10);
+        const colorIndex = Number.parseInt(pair[1], 10);
+        if(!Number.isFinite(partIndex) || partIndex < 0) continue;
+        if(!Number.isFinite(colorIndex) || colorIndex <= 0) continue;
+        normalized.set(partIndex, colorIndex);
+      }
+      return Array.from(normalized.entries()).sort((a, b) => a[0] - b[0]);
+    }
+
+    function syncFilledState(entriesOverride, skipMapUpdate){
+      const figState = ensureFigureState(id);
+      const entries = Array.isArray(entriesOverride) ? entriesOverride.slice() : Array.from(filled.entries());
+      entries.sort((a, b) => a[0] - b[0]);
+      if(!skipMapUpdate){
+        filled = new Map(entries);
+      }
+      figState.filled = entries;
+    }
+
     function initBoard(){
       if(board) JXG.JSXGraph.freeBoard(board);
       board = JXG.JSXGraph.initBoard(`box${id}`, {
@@ -285,6 +327,7 @@
         element.setAttribute({fillColor:colors[next-1], fillOpacity:1});
       }
       board.update();
+      syncFilledState();
     }
 
     function gridDims(n){
@@ -305,6 +348,7 @@
     function draw(){
       if(panel.style.display==='none') return;
       const figState = ensureFigureState(id);
+      setFilled(figState.filled);
       initBoard();
       let n = clampInt(partsInp?.value ?? figState.parts ?? 1, 1);
       const shape = shapeSel?.value || figState.shape || 'rectangle';
@@ -788,15 +832,9 @@
     }
 
     function setFilled(next){
-      if(next instanceof Map){
-        filled = new Map(next);
-      }else if(Array.isArray(next)){
-        filled = new Map(next);
-      }else if(next && typeof next[Symbol.iterator] === 'function'){
-        filled = new Map(next);
-      }else{
-        filled = new Map();
-      }
+      const normalized = normalizeFilledEntries(next);
+      filled = new Map(normalized);
+      syncFilledState(normalized, true);
     }
 
     return {draw, panel, toolbar, getFilled, setFilled};
