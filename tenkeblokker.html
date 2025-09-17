@@ -45,8 +45,10 @@
     .tb-panel .tb-stepper{align-self:center;}
     .tb-svg{display:block;width:100%;height:var(--tb-svg-height,260px);background:#fff;overflow:visible;}
     .tb-board .addFigureBtn{align-self:center;justify-self:center;}
-    .tb-add-right{grid-column:2;grid-row:1;}
-    .tb-add-bottom{grid-column:1;grid-row:2;}
+    .tb-controls{display:flex;gap:var(--gap);align-items:center;}
+    .tb-controls--cols{grid-column:2;grid-row:1;flex-direction:column;align-self:center;justify-self:center;}
+    .tb-controls--rows{grid-column:1;grid-row:2;align-self:center;justify-self:center;}
+    .tb-controls .addFigureBtn{margin:0;}
     .tb-header{width:100%;display:flex;flex-direction:column;align-items:center;gap:6px;}
     .tb-header:empty{display:none;}
     .tb-panel .removeFigureBtn{align-self:center;}
@@ -123,8 +125,14 @@
       <div class="card">
         <div id="tbBoard" class="tb-board">
           <div id="tbGrid" class="tb-grid" data-cols="1"></div>
-          <button id="tbAddColumn" class="addFigureBtn tb-add-right" type="button" aria-label="Legg til kolonne">+</button>
-          <button id="tbAddRow" class="addFigureBtn tb-add-bottom" type="button" aria-label="Legg til rad">+</button>
+          <div class="tb-controls tb-controls--cols">
+            <button id="tbAddColumn" class="addFigureBtn" type="button" aria-label="Legg til kolonne">+</button>
+            <button id="tbRemoveColumn" class="addFigureBtn" type="button" aria-label="Fjern kolonne">−</button>
+          </div>
+          <div class="tb-controls tb-controls--rows">
+            <button id="tbAddRow" class="addFigureBtn" type="button" aria-label="Legg til rad">+</button>
+            <button id="tbRemoveRow" class="addFigureBtn" type="button" aria-label="Fjern rad">−</button>
+          </div>
         </div>
       </div>
       <div class="side">
