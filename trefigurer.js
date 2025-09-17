@@ -1704,11 +1704,16 @@
       const info = figures[index];
       if (info) {
         wrapper.classList.remove('is-hidden');
+        const storedView = getStoredView(index);
         renderer.setShape(info);
         if (typeof renderer._handleResize === 'function') {
           renderer._handleResize();
         }
-        applyStoredView(index);
+        if (storedView) {
+          renderer.applyViewState(storedView);
+        } else {
+          applyStoredView(index);
+        }
       } else {
         renderer.clear();
         wrapper.classList.add('is-hidden');
