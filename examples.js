@@ -256,15 +256,26 @@
 
   function collectConfig(){
     flushPendingChanges();
+    const collectionDetail = {svgOverride:null};
     try{
       if(typeof window !== 'undefined' && window){
-        const evt = typeof CustomEvent === 'function'
-          ? new CustomEvent('examples:collect')
-          : new Event('examples:collect');
+        let evt;
+        if(typeof CustomEvent === 'function'){
+          evt = new CustomEvent('examples:collect', {detail:collectionDetail});
+        }else{
+          evt = new Event('examples:collect');
+          try{ evt.detail = collectionDetail; }
+          catch(_){ }
+        }
         window.dispatchEvent(evt);
       }
     }catch(_){
-      try{ window.dispatchEvent(new Event('examples:collect')); }
+      try{
+        const evt = new Event('examples:collect');
+        try{ evt.detail = collectionDetail; }
+        catch(_){ }
+        window.dispatchEvent(evt);
+      }
       catch(_){ }
     }
     const cfg = {};
@@ -274,8 +285,18 @@
         cfg[name] = cloneValue(binding);
       }
     }
-    const svg = document.querySelector('svg');
-    return {config: cfg, svg: svg ? svg.outerHTML : ''};
+    let svgMarkup = '';
+    if(collectionDetail.svgOverride != null){
+      if(typeof collectionDetail.svgOverride === 'string') svgMarkup = collectionDetail.svgOverride;
+      else if(collectionDetail.svgOverride && typeof collectionDetail.svgOverride.outerHTML === 'string'){
+        svgMarkup = collectionDetail.svgOverride.outerHTML;
+      }
+    }
+    if(!svgMarkup){
+      const svg = document.querySelector('svg');
+      svgMarkup = svg ? svg.outerHTML : '';
+    }
+    return {config: cfg, svg: svgMarkup};
   }
 
   function loadExample(index){
