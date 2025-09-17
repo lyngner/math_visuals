@@ -20,14 +20,27 @@
     @media(max-width:980px){.grid{grid-template-columns:1fr;}}
     .side{display:flex;flex-direction:column;gap:var(--gap);}
     .grid2{
-      display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:24px;
-      align-items:start;
+      --panel-min: clamp(240px, 42vw, 520px);
+      display:flex;
+      flex-wrap:wrap;
+      gap:clamp(16px,2vw,28px);
+      align-items:flex-start;
+      justify-content:center;
+      padding-bottom:8px;
     }
-    .figurePanel{display:grid;place-items:center;gap:10px;}
+    .figurePanel{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:12px;
+      flex:1 1 var(--panel-min);
+      min-width:var(--panel-min);
+      max-width:520px;
+    }
     .addFigureBtn{
-      width:clamp(30px,7.5vw,60px);
+      --btn-size: clamp(36px, calc(var(--panel-min, 240px) * 0.25), 60px);
+      flex:0 0 var(--btn-size);
+      width:var(--btn-size);
       aspect-ratio:1;
       border:2px dashed #cfcfcf;
       border-radius:10px;
@@ -38,16 +51,15 @@
       font-size:20px;
       color:#6b7280;
       cursor:pointer;
-      justify-self:center;
       align-self:center;
     }
     .figurePanel .removeFigureBtn{
       margin-top:2px;
       align-self:center;
     }
-    @media(max-width:420px){
-      .grid2{grid-template-columns:1fr;gap:16px;}
-      .figure .box{width:clamp(240px,92vw,360px);}
+    @media(max-width:600px){
+      .grid2{--panel-min:min(92vw, 360px);}
+      .figurePanel{min-width:min(100%, var(--panel-min));}
     }
     .card{
       background:#fff;border:1px solid #e5e7eb;border-radius:14px;
@@ -55,9 +67,9 @@
       flex-direction:column;gap:10px;
     }
     .card h2{margin:0 0 6px 2px;font-size:16px;font-weight:600;color:#374151;}
-    .figure{border-radius:10px;background:#fff;overflow:visible;border:none;}
+    .figure{width:100%;border-radius:10px;background:#fff;overflow:visible;border:none;}
     .figure .box{
-      width:clamp(100px,32vw,360px);
+      width:100%;
       aspect-ratio:1;
       margin:0 auto;
     }
