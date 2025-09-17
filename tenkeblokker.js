@@ -45,6 +45,57 @@ function applyDisplayMode(cfg, mode, fallback = 'number') {
   return normalized;
 }
 
+function getHiddenNumber(target, key) {
+  if (!target || typeof target !== 'object') return null;
+  const value = target[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function setHiddenNumber(target, key, value) {
+  if (!target || typeof target !== 'object') return;
+  Object.defineProperty(target, key, {
+    value,
+    writable: true,
+    configurable: true,
+    enumerable: false
+  });
+}
+
+function getHiddenBoolean(target, key) {
+  if (!target || typeof target !== 'object') return false;
+  return target[key] === true;
+}
+
+function setHiddenFlag(target, key, value) {
+  if (!target || typeof target !== 'object') return;
+  Object.defineProperty(target, key, {
+    value: !!value,
+    writable: true,
+    configurable: true,
+    enumerable: false
+  });
+}
+
+function isMeaningfulBlockCell(cell) {
+  if (cell == null) return false;
+  if (typeof cell === 'object') {
+    try {
+      return Object.keys(cell).length > 0;
+    } catch (err) {
+      return true;
+    }
+  }
+  return true;
+}
+
+function countMeaningfulColumns(row) {
+  if (!Array.isArray(row)) return 0;
+  for (let i = row.length - 1; i >= 0; i--) {
+    if (isMeaningfulBlockCell(row[i])) return i + 1;
+  }
+  return 0;
+}
+
 function getDefaultBlock(index = 0) {
   const base = DEFAULT_BLOCKS[index] || DEFAULT_BLOCKS[DEFAULT_BLOCKS.length - 1];
   return { ...base };
@@ -95,6 +146,7 @@ if (typeof window !== 'undefined') {
 addColumnBtn?.addEventListener('click', () => {
   if (CONFIG.cols >= 3) return;
   const current = Number.isFinite(CONFIG.cols) ? CONFIG.cols : 1;
+  setHiddenFlag(CONFIG, '__colsDirty', true);
   CONFIG.cols = Math.min(3, current + 1);
   draw();
 });
@@ -102,6 +154,7 @@ addColumnBtn?.addEventListener('click', () => {
 addRowBtn?.addEventListener('click', () => {
   if (CONFIG.rows >= 3) return;
   const current = Number.isFinite(CONFIG.rows) ? CONFIG.rows : 1;
+  setHiddenFlag(CONFIG, '__rowsDirty', true);
   CONFIG.rows = Math.min(3, current + 1);
   draw();
 });
@@ -252,6 +305,23 @@ function normalizeConfig(initial = false) {
     structureChanged = true;
   }
 
+  let usedRows = 0;
+  let usedCols = 0;
+  if (Array.isArray(CONFIG.blocks)) {
+    for (let r = 0; r < CONFIG.blocks.length; r++) {
+      const colsUsed = countMeaningfulColumns(CONFIG.blocks[r]);
+      if (colsUsed > 0) {
+        usedRows = Math.max(usedRows, r + 1);
+        usedCols = Math.max(usedCols, colsUsed);
+      }
+    }
+  }
+  usedRows = clamp(usedRows, 0, 3);
+  usedCols = clamp(usedCols, 0, 3);
+
+  const rowsDirty = getHiddenBoolean(CONFIG, '__rowsDirty');
+  const colsDirty = getHiddenBoolean(CONFIG, '__colsDirty');
+
   const hasNested = CONFIG.blocks.some(item => Array.isArray(item));
   if (!hasNested) {
     const flat = CONFIG.blocks;
@@ -286,14 +356,26 @@ function normalizeConfig(initial = false) {
   } else {
     let rows = Number.isFinite(CONFIG.rows) ? Math.round(CONFIG.rows) : CONFIG.blocks.length || 1;
     rows = clamp(rows, 1, 3);
-    let cols = Number.isFinite(CONFIG.cols) ? Math.round(CONFIG.cols) : 0;
-    if (!(cols >= 1)) {
-      cols = 1;
-      for (const row of CONFIG.blocks) {
-        if (Array.isArray(row) && row.length > cols) cols = Math.min(3, row.length);
+    if (usedRows > 0) {
+      if (rows < usedRows) {
+        rows = usedRows;
+      } else if (!rowsDirty && rows > usedRows) {
+        rows = usedRows;
       }
     }
+
+    let cols = Number.isFinite(CONFIG.cols) ? Math.round(CONFIG.cols) : 0;
+    if (!(cols >= 1)) {
+      cols = usedCols > 0 ? usedCols : 1;
+    }
     cols = clamp(cols, 1, 3);
+    if (usedCols > 0) {
+      if (cols < usedCols) {
+        cols = usedCols;
+      } else if (!colsDirty && cols > usedCols) {
+        cols = usedCols;
+      }
+    }
 
     if (CONFIG.blocks.length !== rows) structureChanged = true;
     CONFIG.blocks.length = rows;
@@ -335,6 +417,11 @@ function normalizeConfig(initial = false) {
 
   CONFIG.activeBlocks = rows * cols;
   CONFIG.showCombinedWhole = toBoolean(CONFIG.showCombinedWhole, false);
+
+  setHiddenNumber(CONFIG, '__lastNormalizedRows', rows);
+  setHiddenNumber(CONFIG, '__lastNormalizedCols', cols);
+  setHiddenFlag(CONFIG, '__rowsDirty', false);
+  setHiddenFlag(CONFIG, '__colsDirty', false);
 
   if (!initial && CONFIG.stackBlocks !== undefined) {
     delete CONFIG.stackBlocks;
