@@ -28,7 +28,8 @@ const CONFIG = {
   minN: 1,
   maxN: 12,
   blocks: DEFAULT_BLOCKS.map(block => ({ ...block })),
-  activeBlocks: 1
+  activeBlocks: 1,
+  showCombinedWhole: false
 };
 
 CONFIG.total = CONFIG.blocks[0].total;
@@ -65,9 +66,18 @@ const panels = {
 };
 
 const settingsContainer = document.getElementById('tbSettings');
+const combinedWholeControls = {
+  row: document.getElementById('cfg-show-combined-row'),
+  checkbox: document.getElementById('cfg-show-combined-whole')
+};
 
 createBlock(0);
 createBlock(1);
+
+const combinedWholeOverlay = createCombinedWholeOverlay();
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', () => drawCombinedWholeOverlay());
+}
 
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
@@ -78,6 +88,12 @@ btnSvg?.addEventListener('click', () => {
 btnPng?.addEventListener('click', () => {
   const exportSvg = getExportSvg();
   if (exportSvg) downloadPNG(exportSvg, 'tenkeblokker.png', 2);
+});
+
+combinedWholeControls.checkbox?.addEventListener('change', () => {
+  normalizeConfig();
+  CONFIG.showCombinedWhole = !!combinedWholeControls.checkbox.checked;
+  draw();
 });
 
 panels.addBtn?.addEventListener('click', () => {
@@ -315,6 +331,25 @@ function getExportSvg() {
     exportSvg.appendChild(g);
     if (i < count - 1) x += layouts[i]?.width ?? 0;
   }
+
+  if (count > 1 && CONFIG.showCombinedWhole) {
+    const totalWidth = layouts.reduce((sum, layout) => sum + (layout?.width ?? 0), 0);
+    if (totalWidth > 0) {
+      const startX = SIDE_MARGIN;
+      const endX = startX + totalWidth;
+      const braceGroup = createSvgElement(exportSvg, 'g', { class: 'tb-combined-brace' });
+      drawBracketSquare(braceGroup, startX, endX, BRACE_Y, BRACKET_TICK);
+      const textAttrs = {
+        x: (startX + endX) / 2,
+        y: BRACE_Y - LABEL_OFFSET_Y,
+        class: 'tb-total',
+        'text-anchor': 'middle'
+      };
+      const totalText = createSvgElement(braceGroup, 'text', textAttrs);
+      const totalValue = getCombinedTotal(count);
+      totalText.textContent = Number.isFinite(totalValue) ? fmt(totalValue) : '';
+    }
+  }
   return exportSvg;
 }
 
@@ -374,6 +409,100 @@ function createBlock(index) {
 
   BLOCKS[index] = block;
   return block;
+}
+
+function createCombinedWholeOverlay() {
+  const container = panels.container;
+  if (!container) return null;
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('class', 'tb-combined-whole');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.display = 'none';
+  svg.style.width = '0';
+  svg.style.height = '0';
+  container.appendChild(svg);
+  const group = createSvgElement(svg, 'g');
+  group.setAttribute('class', 'tb-combined-brace');
+  const text = createSvgElement(group, 'text', {
+    class: 'tb-total',
+    'text-anchor': 'middle'
+  });
+  return { svg, group, text };
+}
+
+function getCombinedTotal(count = clamp(CONFIG.activeBlocks || 1, 1, 2)) {
+  let sum = 0;
+  for (let i = 0; i < count; i++) {
+    const block = CONFIG.blocks[i];
+    if (!block) return NaN;
+    const value = typeof block.total === 'number' ? block.total : NaN;
+    if (!Number.isFinite(value)) return NaN;
+    sum += value;
+  }
+  return sum;
+}
+
+function drawCombinedWholeOverlay() {
+  const overlay = combinedWholeOverlay;
+  if (!overlay?.svg) return;
+  const container = panels.container;
+  if (!container) return;
+
+  const count = clamp(CONFIG.activeBlocks || 1, 1, 2);
+  const showCombined = count > 1 && CONFIG.showCombinedWhole;
+  if (!showCombined) {
+    overlay.svg.style.display = 'none';
+    return;
+  }
+
+  const firstBlock = BLOCKS[0];
+  const secondBlock = BLOCKS[1];
+  if (!firstBlock?.svg || !secondBlock?.svg) {
+    overlay.svg.style.display = 'none';
+    return;
+  }
+
+  const rect1 = firstBlock.svg.getBoundingClientRect();
+  const rect2 = secondBlock.svg.getBoundingClientRect();
+  if (!rect1.width || !rect2.width) {
+    overlay.svg.style.display = 'none';
+    return;
+  }
+
+  const containerRect = container.getBoundingClientRect();
+  const left = Math.min(rect1.left, rect2.left);
+  const right = Math.max(rect1.right, rect2.right);
+  const top = Math.min(rect1.top, rect2.top);
+  const bottom = Math.max(rect1.bottom, rect2.bottom);
+  const width = right - left;
+  const height = bottom - top;
+  if (!(width > 0) || !(height > 0)) {
+    overlay.svg.style.display = 'none';
+    return;
+  }
+
+  overlay.svg.style.display = '';
+  overlay.svg.style.left = `${left - containerRect.left}px`;
+  overlay.svg.style.top = `${top - containerRect.top}px`;
+  overlay.svg.style.width = `${width}px`;
+  overlay.svg.style.height = `${height}px`;
+  overlay.svg.setAttribute('width', width);
+  overlay.svg.setAttribute('height', height);
+  overlay.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  overlay.svg.setAttribute('preserveAspectRatio', 'none');
+
+  const braceY = (BRACE_Y / VBH) * height;
+  const tick = (BRACKET_TICK / VBH) * height;
+  drawBracketSquare(overlay.group, 0, width, braceY, tick);
+
+  if (overlay.text) {
+    const labelY = braceY - (LABEL_OFFSET_Y / VBH) * height;
+    overlay.text.setAttribute('x', width / 2);
+    overlay.text.setAttribute('y', labelY);
+    const total = getCombinedTotal(count);
+    overlay.text.textContent = Number.isFinite(total) ? fmt(total) : '';
+  }
 }
 
 function onDragStart(block, e) {
@@ -473,6 +602,13 @@ function normalizeConfig() {
   if (typeof CONFIG.activeBlocks !== 'number') CONFIG.activeBlocks = 1;
   CONFIG.activeBlocks = clamp(CONFIG.activeBlocks, 1, 2);
 
+  if (typeof CONFIG.showCombinedWhole === 'string') {
+    const v = CONFIG.showCombinedWhole.trim().toLowerCase();
+    CONFIG.showCombinedWhole = v === 'true' || v === '1' || v === 'yes';
+  } else {
+    CONFIG.showCombinedWhole = !!CONFIG.showCombinedWhole;
+  }
+
   syncLegacyConfig();
 }
 
@@ -499,6 +635,8 @@ function updateVisibility() {
   if (panels.removeBtn) panels.removeBtn.style.display = showSecond ? '' : 'none';
   panels.container?.classList.toggle('two', showSecond);
   settingsContainer?.classList.toggle('two', showSecond);
+  if (combinedWholeControls.row) combinedWholeControls.row.style.display = showSecond ? '' : 'none';
+  if (combinedWholeControls.checkbox) combinedWholeControls.checkbox.disabled = !showSecond;
 }
 
 function drawBlock(index) {
@@ -613,9 +751,13 @@ function drawBlock(index) {
 function draw() {
   normalizeConfig();
   updateVisibility();
+  if (combinedWholeControls.checkbox) {
+    combinedWholeControls.checkbox.checked = !!CONFIG.showCombinedWhole;
+  }
   for (let i = 0; i < BLOCKS.length; i++) {
     drawBlock(i);
   }
+  drawCombinedWholeOverlay();
   syncLegacyConfig();
 }
 
