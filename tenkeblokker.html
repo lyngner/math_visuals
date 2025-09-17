@@ -34,17 +34,16 @@
     .tb-grid{
       grid-column:1;
       grid-row:1;
-      display:grid;
-      column-gap:0;
-      row-gap:var(--gap);
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
       padding:12px 4px 4px;
-      justify-items:center;
+      width:100%;
     }
-    .tb-grid[data-cols="1"]{grid-template-columns:repeat(1,minmax(0,1fr));}
-    .tb-grid[data-cols="2"]{grid-template-columns:repeat(2,minmax(0,1fr));}
-    .tb-grid[data-cols="3"]{grid-template-columns:repeat(3,minmax(0,1fr));}
-    .tb-panel{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;max-width:420px;}
-    .tb-svg{width:min(var(--tb-svg-width,420px),88vw,100%);height:auto;background:#fff;}
+    .tb-row{display:flex;gap:0;width:100%;}
+    .tb-panel{display:flex;flex-direction:column;align-items:stretch;gap:16px;width:100%;min-width:0;}
+    .tb-panel .tb-stepper{align-self:center;}
+    .tb-svg{display:block;width:100%;height:auto;background:#fff;}
     .tb-board .addFigureBtn{align-self:center;justify-self:center;}
     .tb-add-right{grid-column:2;grid-row:1;}
     .tb-add-bottom{grid-column:1;grid-row:2;}
