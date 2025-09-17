@@ -465,6 +465,7 @@ function createBlock(index) {
   svg.innerHTML = '';
 
   const block = { index, svg };
+  block.panel = document.getElementById(`tbPanel${index + 1}`) || null;
   block.gBase   = createSvgElement(svg, 'g');     // bakgrunn
   block.gFill   = createSvgElement(svg, 'g');     // fylte blokker
   block.gSep    = createSvgElement(svg, 'g');     // skillelinjer
@@ -487,6 +488,7 @@ function createBlock(index) {
     header.innerHTML = '';
     header.style.display = 'none';
   }
+  block.header = header || null;
 
   const minus = document.getElementById(`tbMinus${index + 1}`);
   const plus  = document.getElementById(`tbPlus${index + 1}`);
@@ -504,6 +506,32 @@ function createBlock(index) {
   block.plusBtn = plus || null;
   block.nVal = document.getElementById(`tbNVal${index + 1}`) || null;
   block.stepper = block.nVal?.closest('.tb-stepper') || minus?.closest('.tb-stepper') || null;
+
+  if (block.panel && block.stepper && index === 1) {
+    const row = document.createElement('div');
+    row.className = 'tb-inline-row tb-inline-show-whole';
+    const inlineId = `tb-inline-show-whole-${index + 1}`;
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = inlineId;
+    const label = document.createElement('label');
+    label.setAttribute('for', inlineId);
+    label.textContent = 'Vis hele';
+    row.append(checkbox, label);
+    row.style.display = 'none';
+    block.panel.insertBefore(row, block.stepper);
+    checkbox.addEventListener('change', () => {
+      normalizeConfig();
+      const cfg = CONFIG.blocks[index];
+      if (!cfg) return;
+      const nextValue = !!checkbox.checked;
+      if (cfg.showWhole === nextValue) return;
+      cfg.showWhole = nextValue;
+      draw();
+    });
+    block.inlineShowWholeRow = row;
+    block.inlineShowWholeInput = checkbox;
+  }
 
   BLOCKS[index] = block;
   return block;
@@ -876,6 +904,15 @@ function drawBlock(index) {
   if (block.handle) block.handle.style.cursor = cfg.lockNumerator ? 'default' : 'pointer';
 
   const showWhole = !!cfg.showWhole;
+
+  if (block.inlineShowWholeInput) {
+    block.inlineShowWholeInput.checked = showWhole;
+  }
+  if (block.inlineShowWholeRow) {
+    const activeCount = clamp(CONFIG.activeBlocks || 1, 1, 2);
+    const shouldShowInline = index === 1 && isStackedLayout() && index < activeCount;
+    block.inlineShowWholeRow.style.display = shouldShowInline ? '' : 'none';
+  }
 
   if (block.gBrace) block.gBrace.style.display = showWhole ? '' : 'none';
 
