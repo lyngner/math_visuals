@@ -124,6 +124,8 @@
       }
 
       this.controls = null;
+      this.materialColorOverride = null;
+      this.materialOpacity = 1;
       controlsPromise.then(ControlsClass => {
         if (ControlsClass) {
           this._attachControls(ControlsClass);
@@ -416,13 +418,65 @@
       this.currentFrame = null;
     }
 
+    _applyMaterialAppearance() {
+      if (!this.currentShape) return;
+      const override = this.materialColorOverride;
+      const opacity = THREE.MathUtils.clamp(this.materialOpacity, 0.05, 1);
+      this.currentShape.traverse(node => {
+        const matRef = node.material;
+        if (!matRef) return;
+        const materials = Array.isArray(matRef) ? matRef : [matRef];
+        materials.forEach(material => {
+          if (!material || !material.userData || !material.userData.isShapeMaterial) return;
+          const baseColor = material.userData.baseColor;
+          const target = override ?? baseColor;
+          if (typeof target === 'number' && material.color) {
+            material.color.setHex(target);
+          }
+          material.opacity = opacity;
+          material.transparent = opacity < 0.999;
+          material.depthWrite = opacity >= 0.98;
+          material.needsUpdate = true;
+        });
+      });
+    }
+
+    setMaterialColorOverride(color) {
+      if (color == null) {
+        this.materialColorOverride = null;
+      } else if (typeof color === 'number' && Number.isFinite(color)) {
+        this.materialColorOverride = color;
+      } else {
+        return;
+      }
+      this._applyMaterialAppearance();
+    }
+
+    setMaterialOpacity(opacity) {
+      if (!(opacity > 0)) {
+        this.materialOpacity = 0.05;
+      } else {
+        this.materialOpacity = Math.min(Math.max(opacity, 0.05), 1);
+      }
+      this._applyMaterialAppearance();
+    }
+
     createMaterial(color) {
-      return new THREE.MeshStandardMaterial({
-        color,
+      const override = this.materialColorOverride;
+      const opacity = THREE.MathUtils.clamp(this.materialOpacity, 0.05, 1);
+      const finalColor = typeof override === 'number' ? override : color;
+      const material = new THREE.MeshStandardMaterial({
+        color: finalColor,
         metalness: 0,
         roughness: 0.36,
-        flatShading: true
+        flatShading: true,
+        transparent: opacity < 0.999,
+        opacity,
+        depthWrite: opacity >= 0.98
       });
+      material.userData.baseColor = color;
+      material.userData.isShapeMaterial = true;
+      return material;
     }
 
     createEdges(geometry, color = 0x1f2937) {
@@ -499,12 +553,20 @@
 
     addMeasurementLine(targetGroup, start, end, options = {}) {
       if (!targetGroup || !start || !end) return;
-      const points = [start.clone(), end.clone()];
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
-      const material = new THREE.LineBasicMaterial({ color: options.color ?? 0x111827 });
-      const line = new THREE.Line(geometry, material);
-      line.userData.isMeasurement = true;
-      targetGroup.add(line);
+      const direction = end.clone().sub(start);
+      const length = direction.length();
+      if (!(length > 1e-4)) return;
+      const radius = options.thickness ?? 0.05;
+      const geometry = new THREE.CylinderGeometry(radius, radius, length, 24, 1, false);
+      const material = new THREE.MeshBasicMaterial({ color: options.color ?? 0x111827 });
+      material.toneMapped = false;
+      const rod = new THREE.Mesh(geometry, material);
+      rod.userData.isMeasurement = true;
+      rod.position.copy(start).add(end).multiplyScalar(0.5);
+      const up = new THREE.Vector3(0, 1, 0);
+      const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction.normalize());
+      rod.setRotationFromQuaternion(quaternion);
+      targetGroup.add(rod);
 
       const labelText = typeof options.label === 'string' ? options.label.trim() : '';
       if (labelText.length) {
@@ -708,6 +770,7 @@
       this.currentShape = this.createShape(spec);
       this.shapeGroup.add(this.currentShape);
       this._applyFloatingOffset();
+      this._applyMaterialAppearance();
       this.frameCurrentShape();
     }
 
@@ -727,6 +790,51 @@
   const drawBtn = document.getElementById('btnDraw');
   const lockRotationCheckbox = document.getElementById('chkLockRotation');
   const freeFigureCheckbox = document.getElementById('chkFreeFigure');
+  const colorInput = document.getElementById('inpColor');
+  const colorResetBtn = document.getElementById('btnResetColor');
+  const transparencyRange = document.getElementById('rngTransparency');
+  const transparencyLabel = document.getElementById('lblTransparency');
+
+  function clampTransparency(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return 0;
+    return Math.min(Math.max(num, 0), 95);
+  }
+
+  function parseColorHex(value) {
+    if (typeof value !== 'string') return null;
+    const match = value.trim().match(/^#?([0-9a-f]{6})$/i);
+    if (!match) return null;
+    return parseInt(match[1], 16);
+  }
+
+  function updateTransparencyLabel(value) {
+    if (!transparencyLabel) return;
+    const clamped = clampTransparency(value);
+    transparencyLabel.textContent = `${clamped}%`;
+  }
+
+  function applyColor(useCustom, hex) {
+    const parsed = useCustom ? parseColorHex(hex) : null;
+    renderers.forEach(renderer => renderer.setMaterialColorOverride(parsed));
+    if (colorInput) {
+      colorInput.classList.toggle('is-auto', !useCustom);
+    }
+    if (colorResetBtn) {
+      colorResetBtn.disabled = !useCustom;
+    }
+  }
+
+  function applyTransparency(value) {
+    const clamped = clampTransparency(value);
+    const opacity = 1 - clamped / 100;
+    if (transparencyRange && String(clamped) !== transparencyRange.value) {
+      transparencyRange.value = String(clamped);
+    }
+    renderers.forEach(renderer => renderer.setMaterialOpacity(opacity));
+    window.STATE.transparency = clamped;
+    updateTransparencyLabel(clamped);
+  }
 
   const defaultInput = textarea ? textarea.value : 'sylinder radius: r høyde: h';
   window.STATE = window.STATE || {};
@@ -742,11 +850,28 @@
   if (typeof window.STATE.freeFigure !== 'boolean') {
     window.STATE.freeFigure = freeFigureCheckbox ? freeFigureCheckbox.checked : false;
   }
+  const fallbackColor = colorInput && typeof colorInput.value === 'string' && colorInput.value
+    ? colorInput.value
+    : '#3b82f6';
+  if (typeof window.STATE.customColor !== 'string' || !parseColorHex(window.STATE.customColor)) {
+    window.STATE.customColor = fallbackColor;
+  }
+  if (typeof window.STATE.useCustomColor !== 'boolean') {
+    window.STATE.useCustomColor = false;
+  }
+  const initialTransparency = clampTransparency(window.STATE.transparency);
+  window.STATE.transparency = initialTransparency;
   if (lockRotationCheckbox) {
     lockRotationCheckbox.checked = window.STATE.rotationLocked;
   }
   if (freeFigureCheckbox) {
     freeFigureCheckbox.checked = window.STATE.freeFigure;
+  }
+  if (colorInput) {
+    colorInput.value = window.STATE.customColor;
+  }
+  if (transparencyRange) {
+    transparencyRange.value = String(initialTransparency);
   }
 
   const applyRotationLock = locked => {
@@ -758,6 +883,9 @@
     renderers.forEach(renderer => renderer.setFloating(floating));
   };
   applyFloating(window.STATE.freeFigure);
+
+  applyColor(window.STATE.useCustomColor, window.STATE.customColor);
+  applyTransparency(window.STATE.transparency);
 
   function detectType(line) {
     const normalized = line.toLowerCase();
@@ -877,6 +1005,30 @@
       const floating = Boolean(evt.target.checked);
       window.STATE.freeFigure = floating;
       applyFloating(floating);
+    });
+  }
+
+  if (colorInput) {
+    colorInput.addEventListener('input', evt => {
+      const newValue = typeof evt.target.value === 'string' && evt.target.value ? evt.target.value : '#3b82f6';
+      window.STATE.customColor = newValue;
+      window.STATE.useCustomColor = true;
+      applyColor(true, newValue);
+    });
+  }
+
+  if (colorResetBtn) {
+    colorResetBtn.addEventListener('click', () => {
+      window.STATE.useCustomColor = false;
+      applyColor(false, window.STATE.customColor);
+    });
+  }
+
+  if (transparencyRange) {
+    transparencyRange.addEventListener('input', evt => {
+      const value = clampTransparency(evt.target.value);
+      window.STATE.transparency = value;
+      applyTransparency(value);
     });
   }
 

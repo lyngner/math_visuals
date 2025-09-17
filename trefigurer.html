@@ -81,6 +81,56 @@
     .option-row {
       margin-top: 10px;
     }
+    .option-row__header {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .option-row--color {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .option-row--slider {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .option-hint {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .color-controls {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .color-input {
+      width: 44px;
+      height: 28px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 0;
+      background: #fff;
+      cursor: pointer;
+    }
+    .color-input.is-auto {
+      opacity: 0.6;
+    }
+    .range-input {
+      width: 100%;
+      accent-color: #3b82f6;
+    }
+    .btn--small {
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+    .btn--small:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     .checkbox {
       display: inline-flex;
       align-items: center;
@@ -132,13 +182,30 @@
           <div class="small">Du kan bruke <code>:</code> eller <code>=</code>, og skrive egen tekst (bruk gjerne anførselstegn om teksten har mellomrom). Lar du teksten stå tom, vises bare streken.</div>
           <div class="small">Trykk Ctrl+Enter (eller ⌘+Enter) for å tegne mens du skriver.</div>
           <div class="small">Dra i figuren for å rotere. Bruk høyre museknapp (eller to fingre) for å panorere og rullehjul eller pinch for å zoome.</div>
-          <div class="option-row">
+          <div class="option-row option-row--color">
+            <div class="option-row__header">
+              <label for="inpColor">Farge</label>
+              <div class="option-hint">Gjelder alle figurer. Nullstill for å bruke standardfargen.</div>
+            </div>
+            <div class="color-controls">
+              <input id="inpColor" class="color-input" type="color" value="#3b82f6" aria-label="Velg farge" />
+              <button id="btnResetColor" class="btn btn--small" type="button">Nullstill</button>
+            </div>
+          </div>
+          <div class="option-row option-row--slider">
+            <div class="option-row__header">
+              <label for="rngTransparency">Gjennomsiktighet: <span id="lblTransparency">0%</span></label>
+              <div class="option-hint">0% er helt tett, 90% er svært gjennomsiktig.</div>
+            </div>
+            <input id="rngTransparency" class="range-input" type="range" min="0" max="90" step="5" value="0" />
+          </div>
+          <div class="option-row option-row--checkbox">
             <label class="checkbox">
               <input id="chkLockRotation" type="checkbox" />
               <span>Lås rotasjonen</span>
             </label>
           </div>
-          <div class="option-row">
+          <div class="option-row option-row--checkbox">
             <label class="checkbox">
               <input id="chkFreeFigure" type="checkbox" />
               <span>Fri figuren</span>
