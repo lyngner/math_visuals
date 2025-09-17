@@ -476,11 +476,24 @@ function onDragStart(e){
   e.preventDefault();
   const target = e.currentTarget;
   const idx = +target.dataset.index;
-  const series = +target.dataset.series || 0;
+  let series = +target.dataset.series || 0;
   if (locked[idx]) return;
   lastFocusIndex = idx;
 
-  const base = +target.dataset.base || 0;
+  let base = +target.dataset.base || 0;
+
+  if (CFG.type === 'stacked' && values2 && values2.length) {
+    const pointer = clientToSvg(e.clientX, e.clientY);
+    const boundaryY = yPos(values[idx]);
+    const margin = 12;
+    if (series === 1 && pointer.y >= boundaryY - margin) {
+      series = 0;
+      base = 0;
+    } else if (series === 0 && pointer.y < boundaryY - margin) {
+      series = 1;
+      base = values[idx];
+    }
+  }
 
   const move = ev=>{
     ev.preventDefault();
