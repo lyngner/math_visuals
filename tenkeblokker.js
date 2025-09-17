@@ -189,17 +189,49 @@ function clientToSvg(svgEl, clientX, clientY) {
 
 // Firkantparentes (rett linje med «hak» i begge ender)
 function drawBracketSquare(group, x0, x1, y, tick) {
+  if (!group) return;
   const ns = group.ownerSVGElement?.namespaceURI || 'http://www.w3.org/2000/svg';
-  group.innerHTML = '';
+  let path = group.querySelector('path.tb-brace');
+  if (!path) {
+    path = document.createElementNS(ns, 'path');
+    path.setAttribute('class', 'tb-brace');
+    const firstChild = group.firstChild;
+    if (firstChild) group.insertBefore(path, firstChild);
+    else group.appendChild(path);
+  }
   const d = [
     `M ${x0} ${y}`, `v ${tick}`,          // venstre «hak»
     `M ${x0} ${y}`, `H ${x1}`,            // topplinje
     `M ${x1} ${y}`, `v ${tick}`           // høyre «hak»
   ].join(' ');
-  const path = document.createElementNS(ns, 'path');
   path.setAttribute('d', d);
-  path.setAttribute('class', 'tb-brace');
-  group.appendChild(path);
+}
+
+function getBlockLayout(index) {
+  const count = clamp(CONFIG.activeBlocks || 1, 1, 2);
+  const baseWidth = Math.max(R - L, 1);
+  let width = baseWidth;
+
+  if (count > 1) {
+    let maxTotal = 0;
+    const totals = [];
+    for (let i = 0; i < count; i++) {
+      const cfg = CONFIG.blocks[i];
+      const raw = typeof cfg?.total === 'number' && !Number.isNaN(cfg.total) ? Math.abs(cfg.total) : 0;
+      totals[i] = raw;
+      if (raw > maxTotal) maxTotal = raw;
+    }
+    if (maxTotal > 0) {
+      const current = totals[index] ?? maxTotal;
+      width = baseWidth * (current / maxTotal);
+    }
+  }
+
+  width = Math.max(width, 1);
+  const left = L;
+  const right = left + width;
+  const center = left + width / 2;
+  return { left, right, width, center };
 }
 
 function svgToString(svgEl) {
@@ -259,9 +291,13 @@ function getExportSvg() {
   if (count === 1) return firstSvg;
 
   const ns = firstSvg.namespaceURI;
-  const overlap = count > 1 ? SIDE_MARGIN * 2 : 0;
-  const step = VBW - overlap;
-  const width = count > 0 ? VBW + (count - 1) * step : 0;
+  const layouts = [];
+  let width = SIDE_MARGIN * 2;
+  for (let i = 0; i < count; i++) {
+    const layout = getBlockLayout(i);
+    layouts.push(layout);
+    width += layout?.width ?? 0;
+  }
   const exportSvg = document.createElementNS(ns, 'svg');
   exportSvg.setAttribute('viewBox', `0 0 ${width} ${VBH}`);
   exportSvg.setAttribute('width', width);
@@ -277,7 +313,7 @@ function getExportSvg() {
     g.setAttribute('transform', `translate(${x},0)`);
     g.innerHTML = block.svg.innerHTML;
     exportSvg.appendChild(g);
-    if (i < count - 1) x += step;
+    if (i < count - 1) x += layouts[i]?.width ?? 0;
   }
   return exportSvg;
 }
@@ -304,8 +340,8 @@ function createBlock(index) {
   block.gHandle = createSvgElement(svg, 'g');     // håndtak
   block.gBrace  = createSvgElement(svg, 'g');     // parentes + TOTAL
 
-  createSvgElement(block.gBase,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-rect-empty'});
-  createSvgElement(block.gFrame,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-frame'});
+  block.rectEmpty = createSvgElement(block.gBase,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-rect-empty'});
+  block.rectFrame = createSvgElement(block.gFrame,'rect',{x:L,y:TOP,width:R-L,height:BOT-TOP,class:'tb-frame'});
   drawBracketSquare(block.gBrace, L, R, BRACE_Y, BRACKET_TICK);
   block.totalText = createSvgElement(block.gBrace,'text',{x:(L+R)/2,y:BRACE_Y - LABEL_OFFSET_Y,class:'tb-total'});
 
@@ -348,10 +384,16 @@ function onDragStart(block, e) {
   const move = ev => {
     const cfg = CONFIG.blocks[block.index];
     if (!cfg) return;
+    const layout = block.layout || getBlockLayout(block.index);
     const p = clientToSvg(block.svg, ev.clientX, ev.clientY);
-    const x = clamp(p.x, L, R);
-    const cellW = (R - L) / cfg.n;
-    const snapK = Math.round((x - L) / cellW);            // 0..n (kan helt til høyre)
+    const left = layout?.left ?? L;
+    const right = layout?.right ?? R;
+    const width = layout?.width ?? (R - L);
+    const denom = cfg.n || 1;
+    const cellW = width / denom;
+    if (cellW <= 0) return;
+    const x = clamp(p.x, left, right);
+    const snapK = Math.round((x - left) / cellW);            // 0..n (kan helt til høyre)
     setK(block.index, snapK);
   };
   const up = () => {
@@ -464,10 +506,29 @@ function drawBlock(index) {
   const cfg = CONFIG.blocks[index];
   if (!block || !cfg) return;
 
+  const layout = getBlockLayout(index);
+  block.layout = layout;
+  const { left, right, width, center } = layout;
+
   const vb = getBlockViewBox(index);
   if (block.svg && vb) {
     block.svg.setAttribute('viewBox', `${vb.minX} 0 ${vb.width} ${VBH}`);
   }
+
+  if (block.rectEmpty) {
+    block.rectEmpty.setAttribute('x', left);
+    block.rectEmpty.setAttribute('width', width);
+    block.rectEmpty.setAttribute('y', TOP);
+    block.rectEmpty.setAttribute('height', BOT - TOP);
+  }
+  if (block.rectFrame) {
+    block.rectFrame.setAttribute('x', left);
+    block.rectFrame.setAttribute('width', width);
+    block.rectFrame.setAttribute('y', TOP);
+    block.rectFrame.setAttribute('height', BOT - TOP);
+  }
+  drawBracketSquare(block.gBrace, left, right, BRACE_Y, BRACKET_TICK);
+  if (block.totalText) block.totalText.setAttribute('x', center);
 
   block.gFill.innerHTML = '';
   block.gSep.innerHTML = '';
@@ -495,39 +556,41 @@ function drawBlock(index) {
     }
   }
 
-  block.totalText.textContent = fmt(cfg.total);
+  if (block.totalText) block.totalText.textContent = fmt(cfg.total);
 
-  const cellW = (R - L) / cfg.n;
+  const cellW = cfg.n ? width / cfg.n : 0;
 
-  for (let i = 0; i < cfg.k; i++) {
-    createSvgElement(block.gFill, 'rect', { x: L + i * cellW, y: TOP, width: cellW, height: BOT - TOP, class: 'tb-rect' });
-  }
-
-  for (let i = 1; i < cfg.n; i++) {
-    const x = L + i * cellW;
-    createSvgElement(block.gSep, 'line', { x1: x, y1: TOP, x2: x, y2: BOT, class: 'tb-sep' });
-  }
-
-  const displayMode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
-  const per = cfg.n ? cfg.total / cfg.n : 0;
-  const percentValue = cfg.n ? (100 / cfg.n) : 0;
-
-  for (let i = 0; i < cfg.n; i++) {
-    const cx = L + (i + 0.5) * cellW;
-    const cy = (TOP + BOT) / 2;
-    if (displayMode === 'fraction' && cfg.n) {
-      renderFractionLabel(block.gVals, cx, cy, 1, cfg.n);
-      continue;
+  if (cellW > 0) {
+    for (let i = 0; i < cfg.k; i++) {
+      createSvgElement(block.gFill, 'rect', { x: left + i * cellW, y: TOP, width: cellW, height: BOT - TOP, class: 'tb-rect' });
     }
 
-    const text = createSvgElement(block.gVals, 'text', { x: cx, y: cy, class: 'tb-val' });
-    let label = '';
-    if (displayMode === 'percent') label = `${fmt(percentValue)} %`;
-    else label = fmt(per);
-    text.textContent = label;
+    for (let i = 1; i < cfg.n; i++) {
+      const x = left + i * cellW;
+      createSvgElement(block.gSep, 'line', { x1: x, y1: TOP, x2: x, y2: BOT, class: 'tb-sep' });
+    }
+
+    const displayMode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
+    const per = cfg.n ? cfg.total / cfg.n : 0;
+    const percentValue = cfg.n ? (100 / cfg.n) : 0;
+
+    for (let i = 0; i < cfg.n; i++) {
+      const cx = left + (i + 0.5) * cellW;
+      const cy = (TOP + BOT) / 2;
+      if (displayMode === 'fraction' && cfg.n) {
+        renderFractionLabel(block.gVals, cx, cy, 1, cfg.n);
+        continue;
+      }
+
+      const text = createSvgElement(block.gVals, 'text', { x: cx, y: cy, class: 'tb-val' });
+      let label = '';
+      if (displayMode === 'percent') label = `${fmt(percentValue)} %`;
+      else label = fmt(per);
+      text.textContent = label;
+    }
   }
 
-  const hx = L + cfg.k * cellW;
+  const hx = cellW > 0 ? left + cfg.k * cellW : left;
   block.handle?.setAttribute('cx', hx);
   block.handleShadow?.setAttribute('cx', hx);
   if (block.gHandle) block.gHandle.style.display = cfg.lockNumerator ? 'none' : '';
