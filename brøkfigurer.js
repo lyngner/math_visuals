@@ -825,6 +825,36 @@
     STATE.figure2Visible = false;
     window.render();
   });
+
+  window.addEventListener('examples:collect', (event)=>{
+    const detail = event?.detail;
+    if(!detail || detail.svgOverride != null) return;
+    const restore = [];
+    for(const fig of figures){
+      if(!fig || typeof fig.getFilled !== 'function' || typeof fig.setFilled !== 'function') continue;
+      let filled = fig.getFilled();
+      if(filled instanceof Map){
+        if(filled.size === 0) continue;
+      }else if(filled && typeof filled[Symbol.iterator] === 'function'){
+        filled = new Map(filled);
+        if(filled.size === 0) continue;
+      }else{
+        continue;
+      }
+      restore.push({fig, filled});
+    }
+    if(restore.length === 0) return;
+    for(const {fig} of restore){
+      fig.setFilled(new Map());
+    }
+    window.render?.();
+    const svg = document.querySelector('svg');
+    if(svg) detail.svgOverride = svg.outerHTML;
+    for(const {fig, filled} of restore){
+      fig.setFilled(filled);
+    }
+    window.render?.();
+  });
   window.render();
 })();
 
