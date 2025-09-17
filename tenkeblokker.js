@@ -1,8 +1,30 @@
 /* Tenkeblokker – grid layout */
 
 const DEFAULT_BLOCKS = [
-  { total: 50, n: 1, k: 1, showWhole: true, lockDenominator: false, lockNumerator: false, hideNValue: false, valueDisplay: 'number' },
-  { total: 50, n: 1, k: 0, showWhole: true, lockDenominator: false, lockNumerator: false, hideNValue: false, valueDisplay: 'number' }
+  {
+    total: 50,
+    n: 1,
+    k: 1,
+    showWhole: true,
+    lockDenominator: false,
+    lockNumerator: false,
+    hideNValue: false,
+    valueDisplay: 'number',
+    showCustomText: false,
+    customText: ''
+  },
+  {
+    total: 50,
+    n: 1,
+    k: 0,
+    showWhole: true,
+    lockDenominator: false,
+    lockNumerator: false,
+    hideNValue: false,
+    valueDisplay: 'number',
+    showCustomText: false,
+    customText: ''
+  }
 ];
 
 const DISPLAY_OPTIONS = ['number', 'fraction', 'percent'];
@@ -188,6 +210,9 @@ function normalizeBlockConfig(raw, index, existing) {
   target.lockDenominator = toBoolean(source.lockDenominator, toBoolean(defaults.lockDenominator, false));
   target.lockNumerator = toBoolean(source.lockNumerator, toBoolean(defaults.lockNumerator, false));
   target.hideNValue = toBoolean(source.hideNValue, toBoolean(defaults.hideNValue, false));
+  target.showCustomText = toBoolean(source.showCustomText, toBoolean(defaults.showCustomText, false));
+  const textSource = typeof source.customText === 'string' ? source.customText : defaults.customText ?? '';
+  target.customText = textSource;
 
   let desiredDisplay = sanitizeDisplayMode(source.valueDisplay);
   if (!desiredDisplay) {
@@ -417,6 +442,7 @@ function createBlock(row, col, cfg) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'tb-svg');
   svg.setAttribute('viewBox', `0 0 ${VBW} ${VBH}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
   block.svg = svg;
   panel.appendChild(svg);
 
@@ -597,6 +623,38 @@ function createBlock(row, col, cfg) {
   displayLabel.appendChild(displaySelect);
   fieldset.appendChild(displayLabel);
 
+  const customTextToggleRow = document.createElement('div');
+  customTextToggleRow.className = 'checkbox-row';
+  customTextToggleRow.style.display = 'none';
+  const customTextToggle = document.createElement('input');
+  customTextToggle.type = 'checkbox';
+  customTextToggle.id = `${block.uid}-custom-text-toggle`;
+  customTextToggle.addEventListener('change', () => {
+    block.cfg.showCustomText = !!customTextToggle.checked;
+    draw(true);
+  });
+  const customTextToggleLabel = document.createElement('label');
+  customTextToggleLabel.setAttribute('for', customTextToggle.id);
+  customTextToggleLabel.textContent = 'Vis tekst i blokk';
+  customTextToggleRow.append(customTextToggle, customTextToggleLabel);
+  fieldset.appendChild(customTextToggleRow);
+  block.customTextToggleRow = customTextToggleRow;
+
+  const customTextLabel = document.createElement('label');
+  customTextLabel.textContent = 'Tekst i blokk';
+  customTextLabel.style.display = 'none';
+  const customTextInput = document.createElement('input');
+  customTextInput.type = 'text';
+  customTextInput.placeholder = 'Skriv tekst';
+  customTextInput.addEventListener('input', () => {
+    block.cfg.customText = customTextInput.value;
+    draw(true);
+  });
+  customTextLabel.appendChild(customTextInput);
+  fieldset.appendChild(customTextLabel);
+  block.customTextLabel = customTextLabel;
+  block.customTextInput = customTextInput;
+
   block.inputs = {
     total: totalInput,
     n: nInput,
@@ -605,7 +663,9 @@ function createBlock(row, col, cfg) {
     lockN: lockNInput,
     lockK: lockKInput,
     hideN: hideNInput,
-    display: displaySelect
+    display: displaySelect,
+    showCustomText: customTextToggle,
+    customText: customTextInput
   };
 
   return block;
@@ -638,6 +698,7 @@ function drawBlock(block) {
   if (block.svg) {
     block.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     block.svg.setAttribute('aria-label', `Tenkeblokker ${block.index + 1}`);
+    block.svg.setAttribute('preserveAspectRatio', 'none');
   }
 
   block.rectEmpty?.setAttribute('x', left);
@@ -670,11 +731,20 @@ function drawBlock(block) {
     block.nVal.style.display = cfg.hideNValue ? 'none' : '';
   }
 
+  const customTextAvailable = cfg.n === 1;
+  if (block.customTextToggleRow) {
+    block.customTextToggleRow.style.display = customTextAvailable ? '' : 'none';
+  }
+  const customTextEnabled = customTextAvailable && cfg.showCustomText;
+  if (block.customTextLabel) {
+    block.customTextLabel.style.display = customTextEnabled ? '' : 'none';
+  }
+
   if (block.minusBtn) block.minusBtn.disabled = cfg.lockDenominator || cfg.n <= CONFIG.minN;
   if (block.plusBtn) block.plusBtn.disabled = cfg.lockDenominator || cfg.n >= CONFIG.maxN;
 
   if (block.inputs) {
-    const { total, n, k, showWhole, lockN, lockK, hideN, display } = block.inputs;
+    const { total, n, k, showWhole, lockN, lockK, hideN, display, showCustomText, customText } = block.inputs;
     if (total) total.value = cfg.total;
     if (n) {
       n.value = cfg.n;
@@ -695,6 +765,15 @@ function drawBlock(block) {
       const mode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
       display.value = mode;
     }
+    if (showCustomText) {
+      showCustomText.checked = !!cfg.showCustomText;
+      showCustomText.disabled = !customTextAvailable;
+    }
+    if (customText) {
+      const desiredText = typeof cfg.customText === 'string' ? cfg.customText : '';
+      if (customText.value !== desiredText) customText.value = desiredText;
+      customText.disabled = !customTextEnabled;
+    }
   }
 
   block.gFill.innerHTML = '';
@@ -703,6 +782,8 @@ function drawBlock(block) {
 
   const cellW = cfg.n ? innerWidth / cfg.n : 0;
   if (cellW > 0) {
+    const showCustomText = customTextEnabled;
+    const customLabel = typeof cfg.customText === 'string' ? cfg.customText.trim() : '';
     for (let i = 0; i < cfg.k; i++) {
       createSvgElement(block.gFill, 'rect', { x: left + i * cellW, y: top, width: cellW, height: innerHeight, class: 'tb-rect' });
     }
@@ -718,6 +799,11 @@ function drawBlock(block) {
     for (let i = 0; i < cfg.n; i++) {
       const cx = left + (i + 0.5) * cellW;
       const cy = top + innerHeight / 2;
+      if (showCustomText) {
+        const text = createSvgElement(block.gVals, 'text', { x: cx, y: cy, class: 'tb-val' });
+        text.textContent = customLabel;
+        continue;
+      }
       if (displayMode === 'fraction') {
         renderFractionLabel(block.gVals, cx, cy, 1, cfg.n);
         continue;
@@ -891,6 +977,8 @@ function syncLegacyConfig() {
   CONFIG.showFraction = first.showFraction;
   CONFIG.showPercent = first.showPercent;
   CONFIG.valueDisplay = first.valueDisplay;
+  CONFIG.showCustomText = first.showCustomText;
+  CONFIG.customText = first.customText;
   CONFIG.activeBlocks = CONFIG.rows * CONFIG.cols;
 }
 function createSvgElement(parent, name, attrs = {}) {
