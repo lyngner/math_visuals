@@ -786,6 +786,165 @@
     return new ShapeRenderer(canvasWrap);
   });
 
+  const EXPORT_BACKGROUND = '#fdfdfe';
+  let exportToolbars = [];
+
+  function setExportToolbarVisibility(index, visible) {
+    const toolbar = exportToolbars[index];
+    if (!toolbar) return;
+    toolbar.hidden = !visible;
+    toolbar.classList.toggle('is-hidden', !visible);
+    const buttons = toolbar.querySelectorAll('button');
+    buttons.forEach(btn => {
+      btn.disabled = !visible;
+    });
+  }
+
+  function canvasToBlob(canvas) {
+    return new Promise(resolve => {
+      if (!canvas) {
+        resolve(null);
+        return;
+      }
+      if (typeof canvas.toBlob === 'function') {
+        canvas.toBlob(blob => {
+          resolve(blob || null);
+        }, 'image/png');
+        return;
+      }
+      try {
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64 = (dataUrl.split(',')[1] || '').trim();
+        if (!base64) {
+          resolve(null);
+          return;
+        }
+        const binary = atob(base64);
+        const len = binary.length;
+        const array = new Uint8Array(len);
+        for (let i = 0; i < len; i += 1) {
+          array[i] = binary.charCodeAt(i);
+        }
+        resolve(new Blob([array], { type: 'image/png' }));
+      } catch (error) {
+        console.warn('Kunne ikke lage PNG-blob.', error);
+        resolve(null);
+      }
+    });
+  }
+
+  async function captureRendererImage(renderer) {
+    if (!renderer || !renderer.renderer || !renderer.renderer.domElement) return null;
+    const rendererInstance = renderer.renderer;
+    const canvas = rendererInstance.domElement;
+    if (!(canvas.width > 0) || !(canvas.height > 0)) return null;
+    if (typeof rendererInstance.render === 'function') {
+      rendererInstance.render(renderer.scene, renderer.camera);
+    }
+    const sizeVector = new THREE.Vector2();
+    rendererInstance.getSize(sizeVector);
+    const pixelRatio = rendererInstance.getPixelRatio ? rendererInstance.getPixelRatio() : (window.devicePixelRatio || 1);
+    const pixelWidth = Math.max(Math.round(sizeVector.x * pixelRatio), 1);
+    const pixelHeight = Math.max(Math.round(sizeVector.y * pixelRatio), 1);
+    if (!(pixelWidth > 0) || !(pixelHeight > 0)) return null;
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = pixelWidth;
+    exportCanvas.height = pixelHeight;
+    const context = exportCanvas.getContext('2d');
+    if (!context) return null;
+    let backgroundColor = EXPORT_BACKGROUND;
+    if (renderer.scene && renderer.scene.background && typeof renderer.scene.background.getHexString === 'function') {
+      backgroundColor = `#${renderer.scene.background.getHexString()}`;
+    }
+    context.fillStyle = backgroundColor;
+    context.fillRect(0, 0, pixelWidth, pixelHeight);
+    context.drawImage(canvas, 0, 0, pixelWidth, pixelHeight);
+    const blob = await canvasToBlob(exportCanvas);
+    if (!blob) return null;
+    return {
+      blob,
+      width: pixelWidth,
+      height: pixelHeight,
+      cssWidth: Math.max(Math.round(sizeVector.x), 0),
+      cssHeight: Math.max(Math.round(sizeVector.y), 0),
+      background: backgroundColor
+    };
+  }
+
+  function triggerDownload(blob, filename) {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise(resolve => {
+      if (!blob) {
+        resolve(null);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve(typeof reader.result === 'string' ? reader.result : null);
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function downloadFigurePng(index) {
+    const renderer = renderers[index];
+    const wrapper = figureWrappers[index];
+    if (!renderer || !wrapper || wrapper.classList.contains('is-hidden')) return;
+    const capture = await captureRendererImage(renderer);
+    if (!capture || !capture.blob) return;
+    triggerDownload(capture.blob, `trefigur${index + 1}.png`);
+  }
+
+  async function downloadFigureSvg(index) {
+    const renderer = renderers[index];
+    const wrapper = figureWrappers[index];
+    if (!renderer || !wrapper || wrapper.classList.contains('is-hidden')) return;
+    const capture = await captureRendererImage(renderer);
+    if (!capture || !capture.blob) return;
+    const dataUrl = await blobToDataUrl(capture.blob);
+    if (!dataUrl) return;
+    const widthAttr = capture.cssWidth > 0 ? capture.cssWidth : capture.width;
+    const heightAttr = capture.cssHeight > 0 ? capture.cssHeight : capture.height;
+    const background = capture.background || EXPORT_BACKGROUND;
+    const svgContent = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${widthAttr}" height="${heightAttr}" viewBox="0 0 ${capture.width} ${capture.height}">\n  <title>Trefigur ${index + 1}</title>\n  <rect width="100%" height="100%" fill="${background}"/>\n  <image href="${dataUrl}" x="0" y="0" width="${capture.width}" height="${capture.height}" preserveAspectRatio="xMidYMid meet"/>\n</svg>`;
+    const svgBlob = new Blob([svgContent], { type: 'image/svg+xml' });
+    triggerDownload(svgBlob, `trefigur${index + 1}.svg`);
+  }
+
+  exportToolbars = figureWrappers.map(wrapper => {
+    const index = Number(wrapper.dataset.figureIndex);
+    if (!Number.isFinite(index)) return null;
+    const toolbar = document.querySelector(`.exportToolbar[data-export-index="${index}"]`);
+    if (toolbar) {
+      const svgBtn = toolbar.querySelector('[data-export-type="svg"]');
+      const pngBtn = toolbar.querySelector('[data-export-type="png"]');
+      if (svgBtn) {
+        svgBtn.addEventListener('click', () => downloadFigureSvg(index));
+      }
+      if (pngBtn) {
+        pngBtn.addEventListener('click', () => downloadFigurePng(index));
+      }
+    }
+    return toolbar || null;
+  });
+
+  exportToolbars.forEach((_, index) => {
+    setExportToolbarVisibility(index, false);
+  });
+
   const textarea = document.getElementById('inpSpecs');
   const drawBtn = document.getElementById('btnDraw');
   const lockRotationCheckbox = document.getElementById('chkLockRotation');
@@ -969,9 +1128,11 @@
         if (typeof renderer._handleResize === 'function') {
           renderer._handleResize();
         }
+        setExportToolbarVisibility(index, true);
       } else {
         renderer.clear();
         wrapper.classList.add('is-hidden');
+        setExportToolbarVisibility(index, false);
       }
     });
   }
