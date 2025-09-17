@@ -1,7 +1,17 @@
 const iframe = document.querySelector('iframe');
 const nav = document.querySelector('nav');
-const saved = localStorage.getItem('currentPage') || 'nkant.html';
-iframe.src = saved;
+const defaultPage = 'nkant.html';
+const links = Array.from(nav.querySelectorAll('a'));
+const saved = localStorage.getItem('currentPage');
+const initialPage = saved && links.some(link => link.getAttribute('href') === saved)
+  ? saved
+  : defaultPage;
+
+if (initialPage !== saved) {
+  localStorage.setItem('currentPage', initialPage);
+}
+
+iframe.src = initialPage;
 
 function setActive(current) {
   nav.querySelectorAll('a').forEach(link => {
@@ -15,7 +25,7 @@ function setActive(current) {
   });
 }
 
-setActive(saved);
+setActive(initialPage);
 
 nav.addEventListener('click', event => {
   const link = event.target.closest('a');
