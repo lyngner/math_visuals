@@ -818,10 +818,38 @@
       let geometry;
       let rotationY = 0;
       let materialColor = 0x3b82f6;
+      const dimensionSpec = spec && typeof spec === 'object' && spec.dimensions && typeof spec.dimensions === 'object'
+        ? spec.dimensions
+        : null;
+
+      const extractDimensionValue = key => {
+        if (!dimensionSpec || typeof key !== 'string') return null;
+        const entry = dimensionSpec[key];
+        if (!entry || typeof entry !== 'object') return null;
+        if (typeof entry.value === 'number' && Number.isFinite(entry.value)) {
+          return entry.value;
+        }
+        if (typeof entry.label === 'string') {
+          const normalized = entry.label.replace(/,/g, '.');
+          const matchNumber = normalized.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/);
+          if (matchNumber) {
+            const parsed = Number.parseFloat(matchNumber[0]);
+            if (Number.isFinite(parsed)) {
+              return parsed;
+            }
+          }
+        }
+        return null;
+      };
+
+      const resolvePositive = (value, fallback) => {
+        if (Number.isFinite(value) && value > 0) return value;
+        return fallback;
+      };
 
       switch (type) {
         case 'sphere': {
-          const radius = 1.35;
+          const radius = resolvePositive(extractDimensionValue('radius'), 1.35);
           geometry = new THREE.SphereGeometry(radius, 40, 32);
           geometry.translate(0, radius, 0);
           materialColor = 0x6366f1;
@@ -830,8 +858,8 @@
           break;
         }
         case 'pyramid': {
-          const height = 2.8;
-          const radius = 1.7;
+          const height = resolvePositive(extractDimensionValue('height'), 2.8);
+          const radius = resolvePositive(extractDimensionValue('radius'), 1.7);
           geometry = new THREE.ConeGeometry(radius, height, 4, 1);
           geometry.translate(0, height / 2, 0);
           rotationY = Math.PI / 4;
@@ -844,41 +872,47 @@
           break;
         }
         case 'triangular-cylinder': {
-          const height = 3;
-          const radius = 1.6;
+          const height = resolvePositive(extractDimensionValue('height'), 3);
+          const radius = resolvePositive(extractDimensionValue('radius'), 1.6);
           geometry = new THREE.CylinderGeometry(radius, radius, height, 3, 1, false);
           geometry.translate(0, height / 2, 0);
           rotationY = Math.PI / 6;
           materialColor = 0x0ea5e9;
           dims.radius = radius;
           dims.height = height;
+          dims.width = radius * 2;
+          dims.depth = radius * 2;
           break;
         }
         case 'square-cylinder': {
-          const height = 3.2;
-          const radius = 1.55;
+          const height = resolvePositive(extractDimensionValue('height'), 3.2);
+          const radius = resolvePositive(extractDimensionValue('radius'), 1.55);
           geometry = new THREE.CylinderGeometry(radius, radius, height, 4, 1, false);
           geometry.translate(0, height / 2, 0);
           rotationY = Math.PI / 4;
           materialColor = 0x10b981;
           dims.radius = radius;
           dims.height = height;
+          dims.width = radius * 2;
+          dims.depth = radius * 2;
           break;
         }
         case 'cylinder': {
-          const height = 3.2;
-          const radius = 1.6;
+          const height = resolvePositive(extractDimensionValue('height'), 3.2);
+          const radius = resolvePositive(extractDimensionValue('radius'), 1.6);
           geometry = new THREE.CylinderGeometry(radius, radius, height, 32, 1, false);
           geometry.translate(0, height / 2, 0);
           materialColor = 0x0ea5e9;
           dims.radius = radius;
           dims.height = height;
+          dims.width = radius * 2;
+          dims.depth = radius * 2;
           break;
         }
         case 'prism':
         default: {
           const width = 2.6;
-          const height = 2.2;
+          const height = resolvePositive(extractDimensionValue('height'), 2.2);
           const depth = 1.8;
           geometry = new THREE.BoxGeometry(width, height, depth);
           geometry.translate(0, height / 2, 0);
@@ -1674,7 +1708,18 @@
         finalLabel = hadSeparator ? '' : (normalized === 'radius' ? 'r' : 'h');
       }
       if (!result[normalized]) {
-        result[normalized] = { requested: true, label: finalLabel };
+        const entry = { requested: true, label: finalLabel };
+        const numericSource = typeof finalLabel === 'string' ? finalLabel.replace(/,/g, '.').trim() : '';
+        if (numericSource) {
+          const matchNumber = numericSource.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/);
+          if (matchNumber) {
+            const parsed = Number.parseFloat(matchNumber[0]);
+            if (Number.isFinite(parsed)) {
+              entry.value = parsed;
+            }
+          }
+        }
+        result[normalized] = entry;
       }
     }
     return result;
