@@ -641,6 +641,9 @@ function draw(skipNormalization = false) {
   for (const block of visibleBlocks) {
     const rowTotal = rowTotals[block.row];
     updateBlockPanelLayout(block, rowTotal);
+  }
+
+  for (const block of visibleBlocks) {
     drawBlock(block);
   }
 
