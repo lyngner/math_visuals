@@ -236,6 +236,20 @@
           <div class="small">Du kan bruke <code>:</code> eller <code>=</code>, og skrive egen tekst (bruk gjerne anførselstegn om teksten har mellomrom). Lar du teksten stå tom, vises bare streken.</div>
           <div class="small">Trykk Ctrl+Enter (eller ⌘+Enter) for å tegne mens du skriver.</div>
           <div class="small">Dra i figuren for å rotere. Bruk høyre museknapp (eller to fingre) for å panorere og rullehjul eller pinch for å zoome.</div>
+          <div class="option-row option-row--slider option-row--view">
+            <div class="option-row__header">
+              <label for="rngViewRotation">Rotasjon (<span data-view-figure-label>Figur 1</span>): <span id="lblViewRotation">0°</span></label>
+              <div class="option-hint">Juster kameravinkelen horisontalt.</div>
+            </div>
+            <input id="rngViewRotation" class="range-input" type="range" min="0" max="360" step="1" value="0" />
+          </div>
+          <div class="option-row option-row--slider option-row--view">
+            <div class="option-row__header">
+              <label for="rngViewZoom">Zoom (<span data-view-figure-label>Figur 1</span>): <span id="lblViewZoom">100%</span></label>
+              <div class="option-hint">100% tilsvarer standardavstanden.</div>
+            </div>
+            <input id="rngViewZoom" class="range-input" type="range" min="40" max="250" step="1" value="100" />
+          </div>
           <div class="option-row option-row--color">
             <div class="option-row__header">
               <label for="inpColor">Farge</label>
