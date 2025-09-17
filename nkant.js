@@ -1065,50 +1065,108 @@ if(typeof window !== "undefined"){
 }
 
 /* ---------- GEOMETRI ---------- */
-function solveTriangle(g){
-  let {a,b,c,A,B,C} = g;
+function buildRightAngleVariants(input){
+  const EPS = 1e-6;
+  const isPos = v => typeof v === "number" && isFinite(v) && v > 0;
+  const isRight = ang => typeof ang === "number" && isFinite(ang) && Math.abs(ang - 90) < 1e-3;
+  const variants = [];
 
+  const push = mut => {
+    const clone = {...input};
+    mut(clone);
+    variants.push(clone);
+  };
+
+  const handle = (angVal, oppKey, legKey1, legKey2)=>{
+    if(!isRight(angVal)) return;
+    const oppVal = input[oppKey];
+    const leg1 = input[legKey1];
+    const leg2 = input[legKey2];
+
+    const suspicious = isPos(oppVal) && ((isPos(leg1) && oppVal <= leg1 + EPS) || (isPos(leg2) && oppVal <= leg2 + EPS));
+    if(suspicious){
+      push(clone => { delete clone[oppKey]; });
+    }
+
+    if(isPos(oppVal)){
+      if(!isPos(leg1)){
+        push(clone => {
+          clone[legKey1] = oppVal;
+          delete clone[oppKey];
+        });
+      }
+      if(!isPos(leg2)){
+        push(clone => {
+          clone[legKey2] = oppVal;
+          delete clone[oppKey];
+        });
+      }
+    }
+  };
+
+  handle(input.A, "a", "b", "c");
+  handle(input.B, "b", "c", "a");
+  handle(input.C, "c", "a", "b");
+
+  return variants;
+}
+
+function solveTriangle(g){
   const lawCosSide = (ang, s1, s2) => Math.sqrt(Math.max(0, s1*s1 + s2*s2 - 2*s1*s2*Math.cos(rad(ang))));
   const lawCosAng  = (opp, s1, s2) => deg(Math.acos(clampCos((s1*s1 + s2*s2 - opp*opp)/(2*s1*s2))));
   const lawSinAng  = (A0,a0,sx)=> deg(Math.asin(clamp(sx*Math.sin(rad(A0))/a0,-1,1)));
   const lawSinSide = (A0,a0,Ax)=> a0*Math.sin(rad(Ax))/Math.sin(rad(A0));
 
-  if(A && B && !C) C = 180 - A - B;
-  if(A && C && !B) B = 180 - A - C;
-  if(B && C && !A) A = 180 - B - C;
+  const attempt = (spec)=>{
+    let {a,b,c,A,B,C} = spec;
 
-  if(A && b && c && !a){ a = lawCosSide(A,b,c); }
-  if(B && a && c && !b){ b = lawCosSide(B,a,c); }
-  if(C && a && b && !c){ c = lawCosSide(C,a,b); }
+    if(A && B && !C) C = 180 - A - B;
+    if(A && C && !B) B = 180 - A - C;
+    if(B && C && !A) A = 180 - B - C;
 
-  if(a && b && c){
-    if(!A) A = lawCosAng(a,b,c);
-    if(!B) B = lawCosAng(b,a,c);
-    if(!C) C = 180 - A - B;
+    if(A && b && c && !a){ a = lawCosSide(A,b,c); }
+    if(B && a && c && !b){ b = lawCosSide(B,a,c); }
+    if(C && a && b && !c){ c = lawCosSide(C,a,b); }
+
+    if(a && b && c){
+      if(!A) A = lawCosAng(a,b,c);
+      if(!B) B = lawCosAng(b,a,c);
+      if(!C) C = 180 - A - B;
+    }
+
+    const fillBySines = ()=>{
+      if(A && B && a && (!b || !c)){ b = b || lawSinSide(A,a,B); c = c || lawSinSide(A,a,180-A-B); }
+      if(A && C && a && (!b || !c)){ b = b || lawSinSide(A,a,180-A-C); c = c || lawSinSide(A,a,C); }
+      if(B && C && b && (!a || !c)){ a = a || lawSinSide(B,b,180-B-C); c = c || lawSinSide(B,b,C); }
+      if(A && B && c && (!a || !b)){ a = a || lawSinSide(180-A-B,c,A); b = b || lawSinSide(180-A-B,c,B); }
+    };
+    fillBySines();
+
+    const solveSSA = ()=>{
+      if(A && a && b && !B){ const B1 = lawSinAng(A,a,b); if(isFinite(B1)){ B=B||B1; C=C|| (180-A-B); c=c|| lawSinSide(A,a,C); } }
+      if(A && a && c && !C){ const C1 = lawSinAng(A,a,c); if(isFinite(C1)){ C=C||C1; B=B|| (180-A-C); b=b|| lawSinSide(A,a,B); } }
+      if(B && b && a && !A){ const A1 = lawSinAng(B,b,a); if(isFinite(A1)){ A=A||A1; C=C|| (180-A-B); c=c|| lawSinSide(B,b,C); } }
+      if(B && b && c && !C){ const C1 = lawSinAng(B,b,c); if(isFinite(C1)){ C=C||C1; A=A|| (180-B-C); a=a|| lawSinSide(B,b,A); } }
+      if(C && c && a && !A){ const A1 = lawSinAng(C,c,a); if(isFinite(A1)){ A=A||A1; B=B|| (180-A-C); b=b|| lawSinSide(C,c,B); } }
+      if(C && c && b && !B){ const B1 = lawSinAng(C,c,b); if(isFinite(B1)){ B=B||B1; A=A|| (180-B-C); a=a|| lawSinSide(C,c,A); } }
+    };
+    solveSSA();
+
+    if(a>0 && b>0 && c>0 && A>0 && B>0 && C>0)
+      return {a,b,c,A,B,C};
+    return null;
+  };
+
+  const direct = attempt(g);
+  if(direct) return direct;
+
+  const variants = buildRightAngleVariants(g);
+  for(const variant of variants){
+    const solved = attempt(variant);
+    if(solved) return solved;
   }
 
-  const fillBySines = ()=>{
-    if(A && B && a && (!b || !c)){ b = b || lawSinSide(A,a,B); c = c || lawSinSide(A,a,180-A-B); }
-    if(A && C && a && (!b || !c)){ b = b || lawSinSide(A,a,180-A-C); c = c || lawSinSide(A,a,C); }
-    if(B && C && b && (!a || !c)){ a = a || lawSinSide(B,b,180-B-C); c = c || lawSinSide(B,b,C); }
-    if(A && B && c && (!a || !b)){ a = a || lawSinSide(180-A-B,c,A); b = b || lawSinSide(180-A-B,c,B); }
-  };
-  fillBySines();
-
-  const solveSSA = ()=>{
-    if(A && a && b && !B){ const B1 = lawSinAng(A,a,b); if(isFinite(B1)){ B=B||B1; C=C|| (180-A-B); c=c|| lawSinSide(A,a,C); } }
-    if(A && a && c && !C){ const C1 = lawSinAng(A,a,c); if(isFinite(C1)){ C=C||C1; B=B|| (180-A-C); b=b|| lawSinSide(A,a,B); } }
-    if(B && b && a && !A){ const A1 = lawSinAng(B,b,a); if(isFinite(A1)){ A=A||A1; C=C|| (180-A-B); c=c|| lawSinSide(B,b,C); } }
-    if(B && b && c && !C){ const C1 = lawSinAng(B,b,c); if(isFinite(C1)){ C=C||C1; A=A|| (180-B-C); a=a|| lawSinSide(B,b,A); } }
-    if(C && c && a && !A){ const A1 = lawSinAng(C,c,a); if(isFinite(A1)){ A=A||A1; B=B|| (180-A-C); b=b|| lawSinSide(C,c,B); } }
-    if(C && c && b && !B){ const B1 = lawSinAng(C,c,b); if(isFinite(B1)){ B=B||B1; A=A|| (180-B-C); a=a|| lawSinSide(C,c,A); } }
-  };
-  solveSSA();
-
-  if(!(a>0 && b>0 && c>0 && A>0 && B>0 && C>0))
-    throw new Error("Trekant-spesifikasjonen er ikke tilstrekkelig eller er ugyldig.");
-
-  return {a,b,c,A,B,C};
+  throw new Error("Trekant-spesifikasjonen er ikke tilstrekkelig eller er ugyldig.");
 }
 
 function circleCircle(A, r, B, s){
