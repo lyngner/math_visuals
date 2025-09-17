@@ -51,7 +51,8 @@ const VBW = 900, VBH = 420;                  // MÅ samsvare med viewBox i HTML
 const SIDE_MARGIN = 70;                      // tomrom på hver side av rammen
 const L = SIDE_MARGIN, R = VBW - SIDE_MARGIN; // venstre/høyre marg
 const TOP = 130, BOT = VBH - 60;             // ramme-topp/-bunn
-const BRACE_Y = 78;                          // høyde for parentes
+const BRACE_Y = 78;                          // høyde for parentes (øverst)
+const BRACE_Y_BOTTOM = BOT + 32;             // høyde for parentes under blokken
 const BRACKET_TICK = 16;                     // lengde på «haken» ned i hver ende
 const LABEL_OFFSET_Y = 14;                   // løft tallet litt over parentes-linjen
 const STACK_GAP_COMPACT = 0;                 // avstand mellom paneler uten ekstra plass
@@ -270,9 +271,7 @@ function getBlockLayout(index) {
   const baseWidth = Math.max(R - L, 1);
   let width = baseWidth;
 
-  const stacked = isStackedLayout();
-
-  if (!stacked && count > 1) {
+  if (count > 1) {
     let maxTotal = 0;
     const totals = [];
     for (let i = 0; i < count; i++) {
@@ -816,6 +815,7 @@ function drawBlock(index) {
   const layout = getBlockLayout(index);
   block.layout = layout;
   const { left, right, width, center } = layout;
+  const stackedLayout = isStackedLayout();
 
   const vb = getBlockViewBox(index);
   if (block.svg && vb) {
@@ -834,8 +834,19 @@ function drawBlock(index) {
     block.rectFrame.setAttribute('y', TOP);
     block.rectFrame.setAttribute('height', BOT - TOP);
   }
-  drawBracketSquare(block.gBrace, left, right, BRACE_Y, BRACKET_TICK);
-  if (block.totalText) block.totalText.setAttribute('x', center);
+  let braceY = BRACE_Y;
+  let tick = BRACKET_TICK;
+  let labelY = BRACE_Y - LABEL_OFFSET_Y;
+  if (index === 1 && stackedLayout) {
+    braceY = BRACE_Y_BOTTOM;
+    tick = -BRACKET_TICK;
+    labelY = braceY + LABEL_OFFSET_Y;
+  }
+  drawBracketSquare(block.gBrace, left, right, braceY, tick);
+  if (block.totalText) {
+    block.totalText.setAttribute('x', center);
+    block.totalText.setAttribute('y', labelY);
+  }
 
   block.gFill.innerHTML = '';
   block.gSep.innerHTML = '';
