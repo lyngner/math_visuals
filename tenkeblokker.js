@@ -39,14 +39,14 @@ const CONFIG = {
 
 const VBW = 900;
 const VBH = 420;
-const SIDE_MARGIN = 70;
-const L = SIDE_MARGIN;
-const R = VBW - SIDE_MARGIN;
-const TOP = 130;
-const BOT = VBH - 60;
-const BRACE_Y = 78;
-const BRACKET_TICK = 16;
-const LABEL_OFFSET_Y = 14;
+const SIDE_MARGIN_RATIO = 0;
+const TOP_RATIO = 130 / VBH;
+const BOTTOM_RATIO = (VBH - 60) / VBH;
+const BRACE_Y_RATIO = 78 / VBH;
+const BRACKET_TICK_RATIO = 16 / VBH;
+const LABEL_OFFSET_RATIO = 14 / VBH;
+const DEFAULT_SVG_HEIGHT = 260;
+const ROW_GAP = 18;
 
 const BLOCKS = [];
 
@@ -66,7 +66,7 @@ const btnPng = document.getElementById('btnPng');
 
 const combinedWholeOverlay = createCombinedWholeOverlay();
 if (typeof window !== 'undefined') {
-  window.addEventListener('resize', () => drawCombinedWholeOverlay());
+  window.addEventListener('resize', () => draw(true));
 }
 
 addColumnBtn?.addEventListener('click', () => {
@@ -105,6 +105,57 @@ draw(true);
 
 window.CONFIG = CONFIG;
 window.draw = draw;
+
+function getSvgViewport(block) {
+  const svg = block?.svg;
+  const panelRect = block?.panel?.getBoundingClientRect?.();
+  const svgRect = svg?.getBoundingClientRect?.();
+
+  let width = panelRect?.width;
+  if (!(width > 0)) width = svgRect?.width;
+  if (!(width > 0)) width = VBW;
+
+  let height = svgRect?.height;
+  if (!(height > 0) && svg) {
+    const owner = svg.ownerDocument?.defaultView;
+    if (owner?.getComputedStyle) {
+      const computedHeight = owner.getComputedStyle(svg).getPropertyValue('height');
+      const parsed = Number.parseFloat(String(computedHeight).replace(',', '.'));
+      if (Number.isFinite(parsed) && parsed > 0) height = parsed;
+    }
+  }
+  if (!(height > 0)) height = DEFAULT_SVG_HEIGHT;
+
+  return { width, height };
+}
+
+function getBlockMetrics(block) {
+  const { width, height } = getSvgViewport(block);
+  const left = width * SIDE_MARGIN_RATIO;
+  const right = width - left;
+  const top = height * TOP_RATIO;
+  const bottom = height * BOTTOM_RATIO;
+  const braceY = height * BRACE_Y_RATIO;
+  const bracketTick = height * BRACKET_TICK_RATIO;
+  const labelOffsetY = height * LABEL_OFFSET_RATIO;
+  const innerWidth = Math.max(0, right - left);
+  const innerHeight = Math.max(0, bottom - top);
+  const centerX = left + innerWidth / 2;
+  return {
+    width,
+    height,
+    left,
+    right,
+    top,
+    bottom,
+    braceY,
+    bracketTick,
+    labelOffsetY,
+    innerWidth,
+    innerHeight,
+    centerX
+  };
+}
 
 function toBoolean(value, fallback = false) {
   if (typeof value === 'boolean') return value;
@@ -377,13 +428,13 @@ function createBlock(row, col, cfg) {
   block.gHandle = createSvgElement(svg, 'g');
   block.gBrace = createSvgElement(svg, 'g');
 
-  block.rectEmpty = createSvgElement(block.gBase, 'rect', { x: L, y: TOP, width: R - L, height: BOT - TOP, class: 'tb-rect-empty' });
-  block.rectFrame = createSvgElement(block.gFrame, 'rect', { x: L, y: TOP, width: R - L, height: BOT - TOP, class: 'tb-frame' });
-  drawBracketSquare(block.gBrace, L, R, BRACE_Y, BRACKET_TICK);
-  block.totalText = createSvgElement(block.gBrace, 'text', { x: (L + R) / 2, y: BRACE_Y - LABEL_OFFSET_Y, class: 'tb-total' });
+  block.rectEmpty = createSvgElement(block.gBase, 'rect', { x: 0, y: 0, width: 0, height: 0, class: 'tb-rect-empty' });
+  block.rectFrame = createSvgElement(block.gFrame, 'rect', { x: 0, y: 0, width: 0, height: 0, class: 'tb-frame' });
+  drawBracketSquare(block.gBrace, 0, 0, 0, 0);
+  block.totalText = createSvgElement(block.gBrace, 'text', { x: 0, y: 0, class: 'tb-total' });
 
-  block.handleShadow = createSvgElement(block.gHandle, 'circle', { cx: R, cy: (TOP + BOT) / 2 + 2, r: 20, class: 'tb-handle-shadow' });
-  block.handle = createSvgElement(block.gHandle, 'circle', { cx: R, cy: (TOP + BOT) / 2, r: 18, class: 'tb-handle' });
+  block.handleShadow = createSvgElement(block.gHandle, 'circle', { cx: 0, cy: 0, r: 20, class: 'tb-handle-shadow' });
+  block.handle = createSvgElement(block.gHandle, 'circle', { cx: 0, cy: 0, r: 18, class: 'tb-handle' });
   block.handle.addEventListener('pointerdown', event => onDragStart(block, event));
 
   const stepper = document.createElement('div');
@@ -580,28 +631,30 @@ function drawBlock(block) {
   const cfg = block?.cfg;
   if (!block || !cfg) return;
 
-  const width = R - L;
-  const center = (L + R) / 2;
-
-  block.rectEmpty?.setAttribute('x', L);
-  block.rectEmpty?.setAttribute('width', width);
-  block.rectEmpty?.setAttribute('y', TOP);
-  block.rectEmpty?.setAttribute('height', BOT - TOP);
-
-  block.rectFrame?.setAttribute('x', L);
-  block.rectFrame?.setAttribute('width', width);
-  block.rectFrame?.setAttribute('y', TOP);
-  block.rectFrame?.setAttribute('height', BOT - TOP);
-
-  drawBracketSquare(block.gBrace, L, R, BRACE_Y, BRACKET_TICK);
-  if (block.totalText) {
-    block.totalText.setAttribute('x', center);
-    block.totalText.setAttribute('y', BRACE_Y - LABEL_OFFSET_Y);
-    block.totalText.textContent = fmt(cfg.total);
-  }
+  const metrics = getBlockMetrics(block);
+  block.metrics = metrics;
+  const { width, height, left, right, top, bottom, braceY, bracketTick, labelOffsetY, innerWidth, innerHeight, centerX } = metrics;
 
   if (block.svg) {
+    block.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     block.svg.setAttribute('aria-label', `Tenkeblokker ${block.index + 1}`);
+  }
+
+  block.rectEmpty?.setAttribute('x', left);
+  block.rectEmpty?.setAttribute('width', innerWidth);
+  block.rectEmpty?.setAttribute('y', top);
+  block.rectEmpty?.setAttribute('height', innerHeight);
+
+  block.rectFrame?.setAttribute('x', left);
+  block.rectFrame?.setAttribute('width', innerWidth);
+  block.rectFrame?.setAttribute('y', top);
+  block.rectFrame?.setAttribute('height', innerHeight);
+
+  drawBracketSquare(block.gBrace, left, right, braceY, bracketTick);
+  if (block.totalText) {
+    block.totalText.setAttribute('x', centerX);
+    block.totalText.setAttribute('y', braceY - labelOffsetY);
+    block.totalText.textContent = fmt(cfg.total);
   }
   if (block.legend) {
     block.legend.textContent = `Tenkeblokker ${block.index + 1}`;
@@ -648,14 +701,14 @@ function drawBlock(block) {
   block.gSep.innerHTML = '';
   block.gVals.innerHTML = '';
 
-  const cellW = cfg.n ? width / cfg.n : 0;
+  const cellW = cfg.n ? innerWidth / cfg.n : 0;
   if (cellW > 0) {
     for (let i = 0; i < cfg.k; i++) {
-      createSvgElement(block.gFill, 'rect', { x: L + i * cellW, y: TOP, width: cellW, height: BOT - TOP, class: 'tb-rect' });
+      createSvgElement(block.gFill, 'rect', { x: left + i * cellW, y: top, width: cellW, height: innerHeight, class: 'tb-rect' });
     }
     for (let i = 1; i < cfg.n; i++) {
-      const x = L + i * cellW;
-      createSvgElement(block.gSep, 'line', { x1: x, y1: TOP, x2: x, y2: BOT, class: 'tb-sep' });
+      const x = left + i * cellW;
+      createSvgElement(block.gSep, 'line', { x1: x, y1: top, x2: x, y2: bottom, class: 'tb-sep' });
     }
 
     const displayMode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
@@ -663,8 +716,8 @@ function drawBlock(block) {
     const percentValue = cfg.n ? (100 / cfg.n) : 0;
 
     for (let i = 0; i < cfg.n; i++) {
-      const cx = L + (i + 0.5) * cellW;
-      const cy = (TOP + BOT) / 2;
+      const cx = left + (i + 0.5) * cellW;
+      const cy = top + innerHeight / 2;
       if (displayMode === 'fraction') {
         renderFractionLabel(block.gVals, cx, cy, 1, cfg.n);
         continue;
@@ -675,9 +728,12 @@ function drawBlock(block) {
     }
   }
 
-  const hx = cellW > 0 ? L + cfg.k * cellW : L;
+  const hx = cellW > 0 ? left + cfg.k * cellW : left;
+  const hy = top + innerHeight / 2;
   block.handle?.setAttribute('cx', hx);
   block.handleShadow?.setAttribute('cx', hx);
+  block.handle?.setAttribute('cy', hy);
+  block.handleShadow?.setAttribute('cy', hy + 2);
   if (block.gHandle) block.gHandle.style.display = cfg.lockNumerator ? 'none' : '';
   if (block.handle) block.handle.style.cursor = cfg.lockNumerator ? 'default' : 'pointer';
 
@@ -781,13 +837,13 @@ function drawCombinedWholeOverlay() {
   overlay.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   overlay.svg.setAttribute('preserveAspectRatio', 'none');
 
-  const braceY = (BRACE_Y / VBH) * height;
-  const tick = (BRACKET_TICK / VBH) * height;
+  const braceY = BRACE_Y_RATIO * height;
+  const tick = BRACKET_TICK_RATIO * height;
   drawBracketSquare(overlay.group, 0, width, braceY, tick);
 
   if (overlay.text) {
     overlay.text.setAttribute('x', width / 2);
-    overlay.text.setAttribute('y', braceY - (LABEL_OFFSET_Y / VBH) * height);
+    overlay.text.setAttribute('y', braceY - LABEL_OFFSET_RATIO * height);
     const total = getCombinedTotal();
     overlay.text.textContent = Number.isFinite(total) ? fmt(total) : '';
   }
@@ -802,12 +858,15 @@ function onDragStart(block, event) {
     const currentCfg = block.cfg;
     if (!currentCfg) return;
     const p = clientToSvg(block.svg, ev.clientX, ev.clientY);
-    const width = R - L;
+    const metrics = block.metrics || getBlockMetrics(block);
+    const innerWidth = metrics?.innerWidth ?? metrics?.width ?? VBW;
+    const left = metrics?.left ?? 0;
+    const right = metrics ? metrics.left + innerWidth : innerWidth;
     const denom = currentCfg.n || 1;
-    const cellW = width / denom;
+    const cellW = innerWidth / denom;
     if (!(cellW > 0)) return;
-    const x = clamp(p.x, L, R);
-    const snapK = Math.round((x - L) / cellW);
+    const x = clamp(p.x, left, right);
+    const snapK = Math.round((x - left) / cellW);
     setK(block, snapK);
   };
   const up = () => {
@@ -1012,34 +1071,71 @@ function getExportSvg() {
   if (!firstSvg) return null;
   const ns = firstSvg.namespaceURI;
   const rows = CONFIG.rows;
-  const cols = CONFIG.cols;
+  const rowInfo = Array.from({ length: rows }, () => ({ blocks: [], width: 0, height: 0 }));
+
+  for (const block of BLOCKS) {
+    if (!block) continue;
+    const metrics = block.metrics || getBlockMetrics(block);
+    const row = rowInfo[block.row];
+    if (!row) continue;
+    row.blocks.push({ block, metrics });
+    const widthValue = metrics?.width;
+    const heightValue = metrics?.height;
+    const blockWidth = Number.isFinite(widthValue) && widthValue > 0 ? widthValue : VBW;
+    const blockHeight = Number.isFinite(heightValue) && heightValue > 0 ? heightValue : DEFAULT_SVG_HEIGHT;
+    row.width += blockWidth;
+    if (row.height < blockHeight) row.height = blockHeight;
+  }
+
+  const exportWidth = rowInfo.reduce((max, row) => Math.max(max, row.width || 0), 0) || VBW;
+  const exportHeight = rowInfo.reduce((sum, row, index) => {
+    if (!row.blocks.length) return sum;
+    const gap = index > 0 ? ROW_GAP : 0;
+    return sum + row.height + gap;
+  }, 0) || DEFAULT_SVG_HEIGHT;
+
   const exportSvg = document.createElementNS(ns, 'svg');
-  const width = cols * VBW;
-  const height = rows * VBH;
-  exportSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-  exportSvg.setAttribute('width', width);
-  exportSvg.setAttribute('height', height);
+  exportSvg.setAttribute('viewBox', `0 0 ${exportWidth} ${exportHeight}`);
+  exportSvg.setAttribute('width', exportWidth);
+  exportSvg.setAttribute('height', exportHeight);
   exportSvg.setAttribute('xmlns', ns);
   exportSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
 
-  for (const block of BLOCKS) {
-    if (!block?.svg) continue;
-    const g = document.createElementNS(ns, 'g');
-    const tx = block.col * VBW;
-    const ty = block.row * VBH;
-    g.setAttribute('transform', `translate(${tx},${ty})`);
-    g.innerHTML = block.svg.innerHTML;
-    exportSvg.appendChild(g);
-  }
+  let offsetY = 0;
+  rowInfo.forEach((row, rowIndex) => {
+    if (!row.blocks.length) return;
+    if (rowIndex > 0) offsetY += ROW_GAP;
+    const rowGroup = document.createElementNS(ns, 'g');
+    rowGroup.setAttribute('transform', `translate(0,${offsetY})`);
+    exportSvg.appendChild(rowGroup);
+
+    let offsetX = 0;
+    row.blocks.forEach(({ block, metrics }) => {
+      if (!block?.svg) return;
+      const g = document.createElementNS(ns, 'g');
+      g.setAttribute('transform', `translate(${offsetX},0)`);
+      g.innerHTML = block.svg.innerHTML;
+      rowGroup.appendChild(g);
+      const widthValue = metrics?.width ?? block.svg.viewBox?.baseVal?.width;
+      const blockWidth = Number.isFinite(widthValue) && widthValue > 0 ? widthValue : VBW;
+      offsetX += blockWidth;
+    });
+
+    offsetY += row.height;
+  });
+
+  const referenceHeight = rowInfo.find(row => row.blocks.length)?.height || DEFAULT_SVG_HEIGHT;
 
   if (CONFIG.showCombinedWhole && CONFIG.activeBlocks > 1) {
-    const startX = L;
-    const endX = width - (VBW - R);
+    const startX = 0;
+    const endX = exportWidth;
     const braceGroup = createSvgElement(exportSvg, 'g', { class: 'tb-combined-brace' });
-    drawBracketSquare(braceGroup, startX, endX, BRACE_Y, BRACKET_TICK);
+    const braceY = BRACE_Y_RATIO * referenceHeight;
+    const tick = BRACKET_TICK_RATIO * referenceHeight;
+    drawBracketSquare(braceGroup, startX, endX, braceY, tick);
     const totalText = createSvgElement(braceGroup, 'text', {
       x: (startX + endX) / 2,
-      y: BRACE_Y - LABEL_OFFSET_Y,
+      y: braceY - LABEL_OFFSET_RATIO * referenceHeight,
       class: 'tb-total',
       'text-anchor': 'middle'
     });
