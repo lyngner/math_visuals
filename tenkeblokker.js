@@ -184,6 +184,7 @@ const ROW_GAP = 18;
 const DEFAULT_FRAME_INSET = 3;
 
 const BLOCKS = [];
+let multipleBlocksActive = false;
 
 const board = document.getElementById('tbBoard');
 const grid = document.getElementById('tbGrid');
@@ -611,6 +612,7 @@ function draw(skipNormalization = false) {
   updateAddButtons();
 
   const multiple = CONFIG.activeBlocks > 1;
+  multipleBlocksActive = multiple;
   if (combinedWholeControls.row) combinedWholeControls.row.style.display = multiple ? '' : 'none';
   if (combinedWholeControls.checkbox) {
     combinedWholeControls.checkbox.disabled = !multiple;
@@ -944,6 +946,9 @@ function updateBlockPanelLayout(block, rowTotal) {
   const totalValue = Number(cfg?.total);
   const positiveTotal = Number.isFinite(totalValue) && totalValue > 0 ? totalValue : 0;
   const hasRowTotal = Number.isFinite(rowTotal) && rowTotal > 0;
+  const stepperVisible = !cfg?.lockDenominator;
+  const hasBlockBelow = Number.isFinite(CONFIG?.rows) && block.row < CONFIG.rows - 1;
+  const needsVerticalSpace = stepperVisible && hasBlockBelow;
 
   block.panel.style.flexBasis = '0px';
   block.panel.style.flexShrink = '1';
@@ -952,6 +957,7 @@ function updateBlockPanelLayout(block, rowTotal) {
   } else {
     block.panel.style.flexGrow = '1';
   }
+  block.panel.style.marginBottom = needsVerticalSpace ? 'var(--tb-stepper-gap, 18px)' : '0px';
 }
 
 function drawBlock(block) {
@@ -994,10 +1000,6 @@ function drawBlock(block) {
     block.stepper.style.display = stepperVisible ? '' : 'none';
   }
 
-  if (block.panel) {
-    block.panel.classList.toggle('tb-panel--with-stepper', stepperVisible);
-  }
-
   if (block.nVal) {
     block.nVal.textContent = cfg.n;
     block.nVal.style.display = cfg.hideNValue ? 'none' : '';
@@ -1029,7 +1031,15 @@ function drawBlock(block) {
       k.max = String(cfg.n);
       k.disabled = !!cfg.lockNumerator;
     }
-    if (showWhole) showWhole.checked = !!cfg.showWhole;
+    if (showWhole) {
+      showWhole.checked = !!cfg.showWhole;
+      showWhole.disabled = multipleBlocksActive;
+      if (multipleBlocksActive) {
+        showWhole.setAttribute('aria-disabled', 'true');
+      } else {
+        showWhole.removeAttribute('aria-disabled');
+      }
+    }
     if (lockN) lockN.checked = !!cfg.lockDenominator;
     if (lockK) lockK.checked = !!cfg.lockNumerator;
     if (hideN) hideN.checked = !!cfg.hideNValue;
@@ -1095,7 +1105,8 @@ function drawBlock(block) {
   if (block.gHandle) block.gHandle.style.display = cfg.lockNumerator ? 'none' : '';
   if (block.handle) block.handle.style.cursor = cfg.lockNumerator ? 'default' : 'pointer';
 
-  if (block.gBrace) block.gBrace.style.display = cfg.showWhole ? '' : 'none';
+  const showWholeAllowed = !multipleBlocksActive;
+  if (block.gBrace) block.gBrace.style.display = showWholeAllowed && cfg.showWhole ? '' : 'none';
 }
 
 function setN(block, next) {
