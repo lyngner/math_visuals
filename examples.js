@@ -923,6 +923,7 @@
     const ensure = ()=>{
       let examples = getExamples();
       let updated = false;
+      const requireProvided = typeof window !== 'undefined' && window && window.__EXAMPLES_FORCE_PROVIDED__ === true;
 
       const deletedProvided = getDeletedProvidedExamples();
       let deletedUpdated = false;
@@ -955,6 +956,17 @@
         const key = normalizeKey(ex && ex.__builtinKey);
         return !key || !deletedProvided.has(key);
       });
+      if(requireProvided && availableDefaults.length > 0 && examples.length === 1){
+        const only = examples[0];
+        const onlyObj = only && typeof only === 'object' ? only : null;
+        const hasKey = onlyObj ? !!normalizeKey(onlyObj.__builtinKey) : false;
+        const hasSvg = onlyObj && typeof onlyObj.svg === 'string' ? onlyObj.svg.trim().length > 0 : false;
+        if(onlyObj && onlyObj.isDefault === true && !hasKey && !hasSvg){
+          examples = [];
+          currentExampleIndex = 0;
+          updated = true;
+        }
+      }
       if(examples.length === 0){
         if(availableDefaults.length > 0){
           let defaultIdx = availableDefaults.findIndex(ex => ex.isDefault);
@@ -1057,6 +1069,9 @@
             initialLoadPerformed = true;
           }
         }
+      }
+      if(requireProvided && typeof window !== 'undefined' && window){
+        window.__EXAMPLES_FORCE_PROVIDED__ = false;
       }
     };
     if(document.readyState === 'complete') setTimeout(ensure, 0);
