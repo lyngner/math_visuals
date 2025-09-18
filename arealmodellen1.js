@@ -34,8 +34,8 @@ const CFG = {
       horizontal: true
     },
     limits: {
-      minColsEachSide: 1,
-      minRowsEachSide: 1
+      minColsEachSide: 0,
+      minRowsEachSide: 0
     },
     // Håndtak (piler)
     handleIcons: {
@@ -134,8 +134,8 @@ function draw() {
   const ADV = CFG.ADV,
     SV = CFG.SIMPLE;
   const UNIT = +ADV.unit || 40;
-  const ROWS = Math.max(2, Math.round((_SV$height$cells = (_SV$height = SV.height) === null || _SV$height === void 0 ? void 0 : _SV$height.cells) !== null && _SV$height$cells !== void 0 ? _SV$height$cells : 16));
-  const COLS = Math.max(2, Math.round((_SV$length$cells = (_SV$length = SV.length) === null || _SV$length === void 0 ? void 0 : _SV$length.cells) !== null && _SV$length$cells !== void 0 ? _SV$length$cells : 17));
+  const ROWS = Math.max(1, Math.round((_SV$height$cells = (_SV$height = SV.height) === null || _SV$height === void 0 ? void 0 : _SV$height.cells) !== null && _SV$height$cells !== void 0 ? _SV$height$cells : 16));
+  const COLS = Math.max(1, Math.round((_SV$length$cells = (_SV$length = SV.length) === null || _SV$length === void 0 ? void 0 : _SV$length.cells) !== null && _SV$length$cells !== void 0 ? _SV$length$cells : 17));
   const TEN = Math.max(1, Math.round((_ADV$check$ten = (_ADV$check = ADV.check) === null || _ADV$check === void 0 ? void 0 : _ADV$check.ten) !== null && _ADV$check$ten !== void 0 ? _ADV$check$ten : 10));
 
   // spacing for kant-tekst utenfor
@@ -167,15 +167,25 @@ function draw() {
   };
   const showGrid = ADV.grid !== false;
   const clickToMove = ADV.clickToMove !== false;
-  const showHeightAxis = ((_SV$height2 = SV.height) === null || _SV$height2 === void 0 ? void 0 : _SV$height2.show) !== false;
-  const showLengthAxis = ((_SV$length2 = SV.length) === null || _SV$length2 === void 0 ? void 0 : _SV$length2.show) !== false;
+  const canSplitRows = ROWS > 1;
+  const canSplitCols = COLS > 1;
+  const showHeightAxis = canSplitRows && ((_SV$height2 = SV.height) === null || _SV$height2 === void 0 ? void 0 : _SV$height2.show) !== false;
+  const showLengthAxis = canSplitCols && ((_SV$length2 = SV.length) === null || _SV$length2 === void 0 ? void 0 : _SV$length2.show) !== false;
   const dragVertical = showHeightAxis && ((_ADV$drag = ADV.drag) === null || _ADV$drag === void 0 ? void 0 : _ADV$drag.vertical) !== false;
   const dragHorizontal = showLengthAxis && ((_ADV$drag2 = ADV.drag) === null || _ADV$drag2 === void 0 ? void 0 : _ADV$drag2.horizontal) !== false;
   const splitLinesOn = ADV.splitLines !== false;
   const showHLine = splitLinesOn && showHeightAxis;
   const showVLine = splitLinesOn && showLengthAxis;
-  const minColsEachSide = Math.max(1, (_ADV$limits$minColsEa = (_ADV$limits = ADV.limits) === null || _ADV$limits === void 0 ? void 0 : _ADV$limits.minColsEachSide) !== null && _ADV$limits$minColsEa !== void 0 ? _ADV$limits$minColsEa : 1);
-  const minRowsEachSide = Math.max(1, (_ADV$limits$minRowsEa = (_ADV$limits2 = ADV.limits) === null || _ADV$limits2 === void 0 ? void 0 : _ADV$limits2.minRowsEachSide) !== null && _ADV$limits$minRowsEa !== void 0 ? _ADV$limits$minRowsEa : 1);
+  const maxColsLimit = Math.max(0, Math.floor(COLS / 2));
+  const maxRowsLimit = Math.max(0, Math.floor(ROWS / 2));
+  let minColsEachSideRaw = (_ADV$limits$minColsEa = (_ADV$limits = ADV.limits) === null || _ADV$limits === void 0 ? void 0 : _ADV$limits.minColsEachSide) !== null && _ADV$limits$minColsEa !== void 0 ? _ADV$limits$minColsEa : 0;
+  if (!Number.isFinite(minColsEachSideRaw)) minColsEachSideRaw = 0;
+  const minColsEachSide = Math.min(maxColsLimit, Math.max(0, Math.round(minColsEachSideRaw)));
+  let minRowsEachSideRaw = (_ADV$limits$minRowsEa = (_ADV$limits2 = ADV.limits) === null || _ADV$limits2 === void 0 ? void 0 : _ADV$limits2.minRowsEachSide) !== null && _ADV$limits$minRowsEa !== void 0 ? _ADV$limits$minRowsEa : 0;
+  if (!Number.isFinite(minRowsEachSideRaw)) minRowsEachSideRaw = 0;
+  const minRowsEachSide = Math.min(maxRowsLimit, Math.max(0, Math.round(minRowsEachSideRaw)));
+  const maxColsEachSide = COLS - minColsEachSide;
+  const maxRowsEachSide = ROWS - minRowsEachSide;
   const initLeftCols = (_SV$length$handle = (_SV$length3 = SV.length) === null || _SV$length3 === void 0 ? void 0 : _SV$length3.handle) !== null && _SV$length$handle !== void 0 ? _SV$length$handle : Math.floor(COLS / 2);
   const initBottomRows = (_SV$height$handle = (_SV$height3 = SV.height) === null || _SV$height3 === void 0 ? void 0 : _SV$height3.handle) !== null && _SV$height$handle !== void 0 ? _SV$height$handle : Math.floor(ROWS / 2);
   const showLeftHandle = showHeightAxis && ((_SV$height4 = SV.height) === null || _SV$height4 === void 0 ? void 0 : _SV$height4.showHandle) !== false;
@@ -188,19 +198,37 @@ function draw() {
     node.setAttribute(n, v);
     return node;
   };
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const clampInt = (v, a, b) => Math.max(a, Math.min(b, Math.round(v)));
-  const snap = v => Math.round(v / UNIT) * UNIT;
+  const normalizeRange = (a, b) => {
+    let min = Number.isFinite(a) ? a : 0;
+    let max = Number.isFinite(b) ? b : min;
+    if (min > max) [min, max] = [max, min];
+    return [min, max];
+  };
+  const clamp = (v, a, b) => {
+    const [min, max] = normalizeRange(a, b);
+    const value = Number.isFinite(v) ? v : min;
+    return Math.max(min, Math.min(max, value));
+  };
+  const clampInt = (v, a, b) => {
+    const [min, max] = normalizeRange(a, b);
+    const value = Number.isFinite(v) ? Math.round(v) : min;
+    return Math.max(min, Math.min(max, value));
+  };
+  const snap = (v, a, b) => {
+    const snapped = Math.round(v / UNIT) * UNIT;
+    if (a == null && b == null) return snapped;
+    return clamp(snapped, a, b);
+  };
   const minX = ML + minColsEachSide * UNIT;
-  const maxX = ML + W - minColsEachSide * UNIT;
+  const maxX = ML + maxColsEachSide * UNIT;
   const minY = MT + minRowsEachSide * UNIT;
-  const maxY = MT + H - minRowsEachSide * UNIT;
+  const maxY = MT + maxRowsEachSide * UNIT;
   const H_ICON_URL = (_ADV$handleIcons$hori = (_ADV$handleIcons2 = ADV.handleIcons) === null || _ADV$handleIcons2 === void 0 ? void 0 : _ADV$handleIcons2.horiz) !== null && _ADV$handleIcons$hori !== void 0 ? _ADV$handleIcons$hori : "";
   const V_ICON_URL = (_ADV$handleIcons$vert = (_ADV$handleIcons3 = ADV.handleIcons) === null || _ADV$handleIcons3 === void 0 ? void 0 : _ADV$handleIcons3.vert) !== null && _ADV$handleIcons$vert !== void 0 ? _ADV$handleIcons$vert : "";
 
   // state
-  let sx = clampInt(initLeftCols, 1, COLS - 1) * UNIT;
-  let sy = clampInt(initBottomRows, 1, ROWS - 1) * UNIT;
+  let sx = clampInt(initLeftCols, minColsEachSide, maxColsEachSide) * UNIT;
+  let sy = clampInt(initBottomRows, minRowsEachSide, maxRowsEachSide) * UNIT;
   let lastSyncedLeft = null;
   let lastSyncedBottom = null;
   function syncSimpleHandles() {
@@ -323,7 +351,7 @@ function draw() {
     set(a11yLeft, "aria-label", "Høyde");
     set(a11yLeft, "focusable", "true");
     set(a11yLeft, "aria-valuemin", minRowsEachSide);
-    set(a11yLeft, "aria-valuemax", ROWS - minRowsEachSide);
+    set(a11yLeft, "aria-valuemax", maxRowsEachSide);
     a11yLeftRect = el("rect");
     set(a11yLeftRect, "width", HANDLE_SIZE);
     set(a11yLeftRect, "height", HANDLE_SIZE);
@@ -349,7 +377,7 @@ function draw() {
     set(a11yDown, "aria-label", "Lengde");
     set(a11yDown, "focusable", "true");
     set(a11yDown, "aria-valuemin", minColsEachSide);
-    set(a11yDown, "aria-valuemax", COLS - minColsEachSide);
+    set(a11yDown, "aria-valuemax", maxColsEachSide);
     a11yDownRect = el("rect");
     set(a11yDownRect, "width", HANDLE_SIZE);
     set(a11yDownRect, "height", HANDLE_SIZE);
@@ -613,8 +641,12 @@ function draw() {
   function onUp(e) {
     if (e.pointerId !== active.pointerId) return;
     e.preventDefault();
-    if (active.axis === "v") sy = snap(sy);
-    if (active.axis === "h") sx = snap(sx);
+    if (active.axis === "v") {
+      sy = snap(sy, minRowsEachSide * UNIT, maxRowsEachSide * UNIT);
+    }
+    if (active.axis === "h") {
+      sx = snap(sx, minColsEachSide * UNIT, maxColsEachSide * UNIT);
+    }
     if (active.captor && active.captor.releasePointerCapture) {
       try {
         active.captor.releasePointerCapture(e.pointerId);
@@ -674,13 +706,13 @@ function draw() {
     a11yLeft.addEventListener("keydown", e => {
       let handled = true;
       if (e.key === "ArrowUp") {
-        sy = clamp(sy + UNIT, minRowsEachSide * UNIT, (ROWS - minRowsEachSide) * UNIT);
+        sy = clamp(sy + UNIT, minRowsEachSide * UNIT, maxRowsEachSide * UNIT);
       } else if (e.key === "ArrowDown") {
-        sy = clamp(sy - UNIT, minRowsEachSide * UNIT, (ROWS - minRowsEachSide) * UNIT);
+        sy = clamp(sy - UNIT, minRowsEachSide * UNIT, maxRowsEachSide * UNIT);
       } else if (e.key === "Home") {
         sy = minRowsEachSide * UNIT;
       } else if (e.key === "End") {
-        sy = (ROWS - minRowsEachSide) * UNIT;
+        sy = maxRowsEachSide * UNIT;
       } else {
         handled = false;
       }
@@ -694,13 +726,13 @@ function draw() {
     a11yDown.addEventListener("keydown", e => {
       let handled = true;
       if (e.key === "ArrowRight") {
-        sx = clamp(sx + UNIT, minColsEachSide * UNIT, (COLS - minColsEachSide) * UNIT);
+        sx = clamp(sx + UNIT, minColsEachSide * UNIT, maxColsEachSide * UNIT);
       } else if (e.key === "ArrowLeft") {
-        sx = clamp(sx - UNIT, minColsEachSide * UNIT, (COLS - minColsEachSide) * UNIT);
+        sx = clamp(sx - UNIT, minColsEachSide * UNIT, maxColsEachSide * UNIT);
       } else if (e.key === "Home") {
         sx = minColsEachSide * UNIT;
       } else if (e.key === "End") {
-        sx = (COLS - minColsEachSide) * UNIT;
+        sx = maxColsEachSide * UNIT;
       } else {
         handled = false;
       }
@@ -715,11 +747,11 @@ function draw() {
       if (justDragged) return;
       const p = clientToSvg(e);
       if (dragVertical && showHeightAxis && Math.abs(p.x - ML) < 12 && p.y >= MT && p.y <= MT + H) {
-        sy = snap(MT + H - clamp(p.y, minY, maxY));
+        sy = snap(MT + H - clamp(p.y, minY, maxY), minRowsEachSide * UNIT, maxRowsEachSide * UNIT);
         scheduleRedraw();
       }
       if (dragHorizontal && showLengthAxis && Math.abs(p.y - (MT + H)) < 12 && p.x >= ML && p.x <= ML + W) {
-        sx = snap(clamp(p.x, minX, maxX) - ML);
+        sx = snap(clamp(p.x, minX, maxX) - ML, minColsEachSide * UNIT, maxColsEachSide * UNIT);
         scheduleRedraw();
       }
     });
@@ -992,7 +1024,7 @@ function draw() {
       right: 8,
       bottom: 64,
       left: 8
-    }) + ";", "var root=" + rootExpr + "; root.style.touchAction='none';", "var rTL=document.getElementById('rTL'), rTR=document.getElementById('rTR'), rBL=document.getElementById('rBL'), rBR=document.getElementById('rBR');", "var vLine=document.getElementById('vLine'), hLine=document.getElementById('hLine');", "var tTL=document.getElementById('tTL'), tTR=document.getElementById('tTR'), tBL=document.getElementById('tBL'), tBR=document.getElementById('tBR');", "var leftTop=document.getElementById('leftTop'), leftBot=document.getElementById('leftBot'), botLeft=document.getElementById('botLeft'), botRight=document.getElementById('botRight');", "var hLeft=document.getElementById('hLeft'), hDown=document.getElementById('hDown');", "var hitLeft=document.getElementById('hLeftHit'), hitDown=document.getElementById('hDownHit');", "var hotLeft=document.getElementById('hotLeft'), hotBottom=document.getElementById('hotBottom');", "var vb=root.viewBox.baseVal; var sx=" + o.sx + ", sy=" + o.sy + ";", "function set(el,a,v){ if(el) el.setAttribute(a,v); }", "function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }", "function snap(v){ return Math.round(v/UNIT)*UNIT; }", "var rect=root.getBoundingClientRect(); function refreshRect(){ rect=root.getBoundingClientRect(); }", "function clientToSvg(e){ var sx=vb.width/rect.width, sy=vb.height/rect.height; return { x: vb.x+(e.clientX-rect.left)*sx, y: vb.y+(e.clientY-rect.top)*sy }; }", "var raf=0; function schedule(){ if(raf) return; raf=requestAnimationFrame(function(){ raf=0; redraw(); }); }", "function redraw(){ var wL=Math.round(sx/UNIT), wR=COLS-wL; var hB=Math.round(sy/UNIT), hT=ROWS-hB;", " set(rTL,'x',ML); set(rTL,'y',MT); set(rTL,'width',sx); set(rTL,'height',H-sy);", " set(rTR,'x',ML+sx); set(rTR,'y',MT); set(rTR,'width',W-sx); set(rTR,'height',H-sy);", " set(rBL,'x',ML); set(rBL,'y',MT+(H-sy)); set(rBL,'width',sx); set(rBL,'height',sy);", " set(rBR,'x',ML+sx); set(rBR,'y',MT+(H-sy)); set(rBR,'width',W-sx); set(rBR,'height',sy);", " if(vLine){ set(vLine,'x1',ML+sx); set(vLine,'y1',MT); set(vLine,'x2',ML+sx); set(vLine,'y2',MT+H); }", " if(hLine){ set(hLine,'x1',ML); set(hLine,'y1',MT+(H-sy)); set(hLine,'x2',ML+W); set(hLine,'y2',MT+(H-sy)); }", " var hLeftCX=ML, hLeftCY=MT+(H-sy), hDownCX=ML+sx, hDownCY=MT+H;", " if(hLeft){ set(hLeft,'x',hLeftCX-HS/2); set(hLeft,'y',hLeftCY-HS/2); }", " if(hDown){ set(hDown,'x',hDownCX-HS/2); set(hDown,'y',hDownCY-HS/2); }", " if(hitLeft){ set(hitLeft,'cx',hLeftCX); set(hitLeft,'cy',hLeftCY); }", " if(hitDown){ set(hitDown,'cx',hDownCX); set(hitDown,'cy',hDownCY); }", " var leftXOutside = ML-(HS/2)-GAPX, bottomYOutside = MT+H+(HS/2)+GAPY;", " if(tTL){ set(tTL,'x',ML+sx/2); set(tTL,'y',MT+(H-sy)/2+8); tTL.textContent=wL+' · '+hT; }", " if(tTR){ set(tTR,'x',ML+sx+(W-sx)/2); set(tTR,'y',MT+(H-sy)/2+8); tTR.textContent=wR+' · '+hT; }", " if(tBL){ set(tBL,'x',ML+sx/2); set(tBL,'y',MT+(H-sy)+sy/2+8); tBL.textContent=wL+' · '+hB; }", " if(tBR){ set(tBR,'x',ML+sx+(W-sx)/2); set(tBR,'y',MT+(H-sy)+sy/2+8); tBR.textContent=wR+' · '+hB; }", " if(leftTop){ leftTop.textContent=String(hT); set(leftTop,'x',leftXOutside); set(leftTop,'y',MT+(H-sy)/2+10); }", " if(leftBot){ leftBot.textContent=String(hB); set(leftBot,'x',leftXOutside); set(leftBot,'y',MT+(H-sy)+sy/2+10); }", " if(botLeft){ botLeft.textContent=String(wL); set(botLeft,'x',ML+sx/2); set(botLeft,'y',bottomYOutside); }", " if(botRight){ botRight.textContent=String(wR); set(botRight,'x',ML+sx+(W-sx)/2); set(botRight,'y',bottomYOutside); }", " var on=((wL===TEN||wR===TEN)&&(hB===TEN||hT===TEN));", " if(vLine){ vLine.setAttribute('class',SPLIT_C+(on?' ok':'')); }", " if(hLine){ hLine.setAttribute('class',SPLIT_C+(on?' ok':'')); }", " if(hLeft) root.append(hLeft); if(hitLeft) root.append(hitLeft); if(hDown) root.append(hDown); if(hitDown) root.append(hitDown);", "}", "function fit(){ var availW=Math.max(100, window.innerWidth-(SAFE.left+SAFE.right)); var availH=Math.max(100, window.innerHeight-(SAFE.top+SAFE.bottom)); var s=Math.min(availW/vb.width, availH/vb.height); root.setAttribute('width', vb.width*s); root.setAttribute('height', vb.height*s); refreshRect(); }", "fit(); redraw(); window.addEventListener('resize', fit, {passive:true});", "var active={axis:null,id:null,captor:null}; var justDragged=false; function arm(){ justDragged=true; setTimeout(function(){ justDragged=false; },220); }", "function lock(){ document.documentElement.style.touchAction='none'; document.body.style.touchAction='none'; document.documentElement.style.overscrollBehavior='contain'; document.body.style.overscrollBehavior='contain'; }", "function unlock(){ document.documentElement.style.touchAction=''; document.body.style.touchAction=''; document.documentElement.style.overscrollBehavior=''; document.body.style.overscrollBehavior=''; }", "function onMove(e){ if(e.pointerId!==active.id) return; e.preventDefault(); var p=clientToSvg(e); if(active.axis==='v'){ var y=Math.max(MT+minRowsEachSide*UNIT, Math.min(MT+H-minRowsEachSide*UNIT, p.y)); var n=(MT+H)-y; if(n!==sy){ sy=n; schedule(); } } else if(active.axis==='h'){ var x=Math.max(ML+minColsEachSide*UNIT, Math.min(ML+W-minColsEachSide*UNIT, p.x)); var n=x-ML; if(n!==sx){ sx=n; schedule(); } }}", "function onUp(e){ if(e.pointerId!==active.id) return; e.preventDefault(); if(active.axis==='v') sy=snap(sy); if(active.axis==='h') sx=snap(sx); if(active.captor&&active.captor.releasePointerCapture){try{active.captor.releasePointerCapture(e.pointerId);}catch(_){}} if(active.captor){active.captor.setAttribute('class',(active.captor.getAttribute('class')||'').replace(/\\bdragging\\b/,'').trim());} active.axis=null; active.id=null; active.captor=null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); unlock(); arm(); schedule(); }", "function start(axis,e){ active.axis=axis; active.id=e.pointerId; active.captor=e.currentTarget||e.target; if(active.captor&&active.captor.setPointerCapture){try{active.captor.setPointerCapture(e.pointerId);}catch(_){}} var cls=(active.captor.getAttribute('class')||''); active.captor.setAttribute('class', (cls+' dragging').trim()); lock(); window.addEventListener('pointermove', onMove, {passive:false}); window.addEventListener('pointerup', onUp, {passive:false}); window.addEventListener('pointercancel', onUp, {passive:false}); }", "if(hitLeft){ hitLeft.style.touchAction='none'; hitLeft.addEventListener('pointerdown', function(e){ e.preventDefault(); start('v',e); }, {passive:false}); }", "if(hitDown){ hitDown.style.touchAction='none'; hitDown.addEventListener('pointerdown', function(e){ e.preventDefault(); start('h',e); }, {passive:false}); }", ADV.clickToMove !== false ? "root.addEventListener('click',function(e){ if(justDragged) return; var p=clientToSvg(e); if(Math.abs(p.x-ML)<12 && p.y>=MT && p.y<=MT+H){ sy=Math.round(((MT+H)-Math.max(MT+minRowsEachSide*UNIT,Math.min(MT+H-minRowsEachSide*UNIT,p.y)))/UNIT)*UNIT; schedule(); } else if(Math.abs(p.y-(MT+H))<12 && p.x>=ML && p.x<=ML+W){ sx=Math.round((Math.max(ML+minColsEachSide*UNIT,Math.min(ML+W-minColsEachSide*UNIT,p.x))-ML)/UNIT)*UNIT; schedule(); } });" : "", "})();"].join("\n");
+    }) + ";", "var root=" + rootExpr + "; root.style.touchAction='none';", "var rTL=document.getElementById('rTL'), rTR=document.getElementById('rTR'), rBL=document.getElementById('rBL'), rBR=document.getElementById('rBR');", "var vLine=document.getElementById('vLine'), hLine=document.getElementById('hLine');", "var tTL=document.getElementById('tTL'), tTR=document.getElementById('tTR'), tBL=document.getElementById('tBL'), tBR=document.getElementById('tBR');", "var leftTop=document.getElementById('leftTop'), leftBot=document.getElementById('leftBot'), botLeft=document.getElementById('botLeft'), botRight=document.getElementById('botRight');", "var hLeft=document.getElementById('hLeft'), hDown=document.getElementById('hDown');", "var hitLeft=document.getElementById('hLeftHit'), hitDown=document.getElementById('hDownHit');", "var hotLeft=document.getElementById('hotLeft'), hotBottom=document.getElementById('hotBottom');", "var vb=root.viewBox.baseVal; var sx=" + o.sx + ", sy=" + o.sy + ";", "function set(el,a,v){ if(el) el.setAttribute(a,v); }", "function normalizeRange(a,b){ var min=Number.isFinite(a)?a:0; var max=Number.isFinite(b)?b:min; if(min>max){ var tmp=min; min=max; max=tmp; } return [min,max]; }", "function clamp(v,a,b){ var range=normalizeRange(a,b), min=range[0], max=range[1]; var value=Number.isFinite(v)?v:min; return Math.max(min, Math.min(max, value)); }", "function clampInt(v,a,b){ var range=normalizeRange(a,b), min=range[0], max=range[1]; var value=Number.isFinite(v)?Math.round(v):min; return Math.max(min, Math.min(max, value)); }", "function snap(v,a,b){ var snapped=Math.round(v/UNIT)*UNIT; if(a==null&&b==null) return snapped; return clamp(snapped,a,b); }", "var rect=root.getBoundingClientRect(); function refreshRect(){ rect=root.getBoundingClientRect(); }", "function clientToSvg(e){ var sx=vb.width/rect.width, sy=vb.height/rect.height; return { x: vb.x+(e.clientX-rect.left)*sx, y: vb.y+(e.clientY-rect.top)*sy }; }", "var raf=0; function schedule(){ if(raf) return; raf=requestAnimationFrame(function(){ raf=0; redraw(); }); }", "function redraw(){ var wL=Math.round(sx/UNIT), wR=COLS-wL; var hB=Math.round(sy/UNIT), hT=ROWS-hB;", " set(rTL,'x',ML); set(rTL,'y',MT); set(rTL,'width',sx); set(rTL,'height',H-sy);", " set(rTR,'x',ML+sx); set(rTR,'y',MT); set(rTR,'width',W-sx); set(rTR,'height',H-sy);", " set(rBL,'x',ML); set(rBL,'y',MT+(H-sy)); set(rBL,'width',sx); set(rBL,'height',sy);", " set(rBR,'x',ML+sx); set(rBR,'y',MT+(H-sy)); set(rBR,'width',W-sx); set(rBR,'height',sy);", " if(vLine){ set(vLine,'x1',ML+sx); set(vLine,'y1',MT); set(vLine,'x2',ML+sx); set(vLine,'y2',MT+H); }", " if(hLine){ set(hLine,'x1',ML); set(hLine,'y1',MT+(H-sy)); set(hLine,'x2',ML+W); set(hLine,'y2',MT+(H-sy)); }", " var hLeftCX=ML, hLeftCY=MT+(H-sy), hDownCX=ML+sx, hDownCY=MT+H;", " if(hLeft){ set(hLeft,'x',hLeftCX-HS/2); set(hLeft,'y',hLeftCY-HS/2); }", " if(hDown){ set(hDown,'x',hDownCX-HS/2); set(hDown,'y',hDownCY-HS/2); }", " if(hitLeft){ set(hitLeft,'cx',hLeftCX); set(hitLeft,'cy',hLeftCY); }", " if(hitDown){ set(hitDown,'cx',hDownCX); set(hitDown,'cy',hDownCY); }", " var leftXOutside = ML-(HS/2)-GAPX, bottomYOutside = MT+H+(HS/2)+GAPY;", " if(tTL){ set(tTL,'x',ML+sx/2); set(tTL,'y',MT+(H-sy)/2+8); tTL.textContent=wL+' · '+hT; }", " if(tTR){ set(tTR,'x',ML+sx+(W-sx)/2); set(tTR,'y',MT+(H-sy)/2+8); tTR.textContent=wR+' · '+hT; }", " if(tBL){ set(tBL,'x',ML+sx/2); set(tBL,'y',MT+(H-sy)+sy/2+8); tBL.textContent=wL+' · '+hB; }", " if(tBR){ set(tBR,'x',ML+sx+(W-sx)/2); set(tBR,'y',MT+(H-sy)+sy/2+8); tBR.textContent=wR+' · '+hB; }", " if(leftTop){ leftTop.textContent=String(hT); set(leftTop,'x',leftXOutside); set(leftTop,'y',MT+(H-sy)/2+10); }", " if(leftBot){ leftBot.textContent=String(hB); set(leftBot,'x',leftXOutside); set(leftBot,'y',MT+(H-sy)+sy/2+10); }", " if(botLeft){ botLeft.textContent=String(wL); set(botLeft,'x',ML+sx/2); set(botLeft,'y',bottomYOutside); }", " if(botRight){ botRight.textContent=String(wR); set(botRight,'x',ML+sx+(W-sx)/2); set(botRight,'y',bottomYOutside); }", " var on=((wL===TEN||wR===TEN)&&(hB===TEN||hT===TEN));", " if(vLine){ vLine.setAttribute('class',SPLIT_C+(on?' ok':'')); }", " if(hLine){ hLine.setAttribute('class',SPLIT_C+(on?' ok':'')); }", " if(hLeft) root.append(hLeft); if(hitLeft) root.append(hitLeft); if(hDown) root.append(hDown); if(hitDown) root.append(hitDown);", "}", "function fit(){ var availW=Math.max(100, window.innerWidth-(SAFE.left+SAFE.right)); var availH=Math.max(100, window.innerHeight-(SAFE.top+SAFE.bottom)); var s=Math.min(availW/vb.width, availH/vb.height); root.setAttribute('width', vb.width*s); root.setAttribute('height', vb.height*s); refreshRect(); }", "fit(); redraw(); window.addEventListener('resize', fit, {passive:true});", "var active={axis:null,id:null,captor:null}; var justDragged=false; function arm(){ justDragged=true; setTimeout(function(){ justDragged=false; },220); }", "function lock(){ document.documentElement.style.touchAction='none'; document.body.style.touchAction='none'; document.documentElement.style.overscrollBehavior='contain'; document.body.style.overscrollBehavior='contain'; }", "function unlock(){ document.documentElement.style.touchAction=''; document.body.style.touchAction=''; document.documentElement.style.overscrollBehavior=''; document.body.style.overscrollBehavior=''; }", "function onMove(e){ if(e.pointerId!==active.id) return; e.preventDefault(); var p=clientToSvg(e); if(active.axis==='v'){ var y=Math.max(MT+minRowsEachSide*UNIT, Math.min(MT+H-minRowsEachSide*UNIT, p.y)); var n=(MT+H)-y; if(n!==sy){ sy=n; schedule(); } } else if(active.axis==='h'){ var x=Math.max(ML+minColsEachSide*UNIT, Math.min(ML+W-minColsEachSide*UNIT, p.x)); var n=x-ML; if(n!==sx){ sx=n; schedule(); } }}", "function onUp(e){ if(e.pointerId!==active.id) return; e.preventDefault(); if(active.axis==='v') sy=snap(sy,minRowsEachSide*UNIT,maxRowsEachSide*UNIT); if(active.axis==='h') sx=snap(sx,minColsEachSide*UNIT,maxColsEachSide*UNIT); if(active.captor&&active.captor.releasePointerCapture){try{active.captor.releasePointerCapture(e.pointerId);}catch(_){}} if(active.captor){active.captor.setAttribute('class',(active.captor.getAttribute('class')||'').replace(/\\bdragging\\b/,'').trim());} active.axis=null; active.id=null; active.captor=null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); unlock(); arm(); schedule(); }", "function start(axis,e){ active.axis=axis; active.id=e.pointerId; active.captor=e.currentTarget||e.target; if(active.captor&&active.captor.setPointerCapture){try{active.captor.setPointerCapture(e.pointerId);}catch(_){}} var cls=(active.captor.getAttribute('class')||''); active.captor.setAttribute('class', (cls+' dragging').trim()); lock(); window.addEventListener('pointermove', onMove, {passive:false}); window.addEventListener('pointerup', onUp, {passive:false}); window.addEventListener('pointercancel', onUp, {passive:false}); }", "if(hitLeft){ hitLeft.style.touchAction='none'; hitLeft.addEventListener('pointerdown', function(e){ e.preventDefault(); start('v',e); }, {passive:false}); }", "if(hitDown){ hitDown.style.touchAction='none'; hitDown.addEventListener('pointerdown', function(e){ e.preventDefault(); start('h',e); }, {passive:false}); }", ADV.clickToMove !== false ? "root.addEventListener('click',function(e){ if(justDragged) return; var p=clientToSvg(e); if(Math.abs(p.x-ML)<12 && p.y>=MT && p.y<=MT+H){ sy=Math.max(minRowsEachSide*UNIT,Math.min(maxRowsEachSide*UNIT,Math.round(((MT+H)-Math.max(MT+minRowsEachSide*UNIT,Math.min(MT+H-minRowsEachSide*UNIT,p.y)))/UNIT)*UNIT)); schedule(); } else if(Math.abs(p.y-(MT+H))<12 && p.x>=ML && p.x<=ML+W){ sx=Math.max(minColsEachSide*UNIT,Math.min(maxColsEachSide*UNIT,Math.round((Math.max(ML+minColsEachSide*UNIT,Math.min(ML+W-minColsEachSide*UNIT,p.x))-ML)/UNIT)*UNIT)); schedule(); } });" : "", "})();"].join("\n");
   }
   function buildInteractiveSvgString(o) {
     const svgNoScript = buildBaseSvgMarkup(o, true);
