@@ -1,14 +1,137 @@
+const globalScope = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
+
+function createFallbackStorage(){
+  const data = new Map();
+  return {
+    get length(){
+      return data.size;
+    },
+    key(index){
+      if(!Number.isInteger(index) || index < 0) return null;
+      if(index >= data.size) return null;
+      let i = 0;
+      for(const key of data.keys()){
+        if(i === index) return key;
+        i++;
+      }
+      return null;
+    },
+    getItem(key){
+      if(key == null) return null;
+      const normalized = String(key);
+      return data.has(normalized) ? data.get(normalized) : null;
+    },
+    setItem(key, value){
+      if(key == null) return;
+      data.set(String(key), value == null ? 'null' : String(value));
+    },
+    removeItem(key){
+      if(key == null) return;
+      data.delete(String(key));
+    },
+    clear(){ data.clear(); }
+  };
+}
+
+const sharedFallback = (() => {
+  if(globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function'){
+    return globalScope.__EXAMPLES_FALLBACK_STORAGE__;
+  }
+  const store = createFallbackStorage();
+  if(globalScope){
+    globalScope.__EXAMPLES_FALLBACK_STORAGE__ = store;
+  }
+  return store;
+})();
+
+let storage = null;
+let usingFallback = false;
+
+if(globalScope){
+  const shared = globalScope.__EXAMPLES_STORAGE__;
+  if(shared && typeof shared.getItem === 'function'){
+    storage = shared;
+    usingFallback = shared === sharedFallback;
+  }
+}
+
+if(!storage){
+  try{
+    if(typeof localStorage !== 'undefined'){
+      storage = localStorage;
+    }else{
+      storage = sharedFallback;
+      usingFallback = true;
+    }
+  }catch(_){
+    storage = sharedFallback;
+    usingFallback = true;
+  }
+}
+
+if(globalScope && (!globalScope.__EXAMPLES_STORAGE__ || typeof globalScope.__EXAMPLES_STORAGE__.getItem !== 'function')){
+  globalScope.__EXAMPLES_STORAGE__ = storage;
+}
+
+function switchToFallback(){
+  if(usingFallback) return storage;
+  if(storage && storage !== sharedFallback){
+    try{
+      const total = Number(storage.length) || 0;
+      for(let i = 0; i < total; i++){
+        let key = null;
+        try{ key = storage.key(i); }
+        catch(_){ key = null; }
+        if(!key) continue;
+        try{
+          const value = storage.getItem(key);
+          if(value != null) sharedFallback.setItem(key, value);
+        }catch(_){ }
+      }
+    }catch(_){ }
+  }
+  usingFallback = true;
+  storage = sharedFallback;
+  if(globalScope){
+    globalScope.__EXAMPLES_STORAGE__ = storage;
+  }
+  return storage;
+}
+
+function safeGetItem(key){
+  if(!usingFallback && storage && typeof storage.getItem === 'function'){
+    try{
+      return storage.getItem(key);
+    }catch(_){
+      return switchToFallback().getItem(key);
+    }
+  }
+  return storage && typeof storage.getItem === 'function' ? storage.getItem(key) : null;
+}
+
+function safeSetItem(key, value){
+  if(!usingFallback && storage && typeof storage.setItem === 'function'){
+    try{
+      storage.setItem(key, value);
+      return;
+    }catch(_){
+      // fall through
+    }
+  }
+  switchToFallback().setItem(key, value);
+}
+
 const iframe = document.querySelector('iframe');
 const nav = document.querySelector('nav');
 const defaultPage = 'nkant.html';
 const links = Array.from(nav.querySelectorAll('a'));
-const saved = localStorage.getItem('currentPage');
+const saved = safeGetItem('currentPage');
 const initialPage = saved && links.some(link => link.getAttribute('href') === saved)
   ? saved
   : defaultPage;
 
 if (initialPage !== saved) {
-  localStorage.setItem('currentPage', initialPage);
+  safeSetItem('currentPage', initialPage);
 }
 
 iframe.src = initialPage;
@@ -55,7 +178,7 @@ nav.addEventListener('click', event => {
   }
 
   iframe.src = cacheBustingSrc;
-  localStorage.setItem('currentPage', href);
+  safeSetItem('currentPage', href);
   setActive(href);
 });
 

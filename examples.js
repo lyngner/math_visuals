@@ -1,4 +1,131 @@
 (function(){
+  const globalScope = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
+
+  function createFallbackStorage(){
+    const data = new Map();
+    return {
+      get length(){
+        return data.size;
+      },
+      key(index){
+        if(!Number.isInteger(index) || index < 0) return null;
+        if(index >= data.size) return null;
+        let i = 0;
+        for(const key of data.keys()){
+          if(i === index) return key;
+          i++;
+        }
+        return null;
+      },
+      getItem(key){
+        if(key == null) return null;
+        const normalized = String(key);
+        return data.has(normalized) ? data.get(normalized) : null;
+      },
+      setItem(key, value){
+        if(key == null) return;
+        const normalized = String(key);
+        data.set(normalized, value == null ? 'null' : String(value));
+      },
+      removeItem(key){
+        if(key == null) return;
+        data.delete(String(key));
+      },
+      clear(){
+        data.clear();
+      }
+    };
+  }
+
+  const fallbackStorage = (() => {
+    if(globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function'){
+      return globalScope.__EXAMPLES_FALLBACK_STORAGE__;
+    }
+    const store = createFallbackStorage();
+    if(globalScope){
+      globalScope.__EXAMPLES_FALLBACK_STORAGE__ = store;
+    }
+    return store;
+  })();
+
+  let usingFallbackStorage = false;
+
+  function ensureFallbackStorage(){
+    if(!usingFallbackStorage){
+      usingFallbackStorage = true;
+      if(typeof localStorage !== 'undefined'){
+        try{
+          const total = Number(localStorage.length) || 0;
+          for(let i = 0; i < total; i++){
+            let key = null;
+            try{ key = localStorage.key(i); }
+            catch(_){ key = null; }
+            if(!key) continue;
+            try{
+              const value = localStorage.getItem(key);
+              if(value != null) fallbackStorage.setItem(key, value);
+            }catch(_){ }
+          }
+        }catch(_){ }
+      }
+      if(globalScope){
+        globalScope.__EXAMPLES_STORAGE__ = fallbackStorage;
+      }
+    }
+    return fallbackStorage;
+  }
+
+  function safeGetItem(key){
+    if(usingFallbackStorage){
+      return fallbackStorage.getItem(key);
+    }
+    try{
+      if(typeof localStorage === 'undefined') throw new Error('Storage not available');
+      return localStorage.getItem(key);
+    }catch(_){
+      return ensureFallbackStorage().getItem(key);
+    }
+  }
+
+  function safeSetItem(key, value){
+    if(usingFallbackStorage){
+      fallbackStorage.setItem(key, value);
+      return;
+    }
+    try{
+      if(typeof localStorage === 'undefined') throw new Error('Storage not available');
+      localStorage.setItem(key, value);
+    }catch(_){
+      ensureFallbackStorage().setItem(key, value);
+    }
+  }
+
+  function safeRemoveItem(key){
+    if(usingFallbackStorage){
+      fallbackStorage.removeItem(key);
+      return;
+    }
+    try{
+      if(typeof localStorage === 'undefined') throw new Error('Storage not available');
+      localStorage.removeItem(key);
+    }catch(_){
+      ensureFallbackStorage().removeItem(key);
+    }
+  }
+
+  if(globalScope && !globalScope.__EXAMPLES_STORAGE__){
+    try{
+      if(typeof localStorage !== 'undefined'){
+        globalScope.__EXAMPLES_STORAGE__ = localStorage;
+      }else{
+        globalScope.__EXAMPLES_STORAGE__ = fallbackStorage;
+        usingFallbackStorage = true;
+      }
+    }catch(_){
+      globalScope.__EXAMPLES_STORAGE__ = ensureFallbackStorage();
+    }
+  }
+
   function normalizePathname(pathname){
     if(typeof pathname !== 'string') return '/';
     let path = pathname.trim();
@@ -69,13 +196,13 @@
   const key = 'examples_' + storagePath;
   const legacyKeys = computeLegacyStorageKeys(rawPath, storagePath);
   try{
-    if(typeof localStorage !== 'undefined'){
-      let canonicalValue = localStorage.getItem(key);
+    if(typeof localStorage !== 'undefined' || usingFallbackStorage){
+      let canonicalValue = safeGetItem(key);
       if(canonicalValue == null){
         for(const legacyKey of legacyKeys){
-          const legacyValue = localStorage.getItem(legacyKey);
+          const legacyValue = safeGetItem(legacyKey);
           if(legacyValue != null){
-            localStorage.setItem(key, legacyValue);
+            safeSetItem(key, legacyValue);
             canonicalValue = legacyValue;
             break;
           }
@@ -85,22 +212,22 @@
         legacyKeys.forEach(legacyKey => {
           if(legacyKey === key) return;
           try{
-            const legacyValue = localStorage.getItem(legacyKey);
+            const legacyValue = safeGetItem(legacyKey);
             if(legacyValue != null && legacyValue === canonicalValue){
-              localStorage.removeItem(legacyKey);
+              safeRemoveItem(legacyKey);
             }
           }catch(_){ }
         });
       }
 
       const deletedKey = key + '_deletedProvidedExamples';
-      let canonicalDeletedValue = localStorage.getItem(deletedKey);
+      let canonicalDeletedValue = safeGetItem(deletedKey);
       if(canonicalDeletedValue == null){
         for(const legacyKey of legacyKeys){
           const candidate = legacyKey + '_deletedProvidedExamples';
-          const legacyValue = localStorage.getItem(candidate);
+          const legacyValue = safeGetItem(candidate);
           if(legacyValue != null){
-            localStorage.setItem(deletedKey, legacyValue);
+            safeSetItem(deletedKey, legacyValue);
             canonicalDeletedValue = legacyValue;
             break;
           }
@@ -110,9 +237,9 @@
         legacyKeys.forEach(legacyKey => {
           const candidate = legacyKey + '_deletedProvidedExamples';
           try{
-            const legacyValue = localStorage.getItem(candidate);
+            const legacyValue = safeGetItem(candidate);
             if(legacyValue != null && legacyValue === canonicalDeletedValue){
-              localStorage.removeItem(candidate);
+              safeRemoveItem(candidate);
             }
           }catch(_){ }
         });
@@ -152,12 +279,29 @@
   if(hasUrlOverrides){
     initialLoadPerformed = true;
   }
+  let cachedExamples = [];
+  let cachedExamplesInitialized = false;
   function getExamples(){
-    try{ return JSON.parse(localStorage.getItem(key)) || []; }
-    catch{ return []; }
+    if(!cachedExamplesInitialized){
+      cachedExamplesInitialized = true;
+      cachedExamples = [];
+    }
+    const stored = safeGetItem(key);
+    if(stored == null){
+      return cachedExamples;
+    }
+    try{
+      const parsed = JSON.parse(stored);
+      cachedExamples = Array.isArray(parsed) ? parsed : [];
+    }catch(_){
+      cachedExamples = [];
+    }
+    return cachedExamples;
   }
   function store(examples){
-    localStorage.setItem(key, JSON.stringify(examples));
+    cachedExamples = Array.isArray(examples) ? examples : [];
+    cachedExamplesInitialized = true;
+    safeSetItem(key, JSON.stringify(cachedExamples));
   }
   const BINDING_NAMES = ['STATE','CFG','CONFIG','SIMPLE'];
   const DELETED_PROVIDED_KEY = key + '_deletedProvidedExamples';
@@ -171,7 +315,7 @@
     if(deletedProvidedExamples) return deletedProvidedExamples;
     deletedProvidedExamples = new Set();
     try{
-      const stored = localStorage.getItem(DELETED_PROVIDED_KEY);
+      const stored = safeGetItem(DELETED_PROVIDED_KEY);
       if(stored){
         const parsed = JSON.parse(stored);
         if(Array.isArray(parsed)){
@@ -190,7 +334,7 @@
   function persistDeletedProvidedExamples(){
     if(!deletedProvidedExamples) return;
     try{
-      localStorage.setItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
+      safeSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
     }catch{}
   }
 
@@ -538,7 +682,7 @@
   // Load example if viewer requested
   (function(){
     if(hasUrlOverrides) return;
-    const loadInfo = localStorage.getItem('example_to_load');
+    const loadInfo = safeGetItem('example_to_load');
     if(!loadInfo) return;
     try{
       const {path, index} = JSON.parse(loadInfo);
@@ -546,7 +690,7 @@
         if(loadExample(index)) initialLoadPerformed = true;
       }
     }catch{}
-    localStorage.removeItem('example_to_load');
+    safeRemoveItem('example_to_load');
   })();
 
   const saveBtn = document.getElementById('btnSaveExample');
