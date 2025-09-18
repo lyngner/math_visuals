@@ -238,10 +238,7 @@
 
   function formatFraction(den){
     if(den === 1) return '1';
-    const denominator = String(den);
-    const needsBraces = denominator.length > 1;
-    const denPart = needsBraces ? `{${denominator}}` : denominator;
-    return `\\frac1${denPart}`;
+    return `1/${den}`;
   }
 
   const decimalFormatterCache = new Map();
@@ -275,6 +272,46 @@
     const total = den;
     const label = MODE_LABELS[mode] || mode;
     return `Del ${position} av ${total}. Viser ${label}. Klikk for å bytte visning.`;
+  }
+
+  function createFractionGroup(den, centerX, centerY, tileWidth, textColor){
+    const group = createSvgElement('g', {'aria-hidden': 'true'});
+    const fontSize = Math.max(10, Math.min(ROW_HEIGHT * STATE.textScale, tileWidth * 0.6));
+    const spacing = fontSize * 0.75;
+    const numerator = createSvgElement('text', {
+      x: centerX,
+      y: centerY - spacing / 2,
+      textContent: '1'
+    });
+    numerator.setAttribute('fill', textColor);
+    numerator.style.fill = textColor;
+    numerator.style.fontSize = `${fontSize}px`;
+
+    const denominator = createSvgElement('text', {
+      x: centerX,
+      y: centerY + spacing / 2,
+      textContent: String(den)
+    });
+    denominator.setAttribute('fill', textColor);
+    denominator.style.fill = textColor;
+    denominator.style.fontSize = `${fontSize}px`;
+
+    const lineLength = Math.min(tileWidth * 0.6, fontSize * 1.8);
+    const line = createSvgElement('line', {
+      x1: centerX - lineLength / 2,
+      y1: centerY,
+      x2: centerX + lineLength / 2,
+      y2: centerY,
+      stroke: textColor,
+      'stroke-width': Math.max(2, fontSize * 0.12),
+      'stroke-linecap': 'round',
+      'aria-hidden': 'true'
+    });
+
+    group.appendChild(numerator);
+    group.appendChild(line);
+    group.appendChild(denominator);
+    return group;
   }
 
   function render(){
@@ -369,18 +406,23 @@
           fill: color,
           'aria-hidden': 'true'
         });
-        const fontSize = Math.max(10, Math.min(ROW_HEIGHT * STATE.textScale, tileWidth * 0.8));
-        const text = createSvgElement('text', {
-          x: tileX + tileWidth / 2,
-          y: ROW_HEIGHT / 2
-        });
-        text.textContent = displayValue;
-        text.setAttribute('fill', textColor);
-        text.style.fill = textColor;
-        text.style.fontSize = `${fontSize}px`;
         tile.appendChild(tooltip);
         tile.appendChild(rect);
-        tile.appendChild(text);
+        if(mode === 'fraction' && den > 1){
+          const fractionGroup = createFractionGroup(den, tileX + tileWidth / 2, ROW_HEIGHT / 2, tileWidth, textColor);
+          tile.appendChild(fractionGroup);
+        }else{
+          const text = createSvgElement('text', {
+            x: tileX + tileWidth / 2,
+            y: ROW_HEIGHT / 2
+          });
+          const fontSize = Math.max(10, Math.min(ROW_HEIGHT * STATE.textScale, tileWidth * 0.8));
+          text.textContent = displayValue;
+          text.setAttribute('fill', textColor);
+          text.style.fill = textColor;
+          text.style.fontSize = `${fontSize}px`;
+          tile.appendChild(text);
+        }
         tile.addEventListener('click', (event)=>{
           event.preventDefault();
           cycleTileMode(den, i);
