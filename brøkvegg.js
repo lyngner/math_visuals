@@ -276,12 +276,33 @@
 
   function createFractionGroup(den, centerX, centerY, tileWidth, textColor){
     const group = createSvgElement('g', {'aria-hidden': 'true'});
-    const fontSize = Math.max(10, Math.min(ROW_HEIGHT * STATE.textScale, tileWidth * 0.6));
-    const spacing = fontSize * 0.75;
+    const numeratorText = '1';
+    const denominatorText = String(den);
+    const maxChars = Math.max(numeratorText.length, denominatorText.length, 1);
+    const approximateDigitWidth = 0.62; // Approximate width of a digit relative to font size
+    const widthPadding = 0.72; // Leave some horizontal padding on each side
+    const baseFontLimit = ROW_HEIGHT * STATE.textScale;
+    const widthLimit = (tileWidth * widthPadding) / (maxChars * approximateDigitWidth);
+    let fontSize = Math.max(10, Math.min(baseFontLimit, widthLimit));
+
+    const availableHalfHeight = ROW_HEIGHT / 2 - 4;
+    let gap = Math.max(4, fontSize * 0.18);
+    let attempts = 0;
+    while(fontSize + gap > availableHalfHeight && attempts < 3){
+      const heightLimit = availableHalfHeight - gap;
+      const nextFont = Math.max(10, heightLimit);
+      if(nextFont >= fontSize) break;
+      fontSize = nextFont;
+      gap = Math.max(4, fontSize * 0.18);
+      attempts++;
+    }
+
+    const lineOffset = fontSize / 2 + gap;
+
     const numerator = createSvgElement('text', {
       x: centerX,
-      y: centerY - spacing / 2,
-      textContent: '1'
+      y: centerY - lineOffset,
+      textContent: numeratorText
     });
     numerator.setAttribute('fill', textColor);
     numerator.style.fill = textColor;
@@ -289,14 +310,15 @@
 
     const denominator = createSvgElement('text', {
       x: centerX,
-      y: centerY + spacing / 2,
-      textContent: String(den)
+      y: centerY + lineOffset,
+      textContent: denominatorText
     });
     denominator.setAttribute('fill', textColor);
     denominator.style.fill = textColor;
     denominator.style.fontSize = `${fontSize}px`;
 
-    const lineLength = Math.min(tileWidth * 0.6, fontSize * 1.8);
+    const estimatedTextWidth = fontSize * approximateDigitWidth * maxChars;
+    const lineLength = Math.min(tileWidth * widthPadding, estimatedTextWidth * 1.1);
     const line = createSvgElement('line', {
       x1: centerX - lineLength / 2,
       y1: centerY,
