@@ -26,6 +26,8 @@ const FONT_DEFAULTS = {
   axis: 20,
   curve: 16
 };
+const curveLabelShowName = params.has('showCurveName') ? paramBool('showCurveName') : true;
+const curveLabelShowExpr = params.has('showCurveExpr') ? paramBool('showCurveExpr') : false;
 function clampFontSize(val){
   if(!Number.isFinite(val)) return null;
   if(val < FONT_LIMITS.min) return FONT_LIMITS.min;
@@ -111,7 +113,9 @@ const ADV = {
 
   // Grafnavn
   curveName: {
-    show: true,
+    show: curveLabelShowName || curveLabelShowExpr,
+    showName: curveLabelShowName,
+    showExpr: curveLabelShowExpr,
     fontSize: sanitizeFontSize(paramNumber('curveFont', FONT_DEFAULTS.curve), FONT_DEFAULTS.curve),
     layer: 30,
     fractions: [0.2, 0.8, 0.6, 0.4],
@@ -957,7 +961,7 @@ function rebuildAllFunctionSegments(){ graphs.forEach(rebuildFunctionSegmentsFor
 
 /* =================== FUNKSJONER + BRACKETS =================== */
 function makeSmartCurveLabel(g, idx, text){
-  if(!ADV.curveName.show) return;
+  if(!ADV.curveName.show || !text) return;
   const label = brd.create('text',[0,0,()=>text],{
     color:g.color, fillColor:g.color, fontSize:ADV.curveName.fontSize,
     fixed:true, highlight:false, layer:ADV.curveName.layer,
@@ -1081,12 +1085,26 @@ function updateAllBrackets(){
   }
 }
 
+function buildCurveLabelText(f){
+  const showName = !!ADV.curveName.showName;
+  const showExpr = !!ADV.curveName.showExpr;
+  if(!showName && !showExpr) return '';
+  const nameText = (f && f.label) ? f.label : `${f?.name ?? 'f'}(x)`;
+  const exprText = (f && typeof f.rhs === 'string') ? f.rhs.trim() : '';
+  if(showName && showExpr){
+    const rhs = exprText ? ` = ${exprText}` : '';
+    return `${nameText}${rhs}`.trim();
+  }
+  if(showName) return nameText;
+  return exprText;
+}
+
 function buildFunctions(){
   graphs = [];
   SIMPLE_PARSED.funcs.forEach((f,i)=>{
     const color=colorFor(i);
     const fn=parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
-    const label = f.label || `${f.name}(x)`;
+    const label = buildCurveLabelText(f);
     const g = { name:f.name, color, domain:f.domain||null, label };
     g.fn = x => { try{ const y=fn(x); return Number.isFinite(y)?y:NaN; }catch(_){ return NaN; } };
     g.segs = [];
@@ -1098,7 +1116,7 @@ function buildFunctions(){
       { visible:false, strokeOpacity:0, fixed:true });
 
     graphs.push(g);
-    makeSmartCurveLabel(g, i, label);
+    if(label) makeSmartCurveLabel(g, i, label);
   });
 
   rebuildAllFunctionSegments();
@@ -1717,6 +1735,10 @@ function setupSettingsForm(){
   if(axisFontInput){ axisFontInput.value = String(ADV.axis.labels.fontSize); }
   const curveFontInput = g('cfgFontCurve');
   if(curveFontInput){ curveFontInput.value = String(ADV.curveName.fontSize); }
+  const showCurveNameInput = g('cfgShowCurveName');
+  if(showCurveNameInput){ showCurveNameInput.checked = !!ADV.curveName.showName; }
+  const showCurveExprInput = g('cfgShowCurveExpr');
+  if(showCurveExprInput){ showCurveExprInput.checked = !!ADV.curveName.showExpr; }
 
   const apply = () => {
     syncSimpleFromForm();
@@ -1752,6 +1774,14 @@ function setupSettingsForm(){
     const snapInput = g('cfgSnap');
     if(snapInput){
       if(snapInput.checked) p.set('snap','1'); else p.set('snap','0');
+    }
+    const showNameInput = g('cfgShowCurveName');
+    if(showNameInput){
+      if(showNameInput.checked) p.set('showCurveName','1'); else p.set('showCurveName','0');
+    }
+    const showExprInput = g('cfgShowCurveExpr');
+    if(showExprInput){
+      if(showExprInput.checked) p.set('showCurveExpr','1'); else p.set('showCurveExpr','0');
     }
     if(g('cfgQ1').checked) p.set('q1','1');
     const handleFontInput = (inputId, paramName, fallback) => {
