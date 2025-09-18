@@ -26,6 +26,8 @@ const FONT_DEFAULTS = {
   axis: 20,
   curve: 16
 };
+const SHOW_CURVE_NAMES = params.has('showNames') ? paramBool('showNames') : true;
+const SHOW_CURVE_EXPRESSIONS = params.has('showExpr') ? paramBool('showExpr') : false;
 function clampFontSize(val){
   if(!Number.isFinite(val)) return null;
   if(val < FONT_LIMITS.min) return FONT_LIMITS.min;
@@ -111,7 +113,9 @@ const ADV = {
 
   // Grafnavn
   curveName: {
-    show: true,
+    show: SHOW_CURVE_NAMES || SHOW_CURVE_EXPRESSIONS,
+    showName: SHOW_CURVE_NAMES,
+    showExpression: SHOW_CURVE_EXPRESSIONS,
     fontSize: sanitizeFontSize(paramNumber('curveFont', FONT_DEFAULTS.curve), FONT_DEFAULTS.curve),
     layer: 30,
     fractions: [0.2, 0.8, 0.6, 0.4],
@@ -957,7 +961,7 @@ function rebuildAllFunctionSegments(){ graphs.forEach(rebuildFunctionSegmentsFor
 
 /* =================== FUNKSJONER + BRACKETS =================== */
 function makeSmartCurveLabel(g, idx, text){
-  if(!ADV.curveName.show) return;
+  if(!ADV.curveName.show || !text) return;
   const label = brd.create('text',[0,0,()=>text],{
     color:g.color, fillColor:g.color, fontSize:ADV.curveName.fontSize,
     fixed:true, highlight:false, layer:ADV.curveName.layer,
@@ -1081,13 +1085,28 @@ function updateAllBrackets(){
   }
 }
 
+function buildCurveLabelText(fun){
+  const showName = !!(ADV?.curveName?.showName);
+  const showExpr = !!(ADV?.curveName?.showExpression);
+  if(!showName && !showExpr) return '';
+  const nameText = typeof fun?.label === 'string' ? fun.label.trim() : '';
+  const exprText = typeof fun?.rhs === 'string' ? fun.rhs.trim() : '';
+  if(showName && showExpr){
+    if(nameText && exprText) return `${nameText} = ${exprText}`;
+    return nameText || exprText;
+  }
+  if(showName && nameText) return nameText;
+  if(showExpr && exprText) return exprText;
+  return '';
+}
+
 function buildFunctions(){
   graphs = [];
   SIMPLE_PARSED.funcs.forEach((f,i)=>{
     const color=colorFor(i);
     const fn=parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
-    const label = f.label || `${f.name}(x)`;
-    const g = { name:f.name, color, domain:f.domain||null, label };
+    const label = buildCurveLabelText(f);
+    const g = { name:f.name, color, domain:f.domain||null, label, expression:f.rhs };
     g.fn = x => { try{ const y=fn(x); return Number.isFinite(y)?y:NaN; }catch(_){ return NaN; } };
     g.segs = [];
 
@@ -1098,7 +1117,7 @@ function buildFunctions(){
       { visible:false, strokeOpacity:0, fixed:true });
 
     graphs.push(g);
-    makeSmartCurveLabel(g, i, label);
+    if(label){ makeSmartCurveLabel(g, i, label); }
   });
 
   rebuildAllFunctionSegments();
@@ -1435,6 +1454,8 @@ function setupSettingsForm(){
   addBtn.textContent = '+';
   addBtn.setAttribute('aria-label','Legg til funksjon');
   const g = id => document.getElementById(id);
+  const showNamesInput = g('cfgShowNames');
+  const showExprInput = g('cfgShowExpr');
 
   const gliderRow = document.createElement('div');
   gliderRow.className = 'settings-row glider-row';
@@ -1707,6 +1728,8 @@ function setupSettingsForm(){
   g('cfgAxisY').value = paramStr('yName','y');
   g('cfgPan').checked = paramBool('pan');
   g('cfgQ1').checked = paramBool('q1');
+  if(showNamesInput){ showNamesInput.checked = !!ADV.curveName.showName; }
+  if(showExprInput){ showExprInput.checked = !!ADV.curveName.showExpression; }
   const snapCheckbox = g('cfgSnap');
   if(snapCheckbox){
     snapCheckbox.checked = ADV.points.snap.enabled;
@@ -1749,6 +1772,8 @@ function setupSettingsForm(){
     if(g('cfgAxisX').value.trim() && g('cfgAxisX').value.trim() !== 'x') p.set('xName', g('cfgAxisX').value.trim());
     if(g('cfgAxisY').value.trim() && g('cfgAxisY').value.trim() !== 'y') p.set('yName', g('cfgAxisY').value.trim());
     if(g('cfgPan').checked) p.set('pan','1');
+    if(showNamesInput){ p.set('showNames', showNamesInput.checked ? '1' : '0'); }
+    if(showExprInput){ p.set('showExpr', showExprInput.checked ? '1' : '0'); }
     const snapInput = g('cfgSnap');
     if(snapInput){
       if(snapInput.checked) p.set('snap','1'); else p.set('snap','0');
