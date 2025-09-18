@@ -965,9 +965,14 @@ function drawBlock(block) {
     block.legend.textContent = `Tenkeblokk ${block.index + 1}`;
   }
 
+  const stepperVisible = !cfg.lockDenominator;
   if (block.stepper) {
     block.stepper.setAttribute('aria-label', `Antall blokker i tenkeblokk ${block.index + 1}`);
-    block.stepper.style.display = cfg.lockDenominator ? 'none' : '';
+    block.stepper.style.display = stepperVisible ? '' : 'none';
+  }
+
+  if (block.panel) {
+    block.panel.classList.toggle('tb-panel--with-stepper', stepperVisible);
   }
 
   if (block.nVal) {
