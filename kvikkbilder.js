@@ -211,11 +211,11 @@
     const translateX = -minX;
     const translateY = -minY;
     const transforms = [];
-    if(translateX !== 0 || translateY !== 0){
-      transforms.push(`translate(${translateX},${translateY})`);
-    }
     if(scaleY !== 1){
       transforms.push(`scale(1,${scaleY})`);
+    }
+    if(translateX !== 0 || translateY !== 0){
+      transforms.push(`translate(${translateX},${translateY})`);
     }
     if(transforms.length){
       group.setAttribute('transform', transforms.join(' '));
