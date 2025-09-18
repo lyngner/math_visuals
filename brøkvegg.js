@@ -409,6 +409,8 @@
         transform: `translate(${STATE.showLabels ? LABEL_WIDTH : 0}, 0)`
       });
       const tileWidth = TILE_AREA_WIDTH / den;
+      const tileColor = lightenColor(baseColor, 0.12);
+      const tileTextColor = pickTileTextColor(tileColor);
       for(let i=0;i<den;i++){
         const mode = getTileMode(den, i);
         const displayValue = formatValue(mode, den);
@@ -421,8 +423,8 @@
           'aria-label': tileAriaLabel(den, i, mode)
         });
         const tileX = tileWidth * i;
-        const color = i % 2 === 0 ? baseColor : lightenColor(baseColor, 0.12);
-        const textColor = pickTileTextColor(color);
+        const color = tileColor;
+        const textColor = tileTextColor;
         const tooltip = createSvgElement('title', {
           textContent: `${displayValue} – ${MODE_LABELS[mode] || mode}`
         });
