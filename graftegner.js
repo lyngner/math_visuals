@@ -48,6 +48,9 @@ let SIMPLE = (typeof window !== 'undefined' && typeof window.SIMPLE !== 'undefin
 if(typeof window !== 'undefined'){ window.SIMPLE = SIMPLE; }
 
 /* ====================== AVANSERT KONFIG ===================== */
+const CURVE_SHOW_NAMES = params.has('names') ? paramBool('names') : true;
+const CURVE_SHOW_EXPR = params.has('expr') ? paramBool('expr') : false;
+
 const ADV = {
   axis: {
     labels: { x: paramStr('xName','x'), y: paramStr('yName','y') },
@@ -80,7 +83,9 @@ const ADV = {
 
   // Grafnavn
   curveName: {
-    show: true,
+    show: CURVE_SHOW_NAMES || CURVE_SHOW_EXPR,
+    showName: CURVE_SHOW_NAMES,
+    showExpression: CURVE_SHOW_EXPR,
     fontSize: 16,
     layer: 30,
     fractions: [0.2, 0.8, 0.6, 0.4],
@@ -918,9 +923,21 @@ function rebuildFunctionSegmentsFor(g){
 function rebuildAllFunctionSegments(){ graphs.forEach(rebuildFunctionSegmentsFor); }
 
 /* =================== FUNKSJONER + BRACKETS =================== */
-function makeSmartCurveLabel(g, idx, text){
+function curveLabelText(g){
+  if(!g) return '';
+  const parts = [];
+  if(ADV.curveName.showName && g.displayName){
+    parts.push(g.displayName);
+  }
+  if(ADV.curveName.showExpression && g.expression){
+    parts.push((ADV.curveName.showName && parts.length>0) ? `= ${g.expression}` : g.expression);
+  }
+  return parts.join(' ') || '';
+}
+
+function makeSmartCurveLabel(g, idx){
   if(!ADV.curveName.show) return;
-  const label = brd.create('text',[0,0,()=>text],{
+  const label = brd.create('text',[0,0,()=>curveLabelText(g)],{
     color:g.color, fillColor:g.color, fontSize:ADV.curveName.fontSize,
     fixed:true, highlight:false, layer:ADV.curveName.layer,
     anchorX:'left', anchorY:'middle', display:'internal',
@@ -1048,8 +1065,8 @@ function buildFunctions(){
   SIMPLE_PARSED.funcs.forEach((f,i)=>{
     const color=colorFor(i);
     const fn=parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
-    const label = f.label || `${f.name}(x)`;
-    const g = { name:f.name, color, domain:f.domain||null, label };
+    const displayName = f.label || `${f.name}(x)`;
+    const g = { name:f.name, color, domain:f.domain||null, displayName, expression:f.rhs };
     g.fn = x => { try{ const y=fn(x); return Number.isFinite(y)?y:NaN; }catch(_){ return NaN; } };
     g.segs = [];
 
@@ -1060,7 +1077,7 @@ function buildFunctions(){
       { visible:false, strokeOpacity:0, fixed:true });
 
     graphs.push(g);
-    makeSmartCurveLabel(g, i, label);
+    makeSmartCurveLabel(g, i);
   });
 
   rebuildAllFunctionSegments();
@@ -1419,6 +1436,24 @@ function setupSettingsForm(){
     root.appendChild(gliderRow);
   }
   gliderRow.style.display = 'none';
+
+  const labelOptionsRow = document.createElement('div');
+  labelOptionsRow.className = 'settings-row label-options';
+  labelOptionsRow.innerHTML = `
+    <div class="checkbox-row">
+      <input id="cfgShowNames" type="checkbox">
+      <label for="cfgShowNames">Vis navn på grafen</label>
+    </div>
+    <div class="checkbox-row">
+      <input id="cfgShowExpr" type="checkbox">
+      <label for="cfgShowExpr">Vis funksjonsuttrykk</label>
+    </div>
+  `;
+  if(fieldset){
+    root.insertBefore(labelOptionsRow, fieldset);
+  }else{
+    root.appendChild(labelOptionsRow);
+  }
   const gliderCountInput = gliderRow.querySelector('[data-points]');
   const gliderStartInput = gliderRow.querySelector('input[data-startx]');
   const gliderStartLabel = gliderStartInput ? gliderStartInput.closest('label') : null;
@@ -1673,6 +1708,14 @@ function setupSettingsForm(){
   if(snapCheckbox){
     snapCheckbox.checked = ADV.points.snap.enabled;
   }
+  const showNamesCheckbox = g('cfgShowNames');
+  if(showNamesCheckbox){
+    showNamesCheckbox.checked = ADV.curveName.showName;
+  }
+  const showExprCheckbox = g('cfgShowExpr');
+  if(showExprCheckbox){
+    showExprCheckbox.checked = ADV.curveName.showExpression;
+  }
 
   const apply = () => {
     syncSimpleFromForm();
@@ -1710,6 +1753,12 @@ function setupSettingsForm(){
       if(snapInput.checked) p.set('snap','1'); else p.set('snap','0');
     }
     if(g('cfgQ1').checked) p.set('q1','1');
+    if(showNamesCheckbox){
+      p.set('names', showNamesCheckbox.checked ? '1' : '0');
+    }
+    if(showExprCheckbox){
+      p.set('expr', showExprCheckbox.checked ? '1' : '0');
+    }
     location.search = p.toString();
   };
 
