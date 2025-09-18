@@ -15,7 +15,7 @@ const CFG = {
     splitLines: true,
     clickToMove: true,
     drag: { vertical: true, horizontal: true },
-    limits: { minColsEachSide: 1, minRowsEachSide: 1 },
+    limits: { minColsEachSide: 0, minRowsEachSide: 0 },
 
     // Håndtak (piler)
     handleIcons: {
@@ -108,8 +108,8 @@ function draw(){
   const ADV = CFG.ADV, SV = CFG.SIMPLE;
 
   const UNIT = +ADV.unit || 40;
-  const ROWS = Math.max(2, Math.round(SV.height?.cells ?? 16));
-  const COLS = Math.max(2, Math.round(SV.length?.cells ?? 17));
+  const ROWS = Math.max(1, Math.round(SV.height?.cells ?? 16));
+  const COLS = Math.max(1, Math.round(SV.length?.cells ?? 17));
   const TEN  = Math.max(1, Math.round(ADV.check?.ten ?? 10));
 
   // spacing for kant-tekst utenfor
@@ -140,8 +140,8 @@ function draw(){
 
   const showGrid       = ADV.grid !== false;
   const clickToMove    = ADV.clickToMove !== false;
-  const showHeightAxis = SV.height?.show !== false;
-  const showLengthAxis = SV.length?.show !== false;
+  const showHeightAxis = (SV.height?.show !== false) && ROWS > 1;
+  const showLengthAxis = (SV.length?.show !== false) && COLS > 1;
 
   const dragVertical   = showHeightAxis && (ADV.drag?.vertical   !== false);
   const dragHorizontal = showLengthAxis && (ADV.drag?.horizontal !== false);
@@ -150,8 +150,10 @@ function draw(){
   const showHLine = splitLinesOn && showHeightAxis;
   const showVLine = splitLinesOn && showLengthAxis;
 
-  const minColsEachSide = Math.max(1, ADV.limits?.minColsEachSide ?? 1);
-  const minRowsEachSide = Math.max(1, ADV.limits?.minRowsEachSide ?? 1);
+  const minColsEachSideRaw = Math.max(0, Math.round(ADV.limits?.minColsEachSide ?? 0));
+  const minRowsEachSideRaw = Math.max(0, Math.round(ADV.limits?.minRowsEachSide ?? 0));
+  const minColsEachSide = Math.min(minColsEachSideRaw, Math.floor(COLS/2));
+  const minRowsEachSide = Math.min(minRowsEachSideRaw, Math.floor(ROWS/2));
 
   const initLeftCols   = (SV.length?.handle ?? Math.floor(COLS/2));
   const initBottomRows = (SV.height?.handle ?? Math.floor(ROWS/2));
@@ -163,8 +165,16 @@ function draw(){
   const NS  = "http://www.w3.org/2000/svg";
   const el  = n => document.createElementNS(NS, n);
   const set = (node, n, v) => { node.setAttribute(n, v); return node; };
-  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
-  const clampInt = (v,a,b)=>Math.max(a,Math.min(b,Math.round(v)));
+  const clamp = (v,a,b)=>{
+    const min = Math.min(a,b);
+    const max = Math.max(a,b);
+    return Math.max(min,Math.min(max,v));
+  };
+  const clampInt = (v,a,b)=>{
+    const min = Math.min(a,b);
+    const max = Math.max(a,b);
+    return Math.max(min,Math.min(max,Math.round(v)));
+  };
   const snap  = v => Math.round(v/UNIT)*UNIT;
 
   const minX = ML + minColsEachSide*UNIT;
@@ -176,8 +186,8 @@ function draw(){
   const V_ICON_URL  = ADV.handleIcons?.vert  ?? "";
 
   // state
-  let sx = clampInt(initLeftCols,   1, COLS-1) * UNIT;
-  let sy = clampInt(initBottomRows, 1, ROWS-1) * UNIT;
+  let sx = clampInt(initLeftCols,   0, COLS) * UNIT;
+  let sy = clampInt(initBottomRows, 0, ROWS) * UNIT;
   let lastSyncedLeft = null;
   let lastSyncedBottom = null;
 
