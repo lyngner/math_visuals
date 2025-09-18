@@ -14,6 +14,28 @@
 const params = new URLSearchParams(location.search);
 function paramStr(id, def=''){ const v=params.get(id); return v==null?def:v; }
 function paramBool(id){ return params.get(id)==='1'; }
+function paramNumber(id, def=null){
+  const v = params.get(id);
+  if(v == null) return def;
+  const n = Number.parseFloat(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : def;
+}
+const FONT_LIMITS = { min: 6, max: 72 };
+const FONT_DEFAULTS = {
+  ticks: 16,
+  axis: 20,
+  curve: 16
+};
+function clampFontSize(val){
+  if(!Number.isFinite(val)) return null;
+  if(val < FONT_LIMITS.min) return FONT_LIMITS.min;
+  if(val > FONT_LIMITS.max) return FONT_LIMITS.max;
+  return val;
+}
+function sanitizeFontSize(val, fallback){
+  const clamped = clampFontSize(val);
+  return clamped == null ? fallback : clamped;
+}
 function parseScreen(str){
   if(!str) return null;
   const cleaned = str.replace(/^[\s\[]+|[\]\s]+$/g, '');
@@ -50,9 +72,18 @@ if(typeof window !== 'undefined'){ window.SIMPLE = SIMPLE; }
 /* ====================== AVANSERT KONFIG ===================== */
 const ADV = {
   axis: {
-    labels: { x: paramStr('xName','x'), y: paramStr('yName','y') },
+    labels: {
+      x: paramStr('xName','x'),
+      y: paramStr('yName','y'),
+      fontSize: sanitizeFontSize(paramNumber('axisFont', FONT_DEFAULTS.axis), FONT_DEFAULTS.axis)
+    },
     style:  { stroke: '#111827', width: 2 },
-    grid:   { majorX: 1, majorY: 1, labelPrecision: 0 }
+    grid:   {
+      majorX: 1,
+      majorY: 1,
+      labelPrecision: 0,
+      fontSize: sanitizeFontSize(paramNumber('tickFont', FONT_DEFAULTS.ticks), FONT_DEFAULTS.ticks)
+    }
   },
   screen: parseScreen(paramStr('screen','')),
   lockAspect: params.has('lock') ? paramBool('lock') : true,
@@ -81,7 +112,7 @@ const ADV = {
   // Grafnavn
   curveName: {
     show: true,
-    fontSize: 16,
+    fontSize: sanitizeFontSize(paramNumber('curveFont', FONT_DEFAULTS.curve), FONT_DEFAULTS.curve),
     layer: 30,
     fractions: [0.2, 0.8, 0.6, 0.4],
     gapPx: 30,
@@ -588,17 +619,18 @@ function applyAxisStyles(){
 function applyTickSettings(){
   if(!axX || !axY) return;
   const tickBase = { drawLabels:true, precision: ADV.axis.grid.labelPrecision };
+  const labelBase = { fontSize: ADV.axis.grid.fontSize };
   axX.defaultTicks.setAttribute({
     ...tickBase,
     ticksDistance: +ADV.axis.grid.majorX || 1,
     minorTicks: 0,
-    label: { display:'internal', anchorX:'middle', anchorY:'top', offset:[0,-8] }
+    label: { ...labelBase, display:'internal', anchorX:'middle', anchorY:'top', offset:[0,-8] }
   });
   axY.defaultTicks.setAttribute({
     ...tickBase,
     ticksDistance: +ADV.axis.grid.majorY || 1,
     minorTicks: 0,
-    label: { display:'internal', anchorX:'right', anchorY:'middle', offset:[-8,0] }
+    label: { ...labelBase, display:'internal', anchorX:'right', anchorY:'middle', offset:[-8,0] }
   });
 }
 
@@ -631,15 +663,21 @@ function placeAxisNames(){
   if(!brd) return;
   const [xmin,ymax,xmax,ymin]=brd.getBoundingBox();
   const rx=xmax-xmin, ry=ymax-ymin, off=0.04;
+  const axisFont = ADV.axis.labels.fontSize;
+  const axisColor = ADV.axis.style.stroke;
   if(!xName){
     xName = brd.create('text',[0,0,()=>ADV.axis.labels.x||'x'],
-      {display:'internal',anchorX:'right',anchorY:'top',fixed:true,fontSize:20, layer:40,
-       color:ADV.axis.style.stroke, cssStyle:'pointer-events:none;user-select:none;'});
+      {display:'internal',anchorX:'right',anchorY:'top',fixed:true,fontSize:axisFont, layer:40,
+       color:axisColor, cssStyle:'pointer-events:none;user-select:none;'});
+  }else{
+    xName.setAttribute({ fontSize: axisFont, color: axisColor });
   }
   if(!yName){
     yName = brd.create('text',[0,0,()=>ADV.axis.labels.y||'y'],
-      {display:'internal',anchorX:'right',anchorY:'top',fixed:true,fontSize:20, layer:40,
-       color:ADV.axis.style.stroke, cssStyle:'pointer-events:none;user-select:none;'});
+      {display:'internal',anchorX:'right',anchorY:'top',fixed:true,fontSize:axisFont, layer:40,
+       color:axisColor, cssStyle:'pointer-events:none;user-select:none;'});
+  }else{
+    yName.setAttribute({ fontSize: axisFont, color: axisColor });
   }
   xName.moveTo([xmax-off*rx, 0-off*ry]);
   yName.moveTo([0-off*rx, ymax-off*ry]);
@@ -1673,6 +1711,12 @@ function setupSettingsForm(){
   if(snapCheckbox){
     snapCheckbox.checked = ADV.points.snap.enabled;
   }
+  const tickFontInput = g('cfgFontTicks');
+  if(tickFontInput){ tickFontInput.value = String(ADV.axis.grid.fontSize); }
+  const axisFontInput = g('cfgFontAxes');
+  if(axisFontInput){ axisFontInput.value = String(ADV.axis.labels.fontSize); }
+  const curveFontInput = g('cfgFontCurve');
+  if(curveFontInput){ curveFontInput.value = String(ADV.curveName.fontSize); }
 
   const apply = () => {
     syncSimpleFromForm();
@@ -1710,6 +1754,23 @@ function setupSettingsForm(){
       if(snapInput.checked) p.set('snap','1'); else p.set('snap','0');
     }
     if(g('cfgQ1').checked) p.set('q1','1');
+    const handleFontInput = (inputId, paramName, fallback) => {
+      const input = g(inputId);
+      if(!input) return;
+      const raw = Number.parseFloat(String(input.value || '').replace(',', '.'));
+      if(!Number.isFinite(raw)){
+        input.value = String(fallback);
+        return;
+      }
+      const sanitized = sanitizeFontSize(raw, fallback);
+      input.value = String(sanitized);
+      if(Math.abs(sanitized - fallback) > 1e-9){
+        p.set(paramName, String(sanitized));
+      }
+    };
+    handleFontInput('cfgFontTicks', 'tickFont', FONT_DEFAULTS.ticks);
+    handleFontInput('cfgFontAxes', 'axisFont', FONT_DEFAULTS.axis);
+    handleFontInput('cfgFontCurve', 'curveFont', FONT_DEFAULTS.curve);
     location.search = p.toString();
   };
 
