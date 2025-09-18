@@ -9,7 +9,7 @@
   const DEFAULT_DENOMS = [1, 2, 3, 4, 5, 6, 8, 9, 10, 12];
   const COLOR_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D'];
   const TEXT_COLOR_DARK = '#0f172a';
-  const TEXT_COLOR_LIGHT = '#f8fafc';
+  const TEXT_COLOR_LIGHT = '#ffffff';
   const TILE_AREA_WIDTH = 800;
   const LABEL_WIDTH = 140;
   const ROW_HEIGHT = 72;
@@ -237,8 +237,11 @@
   }
 
   function formatFraction(den){
-    if(den === 1) return `\\frac{1}{1}`;
-    return `\\frac{1}{${den}}`;
+    if(den === 1) return '1';
+    const denominator = String(den);
+    const needsBraces = denominator.length > 1;
+    const denPart = needsBraces ? `{${denominator}}` : denominator;
+    return `\\frac1${denPart}`;
   }
 
   const decimalFormatterCache = new Map();
