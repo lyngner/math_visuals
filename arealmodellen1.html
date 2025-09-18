@@ -32,7 +32,8 @@
     .btn:hover { box-shadow:0 2px 8px rgba(0,0,0,.06); }
     .btn:active { transform:translateY(1px); }
     .settings label { font-size: 13px; color: #4b5563; display: flex; flex-direction: column; }
-    .settings input { border: 1px solid #d1d5db; border-radius: 10px; padding: 8px 10px; font-size: 14px; background: #fff; }
+    .settings input,
+    .settings select { border: 1px solid #d1d5db; border-radius: 10px; padding: 8px 10px; font-size: 14px; background: #fff; }
 
     .settings .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
     .settings .row label { flex: 0; }
@@ -91,6 +92,15 @@
                 <input id="heightStart" type="number" value="5" min="0">
               </label>
               <label class="chk"><input id="showHeightHandle" type="checkbox" checked> Vis håndtak</label>
+            </div>
+            <div class="row">
+              <label>Oppdeling
+                <select id="layoutMode">
+                  <option value="quad">4 rektangler (2 × 2)</option>
+                  <option value="horizontal">2 ved siden av hverandre</option>
+                  <option value="vertical">2 over hverandre</option>
+                </select>
+              </label>
             </div>
             <div class="row">
               <label class="chk"><input id="grid" type="checkbox"> Vis rutenett</label>
