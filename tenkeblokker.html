@@ -6,7 +6,11 @@
   <title>Tenkeblokker</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css" />
   <style>
-    :root { --gap:18px; --tb-stepper-gap:18px; }
+    :root {
+      --gap: 18px;
+      --tb-stepper-gap: 0px;
+      --tb-stepper-spacing: 6px;
+    }
     html,body{height:100%;}
     body{
       margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
@@ -44,7 +48,8 @@
       align-items:flex-start;
     }
     .tb-row{display:flex;gap:0;width:100%;}
-    .tb-panel{display:flex;flex-direction:column;align-items:stretch;gap:16px;width:100%;min-width:0;}
+    .tb-panel{display:flex;flex-direction:column;align-items:stretch;gap:0;width:100%;min-width:0;}
+    .tb-panel .tb-header:not(:empty){margin-bottom:var(--tb-stepper-spacing,6px);}
     .tb-panel .tb-stepper{align-self:center;}
     .tb-svg{display:block;width:100%;height:var(--tb-svg-height,260px);background:#fff;overflow:visible;}
     .tb-board .addFigureBtn{align-self:center;justify-self:center;}
