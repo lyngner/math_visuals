@@ -96,13 +96,17 @@
     .chart-overlay__input {
       position: absolute;
       transform: translate(-50%, -120%);
-      min-width: 64px;
-      padding: 6px 8px;
-      border-radius: 10px;
+      width: 44px;
+      height: 44px;
+      min-width: 0;
+      padding: 0;
+      border-radius: 12px;
       border: 1px solid #cbd5f5;
       background: #fff;
       box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
-      font-size: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 44px;
       text-align: center;
       color: #1f2937;
       pointer-events: auto;
@@ -115,6 +119,34 @@
     .chart-overlay__input--invalid {
       border-color: #f87171;
       box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.35);
+    }
+    .chart-overlay-actions {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .chart-overlay-action {
+      pointer-events: auto;
+      appearance: none;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #1f2937;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+      cursor: pointer;
+      transition: background 0.2s ease, box-shadow 0.2s ease;
+    }
+    .chart-overlay-action:hover {
+      background: #f3f4f6;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
     }
     #chart {
       width: 100%;
@@ -235,6 +267,10 @@
         <div class="figure">
           <svg id="chart" role="img" aria-label="Fortegnsskjema"></svg>
           <div id="chartOverlay" class="chart-overlay"></div>
+          <div class="chart-overlay-actions" aria-hidden="false">
+            <button type="button" class="chart-overlay-action" id="overlayAddPoint">Legg til nullpunkt</button>
+            <button type="button" class="chart-overlay-action" id="overlayAddRow">Legg til fortegnslinje</button>
+          </div>
         </div>
         <div class="toolbar">
           <div class="toolbar-row">
