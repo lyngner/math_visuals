@@ -29,11 +29,7 @@ const FONT_LIMITS = {
   min: 6,
   max: 72
 };
-const FONT_DEFAULTS = {
-  ticks: 16,
-  axis: 20,
-  curve: 16
-};
+const FONT_DEFAULT = 16;
 const SHOW_CURVE_NAMES = params.has('showNames') ? paramBool('showNames') : true;
 const SHOW_CURVE_EXPRESSIONS = params.has('showExpr') ? paramBool('showExpr') : false;
 function clampFontSize(val) {
@@ -46,6 +42,17 @@ function sanitizeFontSize(val, fallback) {
   const clamped = clampFontSize(val);
   return clamped == null ? fallback : clamped;
 }
+function resolveSharedFontSize() {
+  const keys = ['fontSize', 'font', 'axisFont', 'tickFont', 'curveFont'];
+  for (const key of keys) {
+    const candidate = clampFontSize(paramNumber(key, null));
+    if (candidate != null) {
+      return candidate;
+    }
+  }
+  return FONT_DEFAULT;
+}
+const SHARED_FONT_SIZE = resolveSharedFontSize();
 function parseScreen(str) {
   if (!str) return null;
   const cleaned = str.replace(/^[\s\[]+|[\]\s]+$/g, '');
@@ -93,7 +100,7 @@ const ADV = {
     labels: {
       x: paramStr('xName', 'x'),
       y: paramStr('yName', 'y'),
-      fontSize: sanitizeFontSize(paramNumber('axisFont', FONT_DEFAULTS.axis), FONT_DEFAULTS.axis)
+      fontSize: SHARED_FONT_SIZE
     },
     style: {
       stroke: '#111827',
@@ -103,7 +110,7 @@ const ADV = {
       majorX: 1,
       majorY: 1,
       labelPrecision: 0,
-      fontSize: sanitizeFontSize(paramNumber('tickFont', FONT_DEFAULTS.ticks), FONT_DEFAULTS.ticks)
+      fontSize: SHARED_FONT_SIZE
     }
   },
   screen: parseScreen(paramStr('screen', '')),
@@ -146,7 +153,7 @@ const ADV = {
     show: SHOW_CURVE_NAMES || SHOW_CURVE_EXPRESSIONS,
     showName: SHOW_CURVE_NAMES,
     showExpression: SHOW_CURVE_EXPRESSIONS,
-    fontSize: sanitizeFontSize(paramNumber('curveFont', FONT_DEFAULTS.curve), FONT_DEFAULTS.curve),
+    fontSize: SHARED_FONT_SIZE,
     layer: 30,
     fractions: [0.2, 0.8, 0.6, 0.4],
     gapPx: 30,
@@ -2232,17 +2239,9 @@ function setupSettingsForm() {
   if (snapCheckbox) {
     snapCheckbox.checked = ADV.points.snap.enabled;
   }
-  const tickFontInput = g('cfgFontTicks');
-  if (tickFontInput) {
-    tickFontInput.value = String(ADV.axis.grid.fontSize);
-  }
-  const axisFontInput = g('cfgFontAxes');
-  if (axisFontInput) {
-    axisFontInput.value = String(ADV.axis.labels.fontSize);
-  }
-  const curveFontInput = g('cfgFontCurve');
-  if (curveFontInput) {
-    curveFontInput.value = String(ADV.curveName.fontSize);
+  const fontSizeInput = g('cfgFontSize');
+  if (fontSizeInput) {
+    fontSizeInput.value = String(ADV.axis.grid.fontSize);
   }
   const apply = () => {
     syncSimpleFromForm();
@@ -2300,9 +2299,7 @@ function setupSettingsForm() {
         p.set(paramName, String(sanitized));
       }
     };
-    handleFontInput('cfgFontTicks', 'tickFont', FONT_DEFAULTS.ticks);
-    handleFontInput('cfgFontAxes', 'axisFont', FONT_DEFAULTS.axis);
-    handleFontInput('cfgFontCurve', 'curveFont', FONT_DEFAULTS.curve);
+    handleFontInput('cfgFontSize', 'fontSize', FONT_DEFAULT);
     location.search = p.toString();
   };
   root.addEventListener('change', apply);
