@@ -1,5 +1,6 @@
 (() => {
   const svg = document.getElementById('chart');
+  const overlay = document.getElementById('chartOverlay');
   const exprInput = document.getElementById('exprInput');
   const btnGenerate = document.getElementById('btnGenerate');
   const btnCheck = document.getElementById('btnCheck');
@@ -26,6 +27,14 @@
   let rowIdCounter = 1;
   let currentScale = null;
   let dragging = null;
+
+  function formatPointValue(value) {
+    if (!Number.isFinite(value)) {
+      return '';
+    }
+    const rounded = Number.parseFloat(value.toFixed(4));
+    return Number.isFinite(rounded) ? `${rounded}` : `${value}`;
+  }
 
   function createDefaultRow() {
     if (!state.signRows.length) {
@@ -474,7 +483,7 @@
       const input = document.createElement('input');
       input.type = 'number';
       input.step = '0.1';
-      input.value = Number(point.value.toFixed(4));
+      input.value = formatPointValue(point.value);
       input.addEventListener('change', (event) => {
         const value = parseFloat(event.target.value);
         if (Number.isFinite(value)) {
@@ -492,7 +501,7 @@
       optionZero.textContent = '0 (nullpunkt)';
       const optionPole = document.createElement('option');
       optionPole.value = 'pole';
-      optionPole.textContent = '× (pol)';
+      optionPole.textContent = '>< (pol)';
       select.append(optionZero, optionPole);
       select.value = point.type === 'pole' ? 'pole' : 'zero';
       select.addEventListener('change', (event) => {
@@ -588,6 +597,10 @@
     svg.setAttribute('viewBox', `0 0 ${width} ${baseHeight}`);
     svg.style.height = `${baseHeight}px`;
     svg.innerHTML = '';
+    if (overlay) {
+      overlay.innerHTML = '';
+      overlay.style.height = `${baseHeight}px`;
+    }
 
     const axisStart = marginLeft;
     const axisEnd = width - marginRight;
@@ -643,32 +656,74 @@
         y2: lastRowY + 20,
         stroke: '#d1d5db',
         'stroke-width': 1.2,
+        'data-point-id': point.id,
+        'pointer-events': 'stroke',
+        cursor: 'ew-resize',
       });
       svg.append(vertical);
 
-      const handle = createSvgElement('circle', {
-        cx: px,
-        cy: arrowY,
-        r: 7,
-        fill: '#fff',
-        stroke: '#2563eb',
-        'stroke-width': 2,
-        'data-point-id': point.id,
-        cursor: 'ew-resize',
-      });
-      svg.append(handle);
-
       const label = createSvgElement('text', {
         x: px,
-        y: lastRowY + 36,
+        y: arrowY + 6,
         'text-anchor': 'middle',
         'font-size': 16,
         'font-weight': 600,
         fill: point.type === 'pole' ? '#b91c1c' : '#111827',
         'pointer-events': 'none',
       });
-      label.textContent = point.type === 'pole' ? '×' : '0';
+      label.textContent = point.type === 'pole' ? '><' : '0';
       svg.append(label);
+
+      const dragHandle = createSvgElement('circle', {
+        cx: px,
+        cy: arrowY,
+        r: 12,
+        fill: 'transparent',
+        stroke: 'transparent',
+        'data-point-id': point.id,
+        'pointer-events': 'all',
+        cursor: 'ew-resize',
+      });
+      svg.append(dragHandle);
+
+      if (overlay) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'chart-overlay__input';
+        input.value = formatPointValue(point.value);
+        input.style.left = `${px}px`;
+        input.style.top = `${arrowY}px`;
+        input.setAttribute('aria-label', point.type === 'pole'
+          ? 'x-verdi for pol'
+          : 'x-verdi for nullpunkt');
+        input.addEventListener('change', (event) => {
+          const raw = event.target.value.trim().replace(',', '.');
+          const nextValue = Number.parseFloat(raw);
+          if (Number.isFinite(nextValue)) {
+            event.target.classList.remove('chart-overlay__input--invalid');
+            setPointValue(point.id, nextValue);
+          } else {
+            event.target.classList.add('chart-overlay__input--invalid');
+            event.target.value = formatPointValue(point.value);
+            setTimeout(() => {
+              event.target.classList.remove('chart-overlay__input--invalid');
+            }, 150);
+          }
+        });
+        input.addEventListener('input', (event) => {
+          const raw = event.target.value.trim().replace(',', '.');
+          if (raw === '' || Number.isFinite(Number.parseFloat(raw))) {
+            event.target.classList.remove('chart-overlay__input--invalid');
+          }
+        });
+        input.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            event.currentTarget.blur();
+          }
+        });
+        overlay.appendChild(input);
+      }
     });
 
     const boundaries = [min, ...values, max];
