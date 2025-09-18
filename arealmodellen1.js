@@ -732,9 +732,12 @@ function draw() {
       }
     });
   }
-  function buildExportOptions() {
+  function buildExportOptions(overrides = {}) {
     var _ADV$export, _ADV$export2, _ADV$fit3;
-    const includeHandles = showLeftHandle || showBottomHandle || ((_ADV$export = ADV.export) === null || _ADV$export === void 0 ? void 0 : _ADV$export.includeHandlesIfHidden);
+    const includeHandlesDefault = showLeftHandle || showBottomHandle || ((_ADV$export = ADV.export) === null || _ADV$export === void 0 ? void 0 : _ADV$export.includeHandlesIfHidden);
+    const includeHandles = overrides.includeHandles !== undefined ? !!overrides.includeHandles : includeHandlesDefault;
+    const includeHandleHits = overrides.includeHandleHits !== undefined ? !!overrides.includeHandleHits : includeHandlesDefault;
+    const includeHotZones = overrides.includeHotZones !== undefined ? !!overrides.includeHotZones : true;
     return {
       unit: UNIT,
       rows: ROWS,
@@ -761,6 +764,8 @@ function draw() {
       showHeightAxis,
       showLengthAxis,
       includeHandles,
+      includeHandleHits,
+      includeHotZones,
       colorsCSS: getInlineStyleDefaults(),
       handleSize: HANDLE_SIZE,
       icons: {
@@ -779,13 +784,21 @@ function draw() {
   const btnSvgStatic = document.getElementById("btnSvgStatic");
   if (btnSvgStatic) btnSvgStatic.onclick = () => {
     var _ADV$export3;
-    const svgStr = buildBaseSvgMarkup(buildExportOptions(), true);
+    const svgStr = buildBaseSvgMarkup(buildExportOptions({
+      includeHandles: false,
+      includeHandleHits: false,
+      includeHotZones: false
+    }), true);
     downloadText(((_ADV$export3 = ADV.export) === null || _ADV$export3 === void 0 ? void 0 : _ADV$export3.filenameStatic) || "arealmodell.svg", svgStr, "image/svg+xml");
   };
   const btnPng = document.getElementById("btnPng");
   if (btnPng) btnPng.onclick = () => {
     var _ADV$export4;
-    const svgStr = buildBaseSvgMarkup(buildExportOptions(), true);
+    const svgStr = buildBaseSvgMarkup(buildExportOptions({
+      includeHandles: false,
+      includeHandleHits: false,
+      includeHotZones: false
+    }), true);
     downloadPNGFromString(svgStr, ((_ADV$export4 = ADV.export) === null || _ADV$export4 === void 0 ? void 0 : _ADV$export4.filenamePng) || "arealmodell.png");
   };
   const btnSvg = document.getElementById("btnSvg");
@@ -826,6 +839,8 @@ function draw() {
       showHeightAxis,
       showLengthAxis,
       includeHandles,
+      includeHandleHits: includeHandles,
+      includeHotZones: true,
       colorsCSS: getInlineStyleDefaults(),
       handleSize: HANDLE_SIZE,
       icons: {
@@ -910,6 +925,7 @@ function draw() {
 .handleImg { pointer-events: none; }
 .handleHit, .hot, svg { touch-action: none; }
 .handleHit { fill: rgba(0,0,0,0.004); cursor: grab; pointer-events: all; }
+.hot { fill: transparent; pointer-events: all; }
 `;
   }
   function injectRuntimeStyles() {
@@ -932,6 +948,9 @@ function draw() {
     const HS = (_o$handleSize = o.handleSize) !== null && _o$handleSize !== void 0 ? _o$handleSize : 84;
     const gapX = (_o$edgeGap$x = (_o$edgeGap = o.edgeGap) === null || _o$edgeGap === void 0 ? void 0 : _o$edgeGap.x) !== null && _o$edgeGap$x !== void 0 ? _o$edgeGap$x : 14,
       gapY = (_o$edgeGap$y = (_o$edgeGap2 = o.edgeGap) === null || _o$edgeGap2 === void 0 ? void 0 : _o$edgeGap2.y) !== null && _o$edgeGap$y !== void 0 ? _o$edgeGap$y : 32;
+    const includeHandles = !!o.includeHandles;
+    const includeHandleHits = o.includeHandleHits !== undefined ? !!o.includeHandleHits : includeHandles;
+    const includeHotZones = o.includeHotZones !== undefined ? !!o.includeHotZones : true;
     let gridStr = "";
     if (o.includeGrid) {
       let lines = [];
@@ -947,14 +966,14 @@ function draw() {
     }
     const vLineStr = o.showLengthAxis ? '<line id="vLine" class="' + o.classes.split + '" x1="' + (ML + o.sx) + '" y1="' + MT + '" x2="' + (ML + o.sx) + '" y2="' + (MT + o.height) + '"/>' : "";
     const hLineStr = o.showHeightAxis ? '<line id="hLine" class="' + o.classes.split + '" x1="' + ML + '" y1="' + (MT + o.height - o.sy) + '" x2="' + (ML + o.width) + '" y2="' + (MT + o.height - o.sy) + '"/>' : "";
-    const hLeftImg = o.includeHandles && o.showHeightAxis ? '<image id="hLeft" class="' + o.classes.handle + '" href="' + (o.icons.vertUrl || '') + '" width="' + HS + '" height="' + HS + '" x="' + (ML - HS / 2) + '" y="' + (MT + o.height - o.sy - HS / 2) + '"/>' : "";
-    const hDownImg = o.includeHandles && o.showLengthAxis ? '<image id="hDown" class="' + o.classes.handle + '" href="' + (o.icons.horizUrl || '') + '" width="' + HS + '" height="' + HS + '" x="' + (ML + o.sx - HS / 2) + '" y="' + (MT + o.height - HS / 2) + '"/>' : "";
+    const hLeftImg = includeHandles && o.showHeightAxis ? '<image id="hLeft" class="' + o.classes.handle + '" href="' + (o.icons.vertUrl || '') + '" width="' + HS + '" height="' + HS + '" x="' + (ML - HS / 2) + '" y="' + (MT + o.height - o.sy - HS / 2) + '"/>' : "";
+    const hDownImg = includeHandles && o.showLengthAxis ? '<image id="hDown" class="' + o.classes.handle + '" href="' + (o.icons.horizUrl || '') + '" width="' + HS + '" height="' + HS + '" x="' + (ML + o.sx - HS / 2) + '" y="' + (MT + o.height - HS / 2) + '"/>' : "";
 
     // Start på riktig posisjon
-    const hLeftHit = o.includeHandles && o.showHeightAxis ? '<circle id="hLeftHit" class="handleHit" r="' + HS * 0.55 + '" cx="' + ML + '" cy="' + (MT + o.height - o.sy) + '" style="cursor:grab"/>' : "";
-    const hDownHit = o.includeHandles && o.showLengthAxis ? '<circle id="hDownHit" class="handleHit" r="' + HS * 0.55 + '" cx="' + (ML + o.sx) + '" cy="' + (MT + o.height) + '" style="cursor:grab"/>' : "";
-    const hotLeftStr = o.showHeightAxis ? '<rect id="hotLeft" class="hot" x="' + (ML - 10) + '" y="' + MT + '" width="10" height="' + o.height + '"/>' : "";
-    const hotBottomStr = o.showLengthAxis ? '<rect id="hotBottom" class="hot" x="' + ML + '" y="' + (MT + o.height) + '" width="' + o.width + '" height="10"/>' : "";
+    const hLeftHit = includeHandleHits && o.showHeightAxis ? '<circle id="hLeftHit" class="handleHit" r="' + HS * 0.55 + '" cx="' + ML + '" cy="' + (MT + o.height - o.sy) + '" style="cursor:grab"/>' : "";
+    const hDownHit = includeHandleHits && o.showLengthAxis ? '<circle id="hDownHit" class="handleHit" r="' + HS * 0.55 + '" cx="' + (ML + o.sx) + '" cy="' + (MT + o.height) + '" style="cursor:grab"/>' : "";
+    const hotLeftStr = includeHotZones && o.showHeightAxis ? '<rect id="hotLeft" class="hot" x="' + (ML - 10) + '" y="' + MT + '" width="10" height="' + o.height + '"/>' : "";
+    const hotBottomStr = includeHotZones && o.showLengthAxis ? '<rect id="hotBottom" class="hot" x="' + ML + '" y="' + (MT + o.height) + '" width="' + o.width + '" height="10"/>' : "";
     const parts = [];
     if (includeXmlHeader) parts.push('<?xml version="1.0" encoding="UTF-8"?>');
     parts.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + o.vbw + ' ' + o.vbh + '" width="' + o.vbw + '" height="' + o.vbh + '" tabindex="0">');
