@@ -184,6 +184,7 @@ const ROW_GAP = 18;
 const DEFAULT_FRAME_INSET = 3;
 
 const BLOCKS = [];
+const ROWS = [];
 
 const board = document.getElementById('tbBoard');
 const grid = document.getElementById('tbGrid');
@@ -570,15 +571,15 @@ function rebuildStructure() {
   const settingsFragment = document.createDocumentFragment();
 
   BLOCKS.length = 0;
+  ROWS.length = 0;
   grid.innerHTML = '';
   if (settingsContainer) settingsContainer.innerHTML = '';
 
-  const rowElements = [];
   for (let r = 0; r < CONFIG.rows; r++) {
     const rowEl = document.createElement('div');
     rowEl.className = 'tb-row';
     rowEl.dataset.row = String(r);
-    rowElements.push(rowEl);
+    ROWS[r] = rowEl;
     panelsFragment.appendChild(rowEl);
 
     for (let c = 0; c < CONFIG.cols; c++) {
@@ -635,6 +636,25 @@ function draw(skipNormalization = false) {
     const totalValue = Number(cfg.total);
     if (Number.isFinite(totalValue) && totalValue > 0 && rowTotals[block.row] !== undefined) {
       rowTotals[block.row] += totalValue;
+    }
+  }
+
+  const maxRowTotal = rowTotals.reduce((max, total) => (total > max ? total : max), 0);
+  const hasRowScaling = maxRowTotal > 0;
+
+  for (let rowIndex = 0; rowIndex < ROWS.length; rowIndex++) {
+    const rowEl = ROWS[rowIndex];
+    if (!rowEl) continue;
+
+    const total = rowTotals[rowIndex];
+    if (hasRowScaling && total > 0) {
+      const ratio = Math.max(0, Math.min(1, total / maxRowTotal));
+      const widthPercent = (ratio * 100).toFixed(4).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+      rowEl.style.alignSelf = 'flex-start';
+      rowEl.style.width = `${widthPercent}%`;
+    } else {
+      rowEl.style.alignSelf = '';
+      rowEl.style.width = '';
     }
   }
 
