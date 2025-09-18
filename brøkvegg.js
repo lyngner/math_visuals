@@ -80,6 +80,7 @@
   const textScaleValue = document.getElementById('textScaleValue');
   const decimalDigitsInput = document.getElementById('decimalDigits');
   const percentDigitsInput = document.getElementById('percentDigits');
+  const trimTrailingZerosCheckbox = document.getElementById('trimTrailingZeros');
   const presetButtons = document.querySelectorAll('[data-denom-preset]');
   const setModeButtons = document.querySelectorAll('[data-set-mode]');
   const resetModesButton = document.getElementById('resetModes');
@@ -133,6 +134,7 @@
     STATE.textScale = clamp(Number.isFinite(scale) ? scale : 0.7, MIN_SCALE, MAX_SCALE);
     STATE.decimalDigits = clampInt(STATE.decimalDigits, 0, MAX_DECIMAL_DIGITS, DEFAULT_DECIMAL_DIGITS);
     STATE.percentDigits = clampInt(STATE.percentDigits, 0, MAX_PERCENT_DIGITS, DEFAULT_PERCENT_DIGITS);
+    STATE.trimTrailingZeros = typeof STATE.trimTrailingZeros === 'boolean' ? STATE.trimTrailingZeros : false;
   }
 
   ensureStateDefaults();
@@ -177,6 +179,7 @@
     if(textScaleRange) textScaleRange.value = String(STATE.textScale);
     if(decimalDigitsInput) decimalDigitsInput.value = String(STATE.decimalDigits);
     if(percentDigitsInput) percentDigitsInput.value = String(STATE.percentDigits);
+    if(trimTrailingZerosCheckbox) trimTrailingZerosCheckbox.checked = !!STATE.trimTrailingZeros;
     updateTextScaleDisplay();
     updateModeButtons();
   }
@@ -242,14 +245,20 @@
   }
 
   const decimalFormatterCache = new Map();
-  function formatDecimal(value, digits){
-    const key = `${digits}`;
+  function formatDecimal(value, digits, trimZeros){
+    const numericDigits = Number.isFinite(digits) ? digits : Number(digits);
+    const normalizedDigits = Number.isFinite(numericDigits)
+      ? Math.max(0, Math.min(Math.floor(numericDigits), 20))
+      : 0;
+    const useTrim = !!trimZeros;
+    const key = `${normalizedDigits}|${useTrim ? 'trim' : 'pad'}`;
     let formatter = decimalFormatterCache.get(key);
     if(!formatter){
-      formatter = new Intl.NumberFormat('nb-NO', {
-        minimumFractionDigits: digits,
-        maximumFractionDigits: digits
-      });
+      const options = {
+        maximumFractionDigits: normalizedDigits
+      };
+      options.minimumFractionDigits = useTrim ? 0 : normalizedDigits;
+      formatter = new Intl.NumberFormat('nb-NO', options);
       decimalFormatterCache.set(key, formatter);
     }
     return formatter.format(value);
@@ -258,9 +267,9 @@
   function formatValue(mode, den){
     switch(mode){
       case 'percent':
-        return `${formatDecimal(100 / den, STATE.percentDigits)}%`;
+        return `${formatDecimal(100 / den, STATE.percentDigits, STATE.trimTrailingZeros)}%`;
       case 'decimal':
-        return formatDecimal(1 / den, STATE.decimalDigits);
+        return formatDecimal(1 / den, STATE.decimalDigits, STATE.trimTrailingZeros);
       case 'fraction':
       default:
         return formatFraction(den);
@@ -509,6 +518,11 @@
 
   percentDigitsInput?.addEventListener('change', ()=>{
     STATE.percentDigits = clampInt(percentDigitsInput.value, 0, MAX_PERCENT_DIGITS, STATE.percentDigits);
+    render();
+  });
+
+  trimTrailingZerosCheckbox?.addEventListener('change', ()=>{
+    STATE.trimTrailingZeros = !!trimTrailingZerosCheckbox.checked;
     render();
   });
 
