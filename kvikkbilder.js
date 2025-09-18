@@ -198,9 +198,9 @@
     });
 
     const w = Math.max(1, maxX - minX);
-    const currentHeight = Math.max(1, maxY - minY);
-    const targetHeight = imgH + (heightCount - 1) * unitH;
-    const scaleY = currentHeight > 0 ? targetHeight / currentHeight : 1;
+    const diagonalLayers = Math.max(0, widthCount - 1) + Math.max(0, depthCount - 1);
+    const diagonalHeight = diagonalLayers * (tileH / 2);
+    const targetHeight = Math.max(1, imgH + (heightCount - 1) * unitH + diagonalHeight);
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
     svg.setAttribute('viewBox', `0 0 ${w} ${targetHeight}`);
@@ -211,9 +211,6 @@
     const translateX = -minX;
     const translateY = -minY;
     const transforms = [];
-    if(scaleY !== 1){
-      transforms.push(`scale(1,${scaleY})`);
-    }
     if(translateX !== 0 || translateY !== 0){
       transforms.push(`translate(${translateX},${translateY})`);
     }
