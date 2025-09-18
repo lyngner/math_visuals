@@ -1,9 +1,8 @@
-(function(){
+(function () {
   if (typeof THREE === 'undefined') {
     console.error('THREE.js er ikke lastet inn.');
     return;
   }
-
   const ORBIT_CONTROLS_MODULE_URL = 'https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js?module';
   const ORBIT_CONTROLS_SCRIPT_SRC = (() => {
     if (typeof document === 'undefined') {
@@ -20,7 +19,6 @@
     return 'vendor/three/examples/js/controls/OrbitControls.js';
   })();
   let orbitControlsPromise = null;
-
   function ensureOrbitControlsScript() {
     if (typeof document === 'undefined') {
       return Promise.resolve('failed');
@@ -39,11 +37,14 @@
           existing.dataset.loaded = 'false';
           resolve('failed');
         };
-        existing.addEventListener('load', handleLoad, { once: true });
-        existing.addEventListener('error', handleError, { once: true });
+        existing.addEventListener('load', handleLoad, {
+          once: true
+        });
+        existing.addEventListener('error', handleError, {
+          once: true
+        });
       });
     }
-
     return new Promise(resolve => {
       const script = document.createElement('script');
       script.src = ORBIT_CONTROLS_SCRIPT_SRC;
@@ -52,38 +53,35 @@
       script.addEventListener('load', () => {
         script.dataset.loaded = 'true';
         resolve('loaded');
-      }, { once: true });
+      }, {
+        once: true
+      });
       script.addEventListener('error', () => {
         script.dataset.loaded = 'false';
         resolve('failed');
-      }, { once: true });
+      }, {
+        once: true
+      });
       document.head.appendChild(script);
     });
   }
-
   function getGlobalOrbitControls() {
-    return (typeof THREE !== 'undefined' && typeof THREE.OrbitControls === 'function')
-      ? THREE.OrbitControls
-      : null;
+    return typeof THREE !== 'undefined' && typeof THREE.OrbitControls === 'function' ? THREE.OrbitControls : null;
   }
-
   function loadOrbitControls() {
     if (orbitControlsPromise) {
       return orbitControlsPromise;
     }
-
     orbitControlsPromise = (async () => {
       const globalControls = getGlobalOrbitControls();
       if (globalControls) {
         return globalControls;
       }
-
       const scriptStatus = await ensureOrbitControlsScript();
       const scriptedControls = getGlobalOrbitControls();
       if (scriptedControls) {
         return scriptedControls;
       }
-
       if (scriptStatus === 'failed') {
         try {
           const module = await import(ORBIT_CONTROLS_MODULE_URL);
@@ -96,39 +94,34 @@
           console.warn('Klarte ikke laste OrbitControls-modulen.', error);
         }
       }
-
       return getGlobalOrbitControls();
     })();
-
     return orbitControlsPromise;
   }
-
   const controlsPromise = loadOrbitControls();
-
   function normalizeVectorArray(value) {
     if (!Array.isArray(value) || value.length !== 3) return null;
     const normalized = value.map(num => Number(num));
     return normalized.every(Number.isFinite) ? normalized : null;
   }
-
   class ShapeRenderer {
     constructor(container, options = {}) {
       this.container = container;
       this.scene = new THREE.Scene();
       this.scene.background = new THREE.Color(0xf6f7fb);
-
       this.camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
       this.camera.position.set(4.2, 3.6, 5.6);
-
-      this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      this.renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: true
+      });
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       this.renderer.shadowMap.enabled = false;
       this.container.appendChild(this.renderer.domElement);
-
       if (this.renderer.domElement && this.renderer.domElement.style) {
         this.renderer.domElement.style.touchAction = 'none';
       }
-
       this.controls = null;
       this.materialColorOverride = null;
       this.materialOpacity = 1;
@@ -138,18 +131,14 @@
           this._attachControls(ControlsClass);
         }
       });
-
       const ambient = new THREE.AmbientLight(0xffffff, 0.55);
       this.scene.add(ambient);
-
       const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
       keyLight.position.set(5, 8, 6);
       this.scene.add(keyLight);
-
       const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
       fillLight.position.set(-4, 4, -2);
       this.scene.add(fillLight);
-
       const groundMaterial = new THREE.MeshStandardMaterial({
         color: 0xe5e7eb,
         roughness: 1,
@@ -161,29 +150,23 @@
       ground.position.y = -0.02;
       this.scene.add(ground);
       this.ground = ground;
-
       this.shapeGroup = new THREE.Group();
       this.scene.add(this.shapeGroup);
-
       this.currentFrame = null;
       this.rotationLocked = false;
       this.isFloating = false;
       this.fitMargin = 1.2;
-
       this._animate = this._animate.bind(this);
       this._handleResize = this._handleResize.bind(this);
-
       if (typeof ResizeObserver === 'function') {
         this.resizeObserver = new ResizeObserver(() => this._handleResize());
         this.resizeObserver.observe(this.container);
       } else {
         window.addEventListener('resize', this._handleResize);
       }
-
       this._handleResize();
       this.renderer.setAnimationLoop(this._animate);
     }
-
     _attachControls(ControlsClass) {
       if (!ControlsClass || this.controls) return;
       const controls = new ControlsClass(this.camera, this.renderer.domElement);
@@ -202,7 +185,9 @@
       } else {
         controls.target.set(0, 1.1, 0);
       }
-      controls.addEventListener('start', () => { this.userIsInteracting = true; });
+      controls.addEventListener('start', () => {
+        this.userIsInteracting = true;
+      });
       controls.addEventListener('end', () => {
         this.userIsInteracting = false;
         this._syncStateFromControls();
@@ -223,23 +208,19 @@
       }
       this._emitViewChange();
     }
-
     _handleResize() {
       const width = this.container.clientWidth;
       if (!width) return;
-
       const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : null;
       const maxHeight = viewportHeight ? viewportHeight * 0.7 : Infinity;
       const preferred = width * 0.72;
       const height = Math.max(280, Math.min(Math.round(preferred), 560, maxHeight));
-
       this.container.style.height = `${height}px`;
       this.renderer.setSize(width, height, false);
       this.camera.aspect = width / Math.max(height, 1);
       this.camera.updateProjectionMatrix();
       this._ensureFrameFits();
     }
-
     _animate() {
       if (!this.rotationLocked && !this.userIsInteracting && this.shapeGroup.children.length) {
         this.shapeGroup.rotation.y += 0.006;
@@ -247,7 +228,6 @@
       if (this.controls) this.controls.update();
       this.renderer.render(this.scene, this.camera);
     }
-
     _computeFitDistance(size) {
       if (!size) return 0;
       const halfFov = THREE.MathUtils.degToRad((this.camera.fov || 35) / 2);
@@ -261,7 +241,6 @@
       const distanceForWidth = maxHorizontal / Math.tan(safeHalfHorizontal);
       return Math.max(distanceForHeight, distanceForWidth);
     }
-
     _updateControlsDistances(baseDistance, currentDistance = baseDistance) {
       if (!this.controls || !(baseDistance > 0)) return;
       const minDistance = Math.max(0.6, baseDistance * 0.45);
@@ -269,7 +248,6 @@
       this.controls.minDistance = minDistance;
       this.controls.maxDistance = maxDistance;
     }
-
     _syncStateFromControls() {
       if (!this.controls || !this.currentFrame) return;
       if (this.currentFrame.center) {
@@ -280,7 +258,6 @@
       this._updateControlsDistances(baseDistance, this.currentFrame.distance);
       this._emitViewChange();
     }
-
     syncViewState() {
       if (this.controls && this.currentFrame) {
         this._syncStateFromControls();
@@ -288,7 +265,6 @@
       }
       this._emitViewChange();
     }
-
     frameCurrentShape() {
       if (!this.currentShape) return;
       this.currentShape.updateMatrixWorld(true);
@@ -299,9 +275,7 @@
       if (!effectiveBox || effectiveBox.isEmpty()) return;
       const size = new THREE.Vector3();
       effectiveBox.getSize(size);
-      const center = geometryBox && !geometryBox.isEmpty()
-        ? geometryBox.getCenter(new THREE.Vector3())
-        : effectiveBox.getCenter(new THREE.Vector3());
+      const center = geometryBox && !geometryBox.isEmpty() ? geometryBox.getCenter(new THREE.Vector3()) : effectiveBox.getCenter(new THREE.Vector3());
       const direction = this.camera.position.clone().sub(this.controls ? this.controls.target : center);
       if (!direction.lengthSq()) {
         direction.set(0, 0, 1);
@@ -326,7 +300,6 @@
       this.camera.updateProjectionMatrix();
       this._emitViewChange();
     }
-
     _ensureFrameFits() {
       if (!this.currentFrame) return;
       const center = this.currentFrame.center;
@@ -351,7 +324,6 @@
       this._updateControlsDistances(this.currentFrame.baseDistance, this.currentFrame.distance);
       this._emitViewChange();
     }
-
     _computeGeometryBoundingBox(object) {
       if (!object) return null;
       object.updateMatrixWorld(true);
@@ -376,7 +348,6 @@
       });
       return hasBox ? box : null;
     }
-
     _applyFloatingOffset() {
       if (!this.currentShape) return;
       this.currentShape.position.set(0, 0, 0);
@@ -392,7 +363,6 @@
       }
       this.shapeGroup.updateMatrixWorld(true);
     }
-
     setFloating(isFloating) {
       const shouldFloat = Boolean(isFloating);
       const changed = this.isFloating !== shouldFloat;
@@ -406,7 +376,6 @@
       this._applyFloatingOffset();
       this.frameCurrentShape();
     }
-
     setRotationLocked(isLocked) {
       this.rotationLocked = Boolean(isLocked);
       if (this.rotationLocked) {
@@ -417,7 +386,6 @@
         this.controls.update();
       }
     }
-
     disposeCurrentShape() {
       if (!this.currentShape) return;
       this.shapeGroup.remove(this.currentShape);
@@ -441,12 +409,11 @@
       this.shapeGroup.rotation.set(0, 0, 0);
       this.currentFrame = null;
     }
-
     _emitViewChange() {
       if (typeof this.onViewChange !== 'function') return;
       if (!this.camera) return;
       const position = this.camera.position;
-      const targetVec = this.controls ? this.controls.target : (this.currentFrame && this.currentFrame.center);
+      const targetVec = this.controls ? this.controls.target : this.currentFrame && this.currentFrame.center;
       if (!position || !targetVec) return;
       const positionArray = [position.x, position.y, position.z];
       const targetArray = [targetVec.x, targetVec.y, targetVec.z];
@@ -455,21 +422,16 @@
         position: positionArray,
         target: targetArray
       };
-      const currentDistance = this.currentFrame && typeof this.currentFrame.distance === 'number'
-        ? this.currentFrame.distance
-        : position.distanceTo(targetVec);
+      const currentDistance = this.currentFrame && typeof this.currentFrame.distance === 'number' ? this.currentFrame.distance : position.distanceTo(targetVec);
       if (Number.isFinite(currentDistance)) {
         viewData.distance = currentDistance;
       }
-      const baseDistance = this.currentFrame && typeof this.currentFrame.baseDistance === 'number'
-        ? this.currentFrame.baseDistance
-        : undefined;
+      const baseDistance = this.currentFrame && typeof this.currentFrame.baseDistance === 'number' ? this.currentFrame.baseDistance : undefined;
       if (Number.isFinite(baseDistance)) {
         viewData.baseDistance = baseDistance;
       }
       this.onViewChange(viewData);
     }
-
     applyViewState(view) {
       if (!view || typeof view !== 'object') return;
       const positionArray = normalizeVectorArray(view.position);
@@ -494,9 +456,10 @@
       } else if (this.currentFrame && this.currentFrame.center) {
         targetVector = this.currentFrame.center.clone();
       }
-
       if (!this.currentFrame) {
-        this.currentFrame = { center: targetVector ? targetVector.clone() : null };
+        this.currentFrame = {
+          center: targetVector ? targetVector.clone() : null
+        };
       }
       const providedDistance = Number.isFinite(view.distance) ? Number(view.distance) : null;
       if (providedDistance != null) {
@@ -510,11 +473,7 @@
       } else if (this.currentFrame.distance != null && !Number.isFinite(this.currentFrame.baseDistance)) {
         this.currentFrame.baseDistance = this.currentFrame.distance;
       }
-      const base = this.currentFrame && Number.isFinite(this.currentFrame.baseDistance)
-        ? this.currentFrame.baseDistance
-        : this.currentFrame && Number.isFinite(this.currentFrame.distance)
-          ? this.currentFrame.distance
-          : undefined;
+      const base = this.currentFrame && Number.isFinite(this.currentFrame.baseDistance) ? this.currentFrame.baseDistance : this.currentFrame && Number.isFinite(this.currentFrame.distance) ? this.currentFrame.distance : undefined;
       this._updateControlsDistances(base, this.currentFrame ? this.currentFrame.distance : undefined);
       if (this.controls) {
         this.controls.update();
@@ -523,12 +482,10 @@
       }
       this._emitViewChange();
     }
-
     setViewChangeCallback(callback) {
       this.onViewChange = typeof callback === 'function' ? callback : null;
       this._emitViewChange();
     }
-
     _applyMaterialAppearance() {
       if (!this.currentShape) return;
       const override = this.materialColorOverride;
@@ -540,7 +497,7 @@
         materials.forEach(material => {
           if (!material || !material.userData || !material.userData.isShapeMaterial) return;
           const baseColor = material.userData.baseColor;
-          const target = override ?? baseColor;
+          const target = override !== null && override !== void 0 ? override : baseColor;
           if (typeof target === 'number' && material.color) {
             material.color.setHex(target);
           }
@@ -551,7 +508,6 @@
         });
       });
     }
-
     setMaterialColorOverride(color) {
       if (color == null) {
         this.materialColorOverride = null;
@@ -562,7 +518,6 @@
       }
       this._applyMaterialAppearance();
     }
-
     setMaterialOpacity(opacity) {
       if (!(opacity > 0)) {
         this.materialOpacity = 0.05;
@@ -571,14 +526,12 @@
       }
       this._applyMaterialAppearance();
     }
-
     getBackgroundColorHex() {
       if (this.scene && this.scene.background && typeof this.scene.background.getHexString === 'function') {
         return `#${this.scene.background.getHexString()}`;
       }
       return '#ffffff';
     }
-
     captureSnapshot() {
       if (!this.renderer || !this.renderer.domElement) return null;
       const sourceCanvas = this.renderer.domElement;
@@ -597,9 +550,13 @@
       context.fillRect(0, 0, width, height);
       context.restore();
       context.drawImage(sourceCanvas, 0, 0, width, height);
-      return { canvas: exportCanvas, width, height, background };
+      return {
+        canvas: exportCanvas,
+        width,
+        height,
+        background
+      };
     }
-
     createMaterial(color) {
       const override = this.materialColorOverride;
       const opacity = THREE.MathUtils.clamp(this.materialOpacity, 0.05, 1);
@@ -617,14 +574,11 @@
       material.userData.isShapeMaterial = true;
       return material;
     }
-
     createEdges(geometry, color = 0x1f2937) {
-      return new THREE.LineSegments(
-        new THREE.EdgesGeometry(geometry),
-        new THREE.LineBasicMaterial({ color })
-      );
+      return new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({
+        color
+      }));
     }
-
     createLabelSprite(text) {
       if (typeof text !== 'string') return null;
       const trimmed = text.trim();
@@ -668,14 +622,11 @@
       context.stroke();
       context.fillStyle = '#111827';
       context.fillText(trimmed, width / 2, height / 2 + 2);
-
       const texture = new THREE.CanvasTexture(canvas);
-      if ('colorSpace' in texture && THREE.SRGBColorSpace) texture.colorSpace = THREE.SRGBColorSpace;
-      else if ('encoding' in texture && THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
+      if ('colorSpace' in texture && THREE.SRGBColorSpace) texture.colorSpace = THREE.SRGBColorSpace;else if ('encoding' in texture && THREE.sRGBEncoding) texture.encoding = THREE.sRGBEncoding;
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
       texture.generateMipmaps = false;
-
       const material = new THREE.SpriteMaterial({
         map: texture,
         transparent: true,
@@ -689,15 +640,17 @@
       sprite.userData.isMeasurement = true;
       return sprite;
     }
-
     addMeasurementLine(targetGroup, start, end, options = {}) {
+      var _options$thickness, _options$color;
       if (!targetGroup || !start || !end) return;
       const direction = end.clone().sub(start);
       const length = direction.length();
       if (!(length > 1e-4)) return;
-      const radius = options.thickness ?? 0.05;
+      const radius = (_options$thickness = options.thickness) !== null && _options$thickness !== void 0 ? _options$thickness : 0.05;
       const geometry = new THREE.CylinderGeometry(radius, radius, length, 24, 1, false);
-      const material = new THREE.MeshBasicMaterial({ color: options.color ?? 0x111827 });
+      const material = new THREE.MeshBasicMaterial({
+        color: (_options$color = options.color) !== null && _options$color !== void 0 ? _options$color : 0x111827
+      });
       material.toneMapped = false;
       const rod = new THREE.Mesh(geometry, material);
       rod.userData.isMeasurement = true;
@@ -706,7 +659,6 @@
       const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction.normalize());
       rod.setRotationFromQuaternion(quaternion);
       targetGroup.add(rod);
-
       const labelText = typeof options.label === 'string' ? options.label.trim() : '';
       if (labelText.length) {
         const sprite = this.createLabelSprite(labelText);
@@ -724,11 +676,10 @@
         }
       }
     }
-
     addRadiusMeasurement(targetGroup, dims, spec, type) {
       const radiusValue = typeof dims.radius === 'number' && Number.isFinite(dims.radius) ? dims.radius : null;
       if (!(radiusValue > 0)) return;
-      const label = typeof spec?.label === 'string' ? spec.label : '';
+      const label = typeof (spec === null || spec === void 0 ? void 0 : spec.label) === 'string' ? spec.label : '';
       const hasLabel = label.trim().length > 0;
       let start;
       let end;
@@ -751,15 +702,17 @@
           labelOffset = new THREE.Vector3(0, 0.22, 0);
         }
       }
-      const options = { color: 0xef4444, label };
+      const options = {
+        color: 0xef4444,
+        label
+      };
       if (labelOffset) options.labelOffset = labelOffset;
       this.addMeasurementLine(targetGroup, start, end, options);
     }
-
     addHeightMeasurement(targetGroup, dims, spec) {
       const heightValue = typeof dims.height === 'number' && Number.isFinite(dims.height) ? dims.height : null;
       if (!(heightValue > 0)) return;
-      const label = typeof spec?.label === 'string' ? spec.label : '';
+      const label = typeof (spec === null || spec === void 0 ? void 0 : spec.label) === 'string' ? spec.label : '';
       const radiusValue = typeof dims.radius === 'number' && Number.isFinite(dims.radius) ? dims.radius : null;
       const halfWidth = typeof dims.width === 'number' && Number.isFinite(dims.width) ? dims.width / 2 : null;
       const halfDepth = typeof dims.depth === 'number' && Number.isFinite(dims.depth) ? dims.depth / 2 : null;
@@ -787,11 +740,13 @@
         away.y = 0.18;
         labelPosition = midpoint.add(away);
       }
-      const options = { color: 0xf97316, label };
+      const options = {
+        color: 0xf97316,
+        label
+      };
       if (labelPosition) options.labelPosition = labelPosition;
       this.addMeasurementLine(targetGroup, start, end, options);
     }
-
     applyMeasurements(group, spec, dims, type) {
       if (!group || !spec || typeof spec !== 'object') return;
       const dimensionSpec = spec.dimensions;
@@ -809,19 +764,20 @@
         group.add(measurementGroup);
       }
     }
-
     createShape(spec) {
       const resolvedType = spec && typeof spec === 'object' && spec.type ? spec.type : spec;
       const type = typeof resolvedType === 'string' ? resolvedType : 'prism';
       const group = new THREE.Group();
-      const dims = { radius: null, height: null, width: null, depth: null };
+      const dims = {
+        radius: null,
+        height: null,
+        width: null,
+        depth: null
+      };
       let geometry;
       let rotationY = 0;
       let materialColor = 0x3b82f6;
-      const dimensionSpec = spec && typeof spec === 'object' && spec.dimensions && typeof spec.dimensions === 'object'
-        ? spec.dimensions
-        : null;
-
+      const dimensionSpec = spec && typeof spec === 'object' && spec.dimensions && typeof spec.dimensions === 'object' ? spec.dimensions : null;
       const extractDimensionValue = key => {
         if (!dimensionSpec || typeof key !== 'string') return null;
         const entry = dimensionSpec[key];
@@ -841,102 +797,102 @@
         }
         return null;
       };
-
       const resolvePositive = (value, fallback) => {
         if (Number.isFinite(value) && value > 0) return value;
         return fallback;
       };
-
       switch (type) {
-        case 'sphere': {
-          const radius = resolvePositive(extractDimensionValue('radius'), 1.35);
-          geometry = new THREE.SphereGeometry(radius, 40, 32);
-          geometry.translate(0, radius, 0);
-          materialColor = 0x6366f1;
-          dims.radius = radius;
-          dims.height = radius * 2;
-          break;
-        }
-        case 'pyramid': {
-          const height = resolvePositive(extractDimensionValue('height'), 2.8);
-          const radius = resolvePositive(extractDimensionValue('radius'), 1.7);
-          geometry = new THREE.ConeGeometry(radius, height, 4, 1);
-          geometry.translate(0, height / 2, 0);
-          rotationY = Math.PI / 4;
-          materialColor = 0xf59e0b;
-          dims.radius = radius;
-          dims.height = height;
-          const baseWidth = Math.sqrt(2) * radius;
-          dims.width = baseWidth;
-          dims.depth = baseWidth;
-          break;
-        }
-        case 'triangular-cylinder': {
-          const height = resolvePositive(extractDimensionValue('height'), 3);
-          const radius = resolvePositive(extractDimensionValue('radius'), 1.6);
-          geometry = new THREE.CylinderGeometry(radius, radius, height, 3, 1, false);
-          geometry.translate(0, height / 2, 0);
-          rotationY = Math.PI / 6;
-          materialColor = 0x0ea5e9;
-          dims.radius = radius;
-          dims.height = height;
-          dims.width = radius * 2;
-          dims.depth = radius * 2;
-          break;
-        }
-        case 'square-cylinder': {
-          const height = resolvePositive(extractDimensionValue('height'), 3.2);
-          const radius = resolvePositive(extractDimensionValue('radius'), 1.55);
-          geometry = new THREE.CylinderGeometry(radius, radius, height, 4, 1, false);
-          geometry.translate(0, height / 2, 0);
-          rotationY = Math.PI / 4;
-          materialColor = 0x10b981;
-          dims.radius = radius;
-          dims.height = height;
-          dims.width = radius * 2;
-          dims.depth = radius * 2;
-          break;
-        }
-        case 'cylinder': {
-          const height = resolvePositive(extractDimensionValue('height'), 3.2);
-          const radius = resolvePositive(extractDimensionValue('radius'), 1.6);
-          geometry = new THREE.CylinderGeometry(radius, radius, height, 32, 1, false);
-          geometry.translate(0, height / 2, 0);
-          materialColor = 0x0ea5e9;
-          dims.radius = radius;
-          dims.height = height;
-          dims.width = radius * 2;
-          dims.depth = radius * 2;
-          break;
-        }
+        case 'sphere':
+          {
+            const radius = resolvePositive(extractDimensionValue('radius'), 1.35);
+            geometry = new THREE.SphereGeometry(radius, 40, 32);
+            geometry.translate(0, radius, 0);
+            materialColor = 0x6366f1;
+            dims.radius = radius;
+            dims.height = radius * 2;
+            break;
+          }
+        case 'pyramid':
+          {
+            const height = resolvePositive(extractDimensionValue('height'), 2.8);
+            const radius = resolvePositive(extractDimensionValue('radius'), 1.7);
+            geometry = new THREE.ConeGeometry(radius, height, 4, 1);
+            geometry.translate(0, height / 2, 0);
+            rotationY = Math.PI / 4;
+            materialColor = 0xf59e0b;
+            dims.radius = radius;
+            dims.height = height;
+            const baseWidth = Math.sqrt(2) * radius;
+            dims.width = baseWidth;
+            dims.depth = baseWidth;
+            break;
+          }
+        case 'triangular-cylinder':
+          {
+            const height = resolvePositive(extractDimensionValue('height'), 3);
+            const radius = resolvePositive(extractDimensionValue('radius'), 1.6);
+            geometry = new THREE.CylinderGeometry(radius, radius, height, 3, 1, false);
+            geometry.translate(0, height / 2, 0);
+            rotationY = Math.PI / 6;
+            materialColor = 0x0ea5e9;
+            dims.radius = radius;
+            dims.height = height;
+            dims.width = radius * 2;
+            dims.depth = radius * 2;
+            break;
+          }
+        case 'square-cylinder':
+          {
+            const height = resolvePositive(extractDimensionValue('height'), 3.2);
+            const radius = resolvePositive(extractDimensionValue('radius'), 1.55);
+            geometry = new THREE.CylinderGeometry(radius, radius, height, 4, 1, false);
+            geometry.translate(0, height / 2, 0);
+            rotationY = Math.PI / 4;
+            materialColor = 0x10b981;
+            dims.radius = radius;
+            dims.height = height;
+            dims.width = radius * 2;
+            dims.depth = radius * 2;
+            break;
+          }
+        case 'cylinder':
+          {
+            const height = resolvePositive(extractDimensionValue('height'), 3.2);
+            const radius = resolvePositive(extractDimensionValue('radius'), 1.6);
+            geometry = new THREE.CylinderGeometry(radius, radius, height, 32, 1, false);
+            geometry.translate(0, height / 2, 0);
+            materialColor = 0x0ea5e9;
+            dims.radius = radius;
+            dims.height = height;
+            dims.width = radius * 2;
+            dims.depth = radius * 2;
+            break;
+          }
         case 'prism':
-        default: {
-          const width = 2.6;
-          const height = resolvePositive(extractDimensionValue('height'), 2.2);
-          const depth = 1.8;
-          geometry = new THREE.BoxGeometry(width, height, depth);
-          geometry.translate(0, height / 2, 0);
-          materialColor = 0x3b82f6;
-          dims.height = height;
-          dims.width = width;
-          dims.depth = depth;
-          break;
-        }
+        default:
+          {
+            const width = 2.6;
+            const height = resolvePositive(extractDimensionValue('height'), 2.2);
+            const depth = 1.8;
+            geometry = new THREE.BoxGeometry(width, height, depth);
+            geometry.translate(0, height / 2, 0);
+            materialColor = 0x3b82f6;
+            dims.height = height;
+            dims.width = width;
+            dims.depth = depth;
+            break;
+          }
       }
-
       const mesh = new THREE.Mesh(geometry, this.createMaterial(materialColor));
       group.add(mesh);
       if (type !== 'sphere') {
         const edges = this.createEdges(geometry);
         group.add(edges);
       }
-
       this.applyMeasurements(group, spec && typeof spec === 'object' ? spec : null, dims, type);
-
       group.rotation.y = rotationY;
       return group;
     }
-
     setShape(spec) {
       this.disposeCurrentShape();
       if (!spec) return;
@@ -946,19 +902,14 @@
       this._applyMaterialAppearance();
       this.frameCurrentShape();
     }
-
     clear() {
       this.disposeCurrentShape();
     }
   }
-
   const grid = document.getElementById('figureGrid');
-  const figureWrappers = Array.from(
-    document.querySelectorAll('#figureGrid > .figure[data-figure-index]')
-  );
+  const figureWrappers = Array.from(document.querySelectorAll('#figureGrid > .figure[data-figure-index]'));
   const rendererCount = figureWrappers.length;
   let activeViewIndex = 0;
-
   function ensureViewStateCapacity() {
     if (!window.STATE || typeof window.STATE !== 'object') {
       window.STATE = {};
@@ -981,7 +932,6 @@
     activeViewIndex = storedIndex;
     window.STATE.lastViewIndex = storedIndex;
   }
-
   function storeViewState(index, view) {
     ensureViewStateCapacity();
     const targetIndex = sanitizeViewIndex(index);
@@ -1011,20 +961,17 @@
       updateViewControlsUI(targetIndex);
     }
   }
-
   const renderers = figureWrappers.map((wrapper, index) => {
     const canvasWrap = wrapper.querySelector('.figureCanvas');
     return new ShapeRenderer(canvasWrap, {
       onViewChange: view => storeViewState(index, view)
     });
   });
-
   figureWrappers.forEach((wrapper, index) => {
     wrapper.addEventListener('pointerdown', () => {
       setActiveViewIndex(index);
     });
   });
-
   function syncAllViewStates() {
     renderers.forEach(renderer => {
       if (renderer && typeof renderer.syncViewState === 'function') {
@@ -1032,7 +979,6 @@
       }
     });
   }
-
   if (typeof window !== 'undefined' && window && typeof window.addEventListener === 'function') {
     window.addEventListener('examples:collect', syncAllViewStates);
     window.addEventListener('examples:loaded', () => {
@@ -1040,7 +986,6 @@
       syncControlsFromState();
     });
   }
-
   function getStoredView(index) {
     ensureViewStateCapacity();
     const stored = window.STATE.views[index];
@@ -1055,7 +1000,6 @@
     if (Number.isFinite(stored.baseDistance)) view.baseDistance = Number(stored.baseDistance);
     return view;
   }
-
   function applyStoredView(index) {
     const renderer = renderers[index];
     if (!renderer || typeof renderer.applyViewState !== 'function') return;
@@ -1063,7 +1007,6 @@
     if (!view) return;
     renderer.applyViewState(view);
   }
-
   const textarea = document.getElementById('inpSpecs');
   const drawBtn = document.getElementById('btnDraw');
   const lockRotationCheckbox = document.getElementById('chkLockRotation');
@@ -1082,29 +1025,24 @@
   const exportCard = document.getElementById('exportCard');
   const exportRows = Array.from(document.querySelectorAll('[data-export-index]'));
   const exportButtons = Array.from(document.querySelectorAll('[data-export-button]'));
-
   function clampTransparency(value) {
     const num = Number(value);
     if (!Number.isFinite(num)) return 0;
     return Math.min(Math.max(num, 0), 95);
   }
-
   function parseColorHex(value) {
     if (typeof value !== 'string') return null;
     const match = value.trim().match(/^#?([0-9a-f]{6})$/i);
     if (!match) return null;
     return parseInt(match[1], 16);
   }
-
   function updateTransparencyLabel(value) {
     if (!transparencyLabel) return;
     const clamped = clampTransparency(value);
     transparencyLabel.textContent = `${clamped}%`;
   }
-
   const ELEVATION_MIN_DEGREES = -80;
   const ELEVATION_MAX_DEGREES = 80;
-
   function clampElevationDegrees(value) {
     const num = Number(value);
     if (!Number.isFinite(num)) return 0;
@@ -1112,7 +1050,6 @@
     if (num > ELEVATION_MAX_DEGREES) return ELEVATION_MAX_DEGREES;
     return num;
   }
-
   function updateElevationLabel(value) {
     if (!elevationLabel) return;
     if (!Number.isFinite(value)) {
@@ -1122,7 +1059,6 @@
     const clamped = clampElevationDegrees(value);
     elevationLabel.textContent = `${Math.round(clamped)}°`;
   }
-
   function clampRotation(value) {
     const num = Number(value);
     if (!Number.isFinite(num)) return 0;
@@ -1131,7 +1067,6 @@
     if (normalized < 0) normalized = 0;
     return normalized;
   }
-
   function updateRotationLabel(value) {
     if (!rotationLabel) return;
     if (!Number.isFinite(value)) {
@@ -1141,13 +1076,11 @@
     const normalized = clampRotation(value);
     rotationLabel.textContent = `${Math.round(normalized)}°`;
   }
-
   function clampZoomPercent(value) {
     const num = Number(value);
     if (!Number.isFinite(num)) return 100;
     return Math.min(Math.max(num, 40), 250);
   }
-
   function updateZoomLabel(value) {
     if (!zoomLabel) return;
     if (!Number.isFinite(value)) {
@@ -1157,7 +1090,6 @@
     const clamped = clampZoomPercent(value);
     zoomLabel.textContent = `${Math.round(clamped)}%`;
   }
-
   function updateViewFigureLabelText(index) {
     if (!viewFigureLabels.length) return;
     const hasIndex = Number.isInteger(index) && index >= 0;
@@ -1166,7 +1098,6 @@
       node.textContent = labelText;
     });
   }
-
   function sanitizeViewIndex(index) {
     if (!Number.isInteger(index)) return 0;
     if (index < 0) return 0;
@@ -1175,13 +1106,11 @@
     }
     return index;
   }
-
   function hasFigureAtIndex(index) {
     const figures = getCurrentFigures();
     if (!Array.isArray(figures)) return false;
     return Boolean(figures[index]);
   }
-
   function findFirstVisibleFigureIndex() {
     const figures = getCurrentFigures();
     if (!Array.isArray(figures)) return null;
@@ -1190,11 +1119,9 @@
     }
     return null;
   }
-
   function getActiveViewIndex() {
     return sanitizeViewIndex(activeViewIndex);
   }
-
   function setActiveViewIndex(index, options = {}) {
     let target = sanitizeViewIndex(index);
     if (!hasFigureAtIndex(target)) {
@@ -1212,16 +1139,11 @@
       updateViewControlsUI(target);
     }
   }
-
   function getRendererCameraView(index) {
     const renderer = renderers[index];
     if (!renderer || !renderer.camera) return null;
     const cameraPosition = renderer.camera.position;
-    const targetVec = renderer.controls
-      ? renderer.controls.target
-      : renderer.currentFrame && renderer.currentFrame.center
-        ? renderer.currentFrame.center
-        : null;
+    const targetVec = renderer.controls ? renderer.controls.target : renderer.currentFrame && renderer.currentFrame.center ? renderer.currentFrame.center : null;
     if (!targetVec) return null;
     const position = [cameraPosition.x, cameraPosition.y, cameraPosition.z];
     const target = [targetVec.x, targetVec.y, targetVec.z];
@@ -1229,19 +1151,20 @@
     const dy = position[1] - target[1];
     const dz = position[2] - target[2];
     const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    let baseDistance = renderer.currentFrame && Number.isFinite(renderer.currentFrame.baseDistance)
-      ? renderer.currentFrame.baseDistance
-      : distance;
+    let baseDistance = renderer.currentFrame && Number.isFinite(renderer.currentFrame.baseDistance) ? renderer.currentFrame.baseDistance : distance;
     if (!(baseDistance > 0)) {
       baseDistance = distance > 0 ? distance : 1;
     }
-    return { position, target, distance, baseDistance };
+    return {
+      position,
+      target,
+      distance,
+      baseDistance
+    };
   }
-
   function getEffectiveView(index) {
     return getStoredView(index) || getRendererCameraView(index);
   }
-
   function computeRotationDegreesFromView(view) {
     if (!view) return null;
     const position = normalizeVectorArray(view.position);
@@ -1259,7 +1182,6 @@
     if (degrees < 0) degrees = 0;
     return degrees;
   }
-
   function computeZoomPercentFromView(view, renderer) {
     if (!view) return null;
     const distance = Number.isFinite(view.distance) ? Number(view.distance) : null;
@@ -1272,9 +1194,8 @@
       return null;
     }
     const effectiveDistance = distance && distance > 0 ? distance : base;
-    return (effectiveDistance / base) * 100;
+    return effectiveDistance / base * 100;
   }
-
   function computeElevationFromView(view) {
     if (!view) return 0;
     const position = normalizeVectorArray(view.position);
@@ -1289,13 +1210,11 @@
     if (!Number.isFinite(angle)) return 0;
     return angle;
   }
-
   function computeElevationDegreesFromView(view) {
     const radians = computeElevationFromView(view);
     if (!Number.isFinite(radians)) return 0;
     return THREE.MathUtils.radToDeg(radians);
   }
-
   function applyViewControlChanges(options = {}) {
     const index = getActiveViewIndex();
     const renderer = renderers[index];
@@ -1328,11 +1247,7 @@
     const distance = Math.max(baseDistance * (clampedZoom / 100), 0.2);
     const horizontal = Math.cos(elevation) * distance;
     const yaw = THREE.MathUtils.degToRad(clampedRotation);
-    const newPosition = [
-      target[0] + Math.sin(yaw) * horizontal,
-      target[1] + Math.sin(elevation) * distance,
-      target[2] + Math.cos(yaw) * horizontal
-    ];
+    const newPosition = [target[0] + Math.sin(yaw) * horizontal, target[1] + Math.sin(elevation) * distance, target[2] + Math.cos(yaw) * horizontal];
     const newView = {
       position: newPosition,
       target: target.slice(),
@@ -1341,7 +1256,6 @@
     };
     renderer.applyViewState(newView);
   }
-
   function updateViewControlsUI(index) {
     const target = sanitizeViewIndex(index);
     const renderer = renderers[target];
@@ -1398,7 +1312,6 @@
       updateZoomLabel(zoomValue);
     }
   }
-
   function formatTypeLabel(type) {
     if (typeof type !== 'string' || !type) return '';
     switch (type) {
@@ -1418,14 +1331,12 @@
         return type.replace(/[-_]+/g, ' ');
     }
   }
-
   function getCurrentFigures() {
     if (window.STATE && Array.isArray(window.STATE.figures)) {
       return window.STATE.figures;
     }
     return [];
   }
-
   function getFigureDisplayLabel(info, index) {
     if (!info) return `Figur ${index + 1}`;
     const rawInput = typeof info.input === 'string' ? info.input.trim() : '';
@@ -1438,7 +1349,6 @@
     }
     return `Figur ${index + 1}`;
   }
-
   function getExportFileBase(info, index) {
     if (!info) {
       return `figur-${index + 1}`;
@@ -1453,11 +1363,8 @@
     }
     return `figur-${index + 1}`;
   }
-
   function toSafeFileName(parts) {
-    const usable = parts
-      .filter(part => typeof part === 'string' && part.trim().length)
-      .map(part => part.trim());
+    const usable = parts.filter(part => typeof part === 'string' && part.trim().length).map(part => part.trim());
     if (!usable.length) {
       return 'figur';
     }
@@ -1466,13 +1373,9 @@
       combined = combined.normalize('NFKD');
     }
     combined = combined.replace(/[\u0300-\u036f]/g, '');
-    const sanitized = combined
-      .replace(/[^a-z0-9]+/gi, '-')
-      .replace(/^-+|-+$/g, '')
-      .toLowerCase();
+    const sanitized = combined.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
     return sanitized || 'figur';
   }
-
   function getExportFileName(index, format) {
     const figures = getCurrentFigures();
     const info = figures[index];
@@ -1483,7 +1386,6 @@
     const extension = typeof format === 'string' ? format.toLowerCase() : 'png';
     return `${safe}.${extension}`;
   }
-
   function canvasToBlob(canvas) {
     return new Promise(resolve => {
       if (!canvas) {
@@ -1506,14 +1408,15 @@
         for (let i = 0; i < len; i += 1) {
           bytes[i] = binary.charCodeAt(i);
         }
-        resolve(new Blob([bytes], { type: 'image/png' }));
+        resolve(new Blob([bytes], {
+          type: 'image/png'
+        }));
       } catch (error) {
         console.warn('Klarte ikke konvertere canvas til PNG.', error);
         resolve(null);
       }
     });
   }
-
   function downloadBlob(blob, filename) {
     if (!blob) return;
     const url = URL.createObjectURL(blob);
@@ -1528,20 +1431,12 @@
       URL.revokeObjectURL(url);
     });
   }
-
   function createSvgFromImage(pngDataUrl, width, height, background) {
     if (typeof pngDataUrl !== 'string' || !pngDataUrl) return null;
     if (!(width > 0) || !(height > 0)) return null;
-    const safeBackground = typeof background === 'string' && background.trim()
-      ? background.trim()
-      : '#ffffff';
-    return `<?xml version="1.0" encoding="UTF-8"?>\n` +
-      `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">\n` +
-      `  <rect width="100%" height="100%" fill="${safeBackground}" />\n` +
-      `  <image width="${width}" height="${height}" href="${pngDataUrl}" xlink:href="${pngDataUrl}" preserveAspectRatio="none" />\n` +
-      `</svg>`;
+    const safeBackground = typeof background === 'string' && background.trim() ? background.trim() : '#ffffff';
+    return `<?xml version="1.0" encoding="UTF-8"?>\n` + `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">\n` + `  <rect width="100%" height="100%" fill="${safeBackground}" />\n` + `  <image width="${width}" height="${height}" href="${pngDataUrl}" xlink:href="${pngDataUrl}" preserveAspectRatio="none" />\n` + `</svg>`;
   }
-
   function updateExportControls(figures) {
     if (!exportCard) return;
     const hasAny = Array.isArray(figures) && figures.some(item => Boolean(item));
@@ -1570,7 +1465,6 @@
       }
     });
   }
-
   async function exportFigure(index, format) {
     const renderer = renderers[index];
     if (!renderer || typeof renderer.captureSnapshot !== 'function') return;
@@ -1587,12 +1481,13 @@
       const pngDataUrl = snapshot.canvas.toDataURL('image/png');
       const svgContent = createSvgFromImage(pngDataUrl, snapshot.width, snapshot.height, snapshot.background);
       if (!svgContent) return;
-      const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+      const blob = new Blob([svgContent], {
+        type: 'image/svg+xml;charset=utf-8'
+      });
       const filename = getExportFileName(index, 'svg');
       downloadBlob(blob, filename);
     }
   }
-
   function applyColor(useCustom, hex) {
     const parsed = useCustom ? parseColorHex(hex) : null;
     renderers.forEach(renderer => renderer.setMaterialColorOverride(parsed));
@@ -1603,7 +1498,6 @@
       colorResetBtn.disabled = !useCustom;
     }
   }
-
   function applyTransparency(value) {
     const clamped = clampTransparency(value);
     const opacity = 1 - clamped / 100;
@@ -1614,9 +1508,7 @@
     window.STATE.transparency = clamped;
     updateTransparencyLabel(clamped);
   }
-
   const defaultInput = textarea ? textarea.value : 'sylinder radius: r høyde: h';
-
   function ensureStateDefaults() {
     window.STATE = window.STATE || {};
     ensureViewStateCapacity();
@@ -1632,9 +1524,7 @@
     if (typeof window.STATE.freeFigure !== 'boolean') {
       window.STATE.freeFigure = freeFigureCheckbox ? Boolean(freeFigureCheckbox.checked) : false;
     }
-    const fallbackColor = colorInput && typeof colorInput.value === 'string' && colorInput.value
-      ? colorInput.value
-      : '#3b82f6';
+    const fallbackColor = colorInput && typeof colorInput.value === 'string' && colorInput.value ? colorInput.value : '#3b82f6';
     if (typeof window.STATE.customColor !== 'string' || !parseColorHex(window.STATE.customColor)) {
       window.STATE.customColor = fallbackColor;
     }
@@ -1644,15 +1534,12 @@
     const clampedTransparency = clampTransparency(window.STATE.transparency);
     window.STATE.transparency = clampedTransparency;
   }
-
   const applyRotationLock = locked => {
     renderers.forEach(renderer => renderer.setRotationLocked(Boolean(locked)));
   };
-
   const applyFloating = floating => {
     renderers.forEach(renderer => renderer.setFloating(Boolean(floating)));
   };
-
   function syncControlsFromState() {
     if (!window.STATE || typeof window.STATE !== 'object') return;
     if (lockRotationCheckbox) {
@@ -1673,11 +1560,9 @@
     applyColor(Boolean(window.STATE.useCustomColor), window.STATE.customColor);
     applyTransparency(transparencyValue);
   }
-
   ensureStateDefaults();
   syncControlsFromState();
   updateViewControlsUI(getActiveViewIndex());
-
   function detectType(line) {
     const normalized = line.toLowerCase();
     if (normalized.includes('kule')) return 'sphere';
@@ -1689,7 +1574,6 @@
     if (normalized.includes('prism')) return 'prism';
     return 'prism';
   }
-
   function parseDimensions(line) {
     const result = {};
     if (!line) return result;
@@ -1719,10 +1603,13 @@
       label = label.replace(/[,;|]+$/g, '').replace(/\s{2,}/g, ' ').trim();
       let finalLabel = label;
       if (!finalLabel) {
-        finalLabel = hadSeparator ? '' : (normalized === 'radius' ? 'r' : 'h');
+        finalLabel = hadSeparator ? '' : normalized === 'radius' ? 'r' : 'h';
       }
       if (!result[normalized]) {
-        const entry = { requested: true, label: finalLabel };
+        const entry = {
+          requested: true,
+          label: finalLabel
+        };
         const numericSource = typeof finalLabel === 'string' ? finalLabel.replace(/,/g, '.').trim() : '';
         if (numericSource) {
           const matchNumber = numericSource.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/);
@@ -1738,25 +1625,26 @@
     }
     return result;
   }
-
   function parseInput(rawInput) {
     const lines = rawInput.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     const figures = [];
     for (const line of lines) {
       const type = detectType(line);
       const dimensions = parseDimensions(line);
-      figures.push({ input: line, type, dimensions });
+      figures.push({
+        input: line,
+        type,
+        dimensions
+      });
       if (figures.length >= renderers.length) break;
     }
     return figures;
   }
-
   function updateForm(rawInput) {
     if (textarea && textarea.value !== rawInput) {
       textarea.value = rawInput;
     }
   }
-
   function updateFigures(figures) {
     ensureViewStateCapacity();
     const count = Math.max(figures.length, 1);
@@ -1785,22 +1673,29 @@
     });
     updateExportControls(figures);
     if (!Array.isArray(figures) || !figures.some(Boolean)) {
-      setActiveViewIndex(0, { force: true });
+      setActiveViewIndex(0, {
+        force: true
+      });
     } else {
       const active = getActiveViewIndex();
       if (figures[active]) {
-        setActiveViewIndex(active, { force: true });
+        setActiveViewIndex(active, {
+          force: true
+        });
       } else {
         const first = figures.findIndex(info => Boolean(info));
         if (first !== -1) {
-          setActiveViewIndex(first, { force: true });
+          setActiveViewIndex(first, {
+            force: true
+          });
         } else {
-          setActiveViewIndex(0, { force: true });
+          setActiveViewIndex(0, {
+            force: true
+          });
         }
       }
     }
   }
-
   function draw() {
     const rawInput = typeof window.STATE.rawInput === 'string' ? window.STATE.rawInput : defaultInput;
     const figures = parseInput(rawInput);
@@ -1809,7 +1704,6 @@
     updateForm(rawInput);
     updateFigures(figures);
   }
-
   exportButtons.forEach(button => {
     button.addEventListener('click', async evt => {
       evt.preventDefault();
@@ -1832,14 +1726,12 @@
       }
     });
   });
-
   if (drawBtn) {
     drawBtn.addEventListener('click', () => {
       window.STATE.rawInput = textarea ? textarea.value : '';
       draw();
     });
   }
-
   if (lockRotationCheckbox) {
     lockRotationCheckbox.addEventListener('change', evt => {
       const locked = Boolean(evt.target.checked);
@@ -1847,7 +1739,6 @@
       applyRotationLock(locked);
     });
   }
-
   if (freeFigureCheckbox) {
     freeFigureCheckbox.addEventListener('change', evt => {
       const floating = Boolean(evt.target.checked);
@@ -1855,7 +1746,6 @@
       applyFloating(floating);
     });
   }
-
   if (colorInput) {
     colorInput.addEventListener('input', evt => {
       const newValue = typeof evt.target.value === 'string' && evt.target.value ? evt.target.value : '#3b82f6';
@@ -1864,14 +1754,12 @@
       applyColor(true, newValue);
     });
   }
-
   if (colorResetBtn) {
     colorResetBtn.addEventListener('click', () => {
       window.STATE.useCustomColor = false;
       applyColor(false, window.STATE.customColor);
     });
   }
-
   if (rotationRange) {
     rotationRange.addEventListener('input', evt => {
       const value = clampRotation(evt.target.value);
@@ -1879,10 +1767,11 @@
         evt.target.value = String(Math.round(value));
       }
       updateRotationLabel(value);
-      applyViewControlChanges({ rotationDeg: value });
+      applyViewControlChanges({
+        rotationDeg: value
+      });
     });
   }
-
   if (elevationRange) {
     elevationRange.addEventListener('input', evt => {
       const value = clampElevationDegrees(evt.target.value);
@@ -1890,10 +1779,11 @@
         evt.target.value = String(Math.round(value));
       }
       updateElevationLabel(value);
-      applyViewControlChanges({ elevationDeg: value });
+      applyViewControlChanges({
+        elevationDeg: value
+      });
     });
   }
-
   if (zoomRange) {
     zoomRange.addEventListener('input', evt => {
       const value = clampZoomPercent(evt.target.value);
@@ -1901,10 +1791,11 @@
         evt.target.value = String(Math.round(value));
       }
       updateZoomLabel(value);
-      applyViewControlChanges({ zoomPercent: value });
+      applyViewControlChanges({
+        zoomPercent: value
+      });
     });
   }
-
   if (transparencyRange) {
     transparencyRange.addEventListener('input', evt => {
       const value = clampTransparency(evt.target.value);
@@ -1912,7 +1803,6 @@
       applyTransparency(value);
     });
   }
-
   if (textarea) {
     textarea.addEventListener('input', () => {
       if (!window.STATE || typeof window.STATE !== 'object') return;
@@ -1926,8 +1816,6 @@
       }
     });
   }
-
   window.draw = draw;
-
   draw();
 })();

@@ -1,141 +1,131 @@
-const globalScope = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
-
-function createFallbackStorage(){
+const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+function createFallbackStorage() {
   const data = new Map();
   return {
-    get length(){
+    get length() {
       return data.size;
     },
-    key(index){
-      if(!Number.isInteger(index) || index < 0) return null;
-      if(index >= data.size) return null;
+    key(index) {
+      if (!Number.isInteger(index) || index < 0) return null;
+      if (index >= data.size) return null;
       let i = 0;
-      for(const key of data.keys()){
-        if(i === index) return key;
+      for (const key of data.keys()) {
+        if (i === index) return key;
         i++;
       }
       return null;
     },
-    getItem(key){
-      if(key == null) return null;
+    getItem(key) {
+      if (key == null) return null;
       const normalized = String(key);
       return data.has(normalized) ? data.get(normalized) : null;
     },
-    setItem(key, value){
-      if(key == null) return;
+    setItem(key, value) {
+      if (key == null) return;
       data.set(String(key), value == null ? 'null' : String(value));
     },
-    removeItem(key){
-      if(key == null) return;
+    removeItem(key) {
+      if (key == null) return;
       data.delete(String(key));
     },
-    clear(){ data.clear(); }
+    clear() {
+      data.clear();
+    }
   };
 }
-
 const sharedFallback = (() => {
-  if(globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function'){
+  if (globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function') {
     return globalScope.__EXAMPLES_FALLBACK_STORAGE__;
   }
   const store = createFallbackStorage();
-  if(globalScope){
+  if (globalScope) {
     globalScope.__EXAMPLES_FALLBACK_STORAGE__ = store;
   }
   return store;
 })();
-
 let storage = null;
 let usingFallback = false;
-
-if(globalScope){
+if (globalScope) {
   const shared = globalScope.__EXAMPLES_STORAGE__;
-  if(shared && typeof shared.getItem === 'function'){
+  if (shared && typeof shared.getItem === 'function') {
     storage = shared;
     usingFallback = shared === sharedFallback;
   }
 }
-
-if(!storage){
-  try{
-    if(typeof localStorage !== 'undefined'){
+if (!storage) {
+  try {
+    if (typeof localStorage !== 'undefined') {
       storage = localStorage;
-    }else{
+    } else {
       storage = sharedFallback;
       usingFallback = true;
     }
-  }catch(_){
+  } catch (_) {
     storage = sharedFallback;
     usingFallback = true;
   }
 }
-
-if(globalScope && (!globalScope.__EXAMPLES_STORAGE__ || typeof globalScope.__EXAMPLES_STORAGE__.getItem !== 'function')){
+if (globalScope && (!globalScope.__EXAMPLES_STORAGE__ || typeof globalScope.__EXAMPLES_STORAGE__.getItem !== 'function')) {
   globalScope.__EXAMPLES_STORAGE__ = storage;
 }
-
-function switchToFallback(){
-  if(usingFallback) return storage;
-  if(storage && storage !== sharedFallback){
-    try{
+function switchToFallback() {
+  if (usingFallback) return storage;
+  if (storage && storage !== sharedFallback) {
+    try {
       const total = Number(storage.length) || 0;
-      for(let i = 0; i < total; i++){
+      for (let i = 0; i < total; i++) {
         let key = null;
-        try{ key = storage.key(i); }
-        catch(_){ key = null; }
-        if(!key) continue;
-        try{
+        try {
+          key = storage.key(i);
+        } catch (_) {
+          key = null;
+        }
+        if (!key) continue;
+        try {
           const value = storage.getItem(key);
-          if(value != null) sharedFallback.setItem(key, value);
-        }catch(_){ }
+          if (value != null) sharedFallback.setItem(key, value);
+        } catch (_) {}
       }
-    }catch(_){ }
+    } catch (_) {}
   }
   usingFallback = true;
   storage = sharedFallback;
-  if(globalScope){
+  if (globalScope) {
     globalScope.__EXAMPLES_STORAGE__ = storage;
   }
   return storage;
 }
-
-function safeGetItem(key){
-  if(!usingFallback && storage && typeof storage.getItem === 'function'){
-    try{
+function safeGetItem(key) {
+  if (!usingFallback && storage && typeof storage.getItem === 'function') {
+    try {
       return storage.getItem(key);
-    }catch(_){
+    } catch (_) {
       return switchToFallback().getItem(key);
     }
   }
   return storage && typeof storage.getItem === 'function' ? storage.getItem(key) : null;
 }
-
-function safeSetItem(key, value){
-  if(!usingFallback && storage && typeof storage.setItem === 'function'){
-    try{
+function safeSetItem(key, value) {
+  if (!usingFallback && storage && typeof storage.setItem === 'function') {
+    try {
       storage.setItem(key, value);
       return;
-    }catch(_){
+    } catch (_) {
       // fall through
     }
   }
   switchToFallback().setItem(key, value);
 }
-
 const iframe = document.querySelector('iframe');
 const nav = document.querySelector('nav');
 const defaultPage = 'nkant.html';
 const links = Array.from(nav.querySelectorAll('a'));
 const saved = safeGetItem('currentPage');
-const initialPage = saved && links.some(link => link.getAttribute('href') === saved)
-  ? saved
-  : defaultPage;
-
+const initialPage = saved && links.some(link => link.getAttribute('href') === saved) ? saved : defaultPage;
 if (initialPage !== saved) {
   safeSetItem('currentPage', initialPage);
 }
-
 iframe.src = initialPage;
-
 function setActive(current) {
   nav.querySelectorAll('a').forEach(link => {
     const isActive = link.getAttribute('href') === current;
@@ -147,16 +137,13 @@ function setActive(current) {
     }
   });
 }
-
 setActive(initialPage);
-
 nav.addEventListener('click', event => {
   const link = event.target.closest('a');
   if (!link) return;
   event.preventDefault();
   const href = link.getAttribute('href');
   const currentSrc = iframe.getAttribute('src') || '';
-
   const toPath = value => {
     try {
       return new URL(value, window.location.href).pathname;
@@ -164,11 +151,9 @@ nav.addEventListener('click', event => {
       return value;
     }
   };
-
   const currentPath = currentSrc ? toPath(currentSrc) : null;
   const targetPath = toPath(href);
   const needsRefresh = currentPath === targetPath;
-
   let cacheBustingSrc = href;
   if (needsRefresh) {
     const [pathAndQuery, ...hashParts] = href.split('#');
@@ -176,9 +161,7 @@ nav.addEventListener('click', event => {
     const separator = pathAndQuery.includes('?') ? '&' : '?';
     cacheBustingSrc = `${pathAndQuery}${separator}t=${Date.now()}${hash}`;
   }
-
   iframe.src = cacheBustingSrc;
   safeSetItem('currentPage', href);
   setActive(href);
 });
-

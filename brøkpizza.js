@@ -1,154 +1,214 @@
 /* =======================
    KONFIG FRA HTML
    ======================= */
-const SIMPLE = { pizzas: [], ops: [] };
-if(typeof window !== 'undefined') window.SIMPLE = SIMPLE;
+const SIMPLE = {
+  pizzas: [],
+  ops: []
+};
+if (typeof window !== 'undefined') window.SIMPLE = SIMPLE;
 const PANEL_HTML = [];
-
-function readConfigFromHtml(){
+function readConfigFromHtml() {
   const pizzas = [];
-  for(let i=1;i<=3;i++){
-    const t      = parseInt(document.getElementById(`p${i}T`)?.value,10);
-    const n      = parseInt(document.getElementById(`p${i}N`)?.value,10);
-    const lockN  = document.getElementById(`p${i}LockN`)?.checked ?? false;
-    const lockT  = document.getElementById(`p${i}LockT`)?.checked ?? false;
-    const text   = document.getElementById(`p${i}Text`)?.value ?? "none";
-    const minN   = parseInt(document.getElementById(`p${i}MinN`)?.value,10);
-    const maxN   = parseInt(document.getElementById(`p${i}MaxN`)?.value,10);
-    const hideNVal = document.getElementById(`p${i}HideNVal`)?.checked ?? false;
+  for (let i = 1; i <= 3; i++) {
+    var _document$getElementB, _document$getElementB2, _document$getElementB3, _document$getElementB4, _document$getElementB5, _document$getElementB6, _document$getElementB7, _document$getElementB8, _document$getElementB9, _document$getElementB0, _document$getElementB1, _document$getElementB10;
+    const t = parseInt((_document$getElementB = document.getElementById(`p${i}T`)) === null || _document$getElementB === void 0 ? void 0 : _document$getElementB.value, 10);
+    const n = parseInt((_document$getElementB2 = document.getElementById(`p${i}N`)) === null || _document$getElementB2 === void 0 ? void 0 : _document$getElementB2.value, 10);
+    const lockN = (_document$getElementB3 = (_document$getElementB4 = document.getElementById(`p${i}LockN`)) === null || _document$getElementB4 === void 0 ? void 0 : _document$getElementB4.checked) !== null && _document$getElementB3 !== void 0 ? _document$getElementB3 : false;
+    const lockT = (_document$getElementB5 = (_document$getElementB6 = document.getElementById(`p${i}LockT`)) === null || _document$getElementB6 === void 0 ? void 0 : _document$getElementB6.checked) !== null && _document$getElementB5 !== void 0 ? _document$getElementB5 : false;
+    const text = (_document$getElementB7 = (_document$getElementB8 = document.getElementById(`p${i}Text`)) === null || _document$getElementB8 === void 0 ? void 0 : _document$getElementB8.value) !== null && _document$getElementB7 !== void 0 ? _document$getElementB7 : "none";
+    const minN = parseInt((_document$getElementB9 = document.getElementById(`p${i}MinN`)) === null || _document$getElementB9 === void 0 ? void 0 : _document$getElementB9.value, 10);
+    const maxN = parseInt((_document$getElementB0 = document.getElementById(`p${i}MaxN`)) === null || _document$getElementB0 === void 0 ? void 0 : _document$getElementB0.value, 10);
+    const hideNVal = (_document$getElementB1 = (_document$getElementB10 = document.getElementById(`p${i}HideNVal`)) === null || _document$getElementB10 === void 0 ? void 0 : _document$getElementB10.checked) !== null && _document$getElementB1 !== void 0 ? _document$getElementB1 : false;
     pizzas.push({
-      t: isFinite(t)?t:0,
-      n: isFinite(n)?n:1,
-      lockN, lockT, text,
+      t: isFinite(t) ? t : 0,
+      n: isFinite(n) ? n : 1,
+      lockN,
+      lockT,
+      text,
       hideNVal,
-      minN: isFinite(minN)?minN:1,
-      maksN: isFinite(maxN)?maxN:24
+      minN: isFinite(minN) ? minN : 1,
+      maksN: isFinite(maxN) ? maxN : 24
     });
   }
   const ops = [];
-  for(let i=1;i<=2;i++){
-    const op = document.getElementById(`op${i}`)?.value || "";
+  for (let i = 1; i <= 2; i++) {
+    var _document$getElementB11;
+    const op = ((_document$getElementB11 = document.getElementById(`op${i}`)) === null || _document$getElementB11 === void 0 ? void 0 : _document$getElementB11.value) || "";
     ops.push(op);
   }
-  return { pizzas, ops };
+  return {
+    pizzas,
+    ops
+  };
 }
 
 /* =======================
    Grunnoppsett
    ======================= */
 const PIZZA_DEFAULTS = {
-  minN: 1, maxN: 24, R: 180, stepN: 1, stepK: 1,
-  metaMode: "none", lockDenominator: false, lockNumerator: false,
+  minN: 1,
+  maxN: 24,
+  R: 180,
+  stepN: 1,
+  stepK: 1,
+  metaMode: "none",
+  lockDenominator: false,
+  lockNumerator: false,
   showDenominatorValue: true
 };
-const PIZZA_DOM = [
-  { svgId:"pizza1", fracId:"frac1", minusId:"nMinus1", plusId:"nPlus1", valId:"nVal1", index:0 },
-  { svgId:"pizza2", fracId:"frac2", minusId:"nMinus2", plusId:"nPlus2", valId:"nVal2", index:1 },
-  { svgId:"pizza3", fracId:"frac3", minusId:"nMinus3", plusId:"nPlus3", valId:"nVal3", index:2 }
-];
-
-const TAU=Math.PI*2;
-const norm=a=>((a%TAU)+TAU)%TAU;
-const mk=(n,a={})=>{const e=document.createElementNS("http://www.w3.org/2000/svg",n); for(const[k,v] of Object.entries(a)) e.setAttribute(k,v); return e;};
-const arcPath=(r,a0,a1)=>{const raw=a1-a0,span=((raw%TAU)+TAU)%TAU,isFull=Math.abs(span)<1e-6&&Math.abs(raw)>1e-6;
-  if(isFull) return `M ${r} 0 A ${r} ${r} 0 1 1 ${-r} 0 A ${r} ${r} 0 1 1 ${r} 0 Z`;
-  const sweep=1,large=span>Math.PI?1:0,x0=r*Math.cos(a0),y0=r*Math.sin(a0),x1=r*Math.cos(a1),y1=r*Math.sin(a1);
-  return `M 0 0 L ${x0} ${y0} A ${r} ${r} 0 ${large} ${sweep} ${x1} ${y1} Z`;};
-const gcd=(a,b)=>{a=Math.abs(a);b=Math.abs(b);while(b){const t=b;b=a%b;a=t;}return a||1;};
-const fmt=x=>{const s=(Math.round(x*100)/100).toFixed(2); return s.replace(/\.?0+$/,"");};
+const PIZZA_DOM = [{
+  svgId: "pizza1",
+  fracId: "frac1",
+  minusId: "nMinus1",
+  plusId: "nPlus1",
+  valId: "nVal1",
+  index: 0
+}, {
+  svgId: "pizza2",
+  fracId: "frac2",
+  minusId: "nMinus2",
+  plusId: "nPlus2",
+  valId: "nVal2",
+  index: 1
+}, {
+  svgId: "pizza3",
+  fracId: "frac3",
+  minusId: "nMinus3",
+  plusId: "nPlus3",
+  valId: "nVal3",
+  index: 2
+}];
+const TAU = Math.PI * 2;
+const norm = a => (a % TAU + TAU) % TAU;
+const mk = (n, a = {}) => {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", n);
+  for (const [k, v] of Object.entries(a)) e.setAttribute(k, v);
+  return e;
+};
+const arcPath = (r, a0, a1) => {
+  const raw = a1 - a0,
+    span = (raw % TAU + TAU) % TAU,
+    isFull = Math.abs(span) < 1e-6 && Math.abs(raw) > 1e-6;
+  if (isFull) return `M ${r} 0 A ${r} ${r} 0 1 1 ${-r} 0 A ${r} ${r} 0 1 1 ${r} 0 Z`;
+  const sweep = 1,
+    large = span > Math.PI ? 1 : 0,
+    x0 = r * Math.cos(a0),
+    y0 = r * Math.sin(a0),
+    x1 = r * Math.cos(a1),
+    y1 = r * Math.sin(a1);
+  return `M 0 0 L ${x0} ${y0} A ${r} ${r} 0 ${large} ${sweep} ${x1} ${y1} Z`;
+};
+const gcd = (a, b) => {
+  a = Math.abs(a);
+  b = Math.abs(b);
+  while (b) {
+    const t = b;
+    b = a % b;
+    a = t;
+  }
+  return a || 1;
+};
+const fmt = x => {
+  const s = (Math.round(x * 100) / 100).toFixed(2);
+  return s.replace(/\.?0+$/, "");
+};
 
 /* ==== Senter-justering: sirklene på LINJE ==== */
-let _centerRaf=0;
+let _centerRaf = 0;
 function alignPanelsByCenter() {
-  const panels=[...document.querySelectorAll(".pizzaPanel")].filter(p=>p.offsetParent!==null);
-  if(!panels.length) return;
-  const items=panels.map(p=>{
-    const header=p.querySelector(".panelHeader");
-    const svg=p.querySelector("svg.pizza");
-    if(!header||!svg) return null;
-    header.style.height="auto";
-    const baseHeader=header.getBoundingClientRect().height;
-    const svgH=svg.getBoundingClientRect().height;
-    return {header, baseHeader, svgH};
+  const panels = [...document.querySelectorAll(".pizzaPanel")].filter(p => p.offsetParent !== null);
+  if (!panels.length) return;
+  const items = panels.map(p => {
+    const header = p.querySelector(".panelHeader");
+    const svg = p.querySelector("svg.pizza");
+    if (!header || !svg) return null;
+    header.style.height = "auto";
+    const baseHeader = header.getBoundingClientRect().height;
+    const svgH = svg.getBoundingClientRect().height;
+    return {
+      header,
+      baseHeader,
+      svgH
+    };
   }).filter(Boolean);
-  if(!items.length) return;
-  const maxCenter=Math.max(...items.map(it=>it.baseHeader + it.svgH/2));
-  items.forEach(it=>{
-    const targetHeader=Math.max(0, maxCenter - it.svgH/2);
-    const finalHeader=Math.max(targetHeader, it.baseHeader);
+  if (!items.length) return;
+  const maxCenter = Math.max(...items.map(it => it.baseHeader + it.svgH / 2));
+  items.forEach(it => {
+    const targetHeader = Math.max(0, maxCenter - it.svgH / 2);
+    const finalHeader = Math.max(targetHeader, it.baseHeader);
     it.header.style.height = finalHeader + "px";
   });
 }
-function scheduleCenterAlign(){ cancelAnimationFrame(_centerRaf); _centerRaf=requestAnimationFrame(alignPanelsByCenter); }
+function scheduleCenterAlign() {
+  cancelAnimationFrame(_centerRaf);
+  _centerRaf = requestAnimationFrame(alignPanelsByCenter);
+}
 window.addEventListener("resize", scheduleCenterAlign);
-
-function fitPizzasToLine(){
-  const container=document.querySelector(".grid2");
-  if(!container) return;
-  const panels=[...container.querySelectorAll(".pizzaPanel")].filter(p=>p.style.display!=="none");
-  if(!panels.length) return;
-  const ops=[...container.querySelectorAll(".opDisplay")].filter(op=>op.style.display!=="none");
-  const addBtn=document.getElementById("addPizza");
-  const extras=[...ops];
-  if(addBtn && addBtn.style.display!=="none") extras.push(addBtn);
-  const parent=container.parentElement;
-  let availWidth=container.clientWidth;
-  if(parent){
-    const parentStyles=getComputedStyle(parent);
-    const padL=parseFloat(parentStyles.paddingLeft||"0")||0;
-    const padR=parseFloat(parentStyles.paddingRight||"0")||0;
-    const parentInner=(parent.clientWidth||0)-padL-padR;
-    if(Number.isFinite(parentInner) && parentInner>0 && (!availWidth || parentInner<availWidth)){
-      availWidth=parentInner;
+function fitPizzasToLine() {
+  const container = document.querySelector(".grid2");
+  if (!container) return;
+  const panels = [...container.querySelectorAll(".pizzaPanel")].filter(p => p.style.display !== "none");
+  if (!panels.length) return;
+  const ops = [...container.querySelectorAll(".opDisplay")].filter(op => op.style.display !== "none");
+  const addBtn = document.getElementById("addPizza");
+  const extras = [...ops];
+  if (addBtn && addBtn.style.display !== "none") extras.push(addBtn);
+  const parent = container.parentElement;
+  let availWidth = container.clientWidth;
+  if (parent) {
+    const parentStyles = getComputedStyle(parent);
+    const padL = parseFloat(parentStyles.paddingLeft || "0") || 0;
+    const padR = parseFloat(parentStyles.paddingRight || "0") || 0;
+    const parentInner = (parent.clientWidth || 0) - padL - padR;
+    if (Number.isFinite(parentInner) && parentInner > 0 && (!availWidth || parentInner < availWidth)) {
+      availWidth = parentInner;
     }
   }
-  if((!availWidth || !Number.isFinite(availWidth) || availWidth<=0)){
-    availWidth=container.getBoundingClientRect().width;
+  if (!availWidth || !Number.isFinite(availWidth) || availWidth <= 0) {
+    availWidth = container.getBoundingClientRect().width;
   }
-  if(!availWidth || !Number.isFinite(availWidth)) return;
-  const extrasWidth=extras.reduce((sum,el)=>sum+el.getBoundingClientRect().width,0);
-  const cs=getComputedStyle(container);
-  const gap=parseFloat(cs.columnGap||cs.gap||"0");
-  const totalItems=panels.length+extras.length;
-  const totalGap=gap*Math.max(0,totalItems-1);
-  let computed=(availWidth-extrasWidth-totalGap)/panels.length;
-  if(!Number.isFinite(computed)) computed=container.clientWidth;
-  const MIN=160;
-  const MAX=420;
-  computed=Math.min(MAX,Math.max(MIN,computed));
-  container.style.setProperty("--panel-min",`${computed}px`);
-  panels.forEach(panel=>{
-    const svg=panel.querySelector("svg.pizza");
-    if(svg) svg.style.width="100%";
+  if (!availWidth || !Number.isFinite(availWidth)) return;
+  const extrasWidth = extras.reduce((sum, el) => sum + el.getBoundingClientRect().width, 0);
+  const cs = getComputedStyle(container);
+  const gap = parseFloat(cs.columnGap || cs.gap || "0");
+  const totalItems = panels.length + extras.length;
+  const totalGap = gap * Math.max(0, totalItems - 1);
+  let computed = (availWidth - extrasWidth - totalGap) / panels.length;
+  if (!Number.isFinite(computed)) computed = container.clientWidth;
+  const MIN = 160;
+  const MAX = 420;
+  computed = Math.min(MAX, Math.max(MIN, computed));
+  container.style.setProperty("--panel-min", `${computed}px`);
+  panels.forEach(panel => {
+    const svg = panel.querySelector("svg.pizza");
+    if (svg) svg.style.width = "100%";
   });
 }
 window.addEventListener("resize", fitPizzasToLine);
-
-function hidePizzaPanel(index){
-  const panel=document.getElementById(`panel${index}`);
-  if(panel) panel.style.display="none";
-  const fieldset=document.getElementById(`fieldset${index}`);
-  if(fieldset) fieldset.style.display="none";
+function hidePizzaPanel(index) {
+  const panel = document.getElementById(`panel${index}`);
+  if (panel) panel.style.display = "none";
+  const fieldset = document.getElementById(`fieldset${index}`);
+  if (fieldset) fieldset.style.display = "none";
 }
-
-function setupRemovePizzaButtons(){
-  const addBtn=document.getElementById('addPizza');
-  const remove2=document.getElementById('removePizza2');
-  if(remove2 && !remove2.dataset.bound){
-    remove2.dataset.bound='true';
-    remove2.addEventListener('click',()=>{
+function setupRemovePizzaButtons() {
+  const addBtn = document.getElementById('addPizza');
+  const remove2 = document.getElementById('removePizza2');
+  if (remove2 && !remove2.dataset.bound) {
+    remove2.dataset.bound = 'true';
+    remove2.addEventListener('click', () => {
       hidePizzaPanel(3);
       hidePizzaPanel(2);
-      if(addBtn) addBtn.style.display='';
+      if (addBtn) addBtn.style.display = '';
       initFromHtml();
     });
   }
-  const remove3=document.getElementById('removePizza3');
-  if(remove3 && !remove3.dataset.bound){
-    remove3.dataset.bound='true';
-    remove3.addEventListener('click',()=>{
+  const remove3 = document.getElementById('removePizza3');
+  if (remove3 && !remove3.dataset.bound) {
+    remove3.dataset.bound = 'true';
+    remove3.addEventListener('click', () => {
       hidePizzaPanel(3);
-      if(addBtn) addBtn.style.display='';
+      if (addBtn) addBtn.style.display = '';
       initFromHtml();
     });
   }
@@ -158,228 +218,332 @@ function setupRemovePizzaButtons(){
    Pizza-klasse
    ======================= */
 const REG = new Map(); // svgEl -> Pizza-instans (til eksport)
-class Pizza{
-  constructor(opts){
-    const cfg={...PIZZA_DEFAULTS,...opts};
-    this.cfg=cfg;
+class Pizza {
+  constructor(opts) {
+    var _cfg$minN, _cfg$maxN, _cfg$n, _cfg$k, _cfg$R, _cfg$textMode, _this$fracBox, _this$fracBox2, _this$nMinus, _this$nMinus2, _this$nPlus;
+    const cfg = {
+      ...PIZZA_DEFAULTS,
+      ...opts
+    };
+    this.cfg = cfg;
     this.index = typeof cfg.index === "number" ? cfg.index : null;
+    this.minN = Math.max(1, (_cfg$minN = cfg.minN) !== null && _cfg$minN !== void 0 ? _cfg$minN : 1);
+    this.maxN = Math.max(this.minN, (_cfg$maxN = cfg.maxN) !== null && _cfg$maxN !== void 0 ? _cfg$maxN : 24);
+    this.n = Math.min(Math.max((_cfg$n = cfg.n) !== null && _cfg$n !== void 0 ? _cfg$n : 6, this.minN), this.maxN);
+    this.k = Math.min((_cfg$k = cfg.k) !== null && _cfg$k !== void 0 ? _cfg$k : 0, this.n);
+    this.R = (_cfg$R = cfg.R) !== null && _cfg$R !== void 0 ? _cfg$R : 180;
+    this.theta = this.k / this.n * TAU;
+    this.textMode = (_cfg$textMode = cfg.textMode) !== null && _cfg$textMode !== void 0 ? _cfg$textMode : "none"; // "none" | "frac" | "percent" | "decimal"
 
-    this.minN=Math.max(1, cfg.minN ?? 1);
-    this.maxN=Math.max(this.minN, cfg.maxN ?? 24);
-
-    this.n=Math.min(Math.max(cfg.n ?? 6, this.minN), this.maxN);
-    this.k=Math.min(cfg.k ?? 0, this.n);
-    this.R=cfg.R ?? 180;
-    this.theta=(this.k/this.n)*TAU;
-    this.textMode = cfg.textMode ?? "none"; // "none" | "frac" | "percent" | "decimal"
-
-    this.svg=document.getElementById(cfg.svgId);
-    this.nMinus=document.getElementById(cfg.minusId);
-    this.nPlus=document.getElementById(cfg.plusId);
-    this.nVal=document.getElementById(cfg.valId);
+    this.svg = document.getElementById(cfg.svgId);
+    this.nMinus = document.getElementById(cfg.minusId);
+    this.nPlus = document.getElementById(cfg.plusId);
+    this.nVal = document.getElementById(cfg.valId);
     this.showDenominatorValue = cfg.showDenominatorValue !== false;
-    this.fracBox=document.getElementById(cfg.fracId);
-    this.fracNum=this.fracBox?.querySelector(".num") || null;
-    this.fracDen=this.fracBox?.querySelector(".den") || null;
-    if(!this.svg) throw new Error(`Mangler SVG med id="${cfg.svgId}"`);
-    if(this.nVal && !this.showDenominatorValue) this.nVal.style.display = "none";
+    this.fracBox = document.getElementById(cfg.fracId);
+    this.fracNum = ((_this$fracBox = this.fracBox) === null || _this$fracBox === void 0 ? void 0 : _this$fracBox.querySelector(".num")) || null;
+    this.fracDen = ((_this$fracBox2 = this.fracBox) === null || _this$fracBox2 === void 0 ? void 0 : _this$fracBox2.querySelector(".den")) || null;
+    if (!this.svg) throw new Error(`Mangler SVG med id="${cfg.svgId}"`);
+    if (this.nVal && !this.showDenominatorValue) this.nVal.style.display = "none";
 
     // Header-slot (over SVG)
-    this.header=document.createElement("div");
-    this.header.className="panelHeader";
-    this.svg.parentNode.insertBefore(this.header,this.svg);
-    if(this.fracBox){
+    this.header = document.createElement("div");
+    this.header.className = "panelHeader";
+    this.svg.parentNode.insertBefore(this.header, this.svg);
+    if (this.fracBox) {
       this.header.appendChild(this.fracBox);
-      this.fracBox.style.display = (this.textMode==="frac") ? "" : "none";
+      this.fracBox.style.display = this.textMode === "frac" ? "" : "none";
     }
-    if(this.textMode==="percent" || this.textMode==="decimal"){
-      this.metaLine=document.createElement("div");
+    if (this.textMode === "percent" || this.textMode === "decimal") {
+      this.metaLine = document.createElement("div");
       this.metaLine.style.fontSize = "28px";
       this.metaLine.style.lineHeight = "1";
-      this.metaLine.style.opacity  = "0.9";
-      this.metaLine.style.margin   = "0 0 6px 0";
+      this.metaLine.style.opacity = "0.9";
+      this.metaLine.style.margin = "0 0 6px 0";
       this.header.appendChild(this.metaLine);
     }
 
     // Lag i SVG
-    this.gFill=mk("g"); this.gLinesBlack=mk("g"); this.gRim=mk("g"); this.defs=mk("defs"); this.gLinesWhite=mk("g"); this.gA11y=mk("g"); this.gHandle=mk("g");
-    this.gFill.setAttribute("data-role","fill");
-    this.gLinesBlack.setAttribute("data-role","linesB");
-    this.gLinesWhite.setAttribute("data-role","linesW");
-
-    this.svg.append(this.gFill,this.gLinesBlack,this.gRim,this.defs,this.gLinesWhite,this.gA11y,this.gHandle);
-    this.gRim.appendChild(mk("circle",{cx:0,cy:0,r:this.R,class:"rim"}));
-
-    this.clipFilledId=`${cfg.svgId}-clipFilled`;
-    this.clipEmptyId =`${cfg.svgId}-clipEmpty`;
-    this.clipFilled  =mk("clipPath",{id:this.clipFilledId});
-    this.clipEmpty   =mk("clipPath",{id:this.clipEmptyId});
-    this.defs.append(this.clipFilled,this.clipEmpty);
-    this.gLinesWhite.setAttribute("clip-path",`url(#${this.clipFilledId})`);
-    this.gLinesBlack.setAttribute("clip-path",`url(#${this.clipEmptyId})`);
+    this.gFill = mk("g");
+    this.gLinesBlack = mk("g");
+    this.gRim = mk("g");
+    this.defs = mk("defs");
+    this.gLinesWhite = mk("g");
+    this.gA11y = mk("g");
+    this.gHandle = mk("g");
+    this.gFill.setAttribute("data-role", "fill");
+    this.gLinesBlack.setAttribute("data-role", "linesB");
+    this.gLinesWhite.setAttribute("data-role", "linesW");
+    this.svg.append(this.gFill, this.gLinesBlack, this.gRim, this.defs, this.gLinesWhite, this.gA11y, this.gHandle);
+    this.gRim.appendChild(mk("circle", {
+      cx: 0,
+      cy: 0,
+      r: this.R,
+      class: "rim"
+    }));
+    this.clipFilledId = `${cfg.svgId}-clipFilled`;
+    this.clipEmptyId = `${cfg.svgId}-clipEmpty`;
+    this.clipFilled = mk("clipPath", {
+      id: this.clipFilledId
+    });
+    this.clipEmpty = mk("clipPath", {
+      id: this.clipEmptyId
+    });
+    this.defs.append(this.clipFilled, this.clipEmpty);
+    this.gLinesWhite.setAttribute("clip-path", `url(#${this.clipFilledId})`);
+    this.gLinesBlack.setAttribute("clip-path", `url(#${this.clipEmptyId})`);
 
     // Handle + a11y
-    this.handle=mk("circle",{r:10,class:"handle",tabindex:-1});
+    this.handle = mk("circle", {
+      r: 10,
+      class: "handle",
+      tabindex: -1
+    });
     this.gHandle.appendChild(this.handle);
-    this.slider=mk("circle",{cx:0,cy:0,r:this.R,fill:"transparent",class:"a11y",tabindex:0,role:"slider","aria-orientation":"horizontal"});
-    this.slider.style.pointerEvents="none";
+    this.slider = mk("circle", {
+      cx: 0,
+      cy: 0,
+      r: this.R,
+      fill: "transparent",
+      class: "a11y",
+      tabindex: 0,
+      role: "slider",
+      "aria-orientation": "horizontal"
+    });
+    this.slider.style.pointerEvents = "none";
     this.gA11y.appendChild(this.slider);
 
     // <title>/<desc> for eksport og live-oppdatering
     this.titleEl = this.svg.querySelector('title');
-    this.descEl  = this.svg.querySelector('desc');
+    this.descEl = this.svg.querySelector('desc');
 
     // Låse-logikk
     this.fullyLocked = !!(cfg.lockDenominator && cfg.lockNumerator);
-    if(this.fullyLocked){
-      this.gHandle.style.display="none";
-      this.slider.setAttribute("tabindex","-1");
-      this.slider.setAttribute("aria-disabled","true");
-    }else{
+    if (this.fullyLocked) {
+      this.gHandle.style.display = "none";
+      this.slider.setAttribute("tabindex", "-1");
+      this.slider.setAttribute("aria-disabled", "true");
+    } else {
       this.slider.setAttribute("aria-disabled", cfg.lockNumerator ? "true" : "false");
-      if(cfg.lockNumerator) this.handle.style.cursor="default";
+      if (cfg.lockNumerator) this.handle.style.cursor = "default";
     }
 
     // Stepper synlighet
-    const stepper=this.nMinus?.closest(".stepper");
-    if(stepper) stepper.style.display = cfg.lockDenominator ? "none" : "";
+    const stepper = (_this$nMinus = this.nMinus) === null || _this$nMinus === void 0 ? void 0 : _this$nMinus.closest(".stepper");
+    if (stepper) stepper.style.display = cfg.lockDenominator ? "none" : "";
 
     // Interaksjon
-    this._dragging=false;
-    this.nMinus?.addEventListener("click", ()=>{ if(cfg.lockDenominator) return; this.setN(this.n - this.cfg.stepN); });
-    this.nPlus ?.addEventListener("click", ()=>{ if(cfg.lockDenominator) return; this.setN(this.n + this.cfg.stepN); });
-
-    this.handle.addEventListener("pointerdown", e=>{ if(cfg.lockNumerator||this.fullyLocked) return; this._dragging=true; this.handle.setPointerCapture(e.pointerId); });
-    this.handle.addEventListener("pointerup",   e=>{ if(cfg.lockNumerator||this.fullyLocked) return; this._dragging=false; this.handle.releasePointerCapture(e.pointerId); });
-    this.svg.addEventListener("pointerleave", ()=>{ this._dragging=false; });
-    this.svg.addEventListener("pointermove", e=>{
-      if(!this._dragging || cfg.lockNumerator || this.fullyLocked) return;
-      const {x,y}=this._pt(e); const a=norm(Math.atan2(y,x)); this._setTheta(a,true);
+    this._dragging = false;
+    (_this$nMinus2 = this.nMinus) === null || _this$nMinus2 === void 0 || _this$nMinus2.addEventListener("click", () => {
+      if (cfg.lockDenominator) return;
+      this.setN(this.n - this.cfg.stepN);
     });
-    this.svg.addEventListener("click", e=>{
-      if(e.target===this.handle) return;
-      if(cfg.lockNumerator || this.fullyLocked) return;
-      const {x,y}=this._pt(e); const a=norm(Math.atan2(y,x)); this._setTheta(a,true);
+    (_this$nPlus = this.nPlus) === null || _this$nPlus === void 0 || _this$nPlus.addEventListener("click", () => {
+      if (cfg.lockDenominator) return;
+      this.setN(this.n + this.cfg.stepN);
     });
-    this.slider.addEventListener("keydown", e=>{
-      if(this.fullyLocked) return;
-      let used=true; const big=e.shiftKey?5:1;
-      switch(e.key){
-        case "ArrowRight": case "ArrowUp":    if(!cfg.lockNumerator) this.setK(this.k+this.cfg.stepK*big); else used=false; break;
-        case "ArrowLeft":  case "ArrowDown":  if(!cfg.lockNumerator) this.setK(this.k-this.cfg.stepK*big); else used=false; break;
-        case "Home": if(!cfg.lockNumerator) this.setK(0); else used=false; break;
-        case "End":  if(!cfg.lockNumerator) this.setK(this.n); else used=false; break;
-        case " ": case "Enter": if(!cfg.lockNumerator) this.setK(this.k+1); else used=false; break;
-        case "PageUp":   if(!cfg.lockDenominator) this.setN(this.n+this.cfg.stepN*(e.shiftKey?5:1)); else used=false; break;
-        case "PageDown": if(!cfg.lockDenominator) this.setN(this.n-this.cfg.stepN*(e.shiftKey?5:1)); else used=false; break;
-        default: used=false;
+    this.handle.addEventListener("pointerdown", e => {
+      if (cfg.lockNumerator || this.fullyLocked) return;
+      this._dragging = true;
+      this.handle.setPointerCapture(e.pointerId);
+    });
+    this.handle.addEventListener("pointerup", e => {
+      if (cfg.lockNumerator || this.fullyLocked) return;
+      this._dragging = false;
+      this.handle.releasePointerCapture(e.pointerId);
+    });
+    this.svg.addEventListener("pointerleave", () => {
+      this._dragging = false;
+    });
+    this.svg.addEventListener("pointermove", e => {
+      if (!this._dragging || cfg.lockNumerator || this.fullyLocked) return;
+      const {
+        x,
+        y
+      } = this._pt(e);
+      const a = norm(Math.atan2(y, x));
+      this._setTheta(a, true);
+    });
+    this.svg.addEventListener("click", e => {
+      if (e.target === this.handle) return;
+      if (cfg.lockNumerator || this.fullyLocked) return;
+      const {
+        x,
+        y
+      } = this._pt(e);
+      const a = norm(Math.atan2(y, x));
+      this._setTheta(a, true);
+    });
+    this.slider.addEventListener("keydown", e => {
+      if (this.fullyLocked) return;
+      let used = true;
+      const big = e.shiftKey ? 5 : 1;
+      switch (e.key) {
+        case "ArrowRight":
+        case "ArrowUp":
+          if (!cfg.lockNumerator) this.setK(this.k + this.cfg.stepK * big);else used = false;
+          break;
+        case "ArrowLeft":
+        case "ArrowDown":
+          if (!cfg.lockNumerator) this.setK(this.k - this.cfg.stepK * big);else used = false;
+          break;
+        case "Home":
+          if (!cfg.lockNumerator) this.setK(0);else used = false;
+          break;
+        case "End":
+          if (!cfg.lockNumerator) this.setK(this.n);else used = false;
+          break;
+        case " ":
+        case "Enter":
+          if (!cfg.lockNumerator) this.setK(this.k + 1);else used = false;
+          break;
+        case "PageUp":
+          if (!cfg.lockDenominator) this.setN(this.n + this.cfg.stepN * (e.shiftKey ? 5 : 1));else used = false;
+          break;
+        case "PageDown":
+          if (!cfg.lockDenominator) this.setN(this.n - this.cfg.stepN * (e.shiftKey ? 5 : 1));else used = false;
+          break;
+        default:
+          used = false;
       }
-      if(used) e.preventDefault();
+      if (used) e.preventDefault();
     });
-
     this.draw();
     this.syncSimpleConfig();
     REG.set(this.svg, this);
   }
-
-  _pt(e){ const p=this.svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; return p.matrixTransform(this.svg.getScreenCTM().inverse()); }
-  _setTheta(a,updateK){
-    this.theta=norm(a);
-    if(updateK){
-      const step=TAU/this.n;
-      this.k=Math.max(0,Math.min(this.n,Math.round(this.theta/step)));
+  _pt(e) {
+    const p = this.svg.createSVGPoint();
+    p.x = e.clientX;
+    p.y = e.clientY;
+    return p.matrixTransform(this.svg.getScreenCTM().inverse());
+  }
+  _setTheta(a, updateK) {
+    this.theta = norm(a);
+    if (updateK) {
+      const step = TAU / this.n;
+      this.k = Math.max(0, Math.min(this.n, Math.round(this.theta / step)));
     }
     this.draw();
-    if(updateK) this.syncSimpleConfig();
+    if (updateK) this.syncSimpleConfig();
   }
-  setN(n){
-    const nn=Math.max(this.minN,Math.min(this.maxN,Math.round(n)));
-    this.n=nn;
-    const step=TAU/this.n;
-    this.k=Math.max(0,Math.min(this.n,Math.round(this.theta/step)));
+  setN(n) {
+    const nn = Math.max(this.minN, Math.min(this.maxN, Math.round(n)));
+    this.n = nn;
+    const step = TAU / this.n;
+    this.k = Math.max(0, Math.min(this.n, Math.round(this.theta / step)));
     this.draw();
     this.syncSimpleConfig();
   }
-  setK(k){
-    const kk=Math.max(0,Math.min(this.n,Math.round(k)));
-    this.k=kk;
-    this.theta=(this.k/this.n)*TAU;
+  setK(k) {
+    const kk = Math.max(0, Math.min(this.n, Math.round(k)));
+    this.k = kk;
+    this.theta = this.k / this.n * TAU;
     this.draw();
     this.syncSimpleConfig();
   }
-  syncSimpleConfig(){
-    if(this.index == null) return;
+  syncSimpleConfig() {
+    if (this.index == null) return;
     const idx = this.index;
-    if(Array.isArray(SIMPLE.pizzas)){
-      if(!SIMPLE.pizzas[idx]) SIMPLE.pizzas[idx] = {};
+    if (Array.isArray(SIMPLE.pizzas)) {
+      if (!SIMPLE.pizzas[idx]) SIMPLE.pizzas[idx] = {};
       SIMPLE.pizzas[idx].n = this.n;
       SIMPLE.pizzas[idx].t = this.k;
     }
     const field = id => document.getElementById(id);
     const base = idx + 1;
     const nField = field(`p${base}N`);
-    if(nField) nField.value = String(this.n);
+    if (nField) nField.value = String(this.n);
     const tField = field(`p${base}T`);
-    if(tField) tField.value = String(this.k);
+    if (tField) tField.value = String(this.k);
     const nVal = field(`nVal${base}`);
-    if(nVal) nVal.textContent = String(this.n);
+    if (nVal) nVal.textContent = String(this.n);
   }
-
-  _updateTextAbove(){
-    if(this.metaLine){
-      this.metaLine.textContent =
-        (this.textMode==="percent") ? (fmt(this.n?this.k/this.n*100:0)+" %") :
-        (this.textMode==="decimal") ? fmt(this.n?this.k/this.n:0) : "";
+  _updateTextAbove() {
+    if (this.metaLine) {
+      this.metaLine.textContent = this.textMode === "percent" ? fmt(this.n ? this.k / this.n * 100 : 0) + " %" : this.textMode === "decimal" ? fmt(this.n ? this.k / this.n : 0) : "";
     }
-    if(this.fracBox && this.textMode==="frac"){
-      if(this.fracNum) this.fracNum.textContent=this.k;
-      if(this.fracDen) this.fracDen.textContent=this.n;
+    if (this.fracBox && this.textMode === "frac") {
+      if (this.fracNum) this.fracNum.textContent = this.k;
+      if (this.fracDen) this.fracDen.textContent = this.n;
     }
   }
-  _updateAria(){
-    const g=gcd(this.k,this.n), dec=fmt(this.n?this.k/this.n:0), pct=fmt(this.n?this.k/this.n*100:0)+" %";
-    const simp=g>1?` (${this.k/g}/${this.n/g})`:"";
-    this.slider.setAttribute("aria-valuemin","0");
-    this.slider.setAttribute("aria-valuemax",String(this.n));
-    this.slider.setAttribute("aria-valuenow",String(this.k));
-    this.slider.setAttribute("aria-valuetext",`${this.k} av ${this.n}${simp}, ${dec} som desimal, ${pct}`);
-    if(this.titleEl) this.titleEl.textContent = `Brøkpizza: ${this.k}/${this.n}`;
-    if(this.descEl)  this.descEl.textContent  = `Viser ${this.n} sektorer totalt, ${this.k} av dem er fylt`;
+  _updateAria() {
+    const g = gcd(this.k, this.n),
+      dec = fmt(this.n ? this.k / this.n : 0),
+      pct = fmt(this.n ? this.k / this.n * 100 : 0) + " %";
+    const simp = g > 1 ? ` (${this.k / g}/${this.n / g})` : "";
+    this.slider.setAttribute("aria-valuemin", "0");
+    this.slider.setAttribute("aria-valuemax", String(this.n));
+    this.slider.setAttribute("aria-valuenow", String(this.k));
+    this.slider.setAttribute("aria-valuetext", `${this.k} av ${this.n}${simp}, ${dec} som desimal, ${pct}`);
+    if (this.titleEl) this.titleEl.textContent = `Brøkpizza: ${this.k}/${this.n}`;
+    if (this.descEl) this.descEl.textContent = `Viser ${this.n} sektorer totalt, ${this.k} av dem er fylt`;
   }
-
-  draw(){
-    const step=TAU/this.n, aEnd=this.k*step;
-    if(this.nVal && this.showDenominatorValue) this.nVal.textContent=this.n;
-
-    this.gFill.innerHTML="";
-    for(let i=0;i<this.n;i++){
-      const a0=i*step,a1=a0+step,filled=i<this.k;
-      this.gFill.appendChild(mk("path",{d:arcPath(this.R,a0,a1),class:`sector ${filled?"sector-fill":"sector-empty"}`}));
+  draw() {
+    const step = TAU / this.n,
+      aEnd = this.k * step;
+    if (this.nVal && this.showDenominatorValue) this.nVal.textContent = this.n;
+    this.gFill.innerHTML = "";
+    for (let i = 0; i < this.n; i++) {
+      const a0 = i * step,
+        a1 = a0 + step,
+        filled = i < this.k;
+      this.gFill.appendChild(mk("path", {
+        d: arcPath(this.R, a0, a1),
+        class: `sector ${filled ? "sector-fill" : "sector-empty"}`
+      }));
     }
-
-    this.clipFilled.innerHTML=""; this.clipEmpty.innerHTML="";
-    if(this.k<=0) this.clipEmpty.appendChild(mk("circle",{cx:0,cy:0,r:this.R}));
-    else if(this.k>=this.n) this.clipFilled.appendChild(mk("circle",{cx:0,cy:0,r:this.R}));
-    else { this.clipFilled.appendChild(mk("path",{d:arcPath(this.R,0,aEnd)})); this.clipEmpty.appendChild(mk("path",{d:arcPath(this.R,aEnd,TAU)})); }
-
-    this.gLinesBlack.innerHTML=""; this.gLinesWhite.innerHTML="";
-    if(this.n>1){
-      for(let i=0;i<this.n;i++){
-        const a=i*step,x=this.R*Math.cos(a),y=this.R*Math.sin(a);
-        const lnB=mk("line",{x1:0,y1:0,x2:x,y2:y,class:"dash"});
-        const lnW=mk("line",{x1:0,y1:0,x2:x,y2:y,class:"dash"});
-        this.gLinesBlack.appendChild(lnB); this.gLinesWhite.appendChild(lnW);
+    this.clipFilled.innerHTML = "";
+    this.clipEmpty.innerHTML = "";
+    if (this.k <= 0) this.clipEmpty.appendChild(mk("circle", {
+      cx: 0,
+      cy: 0,
+      r: this.R
+    }));else if (this.k >= this.n) this.clipFilled.appendChild(mk("circle", {
+      cx: 0,
+      cy: 0,
+      r: this.R
+    }));else {
+      this.clipFilled.appendChild(mk("path", {
+        d: arcPath(this.R, 0, aEnd)
+      }));
+      this.clipEmpty.appendChild(mk("path", {
+        d: arcPath(this.R, aEnd, TAU)
+      }));
+    }
+    this.gLinesBlack.innerHTML = "";
+    this.gLinesWhite.innerHTML = "";
+    if (this.n > 1) {
+      for (let i = 0; i < this.n; i++) {
+        const a = i * step,
+          x = this.R * Math.cos(a),
+          y = this.R * Math.sin(a);
+        const lnB = mk("line", {
+          x1: 0,
+          y1: 0,
+          x2: x,
+          y2: y,
+          class: "dash"
+        });
+        const lnW = mk("line", {
+          x1: 0,
+          y1: 0,
+          x2: x,
+          y2: y,
+          class: "dash"
+        });
+        this.gLinesBlack.appendChild(lnB);
+        this.gLinesWhite.appendChild(lnW);
       }
     }
-
-    if(this.fullyLocked){
-      this.gHandle.style.display="none";
-    }else{
-      this.gHandle.style.display="";
-      this.handle.setAttribute("cx", this.R*Math.cos(this.theta));
-      this.handle.setAttribute("cy", this.R*Math.sin(this.theta));
+    if (this.fullyLocked) {
+      this.gHandle.style.display = "none";
+    } else {
+      this.gHandle.style.display = "";
+      this.handle.setAttribute("cx", this.R * Math.cos(this.theta));
+      this.handle.setAttribute("cy", this.R * Math.sin(this.theta));
     }
-
     this._updateAria();
     this._updateTextAbove();
     scheduleCenterAlign();
@@ -402,7 +566,6 @@ const EXPORT_SVG_STYLE = `
 .meta, .fracNum, .fracDen{font-size:22px;text-anchor:middle}
 .fracLine{stroke:#000;stroke-width:2}
 `;
-
 const INTERACTIVE_SVG_SCRIPT = `
 /*<![CDATA[*/
 (function(){
@@ -570,33 +733,35 @@ const INTERACTIVE_SVG_SCRIPT = `
 /* =======================
    Last ned figurer: statisk SVG
    ======================= */
-function downloadSVG(svgEl, filename="pizza.svg") {
-  if(!svgEl) return;
+function downloadSVG(svgEl, filename = "pizza.svg") {
+  if (!svgEl) return;
   const clone = svgEl.cloneNode(true);
 
   // Fjern interaktive elementer
   clone.querySelectorAll(".handle, .a11y").forEach(el => el.remove());
-
-  clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
-  clone.setAttribute("xmlns:xlink","http://www.w3.org/1999/xlink");
-
-  let [minX,minY,w,h] = (clone.getAttribute("viewBox")||"-210 -210 420 420").trim().split(/\s+/).map(Number);
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+  let [minX, minY, w, h] = (clone.getAttribute("viewBox") || "-210 -210 420 420").trim().split(/\s+/).map(Number);
   clone.setAttribute("width", w);
   clone.setAttribute("height", h);
-
-  const bg = mk("rect", { x: minX, y: minY, width: w, height: h, fill:"#fff" });
+  const bg = mk("rect", {
+    x: minX,
+    y: minY,
+    width: w,
+    height: h,
+    fill: "#fff"
+  });
   clone.insertBefore(bg, clone.firstChild);
-
-  const styleEl = document.createElementNS("http://www.w3.org/2000/svg","style");
-  styleEl.setAttribute("type","text/css");
+  const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
+  styleEl.setAttribute("type", "text/css");
   styleEl.appendChild(document.createTextNode(EXPORT_SVG_STYLE));
   clone.insertBefore(styleEl, clone.firstChild);
-
   const xml = new XMLSerializer().serializeToString(clone);
   const file = `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
-
-  const blob = new Blob([file], {type: "image/svg+xml;charset=utf-8"});
-  const url  = URL.createObjectURL(blob);
+  const blob = new Blob([file], {
+    type: "image/svg+xml;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
@@ -610,57 +775,63 @@ function downloadSVG(svgEl, filename="pizza.svg") {
    Last ned figurer: interaktiv SVG
    – brøk OVER, +/− UNDER, pen spacing
    ======================= */
-function downloadInteractiveSVG(svgEl, filename="pizza-interaktiv.svg") {
-  if(!svgEl) return;
+function downloadInteractiveSVG(svgEl, filename = "pizza-interaktiv.svg") {
+  var _inst$minN, _inst$maxN;
+  if (!svgEl) return;
   const clone = svgEl.cloneNode(true);
-
-  clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
-  clone.setAttribute("xmlns:xlink","http://www.w3.org/1999/xlink");
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
 
   // Utvid viewBox for topp/bunn
-  let [minX,minY,w,h] = (clone.getAttribute("viewBox")||"-210 -210 420 420").trim().split(/\s+/).map(Number);
+  let [minX, minY, w, h] = (clone.getAttribute("viewBox") || "-210 -210 420 420").trim().split(/\s+/).map(Number);
   const M_TOP = 78;
   const M_BOTTOM = 96;
   minY = minY - M_TOP;
-  h    = h + M_TOP + M_BOTTOM;
+  h = h + M_TOP + M_BOTTOM;
   clone.setAttribute("viewBox", `${minX} ${minY} ${w} ${h}`);
   clone.setAttribute("width", w);
   clone.setAttribute("height", h);
 
   // Hvit bakgrunn
-  const bg = mk("rect", { x: minX, y: minY, width: w, height: h, fill:"#fff" });
+  const bg = mk("rect", {
+    x: minX,
+    y: minY,
+    width: w,
+    height: h,
+    fill: "#fff"
+  });
   clone.insertBefore(bg, clone.firstChild);
 
   // Innebygd stil
-  const styleEl = document.createElementNS("http://www.w3.org/2000/svg","style");
-  styleEl.setAttribute("type","text/css");
+  const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
+  styleEl.setAttribute("type", "text/css");
   styleEl.appendChild(document.createTextNode(EXPORT_SVG_STYLE));
   clone.insertBefore(styleEl, clone.firstChild);
 
   // State fra levende instans
   const inst = REG.get(svgEl);
-  const textMode = inst?.textMode || "none";
-  const nMin = inst?.minN ?? 1;
-  const nMax = inst?.maxN ?? 24;
-  const showNVal = inst?.showDenominatorValue !== false;
+  const textMode = (inst === null || inst === void 0 ? void 0 : inst.textMode) || "none";
+  const nMin = (_inst$minN = inst === null || inst === void 0 ? void 0 : inst.minN) !== null && _inst$minN !== void 0 ? _inst$minN : 1;
+  const nMax = (_inst$maxN = inst === null || inst === void 0 ? void 0 : inst.maxN) !== null && _inst$maxN !== void 0 ? _inst$maxN : 24;
+  const showNVal = (inst === null || inst === void 0 ? void 0 : inst.showDenominatorValue) !== false;
 
   // n, k, R
   const n = clone.querySelectorAll(".sector").length || 1;
   const k = clone.querySelectorAll(".sector-fill").length || 0;
   const rEl = clone.querySelector("circle.rim");
-  const R = rEl ? parseFloat(rEl.getAttribute("r")||"180") : 180;
+  const R = rEl ? parseFloat(rEl.getAttribute("r") || "180") : 180;
 
   // Oppdater beskrivelses-elementer slik at eksportert SVG forklarer
   // gjeldende brøk og totalt sektortall. Dette gjør at både skjermlesere
   // og videre interaksjon via innebygd skript starter med korrekt tekst.
   const tEl = clone.querySelector('title');
   const dEl = clone.querySelector('desc');
-  if(tEl) tEl.textContent = `Brøkpizza: ${k}/${n}`;
-  if(dEl) dEl.textContent = `Viser ${n} sektorer totalt, ${k} av dem er fylt`;
+  if (tEl) tEl.textContent = `Brøkpizza: ${k}/${n}`;
+  if (dEl) dEl.textContent = `Viser ${n} sektorer totalt, ${k} av dem er fylt`;
 
   // Sørg for at handle vises
   const hndl = clone.querySelector(".handle");
-  if(hndl && hndl.parentNode && hndl.parentNode.style) hndl.parentNode.style.display = "";
+  if (hndl && hndl.parentNode && hndl.parentNode.style) hndl.parentNode.style.display = "";
 
   // Data for skriptet
   clone.setAttribute("data-n", String(n));
@@ -672,16 +843,16 @@ function downloadInteractiveSVG(svgEl, filename="pizza-interaktiv.svg") {
   clone.setAttribute("data-show-nval", showNVal ? "1" : "0");
 
   // Inline-skript (med rettet parentes-feil)
-  const scriptEl = document.createElementNS("http://www.w3.org/2000/svg","script");
-  scriptEl.setAttribute("type","application/ecmascript");
+  const scriptEl = document.createElementNS("http://www.w3.org/2000/svg", "script");
+  scriptEl.setAttribute("type", "application/ecmascript");
   scriptEl.appendChild(document.createTextNode(INTERACTIVE_SVG_SCRIPT));
   clone.appendChild(scriptEl);
-
   const xml = new XMLSerializer().serializeToString(clone);
   const file = `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
-
-  const blob = new Blob([file], {type: "image/svg+xml;charset=utf-8"});
-  const url  = URL.createObjectURL(blob);
+  const blob = new Blob([file], {
+    type: "image/svg+xml;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
@@ -690,111 +861,173 @@ function downloadInteractiveSVG(svgEl, filename="pizza-interaktiv.svg") {
   a.remove();
   URL.revokeObjectURL(url);
 }
-
-function getVisiblePizzas(){
-  return PIZZA_DOM
-    .map(m => document.getElementById(m.svgId))
-    .filter(svg => svg && svg.closest(".pizzaPanel")?.style.display !== "none");
+function getVisiblePizzas() {
+  return PIZZA_DOM.map(m => document.getElementById(m.svgId)).filter(svg => {
+    var _svg$closest;
+    return svg && ((_svg$closest = svg.closest(".pizzaPanel")) === null || _svg$closest === void 0 ? void 0 : _svg$closest.style.display) !== "none";
+  });
 }
-
-function buildAllPizzasSVG(){
-  const svgs=getVisiblePizzas();
-  if(!svgs.length) return null;
-  const gap=24, size=420, opW=80, ops=SIMPLE.ops||[];
-  const opCount=ops.slice(0,svgs.length-1).filter(o=>o).length;
-  const w=size*svgs.length + gap*(svgs.length-1) + opW*opCount;
-  const h=size;
-  const root=mk("svg",{xmlns:"http://www.w3.org/2000/svg", "xmlns:xlink":"http://www.w3.org/1999/xlink", width:w, height:h, viewBox:`0 0 ${w} ${h}`});
-  const bg=mk("rect",{x:0,y:0,width:w,height:h,fill:"#fff"});
+function buildAllPizzasSVG() {
+  const svgs = getVisiblePizzas();
+  if (!svgs.length) return null;
+  const gap = 24,
+    size = 420,
+    opW = 80,
+    ops = SIMPLE.ops || [];
+  const opCount = ops.slice(0, svgs.length - 1).filter(o => o).length;
+  const w = size * svgs.length + gap * (svgs.length - 1) + opW * opCount;
+  const h = size;
+  const root = mk("svg", {
+    xmlns: "http://www.w3.org/2000/svg",
+    "xmlns:xlink": "http://www.w3.org/1999/xlink",
+    width: w,
+    height: h,
+    viewBox: `0 0 ${w} ${h}`
+  });
+  const bg = mk("rect", {
+    x: 0,
+    y: 0,
+    width: w,
+    height: h,
+    fill: "#fff"
+  });
   root.appendChild(bg);
-  const styleEl=mk("style",{type:"text/css"});
+  const styleEl = mk("style", {
+    type: "text/css"
+  });
   styleEl.appendChild(document.createTextNode(EXPORT_SVG_STYLE));
   root.appendChild(styleEl);
-  let x=0;
-  svgs.forEach((svg,i)=>{
-    const clone=svg.cloneNode(true);
-    clone.querySelectorAll(".handle, .a11y").forEach(el=>el.remove());
+  let x = 0;
+  svgs.forEach((svg, i) => {
+    const clone = svg.cloneNode(true);
+    clone.querySelectorAll(".handle, .a11y").forEach(el => el.remove());
     clone.setAttribute("x", x);
     clone.setAttribute("y", 0);
     clone.setAttribute("width", size);
     clone.setAttribute("height", size);
     root.appendChild(clone);
     x += size;
-    const sign=ops[i];
-    if(i<svgs.length-1){
-      if(sign){
-        x += opW/2;
-        const t=mk("text",{x:x,y:size/2,"text-anchor":"middle","dominant-baseline":"middle","font-size":"80"});
-        t.textContent=sign;
+    const sign = ops[i];
+    if (i < svgs.length - 1) {
+      if (sign) {
+        x += opW / 2;
+        const t = mk("text", {
+          x: x,
+          y: size / 2,
+          "text-anchor": "middle",
+          "dominant-baseline": "middle",
+          "font-size": "80"
+        });
+        t.textContent = sign;
         root.appendChild(t);
-        x += opW/2;
+        x += opW / 2;
       }
       x += gap;
     }
   });
-  const xml=new XMLSerializer().serializeToString(root);
-  return `<?xml version="1.0" encoding="UTF-8"?>\n`+xml;
+  const xml = new XMLSerializer().serializeToString(root);
+  return `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
 }
-
-function downloadAllPizzasSVG(filename="broksirkler.svg"){
-  const file=buildAllPizzasSVG();
-  if(!file) return;
-  const blob=new Blob([file],{type:"image/svg+xml;charset=utf-8"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+function downloadAllPizzasSVG(filename = "broksirkler.svg") {
+  const file = buildAllPizzasSVG();
+  if (!file) return;
+  const blob = new Blob([file], {
+    type: "image/svg+xml;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
   URL.revokeObjectURL(url);
 }
-
-function downloadAllPizzasPNG(filename="broksirkler.png"){
-  const file=buildAllPizzasSVG();
-  if(!file) return;
-  const blob=new Blob([file],{type:"image/svg+xml;charset=utf-8"});
-  const url=URL.createObjectURL(blob);
-  const img=new Image();
-  img.onload=()=>{
-    const w=img.width,h=img.height;
-    const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
-    const ctx=canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h);
+function downloadAllPizzasPNG(filename = "broksirkler.png") {
+  const file = buildAllPizzasSVG();
+  if (!file) return;
+  const blob = new Blob([file], {
+    type: "image/svg+xml;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = () => {
+    const w = img.width,
+      h = img.height;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
     URL.revokeObjectURL(url);
-    canvas.toBlob(b=>{ const urlPng=URL.createObjectURL(b); const a=document.createElement('a'); a.href=urlPng; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(urlPng); },'image/png');
+    canvas.toBlob(b => {
+      const urlPng = URL.createObjectURL(b);
+      const a = document.createElement('a');
+      a.href = urlPng;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(urlPng);
+    }, 'image/png');
   };
-  img.src=url;
+  img.src = url;
 }
-
-function downloadAllPizzasInteractiveSVG(filename="broksirkler-interaktiv.svg"){ 
-  const svgs=getVisiblePizzas();
-  if(!svgs.length) return;
-  const gap=24, size=420, M_TOP=78, M_BOTTOM=96, opW=80, ops=SIMPLE.ops||[];
-  const opCount=ops.slice(0,svgs.length-1).filter(o=>o).length;
-  const w=size*svgs.length + gap*(svgs.length-1) + opW*opCount;
-  const h=size + M_TOP + M_BOTTOM;
-  const root=mk("svg",{xmlns:"http://www.w3.org/2000/svg", "xmlns:xlink":"http://www.w3.org/1999/xlink", width:w, height:h, viewBox:`0 0 ${w} ${h}`});
-  const bg=mk("rect",{x:0,y:0,width:w,height:h,fill:"#fff"});
+function downloadAllPizzasInteractiveSVG(filename = "broksirkler-interaktiv.svg") {
+  const svgs = getVisiblePizzas();
+  if (!svgs.length) return;
+  const gap = 24,
+    size = 420,
+    M_TOP = 78,
+    M_BOTTOM = 96,
+    opW = 80,
+    ops = SIMPLE.ops || [];
+  const opCount = ops.slice(0, svgs.length - 1).filter(o => o).length;
+  const w = size * svgs.length + gap * (svgs.length - 1) + opW * opCount;
+  const h = size + M_TOP + M_BOTTOM;
+  const root = mk("svg", {
+    xmlns: "http://www.w3.org/2000/svg",
+    "xmlns:xlink": "http://www.w3.org/1999/xlink",
+    width: w,
+    height: h,
+    viewBox: `0 0 ${w} ${h}`
+  });
+  const bg = mk("rect", {
+    x: 0,
+    y: 0,
+    width: w,
+    height: h,
+    fill: "#fff"
+  });
   root.appendChild(bg);
-  const styleEl=mk("style",{type:"text/css"});
+  const styleEl = mk("style", {
+    type: "text/css"
+  });
   styleEl.appendChild(document.createTextNode(EXPORT_SVG_STYLE));
   root.appendChild(styleEl);
-  let x=0;
-  svgs.forEach((svg,i)=>{
-    const clone=svg.cloneNode(true);
-    const inst=REG.get(svg);
-    const textMode=inst?.textMode || "none";
-    const nMin=inst?.minN ?? 1;
-    const nMax=inst?.maxN ?? 24;
-    const showNVal=inst?.showDenominatorValue !== false;
-    const n=clone.querySelectorAll(".sector").length || 1;
-    const k=clone.querySelectorAll(".sector-fill").length || 0;
-    const rEl=clone.querySelector("circle.rim");
-    const R=rEl?parseFloat(rEl.getAttribute("r")||"180"):180;
-    const hndl=clone.querySelector(".handle");
-    if(hndl && hndl.parentNode && hndl.parentNode.style) hndl.parentNode.style.display="";
+  let x = 0;
+  svgs.forEach((svg, i) => {
+    var _inst$minN2, _inst$maxN2;
+    const clone = svg.cloneNode(true);
+    const inst = REG.get(svg);
+    const textMode = (inst === null || inst === void 0 ? void 0 : inst.textMode) || "none";
+    const nMin = (_inst$minN2 = inst === null || inst === void 0 ? void 0 : inst.minN) !== null && _inst$minN2 !== void 0 ? _inst$minN2 : 1;
+    const nMax = (_inst$maxN2 = inst === null || inst === void 0 ? void 0 : inst.maxN) !== null && _inst$maxN2 !== void 0 ? _inst$maxN2 : 24;
+    const showNVal = (inst === null || inst === void 0 ? void 0 : inst.showDenominatorValue) !== false;
+    const n = clone.querySelectorAll(".sector").length || 1;
+    const k = clone.querySelectorAll(".sector-fill").length || 0;
+    const rEl = clone.querySelector("circle.rim");
+    const R = rEl ? parseFloat(rEl.getAttribute("r") || "180") : 180;
+    const hndl = clone.querySelector(".handle");
+    if (hndl && hndl.parentNode && hndl.parentNode.style) hndl.parentNode.style.display = "";
     // Sikre at hver eksportert SVG får oppdatert <title>/<desc>
     // slik at tilgjengelighetsbeskrivelsen matcher gjeldende brøk.
-    const tEl=clone.querySelector('title');
-    const dEl=clone.querySelector('desc');
-    if(tEl) tEl.textContent=`Brøkpizza: ${k}/${n}`;
-    if(dEl) dEl.textContent=`Viser ${n} sektorer totalt, ${k} av dem er fylt`;
+    const tEl = clone.querySelector('title');
+    const dEl = clone.querySelector('desc');
+    if (tEl) tEl.textContent = `Brøkpizza: ${k}/${n}`;
+    if (dEl) dEl.textContent = `Viser ${n} sektorer totalt, ${k} av dem er fylt`;
     clone.setAttribute("data-n", String(n));
     clone.setAttribute("data-k", String(k));
     clone.setAttribute("data-r", String(R));
@@ -806,120 +1039,124 @@ function downloadAllPizzasInteractiveSVG(filename="broksirkler-interaktiv.svg"){
     clone.setAttribute("y", M_TOP);
     clone.setAttribute("width", size);
     clone.setAttribute("height", size);
-    const scriptEl=document.createElementNS("http://www.w3.org/2000/svg","script");
-    scriptEl.setAttribute("type","application/ecmascript");
+    const scriptEl = document.createElementNS("http://www.w3.org/2000/svg", "script");
+    scriptEl.setAttribute("type", "application/ecmascript");
     scriptEl.appendChild(document.createTextNode(INTERACTIVE_SVG_SCRIPT));
     clone.appendChild(scriptEl);
     root.appendChild(clone);
     x += size;
-    const sign=ops[i];
-    if(i<svgs.length-1){
-      if(sign){
-        x += opW/2;
-        const t=mk("text",{x:x,y:M_TOP+size/2,"text-anchor":"middle","dominant-baseline":"middle","font-size":"80"});
-        t.textContent=sign;
+    const sign = ops[i];
+    if (i < svgs.length - 1) {
+      if (sign) {
+        x += opW / 2;
+        const t = mk("text", {
+          x: x,
+          y: M_TOP + size / 2,
+          "text-anchor": "middle",
+          "dominant-baseline": "middle",
+          "font-size": "80"
+        });
+        t.textContent = sign;
         root.appendChild(t);
-        x += opW/2;
+        x += opW / 2;
       }
       x += gap;
     }
   });
-  const xml=new XMLSerializer().serializeToString(root);
-  const file=`<?xml version="1.0" encoding="UTF-8"?>\n`+xml;
-  const blob=new Blob([file],{type:"image/svg+xml;charset=utf-8"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+  const xml = new XMLSerializer().serializeToString(root);
+  const file = `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
+  const blob = new Blob([file], {
+    type: "image/svg+xml;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
   URL.revokeObjectURL(url);
 }
-
-function setupGlobalDownloadButtons(){
-  const btnStatic=document.getElementById("btnStaticAll");
-  const btnInteractive=document.getElementById("btnInteractiveAll");
-  const btnPng=document.getElementById("btnPngAll");
-  if(btnStatic) btnStatic.addEventListener("click",()=>downloadAllPizzasSVG());
-  if(btnInteractive) btnInteractive.addEventListener("click",()=>downloadAllPizzasInteractiveSVG());
-  if(btnPng) btnPng.addEventListener("click",()=>downloadAllPizzasPNG());
+function setupGlobalDownloadButtons() {
+  const btnStatic = document.getElementById("btnStaticAll");
+  const btnInteractive = document.getElementById("btnInteractiveAll");
+  const btnPng = document.getElementById("btnPngAll");
+  if (btnStatic) btnStatic.addEventListener("click", () => downloadAllPizzasSVG());
+  if (btnInteractive) btnInteractive.addEventListener("click", () => downloadAllPizzasInteractiveSVG());
+  if (btnPng) btnPng.addEventListener("click", () => downloadAllPizzasPNG());
 }
 
 /* =======================
    Init
    ======================= */
-function initFromHtml(){
+function initFromHtml() {
   const cfg = readConfigFromHtml();
   SIMPLE.pizzas = cfg.pizzas;
   SIMPLE.ops = cfg.ops;
   let visibleCount = 0;
   REG.clear();
-
-  PIZZA_DOM.forEach((map,i)=>{
-    const panel=document.getElementById(map.svgId)?.closest(".pizzaPanel");
-    if(!panel) return;
-    if(PANEL_HTML[i]==null) PANEL_HTML[i]=panel.innerHTML;
+  PIZZA_DOM.forEach((map, i) => {
+    var _document$getElementB12, _pcfg$minN, _pcfg$maksN, _map$index, _pcfg$n, _pcfg$t, _pcfg$n2, _pcfg$text;
+    const panel = (_document$getElementB12 = document.getElementById(map.svgId)) === null || _document$getElementB12 === void 0 ? void 0 : _document$getElementB12.closest(".pizzaPanel");
+    if (!panel) return;
+    if (PANEL_HTML[i] == null) PANEL_HTML[i] = panel.innerHTML;
     panel.innerHTML = PANEL_HTML[i];
     const isVisible = panel.style.display !== "none";
-    if(!SIMPLE.pizzas[i]) SIMPLE.pizzas[i] = {};
+    if (!SIMPLE.pizzas[i]) SIMPLE.pizzas[i] = {};
     SIMPLE.pizzas[i].visible = isVisible;
-    if(!isVisible) return;
+    if (!isVisible) return;
     visibleCount++;
     const pcfg = cfg.pizzas[i];
-
-    const minN=Math.max(1, pcfg.minN ?? 1);
-    const maxN=Math.max(minN, pcfg.maksN ?? 24);
-
+    const minN = Math.max(1, (_pcfg$minN = pcfg.minN) !== null && _pcfg$minN !== void 0 ? _pcfg$minN : 1);
+    const maxN = Math.max(minN, (_pcfg$maksN = pcfg.maksN) !== null && _pcfg$maksN !== void 0 ? _pcfg$maksN : 24);
     new Pizza({
       ...map,
-      index: map.index ?? i,
-      n: pcfg.n ?? 1,
-      k: Math.min(pcfg.t ?? 0, pcfg.n ?? 1),
-      minN, maxN,
-      textMode: (pcfg.text ?? "none"),
+      index: (_map$index = map.index) !== null && _map$index !== void 0 ? _map$index : i,
+      n: (_pcfg$n = pcfg.n) !== null && _pcfg$n !== void 0 ? _pcfg$n : 1,
+      k: Math.min((_pcfg$t = pcfg.t) !== null && _pcfg$t !== void 0 ? _pcfg$t : 0, (_pcfg$n2 = pcfg.n) !== null && _pcfg$n2 !== void 0 ? _pcfg$n2 : 1),
+      minN,
+      maxN,
+      textMode: (_pcfg$text = pcfg.text) !== null && _pcfg$text !== void 0 ? _pcfg$text : "none",
       lockDenominator: !!pcfg.lockN,
-      lockNumerator:   !!pcfg.lockT,
+      lockNumerator: !!pcfg.lockT,
       showDenominatorValue: !pcfg.hideNVal
     });
-
   });
-
-  cfg.ops.forEach((op,i)=>{
-    const el=document.getElementById(`opDisplay${i+1}`);
-    const nextPanel=document.getElementById(`panel${i+2}`);
-    if(!el) return;
-    if(op && nextPanel && nextPanel.style.display !== "none"){
-      el.textContent=op;
-      el.style.display="";
-    }else{
-      el.style.display="none";
+  cfg.ops.forEach((op, i) => {
+    const el = document.getElementById(`opDisplay${i + 1}`);
+    const nextPanel = document.getElementById(`panel${i + 2}`);
+    if (!el) return;
+    if (op && nextPanel && nextPanel.style.display !== "none") {
+      el.textContent = op;
+      el.style.display = "";
+    } else {
+      el.style.display = "none";
     }
   });
-
   scheduleCenterAlign();
   fitPizzasToLine();
   setupRemovePizzaButtons();
-
-  if(visibleCount<=0){
-    const firstPanel=document.getElementById('panel1');
-    if(firstPanel && firstPanel.style.display!=="none") visibleCount=1;
-    else visibleCount=0;
+  if (visibleCount <= 0) {
+    const firstPanel = document.getElementById('panel1');
+    if (firstPanel && firstPanel.style.display !== "none") visibleCount = 1;else visibleCount = 0;
   }
   SIMPLE.visibleCount = visibleCount || 1;
 }
-
 window.addEventListener("load", () => {
   initFromHtml();
   setupGlobalDownloadButtons();
   const addBtn = document.getElementById('addPizza');
   const fieldset2 = document.getElementById('fieldset2');
   const fieldset3 = document.getElementById('fieldset3');
-  addBtn?.addEventListener('click', () => {
+  addBtn === null || addBtn === void 0 || addBtn.addEventListener('click', () => {
     const panel2 = document.getElementById('panel2');
     const panel3 = document.getElementById('panel3');
-    if(panel2 && panel2.style.display === 'none'){
+    if (panel2 && panel2.style.display === 'none') {
       panel2.style.display = '';
-      if(fieldset2) fieldset2.style.display = '';
-    }else if(panel3 && panel3.style.display === 'none'){
+      if (fieldset2) fieldset2.style.display = '';
+    } else if (panel3 && panel3.style.display === 'none') {
       panel3.style.display = '';
-      if(fieldset3) fieldset3.style.display = '';
+      if (fieldset3) fieldset3.style.display = '';
       addBtn.style.display = 'none';
     }
     initFromHtml();
@@ -929,67 +1166,59 @@ window.addEventListener("load", () => {
     el.addEventListener("change", initFromHtml);
   });
 });
-
-function applySimpleConfigToInputs(){
+function applySimpleConfigToInputs() {
   const pizzas = Array.isArray(SIMPLE.pizzas) ? SIMPLE.pizzas : [];
   const ops = Array.isArray(SIMPLE.ops) ? SIMPLE.ops : [];
-
   const clampCount = val => {
     const num = Number(val);
-    if(!Number.isFinite(num)) return null;
+    if (!Number.isFinite(num)) return null;
     return Math.min(3, Math.max(1, Math.round(num)));
   };
-
   let visible = clampCount(SIMPLE.visibleCount);
-  if(visible == null){
-    visible = pizzas.reduce((acc,p,idx)=>{
-      if(idx===0) return acc+1;
-      if(p && (p.visible || p?.lockN || p?.lockT || p?.text || p?.t || p?.n)) return acc+1;
+  if (visible == null) {
+    visible = pizzas.reduce((acc, p, idx) => {
+      if (idx === 0) return acc + 1;
+      if (p && (p.visible || p !== null && p !== void 0 && p.lockN || p !== null && p !== void 0 && p.lockT || p !== null && p !== void 0 && p.text || p !== null && p !== void 0 && p.t || p !== null && p !== void 0 && p.n)) return acc + 1;
       return acc;
-    },0);
-    if(!visible) visible = 1;
+    }, 0);
+    if (!visible) visible = 1;
   }
-
-  for(let i=1;i<=3;i++){
-    const panel=document.getElementById(`panel${i}`);
-    const fieldset=document.getElementById(`fieldset${i}`);
-    const shouldShow=i<=visible;
-    if(panel) panel.style.display=shouldShow?"":"none";
-    if(fieldset) fieldset.style.display=shouldShow?"":"none";
-    if(!SIMPLE.pizzas[i-1]) SIMPLE.pizzas[i-1] = {};
-    SIMPLE.pizzas[i-1].visible = shouldShow;
+  for (let i = 1; i <= 3; i++) {
+    const panel = document.getElementById(`panel${i}`);
+    const fieldset = document.getElementById(`fieldset${i}`);
+    const shouldShow = i <= visible;
+    if (panel) panel.style.display = shouldShow ? "" : "none";
+    if (fieldset) fieldset.style.display = shouldShow ? "" : "none";
+    if (!SIMPLE.pizzas[i - 1]) SIMPLE.pizzas[i - 1] = {};
+    SIMPLE.pizzas[i - 1].visible = shouldShow;
   }
-
-  const addBtn=document.getElementById('addPizza');
-  if(addBtn) addBtn.style.display = visible>=3? 'none' : '';
-
+  const addBtn = document.getElementById('addPizza');
+  if (addBtn) addBtn.style.display = visible >= 3 ? 'none' : '';
   SIMPLE.visibleCount = visible;
-
   const ensurePizza = idx => {
-    const base=pizzas[idx]||{};
+    var _base$text;
+    const base = pizzas[idx] || {};
     return {
-      t: Number.isFinite(base.t)?base.t: (idx===0?3:0),
-      n: Number.isFinite(base.n)?Math.max(1,base.n):10,
+      t: Number.isFinite(base.t) ? base.t : idx === 0 ? 3 : 0,
+      n: Number.isFinite(base.n) ? Math.max(1, base.n) : 10,
       lockN: !!base.lockN,
       lockT: !!base.lockT,
-      text: base.text ?? 'none',
+      text: (_base$text = base.text) !== null && _base$text !== void 0 ? _base$text : 'none',
       hideNVal: !!base.hideNVal,
-      minN: Number.isFinite(base.minN)?base.minN:1,
-      maksN: Number.isFinite(base.maksN)?base.maksN:24
+      minN: Number.isFinite(base.minN) ? base.minN : 1,
+      maksN: Number.isFinite(base.maksN) ? base.maksN : 24
     };
   };
-
-  const setVal=(id,value)=>{
-    const el=document.getElementById(id);
-    if(el && value!=null) el.value=String(value);
+  const setVal = (id, value) => {
+    const el = document.getElementById(id);
+    if (el && value != null) el.value = String(value);
   };
-  const setChk=(id,checked)=>{
-    const el=document.getElementById(id);
-    if(el) el.checked=!!checked;
+  const setChk = (id, checked) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = !!checked;
   };
-
-  for(let i=1;i<=3;i++){
-    const cfg=ensurePizza(i-1);
+  for (let i = 1; i <= 3; i++) {
+    const cfg = ensurePizza(i - 1);
     setVal(`p${i}T`, cfg.t);
     setVal(`p${i}N`, cfg.n);
     setChk(`p${i}LockN`, cfg.lockN);
@@ -998,25 +1227,24 @@ function applySimpleConfigToInputs(){
     setChk(`p${i}HideNVal`, cfg.hideNVal);
     setVal(`p${i}MinN`, cfg.minN);
     setVal(`p${i}MaxN`, cfg.maksN);
-    const textSel=document.getElementById(`p${i}Text`);
-    if(textSel && cfg.text) textSel.value=cfg.text;
+    const textSel = document.getElementById(`p${i}Text`);
+    if (textSel && cfg.text) textSel.value = cfg.text;
   }
-
-  ops.forEach((op,idx)=>{
-    setVal(`op${idx+1}`, op ?? "");
+  ops.forEach((op, idx) => {
+    setVal(`op${idx + 1}`, op !== null && op !== void 0 ? op : "");
   });
 }
-
-function applyExamplesConfig(){
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', applyExamplesConfig, {once:true});
+function applyExamplesConfig() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyExamplesConfig, {
+      once: true
+    });
     return;
   }
   applySimpleConfigToInputs();
   initFromHtml();
 }
-
-if(typeof window !== 'undefined'){
+if (typeof window !== 'undefined') {
   window.applyConfig = applyExamplesConfig;
   window.render = applyExamplesConfig;
 }

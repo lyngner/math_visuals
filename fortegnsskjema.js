@@ -12,24 +12,20 @@
   const rowsList = document.getElementById('rowsList');
   const autoSyncInput = document.getElementById('autoSync');
   const checkStatus = document.getElementById('checkStatus');
-
   if (!svg || !exprInput) {
     return;
   }
-
   const state = {
     expression: '',
     autoSync: false,
     criticalPoints: [],
     signRows: [],
-    solution: null,
+    solution: null
   };
-
   let pointIdCounter = 1;
   let rowIdCounter = 1;
   let currentScale = null;
   let dragging = null;
-
   function formatPointValue(value) {
     if (!Number.isFinite(value)) {
       return '';
@@ -37,24 +33,21 @@
     const rounded = Number.parseFloat(value.toFixed(4));
     return Number.isFinite(rounded) ? `${rounded}` : `${value}`;
   }
-
   function createDefaultRow() {
     if (!state.signRows.length) {
       state.signRows.push({
         id: `row-${rowIdCounter++}`,
         label: 'f(x)',
-        segments: [1],
+        segments: [1]
       });
     }
   }
-
   function sortPoints() {
     state.criticalPoints.sort((a, b) => a.value - b.value);
   }
-
   function syncSegments() {
     const expected = state.criticalPoints.length + 1;
-    state.signRows.forEach((row) => {
+    state.signRows.forEach(row => {
       if (!Array.isArray(row.segments)) {
         row.segments = [];
       }
@@ -67,7 +60,8 @@
       } else if (row.segments.length > expected) {
         row.segments = row.segments.slice(0, expected);
       } else if (row.segments.length < expected) {
-        const last = row.segments[row.segments.length - 1] ?? 1;
+        var _row$segments;
+        const last = (_row$segments = row.segments[row.segments.length - 1]) !== null && _row$segments !== void 0 ? _row$segments : 1;
         while (row.segments.length < expected) {
           row.segments.push(last);
         }
@@ -77,7 +71,6 @@
       createDefaultRow();
     }
   }
-
   function sanitizeExpression(raw) {
     if (!raw) return '';
     let expr = raw.replace(/,/g, '.').replace(/\s+/g, '');
@@ -89,7 +82,6 @@
     expr = expr.replace(/\^/g, '**');
     return expr;
   }
-
   function createSafeFunction(expr) {
     try {
       return new Function('x', `with(Math){return ${expr};}`);
@@ -97,7 +89,6 @@
       return null;
     }
   }
-
   function stripOuterParens(str) {
     let result = str.trim();
     while (result.startsWith('(') && result.endsWith(')')) {
@@ -105,8 +96,7 @@
       let balanced = true;
       for (let i = 0; i < result.length; i += 1) {
         const ch = result[i];
-        if (ch === '(') depth += 1;
-        else if (ch === ')') {
+        if (ch === '(') depth += 1;else if (ch === ')') {
           depth -= 1;
           if (depth === 0 && i < result.length - 1) {
             balanced = false;
@@ -126,7 +116,6 @@
     }
     return result;
   }
-
   function splitByMultiplication(str) {
     const parts = [];
     let current = '';
@@ -158,7 +147,6 @@
     if (current) parts.push(current);
     return parts;
   }
-
   function evaluateConstant(expr) {
     const fn = createSafeFunction(expr);
     if (!fn) return null;
@@ -173,11 +161,9 @@
       return null;
     }
   }
-
   function parseLinearFactor(segment) {
     let str = segment.trim();
     if (!str) return null;
-
     let exponent = 1;
     const expMatch = str.match(/^(.*?)(?:\*\*|\^)(-?\d+)$/);
     if (expMatch) {
@@ -185,15 +171,12 @@
       if (!Number.isFinite(exponent) || exponent < 1) exponent = 1;
       str = expMatch[1];
     }
-
     str = stripOuterParens(str);
     if (!/x/.test(str)) {
       return null;
     }
-
     const fn = createSafeFunction(str);
     if (!fn) return null;
-
     try {
       const f0 = fn(0);
       const f1 = fn(1);
@@ -204,28 +187,35 @@
       const root = -intercept / slope;
       if (!Number.isFinite(root)) return null;
       const sign = slope >= 0 ? 1 : -1;
-      return { root, multiplicity: exponent, sign };
+      return {
+        root,
+        multiplicity: exponent,
+        sign
+      };
     } catch (err) {
       return null;
     }
   }
-
   function parseProduct(value) {
     let str = stripOuterParens(value);
     if (!str) {
-      return { factors: [], constantSign: 1 };
+      return {
+        factors: [],
+        constantSign: 1
+      };
     }
-
     const parts = splitByMultiplication(str);
     const factors = [];
     let constantSign = 1;
-
     for (const part of parts) {
       const clean = stripOuterParens(part);
       if (!clean) continue;
       const factor = parseLinearFactor(clean);
       if (factor) {
-        factors.push({ value: factor.root, multiplicity: factor.multiplicity });
+        factors.push({
+          value: factor.root,
+          multiplicity: factor.multiplicity
+        });
         if (factor.sign < 0 && factor.multiplicity % 2 === 1) {
           constantSign *= -1;
         }
@@ -239,16 +229,16 @@
         }
       }
     }
-
-    return { factors, constantSign };
+    return {
+      factors,
+      constantSign
+    };
   }
-
   function tokenizeExpression(expr) {
     const tokens = [];
     let current = '';
     let depth = 0;
     let currentOp = '*';
-
     for (let i = 0; i < expr.length; i += 1) {
       const ch = expr[i];
       if (ch === '(') {
@@ -267,47 +257,60 @@
           i += 1;
           continue;
         }
-        tokens.push({ operator: currentOp, value: current });
+        tokens.push({
+          operator: currentOp,
+          value: current
+        });
         current = '';
         currentOp = ch;
         continue;
       }
       current += ch;
     }
-    tokens.push({ operator: currentOp, value: current });
-    return tokens.filter((token) => token.value !== '');
+    tokens.push({
+      operator: currentOp,
+      value: current
+    });
+    return tokens.filter(token => token.value !== '');
   }
-
   function extractStructure(expr) {
     const tokens = tokenizeExpression(expr);
     const zeros = [];
     const poles = [];
     let constantSign = 1;
-
-    tokens.forEach((token) => {
+    tokens.forEach(token => {
       const parsed = parseProduct(token.value);
       const destination = token.operator === '/' ? poles : zeros;
-      parsed.factors.forEach((factor) => {
-        destination.push({ value: factor.value, multiplicity: factor.multiplicity });
+      parsed.factors.forEach(factor => {
+        destination.push({
+          value: factor.value,
+          multiplicity: factor.multiplicity
+        });
       });
       if (parsed.constantSign < 0) {
         constantSign *= -1;
       }
     });
-
-    return { zeros, poles, constantSign };
+    return {
+      zeros,
+      poles,
+      constantSign
+    };
   }
-
   function buildPoints(structure) {
     const map = new Map();
     function addEntries(entries, type) {
-      entries.forEach((entry) => {
+      entries.forEach(entry => {
         const normalized = Number.parseFloat(Number(entry.value).toFixed(6));
         const key = `${type}:${normalized}`;
         if (map.has(key)) {
           map.get(key).multiplicity += entry.multiplicity;
         } else {
-          map.set(key, { value: normalized, type, multiplicity: entry.multiplicity });
+          map.set(key, {
+            value: normalized,
+            type,
+            multiplicity: entry.multiplicity
+          });
         }
       });
     }
@@ -315,16 +318,21 @@
     addEntries(structure.poles, 'pole');
     return Array.from(map.values()).sort((a, b) => a.value - b.value);
   }
-
   function computeDomain(points) {
     if (!points.length) {
-      return { min: -5, max: 5 };
+      return {
+        min: -5,
+        max: 5
+      };
     }
-    const values = points.map((p) => p.value);
+    const values = points.map(p => p.value);
     let min = Math.min(...values);
     let max = Math.max(...values);
     if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      return { min: -5, max: 5 };
+      return {
+        min: -5,
+        max: 5
+      };
     }
     if (Math.abs(max - min) < 1e-6) {
       min -= 1;
@@ -332,9 +340,11 @@
     }
     const span = max - min;
     const margin = Math.max(span * 0.2, 1);
-    return { min: min - margin, max: max + margin };
+    return {
+      min: min - margin,
+      max: max + margin
+    };
   }
-
   function tryEvaluate(fn, x) {
     try {
       const value = fn(x);
@@ -344,7 +354,6 @@
       return NaN;
     }
   }
-
   function chooseSample(a, b) {
     if (!Number.isFinite(a) && Number.isFinite(b)) return b - 1;
     if (!Number.isFinite(b) && Number.isFinite(a)) return a + 1;
@@ -361,10 +370,9 @@
     }
     return sample;
   }
-
   function computeSegments(fn, points, domain) {
     const sorted = [...points].sort((a, b) => a.value - b.value);
-    const boundaries = [domain.min, ...sorted.map((p) => p.value), domain.max];
+    const boundaries = [domain.min, ...sorted.map(p => p.value), domain.max];
     const segments = [];
     for (let i = 0; i < boundaries.length - 1; i += 1) {
       const left = boundaries[i];
@@ -387,7 +395,6 @@
     }
     return segments;
   }
-
   function generateSolutionFromExpression() {
     const raw = exprInput.value.trim();
     if (!raw) {
@@ -408,9 +415,13 @@
     const points = buildPoints(structure);
     const domain = computeDomain(points);
     const segments = computeSegments(fn, points, domain);
-    return { points, segments, domain, expression: sanitized };
+    return {
+      points,
+      segments,
+      domain,
+      expression: sanitized
+    };
   }
-
   function setCheckMessage(message, type = 'info') {
     if (!message) {
       checkStatus.hidden = true;
@@ -421,11 +432,9 @@
     checkStatus.textContent = message;
     checkStatus.className = `status status--${type}`;
   }
-
   function signValue(value) {
     return value >= 0 ? 1 : -1;
   }
-
   function runCheck() {
     if (!state.solution) {
       setCheckMessage('Generer fasit før du sjekker.', 'info');
@@ -467,7 +476,6 @@
     }
     setCheckMessage('Fortegnsskjemaet stemmer!', 'ok');
   }
-
   function renderPointsList() {
     pointsList.innerHTML = '';
     if (!state.criticalPoints.length) {
@@ -477,16 +485,15 @@
       pointsList.appendChild(empty);
       return;
     }
-    state.criticalPoints.forEach((point) => {
+    state.criticalPoints.forEach(point => {
       const row = document.createElement('div');
-
       const valueLabel = document.createElement('label');
       valueLabel.innerHTML = '<span>Verdi</span>';
       const input = document.createElement('input');
       input.type = 'number';
       input.step = '0.1';
       input.value = formatPointValue(point.value);
-      input.addEventListener('change', (event) => {
+      input.addEventListener('change', event => {
         const value = parseFloat(event.target.value);
         if (Number.isFinite(value)) {
           setPointValue(point.id, value);
@@ -494,7 +501,6 @@
       });
       valueLabel.appendChild(input);
       row.appendChild(valueLabel);
-
       const typeLabel = document.createElement('label');
       typeLabel.innerHTML = '<span>Type</span>';
       const select = document.createElement('select');
@@ -506,13 +512,12 @@
       optionPole.textContent = '>< (pol)';
       select.append(optionZero, optionPole);
       select.value = point.type === 'pole' ? 'pole' : 'zero';
-      select.addEventListener('change', (event) => {
+      select.addEventListener('change', event => {
         point.type = event.target.value === 'pole' ? 'pole' : 'zero';
         renderChart();
       });
       typeLabel.appendChild(select);
       row.appendChild(typeLabel);
-
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.className = 'btn danger';
@@ -521,11 +526,9 @@
         removePoint(point.id);
       });
       row.appendChild(removeBtn);
-
       pointsList.appendChild(row);
     });
   }
-
   function renderRowsList() {
     rowsList.innerHTML = '';
     if (!state.signRows.length) {
@@ -537,7 +540,6 @@
     }
     state.signRows.forEach((row, index) => {
       const rowEl = document.createElement('div');
-
       const label = document.createElement('label');
       label.className = 'row-label';
       label.innerHTML = '<span>Navn</span>';
@@ -545,20 +547,18 @@
       input.type = 'text';
       input.value = row.label || '';
       input.placeholder = `rad ${index + 1}`;
-      input.addEventListener('input', (event) => {
+      input.addEventListener('input', event => {
         row.label = event.target.value;
         renderChart();
       });
       label.appendChild(input);
       rowEl.appendChild(label);
-
       if (state.autoSync && index === 0 && state.solution) {
         const note = document.createElement('span');
         note.className = 'note';
         note.textContent = 'Synkronisert med fasit';
         rowEl.appendChild(note);
       }
-
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.className = 'btn danger';
@@ -571,11 +571,9 @@
         });
       }
       rowEl.appendChild(removeBtn);
-
       rowsList.appendChild(rowEl);
     });
   }
-
   function createSvgElement(name, attrs = {}) {
     const el = document.createElementNS('http://www.w3.org/2000/svg', name);
     Object.entries(attrs).forEach(([key, value]) => {
@@ -585,7 +583,6 @@
     });
     return el;
   }
-
   function renderChart() {
     sortPoints();
     const points = state.criticalPoints;
@@ -603,34 +600,31 @@
       overlay.innerHTML = '';
       overlay.style.height = `${baseHeight}px`;
     }
-
     const axisStart = marginLeft;
     const axisEnd = width - marginRight;
     const axisWidth = axisEnd - axisStart;
     const min = domain.min;
     const max = domain.max;
-
     currentScale = {
-      toCoord: (value) => axisStart + ((value - min) / (max - min)) * axisWidth,
-      toValue: (coord) => min + ((coord - axisStart) / axisWidth) * (max - min),
+      toCoord: value => axisStart + (value - min) / (max - min) * axisWidth,
+      toValue: coord => min + (coord - axisStart) / axisWidth * (max - min),
       axisStart,
       axisWidth,
       domainMin: min,
-      domainMax: max,
+      domainMax: max
     };
-
     const axisLine = createSvgElement('line', {
       x1: axisStart,
       y1: arrowY,
       x2: axisEnd,
       y2: arrowY,
       stroke: '#4b5563',
-      'stroke-width': 2,
+      'stroke-width': 2
     });
     svg.append(axisLine);
     const arrowHead = createSvgElement('path', {
       d: `M ${axisEnd} ${arrowY} l -12 -6 v12 z`,
-      fill: '#4b5563',
+      fill: '#4b5563'
     });
     svg.append(arrowHead);
     const axisLabel = createSvgElement('text', {
@@ -638,17 +632,15 @@
       y: arrowY + 4,
       'font-size': 14,
       'font-weight': 600,
-      fill: '#111827',
+      fill: '#111827'
     });
     axisLabel.textContent = 'x';
     svg.append(axisLabel);
-
     const sortedPoints = [...points];
-    const values = sortedPoints.map((p) => p.value);
+    const values = sortedPoints.map(p => p.value);
     const baseRowY = arrowY + 60;
     const lastRowY = baseRowY + (state.signRows.length - 1) * rowSpacing;
-
-    sortedPoints.forEach((point) => {
+    sortedPoints.forEach(point => {
       const px = currentScale.toCoord(point.value);
       if (!Number.isFinite(px)) return;
       const vertical = createSvgElement('line', {
@@ -660,10 +652,9 @@
         'stroke-width': 1.2,
         'data-point-id': point.id,
         'pointer-events': 'stroke',
-        cursor: 'ew-resize',
+        cursor: 'ew-resize'
       });
       svg.append(vertical);
-
       const label = createSvgElement('text', {
         x: px,
         y: arrowY + 6,
@@ -671,11 +662,10 @@
         'font-size': 16,
         'font-weight': 600,
         fill: point.type === 'pole' ? '#b91c1c' : '#111827',
-        'pointer-events': 'none',
+        'pointer-events': 'none'
       });
       label.textContent = point.type === 'pole' ? '><' : '0';
       svg.append(label);
-
       const dragHandle = createSvgElement('circle', {
         cx: px,
         cy: arrowY,
@@ -684,10 +674,9 @@
         stroke: 'transparent',
         'data-point-id': point.id,
         'pointer-events': 'all',
-        cursor: 'ew-resize',
+        cursor: 'ew-resize'
       });
       svg.append(dragHandle);
-
       if (overlay) {
         const input = document.createElement('input');
         input.type = 'text';
@@ -695,10 +684,8 @@
         input.value = formatPointValue(point.value);
         input.style.left = `${px}px`;
         input.style.top = `${arrowY}px`;
-        input.setAttribute('aria-label', point.type === 'pole'
-          ? 'x-verdi for pol'
-          : 'x-verdi for nullpunkt');
-        input.addEventListener('change', (event) => {
+        input.setAttribute('aria-label', point.type === 'pole' ? 'x-verdi for pol' : 'x-verdi for nullpunkt');
+        input.addEventListener('change', event => {
           const raw = event.target.value.trim().replace(',', '.');
           const nextValue = Number.parseFloat(raw);
           if (Number.isFinite(nextValue)) {
@@ -712,13 +699,13 @@
             }, 150);
           }
         });
-        input.addEventListener('input', (event) => {
+        input.addEventListener('input', event => {
           const raw = event.target.value.trim().replace(',', '.');
           if (raw === '' || Number.isFinite(Number.parseFloat(raw))) {
             event.target.classList.remove('chart-overlay__input--invalid');
           }
         });
-        input.addEventListener('keydown', (event) => {
+        input.addEventListener('keydown', event => {
           if (event.key === 'Enter') {
             event.preventDefault();
             event.currentTarget.blur();
@@ -727,7 +714,6 @@
         overlay.appendChild(input);
       }
     });
-
     const boundaries = [min, ...values, max];
     state.signRows.forEach((row, rowIndex) => {
       const y = baseRowY + rowIndex * rowSpacing;
@@ -737,21 +723,19 @@
         x2: axisEnd,
         y2: y,
         stroke: '#d1d5db',
-        'stroke-width': 1,
+        'stroke-width': 1
       });
       svg.append(baseline);
-
       const label = createSvgElement('text', {
         x: marginLeft - 30,
         y: y + 4,
         'text-anchor': 'end',
         'font-size': 16,
         'font-weight': 600,
-        fill: '#111827',
+        fill: '#111827'
       });
       label.textContent = row.label || `rad ${rowIndex + 1}`;
       svg.append(label);
-
       const locked = state.autoSync && rowIndex === 0 && state.solution;
       const segments = row.segments;
       for (let i = 0; i < boundaries.length - 1; i += 1) {
@@ -771,13 +755,13 @@
           'stroke-linecap': 'round',
           'data-row-id': row.id,
           'data-index': i,
-          cursor: locked ? 'not-allowed' : 'pointer',
+          cursor: locked ? 'not-allowed' : 'pointer'
         });
         if (sign < 0) {
           line.setAttribute('stroke-dasharray', '14 10');
         }
         if (!locked) {
-          line.addEventListener('pointerdown', (event) => {
+          line.addEventListener('pointerdown', event => {
             event.preventDefault();
             toggleSegment(row.id, i);
           });
@@ -786,9 +770,8 @@
       }
     });
   }
-
   function setPointValue(id, value, fromDrag = false) {
-    const point = state.criticalPoints.find((p) => p.id === id);
+    const point = state.criticalPoints.find(p => p.id === id);
     if (!point) return;
     point.value = value;
     sortPoints();
@@ -799,25 +782,22 @@
       renderAll();
     }
   }
-
   function removePoint(id) {
-    const index = state.criticalPoints.findIndex((p) => p.id === id);
+    const index = state.criticalPoints.findIndex(p => p.id === id);
     if (index === -1) return;
     state.criticalPoints.splice(index, 1);
     syncSegments();
     renderAll();
   }
-
   function removeRow(id) {
     if (state.signRows.length <= 1) return;
-    const index = state.signRows.findIndex((row) => row.id === id);
+    const index = state.signRows.findIndex(row => row.id === id);
     if (index === -1) return;
     state.signRows.splice(index, 1);
     renderAll();
   }
-
   function toggleSegment(rowId, index) {
-    const row = state.signRows.find((r) => r.id === rowId);
+    const row = state.signRows.find(r => r.id === rowId);
     if (!row) return;
     const rowIndex = state.signRows.indexOf(row);
     if (state.autoSync && rowIndex === 0 && state.solution) {
@@ -826,40 +806,37 @@
     row.segments[index] = row.segments[index] >= 0 ? -1 : 1;
     renderChart();
   }
-
   function addPoint(type = 'zero', value = 0) {
     state.criticalPoints.push({
       id: `p${pointIdCounter++}`,
       type,
-      value,
+      value
     });
     sortPoints();
     syncSegments();
     renderAll();
   }
-
   function addRow() {
     const expected = Math.max(1, state.criticalPoints.length + 1);
     const segments = Array(expected).fill(1);
     state.signRows.push({
       id: `row-${rowIdCounter++}`,
       label: `rad ${state.signRows.length + 1}`,
-      segments,
+      segments
     });
     renderAll();
   }
-
   function applySolutionToState(solution) {
-    state.criticalPoints = solution.points.map((point) => ({
+    state.criticalPoints = solution.points.map(point => ({
       id: `p${pointIdCounter++}`,
       type: point.type,
-      value: point.value,
+      value: point.value
     }));
     if (!state.signRows.length) {
       state.signRows.push({
         id: `row-${rowIdCounter++}`,
         label: 'f(x)',
-        segments: [],
+        segments: []
       });
     }
     state.signRows[0].segments = solution.segments.slice();
@@ -869,7 +846,6 @@
     syncSegments();
     renderAll();
   }
-
   function ensureSolution() {
     if (!state.solution && exprInput.value.trim()) {
       try {
@@ -881,7 +857,6 @@
     }
     return !!state.solution;
   }
-
   function renderAll() {
     sortPoints();
     syncSegments();
@@ -889,17 +864,18 @@
     renderRowsList();
     renderChart();
   }
-
-  svg.addEventListener('pointerdown', (event) => {
+  svg.addEventListener('pointerdown', event => {
     const target = event.target;
     if (!(target instanceof SVGElement)) return;
     const pointId = target.getAttribute('data-point-id');
     if (!pointId) return;
     event.preventDefault();
-    dragging = { id: pointId, pointerId: event.pointerId };
+    dragging = {
+      id: pointId,
+      pointerId: event.pointerId
+    };
     svg.setPointerCapture(event.pointerId);
   });
-
   function stopDragging(event) {
     if (!dragging) return;
     if (event.pointerId !== undefined && svg.hasPointerCapture(event.pointerId)) {
@@ -909,8 +885,7 @@
     syncSegments();
     renderAll();
   }
-
-  svg.addEventListener('pointermove', (event) => {
+  svg.addEventListener('pointermove', event => {
     if (!dragging || !currentScale) return;
     const rect = svg.getBoundingClientRect();
     const relativeX = event.clientX - rect.left;
@@ -918,34 +893,28 @@
     if (!Number.isFinite(value)) return;
     setPointValue(dragging.id, value, true);
   });
-
   svg.addEventListener('pointerup', stopDragging);
   svg.addEventListener('pointerleave', stopDragging);
-
   function handleAddPoint() {
     addPoint('zero', 0);
     setCheckMessage('');
   }
-
   function handleAddRow() {
     addRow();
     setCheckMessage('');
   }
-
   if (btnAddPoint) {
     btnAddPoint.addEventListener('click', handleAddPoint);
   }
   if (overlayAddPoint) {
     overlayAddPoint.addEventListener('click', handleAddPoint);
   }
-
   if (btnAddRow) {
     btnAddRow.addEventListener('click', handleAddRow);
   }
   if (overlayAddRow) {
     overlayAddRow.addEventListener('click', handleAddRow);
   }
-
   btnGenerate.addEventListener('click', () => {
     try {
       const solution = generateSolutionFromExpression();
@@ -961,15 +930,13 @@
       setCheckMessage(err.message, 'err');
     }
   });
-
   btnCheck.addEventListener('click', () => {
     if (!ensureSolution()) {
       return;
     }
     runCheck();
   });
-
-  autoSyncInput.addEventListener('change', (event) => {
+  autoSyncInput.addEventListener('change', event => {
     state.autoSync = event.target.checked;
     if (state.autoSync && ensureSolution()) {
       applySolutionToState(state.solution);
@@ -978,15 +945,12 @@
       renderRowsList();
     }
   });
-
   exprInput.addEventListener('input', () => {
     state.expression = exprInput.value.trim();
   });
-
   window.addEventListener('resize', () => {
     renderChart();
   });
-
   createDefaultRow();
   renderAll();
 })();

@@ -1,179 +1,173 @@
 // Viewer for stored examples
-const globalScope = typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null);
-
-function createFallbackStorage(){
+const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+function createFallbackStorage() {
   const data = new Map();
   return {
-    get length(){
+    get length() {
       return data.size;
     },
-    key(index){
-      if(!Number.isInteger(index) || index < 0) return null;
-      if(index >= data.size) return null;
+    key(index) {
+      if (!Number.isInteger(index) || index < 0) return null;
+      if (index >= data.size) return null;
       let i = 0;
-      for(const key of data.keys()){
-        if(i === index) return key;
+      for (const key of data.keys()) {
+        if (i === index) return key;
         i++;
       }
       return null;
     },
-    getItem(key){
-      if(key == null) return null;
+    getItem(key) {
+      if (key == null) return null;
       const normalized = String(key);
       return data.has(normalized) ? data.get(normalized) : null;
     },
-    setItem(key, value){
-      if(key == null) return;
+    setItem(key, value) {
+      if (key == null) return;
       data.set(String(key), value == null ? 'null' : String(value));
     },
-    removeItem(key){
-      if(key == null) return;
+    removeItem(key) {
+      if (key == null) return;
       data.delete(String(key));
     },
-    clear(){ data.clear(); }
+    clear() {
+      data.clear();
+    }
   };
 }
-
 const sharedFallback = (() => {
-  if(globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function'){
+  if (globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function') {
     return globalScope.__EXAMPLES_FALLBACK_STORAGE__;
   }
   const store = createFallbackStorage();
-  if(globalScope){
+  if (globalScope) {
     globalScope.__EXAMPLES_FALLBACK_STORAGE__ = store;
   }
   return store;
 })();
-
 let storage = null;
 let usingFallback = false;
-
-if(globalScope){
+if (globalScope) {
   const shared = globalScope.__EXAMPLES_STORAGE__;
-  if(shared && typeof shared.getItem === 'function'){
+  if (shared && typeof shared.getItem === 'function') {
     storage = shared;
     usingFallback = shared === sharedFallback;
   }
 }
-
-if(!storage){
-  try{
-    if(typeof localStorage !== 'undefined'){
+if (!storage) {
+  try {
+    if (typeof localStorage !== 'undefined') {
       storage = localStorage;
-    }else{
+    } else {
       storage = sharedFallback;
       usingFallback = true;
     }
-  }catch(_){
+  } catch (_) {
     storage = sharedFallback;
     usingFallback = true;
   }
 }
-
-function switchToFallback(){
-  if(usingFallback) return storage;
+function switchToFallback() {
+  if (usingFallback) return storage;
   usingFallback = true;
-  if(storage && storage !== sharedFallback){
-    try{
+  if (storage && storage !== sharedFallback) {
+    try {
       const total = Number(storage.length) || 0;
-      for(let i = 0; i < total; i++){
+      for (let i = 0; i < total; i++) {
         let key = null;
-        try{ key = storage.key(i); }
-        catch(_){ key = null; }
-        if(!key) continue;
-        try{
+        try {
+          key = storage.key(i);
+        } catch (_) {
+          key = null;
+        }
+        if (!key) continue;
+        try {
           const value = storage.getItem(key);
-          if(value != null) sharedFallback.setItem(key, value);
-        }catch(_){ }
+          if (value != null) sharedFallback.setItem(key, value);
+        } catch (_) {}
       }
-    }catch(_){ }
+    } catch (_) {}
   }
   storage = sharedFallback;
-  if(globalScope){
+  if (globalScope) {
     globalScope.__EXAMPLES_STORAGE__ = storage;
   }
   return storage;
 }
-
-function safeGetItem(key){
-  if(storage && typeof storage.getItem === 'function'){
-    try{
+function safeGetItem(key) {
+  if (storage && typeof storage.getItem === 'function') {
+    try {
       return storage.getItem(key);
-    }catch(_){
+    } catch (_) {
       return switchToFallback().getItem(key);
     }
   }
   return switchToFallback().getItem(key);
 }
-
-function safeSetItem(key, value){
-  if(storage && typeof storage.setItem === 'function'){
-    try{
+function safeSetItem(key, value) {
+  if (storage && typeof storage.setItem === 'function') {
+    try {
       storage.setItem(key, value);
       return;
-    }catch(_){
+    } catch (_) {
       // fall through to fallback
     }
   }
   switchToFallback().setItem(key, value);
 }
-
-function safeRemoveItem(key){
-  if(storage && typeof storage.removeItem === 'function'){
-    try{
+function safeRemoveItem(key) {
+  if (storage && typeof storage.removeItem === 'function') {
+    try {
       storage.removeItem(key);
       return;
-    }catch(_){
+    } catch (_) {
       // fall through
     }
   }
   switchToFallback().removeItem(key);
 }
-
-function safeKey(index){
-  if(storage && typeof storage.key === 'function'){
-    try{
+function safeKey(index) {
+  if (storage && typeof storage.key === 'function') {
+    try {
       return storage.key(index);
-    }catch(_){
+    } catch (_) {
       // fall through
     }
   }
   const fallback = switchToFallback();
   return typeof fallback.key === 'function' ? fallback.key(index) : null;
 }
-
-function safeLength(){
-  if(storage){
-    try{
+function safeLength() {
+  if (storage) {
+    try {
       const value = storage.length;
       return typeof value === 'number' ? value : 0;
-    }catch(_){
+    } catch (_) {
       // fall through
     }
   }
   const fallback = switchToFallback();
   return typeof fallback.length === 'number' ? fallback.length : 0;
 }
-
-function renderExamples(){
+function renderExamples() {
   const container = document.getElementById('examples');
   container.innerHTML = '';
   const total = safeLength();
-  for(let i = 0; i < total; i++){
+  for (let i = 0; i < total; i++) {
     const key = safeKey(i);
-    if(typeof key !== 'string' || !key) continue;
-    if(!key.startsWith('examples_')) continue;
+    if (typeof key !== 'string' || !key) continue;
+    if (!key.startsWith('examples_')) continue;
     const path = key.slice('examples_'.length);
     let arr;
-    try { arr = JSON.parse(safeGetItem(key)) || []; }
-    catch { arr = []; }
-    if(arr.length === 0) continue;
-
+    try {
+      arr = JSON.parse(safeGetItem(key)) || [];
+    } catch {
+      arr = [];
+    }
+    if (arr.length === 0) continue;
     const section = document.createElement('section');
     const h2 = document.createElement('h2');
     h2.textContent = path;
     section.appendChild(h2);
-
     arr.forEach((ex, idx) => {
       const wrap = document.createElement('div');
       wrap.className = 'example';
@@ -193,27 +187,29 @@ function renderExamples(){
       btns.className = 'buttons';
       const loadBtn = document.createElement('button');
       loadBtn.textContent = 'Last inn';
-      loadBtn.addEventListener('click', ()=>{
-        safeSetItem('example_to_load', JSON.stringify({path, index: idx}));
+      loadBtn.addEventListener('click', () => {
+        safeSetItem('example_to_load', JSON.stringify({
+          path,
+          index: idx
+        }));
         const iframe = window.parent.document.querySelector('iframe');
         iframe.src = path;
-        try{
+        try {
           window.parent.localStorage.setItem('currentPage', path);
-        }catch(_){
-          try{
-            if(window.parent.__EXAMPLES_STORAGE__ && typeof window.parent.__EXAMPLES_STORAGE__.setItem === 'function'){
+        } catch (_) {
+          try {
+            if (window.parent.__EXAMPLES_STORAGE__ && typeof window.parent.__EXAMPLES_STORAGE__.setItem === 'function') {
               window.parent.__EXAMPLES_STORAGE__.setItem('currentPage', path);
             }
-          }catch(_){ }
+          } catch (_) {}
         }
-        if(window.parent.setActive) window.parent.setActive(path);
+        if (window.parent.setActive) window.parent.setActive(path);
       });
       const delBtn = document.createElement('button');
       delBtn.textContent = 'Slett';
-      delBtn.addEventListener('click', ()=>{
-        arr.splice(idx,1);
-        if(arr.length) safeSetItem(key, JSON.stringify(arr));
-        else safeRemoveItem(key);
+      delBtn.addEventListener('click', () => {
+        arr.splice(idx, 1);
+        if (arr.length) safeSetItem(key, JSON.stringify(arr));else safeRemoveItem(key);
         renderExamples();
       });
       btns.appendChild(loadBtn);
@@ -224,5 +220,4 @@ function renderExamples(){
     container.appendChild(section);
   }
 }
-
 document.addEventListener('DOMContentLoaded', renderExamples);
