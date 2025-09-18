@@ -171,10 +171,14 @@
     const offsetY = 25.75;
     const p = (x,y,z)=>iso(x,y,z,tileW,tileH,unitH);
 
+    const widthCount = Math.max(1, Math.trunc(bredde));
+    const heightCount = Math.max(1, Math.trunc(hoyde));
+    const depthCount = Math.max(1, Math.trunc(dybde));
+
     const bricks = [];
-    for(let z=0; z<hoyde; z++){
-      for(let y=0; y<dybde; y++){
-        for(let x=0; x<bredde; x++){
+    for(let z=0; z<heightCount; z++){
+      for(let y=0; y<depthCount; y++){
+        for(let x=0; x<widthCount; x++){
           const pos = p(x,y,z);
           bricks.push({x,y,z,pos});
         }
@@ -193,12 +197,29 @@
       if(y + imgH > maxY) maxY = y + imgH;
     });
 
-    const w = maxX - minX;
-    const h = maxY - minY;
+    const w = Math.max(1, maxX - minX);
+    const currentHeight = Math.max(1, maxY - minY);
+    const targetHeight = imgH + (heightCount - 1) * unitH;
+    const scaleY = currentHeight > 0 ? targetHeight / currentHeight : 1;
+
     const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.setAttribute('viewBox', `0 0 ${w} ${targetHeight}`);
     svg.setAttribute('width', '100%');
     svg.setAttribute('height', '100%');
+
+    const group = document.createElementNS(svg.namespaceURI, 'g');
+    const translateX = -minX;
+    const translateY = -minY;
+    const transforms = [];
+    if(translateX !== 0 || translateY !== 0){
+      transforms.push(`translate(${translateX},${translateY})`);
+    }
+    if(scaleY !== 1){
+      transforms.push(`scale(1,${scaleY})`);
+    }
+    if(transforms.length){
+      group.setAttribute('transform', transforms.join(' '));
+    }
 
     bricks.forEach(({pos})=>{
       const img = document.createElementNS(svg.namespaceURI,'image');
@@ -206,10 +227,12 @@
       img.setAttribute('href', BRICK_SRC);
       img.setAttribute('width', imgW);
       img.setAttribute('height', imgH);
-      img.setAttribute('x', pos.x - offsetX - minX);
-      img.setAttribute('y', pos.y - offsetY - minY);
-      svg.appendChild(img);
+      img.setAttribute('x', pos.x - offsetX);
+      img.setAttribute('y', pos.y - offsetY);
+      group.appendChild(img);
     });
+
+    svg.appendChild(group);
 
     return svg;
   }
