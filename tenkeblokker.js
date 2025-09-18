@@ -884,7 +884,8 @@ function updateBlockPanelLayout(block, rowTotal) {
   } else {
     block.panel.style.flexGrow = '1';
   }
-  block.panel.style.marginBottom = needsVerticalSpace ? 'var(--tb-stepper-gap, 18px)' : '0px';
+  block.panel.style.marginBottom = needsVerticalSpace ? 'var(--tb-stepper-gap, 0px)' : '0px';
+  block.panel.style.rowGap = stepperVisible ? 'var(--tb-stepper-spacing, 6px)' : '0px';
 }
 function drawBlock(block) {
   var _block$rectEmpty, _block$rectEmpty2, _block$rectEmpty3, _block$rectEmpty4, _block$rectFrame, _block$rectFrame2, _block$rectFrame3, _block$rectFrame4, _block$handle, _block$handleShadow, _block$handle2, _block$handleShadow2;
