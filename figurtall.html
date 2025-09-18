@@ -69,6 +69,7 @@
     .card--settings fieldset .toggleLabel input{margin:0;}
     legend{font-weight:600;font-size:13px;color:#374151;padding:0 4px;}
     .card input[type="color"]{width:40px;height:40px;padding:0;border:none;}
+    .card select{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:6px 8px;font-size:14px;box-sizing:border-box;background:#fff;}
     .colors{display:flex;flex-wrap:wrap;gap:6px;}
     .colors input{flex:0 0 40px;width:40px;height:40px;}
     .figure{
@@ -120,6 +121,7 @@
     }
     .stepper span{min-width:32px;text-align:center;font-variant-numeric:tabular-nums;font-size:16px;}
     .nameInput{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:6px 8px;font-size:14px;box-sizing:border-box;}
+    .figureAutoLabel{text-align:center;font-size:14px;color:#374151;padding:6px 0;}
     .removeFigureBtn{
       align-self:flex-end;
       background:none;
@@ -193,6 +195,16 @@
               <input id="color_5" type="color" value="#873E79" />
               <input id="color_6" type="color" value="#E31C3D" />
             </div>
+          </fieldset>
+          <fieldset>
+            <legend>Tekst</legend>
+            <label for="labelMode">Visning
+              <select id="labelMode">
+                <option value="name">Vis navn</option>
+                <option value="number">Kun nummer</option>
+                <option value="hidden">Skjul tekst</option>
+              </select>
+            </label>
           </fieldset>
           <div class="toolbar">
             <button id="resetBtn" class="btn" type="button">Nullstill</button>

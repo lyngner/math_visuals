@@ -2,9 +2,11 @@
   const boxes = [];
   const MAX_DIM = 20;
   const MAX_COLORS = 6;
+  const LABEL_MODES = ['name', 'number', 'hidden'];
   let rows = 3;
   let cols = 3;
   const colorCountInp = document.getElementById('colorCount');
+  const labelModeSelect = document.getElementById('labelMode');
   const colorInputs = [];
   for (let i = 1;; i++) {
     const inp = document.getElementById('color_' + i);
@@ -33,6 +35,13 @@
     const num = parseInt(value, 10);
     if (!Number.isFinite(num)) return min;
     return Math.max(min, Math.min(max, num));
+  }
+  function normalizeLabelMode(value) {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (LABEL_MODES.includes(normalized)) return normalized;
+    }
+    return 'name';
   }
   function normalizeCells(cells, rowCount, colCount) {
     const matrix = Array.from({
@@ -110,6 +119,7 @@
     STATE.circleMode = STATE.circleMode !== false;
     STATE.offset = STATE.offset !== false;
     STATE.showGrid = STATE.showGrid !== false;
+    STATE.labelMode = normalizeLabelMode(STATE.labelMode);
     STATE.colorCount = clampInt((_STATE$colorCount = STATE.colorCount) !== null && _STATE$colorCount !== void 0 ? _STATE$colorCount : colorCountInp ? colorCountInp.value : 1, 1, maxColors);
     ensureColors(STATE.colorCount);
     if (!Array.isArray(STATE.figures)) STATE.figures = [];
@@ -206,6 +216,7 @@
     panel.innerHTML = `
       <div class="figure"><div class="box"></div></div>
       <input class="nameInput" type="text" placeholder="Navn" />
+      <div class="figureAutoLabel" aria-hidden="true"></div>
     `;
     const boxEl = panel.querySelector('.box');
     boxes.push(boxEl);
@@ -234,10 +245,57 @@
       removeFigure(index);
     });
     panel.appendChild(removeBtn);
+    applyLabelModeToPanel(panel, index);
     return panel;
   }
   const container = document.getElementById('figureContainer');
   const addBtn = document.getElementById('addFigure');
+  function applyLabelModeToPanel(panel, index) {
+    if (!panel) return;
+    const mode = STATE.labelMode;
+    const nameInput = panel.querySelector('.nameInput');
+    const autoLabel = panel.querySelector('.figureAutoLabel');
+    if (autoLabel) {
+      autoLabel.textContent = String(index + 1);
+    }
+    if (mode === 'name') {
+      if (nameInput) {
+        nameInput.style.display = '';
+        nameInput.disabled = false;
+        nameInput.setAttribute('aria-hidden', 'false');
+      }
+      if (autoLabel) {
+        autoLabel.style.display = 'none';
+        autoLabel.setAttribute('aria-hidden', 'true');
+      }
+    } else if (mode === 'number') {
+      if (nameInput) {
+        nameInput.style.display = 'none';
+        nameInput.disabled = true;
+        nameInput.setAttribute('aria-hidden', 'true');
+      }
+      if (autoLabel) {
+        autoLabel.style.display = '';
+        autoLabel.setAttribute('aria-hidden', 'false');
+      }
+    } else {
+      if (nameInput) {
+        nameInput.style.display = 'none';
+        nameInput.disabled = true;
+        nameInput.setAttribute('aria-hidden', 'true');
+      }
+      if (autoLabel) {
+        autoLabel.style.display = 'none';
+        autoLabel.setAttribute('aria-hidden', 'true');
+      }
+    }
+  }
+  function updatePanelLabels() {
+    if (!container) return;
+    container.querySelectorAll('.figurePanel').forEach((panel, idx) => {
+      applyLabelModeToPanel(panel, idx);
+    });
+  }
   function rebuildFigurePanels() {
     if (!container) return;
     boxes.length = 0;
@@ -249,6 +307,7 @@
     updateCellColors();
     updateGridVisibility();
     updateFigureLayout();
+    updatePanelLabels();
   }
   const MIN_PANEL_WIDTH = 80;
   const MAX_PANEL_WIDTH = 260;
@@ -296,6 +355,7 @@
     if (circleInp) circleInp.checked = !!STATE.circleMode;
     if (offsetInp) offsetInp.checked = !!STATE.offset;
     if (gridInp) gridInp.checked = !!STATE.showGrid;
+    if (labelModeSelect) labelModeSelect.value = STATE.labelMode;
     if (colorCountInp) colorCountInp.value = String(STATE.colorCount);
     updateColorVisibility();
   }
@@ -337,6 +397,10 @@
   gridInp === null || gridInp === void 0 || gridInp.addEventListener('change', () => {
     STATE.showGrid = gridInp.checked;
     updateGridVisibility();
+  });
+  labelModeSelect === null || labelModeSelect === void 0 || labelModeSelect.addEventListener('change', () => {
+    STATE.labelMode = normalizeLabelMode(labelModeSelect.value);
+    updatePanelLabels();
   });
   colorCountInp === null || colorCountInp === void 0 || colorCountInp.addEventListener('input', () => {
     STATE.colorCount = clampInt(colorCountInp.value, 1, colorInputs.length || MAX_COLORS);
@@ -430,10 +494,16 @@
     svg.setAttribute('width', totalW);
     svg.setAttribute('height', totalH);
     let xOffset = 0;
-    boxes.forEach(box => {
+    boxes.forEach((box, figIndex) => {
       var _panel$querySelector;
       const panel = box.closest('.figurePanel');
-      const name = ((_panel$querySelector = panel.querySelector('.nameInput')) === null || _panel$querySelector === void 0 ? void 0 : _panel$querySelector.value) || '';
+      const nameInputValue = ((_panel$querySelector = panel.querySelector('.nameInput')) === null || _panel$querySelector === void 0 ? void 0 : _panel$querySelector.value) || '';
+      const storedName = (() => {
+        const figure = STATE.figures[figIndex];
+        if (!figure || typeof figure.name !== 'string') return '';
+        return figure.name;
+      })();
+      const normalizedName = typeof nameInputValue === 'string' && nameInputValue.trim() ? nameInputValue.trim() : typeof storedName === 'string' && storedName.trim() ? storedName.trim() : '';
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       g.setAttribute('transform', `translate(${xOffset},0)`);
       box.querySelectorAll('.row').forEach((rowEl, r) => {
@@ -476,14 +546,20 @@
           }
         });
       });
-      if (name) {
+      let labelText = '';
+      if (STATE.labelMode === 'name') {
+        labelText = normalizedName;
+      } else if (STATE.labelMode === 'number') {
+        labelText = String(figIndex + 1);
+      }
+      if (labelText) {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('x', figW / 2);
         text.setAttribute('y', figH + 16);
         text.setAttribute('text-anchor', 'middle');
         text.setAttribute('font-size', '16');
         text.setAttribute('font-family', 'system-ui, sans-serif');
-        text.textContent = name;
+        text.textContent = labelText;
         g.appendChild(text);
       }
       svg.appendChild(g);
@@ -506,6 +582,7 @@
     STATE.offset = true;
     STATE.showGrid = true;
     STATE.colorCount = 1;
+    STATE.labelMode = 'name';
     STATE.colors = [];
     modifiedColorIndexes.clear();
     autoPaletteEnabled = true;
