@@ -3,27 +3,46 @@
    ========================================================= */
 const CFG = {
   SIMPLE: {
-    height: { cells: 16, handle: 5, show: true, showHandle: true }, // rader, horisontal deling (fra bunn)
-    length: { cells: 17, handle: 3, show: true, showHandle: true }, // kolonner, vertikal deling (fra venstre)
+    height: {
+      cells: 16,
+      handle: 5,
+      show: true,
+      showHandle: true
+    },
+    // rader, horisontal deling (fra bunn)
+    length: {
+      cells: 17,
+      handle: 3,
+      show: true,
+      showHandle: true
+    } // kolonner, vertikal deling (fra venstre)
   },
   ADV: {
     svgId: "area",
     unit: 40,
-    margins: { l: 80, r: 40, t: 40, b: 120 },
-
+    margins: {
+      l: 80,
+      r: 40,
+      t: 40,
+      b: 120
+    },
     grid: false,
     splitLines: true,
     clickToMove: true,
-    drag: { vertical: true, horizontal: true },
-    limits: { minColsEachSide: 1, minRowsEachSide: 1 },
-
+    drag: {
+      vertical: true,
+      horizontal: true
+    },
+    limits: {
+      minColsEachSide: 1,
+      minRowsEachSide: 1
+    },
     // Håndtak (piler)
     handleIcons: {
-      vert:  "https://test.kikora.no/img/drive/figures/UIclientObjects/arrows/moveV.svg",
+      vert: "https://test.kikora.no/img/drive/figures/UIclientObjects/arrows/moveV.svg",
       horiz: "https://test.kikora.no/img/drive/figures/UIclientObjects/arrows/moveH.svg",
       size: 84
     },
-
     classes: {
       outer: "outer",
       grid: "grid",
@@ -31,31 +50,36 @@ const CFG = {
       handle: "handleImg",
       labelCell: "labelCell",
       labelEdge: "labelEdge",
-      cells: ["c1","c2","c3","c4"]
+      cells: ["c1", "c2", "c3", "c4"]
     },
-
     colors: ["#e07c7c", "#f0c667", "#7fb2d6", "#8bb889"],
-
     fit: {
       maxVh: 100,
       maxVw: 100,
-      safePad: { top: 8, right: 8, bottom: 64, left: 8 } // ekstra plass i vinduet
+      safePad: {
+        top: 8,
+        right: 8,
+        bottom: 64,
+        left: 8
+      } // ekstra plass i vinduet
     },
-
     labels: {
-      cellMode: "factors",   // "factors" | "area" | "both" | "none"
-      edgeMode: "counts",    // "counts" | "none"
-      edgeInside: false,     // utenfor rektangelet
+      cellMode: "factors",
+      // "factors" | "area" | "both" | "none"
+      edgeMode: "counts",
+      // "counts" | "none"
+      edgeInside: false,
+      // utenfor rektangelet
       dot: " · ",
       equals: " = "
     },
-
-    check: { ten: 10 },
-
+    check: {
+      ten: 10
+    },
     export: {
       filename: "arealmodell_interaktiv.svg",
       includeGrid: false,
-      includeHandlesIfHidden: true,
+      includeHandlesIfHidden: true
       // valgfri – brukes hvis satt:
       // filenameHtml: "arealmodell_interaktiv.html"
     }
@@ -63,140 +87,137 @@ const CFG = {
 };
 const DEFAULT_SIMPLE_CFG = JSON.parse(JSON.stringify(CFG.SIMPLE));
 const DEFAULT_ADV_CFG = JSON.parse(JSON.stringify(CFG.ADV));
-
-function ensureCfgDefaults(){
-  const fill = (target, defaults)=>{
-    if(!defaults || typeof defaults !== 'object') return;
+function ensureCfgDefaults() {
+  const fill = (target, defaults) => {
+    if (!defaults || typeof defaults !== 'object') return;
     Object.keys(defaults).forEach(key => {
       const defVal = defaults[key];
       const curVal = target[key];
-      if(defVal && typeof defVal === 'object' && !Array.isArray(defVal)){
-        if(!curVal || typeof curVal !== 'object'){
-          target[key] = Array.isArray(defVal) ? defVal.slice() : {...defVal};
+      if (defVal && typeof defVal === 'object' && !Array.isArray(defVal)) {
+        if (!curVal || typeof curVal !== 'object') {
+          target[key] = Array.isArray(defVal) ? defVal.slice() : {
+            ...defVal
+          };
         }
         fill(target[key], defVal);
-      }else if(!(key in target)){
+      } else if (!(key in target)) {
         target[key] = Array.isArray(defVal) ? defVal.slice() : defVal;
       }
     });
   };
-  if(!CFG.SIMPLE || typeof CFG.SIMPLE !== 'object') CFG.SIMPLE = {};
-  if(!CFG.ADV || typeof CFG.ADV !== 'object') CFG.ADV = {};
+  if (!CFG.SIMPLE || typeof CFG.SIMPLE !== 'object') CFG.SIMPLE = {};
+  if (!CFG.ADV || typeof CFG.ADV !== 'object') CFG.ADV = {};
   fill(CFG.SIMPLE, DEFAULT_SIMPLE_CFG);
   fill(CFG.ADV, DEFAULT_ADV_CFG);
 }
 /* ========================================================= */
 
-function readConfigFromHtml(){
+function readConfigFromHtml() {
+  var _document$getElementB, _document$getElementB2, _document$getElementB3, _document$getElementB4, _document$getElementB5, _document$getElementB6, _document$getElementB7, _document$getElementB8, _document$getElementB9, _document$getElementB0, _document$getElementB1, _document$getElementB10;
   ensureCfgDefaults();
-  const height = parseInt(document.getElementById("height")?.value,10);
-  if(Number.isFinite(height)) CFG.SIMPLE.height.cells = height;
-  const length = parseInt(document.getElementById("length")?.value,10);
-  if(Number.isFinite(length)) CFG.SIMPLE.length.cells = length;
-  const hStart = parseInt(document.getElementById("heightStart")?.value,10);
-  if(Number.isFinite(hStart)) CFG.SIMPLE.height.handle = hStart;
-  const lStart = parseInt(document.getElementById("lengthStart")?.value,10);
-  if(Number.isFinite(lStart)) CFG.SIMPLE.length.handle = lStart;
-  CFG.SIMPLE.height.showHandle = document.getElementById("showHeightHandle")?.checked ?? CFG.SIMPLE.height.showHandle;
-  CFG.SIMPLE.length.showHandle = document.getElementById("showLengthHandle")?.checked ?? CFG.SIMPLE.length.showHandle;
-  CFG.ADV.grid = document.getElementById("grid")?.checked ?? CFG.ADV.grid;
-  CFG.ADV.splitLines = document.getElementById("splitLines")?.checked ?? CFG.ADV.splitLines;
+  const height = parseInt((_document$getElementB = document.getElementById("height")) === null || _document$getElementB === void 0 ? void 0 : _document$getElementB.value, 10);
+  if (Number.isFinite(height)) CFG.SIMPLE.height.cells = height;
+  const length = parseInt((_document$getElementB2 = document.getElementById("length")) === null || _document$getElementB2 === void 0 ? void 0 : _document$getElementB2.value, 10);
+  if (Number.isFinite(length)) CFG.SIMPLE.length.cells = length;
+  const hStart = parseInt((_document$getElementB3 = document.getElementById("heightStart")) === null || _document$getElementB3 === void 0 ? void 0 : _document$getElementB3.value, 10);
+  if (Number.isFinite(hStart)) CFG.SIMPLE.height.handle = hStart;
+  const lStart = parseInt((_document$getElementB4 = document.getElementById("lengthStart")) === null || _document$getElementB4 === void 0 ? void 0 : _document$getElementB4.value, 10);
+  if (Number.isFinite(lStart)) CFG.SIMPLE.length.handle = lStart;
+  CFG.SIMPLE.height.showHandle = (_document$getElementB5 = (_document$getElementB6 = document.getElementById("showHeightHandle")) === null || _document$getElementB6 === void 0 ? void 0 : _document$getElementB6.checked) !== null && _document$getElementB5 !== void 0 ? _document$getElementB5 : CFG.SIMPLE.height.showHandle;
+  CFG.SIMPLE.length.showHandle = (_document$getElementB7 = (_document$getElementB8 = document.getElementById("showLengthHandle")) === null || _document$getElementB8 === void 0 ? void 0 : _document$getElementB8.checked) !== null && _document$getElementB7 !== void 0 ? _document$getElementB7 : CFG.SIMPLE.length.showHandle;
+  CFG.ADV.grid = (_document$getElementB9 = (_document$getElementB0 = document.getElementById("grid")) === null || _document$getElementB0 === void 0 ? void 0 : _document$getElementB0.checked) !== null && _document$getElementB9 !== void 0 ? _document$getElementB9 : CFG.ADV.grid;
+  CFG.ADV.splitLines = (_document$getElementB1 = (_document$getElementB10 = document.getElementById("splitLines")) === null || _document$getElementB10 === void 0 ? void 0 : _document$getElementB10.checked) !== null && _document$getElementB1 !== void 0 ? _document$getElementB1 : CFG.ADV.splitLines;
 }
-
-function draw(){
+function draw() {
+  var _SV$height$cells, _SV$height, _SV$length$cells, _SV$length, _ADV$check$ten, _ADV$check, _ADV$handleIcons$size, _ADV$handleIcons, _ADV$margins$l, _ADV$margins, _ADV$margins$r, _ADV$margins2, _ADV$margins$t, _ADV$margins3, _ADV$margins$b, _ADV$margins4, _ADV$classes$outer, _ADV$classes, _ADV$classes$grid, _ADV$classes2, _ADV$classes$split, _ADV$classes3, _ADV$classes$handle, _ADV$classes4, _ADV$classes$labelCel, _ADV$classes5, _ADV$classes$labelEdg, _ADV$classes6, _ADV$classes$cells, _ADV$classes7, _SV$height2, _SV$length2, _ADV$drag, _ADV$drag2, _ADV$limits$minColsEa, _ADV$limits, _ADV$limits$minRowsEa, _ADV$limits2, _SV$length$handle, _SV$length3, _SV$height$handle, _SV$height3, _SV$height4, _SV$length4, _ADV$handleIcons$hori, _ADV$handleIcons2, _ADV$handleIcons$vert, _ADV$handleIcons3, _ADV$fit$maxVh, _ADV$fit, _ADV$labels$dot, _ADV$labels, _ADV$labels$equals, _ADV$labels2, _ADV$labels$edgeMode, _ADV$labels3, _ADV$labels$cellMode, _ADV$labels4;
   ensureCfgDefaults();
-  const ADV = CFG.ADV, SV = CFG.SIMPLE;
-
+  const ADV = CFG.ADV,
+    SV = CFG.SIMPLE;
   const UNIT = +ADV.unit || 40;
-  const ROWS = Math.max(2, Math.round(SV.height?.cells ?? 16));
-  const COLS = Math.max(2, Math.round(SV.length?.cells ?? 17));
-  const TEN  = Math.max(1, Math.round(ADV.check?.ten ?? 10));
+  const ROWS = Math.max(2, Math.round((_SV$height$cells = (_SV$height = SV.height) === null || _SV$height === void 0 ? void 0 : _SV$height.cells) !== null && _SV$height$cells !== void 0 ? _SV$height$cells : 16));
+  const COLS = Math.max(2, Math.round((_SV$length$cells = (_SV$length = SV.length) === null || _SV$length === void 0 ? void 0 : _SV$length.cells) !== null && _SV$length$cells !== void 0 ? _SV$length$cells : 17));
+  const TEN = Math.max(1, Math.round((_ADV$check$ten = (_ADV$check = ADV.check) === null || _ADV$check === void 0 ? void 0 : _ADV$check.ten) !== null && _ADV$check$ten !== void 0 ? _ADV$check$ten : 10));
 
   // spacing for kant-tekst utenfor
-  const EDGE_GAP = { x: 14, y: 32 };
-
-  // pilstørrelse + auto-margin
-  const HANDLE_SIZE = Math.max(12, ADV.handleIcons?.size ?? 84);
-  const MLconf = ADV.margins?.l ?? 80;
-  const MR = ADV.margins?.r ?? 40;
-  const MT = ADV.margins?.t ?? 40;
-  const MBconf = ADV.margins?.b ?? 120;
-
-  const ML = Math.max(MLconf, HANDLE_SIZE / 2 + 18);
-  const MB = Math.max(MBconf, HANDLE_SIZE / 2 + EDGE_GAP.y + 18);
-
-  const W = COLS * UNIT, H = ROWS * UNIT;
-  const VBW = ML + W + MR, VBH = MT + H + MB;
-
-  const classes = {
-    outer: ADV.classes?.outer ?? "outer",
-    grid: ADV.classes?.grid ?? "grid",
-    split: ADV.classes?.split ?? "split",
-    handle: ADV.classes?.handle ?? "handleImg",
-    labelCell: ADV.classes?.labelCell ?? "labelCell",
-    labelEdge: ADV.classes?.labelEdge ?? "labelEdge",
-    cells: ADV.classes?.cells ?? ["c1","c2","c3","c4"]
+  const EDGE_GAP = {
+    x: 14,
+    y: 32
   };
 
-  const showGrid       = ADV.grid !== false;
-  const clickToMove    = ADV.clickToMove !== false;
-  const showHeightAxis = SV.height?.show !== false;
-  const showLengthAxis = SV.length?.show !== false;
-
-  const dragVertical   = showHeightAxis && (ADV.drag?.vertical   !== false);
-  const dragHorizontal = showLengthAxis && (ADV.drag?.horizontal !== false);
-
+  // pilstørrelse + auto-margin
+  const HANDLE_SIZE = Math.max(12, (_ADV$handleIcons$size = (_ADV$handleIcons = ADV.handleIcons) === null || _ADV$handleIcons === void 0 ? void 0 : _ADV$handleIcons.size) !== null && _ADV$handleIcons$size !== void 0 ? _ADV$handleIcons$size : 84);
+  const MLconf = (_ADV$margins$l = (_ADV$margins = ADV.margins) === null || _ADV$margins === void 0 ? void 0 : _ADV$margins.l) !== null && _ADV$margins$l !== void 0 ? _ADV$margins$l : 80;
+  const MR = (_ADV$margins$r = (_ADV$margins2 = ADV.margins) === null || _ADV$margins2 === void 0 ? void 0 : _ADV$margins2.r) !== null && _ADV$margins$r !== void 0 ? _ADV$margins$r : 40;
+  const MT = (_ADV$margins$t = (_ADV$margins3 = ADV.margins) === null || _ADV$margins3 === void 0 ? void 0 : _ADV$margins3.t) !== null && _ADV$margins$t !== void 0 ? _ADV$margins$t : 40;
+  const MBconf = (_ADV$margins$b = (_ADV$margins4 = ADV.margins) === null || _ADV$margins4 === void 0 ? void 0 : _ADV$margins4.b) !== null && _ADV$margins$b !== void 0 ? _ADV$margins$b : 120;
+  const ML = Math.max(MLconf, HANDLE_SIZE / 2 + 18);
+  const MB = Math.max(MBconf, HANDLE_SIZE / 2 + EDGE_GAP.y + 18);
+  const W = COLS * UNIT,
+    H = ROWS * UNIT;
+  const VBW = ML + W + MR,
+    VBH = MT + H + MB;
+  const classes = {
+    outer: (_ADV$classes$outer = (_ADV$classes = ADV.classes) === null || _ADV$classes === void 0 ? void 0 : _ADV$classes.outer) !== null && _ADV$classes$outer !== void 0 ? _ADV$classes$outer : "outer",
+    grid: (_ADV$classes$grid = (_ADV$classes2 = ADV.classes) === null || _ADV$classes2 === void 0 ? void 0 : _ADV$classes2.grid) !== null && _ADV$classes$grid !== void 0 ? _ADV$classes$grid : "grid",
+    split: (_ADV$classes$split = (_ADV$classes3 = ADV.classes) === null || _ADV$classes3 === void 0 ? void 0 : _ADV$classes3.split) !== null && _ADV$classes$split !== void 0 ? _ADV$classes$split : "split",
+    handle: (_ADV$classes$handle = (_ADV$classes4 = ADV.classes) === null || _ADV$classes4 === void 0 ? void 0 : _ADV$classes4.handle) !== null && _ADV$classes$handle !== void 0 ? _ADV$classes$handle : "handleImg",
+    labelCell: (_ADV$classes$labelCel = (_ADV$classes5 = ADV.classes) === null || _ADV$classes5 === void 0 ? void 0 : _ADV$classes5.labelCell) !== null && _ADV$classes$labelCel !== void 0 ? _ADV$classes$labelCel : "labelCell",
+    labelEdge: (_ADV$classes$labelEdg = (_ADV$classes6 = ADV.classes) === null || _ADV$classes6 === void 0 ? void 0 : _ADV$classes6.labelEdge) !== null && _ADV$classes$labelEdg !== void 0 ? _ADV$classes$labelEdg : "labelEdge",
+    cells: (_ADV$classes$cells = (_ADV$classes7 = ADV.classes) === null || _ADV$classes7 === void 0 ? void 0 : _ADV$classes7.cells) !== null && _ADV$classes$cells !== void 0 ? _ADV$classes$cells : ["c1", "c2", "c3", "c4"]
+  };
+  const showGrid = ADV.grid !== false;
+  const clickToMove = ADV.clickToMove !== false;
+  const showHeightAxis = ((_SV$height2 = SV.height) === null || _SV$height2 === void 0 ? void 0 : _SV$height2.show) !== false;
+  const showLengthAxis = ((_SV$length2 = SV.length) === null || _SV$length2 === void 0 ? void 0 : _SV$length2.show) !== false;
+  const dragVertical = showHeightAxis && ((_ADV$drag = ADV.drag) === null || _ADV$drag === void 0 ? void 0 : _ADV$drag.vertical) !== false;
+  const dragHorizontal = showLengthAxis && ((_ADV$drag2 = ADV.drag) === null || _ADV$drag2 === void 0 ? void 0 : _ADV$drag2.horizontal) !== false;
   const splitLinesOn = ADV.splitLines !== false;
   const showHLine = splitLinesOn && showHeightAxis;
   const showVLine = splitLinesOn && showLengthAxis;
-
-  const minColsEachSide = Math.max(1, ADV.limits?.minColsEachSide ?? 1);
-  const minRowsEachSide = Math.max(1, ADV.limits?.minRowsEachSide ?? 1);
-
-  const initLeftCols   = (SV.length?.handle ?? Math.floor(COLS/2));
-  const initBottomRows = (SV.height?.handle ?? Math.floor(ROWS/2));
-
-  const showLeftHandle   = showHeightAxis && (SV.height?.showHandle !== false);
-  const showBottomHandle = showLengthAxis && (SV.length?.showHandle !== false);
+  const minColsEachSide = Math.max(1, (_ADV$limits$minColsEa = (_ADV$limits = ADV.limits) === null || _ADV$limits === void 0 ? void 0 : _ADV$limits.minColsEachSide) !== null && _ADV$limits$minColsEa !== void 0 ? _ADV$limits$minColsEa : 1);
+  const minRowsEachSide = Math.max(1, (_ADV$limits$minRowsEa = (_ADV$limits2 = ADV.limits) === null || _ADV$limits2 === void 0 ? void 0 : _ADV$limits2.minRowsEachSide) !== null && _ADV$limits$minRowsEa !== void 0 ? _ADV$limits$minRowsEa : 1);
+  const initLeftCols = (_SV$length$handle = (_SV$length3 = SV.length) === null || _SV$length3 === void 0 ? void 0 : _SV$length3.handle) !== null && _SV$length$handle !== void 0 ? _SV$length$handle : Math.floor(COLS / 2);
+  const initBottomRows = (_SV$height$handle = (_SV$height3 = SV.height) === null || _SV$height3 === void 0 ? void 0 : _SV$height3.handle) !== null && _SV$height$handle !== void 0 ? _SV$height$handle : Math.floor(ROWS / 2);
+  const showLeftHandle = showHeightAxis && ((_SV$height4 = SV.height) === null || _SV$height4 === void 0 ? void 0 : _SV$height4.showHandle) !== false;
+  const showBottomHandle = showLengthAxis && ((_SV$length4 = SV.length) === null || _SV$length4 === void 0 ? void 0 : _SV$length4.showHandle) !== false;
 
   // helpers
-  const NS  = "http://www.w3.org/2000/svg";
-  const el  = n => document.createElementNS(NS, n);
-  const set = (node, n, v) => { node.setAttribute(n, v); return node; };
-  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
-  const clampInt = (v,a,b)=>Math.max(a,Math.min(b,Math.round(v)));
-  const snap  = v => Math.round(v/UNIT)*UNIT;
-
-  const minX = ML + minColsEachSide*UNIT;
-  const maxX = ML + W  - minColsEachSide*UNIT;
-  const minY = MT + minRowsEachSide*UNIT;
-  const maxY = MT + H  - minRowsEachSide*UNIT;
-
-  const H_ICON_URL  = ADV.handleIcons?.horiz ?? "";
-  const V_ICON_URL  = ADV.handleIcons?.vert  ?? "";
+  const NS = "http://www.w3.org/2000/svg";
+  const el = n => document.createElementNS(NS, n);
+  const set = (node, n, v) => {
+    node.setAttribute(n, v);
+    return node;
+  };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const clampInt = (v, a, b) => Math.max(a, Math.min(b, Math.round(v)));
+  const snap = v => Math.round(v / UNIT) * UNIT;
+  const minX = ML + minColsEachSide * UNIT;
+  const maxX = ML + W - minColsEachSide * UNIT;
+  const minY = MT + minRowsEachSide * UNIT;
+  const maxY = MT + H - minRowsEachSide * UNIT;
+  const H_ICON_URL = (_ADV$handleIcons$hori = (_ADV$handleIcons2 = ADV.handleIcons) === null || _ADV$handleIcons2 === void 0 ? void 0 : _ADV$handleIcons2.horiz) !== null && _ADV$handleIcons$hori !== void 0 ? _ADV$handleIcons$hori : "";
+  const V_ICON_URL = (_ADV$handleIcons$vert = (_ADV$handleIcons3 = ADV.handleIcons) === null || _ADV$handleIcons3 === void 0 ? void 0 : _ADV$handleIcons3.vert) !== null && _ADV$handleIcons$vert !== void 0 ? _ADV$handleIcons$vert : "";
 
   // state
-  let sx = clampInt(initLeftCols,   1, COLS-1) * UNIT;
-  let sy = clampInt(initBottomRows, 1, ROWS-1) * UNIT;
+  let sx = clampInt(initLeftCols, 1, COLS - 1) * UNIT;
+  let sy = clampInt(initBottomRows, 1, ROWS - 1) * UNIT;
   let lastSyncedLeft = null;
   let lastSyncedBottom = null;
-
-  function syncSimpleHandles(){
-    const leftCols = Math.round(sx/UNIT);
-    const bottomRows = Math.round(sy/UNIT);
-    if(leftCols === lastSyncedLeft && bottomRows === lastSyncedBottom) return;
+  function syncSimpleHandles() {
+    const leftCols = Math.round(sx / UNIT);
+    const bottomRows = Math.round(sy / UNIT);
+    if (leftCols === lastSyncedLeft && bottomRows === lastSyncedBottom) return;
     lastSyncedLeft = leftCols;
     lastSyncedBottom = bottomRows;
-    if(!CFG.SIMPLE.length) CFG.SIMPLE.length = {};
-    if(!CFG.SIMPLE.height) CFG.SIMPLE.height = {};
+    if (!CFG.SIMPLE.length) CFG.SIMPLE.length = {};
+    if (!CFG.SIMPLE.height) CFG.SIMPLE.height = {};
     CFG.SIMPLE.length.handle = leftCols;
     CFG.SIMPLE.height.handle = bottomRows;
     const lengthStart = document.getElementById('lengthStart');
-    if(lengthStart) lengthStart.value = String(leftCols);
+    if (lengthStart) lengthStart.value = String(leftCols);
     const heightStart = document.getElementById('heightStart');
-    if(heightStart) heightStart.value = String(bottomRows);
+    if (heightStart) heightStart.value = String(bottomRows);
   }
-
   injectRuntimeStyles();
 
   // DOM
@@ -205,48 +226,84 @@ function draw(){
   set(svg, "viewBox", `0 0 ${VBW} ${VBH}`);
   set(svg, "preserveAspectRatio", "xMidYMid meet");
   Object.assign(svg.style, {
-    maxHeight: (ADV.fit?.maxVh ?? 100) + "vh",
+    maxHeight: ((_ADV$fit$maxVh = (_ADV$fit = ADV.fit) === null || _ADV$fit === void 0 ? void 0 : _ADV$fit.maxVh) !== null && _ADV$fit$maxVh !== void 0 ? _ADV$fit$maxVh : 100) + "vh",
     maxWidth: "100%",
     display: "block",
     touchAction: "none"
   });
-
   const rectOuter = el("rect");
-  set(rectOuter,"x",ML); set(rectOuter,"y",MT);
-  set(rectOuter,"width",W); set(rectOuter,"height",H);
-  set(rectOuter,"class",classes.outer);
+  set(rectOuter, "x", ML);
+  set(rectOuter, "y", MT);
+  set(rectOuter, "width", W);
+  set(rectOuter, "height", H);
+  set(rectOuter, "class", classes.outer);
   svg.appendChild(rectOuter);
-
-  const defs = el("defs"); svg.appendChild(defs);
-  const clip = el("clipPath"); set(clip,"id","clipR");
+  const defs = el("defs");
+  svg.appendChild(defs);
+  const clip = el("clipPath");
+  set(clip, "id", "clipR");
   const clipRect = el("rect");
-  set(clipRect,"x",ML); set(clipRect,"y",MT); set(clipRect,"width",W); set(clipRect,"height",H);
-  clip.appendChild(clipRect); defs.appendChild(clip);
-
-  const rTL = el("rect"), rTR = el("rect"), rBL = el("rect"), rBR = el("rect");
-  set(rTL,"class",classes.cells[0]); set(rTR,"class",classes.cells[1]);
-  set(rBL,"class",classes.cells[2]); set(rBR,"class",classes.cells[3]);
-  svg.append(rTL,rTR,rBL,rBR);
-
-  const gridGroup = el("g"); set(gridGroup,"class",classes.grid); set(gridGroup,"clip-path","url(#clipR)");
+  set(clipRect, "x", ML);
+  set(clipRect, "y", MT);
+  set(clipRect, "width", W);
+  set(clipRect, "height", H);
+  clip.appendChild(clipRect);
+  defs.appendChild(clip);
+  const rTL = el("rect"),
+    rTR = el("rect"),
+    rBL = el("rect"),
+    rBR = el("rect");
+  set(rTL, "class", classes.cells[0]);
+  set(rTR, "class", classes.cells[1]);
+  set(rBL, "class", classes.cells[2]);
+  set(rBR, "class", classes.cells[3]);
+  svg.append(rTL, rTR, rBL, rBR);
+  const gridGroup = el("g");
+  set(gridGroup, "class", classes.grid);
+  set(gridGroup, "clip-path", "url(#clipR)");
   if (showGrid) {
     for (let x = ML + UNIT; x < ML + W; x += UNIT) {
-      const ln = el("line"); set(ln,"x1",x); set(ln,"y1",MT); set(ln,"x2",x); set(ln,"y2",MT+H); gridGroup.appendChild(ln);
+      const ln = el("line");
+      set(ln, "x1", x);
+      set(ln, "y1", MT);
+      set(ln, "x2", x);
+      set(ln, "y2", MT + H);
+      gridGroup.appendChild(ln);
     }
     for (let y = MT + UNIT; y < MT + H; y += UNIT) {
-      const ln = el("line"); set(ln,"x1",ML); set(ln,"y1",y); set(ln,"x2",ML+W); set(ln,"y2",y); gridGroup.appendChild(ln);
+      const ln = el("line");
+      set(ln, "x1", ML);
+      set(ln, "y1", y);
+      set(ln, "x2", ML + W);
+      set(ln, "y2", y);
+      gridGroup.appendChild(ln);
     }
   }
   svg.appendChild(gridGroup);
 
   // delingslinjer
-  let vLine=null,hLine=null;
-  if (showVLine) { vLine = el("line"); set(vLine,"class",classes.split); svg.append(vLine); }
-  if (showHLine) { hLine = el("line"); set(hLine,"class",classes.split); svg.append(hLine); }
+  let vLine = null,
+    hLine = null;
+  if (showVLine) {
+    vLine = el("line");
+    set(vLine, "class", classes.split);
+    svg.append(vLine);
+  }
+  if (showHLine) {
+    hLine = el("line");
+    set(hLine, "class", classes.split);
+    svg.append(hLine);
+  }
 
   // håndtak + hit-soner + tastaturoverlay
-  let handleLeft = null, handleDown = null, hitLeft = null, hitDown = null,
-      a11yLeft = null, a11yLeftRect = null, a11yDown = null, a11yDownRect = null;
+  let handleLeft = null,
+    handleDown = null,
+    hitLeft = null,
+    hitDown = null,
+    a11yLeft = null,
+    a11yLeftRect = null,
+    a11yDown = null,
+    a11yDownRect = null;
   if (showLeftHandle) {
     handleLeft = el("image");
     set(handleLeft, "class", classes.handle);
@@ -254,12 +311,10 @@ function draw(){
     set(handleLeft, "height", HANDLE_SIZE);
     set(handleLeft, "href", V_ICON_URL);
     svg.append(handleLeft);
-
     hitLeft = el("circle");
     set(hitLeft, "class", "handleHit");
-    set(hitLeft, "r", (HANDLE_SIZE*0.55));
+    set(hitLeft, "r", HANDLE_SIZE * 0.55);
     svg.append(hitLeft);
-
     a11yLeft = el("g");
     set(a11yLeft, "class", "handleOverlay");
     set(a11yLeft, "tabindex", "0");
@@ -282,12 +337,10 @@ function draw(){
     set(handleDown, "height", HANDLE_SIZE);
     set(handleDown, "href", H_ICON_URL);
     svg.append(handleDown);
-
     hitDown = el("circle");
     set(hitDown, "class", "handleHit");
-    set(hitDown, "r", (HANDLE_SIZE*0.55));
+    set(hitDown, "r", HANDLE_SIZE * 0.55);
     svg.append(hitDown);
-
     a11yDown = el("g");
     set(a11yDown, "class", "handleOverlay");
     set(a11yDown, "tabindex", "0");
@@ -305,176 +358,272 @@ function draw(){
   }
 
   // tekster
-  const tTL = el("text"), tTR = el("text"), tBL = el("text"), tBR = el("text");
-  [tTL,tTR,tBL,tBR].forEach(t=>{ set(t,"class",classes.labelCell); set(t,"text-anchor","middle"); });
-
-  const leftTop  = el("text"), leftBot  = el("text"), botLeft = el("text"), botRight = el("text");
-  set(leftTop ,'class',classes.labelEdge);  set(leftTop ,'text-anchor', "end");
-  set(leftBot ,'class',classes.labelEdge);  set(leftBot ,'text-anchor', "end");
-  set(botLeft ,'class',classes.labelEdge);  set(botLeft ,'text-anchor',"middle");
-  set(botRight,'class',classes.labelEdge);  set(botRight,'text-anchor',"middle");
-  svg.append(tTL,tTR,tBL,tBR,leftTop,leftBot,botLeft,botRight);
-
-  const dot    = ADV.labels?.dot ?? " · ";
-  const equals = ADV.labels?.equals ?? " = ";
-  const edgeOn = (ADV.labels?.edgeMode ?? "counts") === "counts";
-  const cellMode = ADV.labels?.cellMode ?? "factors";
-  function formatCellLabel(w,h){
-    if (cellMode === "none")   return "";
-    if (cellMode === "factors")return `${w}${dot}${h}`;
-    if (cellMode === "area")   return `${w*h}`;
-    return `${w}${dot}${h}${equals}${w*h}`;
+  const tTL = el("text"),
+    tTR = el("text"),
+    tBL = el("text"),
+    tBR = el("text");
+  [tTL, tTR, tBL, tBR].forEach(t => {
+    set(t, "class", classes.labelCell);
+    set(t, "text-anchor", "middle");
+  });
+  const leftTop = el("text"),
+    leftBot = el("text"),
+    botLeft = el("text"),
+    botRight = el("text");
+  set(leftTop, 'class', classes.labelEdge);
+  set(leftTop, 'text-anchor', "end");
+  set(leftBot, 'class', classes.labelEdge);
+  set(leftBot, 'text-anchor', "end");
+  set(botLeft, 'class', classes.labelEdge);
+  set(botLeft, 'text-anchor', "middle");
+  set(botRight, 'class', classes.labelEdge);
+  set(botRight, 'text-anchor', "middle");
+  svg.append(tTL, tTR, tBL, tBR, leftTop, leftBot, botLeft, botRight);
+  const dot = (_ADV$labels$dot = (_ADV$labels = ADV.labels) === null || _ADV$labels === void 0 ? void 0 : _ADV$labels.dot) !== null && _ADV$labels$dot !== void 0 ? _ADV$labels$dot : " · ";
+  const equals = (_ADV$labels$equals = (_ADV$labels2 = ADV.labels) === null || _ADV$labels2 === void 0 ? void 0 : _ADV$labels2.equals) !== null && _ADV$labels$equals !== void 0 ? _ADV$labels$equals : " = ";
+  const edgeOn = ((_ADV$labels$edgeMode = (_ADV$labels3 = ADV.labels) === null || _ADV$labels3 === void 0 ? void 0 : _ADV$labels3.edgeMode) !== null && _ADV$labels$edgeMode !== void 0 ? _ADV$labels$edgeMode : "counts") === "counts";
+  const cellMode = (_ADV$labels$cellMode = (_ADV$labels4 = ADV.labels) === null || _ADV$labels4 === void 0 ? void 0 : _ADV$labels4.cellMode) !== null && _ADV$labels$cellMode !== void 0 ? _ADV$labels$cellMode : "factors";
+  function formatCellLabel(w, h) {
+    if (cellMode === "none") return "";
+    if (cellMode === "factors") return `${w}${dot}${h}`;
+    if (cellMode === "area") return `${w * h}`;
+    return `${w}${dot}${h}${equals}${w * h}`;
   }
 
   // ------- Rask mapping: klient → viewBox -------
   let svgRect = svg.getBoundingClientRect();
-  function clientToSvg(e){
+  function clientToSvg(e) {
     const vb = svg.viewBox.baseVal;
-    const sx = vb.width  / svgRect.width;
+    const sx = vb.width / svgRect.width;
     const sy = vb.height / svgRect.height;
     return {
       x: vb.x + (e.clientX - svgRect.left) * sx,
-      y: vb.y + (e.clientY - svgRect.top ) * sy
+      y: vb.y + (e.clientY - svgRect.top) * sy
     };
   }
-  function refreshSvgRect(){ svgRect = svg.getBoundingClientRect(); }
+  function refreshSvgRect() {
+    svgRect = svg.getBoundingClientRect();
+  }
 
   // ------- rAF-basert redraw -------
   let rafId = 0;
-  function scheduleRedraw(){
+  function scheduleRedraw() {
     if (rafId) return;
-    rafId = requestAnimationFrame(() => { rafId = 0; redraw(); });
+    rafId = requestAnimationFrame(() => {
+      rafId = 0;
+      redraw();
+    });
   }
-
-  function redraw(){
-    const wL = Math.round(sx/UNIT), wR = COLS - wL;
-    const hB = Math.round(sy/UNIT), hT = ROWS - hB;
-
-    set(rTL,"x",ML); set(rTL,"y",MT); set(rTL,"width",sx); set(rTL,"height",H-sy);
-    set(rTR,"x",ML+sx); set(rTR,"y",MT); set(rTR,"width",W-sx); set(rTR,"height",H-sy);
-    set(rBL,"x",ML); set(rBL,"y",MT+(H-sy)); set(rBL,"width",sx); set(rBL,"height",sy);
-    set(rBR,"x",ML+sx); set(rBR,"y",MT+(H-sy)); set(rBR,"width",W-sx); set(rBR,"height",sy);
-
-    if (vLine) { set(vLine,"x1",ML+sx); set(vLine,"y1",MT); set(vLine,"x2",ML+sx); set(vLine,"y2",MT+H); }
-    if (hLine) { set(hLine,"x1",ML); set(hLine,"y1",MT+(H-sy)); set(hLine,"x2",ML+W); set(hLine,"y2",MT+(H-sy)); }
-
-    const hLeftCX = ML,      hLeftCY = MT + (H - sy);
-    const hDownCX = ML + sx, hDownCY = MT + H;
-
-    if (handleLeft) { set(handleLeft, "x", hLeftCX - HANDLE_SIZE/2); set(handleLeft, "y", hLeftCY - HANDLE_SIZE/2); }
-    if (handleDown) { set(handleDown, "x", hDownCX - HANDLE_SIZE/2); set(handleDown, "y", hDownCY - HANDLE_SIZE/2); }
-    if (hitLeft)    { set(hitLeft,    "cx", hLeftCX); set(hitLeft,    "cy", hLeftCY); }
-    if (hitDown)    { set(hitDown,    "cx", hDownCX); set(hitDown,    "cy", hDownCY); }
-
-    if (a11yLeftRect) { set(a11yLeftRect, "x", hLeftCX - HANDLE_SIZE/2); set(a11yLeftRect, "y", hLeftCY - HANDLE_SIZE/2); }
+  function redraw() {
+    const wL = Math.round(sx / UNIT),
+      wR = COLS - wL;
+    const hB = Math.round(sy / UNIT),
+      hT = ROWS - hB;
+    set(rTL, "x", ML);
+    set(rTL, "y", MT);
+    set(rTL, "width", sx);
+    set(rTL, "height", H - sy);
+    set(rTR, "x", ML + sx);
+    set(rTR, "y", MT);
+    set(rTR, "width", W - sx);
+    set(rTR, "height", H - sy);
+    set(rBL, "x", ML);
+    set(rBL, "y", MT + (H - sy));
+    set(rBL, "width", sx);
+    set(rBL, "height", sy);
+    set(rBR, "x", ML + sx);
+    set(rBR, "y", MT + (H - sy));
+    set(rBR, "width", W - sx);
+    set(rBR, "height", sy);
+    if (vLine) {
+      set(vLine, "x1", ML + sx);
+      set(vLine, "y1", MT);
+      set(vLine, "x2", ML + sx);
+      set(vLine, "y2", MT + H);
+    }
+    if (hLine) {
+      set(hLine, "x1", ML);
+      set(hLine, "y1", MT + (H - sy));
+      set(hLine, "x2", ML + W);
+      set(hLine, "y2", MT + (H - sy));
+    }
+    const hLeftCX = ML,
+      hLeftCY = MT + (H - sy);
+    const hDownCX = ML + sx,
+      hDownCY = MT + H;
+    if (handleLeft) {
+      set(handleLeft, "x", hLeftCX - HANDLE_SIZE / 2);
+      set(handleLeft, "y", hLeftCY - HANDLE_SIZE / 2);
+    }
+    if (handleDown) {
+      set(handleDown, "x", hDownCX - HANDLE_SIZE / 2);
+      set(handleDown, "y", hDownCY - HANDLE_SIZE / 2);
+    }
+    if (hitLeft) {
+      set(hitLeft, "cx", hLeftCX);
+      set(hitLeft, "cy", hLeftCY);
+    }
+    if (hitDown) {
+      set(hitDown, "cx", hDownCX);
+      set(hitDown, "cy", hDownCY);
+    }
+    if (a11yLeftRect) {
+      set(a11yLeftRect, "x", hLeftCX - HANDLE_SIZE / 2);
+      set(a11yLeftRect, "y", hLeftCY - HANDLE_SIZE / 2);
+    }
     if (a11yLeft) {
       set(a11yLeft, "aria-valuenow", hB);
       set(a11yLeft, "aria-valuetext", `${hB} nederst, ${hT} øverst`);
     }
-    if (a11yDownRect) { set(a11yDownRect, "x", hDownCX - HANDLE_SIZE/2); set(a11yDownRect, "y", hDownCY - HANDLE_SIZE/2); }
+    if (a11yDownRect) {
+      set(a11yDownRect, "x", hDownCX - HANDLE_SIZE / 2);
+      set(a11yDownRect, "y", hDownCY - HANDLE_SIZE / 2);
+    }
     if (a11yDown) {
       set(a11yDown, "aria-valuenow", wL);
       set(a11yDown, "aria-valuetext", `${wL} venstre, ${wR} høyre`);
     }
 
     // cell-etiketter
-    set(tTL,"x",ML + sx/2);               set(tTL,"y",MT + (H - sy)/2 + 8);      tTL.textContent = formatCellLabel(wL, hT);
-    set(tTR,"x",ML + sx + (W - sx)/2);    set(tTR,"y",MT + (H - sy)/2 + 8);      tTR.textContent = formatCellLabel(wR, hT);
-    set(tBL,"x",ML + sx/2);               set(tBL,"y",MT + (H - sy) + sy/2 + 8); tBL.textContent = formatCellLabel(wL, hB);
-    set(tBR,"x",ML + sx + (W - sx)/2);    set(tBR,"y",MT + (H - sy) + sy/2 + 8); tBR.textContent = formatCellLabel(wR, hB);
+    set(tTL, "x", ML + sx / 2);
+    set(tTL, "y", MT + (H - sy) / 2 + 8);
+    tTL.textContent = formatCellLabel(wL, hT);
+    set(tTR, "x", ML + sx + (W - sx) / 2);
+    set(tTR, "y", MT + (H - sy) / 2 + 8);
+    tTR.textContent = formatCellLabel(wR, hT);
+    set(tBL, "x", ML + sx / 2);
+    set(tBL, "y", MT + (H - sy) + sy / 2 + 8);
+    tBL.textContent = formatCellLabel(wL, hB);
+    set(tBR, "x", ML + sx + (W - sx) / 2);
+    set(tBR, "y", MT + (H - sy) + sy / 2 + 8);
+    tBR.textContent = formatCellLabel(wR, hB);
 
     // kant-etiketter (utenfor, med luft)
-    const leftXOutside   = ML - (HANDLE_SIZE/2) - EDGE_GAP.x;
-    const bottomYOutside = MT + H + (HANDLE_SIZE/2) + EDGE_GAP.y;
-
+    const leftXOutside = ML - HANDLE_SIZE / 2 - EDGE_GAP.x;
+    const bottomYOutside = MT + H + HANDLE_SIZE / 2 + EDGE_GAP.y;
     if (edgeOn && showHeightAxis) {
-      set(leftTop,"x",leftXOutside); set(leftTop,"y",MT + (H - sy)/2 + 10);  leftTop.textContent  = `${hT}`;
-      set(leftBot,"x",leftXOutside); set(leftBot,"y",MT + (H - sy) + sy/2 + 10); leftBot.textContent = `${hB}`;
-    } else { leftTop.textContent = leftBot.textContent = ""; }
-
+      set(leftTop, "x", leftXOutside);
+      set(leftTop, "y", MT + (H - sy) / 2 + 10);
+      leftTop.textContent = `${hT}`;
+      set(leftBot, "x", leftXOutside);
+      set(leftBot, "y", MT + (H - sy) + sy / 2 + 10);
+      leftBot.textContent = `${hB}`;
+    } else {
+      leftTop.textContent = leftBot.textContent = "";
+    }
     if (edgeOn && showLengthAxis) {
-      set(botLeft,"x",ML + sx/2);            set(botLeft,"y",bottomYOutside);
-      set(botRight,"x",ML + sx + (W - sx)/2); set(botRight,"y",bottomYOutside);
-      botLeft.textContent  = `${wL}`; botRight.textContent = `${wR}`;
-    } else { botLeft.textContent = botRight.textContent = ""; }
+      set(botLeft, "x", ML + sx / 2);
+      set(botLeft, "y", bottomYOutside);
+      set(botRight, "x", ML + sx + (W - sx) / 2);
+      set(botRight, "y", bottomYOutside);
+      botLeft.textContent = `${wL}`;
+      botRight.textContent = `${wR}`;
+    } else {
+      botLeft.textContent = botRight.textContent = "";
+    }
 
     // “Riktig” – doble linjer når begge sider har en tier
-    const okX = (wL === TEN || wR === TEN);
-    const okY = (hB === TEN || hT === TEN);
-    const on  = okX && okY;
+    const okX = wL === TEN || wR === TEN;
+    const okY = hB === TEN || hT === TEN;
+    const on = okX && okY;
     if (vLine) vLine.setAttribute("class", classes.split + (on ? " ok" : ""));
     if (hLine) hLine.setAttribute("class", classes.split + (on ? " ok" : ""));
 
     // hold håndtak/hit-soner øverst
-    if (handleLeft)  svg.append(handleLeft);
-    if (hitLeft)     svg.append(hitLeft);
-    if (a11yLeft)    svg.append(a11yLeft);
-    if (handleDown)  svg.append(handleDown);
-    if (hitDown)     svg.append(hitDown);
-    if (a11yDown)    svg.append(a11yDown);
-
+    if (handleLeft) svg.append(handleLeft);
+    if (hitLeft) svg.append(hitLeft);
+    if (a11yLeft) svg.append(a11yLeft);
+    if (handleDown) svg.append(handleDown);
+    if (hitDown) svg.append(hitDown);
+    if (a11yDown) svg.append(a11yDown);
     syncSimpleHandles();
   }
 
   // ---- Responsiv skalering ----
-  function fitToViewport(){
-    const SAFE = ADV.fit?.safePad || {top:8,right:8,bottom:64,left:8};
+  function fitToViewport() {
+    var _ADV$fit2;
+    const SAFE = ((_ADV$fit2 = ADV.fit) === null || _ADV$fit2 === void 0 ? void 0 : _ADV$fit2.safePad) || {
+      top: 8,
+      right: 8,
+      bottom: 64,
+      left: 8
+    };
     const availW = Math.max(100, svg.parentElement.clientWidth - (SAFE.left + SAFE.right));
-    const availH = Math.max(100, window.innerHeight - (SAFE.top  + SAFE.bottom));
+    const availH = Math.max(100, window.innerHeight - (SAFE.top + SAFE.bottom));
     const s = Math.min(availW / VBW, availH / VBH);
     const w = VBW * s;
     const h = VBH * s;
-    svg.setAttribute("width",  w);
+    svg.setAttribute("width", w);
     svg.setAttribute("height", h);
     svg.style.width = w + "px";
     svg.style.height = h + "px";
     refreshSvgRect();
   }
-
   redraw();
   fitToViewport();
-  window.addEventListener("resize", fitToViewport, { passive: true });
+  window.addEventListener("resize", fitToViewport, {
+    passive: true
+  });
 
   // ======== DRAGGING – pointer capture + touch-lock + rAF ========
-  let active = { axis: null, pointerId: null, captor: null };
+  let active = {
+    axis: null,
+    pointerId: null,
+    captor: null
+  };
   let justDragged = false;
-  const armJustDragged = ()=>{ justDragged = true; setTimeout(()=>{ justDragged = false; }, 220); };
-
-  function lockTouch(){
+  const armJustDragged = () => {
+    justDragged = true;
+    setTimeout(() => {
+      justDragged = false;
+    }, 220);
+  };
+  function lockTouch() {
     document.documentElement.style.touchAction = "none";
     document.body.style.touchAction = "none";
     document.documentElement.style.overscrollBehavior = "contain";
     document.body.style.overscrollBehavior = "contain";
   }
-  function unlockTouch(){
+  function unlockTouch() {
     document.documentElement.style.touchAction = "";
     document.body.style.touchAction = "";
     document.documentElement.style.overscrollBehavior = "";
     document.body.style.overscrollBehavior = "";
   }
-
-  function onMove(e){
+  function onMove(e) {
     if (e.pointerId !== active.pointerId) return;
     e.preventDefault();
     const p = clientToSvg(e);
     if (active.axis === "v") {
       const y = clamp(p.y, minY, maxY);
       const newSy = MT + H - y;
-      if (newSy !== sy) { sy = newSy; scheduleRedraw(); }
+      if (newSy !== sy) {
+        sy = newSy;
+        scheduleRedraw();
+      }
     } else if (active.axis === "h") {
       const x = clamp(p.x, minX, maxX);
       const newSx = x - ML;
-      if (newSx !== sx) { sx = newSx; scheduleRedraw(); }
+      if (newSx !== sx) {
+        sx = newSx;
+        scheduleRedraw();
+      }
     }
   }
-  function onUp(e){
+  function onUp(e) {
     if (e.pointerId !== active.pointerId) return;
     e.preventDefault();
     if (active.axis === "v") sy = snap(sy);
     if (active.axis === "h") sx = snap(sx);
-    if (active.captor && active.captor.releasePointerCapture) { try { active.captor.releasePointerCapture(e.pointerId); } catch(_){} }
+    if (active.captor && active.captor.releasePointerCapture) {
+      try {
+        active.captor.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+    }
     if (active.captor) active.captor.classList.remove("dragging");
-    active.axis = null; active.pointerId = null; active.captor = null;
+    active.axis = null;
+    active.pointerId = null;
+    active.captor = null;
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
     window.removeEventListener("pointercancel", onUp);
@@ -482,172 +631,258 @@ function draw(){
     armJustDragged();
     scheduleRedraw();
   }
-
-  function startDrag(axis, e){
+  function startDrag(axis, e) {
     active.axis = axis;
     active.pointerId = e.pointerId;
     active.captor = e.currentTarget || e.target;
-    if (active.captor && active.captor.setPointerCapture) { try { active.captor.setPointerCapture(e.pointerId); } catch(_){} }
+    if (active.captor && active.captor.setPointerCapture) {
+      try {
+        active.captor.setPointerCapture(e.pointerId);
+      } catch (_) {}
+    }
     if (active.captor) active.captor.classList.add("dragging");
     lockTouch();
-    window.addEventListener("pointermove", onMove, { passive: false });
-    window.addEventListener("pointerup", onUp, { passive: false });
-    window.addEventListener("pointercancel", onUp, { passive: false });
+    window.addEventListener("pointermove", onMove, {
+      passive: false
+    });
+    window.addEventListener("pointerup", onUp, {
+      passive: false
+    });
+    window.addEventListener("pointercancel", onUp, {
+      passive: false
+    });
   }
-
   if (dragVertical && hitLeft) {
     hitLeft.style.touchAction = "none";
-    hitLeft.addEventListener("pointerdown", e => { e.preventDefault(); startDrag("v", e); }, { passive: false });
+    hitLeft.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      startDrag("v", e);
+    }, {
+      passive: false
+    });
   }
   if (dragHorizontal && hitDown) {
     hitDown.style.touchAction = "none";
-    hitDown.addEventListener("pointerdown", e => { e.preventDefault(); startDrag("h", e); }, { passive: false });
+    hitDown.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      startDrag("h", e);
+    }, {
+      passive: false
+    });
   }
-
   if (a11yLeft) {
     a11yLeft.addEventListener("keydown", e => {
       let handled = true;
       if (e.key === "ArrowUp") {
-        sy = clamp(sy + UNIT, minRowsEachSide*UNIT, (ROWS - minRowsEachSide)*UNIT);
+        sy = clamp(sy + UNIT, minRowsEachSide * UNIT, (ROWS - minRowsEachSide) * UNIT);
       } else if (e.key === "ArrowDown") {
-        sy = clamp(sy - UNIT, minRowsEachSide*UNIT, (ROWS - minRowsEachSide)*UNIT);
+        sy = clamp(sy - UNIT, minRowsEachSide * UNIT, (ROWS - minRowsEachSide) * UNIT);
       } else if (e.key === "Home") {
-        sy = minRowsEachSide*UNIT;
+        sy = minRowsEachSide * UNIT;
       } else if (e.key === "End") {
-        sy = (ROWS - minRowsEachSide)*UNIT;
+        sy = (ROWS - minRowsEachSide) * UNIT;
       } else {
         handled = false;
       }
-      if (handled) { e.preventDefault(); scheduleRedraw(); }
+      if (handled) {
+        e.preventDefault();
+        scheduleRedraw();
+      }
     });
   }
-
   if (a11yDown) {
     a11yDown.addEventListener("keydown", e => {
       let handled = true;
       if (e.key === "ArrowRight") {
-        sx = clamp(sx + UNIT, minColsEachSide*UNIT, (COLS - minColsEachSide)*UNIT);
+        sx = clamp(sx + UNIT, minColsEachSide * UNIT, (COLS - minColsEachSide) * UNIT);
       } else if (e.key === "ArrowLeft") {
-        sx = clamp(sx - UNIT, minColsEachSide*UNIT, (COLS - minColsEachSide)*UNIT);
+        sx = clamp(sx - UNIT, minColsEachSide * UNIT, (COLS - minColsEachSide) * UNIT);
       } else if (e.key === "Home") {
-        sx = minColsEachSide*UNIT;
+        sx = minColsEachSide * UNIT;
       } else if (e.key === "End") {
-        sx = (COLS - minColsEachSide)*UNIT;
+        sx = (COLS - minColsEachSide) * UNIT;
       } else {
         handled = false;
       }
-      if (handled) { e.preventDefault(); scheduleRedraw(); }
+      if (handled) {
+        e.preventDefault();
+        scheduleRedraw();
+      }
     });
   }
-
   if (clickToMove) {
     svg.addEventListener("click", e => {
       if (justDragged) return;
       const p = clientToSvg(e);
-      if (dragVertical   && showHeightAxis && Math.abs(p.x - ML) < 12 && p.y >= MT && p.y <= MT+H) { sy = snap(MT + H - clamp(p.y, minY, maxY)); scheduleRedraw(); }
-      if (dragHorizontal && showLengthAxis && Math.abs(p.y - (MT + H)) < 12 && p.x >= ML && p.x <= ML+W) { sx = snap(clamp(p.x, minX, maxX) - ML); scheduleRedraw(); }
+      if (dragVertical && showHeightAxis && Math.abs(p.x - ML) < 12 && p.y >= MT && p.y <= MT + H) {
+        sy = snap(MT + H - clamp(p.y, minY, maxY));
+        scheduleRedraw();
+      }
+      if (dragHorizontal && showLengthAxis && Math.abs(p.y - (MT + H)) < 12 && p.x >= ML && p.x <= ML + W) {
+        sx = snap(clamp(p.x, minX, maxX) - ML);
+        scheduleRedraw();
+      }
     });
   }
-
-  function buildExportOptions(){
-    const includeHandles = (showLeftHandle || showBottomHandle) || ADV.export?.includeHandlesIfHidden;
+  function buildExportOptions() {
+    var _ADV$export, _ADV$export2, _ADV$fit3;
+    const includeHandles = showLeftHandle || showBottomHandle || ((_ADV$export = ADV.export) === null || _ADV$export === void 0 ? void 0 : _ADV$export.includeHandlesIfHidden);
     return {
-      unit: UNIT, rows: ROWS, cols: COLS,
-      margins: { ML, MR, MT, MB },
-      width: W, height: H, vbw: VBW, vbh: VBH,
-      sx, sy, TEN,
-      limits: { minColsEachSide, minRowsEachSide },
+      unit: UNIT,
+      rows: ROWS,
+      cols: COLS,
+      margins: {
+        ML,
+        MR,
+        MT,
+        MB
+      },
+      width: W,
+      height: H,
+      vbw: VBW,
+      vbh: VBH,
+      sx,
+      sy,
+      TEN,
+      limits: {
+        minColsEachSide,
+        minRowsEachSide
+      },
       classes,
-      includeGrid: !!ADV.export?.includeGrid,
-      showHeightAxis, showLengthAxis,
+      includeGrid: !!((_ADV$export2 = ADV.export) !== null && _ADV$export2 !== void 0 && _ADV$export2.includeGrid),
+      showHeightAxis,
+      showLengthAxis,
       includeHandles,
       colorsCSS: getInlineStyleDefaults(),
       handleSize: HANDLE_SIZE,
-      icons: { horizUrl: ADV.handleIcons.horiz, vertUrl: ADV.handleIcons.vert },
+      icons: {
+        horizUrl: ADV.handleIcons.horiz,
+        vertUrl: ADV.handleIcons.vert
+      },
       edgeGap: EDGE_GAP,
-      safePad: ADV.fit?.safePad || {top:8,right:8,bottom:64,left:8}
+      safePad: ((_ADV$fit3 = ADV.fit) === null || _ADV$fit3 === void 0 ? void 0 : _ADV$fit3.safePad) || {
+        top: 8,
+        right: 8,
+        bottom: 64,
+        left: 8
+      }
     };
   }
-
   const btnSvgStatic = document.getElementById("btnSvgStatic");
-  if(btnSvgStatic) btnSvgStatic.onclick = () => {
+  if (btnSvgStatic) btnSvgStatic.onclick = () => {
+    var _ADV$export3;
     const svgStr = buildBaseSvgMarkup(buildExportOptions(), true);
-    downloadText(ADV.export?.filenameStatic || "arealmodell.svg", svgStr, "image/svg+xml");
+    downloadText(((_ADV$export3 = ADV.export) === null || _ADV$export3 === void 0 ? void 0 : _ADV$export3.filenameStatic) || "arealmodell.svg", svgStr, "image/svg+xml");
   };
-
   const btnPng = document.getElementById("btnPng");
-  if(btnPng) btnPng.onclick = () => {
+  if (btnPng) btnPng.onclick = () => {
+    var _ADV$export4;
     const svgStr = buildBaseSvgMarkup(buildExportOptions(), true);
-    downloadPNGFromString(svgStr, ADV.export?.filenamePng || "arealmodell.png");
+    downloadPNGFromString(svgStr, ((_ADV$export4 = ADV.export) === null || _ADV$export4 === void 0 ? void 0 : _ADV$export4.filenamePng) || "arealmodell.png");
   };
-
   const btnSvg = document.getElementById("btnSvg");
-  if(btnSvg) btnSvg.onclick = () => {
+  if (btnSvg) btnSvg.onclick = () => {
+    var _ADV$export5;
     const svgStr = buildInteractiveSvgString(buildExportOptions());
-    downloadText(ADV.export?.filename || "arealmodell_interaktiv.svg", svgStr, "image/svg+xml");
+    downloadText(((_ADV$export5 = ADV.export) === null || _ADV$export5 === void 0 ? void 0 : _ADV$export5.filename) || "arealmodell_interaktiv.svg", svgStr, "image/svg+xml");
   };
 
   // ===== Eksporter interaktiv HTML =====
   const btnHtml = document.getElementById("btnHtml");
-  if(btnHtml) btnHtml.onclick = () => {
-    const includeHandles = (showLeftHandle || showBottomHandle) || ADV.export?.includeHandlesIfHidden;
-
+  if (btnHtml) btnHtml.onclick = () => {
+    var _ADV$export6, _ADV$export7, _ADV$fit4, _ADV$export8;
+    const includeHandles = showLeftHandle || showBottomHandle || ((_ADV$export6 = ADV.export) === null || _ADV$export6 === void 0 ? void 0 : _ADV$export6.includeHandlesIfHidden);
     const htmlStr = buildInteractiveHtmlString({
-      unit: UNIT, rows: ROWS, cols: COLS,
-      margins: { ML, MR, MT, MB },
-      width: W, height: H, vbw: VBW, vbh: VBH,
-      sx, sy, TEN,
-      limits: { minColsEachSide, minRowsEachSide },
+      unit: UNIT,
+      rows: ROWS,
+      cols: COLS,
+      margins: {
+        ML,
+        MR,
+        MT,
+        MB
+      },
+      width: W,
+      height: H,
+      vbw: VBW,
+      vbh: VBH,
+      sx,
+      sy,
+      TEN,
+      limits: {
+        minColsEachSide,
+        minRowsEachSide
+      },
       classes,
-      includeGrid: !!ADV.export?.includeGrid,
-      showHeightAxis, showLengthAxis,
+      includeGrid: !!((_ADV$export7 = ADV.export) !== null && _ADV$export7 !== void 0 && _ADV$export7.includeGrid),
+      showHeightAxis,
+      showLengthAxis,
       includeHandles,
       colorsCSS: getInlineStyleDefaults(),
       handleSize: HANDLE_SIZE,
-      icons: { horizUrl: ADV.handleIcons.horiz, vertUrl: ADV.handleIcons.vert },
+      icons: {
+        horizUrl: ADV.handleIcons.horiz,
+        vertUrl: ADV.handleIcons.vert
+      },
       edgeGap: EDGE_GAP,
-      safePad: ADV.fit?.safePad || {top:8,right:8,bottom:64,left:8}
+      safePad: ((_ADV$fit4 = ADV.fit) === null || _ADV$fit4 === void 0 ? void 0 : _ADV$fit4.safePad) || {
+        top: 8,
+        right: 8,
+        bottom: 64,
+        left: 8
+      }
     });
-    const fname = ADV.export?.filenameHtml || "arealmodell_interaktiv.html";
+    const fname = ((_ADV$export8 = ADV.export) === null || _ADV$export8 === void 0 ? void 0 : _ADV$export8.filenameHtml) || "arealmodell_interaktiv.html";
     downloadText(fname, htmlStr, "text/html;charset=utf-8");
   };
 
   // ===== helpers =====
-  function downloadText(filename, text, mime){
-    const blob = new Blob([text], { type: mime });
+  function downloadText(filename, text, mime) {
+    const blob = new Blob([text], {
+      type: mime
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
     URL.revokeObjectURL(url);
   }
-
-  function downloadPNGFromString(svgStr, filename){
-    const blob = new Blob([svgStr], {type:'image/svg+xml;charset=utf-8'});
+  function downloadPNGFromString(svgStr, filename) {
+    const blob = new Blob([svgStr], {
+      type: 'image/svg+xml;charset=utf-8'
+    });
     const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
-      const w = img.width, h = img.height;
+      const w = img.width,
+        h = img.height;
       const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#fff';
-      ctx.fillRect(0,0,w,h);
-      ctx.drawImage(img,0,0,w,h);
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
-      canvas.toBlob(b=>{
+      canvas.toBlob(b => {
         const urlPng = URL.createObjectURL(b);
         const a = document.createElement('a');
-        a.href = urlPng; a.download = filename;
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(()=>URL.revokeObjectURL(urlPng),1000);
+        a.href = urlPng;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(urlPng), 1000);
       }, 'image/png');
     };
     img.src = url;
   }
 
   // === FARGER/typografi ===
-  function getInlineStyleDefaults(){
+  function getInlineStyleDefaults() {
     const cols = ADV.colors || ["#e07c7c", "#f0c667", "#7fb2d6", "#8bb889"];
     return `
 .outer { fill: white; stroke: #333; stroke-width: 3; pointer-events: none; }
@@ -669,8 +904,7 @@ function draw(){
 .handleHit { fill: rgba(0,0,0,0.004); cursor: grab; pointer-events: all; }
 `;
   }
-
-  function injectRuntimeStyles(){
+  function injectRuntimeStyles() {
     if (document.getElementById("arealmodell-runtime-css")) return;
     const style = document.createElement("style");
     style.id = "arealmodell-runtime-css";
@@ -679,199 +913,122 @@ function draw(){
   }
 
   // -------- Base-SVG uten skript --------
-  function buildBaseSvgMarkup(o, includeXmlHeader){
-    const ML = o.margins.ML, MT = o.margins.MT;
-    const wL = Math.round(o.sx/o.unit), wR = o.cols - wL;
-    const hB = Math.round(o.sy/o.unit), hT = o.rows - hB;
-    const HS = o.handleSize ?? 84;
-    const gapX = o.edgeGap?.x ?? 14, gapY = o.edgeGap?.y ?? 32;
-
+  function buildBaseSvgMarkup(o, includeXmlHeader) {
+    var _o$handleSize, _o$edgeGap$x, _o$edgeGap, _o$edgeGap$y, _o$edgeGap2;
+    const ML = o.margins.ML,
+      MT = o.margins.MT;
+    const wL = Math.round(o.sx / o.unit),
+      wR = o.cols - wL;
+    const hB = Math.round(o.sy / o.unit),
+      hT = o.rows - hB;
+    const HS = (_o$handleSize = o.handleSize) !== null && _o$handleSize !== void 0 ? _o$handleSize : 84;
+    const gapX = (_o$edgeGap$x = (_o$edgeGap = o.edgeGap) === null || _o$edgeGap === void 0 ? void 0 : _o$edgeGap.x) !== null && _o$edgeGap$x !== void 0 ? _o$edgeGap$x : 14,
+      gapY = (_o$edgeGap$y = (_o$edgeGap2 = o.edgeGap) === null || _o$edgeGap2 === void 0 ? void 0 : _o$edgeGap2.y) !== null && _o$edgeGap$y !== void 0 ? _o$edgeGap$y : 32;
     let gridStr = "";
     if (o.includeGrid) {
       let lines = [];
-      for (let i=1;i<o.cols;i++){
-        const x = ML + o.unit*i;
-        lines.push('<line x1="'+x+'" y1="'+MT+'" x2="'+x+'" y2="'+(MT+o.height)+'" />');
+      for (let i = 1; i < o.cols; i++) {
+        const x = ML + o.unit * i;
+        lines.push('<line x1="' + x + '" y1="' + MT + '" x2="' + x + '" y2="' + (MT + o.height) + '" />');
       }
-      for (let j=1;j<o.rows;j++){
-        const y = MT + o.unit*j;
-        lines.push('<line x1="'+ML+'" y1="'+y+'" x2="'+(ML+o.width)+'" y2="'+y+'" />');
+      for (let j = 1; j < o.rows; j++) {
+        const y = MT + o.unit * j;
+        lines.push('<line x1="' + ML + '" y1="' + y + '" x2="' + (ML + o.width) + '" y2="' + y + '" />');
       }
-      gridStr = '<g class="'+o.classes.grid+'" clip-path="url(#clipR)">'+lines.join("")+'</g>';
+      gridStr = '<g class="' + o.classes.grid + '" clip-path="url(#clipR)">' + lines.join("") + '</g>';
     }
-
-    const vLineStr = o.showLengthAxis ? '<line id="vLine" class="'+o.classes.split+'" x1="'+(ML+o.sx)+'" y1="'+MT+'" x2="'+(ML+o.sx)+'" y2="'+(MT+o.height)+'"/>' : "";
-    const hLineStr = o.showHeightAxis ? '<line id="hLine" class="'+o.classes.split+'" x1="'+ML+'" y1="'+(MT+o.height-o.sy)+'" x2="'+(ML+o.width)+'" y2="'+(MT+o.height-o.sy)+'"/>' : "";
-
-    const hLeftImg  = (o.includeHandles && o.showHeightAxis)
-      ? '<image id="hLeft" class="'+o.classes.handle+'" href="'+(o.icons.vertUrl||'')+'" width="'+HS+'" height="'+HS+'" x="'+(ML-HS/2)+'" y="'+(MT+o.height-o.sy-HS/2)+'"/>' : "";
-    const hDownImg  = (o.includeHandles && o.showLengthAxis)
-      ? '<image id="hDown" class="'+o.classes.handle+'" href="'+(o.icons.horizUrl||'')+'" width="'+HS+'" height="'+HS+'" x="'+(ML+o.sx-HS/2)+'" y="'+(MT+o.height-HS/2)+'"/>' : "";
+    const vLineStr = o.showLengthAxis ? '<line id="vLine" class="' + o.classes.split + '" x1="' + (ML + o.sx) + '" y1="' + MT + '" x2="' + (ML + o.sx) + '" y2="' + (MT + o.height) + '"/>' : "";
+    const hLineStr = o.showHeightAxis ? '<line id="hLine" class="' + o.classes.split + '" x1="' + ML + '" y1="' + (MT + o.height - o.sy) + '" x2="' + (ML + o.width) + '" y2="' + (MT + o.height - o.sy) + '"/>' : "";
+    const hLeftImg = o.includeHandles && o.showHeightAxis ? '<image id="hLeft" class="' + o.classes.handle + '" href="' + (o.icons.vertUrl || '') + '" width="' + HS + '" height="' + HS + '" x="' + (ML - HS / 2) + '" y="' + (MT + o.height - o.sy - HS / 2) + '"/>' : "";
+    const hDownImg = o.includeHandles && o.showLengthAxis ? '<image id="hDown" class="' + o.classes.handle + '" href="' + (o.icons.horizUrl || '') + '" width="' + HS + '" height="' + HS + '" x="' + (ML + o.sx - HS / 2) + '" y="' + (MT + o.height - HS / 2) + '"/>' : "";
 
     // Start på riktig posisjon
-    const hLeftHit  = (o.includeHandles && o.showHeightAxis)
-      ? '<circle id="hLeftHit" class="handleHit" r="'+(HS*0.55)+'" cx="'+(ML)+'" cy="'+(MT+o.height-o.sy)+'" style="cursor:grab"/>' : "";
-    const hDownHit  = (o.includeHandles && o.showLengthAxis)
-      ? '<circle id="hDownHit" class="handleHit" r="'+(HS*0.55)+'" cx="'+(ML+o.sx)+'" cy="'+(MT+o.height)+'" style="cursor:grab"/>' : "";
-
-    const hotLeftStr   = o.showHeightAxis ? '<rect id="hotLeft" class="hot" x="'+(ML-10)+'" y="'+MT+'" width="10" height="'+o.height+'"/>' : "";
-    const hotBottomStr = o.showLengthAxis ? '<rect id="hotBottom" class="hot" x="'+ML+'" y="'+(MT+o.height)+'" width="'+o.width+'" height="10"/>' : "";
-
+    const hLeftHit = o.includeHandles && o.showHeightAxis ? '<circle id="hLeftHit" class="handleHit" r="' + HS * 0.55 + '" cx="' + ML + '" cy="' + (MT + o.height - o.sy) + '" style="cursor:grab"/>' : "";
+    const hDownHit = o.includeHandles && o.showLengthAxis ? '<circle id="hDownHit" class="handleHit" r="' + HS * 0.55 + '" cx="' + (ML + o.sx) + '" cy="' + (MT + o.height) + '" style="cursor:grab"/>' : "";
+    const hotLeftStr = o.showHeightAxis ? '<rect id="hotLeft" class="hot" x="' + (ML - 10) + '" y="' + MT + '" width="10" height="' + o.height + '"/>' : "";
+    const hotBottomStr = o.showLengthAxis ? '<rect id="hotBottom" class="hot" x="' + ML + '" y="' + (MT + o.height) + '" width="' + o.width + '" height="10"/>' : "";
     const parts = [];
     if (includeXmlHeader) parts.push('<?xml version="1.0" encoding="UTF-8"?>');
-    parts.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+o.vbw+' '+o.vbh+'" width="'+o.vbw+'" height="'+o.vbh+'" tabindex="0">');
+    parts.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + o.vbw + ' ' + o.vbh + '" width="' + o.vbw + '" height="' + o.vbh + '" tabindex="0">');
     parts.push('<title>Arealmodell – dragbare delinger</title>');
-    parts.push('<style>'+o.colorsCSS+'</style>');
-    parts.push('<defs><clipPath id="clipR"><rect x="'+ML+'" y="'+MT+'" width="'+o.width+'" height="'+o.height+'"/></clipPath></defs>');
-    parts.push('<rect class="'+o.classes.outer+'" x="'+ML+'" y="'+MT+'" width="'+o.width+'" height="'+o.height+'"/>');
-
-    parts.push('<rect id="rTL" class="cell '+o.classes.cells[0]+'" x="'+ML+'" y="'+MT+'" width="'+o.sx+'" height="'+(o.height-o.sy)+'"></rect>');
-    parts.push('<rect id="rTR" class="cell '+o.classes.cells[1]+'" x="'+(ML+o.sx)+'" y="'+MT+'" width="'+(o.width-o.sx)+'" height="'+(o.height-o.sy)+'"></rect>');
-    parts.push('<rect id="rBL" class="cell '+o.classes.cells[2]+'" x="'+ML+'" y="'+(MT+o.height-o.sy)+'" width="'+o.sx+'" height="'+o.sy+'"></rect>');
-    parts.push('<rect id="rBR" class="cell '+o.classes.cells[3]+'" x="'+(ML+o.sx)+'" y="'+(MT+o.height-o.sy)+'" width="'+(o.width-o.sx)+'" height="'+o.sy+'"></rect>');
-
+    parts.push('<style>' + o.colorsCSS + '</style>');
+    parts.push('<defs><clipPath id="clipR"><rect x="' + ML + '" y="' + MT + '" width="' + o.width + '" height="' + o.height + '"/></clipPath></defs>');
+    parts.push('<rect class="' + o.classes.outer + '" x="' + ML + '" y="' + MT + '" width="' + o.width + '" height="' + o.height + '"/>');
+    parts.push('<rect id="rTL" class="cell ' + o.classes.cells[0] + '" x="' + ML + '" y="' + MT + '" width="' + o.sx + '" height="' + (o.height - o.sy) + '"></rect>');
+    parts.push('<rect id="rTR" class="cell ' + o.classes.cells[1] + '" x="' + (ML + o.sx) + '" y="' + MT + '" width="' + (o.width - o.sx) + '" height="' + (o.height - o.sy) + '"></rect>');
+    parts.push('<rect id="rBL" class="cell ' + o.classes.cells[2] + '" x="' + ML + '" y="' + (MT + o.height - o.sy) + '" width="' + o.sx + '" height="' + o.sy + '"></rect>');
+    parts.push('<rect id="rBR" class="cell ' + o.classes.cells[3] + '" x="' + (ML + o.sx) + '" y="' + (MT + o.height - o.sy) + '" width="' + (o.width - o.sx) + '" height="' + o.sy + '"></rect>');
     parts.push(gridStr);
-
     parts.push(vLineStr, hLineStr, hotLeftStr, hotBottomStr, hLeftImg, hDownImg, hLeftHit, hDownHit);
 
     // cell-tekster
-    parts.push('<text id="tTL" class="labelCell" x="'+(ML+o.sx/2)+'" y="'+(MT+(o.height-o.sy)/2+8)+'" text-anchor="middle">'+(wL)+' · '+(hT)+'</text>');
-    parts.push('<text id="tTR" class="labelCell" x="'+(ML+o.sx+(o.width-o.sx)/2)+'" y="'+(MT+(o.height-o.sy)/2+8)+'" text-anchor="middle">'+(wR)+' · '+(hT)+'</text>');
-    parts.push('<text id="tBL" class="labelCell" x="'+(ML+o.sx/2)+'" y="'+(MT+(o.height-o.sy)+o.sy/2+8)+'" text-anchor="middle">'+(wL)+' · '+(hB)+'</text>');
-    parts.push('<text id="tBR" class="labelCell" x="'+(ML+o.sx+(o.width-o.sx)/2)+'" y="'+(MT+(o.height-o.sy)+o.sy/2+8)+'" text-anchor="middle">'+(wR)+' · '+(hB)+'</text>');
+    parts.push('<text id="tTL" class="labelCell" x="' + (ML + o.sx / 2) + '" y="' + (MT + (o.height - o.sy) / 2 + 8) + '" text-anchor="middle">' + wL + ' · ' + hT + '</text>');
+    parts.push('<text id="tTR" class="labelCell" x="' + (ML + o.sx + (o.width - o.sx) / 2) + '" y="' + (MT + (o.height - o.sy) / 2 + 8) + '" text-anchor="middle">' + wR + ' · ' + hT + '</text>');
+    parts.push('<text id="tBL" class="labelCell" x="' + (ML + o.sx / 2) + '" y="' + (MT + (o.height - o.sy) + o.sy / 2 + 8) + '" text-anchor="middle">' + wL + ' · ' + hB + '</text>');
+    parts.push('<text id="tBR" class="labelCell" x="' + (ML + o.sx + (o.width - o.sx) / 2) + '" y="' + (MT + (o.height - o.sy) + o.sy / 2 + 8) + '" text-anchor="middle">' + wR + ' · ' + hB + '</text>');
 
     // kant-tekst Utenfor, med luft:
-    const xL = ML - (HS/2) - (gapX);
-    const yB = MT + o.height + (HS/2) + (gapY);
+    const xL = ML - HS / 2 - gapX;
+    const yB = MT + o.height + HS / 2 + gapY;
     if (o.showHeightAxis) {
-      parts.push('<text id="leftTop" class="labelEdge" x="'+xL+'" y="'+(MT+(o.height-o.sy)/2+10)+'" text-anchor="end">'+(hT)+'</text>');
-      parts.push('<text id="leftBot" class="labelEdge" x="'+xL+'" y="'+(MT+(o.height-o.sy)+o.sy/2+10)+'" text-anchor="end">'+(hB)+'</text>');
+      parts.push('<text id="leftTop" class="labelEdge" x="' + xL + '" y="' + (MT + (o.height - o.sy) / 2 + 10) + '" text-anchor="end">' + hT + '</text>');
+      parts.push('<text id="leftBot" class="labelEdge" x="' + xL + '" y="' + (MT + (o.height - o.sy) + o.sy / 2 + 10) + '" text-anchor="end">' + hB + '</text>');
     }
     if (o.showLengthAxis) {
-      parts.push('<text id="botLeft"  class="labelEdge" x="'+(ML+o.sx/2)+'" y="'+yB+'" text-anchor="middle">'+(wL)+'</text>');
-      parts.push('<text id="botRight" class="labelEdge" x="'+(ML+o.sx+(o.width-o.sx)/2)+'" y="'+yB+'" text-anchor="middle">'+(wR)+'</text>');
+      parts.push('<text id="botLeft"  class="labelEdge" x="' + (ML + o.sx / 2) + '" y="' + yB + '" text-anchor="middle">' + wL + '</text>');
+      parts.push('<text id="botRight" class="labelEdge" x="' + (ML + o.sx + (o.width - o.sx) / 2) + '" y="' + yB + '" text-anchor="middle">' + wR + '</text>');
     }
-
     parts.push("</svg>");
     return parts.join("\n");
   }
 
   // runtime-skript (eksportert SVG/HTML)
-  function buildRuntimeScriptText(o, rootExpr){
-    const ML = o.margins.ML, MT = o.margins.MT;
-    return [
-      "(function(){",
-      "var UNIT="+o.unit+", ROWS="+o.rows+", COLS="+o.cols+", TEN="+o.TEN+";",
-      "var ML="+ML+", MT="+MT+", W="+o.width+", H="+o.height+";",
-      "var minColsEachSide="+o.limits.minColsEachSide+", minRowsEachSide="+o.limits.minRowsEachSide+";",
-      "var SPLIT_C=\""+o.classes.split.replace(/\"/g,"&quot;")+"\";",
-      "var HS="+(o.handleSize ?? 84)+", GAPX="+(o.edgeGap?.x ?? 14)+", GAPY="+(o.edgeGap?.y ?? 32)+";",
-      "var SAFE="+JSON.stringify(o.safePad || {top:8,right:8,bottom:64,left:8})+";",
-      "var root="+rootExpr+"; root.style.touchAction='none';",
-      "var rTL=document.getElementById('rTL'), rTR=document.getElementById('rTR'), rBL=document.getElementById('rBL'), rBR=document.getElementById('rBR');",
-      "var vLine=document.getElementById('vLine'), hLine=document.getElementById('hLine');",
-      "var tTL=document.getElementById('tTL'), tTR=document.getElementById('tTR'), tBL=document.getElementById('tBL'), tBR=document.getElementById('tBR');",
-      "var leftTop=document.getElementById('leftTop'), leftBot=document.getElementById('leftBot'), botLeft=document.getElementById('botLeft'), botRight=document.getElementById('botRight');",
-      "var hLeft=document.getElementById('hLeft'), hDown=document.getElementById('hDown');",
-      "var hitLeft=document.getElementById('hLeftHit'), hitDown=document.getElementById('hDownHit');",
-      "var hotLeft=document.getElementById('hotLeft'), hotBottom=document.getElementById('hotBottom');",
-      "var vb=root.viewBox.baseVal; var sx="+o.sx+", sy="+o.sy+";",
-      "function set(el,a,v){ if(el) el.setAttribute(a,v); }",
-      "function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }",
-      "function snap(v){ return Math.round(v/UNIT)*UNIT; }",
-      "var rect=root.getBoundingClientRect(); function refreshRect(){ rect=root.getBoundingClientRect(); }",
-      "function clientToSvg(e){ var sx=vb.width/rect.width, sy=vb.height/rect.height; return { x: vb.x+(e.clientX-rect.left)*sx, y: vb.y+(e.clientY-rect.top)*sy }; }",
-      "var raf=0; function schedule(){ if(raf) return; raf=requestAnimationFrame(function(){ raf=0; redraw(); }); }",
-      "function redraw(){ var wL=Math.round(sx/UNIT), wR=COLS-wL; var hB=Math.round(sy/UNIT), hT=ROWS-hB;",
-      " set(rTL,'x',ML); set(rTL,'y',MT); set(rTL,'width',sx); set(rTL,'height',H-sy);",
-      " set(rTR,'x',ML+sx); set(rTR,'y',MT); set(rTR,'width',W-sx); set(rTR,'height',H-sy);",
-      " set(rBL,'x',ML); set(rBL,'y',MT+(H-sy)); set(rBL,'width',sx); set(rBL,'height',sy);",
-      " set(rBR,'x',ML+sx); set(rBR,'y',MT+(H-sy)); set(rBR,'width',W-sx); set(rBR,'height',sy);",
-      " if(vLine){ set(vLine,'x1',ML+sx); set(vLine,'y1',MT); set(vLine,'x2',ML+sx); set(vLine,'y2',MT+H); }",
-      " if(hLine){ set(hLine,'x1',ML); set(hLine,'y1',MT+(H-sy)); set(hLine,'x2',ML+W); set(hLine,'y2',MT+(H-sy)); }",
-      " var hLeftCX=ML, hLeftCY=MT+(H-sy), hDownCX=ML+sx, hDownCY=MT+H;",
-      " if(hLeft){ set(hLeft,'x',hLeftCX-HS/2); set(hLeft,'y',hLeftCY-HS/2); }",
-      " if(hDown){ set(hDown,'x',hDownCX-HS/2); set(hDown,'y',hDownCY-HS/2); }",
-      " if(hitLeft){ set(hitLeft,'cx',hLeftCX); set(hitLeft,'cy',hLeftCY); }",
-      " if(hitDown){ set(hitDown,'cx',hDownCX); set(hitDown,'cy',hDownCY); }",
-      " var leftXOutside = ML-(HS/2)-GAPX, bottomYOutside = MT+H+(HS/2)+GAPY;",
-      " if(tTL){ set(tTL,'x',ML+sx/2); set(tTL,'y',MT+(H-sy)/2+8); tTL.textContent=wL+' · '+hT; }",
-      " if(tTR){ set(tTR,'x',ML+sx+(W-sx)/2); set(tTR,'y',MT+(H-sy)/2+8); tTR.textContent=wR+' · '+hT; }",
-      " if(tBL){ set(tBL,'x',ML+sx/2); set(tBL,'y',MT+(H-sy)+sy/2+8); tBL.textContent=wL+' · '+hB; }",
-      " if(tBR){ set(tBR,'x',ML+sx+(W-sx)/2); set(tBR,'y',MT+(H-sy)+sy/2+8); tBR.textContent=wR+' · '+hB; }",
-      " if(leftTop){ leftTop.textContent=String(hT); set(leftTop,'x',leftXOutside); set(leftTop,'y',MT+(H-sy)/2+10); }",
-      " if(leftBot){ leftBot.textContent=String(hB); set(leftBot,'x',leftXOutside); set(leftBot,'y',MT+(H-sy)+sy/2+10); }",
-      " if(botLeft){ botLeft.textContent=String(wL); set(botLeft,'x',ML+sx/2); set(botLeft,'y',bottomYOutside); }",
-      " if(botRight){ botRight.textContent=String(wR); set(botRight,'x',ML+sx+(W-sx)/2); set(botRight,'y',bottomYOutside); }",
-      " var on=((wL===TEN||wR===TEN)&&(hB===TEN||hT===TEN));",
-      " if(vLine){ vLine.setAttribute('class',SPLIT_C+(on?' ok':'')); }",
-      " if(hLine){ hLine.setAttribute('class',SPLIT_C+(on?' ok':'')); }",
-      " if(hLeft) root.append(hLeft); if(hitLeft) root.append(hitLeft); if(hDown) root.append(hDown); if(hitDown) root.append(hitDown);",
-      "}",
-      "function fit(){ var availW=Math.max(100, window.innerWidth-(SAFE.left+SAFE.right)); var availH=Math.max(100, window.innerHeight-(SAFE.top+SAFE.bottom)); var s=Math.min(availW/vb.width, availH/vb.height); root.setAttribute('width', vb.width*s); root.setAttribute('height', vb.height*s); refreshRect(); }",
-      "fit(); redraw(); window.addEventListener('resize', fit, {passive:true});",
-      "var active={axis:null,id:null,captor:null}; var justDragged=false; function arm(){ justDragged=true; setTimeout(function(){ justDragged=false; },220); }",
-      "function lock(){ document.documentElement.style.touchAction='none'; document.body.style.touchAction='none'; document.documentElement.style.overscrollBehavior='contain'; document.body.style.overscrollBehavior='contain'; }",
-      "function unlock(){ document.documentElement.style.touchAction=''; document.body.style.touchAction=''; document.documentElement.style.overscrollBehavior=''; document.body.style.overscrollBehavior=''; }",
-      "function onMove(e){ if(e.pointerId!==active.id) return; e.preventDefault(); var p=clientToSvg(e); if(active.axis==='v'){ var y=Math.max(MT+minRowsEachSide*UNIT, Math.min(MT+H-minRowsEachSide*UNIT, p.y)); var n=(MT+H)-y; if(n!==sy){ sy=n; schedule(); } } else if(active.axis==='h'){ var x=Math.max(ML+minColsEachSide*UNIT, Math.min(ML+W-minColsEachSide*UNIT, p.x)); var n=x-ML; if(n!==sx){ sx=n; schedule(); } }}",
-      "function onUp(e){ if(e.pointerId!==active.id) return; e.preventDefault(); if(active.axis==='v') sy=snap(sy); if(active.axis==='h') sx=snap(sx); if(active.captor&&active.captor.releasePointerCapture){try{active.captor.releasePointerCapture(e.pointerId);}catch(_){}} if(active.captor){active.captor.setAttribute('class',(active.captor.getAttribute('class')||'').replace(/\\bdragging\\b/,'').trim());} active.axis=null; active.id=null; active.captor=null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); unlock(); arm(); schedule(); }",
-      "function start(axis,e){ active.axis=axis; active.id=e.pointerId; active.captor=e.currentTarget||e.target; if(active.captor&&active.captor.setPointerCapture){try{active.captor.setPointerCapture(e.pointerId);}catch(_){}} var cls=(active.captor.getAttribute('class')||''); active.captor.setAttribute('class', (cls+' dragging').trim()); lock(); window.addEventListener('pointermove', onMove, {passive:false}); window.addEventListener('pointerup', onUp, {passive:false}); window.addEventListener('pointercancel', onUp, {passive:false}); }",
-      "if(hitLeft){ hitLeft.style.touchAction='none'; hitLeft.addEventListener('pointerdown', function(e){ e.preventDefault(); start('v',e); }, {passive:false}); }",
-      "if(hitDown){ hitDown.style.touchAction='none'; hitDown.addEventListener('pointerdown', function(e){ e.preventDefault(); start('h',e); }, {passive:false}); }",
-      (ADV.clickToMove!==false
-        ? "root.addEventListener('click',function(e){ if(justDragged) return; var p=clientToSvg(e); if(Math.abs(p.x-ML)<12 && p.y>=MT && p.y<=MT+H){ sy=Math.round(((MT+H)-Math.max(MT+minRowsEachSide*UNIT,Math.min(MT+H-minRowsEachSide*UNIT,p.y)))/UNIT)*UNIT; schedule(); } else if(Math.abs(p.y-(MT+H))<12 && p.x>=ML && p.x<=ML+W){ sx=Math.round((Math.max(ML+minColsEachSide*UNIT,Math.min(ML+W-minColsEachSide*UNIT,p.x))-ML)/UNIT)*UNIT; schedule(); } });"
-        : ""),
-      "})();"
-    ].join("\n");
+  function buildRuntimeScriptText(o, rootExpr) {
+    var _o$handleSize2, _o$edgeGap$x2, _o$edgeGap3, _o$edgeGap$y2, _o$edgeGap4;
+    const ML = o.margins.ML,
+      MT = o.margins.MT;
+    return ["(function(){", "var UNIT=" + o.unit + ", ROWS=" + o.rows + ", COLS=" + o.cols + ", TEN=" + o.TEN + ";", "var ML=" + ML + ", MT=" + MT + ", W=" + o.width + ", H=" + o.height + ";", "var minColsEachSide=" + o.limits.minColsEachSide + ", minRowsEachSide=" + o.limits.minRowsEachSide + ";", "var SPLIT_C=\"" + o.classes.split.replace(/\"/g, "&quot;") + "\";", "var HS=" + ((_o$handleSize2 = o.handleSize) !== null && _o$handleSize2 !== void 0 ? _o$handleSize2 : 84) + ", GAPX=" + ((_o$edgeGap$x2 = (_o$edgeGap3 = o.edgeGap) === null || _o$edgeGap3 === void 0 ? void 0 : _o$edgeGap3.x) !== null && _o$edgeGap$x2 !== void 0 ? _o$edgeGap$x2 : 14) + ", GAPY=" + ((_o$edgeGap$y2 = (_o$edgeGap4 = o.edgeGap) === null || _o$edgeGap4 === void 0 ? void 0 : _o$edgeGap4.y) !== null && _o$edgeGap$y2 !== void 0 ? _o$edgeGap$y2 : 32) + ";", "var SAFE=" + JSON.stringify(o.safePad || {
+      top: 8,
+      right: 8,
+      bottom: 64,
+      left: 8
+    }) + ";", "var root=" + rootExpr + "; root.style.touchAction='none';", "var rTL=document.getElementById('rTL'), rTR=document.getElementById('rTR'), rBL=document.getElementById('rBL'), rBR=document.getElementById('rBR');", "var vLine=document.getElementById('vLine'), hLine=document.getElementById('hLine');", "var tTL=document.getElementById('tTL'), tTR=document.getElementById('tTR'), tBL=document.getElementById('tBL'), tBR=document.getElementById('tBR');", "var leftTop=document.getElementById('leftTop'), leftBot=document.getElementById('leftBot'), botLeft=document.getElementById('botLeft'), botRight=document.getElementById('botRight');", "var hLeft=document.getElementById('hLeft'), hDown=document.getElementById('hDown');", "var hitLeft=document.getElementById('hLeftHit'), hitDown=document.getElementById('hDownHit');", "var hotLeft=document.getElementById('hotLeft'), hotBottom=document.getElementById('hotBottom');", "var vb=root.viewBox.baseVal; var sx=" + o.sx + ", sy=" + o.sy + ";", "function set(el,a,v){ if(el) el.setAttribute(a,v); }", "function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }", "function snap(v){ return Math.round(v/UNIT)*UNIT; }", "var rect=root.getBoundingClientRect(); function refreshRect(){ rect=root.getBoundingClientRect(); }", "function clientToSvg(e){ var sx=vb.width/rect.width, sy=vb.height/rect.height; return { x: vb.x+(e.clientX-rect.left)*sx, y: vb.y+(e.clientY-rect.top)*sy }; }", "var raf=0; function schedule(){ if(raf) return; raf=requestAnimationFrame(function(){ raf=0; redraw(); }); }", "function redraw(){ var wL=Math.round(sx/UNIT), wR=COLS-wL; var hB=Math.round(sy/UNIT), hT=ROWS-hB;", " set(rTL,'x',ML); set(rTL,'y',MT); set(rTL,'width',sx); set(rTL,'height',H-sy);", " set(rTR,'x',ML+sx); set(rTR,'y',MT); set(rTR,'width',W-sx); set(rTR,'height',H-sy);", " set(rBL,'x',ML); set(rBL,'y',MT+(H-sy)); set(rBL,'width',sx); set(rBL,'height',sy);", " set(rBR,'x',ML+sx); set(rBR,'y',MT+(H-sy)); set(rBR,'width',W-sx); set(rBR,'height',sy);", " if(vLine){ set(vLine,'x1',ML+sx); set(vLine,'y1',MT); set(vLine,'x2',ML+sx); set(vLine,'y2',MT+H); }", " if(hLine){ set(hLine,'x1',ML); set(hLine,'y1',MT+(H-sy)); set(hLine,'x2',ML+W); set(hLine,'y2',MT+(H-sy)); }", " var hLeftCX=ML, hLeftCY=MT+(H-sy), hDownCX=ML+sx, hDownCY=MT+H;", " if(hLeft){ set(hLeft,'x',hLeftCX-HS/2); set(hLeft,'y',hLeftCY-HS/2); }", " if(hDown){ set(hDown,'x',hDownCX-HS/2); set(hDown,'y',hDownCY-HS/2); }", " if(hitLeft){ set(hitLeft,'cx',hLeftCX); set(hitLeft,'cy',hLeftCY); }", " if(hitDown){ set(hitDown,'cx',hDownCX); set(hitDown,'cy',hDownCY); }", " var leftXOutside = ML-(HS/2)-GAPX, bottomYOutside = MT+H+(HS/2)+GAPY;", " if(tTL){ set(tTL,'x',ML+sx/2); set(tTL,'y',MT+(H-sy)/2+8); tTL.textContent=wL+' · '+hT; }", " if(tTR){ set(tTR,'x',ML+sx+(W-sx)/2); set(tTR,'y',MT+(H-sy)/2+8); tTR.textContent=wR+' · '+hT; }", " if(tBL){ set(tBL,'x',ML+sx/2); set(tBL,'y',MT+(H-sy)+sy/2+8); tBL.textContent=wL+' · '+hB; }", " if(tBR){ set(tBR,'x',ML+sx+(W-sx)/2); set(tBR,'y',MT+(H-sy)+sy/2+8); tBR.textContent=wR+' · '+hB; }", " if(leftTop){ leftTop.textContent=String(hT); set(leftTop,'x',leftXOutside); set(leftTop,'y',MT+(H-sy)/2+10); }", " if(leftBot){ leftBot.textContent=String(hB); set(leftBot,'x',leftXOutside); set(leftBot,'y',MT+(H-sy)+sy/2+10); }", " if(botLeft){ botLeft.textContent=String(wL); set(botLeft,'x',ML+sx/2); set(botLeft,'y',bottomYOutside); }", " if(botRight){ botRight.textContent=String(wR); set(botRight,'x',ML+sx+(W-sx)/2); set(botRight,'y',bottomYOutside); }", " var on=((wL===TEN||wR===TEN)&&(hB===TEN||hT===TEN));", " if(vLine){ vLine.setAttribute('class',SPLIT_C+(on?' ok':'')); }", " if(hLine){ hLine.setAttribute('class',SPLIT_C+(on?' ok':'')); }", " if(hLeft) root.append(hLeft); if(hitLeft) root.append(hitLeft); if(hDown) root.append(hDown); if(hitDown) root.append(hitDown);", "}", "function fit(){ var availW=Math.max(100, window.innerWidth-(SAFE.left+SAFE.right)); var availH=Math.max(100, window.innerHeight-(SAFE.top+SAFE.bottom)); var s=Math.min(availW/vb.width, availH/vb.height); root.setAttribute('width', vb.width*s); root.setAttribute('height', vb.height*s); refreshRect(); }", "fit(); redraw(); window.addEventListener('resize', fit, {passive:true});", "var active={axis:null,id:null,captor:null}; var justDragged=false; function arm(){ justDragged=true; setTimeout(function(){ justDragged=false; },220); }", "function lock(){ document.documentElement.style.touchAction='none'; document.body.style.touchAction='none'; document.documentElement.style.overscrollBehavior='contain'; document.body.style.overscrollBehavior='contain'; }", "function unlock(){ document.documentElement.style.touchAction=''; document.body.style.touchAction=''; document.documentElement.style.overscrollBehavior=''; document.body.style.overscrollBehavior=''; }", "function onMove(e){ if(e.pointerId!==active.id) return; e.preventDefault(); var p=clientToSvg(e); if(active.axis==='v'){ var y=Math.max(MT+minRowsEachSide*UNIT, Math.min(MT+H-minRowsEachSide*UNIT, p.y)); var n=(MT+H)-y; if(n!==sy){ sy=n; schedule(); } } else if(active.axis==='h'){ var x=Math.max(ML+minColsEachSide*UNIT, Math.min(ML+W-minColsEachSide*UNIT, p.x)); var n=x-ML; if(n!==sx){ sx=n; schedule(); } }}", "function onUp(e){ if(e.pointerId!==active.id) return; e.preventDefault(); if(active.axis==='v') sy=snap(sy); if(active.axis==='h') sx=snap(sx); if(active.captor&&active.captor.releasePointerCapture){try{active.captor.releasePointerCapture(e.pointerId);}catch(_){}} if(active.captor){active.captor.setAttribute('class',(active.captor.getAttribute('class')||'').replace(/\\bdragging\\b/,'').trim());} active.axis=null; active.id=null; active.captor=null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); unlock(); arm(); schedule(); }", "function start(axis,e){ active.axis=axis; active.id=e.pointerId; active.captor=e.currentTarget||e.target; if(active.captor&&active.captor.setPointerCapture){try{active.captor.setPointerCapture(e.pointerId);}catch(_){}} var cls=(active.captor.getAttribute('class')||''); active.captor.setAttribute('class', (cls+' dragging').trim()); lock(); window.addEventListener('pointermove', onMove, {passive:false}); window.addEventListener('pointerup', onUp, {passive:false}); window.addEventListener('pointercancel', onUp, {passive:false}); }", "if(hitLeft){ hitLeft.style.touchAction='none'; hitLeft.addEventListener('pointerdown', function(e){ e.preventDefault(); start('v',e); }, {passive:false}); }", "if(hitDown){ hitDown.style.touchAction='none'; hitDown.addEventListener('pointerdown', function(e){ e.preventDefault(); start('h',e); }, {passive:false}); }", ADV.clickToMove !== false ? "root.addEventListener('click',function(e){ if(justDragged) return; var p=clientToSvg(e); if(Math.abs(p.x-ML)<12 && p.y>=MT && p.y<=MT+H){ sy=Math.round(((MT+H)-Math.max(MT+minRowsEachSide*UNIT,Math.min(MT+H-minRowsEachSide*UNIT,p.y)))/UNIT)*UNIT; schedule(); } else if(Math.abs(p.y-(MT+H))<12 && p.x>=ML && p.x<=ML+W){ sx=Math.round((Math.max(ML+minColsEachSide*UNIT,Math.min(ML+W-minColsEachSide*UNIT,p.x))-ML)/UNIT)*UNIT; schedule(); } });" : "", "})();"].join("\n");
   }
-
-  function buildInteractiveSvgString(o){
+  function buildInteractiveSvgString(o) {
     const svgNoScript = buildBaseSvgMarkup(o, true);
-    const scriptText  = buildRuntimeScriptText(o, "document.documentElement");
-    return svgNoScript.replace("</svg>",
-      "<script><![CDATA[\n" + scriptText + "\n]]>" + "</" + "script>\n</svg>");
+    const scriptText = buildRuntimeScriptText(o, "document.documentElement");
+    return svgNoScript.replace("</svg>", "<script><![CDATA[\n" + scriptText + "\n]]>" + "</" + "script>\n</svg>");
   }
 
   // Selvstendig HTML med interaktiv SVG
-  function buildInteractiveHtmlString(o){
+  function buildInteractiveHtmlString(o) {
     let svgMarkup = buildBaseSvgMarkup(o, false).replace('<svg ', '<svg id="rootSvg" ');
-    const scriptText  = buildRuntimeScriptText(o, "document.getElementById('rootSvg')");
-    const safeScript  = "<script>" + scriptText.replace(/<\/script>/gi, "<\\/script>") + "</" + "script>";
-    const resetCss =
-      "html,body{margin:0;padding:0;height:100%;background:#fff;}" +
-      "body{display:flex;align-items:center;justify-content:center;}";
-
-    return [
-      "<!DOCTYPE html>",
-      "<html lang='no'><head><meta charset='utf-8'/>",
-      "<meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'/>",
-      "<title>Arealmodell – interaktiv</title>",
-      "<style>", resetCss, "</style>",
-      "</head><body>",
-      svgMarkup,
-      safeScript,
-      "</body></html>"
-    ].join("");
+    const scriptText = buildRuntimeScriptText(o, "document.getElementById('rootSvg')");
+    const safeScript = "<script>" + scriptText.replace(/<\/script>/gi, "<\\/script>") + "</" + "script>";
+    const resetCss = "html,body{margin:0;padding:0;height:100%;background:#fff;}" + "body{display:flex;align-items:center;justify-content:center;}";
+    return ["<!DOCTYPE html>", "<html lang='no'><head><meta charset='utf-8'/>", "<meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'/>", "<title>Arealmodell – interaktiv</title>", "<style>", resetCss, "</style>", "</head><body>", svgMarkup, safeScript, "</body></html>"].join("");
   }
 }
-
-function initFromHtml(){
+function initFromHtml() {
   readConfigFromHtml();
   render();
 }
-
-function setSimpleConfig(o={}){
+function setSimpleConfig(o = {}) {
   ensureCfgDefaults();
-  if(o.height != null) CFG.SIMPLE.height.cells = Math.round(o.height);
-  if(o.length != null) CFG.SIMPLE.length.cells = Math.round(o.length);
-  if(o.heightStart != null) CFG.SIMPLE.height.handle = Math.round(o.heightStart);
-  else if(o.heightHandle != null) CFG.SIMPLE.height.handle = Math.round(o.heightHandle);
-  if(o.lengthStart != null) CFG.SIMPLE.length.handle = Math.round(o.lengthStart);
-  else if(o.lengthHandle != null) CFG.SIMPLE.length.handle = Math.round(o.lengthHandle);
-  if(o.showHeightHandle != null) CFG.SIMPLE.height.showHandle = !!o.showHeightHandle;
-  if(o.showLengthHandle != null) CFG.SIMPLE.length.showHandle = !!o.showLengthHandle;
-  const setVal = (id,v)=>{ const el=document.getElementById(id); if(el && v!=null) el.value=v; };
-  const setChk = (id,v)=>{ const el=document.getElementById(id); if(el) el.checked=!!v; };
+  if (o.height != null) CFG.SIMPLE.height.cells = Math.round(o.height);
+  if (o.length != null) CFG.SIMPLE.length.cells = Math.round(o.length);
+  if (o.heightStart != null) CFG.SIMPLE.height.handle = Math.round(o.heightStart);else if (o.heightHandle != null) CFG.SIMPLE.height.handle = Math.round(o.heightHandle);
+  if (o.lengthStart != null) CFG.SIMPLE.length.handle = Math.round(o.lengthStart);else if (o.lengthHandle != null) CFG.SIMPLE.length.handle = Math.round(o.lengthHandle);
+  if (o.showHeightHandle != null) CFG.SIMPLE.height.showHandle = !!o.showHeightHandle;
+  if (o.showLengthHandle != null) CFG.SIMPLE.length.showHandle = !!o.showLengthHandle;
+  const setVal = (id, v) => {
+    const el = document.getElementById(id);
+    if (el && v != null) el.value = v;
+  };
+  const setChk = (id, v) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = !!v;
+  };
   setVal("length", CFG.SIMPLE.length.cells);
   setVal("lengthStart", CFG.SIMPLE.length.handle);
   setChk("showLengthHandle", CFG.SIMPLE.length.showHandle !== false);
@@ -880,50 +1037,47 @@ function setSimpleConfig(o={}){
   setChk("showHeightHandle", CFG.SIMPLE.height.showHandle !== false);
   render();
 }
-
 window.setArealmodellBConfig = setSimpleConfig;
-
-function applyConfigToInputs(){
+function applyConfigToInputs() {
+  var _simple$length, _simple$length2, _simple$length3, _simple$height, _simple$height2, _simple$height3;
   ensureCfgDefaults();
   const simple = CFG.SIMPLE || {};
   const adv = CFG.ADV || {};
-  const setVal = (id,value)=>{
-    const el=document.getElementById(id);
-    if(!el || value==null) return;
-    const str=String(value);
-    if(el.value!==str) el.value=str;
+  const setVal = (id, value) => {
+    const el = document.getElementById(id);
+    if (!el || value == null) return;
+    const str = String(value);
+    if (el.value !== str) el.value = str;
   };
-  const setChk = (id,value)=>{
-    const el=document.getElementById(id);
-    if(!el) return;
-    const bool=!!value;
-    if(el.checked!==bool) el.checked=bool;
+  const setChk = (id, value) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const bool = !!value;
+    if (el.checked !== bool) el.checked = bool;
   };
-
-  setVal('length', simple.length?.cells);
-  setVal('lengthStart', simple.length?.handle);
-  setChk('showLengthHandle', simple.length?.showHandle !== false);
-  setVal('height', simple.height?.cells);
-  setVal('heightStart', simple.height?.handle);
-  setChk('showHeightHandle', simple.height?.showHandle !== false);
+  setVal('length', (_simple$length = simple.length) === null || _simple$length === void 0 ? void 0 : _simple$length.cells);
+  setVal('lengthStart', (_simple$length2 = simple.length) === null || _simple$length2 === void 0 ? void 0 : _simple$length2.handle);
+  setChk('showLengthHandle', ((_simple$length3 = simple.length) === null || _simple$length3 === void 0 ? void 0 : _simple$length3.showHandle) !== false);
+  setVal('height', (_simple$height = simple.height) === null || _simple$height === void 0 ? void 0 : _simple$height.cells);
+  setVal('heightStart', (_simple$height2 = simple.height) === null || _simple$height2 === void 0 ? void 0 : _simple$height2.handle);
+  setChk('showHeightHandle', ((_simple$height3 = simple.height) === null || _simple$height3 === void 0 ? void 0 : _simple$height3.showHandle) !== false);
   setChk('grid', !!adv.grid);
   setChk('splitLines', adv.splitLines !== false);
 }
-
-function applyExamplesConfig(){
+function applyExamplesConfig() {
   ensureCfgDefaults();
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', applyExamplesConfig, {once:true});
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyExamplesConfig, {
+      once: true
+    });
     return;
   }
   applyConfigToInputs();
   draw();
 }
-
-function render(){
+function render() {
   applyExamplesConfig();
 }
-
 window.addEventListener('load', () => {
   initFromHtml();
   document.querySelectorAll('.settings input').forEach(el => {
@@ -931,8 +1085,7 @@ window.addEventListener('load', () => {
     el.addEventListener('input', initFromHtml);
   });
 });
-
-if(typeof window !== 'undefined'){
+if (typeof window !== 'undefined') {
   window.applyConfig = applyExamplesConfig;
   window.applyState = applyExamplesConfig;
   window.render = render;

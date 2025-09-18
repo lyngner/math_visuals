@@ -1,76 +1,64 @@
+var _combinedWholeControl;
 /* Tenkeblokker – grid layout */
 
-const DEFAULT_BLOCKS = [
-  {
-    total: 1,
-    n: 1,
-    k: 1,
-    showWhole: false,
-    lockDenominator: true,
-    lockNumerator: true,
-    hideNValue: false,
-    valueDisplay: 'number',
-    showCustomText: false,
-    customText: ''
-  },
-  {
-    total: 1,
-    n: 1,
-    k: 1,
-    showWhole: false,
-    lockDenominator: true,
-    lockNumerator: true,
-    hideNValue: false,
-    valueDisplay: 'number',
-    showCustomText: false,
-    customText: ''
-  }
-];
-
-const DEFAULT_TENKEBLOKKER_EXAMPLES = [
-  {
-    id: 'tenkeblokker-example-1',
-    exampleNumber: '1',
-    title: 'Brøk av en hel',
-    isDefault: true,
-    config: {
-      CONFIG: {
-        minN: 1,
-        maxN: 12,
-        rows: 1,
-        cols: 1,
-        blocks: [
-          [
-            {
-              total: 12,
-              n: 4,
-              k: 3,
-              showWhole: false,
-              lockDenominator: false,
-              lockNumerator: false,
-              hideNValue: false,
-              valueDisplay: 'fraction',
-              showCustomText: false,
-              customText: '',
-              showFraction: true,
-              showPercent: false
-            }
-          ]
-        ],
-        showCombinedWhole: false
-      }
+const DEFAULT_BLOCKS = [{
+  total: 1,
+  n: 1,
+  k: 1,
+  showWhole: false,
+  lockDenominator: true,
+  lockNumerator: true,
+  hideNValue: false,
+  valueDisplay: 'number',
+  showCustomText: false,
+  customText: ''
+}, {
+  total: 1,
+  n: 1,
+  k: 1,
+  showWhole: false,
+  lockDenominator: true,
+  lockNumerator: true,
+  hideNValue: false,
+  valueDisplay: 'number',
+  showCustomText: false,
+  customText: ''
+}];
+const DEFAULT_TENKEBLOKKER_EXAMPLES = [{
+  id: 'tenkeblokker-example-1',
+  exampleNumber: '1',
+  title: 'Brøk av en hel',
+  isDefault: true,
+  config: {
+    CONFIG: {
+      minN: 1,
+      maxN: 12,
+      rows: 1,
+      cols: 1,
+      blocks: [[{
+        total: 12,
+        n: 4,
+        k: 3,
+        showWhole: false,
+        lockDenominator: false,
+        lockNumerator: false,
+        hideNValue: false,
+        valueDisplay: 'fraction',
+        showCustomText: false,
+        customText: '',
+        showFraction: true,
+        showPercent: false
+      }]],
+      showCombinedWhole: false
     }
   }
-];
-
+}];
 const DISPLAY_OPTIONS = ['number', 'fraction', 'percent'];
-
 function sanitizeDisplayMode(value) {
   if (typeof value !== 'string') return null;
   const normalized = value.trim().toLowerCase();
   return DISPLAY_OPTIONS.includes(normalized) ? normalized : null;
 }
-
 function applyDisplayMode(cfg, mode, fallback = 'number') {
   if (!cfg) return 'number';
   const normalizedFallback = sanitizeDisplayMode(fallback) || 'number';
@@ -80,7 +68,6 @@ function applyDisplayMode(cfg, mode, fallback = 'number') {
   cfg.showPercent = normalized === 'percent';
   return normalized;
 }
-
 function parseGridDimension(value, fallback = 1) {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
     return Math.round(value);
@@ -93,7 +80,6 @@ function parseGridDimension(value, fallback = 1) {
   }
   return fallback;
 }
-
 function cloneExampleConfig(config) {
   if (!config) return config;
   if (typeof structuredClone === 'function') {
@@ -105,13 +91,11 @@ function cloneExampleConfig(config) {
   }
   return JSON.parse(JSON.stringify(config));
 }
-
 function getHiddenNumber(target, key) {
   if (!target || typeof target !== 'object') return null;
   const value = target[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
-
 function setHiddenNumber(target, key, value) {
   if (!target || typeof target !== 'object') return;
   Object.defineProperty(target, key, {
@@ -121,12 +105,10 @@ function setHiddenNumber(target, key, value) {
     enumerable: false
   });
 }
-
 function getHiddenBoolean(target, key) {
   if (!target || typeof target !== 'object') return false;
   return target[key] === true;
 }
-
 function setHiddenFlag(target, key, value) {
   if (!target || typeof target !== 'object') return;
   Object.defineProperty(target, key, {
@@ -136,7 +118,6 @@ function setHiddenFlag(target, key, value) {
     enumerable: false
   });
 }
-
 function isMeaningfulBlockCell(cell) {
   if (cell == null) return false;
   if (typeof cell === 'object') {
@@ -148,7 +129,6 @@ function isMeaningfulBlockCell(cell) {
   }
   return true;
 }
-
 function countMeaningfulColumns(row) {
   if (!Array.isArray(row)) return 0;
   for (let i = row.length - 1; i >= 0; i--) {
@@ -156,12 +136,12 @@ function countMeaningfulColumns(row) {
   }
   return 0;
 }
-
 function getDefaultBlock(index = 0) {
   const base = DEFAULT_BLOCKS[index] || DEFAULT_BLOCKS[DEFAULT_BLOCKS.length - 1];
-  return { ...base };
+  return {
+    ...base
+  };
 }
-
 const CONFIG = {
   minN: 1,
   maxN: 12,
@@ -170,7 +150,6 @@ const CONFIG = {
   blocks: [],
   showCombinedWhole: false
 };
-
 const VBW = 900;
 const VBH = 420;
 const SIDE_MARGIN_RATIO = 0;
@@ -182,10 +161,8 @@ const LABEL_OFFSET_RATIO = 14 / VBH;
 const DEFAULT_SVG_HEIGHT = 260;
 const ROW_GAP = 18;
 const DEFAULT_FRAME_INSET = 3;
-
 const BLOCKS = [];
 let multipleBlocksActive = false;
-
 const board = document.getElementById('tbBoard');
 const grid = document.getElementById('tbGrid');
 const addColumnBtn = document.getElementById('tbAddColumn');
@@ -193,47 +170,43 @@ const addRowBtn = document.getElementById('tbAddRow');
 const removeColumnBtn = document.getElementById('tbRemoveColumn');
 const removeRowBtn = document.getElementById('tbRemoveRow');
 const settingsContainer = document.getElementById('tbSettings');
-
 const combinedWholeControls = {
   row: document.getElementById('cfg-show-combined-row'),
   checkbox: document.getElementById('cfg-show-combined-whole')
 };
-
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
-
 if (typeof window !== 'undefined') {
-  window.DEFAULT_EXAMPLES = DEFAULT_TENKEBLOKKER_EXAMPLES.map(example => ({
-    ...example,
-    config: {
-      ...example.config,
-      CONFIG: cloneExampleConfig(example.config?.CONFIG)
-    }
-  }));
+  window.DEFAULT_EXAMPLES = DEFAULT_TENKEBLOKKER_EXAMPLES.map(example => {
+    var _example$config;
+    return {
+      ...example,
+      config: {
+        ...example.config,
+        CONFIG: cloneExampleConfig((_example$config = example.config) === null || _example$config === void 0 ? void 0 : _example$config.CONFIG)
+      }
+    };
+  });
 }
-
 const combinedWholeOverlay = createCombinedWholeOverlay();
 if (typeof window !== 'undefined') {
   window.addEventListener('resize', () => draw(true));
 }
-
-addColumnBtn?.addEventListener('click', () => {
+addColumnBtn === null || addColumnBtn === void 0 || addColumnBtn.addEventListener('click', () => {
   const current = parseGridDimension(CONFIG.cols, 1);
   if (current >= 3) return;
   setHiddenFlag(CONFIG, '__colsDirty', true);
   CONFIG.cols = Math.min(3, current + 1);
   draw();
 });
-
-addRowBtn?.addEventListener('click', () => {
+addRowBtn === null || addRowBtn === void 0 || addRowBtn.addEventListener('click', () => {
   const current = parseGridDimension(CONFIG.rows, 1);
   if (current >= 3) return;
   setHiddenFlag(CONFIG, '__rowsDirty', true);
   CONFIG.rows = Math.min(3, current + 1);
   draw();
 });
-
-removeColumnBtn?.addEventListener('click', () => {
+removeColumnBtn === null || removeColumnBtn === void 0 || removeColumnBtn.addEventListener('click', () => {
   const current = parseGridDimension(CONFIG.cols, 1);
   if (current <= 1) return;
   const next = Math.max(1, current - 1);
@@ -248,8 +221,7 @@ removeColumnBtn?.addEventListener('click', () => {
   }
   draw();
 });
-
-removeRowBtn?.addEventListener('click', () => {
+removeRowBtn === null || removeRowBtn === void 0 || removeRowBtn.addEventListener('click', () => {
   const current = parseGridDimension(CONFIG.rows, 1);
   if (current <= 1) return;
   const next = Math.max(1, current - 1);
@@ -260,55 +232,52 @@ removeRowBtn?.addEventListener('click', () => {
   }
   draw();
 });
-
-combinedWholeControls.checkbox?.addEventListener('change', () => {
+(_combinedWholeControl = combinedWholeControls.checkbox) === null || _combinedWholeControl === void 0 || _combinedWholeControl.addEventListener('change', () => {
   CONFIG.showCombinedWhole = !!combinedWholeControls.checkbox.checked;
   draw(true);
 });
-
-btnSvg?.addEventListener('click', () => {
+btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => {
   const exportSvg = getExportSvg();
   if (exportSvg) downloadSVG(exportSvg, 'tenkeblokker.svg');
 });
-
-btnPng?.addEventListener('click', () => {
+btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => {
   const exportSvg = getExportSvg();
   if (exportSvg) downloadPNG(exportSvg, 'tenkeblokker.png', 2);
 });
-
 normalizeConfig(true);
 rebuildStructure();
-
 draw(true);
-
 window.CONFIG = CONFIG;
 window.draw = draw;
-
 function getSvgViewport(block) {
-  const svg = block?.svg;
-  const panelRect = block?.panel?.getBoundingClientRect?.();
-  const svgRect = svg?.getBoundingClientRect?.();
-
-  let width = panelRect?.width;
-  if (!(width > 0)) width = svgRect?.width;
+  var _block$panel, _block$panel$getBound, _svg$getBoundingClien;
+  const svg = block === null || block === void 0 ? void 0 : block.svg;
+  const panelRect = block === null || block === void 0 || (_block$panel = block.panel) === null || _block$panel === void 0 || (_block$panel$getBound = _block$panel.getBoundingClientRect) === null || _block$panel$getBound === void 0 ? void 0 : _block$panel$getBound.call(_block$panel);
+  const svgRect = svg === null || svg === void 0 || (_svg$getBoundingClien = svg.getBoundingClientRect) === null || _svg$getBoundingClien === void 0 ? void 0 : _svg$getBoundingClien.call(svg);
+  let width = panelRect === null || panelRect === void 0 ? void 0 : panelRect.width;
+  if (!(width > 0)) width = svgRect === null || svgRect === void 0 ? void 0 : svgRect.width;
   if (!(width > 0)) width = VBW;
-
-  let height = svgRect?.height;
+  let height = svgRect === null || svgRect === void 0 ? void 0 : svgRect.height;
   if (!(height > 0) && svg) {
-    const owner = svg.ownerDocument?.defaultView;
-    if (owner?.getComputedStyle) {
+    var _svg$ownerDocument;
+    const owner = (_svg$ownerDocument = svg.ownerDocument) === null || _svg$ownerDocument === void 0 ? void 0 : _svg$ownerDocument.defaultView;
+    if (owner !== null && owner !== void 0 && owner.getComputedStyle) {
       const computedHeight = owner.getComputedStyle(svg).getPropertyValue('height');
       const parsed = Number.parseFloat(String(computedHeight).replace(',', '.'));
       if (Number.isFinite(parsed) && parsed > 0) height = parsed;
     }
   }
   if (!(height > 0)) height = DEFAULT_SVG_HEIGHT;
-
-  return { width, height };
+  return {
+    width,
+    height
+  };
 }
-
 function getBlockMetrics(block) {
-  const { width, height } = getSvgViewport(block);
+  const {
+    width,
+    height
+  } = getSvgViewport(block);
   const left = width * SIDE_MARGIN_RATIO;
   const right = width - left;
   const top = height * TOP_RATIO;
@@ -347,7 +316,6 @@ function getBlockMetrics(block) {
     outerBottom: bottom
   };
 }
-
 function toBoolean(value, fallback = false) {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'string') {
@@ -357,16 +325,17 @@ function toBoolean(value, fallback = false) {
   }
   return fallback;
 }
-
 function normalizeBlockConfig(raw, index, existing, previous) {
+  var _defaults$customText;
   const defaults = getDefaultBlock(index);
-  const target = existing && typeof existing === 'object' ? existing : { ...defaults };
+  const target = existing && typeof existing === 'object' ? existing : {
+    ...defaults
+  };
   const source = raw && typeof raw === 'object' ? raw : {};
   const isNew = raw == null;
-
   let total = Number(source.total);
   if (!Number.isFinite(total) || total < 1) {
-    const prevTotal = Number(previous?.total);
+    const prevTotal = Number(previous === null || previous === void 0 ? void 0 : previous.total);
     if (isNew && Number.isFinite(prevTotal) && prevTotal > 0) {
       total = prevTotal;
     } else {
@@ -374,50 +343,38 @@ function normalizeBlockConfig(raw, index, existing, previous) {
     }
   }
   target.total = total;
-
   let n = Number(source.n);
   if (!Number.isFinite(n)) n = Number(defaults.n) || 1;
   target.n = Math.round(n);
-
   let k = Number(source.k);
   if (!Number.isFinite(k)) k = Number(defaults.k) || 0;
   target.k = Math.round(k);
-
   target.showWhole = toBoolean(source.showWhole, toBoolean(defaults.showWhole, true));
   target.lockDenominator = toBoolean(source.lockDenominator, toBoolean(defaults.lockDenominator, false));
   target.lockNumerator = toBoolean(source.lockNumerator, toBoolean(defaults.lockNumerator, false));
   target.hideNValue = toBoolean(source.hideNValue, toBoolean(defaults.hideNValue, false));
   target.showCustomText = toBoolean(source.showCustomText, toBoolean(defaults.showCustomText, false));
-  const textSource = typeof source.customText === 'string' ? source.customText : defaults.customText ?? '';
+  const textSource = typeof source.customText === 'string' ? source.customText : (_defaults$customText = defaults.customText) !== null && _defaults$customText !== void 0 ? _defaults$customText : '';
   target.customText = textSource;
-
   let desiredDisplay = sanitizeDisplayMode(source.valueDisplay);
   if (!desiredDisplay) {
-    if (toBoolean(source.showPercent)) desiredDisplay = 'percent';
-    else if (toBoolean(source.showFraction)) desiredDisplay = 'fraction';
-    else desiredDisplay = sanitizeDisplayMode(defaults.valueDisplay) || 'number';
+    if (toBoolean(source.showPercent)) desiredDisplay = 'percent';else if (toBoolean(source.showFraction)) desiredDisplay = 'fraction';else desiredDisplay = sanitizeDisplayMode(defaults.valueDisplay) || 'number';
   }
   applyDisplayMode(target, desiredDisplay, defaults.valueDisplay);
-
   return target;
 }
-
 function normalizeConfig(initial = false) {
   let structureChanged = false;
-
   const previousRows = getHiddenNumber(CONFIG, '__lastNormalizedRows');
   const previousCols = getHiddenNumber(CONFIG, '__lastNormalizedCols');
-
   if (typeof CONFIG.minN !== 'number' || Number.isNaN(CONFIG.minN)) CONFIG.minN = 1;
   if (typeof CONFIG.maxN !== 'number' || Number.isNaN(CONFIG.maxN)) CONFIG.maxN = 12;
   CONFIG.minN = Math.max(1, Math.floor(CONFIG.minN));
   CONFIG.maxN = Math.max(CONFIG.minN, Math.floor(CONFIG.maxN));
-
   if (!Array.isArray(CONFIG.blocks)) {
     CONFIG.blocks = [];
     structureChanged = true;
   }
-
   let usedRows = 0;
   let usedCols = 0;
   if (Array.isArray(CONFIG.blocks)) {
@@ -431,14 +388,12 @@ function normalizeConfig(initial = false) {
   }
   usedRows = clamp(usedRows, 0, 3);
   usedCols = clamp(usedCols, 0, 3);
-
   const rowsDirty = getHiddenBoolean(CONFIG, '__rowsDirty');
   const colsDirty = getHiddenBoolean(CONFIG, '__colsDirty');
-
   const hasNested = CONFIG.blocks.some(item => Array.isArray(item));
   if (!hasNested) {
     const flat = CONFIG.blocks;
-    const activeRaw = Number.isFinite(CONFIG.activeBlocks) ? Math.round(CONFIG.activeBlocks) : (flat?.length || 1);
+    const activeRaw = Number.isFinite(CONFIG.activeBlocks) ? Math.round(CONFIG.activeBlocks) : (flat === null || flat === void 0 ? void 0 : flat.length) || 1;
     const active = clamp(activeRaw, 1, 9);
     let rows = Number.isFinite(CONFIG.rows) ? Math.round(CONFIG.rows) : 0;
     let cols = Number.isFinite(CONFIG.cols) ? Math.round(CONFIG.cols) : 0;
@@ -447,20 +402,17 @@ function normalizeConfig(initial = false) {
     rows = clamp(rows, 1, 3);
     cols = clamp(cols, 1, 3);
     while (rows * cols < active) {
-      if (cols < 3) cols += 1;
-      else if (rows < 3) rows += 1;
-      else break;
+      if (cols < 3) cols += 1;else if (rows < 3) rows += 1;else break;
     }
     const gridData = [];
     let index = 0;
     for (let r = 0; r < rows; r++) {
       const row = [];
       for (let c = 0; c < cols; c++) {
-        const raw = flat?.[index] || null;
+        const raw = (flat === null || flat === void 0 ? void 0 : flat[index]) || null;
         let previous = null;
         if (index > 0) {
-          if (c > 0) previous = row[c - 1];
-          else if (r > 0) {
+          if (c > 0) previous = row[c - 1];else if (r > 0) {
             const prevRow = gridData[r - 1];
             previous = Array.isArray(prevRow) ? prevRow[cols - 1] : null;
           }
@@ -484,7 +436,6 @@ function normalizeConfig(initial = false) {
         rows = usedRows;
       }
     }
-
     let cols = Number.isFinite(CONFIG.cols) ? Math.round(CONFIG.cols) : 0;
     if (!(cols >= 1)) {
       cols = usedCols > 0 ? usedCols : 1;
@@ -497,10 +448,8 @@ function normalizeConfig(initial = false) {
         cols = usedCols;
       }
     }
-
     if (CONFIG.blocks.length !== rows) structureChanged = true;
     CONFIG.blocks.length = rows;
-
     for (let r = 0; r < rows; r++) {
       let row = CONFIG.blocks[r];
       if (!Array.isArray(row)) {
@@ -528,7 +477,6 @@ function normalizeConfig(initial = false) {
     CONFIG.rows = rows;
     CONFIG.cols = cols;
   }
-
   const rows = CONFIG.rows;
   const cols = CONFIG.cols;
   for (let r = 0; r < rows; r++) {
@@ -544,36 +492,28 @@ function normalizeConfig(initial = false) {
       cfg.hideNValue = !!cfg.hideNValue;
     }
   }
-
   CONFIG.activeBlocks = rows * cols;
   CONFIG.showCombinedWhole = toBoolean(CONFIG.showCombinedWhole, false);
-
   const rowsChanged = Number.isFinite(previousRows) && previousRows !== rows;
   const colsChanged = Number.isFinite(previousCols) && previousCols !== cols;
   if (rowsChanged || colsChanged) structureChanged = true;
-
   setHiddenNumber(CONFIG, '__lastNormalizedRows', rows);
   setHiddenNumber(CONFIG, '__lastNormalizedCols', cols);
   setHiddenFlag(CONFIG, '__rowsDirty', false);
   setHiddenFlag(CONFIG, '__colsDirty', false);
-
   if (!initial && CONFIG.stackBlocks !== undefined) {
     delete CONFIG.stackBlocks;
     structureChanged = true;
   }
-
   return structureChanged;
 }
 function rebuildStructure() {
   if (!grid) return;
-
   const panelsFragment = document.createDocumentFragment();
   const settingsFragment = document.createDocumentFragment();
-
   BLOCKS.length = 0;
   grid.innerHTML = '';
   if (settingsContainer) settingsContainer.innerHTML = '';
-
   const rowElements = [];
   for (let r = 0; r < CONFIG.rows; r++) {
     const rowEl = document.createElement('div');
@@ -581,7 +521,6 @@ function rebuildStructure() {
     rowEl.dataset.row = String(r);
     rowElements.push(rowEl);
     panelsFragment.appendChild(rowEl);
-
     for (let c = 0; c < CONFIG.cols; c++) {
       const cfg = CONFIG.blocks[r][c];
       const block = createBlock(r, c, cfg);
@@ -590,14 +529,11 @@ function rebuildStructure() {
       if (block.fieldset) settingsFragment.appendChild(block.fieldset);
     }
   }
-
   grid.setAttribute('data-cols', String(CONFIG.cols));
   grid.appendChild(panelsFragment);
   if (settingsContainer) settingsContainer.appendChild(settingsFragment);
-
   updateAddButtons();
 }
-
 function draw(skipNormalization = false) {
   if (!skipNormalization) {
     const structureChanged = normalizeConfig();
@@ -607,10 +543,8 @@ function draw(skipNormalization = false) {
       return;
     }
   }
-
   if (grid) grid.setAttribute('data-cols', String(CONFIG.cols));
   updateAddButtons();
-
   const multiple = CONFIG.activeBlocks > 1;
   multipleBlocksActive = multiple;
   if (combinedWholeControls.row) combinedWholeControls.row.style.display = multiple ? '' : 'none';
@@ -623,29 +557,27 @@ function draw(skipNormalization = false) {
       combinedWholeControls.checkbox.checked = !!CONFIG.showCombinedWhole;
     }
   }
-
-  const rowTotals = Array.from({ length: CONFIG.rows }, () => 0);
+  const rowTotals = Array.from({
+    length: CONFIG.rows
+  }, () => 0);
   const visibleBlocks = [];
-
   for (const block of BLOCKS) {
-    const cfg = CONFIG.blocks?.[block.row]?.[block.col];
+    var _CONFIG$blocks;
+    const cfg = (_CONFIG$blocks = CONFIG.blocks) === null || _CONFIG$blocks === void 0 || (_CONFIG$blocks = _CONFIG$blocks[block.row]) === null || _CONFIG$blocks === void 0 ? void 0 : _CONFIG$blocks[block.col];
     if (!cfg) continue;
     block.cfg = cfg;
     block.index = block.row * CONFIG.cols + block.col;
     visibleBlocks.push(block);
-
     const totalValue = Number(cfg.total);
     if (Number.isFinite(totalValue) && totalValue > 0 && rowTotals[block.row] !== undefined) {
       rowTotals[block.row] += totalValue;
     }
   }
-
   const maxRowTotal = rowTotals.reduce((max, value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric <= max) return max;
     return numeric;
   }, 0);
-
   if (grid) {
     const rowElements = grid.querySelectorAll('.tb-row');
     rowElements.forEach((rowEl, index) => {
@@ -662,59 +594,50 @@ function draw(skipNormalization = false) {
       }
     });
   }
-
   for (const block of visibleBlocks) {
     const rowTotal = rowTotals[block.row];
     updateBlockPanelLayout(block, rowTotal);
   }
-
   for (const block of visibleBlocks) {
     drawBlock(block);
   }
-
   drawCombinedWholeOverlay();
   syncLegacyConfig();
 }
-
 function updateAddButtons() {
   const parsedCols = Number(CONFIG.cols);
   const parsedRows = Number(CONFIG.rows);
   const cols = Number.isFinite(parsedCols) ? parsedCols : 1;
   const rows = Number.isFinite(parsedRows) ? parsedRows : 1;
-
   if (addColumnBtn) addColumnBtn.style.display = cols >= 3 ? 'none' : '';
   if (addRowBtn) addRowBtn.style.display = rows >= 3 ? 'none' : '';
   if (removeColumnBtn) removeColumnBtn.style.display = cols <= 1 ? 'none' : '';
   if (removeRowBtn) removeRowBtn.style.display = rows <= 1 ? 'none' : '';
 }
-
 function createBlock(row, col, cfg) {
+  var _cfg$total, _cfg$n, _cfg$k;
   const block = {
     row,
     col,
     cfg,
     uid: `tb-${row}-${col}-${Math.random().toString(36).slice(2, 8)}`
   };
-
   const panel = document.createElement('div');
   panel.className = 'tb-panel';
   panel.dataset.row = String(row);
   panel.dataset.col = String(col);
   block.panel = panel;
-
   const header = document.createElement('div');
   header.className = 'tb-header';
   header.style.display = 'none';
   block.header = header;
   panel.appendChild(header);
-
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'tb-svg');
   svg.setAttribute('viewBox', `0 0 ${VBW} ${VBH}`);
   svg.setAttribute('preserveAspectRatio', 'none');
   block.svg = svg;
   panel.appendChild(svg);
-
   block.gBase = createSvgElement(svg, 'g');
   block.gFill = createSvgElement(svg, 'g');
   block.gSep = createSvgElement(svg, 'g');
@@ -722,61 +645,78 @@ function createBlock(row, col, cfg) {
   block.gFrame = createSvgElement(svg, 'g');
   block.gHandle = createSvgElement(svg, 'g');
   block.gBrace = createSvgElement(svg, 'g');
-
-  block.rectEmpty = createSvgElement(block.gBase, 'rect', { x: 0, y: 0, width: 0, height: 0, class: 'tb-rect-empty' });
-  block.rectFrame = createSvgElement(block.gFrame, 'rect', { x: 0, y: 0, width: 0, height: 0, class: 'tb-frame' });
+  block.rectEmpty = createSvgElement(block.gBase, 'rect', {
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    class: 'tb-rect-empty'
+  });
+  block.rectFrame = createSvgElement(block.gFrame, 'rect', {
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    class: 'tb-frame'
+  });
   drawBracketSquare(block.gBrace, 0, 0, 0, 0);
-  block.totalText = createSvgElement(block.gBrace, 'text', { x: 0, y: 0, class: 'tb-total' });
-
-  block.handleShadow = createSvgElement(block.gHandle, 'circle', { cx: 0, cy: 0, r: 20, class: 'tb-handle-shadow' });
-  block.handle = createSvgElement(block.gHandle, 'circle', { cx: 0, cy: 0, r: 18, class: 'tb-handle' });
+  block.totalText = createSvgElement(block.gBrace, 'text', {
+    x: 0,
+    y: 0,
+    class: 'tb-total'
+  });
+  block.handleShadow = createSvgElement(block.gHandle, 'circle', {
+    cx: 0,
+    cy: 0,
+    r: 20,
+    class: 'tb-handle-shadow'
+  });
+  block.handle = createSvgElement(block.gHandle, 'circle', {
+    cx: 0,
+    cy: 0,
+    r: 18,
+    class: 'tb-handle'
+  });
   block.handle.addEventListener('pointerdown', event => onDragStart(block, event));
-
   const stepper = document.createElement('div');
   stepper.className = 'tb-stepper';
   block.stepper = stepper;
-
   const minus = document.createElement('button');
   minus.type = 'button';
   minus.textContent = '−';
   minus.setAttribute('aria-label', 'Færre blokker');
   block.minusBtn = minus;
-
   const nVal = document.createElement('span');
   block.nVal = nVal;
-
   const plus = document.createElement('button');
   plus.type = 'button';
   plus.textContent = '+';
   plus.setAttribute('aria-label', 'Flere blokker');
   block.plusBtn = plus;
-
   minus.addEventListener('click', () => {
-    const next = (block.cfg?.n ?? CONFIG.minN) - 1;
+    var _block$cfg$n, _block$cfg;
+    const next = ((_block$cfg$n = (_block$cfg = block.cfg) === null || _block$cfg === void 0 ? void 0 : _block$cfg.n) !== null && _block$cfg$n !== void 0 ? _block$cfg$n : CONFIG.minN) - 1;
     setN(block, next);
   });
   plus.addEventListener('click', () => {
-    const next = (block.cfg?.n ?? CONFIG.minN) + 1;
+    var _block$cfg$n2, _block$cfg2;
+    const next = ((_block$cfg$n2 = (_block$cfg2 = block.cfg) === null || _block$cfg2 === void 0 ? void 0 : _block$cfg2.n) !== null && _block$cfg$n2 !== void 0 ? _block$cfg$n2 : CONFIG.minN) + 1;
     setN(block, next);
   });
-
   stepper.append(minus, nVal, plus);
   panel.appendChild(stepper);
-
   const fieldset = document.createElement('fieldset');
   block.fieldset = fieldset;
-
   const legend = document.createElement('legend');
   block.legend = legend;
   fieldset.appendChild(legend);
-
   const totalLabel = document.createElement('label');
   totalLabel.textContent = 'Total';
   const totalInput = document.createElement('input');
   totalInput.type = 'number';
   totalInput.min = '1';
   totalInput.step = '1';
-  totalInput.value = String(cfg?.total ?? 1);
+  totalInput.value = String((_cfg$total = cfg === null || cfg === void 0 ? void 0 : cfg.total) !== null && _cfg$total !== void 0 ? _cfg$total : 1);
   totalInput.addEventListener('change', () => {
     const parsed = Number.parseFloat(totalInput.value.replace(',', '.'));
     if (Number.isFinite(parsed) && parsed > 0) {
@@ -786,7 +726,6 @@ function createBlock(row, col, cfg) {
   });
   totalLabel.appendChild(totalInput);
   fieldset.appendChild(totalLabel);
-
   const nLabel = document.createElement('label');
   nLabel.textContent = 'Antall blokker';
   const nInput = document.createElement('input');
@@ -794,28 +733,26 @@ function createBlock(row, col, cfg) {
   nInput.min = String(CONFIG.minN);
   nInput.max = String(CONFIG.maxN);
   nInput.step = '1';
-  nInput.value = String(cfg?.n ?? CONFIG.minN);
+  nInput.value = String((_cfg$n = cfg === null || cfg === void 0 ? void 0 : cfg.n) !== null && _cfg$n !== void 0 ? _cfg$n : CONFIG.minN);
   nInput.addEventListener('change', () => {
     const parsed = Number.parseInt(nInput.value, 10);
     if (!Number.isNaN(parsed)) setN(block, parsed);
   });
   nLabel.appendChild(nInput);
   fieldset.appendChild(nLabel);
-
   const kLabel = document.createElement('label');
   kLabel.textContent = 'Fylte blokker';
   const kInput = document.createElement('input');
   kInput.type = 'number';
   kInput.min = '0';
   kInput.step = '1';
-  kInput.value = String(cfg?.k ?? 0);
+  kInput.value = String((_cfg$k = cfg === null || cfg === void 0 ? void 0 : cfg.k) !== null && _cfg$k !== void 0 ? _cfg$k : 0);
   kInput.addEventListener('change', () => {
     const parsed = Number.parseInt(kInput.value, 10);
     if (!Number.isNaN(parsed)) setK(block, parsed);
   });
   kLabel.appendChild(kInput);
   fieldset.appendChild(kLabel);
-
   const showWholeRow = document.createElement('div');
   showWholeRow.className = 'checkbox-row';
   const showWholeInput = document.createElement('input');
@@ -830,7 +767,6 @@ function createBlock(row, col, cfg) {
   showWholeLabel.textContent = 'Vis hele';
   showWholeRow.append(showWholeInput, showWholeLabel);
   fieldset.appendChild(showWholeRow);
-
   const lockNRow = document.createElement('div');
   lockNRow.className = 'checkbox-row';
   const lockNInput = document.createElement('input');
@@ -845,7 +781,6 @@ function createBlock(row, col, cfg) {
   lockNLabel.textContent = 'Lås nevner';
   lockNRow.append(lockNInput, lockNLabel);
   fieldset.appendChild(lockNRow);
-
   const lockKRow = document.createElement('div');
   lockKRow.className = 'checkbox-row';
   const lockKInput = document.createElement('input');
@@ -860,7 +795,6 @@ function createBlock(row, col, cfg) {
   lockKLabel.textContent = 'Lås teller';
   lockKRow.append(lockKInput, lockKLabel);
   fieldset.appendChild(lockKRow);
-
   const hideNRow = document.createElement('div');
   hideNRow.className = 'checkbox-row';
   const hideNInput = document.createElement('input');
@@ -875,7 +809,6 @@ function createBlock(row, col, cfg) {
   hideNLabel.textContent = 'Skjul n-verdi';
   hideNRow.append(hideNInput, hideNLabel);
   fieldset.appendChild(hideNRow);
-
   const displayLabel = document.createElement('label');
   displayLabel.textContent = 'Vis som';
   const displaySelect = document.createElement('select');
@@ -891,7 +824,6 @@ function createBlock(row, col, cfg) {
   });
   displayLabel.appendChild(displaySelect);
   fieldset.appendChild(displayLabel);
-
   const customTextToggleRow = document.createElement('div');
   customTextToggleRow.className = 'checkbox-row';
   customTextToggleRow.style.display = 'none';
@@ -908,7 +840,6 @@ function createBlock(row, col, cfg) {
   customTextToggleRow.append(customTextToggle, customTextToggleLabel);
   fieldset.appendChild(customTextToggleRow);
   block.customTextToggleRow = customTextToggleRow;
-
   const customTextLabel = document.createElement('label');
   customTextLabel.textContent = 'Tekst i blokk';
   customTextLabel.style.display = 'none';
@@ -923,7 +854,6 @@ function createBlock(row, col, cfg) {
   fieldset.appendChild(customTextLabel);
   block.customTextLabel = customTextLabel;
   block.customTextInput = customTextInput;
-
   block.inputs = {
     total: totalInput,
     n: nInput,
@@ -936,20 +866,17 @@ function createBlock(row, col, cfg) {
     showCustomText: customTextToggle,
     customText: customTextInput
   };
-
   return block;
 }
-
 function updateBlockPanelLayout(block, rowTotal) {
-  if (!block?.panel) return;
+  if (!(block !== null && block !== void 0 && block.panel)) return;
   const cfg = block.cfg;
-  const totalValue = Number(cfg?.total);
+  const totalValue = Number(cfg === null || cfg === void 0 ? void 0 : cfg.total);
   const positiveTotal = Number.isFinite(totalValue) && totalValue > 0 ? totalValue : 0;
   const hasRowTotal = Number.isFinite(rowTotal) && rowTotal > 0;
-  const stepperVisible = !cfg?.lockDenominator;
-  const hasBlockBelow = Number.isFinite(CONFIG?.rows) && block.row < CONFIG.rows - 1;
+  const stepperVisible = !(cfg !== null && cfg !== void 0 && cfg.lockDenominator);
+  const hasBlockBelow = Number.isFinite(CONFIG === null || CONFIG === void 0 ? void 0 : CONFIG.rows) && block.row < CONFIG.rows - 1;
   const needsVerticalSpace = stepperVisible && hasBlockBelow;
-
   block.panel.style.flexBasis = '0px';
   block.panel.style.flexShrink = '1';
   if (hasRowTotal && positiveTotal > 0) {
@@ -959,31 +886,39 @@ function updateBlockPanelLayout(block, rowTotal) {
   }
   block.panel.style.marginBottom = needsVerticalSpace ? 'var(--tb-stepper-gap, 18px)' : '0px';
 }
-
 function drawBlock(block) {
-  const cfg = block?.cfg;
+  var _block$rectEmpty, _block$rectEmpty2, _block$rectEmpty3, _block$rectEmpty4, _block$rectFrame, _block$rectFrame2, _block$rectFrame3, _block$rectFrame4, _block$handle, _block$handleShadow, _block$handle2, _block$handleShadow2;
+  const cfg = block === null || block === void 0 ? void 0 : block.cfg;
   if (!block || !cfg) return;
-
   const metrics = getBlockMetrics(block);
   block.metrics = metrics;
-  const { width, height, left, right, top, bottom, braceY, bracketTick, labelOffsetY, innerWidth, innerHeight, centerX } = metrics;
-
+  const {
+    width,
+    height,
+    left,
+    right,
+    top,
+    bottom,
+    braceY,
+    bracketTick,
+    labelOffsetY,
+    innerWidth,
+    innerHeight,
+    centerX
+  } = metrics;
   if (block.svg) {
     block.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     block.svg.setAttribute('aria-label', `Tenkeblokk ${block.index + 1}`);
     block.svg.setAttribute('preserveAspectRatio', 'none');
   }
-
-  block.rectEmpty?.setAttribute('x', left);
-  block.rectEmpty?.setAttribute('width', innerWidth);
-  block.rectEmpty?.setAttribute('y', top);
-  block.rectEmpty?.setAttribute('height', innerHeight);
-
-  block.rectFrame?.setAttribute('x', left);
-  block.rectFrame?.setAttribute('width', innerWidth);
-  block.rectFrame?.setAttribute('y', top);
-  block.rectFrame?.setAttribute('height', innerHeight);
-
+  (_block$rectEmpty = block.rectEmpty) === null || _block$rectEmpty === void 0 || _block$rectEmpty.setAttribute('x', left);
+  (_block$rectEmpty2 = block.rectEmpty) === null || _block$rectEmpty2 === void 0 || _block$rectEmpty2.setAttribute('width', innerWidth);
+  (_block$rectEmpty3 = block.rectEmpty) === null || _block$rectEmpty3 === void 0 || _block$rectEmpty3.setAttribute('y', top);
+  (_block$rectEmpty4 = block.rectEmpty) === null || _block$rectEmpty4 === void 0 || _block$rectEmpty4.setAttribute('height', innerHeight);
+  (_block$rectFrame = block.rectFrame) === null || _block$rectFrame === void 0 || _block$rectFrame.setAttribute('x', left);
+  (_block$rectFrame2 = block.rectFrame) === null || _block$rectFrame2 === void 0 || _block$rectFrame2.setAttribute('width', innerWidth);
+  (_block$rectFrame3 = block.rectFrame) === null || _block$rectFrame3 === void 0 || _block$rectFrame3.setAttribute('y', top);
+  (_block$rectFrame4 = block.rectFrame) === null || _block$rectFrame4 === void 0 || _block$rectFrame4.setAttribute('height', innerHeight);
   drawBracketSquare(block.gBrace, left, right, braceY, bracketTick);
   if (block.totalText) {
     block.totalText.setAttribute('x', centerX);
@@ -993,18 +928,15 @@ function drawBlock(block) {
   if (block.legend) {
     block.legend.textContent = `Tenkeblokk ${block.index + 1}`;
   }
-
   const stepperVisible = !cfg.lockDenominator;
   if (block.stepper) {
     block.stepper.setAttribute('aria-label', `Antall blokker i tenkeblokk ${block.index + 1}`);
     block.stepper.style.display = stepperVisible ? '' : 'none';
   }
-
   if (block.nVal) {
     block.nVal.textContent = cfg.n;
     block.nVal.style.display = cfg.hideNValue ? 'none' : '';
   }
-
   const customTextAvailable = cfg.n === 1;
   if (block.customTextToggleRow) {
     block.customTextToggleRow.style.display = customTextAvailable ? '' : 'none';
@@ -1013,12 +945,21 @@ function drawBlock(block) {
   if (block.customTextLabel) {
     block.customTextLabel.style.display = customTextEnabled ? '' : 'none';
   }
-
   if (block.minusBtn) block.minusBtn.disabled = cfg.lockDenominator || cfg.n <= CONFIG.minN;
   if (block.plusBtn) block.plusBtn.disabled = cfg.lockDenominator || cfg.n >= CONFIG.maxN;
-
   if (block.inputs) {
-    const { total, n, k, showWhole, lockN, lockK, hideN, display, showCustomText, customText } = block.inputs;
+    const {
+      total,
+      n,
+      k,
+      showWhole,
+      lockN,
+      lockK,
+      hideN,
+      display,
+      showCustomText,
+      customText
+    } = block.inputs;
     if (total) total.value = cfg.total;
     if (n) {
       n.value = cfg.n;
@@ -1057,32 +998,44 @@ function drawBlock(block) {
       customText.disabled = !customTextEnabled;
     }
   }
-
   block.gFill.innerHTML = '';
   block.gSep.innerHTML = '';
   block.gVals.innerHTML = '';
-
   const cellW = cfg.n ? innerWidth / cfg.n : 0;
   if (cellW > 0) {
     const showCustomText = customTextEnabled;
     const customLabel = typeof cfg.customText === 'string' ? cfg.customText.trim() : '';
     for (let i = 0; i < cfg.k; i++) {
-      createSvgElement(block.gFill, 'rect', { x: left + i * cellW, y: top, width: cellW, height: innerHeight, class: 'tb-rect' });
+      createSvgElement(block.gFill, 'rect', {
+        x: left + i * cellW,
+        y: top,
+        width: cellW,
+        height: innerHeight,
+        class: 'tb-rect'
+      });
     }
     for (let i = 1; i < cfg.n; i++) {
       const x = left + i * cellW;
-      createSvgElement(block.gSep, 'line', { x1: x, y1: top, x2: x, y2: bottom, class: 'tb-sep' });
+      createSvgElement(block.gSep, 'line', {
+        x1: x,
+        y1: top,
+        x2: x,
+        y2: bottom,
+        class: 'tb-sep'
+      });
     }
-
     const displayMode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
     const per = cfg.n ? cfg.total / cfg.n : 0;
-    const percentValue = cfg.n ? (100 / cfg.n) : 0;
-
+    const percentValue = cfg.n ? 100 / cfg.n : 0;
     for (let i = 0; i < cfg.n; i++) {
       const cx = left + (i + 0.5) * cellW;
       const cy = top + innerHeight / 2;
       if (showCustomText) {
-        const text = createSvgElement(block.gVals, 'text', { x: cx, y: cy, class: 'tb-val' });
+        const text = createSvgElement(block.gVals, 'text', {
+          x: cx,
+          y: cy,
+          class: 'tb-val'
+        });
         text.textContent = customLabel;
         continue;
       }
@@ -1090,25 +1043,26 @@ function drawBlock(block) {
         renderFractionLabel(block.gVals, cx, cy, 1, cfg.n);
         continue;
       }
-      const text = createSvgElement(block.gVals, 'text', { x: cx, y: cy, class: 'tb-val' });
+      const text = createSvgElement(block.gVals, 'text', {
+        x: cx,
+        y: cy,
+        class: 'tb-val'
+      });
       const label = displayMode === 'percent' ? `${fmt(percentValue)} %` : fmt(per);
       text.textContent = label;
     }
   }
-
   const hx = cellW > 0 ? left + cfg.k * cellW : left;
   const hy = top + innerHeight / 2;
-  block.handle?.setAttribute('cx', hx);
-  block.handleShadow?.setAttribute('cx', hx);
-  block.handle?.setAttribute('cy', hy);
-  block.handleShadow?.setAttribute('cy', hy + 2);
+  (_block$handle = block.handle) === null || _block$handle === void 0 || _block$handle.setAttribute('cx', hx);
+  (_block$handleShadow = block.handleShadow) === null || _block$handleShadow === void 0 || _block$handleShadow.setAttribute('cx', hx);
+  (_block$handle2 = block.handle) === null || _block$handle2 === void 0 || _block$handle2.setAttribute('cy', hy);
+  (_block$handleShadow2 = block.handleShadow) === null || _block$handleShadow2 === void 0 || _block$handleShadow2.setAttribute('cy', hy + 2);
   if (block.gHandle) block.gHandle.style.display = cfg.lockNumerator ? 'none' : '';
   if (block.handle) block.handle.style.cursor = cfg.lockNumerator ? 'default' : 'pointer';
-
   const showWholeAllowed = !multipleBlocksActive;
   if (block.gBrace) block.gBrace.style.display = showWholeAllowed && cfg.showWhole ? '' : 'none';
 }
-
 function setN(block, next) {
   if (!block) return;
   const cfg = block.cfg;
@@ -1119,7 +1073,6 @@ function setN(block, next) {
   if (cfg.k > cfg.n) cfg.k = cfg.n;
   draw(true);
 }
-
 function setK(block, next) {
   if (!block) return;
   const cfg = block.cfg;
@@ -1129,7 +1082,6 @@ function setK(block, next) {
   cfg.k = clamped;
   draw(true);
 }
-
 function createCombinedWholeOverlay() {
   if (!board) return null;
   const ns = 'http://www.w3.org/2000/svg';
@@ -1140,27 +1092,35 @@ function createCombinedWholeOverlay() {
   svg.style.width = '0';
   svg.style.height = '0';
   board.appendChild(svg);
-  const group = createSvgElement(svg, 'g', { class: 'tb-combined-brace' });
-  const text = createSvgElement(group, 'text', { class: 'tb-total', 'text-anchor': 'middle' });
-  return { svg, group, text };
+  const group = createSvgElement(svg, 'g', {
+    class: 'tb-combined-brace'
+  });
+  const text = createSvgElement(group, 'text', {
+    class: 'tb-total',
+    'text-anchor': 'middle'
+  });
+  return {
+    svg,
+    group,
+    text
+  };
 }
-
 function getCombinedTotal() {
   let sum = 0;
   for (let r = 0; r < CONFIG.rows; r++) {
     for (let c = 0; c < CONFIG.cols; c++) {
-      const value = Number(CONFIG.blocks?.[r]?.[c]?.total);
+      var _CONFIG$blocks2;
+      const value = Number((_CONFIG$blocks2 = CONFIG.blocks) === null || _CONFIG$blocks2 === void 0 || (_CONFIG$blocks2 = _CONFIG$blocks2[r]) === null || _CONFIG$blocks2 === void 0 || (_CONFIG$blocks2 = _CONFIG$blocks2[c]) === null || _CONFIG$blocks2 === void 0 ? void 0 : _CONFIG$blocks2.total);
       if (!Number.isFinite(value)) return NaN;
       sum += value;
     }
   }
   return sum;
 }
-
 function getBlockClientMetrics(block) {
-  if (!block?.svg) return null;
+  if (!(block !== null && block !== void 0 && block.svg)) return null;
   const rect = block.svg.getBoundingClientRect();
-  if (!(rect?.width > 0) || !(rect?.height > 0)) return null;
+  if (!((rect === null || rect === void 0 ? void 0 : rect.width) > 0) || !((rect === null || rect === void 0 ? void 0 : rect.height) > 0)) return null;
   return {
     left: rect.left,
     right: rect.right,
@@ -1168,22 +1128,19 @@ function getBlockClientMetrics(block) {
     bottom: rect.bottom
   };
 }
-
 function drawCombinedWholeOverlay() {
   const overlay = combinedWholeOverlay;
-  if (!overlay?.svg || !board) return;
+  if (!(overlay !== null && overlay !== void 0 && overlay.svg) || !board) return;
   const multiple = CONFIG.activeBlocks > 1 && CONFIG.showCombinedWhole;
   if (!multiple) {
     overlay.svg.style.display = 'none';
     return;
   }
-
   const metrics = BLOCKS.map(getBlockClientMetrics).filter(Boolean);
   if (!metrics.length) {
     overlay.svg.style.display = 'none';
     return;
   }
-
   const left = Math.min(...metrics.map(m => m.left));
   const right = Math.max(...metrics.map(m => m.right));
   const top = Math.min(...metrics.map(m => m.top));
@@ -1194,24 +1151,19 @@ function drawCombinedWholeOverlay() {
     overlay.svg.style.display = 'none';
     return;
   }
-
   const boardRect = board.getBoundingClientRect();
   const figureWidth = width;
   const figureHeight = height;
   const vertical = shouldShowVerticalCombinedBrace(figureWidth, figureHeight);
-
   let overlayWidth = figureWidth;
   let overlayLeft = left - boardRect.left;
   let bracketX = figureWidth;
   let textX = figureWidth / 2;
-
   let braceStartY = figureHeight * BRACE_Y_RATIO;
   let braceTick = figureHeight * BRACKET_TICK_RATIO;
   const labelOffsetY = LABEL_OFFSET_RATIO * figureHeight;
-
   let textY = braceStartY - labelOffsetY;
   let dominantBaseline = null;
-
   if (vertical) {
     const topInner = figureHeight * TOP_RATIO;
     const bottomInner = figureHeight * BOTTOM_RATIO;
@@ -1225,12 +1177,10 @@ function drawCombinedWholeOverlay() {
     textX = bracketX + labelSpace / 2;
     textY = (topInner + bottomInner) / 2;
     dominantBaseline = 'middle';
-
     drawVerticalBracketSquare(overlay.group, braceStartY, braceEndY, bracketX, braceTick);
   } else {
     drawBracketSquare(overlay.group, 0, figureWidth, braceStartY, braceTick);
   }
-
   overlay.svg.style.display = '';
   overlay.svg.style.left = `${overlayLeft}px`;
   overlay.svg.style.top = `${top - boardRect.top}px`;
@@ -1240,38 +1190,35 @@ function drawCombinedWholeOverlay() {
   overlay.svg.setAttribute('height', figureHeight);
   overlay.svg.setAttribute('viewBox', `0 0 ${overlayWidth} ${figureHeight}`);
   overlay.svg.setAttribute('preserveAspectRatio', 'none');
-
   if (overlay.text) {
     overlay.text.setAttribute('x', textX);
     overlay.text.setAttribute('y', textY);
     overlay.text.setAttribute('text-anchor', 'middle');
-    if (dominantBaseline) overlay.text.setAttribute('dominant-baseline', dominantBaseline);
-    else overlay.text.removeAttribute('dominant-baseline');
+    if (dominantBaseline) overlay.text.setAttribute('dominant-baseline', dominantBaseline);else overlay.text.removeAttribute('dominant-baseline');
     const total = getCombinedTotal();
     overlay.text.textContent = Number.isFinite(total) ? fmt(total) : '';
   }
 }
-
 function shouldShowVerticalCombinedBrace(width, height) {
   if (!(width > 0) || !(height > 0)) return false;
   if (CONFIG.cols === 1 && CONFIG.rows > 1) return true;
   if (CONFIG.cols > 1) return false;
   return height >= width * 1.1;
 }
-
 function onDragStart(block, event) {
-  if (!block?.handle) return;
+  if (!(block !== null && block !== void 0 && block.handle)) return;
   const cfg = block.cfg;
-  if (cfg?.lockNumerator) return;
+  if (cfg !== null && cfg !== void 0 && cfg.lockNumerator) return;
   block.handle.setPointerCapture(event.pointerId);
   const move = ev => {
+    var _ref, _metrics$innerWidth, _metrics$left, _metrics$right;
     const currentCfg = block.cfg;
     if (!currentCfg) return;
     const p = clientToSvg(block.svg, ev.clientX, ev.clientY);
     const metrics = block.metrics || getBlockMetrics(block);
-    const innerWidth = metrics?.innerWidth ?? metrics?.width ?? VBW;
-    const left = metrics?.left ?? 0;
-    const right = metrics?.right ?? (left + innerWidth);
+    const innerWidth = (_ref = (_metrics$innerWidth = metrics === null || metrics === void 0 ? void 0 : metrics.innerWidth) !== null && _metrics$innerWidth !== void 0 ? _metrics$innerWidth : metrics === null || metrics === void 0 ? void 0 : metrics.width) !== null && _ref !== void 0 ? _ref : VBW;
+    const left = (_metrics$left = metrics === null || metrics === void 0 ? void 0 : metrics.left) !== null && _metrics$left !== void 0 ? _metrics$left : 0;
+    const right = (_metrics$right = metrics === null || metrics === void 0 ? void 0 : metrics.right) !== null && _metrics$right !== void 0 ? _metrics$right : left + innerWidth;
     const denom = currentCfg.n || 1;
     const cellW = innerWidth / denom;
     if (!(cellW > 0)) return;
@@ -1287,13 +1234,13 @@ function onDragStart(block, event) {
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', up);
 }
-
 function getFrameInset(block) {
   let inset = DEFAULT_FRAME_INSET;
   if (!block) return inset;
   const rectFrame = block.rectFrame;
   if (rectFrame) {
-    const attr = rectFrame.getAttribute?.('stroke-width');
+    var _rectFrame$getAttribu;
+    const attr = (_rectFrame$getAttribu = rectFrame.getAttribute) === null || _rectFrame$getAttribu === void 0 ? void 0 : _rectFrame$getAttribu.call(rectFrame, 'stroke-width');
     if (attr) {
       const parsed = Number.parseFloat(attr);
       if (Number.isFinite(parsed) && parsed >= 0) {
@@ -1313,9 +1260,9 @@ function getFrameInset(block) {
   }
   return inset;
 }
-
 function syncLegacyConfig() {
-  const first = CONFIG.blocks?.[0]?.[0];
+  var _CONFIG$blocks3;
+  const first = (_CONFIG$blocks3 = CONFIG.blocks) === null || _CONFIG$blocks3 === void 0 || (_CONFIG$blocks3 = _CONFIG$blocks3[0]) === null || _CONFIG$blocks3 === void 0 ? void 0 : _CONFIG$blocks3[0];
   if (!first) return;
   CONFIG.total = first.total;
   CONFIG.n = first.n;
@@ -1338,25 +1285,20 @@ function createSvgElement(parent, name, attrs = {}) {
   parent.appendChild(el);
   return el;
 }
-
 function renderFractionLabel(parent, cx, cy, numerator, denominator) {
   if (!parent) return;
-
-  const numText = typeof numerator === 'number' ? numerator.toString() : `${numerator ?? ''}`;
-  const denText = typeof denominator === 'number' ? denominator.toString() : `${denominator ?? ''}`;
+  const numText = typeof numerator === 'number' ? numerator.toString() : `${numerator !== null && numerator !== void 0 ? numerator : ''}`;
+  const denText = typeof denominator === 'number' ? denominator.toString() : `${denominator !== null && denominator !== void 0 ? denominator : ''}`;
   if (!numText || !denText) return;
-
   const numeratorY = -20;
   const denominatorY = 28;
   const fallbackCenter = (numeratorY + denominatorY) / 2;
   const maxLen = Math.max(numText.length, denText.length);
   const charWidth = 20;
-  const halfWidth = Math.max(16, (maxLen * charWidth) / 2);
-
+  const halfWidth = Math.max(16, maxLen * charWidth / 2);
   const group = createSvgElement(parent, 'g', {
     class: 'tb-frac'
   });
-
   const numeratorEl = createSvgElement(group, 'text', {
     x: 0,
     y: numeratorY,
@@ -1364,7 +1306,6 @@ function renderFractionLabel(parent, cx, cy, numerator, denominator) {
     'text-anchor': 'middle'
   });
   numeratorEl.textContent = numText;
-
   const lineEl = createSvgElement(group, 'line', {
     x1: -halfWidth,
     x2: halfWidth,
@@ -1372,7 +1313,6 @@ function renderFractionLabel(parent, cx, cy, numerator, denominator) {
     y2: fallbackCenter,
     class: 'tb-frac-line'
   });
-
   const denominatorEl = createSvgElement(group, 'text', {
     x: 0,
     y: denominatorY,
@@ -1380,10 +1320,8 @@ function renderFractionLabel(parent, cx, cy, numerator, denominator) {
     'text-anchor': 'middle'
   });
   denominatorEl.textContent = denText;
-
   let appliedCenter = fallbackCenter;
   const hasBBox = typeof numeratorEl.getBBox === 'function' && typeof denominatorEl.getBBox === 'function';
-
   if (hasBBox) {
     try {
       const numeratorBBox = numeratorEl.getBBox();
@@ -1393,7 +1331,6 @@ function renderFractionLabel(parent, cx, cy, numerator, denominator) {
       const visualLineY = (numeratorBottom + denominatorTop) / 2;
       lineEl.setAttribute('y1', visualLineY);
       lineEl.setAttribute('y2', visualLineY);
-
       const fractionTop = Math.min(numeratorBBox.y, denominatorBBox.y);
       const fractionBottom = Math.max(numeratorBottom, denominatorBBox.y + denominatorBBox.height);
       appliedCenter = (fractionTop + fractionBottom) / 2;
@@ -1401,26 +1338,26 @@ function renderFractionLabel(parent, cx, cy, numerator, denominator) {
       // ignore measurement errors
     }
   }
-
   group.setAttribute('transform', `translate(${cx}, ${cy - appliedCenter})`);
 }
-
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
-
 function fmt(value) {
   return (Math.round(value * 100) / 100).toString().replace('.', ',');
 }
-
 function clientToSvg(svgEl, clientX, clientY) {
+  var _svgEl$viewBox, _vb$width, _vb$height, _vb$x, _vb$y;
   const rect = svgEl.getBoundingClientRect();
-  const vb = svgEl.viewBox?.baseVal;
-  const width = vb?.width ?? VBW;
-  const height = vb?.height ?? VBH;
-  const minX = vb?.x ?? 0;
-  const minY = vb?.y ?? 0;
-  if (!rect.width || !rect.height) return { x: minX, y: minY };
+  const vb = (_svgEl$viewBox = svgEl.viewBox) === null || _svgEl$viewBox === void 0 ? void 0 : _svgEl$viewBox.baseVal;
+  const width = (_vb$width = vb === null || vb === void 0 ? void 0 : vb.width) !== null && _vb$width !== void 0 ? _vb$width : VBW;
+  const height = (_vb$height = vb === null || vb === void 0 ? void 0 : vb.height) !== null && _vb$height !== void 0 ? _vb$height : VBH;
+  const minX = (_vb$x = vb === null || vb === void 0 ? void 0 : vb.x) !== null && _vb$x !== void 0 ? _vb$x : 0;
+  const minY = (_vb$y = vb === null || vb === void 0 ? void 0 : vb.y) !== null && _vb$y !== void 0 ? _vb$y : 0;
+  if (!rect.width || !rect.height) return {
+    x: minX,
+    y: minY
+  };
   const sx = width / rect.width;
   const sy = height / rect.height;
   return {
@@ -1428,44 +1365,32 @@ function clientToSvg(svgEl, clientX, clientY) {
     y: minY + (clientY - rect.top) * sy
   };
 }
-
 function drawBracketSquare(group, x0, x1, y, tick) {
   const path = getOrCreateBracePath(group);
   if (!path) return;
-  const d = [
-    `M ${x0} ${y}`, `v ${tick}`,
-    `M ${x0} ${y}`, `H ${x1}`,
-    `M ${x1} ${y}`, `v ${tick}`
-  ].join(' ');
+  const d = [`M ${x0} ${y}`, `v ${tick}`, `M ${x0} ${y}`, `H ${x1}`, `M ${x1} ${y}`, `v ${tick}`].join(' ');
   path.setAttribute('d', d);
 }
-
 function drawVerticalBracketSquare(group, y0, y1, x, tick) {
   const path = getOrCreateBracePath(group);
   if (!path) return;
   const clampedTick = Math.max(0, Math.min(tick, x));
-  const d = [
-    `M ${x} ${y0}`, `h ${-clampedTick}`,
-    `M ${x} ${y0}`, `V ${y1}`,
-    `M ${x} ${y1}`, `h ${-clampedTick}`
-  ].join(' ');
+  const d = [`M ${x} ${y0}`, `h ${-clampedTick}`, `M ${x} ${y0}`, `V ${y1}`, `M ${x} ${y1}`, `h ${-clampedTick}`].join(' ');
   path.setAttribute('d', d);
 }
-
 function getOrCreateBracePath(group) {
+  var _group$ownerSVGElemen;
   if (!group) return null;
-  const ns = group.ownerSVGElement?.namespaceURI || 'http://www.w3.org/2000/svg';
+  const ns = ((_group$ownerSVGElemen = group.ownerSVGElement) === null || _group$ownerSVGElemen === void 0 ? void 0 : _group$ownerSVGElemen.namespaceURI) || 'http://www.w3.org/2000/svg';
   let path = group.querySelector('path.tb-brace');
   if (!path) {
     path = document.createElementNS(ns, 'path');
     path.setAttribute('class', 'tb-brace');
     const firstChild = group.firstChild;
-    if (firstChild) group.insertBefore(path, firstChild);
-    else group.appendChild(path);
+    if (firstChild) group.insertBefore(path, firstChild);else group.appendChild(path);
   }
   return path;
 }
-
 function svgToString(svgEl) {
   const clone = svgEl.cloneNode(true);
   const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
@@ -1476,10 +1401,11 @@ function svgToString(svgEl) {
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
 }
-
 function downloadSVG(svgEl, filename) {
   const data = svgToString(svgEl);
-  const blob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
+  const blob = new Blob([data], {
+    type: 'image/svg+xml;charset=utf-8'
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -1489,13 +1415,15 @@ function downloadSVG(svgEl, filename) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-
 function downloadPNG(svgEl, filename, scale = 2, bg = '#fff') {
-  const vb = svgEl.viewBox?.baseVal;
-  const w = vb?.width || svgEl.clientWidth || 420;
-  const h = vb?.height || svgEl.clientHeight || 420;
+  var _svgEl$viewBox2;
+  const vb = (_svgEl$viewBox2 = svgEl.viewBox) === null || _svgEl$viewBox2 === void 0 ? void 0 : _svgEl$viewBox2.baseVal;
+  const w = (vb === null || vb === void 0 ? void 0 : vb.width) || svgEl.clientWidth || 420;
+  const h = (vb === null || vb === void 0 ? void 0 : vb.height) || svgEl.clientHeight || 420;
   const data = svgToString(svgEl);
-  const blob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
+  const blob = new Blob([data], {
+    type: 'image/svg+xml;charset=utf-8'
+  });
   const url = URL.createObjectURL(blob);
   const img = new Image();
   img.onload = () => {
@@ -1521,42 +1449,47 @@ function downloadPNG(svgEl, filename, scale = 2, bg = '#fff') {
   };
   img.src = url;
 }
-
 function getExportSvg() {
-  const firstSvg = BLOCKS[0]?.svg;
+  var _BLOCKS$, _rowInfo$find;
+  const firstSvg = (_BLOCKS$ = BLOCKS[0]) === null || _BLOCKS$ === void 0 ? void 0 : _BLOCKS$.svg;
   if (!firstSvg) return null;
   const ns = firstSvg.namespaceURI;
   const rows = CONFIG.rows;
-  const rowInfo = Array.from({ length: rows }, () => ({ blocks: [], width: 0, height: 0 }));
-
+  const rowInfo = Array.from({
+    length: rows
+  }, () => ({
+    blocks: [],
+    width: 0,
+    height: 0
+  }));
   for (const block of BLOCKS) {
     if (!block) continue;
     const metrics = block.metrics || getBlockMetrics(block);
     const row = rowInfo[block.row];
     if (!row) continue;
-    row.blocks.push({ block, metrics });
-    const widthValue = metrics?.width;
-    const heightValue = metrics?.height;
+    row.blocks.push({
+      block,
+      metrics
+    });
+    const widthValue = metrics === null || metrics === void 0 ? void 0 : metrics.width;
+    const heightValue = metrics === null || metrics === void 0 ? void 0 : metrics.height;
     const blockWidth = Number.isFinite(widthValue) && widthValue > 0 ? widthValue : VBW;
     const blockHeight = Number.isFinite(heightValue) && heightValue > 0 ? heightValue : DEFAULT_SVG_HEIGHT;
     row.width += blockWidth;
     if (row.height < blockHeight) row.height = blockHeight;
   }
-
   const exportWidth = rowInfo.reduce((max, row) => Math.max(max, row.width || 0), 0) || VBW;
   const exportHeight = rowInfo.reduce((sum, row, index) => {
     if (!row.blocks.length) return sum;
     const gap = index > 0 ? ROW_GAP : 0;
     return sum + row.height + gap;
   }, 0) || DEFAULT_SVG_HEIGHT;
-
   const exportSvg = document.createElementNS(ns, 'svg');
   exportSvg.setAttribute('viewBox', `0 0 ${exportWidth} ${exportHeight}`);
   exportSvg.setAttribute('width', exportWidth);
   exportSvg.setAttribute('height', exportHeight);
   exportSvg.setAttribute('xmlns', ns);
   exportSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-
   let offsetY = 0;
   rowInfo.forEach((row, rowIndex) => {
     if (!row.blocks.length) return;
@@ -1564,28 +1497,30 @@ function getExportSvg() {
     const rowGroup = document.createElementNS(ns, 'g');
     rowGroup.setAttribute('transform', `translate(0,${offsetY})`);
     exportSvg.appendChild(rowGroup);
-
     let offsetX = 0;
-    row.blocks.forEach(({ block, metrics }) => {
-      if (!block?.svg) return;
+    row.blocks.forEach(({
+      block,
+      metrics
+    }) => {
+      var _metrics$width, _block$svg$viewBox;
+      if (!(block !== null && block !== void 0 && block.svg)) return;
       const g = document.createElementNS(ns, 'g');
       g.setAttribute('transform', `translate(${offsetX},0)`);
       g.innerHTML = block.svg.innerHTML;
       rowGroup.appendChild(g);
-      const widthValue = metrics?.width ?? block.svg.viewBox?.baseVal?.width;
+      const widthValue = (_metrics$width = metrics === null || metrics === void 0 ? void 0 : metrics.width) !== null && _metrics$width !== void 0 ? _metrics$width : (_block$svg$viewBox = block.svg.viewBox) === null || _block$svg$viewBox === void 0 || (_block$svg$viewBox = _block$svg$viewBox.baseVal) === null || _block$svg$viewBox === void 0 ? void 0 : _block$svg$viewBox.width;
       const blockWidth = Number.isFinite(widthValue) && widthValue > 0 ? widthValue : VBW;
       offsetX += blockWidth;
     });
-
     offsetY += row.height;
   });
-
-  const referenceHeight = rowInfo.find(row => row.blocks.length)?.height || DEFAULT_SVG_HEIGHT;
-
+  const referenceHeight = ((_rowInfo$find = rowInfo.find(row => row.blocks.length)) === null || _rowInfo$find === void 0 ? void 0 : _rowInfo$find.height) || DEFAULT_SVG_HEIGHT;
   if (CONFIG.showCombinedWhole && CONFIG.activeBlocks > 1) {
     const startX = 0;
     const endX = exportWidth;
-    const braceGroup = createSvgElement(exportSvg, 'g', { class: 'tb-combined-brace' });
+    const braceGroup = createSvgElement(exportSvg, 'g', {
+      class: 'tb-combined-brace'
+    });
     const braceY = BRACE_Y_RATIO * referenceHeight;
     const tick = BRACKET_TICK_RATIO * referenceHeight;
     drawBracketSquare(braceGroup, startX, endX, braceY, tick);
@@ -1598,6 +1533,5 @@ function getExportSvg() {
     const totalValue = getCombinedTotal();
     totalText.textContent = Number.isFinite(totalValue) ? fmt(totalValue) : '';
   }
-
   return exportSvg;
 }

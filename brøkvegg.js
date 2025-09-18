@@ -1,6 +1,6 @@
-(function(){
+(function (_luminanceFromHex, _luminanceFromHex2) {
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const TEXT_MODES = ['fraction','percent','decimal'];
+  const TEXT_MODES = ['fraction', 'percent', 'decimal'];
   const MODE_LABELS = {
     fraction: 'brøk',
     percent: 'prosent',
@@ -23,11 +23,10 @@
   const DEFAULT_PERCENT_DIGITS = 1;
   const MAX_DECIMAL_DIGITS = 4;
   const MAX_PERCENT_DIGITS = 3;
-
-  function parseHexColor(hex){
-    if(typeof hex !== 'string') return null;
+  function parseHexColor(hex) {
+    if (typeof hex !== 'string') return null;
     const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-    if(!match) return null;
+    if (!match) return null;
     const value = match[1];
     return {
       r: parseInt(value.slice(0, 2), 16),
@@ -35,45 +34,37 @@
       b: parseInt(value.slice(4, 6), 16)
     };
   }
-
-  function srgbToLinear(value){
+  function srgbToLinear(value) {
     const channel = value / 255;
     return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
   }
-
-  function relativeLuminance(r, g, b){
+  function relativeLuminance(r, g, b) {
     const R = srgbToLinear(r);
     const G = srgbToLinear(g);
     const B = srgbToLinear(b);
     return 0.2126 * R + 0.7152 * G + 0.0722 * B;
   }
-
-  function luminanceFromHex(hex){
+  function luminanceFromHex(hex) {
     const rgb = parseHexColor(hex);
-    if(!rgb) return null;
+    if (!rgb) return null;
     return relativeLuminance(rgb.r, rgb.g, rgb.b);
   }
-
-  const DARK_TEXT_LUMINANCE = luminanceFromHex(TEXT_COLOR_DARK) ?? 0;
-  const LIGHT_TEXT_LUMINANCE = luminanceFromHex(TEXT_COLOR_LIGHT) ?? 1;
-
-  function contrastRatio(l1, l2){
+  const DARK_TEXT_LUMINANCE = (_luminanceFromHex = luminanceFromHex(TEXT_COLOR_DARK)) !== null && _luminanceFromHex !== void 0 ? _luminanceFromHex : 0;
+  const LIGHT_TEXT_LUMINANCE = (_luminanceFromHex2 = luminanceFromHex(TEXT_COLOR_LIGHT)) !== null && _luminanceFromHex2 !== void 0 ? _luminanceFromHex2 : 1;
+  function contrastRatio(l1, l2) {
     const lighter = Math.max(l1, l2);
     const darker = Math.min(l1, l2);
     return (lighter + 0.05) / (darker + 0.05);
   }
-
-  function pickTileTextColor(backgroundHex){
+  function pickTileTextColor(backgroundHex) {
     const bgLuminance = luminanceFromHex(backgroundHex);
-    if(bgLuminance == null) return TEXT_COLOR_DARK;
+    if (bgLuminance == null) return TEXT_COLOR_DARK;
     const darkContrast = contrastRatio(bgLuminance, DARK_TEXT_LUMINANCE);
     const lightContrast = contrastRatio(bgLuminance, LIGHT_TEXT_LUMINANCE);
     return darkContrast >= lightContrast ? TEXT_COLOR_DARK : TEXT_COLOR_LIGHT;
   }
-
   const svg = document.getElementById('fractionWallSvg');
-  if(!svg) return;
-
+  if (!svg) return;
   const denomInput = document.getElementById('denominatorInput');
   const showLabelsCheckbox = document.getElementById('showRowLabels');
   const textScaleRange = document.getElementById('textScale');
@@ -86,49 +77,40 @@
   const resetModesButton = document.getElementById('resetModes');
   const downloadSvgButton = document.getElementById('btnDownloadSvg');
   const downloadPngButton = document.getElementById('btnDownloadPng');
-
-  const STATE = (window.STATE && typeof window.STATE === 'object') ? window.STATE : {};
+  const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;
-
-  function clamp(value, min, max){
-    if(!Number.isFinite(value)) return min;
-    if(value < min) return min;
-    if(value > max) return max;
+  function clamp(value, min, max) {
+    if (!Number.isFinite(value)) return min;
+    if (value < min) return min;
+    if (value > max) return max;
     return value;
   }
-
-  function clampInt(value, min, max, fallback){
+  function clampInt(value, min, max, fallback) {
     const num = Number.parseInt(value, 10);
-    if(!Number.isFinite(num)) return clamp(fallback, min, max);
+    if (!Number.isFinite(num)) return clamp(fallback, min, max);
     return clamp(num, min, max);
   }
-
-  function sanitizeDenominators(value){
-    if(Array.isArray(value)){
-      return value
-        .map(v => Number.parseInt(v, 10))
-        .filter(v => Number.isFinite(v) && v > 0 && v <= 48)
-        .filter((v, idx, arr) => arr.indexOf(v) === idx)
-        .sort((a, b) => a - b);
+  function sanitizeDenominators(value) {
+    if (Array.isArray(value)) {
+      return value.map(v => Number.parseInt(v, 10)).filter(v => Number.isFinite(v) && v > 0 && v <= 48).filter((v, idx, arr) => arr.indexOf(v) === idx).sort((a, b) => a - b);
     }
-    if(typeof value === 'string'){
+    if (typeof value === 'string') {
       const parts = value.split(/[^0-9]+/);
       const numbers = [];
-      for(const part of parts){
-        if(!part) continue;
+      for (const part of parts) {
+        if (!part) continue;
         const num = Number.parseInt(part, 10);
-        if(Number.isFinite(num) && num > 0 && num <= 48) numbers.push(num);
+        if (Number.isFinite(num) && num > 0 && num <= 48) numbers.push(num);
       }
       return sanitizeDenominators(numbers);
     }
     return [];
   }
-
-  function ensureStateDefaults(){
+  function ensureStateDefaults() {
     const denoms = sanitizeDenominators(STATE.denominators);
     STATE.denominators = denoms.length ? denoms : DEFAULT_DENOMS.slice();
-    if(!STATE.tileModes || typeof STATE.tileModes !== 'object') STATE.tileModes = {};
-    if(!TEXT_MODES.includes(STATE.defaultMode)) STATE.defaultMode = 'fraction';
+    if (!STATE.tileModes || typeof STATE.tileModes !== 'object') STATE.tileModes = {};
+    if (!TEXT_MODES.includes(STATE.defaultMode)) STATE.defaultMode = 'fraction';
     STATE.showLabels = typeof STATE.showLabels === 'boolean' ? STATE.showLabels : true;
     const scale = Number(STATE.textScale);
     STATE.textScale = clamp(Number.isFinite(scale) ? scale : 0.7, MIN_SCALE, MAX_SCALE);
@@ -136,124 +118,107 @@
     STATE.percentDigits = clampInt(STATE.percentDigits, 0, MAX_PERCENT_DIGITS, DEFAULT_PERCENT_DIGITS);
     STATE.trimTrailingZeros = typeof STATE.trimTrailingZeros === 'boolean' ? STATE.trimTrailingZeros : false;
   }
-
   ensureStateDefaults();
-
-  function cleanTileModes(){
+  function cleanTileModes() {
     const validKeys = new Set();
-    for(const den of STATE.denominators){
-      for(let i=0;i<den;i++){
+    for (const den of STATE.denominators) {
+      for (let i = 0; i < den; i++) {
         validKeys.add(`${den}:${i}`);
       }
     }
     Object.keys(STATE.tileModes).forEach(key => {
       const mode = STATE.tileModes[key];
-      if(!validKeys.has(key) || !TEXT_MODES.includes(mode)){
+      if (!validKeys.has(key) || !TEXT_MODES.includes(mode)) {
         delete STATE.tileModes[key];
       }
     });
   }
-
   cleanTileModes();
-
-  function updateModeButtons(){
+  function updateModeButtons() {
     setModeButtons.forEach(btn => {
-      if(!btn || !btn.dataset.setMode) return;
+      if (!btn || !btn.dataset.setMode) return;
       btn.classList.toggle('is-active', btn.dataset.setMode === STATE.defaultMode);
     });
   }
-
-  function updateTextScaleDisplay(){
-    if(textScaleValue){
+  function updateTextScaleDisplay() {
+    if (textScaleValue) {
       const percentage = Math.round(STATE.textScale * 100);
       textScaleValue.textContent = `${percentage}%`;
     }
   }
-
-  function updateControlsFromState(){
-    if(denomInput){
+  function updateControlsFromState() {
+    if (denomInput) {
       const joined = STATE.denominators.join(', ');
       denomInput.value = joined;
     }
-    if(showLabelsCheckbox) showLabelsCheckbox.checked = !!STATE.showLabels;
-    if(textScaleRange) textScaleRange.value = String(STATE.textScale);
-    if(decimalDigitsInput) decimalDigitsInput.value = String(STATE.decimalDigits);
-    if(percentDigitsInput) percentDigitsInput.value = String(STATE.percentDigits);
-    if(trimTrailingZerosCheckbox) trimTrailingZerosCheckbox.checked = !!STATE.trimTrailingZeros;
+    if (showLabelsCheckbox) showLabelsCheckbox.checked = !!STATE.showLabels;
+    if (textScaleRange) textScaleRange.value = String(STATE.textScale);
+    if (decimalDigitsInput) decimalDigitsInput.value = String(STATE.decimalDigits);
+    if (percentDigitsInput) percentDigitsInput.value = String(STATE.percentDigits);
+    if (trimTrailingZerosCheckbox) trimTrailingZerosCheckbox.checked = !!STATE.trimTrailingZeros;
     updateTextScaleDisplay();
     updateModeButtons();
   }
-
   updateControlsFromState();
-
-  function createSvgElement(name, attrs){
+  function createSvgElement(name, attrs) {
     const el = document.createElementNS(SVG_NS, name);
-    if(attrs){
-      for(const [key, value] of Object.entries(attrs)){
-        if(value == null) continue;
-        if(key === 'textContent') el.textContent = value;
-        else el.setAttribute(key, value);
+    if (attrs) {
+      for (const [key, value] of Object.entries(attrs)) {
+        if (value == null) continue;
+        if (key === 'textContent') el.textContent = value;else el.setAttribute(key, value);
       }
     }
     return el;
   }
-
-  function lightenColor(hex, amount){
-    if(typeof hex !== 'string') return hex;
+  function lightenColor(hex, amount) {
+    if (typeof hex !== 'string') return hex;
     const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-    if(!match) return hex;
+    if (!match) return hex;
     const base = match[1];
-    const r = parseInt(base.slice(0,2), 16);
-    const g = parseInt(base.slice(2,4), 16);
-    const b = parseInt(base.slice(4,6), 16);
+    const r = parseInt(base.slice(0, 2), 16);
+    const g = parseInt(base.slice(2, 4), 16);
+    const b = parseInt(base.slice(4, 6), 16);
     const ratio = clamp(Number(amount) || 0, 0, 1);
-    const mix = (channel) => Math.round(channel + (255 - channel) * ratio);
+    const mix = channel => Math.round(channel + (255 - channel) * ratio);
     const nr = mix(r);
     const ng = mix(g);
     const nb = mix(b);
-    return `#${nr.toString(16).padStart(2,'0')}${ng.toString(16).padStart(2,'0')}${nb.toString(16).padStart(2,'0')}`;
+    return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`;
   }
-
-  function getTileMode(den, index){
+  function getTileMode(den, index) {
     const key = `${den}:${index}`;
     const stored = STATE.tileModes[key];
-    if(TEXT_MODES.includes(stored)) return stored;
+    if (TEXT_MODES.includes(stored)) return stored;
     return STATE.defaultMode;
   }
-
-  function setTileMode(den, index, mode){
+  function setTileMode(den, index, mode) {
     const key = `${den}:${index}`;
-    if(!TEXT_MODES.includes(mode)) return;
-    if(mode === STATE.defaultMode){
+    if (!TEXT_MODES.includes(mode)) return;
+    if (mode === STATE.defaultMode) {
       delete STATE.tileModes[key];
-    }else{
+    } else {
       STATE.tileModes[key] = mode;
     }
   }
-
-  function cycleTileMode(den, index){
+  function cycleTileMode(den, index) {
     const current = getTileMode(den, index);
     const idx = TEXT_MODES.indexOf(current);
     const next = TEXT_MODES[(idx + 1) % TEXT_MODES.length];
     setTileMode(den, index, next);
     render();
   }
-
-  function formatFraction(den){
-    if(den === 1) return '1';
+  function formatFraction(den) {
+    if (den === 1) return '1';
     return `1/${den}`;
   }
-
   const decimalFormatterCache = new Map();
-  function formatDecimal(value, digits, trimZeros){
+  function formatDecimal(value, digits, trimZeros) {
     const numericDigits = Number.isFinite(digits) ? digits : Number(digits);
-    const normalizedDigits = Number.isFinite(numericDigits)
-      ? Math.max(0, Math.min(Math.floor(numericDigits), 20))
-      : 0;
+    const normalizedDigits = Number.isFinite(numericDigits) ? Math.max(0, Math.min(Math.floor(numericDigits), 20)) : 0;
     const useTrim = !!trimZeros;
     const key = `${normalizedDigits}|${useTrim ? 'trim' : 'pad'}`;
     let formatter = decimalFormatterCache.get(key);
-    if(!formatter){
+    if (!formatter) {
       const options = {
         maximumFractionDigits: normalizedDigits
       };
@@ -263,9 +228,8 @@
     }
     return formatter.format(value);
   }
-
-  function formatValue(mode, den){
-    switch(mode){
+  function formatValue(mode, den) {
+    switch (mode) {
       case 'percent':
         return `${formatDecimal(100 / den, STATE.percentDigits, STATE.trimTrailingZeros)}%`;
       case 'decimal':
@@ -275,39 +239,36 @@
         return formatFraction(den);
     }
   }
-
-  function tileAriaLabel(den, index, mode){
+  function tileAriaLabel(den, index, mode) {
     const position = index + 1;
     const total = den;
     const label = MODE_LABELS[mode] || mode;
     return `Del ${position} av ${total}. Viser ${label}. Klikk for å bytte visning.`;
   }
-
-  function createFractionGroup(den, centerX, centerY, tileWidth, textColor){
-    const group = createSvgElement('g', {'aria-hidden': 'true'});
+  function createFractionGroup(den, centerX, centerY, tileWidth, textColor) {
+    const group = createSvgElement('g', {
+      'aria-hidden': 'true'
+    });
     const numeratorText = '1';
     const denominatorText = String(den);
     const maxChars = Math.max(numeratorText.length, denominatorText.length, 1);
     const approximateDigitWidth = 0.62; // Approximate width of a digit relative to font size
     const widthPadding = 0.72; // Leave some horizontal padding on each side
     const baseFontLimit = ROW_HEIGHT * STATE.textScale;
-    const widthLimit = (tileWidth * widthPadding) / (maxChars * approximateDigitWidth);
+    const widthLimit = tileWidth * widthPadding / (maxChars * approximateDigitWidth);
     let fontSize = Math.max(10, Math.min(baseFontLimit, widthLimit));
-
     const availableHalfHeight = ROW_HEIGHT / 2 - 4;
     let gap = Math.max(4, fontSize * 0.18);
     let attempts = 0;
-    while(fontSize + gap > availableHalfHeight && attempts < 3){
+    while (fontSize + gap > availableHalfHeight && attempts < 3) {
       const heightLimit = availableHalfHeight - gap;
       const nextFont = Math.max(10, heightLimit);
-      if(nextFont >= fontSize) break;
+      if (nextFont >= fontSize) break;
       fontSize = nextFont;
       gap = Math.max(4, fontSize * 0.18);
       attempts++;
     }
-
     const lineOffset = fontSize / 2 + gap;
-
     const numerator = createSvgElement('text', {
       x: centerX,
       y: centerY - lineOffset,
@@ -316,7 +277,6 @@
     numerator.setAttribute('fill', textColor);
     numerator.style.fill = textColor;
     numerator.style.fontSize = `${fontSize}px`;
-
     const denominator = createSvgElement('text', {
       x: centerX,
       y: centerY + lineOffset,
@@ -325,7 +285,6 @@
     denominator.setAttribute('fill', textColor);
     denominator.style.fill = textColor;
     denominator.style.fontSize = `${fontSize}px`;
-
     const estimatedTextWidth = fontSize * approximateDigitWidth * maxChars;
     const lineLength = Math.min(tileWidth * widthPadding, estimatedTextWidth * 1.1);
     const line = createSvgElement('line', {
@@ -338,39 +297,40 @@
       'stroke-linecap': 'round',
       'aria-hidden': 'true'
     });
-
     group.appendChild(numerator);
     group.appendChild(line);
     group.appendChild(denominator);
     return group;
   }
-
-  function render(){
+  function render() {
     ensureStateDefaults();
     cleanTileModes();
     updateControlsFromState();
-
     const denominators = STATE.denominators;
     const labelWidth = STATE.showLabels ? LABEL_WIDTH : 0;
     const contentHeight = denominators.length * ROW_HEIGHT + Math.max(0, denominators.length - 1) * ROW_GAP;
     const totalHeight = contentHeight + MARGIN_Y * 2;
     const totalWidth = MARGIN_X * 2 + labelWidth + TILE_AREA_WIDTH;
-
     svg.setAttribute('viewBox', `0 0 ${totalWidth} ${Math.max(totalHeight, 120)}`);
-
     const fragment = document.createDocumentFragment();
-    const title = createSvgElement('title', {id:'fractionWallTitle', textContent:'Brøkvegg'});
+    const title = createSvgElement('title', {
+      id: 'fractionWallTitle',
+      textContent: 'Brøkvegg'
+    });
     const descText = denominators.length ? `Viser rader for nevnerne ${denominators.join(', ')}.` : 'Ingen rader valgt.';
-    const desc = createSvgElement('desc', {id:'fractionWallDesc', textContent:descText});
+    const desc = createSvgElement('desc', {
+      id: 'fractionWallDesc',
+      textContent: descText
+    });
     fragment.appendChild(title);
     fragment.appendChild(desc);
-
     let y = MARGIN_Y;
     denominators.forEach((den, rowIndex) => {
-      const rowGroup = createSvgElement('g', {transform:`translate(${MARGIN_X}, ${y})`});
+      const rowGroup = createSvgElement('g', {
+        transform: `translate(${MARGIN_X}, ${y})`
+      });
       const baseColor = COLOR_PALETTE[rowIndex % COLOR_PALETTE.length] || '#B25FE3';
-
-      if(STATE.showLabels){
+      if (STATE.showLabels) {
         const labelGroup = createSvgElement('g');
         const rect = createSvgElement('rect', {
           class: 'rowLabelRect',
@@ -404,14 +364,13 @@
         labelGroup.appendChild(subLabel);
         rowGroup.appendChild(labelGroup);
       }
-
       const tilesGroup = createSvgElement('g', {
         transform: `translate(${STATE.showLabels ? LABEL_WIDTH : 0}, 0)`
       });
       const tileWidth = TILE_AREA_WIDTH / den;
       const tileColor = lightenColor(baseColor, 0.12);
       const tileTextColor = pickTileTextColor(tileColor);
-      for(let i=0;i<den;i++){
+      for (let i = 0; i < den; i++) {
         const mode = getTileMode(den, i);
         const displayValue = formatValue(mode, den);
         const tile = createSvgElement('g', {
@@ -441,10 +400,10 @@
         });
         tile.appendChild(tooltip);
         tile.appendChild(rect);
-        if(mode === 'fraction' && den > 1){
+        if (mode === 'fraction' && den > 1) {
           const fractionGroup = createFractionGroup(den, tileX + tileWidth / 2, ROW_HEIGHT / 2, tileWidth, textColor);
           tile.appendChild(fractionGroup);
-        }else{
+        } else {
           const text = createSvgElement('text', {
             x: tileX + tileWidth / 2,
             y: ROW_HEIGHT / 2
@@ -456,100 +415,84 @@
           text.style.fontSize = `${fontSize}px`;
           tile.appendChild(text);
         }
-        tile.addEventListener('click', (event)=>{
+        tile.addEventListener('click', event => {
           event.preventDefault();
           cycleTileMode(den, i);
         });
-        tile.addEventListener('keydown', (event)=>{
-          if(event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar'){
+        tile.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
             event.preventDefault();
             cycleTileMode(den, i);
           }
         });
         tilesGroup.appendChild(tile);
       }
-
       rowGroup.appendChild(tilesGroup);
       fragment.appendChild(rowGroup);
       y += ROW_HEIGHT + ROW_GAP;
     });
-
     svg.replaceChildren(fragment);
   }
-
   render();
   window.render = render;
-
-  function setDenominatorsFromInput(raw){
+  function setDenominatorsFromInput(raw) {
     const parsed = sanitizeDenominators(raw);
     STATE.denominators = parsed.length ? parsed : DEFAULT_DENOMS.slice();
     cleanTileModes();
     render();
   }
-
-  denomInput?.addEventListener('change', (event)=>{
+  denomInput === null || denomInput === void 0 || denomInput.addEventListener('change', event => {
     setDenominatorsFromInput(event.target.value);
   });
-  denomInput?.addEventListener('blur', (event)=>{
+  denomInput === null || denomInput === void 0 || denomInput.addEventListener('blur', event => {
     setDenominatorsFromInput(event.target.value);
   });
-
   presetButtons.forEach(btn => {
-    btn.addEventListener('click', ()=>{
+    btn.addEventListener('click', () => {
       const preset = btn.dataset.denomPreset || '';
       setDenominatorsFromInput(preset);
     });
   });
-
-  showLabelsCheckbox?.addEventListener('change', ()=>{
+  showLabelsCheckbox === null || showLabelsCheckbox === void 0 || showLabelsCheckbox.addEventListener('change', () => {
     STATE.showLabels = !!showLabelsCheckbox.checked;
     render();
   });
-
-  textScaleRange?.addEventListener('input', ()=>{
+  textScaleRange === null || textScaleRange === void 0 || textScaleRange.addEventListener('input', () => {
     const value = Number(textScaleRange.value);
     STATE.textScale = clamp(value, MIN_SCALE, MAX_SCALE);
     updateTextScaleDisplay();
     render();
   });
-
-  decimalDigitsInput?.addEventListener('change', ()=>{
+  decimalDigitsInput === null || decimalDigitsInput === void 0 || decimalDigitsInput.addEventListener('change', () => {
     STATE.decimalDigits = clampInt(decimalDigitsInput.value, 0, MAX_DECIMAL_DIGITS, STATE.decimalDigits);
     render();
   });
-
-  percentDigitsInput?.addEventListener('change', ()=>{
+  percentDigitsInput === null || percentDigitsInput === void 0 || percentDigitsInput.addEventListener('change', () => {
     STATE.percentDigits = clampInt(percentDigitsInput.value, 0, MAX_PERCENT_DIGITS, STATE.percentDigits);
     render();
   });
-
-  trimTrailingZerosCheckbox?.addEventListener('change', ()=>{
+  trimTrailingZerosCheckbox === null || trimTrailingZerosCheckbox === void 0 || trimTrailingZerosCheckbox.addEventListener('change', () => {
     STATE.trimTrailingZeros = !!trimTrailingZerosCheckbox.checked;
     render();
   });
-
   setModeButtons.forEach(btn => {
-    btn.addEventListener('click', ()=>{
+    btn.addEventListener('click', () => {
       const mode = btn.dataset.setMode;
-      if(!TEXT_MODES.includes(mode)) return;
+      if (!TEXT_MODES.includes(mode)) return;
       STATE.defaultMode = mode;
       STATE.tileModes = {};
       render();
     });
   });
-
-  resetModesButton?.addEventListener('click', ()=>{
+  resetModesButton === null || resetModesButton === void 0 || resetModesButton.addEventListener('click', () => {
     STATE.defaultMode = 'fraction';
     STATE.tileModes = {};
     render();
   });
-
-  function svgToString(svgEl){
+  function svgToString(svgEl) {
     const clone = svgEl.cloneNode(true);
-    const styles = Array.from(document.querySelectorAll('style'))
-      .map(style => style.textContent)
-      .join('\n');
-    if(styles){
+    const styles = Array.from(document.querySelectorAll('style')).map(style => style.textContent).join('\n');
+    if (styles) {
       const styleEl = document.createElement('style');
       styleEl.textContent = styles;
       clone.insertBefore(styleEl, clone.firstChild);
@@ -558,10 +501,11 @@
     clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
     return `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(clone)}`;
   }
-
-  function downloadSvg(svgEl, filename){
+  function downloadSvg(svgEl, filename) {
     const data = svgToString(svgEl);
-    const blob = new Blob([data], {type:'image/svg+xml;charset=utf-8'});
+    const blob = new Blob([data], {
+      type: 'image/svg+xml;charset=utf-8'
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -569,17 +513,19 @@
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-
-  function downloadPng(svgEl, filename, scale = 2){
+  function downloadPng(svgEl, filename, scale = 2) {
     const data = svgToString(svgEl);
-    const blob = new Blob([data], {type:'image/svg+xml;charset=utf-8'});
+    const blob = new Blob([data], {
+      type: 'image/svg+xml;charset=utf-8'
+    });
     const url = URL.createObjectURL(blob);
     const img = new Image();
-    img.onload = ()=>{
+    img.onload = () => {
+      var _svgEl$viewBox;
       const canvas = document.createElement('canvas');
-      const viewBox = svgEl.viewBox?.baseVal;
+      const viewBox = (_svgEl$viewBox = svgEl.viewBox) === null || _svgEl$viewBox === void 0 ? void 0 : _svgEl$viewBox.baseVal;
       const width = viewBox ? viewBox.width : svgEl.clientWidth;
       const height = viewBox ? viewBox.height : svgEl.clientHeight;
       canvas.width = Math.round(width * scale);
@@ -590,7 +536,7 @@
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
       canvas.toBlob(blob => {
-        if(!blob) return;
+        if (!blob) return;
         const pngUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = pngUrl;
@@ -598,24 +544,21 @@
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        setTimeout(()=>URL.revokeObjectURL(pngUrl), 1000);
+        setTimeout(() => URL.revokeObjectURL(pngUrl), 1000);
       }, 'image/png');
     };
     img.src = url;
   }
-
-  downloadSvgButton?.addEventListener('click', ()=>{
+  downloadSvgButton === null || downloadSvgButton === void 0 || downloadSvgButton.addEventListener('click', () => {
     downloadSvg(svg, 'brokvegg');
   });
-
-  downloadPngButton?.addEventListener('click', ()=>{
+  downloadPngButton === null || downloadPngButton === void 0 || downloadPngButton.addEventListener('click', () => {
     downloadPng(svg, 'brokvegg');
   });
-
-  window.addEventListener('examples:collect', (event)=>{
-    if(!event || !event.detail) return;
-    try{
+  window.addEventListener('examples:collect', event => {
+    if (!event || !event.detail) return;
+    try {
       event.detail.svgOverride = svgToString(svg);
-    }catch(_){ }
+    } catch (_) {}
   });
 })();

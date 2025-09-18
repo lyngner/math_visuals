@@ -13,6 +13,10 @@
   "type": "commonjs",
   "private": true,
   "devDependencies": {
+    "@babel/cli": "^7.28.3",
+    "@babel/core": "^7.28.4",
+    "@babel/plugin-transform-nullish-coalescing-operator": "^7.27.1",
+    "@babel/plugin-transform-optional-chaining": "^7.27.1",
     "http-server": "^14.1.1"
   }
 }
