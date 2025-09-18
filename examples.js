@@ -307,7 +307,7 @@
           });
         }
       }
-    } catch {
+    } catch (error) {
       deletedProvidedExamples = new Set();
     }
     return deletedProvidedExamples;
@@ -316,7 +316,7 @@
     if (!deletedProvidedExamples) return;
     try {
       safeSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
-    } catch {}
+    } catch (error) {}
   }
   function markProvidedExampleDeleted(value) {
     const key = normalizeKey(value);
@@ -467,7 +467,7 @@
         default:
           return undefined;
       }
-    } catch {
+    } catch (error) {
       return undefined;
     }
   }
@@ -475,7 +475,7 @@
     if (value == null) return value;
     try {
       return JSON.parse(JSON.stringify(value));
-    } catch {
+    } catch (error) {
       return value;
     }
   }
@@ -676,7 +676,7 @@
       if (path === location.pathname) {
         if (loadExample(index)) initialLoadPerformed = true;
       }
-    } catch {}
+    } catch (error) {}
     safeRemoveItem('example_to_load');
   })();
   const saveBtn = document.getElementById('btnSaveExample');
@@ -806,7 +806,7 @@
           const txt = await res.text();
           lines.push(`// Source: ${s.src}`);
           lines.push(txt);
-        } catch {}
+        } catch (error) {}
       }
       const blob = new Blob([lines.join('\n')], {
         type: 'application/javascript'
@@ -821,7 +821,7 @@
         URL.revokeObjectURL(a.href);
         document.body.removeChild(a);
       }, 1000);
-    } catch {}
+    } catch (error) {}
   });
   deleteBtn === null || deleteBtn === void 0 || deleteBtn.addEventListener('click', () => {
     const examples = getExamples();

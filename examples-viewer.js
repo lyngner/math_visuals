@@ -160,7 +160,7 @@ function renderExamples() {
     let arr;
     try {
       arr = JSON.parse(safeGetItem(key)) || [];
-    } catch {
+    } catch (error) {
       arr = [];
     }
     if (arr.length === 0) continue;
@@ -178,7 +178,7 @@ function renderExamples() {
         const url = new URL(path, window.location.href);
         url.searchParams.set('example', String(idx + 1));
         iframe.src = url.href;
-      } catch {
+      } catch (error) {
         const sep = path.includes('?') ? '&' : '?';
         iframe.src = `${path}${sep}example=${idx + 1}`;
       }

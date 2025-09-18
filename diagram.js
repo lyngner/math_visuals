@@ -757,7 +757,7 @@ function onDragStart(e) {
     if (target.releasePointerCapture) {
       try {
         target.releasePointerCapture(ev.pointerId);
-      } catch {}
+      } catch (error) {}
     }
   };
   window.addEventListener('pointermove', move, {
@@ -769,7 +769,7 @@ function onDragStart(e) {
   if (target.setPointerCapture) {
     try {
       target.setPointerCapture(e.pointerId);
-    } catch {}
+    } catch (error) {}
   }
 }
 
