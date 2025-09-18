@@ -67,6 +67,7 @@
     .card--settings fieldset .fieldLabel .stepper{margin:0;}
     .card--settings fieldset .toggleLabel{align-items:center;}
     .card--settings fieldset .toggleLabel input{margin:0;}
+    .card--settings fieldset select{width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box;background:#fff;}
     legend{font-weight:600;font-size:13px;color:#374151;padding:0 4px;}
     .card input[type="color"]{width:40px;height:40px;padding:0;border:none;}
     .colors{display:flex;flex-wrap:wrap;gap:6px;}
@@ -120,6 +121,7 @@
     }
     .stepper span{min-width:32px;text-align:center;font-variant-numeric:tabular-nums;font-size:16px;}
     .nameInput{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:6px 8px;font-size:14px;box-sizing:border-box;}
+    .nameDisplay{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:6px 8px;font-size:14px;box-sizing:border-box;background:#f3f4f6;color:#374151;}
     .removeFigureBtn{
       align-self:flex-end;
       background:none;
@@ -179,7 +181,14 @@
             <label class="toggleLabel"><input id="showGrid" type="checkbox" /> Vis rutenett</label>
             <label class="toggleLabel"><input id="offsetRows" type="checkbox" /> Forskyv annenhver rad</label>
             <label class="toggleLabel"><input id="circleMode" type="checkbox" checked /> Bruk sirkler</label>
-            <label class="toggleLabel"><input id="showFigureText" type="checkbox" checked /> Vis tekst under figurene</label>
+            <label class="fieldLabel">
+              <span>Figurtekst</span>
+              <select id="labelMode">
+                <option value="custom">Egendefinert</option>
+                <option value="numbered">Nummerert</option>
+                <option value="hidden">Skjult</option>
+              </select>
+            </label>
           </fieldset>
           <fieldset>
             <legend>Farger</legend>
