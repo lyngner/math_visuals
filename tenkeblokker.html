@@ -6,7 +6,7 @@
   <title>Tenkeblokker</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css" />
   <style>
-    :root { --gap:18px; }
+    :root { --gap:18px; --tb-stepper-gap:18px; }
     html,body{height:100%;}
     body{
       margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
@@ -45,7 +45,6 @@
     }
     .tb-row{display:flex;gap:0;width:100%;}
     .tb-panel{display:flex;flex-direction:column;align-items:stretch;gap:16px;width:100%;min-width:0;}
-    .tb-panel--with-stepper{margin-bottom:var(--gap);}
     .tb-panel .tb-stepper{align-self:center;}
     .tb-svg{display:block;width:100%;height:var(--tb-svg-height,260px);background:#fff;overflow:visible;}
     .tb-board .addFigureBtn{align-self:center;justify-self:center;}
@@ -117,6 +116,8 @@
     select{border:1px solid #d1d5db;border-radius:10px;padding:8px 10px;font-size:14px;background:#fff;}
     .checkbox-row{display:flex;align-items:center;gap:6px;font-size:13px;color:#4b5563;}
     .checkbox-row input{margin:0;}
+    .checkbox-row input:disabled{cursor:not-allowed;}
+    .checkbox-row input:disabled + label{opacity:.6;cursor:not-allowed;}
     .checkbox-row label{display:inline;}
     .toolbar{display:flex;gap:10px;justify-content:flex-start;align-items:center;flex-wrap:wrap;}
     .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s;}
