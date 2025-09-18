@@ -280,9 +280,26 @@ function getBlockMetrics(block) {
   } = getSvgViewport(block);
   const left = width * SIDE_MARGIN_RATIO;
   const right = width - left;
-  const top = height * TOP_RATIO;
-  const bottom = height * BOTTOM_RATIO;
+  let top = height * TOP_RATIO;
+  let bottom = height * BOTTOM_RATIO;
+  const bracketTick = height * BRACKET_TICK_RATIO;
+  let braceY = height * BRACE_Y_RATIO;
+  let labelOffsetY = height * LABEL_OFFSET_RATIO;
   const frameInset = getFrameInset(block);
+  const totalRows = Number.isFinite(CONFIG === null || CONFIG === void 0 ? void 0 : CONFIG.rows) ? Number(CONFIG.rows) : 1;
+  const rowIndex = Number.isFinite(block === null || block === void 0 ? void 0 : block.row) ? Number(block.row) : 0;
+  const isFirstRow = rowIndex <= 0;
+  const isLastRow = rowIndex >= totalRows - 1;
+  if (totalRows > 1) {
+    if (!isFirstRow) {
+      top = 0;
+      braceY = Math.max(bracketTick, Math.min(braceY, bracketTick * 2));
+      labelOffsetY = Math.max(0, Math.min(labelOffsetY, braceY - 8));
+    }
+    if (!isLastRow) {
+      bottom = height;
+    }
+  }
   const outerWidth = Math.max(0, right - left);
   const outerHeight = Math.max(0, bottom - top);
   const clampedInset = Math.min(frameInset, outerWidth / 2, outerHeight / 2);
@@ -290,9 +307,6 @@ function getBlockMetrics(block) {
   const frameRight = right - clampedInset;
   const frameTop = top + clampedInset;
   const frameBottom = bottom - clampedInset;
-  const braceY = height * BRACE_Y_RATIO;
-  const bracketTick = height * BRACKET_TICK_RATIO;
-  const labelOffsetY = height * LABEL_OFFSET_RATIO;
   const innerWidth = Math.max(0, frameRight - frameLeft);
   const innerHeight = Math.max(0, frameBottom - frameTop);
   const centerX = frameLeft + innerWidth / 2;
@@ -884,8 +898,44 @@ function updateBlockPanelLayout(block, rowTotal) {
   } else {
     block.panel.style.flexGrow = '1';
   }
-  block.panel.style.marginBottom = needsVerticalSpace ? 'var(--tb-stepper-gap, 0px)' : '0px';
-  block.panel.style.rowGap = stepperVisible ? 'var(--tb-stepper-spacing, 6px)' : '0px';
+  const panelEl = block.panel;
+  const stepperEl = block.stepper;
+  const stepperHeight = stepperEl && stepperEl.offsetHeight ? stepperEl.offsetHeight : 0;
+  let stepperSpacing = 0;
+  if (panelEl && typeof window !== 'undefined' && window.getComputedStyle) {
+    try {
+      const spacingValue = window.getComputedStyle(panelEl).getPropertyValue('--tb-stepper-spacing');
+      const parsed = Number.parseFloat(String(spacingValue).replace(',', '.'));
+      if (Number.isFinite(parsed)) stepperSpacing = parsed;
+    } catch (err) {
+      stepperSpacing = 0;
+    }
+  }
+  if (panelEl) {
+    const panelHeight = block !== null && block !== void 0 && block.svg ? block.svg.getBoundingClientRect().height : panelEl.getBoundingClientRect().height;
+    if (needsVerticalSpace && stepperEl) {
+      const shift = stepperHeight + stepperSpacing;
+      panelEl.style.position = 'relative';
+      panelEl.style.marginBottom = shift > 0 ? `${-shift}px` : '0px';
+      panelEl.style.rowGap = '0px';
+      stepperEl.style.position = 'absolute';
+      stepperEl.style.left = '50%';
+      stepperEl.style.transform = 'translate(-50%, -50%)';
+      stepperEl.style.top = `${panelHeight}px`;
+      stepperEl.style.zIndex = '2';
+    } else {
+      panelEl.style.position = '';
+      panelEl.style.marginBottom = '0px';
+      panelEl.style.rowGap = stepperVisible ? 'var(--tb-stepper-spacing, 6px)' : '0px';
+      if (stepperEl) {
+        stepperEl.style.position = '';
+        stepperEl.style.left = '';
+        stepperEl.style.transform = '';
+        stepperEl.style.top = '';
+        stepperEl.style.zIndex = '';
+      }
+    }
+  }
 }
 function drawBlock(block) {
   var _block$rectEmpty, _block$rectEmpty2, _block$rectEmpty3, _block$rectEmpty4, _block$rectFrame, _block$rectFrame2, _block$rectFrame3, _block$rectFrame4, _block$handle, _block$handleShadow, _block$handle2, _block$handleShadow2;
