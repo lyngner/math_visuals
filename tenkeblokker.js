@@ -638,6 +638,29 @@ function draw(skipNormalization = false) {
     }
   }
 
+  const maxRowTotal = rowTotals.reduce((max, value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= max) return max;
+    return numeric;
+  }, 0);
+
+  if (grid) {
+    const rowElements = grid.querySelectorAll('.tb-row');
+    rowElements.forEach((rowEl, index) => {
+      if (!rowEl) return;
+      if (maxRowTotal > 0) {
+        const total = Number(rowTotals[index]) || 0;
+        const ratio = total > 0 ? total / maxRowTotal : 0;
+        const clamped = Math.max(0, Math.min(ratio, 1));
+        rowEl.style.width = `${clamped * 100}%`;
+        rowEl.style.alignSelf = 'flex-start';
+      } else {
+        rowEl.style.width = '';
+        rowEl.style.alignSelf = '';
+      }
+    });
+  }
+
   for (const block of visibleBlocks) {
     const rowTotal = rowTotals[block.row];
     updateBlockPanelLayout(block, rowTotal);
