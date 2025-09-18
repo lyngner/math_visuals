@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Fortegnsskjema</title>
+  <style>
+    :root { --gap: 18px; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #f7f8fb;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+      color: #111827;
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+    }
+    .grid {
+      display: grid;
+      gap: var(--gap);
+      grid-template-columns: 1fr 380px;
+      align-items: start;
+    }
+    @media (max-width: 1000px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+    .card h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #374151;
+    }
+    .figure {
+      border-radius: 12px;
+      background: #fafbfc;
+      border: 1px solid #eef0f3;
+      overflow: hidden;
+      position: relative;
+    }
+    #chart {
+      width: 100%;
+      height: 560px;
+      display: block;
+    }
+    .toolbar,
+    .controls,
+    .rows-list,
+    .points-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .toolbar-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    label span {
+      font-size: 13px;
+      color: #4b5563;
+      display: block;
+      margin-bottom: 4px;
+    }
+    input[type="text"],
+    input[type="number"],
+    select {
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      font-size: 14px;
+      background: #fff;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    input[type="number"] {
+      max-width: 110px;
+    }
+    .btn {
+      appearance: none;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      border-radius: 10px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #1f2937;
+      transition: background 0.2s ease;
+    }
+    .btn:hover {
+      background: #f3f4f6;
+    }
+    .btn.danger {
+      border-color: #fca5a5;
+      color: #b91c1c;
+      background: #fef2f2;
+    }
+    .rows-list > div,
+    .points-list > div {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .rows-list label,
+    .points-list label {
+      flex: 1 1 auto;
+      min-width: 140px;
+    }
+    .rows-list .row-label input {
+      max-width: 160px;
+    }
+    .status {
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .status--info {
+      color: #1f2937;
+      background: #f3f4f6;
+      border-color: #e5e7eb;
+    }
+    .status--ok {
+      color: #065f46;
+      background: #ecfdf5;
+      border-color: #a7f3d0;
+    }
+    .status--err {
+      color: #b91c1c;
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
+    .note {
+      font-size: 12px;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <h1>Fortegnsskjema</h1>
+        <div class="figure">
+          <svg id="chart" role="img" aria-label="Fortegnsskjema"></svg>
+        </div>
+        <div class="toolbar">
+          <div class="toolbar-row">
+            <button class="btn" id="btnCheck">Sjekk fortegnsskjema</button>
+            <div id="checkStatus" class="status status--info" hidden></div>
+          </div>
+          <div class="note">Klikk på en del av en fortegnslinje for å bytte mellom positiv og negativ. Dra nullpunkter for å flytte dem.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Funksjon og innstillinger</h2>
+        <div class="controls">
+          <label>
+            <span>f(x) =</span>
+            <input id="exprInput" type="text" placeholder="Skriv funksjonsuttrykk, f.eks. (x+1)/((x-3)(x-2))" autocomplete="off">
+          </label>
+          <div class="toolbar-row">
+            <button class="btn" id="btnGenerate">Generer fasit</button>
+            <label class="checkbox">
+              <input type="checkbox" id="autoSync"> Automatisk fortegnslinje
+            </label>
+          </div>
+          <div class="note">Autogenerering støtter funksjoner som er faktorisert i lineære uttrykk.</div>
+        </div>
+
+        <div class="card" style="padding: 12px; gap: 12px;">
+          <h2>Punkter</h2>
+          <div class="points-list" id="pointsList"></div>
+          <button class="btn" id="btnAddPoint">Legg til punkt</button>
+        </div>
+
+        <div class="card" style="padding: 12px; gap: 12px;">
+          <h2>Fortegnslinjer</h2>
+          <div class="rows-list" id="rowsList"></div>
+          <button class="btn" id="btnAddRow">Legg til fortegnslinje</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="fortegnsskjema.js"></script>
+</body>
+</html>
