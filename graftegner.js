@@ -30,6 +30,7 @@ const FONT_LIMITS = {
   max: 72
 };
 const FONT_DEFAULT = 16;
+const FONT_PARAM_KEYS = ['fontSize', 'font', 'axisFont', 'tickFont', 'curveFont'];
 const SHOW_CURVE_NAMES = params.has('showNames') ? paramBool('showNames') : true;
 const SHOW_CURVE_EXPRESSIONS = params.has('showExpr') ? paramBool('showExpr') : false;
 function clampFontSize(val) {
@@ -43,8 +44,7 @@ function sanitizeFontSize(val, fallback) {
   return clamped == null ? fallback : clamped;
 }
 function resolveSharedFontSize() {
-  const keys = ['fontSize', 'font', 'axisFont', 'tickFont', 'curveFont'];
-  for (const key of keys) {
+  for (const key of FONT_PARAM_KEYS) {
     const candidate = clampFontSize(paramNumber(key, null));
     if (candidate != null) {
       return candidate;
@@ -2241,7 +2241,7 @@ function setupSettingsForm() {
   }
   const fontSizeInput = g('cfgFontSize');
   if (fontSizeInput) {
-    fontSizeInput.value = String(ADV.axis.grid.fontSize);
+    fontSizeInput.value = String(sanitizeFontSize(ADV.axis.grid.fontSize, FONT_DEFAULT));
   }
   const apply = () => {
     syncSimpleFromForm();
@@ -2285,21 +2285,35 @@ function setupSettingsForm() {
       if (snapInput.checked) p.set('snap', '1');else p.set('snap', '0');
     }
     if (g('cfgQ1').checked) p.set('q1', '1');
-    const handleFontInput = (inputId, paramName, fallback) => {
+    const currentFontSize = sanitizeFontSize(ADV.axis.grid.fontSize, FONT_DEFAULT);
+    const keepFontParam = FONT_PARAM_KEYS.some(key => params.has(key)) || Math.abs(currentFontSize - FONT_DEFAULT) > 1e-9;
+    const handleFontInput = (inputId, paramName, fallback, options = {}) => {
+      const { keepWhenEqual = false } = options;
       const input = g(inputId);
       if (!input) return;
-      const raw = Number.parseFloat(String(input.value || '').replace(',', '.'));
+      const rawStr = String(input.value != null ? input.value : '').trim();
+      if (!rawStr) {
+        input.value = String(fallback);
+        if (keepWhenEqual && Math.abs(fallback - FONT_DEFAULT) > 1e-9) {
+          p.set(paramName, String(fallback));
+        }
+        return;
+      }
+      const raw = Number.parseFloat(rawStr.replace(',', '.'));
       if (!Number.isFinite(raw)) {
         input.value = String(fallback);
+        if (keepWhenEqual && Math.abs(fallback - FONT_DEFAULT) > 1e-9) {
+          p.set(paramName, String(fallback));
+        }
         return;
       }
       const sanitized = sanitizeFontSize(raw, fallback);
       input.value = String(sanitized);
-      if (Math.abs(sanitized - fallback) > 1e-9) {
+      if (Math.abs(sanitized - fallback) > 1e-9 || (keepWhenEqual && Math.abs(sanitized - FONT_DEFAULT) > 1e-9)) {
         p.set(paramName, String(sanitized));
       }
     };
-    handleFontInput('cfgFontSize', 'fontSize', FONT_DEFAULT);
+    handleFontInput('cfgFontSize', 'fontSize', currentFontSize, { keepWhenEqual: keepFontParam });
     location.search = p.toString();
   };
   root.addEventListener('change', apply);
