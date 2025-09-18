@@ -36,12 +36,15 @@
       grid-row:1;
       display:flex;
       flex-direction:column;
-      gap:var(--gap);
+      gap:0;
+      row-gap:0;
+      column-gap:0;
       padding:12px 4px 4px;
       width:100%;
     }
     .tb-row{display:flex;gap:0;width:100%;}
     .tb-panel{display:flex;flex-direction:column;align-items:stretch;gap:16px;width:100%;min-width:0;}
+    .tb-panel--with-stepper{margin-bottom:var(--gap);}
     .tb-panel .tb-stepper{align-self:center;}
     .tb-svg{display:block;width:100%;height:var(--tb-svg-height,260px);background:#fff;overflow:visible;}
     .tb-board .addFigureBtn{align-self:center;justify-self:center;}
