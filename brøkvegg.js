@@ -8,6 +8,8 @@
   };
   const DEFAULT_DENOMS = [1, 2, 3, 4, 5, 6, 8, 9, 10, 12];
   const COLOR_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D'];
+  const TEXT_COLOR_DARK = '#0f172a';
+  const TEXT_COLOR_LIGHT = '#f8fafc';
   const TILE_AREA_WIDTH = 800;
   const LABEL_WIDTH = 140;
   const ROW_HEIGHT = 72;
@@ -21,7 +23,53 @@
   const DEFAULT_PERCENT_DIGITS = 1;
   const MAX_DECIMAL_DIGITS = 4;
   const MAX_PERCENT_DIGITS = 3;
-  const FRACTION_SLASH = '\u2044';
+
+  function parseHexColor(hex){
+    if(typeof hex !== 'string') return null;
+    const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+    if(!match) return null;
+    const value = match[1];
+    return {
+      r: parseInt(value.slice(0, 2), 16),
+      g: parseInt(value.slice(2, 4), 16),
+      b: parseInt(value.slice(4, 6), 16)
+    };
+  }
+
+  function srgbToLinear(value){
+    const channel = value / 255;
+    return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+  }
+
+  function relativeLuminance(r, g, b){
+    const R = srgbToLinear(r);
+    const G = srgbToLinear(g);
+    const B = srgbToLinear(b);
+    return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+  }
+
+  function luminanceFromHex(hex){
+    const rgb = parseHexColor(hex);
+    if(!rgb) return null;
+    return relativeLuminance(rgb.r, rgb.g, rgb.b);
+  }
+
+  const DARK_TEXT_LUMINANCE = luminanceFromHex(TEXT_COLOR_DARK) ?? 0;
+  const LIGHT_TEXT_LUMINANCE = luminanceFromHex(TEXT_COLOR_LIGHT) ?? 1;
+
+  function contrastRatio(l1, l2){
+    const lighter = Math.max(l1, l2);
+    const darker = Math.min(l1, l2);
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  function pickTileTextColor(backgroundHex){
+    const bgLuminance = luminanceFromHex(backgroundHex);
+    if(bgLuminance == null) return TEXT_COLOR_DARK;
+    const darkContrast = contrastRatio(bgLuminance, DARK_TEXT_LUMINANCE);
+    const lightContrast = contrastRatio(bgLuminance, LIGHT_TEXT_LUMINANCE);
+    return darkContrast >= lightContrast ? TEXT_COLOR_DARK : TEXT_COLOR_LIGHT;
+  }
 
   const svg = document.getElementById('fractionWallSvg');
   if(!svg) return;
@@ -189,8 +237,8 @@
   }
 
   function formatFraction(den){
-    if(den === 1) return `1${FRACTION_SLASH}1`;
-    return `1${FRACTION_SLASH}${den}`;
+    if(den === 1) return `\\frac{1}{1}`;
+    return `\\frac{1}{${den}}`;
   }
 
   const decimalFormatterCache = new Map();
@@ -303,6 +351,7 @@
         });
         const tileX = tileWidth * i;
         const color = i % 2 === 0 ? baseColor : lightenColor(baseColor, 0.12);
+        const textColor = pickTileTextColor(color);
         const tooltip = createSvgElement('title', {
           textContent: `${displayValue} – ${MODE_LABELS[mode] || mode}`
         });
@@ -320,10 +369,12 @@
         const fontSize = Math.max(10, Math.min(ROW_HEIGHT * STATE.textScale, tileWidth * 0.8));
         const text = createSvgElement('text', {
           x: tileX + tileWidth / 2,
-          y: ROW_HEIGHT / 2,
-          'font-size': fontSize
+          y: ROW_HEIGHT / 2
         });
         text.textContent = displayValue;
+        text.setAttribute('fill', textColor);
+        text.style.fill = textColor;
+        text.style.fontSize = `${fontSize}px`;
         tile.appendChild(tooltip);
         tile.appendChild(rect);
         tile.appendChild(text);
