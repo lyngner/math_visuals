@@ -772,6 +772,112 @@ function updatePlate(label){
   const P=label._plate; P.p1.moveTo([L,T]); P.p2.moveTo([R,T]); P.p3.moveTo([R,B]); P.p4.moveTo([L,B]);
 }
 
+function clampLabelToView(label){
+  if(!label) return;
+  const bb = brd.getBoundingBox();
+  const xmin = bb[0], xmax = bb[2], ymin = bb[3], ymax = bb[1];
+  const marginX = (xmax - xmin) * (ADV.curveName.marginFracX || 0);
+  const marginY = (ymax - ymin) * (ADV.curveName.marginFracY || 0);
+  const x = label.X(), y = label.Y();
+  const xClamped = Math.min(xmax - marginX, Math.max(xmin + marginX, x));
+  const yClamped = Math.min(ymax - marginY, Math.max(ymin + marginY, y));
+  if(Math.abs(xClamped - x) > 1e-12 || Math.abs(yClamped - y) > 1e-12){
+    label.moveTo([xClamped, yClamped]);
+  }
+}
+
+function makeLabelDraggable(label, g, reposition){
+  if(!label) return;
+
+  const setup = () => {
+    const node = label.rendNode;
+    if(!node) return false;
+    if(node._dragSetup) return true;
+    node._dragSetup = true;
+
+    node.style.pointerEvents = 'auto';
+    node.style.cursor = 'move';
+    node.style.touchAction = 'none';
+
+    let dragging = false;
+    let offset = [0, 0];
+
+    const toCoords = ev => {
+      try{
+        const c = brd.getUsrCoordsOfMouse(ev);
+        if(Array.isArray(c) && c.length >= 2){
+          return [c[0], c[1]];
+        }
+      }catch(_){ }
+      return null;
+    };
+
+    const start = ev => {
+      if(ev.button != null && ev.button !== 0) return;
+      const coords = toCoords(ev);
+      if(!coords) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      dragging = true;
+      g._labelManual = true;
+      ensureLabelFront(label);
+      clampLabelToView(label);
+      offset = [label.X() - coords[0], label.Y() - coords[1]];
+      if(typeof node.setPointerCapture === 'function' && ev.pointerId != null){
+        try{ node.setPointerCapture(ev.pointerId); }catch(_){ }
+      }
+    };
+
+    const move = ev => {
+      if(!dragging) return;
+      const coords = toCoords(ev);
+      if(!coords) return;
+      ev.preventDefault();
+      const nx = coords[0] + offset[0];
+      const ny = coords[1] + offset[1];
+      label.moveTo([nx, ny]);
+      clampLabelToView(label);
+      updatePlate(label);
+    };
+
+    const end = ev => {
+      if(!dragging) return;
+      dragging = false;
+      ev.preventDefault();
+      ev.stopPropagation();
+      clampLabelToView(label);
+      updatePlate(label);
+      if(typeof node.releasePointerCapture === 'function' && ev.pointerId != null){
+        try{ node.releasePointerCapture(ev.pointerId); }catch(_){ }
+      }
+    };
+
+    node.addEventListener('pointerdown', start);
+    node.addEventListener('pointermove', move);
+    node.addEventListener('pointerup', end);
+    node.addEventListener('pointercancel', end);
+    node.addEventListener('dblclick', ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      g._labelManual = false;
+      reposition(true);
+    });
+
+    return true;
+  };
+
+  if(setup()) return;
+
+  let attempts = 0;
+  const retry = () => {
+    if(setup()) return;
+    if(attempts++ < 5){
+      setTimeout(retry, 30);
+    }
+  };
+  setTimeout(retry, 30);
+}
+
 /* =================== FARGEPALETT =================== */
 function colorFor(i){ const def=['#9333ea','#475569','#ef4444','#0ea5e9','#10b981','#f59e0b']; return def[i%def.length]; }
 
@@ -818,9 +924,10 @@ function makeSmartCurveLabel(g, idx, text){
     color:g.color, fillColor:g.color, fontSize:ADV.curveName.fontSize,
     fixed:true, highlight:false, layer:ADV.curveName.layer,
     anchorX:'left', anchorY:'middle', display:'internal',
-    cssStyle:'pointer-events:none;user-select:none;'
+    cssStyle:'user-select:none;cursor:move;touch-action:none;'
   });
   ensurePlateFor(label);
+  g._labelManual = false;
 
   function finiteYAt(x){
     let y=g.fn(x);
@@ -835,7 +942,14 @@ function makeSmartCurveLabel(g, idx, text){
     }
     return 0;
   }
-  function position(){
+  function position(force){
+    const forced = force === true;
+    if(g._labelManual && !forced){
+      clampLabelToView(label);
+      updatePlate(label);
+      ensureLabelFront(label);
+      return;
+    }
     const bb=brd.getBoundingBox(), xmin=bb[0], xmax=bb[2], ymin=bb[3], ymax=bb[1];
     const a=g.domain?g.domain[0]:xmin, b=g.domain?g.domain[1]:xmax;
     const L=Math.max(a,xmin), R=Math.min(b,xmax);
@@ -857,11 +971,14 @@ function makeSmartCurveLabel(g, idx, text){
     }
     label.moveTo(best.pos);
     label.setAttribute({anchorX: best.slope>=0?'left':'right'});
+    clampLabelToView(label);
     updatePlate(label);
     ensureLabelFront(label);
+    g._labelManual = false;
   }
   position();
   brd.on('boundingbox', position);
+  makeLabelDraggable(label, g, position);
 }
 
 function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */) {
