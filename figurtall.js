@@ -110,6 +110,7 @@
     STATE.circleMode = STATE.circleMode !== false;
     STATE.offset = STATE.offset !== false;
     STATE.showGrid = STATE.showGrid !== false;
+    STATE.showFigureText = STATE.showFigureText !== false;
     STATE.colorCount = clampInt((_STATE$colorCount = STATE.colorCount) !== null && _STATE$colorCount !== void 0 ? _STATE$colorCount : colorCountInp ? colorCountInp.value : 1, 1, maxColors);
     ensureColors(STATE.colorCount);
     if (!Array.isArray(STATE.figures)) STATE.figures = [];
@@ -248,6 +249,7 @@
     });
     updateCellColors();
     updateGridVisibility();
+    updateFigureTextVisibility();
     updateFigureLayout();
   }
   const MIN_PANEL_WIDTH = 80;
@@ -271,6 +273,12 @@
   function updateGridVisibility() {
     boxes.forEach(box => box.classList.toggle('hide-grid', !STATE.showGrid));
   }
+  function updateFigureTextVisibility() {
+    const show = STATE.showFigureText !== false;
+    container === null || container === void 0 || container.querySelectorAll('.figurePanel .nameInput').forEach(input => {
+      input.style.display = show ? '' : 'none';
+    });
+  }
   function cycleCell(figIndex, r, c, cell) {
     var _fig$cells3;
     const colors = getColors();
@@ -293,9 +301,11 @@
     const circleInp = document.getElementById('circleMode');
     const offsetInp = document.getElementById('offsetRows');
     const gridInp = document.getElementById('showGrid');
+    const figureTextInp = document.getElementById('showFigureText');
     if (circleInp) circleInp.checked = !!STATE.circleMode;
     if (offsetInp) offsetInp.checked = !!STATE.offset;
     if (gridInp) gridInp.checked = !!STATE.showGrid;
+    if (figureTextInp) figureTextInp.checked = !!STATE.showFigureText;
     if (colorCountInp) colorCountInp.value = String(STATE.colorCount);
     updateColorVisibility();
   }
@@ -337,6 +347,11 @@
   gridInp === null || gridInp === void 0 || gridInp.addEventListener('change', () => {
     STATE.showGrid = gridInp.checked;
     updateGridVisibility();
+  });
+  const figureTextInp = document.getElementById('showFigureText');
+  figureTextInp === null || figureTextInp === void 0 || figureTextInp.addEventListener('change', () => {
+    STATE.showFigureText = figureTextInp.checked;
+    updateFigureTextVisibility();
   });
   colorCountInp === null || colorCountInp === void 0 || colorCountInp.addEventListener('input', () => {
     STATE.colorCount = clampInt(colorCountInp.value, 1, colorInputs.length || MAX_COLORS);
@@ -476,7 +491,7 @@
           }
         });
       });
-      if (name) {
+      if (STATE.showFigureText && name) {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('x', figW / 2);
         text.setAttribute('y', figH + 16);
@@ -505,6 +520,7 @@
     STATE.circleMode = true;
     STATE.offset = true;
     STATE.showGrid = true;
+    STATE.showFigureText = true;
     STATE.colorCount = 1;
     STATE.colors = [];
     modifiedColorIndexes.clear();
