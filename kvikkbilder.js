@@ -48,6 +48,108 @@
     }
   };
 
+  function deepClone(value){
+    if(value == null) return value;
+    if(typeof structuredClone === 'function'){
+      try{
+        return structuredClone(value);
+      }catch(_){ }
+    }
+    try{
+      return JSON.parse(JSON.stringify(value));
+    }catch(_){
+      return value;
+    }
+  }
+
+  function createExampleCfg(overrides){
+    const base = deepClone(DEFAULT_CFG) || {};
+    const normalized = overrides && typeof overrides === 'object' ? overrides : {};
+    if(typeof normalized.type === 'string'){
+      base.type = normalized.type === 'monster' ? 'monster' : 'klosser';
+    }
+    if(Object.prototype.hasOwnProperty.call(normalized, 'showExpression')){
+      base.showExpression = normalized.showExpression !== false;
+    }
+    if(normalized.klosser && typeof normalized.klosser === 'object'){
+      base.klosser = Object.assign({}, base.klosser, normalized.klosser);
+    }
+    if(normalized.monster && typeof normalized.monster === 'object'){
+      base.monster = Object.assign({}, base.monster, normalized.monster);
+    }
+    return base;
+  }
+
+  const DEFAULT_KVIKKBILDER_EXAMPLES = [
+    {
+      id: 'kvikkbilder-klosser-1',
+      exampleNumber: '1',
+      title: '4 · 2 · (2 · 3 · 2)',
+      isDefault: true,
+      config: {
+        CFG: createExampleCfg({
+          type: 'klosser',
+          showExpression: true,
+          klosser: {
+            antallX: 4,
+            antallY: 2,
+            bredde: 2,
+            hoyde: 3,
+            dybde: 2,
+            showBtn: false
+          }
+        })
+      }
+    },
+    {
+      id: 'kvikkbilder-klosser-2',
+      exampleNumber: '2',
+      title: '3 · 3 · (3 · 2 · 1)',
+      config: {
+        CFG: createExampleCfg({
+          type: 'klosser',
+          showExpression: true,
+          klosser: {
+            antallX: 3,
+            antallY: 3,
+            bredde: 3,
+            hoyde: 2,
+            dybde: 1,
+            showBtn: false
+          }
+        })
+      }
+    },
+    {
+      id: 'kvikkbilder-monster-3',
+      exampleNumber: '3',
+      title: 'Kvikkbilde 12',
+      config: {
+        CFG: createExampleCfg({
+          type: 'monster',
+          showExpression: true,
+          monster: {
+            antallX: 2,
+            antallY: 2,
+            antall: 12,
+            showBtn: false
+          }
+        })
+      }
+    }
+  ];
+
+  if(typeof window !== 'undefined'){
+    window.__EXAMPLES_FORCE_PROVIDED__ = true;
+    window.DEFAULT_EXAMPLES = DEFAULT_KVIKKBILDER_EXAMPLES.map(example => ({
+      ...example,
+      config: {
+        ...example.config,
+        CFG: deepClone(example.config?.CFG)
+      }
+    }));
+  }
+
   const globalCfg = (typeof window.CFG === 'object' && window.CFG) ? window.CFG : {};
   const CFG = window.CFG = globalCfg;
 
