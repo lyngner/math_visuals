@@ -3,6 +3,7 @@
    ========================================================= */
 const CFG = {
   SIMPLE: {
+    layout: "quad",
     height: {
       cells: 16,
       handle: 5,
@@ -110,6 +111,38 @@ function ensureCfgDefaults() {
   fill(CFG.SIMPLE, DEFAULT_SIMPLE_CFG);
   fill(CFG.ADV, DEFAULT_ADV_CFG);
 }
+function normalizeLayout(value) {
+  if (typeof value !== "string") return "quad";
+  return value === "horizontal" || value === "vertical" ? value : "quad";
+}
+function computeLayoutState(layout, width, height, cols, rows, sx, sy, unit) {
+  const mode = normalizeLayout(layout);
+  const effectiveSx = mode === "vertical" ? width : sx;
+  const effectiveSy = mode === "horizontal" ? 0 : sy;
+  const leftWidth = Math.max(0, Math.min(width, effectiveSx));
+  const rightWidth = Math.max(0, width - leftWidth);
+  const bottomHeight = Math.max(0, Math.min(height, effectiveSy));
+  const topHeight = Math.max(0, height - bottomHeight);
+  const leftCols = Math.max(0, Math.min(cols, Math.round(leftWidth / unit)));
+  const rightCols = Math.max(0, cols - leftCols);
+  const bottomRows = Math.max(0, Math.min(rows, Math.round(bottomHeight / unit)));
+  const topRows = Math.max(0, rows - bottomRows);
+  return {
+    mode,
+    leftWidth,
+    rightWidth,
+    bottomHeight,
+    topHeight,
+    leftCols,
+    rightCols,
+    bottomRows,
+    topRows,
+    showTopLeft: true,
+    showTopRight: mode !== "vertical",
+    showBottomLeft: mode !== "horizontal",
+    showBottomRight: mode === "quad"
+  };
+}
 /* ========================================================= */
 
 function readConfigFromHtml() {
@@ -127,6 +160,10 @@ function readConfigFromHtml() {
   CFG.SIMPLE.length.showHandle = (_document$getElementB7 = (_document$getElementB8 = document.getElementById("showLengthHandle")) === null || _document$getElementB8 === void 0 ? void 0 : _document$getElementB8.checked) !== null && _document$getElementB7 !== void 0 ? _document$getElementB7 : CFG.SIMPLE.length.showHandle;
   CFG.ADV.grid = (_document$getElementB9 = (_document$getElementB0 = document.getElementById("grid")) === null || _document$getElementB0 === void 0 ? void 0 : _document$getElementB0.checked) !== null && _document$getElementB9 !== void 0 ? _document$getElementB9 : CFG.ADV.grid;
   CFG.ADV.splitLines = (_document$getElementB1 = (_document$getElementB10 = document.getElementById("splitLines")) === null || _document$getElementB10 === void 0 ? void 0 : _document$getElementB10.checked) !== null && _document$getElementB1 !== void 0 ? _document$getElementB1 : CFG.ADV.splitLines;
+  const layoutSelect = document.getElementById("layoutMode");
+  if (layoutSelect && layoutSelect.value) {
+    CFG.SIMPLE.layout = normalizeLayout(layoutSelect.value);
+  }
 }
 function draw() {
   var _SV$height$cells, _SV$height, _SV$length$cells, _SV$length, _ADV$check$ten, _ADV$check, _ADV$handleIcons$size, _ADV$handleIcons, _ADV$margins$l, _ADV$margins, _ADV$margins$r, _ADV$margins2, _ADV$margins$t, _ADV$margins3, _ADV$margins$b, _ADV$margins4, _ADV$classes$outer, _ADV$classes, _ADV$classes$grid, _ADV$classes2, _ADV$classes$split, _ADV$classes3, _ADV$classes$handle, _ADV$classes4, _ADV$classes$labelCel, _ADV$classes5, _ADV$classes$labelEdg, _ADV$classes6, _ADV$classes$cells, _ADV$classes7, _SV$height2, _SV$length2, _ADV$drag, _ADV$drag2, _ADV$limits$minColsEa, _ADV$limits, _ADV$limits$minRowsEa, _ADV$limits2, _SV$length$handle, _SV$length3, _SV$height$handle, _SV$height3, _SV$height4, _SV$length4, _ADV$handleIcons$hori, _ADV$handleIcons2, _ADV$handleIcons$vert, _ADV$handleIcons3, _ADV$fit$maxVh, _ADV$fit, _ADV$labels$dot, _ADV$labels, _ADV$labels$equals, _ADV$labels2, _ADV$labels$edgeMode, _ADV$labels3, _ADV$labels$cellMode, _ADV$labels4;
@@ -136,6 +173,7 @@ function draw() {
   const UNIT = +ADV.unit || 40;
   const ROWS = Math.max(1, Math.round((_SV$height$cells = (_SV$height = SV.height) === null || _SV$height === void 0 ? void 0 : _SV$height.cells) !== null && _SV$height$cells !== void 0 ? _SV$height$cells : 16));
   const COLS = Math.max(1, Math.round((_SV$length$cells = (_SV$length = SV.length) === null || _SV$length === void 0 ? void 0 : _SV$length.cells) !== null && _SV$length$cells !== void 0 ? _SV$length$cells : 17));
+  const layoutMode = normalizeLayout(SV.layout);
   const TEN = Math.max(1, Math.round((_ADV$check$ten = (_ADV$check = ADV.check) === null || _ADV$check === void 0 ? void 0 : _ADV$check.ten) !== null && _ADV$check$ten !== void 0 ? _ADV$check$ten : 10));
 
   // spacing for kant-tekst utenfor
@@ -167,8 +205,8 @@ function draw() {
   };
   const showGrid = ADV.grid !== false;
   const clickToMove = ADV.clickToMove !== false;
-  const showHeightAxis = ROWS > 1 && ((_SV$height2 = SV.height) === null || _SV$height2 === void 0 ? void 0 : _SV$height2.show) !== false;
-  const showLengthAxis = COLS > 1 && ((_SV$length2 = SV.length) === null || _SV$length2 === void 0 ? void 0 : _SV$length2.show) !== false;
+  const showHeightAxis = layoutMode !== "horizontal" && ROWS > 1 && ((_SV$height2 = SV.height) === null || _SV$height2 === void 0 ? void 0 : _SV$height2.show) !== false;
+  const showLengthAxis = layoutMode !== "vertical" && COLS > 1 && ((_SV$length2 = SV.length) === null || _SV$length2 === void 0 ? void 0 : _SV$length2.show) !== false;
   const dragVertical = showHeightAxis && ((_ADV$drag = ADV.drag) === null || _ADV$drag === void 0 ? void 0 : _ADV$drag.vertical) !== false;
   const dragHorizontal = showLengthAxis && ((_ADV$drag2 = ADV.drag) === null || _ADV$drag2 === void 0 ? void 0 : _ADV$drag2.horizontal) !== false;
   const splitLinesOn = ADV.splitLines !== false;
@@ -212,17 +250,30 @@ function draw() {
   function syncSimpleHandles() {
     const leftCols = Math.round(sx / UNIT);
     const bottomRows = Math.round(sy / UNIT);
-    if (leftCols === lastSyncedLeft && bottomRows === lastSyncedBottom) return;
-    lastSyncedLeft = leftCols;
-    lastSyncedBottom = bottomRows;
-    if (!CFG.SIMPLE.length) CFG.SIMPLE.length = {};
-    if (!CFG.SIMPLE.height) CFG.SIMPLE.height = {};
-    CFG.SIMPLE.length.handle = leftCols;
-    CFG.SIMPLE.height.handle = bottomRows;
-    const lengthStart = document.getElementById('lengthStart');
-    if (lengthStart) lengthStart.value = String(leftCols);
-    const heightStart = document.getElementById('heightStart');
-    if (heightStart) heightStart.value = String(bottomRows);
+    const syncLength = layoutMode !== "vertical";
+    const syncHeight = layoutMode !== "horizontal";
+    if (syncLength) {
+      if (leftCols !== lastSyncedLeft) {
+        lastSyncedLeft = leftCols;
+        if (!CFG.SIMPLE.length) CFG.SIMPLE.length = {};
+        CFG.SIMPLE.length.handle = leftCols;
+        const lengthStart = document.getElementById('lengthStart');
+        if (lengthStart) lengthStart.value = String(leftCols);
+      }
+    } else {
+      lastSyncedLeft = null;
+    }
+    if (syncHeight) {
+      if (bottomRows !== lastSyncedBottom) {
+        lastSyncedBottom = bottomRows;
+        if (!CFG.SIMPLE.height) CFG.SIMPLE.height = {};
+        CFG.SIMPLE.height.handle = bottomRows;
+        const heightStart = document.getElementById('heightStart');
+        if (heightStart) heightStart.value = String(bottomRows);
+      }
+    } else {
+      lastSyncedBottom = null;
+    }
   }
   injectRuntimeStyles();
 
@@ -423,41 +474,57 @@ function draw() {
   function redraw() {
     sx = clamp(sx, minSX, maxSX);
     sy = clamp(sy, minSY, maxSY);
-    const wL = Math.round(sx / UNIT),
-      wR = COLS - wL;
-    const hB = Math.round(sy / UNIT),
-      hT = ROWS - hB;
+    const layoutState = computeLayoutState(layoutMode, W, H, COLS, ROWS, sx, sy, UNIT);
+    const setDisplay = (node, visible) => {
+      if (!node) return;
+      if (visible) {
+        node.removeAttribute("display");
+      } else {
+        node.setAttribute("display", "none");
+      }
+    };
+    const leftWidth = layoutState.leftWidth;
+    const rightWidth = layoutState.rightWidth;
+    const topHeight = layoutState.topHeight;
+    const bottomHeight = layoutState.bottomHeight;
+    const wL = layoutState.leftCols;
+    const wR = layoutState.rightCols;
+    const hB = layoutState.bottomRows;
+    const hT = layoutState.topRows;
     set(rTL, "x", ML);
     set(rTL, "y", MT);
-    set(rTL, "width", sx);
-    set(rTL, "height", H - sy);
-    set(rTR, "x", ML + sx);
+    set(rTL, "width", leftWidth);
+    set(rTL, "height", topHeight);
+    set(rTR, "x", ML + leftWidth);
     set(rTR, "y", MT);
-    set(rTR, "width", W - sx);
-    set(rTR, "height", H - sy);
+    set(rTR, "width", rightWidth);
+    set(rTR, "height", topHeight);
     set(rBL, "x", ML);
-    set(rBL, "y", MT + (H - sy));
-    set(rBL, "width", sx);
-    set(rBL, "height", sy);
-    set(rBR, "x", ML + sx);
-    set(rBR, "y", MT + (H - sy));
-    set(rBR, "width", W - sx);
-    set(rBR, "height", sy);
+    set(rBL, "y", MT + topHeight);
+    set(rBL, "width", leftWidth);
+    set(rBL, "height", bottomHeight);
+    set(rBR, "x", ML + leftWidth);
+    set(rBR, "y", MT + topHeight);
+    set(rBR, "width", rightWidth);
+    set(rBR, "height", bottomHeight);
+    setDisplay(rTR, layoutState.showTopRight);
+    setDisplay(rBL, layoutState.showBottomLeft);
+    setDisplay(rBR, layoutState.showBottomRight);
     if (vLine) {
-      set(vLine, "x1", ML + sx);
+      set(vLine, "x1", ML + leftWidth);
       set(vLine, "y1", MT);
-      set(vLine, "x2", ML + sx);
+      set(vLine, "x2", ML + leftWidth);
       set(vLine, "y2", MT + H);
     }
     if (hLine) {
       set(hLine, "x1", ML);
-      set(hLine, "y1", MT + (H - sy));
+      set(hLine, "y1", MT + topHeight);
       set(hLine, "x2", ML + W);
-      set(hLine, "y2", MT + (H - sy));
+      set(hLine, "y2", MT + topHeight);
     }
     const hLeftCX = ML,
-      hLeftCY = MT + (H - sy);
-    const hDownCX = ML + sx,
+      hLeftCY = MT + topHeight;
+    const hDownCX = ML + leftWidth,
       hDownCY = MT + H;
     if (handleLeft) {
       set(handleLeft, "x", hLeftCX - HANDLE_SIZE / 2);
@@ -493,36 +560,51 @@ function draw() {
     }
 
     // cell-etiketter
-    set(tTL, "x", ML + sx / 2);
-    set(tTL, "y", MT + (H - sy) / 2 + 8);
+    set(tTL, "x", ML + leftWidth / 2);
+    set(tTL, "y", MT + topHeight / 2 + 8);
     tTL.textContent = formatCellLabel(wL, hT);
-    set(tTR, "x", ML + sx + (W - sx) / 2);
-    set(tTR, "y", MT + (H - sy) / 2 + 8);
-    tTR.textContent = formatCellLabel(wR, hT);
-    set(tBL, "x", ML + sx / 2);
-    set(tBL, "y", MT + (H - sy) + sy / 2 + 8);
-    tBL.textContent = formatCellLabel(wL, hB);
-    set(tBR, "x", ML + sx + (W - sx) / 2);
-    set(tBR, "y", MT + (H - sy) + sy / 2 + 8);
-    tBR.textContent = formatCellLabel(wR, hB);
+    setDisplay(tTR, layoutState.showTopRight);
+    if (layoutState.showTopRight) {
+      set(tTR, "x", ML + leftWidth + rightWidth / 2);
+      set(tTR, "y", MT + topHeight / 2 + 8);
+      tTR.textContent = formatCellLabel(wR, hT);
+    } else {
+      tTR.textContent = "";
+    }
+    setDisplay(tBL, layoutState.showBottomLeft);
+    if (layoutState.showBottomLeft) {
+      set(tBL, "x", ML + leftWidth / 2);
+      set(tBL, "y", MT + topHeight + bottomHeight / 2 + 8);
+      tBL.textContent = formatCellLabel(wL, hB);
+    } else {
+      tBL.textContent = "";
+    }
+    setDisplay(tBR, layoutState.showBottomRight);
+    if (layoutState.showBottomRight) {
+      set(tBR, "x", ML + leftWidth + rightWidth / 2);
+      set(tBR, "y", MT + topHeight + bottomHeight / 2 + 8);
+      tBR.textContent = formatCellLabel(wR, hB);
+    } else {
+      tBR.textContent = "";
+    }
 
     // kant-etiketter (utenfor, med luft)
     const leftXOutside = ML - HANDLE_SIZE / 2 - EDGE_GAP.x;
     const bottomYOutside = MT + H + HANDLE_SIZE / 2 + EDGE_GAP.y;
     if (edgeOn && showHeightAxis) {
       set(leftTop, "x", leftXOutside);
-      set(leftTop, "y", MT + (H - sy) / 2 + 10);
+      set(leftTop, "y", MT + topHeight / 2 + 10);
       leftTop.textContent = `${hT}`;
       set(leftBot, "x", leftXOutside);
-      set(leftBot, "y", MT + (H - sy) + sy / 2 + 10);
+      set(leftBot, "y", MT + topHeight + bottomHeight / 2 + 10);
       leftBot.textContent = `${hB}`;
     } else {
       leftTop.textContent = leftBot.textContent = "";
     }
     if (edgeOn && showLengthAxis) {
-      set(botLeft, "x", ML + sx / 2);
+      set(botLeft, "x", ML + leftWidth / 2);
       set(botLeft, "y", bottomYOutside);
-      set(botRight, "x", ML + sx + (W - sx) / 2);
+      set(botRight, "x", ML + leftWidth + rightWidth / 2);
       set(botRight, "y", bottomYOutside);
       botLeft.textContent = `${wL}`;
       botRight.textContent = `${wR}`;
@@ -755,6 +837,7 @@ function draw() {
       sx,
       sy,
       TEN,
+      layout: layoutMode,
       limits: {
         minColsEachSide,
         minRowsEachSide
@@ -941,16 +1024,22 @@ function draw() {
     var _o$handleSize, _o$edgeGap$x, _o$edgeGap, _o$edgeGap$y, _o$edgeGap2;
     const ML = o.margins.ML,
       MT = o.margins.MT;
-    const wL = Math.round(o.sx / o.unit),
-      wR = o.cols - wL;
-    const hB = Math.round(o.sy / o.unit),
-      hT = o.rows - hB;
+    const layoutState = computeLayoutState(o.layout, o.width, o.height, o.cols, o.rows, o.sx, o.sy, o.unit);
+    const leftWidth = layoutState.leftWidth;
+    const rightWidth = layoutState.rightWidth;
+    const topHeight = layoutState.topHeight;
+    const bottomHeight = layoutState.bottomHeight;
+    const wL = layoutState.leftCols;
+    const wR = layoutState.rightCols;
+    const hB = layoutState.bottomRows;
+    const hT = layoutState.topRows;
     const HS = (_o$handleSize = o.handleSize) !== null && _o$handleSize !== void 0 ? _o$handleSize : 84;
     const gapX = (_o$edgeGap$x = (_o$edgeGap = o.edgeGap) === null || _o$edgeGap === void 0 ? void 0 : _o$edgeGap.x) !== null && _o$edgeGap$x !== void 0 ? _o$edgeGap$x : 14,
       gapY = (_o$edgeGap$y = (_o$edgeGap2 = o.edgeGap) === null || _o$edgeGap2 === void 0 ? void 0 : _o$edgeGap2.y) !== null && _o$edgeGap$y !== void 0 ? _o$edgeGap$y : 32;
     const includeHandles = !!o.includeHandles;
     const includeHandleHits = o.includeHandleHits !== undefined ? !!o.includeHandleHits : includeHandles;
     const includeHotZones = o.includeHotZones !== undefined ? !!o.includeHotZones : true;
+    const displayAttr = visible => visible ? "" : ' display="none"';
     let gridStr = "";
     if (o.includeGrid) {
       let lines = [];
@@ -964,14 +1053,14 @@ function draw() {
       }
       gridStr = '<g class="' + o.classes.grid + '" clip-path="url(#clipR)">' + lines.join("") + '</g>';
     }
-    const vLineStr = o.showLengthAxis ? '<line id="vLine" class="' + o.classes.split + '" x1="' + (ML + o.sx) + '" y1="' + MT + '" x2="' + (ML + o.sx) + '" y2="' + (MT + o.height) + '"/>' : "";
-    const hLineStr = o.showHeightAxis ? '<line id="hLine" class="' + o.classes.split + '" x1="' + ML + '" y1="' + (MT + o.height - o.sy) + '" x2="' + (ML + o.width) + '" y2="' + (MT + o.height - o.sy) + '"/>' : "";
-    const hLeftImg = includeHandles && o.showHeightAxis ? '<image id="hLeft" class="' + o.classes.handle + '" href="' + (o.icons.vertUrl || '') + '" width="' + HS + '" height="' + HS + '" x="' + (ML - HS / 2) + '" y="' + (MT + o.height - o.sy - HS / 2) + '"/>' : "";
-    const hDownImg = includeHandles && o.showLengthAxis ? '<image id="hDown" class="' + o.classes.handle + '" href="' + (o.icons.horizUrl || '') + '" width="' + HS + '" height="' + HS + '" x="' + (ML + o.sx - HS / 2) + '" y="' + (MT + o.height - HS / 2) + '"/>' : "";
+    const vLineStr = o.showLengthAxis ? '<line id="vLine" class="' + o.classes.split + '" x1="' + (ML + leftWidth) + '" y1="' + MT + '" x2="' + (ML + leftWidth) + '" y2="' + (MT + o.height) + '"/>' : "";
+    const hLineStr = o.showHeightAxis ? '<line id="hLine" class="' + o.classes.split + '" x1="' + ML + '" y1="' + (MT + topHeight) + '" x2="' + (ML + o.width) + '" y2="' + (MT + topHeight) + '"/>' : "";
+    const hLeftImg = includeHandles && o.showHeightAxis ? '<image id="hLeft" class="' + o.classes.handle + '" href="' + (o.icons.vertUrl || '') + '" width="' + HS + '" height="' + HS + '" x="' + (ML - HS / 2) + '" y="' + (MT + topHeight - HS / 2) + '"/>' : "";
+    const hDownImg = includeHandles && o.showLengthAxis ? '<image id="hDown" class="' + o.classes.handle + '" href="' + (o.icons.horizUrl || '') + '" width="' + HS + '" height="' + HS + '" x="' + (ML + leftWidth - HS / 2) + '" y="' + (MT + o.height - HS / 2) + '"/>' : "";
 
     // Start på riktig posisjon
-    const hLeftHit = includeHandleHits && o.showHeightAxis ? '<circle id="hLeftHit" class="handleHit" r="' + HS * 0.55 + '" cx="' + ML + '" cy="' + (MT + o.height - o.sy) + '" style="cursor:grab"/>' : "";
-    const hDownHit = includeHandleHits && o.showLengthAxis ? '<circle id="hDownHit" class="handleHit" r="' + HS * 0.55 + '" cx="' + (ML + o.sx) + '" cy="' + (MT + o.height) + '" style="cursor:grab"/>' : "";
+    const hLeftHit = includeHandleHits && o.showHeightAxis ? '<circle id="hLeftHit" class="handleHit" r="' + HS * 0.55 + '" cx="' + ML + '" cy="' + (MT + topHeight) + '" style="cursor:grab"/>' : "";
+    const hDownHit = includeHandleHits && o.showLengthAxis ? '<circle id="hDownHit" class="handleHit" r="' + HS * 0.55 + '" cx="' + (ML + leftWidth) + '" cy="' + (MT + o.height) + '" style="cursor:grab"/>' : "";
     const hotLeftStr = includeHotZones && o.showHeightAxis ? '<rect id="hotLeft" class="hot" x="' + (ML - 10) + '" y="' + MT + '" width="10" height="' + o.height + '"/>' : "";
     const hotBottomStr = includeHotZones && o.showLengthAxis ? '<rect id="hotBottom" class="hot" x="' + ML + '" y="' + (MT + o.height) + '" width="' + o.width + '" height="10"/>' : "";
     const parts = [];
@@ -981,45 +1070,172 @@ function draw() {
     parts.push('<style>' + o.colorsCSS + '</style>');
     parts.push('<defs><clipPath id="clipR"><rect x="' + ML + '" y="' + MT + '" width="' + o.width + '" height="' + o.height + '"/></clipPath></defs>');
     parts.push('<rect class="' + o.classes.outer + '" x="' + ML + '" y="' + MT + '" width="' + o.width + '" height="' + o.height + '"/>');
-    parts.push('<rect id="rTL" class="cell ' + o.classes.cells[0] + '" x="' + ML + '" y="' + MT + '" width="' + o.sx + '" height="' + (o.height - o.sy) + '"></rect>');
-    parts.push('<rect id="rTR" class="cell ' + o.classes.cells[1] + '" x="' + (ML + o.sx) + '" y="' + MT + '" width="' + (o.width - o.sx) + '" height="' + (o.height - o.sy) + '"></rect>');
-    parts.push('<rect id="rBL" class="cell ' + o.classes.cells[2] + '" x="' + ML + '" y="' + (MT + o.height - o.sy) + '" width="' + o.sx + '" height="' + o.sy + '"></rect>');
-    parts.push('<rect id="rBR" class="cell ' + o.classes.cells[3] + '" x="' + (ML + o.sx) + '" y="' + (MT + o.height - o.sy) + '" width="' + (o.width - o.sx) + '" height="' + o.sy + '"></rect>');
+    parts.push('<rect id="rTL" class="cell ' + o.classes.cells[0] + '" x="' + ML + '" y="' + MT + '" width="' + leftWidth + '" height="' + topHeight + '"></rect>');
+    parts.push('<rect id="rTR" class="cell ' + o.classes.cells[1] + '" x="' + (ML + leftWidth) + '" y="' + MT + '" width="' + rightWidth + '" height="' + topHeight + '"' + displayAttr(layoutState.showTopRight) + '></rect>');
+    parts.push('<rect id="rBL" class="cell ' + o.classes.cells[2] + '" x="' + ML + '" y="' + (MT + topHeight) + '" width="' + leftWidth + '" height="' + bottomHeight + '"' + displayAttr(layoutState.showBottomLeft) + '></rect>');
+    parts.push('<rect id="rBR" class="cell ' + o.classes.cells[3] + '" x="' + (ML + leftWidth) + '" y="' + (MT + topHeight) + '" width="' + rightWidth + '" height="' + bottomHeight + '"' + displayAttr(layoutState.showBottomRight) + '></rect>');
     parts.push(gridStr);
     parts.push(vLineStr, hLineStr, hotLeftStr, hotBottomStr, hLeftImg, hDownImg, hLeftHit, hDownHit);
 
     // cell-tekster
-    parts.push('<text id="tTL" class="labelCell" x="' + (ML + o.sx / 2) + '" y="' + (MT + (o.height - o.sy) / 2 + 8) + '" text-anchor="middle">' + wL + ' · ' + hT + '</text>');
-    parts.push('<text id="tTR" class="labelCell" x="' + (ML + o.sx + (o.width - o.sx) / 2) + '" y="' + (MT + (o.height - o.sy) / 2 + 8) + '" text-anchor="middle">' + wR + ' · ' + hT + '</text>');
-    parts.push('<text id="tBL" class="labelCell" x="' + (ML + o.sx / 2) + '" y="' + (MT + (o.height - o.sy) + o.sy / 2 + 8) + '" text-anchor="middle">' + wL + ' · ' + hB + '</text>');
-    parts.push('<text id="tBR" class="labelCell" x="' + (ML + o.sx + (o.width - o.sx) / 2) + '" y="' + (MT + (o.height - o.sy) + o.sy / 2 + 8) + '" text-anchor="middle">' + wR + ' · ' + hB + '</text>');
+    parts.push('<text id="tTL" class="labelCell" x="' + (ML + leftWidth / 2) + '" y="' + (MT + topHeight / 2 + 8) + '" text-anchor="middle">' + wL + ' · ' + hT + '</text>');
+    parts.push('<text id="tTR" class="labelCell" x="' + (ML + leftWidth + rightWidth / 2) + '" y="' + (MT + topHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(layoutState.showTopRight) + '>' + (layoutState.showTopRight ? wR + ' · ' + hT : '') + '</text>');
+    parts.push('<text id="tBL" class="labelCell" x="' + (ML + leftWidth / 2) + '" y="' + (MT + topHeight + bottomHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(layoutState.showBottomLeft) + '>' + (layoutState.showBottomLeft ? wL + ' · ' + hB : '') + '</text>');
+    parts.push('<text id="tBR" class="labelCell" x="' + (ML + leftWidth + rightWidth / 2) + '" y="' + (MT + topHeight + bottomHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(layoutState.showBottomRight) + '>' + (layoutState.showBottomRight ? wR + ' · ' + hB : '') + '</text>');
 
     // kant-tekst Utenfor, med luft:
     const xL = ML - HS / 2 - gapX;
     const yB = MT + o.height + HS / 2 + gapY;
     if (o.showHeightAxis) {
-      parts.push('<text id="leftTop" class="labelEdge" x="' + xL + '" y="' + (MT + (o.height - o.sy) / 2 + 10) + '" text-anchor="end">' + hT + '</text>');
-      parts.push('<text id="leftBot" class="labelEdge" x="' + xL + '" y="' + (MT + (o.height - o.sy) + o.sy / 2 + 10) + '" text-anchor="end">' + hB + '</text>');
+      parts.push('<text id="leftTop" class="labelEdge" x="' + xL + '" y="' + (MT + topHeight / 2 + 10) + '" text-anchor="end">' + hT + '</text>');
+      parts.push('<text id="leftBot" class="labelEdge" x="' + xL + '" y="' + (MT + topHeight + bottomHeight / 2 + 10) + '" text-anchor="end">' + hB + '</text>');
     }
     if (o.showLengthAxis) {
-      parts.push('<text id="botLeft"  class="labelEdge" x="' + (ML + o.sx / 2) + '" y="' + yB + '" text-anchor="middle">' + wL + '</text>');
-      parts.push('<text id="botRight" class="labelEdge" x="' + (ML + o.sx + (o.width - o.sx) / 2) + '" y="' + yB + '" text-anchor="middle">' + wR + '</text>');
+      parts.push('<text id="botLeft"  class="labelEdge" x="' + (ML + leftWidth / 2) + '" y="' + yB + '" text-anchor="middle">' + wL + '</text>');
+      parts.push('<text id="botRight" class="labelEdge" x="' + (ML + leftWidth + rightWidth / 2) + '" y="' + yB + '" text-anchor="middle">' + wR + '</text>');
     }
     parts.push("</svg>");
     return parts.join("\n");
   }
 
   // runtime-skript (eksportert SVG/HTML)
+
   function buildRuntimeScriptText(o, rootExpr) {
     var _o$handleSize2, _o$edgeGap$x2, _o$edgeGap3, _o$edgeGap$y2, _o$edgeGap4;
     const ML = o.margins.ML,
       MT = o.margins.MT;
-    return ["(function(){", "var UNIT=" + o.unit + ", ROWS=" + o.rows + ", COLS=" + o.cols + ", TEN=" + o.TEN + ";", "var ML=" + ML + ", MT=" + MT + ", W=" + o.width + ", H=" + o.height + ";", "var minColsEachSide=" + o.limits.minColsEachSide + ", minRowsEachSide=" + o.limits.minRowsEachSide + ";", "var SPLIT_C=\"" + o.classes.split.replace(/\"/g, "&quot;") + "\";", "var HS=" + ((_o$handleSize2 = o.handleSize) !== null && _o$handleSize2 !== void 0 ? _o$handleSize2 : 84) + ", GAPX=" + ((_o$edgeGap$x2 = (_o$edgeGap3 = o.edgeGap) === null || _o$edgeGap3 === void 0 ? void 0 : _o$edgeGap3.x) !== null && _o$edgeGap$x2 !== void 0 ? _o$edgeGap$x2 : 14) + ", GAPY=" + ((_o$edgeGap$y2 = (_o$edgeGap4 = o.edgeGap) === null || _o$edgeGap4 === void 0 ? void 0 : _o$edgeGap4.y) !== null && _o$edgeGap$y2 !== void 0 ? _o$edgeGap$y2 : 32) + ";", "var SAFE=" + JSON.stringify(o.safePad || {
+    const layoutMode = normalizeLayout(o.layout);
+    const showHeightAxis = !!o.showHeightAxis;
+    const showLengthAxis = !!o.showLengthAxis;
+    const includeClickToMove = ADV.clickToMove !== false && (showHeightAxis || showLengthAxis);
+    const clickParts = [];
+    if (includeClickToMove) {
+      if (showHeightAxis) {
+        clickParts.push("if(Math.abs(p.x-ML)<12 && p.y>=MT && p.y<=MT+H){ var minY=MT+minRowsEachSide*UNIT; var maxY=MT+H-minRowsEachSide*UNIT; var clampedY=Math.max(minY, Math.min(maxY, p.y)); sy=Math.round(((MT+H)-clampedY)/UNIT)*UNIT; schedule(); }");
+      }
+      if (showLengthAxis) {
+        const prefix = showHeightAxis ? "else " : "";
+        clickParts.push(prefix + "if(Math.abs(p.y-(MT+H))<12 && p.x>=ML && p.x<=ML+W){ var minX=ML+minColsEachSide*UNIT; var maxX=ML+W-minColsEachSide*UNIT; var clampedX=Math.max(minX, Math.min(maxX, p.x)); sx=Math.round((clampedX-ML)/UNIT)*UNIT; schedule(); }");
+      }
+    }
+    const clickHandler = includeClickToMove ? "root.addEventListener('click',function(e){ if(justDragged) return; var p=clientToSvg(e); " + clickParts.join(" ") + " });" : "";
+    const gapX = (_o$edgeGap$x2 = (_o$edgeGap3 = o.edgeGap) === null || _o$edgeGap3 === void 0 ? void 0 : _o$edgeGap3.x) !== null && _o$edgeGap$x2 !== void 0 ? _o$edgeGap$x2 : 14,
+      gapY = (_o$edgeGap$y2 = (_o$edgeGap4 = o.edgeGap) === null || _o$edgeGap4 === void 0 ? void 0 : _o$edgeGap4.y) !== null && _o$edgeGap$y2 !== void 0 ? _o$edgeGap$y2 : 32;
+    const safePad = o.safePad || {
       top: 8,
       right: 8,
       bottom: 64,
       left: 8
-    }) + ";", "var root=" + rootExpr + "; root.style.touchAction='none';", "var rTL=document.getElementById('rTL'), rTR=document.getElementById('rTR'), rBL=document.getElementById('rBL'), rBR=document.getElementById('rBR');", "var vLine=document.getElementById('vLine'), hLine=document.getElementById('hLine');", "var tTL=document.getElementById('tTL'), tTR=document.getElementById('tTR'), tBL=document.getElementById('tBL'), tBR=document.getElementById('tBR');", "var leftTop=document.getElementById('leftTop'), leftBot=document.getElementById('leftBot'), botLeft=document.getElementById('botLeft'), botRight=document.getElementById('botRight');", "var hLeft=document.getElementById('hLeft'), hDown=document.getElementById('hDown');", "var hitLeft=document.getElementById('hLeftHit'), hitDown=document.getElementById('hDownHit');", "var hotLeft=document.getElementById('hotLeft'), hotBottom=document.getElementById('hotBottom');", "var vb=root.viewBox.baseVal; var sx=" + o.sx + ", sy=" + o.sy + ";", "function set(el,a,v){ if(el) el.setAttribute(a,v); }", "function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }", "function snap(v){ return Math.round(v/UNIT)*UNIT; }", "var rect=root.getBoundingClientRect(); function refreshRect(){ rect=root.getBoundingClientRect(); }", "function clientToSvg(e){ var sx=vb.width/rect.width, sy=vb.height/rect.height; return { x: vb.x+(e.clientX-rect.left)*sx, y: vb.y+(e.clientY-rect.top)*sy }; }", "var raf=0; function schedule(){ if(raf) return; raf=requestAnimationFrame(function(){ raf=0; redraw(); }); }", "function redraw(){ var wL=Math.round(sx/UNIT), wR=COLS-wL; var hB=Math.round(sy/UNIT), hT=ROWS-hB;", " set(rTL,'x',ML); set(rTL,'y',MT); set(rTL,'width',sx); set(rTL,'height',H-sy);", " set(rTR,'x',ML+sx); set(rTR,'y',MT); set(rTR,'width',W-sx); set(rTR,'height',H-sy);", " set(rBL,'x',ML); set(rBL,'y',MT+(H-sy)); set(rBL,'width',sx); set(rBL,'height',sy);", " set(rBR,'x',ML+sx); set(rBR,'y',MT+(H-sy)); set(rBR,'width',W-sx); set(rBR,'height',sy);", " if(vLine){ set(vLine,'x1',ML+sx); set(vLine,'y1',MT); set(vLine,'x2',ML+sx); set(vLine,'y2',MT+H); }", " if(hLine){ set(hLine,'x1',ML); set(hLine,'y1',MT+(H-sy)); set(hLine,'x2',ML+W); set(hLine,'y2',MT+(H-sy)); }", " var hLeftCX=ML, hLeftCY=MT+(H-sy), hDownCX=ML+sx, hDownCY=MT+H;", " if(hLeft){ set(hLeft,'x',hLeftCX-HS/2); set(hLeft,'y',hLeftCY-HS/2); }", " if(hDown){ set(hDown,'x',hDownCX-HS/2); set(hDown,'y',hDownCY-HS/2); }", " if(hitLeft){ set(hitLeft,'cx',hLeftCX); set(hitLeft,'cy',hLeftCY); }", " if(hitDown){ set(hitDown,'cx',hDownCX); set(hitDown,'cy',hDownCY); }", " var leftXOutside = ML-(HS/2)-GAPX, bottomYOutside = MT+H+(HS/2)+GAPY;", " if(tTL){ set(tTL,'x',ML+sx/2); set(tTL,'y',MT+(H-sy)/2+8); tTL.textContent=wL+' · '+hT; }", " if(tTR){ set(tTR,'x',ML+sx+(W-sx)/2); set(tTR,'y',MT+(H-sy)/2+8); tTR.textContent=wR+' · '+hT; }", " if(tBL){ set(tBL,'x',ML+sx/2); set(tBL,'y',MT+(H-sy)+sy/2+8); tBL.textContent=wL+' · '+hB; }", " if(tBR){ set(tBR,'x',ML+sx+(W-sx)/2); set(tBR,'y',MT+(H-sy)+sy/2+8); tBR.textContent=wR+' · '+hB; }", " if(leftTop){ leftTop.textContent=String(hT); set(leftTop,'x',leftXOutside); set(leftTop,'y',MT+(H-sy)/2+10); }", " if(leftBot){ leftBot.textContent=String(hB); set(leftBot,'x',leftXOutside); set(leftBot,'y',MT+(H-sy)+sy/2+10); }", " if(botLeft){ botLeft.textContent=String(wL); set(botLeft,'x',ML+sx/2); set(botLeft,'y',bottomYOutside); }", " if(botRight){ botRight.textContent=String(wR); set(botRight,'x',ML+sx+(W-sx)/2); set(botRight,'y',bottomYOutside); }", " var on=((wL===TEN||wR===TEN)&&(hB===TEN||hT===TEN));", " if(vLine){ vLine.setAttribute('class',SPLIT_C+(on?' ok':'')); }", " if(hLine){ hLine.setAttribute('class',SPLIT_C+(on?' ok':'')); }", " if(hLeft) root.append(hLeft); if(hitLeft) root.append(hitLeft); if(hDown) root.append(hDown); if(hitDown) root.append(hitDown);", "}", "function fit(){ var availW=Math.max(100, window.innerWidth-(SAFE.left+SAFE.right)); var availH=Math.max(100, window.innerHeight-(SAFE.top+SAFE.bottom)); var s=Math.min(availW/vb.width, availH/vb.height); root.setAttribute('width', vb.width*s); root.setAttribute('height', vb.height*s); refreshRect(); }", "fit(); redraw(); window.addEventListener('resize', fit, {passive:true});", "var active={axis:null,id:null,captor:null}; var justDragged=false; function arm(){ justDragged=true; setTimeout(function(){ justDragged=false; },220); }", "function lock(){ document.documentElement.style.touchAction='none'; document.body.style.touchAction='none'; document.documentElement.style.overscrollBehavior='contain'; document.body.style.overscrollBehavior='contain'; }", "function unlock(){ document.documentElement.style.touchAction=''; document.body.style.touchAction=''; document.documentElement.style.overscrollBehavior=''; document.body.style.overscrollBehavior=''; }", "function onMove(e){ if(e.pointerId!==active.id) return; e.preventDefault(); var p=clientToSvg(e); if(active.axis==='v'){ var y=Math.max(MT+minRowsEachSide*UNIT, Math.min(MT+H-minRowsEachSide*UNIT, p.y)); var n=(MT+H)-y; if(n!==sy){ sy=n; schedule(); } } else if(active.axis==='h'){ var x=Math.max(ML+minColsEachSide*UNIT, Math.min(ML+W-minColsEachSide*UNIT, p.x)); var n=x-ML; if(n!==sx){ sx=n; schedule(); } }}", "function onUp(e){ if(e.pointerId!==active.id) return; e.preventDefault(); if(active.axis==='v') sy=snap(sy); if(active.axis==='h') sx=snap(sx); if(active.captor&&active.captor.releasePointerCapture){try{active.captor.releasePointerCapture(e.pointerId);}catch(_){}} if(active.captor){active.captor.setAttribute('class',(active.captor.getAttribute('class')||'').replace(/\\bdragging\\b/,'').trim());} active.axis=null; active.id=null; active.captor=null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); unlock(); arm(); schedule(); }", "function start(axis,e){ active.axis=axis; active.id=e.pointerId; active.captor=e.currentTarget||e.target; if(active.captor&&active.captor.setPointerCapture){try{active.captor.setPointerCapture(e.pointerId);}catch(_){}} var cls=(active.captor.getAttribute('class')||''); active.captor.setAttribute('class', (cls+' dragging').trim()); lock(); window.addEventListener('pointermove', onMove, {passive:false}); window.addEventListener('pointerup', onUp, {passive:false}); window.addEventListener('pointercancel', onUp, {passive:false}); }", "if(hitLeft){ hitLeft.style.touchAction='none'; hitLeft.addEventListener('pointerdown', function(e){ e.preventDefault(); start('v',e); }, {passive:false}); }", "if(hitDown){ hitDown.style.touchAction='none'; hitDown.addEventListener('pointerdown', function(e){ e.preventDefault(); start('h',e); }, {passive:false}); }", ADV.clickToMove !== false ? "root.addEventListener('click',function(e){ if(justDragged) return; var p=clientToSvg(e); if(Math.abs(p.x-ML)<12 && p.y>=MT && p.y<=MT+H){ sy=Math.round(((MT+H)-Math.max(MT+minRowsEachSide*UNIT,Math.min(MT+H-minRowsEachSide*UNIT,p.y)))/UNIT)*UNIT; schedule(); } else if(Math.abs(p.y-(MT+H))<12 && p.x>=ML && p.x<=ML+W){ sx=Math.round((Math.max(ML+minColsEachSide*UNIT,Math.min(ML+W-minColsEachSide*UNIT,p.x))-ML)/UNIT)*UNIT; schedule(); } });" : "", "})();"].join("\n");
+    };
+    const splitClass = (o.classes === null || o.classes === void 0 ? void 0 : o.classes.split) || "";
+    const lines = [];
+    lines.push("(function(){");
+    lines.push(`var UNIT=${o.unit}, ROWS=${o.rows}, COLS=${o.cols}, TEN=${o.TEN};`);
+    lines.push(`var ML=${ML}, MT=${MT}, W=${o.width}, H=${o.height};`);
+    lines.push(`var layoutMode=${JSON.stringify(layoutMode)};`);
+    lines.push(`var minColsEachSide=${o.limits.minColsEachSide}, minRowsEachSide=${o.limits.minRowsEachSide};`);
+    lines.push(`var SPLIT_C=${JSON.stringify(splitClass)};`);
+    lines.push(`var HS=${(_o$handleSize2 = o.handleSize) !== null && _o$handleSize2 !== void 0 ? _o$handleSize2 : 84}, GAPX=${gapX}, GAPY=${gapY};`);
+    lines.push(`var SAFE=${JSON.stringify(safePad)};`);
+    lines.push(`var root=${rootExpr}; root.style.touchAction='none';`);
+    lines.push("var rTL=document.getElementById('rTL'), rTR=document.getElementById('rTR'), rBL=document.getElementById('rBL'), rBR=document.getElementById('rBR');");
+    lines.push("var vLine=document.getElementById('vLine'), hLine=document.getElementById('hLine');");
+    lines.push("var tTL=document.getElementById('tTL'), tTR=document.getElementById('tTR'), tBL=document.getElementById('tBL'), tBR=document.getElementById('tBR');");
+    lines.push("var leftTop=document.getElementById('leftTop'), leftBot=document.getElementById('leftBot'), botLeft=document.getElementById('botLeft'), botRight=document.getElementById('botRight');");
+    lines.push("var hLeft=document.getElementById('hLeft'), hDown=document.getElementById('hDown');");
+    lines.push("var hitLeft=document.getElementById('hLeftHit'), hitDown=document.getElementById('hDownHit');");
+    lines.push("var hotLeft=document.getElementById('hotLeft'), hotBottom=document.getElementById('hotBottom');");
+    lines.push(`var vb=root.viewBox.baseVal; var sx=${o.sx}, sy=${o.sy};`);
+    lines.push("function set(node, attr, value){ if(node) node.setAttribute(attr, value); }");
+    lines.push("function setDisplay(node, visible){ if(!node) return; if(visible){ node.removeAttribute('display'); } else { node.setAttribute('display','none'); }}");
+    lines.push("function clamp(value, min, max){ return Math.max(min, Math.min(max, value)); }");
+    lines.push("function snap(value){ return Math.round(value/UNIT)*UNIT; }");
+    lines.push("function normalizeLayoutValue(value){ return value==='horizontal'||value==='vertical'?value:'quad'; }");
+    lines.push("function computeLayoutState(layout,width,height,cols,rows,sxVal,syVal,unit){");
+    lines.push("  layout = normalizeLayoutValue(layout);");
+    lines.push("  var effectiveSx = layout==='vertical' ? width : sxVal;");
+    lines.push("  var effectiveSy = layout==='horizontal' ? 0 : syVal;");
+    lines.push("  var leftWidth = clamp(effectiveSx, 0, width);");
+    lines.push("  var rightWidth = Math.max(0, width - leftWidth);");
+    lines.push("  var bottomHeight = clamp(effectiveSy, 0, height);");
+    lines.push("  var topHeight = Math.max(0, height - bottomHeight);");
+    lines.push("  var leftCols = clamp(Math.round(leftWidth / unit), 0, cols);");
+    lines.push("  var rightCols = Math.max(0, cols - leftCols);");
+    lines.push("  var bottomRows = clamp(Math.round(bottomHeight / unit), 0, rows);");
+    lines.push("  var topRows = Math.max(0, rows - bottomRows);");
+    lines.push("  return {");
+    lines.push("    mode: layout,");
+    lines.push("    leftWidth: leftWidth,");
+    lines.push("    rightWidth: rightWidth,");
+    lines.push("    topHeight: topHeight,");
+    lines.push("    bottomHeight: bottomHeight,");
+    lines.push("    leftCols: leftCols,");
+    lines.push("    rightCols: rightCols,");
+    lines.push("    topRows: topRows,");
+    lines.push("    bottomRows: bottomRows,");
+    lines.push("    showTopLeft: true,");
+    lines.push("    showTopRight: layout !== 'vertical',");
+    lines.push("    showBottomLeft: layout !== 'horizontal',");
+    lines.push("    showBottomRight: layout === 'quad'");
+    lines.push("  };");
+    lines.push("}");
+    lines.push("var rect=root.getBoundingClientRect(); function refreshRect(){ rect=root.getBoundingClientRect(); }");
+    lines.push("function clientToSvg(e){ var sxp=vb.width/rect.width, syp=vb.height/rect.height; return { x: vb.x+(e.clientX-rect.left)*sxp, y: vb.y+(e.clientY-rect.top)*syp }; }");
+    lines.push("var raf=0; function schedule(){ if(raf) return; raf=requestAnimationFrame(function(){ raf=0; redraw(); }); }");
+    lines.push("function redraw(){");
+    lines.push("  var state = computeLayoutState(layoutMode, W, H, COLS, ROWS, sx, sy, UNIT);");
+    lines.push("  var leftWidth = state.leftWidth, rightWidth = state.rightWidth, topHeight = state.topHeight, bottomHeight = state.bottomHeight;");
+    lines.push("  var wL = state.leftCols, wR = state.rightCols, hB = state.bottomRows, hT = state.topRows;");
+    lines.push("  set(rTL,'x',ML); set(rTL,'y',MT); set(rTL,'width',leftWidth); set(rTL,'height',topHeight);");
+    lines.push("  set(rTR,'x',ML+leftWidth); set(rTR,'y',MT); set(rTR,'width',rightWidth); set(rTR,'height',topHeight);");
+    lines.push("  set(rBL,'x',ML); set(rBL,'y',MT+topHeight); set(rBL,'width',leftWidth); set(rBL,'height',bottomHeight);");
+    lines.push("  set(rBR,'x',ML+leftWidth); set(rBR,'y',MT+topHeight); set(rBR,'width',rightWidth); set(rBR,'height',bottomHeight);");
+    lines.push("  setDisplay(rTR, state.showTopRight);");
+    lines.push("  setDisplay(rBL, state.showBottomLeft);");
+    lines.push("  setDisplay(rBR, state.showBottomRight);");
+    lines.push("  if(vLine){ set(vLine,'x1',ML+leftWidth); set(vLine,'y1',MT); set(vLine,'x2',ML+leftWidth); set(vLine,'y2',MT+H); }");
+    lines.push("  if(hLine){ set(hLine,'x1',ML); set(hLine,'y1',MT+topHeight); set(hLine,'x2',ML+W); set(hLine,'y2',MT+topHeight); }");
+    lines.push("  var hLeftCX=ML, hLeftCY=MT+topHeight, hDownCX=ML+leftWidth, hDownCY=MT+H;");
+    lines.push("  if(hLeft){ set(hLeft,'x',hLeftCX-HS/2); set(hLeft,'y',hLeftCY-HS/2); }");
+    lines.push("  if(hDown){ set(hDown,'x',hDownCX-HS/2); set(hDown,'y',hDownCY-HS/2); }");
+    lines.push("  if(hitLeft){ set(hitLeft,'cx',hLeftCX); set(hitLeft,'cy',hLeftCY); }");
+    lines.push("  if(hitDown){ set(hitDown,'cx',hDownCX); set(hitDown,'cy',hDownCY); }");
+    lines.push("  var leftOutsideX = ML-(HS/2)-GAPX;");
+    lines.push("  var bottomOutsideY = MT+H+(HS/2)+GAPY;");
+    lines.push("  if(tTL){ set(tTL,'x',ML+leftWidth/2); set(tTL,'y',MT+topHeight/2+8); tTL.textContent = wL + ' · ' + hT; }");
+    lines.push("  if(tTR){ setDisplay(tTR, state.showTopRight); if(state.showTopRight){ set(tTR,'x',ML+leftWidth+rightWidth/2); set(tTR,'y',MT+topHeight/2+8); tTR.textContent = wR + ' · ' + hT; } else { tTR.textContent=''; } }");
+    lines.push("  if(tBL){ setDisplay(tBL, state.showBottomLeft); if(state.showBottomLeft){ set(tBL,'x',ML+leftWidth/2); set(tBL,'y',MT+topHeight+bottomHeight/2+8); tBL.textContent = wL + ' · ' + hB; } else { tBL.textContent=''; } }");
+    lines.push("  if(tBR){ setDisplay(tBR, state.showBottomRight); if(state.showBottomRight){ set(tBR,'x',ML+leftWidth+rightWidth/2); set(tBR,'y',MT+topHeight+bottomHeight/2+8); tBR.textContent = wR + ' · ' + hB; } else { tBR.textContent=''; } }");
+    lines.push("  if(leftTop){ set(leftTop,'x',leftOutsideX); set(leftTop,'y',MT+topHeight/2+10); leftTop.textContent = String(hT); }");
+    lines.push("  if(leftBot){ set(leftBot,'x',leftOutsideX); set(leftBot,'y',MT+topHeight+bottomHeight/2+10); leftBot.textContent = String(hB); }");
+    lines.push("  if(botLeft){ set(botLeft,'x',ML+leftWidth/2); set(botLeft,'y',bottomOutsideY); botLeft.textContent = String(wL); }");
+    lines.push("  if(botRight){ set(botRight,'x',ML+leftWidth+rightWidth/2); set(botRight,'y',bottomOutsideY); botRight.textContent = String(wR); }");
+    lines.push("  var okX = (wL === TEN || wR === TEN);");
+    lines.push("  var okY = (hB === TEN || hT === TEN);");
+    lines.push("  var on = okX && okY;");
+    lines.push("  if(vLine){ vLine.setAttribute('class', SPLIT_C + (on ? ' ok' : '')); }");
+    lines.push("  if(hLine){ hLine.setAttribute('class', SPLIT_C + (on ? ' ok' : '')); }");
+    lines.push("  if(hLeft) root.append(hLeft);");
+    lines.push("  if(hitLeft) root.append(hitLeft);");
+    lines.push("  if(hDown) root.append(hDown);");
+    lines.push("  if(hitDown) root.append(hitDown);");
+    lines.push("}");
+    lines.push("function fit(){ var availW=Math.max(100, window.innerWidth-(SAFE.left+SAFE.right)); var availH=Math.max(100, window.innerHeight-(SAFE.top+SAFE.bottom)); var s=Math.min(availW/vb.width, availH/vb.height); root.setAttribute('width', vb.width*s); root.setAttribute('height', vb.height*s); refreshRect(); }");
+    lines.push("fit(); redraw(); window.addEventListener('resize', fit, {passive:true});");
+    lines.push("var active={axis:null,id:null,captor:null}; var justDragged=false;");
+    lines.push("function arm(){ justDragged=true; setTimeout(function(){ justDragged=false; },220); }");
+    lines.push("function lock(){ document.documentElement.style.touchAction='none'; document.body.style.touchAction='none'; document.documentElement.style.overscrollBehavior='contain'; document.body.style.overscrollBehavior='contain'; }");
+    lines.push("function unlock(){ document.documentElement.style.touchAction=''; document.body.style.touchAction=''; document.documentElement.style.overscrollBehavior=''; document.body.style.overscrollBehavior=''; }");
+    lines.push("function onMove(e){ if(e.pointerId!==active.id) return; e.preventDefault(); var p=clientToSvg(e); if(active.axis==='v'){ var minY=MT+minRowsEachSide*UNIT; var maxY=MT+H-minRowsEachSide*UNIT; var y=clamp(p.y, minY, maxY); var nextSy=(MT+H)-y; if(nextSy!==sy){ sy=nextSy; schedule(); } } else if(active.axis==='h'){ var minX=ML+minColsEachSide*UNIT; var maxX=ML+W-minColsEachSide*UNIT; var x=clamp(p.x, minX, maxX); var nextSx=x-ML; if(nextSx!==sx){ sx=nextSx; schedule(); } }}");
+    lines.push("function onUp(e){ if(e.pointerId!==active.id) return; e.preventDefault(); if(active.axis==='v') sy=snap(sy); if(active.axis==='h') sx=snap(sx); if(active.captor&&active.captor.releasePointerCapture){ try{ active.captor.releasePointerCapture(e.pointerId); }catch(_){}} if(active.captor){ var cls=active.captor.getAttribute('class')||''; active.captor.setAttribute('class', cls.replace(/\bdragging\b/,'').trim()); } active.axis=null; active.id=null; active.captor=null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); unlock(); arm(); schedule(); }");
+    lines.push("function start(axis,e){ active.axis=axis; active.id=e.pointerId; active.captor=e.currentTarget||e.target; if(active.captor&&active.captor.setPointerCapture){ try{ active.captor.setPointerCapture(e.pointerId); }catch(_){}} if(active.captor){ var cls=active.captor.getAttribute('class')||''; if(cls.indexOf('dragging')===-1){ active.captor.setAttribute('class',(cls+' dragging').trim()); }} lock(); window.addEventListener('pointermove', onMove, {passive:false}); window.addEventListener('pointerup', onUp, {passive:false}); window.addEventListener('pointercancel', onUp, {passive:false}); }");
+    lines.push("if(hitLeft){ hitLeft.style.touchAction='none'; hitLeft.addEventListener('pointerdown', function(e){ e.preventDefault(); start('v',e); }, {passive:false}); }");
+    lines.push("if(hitDown){ hitDown.style.touchAction='none'; hitDown.addEventListener('pointerdown', function(e){ e.preventDefault(); start('h',e); }, {passive:false}); }");
+    if (clickHandler) {
+      lines.push(clickHandler);
+    }
+    lines.push("})();");
+    return lines.join("\n");
   }
   function buildInteractiveSvgString(o) {
     const svgNoScript = buildBaseSvgMarkup(o, true);
@@ -1048,6 +1264,7 @@ function setSimpleConfig(o = {}) {
   if (o.lengthStart != null) CFG.SIMPLE.length.handle = Math.round(o.lengthStart);else if (o.lengthHandle != null) CFG.SIMPLE.length.handle = Math.round(o.lengthHandle);
   if (o.showHeightHandle != null) CFG.SIMPLE.height.showHandle = !!o.showHeightHandle;
   if (o.showLengthHandle != null) CFG.SIMPLE.length.showHandle = !!o.showLengthHandle;
+  if (o.layout != null) CFG.SIMPLE.layout = normalizeLayout(o.layout);else if (o.layoutMode != null) CFG.SIMPLE.layout = normalizeLayout(o.layoutMode);
   const setVal = (id, v) => {
     const el = document.getElementById(id);
     if (el && v != null) el.value = v;
@@ -1056,12 +1273,17 @@ function setSimpleConfig(o = {}) {
     const el = document.getElementById(id);
     if (el) el.checked = !!v;
   };
+  const setSelect = (id, v) => {
+    const el = document.getElementById(id);
+    if (el && v != null) el.value = v;
+  };
   setVal("length", CFG.SIMPLE.length.cells);
   setVal("lengthStart", CFG.SIMPLE.length.handle);
   setChk("showLengthHandle", CFG.SIMPLE.length.showHandle !== false);
   setVal("height", CFG.SIMPLE.height.cells);
   setVal("heightStart", CFG.SIMPLE.height.handle);
   setChk("showHeightHandle", CFG.SIMPLE.height.showHandle !== false);
+  setSelect("layoutMode", CFG.SIMPLE.layout);
   render();
 }
 window.setArealmodellBConfig = setSimpleConfig;
@@ -1082,6 +1304,12 @@ function applyConfigToInputs() {
     const bool = !!value;
     if (el.checked !== bool) el.checked = bool;
   };
+  const setSelect = (id, value) => {
+    const el = document.getElementById(id);
+    if (!el || value == null) return;
+    const str = String(value);
+    if (el.value !== str) el.value = str;
+  };
   setVal('length', (_simple$length = simple.length) === null || _simple$length === void 0 ? void 0 : _simple$length.cells);
   setVal('lengthStart', (_simple$length2 = simple.length) === null || _simple$length2 === void 0 ? void 0 : _simple$length2.handle);
   setChk('showLengthHandle', ((_simple$length3 = simple.length) === null || _simple$length3 === void 0 ? void 0 : _simple$length3.showHandle) !== false);
@@ -1090,6 +1318,7 @@ function applyConfigToInputs() {
   setChk('showHeightHandle', ((_simple$height3 = simple.height) === null || _simple$height3 === void 0 ? void 0 : _simple$height3.showHandle) !== false);
   setChk('grid', !!adv.grid);
   setChk('splitLines', adv.splitLines !== false);
+  setSelect('layoutMode', normalizeLayout(simple.layout));
 }
 function applyExamplesConfig() {
   ensureCfgDefaults();
@@ -1107,7 +1336,7 @@ function render() {
 }
 window.addEventListener('load', () => {
   initFromHtml();
-  document.querySelectorAll('.settings input').forEach(el => {
+  document.querySelectorAll('.settings input, .settings select').forEach(el => {
     el.addEventListener('change', initFromHtml);
     el.addEventListener('input', initFromHtml);
   });
