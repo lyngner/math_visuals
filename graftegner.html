@@ -31,19 +31,29 @@
     .status--err{ color:#b91c1c; background:#fef2f2; border-color:#fecaca; }
     .status--info{ color:#1f2937; background:#f3f4f6; border-color:#e5e7eb; }
     .settings{ display:flex; flex-direction:column; gap:8px; }
-    .settings label{ display:flex; flex-direction:column; font-size:13px; color:#4b5563; white-space:nowrap; }
-    .settings input[type="text"], .settings input[type="number"], .settings select{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:50%; }
+    .settings label{ display:flex; flex-direction:column; font-size:13px; color:#4b5563; white-space:normal; }
+    .settings input[type="text"], .settings input[type="number"], .settings select{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:100%; }
     .settings-row{ display:flex; gap:8px; flex-wrap:wrap; }
     .settings-row label{ flex:1; }
     .settings-row label.points{ flex:1 1 200px; }
     .settings-row label.points select{ width:100%; }
-    .checkbox-row{ display:flex; align-items:center; gap:6px; }
-    .settings fieldset{ border:1px solid #e5e7eb; border-radius:10px; padding:10px; }
-    .settings fieldset legend{ padding:0 4px; font-size:13px; color:#374151; }
-    .axis-names{ gap:12px; align-items:flex-start; flex-direction:column; }
-    .axis-names label{ flex:0 0 auto; }
-    .axis-label{ flex-direction:row; align-items:center; gap:4px; }
-    .axis-label input{ width:80px; }
+    .settings fieldset{ border:1px solid #e5e7eb; border-radius:12px; padding:16px; background:#fafbfc; }
+    .settings fieldset legend{ padding:0 6px; font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:#6b7280; }
+    .settings-group{ display:flex; flex-direction:column; gap:16px; }
+    .input-label{ gap:6px; white-space:normal; }
+    .input-label span{ font-size:12px; font-weight:600; letter-spacing:.01em; text-transform:uppercase; color:#374151; }
+    .options-grid{ display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+    .checkbox-tile{ display:flex; align-items:flex-start; gap:8px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; color:#374151; font-size:13px; line-height:1.3; white-space:normal; transition:background .2s ease,border-color .2s ease; }
+    .checkbox-tile input{ margin-top:2px; }
+    .checkbox-tile:hover{ border-color:#d1d5db; background:#f3f4f6; }
+    .axis-group{ display:flex; flex-direction:column; gap:8px; }
+    .axis-title{ font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:#6b7280; }
+    .axis-inputs{ display:flex; gap:12px; flex-wrap:wrap; }
+    .axis-inputs label{ flex-direction:row; align-items:center; gap:6px; color:#4b5563; font-size:13px; }
+    .axis-inputs label span{ font-size:12px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; color:#374151; }
+    .axis-inputs label input{ width:90px; }
+    .font-grid{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+    .font-grid label{ display:flex; flex-direction:column; gap:6px; color:#4b5563; font-size:13px; }
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
@@ -73,34 +83,64 @@
             <div id="funcRows"></div>
             <fieldset>
               <legend>Koordinatsystem</legend>
-              <label>Screen (overstyrer autozoom hvis satt)
-                <input id="cfgScreen" type="text" value="" placeholder="minX, maxX, minY, maxY">
-              </label>
-              <div class="checkbox-row"><input id="cfgLock" type="checkbox" checked><label for="cfgLock">Lås forhold 1:1 (krever screen)</label></div>
-              <div class="checkbox-row"><input id="cfgPan" type="checkbox"><label for="cfgPan">Tillat pan</label></div>
-              <div class="checkbox-row"><input id="cfgSnap" type="checkbox" checked><label for="cfgSnap">Snap til rutenett</label></div>
-              <div class="checkbox-row"><input id="cfgQ1" type="checkbox"><label for="cfgQ1">Bare 1. kvadrant</label></div>
-              <div class="checkbox-row"><input id="cfgShowNames" type="checkbox" checked><label for="cfgShowNames">Vis navn på grafer</label></div>
-              <div class="checkbox-row"><input id="cfgShowExpr" type="checkbox"><label for="cfgShowExpr">Vis funksjonsuttrykk</label></div>
-              <div class="settings-row axis-names">
-                <label>Navn på akser</label>
-                <label class="axis-label">x:
-                  <input id="cfgAxisX" type="text" value="x">
+              <div class="settings-group">
+                <label class="input-label">
+                  <span>Utsnitt (overstyrer autozoom hvis satt)</span>
+                  <input id="cfgScreen" type="text" value="" placeholder="minX, maxX, minY, maxY">
                 </label>
-                <label class="axis-label">y:
-                  <input id="cfgAxisY" type="text" value="y">
-                </label>
-              </div>
-              <div class="settings-row">
-                <label>Skriftstørrelse tall på akser
-                  <input id="cfgFontTicks" type="number" min="6" max="72" step="1" value="16">
-                </label>
-                <label>Skriftstørrelse navn på akser
-                  <input id="cfgFontAxes" type="number" min="6" max="72" step="1" value="20">
-                </label>
-                <label>Skriftstørrelse navn på grafen
-                  <input id="cfgFontCurve" type="number" min="6" max="72" step="1" value="16">
-                </label>
+                <div class="options-grid">
+                  <label class="checkbox-tile">
+                    <input id="cfgLock" type="checkbox" checked>
+                    <span>Lås forhold 1:1 (krever utsnitt)</span>
+                  </label>
+                  <label class="checkbox-tile">
+                    <input id="cfgPan" type="checkbox">
+                    <span>Tillat pan</span>
+                  </label>
+                  <label class="checkbox-tile">
+                    <input id="cfgSnap" type="checkbox" checked>
+                    <span>Snap til rutenett</span>
+                  </label>
+                  <label class="checkbox-tile">
+                    <input id="cfgQ1" type="checkbox">
+                    <span>Bare 1.&nbsp;kvadrant</span>
+                  </label>
+                  <label class="checkbox-tile">
+                    <input id="cfgShowNames" type="checkbox" checked>
+                    <span>Vis navn på grafer</span>
+                  </label>
+                  <label class="checkbox-tile">
+                    <input id="cfgShowExpr" type="checkbox">
+                    <span>Vis funksjonsuttrykk</span>
+                  </label>
+                </div>
+                <div class="axis-group">
+                  <div class="axis-title">Navn på akser</div>
+                  <div class="axis-inputs">
+                    <label>
+                      <span>x</span>
+                      <input id="cfgAxisX" type="text" value="x">
+                    </label>
+                    <label>
+                      <span>y</span>
+                      <input id="cfgAxisY" type="text" value="y">
+                    </label>
+                  </div>
+                </div>
+                <div class="font-grid">
+                  <label>
+                    <span>Skriftstørrelse tall på akser</span>
+                    <input id="cfgFontTicks" type="number" min="6" max="72" step="1" value="16">
+                  </label>
+                  <label>
+                    <span>Skriftstørrelse navn på akser</span>
+                    <input id="cfgFontAxes" type="number" min="6" max="72" step="1" value="20">
+                  </label>
+                  <label>
+                    <span>Skriftstørrelse navn på grafen</span>
+                    <input id="cfgFontCurve" type="number" min="6" max="72" step="1" value="16">
+                  </label>
+                </div>
               </div>
             </fieldset>
           </div>
