@@ -1,5 +1,124 @@
 (function(){
-  const key = 'examples_' + location.pathname;
+  function normalizePathname(pathname){
+    if(typeof pathname !== 'string') return '/';
+    let path = pathname.trim();
+    if(!path) return '/';
+    if(!path.startsWith('/')) path = '/' + path;
+    // Replace backslashes (possible in file:// URLs) and collapse duplicate slashes
+    path = path.replace(/\+/g, '/');
+    path = path.replace(/\/+/g, '/');
+    // Remove trailing index.html or index.htm
+    path = path.replace(/\/index\.html?$/i, '/');
+    if(path.length > 1 && path.endsWith('/')){
+      path = path.slice(0, -1);
+    }
+    return path || '/';
+  }
+
+  function computeLegacyStorageKeys(rawPath, canonicalPath){
+    const prefix = 'examples_';
+    const canonicalKey = prefix + canonicalPath;
+    const paths = new Set();
+    const addPath = value => {
+      if(typeof value !== 'string') return;
+      const trimmed = value.trim();
+      if(!trimmed) return;
+      paths.add(trimmed);
+    };
+
+    addPath(rawPath);
+    if(typeof rawPath === 'string'){
+      const trimmed = rawPath.trim();
+      if(trimmed){
+        if(trimmed.endsWith('/')){
+          const normalized = trimmed
+            .replace(/\+/g, '/')
+            .replace(/\/+/g, '/')
+            .replace(/\/+$/, '');
+          addPath(normalized);
+        }else{
+          addPath(trimmed + '/');
+        }
+        if(/index\.html?$/i.test(trimmed)){
+          addPath(trimmed.replace(/index\.html?$/i, ''));
+        }else{
+          const base = trimmed.endsWith('/') ? trimmed : trimmed + '/';
+          addPath(base + 'index.html');
+        }
+      }
+    }
+
+    addPath(canonicalPath);
+    if(canonicalPath && canonicalPath !== '/' && !canonicalPath.endsWith('/')){
+      addPath(canonicalPath + '/');
+    }
+    const canonicalBase = canonicalPath.endsWith('/') ? canonicalPath : `${canonicalPath}/`;
+    addPath(canonicalBase + 'index.html');
+
+    const keys = [];
+    paths.forEach(path => {
+      if(!path) return;
+      const key = prefix + path;
+      if(key !== canonicalKey) keys.push(key);
+    });
+    return keys;
+  }
+
+  const rawPath = location && typeof location.pathname === 'string' ? location.pathname : '/';
+  const storagePath = normalizePathname(rawPath);
+  const key = 'examples_' + storagePath;
+  const legacyKeys = computeLegacyStorageKeys(rawPath, storagePath);
+  try{
+    if(typeof localStorage !== 'undefined'){
+      let canonicalValue = localStorage.getItem(key);
+      if(canonicalValue == null){
+        for(const legacyKey of legacyKeys){
+          const legacyValue = localStorage.getItem(legacyKey);
+          if(legacyValue != null){
+            localStorage.setItem(key, legacyValue);
+            canonicalValue = legacyValue;
+            break;
+          }
+        }
+      }
+      if(canonicalValue != null){
+        legacyKeys.forEach(legacyKey => {
+          if(legacyKey === key) return;
+          try{
+            const legacyValue = localStorage.getItem(legacyKey);
+            if(legacyValue != null && legacyValue === canonicalValue){
+              localStorage.removeItem(legacyKey);
+            }
+          }catch(_){ }
+        });
+      }
+
+      const deletedKey = key + '_deletedProvidedExamples';
+      let canonicalDeletedValue = localStorage.getItem(deletedKey);
+      if(canonicalDeletedValue == null){
+        for(const legacyKey of legacyKeys){
+          const candidate = legacyKey + '_deletedProvidedExamples';
+          const legacyValue = localStorage.getItem(candidate);
+          if(legacyValue != null){
+            localStorage.setItem(deletedKey, legacyValue);
+            canonicalDeletedValue = legacyValue;
+            break;
+          }
+        }
+      }
+      if(canonicalDeletedValue != null){
+        legacyKeys.forEach(legacyKey => {
+          const candidate = legacyKey + '_deletedProvidedExamples';
+          try{
+            const legacyValue = localStorage.getItem(candidate);
+            if(legacyValue != null && legacyValue === canonicalDeletedValue){
+              localStorage.removeItem(candidate);
+            }
+          }catch(_){ }
+        });
+      }
+    }
+  }catch(_){ }
   let initialLoadPerformed = false;
   let currentExampleIndex = null;
   let tabsContainer = null;
