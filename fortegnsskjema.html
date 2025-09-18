@@ -21,6 +21,33 @@
       flex-direction: column;
       gap: var(--gap);
     }
+    .development-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 18px;
+      border-radius: 12px;
+      border: 1px solid rgba(217, 119, 6, 0.4);
+      background: linear-gradient(120deg, rgba(255, 237, 213, 0.95), rgba(255, 247, 237, 0.95));
+      color: #92400e;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .development-banner svg {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+    .development-banner__text {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .development-banner__text strong {
+      font-size: 15px;
+      font-weight: 600;
+      color: inherit;
+    }
     .grid {
       display: grid;
       gap: var(--gap);
@@ -162,6 +189,16 @@
 </head>
 <body>
   <div class="wrap">
+    <div class="development-banner" role="note">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01" />
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.29 3.86 1.82 18a1.8 1.8 0 0 0 1.55 2.7h17.26a1.8 1.8 0 0 0 1.55-2.7L13.11 3.86a1.8 1.8 0 0 0-2.82 0Z" />
+      </svg>
+      <div class="development-banner__text">
+        <strong>Under utvikling</strong>
+        <span>Vi jobber fortsatt med denne visualiseringen. Funksjoner kan mangle eller endre seg.</span>
+      </div>
+    </div>
     <div class="grid">
       <div class="card">
         <h1>Fortegnsskjema</h1>
