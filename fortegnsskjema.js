@@ -6,6 +6,8 @@
   const btnCheck = document.getElementById('btnCheck');
   const btnAddPoint = document.getElementById('btnAddPoint');
   const btnAddRow = document.getElementById('btnAddRow');
+  const overlayAddPoint = document.getElementById('overlayAddPoint');
+  const overlayAddRow = document.getElementById('overlayAddRow');
   const pointsList = document.getElementById('pointsList');
   const rowsList = document.getElementById('rowsList');
   const autoSyncInput = document.getElementById('autoSync');
@@ -765,7 +767,7 @@
           x2: endX,
           y2: y,
           stroke: sign > 0 ? '#111827' : '#dc2626',
-          'stroke-width': 8,
+          'stroke-width': 6,
           'stroke-linecap': 'round',
           'data-row-id': row.id,
           'data-index': i,
@@ -920,15 +922,29 @@
   svg.addEventListener('pointerup', stopDragging);
   svg.addEventListener('pointerleave', stopDragging);
 
-  btnAddPoint.addEventListener('click', () => {
+  function handleAddPoint() {
     addPoint('zero', 0);
     setCheckMessage('');
-  });
+  }
 
-  btnAddRow.addEventListener('click', () => {
+  function handleAddRow() {
     addRow();
     setCheckMessage('');
-  });
+  }
+
+  if (btnAddPoint) {
+    btnAddPoint.addEventListener('click', handleAddPoint);
+  }
+  if (overlayAddPoint) {
+    overlayAddPoint.addEventListener('click', handleAddPoint);
+  }
+
+  if (btnAddRow) {
+    btnAddRow.addEventListener('click', handleAddRow);
+  }
+  if (overlayAddRow) {
+    overlayAddRow.addEventListener('click', handleAddRow);
+  }
 
   btnGenerate.addEventListener('click', () => {
     try {
