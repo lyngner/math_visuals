@@ -31,6 +31,13 @@
       align-self:center;
       margin:0 auto;
     }
+    @supports not (aspect-ratio: 1 / 1) {
+      .figure-area::before {
+        content:"";
+        display:block;
+        padding-bottom:100%;
+      }
+    }
     #brickContainer{
       position:absolute;
       inset:0;
