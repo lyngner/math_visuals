@@ -262,7 +262,11 @@ function draw() {
         if (!CFG.SIMPLE.length) CFG.SIMPLE.length = {};
         CFG.SIMPLE.length.handle = leftCols;
         const lengthStart = document.getElementById('lengthStart');
-        if (lengthStart) lengthStart.value = String(leftCols);
+        if (lengthStart) {
+          const strValue = String(leftCols);
+          lengthStart.value = strValue;
+          lengthStart.setAttribute('value', strValue);
+        }
       }
     } else {
       lastSyncedLeft = null;
@@ -273,7 +277,11 @@ function draw() {
         if (!CFG.SIMPLE.height) CFG.SIMPLE.height = {};
         CFG.SIMPLE.height.handle = bottomRows;
         const heightStart = document.getElementById('heightStart');
-        if (heightStart) heightStart.value = String(bottomRows);
+        if (heightStart) {
+          const strValue = String(bottomRows);
+          heightStart.value = strValue;
+          heightStart.setAttribute('value', strValue);
+        }
       }
     } else {
       lastSyncedBottom = null;
@@ -1298,7 +1306,10 @@ function setSimpleConfig(o = {}) {
   if (o.layout != null) CFG.SIMPLE.layout = normalizeLayout(o.layout);else if (o.layoutMode != null) CFG.SIMPLE.layout = normalizeLayout(o.layoutMode);
   const setVal = (id, v) => {
     const el = document.getElementById(id);
-    if (el && v != null) el.value = v;
+    if (!el || v == null) return;
+    const str = String(v);
+    el.value = str;
+    el.setAttribute('value', str);
   };
   const setChk = (id, v) => {
     const el = document.getElementById(id);
@@ -1327,7 +1338,12 @@ function applyConfigToInputs() {
     const el = document.getElementById(id);
     if (!el || value == null) return;
     const str = String(value);
-    if (el.value !== str) el.value = str;
+    if (el.value !== str) {
+      el.value = str;
+    }
+    if (el.getAttribute('value') !== str) {
+      el.setAttribute('value', str);
+    }
   };
   const setChk = (id, value) => {
     const el = document.getElementById(id);
