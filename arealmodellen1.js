@@ -255,6 +255,19 @@ function draw() {
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const clampInt = (v, a, b) => Math.max(a, Math.min(b, Math.round(v)));
   const snap = v => Math.round(v / UNIT) * UNIT;
+  const clampWithEdges = (value, innerMin, innerMax, edgeMin, edgeMax) => {
+    const EPS = 1e-6;
+    if (value <= edgeMin + EPS) return edgeMin;
+    if (value >= edgeMax - EPS) return edgeMax;
+    const low = Math.min(Math.max(innerMin, edgeMin), edgeMax);
+    const high = Math.max(Math.min(innerMax, edgeMax), edgeMin);
+    if (high < low) return Math.max(edgeMin, Math.min(edgeMax, value));
+    return Math.max(low, Math.min(high, value));
+  };
+  const clampSx = value => clampWithEdges(value, minSX, maxSX, 0, W);
+  const clampSy = value => clampWithEdges(value, minSY, maxSY, 0, H);
+  const clampAxisX = value => clampWithEdges(value, minX, maxX, ML, ML + W);
+  const clampAxisY = value => clampWithEdges(value, minY, maxY, MT, MT + H);
   const minSX = minColsEachSide * UNIT;
   const maxSX = (COLS - minColsEachSide) * UNIT;
   const minSY = minRowsEachSide * UNIT;
@@ -411,8 +424,8 @@ function draw() {
     set(a11yLeft, "aria-orientation", "vertical");
     set(a11yLeft, "aria-label", "Høyde");
     set(a11yLeft, "focusable", "true");
-    set(a11yLeft, "aria-valuemin", minRowsEachSide);
-    set(a11yLeft, "aria-valuemax", ROWS - minRowsEachSide);
+    set(a11yLeft, "aria-valuemin", 0);
+    set(a11yLeft, "aria-valuemax", ROWS);
     a11yLeftRect = el("rect");
     set(a11yLeftRect, "width", HANDLE_SIZE);
     set(a11yLeftRect, "height", HANDLE_SIZE);
@@ -437,8 +450,8 @@ function draw() {
     set(a11yDown, "aria-orientation", "horizontal");
     set(a11yDown, "aria-label", "Lengde");
     set(a11yDown, "focusable", "true");
-    set(a11yDown, "aria-valuemin", minColsEachSide);
-    set(a11yDown, "aria-valuemax", COLS - minColsEachSide);
+    set(a11yDown, "aria-valuemin", 0);
+    set(a11yDown, "aria-valuemax", COLS);
     a11yDownRect = el("rect");
     set(a11yDownRect, "width", HANDLE_SIZE);
     set(a11yDownRect, "height", HANDLE_SIZE);
@@ -504,8 +517,8 @@ function draw() {
     });
   }
   function redraw() {
-    sx = clamp(sx, minSX, maxSX);
-    sy = clamp(sy, minSY, maxSY);
+    sx = clampSx(sx);
+    sy = clampSy(sy);
     const layoutState = computeLayoutState(layoutMode, W, H, COLS, ROWS, sx, sy, UNIT);
     const setDisplay = (node, visible) => {
       if (!node) return;
@@ -735,14 +748,14 @@ function draw() {
     e.preventDefault();
     const p = clientToSvg(e);
     if (active.axis === "v") {
-      const y = clamp(p.y, minY, maxY);
-      const newSy = MT + H - y;
+    const y = clampAxisY(p.y);
+    const newSy = MT + H - y;
       if (newSy !== sy) {
         sy = newSy;
         scheduleRedraw();
       }
     } else if (active.axis === "h") {
-      const x = clamp(p.x, minX, maxX);
+      const x = clampAxisX(p.x);
       const newSx = x - ML;
       if (newSx !== sx) {
         sx = newSx;
@@ -814,13 +827,13 @@ function draw() {
     a11yLeft.addEventListener("keydown", e => {
       let handled = true;
       if (e.key === "ArrowUp") {
-        sy = clamp(sy + UNIT, minRowsEachSide * UNIT, (ROWS - minRowsEachSide) * UNIT);
+        sy = clampSy(sy + UNIT);
       } else if (e.key === "ArrowDown") {
-        sy = clamp(sy - UNIT, minRowsEachSide * UNIT, (ROWS - minRowsEachSide) * UNIT);
+        sy = clampSy(sy - UNIT);
       } else if (e.key === "Home") {
-        sy = minRowsEachSide * UNIT;
+        sy = 0;
       } else if (e.key === "End") {
-        sy = (ROWS - minRowsEachSide) * UNIT;
+        sy = ROWS * UNIT;
       } else {
         handled = false;
       }
@@ -834,13 +847,13 @@ function draw() {
     a11yDown.addEventListener("keydown", e => {
       let handled = true;
       if (e.key === "ArrowRight") {
-        sx = clamp(sx + UNIT, minColsEachSide * UNIT, (COLS - minColsEachSide) * UNIT);
+        sx = clampSx(sx + UNIT);
       } else if (e.key === "ArrowLeft") {
-        sx = clamp(sx - UNIT, minColsEachSide * UNIT, (COLS - minColsEachSide) * UNIT);
+        sx = clampSx(sx - UNIT);
       } else if (e.key === "Home") {
-        sx = minColsEachSide * UNIT;
+        sx = 0;
       } else if (e.key === "End") {
-        sx = (COLS - minColsEachSide) * UNIT;
+        sx = COLS * UNIT;
       } else {
         handled = false;
       }
@@ -855,11 +868,11 @@ function draw() {
       if (justDragged) return;
       const p = clientToSvg(e);
       if (dragVertical && showHeightAxis && Math.abs(p.x - ML) < 12 && p.y >= MT && p.y <= MT + H) {
-        sy = snap(MT + H - clamp(p.y, minY, maxY));
+        sy = snap(MT + H - clampAxisY(p.y));
         scheduleRedraw();
       }
       if (dragHorizontal && showLengthAxis && Math.abs(p.y - (MT + H)) < 12 && p.x >= ML && p.x <= ML + W) {
-        sx = snap(clamp(p.x, minX, maxX) - ML);
+        sx = snap(clampAxisX(p.x) - ML);
         scheduleRedraw();
       }
     });
@@ -1163,11 +1176,11 @@ function draw() {
     const clickParts = [];
     if (includeClickToMove) {
       if (showHeightAxis) {
-        clickParts.push("if(Math.abs(p.x-ML)<12 && p.y>=MT && p.y<=MT+H){ var minY=MT+minRowsEachSide*UNIT; var maxY=MT+H-minRowsEachSide*UNIT; var clampedY=Math.max(minY, Math.min(maxY, p.y)); sy=Math.round(((MT+H)-clampedY)/UNIT)*UNIT; schedule(); }");
+        clickParts.push("if(Math.abs(p.x-ML)<12 && p.y>=MT && p.y<=MT+H){ var clampedY=clampAxisY(p.y); sy=Math.round(((MT+H)-clampedY)/UNIT)*UNIT; schedule(); }");
       }
       if (showLengthAxis) {
         const prefix = showHeightAxis ? "else " : "";
-        clickParts.push(prefix + "if(Math.abs(p.y-(MT+H))<12 && p.x>=ML && p.x<=ML+W){ var minX=ML+minColsEachSide*UNIT; var maxX=ML+W-minColsEachSide*UNIT; var clampedX=Math.max(minX, Math.min(maxX, p.x)); sx=Math.round((clampedX-ML)/UNIT)*UNIT; schedule(); }");
+        clickParts.push(prefix + "if(Math.abs(p.y-(MT+H))<12 && p.x>=ML && p.x<=ML+W){ var clampedX=clampAxisX(p.x); sx=Math.round((clampedX-ML)/UNIT)*UNIT; schedule(); }");
       }
     }
     const clickHandler = includeClickToMove ? "root.addEventListener('click',function(e){ if(justDragged) return; var p=clientToSvg(e); " + clickParts.join(" ") + " });" : "";
@@ -1186,6 +1199,7 @@ function draw() {
     lines.push(`var ML=${ML}, MT=${MT}, W=${o.width}, H=${o.height};`);
     lines.push(`var layoutMode=${JSON.stringify(layoutMode)};`);
     lines.push(`var minColsEachSide=${o.limits.minColsEachSide}, minRowsEachSide=${o.limits.minRowsEachSide};`);
+    lines.push("var minSX=minColsEachSide*UNIT, maxSX=(COLS-minColsEachSide)*UNIT, minSY=minRowsEachSide*UNIT, maxSY=(ROWS-minRowsEachSide)*UNIT;");
     lines.push(`var SPLIT_C=${JSON.stringify(splitClass)};`);
     lines.push(`var HS=${(_o$handleSize2 = o.handleSize) !== null && _o$handleSize2 !== void 0 ? _o$handleSize2 : 84}, GAPX=${gapX}, GAPY=${gapY};`);
     lines.push(`var SAFE=${JSON.stringify(safePad)};`);
@@ -1201,6 +1215,11 @@ function draw() {
     lines.push("function set(node, attr, value){ if(node) node.setAttribute(attr, value); }");
     lines.push("function setDisplay(node, visible){ if(!node) return; if(visible){ node.removeAttribute('display'); } else { node.setAttribute('display','none'); }}");
     lines.push("function clamp(value, min, max){ return Math.max(min, Math.min(max, value)); }");
+    lines.push("function clampEdges(value, innerMin, innerMax, edgeMin, edgeMax){ var EPS=1e-6; if(value <= edgeMin + EPS) return edgeMin; if(value >= edgeMax - EPS) return edgeMax; var low=Math.min(Math.max(innerMin, edgeMin), edgeMax); var high=Math.max(Math.min(innerMax, edgeMax), edgeMin); if(high < low) return Math.max(edgeMin, Math.min(edgeMax, value)); return Math.max(low, Math.min(high, value)); }");
+    lines.push("function clampSxValue(v){ return clampEdges(v, minSX, maxSX, 0, W); }");
+    lines.push("function clampSyValue(v){ return clampEdges(v, minSY, maxSY, 0, H); }");
+    lines.push("function clampAxisX(v){ return clampEdges(v, ML + minSX, ML + maxSX, ML, ML + W); }");
+    lines.push("function clampAxisY(v){ return clampEdges(v, MT + minSY, MT + maxSY, MT, MT + H); }");
     lines.push("function snap(value){ return Math.round(value/UNIT)*UNIT; }");
     lines.push("function normalizeLayoutValue(value){ return value==='horizontal'||value==='vertical'?value:'quad'; }");
     lines.push("function computeLayoutState(layout,width,height,cols,rows,sxVal,syVal,unit){");
@@ -1235,6 +1254,7 @@ function draw() {
     lines.push("function clientToSvg(e){ var sxp=vb.width/rect.width, syp=vb.height/rect.height; return { x: vb.x+(e.clientX-rect.left)*sxp, y: vb.y+(e.clientY-rect.top)*syp }; }");
     lines.push("var raf=0; function schedule(){ if(raf) return; raf=requestAnimationFrame(function(){ raf=0; redraw(); }); }");
     lines.push("function redraw(){");
+    lines.push("  sx = clampSxValue(sx); sy = clampSyValue(sy);");
     lines.push("  var state = computeLayoutState(layoutMode, W, H, COLS, ROWS, sx, sy, UNIT);");
     lines.push("  var leftWidth = state.leftWidth, rightWidth = state.rightWidth, topHeight = state.topHeight, bottomHeight = state.bottomHeight;");
     lines.push("  var wL = state.leftCols, wR = state.rightCols, hB = state.bottomRows, hT = state.topRows;");
@@ -1285,7 +1305,7 @@ function draw() {
     lines.push("function arm(){ justDragged=true; setTimeout(function(){ justDragged=false; },220); }");
     lines.push("function lock(){ document.documentElement.style.touchAction='none'; document.body.style.touchAction='none'; document.documentElement.style.overscrollBehavior='contain'; document.body.style.overscrollBehavior='contain'; }");
     lines.push("function unlock(){ document.documentElement.style.touchAction=''; document.body.style.touchAction=''; document.documentElement.style.overscrollBehavior=''; document.body.style.overscrollBehavior=''; }");
-    lines.push("function onMove(e){ if(e.pointerId!==active.id) return; e.preventDefault(); var p=clientToSvg(e); if(active.axis==='v'){ var minY=MT+minRowsEachSide*UNIT; var maxY=MT+H-minRowsEachSide*UNIT; var y=clamp(p.y, minY, maxY); var nextSy=(MT+H)-y; if(nextSy!==sy){ sy=nextSy; schedule(); } } else if(active.axis==='h'){ var minX=ML+minColsEachSide*UNIT; var maxX=ML+W-minColsEachSide*UNIT; var x=clamp(p.x, minX, maxX); var nextSx=x-ML; if(nextSx!==sx){ sx=nextSx; schedule(); } }}");
+    lines.push("function onMove(e){ if(e.pointerId!==active.id) return; e.preventDefault(); var p=clientToSvg(e); if(active.axis==='v'){ var y=clampAxisY(p.y); var nextSy=clampSyValue((MT+H)-y); if(nextSy!==sy){ sy=nextSy; schedule(); } } else if(active.axis==='h'){ var x=clampAxisX(p.x); var nextSx=clampSxValue(x-ML); if(nextSx!==sx){ sx=nextSx; schedule(); } }}");
     lines.push("function onUp(e){ if(e.pointerId!==active.id) return; e.preventDefault(); if(active.axis==='v') sy=snap(sy); if(active.axis==='h') sx=snap(sx); if(active.captor&&active.captor.releasePointerCapture){ try{ active.captor.releasePointerCapture(e.pointerId); }catch(_){}} if(active.captor){ var cls=active.captor.getAttribute('class')||''; active.captor.setAttribute('class', cls.replace(/\bdragging\b/,'').trim()); } active.axis=null; active.id=null; active.captor=null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); unlock(); arm(); schedule(); }");
     lines.push("function start(axis,e){ active.axis=axis; active.id=e.pointerId; active.captor=e.currentTarget||e.target; if(active.captor&&active.captor.setPointerCapture){ try{ active.captor.setPointerCapture(e.pointerId); }catch(_){}} if(active.captor){ var cls=active.captor.getAttribute('class')||''; if(cls.indexOf('dragging')===-1){ active.captor.setAttribute('class',(cls+' dragging').trim()); }} lock(); window.addEventListener('pointermove', onMove, {passive:false}); window.addEventListener('pointerup', onUp, {passive:false}); window.addEventListener('pointercancel', onUp, {passive:false}); }");
     lines.push("if(hitLeft){ hitLeft.style.touchAction='none'; hitLeft.addEventListener('pointerdown', function(e){ e.preventDefault(); start('v',e); }, {passive:false}); }");
