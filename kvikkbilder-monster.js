@@ -4,7 +4,6 @@
   const cfgAntall = document.getElementById('cfg-antall');
   const cfgDuration = document.getElementById('cfg-duration');
   const cfgCircleRadius = document.getElementById('cfg-circleRadius');
-  const cfgDotSpacing = document.getElementById('cfg-dotSpacing');
   const cfgLevelScale = document.getElementById('cfg-levelScale');
   const cfgPatternGap = document.getElementById('cfg-patternGap');
   const cfgShowBtn = document.getElementById('cfg-showBtn');
@@ -16,8 +15,6 @@
   const btnPng = document.getElementById('btnPng');
   const MONSTER_POINT_RADIUS_MIN = 1;
   const MONSTER_POINT_RADIUS_MAX = 60;
-  const MONSTER_POINT_SPACING_MIN = 0;
-  const MONSTER_POINT_SPACING_MAX = 60;
   const DEFAULT_CIRCLE_RADIUS = 10;
   const DEFAULT_DOT_SPACING = 3;
   function primeFactors(n) {
@@ -219,10 +216,8 @@
     const antallY = parseInt(cfgAntallY.value, 10) || 0;
     const circleRadiusRaw = cfgCircleRadius ? parseFloat(cfgCircleRadius.value) : NaN;
     const circleRadius = Number.isFinite(circleRadiusRaw) ? Math.min(MONSTER_POINT_RADIUS_MAX, Math.max(MONSTER_POINT_RADIUS_MIN, circleRadiusRaw)) : DEFAULT_CIRCLE_RADIUS;
-    const dotSpacingRaw = cfgDotSpacing ? parseFloat(cfgDotSpacing.value) : NaN;
-    const dotSpacing = Number.isFinite(dotSpacingRaw) ? Math.min(MONSTER_POINT_SPACING_MAX, Math.max(MONSTER_POINT_SPACING_MIN, dotSpacingRaw)) : DEFAULT_DOT_SPACING;
+    const dotSpacing = DEFAULT_DOT_SPACING;
     if (cfgCircleRadius) cfgCircleRadius.value = String(circleRadius);
-    if (cfgDotSpacing) cfgDotSpacing.value = String(dotSpacing);
     const levelScale = cfgLevelScale ? Math.max(0.1, parseFloat(cfgLevelScale.value) || 0) : 1;
     patternContainer.innerHTML = '';
     const cols = antallX > 0 ? antallX : 1;
@@ -293,7 +288,7 @@
     }
     applyExpressionVisibility();
   }
-  [cfgAntall, cfgAntallX, cfgAntallY, cfgCircleRadius, cfgDotSpacing, cfgLevelScale, cfgPatternGap].forEach(el => {
+  [cfgAntall, cfgAntallX, cfgAntallY, cfgCircleRadius, cfgLevelScale, cfgPatternGap].forEach(el => {
     el === null || el === void 0 || el.addEventListener('input', render);
   });
   cfgShowBtn.addEventListener('change', () => {
