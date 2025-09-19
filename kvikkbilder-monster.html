@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Kvikkbilder mønster</title>
+  <title>Number visuals</title>
   <style>
     :root { --gap: 18px; }
     html,body{height:100%;}
@@ -89,8 +89,8 @@
     <div class="grid">
       <div class="card">
         <div id="figureArea" class="figure-area">
-          <button id="playBtn" aria-label="Vis kvikkbilde">▶</button>
-          <div id="patternContainer" class="figure" aria-label="Kvikkbilder mønster"></div>
+          <button id="playBtn" aria-label="Vis number visual">▶</button>
+          <div id="patternContainer" class="figure" aria-label="Number visuals"></div>
         </div>
         <div id="expression"></div>
       </div>
@@ -118,6 +118,22 @@
           </div>
           <label>Antall
             <input id="cfg-antall" type="number" min="1" value="9">
+          </label>
+          <div class="field-row">
+            <label>Sirkelstørrelse
+              <input id="cfg-circleRadius" type="number" min="1" value="10">
+            </label>
+            <label>Prikkavstand
+              <input id="cfg-dotSpacing" type="number" min="0" value="3">
+            </label>
+          </div>
+          <div class="field-row">
+            <label>Avstand mellom grupper
+              <input id="cfg-levelScale" type="number" min="0.1" step="0.1" value="1">
+            </label>
+          </div>
+          <label>Avstand mellom figurer
+            <input id="cfg-patternGap" type="number" min="0" value="18">
           </label>
           <label>Vis i sekunder
             <input id="cfg-duration" type="number" min="1" value="3">
