@@ -229,8 +229,8 @@
   }
 
   function coordinateString(point) {
-    if (!point) return '0, 0';
-    return `${percentString(point.x)}, ${percentString(point.y)}`;
+    if (!point) return '(0, 0)';
+    return `(${percentString(point.x)}, ${percentString(point.y)})`;
   }
 
   function parseCoordinateInput(value) {
@@ -707,7 +707,7 @@
       coordInput.type = 'text';
       coordInput.inputMode = 'decimal';
       coordInput.className = 'point-input point-input--coord';
-      coordInput.placeholder = '50, 50';
+      coordInput.placeholder = '(50, 50)';
       coordInput.setAttribute('aria-label', 'Koordinat (x,y)');
       coordInput.value = coordinateString(point);
       const commitCoordChange = () => {
