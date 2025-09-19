@@ -13,6 +13,10 @@
   const cfgMonsterAntallX = document.getElementById('cfg-monster-antallX');
   const cfgMonsterAntallY = document.getElementById('cfg-monster-antallY');
   const cfgAntall = document.getElementById('cfg-antall');
+  const cfgMonsterCircleRadius = document.getElementById('cfg-monster-circleRadius');
+  const cfgMonsterDotSpacing = document.getElementById('cfg-monster-dotSpacing');
+  const cfgMonsterLevelScale = document.getElementById('cfg-monster-levelScale');
+  const cfgMonsterPatternGap = document.getElementById('cfg-monster-patternGap');
   const cfgDurationMonster = document.getElementById('cfg-duration-monster');
   const cfgShowBtnMonster = document.getElementById('cfg-showBtn-monster');
   const brickContainer = document.getElementById('brickContainer');
@@ -38,6 +42,10 @@
       antallX: 2,
       antallY: 2,
       antall: 9,
+      circleRadius: 10,
+      dotSpacing: 3,
+      levelScale: 1,
+      patternGap: 18,
       duration: 3,
       showBtn: false
     }
@@ -112,7 +120,7 @@
   }, {
     id: 'kvikkbilder-monster-3',
     exampleNumber: '3',
-    title: 'Kvikkbilde 12',
+    title: 'Number visual 12',
     config: {
       CFG: createExampleCfg({
         type: 'monster',
@@ -333,10 +341,19 @@
     }
     return res;
   }
-  function byggMonster(n) {
+  function normalizeScale(value, fallback) {
+    if (!Number.isFinite(value) || value <= 0) return fallback;
+    return value;
+  }
+  function byggMonster(n, levelScale = 1) {
     if (n <= 0) return [];
     const factors = primeFactors(n);
-    const ks = computeKs(n, factors);
+    const normalizedLevel = normalizeScale(levelScale, 1);
+    const ks = computeKs(n, factors).map((value, index) => {
+      if (!Number.isFinite(value)) return 0;
+      if (index === 0) return value;
+      return value * normalizedLevel;
+    });
     let pts = [];
     const f1 = factors[0];
     for (let i = 0; i < f1; i++) {
@@ -357,10 +374,12 @@
       y: p.y * scale
     }));
   }
-  function createPatternSvg(points) {
+  function createPatternSvg(points, options = {}) {
     if (!points.length) return null;
-    const radius = 10;
-    const spacing = 3;
+    const radiusRaw = options.radius;
+    const spacingRaw = options.spacing;
+    const radius = Number.isFinite(radiusRaw) && radiusRaw > 0 ? radiusRaw : 10;
+    const spacing = Number.isFinite(spacingRaw) && spacingRaw >= 0 ? spacingRaw : 3;
     const desiredCenterDistance = radius * 2 + spacing;
     const seen = new Set();
     const uniquePoints = [];
@@ -406,7 +425,7 @@
     const contentHeight = maxY - minY;
     const baseW = contentWidth + pad * 2;
     const baseH = contentHeight + pad * 2;
-    const minSize = radius * 4;
+    const minSize = Math.max(radius * 4, 40);
     const vbW = Math.max(baseW, minSize);
     const vbH = Math.max(baseH, minSize);
     const extraX = (vbW - baseW) / 2;
@@ -433,33 +452,53 @@
     return svg;
   }
   function renderMonster() {
+    if (!patternContainer) return;
     const {
       antallX = 0,
       antallY = 0,
-      antall = 0
+      antall = 0,
+      circleRadius = 10,
+      dotSpacing = 3,
+      levelScale = 1,
+      patternGap = 18
     } = CFG.monster || {};
     patternContainer.innerHTML = '';
     const cols = Math.max(0, Math.trunc(antallX));
     const rows = Math.max(0, Math.trunc(antallY));
     patternContainer.style.gridTemplateColumns = cols > 0 ? `repeat(${cols},minmax(0,1fr))` : '';
     patternContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows},minmax(0,1fr))` : '';
+    const maxDimension = Math.max(cols, rows);
+    const gapNumber = Number.isFinite(patternGap) ? patternGap : Number.parseFloat(patternGap);
+    const gapOverride = Number.isFinite(gapNumber) && gapNumber >= 0 ? gapNumber : null;
+    const gapPx = gapOverride !== null ? gapOverride : maxDimension <= 1 ? 64 : maxDimension === 2 ? 56 : maxDimension === 3 ? 44 : maxDimension === 4 ? 36 : 28;
+    const itemPaddingPx = gapOverride !== null ? Math.max(0, Math.round(gapPx * 0.5)) : Math.min(72, Math.max(18, Math.round(gapPx * 0.65)));
+    const containerPaddingPx = gapOverride !== null ? Math.max(0, Math.round(gapPx * 0.3)) : Math.min(48, Math.max(12, Math.round(gapPx * 0.4)));
+    patternContainer.style.setProperty('--pattern-gap', `${gapPx}px`);
+    patternContainer.style.setProperty('--pattern-item-padding', `${itemPaddingPx}px`);
+    patternContainer.style.setProperty('--pattern-padding', `${containerPaddingPx}px`);
     const count = Math.max(0, Math.trunc(antall));
-    const points = byggMonster(count);
+    const points = byggMonster(count, levelScale);
     const factors = primeFactors(count).filter(x => x > 1);
     const baseExpression = factors.length ? `${factors.join(' · ')} = ${count}` : `${count}`;
     if (!points.length || cols <= 0 || rows <= 0) {
       expression.textContent = baseExpression;
       return;
     }
-    const svg = createPatternSvg(points);
+    const svg = createPatternSvg(points, {
+      radius: circleRadius,
+      spacing: dotSpacing
+    });
     if (!svg) {
       expression.textContent = baseExpression;
       return;
     }
     const totalFigures = cols * rows;
-    svg.setAttribute('aria-label', `Kvikkbilde ${count}`);
+    svg.setAttribute('aria-label', `Number visual ${count}`);
     for (let i = 0; i < totalFigures; i++) {
-      patternContainer.appendChild(svg.cloneNode(true));
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pattern-item';
+      wrapper.appendChild(svg.cloneNode(true));
+      patternContainer.appendChild(wrapper);
     }
     if (totalFigures > 1) {
       expression.textContent = `${cols} · ${rows} · (${baseExpression}) = ${totalFigures} · ${count} = ${totalFigures * count}`;
@@ -505,6 +544,14 @@
     }
     return fallback;
   }
+  function clampFloat(value, min, fallback) {
+    const num = Number.parseFloat(value);
+    if (Number.isFinite(num)) {
+      const safeMin = Number.isFinite(min) ? min : -Infinity;
+      return Math.max(safeMin, num);
+    }
+    return fallback;
+  }
   function sanitizeCfg() {
     if (CFG.type !== 'monster' && CFG.type !== 'klosser') {
       CFG.type = DEFAULT_CFG.type;
@@ -526,6 +573,10 @@
     m.antallX = clampInt(m.antallX, 0, dm.antallX);
     m.antallY = clampInt(m.antallY, 0, dm.antallY);
     m.antall = clampInt(m.antall, 0, dm.antall);
+    m.circleRadius = clampFloat(m.circleRadius, 1, dm.circleRadius);
+    m.dotSpacing = clampFloat(m.dotSpacing, 0, dm.dotSpacing);
+    m.levelScale = clampFloat(m.levelScale, 0.1, dm.levelScale);
+    m.patternGap = clampFloat(m.patternGap, 0, dm.patternGap);
     m.duration = clampInt(m.duration, 0, dm.duration);
     m.showBtn = m.showBtn === true;
     return CFG;
@@ -544,6 +595,10 @@
     if (cfgMonsterAntallX) cfgMonsterAntallX.value = CFG.monster.antallX;
     if (cfgMonsterAntallY) cfgMonsterAntallY.value = CFG.monster.antallY;
     if (cfgAntall) cfgAntall.value = CFG.monster.antall;
+    if (cfgMonsterCircleRadius) cfgMonsterCircleRadius.value = CFG.monster.circleRadius;
+    if (cfgMonsterDotSpacing) cfgMonsterDotSpacing.value = CFG.monster.dotSpacing;
+    if (cfgMonsterLevelScale) cfgMonsterLevelScale.value = CFG.monster.levelScale;
+    if (cfgMonsterPatternGap) cfgMonsterPatternGap.value = CFG.monster.patternGap;
     if (cfgDurationMonster) cfgDurationMonster.value = CFG.monster.duration;
     if (cfgShowBtnMonster) cfgShowBtnMonster.checked = CFG.monster.showBtn;
   }
@@ -579,6 +634,26 @@
       renderView();
     });
   }
+  function bindFloatInput(input, targetGetter, key, min = 0, fallback = 0) {
+    if (!input) return;
+    input.addEventListener('input', () => {
+      const target = targetGetter();
+      if (!target) return;
+      const raw = input.value.trim();
+      if (raw === '') {
+        target[key] = fallback;
+        input.value = String(target[key]);
+        renderView();
+        return;
+      }
+      const num = Number.parseFloat(raw);
+      if (Number.isFinite(num)) {
+        target[key] = Math.max(min, num);
+        input.value = String(target[key]);
+      }
+      renderView();
+    });
+  }
   sanitizeCfg();
   bindNumberInput(cfgAntallX, () => CFG.klosser, 'antallX', 0);
   bindNumberInput(cfgAntallY, () => CFG.klosser, 'antallY', 0);
@@ -599,6 +674,10 @@
   bindNumberInput(cfgMonsterAntallX, () => CFG.monster, 'antallX', 0);
   bindNumberInput(cfgMonsterAntallY, () => CFG.monster, 'antallY', 0);
   bindNumberInput(cfgAntall, () => CFG.monster, 'antall', 0);
+  bindFloatInput(cfgMonsterCircleRadius, () => CFG.monster, 'circleRadius', 1, DEFAULT_CFG.monster.circleRadius);
+  bindFloatInput(cfgMonsterDotSpacing, () => CFG.monster, 'dotSpacing', 0, DEFAULT_CFG.monster.dotSpacing);
+  bindFloatInput(cfgMonsterLevelScale, () => CFG.monster, 'levelScale', 0.1, DEFAULT_CFG.monster.levelScale);
+  bindFloatInput(cfgMonsterPatternGap, () => CFG.monster, 'patternGap', 0, DEFAULT_CFG.monster.patternGap);
   cfgDurationMonster === null || cfgDurationMonster === void 0 || cfgDurationMonster.addEventListener('input', () => {
     const num = Number.parseInt(cfgDurationMonster.value, 10);
     if (Number.isFinite(num)) {
@@ -643,11 +722,17 @@
   });
   btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => {
     const svg = brickContainer.querySelector('svg') || patternContainer.querySelector('svg');
-    if (svg) downloadSVG(svg, 'kvikkbilder.svg');
+    if (svg) {
+      const fileName = CFG.type === 'monster' ? 'number-visuals.svg' : 'kvikkbilder.svg';
+      downloadSVG(svg, fileName);
+    }
   });
   btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => {
     const svg = brickContainer.querySelector('svg') || patternContainer.querySelector('svg');
-    if (svg) downloadPNG(svg, 'kvikkbilder.png', 2);
+    if (svg) {
+      const fileName = CFG.type === 'monster' ? 'number-visuals.png' : 'kvikkbilder.png';
+      downloadPNG(svg, fileName, 2);
+    }
   });
   function svgToString(svgEl) {
     const clone = svgEl.cloneNode(true);
