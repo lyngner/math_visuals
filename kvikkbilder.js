@@ -13,7 +13,6 @@
   const cfgMonsterAntallY = document.getElementById('cfg-monster-antallY');
   const cfgAntall = document.getElementById('cfg-antall');
   const cfgMonsterCircleRadius = document.getElementById('cfg-monster-circleRadius');
-  const cfgMonsterDotSpacing = document.getElementById('cfg-monster-dotSpacing');
   const cfgMonsterLevelScale = document.getElementById('cfg-monster-levelScale');
   const cfgMonsterPatternGap = document.getElementById('cfg-monster-patternGap');
   const brickContainer = document.getElementById('brickContainer');
@@ -634,7 +633,6 @@
     if (cfgMonsterAntallY) cfgMonsterAntallY.value = CFG.monster.antallY;
     if (cfgAntall) cfgAntall.value = CFG.monster.antall;
     if (cfgMonsterCircleRadius) cfgMonsterCircleRadius.value = CFG.monster.circleRadius;
-    if (cfgMonsterDotSpacing) cfgMonsterDotSpacing.value = CFG.monster.dotSpacing;
     if (cfgMonsterLevelScale) cfgMonsterLevelScale.value = CFG.monster.levelScale;
     if (cfgMonsterPatternGap) {
       cfgMonsterPatternGap.value = CFG.monster.patternGap;
@@ -708,7 +706,6 @@
   bindNumberInput(cfgMonsterAntallY, () => CFG.monster, 'antallY', 0);
   bindNumberInput(cfgAntall, () => CFG.monster, 'antall', 0);
   bindFloatInput(cfgMonsterCircleRadius, () => CFG.monster, 'circleRadius', MONSTER_POINT_RADIUS_MIN, DEFAULT_CFG.monster.circleRadius, MONSTER_POINT_RADIUS_MAX);
-  bindFloatInput(cfgMonsterDotSpacing, () => CFG.monster, 'dotSpacing', MONSTER_POINT_SPACING_MIN, DEFAULT_CFG.monster.dotSpacing, MONSTER_POINT_SPACING_MAX);
   bindFloatInput(cfgMonsterLevelScale, () => CFG.monster, 'levelScale', 0.1, DEFAULT_CFG.monster.levelScale);
   bindFloatInput(cfgMonsterPatternGap, () => CFG.monster, 'patternGap', 0, DEFAULT_CFG.monster.patternGap);
   if (cfgVisibility) {
