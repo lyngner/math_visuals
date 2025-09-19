@@ -28,3 +28,73 @@
     display: none;
   }
 }
+
+/* Shared styling for settings panels */
+.card--settings fieldset,
+.card[data-card="settings"] fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  margin: 0;
+}
+
+.card--settings legend,
+.card[data-card="settings"] legend {
+  font-weight: 600;
+  font-size: 13px;
+  color: #374151;
+  padding: 0 4px;
+}
+
+.card--settings label,
+.card[data-card="settings"] label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.card--settings label.checkbox,
+.card--settings label.chk,
+.card--settings label.toggleLabel,
+.card[data-card="settings"] label.checkbox,
+.card[data-card="settings"] label.chk,
+.card[data-card="settings"] label.toggleLabel {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.card--settings input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+.card--settings select,
+.card--settings textarea,
+.card[data-card="settings"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+.card[data-card="settings"] select,
+.card[data-card="settings"] textarea {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+  background: #fff;
+  color: #111827;
+  box-sizing: border-box;
+  font-family: inherit;
+  width: 100%;
+}
+
+.card--settings textarea,
+.card[data-card="settings"] textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.card--settings input[type="checkbox"],
+.card--settings input[type="radio"],
+.card[data-card="settings"] input[type="checkbox"],
+.card[data-card="settings"] input[type="radio"] {
+  accent-color: #3b82f6;
+}
