@@ -47,7 +47,22 @@
       width:100%;
       align-items:flex-start;
     }
-    .tb-row{display:flex;gap:0;width:100%;}
+    .tb-row{display:flex;gap:0;width:100%;align-items:stretch;}
+    .tb-row-label{
+      flex:0 0 auto;
+      margin-right:12px;
+      font-size:22px;
+      font-weight:600;
+      color:#374151;
+      min-width:48px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:flex-end;
+      padding-top:6px;
+      letter-spacing:0.01em;
+    }
+    .tb-row-label[data-empty="true"]{display:none;}
+    .tb-row-label-text{font-size:32px;font-weight:600;fill:#374151;letter-spacing:0.01em;}
     .tb-panel{display:flex;flex-direction:column;align-items:stretch;gap:0;width:100%;min-width:0;}
     .tb-panel .tb-header:not(:empty){margin-bottom:var(--tb-stepper-spacing,6px);}
     .tb-panel .tb-stepper{align-self:center;}
@@ -72,6 +87,12 @@
       min-width:0;
       width:100%;
     }
+    .tb-settings fieldset.tb-settings-global{gap:10px;}
+    .tb-settings fieldset.tb-settings-global .tb-row-label-inputs{display:grid;gap:8px;}
+    .tb-settings fieldset.tb-settings-global .tb-row-label-inputs[data-columns="1"]{grid-template-columns:repeat(1,minmax(0,1fr));}
+    .tb-settings fieldset.tb-settings-global .tb-row-label-inputs[data-columns="2"]{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .tb-settings fieldset.tb-settings-global .tb-row-label-inputs[data-columns="3"]{grid-template-columns:repeat(3,minmax(0,1fr));}
+    .tb-settings fieldset.tb-settings-global .checkbox-row.is-disabled{opacity:.6;}
     .addFigureBtn{
       width:clamp(30px,7.5vw,60px);
       aspect-ratio:1;
@@ -167,10 +188,6 @@
         </div>
         <div class="card card--settings">
           <div id="tbSettings" class="tb-settings"></div>
-          <div id="cfg-show-combined-row" class="checkbox-row" style="display:none">
-            <input id="cfg-show-combined-whole" type="checkbox" />
-            <label for="cfg-show-combined-whole">Vis markering av total</label>
-          </div>
         </div>
       </div>
     </div>
