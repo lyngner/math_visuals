@@ -762,7 +762,12 @@
         input.value = formatPointValue(point.value);
         input.style.left = `${px}px`;
         input.style.top = `${arrowY}px`;
+        input.dataset.pointId = point.id;
         input.setAttribute('aria-label', point.type === 'pole' ? 'x-verdi for pol' : 'x-verdi for nullpunkt');
+        input.addEventListener('pointerdown', event => {
+          if (event.button !== 0) return;
+          startDragging(point.id, event.pointerId, false);
+        });
         input.addEventListener('change', event => {
           const raw = event.target.value.trim().replace(',', '.');
           const nextValue = Number.parseFloat(raw);
@@ -851,9 +856,15 @@
   function setPointValue(id, value, fromDrag = false) {
     const point = state.criticalPoints.find(p => p.id === id);
     if (!point) return;
+    if (fromDrag && Math.abs(point.value - value) < 1e-9) {
+      return;
+    }
     point.value = value;
     sortPoints();
     if (fromDrag) {
+      if (dragging) {
+        dragging.moved = true;
+      }
       renderPointsList();
       renderChart();
     } else {
@@ -943,28 +954,43 @@
     renderRowsList();
     renderChart();
   }
+  function startDragging(pointId, pointerId, capture = true) {
+    if (!pointId) return;
+    dragging = {
+      id: pointId,
+      pointerId,
+      moved: false
+    };
+    if (capture && pointerId !== undefined && svg.setPointerCapture) {
+      try {
+        svg.setPointerCapture(pointerId);
+      } catch (err) {
+        /* ignore */
+      }
+    }
+  }
   svg.addEventListener('pointerdown', event => {
     const target = event.target;
     if (!(target instanceof SVGElement)) return;
     const pointId = target.getAttribute('data-point-id');
     if (!pointId) return;
     event.preventDefault();
-    dragging = {
-      id: pointId,
-      pointerId: event.pointerId
-    };
-    svg.setPointerCapture(event.pointerId);
+    startDragging(pointId, event.pointerId);
   });
   function stopDragging(event) {
     if (!dragging) return;
-    if (event.pointerId !== undefined && svg.hasPointerCapture(event.pointerId)) {
-      svg.releasePointerCapture(event.pointerId);
+    const pointerId = event.pointerId !== undefined ? event.pointerId : dragging.pointerId;
+    if (pointerId !== undefined && svg.hasPointerCapture(pointerId)) {
+      svg.releasePointerCapture(pointerId);
     }
+    const moved = dragging.moved;
     dragging = null;
-    syncSegments();
-    renderAll();
+    if (moved) {
+      syncSegments();
+      renderAll();
+    }
   }
-  svg.addEventListener('pointermove', event => {
+  window.addEventListener('pointermove', event => {
     if (!dragging || !currentScale) return;
     const rect = svg.getBoundingClientRect();
     const relativeX = event.clientX - rect.left;
@@ -972,8 +998,8 @@
     if (!Number.isFinite(value)) return;
     setPointValue(dragging.id, value, true);
   });
-  svg.addEventListener('pointerup', stopDragging);
-  svg.addEventListener('pointerleave', stopDragging);
+  window.addEventListener('pointerup', stopDragging);
+  window.addEventListener('pointercancel', stopDragging);
   function handleAddPoint() {
     addPoint('zero', 0);
     setCheckMessage('');
