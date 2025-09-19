@@ -559,6 +559,16 @@
     const normalizedFallback = Number.isFinite(fallback) ? fallback : Number.isFinite(min) ? min : 0;
     return Math.min(safeMax, Math.max(safeMin, normalizedFallback));
   }
+  function updateMonsterPatternGapState() {
+    if (!cfgMonsterPatternGap) return;
+    const disableGap = CFG.monster.antallX <= 1 && CFG.monster.antallY <= 1;
+    cfgMonsterPatternGap.disabled = disableGap;
+    if (disableGap) {
+      cfgMonsterPatternGap.setAttribute('title', 'Figuravstand er tilgjengelig når det er flere figurer.');
+    } else {
+      cfgMonsterPatternGap.removeAttribute('title');
+    }
+  }
   function sanitizeCfg() {
     if (CFG.type !== 'monster' && CFG.type !== 'klosser') {
       CFG.type = DEFAULT_CFG.type;
@@ -606,14 +616,8 @@
     if (cfgMonsterDotSpacing) cfgMonsterDotSpacing.value = CFG.monster.dotSpacing;
     if (cfgMonsterLevelScale) cfgMonsterLevelScale.value = CFG.monster.levelScale;
     if (cfgMonsterPatternGap) {
-      const disableGap = CFG.monster.antallX <= 1 && CFG.monster.antallY <= 1;
       cfgMonsterPatternGap.value = CFG.monster.patternGap;
-      cfgMonsterPatternGap.disabled = disableGap;
-      if (disableGap) {
-        cfgMonsterPatternGap.setAttribute('title', 'Figuravstand er tilgjengelig når det er flere figurer.');
-      } else {
-        cfgMonsterPatternGap.removeAttribute('title');
-      }
+      updateMonsterPatternGapState();
     }
     if (cfgDurationMonster) cfgDurationMonster.value = CFG.monster.duration;
     if (cfgShowBtnMonster) cfgShowBtnMonster.checked = CFG.monster.showBtn;
@@ -630,6 +634,7 @@
       if (monsterConfig) monsterConfig.style.display = 'block';
       renderMonster();
       updateVisibilityMonster();
+      updateMonsterPatternGapState();
     }
   }
   function render() {
