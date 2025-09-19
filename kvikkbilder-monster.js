@@ -3,6 +3,10 @@
   const cfgAntallY = document.getElementById('cfg-antallY');
   const cfgAntall = document.getElementById('cfg-antall');
   const cfgDuration = document.getElementById('cfg-duration');
+  const cfgCircleRadius = document.getElementById('cfg-circleRadius');
+  const cfgDotSpacing = document.getElementById('cfg-dotSpacing');
+  const cfgLevelScale = document.getElementById('cfg-levelScale');
+  const cfgPatternGap = document.getElementById('cfg-patternGap');
   const cfgShowBtn = document.getElementById('cfg-showBtn');
   const cfgShowExpression = document.getElementById('cfg-show-expression');
   const patternContainer = document.getElementById('patternContainer');
@@ -93,10 +97,19 @@
     }
     return res;
   }
-  function byggMonster(n) {
+  function normalizeScale(value, fallback) {
+    if (!Number.isFinite(value) || value <= 0) return fallback;
+    return value;
+  }
+  function byggMonster(n, levelScale = 1) {
     if (n <= 0) return [];
     const f = primeFactors(n);
-    const ks = computeKs(n, f);
+    const normalizedLevel = normalizeScale(levelScale, 1);
+    const ks = computeKs(n, f).map((value, index) => {
+      if (!Number.isFinite(value)) return 0;
+      if (index === 0) return value;
+      return value * normalizedLevel;
+    });
     let pts = [];
     const f1 = f[0];
     for (let i = 0; i < f1; i++) {
@@ -117,10 +130,12 @@
       y: p.y * scale
     }));
   }
-  function createPatternSvg(points) {
+  function createPatternSvg(points, options = {}) {
     if (!points.length) return null;
-    const radius = 10;
-    const spacing = 3;
+    const radiusRaw = options.radius;
+    const spacingRaw = options.spacing;
+    const radius = Number.isFinite(radiusRaw) && radiusRaw > 0 ? radiusRaw : 10;
+    const spacing = Number.isFinite(spacingRaw) && spacingRaw >= 0 ? spacingRaw : 3;
     const desiredCenterDistance = radius * 2 + spacing;
     const seen = new Set();
     const uniquePoints = [];
@@ -166,7 +181,7 @@
     const contentHeight = maxY - minY;
     const baseW = contentWidth + pad * 2;
     const baseH = contentHeight + pad * 2;
-    const minSize = radius * 4;
+    const minSize = Math.max(radius * 4, 40);
     const vbW = Math.max(baseW, minSize);
     const vbH = Math.max(baseH, minSize);
     const extraX = (vbW - baseW) / 2;
@@ -196,32 +211,40 @@
     const n = parseInt(cfgAntall.value, 10) || 0;
     const antallX = parseInt(cfgAntallX.value, 10) || 0;
     const antallY = parseInt(cfgAntallY.value, 10) || 0;
+    const circleRadius = cfgCircleRadius ? Math.max(1, parseFloat(cfgCircleRadius.value) || 0) : 10;
+    const dotSpacing = cfgDotSpacing ? Math.max(0, parseFloat(cfgDotSpacing.value) || 0) : 3;
+    const levelScale = cfgLevelScale ? Math.max(0.1, parseFloat(cfgLevelScale.value) || 0) : 1;
     patternContainer.innerHTML = '';
     const cols = antallX > 0 ? antallX : 1;
     const rows = antallY > 0 ? antallY : 1;
     patternContainer.style.gridTemplateColumns = `repeat(${cols},minmax(0,1fr))`;
     patternContainer.style.gridTemplateRows = `repeat(${rows},minmax(0,1fr))`;
     const maxDimension = Math.max(cols, rows);
-    const gapPx = maxDimension <= 1 ? 64 : maxDimension === 2 ? 56 : maxDimension === 3 ? 44 : maxDimension === 4 ? 36 : 28;
-    const itemPaddingPx = Math.min(72, Math.max(18, Math.round(gapPx * 0.65)));
-    const containerPaddingPx = Math.min(48, Math.max(12, Math.round(gapPx * 0.4)));
+    const gapInput = cfgPatternGap ? parseFloat(cfgPatternGap.value) : NaN;
+    const gapOverride = Number.isFinite(gapInput) && gapInput >= 0 ? gapInput : null;
+    const gapPx = gapOverride !== null ? gapOverride : maxDimension <= 1 ? 64 : maxDimension === 2 ? 56 : maxDimension === 3 ? 44 : maxDimension === 4 ? 36 : 28;
+    const itemPaddingPx = gapOverride !== null ? Math.max(0, Math.round(gapPx * 0.5)) : Math.min(72, Math.max(18, Math.round(gapPx * 0.65)));
+    const containerPaddingPx = gapOverride !== null ? Math.max(0, Math.round(gapPx * 0.3)) : Math.min(48, Math.max(12, Math.round(gapPx * 0.4)));
     patternContainer.style.setProperty('--pattern-gap', `${gapPx}px`);
     patternContainer.style.setProperty('--pattern-item-padding', `${itemPaddingPx}px`);
     patternContainer.style.setProperty('--pattern-padding', `${containerPaddingPx}px`);
-    const points = byggMonster(n);
+    const points = byggMonster(n, levelScale);
     const factors = primeFactors(n).filter(x => x > 1);
     const baseExpression = factors.length ? `${factors.join(' · ')} = ${n}` : `${n}`;
     if (!points.length || antallX <= 0 || antallY <= 0) {
       expression.textContent = baseExpression;
       return;
     }
-    const svg = createPatternSvg(points);
+    const svg = createPatternSvg(points, {
+      radius: circleRadius,
+      spacing: dotSpacing
+    });
     if (!svg) {
       expression.textContent = baseExpression;
       return;
     }
     const totalFigures = antallX * antallY;
-    svg.setAttribute('aria-label', `Kvikkbilde ${n}`);
+    svg.setAttribute('aria-label', `Number visual ${n}`);
     for (let i = 0; i < totalFigures; i++) {
       const wrapper = document.createElement('div');
       wrapper.className = 'pattern-item';
@@ -250,7 +273,7 @@
     }
     applyExpressionVisibility();
   }
-  [cfgAntall, cfgAntallX, cfgAntallY].forEach(el => {
+  [cfgAntall, cfgAntallX, cfgAntallY, cfgCircleRadius, cfgDotSpacing, cfgLevelScale, cfgPatternGap].forEach(el => {
     el === null || el === void 0 || el.addEventListener('input', render);
   });
   cfgShowBtn.addEventListener('change', () => {
@@ -270,11 +293,11 @@
   });
   btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => {
     const svg = patternContainer.querySelector('svg');
-    if (svg) downloadSVG(svg, 'kvikkbilder-monster.svg');
+    if (svg) downloadSVG(svg, 'number-visuals.svg');
   });
   btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => {
     const svg = patternContainer.querySelector('svg');
-    if (svg) downloadPNG(svg, 'kvikkbilder-monster.png', 2);
+    if (svg) downloadPNG(svg, 'number-visuals.png', 2);
   });
   updateVisibility();
   render();
