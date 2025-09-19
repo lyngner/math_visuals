@@ -120,18 +120,19 @@
       border-color: #f87171;
       box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.35);
     }
-    .chart-overlay-actions {
-      position: absolute;
-      top: 12px;
-      right: 12px;
+    .figure-actions {
       display: flex;
-      flex-direction: column;
+      justify-content: flex-end;
+      flex-wrap: wrap;
       gap: 8px;
-      pointer-events: none;
-      z-index: 3;
+      margin-top: 12px;
     }
-    .chart-overlay-action {
-      pointer-events: auto;
+    @media (max-width: 600px) {
+      .figure-actions {
+        justify-content: flex-start;
+      }
+    }
+    .figure-action {
       appearance: none;
       border: 1px solid #d1d5db;
       border-radius: 10px;
@@ -144,7 +145,7 @@
       cursor: pointer;
       transition: background 0.2s ease, box-shadow 0.2s ease;
     }
-    .chart-overlay-action:hover {
+    .figure-action:hover {
       background: #f3f4f6;
       box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
     }
@@ -215,8 +216,15 @@
     }
     .rows-list label,
     .points-list label {
-      flex: 1 1 auto;
-      min-width: 140px;
+      flex: 1 1 160px;
+      min-width: 120px;
+    }
+    .points-list .value-field {
+      flex: 0 0 auto;
+      min-width: 0;
+    }
+    .points-list .value-field input[type="number"] {
+      width: 90px;
     }
     .rows-list .row-label input {
       max-width: 160px;
@@ -266,10 +274,10 @@
         <div class="figure">
           <svg id="chart" role="img" aria-label="Fortegnsskjema"></svg>
           <div id="chartOverlay" class="chart-overlay"></div>
-          <div class="chart-overlay-actions" aria-hidden="false">
-            <button type="button" class="chart-overlay-action" id="overlayAddPoint">Legg til nullpunkt</button>
-            <button type="button" class="chart-overlay-action" id="overlayAddRow">Legg til fortegnslinje</button>
-          </div>
+        </div>
+        <div class="figure-actions" aria-hidden="false">
+          <button type="button" class="figure-action" id="overlayAddPoint">Legg til nullpunkt</button>
+          <button type="button" class="figure-action" id="overlayAddRow">Legg til fortegnslinje</button>
         </div>
         <div class="toolbar">
           <div class="toolbar-row">
