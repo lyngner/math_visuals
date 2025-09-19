@@ -488,6 +488,7 @@
     state.criticalPoints.forEach(point => {
       const row = document.createElement('div');
       const valueLabel = document.createElement('label');
+      valueLabel.classList.add('value-field');
       valueLabel.innerHTML = '<span>Verdi</span>';
       const input = document.createElement('input');
       input.type = 'number';
