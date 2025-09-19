@@ -656,9 +656,10 @@
         cursor: 'ew-resize'
       });
       svg.append(vertical);
+      const labelY = point.type === 'pole' ? arrowY + 6 : baseRowY + 6;
       const label = createSvgElement('text', {
         x: px,
-        y: arrowY + 6,
+        y: labelY,
         'text-anchor': 'middle',
         'font-size': 16,
         'font-weight': 600,
