@@ -109,6 +109,7 @@
     .figureSettings fieldset{min-width:0;}
     .colors{display:flex;flex-wrap:wrap;gap:6px;}
     .colors input{flex:0 0 40px;width:40px;height:40px;}
+    .input--digit{width:60px;padding:8px 10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;background:#fff;box-sizing:border-box;text-align:center;}
     .box svg *:focus{outline:none;}
   </style>
   <link rel="stylesheet" href="split.css" />
@@ -141,7 +142,7 @@
             <legend>Farger</legend>
             <label class="checkbox"><input id="allowWrong" type="checkbox" /> <span>Tillat gale illustrasjoner</span></label>
             <label>Antall farger
-              <input id="colorCount" type="number" min="1" max="6" value="1" />
+              <input id="colorCount" class="input--digit" type="number" min="1" max="6" value="1" />
             </label>
             <div class="colors">
               <input id="color_1" type="color" value="#6C1BA2" />
