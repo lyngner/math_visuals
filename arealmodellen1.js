@@ -113,10 +113,30 @@ function ensureCfgDefaults() {
 }
 function normalizeLayout(value) {
   if (typeof value !== "string") return "quad";
-  return value === "horizontal" || value === "vertical" ? value : "quad";
+  if (value === "single" || value === "horizontal" || value === "vertical" || value === "quad") {
+    return value;
+  }
+  return "quad";
 }
 function computeLayoutState(layout, width, height, cols, rows, sx, sy, unit) {
   const mode = normalizeLayout(layout);
+  if (mode === "single") {
+    return {
+      mode,
+      leftWidth: width,
+      rightWidth: 0,
+      bottomHeight: 0,
+      topHeight: height,
+      leftCols: cols,
+      rightCols: 0,
+      bottomRows: 0,
+      topRows: rows,
+      showTopLeft: true,
+      showTopRight: false,
+      showBottomLeft: false,
+      showBottomRight: false
+    };
+  }
   const effectiveSx = mode === "vertical" ? width : sx;
   const effectiveSy = mode === "horizontal" ? 0 : sy;
   const leftWidth = Math.max(0, Math.min(width, effectiveSx));
@@ -211,19 +231,19 @@ function draw() {
   const clickToMove = ADV.clickToMove !== false;
   const showHeightAxis = layoutMode !== "horizontal" && ROWS > 1 && ((_SV$height2 = SV.height) === null || _SV$height2 === void 0 ? void 0 : _SV$height2.show) !== false;
   const showLengthAxis = layoutMode !== "vertical" && COLS > 1 && ((_SV$length2 = SV.length) === null || _SV$length2 === void 0 ? void 0 : _SV$length2.show) !== false;
-  const dragVertical = showHeightAxis && ((_ADV$drag = ADV.drag) === null || _ADV$drag === void 0 ? void 0 : _ADV$drag.vertical) !== false;
-  const dragHorizontal = showLengthAxis && ((_ADV$drag2 = ADV.drag) === null || _ADV$drag2 === void 0 ? void 0 : _ADV$drag2.horizontal) !== false;
+  const dragVertical = layoutMode !== "single" && showHeightAxis && ((_ADV$drag = ADV.drag) === null || _ADV$drag === void 0 ? void 0 : _ADV$drag.vertical) !== false;
+  const dragHorizontal = layoutMode !== "single" && showLengthAxis && ((_ADV$drag2 = ADV.drag) === null || _ADV$drag2 === void 0 ? void 0 : _ADV$drag2.horizontal) !== false;
   const splitLinesOn = ADV.splitLines !== false;
-  const showHLine = splitLinesOn && showHeightAxis;
-  const showVLine = splitLinesOn && showLengthAxis;
+  const showHLine = layoutMode !== "single" && splitLinesOn && showHeightAxis;
+  const showVLine = layoutMode !== "single" && splitLinesOn && showLengthAxis;
   const rawMinColsEachSide = (_ADV$limits$minColsEa = (_ADV$limits = ADV.limits) === null || _ADV$limits === void 0 ? void 0 : _ADV$limits.minColsEachSide) !== null && _ADV$limits$minColsEa !== void 0 ? _ADV$limits$minColsEa : 0;
   const rawMinRowsEachSide = (_ADV$limits$minRowsEa = (_ADV$limits2 = ADV.limits) === null || _ADV$limits2 === void 0 ? void 0 : _ADV$limits2.minRowsEachSide) !== null && _ADV$limits$minRowsEa !== void 0 ? _ADV$limits$minRowsEa : 0;
   const minColsEachSide = Math.max(0, Math.min(Math.floor(COLS / 2), Math.round(rawMinColsEachSide) || 0));
   const minRowsEachSide = Math.max(0, Math.min(Math.floor(ROWS / 2), Math.round(rawMinRowsEachSide) || 0));
   const initLeftCols = (_SV$length$handle = (_SV$length3 = SV.length) === null || _SV$length3 === void 0 ? void 0 : _SV$length3.handle) !== null && _SV$length$handle !== void 0 ? _SV$length$handle : Math.floor(COLS / 2);
   const initBottomRows = (_SV$height$handle = (_SV$height3 = SV.height) === null || _SV$height3 === void 0 ? void 0 : _SV$height3.handle) !== null && _SV$height$handle !== void 0 ? _SV$height$handle : Math.floor(ROWS / 2);
-  const showLeftHandle = showHeightAxis && ((_SV$height4 = SV.height) === null || _SV$height4 === void 0 ? void 0 : _SV$height4.showHandle) !== false;
-  const showBottomHandle = showLengthAxis && ((_SV$length4 = SV.length) === null || _SV$length4 === void 0 ? void 0 : _SV$length4.showHandle) !== false;
+  const showLeftHandle = layoutMode !== "single" && showHeightAxis && ((_SV$height4 = SV.height) === null || _SV$height4 === void 0 ? void 0 : _SV$height4.showHandle) !== false;
+  const showBottomHandle = layoutMode !== "single" && showLengthAxis && ((_SV$length4 = SV.length) === null || _SV$length4 === void 0 ? void 0 : _SV$length4.showHandle) !== false;
 
   // helpers
   const NS = "http://www.w3.org/2000/svg";
@@ -254,8 +274,8 @@ function draw() {
   function syncSimpleHandles() {
     const leftCols = Math.round(sx / UNIT);
     const bottomRows = Math.round(sy / UNIT);
-    const syncLength = layoutMode !== "vertical";
-    const syncHeight = layoutMode !== "horizontal";
+    const syncLength = layoutMode !== "vertical" && layoutMode !== "single";
+    const syncHeight = layoutMode !== "horizontal" && layoutMode !== "single";
     if (syncLength) {
       if (leftCols !== lastSyncedLeft) {
         lastSyncedLeft = leftCols;
@@ -1329,6 +1349,8 @@ function setSimpleConfig(o = {}) {
   render();
 }
 window.setArealmodellBConfig = setSimpleConfig;
+window.setArealmodellConfig = setSimpleConfig;
+window.setArealmodellBetaConfig = setSimpleConfig;
 function applyConfigToInputs() {
   var _simple$length, _simple$length2, _simple$length3, _simple$height, _simple$height2, _simple$height3;
   ensureCfgDefaults();
