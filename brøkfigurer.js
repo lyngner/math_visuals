@@ -79,6 +79,8 @@
   const addRowBtn = document.getElementById('figAddRow');
   const removeRowBtn = document.getElementById('figRemoveRow');
   const settingsContainer = document.getElementById('figureSettings');
+  const exportSvgBtn = document.getElementById('btnExportSvg');
+  const exportPngBtn = document.getElementById('btnExportPng');
   const clampInt = (value, min, max) => {
     const num = parseInt(value, 10);
     const base = Number.isFinite(num) ? num : min;
@@ -265,16 +267,11 @@
     panel.id = `panel${id}`;
     panel.dataset.figureId = String(id);
     panel.innerHTML = `
-      <div class="figurePanel__header">Figur ${id}</div>
       <div class="figure"><div id="box${id}" class="box"></div></div>
       <div class="stepper" aria-label="Antall deler">
         <button id="partsMinus${id}" type="button" aria-label="Færre deler">−</button>
         <span id="partsVal${id}">4</span>
         <button id="partsPlus${id}" type="button" aria-label="Flere deler">+</button>
-      </div>
-      <div class="figurePanel__actions toolbar">
-        <button id="btnSvg${id}" class="btn" type="button">Last ned SVG</button>
-        <button id="btnPng${id}" class="btn" type="button">Last ned PNG</button>
       </div>
     `;
     return panel;
@@ -313,6 +310,8 @@
     if (gridEl) {
       gridEl.dataset.cols = String(cols);
       gridEl.style.setProperty('--figure-cols', String(cols));
+      gridEl.dataset.rows = String(rows);
+      gridEl.style.setProperty('--figure-rows', String(rows));
     }
     if (settingsContainer) settingsContainer.style.setProperty('--figure-settings-cols', String(cols));
     if (addRowBtn) addRowBtn.style.display = rows >= MAX_ROWS ? 'none' : '';
@@ -332,8 +331,6 @@
           panel = createFigurePanel(id);
           figurePanels.set(id, panel);
         }
-        const header = panel.querySelector('.figurePanel__header');
-        if (header) header.textContent = `Figur ${id}`;
         gridEl.appendChild(panel);
         ensureFigureState(id);
       }
@@ -373,10 +370,7 @@
     const minusBtn = document.getElementById(`partsMinus${id}`);
     const plusBtn = document.getElementById(`partsPlus${id}`);
     const partsVal = document.getElementById(`partsVal${id}`);
-    const btnSvg = document.getElementById(`btnSvg${id}`);
-    const btnPng = document.getElementById(`btnPng${id}`);
     const panel = document.getElementById(`panel${id}`);
-    const toolbar = btnSvg === null || btnSvg === void 0 ? void 0 : btnSvg.parentElement;
     let board;
     let filled = new Map();
     function normalizeFilledEntries(value) {
@@ -1161,16 +1155,6 @@
       partsInp.value = String(n);
       partsInp.dispatchEvent(new Event('input'));
     });
-    btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => {
-      var _board2;
-      const svg = (_board2 = board) === null || _board2 === void 0 || (_board2 = _board2.renderer) === null || _board2 === void 0 ? void 0 : _board2.svgRoot;
-      if (svg) downloadSVG(svg, `brok${id}.svg`);
-    });
-    btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => {
-      var _board3;
-      const svg = (_board3 = board) === null || _board3 === void 0 || (_board3 = _board3.renderer) === null || _board3 === void 0 ? void 0 : _board3.svgRoot;
-      if (svg) downloadPNG(svg, `brok${id}.png`, 2);
-    });
     function getFilled() {
       return new Map(filled);
     }
@@ -1179,14 +1163,37 @@
       filled = new Map(normalized);
       syncFilledState(normalized, true);
     }
+    function getSvgElement() {
+      var _board2;
+      return (_board2 = board) === null || _board2 === void 0 || (_board2 = _board2.renderer) === null || _board2 === void 0 ? void 0 : _board2.svgRoot;
+    }
     return {
       draw,
       panel,
-      toolbar,
+      getSvgElement,
       getFilled,
       setFilled
     };
   }
+  function downloadAllFigures(type) {
+    var _window$render, _window;
+    (_window$render = (_window = window).render) === null || _window$render === void 0 || _window$render.call(_window);
+    const ids = getActiveFigureIds();
+    ids.forEach(id => {
+      const fig = figures[id];
+      if (!fig || typeof fig.getSvgElement !== 'function') return;
+      const svg = fig.getSvgElement();
+      if (!svg) return;
+      const baseName = `brok${id}`;
+      if (type === 'svg') {
+        downloadSVG(svg, baseName + '.svg');
+      } else if (type === 'png') {
+        downloadPNG(svg, baseName + '.png', 2);
+      }
+    });
+  }
+  exportSvgBtn === null || exportSvgBtn === void 0 || exportSvgBtn.addEventListener('click', () => downloadAllFigures('svg'));
+  exportPngBtn === null || exportPngBtn === void 0 || exportPngBtn.addEventListener('click', () => downloadAllFigures('png'));
   addRowBtn === null || addRowBtn === void 0 || addRowBtn.addEventListener('click', () => {
     if (rows >= MAX_ROWS) return;
     rows++;
