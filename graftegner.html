@@ -49,10 +49,10 @@
     .settings-group{ display:flex; flex-direction:column; gap:16px; }
     .input-label{ gap:6px; white-space:normal; }
     .input-label span{ font-size:12px; font-weight:600; letter-spacing:.01em; text-transform:uppercase; color:#374151; }
-    .options-grid{ display:grid; gap:6px; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); }
-    .checkbox-tile{ display:flex; align-items:flex-start; gap:6px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; color:#374151; font-size:12px; line-height:1.35; white-space:normal; transition:background .2s ease,border-color .2s ease; }
-    .checkbox-tile input{ margin-top:3px; }
-    .checkbox-tile:hover{ border-color:#d1d5db; background:#f3f4f6; }
+    .options-grid{ display:grid; gap:6px; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); }
+    .settings label.checkbox-inline{ flex-direction:row; align-items:center; gap:8px; font-size:13px; color:#4b5563; padding:4px 6px; border-radius:6px; }
+    .settings label.checkbox-inline input{ margin:0; }
+    .settings label.checkbox-inline span{ flex:1; }
     .axis-font-grid{ display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); align-items:start; }
     .axis-group{ display:flex; flex-direction:column; gap:8px; }
     .axis-title{ font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:#6b7280; }
@@ -95,33 +95,33 @@
               <legend>Koordinatsystem</legend>
               <div class="settings-group">
                 <label class="input-label">
-                  <span>Utsnitt (overstyrer autozoom hvis satt)</span>
+                  <span>Utsnitt (overstyrer autozoom)</span>
                   <input id="cfgScreen" type="text" value="" placeholder="minX, maxX, minY, maxY">
                 </label>
                 <div class="options-grid">
-                  <label class="checkbox-tile">
-                    <input id="cfgLock" type="checkbox" checked>
-                    <span>Lås forhold 1:1 (krever utsnitt)</span>
-                  </label>
-                  <label class="checkbox-tile">
-                    <input id="cfgPan" type="checkbox">
-                    <span>Tillat pan</span>
-                  </label>
-                  <label class="checkbox-tile">
-                    <input id="cfgSnap" type="checkbox" checked>
-                    <span>Snap til rutenett</span>
-                  </label>
-                  <label class="checkbox-tile">
-                    <input id="cfgQ1" type="checkbox">
-                    <span>Bare 1.&nbsp;kvadrant</span>
-                  </label>
-                  <label class="checkbox-tile">
+                  <label class="checkbox-inline">
                     <input id="cfgShowNames" type="checkbox" checked>
-                    <span>Vis navn på grafer</span>
+                    <span>vis grafnavn</span>
                   </label>
-                  <label class="checkbox-tile">
+                  <label class="checkbox-inline">
                     <input id="cfgShowExpr" type="checkbox">
-                    <span>Vis funksjonsuttrykk</span>
+                    <span>vis uttrykk</span>
+                  </label>
+                  <label class="checkbox-inline">
+                    <input id="cfgQ1" type="checkbox">
+                    <span>Kun 1. kvadrant</span>
+                  </label>
+                  <label class="checkbox-inline">
+                    <input id="cfgPan" type="checkbox">
+                    <span>Tillat panorering</span>
+                  </label>
+                  <label class="checkbox-inline">
+                    <input id="cfgLock" type="checkbox" checked>
+                    <span>Lås aksene 1:1</span>
+                  </label>
+                  <label class="checkbox-inline">
+                    <input id="cfgSnap" type="checkbox" checked>
+                    <span>Fest til rutenett</span>
                   </label>
                   <label class="checkbox-tile">
                     <input id="cfgShowBrackets" type="checkbox" checked>
@@ -144,7 +144,7 @@
                   </div>
                   <div class="font-grid">
                     <label>
-                      <span>Skriftstørrelse (akser og grafer)</span>
+                      <span>Skriftstørrelse</span>
                       <input id="cfgFontSize" type="number" min="6" max="72" step="1" value="16">
                     </label>
                   </div>
