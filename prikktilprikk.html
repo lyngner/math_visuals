@@ -209,7 +209,7 @@
     }
     .point-handle:active { cursor: grabbing; }
     .point-handle-icon { font-size: 16px; line-height: 1; }
-    .point-id {
+    .point-order {
       font-size: 12px;
       color: #6b7280;
       background: #f3f4f6;
@@ -231,12 +231,45 @@
       font-variant-numeric: tabular-nums;
     }
     .point-input--label { flex: 2 1 180px; }
-    .point-remove {
+    .point-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       margin-left: auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .point-flag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #4b5563;
+    }
+    .point-flag-checkbox {
+      width: auto;
+    }
+    .point-decoration-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #4b5563;
+    }
+    .point-decoration-select {
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+      padding: 4px 6px;
+      font-size: 12px;
+      background: #fff;
+    }
+    .point-remove {
+      margin-left: 0;
       flex-shrink: 0;
     }
     @media (max-width: 640px) {
       .point-item { flex-wrap: wrap; }
+      .point-controls { margin-left: 0; width: 100%; }
       .point-remove { margin-left: 0; }
     }
     .line-group line {
@@ -247,8 +280,33 @@
     .line-user { stroke: #2563eb; stroke-width: 6; cursor: pointer; }
     .line-user:hover { stroke: #1d4ed8; }
     .line-answer { stroke: #0f766e; stroke-width: 4; stroke-dasharray: 10 8; pointer-events: none; opacity: .9; }
-    .point { fill: #fff; stroke: #111827; stroke-width: 2.4; cursor: pointer; }
-    .point.is-selected { stroke: #2563eb; stroke-width: 3.2; }
+    .point { cursor: pointer; }
+    .point-decoration {
+      fill: #fff;
+      stroke: #111827;
+      stroke-width: 2.4;
+      transition: stroke .2s, fill .2s;
+      stroke-linejoin: round;
+    }
+    .point-dot {
+      fill: #111827;
+      stroke: none;
+    }
+    .point.is-selected .point-decoration {
+      stroke: #2563eb;
+      stroke-width: 3.2;
+    }
+    .point--false .point-decoration {
+      fill: #fef2f2;
+      stroke: #b91c1c;
+      stroke-dasharray: 6 4;
+    }
+    .point--false .point-dot {
+      fill: #b91c1c;
+    }
+    .point--false.point.is-selected .point-decoration {
+      stroke: #991b1b;
+    }
     .point-label {
       font-size: 14px;
       font-weight: 600;
@@ -257,6 +315,9 @@
       stroke: #fff;
       stroke-width: 5px;
       stroke-linejoin: round;
+    }
+    .point-label--false {
+      fill: #b91c1c;
     }
     body.labels-hidden .point-label { display: none; }
     .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #4b5563; }
