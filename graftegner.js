@@ -881,13 +881,15 @@ function placeAxisNames() {
   const rx = xmax - xmin,
     ry = ymax - ymin,
     off = 0.04;
+  const xLabelPos = [xmax - off * rx, off * ry];
+  const yLabelPos = [off * rx, ymax - off * ry];
   const axisFont = ADV.axis.labels.fontSize;
   const axisColor = ADV.axis.style.stroke;
   if (!xName) {
-    xName = brd.create('text', [0, 0, () => ADV.axis.labels.x || 'x'], {
+    xName = brd.create('text', [...xLabelPos, () => ADV.axis.labels.x || 'x'], {
       display: 'internal',
-      anchorX: 'right',
-      anchorY: 'top',
+      anchorX: 'left',
+      anchorY: 'bottom',
       fixed: true,
       fontSize: axisFont,
       layer: 40,
@@ -901,9 +903,9 @@ function placeAxisNames() {
     });
   }
   if (!yName) {
-    yName = brd.create('text', [0, 0, () => ADV.axis.labels.y || 'y'], {
+    yName = brd.create('text', [...yLabelPos, () => ADV.axis.labels.y || 'y'], {
       display: 'internal',
-      anchorX: 'right',
+      anchorX: 'left',
       anchorY: 'top',
       fixed: true,
       fontSize: axisFont,
@@ -917,8 +919,8 @@ function placeAxisNames() {
       color: axisColor
     });
   }
-  xName.moveTo([xmax - off * rx, 0 - off * ry]);
-  yName.moveTo([0 - off * rx, ymax - off * ry]);
+  xName.moveTo(xLabelPos);
+  yName.moveTo(yLabelPos);
 }
 
 /* ====== Lås 1:1 når lockAspect===true,
