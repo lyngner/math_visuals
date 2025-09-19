@@ -7,8 +7,7 @@
   const cfgBredde = document.getElementById('cfg-bredde');
   const cfgHoyde = document.getElementById('cfg-hoyde');
   const cfgDybde = document.getElementById('cfg-dybde');
-  const cfgDurationKlosser = document.getElementById('cfg-duration-klosser');
-  const cfgShowBtn = document.getElementById('cfg-showBtn');
+  const cfgVisibility = document.getElementById('cfg-visibility');
   const cfgShowExpression = document.getElementById('cfg-show-expression');
   const cfgMonsterAntallX = document.getElementById('cfg-monster-antallX');
   const cfgMonsterAntallY = document.getElementById('cfg-monster-antallY');
@@ -17,8 +16,6 @@
   const cfgMonsterDotSpacing = document.getElementById('cfg-monster-dotSpacing');
   const cfgMonsterLevelScale = document.getElementById('cfg-monster-levelScale');
   const cfgMonsterPatternGap = document.getElementById('cfg-monster-patternGap');
-  const cfgDurationMonster = document.getElementById('cfg-duration-monster');
-  const cfgShowBtnMonster = document.getElementById('cfg-showBtn-monster');
   const brickContainer = document.getElementById('brickContainer');
   const patternContainer = document.getElementById('patternContainer');
   const playBtn = document.getElementById('playBtn');
@@ -30,6 +27,7 @@
   const MONSTER_POINT_RADIUS_MAX = 60;
   const MONSTER_POINT_SPACING_MIN = 0;
   const MONSTER_POINT_SPACING_MAX = 60;
+  const MAX_VISIBILITY_DURATION = 10;
   const DEFAULT_CFG = {
     type: 'klosser',
     showExpression: true,
@@ -585,6 +583,12 @@
     k.dybde = clampInt(k.dybde, 1, dk.dybde);
     k.duration = clampInt(k.duration, 0, dk.duration);
     k.showBtn = k.showBtn === true;
+    if (k.showBtn) {
+      const normalizedDuration = Number.isFinite(k.duration) ? k.duration : dk.duration;
+      k.duration = Math.min(MAX_VISIBILITY_DURATION, Math.max(1, normalizedDuration));
+    } else {
+      k.duration = Math.max(0, k.duration);
+    }
     const m = CFG.monster;
     const dm = DEFAULT_CFG.monster;
     m.antallX = clampInt(m.antallX, 0, dm.antallX);
@@ -596,7 +600,26 @@
     m.patternGap = clampFloat(m.patternGap, 0, dm.patternGap);
     m.duration = clampInt(m.duration, 0, dm.duration);
     m.showBtn = m.showBtn === true;
+    if (m.showBtn) {
+      const normalizedDuration = Number.isFinite(m.duration) ? m.duration : dm.duration;
+      m.duration = Math.min(MAX_VISIBILITY_DURATION, Math.max(1, normalizedDuration));
+    } else {
+      m.duration = Math.max(0, m.duration);
+    }
     return CFG;
+  }
+  function resolveVisibilityValue(config) {
+    if (!config || config.showBtn !== true) {
+      return 'always';
+    }
+    const normalizedDuration = Number.isFinite(config.duration) ? config.duration : 1;
+    const clampedDuration = Math.min(MAX_VISIBILITY_DURATION, Math.max(1, normalizedDuration));
+    return String(clampedDuration);
+  }
+  function updateVisibilityControlValue() {
+    if (!cfgVisibility) return;
+    const activeCfg = CFG.type === 'monster' ? CFG.monster : CFG.klosser;
+    cfgVisibility.value = resolveVisibilityValue(activeCfg);
   }
   function syncControlsToCfg() {
     sanitizeCfg();
@@ -607,8 +630,6 @@
     if (cfgBredde) cfgBredde.value = CFG.klosser.bredde;
     if (cfgHoyde) cfgHoyde.value = CFG.klosser.hoyde;
     if (cfgDybde) cfgDybde.value = CFG.klosser.dybde;
-    if (cfgDurationKlosser) cfgDurationKlosser.value = CFG.klosser.duration;
-    if (cfgShowBtn) cfgShowBtn.checked = CFG.klosser.showBtn;
     if (cfgMonsterAntallX) cfgMonsterAntallX.value = CFG.monster.antallX;
     if (cfgMonsterAntallY) cfgMonsterAntallY.value = CFG.monster.antallY;
     if (cfgAntall) cfgAntall.value = CFG.monster.antall;
@@ -619,11 +640,11 @@
       cfgMonsterPatternGap.value = CFG.monster.patternGap;
       updateMonsterPatternGapState();
     }
-    if (cfgDurationMonster) cfgDurationMonster.value = CFG.monster.duration;
-    if (cfgShowBtnMonster) cfgShowBtnMonster.checked = CFG.monster.showBtn;
+    updateVisibilityControlValue();
   }
   function renderView() {
     sanitizeCfg();
+    updateVisibilityControlValue();
     if (CFG.type === 'klosser') {
       if (klosserConfig) klosserConfig.style.display = 'block';
       if (monsterConfig) monsterConfig.style.display = 'none';
@@ -683,17 +704,6 @@
   bindNumberInput(cfgBredde, () => CFG.klosser, 'bredde', 1);
   bindNumberInput(cfgHoyde, () => CFG.klosser, 'hoyde', 1);
   bindNumberInput(cfgDybde, () => CFG.klosser, 'dybde', 1);
-  cfgDurationKlosser === null || cfgDurationKlosser === void 0 || cfgDurationKlosser.addEventListener('input', () => {
-    const num = Number.parseInt(cfgDurationKlosser.value, 10);
-    if (Number.isFinite(num)) {
-      CFG.klosser.duration = Math.max(0, Math.trunc(num));
-      cfgDurationKlosser.value = String(CFG.klosser.duration);
-    }
-  });
-  cfgShowBtn === null || cfgShowBtn === void 0 || cfgShowBtn.addEventListener('change', () => {
-    CFG.klosser.showBtn = !!cfgShowBtn.checked;
-    renderView();
-  });
   bindNumberInput(cfgMonsterAntallX, () => CFG.monster, 'antallX', 0);
   bindNumberInput(cfgMonsterAntallY, () => CFG.monster, 'antallY', 0);
   bindNumberInput(cfgAntall, () => CFG.monster, 'antall', 0);
@@ -701,17 +711,25 @@
   bindFloatInput(cfgMonsterDotSpacing, () => CFG.monster, 'dotSpacing', MONSTER_POINT_SPACING_MIN, DEFAULT_CFG.monster.dotSpacing, MONSTER_POINT_SPACING_MAX);
   bindFloatInput(cfgMonsterLevelScale, () => CFG.monster, 'levelScale', 0.1, DEFAULT_CFG.monster.levelScale);
   bindFloatInput(cfgMonsterPatternGap, () => CFG.monster, 'patternGap', 0, DEFAULT_CFG.monster.patternGap);
-  cfgDurationMonster === null || cfgDurationMonster === void 0 || cfgDurationMonster.addEventListener('input', () => {
-    const num = Number.parseInt(cfgDurationMonster.value, 10);
-    if (Number.isFinite(num)) {
-      CFG.monster.duration = Math.max(0, Math.trunc(num));
-      cfgDurationMonster.value = String(CFG.monster.duration);
-    }
-  });
-  cfgShowBtnMonster === null || cfgShowBtnMonster === void 0 || cfgShowBtnMonster.addEventListener('change', () => {
-    CFG.monster.showBtn = !!cfgShowBtnMonster.checked;
-    renderView();
-  });
+  if (cfgVisibility) {
+    cfgVisibility.addEventListener('change', () => {
+      const target = CFG.type === 'monster' ? CFG.monster : CFG.klosser;
+      if (!target) return;
+      const value = cfgVisibility.value;
+      if (value === 'always') {
+        target.showBtn = false;
+      } else {
+        const num = Number.parseInt(value, 10);
+        if (Number.isFinite(num)) {
+          target.showBtn = true;
+          target.duration = Math.min(MAX_VISIBILITY_DURATION, Math.max(1, num));
+        } else {
+          target.showBtn = false;
+        }
+      }
+      renderView();
+    });
+  }
   cfgType === null || cfgType === void 0 || cfgType.addEventListener('change', () => {
     CFG.type = cfgType.value === 'monster' ? 'monster' : 'klosser';
     cfgType.value = CFG.type;
