@@ -1,12 +1,17 @@
 (function () {
   const cfgType = document.getElementById('cfg-type');
   const klosserConfig = document.getElementById('klosserConfig');
+  const rektangelConfig = document.getElementById('rektangelConfig');
   const monsterConfig = document.getElementById('monsterConfig');
   const cfgAntallX = document.getElementById('cfg-antallX');
   const cfgAntallY = document.getElementById('cfg-antallY');
   const cfgBredde = document.getElementById('cfg-bredde');
   const cfgHoyde = document.getElementById('cfg-hoyde');
   const cfgDybde = document.getElementById('cfg-dybde');
+  const cfgRektangelAntallX = document.getElementById('cfg-rektangel-antallX');
+  const cfgRektangelAntallY = document.getElementById('cfg-rektangel-antallY');
+  const cfgRektangelBredde = document.getElementById('cfg-rektangel-bredde');
+  const cfgRektangelHoyde = document.getElementById('cfg-rektangel-hoyde');
   const cfgVisibility = document.getElementById('cfg-visibility');
   const cfgShowExpression = document.getElementById('cfg-show-expression');
   const cfgMonsterAntallX = document.getElementById('cfg-monster-antallX');
@@ -16,6 +21,7 @@
   const cfgMonsterLevelScale = document.getElementById('cfg-monster-levelScale');
   const cfgMonsterPatternGap = document.getElementById('cfg-monster-patternGap');
   const brickContainer = document.getElementById('brickContainer');
+  const rectContainer = document.getElementById('rectContainer');
   const patternContainer = document.getElementById('patternContainer');
   const playBtn = document.getElementById('playBtn');
   const expression = document.getElementById('expression');
@@ -37,6 +43,14 @@
       bredde: 2,
       hoyde: 3,
       dybde: 2,
+      duration: 3,
+      showBtn: false
+    },
+    rektangel: {
+      antallX: 5,
+      antallY: 2,
+      bredde: 2,
+      hoyde: 3,
       duration: 3,
       showBtn: false
     },
@@ -69,13 +83,16 @@
     const base = deepClone(DEFAULT_CFG) || {};
     const normalized = overrides && typeof overrides === 'object' ? overrides : {};
     if (typeof normalized.type === 'string') {
-      base.type = normalized.type === 'monster' ? 'monster' : 'klosser';
+      base.type = ['monster', 'rektangel'].includes(normalized.type) ? normalized.type : 'klosser';
     }
     if (Object.prototype.hasOwnProperty.call(normalized, 'showExpression')) {
       base.showExpression = normalized.showExpression !== false;
     }
     if (normalized.klosser && typeof normalized.klosser === 'object') {
       base.klosser = Object.assign({}, base.klosser, normalized.klosser);
+    }
+    if (normalized.rektangel && typeof normalized.rektangel === 'object') {
+      base.rektangel = Object.assign({}, base.rektangel, normalized.rektangel);
     }
     if (normalized.monster && typeof normalized.monster === 'object') {
       base.monster = Object.assign({}, base.monster, normalized.monster);
@@ -120,8 +137,25 @@
       })
     }
   }, {
-    id: 'kvikkbilder-monster-3',
+    id: 'kvikkbilder-rektangel-3',
     exampleNumber: '3',
+    title: '5 · 2 · (2 · 3)',
+    config: {
+      CFG: createExampleCfg({
+        type: 'rektangel',
+        showExpression: true,
+        rektangel: {
+          antallX: 5,
+          antallY: 2,
+          bredde: 2,
+          hoyde: 3,
+          showBtn: false
+        }
+      })
+    }
+  }, {
+    id: 'kvikkbilder-monster-3',
+    exampleNumber: '4',
     title: 'Numbervisual 12',
     config: {
       CFG: createExampleCfg({
@@ -232,6 +266,34 @@
     svg.appendChild(group);
     return svg;
   }
+  function createRectFigure(bredde, hoyde) {
+    const widthCount = Math.max(1, Math.trunc(bredde));
+    const heightCount = Math.max(1, Math.trunc(hoyde));
+    const dotRadius = 8;
+    const dotDiameter = dotRadius * 2;
+    const gap = 8;
+    const stepX = dotDiameter + gap;
+    const stepY = dotDiameter + gap;
+    const svgWidth = (widthCount - 1) * stepX + dotDiameter;
+    const svgHeight = (heightCount - 1) * stepY + dotDiameter;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
+    for (let y = 0; y < heightCount; y++) {
+      for (let x = 0; x < widthCount; x++) {
+        const cx = x * stepX + dotRadius;
+        const cy = y * stepY + dotRadius;
+        const circle = document.createElementNS(svg.namespaceURI, 'circle');
+        circle.setAttribute('cx', cx);
+        circle.setAttribute('cy', cy);
+        circle.setAttribute('r', dotRadius);
+        circle.setAttribute('fill', '#111827');
+        svg.appendChild(circle);
+      }
+    }
+    return svg;
+  }
   function filterUnitFactors(factors) {
     if (!Array.isArray(factors)) return [];
     return factors.filter(value => value !== 1);
@@ -294,6 +356,41 @@
       const fig = createBrick(width, height, depth);
       fig.setAttribute('aria-label', `${width}x${height}x${depth} kloss`);
       brickContainer.appendChild(fig);
+    }
+  }
+  function renderRektangel() {
+    if (!rectContainer) return;
+    const {
+      antallX = 0,
+      antallY = 0,
+      bredde = 0,
+      hoyde = 0
+    } = CFG.rektangel || {};
+    const cols = Math.max(0, Math.trunc(antallX));
+    const rows = Math.max(0, Math.trunc(antallY));
+    const width = Math.max(1, Math.trunc(bredde));
+    const height = Math.max(1, Math.trunc(hoyde));
+    rectContainer.innerHTML = '';
+    rectContainer.style.gridTemplateColumns = cols > 0 ? `repeat(${cols}, 1fr)` : '';
+    rectContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows}, 1fr)` : '';
+    const perFig = width * height;
+    const totalFigures = cols * rows;
+    const total = totalFigures * perFig;
+    const firstExpression = formatOuterInnerExpression([cols, rows], [width, height]);
+    const productStep = formatProductStep([totalFigures, perFig]);
+    const parts = [firstExpression];
+    if (productStep.count >= 2) {
+      parts.push(`= ${productStep.text}`);
+    }
+    parts.push(`= ${total}`);
+    expression.textContent = parts.join(' ');
+    for (let i = 0; i < totalFigures; i++) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'rect-item';
+      const fig = createRectFigure(width, height);
+      fig.setAttribute('aria-label', `${width}x${height} rektangel prikkbilde`);
+      wrapper.appendChild(fig);
+      rectContainer.appendChild(wrapper);
     }
   }
   function primeFactors(n) {
@@ -562,6 +659,7 @@
   function updateVisibilityKlosser() {
     var _CFG$klosser;
     patternContainer.style.display = 'none';
+    if (rectContainer) rectContainer.style.display = 'none';
     if ((_CFG$klosser = CFG.klosser) !== null && _CFG$klosser !== void 0 && _CFG$klosser.showBtn) {
       playBtn.style.display = 'flex';
       brickContainer.style.display = 'none';
@@ -574,12 +672,31 @@
   function updateVisibilityMonster() {
     var _CFG$monster;
     brickContainer.style.display = 'none';
+    if (rectContainer) rectContainer.style.display = 'none';
     if ((_CFG$monster = CFG.monster) !== null && _CFG$monster !== void 0 && _CFG$monster.showBtn) {
       playBtn.style.display = 'flex';
       patternContainer.style.display = 'none';
     } else {
       playBtn.style.display = 'none';
       patternContainer.style.display = 'grid';
+    }
+    applyExpressionVisibility();
+  }
+  function updateVisibilityRektangel() {
+    var _CFG$rektangel;
+    if (!rectContainer) {
+      playBtn.style.display = 'none';
+      applyExpressionVisibility();
+      return;
+    }
+    brickContainer.style.display = 'none';
+    patternContainer.style.display = 'none';
+    if ((_CFG$rektangel = CFG.rektangel) !== null && _CFG$rektangel !== void 0 && _CFG$rektangel.showBtn) {
+      playBtn.style.display = 'flex';
+      rectContainer.style.display = 'none';
+    } else {
+      playBtn.style.display = 'none';
+      rectContainer.style.display = 'grid';
     }
     applyExpressionVisibility();
   }
@@ -612,11 +729,12 @@
     }
   }
   function sanitizeCfg() {
-    if (CFG.type !== 'monster' && CFG.type !== 'klosser') {
+    if (!['monster', 'klosser', 'rektangel'].includes(CFG.type)) {
       CFG.type = DEFAULT_CFG.type;
     }
     CFG.showExpression = CFG.showExpression !== false;
     if (!CFG.klosser || typeof CFG.klosser !== 'object') CFG.klosser = {};
+    if (!CFG.rektangel || typeof CFG.rektangel !== 'object') CFG.rektangel = {};
     if (!CFG.monster || typeof CFG.monster !== 'object') CFG.monster = {};
     const k = CFG.klosser;
     const dk = DEFAULT_CFG.klosser;
@@ -632,6 +750,20 @@
       k.duration = Math.min(MAX_VISIBILITY_DURATION, Math.max(1, normalizedDuration));
     } else {
       k.duration = Math.max(0, k.duration);
+    }
+    const r = CFG.rektangel;
+    const dr = DEFAULT_CFG.rektangel;
+    r.antallX = clampInt(r.antallX, 0, dr.antallX);
+    r.antallY = clampInt(r.antallY, 0, dr.antallY);
+    r.bredde = clampInt(r.bredde, 1, dr.bredde);
+    r.hoyde = clampInt(r.hoyde, 1, dr.hoyde);
+    r.duration = clampInt(r.duration, 0, dr.duration);
+    r.showBtn = r.showBtn === true;
+    if (r.showBtn) {
+      const normalizedDuration = Number.isFinite(r.duration) ? r.duration : dr.duration;
+      r.duration = Math.min(MAX_VISIBILITY_DURATION, Math.max(1, normalizedDuration));
+    } else {
+      r.duration = Math.max(0, r.duration);
     }
     const m = CFG.monster;
     const dm = DEFAULT_CFG.monster;
@@ -662,7 +794,10 @@
   }
   function updateVisibilityControlValue() {
     if (!cfgVisibility) return;
-    const activeCfg = CFG.type === 'monster' ? CFG.monster : CFG.klosser;
+    let activeCfg;
+    if (CFG.type === 'monster') activeCfg = CFG.monster;
+    else if (CFG.type === 'rektangel') activeCfg = CFG.rektangel;
+    else activeCfg = CFG.klosser;
     cfgVisibility.value = resolveVisibilityValue(activeCfg);
   }
   function syncControlsToCfg() {
@@ -674,6 +809,10 @@
     if (cfgBredde) cfgBredde.value = CFG.klosser.bredde;
     if (cfgHoyde) cfgHoyde.value = CFG.klosser.hoyde;
     if (cfgDybde) cfgDybde.value = CFG.klosser.dybde;
+    if (cfgRektangelAntallX) cfgRektangelAntallX.value = CFG.rektangel.antallX;
+    if (cfgRektangelAntallY) cfgRektangelAntallY.value = CFG.rektangel.antallY;
+    if (cfgRektangelBredde) cfgRektangelBredde.value = CFG.rektangel.bredde;
+    if (cfgRektangelHoyde) cfgRektangelHoyde.value = CFG.rektangel.hoyde;
     if (cfgMonsterAntallX) cfgMonsterAntallX.value = CFG.monster.antallX;
     if (cfgMonsterAntallY) cfgMonsterAntallY.value = CFG.monster.antallY;
     if (cfgAntall) cfgAntall.value = CFG.monster.antall;
@@ -690,11 +829,19 @@
     updateVisibilityControlValue();
     if (CFG.type === 'klosser') {
       if (klosserConfig) klosserConfig.style.display = 'block';
+      if (rektangelConfig) rektangelConfig.style.display = 'none';
       if (monsterConfig) monsterConfig.style.display = 'none';
       renderKlosser();
       updateVisibilityKlosser();
+    } else if (CFG.type === 'rektangel') {
+      if (klosserConfig) klosserConfig.style.display = 'none';
+      if (rektangelConfig) rektangelConfig.style.display = 'block';
+      if (monsterConfig) monsterConfig.style.display = 'none';
+      renderRektangel();
+      updateVisibilityRektangel();
     } else {
       if (klosserConfig) klosserConfig.style.display = 'none';
+      if (rektangelConfig) rektangelConfig.style.display = 'none';
       if (monsterConfig) monsterConfig.style.display = 'block';
       renderMonster();
       updateVisibilityMonster();
@@ -747,6 +894,10 @@
   bindNumberInput(cfgBredde, () => CFG.klosser, 'bredde', 1);
   bindNumberInput(cfgHoyde, () => CFG.klosser, 'hoyde', 1);
   bindNumberInput(cfgDybde, () => CFG.klosser, 'dybde', 1);
+  bindNumberInput(cfgRektangelAntallX, () => CFG.rektangel, 'antallX', 0);
+  bindNumberInput(cfgRektangelAntallY, () => CFG.rektangel, 'antallY', 0);
+  bindNumberInput(cfgRektangelBredde, () => CFG.rektangel, 'bredde', 1);
+  bindNumberInput(cfgRektangelHoyde, () => CFG.rektangel, 'hoyde', 1);
   bindNumberInput(cfgMonsterAntallX, () => CFG.monster, 'antallX', 0);
   bindNumberInput(cfgMonsterAntallY, () => CFG.monster, 'antallY', 0);
   bindNumberInput(cfgAntall, () => CFG.monster, 'antall', 0);
@@ -755,7 +906,10 @@
   bindFloatInput(cfgMonsterPatternGap, () => CFG.monster, 'patternGap', 0, DEFAULT_CFG.monster.patternGap);
   if (cfgVisibility) {
     cfgVisibility.addEventListener('change', () => {
-      const target = CFG.type === 'monster' ? CFG.monster : CFG.klosser;
+      let target;
+      if (CFG.type === 'monster') target = CFG.monster;
+      else if (CFG.type === 'rektangel') target = CFG.rektangel;
+      else target = CFG.klosser;
       if (!target) return;
       const value = cfgVisibility.value;
       if (value === 'always') {
@@ -773,7 +927,8 @@
     });
   }
   cfgType === null || cfgType === void 0 || cfgType.addEventListener('change', () => {
-    CFG.type = cfgType.value === 'monster' ? 'monster' : 'klosser';
+    const selected = cfgType.value;
+    CFG.type = ['monster', 'rektangel'].includes(selected) ? selected : 'klosser';
     cfgType.value = CFG.type;
     renderView();
   });
@@ -792,6 +947,15 @@
       setTimeout(() => {
         updateVisibilityKlosser();
       }, duration * 1000);
+    } else if (CFG.type === 'rektangel') {
+      const duration = Math.max(0, Number.isFinite(CFG.rektangel.duration) ? CFG.rektangel.duration : 0);
+      renderRektangel();
+      playBtn.style.display = 'none';
+      if (rectContainer) rectContainer.style.display = 'grid';
+      applyExpressionVisibility();
+      setTimeout(() => {
+        updateVisibilityRektangel();
+      }, duration * 1000);
     } else {
       const duration = Math.max(0, Number.isFinite(CFG.monster.duration) ? CFG.monster.duration : 0);
       renderMonster();
@@ -804,14 +968,14 @@
     }
   });
   btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => {
-    const svg = brickContainer.querySelector('svg') || patternContainer.querySelector('svg');
+    const svg = brickContainer.querySelector('svg') || (rectContainer === null || rectContainer === void 0 ? void 0 : rectContainer.querySelector('svg')) || patternContainer.querySelector('svg');
     if (svg) {
       const fileName = CFG.type === 'monster' ? 'numbervisuals.svg' : 'kvikkbilder.svg';
       downloadSVG(svg, fileName);
     }
   });
   btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => {
-    const svg = brickContainer.querySelector('svg') || patternContainer.querySelector('svg');
+    const svg = brickContainer.querySelector('svg') || (rectContainer === null || rectContainer === void 0 ? void 0 : rectContainer.querySelector('svg')) || patternContainer.querySelector('svg');
     if (svg) {
       const fileName = CFG.type === 'monster' ? 'numbervisuals.png' : 'kvikkbilder.png';
       downloadPNG(svg, fileName, 2);

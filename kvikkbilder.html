@@ -44,6 +44,30 @@
       transform:translateY(-12px);
     }
     #brickContainer svg{width:100%;height:100%;}
+    #rectContainer{
+      position:absolute;
+      inset:0;
+      display:grid;
+      place-items:center;
+      justify-content:center;
+      align-content:center;
+      justify-items:center;
+      gap:var(--rect-gap, 18px);
+      padding:var(--rect-padding, 0px);
+      grid-template-columns:repeat(1,minmax(0,1fr));
+      grid-template-rows:repeat(1,minmax(0,1fr));
+      grid-auto-rows:minmax(0,1fr);
+    }
+    #rectContainer .rect-item{
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:var(--rect-item-padding, 12px);
+      box-sizing:border-box;
+    }
+    #rectContainer svg{width:100%;height:100%;display:block;}
     #patternContainer{
       position:absolute;
       inset:0;
@@ -109,6 +133,7 @@
         <div id="figureArea" class="figure-area">
           <button id="playBtn" aria-label="Vis kvikkbilde">▶</button>
           <div id="brickContainer" class="figure" aria-label="Kvikkbilder klosser"></div>
+          <div id="rectContainer" class="figure" aria-label="Kvikkbilder rektangel"></div>
           <div id="patternContainer" class="figure" aria-label="Numbervisuals"></div>
         </div>
         <div id="expression"></div>
@@ -124,6 +149,7 @@
           <label>Type
             <select id="cfg-type">
               <option value="klosser">Klosser</option>
+              <option value="rektangel">Rektangel</option>
               <option value="monster">Numbervisuals</option>
             </select>
           </label>
@@ -164,6 +190,24 @@
               </label>
               <label>Dybde
                 <input id="cfg-dybde" type="number" min="1" value="2">
+              </label>
+            </div>
+          </div>
+          <div id="rektangelConfig">
+            <div class="field-row field-row--two">
+              <label>Antall X
+                <input id="cfg-rektangel-antallX" type="number" min="1" value="5">
+              </label>
+              <label>Antall Y
+                <input id="cfg-rektangel-antallY" type="number" min="1" value="2">
+              </label>
+            </div>
+            <div class="field-row field-row--two">
+              <label>Bredde
+                <input id="cfg-rektangel-bredde" type="number" min="1" value="2">
+              </label>
+              <label>Høyde
+                <input id="cfg-rektangel-hoyde" type="number" min="1" value="3">
               </label>
             </div>
           </div>
