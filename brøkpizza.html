@@ -40,6 +40,8 @@
     .settings fieldset { flex:1; }
     legend { font-weight:600; font-size:13px; color:#374151; padding:0 4px; }
     .checkbox-row { display:flex; align-items:center; gap:6px; }
+    .field-row { display:flex; gap:10px; flex-wrap:wrap; }
+    .field-row .field { flex:1 1 140px; display:flex; flex-direction:column; gap:4px; }
 
     /* Kontainer for pizzaer og tegn mellom dem */
     .grid2 {
@@ -196,10 +198,16 @@
           <div class="settings">
           <fieldset>
             <legend>Pizza 1</legend>
-            <label for="p1T">Teller (t)</label>
-            <input id="p1T" type="number" value="3" min="0">
-            <label for="p1N">Nevner (n)</label>
-            <input id="p1N" type="number" value="10" min="1">
+            <div class="field-row">
+              <div class="field">
+                <label for="p1T">Teller (t)</label>
+                <input id="p1T" type="number" value="3" min="0">
+              </div>
+              <div class="field">
+                <label for="p1N">Nevner (n)</label>
+                <input id="p1N" type="number" value="10" min="1">
+              </div>
+            </div>
             <div class="checkbox-row"><input id="p1LockN" type="checkbox"><label for="p1LockN">Lås nevner</label></div>
             <div class="checkbox-row"><input id="p1HideNVal" type="checkbox"><label for="p1HideNVal">Skjul n-verdi</label></div>
             <div class="checkbox-row"><input id="p1LockT" type="checkbox"><label for="p1LockT">Lås teller</label></div>
@@ -210,10 +218,16 @@
               <option value="percent">percent</option>
               <option value="decimal">decimal</option>
             </select>
-            <label for="p1MinN">Min n</label>
-            <input id="p1MinN" type="number" value="1" min="1">
-            <label for="p1MaxN">Maks n</label>
-            <input id="p1MaxN" type="number" value="24" min="1">
+            <div class="field-row">
+              <div class="field">
+                <label for="p1MinN">Min n</label>
+                <input id="p1MinN" type="number" value="1" min="1">
+              </div>
+              <div class="field">
+                <label for="p1MaxN">Maks n</label>
+                <input id="p1MaxN" type="number" value="24" min="1">
+              </div>
+            </div>
             <label for="op1">Tegn</label>
             <select id="op1">
               <option value="">none</option>
@@ -225,10 +239,16 @@
 
           <fieldset id="fieldset2" style="display:none">
             <legend>Pizza 2</legend>
-            <label for="p2T">Teller (t)</label>
-            <input id="p2T" type="number" value="4" min="0">
-            <label for="p2N">Nevner (n)</label>
-            <input id="p2N" type="number" value="10" min="1">
+            <div class="field-row">
+              <div class="field">
+                <label for="p2T">Teller (t)</label>
+                <input id="p2T" type="number" value="4" min="0">
+              </div>
+              <div class="field">
+                <label for="p2N">Nevner (n)</label>
+                <input id="p2N" type="number" value="10" min="1">
+              </div>
+            </div>
             <div class="checkbox-row"><input id="p2LockN" type="checkbox" checked><label for="p2LockN">Lås nevner</label></div>
             <div class="checkbox-row"><input id="p2HideNVal" type="checkbox"><label for="p2HideNVal">Skjul n-verdi</label></div>
             <div class="checkbox-row"><input id="p2LockT" type="checkbox"><label for="p2LockT">Lås teller</label></div>
@@ -239,10 +259,16 @@
               <option value="percent" selected>percent</option>
               <option value="decimal">decimal</option>
             </select>
-            <label for="p2MinN">Min n</label>
-            <input id="p2MinN" type="number" value="1" min="1">
-            <label for="p2MaxN">Maks n</label>
-            <input id="p2MaxN" type="number" value="24" min="1">
+            <div class="field-row">
+              <div class="field">
+                <label for="p2MinN">Min n</label>
+                <input id="p2MinN" type="number" value="1" min="1">
+              </div>
+              <div class="field">
+                <label for="p2MaxN">Maks n</label>
+                <input id="p2MaxN" type="number" value="24" min="1">
+              </div>
+            </div>
             <label for="op2">Tegn</label>
             <select id="op2">
               <option value="">none</option>
@@ -254,10 +280,16 @@
 
           <fieldset id="fieldset3" style="display:none">
             <legend>Pizza 3</legend>
-            <label for="p3T">Teller (t)</label>
-            <input id="p3T" type="number" value="4" min="0">
-            <label for="p3N">Nevner (n)</label>
-            <input id="p3N" type="number" value="10" min="1">
+            <div class="field-row">
+              <div class="field">
+                <label for="p3T">Teller (t)</label>
+                <input id="p3T" type="number" value="4" min="0">
+              </div>
+              <div class="field">
+                <label for="p3N">Nevner (n)</label>
+                <input id="p3N" type="number" value="10" min="1">
+              </div>
+            </div>
             <div class="checkbox-row"><input id="p3LockN" type="checkbox"><label for="p3LockN">Lås nevner</label></div>
             <div class="checkbox-row"><input id="p3HideNVal" type="checkbox"><label for="p3HideNVal">Skjul n-verdi</label></div>
             <div class="checkbox-row"><input id="p3LockT" type="checkbox"><label for="p3LockT">Lås teller</label></div>
@@ -268,10 +300,16 @@
               <option value="percent">percent</option>
               <option value="decimal">decimal</option>
             </select>
-            <label for="p3MinN">Min n</label>
-            <input id="p3MinN" type="number" value="1" min="1">
-            <label for="p3MaxN">Maks n</label>
-            <input id="p3MaxN" type="number" value="24" min="1">
+            <div class="field-row">
+              <div class="field">
+                <label for="p3MinN">Min n</label>
+                <input id="p3MinN" type="number" value="1" min="1">
+              </div>
+              <div class="field">
+                <label for="p3MaxN">Maks n</label>
+                <input id="p3MaxN" type="number" value="24" min="1">
+              </div>
+            </div>
           </fieldset>
           </div>
         </div>
