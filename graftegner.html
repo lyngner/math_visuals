@@ -33,17 +33,20 @@
     .settings{ display:flex; flex-direction:column; gap:8px; }
     .settings label{ display:flex; flex-direction:column; gap:6px; font-size:13px; color:#4b5563; white-space:normal; }
     .settings input[type="text"], .settings input[type="number"], .settings select{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:100%; }
-    .func-table{ width:100%; border-collapse:separate; border-spacing:0 12px; margin:0 0 4px; }
-    .func-table td{ width:50%; padding:0 8px 0 0; vertical-align:top; }
-    .func-table td:last-child{ padding-right:0; }
-    .func-table label{ width:100%; }
-    .func-table .func-cell-inner{ display:flex; flex-direction:column; gap:6px; }
-    .func-table .func-cell-inner > .btn{ align-self:flex-start; margin-top:4px; }
+    .function-controls{ display:grid; grid-template-columns:auto 1fr; gap:16px; align-items:start; }
+    .function-controls #addFunc{ align-self:flex-start; }
+    .func-groups{ display:flex; flex-direction:column; gap:12px; width:100%; }
+    .func-group{ gap:14px; }
+    .func-group .func-fields{ display:flex; flex-wrap:wrap; gap:12px; }
+    .func-group .func-fields label{ flex:1 1 220px; max-width:280px; }
+    .func-group .glider-controls{ display:flex; flex-wrap:wrap; gap:12px; }
+    .func-group .glider-controls label{ flex:0 1 180px; }
+    .func-group .glider-controls label.startx-label{ flex:1 1 220px; }
     @media (max-width:680px){
-      .func-table{ border-spacing:0 10px; }
-      .func-table td{ display:block; width:100%; padding:0 0 8px 0; }
-      .func-table tr{ display:block; }
-      .func-table td:last-child{ padding-right:0; }
+      .function-controls{ grid-template-columns:1fr; }
+      .function-controls #addFunc{ justify-self:flex-start; }
+      .func-group .func-fields label,
+      .func-group .glider-controls label{ max-width:100%; flex:1 1 100%; }
     }
     .settings fieldset{ border:1px solid #e5e7eb; border-radius:12px; padding:16px; background:#fafbfc; }
     .settings fieldset legend{ padding:0 6px; font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:#6b7280; }
@@ -96,9 +99,10 @@
 
         <div class="card card--settings">
           <div class="settings">
-            <table id="funcRows" class="func-table">
-              <tbody></tbody>
-            </table>
+            <div class="function-controls">
+              <button id="addFunc" class="btn" type="button" aria-label="Legg til funksjon">Legg til</button>
+              <div id="funcRows" class="func-groups"></div>
+            </div>
             <fieldset>
               <legend>Koordinatsystem</legend>
               <div class="settings-group">

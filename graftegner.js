@@ -1976,50 +1976,33 @@ setupSettingsForm();
 function setupSettingsForm() {
   const root = document.querySelector('.settings');
   if (!root) return;
-  const funcRowsTable = document.getElementById('funcRows');
-  let funcRows = null;
-  if (funcRowsTable) {
-    funcRows = funcRowsTable.tBodies[0] || null;
-    if (!funcRows) {
-      funcRows = document.createElement('tbody');
-      funcRowsTable.appendChild(funcRows);
+  const funcRows = document.getElementById('funcRows');
+  let addBtn = document.getElementById('addFunc');
+  if (!addBtn) {
+    addBtn = document.createElement('button');
+    addBtn.id = 'addFunc';
+    addBtn.type = 'button';
+    addBtn.className = 'btn';
+    addBtn.textContent = 'Legg til';
+    addBtn.setAttribute('aria-label', 'Legg til funksjon');
+    const functionsHost = document.querySelector('.function-controls');
+    if (functionsHost) {
+      functionsHost.insertAdjacentElement('afterbegin', addBtn);
     }
+  } else {
+    addBtn.type = 'button';
+    addBtn.classList.add('btn');
+    addBtn.textContent = 'Legg til';
+    addBtn.setAttribute('aria-label', 'Legg til funksjon');
   }
-  const addBtn = document.createElement('button');
-  addBtn.id = 'addFunc';
-  addBtn.type = 'button';
-  addBtn.className = 'btn';
-  addBtn.textContent = '+';
-  addBtn.setAttribute('aria-label', 'Legg til funksjon');
   const g = id => document.getElementById(id);
   const showNamesInput = g('cfgShowNames');
   const showExprInput = g('cfgShowExpr');
   const showBracketsInput = g('cfgShowBrackets');
-  const gliderRow = document.createElement('tr');
-  gliderRow.className = 'glider-row';
-  gliderRow.innerHTML = `
-    <td>
-      <label class="points">Antall punkter på grafen
-        <select data-points>
-          <option value="0">0</option>
-          <option value="1">1</option>
-          <option value="2">2</option>
-        </select>
-      </label>
-    </td>
-    <td>
-      <label class="startx-label">Startposisjon, x
-        <input type="text" data-startx value="1" placeholder="1">
-      </label>
-    </td>
-  `;
-  if (funcRows) {
-    funcRows.appendChild(gliderRow);
-  }
-  gliderRow.style.display = 'none';
-  const gliderCountInput = gliderRow.querySelector('[data-points]');
-  const gliderStartInput = gliderRow.querySelector('input[data-startx]');
-  const gliderStartLabel = gliderStartInput ? gliderStartInput.closest('label') : null;
+  let gliderSection = null;
+  let gliderCountInput = null;
+  let gliderStartInput = null;
+  let gliderStartLabel = null;
   const isCoords = str => /^\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?)(?:\s*;\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?))*\s*$/.test(str);
   const isExplicitFun = str => {
     const m = str.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/) || str.match(/^y\s*=\s*(.+)$/i);
@@ -2047,7 +2030,10 @@ function setupSettingsForm() {
     return clamped > 0 ? clamped : 0;
   };
   const shouldEnableGliders = () => {
-    const firstRowInput = funcRows === null || funcRows === void 0 ? void 0 : funcRows.querySelector('tr.func-row input[data-fun]');
+    if (!funcRows) return false;
+    const firstGroup = funcRows.querySelector('.func-group');
+    if (!firstGroup) return false;
+    const firstRowInput = firstGroup.querySelector('input[data-fun]');
     if (!firstRowInput) return false;
     const value = firstRowInput.value.trim();
     if (!value) return false;
@@ -2064,9 +2050,9 @@ function setupSettingsForm() {
     }
   };
   const updateGliderVisibility = () => {
-    if (!gliderRow) return;
+    if (!gliderSection) return;
     const show = shouldEnableGliders();
-    gliderRow.style.display = show ? '' : 'none';
+    gliderSection.style.display = show ? '' : 'none';
     if (gliderCountInput) {
       gliderCountInput.disabled = !show;
     }
@@ -2074,7 +2060,7 @@ function setupSettingsForm() {
   };
   const buildSimpleFromForm = () => {
     var _rows$;
-    const rows = funcRows ? Array.from(funcRows.querySelectorAll('tr.func-row')) : [];
+    const rows = funcRows ? Array.from(funcRows.querySelectorAll('.func-group')) : [];
     const firstVal = ((_rows$ = rows[0]) === null || _rows$ === void 0 || (_rows$ = _rows$.querySelector('input[data-fun]')) === null || _rows$ === void 0 ? void 0 : _rows$.value.trim()) || '';
     const firstIsCoords = !!firstVal && isCoords(firstVal);
     const lines = [];
@@ -2125,6 +2111,10 @@ function setupSettingsForm() {
       window.SIMPLE = SIMPLE;
     }
   };
+  const handleGliderCountChange = () => {
+    updateStartInputState();
+    syncSimpleFromForm();
+  };
   if (gliderCountInput) {
     const onCountChange = () => {
       updateStartInputState();
@@ -2137,40 +2127,56 @@ function setupSettingsForm() {
     gliderStartInput.addEventListener('input', syncSimpleFromForm);
   }
   const toggleDomain = input => {
-    const row = input.closest('.func-row');
+    const row = input.closest('.func-group');
+    if (!row) return;
     const domLabel = row.querySelector('label.domain');
     if (isExplicitFun(input.value.trim())) {
-      domLabel.style.display = '';
+      if (domLabel) domLabel.style.display = '';
     } else {
-      domLabel.style.display = 'none';
-      const domInput = domLabel.querySelector('input[data-dom]');
-      if (domInput) domInput.value = '';
+      if (domLabel) {
+        domLabel.style.display = 'none';
+        const domInput = domLabel.querySelector('input[data-dom]');
+        if (domInput) domInput.value = '';
+      }
     }
     updateGliderVisibility();
   };
   const createRow = (index, funVal = '', domVal = '') => {
-    const row = document.createElement('tr');
-    row.className = 'func-row';
+    const row = document.createElement('fieldset');
+    row.className = 'func-group';
+    row.dataset.index = String(index);
+    const titleLabel = index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index;
     row.innerHTML = `
-      <td class="func-cell">
-        <div class="func-cell-inner">
-          <label class="func-input">${index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index}
-            <input type="text" data-fun>
-          </label>
-        </div>
-      </td>
-      <td>
-        <label class="domain">Avgrensning
+      <legend>Funksjon ${index}</legend>
+      <div class="func-fields">
+        <label class="func-input">
+          <span>${titleLabel}</span>
+          <input type="text" data-fun>
+        </label>
+        <label class="domain">
+          <span>Avgrensning</span>
           <input type="text" data-dom placeholder="[start, stopp]">
         </label>
-      </td>
+      </div>
+      ${index === 1 ? `
+      <div class="glider-controls">
+        <label class="points">
+          <span>Antall punkter på grafen</span>
+          <select data-points>
+            <option value="0">0</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+          </select>
+        </label>
+        <label class="startx-label">
+          <span>Startposisjon, x</span>
+          <input type="text" data-startx value="1" placeholder="1">
+        </label>
+      </div>
+      ` : ''}
     `;
     if (funcRows) {
-      if (gliderRow.parentElement === funcRows) {
-        funcRows.insertBefore(row, gliderRow);
-      } else {
-        funcRows.appendChild(row);
-      }
+      funcRows.appendChild(row);
     }
     const funInput = row.querySelector('input[data-fun]');
     const domInput = row.querySelector('input[data-dom]');
@@ -2185,26 +2191,28 @@ function setupSettingsForm() {
       domInput.value = domVal || '';
       domInput.addEventListener('input', syncSimpleFromForm);
     }
+    if (index === 1) {
+      gliderSection = row.querySelector('.glider-controls');
+      if (gliderSection) {
+        gliderSection.style.display = 'none';
+      }
+      gliderCountInput = row.querySelector('[data-points]');
+      gliderStartInput = row.querySelector('input[data-startx]');
+      gliderStartLabel = gliderStartInput ? gliderStartInput.closest('label') : null;
+      if (gliderCountInput) {
+        gliderCountInput.addEventListener('input', handleGliderCountChange);
+        gliderCountInput.addEventListener('change', handleGliderCountChange);
+      }
+      if (gliderStartInput) {
+        gliderStartInput.addEventListener('input', syncSimpleFromForm);
+      }
+    }
     if (funInput) {
       toggleDomain(funInput);
     }
     return row;
   };
-  const appendAddBtn = () => {
-    if (addBtn.parentElement) addBtn.parentElement.removeChild(addBtn);
-    const rows = funcRows ? funcRows.querySelectorAll('tr.func-row') : [];
-    const lastRow = rows.length ? rows[rows.length - 1] : null;
-    if (lastRow) {
-      const inner = lastRow.querySelector('.func-cell-inner');
-      if (inner) {
-        inner.appendChild(addBtn);
-      }
-    }
-  };
   const fillFormFromSimple = simple => {
-    if (addBtn.parentElement) {
-      addBtn.parentElement.removeChild(addBtn);
-    }
     const source = typeof simple === 'string' ? simple : typeof window !== 'undefined' ? window.SIMPLE : SIMPLE;
     const text = typeof source === 'string' ? source : '';
     if (typeof source === 'string') {
@@ -2217,6 +2225,10 @@ function setupSettingsForm() {
       filteredLines.push('');
     }
     if (funcRows) {
+      gliderSection = null;
+      gliderCountInput = null;
+      gliderStartInput = null;
+      gliderStartLabel = null;
       funcRows.innerHTML = '';
     }
     filteredLines.forEach((line, idx) => {
@@ -2229,10 +2241,6 @@ function setupSettingsForm() {
       }
       createRow(idx + 1, funVal, domVal);
     });
-    if (funcRows) {
-      funcRows.appendChild(gliderRow);
-    }
-    appendAddBtn();
     if (gliderCountInput) {
       var _SIMPLE_PARSED;
       const count = Number.isFinite((_SIMPLE_PARSED = SIMPLE_PARSED) === null || _SIMPLE_PARSED === void 0 ? void 0 : _SIMPLE_PARSED.pointsCount) ? SIMPLE_PARSED.pointsCount : 0;
@@ -2248,12 +2256,13 @@ function setupSettingsForm() {
     syncSimpleFromForm();
   };
   fillFormFromSimple(SIMPLE);
-  addBtn.addEventListener('click', () => {
-    const index = (funcRows ? funcRows.querySelectorAll('tr.func-row').length : 0) + 1;
-    createRow(index, '', '');
-    appendAddBtn();
-    syncSimpleFromForm();
-  });
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      const index = (funcRows ? funcRows.querySelectorAll('.func-group').length : 0) + 1;
+      createRow(index, '', '');
+      syncSimpleFromForm();
+    });
+  }
   if (typeof window !== 'undefined') {
     window.addEventListener('examples:loaded', () => {
       fillFormFromSimple(window.SIMPLE);
@@ -2286,7 +2295,7 @@ function setupSettingsForm() {
     syncSimpleFromForm();
     const p = new URLSearchParams();
     let idx = 1;
-    (funcRows ? funcRows.querySelectorAll('tr.func-row') : []).forEach((row, rowIdx) => {
+    (funcRows ? funcRows.querySelectorAll('.func-group') : []).forEach((row, rowIdx) => {
       const fun = row.querySelector('input[data-fun]').value.trim();
       const dom = row.querySelector('input[data-dom]').value.trim();
       if (!fun) return;
