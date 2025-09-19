@@ -829,7 +829,7 @@
           x2: endX,
           y2: y,
           stroke: sign > 0 ? '#111827' : '#dc2626',
-          'stroke-width': 6,
+          'stroke-width': 3,
           'stroke-linecap': 'round',
           'data-row-id': row.id,
           'data-index': i,
