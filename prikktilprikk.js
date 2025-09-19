@@ -15,6 +15,7 @@
   const clearBtn = document.getElementById('btnClear');
   const statusBox = document.getElementById('statusMessage');
   const addPointBtn = document.getElementById('btnAddPoint');
+  const sortPointsBtn = document.getElementById('btnSortPoints');
   const pointListEl = document.getElementById('pointList');
   const lineModeFieldset = document.getElementById('lineModeFieldset');
   const lineModeInputs = lineModeFieldset ? Array.from(lineModeFieldset.querySelectorAll('input[name="lineMode"]')) : [];
@@ -428,13 +429,29 @@
     renderBoard(validPoints);
   }
 
+  function sortPoints() {
+    const collator = new Intl.Collator('nb', { numeric: true, sensitivity: 'base' });
+    STATE.points.sort((a, b) => {
+      const labelA = a && typeof a.label === 'string' ? a.label : '';
+      const labelB = b && typeof b.label === 'string' ? b.label : '';
+      const compareLabel = collator.compare(labelA, labelB);
+      if (compareLabel !== 0) return compareLabel;
+      const idA = a && typeof a.id === 'string' ? a.id : '';
+      const idB = b && typeof b.id === 'string' ? b.id : '';
+      return collator.compare(idA, idB);
+    });
+    const validPoints = prepareState();
+    renderPointList(validPoints);
+    renderBoard(validPoints);
+  }
+
   function renderPointList(validPoints) {
     if (!pointListEl) return;
     if (!validPoints) validPoints = prepareState();
     pointEditors.clear();
     pointListEl.innerHTML = '';
     clearDragVisualState();
-    STATE.points.forEach((point, idx) => {
+    STATE.points.forEach(point => {
       const item = document.createElement('div');
       item.className = 'point-item';
       item.dataset.pointId = point.id;
@@ -460,11 +477,6 @@
         event.preventDefault();
       });
       item.appendChild(handle);
-
-      const nameEl = document.createElement('span');
-      nameEl.className = 'point-name';
-      nameEl.textContent = `Punkt ${idx + 1}`;
-      item.appendChild(nameEl);
 
       const idBadge = document.createElement('span');
       idBadge.className = 'point-id';
@@ -535,7 +547,6 @@
       pointListEl.appendChild(item);
       pointEditors.set(point.id, {
         itemEl: item,
-        nameEl,
         idEl: idBadge,
         coordInput,
         labelInput
@@ -554,10 +565,9 @@
   }
 
   function updatePointEditors() {
-    STATE.points.forEach((point, idx) => {
+    STATE.points.forEach(point => {
       const editor = pointEditors.get(point.id);
       if (!editor) return;
-      if (editor.nameEl) editor.nameEl.textContent = `Punkt ${idx + 1}`;
       if (editor.idEl) editor.idEl.textContent = point.id;
       if (editor.labelInput) editor.labelInput.value = point.label;
       if (editor.coordInput) editor.coordInput.value = coordinateString(point);
@@ -902,6 +912,13 @@
   if (addPointBtn) {
     addPointBtn.addEventListener('click', () => {
       addPoint();
+    });
+  }
+
+  if (sortPointsBtn) {
+    sortPointsBtn.addEventListener('click', () => {
+      sortPoints();
+      clearStatus();
     });
   }
 
