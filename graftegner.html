@@ -49,7 +49,11 @@
     .settings-group{ display:flex; flex-direction:column; gap:16px; }
     .input-label{ gap:6px; white-space:normal; }
     .input-label span{ font-size:12px; font-weight:600; letter-spacing:.01em; text-transform:uppercase; color:#374151; }
-    .options-grid{ display:grid; gap:6px; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); }
+    .options-table{ width:100%; border-collapse:separate; border-spacing:0 6px; }
+    .options-table td{ width:50%; padding:0 6px 0 0; vertical-align:top; }
+    .options-table td:nth-child(2){ padding-right:0; }
+    .options-table td[colspan]{ width:100%; padding-right:0; }
+    .options-table label{ width:100%; }
     .settings label.checkbox-inline{ flex-direction:row; align-items:center; gap:8px; font-size:13px; color:#4b5563; padding:4px 6px; border-radius:6px; }
     .settings label.checkbox-inline input{ margin:0; }
     .settings label.checkbox-inline span{ flex:1; }
@@ -64,6 +68,7 @@
     .font-grid label{ display:flex; flex-direction:row; align-items:center; gap:10px; color:#4b5563; font-size:13px; }
     .font-grid label span{ flex:1; font-size:12px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; color:#374151; }
     .font-grid label input{ width:82px; text-align:right; }
+    #cfgFontSize{ width:48px; text-align:center; padding:6px 8px; }
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
@@ -98,36 +103,60 @@
                   <span>Utsnitt (overstyrer autozoom)</span>
                   <input id="cfgScreen" type="text" value="" placeholder="minX, maxX, minY, maxY">
                 </label>
-                <div class="options-grid">
-                  <label class="checkbox-inline">
-                    <input id="cfgShowNames" type="checkbox" checked>
-                    <span>vis grafnavn</span>
-                  </label>
-                  <label class="checkbox-inline">
-                    <input id="cfgShowExpr" type="checkbox">
-                    <span>vis uttrykk</span>
-                  </label>
-                  <label class="checkbox-inline">
-                    <input id="cfgQ1" type="checkbox">
-                    <span>Kun 1. kvadrant</span>
-                  </label>
-                  <label class="checkbox-inline">
-                    <input id="cfgPan" type="checkbox">
-                    <span>Tillat panorering</span>
-                  </label>
-                  <label class="checkbox-inline">
-                    <input id="cfgLock" type="checkbox" checked>
-                    <span>Lås aksene 1:1</span>
-                  </label>
-                  <label class="checkbox-inline">
-                    <input id="cfgSnap" type="checkbox" checked>
-                    <span>Fest til rutenett</span>
-                  </label>
-                  <label class="checkbox-tile">
-                    <input id="cfgShowBrackets" type="checkbox" checked>
-                    <span>Vis [ ] på grafer</span>
-                  </label>
-                </div>
+                <table class="options-table">
+                  <tbody>
+                    <tr>
+                      <td>
+                        <label class="checkbox-inline">
+                          <input id="cfgShowNames" type="checkbox" checked>
+                          <span>vis grafnavn</span>
+                        </label>
+                      </td>
+                      <td>
+                        <label class="checkbox-inline">
+                          <input id="cfgShowExpr" type="checkbox">
+                          <span>vis uttrykk</span>
+                        </label>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <label class="checkbox-inline">
+                          <input id="cfgQ1" type="checkbox">
+                          <span>Kun 1. kvadrant</span>
+                        </label>
+                      </td>
+                      <td>
+                        <label class="checkbox-inline">
+                          <input id="cfgPan" type="checkbox">
+                          <span>Tillat panorering</span>
+                        </label>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <label class="checkbox-inline">
+                          <input id="cfgLock" type="checkbox" checked>
+                          <span>Lås aksene 1:1</span>
+                        </label>
+                      </td>
+                      <td>
+                        <label class="checkbox-inline">
+                          <input id="cfgSnap" type="checkbox" checked>
+                          <span>Fest til rutenett</span>
+                        </label>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colspan="2">
+                        <label class="checkbox-inline">
+                          <input id="cfgShowBrackets" type="checkbox" checked>
+                          <span>Vis [ ] på grafer</span>
+                        </label>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
                 <div class="axis-font-grid">
                   <div class="axis-group">
                     <div class="axis-title">Navn på akser</div>
