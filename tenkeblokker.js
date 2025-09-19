@@ -1,4 +1,3 @@
-var _combinedWholeControl;
 /* Tenkeblokker – grid layout */
 
 const DEFAULT_BLOCKS = [{
@@ -162,7 +161,9 @@ const CONFIG = {
   rows: 1,
   cols: 1,
   blocks: [],
-  showCombinedWhole: false
+  showCombinedWhole: false,
+  showCombinedWholeVertical: false,
+  rowLabels: []
 };
 const VBW = 900;
 const VBH = 420;
@@ -185,9 +186,14 @@ const addRowBtn = document.getElementById('tbAddRow');
 const removeColumnBtn = document.getElementById('tbRemoveColumn');
 const removeRowBtn = document.getElementById('tbRemoveRow');
 const settingsContainer = document.getElementById('tbSettings');
-const combinedWholeControls = {
-  row: document.getElementById('cfg-show-combined-row'),
-  checkbox: document.getElementById('cfg-show-combined-whole')
+const ROW_LABEL_ELEMENTS = [];
+const globalControls = {
+  fieldset: null,
+  horizontal: null,
+  horizontalRow: null,
+  vertical: null,
+  verticalRow: null,
+  rowLabelInputs: []
 };
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
@@ -203,7 +209,10 @@ if (typeof window !== 'undefined') {
     };
   });
 }
-const combinedWholeOverlay = createCombinedWholeOverlay();
+const combinedWholeOverlays = {
+  horizontal: createCombinedWholeOverlay('horizontal'),
+  vertical: createCombinedWholeOverlay('vertical')
+};
 if (typeof window !== 'undefined') {
   window.addEventListener('resize', () => draw(true));
 }
@@ -246,10 +255,6 @@ removeRowBtn === null || removeRowBtn === void 0 || removeRowBtn.addEventListene
     CONFIG.blocks.length = next;
   }
   draw();
-});
-(_combinedWholeControl = combinedWholeControls.checkbox) === null || _combinedWholeControl === void 0 || _combinedWholeControl.addEventListener('change', () => {
-  CONFIG.showCombinedWhole = !!combinedWholeControls.checkbox.checked;
-  draw(true);
 });
 btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => {
   const exportSvg = getExportSvg();
@@ -522,7 +527,15 @@ function normalizeConfig(initial = false) {
     }
   }
   CONFIG.activeBlocks = rows * cols;
+  const existingLabels = Array.isArray(CONFIG.rowLabels) ? CONFIG.rowLabels : [];
+  const normalizedRowLabels = [];
+  for (let i = 0; i < rows; i++) {
+    const value = existingLabels[i];
+    normalizedRowLabels.push(typeof value === 'string' ? value : '');
+  }
+  CONFIG.rowLabels = normalizedRowLabels;
   CONFIG.showCombinedWhole = toBoolean(CONFIG.showCombinedWhole, false);
+  CONFIG.showCombinedWholeVertical = toBoolean(CONFIG.showCombinedWholeVertical, false);
   const rowsChanged = Number.isFinite(previousRows) && previousRows !== rows;
   const colsChanged = Number.isFinite(previousCols) && previousCols !== cols;
   if (rowsChanged || colsChanged) structureChanged = true;
@@ -543,11 +556,19 @@ function rebuildStructure() {
   BLOCKS.length = 0;
   grid.innerHTML = '';
   if (settingsContainer) settingsContainer.innerHTML = '';
+  ROW_LABEL_ELEMENTS.length = 0;
+  buildGlobalSettings(settingsFragment);
   const rowElements = [];
   for (let r = 0; r < CONFIG.rows; r++) {
     const rowEl = document.createElement('div');
     rowEl.className = 'tb-row';
     rowEl.dataset.row = String(r);
+    const rowLabel = document.createElement('div');
+    rowLabel.className = 'tb-row-label';
+    rowLabel.dataset.row = String(r);
+    rowLabel.dataset.empty = 'true';
+    ROW_LABEL_ELEMENTS[r] = rowLabel;
+    rowEl.appendChild(rowLabel);
     rowElements.push(rowEl);
     panelsFragment.appendChild(rowEl);
     for (let c = 0; c < CONFIG.cols; c++) {
@@ -563,6 +584,85 @@ function rebuildStructure() {
   if (settingsContainer) settingsContainer.appendChild(settingsFragment);
   updateAddButtons();
 }
+
+function buildGlobalSettings(targetFragment) {
+  if (!targetFragment) return;
+  globalControls.fieldset = null;
+  globalControls.horizontal = null;
+  globalControls.horizontalRow = null;
+  globalControls.vertical = null;
+  globalControls.verticalRow = null;
+  globalControls.rowLabelInputs = [];
+  const fieldset = document.createElement('fieldset');
+  fieldset.className = 'tb-settings-global';
+  const legend = document.createElement('legend');
+  legend.textContent = 'Globale innstillinger';
+  fieldset.appendChild(legend);
+  const rowCount = Math.max(1, Number.parseInt(CONFIG.rows, 10) || 1);
+  if (rowCount > 0) {
+    const labelWrapper = document.createElement('div');
+    labelWrapper.className = 'tb-row-label-inputs';
+    let columns = 1;
+    if (rowCount >= 4) {
+      columns = 3;
+    } else if (rowCount >= 2) {
+      columns = 2;
+    }
+    labelWrapper.dataset.columns = String(columns);
+    for (let i = 0; i < rowCount; i++) {
+      const rowLabel = document.createElement('label');
+      rowLabel.textContent = `Rad ${i + 1}`;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'Tekst foran rad';
+      const existingValue = Array.isArray(CONFIG.rowLabels) && typeof CONFIG.rowLabels[i] === 'string' ? CONFIG.rowLabels[i] : '';
+      input.value = existingValue;
+      input.addEventListener('input', () => {
+        if (!Array.isArray(CONFIG.rowLabels)) CONFIG.rowLabels = [];
+        CONFIG.rowLabels[i] = input.value.trim();
+        draw(true);
+      });
+      rowLabel.appendChild(input);
+      labelWrapper.appendChild(rowLabel);
+      globalControls.rowLabelInputs[i] = input;
+    }
+    fieldset.appendChild(labelWrapper);
+  }
+  const horizontalRow = document.createElement('div');
+  horizontalRow.className = 'checkbox-row';
+  const horizontalInput = document.createElement('input');
+  horizontalInput.type = 'checkbox';
+  horizontalInput.id = 'tb-global-combined-horizontal';
+  horizontalInput.addEventListener('change', () => {
+    CONFIG.showCombinedWhole = !!horizontalInput.checked;
+    draw(true);
+  });
+  const horizontalLabel = document.createElement('label');
+  horizontalLabel.setAttribute('for', horizontalInput.id);
+  horizontalLabel.textContent = 'Vis horisontal markering av total';
+  horizontalRow.append(horizontalInput, horizontalLabel);
+  fieldset.appendChild(horizontalRow);
+  const verticalRow = document.createElement('div');
+  verticalRow.className = 'checkbox-row';
+  const verticalInput = document.createElement('input');
+  verticalInput.type = 'checkbox';
+  verticalInput.id = 'tb-global-combined-vertical';
+  verticalInput.addEventListener('change', () => {
+    CONFIG.showCombinedWholeVertical = !!verticalInput.checked;
+    draw(true);
+  });
+  const verticalLabel = document.createElement('label');
+  verticalLabel.setAttribute('for', verticalInput.id);
+  verticalLabel.textContent = 'Vis vertikal markering av total';
+  verticalRow.append(verticalInput, verticalLabel);
+  fieldset.appendChild(verticalRow);
+  targetFragment.appendChild(fieldset);
+  globalControls.fieldset = fieldset;
+  globalControls.horizontal = horizontalInput;
+  globalControls.horizontalRow = horizontalRow;
+  globalControls.vertical = verticalInput;
+  globalControls.verticalRow = verticalRow;
+}
 function draw(skipNormalization = false) {
   if (!skipNormalization) {
     const structureChanged = normalizeConfig();
@@ -574,10 +674,10 @@ function draw(skipNormalization = false) {
   }
   if (grid) grid.setAttribute('data-cols', String(CONFIG.cols));
   if (settingsContainer) {
-    const parsedCols = Number(CONFIG.cols);
-    const parsedRows = Number(CONFIG.rows);
-    const safeCols = Number.isFinite(parsedCols) && parsedCols > 0 ? Math.floor(parsedCols) : 1;
-    const safeRows = Number.isFinite(parsedRows) && parsedRows > 0 ? Math.floor(parsedRows) : 1;
+    const parsedColsForSettings = Number(CONFIG.cols);
+    const parsedRowsForSettings = Number(CONFIG.rows);
+    const safeCols = Number.isFinite(parsedColsForSettings) && parsedColsForSettings > 0 ? Math.floor(parsedColsForSettings) : 1;
+    const safeRows = Number.isFinite(parsedRowsForSettings) && parsedRowsForSettings > 0 ? Math.floor(parsedRowsForSettings) : 1;
     settingsContainer.style.setProperty('--tb-settings-cols', String(safeCols));
     settingsContainer.style.setProperty('--tb-settings-rows', String(safeRows));
     settingsContainer.dataset.cols = String(safeCols);
@@ -586,16 +686,50 @@ function draw(skipNormalization = false) {
   updateAddButtons();
   const multiple = CONFIG.activeBlocks > 1;
   multipleBlocksActive = multiple;
-  if (combinedWholeControls.row) combinedWholeControls.row.style.display = multiple ? '' : 'none';
-  if (combinedWholeControls.checkbox) {
-    combinedWholeControls.checkbox.disabled = !multiple;
-    if (!multiple) {
-      combinedWholeControls.checkbox.checked = false;
+  const parsedCols = Number(CONFIG.cols);
+  const parsedRows = Number(CONFIG.rows);
+  const hasMultipleCols = Number.isFinite(parsedCols) && parsedCols > 1;
+  const hasMultipleRows = Number.isFinite(parsedRows) && parsedRows > 1;
+  const horizontalAvailable = multiple && hasMultipleCols;
+  const verticalAvailable = multiple && hasMultipleRows;
+  if (globalControls.horizontal) {
+    globalControls.horizontal.disabled = !horizontalAvailable;
+    if (!horizontalAvailable) {
+      globalControls.horizontal.checked = false;
       CONFIG.showCombinedWhole = false;
     } else {
-      combinedWholeControls.checkbox.checked = !!CONFIG.showCombinedWhole;
+      globalControls.horizontal.checked = !!CONFIG.showCombinedWhole;
     }
   }
+  if (globalControls.horizontalRow) {
+    globalControls.horizontalRow.classList.toggle('is-disabled', !horizontalAvailable);
+  }
+  if (globalControls.vertical) {
+    globalControls.vertical.disabled = !verticalAvailable;
+    if (!verticalAvailable) {
+      globalControls.vertical.checked = false;
+      CONFIG.showCombinedWholeVertical = false;
+    } else {
+      globalControls.vertical.checked = !!CONFIG.showCombinedWholeVertical;
+    }
+  }
+  if (globalControls.verticalRow) {
+    globalControls.verticalRow.classList.toggle('is-disabled', !verticalAvailable);
+  }
+  if (Array.isArray(globalControls.rowLabelInputs)) {
+    globalControls.rowLabelInputs.forEach((input, index) => {
+      if (!input) return;
+      const value = Array.isArray(CONFIG.rowLabels) && typeof CONFIG.rowLabels[index] === 'string' ? CONFIG.rowLabels[index] : '';
+      if (input.value !== value) input.value = value;
+    });
+  }
+  ROW_LABEL_ELEMENTS.forEach((label, index) => {
+    if (!label) return;
+    const text = Array.isArray(CONFIG.rowLabels) && typeof CONFIG.rowLabels[index] === 'string' ? CONFIG.rowLabels[index] : '';
+    const trimmed = text.trim();
+    label.textContent = trimmed;
+    label.dataset.empty = trimmed ? 'false' : 'true';
+  });
   const rowTotals = Array.from({
     length: CONFIG.rows
   }, () => 0);
@@ -1177,7 +1311,7 @@ function setK(block, next) {
   cfg.k = clamped;
   draw(true);
 }
-function createCombinedWholeOverlay() {
+function createCombinedWholeOverlay(orientation = 'horizontal') {
   if (!board) return null;
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
@@ -1186,6 +1320,7 @@ function createCombinedWholeOverlay() {
   svg.style.display = 'none';
   svg.style.width = '0';
   svg.style.height = '0';
+  svg.dataset.orientation = orientation;
   board.appendChild(svg);
   const group = createSvgElement(svg, 'g', {
     class: 'tb-combined-brace'
@@ -1224,17 +1359,15 @@ function getBlockClientMetrics(block) {
   };
 }
 function drawCombinedWholeOverlay() {
-  const overlay = combinedWholeOverlay;
-  if (!(overlay !== null && overlay !== void 0 && overlay.svg) || !board) return;
-  const multiple = CONFIG.activeBlocks > 1 && CONFIG.showCombinedWhole;
-  if (!multiple) {
-    overlay.svg.style.display = 'none';
-    return;
-  }
+  drawCombinedWholeOverlayHorizontal();
+  drawCombinedWholeOverlayVertical();
+}
+
+function getCombinedFigureMetrics() {
+  if (!board) return null;
   const metrics = BLOCKS.map(getBlockClientMetrics).filter(Boolean);
   if (!metrics.length) {
-    overlay.svg.style.display = 'none';
-    return;
+    return null;
   }
   const left = Math.min(...metrics.map(m => m.left));
   const right = Math.max(...metrics.map(m => m.right));
@@ -1243,70 +1376,100 @@ function drawCombinedWholeOverlay() {
   const width = right - left;
   const height = bottom - top;
   if (!(width > 0) || !(height > 0)) {
+    return null;
+  }
+  const boardRect = board.getBoundingClientRect();
+  return {
+    left,
+    top,
+    width,
+    height,
+    boardLeft: boardRect.left,
+    boardTop: boardRect.top
+  };
+}
+
+function drawCombinedWholeOverlayHorizontal() {
+  const overlay = combinedWholeOverlays.horizontal;
+  if (!(overlay !== null && overlay !== void 0 && overlay.svg) || !board) return;
+  const canShow = CONFIG.activeBlocks > 1 && CONFIG.showCombinedWhole;
+  if (!canShow) {
     overlay.svg.style.display = 'none';
     return;
   }
-  const boardRect = board.getBoundingClientRect();
-  const figureWidth = width;
-  const figureHeight = height;
-  const vertical = shouldShowVerticalCombinedBrace(figureWidth, figureHeight);
-  let overlayWidth = figureWidth;
-  let overlayLeft = left - boardRect.left;
-  let bracketX = figureWidth;
-  let textX = figureWidth / 2;
-  const labelOffsetY = Math.max(figureHeight * LABEL_OFFSET_RATIO, 12);
-  let textY = 0;
-  let dominantBaseline = null;
-  let overlayTopOffset = 0;
-  let braceStartY;
-  let braceTick;
-  if (vertical) {
-    const topInner = figureHeight * TOP_RATIO;
-    const bottomInner = figureHeight * BOTTOM_RATIO;
-    const gap = Math.max(figureWidth * 0.04, 20);
-    const labelSpace = Math.max(figureWidth * 0.18, 60);
-    bracketX = figureWidth + gap;
-    overlayWidth = bracketX + labelSpace;
-    braceStartY = topInner;
-    const braceEndY = bottomInner;
-    braceTick = Math.min(Math.max(figureWidth * BRACKET_TICK_RATIO, 12), Math.max(bracketX, 12));
-    textX = bracketX + labelSpace / 2;
-    textY = (topInner + bottomInner) / 2;
-    dominantBaseline = 'middle';
-    drawVerticalBracketSquare(overlay.group, braceStartY, braceEndY, bracketX, braceTick);
-  } else {
-    const gapToBlocks = Math.max(figureHeight * 0.05, 24);
-    const textPadding = Math.max(labelOffsetY * 0.5, 8);
-    braceStartY = labelOffsetY + textPadding;
-    braceTick = gapToBlocks;
-    textY = braceStartY - labelOffsetY;
-    overlayTopOffset = braceStartY + braceTick;
-    drawBracketSquare(overlay.group, 0, figureWidth, braceStartY, braceTick);
+  const metrics = getCombinedFigureMetrics();
+  if (!metrics) {
+    overlay.svg.style.display = 'none';
+    return;
   }
-  const overlayHeight = figureHeight + overlayTopOffset;
+  const { left, top, width, height, boardLeft, boardTop } = metrics;
+  const labelOffsetY = Math.max(height * LABEL_OFFSET_RATIO, 12);
+  const gapToBlocks = Math.max(height * 0.05, 24);
+  const textPadding = Math.max(labelOffsetY * 0.5, 8);
+  const braceStartY = labelOffsetY + textPadding;
+  const braceTick = gapToBlocks;
+  const overlayTopOffset = braceStartY + braceTick;
+  const overlayHeight = height + overlayTopOffset;
   overlay.svg.style.display = '';
-  overlay.svg.style.left = `${overlayLeft}px`;
-  overlay.svg.style.top = `${top - boardRect.top - overlayTopOffset}px`;
+  overlay.svg.style.left = `${left - boardLeft}px`;
+  overlay.svg.style.top = `${top - boardTop - overlayTopOffset}px`;
+  overlay.svg.style.width = `${width}px`;
+  overlay.svg.style.height = `${overlayHeight}px`;
+  overlay.svg.setAttribute('width', width);
+  overlay.svg.setAttribute('height', overlayHeight);
+  overlay.svg.setAttribute('viewBox', `0 0 ${width} ${overlayHeight}`);
+  overlay.svg.setAttribute('preserveAspectRatio', 'none');
+  drawBracketSquare(overlay.group, 0, width, braceStartY, braceTick);
+  if (overlay.text) {
+    overlay.text.setAttribute('x', width / 2);
+    overlay.text.setAttribute('y', braceStartY - labelOffsetY);
+    overlay.text.setAttribute('text-anchor', 'middle');
+    overlay.text.removeAttribute('dominant-baseline');
+    const total = getCombinedTotal();
+    overlay.text.textContent = Number.isFinite(total) ? fmt(total) : '';
+  }
+}
+
+function drawCombinedWholeOverlayVertical() {
+  const overlay = combinedWholeOverlays.vertical;
+  if (!(overlay !== null && overlay !== void 0 && overlay.svg) || !board) return;
+  const canShow = CONFIG.activeBlocks > 1 && CONFIG.showCombinedWholeVertical;
+  if (!canShow) {
+    overlay.svg.style.display = 'none';
+    return;
+  }
+  const metrics = getCombinedFigureMetrics();
+  if (!metrics) {
+    overlay.svg.style.display = 'none';
+    return;
+  }
+  const { left, top, width, height, boardLeft, boardTop } = metrics;
+  const topInner = height * TOP_RATIO;
+  const bottomInner = height * BOTTOM_RATIO;
+  const gap = Math.max(width * 0.04, 20);
+  const labelSpace = Math.max(width * 0.18, 60);
+  const bracketX = width + gap;
+  const overlayWidth = bracketX + labelSpace;
+  const overlayHeight = height;
+  overlay.svg.style.display = '';
+  overlay.svg.style.left = `${left - boardLeft}px`;
+  overlay.svg.style.top = `${top - boardTop}px`;
   overlay.svg.style.width = `${overlayWidth}px`;
   overlay.svg.style.height = `${overlayHeight}px`;
   overlay.svg.setAttribute('width', overlayWidth);
   overlay.svg.setAttribute('height', overlayHeight);
   overlay.svg.setAttribute('viewBox', `0 0 ${overlayWidth} ${overlayHeight}`);
   overlay.svg.setAttribute('preserveAspectRatio', 'none');
+  const braceTick = Math.min(Math.max(width * BRACKET_TICK_RATIO, 12), Math.max(bracketX, 12));
+  drawVerticalBracketSquare(overlay.group, topInner, bottomInner, bracketX, braceTick);
   if (overlay.text) {
-    overlay.text.setAttribute('x', textX);
-    overlay.text.setAttribute('y', textY);
+    overlay.text.setAttribute('x', bracketX + labelSpace / 2);
+    overlay.text.setAttribute('y', (topInner + bottomInner) / 2);
     overlay.text.setAttribute('text-anchor', 'middle');
-    if (dominantBaseline) overlay.text.setAttribute('dominant-baseline', dominantBaseline);else overlay.text.removeAttribute('dominant-baseline');
+    overlay.text.setAttribute('dominant-baseline', 'middle');
     const total = getCombinedTotal();
     overlay.text.textContent = Number.isFinite(total) ? fmt(total) : '';
   }
-}
-function shouldShowVerticalCombinedBrace(width, height) {
-  if (!(width > 0) || !(height > 0)) return false;
-  if (CONFIG.cols === 1 && CONFIG.rows > 1) return true;
-  if (CONFIG.cols > 1) return false;
-  return height >= width * 1.1;
 }
 function onDragStart(block, event) {
   if (!(block !== null && block !== void 0 && block.handle)) return;
@@ -1581,12 +1744,29 @@ function getExportSvg() {
     row.width += blockWidth;
     if (row.height < blockHeight) row.height = blockHeight;
   }
-  const exportWidth = rowInfo.reduce((max, row) => Math.max(max, row.width || 0), 0) || VBW;
+  const figureWidth = rowInfo.reduce((max, row) => Math.max(max, row.width || 0), 0) || VBW;
+  const rowLabels = Array.isArray(CONFIG.rowLabels) ? CONFIG.rowLabels : [];
+  const labelTexts = rowInfo.map((_, index) => {
+    const value = rowLabels[index];
+    return typeof value === 'string' ? value.trim() : '';
+  });
+  const labelBaseWidth = labelTexts.reduce((max, text) => {
+    if (!text) return max;
+    const estimated = Math.max(48, Math.min(200, text.length * 14 + 24));
+    return Math.max(max, estimated);
+  }, 0);
+  const labelPadding = labelBaseWidth > 0 ? 12 : 0;
+  const labelSpace = labelBaseWidth > 0 ? labelBaseWidth + labelPadding : 0;
   const exportHeight = rowInfo.reduce((sum, row, index) => {
     if (!row.blocks.length) return sum;
     const gap = index > 0 ? ROW_GAP : 0;
     return sum + row.height + gap;
   }, 0) || DEFAULT_SVG_HEIGHT;
+  const verticalActive = CONFIG.showCombinedWholeVertical && CONFIG.activeBlocks > 1 && figureWidth > 0;
+  const verticalGap = verticalActive ? Math.max(figureWidth * 0.04, 20) : 0;
+  const verticalLabelSpace = verticalActive ? Math.max(figureWidth * 0.18, 60) : 0;
+  const verticalExtra = verticalActive ? verticalGap + verticalLabelSpace : 0;
+  const exportWidth = labelSpace + figureWidth + verticalExtra;
   const exportSvg = document.createElementNS(ns, 'svg');
   exportSvg.setAttribute('viewBox', `0 0 ${exportWidth} ${exportHeight}`);
   exportSvg.setAttribute('width', exportWidth);
@@ -1597,9 +1777,26 @@ function getExportSvg() {
   rowInfo.forEach((row, rowIndex) => {
     if (!row.blocks.length) return;
     if (rowIndex > 0) offsetY += ROW_GAP;
-    const rowGroup = document.createElementNS(ns, 'g');
-    rowGroup.setAttribute('transform', `translate(0,${offsetY})`);
-    exportSvg.appendChild(rowGroup);
+    const rowContainer = document.createElementNS(ns, 'g');
+    rowContainer.setAttribute('transform', `translate(0,${offsetY})`);
+    exportSvg.appendChild(rowContainer);
+    const labelText = labelTexts[rowIndex];
+    if (labelText) {
+      const firstEntry = row.blocks[0];
+      const metrics = (firstEntry === null || firstEntry === void 0 ? void 0 : firstEntry.metrics) || null;
+      const baseline = metrics && Number.isFinite(metrics.top) ? metrics.top : BRACE_Y_RATIO * row.height;
+      const labelY = baseline + 24;
+      const labelEl = createSvgElement(rowContainer, 'text', {
+        x: labelSpace > 0 ? labelSpace - 12 : 0,
+        y: labelY,
+        class: 'tb-row-label-text',
+        'text-anchor': labelSpace > 0 ? 'end' : 'start'
+      });
+      labelEl.textContent = labelText;
+    }
+    const blocksGroup = document.createElementNS(ns, 'g');
+    blocksGroup.setAttribute('transform', `translate(${labelSpace},0)`);
+    rowContainer.appendChild(blocksGroup);
     let offsetX = 0;
     row.blocks.forEach(({
       block,
@@ -1610,7 +1807,7 @@ function getExportSvg() {
       const g = document.createElementNS(ns, 'g');
       g.setAttribute('transform', `translate(${offsetX},0)`);
       g.innerHTML = block.svg.innerHTML;
-      rowGroup.appendChild(g);
+      blocksGroup.appendChild(g);
       const widthValue = (_metrics$width = metrics === null || metrics === void 0 ? void 0 : metrics.width) !== null && _metrics$width !== void 0 ? _metrics$width : (_block$svg$viewBox = block.svg.viewBox) === null || _block$svg$viewBox === void 0 || (_block$svg$viewBox = _block$svg$viewBox.baseVal) === null || _block$svg$viewBox === void 0 ? void 0 : _block$svg$viewBox.width;
       const blockWidth = Number.isFinite(widthValue) && widthValue > 0 ? widthValue : VBW;
       offsetX += blockWidth;
@@ -1618,9 +1815,10 @@ function getExportSvg() {
     offsetY += row.height;
   });
   const referenceHeight = ((_rowInfo$find = rowInfo.find(row => row.blocks.length)) === null || _rowInfo$find === void 0 ? void 0 : _rowInfo$find.height) || DEFAULT_SVG_HEIGHT;
+  const totalValue = getCombinedTotal();
   if (CONFIG.showCombinedWhole && CONFIG.activeBlocks > 1) {
-    const startX = 0;
-    const endX = exportWidth;
+    const startX = labelSpace;
+    const endX = labelSpace + figureWidth;
     const braceGroup = createSvgElement(exportSvg, 'g', {
       class: 'tb-combined-brace'
     });
@@ -1633,8 +1831,25 @@ function getExportSvg() {
       class: 'tb-total',
       'text-anchor': 'middle'
     });
-    const totalValue = getCombinedTotal();
     totalText.textContent = Number.isFinite(totalValue) ? fmt(totalValue) : '';
+  }
+  if (verticalActive && CONFIG.activeBlocks > 1) {
+    const braceGroup = createSvgElement(exportSvg, 'g', {
+      class: 'tb-combined-brace'
+    });
+    const topInner = exportHeight * TOP_RATIO;
+    const bottomInner = exportHeight * BOTTOM_RATIO;
+    const bracketX = labelSpace + figureWidth + verticalGap;
+    const tick = Math.min(Math.max(figureWidth * BRACKET_TICK_RATIO, 12), Math.max(bracketX - labelSpace, 12));
+    drawVerticalBracketSquare(braceGroup, topInner, bottomInner, bracketX, tick);
+    const verticalText = createSvgElement(braceGroup, 'text', {
+      x: bracketX + verticalLabelSpace / 2,
+      y: (topInner + bottomInner) / 2,
+      class: 'tb-total',
+      'text-anchor': 'middle'
+    });
+    verticalText.setAttribute('dominant-baseline', 'middle');
+    verticalText.textContent = Number.isFinite(totalValue) ? fmt(totalValue) : '';
   }
   return exportSvg;
 }
