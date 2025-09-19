@@ -610,7 +610,7 @@
       cfgMonsterPatternGap.value = CFG.monster.patternGap;
       cfgMonsterPatternGap.disabled = disableGap;
       if (disableGap) {
-        cfgMonsterPatternGap.setAttribute('title', 'Avstand mellom figurer er tilgjengelig når det er flere figurer.');
+        cfgMonsterPatternGap.setAttribute('title', 'Figuravstand er tilgjengelig når det er flere figurer.');
       } else {
         cfgMonsterPatternGap.removeAttribute('title');
       }

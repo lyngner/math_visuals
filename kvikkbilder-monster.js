@@ -231,7 +231,7 @@
       const disableGap = cols <= 1 && rows <= 1;
       cfgPatternGap.disabled = disableGap;
       if (disableGap) {
-        cfgPatternGap.setAttribute('title', 'Avstand mellom figurer er tilgjengelig når det er flere figurer.');
+        cfgPatternGap.setAttribute('title', 'Figuravstand er tilgjengelig når det er flere figurer.');
       } else {
         cfgPatternGap.removeAttribute('title');
       }
