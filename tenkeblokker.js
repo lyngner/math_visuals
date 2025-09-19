@@ -1254,11 +1254,12 @@ function drawCombinedWholeOverlay() {
   let overlayLeft = left - boardRect.left;
   let bracketX = figureWidth;
   let textX = figureWidth / 2;
-  let braceStartY = figureHeight * BRACE_Y_RATIO;
-  let braceTick = figureHeight * BRACKET_TICK_RATIO;
-  const labelOffsetY = LABEL_OFFSET_RATIO * figureHeight;
-  let textY = braceStartY - labelOffsetY;
+  const labelOffsetY = Math.max(figureHeight * LABEL_OFFSET_RATIO, 12);
+  let textY = 0;
   let dominantBaseline = null;
+  let overlayTopOffset = 0;
+  let braceStartY;
+  let braceTick;
   if (vertical) {
     const topInner = figureHeight * TOP_RATIO;
     const bottomInner = figureHeight * BOTTOM_RATIO;
@@ -1274,16 +1275,23 @@ function drawCombinedWholeOverlay() {
     dominantBaseline = 'middle';
     drawVerticalBracketSquare(overlay.group, braceStartY, braceEndY, bracketX, braceTick);
   } else {
+    const gapToBlocks = Math.max(figureHeight * 0.05, 24);
+    const textPadding = Math.max(labelOffsetY * 0.5, 8);
+    braceStartY = labelOffsetY + textPadding;
+    braceTick = gapToBlocks;
+    textY = braceStartY - labelOffsetY;
+    overlayTopOffset = braceStartY + braceTick;
     drawBracketSquare(overlay.group, 0, figureWidth, braceStartY, braceTick);
   }
+  const overlayHeight = figureHeight + overlayTopOffset;
   overlay.svg.style.display = '';
   overlay.svg.style.left = `${overlayLeft}px`;
-  overlay.svg.style.top = `${top - boardRect.top}px`;
+  overlay.svg.style.top = `${top - boardRect.top - overlayTopOffset}px`;
   overlay.svg.style.width = `${overlayWidth}px`;
-  overlay.svg.style.height = `${figureHeight}px`;
+  overlay.svg.style.height = `${overlayHeight}px`;
   overlay.svg.setAttribute('width', overlayWidth);
-  overlay.svg.setAttribute('height', figureHeight);
-  overlay.svg.setAttribute('viewBox', `0 0 ${overlayWidth} ${figureHeight}`);
+  overlay.svg.setAttribute('height', overlayHeight);
+  overlay.svg.setAttribute('viewBox', `0 0 ${overlayWidth} ${overlayHeight}`);
   overlay.svg.setAttribute('preserveAspectRatio', 'none');
   if (overlay.text) {
     overlay.text.setAttribute('x', textX);
