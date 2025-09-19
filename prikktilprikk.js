@@ -55,7 +55,12 @@
 
   let draggedPointId = null;
   let draggingItemEl = null;
+  let draggingItemOriginalDisplay = '';
+  let draggingItemHeight = 0;
   let dropTargetEl = null;
+  let dropTargetPointId = null;
+  let dropPositionAfter = false;
+  let dragPlaceholderEl = null;
 
   ensureStateDefaults();
 
@@ -349,13 +354,75 @@
       el.classList.remove('drop-before', 'drop-after');
       delete el.dataset.dropPosition;
     });
+    if (dragPlaceholderEl && dragPlaceholderEl.parentNode) {
+      dragPlaceholderEl.parentNode.removeChild(dragPlaceholderEl);
+    }
+    dragPlaceholderEl = null;
     dropTargetEl = null;
+    dropTargetPointId = null;
+    dropPositionAfter = false;
+  }
+
+  function ensureDragPlaceholder(referenceItem) {
+    if (!pointListEl) return null;
+    if (!dragPlaceholderEl) {
+      dragPlaceholderEl = document.createElement('div');
+      dragPlaceholderEl.className = 'point-item point-placeholder';
+      dragPlaceholderEl.setAttribute('aria-hidden', 'true');
+      const label = document.createElement('div');
+      label.className = 'point-placeholder-label';
+      label.textContent = 'Slipp her';
+      dragPlaceholderEl.appendChild(label);
+      dragPlaceholderEl.addEventListener('dragover', event => {
+        if (!draggedPointId) return;
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      });
+      dragPlaceholderEl.addEventListener('drop', event => {
+        handlePointDrop(event);
+      });
+    }
+    const height = draggingItemHeight || (referenceItem ? referenceItem.getBoundingClientRect().height : 0);
+    if (height > 0) {
+      dragPlaceholderEl.style.height = `${Math.round(height)}px`;
+    } else {
+      dragPlaceholderEl.style.removeProperty('height');
+    }
+    return dragPlaceholderEl;
+  }
+
+  function updateDropPreview(pointId, item, placeAfter) {
+    if (!pointListEl || !item) return;
+    const placeholder = ensureDragPlaceholder(item);
+    if (!placeholder) return;
+    const parent = pointListEl;
+    if (placeAfter) {
+      if (item.nextSibling !== placeholder) {
+        parent.insertBefore(placeholder, item.nextSibling);
+      }
+    } else if (parent !== placeholder.parentNode || placeholder.nextSibling !== item) {
+      parent.insertBefore(placeholder, item);
+    }
+    dropTargetPointId = pointId;
+    dropPositionAfter = !!placeAfter;
+    placeholder.dataset.dropTargetId = pointId;
+    placeholder.dataset.dropPosition = placeAfter ? 'after' : 'before';
   }
 
   function handlePointDragStart(event, pointId, item) {
     draggedPointId = pointId;
     draggingItemEl = item;
+    draggingItemOriginalDisplay = item ? item.style.display : '';
+    draggingItemHeight = item ? item.getBoundingClientRect().height : 0;
     dropTargetEl = null;
+    dropTargetPointId = null;
+    dropPositionAfter = false;
+    const placeholder = ensureDragPlaceholder(item);
+    if (placeholder && item && item.parentNode) {
+      placeholder.dataset.dropTargetId = '';
+      placeholder.dataset.dropPosition = '';
+      item.parentNode.insertBefore(placeholder, item.nextSibling);
+    }
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = 'move';
       try {
@@ -363,14 +430,22 @@
       } catch (_) {}
     }
     requestAnimationFrame(() => {
-      if (draggingItemEl) draggingItemEl.classList.add('is-dragging');
+      if (draggingItemEl) {
+        draggingItemEl.classList.add('is-dragging');
+        draggingItemEl.setAttribute('aria-hidden', 'true');
+        draggingItemEl.style.display = 'none';
+      }
     });
   }
 
   function handlePointDragEnd() {
     if (draggingItemEl) {
       draggingItemEl.classList.remove('is-dragging');
+      draggingItemEl.removeAttribute('aria-hidden');
+      draggingItemEl.style.display = draggingItemOriginalDisplay || '';
     }
+    draggingItemOriginalDisplay = '';
+    draggingItemHeight = 0;
     draggingItemEl = null;
     draggedPointId = null;
     clearDragVisualState();
@@ -387,15 +462,16 @@
     dropTargetEl = item;
     const rect = item.getBoundingClientRect();
     const isAfter = event.clientY >= rect.top + rect.height / 2;
-    item.classList.toggle('drop-after', isAfter);
-    item.classList.toggle('drop-before', !isAfter);
+    item.classList.remove('drop-before', 'drop-after');
+    item.classList.add(isAfter ? 'drop-after' : 'drop-before');
     item.dataset.dropPosition = isAfter ? 'after' : 'before';
+    updateDropPreview(pointId, item, isAfter);
   }
 
   function handlePointDragLeave(event, item) {
     if (!draggedPointId || dropTargetEl !== item) return;
     const related = event.relatedTarget;
-    if (related && item.contains(related)) return;
+    if (related && (item.contains(related) || (dragPlaceholderEl && dragPlaceholderEl.contains(related)))) return;
     item.classList.remove('drop-before', 'drop-after');
     delete item.dataset.dropPosition;
     dropTargetEl = null;
@@ -419,9 +495,21 @@
   function handlePointDrop(event, targetPointId) {
     if (!draggedPointId) return;
     event.preventDefault();
-    const target = event.currentTarget;
-    const placeAfter = target && target.dataset.dropPosition === 'after';
-    const changed = reorderPoints(draggedPointId, targetPointId, placeAfter);
+    event.stopPropagation();
+    const sourceId = draggedPointId;
+    let resolvedTarget = dropTargetPointId || targetPointId;
+    if (!resolvedTarget && dragPlaceholderEl && dragPlaceholderEl.dataset.dropTargetId) {
+      resolvedTarget = dragPlaceholderEl.dataset.dropTargetId;
+    }
+    if (!resolvedTarget && event && event.currentTarget && event.currentTarget.dataset) {
+      resolvedTarget = event.currentTarget.dataset.pointId;
+    }
+    let placeAfter = dropTargetPointId != null ? dropPositionAfter : false;
+    if (dropTargetPointId == null) {
+      const datasetSource = (dropTargetEl && dropTargetEl.dataset) || (event.currentTarget && event.currentTarget.dataset) || (dragPlaceholderEl && dragPlaceholderEl.dataset) || {};
+      if (datasetSource.dropPosition) placeAfter = datasetSource.dropPosition === 'after';
+    }
+    const changed = resolvedTarget ? reorderPoints(sourceId, resolvedTarget, placeAfter) : false;
     handlePointDragEnd();
     if (!changed) return;
     const validPoints = prepareState();
