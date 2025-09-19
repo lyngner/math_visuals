@@ -1406,7 +1406,8 @@ function drawCombinedWholeOverlayHorizontal() {
   const labelOffsetY = Math.max(height * LABEL_OFFSET_RATIO, 12);
   const gapToBlocks = Math.max(height * 0.05, 24);
   const textPadding = Math.max(labelOffsetY * 0.5, 8);
-  const braceStartY = labelOffsetY + textPadding;
+  const textSafeMargin = Math.max(height * 0.02, 10);
+  const braceStartY = labelOffsetY + textPadding + textSafeMargin;
   const braceTick = gapToBlocks;
   const overlayTopOffset = braceStartY + braceTick;
   const overlayHeight = height + overlayTopOffset;
@@ -1444,8 +1445,33 @@ function drawCombinedWholeOverlayVertical() {
     return;
   }
   const { left, top, width, height, boardLeft, boardTop } = metrics;
-  const topInner = height * TOP_RATIO;
-  const bottomInner = height * BOTTOM_RATIO;
+  let topInner = height * TOP_RATIO;
+  let bottomInner = height * BOTTOM_RATIO;
+  const blockBounds = BLOCKS.map(block => {
+    const rect = getBlockClientMetrics(block);
+    if (!rect) return null;
+    const blockMetrics = block.metrics || getBlockMetrics(block);
+    if (!blockMetrics) return null;
+    return {
+      rect,
+      metrics: blockMetrics
+    };
+  }).filter(Boolean);
+  if (blockBounds.length) {
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const { rect, metrics: blockMetrics } of blockBounds) {
+      const offsetTop = rect.top - top;
+      const outerTop = Number.isFinite(blockMetrics.outerTop) ? blockMetrics.outerTop : 0;
+      const outerBottom = Number.isFinite(blockMetrics.outerBottom) ? blockMetrics.outerBottom : blockMetrics.height || 0;
+      const start = offsetTop + outerTop;
+      const end = offsetTop + outerBottom;
+      if (start < minY) minY = start;
+      if (end > maxY) maxY = end;
+    }
+    if (Number.isFinite(minY)) topInner = clamp(minY, 0, height);
+    if (Number.isFinite(maxY)) bottomInner = clamp(maxY, topInner, height);
+  }
   const gap = Math.max(width * 0.04, 20);
   const labelSpace = Math.max(width * 0.18, 60);
   const bracketX = width + gap;
@@ -1816,6 +1842,30 @@ function getExportSvg() {
   });
   const referenceHeight = ((_rowInfo$find = rowInfo.find(row => row.blocks.length)) === null || _rowInfo$find === void 0 ? void 0 : _rowInfo$find.height) || DEFAULT_SVG_HEIGHT;
   const totalValue = getCombinedTotal();
+  let exportTopInner = exportHeight * TOP_RATIO;
+  let exportBottomInner = exportHeight * BOTTOM_RATIO;
+  if (verticalActive) {
+    let minY = Infinity;
+    let maxY = -Infinity;
+    let offsetYForRows = 0;
+    rowInfo.forEach((row, rowIndex) => {
+      if (!row.blocks.length) return;
+      if (rowIndex > 0) offsetYForRows += ROW_GAP;
+      for (const { metrics } of row.blocks) {
+        if (!metrics) continue;
+        const outerTop = Number.isFinite(metrics.outerTop) ? metrics.outerTop : 0;
+        const fallbackHeight = Number.isFinite(metrics.height) ? metrics.height : row.height || 0;
+        const outerBottom = Number.isFinite(metrics.outerBottom) ? metrics.outerBottom : fallbackHeight;
+        const start = offsetYForRows + outerTop;
+        const end = offsetYForRows + outerBottom;
+        if (start < minY) minY = start;
+        if (end > maxY) maxY = end;
+      }
+      offsetYForRows += row.height;
+    });
+    if (Number.isFinite(minY)) exportTopInner = clamp(minY, 0, exportHeight);
+    if (Number.isFinite(maxY)) exportBottomInner = clamp(maxY, exportTopInner, exportHeight);
+  }
   if (CONFIG.showCombinedWhole && CONFIG.activeBlocks > 1) {
     const startX = labelSpace;
     const endX = labelSpace + figureWidth;
@@ -1825,9 +1875,10 @@ function getExportSvg() {
     const braceY = BRACE_Y_RATIO * referenceHeight;
     const tick = BRACKET_TICK_RATIO * referenceHeight;
     drawBracketSquare(braceGroup, startX, endX, braceY, tick);
+    const textSafeMargin = Math.max(referenceHeight * 0.02, 10);
     const totalText = createSvgElement(braceGroup, 'text', {
       x: (startX + endX) / 2,
-      y: braceY - LABEL_OFFSET_RATIO * referenceHeight,
+      y: braceY - LABEL_OFFSET_RATIO * referenceHeight + textSafeMargin,
       class: 'tb-total',
       'text-anchor': 'middle'
     });
@@ -1837,14 +1888,12 @@ function getExportSvg() {
     const braceGroup = createSvgElement(exportSvg, 'g', {
       class: 'tb-combined-brace'
     });
-    const topInner = exportHeight * TOP_RATIO;
-    const bottomInner = exportHeight * BOTTOM_RATIO;
     const bracketX = labelSpace + figureWidth + verticalGap;
     const tick = Math.min(Math.max(figureWidth * BRACKET_TICK_RATIO, 12), Math.max(bracketX - labelSpace, 12));
-    drawVerticalBracketSquare(braceGroup, topInner, bottomInner, bracketX, tick);
+    drawVerticalBracketSquare(braceGroup, exportTopInner, exportBottomInner, bracketX, tick);
     const verticalText = createSvgElement(braceGroup, 'text', {
       x: bracketX + verticalLabelSpace / 2,
-      y: (topInner + bottomInner) / 2,
+      y: (exportTopInner + exportBottomInner) / 2,
       class: 'tb-total',
       'text-anchor': 'middle'
     });
