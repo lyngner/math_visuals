@@ -28,6 +28,7 @@
   const MONSTER_POINT_SPACING_MIN = 0;
   const MONSTER_POINT_SPACING_MAX = 60;
   const MAX_VISIBILITY_DURATION = 10;
+  const DOT = ' · ';
   const DEFAULT_CFG = {
     type: 'klosser',
     showExpression: true,
@@ -232,6 +233,36 @@
     svg.appendChild(group);
     return svg;
   }
+  function filterUnitFactors(factors) {
+    if (!Array.isArray(factors)) return [];
+    return factors.filter(value => value !== 1);
+  }
+  function joinFactors(factors) {
+    return factors.map(value => `${value}`).join(DOT);
+  }
+  function formatOuterInnerExpression(outerFactors, innerFactors) {
+    const filteredOuter = filterUnitFactors(outerFactors);
+    const filteredInner = filterUnitFactors(innerFactors);
+    if (filteredOuter.length && filteredInner.length) {
+      const outerExpr = joinFactors(filteredOuter);
+      const innerExpr = filteredInner.length > 1 ? `(${joinFactors(filteredInner)})` : `${filteredInner[0]}`;
+      return `${outerExpr}${DOT}${innerExpr}`;
+    }
+    if (filteredOuter.length) {
+      return joinFactors(filteredOuter);
+    }
+    if (filteredInner.length) {
+      return filteredInner.length > 1 ? `(${joinFactors(filteredInner)})` : `${filteredInner[0]}`;
+    }
+    return '1';
+  }
+  function formatProductStep(factors) {
+    const filtered = filterUnitFactors(factors);
+    return {
+      text: filtered.length ? joinFactors(filtered) : '',
+      count: filtered.length
+    };
+  }
   function renderKlosser() {
     const {
       antallX = 0,
@@ -250,8 +281,14 @@
     brickContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows}, 1fr)` : '';
     const perFig = width * height * depth;
     const total = cols * rows * perFig;
-    const dot = ' · ';
-    expression.textContent = `${cols}${dot}${rows}${dot}(${width}${dot}${height}${dot}${depth}) = ${cols * rows}${dot}${perFig} = ${total}`;
+    const firstExpression = formatOuterInnerExpression([cols, rows], [width, height, depth]);
+    const productStep = formatProductStep([cols * rows, perFig]);
+    const parts = [firstExpression];
+    if (productStep.count >= 2) {
+      parts.push(`= ${productStep.text}`);
+    }
+    parts.push(`= ${total}`);
+    expression.textContent = parts.join(' ');
     if (!BRICK_SRC) return;
     const totalFigures = cols * rows;
     for (let i = 0; i < totalFigures; i++) {
@@ -482,7 +519,7 @@
     const count = Math.max(0, Math.trunc(antall));
     const points = byggMonster(count, levelScale);
     const factors = primeFactors(count).filter(x => x > 1);
-    const baseExpression = factors.length ? `${factors.join(' · ')} = ${count}` : `${count}`;
+    const baseExpression = factors.length ? `${factors.join(DOT)} = ${count}` : `${count}`;
     if (!points.length || cols <= 0 || rows <= 0) {
       expression.textContent = baseExpression;
       return;
@@ -504,7 +541,15 @@
       patternContainer.appendChild(wrapper);
     }
     if (totalFigures > 1) {
-      expression.textContent = `${cols} · ${rows} · (${baseExpression}) = ${totalFigures} · ${count} = ${totalFigures * count}`;
+      const outerFactors = filterUnitFactors([cols, rows]);
+      const firstExpression = outerFactors.length ? `${joinFactors(outerFactors)}${DOT}(${baseExpression})` : baseExpression;
+      const productStep = formatProductStep([totalFigures, count]);
+      const parts = [firstExpression];
+      if (productStep.count >= 2) {
+        parts.push(`= ${productStep.text}`);
+      }
+      parts.push(`= ${totalFigures * count}`);
+      expression.textContent = parts.join(' ');
     } else {
       expression.textContent = baseExpression;
     }
