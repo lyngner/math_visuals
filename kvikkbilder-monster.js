@@ -14,6 +14,12 @@
   const expression = document.getElementById('expression');
   const btnSvg = document.getElementById('btnSvg');
   const btnPng = document.getElementById('btnPng');
+  const MONSTER_POINT_RADIUS_MIN = 1;
+  const MONSTER_POINT_RADIUS_MAX = 60;
+  const MONSTER_POINT_SPACING_MIN = 0;
+  const MONSTER_POINT_SPACING_MAX = 60;
+  const DEFAULT_CIRCLE_RADIUS = 10;
+  const DEFAULT_DOT_SPACING = 3;
   function primeFactors(n) {
     const factors = [];
     let num = n;
@@ -211,17 +217,31 @@
     const n = parseInt(cfgAntall.value, 10) || 0;
     const antallX = parseInt(cfgAntallX.value, 10) || 0;
     const antallY = parseInt(cfgAntallY.value, 10) || 0;
-    const circleRadius = cfgCircleRadius ? Math.max(1, parseFloat(cfgCircleRadius.value) || 0) : 10;
-    const dotSpacing = cfgDotSpacing ? Math.max(0, parseFloat(cfgDotSpacing.value) || 0) : 3;
+    const circleRadiusRaw = cfgCircleRadius ? parseFloat(cfgCircleRadius.value) : NaN;
+    const circleRadius = Number.isFinite(circleRadiusRaw) ? Math.min(MONSTER_POINT_RADIUS_MAX, Math.max(MONSTER_POINT_RADIUS_MIN, circleRadiusRaw)) : DEFAULT_CIRCLE_RADIUS;
+    const dotSpacingRaw = cfgDotSpacing ? parseFloat(cfgDotSpacing.value) : NaN;
+    const dotSpacing = Number.isFinite(dotSpacingRaw) ? Math.min(MONSTER_POINT_SPACING_MAX, Math.max(MONSTER_POINT_SPACING_MIN, dotSpacingRaw)) : DEFAULT_DOT_SPACING;
+    if (cfgCircleRadius) cfgCircleRadius.value = String(circleRadius);
+    if (cfgDotSpacing) cfgDotSpacing.value = String(dotSpacing);
     const levelScale = cfgLevelScale ? Math.max(0.1, parseFloat(cfgLevelScale.value) || 0) : 1;
     patternContainer.innerHTML = '';
     const cols = antallX > 0 ? antallX : 1;
     const rows = antallY > 0 ? antallY : 1;
+    if (cfgPatternGap) {
+      const disableGap = cols <= 1 && rows <= 1;
+      cfgPatternGap.disabled = disableGap;
+      if (disableGap) {
+        cfgPatternGap.setAttribute('title', 'Avstand mellom figurer er tilgjengelig når det er flere figurer.');
+      } else {
+        cfgPatternGap.removeAttribute('title');
+      }
+    }
     patternContainer.style.gridTemplateColumns = `repeat(${cols},minmax(0,1fr))`;
     patternContainer.style.gridTemplateRows = `repeat(${rows},minmax(0,1fr))`;
     const maxDimension = Math.max(cols, rows);
     const gapInput = cfgPatternGap ? parseFloat(cfgPatternGap.value) : NaN;
-    const gapOverride = Number.isFinite(gapInput) && gapInput >= 0 ? gapInput : null;
+    const allowGapOverride = !(cols <= 1 && rows <= 1);
+    const gapOverride = allowGapOverride && Number.isFinite(gapInput) && gapInput >= 0 ? gapInput : null;
     const gapPx = gapOverride !== null ? gapOverride : maxDimension <= 1 ? 64 : maxDimension === 2 ? 56 : maxDimension === 3 ? 44 : maxDimension === 4 ? 36 : 28;
     const itemPaddingPx = gapOverride !== null ? Math.max(0, Math.round(gapPx * 0.5)) : Math.min(72, Math.max(18, Math.round(gapPx * 0.65)));
     const containerPaddingPx = gapOverride !== null ? Math.max(0, Math.round(gapPx * 0.3)) : Math.min(48, Math.max(12, Math.round(gapPx * 0.4)));
@@ -244,7 +264,7 @@
       return;
     }
     const totalFigures = antallX * antallY;
-    svg.setAttribute('aria-label', `Number visual ${n}`);
+    svg.setAttribute('aria-label', `Numbervisual ${n}`);
     for (let i = 0; i < totalFigures; i++) {
       const wrapper = document.createElement('div');
       wrapper.className = 'pattern-item';
@@ -293,11 +313,11 @@
   });
   btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => {
     const svg = patternContainer.querySelector('svg');
-    if (svg) downloadSVG(svg, 'number-visuals.svg');
+    if (svg) downloadSVG(svg, 'numbervisuals.svg');
   });
   btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => {
     const svg = patternContainer.querySelector('svg');
-    if (svg) downloadPNG(svg, 'number-visuals.png', 2);
+    if (svg) downloadPNG(svg, 'numbervisuals.png', 2);
   });
   updateVisibility();
   render();
