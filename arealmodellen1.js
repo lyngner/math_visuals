@@ -515,17 +515,25 @@ function draw() {
     setDisplay(rTR, layoutState.showTopRight);
     setDisplay(rBL, layoutState.showBottomLeft);
     setDisplay(rBR, layoutState.showBottomRight);
+    const showVerticalSplit = showVLine && leftWidth > 0 && rightWidth > 0;
+    const showHorizontalSplit = showHLine && topHeight > 0 && bottomHeight > 0;
     if (vLine) {
-      set(vLine, "x1", ML + leftWidth);
-      set(vLine, "y1", MT);
-      set(vLine, "x2", ML + leftWidth);
-      set(vLine, "y2", MT + H);
+      setDisplay(vLine, showVerticalSplit);
+      if (showVerticalSplit) {
+        set(vLine, "x1", ML + leftWidth);
+        set(vLine, "y1", MT);
+        set(vLine, "x2", ML + leftWidth);
+        set(vLine, "y2", MT + H);
+      }
     }
     if (hLine) {
-      set(hLine, "x1", ML);
-      set(hLine, "y1", MT + topHeight);
-      set(hLine, "x2", ML + W);
-      set(hLine, "y2", MT + topHeight);
+      setDisplay(hLine, showHorizontalSplit);
+      if (showHorizontalSplit) {
+        set(hLine, "x1", ML);
+        set(hLine, "y1", MT + topHeight);
+        set(hLine, "x2", ML + W);
+        set(hLine, "y2", MT + topHeight);
+      }
     }
     const hLeftCX = ML,
       hLeftCY = MT + topHeight;
@@ -1053,6 +1061,8 @@ function draw() {
     const includeHandles = !!o.includeHandles;
     const includeHandleHits = o.includeHandleHits !== undefined ? !!o.includeHandleHits : includeHandles;
     const includeHotZones = o.includeHotZones !== undefined ? !!o.includeHotZones : true;
+    const showVerticalSplit = o.showLengthAxis && leftWidth > 0 && rightWidth > 0;
+    const showHorizontalSplit = o.showHeightAxis && topHeight > 0 && bottomHeight > 0;
     const displayAttr = visible => visible ? "" : ' display="none"';
     let gridStr = "";
     if (o.includeGrid) {
@@ -1067,8 +1077,8 @@ function draw() {
       }
       gridStr = '<g class="' + o.classes.grid + '" clip-path="url(#clipR)">' + lines.join("") + '</g>';
     }
-    const vLineStr = o.showLengthAxis ? '<line id="vLine" class="' + o.classes.split + '" x1="' + (ML + leftWidth) + '" y1="' + MT + '" x2="' + (ML + leftWidth) + '" y2="' + (MT + o.height) + '"/>' : "";
-    const hLineStr = o.showHeightAxis ? '<line id="hLine" class="' + o.classes.split + '" x1="' + ML + '" y1="' + (MT + topHeight) + '" x2="' + (ML + o.width) + '" y2="' + (MT + topHeight) + '"/>' : "";
+    const vLineStr = o.showLengthAxis ? '<line id="vLine" class="' + o.classes.split + '" x1="' + (ML + leftWidth) + '" y1="' + MT + '" x2="' + (ML + leftWidth) + '" y2="' + (MT + o.height) + '"' + displayAttr(showVerticalSplit) + '/>' : "";
+    const hLineStr = o.showHeightAxis ? '<line id="hLine" class="' + o.classes.split + '" x1="' + ML + '" y1="' + (MT + topHeight) + '" x2="' + (ML + o.width) + '" y2="' + (MT + topHeight) + '"' + displayAttr(showHorizontalSplit) + '/>' : "";
     const hLeftImg = includeHandles && o.showHeightAxis ? '<image id="hLeft" class="' + o.classes.handle + '" href="' + (o.icons.vertUrl || '') + '" width="' + HS + '" height="' + HS + '" x="' + (ML - HS / 2) + '" y="' + (MT + topHeight - HS / 2) + '"/>' : "";
     const hDownImg = includeHandles && o.showLengthAxis ? '<image id="hDown" class="' + o.classes.handle + '" href="' + (o.icons.horizUrl || '') + '" width="' + HS + '" height="' + HS + '" x="' + (ML + leftWidth - HS / 2) + '" y="' + (MT + o.height - HS / 2) + '"/>' : "";
 
@@ -1208,8 +1218,10 @@ function draw() {
     lines.push("  setDisplay(rTR, state.showTopRight);");
     lines.push("  setDisplay(rBL, state.showBottomLeft);");
     lines.push("  setDisplay(rBR, state.showBottomRight);");
-    lines.push("  if(vLine){ set(vLine,'x1',ML+leftWidth); set(vLine,'y1',MT); set(vLine,'x2',ML+leftWidth); set(vLine,'y2',MT+H); }");
-    lines.push("  if(hLine){ set(hLine,'x1',ML); set(hLine,'y1',MT+topHeight); set(hLine,'x2',ML+W); set(hLine,'y2',MT+topHeight); }");
+    lines.push("  var showVSplit = showLengthAxis && leftWidth > 0 && rightWidth > 0;");
+    lines.push("  var showHSplit = showHeightAxis && topHeight > 0 && bottomHeight > 0;");
+    lines.push("  if(vLine){ setDisplay(vLine, showVSplit); if(showVSplit){ set(vLine,'x1',ML+leftWidth); set(vLine,'y1',MT); set(vLine,'x2',ML+leftWidth); set(vLine,'y2',MT+H); } }");
+    lines.push("  if(hLine){ setDisplay(hLine, showHSplit); if(showHSplit){ set(hLine,'x1',ML); set(hLine,'y1',MT+topHeight); set(hLine,'x2',ML+W); set(hLine,'y2',MT+topHeight); } }");
     lines.push("  var hLeftCX=ML, hLeftCY=MT+topHeight, hDownCX=ML+leftWidth, hDownCY=MT+H;");
     lines.push("  if(hLeft){ set(hLeft,'x',hLeftCX-HS/2); set(hLeft,'y',hLeftCY-HS/2); }");
     lines.push("  if(hDown){ set(hDown,'x',hDownCX-HS/2); set(hDown,'y',hDownCY-HS/2); }");
