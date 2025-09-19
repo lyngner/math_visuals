@@ -162,19 +162,78 @@
     fieldset legend { font-size: 13px; font-weight: 600; color: #374151; padding: 0 4px; }
     .radio-option { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #4b5563; }
     .line-summary { font-size: 13px; color: #4b5563; display: grid; gap: 4px; }
-    .point-list { display: flex; flex-direction: column; gap: 10px; }
+    .point-list { display: flex; flex-direction: column; gap: 8px; }
     .point-item {
       border: 1px solid #e5e7eb;
       border-radius: 12px;
-      padding: 10px;
-      display: grid;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
       gap: 10px;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      align-items: end;
+      background: #fff;
+      transition: border-color .2s, box-shadow .2s, background .2s;
     }
-    .point-item-title { grid-column: 1 / -1; font-weight: 600; color: #374151; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
-    .point-id { font-size: 12px; color: #6b7280; background: #f3f4f6; border-radius: 999px; padding: 2px 8px; }
-    .point-item-actions { display: flex; justify-content: flex-end; }
+    .point-item.is-selected {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37,99,235,.15);
+    }
+    .point-item.is-dragging { opacity: .6; }
+    .point-item.drop-before { box-shadow: inset 0 3px 0 #2563eb; }
+    .point-item.drop-after { box-shadow: inset 0 -3px 0 #2563eb; }
+    .point-handle {
+      appearance: none;
+      border: none;
+      background: none;
+      padding: 4px 2px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      color: #9ca3af;
+    }
+    .point-handle:focus-visible {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
+      color: #2563eb;
+    }
+    .point-handle:active { cursor: grabbing; }
+    .point-handle-icon { font-size: 16px; line-height: 1; }
+    .point-name {
+      font-weight: 600;
+      color: #374151;
+      font-size: 13px;
+      min-width: 72px;
+      flex: 0 0 auto;
+    }
+    .point-id {
+      font-size: 12px;
+      color: #6b7280;
+      background: #f3f4f6;
+      border-radius: 999px;
+      padding: 2px 8px;
+      flex-shrink: 0;
+    }
+    .point-input {
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: #fff;
+      box-sizing: border-box;
+    }
+    .point-input--coord {
+      flex: 1 1 150px;
+      font-variant-numeric: tabular-nums;
+    }
+    .point-input--label { flex: 2 1 180px; }
+    .point-remove {
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    @media (max-width: 640px) {
+      .point-item { flex-wrap: wrap; }
+      .point-remove { margin-left: 0; }
+    }
     .line-group line {
       stroke-linecap: round;
       pointer-events: stroke;

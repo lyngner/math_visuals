@@ -52,6 +52,10 @@
   const userLineElements = new Map();
   const answerLineElements = new Map();
 
+  let draggedPointId = null;
+  let draggingItemEl = null;
+  let dropTargetEl = null;
+
   ensureStateDefaults();
 
   function ensureStateDefaults() {
@@ -106,6 +110,28 @@
     const rounded = Math.round(num * 1000) / 10;
     if (!Number.isFinite(rounded)) return '0';
     return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  }
+
+  function coordinateString(point) {
+    if (!point) return '0, 0';
+    return `${percentString(point.x)}, ${percentString(point.y)}`;
+  }
+
+  function parseCoordinateInput(value) {
+    if (typeof value !== 'string') return null;
+    const matches = value.match(/-?\d+(?:[.,]\d+)?/g);
+    if (!matches || matches.length < 2) return null;
+    const parsePart = str => {
+      const normalized = str.replace(',', '.');
+      const num = Number(normalized);
+      if (!Number.isFinite(num)) return null;
+      if (num > 1) return clamp01(num / 100);
+      return clamp01(num);
+    };
+    const x = parsePart(matches[0]);
+    const y = parsePart(matches[1]);
+    if (x == null || y == null) return null;
+    return { x, y };
   }
 
   function makeLineKey(a, b) {
@@ -247,9 +273,8 @@
     const editor = pointEditors.get(pointId);
     const point = STATE.points.find(p => p.id === pointId);
     if (!editor || !point) return;
-    editor.labelInput.value = point.label;
-    editor.xInput.value = percentString(point.x);
-    editor.yInput.value = percentString(point.y);
+    if (editor.labelInput) editor.labelInput.value = point.label;
+    if (editor.coordInput) editor.coordInput.value = coordinateString(point);
   }
 
   function updateLinesForPoint(pointId) {
@@ -317,99 +342,214 @@
     updateLinesForPoint(pointId);
   }
 
+  function clearDragVisualState() {
+    if (!pointListEl) return;
+    pointListEl.querySelectorAll('.point-item').forEach(el => {
+      el.classList.remove('drop-before', 'drop-after');
+      delete el.dataset.dropPosition;
+    });
+    dropTargetEl = null;
+  }
+
+  function handlePointDragStart(event, pointId, item) {
+    draggedPointId = pointId;
+    draggingItemEl = item;
+    dropTargetEl = null;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      try {
+        event.dataTransfer.setData('text/plain', pointId);
+      } catch (_) {}
+    }
+    requestAnimationFrame(() => {
+      if (draggingItemEl) draggingItemEl.classList.add('is-dragging');
+    });
+  }
+
+  function handlePointDragEnd() {
+    if (draggingItemEl) {
+      draggingItemEl.classList.remove('is-dragging');
+    }
+    draggingItemEl = null;
+    draggedPointId = null;
+    clearDragVisualState();
+  }
+
+  function handlePointDragOver(event, pointId, item) {
+    if (!draggedPointId || draggedPointId === pointId) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    if (dropTargetEl && dropTargetEl !== item) {
+      dropTargetEl.classList.remove('drop-before', 'drop-after');
+      delete dropTargetEl.dataset.dropPosition;
+    }
+    dropTargetEl = item;
+    const rect = item.getBoundingClientRect();
+    const isAfter = event.clientY >= rect.top + rect.height / 2;
+    item.classList.toggle('drop-after', isAfter);
+    item.classList.toggle('drop-before', !isAfter);
+    item.dataset.dropPosition = isAfter ? 'after' : 'before';
+  }
+
+  function handlePointDragLeave(event, item) {
+    if (!draggedPointId || dropTargetEl !== item) return;
+    const related = event.relatedTarget;
+    if (related && item.contains(related)) return;
+    item.classList.remove('drop-before', 'drop-after');
+    delete item.dataset.dropPosition;
+    dropTargetEl = null;
+  }
+
+  function reorderPoints(sourceId, targetId, placeAfter) {
+    if (sourceId === targetId) return false;
+    const sourceIdx = STATE.points.findIndex(p => p.id === sourceId);
+    const targetIdx = STATE.points.findIndex(p => p.id === targetId);
+    if (sourceIdx < 0 || targetIdx < 0) return false;
+    const [entry] = STATE.points.splice(sourceIdx, 1);
+    if (!entry) return false;
+    const targetIdxAfterRemoval = targetIdx - (sourceIdx < targetIdx ? 1 : 0);
+    let insertIndex = targetIdxAfterRemoval + (placeAfter ? 1 : 0);
+    if (insertIndex < 0) insertIndex = 0;
+    if (insertIndex > STATE.points.length) insertIndex = STATE.points.length;
+    STATE.points.splice(insertIndex, 0, entry);
+    return true;
+  }
+
+  function handlePointDrop(event, targetPointId) {
+    if (!draggedPointId) return;
+    event.preventDefault();
+    const target = event.currentTarget;
+    const placeAfter = target && target.dataset.dropPosition === 'after';
+    const changed = reorderPoints(draggedPointId, targetPointId, placeAfter);
+    handlePointDragEnd();
+    if (!changed) return;
+    const validPoints = prepareState();
+    renderPointList(validPoints);
+    renderBoard(validPoints);
+  }
+
   function renderPointList(validPoints) {
     if (!pointListEl) return;
     if (!validPoints) validPoints = prepareState();
     pointEditors.clear();
     pointListEl.innerHTML = '';
+    clearDragVisualState();
     STATE.points.forEach((point, idx) => {
       const item = document.createElement('div');
       item.className = 'point-item';
+      item.dataset.pointId = point.id;
 
-      const titleRow = document.createElement('div');
-      titleRow.className = 'point-item-title';
-      const title = document.createElement('span');
-      title.textContent = `Punkt ${idx + 1}`;
+      const handle = document.createElement('button');
+      handle.type = 'button';
+      handle.className = 'point-handle';
+      handle.setAttribute('aria-label', 'Flytt punkt');
+      handle.setAttribute('title', 'Dra for å endre rekkefølge');
+      handle.draggable = true;
+      const handleIcon = document.createElement('span');
+      handleIcon.className = 'point-handle-icon';
+      handleIcon.setAttribute('aria-hidden', 'true');
+      handleIcon.textContent = '⠿';
+      handle.appendChild(handleIcon);
+      handle.addEventListener('dragstart', event => {
+        handlePointDragStart(event, point.id, item);
+      });
+      handle.addEventListener('dragend', () => {
+        handlePointDragEnd();
+      });
+      handle.addEventListener('click', event => {
+        event.preventDefault();
+      });
+      item.appendChild(handle);
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'point-name';
+      nameEl.textContent = `Punkt ${idx + 1}`;
+      item.appendChild(nameEl);
+
       const idBadge = document.createElement('span');
       idBadge.className = 'point-id';
       idBadge.textContent = point.id;
-      titleRow.append(title, idBadge);
-      item.appendChild(titleRow);
+      item.appendChild(idBadge);
 
-      const labelField = document.createElement('label');
-      labelField.textContent = 'Tekst';
+      const coordInput = document.createElement('input');
+      coordInput.type = 'text';
+      coordInput.inputMode = 'decimal';
+      coordInput.className = 'point-input point-input--coord';
+      coordInput.placeholder = '50, 50';
+      coordInput.setAttribute('aria-label', 'Koordinat (x,y)');
+      coordInput.value = coordinateString(point);
+      const commitCoordChange = () => {
+        const parsed = parseCoordinateInput(coordInput.value);
+        if (!parsed) {
+          coordInput.value = coordinateString(point);
+          return;
+        }
+        updatePointPosition(point.id, parsed.x, parsed.y);
+        coordInput.value = coordinateString(point);
+      };
+      coordInput.addEventListener('change', commitCoordChange);
+      coordInput.addEventListener('blur', commitCoordChange);
+      coordInput.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          commitCoordChange();
+          coordInput.blur();
+        }
+      });
+      item.appendChild(coordInput);
+
       const labelInput = document.createElement('input');
       labelInput.type = 'text';
+      labelInput.className = 'point-input point-input--label';
+      labelInput.placeholder = 'Tekst';
+      labelInput.setAttribute('aria-label', 'Tekst');
       labelInput.value = point.label;
-      labelInput.placeholder = `Punkt ${idx + 1}`;
       labelInput.addEventListener('input', () => {
         point.label = labelInput.value;
         const text = labelElements.get(point.id);
         if (text) text.textContent = point.label;
       });
-      labelField.appendChild(labelInput);
-      item.appendChild(labelField);
+      item.appendChild(labelInput);
 
-      const xField = document.createElement('label');
-      xField.textContent = 'X (%)';
-      const xInput = document.createElement('input');
-      xInput.type = 'number';
-      xInput.min = '0';
-      xInput.max = '100';
-      xInput.step = '0.1';
-      xInput.value = percentString(point.x);
-      xInput.addEventListener('change', () => {
-        const normalized = clamp01(Number(xInput.value) / 100);
-        point.x = normalized;
-        xInput.value = percentString(point.x);
-        updatePointPosition(point.id, point.x, point.y);
-      });
-      xField.appendChild(xInput);
-      item.appendChild(xField);
-
-      const yField = document.createElement('label');
-      yField.textContent = 'Y (%)';
-      const yInput = document.createElement('input');
-      yInput.type = 'number';
-      yInput.min = '0';
-      yInput.max = '100';
-      yInput.step = '0.1';
-      yInput.value = percentString(point.y);
-      yInput.addEventListener('change', () => {
-        const normalized = clamp01(Number(yInput.value) / 100);
-        point.y = normalized;
-        yInput.value = percentString(point.y);
-        updatePointPosition(point.id, point.x, point.y);
-      });
-      yField.appendChild(yInput);
-      item.appendChild(yField);
-
-      const actions = document.createElement('div');
-      actions.className = 'point-item-actions';
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
-      removeBtn.className = 'btn btn--small';
+      removeBtn.className = 'btn btn--small point-remove';
       removeBtn.textContent = 'Fjern';
-      removeBtn.addEventListener('click', () => {
+      removeBtn.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
         removePoint(point.id);
       });
-      actions.appendChild(removeBtn);
-      item.appendChild(actions);
+      item.appendChild(removeBtn);
+
+      item.addEventListener('dragover', event => {
+        handlePointDragOver(event, point.id, item);
+      });
+      item.addEventListener('dragleave', event => {
+        handlePointDragLeave(event, item);
+      });
+      item.addEventListener('drop', event => {
+        handlePointDrop(event, point.id);
+      });
 
       pointListEl.appendChild(item);
       pointEditors.set(point.id, {
-        labelInput,
-        xInput,
-        yInput,
-        titleEl: title,
-        idEl: idBadge
+        itemEl: item,
+        nameEl,
+        idEl: idBadge,
+        coordInput,
+        labelInput
       });
     });
+    applySelectionHighlight();
   }
 
   function applySelectionHighlight() {
     pointElements.forEach((circle, id) => {
       circle.classList.toggle('is-selected', id === selectedPointId);
+    });
+    pointEditors.forEach((editor, id) => {
+      if (editor.itemEl) editor.itemEl.classList.toggle('is-selected', id === selectedPointId);
     });
   }
 
@@ -417,11 +557,11 @@
     STATE.points.forEach((point, idx) => {
       const editor = pointEditors.get(point.id);
       if (!editor) return;
-      if (editor.titleEl) editor.titleEl.textContent = `Punkt ${idx + 1}`;
+      if (editor.nameEl) editor.nameEl.textContent = `Punkt ${idx + 1}`;
       if (editor.idEl) editor.idEl.textContent = point.id;
-      editor.labelInput.value = point.label;
-      editor.xInput.value = percentString(point.x);
-      editor.yInput.value = percentString(point.y);
+      if (editor.labelInput) editor.labelInput.value = point.label;
+      if (editor.coordInput) editor.coordInput.value = coordinateString(point);
+      if (editor.itemEl) editor.itemEl.dataset.pointId = point.id;
     });
   }
 
