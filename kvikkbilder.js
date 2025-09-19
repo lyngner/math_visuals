@@ -277,7 +277,7 @@
     const depth = Math.max(1, Math.trunc(dybde));
     brickContainer.innerHTML = '';
     brickContainer.style.gridTemplateColumns = cols > 0 ? `repeat(${cols}, 1fr)` : '';
-    brickContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows}, 1fr)` : '';
+    brickContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows}, auto)` : '';
     const perFig = width * height * depth;
     const total = cols * rows * perFig;
     const firstExpression = formatOuterInnerExpression([cols, rows], [width, height, depth]);
