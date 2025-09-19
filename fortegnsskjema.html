@@ -120,6 +120,22 @@
       border-color: #f87171;
       box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.35);
     }
+    .domain-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .domain-controls label {
+      flex: 1 1 150px;
+      min-width: 120px;
+    }
+    .domain-controls input[type="number"] {
+      max-width: none;
+    }
+    .input-invalid {
+      border-color: #f87171;
+      box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.25);
+    }
     .figure-actions {
       display: flex;
       justify-content: flex-end;
@@ -307,6 +323,18 @@
               <input type="checkbox" id="autoSync"> Automatisk fortegnslinje
             </label>
           </div>
+          <div class="domain-controls">
+            <label>
+              <span>Min x-verdi</span>
+              <input id="domainMin" type="number" step="0.1" autocomplete="off">
+            </label>
+            <label>
+              <span>Maks x-verdi</span>
+              <input id="domainMax" type="number" step="0.1" autocomplete="off">
+            </label>
+          </div>
+          <div class="note">Området settes automatisk ut fra punktene. Skriv egne verdier for å overstyre, eller tøm feltet for å
+            bruke auto.</div>
           <div class="note">Autogenerering støtter funksjoner som er faktorisert i lineære uttrykk.</div>
         </div>
 
