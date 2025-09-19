@@ -5,6 +5,126 @@
   const LABEL_OFFSET_X = 16;
   const LABEL_OFFSET_Y = -14;
 
+  function deepClone(value) {
+    if (value == null) return value;
+    if (typeof structuredClone === 'function') {
+      try {
+        return structuredClone(value);
+      } catch (_) {}
+    }
+    if (Array.isArray(value)) {
+      return value.map(entry => deepClone(entry));
+    }
+    if (typeof value === 'object') {
+      const clone = {};
+      Object.keys(value).forEach(key => {
+        clone[key] = deepClone(value[key]);
+      });
+      return clone;
+    }
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (_) {
+      return value;
+    }
+  }
+
+  const DEFAULT_STATE = {
+    coordinateOrigin: 'bottom-left',
+    points: [
+      { id: 'p1', label: '21', x: 0.16, y: 0.32 },
+      { id: 'p2', label: '28', x: 0.27, y: 0.38 },
+      { id: 'p3', label: '35', x: 0.29, y: 0.52 },
+      { id: 'p4', label: '42', x: 0.21, y: 0.64 },
+      { id: 'p5', label: '49', x: 0.39, y: 0.68 },
+      { id: 'p6', label: '56', x: 0.47, y: 0.82 },
+      { id: 'p7', label: '63', x: 0.6, y: 0.74 },
+      { id: 'p8', label: '7', x: 0.83, y: 0.8 },
+      { id: 'p9', label: '70', x: 0.83, y: 0.46 },
+      { id: 'p10', label: '14', x: 0.6, y: 0.34 }
+    ],
+    answerLines: [
+      ['p1', 'p2'],
+      ['p2', 'p3'],
+      ['p3', 'p4'],
+      ['p4', 'p5'],
+      ['p5', 'p6'],
+      ['p6', 'p7'],
+      ['p7', 'p8'],
+      ['p8', 'p9'],
+      ['p9', 'p10'],
+      ['p10', 'p5'],
+      ['p10', 'p3'],
+      ['p2', 'p10']
+    ],
+    predefinedLines: [['p3', 'p5']],
+    showLabels: true,
+    nextPointId: 11
+  };
+
+  const LIGHTNING_STATE = {
+    coordinateOrigin: 'bottom-left',
+    points: [
+      { id: 'p1', label: 'A', x: 0.7, y: 0.65 },
+      { id: 'p2', label: 'B', x: 0.55, y: 0.5 },
+      { id: 'p3', label: 'C', x: 0.65, y: 0.5 },
+      { id: 'p4', label: 'D', x: 0.5, y: 0.35 },
+      { id: 'p5', label: 'E', x: 0.6, y: 0.35 },
+      { id: 'p6', label: 'F', x: 0.5, y: 0.2 },
+      { id: 'p7', label: 'G', x: 0.75, y: 0.4 },
+      { id: 'p8', label: 'H', x: 0.65, y: 0.4 },
+      { id: 'p9', label: 'I', x: 0.8, y: 0.55 },
+      { id: 'p10', label: 'J', x: 0.7, y: 0.55 },
+      { id: 'p11', label: 'K', x: 0.8, y: 0.65 }
+    ],
+    answerLines: [
+      ['p1', 'p11'],
+      ['p11', 'p9'],
+      ['p9', 'p10'],
+      ['p10', 'p3'],
+      ['p3', 'p7'],
+      ['p7', 'p8'],
+      ['p8', 'p5'],
+      ['p5', 'p6'],
+      ['p6', 'p4'],
+      ['p4', 'p2'],
+      ['p2', 'p1']
+    ],
+    predefinedLines: [],
+    showLabels: true,
+    nextPointId: 12
+  };
+
+  const DEFAULT_PRIKK_TIL_PRIKK_EXAMPLES = [{
+    id: 'prikktilprikk-example-1',
+    exampleNumber: '1',
+    title: 'Eksempel 1',
+    isDefault: true,
+    config: {
+      STATE: DEFAULT_STATE
+    }
+  }, {
+    id: 'prikktilprikk-example-2',
+    exampleNumber: '2',
+    title: 'Lyn',
+    config: {
+      STATE: LIGHTNING_STATE
+    }
+  }];
+
+  if (typeof window !== 'undefined') {
+    window.DEFAULT_EXAMPLES = DEFAULT_PRIKK_TIL_PRIKK_EXAMPLES.map(example => {
+      const exampleState = example.config && example.config.STATE;
+      return {
+        ...example,
+        config: {
+          ...example.config,
+          STATE: deepClone(exampleState)
+        }
+      };
+    });
+  }
+
   const board = document.getElementById('dotBoard');
   if (!board) return;
 
@@ -66,36 +186,15 @@
 
   function ensureStateDefaults() {
     if (!Array.isArray(STATE.points) || STATE.points.length === 0) {
-      STATE.points = [
-        { id: 'p1', label: '21', x: 0.16, y: 0.68 },
-        { id: 'p2', label: '28', x: 0.27, y: 0.62 },
-        { id: 'p3', label: '35', x: 0.29, y: 0.48 },
-        { id: 'p4', label: '42', x: 0.21, y: 0.36 },
-        { id: 'p5', label: '49', x: 0.39, y: 0.32 },
-        { id: 'p6', label: '56', x: 0.47, y: 0.18 },
-        { id: 'p7', label: '63', x: 0.6, y: 0.26 },
-        { id: 'p8', label: '7', x: 0.83, y: 0.2 },
-        { id: 'p9', label: '70', x: 0.83, y: 0.54 },
-        { id: 'p10', label: '14', x: 0.6, y: 0.66 }
-      ];
-      STATE.answerLines = [
-        ['p1', 'p2'],
-        ['p2', 'p3'],
-        ['p3', 'p4'],
-        ['p4', 'p5'],
-        ['p5', 'p6'],
-        ['p6', 'p7'],
-        ['p7', 'p8'],
-        ['p8', 'p9'],
-        ['p9', 'p10'],
-        ['p10', 'p5'],
-        ['p10', 'p3'],
-        ['p2', 'p10']
-      ];
-      STATE.predefinedLines = [['p3', 'p5']];
-      STATE.showLabels = true;
-      STATE.nextPointId = 11;
+      const baseState = deepClone(DEFAULT_STATE) || {};
+      STATE.points = Array.isArray(baseState.points) ? baseState.points : [];
+      STATE.answerLines = Array.isArray(baseState.answerLines) ? baseState.answerLines : [];
+      STATE.predefinedLines = Array.isArray(baseState.predefinedLines) ? baseState.predefinedLines : [];
+      STATE.showLabels = baseState.showLabels !== false;
+      STATE.nextPointId = Number.isFinite(baseState.nextPointId) ? baseState.nextPointId : STATE.points.length + 1;
+      STATE.coordinateOrigin = typeof baseState.coordinateOrigin === 'string' ? baseState.coordinateOrigin : 'bottom-left';
     }
+    if (typeof STATE.coordinateOrigin !== 'string') STATE.coordinateOrigin = 'bottom-left';
     if (!Array.isArray(STATE.answerLines)) STATE.answerLines = [];
     if (!Array.isArray(STATE.predefinedLines)) STATE.predefinedLines = [];
     if (typeof STATE.showLabels !== 'boolean') STATE.showLabels = true;
@@ -181,7 +280,24 @@
     return sanitized;
   }
 
+  function ensureBottomLeftOrigin() {
+    if (!STATE || typeof STATE !== 'object') return;
+    const origin = typeof STATE.coordinateOrigin === 'string' ? STATE.coordinateOrigin : null;
+    if (origin === 'bottom-left') return;
+    if (Array.isArray(STATE.points)) {
+      STATE.points = STATE.points.map(point => {
+        if (!point || typeof point !== 'object') return point;
+        const clone = { ...point };
+        const rawY = Number(point.y);
+        if (Number.isFinite(rawY)) clone.y = 1 - rawY;
+        return clone;
+      });
+    }
+    STATE.coordinateOrigin = 'bottom-left';
+  }
+
   function sanitizeState() {
+    ensureBottomLeftOrigin();
     if (!Array.isArray(STATE.points)) STATE.points = [];
     const sanitizedPoints = [];
     const usedIds = new Set();
@@ -250,9 +366,11 @@
   }
 
   function toPixel(point) {
+    const normX = clamp01(point.x);
+    const normY = clamp01(point.y);
     return {
-      x: point.x * BOARD_WIDTH,
-      y: point.y * BOARD_HEIGHT
+      x: normX * BOARD_WIDTH,
+      y: (1 - normY) * BOARD_HEIGHT
     };
   }
 
@@ -267,11 +385,13 @@
 
   function clientToNormalized(clientX, clientY) {
     const rect = board.getBoundingClientRect();
-    const x = (clientX - rect.left) / rect.width;
-    const y = (clientY - rect.top) / rect.height;
+    const width = rect.width || 1;
+    const height = rect.height || 1;
+    const rawX = (clientX - rect.left) / width;
+    const rawY = (clientY - rect.top) / height;
     return {
-      x: clamp01(x),
-      y: clamp01(y)
+      x: clamp01(rawX),
+      y: clamp01(1 - rawY)
     };
   }
 
