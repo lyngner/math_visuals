@@ -8,6 +8,8 @@
   position: relative;
   user-select: none;
   touch-action: none;
+  align-self: stretch;
+  min-height: 100%;
 }
 .grid.split-enabled > .splitter::before {
   content: "";
