@@ -573,6 +573,16 @@ function draw(skipNormalization = false) {
     }
   }
   if (grid) grid.setAttribute('data-cols', String(CONFIG.cols));
+  if (settingsContainer) {
+    const parsedCols = Number(CONFIG.cols);
+    const parsedRows = Number(CONFIG.rows);
+    const safeCols = Number.isFinite(parsedCols) && parsedCols > 0 ? Math.floor(parsedCols) : 1;
+    const safeRows = Number.isFinite(parsedRows) && parsedRows > 0 ? Math.floor(parsedRows) : 1;
+    settingsContainer.style.setProperty('--tb-settings-cols', String(safeCols));
+    settingsContainer.style.setProperty('--tb-settings-rows', String(safeRows));
+    settingsContainer.dataset.cols = String(safeCols);
+    settingsContainer.dataset.rows = String(safeRows);
+  }
   updateAddButtons();
   const multiple = CONFIG.activeBlocks > 1;
   multipleBlocksActive = multiple;
@@ -753,6 +763,8 @@ function createBlock(row, col, cfg) {
   panel.appendChild(stepper);
   const fieldset = document.createElement('fieldset');
   block.fieldset = fieldset;
+  fieldset.dataset.row = String(row);
+  fieldset.dataset.col = String(col);
   const legend = document.createElement('legend');
   block.legend = legend;
   fieldset.appendChild(legend);
