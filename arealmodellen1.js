@@ -1,6 +1,8 @@
 /* =========================================================
    KONFIG – SIMPLE (viktigst) + ADV (alt annet)
    ========================================================= */
+const HANDLE_ICON_VERT = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2084%2084%22%3E%20%20%3Crect%20x%3D%225%22%20y%3D%225%22%20width%3D%2274%22%20height%3D%2274%22%20rx%3D%2216%22%20fill%3D%22%23f9fafb%22%20stroke%3D%22%23111827%22%20stroke-width%3D%224%22/%3E%20%20%3Cpath%20fill%3D%22%23111827%22%20d%3D%22M42%2016l-13%2013h9v18h8V29h9zm0%2052l13-13h-9V37h-8v18h-9z%22/%3E%3C/svg%3E";
+const HANDLE_ICON_HORIZ = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2084%2084%22%3E%20%20%3Crect%20x%3D%225%22%20y%3D%225%22%20width%3D%2274%22%20height%3D%2274%22%20rx%3D%2216%22%20fill%3D%22%23f9fafb%22%20stroke%3D%22%23111827%22%20stroke-width%3D%224%22/%3E%20%20%3Cpath%20fill%3D%22%23111827%22%20d%3D%22M16%2042l13-13v9h18v8H29v9zm52%200l-13%2013v-9H37v-8h18v-9z%22/%3E%3C/svg%3E";
 const CFG = {
   SIMPLE: {
     layout: "quad",
@@ -40,8 +42,8 @@ const CFG = {
     },
     // Håndtak (piler)
     handleIcons: {
-      vert: "https://test.kikora.no/img/drive/figures/UIclientObjects/arrows/moveV.svg",
-      horiz: "https://test.kikora.no/img/drive/figures/UIclientObjects/arrows/moveH.svg",
+      vert: HANDLE_ICON_VERT,
+      horiz: HANDLE_ICON_HORIZ,
       size: 84
     },
     classes: {
