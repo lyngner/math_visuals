@@ -341,8 +341,10 @@
           <option value="triangular">trekantsrutenett</option>
         </select>
       </label>
-      <div class="checkbox-row"><input id="allowWrong${id}" type="checkbox" />
-        <label for="allowWrong${id}">Tillat gale illustrasjoner</label></div>
+      <label class="checkbox">
+        <input id="allowWrong${id}" type="checkbox" />
+        <span>Tillat gale illustrasjoner</span>
+      </label>
     `;
     return fieldset;
   }
@@ -353,7 +355,6 @@
       gridEl.dataset.rows = String(rows);
       gridEl.style.setProperty('--figure-rows', String(rows));
     }
-    if (settingsContainer) settingsContainer.style.setProperty('--figure-settings-cols', String(cols));
     if (addRowBtn) addRowBtn.style.display = rows >= MAX_ROWS ? 'none' : '';
     if (removeRowBtn) removeRowBtn.style.display = rows <= MIN_DIMENSION ? 'none' : '';
     if (addColumnBtn) addColumnBtn.style.display = cols >= MAX_COLS ? 'none' : '';
