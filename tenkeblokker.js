@@ -769,7 +769,7 @@ function createBlock(row, col, cfg) {
   block.legend = legend;
   fieldset.appendChild(legend);
   const totalLabel = document.createElement('label');
-  totalLabel.textContent = 'Total';
+  totalLabel.textContent = 'Lengde';
   const totalInput = document.createElement('input');
   totalInput.type = 'number';
   totalInput.min = '1';
@@ -785,7 +785,7 @@ function createBlock(row, col, cfg) {
   totalLabel.appendChild(totalInput);
   fieldset.appendChild(totalLabel);
   const nLabel = document.createElement('label');
-  nLabel.textContent = 'Antall blokker';
+  nLabel.textContent = 'Nevner';
   const nInput = document.createElement('input');
   nInput.type = 'number';
   nInput.min = String(CONFIG.minN);
@@ -799,7 +799,7 @@ function createBlock(row, col, cfg) {
   nLabel.appendChild(nInput);
   fieldset.appendChild(nLabel);
   const kLabel = document.createElement('label');
-  kLabel.textContent = 'Fylte blokker';
+  kLabel.textContent = 'Teller';
   const kInput = document.createElement('input');
   kInput.type = 'number';
   kInput.min = '0';
@@ -1025,7 +1025,7 @@ function drawBlock(block) {
   }
   const stepperVisible = !cfg.lockDenominator;
   if (block.stepper) {
-    block.stepper.setAttribute('aria-label', `Antall blokker i tenkeblokk ${block.index + 1}`);
+    block.stepper.setAttribute('aria-label', `Nevner i tenkeblokk ${block.index + 1}`);
     block.stepper.style.display = stepperVisible ? '' : 'none';
   }
   if (block.nVal) {
