@@ -33,14 +33,14 @@
       display:grid;
       gap:var(--gap);
       width:100%;
-      align-items:stretch;
+      align-items:start;
+      justify-items:center;
       grid-template-columns:repeat(var(--figure-cols, 1), minmax(0, 1fr));
     }
     .figure-controls{display:flex;gap:var(--gap);align-items:center;}
     .figure-controls--cols{grid-column:2;grid-row:1;flex-direction:column;justify-self:center;}
     .figure-controls--rows{grid-column:1;grid-row:2;justify-self:center;}
-    .figurePanel{display:flex;flex-direction:column;align-items:stretch;gap:12px;min-width:0;}
-    .figurePanel__header{display:flex;justify-content:center;font-size:14px;font-weight:600;color:#4b5563;}
+    .figurePanel{display:flex;flex-direction:column;align-items:center;gap:12px;min-width:0;}
     .figurePanel__actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
     .addFigureBtn{
       width:clamp(36px,7.5vw,60px);
@@ -61,9 +61,9 @@
       flex-direction:column;gap:10px;
     }
     .card h2{margin:0 0 6px 2px;font-size:16px;font-weight:600;color:#374151;}
-    .figure{width:100%;border-radius:10px;background:#fff;overflow:visible;border:none;}
+    .figure{width:100%;border-radius:10px;background:#fff;overflow:visible;border:none;display:flex;justify-content:center;}
     .figure .box{
-      width:100%;
+      width:clamp(120px,min(calc((100% - (var(--figure-cols, 1) - 1) * var(--gap)) / var(--figure-cols, 1)),calc((min(78vh, 100vh - 240px) - (var(--figure-rows, 1) - 1) * var(--gap)) / var(--figure-rows, 1))),320px);
       aspect-ratio:1;
       margin:0 auto;
     }
@@ -131,6 +131,13 @@
               <input id="color_4" type="color" value="#B25FE3" />
               <input id="color_5" type="color" value="#873E79" />
               <input id="color_6" type="color" value="#E31C3D" />
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Eksport</legend>
+            <div class="toolbar" id="exportToolbar">
+              <button id="btnExportSvg" class="btn" type="button">Last ned SVG</button>
+              <button id="btnExportPng" class="btn" type="button">Last ned PNG</button>
             </div>
           </fieldset>
           <div id="figureSettings" class="figureSettings"></div>
