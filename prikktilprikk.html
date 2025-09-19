@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Prikk til prikk (beta)</title>
+  <style>
+    :root { --gap: 18px; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial,"Noto Sans";
+      color: #111827;
+      background: #f7f8fb;
+      padding: 20px;
+    }
+    .wrap { max-width: 1200px; margin: 0 auto; }
+    .grid { display: grid; gap: var(--gap); grid-template-columns: 1fr 420px; align-items: start; }
+    .side { display: flex; flex-direction: column; gap: var(--gap); }
+    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #374151;
+    }
+    .card--board { gap: 16px; }
+    .figure {
+      border-radius: 10px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      overflow: hidden;
+      position: relative;
+    }
+    #dotBoard {
+      width: 100%;
+      height: clamp(320px, 60vh, 520px);
+      display: block;
+      touch-action: none;
+      background: #fff;
+    }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .toolbar--mode {
+      justify-content: space-between;
+      align-items: center;
+    }
+    .mode-label {
+      font-size: 14px;
+      color: #4b5563;
+      font-weight: 600;
+    }
+    .hint {
+      margin: 0;
+      font-size: 14px;
+      color: #4b5563;
+    }
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: #4b5563;
+    }
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+    .legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+    .legend-swatch--user { background: #2563eb; }
+    .legend-swatch--predef { background: #111827; }
+    .legend-swatch--answer { background: linear-gradient(45deg, #0f766e, #22d3ee); }
+    .status {
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      line-height: 1.5;
+      display: none;
+    }
+    .status--success {
+      display: block;
+      background: #ecfdf5;
+      border: 1px solid #34d399;
+      color: #047857;
+    }
+    .status--error {
+      display: block;
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #b91c1c;
+    }
+    .status--info {
+      display: block;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1d4ed8;
+    }
+    .status strong { display: inline-flex; align-items: center; gap: 6px; }
+    .btn {
+      appearance: none;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: box-shadow .2s, transform .02s;
+      color: inherit;
+    }
+    .btn:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled {
+      opacity: .6;
+      cursor: default;
+      box-shadow: none;
+      transform: none;
+    }
+    .btn--primary {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #fff;
+    }
+    .btn--success {
+      background: #059669;
+      border-color: #059669;
+      color: #fff;
+    }
+    .btn--small { padding: 6px 10px; font-size: 13px; }
+    label { font-size: 13px; color: #4b5563; display: flex; flex-direction: column; gap: 4px; }
+    input[type="text"], input[type="number"] {
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: #fff;
+      box-sizing: border-box;
+    }
+    input[type="number"] { width: 100%; }
+    fieldset {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+    fieldset legend { font-size: 13px; font-weight: 600; color: #374151; padding: 0 4px; }
+    .radio-option { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #4b5563; }
+    .line-summary { font-size: 13px; color: #4b5563; display: grid; gap: 4px; }
+    .point-list { display: flex; flex-direction: column; gap: 10px; }
+    .point-item {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 10px;
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      align-items: end;
+    }
+    .point-item-title { grid-column: 1 / -1; font-weight: 600; color: #374151; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+    .point-id { font-size: 12px; color: #6b7280; background: #f3f4f6; border-radius: 999px; padding: 2px 8px; }
+    .point-item-actions { display: flex; justify-content: flex-end; }
+    .line-group line {
+      stroke-linecap: round;
+      pointer-events: stroke;
+    }
+    .line-predefined { stroke: #111827; stroke-width: 6; }
+    .line-user { stroke: #2563eb; stroke-width: 6; cursor: pointer; }
+    .line-user:hover { stroke: #1d4ed8; }
+    .line-answer { stroke: #0f766e; stroke-width: 4; stroke-dasharray: 10 8; pointer-events: none; opacity: .9; }
+    .point { fill: #fff; stroke: #111827; stroke-width: 2.4; cursor: pointer; }
+    .point.is-selected { stroke: #2563eb; stroke-width: 3.2; }
+    .point-label {
+      font-size: 14px;
+      font-weight: 600;
+      fill: #111827;
+      paint-order: stroke;
+      stroke: #fff;
+      stroke-width: 5px;
+      stroke-linejoin: round;
+    }
+    body.labels-hidden .point-label { display: none; }
+    .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #4b5563; }
+    .toggle input { width: auto; }
+    @media (max-width: 600px) {
+      .toolbar--mode { flex-direction: column; align-items: flex-start; gap: 8px; }
+    }
+  </style>
+  <link rel="stylesheet" href="split.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card card--board">
+        <div class="toolbar toolbar--mode">
+          <button id="btnToggleMode" class="btn btn--primary" type="button">Gå til spillmodus</button>
+          <span id="modeLabel" class="mode-label">Redigeringsmodus</span>
+        </div>
+        <div class="figure">
+          <svg id="dotBoard" viewBox="0 0 1000 700" role="img" aria-label="Prikk-til-prikk-tegning"></svg>
+        </div>
+        <p id="modeHint" class="hint"></p>
+        <div class="legend">
+          <span class="legend-item"><span class="legend-swatch legend-swatch--user"></span> Elevens streker</span>
+          <span class="legend-item"><span class="legend-swatch legend-swatch--predef"></span> Forhåndsdefinerte streker</span>
+          <span class="legend-item"><span class="legend-swatch legend-swatch--answer"></span> Fasit (kun i redigering)</span>
+        </div>
+        <div class="toolbar">
+          <button id="btnCheck" class="btn btn--success" type="button">Sjekk svar</button>
+          <button id="btnClear" class="btn" type="button">Tøm streker</button>
+        </div>
+        <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
+      </div>
+      <div class="side">
+        <div class="card card--examples">
+          <div class="toolbar">
+            <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>
+            <button id="btnDeleteExample" class="btn" type="button">Slett eksempel</button>
+          </div>
+        </div>
+        <div class="card card--settings">
+          <h2>Punkter</h2>
+          <button id="btnAddPoint" class="btn" type="button">Legg til punkt</button>
+          <div id="pointList" class="point-list"></div>
+        </div>
+        <div class="card card--lines">
+          <h2>Streker</h2>
+          <fieldset id="lineModeFieldset">
+            <legend>Rediger streker</legend>
+            <label class="radio-option"><input type="radio" name="lineMode" value="answer" checked> Fasit</label>
+            <label class="radio-option"><input type="radio" name="lineMode" value="predefined"> Forhåndsdefinert</label>
+            <label class="radio-option"><input type="radio" name="lineMode" value="none"> Flytt punkter</label>
+          </fieldset>
+          <div class="line-summary">
+            <div>Fasit-streker: <span id="answerCount">0</span></div>
+            <div>Forhåndsdefinerte streker: <span id="predefCount">0</span></div>
+          </div>
+          <label class="toggle"><input id="cfg-showLabels" type="checkbox" checked> Vis etiketter</label>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="prikktilprikk.js"></script>
+  <script src="split.js"></script>
+  <script src="examples.js"></script>
+</body>
+</html>
