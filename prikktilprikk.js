@@ -45,6 +45,7 @@
   let isEditMode = true;
   let currentLineMode = 'answer';
   let selectedPointId = null;
+  let usingAutoAnswer = false;
 
   const pointEditors = new Map();
   const pointElements = new Map();
@@ -89,11 +90,13 @@
       ];
       STATE.predefinedLines = [['p3', 'p5']];
       STATE.showLabels = true;
+      STATE.autoAnswer = true;
       STATE.nextPointId = 11;
     }
     if (!Array.isArray(STATE.answerLines)) STATE.answerLines = [];
     if (!Array.isArray(STATE.predefinedLines)) STATE.predefinedLines = [];
     if (typeof STATE.showLabels !== 'boolean') STATE.showLabels = true;
+    if (typeof STATE.autoAnswer !== 'boolean') STATE.autoAnswer = true;
     if (!Number.isFinite(STATE.nextPointId)) STATE.nextPointId = STATE.points.length + 1;
   }
 
@@ -148,6 +151,58 @@
     return { a: parts[0], b: parts[1] };
   }
 
+  function isPointMarkedSpecial(point) {
+    if (!point || typeof point !== 'object') return false;
+    const booleanFlags = [point.fake, point.isFake, point.falsePoint, point.figure, point.isFigure];
+    if (booleanFlags.some(flag => flag === true || (typeof flag === 'string' && flag.toLowerCase() === 'true'))) {
+      return true;
+    }
+    const stringFlags = [point.type, point.kind, point.role, point.category, point.marker, point.tag];
+    return stringFlags.some(value => {
+      if (typeof value !== 'string') return false;
+      const normalized = value.trim().toLowerCase();
+      return normalized === 'fake' || normalized === 'false' || normalized === 'falsk' || normalized === 'figur' || normalized === 'figure';
+    });
+  }
+
+  function shouldUseAutoAnswer() {
+    if (STATE.autoAnswer === false) return false;
+    if (!Array.isArray(STATE.points) || STATE.points.length < 2) return false;
+    return !STATE.points.some(isPointMarkedSpecial);
+  }
+
+  function computeAutoAnswerLines(validPoints) {
+    const lines = [];
+    if (!Array.isArray(STATE.points) || STATE.points.length < 2) return lines;
+    const seenKeys = new Set();
+    let previousId = null;
+    STATE.points.forEach(point => {
+      if (!point || typeof point.id !== 'string') return;
+      const id = point.id;
+      if (validPoints && !validPoints.has(id)) return;
+      if (previousId && previousId !== id) {
+        const key = makeLineKey(previousId, id);
+        if (key && !seenKeys.has(key)) {
+          seenKeys.add(key);
+          lines.push([previousId, id]);
+        }
+      }
+      previousId = id;
+    });
+    return lines;
+  }
+
+  function getEffectiveAnswerLines(validPoints) {
+    if (!validPoints) validPoints = prepareState();
+    if (shouldUseAutoAnswer()) {
+      const autoLines = computeAutoAnswerLines(validPoints);
+      if (autoLines.length) {
+        return { lines: autoLines, mode: 'auto' };
+      }
+    }
+    return { lines: STATE.answerLines, mode: 'manual' };
+  }
+
   function sanitizeLineList(list, validPoints) {
     if (!Array.isArray(list)) return [];
     const sanitized = [];
@@ -199,6 +254,11 @@
         x: clamp01(point.x),
         y: clamp01(point.y)
       };
+      ['fake', 'isFake', 'falsePoint', 'figure', 'isFigure', 'type', 'kind', 'role', 'category', 'marker', 'tag'].forEach(prop => {
+        if (Object.prototype.hasOwnProperty.call(point, prop)) {
+          sanitizedPoint[prop] = point[prop];
+        }
+      });
       usedIds.add(id);
       sanitizedPoints.push(sanitizedPoint);
     });
@@ -217,6 +277,7 @@
       STATE.nextPointId = nextCandidate;
     }
     if (typeof STATE.showLabels !== 'boolean') STATE.showLabels = true;
+    STATE.autoAnswer = STATE.autoAnswer !== false;
     return validPoints;
   }
 
@@ -630,8 +691,11 @@
 
     answerGroup.innerHTML = '';
     answerLineElements.clear();
+    const answerConfig = getEffectiveAnswerLines(validPoints);
+    usingAutoAnswer = answerConfig.mode === 'auto';
+    const answerLinesToRender = answerConfig.lines;
     if (isEditMode) {
-      STATE.answerLines.forEach(([a, b]) => {
+      answerLinesToRender.forEach(([a, b]) => {
         const p1 = pointMap.get(a);
         const p2 = pointMap.get(b);
         if (!p1 || !p2) return;
@@ -673,13 +737,17 @@
     });
 
     updatePointEditors();
-    updateCounts();
+    updateCounts(answerLinesToRender);
     applySelectionHighlight();
     updateModeHint();
   }
 
-  function updateCounts() {
-    if (answerCountEl) answerCountEl.textContent = String(STATE.answerLines.length);
+  function updateCounts(answerLinesToRender) {
+    const count = Array.isArray(answerLinesToRender) ? answerLinesToRender.length : 0;
+    if (answerCountEl) {
+      const countLabel = usingAutoAnswer ? `${count} (automatisk)` : String(count);
+      answerCountEl.textContent = countLabel;
+    }
     if (predefCountEl) predefCountEl.textContent = String(STATE.predefinedLines.length);
   }
 
@@ -788,13 +856,16 @@
   }
 
   function checkSolution() {
-    prepareState();
-    if (!STATE.answerLines.length) {
+    const validPoints = prepareState();
+    const answerConfig = getEffectiveAnswerLines(validPoints);
+    usingAutoAnswer = answerConfig.mode === 'auto';
+    if (!answerConfig.lines.length) {
       showStatus('info', 'Ingen fasit er definert ennå.');
+      updateModeHint();
       return;
     }
     const pointMap = new Map(STATE.points.map(p => [p.id, p]));
-    const answerKeys = new Set(STATE.answerLines.map(([a, b]) => makeLineKey(a, b)).filter(Boolean));
+    const answerKeys = new Set(answerConfig.lines.map(([a, b]) => makeLineKey(a, b)).filter(Boolean));
     const drawnKeys = new Set([...baseLines, ...userLines]);
     const missing = [];
     answerKeys.forEach(key => {
@@ -806,6 +877,7 @@
     });
     if (missing.length === 0 && extras.length === 0) {
       showStatus('success', 'Det er riktig!');
+      updateModeHint();
       return;
     }
     const details = [];
@@ -816,16 +888,21 @@
       details.push(`Ekstra: ${extras.map(key => describeLine(key, pointMap)).join(', ')}`);
     }
     showStatus('error', 'Ikke helt riktig ennå.', details);
+    updateModeHint();
   }
 
   function updateModeHint() {
     if (!modeHint) return;
     if (!isEditMode) {
-      modeHint.textContent = 'Klikk på to punkter for å tegne en strek. Klikk på en strek for å fjerne den.';
+      modeHint.textContent = usingAutoAnswer
+        ? 'Koble punktene sammen i stigende rekkefølge: 1–2–3 osv. Klikk på to punkter for å tegne en strek.'
+        : 'Klikk på to punkter for å tegne en strek. Klikk på en strek for å fjerne den.';
       return;
     }
     if (currentLineMode === 'answer') {
-      modeHint.textContent = 'Rediger fasit: velg to punkter for å legge til eller fjerne en fasit-strek.';
+      modeHint.textContent = usingAutoAnswer
+        ? 'Fasit genereres automatisk: rekkefølgen på punktene avgjør streken 1–2–3 osv.'
+        : 'Rediger fasit: velg to punkter for å legge til eller fjerne en fasit-strek.';
     } else if (currentLineMode === 'predefined') {
       modeHint.textContent = 'Rediger forhåndsdefinerte streker: velg to punkter for å slå av eller på en ferdig strek.';
     } else {
