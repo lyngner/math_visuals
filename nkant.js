@@ -976,10 +976,6 @@ async function collectJobsFromSpecs(text) {
       newLines.push("");
       continue;
     }
-    if (jobs.length >= 2) {
-      newLines.push(line);
-      continue;
-    }
     const obj = await parseSpecAI(line);
     if (Object.keys(obj).length === 0) {
       newLines.push(line);
@@ -1117,60 +1113,29 @@ async function renderCombined() {
       y: 40,
       fill: "#6b7280",
       "font-size": 18
-    }).textContent = "Skriv 1–2 SPECS- eller tekstlinjer for å tegne figur(er).";
+    }).textContent = "Skriv én linje per figur for å tegne.";
     svg.setAttribute("aria-label", "");
     return;
   }
-  let totalW = BASE_W,
-    totalH = BASE_H;
-  if (n === 1) {
-    totalW = BASE_W;
-    totalH = BASE_H;
-  } else if (STATE.layout === "row") {
-    totalW = BASE_W * 2 + GAP;
-    totalH = BASE_H;
-  } else {
-    totalW = BASE_W;
-    totalH = BASE_H * 2 + GAP;
-  }
+  const gapTotal = Math.max(0, n - 1) * GAP;
+  const rowLayout = n === 1 ? true : STATE.layout === "row";
+  const totalW = rowLayout ? BASE_W * n + gapTotal : BASE_W;
+  const totalH = rowLayout ? BASE_H : BASE_H * n + gapTotal;
   svg.setAttribute("viewBox", `0 0 ${totalW} ${totalH}`);
-  const groups = [];
-  for (let i = 0; i < n; i++) groups.push(add(svg, "g", {}));
-  const rects = [];
-  if (n === 1) {
-    rects.push({
-      x: 0,
-      y: 0,
-      w: BASE_W,
-      h: BASE_H
-    });
-  } else if (STATE.layout === "row") {
-    rects.push({
-      x: 0,
-      y: 0,
-      w: BASE_W,
-      h: BASE_H
-    });
-    rects.push({
-      x: BASE_W + GAP,
-      y: 0,
-      w: BASE_W,
-      h: BASE_H
-    });
-  } else {
-    rects.push({
-      x: 0,
-      y: 0,
-      w: BASE_W,
-      h: BASE_H
-    });
-    rects.push({
-      x: 0,
-      y: BASE_H + GAP,
-      w: BASE_W,
-      h: BASE_H
-    });
-  }
+  const groups = Array.from({
+    length: n
+  }, () => add(svg, "g", {}));
+  const rects = groups.map((_, i) => rowLayout ? {
+    x: i * (BASE_W + GAP),
+    y: 0,
+    w: BASE_W,
+    h: BASE_H
+  } : {
+    x: 0,
+    y: i * (BASE_H + GAP),
+    w: BASE_W,
+    h: BASE_H
+  });
   for (let i = 0; i < n; i++) {
     const {
       type,
@@ -1183,7 +1148,7 @@ async function renderCombined() {
       errorBox(groups[i], rects[i], String(e.message || e));
     }
   }
-  svg.setAttribute("aria-label", n === 1 ? "Én figur" : "To figurer i samme bilde");
+  svg.setAttribute("aria-label", n === 1 ? "Én figur" : `${n} figurer i samme bilde`);
 }
 
 /* ---------- UI BIND ---------- */
