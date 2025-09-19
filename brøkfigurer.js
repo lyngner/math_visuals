@@ -67,6 +67,7 @@
   const CIRCLE_RADIUS = 0.45;
   const OUTLINE_STROKE_WIDTH = 6;
   const colorCountInp = document.getElementById('colorCount');
+  const allowWrongInp = document.getElementById('allowWrong');
   const colorInputs = [];
   for (let i = 1;; i++) {
     const inp = document.getElementById('color_' + i);
@@ -99,6 +100,21 @@
   let autoPaletteEnabled = modifiedColorIndexes.size === 0;
   let lastAppliedPaletteSize = null;
   if (!STATE.figures || typeof STATE.figures !== 'object') STATE.figures = {};
+  let allowWrongGlobal;
+  if (typeof STATE.allowWrong === 'boolean') {
+    allowWrongGlobal = STATE.allowWrong;
+  } else {
+    allowWrongGlobal = false;
+    for (const key of Object.keys(STATE.figures)) {
+      const figState = STATE.figures[key];
+      if (figState && typeof figState === 'object' && typeof figState.allowWrong === 'boolean') {
+        allowWrongGlobal = figState.allowWrong;
+        break;
+      }
+    }
+  }
+  STATE.allowWrong = allowWrongGlobal;
+  if (allowWrongInp) allowWrongInp.checked = allowWrongGlobal;
   const maxColors = colorInputs.length || 1;
   const defaultColorCount = clampInt((_colorCountInp$value = colorCountInp === null || colorCountInp === void 0 ? void 0 : colorCountInp.value) !== null && _colorCountInp$value !== void 0 ? _colorCountInp$value : 1, 1, maxColors);
   const stateColorCount = STATE.colorCount != null ? clampInt(STATE.colorCount, 1, maxColors) : null;
@@ -158,18 +174,28 @@
     const shapeEl = document.getElementById(`shape${id}`);
     const partsEl = document.getElementById(`parts${id}`);
     const divisionEl = document.getElementById(`division${id}`);
-    const wrongEl = document.getElementById(`allowWrong${id}`);
     if (shapeEl && fig.shape == null) fig.shape = shapeEl.value;
     if (partsEl && fig.parts == null) {
       const parsed = parseInt(partsEl.value, 10);
       fig.parts = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
     }
     if (divisionEl && fig.division == null) fig.division = divisionEl.value;
-    if (wrongEl && typeof fig.allowWrong !== 'boolean') fig.allowWrong = !!wrongEl.checked;
+    fig.allowWrong = allowWrongGlobal;
     STATE.figures[id] = fig;
     return fig;
   }
   const getActiveFigureIds = () => activeFigureIds.slice();
+  if (allowWrongInp) {
+    allowWrongInp.addEventListener('change', () => {
+      allowWrongGlobal = !!allowWrongInp.checked;
+      STATE.allowWrong = allowWrongGlobal;
+      for (const id of getActiveFigureIds()) {
+        const figState = ensureFigureState(id);
+        figState.allowWrong = allowWrongGlobal;
+      }
+      renderAll();
+    });
+  }
   const DEFAULT_COLOR_SETS = {
     1: ['#6C1BA2'],
     2: ['#BF4474', '#534477'],
@@ -242,6 +268,9 @@
     (_window$render2 = (_window2 = window).render) === null || _window$render2 === void 0 || _window$render2.call(_window2);
   }));
   function applyStateToControls() {
+    allowWrongGlobal = !!STATE.allowWrong;
+    STATE.allowWrong = allowWrongGlobal;
+    if (allowWrongInp) allowWrongInp.checked = allowWrongGlobal;
     colorCount = clampInt(STATE.colorCount, 1, maxColors);
     STATE.colorCount = colorCount;
     if (colorCountInp) colorCountInp.value = String(colorCount);
@@ -252,6 +281,7 @@
     });
     for (const id of getActiveFigureIds()) {
       const figState = ensureFigureState(id);
+      figState.allowWrong = allowWrongGlobal;
       const shapeSel = document.getElementById(`shape${id}`);
       if (shapeSel && figState.shape) {
         const options = Array.from(shapeSel.options || []);
@@ -272,8 +302,6 @@
         const options = Array.from(divSel.options || []);
         if (options.some(opt => opt.value === figState.division)) divSel.value = figState.division;
       }
-      const wrongInp = document.getElementById(`allowWrong${id}`);
-      if (wrongInp && typeof figState.allowWrong === 'boolean') wrongInp.checked = figState.allowWrong;
     }
   }
   function renderAll() {
@@ -341,8 +369,6 @@
           <option value="triangular">trekantsrutenett</option>
         </select>
       </label>
-      <div class="checkbox-row"><input id="allowWrong${id}" type="checkbox" />
-        <label for="allowWrong${id}">Tillat gale illustrasjoner</label></div>
     `;
     return fieldset;
   }
@@ -407,7 +433,6 @@
     const shapeSel = document.getElementById(`shape${id}`);
     const partsInp = document.getElementById(`parts${id}`);
     const divSel = document.getElementById(`division${id}`);
-    const wrongInp = document.getElementById(`allowWrong${id}`);
     const minusBtn = document.getElementById(`partsMinus${id}`);
     const plusBtn = document.getElementById(`partsPlus${id}`);
     const partsVal = document.getElementById(`partsVal${id}`);
@@ -508,7 +533,7 @@
       return false;
     }
     function draw() {
-      var _ref, _partsInp$value, _wrongInp$checked, _wrongInp$checked2;
+      var _ref, _partsInp$value;
       if (!panel || !panel.isConnected || panel.style.display === 'none') return;
       const figState = ensureFigureState(id);
       setFilled(figState.filled);
@@ -516,7 +541,7 @@
       let n = clampInt((_ref = (_partsInp$value = partsInp === null || partsInp === void 0 ? void 0 : partsInp.value) !== null && _partsInp$value !== void 0 ? _partsInp$value : figState.parts) !== null && _ref !== void 0 ? _ref : 1, 1);
       const shape = (shapeSel === null || shapeSel === void 0 ? void 0 : shapeSel.value) || figState.shape || 'rectangle';
       let division = (divSel === null || divSel === void 0 ? void 0 : divSel.value) || figState.division || 'horizontal';
-      const allowWrong = (_wrongInp$checked = wrongInp === null || wrongInp === void 0 ? void 0 : wrongInp.checked) !== null && _wrongInp$checked !== void 0 ? _wrongInp$checked : !!figState.allowWrong;
+      const allowWrong = allowWrongGlobal;
       if ((shape === 'rectangle' || shape === 'square') && division === 'diagonal') n = 4;
       const gridOpt = divSel === null || divSel === void 0 ? void 0 : divSel.querySelector('option[value="grid"]');
       const vertOpt = divSel === null || divSel === void 0 ? void 0 : divSel.querySelector('option[value="vertical"]');
@@ -543,7 +568,7 @@
       figState.parts = n;
       figState.shape = (shapeSel === null || shapeSel === void 0 ? void 0 : shapeSel.value) || shape;
       figState.division = division;
-      figState.allowWrong = !!((_wrongInp$checked2 = wrongInp === null || wrongInp === void 0 ? void 0 : wrongInp.checked) !== null && _wrongInp$checked2 !== void 0 ? _wrongInp$checked2 : allowWrong);
+      figState.allowWrong = allowWrong;
       const colors = getColors();
       const colorFor = idx => {
         const c = filled.get(idx);
@@ -1177,11 +1202,6 @@
     divSel === null || divSel === void 0 || divSel.addEventListener('change', () => {
       const figState = ensureFigureState(id);
       figState.division = divSel.value;
-      window.render();
-    });
-    wrongInp === null || wrongInp === void 0 || wrongInp.addEventListener('change', () => {
-      const figState = ensureFigureState(id);
-      figState.allowWrong = !!wrongInp.checked;
       window.render();
     });
     minusBtn === null || minusBtn === void 0 || minusBtn.addEventListener('click', () => {
