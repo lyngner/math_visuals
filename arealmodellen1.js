@@ -127,6 +127,10 @@ function computeLayoutState(layout, width, height, cols, rows, sx, sy, unit) {
   const rightCols = Math.max(0, cols - leftCols);
   const bottomRows = Math.max(0, Math.min(rows, Math.round(bottomHeight / unit)));
   const topRows = Math.max(0, rows - bottomRows);
+  const hasLeft = leftWidth > 0;
+  const hasRight = rightWidth > 0;
+  const hasTop = topHeight > 0;
+  const hasBottom = bottomHeight > 0;
   return {
     mode,
     leftWidth,
@@ -137,10 +141,10 @@ function computeLayoutState(layout, width, height, cols, rows, sx, sy, unit) {
     rightCols,
     bottomRows,
     topRows,
-    showTopLeft: true,
-    showTopRight: mode !== "vertical",
-    showBottomLeft: mode !== "horizontal",
-    showBottomRight: mode === "quad"
+    showTopLeft: hasLeft && hasTop,
+    showTopRight: mode !== "vertical" && hasRight && hasTop,
+    showBottomLeft: mode !== "horizontal" && hasLeft && hasBottom,
+    showBottomRight: mode === "quad" && hasRight && hasBottom
   };
 }
 /* ========================================================= */
@@ -507,6 +511,7 @@ function draw() {
     set(rBR, "y", MT + topHeight);
     set(rBR, "width", rightWidth);
     set(rBR, "height", bottomHeight);
+    setDisplay(rTL, layoutState.showTopLeft);
     setDisplay(rTR, layoutState.showTopRight);
     setDisplay(rBL, layoutState.showBottomLeft);
     setDisplay(rBR, layoutState.showBottomRight);
@@ -560,27 +565,36 @@ function draw() {
     }
 
     // cell-etiketter
-    set(tTL, "x", ML + leftWidth / 2);
-    set(tTL, "y", MT + topHeight / 2 + 8);
-    tTL.textContent = formatCellLabel(wL, hT);
-    setDisplay(tTR, layoutState.showTopRight);
-    if (layoutState.showTopRight) {
+    const showTLText = layoutState.showTopLeft && wL > 0 && hT > 0;
+    setDisplay(tTL, showTLText);
+    if (showTLText) {
+      set(tTL, "x", ML + leftWidth / 2);
+      set(tTL, "y", MT + topHeight / 2 + 8);
+      tTL.textContent = formatCellLabel(wL, hT);
+    } else {
+      tTL.textContent = "";
+    }
+    const showTRText = layoutState.showTopRight && wR > 0 && hT > 0;
+    setDisplay(tTR, showTRText);
+    if (showTRText) {
       set(tTR, "x", ML + leftWidth + rightWidth / 2);
       set(tTR, "y", MT + topHeight / 2 + 8);
       tTR.textContent = formatCellLabel(wR, hT);
     } else {
       tTR.textContent = "";
     }
-    setDisplay(tBL, layoutState.showBottomLeft);
-    if (layoutState.showBottomLeft) {
+    const showBLText = layoutState.showBottomLeft && wL > 0 && hB > 0;
+    setDisplay(tBL, showBLText);
+    if (showBLText) {
       set(tBL, "x", ML + leftWidth / 2);
       set(tBL, "y", MT + topHeight + bottomHeight / 2 + 8);
       tBL.textContent = formatCellLabel(wL, hB);
     } else {
       tBL.textContent = "";
     }
-    setDisplay(tBR, layoutState.showBottomRight);
-    if (layoutState.showBottomRight) {
+    const showBRText = layoutState.showBottomRight && wR > 0 && hB > 0;
+    setDisplay(tBR, showBRText);
+    if (showBRText) {
       set(tBR, "x", ML + leftWidth + rightWidth / 2);
       set(tBR, "y", MT + topHeight + bottomHeight / 2 + 8);
       tBR.textContent = formatCellLabel(wR, hB);
@@ -1173,10 +1187,10 @@ function draw() {
     lines.push("    rightCols: rightCols,");
     lines.push("    topRows: topRows,");
     lines.push("    bottomRows: bottomRows,");
-    lines.push("    showTopLeft: true,");
-    lines.push("    showTopRight: layout !== 'vertical',");
-    lines.push("    showBottomLeft: layout !== 'horizontal',");
-    lines.push("    showBottomRight: layout === 'quad'");
+    lines.push("    showTopLeft: leftWidth > 0 && topHeight > 0,");
+    lines.push("    showTopRight: layout !== 'vertical' && rightWidth > 0 && topHeight > 0,");
+    lines.push("    showBottomLeft: layout !== 'horizontal' && leftWidth > 0 && bottomHeight > 0,");
+    lines.push("    showBottomRight: layout === 'quad' && rightWidth > 0 && bottomHeight > 0");
     lines.push("  };");
     lines.push("}");
     lines.push("var rect=root.getBoundingClientRect(); function refreshRect(){ rect=root.getBoundingClientRect(); }");
@@ -1190,6 +1204,7 @@ function draw() {
     lines.push("  set(rTR,'x',ML+leftWidth); set(rTR,'y',MT); set(rTR,'width',rightWidth); set(rTR,'height',topHeight);");
     lines.push("  set(rBL,'x',ML); set(rBL,'y',MT+topHeight); set(rBL,'width',leftWidth); set(rBL,'height',bottomHeight);");
     lines.push("  set(rBR,'x',ML+leftWidth); set(rBR,'y',MT+topHeight); set(rBR,'width',rightWidth); set(rBR,'height',bottomHeight);");
+    lines.push("  setDisplay(rTL, state.showTopLeft);");
     lines.push("  setDisplay(rTR, state.showTopRight);");
     lines.push("  setDisplay(rBL, state.showBottomLeft);");
     lines.push("  setDisplay(rBR, state.showBottomRight);");
@@ -1202,10 +1217,14 @@ function draw() {
     lines.push("  if(hitDown){ set(hitDown,'cx',hDownCX); set(hitDown,'cy',hDownCY); }");
     lines.push("  var leftOutsideX = ML-(HS/2)-GAPX;");
     lines.push("  var bottomOutsideY = MT+H+(HS/2)+GAPY;");
-    lines.push("  if(tTL){ set(tTL,'x',ML+leftWidth/2); set(tTL,'y',MT+topHeight/2+8); tTL.textContent = wL + ' · ' + hT; }");
-    lines.push("  if(tTR){ setDisplay(tTR, state.showTopRight); if(state.showTopRight){ set(tTR,'x',ML+leftWidth+rightWidth/2); set(tTR,'y',MT+topHeight/2+8); tTR.textContent = wR + ' · ' + hT; } else { tTR.textContent=''; } }");
-    lines.push("  if(tBL){ setDisplay(tBL, state.showBottomLeft); if(state.showBottomLeft){ set(tBL,'x',ML+leftWidth/2); set(tBL,'y',MT+topHeight+bottomHeight/2+8); tBL.textContent = wL + ' · ' + hB; } else { tBL.textContent=''; } }");
-    lines.push("  if(tBR){ setDisplay(tBR, state.showBottomRight); if(state.showBottomRight){ set(tBR,'x',ML+leftWidth+rightWidth/2); set(tBR,'y',MT+topHeight+bottomHeight/2+8); tBR.textContent = wR + ' · ' + hB; } else { tBR.textContent=''; } }");
+    lines.push("  var showTLText = state.showTopLeft && wL > 0 && hT > 0;");
+    lines.push("  var showTRText = state.showTopRight && wR > 0 && hT > 0;");
+    lines.push("  var showBLText = state.showBottomLeft && wL > 0 && hB > 0;");
+    lines.push("  var showBRText = state.showBottomRight && wR > 0 && hB > 0;");
+    lines.push("  if(tTL){ setDisplay(tTL, showTLText); if(showTLText){ set(tTL,'x',ML+leftWidth/2); set(tTL,'y',MT+topHeight/2+8); tTL.textContent = wL + ' · ' + hT; } else { tTL.textContent=''; } }");
+    lines.push("  if(tTR){ setDisplay(tTR, showTRText); if(showTRText){ set(tTR,'x',ML+leftWidth+rightWidth/2); set(tTR,'y',MT+topHeight/2+8); tTR.textContent = wR + ' · ' + hT; } else { tTR.textContent=''; } }");
+    lines.push("  if(tBL){ setDisplay(tBL, showBLText); if(showBLText){ set(tBL,'x',ML+leftWidth/2); set(tBL,'y',MT+topHeight+bottomHeight/2+8); tBL.textContent = wL + ' · ' + hB; } else { tBL.textContent=''; } }");
+    lines.push("  if(tBR){ setDisplay(tBR, showBRText); if(showBRText){ set(tBR,'x',ML+leftWidth+rightWidth/2); set(tBR,'y',MT+topHeight+bottomHeight/2+8); tBR.textContent = wR + ' · ' + hB; } else { tBR.textContent=''; } }");
     lines.push("  if(leftTop){ set(leftTop,'x',leftOutsideX); set(leftTop,'y',MT+topHeight/2+10); leftTop.textContent = String(hT); }");
     lines.push("  if(leftBot){ set(leftBot,'x',leftOutsideX); set(leftBot,'y',MT+topHeight+bottomHeight/2+10); leftBot.textContent = String(hB); }");
     lines.push("  if(botLeft){ set(botLeft,'x',ML+leftWidth/2); set(botLeft,'y',bottomOutsideY); botLeft.textContent = String(wL); }");
