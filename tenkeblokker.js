@@ -176,6 +176,7 @@ const LABEL_OFFSET_RATIO = 14 / VBH;
 const DEFAULT_SVG_HEIGHT = 260;
 const BASE_INNER_RATIO = BOTTOM_RATIO - TOP_RATIO;
 const ROW_GAP = 18;
+const ROW_LABEL_GAP = 12;
 const DEFAULT_FRAME_INSET = 3;
 const BLOCKS = [];
 let multipleBlocksActive = false;
@@ -187,6 +188,40 @@ const removeColumnBtn = document.getElementById('tbRemoveColumn');
 const removeRowBtn = document.getElementById('tbRemoveRow');
 const settingsContainer = document.getElementById('tbSettings');
 const ROW_LABEL_ELEMENTS = [];
+let rowLabelMeasureElement = null;
+
+function getRowLabelMeasureElement() {
+  if (rowLabelMeasureElement && document.body && document.body.contains(rowLabelMeasureElement)) {
+    return rowLabelMeasureElement;
+  }
+  const el = document.createElement('div');
+  el.className = 'tb-row-label';
+  el.setAttribute('aria-hidden', 'true');
+  el.style.position = 'absolute';
+  el.style.visibility = 'hidden';
+  el.style.pointerEvents = 'none';
+  el.style.whiteSpace = 'nowrap';
+  el.style.paddingRight = '0px';
+  el.style.margin = '0';
+  el.style.display = 'inline-flex';
+  el.style.alignItems = 'center';
+  el.style.justifyContent = 'flex-end';
+  el.style.gridColumn = 'auto';
+  el.style.width = 'auto';
+  el.style.minWidth = '0';
+  el.style.maxWidth = 'none';
+  if (document.body) document.body.appendChild(el);
+  rowLabelMeasureElement = el;
+  return el;
+}
+
+function measureRowLabelWidth(text) {
+  if (typeof text !== 'string' || !text) return 0;
+  const measureEl = getRowLabelMeasureElement();
+  measureEl.textContent = text;
+  const rect = measureEl.getBoundingClientRect();
+  return rect && Number.isFinite(rect.width) ? rect.width : 0;
+}
 const globalControls = {
   fieldset: null,
   horizontal: null,
@@ -723,13 +758,31 @@ function draw(skipNormalization = false) {
       if (input.value !== value) input.value = value;
     });
   }
+  let maxLabelWidth = 0;
+  if (grid) {
+    grid.style.setProperty('--tb-row-label-gap', `${ROW_LABEL_GAP}px`);
+    grid.style.setProperty('--tb-label-max-width', '0px');
+  }
   ROW_LABEL_ELEMENTS.forEach((label, index) => {
     if (!label) return;
     const text = Array.isArray(CONFIG.rowLabels) && typeof CONFIG.rowLabels[index] === 'string' ? CONFIG.rowLabels[index] : '';
     const trimmed = text.trim();
     label.textContent = trimmed;
-    label.dataset.empty = trimmed ? 'false' : 'true';
+    const hasText = trimmed.length > 0;
+    label.dataset.empty = hasText ? 'false' : 'true';
+    if (hasText) {
+      label.style.display = 'flex';
+      const measured = measureRowLabelWidth(trimmed);
+      const padded = Math.ceil(Number.isFinite(measured) ? measured : 0) + ROW_LABEL_GAP;
+      if (padded > maxLabelWidth) maxLabelWidth = padded;
+    } else {
+      label.style.display = 'none';
+    }
   });
+  if (grid) {
+    const safeMax = Math.max(0, Math.ceil(maxLabelWidth));
+    grid.style.setProperty('--tb-label-max-width', `${safeMax}px`);
+  }
   const rowTotals = Array.from({
     length: CONFIG.rows
   }, () => 0);
@@ -776,10 +829,11 @@ function draw(skipNormalization = false) {
         const total = Number(rowTotals[index]) || 0;
         const ratio = total > 0 ? total / maxRowTotal : 0;
         const clamped = Math.max(0, Math.min(ratio, 1));
-        rowEl.style.width = `${clamped * 100}%`;
+        const percentValue = `${(clamped * 100).toFixed(4)}%`;
+        rowEl.style.setProperty('--tb-row-width-percent', percentValue);
         rowEl.style.alignSelf = 'flex-start';
       } else {
-        rowEl.style.width = '';
+        rowEl.style.removeProperty('--tb-row-width-percent');
         rowEl.style.alignSelf = '';
       }
     });
