@@ -124,7 +124,7 @@
           <label>Type
             <select id="cfg-type">
               <option value="klosser">Klosser</option>
-              <option value="monster">Numbervisuals</option>
+              <option value="monster" selected>Numbervisuals</option>
             </select>
           </label>
           <label>Vis
@@ -142,16 +142,15 @@
               <option value="10">10 sekunder</option>
             </select>
           </label>
-          <div class="checkbox-row">
-            <input id="cfg-show-expression" type="checkbox" checked>
-            <label for="cfg-show-expression">Vis regnestykke</label>
-          </div>
+          <label>Prikker i én figur
+            <input id="cfg-antall" type="number" min="1" value="9">
+          </label>
           <div id="klosserConfig">
             <div class="field-row field-row--two">
-              <label>Antall X
+              <label>Antall figurer i x-retning
                 <input id="cfg-antallX" type="number" min="1" value="5">
               </label>
-              <label>Antall Y
+              <label>Antall figurer i y-retning
                 <input id="cfg-antallY" type="number" min="1" value="2">
               </label>
             </div>
@@ -169,16 +168,13 @@
           </div>
           <div id="monsterConfig">
             <div class="field-row field-row--two">
-              <label>Antall X
+              <label>Antall figurer i x-retning
                 <input id="cfg-monster-antallX" type="number" min="1" value="2">
               </label>
-              <label>Antall Y
+              <label>Antall figurer i y-retning
                 <input id="cfg-monster-antallY" type="number" min="1" value="2">
               </label>
             </div>
-            <label>Antall
-              <input id="cfg-antall" type="number" min="1" value="9">
-            </label>
             <div class="field-grid">
               <label>Punktstørrelse
                 <input id="cfg-monster-circleRadius" type="number" min="1" max="60" value="10">
@@ -190,6 +186,10 @@
                 <input id="cfg-monster-patternGap" type="number" min="0" value="18">
               </label>
             </div>
+          </div>
+          <div class="checkbox-row">
+            <input id="cfg-show-expression" type="checkbox" checked>
+            <label for="cfg-show-expression">Vis regnestykke</label>
           </div>
         </div>
         <div class="card">
