@@ -35,6 +35,13 @@
     .settings input[type="text"], .settings input[type="number"], .settings select{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:100%; }
     .settings-row{ display:flex; gap:8px; flex-wrap:wrap; }
     .settings-row label{ flex:1; }
+    .func-row label{ min-width:0; }
+    .func-row label.func-input,
+    .func-row label.domain{ flex:1 1 calc(35% - 6px); }
+    @media (max-width:680px){
+      .func-row label.func-input,
+      .func-row label.domain{ flex-basis:100%; }
+    }
     .settings-row label.points{ flex:1 1 200px; }
     .settings-row label.points select{ width:100%; }
     .settings fieldset{ border:1px solid #e5e7eb; border-radius:12px; padding:16px; background:#fafbfc; }
@@ -115,6 +122,10 @@
                   <label class="checkbox-tile">
                     <input id="cfgShowExpr" type="checkbox">
                     <span>Vis funksjonsuttrykk</span>
+                  </label>
+                  <label class="checkbox-tile">
+                    <input id="cfgShowBrackets" type="checkbox" checked>
+                    <span>Vis [ ] på grafer</span>
                   </label>
                 </div>
                 <div class="axis-font-grid">
