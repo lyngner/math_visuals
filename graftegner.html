@@ -33,17 +33,18 @@
     .settings{ display:flex; flex-direction:column; gap:8px; }
     .settings label{ display:flex; flex-direction:column; gap:6px; font-size:13px; color:#4b5563; white-space:normal; }
     .settings input[type="text"], .settings input[type="number"], .settings select{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:100%; }
-    .settings-row{ display:flex; gap:8px; flex-wrap:wrap; }
-    .settings-row label{ flex:1; }
-    .func-row label{ min-width:0; }
-    .func-row label.func-input,
-    .func-row label.domain{ flex:1 1 calc(35% - 6px); }
+    .func-table{ width:100%; border-collapse:separate; border-spacing:0 12px; margin:0 0 4px; }
+    .func-table td{ width:50%; padding:0 8px 0 0; vertical-align:top; }
+    .func-table td:last-child{ padding-right:0; }
+    .func-table label{ width:100%; }
+    .func-table .func-cell-inner{ display:flex; flex-direction:column; gap:6px; }
+    .func-table .func-cell-inner > .btn{ align-self:flex-start; margin-top:4px; }
     @media (max-width:680px){
-      .func-row label.func-input,
-      .func-row label.domain{ flex-basis:100%; }
+      .func-table{ border-spacing:0 10px; }
+      .func-table td{ display:block; width:100%; padding:0 0 8px 0; }
+      .func-table tr{ display:block; }
+      .func-table td:last-child{ padding-right:0; }
     }
-    .settings-row label.points{ flex:1 1 200px; }
-    .settings-row label.points select{ width:100%; }
     .settings fieldset{ border:1px solid #e5e7eb; border-radius:12px; padding:16px; background:#fafbfc; }
     .settings fieldset legend{ padding:0 6px; font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:#6b7280; }
     .settings-group{ display:flex; flex-direction:column; gap:16px; }
@@ -95,7 +96,9 @@
 
         <div class="card card--settings">
           <div class="settings">
-            <div id="funcRows"></div>
+            <table id="funcRows" class="func-table">
+              <tbody></tbody>
+            </table>
             <fieldset>
               <legend>Koordinatsystem</legend>
               <div class="settings-group">

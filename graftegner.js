@@ -1976,7 +1976,15 @@ setupSettingsForm();
 function setupSettingsForm() {
   const root = document.querySelector('.settings');
   if (!root) return;
-  const funcRows = document.getElementById('funcRows');
+  const funcRowsTable = document.getElementById('funcRows');
+  let funcRows = null;
+  if (funcRowsTable) {
+    funcRows = funcRowsTable.tBodies[0] || null;
+    if (!funcRows) {
+      funcRows = document.createElement('tbody');
+      funcRowsTable.appendChild(funcRows);
+    }
+  }
   const addBtn = document.createElement('button');
   addBtn.id = 'addFunc';
   addBtn.type = 'button';
@@ -1987,25 +1995,26 @@ function setupSettingsForm() {
   const showNamesInput = g('cfgShowNames');
   const showExprInput = g('cfgShowExpr');
   const showBracketsInput = g('cfgShowBrackets');
-  const gliderRow = document.createElement('div');
-  gliderRow.className = 'settings-row glider-row';
+  const gliderRow = document.createElement('tr');
+  gliderRow.className = 'glider-row';
   gliderRow.innerHTML = `
-    <label class="points">Antall punkter på grafen
-      <select data-points>
-        <option value="0">0</option>
-        <option value="1">1</option>
-        <option value="2">2</option>
-      </select>
-    </label>
-    <label>Startposisjon, x
-      <input type="text" data-startx value="1" placeholder="1">
-    </label>
+    <td>
+      <label class="points">Antall punkter på grafen
+        <select data-points>
+          <option value="0">0</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+        </select>
+      </label>
+    </td>
+    <td>
+      <label class="startx-label">Startposisjon, x
+        <input type="text" data-startx value="1" placeholder="1">
+      </label>
+    </td>
   `;
-  const fieldset = root.querySelector('fieldset');
-  if (fieldset) {
-    root.insertBefore(gliderRow, fieldset);
-  } else {
-    root.appendChild(gliderRow);
+  if (funcRows) {
+    funcRows.appendChild(gliderRow);
   }
   gliderRow.style.display = 'none';
   const gliderCountInput = gliderRow.querySelector('[data-points]');
@@ -2038,7 +2047,7 @@ function setupSettingsForm() {
     return clamped > 0 ? clamped : 0;
   };
   const shouldEnableGliders = () => {
-    const firstRowInput = funcRows === null || funcRows === void 0 ? void 0 : funcRows.querySelector('.func-row:first-child input[data-fun]');
+    const firstRowInput = funcRows === null || funcRows === void 0 ? void 0 : funcRows.querySelector('tr.func-row input[data-fun]');
     if (!firstRowInput) return false;
     const value = firstRowInput.value.trim();
     if (!value) return false;
@@ -2065,7 +2074,7 @@ function setupSettingsForm() {
   };
   const buildSimpleFromForm = () => {
     var _rows$;
-    const rows = Array.from(funcRows.querySelectorAll('.func-row'));
+    const rows = funcRows ? Array.from(funcRows.querySelectorAll('tr.func-row')) : [];
     const firstVal = ((_rows$ = rows[0]) === null || _rows$ === void 0 || (_rows$ = _rows$.querySelector('input[data-fun]')) === null || _rows$ === void 0 ? void 0 : _rows$.value.trim()) || '';
     const firstIsCoords = !!firstVal && isCoords(firstVal);
     const lines = [];
@@ -2140,17 +2149,29 @@ function setupSettingsForm() {
     updateGliderVisibility();
   };
   const createRow = (index, funVal = '', domVal = '') => {
-    const row = document.createElement('div');
-    row.className = 'settings-row func-row';
+    const row = document.createElement('tr');
+    row.className = 'func-row';
     row.innerHTML = `
-      <label class="func-input">${index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index}
-        <input type="text" data-fun>
-      </label>
-      <label class="domain">Avgrensning
-        <input type="text" data-dom placeholder="[start, stopp]">
-      </label>
+      <td class="func-cell">
+        <div class="func-cell-inner">
+          <label class="func-input">${index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index}
+            <input type="text" data-fun>
+          </label>
+        </div>
+      </td>
+      <td>
+        <label class="domain">Avgrensning
+          <input type="text" data-dom placeholder="[start, stopp]">
+        </label>
+      </td>
     `;
-    funcRows.appendChild(row);
+    if (funcRows) {
+      if (gliderRow.parentElement === funcRows) {
+        funcRows.insertBefore(row, gliderRow);
+      } else {
+        funcRows.appendChild(row);
+      }
+    }
     const funInput = row.querySelector('input[data-fun]');
     const domInput = row.querySelector('input[data-dom]');
     if (funInput) {
@@ -2171,8 +2192,14 @@ function setupSettingsForm() {
   };
   const appendAddBtn = () => {
     if (addBtn.parentElement) addBtn.parentElement.removeChild(addBtn);
-    const lastRow = funcRows.querySelector('.func-row:last-child');
-    if (lastRow) lastRow.appendChild(addBtn);
+    const rows = funcRows ? funcRows.querySelectorAll('tr.func-row') : [];
+    const lastRow = rows.length ? rows[rows.length - 1] : null;
+    if (lastRow) {
+      const inner = lastRow.querySelector('.func-cell-inner');
+      if (inner) {
+        inner.appendChild(addBtn);
+      }
+    }
   };
   const fillFormFromSimple = simple => {
     if (addBtn.parentElement) {
@@ -2189,7 +2216,9 @@ function setupSettingsForm() {
     if (filteredLines.length === 0) {
       filteredLines.push('');
     }
-    funcRows.innerHTML = '';
+    if (funcRows) {
+      funcRows.innerHTML = '';
+    }
     filteredLines.forEach((line, idx) => {
       let funVal = line;
       let domVal = '';
@@ -2200,6 +2229,9 @@ function setupSettingsForm() {
       }
       createRow(idx + 1, funVal, domVal);
     });
+    if (funcRows) {
+      funcRows.appendChild(gliderRow);
+    }
     appendAddBtn();
     if (gliderCountInput) {
       var _SIMPLE_PARSED;
@@ -2217,7 +2249,7 @@ function setupSettingsForm() {
   };
   fillFormFromSimple(SIMPLE);
   addBtn.addEventListener('click', () => {
-    const index = funcRows.querySelectorAll('.func-row').length + 1;
+    const index = (funcRows ? funcRows.querySelectorAll('tr.func-row').length : 0) + 1;
     createRow(index, '', '');
     appendAddBtn();
     syncSimpleFromForm();
@@ -2254,7 +2286,7 @@ function setupSettingsForm() {
     syncSimpleFromForm();
     const p = new URLSearchParams();
     let idx = 1;
-    funcRows.querySelectorAll('.func-row').forEach((row, rowIdx) => {
+    (funcRows ? funcRows.querySelectorAll('tr.func-row') : []).forEach((row, rowIdx) => {
       const fun = row.querySelector('input[data-fun]').value.trim();
       const dom = row.querySelector('input[data-dom]').value.trim();
       if (!fun) return;
