@@ -148,8 +148,6 @@
   const addPointBtn = document.getElementById('btnAddPoint');
   const sortPointsBtn = document.getElementById('btnSortPoints');
   const pointListEl = document.getElementById('pointList');
-  const lineModeFieldset = document.getElementById('lineModeFieldset');
-  const lineModeInputs = lineModeFieldset ? Array.from(lineModeFieldset.querySelectorAll('input[name="lineMode"]')) : [];
   const showLabelsCheckbox = document.getElementById('cfg-showLabels');
   const answerCountEl = document.getElementById('answerCount');
   const predefCountEl = document.getElementById('predefCount');
@@ -174,7 +172,6 @@
   const userLines = new Set();
 
   let isEditMode = true;
-  let currentLineMode = 'answer';
   let selectedPointId = null;
 
   const pointEditors = new Map();
@@ -183,6 +180,8 @@
   const baseLineElements = new Map();
   const userLineElements = new Map();
   const answerLineElements = new Map();
+
+  let realPointIds = new Set();
 
   let draggedPointId = null;
   let draggingItemEl = null;
@@ -291,6 +290,25 @@
     return sanitized;
   }
 
+  function buildSequentialAnswerLines(points) {
+    if (!Array.isArray(points)) return [];
+    const sequential = [];
+    const usedKeys = new Set();
+    let previous = null;
+    points.forEach(point => {
+      if (!point || point.isFalse) return;
+      if (previous) {
+        const key = makeLineKey(previous.id, point.id);
+        if (key && !usedKeys.has(key)) {
+          sequential.push([previous.id, point.id]);
+          usedKeys.add(key);
+        }
+      }
+      previous = point;
+    });
+    return sequential;
+  }
+
   function ensureBottomLeftOrigin() {
     if (!STATE || typeof STATE !== 'object') return;
     const origin = typeof STATE.coordinateOrigin === 'string' ? STATE.coordinateOrigin : null;
@@ -338,8 +356,12 @@
     });
     STATE.points = sanitizedPoints;
     const validPoints = new Set(sanitizedPoints.map(p => p.id));
-    STATE.answerLines = sanitizeLineList(STATE.answerLines, validPoints);
-    STATE.predefinedLines = sanitizeLineList(STATE.predefinedLines, validPoints);
+    realPointIds = new Set();
+    sanitizedPoints.forEach(point => {
+      if (point && !point.isFalse) realPointIds.add(point.id);
+    });
+    STATE.predefinedLines = sanitizeLineList(STATE.predefinedLines, realPointIds);
+    STATE.answerLines = buildSequentialAnswerLines(sanitizedPoints);
     let nextCandidate = 1;
     sanitizedPoints.forEach(point => {
       const match = point.id.match(/([0-9]+)$/);
@@ -363,7 +385,7 @@
     const toDelete = [];
     userLines.forEach(key => {
       const { a, b } = keyToPair(key);
-      if (!validPoints.has(a) || !validPoints.has(b) || baseLines.has(key)) {
+      if (!validPoints.has(a) || !validPoints.has(b) || baseLines.has(key) || !realPointIds.has(a) || !realPointIds.has(b)) {
         toDelete.push(key);
       }
     });
@@ -1043,21 +1065,8 @@
     if (predefCountEl) predefCountEl.textContent = String(STATE.predefinedLines.length);
   }
 
-  function toggleLine(list, a, b) {
-    const key = makeLineKey(a, b);
-    if (!key) return false;
-    const idx = list.findIndex(([p, q]) => makeLineKey(p, q) === key);
-    if (idx >= 0) {
-      list.splice(idx, 1);
-      return false;
-    }
-    const [first, second] = key.split('|');
-    list.push([first, second]);
-    return true;
-  }
-
   function handlePointSelection(pointId) {
-    if (currentLineMode === 'none' && isEditMode) {
+    if (isEditMode) {
       selectedPointId = selectedPointId === pointId ? null : pointId;
       applySelectionHighlight();
       return;
@@ -1073,21 +1082,15 @@
       return;
     }
     clearStatus();
-    if (isEditMode) {
-      if (currentLineMode === 'answer') {
-        toggleLine(STATE.answerLines, selectedPointId, pointId);
-      } else if (currentLineMode === 'predefined') {
-        const added = toggleLine(STATE.predefinedLines, selectedPointId, pointId);
-        const key = makeLineKey(selectedPointId, pointId);
-        if (added && key) userLines.delete(key);
-      }
-      selectedPointId = pointId;
-      renderBoard();
-      return;
-    }
     const key = makeLineKey(selectedPointId, pointId);
     if (!key) {
       selectedPointId = null;
+      applySelectionHighlight();
+      return;
+    }
+    const { a, b } = keyToPair(key);
+    if (!realPointIds.has(a) || !realPointIds.has(b)) {
+      selectedPointId = pointId;
       applySelectionHighlight();
       return;
     }
@@ -1180,17 +1183,11 @@
 
   function updateModeHint() {
     if (!modeHint) return;
-    if (!isEditMode) {
-      modeHint.textContent = 'Klikk på to punkter for å tegne en strek. Klikk på en strek for å fjerne den.';
+    if (isEditMode) {
+      modeHint.textContent = 'Fasit-strekene følger rekkefølgen på ekte punkter. Dra i punktene for å endre plassering.';
       return;
     }
-    if (currentLineMode === 'answer') {
-      modeHint.textContent = 'Rediger fasit: velg to punkter for å legge til eller fjerne en fasit-strek.';
-    } else if (currentLineMode === 'predefined') {
-      modeHint.textContent = 'Rediger forhåndsdefinerte streker: velg to punkter for å slå av eller på en ferdig strek.';
-    } else {
-      modeHint.textContent = 'Flytt punkter ved å dra dem. Velg en annen linjemodus for å endre streker.';
-    }
+    modeHint.textContent = 'Klikk på to punkter for å tegne en strek. Klikk på en strek for å fjerne den.';
   }
 
   function updateModeUI() {
@@ -1200,7 +1197,6 @@
     if (modeLabel) modeLabel.textContent = isEditMode ? 'Redigeringsmodus' : 'Spillmodus';
     if (checkBtn) checkBtn.disabled = isEditMode;
     if (clearBtn) clearBtn.disabled = isEditMode;
-    if (lineModeFieldset) lineModeFieldset.disabled = !isEditMode;
     document.body.classList.toggle('is-edit-mode', isEditMode);
     document.body.classList.toggle('is-play-mode', !isEditMode);
     updateModeHint();
@@ -1306,16 +1302,6 @@
       renderBoard();
     });
   }
-
-  lineModeInputs.forEach(input => {
-    input.addEventListener('change', () => {
-      if (!input.checked) return;
-      currentLineMode = input.value;
-      selectedPointId = null;
-      updateModeHint();
-      applySelectionHighlight();
-    });
-  });
 
   if (showLabelsCheckbox) {
     showLabelsCheckbox.addEventListener('change', () => {
