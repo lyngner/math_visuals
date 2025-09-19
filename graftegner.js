@@ -2145,43 +2145,31 @@ function setupSettingsForm() {
     if (index === 1) {
       row.innerHTML = `
         <legend>Funksjon ${index}</legend>
-        <div class="func-fields func-fields--table">
-          <table class="func-table">
-            <tbody>
-              <tr>
-                <td>
-                  <label class="func-input">
-                    <span>${titleLabel}</span>
-                    <input type="text" data-fun>
-                  </label>
-                </td>
-                <td>
-                  <label class="domain">
-                    <span>Avgrensning</span>
-                    <input type="text" data-dom placeholder="[start, stopp]">
-                  </label>
-                </td>
-              </tr>
-              <tr class="glider-row">
-                <td>
-                  <label class="points">
-                    <span>Antall punkter på grafen</span>
-                    <select data-points>
-                      <option value="0">0</option>
-                      <option value="1">1</option>
-                      <option value="2">2</option>
-                    </select>
-                  </label>
-                </td>
-                <td>
-                  <label class="startx-label">
-                    <span>Startposisjon, x</span>
-                    <input type="text" data-startx value="1" placeholder="1">
-                  </label>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="func-fields func-fields--first">
+          <div class="func-row func-row--main">
+            <label class="func-input">
+              <span>${titleLabel}</span>
+              <input type="text" data-fun>
+            </label>
+            <label class="domain">
+              <span>Avgrensning</span>
+              <input type="text" data-dom placeholder="[start, stopp]">
+            </label>
+          </div>
+          <div class="func-row func-row--gliders glider-row">
+            <label class="points">
+              <span>Antall punkter på grafen</span>
+              <select data-points>
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+              </select>
+            </label>
+            <label class="startx-label">
+              <span>Startposisjon, x</span>
+              <input type="text" data-startx value="1" placeholder="1">
+            </label>
+          </div>
         </div>
       `;
     } else {
