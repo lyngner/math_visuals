@@ -11,6 +11,8 @@
   const pointsList = document.getElementById('pointsList');
   const rowsList = document.getElementById('rowsList');
   const autoSyncInput = document.getElementById('autoSync');
+  const domainMinInput = document.getElementById('domainMin');
+  const domainMaxInput = document.getElementById('domainMax');
   const checkStatus = document.getElementById('checkStatus');
   if (!svg || !exprInput) {
     return;
@@ -20,7 +22,11 @@
     autoSync: false,
     criticalPoints: [],
     signRows: [],
-    solution: null
+    solution: null,
+    domain: {
+      min: null,
+      max: null
+    }
   };
   let pointIdCounter = 1;
   let rowIdCounter = 1;
@@ -318,7 +324,7 @@
     addEntries(structure.poles, 'pole');
     return Array.from(map.values()).sort((a, b) => a.value - b.value);
   }
-  function computeDomain(points) {
+  function computeAutoDomain(points) {
     if (!points.length) {
       return {
         min: -5,
@@ -344,6 +350,74 @@
       min: min - margin,
       max: max + margin
     };
+  }
+  function getDomainInfo() {
+    const auto = computeAutoDomain(state.criticalPoints);
+    const overrideMin = Number.isFinite(state.domain.min) ? state.domain.min : null;
+    const overrideMax = Number.isFinite(state.domain.max) ? state.domain.max : null;
+    let min = overrideMin ?? auto.min;
+    let max = overrideMax ?? auto.max;
+    const invalid = {
+      min: false,
+      max: false
+    };
+    if (!(max > min)) {
+      const span = Math.max(auto.max - auto.min, 2);
+      if (overrideMin != null && overrideMax != null) {
+        invalid.min = true;
+        invalid.max = true;
+        const center = (overrideMin + overrideMax) / 2 || overrideMin || overrideMax || 0;
+        min = center - span / 2;
+        max = center + span / 2;
+      } else if (overrideMin != null) {
+        min = overrideMin;
+        max = overrideMin + span;
+      } else if (overrideMax != null) {
+        max = overrideMax;
+        min = overrideMax - span;
+      } else {
+        const center = (min + max) / 2 || 0;
+        min = center - span / 2;
+        max = center + span / 2;
+      }
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      min = auto.min;
+      max = auto.max;
+    }
+    if (Math.abs(max - min) < 1e-6) {
+      const center = (max + min) / 2;
+      min = center - 1;
+      max = center + 1;
+    }
+    return {
+      auto,
+      override: {
+        min: overrideMin,
+        max: overrideMax
+      },
+      active: {
+        min,
+        max
+      },
+      invalid
+    };
+  }
+  function renderDomainControls(domainInfo) {
+    if (!domainMinInput || !domainMaxInput) return;
+    const info = domainInfo || getDomainInfo();
+    const minValue = info.override.min != null ? info.override.min : info.auto.min;
+    const maxValue = info.override.max != null ? info.override.max : info.auto.max;
+    if (document.activeElement !== domainMinInput) {
+      domainMinInput.value = formatPointValue(minValue);
+    }
+    if (document.activeElement !== domainMaxInput) {
+      domainMaxInput.value = formatPointValue(maxValue);
+    }
+    domainMinInput.placeholder = formatPointValue(info.auto.min);
+    domainMaxInput.placeholder = formatPointValue(info.auto.max);
+    domainMinInput.classList.toggle('input-invalid', info.invalid.min);
+    domainMaxInput.classList.toggle('input-invalid', info.invalid.max);
   }
   function tryEvaluate(fn, x) {
     try {
@@ -413,7 +487,7 @@
     }
     const structure = extractStructure(sanitized);
     const points = buildPoints(structure);
-    const domain = computeDomain(points);
+    const domain = computeAutoDomain(points);
     const segments = computeSegments(fn, points, domain);
     return {
       points,
@@ -587,7 +661,8 @@
   function renderChart() {
     sortPoints();
     const points = state.criticalPoints;
-    const domain = computeDomain(points);
+    const domainInfo = getDomainInfo();
+    const domain = domainInfo.active;
     const width = svg.clientWidth || svg.parentElement.clientWidth || 900;
     const rowSpacing = 70;
     const arrowY = 40;
@@ -614,6 +689,7 @@
       domainMin: min,
       domainMax: max
     };
+    renderDomainControls(domainInfo);
     const axisLine = createSvgElement('line', {
       x1: axisStart,
       y1: arrowY,
@@ -778,6 +854,7 @@
     point.value = value;
     sortPoints();
     if (fromDrag) {
+      renderPointsList();
       renderChart();
     } else {
       syncSegments();
@@ -916,6 +993,41 @@
   }
   if (overlayAddRow) {
     overlayAddRow.addEventListener('click', handleAddRow);
+  }
+  function handleDomainChange(key, event) {
+    const input = event.target;
+    const raw = input.value.trim().replace(',', '.');
+    if (raw === '') {
+      state.domain[key] = null;
+      input.classList.remove('input-invalid');
+      renderAll();
+      return;
+    }
+    const value = Number.parseFloat(raw);
+    if (Number.isFinite(value)) {
+      state.domain[key] = value;
+      input.value = formatPointValue(value);
+      input.classList.remove('input-invalid');
+      renderAll();
+    } else {
+      input.classList.add('input-invalid');
+    }
+  }
+  function handleDomainInput(event) {
+    const raw = event.target.value.trim().replace(',', '.');
+    if (raw === '' || Number.isFinite(Number.parseFloat(raw))) {
+      event.target.classList.remove('input-invalid');
+    } else {
+      event.target.classList.add('input-invalid');
+    }
+  }
+  if (domainMinInput) {
+    domainMinInput.addEventListener('change', handleDomainChange.bind(null, 'min'));
+    domainMinInput.addEventListener('input', handleDomainInput);
+  }
+  if (domainMaxInput) {
+    domainMaxInput.addEventListener('change', handleDomainChange.bind(null, 'max'));
+    domainMaxInput.addEventListener('input', handleDomainInput);
   }
   btnGenerate.addEventListener('click', () => {
     try {
