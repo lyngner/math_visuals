@@ -73,10 +73,12 @@
     if (!inp) break;
     colorInputs.push(inp);
   }
-  const addBtn = document.getElementById('addFigure');
-  const removeBtn1 = document.getElementById('removeFigure1');
-  const removeBtn2 = document.getElementById('removeFigure2');
-  const fieldset2 = document.getElementById('fieldset2');
+  const gridEl = document.getElementById('figureGrid');
+  const addColumnBtn = document.getElementById('figAddColumn');
+  const removeColumnBtn = document.getElementById('figRemoveColumn');
+  const addRowBtn = document.getElementById('figAddRow');
+  const removeRowBtn = document.getElementById('figRemoveRow');
+  const settingsContainer = document.getElementById('figureSettings');
   const clampInt = (value, min, max) => {
     const num = parseInt(value, 10);
     const base = Number.isFinite(num) ? num : min;
@@ -99,6 +101,16 @@
   const stateColorCount = STATE.colorCount != null ? clampInt(STATE.colorCount, 1, maxColors) : null;
   let colorCount = stateColorCount || defaultColorCount;
   STATE.colorCount = colorCount;
+  const MAX_ROWS = 3;
+  const MAX_COLS = 3;
+  const MIN_DIMENSION = 1;
+  const figurePanels = new Map();
+  const figureFieldsets = new Map();
+  let activeFigureIds = [];
+  let rows = clampInt(STATE.rows != null ? STATE.rows : 1, MIN_DIMENSION, MAX_ROWS);
+  let cols = clampInt(STATE.cols != null ? STATE.cols : 1, MIN_DIMENSION, MAX_COLS);
+  STATE.rows = rows;
+  STATE.cols = cols;
   function ensureFigureState(id) {
     const existing = STATE.figures[id];
     const fig = existing && typeof existing === 'object' ? existing : {};
@@ -116,12 +128,7 @@
     STATE.figures[id] = fig;
     return fig;
   }
-  ensureFigureState(1);
-  ensureFigureState(2);
-  if (typeof STATE.figure2Visible !== 'boolean') {
-    const panel2 = document.getElementById('panel2');
-    STATE.figure2Visible = panel2 ? panel2.style.display !== 'none' : false;
-  }
+  const getActiveFigureIds = () => activeFigureIds.slice();
   const DEFAULT_COLOR_SETS = {
     1: ['#6C1BA2'],
     2: ['#BF4474', '#534477'],
@@ -202,7 +209,7 @@
       const color = STATE.colors[idx];
       if (typeof color === 'string') inp.value = color;
     });
-    for (let id = 1; id <= 2; id++) {
+    for (const id of getActiveFigureIds()) {
       const figState = ensureFigureState(id);
       const shapeSel = document.getElementById(`shape${id}`);
       if (shapeSel && figState.shape) {
@@ -228,24 +235,133 @@
       if (wrongInp && typeof figState.allowWrong === 'boolean') wrongInp.checked = figState.allowWrong;
     }
   }
-  function applyFigureVisibility() {
-    const showSecond = !!STATE.figure2Visible;
-    if (addBtn) addBtn.style.display = showSecond ? 'none' : '';
-    if (fieldset2) fieldset2.style.display = showSecond ? '' : 'none';
-    if (removeBtn2) removeBtn2.style.display = showSecond ? '' : 'none';
-    if (removeBtn1) removeBtn1.style.display = showSecond ? '' : 'none';
-    const second = figures[2];
-    if (second) {
-      if (second.panel) second.panel.style.display = showSecond ? '' : 'none';
-      if (second.toolbar) second.toolbar.style.display = showSecond ? '' : 'none';
+  function renderAll() {
+    const desiredRows = clampInt(STATE.rows != null ? STATE.rows : rows, MIN_DIMENSION, MAX_ROWS);
+    const desiredCols = clampInt(STATE.cols != null ? STATE.cols : cols, MIN_DIMENSION, MAX_COLS);
+    let layoutChanged = false;
+    if (desiredRows !== rows) {
+      rows = desiredRows;
+      layoutChanged = true;
+    }
+    if (desiredCols !== cols) {
+      cols = desiredCols;
+      layoutChanged = true;
+    }
+    STATE.rows = rows;
+    STATE.cols = cols;
+    if (layoutChanged) {
+      rebuildLayout();
+    }
+    applyStateToControls();
+    updateColorVisibility();
+    for (const id of getActiveFigureIds()) {
+      const fig = figures[id];
+      if (fig && typeof fig.draw === 'function') fig.draw();
     }
   }
-  function renderAll() {
-    applyStateToControls();
-    applyFigureVisibility();
-    updateColorVisibility();
-    for (const fig of figures) {
-      if (fig && typeof fig.draw === 'function') fig.draw();
+  function createFigurePanel(id) {
+    const panel = document.createElement('div');
+    panel.className = 'figurePanel';
+    panel.id = `panel${id}`;
+    panel.dataset.figureId = String(id);
+    panel.innerHTML = `
+      <div class="figurePanel__header">Figur ${id}</div>
+      <div class="figure"><div id="box${id}" class="box"></div></div>
+      <div class="stepper" aria-label="Antall deler">
+        <button id="partsMinus${id}" type="button" aria-label="Færre deler">−</button>
+        <span id="partsVal${id}">4</span>
+        <button id="partsPlus${id}" type="button" aria-label="Flere deler">+</button>
+      </div>
+      <div class="figurePanel__actions toolbar">
+        <button id="btnSvg${id}" class="btn" type="button">Last ned SVG</button>
+        <button id="btnPng${id}" class="btn" type="button">Last ned PNG</button>
+      </div>
+    `;
+    return panel;
+  }
+  function createFigureSettings(id) {
+    const fieldset = document.createElement('fieldset');
+    fieldset.id = `fieldset${id}`;
+    fieldset.innerHTML = `
+      <legend>Figur ${id}</legend>
+      <label>Form
+        <select id="shape${id}">
+          <option value="circle">sirkel</option>
+          <option value="rectangle" selected>rektangel</option>
+          <option value="square">kvadrat</option>
+          <option value="triangle">trekant</option>
+        </select>
+      </label>
+      <label>Antall deler
+        <input id="parts${id}" type="number" min="1" value="4" />
+      </label>
+      <label>Delt
+        <select id="division${id}">
+          <option value="horizontal">horisontalt</option>
+          <option value="vertical">vertikalt</option>
+          <option value="diagonal">diagonalt</option>
+          <option value="grid">horisontalt og vertikalt</option>
+          <option value="triangular">trekantsrutenett</option>
+        </select>
+      </label>
+      <div class="checkbox-row"><input id="allowWrong${id}" type="checkbox" />
+        <label for="allowWrong${id}">Tillat gale illustrasjoner</label></div>
+    `;
+    return fieldset;
+  }
+  function updateLayoutControls() {
+    if (gridEl) {
+      gridEl.dataset.cols = String(cols);
+      gridEl.style.setProperty('--figure-cols', String(cols));
+    }
+    if (settingsContainer) settingsContainer.style.setProperty('--figure-settings-cols', String(cols));
+    if (addRowBtn) addRowBtn.style.display = rows >= MAX_ROWS ? 'none' : '';
+    if (removeRowBtn) removeRowBtn.style.display = rows <= MIN_DIMENSION ? 'none' : '';
+    if (addColumnBtn) addColumnBtn.style.display = cols >= MAX_COLS ? 'none' : '';
+    if (removeColumnBtn) removeColumnBtn.style.display = cols <= MIN_DIMENSION ? 'none' : '';
+  }
+  function rebuildLayout() {
+    const total = Math.max(MIN_DIMENSION, Math.min(rows * cols, MAX_ROWS * MAX_COLS));
+    const ids = [];
+    if (gridEl) {
+      gridEl.innerHTML = '';
+      for (let id = 1; id <= total; id++) {
+        ids.push(id);
+        let panel = figurePanels.get(id);
+        if (!panel) {
+          panel = createFigurePanel(id);
+          figurePanels.set(id, panel);
+        }
+        const header = panel.querySelector('.figurePanel__header');
+        if (header) header.textContent = `Figur ${id}`;
+        gridEl.appendChild(panel);
+        ensureFigureState(id);
+      }
+    } else {
+      for (let id = 1; id <= total; id++) {
+        ids.push(id);
+        ensureFigureState(id);
+      }
+    }
+    if (settingsContainer) {
+      settingsContainer.innerHTML = '';
+      for (const id of ids) {
+        let fieldset = figureFieldsets.get(id);
+        if (!fieldset) {
+          fieldset = createFigureSettings(id);
+          figureFieldsets.set(id, fieldset);
+        }
+        const legend = fieldset.querySelector('legend');
+        if (legend) legend.textContent = `Figur ${id}`;
+        settingsContainer.appendChild(fieldset);
+      }
+    }
+    activeFigureIds = ids;
+    updateLayoutControls();
+    for (const id of ids) {
+      if (!figures[id]) {
+        figures[id] = setupFigure(id);
+      }
     }
   }
   window.render = renderAll;
@@ -358,7 +474,7 @@
     }
     function draw() {
       var _ref, _partsInp$value, _wrongInp$checked, _wrongInp$checked2;
-      if (panel.style.display === 'none') return;
+      if (!panel || !panel.isConnected || panel.style.display === 'none') return;
       const figState = ensureFigureState(id);
       setFilled(figState.filled);
       initBoard();
@@ -1071,40 +1187,42 @@
       setFilled
     };
   }
-  figures[1] = setupFigure(1);
-  figures[2] = setupFigure(2);
-  addBtn === null || addBtn === void 0 || addBtn.addEventListener('click', () => {
-    STATE.figure2Visible = true;
+  addRowBtn === null || addRowBtn === void 0 || addRowBtn.addEventListener('click', () => {
+    if (rows >= MAX_ROWS) return;
+    rows++;
+    STATE.rows = rows;
+    rebuildLayout();
     window.render();
   });
-  removeBtn1 === null || removeBtn1 === void 0 || removeBtn1.addEventListener('click', () => {
-    var _figures$1$getFilled, _figures$, _figures$$getFilled, _figures$2$getFilled, _figures$2, _figures$2$getFilled2, _figures$3, _figures$3$setFilled, _figures$4, _figures$4$setFilled;
-    if (!STATE.figure2Visible) return;
-    const fig1State = {
-      ...ensureFigureState(1)
-    };
-    const fig2State = {
-      ...ensureFigureState(2)
-    };
-    STATE.figures[1] = fig2State;
-    STATE.figures[2] = fig1State;
-    const fig1Filled = (_figures$1$getFilled = (_figures$ = figures[1]) === null || _figures$ === void 0 || (_figures$$getFilled = _figures$.getFilled) === null || _figures$$getFilled === void 0 ? void 0 : _figures$$getFilled.call(_figures$)) !== null && _figures$1$getFilled !== void 0 ? _figures$1$getFilled : new Map();
-    const fig2Filled = (_figures$2$getFilled = (_figures$2 = figures[2]) === null || _figures$2 === void 0 || (_figures$2$getFilled2 = _figures$2.getFilled) === null || _figures$2$getFilled2 === void 0 ? void 0 : _figures$2$getFilled2.call(_figures$2)) !== null && _figures$2$getFilled !== void 0 ? _figures$2$getFilled : new Map();
-    (_figures$3 = figures[1]) === null || _figures$3 === void 0 || (_figures$3$setFilled = _figures$3.setFilled) === null || _figures$3$setFilled === void 0 || _figures$3$setFilled.call(_figures$3, fig2Filled);
-    (_figures$4 = figures[2]) === null || _figures$4 === void 0 || (_figures$4$setFilled = _figures$4.setFilled) === null || _figures$4$setFilled === void 0 || _figures$4$setFilled.call(_figures$4, fig1Filled);
-    STATE.figure2Visible = false;
+  removeRowBtn === null || removeRowBtn === void 0 || removeRowBtn.addEventListener('click', () => {
+    if (rows <= MIN_DIMENSION) return;
+    rows--;
+    STATE.rows = rows;
+    rebuildLayout();
     window.render();
   });
-  removeBtn2 === null || removeBtn2 === void 0 || removeBtn2.addEventListener('click', () => {
-    STATE.figure2Visible = false;
+  addColumnBtn === null || addColumnBtn === void 0 || addColumnBtn.addEventListener('click', () => {
+    if (cols >= MAX_COLS) return;
+    cols++;
+    STATE.cols = cols;
+    rebuildLayout();
     window.render();
   });
+  removeColumnBtn === null || removeColumnBtn === void 0 || removeColumnBtn.addEventListener('click', () => {
+    if (cols <= MIN_DIMENSION) return;
+    cols--;
+    STATE.cols = cols;
+    rebuildLayout();
+    window.render();
+  });
+  rebuildLayout();
   window.addEventListener('examples:collect', event => {
     var _window$render3, _window3, _window$render4, _window4;
     const detail = event === null || event === void 0 ? void 0 : event.detail;
     if (!detail || detail.svgOverride != null) return;
     const restore = [];
-    for (const fig of figures) {
+    for (const id of getActiveFigureIds()) {
+      const fig = figures[id];
       if (!fig || typeof fig.getFilled !== 'function' || typeof fig.setFilled !== 'function') continue;
       let filled = fig.getFilled();
       if (filled instanceof Map) {
@@ -1121,19 +1239,14 @@
       });
     }
     if (restore.length === 0) return;
-    for (const {
-      fig
-    } of restore) {
-      fig.setFilled(new Map());
+    for (const entry of restore) {
+      entry.fig.setFilled(new Map());
     }
     (_window$render3 = (_window3 = window).render) === null || _window$render3 === void 0 || _window$render3.call(_window3);
     const svg = document.querySelector('svg');
     if (svg) detail.svgOverride = svg.outerHTML;
-    for (const {
-      fig,
-      filled
-    } of restore) {
-      fig.setFilled(filled);
+    for (const entry of restore) {
+      entry.fig.setFilled(entry.filled);
     }
     (_window$render4 = (_window4 = window).render) === null || _window$render4 === void 0 || _window$render4.call(_window4);
   });

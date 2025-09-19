@@ -16,31 +16,34 @@
       color:#111827; background:#f7f8fb; padding:20px;
     }
     .wrap{max-width:1200px;margin:0 auto;}
-    .grid{display:grid;gap:var(--gap);grid-template-columns:1fr 360px;align-items:start;}
+    .grid{display:grid;gap:var(--gap);grid-template-columns:minmax(0,1fr) minmax(320px,420px);align-items:start;}
     @media(max-width:980px){.grid{grid-template-columns:1fr;}}
     .side{display:flex;flex-direction:column;gap:var(--gap);}
-    .grid2{
-      --panel-min: clamp(240px, 42vw, 520px);
-      display:flex;
-      flex-wrap:wrap;
-      gap:clamp(16px,2vw,28px);
-      align-items:flex-start;
-      justify-content:center;
-      padding-bottom:8px;
+    .figure-board{
+      position:relative;
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      grid-template-rows:minmax(0,1fr) auto;
+      gap:var(--gap);
+      align-items:start;
     }
-    .figurePanel{
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:12px;
-      flex:1 1 var(--panel-min);
-      min-width:var(--panel-min);
-      max-width:520px;
+    .figure-grid{
+      grid-column:1;
+      grid-row:1;
+      display:grid;
+      gap:var(--gap);
+      width:100%;
+      align-items:stretch;
+      grid-template-columns:repeat(var(--figure-cols, 1), minmax(0, 1fr));
     }
+    .figure-controls{display:flex;gap:var(--gap);align-items:center;}
+    .figure-controls--cols{grid-column:2;grid-row:1;flex-direction:column;justify-self:center;}
+    .figure-controls--rows{grid-column:1;grid-row:2;justify-self:center;}
+    .figurePanel{display:flex;flex-direction:column;align-items:stretch;gap:12px;min-width:0;}
+    .figurePanel__header{display:flex;justify-content:center;font-size:14px;font-weight:600;color:#4b5563;}
+    .figurePanel__actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
     .addFigureBtn{
-      --btn-size: clamp(36px, calc(var(--panel-min, 240px) * 0.25), 60px);
-      flex:0 0 var(--btn-size);
-      width:var(--btn-size);
+      width:clamp(36px,7.5vw,60px);
       aspect-ratio:1;
       border:2px dashed #cfcfcf;
       border-radius:10px;
@@ -51,15 +54,6 @@
       font-size:20px;
       color:#6b7280;
       cursor:pointer;
-      align-self:center;
-    }
-    .figurePanel .removeFigureBtn{
-      margin-top:2px;
-      align-self:center;
-    }
-    @media(max-width:600px){
-      .grid2{--panel-min:min(92vw, 360px);}
-      .figurePanel{min-width:min(100%, var(--panel-min));}
     }
     .card{
       background:#fff;border:1px solid #e5e7eb;border-radius:14px;
@@ -88,9 +82,9 @@
     .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s}
     .btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
     .btn:active{transform:translateY(1px)}
-    .settings{display:flex;gap:var(--gap);}
     .card>fieldset{display:flex;flex-direction:column;gap:8px;border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:0;}
-    .settings fieldset{flex:1;display:flex;flex-direction:column;gap:8px;border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:0;}
+    .figureSettings{display:grid;gap:var(--gap);grid-template-columns:repeat(var(--figure-settings-cols,1),minmax(0,1fr));align-items:stretch;}
+    .figureSettings fieldset{display:flex;flex-direction:column;gap:8px;border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin:0;min-width:0;}
     legend{font-weight:600;font-size:13px;color:#374151;padding:0 4px;}
     .settings label{display:flex;flex-direction:column;font-size:13px;color:#4b5563;}
     .settings input,.settings select{padding:8px 10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;background:#fff;}
@@ -105,25 +99,15 @@
   <div class="wrap">
     <div class="grid">
       <div class="card">
-        <div class="grid2">
-          <div id="panel1" class="figurePanel">
-            <div class="figure"><div id="box1" class="box"></div></div>
-            <div class="stepper" aria-label="Antall deler">
-              <button id="partsMinus1" type="button" aria-label="Færre deler">−</button>
-              <span id="partsVal1">4</span>
-              <button id="partsPlus1" type="button" aria-label="Flere deler">+</button>
-            </div>
-            <button id="removeFigure1" class="btn removeFigureBtn" type="button" aria-label="Fjern figur 1" style="display:none">Fjern figur</button>
+        <div id="figureBoard" class="figure-board">
+          <div id="figureGrid" class="figure-grid" data-cols="1"></div>
+          <div class="figure-controls figure-controls--cols">
+            <button id="figAddColumn" class="addFigureBtn" type="button" aria-label="Legg til kolonne">+</button>
+            <button id="figRemoveColumn" class="addFigureBtn" type="button" aria-label="Fjern kolonne">−</button>
           </div>
-          <button id="addFigure" class="addFigureBtn" type="button" aria-label="Legg til figur">+</button>
-          <div id="panel2" class="figurePanel" style="display:none">
-            <div class="figure"><div id="box2" class="box"></div></div>
-            <div class="stepper" aria-label="Antall deler">
-              <button id="partsMinus2" type="button" aria-label="Færre deler">−</button>
-              <span id="partsVal2">4</span>
-              <button id="partsPlus2" type="button" aria-label="Flere deler">+</button>
-            </div>
-            <button id="removeFigure2" class="btn removeFigureBtn" type="button" aria-label="Fjern figur 2">Fjern figur</button>
+          <div class="figure-controls figure-controls--rows">
+            <button id="figAddRow" class="addFigureBtn" type="button" aria-label="Legg til rad">+</button>
+            <button id="figRemoveRow" class="addFigureBtn" type="button" aria-label="Fjern rad">−</button>
           </div>
         </div>
       </div>
@@ -149,67 +133,7 @@
               <input id="color_6" type="color" value="#E31C3D" />
             </div>
           </fieldset>
-          <div class="settings">
-            <fieldset>
-              <legend>Figur 1</legend>
-              <label>Form
-                <select id="shape1">
-                  <option value="circle">sirkel</option>
-                  <option value="rectangle" selected>rektangel</option>
-                  <option value="square">kvadrat</option>
-                  <option value="triangle">trekant</option>
-                </select>
-              </label>
-              <label>Antall deler
-                <input id="parts1" type="number" min="1" value="4" />
-              </label>
-              <label>Delt
-                <select id="division1">
-                  <option value="horizontal">horisontalt</option>
-                  <option value="vertical">vertikalt</option>
-                  <option value="diagonal">diagonalt</option>
-                  <option value="grid">horisontalt og vertikalt</option>
-                  <option value="triangular">trekantsrutenett</option>
-                </select>
-              </label>
-              <div class="checkbox-row"><input id="allowWrong1" type="checkbox" /><label for="allowWrong1">Tillat gale illustrasjoner</label></div>
-            </fieldset>
-            <fieldset id="fieldset2" style="display:none">
-              <legend>Figur 2</legend>
-              <label>Form
-                <select id="shape2">
-                  <option value="circle">sirkel</option>
-                  <option value="rectangle" selected>rektangel</option>
-                  <option value="square">kvadrat</option>
-                  <option value="triangle">trekant</option>
-                </select>
-              </label>
-              <label>Antall deler
-                <input id="parts2" type="number" min="1" value="4" />
-              </label>
-              <label>Delt
-                <select id="division2">
-                  <option value="horizontal">horisontalt</option>
-                  <option value="vertical">vertikalt</option>
-                  <option value="diagonal">diagonalt</option>
-                  <option value="grid">horisontalt og vertikalt</option>
-                  <option value="triangular">trekantsrutenett</option>
-                </select>
-              </label>
-              <div class="checkbox-row"><input id="allowWrong2" type="checkbox" /><label for="allowWrong2">Tillat gale illustrasjoner</label></div>
-            </fieldset>
-          </div>
-        </div>
-        <div class="card">
-          <h2>Eksporter</h2>
-          <div class="toolbar">
-            <button id="btnSvg1" class="btn" type="button">Last ned SVG</button>
-            <button id="btnPng1" class="btn" type="button">Last ned PNG</button>
-          </div>
-          <div class="toolbar" style="display:none">
-            <button id="btnSvg2" class="btn" type="button">Last ned SVG</button>
-            <button id="btnPng2" class="btn" type="button">Last ned PNG</button>
-          </div>
+          <div id="figureSettings" class="figureSettings"></div>
         </div>
       </div>
     </div>
