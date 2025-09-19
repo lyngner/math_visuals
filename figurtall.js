@@ -2,7 +2,7 @@
   const boxes = [];
   const MAX_DIM = 20;
   const MAX_COLORS = 6;
-  const LABEL_MODES = ['custom', 'numbered', 'hidden'];
+  const LABEL_MODES = ['hidden', 'count', 'custom'];
   let rows = 3;
   let cols = 3;
   const colorCountInp = document.getElementById('colorCount');
@@ -33,6 +33,7 @@
   function normalizeLabelMode(value) {
     if (typeof value !== 'string') return 'custom';
     const normalized = value.toLowerCase();
+    if (normalized === 'numbered') return 'count';
     return LABEL_MODES.includes(normalized) ? normalized : 'custom';
   }
   function clampInt(value, min, max) {
@@ -141,11 +142,25 @@
   function getFigureLabel(index) {
     const mode = STATE.labelMode;
     if (mode === 'hidden') return '';
-    if (mode === 'numbered') return `Figur ${index + 1}`;
+    if (mode === 'count') {
+      const fig = STATE.figures[index];
+      return String(getFilledCellCount(fig));
+    }
     const fig = STATE.figures[index];
     if (!fig) return '';
     const name = typeof fig.name === 'string' ? fig.name.trim() : '';
     return name;
+  }
+
+  function getFilledCellCount(fig) {
+    if (!fig || !Array.isArray(fig.cells)) return 0;
+    return fig.cells.reduce((total, row) => {
+      if (!Array.isArray(row)) return total;
+      return total + row.reduce((rowTotal, val) => {
+        const num = parseInt(val, 10);
+        return rowTotal + (Number.isFinite(num) && num > 0 ? 1 : 0);
+      }, 0);
+    }, 0);
   }
   function applyCellAppearance(cell, idx, colors) {
     cell.dataset.color = String(idx);
@@ -306,7 +321,7 @@
         if (display) display.style.display = 'none';
         return;
       }
-      if (mode === 'numbered') {
+      if (mode === 'count') {
         if (input) input.style.display = 'none';
         if (display) {
           display.textContent = label || '';
@@ -330,6 +345,7 @@
     const next = (current + 1) % (colors.length + 1);
     fig.cells[r][c] = next;
     applyCellAppearance(cell, next, colors);
+    updateFigureLabelDisplay();
   }
   const rowsMinus = document.getElementById('rowsMinus');
   const rowsPlus = document.getElementById('rowsPlus');
