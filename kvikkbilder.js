@@ -2,6 +2,7 @@
   const cfgType = document.getElementById('cfg-type');
   const klosserConfig = document.getElementById('klosserConfig');
   const monsterConfig = document.getElementById('monsterConfig');
+  const rectangleConfig = document.getElementById('rectangleConfig');
   const cfgAntallX = document.getElementById('cfg-antallX');
   const cfgAntallY = document.getElementById('cfg-antallY');
   const cfgBredde = document.getElementById('cfg-bredde');
@@ -15,17 +16,31 @@
   const cfgMonsterCircleRadius = document.getElementById('cfg-monster-circleRadius');
   const cfgMonsterLevelScale = document.getElementById('cfg-monster-levelScale');
   const cfgMonsterPatternGap = document.getElementById('cfg-monster-patternGap');
+  const cfgRectAntallX = document.getElementById('cfg-rect-antallX');
+  const cfgRectAntallY = document.getElementById('cfg-rect-antallY');
+  const cfgRectCols = document.getElementById('cfg-rect-cols');
+  const cfgRectRows = document.getElementById('cfg-rect-rows');
+  const cfgRectRadius = document.getElementById('cfg-rect-radius');
+  const cfgRectSpacingX = document.getElementById('cfg-rect-spacingX');
+  const cfgRectSpacingY = document.getElementById('cfg-rect-spacingY');
+  const cfgRectPatternGap = document.getElementById('cfg-rect-patternGap');
   const brickContainer = document.getElementById('brickContainer');
   const patternContainer = document.getElementById('patternContainer');
+  const rectangleContainer = document.getElementById('rectangleContainer');
   const playBtn = document.getElementById('playBtn');
   const expression = document.getElementById('expression');
   const btnSvg = document.getElementById('btnSvg');
   const btnPng = document.getElementById('btnPng');
+  const cfgAntallWrapper = document.getElementById('cfg-antall-wrapper');
   let BRICK_SRC;
   const MONSTER_POINT_RADIUS_MIN = 1;
   const MONSTER_POINT_RADIUS_MAX = 60;
   const MONSTER_POINT_SPACING_MIN = 0;
   const MONSTER_POINT_SPACING_MAX = 60;
+  const RECT_POINT_RADIUS_MIN = 1;
+  const RECT_POINT_RADIUS_MAX = 60;
+  const RECT_POINT_SPACING_MIN = 0;
+  const RECT_POINT_SPACING_MAX = 60;
   const MAX_VISIBILITY_DURATION = 10;
   const DOT = ' · ';
   const DEFAULT_CFG = {
@@ -50,6 +65,18 @@
       patternGap: 18,
       duration: 3,
       showBtn: false
+    },
+    rectangles: {
+      antallX: 2,
+      antallY: 2,
+      cols: 4,
+      rows: 3,
+      radius: 8,
+      spacingX: 6,
+      spacingY: 6,
+      patternGap: 18,
+      duration: 3,
+      showBtn: false
     }
   };
   function deepClone(value) {
@@ -69,7 +96,7 @@
     const base = deepClone(DEFAULT_CFG) || {};
     const normalized = overrides && typeof overrides === 'object' ? overrides : {};
     if (typeof normalized.type === 'string') {
-      base.type = normalized.type === 'monster' ? 'monster' : 'klosser';
+      base.type = ['monster', 'rectangles'].includes(normalized.type) ? normalized.type : 'klosser';
     }
     if (Object.prototype.hasOwnProperty.call(normalized, 'showExpression')) {
       base.showExpression = normalized.showExpression !== false;
@@ -79,6 +106,9 @@
     }
     if (normalized.monster && typeof normalized.monster === 'object') {
       base.monster = Object.assign({}, base.monster, normalized.monster);
+    }
+    if (normalized.rectangles && typeof normalized.rectangles === 'object') {
+      base.rectangles = Object.assign({}, base.rectangles, normalized.rectangles);
     }
     return base;
   }
@@ -131,6 +161,27 @@
           antallX: 2,
           antallY: 2,
           antall: 12,
+          showBtn: false
+        }
+      })
+    }
+  }, {
+    id: 'kvikkbilder-rectangles-4',
+    exampleNumber: '4',
+    title: 'Rektangler 4 · 3',
+    config: {
+      CFG: createExampleCfg({
+        type: 'rectangles',
+        showExpression: true,
+        rectangles: {
+          antallX: 2,
+          antallY: 2,
+          cols: 4,
+          rows: 3,
+          radius: 8,
+          spacingX: 6,
+          spacingY: 6,
+          patternGap: 18,
           showBtn: false
         }
       })
@@ -489,6 +540,46 @@
     });
     return svg;
   }
+  function createRectangleSvg(cols, rows, options = {}) {
+    const colCount = Math.max(0, Math.trunc(cols));
+    const rowCount = Math.max(0, Math.trunc(rows));
+    if (colCount <= 0 || rowCount <= 0) return null;
+    const radiusRaw = options.radius;
+    const spacingXRaw = options.spacingX;
+    const spacingYRaw = options.spacingY;
+    const radius = Number.isFinite(radiusRaw) && radiusRaw > 0 ? Math.min(radiusRaw, RECT_POINT_RADIUS_MAX) : DEFAULT_CFG.rectangles.radius;
+    const spacingX = Number.isFinite(spacingXRaw) && spacingXRaw >= 0 ? Math.min(spacingXRaw, RECT_POINT_SPACING_MAX) : DEFAULT_CFG.rectangles.spacingX;
+    const spacingY = Number.isFinite(spacingYRaw) && spacingYRaw >= 0 ? Math.min(spacingYRaw, RECT_POINT_SPACING_MAX) : DEFAULT_CFG.rectangles.spacingY;
+    const centerDistX = radius * 2 + spacingX;
+    const centerDistY = radius * 2 + spacingY;
+    const innerWidth = (colCount - 1) * centerDistX;
+    const innerHeight = (rowCount - 1) * centerDistY;
+    const padX = Math.max(radius, spacingX + radius * 0.5);
+    const padY = Math.max(radius, spacingY + radius * 0.5);
+    const vbW = innerWidth + radius * 2 + padX * 2;
+    const vbH = innerHeight + radius * 2 + padY * 2;
+    const startX = padX + radius;
+    const startY = padY + radius;
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    for (let row = 0; row < rowCount; row++) {
+      for (let col = 0; col < colCount; col++) {
+        const cx = startX + col * centerDistX;
+        const cy = startY + row * centerDistY;
+        const circle = document.createElementNS(svgNS, 'circle');
+        circle.setAttribute('cx', cx);
+        circle.setAttribute('cy', cy);
+        circle.setAttribute('r', radius);
+        circle.setAttribute('fill', '#534477');
+        svg.appendChild(circle);
+      }
+    }
+    return svg;
+  }
   function renderMonster() {
     if (!patternContainer) return;
     const {
@@ -553,6 +644,65 @@
       expression.textContent = baseExpression;
     }
   }
+  function renderRectangles() {
+    if (!rectangleContainer) return;
+    const {
+      antallX = 0,
+      antallY = 0,
+      cols = 0,
+      rows = 0,
+      radius = DEFAULT_CFG.rectangles.radius,
+      spacingX = DEFAULT_CFG.rectangles.spacingX,
+      spacingY = DEFAULT_CFG.rectangles.spacingY,
+      patternGap = DEFAULT_CFG.rectangles.patternGap
+    } = CFG.rectangles || {};
+    rectangleContainer.innerHTML = '';
+    const figCols = Math.max(0, Math.trunc(antallX));
+    const figRows = Math.max(0, Math.trunc(antallY));
+    rectangleContainer.style.gridTemplateColumns = figCols > 0 ? `repeat(${figCols},minmax(0,1fr))` : '';
+    rectangleContainer.style.gridTemplateRows = figRows > 0 ? `repeat(${figRows},minmax(0,1fr))` : '';
+    const allowGap = !(figCols <= 1 && figRows <= 1);
+    const gapNumber = Number.isFinite(patternGap) ? patternGap : Number.parseFloat(patternGap);
+    const normalizedGap = Number.isFinite(gapNumber) ? Math.max(0, gapNumber) : DEFAULT_CFG.rectangles.patternGap;
+    const gapPx = allowGap ? normalizedGap : 0;
+    const radiusSafe = Number.isFinite(radius) ? radius : DEFAULT_CFG.rectangles.radius;
+    const spacingXSafe = Number.isFinite(spacingX) ? spacingX : DEFAULT_CFG.rectangles.spacingX;
+    const spacingYSafe = Number.isFinite(spacingY) ? spacingY : DEFAULT_CFG.rectangles.spacingY;
+    const itemPadding = Math.max(12, Math.round(radiusSafe + Math.max(spacingXSafe, spacingYSafe)));
+    const containerPadding = allowGap ? Math.max(8, Math.round(gapPx * 0.5)) : Math.max(12, itemPadding);
+    rectangleContainer.style.setProperty('--pattern-gap', `${gapPx}px`);
+    rectangleContainer.style.setProperty('--pattern-item-padding', `${itemPadding}px`);
+    rectangleContainer.style.setProperty('--pattern-padding', `${containerPadding}px`);
+    const colsCount = Math.max(0, Math.trunc(cols));
+    const rowsCount = Math.max(0, Math.trunc(rows));
+    const perFigure = colsCount * rowsCount;
+    const totalFigures = figCols * figRows;
+    const firstExpression = formatOuterInnerExpression([figCols, figRows], [colsCount, rowsCount]);
+    const productStep = formatProductStep([totalFigures, perFigure]);
+    const totalDots = totalFigures * perFigure;
+    let expr = firstExpression;
+    if (productStep.count >= 2) {
+      expr = expr ? `${expr} = ${productStep.text}` : productStep.text;
+    }
+    expression.textContent = expr ? `${expr} = ${totalDots}` : `${totalDots}`;
+    if (totalFigures <= 0 || colsCount <= 0 || rowsCount <= 0) {
+      return;
+    }
+    const svg = createRectangleSvg(colsCount, rowsCount, {
+      radius: radiusSafe,
+      spacingX: spacingXSafe,
+      spacingY: spacingYSafe
+    });
+    if (!svg) return;
+    svg.setAttribute('aria-label', `${colsCount} × ${rowsCount} prikker`);
+    const total = totalFigures;
+    for (let i = 0; i < total; i++) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pattern-item';
+      wrapper.appendChild(svg.cloneNode(true));
+      rectangleContainer.appendChild(wrapper);
+    }
+  }
   function applyExpressionVisibility() {
     if (!expression) return;
     const enabled = CFG.showExpression !== false;
@@ -562,6 +712,7 @@
   function updateVisibilityKlosser() {
     var _CFG$klosser;
     patternContainer.style.display = 'none';
+    if (rectangleContainer) rectangleContainer.style.display = 'none';
     if ((_CFG$klosser = CFG.klosser) !== null && _CFG$klosser !== void 0 && _CFG$klosser.showBtn) {
       playBtn.style.display = 'flex';
       brickContainer.style.display = 'none';
@@ -574,12 +725,26 @@
   function updateVisibilityMonster() {
     var _CFG$monster;
     brickContainer.style.display = 'none';
+    if (rectangleContainer) rectangleContainer.style.display = 'none';
     if ((_CFG$monster = CFG.monster) !== null && _CFG$monster !== void 0 && _CFG$monster.showBtn) {
       playBtn.style.display = 'flex';
       patternContainer.style.display = 'none';
     } else {
       playBtn.style.display = 'none';
       patternContainer.style.display = 'grid';
+    }
+    applyExpressionVisibility();
+  }
+  function updateVisibilityRectangles() {
+    var _CFG$rectangles;
+    brickContainer.style.display = 'none';
+    patternContainer.style.display = 'none';
+    if ((_CFG$rectangles = CFG.rectangles) !== null && _CFG$rectangles !== void 0 && _CFG$rectangles.showBtn) {
+      playBtn.style.display = 'flex';
+      if (rectangleContainer) rectangleContainer.style.display = 'none';
+    } else {
+      playBtn.style.display = 'none';
+      if (rectangleContainer) rectangleContainer.style.display = 'grid';
     }
     applyExpressionVisibility();
   }
@@ -611,13 +776,24 @@
       cfgMonsterPatternGap.removeAttribute('title');
     }
   }
+  function updateRectanglesPatternGapState() {
+    if (!cfgRectPatternGap) return;
+    const disableGap = CFG.rectangles.antallX <= 1 && CFG.rectangles.antallY <= 1;
+    cfgRectPatternGap.disabled = disableGap;
+    if (disableGap) {
+      cfgRectPatternGap.setAttribute('title', 'Figuravstand er tilgjengelig når det er flere figurer.');
+    } else {
+      cfgRectPatternGap.removeAttribute('title');
+    }
+  }
   function sanitizeCfg() {
-    if (CFG.type !== 'monster' && CFG.type !== 'klosser') {
+    if (!['monster', 'klosser', 'rectangles'].includes(CFG.type)) {
       CFG.type = DEFAULT_CFG.type;
     }
     CFG.showExpression = CFG.showExpression !== false;
     if (!CFG.klosser || typeof CFG.klosser !== 'object') CFG.klosser = {};
     if (!CFG.monster || typeof CFG.monster !== 'object') CFG.monster = {};
+    if (!CFG.rectangles || typeof CFG.rectangles !== 'object') CFG.rectangles = {};
     const k = CFG.klosser;
     const dk = DEFAULT_CFG.klosser;
     k.antallX = clampInt(k.antallX, 0, dk.antallX);
@@ -650,6 +826,24 @@
     } else {
       m.duration = Math.max(0, m.duration);
     }
+    const r = CFG.rectangles;
+    const dr = DEFAULT_CFG.rectangles;
+    r.antallX = clampInt(r.antallX, 0, dr.antallX);
+    r.antallY = clampInt(r.antallY, 0, dr.antallY);
+    r.cols = clampInt(r.cols, 1, dr.cols);
+    r.rows = clampInt(r.rows, 1, dr.rows);
+    r.radius = clampFloat(r.radius, RECT_POINT_RADIUS_MIN, dr.radius, RECT_POINT_RADIUS_MAX);
+    r.spacingX = clampFloat(r.spacingX, RECT_POINT_SPACING_MIN, dr.spacingX, RECT_POINT_SPACING_MAX);
+    r.spacingY = clampFloat(r.spacingY, RECT_POINT_SPACING_MIN, dr.spacingY, RECT_POINT_SPACING_MAX);
+    r.patternGap = clampFloat(r.patternGap, 0, dr.patternGap);
+    r.duration = clampInt(r.duration, 0, dr.duration);
+    r.showBtn = r.showBtn === true;
+    if (r.showBtn) {
+      const normalizedDuration = Number.isFinite(r.duration) ? r.duration : dr.duration;
+      r.duration = Math.min(MAX_VISIBILITY_DURATION, Math.max(1, normalizedDuration));
+    } else {
+      r.duration = Math.max(0, r.duration);
+    }
     return CFG;
   }
   function resolveVisibilityValue(config) {
@@ -662,7 +856,7 @@
   }
   function updateVisibilityControlValue() {
     if (!cfgVisibility) return;
-    const activeCfg = CFG.type === 'monster' ? CFG.monster : CFG.klosser;
+    const activeCfg = CFG.type === 'monster' ? CFG.monster : CFG.type === 'rectangles' ? CFG.rectangles : CFG.klosser;
     cfgVisibility.value = resolveVisibilityValue(activeCfg);
   }
   function syncControlsToCfg() {
@@ -683,22 +877,45 @@
       cfgMonsterPatternGap.value = CFG.monster.patternGap;
       updateMonsterPatternGapState();
     }
+    if (cfgRectAntallX) cfgRectAntallX.value = CFG.rectangles.antallX;
+    if (cfgRectAntallY) cfgRectAntallY.value = CFG.rectangles.antallY;
+    if (cfgRectCols) cfgRectCols.value = CFG.rectangles.cols;
+    if (cfgRectRows) cfgRectRows.value = CFG.rectangles.rows;
+    if (cfgRectRadius) cfgRectRadius.value = CFG.rectangles.radius;
+    if (cfgRectSpacingX) cfgRectSpacingX.value = CFG.rectangles.spacingX;
+    if (cfgRectSpacingY) cfgRectSpacingY.value = CFG.rectangles.spacingY;
+    if (cfgRectPatternGap) {
+      cfgRectPatternGap.value = CFG.rectangles.patternGap;
+      updateRectanglesPatternGapState();
+    }
     updateVisibilityControlValue();
   }
   function renderView() {
     sanitizeCfg();
     updateVisibilityControlValue();
+    if (cfgAntallWrapper) {
+      cfgAntallWrapper.style.display = CFG.type === 'monster' ? 'flex' : 'none';
+    }
     if (CFG.type === 'klosser') {
       if (klosserConfig) klosserConfig.style.display = 'block';
       if (monsterConfig) monsterConfig.style.display = 'none';
+      if (rectangleConfig) rectangleConfig.style.display = 'none';
       renderKlosser();
       updateVisibilityKlosser();
-    } else {
+    } else if (CFG.type === 'monster') {
       if (klosserConfig) klosserConfig.style.display = 'none';
       if (monsterConfig) monsterConfig.style.display = 'block';
+      if (rectangleConfig) rectangleConfig.style.display = 'none';
       renderMonster();
       updateVisibilityMonster();
       updateMonsterPatternGapState();
+    } else {
+      if (klosserConfig) klosserConfig.style.display = 'none';
+      if (monsterConfig) monsterConfig.style.display = 'none';
+      if (rectangleConfig) rectangleConfig.style.display = 'block';
+      renderRectangles();
+      updateVisibilityRectangles();
+      updateRectanglesPatternGapState();
     }
   }
   function render() {
@@ -753,9 +970,17 @@
   bindFloatInput(cfgMonsterCircleRadius, () => CFG.monster, 'circleRadius', MONSTER_POINT_RADIUS_MIN, DEFAULT_CFG.monster.circleRadius, MONSTER_POINT_RADIUS_MAX);
   bindFloatInput(cfgMonsterLevelScale, () => CFG.monster, 'levelScale', 0.1, DEFAULT_CFG.monster.levelScale);
   bindFloatInput(cfgMonsterPatternGap, () => CFG.monster, 'patternGap', 0, DEFAULT_CFG.monster.patternGap);
+  bindNumberInput(cfgRectAntallX, () => CFG.rectangles, 'antallX', 0);
+  bindNumberInput(cfgRectAntallY, () => CFG.rectangles, 'antallY', 0);
+  bindNumberInput(cfgRectCols, () => CFG.rectangles, 'cols', 1);
+  bindNumberInput(cfgRectRows, () => CFG.rectangles, 'rows', 1);
+  bindFloatInput(cfgRectRadius, () => CFG.rectangles, 'radius', RECT_POINT_RADIUS_MIN, DEFAULT_CFG.rectangles.radius, RECT_POINT_RADIUS_MAX);
+  bindFloatInput(cfgRectSpacingX, () => CFG.rectangles, 'spacingX', RECT_POINT_SPACING_MIN, DEFAULT_CFG.rectangles.spacingX, RECT_POINT_SPACING_MAX);
+  bindFloatInput(cfgRectSpacingY, () => CFG.rectangles, 'spacingY', RECT_POINT_SPACING_MIN, DEFAULT_CFG.rectangles.spacingY, RECT_POINT_SPACING_MAX);
+  bindFloatInput(cfgRectPatternGap, () => CFG.rectangles, 'patternGap', 0, DEFAULT_CFG.rectangles.patternGap);
   if (cfgVisibility) {
     cfgVisibility.addEventListener('change', () => {
-      const target = CFG.type === 'monster' ? CFG.monster : CFG.klosser;
+      const target = CFG.type === 'monster' ? CFG.monster : CFG.type === 'rectangles' ? CFG.rectangles : CFG.klosser;
       if (!target) return;
       const value = cfgVisibility.value;
       if (value === 'always') {
@@ -773,7 +998,7 @@
     });
   }
   cfgType === null || cfgType === void 0 || cfgType.addEventListener('change', () => {
-    CFG.type = cfgType.value === 'monster' ? 'monster' : 'klosser';
+    CFG.type = cfgType.value === 'monster' || cfgType.value === 'rectangles' ? cfgType.value : 'klosser';
     cfgType.value = CFG.type;
     renderView();
   });
@@ -792,7 +1017,7 @@
       setTimeout(() => {
         updateVisibilityKlosser();
       }, duration * 1000);
-    } else {
+    } else if (CFG.type === 'monster') {
       const duration = Math.max(0, Number.isFinite(CFG.monster.duration) ? CFG.monster.duration : 0);
       renderMonster();
       playBtn.style.display = 'none';
@@ -801,19 +1026,34 @@
       setTimeout(() => {
         updateVisibilityMonster();
       }, duration * 1000);
+    } else {
+      const duration = Math.max(0, Number.isFinite(CFG.rectangles.duration) ? CFG.rectangles.duration : 0);
+      renderRectangles();
+      playBtn.style.display = 'none';
+      if (rectangleContainer) rectangleContainer.style.display = 'grid';
+      applyExpressionVisibility();
+      setTimeout(() => {
+        updateVisibilityRectangles();
+      }, duration * 1000);
     }
   });
+  function getActiveSvg() {
+    if (CFG.type === 'klosser') return brickContainer.querySelector('svg');
+    if (CFG.type === 'monster') return patternContainer.querySelector('svg');
+    if (CFG.type === 'rectangles') return rectangleContainer ? rectangleContainer.querySelector('svg') : null;
+    return brickContainer.querySelector('svg') || patternContainer.querySelector('svg') || (rectangleContainer ? rectangleContainer.querySelector('svg') : null);
+  }
   btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => {
-    const svg = brickContainer.querySelector('svg') || patternContainer.querySelector('svg');
+    const svg = getActiveSvg();
     if (svg) {
-      const fileName = CFG.type === 'monster' ? 'numbervisuals.svg' : 'kvikkbilder.svg';
+      const fileName = CFG.type === 'monster' ? 'numbervisuals.svg' : CFG.type === 'rectangles' ? 'rektangler.svg' : 'kvikkbilder.svg';
       downloadSVG(svg, fileName);
     }
   });
   btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => {
-    const svg = brickContainer.querySelector('svg') || patternContainer.querySelector('svg');
+    const svg = getActiveSvg();
     if (svg) {
-      const fileName = CFG.type === 'monster' ? 'numbervisuals.png' : 'kvikkbilder.png';
+      const fileName = CFG.type === 'monster' ? 'numbervisuals.png' : CFG.type === 'rectangles' ? 'rektangler.png' : 'kvikkbilder.png';
       downloadPNG(svg, fileName, 2);
     }
   });
