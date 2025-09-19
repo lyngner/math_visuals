@@ -33,8 +33,8 @@
     .settings{ display:flex; flex-direction:column; gap:8px; }
     .settings label{ display:flex; flex-direction:column; gap:6px; font-size:13px; color:#4b5563; white-space:normal; }
     .settings input[type="text"], .settings input[type="number"], .settings select{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:100%; }
-    .function-controls{ display:grid; grid-template-columns:auto 1fr; gap:16px; align-items:start; }
-    .function-controls #addFunc{ align-self:flex-start; }
+    .function-controls{ display:flex; flex-direction:column; gap:16px; align-items:stretch; }
+    .function-controls #addFunc{ align-self:center; }
     .func-groups{ display:flex; flex-direction:column; gap:12px; width:100%; }
     .func-group{ gap:14px; }
     .func-group .func-fields{ display:flex; flex-wrap:wrap; gap:12px; }
@@ -43,11 +43,13 @@
     .func-group .glider-controls label{ flex:0 1 180px; }
     .func-group .glider-controls label.startx-label{ flex:1 1 220px; }
     @media (max-width:680px){
-      .function-controls{ grid-template-columns:1fr; }
-      .function-controls #addFunc{ justify-self:flex-start; }
+      .function-controls{ align-items:stretch; }
       .func-group .func-fields label,
       .func-group .glider-controls label{ max-width:100%; flex:1 1 100%; }
     }
+    .addFigureBtn{ width:clamp(36px,8vw,56px); aspect-ratio:1; border:2px dashed #cfcfcf; border-radius:10px; background:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; color:#6b7280; cursor:pointer; transition:box-shadow .2s, transform .02s; }
+    .addFigureBtn:hover{ box-shadow:0 2px 8px rgba(0,0,0,.06); }
+    .addFigureBtn:active{ transform:translateY(1px); }
     .settings fieldset{ border:1px solid #e5e7eb; border-radius:12px; padding:16px; background:#fafbfc; }
     .settings fieldset legend{ padding:0 6px; font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:#6b7280; }
     .settings-group{ display:flex; flex-direction:column; gap:16px; }
@@ -100,8 +102,8 @@
         <div class="card card--settings">
           <div class="settings">
             <div class="function-controls">
-              <button id="addFunc" class="btn" type="button" aria-label="Legg til funksjon">Legg til</button>
               <div id="funcRows" class="func-groups"></div>
+              <button id="addFunc" class="addFigureBtn" type="button" aria-label="Legg til funksjon">+</button>
             </div>
             <fieldset>
               <legend>Koordinatsystem</legend>

@@ -1981,19 +1981,15 @@ function setupSettingsForm() {
   if (!addBtn) {
     addBtn = document.createElement('button');
     addBtn.id = 'addFunc';
-    addBtn.type = 'button';
-    addBtn.className = 'btn';
-    addBtn.textContent = 'Legg til';
-    addBtn.setAttribute('aria-label', 'Legg til funksjon');
-    const functionsHost = document.querySelector('.function-controls');
-    if (functionsHost) {
-      functionsHost.insertAdjacentElement('afterbegin', addBtn);
-    }
-  } else {
-    addBtn.type = 'button';
-    addBtn.classList.add('btn');
-    addBtn.textContent = 'Legg til';
-    addBtn.setAttribute('aria-label', 'Legg til funksjon');
+  }
+  addBtn.type = 'button';
+  addBtn.textContent = '+';
+  addBtn.setAttribute('aria-label', 'Legg til funksjon');
+  addBtn.classList.remove('btn');
+  addBtn.classList.add('addFigureBtn');
+  const functionsHost = document.querySelector('.function-controls');
+  if (functionsHost && addBtn.parentElement !== functionsHost) {
+    functionsHost.appendChild(addBtn);
   }
   const g = id => document.getElementById(id);
   const showNamesInput = g('cfgShowNames');
