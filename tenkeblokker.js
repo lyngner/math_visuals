@@ -118,6 +118,20 @@ function setHiddenFlag(target, key, value) {
     enumerable: false
   });
 }
+function getRowSpanRatios(rowIndex, totalRows) {
+  const rows = Number.isFinite(totalRows) && totalRows > 0 ? Math.floor(totalRows) : 1;
+  const safeIndex = Number.isFinite(rowIndex) ? Math.min(Math.max(Math.floor(rowIndex), 0), rows - 1) : 0;
+  let topRatio = TOP_RATIO;
+  let bottomRatio = BOTTOM_RATIO;
+  if (rows > 1) {
+    if (safeIndex > 0) topRatio = 0;
+    if (safeIndex < rows - 1) bottomRatio = 1;
+  }
+  return {
+    topRatio,
+    bottomRatio
+  };
+}
 function isMeaningfulBlockCell(cell) {
   if (cell == null) return false;
   if (typeof cell === 'object') {
@@ -159,6 +173,7 @@ const BRACE_Y_RATIO = 78 / VBH;
 const BRACKET_TICK_RATIO = 16 / VBH;
 const LABEL_OFFSET_RATIO = 14 / VBH;
 const DEFAULT_SVG_HEIGHT = 260;
+const BASE_INNER_RATIO = BOTTOM_RATIO - TOP_RATIO;
 const ROW_GAP = 18;
 const DEFAULT_FRAME_INSET = 3;
 const BLOCKS = [];
@@ -586,6 +601,23 @@ function draw(skipNormalization = false) {
     if (Number.isFinite(totalValue) && totalValue > 0 && rowTotals[block.row] !== undefined) {
       rowTotals[block.row] += totalValue;
     }
+  }
+  const rowHeights = Array.from({
+    length: CONFIG.rows
+  }, (_, rowIndex) => {
+    const { topRatio, bottomRatio } = getRowSpanRatios(rowIndex, CONFIG.rows);
+    const span = bottomRatio - topRatio;
+    if (!(span > 0)) return DEFAULT_SVG_HEIGHT;
+    const height = DEFAULT_SVG_HEIGHT * BASE_INNER_RATIO / span;
+    return Number.isFinite(height) && height > 0 ? height : DEFAULT_SVG_HEIGHT;
+  });
+  for (const block of visibleBlocks) {
+    const height = rowHeights[block.row];
+    if (block === null || block === void 0 ? void 0 : block.panel) {
+      const numericHeight = Number.isFinite(height) && height > 0 ? height : DEFAULT_SVG_HEIGHT;
+      block.panel.style.setProperty('--tb-svg-height', `${numericHeight.toFixed(2)}px`);
+    }
+    block.metrics = null;
   }
   const maxRowTotal = rowTotals.reduce((max, value) => {
     const numeric = Number(value);
