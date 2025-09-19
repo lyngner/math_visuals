@@ -198,13 +198,6 @@
     }
     .point-handle:active { cursor: grabbing; }
     .point-handle-icon { font-size: 16px; line-height: 1; }
-    .point-name {
-      font-weight: 600;
-      color: #374151;
-      font-size: 13px;
-      min-width: 72px;
-      flex: 0 0 auto;
-    }
     .point-id {
       font-size: 12px;
       color: #6b7280;
@@ -222,7 +215,8 @@
       box-sizing: border-box;
     }
     .point-input--coord {
-      flex: 1 1 150px;
+      flex: 0 1 120px;
+      max-width: 130px;
       font-variant-numeric: tabular-nums;
     }
     .point-input--label { flex: 2 1 180px; }
@@ -294,7 +288,10 @@
         </div>
         <div class="card card--settings">
           <h2>Punkter</h2>
-          <button id="btnAddPoint" class="btn" type="button">Legg til punkt</button>
+          <div class="toolbar">
+            <button id="btnAddPoint" class="btn" type="button">Legg til punkt</button>
+            <button id="btnSortPoints" class="btn" type="button">Sorter punkter</button>
+          </div>
           <div id="pointList" class="point-list"></div>
         </div>
         <div class="card card--lines">
