@@ -33,6 +33,7 @@ const FONT_DEFAULT = 16;
 const FONT_PARAM_KEYS = ['fontSize', 'font', 'axisFont', 'tickFont', 'curveFont'];
 const SHOW_CURVE_NAMES = params.has('showNames') ? paramBool('showNames') : true;
 const SHOW_CURVE_EXPRESSIONS = params.has('showExpr') ? paramBool('showExpr') : false;
+const SHOW_DOMAIN_MARKERS = params.has('brackets') ? paramBool('brackets') : true;
 function clampFontSize(val) {
   if (!Number.isFinite(val)) return null;
   if (val < FONT_LIMITS.min) return FONT_LIMITS.min;
@@ -168,7 +169,7 @@ const ADV = {
   },
   // Domenemarkører (brackets)
   domainMarkers: {
-    show: true,
+    show: SHOW_DOMAIN_MARKERS,
     barPx: 22,
     tipFrac: 0.20,
     color: '#6b7280',
@@ -1983,6 +1984,7 @@ function setupSettingsForm() {
   const g = id => document.getElementById(id);
   const showNamesInput = g('cfgShowNames');
   const showExprInput = g('cfgShowExpr');
+  const showBracketsInput = g('cfgShowBrackets');
   const gliderRow = document.createElement('div');
   gliderRow.className = 'settings-row glider-row';
   gliderRow.innerHTML = `
@@ -2139,10 +2141,10 @@ function setupSettingsForm() {
     const row = document.createElement('div');
     row.className = 'settings-row func-row';
     row.innerHTML = `
-      <label>${index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index}
+      <label class="func-input">${index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index}
         <input type="text" data-fun>
       </label>
-      <label class="domain">Definisjon (valgfritt)
+      <label class="domain">Avgrensning
         <input type="text" data-dom placeholder="[start, stopp]">
       </label>
     `;
@@ -2235,6 +2237,9 @@ function setupSettingsForm() {
   if (showExprInput) {
     showExprInput.checked = !!ADV.curveName.showExpression;
   }
+  if (showBracketsInput) {
+    showBracketsInput.checked = !!ADV.domainMarkers.show;
+  }
   const snapCheckbox = g('cfgSnap');
   if (snapCheckbox) {
     snapCheckbox.checked = ADV.points.snap.enabled;
@@ -2279,6 +2284,9 @@ function setupSettingsForm() {
     }
     if (showExprInput) {
       p.set('showExpr', showExprInput.checked ? '1' : '0');
+    }
+    if (showBracketsInput) {
+      p.set('brackets', showBracketsInput.checked ? '1' : '0');
     }
     const snapInput = g('cfgSnap');
     if (snapInput) {
