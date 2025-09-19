@@ -170,6 +170,7 @@
       display: flex;
       align-items: center;
       gap: 10px;
+      flex-wrap: wrap;
       background: #fff;
       transition: border-color .2s, box-shadow .2s, background .2s;
     }
@@ -198,13 +199,14 @@
     }
     .point-handle:active { cursor: grabbing; }
     .point-handle-icon { font-size: 16px; line-height: 1; }
-    .point-id {
+    .point-order {
       font-size: 12px;
       color: #6b7280;
       background: #f3f4f6;
       border-radius: 999px;
       padding: 2px 8px;
-      flex-shrink: 0;
+      flex: 0 0 auto;
+      font-variant-numeric: tabular-nums;
     }
     .point-input {
       border: 1px solid #d1d5db;
@@ -220,6 +222,25 @@
       font-variant-numeric: tabular-nums;
     }
     .point-input--label { flex: 2 1 180px; }
+    .point-select {
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: #fff;
+      flex: 0 1 150px;
+      min-width: 130px;
+      box-sizing: border-box;
+    }
+    .point-flag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .point-flag input { margin: 0; }
+    .point-flag span { white-space: nowrap; }
     .point-remove {
       margin-left: auto;
       flex-shrink: 0;
@@ -237,7 +258,9 @@
     .line-user:hover { stroke: #1d4ed8; }
     .line-answer { stroke: #0f766e; stroke-width: 4; stroke-dasharray: 10 8; pointer-events: none; opacity: .9; }
     .point { fill: #fff; stroke: #111827; stroke-width: 2.4; cursor: pointer; }
+    .point--decoy { stroke: #9ca3af; stroke-dasharray: 4 3; fill: #f9fafb; }
     .point.is-selected { stroke: #2563eb; stroke-width: 3.2; }
+    .point--decoy.is-selected { stroke-dasharray: none; }
     .point-label {
       font-size: 14px;
       font-weight: 600;
@@ -247,7 +270,14 @@
       stroke-width: 5px;
       stroke-linejoin: round;
     }
+    .point-label--decoy { fill: #6b7280; stroke: #f3f4f6; }
     body.labels-hidden .point-label { display: none; }
+    .point-decor { stroke: #6b7280; stroke-width: 4; fill: none; opacity: .9; }
+    .point-decor--circle { stroke-dasharray: 8 8; }
+    .point-decor--square { stroke-linejoin: round; }
+    .point-decor--eye { color: #4b5563; }
+    .point-decor--eye path { fill: rgba(249,250,251,.95); stroke: currentColor; stroke-width: 4; stroke-linejoin: round; }
+    .point-decor--eye circle { fill: #1f2937; stroke: none; }
     .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #4b5563; }
     .toggle input { width: auto; }
     @media (max-width: 600px) {

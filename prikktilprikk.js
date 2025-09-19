@@ -8,6 +8,14 @@
   const board = document.getElementById('dotBoard');
   if (!board) return;
 
+  const POINT_SHAPE_OPTIONS = [
+    { value: 'none', label: 'Ingen figur' },
+    { value: 'circle', label: 'Sirkel' },
+    { value: 'square', label: 'Kvadrat' },
+    { value: 'eye', label: 'Øye' }
+  ];
+  const VALID_POINT_SHAPES = new Set(POINT_SHAPE_OPTIONS.map(option => option.value));
+
   const modeToggleBtn = document.getElementById('btnToggleMode');
   const modeLabel = document.getElementById('modeLabel');
   const modeHint = document.getElementById('modeHint');
@@ -26,15 +34,18 @@
   const baseGroup = document.createElementNS(SVG_NS, 'g');
   const userGroup = document.createElementNS(SVG_NS, 'g');
   const answerGroup = document.createElementNS(SVG_NS, 'g');
+  const decorationsGroup = document.createElementNS(SVG_NS, 'g');
   const pointsGroup = document.createElementNS(SVG_NS, 'g');
   const labelsGroup = document.createElementNS(SVG_NS, 'g');
   baseGroup.classList.add('line-group', 'line-group--base');
   userGroup.classList.add('line-group', 'line-group--user');
   answerGroup.classList.add('line-group', 'line-group--answer');
   answerGroup.style.pointerEvents = 'none';
+  decorationsGroup.classList.add('decorations-group');
+  decorationsGroup.style.pointerEvents = 'none';
   pointsGroup.classList.add('points-group');
   labelsGroup.classList.add('labels-group');
-  board.append(baseGroup, userGroup, answerGroup, pointsGroup, labelsGroup);
+  board.append(baseGroup, userGroup, answerGroup, decorationsGroup, pointsGroup, labelsGroup);
 
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;
@@ -49,6 +60,7 @@
   const pointEditors = new Map();
   const pointElements = new Map();
   const labelElements = new Map();
+  const decorationElements = new Map();
   const baseLineElements = new Map();
   const userLineElements = new Map();
   const answerLineElements = new Map();
@@ -62,16 +74,16 @@
   function ensureStateDefaults() {
     if (!Array.isArray(STATE.points) || STATE.points.length === 0) {
       STATE.points = [
-        { id: 'p1', label: '21', x: 0.16, y: 0.68 },
-        { id: 'p2', label: '28', x: 0.27, y: 0.62 },
-        { id: 'p3', label: '35', x: 0.29, y: 0.48 },
-        { id: 'p4', label: '42', x: 0.21, y: 0.36 },
-        { id: 'p5', label: '49', x: 0.39, y: 0.32 },
-        { id: 'p6', label: '56', x: 0.47, y: 0.18 },
-        { id: 'p7', label: '63', x: 0.6, y: 0.26 },
-        { id: 'p8', label: '7', x: 0.83, y: 0.2 },
-        { id: 'p9', label: '70', x: 0.83, y: 0.54 },
-        { id: 'p10', label: '14', x: 0.6, y: 0.66 }
+        { id: 'p1', label: '21', x: 0.16, y: 0.68, isDecoy: false, shape: 'none' },
+        { id: 'p2', label: '28', x: 0.27, y: 0.62, isDecoy: false, shape: 'none' },
+        { id: 'p3', label: '35', x: 0.29, y: 0.48, isDecoy: false, shape: 'none' },
+        { id: 'p4', label: '42', x: 0.21, y: 0.36, isDecoy: false, shape: 'none' },
+        { id: 'p5', label: '49', x: 0.39, y: 0.32, isDecoy: false, shape: 'none' },
+        { id: 'p6', label: '56', x: 0.47, y: 0.18, isDecoy: false, shape: 'none' },
+        { id: 'p7', label: '63', x: 0.6, y: 0.26, isDecoy: false, shape: 'none' },
+        { id: 'p8', label: '7', x: 0.83, y: 0.2, isDecoy: false, shape: 'none' },
+        { id: 'p9', label: '70', x: 0.83, y: 0.54, isDecoy: false, shape: 'none' },
+        { id: 'p10', label: '14', x: 0.6, y: 0.66, isDecoy: false, shape: 'none' }
       ];
       STATE.answerLines = [
         ['p1', 'p2'],
@@ -116,6 +128,17 @@
   function coordinateString(point) {
     if (!point) return '0, 0';
     return `${percentString(point.x)}, ${percentString(point.y)}`;
+  }
+
+  function normalizePointShape(value) {
+    if (typeof value !== 'string') return 'none';
+    const normalized = value.trim().toLowerCase();
+    if (VALID_POINT_SHAPES.has(normalized)) return normalized;
+    if (normalized === 'sirkel') return 'circle';
+    if (normalized === 'kvadrat') return 'square';
+    if (normalized === 'øye' || normalized === 'oye') return 'eye';
+    if (normalized === 'ingen' || normalized === 'ingen figur') return 'none';
+    return 'none';
   }
 
   function parseCoordinateInput(value) {
@@ -197,7 +220,9 @@
         id,
         label: typeof point.label === 'string' ? point.label : String(idx + 1),
         x: clamp01(point.x),
-        y: clamp01(point.y)
+        y: clamp01(point.y),
+        isDecoy: !!point.isDecoy,
+        shape: normalizePointShape(point.shape)
       };
       usedIds.add(id);
       sanitizedPoints.push(sanitizedPoint);
@@ -276,6 +301,8 @@
     if (!editor || !point) return;
     if (editor.labelInput) editor.labelInput.value = point.label;
     if (editor.coordInput) editor.coordInput.value = coordinateString(point);
+    if (editor.decoyInput) editor.decoyInput.checked = !!point.isDecoy;
+    if (editor.shapeInput) editor.shapeInput.value = normalizePointShape(point.shape);
   }
 
   function updateLinesForPoint(pointId) {
@@ -292,6 +319,72 @@
     updater(baseLineElements);
     updater(userLineElements);
     updater(answerLineElements);
+  }
+
+  function createPointDecoration(point, pos) {
+    const shape = normalizePointShape(point.shape);
+    if (shape === 'none') return null;
+    if (shape === 'circle') {
+      const circle = document.createElementNS(SVG_NS, 'circle');
+      const radius = 36;
+      circle.classList.add('point-decor', 'point-decor--circle');
+      circle.setAttribute('cx', pos.x);
+      circle.setAttribute('cy', pos.y);
+      circle.setAttribute('r', radius);
+      return {
+        type: shape,
+        elements: [circle],
+        update(newPos) {
+          circle.setAttribute('cx', newPos.x);
+          circle.setAttribute('cy', newPos.y);
+        }
+      };
+    }
+    if (shape === 'square') {
+      const rect = document.createElementNS(SVG_NS, 'rect');
+      const size = 70;
+      rect.classList.add('point-decor', 'point-decor--square');
+      rect.setAttribute('x', pos.x - size / 2);
+      rect.setAttribute('y', pos.y - size / 2);
+      rect.setAttribute('width', size);
+      rect.setAttribute('height', size);
+      return {
+        type: shape,
+        elements: [rect],
+        update(newPos) {
+          rect.setAttribute('x', newPos.x - size / 2);
+          rect.setAttribute('y', newPos.y - size / 2);
+        }
+      };
+    }
+    if (shape === 'eye') {
+      const group = document.createElementNS(SVG_NS, 'g');
+      group.classList.add('point-decor', 'point-decor--eye');
+      group.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+      const path = document.createElementNS(SVG_NS, 'path');
+      path.setAttribute('d', 'M -40 0 C -18 -26, 18 -26, 40 0 C 18 26, -18 26, -40 0 Z');
+      const pupil = document.createElementNS(SVG_NS, 'circle');
+      pupil.setAttribute('cx', '0');
+      pupil.setAttribute('cy', '0');
+      pupil.setAttribute('r', '10');
+      group.append(path, pupil);
+      return {
+        type: shape,
+        elements: [group],
+        update(newPos) {
+          group.setAttribute('transform', `translate(${newPos.x}, ${newPos.y})`);
+        }
+      };
+    }
+    return null;
+  }
+
+  function updateDecorationPosition(pointId) {
+    const decoration = decorationElements.get(pointId);
+    if (!decoration || typeof decoration.update !== 'function') return;
+    const point = STATE.points.find(p => p.id === pointId);
+    if (!point) return;
+    decoration.update(toPixel(point));
   }
 
   function attachPointInteraction(circle, pointId) {
@@ -341,6 +434,7 @@
       label.setAttribute('y', pos.y + LABEL_OFFSET_Y);
     }
     updateLinesForPoint(pointId);
+    updateDecorationPosition(pointId);
   }
 
   function clearDragVisualState() {
@@ -451,7 +545,7 @@
     pointEditors.clear();
     pointListEl.innerHTML = '';
     clearDragVisualState();
-    STATE.points.forEach(point => {
+    STATE.points.forEach((point, index) => {
       const item = document.createElement('div');
       item.className = 'point-item';
       item.dataset.pointId = point.id;
@@ -478,10 +572,10 @@
       });
       item.appendChild(handle);
 
-      const idBadge = document.createElement('span');
-      idBadge.className = 'point-id';
-      idBadge.textContent = point.id;
-      item.appendChild(idBadge);
+      const orderBadge = document.createElement('span');
+      orderBadge.className = 'point-order';
+      orderBadge.textContent = String(index + 1);
+      item.appendChild(orderBadge);
 
       const coordInput = document.createElement('input');
       coordInput.type = 'text';
@@ -523,6 +617,37 @@
       });
       item.appendChild(labelInput);
 
+      const shapeSelect = document.createElement('select');
+      shapeSelect.className = 'point-select';
+      shapeSelect.setAttribute('aria-label', 'Velg figur');
+      POINT_SHAPE_OPTIONS.forEach(option => {
+        const opt = document.createElement('option');
+        opt.value = option.value;
+        opt.textContent = option.label;
+        shapeSelect.appendChild(opt);
+      });
+      shapeSelect.value = normalizePointShape(point.shape);
+      shapeSelect.addEventListener('change', () => {
+        point.shape = normalizePointShape(shapeSelect.value);
+        shapeSelect.value = point.shape;
+        renderBoard();
+      });
+      item.appendChild(shapeSelect);
+
+      const decoyToggle = document.createElement('label');
+      decoyToggle.className = 'point-flag';
+      const decoyCheckbox = document.createElement('input');
+      decoyCheckbox.type = 'checkbox';
+      decoyCheckbox.checked = !!point.isDecoy;
+      decoyCheckbox.addEventListener('change', () => {
+        point.isDecoy = decoyCheckbox.checked;
+        renderBoard();
+      });
+      const decoyText = document.createElement('span');
+      decoyText.textContent = 'Falskt punkt';
+      decoyToggle.append(decoyCheckbox, decoyText);
+      item.appendChild(decoyToggle);
+
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.className = 'btn btn--small point-remove';
@@ -547,9 +672,10 @@
       pointListEl.appendChild(item);
       pointEditors.set(point.id, {
         itemEl: item,
-        idEl: idBadge,
         coordInput,
-        labelInput
+        labelInput,
+        decoyInput: decoyCheckbox,
+        shapeInput: shapeSelect
       });
     });
     applySelectionHighlight();
@@ -568,9 +694,10 @@
     STATE.points.forEach(point => {
       const editor = pointEditors.get(point.id);
       if (!editor) return;
-      if (editor.idEl) editor.idEl.textContent = point.id;
       if (editor.labelInput) editor.labelInput.value = point.label;
       if (editor.coordInput) editor.coordInput.value = coordinateString(point);
+      if (editor.decoyInput) editor.decoyInput.checked = !!point.isDecoy;
+      if (editor.shapeInput) editor.shapeInput.value = normalizePointShape(point.shape);
       if (editor.itemEl) editor.itemEl.dataset.pointId = point.id;
     });
   }
@@ -644,17 +771,25 @@
       });
     }
 
+    decorationsGroup.innerHTML = '';
     pointsGroup.innerHTML = '';
     labelsGroup.innerHTML = '';
     pointElements.clear();
     labelElements.clear();
+    decorationElements.clear();
     STATE.points.forEach(point => {
       const circle = document.createElementNS(SVG_NS, 'circle');
       const pos = toPixel(point);
+      const decoration = createPointDecoration(point, pos);
+      if (decoration) {
+        decoration.elements.forEach(el => decorationsGroup.appendChild(el));
+        decorationElements.set(point.id, decoration);
+      }
       circle.setAttribute('cx', pos.x);
       circle.setAttribute('cy', pos.y);
       circle.setAttribute('r', 11);
       circle.classList.add('point');
+      if (point.isDecoy) circle.classList.add('point--decoy');
       circle.dataset.pointId = point.id;
       attachPointInteraction(circle, point.id);
       pointsGroup.appendChild(circle);
@@ -667,6 +802,7 @@
       text.setAttribute('text-anchor', 'start');
       text.setAttribute('dominant-baseline', 'middle');
       text.classList.add('point-label');
+      if (point.isDecoy) text.classList.add('point-label--decoy');
       if (!STATE.showLabels) text.style.display = 'none';
       labelsGroup.appendChild(text);
       labelElements.set(point.id, text);
@@ -869,7 +1005,9 @@
       id,
       label: String(count + 1),
       x,
-      y
+      y,
+      isDecoy: false,
+      shape: 'none'
     });
     selectedPointId = id;
     renderPointList();
