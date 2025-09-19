@@ -73,6 +73,7 @@
     if (!inp) break;
     colorInputs.push(inp);
   }
+  const boardEl = document.getElementById('figureBoard');
   const gridEl = document.getElementById('figureGrid');
   const addColumnBtn = document.getElementById('figAddColumn');
   const removeColumnBtn = document.getElementById('figRemoveColumn');
@@ -113,6 +114,44 @@
   let cols = clampInt(STATE.cols != null ? STATE.cols : 1, MIN_DIMENSION, MAX_COLS);
   STATE.rows = rows;
   STATE.cols = cols;
+  const FIGURE_MIN_SIZE = 160;
+  const FIGURE_MAX_SIZE = 720;
+  let pendingFigureSizeFrame = null;
+  function updateFigureSize() {
+    if (!gridEl) return;
+    const rect = gridEl.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const style = getComputedStyle(gridEl);
+    let gap = parseFloat(style.gap);
+    if (!Number.isFinite(gap)) {
+      const colGap = parseFloat(style.columnGap);
+      const rowGap = parseFloat(style.rowGap);
+      gap = Number.isFinite(colGap) ? colGap : Number.isFinite(rowGap) ? rowGap : 0;
+    }
+    const horizontalGap = Math.max(0, cols - 1) * (Number.isFinite(gap) ? gap : 0);
+    const verticalGap = Math.max(0, rows - 1) * (Number.isFinite(gap) ? gap : 0);
+    const availableWidth = rect.width - horizontalGap;
+    const availableHeight = rect.height - verticalGap;
+    if (availableWidth <= 0 || availableHeight <= 0) return;
+    const perFigureWidth = availableWidth / Math.max(cols, 1);
+    const perFigureHeight = availableHeight / Math.max(rows, 1);
+    const baseSize = Math.min(perFigureWidth, perFigureHeight);
+    const size = Math.max(FIGURE_MIN_SIZE, Math.min(FIGURE_MAX_SIZE, baseSize));
+    gridEl.style.setProperty('--figure-size', `${size}px`);
+  }
+  function scheduleFigureSizeUpdate() {
+    if (pendingFigureSizeFrame != null) return;
+    pendingFigureSizeFrame = requestAnimationFrame(() => {
+      pendingFigureSizeFrame = null;
+      updateFigureSize();
+    });
+  }
+  if (typeof ResizeObserver === 'function') {
+    const observer = new ResizeObserver(() => scheduleFigureSizeUpdate());
+    if (boardEl) observer.observe(boardEl);
+    if (gridEl) observer.observe(gridEl);
+  }
+  window.addEventListener('resize', scheduleFigureSizeUpdate);
   function ensureFigureState(id) {
     const existing = STATE.figures[id];
     const fig = existing && typeof existing === 'object' ? existing : {};
@@ -260,6 +299,7 @@
       const fig = figures[id];
       if (fig && typeof fig.draw === 'function') fig.draw();
     }
+    scheduleFigureSizeUpdate();
   }
   function createFigurePanel(id) {
     const panel = document.createElement('div');
@@ -318,6 +358,7 @@
     if (removeRowBtn) removeRowBtn.style.display = rows <= MIN_DIMENSION ? 'none' : '';
     if (addColumnBtn) addColumnBtn.style.display = cols >= MAX_COLS ? 'none' : '';
     if (removeColumnBtn) removeColumnBtn.style.display = cols <= MIN_DIMENSION ? 'none' : '';
+    scheduleFigureSizeUpdate();
   }
   function rebuildLayout() {
     const total = Math.max(MIN_DIMENSION, Math.min(rows * cols, MAX_ROWS * MAX_COLS));
