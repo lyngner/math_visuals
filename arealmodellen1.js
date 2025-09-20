@@ -18,7 +18,9 @@ const CFG = {
       showHandle: true
     }, // kolonner, vertikal deling (fra venstre)
     totalHandle: {
-      show: false
+      show: false,
+      maxCols: 30,
+      maxRows: 30
     }
   },
   ADV: {
@@ -203,6 +205,15 @@ function draw() {
   const UNIT = +ADV.unit || 40;
   let rows = Math.max(1, Math.round((_SV$height$cells = (_SV$height = SV.height) === null || _SV$height === void 0 ? void 0 : _SV$height.cells) !== null && _SV$height$cells !== void 0 ? _SV$height$cells : 16));
   let cols = Math.max(1, Math.round((_SV$length$cells = (_SV$length = SV.length) === null || _SV$length === void 0 ? void 0 : _SV$length.cells) !== null && _SV$length$cells !== void 0 ? _SV$length$cells : 17));
+  const totalCfg = SV.totalHandle || {};
+  const parsedMaxCols = totalCfg.maxCols != null ? parseFloat(totalCfg.maxCols) : null;
+  const parsedMaxRows = totalCfg.maxRows != null ? parseFloat(totalCfg.maxRows) : null;
+  const hasMaxCols = Number.isFinite(parsedMaxCols);
+  const hasMaxRows = Number.isFinite(parsedMaxRows);
+  const maxTotalCols = hasMaxCols ? Math.max(1, Math.round(parsedMaxCols)) : Infinity;
+  const maxTotalRows = hasMaxRows ? Math.max(1, Math.round(parsedMaxRows)) : Infinity;
+  if (hasMaxCols) cols = Math.min(cols, maxTotalCols);
+  if (hasMaxRows) rows = Math.min(rows, maxTotalRows);
   const layoutMode = normalizeLayout(SV.layout);
   const TEN = Math.max(1, Math.round((_ADV$check$ten = (_ADV$check = ADV.check) === null || _ADV$check === void 0 ? void 0 : _ADV$check.ten) !== null && _ADV$check$ten !== void 0 ? _ADV$check$ten : 10));
 
@@ -313,8 +324,6 @@ function draw() {
   const clampSy = value => clampWithEdges(value, minSY, maxSY, 0, H);
   const clampAxisX = value => clampWithEdges(value, minX, maxX, ML, ML + W);
   const clampAxisY = value => clampWithEdges(value, minY, maxY, MT, MT + H);
-  const clampCornerX = value => clamp(value, ML + UNIT, ML + UNIT * Math.max(cols + 20, 50));
-  const clampCornerY = value => clamp(value, MT + UNIT, MT + UNIT * Math.max(rows + 20, 50));
   const H_ICON_URL = (_ADV$handleIcons$hori = (_ADV$handleIcons2 = ADV.handleIcons) === null || _ADV$handleIcons2 === void 0 ? void 0 : _ADV$handleIcons2.horiz) !== null && _ADV$handleIcons$hori !== void 0 ? _ADV$handleIcons$hori : "";
   const V_ICON_URL = (_ADV$handleIcons$vert = (_ADV$handleIcons3 = ADV.handleIcons) === null || _ADV$handleIcons3 === void 0 ? void 0 : _ADV$handleIcons3.vert) !== null && _ADV$handleIcons$vert !== void 0 ? _ADV$handleIcons$vert : "";
 
@@ -722,7 +731,7 @@ function draw() {
     const hDownCX = ML + leftWidth,
       hDownCY = MT + H;
     const cornerCX = ML + W,
-      cornerCY = MT + H;
+      cornerCY = MT;
     const handleLeftVisible = showLeftHandle && hasHorizontalDivision;
     const handleDownVisible = showBottomHandle && hasVerticalDivision;
     const handleCornerVisible = showTotalHandle;
@@ -923,7 +932,9 @@ function draw() {
     pointerId: null,
     captor: null,
     startCols: 0,
-    startRows: 0
+    startRows: 0,
+    startPointerX: null,
+    startPointerY: null
   };
   let justDragged = false;
   const armJustDragged = () => {
@@ -963,10 +974,14 @@ function draw() {
         scheduleRedraw();
       }
     } else if (active.axis === "corner") {
-      const x = clampCornerX(p.x);
-      const y = clampCornerY(p.y);
-      const nextCols = Math.max(1, Math.round((x - ML) / UNIT));
-      const nextRows = Math.max(1, Math.round((y - MT) / UNIT));
+      const deltaX = p.x - (active.startPointerX != null ? active.startPointerX : 0);
+      const deltaY = (active.startPointerY != null ? active.startPointerY : 0) - p.y;
+      let nextCols = Math.round(active.startCols + deltaX / UNIT);
+      let nextRows = Math.round(active.startRows + deltaY / UNIT);
+      if (nextCols < 1) nextCols = 1;
+      if (maxTotalCols !== Infinity && nextCols > maxTotalCols) nextCols = maxTotalCols;
+      if (nextRows < 1) nextRows = 1;
+      if (maxTotalRows !== Infinity && nextRows > maxTotalRows) nextRows = maxTotalRows;
       if (nextCols !== cols || nextRows !== rows) {
         cols = nextCols;
         rows = nextRows;
@@ -990,6 +1005,8 @@ function draw() {
     active.axis = null;
     active.pointerId = null;
     active.captor = null;
+    active.startPointerX = null;
+    active.startPointerY = null;
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
     window.removeEventListener("pointercancel", onUp);
@@ -1002,6 +1019,9 @@ function draw() {
     active.axis = axis;
     active.pointerId = e.pointerId;
     active.captor = e.currentTarget || e.target;
+    const startPoint = clientToSvg(e);
+    active.startPointerX = startPoint.x;
+    active.startPointerY = startPoint.y;
     if (axis === "corner") {
       active.startCols = cols;
       active.startRows = rows;
@@ -1042,12 +1062,24 @@ function draw() {
       passive: false
     });
   }
+  const startCornerPointer = e => {
+    e.preventDefault();
+    startDrag("corner", e);
+  };
+  if (showTotalHandle && handleCorner) {
+    handleCorner.style.touchAction = "none";
+    handleCorner.addEventListener("pointerdown", startCornerPointer, {
+      passive: false
+    });
+  }
   if (showTotalHandle && hitCorner) {
     hitCorner.style.touchAction = "none";
-    hitCorner.addEventListener("pointerdown", e => {
-      e.preventDefault();
-      startDrag("corner", e);
-    }, {
+    hitCorner.addEventListener("pointerdown", startCornerPointer, {
+      passive: false
+    });
+  }
+  if (showTotalHandle && a11yCorner) {
+    a11yCorner.addEventListener("pointerdown", startCornerPointer, {
       passive: false
     });
   }
@@ -1095,13 +1127,19 @@ function draw() {
     a11yCorner.addEventListener("keydown", e => {
       let handled = true;
       if (e.key === "ArrowUp") {
-        rows = Math.max(1, rows + 1);
+        rows = rows + 1;
+        if (rows < 1) rows = 1;
+        if (maxTotalRows !== Infinity && rows > maxTotalRows) rows = maxTotalRows;
       } else if (e.key === "ArrowDown") {
-        rows = Math.max(1, rows - 1);
+        rows = rows - 1;
+        if (rows < 1) rows = 1;
       } else if (e.key === "ArrowRight") {
-        cols = Math.max(1, cols + 1);
+        cols = cols + 1;
+        if (cols < 1) cols = 1;
+        if (maxTotalCols !== Infinity && cols > maxTotalCols) cols = maxTotalCols;
       } else if (e.key === "ArrowLeft") {
-        cols = Math.max(1, cols - 1);
+        cols = cols - 1;
+        if (cols < 1) cols = 1;
       } else {
         handled = false;
       }
@@ -1598,6 +1636,25 @@ function setSimpleConfig(o = {}) {
   if (o.showLengthHandle != null) CFG.SIMPLE.length.showHandle = !!o.showLengthHandle;
   if (!CFG.SIMPLE.totalHandle) CFG.SIMPLE.totalHandle = {};
   if (o.showTotalHandle != null) CFG.SIMPLE.totalHandle.show = !!o.showTotalHandle;
+  if (o.totalHandleMaxCols != null) {
+    const v = Math.round(parseFloat(o.totalHandleMaxCols));
+    if (Number.isFinite(v) && v > 0) CFG.SIMPLE.totalHandle.maxCols = v;
+  }
+  if (o.totalHandleMaxRows != null) {
+    const v = Math.round(parseFloat(o.totalHandleMaxRows));
+    if (Number.isFinite(v) && v > 0) CFG.SIMPLE.totalHandle.maxRows = v;
+  }
+  if (o.totalHandle && typeof o.totalHandle === 'object') {
+    const th = o.totalHandle;
+    if (th.maxCols != null) {
+      const v = Math.round(parseFloat(th.maxCols));
+      if (Number.isFinite(v) && v > 0) CFG.SIMPLE.totalHandle.maxCols = v;
+    }
+    if (th.maxRows != null) {
+      const v = Math.round(parseFloat(th.maxRows));
+      if (Number.isFinite(v) && v > 0) CFG.SIMPLE.totalHandle.maxRows = v;
+    }
+  }
   if (o.layout != null) CFG.SIMPLE.layout = normalizeLayout(o.layout);else if (o.layoutMode != null) CFG.SIMPLE.layout = normalizeLayout(o.layoutMode);
   const setVal = (id, v) => {
     const el = document.getElementById(id);
