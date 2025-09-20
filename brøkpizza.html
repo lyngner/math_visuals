@@ -42,6 +42,7 @@
     .checkbox-row { display:flex; align-items:center; gap:6px; }
     .field-row { display:flex; gap:10px; flex-wrap:wrap; }
     .field-row .field { flex:1 1 140px; display:flex; flex-direction:column; gap:4px; }
+    .input-stack { display:flex; flex-direction:column; gap:4px; }
 
     /* Kontainer for pizzaer og tegn mellom dem */
     .grid2 {
@@ -211,7 +212,7 @@
             <div class="checkbox-row"><input id="p1LockN" type="checkbox"><label for="p1LockN">Lås nevner</label></div>
             <div class="checkbox-row"><input id="p1HideNVal" type="checkbox"><label for="p1HideNVal">Skjul n-verdi</label></div>
             <div class="checkbox-row"><input id="p1LockT" type="checkbox"><label for="p1LockT">Lås teller</label></div>
-            <label for="p1Text">Tekst</label>
+            <label for="p1Text">Tekst over brøk</label>
             <select id="p1Text">
               <option value="none">none</option>
               <option value="frac" selected>frac</option>
@@ -228,13 +229,15 @@
                 <input id="p1MaxN" type="number" value="24" min="1">
               </div>
             </div>
-            <label for="op1">Tegn</label>
-            <select id="op1">
-              <option value="">none</option>
-              <option value="+">+</option>
-              <option value="-">-</option>
-              <option value="=">=</option>
-            </select>
+            <div id="op1Wrapper" class="input-stack">
+              <label for="op1">Operator etter brøksirkel</label>
+              <select id="op1">
+                <option value="">none</option>
+                <option value="+">+</option>
+                <option value="-">-</option>
+                <option value="=">=</option>
+              </select>
+            </div>
           </fieldset>
 
           <fieldset id="fieldset2" style="display:none">
@@ -252,7 +255,7 @@
             <div class="checkbox-row"><input id="p2LockN" type="checkbox" checked><label for="p2LockN">Lås nevner</label></div>
             <div class="checkbox-row"><input id="p2HideNVal" type="checkbox"><label for="p2HideNVal">Skjul n-verdi</label></div>
             <div class="checkbox-row"><input id="p2LockT" type="checkbox"><label for="p2LockT">Lås teller</label></div>
-            <label for="p2Text">Tekst</label>
+            <label for="p2Text">Tekst over brøk</label>
             <select id="p2Text">
               <option value="none">none</option>
               <option value="frac">frac</option>
@@ -269,13 +272,15 @@
                 <input id="p2MaxN" type="number" value="24" min="1">
               </div>
             </div>
-            <label for="op2">Tegn</label>
-            <select id="op2">
-              <option value="">none</option>
-              <option value="+">+</option>
-              <option value="-">-</option>
-              <option value="=">=</option>
-            </select>
+            <div id="op2Wrapper" class="input-stack">
+              <label for="op2">Operator etter brøksirkel</label>
+              <select id="op2">
+                <option value="">none</option>
+                <option value="+">+</option>
+                <option value="-">-</option>
+                <option value="=">=</option>
+              </select>
+            </div>
           </fieldset>
 
           <fieldset id="fieldset3" style="display:none">
@@ -293,7 +298,7 @@
             <div class="checkbox-row"><input id="p3LockN" type="checkbox"><label for="p3LockN">Lås nevner</label></div>
             <div class="checkbox-row"><input id="p3HideNVal" type="checkbox"><label for="p3HideNVal">Skjul n-verdi</label></div>
             <div class="checkbox-row"><input id="p3LockT" type="checkbox"><label for="p3LockT">Lås teller</label></div>
-            <label for="p3Text">Tekst</label>
+            <label for="p3Text">Tekst over brøk</label>
             <select id="p3Text">
               <option value="none">none</option>
               <option value="frac">frac</option>

@@ -32,8 +32,15 @@ function readConfigFromHtml() {
   }
   const ops = [];
   for (let i = 1; i <= 2; i++) {
-    var _document$getElementB11;
-    const op = ((_document$getElementB11 = document.getElementById(`op${i}`)) === null || _document$getElementB11 === void 0 ? void 0 : _document$getElementB11.value) || "";
+    const rightPanel = document.getElementById(`panel${i + 1}`);
+    const hasRightPizza = !!(rightPanel && rightPanel.style.display !== "none");
+    const select = document.getElementById(`op${i}`);
+    let op = "";
+    if (hasRightPizza) {
+      op = (select === null || select === void 0 ? void 0 : select.value) || "";
+    } else if (select) {
+      select.value = "";
+    }
     ops.push(op);
   }
   return {
@@ -1123,14 +1130,19 @@ function initFromHtml() {
     });
   });
   cfg.ops.forEach((op, i) => {
-    const el = document.getElementById(`opDisplay${i + 1}`);
+    const displayEl = document.getElementById(`opDisplay${i + 1}`);
     const nextPanel = document.getElementById(`panel${i + 2}`);
-    if (!el) return;
-    if (op && nextPanel && nextPanel.style.display !== "none") {
-      el.textContent = op;
-      el.style.display = "";
+    const wrapper = document.getElementById(`op${i + 1}Wrapper`);
+    const select = document.getElementById(`op${i + 1}`);
+    const hasRightPizza = !!(nextPanel && nextPanel.style.display !== "none");
+    if (wrapper) wrapper.style.display = hasRightPizza ? "" : "none";
+    if (!hasRightPizza && select) select.value = "";
+    if (!displayEl) return;
+    if (op && hasRightPizza) {
+      displayEl.textContent = op;
+      displayEl.style.display = "";
     } else {
-      el.style.display = "none";
+      displayEl.style.display = "none";
     }
   });
   scheduleCenterAlign();
@@ -1231,7 +1243,17 @@ function applySimpleConfigToInputs() {
     if (textSel && cfg.text) textSel.value = cfg.text;
   }
   ops.forEach((op, idx) => {
-    setVal(`op${idx + 1}`, op !== null && op !== void 0 ? op : "");
+    const wrapper = document.getElementById(`op${idx + 1}Wrapper`);
+    const selectId = `op${idx + 1}`;
+    const select = document.getElementById(selectId);
+    const rightPanel = document.getElementById(`panel${idx + 2}`);
+    const shouldShow = !!(rightPanel && rightPanel.style.display !== "none");
+    if (wrapper) wrapper.style.display = shouldShow ? "" : "none";
+    if (shouldShow) {
+      setVal(selectId, op !== null && op !== void 0 ? op : "");
+    } else if (select) {
+      select.value = "";
+    }
   });
 }
 function applyExamplesConfig() {
