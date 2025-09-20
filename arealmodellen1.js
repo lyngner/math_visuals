@@ -16,7 +16,10 @@ const CFG = {
       handle: 3,
       show: true,
       showHandle: true
-    } // kolonner, vertikal deling (fra venstre)
+    }, // kolonner, vertikal deling (fra venstre)
+    totalHandle: {
+      show: false
+    }
   },
   ADV: {
     svgId: "area",
@@ -182,6 +185,9 @@ function readConfigFromHtml() {
   if (Number.isFinite(lStart)) CFG.SIMPLE.length.handle = lStart;
   CFG.SIMPLE.height.showHandle = (_document$getElementB5 = (_document$getElementB6 = document.getElementById("showHeightHandle")) === null || _document$getElementB6 === void 0 ? void 0 : _document$getElementB6.checked) !== null && _document$getElementB5 !== void 0 ? _document$getElementB5 : CFG.SIMPLE.height.showHandle;
   CFG.SIMPLE.length.showHandle = (_document$getElementB7 = (_document$getElementB8 = document.getElementById("showLengthHandle")) === null || _document$getElementB8 === void 0 ? void 0 : _document$getElementB8.checked) !== null && _document$getElementB7 !== void 0 ? _document$getElementB7 : CFG.SIMPLE.length.showHandle;
+  const totalHandleInput = document.getElementById("showTotalHandle");
+  if (!CFG.SIMPLE.totalHandle) CFG.SIMPLE.totalHandle = {};
+  if (totalHandleInput) CFG.SIMPLE.totalHandle.show = !!totalHandleInput.checked;
   CFG.ADV.grid = (_document$getElementB9 = (_document$getElementB0 = document.getElementById("grid")) === null || _document$getElementB0 === void 0 ? void 0 : _document$getElementB0.checked) !== null && _document$getElementB9 !== void 0 ? _document$getElementB9 : CFG.ADV.grid;
   CFG.ADV.splitLines = (_document$getElementB1 = (_document$getElementB10 = document.getElementById("splitLines")) === null || _document$getElementB10 === void 0 ? void 0 : _document$getElementB10.checked) !== null && _document$getElementB1 !== void 0 ? _document$getElementB1 : CFG.ADV.splitLines;
   const layoutSelect = document.getElementById("layoutMode");
@@ -190,13 +196,13 @@ function readConfigFromHtml() {
   }
 }
 function draw() {
-  var _SV$height$cells, _SV$height, _SV$length$cells, _SV$length, _ADV$check$ten, _ADV$check, _ADV$handleIcons$size, _ADV$handleIcons, _ADV$margins$l, _ADV$margins, _ADV$margins$r, _ADV$margins2, _ADV$margins$t, _ADV$margins3, _ADV$margins$b, _ADV$margins4, _ADV$classes$outer, _ADV$classes, _ADV$classes$grid, _ADV$classes2, _ADV$classes$split, _ADV$classes3, _ADV$classes$handle, _ADV$classes4, _ADV$classes$labelCel, _ADV$classes5, _ADV$classes$labelEdg, _ADV$classes6, _ADV$classes$cells, _ADV$classes7, _SV$height2, _SV$length2, _ADV$drag, _ADV$drag2, _ADV$limits$minColsEa, _ADV$limits, _ADV$limits$minRowsEa, _ADV$limits2, _SV$length$handle, _SV$length3, _SV$height$handle, _SV$height3, _SV$height4, _SV$length4, _ADV$handleIcons$hori, _ADV$handleIcons2, _ADV$handleIcons$vert, _ADV$handleIcons3, _ADV$fit$maxVh, _ADV$fit, _ADV$labels$dot, _ADV$labels, _ADV$labels$equals, _ADV$labels2, _ADV$labels$edgeMode, _ADV$labels3, _ADV$labels$cellMode, _ADV$labels4;
+  var _SV$height$cells, _SV$height, _SV$length$cells, _SV$length, _ADV$check$ten, _ADV$check, _ADV$handleIcons$size, _ADV$handleIcons, _ADV$margins$l, _ADV$margins, _ADV$margins$r, _ADV$margins2, _ADV$margins$t, _ADV$margins3, _ADV$margins$b, _ADV$margins4, _ADV$classes$outer, _ADV$classes, _ADV$classes$grid, _ADV$classes2, _ADV$classes$split, _ADV$classes3, _ADV$classes$handle, _ADV$classes4, _ADV$classes$labelCel, _ADV$classes5, _ADV$classes$labelEdg, _ADV$classes6, _ADV$classes$cells, _ADV$classes7, _SV$height2, _SV$length2, _ADV$drag, _ADV$drag2, _ADV$limits$minColsEa, _ADV$limits, _ADV$limits$minRowsEa, _ADV$limits2, _SV$length$handle, _SV$length3, _SV$height$handle, _SV$height3, _SV$height4, _SV$length4, _ADV$handleIcons$hori, _ADV$handleIcons2, _ADV$handleIcons$vert, _ADV$handleIcons3, _ADV$fit$maxVh, _ADV$fit, _ADV$labels$dot, _ADV$labels, _ADV$labels$equals, _ADV$labels2, _ADV$labels$edgeMode, _ADV$labels3, _ADV$labels$cellMode, _ADV$labels4, _SV$totalHandle;
   ensureCfgDefaults();
   const ADV = CFG.ADV,
     SV = CFG.SIMPLE;
   const UNIT = +ADV.unit || 40;
-  const ROWS = Math.max(1, Math.round((_SV$height$cells = (_SV$height = SV.height) === null || _SV$height === void 0 ? void 0 : _SV$height.cells) !== null && _SV$height$cells !== void 0 ? _SV$height$cells : 16));
-  const COLS = Math.max(1, Math.round((_SV$length$cells = (_SV$length = SV.length) === null || _SV$length === void 0 ? void 0 : _SV$length.cells) !== null && _SV$length$cells !== void 0 ? _SV$length$cells : 17));
+  let rows = Math.max(1, Math.round((_SV$height$cells = (_SV$height = SV.height) === null || _SV$height === void 0 ? void 0 : _SV$height.cells) !== null && _SV$height$cells !== void 0 ? _SV$height$cells : 16));
+  let cols = Math.max(1, Math.round((_SV$length$cells = (_SV$length = SV.length) === null || _SV$length === void 0 ? void 0 : _SV$length.cells) !== null && _SV$length$cells !== void 0 ? _SV$length$cells : 17));
   const layoutMode = normalizeLayout(SV.layout);
   const TEN = Math.max(1, Math.round((_ADV$check$ten = (_ADV$check = ADV.check) === null || _ADV$check === void 0 ? void 0 : _ADV$check.ten) !== null && _ADV$check$ten !== void 0 ? _ADV$check$ten : 10));
 
@@ -208,16 +214,27 @@ function draw() {
 
   // pilstørrelse + auto-margin
   const HANDLE_SIZE = Math.max(12, (_ADV$handleIcons$size = (_ADV$handleIcons = ADV.handleIcons) === null || _ADV$handleIcons === void 0 ? void 0 : _ADV$handleIcons.size) !== null && _ADV$handleIcons$size !== void 0 ? _ADV$handleIcons$size : 84);
+  const CORNER_RADIUS = Math.max(14, Math.min(28, HANDLE_SIZE * 0.35));
   const MLconf = (_ADV$margins$l = (_ADV$margins = ADV.margins) === null || _ADV$margins === void 0 ? void 0 : _ADV$margins.l) !== null && _ADV$margins$l !== void 0 ? _ADV$margins$l : 80;
   const MR = (_ADV$margins$r = (_ADV$margins2 = ADV.margins) === null || _ADV$margins2 === void 0 ? void 0 : _ADV$margins2.r) !== null && _ADV$margins$r !== void 0 ? _ADV$margins$r : 40;
   const MT = (_ADV$margins$t = (_ADV$margins3 = ADV.margins) === null || _ADV$margins3 === void 0 ? void 0 : _ADV$margins3.t) !== null && _ADV$margins$t !== void 0 ? _ADV$margins$t : 40;
   const MBconf = (_ADV$margins$b = (_ADV$margins4 = ADV.margins) === null || _ADV$margins4 === void 0 ? void 0 : _ADV$margins4.b) !== null && _ADV$margins$b !== void 0 ? _ADV$margins$b : 120;
   const ML = Math.max(MLconf, HANDLE_SIZE / 2 + 18);
   const MB = Math.max(MBconf, HANDLE_SIZE / 2 + EDGE_GAP.y + 18);
-  const W = COLS * UNIT,
-    H = ROWS * UNIT;
-  const VBW = ML + W + MR,
-    VBH = MT + H + MB;
+  let W = 0,
+    H = 0,
+    VBW = 0,
+    VBH = 0,
+    minColsEachSide = 0,
+    minRowsEachSide = 0,
+    minSX = 0,
+    maxSX = 0,
+    minSY = 0,
+    maxSY = 0,
+    minX = 0,
+    maxX = 0,
+    minY = 0,
+    maxY = 0;
   const classes = {
     outer: (_ADV$classes$outer = (_ADV$classes = ADV.classes) === null || _ADV$classes === void 0 ? void 0 : _ADV$classes.outer) !== null && _ADV$classes$outer !== void 0 ? _ADV$classes$outer : "outer",
     grid: (_ADV$classes$grid = (_ADV$classes2 = ADV.classes) === null || _ADV$classes2 === void 0 ? void 0 : _ADV$classes2.grid) !== null && _ADV$classes$grid !== void 0 ? _ADV$classes$grid : "grid",
@@ -229,8 +246,8 @@ function draw() {
   };
   const showGrid = ADV.grid !== false;
   const clickToMove = ADV.clickToMove !== false;
-  const showHeightAxis = layoutMode !== "horizontal" && ROWS > 1 && ((_SV$height2 = SV.height) === null || _SV$height2 === void 0 ? void 0 : _SV$height2.show) !== false;
-  const showLengthAxis = layoutMode !== "vertical" && COLS > 1 && ((_SV$length2 = SV.length) === null || _SV$length2 === void 0 ? void 0 : _SV$length2.show) !== false;
+  const showHeightAxis = layoutMode !== "horizontal" && rows > 1 && ((_SV$height2 = SV.height) === null || _SV$height2 === void 0 ? void 0 : _SV$height2.show) !== false;
+  const showLengthAxis = layoutMode !== "vertical" && cols > 1 && ((_SV$length2 = SV.length) === null || _SV$length2 === void 0 ? void 0 : _SV$length2.show) !== false;
   const dragVertical = layoutMode !== "single" && showHeightAxis && ((_ADV$drag = ADV.drag) === null || _ADV$drag === void 0 ? void 0 : _ADV$drag.vertical) !== false;
   const dragHorizontal = layoutMode !== "single" && showLengthAxis && ((_ADV$drag2 = ADV.drag) === null || _ADV$drag2 === void 0 ? void 0 : _ADV$drag2.horizontal) !== false;
   const splitLinesOn = ADV.splitLines !== false;
@@ -238,12 +255,28 @@ function draw() {
   const showVLine = layoutMode !== "single" && splitLinesOn && showLengthAxis;
   const rawMinColsEachSide = (_ADV$limits$minColsEa = (_ADV$limits = ADV.limits) === null || _ADV$limits === void 0 ? void 0 : _ADV$limits.minColsEachSide) !== null && _ADV$limits$minColsEa !== void 0 ? _ADV$limits$minColsEa : 0;
   const rawMinRowsEachSide = (_ADV$limits$minRowsEa = (_ADV$limits2 = ADV.limits) === null || _ADV$limits2 === void 0 ? void 0 : _ADV$limits2.minRowsEachSide) !== null && _ADV$limits$minRowsEa !== void 0 ? _ADV$limits$minRowsEa : 0;
-  const minColsEachSide = Math.max(0, Math.min(Math.floor(COLS / 2), Math.round(rawMinColsEachSide) || 0));
-  const minRowsEachSide = Math.max(0, Math.min(Math.floor(ROWS / 2), Math.round(rawMinRowsEachSide) || 0));
-  const initLeftCols = (_SV$length$handle = (_SV$length3 = SV.length) === null || _SV$length3 === void 0 ? void 0 : _SV$length3.handle) !== null && _SV$length$handle !== void 0 ? _SV$length$handle : Math.floor(COLS / 2);
-  const initBottomRows = (_SV$height$handle = (_SV$height3 = SV.height) === null || _SV$height3 === void 0 ? void 0 : _SV$height3.handle) !== null && _SV$height$handle !== void 0 ? _SV$height$handle : Math.floor(ROWS / 2);
+  function recomputeDerived() {
+    W = cols * UNIT;
+    H = rows * UNIT;
+    VBW = ML + W + MR;
+    VBH = MT + H + MB;
+    minColsEachSide = Math.max(0, Math.min(Math.floor(cols / 2), Math.round(rawMinColsEachSide) || 0));
+    minRowsEachSide = Math.max(0, Math.min(Math.floor(rows / 2), Math.round(rawMinRowsEachSide) || 0));
+    minSX = minColsEachSide * UNIT;
+    maxSX = (cols - minColsEachSide) * UNIT;
+    minSY = minRowsEachSide * UNIT;
+    maxSY = (rows - minRowsEachSide) * UNIT;
+    minX = ML + minSX;
+    maxX = ML + maxSX;
+    minY = MT + minSY;
+    maxY = MT + maxSY;
+  }
+  recomputeDerived();
+  const initLeftCols = (_SV$length$handle = (_SV$length3 = SV.length) === null || _SV$length3 === void 0 ? void 0 : _SV$length3.handle) !== null && _SV$length$handle !== void 0 ? _SV$length$handle : Math.floor(cols / 2);
+  const initBottomRows = (_SV$height$handle = (_SV$height3 = SV.height) === null || _SV$height3 === void 0 ? void 0 : _SV$height3.handle) !== null && _SV$height$handle !== void 0 ? _SV$height$handle : Math.floor(rows / 2);
   const showLeftHandle = layoutMode !== "single" && showHeightAxis && ((_SV$height4 = SV.height) === null || _SV$height4 === void 0 ? void 0 : _SV$height4.showHandle) !== false;
   const showBottomHandle = layoutMode !== "single" && showLengthAxis && ((_SV$length4 = SV.length) === null || _SV$length4 === void 0 ? void 0 : _SV$length4.showHandle) !== false;
+  const showTotalHandle = !!((_SV$totalHandle = SV.totalHandle) !== null && _SV$totalHandle !== void 0 && _SV$totalHandle.show);
 
   // helpers
   const NS = "http://www.w3.org/2000/svg";
@@ -280,22 +313,24 @@ function draw() {
   const clampSy = value => clampWithEdges(value, minSY, maxSY, 0, H);
   const clampAxisX = value => clampWithEdges(value, minX, maxX, ML, ML + W);
   const clampAxisY = value => clampWithEdges(value, minY, maxY, MT, MT + H);
-  const minSX = minColsEachSide * UNIT;
-  const maxSX = (COLS - minColsEachSide) * UNIT;
-  const minSY = minRowsEachSide * UNIT;
-  const maxSY = (ROWS - minRowsEachSide) * UNIT;
-  const minX = ML + minSX;
-  const maxX = ML + maxSX;
-  const minY = MT + minSY;
-  const maxY = MT + maxSY;
+  const clampCornerX = value => clamp(value, ML + UNIT, ML + UNIT * Math.max(cols + 20, 50));
+  const clampCornerY = value => clamp(value, MT + UNIT, MT + UNIT * Math.max(rows + 20, 50));
   const H_ICON_URL = (_ADV$handleIcons$hori = (_ADV$handleIcons2 = ADV.handleIcons) === null || _ADV$handleIcons2 === void 0 ? void 0 : _ADV$handleIcons2.horiz) !== null && _ADV$handleIcons$hori !== void 0 ? _ADV$handleIcons$hori : "";
   const V_ICON_URL = (_ADV$handleIcons$vert = (_ADV$handleIcons3 = ADV.handleIcons) === null || _ADV$handleIcons3 === void 0 ? void 0 : _ADV$handleIcons3.vert) !== null && _ADV$handleIcons$vert !== void 0 ? _ADV$handleIcons$vert : "";
 
   // state
-  let sx = clampInt(initLeftCols, minColsEachSide, COLS - minColsEachSide) * UNIT;
-  let sy = clampInt(initBottomRows, minRowsEachSide, ROWS - minRowsEachSide) * UNIT;
+  let sx = clampInt(initLeftCols, minColsEachSide, cols - minColsEachSide) * UNIT;
+  let sy = clampInt(initBottomRows, minRowsEachSide, rows - minRowsEachSide) * UNIT;
   let lastSyncedLeft = null;
   let lastSyncedBottom = null;
+  let lastSyncedCols = cols;
+  let lastSyncedRows = rows;
+  let lastCols = cols;
+  let lastRows = rows;
+  let lastW = W;
+  let lastH = H;
+  let lastVBW = VBW;
+  let lastVBH = VBH;
   function syncSimpleHandles() {
     const leftCols = Math.round(sx / UNIT);
     const bottomRows = Math.round(sy / UNIT);
@@ -330,6 +365,30 @@ function draw() {
       }
     } else {
       lastSyncedBottom = null;
+    }
+  }
+  function syncSimpleTotals() {
+    if (cols !== lastSyncedCols) {
+      lastSyncedCols = cols;
+      if (!CFG.SIMPLE.length) CFG.SIMPLE.length = {};
+      CFG.SIMPLE.length.cells = cols;
+      const lengthInput = document.getElementById('length');
+      if (lengthInput) {
+        const strValue = String(cols);
+        lengthInput.value = strValue;
+        lengthInput.setAttribute('value', strValue);
+      }
+    }
+    if (rows !== lastSyncedRows) {
+      lastSyncedRows = rows;
+      if (!CFG.SIMPLE.height) CFG.SIMPLE.height = {};
+      CFG.SIMPLE.height.cells = rows;
+      const heightInput = document.getElementById('height');
+      if (heightInput) {
+        const strValue = String(rows);
+        heightInput.value = strValue;
+        heightInput.setAttribute('value', strValue);
+      }
     }
   }
   injectRuntimeStyles();
@@ -412,12 +471,16 @@ function draw() {
   // håndtak + hit-soner + tastaturoverlay
   let handleLeft = null,
     handleDown = null,
+    handleCorner = null,
     hitLeft = null,
     hitDown = null,
+    hitCorner = null,
     a11yLeft = null,
     a11yLeftRect = null,
     a11yDown = null,
-    a11yDownRect = null;
+    a11yDownRect = null,
+    a11yCorner = null,
+    a11yCornerRect = null;
   if (showLeftHandle) {
     handleLeft = el("image");
     set(handleLeft, "class", classes.handle);
@@ -437,7 +500,7 @@ function draw() {
     set(a11yLeft, "aria-label", "Høyde");
     set(a11yLeft, "focusable", "true");
     set(a11yLeft, "aria-valuemin", 0);
-    set(a11yLeft, "aria-valuemax", ROWS);
+    set(a11yLeft, "aria-valuemax", rows);
     a11yLeftRect = el("rect");
     set(a11yLeftRect, "width", HANDLE_SIZE);
     set(a11yLeftRect, "height", HANDLE_SIZE);
@@ -465,7 +528,7 @@ function draw() {
     set(a11yDown, "aria-label", "Lengde");
     set(a11yDown, "focusable", "true");
     set(a11yDown, "aria-valuemin", 0);
-    set(a11yDown, "aria-valuemax", COLS);
+    set(a11yDown, "aria-valuemax", cols);
     a11yDownRect = el("rect");
     set(a11yDownRect, "width", HANDLE_SIZE);
     set(a11yDownRect, "height", HANDLE_SIZE);
@@ -473,6 +536,29 @@ function draw() {
     set(a11yDownRect, "stroke", "none");
     a11yDown.appendChild(a11yDownRect);
     svg.append(a11yDown);
+  }
+  if (showTotalHandle) {
+    handleCorner = el("circle");
+    set(handleCorner, "class", "handleCorner");
+    set(handleCorner, "r", CORNER_RADIUS);
+    svg.append(handleCorner);
+    hitCorner = el("circle");
+    set(hitCorner, "class", "handleHit");
+    set(hitCorner, "r", CORNER_RADIUS * 1.6);
+    svg.append(hitCorner);
+    a11yCorner = el("g");
+    set(a11yCorner, "class", "handleOverlay");
+    set(a11yCorner, "tabindex", "0");
+    set(a11yCorner, "role", "group");
+    set(a11yCorner, "aria-label", "Totalareal");
+    set(a11yCorner, "focusable", "true");
+    a11yCornerRect = el("rect");
+    set(a11yCornerRect, "width", CORNER_RADIUS * 2);
+    set(a11yCornerRect, "height", CORNER_RADIUS * 2);
+    set(a11yCornerRect, "fill", "transparent");
+    set(a11yCornerRect, "stroke", "none");
+    a11yCorner.appendChild(a11yCornerRect);
+    svg.append(a11yCorner);
   }
 
   // tekster
@@ -533,9 +619,46 @@ function draw() {
     });
   }
   function redraw() {
+    recomputeDerived();
     sx = clampSx(sx);
     sy = clampSy(sy);
-    const layoutState = computeLayoutState(layoutMode, W, H, COLS, ROWS, sx, sy, UNIT);
+    const dimsChanged = W !== lastW || H !== lastH;
+    const totalsChanged = cols !== lastCols || rows !== lastRows;
+    const viewBoxChanged = VBW !== lastVBW || VBH !== lastVBH;
+    if (viewBoxChanged) {
+      set(svg, "viewBox", `0 0 ${VBW} ${VBH}`);
+      lastVBW = VBW;
+      lastVBH = VBH;
+      fitToViewport();
+    }
+    if (dimsChanged) {
+      set(rectOuter, "width", W);
+      set(rectOuter, "height", H);
+      set(clipRect, "width", W);
+      set(clipRect, "height", H);
+    }
+    if (totalsChanged || (dimsChanged && showGrid)) {
+      while (gridGroup.firstChild) gridGroup.removeChild(gridGroup.firstChild);
+      if (showGrid) {
+        for (let x = ML + UNIT; x < ML + W; x += UNIT) {
+          const ln = el("line");
+          set(ln, "x1", x);
+          set(ln, "y1", MT);
+          set(ln, "x2", x);
+          set(ln, "y2", MT + H);
+          gridGroup.appendChild(ln);
+        }
+        for (let y = MT + UNIT; y < MT + H; y += UNIT) {
+          const ln = el("line");
+          set(ln, "x1", ML);
+          set(ln, "y1", y);
+          set(ln, "x2", ML + W);
+          set(ln, "y2", y);
+          gridGroup.appendChild(ln);
+        }
+      }
+    }
+    const layoutState = computeLayoutState(layoutMode, W, H, cols, rows, sx, sy, UNIT);
     const setDisplay = (node, visible) => {
       if (!node) return;
       if (visible) {
@@ -598,8 +721,11 @@ function draw() {
       hLeftCY = MT + topHeight;
     const hDownCX = ML + leftWidth,
       hDownCY = MT + H;
+    const cornerCX = ML + W,
+      cornerCY = MT + H;
     const handleLeftVisible = showLeftHandle && hasHorizontalDivision;
     const handleDownVisible = showBottomHandle && hasVerticalDivision;
+    const handleCornerVisible = showTotalHandle;
     if (handleLeft) {
       set(handleLeft, "x", hLeftCX - HANDLE_SIZE / 2);
       set(handleLeft, "y", hLeftCY - HANDLE_SIZE / 2);
@@ -620,11 +746,22 @@ function draw() {
       set(hitDown, "cy", hDownCY);
       setDisplay(hitDown, handleDownVisible);
     }
+    if (handleCorner) {
+      set(handleCorner, "cx", cornerCX);
+      set(handleCorner, "cy", cornerCY);
+      setDisplay(handleCorner, handleCornerVisible);
+    }
+    if (hitCorner) {
+      set(hitCorner, "cx", cornerCX);
+      set(hitCorner, "cy", cornerCY);
+      setDisplay(hitCorner, handleCornerVisible);
+    }
     if (a11yLeftRect) {
       set(a11yLeftRect, "x", hLeftCX - HANDLE_SIZE / 2);
       set(a11yLeftRect, "y", hLeftCY - HANDLE_SIZE / 2);
     }
     if (a11yLeft) {
+      set(a11yLeft, "aria-valuemax", rows);
       set(a11yLeft, "aria-valuenow", hB);
       set(a11yLeft, "aria-valuetext", `${hB} nederst, ${hT} øverst`);
       if (handleLeftVisible) {
@@ -639,6 +776,7 @@ function draw() {
       set(a11yDownRect, "y", hDownCY - HANDLE_SIZE / 2);
     }
     if (a11yDown) {
+      set(a11yDown, "aria-valuemax", cols);
       set(a11yDown, "aria-valuenow", wL);
       set(a11yDown, "aria-valuetext", `${wL} venstre, ${wR} høyre`);
       if (handleDownVisible) {
@@ -647,6 +785,19 @@ function draw() {
         set(a11yDown, "aria-hidden", "true");
       }
       setDisplay(a11yDown, handleDownVisible);
+    }
+    if (a11yCornerRect) {
+      set(a11yCornerRect, "x", cornerCX - CORNER_RADIUS);
+      set(a11yCornerRect, "y", cornerCY - CORNER_RADIUS);
+    }
+    if (a11yCorner) {
+      set(a11yCorner, "aria-valuetext", `${cols} kolonner, ${rows} rader`);
+      if (handleCornerVisible) {
+        a11yCorner.removeAttribute("aria-hidden");
+      } else {
+        set(a11yCorner, "aria-hidden", "true");
+      }
+      setDisplay(a11yCorner, handleCornerVisible);
     }
 
     // cell-etiketter
@@ -727,6 +878,16 @@ function draw() {
     if (handleDown) svg.append(handleDown);
     if (hitDown) svg.append(hitDown);
     if (a11yDown) svg.append(a11yDown);
+    if (handleCorner) svg.append(handleCorner);
+    if (hitCorner) svg.append(hitCorner);
+    if (a11yCorner) svg.append(a11yCorner);
+    if (totalsChanged || dimsChanged) {
+      lastCols = cols;
+      lastRows = rows;
+      lastW = W;
+      lastH = H;
+    }
+    syncSimpleTotals();
     syncSimpleHandles();
   }
 
@@ -760,7 +921,9 @@ function draw() {
   let active = {
     axis: null,
     pointerId: null,
-    captor: null
+    captor: null,
+    startCols: 0,
+    startRows: 0
   };
   let justDragged = false;
   const armJustDragged = () => {
@@ -786,8 +949,8 @@ function draw() {
     e.preventDefault();
     const p = clientToSvg(e);
     if (active.axis === "v") {
-    const y = clampAxisY(p.y);
-    const newSy = MT + H - y;
+      const y = clampAxisY(p.y);
+      const newSy = MT + H - y;
       if (newSy !== sy) {
         sy = newSy;
         scheduleRedraw();
@@ -799,19 +962,31 @@ function draw() {
         sx = newSx;
         scheduleRedraw();
       }
+    } else if (active.axis === "corner") {
+      const x = clampCornerX(p.x);
+      const y = clampCornerY(p.y);
+      const nextCols = Math.max(1, Math.round((x - ML) / UNIT));
+      const nextRows = Math.max(1, Math.round((y - MT) / UNIT));
+      if (nextCols !== cols || nextRows !== rows) {
+        cols = nextCols;
+        rows = nextRows;
+        scheduleRedraw();
+      }
     }
   }
   function onUp(e) {
     if (e.pointerId !== active.pointerId) return;
     e.preventDefault();
-    if (active.axis === "v") sy = snap(sy);
-    if (active.axis === "h") sx = snap(sx);
+    const axis = active.axis;
+    if (axis === "v") sy = snap(sy);
+    if (axis === "h") sx = snap(sx);
     if (active.captor && active.captor.releasePointerCapture) {
       try {
         active.captor.releasePointerCapture(e.pointerId);
       } catch (_) {}
     }
     if (active.captor) active.captor.classList.remove("dragging");
+    if (axis === "corner" && handleCorner) handleCorner.classList.remove("dragging");
     active.axis = null;
     active.pointerId = null;
     active.captor = null;
@@ -827,6 +1002,11 @@ function draw() {
     active.axis = axis;
     active.pointerId = e.pointerId;
     active.captor = e.currentTarget || e.target;
+    if (axis === "corner") {
+      active.startCols = cols;
+      active.startRows = rows;
+      if (handleCorner) handleCorner.classList.add("dragging");
+    }
     if (active.captor && active.captor.setPointerCapture) {
       try {
         active.captor.setPointerCapture(e.pointerId);
@@ -862,6 +1042,15 @@ function draw() {
       passive: false
     });
   }
+  if (showTotalHandle && hitCorner) {
+    hitCorner.style.touchAction = "none";
+    hitCorner.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      startDrag("corner", e);
+    }, {
+      passive: false
+    });
+  }
   if (a11yLeft) {
     a11yLeft.addEventListener("keydown", e => {
       let handled = true;
@@ -872,7 +1061,7 @@ function draw() {
       } else if (e.key === "Home") {
         sy = 0;
       } else if (e.key === "End") {
-        sy = ROWS * UNIT;
+        sy = rows * UNIT;
       } else {
         handled = false;
       }
@@ -892,7 +1081,27 @@ function draw() {
       } else if (e.key === "Home") {
         sx = 0;
       } else if (e.key === "End") {
-        sx = COLS * UNIT;
+        sx = cols * UNIT;
+      } else {
+        handled = false;
+      }
+      if (handled) {
+        e.preventDefault();
+        scheduleRedraw();
+      }
+    });
+  }
+  if (a11yCorner) {
+    a11yCorner.addEventListener("keydown", e => {
+      let handled = true;
+      if (e.key === "ArrowUp") {
+        rows = Math.max(1, rows + 1);
+      } else if (e.key === "ArrowDown") {
+        rows = Math.max(1, rows - 1);
+      } else if (e.key === "ArrowRight") {
+        cols = Math.max(1, cols + 1);
+      } else if (e.key === "ArrowLeft") {
+        cols = Math.max(1, cols - 1);
       } else {
         handled = false;
       }
@@ -925,8 +1134,8 @@ function draw() {
     const includeHotZones = overrides.includeHotZones !== undefined ? !!overrides.includeHotZones : true;
     return {
       unit: UNIT,
-      rows: ROWS,
-      cols: COLS,
+      rows,
+      cols,
       margins: {
         ML,
         MR,
@@ -964,7 +1173,8 @@ function draw() {
         right: 8,
         bottom: 64,
         left: 8
-      }
+      },
+      showTotalHandle: !!(CFG.SIMPLE.totalHandle && CFG.SIMPLE.totalHandle.show)
     };
   }
   const btnSvgStatic = document.getElementById("btnSvgStatic");
@@ -1001,8 +1211,8 @@ function draw() {
     const includeHandles = showLeftHandle || showBottomHandle || ((_ADV$export6 = ADV.export) === null || _ADV$export6 === void 0 ? void 0 : _ADV$export6.includeHandlesIfHidden);
     const htmlStr = buildInteractiveHtmlString({
       unit: UNIT,
-      rows: ROWS,
-      cols: COLS,
+      rows,
+      cols,
       margins: {
         ML,
         MR,
@@ -1039,7 +1249,8 @@ function draw() {
         right: 8,
         bottom: 64,
         left: 8
-      }
+      },
+      showTotalHandle: !!(CFG.SIMPLE.totalHandle && CFG.SIMPLE.totalHandle.show)
     });
     const fname = ((_ADV$export8 = ADV.export) === null || _ADV$export8 === void 0 ? void 0 : _ADV$export8.filenameHtml) || "arealmodell_interaktiv.html";
     downloadText(fname, htmlStr, "text/html;charset=utf-8");
@@ -1109,6 +1320,8 @@ function draw() {
 .labelEdge { font: 600 26px system-ui, -apple-system, Segoe UI, Roboto, Arial; fill: #333; pointer-events: none; }
 
 .handleImg { pointer-events: none; }
+.handleCorner { fill: #ecebf6; stroke: #333; stroke-width: 2; cursor: grab; pointer-events: all; }
+.handleCorner.dragging { cursor: grabbing; }
 .handleHit, .hot, svg { touch-action: none; }
 .handleHit { fill: rgba(0,0,0,0.004); cursor: grab; pointer-events: all; }
 .hot { fill: transparent; pointer-events: all; }
@@ -1383,6 +1596,8 @@ function setSimpleConfig(o = {}) {
   if (o.lengthStart != null) CFG.SIMPLE.length.handle = Math.round(o.lengthStart);else if (o.lengthHandle != null) CFG.SIMPLE.length.handle = Math.round(o.lengthHandle);
   if (o.showHeightHandle != null) CFG.SIMPLE.height.showHandle = !!o.showHeightHandle;
   if (o.showLengthHandle != null) CFG.SIMPLE.length.showHandle = !!o.showLengthHandle;
+  if (!CFG.SIMPLE.totalHandle) CFG.SIMPLE.totalHandle = {};
+  if (o.showTotalHandle != null) CFG.SIMPLE.totalHandle.show = !!o.showTotalHandle;
   if (o.layout != null) CFG.SIMPLE.layout = normalizeLayout(o.layout);else if (o.layoutMode != null) CFG.SIMPLE.layout = normalizeLayout(o.layoutMode);
   const setVal = (id, v) => {
     const el = document.getElementById(id);
@@ -1405,6 +1620,7 @@ function setSimpleConfig(o = {}) {
   setVal("height", CFG.SIMPLE.height.cells);
   setVal("heightStart", CFG.SIMPLE.height.handle);
   setChk("showHeightHandle", CFG.SIMPLE.height.showHandle !== false);
+  setChk("showTotalHandle", !!(CFG.SIMPLE.totalHandle && CFG.SIMPLE.totalHandle.show));
   setSelect("layoutMode", CFG.SIMPLE.layout);
   render();
 }
@@ -1445,6 +1661,7 @@ function applyConfigToInputs() {
   setVal('height', (_simple$height = simple.height) === null || _simple$height === void 0 ? void 0 : _simple$height.cells);
   setVal('heightStart', (_simple$height2 = simple.height) === null || _simple$height2 === void 0 ? void 0 : _simple$height2.handle);
   setChk('showHeightHandle', ((_simple$height3 = simple.height) === null || _simple$height3 === void 0 ? void 0 : _simple$height3.showHandle) !== false);
+  setChk('showTotalHandle', !!(simple.totalHandle && simple.totalHandle.show));
   setChk('grid', !!adv.grid);
   setChk('splitLines', adv.splitLines !== false);
   setSelect('layoutMode', normalizeLayout(simple.layout));
