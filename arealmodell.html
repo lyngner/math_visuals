@@ -27,6 +27,7 @@
     .card h2 { margin: 0 0 6px 2px; font-size: 16px; font-weight: 600; color: #374151; }
     svg { width: 100%; height: auto; background: #fff; display: block; }
     .settings { display: flex; flex-direction: column; gap: 10px; }
+    .settings .section-title { margin: 4px 2px 0; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7280; }
     .toolbar { display:flex; gap:10px; justify-content:flex-start; align-items:center; flex-wrap:wrap; }
     .btn { appearance:none; border:1px solid #d1d5db; background:#fff; border-radius:10px; padding:8px 12px; font-size:14px; cursor:pointer; transition:box-shadow .2s, transform .02s; }
     .btn:hover { box-shadow:0 2px 8px rgba(0,0,0,.06); }
@@ -70,6 +71,7 @@
         </div>
         <div class="card card--settings">
           <div class="settings">
+            <p class="section-title">Global innstilling</p>
             <div class="row row--global">
               <label class="label--grow">Type
                 <select id="layoutMode">
@@ -81,6 +83,8 @@
               </label>
               <label class="chk"><input id="grid" type="checkbox" checked> Vis rutenett</label>
             </div>
+            <p id="singleSettingsTitle" class="section-title" hidden>Innstillinger for 1 rektangel</p>
+            <p id="splitSettingsTitle" class="section-title">Innstillinger for delte rektangler</p>
             <div class="row">
               <label>Lengde
                 <input id="length" type="number" value="12" min="1">
