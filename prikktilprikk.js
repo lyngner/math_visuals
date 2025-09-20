@@ -136,12 +136,14 @@
   const clearBtn = document.getElementById('btnClear');
   const statusBox = document.getElementById('statusMessage');
   const addPointBtn = document.getElementById('btnAddPoint');
+  const addPointFalseBtn = document.getElementById('btnAddPointFalse');
   const sortPointsBtn = document.getElementById('btnSortPoints');
   const pointListEl = document.getElementById('pointList');
   const falsePointListEl = document.getElementById('falsePointList');
   const showLabelsCheckbox = document.getElementById('cfg-showLabels');
   const answerCountEl = document.getElementById('answerCount');
   const predefCountEl = document.getElementById('predefCount');
+  const labelLayer = document.getElementById('boardLabelsLayer');
 
   const baseGroup = document.createElementNS(SVG_NS, 'g');
   const userGroup = document.createElementNS(SVG_NS, 'g');
@@ -174,6 +176,8 @@
   const answerLineElements = new Map();
 
   let realPointIds = new Set();
+  let boardScaleX = 1;
+  let boardScaleY = 1;
 
   let draggedPointId = null;
   let draggingItemEl = null;
@@ -222,6 +226,85 @@
   function coordinateString(point) {
     if (!point) return '(0, 0)';
     return `(${percentString(point.x)}, ${percentString(point.y)})`;
+  }
+
+  function getPointLabelText(point) {
+    if (!point) return '';
+    const raw = point.label;
+    if (raw != null) {
+      const str = String(raw).trim();
+      if (str) return str;
+    }
+    return point.id != null ? String(point.id) : '';
+  }
+
+  function renderLatex(element, value, options) {
+    if (!element) return;
+    const content = value != null ? String(value).trim() : '';
+    if (content && typeof window !== 'undefined' && window.katex && typeof window.katex.render === 'function') {
+      try {
+        window.katex.render(content, element, {
+          throwOnError: false,
+          displayMode: !!(options && options.displayMode)
+        });
+        return;
+      } catch (_) {}
+    }
+    element.textContent = content;
+  }
+
+  function computeBoardScale() {
+    if (!board) return;
+    const rect = board.getBoundingClientRect();
+    const width = rect.width || BOARD_WIDTH;
+    const height = rect.height || BOARD_HEIGHT;
+    boardScaleX = width / BOARD_WIDTH;
+    boardScaleY = height / BOARD_HEIGHT;
+  }
+
+  function positionBoardLabel(element, pos) {
+    if (!element || !pos) return;
+    const left = (pos.x + LABEL_OFFSET_X) * boardScaleX;
+    const top = (pos.y + LABEL_OFFSET_Y) * boardScaleY;
+    element.style.transform = `translate(${left}px, ${top}px)`;
+  }
+
+  function createBoardLabel(point, pos) {
+    if (!labelLayer) return null;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'board-label';
+    if (point && point.isFalse) wrapper.classList.add('board-label--false');
+    if (!STATE.showLabels) wrapper.style.display = 'none';
+    const content = document.createElement('span');
+    content.className = 'board-label-content';
+    wrapper.appendChild(content);
+    renderLatex(content, getPointLabelText(point));
+    positionBoardLabel(wrapper, pos);
+    return {
+      element: wrapper,
+      contentEl: content,
+      setPosition(newPos) {
+        positionBoardLabel(wrapper, newPos);
+      },
+      setText(value) {
+        renderLatex(content, value);
+      },
+      setVisibility(show) {
+        wrapper.style.display = show ? '' : 'none';
+      },
+      setFalse(isFalse) {
+        wrapper.classList.toggle('board-label--false', !!isFalse);
+      }
+    };
+  }
+
+  function updateAllLabelPositions() {
+    computeBoardScale();
+    STATE.points.forEach(point => {
+      const label = labelElements.get(point.id);
+      if (!label) return;
+      label.setPosition(toPixel(point));
+    });
   }
 
   function parseCoordinateInput(value) {
@@ -427,6 +510,7 @@
     if (!editor || !point) return;
     if (editor.labelInput) editor.labelInput.value = point.label;
     if (editor.coordInput) editor.coordInput.value = coordinateString(point);
+    if (editor.labelPreview) renderLatex(editor.labelPreview, getPointLabelText(point));
   }
 
   function updateLinesForPoint(pointId) {
@@ -487,8 +571,10 @@
     }
     const label = labelElements.get(pointId);
     if (label) {
-      label.setAttribute('x', pos.x + LABEL_OFFSET_X);
-      label.setAttribute('y', pos.y + LABEL_OFFSET_Y);
+      label.setPosition(pos);
+      label.setText(getPointLabelText(point));
+      label.setVisibility(STATE.showLabels);
+      label.setFalse(!!point.isFalse);
     }
     updateFalsePointEditor(point);
     updateLinesForPoint(pointId);
@@ -679,13 +765,14 @@
     renderBoard(validPoints);
   }
 
-  function formatFalsePointLabel(point) {
+  function formatFalsePointMeta(point) {
     if (!point) return '';
-    const baseLabel = point.label && typeof point.label === 'string' && point.label.trim()
-      ? point.label.trim()
-      : point.id;
-    const idPart = point.id && baseLabel !== point.id ? ` (${point.id})` : '';
-    return `${baseLabel}${idPart} – ${coordinateString(point)}`;
+    const labelText = getPointLabelText(point);
+    const id = point.id != null ? String(point.id) : '';
+    const parts = [];
+    if (id && labelText !== id) parts.push(`(${id})`);
+    parts.push(`– ${coordinateString(point)}`);
+    return parts.join(' ');
   }
 
   function renderFalsePointList() {
@@ -711,17 +798,26 @@
         point.isFalse = checkbox.checked;
         updatePointVisualClasses(pointElements.get(point.id), point);
         const label = labelElements.get(point.id);
-        if (label) label.classList.toggle('point-label--false', point.isFalse);
+        if (label) label.setFalse(point.isFalse);
         renderBoard();
       });
 
       const text = document.createElement('span');
       text.className = 'false-point-label';
-      text.textContent = formatFalsePointLabel(point);
+
+      const mathEl = document.createElement('span');
+      mathEl.className = 'false-point-label-math';
+      renderLatex(mathEl, getPointLabelText(point));
+
+      const metaEl = document.createElement('span');
+      metaEl.className = 'false-point-label-meta';
+      metaEl.textContent = formatFalsePointMeta(point);
+
+      text.append(mathEl, metaEl);
 
       item.append(checkbox, text);
       falsePointListEl.appendChild(item);
-      falsePointEditors.set(point.id, { itemEl: item, checkbox, textEl: text });
+      falsePointEditors.set(point.id, { itemEl: item, checkbox, mathEl, metaEl });
     });
   }
 
@@ -730,7 +826,8 @@
     const editor = falsePointEditors.get(point.id);
     if (!editor) return;
     if (editor.checkbox) editor.checkbox.checked = !!point.isFalse;
-    if (editor.textEl) editor.textEl.textContent = formatFalsePointLabel(point);
+    if (editor.mathEl) renderLatex(editor.mathEl, getPointLabelText(point));
+    if (editor.metaEl) editor.metaEl.textContent = formatFalsePointMeta(point);
   }
 
   function updateFalsePointEditors() {
@@ -777,11 +874,6 @@
       });
       item.appendChild(handle);
 
-      const orderBadge = document.createElement('span');
-      orderBadge.className = 'point-order';
-      orderBadge.textContent = String(index + 1);
-      item.appendChild(orderBadge);
-
       const coordInput = document.createElement('input');
       coordInput.type = 'text';
       coordInput.inputMode = 'decimal';
@@ -809,6 +901,9 @@
       });
       item.appendChild(coordInput);
 
+      const labelWrapper = document.createElement('div');
+      labelWrapper.className = 'point-label-editor';
+
       const labelInput = document.createElement('input');
       labelInput.type = 'text';
       labelInput.className = 'point-input point-input--label';
@@ -817,11 +912,22 @@
       labelInput.value = point.label;
       labelInput.addEventListener('input', () => {
         point.label = labelInput.value;
-        const text = labelElements.get(point.id);
-        if (text) text.textContent = point.label;
+        const label = labelElements.get(point.id);
+        if (label) {
+          label.setText(getPointLabelText(point));
+          label.setVisibility(STATE.showLabels);
+        }
+        renderLatex(preview, getPointLabelText(point));
         updateFalsePointEditor(point);
       });
-      item.appendChild(labelInput);
+
+      const preview = document.createElement('div');
+      preview.className = 'point-label-preview';
+      preview.setAttribute('aria-hidden', 'true');
+      renderLatex(preview, getPointLabelText(point));
+
+      labelWrapper.append(labelInput, preview);
+      item.appendChild(labelWrapper);
 
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
@@ -847,9 +953,9 @@
       pointListEl.appendChild(item);
       pointEditors.set(point.id, {
         itemEl: item,
-        orderEl: orderBadge,
         coordInput,
-        labelInput
+        labelInput,
+        labelPreview: preview
       });
     });
     renderFalsePointList();
@@ -869,6 +975,10 @@
   function updatePointVisualClasses(visual, point) {
     if (!visual || !visual.group) return;
     visual.group.classList.toggle('point--false', !!(point && point.isFalse));
+    if (point && point.id) {
+      const label = labelElements.get(point.id);
+      if (label) label.setFalse(point.isFalse);
+    }
   }
 
   function updatePointVisualPosition(visual, point, pos) {
@@ -908,10 +1018,10 @@
     STATE.points.forEach((point, index) => {
       const editor = pointEditors.get(point.id);
       if (!editor) return;
-      if (editor.orderEl) editor.orderEl.textContent = String(index + 1);
       if (editor.labelInput) editor.labelInput.value = point.label;
       if (editor.coordInput) editor.coordInput.value = coordinateString(point);
       if (editor.itemEl) editor.itemEl.dataset.pointId = point.id;
+      if (editor.labelPreview) renderLatex(editor.labelPreview, getPointLabelText(point));
     });
     updateFalsePointEditors();
   }
@@ -985,8 +1095,10 @@
       });
     }
 
+    computeBoardScale();
     pointsGroup.innerHTML = '';
     labelsGroup.innerHTML = '';
+    if (labelLayer) labelLayer.innerHTML = '';
     pointElements.clear();
     labelElements.clear();
     STATE.points.forEach(point => {
@@ -995,17 +1107,11 @@
       pointsGroup.appendChild(visual.group);
       pointElements.set(point.id, visual);
 
-      const text = document.createElementNS(SVG_NS, 'text');
-      text.textContent = point.label;
-      text.setAttribute('x', pos.x + LABEL_OFFSET_X);
-      text.setAttribute('y', pos.y + LABEL_OFFSET_Y);
-      text.setAttribute('text-anchor', 'start');
-      text.setAttribute('dominant-baseline', 'middle');
-      text.classList.add('point-label');
-      if (point.isFalse) text.classList.add('point-label--false');
-      if (!STATE.showLabels) text.style.display = 'none';
-      labelsGroup.appendChild(text);
-      labelElements.set(point.id, text);
+      const label = createBoardLabel(point, pos);
+      if (label && labelLayer) {
+        labelLayer.appendChild(label.element);
+        labelElements.set(point.id, label);
+      }
     });
 
     updatePointEditors();
@@ -1226,6 +1332,12 @@
     });
   }
 
+  if (addPointFalseBtn) {
+    addPointFalseBtn.addEventListener('click', () => {
+      addPoint();
+    });
+  }
+
   if (sortPointsBtn) {
     sortPointsBtn.addEventListener('click', () => {
       sortPoints();
@@ -1263,6 +1375,10 @@
       renderBoard();
     });
   }
+
+  window.addEventListener('resize', () => {
+    updateAllLabelPositions();
+  });
 
   window.addEventListener('examples:loaded', () => {
     rebuildAll(true);
