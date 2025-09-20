@@ -821,16 +821,50 @@
       if (overlay) {
         const valueBadge = document.createElement('div');
         valueBadge.className = 'chart-overlay__value';
-        valueBadge.textContent = formatPointValue(point.value);
         valueBadge.style.left = `${px}px`;
         valueBadge.style.top = `${arrowY}px`;
         valueBadge.dataset.pointId = point.id;
-        valueBadge.setAttribute('aria-label', point.type === 'pole' ? 'x-verdi for pol' : 'x-verdi for nullpunkt');
+        const valueInput = document.createElement('input');
+        valueInput.type = 'number';
+        valueInput.className = 'chart-overlay__value-input';
+        valueInput.step = getNumberStep();
+        valueInput.value = formatPointValue(point.value);
+        valueInput.setAttribute('aria-label', point.type === 'pole' ? 'x-verdi for pol' : 'x-verdi for nullpunkt');
+        valueInput.addEventListener('focus', () => {
+          valueInput.select();
+        });
+        const commitInputValue = () => {
+          const raw = valueInput.value.trim().replace(',', '.');
+          if (raw === '') {
+            valueInput.value = formatPointValue(point.value);
+            return;
+          }
+          const value = Number.parseFloat(raw);
+          if (Number.isFinite(value)) {
+            setPointValue(point.id, value);
+          } else {
+            valueInput.value = formatPointValue(point.value);
+          }
+        };
+        valueInput.addEventListener('change', commitInputValue);
+        valueInput.addEventListener('keydown', event => {
+          if (event.key === 'Enter') {
+            commitInputValue();
+            valueInput.blur();
+          } else if (event.key === 'Escape') {
+            valueInput.value = formatPointValue(point.value);
+            valueInput.blur();
+          }
+        });
         valueBadge.addEventListener('pointerdown', event => {
           if (event.button !== 0) return;
+          if (event.target === valueInput) {
+            return;
+          }
           event.preventDefault();
           startDragging(point.id, event.pointerId, false);
         });
+        valueBadge.appendChild(valueInput);
         overlay.appendChild(valueBadge);
       }
     });
