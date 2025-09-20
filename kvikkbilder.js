@@ -9,6 +9,9 @@
   const cfgHoyde = document.getElementById('cfg-hoyde');
   const cfgDybde = document.getElementById('cfg-dybde');
   const cfgKlosserRowGap = document.getElementById('cfg-klosser-rowGap');
+  if (cfgKlosserRowGap) {
+    cfgKlosserRowGap.readOnly = true;
+  }
   const cfgVisibility = document.getElementById('cfg-visibility');
   const cfgShowExpression = document.getElementById('cfg-show-expression');
   const cfgMonsterAntallX = document.getElementById('cfg-monster-antallX');
@@ -34,18 +37,30 @@
   const btnPng = document.getElementById('btnPng');
   const cfgAntallWrapper = document.getElementById('cfg-antall-wrapper');
   let BRICK_SRC;
+  const BRICK_TILE_WIDTH = 26;
+  const BRICK_TILE_HEIGHT = 13;
+  const BRICK_UNIT_HEIGHT = 13;
+  const BRICK_IMAGE_WIDTH = 26;
+  const BRICK_IMAGE_HEIGHT = 32.5;
+  const BRICK_OFFSET_X = 0.5;
+  const BRICK_OFFSET_Y = 25.75;
   const MONSTER_POINT_RADIUS_MIN = 1;
   const MONSTER_POINT_RADIUS_MAX = 60;
   const MONSTER_POINT_SPACING_MIN = 0;
   const MONSTER_POINT_SPACING_MAX = 60;
-  const BRICK_ROW_GAP_MIN = 0;
-  const BRICK_ROW_GAP_MAX = 60;
   const RECT_POINT_RADIUS_MIN = 1;
   const RECT_POINT_RADIUS_MAX = 60;
   const RECT_POINT_SPACING_MIN = 0;
   const RECT_POINT_SPACING_MAX = 60;
   const MAX_VISIBILITY_DURATION = 10;
   const DOT = ' · ';
+  function normalizeBrickHeightCount(value) {
+    return Math.max(1, Math.trunc(value));
+  }
+  function computeBrickRowGapPx(heightCount) {
+    const normalizedHeight = normalizeBrickHeightCount(heightCount);
+    return BRICK_IMAGE_HEIGHT + (normalizedHeight - 1) * BRICK_UNIT_HEIGHT;
+  }
   const DEFAULT_CFG = {
     type: 'klosser',
     showExpression: true,
@@ -57,7 +72,7 @@
       dybde: 2,
       duration: 3,
       showBtn: false,
-      rowGap: 10
+      rowGap: computeBrickRowGapPx(3)
     },
     monster: {
       antallX: 2,
@@ -214,18 +229,11 @@
   }
   function createBrick(bredde, hoyde, dybde, rowGap) {
     if (!BRICK_SRC) return document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    const tileW = 26;
-    const tileH = 13;
-    const unitH = 13;
-    const imgW = 26;
-    const imgH = 32.5;
-    const offsetX = 0.5;
-    const offsetY = 25.75;
-    const p = (x, y, z) => iso(x, y, z, tileW, tileH, unitH);
+    const p = (x, y, z) => iso(x, y, z, BRICK_TILE_WIDTH, BRICK_TILE_HEIGHT, BRICK_UNIT_HEIGHT);
     const widthCount = Math.max(1, Math.trunc(bredde));
-    const heightCount = Math.max(1, Math.trunc(hoyde));
+    const heightCount = normalizeBrickHeightCount(hoyde);
     const depthCount = Math.max(1, Math.trunc(dybde));
-    const normalizedRowGap = Number.isFinite(rowGap) && rowGap >= 0 ? rowGap : 0;
+    const normalizedRowGap = Number.isFinite(rowGap) && rowGap >= 0 ? rowGap : computeBrickRowGapPx(heightCount);
     const bricks = [];
     for (let z = 0; z < heightCount; z++) {
       for (let y = 0; y < depthCount; y++) {
@@ -252,18 +260,18 @@
     bricks.forEach(({
       pos
     }) => {
-      const x = pos.x - offsetX;
-      const y = pos.y - offsetY;
+      const x = pos.x - BRICK_OFFSET_X;
+      const y = pos.y - BRICK_OFFSET_Y;
       if (x < minX) minX = x;
       if (y < minY) minY = y;
-      if (x + imgW > maxX) maxX = x + imgW;
-      if (y + imgH > maxY) maxY = y + imgH;
+      if (x + BRICK_IMAGE_WIDTH > maxX) maxX = x + BRICK_IMAGE_WIDTH;
+      if (y + BRICK_IMAGE_HEIGHT > maxY) maxY = y + BRICK_IMAGE_HEIGHT;
     });
     const w = Math.max(1, maxX - minX);
     const diagonalLayers = Math.max(0, widthCount - 1) + Math.max(0, depthCount - 1);
-    const diagonalHeight = diagonalLayers * (tileH / 2);
+    const diagonalHeight = diagonalLayers * (BRICK_TILE_HEIGHT / 2);
     const rowGapTotal = normalizedRowGap * Math.max(0, depthCount - 1);
-    const targetHeight = Math.max(1, imgH + (heightCount - 1) * unitH + diagonalHeight + rowGapTotal);
+    const targetHeight = Math.max(1, BRICK_IMAGE_HEIGHT + (heightCount - 1) * BRICK_UNIT_HEIGHT + diagonalHeight + rowGapTotal);
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${w} ${targetHeight}`);
     svg.setAttribute('width', '100%');
@@ -284,10 +292,10 @@
       const img = document.createElementNS(svg.namespaceURI, 'image');
       img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', BRICK_SRC);
       img.setAttribute('href', BRICK_SRC);
-      img.setAttribute('width', imgW);
-      img.setAttribute('height', imgH);
-      img.setAttribute('x', pos.x - offsetX);
-      img.setAttribute('y', pos.y - offsetY);
+      img.setAttribute('width', BRICK_IMAGE_WIDTH);
+      img.setAttribute('height', BRICK_IMAGE_HEIGHT);
+      img.setAttribute('x', pos.x - BRICK_OFFSET_X);
+      img.setAttribute('y', pos.y - BRICK_OFFSET_Y);
       group.appendChild(img);
     });
     svg.appendChild(group);
@@ -339,7 +347,11 @@
     brickContainer.innerHTML = '';
     brickContainer.style.gridTemplateColumns = cols > 0 ? `repeat(${cols}, 1fr)` : '';
     brickContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows}, auto)` : '';
-    const rowGap = Number.isFinite(CFG.klosser.rowGap) ? CFG.klosser.rowGap : DEFAULT_CFG.klosser.rowGap;
+    const rowGap = computeBrickRowGapPx(height);
+    CFG.klosser.rowGap = rowGap;
+    if (cfgKlosserRowGap) {
+      cfgKlosserRowGap.value = String(rowGap);
+    }
     const perFig = width * height * depth;
     const total = cols * rows * perFig;
     const firstExpression = formatOuterInnerExpression([cols, rows], [width, height, depth]);
@@ -812,7 +824,7 @@
     k.bredde = clampInt(k.bredde, 1, dk.bredde);
     k.hoyde = clampInt(k.hoyde, 1, dk.hoyde);
     k.dybde = clampInt(k.dybde, 1, dk.dybde);
-    k.rowGap = clampFloat(k.rowGap, BRICK_ROW_GAP_MIN, dk.rowGap, BRICK_ROW_GAP_MAX);
+    k.rowGap = computeBrickRowGapPx(k.hoyde);
     k.duration = clampInt(k.duration, 0, dk.duration);
     k.showBtn = k.showBtn === true;
     if (k.showBtn) {
@@ -977,7 +989,6 @@
   bindNumberInput(cfgBredde, () => CFG.klosser, 'bredde', 1);
   bindNumberInput(cfgHoyde, () => CFG.klosser, 'hoyde', 1);
   bindNumberInput(cfgDybde, () => CFG.klosser, 'dybde', 1);
-  bindFloatInput(cfgKlosserRowGap, () => CFG.klosser, 'rowGap', BRICK_ROW_GAP_MIN, DEFAULT_CFG.klosser.rowGap, BRICK_ROW_GAP_MAX);
   bindNumberInput(cfgMonsterAntallX, () => CFG.monster, 'antallX', 0);
   bindNumberInput(cfgMonsterAntallY, () => CFG.monster, 'antallY', 0);
   bindNumberInput(cfgAntall, () => CFG.monster, 'antall', 0);
