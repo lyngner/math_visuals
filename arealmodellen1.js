@@ -249,8 +249,20 @@ function draw() {
   const NS = "http://www.w3.org/2000/svg";
   const el = n => document.createElementNS(NS, n);
   const set = (node, n, v) => {
-    node.setAttribute(n, v);
+    if (!node) return node;
+    const cacheKey = '__amAttrCache';
+    const cache = node[cacheKey] || (node[cacheKey] = {});
+    const strValue = v == null ? "" : String(v);
+    if (cache[n] !== strValue) {
+      node.setAttribute(n, strValue);
+      cache[n] = strValue;
+    }
     return node;
+  };
+  const setText = (node, value) => {
+    if (!node) return;
+    const strValue = value == null ? "" : String(value);
+    if (node.textContent !== strValue) node.textContent = strValue;
   };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const clampInt = (v, a, b) => Math.max(a, Math.min(b, Math.round(v)));
@@ -560,8 +572,10 @@ function draw() {
     setDisplay(rTR, layoutState.showTopRight);
     setDisplay(rBL, layoutState.showBottomLeft);
     setDisplay(rBR, layoutState.showBottomRight);
-    const showVerticalSplit = showVLine && leftWidth > 0 && rightWidth > 0;
-    const showHorizontalSplit = showHLine && topHeight > 0 && bottomHeight > 0;
+    const hasVerticalDivision = leftWidth > 0 && rightWidth > 0;
+    const hasHorizontalDivision = topHeight > 0 && bottomHeight > 0;
+    const showVerticalSplit = showVLine && hasVerticalDivision;
+    const showHorizontalSplit = showHLine && hasHorizontalDivision;
     if (vLine) {
       setDisplay(vLine, showVerticalSplit);
       if (showVerticalSplit) {
@@ -584,21 +598,27 @@ function draw() {
       hLeftCY = MT + topHeight;
     const hDownCX = ML + leftWidth,
       hDownCY = MT + H;
+    const handleLeftVisible = showLeftHandle && hasHorizontalDivision;
+    const handleDownVisible = showBottomHandle && hasVerticalDivision;
     if (handleLeft) {
       set(handleLeft, "x", hLeftCX - HANDLE_SIZE / 2);
       set(handleLeft, "y", hLeftCY - HANDLE_SIZE / 2);
+      setDisplay(handleLeft, handleLeftVisible);
     }
     if (handleDown) {
       set(handleDown, "x", hDownCX - HANDLE_SIZE / 2);
       set(handleDown, "y", hDownCY - HANDLE_SIZE / 2);
+      setDisplay(handleDown, handleDownVisible);
     }
     if (hitLeft) {
       set(hitLeft, "cx", hLeftCX);
       set(hitLeft, "cy", hLeftCY);
+      setDisplay(hitLeft, handleLeftVisible);
     }
     if (hitDown) {
       set(hitDown, "cx", hDownCX);
       set(hitDown, "cy", hDownCY);
+      setDisplay(hitDown, handleDownVisible);
     }
     if (a11yLeftRect) {
       set(a11yLeftRect, "x", hLeftCX - HANDLE_SIZE / 2);
@@ -607,6 +627,12 @@ function draw() {
     if (a11yLeft) {
       set(a11yLeft, "aria-valuenow", hB);
       set(a11yLeft, "aria-valuetext", `${hB} nederst, ${hT} øverst`);
+      if (handleLeftVisible) {
+        a11yLeft.removeAttribute("aria-hidden");
+      } else {
+        set(a11yLeft, "aria-hidden", "true");
+      }
+      setDisplay(a11yLeft, handleLeftVisible);
     }
     if (a11yDownRect) {
       set(a11yDownRect, "x", hDownCX - HANDLE_SIZE / 2);
@@ -615,6 +641,12 @@ function draw() {
     if (a11yDown) {
       set(a11yDown, "aria-valuenow", wL);
       set(a11yDown, "aria-valuetext", `${wL} venstre, ${wR} høyre`);
+      if (handleDownVisible) {
+        a11yDown.removeAttribute("aria-hidden");
+      } else {
+        set(a11yDown, "aria-hidden", "true");
+      }
+      setDisplay(a11yDown, handleDownVisible);
     }
 
     // cell-etiketter
@@ -623,36 +655,36 @@ function draw() {
     if (showTLText) {
       set(tTL, "x", ML + leftWidth / 2);
       set(tTL, "y", MT + topHeight / 2 + 8);
-      tTL.textContent = formatCellLabel(wL, hT);
+      setText(tTL, formatCellLabel(wL, hT));
     } else {
-      tTL.textContent = "";
+      setText(tTL, "");
     }
     const showTRText = layoutState.showTopRight && wR > 0 && hT > 0;
     setDisplay(tTR, showTRText);
     if (showTRText) {
       set(tTR, "x", ML + leftWidth + rightWidth / 2);
       set(tTR, "y", MT + topHeight / 2 + 8);
-      tTR.textContent = formatCellLabel(wR, hT);
+      setText(tTR, formatCellLabel(wR, hT));
     } else {
-      tTR.textContent = "";
+      setText(tTR, "");
     }
     const showBLText = layoutState.showBottomLeft && wL > 0 && hB > 0;
     setDisplay(tBL, showBLText);
     if (showBLText) {
       set(tBL, "x", ML + leftWidth / 2);
       set(tBL, "y", MT + topHeight + bottomHeight / 2 + 8);
-      tBL.textContent = formatCellLabel(wL, hB);
+      setText(tBL, formatCellLabel(wL, hB));
     } else {
-      tBL.textContent = "";
+      setText(tBL, "");
     }
     const showBRText = layoutState.showBottomRight && wR > 0 && hB > 0;
     setDisplay(tBR, showBRText);
     if (showBRText) {
       set(tBR, "x", ML + leftWidth + rightWidth / 2);
       set(tBR, "y", MT + topHeight + bottomHeight / 2 + 8);
-      tBR.textContent = formatCellLabel(wR, hB);
+      setText(tBR, formatCellLabel(wR, hB));
     } else {
-      tBR.textContent = "";
+      setText(tBR, "");
     }
 
     // kant-etiketter (utenfor, med luft)
@@ -661,22 +693,24 @@ function draw() {
     if (edgeOn && showHeightAxis) {
       set(leftTop, "x", leftXOutside);
       set(leftTop, "y", MT + topHeight / 2 + 10);
-      leftTop.textContent = `${hT}`;
+      setText(leftTop, `${hT}`);
       set(leftBot, "x", leftXOutside);
       set(leftBot, "y", MT + topHeight + bottomHeight / 2 + 10);
-      leftBot.textContent = `${hB}`;
+      setText(leftBot, `${hB}`);
     } else {
-      leftTop.textContent = leftBot.textContent = "";
+      setText(leftTop, "");
+      setText(leftBot, "");
     }
     if (edgeOn && showLengthAxis) {
       set(botLeft, "x", ML + leftWidth / 2);
       set(botLeft, "y", bottomYOutside);
       set(botRight, "x", ML + leftWidth + rightWidth / 2);
       set(botRight, "y", bottomYOutside);
-      botLeft.textContent = `${wL}`;
-      botRight.textContent = `${wR}`;
+      setText(botLeft, `${wL}`);
+      setText(botRight, `${wR}`);
     } else {
-      botLeft.textContent = botRight.textContent = "";
+      setText(botLeft, "");
+      setText(botRight, "");
     }
 
     // “Riktig” – doble linjer når begge sider har en tier
@@ -789,6 +823,7 @@ function draw() {
     scheduleRedraw();
   }
   function startDrag(axis, e) {
+    refreshSvgRect();
     active.axis = axis;
     active.pointerId = e.pointerId;
     active.captor = e.currentTarget || e.target;
@@ -870,6 +905,7 @@ function draw() {
   if (clickToMove) {
     svg.addEventListener("click", e => {
       if (justDragged) return;
+      refreshSvgRect();
       const p = clientToSvg(e);
       if (dragVertical && showHeightAxis && Math.abs(p.x - ML) < 12 && p.y >= MT && p.y <= MT + H) {
         sy = snap(MT + H - clampAxisY(p.y));
