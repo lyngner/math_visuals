@@ -232,45 +232,12 @@
       font-variant-numeric: tabular-nums;
     }
     .point-input--label { flex: 2 1 180px; }
-    .point-controls {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-left: auto;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-    .point-flag {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: #4b5563;
-    }
-    .point-flag-checkbox {
-      width: auto;
-    }
-    .point-decoration-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: #4b5563;
-    }
-    .point-decoration-select {
-      border-radius: 8px;
-      border: 1px solid #d1d5db;
-      padding: 4px 6px;
-      font-size: 12px;
-      background: #fff;
-    }
     .point-remove {
-      margin-left: 0;
+      margin-left: auto;
       flex-shrink: 0;
     }
     @media (max-width: 640px) {
       .point-item { flex-wrap: wrap; }
-      .point-controls { margin-left: 0; width: 100%; }
       .point-remove { margin-left: 0; }
     }
     .line-group line {
@@ -320,6 +287,49 @@
     .point-label--false {
       fill: #b91c1c;
     }
+    .point-false-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .point-false-heading {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+    }
+    .point-false-hint {
+      margin: 0;
+      font-size: 13px;
+      color: #6b7280;
+    }
+    .false-point-list {
+      display: grid;
+      gap: 6px;
+    }
+    .false-point-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      background: #fff;
+      font-size: 13px;
+      color: #4b5563;
+      cursor: pointer;
+    }
+    .false-point-item input[type="checkbox"] {
+      width: auto;
+    }
+    .false-point-label {
+      flex: 1 1 auto;
+    }
+    .false-point-empty {
+      font-size: 13px;
+      color: #9ca3af;
+    }
     body.labels-hidden .point-label { display: none; }
     .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #4b5563; }
     .toggle input { width: auto; }
@@ -366,6 +376,11 @@
             <button id="btnSortPoints" class="btn" type="button">Sorter punkter</button>
           </div>
           <div id="pointList" class="point-list"></div>
+          <div class="point-false-group">
+            <h3 class="point-false-heading">Falske punkt</h3>
+            <p class="point-false-hint">Velg hvilke punkt som er falske.</p>
+            <div id="falsePointList" class="false-point-list"></div>
+          </div>
         </div>
         <div class="card card--lines">
           <h2>Streker</h2>
