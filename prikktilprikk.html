@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Prikk til prikk (beta)</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
   <style>
     :root { --gap: 18px; }
     html, body { height: 100%; }
@@ -209,14 +210,6 @@
     }
     .point-handle:active { cursor: grabbing; }
     .point-handle-icon { font-size: 16px; line-height: 1; }
-    .point-order {
-      font-size: 12px;
-      color: #6b7280;
-      background: #f3f4f6;
-      border-radius: 999px;
-      padding: 2px 8px;
-      flex-shrink: 0;
-    }
     .point-input {
       border: 1px solid #d1d5db;
       border-radius: 10px;
@@ -287,23 +280,75 @@
     .point-label--false {
       fill: #b91c1c;
     }
-    .point-false-group {
+    .board-label-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .board-label {
+      position: absolute;
+      transform: translate(0, 0);
+      transform-origin: top left;
+      font-weight: 600;
+      color: #111827;
+      padding: 2px 4px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, .92);
+      box-shadow: 0 1px 3px rgba(0,0,0,.12);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .board-label--false {
+      color: #b91c1c;
+      background: rgba(254, 242, 242, .95);
+      box-shadow: 0 1px 3px rgba(185, 28, 28, .18);
+    }
+    .board-label .katex { font-size: 1em; }
+    .labels-hidden .board-label { display: none !important; }
+    .settings-section {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      margin-top: 12px;
+      gap: 12px;
     }
-    .point-false-heading {
-      margin: 0;
-      font-size: 14px;
+    .settings-section legend {
+      font-size: 13px;
       font-weight: 600;
       color: #374151;
+      padding: 0 6px;
     }
-    .point-false-hint {
+    .settings-section p {
       margin: 0;
       font-size: 13px;
       color: #6b7280;
     }
+    .point-label-editor {
+      display: flex;
+      flex-direction: column;
+      flex: 2 1 200px;
+      gap: 6px;
+    }
+    .point-label-editor .point-input--label { width: 100%; }
+    .point-label-preview {
+      min-height: 20px;
+      font-size: 13px;
+      color: #1f2937;
+      padding: 2px 4px;
+      border-radius: 8px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+    }
+    .point-label-preview:empty::before {
+      content: 'Forhåndsvisning';
+      color: #9ca3af;
+      font-style: italic;
+    }
+    .point-label-preview .katex { font-size: 1em; }
     .false-point-list {
       display: grid;
       gap: 6px;
@@ -324,8 +369,14 @@
       width: auto;
     }
     .false-point-label {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
       flex: 1 1 auto;
     }
+    .false-point-label-math { color: #111827; font-weight: 500; }
+    .false-point-label-math .katex { font-size: 1em; }
+    .false-point-label-meta { color: #6b7280; font-size: 12px; }
     .false-point-empty {
       font-size: 13px;
       color: #9ca3af;
@@ -349,6 +400,7 @@
         </div>
         <div class="figure">
           <svg id="dotBoard" viewBox="0 0 1000 700" role="img" aria-label="Prikk-til-prikk-tegning"></svg>
+          <div id="boardLabelsLayer" class="board-label-layer" aria-hidden="true"></div>
         </div>
         <p id="modeHint" class="hint"></p>
         <div class="legend">
@@ -371,16 +423,22 @@
         </div>
         <div class="card card--settings">
           <h2>Punkter</h2>
-          <div class="toolbar">
-            <button id="btnAddPoint" class="btn" type="button">Legg til punkt</button>
-            <button id="btnSortPoints" class="btn" type="button">Sorter punkter</button>
-          </div>
-          <div id="pointList" class="point-list"></div>
-          <div class="point-false-group">
-            <h3 class="point-false-heading">Falske punkt</h3>
-            <p class="point-false-hint">Velg hvilke punkt som er falske.</p>
+          <fieldset class="settings-section">
+            <legend>Punkt</legend>
+            <div class="toolbar">
+              <button id="btnAddPoint" class="btn" type="button">Legg til punkt</button>
+              <button id="btnSortPoints" class="btn" type="button">Sorter punkter</button>
+            </div>
+            <div id="pointList" class="point-list"></div>
+          </fieldset>
+          <fieldset class="settings-section">
+            <legend>Falske punkt</legend>
+            <p>Velg hvilke punkt som er falske.</p>
+            <div class="toolbar">
+              <button id="btnAddPointFalse" class="btn" type="button">Legg til punkt</button>
+            </div>
             <div id="falsePointList" class="false-point-list"></div>
-          </div>
+          </fieldset>
         </div>
         <div class="card card--lines">
           <h2>Streker</h2>
@@ -394,6 +452,7 @@
       </div>
     </div>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script src="prikktilprikk.js"></script>
   <script src="split.js"></script>
   <script src="examples.js"></script>
