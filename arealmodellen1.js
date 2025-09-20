@@ -190,6 +190,20 @@ function readConfigFromHtml() {
   const totalHandleInput = document.getElementById("showTotalHandle");
   if (!CFG.SIMPLE.totalHandle) CFG.SIMPLE.totalHandle = {};
   if (totalHandleInput) CFG.SIMPLE.totalHandle.show = !!totalHandleInput.checked;
+  const lengthMaxInput = document.getElementById("lengthMax");
+  if (lengthMaxInput) {
+    const lengthMax = Math.round(parseFloat(lengthMaxInput.value));
+    if (Number.isFinite(lengthMax) && lengthMax > 0) {
+      CFG.SIMPLE.totalHandle.maxCols = lengthMax;
+    }
+  }
+  const heightMaxInput = document.getElementById("heightMax");
+  if (heightMaxInput) {
+    const heightMax = Math.round(parseFloat(heightMaxInput.value));
+    if (Number.isFinite(heightMax) && heightMax > 0) {
+      CFG.SIMPLE.totalHandle.maxRows = heightMax;
+    }
+  }
   CFG.ADV.grid = (_document$getElementB9 = (_document$getElementB0 = document.getElementById("grid")) === null || _document$getElementB0 === void 0 ? void 0 : _document$getElementB0.checked) !== null && _document$getElementB9 !== void 0 ? _document$getElementB9 : CFG.ADV.grid;
   CFG.ADV.splitLines = (_document$getElementB1 = (_document$getElementB10 = document.getElementById("splitLines")) === null || _document$getElementB10 === void 0 ? void 0 : _document$getElementB10.checked) !== null && _document$getElementB1 !== void 0 ? _document$getElementB1 : CFG.ADV.splitLines;
   const layoutSelect = document.getElementById("layoutMode");
@@ -228,10 +242,11 @@ function draw() {
   const CORNER_RADIUS = Math.max(14, Math.min(28, HANDLE_SIZE * 0.35));
   const MLconf = (_ADV$margins$l = (_ADV$margins = ADV.margins) === null || _ADV$margins === void 0 ? void 0 : _ADV$margins.l) !== null && _ADV$margins$l !== void 0 ? _ADV$margins$l : 80;
   const MR = (_ADV$margins$r = (_ADV$margins2 = ADV.margins) === null || _ADV$margins2 === void 0 ? void 0 : _ADV$margins2.r) !== null && _ADV$margins$r !== void 0 ? _ADV$margins$r : 40;
-  const MT = (_ADV$margins$t = (_ADV$margins3 = ADV.margins) === null || _ADV$margins3 === void 0 ? void 0 : _ADV$margins3.t) !== null && _ADV$margins$t !== void 0 ? _ADV$margins$t : 40;
+  const MTconf = (_ADV$margins$t = (_ADV$margins3 = ADV.margins) === null || _ADV$margins3 === void 0 ? void 0 : _ADV$margins3.t) !== null && _ADV$margins$t !== void 0 ? _ADV$margins$t : 40;
   const MBconf = (_ADV$margins$b = (_ADV$margins4 = ADV.margins) === null || _ADV$margins4 === void 0 ? void 0 : _ADV$margins4.b) !== null && _ADV$margins$b !== void 0 ? _ADV$margins$b : 120;
   const ML = Math.max(MLconf, HANDLE_SIZE / 2 + 18);
   const MB = Math.max(MBconf, HANDLE_SIZE / 2 + EDGE_GAP.y + 18);
+  let MT = MTconf;
   let W = 0,
     H = 0,
     VBW = 0,
@@ -269,8 +284,19 @@ function draw() {
   function recomputeDerived() {
     W = cols * UNIT;
     H = rows * UNIT;
-    VBW = ML + W + MR;
-    VBH = MT + H + MB;
+    const maxColsForView = hasMaxCols ? maxTotalCols : cols;
+    const maxRowsForView = hasMaxRows ? maxTotalRows : rows;
+    const widthForView = (hasMaxCols ? maxColsForView * UNIT : W);
+    const maxHeightForView = hasMaxRows ? maxRowsForView * UNIT : H;
+    if (hasMaxRows) {
+      const baseBottom = MTconf + maxHeightForView;
+      MT = baseBottom - H;
+      VBH = baseBottom + MB;
+    } else {
+      MT = MTconf;
+      VBH = MT + H + MB;
+    }
+    VBW = ML + widthForView + MR;
     minColsEachSide = Math.max(0, Math.min(Math.floor(cols / 2), Math.round(rawMinColsEachSide) || 0));
     minRowsEachSide = Math.max(0, Math.min(Math.floor(rows / 2), Math.round(rawMinRowsEachSide) || 0));
     minSX = minColsEachSide * UNIT;
@@ -640,6 +666,10 @@ function draw() {
       lastVBH = VBH;
       fitToViewport();
     }
+    set(rectOuter, "x", ML);
+    set(rectOuter, "y", MT);
+    set(clipRect, "x", ML);
+    set(clipRect, "y", MT);
     if (dimsChanged) {
       set(rectOuter, "width", W);
       set(rectOuter, "height", H);
@@ -1677,6 +1707,8 @@ function setSimpleConfig(o = {}) {
   setVal("height", CFG.SIMPLE.height.cells);
   setVal("heightStart", CFG.SIMPLE.height.handle);
   setChk("showHeightHandle", CFG.SIMPLE.height.showHandle !== false);
+  setVal("lengthMax", CFG.SIMPLE.totalHandle.maxCols);
+  setVal("heightMax", CFG.SIMPLE.totalHandle.maxRows);
   setChk("showTotalHandle", !!(CFG.SIMPLE.totalHandle && CFG.SIMPLE.totalHandle.show));
   setSelect("layoutMode", CFG.SIMPLE.layout);
   render();
@@ -1718,6 +1750,8 @@ function applyConfigToInputs() {
   setVal('height', (_simple$height = simple.height) === null || _simple$height === void 0 ? void 0 : _simple$height.cells);
   setVal('heightStart', (_simple$height2 = simple.height) === null || _simple$height2 === void 0 ? void 0 : _simple$height2.handle);
   setChk('showHeightHandle', ((_simple$height3 = simple.height) === null || _simple$height3 === void 0 ? void 0 : _simple$height3.showHandle) !== false);
+  setVal('lengthMax', simple.totalHandle !== null && simple.totalHandle !== void 0 ? simple.totalHandle.maxCols : undefined);
+  setVal('heightMax', simple.totalHandle !== null && simple.totalHandle !== void 0 ? simple.totalHandle.maxRows : undefined);
   setChk('showTotalHandle', !!(simple.totalHandle && simple.totalHandle.show));
   setChk('grid', !!adv.grid);
   setChk('splitLines', adv.splitLines !== false);

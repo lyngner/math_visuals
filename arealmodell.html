@@ -66,11 +66,24 @@
         <div class="card card--settings">
           <div class="settings">
             <div class="row">
+              <label>Oppdeling
+                <select id="layoutMode">
+                  <option value="single">1 rektangel</option>
+                  <option value="horizontal">2 ved siden av hverandre</option>
+                  <option value="vertical">2 over hverandre</option>
+                  <option value="quad">4 rektangler (2 × 2)</option>
+                </select>
+              </label>
+            </div>
+            <div class="row">
               <label>Lengde
                 <input id="length" type="number" value="12" min="1">
               </label>
               <label>Startposisjon
                 <input id="lengthStart" type="number" value="6" min="0">
+              </label>
+              <label>Maks lengde
+                <input id="lengthMax" type="number" value="30" min="1">
               </label>
               <label class="chk"><input id="showLengthHandle" type="checkbox" checked> Vis håndtak</label>
             </div>
@@ -81,17 +94,10 @@
               <label>Startposisjon
                 <input id="heightStart" type="number" value="6" min="0">
               </label>
-              <label class="chk"><input id="showHeightHandle" type="checkbox" checked> Vis håndtak</label>
-            </div>
-            <div class="row">
-              <label>Oppdeling
-                <select id="layoutMode">
-                  <option value="single">1 rektangel</option>
-                  <option value="horizontal">2 ved siden av hverandre</option>
-                  <option value="vertical">2 over hverandre</option>
-                  <option value="quad">4 rektangler (2 × 2)</option>
-                </select>
+              <label>Maks høyde
+                <input id="heightMax" type="number" value="30" min="1">
               </label>
+              <label class="chk"><input id="showHeightHandle" type="checkbox" checked> Vis håndtak</label>
             </div>
             <div class="row">
               <label class="chk"><input id="grid" type="checkbox" checked> Vis rutenett</label>
