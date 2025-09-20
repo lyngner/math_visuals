@@ -93,32 +93,22 @@
       display: block;
       z-index: 2;
     }
-    .chart-overlay__input {
+    .chart-overlay__value {
       position: absolute;
       transform: translate(-50%, -120%);
-      width: 44px;
-      height: 44px;
-      min-width: 0;
-      padding: 0;
-      border-radius: 12px;
-      border: 1px solid #cbd5f5;
-      background: #fff;
+      min-width: 48px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(203, 213, 245, 0.7);
+      background: rgba(255, 255, 255, 0.95);
       box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
       font-size: 16px;
       font-weight: 600;
-      line-height: 44px;
       text-align: center;
       color: #1f2937;
       pointer-events: auto;
-    }
-    .chart-overlay__input:focus {
-      outline: none;
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
-    }
-    .chart-overlay__input--invalid {
-      border-color: #f87171;
-      box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.35);
+      cursor: ew-resize;
+      user-select: none;
     }
     .domain-controls {
       display: flex;
