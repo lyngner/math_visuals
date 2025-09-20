@@ -94,6 +94,8 @@ const CFG = {
 const DEFAULT_SIMPLE_CFG = JSON.parse(JSON.stringify(CFG.SIMPLE));
 const DEFAULT_ADV_CFG = JSON.parse(JSON.stringify(CFG.ADV));
 let cleanupCurrentDraw = null;
+const layoutStateStore = Object.create(null);
+let currentLayoutMode = null;
 function ensureCfgDefaults() {
   const fill = (target, defaults) => {
     if (!defaults || typeof defaults !== 'object') return;
@@ -123,6 +125,75 @@ function normalizeLayout(value) {
     return value;
   }
   return "quad";
+}
+currentLayoutMode = normalizeLayout((CFG !== null && CFG !== void 0 && CFG.SIMPLE ? CFG.SIMPLE.layout : null));
+function snapshotSimpleState(simple) {
+  if (!simple || typeof simple !== "object") return {};
+  const toInt = value => {
+    const num = Math.round(Number(value));
+    return Number.isFinite(num) ? num : undefined;
+  };
+  const captureDim = dim => {
+    if (!dim || typeof dim !== "object") return null;
+    const cells = toInt(dim.cells);
+    const handle = toInt(dim.handle);
+    const state = {};
+    if (cells !== undefined) state.cells = Math.max(1, cells);
+    if (handle !== undefined) state.handle = Math.max(0, handle);
+    state.showHandle = dim.showHandle !== false;
+    return state;
+  };
+  const state = {};
+  const lengthState = captureDim(simple.length);
+  if (lengthState) state.length = lengthState;
+  const heightState = captureDim(simple.height);
+  if (heightState) state.height = heightState;
+  if (simple.totalHandle && typeof simple.totalHandle === "object") {
+    const total = {};
+    if (simple.totalHandle.show != null) total.show = !!simple.totalHandle.show;
+    const maxCols = toInt(simple.totalHandle.maxCols);
+    if (maxCols !== undefined && maxCols > 0) total.maxCols = maxCols;
+    const maxRows = toInt(simple.totalHandle.maxRows);
+    if (maxRows !== undefined && maxRows > 0) total.maxRows = maxRows;
+    if (Object.keys(total).length) state.totalHandle = total;
+  }
+  return state;
+}
+function ensureLayoutState(layout) {
+  const normalized = normalizeLayout(layout);
+  if (!layoutStateStore[normalized]) {
+    layoutStateStore[normalized] = snapshotSimpleState(CFG.SIMPLE);
+  }
+  return layoutStateStore[normalized];
+}
+function applyLayoutStateToSimple(layout) {
+  ensureCfgDefaults();
+  const normalized = normalizeLayout(layout);
+  const state = layoutStateStore[normalized];
+  if (!CFG.SIMPLE.length || typeof CFG.SIMPLE.length !== "object") CFG.SIMPLE.length = {};
+  if (!CFG.SIMPLE.height || typeof CFG.SIMPLE.height !== "object") CFG.SIMPLE.height = {};
+  if (!CFG.SIMPLE.totalHandle || typeof CFG.SIMPLE.totalHandle !== "object") CFG.SIMPLE.totalHandle = {};
+  CFG.SIMPLE.layout = normalized;
+  if (!state) return;
+  const applyDim = (target, dimState) => {
+    if (!dimState) return;
+    if (dimState.cells !== undefined && Number.isFinite(dimState.cells)) target.cells = Math.max(1, Math.round(dimState.cells));
+    if (dimState.handle !== undefined && Number.isFinite(dimState.handle)) target.handle = Math.max(0, Math.round(dimState.handle));
+    if (typeof dimState.showHandle === "boolean") target.showHandle = dimState.showHandle;
+  };
+  applyDim(CFG.SIMPLE.length, state.length);
+  applyDim(CFG.SIMPLE.height, state.height);
+  const totalState = state.totalHandle;
+  if (totalState) {
+    if (typeof totalState.show === "boolean") CFG.SIMPLE.totalHandle.show = totalState.show;
+    if (totalState.maxCols !== undefined && Number.isFinite(totalState.maxCols)) CFG.SIMPLE.totalHandle.maxCols = Math.max(1, Math.round(totalState.maxCols));
+    if (totalState.maxRows !== undefined && Number.isFinite(totalState.maxRows)) CFG.SIMPLE.totalHandle.maxRows = Math.max(1, Math.round(totalState.maxRows));
+  }
+}
+function saveLayoutState(layout) {
+  if (!layout) return;
+  const normalized = normalizeLayout(layout);
+  layoutStateStore[normalized] = snapshotSimpleState(CFG.SIMPLE);
 }
 function computeLayoutState(layout, width, height, cols, rows, sx, sy, unit) {
   const mode = normalizeLayout(layout);
@@ -189,6 +260,10 @@ function updateLayoutUi() {
     const el = document.getElementById(id);
     if (el) el.hidden = !isSingle;
   });
+  const singleTitle = document.getElementById("singleSettingsTitle");
+  if (singleTitle) singleTitle.hidden = !isSingle;
+  const splitTitle = document.getElementById("splitSettingsTitle");
+  if (splitTitle) splitTitle.hidden = isSingle;
 }
 if (typeof document !== "undefined") {
   if (document.readyState === "loading") {
@@ -204,6 +279,22 @@ if (typeof document !== "undefined") {
 function readConfigFromHtml() {
   var _document$getElementB, _document$getElementB2, _document$getElementB3, _document$getElementB4, _document$getElementB5, _document$getElementB6, _document$getElementB7, _document$getElementB8, _document$getElementB9, _document$getElementB0, _document$getElementB1, _document$getElementB10;
   ensureCfgDefaults();
+  const layoutSelect = document.getElementById("layoutMode");
+  const fallbackLayout = normalizeLayout(currentLayoutMode != null ? currentLayoutMode : CFG.SIMPLE.layout);
+  const selectedLayout = layoutSelect && layoutSelect.value ? normalizeLayout(layoutSelect.value) : fallbackLayout;
+  if (currentLayoutMode == null) {
+    currentLayoutMode = selectedLayout;
+  }
+  ensureLayoutState(currentLayoutMode);
+  if (selectedLayout !== currentLayoutMode) {
+    saveLayoutState(currentLayoutMode);
+    ensureLayoutState(selectedLayout);
+    currentLayoutMode = selectedLayout;
+    applyLayoutStateToSimple(currentLayoutMode);
+    layoutStateStore[currentLayoutMode] = snapshotSimpleState(CFG.SIMPLE);
+    applyConfigToInputs();
+    return;
+  }
   const height = parseInt((_document$getElementB = document.getElementById("height")) === null || _document$getElementB === void 0 ? void 0 : _document$getElementB.value, 10);
   if (Number.isFinite(height)) CFG.SIMPLE.height.cells = height;
   const length = parseInt((_document$getElementB2 = document.getElementById("length")) === null || _document$getElementB2 === void 0 ? void 0 : _document$getElementB2.value, 10);
@@ -233,11 +324,9 @@ function readConfigFromHtml() {
   }
   CFG.ADV.grid = (_document$getElementB9 = (_document$getElementB0 = document.getElementById("grid")) === null || _document$getElementB0 === void 0 ? void 0 : _document$getElementB0.checked) !== null && _document$getElementB9 !== void 0 ? _document$getElementB9 : CFG.ADV.grid;
   CFG.ADV.splitLines = (_document$getElementB1 = (_document$getElementB10 = document.getElementById("splitLines")) === null || _document$getElementB10 === void 0 ? void 0 : _document$getElementB10.checked) !== null && _document$getElementB1 !== void 0 ? _document$getElementB1 : CFG.ADV.splitLines;
-  const layoutSelect = document.getElementById("layoutMode");
-  if (layoutSelect && layoutSelect.value) {
-    CFG.SIMPLE.layout = normalizeLayout(layoutSelect.value);
-  }
+  CFG.SIMPLE.layout = currentLayoutMode;
   updateLayoutUi();
+  saveLayoutState(currentLayoutMode);
 }
 function draw() {
   var _SV$height$cells, _SV$height, _SV$length$cells, _SV$length, _ADV$check$ten, _ADV$check, _ADV$handleIcons$size, _ADV$handleIcons, _ADV$margins$l, _ADV$margins, _ADV$margins$r, _ADV$margins2, _ADV$margins$t, _ADV$margins3, _ADV$margins$b, _ADV$margins4, _ADV$classes$outer, _ADV$classes, _ADV$classes$grid, _ADV$classes2, _ADV$classes$split, _ADV$classes3, _ADV$classes$handle, _ADV$classes4, _ADV$classes$labelCel, _ADV$classes5, _ADV$classes$labelEdg, _ADV$classes6, _ADV$classes$cells, _ADV$classes7, _SV$height2, _SV$length2, _ADV$drag, _ADV$drag2, _ADV$limits$minColsEa, _ADV$limits, _ADV$limits$minRowsEa, _ADV$limits2, _SV$length$handle, _SV$length3, _SV$height$handle, _SV$height3, _SV$height4, _SV$length4, _ADV$handleIcons$hori, _ADV$handleIcons2, _ADV$handleIcons$vert, _ADV$handleIcons3, _ADV$fit$maxVh, _ADV$fit, _ADV$labels$dot, _ADV$labels, _ADV$labels$equals, _ADV$labels2, _ADV$labels$edgeMode, _ADV$labels3, _ADV$labels$cellMode, _ADV$labels4, _SV$totalHandle;
@@ -1765,6 +1854,11 @@ function applyConfigToInputs() {
   ensureCfgDefaults();
   const simple = CFG.SIMPLE || {};
   const adv = CFG.ADV || {};
+  const normalizedLayout = normalizeLayout(simple.layout);
+  if (currentLayoutMode !== normalizedLayout) {
+    currentLayoutMode = normalizedLayout;
+  }
+  layoutStateStore[currentLayoutMode] = snapshotSimpleState(simple);
   const setVal = (id, value) => {
     const el = document.getElementById(id);
     if (!el || value == null) return;
@@ -1799,7 +1893,7 @@ function applyConfigToInputs() {
   setChk('showTotalHandle', !!(simple.totalHandle && simple.totalHandle.show));
   setChk('grid', !!adv.grid);
   setChk('splitLines', adv.splitLines !== false);
-  setSelect('layoutMode', normalizeLayout(simple.layout));
+  setSelect('layoutMode', normalizedLayout);
   updateLayoutUi();
 }
 function applyExamplesConfig() {
