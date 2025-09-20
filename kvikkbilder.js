@@ -9,9 +9,6 @@
   const cfgHoyde = document.getElementById('cfg-hoyde');
   const cfgDybde = document.getElementById('cfg-dybde');
   const cfgKlosserRowGap = document.getElementById('cfg-klosser-rowGap');
-  if (cfgKlosserRowGap) {
-    cfgKlosserRowGap.readOnly = true;
-  }
   const cfgVisibility = document.getElementById('cfg-visibility');
   const cfgShowExpression = document.getElementById('cfg-show-expression');
   const cfgMonsterAntallX = document.getElementById('cfg-monster-antallX');
@@ -347,7 +344,7 @@
     brickContainer.innerHTML = '';
     brickContainer.style.gridTemplateColumns = cols > 0 ? `repeat(${cols}, 1fr)` : '';
     brickContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows}, auto)` : '';
-    const rowGap = computeBrickRowGapPx(height);
+    const rowGap = Number.isFinite(CFG.klosser.rowGap) ? CFG.klosser.rowGap : computeBrickRowGapPx(height);
     CFG.klosser.rowGap = rowGap;
     if (cfgKlosserRowGap) {
       cfgKlosserRowGap.value = String(rowGap);
@@ -824,7 +821,7 @@
     k.bredde = clampInt(k.bredde, 1, dk.bredde);
     k.hoyde = clampInt(k.hoyde, 1, dk.hoyde);
     k.dybde = clampInt(k.dybde, 1, dk.dybde);
-    k.rowGap = computeBrickRowGapPx(k.hoyde);
+    k.rowGap = clampFloat(k.rowGap, 0, computeBrickRowGapPx(k.hoyde));
     k.duration = clampInt(k.duration, 0, dk.duration);
     k.showBtn = k.showBtn === true;
     if (k.showBtn) {
@@ -989,6 +986,7 @@
   bindNumberInput(cfgBredde, () => CFG.klosser, 'bredde', 1);
   bindNumberInput(cfgHoyde, () => CFG.klosser, 'hoyde', 1);
   bindNumberInput(cfgDybde, () => CFG.klosser, 'dybde', 1);
+  bindFloatInput(cfgKlosserRowGap, () => CFG.klosser, 'rowGap', 0, DEFAULT_CFG.klosser.rowGap);
   bindNumberInput(cfgMonsterAntallX, () => CFG.monster, 'antallX', 0);
   bindNumberInput(cfgMonsterAntallY, () => CFG.monster, 'antallY', 0);
   bindNumberInput(cfgAntall, () => CFG.monster, 'antall', 0);
