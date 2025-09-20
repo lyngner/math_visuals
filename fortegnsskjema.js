@@ -13,6 +13,7 @@
   const autoSyncInput = document.getElementById('autoSync');
   const domainMinInput = document.getElementById('domainMin');
   const domainMaxInput = document.getElementById('domainMax');
+  const decimalPlacesInput = document.getElementById('decimalPlaces');
   const checkStatus = document.getElementById('checkStatus');
   if (!svg || !exprInput) {
     return;
@@ -31,18 +32,45 @@
       min: null,
       max: null
     },
-    autoDomain: { ...DEFAULT_AUTO_DOMAIN }
+    autoDomain: { ...DEFAULT_AUTO_DOMAIN },
+    decimalPlaces: 4
   };
   let pointIdCounter = 1;
   let rowIdCounter = 1;
   let currentScale = null;
   let dragging = null;
+  const MIN_DECIMAL_PLACES = 0;
+  const MAX_DECIMAL_PLACES = 6;
+  function clampDecimalPlaces(value) {
+    if (!Number.isFinite(value)) {
+      return MIN_DECIMAL_PLACES;
+    }
+    return Math.min(MAX_DECIMAL_PLACES, Math.max(MIN_DECIMAL_PLACES, Math.round(value)));
+  }
+  function getDecimalPlaces() {
+    return clampDecimalPlaces(state.decimalPlaces);
+  }
+  function getNumberStep() {
+    const decimals = getDecimalPlaces();
+    if (decimals <= 0) {
+      return '1';
+    }
+    return (1 / Math.pow(10, decimals)).toString();
+  }
+  state.decimalPlaces = clampDecimalPlaces(state.decimalPlaces);
   function formatPointValue(value) {
     if (!Number.isFinite(value)) {
       return '';
     }
-    const rounded = Number.parseFloat(value.toFixed(4));
-    return Number.isFinite(rounded) ? `${rounded}` : `${value}`;
+    const decimals = getDecimalPlaces();
+    const rounded = Number.parseFloat(value.toFixed(decimals));
+    if (!Number.isFinite(rounded)) {
+      return `${value}`;
+    }
+    if (Object.is(rounded, -0)) {
+      return '0';
+    }
+    return `${rounded}`;
   }
   function createDefaultRow() {
     if (!state.signRows.length) {
@@ -438,6 +466,9 @@
   function renderDomainControls(domainInfo) {
     if (!domainMinInput || !domainMaxInput) return;
     const info = domainInfo || getDomainInfo();
+    const step = getNumberStep();
+    domainMinInput.step = step;
+    domainMaxInput.step = step;
     const minValue = info.override.min != null ? info.override.min : info.auto.min;
     const maxValue = info.override.max != null ? info.override.max : info.auto.max;
     if (document.activeElement !== domainMinInput) {
@@ -598,7 +629,7 @@
       valueLabel.innerHTML = '<span>Verdi</span>';
       const input = document.createElement('input');
       input.type = 'number';
-      input.step = '0.1';
+      input.step = getNumberStep();
       input.value = formatPointValue(point.value);
       input.addEventListener('change', event => {
         const value = parseFloat(event.target.value);
@@ -1053,6 +1084,33 @@
       event.target.classList.add('input-invalid');
     }
   }
+  function handleDecimalPlacesInput(event) {
+    const raw = event.target.value.trim().replace(',', '.');
+    if (raw === '' || Number.isFinite(Number.parseFloat(raw))) {
+      event.target.classList.remove('input-invalid');
+    } else {
+      event.target.classList.add('input-invalid');
+    }
+  }
+  function handleDecimalPlacesChange(event) {
+    const input = event.target;
+    const raw = input.value.trim().replace(',', '.');
+    if (raw === '') {
+      input.value = `${getDecimalPlaces()}`;
+      input.classList.remove('input-invalid');
+      return;
+    }
+    const value = Number.parseFloat(raw);
+    if (Number.isFinite(value)) {
+      const sanitized = clampDecimalPlaces(value);
+      state.decimalPlaces = sanitized;
+      input.value = `${sanitized}`;
+      input.classList.remove('input-invalid');
+      renderAll();
+    } else {
+      input.classList.add('input-invalid');
+    }
+  }
   if (domainMinInput) {
     domainMinInput.addEventListener('change', handleDomainChange.bind(null, 'min'));
     domainMinInput.addEventListener('input', handleDomainInput);
@@ -1060,6 +1118,11 @@
   if (domainMaxInput) {
     domainMaxInput.addEventListener('change', handleDomainChange.bind(null, 'max'));
     domainMaxInput.addEventListener('input', handleDomainInput);
+  }
+  if (decimalPlacesInput) {
+    decimalPlacesInput.value = `${getDecimalPlaces()}`;
+    decimalPlacesInput.addEventListener('change', handleDecimalPlacesChange);
+    decimalPlacesInput.addEventListener('input', handleDecimalPlacesInput);
   }
   btnGenerate.addEventListener('click', () => {
     try {
