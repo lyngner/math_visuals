@@ -8,6 +8,7 @@
   const cfgBredde = document.getElementById('cfg-bredde');
   const cfgHoyde = document.getElementById('cfg-hoyde');
   const cfgDybde = document.getElementById('cfg-dybde');
+  const cfgKlosserRowGap = document.getElementById('cfg-klosser-rowGap');
   const cfgVisibility = document.getElementById('cfg-visibility');
   const cfgShowExpression = document.getElementById('cfg-show-expression');
   const cfgMonsterAntallX = document.getElementById('cfg-monster-antallX');
@@ -37,6 +38,8 @@
   const MONSTER_POINT_RADIUS_MAX = 60;
   const MONSTER_POINT_SPACING_MIN = 0;
   const MONSTER_POINT_SPACING_MAX = 60;
+  const BRICK_ROW_GAP_MIN = 0;
+  const BRICK_ROW_GAP_MAX = 60;
   const RECT_POINT_RADIUS_MIN = 1;
   const RECT_POINT_RADIUS_MAX = 60;
   const RECT_POINT_SPACING_MIN = 0;
@@ -53,7 +56,8 @@
       hoyde: 3,
       dybde: 2,
       duration: 3,
-      showBtn: false
+      showBtn: false,
+      rowGap: 10
     },
     monster: {
       antallX: 2,
@@ -329,6 +333,8 @@
     brickContainer.innerHTML = '';
     brickContainer.style.gridTemplateColumns = cols > 0 ? `repeat(${cols}, 1fr)` : '';
     brickContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows}, auto)` : '';
+    const rowGap = Number.isFinite(CFG.klosser.rowGap) ? CFG.klosser.rowGap : DEFAULT_CFG.klosser.rowGap;
+    brickContainer.style.rowGap = `${rowGap}px`;
     const perFig = width * height * depth;
     const total = cols * rows * perFig;
     const firstExpression = formatOuterInnerExpression([cols, rows], [width, height, depth]);
@@ -801,6 +807,7 @@
     k.bredde = clampInt(k.bredde, 1, dk.bredde);
     k.hoyde = clampInt(k.hoyde, 1, dk.hoyde);
     k.dybde = clampInt(k.dybde, 1, dk.dybde);
+    k.rowGap = clampFloat(k.rowGap, BRICK_ROW_GAP_MIN, dk.rowGap, BRICK_ROW_GAP_MAX);
     k.duration = clampInt(k.duration, 0, dk.duration);
     k.showBtn = k.showBtn === true;
     if (k.showBtn) {
@@ -868,6 +875,7 @@
     if (cfgBredde) cfgBredde.value = CFG.klosser.bredde;
     if (cfgHoyde) cfgHoyde.value = CFG.klosser.hoyde;
     if (cfgDybde) cfgDybde.value = CFG.klosser.dybde;
+    if (cfgKlosserRowGap) cfgKlosserRowGap.value = CFG.klosser.rowGap;
     if (cfgMonsterAntallX) cfgMonsterAntallX.value = CFG.monster.antallX;
     if (cfgMonsterAntallY) cfgMonsterAntallY.value = CFG.monster.antallY;
     if (cfgAntall) cfgAntall.value = CFG.monster.antall;
@@ -964,6 +972,7 @@
   bindNumberInput(cfgBredde, () => CFG.klosser, 'bredde', 1);
   bindNumberInput(cfgHoyde, () => CFG.klosser, 'hoyde', 1);
   bindNumberInput(cfgDybde, () => CFG.klosser, 'dybde', 1);
+  bindFloatInput(cfgKlosserRowGap, () => CFG.klosser, 'rowGap', BRICK_ROW_GAP_MIN, DEFAULT_CFG.klosser.rowGap, BRICK_ROW_GAP_MAX);
   bindNumberInput(cfgMonsterAntallX, () => CFG.monster, 'antallX', 0);
   bindNumberInput(cfgMonsterAntallY, () => CFG.monster, 'antallY', 0);
   bindNumberInput(cfgAntall, () => CFG.monster, 'antall', 0);
