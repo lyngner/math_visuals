@@ -429,6 +429,8 @@ function draw() {
     a11yLeftRect = el("rect");
     set(a11yLeftRect, "width", HANDLE_SIZE);
     set(a11yLeftRect, "height", HANDLE_SIZE);
+    set(a11yLeftRect, "fill", "transparent");
+    set(a11yLeftRect, "stroke", "none");
     a11yLeft.appendChild(a11yLeftRect);
     svg.append(a11yLeft);
   }
@@ -455,6 +457,8 @@ function draw() {
     a11yDownRect = el("rect");
     set(a11yDownRect, "width", HANDLE_SIZE);
     set(a11yDownRect, "height", HANDLE_SIZE);
+    set(a11yDownRect, "fill", "transparent");
+    set(a11yDownRect, "stroke", "none");
     a11yDown.appendChild(a11yDownRect);
     svg.append(a11yDown);
   }
