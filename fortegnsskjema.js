@@ -17,6 +17,10 @@
   if (!svg || !exprInput) {
     return;
   }
+  const DEFAULT_AUTO_DOMAIN = {
+    min: -5,
+    max: 5
+  };
   const state = {
     expression: '',
     autoSync: false,
@@ -26,7 +30,8 @@
     domain: {
       min: null,
       max: null
-    }
+    },
+    autoDomain: { ...DEFAULT_AUTO_DOMAIN }
   };
   let pointIdCounter = 1;
   let rowIdCounter = 1;
@@ -326,30 +331,57 @@
   }
   function computeAutoDomain(points) {
     if (!points.length) {
-      return {
-        min: -5,
-        max: 5
-      };
+      state.autoDomain = { ...DEFAULT_AUTO_DOMAIN };
+      return state.autoDomain;
     }
-    const values = points.map(p => p.value);
-    let min = Math.min(...values);
-    let max = Math.max(...values);
-    if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      return {
-        min: -5,
-        max: 5
-      };
+    const values = points.map(p => p.value).filter(value => Number.isFinite(value));
+    if (!values.length) {
+      state.autoDomain = { ...DEFAULT_AUTO_DOMAIN };
+      return state.autoDomain;
     }
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    if (values.length === 1) {
+      const value = values[0];
+      const prevMin = state.autoDomain && Number.isFinite(state.autoDomain.min) ? state.autoDomain.min : value - 2;
+      const prevMax = state.autoDomain && Number.isFinite(state.autoDomain.max) ? state.autoDomain.max : value + 2;
+      let min = prevMin;
+      let max = prevMax;
+      if (!(max > min)) {
+        const span = 4;
+        min = value - span / 2;
+        max = value + span / 2;
+      }
+      const span = Math.max(max - min, 1e-6);
+      const margin = Math.max(span * 0.2, 1);
+      if (value < min + margin) {
+        const shift = min + margin - value;
+        min -= shift;
+        max -= shift;
+      } else if (value > max - margin) {
+        const shift = value - (max - margin);
+        min += shift;
+        max += shift;
+      }
+      state.autoDomain = {
+        min,
+        max
+      };
+      return state.autoDomain;
+    }
+    let min = minValue;
+    let max = maxValue;
     if (Math.abs(max - min) < 1e-6) {
       min -= 1;
       max += 1;
     }
     const span = max - min;
     const margin = Math.max(span * 0.2, 1);
-    return {
+    state.autoDomain = {
       min: min - margin,
       max: max + margin
     };
+    return state.autoDomain;
   }
   function getDomainInfo() {
     const auto = computeAutoDomain(state.criticalPoints);
@@ -756,45 +788,19 @@
       });
       svg.append(dragHandle);
       if (overlay) {
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'chart-overlay__input';
-        input.value = formatPointValue(point.value);
-        input.style.left = `${px}px`;
-        input.style.top = `${arrowY}px`;
-        input.dataset.pointId = point.id;
-        input.setAttribute('aria-label', point.type === 'pole' ? 'x-verdi for pol' : 'x-verdi for nullpunkt');
-        input.addEventListener('pointerdown', event => {
+        const valueBadge = document.createElement('div');
+        valueBadge.className = 'chart-overlay__value';
+        valueBadge.textContent = formatPointValue(point.value);
+        valueBadge.style.left = `${px}px`;
+        valueBadge.style.top = `${arrowY}px`;
+        valueBadge.dataset.pointId = point.id;
+        valueBadge.setAttribute('aria-label', point.type === 'pole' ? 'x-verdi for pol' : 'x-verdi for nullpunkt');
+        valueBadge.addEventListener('pointerdown', event => {
           if (event.button !== 0) return;
+          event.preventDefault();
           startDragging(point.id, event.pointerId, false);
         });
-        input.addEventListener('change', event => {
-          const raw = event.target.value.trim().replace(',', '.');
-          const nextValue = Number.parseFloat(raw);
-          if (Number.isFinite(nextValue)) {
-            event.target.classList.remove('chart-overlay__input--invalid');
-            setPointValue(point.id, nextValue);
-          } else {
-            event.target.classList.add('chart-overlay__input--invalid');
-            event.target.value = formatPointValue(point.value);
-            setTimeout(() => {
-              event.target.classList.remove('chart-overlay__input--invalid');
-            }, 150);
-          }
-        });
-        input.addEventListener('input', event => {
-          const raw = event.target.value.trim().replace(',', '.');
-          if (raw === '' || Number.isFinite(Number.parseFloat(raw))) {
-            event.target.classList.remove('chart-overlay__input--invalid');
-          }
-        });
-        input.addEventListener('keydown', event => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            event.currentTarget.blur();
-          }
-        });
-        overlay.appendChild(input);
+        overlay.appendChild(valueBadge);
       }
     });
     const boundaries = [min, ...values, max];
