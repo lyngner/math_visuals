@@ -96,19 +96,46 @@
     .chart-overlay__value {
       position: absolute;
       transform: translate(-50%, -120%);
-      min-width: 48px;
-      padding: 6px 12px;
-      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      padding: 4px;
+      border-radius: 10px;
       border: 1px solid rgba(203, 213, 245, 0.7);
       background: rgba(255, 255, 255, 0.95);
       box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
-      font-size: 16px;
-      font-weight: 600;
-      text-align: center;
-      color: #1f2937;
       pointer-events: auto;
       cursor: ew-resize;
-      user-select: none;
+      gap: 4px;
+    }
+    .chart-overlay__value input[type="number"] {
+      width: 3.2ch;
+      min-width: 0;
+    }
+    .chart-overlay__value-input {
+      padding: 2px 4px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      background: rgba(255, 255, 255, 0.95);
+      font-size: 14px;
+      font-weight: 600;
+      color: #1f2937;
+      text-align: center;
+      box-shadow: none;
+    }
+    .chart-overlay__value-input:focus {
+      outline: 2px solid rgba(59, 130, 246, 0.35);
+      outline-offset: 1px;
+    }
+    .chart-overlay__value-input::-webkit-outer-spin-button,
+    .chart-overlay__value-input::-webkit-inner-spin-button {
+      margin: 0;
+    }
+    .chart-overlay__value-input {
+      -moz-appearance: textfield;
+      appearance: textfield;
+      cursor: text;
     }
     .domain-controls {
       display: flex;
