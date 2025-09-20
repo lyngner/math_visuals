@@ -212,7 +212,7 @@
       y: (x + y) * tileH / 2 - z * unitH
     };
   }
-  function createBrick(bredde, hoyde, dybde) {
+  function createBrick(bredde, hoyde, dybde, rowGap) {
     if (!BRICK_SRC) return document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     const tileW = 26;
     const tileH = 13;
@@ -225,11 +225,16 @@
     const widthCount = Math.max(1, Math.trunc(bredde));
     const heightCount = Math.max(1, Math.trunc(hoyde));
     const depthCount = Math.max(1, Math.trunc(dybde));
+    const normalizedRowGap = Number.isFinite(rowGap) && rowGap >= 0 ? rowGap : 0;
     const bricks = [];
     for (let z = 0; z < heightCount; z++) {
       for (let y = 0; y < depthCount; y++) {
         for (let x = 0; x < widthCount; x++) {
-          const pos = p(x, y, z);
+          const isoPos = p(x, y, z);
+          const pos = {
+            x: isoPos.x,
+            y: isoPos.y + normalizedRowGap * y
+          };
           bricks.push({
             x,
             y,
@@ -257,7 +262,8 @@
     const w = Math.max(1, maxX - minX);
     const diagonalLayers = Math.max(0, widthCount - 1) + Math.max(0, depthCount - 1);
     const diagonalHeight = diagonalLayers * (tileH / 2);
-    const targetHeight = Math.max(1, imgH + (heightCount - 1) * unitH + diagonalHeight);
+    const rowGapTotal = normalizedRowGap * Math.max(0, depthCount - 1);
+    const targetHeight = Math.max(1, imgH + (heightCount - 1) * unitH + diagonalHeight + rowGapTotal);
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${w} ${targetHeight}`);
     svg.setAttribute('width', '100%');
@@ -334,7 +340,6 @@
     brickContainer.style.gridTemplateColumns = cols > 0 ? `repeat(${cols}, 1fr)` : '';
     brickContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows}, auto)` : '';
     const rowGap = Number.isFinite(CFG.klosser.rowGap) ? CFG.klosser.rowGap : DEFAULT_CFG.klosser.rowGap;
-    brickContainer.style.rowGap = `${rowGap}px`;
     const perFig = width * height * depth;
     const total = cols * rows * perFig;
     const firstExpression = formatOuterInnerExpression([cols, rows], [width, height, depth]);
@@ -348,7 +353,7 @@
     if (!BRICK_SRC) return;
     const totalFigures = cols * rows;
     for (let i = 0; i < totalFigures; i++) {
-      const fig = createBrick(width, height, depth);
+      const fig = createBrick(width, height, depth, rowGap);
       fig.setAttribute('aria-label', `${width}x${height}x${depth} kloss`);
       brickContainer.appendChild(fig);
     }
