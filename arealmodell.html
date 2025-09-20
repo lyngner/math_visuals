@@ -35,7 +35,12 @@
     .settings input,
     .settings select { border: 1px solid #d1d5db; border-radius: 10px; padding: 8px 10px; font-size: 14px; background: #fff; }
     .settings .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .settings .row.row--global { align-items: center; justify-content: space-between; }
+    .settings .row.row--handles,
+    .settings .row.row--checkboxes { align-items: center; }
     .settings .row label { flex: 0; }
+    .settings .row label.label--grow { flex: 1 1 220px; min-width: 200px; }
+    .settings .row label.label--grow select { width: 100%; }
     .settings .row label input[type="number"] { width: 80px; }
     .settings .row label.chk { flex: 0; flex-direction: row; align-items: center; }
     .settings .row label.chk input { margin-right: 6px; }
@@ -65,45 +70,45 @@
         </div>
         <div class="card card--settings">
           <div class="settings">
-            <div class="row">
-              <label>Oppdeling
+            <div class="row row--global">
+              <label class="label--grow">Type
                 <select id="layoutMode">
                   <option value="single">1 rektangel</option>
-                  <option value="horizontal">2 ved siden av hverandre</option>
-                  <option value="vertical">2 over hverandre</option>
-                  <option value="quad">4 rektangler (2 × 2)</option>
+                  <option value="vertical">2 rektangler horisontaldelt</option>
+                  <option value="horizontal">2 rektangler vertikaldelt</option>
+                  <option value="quad">4 rektangler</option>
                 </select>
               </label>
+              <label class="chk"><input id="grid" type="checkbox" checked> Vis rutenett</label>
             </div>
             <div class="row">
               <label>Lengde
                 <input id="length" type="number" value="12" min="1">
               </label>
-              <label>Startposisjon
+              <label id="lengthStartWrap">Startposisjon
                 <input id="lengthStart" type="number" value="6" min="0">
               </label>
-              <label>Maks lengde
+              <label id="lengthMaxWrap" hidden>Maks lengde
                 <input id="lengthMax" type="number" value="30" min="1">
               </label>
-              <label class="chk"><input id="showLengthHandle" type="checkbox" checked> Vis håndtak</label>
             </div>
             <div class="row">
               <label>Høyde
                 <input id="height" type="number" value="12" min="1">
               </label>
-              <label>Startposisjon
+              <label id="heightStartWrap">Startposisjon
                 <input id="heightStart" type="number" value="6" min="0">
               </label>
-              <label>Maks høyde
+              <label id="heightMaxWrap" hidden>Maks høyde
                 <input id="heightMax" type="number" value="30" min="1">
               </label>
-              <label class="chk"><input id="showHeightHandle" type="checkbox" checked> Vis håndtak</label>
             </div>
-            <div class="row">
-              <label class="chk"><input id="grid" type="checkbox" checked> Vis rutenett</label>
+            <div class="row row--handles">
+              <label class="chk"><input id="showLengthHandle" type="checkbox" checked> Lengde-håndtak</label>
+              <label class="chk"><input id="showHeightHandle" type="checkbox" checked> Høyde-håndtak</label>
+            </div>
+            <div class="row row--checkboxes">
               <label class="chk"><input id="splitLines" type="checkbox" checked> Delingslinjer</label>
-            </div>
-            <div class="row">
               <label class="chk"><input id="showTotalHandle" type="checkbox"> Totalareal-håndtak</label>
             </div>
           </div>
