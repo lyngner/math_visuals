@@ -728,7 +728,7 @@
     const domain = domainInfo.active;
     const width = svg.clientWidth || svg.parentElement.clientWidth || 900;
     const rowSpacing = 70;
-    const arrowY = 40;
+    const arrowY = 70;
     const marginLeft = 70;
     const marginRight = 40;
     const baseHeight = arrowY + 60 + Math.max(1, state.signRows.length) * rowSpacing + 60;
