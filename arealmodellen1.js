@@ -93,6 +93,7 @@ const CFG = {
 };
 const DEFAULT_SIMPLE_CFG = JSON.parse(JSON.stringify(CFG.SIMPLE));
 const DEFAULT_ADV_CFG = JSON.parse(JSON.stringify(CFG.ADV));
+let cleanupCurrentDraw = null;
 function ensureCfgDefaults() {
   const fill = (target, defaults) => {
     if (!defaults || typeof defaults !== 'object') return;
@@ -214,6 +215,10 @@ function readConfigFromHtml() {
 function draw() {
   var _SV$height$cells, _SV$height, _SV$length$cells, _SV$length, _ADV$check$ten, _ADV$check, _ADV$handleIcons$size, _ADV$handleIcons, _ADV$margins$l, _ADV$margins, _ADV$margins$r, _ADV$margins2, _ADV$margins$t, _ADV$margins3, _ADV$margins$b, _ADV$margins4, _ADV$classes$outer, _ADV$classes, _ADV$classes$grid, _ADV$classes2, _ADV$classes$split, _ADV$classes3, _ADV$classes$handle, _ADV$classes4, _ADV$classes$labelCel, _ADV$classes5, _ADV$classes$labelEdg, _ADV$classes6, _ADV$classes$cells, _ADV$classes7, _SV$height2, _SV$length2, _ADV$drag, _ADV$drag2, _ADV$limits$minColsEa, _ADV$limits, _ADV$limits$minRowsEa, _ADV$limits2, _SV$length$handle, _SV$length3, _SV$height$handle, _SV$height3, _SV$height4, _SV$length4, _ADV$handleIcons$hori, _ADV$handleIcons2, _ADV$handleIcons$vert, _ADV$handleIcons3, _ADV$fit$maxVh, _ADV$fit, _ADV$labels$dot, _ADV$labels, _ADV$labels$equals, _ADV$labels2, _ADV$labels$edgeMode, _ADV$labels3, _ADV$labels$cellMode, _ADV$labels4, _SV$totalHandle;
   ensureCfgDefaults();
+  if (typeof cleanupCurrentDraw === "function") {
+    cleanupCurrentDraw();
+    cleanupCurrentDraw = null;
+  }
   const ADV = CFG.ADV,
     SV = CFG.SIMPLE;
   const UNIT = +ADV.unit || 40;
@@ -1179,20 +1184,21 @@ function draw() {
       }
     });
   }
+  const onSvgClick = e => {
+    if (justDragged) return;
+    refreshSvgRect();
+    const p = clientToSvg(e);
+    if (dragVertical && showHeightAxis && Math.abs(p.x - ML) < 12 && p.y >= MT && p.y <= MT + H) {
+      sy = snap(MT + H - clampAxisY(p.y));
+      scheduleRedraw();
+    }
+    if (dragHorizontal && showLengthAxis && Math.abs(p.y - (MT + H)) < 12 && p.x >= ML && p.x <= ML + W) {
+      sx = snap(clampAxisX(p.x) - ML);
+      scheduleRedraw();
+    }
+  };
   if (clickToMove) {
-    svg.addEventListener("click", e => {
-      if (justDragged) return;
-      refreshSvgRect();
-      const p = clientToSvg(e);
-      if (dragVertical && showHeightAxis && Math.abs(p.x - ML) < 12 && p.y >= MT && p.y <= MT + H) {
-        sy = snap(MT + H - clampAxisY(p.y));
-        scheduleRedraw();
-      }
-      if (dragHorizontal && showLengthAxis && Math.abs(p.y - (MT + H)) < 12 && p.x >= ML && p.x <= ML + W) {
-        sx = snap(clampAxisX(p.x) - ML);
-        scheduleRedraw();
-      }
-    });
+    svg.addEventListener("click", onSvgClick);
   }
   function buildExportOptions(overrides = {}) {
     var _ADV$export, _ADV$export2, _ADV$fit3;
@@ -1322,6 +1328,17 @@ function draw() {
     });
     const fname = ((_ADV$export8 = ADV.export) === null || _ADV$export8 === void 0 ? void 0 : _ADV$export8.filenameHtml) || "arealmodell_interaktiv.html";
     downloadText(fname, htmlStr, "text/html;charset=utf-8");
+  };
+
+  cleanupCurrentDraw = () => {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+    window.removeEventListener("resize", fitToViewport);
+    if (clickToMove) {
+      svg.removeEventListener("click", onSvgClick);
+    }
   };
 
   // ===== helpers =====
