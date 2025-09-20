@@ -883,10 +883,10 @@ function draw() {
     if (edgeOn && showHeightAxis) {
       set(leftTop, "x", leftXOutside);
       set(leftTop, "y", MT + topHeight / 2 + 10);
-      setText(leftTop, `${hT}`);
+      setText(leftTop, hT > 0 ? `${hT}` : "");
       set(leftBot, "x", leftXOutside);
       set(leftBot, "y", MT + topHeight + bottomHeight / 2 + 10);
-      setText(leftBot, `${hB}`);
+      setText(leftBot, hB > 0 ? `${hB}` : "");
     } else {
       setText(leftTop, "");
       setText(leftBot, "");
@@ -896,8 +896,8 @@ function draw() {
       set(botLeft, "y", bottomYOutside);
       set(botRight, "x", ML + leftWidth + rightWidth / 2);
       set(botRight, "y", bottomYOutside);
-      setText(botLeft, `${wL}`);
-      setText(botRight, `${wR}`);
+      setText(botLeft, wL > 0 ? `${wL}` : "");
+      setText(botRight, wR > 0 ? `${wR}` : "");
     } else {
       setText(botLeft, "");
       setText(botRight, "");
