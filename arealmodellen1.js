@@ -173,6 +173,32 @@ function computeLayoutState(layout, width, height, cols, rows, sx, sy, unit) {
     showBottomRight: mode === "quad" && hasRight && hasBottom
   };
 }
+function updateLayoutUi() {
+  if (typeof document === "undefined") return;
+  const layoutSelect = document.getElementById("layoutMode");
+  if (!layoutSelect) return;
+  const layout = normalizeLayout(layoutSelect.value);
+  const isSingle = layout === "single";
+  const startWrapIds = ["lengthStartWrap", "heightStartWrap"];
+  const maxWrapIds = ["lengthMaxWrap", "heightMaxWrap"];
+  startWrapIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.hidden = isSingle;
+  });
+  maxWrapIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.hidden = !isSingle;
+  });
+}
+if (typeof document !== "undefined") {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", updateLayoutUi, {
+      once: true
+    });
+  } else {
+    updateLayoutUi();
+  }
+}
 /* ========================================================= */
 
 function readConfigFromHtml() {
@@ -211,6 +237,7 @@ function readConfigFromHtml() {
   if (layoutSelect && layoutSelect.value) {
     CFG.SIMPLE.layout = normalizeLayout(layoutSelect.value);
   }
+  updateLayoutUi();
 }
 function draw() {
   var _SV$height$cells, _SV$height, _SV$length$cells, _SV$length, _ADV$check$ten, _ADV$check, _ADV$handleIcons$size, _ADV$handleIcons, _ADV$margins$l, _ADV$margins, _ADV$margins$r, _ADV$margins2, _ADV$margins$t, _ADV$margins3, _ADV$margins$b, _ADV$margins4, _ADV$classes$outer, _ADV$classes, _ADV$classes$grid, _ADV$classes2, _ADV$classes$split, _ADV$classes3, _ADV$classes$handle, _ADV$classes4, _ADV$classes$labelCel, _ADV$classes5, _ADV$classes$labelEdg, _ADV$classes6, _ADV$classes$cells, _ADV$classes7, _SV$height2, _SV$length2, _ADV$drag, _ADV$drag2, _ADV$limits$minColsEa, _ADV$limits, _ADV$limits$minRowsEa, _ADV$limits2, _SV$length$handle, _SV$length3, _SV$height$handle, _SV$height3, _SV$height4, _SV$length4, _ADV$handleIcons$hori, _ADV$handleIcons2, _ADV$handleIcons$vert, _ADV$handleIcons3, _ADV$fit$maxVh, _ADV$fit, _ADV$labels$dot, _ADV$labels, _ADV$labels$equals, _ADV$labels2, _ADV$labels$edgeMode, _ADV$labels3, _ADV$labels$cellMode, _ADV$labels4, _SV$totalHandle;
@@ -1773,6 +1800,7 @@ function applyConfigToInputs() {
   setChk('grid', !!adv.grid);
   setChk('splitLines', adv.splitLines !== false);
   setSelect('layoutMode', normalizeLayout(simple.layout));
+  updateLayoutUi();
 }
 function applyExamplesConfig() {
   ensureCfgDefaults();
