@@ -4,17 +4,7 @@
   const BOARD_HEIGHT = 700;
   const LABEL_OFFSET_X = 16;
   const LABEL_OFFSET_Y = -14;
-  const POINT_DECORATIONS = ['circle', 'square', 'eye'];
-  const DEFAULT_DECORATION = 'circle';
   const POINT_RADIUS = 11;
-  const POINT_SQUARE_SIZE = POINT_RADIUS * 2;
-  const POINT_EYE_HORIZONTAL = POINT_RADIUS + 2;
-  const POINT_EYE_VERTICAL = Math.round(POINT_RADIUS * 0.7);
-
-  function normalizeDecoration(value) {
-    const candidate = typeof value === 'string' ? value.toLowerCase() : '';
-    return POINT_DECORATIONS.includes(candidate) ? candidate : DEFAULT_DECORATION;
-  }
 
   function deepClone(value) {
     if (value == null) return value;
@@ -148,6 +138,7 @@
   const addPointBtn = document.getElementById('btnAddPoint');
   const sortPointsBtn = document.getElementById('btnSortPoints');
   const pointListEl = document.getElementById('pointList');
+  const falsePointListEl = document.getElementById('falsePointList');
   const showLabelsCheckbox = document.getElementById('cfg-showLabels');
   const answerCountEl = document.getElementById('answerCount');
   const predefCountEl = document.getElementById('predefCount');
@@ -175,6 +166,7 @@
   let selectedPointId = null;
 
   const pointEditors = new Map();
+  const falsePointEditors = new Map();
   const pointElements = new Map();
   const labelElements = new Map();
   const baseLineElements = new Map();
@@ -348,8 +340,7 @@
         label: typeof point.label === 'string' ? point.label : String(idx + 1),
         x: clamp01(point.x),
         y: clamp01(point.y),
-        isFalse: !!point.isFalse,
-        decoration: normalizeDecoration(point.decoration)
+        isFalse: !!point.isFalse
       };
       usedIds.add(id);
       sanitizedPoints.push(sanitizedPoint);
@@ -499,6 +490,7 @@
       label.setAttribute('x', pos.x + LABEL_OFFSET_X);
       label.setAttribute('y', pos.y + LABEL_OFFSET_Y);
     }
+    updateFalsePointEditor(point);
     updateLinesForPoint(pointId);
   }
 
@@ -687,6 +679,71 @@
     renderBoard(validPoints);
   }
 
+  function formatFalsePointLabel(point) {
+    if (!point) return '';
+    const baseLabel = point.label && typeof point.label === 'string' && point.label.trim()
+      ? point.label.trim()
+      : point.id;
+    const idPart = point.id && baseLabel !== point.id ? ` (${point.id})` : '';
+    return `${baseLabel}${idPart} – ${coordinateString(point)}`;
+  }
+
+  function renderFalsePointList() {
+    if (!falsePointListEl) return;
+    falsePointEditors.clear();
+    falsePointListEl.innerHTML = '';
+    if (!STATE.points.length) {
+      const empty = document.createElement('div');
+      empty.className = 'false-point-empty';
+      empty.textContent = 'Ingen punkt er definert ennå.';
+      falsePointListEl.appendChild(empty);
+      return;
+    }
+    STATE.points.forEach(point => {
+      const item = document.createElement('label');
+      item.className = 'false-point-item';
+      item.dataset.pointId = point.id;
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = !!point.isFalse;
+      checkbox.addEventListener('change', () => {
+        point.isFalse = checkbox.checked;
+        updatePointVisualClasses(pointElements.get(point.id), point);
+        const label = labelElements.get(point.id);
+        if (label) label.classList.toggle('point-label--false', point.isFalse);
+        renderBoard();
+      });
+
+      const text = document.createElement('span');
+      text.className = 'false-point-label';
+      text.textContent = formatFalsePointLabel(point);
+
+      item.append(checkbox, text);
+      falsePointListEl.appendChild(item);
+      falsePointEditors.set(point.id, { itemEl: item, checkbox, textEl: text });
+    });
+  }
+
+  function updateFalsePointEditor(point) {
+    if (!point || !point.id) return;
+    const editor = falsePointEditors.get(point.id);
+    if (!editor) return;
+    if (editor.checkbox) editor.checkbox.checked = !!point.isFalse;
+    if (editor.textEl) editor.textEl.textContent = formatFalsePointLabel(point);
+  }
+
+  function updateFalsePointEditors() {
+    const activeIds = new Set();
+    STATE.points.forEach(point => {
+      activeIds.add(point.id);
+      updateFalsePointEditor(point);
+    });
+    falsePointEditors.forEach((_, id) => {
+      if (!activeIds.has(id)) falsePointEditors.delete(id);
+    });
+  }
+
   function renderPointList(validPoints) {
     if (!pointListEl) return;
     if (!validPoints) validPoints = prepareState();
@@ -762,56 +819,9 @@
         point.label = labelInput.value;
         const text = labelElements.get(point.id);
         if (text) text.textContent = point.label;
+        updateFalsePointEditor(point);
       });
       item.appendChild(labelInput);
-
-      const controls = document.createElement('div');
-      controls.className = 'point-controls';
-
-      const falseLabel = document.createElement('label');
-      falseLabel.className = 'point-flag';
-      const falseCheckbox = document.createElement('input');
-      falseCheckbox.type = 'checkbox';
-      falseCheckbox.className = 'point-flag-checkbox';
-      falseCheckbox.checked = !!point.isFalse;
-      falseCheckbox.addEventListener('change', () => {
-        point.isFalse = falseCheckbox.checked;
-        updatePointVisualClasses(pointElements.get(point.id), point);
-        const label = labelElements.get(point.id);
-        if (label) label.classList.toggle('point-label--false', point.isFalse);
-        renderBoard();
-      });
-      const falseLabelText = document.createElement('span');
-      falseLabelText.textContent = 'Falskt punkt';
-      falseLabel.append(falseCheckbox, falseLabelText);
-      controls.appendChild(falseLabel);
-
-      const decorationLabel = document.createElement('label');
-      decorationLabel.className = 'point-decoration-label';
-      const decorationText = document.createElement('span');
-      decorationText.textContent = 'Dekorasjon';
-      const decorationSelect = document.createElement('select');
-      decorationSelect.className = 'point-decoration-select';
-      POINT_DECORATIONS.forEach(type => {
-        const option = document.createElement('option');
-        option.value = type;
-        option.textContent = type === 'circle' ? 'Sirkel' : type === 'square' ? 'Kvadrat' : 'Øye';
-        decorationSelect.appendChild(option);
-      });
-      decorationSelect.value = normalizeDecoration(point.decoration);
-      decorationSelect.addEventListener('change', () => {
-        point.decoration = normalizeDecoration(decorationSelect.value);
-        const visual = pointElements.get(point.id);
-        if (visual) {
-          updatePointVisualClasses(visual, point);
-          updatePointVisualPosition(visual, point);
-        }
-        renderBoard();
-      });
-      decorationLabel.append(decorationText, decorationSelect);
-      controls.appendChild(decorationLabel);
-
-      item.appendChild(controls);
 
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
@@ -839,11 +849,10 @@
         itemEl: item,
         orderEl: orderBadge,
         coordInput,
-        labelInput,
-        falseCheckbox,
-        decorationSelect
+        labelInput
       });
     });
+    renderFalsePointList();
     applySelectionHighlight();
   }
 
@@ -857,82 +866,28 @@
     });
   }
 
-  function createDecorationElement(type) {
-    if (type === 'square') {
-      const rect = document.createElementNS(SVG_NS, 'rect');
-      rect.setAttribute('rx', 5);
-      rect.setAttribute('ry', 5);
-      return rect;
-    }
-    if (type === 'eye') {
-      return document.createElementNS(SVG_NS, 'path');
-    }
-    return document.createElementNS(SVG_NS, 'circle');
-  }
-
   function updatePointVisualClasses(visual, point) {
     if (!visual || !visual.group) return;
-    POINT_DECORATIONS.forEach(type => {
-      visual.group.classList.remove(`point--decoration-${type}`);
-    });
-    const decorationType = normalizeDecoration(point && point.decoration);
-    const expectedTag = decorationType === 'square' ? 'rect' : decorationType === 'eye' ? 'path' : 'circle';
-    if (!visual.decoration || visual.decoration.tagName.toLowerCase() !== expectedTag) {
-      const newDecoration = createDecorationElement(decorationType);
-      newDecoration.classList.add('point-decoration');
-      if (visual.decoration && visual.decoration.parentNode === visual.group) {
-        visual.group.replaceChild(newDecoration, visual.decoration);
-      } else if (visual.dot && visual.dot.parentNode === visual.group) {
-        visual.group.insertBefore(newDecoration, visual.dot);
-      } else {
-        visual.group.appendChild(newDecoration);
-      }
-      visual.decoration = newDecoration;
-    }
-    visual.group.classList.add(`point--decoration-${decorationType}`);
     visual.group.classList.toggle('point--false', !!(point && point.isFalse));
-    visual.decorationType = decorationType;
   }
 
   function updatePointVisualPosition(visual, point, pos) {
     if (!visual || !visual.group || !visual.decoration || !visual.dot) return;
     const coords = pos || toPixel(point);
     const { x, y } = coords;
-    const type = visual.decorationType || normalizeDecoration(point && point.decoration);
-    if (type === 'square') {
-      const size = POINT_SQUARE_SIZE;
-      visual.decoration.setAttribute('x', x - size / 2);
-      visual.decoration.setAttribute('y', y - size / 2);
-      visual.decoration.setAttribute('width', size);
-      visual.decoration.setAttribute('height', size);
-      visual.decoration.setAttribute('rx', 5);
-      visual.decoration.setAttribute('ry', 5);
-    } else if (type === 'eye') {
-      const hr = POINT_EYE_HORIZONTAL;
-      const vr = POINT_EYE_VERTICAL;
-      const d = [
-        `M ${x - hr} ${y}`,
-        `Q ${x} ${y - vr} ${x + hr} ${y}`,
-        `Q ${x} ${y + vr} ${x - hr} ${y}`,
-        'Z'
-      ].join(' ');
-      visual.decoration.setAttribute('d', d);
-    } else {
-      visual.decoration.setAttribute('cx', x);
-      visual.decoration.setAttribute('cy', y);
-      visual.decoration.setAttribute('r', POINT_RADIUS);
-    }
+    visual.decoration.setAttribute('cx', x);
+    visual.decoration.setAttribute('cy', y);
+    visual.decoration.setAttribute('r', POINT_RADIUS);
     visual.dot.setAttribute('cx', x);
     visual.dot.setAttribute('cy', y);
   }
 
   function createPointVisual(point, pos) {
-    const decorationType = normalizeDecoration(point && point.decoration);
     const group = document.createElementNS(SVG_NS, 'g');
     group.classList.add('point');
     group.dataset.pointId = point.id;
 
-    const decoration = createDecorationElement(decorationType);
+    const decoration = document.createElementNS(SVG_NS, 'circle');
     decoration.classList.add('point-decoration');
     group.appendChild(decoration);
 
@@ -943,7 +898,7 @@
 
     attachPointInteraction(group, point.id);
 
-    const visual = { group, decoration, dot, decorationType };
+    const visual = { group, decoration, dot };
     updatePointVisualClasses(visual, point);
     updatePointVisualPosition(visual, point, pos);
     return visual;
@@ -956,10 +911,9 @@
       if (editor.orderEl) editor.orderEl.textContent = String(index + 1);
       if (editor.labelInput) editor.labelInput.value = point.label;
       if (editor.coordInput) editor.coordInput.value = coordinateString(point);
-      if (editor.falseCheckbox) editor.falseCheckbox.checked = !!point.isFalse;
-      if (editor.decorationSelect) editor.decorationSelect.value = normalizeDecoration(point.decoration);
       if (editor.itemEl) editor.itemEl.dataset.pointId = point.id;
     });
+    updateFalsePointEditors();
   }
 
   function renderBoard(validPoints) {
@@ -1226,8 +1180,7 @@
       label: String(count + 1),
       x,
       y,
-      isFalse: false,
-      decoration: DEFAULT_DECORATION
+      isFalse: false
     });
     selectedPointId = id;
     renderPointList();
