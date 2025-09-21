@@ -1710,8 +1710,9 @@ function draw() {
       showTotalHandle: !!(CFG.SIMPLE.totalHandle && CFG.SIMPLE.totalHandle.show)
     };
   }
-  const btnSvgStatic = document.getElementById("btnSvgStatic");
-  if (btnSvgStatic) btnSvgStatic.onclick = () => {
+  const legacySvgStaticBtn = document.getElementById("btnSvgStatic");
+  const btnSvgDownload = legacySvgStaticBtn || document.getElementById("btnSvg");
+  if (btnSvgDownload) btnSvgDownload.onclick = () => {
     var _ADV$export3;
     const svgStr = buildBaseSvgMarkup(buildExportOptions({
       includeHandles: false,
@@ -1730,8 +1731,8 @@ function draw() {
     }), true);
     downloadPNGFromString(svgStr, ((_ADV$export4 = ADV.export) === null || _ADV$export4 === void 0 ? void 0 : _ADV$export4.filenamePng) || "arealmodell.png");
   };
-  const btnSvg = document.getElementById("btnSvg");
-  if (btnSvg) btnSvg.onclick = () => {
+  const btnSvgInteractive = document.getElementById("btnSvgInteractive") || (legacySvgStaticBtn ? document.getElementById("btnSvg") : null);
+  if (btnSvgInteractive) btnSvgInteractive.onclick = () => {
     var _ADV$export5;
     const svgStr = buildInteractiveSvgString(buildExportOptions());
     downloadText(((_ADV$export5 = ADV.export) === null || _ADV$export5 === void 0 ? void 0 : _ADV$export5.filename) || "arealmodell_interaktiv.svg", svgStr, "image/svg+xml");
