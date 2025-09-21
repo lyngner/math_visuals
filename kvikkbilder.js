@@ -8,7 +8,7 @@
   const cfgBredde = document.getElementById('cfg-bredde');
   const cfgHoyde = document.getElementById('cfg-hoyde');
   const cfgDybde = document.getElementById('cfg-dybde');
-  const cfgKlosserRowGap = document.getElementById('cfg-klosser-rowGap');
+  const cfgKlosserLayerGap = document.getElementById('cfg-klosser-layerGap');
   const cfgVisibility = document.getElementById('cfg-visibility');
   const cfgShowExpression = document.getElementById('cfg-show-expression');
   const cfgMonsterAntallX = document.getElementById('cfg-monster-antallX');
@@ -54,10 +54,6 @@
   function normalizeBrickHeightCount(value) {
     return Math.max(1, Math.trunc(value));
   }
-  function computeBrickRowGapPx(heightCount) {
-    const normalizedHeight = normalizeBrickHeightCount(heightCount);
-    return BRICK_IMAGE_HEIGHT + (normalizedHeight - 1) * BRICK_UNIT_HEIGHT;
-  }
   const DEFAULT_CFG = {
     type: 'klosser',
     showExpression: true,
@@ -69,7 +65,7 @@
       dybde: 2,
       duration: 3,
       showBtn: false,
-      rowGap: computeBrickRowGapPx(3)
+      layerGap: 0
     },
     monster: {
       antallX: 2,
@@ -119,6 +115,10 @@
     }
     if (normalized.klosser && typeof normalized.klosser === 'object') {
       base.klosser = Object.assign({}, base.klosser, normalized.klosser);
+      if (!Number.isFinite(base.klosser.layerGap) && Number.isFinite(base.klosser.rowGap)) {
+        base.klosser.layerGap = Math.max(0, base.klosser.rowGap);
+      }
+      delete base.klosser.rowGap;
     }
     if (normalized.monster && typeof normalized.monster === 'object') {
       base.monster = Object.assign({}, base.monster, normalized.monster);
@@ -224,13 +224,13 @@
       y: (x + y) * tileH / 2 - z * unitH
     };
   }
-  function createBrick(bredde, hoyde, dybde, rowGap) {
+  function createBrick(bredde, hoyde, dybde, layerGap) {
     if (!BRICK_SRC) return document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     const p = (x, y, z) => iso(x, y, z, BRICK_TILE_WIDTH, BRICK_TILE_HEIGHT, BRICK_UNIT_HEIGHT);
     const widthCount = Math.max(1, Math.trunc(bredde));
     const heightCount = normalizeBrickHeightCount(hoyde);
     const depthCount = Math.max(1, Math.trunc(dybde));
-    const normalizedRowGap = Number.isFinite(rowGap) && rowGap >= 0 ? rowGap : computeBrickRowGapPx(heightCount);
+    const normalizedLayerGap = Number.isFinite(layerGap) && layerGap >= 0 ? layerGap : 0;
     const bricks = [];
     for (let z = 0; z < heightCount; z++) {
       for (let y = 0; y < depthCount; y++) {
@@ -238,7 +238,7 @@
           const isoPos = p(x, y, z);
           const pos = {
             x: isoPos.x,
-            y: isoPos.y + normalizedRowGap * y
+            y: isoPos.y - normalizedLayerGap * z
           };
           bricks.push({
             x,
@@ -265,10 +265,7 @@
       if (y + BRICK_IMAGE_HEIGHT > maxY) maxY = y + BRICK_IMAGE_HEIGHT;
     });
     const w = Math.max(1, maxX - minX);
-    const diagonalLayers = Math.max(0, widthCount - 1) + Math.max(0, depthCount - 1);
-    const diagonalHeight = diagonalLayers * (BRICK_TILE_HEIGHT / 2);
-    const rowGapTotal = normalizedRowGap * Math.max(0, depthCount - 1);
-    const targetHeight = Math.max(1, BRICK_IMAGE_HEIGHT + (heightCount - 1) * BRICK_UNIT_HEIGHT + diagonalHeight + rowGapTotal);
+    const targetHeight = Math.max(1, maxY - minY);
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${w} ${targetHeight}`);
     svg.setAttribute('width', '100%');
@@ -344,10 +341,10 @@
     brickContainer.innerHTML = '';
     brickContainer.style.gridTemplateColumns = cols > 0 ? `repeat(${cols}, 1fr)` : '';
     brickContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows}, auto)` : '';
-    const rowGap = Number.isFinite(CFG.klosser.rowGap) ? CFG.klosser.rowGap : computeBrickRowGapPx(height);
-    CFG.klosser.rowGap = rowGap;
-    if (cfgKlosserRowGap) {
-      cfgKlosserRowGap.value = String(rowGap);
+    const layerGap = Number.isFinite(CFG.klosser.layerGap) ? Math.max(0, CFG.klosser.layerGap) : 0;
+    CFG.klosser.layerGap = layerGap;
+    if (cfgKlosserLayerGap) {
+      cfgKlosserLayerGap.value = String(layerGap);
     }
     const perFig = width * height * depth;
     const total = cols * rows * perFig;
@@ -362,7 +359,7 @@
     if (!BRICK_SRC) return;
     const totalFigures = cols * rows;
     for (let i = 0; i < totalFigures; i++) {
-      const fig = createBrick(width, height, depth, rowGap);
+      const fig = createBrick(width, height, depth, layerGap);
       fig.setAttribute('aria-label', `${width}x${height}x${depth} kloss`);
       brickContainer.appendChild(fig);
     }
@@ -821,7 +818,11 @@
     k.bredde = clampInt(k.bredde, 1, dk.bredde);
     k.hoyde = clampInt(k.hoyde, 1, dk.hoyde);
     k.dybde = clampInt(k.dybde, 1, dk.dybde);
-    k.rowGap = clampFloat(k.rowGap, 0, computeBrickRowGapPx(k.hoyde));
+    if (!Number.isFinite(k.layerGap) && Number.isFinite(k.rowGap)) {
+      k.layerGap = Math.max(0, k.rowGap);
+    }
+    k.layerGap = clampFloat(k.layerGap, 0, dk.layerGap);
+    delete k.rowGap;
     k.duration = clampInt(k.duration, 0, dk.duration);
     k.showBtn = k.showBtn === true;
     if (k.showBtn) {
@@ -889,7 +890,7 @@
     if (cfgBredde) cfgBredde.value = CFG.klosser.bredde;
     if (cfgHoyde) cfgHoyde.value = CFG.klosser.hoyde;
     if (cfgDybde) cfgDybde.value = CFG.klosser.dybde;
-    if (cfgKlosserRowGap) cfgKlosserRowGap.value = CFG.klosser.rowGap;
+    if (cfgKlosserLayerGap) cfgKlosserLayerGap.value = CFG.klosser.layerGap;
     if (cfgMonsterAntallX) cfgMonsterAntallX.value = CFG.monster.antallX;
     if (cfgMonsterAntallY) cfgMonsterAntallY.value = CFG.monster.antallY;
     if (cfgAntall) cfgAntall.value = CFG.monster.antall;
@@ -986,7 +987,7 @@
   bindNumberInput(cfgBredde, () => CFG.klosser, 'bredde', 1);
   bindNumberInput(cfgHoyde, () => CFG.klosser, 'hoyde', 1);
   bindNumberInput(cfgDybde, () => CFG.klosser, 'dybde', 1);
-  bindFloatInput(cfgKlosserRowGap, () => CFG.klosser, 'rowGap', 0, DEFAULT_CFG.klosser.rowGap);
+  bindFloatInput(cfgKlosserLayerGap, () => CFG.klosser, 'layerGap', 0, DEFAULT_CFG.klosser.layerGap);
   bindNumberInput(cfgMonsterAntallX, () => CFG.monster, 'antallX', 0);
   bindNumberInput(cfgMonsterAntallY, () => CFG.monster, 'antallY', 0);
   bindNumberInput(cfgAntall, () => CFG.monster, 'antall', 0);
