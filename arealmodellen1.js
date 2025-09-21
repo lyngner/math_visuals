@@ -33,10 +33,10 @@ const CFG = {
     svgId: "area",
     unit: 40,
     margins: {
-      l: 110,
-      r: 40,
-      t: 40,
-      b: 120
+      l: 140,
+      r: 60,
+      t: 60,
+      b: 140
     },
     grid: false,
     splitLines: true,
