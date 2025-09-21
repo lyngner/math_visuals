@@ -178,6 +178,8 @@ const BASE_INNER_RATIO = BOTTOM_RATIO - TOP_RATIO;
 const ROW_GAP = 18;
 const ROW_LABEL_GAP = 18;
 const DEFAULT_FRAME_INSET = 3;
+const DEFAULT_GRID_PADDING_TOP = 20;
+const COMBINED_WHOLE_TOP_MARGIN = 12;
 const BLOCKS = [];
 let multipleBlocksActive = false;
 const board = document.getElementById('tbBoard');
@@ -1453,14 +1455,16 @@ function drawCombinedWholeOverlayHorizontal() {
   const canShow = CONFIG.activeBlocks > 1 && CONFIG.showCombinedWhole;
   if (!canShow) {
     overlay.svg.style.display = 'none';
+    if (grid) grid.style.removeProperty('--tb-grid-padding-top');
     return;
   }
-  const metrics = getCombinedFigureMetrics();
+  let metrics = getCombinedFigureMetrics();
   if (!metrics) {
     overlay.svg.style.display = 'none';
+    if (grid) grid.style.removeProperty('--tb-grid-padding-top');
     return;
   }
-  const { left, top, width, height, boardLeft, boardTop } = metrics;
+  let { left, top, width, height, boardLeft, boardTop } = metrics;
   const labelOffsetY = Math.max(height * LABEL_OFFSET_RATIO, 12);
   const gapToBlocks = Math.max(Math.min(height * 0.03, 24), 12);
   const textPadding = Math.max(Math.min(labelOffsetY * 0.45, 10), 5);
@@ -1468,6 +1472,23 @@ function drawCombinedWholeOverlayHorizontal() {
   const braceStartY = labelOffsetY + textPadding + textSafeMargin;
   const braceTick = gapToBlocks;
   const overlayTopOffset = braceStartY + braceTick;
+  if (grid) {
+    const desiredPaddingTop = Math.max(DEFAULT_GRID_PADDING_TOP, overlayTopOffset + COMBINED_WHOLE_TOP_MARGIN);
+    const currentPaddingRaw = grid.style.getPropertyValue('--tb-grid-padding-top');
+    const currentPadding = Number.parseFloat(currentPaddingRaw);
+    if (!Number.isFinite(currentPadding) || Math.abs(currentPadding - desiredPaddingTop) > 0.5) {
+      grid.style.setProperty('--tb-grid-padding-top', `${desiredPaddingTop}px`);
+      const updatedMetrics = getCombinedFigureMetrics();
+      if (updatedMetrics) {
+        left = updatedMetrics.left;
+        top = updatedMetrics.top;
+        width = updatedMetrics.width;
+        height = updatedMetrics.height;
+        boardLeft = updatedMetrics.boardLeft;
+        boardTop = updatedMetrics.boardTop;
+      }
+    }
+  }
   const overlayHeight = height + overlayTopOffset;
   overlay.svg.style.display = '';
   overlay.svg.style.left = `${left - boardLeft}px`;
