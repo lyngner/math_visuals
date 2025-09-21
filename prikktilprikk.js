@@ -635,6 +635,15 @@
     }
 
     let best = null;
+    const fontSize = normalizeLabelFontSize(STATE.labelFontSize);
+    const labelTextLength = point && typeof point.label === 'string' && point.label
+      ? point.label.length
+      : 1;
+    const approxWidth = Math.max(LABEL_OFFSET_DISTANCE * 2, fontSize * (labelTextLength * 0.6 + 1.4));
+    const approxHeight = Math.max(LABEL_OFFSET_DISTANCE * 2, fontSize * 1.6);
+    const horizontalMargin = LABEL_EDGE_MARGIN + approxWidth / 2;
+    const verticalMargin = LABEL_EDGE_MARGIN + approxHeight / 2;
+
     LABEL_PLACEMENT_CANDIDATES.forEach((candidate, index) => {
       const offset = computePlacementOffset(candidate);
       const placementAngle = Math.atan2(offset.y, offset.x);
@@ -642,10 +651,10 @@
         ? Math.min(...neighborAngles.map(angle => angleDistance(placementAngle, angle)))
         : Math.PI;
       const nearLine = minAngleDiff < LABEL_LINE_AVOIDANCE_THRESHOLD;
-      const left = pos.x * boardScaleX + offset.x;
-      const top = pos.y * boardScaleY + offset.y;
-      const insideX = left >= LABEL_EDGE_MARGIN && left <= boardWidthPx - LABEL_EDGE_MARGIN;
-      const insideY = top >= LABEL_EDGE_MARGIN && top <= boardHeightPx - LABEL_EDGE_MARGIN;
+      const centerX = pos.x * boardScaleX + offset.x;
+      const centerY = pos.y * boardScaleY + offset.y;
+      const insideX = centerX >= horizontalMargin && centerX <= boardWidthPx - horizontalMargin;
+      const insideY = centerY >= verticalMargin && centerY <= boardHeightPx - verticalMargin;
       const inside = insideX && insideY;
       const score = (inside ? 1 : 0) * 10 + minAngleDiff - (nearLine ? LABEL_LINE_PENALTY : 0) - index * 0.001;
       if (!best || score > best.score) {
@@ -728,8 +737,12 @@
   function positionBoardLabel(element, pos, pointId) {
     if (!element || !pos) return;
     const placement = (pointId && labelPlacements.get(pointId)) || computePlacementOffset(LABEL_PLACEMENT_CANDIDATES[0]);
-    const left = pos.x * boardScaleX + placement.x;
-    const top = pos.y * boardScaleY + placement.y;
+    const centerX = pos.x * boardScaleX + placement.x;
+    const centerY = pos.y * boardScaleY + placement.y;
+    const width = element.offsetWidth || element.getBoundingClientRect().width || 0;
+    const height = element.offsetHeight || element.getBoundingClientRect().height || 0;
+    const left = centerX - width / 2;
+    const top = centerY - height / 2;
     element.style.transform = `translate(${left}px, ${top}px)`;
   }
 
@@ -2142,6 +2155,12 @@
         labelElements.set(point.id, label);
       }
     });
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(applyLabelPlacements);
+    } else {
+      applyLabelPlacements();
+    }
 
     updatePointEditors();
     updateCounts();
