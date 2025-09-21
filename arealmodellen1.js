@@ -189,6 +189,7 @@ function applyLayoutStateToSimple(layout) {
     if (totalState.maxCols !== undefined && Number.isFinite(totalState.maxCols)) CFG.SIMPLE.totalHandle.maxCols = Math.max(1, Math.round(totalState.maxCols));
     if (totalState.maxRows !== undefined && Number.isFinite(totalState.maxRows)) CFG.SIMPLE.totalHandle.maxRows = Math.max(1, Math.round(totalState.maxRows));
   }
+  enforceSingleLayoutRestrictions(normalized);
 }
 function saveLayoutState(layout) {
   if (!layout) return;
@@ -244,12 +245,29 @@ function computeLayoutState(layout, width, height, cols, rows, sx, sy, unit) {
     showBottomRight: mode === "quad" && hasRight && hasBottom
   };
 }
+function enforceSingleLayoutRestrictions(layout) {
+  if (normalizeLayout(layout) !== "single") return;
+  ensureCfgDefaults();
+  if (!CFG.SIMPLE.length || typeof CFG.SIMPLE.length !== "object") {
+    CFG.SIMPLE.length = {};
+  }
+  if (!CFG.SIMPLE.height || typeof CFG.SIMPLE.height !== "object") {
+    CFG.SIMPLE.height = {};
+  }
+  if (!CFG.SIMPLE.totalHandle || typeof CFG.SIMPLE.totalHandle !== "object") {
+    CFG.SIMPLE.totalHandle = {};
+  }
+  CFG.SIMPLE.length.showHandle = false;
+  CFG.SIMPLE.height.showHandle = false;
+  CFG.SIMPLE.totalHandle.show = true;
+}
 function updateLayoutUi() {
   if (typeof document === "undefined") return;
   const layoutSelect = document.getElementById("layoutMode");
   if (!layoutSelect) return;
   const layout = normalizeLayout(layoutSelect.value);
   const isSingle = layout === "single";
+  enforceSingleLayoutRestrictions(layout);
   const startWrapIds = ["lengthStartWrap", "heightStartWrap"];
   const maxWrapIds = ["lengthMaxWrap", "heightMaxWrap"];
   startWrapIds.forEach(id => {
@@ -264,6 +282,21 @@ function updateLayoutUi() {
   if (singleTitle) singleTitle.hidden = !isSingle;
   const splitTitle = document.getElementById("splitSettingsTitle");
   if (splitTitle) splitTitle.hidden = isSingle;
+  const toggleDisabled = (id, disabled, forcedValue) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !!disabled;
+    if (disabled && typeof forcedValue === "boolean" && el.type === "checkbox") {
+      el.checked = forcedValue;
+    }
+  };
+  toggleDisabled("showLengthHandle", isSingle, false);
+  toggleDisabled("showHeightHandle", isSingle, false);
+  toggleDisabled("showTotalHandle", isSingle, true);
+  ["lengthStart", "heightStart"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = isSingle;
+  });
 }
 if (typeof document !== "undefined") {
   if (document.readyState === "loading") {
