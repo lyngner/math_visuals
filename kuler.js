@@ -703,30 +703,77 @@ function svgPoint(svgEl, evt) {
   p.y = evt.clientY;
   return p.matrixTransform(svgEl.getScreenCTM().inverse());
 }
+function collectVisibleFigureClones() {
+  const visible = getVisibleCount();
+  const clones = [];
+  for (let i = 0; i < visible; i++) {
+    const fig = figureViews[i];
+    if (!(fig !== null && fig !== void 0 && fig.svg)) continue;
+    const clone = fig.svg.cloneNode(true);
+    clone.removeAttribute("id");
+    clones.push(clone);
+  }
+  return clones;
+}
+function layoutForExport(count) {
+  const columns = count > 1 ? 2 : 1;
+  const rows = Math.max(1, Math.ceil(count / columns));
+  return {
+    columns,
+    rows,
+    width: columns * VB_W,
+    height: rows * VB_H
+  };
+}
+async function buildExportSvg() {
+  const clones = collectVisibleFigureClones();
+  if (!clones.length) return null;
+  const layout = layoutForExport(clones.length);
+  const exportSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  exportSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  exportSvg.setAttribute("viewBox", `0 0 ${layout.width} ${layout.height}`);
+  exportSvg.setAttribute("width", String(layout.width));
+  exportSvg.setAttribute("height", String(layout.height));
+  clones.forEach((clone, index) => {
+    const col = index % layout.columns;
+    const row = Math.floor(index / layout.columns);
+    clone.setAttribute("x", String(col * VB_W));
+    clone.setAttribute("y", String(row * VB_H));
+    clone.setAttribute("width", String(VB_W));
+    clone.setAttribute("height", String(VB_H));
+    exportSvg.appendChild(clone);
+  });
+  await inlineImages(exportSvg);
+  return {
+    svg: exportSvg,
+    layout,
+    count: clones.length
+  };
+}
+function exportFileName(idx, count, type) {
+  const base = count > 1 ? "kuler" : `kuler${idx + 1}`;
+  return `${base}.${type}`;
+}
 async function downloadSvgFigure(idx) {
-  const fig = figureViews[idx];
-  if (!fig || !fig.svg) return;
   if (idx >= getVisibleCount()) return;
-  const clone = fig.svg.cloneNode(true);
-  await inlineImages(clone);
-  const data = new XMLSerializer().serializeToString(clone);
+  const exportData = await buildExportSvg();
+  if (!exportData) return;
+  const data = new XMLSerializer().serializeToString(exportData.svg);
   const blob = new Blob([data], {
     type: "image/svg+xml"
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `kuler${idx + 1}.svg`;
+  a.download = exportFileName(idx, exportData.count, "svg");
   a.click();
   URL.revokeObjectURL(url);
 }
 async function downloadPngFigure(idx) {
-  const fig = figureViews[idx];
-  if (!fig || !fig.svg) return;
   if (idx >= getVisibleCount()) return;
-  const clone = fig.svg.cloneNode(true);
-  await inlineImages(clone);
-  const data = new XMLSerializer().serializeToString(clone);
+  const exportData = await buildExportSvg();
+  if (!exportData) return;
+  const data = new XMLSerializer().serializeToString(exportData.svg);
   const svgBlob = new Blob([data], {
     type: "image/svg+xml"
   });
@@ -734,8 +781,8 @@ async function downloadPngFigure(idx) {
   const img = new Image();
   img.onload = () => {
     const canvas = document.createElement("canvas");
-    canvas.width = VB_W;
-    canvas.height = VB_H;
+    canvas.width = exportData.layout.width;
+    canvas.height = exportData.layout.height;
     const ctx = canvas.getContext("2d");
     ctx.drawImage(img, 0, 0);
     URL.revokeObjectURL(url);
@@ -744,7 +791,7 @@ async function downloadPngFigure(idx) {
       const pngUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = pngUrl;
-      a.download = `kuler${idx + 1}.png`;
+      a.download = exportFileName(idx, exportData.count, "png");
       a.click();
       URL.revokeObjectURL(pngUrl);
     });
