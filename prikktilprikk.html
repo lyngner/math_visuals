@@ -89,6 +89,21 @@
     .legend-swatch--user { background: #2563eb; }
     .legend-swatch--predef { background: #111827; }
     .legend-swatch--answer { background: linear-gradient(45deg, #0f766e, #22d3ee); }
+    .predef-tool {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 8px;
+      padding: 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      background: #f8fafc;
+    }
+    .predef-tool__text {
+      margin: 0;
+      font-size: 13px;
+      color: #4b5563;
+    }
     .status {
       border-radius: 12px;
       padding: 12px 14px;
@@ -341,6 +356,8 @@
     }
     .toolbar--footer { justify-content: flex-end; }
     body.labels-hidden .point-label { display: none; }
+    body.is-edit-mode .predef-tool { display: flex; }
+    body.is-predef-mode .predef-tool { background: #eff6ff; border-color: #bfdbfe; }
     @media (max-width: 600px) {
       .toolbar--mode { flex-direction: column; align-items: flex-start; gap: 8px; }
     }
@@ -358,6 +375,10 @@
         <div class="figure">
           <svg id="dotBoard" viewBox="0 0 1000 700" role="img" aria-label="Prikk-til-prikk-tegning"></svg>
           <div id="boardLabelsLayer" class="board-label-layer" aria-hidden="true"></div>
+        </div>
+        <div id="predefTool" class="predef-tool" aria-live="polite">
+          <p id="predefHelperText" class="predef-tool__text">Aktiver tegning for å legge til eller fjerne forhåndsdefinerte streker.</p>
+          <button id="btnTogglePredef" class="btn btn--small" type="button">Tegn forhåndsdefinerte streker</button>
         </div>
         <p id="modeHint" class="hint"></p>
         <div class="legend">
