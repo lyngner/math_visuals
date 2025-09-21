@@ -38,7 +38,7 @@
     .card--board { gap: 16px; }
     .figure {
       border-radius: 10px;
-      background: #f9fafb;
+      background: #fff;
       border: 1px solid #e5e7eb;
       overflow: hidden;
       position: relative;
@@ -48,7 +48,9 @@
       height: clamp(320px, 60vh, 520px);
       display: block;
       touch-action: none;
-      background: #fff;
+      position: relative;
+      z-index: 1;
+      background: transparent;
     }
     .toolbar {
       display: flex;
@@ -295,6 +297,7 @@
       pointer-events: none;
       font-size: 14px;
       line-height: 1.4;
+      z-index: 0;
     }
     .board-label {
       position: absolute;
