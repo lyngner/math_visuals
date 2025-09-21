@@ -790,13 +790,22 @@
         empty.textContent = 'Ingen eksempler';
         tabsContainer.appendChild(empty);
       } else {
+        const numericLabelPattern = /^[0-9]+$/;
         examples.forEach((ex, idx) => {
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'example-tab';
-          let label = String(idx + 1);
-          if (ex && typeof ex.exampleNumber === 'string' && ex.exampleNumber.trim()) {
-            label = ex.exampleNumber.trim();
+          const defaultLabel = String(idx + 1);
+          let label = defaultLabel;
+          if (ex && typeof ex.exampleNumber === 'string') {
+            const trimmed = ex.exampleNumber.trim();
+            if (trimmed) {
+              if (!numericLabelPattern.test(trimmed)) {
+                label = trimmed;
+              } else if (Number(trimmed) === idx + 1) {
+                label = trimmed;
+              }
+            }
           }
           btn.textContent = label;
           btn.dataset.exampleIndex = String(idx);
