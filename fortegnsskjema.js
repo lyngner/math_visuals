@@ -1351,8 +1351,7 @@
       select.append(optionZero, optionPole);
       select.value = point.type === 'pole' ? 'pole' : 'zero';
       select.addEventListener('change', event => {
-        point.type = event.target.value === 'pole' ? 'pole' : 'zero';
-        renderChart();
+        setPointType(point.id, event.target.value === 'pole' ? 'pole' : 'zero');
       });
       typeLabel.appendChild(select);
       row.appendChild(typeLabel);
@@ -1514,9 +1513,14 @@
         'font-size': isPole ? 22 : 20,
         'font-weight': 700,
         fill: isPole ? '#b91c1c' : '#111827',
-        'pointer-events': 'none'
+        cursor: 'pointer'
       });
       label.textContent = isPole ? '><' : '0';
+      label.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        togglePointType(point.id);
+      });
       svg.append(label);
       const dragHandle = createSvgElement('circle', {
         cx: px,
@@ -1731,6 +1735,22 @@
       syncSegments();
       renderAll();
     }
+  }
+  function setPointType(id, type) {
+    const point = state.criticalPoints.find(p => p.id === id);
+    if (!point) return;
+    const normalized = type === 'pole' ? 'pole' : 'zero';
+    if (point.type === normalized) {
+      return;
+    }
+    point.type = normalized;
+    renderAll();
+  }
+  function togglePointType(id) {
+    const point = state.criticalPoints.find(p => p.id === id);
+    if (!point) return;
+    const nextType = point.type === 'pole' ? 'zero' : 'pole';
+    setPointType(id, nextType);
   }
   function removePoint(id) {
     const index = state.criticalPoints.findIndex(p => p.id === id);
