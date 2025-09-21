@@ -2,10 +2,13 @@
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const BOARD_WIDTH = 1000;
   const BOARD_HEIGHT = 700;
-  const LABEL_OFFSET_DISTANCE = 44;
+  const POINT_RADIUS = 18;
+  const LABEL_POINT_MARGIN = 6;
+  const LABEL_OFFSET_DISTANCE = POINT_RADIUS + LABEL_POINT_MARGIN;
   const LABEL_OFFSET_DIAGONAL = Math.round(LABEL_OFFSET_DISTANCE / Math.SQRT2);
   const LABEL_EDGE_MARGIN = 16;
-  const POINT_RADIUS = 18;
+  const LABEL_LINE_AVOIDANCE_THRESHOLD = Math.PI / 8;
+  const LABEL_LINE_PENALTY = 100;
   const DOT_RADIUS = 6;
   const DEFAULT_LABEL_FONT_SIZE = 14;
   const MIN_LABEL_FONT_SIZE = 10;
@@ -672,12 +675,13 @@
       const minAngleDiff = neighborAngles.length
         ? Math.min(...neighborAngles.map(angle => angleDistance(placementAngle, angle)))
         : Math.PI;
+      const nearLine = minAngleDiff < LABEL_LINE_AVOIDANCE_THRESHOLD;
       const left = pos.x * boardScaleX + offset.x;
       const top = pos.y * boardScaleY + offset.y;
       const insideX = left >= LABEL_EDGE_MARGIN && left <= boardWidthPx - LABEL_EDGE_MARGIN;
       const insideY = top >= LABEL_EDGE_MARGIN && top <= boardHeightPx - LABEL_EDGE_MARGIN;
       const inside = insideX && insideY;
-      const score = (inside ? 1 : 0) * 10 + minAngleDiff - index * 0.001;
+      const score = (inside ? 1 : 0) * 10 + minAngleDiff - (nearLine ? LABEL_LINE_PENALTY : 0) - index * 0.001;
       if (!best || score > best.score) {
         best = { offset, score };
       }
