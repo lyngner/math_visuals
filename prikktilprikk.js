@@ -145,7 +145,6 @@
   const sortPointsBtn = document.getElementById('btnSortPoints');
   const pointListEl = document.getElementById('pointList');
   const falsePointListEl = document.getElementById('falsePointList');
-  const showLabelsCheckbox = document.getElementById('cfg-showLabels');
   const labelFontSizeSelect = document.getElementById('cfg-labelFontSize');
   const answerCountEl = document.getElementById('answerCount');
   const predefCountEl = document.getElementById('predefCount');
@@ -206,7 +205,7 @@
       STATE.points = Array.isArray(baseState.points) ? baseState.points : [];
       STATE.answerLines = Array.isArray(baseState.answerLines) ? baseState.answerLines : [];
       STATE.predefinedLines = Array.isArray(baseState.predefinedLines) ? baseState.predefinedLines : [];
-      STATE.showLabels = baseState.showLabels !== false;
+      STATE.showLabels = true;
       STATE.labelFontSize = Number.isFinite(baseState.labelFontSize) ? baseState.labelFontSize : DEFAULT_LABEL_FONT_SIZE;
       STATE.nextPointId = Number.isFinite(baseState.nextPointId) ? baseState.nextPointId : STATE.points.length + 1;
       STATE.coordinateOrigin = typeof baseState.coordinateOrigin === 'string' ? baseState.coordinateOrigin : 'bottom-left';
@@ -214,7 +213,7 @@
     if (typeof STATE.coordinateOrigin !== 'string') STATE.coordinateOrigin = 'bottom-left';
     if (!Array.isArray(STATE.answerLines)) STATE.answerLines = [];
     if (!Array.isArray(STATE.predefinedLines)) STATE.predefinedLines = [];
-    if (typeof STATE.showLabels !== 'boolean') STATE.showLabels = true;
+    STATE.showLabels = true;
     STATE.labelFontSize = normalizeLabelFontSize(STATE.labelFontSize);
     if (!Number.isFinite(STATE.nextPointId)) STATE.nextPointId = STATE.points.length + 1;
   }
@@ -496,7 +495,7 @@
     if (!Number.isFinite(STATE.nextPointId) || STATE.nextPointId < nextCandidate) {
       STATE.nextPointId = nextCandidate;
     }
-    if (typeof STATE.showLabels !== 'boolean') STATE.showLabels = true;
+    STATE.showLabels = true;
     STATE.labelFontSize = normalizeLabelFontSize(STATE.labelFontSize);
     return validPoints;
   }
@@ -520,7 +519,6 @@
   function prepareState() {
     const validPoints = sanitizeState();
     syncBaseLines(validPoints);
-    if (showLabelsCheckbox) showLabelsCheckbox.checked = !!STATE.showLabels;
     document.body.classList.toggle('labels-hidden', !STATE.showLabels);
     applyLabelFontSize();
     syncLabelFontSizeControl();
@@ -1430,14 +1428,6 @@
       selectedPointId = null;
       clearStatus();
       updateModeUI();
-      renderBoard();
-    });
-  }
-
-  if (showLabelsCheckbox) {
-    showLabelsCheckbox.addEventListener('change', () => {
-      STATE.showLabels = showLabelsCheckbox.checked;
-      document.body.classList.toggle('labels-hidden', !STATE.showLabels);
       renderBoard();
     });
   }
