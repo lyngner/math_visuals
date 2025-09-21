@@ -795,17 +795,19 @@
         cursor: 'ew-resize'
       });
       svg.append(vertical);
-      const labelY = point.type === 'pole' ? arrowY + 6 : baseRowY + 6;
+      const isPole = point.type === 'pole';
       const label = createSvgElement('text', {
         x: px,
-        y: labelY,
+        y: baseRowY,
         'text-anchor': 'middle',
-        'font-size': 16,
-        'font-weight': 600,
-        fill: point.type === 'pole' ? '#b91c1c' : '#111827',
+        'dominant-baseline': 'middle',
+        'alignment-baseline': 'middle',
+        'font-size': isPole ? 22 : 20,
+        'font-weight': 700,
+        fill: isPole ? '#b91c1c' : '#111827',
         'pointer-events': 'none'
       });
-      label.textContent = point.type === 'pole' ? '><' : '0';
+      label.textContent = isPole ? '><' : '0';
       svg.append(label);
       const dragHandle = createSvgElement('circle', {
         cx: px,
@@ -823,6 +825,7 @@
         valueBadge.className = 'chart-overlay__value';
         valueBadge.style.left = `${px}px`;
         valueBadge.style.top = `${arrowY}px`;
+        valueBadge.title = formatPointValue(point.value);
         valueBadge.dataset.pointId = point.id;
         const valueInput = document.createElement('input');
         valueInput.type = 'number';
