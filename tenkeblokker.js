@@ -1462,9 +1462,9 @@ function drawCombinedWholeOverlayHorizontal() {
   }
   const { left, top, width, height, boardLeft, boardTop } = metrics;
   const labelOffsetY = Math.max(height * LABEL_OFFSET_RATIO, 12);
-  const gapToBlocks = Math.max(height * 0.05, 24);
-  const textPadding = Math.max(labelOffsetY * 0.5, 8);
-  const textSafeMargin = Math.max(height * 0.02, 10);
+  const gapToBlocks = Math.max(Math.min(height * 0.03, 24), 12);
+  const textPadding = Math.max(Math.min(labelOffsetY * 0.45, 10), 5);
+  const textSafeMargin = Math.max(Math.min(height * 0.012, 10), 4);
   const braceStartY = labelOffsetY + textPadding + textSafeMargin;
   const braceTick = gapToBlocks;
   const overlayTopOffset = braceStartY + braceTick;
