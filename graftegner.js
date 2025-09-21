@@ -1450,47 +1450,70 @@ function normalizeExpressionText(str) {
   if (typeof str !== 'string') return '';
   const trimmed = str.trim();
   if (!trimmed) return '';
-  if (typeof document === 'undefined' || !/[<&]/.test(trimmed)) {
-    return trimmed;
-  }
-  const tpl = document.createElement('template');
-  tpl.innerHTML = trimmed;
-  const convertNode = (node, mode) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent || '';
-      if (mode === 'sup') return mapScriptChars(text, SUPERSCRIPT_MAP);
-      if (mode === 'sub') return mapScriptChars(text, SUBSCRIPT_MAP);
-      return text;
-    }
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const tag = node.tagName.toLowerCase();
-      if (tag === 'sup') {
-        let out = '';
-        node.childNodes.forEach(child => {
-          out += convertNode(child, 'sup');
-        });
-        return out;
-      }
-      if (tag === 'sub') {
-        let out = '';
-        node.childNodes.forEach(child => {
-          out += convertNode(child, 'sub');
-        });
-        return out;
-      }
-      if (tag === 'br') {
-        return '\n';
-      }
-      let out = '';
-      node.childNodes.forEach(child => {
-        out += convertNode(child, mode);
-      });
-      return out;
-    }
-    return '';
+  const collapseWhitespace = text => text.replace(/\u00a0/g, ' ').replace(/[\t\r\f]+/g, ' ').replace(/\s+\n/g, '\n').replace(/\n\s+/g, '\n').trim();
+  const decodeBasicEntities = text => text.replace(/&nbsp;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&amp;/gi, '&');
+  const manualNormalize = input => {
+    let text = String(input);
+    const replaceScript = (pattern, map) => {
+      text = text.replace(pattern, (_, inner = '') => mapScriptChars(manualNormalize(inner), map));
+    };
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+    replaceScript(/<sup>([\s\S]*?)<\/sup>/gi, SUPERSCRIPT_MAP);
+    replaceScript(/<sub>([\s\S]*?)<\/sub>/gi, SUBSCRIPT_MAP);
+    text = text.replace(/<[^>]*>/g, '');
+    return collapseWhitespace(decodeBasicEntities(text));
   };
-  const text = Array.from(tpl.content.childNodes).map(node => convertNode(node, null)).join('');
-  return text.replace(/\u00a0/g, ' ').replace(/[\t\r\f]+/g, ' ').replace(/\s+\n/g, '\n').replace(/\n\s+/g, '\n').trim();
+  if (/[<&]/.test(trimmed) && typeof document !== 'undefined') {
+    try {
+      const tpl = document.createElement('template');
+      tpl.innerHTML = trimmed;
+      const TEXT_NODE = typeof Node !== 'undefined' && Node.TEXT_NODE != null ? Node.TEXT_NODE : 3;
+      const ELEMENT_NODE = typeof Node !== 'undefined' && Node.ELEMENT_NODE != null ? Node.ELEMENT_NODE : 1;
+      const convertNode = (node, mode) => {
+        if (!node) return '';
+        if (node.nodeType === TEXT_NODE) {
+          const text = node.textContent || '';
+          if (mode === 'sup') return mapScriptChars(text, SUPERSCRIPT_MAP);
+          if (mode === 'sub') return mapScriptChars(text, SUBSCRIPT_MAP);
+          return text;
+        }
+        if (node.nodeType === ELEMENT_NODE) {
+          const tag = node.tagName ? node.tagName.toLowerCase() : '';
+          if (tag === 'sup') {
+            let out = '';
+            node.childNodes.forEach(child => {
+              out += convertNode(child, 'sup');
+            });
+            return out;
+          }
+          if (tag === 'sub') {
+            let out = '';
+            node.childNodes.forEach(child => {
+              out += convertNode(child, 'sub');
+            });
+            return out;
+          }
+          if (tag === 'br') {
+            return '\n';
+          }
+          let out = '';
+          node.childNodes.forEach(child => {
+            out += convertNode(child, mode);
+          });
+          return out;
+        }
+        return '';
+      };
+      const text = Array.from(tpl.content.childNodes).map(node => convertNode(node, null)).join('');
+      return collapseWhitespace(text);
+    } catch (_) {
+      return manualNormalize(trimmed);
+    }
+  }
+  if (/[<&]/.test(trimmed)) {
+    return manualNormalize(trimmed);
+  }
+  return collapseWhitespace(trimmed);
 }
 function makeSmartCurveLabel(g, idx, text) {
   if (!ADV.curveName.show || !text) return;
