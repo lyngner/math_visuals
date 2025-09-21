@@ -193,6 +193,7 @@ function applyLayoutStateToSimple(layout) {
     if (totalState.maxCols !== undefined && Number.isFinite(totalState.maxCols)) CFG.SIMPLE.totalHandle.maxCols = Math.max(1, Math.round(totalState.maxCols));
     if (totalState.maxRows !== undefined && Number.isFinite(totalState.maxRows)) CFG.SIMPLE.totalHandle.maxRows = Math.max(1, Math.round(totalState.maxRows));
   }
+  enforceQuadLayoutFill(normalized);
   enforceSingleLayoutRestrictions(normalized);
 }
 function saveLayoutState(layout) {
@@ -264,6 +265,26 @@ function enforceSingleLayoutRestrictions(layout) {
   CFG.SIMPLE.length.showHandle = false;
   CFG.SIMPLE.height.showHandle = false;
   CFG.SIMPLE.totalHandle.show = true;
+}
+
+function enforceQuadLayoutFill(layout) {
+  if (normalizeLayout(layout) !== "quad") return;
+  ensureCfgDefaults();
+  if (!CFG.SIMPLE.totalHandle || typeof CFG.SIMPLE.totalHandle !== "object") {
+    CFG.SIMPLE.totalHandle = {};
+  }
+  const toPositiveInt = value => {
+    const parsed = Math.round(Number(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
+  const lengthCells = toPositiveInt(CFG.SIMPLE.length && CFG.SIMPLE.length.cells);
+  if (lengthCells != null) {
+    CFG.SIMPLE.totalHandle.maxCols = lengthCells;
+  }
+  const heightCells = toPositiveInt(CFG.SIMPLE.height && CFG.SIMPLE.height.cells);
+  if (heightCells != null) {
+    CFG.SIMPLE.totalHandle.maxRows = heightCells;
+  }
 }
 function updateLayoutUi() {
   if (typeof document === "undefined") return;
@@ -350,18 +371,23 @@ function readConfigFromHtml() {
   const totalHandleInput = document.getElementById("showTotalHandle");
   if (!CFG.SIMPLE.totalHandle) CFG.SIMPLE.totalHandle = {};
   if (totalHandleInput) CFG.SIMPLE.totalHandle.show = !!totalHandleInput.checked;
-  const lengthMaxInput = document.getElementById("lengthMax");
-  if (lengthMaxInput) {
-    const lengthMax = Math.round(parseFloat(lengthMaxInput.value));
-    if (Number.isFinite(lengthMax) && lengthMax > 0) {
-      CFG.SIMPLE.totalHandle.maxCols = lengthMax;
+  const normalizedCurrentLayout = normalizeLayout(currentLayoutMode);
+  if (normalizedCurrentLayout === "quad") {
+    enforceQuadLayoutFill(normalizedCurrentLayout);
+  } else {
+    const lengthMaxInput = document.getElementById("lengthMax");
+    if (lengthMaxInput) {
+      const lengthMax = Math.round(parseFloat(lengthMaxInput.value));
+      if (Number.isFinite(lengthMax) && lengthMax > 0) {
+        CFG.SIMPLE.totalHandle.maxCols = lengthMax;
+      }
     }
-  }
-  const heightMaxInput = document.getElementById("heightMax");
-  if (heightMaxInput) {
-    const heightMax = Math.round(parseFloat(heightMaxInput.value));
-    if (Number.isFinite(heightMax) && heightMax > 0) {
-      CFG.SIMPLE.totalHandle.maxRows = heightMax;
+    const heightMaxInput = document.getElementById("heightMax");
+    if (heightMaxInput) {
+      const heightMax = Math.round(parseFloat(heightMaxInput.value));
+      if (Number.isFinite(heightMax) && heightMax > 0) {
+        CFG.SIMPLE.totalHandle.maxRows = heightMax;
+      }
     }
   }
   CFG.ADV.grid = (_document$getElementB9 = (_document$getElementB0 = document.getElementById("grid")) === null || _document$getElementB0 === void 0 ? void 0 : _document$getElementB0.checked) !== null && _document$getElementB9 !== void 0 ? _document$getElementB9 : CFG.ADV.grid;
@@ -1976,6 +2002,7 @@ function setSimpleConfig(o = {}) {
     }
   }
   if (o.layout != null) CFG.SIMPLE.layout = normalizeLayout(o.layout);else if (o.layoutMode != null) CFG.SIMPLE.layout = normalizeLayout(o.layoutMode);
+  enforceQuadLayoutFill(CFG.SIMPLE.layout);
   const setVal = (id, v) => {
     const el = document.getElementById(id);
     if (!el || v == null) return;
@@ -2015,6 +2042,7 @@ function applyConfigToInputs() {
   if (currentLayoutMode !== normalizedLayout) {
     currentLayoutMode = normalizedLayout;
   }
+  enforceQuadLayoutFill(normalizedLayout);
   layoutStateStore[currentLayoutMode] = snapshotSimpleState(simple);
   const setVal = (id, value) => {
     const el = document.getElementById(id);
