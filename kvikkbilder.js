@@ -65,7 +65,7 @@
       dybde: 2,
       duration: 3,
       showBtn: false,
-      layerGap: 0
+      layerGap: 6
     },
     monster: {
       antallX: 2,
@@ -341,7 +341,8 @@
     brickContainer.innerHTML = '';
     brickContainer.style.gridTemplateColumns = cols > 0 ? `repeat(${cols}, 1fr)` : '';
     brickContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows}, auto)` : '';
-    const layerGap = Number.isFinite(CFG.klosser.layerGap) ? Math.max(0, CFG.klosser.layerGap) : 0;
+    const defaultLayerGap = Number.isFinite(DEFAULT_CFG.klosser.layerGap) ? DEFAULT_CFG.klosser.layerGap : 0;
+    const layerGap = Number.isFinite(CFG.klosser.layerGap) ? Math.max(0, CFG.klosser.layerGap) : defaultLayerGap;
     CFG.klosser.layerGap = layerGap;
     if (cfgKlosserLayerGap) {
       cfgKlosserLayerGap.value = String(layerGap);
