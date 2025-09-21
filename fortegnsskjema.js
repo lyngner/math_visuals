@@ -16,6 +16,8 @@
   const domainMaxInput = document.getElementById('domainMax');
   const decimalPlacesInput = document.getElementById('decimalPlaces');
   const checkStatus = document.getElementById('checkStatus');
+  const btnSvg = document.getElementById('btnSvg');
+  const btnPng = document.getElementById('btnPng');
   if (!svg || !exprInput) {
     return;
   }
@@ -37,6 +39,9 @@
     autoDomain: { ...DEFAULT_AUTO_DOMAIN },
     decimalPlaces: 4
   };
+  if (typeof window !== 'undefined') {
+    window.STATE = state;
+  }
   let pointIdCounter = 1;
   let rowIdCounter = 1;
   let currentScale = null;
@@ -61,6 +66,120 @@
     return (1 / Math.pow(10, decimals)).toString();
   }
   state.decimalPlaces = clampDecimalPlaces(state.decimalPlaces);
+  function ensureStateDefaults() {
+    state.expression = typeof state.expression === 'string' ? state.expression : state.expression == null ? '' : String(state.expression);
+    state.autoSync = !!state.autoSync;
+    state.useLinearFactors = !!state.useLinearFactors;
+    if (!Array.isArray(state.criticalPoints)) {
+      state.criticalPoints = [];
+    }
+    for (let i = state.criticalPoints.length - 1; i >= 0; i -= 1) {
+      const point = state.criticalPoints[i];
+      if (!point || typeof point !== 'object') {
+        state.criticalPoints.splice(i, 1);
+        continue;
+      }
+      if (typeof point.id !== 'string' || !point.id) {
+        point.id = `p${pointIdCounter++}`;
+      }
+      point.type = point.type === 'pole' ? 'pole' : 'zero';
+      const numericValue = Number.parseFloat(point.value);
+      point.value = Number.isFinite(numericValue) ? numericValue : 0;
+    }
+    if (!Array.isArray(state.signRows)) {
+      state.signRows = [];
+    }
+    for (let i = state.signRows.length - 1; i >= 0; i -= 1) {
+      const row = state.signRows[i];
+      if (!row || typeof row !== 'object') {
+        state.signRows.splice(i, 1);
+        continue;
+      }
+      if (typeof row.id !== 'string' || !row.id) {
+        row.id = `row-${rowIdCounter++}`;
+      }
+      if (typeof row.label !== 'string') {
+        row.label = row.label == null ? '' : String(row.label);
+      }
+      if (!Array.isArray(row.segments)) {
+        row.segments = [];
+      } else {
+        row.segments = row.segments.map(value => {
+          const num = Number.parseFloat(value);
+          if (!Number.isFinite(num)) return 1;
+          return num >= 0 ? 1 : -1;
+        });
+      }
+      row.role = row.role === 'result' || row.role === 'factor' ? row.role : 'custom';
+      row.locked = !!row.locked;
+    }
+    if (!state.domain || typeof state.domain !== 'object') {
+      state.domain = {
+        min: null,
+        max: null
+      };
+    }
+    const domainMin = Number.parseFloat(state.domain.min);
+    const domainMax = Number.parseFloat(state.domain.max);
+    state.domain.min = Number.isFinite(domainMin) ? domainMin : null;
+    state.domain.max = Number.isFinite(domainMax) ? domainMax : null;
+    if (!state.autoDomain || typeof state.autoDomain !== 'object') {
+      state.autoDomain = { ...DEFAULT_AUTO_DOMAIN };
+    } else {
+      const autoMin = Number.parseFloat(state.autoDomain.min);
+      const autoMax = Number.parseFloat(state.autoDomain.max);
+      state.autoDomain.min = Number.isFinite(autoMin) ? autoMin : DEFAULT_AUTO_DOMAIN.min;
+      state.autoDomain.max = Number.isFinite(autoMax) ? autoMax : DEFAULT_AUTO_DOMAIN.max;
+    }
+    const decimals = Number.parseFloat(state.decimalPlaces);
+    state.decimalPlaces = clampDecimalPlaces(Number.isFinite(decimals) ? decimals : MIN_DECIMAL_PLACES);
+    if (!state.solution || typeof state.solution !== 'object') {
+      state.solution = null;
+    } else {
+      const solution = state.solution;
+      if (!Array.isArray(solution.points)) solution.points = [];
+      if (!Array.isArray(solution.segments)) solution.segments = [];
+      if (!Array.isArray(solution.factorRows)) solution.factorRows = [];
+    }
+  }
+  function refreshIdCounters() {
+    let maxPoint = 0;
+    state.criticalPoints.forEach(point => {
+      if (!point || typeof point.id !== 'string') return;
+      const match = point.id.match(/(\d+)/);
+      if (!match) return;
+      const num = Number.parseInt(match[1], 10);
+      if (Number.isFinite(num)) {
+        maxPoint = Math.max(maxPoint, num);
+      }
+    });
+    pointIdCounter = Math.max(pointIdCounter, maxPoint + 1);
+    let maxRow = 0;
+    state.signRows.forEach(row => {
+      if (!row || typeof row.id !== 'string') return;
+      const match = row.id.match(/(\d+)/);
+      if (!match) return;
+      const num = Number.parseInt(match[1], 10);
+      if (Number.isFinite(num)) {
+        maxRow = Math.max(maxRow, num);
+      }
+    });
+    rowIdCounter = Math.max(rowIdCounter, maxRow + 1);
+  }
+  function applyStateToInputs() {
+    if (exprInput && document.activeElement !== exprInput) {
+      exprInput.value = state.expression || '';
+    }
+    if (autoSyncInput) {
+      autoSyncInput.checked = !!state.autoSync;
+    }
+    if (useLinearFactorsInput) {
+      useLinearFactorsInput.checked = !!state.useLinearFactors;
+    }
+    if (decimalPlacesInput && document.activeElement !== decimalPlacesInput) {
+      decimalPlacesInput.value = `${getDecimalPlaces()}`;
+    }
+  }
   function formatPointValue(value) {
     if (!Number.isFinite(value)) {
       return '';
@@ -1200,6 +1319,9 @@
     return !!state.solution;
   }
   function renderAll() {
+    ensureStateDefaults();
+    refreshIdCounters();
+    applyStateToInputs();
     sortPoints();
     syncSegments();
     renderPointsList();
@@ -1405,6 +1527,96 @@
   window.addEventListener('resize', () => {
     renderChart();
   });
+  function svgToStringForExport(svgEl) {
+    const clone = svgEl.cloneNode(true);
+    const cssText = Array.from(document.querySelectorAll('style')).map(style => style.textContent || '').join('\n');
+    if (cssText.trim()) {
+      const style = document.createElement('style');
+      style.textContent = cssText;
+      clone.insertBefore(style, clone.firstChild);
+    }
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+  }
+  function downloadSvg(svgEl, filename) {
+    if (!svgEl) return;
+    const data = svgToStringForExport(svgEl);
+    const blob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename.endsWith('.svg') ? filename : `${filename}.svg`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function downloadPng(svgEl, filename, scale = 2, background = '#fff') {
+    if (!svgEl) return;
+    const vb = svgEl.viewBox && svgEl.viewBox.baseVal;
+    const width = (vb === null || vb === void 0 ? void 0 : vb.width) || svgEl.clientWidth || 1200;
+    const height = (vb === null || vb === void 0 ? void 0 : vb.height) || svgEl.clientHeight || 800;
+    const data = svgToStringForExport(svgEl);
+    const blob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = background;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(pngBlob => {
+          if (!pngBlob) return;
+          const pngUrl = URL.createObjectURL(pngBlob);
+          const link = document.createElement('a');
+          link.href = pngUrl;
+          link.download = filename.endsWith('.png') ? filename : `${filename}.png`;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(pngUrl), 1000);
+        }, 'image/png');
+      }
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }
+  if (btnSvg) {
+    btnSvg.addEventListener('click', () => {
+      downloadSvg(svg, 'fortegnsskjema.svg');
+    });
+  }
+  if (btnPng) {
+    btnPng.addEventListener('click', () => {
+      downloadPng(svg, 'fortegnsskjema.png', 2);
+    });
+  }
+  window.addEventListener('examples:collect', event => {
+    if (!svg) return;
+    const detail = event && event.detail;
+    if (detail && detail.svgOverride == null) {
+      detail.svgOverride = svgToStringForExport(svg);
+    }
+  });
+  function applyExamplesState() {
+    setCheckMessage('');
+    renderAll();
+  }
+  if (typeof window !== 'undefined') {
+    window.STATE = state;
+    window.render = applyExamplesState;
+    window.renderAll = renderAll;
+    window.applyConfig = applyExamplesState;
+    window.applyState = applyExamplesState;
+  }
   createDefaultRow();
   renderAll();
 })();
