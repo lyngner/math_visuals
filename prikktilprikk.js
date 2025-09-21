@@ -1318,9 +1318,9 @@
 
   function updateModeUI() {
     if (modeToggleBtn) {
-      modeToggleBtn.textContent = isEditMode ? 'Gå til spillmodus' : 'Gå til redigeringsmodus';
+      modeToggleBtn.textContent = isEditMode ? 'Gå til oppgavemodus' : 'Gå til redigeringsmodus';
     }
-    if (modeLabel) modeLabel.textContent = isEditMode ? 'Redigeringsmodus' : 'Spillmodus';
+    if (modeLabel) modeLabel.textContent = isEditMode ? 'Redigeringsmodus' : 'Oppgavemodus';
     if (checkBtn) checkBtn.disabled = isEditMode;
     if (clearBtn) clearBtn.disabled = isEditMode;
     document.body.classList.toggle('is-edit-mode', isEditMode);
