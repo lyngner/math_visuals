@@ -255,8 +255,13 @@
   const answerLineElements = new Map();
 
   let realPointIds = new Set();
+  let currentValidPoints = null;
   let boardScaleX = 1;
   let boardScaleY = 1;
+
+  const activeBoardPointers = new Map();
+  let boardPanSession = null;
+  let boardPinchSession = null;
 
   let customLabelFontSizeOption = null;
 
@@ -754,6 +759,7 @@
       predefAnchorPointId = null;
       if (isPredefDrawingMode) selectedPointId = null;
     }
+    currentValidPoints = validPoints;
     return validPoints;
   }
 
@@ -807,7 +813,7 @@
     line.setAttribute('y2', pos2.y);
   }
 
-  function clientToNormalized(clientX, clientY) {
+  function clientToNormalized(clientX, clientY, viewOverride) {
     const rect = board.getBoundingClientRect();
     const width = rect.width || 1;
     const height = rect.height || 1;
@@ -815,7 +821,7 @@
     const rawY = (clientY - rect.top) / height;
     const localX = clamp01(rawX);
     const localY = clamp01(1 - rawY);
-    const view = getViewSettings();
+    const view = viewOverride && typeof viewOverride === 'object' ? viewOverride : getViewSettings();
     return {
       x: clamp01(view.panX + localX * view.viewWidth),
       y: clamp01(view.panY + localY * view.viewHeight)
@@ -925,25 +931,33 @@
     return changed;
   }
 
-  function updateZoom(rawZoom) {
+  function applyZoom(rawZoom, options) {
     const view = getViewSettings();
     const nextZoom = clampZoom(rawZoom);
+    const focus = options && typeof options.focus === 'object' ? options.focus : null;
+    const focusX = focus && Number.isFinite(focus.x) ? clamp01(focus.x) : view.panX + view.viewWidth / 2;
+    const focusY = focus && Number.isFinite(focus.y) ? clamp01(focus.y) : view.panY + view.viewHeight / 2;
     if (Math.abs(nextZoom - view.zoom) < 1e-6) {
       syncViewControls(view);
-      return;
+      return false;
     }
-    const centerX = view.panX + view.viewWidth / 2;
-    const centerY = view.panY + view.viewHeight / 2;
     const nextViewWidth = nextZoom > 0 ? 1 / nextZoom : 1;
     const nextViewHeight = nextZoom > 0 ? 1 / nextZoom : 1;
     const nextPanLimitX = Math.max(0, 1 - nextViewWidth);
     const nextPanLimitY = Math.max(0, 1 - nextViewHeight);
-    let nextPanX = centerX - nextViewWidth / 2;
-    let nextPanY = centerY - nextViewHeight / 2;
+    const offsetX = view.viewWidth > 0 ? (focusX - view.panX) / view.viewWidth : 0.5;
+    const offsetY = view.viewHeight > 0 ? (focusY - view.panY) / view.viewHeight : 0.5;
+    let nextPanX = focusX - offsetX * nextViewWidth;
+    let nextPanY = focusY - offsetY * nextViewHeight;
     nextPanX = nextPanLimitX > 0 ? clamp(nextPanX, 0, nextPanLimitX) : 0;
     nextPanY = nextPanLimitY > 0 ? clamp(nextPanY, 0, nextPanLimitY) : 0;
     STATE.view = { zoom: nextZoom, panX: nextPanX, panY: nextPanY };
-    renderBoard();
+    renderBoard(currentValidPoints);
+    return true;
+  }
+
+  function updateZoom(rawZoom) {
+    applyZoom(rawZoom);
   }
 
   function updatePan(axis, rawValue) {
@@ -962,7 +976,275 @@
       return;
     }
     STATE.view = { zoom: view.zoom, panX: nextPanX, panY: nextPanY };
-    renderBoard();
+    renderBoard(currentValidPoints);
+  }
+
+  function getBoardDimensions() {
+    if (!board) {
+      return { width: BOARD_WIDTH, height: BOARD_HEIGHT };
+    }
+    const rect = board.getBoundingClientRect();
+    const width = rect.width || BOARD_WIDTH;
+    const height = rect.height || BOARD_HEIGHT;
+    return {
+      width: width || BOARD_WIDTH,
+      height: height || BOARD_HEIGHT
+    };
+  }
+
+  function updateBoardInteractionState() {
+    if (!board) return;
+    const interacting = !!boardPanSession || !!boardPinchSession;
+    board.classList.toggle('is-panning', interacting);
+  }
+
+  function resetBoardInteractionState() {
+    activeBoardPointers.forEach((entry, pointerId) => {
+      if (!entry || !entry.captured) return;
+      try {
+        board.releasePointerCapture(pointerId);
+      } catch (_) {}
+    });
+    activeBoardPointers.clear();
+    boardPanSession = null;
+    boardPinchSession = null;
+    updateBoardInteractionState();
+  }
+
+  function getPanCapablePointers() {
+    return Array.from(activeBoardPointers.entries()).filter(([, entry]) => entry && entry.canPan);
+  }
+
+  function startBoardPanSession(pointerId, entry) {
+    if (!board || !isEditMode || !entry || !entry.canPan) return;
+    const view = getViewSettings();
+    const { width, height } = getBoardDimensions();
+    boardPanSession = {
+      pointerId,
+      startClientX: entry.clientX,
+      startClientY: entry.clientY,
+      panX: view.panX,
+      panY: view.panY,
+      boardWidth: width || 1,
+      boardHeight: height || 1
+    };
+    updateBoardInteractionState();
+  }
+
+  function endBoardPanSession() {
+    boardPanSession = null;
+    updateBoardInteractionState();
+  }
+
+  function startBoardPanSessionFromPointer(pointerId, entry) {
+    if (!entry) return;
+    startBoardPanSession(pointerId, entry);
+  }
+
+  function startBoardPinchSession() {
+    if (!board || !isEditMode || boardPinchSession) return;
+    const panPointers = getPanCapablePointers();
+    if (panPointers.length < 2) return;
+    const [id1, first] = panPointers[0];
+    const [id2, second] = panPointers[1];
+    const centerX = (first.clientX + second.clientX) / 2;
+    const centerY = (first.clientY + second.clientY) / 2;
+    const dx = second.clientX - first.clientX;
+    const dy = second.clientY - first.clientY;
+    const distance = Math.hypot(dx, dy);
+    const { width, height } = getBoardDimensions();
+    boardPinchSession = {
+      id1,
+      id2,
+      prevCenterX: centerX,
+      prevCenterY: centerY,
+      prevDistance: distance > 0 ? distance : 1,
+      boardWidth: width || 1,
+      boardHeight: height || 1
+    };
+    boardPanSession = null;
+    updateBoardInteractionState();
+  }
+
+  function endBoardPinchSession() {
+    boardPinchSession = null;
+    updateBoardInteractionState();
+  }
+
+  function updateBoardPanGesture(pointerId) {
+    if (!boardPanSession || boardPanSession.pointerId !== pointerId) return false;
+    const entry = activeBoardPointers.get(pointerId);
+    if (!entry) return false;
+    const view = getViewSettings();
+    const { width, height } = getBoardDimensions();
+    const startWidth = width || boardPanSession.boardWidth || BOARD_WIDTH;
+    const startHeight = height || boardPanSession.boardHeight || BOARD_HEIGHT;
+    const dx = entry.clientX - boardPanSession.startClientX;
+    const dy = entry.clientY - boardPanSession.startClientY;
+    const deltaX = startWidth ? dx / startWidth : 0;
+    const deltaY = startHeight ? dy / startHeight : 0;
+    let nextPanX = boardPanSession.panX - deltaX * view.viewWidth;
+    let nextPanY = boardPanSession.panY + deltaY * view.viewHeight;
+    const limitX = view.panLimitX;
+    const limitY = view.panLimitY;
+    nextPanX = limitX > 0 ? clamp(nextPanX, 0, limitX) : 0;
+    nextPanY = limitY > 0 ? clamp(nextPanY, 0, limitY) : 0;
+    if (Math.abs(nextPanX - view.panX) < 1e-6 && Math.abs(nextPanY - view.panY) < 1e-6) {
+      return false;
+    }
+    STATE.view = { zoom: view.zoom, panX: nextPanX, panY: nextPanY };
+    renderBoard(currentValidPoints);
+    const updatedView = getViewSettings();
+    boardPanSession.panX = updatedView.panX;
+    boardPanSession.panY = updatedView.panY;
+    boardPanSession.startClientX = entry.clientX;
+    boardPanSession.startClientY = entry.clientY;
+    boardPanSession.boardWidth = startWidth;
+    boardPanSession.boardHeight = startHeight;
+    return true;
+  }
+
+  function updateBoardPinchGesture() {
+    if (!boardPinchSession) return false;
+    const first = activeBoardPointers.get(boardPinchSession.id1);
+    const second = activeBoardPointers.get(boardPinchSession.id2);
+    if (!first || !second) {
+      endBoardPinchSession();
+      return false;
+    }
+    const view = getViewSettings();
+    const centerX = (first.clientX + second.clientX) / 2;
+    const centerY = (first.clientY + second.clientY) / 2;
+    const dx = second.clientX - first.clientX;
+    const dy = second.clientY - first.clientY;
+    const distance = Math.hypot(dx, dy);
+    const prevDistance = boardPinchSession.prevDistance > 0 ? boardPinchSession.prevDistance : (distance > 0 ? distance : 1);
+    let scale = 1;
+    if (distance > 0 && prevDistance > 0) {
+      scale = distance / prevDistance;
+    }
+    if (!Number.isFinite(scale) || scale <= 0) scale = 1;
+    const { width, height } = getBoardDimensions();
+    const focus = clientToNormalized(centerX, centerY, view);
+    const relX = view.viewWidth > 0 ? (focus.x - view.panX) / view.viewWidth : 0.5;
+    const relY = view.viewHeight > 0 ? (focus.y - view.panY) / view.viewHeight : 0.5;
+    let nextZoom = clampZoom(view.zoom * scale);
+    const nextViewWidth = nextZoom > 0 ? 1 / nextZoom : 1;
+    const nextViewHeight = nextZoom > 0 ? 1 / nextZoom : 1;
+    let nextPanX = focus.x - relX * nextViewWidth;
+    let nextPanY = focus.y - relY * nextViewHeight;
+    const deltaCenterX = centerX - boardPinchSession.prevCenterX;
+    const deltaCenterY = centerY - boardPinchSession.prevCenterY;
+    if (width > 0) nextPanX -= (deltaCenterX / width) * nextViewWidth;
+    if (height > 0) nextPanY += (deltaCenterY / height) * nextViewHeight;
+    const limitX = Math.max(0, 1 - nextViewWidth);
+    const limitY = Math.max(0, 1 - nextViewHeight);
+    nextPanX = limitX > 0 ? clamp(nextPanX, 0, limitX) : 0;
+    nextPanY = limitY > 0 ? clamp(nextPanY, 0, limitY) : 0;
+    const changed = Math.abs(nextPanX - view.panX) > 1e-6 || Math.abs(nextPanY - view.panY) > 1e-6 || Math.abs(nextZoom - view.zoom) > 1e-6;
+    boardPinchSession.prevCenterX = centerX;
+    boardPinchSession.prevCenterY = centerY;
+    if (distance > 0) boardPinchSession.prevDistance = distance;
+    boardPinchSession.boardWidth = width || boardPinchSession.boardWidth;
+    boardPinchSession.boardHeight = height || boardPinchSession.boardHeight;
+    if (!changed) return false;
+    STATE.view = { zoom: nextZoom, panX: nextPanX, panY: nextPanY };
+    renderBoard(currentValidPoints);
+    return true;
+  }
+
+  function handleBoardPointerDown(event) {
+    if (!board) return;
+    const target = event.target;
+    let canPan = false;
+    if (isEditMode) {
+      const pointTarget = target && typeof target.closest === 'function' && target.closest('.point');
+      const dataType = target && target.dataset ? target.dataset.type : null;
+      canPan = !pointTarget && !dataType;
+    }
+    const isPrimaryButton = event.button == null || event.button === 0;
+    const entry = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      canPan: canPan && isEditMode && isPrimaryButton,
+      captured: false
+    };
+    if (entry.canPan) {
+      try {
+        board.setPointerCapture(event.pointerId);
+        entry.captured = true;
+      } catch (_) {}
+    }
+    activeBoardPointers.set(event.pointerId, entry);
+    if (!entry.canPan) return;
+    const panPointers = getPanCapablePointers();
+    if (!boardPinchSession && panPointers.length >= 2) {
+      startBoardPinchSession();
+    } else if (!boardPinchSession && panPointers.length === 1) {
+      startBoardPanSession(event.pointerId, entry);
+    }
+  }
+
+  function handleBoardPointerMove(event) {
+    const entry = activeBoardPointers.get(event.pointerId);
+    if (!entry) return;
+    entry.clientX = event.clientX;
+    entry.clientY = event.clientY;
+    if (!isEditMode) return;
+    let handled = false;
+    if (boardPinchSession && (event.pointerId === boardPinchSession.id1 || event.pointerId === boardPinchSession.id2)) {
+      handled = updateBoardPinchGesture();
+    }
+    if (!handled && boardPanSession && boardPanSession.pointerId === event.pointerId) {
+      handled = updateBoardPanGesture(event.pointerId);
+    }
+    if (handled) event.preventDefault();
+  }
+
+  function handleBoardPointerEnd(event) {
+    const entry = activeBoardPointers.get(event.pointerId);
+    if (entry && entry.captured) {
+      try {
+        board.releasePointerCapture(event.pointerId);
+      } catch (_) {}
+    }
+    activeBoardPointers.delete(event.pointerId);
+    let wasPinchPointer = false;
+    if (boardPinchSession && (event.pointerId === boardPinchSession.id1 || event.pointerId === boardPinchSession.id2)) {
+      wasPinchPointer = true;
+      endBoardPinchSession();
+    }
+    if (boardPanSession && boardPanSession.pointerId === event.pointerId) {
+      endBoardPanSession();
+    }
+    if (isEditMode && wasPinchPointer) {
+      const panPointers = getPanCapablePointers();
+      if (panPointers.length === 1) {
+        const [id, remaining] = panPointers[0];
+        startBoardPanSessionFromPointer(id, remaining);
+      }
+    }
+    updateBoardInteractionState();
+  }
+
+  function handleBoardWheel(event) {
+    if (!isEditMode) return;
+    event.preventDefault();
+    const view = getViewSettings();
+    const deltaY = Number(event.deltaY);
+    if (!Number.isFinite(deltaY) || deltaY === 0) return;
+    const scale = Math.exp(-deltaY / 500);
+    const focus = clientToNormalized(event.clientX, event.clientY, view);
+    applyZoom(view.zoom * scale, { focus });
+  }
+
+  function updateBoardPannableState() {
+    if (!board) return;
+    const canPan = isEditMode;
+    board.classList.toggle('is-pannable', canPan);
+    if (!canPan) {
+      resetBoardInteractionState();
+    }
   }
 
   function clearDragVisualState() {
@@ -1466,12 +1748,14 @@
 
   function renderBoard(validPoints) {
     if (!validPoints) validPoints = prepareState();
+    else currentValidPoints = validPoints;
     document.body.classList.toggle('labels-hidden', !STATE.showLabels);
     applyLabelFontSize();
 
     const pointMap = new Map(STATE.points.map(p => [p.id, p]));
 
     const view = getViewSettings();
+    syncViewControls(view);
     renderGrid(view);
 
     baseGroup.innerHTML = '';
@@ -1721,6 +2005,7 @@
     if (clearBtn) clearBtn.disabled = isEditMode;
     document.body.classList.toggle('is-edit-mode', isEditMode);
     document.body.classList.toggle('is-play-mode', !isEditMode);
+    updateBoardPannableState();
     if (!isEditMode) {
       setPredefDrawingMode(false);
     } else {
@@ -1890,6 +2175,14 @@
     };
     panYRange.addEventListener('input', handlePanY);
     panYRange.addEventListener('change', handlePanY);
+  }
+
+  if (board) {
+    board.addEventListener('pointerdown', handleBoardPointerDown);
+    board.addEventListener('pointermove', handleBoardPointerMove);
+    board.addEventListener('pointerup', handleBoardPointerEnd);
+    board.addEventListener('pointercancel', handleBoardPointerEnd);
+    board.addEventListener('wheel', handleBoardWheel, { passive: false });
   }
 
   if (labelFontSizeSelect) {
