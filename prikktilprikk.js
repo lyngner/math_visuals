@@ -148,6 +148,9 @@
   const labelFontSizeSelect = document.getElementById('cfg-labelFontSize');
   const answerCountEl = document.getElementById('answerCount');
   const predefCountEl = document.getElementById('predefCount');
+  const predefToolEl = document.getElementById('predefTool');
+  const predefToggleBtn = document.getElementById('btnTogglePredef');
+  const predefHelperTextEl = document.getElementById('predefHelperText');
   const labelLayer = document.getElementById('boardLabelsLayer');
 
   attachListContainerListeners(pointListEl);
@@ -173,7 +176,9 @@
   const userLines = new Set();
 
   let isEditMode = true;
+  let isPredefDrawingMode = false;
   let selectedPointId = null;
+  let predefAnchorPointId = null;
 
   const pointEditors = new Map();
   const pointElements = new Map();
@@ -386,6 +391,87 @@
     return { a: parts[0], b: parts[1] };
   }
 
+  function removePredefinedLineByKey(key) {
+    const idx = STATE.predefinedLines.findIndex(([a, b]) => makeLineKey(a, b) === key);
+    if (idx < 0) return false;
+    STATE.predefinedLines.splice(idx, 1);
+    return true;
+  }
+
+  function togglePredefinedLineBetween(a, b) {
+    const key = makeLineKey(a, b);
+    if (!key) return null;
+    const existingIdx = STATE.predefinedLines.findIndex(([from, to]) => makeLineKey(from, to) === key);
+    if (existingIdx >= 0) {
+      STATE.predefinedLines.splice(existingIdx, 1);
+      return { added: false, key };
+    }
+    const pair = keyToPair(key);
+    STATE.predefinedLines.push([pair.a, pair.b]);
+    return { added: true, key };
+  }
+
+  function updatePredefToolUI() {
+    if (predefToolEl) predefToolEl.hidden = !isEditMode;
+    const isActive = isEditMode && isPredefDrawingMode;
+    if (predefToggleBtn) {
+      predefToggleBtn.textContent = isActive ? 'Avslutt strektegning' : 'Tegn forhåndsdefinerte streker';
+      predefToggleBtn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      predefToggleBtn.disabled = !isEditMode;
+    }
+    if (predefHelperTextEl) {
+      predefHelperTextEl.textContent = isActive
+        ? 'Klikk på to punkter for å legge til eller fjerne en forhåndsdefinert strek. Klikk på knappen når du er ferdig.'
+        : 'Aktiver tegning for å legge til eller fjerne forhåndsdefinerte streker.';
+    }
+    const body = document.body;
+    if (body) body.classList.toggle('is-predef-mode', isEditMode && isPredefDrawingMode);
+  }
+
+  function setPredefDrawingMode(active) {
+    const next = !!active && isEditMode;
+    if (next === isPredefDrawingMode) {
+      updatePredefToolUI();
+      return;
+    }
+    isPredefDrawingMode = next;
+    if (!isPredefDrawingMode) {
+      predefAnchorPointId = null;
+      selectedPointId = null;
+    }
+    updatePredefToolUI();
+    applySelectionHighlight();
+    updateModeHint();
+  }
+
+  function handlePredefLineSelection(pointId) {
+    if (!isPredefDrawingMode) return;
+    if (predefAnchorPointId == null) {
+      predefAnchorPointId = pointId;
+    } else if (predefAnchorPointId === pointId) {
+      predefAnchorPointId = null;
+      selectedPointId = null;
+      applySelectionHighlight();
+      return;
+    } else {
+      const key = makeLineKey(predefAnchorPointId, pointId);
+      if (key) {
+        const { a, b } = keyToPair(key);
+        if (realPointIds.has(a) && realPointIds.has(b)) {
+          togglePredefinedLineBetween(a, b);
+          clearStatus();
+          predefAnchorPointId = pointId;
+          selectedPointId = pointId;
+          renderBoard();
+          return;
+        }
+      }
+      predefAnchorPointId = pointId;
+    }
+    selectedPointId = predefAnchorPointId;
+    applySelectionHighlight();
+  }
+
   function sanitizeLineList(list, validPoints) {
     if (!Array.isArray(list)) return [];
     const sanitized = [];
@@ -497,6 +583,10 @@
     }
     STATE.showLabels = true;
     STATE.labelFontSize = normalizeLabelFontSize(STATE.labelFontSize);
+    if (predefAnchorPointId != null && !validPoints.has(predefAnchorPointId)) {
+      predefAnchorPointId = null;
+      if (isPredefDrawingMode) selectedPointId = null;
+    }
     return validPoints;
   }
 
@@ -1109,6 +1199,17 @@
       if (key) {
         line.dataset.key = key;
         line.dataset.type = 'predefined';
+        line.addEventListener('pointerdown', event => {
+          if (!isEditMode || !isPredefDrawingMode) return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (removePredefinedLineByKey(key)) {
+            predefAnchorPointId = null;
+            selectedPointId = null;
+            clearStatus();
+            renderBoard();
+          }
+        });
         baseLineElements.set(key, { element: line, a, b });
       }
       baseGroup.appendChild(line);
@@ -1191,6 +1292,11 @@
 
   function handlePointSelection(pointId) {
     if (isEditMode) {
+      if (isPredefDrawingMode) {
+        handlePredefLineSelection(pointId);
+        return;
+      }
+      predefAnchorPointId = null;
       selectedPointId = selectedPointId === pointId ? null : pointId;
       applySelectionHighlight();
       return;
@@ -1308,7 +1414,11 @@
   function updateModeHint() {
     if (!modeHint) return;
     if (isEditMode) {
-      modeHint.textContent = 'Fasit-strekene følger rekkefølgen på ekte punkter. Dra i punktene for å endre plassering.';
+      if (isPredefDrawingMode) {
+        modeHint.textContent = 'Tegn forhåndsdefinerte streker ved å klikke på to punkter. Klikk på knappen under figuren når du er ferdig.';
+      } else {
+        modeHint.textContent = 'Fasit-strekene følger rekkefølgen på ekte punkter. Dra i punktene for å endre plassering.';
+      }
       return;
     }
     modeHint.textContent = 'Klikk på to punkter for å tegne en strek. Klikk på en strek for å fjerne den.';
@@ -1323,6 +1433,11 @@
     if (clearBtn) clearBtn.disabled = isEditMode;
     document.body.classList.toggle('is-edit-mode', isEditMode);
     document.body.classList.toggle('is-play-mode', !isEditMode);
+    if (!isEditMode) {
+      setPredefDrawingMode(false);
+    } else {
+      updatePredefToolUI();
+    }
     updateModeHint();
   }
 
@@ -1371,6 +1486,7 @@
     });
     toDelete.forEach(key => userLines.delete(key));
     if (selectedPointId === pointId) selectedPointId = null;
+    if (predefAnchorPointId === pointId) predefAnchorPointId = null;
     renderPointList();
     renderBoard();
     clearStatus();
@@ -1422,10 +1538,18 @@
     });
   }
 
+  if (predefToggleBtn) {
+    predefToggleBtn.addEventListener('click', () => {
+      if (!isEditMode) return;
+      setPredefDrawingMode(!isPredefDrawingMode);
+    });
+  }
+
   if (modeToggleBtn) {
     modeToggleBtn.addEventListener('click', () => {
       isEditMode = !isEditMode;
       selectedPointId = null;
+      if (!isEditMode) predefAnchorPointId = null;
       clearStatus();
       updateModeUI();
       renderBoard();
@@ -1450,6 +1574,7 @@
     clearStatus();
   });
 
+  updatePredefToolUI();
   rebuildAll(true);
   clearStatus();
 
