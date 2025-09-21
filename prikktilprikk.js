@@ -205,7 +205,6 @@
   const statusBox = document.getElementById('statusMessage');
   const addPointBtn = document.getElementById('btnAddPoint');
   const addPointFalseBtn = document.getElementById('btnAddPointFalse');
-  const sortPointsBtn = document.getElementById('btnSortPoints');
   const pointListEl = document.getElementById('pointList');
   const falsePointListEl = document.getElementById('falsePointList');
   const labelFontSizeSelect = document.getElementById('cfg-labelFontSize');
@@ -2402,13 +2401,6 @@
   if (addPointFalseBtn) {
     addPointFalseBtn.addEventListener('click', () => {
       addPoint(true);
-    });
-  }
-
-  if (sortPointsBtn) {
-    sortPointsBtn.addEventListener('click', () => {
-      sortPoints();
-      clearStatus();
     });
   }
 
