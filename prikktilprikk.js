@@ -151,6 +151,9 @@
   const predefCountEl = document.getElementById('predefCount');
   const labelLayer = document.getElementById('boardLabelsLayer');
 
+  attachListContainerListeners(pointListEl);
+  attachListContainerListeners(falsePointListEl);
+
   const baseGroup = document.createElementNS(SVG_NS, 'g');
   const userGroup = document.createElementNS(SVG_NS, 'g');
   const answerGroup = document.createElementNS(SVG_NS, 'g');
@@ -668,7 +671,8 @@
         if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
       });
       dragPlaceholderEl.addEventListener('drop', event => {
-        handlePointDrop(event);
+        const container = dragPlaceholderEl ? dragPlaceholderEl.parentNode : null;
+        handlePointDrop(event, null, container);
       });
     }
     const height = draggingItemHeight || (referenceItem ? referenceItem.getBoundingClientRect().height : 0);
@@ -782,11 +786,65 @@
     return true;
   }
 
-  function handlePointDrop(event, targetPointId) {
+  function resolveListContainer(element) {
+    let current = element;
+    while (current) {
+      if (current === pointListEl || current === falsePointListEl) return current;
+      current = current.parentNode;
+    }
+    return null;
+  }
+
+  function findLastPointIndex(predicate) {
+    for (let i = STATE.points.length - 1; i >= 0; i -= 1) {
+      const point = STATE.points[i];
+      if (predicate(point, i)) return i;
+    }
+    return -1;
+  }
+
+  function movePointToContainerEnd(pointId, container) {
+    if (!container) return false;
+    const sourceIdx = STATE.points.findIndex(p => p.id === pointId);
+    if (sourceIdx < 0) return false;
+    const [entry] = STATE.points.splice(sourceIdx, 1);
+    if (!entry) return false;
+    let insertIndex = STATE.points.length;
+    if (container === pointListEl) {
+      const lastTrueIndex = findLastPointIndex(point => point && !point.isFalse);
+      insertIndex = lastTrueIndex >= 0 ? lastTrueIndex + 1 : 0;
+    } else if (container === falsePointListEl) {
+      const lastFalseIndex = findLastPointIndex(point => point && point.isFalse);
+      insertIndex = lastFalseIndex >= 0 ? lastFalseIndex + 1 : STATE.points.length;
+    }
+    STATE.points.splice(insertIndex, 0, entry);
+    return true;
+  }
+
+  function attachListContainerListeners(container) {
+    if (!container) return;
+    container.addEventListener('dragover', event => {
+      if (!draggedPointId) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    });
+    container.addEventListener('drop', event => {
+      if (!draggedPointId) return;
+      let targetEl = event.target;
+      while (targetEl && targetEl !== container) {
+        if (targetEl.classList && targetEl.classList.contains('point-item')) return;
+        targetEl = targetEl.parentNode;
+      }
+      handlePointDrop(event, null, container);
+    });
+  }
+
+  function handlePointDrop(event, targetPointId, targetContainer) {
     if (!draggedPointId) return;
     event.preventDefault();
     event.stopPropagation();
     const sourceId = draggedPointId;
+    const point = STATE.points.find(p => p.id === sourceId);
     let resolvedTarget = dropTargetPointId || targetPointId;
     if (!resolvedTarget && dragPlaceholderEl && dragPlaceholderEl.dataset.dropTargetId) {
       resolvedTarget = dragPlaceholderEl.dataset.dropTargetId;
@@ -799,12 +857,29 @@
       const datasetSource = (dropTargetEl && dropTargetEl.dataset) || (event.currentTarget && event.currentTarget.dataset) || (dragPlaceholderEl && dragPlaceholderEl.dataset) || {};
       if (datasetSource.dropPosition) placeAfter = datasetSource.dropPosition === 'after';
     }
-    const changed = resolvedTarget ? reorderPoints(sourceId, resolvedTarget, placeAfter) : false;
+    const dropContainer = resolveListContainer(targetContainer || (dropTargetEl ? dropTargetEl.parentNode : null) || (dragPlaceholderEl ? dragPlaceholderEl.parentNode : null) || (event.currentTarget ? event.currentTarget.parentNode : null));
+    const targetPoint = resolvedTarget ? STATE.points.find(p => p.id === resolvedTarget) : null;
+    let willBeFalse;
+    if (dropContainer === falsePointListEl) willBeFalse = true;
+    else if (dropContainer === pointListEl) willBeFalse = false;
+    else if (targetPoint) willBeFalse = !!targetPoint.isFalse;
+    else willBeFalse = point ? !!point.isFalse : false;
+    let changed = false;
+    if (resolvedTarget) {
+      changed = reorderPoints(sourceId, resolvedTarget, placeAfter);
+    } else {
+      changed = movePointToContainerEnd(sourceId, dropContainer) || changed;
+    }
     handlePointDragEnd();
+    if (point && point.isFalse !== willBeFalse) {
+      point.isFalse = willBeFalse;
+      changed = true;
+    }
     if (!changed) return;
     const validPoints = prepareState();
     renderPointList(validPoints);
     renderBoard(validPoints);
+    clearStatus();
   }
 
   function sortPoints() {
@@ -821,13 +896,6 @@
     const validPoints = prepareState();
     renderPointList(validPoints);
     renderBoard(validPoints);
-  }
-
-  function updatePointTypeToggle(button, isFalse) {
-    if (!button) return;
-    const nextState = isFalse ? 'ekte' : 'falskt';
-    button.textContent = isFalse ? 'Gjør ekte' : 'Gjør falsk';
-    button.setAttribute('aria-label', `Marker som ${nextState} punkt`);
   }
 
   function renderPointList(validPoints) {
@@ -919,21 +987,6 @@
       const actions = document.createElement('div');
       actions.className = 'point-actions';
 
-      const toggleBtn = document.createElement('button');
-      toggleBtn.type = 'button';
-      toggleBtn.className = 'btn btn--small point-type-toggle';
-      updatePointTypeToggle(toggleBtn, point.isFalse);
-      toggleBtn.addEventListener('click', event => {
-        event.preventDefault();
-        event.stopPropagation();
-        point.isFalse = !point.isFalse;
-        const valid = prepareState();
-        renderPointList(valid);
-        renderBoard(valid);
-        clearStatus();
-      });
-      actions.appendChild(toggleBtn);
-
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.className = 'btn btn--small point-remove';
@@ -954,7 +1007,7 @@
         handlePointDragLeave(event, item);
       });
       item.addEventListener('drop', event => {
-        handlePointDrop(event, point.id);
+        handlePointDrop(event, point.id, item.parentNode);
       });
 
       const targetList = point.isFalse && falsePointListEl ? falsePointListEl : pointListEl;
@@ -962,8 +1015,7 @@
       pointEditors.set(point.id, {
         itemEl: item,
         coordInput,
-        labelInput,
-        typeToggle: toggleBtn
+        labelInput
       });
     });
 
@@ -1036,7 +1088,6 @@
       if (editor.labelInput) editor.labelInput.value = point.label;
       if (editor.coordInput) editor.coordInput.value = coordinateString(point);
       if (editor.itemEl) editor.itemEl.dataset.pointId = point.id;
-      if (editor.typeToggle) updatePointTypeToggle(editor.typeToggle, point.isFalse);
     });
   }
 
