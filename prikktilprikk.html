@@ -327,28 +327,11 @@
       font-size: 13px;
       color: #6b7280;
     }
-    .point-label-editor {
-      display: flex;
-      flex-direction: column;
-      flex: 2 1 200px;
-      gap: 6px;
+    .point-input--label {
+      flex: 0 1 200px;
+      width: 100%;
+      max-width: 200px;
     }
-    .point-label-editor .point-input--label { width: 100%; }
-    .point-label-preview {
-      min-height: 20px;
-      font-size: 13px;
-      color: #1f2937;
-      padding: 2px 4px;
-      border-radius: 8px;
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-    }
-    .point-label-preview:empty::before {
-      content: 'Forhåndsvisning';
-      color: #9ca3af;
-      font-style: italic;
-    }
-    .point-label-preview .katex { font-size: 1em; }
     .false-point-list {
       display: grid;
       gap: 6px;
