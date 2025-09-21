@@ -1008,8 +1008,8 @@ function draw() {
       hDownCY = MT + H;
     const cornerCX = ML + W,
       cornerCY = MT;
-    const handleLeftVisible = showLeftHandle && hasHorizontalDivision;
-    const handleDownVisible = showBottomHandle && hasVerticalDivision;
+    const handleLeftVisible = showLeftHandle;
+    const handleDownVisible = showBottomHandle;
     const handleCornerVisible = showTotalHandle;
     if (handleLeft) {
       set(handleLeft, "x", hLeftCX - HANDLE_SIZE / 2);
