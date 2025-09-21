@@ -417,6 +417,10 @@ function draw() {
 
   // pilstørrelse + auto-margin
   const HANDLE_SIZE = Math.max(12, (_ADV$handleIcons$size = (_ADV$handleIcons = ADV.handleIcons) === null || _ADV$handleIcons === void 0 ? void 0 : _ADV$handleIcons.size) !== null && _ADV$handleIcons$size !== void 0 ? _ADV$handleIcons$size : 84);
+  const HOT_ZONE = {
+    x: Math.max(18, Math.round(HANDLE_SIZE * 0.45)),
+    y: Math.max(18, Math.round(HANDLE_SIZE * 0.45))
+  };
   const CORNER_RADIUS = Math.max(14, Math.min(28, HANDLE_SIZE * 0.35));
   const MLconf = (_ADV$margins$l = (_ADV$margins = ADV.margins) === null || _ADV$margins === void 0 ? void 0 : _ADV$margins.l) !== null && _ADV$margins$l !== void 0 ? _ADV$margins$l : 80;
   const MR = (_ADV$margins$r = (_ADV$margins2 = ADV.margins) === null || _ADV$margins2 === void 0 ? void 0 : _ADV$margins2.r) !== null && _ADV$margins$r !== void 0 ? _ADV$margins$r : 40;
@@ -617,6 +621,8 @@ function draw() {
     display: "block",
     touchAction: "none"
   });
+  svg.style.userSelect = "none";
+  svg.style.webkitUserSelect = "none";
   const rectOuter = el("rect");
   set(rectOuter, "x", ML);
   set(rectOuter, "y", MT);
@@ -688,6 +694,8 @@ function draw() {
     hitLeft = null,
     hitDown = null,
     hitCorner = null,
+    hotLeft = null,
+    hotBottom = null,
     a11yLeft = null,
     a11yLeftRect = null,
     a11yDown = null,
@@ -701,6 +709,12 @@ function draw() {
     set(handleLeft, "height", HANDLE_SIZE);
     set(handleLeft, "href", V_ICON_URL);
     svg.append(handleLeft);
+    hotLeft = el("rect");
+    set(hotLeft, "class", "hot");
+    set(hotLeft, "width", HOT_ZONE.x);
+    set(hotLeft, "height", H);
+    set(hotLeft, "aria-hidden", "true");
+    svg.append(hotLeft);
     hitLeft = el("circle");
     set(hitLeft, "class", "handleHit");
     set(hitLeft, "r", HANDLE_SIZE * 0.55);
@@ -729,6 +743,12 @@ function draw() {
     set(handleDown, "height", HANDLE_SIZE);
     set(handleDown, "href", H_ICON_URL);
     svg.append(handleDown);
+    hotBottom = el("rect");
+    set(hotBottom, "class", "hot");
+    set(hotBottom, "width", W);
+    set(hotBottom, "height", HOT_ZONE.y);
+    set(hotBottom, "aria-hidden", "true");
+    svg.append(hotBottom);
     hitDown = el("circle");
     set(hitDown, "class", "handleHit");
     set(hitDown, "r", HANDLE_SIZE * 0.55);
@@ -824,11 +844,33 @@ function draw() {
 
   // ------- rAF-basert redraw -------
   let rafId = 0;
-  function scheduleRedraw() {
+  let isRedrawing = false;
+  let redrawQueued = false;
+  function runRedraw() {
+    if (isRedrawing) {
+      redrawQueued = true;
+      return;
+    }
+    isRedrawing = true;
+    do {
+      redrawQueued = false;
+      redraw();
+    } while (redrawQueued);
+    isRedrawing = false;
+  }
+  function scheduleRedraw(immediate = false) {
+    if (immediate) {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+      runRedraw();
+      return;
+    }
     if (rafId) return;
     rafId = requestAnimationFrame(() => {
       rafId = 0;
-      redraw();
+      runRedraw();
     });
   }
   function redraw() {
@@ -953,10 +995,22 @@ function draw() {
       set(handleDown, "y", hDownCY - HANDLE_SIZE / 2);
       setDisplay(handleDown, handleDownVisible);
     }
+    if (hotLeft) {
+      set(hotLeft, "x", ML - HOT_ZONE.x);
+      set(hotLeft, "y", MT);
+      set(hotLeft, "height", H);
+      setDisplay(hotLeft, handleLeftVisible);
+    }
     if (hitLeft) {
       set(hitLeft, "cx", hLeftCX);
       set(hitLeft, "cy", hLeftCY);
       setDisplay(hitLeft, handleLeftVisible);
+    }
+    if (hotBottom) {
+      set(hotBottom, "x", ML);
+      set(hotBottom, "y", MT + H);
+      set(hotBottom, "width", W);
+      setDisplay(hotBottom, handleDownVisible);
     }
     if (hitDown) {
       set(hitDown, "cx", hDownCX);
@@ -1090,9 +1144,11 @@ function draw() {
 
     // hold håndtak/hit-soner øverst
     if (handleLeft) svg.append(handleLeft);
+    if (hotLeft) svg.append(hotLeft);
     if (hitLeft) svg.append(hitLeft);
     if (a11yLeft) svg.append(a11yLeft);
     if (handleDown) svg.append(handleDown);
+    if (hotBottom) svg.append(hotBottom);
     if (hitDown) svg.append(hitDown);
     if (a11yDown) svg.append(a11yDown);
     if (handleCorner) svg.append(handleCorner);
@@ -1152,16 +1208,28 @@ function draw() {
     }, 220);
   };
   function lockTouch() {
-    document.documentElement.style.touchAction = "none";
-    document.body.style.touchAction = "none";
-    document.documentElement.style.overscrollBehavior = "contain";
-    document.body.style.overscrollBehavior = "contain";
+    const docElStyle = document.documentElement.style;
+    const bodyStyle = document.body.style;
+    docElStyle.touchAction = "none";
+    bodyStyle.touchAction = "none";
+    docElStyle.overscrollBehavior = "contain";
+    bodyStyle.overscrollBehavior = "contain";
+    docElStyle.userSelect = "none";
+    bodyStyle.userSelect = "none";
+    docElStyle.webkitUserSelect = "none";
+    bodyStyle.webkitUserSelect = "none";
   }
   function unlockTouch() {
-    document.documentElement.style.touchAction = "";
-    document.body.style.touchAction = "";
-    document.documentElement.style.overscrollBehavior = "";
-    document.body.style.overscrollBehavior = "";
+    const docElStyle = document.documentElement.style;
+    const bodyStyle = document.body.style;
+    docElStyle.touchAction = "";
+    bodyStyle.touchAction = "";
+    docElStyle.overscrollBehavior = "";
+    bodyStyle.overscrollBehavior = "";
+    docElStyle.userSelect = "";
+    bodyStyle.userSelect = "";
+    docElStyle.webkitUserSelect = "";
+    bodyStyle.webkitUserSelect = "";
   }
   function onMove(e) {
     if (e.pointerId !== active.pointerId) return;
@@ -1172,14 +1240,14 @@ function draw() {
       const newSy = MT + H - y;
       if (newSy !== sy) {
         sy = newSy;
-        scheduleRedraw();
+        scheduleRedraw(true);
       }
     } else if (active.axis === "h") {
       const x = clampAxisX(p.x);
       const newSx = x - ML;
       if (newSx !== sx) {
         sx = newSx;
-        scheduleRedraw();
+        scheduleRedraw(true);
       }
     } else if (active.axis === "corner") {
       const deltaX = p.x - (active.startPointerX != null ? active.startPointerX : 0);
@@ -1193,7 +1261,7 @@ function draw() {
       if (nextCols !== cols || nextRows !== rows) {
         cols = nextCols;
         rows = nextRows;
-        scheduleRedraw();
+        scheduleRedraw(true);
       }
     }
   }
@@ -1220,7 +1288,7 @@ function draw() {
     window.removeEventListener("pointercancel", onUp);
     unlockTouch();
     armJustDragged();
-    scheduleRedraw();
+    scheduleRedraw(true);
   }
   function startDrag(axis, e) {
     refreshSvgRect();
@@ -1261,9 +1329,27 @@ function draw() {
       passive: false
     });
   }
+  if (dragVertical && hotLeft) {
+    hotLeft.style.touchAction = "none";
+    hotLeft.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      startDrag("v", e);
+    }, {
+      passive: false
+    });
+  }
   if (dragHorizontal && hitDown) {
     hitDown.style.touchAction = "none";
     hitDown.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      startDrag("h", e);
+    }, {
+      passive: false
+    });
+  }
+  if (dragHorizontal && hotBottom) {
+    hotBottom.style.touchAction = "none";
+    hotBottom.addEventListener("pointerdown", e => {
       e.preventDefault();
       startDrag("h", e);
     }, {
@@ -1307,7 +1393,7 @@ function draw() {
       }
       if (handled) {
         e.preventDefault();
-        scheduleRedraw();
+        scheduleRedraw(true);
       }
     });
   }
@@ -1327,7 +1413,7 @@ function draw() {
       }
       if (handled) {
         e.preventDefault();
-        scheduleRedraw();
+        scheduleRedraw(true);
       }
     });
   }
@@ -1353,7 +1439,7 @@ function draw() {
       }
       if (handled) {
         e.preventDefault();
-        scheduleRedraw();
+        scheduleRedraw(true);
       }
     });
   }
@@ -1363,11 +1449,11 @@ function draw() {
     const p = clientToSvg(e);
     if (dragVertical && showHeightAxis && Math.abs(p.x - ML) < 12 && p.y >= MT && p.y <= MT + H) {
       sy = snap(MT + H - clampAxisY(p.y));
-      scheduleRedraw();
+      scheduleRedraw(true);
     }
     if (dragHorizontal && showLengthAxis && Math.abs(p.y - (MT + H)) < 12 && p.x >= ML && p.x <= ML + W) {
       sx = snap(clampAxisX(p.x) - ML);
-      scheduleRedraw();
+      scheduleRedraw(true);
     }
   };
   if (clickToMove) {
@@ -1573,16 +1659,19 @@ function draw() {
 .c3 { fill: ${cols[2]}; }
 .c4 { fill: ${cols[3]}; }
 
+
 .grid line { stroke: #000; stroke-opacity: .28; stroke-width: 1; pointer-events: none; }
 .labelCell { font: 600 22px system-ui, -apple-system, Segoe UI, Roboto, Arial; fill: #222; pointer-events: none; }
 .labelEdge { font: 600 26px system-ui, -apple-system, Segoe UI, Roboto, Arial; fill: #333; pointer-events: none; }
+svg text { user-select: none; -webkit-user-select: none; }
 
 .handleImg { pointer-events: none; }
-.handleCorner { fill: #ecebf6; stroke: #333; stroke-width: 2; cursor: grab; pointer-events: all; }
+.handleCorner { fill: #ecebf6; stroke: #333; stroke-width: 2; cursor: grab; pointer-events: all; user-select: none; -webkit-user-select: none; }
 .handleCorner.dragging { cursor: grabbing; }
 .handleHit, .hot, svg { touch-action: none; }
-.handleHit { fill: rgba(0,0,0,0.004); cursor: grab; pointer-events: all; }
-.hot { fill: transparent; pointer-events: all; }
+.handleHit { fill: rgba(0,0,0,0.004); cursor: grab; pointer-events: all; user-select: none; -webkit-user-select: none; }
+.hot { fill: transparent; pointer-events: all; cursor: grab; user-select: none; -webkit-user-select: none; }
+.hot.dragging { cursor: grabbing; }
 `;
   }
   function injectRuntimeStyles() {
@@ -1637,8 +1726,8 @@ function draw() {
     // Start på riktig posisjon
     const hLeftHit = includeHandleHits && o.showHeightAxis ? '<circle id="hLeftHit" class="handleHit" r="' + HS * 0.55 + '" cx="' + ML + '" cy="' + (MT + topHeight) + '" style="cursor:grab"/>' : "";
     const hDownHit = includeHandleHits && o.showLengthAxis ? '<circle id="hDownHit" class="handleHit" r="' + HS * 0.55 + '" cx="' + (ML + leftWidth) + '" cy="' + (MT + o.height) + '" style="cursor:grab"/>' : "";
-    const hotLeftStr = includeHotZones && o.showHeightAxis ? '<rect id="hotLeft" class="hot" x="' + (ML - 10) + '" y="' + MT + '" width="10" height="' + o.height + '"/>' : "";
-    const hotBottomStr = includeHotZones && o.showLengthAxis ? '<rect id="hotBottom" class="hot" x="' + ML + '" y="' + (MT + o.height) + '" width="' + o.width + '" height="10"/>' : "";
+    const hotLeftStr = includeHotZones && o.showHeightAxis ? '<rect id="hotLeft" class="hot" x="' + (ML - HOT_ZONE.x) + '" y="' + MT + '" width="' + HOT_ZONE.x + '" height="' + o.height + '"/>' : "";
+    const hotBottomStr = includeHotZones && o.showLengthAxis ? '<rect id="hotBottom" class="hot" x="' + ML + '" y="' + (MT + o.height) + '" width="' + o.width + '" height="' + HOT_ZONE.y + '"/>' : "";
     const parts = [];
     if (includeXmlHeader) parts.push('<?xml version="1.0" encoding="UTF-8"?>');
     parts.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + o.vbw + ' ' + o.vbh + '" width="' + o.vbw + '" height="' + o.vbh + '" tabindex="0">');
@@ -1687,11 +1776,11 @@ function draw() {
     const clickParts = [];
     if (includeClickToMove) {
       if (showHeightAxis) {
-        clickParts.push("if(Math.abs(p.x-ML)<12 && p.y>=MT && p.y<=MT+H){ var clampedY=clampAxisY(p.y); sy=Math.round(((MT+H)-clampedY)/UNIT)*UNIT; schedule(); }");
+        clickParts.push("if(Math.abs(p.x-ML)<12 && p.y>=MT && p.y<=MT+H){ var clampedY=clampAxisY(p.y); sy=Math.round(((MT+H)-clampedY)/UNIT)*UNIT; schedule(true); }");
       }
       if (showLengthAxis) {
         const prefix = showHeightAxis ? "else " : "";
-        clickParts.push(prefix + "if(Math.abs(p.y-(MT+H))<12 && p.x>=ML && p.x<=ML+W){ var clampedX=clampAxisX(p.x); sx=Math.round((clampedX-ML)/UNIT)*UNIT; schedule(); }");
+        clickParts.push(prefix + "if(Math.abs(p.y-(MT+H))<12 && p.x>=ML && p.x<=ML+W){ var clampedX=clampAxisX(p.x); sx=Math.round((clampedX-ML)/UNIT)*UNIT; schedule(true); }");
       }
     }
     const clickHandler = includeClickToMove ? "root.addEventListener('click',function(e){ if(justDragged) return; var p=clientToSvg(e); " + clickParts.join(" ") + " });" : "";
@@ -1713,6 +1802,7 @@ function draw() {
     lines.push("var minSX=minColsEachSide*UNIT, maxSX=(COLS-minColsEachSide)*UNIT, minSY=minRowsEachSide*UNIT, maxSY=(ROWS-minRowsEachSide)*UNIT;");
     lines.push(`var SPLIT_C=${JSON.stringify(splitClass)};`);
     lines.push(`var HS=${(_o$handleSize2 = o.handleSize) !== null && _o$handleSize2 !== void 0 ? _o$handleSize2 : 84}, GAPX=${gapX}, GAPY=${gapY};`);
+    lines.push("var HOT_ZONE_X=Math.max(18, Math.round(HS * 0.45)), HOT_ZONE_Y=Math.max(18, Math.round(HS * 0.45));");
     lines.push(`var SAFE=${JSON.stringify(safePad)};`);
     lines.push(`var root=${rootExpr}; root.style.touchAction='none';`);
     lines.push("var rTL=document.getElementById('rTL'), rTR=document.getElementById('rTR'), rBL=document.getElementById('rBL'), rBR=document.getElementById('rBR');");
@@ -1763,7 +1853,9 @@ function draw() {
     lines.push("}");
     lines.push("var rect=root.getBoundingClientRect(); function refreshRect(){ rect=root.getBoundingClientRect(); }");
     lines.push("function clientToSvg(e){ var sxp=vb.width/rect.width, syp=vb.height/rect.height; return { x: vb.x+(e.clientX-rect.left)*sxp, y: vb.y+(e.clientY-rect.top)*syp }; }");
-    lines.push("var raf=0; function schedule(){ if(raf) return; raf=requestAnimationFrame(function(){ raf=0; redraw(); }); }");
+    lines.push("var raf=0, redrawing=false, redrawQueued=false;");
+    lines.push("function runRedraw(){ if(redrawing){ redrawQueued=true; return; } redrawing=true; do { redrawQueued=false; redraw(); } while(redrawQueued); redrawing=false; }");
+    lines.push("function schedule(immediate){ if(immediate){ if(raf){ cancelAnimationFrame(raf); raf=0; } runRedraw(); return; } if(raf) return; raf=requestAnimationFrame(function(){ raf=0; runRedraw(); }); }");
     lines.push("function redraw(){");
     lines.push("  sx = clampSxValue(sx); sy = clampSyValue(sy);");
     lines.push("  var state = computeLayoutState(layoutMode, W, H, COLS, ROWS, sx, sy, UNIT);");
@@ -1782,10 +1874,14 @@ function draw() {
     lines.push("  if(vLine){ setDisplay(vLine, showVSplit); if(showVSplit){ set(vLine,'x1',ML+leftWidth); set(vLine,'y1',MT); set(vLine,'x2',ML+leftWidth); set(vLine,'y2',MT+H); } }");
     lines.push("  if(hLine){ setDisplay(hLine, showHSplit); if(showHSplit){ set(hLine,'x1',ML); set(hLine,'y1',MT+topHeight); set(hLine,'x2',ML+W); set(hLine,'y2',MT+topHeight); } }");
     lines.push("  var hLeftCX=ML, hLeftCY=MT+topHeight, hDownCX=ML+leftWidth, hDownCY=MT+H;");
-    lines.push("  if(hLeft){ set(hLeft,'x',hLeftCX-HS/2); set(hLeft,'y',hLeftCY-HS/2); }");
-    lines.push("  if(hDown){ set(hDown,'x',hDownCX-HS/2); set(hDown,'y',hDownCY-HS/2); }");
-    lines.push("  if(hitLeft){ set(hitLeft,'cx',hLeftCX); set(hitLeft,'cy',hLeftCY); }");
-    lines.push("  if(hitDown){ set(hitDown,'cx',hDownCX); set(hitDown,'cy',hDownCY); }");
+    lines.push("  var handleLeftVisible = showHeightAxis && topHeight > 0 && bottomHeight > 0;");
+    lines.push("  var handleDownVisible = showLengthAxis && leftWidth > 0 && rightWidth > 0;");
+    lines.push("  if(hLeft){ set(hLeft,'x',hLeftCX-HS/2); set(hLeft,'y',hLeftCY-HS/2); setDisplay(hLeft, handleLeftVisible); }");
+    lines.push("  if(hDown){ set(hDown,'x',hDownCX-HS/2); set(hDown,'y',hDownCY-HS/2); setDisplay(hDown, handleDownVisible); }");
+    lines.push("  if(hitLeft){ set(hitLeft,'cx',hLeftCX); set(hitLeft,'cy',hLeftCY); setDisplay(hitLeft, handleLeftVisible); }");
+    lines.push("  if(hitDown){ set(hitDown,'cx',hDownCX); set(hitDown,'cy',hDownCY); setDisplay(hitDown, handleDownVisible); }");
+    lines.push("  if(hotLeft){ set(hotLeft,'x',ML-HOT_ZONE_X); set(hotLeft,'y',MT); set(hotLeft,'height',H); setDisplay(hotLeft, handleLeftVisible); }");
+    lines.push("  if(hotBottom){ set(hotBottom,'x',ML); set(hotBottom,'y',MT+H); set(hotBottom,'width',W); setDisplay(hotBottom, handleDownVisible); }");
     lines.push("  var leftOutsideX = ML-(HS/2)-GAPX;");
     lines.push("  var bottomOutsideY = MT+H+(HS/2)+GAPY;");
     lines.push("  var showTLText = state.showTopLeft && wL > 0 && hT > 0;");
@@ -1806,21 +1902,25 @@ function draw() {
     lines.push("  if(vLine){ vLine.setAttribute('class', SPLIT_C + (on ? ' ok' : '')); }");
     lines.push("  if(hLine){ hLine.setAttribute('class', SPLIT_C + (on ? ' ok' : '')); }");
     lines.push("  if(hLeft) root.append(hLeft);");
+    lines.push("  if(hotLeft) root.append(hotLeft);");
     lines.push("  if(hitLeft) root.append(hitLeft);");
     lines.push("  if(hDown) root.append(hDown);");
+    lines.push("  if(hotBottom) root.append(hotBottom);");
     lines.push("  if(hitDown) root.append(hitDown);");
     lines.push("}");
     lines.push("function fit(){ var availW=Math.max(100, window.innerWidth-(SAFE.left+SAFE.right)); var availH=Math.max(100, window.innerHeight-(SAFE.top+SAFE.bottom)); var s=Math.min(availW/vb.width, availH/vb.height); root.setAttribute('width', vb.width*s); root.setAttribute('height', vb.height*s); refreshRect(); }");
     lines.push("fit(); redraw(); window.addEventListener('resize', fit, {passive:true});");
     lines.push("var active={axis:null,id:null,captor:null}; var justDragged=false;");
     lines.push("function arm(){ justDragged=true; setTimeout(function(){ justDragged=false; },220); }");
-    lines.push("function lock(){ document.documentElement.style.touchAction='none'; document.body.style.touchAction='none'; document.documentElement.style.overscrollBehavior='contain'; document.body.style.overscrollBehavior='contain'; }");
-    lines.push("function unlock(){ document.documentElement.style.touchAction=''; document.body.style.touchAction=''; document.documentElement.style.overscrollBehavior=''; document.body.style.overscrollBehavior=''; }");
-    lines.push("function onMove(e){ if(e.pointerId!==active.id) return; e.preventDefault(); var p=clientToSvg(e); if(active.axis==='v'){ var y=clampAxisY(p.y); var nextSy=clampSyValue((MT+H)-y); if(nextSy!==sy){ sy=nextSy; schedule(); } } else if(active.axis==='h'){ var x=clampAxisX(p.x); var nextSx=clampSxValue(x-ML); if(nextSx!==sx){ sx=nextSx; schedule(); } }}");
-    lines.push("function onUp(e){ if(e.pointerId!==active.id) return; e.preventDefault(); if(active.axis==='v') sy=snap(sy); if(active.axis==='h') sx=snap(sx); if(active.captor&&active.captor.releasePointerCapture){ try{ active.captor.releasePointerCapture(e.pointerId); }catch(_){}} if(active.captor){ var cls=active.captor.getAttribute('class')||''; active.captor.setAttribute('class', cls.replace(/\bdragging\b/,'').trim()); } active.axis=null; active.id=null; active.captor=null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); unlock(); arm(); schedule(); }");
+    lines.push("function lock(){ document.documentElement.style.touchAction='none'; document.body.style.touchAction='none'; document.documentElement.style.overscrollBehavior='contain'; document.body.style.overscrollBehavior='contain'; document.documentElement.style.userSelect='none'; document.body.style.userSelect='none'; document.documentElement.style.webkitUserSelect='none'; document.body.style.webkitUserSelect='none'; }");
+    lines.push("function unlock(){ document.documentElement.style.touchAction=''; document.body.style.touchAction=''; document.documentElement.style.overscrollBehavior=''; document.body.style.overscrollBehavior=''; document.documentElement.style.userSelect=''; document.body.style.userSelect=''; document.documentElement.style.webkitUserSelect=''; document.body.style.webkitUserSelect=''; }");
+    lines.push("function onMove(e){ if(e.pointerId!==active.id) return; e.preventDefault(); var p=clientToSvg(e); if(active.axis==='v'){ var y=clampAxisY(p.y); var nextSy=clampSyValue((MT+H)-y); if(nextSy!==sy){ sy=nextSy; schedule(true); } } else if(active.axis==='h'){ var x=clampAxisX(p.x); var nextSx=clampSxValue(x-ML); if(nextSx!==sx){ sx=nextSx; schedule(true); } }}");
+    lines.push("function onUp(e){ if(e.pointerId!==active.id) return; e.preventDefault(); if(active.axis==='v') sy=snap(sy); if(active.axis==='h') sx=snap(sx); if(active.captor&&active.captor.releasePointerCapture){ try{ active.captor.releasePointerCapture(e.pointerId); }catch(_){}} if(active.captor){ var cls=active.captor.getAttribute('class')||''; active.captor.setAttribute('class', cls.replace(/\bdragging\b/,'').trim()); } active.axis=null; active.id=null; active.captor=null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); unlock(); arm(); schedule(true); }");
     lines.push("function start(axis,e){ active.axis=axis; active.id=e.pointerId; active.captor=e.currentTarget||e.target; if(active.captor&&active.captor.setPointerCapture){ try{ active.captor.setPointerCapture(e.pointerId); }catch(_){}} if(active.captor){ var cls=active.captor.getAttribute('class')||''; if(cls.indexOf('dragging')===-1){ active.captor.setAttribute('class',(cls+' dragging').trim()); }} lock(); window.addEventListener('pointermove', onMove, {passive:false}); window.addEventListener('pointerup', onUp, {passive:false}); window.addEventListener('pointercancel', onUp, {passive:false}); }");
     lines.push("if(hitLeft){ hitLeft.style.touchAction='none'; hitLeft.addEventListener('pointerdown', function(e){ e.preventDefault(); start('v',e); }, {passive:false}); }");
+    lines.push("if(hotLeft){ hotLeft.style.touchAction='none'; hotLeft.addEventListener('pointerdown', function(e){ e.preventDefault(); start('v',e); }, {passive:false}); }");
     lines.push("if(hitDown){ hitDown.style.touchAction='none'; hitDown.addEventListener('pointerdown', function(e){ e.preventDefault(); start('h',e); }, {passive:false}); }");
+    lines.push("if(hotBottom){ hotBottom.style.touchAction='none'; hotBottom.addEventListener('pointerdown', function(e){ e.preventDefault(); start('h',e); }, {passive:false}); }");
     if (clickHandler) {
       lines.push(clickHandler);
     }
