@@ -11,6 +11,7 @@
   const pointsList = document.getElementById('pointsList');
   const rowsList = document.getElementById('rowsList');
   const autoSyncInput = document.getElementById('autoSync');
+  const useLinearFactorsInput = document.getElementById('useLinearFactors');
   const domainMinInput = document.getElementById('domainMin');
   const domainMaxInput = document.getElementById('domainMax');
   const decimalPlacesInput = document.getElementById('decimalPlaces');
@@ -25,6 +26,7 @@
   const state = {
     expression: '',
     autoSync: false,
+    useLinearFactors: false,
     criticalPoints: [],
     signRows: [],
     solution: null,
@@ -77,7 +79,9 @@
       state.signRows.push({
         id: `row-${rowIdCounter++}`,
         label: 'f(x)',
-        segments: [1]
+        segments: [1],
+        role: 'result',
+        locked: false
       });
     }
   }
@@ -211,6 +215,7 @@
       str = expMatch[1];
     }
     str = stripOuterParens(str);
+    const baseExpr = str;
     if (!/x/.test(str)) {
       return null;
     }
@@ -229,7 +234,8 @@
       return {
         root,
         multiplicity: exponent,
-        sign
+        sign,
+        baseExpr
       };
     } catch (err) {
       return null;
@@ -253,7 +259,9 @@
       if (factor) {
         factors.push({
           value: factor.root,
-          multiplicity: factor.multiplicity
+          multiplicity: factor.multiplicity,
+          sign: factor.sign,
+          baseExpr: factor.baseExpr
         });
         if (factor.sign < 0 && factor.multiplicity % 2 === 1) {
           constantSign *= -1;
@@ -316,14 +324,23 @@
     const tokens = tokenizeExpression(expr);
     const zeros = [];
     const poles = [];
+    const factors = [];
     let constantSign = 1;
     tokens.forEach(token => {
       const parsed = parseProduct(token.value);
       const destination = token.operator === '/' ? poles : zeros;
+      const type = token.operator === '/' ? 'pole' : 'zero';
       parsed.factors.forEach(factor => {
         destination.push({
           value: factor.value,
           multiplicity: factor.multiplicity
+        });
+        factors.push({
+          type,
+          value: factor.value,
+          multiplicity: factor.multiplicity,
+          sign: factor.sign ?? 1,
+          baseExpr: factor.baseExpr
         });
       });
       if (parsed.constantSign < 0) {
@@ -333,7 +350,8 @@
     return {
       zeros,
       poles,
-      constantSign
+      constantSign,
+      factors
     };
   }
   function buildPoints(structure) {
@@ -356,6 +374,94 @@
     addEntries(structure.zeros, 'zero');
     addEntries(structure.poles, 'pole');
     return Array.from(map.values()).sort((a, b) => a.value - b.value);
+  }
+  function formatLinearFactorLabel(baseExpr, multiplicity, value) {
+    let core = typeof baseExpr === 'string' ? baseExpr.trim() : '';
+    if (!core && Number.isFinite(value)) {
+      const formatted = formatPointValue(Math.abs(value));
+      const sign = value >= 0 ? '-' : '+';
+      core = `x${sign}${formatted}`;
+    }
+    if (!core) {
+      core = 'x';
+    }
+    let label = core;
+    const trimmed = core.trim();
+    if (!((trimmed.startsWith('(') && trimmed.endsWith(')')) || (trimmed.startsWith('-(') && trimmed.endsWith(')')))) {
+      label = `(${trimmed})`;
+    }
+    if (multiplicity > 1) {
+      label += `^${multiplicity}`;
+    }
+    return label;
+  }
+  function buildLinearFactorRows(structure, points, domain) {
+    if (!structure || !Array.isArray(structure.factors) || !structure.factors.length) {
+      return [];
+    }
+    const sortedPoints = [...points].sort((a, b) => a.value - b.value);
+    const boundaries = [domain.min, ...sortedPoints.map(p => p.value), domain.max];
+    const factorMap = new Map();
+    structure.factors.forEach(factor => {
+      if (!Number.isFinite(factor.value)) return;
+      const normalized = Number.parseFloat(Number(factor.value).toFixed(6));
+      const baseKey = typeof factor.baseExpr === 'string' && factor.baseExpr.trim() ? factor.baseExpr.trim() : `${normalized}`;
+      const key = `${factor.type}:${baseKey}`;
+      if (!factorMap.has(key)) {
+        factorMap.set(key, {
+          type: factor.type,
+          value: factor.value,
+          multiplicity: 0,
+          constantSign: 1,
+          baseExpr: factor.baseExpr
+        });
+      }
+      const entry = factorMap.get(key);
+      entry.multiplicity += factor.multiplicity;
+      const contribution = factor.sign === -1 && factor.multiplicity % 2 === 1 ? -1 : 1;
+      entry.constantSign *= contribution;
+      if (!entry.baseExpr && factor.baseExpr) {
+        entry.baseExpr = factor.baseExpr;
+      }
+    });
+    const factorRows = Array.from(factorMap.values()).sort((a, b) => {
+      if (a.type !== b.type) {
+        if (a.type === 'pole') return 1;
+        if (b.type === 'pole') return -1;
+      }
+      return a.value - b.value;
+    }).map(entry => {
+      const label = formatLinearFactorLabel(entry.baseExpr, entry.multiplicity, entry.value);
+      const segments = [];
+      for (let i = 0; i < boundaries.length - 1; i += 1) {
+        const left = boundaries[i];
+        const right = boundaries[i + 1];
+        let signValue = entry.constantSign || 1;
+        if (entry.multiplicity % 2 === 1) {
+          let sample = chooseSample(left, right);
+          if (!Number.isFinite(sample)) {
+            sample = left + (right - left) / 2;
+          }
+          if (!Number.isFinite(sample)) {
+            sample = entry.value;
+          }
+          if (Math.abs(sample - entry.value) < 1e-6) {
+            sample += 1e-3;
+          }
+          const direction = sample >= entry.value ? 1 : -1;
+          signValue *= direction;
+        }
+        segments.push(signValue >= 0 ? 1 : -1);
+      }
+      return {
+        label,
+        segments,
+        type: entry.type,
+        value: entry.value,
+        multiplicity: entry.multiplicity
+      };
+    });
+    return factorRows;
   }
   function computeAutoDomain(points) {
     if (!points.length) {
@@ -552,11 +658,13 @@
     const points = buildPoints(structure);
     const domain = computeAutoDomain(points);
     const segments = computeSegments(fn, points, domain);
+    const factorRows = buildLinearFactorRows(structure, points, domain);
     return {
       points,
       segments,
       domain,
-      expression: sanitized
+      expression: sanitized,
+      factorRows
     };
   }
   function setCheckMessage(message, type = 'info') {
@@ -600,13 +708,13 @@
       }
     }
     const solutionSegments = state.solution.segments;
-    const row = state.signRows[0];
-    if (!row || row.segments.length !== solutionSegments.length) {
+    const resultRow = state.signRows.find(r => r.role === 'result');
+    if (!resultRow || resultRow.segments.length !== solutionSegments.length) {
       setCheckMessage('Fortegnslinjen har feil antall intervaller.', 'err');
       return;
     }
     for (let i = 0; i < solutionSegments.length; i += 1) {
-      if (signValue(row.segments[i]) !== signValue(solutionSegments[i])) {
+      if (signValue(resultRow.segments[i]) !== signValue(solutionSegments[i])) {
         setCheckMessage(`Segment ${i + 1} har feil fortegn.`, 'err');
         return;
       }
@@ -685,13 +793,22 @@
       input.type = 'text';
       input.value = row.label || '';
       input.placeholder = `rad ${index + 1}`;
-      input.addEventListener('input', event => {
-        row.label = event.target.value;
-        renderChart();
-      });
+      if (row.locked) {
+        input.disabled = true;
+      } else {
+        input.addEventListener('input', event => {
+          row.label = event.target.value;
+          renderChart();
+        });
+      }
       label.appendChild(input);
       rowEl.appendChild(label);
-      if (state.autoSync && index === 0 && state.solution) {
+      if (row.locked) {
+        const note = document.createElement('span');
+        note.className = 'note';
+        note.textContent = 'Generert fra lineær faktor';
+        rowEl.appendChild(note);
+      } else if (state.autoSync && row.role === 'result' && state.solution) {
         const note = document.createElement('span');
         note.className = 'note';
         note.textContent = 'Synkronisert med fasit';
@@ -701,7 +818,7 @@
       removeBtn.type = 'button';
       removeBtn.className = 'btn danger';
       removeBtn.textContent = 'Fjern';
-      if (state.signRows.length === 1) {
+      if (row.locked || row.role === 'result') {
         removeBtn.disabled = true;
       } else {
         removeBtn.addEventListener('click', () => {
@@ -891,9 +1008,10 @@
         'font-weight': 600,
         fill: '#111827'
       });
-      label.textContent = row.label || `rad ${rowIndex + 1}`;
+      const displayLabel = row.label || (row.role === 'result' ? 'f(x)' : `rad ${rowIndex + 1}`);
+      label.textContent = displayLabel;
       svg.append(label);
-      const locked = state.autoSync && rowIndex === 0 && state.solution;
+      const locked = row.locked || state.autoSync && row.role === 'result' && state.solution;
       const segments = row.segments;
       for (let i = 0; i < boundaries.length - 1; i += 1) {
         const startVal = boundaries[i];
@@ -954,17 +1072,20 @@
     renderAll();
   }
   function removeRow(id) {
-    if (state.signRows.length <= 1) return;
     const index = state.signRows.findIndex(row => row.id === id);
     if (index === -1) return;
+    const row = state.signRows[index];
+    if (row.locked || row.role === 'result') return;
     state.signRows.splice(index, 1);
     renderAll();
   }
   function toggleSegment(rowId, index) {
     const row = state.signRows.find(r => r.id === rowId);
     if (!row) return;
-    const rowIndex = state.signRows.indexOf(row);
-    if (state.autoSync && rowIndex === 0 && state.solution) {
+    if (row.locked) {
+      return;
+    }
+    if (state.autoSync && row.role === 'result' && state.solution) {
       return;
     }
     row.segments[index] = row.segments[index] >= 0 ? -1 : 1;
@@ -986,7 +1107,9 @@
     state.signRows.push({
       id: `row-${rowIdCounter++}`,
       label: `rad ${state.signRows.length + 1}`,
-      segments
+      segments,
+      role: 'custom',
+      locked: false
     });
     renderAll();
   }
@@ -996,17 +1119,48 @@
       type: point.type,
       value: point.value
     }));
-    if (!state.signRows.length) {
-      state.signRows.push({
+    const nonFactorRows = state.signRows.filter(row => row.role !== 'factor');
+    let resultRow = nonFactorRows.find(row => row.role === 'result');
+    const customRows = [];
+    nonFactorRows.forEach(row => {
+      if (row.role !== 'result') {
+        customRows.push(row);
+      }
+    });
+    if (!resultRow) {
+      resultRow = {
         id: `row-${rowIdCounter++}`,
         label: 'f(x)',
-        segments: []
+        segments: [],
+        role: 'result',
+        locked: false
+      };
+    }
+    resultRow.segments = solution.segments.slice();
+    if (!resultRow.label) {
+      resultRow.label = 'f(x)';
+    }
+    resultRow.locked = false;
+    const rows = [];
+    if (state.useLinearFactors && Array.isArray(solution.factorRows) && solution.factorRows.length) {
+      solution.factorRows.forEach(info => {
+        rows.push({
+          id: `row-${rowIdCounter++}`,
+          label: info.label,
+          segments: info.segments.slice(),
+          role: 'factor',
+          locked: true,
+          type: info.type,
+          value: info.value,
+          multiplicity: info.multiplicity
+        });
       });
     }
-    state.signRows[0].segments = solution.segments.slice();
-    if (!state.signRows[0].label) {
-      state.signRows[0].label = 'f(x)';
-    }
+    rows.push(resultRow);
+    customRows.forEach(row => {
+      rows.push(row);
+    });
+    state.signRows = rows;
     syncSegments();
     renderAll();
   }
@@ -1166,7 +1320,7 @@
       const solution = generateSolutionFromExpression();
       state.expression = exprInput.value.trim();
       state.solution = solution;
-      if (state.autoSync) {
+      if (state.autoSync || state.useLinearFactors) {
         applySolutionToState(solution);
         setCheckMessage('Fortegnslinjen er oppdatert fra fasit.', 'ok');
       } else {
@@ -1191,6 +1345,23 @@
       renderRowsList();
     }
   });
+  if (useLinearFactorsInput) {
+    useLinearFactorsInput.checked = state.useLinearFactors;
+    useLinearFactorsInput.addEventListener('change', event => {
+      state.useLinearFactors = event.target.checked;
+      if (state.useLinearFactors) {
+        if (ensureSolution()) {
+          applySolutionToState(state.solution);
+          setCheckMessage('Fortegnslinjene inkluderer lineære faktorer.', 'info');
+        } else {
+          renderAll();
+        }
+      } else {
+        state.signRows = state.signRows.filter(row => row.role !== 'factor');
+        renderAll();
+      }
+    });
+  }
   exprInput.addEventListener('input', () => {
     state.expression = exprInput.value.trim();
   });
