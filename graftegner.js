@@ -296,6 +296,8 @@ let axX = null;
 let axY = null;
 let xName = null;
 let yName = null;
+let customTicksX = null;
+let customTicksY = null;
 let gridV = [];
 let gridH = [];
 let graphs = [];
@@ -782,6 +784,14 @@ function destroyBoard() {
       (_brd$off = (_brd = brd).off) === null || _brd$off === void 0 || _brd$off.call(_brd, 'boundingbox', updateAfterViewChange);
     } catch (_) {}
     try {
+      if (customTicksX) {
+        brd.removeObject(customTicksX);
+      }
+      if (customTicksY) {
+        brd.removeObject(customTicksY);
+      }
+    } catch (_) {}
+    try {
       JXG.JSXGraph.freeBoard(brd);
     } catch (_) {}
   }
@@ -790,6 +800,8 @@ function destroyBoard() {
   axY = null;
   xName = null;
   yName = null;
+  customTicksX = null;
+  customTicksY = null;
   gridV = [];
   gridH = [];
   graphs = [];
@@ -818,10 +830,12 @@ function applyTickSettings() {
   const labelBase = {
     fontSize: ADV.axis.grid.fontSize
   };
-  axX.defaultTicks.setAttribute({
+  const xOpts = {
     ...tickBase,
     ticksDistance: +ADV.axis.grid.majorX || 1,
     minorTicks: 0,
+    strokeColor: '#666666',
+    strokeOpacity: 0.25,
     label: {
       ...labelBase,
       display: 'internal',
@@ -829,11 +843,13 @@ function applyTickSettings() {
       anchorY: 'top',
       offset: [0, -8]
     }
-  });
-  axY.defaultTicks.setAttribute({
+  };
+  const yOpts = {
     ...tickBase,
     ticksDistance: +ADV.axis.grid.majorY || 1,
     minorTicks: 0,
+    strokeColor: '#666666',
+    strokeOpacity: 0.25,
     label: {
       ...labelBase,
       display: 'internal',
@@ -841,7 +857,79 @@ function applyTickSettings() {
       anchorY: 'middle',
       offset: [-8, 0]
     }
+  };
+  axX.defaultTicks.setAttribute({
+    ...tickBase,
+    visible: false
   });
+  axY.defaultTicks.setAttribute({
+    ...tickBase,
+    visible: false
+  });
+  if (!customTicksX || customTicksX.board !== brd) {
+    customTicksX = brd.create('ticks', [axX, xOpts.ticksDistance], xOpts);
+  } else {
+    customTicksX.setAttribute(xOpts);
+  }
+  if (!customTicksY || customTicksY.board !== brd) {
+    customTicksY = brd.create('ticks', [axY, yOpts.ticksDistance], yOpts);
+  } else {
+    customTicksY.setAttribute(yOpts);
+  }
+  updateCustomTickSpacing();
+}
+
+const MAX_TICKS_PER_AXIS = 40;
+function niceTickStep(span, maxTicks) {
+  if (!Number.isFinite(span) || span <= 0) return 1;
+  const raw = span / Math.max(1, maxTicks);
+  if (!Number.isFinite(raw) || raw <= 0) return 1;
+  const exponent = Math.floor(Math.log10(raw));
+  const pow10 = Math.pow(10, exponent);
+  const fraction = raw / pow10;
+  let niceFraction;
+  if (fraction <= 1) {
+    niceFraction = 1;
+  } else if (fraction <= 2) {
+    niceFraction = 2;
+  } else if (fraction <= 5) {
+    niceFraction = 5;
+  } else {
+    niceFraction = 10;
+  }
+  return niceFraction * pow10;
+}
+function computeTickSpacing(base, span) {
+  const safeBase = Number.isFinite(base) && base > 1e-9 ? base : 1;
+  if (!Number.isFinite(span) || span <= 0) return safeBase;
+  const nice = niceTickStep(span, MAX_TICKS_PER_AXIS);
+  return Math.max(safeBase, nice);
+}
+function updateCustomTickSpacing() {
+  if (!brd) return;
+  const bb = brd.getBoundingBox();
+  if (!Array.isArray(bb) || bb.length !== 4) return;
+  const [xmin, ymax, xmax, ymin] = bb;
+  if (customTicksX) {
+    const spanX = Math.abs(xmax - xmin);
+    const spacingX = computeTickSpacing(+ADV.axis.grid.majorX, spanX);
+    customTicksX.setAttribute({
+      ticksDistance: spacingX
+    });
+    if (typeof customTicksX.fullUpdate === 'function') {
+      customTicksX.fullUpdate();
+    }
+  }
+  if (customTicksY) {
+    const spanY = Math.abs(ymax - ymin);
+    const spacingY = computeTickSpacing(+ADV.axis.grid.majorY, spanY);
+    customTicksY.setAttribute({
+      ticksDistance: spacingY
+    });
+    if (typeof customTicksY.fullUpdate === 'function') {
+      customTicksY.fullUpdate();
+    }
+  }
 }
 function initBoard() {
   START_SCREEN = initialScreen();
