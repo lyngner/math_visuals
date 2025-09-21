@@ -23,8 +23,7 @@
     }
     .development-banner {
       display: flex;
-      align-items: flex-start;
-      gap: 12px;
+      align-items: center;
       padding: 14px 18px;
       border-radius: 12px;
       border: 1px solid rgba(217, 119, 6, 0.4);
@@ -33,20 +32,31 @@
       font-size: 14px;
       line-height: 1.5;
     }
+    .development-banner__icon {
+      position: relative;
+      display: inline-flex;
+    }
     .development-banner svg {
       width: 22px;
       height: 22px;
       flex-shrink: 0;
     }
-    .development-banner__text {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .development-banner__text strong {
-      font-size: 15px;
+    .development-banner__badge {
+      position: absolute;
+      top: -8px;
+      right: -12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #f97316;
+      color: #fff;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
       font-weight: 600;
-      color: inherit;
+      line-height: 1;
     }
     .grid {
       display: grid;
@@ -298,18 +308,17 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="development-banner" role="note">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01" />
-        <path stroke-linecap="round" stroke-linejoin="round" d="M10.29 3.86 1.82 18a1.8 1.8 0 0 0 1.55 2.7h17.26a1.8 1.8 0 0 0 1.55-2.7L13.11 3.86a1.8 1.8 0 0 0-2.82 0Z" />
-      </svg>
-      <div class="development-banner__text">
-        <strong>Under utvikling</strong>
-      </div>
+    <div class="development-banner" role="note" aria-label="Fortegnsskjema (beta)">
+      <span class="development-banner__icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.29 3.86 1.82 18a1.8 1.8 0 0 0 1.55 2.7h17.26a1.8 1.8 0 0 0 1.55-2.7L13.11 3.86a1.8 1.8 0 0 0-2.82 0Z" />
+        </svg>
+        <span class="development-banner__badge">Beta</span>
+      </span>
     </div>
     <div class="grid">
       <div class="card">
-        <h1>Fortegnsskjema</h1>
         <div class="figure">
           <svg id="chart" role="img" aria-label="Fortegnsskjema"></svg>
           <div id="chartOverlay" class="chart-overlay"></div>
