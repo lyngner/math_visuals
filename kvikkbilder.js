@@ -8,7 +8,6 @@
   const cfgBredde = document.getElementById('cfg-bredde');
   const cfgHoyde = document.getElementById('cfg-hoyde');
   const cfgDybde = document.getElementById('cfg-dybde');
-  const cfgKlosserLayerGap = document.getElementById('cfg-klosser-layerGap');
   const cfgVisibility = document.getElementById('cfg-visibility');
   const cfgShowExpression = document.getElementById('cfg-show-expression');
   const cfgMonsterAntallX = document.getElementById('cfg-monster-antallX');
@@ -344,9 +343,6 @@
     const defaultLayerGap = Number.isFinite(DEFAULT_CFG.klosser.layerGap) ? DEFAULT_CFG.klosser.layerGap : 0;
     const layerGap = Number.isFinite(CFG.klosser.layerGap) ? Math.max(0, CFG.klosser.layerGap) : defaultLayerGap;
     CFG.klosser.layerGap = layerGap;
-    if (cfgKlosserLayerGap) {
-      cfgKlosserLayerGap.value = String(layerGap);
-    }
     const perFig = width * height * depth;
     const total = cols * rows * perFig;
     const firstExpression = formatOuterInnerExpression([cols, rows], [width, height, depth]);
@@ -891,7 +887,6 @@
     if (cfgBredde) cfgBredde.value = CFG.klosser.bredde;
     if (cfgHoyde) cfgHoyde.value = CFG.klosser.hoyde;
     if (cfgDybde) cfgDybde.value = CFG.klosser.dybde;
-    if (cfgKlosserLayerGap) cfgKlosserLayerGap.value = CFG.klosser.layerGap;
     if (cfgMonsterAntallX) cfgMonsterAntallX.value = CFG.monster.antallX;
     if (cfgMonsterAntallY) cfgMonsterAntallY.value = CFG.monster.antallY;
     if (cfgAntall) cfgAntall.value = CFG.monster.antall;
@@ -988,7 +983,6 @@
   bindNumberInput(cfgBredde, () => CFG.klosser, 'bredde', 1);
   bindNumberInput(cfgHoyde, () => CFG.klosser, 'hoyde', 1);
   bindNumberInput(cfgDybde, () => CFG.klosser, 'dybde', 1);
-  bindFloatInput(cfgKlosserLayerGap, () => CFG.klosser, 'layerGap', 0, DEFAULT_CFG.klosser.layerGap);
   bindNumberInput(cfgMonsterAntallX, () => CFG.monster, 'antallX', 0);
   bindNumberInput(cfgMonsterAntallY, () => CFG.monster, 'antallY', 0);
   bindNumberInput(cfgAntall, () => CFG.monster, 'antall', 0);
