@@ -16,6 +16,8 @@
   const MAX_ZOOM = 4;
   const ZOOM_STEP = 0.25;
   const PAN_STEP = 0.01;
+  const VIEW_PADDING_FACTOR = 0.1;
+  const VIEW_MIN_PADDING = 0.05;
   const WORLD_MIN_X = -2;
   const WORLD_MAX_X = 2;
   const WORLD_MIN_Y = -2;
@@ -263,6 +265,7 @@
   let currentValidPoints = null;
   let boardScaleX = 1;
   let boardScaleY = 1;
+  let hasUserAdjustedView = false;
 
   const activeBoardPointers = new Map();
   let boardPanSession = null;
@@ -348,6 +351,100 @@
     const quantized = Math.round(clamped / ZOOM_STEP) * ZOOM_STEP;
     const bounded = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, quantized));
     return Number(bounded.toFixed(2));
+  }
+
+  function markViewAdjustedByUser() {
+    hasUserAdjustedView = true;
+  }
+
+  function computePointBounds(points) {
+    if (!Array.isArray(points) || !points.length) return null;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    points.forEach(point => {
+      if (!point || typeof point !== 'object') return;
+      const x = sanitizeCoordinate(point.x);
+      const y = sanitizeCoordinate(point.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    });
+    if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minY) || !Number.isFinite(maxY)) {
+      return null;
+    }
+    return { minX, maxX, minY, maxY };
+  }
+
+  function padBounds(bounds) {
+    if (!bounds) return null;
+    const width = Number.isFinite(bounds.maxX - bounds.minX) ? bounds.maxX - bounds.minX : 0;
+    const height = Number.isFinite(bounds.maxY - bounds.minY) ? bounds.maxY - bounds.minY : 0;
+    const padX = Math.max(width * VIEW_PADDING_FACTOR, VIEW_MIN_PADDING);
+    const padY = Math.max(height * VIEW_PADDING_FACTOR, VIEW_MIN_PADDING);
+    const minX = sanitizeCoordinate(bounds.minX - padX);
+    const maxX = sanitizeCoordinate(bounds.maxX + padX);
+    const minY = sanitizeCoordinate(bounds.minY - padY);
+    const maxY = sanitizeCoordinate(bounds.maxY + padY);
+    return { minX, maxX, minY, maxY };
+  }
+
+  function viewContainsBounds(view, bounds) {
+    if (!view || !bounds) return false;
+    const epsilon = 1e-6;
+    const left = view.panX;
+    const right = view.panX + view.viewWidth;
+    const bottom = view.panY;
+    const top = view.panY + view.viewHeight;
+    return (
+      bounds.minX >= left - epsilon &&
+      bounds.maxX <= right + epsilon &&
+      bounds.minY >= bottom - epsilon &&
+      bounds.maxY <= top + epsilon
+    );
+  }
+
+  function computeFittedView(bounds) {
+    if (!bounds) return null;
+    const width = Number.isFinite(bounds.maxX - bounds.minX) ? bounds.maxX - bounds.minX : 0;
+    const height = Number.isFinite(bounds.maxY - bounds.minY) ? bounds.maxY - bounds.minY : 0;
+    const span = Math.max(width, height, VIEW_MIN_PADDING * 2);
+    if (!Number.isFinite(span) || span <= 0) return null;
+    const desiredZoom = 1 / span;
+    const zoom = clampZoom(desiredZoom);
+    const viewWidth = zoom > 0 ? 1 / zoom : span;
+    const viewHeight = viewWidth;
+    const centerX = sanitizeCoordinate((bounds.minX + bounds.maxX) / 2);
+    const centerY = sanitizeCoordinate((bounds.minY + bounds.maxY) / 2);
+    let panX = centerX - viewWidth / 2;
+    let panY = centerY - viewHeight / 2;
+    const candidateMinX = WORLD_MIN_X;
+    const candidateMaxX = WORLD_MAX_X - viewWidth;
+    const candidateMinY = WORLD_MIN_Y;
+    const candidateMaxY = WORLD_MAX_Y - viewHeight;
+    const panMinX = Math.min(candidateMinX, candidateMaxX);
+    const panMaxX = Math.max(candidateMinX, candidateMaxX);
+    const panMinY = Math.min(candidateMinY, candidateMaxY);
+    const panMaxY = Math.max(candidateMinY, candidateMaxY);
+    panX = clamp(panX, panMinX, panMaxX);
+    panY = clamp(panY, panMinY, panMaxY);
+    return { zoom, panX, panY };
+  }
+
+  function ensureViewFitsPoints(points) {
+    if (hasUserAdjustedView) return;
+    const bounds = computePointBounds(points);
+    if (!bounds) return;
+    const padded = padBounds(bounds);
+    const view = getViewSettings();
+    if (viewContainsBounds(view, padded)) return;
+    const fitted = computeFittedView(padded);
+    if (!fitted) return;
+    STATE.view = fitted;
+    getViewSettings();
   }
 
   function getViewSettings() {
@@ -789,6 +886,7 @@
     STATE.labelFontSize = normalizeLabelFontSize(STATE.labelFontSize);
     STATE.showGrid = !!STATE.showGrid;
     STATE.snapToGrid = !!STATE.snapToGrid;
+    ensureViewFitsPoints(sanitizedPoints);
     getViewSettings();
     if (predefAnchorPointId != null && !validPoints.has(predefAnchorPointId)) {
       predefAnchorPointId = null;
@@ -997,12 +1095,13 @@
     nextPanX = clamp(nextPanX, nextPanMinX, nextPanMaxX);
     nextPanY = clamp(nextPanY, nextPanMinY, nextPanMaxY);
     STATE.view = { zoom: nextZoom, panX: nextPanX, panY: nextPanY };
+    if (options && options.userAction) markViewAdjustedByUser();
     renderBoard(currentValidPoints);
     return true;
   }
 
   function updateZoom(rawZoom) {
-    applyZoom(rawZoom);
+    applyZoom(rawZoom, { userAction: true });
   }
 
   function updatePan(axis, rawValue) {
@@ -1019,6 +1118,7 @@
       return;
     }
     STATE.view = { zoom: view.zoom, panX: nextPanX, panY: nextPanY };
+    markViewAdjustedByUser();
     renderBoard(currentValidPoints);
   }
 
@@ -1134,6 +1234,7 @@
       return false;
     }
     STATE.view = { zoom: view.zoom, panX: nextPanX, panY: nextPanY };
+    markViewAdjustedByUser();
     renderBoard(currentValidPoints);
     const updatedView = getViewSettings();
     boardPanSession.panX = updatedView.panX;
@@ -1196,6 +1297,7 @@
     boardPinchSession.boardHeight = height || boardPinchSession.boardHeight;
     if (!changed) return false;
     STATE.view = { zoom: nextZoom, panX: nextPanX, panY: nextPanY };
+    markViewAdjustedByUser();
     renderBoard(currentValidPoints);
     return true;
   }
@@ -1282,7 +1384,7 @@
     if (!Number.isFinite(deltaY) || deltaY === 0) return;
     const scale = Math.exp(-deltaY / 500);
     const focus = clientToNormalized(event.clientX, event.clientY, view);
-    applyZoom(view.zoom * scale, { focus });
+    applyZoom(view.zoom * scale, { focus, userAction: true });
   }
 
   function updateBoardPannableState() {
@@ -2118,7 +2220,10 @@
   }
 
   function rebuildAll(resetDrawn = false) {
-    if (resetDrawn) userLines.clear();
+    if (resetDrawn) {
+      userLines.clear();
+      hasUserAdjustedView = false;
+    }
     const validPoints = prepareState();
     renderPointList(validPoints);
     renderBoard(validPoints);
