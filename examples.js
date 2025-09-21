@@ -720,15 +720,18 @@
   function updateDeleteButtonState(count) {
     if (deleteBtn) deleteBtn.disabled = count <= 1;
   }
-  const requestedInitialIndex = parseInitialExampleIndex();
+  let pendingRequestedIndex = parseInitialExampleIndex();
   function attemptInitialLoad() {
     if (initialLoadPerformed) return;
-    if (requestedInitialIndex == null) return;
+    if (pendingRequestedIndex == null) return;
     const examples = getExamples();
-    if (requestedInitialIndex < 0 || requestedInitialIndex >= examples.length) return;
+    if (pendingRequestedIndex < 0 || pendingRequestedIndex >= examples.length) return;
     const loadNow = () => {
       if (initialLoadPerformed) return;
-      if (loadExample(requestedInitialIndex)) initialLoadPerformed = true;
+      if (loadExample(pendingRequestedIndex)) {
+        initialLoadPerformed = true;
+        pendingRequestedIndex = null;
+      }
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadNow, {
       once: true
@@ -788,7 +791,7 @@
     }
     updateDeleteButtonState(examples.length);
     attemptInitialLoad();
-    if (!initialLoadPerformed && examples.length > 0) {
+    if (!initialLoadPerformed && pendingRequestedIndex == null && examples.length > 0) {
       let idx = Number.isInteger(currentExampleIndex) ? currentExampleIndex : 0;
       if (idx < 0) idx = 0;
       if (idx >= examples.length) idx = examples.length - 1;
@@ -991,40 +994,38 @@
         }
         if (availableDefaults.length > 0) {
           const existingKeys = new Set();
-          let hasCustomExample = false;
           examples.forEach(ex => {
             if (!ex || typeof ex !== 'object') return;
             const key = normalizeKey(ex.__builtinKey);
-            if (key) {
-              existingKeys.add(key);
-            } else {
-              hasCustomExample = true;
-            }
+            if (key) existingKeys.add(key);
           });
-          if (!hasCustomExample) {
-            let appended = false;
-            availableDefaults.forEach(ex => {
-              const key = normalizeKey(ex.__builtinKey);
-              if (key && existingKeys.has(key)) return;
-              const copy = {
-                config: cloneValue(ex.config),
-                svg: typeof ex.svg === 'string' ? ex.svg : ''
-              };
-              if (key) copy.__builtinKey = key;
-              if (ex.title) copy.title = ex.title;
-              if (ex.description) copy.description = ex.description;
-              if (ex.exampleNumber) copy.exampleNumber = ex.exampleNumber;
-              examples.push(copy);
-              if (key) existingKeys.add(key);
-              appended = true;
-            });
-            if (appended) updated = true;
-          }
+          let appended = false;
+          availableDefaults.forEach(ex => {
+            const key = normalizeKey(ex.__builtinKey);
+            if (key && existingKeys.has(key)) return;
+            const copy = {
+              config: cloneValue(ex.config),
+              svg: typeof ex.svg === 'string' ? ex.svg : ''
+            };
+            if (key) copy.__builtinKey = key;
+            if (ex.title) copy.title = ex.title;
+            if (ex.description) copy.description = ex.description;
+            if (ex.exampleNumber) copy.exampleNumber = ex.exampleNumber;
+            examples.push(copy);
+            if (key) existingKeys.add(key);
+            appended = true;
+          });
+          if (appended) updated = true;
         }
       }
       if (updated) {
         store(examples);
         examples = getExamples();
+      }
+      if (pendingRequestedIndex != null) {
+        if (pendingRequestedIndex < 0 || pendingRequestedIndex >= examples.length) {
+          pendingRequestedIndex = null;
+        }
       }
       if (currentExampleIndex == null && examples.length > 0) {
         currentExampleIndex = 0;
@@ -1036,7 +1037,17 @@
       renderOptions();
       if (!initialLoadPerformed) {
         const refreshed = getExamples();
-        if (refreshed.length > 0) {
+        if (pendingRequestedIndex != null) {
+          if (pendingRequestedIndex >= 0 && pendingRequestedIndex < refreshed.length) {
+            if (loadExample(pendingRequestedIndex)) {
+              initialLoadPerformed = true;
+              pendingRequestedIndex = null;
+            }
+          } else {
+            pendingRequestedIndex = null;
+          }
+        }
+        if (!initialLoadPerformed && refreshed.length > 0) {
           let targetIndex = Number.isInteger(currentExampleIndex) ? currentExampleIndex : NaN;
           if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= refreshed.length) {
             targetIndex = refreshed.findIndex(ex => ex && ex.isDefault === true);
