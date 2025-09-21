@@ -2137,6 +2137,7 @@ function setupSettingsForm() {
   const showExprInput = g('cfgShowExpr');
   const showBracketsInput = g('cfgShowBrackets');
   const forceTicksInput = g('cfgForceTicks');
+  const snapCheckbox = g('cfgSnap');
   let gliderSection = null;
   let gliderCountInput = null;
   let gliderStartInput = null;
@@ -2178,6 +2179,38 @@ function setupSettingsForm() {
     if (isCoords(value)) return false;
     return isExplicitFun(value);
   };
+  const hasConfiguredPoints = () => {
+    const parsedMode = SIMPLE_PARSED ? decideMode(SIMPLE_PARSED) : 'functions';
+    if (parsedMode === 'points') {
+      return true;
+    }
+    if (shouldEnableGliders() && getGliderCount() > 0) {
+      return true;
+    }
+    if (funcRows) {
+      const firstGroup = funcRows.querySelector('.func-group');
+      const firstRowInput = firstGroup ? firstGroup.querySelector('input[data-fun]') : null;
+      const value = firstRowInput ? firstRowInput.value.trim() : '';
+      if (value && !isCoords(value) && !isExplicitFun(value)) {
+        return true;
+      }
+    }
+    const parsedCount = SIMPLE_PARSED && Number.isFinite(SIMPLE_PARSED.pointsCount) ? SIMPLE_PARSED.pointsCount : 0;
+    return parsedCount > 0;
+  };
+  const updateSnapAvailability = () => {
+    if (!snapCheckbox) return;
+    const hasPoints = hasConfiguredPoints();
+    snapCheckbox.disabled = !hasPoints;
+    if (!hasPoints) {
+      snapCheckbox.title = 'Aktiveres når punkter er lagt til.';
+    } else {
+      snapCheckbox.removeAttribute('title');
+    }
+  };
+  if (snapCheckbox) {
+    snapCheckbox.checked = ADV.points.snap.enabled;
+  }
   const updateStartInputState = () => {
     if (!gliderStartInput) return;
     const active = shouldEnableGliders();
@@ -2186,9 +2219,13 @@ function setupSettingsForm() {
     if (gliderStartLabel) {
       gliderStartLabel.style.display = active && count > 0 ? '' : 'none';
     }
+    updateSnapAvailability();
   };
   const updateGliderVisibility = () => {
-    if (!gliderSection) return;
+    if (!gliderSection) {
+      updateSnapAvailability();
+      return;
+    }
     const show = shouldEnableGliders();
     gliderSection.style.display = show ? '' : 'none';
     if (gliderCountInput) {
@@ -2408,6 +2445,7 @@ function setupSettingsForm() {
     }
     updateGliderVisibility();
     syncSimpleFromForm();
+    updateSnapAvailability();
   };
   fillFormFromSimple(SIMPLE);
   if (addBtn) {
@@ -2446,10 +2484,6 @@ function setupSettingsForm() {
     } else {
       forceTicksInput.removeAttribute('title');
     }
-  }
-  const snapCheckbox = g('cfgSnap');
-  if (snapCheckbox) {
-    snapCheckbox.checked = ADV.points.snap.enabled;
   }
   const fontSizeInput = g('cfgFontSize');
   if (fontSizeInput) {
