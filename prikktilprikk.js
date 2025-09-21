@@ -4,7 +4,8 @@
   const BOARD_HEIGHT = 700;
   const LABEL_OFFSET_X = 24;
   const LABEL_OFFSET_Y = -20;
-  const POINT_RADIUS = 11;
+  const POINT_RADIUS = 18;
+  const DOT_RADIUS = 6;
   const DEFAULT_LABEL_FONT_SIZE = 14;
   const MIN_LABEL_FONT_SIZE = 10;
   const MAX_LABEL_FONT_SIZE = 48;
@@ -1384,6 +1385,7 @@
     visual.decoration.setAttribute('r', POINT_RADIUS);
     visual.dot.setAttribute('cx', x);
     visual.dot.setAttribute('cy', y);
+    visual.dot.setAttribute('r', DOT_RADIUS);
   }
 
   function createPointVisual(point, pos) {
@@ -1397,7 +1399,7 @@
 
     const dot = document.createElementNS(SVG_NS, 'circle');
     dot.classList.add('point-dot');
-    dot.setAttribute('r', 4.5);
+    dot.setAttribute('r', DOT_RADIUS);
     group.appendChild(dot);
 
     attachPointInteraction(group, point.id);
