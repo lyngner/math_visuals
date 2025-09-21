@@ -21,6 +21,12 @@ const CFG = {
       show: false,
       maxCols: 30,
       maxRows: 30
+    },
+    challenge: {
+      enabled: false,
+      area: 12,
+      dedupeOrderless: true,
+      autoExpandMax: true
     }
   },
   ADV: {
@@ -97,6 +103,15 @@ let cleanupCurrentDraw = null;
 const layoutStateStore = Object.create(null);
 let currentLayoutMode = null;
 let lastVisibleCellMode = "factors";
+const challengeRuntime = {
+  enabled: false,
+  active: false,
+  N: null,
+  dedupeOrderless: true,
+  autoExpandMax: true,
+  allPairs: [],
+  oriented: new Set()
+};
 function ensureCfgDefaults() {
   const fill = (target, defaults) => {
     if (!defaults || typeof defaults !== 'object') return;
@@ -131,6 +146,102 @@ function normalizeLayout(value) {
   return "quad";
 }
 currentLayoutMode = normalizeLayout((CFG !== null && CFG !== void 0 && CFG.SIMPLE ? CFG.SIMPLE.layout : null));
+function factorPairsSorted(N) {
+  const out = [];
+  for (let a = 1; a * a <= N; a++) {
+    if (N % a === 0) out.push([a, N / a]);
+  }
+  return out;
+}
+function renderChallengeList() {
+  if (typeof document === "undefined") return;
+  const wrap = document.getElementById("challengePairs");
+  const colA = document.getElementById("challengeListA");
+  const colB = document.getElementById("challengeListB");
+  if (!wrap || !colA || !colB) return;
+  if (!challengeRuntime.active || !challengeRuntime.N) {
+    wrap.hidden = true;
+    colA.innerHTML = "";
+    colB.innerHTML = "";
+    return;
+  }
+  const linesA = [];
+  const linesB = [];
+  if (challengeRuntime.dedupeOrderless) {
+    for (const [a, b] of challengeRuntime.allPairs) {
+      if (challengeRuntime.oriented.has(`${a}×${b}`)) {
+        linesA.push(`${a} · ${b} = ${challengeRuntime.N}`);
+      }
+      if (a !== b && challengeRuntime.oriented.has(`${b}×${a}`)) {
+        linesB.push(`${b} · ${a} = ${challengeRuntime.N}`);
+      }
+    }
+  } else {
+    const items = Array.from(challengeRuntime.oriented).map(key => key.split("×").map(v => parseInt(v, 10))).sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    for (const [a, b] of items) {
+      linesA.push(`${a} · ${b} = ${challengeRuntime.N}`);
+    }
+  }
+  if (linesA.length === 0 && linesB.length === 0) {
+    colA.innerHTML = "";
+    colB.innerHTML = "";
+    wrap.hidden = true;
+    return;
+  }
+  colA.innerHTML = linesA.map(text => `<div>${text}</div>`).join("");
+  colB.innerHTML = linesB.map(text => `<div>${text}</div>`).join("");
+  wrap.hidden = false;
+}
+function syncChallengeState(layoutMode) {
+  ensureCfgDefaults();
+  if (!CFG.SIMPLE.challenge || typeof CFG.SIMPLE.challenge !== "object") {
+    CFG.SIMPLE.challenge = {};
+  }
+  const challengeCfg = CFG.SIMPLE.challenge;
+  const parsedArea = Math.round(Number(challengeCfg.area));
+  const area = Number.isFinite(parsedArea) && parsedArea > 0 ? parsedArea : null;
+  const enabled = !!challengeCfg.enabled && area != null;
+  const dedupe = challengeCfg.dedupeOrderless !== false;
+  const autoExpand = challengeCfg.autoExpandMax !== false;
+  const areaChanged = area !== challengeRuntime.N;
+  const enabledChanged = enabled !== challengeRuntime.enabled;
+  const dedupeChanged = dedupe !== challengeRuntime.dedupeOrderless;
+  const autoChanged = autoExpand !== challengeRuntime.autoExpandMax;
+  if (areaChanged || enabledChanged) {
+    challengeRuntime.oriented.clear();
+  }
+  challengeRuntime.N = area;
+  challengeRuntime.enabled = enabled;
+  challengeRuntime.dedupeOrderless = dedupe;
+  challengeRuntime.autoExpandMax = autoExpand;
+  if (enabled && area != null) {
+    challengeRuntime.allPairs = factorPairsSorted(area);
+  } else {
+    challengeRuntime.allPairs = [];
+  }
+  const normalizedLayout = normalizeLayout(layoutMode != null ? layoutMode : currentLayoutMode);
+  const active = enabled && normalizedLayout === "single" && area != null;
+  const activeChanged = active !== challengeRuntime.active;
+  challengeRuntime.active = active;
+  if (!active) {
+    if (activeChanged || enabledChanged || areaChanged) {
+      renderChallengeList();
+    }
+    return;
+  }
+  if (activeChanged || enabledChanged || areaChanged || dedupeChanged || autoChanged) {
+    renderChallengeList();
+  }
+}
+function tryRegisterChallengeHit(cols, rows) {
+  if (!challengeRuntime.active || !challengeRuntime.N) return;
+  if (cols * rows !== challengeRuntime.N) return;
+  const key = `${cols}×${rows}`;
+  if (!challengeRuntime.oriented.has(key)) {
+    challengeRuntime.oriented.add(key);
+    renderChallengeList();
+  }
+}
 function snapshotSimpleState(simple) {
   if (!simple || typeof simple !== "object") return {};
   const toInt = value => {
@@ -161,6 +272,15 @@ function snapshotSimpleState(simple) {
     if (maxRows !== undefined && maxRows > 0) total.maxRows = maxRows;
     if (Object.keys(total).length) state.totalHandle = total;
   }
+  if (simple.challenge && typeof simple.challenge === "object") {
+    const challengeState = {};
+    if (simple.challenge.enabled != null) challengeState.enabled = !!simple.challenge.enabled;
+    const area = toInt(simple.challenge.area);
+    if (area !== undefined && area > 0) challengeState.area = area;
+    if (simple.challenge.dedupeOrderless != null) challengeState.dedupeOrderless = !!simple.challenge.dedupeOrderless;
+    if (simple.challenge.autoExpandMax != null) challengeState.autoExpandMax = !!simple.challenge.autoExpandMax;
+    if (Object.keys(challengeState).length) state.challenge = challengeState;
+  }
   return state;
 }
 function ensureLayoutState(layout) {
@@ -177,6 +297,7 @@ function applyLayoutStateToSimple(layout) {
   if (!CFG.SIMPLE.length || typeof CFG.SIMPLE.length !== "object") CFG.SIMPLE.length = {};
   if (!CFG.SIMPLE.height || typeof CFG.SIMPLE.height !== "object") CFG.SIMPLE.height = {};
   if (!CFG.SIMPLE.totalHandle || typeof CFG.SIMPLE.totalHandle !== "object") CFG.SIMPLE.totalHandle = {};
+  if (!CFG.SIMPLE.challenge || typeof CFG.SIMPLE.challenge !== "object") CFG.SIMPLE.challenge = {};
   CFG.SIMPLE.layout = normalized;
   if (!state) return;
   const applyDim = (target, dimState) => {
@@ -192,6 +313,13 @@ function applyLayoutStateToSimple(layout) {
     if (typeof totalState.show === "boolean") CFG.SIMPLE.totalHandle.show = totalState.show;
     if (totalState.maxCols !== undefined && Number.isFinite(totalState.maxCols)) CFG.SIMPLE.totalHandle.maxCols = Math.max(1, Math.round(totalState.maxCols));
     if (totalState.maxRows !== undefined && Number.isFinite(totalState.maxRows)) CFG.SIMPLE.totalHandle.maxRows = Math.max(1, Math.round(totalState.maxRows));
+  }
+  const challengeState = state.challenge;
+  if (challengeState) {
+    if (typeof challengeState.enabled === "boolean") CFG.SIMPLE.challenge.enabled = challengeState.enabled;
+    if (challengeState.area !== undefined && Number.isFinite(challengeState.area)) CFG.SIMPLE.challenge.area = Math.max(1, Math.round(challengeState.area));
+    if (typeof challengeState.dedupeOrderless === "boolean") CFG.SIMPLE.challenge.dedupeOrderless = challengeState.dedupeOrderless;
+    if (typeof challengeState.autoExpandMax === "boolean") CFG.SIMPLE.challenge.autoExpandMax = challengeState.autoExpandMax;
   }
   enforceQuadLayoutFill(normalized);
   enforceSingleLayoutRestrictions(normalized);
@@ -312,6 +440,12 @@ function updateLayoutUi() {
   if (singleTitle) singleTitle.hidden = !isSingle;
   const splitTitle = document.getElementById("splitSettingsTitle");
   if (splitTitle) splitTitle.hidden = isSingle;
+  const challengeRow = document.getElementById("challengeSettings");
+  if (challengeRow) challengeRow.hidden = !isSingle;
+  const challengeEnabledInput = document.getElementById("challengeEnabled");
+  if (challengeEnabledInput) challengeEnabledInput.disabled = !isSingle;
+  const challengeAreaInput = document.getElementById("challengeArea");
+  if (challengeAreaInput) challengeAreaInput.disabled = !isSingle;
   const toggleDisabled = (id, disabled, forcedValue) => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -327,6 +461,7 @@ function updateLayoutUi() {
     const el = document.getElementById(id);
     if (el) el.disabled = isSingle;
   });
+  syncChallengeState(layout);
 }
 if (typeof document !== "undefined") {
   if (document.readyState === "loading") {
@@ -392,6 +527,16 @@ function readConfigFromHtml() {
   }
   CFG.ADV.grid = (_document$getElementB9 = (_document$getElementB0 = document.getElementById("grid")) === null || _document$getElementB0 === void 0 ? void 0 : _document$getElementB0.checked) !== null && _document$getElementB9 !== void 0 ? _document$getElementB9 : CFG.ADV.grid;
   CFG.ADV.splitLines = (_document$getElementB1 = (_document$getElementB10 = document.getElementById("splitLines")) === null || _document$getElementB10 === void 0 ? void 0 : _document$getElementB10.checked) !== null && _document$getElementB1 !== void 0 ? _document$getElementB1 : CFG.ADV.splitLines;
+  if (!CFG.SIMPLE.challenge || typeof CFG.SIMPLE.challenge !== "object") CFG.SIMPLE.challenge = {};
+  const challengeEnabledInput = document.getElementById("challengeEnabled");
+  if (challengeEnabledInput) CFG.SIMPLE.challenge.enabled = !!challengeEnabledInput.checked;
+  const challengeAreaInput = document.getElementById("challengeArea");
+  if (challengeAreaInput) {
+    const areaVal = Math.round(parseFloat(challengeAreaInput.value));
+    if (Number.isFinite(areaVal) && areaVal > 0) {
+      CFG.SIMPLE.challenge.area = areaVal;
+    }
+  }
   const showExpressionsInput = document.getElementById("showExpressions");
   if (!CFG.ADV.labels || typeof CFG.ADV.labels !== "object") CFG.ADV.labels = {};
   if (showExpressionsInput) {
@@ -409,6 +554,7 @@ function readConfigFromHtml() {
   }
   CFG.SIMPLE.layout = currentLayoutMode;
   updateLayoutUi();
+  syncChallengeState(currentLayoutMode);
   saveLayoutState(currentLayoutMode);
 }
 function draw() {
@@ -428,11 +574,18 @@ function draw() {
   const parsedMaxRows = totalCfg.maxRows != null ? parseFloat(totalCfg.maxRows) : null;
   const hasMaxCols = Number.isFinite(parsedMaxCols);
   const hasMaxRows = Number.isFinite(parsedMaxRows);
-  const maxTotalCols = hasMaxCols ? Math.max(1, Math.round(parsedMaxCols)) : Infinity;
-  const maxTotalRows = hasMaxRows ? Math.max(1, Math.round(parsedMaxRows)) : Infinity;
+  let maxTotalCols = hasMaxCols ? Math.max(1, Math.round(parsedMaxCols)) : Infinity;
+  let maxTotalRows = hasMaxRows ? Math.max(1, Math.round(parsedMaxRows)) : Infinity;
+  const layoutMode = normalizeLayout(SV.layout);
+  syncChallengeState(layoutMode);
+  const challengeActive = challengeRuntime.active;
+  if (challengeActive && challengeRuntime.autoExpandMax && challengeRuntime.N != null) {
+    const needed = Math.max(1, Math.round(challengeRuntime.N));
+    if (maxTotalCols < needed) maxTotalCols = needed;
+    if (maxTotalRows < needed) maxTotalRows = needed;
+  }
   if (hasMaxCols) cols = Math.min(cols, maxTotalCols);
   if (hasMaxRows) rows = Math.min(rows, maxTotalRows);
-  const layoutMode = normalizeLayout(SV.layout);
   const TEN = Math.max(1, Math.round((_ADV$check$ten = (_ADV$check = ADV.check) === null || _ADV$check === void 0 ? void 0 : _ADV$check.ten) !== null && _ADV$check$ten !== void 0 ? _ADV$check$ten : 10));
 
   // spacing for kant-tekst utenfor
@@ -1188,6 +1341,9 @@ function draw() {
     }
     syncSimpleTotals();
     syncSimpleHandles();
+    if (challengeActive) {
+      tryRegisterChallengeHit(cols, rows);
+    }
   }
 
   // ---- Responsiv skalering ----
@@ -1994,6 +2150,7 @@ function initFromHtml() {
 }
 function setSimpleConfig(o = {}) {
   ensureCfgDefaults();
+  if (!CFG.SIMPLE.challenge || typeof CFG.SIMPLE.challenge !== "object") CFG.SIMPLE.challenge = {};
   if (o.height != null) CFG.SIMPLE.height.cells = Math.round(o.height);
   if (o.length != null) CFG.SIMPLE.length.cells = Math.round(o.length);
   if (o.heightStart != null) CFG.SIMPLE.height.handle = Math.round(o.heightStart);else if (o.heightHandle != null) CFG.SIMPLE.height.handle = Math.round(o.heightHandle);
@@ -2021,6 +2178,23 @@ function setSimpleConfig(o = {}) {
       if (Number.isFinite(v) && v > 0) CFG.SIMPLE.totalHandle.maxRows = v;
     }
   }
+  if (o.challengeEnabled != null) CFG.SIMPLE.challenge.enabled = !!o.challengeEnabled;
+  if (o.challengeArea != null) {
+    const v = Math.round(parseFloat(o.challengeArea));
+    if (Number.isFinite(v) && v > 0) CFG.SIMPLE.challenge.area = v;
+  }
+  if (o.challengeDedupeOrderless != null) CFG.SIMPLE.challenge.dedupeOrderless = !!o.challengeDedupeOrderless;
+  if (o.challengeAutoExpandMax != null) CFG.SIMPLE.challenge.autoExpandMax = !!o.challengeAutoExpandMax;
+  if (o.challenge && typeof o.challenge === 'object') {
+    const ch = o.challenge;
+    if (ch.enabled != null) CFG.SIMPLE.challenge.enabled = !!ch.enabled;
+    if (ch.area != null) {
+      const v = Math.round(parseFloat(ch.area));
+      if (Number.isFinite(v) && v > 0) CFG.SIMPLE.challenge.area = v;
+    }
+    if (ch.dedupeOrderless != null) CFG.SIMPLE.challenge.dedupeOrderless = !!ch.dedupeOrderless;
+    if (ch.autoExpandMax != null) CFG.SIMPLE.challenge.autoExpandMax = !!ch.autoExpandMax;
+  }
   if (o.layout != null) CFG.SIMPLE.layout = normalizeLayout(o.layout);else if (o.layoutMode != null) CFG.SIMPLE.layout = normalizeLayout(o.layoutMode);
   enforceQuadLayoutFill(CFG.SIMPLE.layout);
   const setVal = (id, v) => {
@@ -2047,7 +2221,10 @@ function setSimpleConfig(o = {}) {
   setVal("lengthMax", CFG.SIMPLE.totalHandle.maxCols);
   setVal("heightMax", CFG.SIMPLE.totalHandle.maxRows);
   setChk("showTotalHandle", !!(CFG.SIMPLE.totalHandle && CFG.SIMPLE.totalHandle.show));
+  setChk("challengeEnabled", !!(CFG.SIMPLE.challenge && CFG.SIMPLE.challenge.enabled));
+  setVal("challengeArea", CFG.SIMPLE.challenge && CFG.SIMPLE.challenge.area);
   setSelect("layoutMode", CFG.SIMPLE.layout);
+  syncChallengeState(CFG.SIMPLE.layout);
   render();
 }
 window.setArealmodellBConfig = setSimpleConfig;
@@ -2096,6 +2273,9 @@ function applyConfigToInputs() {
   setVal('lengthMax', simple.totalHandle !== null && simple.totalHandle !== void 0 ? simple.totalHandle.maxCols : undefined);
   setVal('heightMax', simple.totalHandle !== null && simple.totalHandle !== void 0 ? simple.totalHandle.maxRows : undefined);
   setChk('showTotalHandle', !!(simple.totalHandle && simple.totalHandle.show));
+  const challenge = simple.challenge || {};
+  setChk('challengeEnabled', !!challenge.enabled);
+  setVal('challengeArea', challenge.area);
   setChk('grid', !!adv.grid);
   const advLabels = adv.labels || {};
   if (advLabels.cellMode && advLabels.cellMode !== "none") {
