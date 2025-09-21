@@ -283,8 +283,8 @@
 
   function positionBoardLabel(element, pos) {
     if (!element || !pos) return;
-    const left = (pos.x + LABEL_OFFSET_X) * boardScaleX;
-    const top = (pos.y + LABEL_OFFSET_Y) * boardScaleY;
+    const left = pos.x * boardScaleX + LABEL_OFFSET_X;
+    const top = pos.y * boardScaleY + LABEL_OFFSET_Y;
     element.style.transform = `translate(${left}px, ${top}px)`;
   }
 
