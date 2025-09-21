@@ -339,8 +339,8 @@
     const height = Math.max(1, Math.trunc(hoyde));
     const depth = Math.max(1, Math.trunc(dybde));
     brickContainer.innerHTML = '';
-    brickContainer.style.gridTemplateColumns = cols > 0 ? `repeat(${cols}, 1fr)` : '';
-    brickContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows}, auto)` : '';
+    brickContainer.style.gridTemplateColumns = cols > 0 ? `repeat(${cols}, minmax(0, 1fr))` : '';
+    brickContainer.style.gridTemplateRows = rows > 0 ? `repeat(${rows}, minmax(0, 1fr))` : '';
     const defaultLayerGap = Number.isFinite(DEFAULT_CFG.klosser.layerGap) ? DEFAULT_CFG.klosser.layerGap : 0;
     const layerGap = Number.isFinite(CFG.klosser.layerGap) ? Math.max(0, CFG.klosser.layerGap) : defaultLayerGap;
     CFG.klosser.layerGap = layerGap;
