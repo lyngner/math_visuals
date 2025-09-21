@@ -23,7 +23,9 @@
       align-items:start;
       justify-items:center;
     }
-    .figureGrid[data-figures="2"]{
+    .figureGrid[data-figures="2"],
+    .figureGrid[data-figures="3"],
+    .figureGrid[data-figures="4"]{
       --figure-columns:2;
       justify-items:stretch;
     }
@@ -75,13 +77,25 @@
             </div>
             <button id="removeBowl1" class="btn removeFigureBtn" type="button" aria-label="Slett figur 1" disabled>Slett figur</button>
           </div>
-          <button id="addBowl" class="addFigureBtn" type="button" aria-label="Legg til illustrasjon">+</button>
           <div id="panel2" class="figurePanel" style="display:none">
             <div class="figure">
               <svg id="bowlSVG2" viewBox="0 0 500 300" role="img" aria-label="Bolle med kuler"></svg>
             </div>
             <button id="removeBowl2" class="btn removeFigureBtn" type="button" aria-label="Slett figur 2">Slett figur</button>
           </div>
+          <div id="panel3" class="figurePanel" style="display:none">
+            <div class="figure">
+              <svg id="bowlSVG3" viewBox="0 0 500 300" role="img" aria-label="Bolle med kuler"></svg>
+            </div>
+            <button id="removeBowl3" class="btn removeFigureBtn" type="button" aria-label="Slett figur 3">Slett figur</button>
+          </div>
+          <div id="panel4" class="figurePanel" style="display:none">
+            <div class="figure">
+              <svg id="bowlSVG4" viewBox="0 0 500 300" role="img" aria-label="Bolle med kuler"></svg>
+            </div>
+            <button id="removeBowl4" class="btn removeFigureBtn" type="button" aria-label="Slett figur 4">Slett figur</button>
+          </div>
+          <button id="addBowl" class="addFigureBtn" type="button" aria-label="Legg til illustrasjon">+</button>
         </div>
       </div>
       <div class="side">
@@ -96,13 +110,21 @@
         </div>
         <div class="card">
           <h2>Eksporter</h2>
-          <div class="toolbar">
+          <div id="exportToolbar1" class="toolbar">
             <button id="downloadSVG1" class="btn" type="button">Last ned SVG</button>
             <button id="downloadPNG1" class="btn" type="button">Last ned PNG</button>
           </div>
           <div id="exportToolbar2" class="toolbar" style="display:none">
             <button id="downloadSVG2" class="btn" type="button">Last ned SVG</button>
             <button id="downloadPNG2" class="btn" type="button">Last ned PNG</button>
+          </div>
+          <div id="exportToolbar3" class="toolbar" style="display:none">
+            <button id="downloadSVG3" class="btn" type="button">Last ned SVG</button>
+            <button id="downloadPNG3" class="btn" type="button">Last ned PNG</button>
+          </div>
+          <div id="exportToolbar4" class="toolbar" style="display:none">
+            <button id="downloadSVG4" class="btn" type="button">Last ned SVG</button>
+            <button id="downloadPNG4" class="btn" type="button">Last ned PNG</button>
           </div>
         </div>
       </div>

@@ -78,7 +78,8 @@ function makeCFG() {
 let CFG = makeCFG();
 
 /* ============ DOM & VIEWBOX ============ */
-const SVG_IDS = ["bowlSVG1", "bowlSVG2"];
+const SVG_IDS = ["bowlSVG1", "bowlSVG2", "bowlSVG3", "bowlSVG4"];
+const MAX_FIGURES = SVG_IDS.length;
 const VB_W = 500,
   VB_H = 300;
 const figureViews = [];
@@ -95,10 +96,9 @@ const assetToColor = Object.entries(ADV.assets.beads).reduce((acc, [color, src])
 const controlsWrap = document.getElementById("controls");
 const figureGridEl = document.querySelector(".figureGrid");
 const addBtn = document.getElementById("addBowl");
-const panelEls = [document.getElementById("panel1"), document.getElementById("panel2")];
-const removeBtn1 = document.getElementById("removeBowl1");
-const removeBtn2 = document.getElementById("removeBowl2");
-const exportToolbar2 = document.getElementById("exportToolbar2");
+const panelEls = SVG_IDS.map((_, idx) => document.getElementById(`panel${idx + 1}`));
+const removeBtns = SVG_IDS.map((_, idx) => document.getElementById(`removeBowl${idx + 1}`));
+const exportToolbarEls = SVG_IDS.map((_, idx) => document.getElementById(`exportToolbar${idx + 1}`));
 const gridEl = document.querySelector(".grid");
 const initialSideWidth = (() => {
   if (!gridEl) return 360;
@@ -110,11 +110,12 @@ const initialSideWidth = (() => {
   } catch (_) {}
   return 360;
 })();
-let lastShowSecond = null;
+let lastVisibleCount = null;
 if (!Array.isArray(SIMPLE.bowls)) SIMPLE.bowls = [];
-if (typeof STATE.figure2Visible !== "boolean") {
-  STATE.figure2Visible = SIMPLE.bowls.length > 1;
+if (Array.isArray(SIMPLE.bowls) && SIMPLE.bowls.length > MAX_FIGURES) {
+  SIMPLE.bowls.length = MAX_FIGURES;
 }
+initializeVisibleCount();
 SVG_IDS.forEach((id, idx) => {
   const svg = document.getElementById(id);
   if (!svg) return;
@@ -129,39 +130,23 @@ SVG_IDS.forEach((id, idx) => {
 });
 render();
 addBtn === null || addBtn === void 0 || addBtn.addEventListener("click", () => {
-  var _SIMPLE$beadRadius2;
-  const first = ensureSimpleBowl(0);
-  const copyCounts = colors.map(color => {
-    const entry = Array.isArray(first === null || first === void 0 ? void 0 : first.colorCounts) ? first.colorCounts.find(cc => cc.color === color) : null;
-    const count = Number.isFinite(entry === null || entry === void 0 ? void 0 : entry.count) ? Math.max(0, Math.round(entry.count)) : 0;
-    return {
-      color,
-      count
-    };
-  });
-  const radiusSource = Number.isFinite(first === null || first === void 0 ? void 0 : first.beadRadius) ? first.beadRadius : (_SIMPLE$beadRadius2 = SIMPLE.beadRadius) !== null && _SIMPLE$beadRadius2 !== void 0 ? _SIMPLE$beadRadius2 : ADV.beadRadius;
-  SIMPLE.bowls[1] = {
-    colorCounts: copyCounts,
-    beadRadius: radiusSource
-  };
-  STATE.figure2Visible = true;
+  const visible = getVisibleCount();
+  if (visible >= MAX_FIGURES) return;
+  const nextIdx = visible;
+  ensureSimpleBowl(nextIdx);
+  setVisibleCount(nextIdx + 1);
   render();
 });
-removeBtn1 === null || removeBtn1 === void 0 || removeBtn1.addEventListener("click", () => {
-  removeBowl(0);
+removeBtns.forEach((btn, idx) => {
+  btn === null || btn === void 0 || btn.addEventListener("click", () => {
+    removeBowl(idx);
+  });
 });
-removeBtn2 === null || removeBtn2 === void 0 || removeBtn2.addEventListener("click", () => {
-  removeBowl(1);
-});
-const downloadButtons = [{
-  svgBtn: document.getElementById("downloadSVG1"),
-  pngBtn: document.getElementById("downloadPNG1"),
-  idx: 0
-}, {
-  svgBtn: document.getElementById("downloadSVG2"),
-  pngBtn: document.getElementById("downloadPNG2"),
-  idx: 1
-}];
+const downloadButtons = SVG_IDS.map((_, idx) => ({
+  svgBtn: document.getElementById(`downloadSVG${idx + 1}`),
+  pngBtn: document.getElementById(`downloadPNG${idx + 1}`),
+  idx
+}));
 downloadButtons.forEach(({
   svgBtn,
   pngBtn,
@@ -170,6 +155,43 @@ downloadButtons.forEach(({
   svgBtn === null || svgBtn === void 0 || svgBtn.addEventListener("click", () => downloadSvgFigure(idx));
   pngBtn === null || pngBtn === void 0 || pngBtn.addEventListener("click", () => downloadPngFigure(idx));
 });
+
+function clampVisibleCount(value) {
+  if (!Number.isFinite(value)) return 1;
+  const rounded = Math.round(value);
+  return Math.min(MAX_FIGURES, Math.max(1, rounded));
+}
+function setVisibleCount(value) {
+  const sanitized = clampVisibleCount(value);
+  STATE.visibleCount = sanitized;
+  STATE.figure2Visible = sanitized > 1;
+}
+function getVisibleCount() {
+  const sanitized = clampVisibleCount(STATE.visibleCount);
+  if (sanitized !== STATE.visibleCount) {
+    STATE.visibleCount = sanitized;
+    STATE.figure2Visible = sanitized > 1;
+  }
+  return sanitized;
+}
+function initializeVisibleCount() {
+  if (!Number.isFinite(STATE.visibleCount)) {
+    const parsed = Number.parseInt(STATE.visibleCount, 10);
+    if (Number.isFinite(parsed)) {
+      STATE.visibleCount = parsed;
+    }
+  }
+  if (!Number.isFinite(STATE.visibleCount)) {
+    if (typeof STATE.figure2Visible === "boolean") {
+      STATE.visibleCount = STATE.figure2Visible ? 2 : 1;
+    } else if (Array.isArray(SIMPLE.bowls) && SIMPLE.bowls.length > 0) {
+      STATE.visibleCount = SIMPLE.bowls.length;
+    } else {
+      STATE.visibleCount = 1;
+    }
+  }
+  setVisibleCount(STATE.visibleCount);
+}
 
 /* ============ FUNKSJONER ============ */
 function createFigure(idx, svg, gBowls) {
@@ -287,25 +309,11 @@ function ensureSimpleBowl(idx) {
   return bowl;
 }
 function applySimpleToFigures() {
+  const visible = getVisibleCount();
   figureViews.forEach(fig => {
     var _SIMPLE$beadRadius7;
     if (!fig) return;
-    if (fig.idx > 0 && !STATE.figure2Visible && !SIMPLE.bowls[fig.idx]) {
-      var _SIMPLE$beadRadius6;
-      const first = ensureSimpleBowl(0);
-      const radius = Math.min(60, Math.max(5, Number.isFinite(first === null || first === void 0 ? void 0 : first.beadRadius) ? first.beadRadius : (_SIMPLE$beadRadius6 = SIMPLE.beadRadius) !== null && _SIMPLE$beadRadius6 !== void 0 ? _SIMPLE$beadRadius6 : ADV.beadRadius));
-      fig.beadRadius = radius;
-      fig.renderRadius = radius;
-      if (fig.sizeDisplay) fig.sizeDisplay.textContent = radius;
-      if (fig.sizeSlider) fig.sizeSlider.value = String(radius);
-      colors.forEach(color => {
-        const entry = Array.isArray(first === null || first === void 0 ? void 0 : first.colorCounts) ? first.colorCounts.find(cc => cc.color === color) : null;
-        const count = Number.isFinite(entry === null || entry === void 0 ? void 0 : entry.count) ? Math.max(0, Math.round(entry.count)) : 0;
-        fig.counts[color] = count;
-        if (fig.displays[color]) fig.displays[color].textContent = String(count);
-      });
-      return;
-    }
+    if (fig.idx >= visible) return;
     const bowl = ensureSimpleBowl(fig.idx);
     const radius = Math.min(60, Math.max(5, Number.isFinite(bowl === null || bowl === void 0 ? void 0 : bowl.beadRadius) ? bowl.beadRadius : (_SIMPLE$beadRadius7 = SIMPLE.beadRadius) !== null && _SIMPLE$beadRadius7 !== void 0 ? _SIMPLE$beadRadius7 : ADV.beadRadius));
     fig.beadRadius = radius;
@@ -321,10 +329,11 @@ function applySimpleToFigures() {
   });
 }
 function syncSimpleFromFigures() {
+  const visible = getVisibleCount();
   figureViews.forEach(fig => {
     var _ref, _ref2, _fig$beadRadius;
     if (!fig) return;
-    if (fig.idx > 0 && !STATE.figure2Visible) return;
+    if (fig.idx >= visible) return;
     const bowl = ensureSimpleBowl(fig.idx);
     bowl.colorCounts = colors.map(color => {
       const value = Number.isFinite(fig.counts[color]) ? Math.max(0, Math.round(fig.counts[color])) : 0;
@@ -370,9 +379,9 @@ function removeBowl(idx) {
   if (Array.isArray(SIMPLE.bowls)) {
     if (idx === 0) {
       if (SIMPLE.bowls.length <= 1) return;
-      SIMPLE.bowls.splice(0, 1);
-    } else {
-      SIMPLE.bowls.splice(idx);
+    }
+    if (idx >= 0 && idx < SIMPLE.bowls.length) {
+      SIMPLE.bowls.splice(idx, 1);
     }
   }
   if (Array.isArray(STATE.bowls)) {
@@ -382,8 +391,8 @@ function removeBowl(idx) {
       } else if (STATE.bowls.length === 1) {
         STATE.bowls[0] = {};
       }
-    } else {
-      STATE.bowls.splice(idx);
+    } else if (idx >= 0 && idx < STATE.bowls.length) {
+      STATE.bowls.splice(idx, 1);
     }
   }
   if (dragState && ((_dragState$fig = dragState.fig) === null || _dragState$fig === void 0 ? void 0 : _dragState$fig.idx) === idx) {
@@ -412,12 +421,19 @@ function removeBowl(idx) {
       beadRadius: (_SIMPLE$beadRadius8 = SIMPLE.beadRadius) !== null && _SIMPLE$beadRadius8 !== void 0 ? _SIMPLE$beadRadius8 : ADV.beadRadius
     });
   }
-  STATE.figure2Visible = Array.isArray(SIMPLE.bowls) ? SIMPLE.bowls.length > 1 : false;
+  const available = Array.isArray(SIMPLE.bowls) ? SIMPLE.bowls.length : 0;
+  const desired = Math.max(1, Math.min(MAX_FIGURES, available));
+  setVisibleCount(desired);
   render();
 }
 function render() {
-  if (typeof STATE.figure2Visible !== "boolean") {
-    STATE.figure2Visible = SIMPLE.bowls.length > 1;
+  const available = Array.isArray(SIMPLE.bowls) ? SIMPLE.bowls.length : 0;
+  const maxVisible = Math.max(1, Math.min(MAX_FIGURES, available || 1));
+  const currentVisible = getVisibleCount();
+  if (currentVisible > maxVisible) {
+    setVisibleCount(maxVisible);
+  } else {
+    setVisibleCount(currentVisible);
   }
   CFG = makeCFG();
   applySimpleToFigures();
@@ -429,6 +445,10 @@ function renderFigure(fig) {
   var _cfg$beadRadius, _ref3, _fig$beadRadius2;
   if (!fig || !fig.svg) return;
   const idx = fig.idx;
+  if (idx >= getVisibleCount()) {
+    fig.gBowls.innerHTML = "";
+    return;
+  }
   const cfg = CFG.bowls[idx];
   fig.gBowls.innerHTML = "";
   if (!cfg) return;
@@ -530,27 +550,22 @@ function renderFigure(fig) {
   fig.gBowls.appendChild(g);
 }
 function applyFigureVisibility() {
-  var _figureViews$;
-  const secondExists = !!figureViews[1];
-  const showSecond = !!STATE.figure2Visible && secondExists;
-  const firstExists = !!figureViews[0];
-  const figureCount = firstExists ? showSecond ? 2 : 1 : 0;
-  const addVisible = !showSecond && secondExists;
+  const visible = getVisibleCount();
   if (figureGridEl) {
-    if (figureCount > 0) {
-      figureGridEl.dataset.figures = String(figureCount);
+    if (visible > 0) {
+      figureGridEl.dataset.figures = String(visible);
     } else {
       delete figureGridEl.dataset.figures;
     }
-    if (addVisible) {
+    if (visible < MAX_FIGURES) {
       figureGridEl.dataset.addVisible = "true";
     } else {
       delete figureGridEl.dataset.addVisible;
     }
   }
-  if (controlsWrap) controlsWrap.classList.toggle("controlsWrap--split", showSecond);
-  if (gridEl && showSecond !== lastShowSecond) {
-    if (showSecond) {
+  if (controlsWrap) controlsWrap.classList.toggle("controlsWrap--split", visible > 1);
+  if (gridEl && visible !== lastVisibleCount) {
+    if (visible > 1) {
       const current = Number.parseFloat(gridEl.style.getPropertyValue("--side-width"));
       const base = Number.isFinite(current) ? current : initialSideWidth;
       const desired = Math.max(base, 500);
@@ -559,15 +574,29 @@ function applyFigureVisibility() {
       gridEl.style.setProperty("--side-width", `${initialSideWidth}px`);
     }
   }
-  lastShowSecond = showSecond;
-  if (addBtn) addBtn.style.display = addVisible ? "" : "none";
-  if (panelEls[1]) panelEls[1].style.display = showSecond ? "" : "none";
-  if (exportToolbar2) exportToolbar2.style.display = showSecond ? "" : "none";
-  if ((_figureViews$ = figureViews[1]) !== null && _figureViews$ !== void 0 && _figureViews$.fieldset) figureViews[1].fieldset.style.display = showSecond ? "" : "none";
-  if (removeBtn1) {
-    const extraBowl = Array.isArray(SIMPLE.bowls) ? SIMPLE.bowls.length > 1 : false;
-    removeBtn1.disabled = !(showSecond && extraBowl);
-  }
+  lastVisibleCount = visible;
+  if (addBtn) addBtn.style.display = visible < MAX_FIGURES ? "" : "none";
+  panelEls.forEach((panel, idx) => {
+    if (!panel) return;
+    panel.style.display = idx < visible ? "" : "none";
+  });
+  exportToolbarEls.forEach((toolbar, idx) => {
+    if (!toolbar) return;
+    toolbar.style.display = idx < visible ? "" : "none";
+  });
+  figureViews.forEach(fig => {
+    if (!fig || !fig.fieldset) return;
+    fig.fieldset.style.display = fig.idx < visible ? "" : "none";
+  });
+  removeBtns.forEach((btn, idx) => {
+    if (!btn) return;
+    if (idx === 0) {
+      const extraBowl = Array.isArray(SIMPLE.bowls) ? SIMPLE.bowls.length > 1 : false;
+      btn.disabled = !(visible > 1 && extraBowl);
+    } else {
+      btn.disabled = idx >= visible;
+    }
+  });
 }
 function getBowlState(idx) {
   if (!STATE.bowls[idx] || typeof STATE.bowls[idx] !== "object" || Array.isArray(STATE.bowls[idx])) {
@@ -677,6 +706,7 @@ function svgPoint(svgEl, evt) {
 async function downloadSvgFigure(idx) {
   const fig = figureViews[idx];
   if (!fig || !fig.svg) return;
+  if (idx >= getVisibleCount()) return;
   const clone = fig.svg.cloneNode(true);
   await inlineImages(clone);
   const data = new XMLSerializer().serializeToString(clone);
@@ -693,6 +723,7 @@ async function downloadSvgFigure(idx) {
 async function downloadPngFigure(idx) {
   const fig = figureViews[idx];
   if (!fig || !fig.svg) return;
+  if (idx >= getVisibleCount()) return;
   const clone = fig.svg.cloneNode(true);
   await inlineImages(clone);
   const data = new XMLSerializer().serializeToString(clone);
