@@ -8,6 +8,13 @@
   const DEFAULT_LABEL_FONT_SIZE = 14;
   const MIN_LABEL_FONT_SIZE = 10;
   const MAX_LABEL_FONT_SIZE = 48;
+  const GRID_BASE_STEP = 0.05;
+  const GRID_MAJOR_EVERY = 4;
+  const DEFAULT_ZOOM = 1;
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 4;
+  const ZOOM_STEP = 0.25;
+  const PAN_STEP = 0.01;
 
   function deepClone(value) {
     if (value == null) return value;
@@ -64,7 +71,10 @@
     predefinedLines: [['p3', 'p5']],
     showLabels: true,
     labelFontSize: DEFAULT_LABEL_FONT_SIZE,
-    nextPointId: 11
+    nextPointId: 11,
+    showGrid: true,
+    snapToGrid: false,
+    view: { zoom: DEFAULT_ZOOM, panX: 0, panY: 0 }
   };
 
   const SHARK_STATE = {
@@ -96,7 +106,10 @@
     predefinedLines: [],
     showLabels: true,
     labelFontSize: DEFAULT_LABEL_FONT_SIZE,
-    nextPointId: 11
+    nextPointId: 11,
+    showGrid: true,
+    snapToGrid: false,
+    view: { zoom: DEFAULT_ZOOM, panX: 0, panY: 0 }
   };
 
   const LIGHTNING_STATE = {
@@ -130,7 +143,10 @@
     predefinedLines: [],
     showLabels: true,
     labelFontSize: DEFAULT_LABEL_FONT_SIZE,
-    nextPointId: 12
+    nextPointId: 12,
+    showGrid: true,
+    snapToGrid: false,
+    view: { zoom: DEFAULT_ZOOM, panX: 0, panY: 0 }
   };
 
   const DEFAULT_PRIKK_TIL_PRIKK_EXAMPLES = [{
@@ -191,22 +207,34 @@
   const predefToggleBtn = document.getElementById('btnTogglePredef');
   const predefHelperTextEl = document.getElementById('predefHelperText');
   const labelLayer = document.getElementById('boardLabelsLayer');
+  const showGridToggle = document.getElementById('cfg-showGrid');
+  const snapToGridToggle = document.getElementById('cfg-snapToGrid');
+  const zoomRange = document.getElementById('cfg-zoom');
+  const panXRange = document.getElementById('cfg-panX');
+  const panYRange = document.getElementById('cfg-panY');
+  const zoomValueEl = document.getElementById('cfg-zoomValue');
+  const panXValueEl = document.getElementById('cfg-panXValue');
+  const panYValueEl = document.getElementById('cfg-panYValue');
 
   attachListContainerListeners(pointListEl);
   attachListContainerListeners(falsePointListEl);
 
+  const gridGroup = document.createElementNS(SVG_NS, 'g');
   const baseGroup = document.createElementNS(SVG_NS, 'g');
   const userGroup = document.createElementNS(SVG_NS, 'g');
   const answerGroup = document.createElementNS(SVG_NS, 'g');
   const pointsGroup = document.createElementNS(SVG_NS, 'g');
   const labelsGroup = document.createElementNS(SVG_NS, 'g');
+  gridGroup.classList.add('grid-group');
+  gridGroup.setAttribute('aria-hidden', 'true');
+  gridGroup.style.pointerEvents = 'none';
   baseGroup.classList.add('line-group', 'line-group--base');
   userGroup.classList.add('line-group', 'line-group--user');
   answerGroup.classList.add('line-group', 'line-group--answer');
   answerGroup.style.pointerEvents = 'none';
   pointsGroup.classList.add('points-group');
   labelsGroup.classList.add('labels-group');
-  board.append(baseGroup, userGroup, answerGroup, pointsGroup, labelsGroup);
+  board.append(gridGroup, baseGroup, userGroup, answerGroup, pointsGroup, labelsGroup);
 
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;
@@ -260,6 +288,24 @@
     STATE.showLabels = true;
     STATE.labelFontSize = normalizeLabelFontSize(STATE.labelFontSize);
     if (!Number.isFinite(STATE.nextPointId)) STATE.nextPointId = STATE.points.length + 1;
+    if (typeof STATE.showGrid !== 'boolean') STATE.showGrid = true;
+    if (typeof STATE.snapToGrid !== 'boolean') STATE.snapToGrid = false;
+    if (!STATE.view || typeof STATE.view !== 'object') {
+      STATE.view = { zoom: DEFAULT_ZOOM, panX: 0, panY: 0 };
+    }
+    getViewSettings();
+  }
+
+  function clamp(value, min, max) {
+    const num = Number(value);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return Number.isFinite(num) ? num : 0;
+    }
+    if (min > max) return min;
+    if (!Number.isFinite(num)) return min;
+    if (num <= min) return min;
+    if (num >= max) return max;
+    return num;
   }
 
   function clamp01(value) {
@@ -278,12 +324,52 @@
     return Math.round(num);
   }
 
+  function clampZoom(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return DEFAULT_ZOOM;
+    const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, num));
+    const quantized = Math.round(clamped / ZOOM_STEP) * ZOOM_STEP;
+    const bounded = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, quantized));
+    return Number(bounded.toFixed(2));
+  }
+
+  function getViewSettings() {
+    const rawView = STATE.view && typeof STATE.view === 'object' ? STATE.view : {};
+    const zoom = clampZoom(rawView.zoom);
+    const viewWidth = zoom > 0 ? 1 / zoom : 1;
+    const viewHeight = zoom > 0 ? 1 / zoom : 1;
+    const panLimitX = Math.max(0, 1 - viewWidth);
+    const panLimitY = Math.max(0, 1 - viewHeight);
+    const panX = panLimitX > 0 ? clamp(rawView.panX, 0, panLimitX) : 0;
+    const panY = panLimitY > 0 ? clamp(rawView.panY, 0, panLimitY) : 0;
+    STATE.view = { zoom, panX, panY };
+    return { zoom, panX, panY, viewWidth, viewHeight, panLimitX, panLimitY };
+  }
+
+  function computePanStep(limit) {
+    if (!Number.isFinite(limit) || limit <= 0) return PAN_STEP;
+    const candidate = limit / 5;
+    if (candidate <= 0) return Math.min(PAN_STEP, limit) || PAN_STEP;
+    return Math.max(Math.min(PAN_STEP, candidate), 0.001);
+  }
+
   function percentString(value) {
     const num = Number(value);
     if (!Number.isFinite(num)) return '0';
     const rounded = Math.round(num * 1000) / 10;
     if (!Number.isFinite(rounded)) return '0';
     return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  }
+
+  function formatZoom(value) {
+    if (!Number.isFinite(value)) return '×1';
+    const normalized = Number(value).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+    return `×${normalized}`;
+  }
+
+  function formatPercentValue(value) {
+    if (!Number.isFinite(value)) return '0 %';
+    return `${percentString(value)} %`;
   }
 
   function coordinateString(point) {
@@ -314,6 +400,37 @@
       } catch (_) {}
     }
     element.textContent = content;
+  }
+
+  function syncViewControls(currentView) {
+    const view = currentView || getViewSettings();
+    if (showGridToggle) showGridToggle.checked = !!STATE.showGrid;
+    if (snapToGridToggle) snapToGridToggle.checked = !!STATE.snapToGrid;
+    if (zoomRange) {
+      zoomRange.min = String(MIN_ZOOM);
+      zoomRange.max = String(MAX_ZOOM);
+      zoomRange.step = String(ZOOM_STEP);
+      zoomRange.value = String(view.zoom);
+    }
+    if (zoomValueEl) zoomValueEl.textContent = formatZoom(view.zoom);
+    const updatePanControl = (rangeEl, valueEl, value, limit) => {
+      if (!rangeEl && valueEl) {
+        valueEl.textContent = formatPercentValue(value);
+        return;
+      }
+      if (!rangeEl) return;
+      const safeLimit = Math.max(0, Number(limit) || 0);
+      const disabled = safeLimit <= 0.0001;
+      const safeValue = disabled ? 0 : clamp(value, 0, safeLimit);
+      rangeEl.min = '0';
+      rangeEl.max = String(safeLimit);
+      rangeEl.step = String(computePanStep(safeLimit));
+      rangeEl.value = String(safeValue);
+      rangeEl.disabled = disabled;
+      if (valueEl) valueEl.textContent = formatPercentValue(disabled ? 0 : safeValue);
+    };
+    updatePanControl(panXRange, panXValueEl, view.panX, view.panLimitX);
+    updatePanControl(panYRange, panYValueEl, view.panY, view.panLimitY);
   }
 
   function computeBoardScale() {
@@ -415,6 +532,14 @@
     const y = parsePart(matches[1]);
     if (x == null || y == null) return null;
     return { x, y };
+  }
+
+  function snapToGridValue(value) {
+    if (!Number.isFinite(value)) return 0;
+    const step = GRID_BASE_STEP;
+    if (!Number.isFinite(step) || step <= 0) return clamp01(value);
+    const snapped = Math.round(value / step) * step;
+    return clamp01(Number(snapped.toFixed(4)));
   }
 
   function makeLineKey(a, b) {
@@ -622,6 +747,9 @@
     }
     STATE.showLabels = true;
     STATE.labelFontSize = normalizeLabelFontSize(STATE.labelFontSize);
+    STATE.showGrid = !!STATE.showGrid;
+    STATE.snapToGrid = !!STATE.snapToGrid;
+    getViewSettings();
     if (predefAnchorPointId != null && !validPoints.has(predefAnchorPointId)) {
       predefAnchorPointId = null;
       if (isPredefDrawingMode) selectedPointId = null;
@@ -647,19 +775,26 @@
 
   function prepareState() {
     const validPoints = sanitizeState();
+    const view = getViewSettings();
     syncBaseLines(validPoints);
     document.body.classList.toggle('labels-hidden', !STATE.showLabels);
     applyLabelFontSize();
     syncLabelFontSizeControl();
+    syncViewControls(view);
     return validPoints;
   }
 
-  function toPixel(point) {
+  function toPixel(point, viewOverride) {
     const normX = clamp01(point.x);
     const normY = clamp01(point.y);
+    const view = viewOverride && typeof viewOverride === 'object' ? viewOverride : getViewSettings();
+    const relativeX = view.viewWidth > 0 ? (normX - view.panX) / view.viewWidth : 0;
+    const relativeY = view.viewHeight > 0 ? (normY - view.panY) / view.viewHeight : 0;
+    const clampedX = clamp01(relativeX);
+    const clampedY = clamp01(relativeY);
     return {
-      x: normX * BOARD_WIDTH,
-      y: (1 - normY) * BOARD_HEIGHT
+      x: clampedX * BOARD_WIDTH,
+      y: (1 - clampedY) * BOARD_HEIGHT
     };
   }
 
@@ -678,9 +813,12 @@
     const height = rect.height || 1;
     const rawX = (clientX - rect.left) / width;
     const rawY = (clientY - rect.top) / height;
+    const localX = clamp01(rawX);
+    const localY = clamp01(1 - rawY);
+    const view = getViewSettings();
     return {
-      x: clamp01(rawX),
-      y: clamp01(1 - rawY)
+      x: clamp01(view.panX + localX * view.viewWidth),
+      y: clamp01(view.panY + localY * view.viewHeight)
     };
   }
 
@@ -748,8 +886,14 @@
   function updatePointPosition(pointId, normX, normY) {
     const point = STATE.points.find(p => p.id === pointId);
     if (!point) return;
-    point.x = clamp01(normX);
-    point.y = clamp01(normY);
+    let newX = clamp01(normX);
+    let newY = clamp01(normY);
+    if (STATE.snapToGrid) {
+      newX = snapToGridValue(newX);
+      newY = snapToGridValue(newY);
+    }
+    point.x = newX;
+    point.y = newY;
     const pos = toPixel(point);
     const visual = pointElements.get(pointId);
     if (visual) {
@@ -763,6 +907,62 @@
       label.setFalse(!!point.isFalse);
     }
     updateLinesForPoint(pointId);
+  }
+
+  function snapAllPointsToGrid() {
+    if (!STATE.snapToGrid) return false;
+    let changed = false;
+    STATE.points.forEach(point => {
+      if (!point) return;
+      const snappedX = snapToGridValue(point.x);
+      const snappedY = snapToGridValue(point.y);
+      if (snappedX !== point.x || snappedY !== point.y) {
+        point.x = snappedX;
+        point.y = snappedY;
+        changed = true;
+      }
+    });
+    return changed;
+  }
+
+  function updateZoom(rawZoom) {
+    const view = getViewSettings();
+    const nextZoom = clampZoom(rawZoom);
+    if (Math.abs(nextZoom - view.zoom) < 1e-6) {
+      syncViewControls(view);
+      return;
+    }
+    const centerX = view.panX + view.viewWidth / 2;
+    const centerY = view.panY + view.viewHeight / 2;
+    const nextViewWidth = nextZoom > 0 ? 1 / nextZoom : 1;
+    const nextViewHeight = nextZoom > 0 ? 1 / nextZoom : 1;
+    const nextPanLimitX = Math.max(0, 1 - nextViewWidth);
+    const nextPanLimitY = Math.max(0, 1 - nextViewHeight);
+    let nextPanX = centerX - nextViewWidth / 2;
+    let nextPanY = centerY - nextViewHeight / 2;
+    nextPanX = nextPanLimitX > 0 ? clamp(nextPanX, 0, nextPanLimitX) : 0;
+    nextPanY = nextPanLimitY > 0 ? clamp(nextPanY, 0, nextPanLimitY) : 0;
+    STATE.view = { zoom: nextZoom, panX: nextPanX, panY: nextPanY };
+    renderBoard();
+  }
+
+  function updatePan(axis, rawValue) {
+    const view = getViewSettings();
+    const limitX = view.panLimitX;
+    const limitY = view.panLimitY;
+    let nextPanX = view.panX;
+    let nextPanY = view.panY;
+    if (axis === 'x') {
+      nextPanX = limitX > 0 ? clamp(rawValue, 0, limitX) : 0;
+    } else {
+      nextPanY = limitY > 0 ? clamp(rawValue, 0, limitY) : 0;
+    }
+    if (Math.abs(nextPanX - view.panX) < 1e-6 && Math.abs(nextPanY - view.panY) < 1e-6) {
+      syncViewControls(view);
+      return;
+    }
+    STATE.view = { zoom: view.zoom, panX: nextPanX, panY: nextPanY };
+    renderBoard();
   }
 
   function clearDragVisualState() {
@@ -1218,12 +1418,61 @@
     });
   }
 
+  function renderGrid(view) {
+    if (!gridGroup) return;
+    gridGroup.innerHTML = '';
+    if (!isEditMode || !STATE.showGrid) {
+      gridGroup.style.display = 'none';
+      return;
+    }
+    const currentView = view && typeof view === 'object' ? view : getViewSettings();
+    gridGroup.style.display = '';
+    const step = GRID_BASE_STEP;
+    if (!Number.isFinite(step) || step <= 0) return;
+    const minX = currentView.panX;
+    const maxX = currentView.panX + currentView.viewWidth;
+    const minY = currentView.panY;
+    const maxY = currentView.panY + currentView.viewHeight;
+    const epsilon = 1e-6;
+    const addLine = (x1, y1, x2, y2, isMajor) => {
+      const pos1 = toPixel({ x: x1, y: y1 }, currentView);
+      const pos2 = toPixel({ x: x2, y: y2 }, currentView);
+      const line = document.createElementNS(SVG_NS, 'line');
+      line.setAttribute('x1', pos1.x);
+      line.setAttribute('y1', pos1.y);
+      line.setAttribute('x2', pos2.x);
+      line.setAttribute('y2', pos2.y);
+      line.classList.add('grid-line');
+      if (isMajor) line.classList.add('grid-line--major');
+      gridGroup.appendChild(line);
+    };
+    const startXIndex = Math.ceil((minX - epsilon) / step);
+    const endXIndex = Math.floor((maxX + epsilon) / step);
+    for (let idx = startXIndex; idx <= endXIndex; idx += 1) {
+      const xValue = Number((idx * step).toFixed(6));
+      if (xValue < -epsilon || xValue > 1 + epsilon) continue;
+      const isMajor = GRID_MAJOR_EVERY > 0 && idx % GRID_MAJOR_EVERY === 0;
+      addLine(xValue, minY, xValue, maxY, isMajor);
+    }
+    const startYIndex = Math.ceil((minY - epsilon) / step);
+    const endYIndex = Math.floor((maxY + epsilon) / step);
+    for (let idx = startYIndex; idx <= endYIndex; idx += 1) {
+      const yValue = Number((idx * step).toFixed(6));
+      if (yValue < -epsilon || yValue > 1 + epsilon) continue;
+      const isMajor = GRID_MAJOR_EVERY > 0 && idx % GRID_MAJOR_EVERY === 0;
+      addLine(minX, yValue, maxX, yValue, isMajor);
+    }
+  }
+
   function renderBoard(validPoints) {
     if (!validPoints) validPoints = prepareState();
     document.body.classList.toggle('labels-hidden', !STATE.showLabels);
     applyLabelFontSize();
 
     const pointMap = new Map(STATE.points.map(p => [p.id, p]));
+
+    const view = getViewSettings();
+    renderGrid(view);
 
     baseGroup.innerHTML = '';
     baseLineElements.clear();
@@ -1593,6 +1842,54 @@
       updateModeUI();
       renderBoard();
     });
+  }
+
+  if (showGridToggle) {
+    showGridToggle.addEventListener('change', () => {
+      STATE.showGrid = !!showGridToggle.checked;
+      renderBoard();
+    });
+  }
+
+  if (snapToGridToggle) {
+    snapToGridToggle.addEventListener('change', () => {
+      STATE.snapToGrid = !!snapToGridToggle.checked;
+      if (STATE.snapToGrid) {
+        const changed = snapAllPointsToGrid();
+        if (changed) {
+          const validPoints = prepareState();
+          renderPointList(validPoints);
+          renderBoard(validPoints);
+          showStatus('info', 'Punktene ble justert til rutenettet.');
+          return;
+        }
+      }
+      renderBoard();
+    });
+  }
+
+  if (zoomRange) {
+    const handleZoomInput = () => {
+      updateZoom(zoomRange.value);
+    };
+    zoomRange.addEventListener('input', handleZoomInput);
+    zoomRange.addEventListener('change', handleZoomInput);
+  }
+
+  if (panXRange) {
+    const handlePanX = () => {
+      updatePan('x', panXRange.value);
+    };
+    panXRange.addEventListener('input', handlePanX);
+    panXRange.addEventListener('change', handlePanX);
+  }
+
+  if (panYRange) {
+    const handlePanY = () => {
+      updatePan('y', panYRange.value);
+    };
+    panYRange.addEventListener('input', handlePanY);
+    panYRange.addEventListener('change', handlePanY);
   }
 
   if (labelFontSizeSelect) {

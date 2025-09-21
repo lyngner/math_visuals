@@ -43,6 +43,9 @@
       overflow: hidden;
       position: relative;
     }
+    .grid-group { pointer-events: none; }
+    .grid-line { stroke: #d1d5db; stroke-width: 1; opacity: .8; }
+    .grid-line--major { stroke: #9ca3af; opacity: .9; }
     #dotBoard {
       width: 100%;
       height: clamp(320px, 60vh, 520px);
@@ -130,6 +133,16 @@
       color: #1d4ed8;
     }
     .status strong { display: inline-flex; align-items: center; gap: 6px; }
+    .settings-group { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+    .settings-toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #4b5563; }
+    .settings-toggle input { width: 18px; height: 18px; }
+    .settings-range { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #4b5563; }
+    .settings-range__label { display: flex; align-items: baseline; gap: 8px; font-weight: 600; color: #1f2937; }
+    .settings-range input[type="range"] { width: 100%; }
+    .settings-range--inline { font-size: 13px; }
+    .settings-range--inline .settings-range__label { font-weight: 500; color: #4b5563; }
+    .settings-pan { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+    .range-value { font-size: 12px; color: #6b7280; font-weight: 600; }
     .btn {
       appearance: none;
       border: 1px solid #d1d5db;
@@ -426,8 +439,8 @@
             <div>Fasit-streker: <span id="answerCount">0</span></div>
             <div>Forhåndsdefinerte streker: <span id="predefCount">0</span></div>
           </div>
-          <label>
-            <span>Skriftstørrelse</span>
+          <label class="settings-range" for="cfg-labelFontSize">
+            <span class="settings-range__label">Skriftstørrelse</span>
             <select id="cfg-labelFontSize">
               <option value="12">Liten</option>
               <option value="14" selected>Standard</option>
@@ -435,6 +448,33 @@
               <option value="24">Ekstra stor</option>
             </select>
           </label>
+          <div class="settings-group">
+            <label class="settings-toggle">
+              <input id="cfg-showGrid" type="checkbox" />
+              <span>Vis rutenett</span>
+            </label>
+            <label class="settings-toggle">
+              <input id="cfg-snapToGrid" type="checkbox" />
+              <span>Snapp til rutenett</span>
+            </label>
+            <label class="settings-range" for="cfg-zoom">
+              <span class="settings-range__label">Zoom <span id="cfg-zoomValue" class="range-value"></span></span>
+              <input id="cfg-zoom" type="range" min="1" max="4" step="0.25" value="1" />
+            </label>
+            <div class="settings-range">
+              <span class="settings-range__label">Panorering</span>
+              <div class="settings-pan">
+                <label class="settings-range settings-range--inline" for="cfg-panX">
+                  <span class="settings-range__label">X <span id="cfg-panXValue" class="range-value"></span></span>
+                  <input id="cfg-panX" type="range" min="0" max="0" step="0.01" value="0" />
+                </label>
+                <label class="settings-range settings-range--inline" for="cfg-panY">
+                  <span class="settings-range__label">Y <span id="cfg-panYValue" class="range-value"></span></span>
+                  <input id="cfg-panY" type="range" min="0" max="0" step="0.01" value="0" />
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
