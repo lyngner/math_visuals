@@ -2,8 +2,9 @@
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const BOARD_WIDTH = 1000;
   const BOARD_HEIGHT = 700;
-  const LABEL_OFFSET_X = 24;
-  const LABEL_OFFSET_Y = -20;
+  const LABEL_OFFSET_DISTANCE = 44;
+  const LABEL_OFFSET_DIAGONAL = Math.round(LABEL_OFFSET_DISTANCE / Math.SQRT2);
+  const LABEL_EDGE_MARGIN = 16;
   const POINT_RADIUS = 18;
   const DOT_RADIUS = 6;
   const DEFAULT_LABEL_FONT_SIZE = 14;
@@ -257,6 +258,7 @@
   const pointEditors = new Map();
   const pointElements = new Map();
   const labelElements = new Map();
+  let labelPlacements = new Map();
   const baseLineElements = new Map();
   const userLineElements = new Map();
   const answerLineElements = new Map();
@@ -579,10 +581,154 @@
     boardScaleY = height / BOARD_HEIGHT;
   }
 
-  function positionBoardLabel(element, pos) {
+  const LABEL_PLACEMENT_CANDIDATES = [
+    { dx: 1, dy: -1 },
+    { dx: 1, dy: 1 },
+    { dx: -1, dy: -1 },
+    { dx: -1, dy: 1 },
+    { dx: 1, dy: 0 },
+    { dx: -1, dy: 0 },
+    { dx: 0, dy: -1 },
+    { dx: 0, dy: 1 }
+  ];
+
+  function computePlacementOffset(candidate) {
+    if (!candidate) {
+      return { x: LABEL_OFFSET_DIAGONAL, y: -LABEL_OFFSET_DIAGONAL };
+    }
+    const { dx, dy } = candidate;
+    const isDiagonal = dx !== 0 && dy !== 0;
+    const distance = isDiagonal ? LABEL_OFFSET_DIAGONAL : LABEL_OFFSET_DISTANCE;
+    return { x: dx * distance, y: dy * distance };
+  }
+
+  function normalizeAngle(angle) {
+    const tau = Math.PI * 2;
+    if (!Number.isFinite(angle)) return 0;
+    let normalized = angle % tau;
+    if (normalized <= -Math.PI) normalized += tau;
+    if (normalized > Math.PI) normalized -= tau;
+    return normalized;
+  }
+
+  function angleDistance(a, b) {
+    const tau = Math.PI * 2;
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return Math.PI;
+    const diff = Math.abs(normalizeAngle(a) - normalizeAngle(b)) % tau;
+    return diff > Math.PI ? tau - diff : diff;
+  }
+
+  function selectLabelPlacement(point, pos, connections, pointMap) {
+    if (!point || !pos) return computePlacementOffset(LABEL_PLACEMENT_CANDIDATES[0]);
+    const boardWidthPx = BOARD_WIDTH * boardScaleX;
+    const boardHeightPx = BOARD_HEIGHT * boardScaleY;
+    const neighborAngles = [];
+    if (connections && connections.size) {
+      connections.forEach(neighborId => {
+        const neighbor = pointMap.get(neighborId);
+        if (!neighbor) return;
+        const neighborPos = toPixel(neighbor);
+        if (!neighborPos) return;
+        const angle = Math.atan2(neighborPos.y - pos.y, neighborPos.x - pos.x);
+        neighborAngles.push(angle);
+      });
+    }
+
+    let best = null;
+    LABEL_PLACEMENT_CANDIDATES.forEach((candidate, index) => {
+      const offset = computePlacementOffset(candidate);
+      const placementAngle = Math.atan2(offset.y, offset.x);
+      const minAngleDiff = neighborAngles.length
+        ? Math.min(...neighborAngles.map(angle => angleDistance(placementAngle, angle)))
+        : Math.PI;
+      const left = pos.x * boardScaleX + offset.x;
+      const top = pos.y * boardScaleY + offset.y;
+      const insideX = left >= LABEL_EDGE_MARGIN && left <= boardWidthPx - LABEL_EDGE_MARGIN;
+      const insideY = top >= LABEL_EDGE_MARGIN && top <= boardHeightPx - LABEL_EDGE_MARGIN;
+      const inside = insideX && insideY;
+      const score = (inside ? 1 : 0) * 10 + minAngleDiff - index * 0.001;
+      if (!best || score > best.score) {
+        best = { offset, score };
+      }
+    });
+    return best ? best.offset : computePlacementOffset(LABEL_PLACEMENT_CANDIDATES[0]);
+  }
+
+  function computeLabelPlacements() {
+    const placements = new Map();
+    const pointMap = new Map();
+    STATE.points.forEach(point => {
+      if (!point || !point.id) return;
+      pointMap.set(point.id, point);
+    });
+
+    const connections = new Map();
+    const registerConnection = (from, to) => {
+      if (!from || !to) return;
+      if (!pointMap.has(from) || !pointMap.has(to)) return;
+      if (!connections.has(from)) connections.set(from, new Set());
+      connections.get(from).add(to);
+    };
+
+    const addLines = collection => {
+      if (!collection) return;
+      collection.forEach(entry => {
+        if (!entry) return;
+        let a;
+        let b;
+        if (Array.isArray(entry)) {
+          [a, b] = entry;
+        } else if (entry && typeof entry === 'object') {
+          a = entry.a;
+          b = entry.b;
+        }
+        if (!a || !b) return;
+        registerConnection(String(a), String(b));
+        registerConnection(String(b), String(a));
+      });
+    };
+
+    addLines(STATE.answerLines);
+    addLines(STATE.predefinedLines);
+    userLines.forEach(key => {
+      const pair = keyToPair(key);
+      if (!pair) return;
+      addLines([pair]);
+    });
+
+    STATE.points.forEach(point => {
+      if (!point || !point.id) return;
+      const pos = toPixel(point);
+      const placement = selectLabelPlacement(point, pos, connections.get(point.id), pointMap);
+      placements.set(point.id, placement);
+    });
+    return placements;
+  }
+
+  function recomputeLabelPlacements() {
+    labelPlacements = computeLabelPlacements();
+  }
+
+  function applyLabelPlacements() {
+    STATE.points.forEach(point => {
+      if (!point || !point.id) return;
+      const label = labelElements.get(point.id);
+      if (!label) return;
+      label.setPosition(toPixel(point));
+    });
+  }
+
+  function refreshLabelPlacements() {
+    computeBoardScale();
+    recomputeLabelPlacements();
+    applyLabelPlacements();
+  }
+
+  function positionBoardLabel(element, pos, pointId) {
     if (!element || !pos) return;
-    const left = pos.x * boardScaleX + LABEL_OFFSET_X;
-    const top = pos.y * boardScaleY + LABEL_OFFSET_Y;
+    const placement = (pointId && labelPlacements.get(pointId)) || computePlacementOffset(LABEL_PLACEMENT_CANDIDATES[0]);
+    const left = pos.x * boardScaleX + placement.x;
+    const top = pos.y * boardScaleY + placement.y;
     element.style.transform = `translate(${left}px, ${top}px)`;
   }
 
@@ -596,12 +742,13 @@
     content.className = 'board-label-content';
     wrapper.appendChild(content);
     renderLatex(content, getPointLabelText(point));
-    positionBoardLabel(wrapper, pos);
+    const pointId = point && point.id;
+    positionBoardLabel(wrapper, pos, pointId);
     return {
       element: wrapper,
       contentEl: content,
       setPosition(newPos) {
-        positionBoardLabel(wrapper, newPos);
+        positionBoardLabel(wrapper, newPos, pointId);
       },
       setText(value) {
         renderLatex(content, value);
@@ -646,12 +793,7 @@
   }
 
   function updateAllLabelPositions() {
-    computeBoardScale();
-    STATE.points.forEach(point => {
-      const label = labelElements.get(point.id);
-      if (!label) return;
-      label.setPosition(toPixel(point));
-    });
+    refreshLabelPlacements();
   }
 
   function parseCoordinateInput(value) {
@@ -1040,12 +1182,12 @@
     }
     const label = labelElements.get(pointId);
     if (label) {
-      label.setPosition(pos);
       label.setText(getPointLabelText(point));
       label.setVisibility(STATE.showLabels);
       label.setFalse(!!point.isFalse);
     }
     updateLinesForPoint(pointId);
+    refreshLabelPlacements();
   }
 
   function snapAllPointsToGrid() {
@@ -1981,6 +2123,7 @@
     }
 
     computeBoardScale();
+    recomputeLabelPlacements();
     pointsGroup.innerHTML = '';
     labelsGroup.innerHTML = '';
     if (labelLayer) labelLayer.innerHTML = '';
