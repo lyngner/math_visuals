@@ -338,8 +338,6 @@
     }
     .toolbar--footer { justify-content: flex-end; }
     body.labels-hidden .point-label { display: none; }
-    .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #4b5563; }
-    .toggle input { width: auto; }
     @media (max-width: 600px) {
       .toolbar--mode { flex-direction: column; align-items: flex-start; gap: 8px; }
     }
@@ -404,7 +402,6 @@
             <div>Fasit-streker: <span id="answerCount">0</span></div>
             <div>Forhåndsdefinerte streker: <span id="predefCount">0</span></div>
           </div>
-          <label class="toggle"><input id="cfg-showLabels" type="checkbox" checked> Vis etiketter</label>
           <label>
             <span>Skriftstørrelse</span>
             <select id="cfg-labelFontSize">
