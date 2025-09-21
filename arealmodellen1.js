@@ -96,6 +96,7 @@ const DEFAULT_ADV_CFG = JSON.parse(JSON.stringify(CFG.ADV));
 let cleanupCurrentDraw = null;
 const layoutStateStore = Object.create(null);
 let currentLayoutMode = null;
+let lastVisibleCellMode = "factors";
 function ensureCfgDefaults() {
   const fill = (target, defaults) => {
     if (!defaults || typeof defaults !== 'object') return;
@@ -118,6 +119,9 @@ function ensureCfgDefaults() {
   if (!CFG.ADV || typeof CFG.ADV !== 'object') CFG.ADV = {};
   fill(CFG.SIMPLE, DEFAULT_SIMPLE_CFG);
   fill(CFG.ADV, DEFAULT_ADV_CFG);
+  if (CFG.ADV.labels && typeof CFG.ADV.labels === "object" && CFG.ADV.labels.cellMode && CFG.ADV.labels.cellMode !== "none") {
+    lastVisibleCellMode = CFG.ADV.labels.cellMode;
+  }
 }
 function normalizeLayout(value) {
   if (typeof value !== "string") return "quad";
@@ -357,6 +361,21 @@ function readConfigFromHtml() {
   }
   CFG.ADV.grid = (_document$getElementB9 = (_document$getElementB0 = document.getElementById("grid")) === null || _document$getElementB0 === void 0 ? void 0 : _document$getElementB0.checked) !== null && _document$getElementB9 !== void 0 ? _document$getElementB9 : CFG.ADV.grid;
   CFG.ADV.splitLines = (_document$getElementB1 = (_document$getElementB10 = document.getElementById("splitLines")) === null || _document$getElementB10 === void 0 ? void 0 : _document$getElementB10.checked) !== null && _document$getElementB1 !== void 0 ? _document$getElementB1 : CFG.ADV.splitLines;
+  const showExpressionsInput = document.getElementById("showExpressions");
+  if (!CFG.ADV.labels || typeof CFG.ADV.labels !== "object") CFG.ADV.labels = {};
+  if (showExpressionsInput) {
+    const currentMode = CFG.ADV.labels.cellMode;
+    if (showExpressionsInput.checked) {
+      if (!currentMode || currentMode === "none") {
+        CFG.ADV.labels.cellMode = lastVisibleCellMode || "factors";
+      }
+    } else {
+      if (currentMode && currentMode !== "none") {
+        lastVisibleCellMode = currentMode;
+      }
+      CFG.ADV.labels.cellMode = "none";
+    }
+  }
   CFG.SIMPLE.layout = currentLayoutMode;
   updateLayoutUi();
   saveLayoutState(currentLayoutMode);
@@ -1925,7 +1944,12 @@ function applyConfigToInputs() {
   setVal('heightMax', simple.totalHandle !== null && simple.totalHandle !== void 0 ? simple.totalHandle.maxRows : undefined);
   setChk('showTotalHandle', !!(simple.totalHandle && simple.totalHandle.show));
   setChk('grid', !!adv.grid);
+  const advLabels = adv.labels || {};
+  if (advLabels.cellMode && advLabels.cellMode !== "none") {
+    lastVisibleCellMode = advLabels.cellMode;
+  }
   setChk('splitLines', adv.splitLines !== false);
+  setChk('showExpressions', ((advLabels.cellMode) || 'factors') !== 'none');
   setSelect('layoutMode', normalizedLayout);
   updateLayoutUi();
 }
