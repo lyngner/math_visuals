@@ -247,12 +247,14 @@
     if (!str) {
       return {
         factors: [],
-        constantSign: 1
+        constantSign: 1,
+        parsed: true
       };
     }
     const parts = splitByMultiplication(str);
     const factors = [];
     let constantSign = 1;
+    let parsedAnything = false;
     for (const part of parts) {
       const clean = stripOuterParens(part);
       if (!clean) continue;
@@ -267,19 +269,22 @@
         if (factor.sign < 0 && factor.multiplicity % 2 === 1) {
           constantSign *= -1;
         }
-      } else {
-        const constant = evaluateConstant(clean);
-        if (constant === null) {
-          throw new Error(`Kan ikke tolke faktor '${part}'`);
-        }
-        if (constant < 0) {
-          constantSign *= -1;
-        }
+        parsedAnything = true;
+        continue;
       }
+      const constant = evaluateConstant(clean);
+      if (constant === null) {
+        return null;
+      }
+      if (constant < 0) {
+        constantSign *= -1;
+      }
+      parsedAnything = true;
     }
     return {
       factors,
-      constantSign
+      constantSign,
+      parsed: parsedAnything
     };
   }
   function tokenizeExpression(expr) {
@@ -327,8 +332,16 @@
     const poles = [];
     const factors = [];
     let constantSign = 1;
+    const unparsed = [];
     tokens.forEach(token => {
       const parsed = parseProduct(token.value);
+      if (!parsed || !parsed.parsed) {
+        unparsed.push({
+          operator: token.operator,
+          expression: token.value
+        });
+        return;
+      }
       const destination = token.operator === '/' ? poles : zeros;
       const type = token.operator === '/' ? 'pole' : 'zero';
       parsed.factors.forEach(factor => {
@@ -352,15 +365,24 @@
       zeros,
       poles,
       constantSign,
-      factors
+      factors,
+      unparsed
     };
+  }
+  function normalizePointValue(value) {
+    if (!Number.isFinite(value)) return null;
+    return Number.parseFloat(Number(value).toFixed(6));
+  }
+  function makePointKey(type, value) {
+    return `${type}:${value}`;
   }
   function buildPoints(structure) {
     const map = new Map();
     function addEntries(entries, type) {
       entries.forEach(entry => {
-        const normalized = Number.parseFloat(Number(entry.value).toFixed(6));
-        const key = `${type}:${normalized}`;
+        const normalized = normalizePointValue(entry.value);
+        if (normalized == null) return;
+        const key = makePointKey(type, normalized);
         if (map.has(key)) {
           map.get(key).multiplicity += entry.multiplicity;
         } else {
@@ -662,6 +684,221 @@
     }
     return segments;
   }
+  const NUMERIC_SEARCH_LIMITS = [10, 25, 50];
+  const NUMERIC_SEARCH_STEPS = 600;
+  const NUMERIC_ZERO_TOLERANCE = 1e-4;
+  const NUMERIC_NEAR_ZERO_TOLERANCE = 1e-3;
+  const NUMERIC_DERIVATIVE_TOLERANCE = 1e-4;
+  function addNumericRoot(candidate, seen, results, multiplicity = 1) {
+    if (!Number.isFinite(candidate)) return;
+    const normalized = normalizePointValue(candidate);
+    if (normalized == null) return;
+    const key = makePointKey('zero', normalized);
+    if (seen.has(key)) return;
+    seen.add(key);
+    results.push({
+      value: normalized,
+      type: 'zero',
+      multiplicity,
+      numeric: true
+    });
+  }
+  function refineRootBisection(fn, left, right, fLeft, fRight) {
+    let a = left;
+    let b = right;
+    let fa = Number.isFinite(fLeft) ? fLeft : tryEvaluate(fn, a);
+    let fb = Number.isFinite(fRight) ? fRight : tryEvaluate(fn, b);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+    if (!Number.isFinite(fa) || !Number.isFinite(fb)) return null;
+    if (fa === 0) return a;
+    if (fb === 0) return b;
+    for (let i = 0; i < 60; i += 1) {
+      const mid = (a + b) / 2;
+      const fm = tryEvaluate(fn, mid);
+      if (!Number.isFinite(fm)) {
+        a = (a + mid) / 2;
+        fa = tryEvaluate(fn, a);
+        b = (b + mid) / 2;
+        fb = tryEvaluate(fn, b);
+        if (!Number.isFinite(fa) || !Number.isFinite(fb)) {
+          break;
+        }
+        continue;
+      }
+      if (Math.abs(fm) < 1e-7 || Math.abs(b - a) < 1e-6) {
+        return mid;
+      }
+      if (fa * fm <= 0) {
+        b = mid;
+        fb = fm;
+      } else {
+        a = mid;
+        fa = fm;
+      }
+    }
+    return (a + b) / 2;
+  }
+  function checkStationaryZero(fn, x, value, seen, results) {
+    const deltas = [1e-3, 5e-3, 1e-2, 5e-2];
+    for (const delta of deltas) {
+      const leftX = x - delta;
+      const rightX = x + delta;
+      const left = tryEvaluate(fn, leftX);
+      const right = tryEvaluate(fn, rightX);
+      if (!Number.isFinite(left) || !Number.isFinite(right)) {
+        continue;
+      }
+      if (left === 0 || right === 0) {
+        addNumericRoot(left === 0 ? leftX : rightX, seen, results);
+        addNumericRoot(x, seen, results);
+        return true;
+      }
+      if (left * right < 0) {
+        const refined = refineRootBisection(fn, leftX, rightX, left, right);
+        if (Number.isFinite(refined)) {
+          addNumericRoot(refined, seen, results);
+          return true;
+        }
+      }
+      const sameSign = Math.sign(left) === Math.sign(right);
+      const derivative = (right - left) / (2 * delta);
+      if (Math.abs(value) < NUMERIC_ZERO_TOLERANCE && sameSign && Math.abs(derivative) < NUMERIC_DERIVATIVE_TOLERANCE && Math.abs(left) >= Math.abs(value) && Math.abs(right) >= Math.abs(value)) {
+        addNumericRoot(x, seen, results, 2);
+        return true;
+      }
+    }
+    if (Math.abs(value) < NUMERIC_NEAR_ZERO_TOLERANCE) {
+      const spans = [0.5, 0.25, 0.1, 0.05];
+      for (const span of spans) {
+        const candidate = findMinimumInWindow(fn, x, span);
+        if (!candidate || candidate.value >= NUMERIC_ZERO_TOLERANCE) {
+          continue;
+        }
+        const leftBoundary = tryEvaluate(fn, candidate.x - span);
+        const rightBoundary = tryEvaluate(fn, candidate.x + span);
+        const leftMagnitude = Number.isFinite(leftBoundary) ? Math.abs(leftBoundary) : Infinity;
+        const rightMagnitude = Number.isFinite(rightBoundary) ? Math.abs(rightBoundary) : Infinity;
+        if (leftMagnitude > candidate.value + NUMERIC_ZERO_TOLERANCE && rightMagnitude > candidate.value + NUMERIC_ZERO_TOLERANCE) {
+          addNumericRoot(candidate.x, seen, results, 2);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  function findMinimumInWindow(fn, center, span) {
+    if (!Number.isFinite(center) || !Number.isFinite(span) || span <= 0) {
+      return null;
+    }
+    const steps = 32;
+    let bestX = center;
+    let bestValue = Number.POSITIVE_INFINITY;
+    for (let i = 0; i <= steps; i += 1) {
+      const ratio = i / steps;
+      const x = center - span + ratio * (2 * span);
+      const value = tryEvaluate(fn, x);
+      if (!Number.isFinite(value)) {
+        continue;
+      }
+      const magnitude = Math.abs(value);
+      if (magnitude < bestValue) {
+        bestValue = magnitude;
+        bestX = x;
+      }
+    }
+    if (!Number.isFinite(bestValue) || bestValue === Number.POSITIVE_INFINITY) {
+      return null;
+    }
+    return {
+      x: bestX,
+      value: bestValue
+    };
+  }
+  function scanForZerosInRange(fn, min, max, seen) {
+    if (!Number.isFinite(min) || !Number.isFinite(max) || !(max > min)) {
+      return [];
+    }
+    const results = [];
+    let prevX = null;
+    let prevVal = null;
+    let prevValid = false;
+    for (let i = 0; i <= NUMERIC_SEARCH_STEPS; i += 1) {
+      const ratio = i / NUMERIC_SEARCH_STEPS;
+      const x = min + (max - min) * ratio;
+      const value = tryEvaluate(fn, x);
+      const valid = Number.isFinite(value);
+      if (valid) {
+        if (value === 0) {
+          addNumericRoot(x, seen, results);
+        } else if (Math.abs(value) < NUMERIC_NEAR_ZERO_TOLERANCE) {
+          checkStationaryZero(fn, x, value, seen, results);
+        }
+        if (prevValid && prevVal * value < 0) {
+          const root = refineRootBisection(fn, prevX, x, prevVal, value);
+          if (Number.isFinite(root)) {
+            addNumericRoot(root, seen, results);
+          }
+        }
+      }
+      prevX = x;
+      prevVal = value;
+      prevValid = valid;
+    }
+    return results;
+  }
+  function findNumericZeros(fn, existingPoints) {
+    if (typeof fn !== 'function') {
+      return [];
+    }
+    const seen = new Set();
+    (existingPoints || []).forEach(point => {
+      const normalized = normalizePointValue(point.value);
+      if (normalized == null) return;
+      const type = point.type || 'zero';
+      seen.add(makePointKey(type, normalized));
+    });
+    const ranges = [...NUMERIC_SEARCH_LIMITS];
+    const existingValues = (existingPoints || []).filter(point => Number.isFinite(point.value)).map(point => Math.abs(point.value));
+    if (existingValues.length) {
+      const maxExisting = Math.max(...existingValues);
+      if (maxExisting > ranges[ranges.length - 1]) {
+        ranges.push(Math.min(maxExisting + 5, 100));
+      }
+    }
+    const results = [];
+    ranges.forEach(limit => {
+      const rangeResults = scanForZerosInRange(fn, -limit, limit, seen);
+      rangeResults.forEach(result => {
+        results.push(result);
+      });
+    });
+    return results;
+  }
+  function mergePointLists(basePoints, additional) {
+    const map = new Map();
+    (basePoints || []).forEach(point => {
+      const normalized = normalizePointValue(point.value);
+      if (normalized == null) return;
+      const type = point.type || 'zero';
+      const key = makePointKey(type, normalized);
+      map.set(key, { ...point, value: normalized });
+    });
+    (additional || []).forEach(point => {
+      const normalized = normalizePointValue(point.value);
+      if (normalized == null) return;
+      const type = point.type || 'zero';
+      const key = makePointKey(type, normalized);
+      if (map.has(key)) {
+        const existing = map.get(key);
+        if (Number.isFinite(point.multiplicity) && (!Number.isFinite(existing.multiplicity) || point.multiplicity > existing.multiplicity)) {
+          existing.multiplicity = point.multiplicity;
+        }
+      } else {
+        map.set(key, { ...point, value: normalized });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.value - b.value);
+  }
   function generateSolutionFromExpression() {
     const raw = exprInput.value.trim();
     if (!raw) {
@@ -679,7 +916,13 @@
       throw new Error('Kunne ikke tolke funksjonsuttrykket.');
     }
     const structure = extractStructure(sanitized);
-    const points = buildPoints(structure);
+    let points = buildPoints(structure);
+    if ((!points.length || structure.unparsed && structure.unparsed.length) && fn) {
+      const numericZeros = findNumericZeros(fn, points);
+      if (numericZeros.length) {
+        points = mergePointLists(points, numericZeros);
+      }
+    }
     const domain = computeAutoDomain(points);
     const segments = computeSegments(fn, points, domain);
     const factorRows = buildLinearFactorRows(structure, points, domain);
