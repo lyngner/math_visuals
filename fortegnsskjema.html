@@ -27,6 +27,11 @@
       grid-template-columns: 1fr 380px;
       align-items: start;
     }
+    .side {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+    }
     @media (max-width: 1000px) {
       .grid { grid-template-columns: 1fr; }
     }
@@ -219,6 +224,9 @@
       color: #b91c1c;
       background: #fef2f2;
     }
+    .card--examples .toolbar {
+      justify-content: flex-start;
+    }
     .rows-list > div,
     .points-list > div {
       display: flex;
@@ -274,6 +282,7 @@
       color: #6b7280;
     }
   </style>
+  <link rel="stylesheet" href="split.css" />
 </head>
 <body>
   <div class="wrap">
@@ -296,56 +305,74 @@
         </div>
       </div>
 
-      <div class="card">
-        <h2>Funksjon og innstillinger</h2>
-        <div class="controls">
-          <label>
-            <span>f(x) =</span>
-            <input id="exprInput" type="text" placeholder="Skriv funksjonsuttrykk, f.eks. (x+1)/((x-3)(x-2))" autocomplete="off">
-          </label>
-          <div class="toolbar-row">
-            <button class="btn" id="btnGenerate">Generer fasit</button>
-            <label class="checkbox">
-              <input type="checkbox" id="autoSync"> Vis fasit
-            </label>
-            <label class="checkbox">
-              <input type="checkbox" id="useLinearFactors"> Bruk lineære faktorer
-            </label>
+      <div class="side">
+        <div class="card card--examples">
+          <div class="toolbar">
+            <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>
+            <button id="btnDeleteExample" class="btn" type="button">Slett eksempel</button>
           </div>
-          <div class="domain-controls">
-            <label>
-              <span>Min x-verdi</span>
-              <input id="domainMin" type="number" step="0.1" autocomplete="off">
-            </label>
-            <label>
-              <span>Maks x-verdi</span>
-              <input id="domainMax" type="number" step="0.1" autocomplete="off">
-            </label>
-            <label>
-              <span>Antall desimaler</span>
-              <input id="decimalPlaces" type="number" min="0" max="6" step="1" value="4" autocomplete="off">
-            </label>
-          </div>
-          <div class="note">Området settes automatisk ut fra punktene. Skriv egne verdier for å overstyre, eller tøm feltet for å
-            bruke auto.</div>
-          <div class="note">Autogenerering støtter funksjoner som er faktorisert i lineære uttrykk.</div>
         </div>
 
-        <div class="card" style="padding: 12px; gap: 12px;">
-          <h2>Punkter</h2>
-          <div class="points-list" id="pointsList"></div>
-          <button class="btn" id="btnAddPoint">Legg til punkt</button>
+        <div class="card">
+          <h2>Funksjon og innstillinger</h2>
+          <div class="controls">
+            <label>
+              <span>f(x) =</span>
+              <input id="exprInput" type="text" placeholder="Skriv funksjonsuttrykk, f.eks. (x+1)/((x-3)(x-2))" autocomplete="off">
+            </label>
+            <div class="toolbar-row">
+              <button class="btn" id="btnGenerate">Generer fasit</button>
+              <label class="checkbox">
+                <input type="checkbox" id="autoSync"> Vis fasit
+              </label>
+              <label class="checkbox">
+                <input type="checkbox" id="useLinearFactors"> Bruk lineære faktorer
+              </label>
+            </div>
+            <div class="domain-controls">
+              <label>
+                <span>Min x-verdi</span>
+                <input id="domainMin" type="number" step="0.1" autocomplete="off">
+              </label>
+              <label>
+                <span>Maks x-verdi</span>
+                <input id="domainMax" type="number" step="0.1" autocomplete="off">
+              </label>
+              <label>
+                <span>Antall desimaler</span>
+                <input id="decimalPlaces" type="number" min="0" max="6" step="1" value="4" autocomplete="off">
+              </label>
+            </div>
+            <div class="note">Området settes automatisk ut fra punktene. Skriv egne verdier for å overstyre, eller tøm feltet for å bruke auto.</div>
+            <div class="note">Autogenerering støtter funksjoner som er faktorisert i lineære uttrykk.</div>
+          </div>
+
+          <div class="card" style="padding: 12px; gap: 12px;">
+            <h2>Punkter</h2>
+            <div class="points-list" id="pointsList"></div>
+            <button class="btn" id="btnAddPoint">Legg til punkt</button>
+          </div>
+
+          <div class="card" style="padding: 12px; gap: 12px;">
+            <h2>Fortegnslinjer</h2>
+            <div class="rows-list" id="rowsList"></div>
+            <button class="btn" id="btnAddRow">Legg til fortegnslinje</button>
+          </div>
         </div>
 
-        <div class="card" style="padding: 12px; gap: 12px;">
-          <h2>Fortegnslinjer</h2>
-          <div class="rows-list" id="rowsList"></div>
-          <button class="btn" id="btnAddRow">Legg til fortegnslinje</button>
+        <div class="card">
+          <h2>Eksporter</h2>
+          <div class="toolbar">
+            <button type="button" class="btn" id="btnDownloadSvg">Last ned SVG</button>
+            <button type="button" class="btn" id="btnDownloadPng">Last ned PNG</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script defer src="fortegnsskjema.js"></script>
+  <script src="fortegnsskjema.js"></script>
+  <script src="split.js"></script>
+  <script src="examples.js"></script>
 </body>
 </html>

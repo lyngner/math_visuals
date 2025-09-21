@@ -16,6 +16,8 @@
   const domainMaxInput = document.getElementById('domainMax');
   const decimalPlacesInput = document.getElementById('decimalPlaces');
   const checkStatus = document.getElementById('checkStatus');
+  const downloadSvgButton = document.getElementById('btnDownloadSvg');
+  const downloadPngButton = document.getElementById('btnDownloadPng');
   if (!svg || !exprInput) {
     return;
   }
@@ -23,27 +25,350 @@
     min: -5,
     max: 5
   };
-  const state = {
-    expression: '',
-    autoSync: false,
-    useLinearFactors: false,
-    criticalPoints: [],
-    signRows: [],
-    solution: null,
-    domain: {
+  const DEFAULT_DECIMAL_PLACES = 4;
+  const MIN_DECIMAL_PLACES = 0;
+  const MAX_DECIMAL_PLACES = 6;
+  const globalState = typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
+  const state = globalState;
+  if (typeof window !== 'undefined') {
+    window.STATE = state;
+  }
+  function sanitizeDomain(domain) {
+    const sanitized = {
       min: null,
       max: null
-    },
-    autoDomain: { ...DEFAULT_AUTO_DOMAIN },
-    decimalPlaces: 4
-  };
+    };
+    if (domain && typeof domain === 'object') {
+      const min = Number.parseFloat(domain.min);
+      const max = Number.parseFloat(domain.max);
+      if (Number.isFinite(min)) {
+        sanitized.min = min;
+      }
+      if (Number.isFinite(max)) {
+        sanitized.max = max;
+      }
+    }
+    return sanitized;
+  }
+  function sanitizeAutoDomain(auto) {
+    const sanitized = {
+      min: DEFAULT_AUTO_DOMAIN.min,
+      max: DEFAULT_AUTO_DOMAIN.max
+    };
+    if (auto && typeof auto === 'object') {
+      const min = Number.parseFloat(auto.min);
+      const max = Number.parseFloat(auto.max);
+      if (Number.isFinite(min)) {
+        sanitized.min = min;
+      }
+      if (Number.isFinite(max)) {
+        sanitized.max = max;
+      }
+    }
+    return sanitized;
+  }
+  function sanitizeSegments(segments) {
+    if (!Array.isArray(segments)) {
+      return [];
+    }
+    return segments.map(value => value >= 0 ? 1 : -1);
+  }
+  function sanitizePointsArray(points) {
+    if (!Array.isArray(points)) {
+      return [];
+    }
+    const usedIds = new Set();
+    return points.reduce((acc, point, index) => {
+      if (!point || typeof point !== 'object') {
+        return acc;
+      }
+      const rawValue = Number.parseFloat(point.value);
+      if (!Number.isFinite(rawValue)) {
+        return acc;
+      }
+      const type = point.type === 'pole' ? 'pole' : 'zero';
+      let id = typeof point.id === 'string' ? point.id.trim() : '';
+      if (!id) {
+        id = `p${index + 1}`;
+      }
+      while (usedIds.has(id)) {
+        id = `p${acc.length + 1}`;
+      }
+      usedIds.add(id);
+      const multiplicityRaw = Number.parseInt(point.multiplicity, 10);
+      const multiplicity = Number.isFinite(multiplicityRaw) ? multiplicityRaw : 1;
+      acc.push({
+        id,
+        type,
+        value: rawValue,
+        multiplicity
+      });
+      return acc;
+    }, []);
+  }
+  function sanitizeRowsArray(rows) {
+    if (!Array.isArray(rows)) {
+      return [];
+    }
+    const usedIds = new Set();
+    return rows.reduce((acc, row, index) => {
+      if (!row || typeof row !== 'object') {
+        return acc;
+      }
+      let id = typeof row.id === 'string' ? row.id.trim() : '';
+      if (!id) {
+        id = `row-${index + 1}`;
+      }
+      while (usedIds.has(id)) {
+        id = `row-${acc.length + 1}`;
+      }
+      usedIds.add(id);
+      const role = row.role === 'result' || row.role === 'factor' ? row.role : 'custom';
+      const locked = role === 'factor' ? true : !!row.locked;
+      const normalized = {
+        id,
+        label: typeof row.label === 'string' ? row.label : '',
+        segments: sanitizeSegments(row.segments),
+        role,
+        locked
+      };
+      if (role === 'factor') {
+        normalized.type = row.type === 'pole' ? 'pole' : 'zero';
+        const value = Number.parseFloat(row.value);
+        if (Number.isFinite(value)) {
+          normalized.value = value;
+        }
+        const multiplicity = Number.parseInt(row.multiplicity, 10);
+        if (Number.isFinite(multiplicity)) {
+          normalized.multiplicity = multiplicity;
+        }
+      }
+      acc.push(normalized);
+      return acc;
+    }, []);
+  }
+  function sanitizeSolution(solution) {
+    if (!solution || typeof solution !== 'object') {
+      return null;
+    }
+    const points = sanitizePointsArray(solution.points);
+    const segments = sanitizeSegments(solution.segments);
+    const factorRows = Array.isArray(solution.factorRows) ? solution.factorRows.reduce((acc, row) => {
+      if (!row || typeof row !== 'object') {
+        return acc;
+      }
+      acc.push({
+        label: typeof row.label === 'string' ? row.label : '',
+        segments: sanitizeSegments(row.segments),
+        type: row.type === 'pole' ? 'pole' : 'zero',
+        value: Number.isFinite(Number(row.value)) ? Number(row.value) : undefined,
+        multiplicity: Number.isFinite(Number(row.multiplicity)) ? Number(row.multiplicity) : undefined
+      });
+      return acc;
+    }, []) : [];
+    const domain = solution.domain && typeof solution.domain === 'object' ? {
+      min: Number.isFinite(Number(solution.domain.min)) ? Number(solution.domain.min) : null,
+      max: Number.isFinite(Number(solution.domain.max)) ? Number(solution.domain.max) : null
+    } : {
+      min: null,
+      max: null
+    };
+    return {
+      points,
+      segments,
+      factorRows,
+      domain,
+      expression: typeof solution.expression === 'string' ? solution.expression : ''
+    };
+  }
+  function sanitizeState(target) {
+    if (!target || typeof target !== 'object') {
+      return;
+    }
+    target.expression = typeof target.expression === 'string' ? target.expression : '';
+    target.autoSync = !!target.autoSync;
+    target.useLinearFactors = !!target.useLinearFactors;
+    const decimals = Number.isFinite(Number(target.decimalPlaces)) ? Number(target.decimalPlaces) : DEFAULT_DECIMAL_PLACES;
+    target.decimalPlaces = clampDecimalPlaces(decimals);
+    target.domain = sanitizeDomain(target.domain);
+    target.autoDomain = sanitizeAutoDomain(target.autoDomain);
+    target.criticalPoints = sanitizePointsArray(target.criticalPoints);
+    target.signRows = sanitizeRowsArray(target.signRows);
+    target.solution = sanitizeSolution(target.solution);
+  }
+  function deepClone(value) {
+    if (typeof structuredClone === 'function') {
+      try {
+        return structuredClone(value);
+      } catch (error) {}
+    }
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (error) {}
+    return value;
+  }
+  const DEFAULT_FORTEGNSSKJEMA_EXAMPLES = [{
+    id: 'fortegn-1',
+    title: 'Andregradspolynom',
+    description: 'To nullpunkt og fasit med lineære faktorer.',
+    config: {
+      STATE: {
+        expression: '(x+1)(x-2)',
+        autoSync: true,
+        useLinearFactors: true,
+        decimalPlaces: 2,
+        domain: { min: null, max: null },
+        autoDomain: { min: -4, max: 4 },
+        criticalPoints: [{ id: 'p1', type: 'zero', value: -1, multiplicity: 1 }, { id: 'p2', type: 'zero', value: 2, multiplicity: 1 }],
+        signRows: [{
+          id: 'row-1',
+          label: '(x+1)',
+          segments: [-1, 1, 1],
+          role: 'factor',
+          locked: true,
+          type: 'zero',
+          value: -1,
+          multiplicity: 1
+        }, {
+          id: 'row-2',
+          label: '(x-2)',
+          segments: [-1, -1, 1],
+          role: 'factor',
+          locked: true,
+          type: 'zero',
+          value: 2,
+          multiplicity: 1
+        }, {
+          id: 'row-3',
+          label: 'f(x)',
+          segments: [1, -1, 1],
+          role: 'result',
+          locked: false
+        }],
+        solution: {
+          expression: '(x+1)*(x-2)',
+          domain: { min: -4, max: 4 },
+          points: [{ value: -1, type: 'zero', multiplicity: 1 }, { value: 2, type: 'zero', multiplicity: 1 }],
+          segments: [1, -1, 1],
+          factorRows: [{
+            label: '(x+1)',
+            segments: [-1, 1, 1],
+            type: 'zero',
+            value: -1,
+            multiplicity: 1
+          }, {
+            label: '(x-2)',
+            segments: [-1, -1, 1],
+            type: 'zero',
+            value: 2,
+            multiplicity: 1
+          }]
+        }
+      }
+    }
+  }, {
+    id: 'fortegn-2',
+    title: 'Rasjonal funksjon',
+    description: 'Nullpunkt mellom to poler og en egen hjelpelinje.',
+    config: {
+      STATE: {
+        expression: '(x+1)/((x-2)(x+3))',
+        autoSync: false,
+        useLinearFactors: false,
+        decimalPlaces: 3,
+        domain: { min: -4, max: 4 },
+        autoDomain: { min: -4, max: 4 },
+        criticalPoints: [{ id: 'p1', type: 'pole', value: -3, multiplicity: 1 }, { id: 'p2', type: 'zero', value: -1, multiplicity: 1 }, { id: 'p3', type: 'pole', value: 2, multiplicity: 1 }],
+        signRows: [{
+          id: 'row-1',
+          label: 'f(x)',
+          segments: [-1, 1, -1, 1],
+          role: 'result',
+          locked: false
+        }, {
+          id: 'row-2',
+          label: 'Observasjon',
+          segments: [-1, -1, 1, 1],
+          role: 'custom',
+          locked: false
+        }],
+        solution: null
+      }
+    }
+  }, {
+    id: 'fortegn-3',
+    title: 'Tre nullpunkt',
+    description: 'Manuell oppgave med tre fortegnslinjer.',
+    config: {
+      STATE: {
+        expression: '',
+        autoSync: false,
+        useLinearFactors: false,
+        decimalPlaces: 1,
+        domain: { min: -5, max: 5 },
+        autoDomain: { min: -5, max: 5 },
+        criticalPoints: [{ id: 'p1', type: 'zero', value: -3, multiplicity: 1 }, { id: 'p2', type: 'zero', value: 0, multiplicity: 1 }, { id: 'p3', type: 'zero', value: 2.5, multiplicity: 1 }],
+        signRows: [{
+          id: 'row-1',
+          label: 'f(x)',
+          segments: [1, -1, 1, -1],
+          role: 'result',
+          locked: false
+        }, {
+          id: 'row-2',
+          label: 'g(x)',
+          segments: [-1, -1, -1, 1],
+          role: 'custom',
+          locked: false
+        }, {
+          id: 'row-3',
+          label: 'h(x)',
+          segments: [1, 1, -1, -1],
+          role: 'custom',
+          locked: false
+        }],
+        solution: null
+      }
+    }
+  }];
+  if (typeof window !== 'undefined') {
+    window.__EXAMPLES_FORCE_PROVIDED__ = true;
+    window.DEFAULT_EXAMPLES = DEFAULT_FORTEGNSSKJEMA_EXAMPLES.map(example => ({
+      ...example,
+      config: {
+        ...example.config,
+        STATE: deepClone(example.config.STATE)
+      }
+    }));
+  }
+  function computeNextId(items, pattern, startIndex) {
+    let max = startIndex - 1;
+    (items || []).forEach(item => {
+      if (!item || typeof item.id !== 'string') {
+        return;
+      }
+      const match = item.id.match(pattern);
+      if (!match) {
+        return;
+      }
+      const value = Number.parseInt(match[1], 10);
+      if (Number.isFinite(value) && value > max) {
+        max = value;
+      }
+    });
+    return max + 1;
+  }
+  function updateIdCounters() {
+    pointIdCounter = computeNextId(state.criticalPoints, /^p(\d+)$/i, 1);
+    rowIdCounter = computeNextId(state.signRows, /^row-(\d+)$/i, 1);
+  }
+  sanitizeState(state);
   let pointIdCounter = 1;
   let rowIdCounter = 1;
+  updateIdCounters();
   let currentScale = null;
   let dragging = null;
   let dragDomainLock = null;
-  const MIN_DECIMAL_PLACES = 0;
-  const MAX_DECIMAL_PLACES = 6;
   function clampDecimalPlaces(value) {
     if (!Number.isFinite(value)) {
       return MIN_DECIMAL_PLACES;
@@ -1312,6 +1637,82 @@
       }
     });
   }
+  function cloneSvgForExport() {
+    if (!svg) {
+      return null;
+    }
+    const clone = svg.cloneNode(true);
+    clone.removeAttribute('style');
+    if (!clone.getAttribute('xmlns')) {
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    }
+    return clone;
+  }
+  function getExportSvgMarkup() {
+    const clone = cloneSvgForExport();
+    if (!clone) {
+      return '';
+    }
+    try {
+      return new XMLSerializer().serializeToString(clone);
+    } catch (error) {
+      return typeof clone.outerHTML === 'string' ? clone.outerHTML : '';
+    }
+  }
+  function downloadSvgFile(filename) {
+    const markup = getExportSvgMarkup();
+    if (!markup) {
+      return;
+    }
+    const blob = new Blob([markup], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename.endsWith('.svg') ? filename : `${filename}.svg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function downloadPngFile(filename) {
+    const markup = getExportSvgMarkup();
+    if (!markup) {
+      return;
+    }
+    const svgBlob = new Blob([markup], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => {
+      const viewBox = svg && svg.viewBox && svg.viewBox.baseVal ? svg.viewBox.baseVal : null;
+      const baseWidth = viewBox ? viewBox.width : svg.clientWidth || svg.getBoundingClientRect().width || 900;
+      const baseHeight = viewBox ? viewBox.height : svg.clientHeight || svg.getBoundingClientRect().height || 500;
+      const scale = Math.max(1, window.devicePixelRatio || 1) * 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(baseWidth * scale));
+      canvas.height = Math.max(1, Math.round(baseHeight * scale));
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        const pngUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = pngUrl;
+        link.download = filename.endsWith('.png') ? filename : `${filename}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(pngUrl), 1000);
+      }, 'image/png');
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }
   function setPointValue(id, value, fromDrag = false) {
     const point = state.criticalPoints.find(p => p.id === id);
     if (!point) return;
@@ -1359,6 +1760,7 @@
     renderChart();
   }
   function addPoint(type = 'zero', value = 0) {
+    updateIdCounters();
     state.criticalPoints.push({
       id: `p${pointIdCounter++}`,
       type,
@@ -1369,6 +1771,7 @@
     renderAll();
   }
   function addRow() {
+    updateIdCounters();
     const expected = Math.max(1, state.criticalPoints.length + 1);
     const segments = Array(expected).fill(1);
     state.signRows.push({
@@ -1381,6 +1784,7 @@
     renderAll();
   }
   function applySolutionToState(solution) {
+    updateIdCounters();
     state.criticalPoints = solution.points.map(point => ({
       id: `p${pointIdCounter++}`,
       type: point.type,
@@ -1429,10 +1833,20 @@
     });
     state.signRows = rows;
     syncSegments();
+    updateIdCounters();
     renderAll();
   }
   function ensureSolution() {
-    if (!state.solution && exprInput.value.trim()) {
+    const rawExpr = exprInput.value.trim();
+    if (!rawExpr) {
+      state.solution = null;
+      return false;
+    }
+    const sanitizedExpr = sanitizeExpression(rawExpr);
+    if (state.solution && state.solution.expression && sanitizedExpr && state.solution.expression !== sanitizedExpr) {
+      state.solution = null;
+    }
+    if (!state.solution) {
       try {
         state.solution = generateSolutionFromExpression();
       } catch (err) {
@@ -1442,9 +1856,42 @@
     }
     return !!state.solution;
   }
+  function syncControlValues() {
+    if (exprInput && exprInput.value !== state.expression) {
+      exprInput.value = state.expression;
+    }
+    if (autoSyncInput) {
+      autoSyncInput.checked = !!state.autoSync;
+    }
+    if (useLinearFactorsInput) {
+      useLinearFactorsInput.checked = !!state.useLinearFactors;
+    }
+    if (domainMinInput) {
+      if (Number.isFinite(state.domain.min)) {
+        domainMinInput.value = formatPointValue(state.domain.min);
+      } else {
+        domainMinInput.value = '';
+      }
+      domainMinInput.classList.remove('input-invalid');
+    }
+    if (domainMaxInput) {
+      if (Number.isFinite(state.domain.max)) {
+        domainMaxInput.value = formatPointValue(state.domain.max);
+      } else {
+        domainMaxInput.value = '';
+      }
+      domainMaxInput.classList.remove('input-invalid');
+    }
+    if (decimalPlacesInput) {
+      decimalPlacesInput.value = `${getDecimalPlaces()}`;
+      decimalPlacesInput.classList.remove('input-invalid');
+    }
+  }
   function renderAll() {
+    updateIdCounters();
     sortPoints();
     syncSegments();
+    syncControlValues();
     renderPointsList();
     renderRowsList();
     renderChart();
@@ -1527,6 +1974,16 @@
   }
   if (overlayAddRow) {
     overlayAddRow.addEventListener('click', handleAddRow);
+  }
+  if (downloadSvgButton) {
+    downloadSvgButton.addEventListener('click', () => {
+      downloadSvgFile('fortegnsskjema');
+    });
+  }
+  if (downloadPngButton) {
+    downloadPngButton.addEventListener('click', () => {
+      downloadPngFile('fortegnsskjema');
+    });
   }
   function handleDomainChange(key, event) {
     const input = event.target;
@@ -1644,9 +2101,28 @@
   }
   exprInput.addEventListener('input', () => {
     state.expression = exprInput.value.trim();
+    state.solution = null;
+    setCheckMessage('');
   });
   window.addEventListener('resize', () => {
     renderChart();
+  });
+  if (typeof window !== 'undefined') {
+    window.renderAll = renderAll;
+    window.render = renderAll;
+  }
+  window.addEventListener('examples:collect', event => {
+    if (!event || !event.detail) return;
+    const markup = getExportSvgMarkup();
+    if (markup) {
+      event.detail.svgOverride = markup;
+    }
+  });
+  window.addEventListener('examples:loaded', () => {
+    sanitizeState(state);
+    updateIdCounters();
+    renderAll();
+    setCheckMessage('');
   });
   createDefaultRow();
   renderAll();
