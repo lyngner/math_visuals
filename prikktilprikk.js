@@ -88,16 +88,16 @@
   const SHARK_STATE = {
     coordinateOrigin: 'bottom-left',
     points: [
-      { id: 'p1', label: '7', x: 0.2333, y: 0.6333 },
-      { id: 'p2', label: '14', x: 0.5, y: 0.6333 },
-      { id: 'p3', label: '21', x: 0.6333, y: 0.9 },
-      { id: 'p4', label: '28', x: 0.9, y: 0.9 },
-      { id: 'p5', label: '35', x: 0.9, y: 0.7222 },
-      { id: 'p6', label: '42', x: 0.7667, y: 0.4556 },
-      { id: 'p7', label: '49', x: 0.5, y: 0.4556 },
-      { id: 'p8', label: '56', x: 0.3667, y: 0.3667 },
-      { id: 'p9', label: '63', x: 0.1, y: 0.1 },
-      { id: 'p10', label: '70', x: 0.1, y: 0.3667 }
+      { id: 'p1', label: '7', x: 1, y: 0.75 },
+      { id: 'p2', label: '14', x: 0.461538, y: 0 },
+      { id: 'p3', label: '21', x: 0.153846, y: 0 },
+      { id: 'p4', label: '28', x: 0.230769, y: 0.25 },
+      { id: 'p5', label: '35', x: 0.076923, y: 0.25 },
+      { id: 'p6', label: '42', x: 0, y: 0.5 },
+      { id: 'p7', label: '49', x: 0.307692, y: 0.75 },
+      { id: 'p8', label: '56', x: 0.461538, y: 1 },
+      { id: 'p9', label: '63', x: 0.461538, y: 0.75 },
+      { id: 'p10', label: '70', x: 0.923077, y: 0.25 }
     ],
     answerLines: [
       ['p1', 'p2'],
@@ -108,8 +108,7 @@
       ['p6', 'p7'],
       ['p7', 'p8'],
       ['p8', 'p9'],
-      ['p9', 'p10'],
-      ['p10', 'p1']
+      ['p9', 'p10']
     ],
     predefinedLines: [],
     showLabels: true,
