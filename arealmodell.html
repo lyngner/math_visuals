@@ -26,6 +26,7 @@
     }
     .card h2 { margin: 0 0 6px 2px; font-size: 16px; font-weight: 600; color: #374151; }
     svg { width: 100%; height: auto; background: #fff; display: block; }
+    #area .c1 { fill: #2563eb !important; }
     .settings { display: flex; flex-direction: column; gap: 10px; }
     .settings .section-title { margin: 4px 2px 0; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7280; }
     .toolbar { display:flex; gap:10px; justify-content:flex-start; align-items:center; flex-wrap:wrap; }
@@ -85,25 +86,25 @@
               <label>Lengde
                 <input id="length" type="number" value="12" min="1">
               </label>
-              <label id="lengthStartWrap">Startposisjon
+              <label id="lengthStartWrap" hidden>Startposisjon
                 <input id="lengthStart" type="number" value="6" min="0">
               </label>
               <label id="lengthMaxWrap" hidden>Maks lengde
                 <input id="lengthMax" type="number" value="30" min="1">
               </label>
-              <label class="chk inline"><input id="showLengthHandle" type="checkbox" checked> Lengde-håndtak</label>
+              <label class="chk inline" id="lengthHandleWrap" hidden><input id="showLengthHandle" type="checkbox" checked> Lengde-håndtak</label>
             </div>
             <div class="row">
               <label>Høyde
                 <input id="height" type="number" value="12" min="1">
               </label>
-              <label id="heightStartWrap">Startposisjon
+              <label id="heightStartWrap" hidden>Startposisjon
                 <input id="heightStart" type="number" value="6" min="0">
               </label>
               <label id="heightMaxWrap" hidden>Maks høyde
                 <input id="heightMax" type="number" value="30" min="1">
               </label>
-              <label class="chk inline"><input id="showHeightHandle" type="checkbox" checked> Høyde-håndtak</label>
+              <label class="chk inline" id="heightHandleWrap" hidden><input id="showHeightHandle" type="checkbox" checked> Høyde-håndtak</label>
             </div>
             <div class="row row--checkboxes">
               <label class="chk"><input id="splitLines" type="checkbox" checked> Delingslinjer</label>
