@@ -1407,6 +1407,91 @@ function rebuildAllFunctionSegments() {
 }
 
 /* =================== FUNKSJONER + BRACKETS =================== */
+const SUPERSCRIPT_MAP = {
+  0: '⁰',
+  1: '¹',
+  2: '²',
+  3: '³',
+  4: '⁴',
+  5: '⁵',
+  6: '⁶',
+  7: '⁷',
+  8: '⁸',
+  9: '⁹',
+  '+': '⁺',
+  '-': '⁻',
+  '=': '⁼',
+  '(': '⁽',
+  ')': '⁾',
+  'n': 'ⁿ',
+  'i': 'ⁱ'
+};
+const SUBSCRIPT_MAP = {
+  0: '₀',
+  1: '₁',
+  2: '₂',
+  3: '₃',
+  4: '₄',
+  5: '₅',
+  6: '₆',
+  7: '₇',
+  8: '₈',
+  9: '₉',
+  '+': '₊',
+  '-': '₋',
+  '=': '₌',
+  '(': '₍',
+  ')': '₎'
+};
+function mapScriptChars(str, map) {
+  return Array.from(str).map(ch => map[ch] || ch).join('');
+}
+function normalizeExpressionText(str) {
+  if (typeof str !== 'string') return '';
+  const trimmed = str.trim();
+  if (!trimmed) return '';
+  if (typeof document === 'undefined' || !/[<&]/.test(trimmed)) {
+    return trimmed;
+  }
+  const tpl = document.createElement('template');
+  tpl.innerHTML = trimmed;
+  const convertNode = (node, mode) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || '';
+      if (mode === 'sup') return mapScriptChars(text, SUPERSCRIPT_MAP);
+      if (mode === 'sub') return mapScriptChars(text, SUBSCRIPT_MAP);
+      return text;
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'sup') {
+        let out = '';
+        node.childNodes.forEach(child => {
+          out += convertNode(child, 'sup');
+        });
+        return out;
+      }
+      if (tag === 'sub') {
+        let out = '';
+        node.childNodes.forEach(child => {
+          out += convertNode(child, 'sub');
+        });
+        return out;
+      }
+      if (tag === 'br') {
+        return '\n';
+      }
+      let out = '';
+      node.childNodes.forEach(child => {
+        out += convertNode(child, mode);
+      });
+      return out;
+    }
+    return '';
+  };
+  const text = Array.from(tpl.content.childNodes).map(node => convertNode(node, null)).join('');
+  return text.replace(/\u00a0/g, ' ').replace(/[\t\r\f]+/g, ' ').replace(/\s+\n/g, '\n').replace(/\n\s+/g, '\n').trim();
+}
 function makeSmartCurveLabel(g, idx, text) {
   if (!ADV.curveName.show || !text) return;
   const label = brd.create('text', [0, 0, () => text], {
@@ -1581,8 +1666,10 @@ function buildCurveLabelText(fun) {
   const showName = !!(ADV !== null && ADV !== void 0 && (_ADV$curveName = ADV.curveName) !== null && _ADV$curveName !== void 0 && _ADV$curveName.showName);
   const showExpr = !!(ADV !== null && ADV !== void 0 && (_ADV$curveName2 = ADV.curveName) !== null && _ADV$curveName2 !== void 0 && _ADV$curveName2.showExpression);
   if (!showName && !showExpr) return '';
-  const nameText = typeof (fun === null || fun === void 0 ? void 0 : fun.label) === 'string' ? fun.label.trim() : '';
-  const exprText = typeof (fun === null || fun === void 0 ? void 0 : fun.rhs) === 'string' ? fun.rhs.trim() : '';
+  const nameTextRaw = typeof (fun === null || fun === void 0 ? void 0 : fun.label) === 'string' ? fun.label : '';
+  const exprTextRaw = typeof (fun === null || fun === void 0 ? void 0 : fun.rhs) === 'string' ? fun.rhs : '';
+  const nameText = normalizeExpressionText(nameTextRaw);
+  const exprText = normalizeExpressionText(exprTextRaw);
   if (showName && showExpr) {
     if (nameText && exprText) return `${nameText} = ${exprText}`;
     return nameText || exprText;
