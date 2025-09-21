@@ -481,15 +481,51 @@
     try {
       return JSON.parse(JSON.stringify(value));
     } catch (error) {}
+    return cloneValueFallback(value, new WeakMap());
+  }
+  function cloneValueFallback(value, seen) {
+    if (value == null || typeof value !== 'object') return value;
+    if (seen.has(value)) return seen.get(value);
     if (Array.isArray(value)) {
-      return value.slice();
+      const arr = [];
+      seen.set(value, arr);
+      for (let i = 0; i < value.length; i++) {
+        arr[i] = cloneValueFallback(value[i], seen);
+      }
+      return arr;
     }
-    if (typeof value === 'object') {
-      return {
-        ...value
-      };
+    const tag = Object.prototype.toString.call(value);
+    if (tag === '[object Date]') {
+      return new Date(value.getTime());
     }
-    return value;
+    if (tag === '[object RegExp]') {
+      return new RegExp(value);
+    }
+    if (tag === '[object Map]') {
+      const map = new Map();
+      seen.set(value, map);
+      value.forEach((v, k) => {
+        map.set(cloneValueFallback(k, seen), cloneValueFallback(v, seen));
+      });
+      return map;
+    }
+    if (tag === '[object Set]') {
+      const set = new Set();
+      seen.set(value, set);
+      value.forEach(v => {
+        set.add(cloneValueFallback(v, seen));
+      });
+      return set;
+    }
+    if (tag !== '[object Object]') {
+      return value;
+    }
+    const clone = {};
+    seen.set(value, clone);
+    Object.keys(value).forEach(key => {
+      clone[key] = cloneValueFallback(value[key], seen);
+    });
+    return clone;
   }
   function sanitizeProvidedExample(example, idx) {
     if (!example || typeof example !== 'object') return null;
