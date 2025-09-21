@@ -67,6 +67,8 @@
     nextPointId: 11
   };
 
+  const SHARK_STATE = deepClone(DEFAULT_STATE);
+
   const LIGHTNING_STATE = {
     coordinateOrigin: 'bottom-left',
     points: [
@@ -115,6 +117,13 @@
     title: 'Lyn',
     config: {
       STATE: LIGHTNING_STATE
+    }
+  }, {
+    id: 'prikktilprikk-example-3',
+    exampleNumber: '3',
+    title: 'Hai',
+    config: {
+      STATE: SHARK_STATE
     }
   }];
 
