@@ -1156,7 +1156,7 @@ function measureTextPx(label) {
     } catch (_) {}
     return null;
   };
-  const nodes = [label && label.rendNode, label && label.rendNodeText && label.rendNodeText.parentNode, label && label.rendNodeText];
+  const nodes = [label && label.rendNode, label && label.rendNodeText && label.rendNodeText.parentNode, label && label.rendNodeText, label && label.rendNode && label.rendNode.firstChild];
   for (const node of nodes) {
     const res = tryBBox(node);
     if (res) return res;
@@ -1165,7 +1165,13 @@ function measureTextPx(label) {
     const res = tryRect(node);
     if (res) return res;
   }
-  const text = label && label.plaintext || 'f(x)';
+  let fallback = '';
+  if (label) {
+    const primary = typeof label.plaintext === 'string' ? label.plaintext : null;
+    const secondary = typeof label._plainText === 'string' ? label._plainText : null;
+    fallback = primary && primary.trim() ? primary.trim() : secondary && secondary.trim() ? secondary.trim() : '';
+  }
+  const text = fallback || 'f(x)';
   const f = label && label.visProp && label.visProp.fontsize || ADV.curveName.fontSize;
   return {
     w: text.length * f * 0.6,
@@ -1446,12 +1452,144 @@ const SUBSCRIPT_MAP = {
 function mapScriptChars(str, map) {
   return Array.from(str).map(ch => map[ch] || ch).join('');
 }
+function escapeRegExpClass(str) {
+  return str.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+const SUPERSCRIPT_REVERSE_MAP = Object.entries(SUPERSCRIPT_MAP).reduce((acc, [key, value]) => {
+  acc[value] = key;
+  return acc;
+}, {});
+const SUBSCRIPT_REVERSE_MAP = Object.entries(SUBSCRIPT_MAP).reduce((acc, [key, value]) => {
+  acc[value] = key;
+  return acc;
+}, {});
+const SUPERSCRIPT_SEQUENCE_REGEX = new RegExp(`[${escapeRegExpClass(Object.values(SUPERSCRIPT_MAP).join(''))}]+`, 'g');
+const SUBSCRIPT_SEQUENCE_REGEX = new RegExp(`[${escapeRegExpClass(Object.values(SUBSCRIPT_MAP).join(''))}]+`, 'g');
+const HTML_ESCAPE_MAP = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;'
+};
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, ch => HTML_ESCAPE_MAP[ch] || ch);
+}
+function decodeBasicEntities(text) {
+  return String(text).replace(/&nbsp;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&amp;/gi, '&');
+}
+function collapseExpressionWhitespace(text) {
+  return String(text).replace(/\u00a0/g, ' ').replace(/[\t\r\f]+/g, ' ').replace(/\s+\n/g, '\n').replace(/\n\s+/g, '\n').trim();
+}
+function replaceUnicodeScripts(value, regex, reverseMap, prefix) {
+  return value.replace(regex, match => {
+    const mapped = Array.from(match).map(ch => reverseMap[ch] != null ? reverseMap[ch] : ch).join('');
+    if (!mapped) return match;
+    return `${prefix}{${mapped}}`;
+  });
+}
+function finalizeLatexFromPlain(input) {
+  const collapsed = collapseExpressionWhitespace(decodeBasicEntities(input));
+  if (!collapsed) return '';
+  let out = replaceUnicodeScripts(collapsed, SUPERSCRIPT_SEQUENCE_REGEX, SUPERSCRIPT_REVERSE_MAP, '^');
+  out = replaceUnicodeScripts(out, SUBSCRIPT_SEQUENCE_REGEX, SUBSCRIPT_REVERSE_MAP, '_');
+  return out.replace(/\n/g, '\\\\');
+}
+function convertExpressionToLatex(str) {
+  if (typeof str !== 'string') return '';
+  const trimmed = str.trim();
+  if (!trimmed) return '';
+  const manualConvert = input => {
+    let text = String(input);
+    const replaceScript = (pattern, builder) => {
+      text = text.replace(pattern, (_, inner = '') => builder(manualConvert(inner)));
+    };
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+    replaceScript(/<sup>([\s\S]*?)<\/sup>/gi, inner => `^{${inner}}`);
+    replaceScript(/<sub>([\s\S]*?)<\/sub>/gi, inner => `_{${inner}}`);
+    text = text.replace(/<[^>]*>/g, '');
+    return text;
+  };
+  if (/[<&]/.test(trimmed) && typeof document !== 'undefined') {
+    try {
+      const tpl = document.createElement('template');
+      tpl.innerHTML = trimmed;
+      const TEXT_NODE = typeof Node !== 'undefined' && Node.TEXT_NODE != null ? Node.TEXT_NODE : 3;
+      const ELEMENT_NODE = typeof Node !== 'undefined' && Node.ELEMENT_NODE != null ? Node.ELEMENT_NODE : 1;
+      const convertNode = node => {
+        if (!node) return '';
+        if (node.nodeType === TEXT_NODE) {
+          return node.textContent || '';
+        }
+        if (node.nodeType === ELEMENT_NODE) {
+          const tag = node.tagName ? node.tagName.toLowerCase() : '';
+          if (tag === 'sup') {
+            let out = '';
+            node.childNodes.forEach(child => {
+              out += convertNode(child);
+            });
+            return `^{${out}}`;
+          }
+          if (tag === 'sub') {
+            let out = '';
+            node.childNodes.forEach(child => {
+              out += convertNode(child);
+            });
+            return `_{${out}}`;
+          }
+          if (tag === 'br') {
+            return '\n';
+          }
+          let out = '';
+          node.childNodes.forEach(child => {
+            out += convertNode(child);
+          });
+          return out;
+        }
+        return '';
+      };
+      const text = Array.from(tpl.content.childNodes).map(node => convertNode(node)).join('');
+      return finalizeLatexFromPlain(text);
+    } catch (_) {
+      return finalizeLatexFromPlain(manualConvert(trimmed));
+    }
+  }
+  if (/[<&]/.test(trimmed)) {
+    return finalizeLatexFromPlain(manualConvert(trimmed));
+  }
+  return finalizeLatexFromPlain(trimmed);
+}
+function renderLatexToHtml(latex) {
+  if (!latex) return '';
+  if (typeof window === 'undefined' || !window.katex) return '';
+  const { katex } = window;
+  if (!katex) return '';
+  if (typeof katex.renderToString === 'function') {
+    try {
+      return katex.renderToString(latex, {
+        throwOnError: false
+      });
+    } catch (_) {
+      return '';
+    }
+  }
+  if (typeof katex.render === 'function' && typeof document !== 'undefined') {
+    const span = document.createElement('span');
+    try {
+      katex.render(latex, span, {
+        throwOnError: false
+      });
+      return span.innerHTML;
+    } catch (_) {
+      return '';
+    }
+  }
+  return '';
+}
 function normalizeExpressionText(str) {
   if (typeof str !== 'string') return '';
   const trimmed = str.trim();
   if (!trimmed) return '';
-  const collapseWhitespace = text => text.replace(/\u00a0/g, ' ').replace(/[\t\r\f]+/g, ' ').replace(/\s+\n/g, '\n').replace(/\n\s+/g, '\n').trim();
-  const decodeBasicEntities = text => text.replace(/&nbsp;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&amp;/gi, '&');
   const manualNormalize = input => {
     let text = String(input);
     const replaceScript = (pattern, map) => {
@@ -1461,7 +1599,7 @@ function normalizeExpressionText(str) {
     replaceScript(/<sup>([\s\S]*?)<\/sup>/gi, SUPERSCRIPT_MAP);
     replaceScript(/<sub>([\s\S]*?)<\/sub>/gi, SUBSCRIPT_MAP);
     text = text.replace(/<[^>]*>/g, '');
-    return collapseWhitespace(decodeBasicEntities(text));
+    return collapseExpressionWhitespace(decodeBasicEntities(text));
   };
   if (/[<&]/.test(trimmed) && typeof document !== 'undefined') {
     try {
@@ -1505,7 +1643,7 @@ function normalizeExpressionText(str) {
         return '';
       };
       const text = Array.from(tpl.content.childNodes).map(node => convertNode(node, null)).join('');
-      return collapseWhitespace(text);
+      return collapseExpressionWhitespace(text);
     } catch (_) {
       return manualNormalize(trimmed);
     }
@@ -1513,11 +1651,35 @@ function normalizeExpressionText(str) {
   if (/[<&]/.test(trimmed)) {
     return manualNormalize(trimmed);
   }
-  return collapseWhitespace(trimmed);
+  return collapseExpressionWhitespace(decodeBasicEntities(trimmed));
 }
-function makeSmartCurveLabel(g, idx, text) {
-  if (!ADV.curveName.show || !text) return;
-  const label = brd.create('text', [0, 0, () => text], {
+function makeSmartCurveLabel(g, idx, content) {
+  if (!ADV.curveName.show || !content) return;
+  const renderer = (() => {
+    let cached = '';
+    let cachedKey = null;
+    return () => {
+      const latex = content.latex && content.latex.trim();
+      if (latex) {
+        const key = `latex:${latex}`;
+        if (cachedKey === key && cached) return cached;
+        const html = (content.html && content.html.trim()) || renderLatexToHtml(latex);
+        if (html) {
+          cachedKey = key;
+          cached = `<span class="curve-label curve-label--latex">${html}</span>`;
+          content.html = html;
+          return cached;
+        }
+      }
+      const plain = content.text ? escapeHtml(content.text) : '';
+      const key = `text:${plain}`;
+      if (cachedKey === key && cached) return cached;
+      cachedKey = key;
+      cached = plain ? `<span class="curve-label curve-label--text">${plain}</span>` : '';
+      return cached;
+    };
+  })();
+  const label = brd.create('text', [0, 0, renderer], {
     color: g.color,
     fillColor: g.color,
     fontSize: ADV.curveName.fontSize,
@@ -1526,9 +1688,10 @@ function makeSmartCurveLabel(g, idx, text) {
     layer: ADV.curveName.layer,
     anchorX: 'left',
     anchorY: 'middle',
-    display: 'internal',
-    cssStyle: 'user-select:none;cursor:move;touch-action:none;'
+    display: 'html',
+    cssStyle: `user-select:none;cursor:move;touch-action:none;color:${g.color};display:inline-block;`
   });
+  label._plainText = content.text || '';
   ensurePlateFor(label);
   g._labelManual = false;
   function finiteYAt(x) {
@@ -1684,34 +1847,53 @@ function updateAllBrackets() {
     makeBracketAt(g, g.domain[1], +1);
   }
 }
-function buildCurveLabelText(fun) {
+function buildCurveLabelContent(fun) {
   var _ADV$curveName, _ADV$curveName2;
   const showName = !!(ADV !== null && ADV !== void 0 && (_ADV$curveName = ADV.curveName) !== null && _ADV$curveName !== void 0 && _ADV$curveName.showName);
   const showExpr = !!(ADV !== null && ADV !== void 0 && (_ADV$curveName2 = ADV.curveName) !== null && _ADV$curveName2 !== void 0 && _ADV$curveName2.showExpression);
-  if (!showName && !showExpr) return '';
+  if (!showName && !showExpr) return null;
   const nameTextRaw = typeof (fun === null || fun === void 0 ? void 0 : fun.label) === 'string' ? fun.label : '';
   const exprTextRaw = typeof (fun === null || fun === void 0 ? void 0 : fun.rhs) === 'string' ? fun.rhs : '';
   const nameText = normalizeExpressionText(nameTextRaw);
   const exprText = normalizeExpressionText(exprTextRaw);
+  let plain = '';
   if (showName && showExpr) {
-    if (nameText && exprText) return `${nameText} = ${exprText}`;
-    return nameText || exprText;
+    plain = nameText && exprText ? `${nameText} = ${exprText}` : nameText || exprText || '';
+  } else if (showName) {
+    plain = nameText;
+  } else if (showExpr) {
+    plain = exprText;
   }
-  if (showName && nameText) return nameText;
-  if (showExpr && exprText) return exprText;
-  return '';
+  const nameLatex = showName ? convertExpressionToLatex(nameTextRaw || nameText) : '';
+  const exprLatex = showExpr ? convertExpressionToLatex(exprTextRaw || exprText) : '';
+  let latex = '';
+  if (showName && showExpr) {
+    latex = nameLatex && exprLatex ? `${nameLatex} = ${exprLatex}` : nameLatex || exprLatex || '';
+  } else if (showName) {
+    latex = nameLatex;
+  } else if (showExpr) {
+    latex = exprLatex;
+  }
+  if (!plain && !latex) return null;
+  const html = latex ? renderLatexToHtml(latex) : '';
+  return {
+    text: plain || '',
+    latex: latex || '',
+    html: html || ''
+  };
 }
 function buildFunctions() {
   graphs = [];
   SIMPLE_PARSED.funcs.forEach((f, i) => {
     const color = colorFor(i);
     const fn = parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
-    const label = buildCurveLabelText(f);
+    const labelContent = buildCurveLabelContent(f);
     const g = {
       name: f.name,
       color,
       domain: f.domain || null,
-      label,
+      label: labelContent && labelContent.text || '',
+      labelContent,
       expression: f.rhs
     };
     g.fn = x => {
@@ -1733,8 +1915,8 @@ function buildFunctions() {
       fixed: true
     });
     graphs.push(g);
-    if (label) {
-      makeSmartCurveLabel(g, i, label);
+    if (labelContent) {
+      makeSmartCurveLabel(g, i, labelContent);
     }
   });
   rebuildAllFunctionSegments();
