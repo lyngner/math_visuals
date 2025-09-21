@@ -54,6 +54,7 @@ function resolveSharedFontSize() {
   return FONT_DEFAULT;
 }
 const SHARED_FONT_SIZE = resolveSharedFontSize();
+const FORCE_TICKS_REQUESTED = params.has('forceTicks') ? paramBool('forceTicks') : true;
 function parseScreen(str) {
   if (!str) return null;
   const cleaned = str.replace(/^[\s\[]+|[\]\s]+$/g, '');
@@ -112,7 +113,8 @@ const ADV = {
       majorY: 1,
       labelPrecision: 0,
       fontSize: SHARED_FONT_SIZE
-    }
+    },
+    forceIntegers: FORCE_TICKS_REQUESTED
   },
   screen: parseScreen(paramStr('screen', '')),
   lockAspect: params.has('lock') ? paramBool('lock') : true,
@@ -290,6 +292,9 @@ function decideMode(parsed) {
   return anyPlaceholder ? 'points' : 'functions';
 }
 let MODE = decideMode(SIMPLE_PARSED);
+// Deaktiverer "Tving 1, 2, 3" når mer enn 20 tall får plass på en akse.
+const FORCE_TICKS_AUTO_DISABLE_LIMIT = 20;
+let FORCE_TICKS_LOCKED_FALSE = false;
 let START_SCREEN = null;
 let brd = null;
 let axX = null;
@@ -808,6 +813,7 @@ function destroyBoard() {
   A = null;
   B = null;
   moving = [];
+  START_SCREEN = null;
 }
 function applyAxisStyles() {
   if (!brd) return;
@@ -823,6 +829,29 @@ function applyAxisStyles() {
 }
 function applyTickSettings() {
   if (!axX || !axY) return;
+  if (!ADV.axis.forceIntegers) {
+    if (customTicksX) {
+      try {
+        brd.removeObject(customTicksX);
+      } catch (_) {}
+      customTicksX = null;
+    }
+    if (customTicksY) {
+      try {
+        brd.removeObject(customTicksY);
+      } catch (_) {}
+      customTicksY = null;
+    }
+    axX.defaultTicks.setAttribute({
+      visible: true,
+      drawLabels: true
+    });
+    axY.defaultTicks.setAttribute({
+      visible: true,
+      drawLabels: true
+    });
+    return;
+  }
   const tickBase = {
     drawLabels: true,
     precision: ADV.axis.grid.labelPrecision
@@ -905,6 +934,16 @@ function computeTickSpacing(base, span) {
   const nice = niceTickStep(span, MAX_TICKS_PER_AXIS);
   return Math.max(safeBase, nice);
 }
+function shouldLockForceTicks(screen) {
+  if (!Array.isArray(screen) || screen.length !== 4) return false;
+  const spanX = Math.abs(screen[1] - screen[0]);
+  const spanY = Math.abs(screen[3] - screen[2]);
+  const stepX = Math.abs(+ADV.axis.grid.majorX) > 1e-9 ? Math.abs(+ADV.axis.grid.majorX) : 1;
+  const stepY = Math.abs(+ADV.axis.grid.majorY) > 1e-9 ? Math.abs(+ADV.axis.grid.majorY) : 1;
+  const ticksX = Number.isFinite(spanX) ? spanX / stepX : Infinity;
+  const ticksY = Number.isFinite(spanY) ? spanY / stepY : Infinity;
+  return ticksX > FORCE_TICKS_AUTO_DISABLE_LIMIT || ticksY > FORCE_TICKS_AUTO_DISABLE_LIMIT;
+}
 function updateCustomTickSpacing() {
   if (!brd) return;
   const bb = brd.getBoundingBox();
@@ -932,11 +971,13 @@ function updateCustomTickSpacing() {
   }
 }
 function initBoard() {
-  START_SCREEN = initialScreen();
+  if (!START_SCREEN) {
+    START_SCREEN = initialScreen();
+  }
   brd = JXG.JSXGraph.initBoard('board', {
     boundingbox: toBB(START_SCREEN),
     axis: true,
-    grid: false,
+    grid: !ADV.axis.forceIntegers,
     showNavigation: false,
     showCopyright: false,
     pan: {
@@ -954,7 +995,9 @@ function initBoard() {
   axX = brd.defaultAxes.x;
   axY = brd.defaultAxes.y;
   applyAxisStyles();
-  applyTickSettings();
+  if (ADV.axis.forceIntegers) {
+    applyTickSettings();
+  }
   xName = null;
   yName = null;
   placeAxisNames();
@@ -1048,7 +1091,7 @@ function enforceAspectStrict() {
 
 /* ---------- GRID (statisk) ---------- */
 function rebuildGrid() {
-  if (!brd) return;
+  if (!brd || !ADV.axis.forceIntegers) return;
   for (const L of gridV) {
     try {
       brd.removeObject(L);
@@ -1912,8 +1955,10 @@ function hideCheckControls() {
 function updateAfterViewChange() {
   if (!brd) return;
   enforceAspectStrict();
-  rebuildGrid();
-  applyTickSettings();
+  if (ADV.axis.forceIntegers) {
+    rebuildGrid();
+    applyTickSettings();
+  }
   placeAxisNames();
   if (MODE === 'functions') {
     rebuildAllFunctionSegments();
@@ -1932,6 +1977,14 @@ function rebuildAll() {
   MODE = decideMode(SIMPLE_PARSED);
   hideCheckControls();
   destroyBoard();
+  ADV.axis.forceIntegers = FORCE_TICKS_REQUESTED;
+  FORCE_TICKS_LOCKED_FALSE = false;
+  const plannedScreen = initialScreen();
+  if (shouldLockForceTicks(plannedScreen)) {
+    FORCE_TICKS_LOCKED_FALSE = true;
+    ADV.axis.forceIntegers = false;
+  }
+  START_SCREEN = plannedScreen;
   initBoard();
   if (!brd) return;
   if (MODE === 'functions') {
@@ -2083,6 +2136,7 @@ function setupSettingsForm() {
   const showNamesInput = g('cfgShowNames');
   const showExprInput = g('cfgShowExpr');
   const showBracketsInput = g('cfgShowBrackets');
+  const forceTicksInput = g('cfgForceTicks');
   let gliderSection = null;
   let gliderCountInput = null;
   let gliderStartInput = null;
@@ -2383,6 +2437,16 @@ function setupSettingsForm() {
   if (showBracketsInput) {
     showBracketsInput.checked = !!ADV.domainMarkers.show;
   }
+  if (forceTicksInput) {
+    forceTicksInput.checked = !!ADV.axis.forceIntegers;
+    forceTicksInput.disabled = FORCE_TICKS_LOCKED_FALSE;
+    if (FORCE_TICKS_LOCKED_FALSE) {
+      forceTicksInput.checked = false;
+      forceTicksInput.title = 'Deaktivert fordi utsnittet gir for mange tall på aksene.';
+    } else {
+      forceTicksInput.removeAttribute('title');
+    }
+  }
   const snapCheckbox = g('cfgSnap');
   if (snapCheckbox) {
     snapCheckbox.checked = ADV.points.snap.enabled;
@@ -2430,6 +2494,13 @@ function setupSettingsForm() {
     }
     if (showBracketsInput) {
       p.set('brackets', showBracketsInput.checked ? '1' : '0');
+    }
+    if (forceTicksInput) {
+      if (forceTicksInput.disabled && FORCE_TICKS_LOCKED_FALSE) {
+        p.set('forceTicks', FORCE_TICKS_REQUESTED ? '1' : '0');
+      } else {
+        p.set('forceTicks', forceTicksInput.checked ? '1' : '0');
+      }
     }
     const snapInput = g('cfgSnap');
     if (snapInput) {
