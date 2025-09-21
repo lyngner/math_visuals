@@ -12,10 +12,14 @@
   const GRID_BASE_STEP = 0.05;
   const GRID_MAJOR_EVERY = 4;
   const DEFAULT_ZOOM = 1;
-  const MIN_ZOOM = 1;
+  const MIN_ZOOM = 0.25;
   const MAX_ZOOM = 4;
   const ZOOM_STEP = 0.25;
   const PAN_STEP = 0.01;
+  const WORLD_MIN_X = -2;
+  const WORLD_MAX_X = 2;
+  const WORLD_MIN_Y = -2;
+  const WORLD_MAX_Y = 2;
 
   function deepClone(value) {
     if (value == null) return value;
@@ -314,6 +318,13 @@
     return num;
   }
 
+  function sanitizeCoordinate(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return 0;
+    if (Math.abs(num) > 1e6) return Math.sign(num) * 1e6;
+    return num;
+  }
+
   function clamp01(value) {
     const num = Number(value);
     if (!Number.isFinite(num)) return 0;
@@ -344,18 +355,40 @@
     const zoom = clampZoom(rawView.zoom);
     const viewWidth = zoom > 0 ? 1 / zoom : 1;
     const viewHeight = zoom > 0 ? 1 / zoom : 1;
-    const panLimitX = Math.max(0, 1 - viewWidth);
-    const panLimitY = Math.max(0, 1 - viewHeight);
-    const panX = panLimitX > 0 ? clamp(rawView.panX, 0, panLimitX) : 0;
-    const panY = panLimitY > 0 ? clamp(rawView.panY, 0, panLimitY) : 0;
+    const rawPanX = Number(rawView.panX);
+    const rawPanY = Number(rawView.panY);
+    const candidateMinX = WORLD_MIN_X;
+    const candidateMaxX = WORLD_MAX_X - viewWidth;
+    const candidateMinY = WORLD_MIN_Y;
+    const candidateMaxY = WORLD_MAX_Y - viewHeight;
+    const panMinX = Math.min(candidateMinX, candidateMaxX);
+    const panMaxX = Math.max(candidateMinX, candidateMaxX);
+    const panMinY = Math.min(candidateMinY, candidateMaxY);
+    const panMaxY = Math.max(candidateMinY, candidateMaxY);
+    const panX = clamp(rawPanX, panMinX, panMaxX);
+    const panY = clamp(rawPanY, panMinY, panMaxY);
     STATE.view = { zoom, panX, panY };
-    return { zoom, panX, panY, viewWidth, viewHeight, panLimitX, panLimitY };
+    return {
+      zoom,
+      panX,
+      panY,
+      viewWidth,
+      viewHeight,
+      panLimitX: panMaxX - panMinX,
+      panLimitY: panMaxY - panMinY,
+      panMinX,
+      panMaxX,
+      panMinY,
+      panMaxY
+    };
   }
 
-  function computePanStep(limit) {
-    if (!Number.isFinite(limit) || limit <= 0) return PAN_STEP;
-    const candidate = limit / 5;
-    if (candidate <= 0) return Math.min(PAN_STEP, limit) || PAN_STEP;
+  function computePanStep(min, max) {
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return PAN_STEP;
+    const span = Math.abs(max - min);
+    if (span <= 0) return PAN_STEP;
+    const candidate = span / 5;
+    if (candidate <= 0) return Math.min(PAN_STEP, span) || PAN_STEP;
     return Math.max(Math.min(PAN_STEP, candidate), 0.001);
   }
 
@@ -419,24 +452,25 @@
       zoomRange.value = String(view.zoom);
     }
     if (zoomValueEl) zoomValueEl.textContent = formatZoom(view.zoom);
-    const updatePanControl = (rangeEl, valueEl, value, limit) => {
-      if (!rangeEl && valueEl) {
-        valueEl.textContent = formatPercentValue(value);
+    const updatePanControl = (rangeEl, valueEl, value, min, max) => {
+      const safeMin = Number.isFinite(min) ? min : 0;
+      const safeMax = Number.isFinite(max) ? max : safeMin;
+      const clampedValue = clamp(value, safeMin, safeMax);
+      const span = Math.abs(safeMax - safeMin);
+      if (!rangeEl) {
+        if (valueEl) valueEl.textContent = formatPercentValue(clampedValue);
         return;
       }
-      if (!rangeEl) return;
-      const safeLimit = Math.max(0, Number(limit) || 0);
-      const disabled = safeLimit <= 0.0001;
-      const safeValue = disabled ? 0 : clamp(value, 0, safeLimit);
-      rangeEl.min = '0';
-      rangeEl.max = String(safeLimit);
-      rangeEl.step = String(computePanStep(safeLimit));
-      rangeEl.value = String(safeValue);
+      const disabled = span <= 0.0001;
+      rangeEl.min = String(safeMin);
+      rangeEl.max = String(safeMax);
+      rangeEl.step = String(computePanStep(safeMin, safeMax));
+      rangeEl.value = String(clampedValue);
       rangeEl.disabled = disabled;
-      if (valueEl) valueEl.textContent = formatPercentValue(disabled ? 0 : safeValue);
+      if (valueEl) valueEl.textContent = formatPercentValue(clampedValue);
     };
-    updatePanControl(panXRange, panXValueEl, view.panX, view.panLimitX);
-    updatePanControl(panYRange, panYValueEl, view.panY, view.panLimitY);
+    updatePanControl(panXRange, panXValueEl, view.panX, view.panMinX, view.panMaxX);
+    updatePanControl(panYRange, panYValueEl, view.panY, view.panMinY, view.panMaxY);
   }
 
   function computeBoardScale() {
@@ -531,8 +565,8 @@
       const normalized = str.replace(',', '.');
       const num = Number(normalized);
       if (!Number.isFinite(num)) return null;
-      if (num > 1) return clamp01(num / 100);
-      return clamp01(num);
+      if (Math.abs(num) > 1) return num / 100;
+      return num;
     };
     const x = parsePart(matches[0]);
     const y = parsePart(matches[1]);
@@ -543,9 +577,9 @@
   function snapToGridValue(value) {
     if (!Number.isFinite(value)) return 0;
     const step = GRID_BASE_STEP;
-    if (!Number.isFinite(step) || step <= 0) return clamp01(value);
+    if (!Number.isFinite(step) || step <= 0) return sanitizeCoordinate(value);
     const snapped = Math.round(value / step) * step;
-    return clamp01(Number(snapped.toFixed(4)));
+    return sanitizeCoordinate(Number(snapped.toFixed(4)));
   }
 
   function makeLineKey(a, b) {
@@ -726,8 +760,8 @@
       const sanitizedPoint = {
         id,
         label: typeof point.label === 'string' ? point.label : String(idx + 1),
-        x: clamp01(point.x),
-        y: clamp01(point.y),
+        x: sanitizeCoordinate(point.x),
+        y: sanitizeCoordinate(point.y),
         isFalse: !!point.isFalse
       };
       usedIds.add(id);
@@ -792,9 +826,9 @@
   }
 
   function toPixel(point, viewOverride) {
-    const normX = clamp01(point.x);
-    const normY = clamp01(point.y);
     const view = viewOverride && typeof viewOverride === 'object' ? viewOverride : getViewSettings();
+    const normX = sanitizeCoordinate(point && point.x);
+    const normY = sanitizeCoordinate(point && point.y);
     const relativeX = view.viewWidth > 0 ? (normX - view.panX) / view.viewWidth : 0;
     const relativeY = view.viewHeight > 0 ? (normY - view.panY) / view.viewHeight : 0;
     const clampedX = clamp01(relativeX);
@@ -824,8 +858,8 @@
     const localY = clamp01(1 - rawY);
     const view = viewOverride && typeof viewOverride === 'object' ? viewOverride : getViewSettings();
     return {
-      x: clamp01(view.panX + localX * view.viewWidth),
-      y: clamp01(view.panY + localY * view.viewHeight)
+      x: sanitizeCoordinate(view.panX + localX * view.viewWidth),
+      y: sanitizeCoordinate(view.panY + localY * view.viewHeight)
     };
   }
 
@@ -893,8 +927,8 @@
   function updatePointPosition(pointId, normX, normY) {
     const point = STATE.points.find(p => p.id === pointId);
     if (!point) return;
-    let newX = clamp01(normX);
-    let newY = clamp01(normY);
+    let newX = sanitizeCoordinate(normX);
+    let newY = sanitizeCoordinate(normY);
     if (STATE.snapToGrid) {
       newX = snapToGridValue(newX);
       newY = snapToGridValue(newY);
@@ -936,22 +970,32 @@
     const view = getViewSettings();
     const nextZoom = clampZoom(rawZoom);
     const focus = options && typeof options.focus === 'object' ? options.focus : null;
-    const focusX = focus && Number.isFinite(focus.x) ? clamp01(focus.x) : view.panX + view.viewWidth / 2;
-    const focusY = focus && Number.isFinite(focus.y) ? clamp01(focus.y) : view.panY + view.viewHeight / 2;
+    const focusX = focus && Number.isFinite(focus.x)
+      ? sanitizeCoordinate(focus.x)
+      : view.panX + view.viewWidth / 2;
+    const focusY = focus && Number.isFinite(focus.y)
+      ? sanitizeCoordinate(focus.y)
+      : view.panY + view.viewHeight / 2;
     if (Math.abs(nextZoom - view.zoom) < 1e-6) {
       syncViewControls(view);
       return false;
     }
     const nextViewWidth = nextZoom > 0 ? 1 / nextZoom : 1;
     const nextViewHeight = nextZoom > 0 ? 1 / nextZoom : 1;
-    const nextPanLimitX = Math.max(0, 1 - nextViewWidth);
-    const nextPanLimitY = Math.max(0, 1 - nextViewHeight);
+    const nextPanCandidateMinX = WORLD_MIN_X;
+    const nextPanCandidateMaxX = WORLD_MAX_X - nextViewWidth;
+    const nextPanCandidateMinY = WORLD_MIN_Y;
+    const nextPanCandidateMaxY = WORLD_MAX_Y - nextViewHeight;
+    const nextPanMinX = Math.min(nextPanCandidateMinX, nextPanCandidateMaxX);
+    const nextPanMaxX = Math.max(nextPanCandidateMinX, nextPanCandidateMaxX);
+    const nextPanMinY = Math.min(nextPanCandidateMinY, nextPanCandidateMaxY);
+    const nextPanMaxY = Math.max(nextPanCandidateMinY, nextPanCandidateMaxY);
     const offsetX = view.viewWidth > 0 ? (focusX - view.panX) / view.viewWidth : 0.5;
     const offsetY = view.viewHeight > 0 ? (focusY - view.panY) / view.viewHeight : 0.5;
     let nextPanX = focusX - offsetX * nextViewWidth;
     let nextPanY = focusY - offsetY * nextViewHeight;
-    nextPanX = nextPanLimitX > 0 ? clamp(nextPanX, 0, nextPanLimitX) : 0;
-    nextPanY = nextPanLimitY > 0 ? clamp(nextPanY, 0, nextPanLimitY) : 0;
+    nextPanX = clamp(nextPanX, nextPanMinX, nextPanMaxX);
+    nextPanY = clamp(nextPanY, nextPanMinY, nextPanMaxY);
     STATE.view = { zoom: nextZoom, panX: nextPanX, panY: nextPanY };
     renderBoard(currentValidPoints);
     return true;
@@ -963,14 +1007,12 @@
 
   function updatePan(axis, rawValue) {
     const view = getViewSettings();
-    const limitX = view.panLimitX;
-    const limitY = view.panLimitY;
     let nextPanX = view.panX;
     let nextPanY = view.panY;
     if (axis === 'x') {
-      nextPanX = limitX > 0 ? clamp(rawValue, 0, limitX) : 0;
+      nextPanX = clamp(rawValue, view.panMinX, view.panMaxX);
     } else {
-      nextPanY = limitY > 0 ? clamp(rawValue, 0, limitY) : 0;
+      nextPanY = clamp(rawValue, view.panMinY, view.panMaxY);
     }
     if (Math.abs(nextPanX - view.panX) < 1e-6 && Math.abs(nextPanY - view.panY) < 1e-6) {
       syncViewControls(view);
@@ -1086,10 +1128,8 @@
     const deltaY = startHeight ? dy / startHeight : 0;
     let nextPanX = boardPanSession.panX - deltaX * view.viewWidth;
     let nextPanY = boardPanSession.panY + deltaY * view.viewHeight;
-    const limitX = view.panLimitX;
-    const limitY = view.panLimitY;
-    nextPanX = limitX > 0 ? clamp(nextPanX, 0, limitX) : 0;
-    nextPanY = limitY > 0 ? clamp(nextPanY, 0, limitY) : 0;
+    nextPanX = clamp(nextPanX, view.panMinX, view.panMaxX);
+    nextPanY = clamp(nextPanY, view.panMinY, view.panMaxY);
     if (Math.abs(nextPanX - view.panX) < 1e-6 && Math.abs(nextPanY - view.panY) < 1e-6) {
       return false;
     }
@@ -1138,10 +1178,16 @@
     const deltaCenterY = centerY - boardPinchSession.prevCenterY;
     if (width > 0) nextPanX -= (deltaCenterX / width) * nextViewWidth;
     if (height > 0) nextPanY += (deltaCenterY / height) * nextViewHeight;
-    const limitX = Math.max(0, 1 - nextViewWidth);
-    const limitY = Math.max(0, 1 - nextViewHeight);
-    nextPanX = limitX > 0 ? clamp(nextPanX, 0, limitX) : 0;
-    nextPanY = limitY > 0 ? clamp(nextPanY, 0, limitY) : 0;
+    const nextPanCandidateMinX = WORLD_MIN_X;
+    const nextPanCandidateMaxX = WORLD_MAX_X - nextViewWidth;
+    const nextPanCandidateMinY = WORLD_MIN_Y;
+    const nextPanCandidateMaxY = WORLD_MAX_Y - nextViewHeight;
+    const nextPanMinX = Math.min(nextPanCandidateMinX, nextPanCandidateMaxX);
+    const nextPanMaxX = Math.max(nextPanCandidateMinX, nextPanCandidateMaxX);
+    const nextPanMinY = Math.min(nextPanCandidateMinY, nextPanCandidateMaxY);
+    const nextPanMaxY = Math.max(nextPanCandidateMinY, nextPanCandidateMaxY);
+    nextPanX = clamp(nextPanX, nextPanMinX, nextPanMaxX);
+    nextPanY = clamp(nextPanY, nextPanMinY, nextPanMaxY);
     const changed = Math.abs(nextPanX - view.panX) > 1e-6 || Math.abs(nextPanY - view.panY) > 1e-6 || Math.abs(nextZoom - view.zoom) > 1e-6;
     boardPinchSession.prevCenterX = centerX;
     boardPinchSession.prevCenterY = centerY;
@@ -1734,7 +1780,6 @@
     const endXIndex = Math.floor((maxX + epsilon) / step);
     for (let idx = startXIndex; idx <= endXIndex; idx += 1) {
       const xValue = Number((idx * step).toFixed(6));
-      if (xValue < -epsilon || xValue > 1 + epsilon) continue;
       const isMajor = GRID_MAJOR_EVERY > 0 && idx % GRID_MAJOR_EVERY === 0;
       addLine(xValue, minY, xValue, maxY, isMajor);
     }
@@ -1742,7 +1787,6 @@
     const endYIndex = Math.floor((maxY + epsilon) / step);
     for (let idx = startYIndex; idx <= endYIndex; idx += 1) {
       const yValue = Number((idx * step).toFixed(6));
-      if (yValue < -epsilon || yValue > 1 + epsilon) continue;
       const isMajor = GRID_MAJOR_EVERY > 0 && idx % GRID_MAJOR_EVERY === 0;
       addLine(minX, yValue, maxX, yValue, isMajor);
     }
