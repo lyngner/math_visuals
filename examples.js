@@ -1100,9 +1100,17 @@
         window.__EXAMPLES_FORCE_PROVIDED__ = false;
       }
     };
-    if (document.readyState === 'complete') setTimeout(ensure, 0);else window.addEventListener('load', ensure, {
-      once: true
-    });
+    const runEnsure = () => {
+      window.removeEventListener('DOMContentLoaded', runEnsure);
+      window.removeEventListener('load', runEnsure);
+      setTimeout(ensure, 0);
+    };
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(ensure, 0);
+    } else {
+      window.addEventListener('DOMContentLoaded', runEnsure);
+      window.addEventListener('load', runEnsure);
+    }
   }
   ensureDefaultExample();
 })();
