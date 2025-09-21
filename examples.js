@@ -473,11 +473,23 @@
   }
   function cloneValue(value) {
     if (value == null) return value;
+    if (typeof structuredClone === 'function') {
+      try {
+        return structuredClone(value);
+      } catch (error) {}
+    }
     try {
       return JSON.parse(JSON.stringify(value));
-    } catch (error) {
-      return value;
+    } catch (error) {}
+    if (Array.isArray(value)) {
+      return value.slice();
     }
+    if (typeof value === 'object') {
+      return {
+        ...value
+      };
+    }
+    return value;
   }
   function sanitizeProvidedExample(example, idx) {
     if (!example || typeof example !== 'object') return null;
@@ -541,18 +553,21 @@
   }
   function applyBinding(name, value) {
     if (value == null) return;
+    const applyToTarget = target => {
+      if (!target) return false;
+      const cloned = cloneValue(value);
+      return replaceContents(target, cloned);
+    };
     const target = getBinding(name);
-    if (replaceContents(target, value)) {
+    if (applyToTarget(target)) {
       if (name in window && window[name] !== target) {
         window[name] = target;
       }
       return;
     }
     const winVal = name in window ? window[name] : undefined;
-    if (replaceContents(winVal, value)) return;
-    window[name] = Array.isArray(value) ? value.slice() : typeof value === 'object' ? {
-      ...value
-    } : value;
+    if (applyToTarget(winVal)) return;
+    window[name] = cloneValue(value);
   }
   function triggerRefresh(index) {
     const tried = new Set();
