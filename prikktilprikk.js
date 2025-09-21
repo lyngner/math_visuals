@@ -2,8 +2,8 @@
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const BOARD_WIDTH = 1000;
   const BOARD_HEIGHT = 700;
-  const LABEL_OFFSET_X = 16;
-  const LABEL_OFFSET_Y = -14;
+  const LABEL_OFFSET_X = 24;
+  const LABEL_OFFSET_Y = -20;
   const POINT_RADIUS = 11;
   const DEFAULT_LABEL_FONT_SIZE = 14;
   const MIN_LABEL_FONT_SIZE = 10;
