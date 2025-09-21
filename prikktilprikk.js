@@ -5,6 +5,9 @@
   const LABEL_OFFSET_X = 16;
   const LABEL_OFFSET_Y = -14;
   const POINT_RADIUS = 11;
+  const DEFAULT_LABEL_FONT_SIZE = 14;
+  const MIN_LABEL_FONT_SIZE = 10;
+  const MAX_LABEL_FONT_SIZE = 48;
 
   function deepClone(value) {
     if (value == null) return value;
@@ -60,6 +63,7 @@
     ],
     predefinedLines: [['p3', 'p5']],
     showLabels: true,
+    labelFontSize: DEFAULT_LABEL_FONT_SIZE,
     nextPointId: 11
   };
 
@@ -93,6 +97,7 @@
     ],
     predefinedLines: [],
     showLabels: true,
+    labelFontSize: DEFAULT_LABEL_FONT_SIZE,
     nextPointId: 12
   };
 
@@ -141,6 +146,7 @@
   const pointListEl = document.getElementById('pointList');
   const falsePointListEl = document.getElementById('falsePointList');
   const showLabelsCheckbox = document.getElementById('cfg-showLabels');
+  const labelFontSizeSelect = document.getElementById('cfg-labelFontSize');
   const answerCountEl = document.getElementById('answerCount');
   const predefCountEl = document.getElementById('predefCount');
   const labelLayer = document.getElementById('boardLabelsLayer');
@@ -179,6 +185,8 @@
   let boardScaleX = 1;
   let boardScaleY = 1;
 
+  let customLabelFontSizeOption = null;
+
   let draggedPointId = null;
   let draggingItemEl = null;
   let draggingItemOriginalDisplay = '';
@@ -197,6 +205,7 @@
       STATE.answerLines = Array.isArray(baseState.answerLines) ? baseState.answerLines : [];
       STATE.predefinedLines = Array.isArray(baseState.predefinedLines) ? baseState.predefinedLines : [];
       STATE.showLabels = baseState.showLabels !== false;
+      STATE.labelFontSize = Number.isFinite(baseState.labelFontSize) ? baseState.labelFontSize : DEFAULT_LABEL_FONT_SIZE;
       STATE.nextPointId = Number.isFinite(baseState.nextPointId) ? baseState.nextPointId : STATE.points.length + 1;
       STATE.coordinateOrigin = typeof baseState.coordinateOrigin === 'string' ? baseState.coordinateOrigin : 'bottom-left';
     }
@@ -204,6 +213,7 @@
     if (!Array.isArray(STATE.answerLines)) STATE.answerLines = [];
     if (!Array.isArray(STATE.predefinedLines)) STATE.predefinedLines = [];
     if (typeof STATE.showLabels !== 'boolean') STATE.showLabels = true;
+    STATE.labelFontSize = normalizeLabelFontSize(STATE.labelFontSize);
     if (!Number.isFinite(STATE.nextPointId)) STATE.nextPointId = STATE.points.length + 1;
   }
 
@@ -213,6 +223,14 @@
     if (num <= 0) return 0;
     if (num >= 1) return 1;
     return num;
+  }
+
+  function normalizeLabelFontSize(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return DEFAULT_LABEL_FONT_SIZE;
+    if (num <= MIN_LABEL_FONT_SIZE) return MIN_LABEL_FONT_SIZE;
+    if (num >= MAX_LABEL_FONT_SIZE) return MAX_LABEL_FONT_SIZE;
+    return Math.round(num);
   }
 
   function percentString(value) {
@@ -296,6 +314,36 @@
         wrapper.classList.toggle('board-label--false', !!isFalse);
       }
     };
+  }
+
+  function applyLabelFontSize() {
+    const fontSize = normalizeLabelFontSize(STATE.labelFontSize);
+    STATE.labelFontSize = fontSize;
+    if (labelLayer) {
+      labelLayer.style.fontSize = `${fontSize}px`;
+    }
+  }
+
+  function syncLabelFontSizeControl() {
+    if (!labelFontSizeSelect) return;
+    const fontSize = normalizeLabelFontSize(STATE.labelFontSize);
+    STATE.labelFontSize = fontSize;
+    const stringValue = String(fontSize);
+    const options = Array.from(labelFontSizeSelect.options || []);
+    const hasMatchingOption = options.some(option => option.value === stringValue);
+    if (!hasMatchingOption) {
+      if (!customLabelFontSizeOption) {
+        customLabelFontSizeOption = document.createElement('option');
+        customLabelFontSizeOption.dataset.customOption = 'true';
+        labelFontSizeSelect.appendChild(customLabelFontSizeOption);
+      }
+      customLabelFontSizeOption.value = stringValue;
+      customLabelFontSizeOption.textContent = `${fontSize}px`;
+    } else if (customLabelFontSizeOption) {
+      customLabelFontSizeOption.remove();
+      customLabelFontSizeOption = null;
+    }
+    labelFontSizeSelect.value = stringValue;
   }
 
   function updateAllLabelPositions() {
@@ -447,6 +495,7 @@
       STATE.nextPointId = nextCandidate;
     }
     if (typeof STATE.showLabels !== 'boolean') STATE.showLabels = true;
+    STATE.labelFontSize = normalizeLabelFontSize(STATE.labelFontSize);
     return validPoints;
   }
 
@@ -471,6 +520,8 @@
     syncBaseLines(validPoints);
     if (showLabelsCheckbox) showLabelsCheckbox.checked = !!STATE.showLabels;
     document.body.classList.toggle('labels-hidden', !STATE.showLabels);
+    applyLabelFontSize();
+    syncLabelFontSizeControl();
     return validPoints;
   }
 
@@ -1015,6 +1066,7 @@
   function renderBoard(validPoints) {
     if (!validPoints) validPoints = prepareState();
     document.body.classList.toggle('labels-hidden', !STATE.showLabels);
+    applyLabelFontSize();
 
     const pointMap = new Map(STATE.points.map(p => [p.id, p]));
 
@@ -1359,6 +1411,15 @@
       STATE.showLabels = showLabelsCheckbox.checked;
       document.body.classList.toggle('labels-hidden', !STATE.showLabels);
       renderBoard();
+    });
+  }
+
+  if (labelFontSizeSelect) {
+    labelFontSizeSelect.addEventListener('change', () => {
+      STATE.labelFontSize = normalizeLabelFontSize(labelFontSizeSelect.value);
+      applyLabelFontSize();
+      syncLabelFontSizeControl();
+      updateAllLabelPositions();
     });
   }
 
