@@ -1364,6 +1364,15 @@ function draw() {
       passive: false
     });
   }
+  if (dragVertical && a11yLeft) {
+    a11yLeft.style.touchAction = "none";
+    a11yLeft.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      startDrag("v", e);
+    }, {
+      passive: false
+    });
+  }
   if (dragHorizontal && hitDown) {
     hitDown.style.touchAction = "none";
     hitDown.addEventListener("pointerdown", e => {
@@ -1376,6 +1385,15 @@ function draw() {
   if (dragHorizontal && hotBottom) {
     hotBottom.style.touchAction = "none";
     hotBottom.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      startDrag("h", e);
+    }, {
+      passive: false
+    });
+  }
+  if (dragHorizontal && a11yDown) {
+    a11yDown.style.touchAction = "none";
+    a11yDown.addEventListener("pointerdown", e => {
       e.preventDefault();
       startDrag("h", e);
     }, {
@@ -1694,6 +1712,8 @@ svg text { user-select: none; -webkit-user-select: none; }
 .handleImg { pointer-events: none; }
 .handleCorner { fill: #ecebf6; stroke: #333; stroke-width: 2; cursor: grab; pointer-events: all; user-select: none; -webkit-user-select: none; }
 .handleCorner.dragging { cursor: grabbing; }
+.handleOverlay { cursor: grab; pointer-events: all; }
+.handleOverlay.dragging { cursor: grabbing; }
 .handleHit, .hot, svg { touch-action: none; }
 .handleHit { fill: rgba(0,0,0,0.004); cursor: grab; pointer-events: all; user-select: none; -webkit-user-select: none; }
 .hot { fill: transparent; pointer-events: all; cursor: grab; user-select: none; -webkit-user-select: none; }
