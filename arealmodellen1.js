@@ -273,8 +273,13 @@ function updateLayoutUi() {
   const isSingle = layout === "single";
   enforceSingleLayoutRestrictions(layout);
   const startWrapIds = ["lengthStartWrap", "heightStartWrap"];
+  const handleWrapIds = ["lengthHandleWrap", "heightHandleWrap"];
   const maxWrapIds = ["lengthMaxWrap", "heightMaxWrap"];
   startWrapIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.hidden = isSingle;
+  });
+  handleWrapIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.hidden = isSingle;
   });
