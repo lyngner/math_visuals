@@ -24,9 +24,14 @@
       box-shadow: 0 1px 2px rgba(0,0,0,.04); padding: 14px;
       display: flex; flex-direction: column; gap: 10px;
     }
+    .card.card--canvas { position: relative; }
+    .area-container { position: relative; }
     .card h2 { margin: 0 0 6px 2px; font-size: 16px; font-weight: 600; color: #374151; }
     svg { width: 100%; height: auto; background: #fff; display: block; }
     #area .c1 { fill: #e07c7c !important; }
+    .pairs-list { position:absolute; top:10px; right:10px; display:flex; gap:1.2em; text-align:right; pointer-events:none; font-size:16px; line-height:1.25; }
+    .pairs-list .col { display:flex; flex-direction:column; gap:4px; }
+    .pairs-list[hidden] { display:none !important; }
     .settings { display: flex; flex-direction: column; gap: 10px; }
     .settings [hidden] { display: none !important; }
     .settings .section-title { margin: 4px 2px 0; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7280; }
@@ -57,8 +62,14 @@
 <body>
   <div class="wrap">
     <div class="grid">
-      <div class="card">
-        <svg id="area" preserveAspectRatio="xMidYMid meet" aria-label="Arealmodell"></svg>
+      <div class="card card--canvas">
+        <div class="area-container">
+          <svg id="area" preserveAspectRatio="xMidYMid meet" aria-label="Arealmodell"></svg>
+          <div id="challengePairs" class="pairs-list" hidden>
+            <div id="challengeListA" class="col"></div>
+            <div id="challengeListB" class="col"></div>
+          </div>
+        </div>
       </div>
       <div class="side">
         <div class="card card--examples">
@@ -110,6 +121,12 @@
             <div class="row row--checkboxes">
               <label class="chk"><input id="splitLines" type="checkbox" checked> Delingslinjer</label>
               <label class="chk"><input id="showTotalHandle" type="checkbox"> Totalareal-håndtak</label>
+            </div>
+            <div class="row" id="challengeSettings" hidden>
+              <label class="chk"><input id="challengeEnabled" type="checkbox"> Oppgave-modus</label>
+              <label>Oppgave-areal
+                <input id="challengeArea" type="number" value="12" min="1">
+              </label>
             </div>
           </div>
         </div>
