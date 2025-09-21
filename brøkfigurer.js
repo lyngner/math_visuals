@@ -305,8 +305,8 @@
     }
   }
   function renderAll() {
-    const desiredRows = clampInt(STATE.rows != null ? STATE.rows : rows, MIN_DIMENSION, MAX_ROWS);
-    const desiredCols = clampInt(STATE.cols != null ? STATE.cols : cols, MIN_DIMENSION, MAX_COLS);
+    const desiredRows = clampInt(STATE.rows != null ? STATE.rows : MIN_DIMENSION, MIN_DIMENSION, MAX_ROWS);
+    const desiredCols = clampInt(STATE.cols != null ? STATE.cols : MIN_DIMENSION, MIN_DIMENSION, MAX_COLS);
     let layoutChanged = false;
     if (desiredRows !== rows) {
       rows = desiredRows;
