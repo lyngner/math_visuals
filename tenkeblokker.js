@@ -770,6 +770,10 @@ function draw(skipNormalization = false) {
     label.textContent = trimmed;
     const hasText = trimmed.length > 0;
     label.dataset.empty = hasText ? 'false' : 'true';
+    const rowEl = label.parentElement;
+    if (rowEl && rowEl.classList && rowEl.classList.contains('tb-row')) {
+      rowEl.dataset.hasLabel = hasText ? 'true' : 'false';
+    }
     if (hasText) {
       label.style.display = 'flex';
       const measured = measureRowLabelWidth(trimmed);
