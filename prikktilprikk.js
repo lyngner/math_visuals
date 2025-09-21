@@ -174,7 +174,6 @@
   let selectedPointId = null;
 
   const pointEditors = new Map();
-  const falsePointEditors = new Map();
   const pointElements = new Map();
   const labelElements = new Map();
   const baseLineElements = new Map();
@@ -609,6 +608,13 @@
     });
   }
 
+  function getPointListContainers() {
+    const containers = [];
+    if (pointListEl) containers.push(pointListEl);
+    if (falsePointListEl) containers.push(falsePointListEl);
+    return containers;
+  }
+
   function updatePointPosition(pointId, normX, normY) {
     const point = STATE.points.find(p => p.id === pointId);
     if (!point) return;
@@ -626,15 +632,17 @@
       label.setVisibility(STATE.showLabels);
       label.setFalse(!!point.isFalse);
     }
-    updateFalsePointEditor(point);
     updateLinesForPoint(pointId);
   }
 
   function clearDragVisualState() {
-    if (!pointListEl) return;
-    pointListEl.querySelectorAll('.point-item').forEach(el => {
-      el.classList.remove('drop-before', 'drop-after');
-      delete el.dataset.dropPosition;
+    const containers = getPointListContainers();
+    if (!containers.length) return;
+    containers.forEach(container => {
+      container.querySelectorAll('.point-item').forEach(el => {
+        el.classList.remove('drop-before', 'drop-after');
+        delete el.dataset.dropPosition;
+      });
     });
     if (dragPlaceholderEl && dragPlaceholderEl.parentNode) {
       dragPlaceholderEl.parentNode.removeChild(dragPlaceholderEl);
@@ -646,7 +654,6 @@
   }
 
   function ensureDragPlaceholder(referenceItem) {
-    if (!pointListEl) return null;
     if (!dragPlaceholderEl) {
       dragPlaceholderEl = document.createElement('div');
       dragPlaceholderEl.className = 'point-item point-placeholder';
@@ -674,10 +681,11 @@
   }
 
   function updateDropPreview(pointId, item, placeAfter) {
-    if (!pointListEl || !item) return;
+    if (!item) return;
     const placeholder = ensureDragPlaceholder(item);
     if (!placeholder) return;
-    const parent = pointListEl;
+    const parent = item.parentNode;
+    if (!parent) return;
     if (placeAfter) {
       if (item.nextSibling !== placeholder) {
         parent.insertBefore(placeholder, item.nextSibling);
@@ -815,89 +823,30 @@
     renderBoard(validPoints);
   }
 
-  function formatFalsePointMeta(point) {
-    if (!point) return '';
-    const labelText = getPointLabelText(point);
-    const id = point.id != null ? String(point.id) : '';
-    const parts = [];
-    if (id && labelText !== id) parts.push(`(${id})`);
-    parts.push(`– ${coordinateString(point)}`);
-    return parts.join(' ');
-  }
-
-  function renderFalsePointList() {
-    if (!falsePointListEl) return;
-    falsePointEditors.clear();
-    falsePointListEl.innerHTML = '';
-    if (!STATE.points.length) {
-      const empty = document.createElement('div');
-      empty.className = 'false-point-empty';
-      empty.textContent = 'Ingen punkt er definert ennå.';
-      falsePointListEl.appendChild(empty);
-      return;
-    }
-    STATE.points.forEach(point => {
-      const item = document.createElement('label');
-      item.className = 'false-point-item';
-      item.dataset.pointId = point.id;
-
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.checked = !!point.isFalse;
-      checkbox.addEventListener('change', () => {
-        point.isFalse = checkbox.checked;
-        updatePointVisualClasses(pointElements.get(point.id), point);
-        const label = labelElements.get(point.id);
-        if (label) label.setFalse(point.isFalse);
-        renderBoard();
-      });
-
-      const text = document.createElement('span');
-      text.className = 'false-point-label';
-
-      const mathEl = document.createElement('span');
-      mathEl.className = 'false-point-label-math';
-      renderLatex(mathEl, getPointLabelText(point));
-
-      const metaEl = document.createElement('span');
-      metaEl.className = 'false-point-label-meta';
-      metaEl.textContent = formatFalsePointMeta(point);
-
-      text.append(mathEl, metaEl);
-
-      item.append(checkbox, text);
-      falsePointListEl.appendChild(item);
-      falsePointEditors.set(point.id, { itemEl: item, checkbox, mathEl, metaEl });
-    });
-  }
-
-  function updateFalsePointEditor(point) {
-    if (!point || !point.id) return;
-    const editor = falsePointEditors.get(point.id);
-    if (!editor) return;
-    if (editor.checkbox) editor.checkbox.checked = !!point.isFalse;
-    if (editor.mathEl) renderLatex(editor.mathEl, getPointLabelText(point));
-    if (editor.metaEl) editor.metaEl.textContent = formatFalsePointMeta(point);
-  }
-
-  function updateFalsePointEditors() {
-    const activeIds = new Set();
-    STATE.points.forEach(point => {
-      activeIds.add(point.id);
-      updateFalsePointEditor(point);
-    });
-    falsePointEditors.forEach((_, id) => {
-      if (!activeIds.has(id)) falsePointEditors.delete(id);
-    });
+  function updatePointTypeToggle(button, isFalse) {
+    if (!button) return;
+    const nextState = isFalse ? 'ekte' : 'falskt';
+    button.textContent = isFalse ? 'Gjør ekte' : 'Gjør falsk';
+    button.setAttribute('aria-label', `Marker som ${nextState} punkt`);
   }
 
   function renderPointList(validPoints) {
     if (!pointListEl) return;
     if (!validPoints) validPoints = prepareState();
     pointEditors.clear();
-    pointListEl.innerHTML = '';
     clearDragVisualState();
-    STATE.points.forEach((point, index) => {
+    pointListEl.innerHTML = '';
+    if (falsePointListEl) falsePointListEl.innerHTML = '';
+
+    const appendEmptyMessage = (container, message) => {
+      if (!container) return;
+      const empty = document.createElement('div');
+      empty.className = 'point-list-empty';
+      empty.textContent = message;
+      container.appendChild(empty);
+    };
+
+    STATE.points.forEach(point => {
       const item = document.createElement('div');
       item.className = 'point-item';
       item.dataset.pointId = point.id;
@@ -964,9 +913,26 @@
           label.setText(getPointLabelText(point));
           label.setVisibility(STATE.showLabels);
         }
-        updateFalsePointEditor(point);
       });
       item.appendChild(labelInput);
+
+      const actions = document.createElement('div');
+      actions.className = 'point-actions';
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = 'btn btn--small point-type-toggle';
+      updatePointTypeToggle(toggleBtn, point.isFalse);
+      toggleBtn.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        point.isFalse = !point.isFalse;
+        const valid = prepareState();
+        renderPointList(valid);
+        renderBoard(valid);
+        clearStatus();
+      });
+      actions.appendChild(toggleBtn);
 
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
@@ -977,7 +943,9 @@
         event.stopPropagation();
         removePoint(point.id);
       });
-      item.appendChild(removeBtn);
+      actions.appendChild(removeBtn);
+
+      item.appendChild(actions);
 
       item.addEventListener('dragover', event => {
         handlePointDragOver(event, point.id, item);
@@ -989,14 +957,23 @@
         handlePointDrop(event, point.id);
       });
 
-      pointListEl.appendChild(item);
+      const targetList = point.isFalse && falsePointListEl ? falsePointListEl : pointListEl;
+      targetList.appendChild(item);
       pointEditors.set(point.id, {
         itemEl: item,
         coordInput,
-        labelInput
+        labelInput,
+        typeToggle: toggleBtn
       });
     });
-    renderFalsePointList();
+
+    if (pointListEl && pointListEl.children.length === 0) {
+      appendEmptyMessage(pointListEl, 'Ingen punkt er definert ennå.');
+    }
+    if (falsePointListEl && falsePointListEl.children.length === 0) {
+      appendEmptyMessage(falsePointListEl, 'Ingen falske punkter er definert ennå.');
+    }
+
     applySelectionHighlight();
   }
 
@@ -1059,8 +1036,8 @@
       if (editor.labelInput) editor.labelInput.value = point.label;
       if (editor.coordInput) editor.coordInput.value = coordinateString(point);
       if (editor.itemEl) editor.itemEl.dataset.pointId = point.id;
+      if (editor.typeToggle) updatePointTypeToggle(editor.typeToggle, point.isFalse);
     });
-    updateFalsePointEditors();
   }
 
   function renderBoard(validPoints) {
@@ -1312,7 +1289,7 @@
     return id;
   }
 
-  function addPoint() {
+  function addPoint(makeFalse = false) {
     const id = createPointId();
     const count = STATE.points.length;
     const radius = 0.3;
@@ -1324,7 +1301,7 @@
       label: String(count + 1),
       x,
       y,
-      isFalse: false
+      isFalse: !!makeFalse
     });
     selectedPointId = id;
     renderPointList();
@@ -1366,13 +1343,13 @@
 
   if (addPointBtn) {
     addPointBtn.addEventListener('click', () => {
-      addPoint();
+      addPoint(false);
     });
   }
 
   if (addPointFalseBtn) {
     addPointFalseBtn.addEventListener('click', () => {
-      addPoint();
+      addPoint(true);
     });
   }
 
