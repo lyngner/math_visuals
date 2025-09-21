@@ -39,6 +39,7 @@
   let rowIdCounter = 1;
   let currentScale = null;
   let dragging = null;
+  let dragDomainLock = null;
   const MIN_DECIMAL_PLACES = 0;
   const MAX_DECIMAL_PLACES = 6;
   function clampDecimalPlaces(value) {
@@ -412,38 +413,61 @@
     return state.autoDomain;
   }
   function getDomainInfo() {
-    const auto = computeAutoDomain(state.criticalPoints);
+    let auto;
+    if (dragDomainLock) {
+      if (state.autoDomain && Number.isFinite(state.autoDomain.min) && Number.isFinite(state.autoDomain.max)) {
+        auto = {
+          min: state.autoDomain.min,
+          max: state.autoDomain.max
+        };
+      } else {
+        auto = { ...DEFAULT_AUTO_DOMAIN };
+      }
+    } else {
+      auto = computeAutoDomain(state.criticalPoints);
+    }
     const overrideMin = Number.isFinite(state.domain.min) ? state.domain.min : null;
     const overrideMax = Number.isFinite(state.domain.max) ? state.domain.max : null;
-    let min = overrideMin ?? auto.min;
-    let max = overrideMax ?? auto.max;
+    let min = overrideMin ?? (dragDomainLock ? dragDomainLock.min : auto.min);
+    let max = overrideMax ?? (dragDomainLock ? dragDomainLock.max : auto.max);
     const invalid = {
       min: false,
       max: false
     };
     if (!(max > min)) {
-      const span = Math.max(auto.max - auto.min, 2);
-      if (overrideMin != null && overrideMax != null) {
-        invalid.min = true;
-        invalid.max = true;
-        const center = (overrideMin + overrideMax) / 2 || overrideMin || overrideMax || 0;
-        min = center - span / 2;
-        max = center + span / 2;
-      } else if (overrideMin != null) {
-        min = overrideMin;
-        max = overrideMin + span;
-      } else if (overrideMax != null) {
-        max = overrideMax;
-        min = overrideMax - span;
+      if (dragDomainLock) {
+        if (overrideMin != null) {
+          invalid.min = true;
+        }
+        if (overrideMax != null) {
+          invalid.max = true;
+        }
+        min = dragDomainLock.min;
+        max = dragDomainLock.max;
       } else {
-        const center = (min + max) / 2 || 0;
-        min = center - span / 2;
-        max = center + span / 2;
+        const span = Math.max(auto.max - auto.min, 2);
+        if (overrideMin != null && overrideMax != null) {
+          invalid.min = true;
+          invalid.max = true;
+          const center = (overrideMin + overrideMax) / 2 || overrideMin || overrideMax || 0;
+          min = center - span / 2;
+          max = center + span / 2;
+        } else if (overrideMin != null) {
+          min = overrideMin;
+          max = overrideMin + span;
+        } else if (overrideMax != null) {
+          max = overrideMax;
+          min = overrideMax - span;
+        } else {
+          const center = (min + max) / 2 || 0;
+          min = center - span / 2;
+          max = center + span / 2;
+        }
       }
     }
     if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      min = auto.min;
-      max = auto.max;
+      min = dragDomainLock ? dragDomainLock.min : auto.min;
+      max = dragDomainLock ? dragDomainLock.max : auto.max;
     }
     if (Math.abs(max - min) < 1e-6) {
       const center = (max + min) / 2;
@@ -1035,6 +1059,16 @@
       pointerId,
       moved: false
     };
+    if (!dragDomainLock && currentScale) {
+      const domainMin = Number.isFinite(currentScale.domainMin) ? currentScale.domainMin : null;
+      const domainMax = Number.isFinite(currentScale.domainMax) ? currentScale.domainMax : null;
+      if (domainMin != null && domainMax != null && domainMax > domainMin) {
+        dragDomainLock = {
+          min: domainMin,
+          max: domainMax
+        };
+      }
+    }
     if (capture && pointerId !== undefined && svg.setPointerCapture) {
       try {
         svg.setPointerCapture(pointerId);
@@ -1059,6 +1093,9 @@
     }
     const moved = dragging.moved;
     dragging = null;
+    if (dragDomainLock) {
+      dragDomainLock = null;
+    }
     if (moved) {
       syncSegments();
       renderAll();
