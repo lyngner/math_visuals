@@ -623,7 +623,8 @@
               fillOpacity: 1,
               highlight: false,
               hasInnerPoints: true,
-              fixed: true
+              fixed: true,
+              cssStyle: 'pointer-events:fill;'
             });
             poly.on('down', () => togglePart(idx, poly));
           }
@@ -678,7 +679,8 @@
             fillOpacity: 1,
             highlight: false,
             hasInnerPoints: true,
-            fixed: true
+            fixed: true,
+            cssStyle: 'pointer-events:fill;'
           });
           sector.on('down', () => togglePart(i, sector));
         }
@@ -727,7 +729,8 @@
             fillOpacity: 1,
             highlight: false,
             hasInnerPoints: true,
-            fixed: true
+            fixed: true,
+            cssStyle: 'pointer-events:fill;'
           });
           poly.on('down', () => togglePart(i, poly));
           const seg = board.create('segment', [c, corners[i]], {
@@ -770,7 +773,8 @@
               fillOpacity: 1,
               highlight: false,
               hasInnerPoints: true,
-              fixed: true
+              fixed: true,
+              cssStyle: 'pointer-events:fill;'
             });
             poly.on('down', () => togglePart(idx, poly));
           }
@@ -812,25 +816,26 @@
               y2 = (i + 1) / n;
             pts = [[0, y1], [1, y1], [1, y2], [0, y2]];
           }
-          const poly = board.create('polygon', pts, {
-            borders: {
-              strokeColor: '#fff',
-              strokeWidth: 6
-            },
-            vertices: {
-              visible: false,
-              name: '',
-              fixed: true,
-              label: {
-                visible: false
-              }
-            },
-            fillColor: colorFor(i),
-            fillOpacity: 1,
-            highlight: false,
-            hasInnerPoints: true,
-            fixed: true
-          });
+        const poly = board.create('polygon', pts, {
+          borders: {
+            strokeColor: '#fff',
+            strokeWidth: 6
+          },
+          vertices: {
+            visible: false,
+            name: '',
+            fixed: true,
+            label: {
+              visible: false
+            }
+          },
+          fillColor: colorFor(i),
+          fillOpacity: 1,
+          highlight: false,
+          hasInnerPoints: true,
+          fixed: true,
+          cssStyle: 'pointer-events:fill;'
+        });
           poly.on('down', () => togglePart(i, poly));
         }
         for (let i = 1; i < n; i++) {
@@ -916,7 +921,8 @@
               fillOpacity: 1,
               highlight: false,
               hasInnerPoints: true,
-              fixed: true
+              fixed: true,
+              cssStyle: 'pointer-events:fill;'
             });
             poly.on('down', () => togglePart(idx, poly));
             idx++;
@@ -942,7 +948,8 @@
               fillOpacity: 1,
               highlight: false,
               hasInnerPoints: true,
-              fixed: true
+              fixed: true,
+              cssStyle: 'pointer-events:fill;'
             });
             poly.on('down', () => togglePart(idx, poly));
             idx++;
@@ -1040,7 +1047,8 @@
           fillOpacity: 1,
           highlight: false,
           hasInnerPoints: true,
-          fixed: true
+          fixed: true,
+          cssStyle: 'pointer-events:fill;'
         });
         poly.on('down', () => togglePart(i, poly));
       }
