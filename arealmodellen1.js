@@ -600,8 +600,8 @@ function draw() {
 
   // spacing for kant-tekst utenfor
   const EDGE_GAP = {
-    x: 14,
-    y: 32
+    x: 8,
+    y: 20
   };
 
   // pilstørrelse + auto-margin
