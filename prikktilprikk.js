@@ -1140,33 +1140,39 @@
     updater(answerLineElements);
   }
 
+  function handlePointPointerDown(element, pointId, event) {
+    if (!element || !event) return false;
+    event.preventDefault();
+    const pointerId = event.pointerId;
+    let moved = false;
+    const onMove = e => {
+      if (!isEditMode) return;
+      moved = true;
+      const { x, y } = clientToNormalized(e.clientX, e.clientY);
+      updatePointPosition(pointId, x, y);
+    };
+    const onEnd = () => {
+      element.removeEventListener('pointermove', onMove);
+      element.removeEventListener('pointerup', onEnd);
+      element.removeEventListener('pointercancel', onEnd);
+      try {
+        element.releasePointerCapture(pointerId);
+      } catch (_) {}
+      if (!moved) handlePointSelection(pointId);
+      else updatePointEditorValues(pointId);
+    };
+    try {
+      element.setPointerCapture(pointerId);
+    } catch (_) {}
+    element.addEventListener('pointermove', onMove);
+    element.addEventListener('pointerup', onEnd);
+    element.addEventListener('pointercancel', onEnd);
+    return true;
+  }
+
   function attachPointInteraction(element, pointId) {
     element.addEventListener('pointerdown', event => {
-      event.preventDefault();
-      const pointerId = event.pointerId;
-      let moved = false;
-      const onMove = e => {
-        if (!isEditMode) return;
-        moved = true;
-        const { x, y } = clientToNormalized(e.clientX, e.clientY);
-        updatePointPosition(pointId, x, y);
-      };
-      const onEnd = () => {
-        element.removeEventListener('pointermove', onMove);
-        element.removeEventListener('pointerup', onEnd);
-        element.removeEventListener('pointercancel', onEnd);
-        try {
-          element.releasePointerCapture(pointerId);
-        } catch (_) {}
-        if (!moved) handlePointSelection(pointId);
-        else updatePointEditorValues(pointId);
-      };
-      try {
-        element.setPointerCapture(pointerId);
-      } catch (_) {}
-      element.addEventListener('pointermove', onMove);
-      element.addEventListener('pointerup', onEnd);
-      element.addEventListener('pointercancel', onEnd);
+      handlePointPointerDown(element, pointId, event);
     });
   }
 
@@ -1457,8 +1463,52 @@
     return true;
   }
 
+  function findPointAtClientPosition(clientX, clientY) {
+    let bestMatch = null;
+    let bestDistance = Infinity;
+    pointElements.forEach((visual, id) => {
+      if (!visual) return;
+      const dotRect = visual.dot && typeof visual.dot.getBoundingClientRect === 'function'
+        ? visual.dot.getBoundingClientRect()
+        : null;
+      const decoRect = visual.decoration && typeof visual.decoration.getBoundingClientRect === 'function'
+        ? visual.decoration.getBoundingClientRect()
+        : null;
+      const rect = dotRect || decoRect;
+      if (!rect) return;
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      let radius = Math.max(rect.width, rect.height) / 2;
+      if (decoRect) {
+        const decoRadius = Math.max(decoRect.width, decoRect.height) / 2;
+        if (decoRadius > radius) radius = decoRadius;
+      }
+      if (!(radius > 0)) return;
+      const dx = clientX - centerX;
+      const dy = clientY - centerY;
+      const distance = Math.hypot(dx, dy);
+      if (distance > radius || distance >= bestDistance) return;
+      bestDistance = distance;
+      bestMatch = { id, visual };
+    });
+    return bestMatch;
+  }
+
+  function maybeHandleBoardPointerDownAsPoint(event) {
+    if (!event || pointElements.size === 0) return false;
+    const target = event.target;
+    if (target && typeof target.closest === 'function' && target.closest('.point')) return false;
+    const hit = findPointAtClientPosition(event.clientX, event.clientY);
+    if (!hit || !hit.visual || !hit.visual.group) return false;
+    const handled = handlePointPointerDown(hit.visual.group, hit.id, event);
+    if (!handled) return false;
+    event.stopPropagation();
+    return true;
+  }
+
   function handleBoardPointerDown(event) {
     if (!board) return;
+    if (maybeHandleBoardPointerDownAsPoint(event)) return;
     const target = event.target;
     let canPan = false;
     if (isEditMode) {
