@@ -370,6 +370,18 @@
   function setRows(next) {
     const clamped = clampInt(next, 1, MAX_DIM);
     if (clamped === rows) return;
+    const previousRows = rows;
+    if (clamped > previousRows && Array.isArray(STATE.figures)) {
+      const diff = clamped - previousRows;
+      const columnCount = cols > 0 ? cols : 1;
+      STATE.figures.forEach(fig => {
+        if (!fig || typeof fig !== 'object') return;
+        if (!Array.isArray(fig.cells)) fig.cells = [];
+        for (let i = 0; i < diff; i++) {
+          fig.cells.unshift(Array.from({ length: columnCount }, () => 0));
+        }
+      });
+    }
     STATE.rows = clamped;
     render();
   }
