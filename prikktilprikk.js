@@ -11,6 +11,7 @@
   const LABEL_LINE_PENALTY = 100;
   const DOT_RADIUS = 6;
   const DEFAULT_LABEL_FONT_SIZE = 14;
+  const POINT_DRAG_START_DISTANCE_PX = 4;
   const MIN_LABEL_FONT_SIZE = 10;
   const MAX_LABEL_FONT_SIZE = 48;
   const GRID_BASE_STEP = 0.05;
@@ -1158,13 +1159,30 @@
   function handlePointPointerDown(element, pointId, event) {
     if (!element || !event) return false;
     event.preventDefault();
+    const point = STATE.points.find(p => p && p.id === pointId);
+    if (!point) return false;
     const pointerId = event.pointerId;
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    const viewOnStart = getViewSettings();
+    const startNorm = clientToNormalized(startClientX, startClientY, viewOnStart);
+    const offsetX = startNorm.x - point.x;
+    const offsetY = startNorm.y - point.y;
     let moved = false;
+    let dragging = false;
+    const dragThresholdSq = POINT_DRAG_START_DISTANCE_PX * POINT_DRAG_START_DISTANCE_PX;
     const onMove = e => {
       if (!isEditMode) return;
+      const dxClient = e.clientX - startClientX;
+      const dyClient = e.clientY - startClientY;
+      if (!dragging) {
+        const distanceSq = dxClient * dxClient + dyClient * dyClient;
+        if (distanceSq < dragThresholdSq) return;
+        dragging = true;
+      }
       moved = true;
-      const { x, y } = clientToNormalized(e.clientX, e.clientY);
-      updatePointPosition(pointId, x, y);
+      const { x, y } = clientToNormalized(e.clientX, e.clientY, viewOnStart);
+      updatePointPosition(pointId, x - offsetX, y - offsetY);
     };
     const onEnd = () => {
       element.removeEventListener('pointermove', onMove);
