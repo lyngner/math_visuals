@@ -5,6 +5,7 @@ const DEFAULT_BLOCKS = [{
   n: 1,
   k: 1,
   showWhole: false,
+  hideBlock: false,
   lockDenominator: true,
   lockNumerator: true,
   hideNValue: false,
@@ -16,6 +17,7 @@ const DEFAULT_BLOCKS = [{
   n: 1,
   k: 1,
   showWhole: false,
+  hideBlock: false,
   lockDenominator: true,
   lockNumerator: true,
   hideNValue: false,
@@ -39,6 +41,7 @@ const DEFAULT_TENKEBLOKKER_EXAMPLES = [{
         n: 4,
         k: 3,
         showWhole: false,
+        hideBlock: false,
         lockDenominator: false,
         lockNumerator: false,
         hideNValue: false,
@@ -232,6 +235,17 @@ const globalControls = {
   verticalRow: null,
   rowLabelInputs: []
 };
+
+function getEffectiveActiveBlockCount() {
+  const visible = Number(CONFIG === null || CONFIG === void 0 ? void 0 : CONFIG.visibleBlockCount);
+  if (Number.isFinite(visible)) return visible;
+  const active = Number(CONFIG === null || CONFIG === void 0 ? void 0 : CONFIG.activeBlocks);
+  if (Number.isFinite(active)) return active;
+  const rows = Number(CONFIG === null || CONFIG === void 0 ? void 0 : CONFIG.rows);
+  const cols = Number(CONFIG === null || CONFIG === void 0 ? void 0 : CONFIG.cols);
+  if (Number.isFinite(rows) && Number.isFinite(cols)) return rows * cols;
+  return 0;
+}
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
 if (typeof window !== 'undefined') {
@@ -421,6 +435,8 @@ function normalizeBlockConfig(raw, index, existing, previous) {
   if (!Number.isFinite(k)) k = Number(defaults.k) || 0;
   target.k = Math.round(k);
   target.showWhole = toBoolean(source.showWhole, toBoolean(defaults.showWhole, true));
+  target.hideBlock = toBoolean(source.hideBlock, toBoolean(defaults.hideBlock, false));
+  if (target.hideBlock) target.showWhole = true;
   target.lockDenominator = toBoolean(source.lockDenominator, toBoolean(defaults.lockDenominator, false));
   target.lockNumerator = toBoolean(source.lockNumerator, toBoolean(defaults.lockNumerator, false));
   target.hideNValue = toBoolean(source.hideNValue, toBoolean(defaults.hideNValue, false));
@@ -558,11 +574,20 @@ function normalizeConfig(initial = false) {
       cfg.total = Number(cfg.total);
       if (!Number.isFinite(cfg.total) || cfg.total < 1) cfg.total = 1;
       cfg.showWhole = !!cfg.showWhole;
+      cfg.hideBlock = !!cfg.hideBlock;
       cfg.lockDenominator = !!cfg.lockDenominator;
       cfg.lockNumerator = !!cfg.lockNumerator;
       cfg.hideNValue = !!cfg.hideNValue;
     }
   }
+  const activeVisible = CONFIG.blocks.reduce((count, row) => {
+    if (!Array.isArray(row)) return count;
+    return count + row.reduce((rowCount, cfg) => {
+      if (!cfg || typeof cfg !== 'object') return rowCount;
+      return rowCount + (cfg.hideBlock ? 0 : 1);
+    }, 0);
+  }, 0);
+  CONFIG.visibleBlockCount = activeVisible;
   CONFIG.activeBlocks = rows * cols;
   const existingLabels = Array.isArray(CONFIG.rowLabels) ? CONFIG.rowLabels : [];
   const normalizedRowLabels = [];
@@ -721,38 +746,6 @@ function draw(skipNormalization = false) {
     settingsContainer.dataset.rows = String(safeRows);
   }
   updateAddButtons();
-  const multiple = CONFIG.activeBlocks > 1;
-  multipleBlocksActive = multiple;
-  const parsedCols = Number(CONFIG.cols);
-  const parsedRows = Number(CONFIG.rows);
-  const hasMultipleCols = Number.isFinite(parsedCols) && parsedCols > 1;
-  const hasMultipleRows = Number.isFinite(parsedRows) && parsedRows > 1;
-  const horizontalAvailable = multiple && hasMultipleCols;
-  const verticalAvailable = multiple && hasMultipleRows;
-  if (globalControls.horizontal) {
-    globalControls.horizontal.disabled = !horizontalAvailable;
-    if (!horizontalAvailable) {
-      globalControls.horizontal.checked = false;
-      CONFIG.showCombinedWhole = false;
-    } else {
-      globalControls.horizontal.checked = !!CONFIG.showCombinedWhole;
-    }
-  }
-  if (globalControls.horizontalRow) {
-    globalControls.horizontalRow.classList.toggle('is-disabled', !horizontalAvailable);
-  }
-  if (globalControls.vertical) {
-    globalControls.vertical.disabled = !verticalAvailable;
-    if (!verticalAvailable) {
-      globalControls.vertical.checked = false;
-      CONFIG.showCombinedWholeVertical = false;
-    } else {
-      globalControls.vertical.checked = !!CONFIG.showCombinedWholeVertical;
-    }
-  }
-  if (globalControls.verticalRow) {
-    globalControls.verticalRow.classList.toggle('is-disabled', !verticalAvailable);
-  }
   if (Array.isArray(globalControls.rowLabelInputs)) {
     globalControls.rowLabelInputs.forEach((input, index) => {
       if (!input) return;
@@ -793,6 +786,7 @@ function draw(skipNormalization = false) {
     length: CONFIG.rows
   }, () => 0);
   const visibleBlocks = [];
+  let visibleBlockCount = 0;
   for (const block of BLOCKS) {
     var _CONFIG$blocks;
     const cfg = (_CONFIG$blocks = CONFIG.blocks) === null || _CONFIG$blocks === void 0 || (_CONFIG$blocks = _CONFIG$blocks[block.row]) === null || _CONFIG$blocks === void 0 ? void 0 : _CONFIG$blocks[block.col];
@@ -800,10 +794,45 @@ function draw(skipNormalization = false) {
     block.cfg = cfg;
     block.index = block.row * CONFIG.cols + block.col;
     visibleBlocks.push(block);
+    if (!cfg.hideBlock) visibleBlockCount += 1;
     const totalValue = Number(cfg.total);
     if (Number.isFinite(totalValue) && totalValue > 0 && rowTotals[block.row] !== undefined) {
       rowTotals[block.row] += totalValue;
     }
+  }
+  CONFIG.visibleBlockCount = visibleBlockCount;
+  const activeCount = getEffectiveActiveBlockCount();
+  const multiple = activeCount > 1;
+  multipleBlocksActive = multiple;
+  const parsedCols = Number(CONFIG.cols);
+  const parsedRows = Number(CONFIG.rows);
+  const hasMultipleCols = Number.isFinite(parsedCols) && parsedCols > 1;
+  const hasMultipleRows = Number.isFinite(parsedRows) && parsedRows > 1;
+  const horizontalAvailable = multiple && hasMultipleCols;
+  const verticalAvailable = multiple && hasMultipleRows;
+  if (globalControls.horizontal) {
+    globalControls.horizontal.disabled = !horizontalAvailable;
+    if (!horizontalAvailable) {
+      globalControls.horizontal.checked = false;
+      CONFIG.showCombinedWhole = false;
+    } else {
+      globalControls.horizontal.checked = !!CONFIG.showCombinedWhole;
+    }
+  }
+  if (globalControls.horizontalRow) {
+    globalControls.horizontalRow.classList.toggle('is-disabled', !horizontalAvailable);
+  }
+  if (globalControls.vertical) {
+    globalControls.vertical.disabled = !verticalAvailable;
+    if (!verticalAvailable) {
+      globalControls.vertical.checked = false;
+      CONFIG.showCombinedWholeVertical = false;
+    } else {
+      globalControls.vertical.checked = !!CONFIG.showCombinedWholeVertical;
+    }
+  }
+  if (globalControls.verticalRow) {
+    globalControls.verticalRow.classList.toggle('is-disabled', !verticalAvailable);
   }
   const rowHeights = Array.from({
     length: CONFIG.rows
@@ -1019,6 +1048,22 @@ function createBlock(row, col, cfg) {
   showWholeLabel.textContent = 'Vis hele';
   showWholeRow.append(showWholeInput, showWholeLabel);
   fieldset.appendChild(showWholeRow);
+  const hideBlockRow = document.createElement('div');
+  hideBlockRow.className = 'checkbox-row';
+  const hideBlockInput = document.createElement('input');
+  hideBlockInput.type = 'checkbox';
+  hideBlockInput.id = `${block.uid}-hide-block`;
+  hideBlockInput.addEventListener('change', () => {
+    const checked = !!hideBlockInput.checked;
+    block.cfg.hideBlock = checked;
+    if (checked) block.cfg.showWhole = true;
+    draw(true);
+  });
+  const hideBlockLabel = document.createElement('label');
+  hideBlockLabel.setAttribute('for', hideBlockInput.id);
+  hideBlockLabel.textContent = 'Skjul blokk';
+  hideBlockRow.append(hideBlockInput, hideBlockLabel);
+  fieldset.appendChild(hideBlockRow);
   const lockNRow = document.createElement('div');
   lockNRow.className = 'checkbox-row';
   const lockNInput = document.createElement('input');
@@ -1179,6 +1224,8 @@ function drawBlock(block) {
   var _block$rectEmpty, _block$rectEmpty2, _block$rectEmpty3, _block$rectEmpty4, _block$rectFrame, _block$rectFrame2, _block$rectFrame3, _block$rectFrame4, _block$handle, _block$handleShadow, _block$handle2, _block$handleShadow2;
   const cfg = block === null || block === void 0 ? void 0 : block.cfg;
   if (!block || !cfg) return;
+  const blockHidden = !!cfg.hideBlock;
+  if (blockHidden && !cfg.showWhole) cfg.showWhole = true;
   const metrics = getBlockMetrics(block);
   block.metrics = metrics;
   const {
@@ -1199,7 +1246,17 @@ function drawBlock(block) {
     block.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     block.svg.setAttribute('aria-label', `Tenkeblokk ${block.index + 1}`);
     block.svg.setAttribute('preserveAspectRatio', 'none');
+    block.svg.classList.toggle('tb-svg--hidden-block', blockHidden);
   }
+  const hiddenDisplay = blockHidden ? 'none' : '';
+  if (block.gBase) block.gBase.style.display = hiddenDisplay;
+  if (block.gFill) block.gFill.style.display = hiddenDisplay;
+  if (block.gSep) block.gSep.style.display = hiddenDisplay;
+  if (block.gVals) block.gVals.style.display = hiddenDisplay;
+  if (block.gFrame) block.gFrame.style.display = hiddenDisplay;
+  if (block.gHandle) block.gHandle.style.display = blockHidden ? 'none' : '';
+  if (block.handleShadow) block.handleShadow.style.display = blockHidden ? 'none' : '';
+  if (block.handle) block.handle.style.display = blockHidden ? 'none' : '';
   (_block$rectEmpty = block.rectEmpty) === null || _block$rectEmpty === void 0 || _block$rectEmpty.setAttribute('x', left);
   (_block$rectEmpty2 = block.rectEmpty) === null || _block$rectEmpty2 === void 0 || _block$rectEmpty2.setAttribute('width', innerWidth);
   (_block$rectEmpty3 = block.rectEmpty) === null || _block$rectEmpty3 === void 0 || _block$rectEmpty3.setAttribute('y', top);
@@ -1217,7 +1274,7 @@ function drawBlock(block) {
   if (block.legend) {
     block.legend.textContent = `Tenkeblokk ${block.index + 1}`;
   }
-  const stepperVisible = !cfg.lockDenominator;
+  const stepperVisible = !cfg.lockDenominator && !blockHidden;
   if (block.stepper) {
     block.stepper.setAttribute('aria-label', `Nevner i tenkeblokk ${block.index + 1}`);
     block.stepper.style.display = stepperVisible ? '' : 'none';
@@ -1242,6 +1299,7 @@ function drawBlock(block) {
       n,
       k,
       showWhole,
+      hideBlock: hideBlockInput,
       lockN,
       lockK,
       hideN,
@@ -1262,14 +1320,17 @@ function drawBlock(block) {
       k.disabled = !!cfg.lockNumerator;
     }
     if (showWhole) {
+      const showWholeDisabled = blockHidden || multipleBlocksActive && !blockHidden;
+      if (blockHidden && !cfg.showWhole) cfg.showWhole = true;
       showWhole.checked = !!cfg.showWhole;
-      showWhole.disabled = multipleBlocksActive;
-      if (multipleBlocksActive) {
+      showWhole.disabled = showWholeDisabled;
+      if (showWholeDisabled) {
         showWhole.setAttribute('aria-disabled', 'true');
       } else {
         showWhole.removeAttribute('aria-disabled');
       }
     }
+    if (hideBlockInput) hideBlockInput.checked = !!cfg.hideBlock;
     if (lockN) lockN.checked = !!cfg.lockDenominator;
     if (lockK) lockK.checked = !!cfg.lockNumerator;
     if (hideN) hideN.checked = !!cfg.hideNValue;
@@ -1290,8 +1351,8 @@ function drawBlock(block) {
   block.gFill.innerHTML = '';
   block.gSep.innerHTML = '';
   block.gVals.innerHTML = '';
-  const cellW = cfg.n ? innerWidth / cfg.n : 0;
-  if (cellW > 0) {
+  const cellW = !blockHidden && cfg.n ? innerWidth / cfg.n : 0;
+  if (!blockHidden && cellW > 0) {
     const showCustomText = customTextEnabled;
     const customLabel = typeof cfg.customText === 'string' ? cfg.customText.trim() : '';
     for (let i = 0; i < cfg.k; i++) {
@@ -1347,9 +1408,9 @@ function drawBlock(block) {
   (_block$handleShadow = block.handleShadow) === null || _block$handleShadow === void 0 || _block$handleShadow.setAttribute('cx', hx);
   (_block$handle2 = block.handle) === null || _block$handle2 === void 0 || _block$handle2.setAttribute('cy', hy);
   (_block$handleShadow2 = block.handleShadow) === null || _block$handleShadow2 === void 0 || _block$handleShadow2.setAttribute('cy', hy + 2);
-  if (block.gHandle) block.gHandle.style.display = cfg.lockNumerator ? 'none' : '';
-  if (block.handle) block.handle.style.cursor = cfg.lockNumerator ? 'default' : 'pointer';
-  const showWholeAllowed = !multipleBlocksActive;
+  if (block.gHandle) block.gHandle.style.display = blockHidden || cfg.lockNumerator ? 'none' : '';
+  if (block.handle) block.handle.style.cursor = blockHidden || cfg.lockNumerator ? 'default' : 'pointer';
+  const showWholeAllowed = !multipleBlocksActive || blockHidden;
   if (block.gBrace) block.gBrace.style.display = showWholeAllowed && cfg.showWhole ? '' : 'none';
 }
 function setN(block, next) {
@@ -1452,7 +1513,8 @@ function getCombinedFigureMetrics() {
 function drawCombinedWholeOverlayHorizontal() {
   const overlay = combinedWholeOverlays.horizontal;
   if (!(overlay !== null && overlay !== void 0 && overlay.svg) || !board) return;
-  const canShow = CONFIG.activeBlocks > 1 && CONFIG.showCombinedWhole;
+  const activeCount = getEffectiveActiveBlockCount();
+  const canShow = activeCount > 1 && CONFIG.showCombinedWhole;
   if (!canShow) {
     overlay.svg.style.display = 'none';
     if (grid) grid.style.removeProperty('--tb-grid-padding-top');
@@ -1513,7 +1575,8 @@ function drawCombinedWholeOverlayHorizontal() {
 function drawCombinedWholeOverlayVertical() {
   const overlay = combinedWholeOverlays.vertical;
   if (!(overlay !== null && overlay !== void 0 && overlay.svg) || !board) return;
-  const canShow = CONFIG.activeBlocks > 1 && CONFIG.showCombinedWholeVertical;
+  const activeCount = getEffectiveActiveBlockCount();
+  const canShow = activeCount > 1 && CONFIG.showCombinedWholeVertical;
   if (!canShow) {
     overlay.svg.style.display = 'none';
     return;
@@ -1639,6 +1702,7 @@ function syncLegacyConfig() {
   CONFIG.n = first.n;
   CONFIG.k = first.k;
   CONFIG.showWhole = first.showWhole;
+  CONFIG.hideBlock = first.hideBlock;
   CONFIG.lockDenominator = first.lockDenominator;
   CONFIG.lockNumerator = first.lockNumerator;
   CONFIG.hideNValue = first.hideNValue;
@@ -1867,7 +1931,8 @@ function getExportSvg() {
     const gap = index > 0 ? ROW_GAP : 0;
     return sum + row.height + gap;
   }, 0) || DEFAULT_SVG_HEIGHT;
-  const verticalActive = CONFIG.showCombinedWholeVertical && CONFIG.activeBlocks > 1 && figureWidth > 0;
+  const activeCount = getEffectiveActiveBlockCount();
+  const verticalActive = CONFIG.showCombinedWholeVertical && activeCount > 1 && figureWidth > 0;
   const verticalGap = verticalActive ? Math.max(figureWidth * 0.04, 20) : 0;
   const verticalLabelSpace = verticalActive ? Math.max(figureWidth * 0.18, 60) : 0;
   const verticalExtra = verticalActive ? verticalGap + verticalLabelSpace : 0;
@@ -1945,7 +2010,7 @@ function getExportSvg() {
     if (Number.isFinite(minY)) exportTopInner = clamp(minY, 0, exportHeight);
     if (Number.isFinite(maxY)) exportBottomInner = clamp(maxY, exportTopInner, exportHeight);
   }
-  if (CONFIG.showCombinedWhole && CONFIG.activeBlocks > 1) {
+  if (CONFIG.showCombinedWhole && activeCount > 1) {
     const startX = labelSpace;
     const endX = labelSpace + figureWidth;
     const braceGroup = createSvgElement(exportSvg, 'g', {
@@ -1963,7 +2028,7 @@ function getExportSvg() {
     });
     totalText.textContent = Number.isFinite(totalValue) ? fmt(totalValue) : '';
   }
-  if (verticalActive && CONFIG.activeBlocks > 1) {
+  if (verticalActive && activeCount > 1) {
     const braceGroup = createSvgElement(exportSvg, 'g', {
       class: 'tb-combined-brace'
     });
