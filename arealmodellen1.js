@@ -336,15 +336,15 @@ function computeLayoutState(layout, width, height, cols, rows, sx, sy, unit) {
       mode,
       leftWidth: width,
       rightWidth: 0,
-      bottomHeight: 0,
-      topHeight: height,
+      bottomHeight: height,
+      topHeight: 0,
       leftCols: cols,
       rightCols: 0,
-      bottomRows: 0,
-      topRows: rows,
-      showTopLeft: true,
+      bottomRows: rows,
+      topRows: 0,
+      showTopLeft: false,
       showTopRight: false,
-      showBottomLeft: false,
+      showBottomLeft: true,
       showBottomRight: false
     };
   }
@@ -393,6 +393,16 @@ function enforceSingleLayoutRestrictions(layout) {
   CFG.SIMPLE.length.showHandle = false;
   CFG.SIMPLE.height.showHandle = false;
   CFG.SIMPLE.totalHandle.show = true;
+  const lengthCellsRaw = CFG.SIMPLE.length ? CFG.SIMPLE.length.cells : null;
+  const lengthCells = Number.isFinite(Number(lengthCellsRaw)) ? Math.max(0, Math.round(Number(lengthCellsRaw))) : null;
+  if (lengthCells != null) {
+    CFG.SIMPLE.length.handle = lengthCells;
+  }
+  const heightCellsRaw = CFG.SIMPLE.height ? CFG.SIMPLE.height.cells : null;
+  const heightCells = Number.isFinite(Number(heightCellsRaw)) ? Math.max(0, Math.round(Number(heightCellsRaw))) : null;
+  if (heightCells != null) {
+    CFG.SIMPLE.height.handle = heightCells;
+  }
 }
 
 function enforceQuadLayoutFill(layout) {
