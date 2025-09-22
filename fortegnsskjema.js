@@ -18,6 +18,7 @@
   const checkStatus = document.getElementById('checkStatus');
   const downloadSvgButton = document.getElementById('btnDownloadSvg');
   const downloadPngButton = document.getElementById('btnDownloadPng');
+  const POINT_TOLERANCE = 1e-6;
   if (!svg || !exprInput) {
     return;
   }
@@ -1322,6 +1323,7 @@
       pointsList.appendChild(empty);
       return;
     }
+    const locked = isChartLocked();
     state.criticalPoints.forEach(point => {
       const row = document.createElement('div');
       const valueLabel = document.createElement('label');
@@ -1331,12 +1333,15 @@
       input.type = 'number';
       input.step = getNumberStep();
       input.value = formatPointValue(point.value);
-      input.addEventListener('change', event => {
-        const value = parseFloat(event.target.value);
-        if (Number.isFinite(value)) {
-          setPointValue(point.id, value);
-        }
-      });
+      input.disabled = locked;
+      if (!locked) {
+        input.addEventListener('change', event => {
+          const value = parseFloat(event.target.value);
+          if (Number.isFinite(value)) {
+            setPointValue(point.id, value);
+          }
+        });
+      }
       valueLabel.appendChild(input);
       row.appendChild(valueLabel);
       const typeLabel = document.createElement('label');
@@ -1350,18 +1355,24 @@
       optionPole.textContent = '>< (pol)';
       select.append(optionZero, optionPole);
       select.value = point.type === 'pole' ? 'pole' : 'zero';
-      select.addEventListener('change', event => {
-        setPointType(point.id, event.target.value === 'pole' ? 'pole' : 'zero');
-      });
+      select.disabled = locked;
+      if (!locked) {
+        select.addEventListener('change', event => {
+          setPointType(point.id, event.target.value === 'pole' ? 'pole' : 'zero');
+        });
+      }
       typeLabel.appendChild(select);
       row.appendChild(typeLabel);
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.className = 'btn danger';
       removeBtn.textContent = 'Fjern';
-      removeBtn.addEventListener('click', () => {
-        removePoint(point.id);
-      });
+      removeBtn.disabled = locked;
+      if (!locked) {
+        removeBtn.addEventListener('click', () => {
+          removePoint(point.id);
+        });
+      }
       row.appendChild(removeBtn);
       pointsList.appendChild(row);
     });
@@ -1487,7 +1498,8 @@
     const sortedPoints = [...points];
     const values = sortedPoints.map(p => p.value);
     const baseRowY = arrowY + 60;
-    const lastRowY = baseRowY + (state.signRows.length - 1) * rowSpacing;
+    const lastRowY = state.signRows.length ? baseRowY + (state.signRows.length - 1) * rowSpacing : baseRowY;
+    const chartLocked = isChartLocked();
     sortedPoints.forEach(point => {
       const px = currentScale.toCoord(point.value);
       if (!Number.isFinite(px)) return;
@@ -1499,29 +1511,10 @@
         stroke: '#d1d5db',
         'stroke-width': 1.2,
         'data-point-id': point.id,
-        'pointer-events': 'stroke',
-        cursor: 'ew-resize'
+        'pointer-events': chartLocked ? 'none' : 'stroke',
+        cursor: chartLocked ? 'default' : 'ew-resize'
       });
       svg.append(vertical);
-      const isPole = point.type === 'pole';
-      const label = createSvgElement('text', {
-        x: px,
-        y: baseRowY,
-        'text-anchor': 'middle',
-        'dominant-baseline': 'middle',
-        'alignment-baseline': 'middle',
-        'font-size': isPole ? 22 : 20,
-        'font-weight': 700,
-        fill: isPole ? '#b91c1c' : '#111827',
-        cursor: 'pointer'
-      });
-      label.textContent = isPole ? '><' : '0';
-      label.addEventListener('click', event => {
-        event.preventDefault();
-        event.stopPropagation();
-        togglePointType(point.id);
-      });
-      svg.append(label);
       const dragHandle = createSvgElement('circle', {
         cx: px,
         cy: arrowY,
@@ -1529,8 +1522,8 @@
         fill: 'transparent',
         stroke: 'transparent',
         'data-point-id': point.id,
-        'pointer-events': 'all',
-        cursor: 'ew-resize'
+        'pointer-events': chartLocked ? 'none' : 'all',
+        cursor: chartLocked ? 'default' : 'ew-resize'
       });
       svg.append(dragHandle);
       if (overlay) {
@@ -1546,6 +1539,7 @@
         valueInput.step = getNumberStep();
         valueInput.value = formatPointValue(point.value);
         valueInput.setAttribute('aria-label', point.type === 'pole' ? 'x-verdi for pol' : 'x-verdi for nullpunkt');
+        valueInput.disabled = chartLocked;
         valueInput.addEventListener('focus', () => {
           valueInput.select();
         });
@@ -1562,31 +1556,40 @@
             valueInput.value = formatPointValue(point.value);
           }
         };
-        valueInput.addEventListener('change', commitInputValue);
-        valueInput.addEventListener('keydown', event => {
-          if (event.key === 'Enter') {
-            commitInputValue();
-            valueInput.blur();
-          } else if (event.key === 'Escape') {
-            valueInput.value = formatPointValue(point.value);
-            valueInput.blur();
-          }
-        });
-        valueBadge.addEventListener('pointerdown', event => {
-          if (event.button !== 0) return;
-          if (event.target === valueInput) {
-            return;
-          }
-          event.preventDefault();
-          startDragging(point.id, event.pointerId, false);
-        });
+        if (!chartLocked) {
+          valueInput.addEventListener('change', commitInputValue);
+          valueInput.addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+              commitInputValue();
+              valueInput.blur();
+            } else if (event.key === 'Escape') {
+              valueInput.value = formatPointValue(point.value);
+              valueInput.blur();
+            }
+          });
+          valueBadge.addEventListener('pointerdown', event => {
+            if (event.button !== 0) return;
+            if (event.target === valueInput) {
+              return;
+            }
+            event.preventDefault();
+            startDragging(point.id, event.pointerId, false);
+          });
+        } else {
+          valueBadge.style.pointerEvents = 'none';
+        }
         valueBadge.appendChild(valueInput);
         overlay.appendChild(valueBadge);
       }
     });
     const boundaries = [min, ...values, max];
-    state.signRows.forEach((row, rowIndex) => {
-      const y = baseRowY + rowIndex * rowSpacing;
+    const rowInfos = state.signRows.map((row, rowIndex) => ({
+      row,
+      rowIndex,
+      y: baseRowY + rowIndex * rowSpacing
+    }));
+    const markerTargets = rowInfos.length ? rowInfos : [{ row: null, rowIndex: 0, y: baseRowY }];
+    rowInfos.forEach(({ row, rowIndex, y }) => {
       const baseline = createSvgElement('line', {
         x1: axisStart,
         y1: y,
@@ -1607,7 +1610,7 @@
       const displayLabel = row.label || (row.role === 'result' ? 'f(x)' : `rad ${rowIndex + 1}`);
       label.textContent = displayLabel;
       svg.append(label);
-      const locked = row.locked || state.autoSync && row.role === 'result' && state.solution;
+      const locked = chartLocked || row.locked || state.autoSync && row.role === 'result' && state.solution;
       const segments = row.segments;
       for (let i = 0; i < boundaries.length - 1; i += 1) {
         const startVal = boundaries[i];
@@ -1640,6 +1643,56 @@
         svg.append(line);
       }
     });
+    markerTargets.forEach(({ row, y }) => {
+      const markers = getRowMarkers(row, sortedPoints);
+      markers.forEach(point => {
+        const px = currentScale.toCoord(point.value);
+        if (!Number.isFinite(px)) return;
+        const isPole = point.type === 'pole';
+        const marker = createSvgElement('text', {
+          x: px,
+          y,
+          'text-anchor': 'middle',
+          'dominant-baseline': 'middle',
+          'alignment-baseline': 'middle',
+          'font-size': isPole ? 22 : 20,
+          'font-weight': 700,
+          fill: isPole ? '#b91c1c' : '#111827',
+          cursor: chartLocked ? 'default' : 'pointer'
+        });
+        marker.textContent = isPole ? '><' : '0';
+        if (!chartLocked) {
+          marker.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            togglePointType(point.id);
+          });
+        }
+        svg.append(marker);
+      });
+    });
+  }
+  function getRowMarkers(row, points) {
+    if (!row || row.role === 'result' || row.role === 'custom') {
+      return points;
+    }
+    if (row.role === 'factor' && Number.isFinite(row.value)) {
+      const matches = points.filter(point => Math.abs(point.value - row.value) <= POINT_TOLERANCE && (!row.type || point.type === row.type));
+      if (matches.length) {
+        return matches;
+      }
+      let closest = null;
+      let bestDistance = Infinity;
+      points.forEach(point => {
+        const distance = Math.abs(point.value - row.value);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          closest = point;
+        }
+      });
+      return closest ? [closest] : [];
+    }
+    return points;
   }
   function cloneSvgForExport() {
     if (!svg) {
@@ -1779,6 +1832,19 @@
     row.segments[index] = row.segments[index] >= 0 ? -1 : 1;
     renderChart();
   }
+  function isChartLocked() {
+    return !!state.autoSync;
+  }
+  function updateLockStateUi() {
+    const locked = isChartLocked();
+    const display = locked ? 'none' : '';
+    [btnAddPoint, overlayAddPoint, btnAddRow, overlayAddRow].forEach(button => {
+      if (!button) {
+        return;
+      }
+      button.style.display = display;
+    });
+  }
   function addPoint(type = 'zero', value = 0) {
     updateIdCounters();
     state.criticalPoints.push({
@@ -1912,11 +1978,15 @@
     sortPoints();
     syncSegments();
     syncControlValues();
+    updateLockStateUi();
     renderPointsList();
     renderRowsList();
     renderChart();
   }
   function startDragging(pointId, pointerId, capture = true) {
+    if (isChartLocked()) {
+      return;
+    }
     if (!pointId) return;
     dragging = {
       id: pointId,
@@ -1942,6 +2012,9 @@
     }
   }
   svg.addEventListener('pointerdown', event => {
+    if (isChartLocked()) {
+      return;
+    }
     const target = event.target;
     if (!(target instanceof SVGElement)) return;
     const pointId = target.getAttribute('data-point-id');
@@ -2095,11 +2168,12 @@
   });
   autoSyncInput.addEventListener('change', event => {
     state.autoSync = event.target.checked;
+    updateLockStateUi();
     if (state.autoSync && ensureSolution()) {
       applySolutionToState(state.solution);
       setCheckMessage('Fortegnslinjen oppdateres automatisk fra fasit.', 'info');
     } else {
-      renderRowsList();
+      renderAll();
     }
   });
   if (useLinearFactorsInput) {
