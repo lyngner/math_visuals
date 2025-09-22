@@ -958,11 +958,26 @@
 
   function buildSequentialAnswerLines(points) {
     if (!Array.isArray(points)) return [];
+    const collator = new Intl.Collator('nb', { numeric: true, sensitivity: 'base' });
+    const ordered = points
+      .map((point, index) => ({ point, index }))
+      .filter(entry => entry.point && !entry.point.isFalse)
+      .sort((a, b) => {
+        const labelA = typeof a.point.label === 'string' ? a.point.label : '';
+        const labelB = typeof b.point.label === 'string' ? b.point.label : '';
+        const compareLabel = collator.compare(labelA, labelB);
+        if (compareLabel !== 0) return compareLabel;
+        const idA = typeof a.point.id === 'string' ? a.point.id : '';
+        const idB = typeof b.point.id === 'string' ? b.point.id : '';
+        const compareId = collator.compare(idA, idB);
+        if (compareId !== 0) return compareId;
+        return a.index - b.index;
+      })
+      .map(entry => entry.point);
     const sequential = [];
     const usedKeys = new Set();
     let previous = null;
-    points.forEach(point => {
-      if (!point || point.isFalse) return;
+    ordered.forEach(point => {
       if (previous) {
         const key = makeLineKey(previous.id, point.id);
         if (key && !usedKeys.has(key)) {
@@ -2349,7 +2364,7 @@
       if (isPredefDrawingMode) {
         modeHint.textContent = 'Tegn forhåndsdefinerte streker ved å klikke på to punkter. Klikk på knappen under figuren når du er ferdig.';
       } else {
-        modeHint.textContent = 'Fasit-strekene følger rekkefølgen på ekte punkter. Dra i punktene for å endre plassering.';
+        modeHint.textContent = 'Fasit-strekene følger rekkefølgen på etikettene til ekte punkter. Endre etiketter eller dra punktene i lista for å justere rekkefølgen.';
       }
       return;
     }
