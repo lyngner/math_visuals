@@ -6,7 +6,6 @@
   const LABEL_POINT_MARGIN = 10;
   const DOT_RADIUS = 6;
   const LABEL_OFFSET_DISTANCE = DOT_RADIUS + LABEL_POINT_MARGIN;
-  const LABEL_OFFSET_DIAGONAL = Math.round(LABEL_OFFSET_DISTANCE / Math.SQRT2);
   const LABEL_EDGE_MARGIN = 16;
   const LABEL_LINE_AVOIDANCE_THRESHOLD = Math.PI / 8;
   const LABEL_LINE_PENALTY = 100;
@@ -592,14 +591,21 @@
     { dx: 0, dy: 1 }
   ];
 
-  function computePlacementOffset(candidate) {
-    if (!candidate) {
-      return { x: LABEL_OFFSET_DIAGONAL, y: -LABEL_OFFSET_DIAGONAL };
-    }
-    const { dx, dy } = candidate;
-    const isDiagonal = dx !== 0 && dy !== 0;
-    const distance = isDiagonal ? LABEL_OFFSET_DIAGONAL : LABEL_OFFSET_DISTANCE;
-    return { x: dx * distance, y: dy * distance };
+  function computePlacementOffset(candidate, size) {
+    const fallbackCandidate = LABEL_PLACEMENT_CANDIDATES[0] || { dx: 1, dy: -1 };
+    const rawDx = candidate && typeof candidate.dx === 'number' ? candidate.dx : fallbackCandidate.dx;
+    const rawDy = candidate && typeof candidate.dy === 'number' ? candidate.dy : fallbackCandidate.dy;
+    const dx = rawDx > 0 ? 1 : rawDx < 0 ? -1 : 0;
+    const dy = rawDy > 0 ? 1 : rawDy < 0 ? -1 : 0;
+    const fallbackSize = LABEL_OFFSET_DISTANCE * 2;
+    const width = size && Number.isFinite(size.width) && size.width > 0 ? size.width : fallbackSize;
+    const height = size && Number.isFinite(size.height) && size.height > 0 ? size.height : fallbackSize;
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+    const margin = LABEL_OFFSET_DISTANCE;
+    const offsetX = dx === 0 ? 0 : dx * (halfWidth + margin);
+    const offsetY = dy === 0 ? 0 : dy * (halfHeight + margin);
+    return { x: offsetX, y: offsetY };
   }
 
   function normalizeAngle(angle) {
@@ -619,7 +625,7 @@
   }
 
   function selectLabelPlacement(point, pos, connections, pointMap) {
-    if (!point || !pos) return computePlacementOffset(LABEL_PLACEMENT_CANDIDATES[0]);
+    if (!point || !pos) return LABEL_PLACEMENT_CANDIDATES[0];
     const boardWidthPx = BOARD_WIDTH * boardScaleX;
     const boardHeightPx = BOARD_HEIGHT * boardScaleY;
     const neighborAngles = [];
@@ -645,7 +651,7 @@
     const verticalMargin = LABEL_EDGE_MARGIN + approxHeight / 2;
 
     LABEL_PLACEMENT_CANDIDATES.forEach((candidate, index) => {
-      const offset = computePlacementOffset(candidate);
+      const offset = computePlacementOffset(candidate, { width: approxWidth, height: approxHeight });
       const placementAngle = Math.atan2(offset.y, offset.x);
       const minAngleDiff = neighborAngles.length
         ? Math.min(...neighborAngles.map(angle => angleDistance(placementAngle, angle)))
@@ -658,10 +664,10 @@
       const inside = insideX && insideY;
       const score = (inside ? 1 : 0) * 10 + minAngleDiff - (nearLine ? LABEL_LINE_PENALTY : 0) - index * 0.001;
       if (!best || score > best.score) {
-        best = { offset, score };
+        best = { candidate, score };
       }
     });
-    return best ? best.offset : computePlacementOffset(LABEL_PLACEMENT_CANDIDATES[0]);
+    return best ? best.candidate : LABEL_PLACEMENT_CANDIDATES[0];
   }
 
   function computeLabelPlacements() {
@@ -736,11 +742,12 @@
 
   function positionBoardLabel(element, pos, pointId) {
     if (!element || !pos) return;
-    const placement = (pointId && labelPlacements.get(pointId)) || computePlacementOffset(LABEL_PLACEMENT_CANDIDATES[0]);
-    const centerX = pos.x * boardScaleX + placement.x;
-    const centerY = pos.y * boardScaleY + placement.y;
+    const candidate = (pointId && labelPlacements.get(pointId)) || LABEL_PLACEMENT_CANDIDATES[0];
     const width = element.offsetWidth || element.getBoundingClientRect().width || 0;
     const height = element.offsetHeight || element.getBoundingClientRect().height || 0;
+    const offset = computePlacementOffset(candidate, { width, height });
+    const centerX = pos.x * boardScaleX + offset.x;
+    const centerY = pos.y * boardScaleY + offset.y;
     const left = centerX - width / 2;
     const top = centerY - height / 2;
     element.style.transform = `translate(${left}px, ${top}px)`;
