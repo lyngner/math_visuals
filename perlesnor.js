@@ -126,24 +126,44 @@ applyConfig();
 
 /* ============ INTERAKSJON ============ */
 let dragging = false;
+let draggingClip = false;
+let dragStartPointerY = 0;
+let dragStartClipY = 0;
 overlay.addEventListener("pointerdown", e => {
   dragging = true;
   overlay.setPointerCapture(e.pointerId);
   const p = pt(e);
   setIndex(nearestIndex(p.x));
-  setClipYFromPoint(p.y);
+  const clipTop = CFG.wireY - CLIP_H + clipY;
+  const clipBottom = clipTop + CLIP_H;
+  if (p.y >= clipTop && p.y <= clipBottom) {
+    draggingClip = true;
+    dragStartPointerY = p.y;
+    dragStartClipY = clipY;
+  } else {
+    draggingClip = false;
+    setClipYFromPoint(p.y);
+  }
 });
 overlay.addEventListener("pointermove", e => {
   if (!dragging) return;
   const p = pt(e);
   setIndex(nearestIndex(p.x));
-  setClipYFromPoint(p.y);
+  if (draggingClip) {
+    setClipY(dragStartClipY + (p.y - dragStartPointerY));
+  } else {
+    setClipYFromPoint(p.y);
+  }
 });
 overlay.addEventListener("pointerup", e => {
   dragging = false;
+  draggingClip = false;
   overlay.releasePointerCapture(e.pointerId);
 });
-overlay.addEventListener("pointercancel", () => dragging = false);
+overlay.addEventListener("pointercancel", () => {
+  dragging = false;
+  draggingClip = false;
+});
 overlay.addEventListener("keydown", e => {
   var _CFG$a11y$fineStep, _CFG$a11y2, _CFG$a11y$coarseStep, _CFG$a11y3, _CFG$a11y4, _CFG$a11y5;
   let used = true;
