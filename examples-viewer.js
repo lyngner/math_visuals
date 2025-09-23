@@ -171,6 +171,14 @@ function renderExamples() {
     arr.forEach((ex, idx) => {
       const wrap = document.createElement('div');
       wrap.className = 'example';
+      if (ex && typeof ex.description === 'string' && ex.description.trim()) {
+        const description = document.createElement('p');
+        description.className = 'example-description';
+        description.textContent = ex.description;
+        description.style.whiteSpace = 'pre-wrap';
+        description.style.margin = '0 0 8px';
+        wrap.appendChild(description);
+      }
       const iframe = document.createElement('iframe');
       iframe.setAttribute('loading', 'lazy');
       iframe.title = `Eksempel ${idx + 1} – ${path}`;

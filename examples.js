@@ -235,6 +235,27 @@
   let currentExampleIndex = null;
   let tabsContainer = null;
   let tabButtons = [];
+  let descriptionInput = null;
+  function getDescriptionInput() {
+    if (descriptionInput && descriptionInput.isConnected) return descriptionInput;
+    descriptionInput = document.getElementById('exampleDescription');
+    return descriptionInput || null;
+  }
+  function getDescriptionValue() {
+    const input = getDescriptionInput();
+    if (!input) return '';
+    const value = input.value;
+    return typeof value === 'string' ? value : '';
+  }
+  function setDescriptionValue(value) {
+    const input = getDescriptionInput();
+    if (!input) return;
+    if (typeof value === 'string') {
+      input.value = value;
+    } else {
+      input.value = '';
+    }
+  }
   let defaultEnsureScheduled = false;
   let tabsHostCard = null;
   const hasUrlOverrides = (() => {
@@ -682,13 +703,18 @@
     }
     return {
       config: cfg,
-      svg: svgMarkup
+      svg: svgMarkup,
+      description: getDescriptionValue()
     };
   }
   function loadExample(index) {
     const examples = getExamples();
     const ex = examples[index];
-    if (!ex || !ex.config) return false;
+    if (!ex || !ex.config) {
+      setDescriptionValue('');
+      return false;
+    }
+    setDescriptionValue(typeof ex.description === 'string' ? ex.description : '');
     const cfg = ex.config;
     let applied = false;
     for (const name of BINDING_NAMES) {
