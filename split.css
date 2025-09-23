@@ -93,6 +93,30 @@
   min-height: 72px;
 }
 
+.card--examples {
+  gap: 14px;
+}
+
+.card--examples .example-description {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.card--examples .example-description textarea {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #111827;
+  background: #fff;
+  resize: vertical;
+  min-height: 72px;
+}
+
 .card--settings input[type="checkbox"],
 .card--settings input[type="radio"],
 .card[data-card="settings"] input[type="checkbox"],
