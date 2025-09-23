@@ -18,6 +18,284 @@
   const downloadSvgButton = document.getElementById('btnDownloadSvg');
   const downloadPngButton = document.getElementById('btnDownloadPng');
   const POINT_TOLERANCE = 1e-6;
+  const MATHFIELD_TAG = 'MATH-FIELD';
+  const COMMAND_NAME_MAP = {
+    cdot: '*',
+    times: '*',
+    div: '/',
+    pm: '+/-',
+    minus: '-',
+    pi: 'pi',
+    tau: 'tau',
+    theta: 'theta',
+    alpha: 'alpha',
+    beta: 'beta',
+    gamma: 'gamma',
+    phi: 'phi',
+    degree: 'deg',
+    log: 'log',
+    ln: 'ln',
+    sin: 'sin',
+    cos: 'cos',
+    tan: 'tan',
+    asin: 'asin',
+    acos: 'acos',
+    atan: 'atan',
+    sinh: 'sinh',
+    cosh: 'cosh',
+    tanh: 'tanh',
+    exp: 'exp',
+    abs: 'abs',
+    max: 'max',
+    min: 'min',
+    floor: 'floor',
+    ceil: 'ceil',
+    round: 'round'
+  };
+  function tryGetMathFieldValue(field, format) {
+    if (!field || typeof field.getValue !== 'function') return '';
+    try {
+      const value = field.getValue(format);
+      return typeof value === 'string' ? value : '';
+    } catch (err) {
+      return '';
+    }
+  }
+  function readGroup(str, startIdx) {
+    if (typeof str !== 'string' || startIdx == null || startIdx < 0 || startIdx >= str.length) {
+      return ['', typeof startIdx === 'number' ? startIdx : 0];
+    }
+    if (str[startIdx] !== '{') {
+      return ['', startIdx];
+    }
+    let depth = 0;
+    for (let i = startIdx + 1; i < str.length; i += 1) {
+      const ch = str[i];
+      if (ch === '{') {
+        depth += 1;
+        continue;
+      }
+      if (ch === '}') {
+        if (depth === 0) {
+          return [str.slice(startIdx + 1, i), i + 1];
+        }
+        depth -= 1;
+      }
+    }
+    return [str.slice(startIdx + 1), str.length];
+  }
+  function replaceLatexFractions(str) {
+    if (typeof str !== 'string' || !str.includes('\\frac')) {
+      return typeof str === 'string' ? str : '';
+    }
+    let out = '';
+    let idx = 0;
+    while (idx < str.length) {
+      const start = str.indexOf('\\frac', idx);
+      if (start === -1) {
+        out += str.slice(idx);
+        break;
+      }
+      out += str.slice(idx, start);
+      let pos = start + 5;
+      while (pos < str.length && /\s/.test(str[pos])) pos += 1;
+      let numerator = '';
+      let denominator = '';
+      if (pos < str.length && str[pos] === '{') {
+        const group = readGroup(str, pos);
+        numerator = replaceLatexFractions(group[0]);
+        pos = group[1];
+      }
+      while (pos < str.length && /\s/.test(str[pos])) pos += 1;
+      if (pos < str.length && str[pos] === '{') {
+        const group = readGroup(str, pos);
+        denominator = replaceLatexFractions(group[0]);
+        pos = group[1];
+      }
+      out += `(${numerator})/(${denominator})`;
+      idx = pos;
+    }
+    return out;
+  }
+  function replaceLatexSqrt(str) {
+    if (typeof str !== 'string' || !str.includes('\\sqrt')) {
+      return typeof str === 'string' ? str : '';
+    }
+    let out = '';
+    let idx = 0;
+    while (idx < str.length) {
+      const start = str.indexOf('\\sqrt', idx);
+      if (start === -1) {
+        out += str.slice(idx);
+        break;
+      }
+      out += str.slice(idx, start);
+      let pos = start + 5;
+      while (pos < str.length && /\s/.test(str[pos])) pos += 1;
+      let radicand = '';
+      if (pos < str.length && str[pos] === '{') {
+        const group = readGroup(str, pos);
+        radicand = replaceLatexSqrt(replaceLatexFractions(group[0]));
+        pos = group[1];
+      }
+      out += `sqrt(${radicand})`;
+      idx = pos;
+    }
+    return out;
+  }
+  function convertLatexLikeToPlain(latex) {
+    if (typeof latex !== 'string') return '';
+    let str = latex;
+    str = str.replace(/\\left|\\right/g, '');
+    str = str.replace(/\\!/g, '');
+    str = str.replace(/\\,/g, '');
+    str = str.replace(/\\;/g, ' ');
+    str = str.replace(/~|\\:/g, ' ');
+    str = str.replace(/\\\\/g, '\n');
+    str = replaceLatexFractions(str);
+    str = replaceLatexSqrt(str);
+    str = str.replace(/\\operatorname\{([^{}]+)\}/gi, '$1');
+    str = str.replace(/\\([a-zA-Z]+)\b/g, (match, name) => {
+      const key = name.toLowerCase();
+      return COMMAND_NAME_MAP[key] != null ? COMMAND_NAME_MAP[key] : name;
+    });
+    str = str.replace(/\\([a-zA-Z]+)/g, (match, name) => {
+      const key = name.toLowerCase();
+      return COMMAND_NAME_MAP[key] != null ? COMMAND_NAME_MAP[key] : name;
+    });
+    str = str.replace(/\\([{}])/g, '$1');
+    str = str.replace(/\\%/g, '%');
+    str = str.replace(/\\#/g, '#');
+    str = str.replace(/\\&/g, '&');
+    str = str.replace(/\\_/g, '_');
+    str = str.replace(/\\\^/g, '^');
+    str = str.replace(/\^\{([^{}]+)\}/g, '^($1)');
+    str = str.replace(/_\{([^{}]+)\}/g, '_($1)');
+    str = str.replace(/\^\(([^()]+)\)/g, '^$1');
+    str = str.replace(/_\(([^()]+)\)/g, '_$1');
+    str = str.replace(/[{}]/g, '');
+    return str;
+  }
+  function replaceAsciiFractions(str) {
+    if (typeof str !== 'string' || !str.toLowerCase().includes('frac(')) {
+      return typeof str === 'string' ? str : '';
+    }
+    let out = str;
+    let idx = out.toLowerCase().indexOf('frac(');
+    while (idx !== -1) {
+      let pos = idx + 5;
+      let depth = 0;
+      let comma = -1;
+      for (let i = pos; i < out.length; i += 1) {
+        const ch = out[i];
+        if (ch === '(') {
+          depth += 1;
+        } else if (ch === ')') {
+          if (depth === 0) break;
+          depth -= 1;
+        } else if (ch === ',' && depth === 0) {
+          comma = i;
+          break;
+        }
+      }
+      if (comma === -1) break;
+      depth = 0;
+      let end = -1;
+      for (let i = comma + 1; i < out.length; i += 1) {
+        const ch = out[i];
+        if (ch === '(') {
+          depth += 1;
+        } else if (ch === ')') {
+          if (depth === 0) {
+            end = i;
+            break;
+          }
+          depth -= 1;
+        }
+      }
+      if (end === -1) break;
+      const numerator = replaceAsciiFractions(out.slice(idx + 5, comma).trim());
+      const denominator = replaceAsciiFractions(out.slice(comma + 1, end).trim());
+      out = `${out.slice(0, idx)}(${numerator})/(${denominator})${out.slice(end + 1)}`;
+      idx = out.toLowerCase().indexOf('frac(');
+    }
+    return out;
+  }
+  function convertAsciiMathLikeToPlain(ascii) {
+    if (typeof ascii !== 'string') return '';
+    let str = ascii;
+    str = replaceAsciiFractions(str);
+    str = str.replace(/·|⋅/g, '*');
+    str = str.replace(/÷/g, '/');
+    str = str.replace(/−/g, '-');
+    str = str.replace(/\*\*/g, '^');
+    str = str.replace(/\bsqrt\s*\(/gi, 'sqrt(');
+    str = str.replace(/\bpi\b/gi, 'pi');
+    str = str.replace(/\btau\b/gi, 'tau');
+    return str;
+  }
+  function collapseExpressionWhitespace(text) {
+    return String(text).replace(/\u00a0/g, ' ').replace(/[\t\r\f]+/g, ' ').replace(/\s+\n/g, '\n').replace(/\n\s+/g, '\n').trim();
+  }
+  function normalizePlainExpression(value) {
+    if (value == null) return '';
+    const raw = collapseExpressionWhitespace(String(value));
+    if (!raw) return '';
+    if (raw.includes('\\')) {
+      return collapseExpressionWhitespace(convertLatexLikeToPlain(raw));
+    }
+    return collapseExpressionWhitespace(convertAsciiMathLikeToPlain(raw));
+  }
+  function ensureMathFieldOptions(field) {
+    if (field && typeof field.setOptions === 'function') {
+      field.setOptions({
+        smartMode: false,
+        virtualKeyboardMode: 'off'
+      });
+    }
+  }
+  function getExpressionInputValue() {
+    if (!exprInput) return '';
+    const tag = exprInput.tagName ? exprInput.tagName.toUpperCase() : '';
+    if (tag === MATHFIELD_TAG) {
+      ensureMathFieldOptions(exprInput);
+      let plain = tryGetMathFieldValue(exprInput, 'ascii-math');
+      if (!plain) {
+        plain = tryGetMathFieldValue(exprInput, 'ASCIIMath');
+      }
+      if (!plain) {
+        plain = tryGetMathFieldValue(exprInput, 'latex');
+        if (plain) {
+          plain = convertLatexLikeToPlain(plain);
+        }
+      }
+      if (!plain && typeof exprInput.value === 'string') {
+        plain = exprInput.value;
+      }
+      return normalizePlainExpression(plain);
+    }
+    const val = exprInput.value != null ? exprInput.value : '';
+    return normalizePlainExpression(val);
+  }
+  function setExpressionInputValue(value) {
+    if (!exprInput) return;
+    const str = value != null ? String(value) : '';
+    const tag = exprInput.tagName ? exprInput.tagName.toUpperCase() : '';
+    if (tag === MATHFIELD_TAG) {
+      ensureMathFieldOptions(exprInput);
+      if (typeof exprInput.setValue === 'function') {
+        try {
+          exprInput.setValue(str, { format: 'ascii-math' });
+          return;
+        } catch (err) {
+          /* ignore */
+        }
+      }
+      exprInput.value = str;
+      return;
+    }
+    exprInput.value = str;
+  }
   if (!svg || !exprInput) {
     return;
   }
@@ -32,6 +310,14 @@
   const state = globalState;
   if (typeof window !== 'undefined') {
     window.STATE = state;
+  }
+  const isMathFieldInput = exprInput && exprInput.tagName && exprInput.tagName.toUpperCase() === MATHFIELD_TAG;
+  if (isMathFieldInput) {
+    ensureMathFieldOptions(exprInput);
+    exprInput.addEventListener('math-field-ready', () => {
+      ensureMathFieldOptions(exprInput);
+      setExpressionInputValue(state.expression || '');
+    });
   }
   function sanitizeDomain(domain) {
     const sanitized = {
@@ -185,7 +471,8 @@
     if (!target || typeof target !== 'object') {
       return;
     }
-    target.expression = typeof target.expression === 'string' ? target.expression : '';
+    const exprRaw = typeof target.expression === 'string' ? target.expression : '';
+    target.expression = normalizePlainExpression(exprRaw);
     target.autoSync = !!target.autoSync;
     target.useLinearFactors = !!target.useLinearFactors;
     const decimals = Number.isFinite(Number(target.decimalPlaces)) ? Number(target.decimalPlaces) : DEFAULT_DECIMAL_PLACES;
@@ -441,8 +728,9 @@
     }
   }
   function sanitizeExpression(raw) {
-    if (!raw) return '';
-    let expr = raw.replace(/,/g, '.').replace(/\s+/g, '');
+    const normalized = normalizePlainExpression(raw);
+    if (!normalized) return '';
+    let expr = normalized.replace(/,/g, '.').replace(/\s+/g, '');
     expr = expr.toLowerCase();
     expr = expr.replace(/([0-9x)])\(/g, '$1*(');
     expr = expr.replace(/\)([0-9x])/g, ')*$1');
@@ -1225,7 +1513,7 @@
     return Array.from(map.values()).sort((a, b) => a.value - b.value);
   }
   function generateSolutionFromExpression() {
-    const raw = exprInput.value.trim();
+    const raw = getExpressionInputValue();
     if (!raw) {
       throw new Error('Skriv inn et funksjonsuttrykk.');
     }
@@ -1924,7 +2212,7 @@
     renderAll();
   }
   function ensureSolution() {
-    const rawExpr = exprInput.value.trim();
+    const rawExpr = getExpressionInputValue();
     if (!rawExpr) {
       state.solution = null;
       setCheckMessage('Skriv inn et funksjonsuttrykk for å vise fasit.', 'info');
@@ -1945,8 +2233,8 @@
     return !!state.solution;
   }
   function syncControlValues() {
-    if (exprInput && exprInput.value !== state.expression) {
-      exprInput.value = state.expression;
+    if (exprInput) {
+      setExpressionInputValue(state.expression || '');
     }
     if (autoSyncInput) {
       autoSyncInput.checked = !!state.autoSync;
@@ -2181,7 +2469,7 @@
     });
   }
   exprInput.addEventListener('input', () => {
-    state.expression = exprInput.value.trim();
+    state.expression = getExpressionInputValue();
     state.solution = null;
     setCheckMessage('');
   });
