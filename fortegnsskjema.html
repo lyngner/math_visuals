@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Fortegnsskjema</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mathlive/dist/mathlive-static.css" />
   <link rel="stylesheet" href="base.css" />
   <style>
     :root { --gap: 18px; }
@@ -213,6 +215,37 @@
       width: 100%;
       box-sizing: border-box;
     }
+    #exprInput {
+      display: block;
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 15px;
+      line-height: 1.4;
+      background: #fff;
+      box-sizing: border-box;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    #exprInput:focus-within {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    }
+    #exprInput::part(container) {
+      min-height: 26px;
+      padding: 0;
+    }
+    #exprInput::part(content) {
+      font-size: 15px;
+      line-height: 1.4;
+      padding: 0;
+    }
+    #exprInput::part(menu-toggle),
+    #exprInput::part(virtual-keyboard-toggle) {
+      display: none;
+    }
     input[type="number"] {
       max-width: 110px;
     }
@@ -333,7 +366,13 @@
           <div class="controls">
             <label>
               <span>f(x) =</span>
-              <input id="exprInput" type="text" placeholder="Skriv funksjonsuttrykk, f.eks. (x+1)/((x-3)(x-2))" autocomplete="off">
+              <math-field
+                id="exprInput"
+                virtual-keyboard-mode="off"
+                smart-mode="false"
+                placeholder="Skriv funksjonsuttrykk, f.eks. (x+1)/((x-3)(x-2))"
+                aria-label="Funksjonsuttrykk"
+              ></math-field>
             </label>
             <div class="toolbar-row">
               <label class="checkbox">
@@ -385,6 +424,7 @@
     </div>
   </div>
 
+  <script defer src="https://cdn.jsdelivr.net/npm/mathlive/dist/mathlive.min.js"></script>
   <script src="fortegnsskjema.js"></script>
   <script src="split.js"></script>
   <script src="examples.js"></script>
