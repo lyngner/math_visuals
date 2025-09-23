@@ -9,7 +9,7 @@
   const LABEL_EDGE_MARGIN = 16;
   const LABEL_LINE_AVOIDANCE_THRESHOLD = Math.PI / 8;
   const LABEL_LINE_PENALTY = 100;
-  const DEFAULT_LABEL_FONT_SIZE = 14;
+  const DEFAULT_LABEL_FONT_SIZE = 16;
   const POINT_DRAG_START_DISTANCE_PX = 4;
   const POINT_DRAG_START_DISTANCE_COARSE_PX = 12;
   const MIN_LABEL_FONT_SIZE = 10;
@@ -1173,7 +1173,6 @@
     if (!editor || !point) return;
     if (editor.labelInput) editor.labelInput.value = point.label;
     if (editor.coordInput) editor.coordInput.value = coordinateString(point);
-    if (editor.labelPreview) renderLatex(editor.labelPreview, getPointLabelText(point));
   }
 
   function updateLinesForPoint(pointId) {
@@ -2035,11 +2034,6 @@
       labelInput.placeholder = 'Tekst';
       labelInput.setAttribute('aria-label', 'Tekst');
       labelInput.value = point.label;
-      const labelPreview = document.createElement('span');
-      labelPreview.className = 'point-label-preview';
-      labelPreview.setAttribute('aria-hidden', 'true');
-      renderLatex(labelPreview, getPointLabelText(point));
-
       labelInput.addEventListener('input', () => {
         point.label = labelInput.value;
         const label = labelElements.get(point.id);
@@ -2047,10 +2041,8 @@
           label.setText(getPointLabelText(point));
           label.setVisibility(STATE.showLabels);
         }
-        renderLatex(labelPreview, getPointLabelText(point));
       });
       item.appendChild(labelInput);
-      item.appendChild(labelPreview);
 
       const actions = document.createElement('div');
       actions.className = 'point-actions';
@@ -2083,8 +2075,7 @@
       pointEditors.set(point.id, {
         itemEl: item,
         coordInput,
-        labelInput,
-        labelPreview
+        labelInput
       });
     });
 
@@ -2157,7 +2148,6 @@
       if (!editor) return;
       if (editor.labelInput) editor.labelInput.value = point.label;
       if (editor.coordInput) editor.coordInput.value = coordinateString(point);
-      if (editor.labelPreview) renderLatex(editor.labelPreview, getPointLabelText(point));
       if (editor.itemEl) editor.itemEl.dataset.pointId = point.id;
     });
   }
