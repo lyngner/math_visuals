@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tallinje</title>
+  <link rel="stylesheet" href="base.css" />
+  <style>
+    :root { --gap: 18px; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans";
+      color: #111827;
+      background: #f7f8fb;
+      padding: 20px;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; }
+    .grid {
+      display: grid;
+      gap: var(--gap);
+      grid-template-columns: minmax(0, 1fr) 380px;
+      align-items: start;
+    }
+    .side { display: flex; flex-direction: column; gap: var(--gap); }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+      .side { order: -1; }
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .card h1,
+    .card h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #374151;
+    }
+    .card h2 { font-size: 16px; }
+    .figure {
+      border-radius: 12px;
+      border: 1px solid #eef0f3;
+      background: #f9fafc;
+      padding: 8px;
+    }
+    #numberLine {
+      width: 100%;
+      height: clamp(320px, 55vh, 480px);
+      display: block;
+      touch-action: none;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+      cursor: grab;
+    }
+    #numberLine.is-panning { cursor: grabbing; }
+    #numberLine.is-placing { cursor: crosshair; }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .toolbar-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f3f4f6;
+      border-radius: 12px;
+      padding: 6px 8px;
+    }
+    .toolbar-group .btn {
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+    .btn {
+      appearance: none;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: box-shadow 0.2s, transform 0.02s;
+      font-family: inherit;
+      color: inherit;
+    }
+    .btn:hover { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); }
+    .btn:active { transform: translateY(1px); }
+    .btn.is-active,
+    .btn[data-state="active"] {
+      background: #0f6d8f;
+      color: #fff;
+      border-color: rgba(15, 109, 143, 0.4);
+      box-shadow: 0 2px 8px rgba(15, 109, 143, 0.25);
+    }
+    .status-message {
+      font-size: 14px;
+      color: #4b5563;
+      line-height: 1.5;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .status-message strong { color: #1d4ed8; }
+    .domain-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #4b5563;
+    }
+    .task-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .task {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .task:hover { box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); }
+    .task.is-active {
+      border-color: rgba(15, 109, 143, 0.6);
+      box-shadow: 0 4px 12px rgba(15, 109, 143, 0.15);
+    }
+    .task.is-correct { border-color: rgba(16, 185, 129, 0.6); }
+    .task__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .task__label {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 48px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #2563eb, #38bdf8);
+      color: #fff;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .task__status {
+      margin: 0;
+      font-size: 13px;
+      color: #4b5563;
+      line-height: 1.6;
+    }
+    .task__status strong { color: #1f2937; }
+    .task-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-start;
+    }
+    .legend {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #6b7280;
+    }
+    .legend::before {
+      content: "";
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(37,99,235,0.35), rgba(56,189,248,0.55));
+      box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.25);
+    }
+    .legend--answer::before {
+      background: linear-gradient(135deg, rgba(14,116,144,0.4), rgba(16,185,129,0.65));
+      box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.45);
+    }
+    .small-print {
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+    .markers g {
+      pointer-events: auto;
+      cursor: grab;
+    }
+    .markers g.is-dragging { cursor: grabbing; }
+    .marker-label {
+      font-size: 13px;
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: central;
+      fill: #1f2937;
+    }
+    .marker-value {
+      font-size: 12px;
+      text-anchor: middle;
+      dominant-baseline: central;
+      fill: #6b7280;
+    }
+    .marker-line {
+      stroke: #0f6d8f;
+      stroke-width: 2;
+    }
+    .marker-circle {
+      fill: #0f6d8f;
+      stroke: #fff;
+      stroke-width: 2.2;
+    }
+    .marker--correct .marker-circle {
+      fill: #10b981;
+    }
+    .marker--outside .marker-circle {
+      fill: #f97316;
+    }
+    .answer-marker circle {
+      fill: rgba(16, 185, 129, 0.5);
+      stroke: rgba(16, 185, 129, 0.9);
+      stroke-width: 1.5;
+    }
+    .answer-marker text {
+      font-size: 11px;
+      fill: #0f172a;
+      text-anchor: middle;
+    }
+    .answers-layer { pointer-events: none; }
+    .axis-line {
+      stroke: #1f2937;
+      stroke-width: 2;
+    }
+    .grid-line {
+      stroke: rgba(148, 163, 184, 0.35);
+      stroke-width: 1;
+    }
+    .tick-line {
+      stroke: #1f2937;
+      stroke-width: 1.4;
+    }
+    .tick-label {
+      font-size: 12px;
+      fill: #334155;
+      text-anchor: middle;
+      dominant-baseline: hanging;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card">
+        <h1>Tallinje</h1>
+        <div class="toolbar">
+          <div class="toolbar-group" role="group" aria-label="Zoom">
+            <button class="btn" type="button" id="zoomOut">−</button>
+            <button class="btn" type="button" id="zoomReset">Tilbakestill</button>
+            <button class="btn" type="button" id="zoomIn">+</button>
+          </div>
+          <div class="toolbar-group" role="group" aria-label="Navigasjon">
+            <button class="btn" type="button" id="panLeft">Flytt venstre</button>
+            <button class="btn" type="button" id="panRight">Flytt høyre</button>
+          </div>
+          <div class="domain-label">
+            Nåværende intervall: <span id="domainInfo"></span>
+          </div>
+        </div>
+        <div class="status-message" id="boardStatus"></div>
+        <div class="legend" aria-hidden="true">Plasserte tall</div>
+        <div class="legend legend--answer" aria-hidden="true" id="answerLegend" hidden>Fasit</div>
+        <div class="figure">
+          <svg id="numberLine" viewBox="0 0 920 320" preserveAspectRatio="xMidYMid meet" aria-label="Tallinje"></svg>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="card">
+          <h2>Oppgave</h2>
+          <p>Plasser tallene på tallinja. Du kan zoome, flytte og dra punktene for å justere nøyaktig.</p>
+          <div class="task-list" id="taskList" aria-live="polite"></div>
+          <div class="task-actions">
+            <button class="btn" type="button" id="toggleAnswers">Vis fasit</button>
+            <button class="btn" type="button" id="resetPlacements">Nullstill plasseringer</button>
+          </div>
+          <p class="small-print">Tips: Dra tallinja for å utforske andre intervaller, og dobbeltklikk eller bruk zoom-knappene for å komme tettere på.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="tallinje.js" type="module"></script>
+</body>
+</html>
