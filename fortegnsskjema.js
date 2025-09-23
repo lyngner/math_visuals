@@ -1533,6 +1533,7 @@
         valueBadge.title = formatPointValue(point.value);
         valueBadge.dataset.pointId = point.id;
         if (chartLocked) {
+          valueBadge.classList.add('chart-overlay__value--locked');
           valueBadge.textContent = formatPointValue(point.value);
           valueBadge.style.pointerEvents = 'none';
         } else {
