@@ -1197,6 +1197,10 @@
     event.preventDefault();
     const point = STATE.points.find(p => p && p.id === pointId);
     if (!point) return false;
+    if (!isEditMode) {
+      handlePointSelection(pointId);
+      return true;
+    }
     const pointerId = event.pointerId;
     const dragThreshold = getPointDragThreshold(event);
     const startClientX = event.clientX;
