@@ -2434,12 +2434,32 @@ function setupSettingsForm() {
   let gliderCountInput = null;
   let gliderStartInput = null;
   let gliderStartLabel = null;
+  let glidersVisible = false;
+  let forcedGliderCount = null;
   const isCoords = str => /^\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?)(?:\s*;\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?))*\s*$/.test(str);
   const isExplicitFun = str => {
     const m = str.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/) || str.match(/^y\s*=\s*(.+)$/i);
     const rhs = m ? m[1] : str;
     if (!/x/.test(rhs)) return false;
     return isExplicitRHS(rhs);
+  };
+  const getFirstFunctionValue = () => {
+    if (!funcRows) return '';
+    const firstGroup = funcRows.querySelector('.func-group');
+    const firstRowInput = firstGroup ? firstGroup.querySelector('input[data-fun]') : null;
+    return firstRowInput ? firstRowInput.value.trim() : '';
+  };
+  const determineForcedGliderCount = value => {
+    if (!value) return null;
+    const match = value.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/) || value.match(/^y\s*=\s*(.+)$/i);
+    const rhs = (match ? match[1] : value).trim();
+    if (!rhs) return null;
+    const normalized = rhs.replace(/\s+/g, '').toLowerCase();
+    const hasA = /(^|[+\-*/(])a(?=\*?x(?![a-z]))/.test(normalized);
+    const hasB = /(^|[+\-])b(?![a-z])(?!\*|x)/.test(normalized);
+    if (hasA && hasB) return 2;
+    if (hasA || hasB) return 1;
+    return null;
   };
   const formatNumber = val => {
     if (typeof val !== 'number') return '';
@@ -2461,12 +2481,7 @@ function setupSettingsForm() {
     return clamped > 0 ? clamped : 0;
   };
   const shouldEnableGliders = () => {
-    if (!funcRows) return false;
-    const firstGroup = funcRows.querySelector('.func-group');
-    if (!firstGroup) return false;
-    const firstRowInput = firstGroup.querySelector('input[data-fun]');
-    if (!firstRowInput) return false;
-    const value = firstRowInput.value.trim();
+    const value = getFirstFunctionValue();
     if (!value) return false;
     if (isCoords(value)) return false;
     return isExplicitFun(value);
@@ -2479,13 +2494,9 @@ function setupSettingsForm() {
     if (shouldEnableGliders() && getGliderCount() > 0) {
       return true;
     }
-    if (funcRows) {
-      const firstGroup = funcRows.querySelector('.func-group');
-      const firstRowInput = firstGroup ? firstGroup.querySelector('input[data-fun]') : null;
-      const value = firstRowInput ? firstRowInput.value.trim() : '';
-      if (value && !isCoords(value) && !isExplicitFun(value)) {
-        return true;
-      }
+    const firstValue = getFirstFunctionValue();
+    if (firstValue && !isCoords(firstValue) && !isExplicitFun(firstValue)) {
+      return true;
     }
     const parsedCount = SIMPLE_PARSED && Number.isFinite(SIMPLE_PARSED.pointsCount) ? SIMPLE_PARSED.pointsCount : 0;
     return parsedCount > 0;
@@ -2513,17 +2524,40 @@ function setupSettingsForm() {
     }
     updateSnapAvailability();
   };
+  const applyForcedGliderCount = show => {
+    if (!gliderCountInput) {
+      forcedGliderCount = null;
+      return false;
+    }
+    const prevForced = forcedGliderCount;
+    const prevValue = gliderCountInput.value;
+    const value = show ? getFirstFunctionValue() : '';
+    const forced = show ? determineForcedGliderCount(value) : null;
+    forcedGliderCount = forced;
+    if (forced != null) {
+      if (gliderCountInput.value !== String(forced)) {
+        gliderCountInput.value = String(forced);
+      }
+      gliderCountInput.disabled = true;
+    } else {
+      gliderCountInput.disabled = !show;
+    }
+    return forced !== prevForced || gliderCountInput.value !== prevValue;
+  };
   const updateGliderVisibility = () => {
     if (!gliderSection) {
       updateSnapAvailability();
       return;
     }
     const show = shouldEnableGliders();
+    const visibilityChanged = show !== glidersVisible;
+    glidersVisible = show;
     gliderSection.style.display = show ? '' : 'none';
-    if (gliderCountInput) {
-      gliderCountInput.disabled = !show;
-    }
+    const forcedChanged = applyForcedGliderCount(show);
     updateStartInputState();
+    if (visibilityChanged || forcedChanged) {
+      syncSimpleFromForm();
+    }
   };
   const buildSimpleFromForm = () => {
     var _rows$;
@@ -2714,6 +2748,8 @@ function setupSettingsForm() {
       gliderStartLabel = null;
       funcRows.innerHTML = '';
     }
+    glidersVisible = false;
+    forcedGliderCount = null;
     filteredLines.forEach((line, idx) => {
       let funVal = line;
       let domVal = '';
