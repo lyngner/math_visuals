@@ -10,399 +10,545 @@ const state = {
   showAnswers: false
 };
 
-const svg = document.getElementById('numberLine');
-const domainInfo = document.getElementById('domainInfo');
-const boardStatus = document.getElementById('boardStatus');
-const taskList = document.getElementById('taskList');
-const toggleAnswersBtn = document.getElementById('toggleAnswers');
-const resetPlacementsBtn = document.getElementById('resetPlacements');
-const answerLegend = document.getElementById('answerLegend');
-
-const zoomInBtn = document.getElementById('zoomIn');
-const zoomOutBtn = document.getElementById('zoomOut');
-const zoomResetBtn = document.getElementById('zoomReset');
-const panLeftBtn = document.getElementById('panLeft');
-const panRightBtn = document.getElementById('panRight');
-
-const view = {
-  width: 920,
-  height: 320,
-  marginLeft: 70,
-  marginRight: 70,
-  marginTop: 46,
-  marginBottom: 74
+const settings = {
+  panEnabled: true,
+  pinchZoomEnabled: true
 };
 
-const axisY = view.height - view.marginBottom;
-const innerWidth = view.width - view.marginLeft - view.marginRight;
+const BOARD_VIEW = {
+  top: 1.4,
+  bottom: -0.5,
+  markerHeight: 0.85,
+  stemTop: 0.65,
+  valueLabelY: 0.72,
+  labelY: 1.05,
+  answerHeight: 0.45,
+  answerLabelY: 0.62,
+  tickDown: -0.14,
+  tickLabelY: -0.3
+};
+
+const COLORS = {
+  base: '#0f6d8f',
+  correct: '#10b981',
+  outside: '#f97316'
+};
 
 const BASE_TOLERANCE = 0.02;
 const RELATIVE_TOLERANCE_FACTOR = 320;
 const MIN_SPAN = 0.0005;
 const MAX_SPAN = 100000;
 
+const boardStatus = document.getElementById('boardStatus');
+const domainInfo = document.getElementById('domainInfo');
+const taskList = document.getElementById('taskList');
+const toggleAnswersBtn = document.getElementById('toggleAnswers');
+const resetPlacementsBtn = document.getElementById('resetPlacements');
+const answerLegend = document.getElementById('answerLegend');
+const zoomInBtn = document.getElementById('zoomIn');
+const zoomOutBtn = document.getElementById('zoomOut');
+const zoomResetBtn = document.getElementById('zoomReset');
+const panLeftBtn = document.getElementById('panLeft');
+const panRightBtn = document.getElementById('panRight');
+const togglePanInput = document.getElementById('togglePan');
+const togglePinchInput = document.getElementById('togglePinch');
+
+let boardContainer = document.getElementById('numberLineBoard');
+let board = null;
+let axisLine = null;
+let markerTrack = null;
+let skipBoundingBoxHandler = false;
+let axisElements = [];
+let answerElements = [];
 const markerElements = new Map();
 
-const axisGroup = createSvgElement('g', { class: 'axis-layer' });
-const gridGroup = createSvgElement('g', { class: 'grid-lines' });
-const tickGroup = createSvgElement('g', { class: 'tick-lines' });
-const labelGroup = createSvgElement('g', { class: 'tick-labels' });
-const answersGroup = createSvgElement('g', { class: 'answers-layer' });
-const markersGroup = createSvgElement('g', { class: 'markers' });
-
-function createSvgElement(name, attrs = {}) {
-  const element = document.createElementNS('http://www.w3.org/2000/svg', name);
-  Object.entries(attrs).forEach(([key, value]) => {
-    element.setAttribute(key, value);
-  });
-  return element;
-}
-
-svg.append(axisGroup);
-svg.append(gridGroup);
-svg.append(tickGroup);
-svg.append(labelGroup);
-svg.append(answersGroup);
-svg.append(markersGroup);
-
-const baseline = createSvgElement('line', {
-  class: 'axis-line',
-  x1: view.marginLeft,
-  y1: axisY,
-  x2: view.width - view.marginRight,
-  y2: axisY
-});
-axisGroup.append(baseline);
-
-let isPanning = false;
-let panStartPoint = null;
-let panStartDomain = null;
-
-svg.addEventListener('pointerdown', event => {
-  const markerElement = event.target.closest('[data-marker-id]');
-  if (markerElement) {
-    const taskId = markerElement.getAttribute('data-marker-id');
-    const task = state.tasks.find(t => t.id === taskId);
-    if (task) {
-      startMarkerDrag(event, task, markerElement);
-    }
+function initialize() {
+  setupUi();
+  if (typeof JXG === 'undefined' || !JXG || !JXG.JSXGraph) {
+    boardStatus.textContent = 'JSXGraph-biblioteket kunne ikke lastes.';
+    disableBoardControls();
     return;
   }
+  initBoard();
+  renderAll();
+}
 
-  if (event.button !== 0) return;
-  svg.setPointerCapture(event.pointerId);
+function setupUi() {
+  zoomInBtn?.addEventListener('click', () => zoomAt(0.7));
+  zoomOutBtn?.addEventListener('click', () => zoomAt(1.4));
+  zoomResetBtn?.addEventListener('click', () => {
+    state.domainMin = state.initialDomain.min;
+    state.domainMax = state.initialDomain.max;
+    clampDomain();
+    applyDomainToBoard();
+  });
 
-  const activeTask = getActiveTask();
-  if (activeTask) {
-    event.preventDefault();
-    const svgPoint = getSvgPoint(event);
-    const value = clampToDomain(svgXToValue(svgPoint.x));
-    activeTask.placedValue = value;
+  panLeftBtn?.addEventListener('click', () => {
+    const span = state.domainMax - state.domainMin;
+    const shift = span * 0.2;
+    state.domainMin -= shift;
+    state.domainMax -= shift;
+    applyDomainToBoard();
+  });
+
+  panRightBtn?.addEventListener('click', () => {
+    const span = state.domainMax - state.domainMin;
+    const shift = span * 0.2;
+    state.domainMin += shift;
+    state.domainMax += shift;
+    applyDomainToBoard();
+  });
+
+  toggleAnswersBtn?.addEventListener('click', () => {
+    state.showAnswers = !state.showAnswers;
+    toggleAnswersBtn.textContent = state.showAnswers ? 'Skjul fasit' : 'Vis fasit';
+    renderAnswers();
+  });
+
+  resetPlacementsBtn?.addEventListener('click', () => {
+    state.tasks.forEach(task => {
+      task.placedValue = null;
+    });
     state.activeTaskId = null;
-    updateBoardStatus();
     renderMarkers();
     updateTaskList();
-    svg.releasePointerCapture(event.pointerId);
-    return;
-  }
+    updateBoardStatus();
+    renderAnswers();
+  });
 
-  startPan(event);
-});
+  togglePanInput?.addEventListener('change', event => {
+    settings.panEnabled = Boolean(event.target?.checked);
+    rebuildBoard();
+  });
 
-svg.addEventListener('pointermove', event => {
-  if (!isPanning || panStartPoint == null || panStartDomain == null) return;
-  if (event.pointerId !== panStartPoint.pointerId) return;
-  event.preventDefault();
-  const point = getSvgPoint(event);
-  const deltaX = point.x - panStartPoint.x;
-  const span = panStartDomain.max - panStartDomain.min;
-  const deltaValue = (deltaX / innerWidth) * span;
-  state.domainMin = panStartDomain.min - deltaValue;
-  state.domainMax = panStartDomain.max - deltaValue;
-  clampDomain();
-  renderAll();
-});
+  togglePinchInput?.addEventListener('change', event => {
+    settings.pinchZoomEnabled = Boolean(event.target?.checked);
+    rebuildBoard();
+  });
 
-svg.addEventListener('pointerup', event => {
-  if (isPanning && panStartPoint && event.pointerId === panStartPoint.pointerId) {
-    finishPan();
-  }
-});
-
-svg.addEventListener('pointercancel', event => {
-  if (isPanning && panStartPoint && event.pointerId === panStartPoint.pointerId) {
-    finishPan();
-  }
-});
-
-svg.addEventListener('dblclick', event => {
-  event.preventDefault();
-  const point = getSvgPoint(event);
-  const anchorValue = svgXToValue(point.x);
-  zoomAt(0.75, anchorValue);
-});
-
-function startPan(event) {
-  isPanning = true;
-  const point = getSvgPoint(event);
-  panStartPoint = { x: point.x, pointerId: event.pointerId };
-  panStartDomain = { min: state.domainMin, max: state.domainMax };
-  svg.classList.add('is-panning');
+  window.addEventListener('resize', () => {
+    if (!board) return;
+    const jsx = typeof JXG !== 'undefined' && JXG ? JXG.JSXGraph : null;
+    if (jsx && typeof jsx.resizeBoard === 'function') {
+      jsx.resizeBoard(board, boardContainer.clientWidth, boardContainer.clientHeight);
+    } else if (jsx && typeof jsx.resizeBoards === 'function') {
+      jsx.resizeBoards();
+    }
+  });
 }
 
-function finishPan() {
-  if (panStartPoint) {
+function disableBoardControls() {
+  [zoomInBtn, zoomOutBtn, zoomResetBtn, panLeftBtn, panRightBtn, toggleAnswersBtn, resetPlacementsBtn]
+    .filter(Boolean)
+    .forEach(element => {
+      element.disabled = true;
+    });
+  [togglePanInput, togglePinchInput]
+    .filter(Boolean)
+    .forEach(element => {
+      element.disabled = true;
+      element.checked = false;
+    });
+}
+
+function resetBoardContainer(container) {
+  if (!container || !container.parentNode) return container;
+  const replacement = container.cloneNode(false);
+  container.parentNode.replaceChild(replacement, container);
+  return replacement;
+}
+
+function rebuildBoard() {
+  if (board) {
     try {
-      svg.releasePointerCapture(panStartPoint.pointerId);
-    } catch (error) {
+      board.off('boundingbox', handleBoundingBoxChange);
+    } catch (_) {
       /* ignore */
     }
+    try {
+      JXG.JSXGraph.freeBoard(board);
+    } catch (_) {
+      /* ignore */
+    }
+    board = null;
   }
-  isPanning = false;
-  panStartPoint = null;
-  panStartDomain = null;
-  svg.classList.remove('is-panning');
+  axisElements = [];
+  answerElements = [];
+  markerElements.clear();
+  boardContainer = resetBoardContainer(boardContainer);
+  initBoard();
+  renderAll();
 }
 
-function startMarkerDrag(event, task, element) {
+function initBoard() {
+  if (!boardContainer) return;
+  board = JXG.JSXGraph.initBoard(boardContainer.id, {
+    boundingbox: [state.domainMin, BOARD_VIEW.top, state.domainMax, BOARD_VIEW.bottom],
+    axis: false,
+    showNavigation: false,
+    showCopyright: false,
+    keepaspectratio: false,
+    pan: {
+      enabled: settings.panEnabled,
+      needShift: false,
+      needTwoFingers: false,
+      allowHorizontal: true,
+      allowVertical: false
+    },
+    zoom: {
+      enabled: settings.pinchZoomEnabled,
+      wheel: settings.pinchZoomEnabled,
+      pinch: settings.pinchZoomEnabled,
+      needShift: false,
+      factorX: 1.2,
+      factorY: 1.0
+    }
+  });
+
+  axisLine = board.create('line', [[0, 0], [1, 0]], {
+    straightFirst: true,
+    straightLast: true,
+    strokeColor: '#1f2937',
+    strokeWidth: 2,
+    fixed: true,
+    highlight: false
+  });
+
+  markerTrack = board.create('line', [[0, BOARD_VIEW.markerHeight], [1, BOARD_VIEW.markerHeight]], {
+    visible: false,
+    fixed: true,
+    highlight: false
+  });
+
+  board.on('boundingbox', handleBoundingBoxChange);
+
+  boardContainer.addEventListener('pointerdown', handleBoardPointerDown);
+  boardContainer.addEventListener('dblclick', handleBoardDoubleClick, { passive: false });
+
+  handleBoundingBoxChange();
+}
+
+function handleBoardPointerDown(event) {
+  if (!board) return;
+  const activeTask = getActiveTask();
+  if (!activeTask) return;
+  if (typeof event.button === 'number' && event.button !== 0) return;
+  const coords = board.getUsrCoordsOfMouse(event);
+  if (!Array.isArray(coords) || coords.length < 2) return;
   event.preventDefault();
-  const pointerId = event.pointerId;
-  const startPoint = getSvgPoint(event);
-  const startValue = task.placedValue ?? svgXToValue(startPoint.x);
-  const span = state.domainMax - state.domainMin;
+  event.stopPropagation();
+  activeTask.placedValue = clampToDomain(coords[0]);
+  state.activeTaskId = null;
+  renderMarkers();
+  updateTaskList();
+  updateBoardStatus();
+}
 
-  element.classList.add('is-dragging');
-  element.setPointerCapture(pointerId);
-
-  const move = moveEvent => {
-    if (moveEvent.pointerId !== pointerId) return;
-    const currentPoint = getSvgPoint(moveEvent);
-    const deltaX = currentPoint.x - startPoint.x;
-    let newValue = startValue + (deltaX / innerWidth) * span;
-    if (!Number.isFinite(newValue)) return;
-    task.placedValue = clampToDomain(newValue);
-    updateMarkerElement(element, task);
-    updateTaskList();
-  };
-
-  const end = endEvent => {
-    if (endEvent.pointerId !== pointerId) return;
-    element.classList.remove('is-dragging');
-    element.releasePointerCapture(pointerId);
-    element.removeEventListener('pointermove', move);
-    element.removeEventListener('pointerup', end);
-    element.removeEventListener('pointercancel', end);
-    updateMarkerElement(element, task);
-    updateTaskList();
-  };
-
-  element.addEventListener('pointermove', move);
-  element.addEventListener('pointerup', end);
-  element.addEventListener('pointercancel', end);
+function handleBoardDoubleClick(event) {
+  if (!board) return;
+  event.preventDefault();
+  const coords = board.getUsrCoordsOfMouse(event);
+  if (!Array.isArray(coords) || coords.length < 2) return;
+  zoomAt(0.75, coords[0]);
 }
 
 function renderAll() {
-  renderAxis();
   renderMarkers();
   renderAnswers();
+  renderAxisTicks();
   updateDomainInfo();
   updateBoardStatus();
   updateTaskList();
 }
 
-function renderAxis() {
-  gridGroup.replaceChildren();
-  tickGroup.replaceChildren();
-  labelGroup.replaceChildren();
-
-  baseline.setAttribute('x1', view.marginLeft);
-  baseline.setAttribute('x2', view.width - view.marginRight);
-
-  const ticks = generateTicks(state.domainMin, state.domainMax);
-  const span = state.domainMax - state.domainMin;
-  const decimals = determineDecimals(span);
-
-  ticks.forEach(value => {
-    const x = valueToSvgX(value);
-    const gridLine = createSvgElement('line', {
-      class: 'grid-line',
-      x1: x,
-      y1: view.marginTop,
-      x2: x,
-      y2: axisY
-    });
-    gridGroup.append(gridLine);
-
-    const tick = createSvgElement('line', {
-      class: 'tick-line',
-      x1: x,
-      y1: axisY,
-      x2: x,
-      y2: axisY + 14
-    });
-    tickGroup.append(tick);
-
-    const label = createSvgElement('text', {
-      class: 'tick-label',
-      x,
-      y: axisY + 30
-    });
-    label.textContent = formatNumber(value, decimals);
-    labelGroup.append(label);
-  });
-}
-
 function renderMarkers() {
+  if (!board) return;
+  const tolerance = getTolerance();
   const used = new Set();
+  board.suspendUpdate();
   state.tasks.forEach(task => {
-    const element = markerElements.get(task.id);
     if (typeof task.placedValue !== 'number') {
-      if (element) {
-        element.remove();
-        markerElements.delete(task.id);
-      }
+      removeMarker(task.id);
       return;
     }
-
-    let marker = element;
+    let marker = markerElements.get(task.id);
     if (!marker) {
-      marker = createMarkerElement(task);
+      marker = createMarker(task);
       markerElements.set(task.id, marker);
-      markersGroup.append(marker);
     }
-    updateMarkerElement(marker, task);
+    marker.point.moveTo([clampToDomain(task.placedValue), BOARD_VIEW.markerHeight], 0);
+    updateMarkerAppearance(marker, task, tolerance);
     used.add(task.id);
   });
-
-  markerElements.forEach((element, id) => {
+  markerElements.forEach((_, id) => {
     if (!used.has(id)) {
-      element.remove();
-      markerElements.delete(id);
+      removeMarker(id);
     }
   });
+  board.unsuspendUpdate();
 }
 
-function createMarkerElement(task) {
-  const group = createSvgElement('g', { 'data-marker-id': task.id });
-
-  const line = createSvgElement('line', {
-    class: 'marker-line',
-    x1: 0,
-    y1: axisY,
-    x2: 0,
-    y2: axisY - 80
-  });
-  const circle = createSvgElement('circle', {
-    class: 'marker-circle',
-    cx: 0,
-    cy: axisY - 80,
-    r: 9
-  });
-  const label = createSvgElement('text', {
-    class: 'marker-label',
-    x: 0,
-    y: axisY - 108
-  });
-  const valueLabel = createSvgElement('text', {
-    class: 'marker-value',
-    x: 0,
-    y: axisY - 90
-  });
-
-  label.textContent = task.label;
-  group.append(line, circle, label, valueLabel);
-
-  return group;
-}
-
-function updateMarkerElement(element, task) {
-  const line = element.querySelector('.marker-line');
-  const circle = element.querySelector('.marker-circle');
-  const label = element.querySelector('.marker-label');
-  const valueLabel = element.querySelector('.marker-value');
-
-  label.textContent = task.label;
-
-  const x = valueToSvgX(task.placedValue);
-  const minX = view.marginLeft;
-  const maxX = view.width - view.marginRight;
-  const clampedX = Math.max(minX, Math.min(maxX, x));
-  const outside = clampedX !== x;
-
-  element.setAttribute('transform', `translate(${clampedX}, 0)`);
-
-  line.setAttribute('x1', 0);
-  line.setAttribute('x2', 0);
-  line.setAttribute('y1', axisY);
-  line.setAttribute('y2', axisY - 80);
-
-  circle.setAttribute('cx', 0);
-  circle.setAttribute('cy', axisY - 80);
-
-  label.setAttribute('x', 0);
-  label.setAttribute('y', axisY - 108);
-
-  valueLabel.setAttribute('x', 0);
-  valueLabel.setAttribute('y', axisY - 90);
-  valueLabel.textContent = formatNumber(task.placedValue, 3);
-
+function updateMarkerStyles() {
+  if (!board) return;
   const tolerance = getTolerance();
-  const diff = Math.abs(task.placedValue - task.value);
-  const correct = diff <= tolerance;
+  board.suspendUpdate();
+  markerElements.forEach((marker, id) => {
+    const task = state.tasks.find(t => t.id === id);
+    if (task && typeof task.placedValue === 'number') {
+      updateMarkerAppearance(marker, task, tolerance);
+    }
+  });
+  board.unsuspendUpdate();
+}
 
-  element.classList.toggle('marker--correct', correct);
-  element.classList.toggle('marker--outside', outside);
+function createMarker(task) {
+  const x = clampToDomain(task.placedValue);
+  const point = board.create('point', [x, BOARD_VIEW.markerHeight], {
+    name: '',
+    withLabel: false,
+    size: 6,
+    face: 'circle',
+    strokeColor: '#ffffff',
+    strokeWidth: 2.4,
+    fillColor: COLORS.base,
+    fillOpacity: 1,
+    showInfobox: false,
+    fixed: false,
+    highlight: false,
+    elementClass: 'nl-marker',
+    slideObject: markerTrack
+  });
+
+  point.on('drag', () => handleMarkerDrag(task, point));
+  point.on('up', () => handleMarkerDrag(task, point));
+  point.on('down', () => {
+    state.activeTaskId = null;
+    updateBoardStatus();
+    updateTaskList();
+  });
+
+  const stem = board.create('segment', [
+    [() => point.X(), 0],
+    [() => point.X(), BOARD_VIEW.stemTop]
+  ], {
+    strokeColor: COLORS.base,
+    strokeWidth: 2,
+    fixed: true,
+    highlight: false
+  });
+
+  const label = board.create('text', [
+    () => point.X(),
+    BOARD_VIEW.labelY,
+    () => task.label
+  ], {
+    anchorX: 'middle',
+    anchorY: 'bottom',
+    fontSize: 13,
+    fixed: true,
+    highlight: false,
+    strokeColor: '#1f2937'
+  });
+
+  const valueText = board.create('text', [
+    () => point.X(),
+    BOARD_VIEW.valueLabelY,
+    () => formatNumber(task.placedValue, 3)
+  ], {
+    anchorX: 'middle',
+    anchorY: 'bottom',
+    fontSize: 12,
+    fixed: true,
+    highlight: false,
+    strokeColor: '#6b7280'
+  });
+
+  return { point, stem, label, valueText };
+}
+
+function handleMarkerDrag(task, point) {
+  if (!board) return;
+  const clampedX = clampToDomain(point.X());
+  task.placedValue = clampedX;
+  point.moveTo([clampedX, BOARD_VIEW.markerHeight], 0);
+  updateMarkerStyles();
+  updateTaskList();
+}
+
+function updateMarkerAppearance(marker, task, tolerance) {
+  const diff = Math.abs((task.placedValue ?? 0) - task.value);
+  const outside = task.placedValue < state.domainMin || task.placedValue > state.domainMax;
+  const correct = diff <= tolerance;
+  const color = outside ? COLORS.outside : correct ? COLORS.correct : COLORS.base;
+  marker.point.setAttribute({
+    fillColor: color,
+    highlightFillColor: color,
+    strokeColor: '#ffffff',
+    highlightStrokeColor: '#ffffff'
+  });
+  marker.stem.setAttribute({
+    strokeColor: outside ? COLORS.outside : correct ? COLORS.correct : COLORS.base
+  });
+}
+
+function removeMarker(id) {
+  const marker = markerElements.get(id);
+  if (!marker) return;
+  ['point', 'stem', 'label', 'valueText'].forEach(key => {
+    removeElement(marker[key]);
+  });
+  markerElements.delete(id);
 }
 
 function renderAnswers() {
-  answersGroup.replaceChildren();
+  if (!board) return;
+  answerElements.forEach(removeElement);
+  answerElements = [];
   if (!state.showAnswers) {
     answerLegend.hidden = true;
+    board.update();
     return;
   }
-
   answerLegend.hidden = false;
+  board.suspendUpdate();
   state.tasks.forEach(task => {
-    const x = valueToSvgX(task.value);
-    const minX = view.marginLeft;
-    const maxX = view.width - view.marginRight;
-    const clampedX = Math.max(minX, Math.min(maxX, x));
-
-    const group = createSvgElement('g', {
-      class: 'answer-marker',
-      transform: `translate(${clampedX}, ${axisY - 50})`
+    const answerPoint = board.create('point', [task.value, BOARD_VIEW.answerHeight], {
+      name: '',
+      withLabel: false,
+      size: 4,
+      strokeColor: 'rgba(16, 185, 129, 0.85)',
+      fillColor: 'rgba(16, 185, 129, 0.5)',
+      fillOpacity: 1,
+      fixed: true,
+      showInfobox: false,
+      highlight: false
     });
-
-    const circle = createSvgElement('circle', { cx: 0, cy: 0, r: 6 });
-    const label = createSvgElement('text', { x: 0, y: 18 });
-    label.textContent = task.label;
-
-    group.append(circle, label);
-    answersGroup.append(group);
+    const label = board.create('text', [
+      () => answerPoint.X(),
+      BOARD_VIEW.answerLabelY,
+      () => task.label
+    ], {
+      anchorX: 'middle',
+      anchorY: 'bottom',
+      fontSize: 11,
+      fixed: true,
+      strokeColor: '#0f172a'
+    });
+    answerElements.push(answerPoint, label);
   });
+  board.unsuspendUpdate();
+}
+
+function renderAxisTicks() {
+  if (!board) return;
+  axisElements.forEach(removeElement);
+  axisElements = [];
+  const ticks = generateTicks(state.domainMin, state.domainMax);
+  const span = state.domainMax - state.domainMin;
+  const decimals = determineDecimals(span);
+  board.suspendUpdate();
+  ticks.forEach(value => {
+    const grid = board.create('segment', [
+      [value, 0],
+      [value, BOARD_VIEW.top]
+    ], {
+      strokeColor: 'rgba(148, 163, 184, 0.35)',
+      strokeWidth: 1,
+      fixed: true,
+      highlight: false
+    });
+    const tick = board.create('segment', [
+      [value, 0],
+      [value, BOARD_VIEW.tickDown]
+    ], {
+      strokeColor: '#1f2937',
+      strokeWidth: 1.4,
+      fixed: true,
+      highlight: false
+    });
+    const label = board.create('text', [value, BOARD_VIEW.tickLabelY, formatNumber(value, decimals)], {
+      anchorX: 'middle',
+      anchorY: 'top',
+      fontSize: 12,
+      fixed: true,
+      strokeColor: '#334155'
+    });
+    axisElements.push(grid, tick, label);
+  });
+  board.unsuspendUpdate();
+}
+
+function removeElement(element) {
+  if (!element || !board) return;
+  try {
+    board.removeObject(element);
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function handleBoundingBoxChange() {
+  if (!board || skipBoundingBoxHandler) return;
+  const box = board.getBoundingBox();
+  if (!Array.isArray(box) || box.length !== 4) return;
+  const [min, top, max, bottom] = box;
+  state.domainMin = min;
+  state.domainMax = max;
+  const topDiffers = Math.abs(top - BOARD_VIEW.top) > 1e-6;
+  const bottomDiffers = Math.abs(bottom - BOARD_VIEW.bottom) > 1e-6;
+  if (topDiffers || bottomDiffers) {
+    skipBoundingBoxHandler = true;
+    board.setBoundingBox([state.domainMin, BOARD_VIEW.top, state.domainMax, BOARD_VIEW.bottom], true);
+    skipBoundingBoxHandler = false;
+  }
+  renderAxisTicks();
+  updateDomainInfo();
+  updateBoardStatus();
+  updateMarkerStyles();
+  updateTaskList();
+}
+
+function applyDomainToBoard() {
+  if (!board) return;
+  clampDomain();
+  skipBoundingBoxHandler = true;
+  board.setBoundingBox([state.domainMin, BOARD_VIEW.top, state.domainMax, BOARD_VIEW.bottom], true);
+  skipBoundingBoxHandler = false;
+  renderAxisTicks();
+  updateDomainInfo();
+  updateBoardStatus();
+  updateMarkerStyles();
+  updateTaskList();
 }
 
 function updateDomainInfo() {
+  if (!domainInfo) return;
   domainInfo.textContent = `${formatNumber(state.domainMin, 2)} – ${formatNumber(state.domainMax, 2)}`;
 }
 
 function updateBoardStatus() {
+  if (!boardContainer) return;
   const activeTask = getActiveTask();
   if (activeTask) {
-    svg.classList.add('is-placing');
+    boardContainer.classList.add('is-placing');
     boardStatus.innerHTML = `Klikk på tallinja for å plassere <strong>${activeTask.label}</strong>.`;
     return;
   }
-
-  svg.classList.remove('is-placing');
+  boardContainer.classList.remove('is-placing');
   const span = state.domainMax - state.domainMin;
-  boardStatus.innerHTML = `Dra for å flytte tallinja og bruk zoom-knappene for å utforske. Intervallbredde: <strong>${formatNumber(span, 2)}</strong>.`;
+  const panText = settings.panEnabled
+    ? 'Dra for å flytte tallinja'
+    : 'Panorering er slått av. Bruk knappene for å flytte tallinja';
+  const zoomText = settings.pinchZoomEnabled
+    ? ' og bruk zoom-knappene eller klyp for å zoome'
+    : ' og bruk zoom-knappene for å zoome';
+  boardStatus.innerHTML = `${panText}${zoomText}. Intervallbredde: <strong>${formatNumber(span, 2)}</strong>.`;
 }
 
 function updateTaskList() {
+  if (!taskList) return;
   taskList.replaceChildren();
   const tolerance = getTolerance();
-
   state.tasks.forEach(task => {
     const item = document.createElement('div');
     item.className = 'task';
@@ -459,6 +605,7 @@ function updateTaskList() {
 
 function zoomAt(factor, anchorValue) {
   const span = state.domainMax - state.domainMin;
+  if (!(span > 0)) return;
   const newSpan = Math.min(Math.max(span * factor, MIN_SPAN), MAX_SPAN);
   const ratio = newSpan / span;
   const center = anchorValue != null ? anchorValue : (state.domainMin + state.domainMax) / 2;
@@ -467,7 +614,7 @@ function zoomAt(factor, anchorValue) {
   state.domainMin = center - minOffset * ratio;
   state.domainMax = center + maxOffset * ratio;
   clampDomain();
-  renderAll();
+  applyDomainToBoard();
 }
 
 function clampDomain() {
@@ -486,29 +633,6 @@ function clampDomain() {
 function getTolerance() {
   const span = state.domainMax - state.domainMin;
   return Math.max(BASE_TOLERANCE, span / RELATIVE_TOLERANCE_FACTOR);
-}
-
-function getSvgPoint(event) {
-  const point = svg.createSVGPoint();
-  point.x = event.clientX;
-  point.y = event.clientY;
-  const ctm = svg.getScreenCTM();
-  if (!ctm) return { x: 0, y: 0 };
-  const inverted = ctm.inverse();
-  const svgPoint = point.matrixTransform(inverted);
-  return svgPoint;
-}
-
-function valueToSvgX(value) {
-  const span = state.domainMax - state.domainMin;
-  if (span === 0) return view.marginLeft;
-  return view.marginLeft + ((value - state.domainMin) / span) * innerWidth;
-}
-
-function svgXToValue(x) {
-  const span = state.domainMax - state.domainMin;
-  if (span === 0) return state.domainMin;
-  return state.domainMin + ((x - view.marginLeft) / innerWidth) * span;
 }
 
 function clampToDomain(value) {
@@ -547,7 +671,6 @@ function generateTicks(min, max) {
   const targetCount = 8;
   const step = niceStep(span / targetCount);
   if (!Number.isFinite(step) || step <= 0) return [];
-
   const start = Math.ceil(min / step) * step;
   const ticks = [];
   for (let value = start; value <= max + step * 0.5 && ticks.length < 200; value += step) {
@@ -574,50 +697,4 @@ function getActiveTask() {
   return state.tasks.find(task => task.id === state.activeTaskId) ?? null;
 }
 
-zoomInBtn.addEventListener('click', () => zoomAt(0.7));
-zoomOutBtn.addEventListener('click', () => zoomAt(1.4));
-zoomResetBtn.addEventListener('click', () => {
-  state.domainMin = state.initialDomain.min;
-  state.domainMax = state.initialDomain.max;
-  clampDomain();
-  renderAll();
-});
-
-panLeftBtn.addEventListener('click', () => {
-  const span = state.domainMax - state.domainMin;
-  const shift = span * 0.2;
-  state.domainMin -= shift;
-  state.domainMax -= shift;
-  renderAll();
-});
-
-panRightBtn.addEventListener('click', () => {
-  const span = state.domainMax - state.domainMin;
-  const shift = span * 0.2;
-  state.domainMin += shift;
-  state.domainMax += shift;
-  renderAll();
-});
-
-toggleAnswersBtn.addEventListener('click', () => {
-  state.showAnswers = !state.showAnswers;
-  toggleAnswersBtn.textContent = state.showAnswers ? 'Skjul fasit' : 'Vis fasit';
-  renderAnswers();
-});
-
-resetPlacementsBtn.addEventListener('click', () => {
-  state.tasks.forEach(task => {
-    task.placedValue = null;
-  });
-  state.activeTaskId = null;
-  updateBoardStatus();
-  renderMarkers();
-  updateTaskList();
-  renderAnswers();
-});
-
-window.addEventListener('resize', () => {
-  renderAll();
-});
-
-renderAll();
+initialize();
