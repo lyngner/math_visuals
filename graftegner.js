@@ -2843,7 +2843,9 @@ function setupSettingsForm() {
     const value = getFirstFunctionValue();
     if (!value) return false;
     if (isCoords(value)) return false;
-    return isExplicitFun(value);
+    if (isExplicitFun(value)) return true;
+    const forced = determineForcedGliderCount(value);
+    return forced != null && forced > 0;
   };
   const hasConfiguredPoints = () => {
     const parsedMode = SIMPLE_PARSED ? decideMode(SIMPLE_PARSED) : 'functions';
