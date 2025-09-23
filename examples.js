@@ -1028,6 +1028,44 @@
     if (typeof collected.description === 'string' && collected.description.trim()) {
       hardcoded.description = collected.description.trim();
     }
+    const examples = getExamples();
+    const wasEmpty = examples.length === 0;
+    const storedExample = {
+      config: {},
+      svg: typeof hardcoded.svg === 'string' ? hardcoded.svg : '',
+      description: typeof hardcoded.description === 'string' ? hardcoded.description : ''
+    };
+    for (const name of BINDING_NAMES) {
+      if (Object.prototype.hasOwnProperty.call(hardcoded.config, name)) {
+        storedExample.config[name] = cloneValue(hardcoded.config[name]);
+      }
+    }
+    if (exampleNumber) {
+      storedExample.exampleNumber = exampleNumber;
+    }
+    if (exampleTitle) {
+      storedExample.title = exampleTitle;
+    }
+    let newIndex = examples.length;
+    if (markDefault) {
+      examples.forEach(existing => {
+        if (!existing || typeof existing !== 'object') return;
+        if (Object.prototype.hasOwnProperty.call(existing, 'isDefault')) {
+          delete existing.isDefault;
+        }
+      });
+      storedExample.isDefault = true;
+      examples.unshift(storedExample);
+      newIndex = 0;
+    } else {
+      if (wasEmpty) {
+        storedExample.isDefault = true;
+      }
+      newIndex = examples.push(storedExample) - 1;
+    }
+    store(examples);
+    currentExampleIndex = newIndex;
+    renderOptions();
     const exportText = JSON.stringify(hardcoded, null, 2);
     let copied = false;
     if (typeof navigator !== 'undefined' && navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
@@ -1039,7 +1077,7 @@
       }
     }
     if (copied) {
-      alert('Hardkodet eksempel kopiert til utklippstavlen.');
+      alert('Hardkodet eksempel kopiert til utklippstavlen og lagt til i eksempellisten.');
       return;
     }
     try {
@@ -1063,10 +1101,10 @@
           URL.revokeObjectURL(url);
         } catch (_) {}
       }, 0);
-      alert('Kunne ikke kopiere til utklippstavlen. Lastet ned en fil i stedet.');
+      alert('Kunne ikke kopiere til utklippstavlen. Eksemplet er lagt til i eksempellisten og ble lastet ned som fil i stedet.');
     } catch (error) {
       console.error('Failed to export hardcoded example', error);
-      alert('Kunne verken kopiere til utklippstavlen eller laste ned filen. Se konsollen for detaljer.');
+      alert('Kunne verken kopiere til utklippstavlen eller laste ned filen. Eksemplet er likevel lagt til i eksempellisten. Se konsollen for detaljer.');
     }
   });
   renderOptions();
