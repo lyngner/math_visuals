@@ -71,6 +71,11 @@
   gap: 8px;
 }
 
+.card--settings .settings-divider,
+.card[data-card="settings"] .settings-divider {
+  height: 10px;
+}
+
 .card--settings input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
 .card--settings select,
 .card--settings textarea,
