@@ -1949,6 +1949,11 @@
     if (!expressionDisplay) {
       return;
     }
+    if (Array.isArray(state.signRows) && state.signRows.length > 0) {
+      expressionDisplay.textContent = '';
+      expressionDisplay.classList.add('chart-expression--empty');
+      return;
+    }
     const expr = typeof state.expression === 'string' ? state.expression.trim() : '';
     if (!expr) {
       expressionDisplay.textContent = '';
