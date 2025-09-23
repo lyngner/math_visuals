@@ -208,8 +208,64 @@ function parseSimple(txt) {
     const cleaned = dom.trim();
     if (!cleaned) return null;
     if (/^r$/i.test(cleaned) || /^ℝ$/i.test(cleaned)) return null;
-    const dm = cleaned.match(/^\[\s*([+-]?\d*\.?\d+)\s*,\s*([+-]?\d*\.?\d+)\s*\]$/i);
-    return dm ? [+dm[1], +dm[2]] : null;
+    const normalizeNumeric = str => {
+      if (!str) return '';
+      const replacedMinus = str.replace(/−/g, '-');
+      let out = '';
+      for (let i = 0; i < replacedMinus.length; i++) {
+        const ch = replacedMinus[i];
+        const prev = i > 0 ? replacedMinus[i - 1] : '';
+        const next = i < replacedMinus.length - 1 ? replacedMinus[i + 1] : '';
+        if (ch === ',' && /\d/.test(prev) && /\d/.test(next)) {
+          out += '.';
+        } else if (!/\s/.test(ch)) {
+          out += ch;
+        }
+      }
+      return out;
+    };
+    const parseNumberLike = str => {
+      const normalized = normalizeNumeric(str);
+      if (!normalized) return null;
+      const num = Number.parseFloat(normalized);
+      return Number.isFinite(num) ? num : null;
+    };
+    const normalized = cleaned.replace(/[⟨〈]/g, '<').replace(/[⟩〉]/g, '>').replace(/≤/g, '<=').replace(/≥/g, '>=').replace(/−/g, '-');
+    const start = normalized[0];
+    const end = normalized[normalized.length - 1];
+    const isBracketStart = ['[', '<', '('].includes(start);
+    const isBracketEnd = [']', '>', ')'].includes(end);
+    if (isBracketStart && isBracketEnd) {
+      const inner = normalized.slice(1, -1);
+      const nums = inner.match(/[+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+)/g);
+      if (nums && nums.length === 2) {
+        const a = parseNumberLike(nums[0]);
+        const b = parseNumberLike(nums[1]);
+        if (a != null && b != null && b >= a) {
+          return {
+            min: a,
+            max: b,
+            leftClosed: start === '[',
+            rightClosed: end === ']'
+          };
+        }
+      }
+      return null;
+    }
+    const inequality = normalized.match(/^([+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+))\s*(<=|<)\s*[xX]\s*(<=|<)\s*([+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+))$/);
+    if (inequality) {
+      const a = parseNumberLike(inequality[1]);
+      const b = parseNumberLike(inequality[4]);
+      if (a != null && b != null && b >= a) {
+        return {
+          min: a,
+          max: b,
+          leftClosed: inequality[2] === '<=',
+          rightClosed: inequality[3] === '<='
+        };
+      }
+    }
+    return null;
   };
   const parseFunctionLine = line => {
     const eqIdx = line.indexOf('=');
@@ -504,6 +560,8 @@ function sampleFeatures(fn, a, b, opts = {}) {
   var _ADV$asymptote$trimY2, _ADV$asymptote;
   const {
     includeEndVals = false,
+    includeLeftEnd = includeEndVals,
+    includeRightEnd = includeEndVals,
     detectAsymptotes = true,
     N = 1000
   } = opts;
@@ -579,7 +637,7 @@ function sampleFeatures(fn, a, b, opts = {}) {
 
   // endepunkter
   let endVals = [];
-  if (includeEndVals) {
+  if (includeLeftEnd) {
     try {
       const ya = fn(a);
       if (Number.isFinite(ya)) endVals.push({
@@ -587,6 +645,8 @@ function sampleFeatures(fn, a, b, opts = {}) {
         y: ya
       });
     } catch (_) {}
+  }
+  if (includeRightEnd) {
     try {
       const yb = fn(b);
       if (Number.isFinite(yb)) endVals.push({
@@ -636,15 +696,16 @@ function computeAutoScreenFunctions() {
     const fn = parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
     if (f.domain) {
       anyDom = true;
-      domMin = Math.min(domMin, f.domain[0]);
-      domMax = Math.max(domMax, f.domain[1]);
+      domMin = Math.min(domMin, f.domain.min);
+      domMax = Math.max(domMax, f.domain.max);
       feats.push({
         hasDom: true,
         fn,
-        a: f.domain[0],
-        b: f.domain[1],
-        ...sampleFeatures(fn, f.domain[0], f.domain[1], {
-          includeEndVals: true
+        a: f.domain.min,
+        b: f.domain.max,
+        ...sampleFeatures(fn, f.domain.min, f.domain.max, {
+          includeLeftEnd: !!f.domain.leftClosed,
+          includeRightEnd: !!f.domain.rightClosed
         })
       });
     } else {
@@ -1384,14 +1445,16 @@ function rebuildFunctionSegmentsFor(g) {
   const bb = brd.getBoundingBox();
   let L = bb[0],
     R = bb[2];
-  if (g.domain && g.domain.length === 2) {
-    L = Math.max(L, g.domain[0]);
-    R = Math.min(R, g.domain[1]);
+  if (g.domain && Number.isFinite(g.domain.min) && Number.isFinite(g.domain.max)) {
+    L = Math.max(L, g.domain.min);
+    R = Math.min(R, g.domain.max);
   }
   if (!(R > L)) return;
   const vas = ADV.asymptote.detect && ADV.asymptote.showVertical ? detectVerticalAsymptotes(g.fn, L, R, 1000, ADV.asymptote.hugeY) : [];
   const xs = [L, ...vas.filter(x => x > L && x < R), R].sort((a, b) => a - b);
   const eps = (R - L) * 1e-6;
+  const leftDomainOpen = !!(g.domain && !g.domain.leftClosed);
+  const rightDomainOpen = !!(g.domain && !g.domain.rightClosed);
   const safe = x => {
     try {
       const y = g.fn(x);
@@ -1404,8 +1467,8 @@ function rebuildFunctionSegmentsFor(g) {
   for (let i = 0; i < xs.length - 1; i++) {
     let a = xs[i],
       b = xs[i + 1];
-    const leftOpen = i > 0;
-    const rightOpen = i < xs.length - 2;
+    const leftOpen = i > 0 || (i === 0 && leftDomainOpen);
+    const rightOpen = i < xs.length - 2 || (i === xs.length - 2 && rightDomainOpen);
     if (leftOpen) a += eps;
     if (rightOpen) b -= eps;
     if (b <= a) continue;
@@ -1732,8 +1795,8 @@ function makeSmartCurveLabel(g, idx, content) {
       xmax = bb[2],
       ymin = bb[3],
       ymax = bb[1];
-    const a = g.domain ? g.domain[0] : xmin,
-      b = g.domain ? g.domain[1] : xmax;
+    const a = g.domain ? g.domain.min : xmin,
+      b = g.domain ? g.domain.max : xmax;
     const L = Math.max(a, xmin),
       R = Math.min(b, xmax);
     if (!(R > L)) return;
@@ -1784,13 +1847,14 @@ function makeSmartCurveLabel(g, idx, content) {
   brd.on('boundingbox', position);
   makeLabelDraggable(label, g, position);
 }
-function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */) {
+function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, closed) {
   g._br = g._br || {};
   if (g._br[side]) {
     g._br[side].forEach(o => brd.removeObject(o));
     g._br[side] = null;
   }
   if (!g.domain || !ADV.domainMarkers.show) return;
+  if (!Number.isFinite(x0)) return;
   const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
   const rx = (xmax - xmin) / brd.canvasWidth;
   const ry = (ymax - ymin) / brd.canvasHeight;
@@ -1841,20 +1905,30 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */) {
     highlight: false,
     layer: ADV.domainMarkers.layer
   };
-  const back = brd.create('segment', [A, B], style);
-
-  // caps peker innover: retning = -side * t
   const [ux, uy] = px2world(tx, ty, CAP);
   const dir = -side;
-  const cap1 = brd.create('segment', [A, [A[0] + dir * ux, A[1] + dir * uy]], style);
-  const cap2 = brd.create('segment', [B, [B[0] + dir * ux, B[1] + dir * uy]], style);
-  g._br[side] = [back, cap1, cap2];
+  const segments = [];
+  if (closed) {
+    const back = brd.create('segment', [A, B], style);
+    const cap1 = brd.create('segment', [A, [A[0] + dir * ux, A[1] + dir * uy]], style);
+    const cap2 = brd.create('segment', [B, [B[0] + dir * ux, B[1] + dir * uy]], style);
+    segments.push(back, cap1, cap2);
+  } else {
+    const tip = [xS + dir * ux, yS + dir * uy];
+    segments.push(brd.create('segment', [A, tip], style));
+    segments.push(brd.create('segment', [B, tip], style));
+  }
+  g._br[side] = segments;
 }
 function updateAllBrackets() {
   for (const g of graphs) {
     if (!g.domain) continue;
-    makeBracketAt(g, g.domain[0], -1);
-    makeBracketAt(g, g.domain[1], +1);
+    if (Number.isFinite(g.domain.min)) {
+      makeBracketAt(g, g.domain.min, -1, !!g.domain.leftClosed);
+    }
+    if (Number.isFinite(g.domain.max)) {
+      makeBracketAt(g, g.domain.max, +1, !!g.domain.rightClosed);
+    }
   }
 }
 function buildCurveLabelContent(fun) {
@@ -1917,8 +1991,8 @@ function buildFunctions() {
     g.segs = [];
 
     // usynlig "carrier" for glidere – VIKTIG: STRAMT TIL DOMENET
-    const xMinCarrier = g.domain ? g.domain[0] : () => brd.getBoundingBox()[0];
-    const xMaxCarrier = g.domain ? g.domain[1] : () => brd.getBoundingBox()[2];
+    const xMinCarrier = g.domain ? g.domain.min : () => brd.getBoundingBox()[0];
+    const xMaxCarrier = g.domain ? g.domain.max : () => brd.getBoundingBox()[2];
     g.carrier = brd.create('functiongraph', [g.fn, xMinCarrier, xMaxCarrier], {
       visible: false,
       strokeOpacity: 0,
@@ -1940,7 +2014,7 @@ function buildFunctions() {
     function stepXg() {
       return (ADV.points.snap.stepX != null ? ADV.points.snap.stepX : +ADV.axis.grid.majorX) || 1;
     }
-    const clampToDomain = x => G.domain ? Math.min(G.domain[1], Math.max(G.domain[0], x)) : x;
+    const clampToDomain = x => G.domain ? Math.min(G.domain.max, Math.max(G.domain.min, x)) : x;
     const applySnap = P => {
       const xs = clampToDomain(Math.round(P.X() / stepXg()) * stepXg());
       P.moveTo([xs, G.fn(xs)]);
