@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Tallinje</title>
   <link rel="stylesheet" href="base.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraph.css" />
+  <script src="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraphcore.js"></script>
   <style>
     :root { --gap: 18px; }
     html, body { height: 100%; }
@@ -51,18 +53,20 @@
       background: #f9fafc;
       padding: 8px;
     }
-    #numberLine {
+    #numberLineBoard {
       width: 100%;
       height: clamp(320px, 55vh, 480px);
       display: block;
-      touch-action: none;
       background: #fff;
       border-radius: 10px;
       box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
       cursor: grab;
+      touch-action: none;
     }
-    #numberLine.is-panning { cursor: grabbing; }
-    #numberLine.is-placing { cursor: crosshair; }
+    #numberLineBoard.is-placing { cursor: crosshair; }
+    #numberLineBoard.is-panning { cursor: grabbing; }
+    #numberLineBoard.jxgbox { border: none; }
+    #numberLineBoard .JXGtext { pointer-events: none; font-family: inherit; }
     .toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -197,67 +201,17 @@
       color: #6b7280;
       line-height: 1.6;
     }
-    .markers g {
-      pointer-events: auto;
-      cursor: grab;
-    }
-    .markers g.is-dragging { cursor: grabbing; }
-    .marker-label {
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       font-size: 13px;
-      font-weight: 600;
-      text-anchor: middle;
-      dominant-baseline: central;
-      fill: #1f2937;
+      color: #4b5563;
     }
-    .marker-value {
-      font-size: 12px;
-      text-anchor: middle;
-      dominant-baseline: central;
-      fill: #6b7280;
-    }
-    .marker-line {
-      stroke: #0f6d8f;
-      stroke-width: 2;
-    }
-    .marker-circle {
-      fill: #0f6d8f;
-      stroke: #fff;
-      stroke-width: 2.2;
-    }
-    .marker--correct .marker-circle {
-      fill: #10b981;
-    }
-    .marker--outside .marker-circle {
-      fill: #f97316;
-    }
-    .answer-marker circle {
-      fill: rgba(16, 185, 129, 0.5);
-      stroke: rgba(16, 185, 129, 0.9);
-      stroke-width: 1.5;
-    }
-    .answer-marker text {
-      font-size: 11px;
-      fill: #0f172a;
-      text-anchor: middle;
-    }
-    .answers-layer { pointer-events: none; }
-    .axis-line {
-      stroke: #1f2937;
-      stroke-width: 2;
-    }
-    .grid-line {
-      stroke: rgba(148, 163, 184, 0.35);
-      stroke-width: 1;
-    }
-    .tick-line {
-      stroke: #1f2937;
-      stroke-width: 1.4;
-    }
-    .tick-label {
-      font-size: 12px;
-      fill: #334155;
-      text-anchor: middle;
-      dominant-baseline: hanging;
+    .toggle input {
+      width: 16px;
+      height: 16px;
+      accent-color: #0f6d8f;
     }
   </style>
 </head>
@@ -276,6 +230,10 @@
             <button class="btn" type="button" id="panLeft">Flytt venstre</button>
             <button class="btn" type="button" id="panRight">Flytt høyre</button>
           </div>
+          <div class="toolbar-group" role="group" aria-label="Innstillinger for interaksjon">
+            <label class="toggle"><input type="checkbox" id="togglePan" checked />Panorering</label>
+            <label class="toggle"><input type="checkbox" id="togglePinch" checked />Zoom (klype)</label>
+          </div>
           <div class="domain-label">
             Nåværende intervall: <span id="domainInfo"></span>
           </div>
@@ -284,7 +242,7 @@
         <div class="legend" aria-hidden="true">Plasserte tall</div>
         <div class="legend legend--answer" aria-hidden="true" id="answerLegend" hidden>Fasit</div>
         <div class="figure">
-          <svg id="numberLine" viewBox="0 0 920 320" preserveAspectRatio="xMidYMid meet" aria-label="Tallinje"></svg>
+          <div id="numberLineBoard" aria-label="Tallinje"></div>
         </div>
       </div>
 
