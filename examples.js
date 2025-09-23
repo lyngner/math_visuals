@@ -108,6 +108,33 @@
       ensureFallbackStorage().removeItem(key);
     }
   }
+  async function copyTextToClipboard(text) {
+    if (typeof text !== 'string') return false;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (error) {}
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.top = '-1000px';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      let copied = false;
+      if (typeof document.execCommand === 'function') {
+        copied = document.execCommand('copy');
+      }
+      document.body.removeChild(textarea);
+      return !!copied;
+    } catch (error) {}
+    return false;
+  }
   if (globalScope && !globalScope.__EXAMPLES_STORAGE__) {
     try {
       if (typeof localStorage !== 'undefined') {
@@ -874,9 +901,20 @@
     const ex = collectConfig();
     examples.push(ex);
     store(examples);
+    let clipboardCopied = false;
+    try {
+      const serialized = JSON.stringify(examples);
+      if (serialized) {
+        clipboardCopied = await copyTextToClipboard(serialized);
+      }
+    } catch (error) {}
     currentExampleIndex = examples.length - 1;
     renderOptions();
-    alert('Eksempel lagret');
+    if (clipboardCopied) {
+      alert('Eksempel lagret. JSON-strengen ble kopiert til utklipp.');
+    } else {
+      alert('Eksempel lagret. Klarte ikke å kopiere JSON til utklipp automatisk.');
+    }
 
     // Also offer download of the example as a JS file
     try {
