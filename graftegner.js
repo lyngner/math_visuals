@@ -2436,6 +2436,281 @@ function setupSettingsForm() {
   let gliderStartLabel = null;
   let glidersVisible = false;
   let forcedGliderCount = null;
+  const MATHFIELD_TAG = 'MATH-FIELD';
+  const COMMAND_NAME_MAP = {
+    cdot: '*',
+    times: '*',
+    div: '/',
+    pm: '+/-',
+    minus: '-',
+    pi: 'pi',
+    tau: 'tau',
+    theta: 'theta',
+    alpha: 'alpha',
+    beta: 'beta',
+    gamma: 'gamma',
+    phi: 'phi',
+    degree: 'deg',
+    log: 'log',
+    ln: 'ln',
+    sin: 'sin',
+    cos: 'cos',
+    tan: 'tan',
+    asin: 'asin',
+    acos: 'acos',
+    atan: 'atan',
+    sinh: 'sinh',
+    cosh: 'cosh',
+    tanh: 'tanh',
+    exp: 'exp',
+    abs: 'abs',
+    max: 'max',
+    min: 'min',
+    floor: 'floor',
+    ceil: 'ceil',
+    round: 'round'
+  };
+  const tryGetMathFieldValue = (field, format) => {
+    if (!field || typeof field.getValue !== 'function') return '';
+    try {
+      const value = field.getValue(format);
+      return typeof value === 'string' ? value : '';
+    } catch (_) {
+      return '';
+    }
+  };
+  const readGroup = (str, startIdx) => {
+    if (typeof str !== 'string' || startIdx == null || startIdx < 0 || startIdx >= str.length) {
+      return ['', typeof startIdx === 'number' ? startIdx : 0];
+    }
+    if (str[startIdx] !== '{') {
+      return ['', startIdx];
+    }
+    let depth = 0;
+    for (let i = startIdx + 1; i < str.length; i++) {
+      const ch = str[i];
+      if (ch === '{') {
+        depth++;
+        continue;
+      }
+      if (ch === '}') {
+        if (depth === 0) {
+          return [str.slice(startIdx + 1, i), i + 1];
+        }
+        depth--;
+      }
+    }
+    return [str.slice(startIdx + 1), str.length];
+  };
+  const replaceLatexFractions = str => {
+    if (typeof str !== 'string' || !str.includes('\\frac')) {
+      return typeof str === 'string' ? str : '';
+    }
+    let out = '';
+    let idx = 0;
+    while (idx < str.length) {
+      const start = str.indexOf('\\frac', idx);
+      if (start === -1) {
+        out += str.slice(idx);
+        break;
+      }
+      out += str.slice(idx, start);
+      let pos = start + 5;
+      while (pos < str.length && /\s/.test(str[pos])) pos++;
+      let numerator = '';
+      let denominator = '';
+      if (pos < str.length && str[pos] === '{') {
+        const group = readGroup(str, pos);
+        numerator = replaceLatexFractions(group[0]);
+        pos = group[1];
+      }
+      while (pos < str.length && /\s/.test(str[pos])) pos++;
+      if (pos < str.length && str[pos] === '{') {
+        const group = readGroup(str, pos);
+        denominator = replaceLatexFractions(group[0]);
+        pos = group[1];
+      }
+      out += `(${numerator})/(${denominator})`;
+      idx = pos;
+    }
+    return out;
+  };
+  const replaceLatexSqrt = str => {
+    if (typeof str !== 'string' || !str.includes('\\sqrt')) {
+      return typeof str === 'string' ? str : '';
+    }
+    let out = '';
+    let idx = 0;
+    while (idx < str.length) {
+      const start = str.indexOf('\\sqrt', idx);
+      if (start === -1) {
+        out += str.slice(idx);
+        break;
+      }
+      out += str.slice(idx, start);
+      let pos = start + 5;
+      while (pos < str.length && /\s/.test(str[pos])) pos++;
+      let radicand = '';
+      if (pos < str.length && str[pos] === '{') {
+        const group = readGroup(str, pos);
+        radicand = replaceLatexSqrt(replaceLatexFractions(group[0]));
+        pos = group[1];
+      }
+      out += `sqrt(${radicand})`;
+      idx = pos;
+    }
+    return out;
+  };
+  const convertLatexLikeToPlain = latex => {
+    if (typeof latex !== 'string') return '';
+    let str = latex;
+    str = str.replace(/\\left|\\right/g, '');
+    str = str.replace(/\\!/g, '');
+    str = str.replace(/\\,/g, '');
+    str = str.replace(/\\;/g, ' ');
+    str = str.replace(/~|\\:/g, ' ');
+    str = str.replace(/\\\\/g, '\n');
+    str = replaceLatexFractions(str);
+    str = replaceLatexSqrt(str);
+    str = str.replace(/\\operatorname\{([^{}]+)\}/gi, '$1');
+    str = str.replace(/\\([a-zA-Z]+)\b/g, (match, name) => {
+      const key = name.toLowerCase();
+      return COMMAND_NAME_MAP[key] != null ? COMMAND_NAME_MAP[key] : name;
+    });
+    str = str.replace(/\\([a-zA-Z]+)/g, (match, name) => {
+      const key = name.toLowerCase();
+      return COMMAND_NAME_MAP[key] != null ? COMMAND_NAME_MAP[key] : name;
+    });
+    str = str.replace(/\\([{}])/g, '$1');
+    str = str.replace(/\\%/g, '%');
+    str = str.replace(/\\#/g, '#');
+    str = str.replace(/\\&/g, '&');
+    str = str.replace(/\\_/g, '_');
+    str = str.replace(/\\\^/g, '^');
+    str = str.replace(/\^\{([^{}]+)\}/g, '^($1)');
+    str = str.replace(/_\{([^{}]+)\}/g, '_($1)');
+    str = str.replace(/\^\(([^()]+)\)/g, '^$1');
+    str = str.replace(/_\(([^()]+)\)/g, '_$1');
+    str = str.replace(/[{}]/g, '');
+    return str;
+  };
+  const replaceAsciiFractions = str => {
+    if (typeof str !== 'string' || !str.toLowerCase().includes('frac(')) {
+      return typeof str === 'string' ? str : '';
+    }
+    let out = str;
+    let idx = out.toLowerCase().indexOf('frac(');
+    while (idx !== -1) {
+      let pos = idx + 5;
+      let depth = 0;
+      let comma = -1;
+      for (let i = pos; i < out.length; i++) {
+        const ch = out[i];
+        if (ch === '(') {
+          depth++;
+        } else if (ch === ')') {
+          if (depth === 0) break;
+          depth--;
+        } else if (ch === ',' && depth === 0) {
+          comma = i;
+          break;
+        }
+      }
+      if (comma === -1) break;
+      depth = 0;
+      let end = -1;
+      for (let i = comma + 1; i < out.length; i++) {
+        const ch = out[i];
+        if (ch === '(') {
+          depth++;
+        } else if (ch === ')') {
+          if (depth === 0) {
+            end = i;
+            break;
+          }
+          depth--;
+        }
+      }
+      if (end === -1) break;
+      const numerator = replaceAsciiFractions(out.slice(idx + 5, comma).trim());
+      const denominator = replaceAsciiFractions(out.slice(comma + 1, end).trim());
+      out = `${out.slice(0, idx)}(${numerator})/(${denominator})${out.slice(end + 1)}`;
+      idx = out.toLowerCase().indexOf('frac(');
+    }
+    return out;
+  };
+  const convertAsciiMathLikeToPlain = ascii => {
+    if (typeof ascii !== 'string') return '';
+    let str = ascii;
+    str = replaceAsciiFractions(str);
+    str = str.replace(/·|⋅/g, '*');
+    str = str.replace(/÷/g, '/');
+    str = str.replace(/−/g, '-');
+    str = str.replace(/\*\*/g, '^');
+    str = str.replace(/\bsqrt\s*\(/gi, 'sqrt(');
+    str = str.replace(/\bpi\b/gi, 'pi');
+    str = str.replace(/\btau\b/gi, 'tau');
+    return str;
+  };
+  const normalizePlainExpression = value => {
+    if (value == null) return '';
+    const raw = collapseExpressionWhitespace(String(value));
+    if (!raw) return '';
+    if (raw.includes('\\')) {
+      return collapseExpressionWhitespace(convertLatexLikeToPlain(raw));
+    }
+    return collapseExpressionWhitespace(convertAsciiMathLikeToPlain(raw));
+  };
+  const getFunctionInputValue = element => {
+    if (!element) return '';
+    const tag = element.tagName ? element.tagName.toUpperCase() : '';
+    if (tag === MATHFIELD_TAG) {
+      let plain = tryGetMathFieldValue(element, 'ascii-math');
+      if (!plain) {
+        plain = tryGetMathFieldValue(element, 'ASCIIMath');
+      }
+      if (!plain) {
+        plain = tryGetMathFieldValue(element, 'latex');
+        if (plain) {
+          plain = convertLatexLikeToPlain(plain);
+        }
+      }
+      if (!plain && typeof element.value === 'string') {
+        plain = element.value;
+      }
+      return normalizePlainExpression(plain);
+    }
+    const val = element.value != null ? element.value : '';
+    return normalizePlainExpression(val);
+  };
+  const ensureMathFieldOptions = field => {
+    if (field && typeof field.setOptions === 'function') {
+      field.setOptions({
+        smartMode: false,
+        virtualKeyboardMode: 'manual'
+      });
+    }
+  };
+  const setFunctionInputValue = (element, value) => {
+    if (!element) return;
+    const str = value != null ? String(value) : '';
+    const tag = element.tagName ? element.tagName.toUpperCase() : '';
+    if (tag === MATHFIELD_TAG) {
+      ensureMathFieldOptions(element);
+      if (typeof element.setValue === 'function') {
+        try {
+          element.setValue(str, { format: 'ascii-math' });
+          return;
+        } catch (_) {
+          // fall back to latex
+        }
+      }
+      const latex = convertExpressionToLatex(str);
+      element.value = latex;
+      return;
+    }
+    element.value = str;
+  };
   const isCoords = str => /^\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?)(?:\s*;\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?))*\s*$/.test(str);
   const isExplicitFun = str => {
     const m = str.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/) || str.match(/^y\s*=\s*(.+)$/i);
@@ -2446,8 +2721,8 @@ function setupSettingsForm() {
   const getFirstFunctionValue = () => {
     if (!funcRows) return '';
     const firstGroup = funcRows.querySelector('.func-group');
-    const firstRowInput = firstGroup ? firstGroup.querySelector('input[data-fun]') : null;
-    return firstRowInput ? firstRowInput.value.trim() : '';
+    const firstRowInput = firstGroup ? firstGroup.querySelector('[data-fun]') : null;
+    return firstRowInput ? getFunctionInputValue(firstRowInput) : '';
   };
   const determineForcedGliderCount = value => {
     if (!value) return null;
@@ -2520,7 +2795,7 @@ function setupSettingsForm() {
     if (!host) return;
     const preview = host.querySelector('[data-preview]');
     if (!preview) return;
-    const raw = input.value != null ? String(input.value) : '';
+    const raw = getFunctionInputValue(input);
     const latex = convertExpressionToLatex(raw);
     const html = latex ? renderLatexToHtml(latex) : '';
     const plain = normalizeExpressionText(raw);
@@ -2547,7 +2822,7 @@ function setupSettingsForm() {
   };
   const updateAllFunctionPreviews = () => {
     if (!funcRows) return;
-    const inputs = funcRows.querySelectorAll('input[data-fun]');
+    const inputs = funcRows.querySelectorAll('[data-fun]');
     inputs.forEach(input => updateFunctionPreview(input));
   };
   const updateStartInputState = () => {
@@ -2598,14 +2873,15 @@ function setupSettingsForm() {
   const buildSimpleFromForm = () => {
     var _rows$;
     const rows = funcRows ? Array.from(funcRows.querySelectorAll('.func-group')) : [];
-    const firstVal = ((_rows$ = rows[0]) === null || _rows$ === void 0 || (_rows$ = _rows$.querySelector('input[data-fun]')) === null || _rows$ === void 0 ? void 0 : _rows$.value.trim()) || '';
+    const firstInput = (_rows$ = rows[0]) === null || _rows$ === void 0 ? void 0 : _rows$.querySelector('[data-fun]');
+    const firstVal = firstInput ? getFunctionInputValue(firstInput) : '';
     const firstIsCoords = !!firstVal && isCoords(firstVal);
     const lines = [];
     rows.forEach((row, idx) => {
-      const funInput = row.querySelector('input[data-fun]');
+      const funInput = row.querySelector('[data-fun]');
       const domInput = row.querySelector('input[data-dom]');
       if (!funInput) return;
-      const fun = funInput.value.trim();
+      const fun = getFunctionInputValue(funInput);
       if (!fun) return;
       if (idx === 0 && firstIsCoords) {
         lines.push(`coords=${fun}`);
@@ -2667,7 +2943,7 @@ function setupSettingsForm() {
     const row = input.closest('.func-group');
     if (!row) return;
     const domLabel = row.querySelector('label.domain');
-    if (isExplicitFun(input.value.trim())) {
+    if (isExplicitFun(getFunctionInputValue(input))) {
       if (domLabel) domLabel.style.display = '';
     } else {
       if (domLabel) {
@@ -2690,7 +2966,9 @@ function setupSettingsForm() {
           <div class="func-row func-row--main">
             <label class="func-input">
               <span>${titleLabel}</span>
-              <input type="text" data-fun>
+              <div class="func-editor">
+                <math-field data-fun class="func-math-field" virtual-keyboard-mode="manual" smart-mode="false" aria-label="${titleLabel}"></math-field>
+              </div>
               <div class="func-preview" data-preview aria-hidden="true"></div>
             </label>
             <label class="domain">
@@ -2720,7 +2998,9 @@ function setupSettingsForm() {
         <div class="func-fields">
           <label class="func-input">
             <span>${titleLabel}</span>
-            <input type="text" data-fun>
+            <div class="func-editor">
+              <math-field data-fun class="func-math-field" virtual-keyboard-mode="manual" smart-mode="false" aria-label="${titleLabel}"></math-field>
+            </div>
             <div class="func-preview" data-preview aria-hidden="true"></div>
           </label>
           <label class="domain">
@@ -2733,15 +3013,17 @@ function setupSettingsForm() {
     if (funcRows) {
       funcRows.appendChild(row);
     }
-    const funInput = row.querySelector('input[data-fun]');
+    const funInput = row.querySelector('[data-fun]');
     const domInput = row.querySelector('input[data-dom]');
     if (funInput) {
-      funInput.value = funVal || '';
-      funInput.addEventListener('input', () => {
+      setFunctionInputValue(funInput, funVal || '');
+      const handleChange = () => {
         toggleDomain(funInput);
         syncSimpleFromForm();
         updateFunctionPreview(funInput);
-      });
+      };
+      funInput.addEventListener('input', handleChange);
+      funInput.addEventListener('change', handleChange);
     }
     if (domInput) {
       domInput.value = domVal || '';
@@ -2863,7 +3145,8 @@ function setupSettingsForm() {
     const p = new URLSearchParams();
     let idx = 1;
     (funcRows ? funcRows.querySelectorAll('.func-group') : []).forEach((row, rowIdx) => {
-      const fun = row.querySelector('input[data-fun]').value.trim();
+      const funInput = row.querySelector('[data-fun]');
+      const fun = funInput ? getFunctionInputValue(funInput) : '';
       const dom = row.querySelector('input[data-dom]').value.trim();
       if (!fun) return;
       if (rowIdx === 0 && isCoords(fun)) {
