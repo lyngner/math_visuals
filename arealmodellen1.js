@@ -644,7 +644,7 @@ function draw() {
   const showGrid = ADV.grid !== false;
   const clickToMove = ADV.clickToMove !== false;
   const showHeightAxis = layoutMode !== "horizontal" && rows > 1 && ((_SV$height2 = SV.height) === null || _SV$height2 === void 0 ? void 0 : _SV$height2.show) !== false;
-  const showLengthAxis = layoutMode !== "vertical" && cols > 1 && ((_SV$length2 = SV.length) === null || _SV$length2 === void 0 ? void 0 : _SV$length2.show) !== false;
+  const showLengthAxis = cols > 1 && ((_SV$length2 = SV.length) === null || _SV$length2 === void 0 ? void 0 : _SV$length2.show) !== false;
   const dragVertical = layoutMode !== "single" && showHeightAxis && ((_ADV$drag = ADV.drag) === null || _ADV$drag === void 0 ? void 0 : _ADV$drag.vertical) !== false;
   const dragHorizontal = layoutMode !== "single" && showLengthAxis && ((_ADV$drag2 = ADV.drag) === null || _ADV$drag2 === void 0 ? void 0 : _ADV$drag2.horizontal) !== false;
   const splitLinesOn = ADV.splitLines !== false;
