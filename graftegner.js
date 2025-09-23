@@ -317,7 +317,17 @@ function parseFunctionSpec(spec) {
   if (m) {
     rhs = m[2];
   }
-  rhs = rhs.replace(/(^|[=+\-*/])\s*([+-])\s*([a-zA-Z0-9._()]+)\s*\^/g, (m, p, s, b) => p + '0' + s + '(' + b + ')^').replace(/\^/g, '**').replace(/(\d)([a-zA-Z(])/g, '$1*$2').replace(/([x\)])\(/g, '$1*(').replace(/x(\d)/g, 'x*$1').replace(/\bln\(/gi, 'log(').replace(/\bpi\b/gi, 'PI').replace(/\be\b/gi, 'E').replace(/\btau\b/gi, '(2*PI)');
+  rhs = rhs
+    .replace(/(^|[=+\-*/])\s*([+-])\s*([a-zA-Z0-9._()]+)\s*\^/g, (m, p, s, b) => p + '0' + s + '(' + b + ')^')
+    .replace(/\^/g, '**')
+    .replace(/(\d)([a-zA-Z(])/g, '$1*$2')
+    .replace(/([x\)])\(/g, '$1*(')
+    .replace(/x(\d)/g, 'x*$1')
+    .replace(/\bln\(/gi, 'log(')
+    .replace(/\bpi\b/gi, 'PI')
+    .replace(/\be\b/gi, 'E')
+    .replace(/\btau\b/gi, '(2*PI)')
+    .replace(/(\bPI|\bE|[\d.)x])\s+(?=[a-zA-Z(0-9)])/g, '$1*');
   let fn;
   try {
     // eslint-disable-next-line no-new-func
