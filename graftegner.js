@@ -2687,7 +2687,7 @@ function setupSettingsForm() {
     if (field && typeof field.setOptions === 'function') {
       field.setOptions({
         smartMode: false,
-        virtualKeyboardMode: 'manual'
+        virtualKeyboardMode: 'off'
       });
     }
   };
@@ -2789,42 +2789,6 @@ function setupSettingsForm() {
   if (snapCheckbox) {
     snapCheckbox.checked = ADV.points.snap.enabled;
   }
-  const updateFunctionPreview = input => {
-    if (!input) return;
-    const host = input.closest('.func-input');
-    if (!host) return;
-    const preview = host.querySelector('[data-preview]');
-    if (!preview) return;
-    const raw = getFunctionInputValue(input);
-    const latex = convertExpressionToLatex(raw);
-    const html = latex ? renderLatexToHtml(latex) : '';
-    const plain = normalizeExpressionText(raw);
-    preview.innerHTML = '';
-    preview.textContent = '';
-    preview.classList.remove('func-preview--latex', 'func-preview--text', 'func-preview--empty');
-    if (html) {
-      preview.innerHTML = html;
-      preview.style.display = 'block';
-      preview.classList.add('func-preview--latex');
-      preview.setAttribute('data-mode', 'latex');
-      return;
-    }
-    if (plain) {
-      preview.textContent = plain;
-      preview.style.display = 'block';
-      preview.classList.add('func-preview--text');
-      preview.setAttribute('data-mode', 'text');
-      return;
-    }
-    preview.style.display = 'none';
-    preview.classList.add('func-preview--empty');
-    preview.setAttribute('data-mode', 'empty');
-  };
-  const updateAllFunctionPreviews = () => {
-    if (!funcRows) return;
-    const inputs = funcRows.querySelectorAll('[data-fun]');
-    inputs.forEach(input => updateFunctionPreview(input));
-  };
   const updateStartInputState = () => {
     if (!gliderStartInput) return;
     const active = shouldEnableGliders();
@@ -2967,9 +2931,8 @@ function setupSettingsForm() {
             <label class="func-input">
               <span>${titleLabel}</span>
               <div class="func-editor">
-                <math-field data-fun class="func-math-field" virtual-keyboard-mode="manual" smart-mode="false" aria-label="${titleLabel}"></math-field>
+                <math-field data-fun class="func-math-field" virtual-keyboard-mode="off" smart-mode="false" aria-label="${titleLabel}"></math-field>
               </div>
-              <div class="func-preview" data-preview aria-hidden="true"></div>
             </label>
             <label class="domain">
               <span>Avgrensning</span>
@@ -2999,9 +2962,8 @@ function setupSettingsForm() {
           <label class="func-input">
             <span>${titleLabel}</span>
             <div class="func-editor">
-              <math-field data-fun class="func-math-field" virtual-keyboard-mode="manual" smart-mode="false" aria-label="${titleLabel}"></math-field>
+              <math-field data-fun class="func-math-field" virtual-keyboard-mode="off" smart-mode="false" aria-label="${titleLabel}"></math-field>
             </div>
-            <div class="func-preview" data-preview aria-hidden="true"></div>
           </label>
           <label class="domain">
             <span>Avgrensning</span>
@@ -3020,7 +2982,6 @@ function setupSettingsForm() {
       const handleChange = () => {
         toggleDomain(funInput);
         syncSimpleFromForm();
-        updateFunctionPreview(funInput);
       };
       funInput.addEventListener('input', handleChange);
       funInput.addEventListener('change', handleChange);
@@ -3047,7 +3008,6 @@ function setupSettingsForm() {
     }
     if (funInput) {
       toggleDomain(funInput);
-      updateFunctionPreview(funInput);
     }
     return row;
   };
@@ -3093,7 +3053,6 @@ function setupSettingsForm() {
       const startVals = Array.isArray((_SIMPLE_PARSED2 = SIMPLE_PARSED) === null || _SIMPLE_PARSED2 === void 0 ? void 0 : _SIMPLE_PARSED2.startX) ? SIMPLE_PARSED.startX.filter(Number.isFinite) : [];
       gliderStartInput.value = startVals.length ? startVals.map(formatNumber).join(', ') : '1';
     }
-    updateAllFunctionPreviews();
     updateGliderVisibility();
     syncSimpleFromForm();
     updateSnapAvailability();
