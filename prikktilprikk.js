@@ -530,19 +530,37 @@
     return point.id != null ? String(point.id) : '';
   }
 
+  const SIMPLE_FRACTION_REGEX = /(^|[^\w])(-?\d+(?:\.\d+)?)(?:\s*)\/(?:\s*)(-?\d+(?:\.\d+)?)(?=$|[^\w])/g;
+
+  function convertPlainTextToLatex(input) {
+    if (input == null) return '';
+    const normalized = String(input).replace(/\r\n?/g, '\n');
+    const trimmed = normalized.trim();
+    if (!trimmed) return '';
+    const hasExplicitLatex = /\\[a-zA-Z]/.test(trimmed);
+    const convertLine = line =>
+      line.replace(SIMPLE_FRACTION_REGEX, (match, prefix, numerator, denominator) => {
+        return `${prefix}\\frac{${numerator}}{${denominator}}`;
+      });
+    const lines = trimmed.split('\n').map(line => (hasExplicitLatex ? line : convertLine(line)));
+    return lines.join('\\\\');
+  }
+
   function renderLatex(element, value, options) {
     if (!element) return;
-    const content = value != null ? String(value).trim() : '';
-    if (content && typeof window !== 'undefined' && window.katex && typeof window.katex.render === 'function') {
+    const rawValue = value != null ? String(value) : '';
+    const fallbackText = rawValue.trim();
+    const latex = convertPlainTextToLatex(rawValue);
+    if (latex && typeof window !== 'undefined' && window.katex && typeof window.katex.render === 'function') {
       try {
-        window.katex.render(content, element, {
+        window.katex.render(latex, element, {
           throwOnError: false,
           displayMode: !!(options && options.displayMode)
         });
         return;
       } catch (_) {}
     }
-    element.textContent = content;
+    element.textContent = fallbackText;
   }
 
   function syncViewControls(currentView) {
