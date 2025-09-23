@@ -1906,7 +1906,7 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
     layer: ADV.domainMarkers.layer
   };
   const [ux, uy] = px2world(tx, ty, CAP);
-  const dir = -side;
+  const dir = side;
   const segments = [];
   if (closed) {
     const back = brd.create('segment', [A, B], style);
