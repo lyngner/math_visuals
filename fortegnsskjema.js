@@ -19,7 +19,6 @@
   const downloadPngButton = document.getElementById('btnDownloadPng');
   const POINT_TOLERANCE = 1e-6;
   const MATHFIELD_TAG = 'MATH-FIELD';
-  const EXPRESSION_PREFIX = 'f(x)=';
   const EXPRESSION_PREFIX_REGEX = /^\s*f\s*\(\s*x\s*\)\s*=\s*/i;
   let isUpdatingExpressionInput = false;
   const COMMAND_NAME_MAP = {
@@ -288,7 +287,7 @@
   function setExpressionInputValue(value) {
     if (!exprInput) return;
     const str = value != null ? String(value) : '';
-    const display = str && !EXPRESSION_PREFIX_REGEX.test(str) ? `${EXPRESSION_PREFIX}${str}` : str;
+    const display = str.replace(EXPRESSION_PREFIX_REGEX, '');
     const tag = exprInput.tagName ? exprInput.tagName.toUpperCase() : '';
     isUpdatingExpressionInput = true;
     try {
