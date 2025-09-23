@@ -3067,7 +3067,7 @@ function setupSettingsForm() {
     const count = getGliderCount();
     gliderStartInput.disabled = !active || count <= 0;
     if (gliderStartLabel) {
-      gliderStartLabel.style.display = active && count > 0 ? '' : 'none';
+      gliderStartLabel.style.display = active ? '' : 'none';
     }
     updateSnapAvailability();
   };
@@ -3230,19 +3230,19 @@ function setupSettingsForm() {
                 <option value="2">2</option>
               </select>
             </label>
+            <div class="linepoints-row">
+              <label class="linepoint" data-linepoint-label="0">
+                <span>Punkt 1 (x, y)</span>
+                <input type="text" data-linepoint="0" placeholder="0, 0">
+              </label>
+              <label class="linepoint" data-linepoint-label="1">
+                <span>Punkt 2 (x, y)</span>
+                <input type="text" data-linepoint="1" placeholder="1, 1">
+              </label>
+            </div>
             <label class="startx-label">
               <span>Startposisjon, x</span>
               <input type="text" data-startx value="1" placeholder="1">
-            </label>
-          </div>
-          <div class="func-row func-row--linepoints linepoints-row">
-            <label class="linepoint" data-linepoint-label="0">
-              <span>Punkt 1 (x, y)</span>
-              <input type="text" data-linepoint="0" placeholder="0, 0">
-            </label>
-            <label class="linepoint" data-linepoint-label="1">
-              <span>Punkt 2 (x, y)</span>
-              <input type="text" data-linepoint="1" placeholder="1, 1">
             </label>
           </div>
         </div>
