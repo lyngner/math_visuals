@@ -57,9 +57,13 @@
     .func-fields--first .func-row{
       display:grid;
       gap:12px;
-      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+      grid-template-columns:repeat(2,minmax(0,1fr));
       align-items:start;
     }
+    .func-fields--first .func-row label,
+    .func-group .func-fields label{ min-width:0; }
+    .func-row--main label,
+    .func-row--gliders label{ width:100%; }
     .func-fields--first .func-row label{ width:100%; }
     @media (max-width:680px){
       .function-controls{ align-items:stretch; }
