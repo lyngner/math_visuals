@@ -2,7 +2,6 @@
   const svg = document.getElementById('chart');
   const overlay = document.getElementById('chartOverlay');
   const exprInput = document.getElementById('exprInput');
-  const btnGenerate = document.getElementById('btnGenerate');
   const btnCheck = document.getElementById('btnCheck');
   const btnAddPoint = document.getElementById('btnAddPoint');
   const btnAddRow = document.getElementById('btnAddRow');
@@ -1275,7 +1274,7 @@
   }
   function runCheck() {
     if (!state.solution) {
-      setCheckMessage('Generer fasit før du sjekker.', 'info');
+      setCheckMessage('Fasit mangler. Skriv inn funksjonsuttrykket først.', 'info');
       return;
     }
     if (!state.signRows.length) {
@@ -1533,30 +1532,33 @@
         valueBadge.style.top = `${arrowY}px`;
         valueBadge.title = formatPointValue(point.value);
         valueBadge.dataset.pointId = point.id;
-        const valueInput = document.createElement('input');
-        valueInput.type = 'number';
-        valueInput.className = 'chart-overlay__value-input';
-        valueInput.step = getNumberStep();
-        valueInput.value = formatPointValue(point.value);
-        valueInput.setAttribute('aria-label', point.type === 'pole' ? 'x-verdi for pol' : 'x-verdi for nullpunkt');
-        valueInput.disabled = chartLocked;
-        valueInput.addEventListener('focus', () => {
-          valueInput.select();
-        });
-        const commitInputValue = () => {
-          const raw = valueInput.value.trim().replace(',', '.');
-          if (raw === '') {
-            valueInput.value = formatPointValue(point.value);
-            return;
-          }
-          const value = Number.parseFloat(raw);
-          if (Number.isFinite(value)) {
-            setPointValue(point.id, value);
-          } else {
-            valueInput.value = formatPointValue(point.value);
-          }
-        };
-        if (!chartLocked) {
+        if (chartLocked) {
+          valueBadge.textContent = formatPointValue(point.value);
+          valueBadge.style.pointerEvents = 'none';
+        } else {
+          const valueInput = document.createElement('input');
+          valueInput.type = 'number';
+          valueInput.className = 'chart-overlay__value-input';
+          valueInput.step = getNumberStep();
+          valueInput.value = formatPointValue(point.value);
+          valueInput.setAttribute('aria-label', point.type === 'pole' ? 'x-verdi for pol' : 'x-verdi for nullpunkt');
+          valueInput.disabled = chartLocked;
+          valueInput.addEventListener('focus', () => {
+            valueInput.select();
+          });
+          const commitInputValue = () => {
+            const raw = valueInput.value.trim().replace(',', '.');
+            if (raw === '') {
+              valueInput.value = formatPointValue(point.value);
+              return;
+            }
+            const value = Number.parseFloat(raw);
+            if (Number.isFinite(value)) {
+              setPointValue(point.id, value);
+            } else {
+              valueInput.value = formatPointValue(point.value);
+            }
+          };
           valueInput.addEventListener('change', commitInputValue);
           valueInput.addEventListener('keydown', event => {
             if (event.key === 'Enter') {
@@ -1575,10 +1577,8 @@
             event.preventDefault();
             startDragging(point.id, event.pointerId, false);
           });
-        } else {
-          valueBadge.style.pointerEvents = 'none';
+          valueBadge.appendChild(valueInput);
         }
-        valueBadge.appendChild(valueInput);
         overlay.appendChild(valueBadge);
       }
     });
@@ -1926,6 +1926,7 @@
     const rawExpr = exprInput.value.trim();
     if (!rawExpr) {
       state.solution = null;
+      setCheckMessage('Skriv inn et funksjonsuttrykk for å vise fasit.', 'info');
       return false;
     }
     const sanitizedExpr = sanitizeExpression(rawExpr);
@@ -2145,21 +2146,6 @@
     decimalPlacesInput.addEventListener('change', handleDecimalPlacesChange);
     decimalPlacesInput.addEventListener('input', handleDecimalPlacesInput);
   }
-  btnGenerate.addEventListener('click', () => {
-    try {
-      const solution = generateSolutionFromExpression();
-      state.expression = exprInput.value.trim();
-      state.solution = solution;
-      if (state.autoSync || state.useLinearFactors) {
-        applySolutionToState(solution);
-        setCheckMessage('Fortegnslinjen er oppdatert fra fasit.', 'ok');
-      } else {
-        setCheckMessage('Fasit generert. Bruk Sjekk for å sammenligne.', 'info');
-      }
-    } catch (err) {
-      setCheckMessage(err.message, 'err');
-    }
-  });
   btnCheck.addEventListener('click', () => {
     if (!ensureSolution()) {
       return;
