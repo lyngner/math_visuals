@@ -761,6 +761,19 @@
   if (!saveBtn && !deleteBtn) return;
   ensureTabStyles();
   const toolbar = (saveBtn === null || saveBtn === void 0 ? void 0 : saveBtn.parentElement) || (deleteBtn === null || deleteBtn === void 0 ? void 0 : deleteBtn.parentElement);
+  let hardcodedExampleBtn = null;
+  if (toolbar) {
+    hardcodedExampleBtn = document.createElement('button');
+    hardcodedExampleBtn.type = 'button';
+    hardcodedExampleBtn.id = 'btnHardcodedExample';
+    hardcodedExampleBtn.textContent = 'Lag hardkodet eksempel';
+    hardcodedExampleBtn.setAttribute('aria-label', 'Lag hardkodet eksempel');
+    const referenceButton = saveBtn || deleteBtn;
+    if (referenceButton && referenceButton.className) {
+      hardcodedExampleBtn.className = referenceButton.className;
+    }
+    toolbar.appendChild(hardcodedExampleBtn);
+  }
   tabsContainer = document.createElement('div');
   tabsContainer.id = 'exampleTabs';
   tabsContainer.className = 'example-tabs';
@@ -956,6 +969,105 @@
       loadExample(currentExampleIndex);
     }
     alert('Eksempel slettet');
+  });
+  hardcodedExampleBtn === null || hardcodedExampleBtn === void 0 || hardcodedExampleBtn.addEventListener('click', async () => {
+    let collected = null;
+    try {
+      collected = collectConfig();
+    } catch (error) {
+      alert('Klarte ikke å hente konfigurasjonen for eksemplet.');
+      console.error('collectConfig() failed when exporting hardcoded example', error);
+      return;
+    }
+    if (!collected || !collected.config || typeof collected.config !== 'object') {
+      alert('Fant ingen gyldig konfigurasjon som kan eksporteres.');
+      return;
+    }
+    const configKeys = Object.keys(collected.config);
+    if (!configKeys.length) {
+      alert('Konfigurasjonen er tom og kan ikke eksporteres.');
+      return;
+    }
+    const idInput = window.prompt('Oppgi unik ID for eksemplet (f.eks. diagram-example-5):', '');
+    if (idInput == null) return;
+    const exampleId = idInput.trim();
+    if (!exampleId) {
+      alert('ID kan ikke være tom.');
+      return;
+    }
+    const numberInput = window.prompt('Oppgi eksempelnummer eller -etikett (vises i tabben):', '');
+    if (numberInput == null) return;
+    const exampleNumber = numberInput.trim();
+    if (!exampleNumber) {
+      alert('Eksempelnummer kan ikke være tomt.');
+      return;
+    }
+    const titleInput = window.prompt('Oppgi tittel (valgfritt, la være tom for å hoppe over):', '');
+    if (titleInput == null) return;
+    const exampleTitle = titleInput.trim();
+    const markDefault = window.confirm('Skal eksemplet merkes som standard (isDefault)? Velg OK for ja.');
+    const hardcoded = {
+      id: exampleId,
+      exampleNumber,
+      config: {}
+    };
+    if (exampleTitle) hardcoded.title = exampleTitle;
+    if (markDefault) hardcoded.isDefault = true;
+    for (const name of BINDING_NAMES) {
+      if (Object.prototype.hasOwnProperty.call(collected.config, name)) {
+        hardcoded.config[name] = cloneValue(collected.config[name]);
+      }
+    }
+    if (!Object.keys(hardcoded.config).length) {
+      alert('Konfigurasjonen er tom og kan ikke eksporteres.');
+      return;
+    }
+    if (typeof collected.svg === 'string' && collected.svg.trim()) {
+      hardcoded.svg = collected.svg;
+    }
+    if (typeof collected.description === 'string' && collected.description.trim()) {
+      hardcoded.description = collected.description.trim();
+    }
+    const exportText = JSON.stringify(hardcoded, null, 2);
+    let copied = false;
+    if (typeof navigator !== 'undefined' && navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      try {
+        await navigator.clipboard.writeText(exportText);
+        copied = true;
+      } catch (error) {
+        console.error('Failed to copy hardcoded example to clipboard', error);
+      }
+    }
+    if (copied) {
+      alert('Hardkodet eksempel kopiert til utklippstavlen.');
+      return;
+    }
+    try {
+      const sanitizedId = exampleId.replace(/[^a-z0-9_-]+/gi, '_') || 'example';
+      const fileName = sanitizedId + '-hardcoded-example.json';
+      const blob = new Blob([exportText], {
+        type: 'application/json'
+      });
+      const url = (typeof URL !== 'undefined' && URL && typeof URL.createObjectURL === 'function') ? URL.createObjectURL(blob) : null;
+      if (!url) throw new Error('URL API is not available');
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        try {
+          if (link.parentNode) link.parentNode.removeChild(link);
+        } catch (_) {}
+        try {
+          URL.revokeObjectURL(url);
+        } catch (_) {}
+      }, 0);
+      alert('Kunne ikke kopiere til utklippstavlen. Lastet ned en fil i stedet.');
+    } catch (error) {
+      console.error('Failed to export hardcoded example', error);
+      alert('Kunne verken kopiere til utklippstavlen eller laste ned filen. Se konsollen for detaljer.');
+    }
   });
   renderOptions();
   function parseInitialExampleIndex() {
