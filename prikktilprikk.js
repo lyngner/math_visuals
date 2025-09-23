@@ -2375,6 +2375,7 @@
     }
     selectedPointId = pointId;
     renderBoard();
+    applySelectionHighlight();
   }
 
   function showStatus(type, heading, detailLines) {
