@@ -11,6 +11,7 @@
   const LABEL_LINE_PENALTY = 100;
   const DEFAULT_LABEL_FONT_SIZE = 14;
   const POINT_DRAG_START_DISTANCE_PX = 4;
+  const POINT_DRAG_START_DISTANCE_COARSE_PX = 12;
   const MIN_LABEL_FONT_SIZE = 10;
   const MAX_LABEL_FONT_SIZE = 48;
   const GRID_BASE_STEP = 0.05;
@@ -1178,6 +1179,7 @@
     const point = STATE.points.find(p => p && p.id === pointId);
     if (!point) return false;
     const pointerId = event.pointerId;
+    const dragThreshold = getPointDragThreshold(event);
     const startClientX = event.clientX;
     const startClientY = event.clientY;
     const viewOnStart = getViewSettings();
@@ -1186,7 +1188,7 @@
     const offsetY = startNorm.y - point.y;
     let moved = false;
     let dragging = false;
-    const dragThresholdSq = POINT_DRAG_START_DISTANCE_PX * POINT_DRAG_START_DISTANCE_PX;
+    const dragThresholdSq = dragThreshold * dragThreshold;
     const onMove = e => {
       if (!isEditMode) return;
       const dxClient = e.clientX - startClientX;
@@ -1223,6 +1225,30 @@
     element.addEventListener('pointerdown', event => {
       handlePointPointerDown(element, pointId, event);
     });
+  }
+
+  function getPointDragThreshold(event) {
+    const coarsePointerThreshold = Number.isFinite(POINT_DRAG_START_DISTANCE_COARSE_PX)
+      ? POINT_DRAG_START_DISTANCE_COARSE_PX
+      : POINT_DRAG_START_DISTANCE_PX;
+    const baseThreshold = Number.isFinite(POINT_DRAG_START_DISTANCE_PX) && POINT_DRAG_START_DISTANCE_PX > 0
+      ? POINT_DRAG_START_DISTANCE_PX
+      : 1;
+    if (!event || typeof event !== 'object') return baseThreshold;
+    const pointerType = typeof event.pointerType === 'string'
+      ? event.pointerType.toLowerCase()
+      : '';
+    const width = Number(event.width);
+    const height = Number(event.height);
+    const hasCoarseDimensions = (Number.isFinite(width) && width > 1.5)
+      || (Number.isFinite(height) && height > 1.5);
+    const isCoarse = pointerType === 'touch'
+      || pointerType === 'pen'
+      || hasCoarseDimensions;
+    if (isCoarse) {
+      return coarsePointerThreshold > 0 ? coarsePointerThreshold : baseThreshold;
+    }
+    return baseThreshold;
   }
 
   function getPointListContainers() {
