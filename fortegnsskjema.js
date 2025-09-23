@@ -2472,6 +2472,9 @@
     state.expression = getExpressionInputValue();
     state.solution = null;
     setCheckMessage('');
+    if (state.autoSync && ensureSolution()) {
+      applySolutionToState(state.solution);
+    }
   });
   window.addEventListener('resize', () => {
     renderChart();
