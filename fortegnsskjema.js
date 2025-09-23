@@ -19,6 +19,9 @@
   const downloadPngButton = document.getElementById('btnDownloadPng');
   const POINT_TOLERANCE = 1e-6;
   const MATHFIELD_TAG = 'MATH-FIELD';
+  const EXPRESSION_PREFIX = 'f(x)=';
+  const EXPRESSION_PREFIX_REGEX = /^\s*f\s*\(\s*x\s*\)\s*=\s*/i;
+  let isUpdatingExpressionInput = false;
   const COMMAND_NAME_MAP = {
     cdot: '*',
     times: '*',
@@ -241,10 +244,15 @@
     if (value == null) return '';
     const raw = collapseExpressionWhitespace(String(value));
     if (!raw) return '';
+    let normalized;
     if (raw.includes('\\')) {
-      return collapseExpressionWhitespace(convertLatexLikeToPlain(raw));
+      normalized = convertLatexLikeToPlain(raw);
+    } else {
+      normalized = convertAsciiMathLikeToPlain(raw);
     }
-    return collapseExpressionWhitespace(convertAsciiMathLikeToPlain(raw));
+    normalized = collapseExpressionWhitespace(normalized);
+    normalized = normalized.replace(EXPRESSION_PREFIX_REGEX, '');
+    return collapseExpressionWhitespace(normalized);
   }
   function ensureMathFieldOptions(field) {
     if (field && typeof field.setOptions === 'function') {
@@ -280,21 +288,30 @@
   function setExpressionInputValue(value) {
     if (!exprInput) return;
     const str = value != null ? String(value) : '';
+    const display = str && !EXPRESSION_PREFIX_REGEX.test(str) ? `${EXPRESSION_PREFIX}${str}` : str;
     const tag = exprInput.tagName ? exprInput.tagName.toUpperCase() : '';
-    if (tag === MATHFIELD_TAG) {
-      ensureMathFieldOptions(exprInput);
-      if (typeof exprInput.setValue === 'function') {
-        try {
-          exprInput.setValue(str, { format: 'ascii-math' });
-          return;
-        } catch (err) {
-          /* ignore */
+    isUpdatingExpressionInput = true;
+    try {
+      if (tag === MATHFIELD_TAG) {
+        ensureMathFieldOptions(exprInput);
+        let setSuccessful = false;
+        if (typeof exprInput.setValue === 'function') {
+          try {
+            exprInput.setValue(display, { format: 'ascii-math' });
+            setSuccessful = true;
+          } catch (err) {
+            /* ignore */
+          }
         }
+        if (!setSuccessful) {
+          exprInput.value = display;
+        }
+      } else {
+        exprInput.value = display;
       }
-      exprInput.value = str;
-      return;
+    } finally {
+      isUpdatingExpressionInput = false;
     }
-    exprInput.value = str;
   }
   if (!svg || !exprInput) {
     return;
@@ -308,6 +325,9 @@
   const MAX_DECIMAL_PLACES = 6;
   const globalState = typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   const state = globalState;
+  if (!Object.prototype.hasOwnProperty.call(state, 'expression') || state.expression == null) {
+    state.expression = 'x-1';
+  }
   if (typeof window !== 'undefined') {
     window.STATE = state;
   }
@@ -318,6 +338,8 @@
       ensureMathFieldOptions(exprInput);
       setExpressionInputValue(state.expression || '');
     });
+  } else {
+    setExpressionInputValue(state.expression || '');
   }
   function sanitizeDomain(domain) {
     const sanitized = {
@@ -2468,12 +2490,27 @@
       }
     });
   }
-  exprInput.addEventListener('input', () => {
-    state.expression = getExpressionInputValue();
+  function commitExpressionChange() {
+    if (!exprInput || isUpdatingExpressionInput) return;
+    const nextValue = getExpressionInputValue();
+    if (nextValue === state.expression) {
+      setExpressionInputValue(state.expression || '');
+      return;
+    }
+    state.expression = nextValue;
     state.solution = null;
     setCheckMessage('');
     if (state.autoSync && ensureSolution()) {
       applySolutionToState(state.solution);
+    }
+    setExpressionInputValue(state.expression || '');
+  }
+  exprInput.addEventListener('change', commitExpressionChange);
+  exprInput.addEventListener('blur', commitExpressionChange);
+  exprInput.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      commitExpressionChange();
     }
   });
   window.addEventListener('resize', () => {
