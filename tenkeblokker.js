@@ -664,19 +664,12 @@ function buildGlobalSettings(targetFragment) {
   if (rowCount > 0) {
     const labelWrapper = document.createElement('div');
     labelWrapper.className = 'tb-row-label-inputs';
-    let columns = 1;
-    if (rowCount >= 4) {
-      columns = 3;
-    } else if (rowCount >= 2) {
-      columns = 2;
-    }
-    labelWrapper.dataset.columns = String(columns);
     for (let i = 0; i < rowCount; i++) {
       const rowLabel = document.createElement('label');
-      rowLabel.textContent = `Rad ${i + 1}`;
       const input = document.createElement('input');
       input.type = 'text';
       input.placeholder = 'Tekst foran rad';
+      input.setAttribute('aria-label', `Tekst foran rad ${i + 1}`);
       const existingValue = Array.isArray(CONFIG.rowLabels) && typeof CONFIG.rowLabels[i] === 'string' ? CONFIG.rowLabels[i] : '';
       input.value = existingValue;
       input.addEventListener('input', () => {
