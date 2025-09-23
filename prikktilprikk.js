@@ -9,7 +9,7 @@
   const LABEL_EDGE_MARGIN = 16;
   const LABEL_LINE_AVOIDANCE_THRESHOLD = Math.PI / 8;
   const LABEL_LINE_PENALTY = 100;
-  const DEFAULT_LABEL_FONT_SIZE = 16;
+  const DEFAULT_LABEL_FONT_SIZE = 18;
   const POINT_DRAG_START_DISTANCE_PX = 4;
   const POINT_DRAG_START_DISTANCE_COARSE_PX = 12;
   const MIN_LABEL_FONT_SIZE = 10;
@@ -2028,22 +2028,6 @@
       });
       item.appendChild(coordInput);
 
-      const labelInput = document.createElement('input');
-      labelInput.type = 'text';
-      labelInput.className = 'point-input point-input--label';
-      labelInput.placeholder = 'Tekst';
-      labelInput.setAttribute('aria-label', 'Tekst');
-      labelInput.value = point.label;
-      labelInput.addEventListener('input', () => {
-        point.label = labelInput.value;
-        const label = labelElements.get(point.id);
-        if (label) {
-          label.setText(getPointLabelText(point));
-          label.setVisibility(STATE.showLabels);
-        }
-      });
-      item.appendChild(labelInput);
-
       const actions = document.createElement('div');
       actions.className = 'point-actions';
 
@@ -2074,8 +2058,7 @@
       targetList.appendChild(item);
       pointEditors.set(point.id, {
         itemEl: item,
-        coordInput,
-        labelInput
+        coordInput
       });
     });
 
