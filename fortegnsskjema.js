@@ -1973,6 +1973,22 @@
     expressionDisplay.textContent = fallback;
     expressionDisplay.classList.toggle('chart-expression--empty', !fallback);
   }
+  function getResultRowDisplayLabel(row) {
+    const expr = typeof state.expression === 'string' ? state.expression.trim() : '';
+    const fallback = expr || 'f(x)';
+    if (!row || row.role !== 'result') {
+      return fallback;
+    }
+    const label = typeof row.label === 'string' ? row.label : '';
+    if (!label) {
+      return fallback;
+    }
+    const normalized = label.replace(/\s+/g, '').toLowerCase();
+    if (normalized === 'f(x)') {
+      return fallback;
+    }
+    return label;
+  }
   function renderChart() {
     renderExpressionDisplay();
     sortPoints();
@@ -2143,7 +2159,12 @@
         'font-weight': 600,
         fill: '#111827'
       });
-      const displayLabel = row.label || (row.role === 'result' ? 'f(x)' : `rad ${rowIndex + 1}`);
+      let displayLabel;
+      if (row.role === 'result') {
+        displayLabel = getResultRowDisplayLabel(row);
+      } else {
+        displayLabel = row.label || `rad ${rowIndex + 1}`;
+      }
       label.textContent = displayLabel;
       svg.append(label);
       const locked = chartLocked || row.locked || state.autoSync && row.role === 'result' && state.solution;
