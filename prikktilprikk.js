@@ -1155,6 +1155,7 @@
     if (!editor || !point) return;
     if (editor.labelInput) editor.labelInput.value = point.label;
     if (editor.coordInput) editor.coordInput.value = coordinateString(point);
+    if (editor.labelPreview) renderLatex(editor.labelPreview, getPointLabelText(point));
   }
 
   function updateLinesForPoint(pointId) {
@@ -2012,6 +2013,11 @@
       labelInput.placeholder = 'Tekst';
       labelInput.setAttribute('aria-label', 'Tekst');
       labelInput.value = point.label;
+      const labelPreview = document.createElement('span');
+      labelPreview.className = 'point-label-preview';
+      labelPreview.setAttribute('aria-hidden', 'true');
+      renderLatex(labelPreview, getPointLabelText(point));
+
       labelInput.addEventListener('input', () => {
         point.label = labelInput.value;
         const label = labelElements.get(point.id);
@@ -2019,8 +2025,10 @@
           label.setText(getPointLabelText(point));
           label.setVisibility(STATE.showLabels);
         }
+        renderLatex(labelPreview, getPointLabelText(point));
       });
       item.appendChild(labelInput);
+      item.appendChild(labelPreview);
 
       const actions = document.createElement('div');
       actions.className = 'point-actions';
@@ -2053,7 +2061,8 @@
       pointEditors.set(point.id, {
         itemEl: item,
         coordInput,
-        labelInput
+        labelInput,
+        labelPreview
       });
     });
 
@@ -2126,6 +2135,7 @@
       if (!editor) return;
       if (editor.labelInput) editor.labelInput.value = point.label;
       if (editor.coordInput) editor.coordInput.value = coordinateString(point);
+      if (editor.labelPreview) renderLatex(editor.labelPreview, getPointLabelText(point));
       if (editor.itemEl) editor.itemEl.dataset.pointId = point.id;
     });
   }
