@@ -1,6 +1,7 @@
 (() => {
   const svg = document.getElementById('chart');
   const overlay = document.getElementById('chartOverlay');
+  const expressionDisplay = document.getElementById('chartExpression');
   const exprInput = document.getElementById('exprInput');
   const btnCheck = document.getElementById('btnCheck');
   const btnAddPoint = document.getElementById('btnAddPoint');
@@ -78,6 +79,29 @@
         continue;
       }
       if (ch === '}') {
+        if (depth === 0) {
+          return [str.slice(startIdx + 1, i), i + 1];
+        }
+        depth -= 1;
+      }
+    }
+    return [str.slice(startIdx + 1), str.length];
+  }
+  function readParenthesisGroup(str, startIdx) {
+    if (typeof str !== 'string' || startIdx == null || startIdx < 0 || startIdx >= str.length) {
+      return ['', typeof startIdx === 'number' ? startIdx : 0];
+    }
+    if (str[startIdx] !== '(') {
+      return ['', startIdx];
+    }
+    let depth = 0;
+    for (let i = startIdx + 1; i < str.length; i += 1) {
+      const ch = str[i];
+      if (ch === '(') {
+        depth += 1;
+        continue;
+      }
+      if (ch === ')') {
         if (depth === 0) {
           return [str.slice(startIdx + 1, i), i + 1];
         }
@@ -253,6 +277,84 @@
     normalized = normalized.replace(EXPRESSION_PREFIX_REGEX, '');
     return collapseExpressionWhitespace(normalized);
   }
+  const ASCII_TO_LATEX_COMMANDS = {
+    pi: '\\pi',
+    tau: '\\tau',
+    theta: '\\theta',
+    alpha: '\\alpha',
+    beta: '\\beta',
+    gamma: '\\gamma',
+    phi: '\\varphi'
+  };
+  const FUNCTION_LATEX_BUILDERS = {
+    sqrt: arg => `\\sqrt{${arg}}`,
+    abs: arg => `\\left|${arg}\\right|`,
+    asin: arg => `\\arcsin\\left(${arg}\\right)`,
+    acos: arg => `\\arccos\\left(${arg}\\right)`,
+    atan: arg => `\\arctan\\left(${arg}\\right)`,
+    sin: arg => `\\sin\\left(${arg}\\right)`,
+    cos: arg => `\\cos\\left(${arg}\\right)`,
+    tan: arg => `\\tan\\left(${arg}\\right)`,
+    sinh: arg => `\\sinh\\left(${arg}\\right)`,
+    cosh: arg => `\\cosh\\left(${arg}\\right)`,
+    tanh: arg => `\\tanh\\left(${arg}\\right)`,
+    ln: arg => `\\ln\\left(${arg}\\right)`,
+    log: arg => `\\log\\left(${arg}\\right)`,
+    exp: arg => `\\exp\\left(${arg}\\right)`
+  };
+  const FUNCTION_NAME_LIST = Object.keys(FUNCTION_LATEX_BUILDERS).sort((a, b) => b.length - a.length);
+  function applyFunctionLatexConversions(str) {
+    if (typeof str !== 'string' || !str) {
+      return typeof str === 'string' ? str : '';
+    }
+    let result = '';
+    let index = 0;
+    const lower = str.toLowerCase();
+    while (index < str.length) {
+      let replaced = false;
+      for (const name of FUNCTION_NAME_LIST) {
+        const len = name.length;
+        if (
+          lower.startsWith(name, index) &&
+          (index === 0 || !/[a-z0-9_]/i.test(lower[index - 1]))
+        ) {
+          let pos = index + len;
+          while (pos < str.length && /\s/.test(str[pos])) pos += 1;
+          if (pos < str.length && str[pos] === '(') {
+            const group = readParenthesisGroup(str, pos);
+            if (group[1] > pos + 1) {
+              const convertedArg = convertPlainExpressionToLatex(group[0]);
+              result += FUNCTION_LATEX_BUILDERS[name](convertedArg);
+              index = group[1];
+              replaced = true;
+              break;
+            }
+          }
+        }
+      }
+      if (!replaced) {
+        result += str[index];
+        index += 1;
+      }
+    }
+    return result;
+  }
+  function convertPlainExpressionToLatex(expr) {
+    if (typeof expr !== 'string') return '';
+    const trimmed = collapseExpressionWhitespace(expr);
+    if (!trimmed) return '';
+    let str = trimmed;
+    str = str.replace(/\*\*/g, '^');
+    str = applyFunctionLatexConversions(str);
+    Object.keys(ASCII_TO_LATEX_COMMANDS).forEach(key => {
+      const pattern = new RegExp(`\\b${key}\\b`, 'gi');
+      str = str.replace(pattern, ASCII_TO_LATEX_COMMANDS[key]);
+    });
+    str = str.replace(/\+\/-/g, '\\pm ');
+    str = str.replace(/([0-9a-zA-Z\\}\)])\s*\*\s*([0-9a-zA-Z\\({\\])/g, '$1\\cdot $2');
+    str = str.replace(/(\d)\s*deg\b/gi, '$1^{\\circ}');
+    return str;
+  }
   function ensureMathFieldOptions(field) {
     if (field && typeof field.setOptions === 'function') {
       field.setOptions({
@@ -261,28 +363,44 @@
       });
     }
   }
-  function getExpressionInputValue() {
+  function getRawExpressionInputValue() {
     if (!exprInput) return '';
     const tag = exprInput.tagName ? exprInput.tagName.toUpperCase() : '';
     if (tag === MATHFIELD_TAG) {
       ensureMathFieldOptions(exprInput);
-      let plain = tryGetMathFieldValue(exprInput, 'ascii-math');
-      if (!plain) {
-        plain = tryGetMathFieldValue(exprInput, 'ASCIIMath');
+      let raw = tryGetMathFieldValue(exprInput, 'ascii-math');
+      if (!raw) {
+        raw = tryGetMathFieldValue(exprInput, 'ASCIIMath');
       }
-      if (!plain) {
-        plain = tryGetMathFieldValue(exprInput, 'latex');
-        if (plain) {
-          plain = convertLatexLikeToPlain(plain);
-        }
+      if (!raw) {
+        raw = tryGetMathFieldValue(exprInput, 'latex');
       }
-      if (!plain && typeof exprInput.value === 'string') {
-        plain = exprInput.value;
+      if (!raw && typeof exprInput.value === 'string') {
+        raw = exprInput.value;
       }
-      return normalizePlainExpression(plain);
+      return typeof raw === 'string' ? raw : '';
     }
     const val = exprInput.value != null ? exprInput.value : '';
-    return normalizePlainExpression(val);
+    return typeof val === 'string' ? val : '';
+  }
+  function getExpressionInputValue() {
+    const raw = getRawExpressionInputValue();
+    return normalizePlainExpression(raw);
+  }
+  function readExpressionInputDetails() {
+    const raw = getRawExpressionInputValue();
+    const sanitized = normalizePlainExpression(raw);
+    let prefixSource = collapseExpressionWhitespace(String(raw));
+    if (prefixSource.includes('\\')) {
+      prefixSource = collapseExpressionWhitespace(convertLatexLikeToPlain(prefixSource));
+    } else {
+      prefixSource = collapseExpressionWhitespace(convertAsciiMathLikeToPlain(prefixSource));
+    }
+    const hasPrefix = EXPRESSION_PREFIX_REGEX.test(prefixSource);
+    return {
+      sanitized,
+      hasPrefix
+    };
   }
   function setExpressionInputValue(value) {
     if (!exprInput) return;
@@ -326,6 +444,9 @@
   const state = globalState;
   if (!Object.prototype.hasOwnProperty.call(state, 'expression') || state.expression == null) {
     state.expression = 'x-1';
+  }
+  if (!Object.prototype.hasOwnProperty.call(state, 'expressionPrefix')) {
+    state.expressionPrefix = false;
   }
   if (typeof window !== 'undefined') {
     window.STATE = state;
@@ -494,6 +615,7 @@
     }
     const exprRaw = typeof target.expression === 'string' ? target.expression : '';
     target.expression = normalizePlainExpression(exprRaw);
+    target.expressionPrefix = !!target.expressionPrefix;
     target.autoSync = !!target.autoSync;
     target.useLinearFactors = !!target.useLinearFactors;
     const decimals = Number.isFinite(Number(target.decimalPlaces)) ? Number(target.decimalPlaces) : DEFAULT_DECIMAL_PLACES;
@@ -1052,72 +1174,147 @@
     }
     return label;
   }
-  function buildLinearFactorRows(structure, points, domain) {
-    if (!structure || !Array.isArray(structure.factors) || !structure.factors.length) {
+  function buildFallbackFactorRows(points, domain) {
+    if (!Array.isArray(points) || !points.length || !domain) {
       return [];
     }
-    const sortedPoints = [...points].sort((a, b) => a.value - b.value);
-    const boundaries = [domain.min, ...sortedPoints.map(p => p.value), domain.max];
-    const factorMap = new Map();
-    structure.factors.forEach(factor => {
-      if (!Number.isFinite(factor.value)) return;
-      const normalized = Number.parseFloat(Number(factor.value).toFixed(6));
-      const baseKey = typeof factor.baseExpr === 'string' && factor.baseExpr.trim() ? factor.baseExpr.trim() : `${normalized}`;
-      const key = `${factor.type}:${baseKey}`;
-      if (!factorMap.has(key)) {
-        factorMap.set(key, {
-          type: factor.type,
-          value: factor.value,
-          multiplicity: 0,
-          constantSign: 1,
-          baseExpr: factor.baseExpr
-        });
-      }
-      const entry = factorMap.get(key);
-      entry.multiplicity += factor.multiplicity;
-      const contribution = factor.sign === -1 && factor.multiplicity % 2 === 1 ? -1 : 1;
-      entry.constantSign *= contribution;
-      if (!entry.baseExpr && factor.baseExpr) {
-        entry.baseExpr = factor.baseExpr;
-      }
-    });
-    const factorRows = Array.from(factorMap.values()).sort((a, b) => {
-      if (a.type !== b.type) {
-        if (a.type === 'pole') return 1;
-        if (b.type === 'pole') return -1;
-      }
-      return a.value - b.value;
-    }).map(entry => {
-      const label = formatLinearFactorLabel(entry.baseExpr, entry.multiplicity, entry.value);
+    const sorted = [...points].sort((a, b) => a.value - b.value);
+    const zeroPoints = sorted.filter(point => point && point.type === 'zero');
+    if (zeroPoints.length <= 1) {
+      return [];
+    }
+    const boundaries = [domain.min, ...sorted.map(p => p.value), domain.max];
+    return zeroPoints.map(point => {
+      const multiplicityRaw = Number.isFinite(point.multiplicity) ? Math.round(point.multiplicity) : 1;
+      const multiplicity = Math.max(1, Math.abs(multiplicityRaw));
       const segments = [];
       for (let i = 0; i < boundaries.length - 1; i += 1) {
         const left = boundaries[i];
         const right = boundaries[i + 1];
-        let signValue = entry.constantSign || 1;
-        if (entry.multiplicity % 2 === 1) {
-          let sample = chooseSample(left, right);
-          if (!Number.isFinite(sample)) {
-            sample = left + (right - left) / 2;
+        let signValue = 1;
+        if (multiplicity % 2 === 1) {
+          if (Number.isFinite(point.value)) {
+            if (Number.isFinite(right) && right <= point.value) {
+              signValue = -1;
+            } else if (Number.isFinite(left) && left >= point.value) {
+              signValue = 1;
+            } else if (!Number.isFinite(right) && (Number.isFinite(left) ? left : 0) >= point.value) {
+              signValue = 1;
+            } else if (!Number.isFinite(left) && (Number.isFinite(right) ? right : 0) <= point.value) {
+              signValue = -1;
+            } else {
+              let sample = chooseSample(left, right);
+              if (!Number.isFinite(sample)) {
+                sample = point.value + (i === 0 ? -1 : 1);
+              }
+              if (Math.abs(sample - point.value) < 1e-6) {
+                sample += sample >= point.value ? 1e-3 : -1e-3;
+              }
+              signValue = sample >= point.value ? 1 : -1;
+            }
+          } else {
+            let sample = chooseSample(left, right);
+            if (!Number.isFinite(sample)) sample = 0;
+            signValue = sample >= 0 ? 1 : -1;
           }
-          if (!Number.isFinite(sample)) {
-            sample = entry.value;
-          }
-          if (Math.abs(sample - entry.value) < 1e-6) {
-            sample += 1e-3;
-          }
-          const direction = sample >= entry.value ? 1 : -1;
-          signValue *= direction;
         }
         segments.push(signValue >= 0 ? 1 : -1);
       }
       return {
-        label,
+        label: formatLinearFactorLabel('', multiplicity, point.value),
         segments,
-        type: entry.type,
-        value: entry.value,
-        multiplicity: entry.multiplicity
+        type: 'zero',
+        value: point.value,
+        multiplicity
       };
     });
+  }
+  function buildLinearFactorRows(structure, points, domain) {
+    const sortedPoints = Array.isArray(points) ? [...points].sort((a, b) => a.value - b.value) : [];
+    const boundaries = [domain.min, ...sortedPoints.map(p => p.value), domain.max];
+    const comparator = (a, b) => {
+      if (a.type !== b.type) {
+        if (a.type === 'pole') return 1;
+        if (b.type === 'pole') return -1;
+      }
+      const av = Number.isFinite(a.value) ? a.value : 0;
+      const bv = Number.isFinite(b.value) ? b.value : 0;
+      return av - bv;
+    };
+    let factorRows = [];
+    if (structure && Array.isArray(structure.factors) && structure.factors.length) {
+      const factorMap = new Map();
+      structure.factors.forEach(factor => {
+        if (!Number.isFinite(factor.value)) return;
+        const normalized = Number.parseFloat(Number(factor.value).toFixed(6));
+        const baseKey = typeof factor.baseExpr === 'string' && factor.baseExpr.trim() ? factor.baseExpr.trim() : `${normalized}`;
+        const key = `${factor.type}:${baseKey}`;
+        if (!factorMap.has(key)) {
+          factorMap.set(key, {
+            type: factor.type,
+            value: factor.value,
+            multiplicity: 0,
+            constantSign: 1,
+            baseExpr: factor.baseExpr
+          });
+        }
+        const entry = factorMap.get(key);
+        entry.multiplicity += factor.multiplicity;
+        const contribution = factor.sign === -1 && factor.multiplicity % 2 === 1 ? -1 : 1;
+        entry.constantSign *= contribution;
+        if (!entry.baseExpr && factor.baseExpr) {
+          entry.baseExpr = factor.baseExpr;
+        }
+      });
+      factorRows = Array.from(factorMap.values()).sort(comparator).map(entry => {
+        const label = formatLinearFactorLabel(entry.baseExpr, entry.multiplicity, entry.value);
+        const segments = [];
+        for (let i = 0; i < boundaries.length - 1; i += 1) {
+          const left = boundaries[i];
+          const right = boundaries[i + 1];
+          let signValue = entry.constantSign || 1;
+          if (entry.multiplicity % 2 === 1) {
+            let sample = chooseSample(left, right);
+            if (!Number.isFinite(sample)) {
+              sample = left + (right - left) / 2;
+            }
+            if (!Number.isFinite(sample)) {
+              sample = entry.value;
+            }
+            if (Math.abs(sample - entry.value) < 1e-6) {
+              sample += 1e-3;
+            }
+            const direction = sample >= entry.value ? 1 : -1;
+            signValue *= direction;
+          }
+          segments.push(signValue >= 0 ? 1 : -1);
+        }
+        return {
+          label,
+          segments,
+          type: entry.type,
+          value: entry.value,
+          multiplicity: entry.multiplicity
+        };
+      });
+    }
+    const fallbackRows = buildFallbackFactorRows(sortedPoints, domain);
+    if (!factorRows.length) {
+      factorRows = fallbackRows;
+    } else if (fallbackRows.length) {
+      const seen = new Set(factorRows.map(row => `${row.type}:${Number.isFinite(row.value) ? row.value.toFixed(6) : row.value}`));
+      fallbackRows.forEach(row => {
+        const key = `${row.type}:${Number.isFinite(row.value) ? row.value.toFixed(6) : row.value}`;
+        if (!seen.has(key)) {
+          factorRows.push(row);
+          seen.add(key);
+        }
+      });
+      factorRows.sort(comparator);
+    }
+    if (factorRows.length <= 1) {
+      return [];
+    }
     return factorRows;
   }
   function computeAutoDomain(points) {
@@ -1748,7 +1945,36 @@
     });
     return el;
   }
+  function renderExpressionDisplay() {
+    if (!expressionDisplay) {
+      return;
+    }
+    const expr = typeof state.expression === 'string' ? state.expression.trim() : '';
+    if (!expr) {
+      expressionDisplay.textContent = '';
+      expressionDisplay.classList.add('chart-expression--empty');
+      return;
+    }
+    const coreLatex = convertPlainExpressionToLatex(expr) || expr;
+    const latex = state.expressionPrefix ? `f(x)=${coreLatex}` : coreLatex;
+    const fallback = state.expressionPrefix ? `f(x)=${expr}` : expr;
+    if (typeof window !== 'undefined' && window.katex && typeof window.katex.render === 'function') {
+      try {
+        window.katex.render(latex, expressionDisplay, {
+          throwOnError: false,
+          displayMode: false
+        });
+        expressionDisplay.classList.remove('chart-expression--empty');
+        return;
+      } catch (err) {
+        /* ignore and fallback to text */
+      }
+    }
+    expressionDisplay.textContent = fallback;
+    expressionDisplay.classList.toggle('chart-expression--empty', !fallback);
+  }
   function renderChart() {
+    renderExpressionDisplay();
     sortPoints();
     const points = state.criticalPoints;
     const domainInfo = getDomainInfo();
@@ -2491,18 +2717,23 @@
   }
   function commitExpressionChange() {
     if (!exprInput || isUpdatingExpressionInput) return;
-    const nextValue = getExpressionInputValue();
-    if (nextValue === state.expression) {
+    const details = readExpressionInputDetails();
+    const nextValue = details.sanitized;
+    const nextPrefix = !!details.hasPrefix;
+    if (nextValue === state.expression && nextPrefix === !!state.expressionPrefix) {
       setExpressionInputValue(state.expression || '');
+      renderExpressionDisplay();
       return;
     }
     state.expression = nextValue;
+    state.expressionPrefix = nextPrefix;
     state.solution = null;
     setCheckMessage('');
     if (state.autoSync && ensureSolution()) {
       applySolutionToState(state.solution);
     }
     setExpressionInputValue(state.expression || '');
+    renderExpressionDisplay();
   }
   exprInput.addEventListener('change', commitExpressionChange);
   exprInput.addEventListener('blur', commitExpressionChange);

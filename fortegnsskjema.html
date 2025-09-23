@@ -67,6 +67,24 @@
       overflow: hidden;
       position: relative;
     }
+    .chart-expression {
+      position: absolute;
+      top: 14px;
+      left: 18px;
+      pointer-events: none;
+      font-size: 22px;
+      font-weight: 600;
+      color: #111827;
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+    }
+    .chart-expression--empty {
+      display: none;
+    }
+    .chart-expression .katex {
+      font-size: 1.05em;
+    }
     .chart-overlay {
       position: absolute;
       inset: 0;
@@ -333,6 +351,7 @@
     <div class="grid">
       <div class="card">
         <div class="figure">
+          <div id="chartExpression" class="chart-expression chart-expression--empty" aria-hidden="true"></div>
           <svg id="chart" role="img" aria-label="Fortegnsskjema"></svg>
           <div id="chartOverlay" class="chart-overlay"></div>
         </div>
@@ -423,7 +442,7 @@
       </div>
     </div>
   </div>
-
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/mathlive/dist/mathlive.min.js"></script>
   <script src="fortegnsskjema.js"></script>
   <script src="split.js"></script>
