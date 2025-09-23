@@ -358,6 +358,11 @@
     hasUserAdjustedView = true;
   }
 
+  function resetViewToDefault() {
+    STATE.view = { zoom: DEFAULT_ZOOM, panX: 0, panY: 0 };
+    hasUserAdjustedView = false;
+  }
+
   function computePointBounds(points) {
     if (!Array.isArray(points) || !points.length) return null;
     let minX = Infinity;
@@ -1064,7 +1069,11 @@
     STATE.labelFontSize = normalizeLabelFontSize(STATE.labelFontSize);
     STATE.showGrid = !!STATE.showGrid;
     STATE.snapToGrid = !!STATE.snapToGrid;
-    ensureViewFitsPoints(sanitizedPoints);
+    if (sanitizedPoints.length === 0) {
+      resetViewToDefault();
+    } else {
+      ensureViewFitsPoints(sanitizedPoints);
+    }
     getViewSettings();
     if (predefAnchorPointId != null && !validPoints.has(predefAnchorPointId)) {
       predefAnchorPointId = null;
