@@ -89,6 +89,10 @@ function buildSimple() {
   if (coords) {
     lines.push(`coords=${coords}`);
   }
+  const linepts = paramStr('linepts', '').trim();
+  if (linepts) {
+    lines.push(`linepts=${linepts}`);
+  }
   return lines.join('\n');
 }
 let SIMPLE = typeof window !== 'undefined' && typeof window.SIMPLE !== 'undefined' ? window.SIMPLE : buildSimple();
@@ -192,6 +196,99 @@ const ADV = {
   }
 };
 
+const DEFAULT_LINE_POINTS = ADV.points.start.map(pt => pt.slice());
+
+function parsePointListString(str) {
+  if (typeof str !== 'string') return [];
+  return str.split(';').map(part => {
+    const cleaned = part.trim().replace(/^\(|\)$/g, '');
+    if (!cleaned) return null;
+    const coords = cleaned.split(',').map(token => Number.parseFloat(token.trim().replace(',', '.')));
+    if (coords.length !== 2) return null;
+    if (!coords.every(Number.isFinite)) return null;
+    return coords;
+  }).filter(Boolean);
+}
+
+function extractLineRhs(expr) {
+  if (typeof expr !== 'string') return '';
+  const match = expr.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/i) || expr.match(/^y\s*=\s*(.+)$/i);
+  return match ? match[1].trim() : expr.trim();
+}
+
+function interpretLineTemplate(rhs) {
+  const base = { kind: null, anchorC: 0, slopeM: 1 };
+  if (typeof rhs !== 'string') return base;
+  const normalized = rhs.replace(/\s+/g, '').toLowerCase();
+  if (!normalized) return base;
+  if (/^a\*?x([+-])(\d+(?:\.\d+)?)$/.test(normalized)) {
+    const sign = RegExp.$1 === '-' ? -1 : 1;
+    const value = Number.parseFloat(RegExp.$2);
+    return {
+      kind: 'anchorY',
+      anchorC: Number.isFinite(value) ? sign * value : 0,
+      slopeM: 1
+    };
+  }
+  if (/^([+-]?\d*(?:\.\d+)?)\*?x\+b$/.test(normalized)) {
+    const raw = RegExp.$1;
+    let slopeM = 1;
+    if (raw === '' || raw === '+') {
+      slopeM = 1;
+    } else if (raw === '-') {
+      slopeM = -1;
+    } else {
+      const parsed = Number.parseFloat(raw);
+      slopeM = Number.isFinite(parsed) ? parsed : 1;
+    }
+    return {
+      kind: 'fixedSlope',
+      anchorC: 0,
+      slopeM
+    };
+  }
+  const hasA = /(^|[+\-*/(])a(?=\*?x(?![a-z]))/.test(normalized);
+  const hasB = /(^|[+\-])b(?![a-z])(?!\*|x)/.test(normalized);
+  if (hasA && hasB) {
+    return {
+      kind: 'two',
+      anchorC: 0,
+      slopeM: 1
+    };
+  }
+  return base;
+}
+
+function interpretLineTemplateFromExpression(expr) {
+  return interpretLineTemplate(extractLineRhs(expr));
+}
+
+function isValidPointArray(pt) {
+  return Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite);
+}
+
+function resolveLineStartPoints(parsed) {
+  const basePoints = DEFAULT_LINE_POINTS.map(pt => pt.slice());
+  if (!parsed) {
+    return basePoints;
+  }
+  const first = parsed.funcs && parsed.funcs[0] ? parsed.funcs[0] : null;
+  const spec = interpretLineTemplate(first ? first.rhs : '');
+  const needed = spec.kind === 'two' ? 2 : spec.kind ? 1 : 0;
+  if (Array.isArray(parsed.linePoints)) {
+    const valid = parsed.linePoints.filter(isValidPointArray);
+    if (valid[0]) basePoints[0] = valid[0].slice();
+    if (needed > 1 && valid[1]) basePoints[1] = valid[1].slice();
+  }
+  return basePoints;
+}
+
+function applyLinePointStart(parsed) {
+  const resolved = resolveLineStartPoints(parsed);
+  ADV.points.start = resolved.map(pt => pt.slice());
+  return resolved;
+}
+
 /* ======================= Parser / modus ======================= */
 function parseSimple(txt) {
   const lines = (txt || '').split('\n').map(s => s.trim()).filter(Boolean);
@@ -200,6 +297,7 @@ function parseSimple(txt) {
     pointsCount: 0,
     startX: [],
     extraPoints: [],
+    linePoints: [],
     answer: null,
     raw: txt
   };
@@ -321,6 +419,14 @@ function parseSimple(txt) {
       }
       continue;
     }
+    const lm = L.match(/^linepts\s*=\s*(.+)$/i);
+    if (lm) {
+      const pts = parsePointListString(lm[1]);
+      for (const pt of pts) {
+        if (pt.length === 2) out.linePoints.push(pt);
+      }
+      continue;
+    }
     const sm = L.match(/^startx\s*=\s*(.+)$/i);
     if (sm) {
       out.startX = sm[1].split(',').map(s => +s.trim()).filter(Number.isFinite);
@@ -335,6 +441,7 @@ function parseSimple(txt) {
   return out;
 }
 let SIMPLE_PARSED = parseSimple(SIMPLE);
+applyLinePointStart(SIMPLE_PARSED);
 const ALLOWED_NAMES = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'log', 'ln', 'sqrt', 'exp', 'abs', 'min', 'max', 'floor', 'ceil', 'round', 'pow'];
 function isExplicitRHS(rhs) {
   let s = rhs.toLowerCase();
@@ -2098,18 +2205,10 @@ function buildPointsLine() {
   const first = (_SIMPLE_PARSED$funcs$ = SIMPLE_PARSED.funcs[0]) !== null && _SIMPLE_PARSED$funcs$ !== void 0 ? _SIMPLE_PARSED$funcs$ : {
     rhs: 'ax+b'
   };
-  const rhs = first.rhs.replace(/\s+/g, '').toLowerCase();
-  let kind = 'two',
-    anchorC = 0,
-    slopeM = 1;
-  if (/^a\*?x([+-])(\d+(?:\.\d+)?)$/.test(rhs)) {
-    kind = 'anchorY';
-    anchorC = RegExp.$1 === '-' ? -parseFloat(RegExp.$2) : parseFloat(RegExp.$2);
-  } else if (/^([+-]?\d*(?:\.\d+)?)\*?x\+b$/.test(rhs)) {
-    kind = 'fixedSlope';
-    const raw = RegExp.$1;
-    slopeM = raw === '' || raw === '+' ? 1 : raw === '-' ? -1 : parseFloat(raw);
-  }
+  const template = interpretLineTemplate(first.rhs);
+  const kind = template.kind || 'two';
+  const anchorC = template.anchorC;
+  const slopeM = template.slopeM;
   const start0 = ADV.points.start[0],
     start1 = ADV.points.start[1];
   if (kind === 'two') {
@@ -2350,6 +2449,7 @@ function rebuildAll() {
     SIMPLE = SIMPLE == null ? '' : String(SIMPLE);
   }
   SIMPLE_PARSED = parseSimple(SIMPLE);
+  applyLinePointStart(SIMPLE_PARSED);
   MODE = decideMode(SIMPLE_PARSED);
   hideCheckControls();
   destroyBoard();
@@ -2520,6 +2620,11 @@ function setupSettingsForm() {
   let gliderStartLabel = null;
   let glidersVisible = false;
   let forcedGliderCount = null;
+  let linePointSection = null;
+  let linePointInputs = [];
+  let linePointLabels = [];
+  let linePointVisibleCount = 0;
+  let linePointsEdited = false;
   const MATHFIELD_TAG = 'MATH-FIELD';
   const COMMAND_NAME_MAP = {
     cdot: '*',
@@ -2832,6 +2937,59 @@ function setupSettingsForm() {
     if (!matches) return [];
     return matches.map(str => Number.parseFloat(str.replace(',', '.'))).filter(Number.isFinite);
   };
+  const parseLinePointInput = value => {
+    if (!value) return null;
+    const matches = String(value).match(/-?\d+(?:[.,]\d+)?/g);
+    if (!matches || matches.length < 2) return null;
+    const nums = matches.slice(0, 2).map(str => Number.parseFloat(str.replace(',', '.')));
+    if (!nums.every(Number.isFinite)) return null;
+    return nums;
+  };
+  const setLinePointInputValues = points => {
+    if (!Array.isArray(points)) return;
+    linePointInputs.forEach((input, idx) => {
+      if (!input) return;
+      const pt = points[idx];
+      if (Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite)) {
+        input.value = `${formatNumber(pt[0])}, ${formatNumber(pt[1])}`;
+      } else {
+        input.value = '';
+      }
+    });
+  };
+  const formatLinePoints = points => points.map(pt => `(${formatNumber(pt[0])}, ${formatNumber(pt[1])})`).join('; ');
+  const getLinePointsFromInputs = needed => {
+    if (!Array.isArray(linePointInputs) || linePointInputs.length === 0 || needed <= 0) return [];
+    const limit = Math.min(needed, linePointInputs.length);
+    const pts = [];
+    for (let i = 0; i < limit; i++) {
+      const input = linePointInputs[i];
+      if (!input) return [];
+      const parsed = parseLinePointInput(input.value);
+      if (!parsed) return [];
+      pts.push(parsed);
+    }
+    return pts;
+  };
+  const gatherLinePointsForExport = needed => {
+    if (needed <= 0) return [];
+    const direct = getLinePointsFromInputs(needed);
+    if (direct.length === needed) {
+      return direct;
+    }
+    if (Array.isArray(SIMPLE_PARSED.linePoints) && SIMPLE_PARSED.linePoints.length >= needed) {
+      const fallback = [];
+      for (let i = 0; i < needed; i++) {
+        const src = SIMPLE_PARSED.linePoints[i];
+        if (!isValidPointArray(src)) return [];
+        fallback.push([src[0], src[1]]);
+      }
+      return fallback;
+    }
+    return [];
+  };
+  const getLineTemplateSpec = () => interpretLineTemplateFromExpression(getFirstFunctionValue());
+  const getLinePointCount = spec => spec && spec.kind ? spec.kind === 'two' ? 2 : 1 : 0;
   const getGliderCount = () => {
     if (!gliderCountInput) return 0;
     const n = Number.parseInt(gliderCountInput.value, 10);
@@ -2871,6 +3029,33 @@ function setupSettingsForm() {
     } else {
       snapCheckbox.removeAttribute('title');
     }
+  };
+  const updateLinePointControls = (options = {}) => {
+    const { silent = false } = options;
+    if (!linePointSection) {
+      if (!silent) updateSnapAvailability();
+      return;
+    }
+    const spec = getLineTemplateSpec();
+    const count = getLinePointCount(spec);
+    const changed = count !== linePointVisibleCount;
+    linePointVisibleCount = count;
+    linePointSection.style.display = count > 0 ? '' : 'none';
+    linePointLabels.forEach((label, idx) => {
+      if (!label) return;
+      label.style.display = idx < count ? '' : 'none';
+    });
+    linePointInputs.forEach((input, idx) => {
+      if (!input) return;
+      input.disabled = idx >= count;
+    });
+    if (count === 0 && !silent) {
+      linePointsEdited = false;
+    }
+    if (changed && !silent) {
+      syncSimpleFromForm();
+    }
+    updateSnapAvailability();
   };
   if (snapCheckbox) {
     snapCheckbox.checked = ADV.points.snap.enabled;
@@ -2926,6 +3111,8 @@ function setupSettingsForm() {
     const firstInput = (_rows$ = rows[0]) === null || _rows$ === void 0 ? void 0 : _rows$.querySelector('[data-fun]');
     const firstVal = firstInput ? getFunctionInputValue(firstInput) : '';
     const firstIsCoords = !!firstVal && isCoords(firstVal);
+    const lineSpec = interpretLineTemplateFromExpression(firstVal);
+    const neededLinePoints = getLinePointCount(lineSpec);
     const lines = [];
     rows.forEach((row, idx) => {
       const funInput = row.querySelector('[data-fun]');
@@ -2943,6 +3130,7 @@ function setupSettingsForm() {
     const hasCoordsLine = lines.some(L => /^\s*coords\s*=/i.test(L));
     const hasPointsLine = lines.some(L => /^\s*points\s*=/i.test(L));
     const hasStartXLine = lines.some(L => /^\s*startx\s*=/i.test(L));
+    const hasLinePtsLine = lines.some(L => /^\s*linepts\s*=/i.test(L));
     const hasAnswerLine = lines.some(L => /^\s*riktig\s*:/i.test(L));
     const glidersActive = shouldEnableGliders();
     const gliderCount = glidersActive ? getGliderCount() : 0;
@@ -2959,6 +3147,12 @@ function setupSettingsForm() {
       const coords = SIMPLE_PARSED.extraPoints.filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite)).map(pt => `(${formatNumber(pt[0])}, ${formatNumber(pt[1])})`);
       if (coords.length) {
         lines.push(`coords=${coords.join('; ')}`);
+      }
+    }
+    if (!hasLinePtsLine && neededLinePoints > 0 && (linePointsEdited || Array.isArray(SIMPLE_PARSED.linePoints) && SIMPLE_PARSED.linePoints.length > 0)) {
+      const exportPoints = gatherLinePointsForExport(neededLinePoints);
+      if (exportPoints.length === neededLinePoints) {
+        lines.push(`linepts=${formatLinePoints(exportPoints)}`);
       }
     }
     if (!hasAnswerLine && SIMPLE_PARSED.answer) {
@@ -3003,6 +3197,7 @@ function setupSettingsForm() {
       }
     }
     updateGliderVisibility();
+    updateLinePointControls({ silent: true });
   };
   const createRow = (index, funVal = '', domVal = '') => {
     const row = document.createElement('fieldset');
@@ -3039,6 +3234,16 @@ function setupSettingsForm() {
               <input type="text" data-startx value="1" placeholder="1">
             </label>
           </div>
+          <div class="func-row func-row--linepoints linepoints-row">
+            <label class="linepoint" data-linepoint-label="0">
+              <span>Punkt 1 (x, y)</span>
+              <input type="text" data-linepoint="0" placeholder="0, 0">
+            </label>
+            <label class="linepoint" data-linepoint-label="1">
+              <span>Punkt 2 (x, y)</span>
+              <input type="text" data-linepoint="1" placeholder="1, 1">
+            </label>
+          </div>
         </div>
       `;
     } else {
@@ -3067,6 +3272,7 @@ function setupSettingsForm() {
       setFunctionInputValue(funInput, funVal || '');
       const handleChange = () => {
         toggleDomain(funInput);
+        updateLinePointControls();
         syncSimpleFromForm();
       };
       funInput.addEventListener('input', handleChange);
@@ -3091,6 +3297,24 @@ function setupSettingsForm() {
       if (gliderStartInput) {
         gliderStartInput.addEventListener('input', syncSimpleFromForm);
       }
+      linePointSection = row.querySelector('.linepoints-row');
+      linePointInputs = linePointSection ? Array.from(linePointSection.querySelectorAll('input[data-linepoint]')) : [];
+      linePointLabels = linePointSection ? Array.from(linePointSection.querySelectorAll('[data-linepoint-label]')) : [];
+      linePointVisibleCount = 0;
+      if (linePointSection) {
+        linePointSection.style.display = 'none';
+      }
+      linePointInputs.forEach(input => {
+        if (!input) return;
+        input.addEventListener('input', () => {
+          linePointsEdited = true;
+          syncSimpleFromForm();
+        });
+        input.addEventListener('change', () => {
+          linePointsEdited = true;
+          syncSimpleFromForm();
+        });
+      });
     }
     if (funInput) {
       toggleDomain(funInput);
@@ -3103,7 +3327,9 @@ function setupSettingsForm() {
     if (typeof source === 'string') {
       SIMPLE = source;
       SIMPLE_PARSED = parseSimple(SIMPLE);
+      applyLinePointStart(SIMPLE_PARSED);
     }
+    linePointsEdited = Array.isArray(SIMPLE_PARSED.linePoints) && SIMPLE_PARSED.linePoints.length > 0;
     const lines = text.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
     const filteredLines = lines.filter(line => !/^\s*points\s*=/i.test(line) && !/^\s*startx\s*=/i.test(line));
     if (filteredLines.length === 0) {
@@ -3114,6 +3340,10 @@ function setupSettingsForm() {
       gliderCountInput = null;
       gliderStartInput = null;
       gliderStartLabel = null;
+      linePointSection = null;
+      linePointInputs = [];
+      linePointLabels = [];
+      linePointVisibleCount = 0;
       funcRows.innerHTML = '';
     }
     glidersVisible = false;
@@ -3139,7 +3369,12 @@ function setupSettingsForm() {
       const startVals = Array.isArray((_SIMPLE_PARSED2 = SIMPLE_PARSED) === null || _SIMPLE_PARSED2 === void 0 ? void 0 : _SIMPLE_PARSED2.startX) ? SIMPLE_PARSED.startX.filter(Number.isFinite) : [];
       gliderStartInput.value = startVals.length ? startVals.map(formatNumber).join(', ') : '1';
     }
+    if (linePointInputs.length && SIMPLE_PARSED) {
+      const resolvedPoints = resolveLineStartPoints(SIMPLE_PARSED);
+      setLinePointInputValues(resolvedPoints);
+    }
     updateGliderVisibility();
+    updateLinePointControls({ silent: true });
     syncSimpleFromForm();
     updateSnapAvailability();
   };
@@ -3210,6 +3445,14 @@ function setupSettingsForm() {
         if (startVals.length) {
           p.set('startx', startVals.map(formatNumber).join(', '));
         }
+      }
+    }
+    const applyLineSpec = interpretLineTemplateFromExpression(getFirstFunctionValue());
+    const applyNeededLinePoints = getLinePointCount(applyLineSpec);
+    if (applyNeededLinePoints > 0 && (linePointsEdited || Array.isArray(SIMPLE_PARSED.linePoints) && SIMPLE_PARSED.linePoints.length > 0)) {
+      const exportPoints = gatherLinePointsForExport(applyNeededLinePoints);
+      if (exportPoints.length === applyNeededLinePoints) {
+        p.set('linepts', formatLinePoints(exportPoints));
       }
     }
     if (g('cfgScreen').value.trim()) p.set('screen', g('cfgScreen').value.trim());
