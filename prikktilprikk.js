@@ -1306,6 +1306,28 @@
     refreshLabelPlacements();
   }
 
+  function normalizePointLabel(value) {
+    if (typeof value === 'string') return value;
+    if (value == null) return '';
+    return String(value);
+  }
+
+  function updatePointLabel(pointId, rawLabel) {
+    const point = STATE.points.find(p => p.id === pointId);
+    if (!point) return;
+    const nextLabel = normalizePointLabel(rawLabel);
+    if (point.label === nextLabel) return;
+    point.label = nextLabel;
+    STATE.answerLines = buildSequentialAnswerLines(STATE.points);
+    const label = labelElements.get(pointId);
+    if (label) {
+      label.setText(getPointLabelText(point));
+      label.setVisibility(STATE.showLabels);
+      label.setFalse(!!point.isFalse);
+    }
+    renderBoard(currentValidPoints);
+  }
+
   function snapAllPointsToGrid() {
     if (!STATE.snapToGrid) return false;
     let changed = false;
@@ -2001,6 +2023,26 @@
       });
       item.appendChild(handle);
 
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.className = 'point-input point-input--label';
+      labelInput.placeholder = 'Etikett';
+      labelInput.setAttribute('aria-label', 'Etikett');
+      labelInput.value = typeof point.label === 'string' ? point.label : '';
+      const commitLabelChange = () => {
+        updatePointLabel(point.id, labelInput.value);
+      };
+      labelInput.addEventListener('change', commitLabelChange);
+      labelInput.addEventListener('blur', commitLabelChange);
+      labelInput.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          commitLabelChange();
+          labelInput.blur();
+        }
+      });
+      item.appendChild(labelInput);
+
       const coordInput = document.createElement('input');
       coordInput.type = 'text';
       coordInput.inputMode = 'decimal';
@@ -2058,6 +2100,7 @@
       targetList.appendChild(item);
       pointEditors.set(point.id, {
         itemEl: item,
+        labelInput,
         coordInput
       });
     });
