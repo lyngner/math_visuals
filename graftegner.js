@@ -2117,6 +2117,38 @@ function buildFunctions() {
   // glidere
   const n = SIMPLE_PARSED.pointsCount | 0;
   if (n > 0 && graphs.length > 0) {
+    const firstFunc = SIMPLE_PARSED.funcs && SIMPLE_PARSED.funcs.length ? SIMPLE_PARSED.funcs[0] : null;
+    const gliderTemplate = interpretLineTemplate(firstFunc ? firstFunc.rhs : '');
+    const shouldEmitLinePointEvents = !!(gliderTemplate && gliderTemplate.kind);
+    const gliders = [];
+    const emitLinePointUpdate = (options = {}) => {
+      if (!shouldEmitLinePointEvents || typeof window === 'undefined' || gliders.length === 0) {
+        return;
+      }
+      const points = [];
+      for (const point of gliders) {
+        if (!point) {
+          return;
+        }
+        const x = point.X();
+        const y = point.Y();
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          return;
+        }
+        points.push([x, y]);
+      }
+      if (!points.length) {
+        return;
+      }
+      const detail = { points };
+      if (options.sync === false) {
+        detail.sync = false;
+      }
+      if (options.markEdited === false) {
+        detail.markEdited = false;
+      }
+      window.dispatchEvent(new CustomEvent('graf:linepoints-changed', { detail }));
+    };
     const G = graphs[0];
     const sxList = SIMPLE_PARSED.startX && SIMPLE_PARSED.startX.length > 0 ? SIMPLE_PARSED.startX : ADV.points.startX && ADV.points.startX.length > 0 ? ADV.points.startX : [0];
     function stepXg() {
@@ -2138,12 +2170,14 @@ function buildFunctions() {
         fillColor: '#fff',
         showInfobox: false
       });
+      gliders.push(P);
 
       // HARD KLAMMING TIL DOMENE UNDER DRAG
       P.on('drag', () => {
         let x = clampToDomain(P.X());
         P.moveTo([x, G.fn(x)]);
         if (ADV.points.snap.enabled && (ADV.points.snap.mode || 'up') === 'drag') applySnap(P);
+        emitLinePointUpdate({ sync: false });
       });
       if (ADV.points.showCoordsOnHover) {
         P.label.setAttribute({
@@ -2169,7 +2203,14 @@ function buildFunctions() {
         }));
       }
       if (ADV.points.snap.enabled && (ADV.points.snap.mode || 'up') === 'up') {
-        P.on('up', () => applySnap(P));
+        P.on('up', () => {
+          applySnap(P);
+          emitLinePointUpdate();
+        });
+      } else {
+        P.on('up', () => {
+          emitLinePointUpdate();
+        });
       }
       if (MODE === 'functions' && ADV.points.guideArrows) {
         brd.create('arrow', [() => [P.X(), P.Y()], () => [0, P.Y()]], {
@@ -2194,6 +2235,7 @@ function buildFunctions() {
         });
       }
     }
+    emitLinePointUpdate({ sync: false, markEdited: false });
   }
 }
 
@@ -2284,6 +2326,35 @@ function buildPointsLine() {
   function snap(P) {
     P.moveTo([nearestMultiple(P.X(), stepXv()), nearestMultiple(P.Y(), stepYv())]);
   }
+  const emitLinePointUpdate = (options = {}) => {
+    if (typeof window === 'undefined' || !Array.isArray(moving) || moving.length === 0) {
+      return;
+    }
+    const sample = kind === 'two' ? moving : moving.slice(0, 1);
+    const points = [];
+    for (const point of sample) {
+      if (!point) {
+        continue;
+      }
+      const x = point.X();
+      const y = point.Y();
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return;
+      }
+      points.push([x, y]);
+    }
+    if (!points.length) {
+      return;
+    }
+    const detail = { points };
+    if (options.sync === false) {
+      detail.sync = false;
+    }
+    if (options.markEdited === false) {
+      detail.markEdited = false;
+    }
+    window.dispatchEvent(new CustomEvent('graf:linepoints-changed', { detail }));
+  };
   if (ADV.points.snap.enabled) {
     const mode = ADV.points.snap.mode || 'up';
     for (const P of moving) {
@@ -2318,6 +2389,13 @@ function buildPointsLine() {
       }));
     }
   }
+  if (Array.isArray(moving)) {
+    for (const P of moving) {
+      P.on('drag', () => emitLinePointUpdate({ sync: false }));
+      P.on('up', () => emitLinePointUpdate());
+    }
+  }
+  emitLinePointUpdate({ sync: false, markEdited: false });
 
   // Fasit-sjekk (hvis "Riktig:" finnes)
   if (SIMPLE_PARSED.answer) {
@@ -3169,6 +3247,48 @@ function setupSettingsForm() {
       window.SIMPLE = SIMPLE;
     }
   };
+  const handleExternalLinePointUpdate = event => {
+    if (!linePointSection || !Array.isArray(linePointInputs) || linePointInputs.length === 0) {
+      return;
+    }
+    if (!event || !event.detail || !Array.isArray(event.detail.points)) {
+      return;
+    }
+    const spec = getLineTemplateSpec();
+    const needed = getLinePointCount(spec);
+    if (needed <= 0) {
+      return;
+    }
+    if (event.detail.points.length < needed) {
+      return;
+    }
+    const values = [];
+    for (let i = 0; i < needed; i++) {
+      const src = event.detail.points[i];
+      if (!Array.isArray(src) || src.length < 2) {
+        return;
+      }
+      const x = typeof src[0] === 'number' ? src[0] : Number.parseFloat(String(src[0]));
+      const y = typeof src[1] === 'number' ? src[1] : Number.parseFloat(String(src[1]));
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return;
+      }
+      values.push([x, y]);
+    }
+    if (!values.length) {
+      return;
+    }
+    setLinePointInputValues(values);
+    if (!event.detail || event.detail.markEdited !== false) {
+      linePointsEdited = true;
+    }
+    if (!event.detail || event.detail.sync !== false) {
+      syncSimpleFromForm();
+    }
+  };
+  if (typeof window !== 'undefined') {
+    window.addEventListener('graf:linepoints-changed', handleExternalLinePointUpdate);
+  }
   const handleGliderCountChange = () => {
     updateStartInputState();
     syncSimpleFromForm();
