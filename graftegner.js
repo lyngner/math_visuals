@@ -3006,6 +3006,12 @@ function setupSettingsForm() {
     const forced = determineForcedGliderCount(value);
     return forced != null && forced > 0;
   };
+  const shouldShowStartInput = () => {
+    if (!gliderStartInput) return false;
+    if (!shouldEnableGliders()) return false;
+    const spec = getLineTemplateSpec();
+    return getLinePointCount(spec) === 0;
+  };
   const hasConfiguredPoints = () => {
     const parsedMode = SIMPLE_PARSED ? decideMode(SIMPLE_PARSED) : 'functions';
     if (parsedMode === 'points') {
@@ -3063,11 +3069,11 @@ function setupSettingsForm() {
   }
   const updateStartInputState = () => {
     if (!gliderStartInput) return;
-    const active = shouldEnableGliders();
+    const showInput = shouldShowStartInput();
     const count = getGliderCount();
-    gliderStartInput.disabled = !active || count <= 0;
+    gliderStartInput.disabled = !showInput || count <= 0;
     if (gliderStartLabel) {
-      gliderStartLabel.style.display = active ? '' : 'none';
+      gliderStartLabel.style.display = showInput ? '' : 'none';
     }
     updateSnapAvailability();
   };
@@ -3138,7 +3144,7 @@ function setupSettingsForm() {
     if (glidersActive && !hasPointsLine && gliderCount > 0) {
       lines.push(`points=${gliderCount}`);
     }
-    if (glidersActive && !hasStartXLine && gliderCount > 0) {
+    if (glidersActive && shouldShowStartInput() && !hasStartXLine && gliderCount > 0) {
       const startValues = parseStartXValues((gliderStartInput === null || gliderStartInput === void 0 ? void 0 : gliderStartInput.value) || '');
       if (startValues.length) {
         lines.push(`startx=${startValues.map(formatNumber).join(', ')}`);
@@ -3442,9 +3448,11 @@ function setupSettingsForm() {
       const count = getGliderCount();
       if (count > 0) {
         p.set('points', String(count));
-        const startVals = parseStartXValues((gliderStartInput === null || gliderStartInput === void 0 ? void 0 : gliderStartInput.value) || '');
-        if (startVals.length) {
-          p.set('startx', startVals.map(formatNumber).join(', '));
+        if (shouldShowStartInput()) {
+          const startVals = parseStartXValues((gliderStartInput === null || gliderStartInput === void 0 ? void 0 : gliderStartInput.value) || '');
+          if (startVals.length) {
+            p.set('startx', startVals.map(formatNumber).join(', '));
+          }
         }
       }
     }
