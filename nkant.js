@@ -459,38 +459,96 @@ function objToSpec(obj) {
   const order = ["a", "b", "c", "d", "A", "B", "C", "D"];
   return order.filter(k => k in obj).map(k => `${k}=${fmt(obj[k])}`).join(', ');
 }
+function resolveBackendEndpoint() {
+  if (typeof window === 'undefined') return null;
+  if (window.MATH_VISUALS_API_URL) {
+    return window.MATH_VISUALS_API_URL;
+  }
+  var _window$location;
+  const origin = (_window$location = window.location) === null || _window$location === void 0 ? void 0 : _window$location.origin;
+  if (typeof origin === 'string' && /^https?:/i.test(origin)) {
+    return '/api/nkant-parse';
+  }
+  return null;
+}
+async function requestSpecFromBackend(str) {
+  const endpoint = resolveBackendEndpoint();
+  if (!endpoint) return null;
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      prompt: str
+    })
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Backend error ${res.status}${text ? `: ${text}` : ''}`);
+  }
+  return res.json();
+}
 async function parseSpecAI(str) {
   const direct = parseSpec(str);
   if (Object.keys(direct).length > 0) return direct;
   const quick = parseSpecFreeform(str);
   if (Object.keys(quick).length > 0) return quick;
+  let data = null;
+  let backendFailed = false;
   try {
-    var _data$choices;
-    const apiKey = window.OPENAI_API_KEY;
-    if (!apiKey) throw new Error('missing api key');
-    const body = {
-      model: 'gpt-4o-mini',
-      response_format: {
-        type: 'json_object'
-      },
-      messages: [{
-        role: 'system',
-        content: 'Returner kun JSON med tall for a,b,c,d,A,B,C,D.'
-      }, {
-        role: 'user',
-        content: str
-      }]
-    };
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(body)
-    });
-    const data = await res.json();
-    const txt = (_data$choices = data.choices) === null || _data$choices === void 0 || (_data$choices = _data$choices[0]) === null || _data$choices === void 0 || (_data$choices = _data$choices.message) === null || _data$choices === void 0 ? void 0 : _data$choices.content;
+    data = await requestSpecFromBackend(str);
+  } catch (error) {
+    backendFailed = true;
+    if (error) console.warn('parseSpecAI backend fallback', error);
+  }
+  if (!data) {
+    try {
+      var _data$choices;
+      const apiKey = typeof window !== 'undefined' ? window.OPENAI_API_KEY : null;
+      if (!apiKey) throw new Error('missing api key');
+      const body = {
+        model: 'gpt-4o-mini',
+        response_format: {
+          type: 'json_object'
+        },
+        messages: [{
+          role: 'system',
+          content: 'Returner kun JSON med tall for a,b,c,d,A,B,C,D.'
+        }, {
+          role: 'user',
+          content: str
+        }]
+      };
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(body)
+      });
+      data = await res.json();
+      const txt = (_data$choices = data.choices) === null || _data$choices === void 0 || (_data$choices = _data$choices[0]) === null || _data$choices === void 0 || (_data$choices = _data$choices.message) === null || _data$choices === void 0 ? void 0 : _data$choices.content;
+      if (!txt) throw new Error('no content');
+      const parsed = JSON.parse(txt);
+      const out = {};
+      Object.entries(parsed).forEach(([k, v]) => {
+        if (/^[abcdABCD]$/.test(k)) {
+          const n = parseFloat(String(v).replace(',', '.'));
+          if (isFinite(n)) out[k] = n;
+        }
+      });
+      if (Object.keys(out).length === 0) return parseSpec(str);
+      return out;
+    } catch (err) {
+      if (!backendFailed) console.warn('parseSpecAI fallback', err);
+      return parseSpec(str);
+    }
+  }
+  try {
+    var _data$choices2;
+    const txt = (_data$choices2 = data.choices) === null || _data$choices2 === void 0 || (_data$choices2 = _data$choices2[0]) === null || _data$choices2 === void 0 || (_data$choices2 = _data$choices2.message) === null || _data$choices2 === void 0 ? void 0 : _data$choices2.content;
     if (!txt) throw new Error('no content');
     const parsed = JSON.parse(txt);
     const out = {};
@@ -503,7 +561,7 @@ async function parseSpecAI(str) {
     if (Object.keys(out).length === 0) return parseSpec(str);
     return out;
   } catch (err) {
-    console.warn('parseSpecAI fallback', err);
+    console.warn('parseSpecAI parse error', err);
     return parseSpec(str);
   }
 }
