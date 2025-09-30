@@ -108,6 +108,37 @@
       ensureFallbackStorage().removeItem(key);
     }
   }
+  function resolveExamplesApiBase() {
+    if (typeof window === 'undefined') return null;
+    if (window.MATH_VISUALS_EXAMPLES_API_URL) {
+      const value = String(window.MATH_VISUALS_EXAMPLES_API_URL).trim();
+      if (value) return value;
+    }
+    const origin = window.location && window.location.origin;
+    if (typeof origin === 'string' && /^https?:/i.test(origin)) {
+      return '/api/examples';
+    }
+    return null;
+  }
+  function buildExamplesApiUrl(base, path) {
+    if (!base) return null;
+    if (typeof window === 'undefined') {
+      if (!path) return base;
+      const sep = base.includes('?') ? '&' : '?';
+      return `${base}${sep}path=${encodeURIComponent(path)}`;
+    }
+    try {
+      const url = new URL(base, window.location && window.location.href ? window.location.href : undefined);
+      if (path) {
+        url.searchParams.set('path', path);
+      }
+      return url.toString();
+    } catch (error) {
+      if (!path) return base;
+      const sep = base.includes('?') ? '&' : '?';
+      return `${base}${sep}path=${encodeURIComponent(path)}`;
+    }
+  }
   async function copyTextToClipboard(text) {
     if (typeof text !== 'string') return false;
     try {
@@ -258,6 +289,145 @@
       }
     }
   } catch (_) {}
+  const examplesApiBase = resolveExamplesApiBase();
+  let backendAvailable = !!examplesApiBase;
+  let applyingBackendUpdate = false;
+  let backendSyncTimer = null;
+  let backendSyncPromise = null;
+  let backendSyncRequested = false;
+  async function performBackendSync() {
+    if (!examplesApiBase || applyingBackendUpdate) return;
+    const url = buildExamplesApiUrl(examplesApiBase, storagePath);
+    if (!url) return;
+    const examples = Array.isArray(cachedExamples) ? cachedExamples : [];
+    const deletedSet = getDeletedProvidedExamples();
+    const deletedProvidedList = deletedSet ? Array.from(deletedSet).map(normalizeKey).filter(Boolean) : [];
+    const hasExamples = examples.length > 0;
+    const hasDeleted = deletedProvidedList.length > 0;
+    try {
+      if (!hasExamples && !hasDeleted) {
+        const res = await fetch(url, {
+          method: 'DELETE'
+        });
+        backendAvailable = res.ok || res.status === 404;
+      } else {
+        const payload = {
+          path: storagePath,
+          examples,
+          deletedProvided: deletedProvidedList,
+          updatedAt: new Date().toISOString()
+        };
+        const res = await fetch(url, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error(`Backend sync failed (${res.status})`);
+        backendAvailable = true;
+      }
+    } catch (error) {
+      backendAvailable = false;
+      backendSyncRequested = true;
+    }
+  }
+  function flushBackendSync() {
+    if (backendSyncTimer) {
+      clearTimeout(backendSyncTimer);
+      backendSyncTimer = null;
+    }
+    if (!backendSyncRequested || backendSyncPromise || !examplesApiBase || applyingBackendUpdate) {
+      return;
+    }
+    backendSyncRequested = false;
+    backendSyncPromise = performBackendSync().finally(() => {
+      backendSyncPromise = null;
+      if (backendSyncRequested) {
+        scheduleBackendSync();
+      }
+    });
+  }
+  function scheduleBackendSync() {
+    if (!examplesApiBase || applyingBackendUpdate) return;
+    backendSyncRequested = true;
+    if (backendSyncPromise) return;
+    if (backendSyncTimer) return;
+    backendSyncTimer = setTimeout(() => {
+      backendSyncTimer = null;
+      flushBackendSync();
+    }, 200);
+  }
+  function notifyBackendChange() {
+    if (!examplesApiBase || applyingBackendUpdate) return;
+    scheduleBackendSync();
+  }
+  function applyBackendData(data) {
+    applyingBackendUpdate = true;
+    try {
+      const examples = data && Array.isArray(data.examples) ? data.examples : [];
+      store(examples);
+      const deletedProvided = data && Array.isArray(data.deletedProvided) ? data.deletedProvided : [];
+      deletedProvidedExamples = new Set();
+      deletedProvided.forEach(value => {
+        const key = normalizeKey(value);
+        if (key) deletedProvidedExamples.add(key);
+      });
+      if (deletedProvidedExamples.size > 0) {
+        safeSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
+      } else {
+        safeRemoveItem(DELETED_PROVIDED_KEY);
+      }
+    } catch (error) {
+      deletedProvidedExamples = deletedProvidedExamples || new Set();
+    } finally {
+      applyingBackendUpdate = false;
+    }
+  }
+  async function loadExamplesFromBackend() {
+    if (!examplesApiBase) return null;
+    const url = buildExamplesApiUrl(examplesApiBase, storagePath);
+    if (!url) return null;
+    let res;
+    try {
+      res = await fetch(url, {
+        headers: {
+          Accept: 'application/json'
+        }
+      });
+    } catch (error) {
+      backendAvailable = false;
+      return null;
+    }
+    if (res.status === 404) {
+      backendAvailable = true;
+      applyBackendData({
+        examples: [],
+        deletedProvided: []
+      });
+      renderOptions();
+      return {
+        path: storagePath,
+        examples: [],
+        deletedProvided: []
+      };
+    }
+    if (!res.ok) {
+      backendAvailable = false;
+      return null;
+    }
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (error) {
+      backendAvailable = false;
+      return null;
+    }
+    backendAvailable = true;
+    applyBackendData(data || {});
+    renderOptions();
+    return data;
+  }
   let initialLoadPerformed = false;
   let currentExampleIndex = null;
   let tabsContainer = null;
@@ -334,6 +504,7 @@
     cachedExamples = Array.isArray(examples) ? examples : [];
     cachedExamplesInitialized = true;
     safeSetItem(key, JSON.stringify(cachedExamples));
+    notifyBackendChange();
   }
   const BINDING_NAMES = ['STATE', 'CFG', 'CONFIG', 'SIMPLE'];
   const DELETED_PROVIDED_KEY = key + '_deletedProvidedExamples';
@@ -365,6 +536,7 @@
     try {
       safeSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
     } catch (error) {}
+    notifyBackendChange();
   }
   function markProvidedExampleDeleted(value) {
     const key = normalizeKey(value);
@@ -962,6 +1134,9 @@
     alert('Eksempel slettet');
   });
   renderOptions();
+  if (examplesApiBase) {
+    loadExamplesFromBackend();
+  }
   function parseInitialExampleIndex() {
     const parseValue = value => {
       if (value == null) return null;
