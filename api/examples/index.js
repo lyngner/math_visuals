@@ -6,8 +6,30 @@ const {
   getEntry,
   setEntry,
   deleteEntry,
-  listEntries
+  listEntries,
+  KvOperationError,
+  isKvConfigured
 } = require('../_lib/examples-store');
+
+function parseAllowedOrigins() {
+  const envValue = process.env.EXAMPLES_ALLOWED_ORIGINS || process.env.ALLOWED_ORIGINS;
+  if (!envValue) return ['*'];
+  return envValue
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean);
+}
+
+const allowedOrigins = parseAllowedOrigins();
+
+function resolveCorsOrigin(req) {
+  if (allowedOrigins.includes('*')) return '*';
+  const requestOrigin = req.headers.origin;
+  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+  return allowedOrigins[0] || '*';
+}
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
@@ -55,9 +77,15 @@ function extractPathFromBody(body, fallback) {
 }
 
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const corsOrigin = resolveCorsOrigin(req);
+  res.setHeader('Access-Control-Allow-Origin', corsOrigin);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  if (corsOrigin !== '*') {
+    res.setHeader('Vary', 'Origin');
+  }
+
+  res.setHeader('X-Examples-Store-Mode', isKvConfigured() ? 'kv' : 'memory');
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
@@ -98,6 +126,7 @@ module.exports = async function handler(req, res) {
         return;
       }
       await deleteEntry(target);
+      res.setHeader('X-Examples-Storage-Result', isKvConfigured() ? 'kv' : 'memory');
       sendJson(res, 200, { ok: true });
       return;
     }
@@ -121,16 +150,20 @@ module.exports = async function handler(req, res) {
         updatedAt: typeof body.updatedAt === 'string' ? body.updatedAt : undefined
       };
       const entry = await setEntry(target, payload);
-      if (!entry) {
-        sendJson(res, 500, { error: 'Failed to store entry' });
-        return;
-      }
+      res.setHeader('X-Examples-Storage-Result', entry.storage || 'memory');
       sendJson(res, 200, entry);
       return;
     }
 
     sendJson(res, 405, { error: 'Method Not Allowed' });
   } catch (error) {
+    if (error instanceof KvOperationError) {
+      sendJson(res, 503, {
+        error: 'KVUnavailable',
+        message: error.message
+      });
+      return;
+    }
     sendJson(res, 500, {
       error: 'Internal Server Error',
       message: error && error.message ? error.message : 'Unknown error'
