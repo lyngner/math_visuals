@@ -1,3 +1,31 @@
+(function ensureVercelRedirect() {
+  if (typeof window === 'undefined') return;
+  if (window.__MATH_VISUALS_REDIRECT_INITIALIZED__) return;
+  const { hostname, pathname, search, hash } = window.location;
+  if (!hostname || !hostname.endsWith('github.io')) return;
+  window.__MATH_VISUALS_REDIRECT_INITIALIZED__ = true;
+  const targetOrigin = 'https://math-visuals.vercel.app';
+  const repoBasePath = '/math_visuals';
+  let path = typeof pathname === 'string' && pathname ? pathname : '/';
+  if (!path.startsWith('/')) {
+    path = `/${path}`;
+  }
+  const normalizedRepoPath = repoBasePath.toLowerCase();
+  if (normalizedRepoPath && path.toLowerCase().startsWith(normalizedRepoPath)) {
+    path = path.slice(repoBasePath.length) || '/';
+  }
+  if (!path.startsWith('/')) {
+    path = `/${path}`;
+  }
+  const destination = new URL(`${path}${search || ''}${hash || ''}`, targetOrigin).toString();
+  if (destination === window.location.href) return;
+  try {
+    window.location.replace(destination);
+  } catch (_) {
+    window.location.href = destination;
+  }
+})();
+
 (function () {
   const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
   function createFallbackStorage() {
