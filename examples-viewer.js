@@ -148,27 +148,213 @@ function safeLength() {
   const fallback = switchToFallback();
   return typeof fallback.length === 'number' ? fallback.length : 0;
 }
-function renderExamples() {
+function resolveExamplesApiBase() {
+  if (typeof window === 'undefined') return null;
+  if (window.MATH_VISUALS_EXAMPLES_API_URL) {
+    const value = String(window.MATH_VISUALS_EXAMPLES_API_URL).trim();
+    if (value) return value;
+  }
+  const origin = window.location && window.location.origin;
+  if (typeof origin === 'string' && /^https?:/i.test(origin)) {
+    return '/api/examples';
+  }
+  return null;
+}
+function buildExamplesApiUrl(base, path) {
+  if (!base) return null;
+  if (typeof window === 'undefined') {
+    if (!path) return base;
+    const sep = base.includes('?') ? '&' : '?';
+    return `${base}${sep}path=${encodeURIComponent(path)}`;
+  }
+  try {
+    const url = new URL(base, window.location && window.location.href ? window.location.href : undefined);
+    if (path) {
+      url.searchParams.set('path', path);
+    }
+    return url.toString();
+  } catch (error) {
+    if (!path) return base;
+    const sep = base.includes('?') ? '&' : '?';
+    return `${base}${sep}path=${encodeURIComponent(path)}`;
+  }
+}
+function normalizePath(value) {
+  if (typeof value !== 'string') return '';
+  let path = value.trim();
+  if (!path) return '';
+  if (!path.startsWith('/')) path = '/' + path;
+  path = path.replace(/[\\]+/g, '/');
+  path = path.replace(/\/+/g, '/');
+  path = path.replace(/\/index\.html?$/i, '/');
+  if (path.length > 1 && path.endsWith('/')) {
+    path = path.slice(0, -1);
+  }
+  return path || '/';
+}
+const examplesApiBase = resolveExamplesApiBase();
+const backendEntriesCache = new Map();
+function writeLocalEntry(path, entry) {
+  const key = 'examples_' + path;
+  const examples = entry && Array.isArray(entry.examples) ? entry.examples : [];
+  if (examples.length) {
+    safeSetItem(key, JSON.stringify(examples));
+  } else {
+    safeRemoveItem(key);
+  }
+  const deleted = entry && Array.isArray(entry.deletedProvided) ? entry.deletedProvided.filter(value => typeof value === 'string' && value.trim()) : [];
+  const deletedKey = key + '_deletedProvidedExamples';
+  if (deleted.length) {
+    safeSetItem(deletedKey, JSON.stringify(deleted));
+  } else {
+    safeRemoveItem(deletedKey);
+  }
+}
+function readDeletedProvided(path) {
+  const cached = backendEntriesCache.get(path);
+  if (cached && Array.isArray(cached.deletedProvided)) {
+    return cached.deletedProvided.slice();
+  }
+  const key = 'examples_' + path + '_deletedProvidedExamples';
+  try {
+    const stored = safeGetItem(key);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(value => typeof value === 'string' ? value.trim() : '').filter(Boolean);
+  } catch (error) {
+    return [];
+  }
+}
+function updateBackendCache(path, entry) {
+  backendEntriesCache.set(path, {
+    path,
+    examples: entry && Array.isArray(entry.examples) ? entry.examples.slice() : [],
+    deletedProvided: entry && Array.isArray(entry.deletedProvided) ? entry.deletedProvided.slice() : [],
+    updatedAt: entry && entry.updatedAt ? entry.updatedAt : null
+  });
+}
+async function persistBackendEntry(path, entry) {
+  if (!examplesApiBase) return;
+  const url = buildExamplesApiUrl(examplesApiBase, path);
+  if (!url) return;
+  const examples = entry && Array.isArray(entry.examples) ? entry.examples : [];
+  const deletedProvided = entry && Array.isArray(entry.deletedProvided) ? entry.deletedProvided.filter(value => typeof value === 'string' && value.trim()) : [];
+  try {
+    if (!examples.length && !deletedProvided.length) {
+      const res = await fetch(url, { method: 'DELETE' });
+      if (res.ok || res.status === 404) {
+        backendEntriesCache.delete(path);
+      }
+      return;
+    }
+    const payload = {
+      path,
+      examples,
+      deletedProvided,
+      updatedAt: new Date().toISOString()
+    };
+    await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    updateBackendCache(path, payload);
+  } catch (error) {}
+}
+async function fetchBackendEntries() {
+  if (!examplesApiBase) return null;
+  const url = buildExamplesApiUrl(examplesApiBase);
+  if (!url) return null;
+  let res;
+  try {
+    res = await fetch(url, {
+      headers: {
+        Accept: 'application/json'
+      }
+    });
+  } catch (error) {
+    return null;
+  }
+  if (!res.ok) return null;
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (error) {
+    return null;
+  }
+  const entries = Array.isArray(data && data.entries) ? data.entries : [];
+  const normalized = [];
+  entries.forEach(item => {
+    if (!item || typeof item !== 'object') return;
+    const path = normalizePath(item.path);
+    if (!path) return;
+    const examples = Array.isArray(item.examples) ? item.examples : [];
+    const deletedProvided = Array.isArray(item.deletedProvided) ? item.deletedProvided.filter(value => typeof value === 'string' && value.trim()) : [];
+    const entry = {
+      path,
+      examples,
+      deletedProvided,
+      updatedAt: item.updatedAt || null
+    };
+    updateBackendCache(path, entry);
+    writeLocalEntry(path, entry);
+    if (examples.length) {
+      normalized.push({
+        path,
+        examples
+      });
+    }
+  });
+  return normalized;
+}
+async function renderExamples(options) {
   const container = document.getElementById('examples');
-  container.innerHTML = '';
+  if (!container) return;
+  const skipBackend = options && options.skipBackend;
+  if (!skipBackend) {
+    await fetchBackendEntries();
+  }
+  const sections = [];
+  const seen = new Set();
+  backendEntriesCache.forEach(entry => {
+    if (!entry || !Array.isArray(entry.examples) || entry.examples.length === 0) return;
+    sections.push({
+      path: entry.path,
+      examples: entry.examples.slice()
+    });
+    seen.add(entry.path);
+  });
   const total = safeLength();
   for (let i = 0; i < total; i++) {
     const key = safeKey(i);
-    if (typeof key !== 'string' || !key) continue;
-    if (!key.startsWith('examples_')) continue;
+    if (typeof key !== 'string' || !key || !key.startsWith('examples_')) continue;
     const path = key.slice('examples_'.length);
+    if (seen.has(path)) continue;
     let arr;
     try {
       arr = JSON.parse(safeGetItem(key)) || [];
     } catch (error) {
       arr = [];
     }
-    if (arr.length === 0) continue;
+    if (!Array.isArray(arr) || arr.length === 0) continue;
+    sections.push({
+      path,
+      examples: arr.slice()
+    });
+  }
+  sections.sort((a, b) => a.path.localeCompare(b.path));
+  container.innerHTML = '';
+  sections.forEach(sectionData => {
+    const { path, examples } = sectionData;
+    if (!Array.isArray(examples) || examples.length === 0) return;
     const section = document.createElement('section');
     const h2 = document.createElement('h2');
     h2.textContent = path;
     section.appendChild(h2);
-    arr.forEach((ex, idx) => {
+    examples.forEach((ex, idx) => {
       const wrap = document.createElement('div');
       wrap.className = 'example';
       if (ex && typeof ex.description === 'string' && ex.description.trim()) {
@@ -200,8 +386,8 @@ function renderExamples() {
           path,
           index: idx
         }));
-        const iframe = window.parent.document.querySelector('iframe');
-        iframe.src = path;
+        const iframeEl = window.parent.document.querySelector('iframe');
+        iframeEl.src = path;
         try {
           window.parent.localStorage.setItem('currentPage', path);
         } catch (_) {
@@ -215,10 +401,30 @@ function renderExamples() {
       });
       const delBtn = document.createElement('button');
       delBtn.textContent = 'Slett';
-      delBtn.addEventListener('click', () => {
-        arr.splice(idx, 1);
-        if (arr.length) safeSetItem(key, JSON.stringify(arr));else safeRemoveItem(key);
-        renderExamples();
+      delBtn.addEventListener('click', async () => {
+        const updated = examples.slice();
+        updated.splice(idx, 1);
+        const deletedProvided = readDeletedProvided(path);
+        writeLocalEntry(path, {
+          examples: updated,
+          deletedProvided
+        });
+        if (updated.length) {
+          updateBackendCache(path, {
+            path,
+            examples: updated,
+            deletedProvided
+          });
+        } else {
+          backendEntriesCache.delete(path);
+        }
+        if (examplesApiBase) {
+          await persistBackendEntry(path, {
+            examples: updated,
+            deletedProvided
+          });
+        }
+        renderExamples({ skipBackend: true });
       });
       btns.appendChild(loadBtn);
       btns.appendChild(delBtn);
@@ -226,6 +432,8 @@ function renderExamples() {
       section.appendChild(wrap);
     });
     container.appendChild(section);
-  }
+  });
 }
-document.addEventListener('DOMContentLoaded', renderExamples);
+document.addEventListener('DOMContentLoaded', () => {
+  renderExamples();
+});
