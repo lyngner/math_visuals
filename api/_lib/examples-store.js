@@ -15,13 +15,30 @@ const memoryStore = globalScope.__EXAMPLES_MEMORY_STORE__;
 const memoryIndex = globalScope.__EXAMPLES_MEMORY_INDEX__;
 
 let kvClientPromise = null;
+let kvConfigWarningLogged = false;
+
+class KvOperationError extends Error {
+  constructor(message, options) {
+    super(message);
+    if (options && options.cause) {
+      this.cause = options.cause;
+    }
+    this.code = options && options.code ? options.code : 'KV_OPERATION_FAILED';
+  }
+}
 
 function isKvConfigured() {
   return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 }
 
 async function loadKvClient() {
-  if (!isKvConfigured()) return null;
+  if (!isKvConfigured()) {
+    if (!kvConfigWarningLogged) {
+      kvConfigWarningLogged = true;
+      console.warn('[examples-store] KV client not configured – using in-memory fallback');
+    }
+    return null;
+  }
   if (!kvClientPromise) {
     kvClientPromise = import('@vercel/kv').then(mod => mod && mod.kv ? mod.kv : null).catch(() => null);
   }
@@ -94,27 +111,29 @@ function buildEntry(path, payload) {
 
 async function writeToKv(path, entry) {
   const kv = await loadKvClient();
-  if (!kv) return false;
+  if (!kv) return { ok: false, reason: 'unconfigured' };
   const key = makeKey(path);
   try {
     await kv.set(key, entry);
     await kv.sadd(INDEX_KEY, path);
-    return true;
+    return { ok: true };
   } catch (error) {
-    return false;
+    console.error('[examples-store] Failed to write entry to KV', { path, error });
+    return { ok: false, reason: 'error', error };
   }
 }
 
 async function deleteFromKv(path) {
   const kv = await loadKvClient();
-  if (!kv) return false;
+  if (!kv) return { ok: false, reason: 'unconfigured' };
   const key = makeKey(path);
   try {
     await kv.del(key);
     await kv.srem(INDEX_KEY, path);
-    return true;
+    return { ok: true };
   } catch (error) {
-    return false;
+    console.error('[examples-store] Failed to delete entry in KV', { path, error });
+    return { ok: false, reason: 'error', error };
   }
 }
 
@@ -137,6 +156,7 @@ async function readFromKv(path) {
     }
     return null;
   } catch (error) {
+    console.error('[examples-store] Failed to read entry from KV', { path, error });
     return null;
   }
 }
@@ -165,26 +185,40 @@ async function getEntry(path) {
   const kvValue = await readFromKv(normalized);
   if (kvValue) {
     const entry = buildEntry(normalized, kvValue);
+    entry.storage = 'kv';
     writeToMemory(normalized, entry);
     return clone(entry);
   }
   const memoryValue = readFromMemory(normalized);
-  return memoryValue ? clone(memoryValue) : null;
+  if (memoryValue) {
+    const entry = clone(memoryValue);
+    entry.storage = entry.storage || 'memory';
+    return entry;
+  }
+  return null;
 }
 
 async function setEntry(path, payload) {
   const normalized = normalizePath(path);
   if (!normalized) return null;
   const entry = buildEntry(normalized, payload || {});
-  await writeToKv(normalized, entry);
+  const result = await writeToKv(normalized, entry);
+  if (!result || result.reason === 'error') {
+    throw new KvOperationError('Failed to write entry to KV', { cause: result && result.error });
+  }
   writeToMemory(normalized, entry);
-  return clone(entry);
+  const output = clone(entry);
+  output.storage = result && result.ok ? 'kv' : 'memory';
+  return output;
 }
 
 async function deleteEntry(path) {
   const normalized = normalizePath(path);
   if (!normalized) return false;
-  await deleteFromKv(normalized);
+  const result = await deleteFromKv(normalized);
+  if (!result || result.reason === 'error') {
+    throw new KvOperationError('Failed to delete entry in KV', { cause: result && result.error });
+  }
   deleteFromMemory(normalized);
   return true;
 }
@@ -206,6 +240,7 @@ async function listEntries() {
       const stored = await readFromKv(normalized);
       if (!stored) continue;
       const entry = buildEntry(normalized, stored);
+      entry.storage = 'kv';
       writeToMemory(normalized, entry);
       entries.push(clone(entry));
     }
@@ -216,7 +251,9 @@ async function listEntries() {
     if (!normalized) return;
     const stored = readFromMemory(normalized);
     if (!stored) return;
-    entries.push(clone(stored));
+    const entry = clone(stored);
+    entry.storage = entry.storage || 'memory';
+    entries.push(entry);
   });
   return entries;
 }
@@ -226,5 +263,7 @@ module.exports = {
   getEntry,
   setEntry,
   deleteEntry,
-  listEntries
+  listEntries,
+  KvOperationError,
+  isKvConfigured
 };
