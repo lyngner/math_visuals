@@ -86,3 +86,11 @@ body {
 .a11y:focus{outline:none;stroke:#1e88e5;stroke-width:3}
 
 .xAxisLabel{fill:#333;font-size:18px;text-anchor:middle}
+
+.alt-text{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.alt-text label{font-size:13px;color:#4b5563;font-weight:600}
+.alt-text textarea{min-height:104px;padding:10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;font-family:inherit;resize:vertical;background:#fff;color:#111}
+.alt-text textarea:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+.alt-text__footer{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.alt-text__status{font-size:12px;color:#6b7280;min-height:18px;flex:1}
+.alt-text__status.alt-text__status--error{color:#b91c1c}
