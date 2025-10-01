@@ -2705,6 +2705,17 @@ function setupSettingsForm() {
   let linePointVisibleCount = 0;
   let linePointsEdited = false;
   const MATHFIELD_TAG = 'MATH-FIELD';
+  const nav = typeof navigator !== 'undefined' ? navigator : null;
+  const hasTouchSupport = typeof window !== 'undefined' && (
+    'ontouchstart' in window ||
+    (nav && (nav.maxTouchPoints > 0 || nav.msMaxTouchPoints > 0))
+  );
+  const hasCoarsePointer = typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(pointer: coarse)').matches;
+  const enableVirtualKeyboard = hasTouchSupport || hasCoarsePointer;
+  const mathFieldKeyboardMode = enableVirtualKeyboard ? 'onfocus' : 'off';
+  const mathFieldKeyboardAttr = `virtual-keyboard-mode="${mathFieldKeyboardMode}"`;
   const COMMAND_NAME_MAP = {
     cdot: '*',
     times: '*',
@@ -3339,7 +3350,7 @@ function setupSettingsForm() {
             <label class="func-input">
               <span>${titleLabel}</span>
               <div class="func-editor">
-                <math-field data-fun class="func-math-field" virtual-keyboard-mode="off" smart-mode="false" aria-label="${titleLabel}"></math-field>
+                <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
               </div>
             </label>
             <label class="domain">
@@ -3380,7 +3391,7 @@ function setupSettingsForm() {
           <label class="func-input">
             <span>${titleLabel}</span>
             <div class="func-editor">
-              <math-field data-fun class="func-math-field" virtual-keyboard-mode="off" smart-mode="false" aria-label="${titleLabel}"></math-field>
+              <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
             </div>
           </label>
           <label class="domain">
