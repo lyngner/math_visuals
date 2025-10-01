@@ -415,13 +415,31 @@ function enforceQuadLayoutFill(layout) {
     const parsed = Math.round(Number(value));
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   };
+  const ensureSplitHandle = (dimKey, cells) => {
+    const dim = CFG.SIMPLE[dimKey];
+    if (!dim || typeof dim !== "object") return;
+    if (!Number.isFinite(cells) || cells <= 1) return;
+    const parsedHandle = Math.round(Number(dim.handle));
+    const minHandle = 1;
+    const maxHandle = cells - 1;
+    let nextHandle;
+    if (Number.isFinite(parsedHandle) && parsedHandle >= minHandle && parsedHandle <= maxHandle) {
+      nextHandle = parsedHandle;
+    } else {
+      nextHandle = Math.max(minHandle, Math.min(maxHandle, Math.round(cells / 2)));
+    }
+    dim.handle = nextHandle;
+    if (dim.showHandle === false) dim.showHandle = true;
+  };
   const lengthCells = toPositiveInt(CFG.SIMPLE.length && CFG.SIMPLE.length.cells);
   if (lengthCells != null) {
     CFG.SIMPLE.totalHandle.maxCols = lengthCells;
+    ensureSplitHandle("length", lengthCells);
   }
   const heightCells = toPositiveInt(CFG.SIMPLE.height && CFG.SIMPLE.height.cells);
   if (heightCells != null) {
     CFG.SIMPLE.totalHandle.maxRows = heightCells;
+    ensureSplitHandle("height", heightCells);
   }
 }
 function updateLayoutUi() {
