@@ -984,6 +984,7 @@
     window.addEventListener('examples:loaded', () => {
       ensureStateDefaults();
       syncControlsFromState();
+      refreshAltText('examples-loaded');
     });
   }
   function getStoredView(index) {
@@ -1025,6 +1026,8 @@
   const exportCard = document.getElementById('exportCard');
   const exportRows = Array.from(document.querySelectorAll('[data-export-index]'));
   const exportButtons = Array.from(document.querySelectorAll('[data-export-button]'));
+  let altTextManager = null;
+  let altTextAnchor = null;
   function clampTransparency(value) {
     const num = Number(value);
     if (!Number.isFinite(num)) return 0;
@@ -1465,6 +1468,180 @@
       }
     });
   }
+
+  const numberFormatter = typeof Intl === 'object' && typeof Intl.NumberFormat === 'function' ? new Intl.NumberFormat('no-NO', {
+    maximumFractionDigits: 2
+  }) : null;
+
+  function formatDimensionNumber(value) {
+    if (!Number.isFinite(value)) return '';
+    const formatted = numberFormatter ? numberFormatter.format(value) : String(value);
+    return formatted.replace(/\s+/g, '\u00a0');
+  }
+
+  function describeDimensionEntry(kind, entry) {
+    if (!entry || typeof entry !== 'object') return '';
+    const dimensionName = kind === 'radius' ? 'radius' : 'høyde';
+    const label = typeof entry.label === 'string' ? entry.label.trim() : '';
+    const hasLabel = Boolean(label);
+    const value = Number.isFinite(entry.value) ? entry.value : null;
+    const formattedValue = value != null ? formatDimensionNumber(value) : '';
+    if (formattedValue && hasLabel && label !== formattedValue) {
+      if (/^[a-zA-ZæøåÆØÅ]$/.test(label)) {
+        return `${dimensionName} merket ${label} (${formattedValue})`;
+      }
+      return `${dimensionName} ${label} (${formattedValue})`;
+    }
+    if (formattedValue) {
+      return `${dimensionName} ${formattedValue}`;
+    }
+    if (hasLabel) {
+      if (/^[a-zA-ZæøåÆØÅ]$/.test(label)) {
+        return `${dimensionName} merket ${label}`;
+      }
+      return `${dimensionName} ${label}`;
+    }
+    return dimensionName;
+  }
+
+  function describeDimensions(dimensions) {
+    if (!dimensions || typeof dimensions !== 'object') return '';
+    const parts = [];
+    if (dimensions.radius) {
+      const radiusText = describeDimensionEntry('radius', dimensions.radius);
+      if (radiusText) parts.push(radiusText);
+    }
+    if (dimensions.height) {
+      const heightText = describeDimensionEntry('height', dimensions.height);
+      if (heightText) parts.push(heightText);
+    }
+    if (!parts.length) return '';
+    if (parts.length === 1) return `med ${parts[0]}`;
+    if (parts.length === 2) return `med ${parts[0]} og ${parts[1]}`;
+    return `med ${parts.join(', ')}`;
+  }
+
+  function getFigureArticle(typeLabel) {
+    if (typeLabel === 'prisme') return 'et';
+    return 'en';
+  }
+
+  function describeFigure(info, index) {
+    const typeLabel = formatTypeLabel(info && info.type) || 'romfigur';
+    const article = getFigureArticle(typeLabel);
+    const dimensionText = describeDimensions(info && info.dimensions);
+    const baseSentence = `Figur ${index + 1} viser ${article} ${typeLabel}`;
+    if (dimensionText) {
+      return `${baseSentence} ${dimensionText}.`;
+    }
+    return `${baseSentence}.`;
+  }
+
+  function getTrefigurerTitle() {
+    const baseTitle = typeof document !== 'undefined' && document && document.title ? document.title : 'Trefigurer';
+    const figures = getCurrentFigures();
+    const count = Array.isArray(figures) ? figures.filter(Boolean).length : 0;
+    if (count <= 0) return baseTitle;
+    const suffix = count === 1 ? '1 figur' : `${count} figurer`;
+    return `${baseTitle} – ${suffix}`;
+  }
+
+  function buildTrefigurerAltText() {
+    const figures = getCurrentFigures();
+    const list = Array.isArray(figures) ? figures : [];
+    const visibleCount = list.filter(Boolean).length;
+    if (!visibleCount) {
+      return 'Appen viser ingen 3D-figurer.';
+    }
+    const sentences = [];
+    sentences.push(visibleCount === 1 ? 'Appen viser én 3D-figur.' : `Appen viser ${visibleCount} 3D-figurer.`);
+    list.forEach((info, index) => {
+      if (!info) return;
+      sentences.push(describeFigure(info, index));
+    });
+    if (window.STATE && window.STATE.freeFigure) {
+      sentences.push('Figurene kan flyttes fritt.');
+    }
+    if (window.STATE && window.STATE.rotationLocked) {
+      sentences.push('Rotasjonen er låst.');
+    }
+    return sentences.join(' ');
+  }
+
+  function ensureAltTextAnchor() {
+    if (typeof document === 'undefined') {
+      return altTextAnchor;
+    }
+    if (altTextAnchor && document.body.contains(altTextAnchor)) {
+      return altTextAnchor;
+    }
+    altTextAnchor = document.getElementById('trefigurer-alt-anchor');
+    if (!altTextAnchor) {
+      altTextAnchor = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      altTextAnchor.setAttribute('id', 'trefigurer-alt-anchor');
+      altTextAnchor.setAttribute('width', '0');
+      altTextAnchor.setAttribute('height', '0');
+      altTextAnchor.style.position = 'absolute';
+      altTextAnchor.style.left = '-9999px';
+      altTextAnchor.style.width = '0';
+      altTextAnchor.style.height = '0';
+      document.body.appendChild(altTextAnchor);
+    }
+    return altTextAnchor;
+  }
+
+  function syncFigureGridA11y() {
+    if (!grid || !window.MathVisAltText) return;
+    const anchor = ensureAltTextAnchor();
+    const nodes = window.MathVisAltText.ensureSvgA11yNodes(anchor);
+    grid.setAttribute('role', 'img');
+    const title = getTrefigurerTitle();
+    if (title) {
+      grid.setAttribute('aria-label', title);
+    }
+    if (nodes.titleEl && nodes.titleEl.id) {
+      grid.setAttribute('aria-labelledby', nodes.titleEl.id);
+    }
+    if (nodes.descEl && nodes.descEl.id) {
+      grid.setAttribute('aria-describedby', nodes.descEl.id);
+    }
+  }
+
+  function refreshAltText(reason) {
+    if (altTextManager) {
+      altTextManager.refresh(reason || 'auto');
+    }
+  }
+
+  function initAltTextManager() {
+    if (!window.MathVisAltText || !exportCard) return;
+    const anchor = ensureAltTextAnchor();
+    altTextManager = window.MathVisAltText.create({
+      svg: () => anchor,
+      container: exportCard,
+      getTitle: getTrefigurerTitle,
+      getState: () => ({
+        text: window.STATE && typeof window.STATE.altText === 'string' ? window.STATE.altText : '',
+        source: window.STATE && window.STATE.altTextSource === 'manual' ? 'manual' : 'auto'
+      }),
+      setState: (text, source) => {
+        if (!window.STATE || typeof window.STATE !== 'object') {
+          window.STATE = {};
+        }
+        window.STATE.altText = text;
+        window.STATE.altTextSource = source === 'manual' ? 'manual' : 'auto';
+        syncFigureGridA11y();
+      },
+      generate: () => buildTrefigurerAltText(),
+      getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
+      getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
+    });
+    syncFigureGridA11y();
+    if (altTextManager) {
+      altTextManager.applyCurrent();
+      syncFigureGridA11y();
+    }
+  }
   async function exportFigure(index, format) {
     const renderer = renderers[index];
     if (!renderer || typeof renderer.captureSnapshot !== 'function') return;
@@ -1533,6 +1710,12 @@
     }
     const clampedTransparency = clampTransparency(window.STATE.transparency);
     window.STATE.transparency = clampedTransparency;
+    if (typeof window.STATE.altText !== 'string') {
+      window.STATE.altText = '';
+    }
+    if (window.STATE.altTextSource !== 'manual') {
+      window.STATE.altTextSource = 'auto';
+    }
   }
   const applyRotationLock = locked => {
     renderers.forEach(renderer => renderer.setRotationLocked(Boolean(locked)));
@@ -1695,6 +1878,7 @@
         }
       }
     }
+    refreshAltText('figures');
   }
   function draw() {
     const rawInput = typeof window.STATE.rawInput === 'string' ? window.STATE.rawInput : defaultInput;
@@ -1737,6 +1921,7 @@
       const locked = Boolean(evt.target.checked);
       window.STATE.rotationLocked = locked;
       applyRotationLock(locked);
+      refreshAltText('view-settings');
     });
   }
   if (freeFigureCheckbox) {
@@ -1744,6 +1929,7 @@
       const floating = Boolean(evt.target.checked);
       window.STATE.freeFigure = floating;
       applyFloating(floating);
+      refreshAltText('view-settings');
     });
   }
   if (colorInput) {
@@ -1817,5 +2003,7 @@
     });
   }
   window.draw = draw;
+  initAltTextManager();
   draw();
+  refreshAltText('init');
 })();
