@@ -940,9 +940,24 @@ function generateAltText(reason = 'auto') {
     if (!trimmed) throw new Error('Empty alt-text');
     setAltText(trimmed, 'auto');
     setAltTextStatus('Alternativ tekst oppdatert.', false);
-  }).catch(error => {
+  }).catch(async error => {
     if (controller && controller.signal.aborted) return;
     console.warn('Alt-tekstgenerering feilet', error);
+    let svgBasedText = null;
+    try {
+      svgBasedText = await generateAltTextFromSvg(context, controller ? controller.signal : undefined);
+    } catch (svgError) {
+      if (!(controller && controller.signal.aborted)) {
+        console.warn('Alt-tekst fra SVG feilet', svgError);
+      }
+    }
+    if (controller && controller.signal.aborted) return;
+    const trimmedSvgText = svgBasedText && svgBasedText.trim ? svgBasedText.trim() : svgBasedText;
+    if (trimmedSvgText) {
+      setAltText(trimmedSvgText, 'auto');
+      setAltTextStatus('Alternativ tekst generert fra eksportert SVG.', false);
+      return;
+    }
     const fallback = buildHeuristicAltText(context);
     setAltText(fallback, 'auto');
     setAltTextStatus('Kunne ikke hente AI-forslag. Viste en enkel beskrivelse.', true);
@@ -954,6 +969,9 @@ function generateAltText(reason = 'auto') {
 }
 async function requestAltText(context, signal) {
   const prompt = buildAltTextPrompt(context);
+  return performAltTextRequest(prompt, signal);
+}
+async function performAltTextRequest(prompt, signal) {
   let backendError = null;
   try {
     const endpoint = resolveAltTextEndpoint();
@@ -1025,6 +1043,24 @@ async function requestAltTextDirect(prompt, signal) {
   const txt = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
   if (!txt) throw new Error('Ingen tekst mottatt fra OpenAI');
   return txt.trim();
+}
+async function generateAltTextFromSvg(context, signal) {
+  if (!svg) return null;
+  let markup = null;
+  try {
+    markup = await svgToString(svg);
+  } catch (error) {
+    console.warn('Kunne ikke serialisere SVG for alt-tekst', error);
+    return null;
+  }
+  if (!markup) return null;
+  const prompt = buildSvgAltTextPrompt(markup, context);
+  try {
+    return await performAltTextRequest(prompt, signal);
+  } catch (error) {
+    if (!(signal && signal.aborted)) console.warn('Alt-tekst med SVG-data feilet', error);
+    return null;
+  }
 }
 function resolveAltTextEndpoint() {
   if (typeof window === 'undefined') return null;
@@ -1150,6 +1186,21 @@ function buildAltTextPrompt(context) {
 
 Data:
 ${parts.join('\n')}`;
+}
+function buildSvgAltTextPrompt(svgMarkup, context) {
+  const sanitized = sanitizeSvgForPrompt(svgMarkup);
+  const basePrompt = buildAltTextPrompt(context);
+  return `${basePrompt}
+
+SVG:
+${sanitized}`;
+}
+function sanitizeSvgForPrompt(markup) {
+  if (typeof markup !== 'string') return '';
+  const collapsed = markup.replace(/\s+/g, ' ').trim();
+  const limit = 4000;
+  if (collapsed.length <= limit) return collapsed;
+  return collapsed.slice(0, limit) + ' …';
 }
 function buildHeuristicAltText(context) {
   const labels = context.labels.length ? context.labels : context.values.map((_, i) => `Kategori ${i + 1}`);
