@@ -4,7 +4,7 @@
   "description": "",
   "main": "arealmodell0.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "playwright test",
     "start": "npx http-server -c-1"
   },
   "keywords": [],
@@ -17,7 +17,9 @@
     "@babel/core": "^7.28.4",
     "@babel/plugin-transform-nullish-coalescing-operator": "^7.27.1",
     "@babel/plugin-transform-optional-chaining": "^7.27.1",
-    "http-server": "^14.1.1"
+    "@playwright/test": "^1.42.0",
+    "http-server": "^14.1.1",
+    "pngjs": "^7.0.0"
   },
   "dependencies": {
     "@vercel/kv": "^3.0.0"
