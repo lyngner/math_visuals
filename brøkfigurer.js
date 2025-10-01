@@ -34,6 +34,12 @@
     });
     const url = URL.createObjectURL(blob);
     const img = new Image();
+    const cleanup = () => URL.revokeObjectURL(url);
+    const setFallbackSrc = () => {
+      const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(data);
+      img.onerror = null;
+      img.src = dataUrl;
+    };
     img.onload = () => {
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(w * scale);
@@ -42,17 +48,40 @@
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      canvas.toBlob(blob => {
-        const urlPng = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = urlPng;
-        a.download = filename.endsWith('.png') ? filename : filename + '.png';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(urlPng), 1000);
-      }, 'image/png');
+      cleanup();
+      const handleBlob = blob => {
+        if (blob) {
+          const urlPng = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = urlPng;
+          a.download = filename.endsWith('.png') ? filename : filename + '.png';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(urlPng), 1000);
+        } else {
+          try {
+            const dataUrl = canvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = filename.endsWith('.png') ? filename : filename + '.png';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          } catch (error) {
+            console.error('Kunne ikke eksportere PNG', error);
+          }
+        }
+      };
+      if (typeof canvas.toBlob === 'function') {
+        canvas.toBlob(handleBlob, 'image/png');
+      } else {
+        handleBlob(null);
+      }
+    };
+    img.onerror = () => {
+      cleanup();
+      setFallbackSrc();
     };
     img.src = url;
   }
