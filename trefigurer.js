@@ -1526,15 +1526,16 @@
     return 'en';
   }
 
-  function describeFigure(info, index) {
+  function describeFigure(info) {
     const typeLabel = formatTypeLabel(info && info.type) || 'romfigur';
     const article = getFigureArticle(typeLabel);
     const dimensionText = describeDimensions(info && info.dimensions);
-    const baseSentence = `Figur ${index + 1} viser ${article} ${typeLabel}`;
+    const base = `${article} ${typeLabel}`.trim();
+    const capitalized = base ? base.charAt(0).toUpperCase() + base.slice(1) : '';
     if (dimensionText) {
-      return `${baseSentence} ${dimensionText}.`;
+      return `${capitalized} ${dimensionText}.`;
     }
-    return `${baseSentence}.`;
+    return capitalized ? `${capitalized}.` : '';
   }
 
   function getTrefigurerTitle() {
@@ -1551,19 +1552,21 @@
     const list = Array.isArray(figures) ? figures : [];
     const visibleCount = list.filter(Boolean).length;
     if (!visibleCount) {
-      return 'Appen viser ingen 3D-figurer.';
+      return 'Ingen modeller.';
     }
     const sentences = [];
-    sentences.push(visibleCount === 1 ? 'Appen viser én 3D-figur.' : `Appen viser ${visibleCount} 3D-figurer.`);
-    list.forEach((info, index) => {
+    list.forEach(info => {
       if (!info) return;
-      sentences.push(describeFigure(info, index));
+      const sentence = describeFigure(info);
+      if (sentence) {
+        sentences.push(sentence);
+      }
     });
     if (window.STATE && window.STATE.freeFigure) {
-      sentences.push('Figurene kan flyttes fritt.');
+      sentences.push('Fri flytting.');
     }
     if (window.STATE && window.STATE.rotationLocked) {
-      sentences.push('Rotasjonen er låst.');
+      sentences.push('Rotasjon låst.');
     }
     return sentences.join(' ');
   }
