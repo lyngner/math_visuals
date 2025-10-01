@@ -404,8 +404,13 @@
 
         navToggle.addEventListener('click', () => {
           const isExpanded = navToggle.getAttribute('aria-expanded') === 'true';
-          navToggle.setAttribute('aria-expanded', String(!isExpanded));
-          nav.classList.toggle('is-open', !isExpanded);
+          const nextState = !isExpanded;
+          navToggle.setAttribute('aria-expanded', String(nextState));
+          if (nextState) {
+            nav.classList.add('is-open');
+          } else {
+            nav.classList.remove('is-open');
+          }
         });
 
         if (navLinks) {
