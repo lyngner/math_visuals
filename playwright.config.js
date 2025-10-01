@@ -1,4 +1,4 @@
-const { defineConfig } = require('@playwright/test');
+const { defineConfig, devices } = require('@playwright/test');
 
 module.exports = defineConfig({
   testDir: 'tests',
@@ -8,6 +8,20 @@ module.exports = defineConfig({
     baseURL: 'http://127.0.0.1:4173',
     acceptDownloads: true
   },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] }
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] }
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] }
+    }
+  ],
   webServer: {
     command: 'npx http-server -c-1 -p 4173',
     url: 'http://127.0.0.1:4173',
