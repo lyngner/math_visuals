@@ -13,7 +13,9 @@ const CFG = {
   tolerance: 0,
   axisXLabel: 'Idrett',
   axisYLabel: 'Antall elever',
-  locked: []
+  locked: [],
+  altText: '',
+  altTextSource: 'auto'
 };
 const DEFAULT_DIAGRAM_EXAMPLES = [{
   id: 'diagram-example-1',
@@ -135,6 +137,41 @@ const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
 btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => downloadSVG(svg, 'diagram.svg'));
 btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => downloadPNG(svg, 'diagram.png', 2));
+const altTextField = document.getElementById('altText');
+const altTextStatus = document.getElementById('altTextStatus');
+const regenerateAltTextBtn = document.getElementById('btnRegenerateAltText');
+let altTextGenerationTimer = null;
+let altTextAbortController = null;
+if (altTextField) {
+  altTextField.addEventListener('input', () => {
+    const text = altTextField.value.trim();
+    if (altTextGenerationTimer) {
+      clearTimeout(altTextGenerationTimer);
+      altTextGenerationTimer = null;
+    }
+    if (altTextAbortController && typeof altTextAbortController.abort === 'function') {
+      try {
+        altTextAbortController.abort();
+      } catch (error) {}
+      altTextAbortController = null;
+    }
+    CFG.altText = text;
+    CFG.altTextSource = text ? 'manual' : 'auto';
+    applyAltTextToSvg(text);
+    if (text) {
+      setAltTextStatus('Alternativ tekst oppdatert manuelt.', false);
+    } else {
+      setAltTextStatus('Feltet er tomt. Generer gjerne en ny tekst.', false);
+      scheduleAltTextUpdate('manual', 0);
+    }
+  });
+}
+if (regenerateAltTextBtn) {
+  regenerateAltTextBtn.addEventListener('click', () => {
+    CFG.altTextSource = 'auto';
+    scheduleAltTextUpdate('manual', 0);
+  });
+}
 const addSeriesBtn = document.getElementById('addSeries');
 const series2Fields = document.getElementById('series2Fields');
 addSeriesBtn === null || addSeriesBtn === void 0 || addSeriesBtn.addEventListener('click', () => {
@@ -211,6 +248,12 @@ function initFromCfg() {
   if (series2Input) series2Input.value = series2Enabled ? CFG.series2 || '' : '';
   if (start2Input) start2Input.value = series2Enabled && Array.isArray(values2) ? formatNumberList(values2) : '';
   if (answer2Input) answer2Input.value = series2Enabled && Array.isArray(CFG.answer2) ? formatNumberList(CFG.answer2) : '';
+  if (typeof CFG.altText !== 'string') CFG.altText = '';
+  if (typeof CFG.altTextSource !== 'string') {
+    CFG.altTextSource = CFG.altText ? 'manual' : 'auto';
+  }
+  if (altTextField) altTextField.value = CFG.altText || '';
+  applyAltTextToSvg(CFG.altText || '');
 
   // disable stacking/grouping options when only one dataserie
   const typeSel = typeInput;
@@ -232,6 +275,7 @@ function initFromCfg() {
   drawAxesAndGrid();
   drawData();
   updateStatus((CFG.type === 'bar' || CFG.type === 'line') && !hasTwo ? 'Dra i søylene/punktene – eller bruk tastaturet.' : '');
+  scheduleAltTextUpdate('config');
 }
 
 /* =========================================================
@@ -828,6 +872,7 @@ function setValue(idx, newVal, announce = false, series = 0) {
   }
   syncConfigFromValues(series);
   drawData(); // oppdater grafikk + aria
+  scheduleAltTextUpdate('data');
   if (announce) {
     const sName = seriesNames[series] || '';
     const label = sName ? `${CFG.labels[idx]} – ${sName}` : `${CFG.labels[idx]}`;
@@ -853,6 +898,317 @@ function syncConfigFromValues(series) {
 }
 
 /* =========================================================
+   ALT-TEKST (AI)
+   ========================================================= */
+function scheduleAltTextUpdate(reason = 'auto', delayOverride) {
+  if (!altTextField) return;
+  applyAltTextToSvg(CFG.altText || '');
+  if (!shouldAutoGenerateAltText()) return;
+  const delay = typeof delayOverride === 'number' ? Math.max(0, delayOverride) : reason === 'manual' ? 0 : 800;
+  if (altTextGenerationTimer) {
+    clearTimeout(altTextGenerationTimer);
+    altTextGenerationTimer = null;
+  }
+  altTextGenerationTimer = setTimeout(() => {
+    altTextGenerationTimer = null;
+    generateAltText(reason);
+  }, delay);
+}
+function shouldAutoGenerateAltText() {
+  const text = typeof CFG.altText === 'string' ? CFG.altText.trim() : '';
+  if (!text) return true;
+  return (CFG.altTextSource || 'auto') !== 'manual';
+}
+function generateAltText(reason = 'auto') {
+  if (!altTextField) return;
+  if (altTextAbortController && typeof altTextAbortController.abort === 'function') {
+    try {
+      altTextAbortController.abort();
+    } catch (error) {}
+  }
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  if (controller) {
+    altTextAbortController = controller;
+  } else {
+    altTextAbortController = null;
+  }
+  setAltTextStatus('Genererer alternativ tekst …', false);
+  const context = collectAltTextContext();
+  requestAltText(context, controller ? controller.signal : undefined).then(text => {
+    if (controller && controller.signal.aborted) return;
+    const trimmed = (text || '').trim();
+    if (!trimmed) throw new Error('Empty alt-text');
+    setAltText(trimmed, 'auto');
+    setAltTextStatus('Alternativ tekst oppdatert.', false);
+  }).catch(error => {
+    if (controller && controller.signal.aborted) return;
+    console.warn('Alt-tekstgenerering feilet', error);
+    const fallback = buildHeuristicAltText(context);
+    setAltText(fallback, 'auto');
+    setAltTextStatus('Kunne ikke hente AI-forslag. Viste en enkel beskrivelse.', true);
+  }).finally(() => {
+    if (altTextAbortController === controller) {
+      altTextAbortController = null;
+    }
+  });
+}
+async function requestAltText(context, signal) {
+  const prompt = buildAltTextPrompt(context);
+  let backendError = null;
+  try {
+    const endpoint = resolveAltTextEndpoint();
+    if (endpoint) {
+      return await requestAltTextFromBackend(endpoint, prompt, signal);
+    }
+  } catch (error) {
+    backendError = error;
+    if (error) console.warn('Alt-tekst backend utilgjengelig', error);
+  }
+  try {
+    return await requestAltTextDirect(prompt, signal);
+  } catch (error) {
+    if (backendError) console.warn('Alt-tekst direktkall feilet etter backend', error);
+    throw error;
+  }
+}
+async function requestAltTextFromBackend(endpoint, prompt, signal) {
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      prompt
+    }),
+    signal
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Backend error ${res.status}${text ? `: ${text}` : ''}`);
+  }
+  const data = await res.json().catch(() => null);
+  if (!data || typeof data.text !== 'string') {
+    throw new Error('Ugyldig svar fra alt-tekst-tjenesten');
+  }
+  const txt = data.text.trim();
+  if (!txt) throw new Error('Tom alt-tekst fra tjenesten');
+  return txt;
+}
+async function requestAltTextDirect(prompt, signal) {
+  const apiKey = typeof window !== 'undefined' ? window.OPENAI_API_KEY : null;
+  if (!apiKey) throw new Error('Mangler API-nøkkel for direktekall');
+  const body = {
+    model: 'gpt-4o-mini',
+    messages: [{
+      role: 'system',
+      content: 'Du skriver korte og tydelige alternative tekster (2–3 setninger) på norsk for diagrammer. Inkluder hovedtendenser, topper/bunner og hva aksene viser. Ingen punktlister eller Markdown.'
+    }, {
+      role: 'user',
+      content: prompt
+    }],
+    temperature: 0.4
+  };
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(body),
+    signal
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const err = data && data.error ? data.error.message || JSON.stringify(data.error) : res.statusText;
+    throw new Error(`OpenAI error ${res.status}${err ? `: ${err}` : ''}`);
+  }
+  const txt = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  if (!txt) throw new Error('Ingen tekst mottatt fra OpenAI');
+  return txt.trim();
+}
+function resolveAltTextEndpoint() {
+  if (typeof window === 'undefined') return null;
+  if (window.MATH_VISUALS_ALT_TEXT_API_URL) {
+    const value = String(window.MATH_VISUALS_ALT_TEXT_API_URL).trim();
+    if (value) return value;
+  }
+  var _window$location2;
+  const origin = (_window$location2 = window.location) === null || _window$location2 === void 0 ? void 0 : _window$location2.origin;
+  if (typeof origin === 'string' && /^https?:/i.test(origin)) {
+    return '/api/diagram-alt-text';
+  }
+  return null;
+}
+function setAltText(text, source) {
+  const cleaned = (text || '').trim();
+  if (altTextField && altTextField.value !== cleaned) {
+    altTextField.value = cleaned;
+  }
+  CFG.altText = cleaned;
+  if (source) {
+    CFG.altTextSource = source;
+  } else if (!CFG.altTextSource) {
+    CFG.altTextSource = cleaned ? 'manual' : 'auto';
+  }
+  applyAltTextToSvg(cleaned);
+}
+function setAltTextStatus(message, isError) {
+  if (!altTextStatus) return;
+  altTextStatus.textContent = message || '';
+  if (isError) altTextStatus.classList.add('alt-text__status--error');else altTextStatus.classList.remove('alt-text__status--error');
+}
+function applyAltTextToSvg(text) {
+  if (!svg) return;
+  const { titleEl, descEl } = ensureSvgA11yNodes(svg);
+  const titleText = (CFG.title || '').trim() || 'Diagram';
+  const descText = (text || '').trim();
+  if (titleEl) titleEl.textContent = titleText;
+  if (descEl) descEl.textContent = descText;
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', titleText);
+  if (titleEl && titleEl.id) svg.setAttribute('aria-labelledby', titleEl.id);
+  if (descEl && descEl.id) svg.setAttribute('aria-describedby', descEl.id);
+}
+function ensureSvgA11yNodes(targetSvg) {
+  if (!targetSvg) return { titleEl: null, descEl: null };
+  const doc = targetSvg.ownerDocument || document;
+  const ns = targetSvg.namespaceURI || 'http://www.w3.org/2000/svg';
+  let titleEl = targetSvg.querySelector('title');
+  if (!titleEl) {
+    titleEl = doc.createElementNS(ns, 'title');
+    targetSvg.insertBefore(titleEl, targetSvg.firstChild || null);
+  }
+  if (!titleEl.id) {
+    const baseId = targetSvg.id || 'diagram';
+    titleEl.id = `${baseId}-title`;
+  }
+  let descEl = targetSvg.querySelector('desc');
+  if (!descEl) {
+    descEl = doc.createElementNS(ns, 'desc');
+    if (titleEl.nextSibling) targetSvg.insertBefore(descEl, titleEl.nextSibling);else targetSvg.appendChild(descEl);
+  }
+  if (!descEl.id) {
+    const baseId = targetSvg.id || 'diagram';
+    descEl.id = `${baseId}-desc`;
+  }
+  return {
+    titleEl,
+    descEl
+  };
+}
+function collectAltTextContext() {
+  const lbls = Array.isArray(CFG.labels) ? CFG.labels.slice() : [];
+  const vals1 = lbls.length ? alignLength(values.slice(), lbls.length, 0) : values.slice();
+  const vals2 = values2 && values2.length ? lbls.length ? alignLength(values2.slice(), lbls.length, 0) : values2.slice() : null;
+  return {
+    type: CFG.type || 'bar',
+    title: CFG.title || '',
+    axisXLabel: CFG.axisXLabel || '',
+    axisYLabel: CFG.axisYLabel || '',
+    labels: lbls,
+    values: vals1,
+    values2: vals2,
+    seriesNames: seriesNames.slice(),
+    yMax: yMax
+  };
+}
+function describeDiagramType(type) {
+  if (type === 'line') return 'linjediagram';
+  if (type === 'grouped') return 'gruppert stolpediagram';
+  if (type === 'stacked') return 'stablet stolpediagram';
+  return 'stolpediagram';
+}
+function buildAltTextPrompt(context) {
+  const typeName = describeDiagramType(context.type);
+  const parts = [`Diagramtype: ${typeName}`];
+  if (context.title) parts.push(`Tittel: ${context.title}`);
+  if (context.axisXLabel) parts.push(`X-akse: ${context.axisXLabel}`);
+  if (context.axisYLabel) parts.push(`Y-akse: ${context.axisYLabel}`);
+  const labels = context.labels.length ? context.labels : context.values.map((_, i) => `Kategori ${i + 1}`);
+  const seriesName1 = context.seriesNames && context.seriesNames[0] && context.seriesNames[0].trim() ? context.seriesNames[0].trim() : context.values2 && context.values2.length ? 'Serie 1' : 'Dataserien';
+  parts.push(`Serie 1 (${seriesName1}):`);
+  labels.forEach((label, idx) => {
+    const v = Number(context.values[idx] || 0);
+    parts.push(`- ${label}: ${formatNumberForPrompt(v)}`);
+  });
+  if (context.values2 && context.values2.length) {
+    const seriesName2 = context.seriesNames && context.seriesNames[1] && context.seriesNames[1].trim() ? context.seriesNames[1].trim() : 'Serie 2';
+    parts.push(`Serie 2 (${seriesName2}):`);
+    labels.forEach((label, idx) => {
+      const v = Number(context.values2 ? context.values2[idx] || 0 : 0);
+      parts.push(`- ${label}: ${formatNumberForPrompt(v)}`);
+    });
+    if (context.type === 'stacked') {
+      parts.push('Totalsummer per kategori:');
+      labels.forEach((label, idx) => {
+        const total = Number(context.values[idx] || 0) + Number(context.values2 ? context.values2[idx] || 0 : 0);
+        parts.push(`- ${label}: ${formatNumberForPrompt(total)}`);
+      });
+    }
+  }
+  return `Lag en kort og tydelig alternativ tekst på norsk for et ${typeName}. Teksten skal være 2–3 setninger, beskrive hva diagrammet handler om, forklare aksene og fremheve tydelige trender eller ekstreme verdier. Ikke bruk punktlister eller Markdown.
+
+Data:
+${parts.join('\n')}`;
+}
+function buildHeuristicAltText(context) {
+  const labels = context.labels.length ? context.labels : context.values.map((_, i) => `Kategori ${i + 1}`);
+  const typeName = describeDiagramType(context.type);
+  const sentences = [];
+  const title = context.title && context.title.trim();
+  if (title) {
+    sentences.push(`${title} er et ${typeName}.`);
+  } else {
+    sentences.push(`Figuren er et ${typeName} med ${labels.length} kategorier.`);
+  }
+  if (context.axisXLabel && context.axisYLabel) {
+    sentences.push(`Den horisontale aksen viser ${context.axisXLabel}, og den vertikale viser ${context.axisYLabel}.`);
+  } else if (context.axisXLabel) {
+    sentences.push(`Den horisontale aksen viser ${context.axisXLabel}.`);
+  } else if (context.axisYLabel) {
+    sentences.push(`Den vertikale aksen viser ${context.axisYLabel}.`);
+  }
+  const addSeriesSummary = (arr, name, suffix) => {
+    if (!arr || !arr.length) return;
+    const numbers = arr.map(v => Number(v) || 0);
+    if (numbers.every(v => Math.abs(v - numbers[0]) < 1e-9)) {
+      sentences.push(`${name} er ${fmt(numbers[0])} for alle kategorier${suffix || ''}.`);
+      return;
+    }
+    let maxIndex = 0;
+    let minIndex = 0;
+    numbers.forEach((value, idx) => {
+      if (value > numbers[maxIndex]) maxIndex = idx;
+      if (value < numbers[minIndex]) minIndex = idx;
+    });
+    const maxLabel = labels[maxIndex] || `Kategori ${maxIndex + 1}`;
+    const minLabel = labels[minIndex] || `Kategori ${minIndex + 1}`;
+    let sentence = `${name} er høyest for ${maxLabel} (${fmt(numbers[maxIndex])})`;
+    if (numbers[minIndex] !== numbers[maxIndex]) {
+      sentence += ` og lavest for ${minLabel} (${fmt(numbers[minIndex])})`;
+    }
+    sentence += suffix || '';
+    sentence += '.';
+    sentences.push(sentence);
+  };
+  const seriesName1 = context.seriesNames && context.seriesNames[0] && context.seriesNames[0].trim() ? context.seriesNames[0].trim() : context.values2 && context.values2.length ? 'Serie 1' : 'Dataserien';
+  addSeriesSummary(context.values, seriesName1, context.values2 && context.values2.length ? '' : '');
+  if (context.values2 && context.values2.length) {
+    const seriesName2 = context.seriesNames && context.seriesNames[1] && context.seriesNames[1].trim() ? context.seriesNames[1].trim() : 'Serie 2';
+    addSeriesSummary(context.values2, seriesName2);
+    if (context.type === 'stacked') {
+      const totals = context.values.map((v, idx) => Number(v || 0) + Number(context.values2 ? context.values2[idx] || 0 : 0));
+      addSeriesSummary(totals, 'Totalt', ' når søylene er stablet');
+    }
+  }
+  return sentences.join(' ');
+}
+function formatNumberForPrompt(value) {
+  const str = formatNumber(Number.isFinite(value) ? value : 0);
+  return str.replace('.', ',');
+}
+
+/* =========================================================
    KNAPPER
    ========================================================= */
 document.getElementById('btnReset').addEventListener('click', () => {
@@ -861,6 +1217,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
   clearBadges();
   lastFocusIndex = null;
   drawData();
+  scheduleAltTextUpdate('reset');
   updateStatus('Nullstilt.');
 });
 document.getElementById('btnShow').addEventListener('click', () => {
@@ -869,6 +1226,7 @@ document.getElementById('btnShow').addEventListener('click', () => {
   lastFocusIndex = null;
   drawData();
   markCorrectness();
+  scheduleAltTextUpdate('show');
   updateStatus('Dette er én fasit.');
 });
 document.getElementById('btnCheck').addEventListener('click', () => {
@@ -1008,6 +1366,16 @@ function isCorrect(vs, ans, tol) {
 async function svgToString(svgEl) {
   var _titleEl$textContent;
   const clone = svgEl.cloneNode(true);
+  const exportTitle = (CFG.title || '').trim() || 'Diagram';
+  const currentContext = collectAltTextContext();
+  const exportDesc = (CFG.altText || '').trim() || buildHeuristicAltText(currentContext);
+  const { titleEl: cloneTitle, descEl: cloneDesc } = ensureSvgA11yNodes(clone);
+  if (cloneTitle) cloneTitle.textContent = exportTitle;
+  if (cloneDesc) cloneDesc.textContent = exportDesc;
+  clone.setAttribute('role', 'img');
+  clone.setAttribute('aria-label', exportTitle);
+  if (cloneTitle && cloneTitle.id) clone.setAttribute('aria-labelledby', cloneTitle.id);
+  if (cloneDesc && cloneDesc.id) clone.setAttribute('aria-describedby', cloneDesc.id);
 
   // Kopier beregnede stilverdier som attributter for å unngå svarte figurer
   const srcEls = svgEl.querySelectorAll('*');
