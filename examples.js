@@ -28,7 +28,7 @@
 
 (function () {
   const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
-  function createFallbackStorage() {
+  function createMemoryStorage() {
     const data = new Map();
     return {
       get length() {
@@ -62,6 +62,58 @@
         data.clear();
       }
     };
+  }
+  function createSessionFallbackStorage() {
+    if (typeof sessionStorage === 'undefined') return null;
+    try {
+      const testKey = '__examples_session_test__';
+      sessionStorage.setItem(testKey, '1');
+      sessionStorage.removeItem(testKey);
+    } catch (_) {
+      return null;
+    }
+    return {
+      get length() {
+        try {
+          const value = sessionStorage.length;
+          return typeof value === 'number' ? value : 0;
+        } catch (_) {
+          return 0;
+        }
+      },
+      key(index) {
+        try {
+          return sessionStorage.key(index);
+        } catch (_) {
+          return null;
+        }
+      },
+      getItem(key) {
+        try {
+          return sessionStorage.getItem(key);
+        } catch (_) {
+          return null;
+        }
+      },
+      setItem(key, value) {
+        try {
+          sessionStorage.setItem(key, value);
+        } catch (_) {}
+      },
+      removeItem(key) {
+        try {
+          sessionStorage.removeItem(key);
+        } catch (_) {}
+      },
+      clear() {
+        try {
+          sessionStorage.clear();
+        } catch (_) {}
+      }
+    };
+  }
+  function createFallbackStorage() {
+    return createSessionFallbackStorage() || createMemoryStorage();
   }
   const fallbackStorage = (() => {
     if (globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function') {
