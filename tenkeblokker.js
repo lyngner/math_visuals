@@ -1969,7 +1969,10 @@ function getExportSvg() {
       if (!(block !== null && block !== void 0 && block.svg)) return;
       const g = document.createElementNS(ns, 'g');
       g.setAttribute('transform', `translate(${offsetX},0)`);
-      g.innerHTML = block.svg.innerHTML;
+      const blockClone = block.svg.cloneNode(true);
+      const exportHandleElements = blockClone.querySelectorAll('.tb-handle, .tb-handle-shadow');
+      exportHandleElements.forEach(el => el.remove());
+      g.innerHTML = blockClone.innerHTML;
       blocksGroup.appendChild(g);
       const widthValue = (_metrics$width = metrics === null || metrics === void 0 ? void 0 : metrics.width) !== null && _metrics$width !== void 0 ? _metrics$width : (_block$svg$viewBox = block.svg.viewBox) === null || _block$svg$viewBox === void 0 || (_block$svg$viewBox = _block$svg$viewBox.baseVal) === null || _block$svg$viewBox === void 0 ? void 0 : _block$svg$viewBox.width;
       const blockWidth = Number.isFinite(widthValue) && widthValue > 0 ? widthValue : VBW;
