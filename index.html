@@ -391,14 +391,18 @@
     <iframe name="content" title="Innhold"></iframe>
     <script src="router.js"></script>
     <script>
-      const nav = document.querySelector('nav');
-      const navToggle = nav ? nav.querySelector('.nav-toggle') : null;
-      const navLinks = nav ? nav.querySelectorAll('a[target="content"]') : null;
+      (() => {
+        const navElement = document.querySelector('nav');
+        const navToggle = navElement ? navElement.querySelector('.nav-toggle') : null;
+        const navLinks = navElement ? navElement.querySelectorAll('a[target="content"]') : null;
 
-      if (nav && navToggle) {
+        if (!navElement || !navToggle) {
+          return;
+        }
+
         const smallScreenQuery = window.matchMedia('(max-width: 768px)');
         const closeNav = () => {
-          nav.classList.remove('is-open');
+          navElement.classList.remove('is-open');
           navToggle.setAttribute('aria-expanded', 'false');
         };
 
@@ -407,9 +411,9 @@
           const nextState = !isExpanded;
           navToggle.setAttribute('aria-expanded', String(nextState));
           if (nextState) {
-            nav.classList.add('is-open');
+            navElement.classList.add('is-open');
           } else {
-            nav.classList.remove('is-open');
+            navElement.classList.remove('is-open');
           }
         });
 
@@ -425,7 +429,7 @@
 
         const syncNavState = (event) => {
           if (!event.matches) {
-            nav.classList.remove('is-open');
+            navElement.classList.remove('is-open');
             navToggle.setAttribute('aria-expanded', 'false');
           }
         };
@@ -435,7 +439,7 @@
         } else if (typeof smallScreenQuery.addListener === 'function') {
           smallScreenQuery.addListener(syncNavState);
         }
-      }
+      })();
     </script>
   </body>
 </html>
