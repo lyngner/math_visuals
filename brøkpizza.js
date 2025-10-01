@@ -3,10 +3,13 @@
    ======================= */
 const SIMPLE = {
   pizzas: [],
-  ops: []
+  ops: [],
+  altText: '',
+  altTextSource: 'auto'
 };
 if (typeof window !== 'undefined') window.SIMPLE = SIMPLE;
 const PANEL_HTML = [];
+let altTextManager = null;
 function readConfigFromHtml() {
   const pizzas = [];
   for (let i = 1; i <= 3; i++) {
@@ -441,6 +444,7 @@ class Pizza {
     this.k = Math.max(0, Math.min(this.n, Math.round(this.theta / step)));
     this.draw();
     this.syncSimpleConfig();
+    refreshAltText('interaction');
   }
   setK(k) {
     const kk = Math.max(0, Math.min(this.n, Math.round(k)));
@@ -448,6 +452,7 @@ class Pizza {
     this.theta = this.k / this.n * TAU;
     this.draw();
     this.syncSimpleConfig();
+    refreshAltText('interaction');
   }
   syncSimpleConfig() {
     if (this.index == null) return;
@@ -891,6 +896,10 @@ function buildAllPizzasSVG() {
     height: h,
     viewBox: `0 0 ${w} ${h}`
   });
+  const titleEl = mk('title', { id: 'brokpizza-alt-title' });
+  titleEl.textContent = getBrokpizzaTitle();
+  const descEl = mk('desc', { id: 'brokpizza-alt-desc' });
+  descEl.textContent = getActiveAltText();
   const bg = mk("rect", {
     x: 0,
     y: 0,
@@ -898,7 +907,11 @@ function buildAllPizzasSVG() {
     height: h,
     fill: "#fff"
   });
-  root.appendChild(bg);
+  root.append(titleEl, descEl, bg);
+  root.setAttribute('role', 'img');
+  root.setAttribute('aria-label', titleEl.textContent);
+  root.setAttribute('aria-labelledby', titleEl.id);
+  root.setAttribute('aria-describedby', descEl.id);
   const styleEl = mk("style", {
     type: "text/css"
   });
@@ -1001,6 +1014,10 @@ function downloadAllPizzasInteractiveSVG(filename = "broksirkler-interaktiv.svg"
     height: h,
     viewBox: `0 0 ${w} ${h}`
   });
+  const titleEl = mk('title', { id: 'brokpizza-alt-title' });
+  titleEl.textContent = getBrokpizzaTitle();
+  const descEl = mk('desc', { id: 'brokpizza-alt-desc' });
+  descEl.textContent = getActiveAltText();
   const bg = mk("rect", {
     x: 0,
     y: 0,
@@ -1008,7 +1025,11 @@ function downloadAllPizzasInteractiveSVG(filename = "broksirkler-interaktiv.svg"
     height: h,
     fill: "#fff"
   });
-  root.appendChild(bg);
+  root.append(titleEl, descEl, bg);
+  root.setAttribute('role', 'img');
+  root.setAttribute('aria-label', titleEl.textContent);
+  root.setAttribute('aria-labelledby', titleEl.id);
+  root.setAttribute('aria-describedby', descEl.id);
   const styleEl = mk("style", {
     type: "text/css"
   });
@@ -1094,6 +1115,166 @@ function setupGlobalDownloadButtons() {
 }
 
 /* =======================
+   Alt-tekst
+   ======================= */
+function getBrokpizzaTitle() {
+  return document.title || 'Brøksirkler';
+}
+
+function formatDecimal(value) {
+  if (!Number.isFinite(value)) return '0';
+  const str = value.toFixed(2);
+  const trimmed = str.replace(/\.?0+$/, '');
+  return trimmed.replace('.', ',');
+}
+
+function formatPercent(value) {
+  return `${formatDecimal(value * 100)} %`;
+}
+
+function formatCount(value, singular) {
+  const word = Math.abs(value) === 1 ? singular : `${singular}er`;
+  return `${value} ${word}`;
+}
+
+function describeLocks(pizza) {
+  if (!pizza || !pizza.cfg) return '';
+  const locks = [];
+  if (pizza.cfg.lockNumerator) locks.push('telleren');
+  if (pizza.cfg.lockDenominator) locks.push('nevneren');
+  if (!locks.length) return '';
+  if (locks.length === 2) {
+    return 'Både telleren og nevneren er låst.';
+  }
+  return `${locks[0].charAt(0).toUpperCase()}${locks[0].slice(1)} er låst.`;
+}
+
+function getVisiblePizzaInstances() {
+  const instances = [];
+  PIZZA_DOM.forEach((map, idx) => {
+    const svgEl = document.getElementById(map.svgId);
+    const inst = svgEl ? REG.get(svgEl) : null;
+    const cfg = SIMPLE.pizzas[idx] || {};
+    const panel = document.getElementById(`panel${idx + 1}`);
+    const visible = cfg.visible !== false && panel && panel.style.display !== 'none';
+    if (!visible || !inst) return;
+    instances.push({ index: idx, inst, cfg });
+  });
+  return instances;
+}
+
+function buildBropizzaAltText() {
+  const pizzas = getVisiblePizzaInstances();
+  if (!pizzas.length) {
+    return 'Figuren viser ingen brøksirkler.';
+  }
+  const sentences = [];
+  sentences.push(`Figuren viser ${pizzas.length === 1 ? 'én brøksirkel' : `${pizzas.length} brøksirkler`}.`);
+  pizzas.forEach(({ index, inst }) => {
+    const numerator = inst.k;
+    const denominator = inst.n || 1;
+    const gcdValue = gcd(numerator, denominator);
+    const simplified = gcdValue > 1 ? `${numerator / gcdValue}/${denominator / gcdValue}` : null;
+    let sentence = `Pizza ${index + 1} viser ${formatCount(numerator, 'del')} av ${formatCount(denominator, 'del')} fylt`;
+    if (simplified) {
+      sentence += ` (${simplified} i enkleste form)`;
+    }
+    sentence += '.';
+    const ratio = denominator ? numerator / denominator : 0;
+    if (inst.textMode === 'percent') {
+      sentence += ` Dette tilsvarer ${formatPercent(ratio)}.`;
+    } else if (inst.textMode === 'decimal') {
+      sentence += ` Dette tilsvarer desimaltallet ${formatDecimal(ratio)}.`;
+    }
+    const locks = describeLocks(inst);
+    if (locks) sentence += ` ${locks}`;
+    sentences.push(sentence);
+  });
+  const ops = Array.isArray(SIMPLE.ops) ? SIMPLE.ops : [];
+  pizzas.forEach((entry, idx) => {
+    if (idx >= pizzas.length - 1) return;
+    const op = ops[entry.index];
+    if (!op) return;
+    const left = entry.index + 1;
+    const right = pizzas[idx + 1].index + 1;
+    let name;
+    switch (op) {
+      case '+':
+        name = 'pluss-tegn';
+        break;
+      case '-':
+        name = 'minus-tegn';
+        break;
+      case '=':
+        name = 'likhetstegn';
+        break;
+      default:
+        name = `operatoren «${op}»`;
+    }
+    sentences.push(`Mellom pizza ${left} og ${right} står ${name}.`);
+  });
+  return sentences.join(' ');
+}
+
+function getActiveAltText() {
+  const stored = typeof SIMPLE.altText === 'string' ? SIMPLE.altText.trim() : '';
+  return stored || buildBropizzaAltText();
+}
+
+function refreshAltText(reason) {
+  if (altTextManager) {
+    altTextManager.refresh(reason || 'auto');
+  }
+}
+
+function initAltTextManager() {
+  if (!window.MathVisAltText) return;
+  const container = document.getElementById('exportCard');
+  if (!container) return;
+  const anchor = ensureAltTextAnchor();
+  altTextManager = window.MathVisAltText.create({
+    svg: () => anchor,
+    container,
+    getTitle: getBrokpizzaTitle,
+    getState: () => ({
+      text: typeof SIMPLE.altText === 'string' ? SIMPLE.altText : '',
+      source: SIMPLE.altTextSource === 'manual' ? 'manual' : 'auto'
+    }),
+    setState: (text, source) => {
+      SIMPLE.altText = text;
+      SIMPLE.altTextSource = source === 'manual' ? 'manual' : 'auto';
+    },
+    generate: () => buildBropizzaAltText(),
+    getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
+    getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
+  });
+  const figure = document.querySelector('.grid2');
+  if (figure && window.MathVisAltText) {
+    const nodes = window.MathVisAltText.ensureSvgA11yNodes(anchor);
+    figure.setAttribute('role', 'img');
+    figure.setAttribute('aria-label', getBrokpizzaTitle());
+    if (nodes.titleEl && nodes.titleEl.id) figure.setAttribute('aria-labelledby', nodes.titleEl.id);
+    if (nodes.descEl && nodes.descEl.id) figure.setAttribute('aria-describedby', nodes.descEl.id);
+  }
+}
+
+function ensureAltTextAnchor() {
+  let anchor = document.getElementById('brokpizza-alt-anchor');
+  if (!anchor) {
+    anchor = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    anchor.setAttribute('id', 'brokpizza-alt-anchor');
+    anchor.setAttribute('width', '0');
+    anchor.setAttribute('height', '0');
+    anchor.style.position = 'absolute';
+    anchor.style.left = '-9999px';
+    anchor.style.width = '0';
+    anchor.style.height = '0';
+    document.body.appendChild(anchor);
+  }
+  return anchor;
+}
+
+/* =======================
    Init
    ======================= */
 function initFromHtml() {
@@ -1153,10 +1334,13 @@ function initFromHtml() {
     if (firstPanel && firstPanel.style.display !== "none") visibleCount = 1;else visibleCount = 0;
   }
   SIMPLE.visibleCount = visibleCount || 1;
+  refreshAltText('config');
 }
 window.addEventListener("load", () => {
   initFromHtml();
   setupGlobalDownloadButtons();
+  initAltTextManager();
+  refreshAltText('init');
   const addBtn = document.getElementById('addPizza');
   const fieldset2 = document.getElementById('fieldset2');
   const fieldset3 = document.getElementById('fieldset3');
