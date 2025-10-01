@@ -86,10 +86,26 @@
     .card h2{margin:0 0 6px 2px;font-size:16px;font-weight:600;color:#374151;}
     .figure{width:100%;flex:1 1 auto;border-radius:10px;background:#fff;overflow:visible;border:none;display:flex;justify-content:center;align-items:center;min-height:0;}
     .figure .box{
-      width:min(var(--figure-size, 360px),100%);
+      width:100%;
+      max-width:var(--figure-size, 360px);
       max-height:100%;
       aspect-ratio:1;
       margin:0 auto;
+      position:relative;
+    }
+    @supports not (aspect-ratio: 1) {
+      .figure .box{
+        height:0;
+      }
+      .figure .box::before{
+        content:'';
+        display:block;
+        padding-bottom:100%;
+      }
+      .figure .box > *{
+        position:absolute;
+        inset:0;
+      }
     }
     .stepper{
       display:flex;align-items:center;gap:12px;
