@@ -3,7 +3,7 @@
   const BOARD_WIDTH = 1000;
   const BOARD_HEIGHT = 700;
   const POINT_RADIUS = 18;
-  const LABEL_POINT_MARGIN = 10;
+  const LABEL_POINT_MARGIN = 0;
   const DOT_RADIUS = 6;
   const LABEL_OFFSET_DISTANCE = DOT_RADIUS + LABEL_POINT_MARGIN;
   const LABEL_EDGE_MARGIN = 16;
@@ -615,7 +615,7 @@
     { dx: 0, dy: 1 }
   ];
 
-  function computePlacementOffset(candidate, size) {
+  function computePlacementOffset(candidate, size, scale) {
     const fallbackCandidate = LABEL_PLACEMENT_CANDIDATES[0] || { dx: 1, dy: -1 };
     const rawDx = candidate && typeof candidate.dx === 'number' ? candidate.dx : fallbackCandidate.dx;
     const rawDy = candidate && typeof candidate.dy === 'number' ? candidate.dy : fallbackCandidate.dy;
@@ -626,9 +626,12 @@
     const height = size && Number.isFinite(size.height) && size.height > 0 ? size.height : fallbackSize;
     const halfWidth = width / 2;
     const halfHeight = height / 2;
-    const margin = LABEL_OFFSET_DISTANCE;
-    const offsetX = dx === 0 ? 0 : dx * (halfWidth + margin);
-    const offsetY = dy === 0 ? 0 : dy * (halfHeight + margin);
+    const scaleX = scale && Number.isFinite(scale.x) ? scale.x : 1;
+    const scaleY = scale && Number.isFinite(scale.y) ? scale.y : 1;
+    const marginX = LABEL_OFFSET_DISTANCE * scaleX;
+    const marginY = LABEL_OFFSET_DISTANCE * scaleY;
+    const offsetX = dx === 0 ? 0 : dx * (halfWidth + marginX);
+    const offsetY = dy === 0 ? 0 : dy * (halfHeight + marginY);
     return { x: offsetX, y: offsetY };
   }
 
@@ -669,13 +672,13 @@
     const labelTextLength = point && typeof point.label === 'string' && point.label
       ? point.label.length
       : 1;
-    const approxWidth = Math.max(LABEL_OFFSET_DISTANCE * 2, fontSize * (labelTextLength * 0.6 + 1.4));
-    const approxHeight = Math.max(LABEL_OFFSET_DISTANCE * 2, fontSize * 1.6);
+    const approxWidth = Math.max(LABEL_OFFSET_DISTANCE * 2 * boardScaleX, fontSize * (labelTextLength * 0.6 + 1.4));
+    const approxHeight = Math.max(LABEL_OFFSET_DISTANCE * 2 * boardScaleY, fontSize * 1.6);
     const horizontalMargin = LABEL_EDGE_MARGIN + approxWidth / 2;
     const verticalMargin = LABEL_EDGE_MARGIN + approxHeight / 2;
 
     LABEL_PLACEMENT_CANDIDATES.forEach((candidate, index) => {
-      const offset = computePlacementOffset(candidate, { width: approxWidth, height: approxHeight });
+      const offset = computePlacementOffset(candidate, { width: approxWidth, height: approxHeight }, { x: boardScaleX, y: boardScaleY });
       const placementAngle = Math.atan2(offset.y, offset.x);
       const minAngleDiff = neighborAngles.length
         ? Math.min(...neighborAngles.map(angle => angleDistance(placementAngle, angle)))
@@ -769,7 +772,7 @@
     const candidate = (pointId && labelPlacements.get(pointId)) || LABEL_PLACEMENT_CANDIDATES[0];
     const width = element.offsetWidth || element.getBoundingClientRect().width || 0;
     const height = element.offsetHeight || element.getBoundingClientRect().height || 0;
-    const offset = computePlacementOffset(candidate, { width, height });
+    const offset = computePlacementOffset(candidate, { width, height }, { x: boardScaleX, y: boardScaleY });
     const centerX = pos.x * boardScaleX + offset.x;
     const centerY = pos.y * boardScaleY + offset.y;
     const left = centerX - width / 2;
