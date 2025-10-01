@@ -5,11 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Math Visuals</title>
   <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
     body {
       margin: 0;
       display: grid;
       grid-template-rows: auto 1fr;
-      height: 100vh;
+      min-height: 100vh;
+      min-height: 100dvh;
       font-family: system-ui, sans-serif;
       background: #f7f8fb;
       color: #111827;
@@ -18,9 +22,47 @@
       padding: 16px 20px;
       border-bottom: 1px solid #e5e7eb;
       background: #ffffffee;
+      backdrop-filter: blur(4px);
       display: flex;
       flex-direction: column;
       gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    .nav-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .nav-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .nav-toggle {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(15, 109, 143, 0.15);
+      background: #0f6d8f;
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+    .nav-toggle:hover,
+    .nav-toggle:focus-visible {
+      background: #0c5974;
+      border-color: rgba(15, 109, 143, 0.35);
+      outline: none;
+    }
+    .nav-toggle svg {
+      width: 1.3rem;
+      height: 1.3rem;
     }
     ul {
       list-style: none;
@@ -117,24 +159,69 @@
       }
     }
 
-    @media (max-width: 480px) {
+    @media (max-width: 768px) {
       nav {
-        padding: 12px;
+        gap: 8px;
+        padding: 12px 16px;
+      }
+      .nav-header {
+        flex-wrap: wrap;
+      }
+      .nav-title {
+        flex: 1 1 auto;
+      }
+      .nav-toggle {
+        display: inline-flex;
+      }
+      ul {
+        display: none;
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 8px;
+        overflow: visible;
+      }
+      nav.is-open ul {
+        display: flex;
+      }
+      li {
+        flex: 1 1 calc(33.333% - 8px);
+        min-width: 3rem;
       }
       nav a {
-        width: 2.75rem;
-        height: 2.75rem;
+        width: 100%;
+        height: 3.25rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      nav {
+        padding: 10px 12px;
+      }
+      li {
+        flex: 1 1 calc(50% - 8px);
+      }
+      nav a {
+        height: 2.9rem;
       }
       nav svg {
-        width: 1.5rem;
-        height: 1.5rem;
+        width: 1.4rem;
+        height: 1.4rem;
       }
     }
   </style>
 </head>
 <body>
   <nav>
-    <ul>
+    <div class="nav-header">
+      <span class="nav-title">Math Visuals</span>
+      <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="nav-list">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16" />
+        </svg>
+        <span>Meny</span>
+      </button>
+    </div>
+    <ul id="nav-list">
       <li>
         <a href="graftegner.html" target="content" title="Graftegner" aria-label="Graftegner">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
@@ -303,5 +390,47 @@
   </nav>
     <iframe name="content" title="Innhold"></iframe>
     <script src="router.js"></script>
-</body>
+    <script>
+      const nav = document.querySelector('nav');
+      const navToggle = nav ? nav.querySelector('.nav-toggle') : null;
+      const navLinks = nav ? nav.querySelectorAll('a[target="content"]') : null;
+
+      if (nav && navToggle) {
+        const smallScreenQuery = window.matchMedia('(max-width: 768px)');
+        const closeNav = () => {
+          nav.classList.remove('is-open');
+          navToggle.setAttribute('aria-expanded', 'false');
+        };
+
+        navToggle.addEventListener('click', () => {
+          const isExpanded = navToggle.getAttribute('aria-expanded') === 'true';
+          navToggle.setAttribute('aria-expanded', String(!isExpanded));
+          nav.classList.toggle('is-open', !isExpanded);
+        });
+
+        if (navLinks) {
+          navLinks.forEach((link) => {
+            link.addEventListener('click', () => {
+              if (smallScreenQuery.matches) {
+                closeNav();
+              }
+            });
+          });
+        }
+
+        const syncNavState = (event) => {
+          if (!event.matches) {
+            nav.classList.remove('is-open');
+            navToggle.setAttribute('aria-expanded', 'false');
+          }
+        };
+
+        if (typeof smallScreenQuery.addEventListener === 'function') {
+          smallScreenQuery.addEventListener('change', syncNavState);
+        } else if (typeof smallScreenQuery.addListener === 'function') {
+          smallScreenQuery.addListener(syncNavState);
+        }
+      }
+    </script>
+  </body>
 </html>
