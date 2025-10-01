@@ -6,6 +6,9 @@ const SIMPLE = {
   startIndex: 2,
   // startposisjon for klypa (antall til venstre)
 
+  altText: '',
+  altTextSource: 'auto',
+
   // Fasit (velg én form):
   // correct: 8, // short-hand: leftCount = 8
   correct: {
@@ -119,10 +122,13 @@ let CLIP_Y_MIN = -100,
   CLIP_Y_MAX = 100;
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
+const exportCard = document.getElementById('exportCard');
+let altTextManager = null;
 btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => downloadSVG(svg, 'perlesnor.svg'));
 btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => downloadPNG(svg, 'perlesnor.png', 2));
 setupSettingsUI();
 applyConfig();
+initAltTextManager();
 
 /* ============ INTERAKSJON ============ */
 let dragging = false;
@@ -294,6 +300,7 @@ function setIndex(v) {
   if (cl !== idx) {
     idx = cl;
     draw();
+    if (altTextManager) altTextManager.refresh('interaction');
   }
 }
 function setClipYFromPoint(py) {
@@ -325,6 +332,7 @@ function applyConfig() {
   overlay.setAttribute("aria-valuenow", String(idx));
   layout();
   draw();
+  if (altTextManager) altTextManager.refresh('config');
 }
 function setupSettingsUI() {
   var _SIMPLE$correct;
@@ -422,6 +430,101 @@ function updateFeedbackUI() {
   }
 }
 
+/* ===== ALT-TEKST ===== */
+function initAltTextManager() {
+  if (!window.MathVisAltText || !exportCard) return;
+  altTextManager = window.MathVisAltText.create({
+    svg,
+    container: exportCard,
+    getTitle: () => document.title || 'Perlesnor',
+    getState: () => ({
+      text: typeof SIMPLE.altText === 'string' ? SIMPLE.altText : '',
+      source: SIMPLE.altTextSource === 'manual' ? 'manual' : 'auto'
+    }),
+    setState: (text, source) => {
+      SIMPLE.altText = text;
+      SIMPLE.altTextSource = source === 'manual' ? 'manual' : 'auto';
+    },
+    generate: () => buildPerlesnorAltText(),
+    getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
+    getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
+  });
+  if (altTextManager) {
+    altTextManager.applyCurrent();
+  }
+}
+
+function buildPerlesnorAltText() {
+  const total = CFG.nBeads;
+  const left = idx;
+  const right = total - left;
+  const sentences = [];
+  sentences.push(`Figuren viser en perlesnor med ${formatCount(total, 'perle')} fordelt på to farger.`);
+  sentences.push(`Klypa deler snoren slik at ${formatCount(left, 'perle')} ligger til venstre og ${formatCount(right, 'perle')} til høyre.`);
+  if (CFG.groupSize > 1) {
+    sentences.push(`Perlene er markert i grupper på ${CFG.groupSize}.`);
+  }
+  const rule = normalizeCorrect(SIMPLE, CFG.nBeads);
+  const ruleSentence = describeCorrectRule(rule);
+  if (ruleSentence) sentences.push(ruleSentence);
+  return sentences.join(' ');
+}
+
+function formatCount(n, singular) {
+  const abs = Math.abs(n);
+  const word = abs === 1 ? singular : `${singular}r`;
+  return `${n} ${word}`;
+}
+
+function formatNumberList(values) {
+  if (!Array.isArray(values) || values.length === 0) return '';
+  const unique = [...new Set(values)].sort((a, b) => a - b);
+  if (unique.length === 1) return String(unique[0]);
+  const last = unique[unique.length - 1];
+  const rest = unique.slice(0, -1);
+  return `${rest.join(', ')} eller ${last}`;
+}
+
+function describeRange(range) {
+  if (!Array.isArray(range) || range.length !== 2) return '';
+  const [min, max] = range;
+  if (min === max) return String(min);
+  return `${min}–${max}`;
+}
+
+function describeCorrectRule(rule) {
+  if (!rule) return '';
+  const targetSide = side => side === 'left' ? 'til venstre for klypa' : side === 'right' ? 'til høyre for klypa' : 'på posisjonen til klypa';
+  const buildSentence = (side, ruleData) => {
+    if (!ruleData) return '';
+    if (ruleData.value != null) {
+      return `Målet er at ${formatCount(ruleData.value, 'perle')} skal ligge ${targetSide(side)}.`;
+    }
+    if (ruleData.values && ruleData.values.length) {
+      return `Målet er at ${targetSide(side)} skal være ${formatNumberList(ruleData.values)} perler.`;
+    }
+    if (ruleData.range && ruleData.range.length === 2) {
+      return `Målet er at ${targetSide(side)} skal være mellom ${describeRange(ruleData.range)} perler.`;
+    }
+    return '';
+  };
+  switch (rule.mode) {
+    case 'leftCount':
+      return buildSentence('left', rule);
+    case 'rightCount':
+      return buildSentence('right', rule);
+    case 'index':
+      return buildSentence('index', rule);
+    case 'indexSet':
+      if (rule.values && rule.values.length) {
+        return `Klypa kan stå på ${formatNumberList(rule.values)} av mellomrommene.`;
+      }
+      return '';
+    default:
+      return '';
+  }
+}
+
 /* ===== helpers ===== */
 function mk(n, attrs = {}) {
   const e = document.createElementNS("http://www.w3.org/2000/svg", n);
@@ -466,6 +569,17 @@ function pt(e) {
 }
 function svgToString(svgEl) {
   const clone = svgEl.cloneNode(true);
+  const figureTitle = document.title || 'Perlesnor';
+  const activeAltText = (typeof SIMPLE.altText === 'string' ? SIMPLE.altText : '').trim() || buildPerlesnorAltText();
+  if (window.MathVisAltText) {
+    const { titleEl, descEl } = window.MathVisAltText.ensureSvgA11yNodes(clone);
+    if (titleEl) titleEl.textContent = figureTitle;
+    if (descEl) descEl.textContent = activeAltText;
+    clone.setAttribute('role', 'img');
+    clone.setAttribute('aria-label', figureTitle);
+    if (titleEl && titleEl.id) clone.setAttribute('aria-labelledby', titleEl.id);
+    if (descEl && descEl.id) clone.setAttribute('aria-describedby', descEl.id);
+  }
   const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
   const style = document.createElement('style');
   style.textContent = css;
