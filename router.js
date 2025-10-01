@@ -166,8 +166,32 @@ function setActive(current) {
   });
 }
 setActive(initialPage);
+function findNavLink(target) {
+  if (!target) return null;
+  let element = target;
+  while (element) {
+    if (element.nodeType === 1) {
+      if (typeof element.closest === 'function') {
+        const closestLink = element.closest('a');
+        if (closestLink && nav.contains(closestLink)) {
+          return closestLink;
+        }
+      }
+      if (
+        typeof element.tagName === 'string' &&
+        element.tagName.toLowerCase() === 'a' &&
+        nav.contains(element)
+      ) {
+        return element;
+      }
+    }
+    element = element.parentNode || null;
+  }
+  return null;
+}
+
 nav.addEventListener('click', event => {
-  const link = event.target.closest('a');
+  const link = findNavLink(event && event.target);
   if (!link) return;
   event.preventDefault();
   const href = link.getAttribute('href');
