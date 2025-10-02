@@ -481,11 +481,6 @@
     }
     if (res.status === 404) {
       backendAvailable = true;
-      applyBackendData({
-        examples: [],
-        deletedProvided: []
-      });
-      renderOptions();
       return {
         path: storagePath,
         examples: [],
