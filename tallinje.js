@@ -205,6 +205,37 @@
     return `${formatInteger(wholeValue)} ${fractionText}`;
   }
 
+  function buildFractionDisplay(value) {
+    const maxDen = Math.pow(10, Math.min(Math.max(STATE.decimalDigits + 2, 1), 6));
+    const approx = approximateFraction(value, maxDen);
+    if (!approx) {
+      return { type: 'text', value: formatDecimal(value, STATE.decimalDigits || 2) };
+    }
+    const { numerator, denominator } = approx;
+    if (denominator === 1) {
+      return { type: 'text', value: formatInteger(numerator) };
+    }
+    const absNum = Math.abs(numerator);
+    const whole = Math.trunc(absNum / denominator);
+    const remainder = absNum % denominator;
+    if (remainder === 0) {
+      return { type: 'text', value: formatInteger(numerator / denominator) };
+    }
+    const fractionLatex = `\\frac{${remainder}}{${denominator}}`;
+    if (whole === 0) {
+      return {
+        type: 'latex',
+        value: `${numerator < 0 ? '-' : ''}${fractionLatex}`
+      };
+    }
+    const wholeLatex = String(whole);
+    const sign = numerator < 0 ? '-' : '';
+    return {
+      type: 'latex',
+      value: `${sign}${wholeLatex}\\,${fractionLatex}`
+    };
+  }
+
   function formatLabel(value) {
     switch (STATE.numberType) {
       case 'decimal':
@@ -214,6 +245,18 @@
       case 'integer':
       default:
         return formatInteger(value);
+    }
+  }
+
+  function getLabelDisplay(value) {
+    switch (STATE.numberType) {
+      case 'decimal':
+        return { type: 'text', value: formatDecimal(value, STATE.decimalDigits) };
+      case 'fraction':
+        return buildFractionDisplay(value);
+      case 'integer':
+      default:
+        return { type: 'text', value: formatInteger(value) };
     }
   }
 
@@ -284,13 +327,16 @@
       svg.removeChild(svg.firstChild);
     }
 
-    const paddingLeft = 80;
-    const paddingRight = 80;
+    const paddingLeft = 0;
+    const paddingRight = 0;
     const width = 1000;
     const baselineY = 140;
     const majorTickHeight = 32;
     const minorTickHeight = 18;
     const labelOffset = 52;
+    const labelWidth = 140;
+    const labelHeight = 48;
+    const labelCenterY = baselineY + labelOffset;
 
     const span = to - from;
     const effectiveRange = Math.max(Math.abs(span), 1e-6);
@@ -309,9 +355,9 @@
     svg.appendChild(axisGroup);
 
     axisGroup.appendChild(mk('line', {
-      x1: mapValue(domainMin),
+      x1: 0,
       y1: baselineY,
-      x2: mapValue(domainMax),
+      x2: width,
       y2: baselineY,
       class: 'number-line-base'
     }));
@@ -345,14 +391,23 @@
         y2: baselineY + majorTickHeight,
         class: 'major-tick'
       }));
-      axisGroup.appendChild(mk('text', {
-        x,
-        y: baselineY + labelOffset,
-        'text-anchor': 'middle',
-        'dominant-baseline': 'middle',
-        class: 'major-label',
-        textContent: formatLabel(value)
-      }));
+      const labelDisplay = getLabelDisplay(value);
+      const fallbackText = formatLabel(value);
+      const labelFo = mk('foreignObject', {
+        x: x - labelWidth / 2,
+        y: labelCenterY - labelHeight / 2,
+        width: labelWidth,
+        height: labelHeight,
+        class: 'major-label-fo'
+      });
+      const labelDiv = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+      labelDiv.className = 'major-label';
+      if (fallbackText) {
+        labelDiv.setAttribute('title', fallbackText);
+      }
+      renderLabelContent(labelDiv, labelDisplay, fallbackText);
+      labelFo.appendChild(labelDiv);
+      axisGroup.appendChild(labelFo);
     });
 
     lastRenderSummary = {
@@ -364,6 +419,26 @@
     };
 
     refreshAltText('render');
+  }
+
+  function renderLabelContent(target, display, fallbackText) {
+    if (!target) return;
+    const safeFallback = fallbackText != null ? String(fallbackText) : '';
+    if (
+      display &&
+      display.type === 'latex' &&
+      display.value &&
+      typeof window !== 'undefined' &&
+      window.katex &&
+      typeof window.katex.render === 'function'
+    ) {
+      try {
+        window.katex.render(display.value, target, { throwOnError: false });
+        return;
+      } catch (_) {}
+    }
+    const textValue = display && display.type === 'text' ? display.value : safeFallback;
+    target.textContent = textValue != null ? String(textValue) : '';
   }
 
   function getNumberTypeLabel() {
@@ -564,6 +639,10 @@
 
   if (btnPng) {
     btnPng.addEventListener('click', () => downloadPNG(svg, 'tallinje.png'));
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('katexloaded', () => render());
   }
 
   window.render = render;
