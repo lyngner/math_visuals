@@ -26,8 +26,5 @@ jobs:
       - name: Install Playwright browsers (Chromium, Firefox, WebKit)
         run: npx playwright install --with-deps
 
-      - name: Check shared CSS variables and base styles
-        run: node tests/check-shared-styles.js
-
-      - name: Run Playwright end-to-end suite
-        run: npx playwright test
+      - name: Run tests
+        run: npm test
