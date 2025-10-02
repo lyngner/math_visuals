@@ -960,7 +960,7 @@ function generateAltText(reason = 'auto') {
     }
     const fallback = buildHeuristicAltText(context);
     setAltText(fallback, 'auto');
-    setAltTextStatus('Kunne ikke hente AI-forslag. Viste en enkel beskrivelse.', true);
+    setAltTextStatus('Viser en enkel beskrivelse.');
   }).finally(() => {
     if (altTextAbortController === controller) {
       altTextAbortController = null;
@@ -1203,7 +1203,13 @@ function sanitizeSvgForPrompt(markup) {
   return collapsed.slice(0, limit) + ' …';
 }
 function buildHeuristicAltText(context) {
-  const labels = context.labels.length ? context.labels : context.values.map((_, i) => `Kategori ${i + 1}`);
+  const labels = (Array.isArray(context.labels) && context.labels.length
+    ? context.labels
+    : context.values.map((_, i) => `Kategori ${i + 1}`)
+  ).map((label, idx) => {
+    const str = typeof label === 'string' ? label.trim() : String(label || '');
+    return str || `Kategori ${idx + 1}`;
+  });
   const typeName = describeDiagramType(context.type);
   const sentences = [];
   const title = context.title && context.title.trim();
@@ -1211,6 +1217,16 @@ function buildHeuristicAltText(context) {
     sentences.push(`${title} er et ${typeName}.`);
   } else {
     sentences.push(`Figuren er et ${typeName} med ${labels.length} kategorier.`);
+  }
+  const readableLabels = labels.filter(label => !!label);
+  if (readableLabels.length) {
+    if (readableLabels.length <= 8) {
+      sentences.push(`Kategoriene er ${formatLabelList(readableLabels)}.`);
+    } else {
+      const first = readableLabels[0];
+      const last = readableLabels[readableLabels.length - 1];
+      sentences.push(`Diagrammet sammenligner ${readableLabels.length} kategorier, fra ${first} til ${last}.`);
+    }
   }
   if (context.axisXLabel && context.axisYLabel) {
     sentences.push(`Den horisontale aksen viser ${context.axisXLabel}, og den vertikale viser ${context.axisYLabel}.`);
@@ -1253,6 +1269,12 @@ function buildHeuristicAltText(context) {
     }
   }
   return sentences.join(' ');
+}
+function formatLabelList(labels) {
+  if (!Array.isArray(labels) || !labels.length) return '';
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} og ${labels[1]}`;
+  return `${labels.slice(0, -1).join(', ')} og ${labels[labels.length - 1]}`;
 }
 function formatNumberForPrompt(value) {
   const str = formatNumber(Number.isFinite(value) ? value : 0);
