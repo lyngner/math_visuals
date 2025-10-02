@@ -192,8 +192,12 @@
     return {
       refresh(reason) {
         const current = normalizeState(getState());
+        if (textarea && textarea.value !== current.text) {
+          textarea.value = current.text;
+        }
+        applyToSvg(current.text);
         if (current.source === 'manual' && current.text.trim()) {
-          applyToSvg(current.text);
+          setStatus('', false);
           return;
         }
         setStatus('Oppdaterer alternativ tekst …', false);
