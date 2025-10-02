@@ -126,13 +126,19 @@
     return store;
   })();
   let usingFallbackStorage = false;
-  function ensureFallbackStorage() {
-    if (!usingFallbackStorage) {
-      usingFallbackStorage = true;
-      if (typeof localStorage !== 'undefined') {
+    function ensureFallbackStorage() {
+      if (!usingFallbackStorage) {
+        usingFallbackStorage = true;
+        let localStorageAvailable = false;
         try {
-          const total = Number(localStorage.length) || 0;
-          for (let i = 0; i < total; i++) {
+          localStorageAvailable = typeof localStorage !== 'undefined';
+        } catch (_) {
+          localStorageAvailable = false;
+        }
+        if (localStorageAvailable) {
+          try {
+            const total = Number(localStorage.length) || 0;
+            for (let i = 0; i < total; i++) {
             let key = null;
             try {
               key = localStorage.key(i);
