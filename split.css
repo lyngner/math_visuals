@@ -122,6 +122,21 @@
   min-height: 72px;
 }
 
+.card--examples .example-description.example-description--collapsed {
+  gap: 0;
+}
+
+.card--examples .example-description.example-description--collapsed textarea {
+  min-height: 0;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  border-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  resize: none;
+}
+
 .card--settings input[type="checkbox"],
 .card--settings input[type="radio"],
 .card[data-card="settings"] input[type="checkbox"],
