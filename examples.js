@@ -508,9 +508,33 @@
   let tabsContainer = null;
   let tabButtons = [];
   let descriptionInput = null;
+  const descriptionInputsWithListeners = new WeakSet();
+
+  function updateDescriptionCollapsedState(target) {
+    const input = target && target.nodeType === 1 ? target : getDescriptionInput();
+    if (!input || typeof input.value !== 'string') return;
+    const container = input.closest('.example-description');
+    if (!container) return;
+    const isFocused = document.activeElement === input;
+    const shouldCollapse = !isFocused && input.value.trim() === '';
+    container.classList.toggle('example-description--collapsed', shouldCollapse);
+  }
+
+  function ensureDescriptionListeners(input) {
+    if (!input || descriptionInputsWithListeners.has(input)) return;
+    descriptionInputsWithListeners.add(input);
+    const update = () => updateDescriptionCollapsedState(input);
+    input.addEventListener('input', update);
+    input.addEventListener('change', update);
+    input.addEventListener('focus', update);
+    input.addEventListener('blur', update);
+    setTimeout(update, 0);
+  }
+
   function getDescriptionInput() {
     if (descriptionInput && descriptionInput.isConnected) return descriptionInput;
     descriptionInput = document.getElementById('exampleDescription');
+    if (descriptionInput) ensureDescriptionListeners(descriptionInput);
     return descriptionInput || null;
   }
   function getDescriptionValue() {
@@ -527,6 +551,7 @@
     } else {
       input.value = '';
     }
+    updateDescriptionCollapsedState(input);
   }
   let defaultEnsureScheduled = false;
   let tabsHostCard = null;
