@@ -14,6 +14,11 @@ Dette dokumentet skisserer flere nivåer av automatisert testing som kan hjelpe 
    - Innhold: Sikrer konsistent formattering og gjør git-diff enklere å lese.
    - Integrasjon: Kjør `npm run format:check` i CI; tilby en `format`-kommando lokalt.
 
+3. **Felles stylingkonvensjoner**
+   - Verktøy: Node-skriptet `tests/check-shared-styles.js`.
+   - Innhold: Verifiserer at visualiseringenes HTML-filer inkluderer viewport-metaen, lenken til `base.css` og de forventede `.wrap`/`.grid`-layoutbeholderne.
+   - Integrasjon: Kjøres automatisk via `npm test` både lokalt og i CI.
+
 ## 2. Enhetstester
 
 1. **Funksjonelle moduler**
