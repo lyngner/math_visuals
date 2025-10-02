@@ -22,7 +22,9 @@ const SIMPLE = {
       color: "purple",
       count: 0
     }]
-  }]
+  }],
+  altText: "",
+  altTextSource: "auto"
 };
 
 /* ============ ADV KONFIG (TEKNISK/VALGFRITT) ============ */
@@ -89,16 +91,27 @@ const STATE = window.STATE && typeof window.STATE === "object" ? window.STATE : 
 window.STATE = STATE;
 if (!Array.isArray(STATE.bowls)) STATE.bowls = [];
 const colors = Object.keys(ADV.assets.beads);
+const COLOR_LABELS = {
+  blue: "blå",
+  red: "rød",
+  green: "grønn",
+  yellow: "gul",
+  pink: "rosa",
+  purple: "lilla"
+};
 const assetToColor = Object.entries(ADV.assets.beads).reduce((acc, [color, src]) => {
   acc[src] = color;
   return acc;
 }, {});
+if (typeof SIMPLE.altText !== "string") SIMPLE.altText = "";
+if (SIMPLE.altTextSource !== "manual") SIMPLE.altTextSource = "auto";
 const controlsWrap = document.getElementById("controls");
 const figureGridEl = document.querySelector(".figureGrid");
 const addBtn = document.getElementById("addBowl");
 const panelEls = SVG_IDS.map((_, idx) => document.getElementById(`panel${idx + 1}`));
 const removeBtns = SVG_IDS.map((_, idx) => document.getElementById(`removeBowl${idx + 1}`));
 const exportToolbarEls = SVG_IDS.map((_, idx) => document.getElementById(`exportToolbar${idx + 1}`));
+const exportCard = document.getElementById("exportCard");
 const gridEl = document.querySelector(".grid");
 const initialSideWidth = (() => {
   if (!gridEl) return 360;
@@ -115,6 +128,8 @@ if (!Array.isArray(SIMPLE.bowls)) SIMPLE.bowls = [];
 if (Array.isArray(SIMPLE.bowls) && SIMPLE.bowls.length > MAX_FIGURES) {
   SIMPLE.bowls.length = MAX_FIGURES;
 }
+let altTextManager = null;
+let altTextAnchor = null;
 initializeVisibleCount();
 SVG_IDS.forEach((id, idx) => {
   const svg = document.getElementById(id);
@@ -155,6 +170,8 @@ downloadButtons.forEach(({
   svgBtn === null || svgBtn === void 0 || svgBtn.addEventListener("click", () => downloadSvgFigure(idx));
   pngBtn === null || pngBtn === void 0 || pngBtn.addEventListener("click", () => downloadPngFigure(idx));
 });
+
+initAltTextManager();
 
 function clampVisibleCount(value) {
   if (!Number.isFinite(value)) return 1;
@@ -440,6 +457,7 @@ function render() {
   if (STATE.bowls.length > CFG.bowls.length) STATE.bowls.length = CFG.bowls.length;
   figureViews.forEach(fig => renderFigure(fig));
   applyFigureVisibility();
+  refreshAltText("render");
 }
 function renderFigure(fig) {
   var _cfg$beadRadius, _ref3, _fig$beadRadius2;
@@ -741,8 +759,10 @@ async function buildExportSvg() {
     clone.setAttribute("y", String(row * VB_H));
     clone.setAttribute("width", String(VB_W));
     clone.setAttribute("height", String(VB_H));
+    clone.setAttribute("id", `export-bowl-${index + 1}`);
     exportSvg.appendChild(clone);
   });
+  annotateExportClones(clones);
   await inlineImages(exportSvg);
   return {
     svg: exportSvg,
@@ -797,6 +817,209 @@ async function downloadPngFigure(idx) {
     });
   };
   img.src = url;
+}
+
+/* ===== ALT-TEKST ===== */
+function getAltTextState() {
+  return {
+    text: typeof SIMPLE.altText === "string" ? SIMPLE.altText : "",
+    source: SIMPLE.altTextSource === "manual" ? "manual" : "auto"
+  };
+}
+
+function getKulerTitle() {
+  if (typeof document !== "undefined" && document && typeof document.title === "string" && document.title.trim()) {
+    return document.title.trim();
+  }
+  return "Kuler";
+}
+
+function ensureAltTextAnchor() {
+  if (typeof document === "undefined") return null;
+  if (altTextAnchor && document.body && document.body.contains(altTextAnchor)) {
+    return altTextAnchor;
+  }
+  altTextAnchor = document.getElementById("kuler-alt-anchor");
+  if (!altTextAnchor) {
+    altTextAnchor = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    altTextAnchor.setAttribute("id", "kuler-alt-anchor");
+    altTextAnchor.setAttribute("width", "0");
+    altTextAnchor.setAttribute("height", "0");
+    altTextAnchor.style.position = "absolute";
+    altTextAnchor.style.left = "-9999px";
+    altTextAnchor.style.width = "0";
+    altTextAnchor.style.height = "0";
+    if (document.body) document.body.appendChild(altTextAnchor);
+  }
+  return altTextAnchor;
+}
+
+function getColorLabel(color) {
+  const key = typeof color === "string" ? color : "";
+  if (COLOR_LABELS[key]) return COLOR_LABELS[key];
+  return key.replace(/[-_]+/g, " ") || key;
+}
+
+function formatColorCount(count, color) {
+  const safe = Number.isFinite(count) ? Math.max(0, Math.round(count)) : 0;
+  if (!safe) return "";
+  const noun = safe === 1 ? "kule" : "kuler";
+  const label = getColorLabel(color);
+  return `${safe} ${label} ${noun}`;
+}
+
+function formatList(items) {
+  if (!Array.isArray(items) || items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} og ${items[1]}`;
+  const last = items[items.length - 1];
+  return `${items.slice(0, -1).join(", ")} og ${last}`;
+}
+
+function buildBowlSummaries() {
+  const visible = getVisibleCount();
+  const summaries = [];
+  for (let i = 0; i < visible; i++) {
+    const bowl = ensureSimpleBowl(i);
+    const counts = Array.isArray(bowl === null || bowl === void 0 ? void 0 : bowl.colorCounts) ? bowl.colorCounts : [];
+    let total = 0;
+    const parts = [];
+    counts.forEach(cc => {
+      const value = Number.isFinite(cc === null || cc === void 0 ? void 0 : cc.count) ? Math.max(0, Math.round(cc.count)) : 0;
+      if (value > 0) {
+        parts.push(formatColorCount(value, cc.color));
+        total += value;
+      }
+    });
+    const indexLabel = `Bolle ${i + 1}`;
+    const title = `${indexLabel} med kuler`;
+    let description;
+    if (total === 0) {
+      description = `${indexLabel} er tom.`;
+    } else {
+      const details = formatList(parts);
+      description = details ? `${indexLabel} inneholder ${details}.` : `${indexLabel} inneholder kuler.`;
+    }
+    summaries.push({
+      title,
+      description,
+      total
+    });
+  }
+  return summaries;
+}
+
+function buildKulerAltText() {
+  const summaries = buildBowlSummaries();
+  if (!summaries.length) return "Illustrasjonen viser ingen boller.";
+  const intro = summaries.length === 1 ? "Illustrasjonen viser en bolle med kuler." : `Illustrasjonen viser ${summaries.length} boller med kuler.`;
+  const details = summaries.map(s => s.description).join(" ");
+  return `${intro} ${details}`.trim();
+}
+
+function applyAltTextToDom() {
+  if (typeof window === "undefined" || !window.MathVisAltText) return;
+  const state = getAltTextState();
+  const trimmed = (state.text || "").trim();
+  const useManual = state.source === "manual" && trimmed;
+  const description = useManual ? trimmed : buildKulerAltText();
+  const anchor = ensureAltTextAnchor();
+  if (!anchor) return;
+  const nodes = window.MathVisAltText.ensureSvgA11yNodes(anchor);
+  const title = getKulerTitle();
+  if (nodes.titleEl) nodes.titleEl.textContent = title;
+  if (nodes.descEl) nodes.descEl.textContent = description;
+  if (figureGridEl) {
+    figureGridEl.setAttribute("role", "img");
+    figureGridEl.setAttribute("aria-label", title);
+    if (nodes.titleEl && nodes.titleEl.id) {
+      figureGridEl.setAttribute("aria-labelledby", nodes.titleEl.id);
+    }
+    if (nodes.descEl && nodes.descEl.id) {
+      figureGridEl.setAttribute("aria-describedby", nodes.descEl.id);
+    }
+  }
+  const summaries = buildBowlSummaries();
+  const visible = getVisibleCount();
+  figureViews.forEach((fig, idx) => {
+    if (!fig || !fig.svg) return;
+    if (idx >= visible) {
+      fig.svg.setAttribute("aria-hidden", "true");
+      fig.svg.removeAttribute("role");
+      fig.svg.removeAttribute("aria-label");
+      fig.svg.removeAttribute("aria-labelledby");
+      fig.svg.removeAttribute("aria-describedby");
+      return;
+    }
+    fig.svg.removeAttribute("aria-hidden");
+    const bowlInfo = summaries[idx];
+    const bowlTitle = bowlInfo ? bowlInfo.title : `Bolle ${idx + 1}`;
+    const bowlDesc = useManual ? trimmed : bowlInfo ? bowlInfo.description : description;
+    const svgNodes = window.MathVisAltText.ensureSvgA11yNodes(fig.svg);
+    if (svgNodes.titleEl) svgNodes.titleEl.textContent = bowlTitle;
+    if (svgNodes.descEl) svgNodes.descEl.textContent = bowlDesc;
+    fig.svg.setAttribute("role", "img");
+    fig.svg.setAttribute("aria-label", bowlTitle);
+    if (svgNodes.titleEl && svgNodes.titleEl.id) fig.svg.setAttribute("aria-labelledby", svgNodes.titleEl.id);
+    if (svgNodes.descEl && svgNodes.descEl.id) fig.svg.setAttribute("aria-describedby", svgNodes.descEl.id);
+  });
+}
+
+function refreshAltText(reason) {
+  if (typeof window === "undefined" || !window.MathVisAltText) return;
+  applyAltTextToDom();
+  if (!altTextManager) return;
+  const state = getAltTextState();
+  if ((state.text || "").trim() && state.source === "manual") {
+    altTextManager.applyCurrent();
+    return;
+  }
+  altTextManager.refresh(reason || "auto");
+}
+
+function initAltTextManager() {
+  if (altTextManager || typeof window === "undefined" || !window.MathVisAltText || !exportCard) return;
+  const anchor = ensureAltTextAnchor();
+  altTextManager = window.MathVisAltText.create({
+    svg: () => anchor,
+    container: exportCard,
+    getTitle: getKulerTitle,
+    getState: () => getAltTextState(),
+    setState: (text, source) => {
+      SIMPLE.altText = typeof text === "string" ? text : "";
+      SIMPLE.altTextSource = source === "manual" ? "manual" : "auto";
+      applyAltTextToDom();
+    },
+    generate: () => buildKulerAltText(),
+    getAutoMessage: reason => reason && reason.startsWith("manual") ? "Alternativ tekst oppdatert." : "Alternativ tekst oppdatert automatisk.",
+    getManualMessage: () => "Alternativ tekst oppdatert manuelt."
+  });
+  if (altTextManager) {
+    altTextManager.applyCurrent();
+    applyAltTextToDom();
+  }
+}
+
+function annotateExportClones(clones) {
+  if (!Array.isArray(clones) || !clones.length || typeof window === "undefined" || !window.MathVisAltText) return;
+  const state = getAltTextState();
+  const trimmed = (state.text || "").trim();
+  const useManual = state.source === "manual" && trimmed;
+  const fallback = useManual ? trimmed : buildKulerAltText();
+  const summaries = buildBowlSummaries();
+  clones.forEach((clone, index) => {
+    if (!clone) return;
+    const bowlInfo = summaries[index];
+    const bowlTitle = bowlInfo ? bowlInfo.title : `Bolle ${index + 1}`;
+    const bowlDesc = useManual ? trimmed : bowlInfo ? bowlInfo.description : fallback;
+    const nodes = window.MathVisAltText.ensureSvgA11yNodes(clone);
+    if (nodes.titleEl) nodes.titleEl.textContent = bowlTitle;
+    if (nodes.descEl) nodes.descEl.textContent = bowlDesc;
+    clone.setAttribute("role", "img");
+    clone.setAttribute("aria-label", bowlTitle);
+    if (nodes.titleEl && nodes.titleEl.id) clone.setAttribute("aria-labelledby", nodes.titleEl.id);
+    if (nodes.descEl && nodes.descEl.id) clone.setAttribute("aria-describedby", nodes.descEl.id);
+  });
 }
 
 /* ===== helpers ===== */
