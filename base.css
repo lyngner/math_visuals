@@ -219,6 +219,21 @@ select:disabled {
   color: var(--label-color);
 }
 
+.card--examples .example-description.example-description--collapsed {
+  gap: 0;
+}
+
+.card--examples .example-description.example-description--collapsed textarea {
+  min-height: 0;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  border-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  resize: none;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
