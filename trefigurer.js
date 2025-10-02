@@ -827,6 +827,20 @@
             dims.depth = baseWidth;
             break;
           }
+        case 'cone':
+          {
+            const height = resolvePositive(extractDimensionValue('height'), 3);
+            const radius = resolvePositive(extractDimensionValue('radius'), 1.5);
+            geometry = new THREE.ConeGeometry(radius, height, 48, 1);
+            geometry.translate(0, height / 2, 0);
+            materialColor = 0xf97316;
+            dims.radius = radius;
+            dims.height = height;
+            const diameter = radius * 2;
+            dims.width = diameter;
+            dims.depth = diameter;
+            break;
+          }
         case 'triangular-cylinder':
           {
             const height = resolvePositive(extractDimensionValue('height'), 3);
@@ -1322,6 +1336,8 @@
         return 'kule';
       case 'pyramid':
         return 'pyramide';
+      case 'cone':
+        return 'kjegle';
       case 'triangular-cylinder':
         return 'trekantet sylinder';
       case 'square-cylinder':
@@ -1688,7 +1704,7 @@
     window.STATE.transparency = clamped;
     updateTransparencyLabel(clamped);
   }
-  const defaultInput = textarea ? textarea.value : 'sylinder radius: r høyde: h';
+  const defaultInput = textarea ? textarea.value : 'kjegle radius: r høyde: h';
   function ensureStateDefaults() {
     window.STATE = window.STATE || {};
     ensureViewStateCapacity();
@@ -1751,6 +1767,7 @@
   updateViewControlsUI(getActiveViewIndex());
   function detectType(line) {
     const normalized = line.toLowerCase();
+    if (normalized.includes('kjegl') || normalized.includes('konus') || normalized.includes('konisk') || normalized.includes('cone')) return 'cone';
     if (normalized.includes('kule')) return 'sphere';
     if (normalized.includes('pyram')) return 'pyramid';
     if (normalized.includes('trekant') && normalized.includes('sylinder')) return 'triangular-cylinder';
