@@ -1,5 +1,9 @@
 (function () {
   const boxes = [];
+  let altTextManager = null;
+  let altTextRefreshTimer = null;
+  let lastAltTextSignature = null;
+  let pendingAltTextReason = 'auto';
   const MAX_DIM = 20;
   const MAX_COLORS = 6;
   const LABEL_MODES = ['hidden', 'count', 'custom'];
@@ -122,6 +126,8 @@
     STATE.showFigureText = STATE.labelMode !== 'hidden';
     STATE.colorCount = clampInt((_STATE$colorCount = STATE.colorCount) !== null && _STATE$colorCount !== void 0 ? _STATE$colorCount : colorCountInp ? colorCountInp.value : 1, 1, maxColors);
     ensureColors(STATE.colorCount);
+    if (typeof STATE.altText !== 'string') STATE.altText = '';
+    STATE.altTextSource = STATE.altTextSource === 'manual' ? 'manual' : 'auto';
     if (!Array.isArray(STATE.figures)) STATE.figures = [];
     if (STATE.figures.length === 0) {
       STATE.figures = [createFigureState('Figur 1', rows, cols, [[0, 1]]), createFigureState('Figur 2', rows, cols, [[0, 1], [1, 0], [1, 1]]), createFigureState('Figur 3', rows, cols, [[0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [2, 2]])];
@@ -250,6 +256,7 @@
     STATE.figures[index].name = baseName;
     nameInput.addEventListener('input', () => {
       STATE.figures[index].name = nameInput.value;
+      scheduleAltTextRefresh('name');
     });
     const nameDisplay = document.createElement('div');
     nameDisplay.className = 'nameDisplay';
@@ -346,6 +353,7 @@
     fig.cells[r][c] = next;
     applyCellAppearance(cell, next, colors);
     updateFigureLabelDisplay();
+    scheduleAltTextRefresh('cells');
   }
   const rowsMinus = document.getElementById('rowsMinus');
   const rowsPlus = document.getElementById('rowsPlus');
@@ -407,6 +415,7 @@
   circleInp === null || circleInp === void 0 || circleInp.addEventListener('change', () => {
     STATE.circleMode = circleInp.checked;
     updateCellColors();
+    scheduleAltTextRefresh('circle-mode');
   });
   const offsetInp = document.getElementById('offsetRows');
   offsetInp === null || offsetInp === void 0 || offsetInp.addEventListener('change', () => {
@@ -417,12 +426,14 @@
   gridInp === null || gridInp === void 0 || gridInp.addEventListener('change', () => {
     STATE.showGrid = gridInp.checked;
     updateGridVisibility();
+    scheduleAltTextRefresh('grid');
   });
   const labelModeSel = document.getElementById('labelMode');
   labelModeSel === null || labelModeSel === void 0 || labelModeSel.addEventListener('change', () => {
     STATE.labelMode = normalizeLabelMode(labelModeSel.value);
     STATE.showFigureText = STATE.labelMode !== 'hidden';
     updateFigureLabelDisplay();
+    scheduleAltTextRefresh('label-mode');
   });
   colorCountInp === null || colorCountInp === void 0 || colorCountInp.addEventListener('input', () => {
     STATE.colorCount = clampInt(colorCountInp.value, 1, colorInputs.length || MAX_COLORS);
@@ -435,6 +446,7 @@
       ensureColors(Math.max(idx + 1, STATE.colorCount));
       STATE.colors[idx] = inp.value;
       updateCellColors();
+      scheduleAltTextRefresh('colors');
     });
   });
   addBtn === null || addBtn === void 0 || addBtn.addEventListener('click', () => {
@@ -501,6 +513,180 @@
     };
     img.src = url;
   }
+  function formatCount(value, singular, plural) {
+    const num = Math.max(0, Math.round(Number(value) || 0));
+    const label = num === 1 ? singular : plural || singular + 'er';
+    return `${num === 1 ? '1' : String(num)} ${label}`;
+  }
+  function joinWithOg(items) {
+    const filtered = items.filter(Boolean);
+    if (filtered.length === 0) return '';
+    if (filtered.length === 1) return filtered[0];
+    if (filtered.length === 2) return `${filtered[0]} og ${filtered[1]}`;
+    return `${filtered.slice(0, -1).join(', ')} og ${filtered[filtered.length - 1]}`;
+  }
+  function collectFigurtallAltSummary() {
+    const figureCount = Array.isArray(STATE.figures) ? STATE.figures.length : 0;
+    const colors = getColors();
+    const figures = [];
+    if (Array.isArray(STATE.figures)) {
+      STATE.figures.forEach((fig, idx) => {
+        const name = fig && typeof fig.name === 'string' && fig.name.trim() ? fig.name.trim() : `Figur ${idx + 1}`;
+        const cells = Array.isArray(fig === null || fig === void 0 ? void 0 : fig.cells) ? fig.cells : [];
+        const colorUsage = colors.map(() => 0);
+        let filled = 0;
+        cells.forEach(row => {
+          if (!Array.isArray(row)) return;
+          row.forEach(val => {
+            const parsed = Number.parseInt(val, 10);
+            if (Number.isFinite(parsed) && parsed > 0) {
+              filled += 1;
+              const colorIdx = parsed - 1;
+              if (colorIdx >= 0 && colorIdx < colorUsage.length) {
+                colorUsage[colorIdx] += 1;
+              }
+            }
+          });
+        });
+        figures.push({
+          index: idx,
+          name,
+          filled,
+          colorUsage
+        });
+      });
+    }
+    return {
+      figureCount,
+      rows,
+      cols,
+      circleMode: !!STATE.circleMode,
+      offset: !!STATE.offset,
+      showGrid: !!STATE.showGrid,
+      figures
+    };
+  }
+  function buildFigurtallAltText(summary) {
+    const data = summary || collectFigurtallAltSummary();
+    if (!data) return 'Figurtall.';
+    const sentences = [];
+    const countText = data.figureCount === 0 ? 'ingen figurer' : data.figureCount === 1 ? 'én figur' : `${data.figureCount} figurer`;
+    sentences.push(`Visualiseringen viser ${countText} i et rutenett med ${formatCount(data.rows, 'rad', 'rader')} og ${formatCount(data.cols, 'kolonne', 'kolonner')}.`);
+    const detailParts = [];
+    detailParts.push(data.showGrid ? 'Rutenettet er synlig' : 'Rutenettet er skjult');
+    detailParts.push(data.circleMode ? 'Fylte posisjoner vises som sirkler' : 'Fylte posisjoner vises som kvadrater');
+    if (data.offset && data.rows > 1) detailParts.push('Annenhver rad er forskjøvet');
+    if (detailParts.length) {
+      sentences.push(`${detailParts.join(', ')}.`);
+    }
+    const figureParts = data.figures.map(fig => {
+      const filledText = fig.filled > 0 ? formatCount(fig.filled, 'markert rute', 'markerte ruter') : 'ingen markerte ruter';
+      let part = `${fig.name} har ${filledText}`;
+      const colorParts = fig.colorUsage
+        .map((count, idx) => (count > 0 ? `${formatCount(count, 'rute', 'ruter')} i farge ${idx + 1}` : ''))
+        .filter(Boolean);
+      if (colorParts.length) part += ` (${colorParts.join(', ')})`;
+      return part;
+    });
+    if (figureParts.length) {
+      const limit = Math.min(figureParts.length, 3);
+      const listed = figureParts.slice(0, limit);
+      let sentence = joinWithOg(listed);
+      if (sentence) sentence += '.';
+      if (figureParts.length > limit) {
+        const remaining = figureParts.length - limit;
+        sentence += ` ${remaining === 1 ? 'Én figur til har tilsvarende mønster.' : `${remaining} figurer til har tilsvarende mønster.`}`;
+      }
+      if (sentence) sentences.push(sentence);
+    } else {
+      sentences.push('Ingen ruter er markert.');
+    }
+    return sentences.filter(Boolean).join(' ');
+  }
+  function getFigurtallTitle() {
+    const base = typeof document !== 'undefined' && document && document.title ? document.title : 'Figurtall';
+    const summary = collectFigurtallAltSummary();
+    if (!summary) return base;
+    if (!summary.figureCount) return base;
+    const suffix = summary.figureCount === 1 ? '1 figur' : `${summary.figureCount} figurer`;
+    return `${base} – ${suffix}`;
+  }
+  function getActiveFigurtallAltText() {
+    const stored = typeof STATE.altText === 'string' ? STATE.altText.trim() : '';
+    if (STATE.altTextSource === 'manual' && stored) return stored;
+    return stored || buildFigurtallAltText();
+  }
+  function ensureAltTextAnchor() {
+    let anchor = document.getElementById('figurtall-alt-anchor');
+    if (!anchor) {
+      anchor = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      anchor.setAttribute('id', 'figurtall-alt-anchor');
+      anchor.setAttribute('width', '0');
+      anchor.setAttribute('height', '0');
+      anchor.style.position = 'absolute';
+      anchor.style.left = '-9999px';
+      anchor.style.width = '0';
+      anchor.style.height = '0';
+      document.body.appendChild(anchor);
+    }
+    return anchor;
+  }
+  function refreshAltText(reason) {
+    if (!altTextManager) return;
+    const signature = JSON.stringify(collectFigurtallAltSummary());
+    if (signature !== lastAltTextSignature) {
+      lastAltTextSignature = signature;
+      altTextManager.refresh(reason || 'auto');
+    } else if (!reason || reason === 'init') {
+      altTextManager.refresh(reason || 'auto');
+    }
+  }
+  function scheduleAltTextRefresh(reason = 'auto') {
+    pendingAltTextReason = reason;
+    if (altTextRefreshTimer) {
+      clearTimeout(altTextRefreshTimer);
+    }
+    altTextRefreshTimer = setTimeout(() => {
+      altTextRefreshTimer = null;
+      refreshAltText(pendingAltTextReason);
+    }, 120);
+  }
+  function initAltTextManager() {
+    if (typeof window === 'undefined' || !window.MathVisAltText) return;
+    const container = document.getElementById('exportCard');
+    if (!container) return;
+    const anchor = ensureAltTextAnchor();
+    altTextManager = window.MathVisAltText.create({
+      svg: () => anchor,
+      container,
+      getTitle: getFigurtallTitle,
+      getState: () => ({
+        text: typeof STATE.altText === 'string' ? STATE.altText : '',
+        source: STATE.altTextSource === 'manual' ? 'manual' : 'auto'
+      }),
+      setState: (text, source) => {
+        STATE.altText = text;
+        STATE.altTextSource = source === 'manual' ? 'manual' : 'auto';
+      },
+      generate: () => buildFigurtallAltText(),
+      getAutoMessage: reason => (reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.'),
+      getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
+    });
+    if (altTextManager) {
+      lastAltTextSignature = null;
+      altTextManager.applyCurrent();
+      const figure = document.getElementById('figureContainer');
+      if (figure && window.MathVisAltText) {
+        const nodes = window.MathVisAltText.ensureSvgA11yNodes(anchor);
+        const title = getFigurtallTitle();
+        figure.setAttribute('role', 'img');
+        figure.setAttribute('aria-label', title);
+        if (nodes.titleEl && nodes.titleEl.id) figure.setAttribute('aria-labelledby', nodes.titleEl.id);
+        if (nodes.descEl && nodes.descEl.id) figure.setAttribute('aria-describedby', nodes.descEl.id);
+      }
+      scheduleAltTextRefresh('init');
+    }
+  }
   function buildExportSvg() {
     const colors = getColors();
     const cellSize = 40;
@@ -516,6 +702,17 @@
     svg.setAttribute('viewBox', `0 0 ${totalW} ${totalH}`);
     svg.setAttribute('width', totalW);
     svg.setAttribute('height', totalH);
+    if (window.MathVisAltText) {
+      const { titleEl, descEl } = window.MathVisAltText.ensureSvgA11yNodes(svg);
+      const title = getFigurtallTitle();
+      if (titleEl) titleEl.textContent = title;
+      const desc = getActiveFigurtallAltText();
+      if (descEl) descEl.textContent = desc;
+      svg.setAttribute('role', 'img');
+      svg.setAttribute('aria-label', title);
+      if (titleEl && titleEl.id) svg.setAttribute('aria-labelledby', titleEl.id);
+      if (descEl && descEl.id) svg.setAttribute('aria-describedby', descEl.id);
+    }
     let xOffset = 0;
     boxes.forEach((box, idx) => {
       const label = getFigureLabel(idx);
@@ -600,16 +797,21 @@
     lastAppliedPaletteSize = null;
     ensureColors(STATE.colorCount);
     STATE.figures = [];
+    STATE.altText = '';
+    STATE.altTextSource = 'auto';
+    lastAltTextSignature = null;
   }
   function render() {
     sanitizeState();
     applyStateToControls();
     rebuildFigurePanels();
+    scheduleAltTextRefresh('render');
   }
   resetBtn === null || resetBtn === void 0 || resetBtn.addEventListener('click', () => {
     resetState();
     render();
   });
+  initAltTextManager();
   render();
   updateFigureLayout();
   window.render = render;
