@@ -19,6 +19,9 @@
   const downloadSvgButton = document.getElementById('btnDownloadSvg');
   const downloadPngButton = document.getElementById('btnDownloadPng');
   const POINT_TOLERANCE = 1e-6;
+  const MARKER_GAP_PX = 10;
+  const MIN_SEGMENT_WIDTH_PX = 4;
+  const NEGATIVE_SEGMENT_DASH = '12 12';
   const MATHFIELD_TAG = 'MATH-FIELD';
   const EXPRESSION_PREFIX_REGEX = /^\s*f\s*\(\s*x\s*\)\s*=\s*/i;
   let isUpdatingExpressionInput = false;
@@ -2051,6 +2054,7 @@
     axisLabel.textContent = 'x';
     svg.append(axisLabel);
     const sortedPoints = [...points];
+    const zeroMarkers = sortedPoints.filter(point => point && point.type === 'zero');
     const values = sortedPoints.map(p => p.value);
     const baseRowY = arrowY + 60;
     const lastRowY = state.signRows.length ? baseRowY + (state.signRows.length - 1) * rowSpacing : baseRowY;
@@ -2180,11 +2184,40 @@
         const startX = currentScale.toCoord(startVal);
         const endX = currentScale.toCoord(endVal);
         if (!Number.isFinite(startX) || !Number.isFinite(endX)) continue;
+        let segmentStartX = startX;
+        let segmentEndX = endX;
+        if (zeroMarkers.length) {
+          const hasStartZero = zeroMarkers.some(point => Math.abs(point.value - startVal) <= POINT_TOLERANCE);
+          const hasEndZero = zeroMarkers.some(point => Math.abs(point.value - endVal) <= POINT_TOLERANCE);
+          if (hasStartZero || hasEndZero) {
+            const availableWidth = endX - startX;
+            if (availableWidth > 0) {
+              let startOffset = hasStartZero ? MARKER_GAP_PX : 0;
+              let endOffset = hasEndZero ? MARKER_GAP_PX : 0;
+              const totalOffset = startOffset + endOffset;
+              if (totalOffset > 0) {
+                const maxOffset = Math.max(availableWidth - MIN_SEGMENT_WIDTH_PX, 0);
+                if (totalOffset > maxOffset) {
+                  if (maxOffset <= 0) {
+                    startOffset = 0;
+                    endOffset = 0;
+                  } else {
+                    const scale = maxOffset / totalOffset;
+                    startOffset *= scale;
+                    endOffset *= scale;
+                  }
+                }
+              }
+              segmentStartX = startX + startOffset;
+              segmentEndX = endX - endOffset;
+            }
+          }
+        }
         const sign = segments[i] >= 0 ? 1 : -1;
         const line = createSvgElement('line', {
-          x1: startX,
+          x1: segmentStartX,
           y1: y,
-          x2: endX,
+          x2: segmentEndX,
           y2: y,
           stroke: sign > 0 ? '#111827' : '#dc2626',
           'stroke-width': 3,
@@ -2194,7 +2227,7 @@
           cursor: locked ? 'not-allowed' : 'pointer'
         });
         if (sign < 0) {
-          line.setAttribute('stroke-dasharray', '14 10');
+          line.setAttribute('stroke-dasharray', NEGATIVE_SEGMENT_DASH);
         }
         if (!locked) {
           line.addEventListener('pointerdown', event => {
