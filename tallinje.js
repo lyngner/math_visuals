@@ -9,12 +9,15 @@
   const subdivisionsInput = document.getElementById('cfg-subdivisions');
   const numberTypeSelect = document.getElementById('cfg-numberType');
   const decimalDigitsInput = document.getElementById('cfg-decimalDigits');
+  const labelFontSizeInput = document.getElementById('cfg-labelFontSize');
   const btnSvg = document.getElementById('btnSvg');
   const btnPng = document.getElementById('btnPng');
   const exportCard = document.getElementById('exportCard');
 
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;
+
+  const BASE_LABEL_FONT_SIZE = 18;
 
   const DEFAULT_STATE = {
     from: 0,
@@ -23,6 +26,7 @@
     subdivisions: 4,
     numberType: 'integer',
     decimalDigits: 1,
+    labelFontSize: BASE_LABEL_FONT_SIZE,
     altText: '',
     altTextSource: 'auto'
   };
@@ -83,6 +87,12 @@
     }
     decimalDigits = Math.min(Math.max(decimalDigits, 0), 6);
 
+    let labelFontSize = Number(STATE.labelFontSize);
+    if (!Number.isFinite(labelFontSize)) {
+      labelFontSize = defaults.labelFontSize;
+    }
+    labelFontSize = Math.min(Math.max(labelFontSize, 8), 72);
+
     if (typeof STATE.altText !== 'string') STATE.altText = '';
     STATE.altTextSource = STATE.altTextSource === 'manual' ? 'manual' : 'auto';
 
@@ -92,6 +102,7 @@
     STATE.subdivisions = subdivisions;
     STATE.numberType = numberType;
     STATE.decimalDigits = decimalDigits;
+    STATE.labelFontSize = labelFontSize;
   }
 
   function getDecimalFormatter(digits) {
@@ -233,6 +244,7 @@
       decimalDigitsInput.value = String(STATE.decimalDigits);
       decimalDigitsInput.disabled = STATE.numberType !== 'decimal';
     }
+    if (labelFontSizeInput) labelFontSizeInput.value = String(STATE.labelFontSize);
   }
 
   function mk(name, attrs) {
@@ -290,7 +302,7 @@
     const baselineY = 140;
     const majorTickHeight = 32;
     const minorTickHeight = 18;
-    const labelOffset = 52;
+    const labelOffset = 52 + (STATE.labelFontSize - BASE_LABEL_FONT_SIZE) * 1.2;
 
     const span = to - from;
     const effectiveRange = Math.max(Math.abs(span), 1e-6);
@@ -351,6 +363,7 @@
         'text-anchor': 'middle',
         'dominant-baseline': 'middle',
         class: 'major-label',
+        'font-size': STATE.labelFontSize,
         textContent: formatLabel(value)
       }));
     });
@@ -558,6 +571,15 @@
     });
   }
 
+  if (labelFontSizeInput) {
+    labelFontSizeInput.addEventListener('input', () => {
+      const value = Number(labelFontSizeInput.value);
+      if (!Number.isFinite(value)) return;
+      STATE.labelFontSize = Math.min(Math.max(value, 8), 72);
+      render();
+    });
+  }
+
   if (btnSvg) {
     btnSvg.addEventListener('click', () => downloadSVG(svg, 'tallinje.svg'));
   }
@@ -584,6 +606,7 @@
         subdivisions: 4,
         numberType: 'integer',
         decimalDigits: 1,
+        labelFontSize: BASE_LABEL_FONT_SIZE,
         altText: '',
         altTextSource: 'auto'
       }
@@ -599,6 +622,7 @@
         subdivisions: 2,
         numberType: 'decimal',
         decimalDigits: 1,
+        labelFontSize: BASE_LABEL_FONT_SIZE,
         altText: '',
         altTextSource: 'auto'
       }
@@ -614,6 +638,7 @@
         subdivisions: 1,
         numberType: 'fraction',
         decimalDigits: 2,
+        labelFontSize: BASE_LABEL_FONT_SIZE,
         altText: '',
         altTextSource: 'auto'
       }
