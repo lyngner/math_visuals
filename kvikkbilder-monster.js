@@ -17,6 +17,36 @@
   const MONSTER_POINT_RADIUS_MAX = 60;
   const DEFAULT_CIRCLE_RADIUS = 10;
   const DEFAULT_DOT_SPACING = 3;
+  function setFigureAlt(element, text) {
+    if (!element) return;
+    const value = typeof text === 'string' ? text.trim() : '';
+    if (value) {
+      element.setAttribute('role', 'img');
+      element.setAttribute('aria-label', value);
+    } else {
+      element.removeAttribute('role');
+      element.removeAttribute('aria-label');
+    }
+  }
+  function normalizeInteger(value) {
+    return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
+  }
+  function describePlural(count, singular, plural) {
+    const normalized = normalizeInteger(count);
+    if (normalized === 1) {
+      return `1 ${singular}`;
+    }
+    const pluralForm = plural || `${singular}er`;
+    return `${normalized} ${pluralForm}`;
+  }
+  function describeArrangement(rows, cols) {
+    const normalizedRows = normalizeInteger(rows);
+    const normalizedCols = normalizeInteger(cols);
+    if (normalizedRows <= 0 || normalizedCols <= 0) return '';
+    const rowsText = describePlural(normalizedRows, 'rad', 'rader');
+    const colsText = describePlural(normalizedCols, 'kolonne', 'kolonner');
+    return `Ordnet i ${rowsText} og ${colsText}.`;
+  }
   function primeFactors(n) {
     const factors = [];
     let num = n;
@@ -220,6 +250,8 @@
     if (cfgCircleRadius) cfgCircleRadius.value = String(circleRadius);
     const levelScale = cfgLevelScale ? Math.max(0.1, parseFloat(cfgLevelScale.value) || 0) : 1;
     patternContainer.innerHTML = '';
+    let altText = 'Ingen numbervisual vist.';
+    setFigureAlt(patternContainer, altText);
     const cols = antallX > 0 ? antallX : 1;
     const rows = antallY > 0 ? antallY : 1;
     if (cfgPatternGap) {
@@ -260,12 +292,22 @@
     }
     const totalFigures = antallX * antallY;
     svg.setAttribute('aria-label', `Numbervisual ${n}`);
+    const totalDots = totalFigures * n;
+    if (totalFigures > 0 && n > 0) {
+      if (totalFigures === 1) {
+        altText = `1 numbervisual med ${n} prikker.`;
+      } else {
+        const arrangement = describeArrangement(antallY, antallX);
+        altText = `${describePlural(totalFigures, 'numbervisual', 'numbervisualer')}. ${arrangement} Hver figur viser ${n} prikker, totalt ${totalDots} prikker.`.trim();
+      }
+    }
     for (let i = 0; i < totalFigures; i++) {
       const wrapper = document.createElement('div');
       wrapper.className = 'pattern-item';
       wrapper.appendChild(svg.cloneNode(true));
       patternContainer.appendChild(wrapper);
     }
+    setFigureAlt(patternContainer, altText);
     if (totalFigures > 1) {
       expression.textContent = `${antallX} · ${antallY} · (${baseExpression}) = ${totalFigures} · ${n} = ${totalFigures * n}`;
     } else {

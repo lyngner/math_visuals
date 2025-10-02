@@ -50,6 +50,36 @@
   const RECT_POINT_SPACING_MAX = 60;
   const MAX_VISIBILITY_DURATION = 10;
   const DOT = ' · ';
+  function setFigureAlt(element, text) {
+    if (!element) return;
+    const value = typeof text === 'string' ? text.trim() : '';
+    if (value) {
+      element.setAttribute('role', 'img');
+      element.setAttribute('aria-label', value);
+    } else {
+      element.removeAttribute('role');
+      element.removeAttribute('aria-label');
+    }
+  }
+  function normalizeInteger(value) {
+    return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
+  }
+  function describePlural(count, singular, plural) {
+    const normalized = normalizeInteger(count);
+    if (normalized === 1) {
+      return `1 ${singular}`;
+    }
+    const pluralForm = plural || `${singular}er`;
+    return `${normalized} ${pluralForm}`;
+  }
+  function describeArrangement(rows, cols) {
+    const normalizedRows = normalizeInteger(rows);
+    const normalizedCols = normalizeInteger(cols);
+    if (normalizedRows <= 0 || normalizedCols <= 0) return '';
+    const rowsText = describePlural(normalizedRows, 'rad', 'rader');
+    const colsText = describePlural(normalizedCols, 'kolonne', 'kolonner');
+    return `Ordnet i ${rowsText} og ${colsText}.`;
+  }
   function normalizeBrickHeightCount(value) {
     return Math.max(1, Math.trunc(value));
   }
@@ -344,7 +374,8 @@
     const layerGap = Number.isFinite(CFG.klosser.layerGap) ? Math.max(0, CFG.klosser.layerGap) : defaultLayerGap;
     CFG.klosser.layerGap = layerGap;
     const perFig = width * height * depth;
-    const total = cols * rows * perFig;
+    const totalFigures = cols * rows;
+    const total = totalFigures * perFig;
     const firstExpression = formatOuterInnerExpression([cols, rows], [width, height, depth]);
     const productStep = formatProductStep([cols * rows, perFig]);
     const parts = [firstExpression];
@@ -353,8 +384,17 @@
     }
     parts.push(`= ${total}`);
     expression.textContent = parts.join(' ');
+    let altText = 'Ingen klossfigurer vist.';
+    if (totalFigures > 0 && perFig > 0) {
+      if (totalFigures === 1) {
+        altText = `1 klossfigur som består av ${perFig} klosser (${width} × ${height} × ${depth}).`;
+      } else {
+        const arrangement = describeArrangement(rows, cols);
+        altText = `${describePlural(totalFigures, 'klossfigur', 'klossfigurer')}. ${arrangement} Hver figur består av ${perFig} klosser (${width} × ${height} × ${depth}), totalt ${total} klosser.`.trim();
+      }
+    }
+    setFigureAlt(brickContainer, altText);
     if (!BRICK_SRC) return;
-    const totalFigures = cols * rows;
     for (let i = 0; i < totalFigures; i++) {
       const fig = createBrick(width, height, depth, layerGap);
       fig.setAttribute('aria-label', `${width}x${height}x${depth} kloss`);
@@ -624,8 +664,10 @@
     const points = byggMonster(count, levelScale);
     const factors = primeFactors(count).filter(x => x > 1);
     const baseExpression = factors.length ? `${factors.join(DOT)} = ${count}` : `${count}`;
+    let altText = 'Ingen numbervisual vist.';
     if (!points.length || cols <= 0 || rows <= 0) {
       expression.textContent = baseExpression;
+      setFigureAlt(patternContainer, altText);
       return;
     }
     const svg = createPatternSvg(points, {
@@ -634,16 +676,27 @@
     });
     if (!svg) {
       expression.textContent = baseExpression;
+      setFigureAlt(patternContainer, altText);
       return;
     }
     const totalFigures = cols * rows;
     svg.setAttribute('aria-label', `Numbervisual ${count}`);
+    const totalDots = totalFigures * count;
+    if (totalFigures > 0 && count > 0) {
+      if (totalFigures === 1) {
+        altText = `1 numbervisual med ${count} prikker.`;
+      } else {
+        const arrangement = describeArrangement(rows, cols);
+        altText = `${describePlural(totalFigures, 'numbervisual', 'numbervisualer')}. ${arrangement} Hver figur viser ${count} prikker, totalt ${totalDots} prikker.`.trim();
+      }
+    }
     for (let i = 0; i < totalFigures; i++) {
       const wrapper = document.createElement('div');
       wrapper.className = 'pattern-item';
       wrapper.appendChild(svg.cloneNode(true));
       patternContainer.appendChild(wrapper);
     }
+    setFigureAlt(patternContainer, altText);
     if (totalFigures > 1) {
       const outerFactors = filterUnitFactors([cols, rows]);
       const firstExpression = outerFactors.length ? `${joinFactors(outerFactors)}${DOT}(${baseExpression})` : baseExpression;
@@ -699,7 +752,9 @@
       expr = expr ? `${expr} = ${productStep.text}` : productStep.text;
     }
     expression.textContent = expr ? `${expr} = ${totalDots}` : `${totalDots}`;
+    let altText = 'Ingen punktrektangler vist.';
     if (totalFigures <= 0 || colsCount <= 0 || rowsCount <= 0) {
+      setFigureAlt(rectangleContainer, altText);
       return;
     }
     const svg = createRectangleSvg(colsCount, rowsCount, {
@@ -707,8 +762,19 @@
       spacingX: spacingXSafe,
       spacingY: spacingYSafe
     });
-    if (!svg) return;
+    if (!svg) {
+      setFigureAlt(rectangleContainer, altText);
+      return;
+    }
     svg.setAttribute('aria-label', `${colsCount} × ${rowsCount} prikker`);
+    if (perFigure > 0 && totalFigures > 0) {
+      if (totalFigures === 1) {
+        altText = `1 punktrektangel med ${rowsCount} rader og ${colsCount} kolonner av prikker (${perFigure} prikker i alt).`;
+      } else {
+        const arrangement = describeArrangement(figRows, figCols);
+        altText = `${describePlural(totalFigures, 'punktrektangel', 'punktrektangler')}. ${arrangement} Hver figur har ${rowsCount} rader og ${colsCount} kolonner av prikker (${perFigure} prikker), totalt ${totalDots} prikker.`.trim();
+      }
+    }
     const total = totalFigures;
     for (let i = 0; i < total; i++) {
       const wrapper = document.createElement('div');
@@ -716,6 +782,7 @@
       wrapper.appendChild(svg.cloneNode(true));
       rectangleContainer.appendChild(wrapper);
     }
+    setFigureAlt(rectangleContainer, altText);
   }
   function applyExpressionVisibility() {
     if (!expression) return;
