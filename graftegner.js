@@ -100,6 +100,23 @@ if (typeof window !== 'undefined') {
   window.SIMPLE = SIMPLE;
 }
 
+const ALT_TEXT_DEFAULT_STATE = {
+  text: '',
+  source: 'auto'
+};
+let ALT_TEXT_STATE = {
+  ...ALT_TEXT_DEFAULT_STATE
+};
+if (typeof window !== 'undefined' && window.GRAF_ALT_TEXT && typeof window.GRAF_ALT_TEXT === 'object') {
+  const existing = window.GRAF_ALT_TEXT;
+  ALT_TEXT_STATE.text = typeof existing.text === 'string' ? existing.text : '';
+  ALT_TEXT_STATE.source = existing.source === 'manual' ? 'manual' : 'auto';
+}
+if (typeof window !== 'undefined') {
+  window.GRAF_ALT_TEXT = ALT_TEXT_STATE;
+}
+let altTextManager = null;
+
 /* ====================== AVANSERT KONFIG ===================== */
 const ADV = {
   axis: {
@@ -1833,6 +1850,243 @@ function normalizeExpressionText(str) {
   }
   return collapseExpressionWhitespace(decodeBasicEntities(trimmed));
 }
+const ALT_TEXT_NUMBER_FORMATTER = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3
+}) : null;
+function formatAltNumber(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+  const normalized = Object.is(value, -0) ? 0 : value;
+  if (ALT_TEXT_NUMBER_FORMATTER) {
+    try {
+      return ALT_TEXT_NUMBER_FORMATTER.format(normalized);
+    } catch (_) {}
+  }
+  const rounded = Math.round(normalized * 1000) / 1000;
+  const str = String(rounded);
+  return str.replace(/\.0+(?=$)/, '').replace(/(\.\d*?)0+(?=$)/, '$1');
+}
+function joinList(items) {
+  if (!Array.isArray(items) || items.length === 0) return '';
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} og ${items[1]}`;
+  const head = items.slice(0, -1).join(', ');
+  const tail = items[items.length - 1];
+  return `${head} og ${tail}`;
+}
+function formatCoordinateForAlt(point) {
+  if (!Array.isArray(point) || point.length < 2) return '';
+  const [x, y] = point;
+  const fx = formatAltNumber(x);
+  const fy = formatAltNumber(y);
+  if (!fx || !fy) return '';
+  return `(${fx}, ${fy})`;
+}
+function describeDomainForAlt(domain) {
+  if (!domain || !Number.isFinite(domain.min) || !Number.isFinite(domain.max)) return '';
+  const min = formatAltNumber(domain.min);
+  const max = formatAltNumber(domain.max);
+  if (!min || !max) return '';
+  if (domain.min === domain.max) {
+    return `for x lik ${min}`;
+  }
+  if (domain.leftClosed && domain.rightClosed) {
+    return `for x fra ${min} til ${max}, inkludert begge endepunkter`;
+  }
+  if (domain.leftClosed && !domain.rightClosed) {
+    return `for x fra og med ${min} til ${max}, men ikke inkludert ${max}`;
+  }
+  if (!domain.leftClosed && domain.rightClosed) {
+    return `for x fra ${min} til og med ${max}, men ikke inkludert ${min}`;
+  }
+  return `for x mellom ${min} og ${max}, uten endepunktene`;
+}
+function appendExtraPointsAltText(parsed, sentences) {
+  if (!Array.isArray(sentences)) return;
+  const points = Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.extraPoints) ? parsed.extraPoints.filter(isValidPointArray) : [];
+  if (!points.length) return;
+  const coords = points.map(formatCoordinateForAlt).filter(Boolean);
+  if (!coords.length) return;
+  if (coords.length === 1) {
+    sentences.push(`Et fast punkt er markert i ${coords[0]}.`);
+  } else {
+    sentences.push(`Faste punkter er markert i ${joinList(coords)}.`);
+  }
+}
+function buildFunctionsAltTextSummary(parsed) {
+  const sentences = [];
+  const functions = Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.funcs) ? parsed.funcs.filter(fun => fun && typeof fun.rhs === 'string' && fun.rhs.trim()) : [];
+  if (!functions.length) {
+    sentences.push('Figuren viser et koordinatsystem uten funksjoner.');
+  } else if (functions.length === 1) {
+    const fun = functions[0];
+    const label = normalizeExpressionText((fun === null || fun === void 0 ? void 0 : fun.label) || (fun === null || fun === void 0 ? void 0 : fun.name) || '');
+    const expr = normalizeExpressionText(fun === null || fun === void 0 ? void 0 : fun.rhs);
+    if (label && expr) {
+      sentences.push(`Grafen viser ${label} = ${expr}.`);
+    } else if (expr) {
+      sentences.push(`Grafen viser funksjonen y = ${expr}.`);
+    } else if (label) {
+      sentences.push(`Grafen viser ${label}.`);
+    } else {
+      sentences.push('Grafen viser én funksjon.');
+    }
+    const domainText = describeDomainForAlt(fun === null || fun === void 0 ? void 0 : fun.domain);
+    if (domainText) {
+      sentences.push(`Funksjonen er tegnet ${domainText}.`);
+    }
+  } else {
+    sentences.push(`Grafen viser ${functions.length} funksjoner.`);
+    functions.forEach((fun, idx) => {
+      const label = normalizeExpressionText((fun === null || fun === void 0 ? void 0 : fun.label) || (fun === null || fun === void 0 ? void 0 : fun.name) || '');
+      const expr = normalizeExpressionText(fun === null || fun === void 0 ? void 0 : fun.rhs);
+      let sentence = '';
+      if (label && expr) {
+        sentence = `Funksjon ${idx + 1}: ${label} = ${expr}.`;
+      } else if (expr) {
+        sentence = `Funksjon ${idx + 1}: y = ${expr}.`;
+      } else if (label) {
+        sentence = `Funksjon ${idx + 1}: ${label}.`;
+      }
+      const domainText = describeDomainForAlt(fun === null || fun === void 0 ? void 0 : fun.domain);
+      if (sentence) {
+        if (domainText) {
+          sentence += ` Den er tegnet ${domainText}.`;
+        }
+        sentences.push(sentence);
+      } else if (domainText) {
+        sentences.push(`Funksjon ${idx + 1} er tegnet ${domainText}.`);
+      }
+    });
+  }
+  const gliderCount = Number.isFinite(parsed === null || parsed === void 0 ? void 0 : parsed.pointsCount) ? parsed.pointsCount : 0;
+  if (gliderCount > 0) {
+    sentences.push(gliderCount === 1 ? 'Det er ett flyttbart punkt på grafen.' : `Det er ${gliderCount} flyttbare punkter på grafene.`);
+    const startValues = Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.startX) ? parsed.startX.filter(Number.isFinite).map(formatAltNumber).filter(Boolean) : [];
+    if (startValues.length) {
+      sentences.push(`Startposisjonene for x er ${joinList(startValues)}.`);
+    }
+  }
+  appendExtraPointsAltText(parsed, sentences);
+  const answerText = normalizeExpressionText(parsed === null || parsed === void 0 ? void 0 : parsed.answer);
+  if (answerText) {
+    sentences.push(`Fasit: ${answerText}.`);
+  }
+  return sentences.join(' ');
+}
+function buildLineAltTextSummary(parsed) {
+  const sentences = ['Figuren viser en linje i et koordinatsystem.'];
+  const first = Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.funcs) && parsed.funcs.length ? parsed.funcs[0] : null;
+  const expr = normalizeExpressionText((first === null || first === void 0 ? void 0 : first.rhs) || '');
+  if (expr) {
+    sentences.push(`Uttrykket er y = ${expr}.`);
+  }
+  const template = interpretLineTemplate(first ? first.rhs : '');
+  const specifiedPoints = Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.linePoints) ? parsed.linePoints.filter(isValidPointArray) : [];
+  const basePoints = (specifiedPoints.length ? specifiedPoints : resolveLineStartPoints(parsed)).filter(isValidPointArray);
+  if ((template === null || template === void 0 ? void 0 : template.kind) === 'anchorY') {
+    const anchor = formatAltNumber(template.anchorC);
+    if (anchor) {
+      sentences.push(`Linjen går alltid gjennom punktet (0, ${anchor}) på y-aksen.`);
+    }
+    const point = basePoints[0] ? formatCoordinateForAlt(basePoints[0]) : '';
+    if (point) {
+      sentences.push(`${specifiedPoints.length ? 'Det angitte punktet ligger' : 'Det flyttbare punktet starter'} i ${point}.`);
+    }
+  } else if ((template === null || template === void 0 ? void 0 : template.kind) === 'fixedSlope') {
+    const slope = formatAltNumber(template.slopeM);
+    if (slope) {
+      sentences.push(`Linjen har fast stigningstall ${slope}.`);
+    }
+    const point = basePoints[0] ? formatCoordinateForAlt(basePoints[0]) : '';
+    if (point) {
+      sentences.push(`${specifiedPoints.length ? 'Linjen går gjennom' : 'Det flyttbare punktet starter i'} ${point}.`);
+    }
+  } else {
+    const coords = basePoints.slice(0, 2).map(formatCoordinateForAlt).filter(Boolean);
+    if (coords.length === 2) {
+      const prefix = specifiedPoints.length ? 'Linjen er definert av' : 'Linjen starter i';
+      sentences.push(`${prefix} punktene ${joinList(coords)}.`);
+    } else if (coords.length === 1) {
+      sentences.push(`Linjen går gjennom punktet ${coords[0]}.`);
+    }
+  }
+  appendExtraPointsAltText(parsed, sentences);
+  const answerText = normalizeExpressionText(parsed === null || parsed === void 0 ? void 0 : parsed.answer);
+  if (answerText) {
+    sentences.push(`Fasit: ${answerText}.`);
+  }
+  return sentences.join(' ');
+}
+function getSimpleString() {
+  if (typeof SIMPLE === 'string') return SIMPLE;
+  if (SIMPLE == null) return '';
+  return String(SIMPLE);
+}
+function buildGrafAltText() {
+  try {
+    const parsed = parseSimple(getSimpleString());
+    const mode = decideMode(parsed);
+    const summary = mode === 'functions' ? buildFunctionsAltTextSummary(parsed) : buildLineAltTextSummary(parsed);
+    const normalized = summary.replace(/\s+/g, ' ').trim();
+    return normalized || 'Figuren viser et koordinatsystem.';
+  } catch (_) {
+    return 'Figuren viser et koordinatsystem.';
+  }
+}
+function resolveAltTextTitle() {
+  if (typeof document === 'undefined') return 'Graftegner';
+  const docTitle = typeof document.title === 'string' ? document.title.trim() : '';
+  if (docTitle) return docTitle;
+  const heading = document.querySelector('h1');
+  if (heading && heading.textContent && heading.textContent.trim()) {
+    return heading.textContent.trim();
+  }
+  return 'Graftegner';
+}
+function refreshAltText(reason) {
+  if (altTextManager) {
+    altTextManager.refresh(reason || 'auto');
+  }
+}
+function applyAltTextToBoard() {
+  if (altTextManager) {
+    altTextManager.applyCurrent();
+  }
+}
+function initAltTextManager() {
+  if (typeof window === 'undefined' || !window.MathVisAltText) return;
+  const container = document.getElementById('exportCard');
+  if (!container) return;
+  if (altTextManager) {
+    altTextManager.ensureDom();
+    altTextManager.applyCurrent();
+    return;
+  }
+  altTextManager = window.MathVisAltText.create({
+    svg: () => brd && brd.renderer && brd.renderer.svgRoot || null,
+    container,
+    getTitle: resolveAltTextTitle,
+    getState: () => ({
+      text: typeof ALT_TEXT_STATE.text === 'string' ? ALT_TEXT_STATE.text : '',
+      source: ALT_TEXT_STATE.source === 'manual' ? 'manual' : 'auto'
+    }),
+    setState: (text, source) => {
+      ALT_TEXT_STATE.text = typeof text === 'string' ? text : '';
+      ALT_TEXT_STATE.source = source === 'manual' ? 'manual' : 'auto';
+      if (typeof window !== 'undefined') {
+        window.GRAF_ALT_TEXT = ALT_TEXT_STATE;
+      }
+    },
+    generate: () => buildGrafAltText(),
+    getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
+    getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
+  });
+  if (altTextManager) {
+    altTextManager.applyCurrent();
+    refreshAltText('init');
+  }
+}
 function makeSmartCurveLabel(g, idx, content) {
   if (!ADV.curveName.show || !content) return;
   const renderer = (() => {
@@ -2550,6 +2804,8 @@ function rebuildAll() {
   addFixedPoints();
   brd.on('boundingbox', updateAfterViewChange);
   updateAfterViewChange();
+  applyAltTextToBoard();
+  refreshAltText('rebuild');
 }
 window.addEventListener('resize', () => {
   var _JXG;
@@ -2669,6 +2925,7 @@ if (btnPng) {
   });
 }
 setupSettingsForm();
+initAltTextManager();
 function setupSettingsForm() {
   const root = document.querySelector('.settings');
   if (!root) return;
@@ -3263,6 +3520,7 @@ function setupSettingsForm() {
     if (typeof window !== 'undefined') {
       window.SIMPLE = SIMPLE;
     }
+    refreshAltText('form-change');
   };
   const handleExternalLinePointUpdate = event => {
     if (!linePointSection || !Array.isArray(linePointInputs) || linePointInputs.length === 0) {
@@ -3515,6 +3773,7 @@ function setupSettingsForm() {
     updateLinePointControls({ silent: true });
     syncSimpleFromForm();
     updateSnapAvailability();
+    refreshAltText('form-fill');
   };
   fillFormFromSimple(SIMPLE);
   if (addBtn) {
