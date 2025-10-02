@@ -4,6 +4,7 @@ module.exports = defineConfig({
   testDir: 'tests',
   timeout: 60000,
   retries: process.env.CI ? 2 : 0,
+  globalSetup: require.resolve('./tests/global-setup.js'),
   use: {
     baseURL: 'http://127.0.0.1:4173',
     acceptDownloads: true
