@@ -2178,6 +2178,7 @@
       svg.append(label);
       const locked = chartLocked || row.locked || state.autoSync && row.role === 'result' && state.solution;
       const segments = row.segments;
+      const rowZeroMarkers = getRowMarkers(row, zeroMarkers);
       for (let i = 0; i < boundaries.length - 1; i += 1) {
         const startVal = boundaries[i];
         const endVal = boundaries[i + 1];
@@ -2186,9 +2187,9 @@
         if (!Number.isFinite(startX) || !Number.isFinite(endX)) continue;
         let segmentStartX = startX;
         let segmentEndX = endX;
-        if (zeroMarkers.length) {
-          const hasStartZero = zeroMarkers.some(point => Math.abs(point.value - startVal) <= POINT_TOLERANCE);
-          const hasEndZero = zeroMarkers.some(point => Math.abs(point.value - endVal) <= POINT_TOLERANCE);
+        if (rowZeroMarkers.length) {
+          const hasStartZero = rowZeroMarkers.some(point => Math.abs(point.value - startVal) <= POINT_TOLERANCE);
+          const hasEndZero = rowZeroMarkers.some(point => Math.abs(point.value - endVal) <= POINT_TOLERANCE);
           if (hasStartZero || hasEndZero) {
             const availableWidth = endX - startX;
             if (availableWidth > 0) {
