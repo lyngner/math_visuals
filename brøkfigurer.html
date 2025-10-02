@@ -136,9 +136,11 @@
     .box svg *:focus{outline:none;}
     @media(max-width:720px){
       .grid{grid-template-columns:1fr;grid-template-rows:auto auto;}
-      .figure-board{grid-template-columns:1fr;grid-template-rows:auto auto auto;}
-      .figure-controls--cols{grid-column:1;grid-row:2;flex-direction:row;}
-      .figure-controls--rows{grid-column:1;grid-row:3;justify-self:center;}
+      .figure-board{display:flex;flex-direction:column;align-items:stretch;gap:var(--gap);}
+      .figure-grid{order:1;}
+      .figure-controls{justify-content:center;}
+      .figure-controls--cols{order:2;flex-direction:row;align-self:center;}
+      .figure-controls--rows{order:3;align-self:center;}
       @supports not (gap: 1rem) {
         .figure-controls--cols .addFigureBtn + .addFigureBtn{margin-top:0;margin-left:var(--gap);}
       }
