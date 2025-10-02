@@ -18,6 +18,7 @@
   const checkStatus = document.getElementById('checkStatus');
   const downloadSvgButton = document.getElementById('btnDownloadSvg');
   const downloadPngButton = document.getElementById('btnDownloadPng');
+  let altTextManager = null;
   const POINT_TOLERANCE = 1e-6;
   const MARKER_GAP_PX = 10;
   const MIN_SEGMENT_WIDTH_PX = 4;
@@ -454,6 +455,12 @@
   if (typeof window !== 'undefined') {
     window.STATE = state;
   }
+  if (typeof state.altText !== 'string') {
+    state.altText = '';
+  }
+  if (state.altTextSource !== 'manual') {
+    state.altTextSource = 'auto';
+  }
   const isMathFieldInput = exprInput && exprInput.tagName && exprInput.tagName.toUpperCase() === MATHFIELD_TAG;
   if (isMathFieldInput) {
     ensureMathFieldOptions(exprInput);
@@ -628,6 +635,10 @@
     target.criticalPoints = sanitizePointsArray(target.criticalPoints);
     target.signRows = sanitizeRowsArray(target.signRows);
     target.solution = sanitizeSolution(target.solution);
+    if (typeof target.altText !== 'string') {
+      target.altText = '';
+    }
+    target.altTextSource = target.altTextSource === 'manual' ? 'manual' : 'auto';
   }
   function deepClone(value) {
     if (typeof structuredClone === 'function') {
@@ -1997,6 +2008,176 @@
     }
     return label;
   }
+  function formatNumberForAlt(value) {
+    if (!Number.isFinite(value)) {
+      return '';
+    }
+    try {
+      const decimals = Math.max(0, getDecimalPlaces());
+      return new Intl.NumberFormat('nb-NO', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: decimals
+      }).format(value);
+    } catch (error) {
+      const fallback = formatPointValue(value);
+      return fallback.includes('.') ? fallback.replace('.', ',') : fallback;
+    }
+  }
+  function formatIntervalRange(left, right) {
+    if (!Number.isFinite(left) || !Number.isFinite(right)) {
+      return 'for intervallet';
+    }
+    if (Math.abs(right - left) <= POINT_TOLERANCE) {
+      return `rundt x = ${formatNumberForAlt(left)}`;
+    }
+    return `fra x = ${formatNumberForAlt(left)} til x = ${formatNumberForAlt(right)}`;
+  }
+  function buildRowAltText(row, index, boundaries, domainRange) {
+    if (!row) {
+      return '';
+    }
+    const label = row.role === 'result' ? getResultRowDisplayLabel(row) : (typeof row.label === 'string' && row.label.trim() ? row.label.trim() : `Rad ${index + 1}`);
+    const introParts = [];
+    if (row.role === 'result') {
+      introParts.push(`${label} er resultatraden.`);
+    } else if (row.role === 'factor') {
+      const typeText = row.type === 'pole' ? 'pol' : 'nullpunkt';
+      let detail = '';
+      if (Number.isFinite(row.value)) {
+        detail += ` ved x = ${formatNumberForAlt(row.value)}`;
+      }
+      if (Number.isFinite(row.multiplicity) && row.multiplicity > 1) {
+        detail += ` med multiplicitet ${row.multiplicity}`;
+      }
+      introParts.push(`${label} er en låst faktorlinje for ${typeText}${detail}.`);
+    } else if (row.locked) {
+      introParts.push(`${label} er en låst fortegnslinje.`);
+    } else {
+      introParts.push(`${label} er en fortegnslinje.`);
+    }
+    const segments = Array.isArray(row.segments) ? row.segments : [];
+    if (!segments.length) {
+      introParts.push('Ingen segmenter er definert.');
+      return introParts.join(' ');
+    }
+    const needed = segments.length + 1;
+    const bounds = Array.isArray(boundaries) ? boundaries : [];
+    const domainMin = domainRange && Number.isFinite(domainRange.min) ? domainRange.min : 0;
+    const domainMax = domainRange && Number.isFinite(domainRange.max) ? domainRange.max : domainMin + 1;
+    let rowBounds;
+    if (bounds.length >= needed && needed > 0) {
+      rowBounds = bounds.slice(0, needed);
+    } else if (needed > 0) {
+      rowBounds = [];
+      const span = domainMax - domainMin;
+      for (let i = 0; i < needed; i += 1) {
+        const ratio = needed === 1 ? 0 : i / (needed - 1);
+        rowBounds.push(domainMin + span * ratio);
+      }
+    } else {
+      rowBounds = bounds.slice(0, 1);
+    }
+    const segmentTexts = segments.map((value, idx) => {
+      const signText = value >= 0 ? 'positivt' : 'negativt';
+      const left = rowBounds[idx];
+      const right = rowBounds[idx + 1];
+      const rangeText = formatIntervalRange(left, right);
+      return `Segment ${idx + 1} (${rangeText}) er ${signText}.`;
+    });
+    return introParts.concat(segmentTexts).join(' ');
+  }
+  function buildFortegnsskjemaAltText() {
+    sanitizeState(state);
+    sortPoints();
+    syncSegments();
+    const domainInfo = getDomainInfo();
+    const domain = domainInfo.active;
+    const min = Number.isFinite(domain.min) ? domain.min : 0;
+    const max = Number.isFinite(domain.max) ? domain.max : min + 1;
+    const sentences = [];
+    const expr = typeof state.expression === 'string' ? state.expression.trim() : '';
+    if (expr) {
+      const prefix = state.expressionPrefix ? 'f(x) = ' : '';
+      sentences.push(`Figuren viser et fortegnsskjema for ${prefix}${expr}.`);
+    } else {
+      sentences.push('Figuren viser et fortegnsskjema.');
+    }
+    if (Number.isFinite(min) && Number.isFinite(max)) {
+      sentences.push(`Området dekker x-verdier fra ${formatNumberForAlt(min)} til ${formatNumberForAlt(max)}.`);
+    }
+    const points = state.criticalPoints.slice().sort((a, b) => a.value - b.value);
+    if (points.length) {
+      const pointDescriptions = points.map(point => {
+        const typeText = point.type === 'pole' ? 'pol' : 'nullpunkt';
+        const valueText = formatNumberForAlt(point.value);
+        let desc = `${typeText} ved x = ${valueText}`;
+        if (Number.isFinite(point.multiplicity) && point.multiplicity > 1) {
+          desc += ` med multiplicitet ${point.multiplicity}`;
+        }
+        return desc;
+      });
+      sentences.push(`Kritiske punkter: ${pointDescriptions.join('; ')}.`);
+    } else {
+      sentences.push('Ingen kritiske punkter er definert.');
+    }
+    if (state.autoSync) {
+      sentences.push('Fortegnslinjene oppdateres automatisk fra fasit.');
+    }
+    const rows = Array.isArray(state.signRows) ? state.signRows : [];
+    if (!rows.length) {
+      sentences.push('Ingen fortegnslinjer er lagt til.');
+      return sentences.join(' ');
+    }
+    sentences.push(`Skjemaet har ${rows.length === 1 ? 'én fortegnslinje' : `${rows.length} fortegnslinjer`}.`);
+    const boundaries = [min, ...points.map(p => p.value), max];
+    rows.forEach((row, index) => {
+      sentences.push(buildRowAltText(row, index, boundaries, { min, max }));
+    });
+    return sentences.join(' ');
+  }
+  function refreshAltText(reason) {
+    if (altTextManager) {
+      altTextManager.refresh(reason || 'auto');
+    }
+  }
+  function initAltTextManager() {
+    if (!window.MathVisAltText || !svg) {
+      return;
+    }
+    const container = document.getElementById('exportCard');
+    if (!container) {
+      return;
+    }
+    if (!altTextManager) {
+      altTextManager = window.MathVisAltText.create({
+        svg: () => svg,
+        container,
+        getTitle: () => {
+          const expr = typeof state.expression === 'string' ? state.expression.trim() : '';
+          if (expr) {
+            const prefix = state.expressionPrefix ? 'f(x) = ' : '';
+            return `Fortegnsskjema for ${prefix}${expr}`;
+          }
+          return 'Fortegnsskjema';
+        },
+        getState: () => ({
+          text: typeof state.altText === 'string' ? state.altText : '',
+          source: state.altTextSource === 'manual' ? 'manual' : 'auto'
+        }),
+        setState: (text, source) => {
+          state.altText = text;
+          state.altTextSource = source === 'manual' ? 'manual' : 'auto';
+        },
+        generate: () => buildFortegnsskjemaAltText(),
+        getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
+        getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
+      });
+    }
+    if (altTextManager) {
+      altTextManager.applyCurrent();
+      refreshAltText('init');
+    }
+  }
   function renderChart() {
     renderExpressionDisplay();
     sortPoints();
@@ -2269,6 +2450,7 @@
         svg.append(marker);
       });
     });
+    refreshAltText('render');
   }
   function getRowMarkers(row, points) {
     if (!row || row.role === 'result' || row.role === 'custom') {
@@ -2785,6 +2967,7 @@
     if (nextValue === state.expression && nextPrefix === !!state.expressionPrefix) {
       setExpressionInputValue(state.expression || '');
       renderExpressionDisplay();
+      refreshAltText('config');
       return;
     }
     state.expression = nextValue;
@@ -2796,6 +2979,7 @@
     }
     setExpressionInputValue(state.expression || '');
     renderExpressionDisplay();
+    refreshAltText('config');
   }
   exprInput.addEventListener('change', commitExpressionChange);
   exprInput.addEventListener('blur', commitExpressionChange);
@@ -2824,7 +3008,12 @@
     updateIdCounters();
     renderAll();
     setCheckMessage('');
+    if (altTextManager) {
+      altTextManager.applyCurrent();
+      refreshAltText('examples');
+    }
   });
   createDefaultRow();
+  initAltTextManager();
   renderAll();
 })();

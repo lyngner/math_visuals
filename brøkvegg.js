@@ -79,6 +79,7 @@
   const downloadPngButton = document.getElementById('btnDownloadPng');
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;
+  let altTextManager = null;
   function clamp(value, min, max) {
     if (!Number.isFinite(value)) return min;
     if (value < min) return min;
@@ -117,6 +118,8 @@
     STATE.decimalDigits = clampInt(STATE.decimalDigits, 0, MAX_DECIMAL_DIGITS, DEFAULT_DECIMAL_DIGITS);
     STATE.percentDigits = clampInt(STATE.percentDigits, 0, MAX_PERCENT_DIGITS, DEFAULT_PERCENT_DIGITS);
     STATE.trimTrailingZeros = typeof STATE.trimTrailingZeros === 'boolean' ? STATE.trimTrailingZeros : false;
+    if (typeof STATE.altText !== 'string') STATE.altText = '';
+    STATE.altTextSource = STATE.altTextSource === 'manual' ? 'manual' : 'auto';
   }
   ensureStateDefaults();
   function cleanTileModes() {
@@ -244,6 +247,105 @@
     const total = den;
     const label = MODE_LABELS[mode] || mode;
     return `Del ${position} av ${total}. Viser ${label}. Klikk for å bytte visning.`;
+  }
+  function getFractionWallTitle() {
+    const denominators = Array.isArray(STATE.denominators) ? STATE.denominators : [];
+    const count = denominators.length;
+    if (!count) return 'Brøkvegg';
+    return `Brøkvegg med ${count === 1 ? 'én rad' : `${count} rader`}`;
+  }
+  function formatModeSentence(den, startIndex, endIndex, mode) {
+    const rangeStart = startIndex + 1;
+    const rangeEnd = endIndex + 1;
+    const rangeText = rangeStart === rangeEnd ? `Del ${rangeStart}` : `Del ${rangeStart} til ${rangeEnd}`;
+    if (mode === 'fraction') {
+      if (den === 1) {
+        return `${rangeText} viser hele delen.`;
+      }
+      return `${rangeText} viser brøken ${formatFraction(den)}.`;
+    }
+    if (mode === 'percent') {
+      return `${rangeText} viser prosentverdien ${formatValue('percent', den)}.`;
+    }
+    if (mode === 'decimal') {
+      return `${rangeText} viser desimaltallet ${formatValue('decimal', den)}.`;
+    }
+    const label = MODE_LABELS[mode] || mode;
+    return `${rangeText} viser ${label}.`;
+  }
+  function buildRowAltText(den) {
+    const tileCount = den;
+    const rowIntro = den === 1 ? 'Raden for hele' : `Raden for nevner ${den}`;
+    const intro = `${rowIntro} har ${tileCount === 1 ? 'én del' : `${tileCount} deler`}.`;
+    const segments = [];
+    for (let i = 0; i < tileCount; i += 1) {
+      const mode = getTileMode(den, i);
+      const last = segments[segments.length - 1];
+      if (last && last.mode === mode) {
+        last.end = i;
+      } else {
+        segments.push({
+          start: i,
+          end: i,
+          mode
+        });
+      }
+    }
+    const details = segments.map(segment => formatModeSentence(den, segment.start, segment.end, segment.mode)).join(' ');
+    return `${intro} ${details}`.trim();
+  }
+  function buildFractionWallAltText() {
+    ensureStateDefaults();
+    cleanTileModes();
+    const denominators = Array.isArray(STATE.denominators) ? STATE.denominators.slice() : [];
+    if (!denominators.length) {
+      return 'Figuren viser ingen rader i brøkveggen.';
+    }
+    const sentences = [];
+    sentences.push(`Figuren viser en brøkvegg med ${denominators.length === 1 ? 'én rad' : `${denominators.length} rader`}.`);
+    const defaultLabel = MODE_LABELS[STATE.defaultMode] || STATE.defaultMode;
+    if (defaultLabel) {
+      sentences.push(`Standardvisningen for nye brøkbiter er ${defaultLabel}.`);
+    }
+    if (!STATE.showLabels) {
+      sentences.push('Radetikettene er skjult.');
+    }
+    denominators.forEach(den => {
+      sentences.push(buildRowAltText(den));
+    });
+    return sentences.join(' ');
+  }
+  function refreshAltText(reason) {
+    if (altTextManager) {
+      altTextManager.refresh(reason || 'auto');
+    }
+  }
+  function initAltTextManager() {
+    if (!window.MathVisAltText || !svg) return;
+    const container = document.getElementById('exportCard');
+    if (!container) return;
+    if (!altTextManager) {
+      altTextManager = window.MathVisAltText.create({
+        svg: () => svg,
+        container,
+        getTitle: getFractionWallTitle,
+        getState: () => ({
+          text: typeof STATE.altText === 'string' ? STATE.altText : '',
+          source: STATE.altTextSource === 'manual' ? 'manual' : 'auto'
+        }),
+        setState: (text, source) => {
+          STATE.altText = text;
+          STATE.altTextSource = source === 'manual' ? 'manual' : 'auto';
+        },
+        generate: () => buildFractionWallAltText(),
+        getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
+        getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
+      });
+    }
+    if (altTextManager) {
+      altTextManager.applyCurrent();
+      refreshAltText('init');
+    }
   }
   function createFractionGroup(den, centerX, centerY, tileWidth, textColor) {
     const group = createSvgElement('g', {
@@ -432,6 +534,7 @@
       y += ROW_HEIGHT + ROW_GAP;
     });
     svg.replaceChildren(fragment);
+    refreshAltText('render');
   }
   render();
   window.render = render;
@@ -554,6 +657,13 @@
   });
   downloadPngButton === null || downloadPngButton === void 0 || downloadPngButton.addEventListener('click', () => {
     downloadPng(svg, 'brokvegg');
+  });
+  initAltTextManager();
+  window.addEventListener('examples:loaded', () => {
+    if (altTextManager) {
+      altTextManager.applyCurrent();
+      refreshAltText('examples');
+    }
   });
   window.addEventListener('examples:collect', event => {
     if (!event || !event.detail) return;
