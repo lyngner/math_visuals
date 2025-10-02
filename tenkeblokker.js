@@ -166,7 +166,9 @@ const CONFIG = {
   blocks: [],
   showCombinedWhole: false,
   showCombinedWholeVertical: false,
-  rowLabels: []
+  rowLabels: [],
+  altText: '',
+  altTextSource: 'auto'
 };
 const VBW = 900;
 const VBH = 420;
@@ -185,6 +187,10 @@ const DEFAULT_GRID_PADDING_TOP = 20;
 const COMBINED_WHOLE_TOP_MARGIN = 12;
 const BLOCKS = [];
 let multipleBlocksActive = false;
+let altTextManager = null;
+let altTextRefreshTimer = null;
+let lastAltTextSignature = null;
+let pendingAltTextReason = 'auto';
 const board = document.getElementById('tbBoard');
 const grid = document.getElementById('tbGrid');
 const addColumnBtn = document.getElementById('tbAddColumn');
@@ -245,6 +251,217 @@ function getEffectiveActiveBlockCount() {
   const cols = Number(CONFIG === null || CONFIG === void 0 ? void 0 : CONFIG.cols);
   if (Number.isFinite(rows) && Number.isFinite(cols)) return rows * cols;
   return 0;
+}
+
+function formatCount(value, singular, plural) {
+  const num = Math.max(0, Math.round(Number(value) || 0));
+  const label = num === 1 ? singular : plural || `${singular}er`;
+  return `${num === 1 ? '1' : String(num)} ${label}`;
+}
+
+function joinWithOg(items) {
+  const filtered = items.filter(Boolean);
+  if (filtered.length === 0) return '';
+  if (filtered.length === 1) return filtered[0];
+  if (filtered.length === 2) return `${filtered[0]} og ${filtered[1]}`;
+  return `${filtered.slice(0, -1).join(', ')} og ${filtered[filtered.length - 1]}`;
+}
+
+function collectTenkeblokkerAltSummary() {
+  const rows = Math.max(1, Math.round(Number(CONFIG.rows) || 1));
+  const cols = Math.max(1, Math.round(Number(CONFIG.cols) || 1));
+  const rowLabels = Array.from({ length: rows }, (_, idx) => {
+    const value = Array.isArray(CONFIG.rowLabels) && typeof CONFIG.rowLabels[idx] === 'string' ? CONFIG.rowLabels[idx].trim() : '';
+    return value;
+  });
+  const blocks = [];
+  if (Array.isArray(CONFIG.blocks)) {
+    for (let r = 0; r < rows; r++) {
+      const row = Array.isArray(CONFIG.blocks[r]) ? CONFIG.blocks[r] : [];
+      for (let c = 0; c < cols; c++) {
+        const cfg = row[c];
+        if (!cfg) continue;
+        const total = Number(cfg.total);
+        const n = Number(cfg.n);
+        const k = Number(cfg.k);
+        blocks.push({
+          index: r * cols + c,
+          row: r,
+          col: c,
+          visible: cfg.hideBlock !== true,
+          showWhole: cfg.showWhole === true,
+          rowLabel: rowLabels[r] || '',
+          total: Number.isFinite(total) ? total : null,
+          n: Number.isFinite(n) && n > 0 ? Math.round(n) : null,
+          k: Number.isFinite(k) && k >= 0 ? Math.round(k) : 0,
+          customText: cfg.showCustomText && typeof cfg.customText === 'string' ? cfg.customText.trim() : '',
+          display: sanitizeDisplayMode(cfg.valueDisplay) || 'number'
+        });
+      }
+    }
+  }
+  return {
+    rows,
+    cols,
+    rowLabels,
+    showCombinedWhole: !!CONFIG.showCombinedWhole,
+    showCombinedWholeVertical: !!CONFIG.showCombinedWholeVertical,
+    blocks
+  };
+}
+
+function buildTenkeblokkerAltText(summary) {
+  const data = summary || collectTenkeblokkerAltSummary();
+  if (!data) return 'Tenkeblokker.';
+  const sentences = [];
+  const visibleBlocks = data.blocks.filter(block => block.visible);
+  const blockCount = visibleBlocks.length;
+  const countText = blockCount === 0 ? 'ingen tenkeblokker' : blockCount === 1 ? 'én tenkeblokk' : `${blockCount} tenkeblokker`;
+  sentences.push(`Visualiseringen viser ${countText} organisert i ${formatCount(data.rows, 'rad', 'rader')} og ${formatCount(data.cols, 'kolonne', 'kolonner')}.`);
+  const labelDescriptions = data.rowLabels
+    .map((label, idx) => (label ? `rad ${idx + 1} merket «${label}»` : ''))
+    .filter(Boolean);
+  if (labelDescriptions.length) {
+    sentences.push(`Radene er merket med ${joinWithOg(labelDescriptions)}.`);
+  }
+  const totalParts = [];
+  if (blockCount > 1 && data.showCombinedWhole) totalParts.push('en horisontal parentes som viser totalen');
+  if (blockCount > 1 && data.showCombinedWholeVertical) totalParts.push('en vertikal parentes som viser totalen');
+  if (totalParts.length) {
+    sentences.push(`Totalverdien vises med ${joinWithOg(totalParts)}.`);
+  }
+  const blockParts = visibleBlocks.map(block => {
+    const rowText = block.rowLabel ? `rad ${block.row + 1} («${block.rowLabel}») ` : `rad ${block.row + 1} `;
+    const base = `blokk ${block.index + 1} i ${rowText.trim()}`;
+    const nText = Number.isFinite(block.n) ? formatCount(block.n, 'del', 'deler') : null;
+    const kText = Number.isFinite(block.k) ? formatCount(block.k, 'markert del', 'markerte deler') : null;
+    let part = base;
+    if (kText && nText) {
+      part += ` viser ${kText} av ${nText}`;
+    } else if (nText) {
+      part += ` er delt i ${nText}`;
+    }
+    if (Number.isFinite(block.total)) {
+      const totalText = fmt(block.total);
+      if (block.showWhole) {
+        part += ` av totalen ${totalText}`;
+      } else {
+        part += ` med totalverdi ${totalText}`;
+      }
+    }
+    if (block.customText) {
+      part += `, etiketten i blokken er «${block.customText}»`;
+    }
+    return part;
+  });
+  if (blockParts.length) {
+    const limit = Math.min(blockParts.length, 3);
+    const listed = blockParts.slice(0, limit);
+    let sentence = joinWithOg(listed);
+    if (sentence) {
+      sentence = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+      sentence += '.';
+    }
+    if (blockParts.length > limit) {
+      const remaining = blockParts.length - limit;
+      sentence += ` ${remaining === 1 ? 'Én blokk til følger samme mønster.' : `${remaining} blokker til følger samme mønster.`}`;
+    }
+    if (sentence) sentences.push(sentence);
+  } else {
+    sentences.push('Ingen blokker er synlige.');
+  }
+  return sentences.filter(Boolean).join(' ');
+}
+
+function getTenkeblokkerTitle() {
+  const base = typeof document !== 'undefined' && document && document.title ? document.title : 'Tenkeblokker';
+  const summary = collectTenkeblokkerAltSummary();
+  if (!summary) return base;
+  const visibleBlocks = summary.blocks.filter(block => block.visible).length;
+  if (!visibleBlocks) return base;
+  const suffix = visibleBlocks === 1 ? '1 blokk' : `${visibleBlocks} blokker`;
+  return `${base} – ${suffix}`;
+}
+
+function getActiveTenkeblokkerAltText() {
+  const stored = typeof CONFIG.altText === 'string' ? CONFIG.altText.trim() : '';
+  if (CONFIG.altTextSource === 'manual' && stored) return stored;
+  return stored || buildTenkeblokkerAltText();
+}
+
+function ensureTenkeblokkerAltAnchor() {
+  let anchor = document.getElementById('tenkeblokker-alt-anchor');
+  if (!anchor) {
+    anchor = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    anchor.setAttribute('id', 'tenkeblokker-alt-anchor');
+    anchor.setAttribute('width', '0');
+    anchor.setAttribute('height', '0');
+    anchor.style.position = 'absolute';
+    anchor.style.left = '-9999px';
+    anchor.style.width = '0';
+    anchor.style.height = '0';
+    document.body.appendChild(anchor);
+  }
+  return anchor;
+}
+
+function refreshAltText(reason) {
+  if (!altTextManager) return;
+  const signature = JSON.stringify(collectTenkeblokkerAltSummary());
+  if (signature !== lastAltTextSignature) {
+    lastAltTextSignature = signature;
+    altTextManager.refresh(reason || 'auto');
+  } else if (!reason || reason === 'init') {
+    altTextManager.refresh(reason || 'auto');
+  }
+}
+
+function scheduleAltTextRefresh(reason = 'auto') {
+  pendingAltTextReason = reason;
+  if (altTextRefreshTimer) {
+    clearTimeout(altTextRefreshTimer);
+  }
+  altTextRefreshTimer = setTimeout(() => {
+    altTextRefreshTimer = null;
+    refreshAltText(pendingAltTextReason);
+  }, 150);
+}
+
+function initAltTextManager() {
+  if (typeof window === 'undefined' || !window.MathVisAltText) return;
+  const container = document.getElementById('exportCard');
+  if (!container) return;
+  const anchor = ensureTenkeblokkerAltAnchor();
+  altTextManager = window.MathVisAltText.create({
+    svg: () => anchor,
+    container,
+    getTitle: getTenkeblokkerTitle,
+    getState: () => ({
+      text: typeof CONFIG.altText === 'string' ? CONFIG.altText : '',
+      source: CONFIG.altTextSource === 'manual' ? 'manual' : 'auto'
+    }),
+    setState: (text, source) => {
+      CONFIG.altText = text;
+      CONFIG.altTextSource = source === 'manual' ? 'manual' : 'auto';
+    },
+    generate: () => buildTenkeblokkerAltText(),
+    getAutoMessage: reason => (reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.'),
+    getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
+  });
+  if (altTextManager) {
+    lastAltTextSignature = null;
+    altTextManager.applyCurrent();
+    const figure = document.getElementById('tbGrid');
+    if (figure && window.MathVisAltText) {
+      const nodes = window.MathVisAltText.ensureSvgA11yNodes(anchor);
+      const title = getTenkeblokkerTitle();
+      figure.setAttribute('role', 'img');
+      figure.setAttribute('aria-label', title);
+      if (nodes.titleEl && nodes.titleEl.id) figure.setAttribute('aria-labelledby', nodes.titleEl.id);
+      if (nodes.descEl && nodes.descEl.id) figure.setAttribute('aria-describedby', nodes.descEl.id);
+    }
+    scheduleAltTextRefresh('init');
+  }
 }
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
@@ -318,6 +535,8 @@ btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => {
 normalizeConfig(true);
 rebuildStructure();
 draw(true);
+initAltTextManager();
+scheduleAltTextRefresh('init');
 window.CONFIG = CONFIG;
 window.draw = draw;
 function getSvgViewport(block) {
@@ -875,6 +1094,7 @@ function draw(skipNormalization = false) {
   }
   drawCombinedWholeOverlay();
   syncLegacyConfig();
+  scheduleAltTextRefresh('draw');
 }
 function updateAddButtons() {
   const parsedCols = Number(CONFIG.cols);
@@ -1936,6 +2156,17 @@ function getExportSvg() {
   exportSvg.setAttribute('height', exportHeight);
   exportSvg.setAttribute('xmlns', ns);
   exportSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  if (window.MathVisAltText) {
+    const { titleEl, descEl } = window.MathVisAltText.ensureSvgA11yNodes(exportSvg);
+    const title = getTenkeblokkerTitle();
+    if (titleEl) titleEl.textContent = title;
+    const desc = getActiveTenkeblokkerAltText();
+    if (descEl) descEl.textContent = desc;
+    exportSvg.setAttribute('role', 'img');
+    exportSvg.setAttribute('aria-label', title);
+    if (titleEl && titleEl.id) exportSvg.setAttribute('aria-labelledby', titleEl.id);
+    if (descEl && descEl.id) exportSvg.setAttribute('aria-describedby', descEl.id);
+  }
   let offsetY = 0;
   rowInfo.forEach((row, rowIndex) => {
     if (!row.blocks.length) return;
