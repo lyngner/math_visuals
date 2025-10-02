@@ -2084,6 +2084,7 @@
         'pointer-events': chartLocked ? 'none' : 'all',
         cursor: chartLocked ? 'default' : 'ew-resize'
       });
+      dragHandle.style.touchAction = 'none';
       svg.append(dragHandle);
       if (overlay) {
         const valueBadge = document.createElement('div');
@@ -2092,6 +2093,7 @@
         valueBadge.style.top = `${arrowY}px`;
         valueBadge.title = formatPointValue(point.value);
         valueBadge.dataset.pointId = point.id;
+        valueBadge.style.touchAction = 'none';
         if (chartLocked) {
           valueBadge.classList.add('chart-overlay__value--locked');
           valueBadge.textContent = formatPointValue(point.value);
@@ -2253,7 +2255,7 @@
           'alignment-baseline': 'middle',
           'font-size': isPole ? 22 : 20,
           'font-weight': 700,
-          fill: isPole ? '#b91c1c' : '#111827',
+          fill: '#111827',
           cursor: chartLocked ? 'default' : 'pointer'
         });
         marker.textContent = isPole ? '><' : '0';
