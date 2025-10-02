@@ -85,7 +85,9 @@ const STATE = {
       DText: "D"
     }
   },
-  layout: "row" // "row" | "col"
+  layout: "row", // "row" | "col"
+  altText: "",
+  altTextSource: "auto"
 };
 const DEFAULT_STATE = JSON.parse(JSON.stringify(STATE));
 function ensureStateDefaults() {
@@ -108,6 +110,146 @@ function ensureStateDefaults() {
   };
   fill(STATE, DEFAULT_STATE);
   return STATE;
+}
+let altTextManager = null;
+let lastAltTextSignature = null;
+let lastRenderSummary = {
+  layoutMode: STATE.layout || 'row',
+  count: 0,
+  jobs: []
+};
+const nkantNumberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2
+}) : null;
+function nkantFormatNumber(value) {
+  if (!Number.isFinite(value)) return String(value);
+  if (nkantNumberFormatter) return nkantNumberFormatter.format(value);
+  return String(Math.round(value * 100) / 100);
+}
+function nkantFormatList(items) {
+  if (!Array.isArray(items) || items.length === 0) return '';
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} og ${items[1]}`;
+  const head = items.slice(0, -1);
+  const tail = items[items.length - 1];
+  return `${head.join(', ')} og ${tail}`;
+}
+function cloneJobForSummary(job) {
+  if (!job || typeof job !== 'object') return null;
+  const values = {};
+  const source = job.obj && typeof job.obj === 'object' ? job.obj : {};
+  ['a', 'b', 'c', 'd', 'A', 'B', 'C', 'D'].forEach(key => {
+    const val = source[key];
+    if (typeof val === 'number' && Number.isFinite(val)) {
+      values[key] = val;
+    }
+  });
+  return {
+    type: job.type === 'tri' ? 'tri' : 'quad',
+    values
+  };
+}
+function getNkantAltSummary() {
+  const layoutMode = lastRenderSummary && typeof lastRenderSummary.layoutMode === 'string' ? lastRenderSummary.layoutMode : (STATE.layout || 'row');
+  const jobs = lastRenderSummary && Array.isArray(lastRenderSummary.jobs) ? lastRenderSummary.jobs : [];
+  const count = lastRenderSummary && typeof lastRenderSummary.count === 'number' ? lastRenderSummary.count : jobs.length;
+  return {
+    layoutMode,
+    count,
+    jobs
+  };
+}
+function buildNkantAltText(summary) {
+  const data = summary || getNkantAltSummary();
+  const count = data && typeof data.count === 'number' ? data.count : 0;
+  if (!count) {
+    return 'Ingen figurer.';
+  }
+  const sentences = [];
+  sentences.push(`Figuren viser ${count === 1 ? 'én figur' : `${count} figurer`}.`);
+  if (count > 1) {
+    const placement = data.layoutMode === 'col' ? 'under hverandre' : 'ved siden av hverandre';
+    sentences.push(`Figurene er plassert ${placement}.`);
+  }
+  const jobs = Array.isArray(data.jobs) ? data.jobs : [];
+  jobs.forEach((job, idx) => {
+    if (!job) return;
+    const typeLabel = job.type === 'tri' ? 'trekant' : 'firkant';
+    const sides = [];
+    const angles = [];
+    const values = job.values || {};
+    ['a', 'b', 'c', 'd'].forEach(key => {
+      if (values[key] != null && Number.isFinite(values[key])) {
+        sides.push(`${key}=${nkantFormatNumber(values[key])}`);
+      }
+    });
+    ['A', 'B', 'C', 'D'].forEach(key => {
+      if (values[key] != null && Number.isFinite(values[key])) {
+        angles.push(`${key}=${nkantFormatNumber(values[key])}°`);
+      }
+    });
+    let sentence = `Figur ${idx + 1} er en ${typeLabel}`;
+    if (sides.length) {
+      sentence += ` med sider ${nkantFormatList(sides)}`;
+    }
+    sentence += '.';
+    if (angles.length) {
+      sentence += ` Vinkler ${nkantFormatList(angles)}.`;
+    }
+    sentences.push(sentence.trim());
+  });
+  return sentences.join(' ');
+}
+function getNkantTitle() {
+  const base = typeof document !== 'undefined' && document && document.title ? document.title : 'Nkant';
+  const summary = getNkantAltSummary();
+  const count = summary && typeof summary.count === 'number' ? summary.count : 0;
+  if (!count) return base;
+  const suffix = count === 1 ? '1 figur' : `${count} figurer`;
+  return `${base} – ${suffix}`;
+}
+function getActiveNkantAltText() {
+  const stored = typeof STATE.altText === 'string' ? STATE.altText.trim() : '';
+  const source = STATE.altTextSource === 'manual' ? 'manual' : 'auto';
+  if (source === 'manual' && stored) return stored;
+  return stored || buildNkantAltText();
+}
+function maybeRefreshAltText(reason) {
+  const summary = getNkantAltSummary();
+  const key = JSON.stringify(summary);
+  const shouldRefresh = key !== lastAltTextSignature;
+  lastAltTextSignature = key;
+  if (shouldRefresh && altTextManager) {
+    altTextManager.refresh(reason || 'auto');
+  }
+}
+function initAltTextManager() {
+  if (typeof window === 'undefined' || !window.MathVisAltText) return;
+  const svg = document.getElementById('paper');
+  const container = document.getElementById('exportCard');
+  if (!svg || !container) return;
+  altTextManager = window.MathVisAltText.create({
+    svg,
+    container,
+    getTitle: getNkantTitle,
+    getState: () => ({
+      text: typeof STATE.altText === 'string' ? STATE.altText : '',
+      source: STATE.altTextSource === 'manual' ? 'manual' : 'auto'
+    }),
+    setState: (text, source) => {
+      STATE.altText = text;
+      STATE.altTextSource = source === 'manual' ? 'manual' : 'auto';
+    },
+    generate: () => buildNkantAltText(),
+    getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
+    getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
+  });
+  if (altTextManager) {
+    lastAltTextSignature = null;
+    altTextManager.applyCurrent();
+    maybeRefreshAltText('init');
+  }
 }
 
 /* ---------- STIL ---------- */
@@ -1173,6 +1315,12 @@ async function renderCombined() {
       "font-size": 18
     }).textContent = "Skriv én linje per figur for å tegne.";
     svg.setAttribute("aria-label", "");
+    lastRenderSummary = {
+      layoutMode: STATE.layout || 'row',
+      count: 0,
+      jobs: []
+    };
+    maybeRefreshAltText('config');
     return;
   }
   const gapTotal = Math.max(0, n - 1) * GAP;
@@ -1206,6 +1354,12 @@ async function renderCombined() {
       errorBox(groups[i], rects[i], String(e.message || e));
     }
   }
+  lastRenderSummary = {
+    layoutMode: rowLayout ? 'row' : 'col',
+    count: n,
+    jobs: jobs.map(cloneJobForSummary).filter(Boolean)
+  };
+  maybeRefreshAltText('config');
   svg.setAttribute("aria-label", n === 1 ? "Én figur" : `${n} figurer i samme bilde`);
 }
 
@@ -1394,9 +1548,10 @@ function bindUI() {
 }
 
 /* ---------- INIT ---------- */
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
   bindUI();
-  renderCombined();
+  initAltTextManager();
+  await renderCombined();
 });
 function applyStateToUI() {
   var _STATE$specsText;
