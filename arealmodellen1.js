@@ -27,7 +27,9 @@ const CFG = {
       area: 12,
       dedupeOrderless: true,
       autoExpandMax: true
-    }
+    },
+    altText: "",
+    altTextSource: "auto"
   },
   ADV: {
     svgId: "area",
@@ -112,6 +114,9 @@ const challengeRuntime = {
   allPairs: [],
   oriented: new Set()
 };
+let altTextManager = null;
+let lastAltTextSignature = null;
+const arealIntFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 function ensureCfgDefaults() {
   const fill = (target, defaults) => {
     if (!defaults || typeof defaults !== 'object') return;
@@ -144,6 +149,213 @@ function normalizeLayout(value) {
     return value;
   }
   return "quad";
+}
+function arealFormatInt(value) {
+  if (!Number.isFinite(value)) return String(value);
+  return arealIntFormatter ? arealIntFormatter.format(value) : String(value);
+}
+function arealToInt(value) {
+  const num = Math.round(Number(value));
+  return Number.isFinite(num) ? num : null;
+}
+function arealClampInt(value, min, max, fallback) {
+  let candidate = arealToInt(value);
+  if (candidate == null) candidate = arealToInt(fallback);
+  if (!Number.isFinite(min)) min = 0;
+  if (!Number.isFinite(max)) max = Number.isFinite(min) ? min : 0;
+  if (candidate == null) candidate = min;
+  if (candidate < min) candidate = min;
+  if (candidate > max) candidate = max;
+  return candidate;
+}
+function arealFormatCount(value, singular, pluralOverride) {
+  const pluralForms = {
+    kolonne: "kolonner",
+    rad: "rader",
+    rute: "ruter",
+    del: "deler"
+  };
+  const plural = pluralOverride || pluralForms[singular] || `${singular}er`;
+  const abs = Math.abs(value);
+  const word = abs === 1 ? singular : plural;
+  return `${arealFormatInt(value)} ${word}`;
+}
+function arealJoinList(items) {
+  if (!Array.isArray(items) || items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} og ${items[1]}`;
+  const head = items.slice(0, -1);
+  const tail = items[items.length - 1];
+  return `${head.join(', ')} og ${tail}`;
+}
+function getArealmodellAltSummary() {
+  ensureCfgDefaults();
+  const simple = CFG.SIMPLE || {};
+  const adv = CFG.ADV || {};
+  const layout = normalizeLayout(simple.layout);
+  const totalCols = Math.max(1, arealClampInt(simple.length && simple.length.cells, 1, Number.MAX_SAFE_INTEGER, 1));
+  const totalRows = Math.max(1, arealClampInt(simple.height && simple.height.cells, 1, Number.MAX_SAFE_INTEGER, 1));
+  const defaultLeft = Math.floor(totalCols / 2);
+  const defaultBottom = Math.floor(totalRows / 2);
+  let leftCols = totalCols;
+  let rightCols = 0;
+  if (layout !== "vertical" && layout !== "single") {
+    leftCols = arealClampInt(simple.length && simple.length.handle, 0, totalCols, defaultLeft);
+    rightCols = Math.max(0, totalCols - leftCols);
+  }
+  let bottomRows = totalRows;
+  let topRows = 0;
+  if (layout !== "horizontal" && layout !== "single") {
+    bottomRows = arealClampInt(simple.height && simple.height.handle, 0, totalRows, defaultBottom);
+    topRows = Math.max(0, totalRows - bottomRows);
+  }
+  const labels = adv.labels || {};
+  const cellMode = typeof labels.cellMode === "string" ? labels.cellMode : "factors";
+  const edgeMode = typeof labels.edgeMode === "string" ? labels.edgeMode : "counts";
+  const showLengthAxis = totalCols > 1 && (!simple.length || simple.length.show !== false);
+  const showHeightAxis = layout !== "horizontal" && totalRows > 1 && (!simple.height || simple.height.show !== false);
+  return {
+    layout,
+    totalCols,
+    totalRows,
+    leftCols,
+    rightCols,
+    bottomRows,
+    topRows,
+    showGrid: adv.grid !== false,
+    cellMode,
+    edgeMode,
+    splitLines: adv.splitLines !== false,
+    showLengthAxis,
+    showHeightAxis,
+    challengeActive: !!challengeRuntime.active,
+    challengeGoal: challengeRuntime.N != null ? Math.round(Number(challengeRuntime.N)) : null
+  };
+}
+function buildArealmodellAltText(summary) {
+  const data = summary || getArealmodellAltSummary();
+  if (!data) return "Arealmodell.";
+  const sentences = [];
+  sentences.push(`Figuren viser en arealmodell med ${arealFormatCount(data.totalCols, 'kolonne')} og ${arealFormatCount(data.totalRows, 'rad')}.`);
+  sentences.push(data.showGrid ? "Rutenettet er synlig." : "Rutenettet er skjult.");
+  const totalArea = data.totalCols * data.totalRows;
+  const hasVerticalSplit = data.leftCols > 0 && data.rightCols > 0 && data.layout !== "vertical" && data.layout !== "single";
+  const hasHorizontalSplit = data.topRows > 0 && data.bottomRows > 0 && data.layout !== "horizontal" && data.layout !== "single";
+  if (!hasVerticalSplit && !hasHorizontalSplit) {
+    sentences.push(`Totalt areal er ${arealFormatCount(totalArea, 'rute')}.`);
+  } else {
+    if (hasVerticalSplit) {
+      sentences.push(`Rektangelet er delt vertikalt i ${arealFormatCount(data.leftCols, 'kolonne')} til venstre og ${arealFormatCount(data.rightCols, 'kolonne')} til høyre.`);
+      sentences.push(`Venstre del dekker ${arealFormatCount(data.leftCols * data.totalRows, 'rute')} (${arealFormatInt(data.leftCols)}×${arealFormatInt(data.totalRows)}).`);
+      sentences.push(`Høyre del dekker ${arealFormatCount(data.rightCols * data.totalRows, 'rute')} (${arealFormatInt(data.rightCols)}×${arealFormatInt(data.totalRows)}).`);
+    }
+    if (hasHorizontalSplit) {
+      sentences.push(`Rektangelet er delt horisontalt i ${arealFormatCount(data.bottomRows, 'rad')} nederst og ${arealFormatCount(data.topRows, 'rad')} øverst.`);
+      sentences.push(`Nederste del dekker ${arealFormatCount(data.bottomRows * data.totalCols, 'rute')} (${arealFormatInt(data.totalCols)}×${arealFormatInt(data.bottomRows)}).`);
+      sentences.push(`Øverste del dekker ${arealFormatCount(data.topRows * data.totalCols, 'rute')} (${arealFormatInt(data.totalCols)}×${arealFormatInt(data.topRows)}).`);
+    }
+    if (data.layout === "quad") {
+      const quadParts = [];
+      if (data.leftCols > 0 && data.topRows > 0) quadParts.push(`øverst til venstre ${arealFormatCount(data.leftCols * data.topRows, 'rute')} (${arealFormatInt(data.leftCols)}×${arealFormatInt(data.topRows)})`);
+      if (data.rightCols > 0 && data.topRows > 0) quadParts.push(`øverst til høyre ${arealFormatCount(data.rightCols * data.topRows, 'rute')} (${arealFormatInt(data.rightCols)}×${arealFormatInt(data.topRows)})`);
+      if (data.leftCols > 0 && data.bottomRows > 0) quadParts.push(`nederst til venstre ${arealFormatCount(data.leftCols * data.bottomRows, 'rute')} (${arealFormatInt(data.leftCols)}×${arealFormatInt(data.bottomRows)})`);
+      if (data.rightCols > 0 && data.bottomRows > 0) quadParts.push(`nederst til høyre ${arealFormatCount(data.rightCols * data.bottomRows, 'rute')} (${arealFormatInt(data.rightCols)}×${arealFormatInt(data.bottomRows)})`);
+      if (quadParts.length) sentences.push(`Dette gir fire delrektangler: ${arealJoinList(quadParts)}.`);
+    }
+  }
+  switch (data.cellMode) {
+    case "none":
+      sentences.push("Delene er uten regnestykker.");
+      break;
+    case "factors":
+      sentences.push("Delene er merket med faktorene for lengde og høyde.");
+      break;
+    case "area":
+      sentences.push("Delene er merket med areal i ruter.");
+      break;
+    default:
+      sentences.push("Delene er merket med faktorene og resultatet.");
+  }
+  if (data.edgeMode === "counts") {
+    if (data.showLengthAxis || data.showHeightAxis) sentences.push("Tall langs kantene viser antall kolonner og rader.");
+  } else if (data.showLengthAxis || data.showHeightAxis) {
+    sentences.push("Kantene har ikke tallmarkeringer.");
+  }
+  if (!data.splitLines && (hasVerticalSplit || hasHorizontalSplit)) {
+    sentences.push("Delingslinjene er skjult.");
+  }
+  if (data.challengeActive && data.challengeGoal) {
+    sentences.push(`Oppgavemodus er aktiv for areal ${arealFormatInt(data.challengeGoal)}.`);
+  }
+  return sentences.filter(Boolean).join(' ');
+}
+function getArealmodellTitle() {
+  const base = typeof document !== 'undefined' && document && document.title ? document.title : 'Arealmodell';
+  const summary = getArealmodellAltSummary();
+  if (!summary) return base;
+  const suffix = `${arealFormatInt(summary.totalCols)}×${arealFormatInt(summary.totalRows)} ruter`;
+  return `${base} – ${suffix}`;
+}
+function getActiveArealmodellAltText() {
+  const stored = typeof CFG.SIMPLE.altText === 'string' ? CFG.SIMPLE.altText.trim() : '';
+  const source = CFG.SIMPLE.altTextSource === 'manual' ? 'manual' : 'auto';
+  if (source === 'manual' && stored) return stored;
+  return stored || buildArealmodellAltText();
+}
+function maybeRefreshAltText(reason) {
+  const summary = getArealmodellAltSummary();
+  const key = JSON.stringify(summary);
+  const shouldRefresh = key !== lastAltTextSignature;
+  lastAltTextSignature = key;
+  if (shouldRefresh && altTextManager) {
+    altTextManager.refresh(reason || 'auto');
+  }
+}
+function escapeXml(text) {
+  if (text == null) return '';
+  return String(text).replace(/[&<>'"]/g, ch => {
+    switch (ch) {
+      case '&':
+        return '&amp;';
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '"':
+        return '&quot;';
+      case "'":
+        return '&#39;';
+      default:
+        return ch;
+    }
+  });
+}
+function initAltTextManager() {
+  if (typeof window === 'undefined' || !window.MathVisAltText) return;
+  const svg = document.getElementById('area');
+  const container = document.getElementById('exportCard');
+  if (!svg || !container) return;
+  altTextManager = window.MathVisAltText.create({
+    svg,
+    container,
+    getTitle: getArealmodellTitle,
+    getState: () => ({
+      text: typeof CFG.SIMPLE.altText === 'string' ? CFG.SIMPLE.altText : '',
+      source: CFG.SIMPLE.altTextSource === 'manual' ? 'manual' : 'auto'
+    }),
+    setState: (text, source) => {
+      CFG.SIMPLE.altText = text;
+      CFG.SIMPLE.altTextSource = source === 'manual' ? 'manual' : 'auto';
+    },
+    generate: () => buildArealmodellAltText(),
+    getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
+    getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
+  });
+  if (altTextManager) {
+    lastAltTextSignature = null;
+    altTextManager.applyCurrent();
+    maybeRefreshAltText('init');
+  }
 }
 currentLayoutMode = normalizeLayout((CFG !== null && CFG !== void 0 && CFG.SIMPLE ? CFG.SIMPLE.layout : null));
 function factorPairsSorted(N) {
@@ -227,10 +439,14 @@ function syncChallengeState(layoutMode) {
     if (activeChanged || enabledChanged || areaChanged) {
       renderChallengeList();
     }
+    if (activeChanged || enabledChanged || areaChanged || dedupeChanged || autoChanged) {
+      maybeRefreshAltText('config');
+    }
     return;
   }
   if (activeChanged || enabledChanged || areaChanged || dedupeChanged || autoChanged) {
     renderChallengeList();
+    maybeRefreshAltText('config');
   }
 }
 function tryRegisterChallengeHit(cols, rows) {
@@ -771,6 +987,7 @@ function draw() {
           lengthStart.value = strValue;
           lengthStart.setAttribute('value', strValue);
         }
+        maybeRefreshAltText('interaction');
       }
     } else {
       lastSyncedLeft = null;
@@ -786,6 +1003,7 @@ function draw() {
           heightStart.value = strValue;
           heightStart.setAttribute('value', strValue);
         }
+        maybeRefreshAltText('interaction');
       }
     } else {
       lastSyncedBottom = null;
@@ -802,6 +1020,7 @@ function draw() {
         lengthInput.value = strValue;
         lengthInput.setAttribute('value', strValue);
       }
+      maybeRefreshAltText('interaction');
     }
     if (rows !== lastSyncedRows) {
       lastSyncedRows = rows;
@@ -813,6 +1032,7 @@ function draw() {
         heightInput.value = strValue;
         heightInput.setAttribute('value', strValue);
       }
+      maybeRefreshAltText('interaction');
     }
   }
   injectRuntimeStyles();
@@ -1396,6 +1616,7 @@ function draw() {
   }
   redraw();
   fitToViewport();
+  maybeRefreshAltText('config');
   window.addEventListener("resize", fitToViewport, {
     passive: true
   });
@@ -1919,6 +2140,7 @@ svg text { user-select: none; -webkit-user-select: none; }
     const ML = o.margins.ML,
       MT = o.margins.MT;
     const layoutState = computeLayoutState(o.layout, o.width, o.height, o.cols, o.rows, o.sx, o.sy, o.unit);
+    const exportAltText = getActiveArealmodellAltText();
     const leftWidth = layoutState.leftWidth;
     const rightWidth = layoutState.rightWidth;
     const topHeight = layoutState.topHeight;
@@ -1963,6 +2185,9 @@ svg text { user-select: none; -webkit-user-select: none; }
     if (includeXmlHeader) parts.push('<?xml version="1.0" encoding="UTF-8"?>');
     parts.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + o.vbw + ' ' + o.vbh + '" width="' + o.vbw + '" height="' + o.vbh + '" tabindex="0">');
     parts.push('<title>Arealmodell – dragbare delinger</title>');
+    if (exportAltText) {
+      parts.push('<desc>' + escapeXml(exportAltText) + '</desc>');
+    }
     parts.push('<style>' + o.colorsCSS + '</style>');
     parts.push('<defs><clipPath id="clipR"><rect x="' + ML + '" y="' + MT + '" width="' + o.width + '" height="' + o.height + '"/></clipPath></defs>');
     parts.push('<rect class="' + o.classes.outer + '" x="' + ML + '" y="' + MT + '" width="' + o.width + '" height="' + o.height + '"/>');
@@ -2254,6 +2479,13 @@ function setSimpleConfig(o = {}) {
   setVal("challengeArea", CFG.SIMPLE.challenge && CFG.SIMPLE.challenge.area);
   setSelect("layoutMode", CFG.SIMPLE.layout);
   syncChallengeState(CFG.SIMPLE.layout);
+  if (typeof o.altText === 'string') {
+    CFG.SIMPLE.altText = o.altText;
+    CFG.SIMPLE.altTextSource = o.altText ? 'manual' : 'auto';
+  }
+  if (typeof o.altTextSource === 'string') {
+    CFG.SIMPLE.altTextSource = o.altTextSource === 'manual' ? 'manual' : 'auto';
+  }
   render();
 }
 window.setArealmodellBConfig = setSimpleConfig;
@@ -2330,6 +2562,7 @@ function render() {
   applyExamplesConfig();
 }
 window.addEventListener('load', () => {
+  initAltTextManager();
   initFromHtml();
   document.querySelectorAll('.settings input, .settings select').forEach(el => {
     el.addEventListener('change', initFromHtml);
