@@ -26,6 +26,77 @@
   }
 })();
 
+(function removeRestoreExampleButtons() {
+  if (typeof document === 'undefined') return;
+  const targetText = 'gjenopprett eksempler';
+  const isElement = node => {
+    if (typeof Node === 'undefined') return !!(node && node.nodeType === 1);
+    return !!(node && node.nodeType === Node.ELEMENT_NODE);
+  };
+  const normalizeText = value => {
+    if (typeof value !== 'string') return '';
+    return value.replace(/\s+/g, ' ').trim().toLowerCase();
+  };
+  const shouldRemove = button => {
+    if (!button) return false;
+    const text = normalizeText(button.textContent || '');
+    return text === targetText;
+  };
+  const removeButtonsIn = root => {
+    let removed = false;
+    if (!root) return removed;
+    const process = element => {
+      if (!element) return;
+      if (shouldRemove(element)) {
+        element.remove();
+        removed = true;
+      }
+    };
+    if (root === document || root === document.documentElement || root === document.body) {
+      const buttons = document.querySelectorAll('button');
+      buttons.forEach(process);
+      return removed;
+    }
+    if (isElement(root)) {
+      if (root.tagName === 'BUTTON') {
+        process(root);
+      }
+      root.querySelectorAll && root.querySelectorAll('button').forEach(process);
+    } else if (root && typeof root.querySelectorAll === 'function') {
+      root.querySelectorAll('button').forEach(process);
+    }
+    return removed;
+  };
+  const removeAll = () => {
+    if (!document.body) return false;
+    return removeButtonsIn(document);
+  };
+  const initRemoval = () => {
+    removeAll();
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initRemoval, { once: true });
+  } else {
+    initRemoval();
+  }
+  if (typeof MutationObserver !== 'function') return;
+  const observer = new MutationObserver(mutations => {
+    let removed = false;
+    mutations.forEach(mutation => {
+      mutation.addedNodes && mutation.addedNodes.forEach(node => {
+        if (removeButtonsIn(node)) removed = true;
+      });
+    });
+    if (removed) {
+      removeAll();
+    }
+  });
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true
+  });
+})();
+
 (function () {
   const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
   function createMemoryStorage() {
