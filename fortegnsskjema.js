@@ -731,12 +731,6 @@
           segments: [-1, 1, -1, 1],
           role: 'result',
           locked: false
-        }, {
-          id: 'row-2',
-          label: 'Observasjon',
-          segments: [-1, -1, 1, 1],
-          role: 'custom',
-          locked: false
         }],
         solution: null
       }
@@ -1963,11 +1957,6 @@
   }
   function renderExpressionDisplay() {
     if (!expressionDisplay) {
-      return;
-    }
-    if (Array.isArray(state.signRows) && state.signRows.length > 0) {
-      expressionDisplay.textContent = '';
-      expressionDisplay.classList.add('chart-expression--empty');
       return;
     }
     const expr = typeof state.expression === 'string' ? state.expression.trim() : '';
