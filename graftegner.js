@@ -107,6 +107,7 @@ function buildSimple() {
   return lines.join('\n');
 }
 let SIMPLE = typeof window !== 'undefined' && typeof window.SIMPLE !== 'undefined' ? window.SIMPLE : buildSimple();
+let LAST_RENDERED_SIMPLE = SIMPLE;
 if (typeof window !== 'undefined') {
   window.SIMPLE = SIMPLE;
 }
@@ -2930,7 +2931,10 @@ function rebuildAll() {
   }
   START_SCREEN = plannedScreen;
   initBoard();
-  if (!brd) return;
+  if (!brd) {
+    LAST_RENDERED_SIMPLE = SIMPLE;
+    return;
+  }
   if (MODE === 'functions') {
     buildFunctions();
   } else {
@@ -2941,6 +2945,7 @@ function rebuildAll() {
   updateAfterViewChange();
   applyAltTextToBoard();
   refreshAltText('rebuild');
+  LAST_RENDERED_SIMPLE = SIMPLE;
 }
 window.addEventListener('resize', () => {
   var _JXG;
@@ -3717,12 +3722,14 @@ function setupSettingsForm() {
   };
   const syncSimpleFromForm = () => {
     const simple = buildSimpleFromForm();
-    if (simple === SIMPLE) return;
-    SIMPLE = simple;
-    if (typeof window !== 'undefined') {
-      window.SIMPLE = SIMPLE;
+    if (simple !== SIMPLE) {
+      SIMPLE = simple;
+      if (typeof window !== 'undefined') {
+        window.SIMPLE = SIMPLE;
+      }
+      refreshAltText('form-change');
     }
-    refreshAltText('form-change');
+    return simple;
   };
   const handleExternalLinePointUpdate = event => {
     if (!linePointSection || !Array.isArray(linePointInputs) || linePointInputs.length === 0) {
@@ -4019,9 +4026,9 @@ function setupSettingsForm() {
     fontSizeInput.value = String(sanitizeFontSize(ADV.axis.grid.fontSize, FONT_DEFAULT));
   }
   const apply = () => {
-    const prevSimple = SIMPLE;
-    syncSimpleFromForm();
-    const simpleChanged = SIMPLE !== prevSimple;
+    const prevSimple = LAST_RENDERED_SIMPLE;
+    const currentSimple = syncSimpleFromForm();
+    const simpleChanged = currentSimple !== prevSimple;
     let needsRebuild = simpleChanged;
     const screenInput = g('cfgScreen');
     const screenRaw = screenInput ? screenInput.value.trim() : '';
