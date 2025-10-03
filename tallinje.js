@@ -12,6 +12,7 @@
   const labelFontSizeInput = document.getElementById('cfg-labelFontSize');
   const btnSvg = document.getElementById('btnSvg');
   const btnPng = document.getElementById('btnPng');
+  const clampLineInput = document.getElementById('cfg-clampLine');
   const exportCard = document.getElementById('exportCard');
 
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
@@ -27,6 +28,7 @@
     numberType: 'integer',
     decimalDigits: 1,
     labelFontSize: BASE_LABEL_FONT_SIZE,
+    clampToRange: false,
     altText: '',
     altTextSource: 'auto'
   };
@@ -93,6 +95,7 @@
     }
     labelFontSize = Math.min(Math.max(labelFontSize, 8), 72);
 
+    STATE.clampToRange = Boolean(STATE.clampToRange);
     if (typeof STATE.altText !== 'string') STATE.altText = '';
     STATE.altTextSource = STATE.altTextSource === 'manual' ? 'manual' : 'auto';
 
@@ -285,6 +288,7 @@
       decimalDigitsInput.disabled = STATE.numberType !== 'decimal';
     }
     if (labelFontSizeInput) labelFontSizeInput.value = String(STATE.labelFontSize);
+    if (clampLineInput) clampLineInput.checked = Boolean(STATE.clampToRange);
   }
 
   function mk(name, attrs) {
@@ -302,7 +306,7 @@
     return el;
   }
 
-  function computeMajorValues(from, to, step) {
+  function computeMajorValues(from, to, step, margin = 0) {
     const values = [];
     const epsilon = Math.max(Math.abs(step) * 1e-7, 1e-9);
     if (step > 0) {
@@ -322,7 +326,29 @@
     if (Math.abs(last - to) > epsilon) {
       values.push(Math.round(to * 1e9) / 1e9);
     }
+    if (margin > epsilon && step > 0 && values.length) {
+      const marginEpsilon = Math.max(Math.abs(step) * 1e-7, 1e-9);
+      const minValue = from - margin;
+      const maxValue = to + margin;
+      for (let value = values[0] - step; value >= minValue - marginEpsilon; value -= step) {
+        values.unshift(Math.round(value * 1e9) / 1e9);
+      }
+      for (let value = values[values.length - 1] + step; value <= maxValue + marginEpsilon; value += step) {
+        values.push(Math.round(value * 1e9) / 1e9);
+      }
+    }
     return values;
+  }
+
+  function computeRangeMargin(from, to, mainStep, clampToRange) {
+    if (clampToRange) return 0;
+    const span = to - from;
+    const effectiveRange = Math.max(Math.abs(span), 1e-6);
+    const rangeMargin = effectiveRange * 0.1;
+    if (rangeMargin > 0) return rangeMargin;
+    const stepAbs = Math.abs(mainStep);
+    if (stepAbs > 0) return stepAbs;
+    return 1;
   }
 
   function render() {
@@ -330,7 +356,9 @@
     updateControlsFromState();
 
     const { from, to, mainStep, subdivisions } = STATE;
-    const majorValues = computeMajorValues(from, to, Math.max(mainStep, 1e-9));
+    const clampToRange = Boolean(STATE.clampToRange);
+    const margin = computeRangeMargin(from, to, mainStep, clampToRange);
+    const majorValues = computeMajorValues(from, to, Math.max(mainStep, 1e-9), margin);
 
     while (svg.firstChild) {
       svg.removeChild(svg.firstChild);
@@ -344,11 +372,8 @@
     const minorTickHeight = 18;
     const labelOffset = 52 + (STATE.labelFontSize - BASE_LABEL_FONT_SIZE) * 1.2;
 
-    const span = to - from;
-    const effectiveRange = Math.max(Math.abs(span), 1e-6);
-    const margin = effectiveRange * 0.1 || Math.max(Math.abs(mainStep), 1);
-    const domainMin = from - margin;
-    const domainMax = to + margin;
+    const domainMin = clampToRange ? from : from - margin;
+    const domainMax = clampToRange ? to : to + margin;
     const innerWidth = width - paddingLeft - paddingRight;
 
     const mapValue = value => {
@@ -360,10 +385,12 @@
     const axisGroup = mk('g');
     svg.appendChild(axisGroup);
 
+    const axisStartValue = clampToRange ? from : domainMin;
+    const axisEndValue = clampToRange ? to : domainMax;
     axisGroup.appendChild(mk('line', {
-      x1: 0,
+      x1: mapValue(axisStartValue),
       y1: baselineY,
-      x2: width,
+      x2: mapValue(axisEndValue),
       y2: baselineY,
       class: 'number-line-base'
     }));
@@ -421,7 +448,9 @@
       to,
       mainStep,
       subdivisions,
-      majorValues: majorValues.slice()
+      majorValues: majorValues.slice(),
+      clampToRange,
+      margin
     };
 
     refreshAltText('render');
@@ -439,17 +468,26 @@
   }
 
   function buildTallinjeAltText() {
+    const clampSetting = Boolean(STATE.clampToRange);
+    const margin = computeRangeMargin(STATE.from, STATE.to, STATE.mainStep, clampSetting);
     const summary = lastRenderSummary || {
       from: STATE.from,
       to: STATE.to,
       mainStep: STATE.mainStep,
       subdivisions: STATE.subdivisions,
-      majorValues: computeMajorValues(STATE.from, STATE.to, Math.max(STATE.mainStep, 1e-9))
+      clampToRange: clampSetting,
+      margin,
+      majorValues: computeMajorValues(
+        STATE.from,
+        STATE.to,
+        Math.max(STATE.mainStep, 1e-9),
+        margin
+      )
     };
     if (!summary || !Array.isArray(summary.majorValues) || !summary.majorValues.length) {
       return 'Tallinjen viser ingen markeringer.';
     }
-    const { from, to, mainStep, subdivisions, majorValues } = summary;
+    const { from, to, mainStep, subdivisions, majorValues, clampToRange } = summary;
     const typeLabel = getNumberTypeLabel();
     const parts = [];
     parts.push(`Tallinjen viser området fra ${formatAltNumber(from)} til ${formatAltNumber(to)}.`);
@@ -463,6 +501,11 @@
       parts.push(`Hver hovedmarkering er delt i ${subdivisions} delmarkeringer.`);
     } else {
       parts.push('Ingen delmarkeringer er aktivert.');
+    }
+    if (clampToRange) {
+      parts.push('Tallinjen stopper ved start- og sluttverdien.');
+    } else {
+      parts.push('Tallinjen har ekstra plass med markeringer foran og bak start og stopp.');
     }
     parts.push(`Tallene vises som ${typeLabel}.`);
     return parts.join(' ');
@@ -628,6 +671,13 @@
     });
   }
 
+  if (clampLineInput) {
+    clampLineInput.addEventListener('change', () => {
+      STATE.clampToRange = clampLineInput.checked;
+      render();
+    });
+  }
+
   if (btnSvg) {
     btnSvg.addEventListener('click', () => downloadSVG(svg, 'tallinje.svg'));
   }
@@ -655,6 +705,7 @@
         numberType: 'integer',
         decimalDigits: 1,
         labelFontSize: BASE_LABEL_FONT_SIZE,
+        clampToRange: false,
         altText: '',
         altTextSource: 'auto'
       }
@@ -671,6 +722,7 @@
         numberType: 'decimal',
         decimalDigits: 1,
         labelFontSize: BASE_LABEL_FONT_SIZE,
+        clampToRange: false,
         altText: '',
         altTextSource: 'auto'
       }
@@ -687,6 +739,7 @@
         numberType: 'fraction',
         decimalDigits: 2,
         labelFontSize: BASE_LABEL_FONT_SIZE,
+        clampToRange: false,
         altText: '',
         altTextSource: 'auto'
       }

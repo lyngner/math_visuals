@@ -106,6 +106,8 @@
       font-size: 12px;
       color: #6b7280;
     }
+    .checkbox-field { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; }
+    .checkbox-field input[type="checkbox"] { width: auto; height: auto; margin: 0; }
     .number-line-base { stroke: #0f172a; stroke-width: 4; stroke-linecap: round; }
     .major-tick { stroke: #0f172a; stroke-width: 3; stroke-linecap: round; }
     .minor-tick { stroke: #4b5563; stroke-width: 2; stroke-linecap: round; opacity: 0.75; }
@@ -200,7 +202,11 @@
               <input id="cfg-labelFontSize" type="number" min="8" max="72" />
             </label>
           </div>
-          <p class="hint">Tallinjen viser 10&nbsp;% margin utenfor første og siste hovedmarkering.</p>
+          <label class="checkbox-field">
+            <input id="cfg-clampLine" type="checkbox" />
+            Stopp tallinjen ved start- og sluttpunktet
+          </label>
+          <p class="hint">Når avmerkingen er slått av, viser tallinjen 10&nbsp;% margin med ekstra markeringer utenfor start og stopp.</p>
         </div>
 
         <div class="card" id="exportCard">
