@@ -239,6 +239,10 @@ function normalizePath(value) {
   path = path.replace(/[\\]+/g, '/');
   path = path.replace(/\/+/g, '/');
   path = path.replace(/\/index\.html?$/i, '/');
+  if (/\.html?$/i.test(path)) {
+    path = path.replace(/\.html?$/i, '');
+    if (!path) path = '/';
+  }
   if (path.length > 1 && path.endsWith('/')) {
     path = path.slice(0, -1);
   }

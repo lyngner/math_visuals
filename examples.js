@@ -274,6 +274,11 @@
     path = path.replace(/\/+/g, '/');
     // Remove trailing index.html or index.htm
     path = path.replace(/\/index\.html?$/i, '/');
+    // Treat page.html and page.htm as the same canonical location as /page
+    if (/\.html?$/i.test(path)) {
+      path = path.replace(/\.html?$/i, '');
+      if (!path) path = '/';
+    }
     if (path.length > 1 && path.endsWith('/')) {
       path = path.slice(0, -1);
     }
@@ -340,6 +345,10 @@
     addPath(canonicalPath);
     if (canonicalPath && canonicalPath !== '/' && !canonicalPath.endsWith('/')) {
       addPath(canonicalPath + '/');
+    }
+    if (canonicalPath && canonicalPath !== '/' && !/\.html?$/i.test(canonicalPath)) {
+      addPath(`${canonicalPath}.html`);
+      addPath(`${canonicalPath}.htm`);
     }
     const canonicalBase = canonicalPath.endsWith('/') ? canonicalPath : `${canonicalPath}/`;
     addPath(canonicalBase + 'index.html');
