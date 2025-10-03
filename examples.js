@@ -282,7 +282,19 @@
     if (path.length > 1 && path.endsWith('/')) {
       path = path.slice(0, -1);
     }
-    return path || '/';
+    if (!path) return '/';
+    let decoded = path;
+    try {
+      decoded = decodeURI(path);
+    } catch (_) {}
+    let encoded = decoded;
+    try {
+      encoded = encodeURI(decoded);
+    } catch (_) {
+      encoded = path;
+    }
+    if (!encoded) return '/';
+    return encoded.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
   }
   function computeLegacyStorageKeys(rawPath, canonicalPath) {
     const prefix = 'examples_';
