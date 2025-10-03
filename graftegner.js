@@ -3421,6 +3421,73 @@ function setupSettingsForm() {
       }
     });
   };
+  const applyLinePointValues = (points, spec) => {
+    if (!Array.isArray(points) || !points.length) {
+      return false;
+    }
+    const clones = points.map(pt => Array.isArray(pt) ? pt.slice(0, 2) : null).filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite));
+    if (!clones.length) {
+      return false;
+    }
+    if (SIMPLE_PARSED && typeof SIMPLE_PARSED === 'object') {
+      SIMPLE_PARSED.linePoints = clones.map(pt => pt.slice());
+    }
+    if (Array.isArray(ADV.points.start)) {
+      for (let i = 0; i < clones.length && i < ADV.points.start.length; i++) {
+        ADV.points.start[i] = clones[i].slice();
+      }
+    }
+    if (MODE === 'points' && brd && Array.isArray(moving) && moving.length) {
+      const resolvedSpec = spec || getLineTemplateSpec();
+      const kind = resolvedSpec && resolvedSpec.kind ? resolvedSpec.kind : null;
+      const moveTargets = kind === 'two' ? clones : [clones[0]];
+      const limit = Math.min(moveTargets.length, moving.length);
+      for (let i = 0; i < limit; i++) {
+        const point = moving[i];
+        const target = kind === 'two' ? moveTargets[i] : moveTargets[0];
+        if (!point || !Array.isArray(target)) continue;
+        const [tx, ty] = target;
+        if (!Number.isFinite(tx) || !Number.isFinite(ty)) continue;
+        if (typeof point.moveTo === 'function') {
+          let moveNeeded = true;
+          if (typeof point.X === 'function' && typeof point.Y === 'function') {
+            const currentX = point.X();
+            const currentY = point.Y();
+            if (Number.isFinite(currentX) && Number.isFinite(currentY)) {
+              const EPS = 1e-9;
+              moveNeeded = Math.abs(currentX - tx) > EPS || Math.abs(currentY - ty) > EPS;
+            }
+          }
+          if (moveNeeded) {
+            try {
+              point.moveTo([tx, ty]);
+              if (point.label && typeof point.label.setText === 'function') {
+                point.label.setText(() => fmtCoordsStatic(point));
+              }
+            } catch (_) {
+              // ignore move errors
+            }
+          }
+        }
+      }
+      if (typeof brd.update === 'function') {
+        brd.update();
+      }
+    }
+    return true;
+  };
+  const syncLinePointsToBoardFromInputs = () => {
+    const spec = getLineTemplateSpec();
+    const needed = getLinePointCount(spec);
+    if (needed <= 0) {
+      return false;
+    }
+    const values = getLinePointsFromInputs(needed);
+    if (values.length !== needed) {
+      return false;
+    }
+    return applyLinePointValues(values, spec);
+  };
   const formatLinePoints = points => points.map(pt => `(${formatNumber(pt[0])}, ${formatNumber(pt[1])})`).join('; ');
   const getLinePointsFromInputs = needed => {
     if (!Array.isArray(linePointInputs) || linePointInputs.length === 0 || needed <= 0) return [];
@@ -3819,14 +3886,13 @@ function setupSettingsForm() {
       }
       linePointInputs.forEach(input => {
         if (!input) return;
-        input.addEventListener('input', () => {
+        const handleLinePointInputChange = () => {
           linePointsEdited = true;
+          syncLinePointsToBoardFromInputs();
           syncSimpleFromForm();
-        });
-        input.addEventListener('change', () => {
-          linePointsEdited = true;
-          syncSimpleFromForm();
-        });
+        };
+        input.addEventListener('input', handleLinePointInputChange);
+        input.addEventListener('change', handleLinePointInputChange);
       });
     }
     if (funInput) {
