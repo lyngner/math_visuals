@@ -310,12 +310,56 @@ function collectTenkeblokkerAltSummary() {
   };
 }
 
+function describeSingleTenkeblokk(block) {
+  if (!block) return '';
+  const details = [];
+  const hasK = Number.isFinite(block.k);
+  const hasN = Number.isFinite(block.n);
+  const nText = hasN ? formatCount(block.n, 'del', 'deler') : '';
+  const kText = hasK ? formatCount(block.k, 'markert del', 'markerte deler') : '';
+  if (kText && nText) {
+    details.push(`${kText} av ${nText}`);
+  } else if (nText) {
+    details.push(`delt i ${nText}`);
+  } else if (kText) {
+    details.push(kText);
+  }
+  if (Number.isFinite(block.total)) {
+    const totalText = fmt(block.total);
+    if (block.showWhole) {
+      details.push(`totalen ${totalText}`);
+    } else {
+      details.push(`totalverdi ${totalText}`);
+    }
+  }
+  if (block.customText) {
+    details.push(`etiketten «${block.customText}»`);
+  }
+  let sentence = 'Tenkeblokk';
+  const detailText = joinWithOg(details);
+  if (detailText) {
+    sentence += ` med ${detailText}`;
+  }
+  if (!sentence.endsWith('.')) sentence += '.';
+  return sentence;
+}
+
 function buildTenkeblokkerAltText(summary) {
   const data = summary || collectTenkeblokkerAltSummary();
   if (!data) return 'Tenkeblokker.';
   const sentences = [];
   const visibleBlocks = data.blocks.filter(block => block.visible);
   const blockCount = visibleBlocks.length;
+  if (blockCount === 0) {
+    sentences.push('Visualiseringen viser ingen tenkeblokker.');
+    sentences.push('Ingen blokker er synlige.');
+    return sentences.filter(Boolean).join(' ');
+  }
+  if (blockCount === 1) {
+    const sentence = describeSingleTenkeblokk(visibleBlocks[0]);
+    if (sentence) sentences.push(sentence);
+    return sentences.filter(Boolean).join(' ');
+  }
   const countText = blockCount === 0 ? 'ingen tenkeblokker' : blockCount === 1 ? 'én tenkeblokk' : `${blockCount} tenkeblokker`;
   sentences.push(`Visualiseringen viser ${countText} organisert i ${formatCount(data.rows, 'rad', 'rader')} og ${formatCount(data.cols, 'kolonne', 'kolonner')}.`);
   const labelDescriptions = data.rowLabels
