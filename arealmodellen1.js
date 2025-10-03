@@ -139,6 +139,17 @@ function ensureCfgDefaults() {
   if (!CFG.ADV || typeof CFG.ADV !== 'object') CFG.ADV = {};
   fill(CFG.SIMPLE, DEFAULT_SIMPLE_CFG);
   fill(CFG.ADV, DEFAULT_ADV_CFG);
+  if (CFG.SIMPLE && typeof CFG.SIMPLE === 'object') {
+    const legacyLayout = (() => {
+      if (CFG.SIMPLE.layout != null) return CFG.SIMPLE.layout;
+      if (CFG.SIMPLE.layoutMode != null) return CFG.SIMPLE.layoutMode;
+      if (CFG.layoutMode != null) return CFG.layoutMode;
+      return null;
+    })();
+    if (legacyLayout != null) {
+      CFG.SIMPLE.layout = normalizeLayout(legacyLayout);
+    }
+  }
   if (CFG.ADV.labels && typeof CFG.ADV.labels === "object" && CFG.ADV.labels.cellMode && CFG.ADV.labels.cellMode !== "none") {
     lastVisibleCellMode = CFG.ADV.labels.cellMode;
   }
