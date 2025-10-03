@@ -234,12 +234,32 @@ if (regenerateAltTextBtn) {
 }
 const addSeriesBtn = document.getElementById('addSeries');
 const series2Fields = document.getElementById('series2Fields');
+const axisAndRangeRow = document.getElementById('cfgAxisAndRangeRow');
 addSeriesBtn === null || addSeriesBtn === void 0 || addSeriesBtn.addEventListener('click', () => {
   series2Enabled = true;
   addSeriesBtn.style.display = 'none';
   if (series2Fields) series2Fields.style.display = '';
   applyCfg();
 });
+
+function setRowVisibility(row, visible) {
+  if (!row) return;
+  row.style.display = visible ? '' : 'none';
+  const interactiveElements = row.querySelectorAll('input, select, textarea, button');
+  interactiveElements.forEach(el => {
+    el.disabled = !visible;
+  });
+  if (!visible) {
+    row.setAttribute('aria-hidden', 'true');
+  } else {
+    row.removeAttribute('aria-hidden');
+  }
+}
+
+function updateSettingsVisibilityForType(type) {
+  const showAxisSettings = type !== 'pie';
+  setRowVisibility(axisAndRangeRow, showAxisSettings);
+}
 // skalaer
 let xBand = 0;
 let barW = 0;
@@ -370,6 +390,7 @@ function initFromCfg() {
       pieLabelPositionSelect.value = CFG.pieLabelPosition;
     }
   }
+  updateSettingsVisibilityForType(CFG.type);
   drawAxesAndGrid();
   drawData();
   let statusMessage = '';
@@ -1411,9 +1432,14 @@ function onKeyAdjust(e) {
    ========================================================= */
 function setValue(idx, newVal, announce = false, series = 0) {
   if (locked[idx]) return;
-  const other = series === 0 ? values2 ? values2[idx] : 0 : values[idx];
   const snapped = snap(newVal, CFG.snap || 1);
-  const v = clamp(snapped, yMin, yMax - other);
+  let v;
+  if (CFG.type === 'pie') {
+    v = Math.max(0, snapped);
+  } else {
+    const other = series === 0 ? values2 ? values2[idx] : 0 : values[idx];
+    v = clamp(snapped, yMin, yMax - other);
+  }
   if (series === 0) {
     values[idx] = v;
   } else {
