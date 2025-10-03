@@ -139,16 +139,73 @@ function ensureCfgDefaults() {
   if (!CFG.ADV || typeof CFG.ADV !== 'object') CFG.ADV = {};
   fill(CFG.SIMPLE, DEFAULT_SIMPLE_CFG);
   fill(CFG.ADV, DEFAULT_ADV_CFG);
+  normalizeLegacyLayoutConfig();
   if (CFG.ADV.labels && typeof CFG.ADV.labels === "object" && CFG.ADV.labels.cellMode && CFG.ADV.labels.cellMode !== "none") {
     lastVisibleCellMode = CFG.ADV.labels.cellMode;
   }
 }
-function normalizeLayout(value) {
-  if (typeof value !== "string") return "quad";
-  if (value === "single" || value === "horizontal" || value === "vertical" || value === "quad") {
-    return value;
+function tryNormalizeLayout(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  const compact = lower.replace(/[^a-z]/g, "");
+  if (lower === "single" || compact === "single" || compact === "singlerect" || compact === "singlerectangle") {
+    return "single";
   }
-  return "quad";
+  if (lower === "horizontal" || lower === "horisontal" || lower === "row" || lower === "rows" || lower === "rad" || lower === "rader") {
+    return "horizontal";
+  }
+  if (lower === "vertical" || lower === "vertikal" || lower === "col" || lower === "cols" || lower === "column" || lower === "columns" || lower === "kolonne" || lower === "kolonner") {
+    return "vertical";
+  }
+  if (lower === "quad" || compact === "quad" || lower === "grid" || lower === "kvadrant") {
+    return "quad";
+  }
+  return null;
+}
+function normalizeLayout(value) {
+  const normalized = tryNormalizeLayout(value);
+  return normalized || "quad";
+}
+function normalizeLegacyLayoutConfig() {
+  const simple = CFG.SIMPLE;
+  if (!simple || typeof simple !== "object") return;
+  const candidates = [];
+  const addCandidate = v => {
+    if (typeof v === "string") {
+      candidates.push(v);
+    }
+  };
+  const addObjectCandidates = obj => {
+    if (!obj || typeof obj !== "object") return;
+    addCandidate(obj.layout);
+    addCandidate(obj.mode);
+    addCandidate(obj.layoutMode);
+    addCandidate(obj.type);
+  };
+  addCandidate(simple.layout);
+  addObjectCandidates(simple.layout);
+  addCandidate(simple.layoutMode);
+  addObjectCandidates(simple.layoutMode);
+  addObjectCandidates(CFG.layout);
+  addCandidate(CFG.layout);
+  addCandidate(CFG.layoutMode);
+  let normalized = null;
+  for (const candidate of candidates) {
+    const resolved = tryNormalizeLayout(candidate);
+    if (resolved) {
+      normalized = resolved;
+      break;
+    }
+  }
+  if (!normalized) {
+    normalized = normalizeLayout(simple.layout);
+  }
+  simple.layout = normalized;
+  if (simple && typeof simple.layoutMode === "string") {
+    simple.layoutMode = normalized;
+  }
 }
 function arealFormatInt(value) {
   if (!Number.isFinite(value)) return String(value);
