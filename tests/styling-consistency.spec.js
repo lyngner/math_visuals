@@ -21,9 +21,8 @@ test.describe('Styling consistency across visualizations', () => {
         probeButton.className = 'btn';
         document.body.appendChild(probeButton);
         const buttonStyle = getComputedStyle(probeButton);
-        probeButton.remove();
 
-        return {
+        const stylesSnapshot = {
           root: {
             surfaceBg: rootStyle.getPropertyValue('--surface-bg').trim(),
             textColor: rootStyle.getPropertyValue('--text-color').trim(),
@@ -42,6 +41,10 @@ test.describe('Styling consistency across visualizations', () => {
             fontFamily: buttonStyle.fontFamily
           }
         };
+
+        probeButton.remove();
+
+        return stylesSnapshot;
       });
 
       expect.soft(styles.root.surfaceBg).toBe('#f7f8fb');
