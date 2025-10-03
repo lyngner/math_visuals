@@ -263,14 +263,20 @@
     const info = getLabelRenderInfo(value);
     container.textContent = '';
 
-    if (info.type === 'katex' && window.katex && typeof window.katex.render === 'function') {
-      const span = document.createElement('span');
-      container.appendChild(span);
+    if (info.type === 'katex' && window.katex) {
       try {
-        window.katex.render(info.katex, span, { throwOnError: false });
-        return;
+        if (typeof window.katex.renderToString === 'function') {
+          container.innerHTML = window.katex.renderToString(info.katex, { throwOnError: false });
+          return;
+        }
+        if (typeof window.katex.render === 'function') {
+          const span = document.createElement('span');
+          container.appendChild(span);
+          window.katex.render(info.katex, span, { throwOnError: false });
+          return;
+        }
       } catch (err) {
-        container.removeChild(span);
+        container.innerHTML = '';
       }
     }
 
