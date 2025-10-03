@@ -1913,8 +1913,121 @@ function appendExtraPointsAltText(parsed, sentences) {
     sentences.push(`Faste punkter er markert i ${joinList(coords)}.`);
   }
 }
+function describeCoordinateSystemForAlt() {
+  return 'Koordinatsystemet har en horisontal x-akse og en vertikal y-akse med rutenettlinjer som markerer enheter.';
+}
+function parseSimpleQuadraticCoefficients(expr) {
+  if (typeof expr !== 'string') return null;
+  let normalized = expr.replace(/\s+/g, '').replace(/·/g, '').replace(/,/g, '.').replace(/−/g, '-');
+  normalized = normalized.replace(/\*/g, '');
+  normalized = normalized.replace(/X/g, 'x');
+  if (!normalized) return null;
+  if (!/x\^2/i.test(normalized)) return null;
+  if (/[^0-9x^+\.\-]/i.test(normalized)) return null;
+  const terms = [];
+  let current = '';
+  for (let i = 0; i < normalized.length; i++) {
+    const ch = normalized[i];
+    if (ch === '+' || ch === '-') {
+      if (i === 0) {
+        current += ch;
+      } else {
+        if (current) terms.push(current);
+        current = ch;
+      }
+    } else {
+      current += ch;
+    }
+  }
+  if (current) terms.push(current);
+  if (!terms.length) terms.push(normalized);
+  const parseCoeff = (str, fallback) => {
+    if (str == null || str === '') {
+      return fallback;
+    }
+    if (str === '+') {
+      return fallback == null ? null : +fallback;
+    }
+    if (str === '-') {
+      return fallback == null ? null : -fallback;
+    }
+    const num = Number.parseFloat(str);
+    if (!Number.isFinite(num)) return null;
+    return num;
+  };
+  let a = null;
+  let b = 0;
+  let c = 0;
+  for (const term of terms) {
+    if (!term) continue;
+    if (/x\^2$/i.test(term)) {
+      const coeff = parseCoeff(term.replace(/x\^2$/i, ''), 1);
+      if (coeff == null) return null;
+      a = coeff;
+    } else if (/x$/i.test(term)) {
+      const coeff = parseCoeff(term.replace(/x$/i, ''), 1);
+      if (coeff == null) return null;
+      b += coeff;
+    } else {
+      const coeff = parseCoeff(term, null);
+      if (coeff == null) return null;
+      c += coeff;
+    }
+  }
+  if (a == null) return null;
+  return { a, b, c };
+}
+function describeQuadraticShapeForAlt(fun) {
+  if (!fun || typeof fun.rhs !== 'string') return [];
+  const coeffs = parseSimpleQuadraticCoefficients(fun.rhs);
+  if (!coeffs) return [];
+  const { a, b, c } = coeffs;
+  if (a === 0 || !Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(c)) {
+    return [];
+  }
+  const sentences = [];
+  sentences.push(`Grafen er en parabel som åpner ${a > 0 ? 'oppover' : 'nedover'}.`);
+  const vertexX = -b / (2 * a);
+  const vertexY = a * vertexX * vertexX + b * vertexX + c;
+  const vertexCoord = formatCoordinateForAlt([vertexX, vertexY]);
+  if (vertexCoord) {
+    sentences.push(`Toppunktet ligger i ${vertexCoord}.`);
+  }
+  const yInterceptCoord = formatCoordinateForAlt([0, c]);
+  if (yInterceptCoord) {
+    sentences.push(`Grafen skjærer y-aksen i ${yInterceptCoord}.`);
+  }
+  const disc = b * b - 4 * a * c;
+  if (Number.isFinite(disc)) {
+    const EPS = 1e-9;
+    if (disc > EPS) {
+      const sqrtDisc = Math.sqrt(disc);
+      const root1 = (-b - sqrtDisc) / (2 * a);
+      const root2 = (-b + sqrtDisc) / (2 * a);
+      const coords = [formatCoordinateForAlt([root1, 0]), formatCoordinateForAlt([root2, 0])].filter(Boolean);
+      if (coords.length === 2) {
+        sentences.push(`Den krysser x-aksen i punktene ${joinList(coords)}.`);
+      } else if (coords.length === 1) {
+        sentences.push(`Den krysser x-aksen i punktet ${coords[0]}.`);
+      }
+    } else if (Math.abs(disc) <= EPS) {
+      if (vertexCoord) {
+        sentences.push(`Grafen tangerer x-aksen i ${vertexCoord}.`);
+      } else {
+        sentences.push('Grafen tangerer x-aksen i toppunktet.');
+      }
+    } else {
+      sentences.push('Grafen krysser ikke x-aksen.');
+    }
+  }
+  return sentences;
+}
 function buildFunctionsAltTextSummary(parsed) {
   const sentences = [];
+  const coordinateSentence = describeCoordinateSystemForAlt();
+  if (coordinateSentence) {
+    sentences.push(coordinateSentence);
+  }
   const functions = Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.funcs) ? parsed.funcs.filter(fun => fun && typeof fun.rhs === 'string' && fun.rhs.trim()) : [];
   if (!functions.length) {
     sentences.push('Figuren viser et koordinatsystem uten funksjoner.');
@@ -1934,6 +2047,10 @@ function buildFunctionsAltTextSummary(parsed) {
     const domainText = describeDomainForAlt(fun === null || fun === void 0 ? void 0 : fun.domain);
     if (domainText) {
       sentences.push(`Funksjonen er tegnet ${domainText}.`);
+    }
+    const shapeSentences = describeQuadraticShapeForAlt(fun);
+    if (shapeSentences.length) {
+      sentences.push(...shapeSentences);
     }
   } else {
     sentences.push(`Grafen viser ${functions.length} funksjoner.`);
