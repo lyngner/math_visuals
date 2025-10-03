@@ -1,7 +1,39 @@
 const { test, expect } = require('@playwright/test');
 
 const CANONICAL_PATH = '/br%C3%B8kfigurer.html';
-const CANONICAL_KEY = `examples_${CANONICAL_PATH}`;
+
+function computeCanonicalKey(pathname) {
+  if (typeof pathname !== 'string') return 'examples_/';
+  let path = pathname.trim();
+  if (!path) path = '/';
+  if (!path.startsWith('/')) path = `/${path}`;
+  path = path.replace(/\\+/g, '/');
+  path = path.replace(/\/+/g, '/');
+  path = path.replace(/\/index\.html?$/i, '/');
+  if (/\.html?$/i.test(path)) {
+    path = path.replace(/\.html?$/i, '');
+    if (!path) path = '/';
+  }
+  if (path.length > 1 && path.endsWith('/')) {
+    path = path.slice(0, -1);
+  }
+  if (!path) path = '/';
+  let decoded = path;
+  try {
+    decoded = decodeURI(path);
+  } catch (error) {}
+  let encoded = decoded;
+  try {
+    encoded = encodeURI(decoded);
+  } catch (error) {
+    encoded = path;
+  }
+  if (!encoded) encoded = '/';
+  encoded = encoded.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
+  return `examples_${encoded}`;
+}
+
+const CANONICAL_KEY = computeCanonicalKey(CANONICAL_PATH);
 const LEGACY_DECODED_KEY = 'examples_/brøkfigurer.html';
 const LEGACY_LOWERCASE_KEY = 'examples_/br%c3%b8kfigurer.html';
 
