@@ -802,6 +802,7 @@
     backendAvailable = true;
     applyBackendData(data || {});
     renderOptions();
+    scheduleEnsureDefaults({ force: true });
     return data;
   }
   let initialLoadPerformed = false;
@@ -855,6 +856,7 @@
     updateDescriptionCollapsedState(input);
   }
   let defaultEnsureScheduled = false;
+  let ensureDefaultsRunning = false;
   let tabsHostCard = null;
   const hasUrlOverrides = (() => {
     if (typeof URLSearchParams === 'undefined') return false;
@@ -1645,13 +1647,14 @@
     if (hashMatch) return parseValue(hashMatch[1]);
     return null;
   }
-  function ensureDefaultExample() {
-    if (defaultEnsureScheduled) return;
-    defaultEnsureScheduled = true;
-    const ensure = () => {
+  function ensureDefaultsNow() {
+    if (ensureDefaultsRunning) return;
+    ensureDefaultsRunning = true;
+    try {
       let examples = getExamples();
       let updated = false;
-      const requireProvided = typeof window !== 'undefined' && window && window.__EXAMPLES_FORCE_PROVIDED__ === true;
+      const globalForceProvided = typeof window !== 'undefined' && window && window.__EXAMPLES_FORCE_PROVIDED__ === true;
+      const requireProvided = globalForceProvided === true;
       const deletedProvided = getDeletedProvidedExamples();
       let deletedUpdated = false;
       examples.forEach(ex => {
@@ -1802,21 +1805,37 @@
           }
         }
       }
-      if (requireProvided && typeof window !== 'undefined' && window) {
+      if (globalForceProvided && typeof window !== 'undefined' && window) {
         window.__EXAMPLES_FORCE_PROVIDED__ = false;
       }
-    };
-    const runEnsure = () => {
-      window.removeEventListener('DOMContentLoaded', runEnsure);
-      window.removeEventListener('load', runEnsure);
-      setTimeout(ensure, 0);
-    };
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      setTimeout(ensure, 0);
-    } else {
-      window.addEventListener('DOMContentLoaded', runEnsure);
-      window.addEventListener('load', runEnsure);
+    } finally {
+      ensureDefaultsRunning = false;
     }
   }
-  ensureDefaultExample();
+  function scheduleEnsureDefaults(options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const force = opts.force === true;
+    const runEnsure = () => {
+      if (!force) {
+        defaultEnsureScheduled = false;
+      }
+      ensureDefaultsNow();
+    };
+    if (!force) {
+      if (defaultEnsureScheduled) return;
+      defaultEnsureScheduled = true;
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(runEnsure, 0);
+      return;
+    }
+    const handler = () => {
+      document.removeEventListener('DOMContentLoaded', handler);
+      window.removeEventListener('load', handler);
+      setTimeout(runEnsure, 0);
+    };
+    document.addEventListener('DOMContentLoaded', handler);
+    window.addEventListener('load', handler);
+  }
+  scheduleEnsureDefaults();
 })();
