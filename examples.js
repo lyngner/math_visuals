@@ -126,6 +126,7 @@
     return store;
   })();
   let usingFallbackStorage = false;
+  let updateRestoreButtonState = () => {};
     function ensureFallbackStorage() {
       if (!usingFallbackStorage) {
         usingFallbackStorage = true;
@@ -375,6 +376,234 @@
   const rawPath = location && typeof location.pathname === 'string' ? location.pathname : '/';
   const storagePath = normalizePathname(rawPath);
   const key = 'examples_' + storagePath;
+  const historyKey = key + '_history';
+  const MAX_HISTORY_ENTRIES = 10;
+  let lastStoredRawValue = null;
+  let historyEntriesCache = null;
+  let historyEntriesLoaded = false;
+  function normalizeHistoryEntry(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    const raw = typeof entry.data === 'string' ? entry.data.trim() : '';
+    if (!raw) return null;
+    const normalized = {
+      data: raw,
+      reason: typeof entry.reason === 'string' && entry.reason.trim() ? entry.reason.trim() : 'unknown',
+      savedAt: typeof entry.savedAt === 'string' && entry.savedAt.trim() ? entry.savedAt.trim() : new Date().toISOString()
+    };
+    return normalized;
+  }
+  function loadHistoryEntries() {
+    if (historyEntriesLoaded) return historyEntriesCache || [];
+    historyEntriesLoaded = true;
+    historyEntriesCache = [];
+    let rawHistory = null;
+    try {
+      rawHistory = safeGetItem(historyKey);
+    } catch (_) {
+      rawHistory = null;
+    }
+    if (typeof rawHistory === 'string' && rawHistory.trim()) {
+      try {
+        const parsed = JSON.parse(rawHistory);
+        if (Array.isArray(parsed)) {
+          const entries = [];
+          parsed.forEach(item => {
+            const normalized = normalizeHistoryEntry(item);
+            if (normalized) entries.push(normalized);
+          });
+          historyEntriesCache = entries.slice(0, MAX_HISTORY_ENTRIES);
+        }
+      } catch (_) {
+        historyEntriesCache = [];
+      }
+    }
+    return historyEntriesCache;
+  }
+  function persistHistoryEntries(entries) {
+    historyEntriesCache = Array.isArray(entries) ? entries.slice(0, MAX_HISTORY_ENTRIES) : [];
+    historyEntriesLoaded = true;
+    if (!historyEntriesCache.length) {
+      try {
+        safeRemoveItem(historyKey);
+      } catch (_) {}
+    } else {
+      try {
+        safeSetItem(historyKey, JSON.stringify(historyEntriesCache));
+      } catch (_) {}
+    }
+    try {
+      updateRestoreButtonState();
+    } catch (_) {}
+    return historyEntriesCache;
+  }
+  function rememberHistoryRaw(rawValue, reason) {
+    if (typeof rawValue !== 'string') return;
+    const trimmed = rawValue.trim();
+    if (!trimmed) return;
+    const existing = loadHistoryEntries();
+    const entries = [];
+    const seen = new Set();
+    const pushEntry = (entry, defaultReason) => {
+      const normalized = normalizeHistoryEntry(entry);
+      if (!normalized) return;
+      const key = normalized.data;
+      if (seen.has(key)) return;
+      seen.add(key);
+      entries.push({
+        data: key,
+        reason: normalized.reason || defaultReason || 'unknown',
+        savedAt: normalized.savedAt
+      });
+    };
+    pushEntry({
+      data: trimmed,
+      reason: typeof reason === 'string' && reason.trim() ? reason.trim() : 'unknown',
+      savedAt: new Date().toISOString()
+    });
+    existing.forEach(entry => pushEntry(entry));
+    persistHistoryEntries(entries);
+  }
+  function parseExamplesFromRaw(rawValue) {
+    if (rawValue == null) {
+      return {
+        status: 'empty',
+        examples: []
+      };
+    }
+    if (typeof rawValue !== 'string') {
+      return {
+        status: 'invalid',
+        examples: []
+      };
+    }
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+      return {
+        status: 'empty',
+        examples: []
+      };
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return {
+          status: 'ok',
+          examples: parsed
+        };
+      }
+      return {
+        status: 'invalid',
+        examples: []
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        error,
+        examples: []
+      };
+    }
+  }
+  function getFirstRestorableHistoryEntry() {
+    const entries = loadHistoryEntries();
+    for (const entry of entries) {
+      if (!entry || typeof entry.data !== 'string') continue;
+      const parsed = parseExamplesFromRaw(entry.data);
+      if (parsed.status === 'ok' && Array.isArray(parsed.examples) && parsed.examples.length > 0) {
+        return {
+          raw: entry.data,
+          entry,
+          parsed
+        };
+      }
+    }
+    return null;
+  }
+  function applyRawExamples(rawValue, options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const reason = typeof opts.reason === 'string' && opts.reason.trim() ? opts.reason.trim() : 'update';
+    const skipHistory = opts.skipHistory === true;
+    const normalizedRaw = typeof rawValue === 'string' ? rawValue.trim() : '';
+    if (!normalizedRaw) {
+      if (!skipHistory && typeof lastStoredRawValue === 'string' && lastStoredRawValue.trim()) {
+        rememberHistoryRaw(lastStoredRawValue, reason);
+      }
+      cachedExamples = [];
+      cachedExamplesInitialized = true;
+      try {
+        safeRemoveItem(key);
+      } catch (_) {}
+      lastStoredRawValue = null;
+      notifyBackendChange();
+      try {
+        updateRestoreButtonState();
+      } catch (_) {}
+      return true;
+    }
+    const parsed = parseExamplesFromRaw(normalizedRaw);
+    if (parsed.status !== 'ok') {
+      return false;
+    }
+    if (!skipHistory && typeof lastStoredRawValue === 'string' && lastStoredRawValue.trim() && lastStoredRawValue.trim() !== normalizedRaw) {
+      rememberHistoryRaw(lastStoredRawValue, reason);
+    }
+    cachedExamples = Array.isArray(parsed.examples) ? parsed.examples : [];
+    cachedExamplesInitialized = true;
+    try {
+      safeSetItem(key, normalizedRaw);
+    } catch (_) {}
+    lastStoredRawValue = normalizedRaw;
+    notifyBackendChange();
+    try {
+      updateRestoreButtonState();
+    } catch (_) {}
+    return true;
+  }
+  function attemptHistoryRecovery(currentRawValue) {
+    const entries = loadHistoryEntries();
+    if (!entries || entries.length === 0) return false;
+    const currentTrimmed = typeof currentRawValue === 'string' ? currentRawValue.trim() : '';
+    for (const entry of entries) {
+      if (!entry || typeof entry.data !== 'string') continue;
+      const candidateRaw = entry.data.trim();
+      if (!candidateRaw) continue;
+      const parsed = parseExamplesFromRaw(candidateRaw);
+      if (parsed.status !== 'ok') continue;
+      if (currentTrimmed && currentTrimmed === candidateRaw) continue;
+      if (currentTrimmed) {
+        rememberHistoryRaw(currentTrimmed, 'auto-recovery');
+      }
+      const applied = applyRawExamples(candidateRaw, {
+        reason: 'auto-recovery',
+        skipHistory: true
+      });
+      if (applied) {
+        cachedExamples = Array.isArray(parsed.examples) ? parsed.examples : [];
+        cachedExamplesInitialized = true;
+        return true;
+      }
+    }
+    return false;
+  }
+  function formatHistoryTimestamp(value) {
+    if (typeof value !== 'string') return '';
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    const date = new Date(trimmed);
+    if (Number.isNaN(date.getTime())) {
+      return trimmed;
+    }
+    try {
+      return date.toLocaleString('nb-NO');
+    } catch (_) {
+      try {
+        return date.toLocaleString();
+      } catch (_) {}
+    }
+    try {
+      return date.toISOString();
+    } catch (_) {}
+    return trimmed;
+  }
   const legacyKeys = computeLegacyStorageKeys(rawPath, storagePath);
   try {
     if (typeof localStorage !== 'undefined' || usingFallbackStorage) {
@@ -399,6 +628,9 @@
             }
           } catch (_) {}
         });
+        if (typeof canonicalValue === 'string') {
+          lastStoredRawValue = canonicalValue;
+        }
       }
       const deletedKey = key + '_deletedProvidedExamples';
       let canonicalDeletedValue = safeGetItem(deletedKey);
@@ -426,6 +658,16 @@
       }
     }
   } catch (_) {}
+  if (lastStoredRawValue == null) {
+    try {
+      const initialRaw = safeGetItem(key);
+      if (typeof initialRaw === 'string') {
+        lastStoredRawValue = initialRaw;
+      }
+    } catch (_) {
+      lastStoredRawValue = null;
+    }
+  }
   const examplesApiBase = resolveExamplesApiBase();
   let backendAvailable = !!examplesApiBase;
   let applyingBackendUpdate = false;
@@ -503,7 +745,9 @@
     applyingBackendUpdate = true;
     try {
       const examples = data && Array.isArray(data.examples) ? data.examples : [];
-      store(examples);
+      store(examples, {
+        reason: 'backend-sync'
+      });
       const deletedProvided = data && Array.isArray(data.deletedProvided) ? data.deletedProvided : [];
       deletedProvidedExamples = new Set();
       deletedProvided.forEach(value => {
@@ -646,22 +890,29 @@
       cachedExamples = [];
     }
     const stored = safeGetItem(key);
+    lastStoredRawValue = typeof stored === 'string' ? stored : null;
     if (stored == null) {
       return cachedExamples;
     }
-    try {
-      const parsed = JSON.parse(stored);
-      cachedExamples = Array.isArray(parsed) ? parsed : [];
-    } catch (_) {
-      cachedExamples = [];
+    const parsed = parseExamplesFromRaw(stored);
+    if (parsed.status === 'ok') {
+      cachedExamples = Array.isArray(parsed.examples) ? parsed.examples : [];
+      return cachedExamples;
     }
+    if (parsed.status === 'empty') {
+      cachedExamples = [];
+      return cachedExamples;
+    }
+    if (attemptHistoryRecovery(stored)) {
+      return cachedExamples;
+    }
+    cachedExamples = [];
     return cachedExamples;
   }
-  function store(examples) {
-    cachedExamples = Array.isArray(examples) ? examples : [];
-    cachedExamplesInitialized = true;
-    safeSetItem(key, JSON.stringify(cachedExamples));
-    notifyBackendChange();
+  function store(examples, options) {
+    const normalized = Array.isArray(examples) ? examples : [];
+    const serialized = JSON.stringify(normalized);
+    applyRawExamples(serialized, options);
   }
   const BINDING_NAMES = ['STATE', 'CFG', 'CONFIG', 'SIMPLE'];
   const DELETED_PROVIDED_KEY = key + '_deletedProvidedExamples';
@@ -1117,6 +1368,84 @@
   if (!saveBtn && !deleteBtn) return;
   ensureTabStyles();
   const toolbar = (saveBtn === null || saveBtn === void 0 ? void 0 : saveBtn.parentElement) || (deleteBtn === null || deleteBtn === void 0 ? void 0 : deleteBtn.parentElement);
+  const restoreBtn = document.createElement('button');
+  restoreBtn.id = 'btnRestoreExamples';
+  restoreBtn.type = 'button';
+  restoreBtn.className = 'btn';
+  restoreBtn.textContent = 'Gjenopprett eksempler';
+  restoreBtn.style.display = 'none';
+  restoreBtn.disabled = true;
+  if (toolbar) {
+    toolbar.appendChild(restoreBtn);
+  } else if ((saveBtn === null || saveBtn === void 0 ? void 0 : saveBtn.parentElement)) {
+    saveBtn.parentElement.appendChild(restoreBtn);
+  } else if ((deleteBtn === null || deleteBtn === void 0 ? void 0 : deleteBtn.parentElement)) {
+    deleteBtn.parentElement.appendChild(restoreBtn);
+  } else {
+    document.body.appendChild(restoreBtn);
+  }
+  restoreBtn.addEventListener('click', () => {
+    const info = getFirstRestorableHistoryEntry();
+    if (!info) {
+      alert('Fant ingen sikkerhetskopier å gjenopprette.');
+      updateRestoreButtonState();
+      return;
+    }
+    const savedAt = info.entry && typeof info.entry.savedAt === 'string' ? info.entry.savedAt : '';
+    const formatted = formatHistoryTimestamp(savedAt);
+    let message = 'Vil du gjenopprette de lagrede eksemplene fra sikkerhetskopi?';
+    if (formatted) {
+      message = `Vil du gjenopprette eksemplene fra sikkerhetskopien lagret ${formatted}?`;
+    }
+    if (!confirm(message)) return;
+    const success = applyRawExamples(info.raw, {
+      reason: 'manual-restore'
+    });
+    if (!success) {
+      alert('Klarte ikke å gjenopprette eksemplene.');
+      updateRestoreButtonState();
+      return;
+    }
+    const restored = getExamples();
+    if (restored.length === 0) {
+      currentExampleIndex = null;
+    } else {
+      if (!Number.isInteger(currentExampleIndex) || currentExampleIndex < 0) {
+        currentExampleIndex = 0;
+      }
+      if (currentExampleIndex >= restored.length) {
+        currentExampleIndex = restored.length - 1;
+      }
+    }
+    renderOptions();
+    if (currentExampleIndex != null && currentExampleIndex >= 0 && restored.length > 0) {
+      loadExample(currentExampleIndex);
+    }
+    updateRestoreButtonState();
+    alert('Eksemplene ble gjenopprettet.');
+  });
+  updateRestoreButtonState = () => {
+    if (!restoreBtn) return;
+    const info = getFirstRestorableHistoryEntry();
+    if (!info) {
+      restoreBtn.style.display = 'none';
+      restoreBtn.disabled = true;
+      restoreBtn.setAttribute('aria-hidden', 'true');
+      restoreBtn.title = '';
+      return;
+    }
+    restoreBtn.style.display = '';
+    restoreBtn.disabled = false;
+    restoreBtn.removeAttribute('aria-hidden');
+    const savedAt = info.entry && typeof info.entry.savedAt === 'string' ? info.entry.savedAt : '';
+    const formatted = formatHistoryTimestamp(savedAt);
+    if (formatted) {
+      restoreBtn.title = `Sikkerhetskopi lagret ${formatted}`;
+    } else {
+      restoreBtn.title = 'Gjenopprett tidligere lagrede eksempler';
+    }
+  };
+  updateRestoreButtonState();
   tabsContainer = document.createElement('div');
   tabsContainer.id = 'exampleTabs';
   tabsContainer.className = 'example-tabs';
@@ -1229,7 +1558,9 @@
     const examples = getExamples();
     const ex = collectConfig();
     examples.push(ex);
-    store(examples);
+    store(examples, {
+      reason: 'manual-save'
+    });
     let clipboardCopied = false;
     try {
       const serialized = JSON.stringify(examples);
@@ -1276,7 +1607,9 @@
         delete ex.isDefault;
       }
     });
-    store(examples);
+    store(examples, {
+      reason: 'delete'
+    });
     if (examples.length === 0) {
       currentExampleIndex = null;
     } else if (indexToRemove >= examples.length) {
@@ -1426,7 +1759,9 @@
         }
       }
       if (updated) {
-        store(examples);
+        store(examples, {
+          reason: 'ensure-default'
+        });
         examples = getExamples();
       }
       if (pendingRequestedIndex != null) {
