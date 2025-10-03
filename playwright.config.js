@@ -1,5 +1,7 @@
 const { defineConfig, devices } = require('@playwright/test');
 
+const CROSS_BROWSER_TESTS = 'tests/examples-cross-browser.spec.js';
+
 module.exports = defineConfig({
   testDir: 'tests',
   timeout: 60000,
@@ -16,10 +18,12 @@ module.exports = defineConfig({
     },
     {
       name: 'firefox',
+      testMatch: CROSS_BROWSER_TESTS,
       use: { ...devices['Desktop Firefox'] }
     },
     {
       name: 'webkit',
+      testMatch: CROSS_BROWSER_TESTS,
       use: { ...devices['Desktop Safari'] }
     }
   ],
