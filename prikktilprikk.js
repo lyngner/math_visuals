@@ -783,6 +783,12 @@
     const wrapper = document.createElement('div');
     wrapper.className = 'board-label';
     if (point && point.isFalse) wrapper.classList.add('board-label--false');
+    const pointId = point && point.id ? point.id : null;
+    if (pointId) wrapper.dataset.pointId = pointId;
+    wrapper.addEventListener('pointerdown', event => {
+      if (!pointId) return;
+      handlePointPointerDown(wrapper, pointId, event);
+    });
     if (!STATE.showLabels) wrapper.style.display = 'none';
     const content = document.createElement('span');
     content.className = 'board-label-content';
