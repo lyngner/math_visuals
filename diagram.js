@@ -108,6 +108,24 @@ const DEFAULT_DIAGRAM_EXAMPLES = [{
       locked: []
     }
   }
+}, {
+  id: 'diagram-example-6',
+  exampleNumber: '6',
+  config: {
+    CFG: {
+      type: 'pie',
+      title: 'Hvordan får vi nyheter?',
+      labels: ['TV', 'Internett', 'Bøker', 'Papiraviser', 'Radio'],
+      series1: '',
+      start: [30, 10, 20, 20, 20],
+      answer: [30, 10, 20, 20, 20],
+      snap: 1,
+      tolerance: 0,
+      axisXLabel: '',
+      axisYLabel: '',
+      locked: []
+    }
+  }
 }];
 window.DEFAULT_EXAMPLES = DEFAULT_DIAGRAM_EXAMPLES.map(ex => {
   var _ex$config, _ex$config2, _ex$config3, _ex$config4;
@@ -147,6 +165,7 @@ const gA11y = add('g');
 const gVals = add('g');
 const gLabels = add('g');
 const gLegend = add('g');
+const PIE_COLORS = ['#4f2c8c', '#6c3db5', '#8a4de0', '#a75cf1', '#c26ef0', '#d381ba', '#c46287', '#9f436d', '#723a82', '#503070'];
 let values = [];
 let values2 = null;
 let series2Enabled = false;
@@ -287,21 +306,33 @@ function initFromCfg() {
   const hasTwo = values2 && values2.length;
   if (typeSel) {
     [...typeSel.options].forEach(opt => {
-      if (!hasTwo && (opt.value === 'stacked' || opt.value === 'grouped')) opt.disabled = true;else opt.disabled = false;
+      if (opt.value === 'pie') {
+        opt.disabled = !!hasTwo;
+      } else if (!hasTwo && (opt.value === 'stacked' || opt.value === 'grouped')) {
+        opt.disabled = true;
+      } else {
+        opt.disabled = false;
+      }
     });
-    const order = hasTwo ? ['bar', 'grouped', 'stacked', 'line'] : ['bar', 'line', 'grouped', 'stacked'];
+    const order = hasTwo ? ['bar', 'grouped', 'stacked', 'line', 'pie'] : ['bar', 'line', 'pie', 'grouped', 'stacked'];
     order.forEach(val => {
       const opt = typeSel.querySelector(`option[value="${val}"]`);
       if (opt) typeSel.appendChild(opt);
     });
-    const allowedTypes = hasTwo ? ['bar', 'grouped', 'stacked', 'line'] : ['bar', 'line'];
+    const allowedTypes = hasTwo ? ['bar', 'grouped', 'stacked', 'line'] : ['bar', 'line', 'pie'];
     const desiredType = allowedTypes.includes(CFG.type) ? CFG.type : 'bar';
     typeSel.value = desiredType;
     CFG.type = desiredType;
   }
   drawAxesAndGrid();
   drawData();
-  updateStatus((CFG.type === 'bar' || CFG.type === 'line') && !hasTwo ? 'Dra i søylene/punktene – eller bruk tastaturet.' : '');
+  let statusMessage = '';
+  if ((CFG.type === 'bar' || CFG.type === 'line') && !hasTwo) {
+    statusMessage = 'Dra i søylene/punktene – eller bruk tastaturet.';
+  } else if (CFG.type === 'pie') {
+    statusMessage = 'Dra i sektorene – eller bruk tastaturet.';
+  }
+  updateStatus(statusMessage);
   scheduleAltTextUpdate('config');
 }
 
@@ -312,6 +343,9 @@ function drawAxesAndGrid() {
   gGrid.innerHTML = '';
   gAxis.innerHTML = '';
   gLabels.innerHTML = '';
+  if (CFG.type === 'pie') {
+    return;
+  }
   const step = yStep || niceStep(yMax - yMin || 1);
   const maxTicks = 500;
   for (let i = 0; i < maxTicks; i++) {
@@ -381,6 +415,10 @@ function drawData() {
   gHands.innerHTML = '';
   gA11y.innerHTML = '';
   gLegend.innerHTML = '';
+  if (CFG.type === 'pie') {
+    drawPie();
+    return;
+  }
   const hasTwo = values2 && values2.length;
   if (CFG.type === 'line') {
     drawLines();
@@ -478,6 +516,104 @@ function drawLines() {
       a11y.addEventListener('pointerdown', onDragStart);
       a11y.addEventListener('keydown', onKeyAdjust);
     });
+  });
+}
+function drawPie() {
+  const count = values.length;
+  if (!count) {
+    const message = addTo(gLabels, 'text', {
+      x: W / 2,
+      y: H / 2,
+      class: 'pie-label',
+      'text-anchor': 'middle'
+    });
+    message.textContent = 'Ingen data';
+    return;
+  }
+  const cx = M.l + innerW / 2;
+  const cy = M.t + innerH / 2;
+  const radius = Math.min(innerW, innerH) * 0.42;
+  const sanitized = values.map(v => Math.max(0, Number.isFinite(v) ? v : 0));
+  const total = sanitized.reduce((sum, v) => sum + v, 0);
+  let currentAngle = -Math.PI / 2;
+  const labelRadius = radius * 1.15;
+  const fallbackFraction = count ? 1 / count : 0;
+  for (let i = 0; i < count; i++) {
+    const value = sanitized[i];
+    const share = total > 0 ? value / total : fallbackFraction;
+    const sliceAngle = Math.max(0, share) * Math.PI * 2;
+    const startAngle = currentAngle;
+    const endAngle = currentAngle + sliceAngle;
+    addTo(gGrid, 'line', {
+      x1: cx,
+      y1: cy,
+      x2: cx + radius * Math.cos(startAngle),
+      y2: cy + radius * Math.sin(startAngle),
+      class: 'pie-divider'
+    });
+    const colorClass = 'pie-slice-' + (i % PIE_COLORS.length);
+    const lockedCls = locked[i] ? ' locked' : '';
+    const pathData = buildPieSlicePath(cx, cy, radius, startAngle, endAngle);
+    const slice = addTo(gBars, 'path', {
+      d: pathData,
+      class: `pie-slice ${colorClass}${lockedCls}`
+    });
+    slice.dataset.index = i;
+    slice.dataset.series = 0;
+    slice.dataset.base = 0;
+    if (!locked[i]) {
+      slice.addEventListener('pointerdown', onDragStart);
+    }
+    const midAngle = startAngle + sliceAngle / 2;
+    const lx = cx + labelRadius * Math.cos(midAngle);
+    const ly = cy + labelRadius * Math.sin(midAngle);
+    const label = typeof CFG.labels[i] === 'string' && CFG.labels[i].trim().length ? CFG.labels[i].trim() : `Kategori ${i + 1}`;
+    const percent = share > 0 ? share * 100 : total > 0 ? 0 : fallbackFraction * 100;
+    const textAnchor = lx >= cx ? 'start' : 'end';
+    const baseline = ly >= cy ? 'hanging' : 'auto';
+    const textEl = addTo(gLabels, 'text', {
+      x: lx,
+      y: ly,
+      class: 'pie-label',
+      'text-anchor': textAnchor,
+      'dominant-baseline': baseline
+    });
+    textEl.textContent = label;
+    const percentLine = document.createElementNS(svg.namespaceURI, 'tspan');
+    percentLine.setAttribute('x', lx);
+    percentLine.setAttribute('dy', ly >= cy ? '1.1em' : '1.2em');
+    percentLine.textContent = formatPercent(percent);
+    percentLine.setAttribute('class', 'pie-label__percent');
+    textEl.appendChild(percentLine);
+    const a11y = addTo(gA11y, 'path', {
+      d: pathData,
+      fill: 'transparent',
+      class: 'a11y',
+      tabindex: 0,
+      role: 'slider',
+      'aria-orientation': 'vertical',
+      'aria-label': label,
+      'aria-valuemin': String(Math.max(0, yMin)),
+      'aria-valuemax': String(Math.max(Math.max(0, yMax), sanitized[i])),
+      'aria-valuenow': String(values[i]),
+      'aria-valuetext': `${label}: ${fmt(values[i])}`
+    });
+    if (locked[i]) a11y.setAttribute('aria-disabled', 'true');
+    a11y.dataset.index = i;
+    a11y.dataset.series = 0;
+    a11y.dataset.base = 0;
+    a11y.addEventListener('keydown', onKeyAdjust);
+    if (!locked[i]) {
+      a11y.addEventListener('pointerdown', onDragStart);
+    }
+    currentAngle = endAngle;
+  }
+  addTo(gGrid, 'line', {
+    x1: cx,
+    y1: cy,
+    x2: cx + radius * Math.cos(currentAngle),
+    y2: cy + radius * Math.sin(currentAngle),
+    class: 'pie-divider'
   });
 }
 function drawGroupedBars() {
@@ -1203,6 +1339,7 @@ function collectAltTextContext() {
   };
 }
 function describeDiagramType(type) {
+  if (type === 'pie') return 'sektordiagram';
   if (type === 'line') return 'linjediagram';
   if (type === 'grouped') return 'gruppert stolpediagram';
   if (type === 'stacked') return 'stablet stolpediagram';
@@ -1212,8 +1349,10 @@ function buildAltTextPrompt(context) {
   const typeName = describeDiagramType(context.type);
   const parts = [`Diagramtype: ${typeName}`];
   if (context.title) parts.push(`Tittel: ${context.title}`);
-  if (context.axisXLabel) parts.push(`X-akse: ${context.axisXLabel}`);
-  if (context.axisYLabel) parts.push(`Y-akse: ${context.axisYLabel}`);
+  if (context.type !== 'pie') {
+    if (context.axisXLabel) parts.push(`X-akse: ${context.axisXLabel}`);
+    if (context.axisYLabel) parts.push(`Y-akse: ${context.axisYLabel}`);
+  }
   const labels = context.labels.length ? context.labels : context.values.map((_, i) => `Kategori ${i + 1}`);
   const seriesName1 = context.seriesNames && context.seriesNames[0] && context.seriesNames[0].trim() ? context.seriesNames[0].trim() : context.values2 && context.values2.length ? 'Serie 1' : 'Dataserien';
   parts.push(`Serie 1 (${seriesName1}):`);
@@ -1267,6 +1406,43 @@ function buildHeuristicAltText(context) {
   const typeName = describeDiagramType(context.type);
   const sentences = [];
   const title = context.title && context.title.trim();
+  if (context.type === 'pie') {
+    if (title) {
+      sentences.push(`${title} er et ${typeName}.`);
+    } else {
+      sentences.push(`Figuren er et ${typeName} med ${labels.length} sektorer.`);
+    }
+    if (labels.length) {
+      if (labels.length <= 8) {
+        sentences.push(`Sektorene viser ${formatLabelList(labels)}.`);
+      } else {
+        const first = labels[0];
+        const last = labels[labels.length - 1];
+        sentences.push(`Diagrammet fordeler andeler for ${labels.length} kategorier, fra ${first} til ${last}.`);
+      }
+    }
+    const numbers = context.values.map(v => Math.max(0, Number(v) || 0));
+    const total = numbers.reduce((sum, v) => sum + v, 0);
+    const fallbackShare = labels.length ? 100 / labels.length : 0;
+    const shares = total > 0 ? numbers.map(v => v / total * 100) : numbers.map(() => fallbackShare);
+    if (labels.length) {
+      let maxIndex = 0;
+      let minIndex = 0;
+      shares.forEach((value, idx) => {
+        if (value > shares[maxIndex]) maxIndex = idx;
+        if (value < shares[minIndex]) minIndex = idx;
+      });
+      const maxLabel = labels[maxIndex] || `Kategori ${maxIndex + 1}`;
+      const minLabel = labels[minIndex] || `Kategori ${minIndex + 1}`;
+      let shareSentence = `${maxLabel} er størst med ${formatPercent(shares[maxIndex])}`;
+      if (Math.abs(shares[minIndex] - shares[maxIndex]) > 1e-6) {
+        shareSentence += `, mens ${minLabel} er minst med ${formatPercent(shares[minIndex])}`;
+      }
+      shareSentence += '.';
+      sentences.push(shareSentence);
+    }
+    return sentences.join(' ');
+  }
   if (title) {
     sentences.push(`${title} er et ${typeName}.`);
   } else {
@@ -1417,6 +1593,19 @@ function addTo(group, name, attrs = {}) {
   group.appendChild(el);
   return el;
 }
+function polarToCartesian(cx, cy, radius, angle) {
+  return {
+    x: cx + radius * Math.cos(angle),
+    y: cy + radius * Math.sin(angle)
+  };
+}
+function buildPieSlicePath(cx, cy, radius, startAngle, endAngle) {
+  const start = polarToCartesian(cx, cy, radius, startAngle);
+  const end = polarToCartesian(cx, cy, radius, endAngle);
+  const delta = Math.abs(endAngle - startAngle);
+  const largeArc = delta > Math.PI ? 1 : 0;
+  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
+}
 function clientToSvg(clientX, clientY) {
   const rect = svg.getBoundingClientRect();
   const sx = W / rect.width,
@@ -1456,6 +1645,12 @@ function formatNumber(value) {
     str = str.replace(/0+$/, '').replace(/\.$/, '');
   }
   return str.length ? str : '0';
+}
+function formatPercent(value) {
+  const safe = Number.isFinite(value) ? Math.max(0, value) : 0;
+  const rounded = safe >= 10 ? Math.round(safe) : Math.round(safe * 10) / 10;
+  const formatted = formatNumber(rounded).replace('.', ',');
+  return `${formatted} %`;
 }
 function normalizeTickValue(value) {
   if (!Number.isFinite(value)) return 0;
@@ -1515,7 +1710,7 @@ function updateStatus(msg) {
   document.getElementById('status').textContent = msg; // aria-live="polite"
 }
 function clearBadges() {
-  [...gBars.querySelectorAll('.bar')].forEach(b => b.classList.remove('badge-ok', 'badge-no'));
+  [...gBars.querySelectorAll('.bar, .pie-slice')].forEach(b => b.classList.remove('badge-ok', 'badge-no'));
 }
 function markCorrectness() {
   clearBadges();

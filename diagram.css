@@ -57,6 +57,8 @@ body {
 .bar.series1{fill:#d081a1}
 .bar.badge-ok{stroke:#2e7d32;stroke-width:4}
 .bar.badge-no{stroke:#c62828;stroke-width:4}
+.pie-slice.badge-ok{stroke:#2e7d32;stroke-width:4}
+.pie-slice.badge-no{stroke:#c62828;stroke-width:4}
 
 /* Linjediagram */
 .line{fill:none;stroke-width:4}
@@ -74,12 +76,29 @@ body {
 .handleShadow{fill:#000;opacity:.14}
 .handle{fill:#f1f1f7;stroke:#555;stroke-width:2;cursor:pointer}
 
+/* Sektordiagram */
+.pie-slice{stroke:#fff;stroke-width:2;cursor:pointer}
+.pie-divider{stroke:#fff;stroke-width:2;stroke-dasharray:6 6;opacity:.6}
+.pie-label{fill:#333;font-size:16px;font-weight:600;pointer-events:none}
+.pie-label__percent{font-size:14px;font-weight:400;pointer-events:none}
+.pie-slice-0{fill:#4f2c8c}
+.pie-slice-1{fill:#6c3db5}
+.pie-slice-2{fill:#8a4de0}
+.pie-slice-3{fill:#a75cf1}
+.pie-slice-4{fill:#c26ef0}
+.pie-slice-5{fill:#d381ba}
+.pie-slice-6{fill:#c46287}
+.pie-slice-7{fill:#9f436d}
+.pie-slice-8{fill:#723a82}
+.pie-slice-9{fill:#503070}
+
 /* Verdi‐tekst over søyle (ikke-interaktiv) */
 .value{fill:#111;font-size:16px;text-anchor:middle;paint-order:stroke fill;stroke:#fff;stroke-width:6;pointer-events:none}
 
 /* Låsing */
 .bar.locked{cursor:not-allowed}
 .handle.locked{fill:#e5e7eb;cursor:not-allowed}
+.pie-slice.locked{cursor:not-allowed}
 
 /* Fokus + tastatur (A11y-overlay) */
 .a11y{cursor:ns-resize;fill:transparent;stroke:none}
