@@ -232,7 +232,13 @@ function initFromCfg() {
   yMin = scale.min;
   yMax = scale.max;
   yStep = scale.step;
-  locked = alignLength(CFG.locked || [], N, false);
+  if (Array.isArray(CFG.locked) && CFG.locked.length) {
+    const normalizedLocked = CFG.locked.map(v => !!v);
+    locked = alignLength(normalizedLocked, N, true);
+  } else {
+    locked = Array(N).fill(true);
+  }
+  CFG.locked = locked.slice();
   lastFocusIndex = null;
   document.getElementById('chartTitle').textContent = CFG.title || '';
   const typeInput = document.getElementById('cfgType');
@@ -254,7 +260,8 @@ function initFromCfg() {
   if (titleInput) titleInput.value = CFG.title || '';
   if (labelsInput) labelsInput.value = (CFG.labels || []).join(',');
   if (lockedInput) {
-    const lockedStr = locked.some(Boolean) ? locked.map(v => v ? '1' : '0').join(',') : '';
+    const showFlags = locked.map(v => !v);
+    const lockedStr = showFlags.some(Boolean) ? showFlags.map(v => v ? '1' : '0').join(',') : '';
     lockedInput.value = lockedStr;
   }
   if (yMinInput) yMinInput.value = Number.isFinite(CFG.yMin) ? formatNumber(CFG.yMin) : '';
@@ -1397,8 +1404,15 @@ function applyCfg() {
   CFG.snap = isNaN(snapVal) ? 1 : snapVal;
   const tolVal = parseFloat(document.getElementById('cfgTolerance').value);
   CFG.tolerance = isNaN(tolVal) ? 0 : tolVal;
-  const lockedVals = parseNumList(document.getElementById('cfgLocked').value).map(v => v !== 0);
-  CFG.locked = alignLength(lockedVals, lbls.length, false);
+  const lockedField = document.getElementById('cfgLocked');
+  const lockedRaw = lockedField ? lockedField.value.trim() : '';
+  if (!lockedRaw) {
+    CFG.locked = Array(lbls.length).fill(true);
+  } else {
+    const showVals = parseNumList(lockedRaw).map(v => v !== 0);
+    const alignedShow = alignLength(showVals, lbls.length, false);
+    CFG.locked = alignedShow.map(show => !show);
+  }
   initFromCfg();
 }
 
