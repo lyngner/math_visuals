@@ -3,6 +3,9 @@
   let altTextManager = null;
   let altTextRefreshTimer = null;
   let lastAltTextSignature = null;
+  let figurtallAiAbortController = null;
+  let figurtallAiPendingSignature = null;
+  let figurtallAiAppliedSignature = null;
   let pendingAltTextReason = 'auto';
   const MAX_DIM = 20;
   const MAX_COLORS = 6;
@@ -525,6 +528,32 @@
     if (filtered.length === 2) return `${filtered[0]} og ${filtered[1]}`;
     return `${filtered.slice(0, -1).join(', ')} og ${filtered[filtered.length - 1]}`;
   }
+  function formatColumnRange(start, end) {
+    const from = Number(start);
+    const to = Number(end);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return '';
+    const fromLabel = `kolonne ${from + 1}`;
+    if (from === to) return fromLabel;
+    return `${fromLabel}–${to + 1}`;
+  }
+  function buildRowDistributionText(fig) {
+    if (!fig || !Array.isArray(fig.rowDetails)) return '';
+    const rowParts = fig.rowDetails
+      .filter(row => Number(row === null || row === void 0 ? void 0 : row.count) > 0)
+      .map(row => {
+        const rowNumber = Number(row.rowIndex) + 1;
+        const segmentParts = Array.isArray(row.segments)
+          ? row.segments
+              .map(seg => formatColumnRange(seg.start, seg.end))
+              .filter(Boolean)
+          : [];
+        const segmentText = segmentParts.length ? ` i ${joinWithOg(segmentParts)}` : '';
+        const offsetText = row.isOffset ? ' (forskjøvet)' : '';
+        return `${formatCount(row.count, 'rute', 'ruter')} i rad ${rowNumber}${offsetText}${segmentText}`;
+      });
+    if (!rowParts.length) return '';
+    return `fordelt som ${joinWithOg(rowParts)}`;
+  }
   function collectFigurtallAltSummary() {
     const figureCount = Array.isArray(STATE.figures) ? STATE.figures.length : 0;
     const colors = getColors();
@@ -533,26 +562,50 @@
       STATE.figures.forEach((fig, idx) => {
         const name = fig && typeof fig.name === 'string' && fig.name.trim() ? fig.name.trim() : `Figur ${idx + 1}`;
         const cells = Array.isArray(fig === null || fig === void 0 ? void 0 : fig.cells) ? fig.cells : [];
+        const normalized = normalizeCells(cells, rows, cols);
         const colorUsage = colors.map(() => 0);
         let filled = 0;
-        cells.forEach(row => {
-          if (!Array.isArray(row)) return;
-          row.forEach(val => {
-            const parsed = Number.parseInt(val, 10);
-            if (Number.isFinite(parsed) && parsed > 0) {
+        const rowDetails = normalized.map((rowVals, rowIdx) => {
+          let rowFilled = 0;
+          const segments = [];
+          let segmentStart = null;
+          rowVals.forEach((value, colIdx) => {
+            if (Number.isFinite(value) && value > 0) {
               filled += 1;
-              const colorIdx = parsed - 1;
+              rowFilled += 1;
+              const colorIdx = value - 1;
               if (colorIdx >= 0 && colorIdx < colorUsage.length) {
                 colorUsage[colorIdx] += 1;
               }
+              if (segmentStart === null) segmentStart = colIdx;
+            } else if (segmentStart !== null) {
+              segments.push({
+                start: segmentStart,
+                end: colIdx - 1
+              });
+              segmentStart = null;
             }
           });
+          if (segmentStart !== null) {
+            segments.push({
+              start: segmentStart,
+              end: rowVals.length - 1
+            });
+          }
+          return {
+            rowIndex: rowIdx,
+            count: rowFilled,
+            segments,
+            isOffset: !!(STATE.offset && rowIdx % 2 === 1)
+          };
         });
         figures.push({
           index: idx,
           name,
           filled,
-          colorUsage
+          colorUsage,
+          grid: normalized,
+          rowDetails
         });
       });
     }
@@ -566,7 +619,7 @@
       figures
     };
   }
-  function buildFigurtallAltText(summary) {
+  function buildFigurtallFallbackAltText(summary) {
     const data = summary || collectFigurtallAltSummary();
     if (!data) return 'Figurtall.';
     const sentences = [];
@@ -579,29 +632,310 @@
     if (detailParts.length) {
       sentences.push(`${detailParts.join(', ')}.`);
     }
-    const figureParts = data.figures.map(fig => {
-      const filledText = fig.filled > 0 ? formatCount(fig.filled, 'markert rute', 'markerte ruter') : 'ingen markerte ruter';
-      let part = `${fig.name} har ${filledText}`;
-      const colorParts = fig.colorUsage
-        .map((count, idx) => (count > 0 ? `${formatCount(count, 'rute', 'ruter')} i farge ${idx + 1}` : ''))
-        .filter(Boolean);
-      if (colorParts.length) part += ` (${colorParts.join(', ')})`;
-      return part;
-    });
-    if (figureParts.length) {
-      const limit = Math.min(figureParts.length, 3);
-      const listed = figureParts.slice(0, limit);
-      let sentence = joinWithOg(listed);
-      if (sentence) sentence += '.';
-      if (figureParts.length > limit) {
-        const remaining = figureParts.length - limit;
-        sentence += ` ${remaining === 1 ? 'Én figur til har tilsvarende mønster.' : `${remaining} figurer til har tilsvarende mønster.`}`;
+    if (Array.isArray(data.figures) && data.figures.length) {
+      data.figures.forEach(fig => {
+        const filledText = fig.filled > 0 ? formatCount(fig.filled, 'markert rute', 'markerte ruter') : 'ingen markerte ruter';
+        let sentence = `${fig.name} har ${filledText}`;
+        const colorParts = Array.isArray(fig.colorUsage)
+          ? fig.colorUsage
+              .map((count, idx) => (count > 0 ? `${formatCount(count, 'rute', 'ruter')} i farge ${idx + 1}` : ''))
+              .filter(Boolean)
+          : [];
+        if (colorParts.length) sentence += ` (${colorParts.join(', ')})`;
+        const rowDistribution = buildRowDistributionText(fig);
+        if (rowDistribution) sentence += ` ${rowDistribution}`;
+        sentence += '.';
+        sentences.push(sentence);
+      });
+      if (data.figures.length > 1) {
+        const totals = data.figures.map(fig => `${fig.name}: ${fig.filled}`);
+        if (totals.length) {
+          sentences.push(`Antall markerte ruter per figur er ${joinWithOg(totals)}.`);
+        }
       }
-      if (sentence) sentences.push(sentence);
     } else {
       sentences.push('Ingen ruter er markert.');
     }
     return sentences.filter(Boolean).join(' ');
+  }
+  function buildFigurtallAltText(summary) {
+    const data = summary || collectFigurtallAltSummary();
+    if (!data) return 'Figurtall.';
+    if (STATE.altTextSource !== 'manual') {
+      maybeTriggerFigurtallAiAltText(data);
+    }
+    return buildFigurtallFallbackAltText(data);
+  }
+  function setAltTextStatusMessage(message, isError) {
+    const container = document.getElementById('exportCard');
+    if (!container) return;
+    const status = container.querySelector('.alt-text__status');
+    if (!status) return;
+    status.textContent = message || '';
+    if (isError) {
+      status.classList.add('alt-text__status--error');
+    } else {
+      status.classList.remove('alt-text__status--error');
+    }
+  }
+  function canUseFigurtallAi() {
+    if (typeof fetch !== 'function') return false;
+    if (typeof AbortController === 'undefined') return false;
+    if (STATE.altTextSource === 'manual') return false;
+    if (resolveFigurtallAltTextEndpoint()) return true;
+    if (typeof window !== 'undefined' && window && window.OPENAI_API_KEY) return true;
+    return false;
+  }
+  function cancelFigurtallAiAltText() {
+    if (figurtallAiAbortController) {
+      figurtallAiAbortController.abort();
+      figurtallAiAbortController = null;
+    }
+    figurtallAiPendingSignature = null;
+    figurtallAiAppliedSignature = null;
+  }
+  function maybeTriggerFigurtallAiAltText(summary) {
+    if (!summary || STATE.altTextSource === 'manual') return;
+    if (!canUseFigurtallAi()) return;
+    const signatureData = {
+      rows: summary.rows,
+      cols: summary.cols,
+      offset: !!summary.offset,
+      circleMode: !!summary.circleMode,
+      showGrid: !!summary.showGrid,
+      figures: Array.isArray(summary.figures)
+        ? summary.figures.map(fig => ({
+            name: fig.name,
+            grid: Array.isArray(fig.grid) ? fig.grid : []
+          }))
+        : []
+    };
+    const signature = JSON.stringify(signatureData);
+    if (signature === figurtallAiAppliedSignature) return;
+    if (signature === figurtallAiPendingSignature) return;
+    if (figurtallAiAbortController) {
+      figurtallAiAbortController.abort();
+      figurtallAiAbortController = null;
+    }
+    const controller = new AbortController();
+    figurtallAiAbortController = controller;
+    figurtallAiPendingSignature = signature;
+    setAltTextStatusMessage('Forbedrer beskrivelsen med AI …');
+    performFigurtallAltTextRequest(summary, controller.signal)
+      .then(text => {
+        if (controller.signal.aborted || figurtallAiAbortController !== controller) return;
+        figurtallAiAbortController = null;
+        figurtallAiPendingSignature = null;
+        const trimmed = typeof text === 'string' ? text.trim() : '';
+        if (!trimmed) throw new Error('Tom alt-tekst');
+        if (STATE.altTextSource === 'manual') return;
+        STATE.altText = trimmed;
+        STATE.altTextSource = 'auto';
+        figurtallAiAppliedSignature = signature;
+        lastAltTextSignature = null;
+        if (altTextManager && typeof altTextManager.applyCurrent === 'function') {
+          altTextManager.applyCurrent();
+        }
+        setAltTextStatusMessage('Alternativ tekst forbedret automatisk.');
+      })
+      .catch(error => {
+        if (controller.signal.aborted) return;
+        figurtallAiPendingSignature = null;
+        if (figurtallAiAbortController === controller) {
+          figurtallAiAbortController = null;
+        }
+        console.warn('Kunne ikke generere detaljert alt-tekst for figurtall', error);
+        if (STATE.altTextSource !== 'manual') {
+          setAltTextStatusMessage('Klarte ikke å lage detaljert tekst automatisk.', true);
+        }
+      });
+  }
+  function simplifyFigurtallSummary(summary) {
+    if (!summary || typeof summary !== 'object') return null;
+    const base = {
+      rows: summary.rows,
+      cols: summary.cols,
+      circleMode: !!summary.circleMode,
+      offset: !!summary.offset,
+      showGrid: !!summary.showGrid,
+      figureCount: summary.figureCount,
+      figures: []
+    };
+    if (Array.isArray(summary.figures)) {
+      base.figures = summary.figures.map(fig => ({
+        name: fig && typeof fig.name === 'string' ? fig.name : '',
+        filled: fig && Number.isFinite(fig.filled) ? fig.filled : 0,
+        colorUsage: Array.isArray(fig === null || fig === void 0 ? void 0 : fig.colorUsage) ? fig.colorUsage.slice() : [],
+        rowDetails: Array.isArray(fig === null || fig === void 0 ? void 0 : fig.rowDetails)
+          ? fig.rowDetails.map(row => ({
+              rowIndex: row && Number.isFinite(row.rowIndex) ? row.rowIndex : 0,
+              count: row && Number.isFinite(row.count) ? row.count : 0,
+              isOffset: !!(row && row.isOffset),
+              segments: Array.isArray(row === null || row === void 0 ? void 0 : row.segments)
+                ? row.segments.map(seg => ({
+                    start: Number.isFinite(seg === null || seg === void 0 ? void 0 : seg.start) ? seg.start : 0,
+                    end: Number.isFinite(seg === null || seg === void 0 ? void 0 : seg.end) ? seg.end : 0
+                  }))
+                : []
+            }))
+          : [],
+        grid: Array.isArray(fig === null || fig === void 0 ? void 0 : fig.grid)
+          ? fig.grid.map(row => (Array.isArray(row) ? row.slice() : []))
+          : []
+      }));
+    }
+    return base;
+  }
+  function buildFigurtallAiPrompt(summary) {
+    if (!summary || typeof summary !== 'object') return '';
+    const parts = [];
+    if (Number.isFinite(summary.rows) && Number.isFinite(summary.cols)) {
+      parts.push(`Rutenett: ${summary.rows} rader x ${summary.cols} kolonner.`);
+    }
+    if (summary.offset && summary.rows > 1) parts.push('Annenhver rad er forskjøvet.');
+    parts.push(summary.circleMode ? 'Fylte posisjoner vises som sirkler.' : 'Fylte posisjoner vises som kvadrater.');
+    if (summary.showGrid === false) parts.push('Rutenettet er skjult.');
+    if (Array.isArray(summary.figures)) {
+      summary.figures.forEach((fig, idx) => {
+        const name = fig && typeof fig.name === 'string' && fig.name.trim() ? fig.name.trim() : `Figur ${idx + 1}`;
+        const filled = fig && Number.isFinite(fig.filled) ? fig.filled : 0;
+        parts.push(`${name}: ${filled} markerte posisjoner totalt.`);
+        if (Array.isArray(fig.rowDetails)) {
+          fig.rowDetails.forEach(row => {
+            if (!row || !Number.isFinite(row.count) || row.count <= 0) return;
+            const rowNumber = Number.isFinite(row.rowIndex) ? row.rowIndex + 1 : null;
+            const segmentParts = Array.isArray(row.segments)
+              ? row.segments
+                  .map(seg => formatColumnRange(seg.start, seg.end))
+                  .filter(Boolean)
+              : [];
+            const segmentText = segmentParts.length ? `i ${joinWithOg(segmentParts)}` : 'spredt over enkelte kolonner';
+            const offsetText = row.isOffset ? ' (forskjøvet rad)' : '';
+            if (rowNumber !== null) {
+              parts.push(`- Rad ${rowNumber}${offsetText}: ${row.count} ruter ${segmentText}.`);
+            } else {
+              parts.push(`- ${row.count} ruter ${segmentText}.${offsetText ? ` ${offsetText}` : ''}`.trim());
+            }
+          });
+        }
+        if (Array.isArray(fig.colorUsage)) {
+          const colorParts = fig.colorUsage
+            .map((count, colorIdx) => (count > 0 ? `${count} i farge ${colorIdx + 1}` : ''))
+            .filter(Boolean);
+          if (colorParts.length) parts.push(`- Fargebruk: ${colorParts.join(', ')}.`);
+        }
+      });
+    }
+    if (Array.isArray(summary.figures) && summary.figures.length > 1) {
+      const totals = summary.figures.map((fig, idx) => {
+        const name = fig && typeof fig.name === 'string' && fig.name.trim() ? fig.name.trim() : `Figur ${idx + 1}`;
+        const filled = fig && Number.isFinite(fig.filled) ? fig.filled : 0;
+        return `${name}: ${filled}`;
+      });
+      if (totals.length) parts.push(`Totalt per figur: ${totals.join(', ')}.`);
+    }
+    const header = 'Lag en alternativ tekst på norsk for en serie figurtall. Beskriv tydelig hvordan mønsteret utvikler seg fra figur til figur slik at en elev kan forstå sammenhengen uten å se figuren. Hold deg til 2–3 setninger, unngå punktlister og fokuser på utviklingen i antall og plassering.';
+    return `${header}\n\nData:\n${parts.join('\n')}`;
+  }
+  async function requestFigurtallAltTextFromBackend(endpoint, prompt, summary, signal) {
+    const payload = { prompt };
+    const context = simplifyFigurtallSummary(summary);
+    if (context) payload.context = context;
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload),
+      signal
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Backend error ${res.status}${text ? `: ${text}` : ''}`);
+    }
+    const data = await res.json().catch(() => null);
+    if (!data || typeof data.text !== 'string') {
+      throw new Error('Ugyldig svar fra alt-tekst-tjenesten');
+    }
+    const trimmed = data.text.trim();
+    if (!trimmed) throw new Error('Tom alt-tekst fra tjenesten');
+    return trimmed;
+  }
+  async function requestFigurtallAltTextDirect(prompt, signal) {
+    if (typeof window === 'undefined') throw new Error('Mangler tilgang til nettleser for direktekall');
+    const apiKey = window.OPENAI_API_KEY;
+    if (!apiKey) throw new Error('Mangler API-nøkkel for direktekall');
+    const body = {
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'Du beskriver serier av figurtall på norsk for elever. Teksten skal være 2–3 setninger, forklare mønsteret mellom figurene og hvordan antall og plassering endrer seg. Ikke bruk punktlister eller Markdown.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.4
+    };
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(body),
+      signal
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      const err = data && data.error ? data.error.message || JSON.stringify(data.error) : res.statusText;
+      throw new Error(`OpenAI error ${res.status}${err ? `: ${err}` : ''}`);
+    }
+    const text = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if (!text) throw new Error('Ingen tekst mottatt fra OpenAI');
+    return text.trim();
+  }
+  function resolveFigurtallAltTextEndpoint() {
+    if (typeof window === 'undefined') return null;
+    if (window.MATH_VISUALS_FIGURTALL_ALT_TEXT_API_URL) {
+      const value = String(window.MATH_VISUALS_FIGURTALL_ALT_TEXT_API_URL).trim();
+      if (value) return value;
+    }
+    if (window.MATH_VISUALS_ALT_TEXT_API_URL) {
+      const shared = String(window.MATH_VISUALS_ALT_TEXT_API_URL).trim();
+      if (shared) return shared;
+    }
+    var _window$location;
+    const origin = (_window$location = window.location) === null || _window$location === void 0 ? void 0 : _window$location.origin;
+    if (typeof origin === 'string' && /^https?:/i.test(origin)) {
+      return '/api/figurtall-alt-text';
+    }
+    return null;
+  }
+  async function performFigurtallAltTextRequest(summary, signal) {
+    const prompt = buildFigurtallAiPrompt(summary);
+    if (!prompt) throw new Error('Mangler data for alt-tekst');
+    let backendError = null;
+    try {
+      const endpoint = resolveFigurtallAltTextEndpoint();
+      if (endpoint) {
+        return await requestFigurtallAltTextFromBackend(endpoint, prompt, summary, signal);
+      }
+    } catch (error) {
+      backendError = error;
+      if (!(signal && signal.aborted)) console.warn('Alt-tekst-backend for figurtall utilgjengelig', error);
+    }
+    try {
+      return await requestFigurtallAltTextDirect(prompt, signal);
+    } catch (error) {
+      if (backendError && !(signal && signal.aborted)) {
+        console.warn('Direktekall for figurtall-alt-tekst feilet etter backend', error);
+      }
+      throw error;
+    }
   }
   function getFigurtallTitle() {
     const base = typeof document !== 'undefined' && document && document.title ? document.title : 'Figurtall';
@@ -636,6 +970,12 @@
     const signature = JSON.stringify(collectFigurtallAltSummary());
     if (signature !== lastAltTextSignature) {
       lastAltTextSignature = signature;
+      figurtallAiAppliedSignature = null;
+      if (figurtallAiAbortController) {
+        figurtallAiAbortController.abort();
+        figurtallAiAbortController = null;
+      }
+      figurtallAiPendingSignature = null;
       altTextManager.refresh(reason || 'auto');
     } else if (!reason || reason === 'init') {
       altTextManager.refresh(reason || 'auto');
@@ -667,6 +1007,9 @@
       setState: (text, source) => {
         STATE.altText = text;
         STATE.altTextSource = source === 'manual' ? 'manual' : 'auto';
+        if (STATE.altTextSource === 'manual') {
+          cancelFigurtallAiAltText();
+        }
       },
       generate: () => buildFigurtallAltText(),
       getAutoMessage: reason => (reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.'),
@@ -800,6 +1143,12 @@
     STATE.altText = '';
     STATE.altTextSource = 'auto';
     lastAltTextSignature = null;
+    if (figurtallAiAbortController) {
+      figurtallAiAbortController.abort();
+      figurtallAiAbortController = null;
+    }
+    figurtallAiPendingSignature = null;
+    figurtallAiAppliedSignature = null;
   }
   function render() {
     sanitizeState();
