@@ -175,6 +175,48 @@ function cloneJobForSummary(job) {
     values
   };
 }
+function buildAngleMarkSummary(entries) {
+  if (!Array.isArray(entries)) return {};
+  const out = {};
+  entries.forEach(entry => {
+    if (!entry || entry.length < 3) return;
+    const [key, res, angleDeg] = entry;
+    if (!key) return;
+    const info = typeof res === 'object' && res ? res : null;
+    const label = info && typeof info.pointLabel === 'string' && info.pointLabel.trim() ? info.pointLabel.trim() : key;
+    out[key] = {
+      marked: Boolean(info && info.mark),
+      right: Boolean(info && info.mark) && Math.abs(angleDeg - 90) < 0.5,
+      label
+    };
+  });
+  return out;
+}
+function describeAngleMarks(angleMarks) {
+  if (!angleMarks || typeof angleMarks !== 'object') return '';
+  const marked = Object.values(angleMarks).filter(info => info && info.marked);
+  if (!marked.length) return '';
+  const rightAngles = marked.filter(info => info.right).map(info => info.label).filter(Boolean);
+  const otherAngles = marked.filter(info => !info.right).map(info => info.label).filter(Boolean);
+  const parts = [];
+  if (rightAngles.length) {
+    const list = nkantFormatList(rightAngles);
+    if (rightAngles.length === 1) {
+      parts.push(`Vinkel ${rightAngles[0]} er markert som rett vinkel.`);
+    } else {
+      parts.push(`Vinklene ${list} er markert som rette vinkler.`);
+    }
+  }
+  if (otherAngles.length) {
+    const list = nkantFormatList(otherAngles);
+    if (otherAngles.length === 1) {
+      parts.push(`Vinkel ${otherAngles[0]} er markert.`);
+    } else {
+      parts.push(`Vinklene ${list} er markert.`);
+    }
+  }
+  return parts.join(' ');
+}
 function describeDimensionEntry(entry, noun) {
   if (!entry || typeof entry !== 'object') return '';
   const label = typeof entry.label === 'string' ? entry.label.trim() : '';
@@ -259,6 +301,10 @@ function buildNkantAltText(summary) {
     sentence += '.';
     if (angles.length) {
       sentence += ` Vinkler ${nkantFormatList(angles)}.`;
+    }
+    const markSentence = describeAngleMarks(job.angleMarks);
+    if (markSentence) {
+      sentence += ` ${markSentence}`;
     }
     sentences.push(sentence.trim());
   });
@@ -1173,9 +1219,12 @@ function drawTriangleToGroup(g, rect, spec, adv) {
   // vinkler/punkter
   const am = adv.angles.mode,
     at = adv.angles.text;
-  const Ares = parseAnglePointMode((_am$A = am.A) !== null && _am$A !== void 0 ? _am$A : am.default, angleAt(A, B, C), at.A, "A");
-  const Bres = parseAnglePointMode((_am$B = am.B) !== null && _am$B !== void 0 ? _am$B : am.default, angleAt(B, C, A), at.B, "B");
-  const Cres = parseAnglePointMode((_am$C = am.C) !== null && _am$C !== void 0 ? _am$C : am.default, angleAt(C, A, B), at.C, "C");
+  const angleAVal = angleAt(A, B, C);
+  const angleBVal = angleAt(B, C, A);
+  const angleCVal = angleAt(C, A, B);
+  const Ares = parseAnglePointMode((_am$A = am.A) !== null && _am$A !== void 0 ? _am$A : am.default, angleAVal, at.A, "A");
+  const Bres = parseAnglePointMode((_am$B = am.B) !== null && _am$B !== void 0 ? _am$B : am.default, angleBVal, at.B, "B");
+  const Cres = parseAnglePointMode((_am$C = am.C) !== null && _am$C !== void 0 ? _am$C : am.default, angleCVal, at.C, "C");
   renderAngle(g, A, B, C, angleRadius(A, B, C), {
     mark: Ares.mark,
     angleText: Ares.angleText,
@@ -1199,6 +1248,25 @@ function drawTriangleToGroup(g, rect, spec, adv) {
     "stroke-linejoin": "round",
     "stroke-linecap": "round"
   });
+  const summary = cloneJobForSummary({
+    type: 'tri',
+    obj: {
+      a: sol.a,
+      b: sol.b,
+      c: sol.c,
+      A: angleAVal,
+      B: angleBVal,
+      C: angleCVal
+    }
+  });
+  if (summary) {
+    summary.angleMarks = buildAngleMarkSummary([
+      ['A', Ares, angleAVal],
+      ['B', Bres, angleBVal],
+      ['C', Cres, angleCVal]
+    ]);
+  }
+  return summary;
 }
 function drawQuadToGroup(g, rect, spec, adv) {
   var _m$a2, _m$b2, _m$c2, _m$d, _am$A2, _am$B2, _am$C2, _am$D;
@@ -1332,10 +1400,14 @@ function drawQuadToGroup(g, rect, spec, adv) {
   // vinkler/punkter
   const am = adv.angles.mode,
     at = adv.angles.text;
-  const Ares = parseAnglePointMode((_am$A2 = am.A) !== null && _am$A2 !== void 0 ? _am$A2 : am.default, angleAt(A, D, B), at.A, "A");
-  const Bres = parseAnglePointMode((_am$B2 = am.B) !== null && _am$B2 !== void 0 ? _am$B2 : am.default, angleAt(B, A, C), at.B, "B");
-  const Cres = parseAnglePointMode((_am$C2 = am.C) !== null && _am$C2 !== void 0 ? _am$C2 : am.default, angleAt(C, B, D), at.C, "C");
-  const Dres = parseAnglePointMode((_am$D = am.D) !== null && _am$D !== void 0 ? _am$D : am.default, angleAt(D, C, A), at.D, "D");
+  const angleAVal = angleAt(A, D, B);
+  const angleBVal = angleAt(B, A, C);
+  const angleCVal = angleAt(C, B, D);
+  const angleDVal = angleAt(D, C, A);
+  const Ares = parseAnglePointMode((_am$A2 = am.A) !== null && _am$A2 !== void 0 ? _am$A2 : am.default, angleAVal, at.A, "A");
+  const Bres = parseAnglePointMode((_am$B2 = am.B) !== null && _am$B2 !== void 0 ? _am$B2 : am.default, angleBVal, at.B, "B");
+  const Cres = parseAnglePointMode((_am$C2 = am.C) !== null && _am$C2 !== void 0 ? _am$C2 : am.default, angleCVal, at.C, "C");
+  const Dres = parseAnglePointMode((_am$D = am.D) !== null && _am$D !== void 0 ? _am$D : am.default, angleDVal, at.D, "D");
   renderAngle(g, A, D, B, angleRadius(A, D, B), {
     mark: Ares.mark,
     angleText: Ares.angleText,
@@ -1364,6 +1436,28 @@ function drawQuadToGroup(g, rect, spec, adv) {
     "stroke-linejoin": "round",
     "stroke-linecap": "round"
   });
+  const summary = cloneJobForSummary({
+    type: 'quad',
+    obj: {
+      a,
+      b,
+      c,
+      d,
+      A: angleAVal,
+      B: angleBVal,
+      C: angleCVal,
+      D: angleDVal
+    }
+  });
+  if (summary) {
+    summary.angleMarks = buildAngleMarkSummary([
+      ['A', Ares, angleAVal],
+      ['B', Bres, angleBVal],
+      ['C', Cres, angleCVal],
+      ['D', Dres, angleDVal]
+    ]);
+  }
+  return summary;
 }
 function drawCircleToGroup(g, rect, spec) {
   const cx = rect.x + rect.w / 2;
@@ -1669,17 +1763,19 @@ async function renderCombined() {
     w: BASE_W,
     h: BASE_H
   });
+  const summaries = [];
   for (let i = 0; i < n; i++) {
     const {
       type,
       obj
     } = jobs[i];
     const adv = buildAdvForFig(i === 0 ? STATE.fig1 : STATE.fig2);
+    let summaryEntry = null;
     try {
       if (type === "tri") {
-        drawTriangleToGroup(groups[i], rects[i], obj, adv);
+        summaryEntry = drawTriangleToGroup(groups[i], rects[i], obj, adv);
       } else if (type === "quad") {
-        drawQuadToGroup(groups[i], rects[i], obj, adv);
+        summaryEntry = drawQuadToGroup(groups[i], rects[i], obj, adv);
       } else if (type === "circle") {
         drawCircleToGroup(groups[i], rects[i], obj);
       } else if (type === "polygon") {
@@ -1690,11 +1786,13 @@ async function renderCombined() {
     } catch (e) {
       errorBox(groups[i], rects[i], String(e.message || e));
     }
+    if (!summaryEntry) summaryEntry = cloneJobForSummary(jobs[i]);
+    if (summaryEntry) summaries.push(summaryEntry);
   }
   lastRenderSummary = {
     layoutMode: rowLayout ? 'row' : 'col',
     count: n,
-    jobs: jobs.map(cloneJobForSummary).filter(Boolean)
+    jobs: summaries
   };
   maybeRefreshAltText('config');
   svg.setAttribute("aria-label", n === 1 ? "Én figur" : `${n} figurer i samme bilde`);
