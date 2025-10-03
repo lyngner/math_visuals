@@ -387,7 +387,7 @@
         </select>
       </label>
       <label>Antall deler
-        <input id="parts${id}" type="number" min="1" value="4" />
+        <input id="parts${id}" class="input--digit input--small" type="number" min="1" value="4" />
       </label>
       <label>Delt
         <select id="division${id}">
@@ -447,6 +447,10 @@
         if (legend) legend.textContent = `Figur ${id}`;
         settingsContainer.appendChild(fieldset);
       }
+      settingsContainer.style.setProperty('--figure-settings-cols', String(cols));
+      settingsContainer.style.setProperty('--figure-settings-rows', String(rows));
+      settingsContainer.dataset.cols = String(cols);
+      settingsContainer.dataset.rows = String(rows);
     }
     activeFigureIds = ids;
     updateLayoutControls();
