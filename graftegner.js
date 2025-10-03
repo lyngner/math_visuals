@@ -236,8 +236,15 @@ function extractLineRhs(expr) {
 function interpretLineTemplate(rhs) {
   const base = { kind: null, anchorC: 0, slopeM: 1 };
   if (typeof rhs !== 'string') return base;
-  const normalized = rhs.replace(/\s+/g, '').toLowerCase();
+  const normalized = rhs.replace(/\s+/g, '').replace(/·/g, '*').replace(/,/g, '.').replace(/−/g, '-').toLowerCase();
   if (!normalized) return base;
+  if (/^a\*?x$/.test(normalized)) {
+    return {
+      kind: 'anchorY',
+      anchorC: 0,
+      slopeM: 1
+    };
+  }
   if (/^a\*?x([+-])(\d+(?:\.\d+)?)$/.test(normalized)) {
     const sign = RegExp.$1 === '-' ? -1 : 1;
     const value = Number.parseFloat(RegExp.$2);
