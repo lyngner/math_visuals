@@ -32,7 +32,10 @@
   const btnSvg = document.getElementById('btnSvg');
   const btnPng = document.getElementById('btnPng');
   const cfgAntallWrapper = document.getElementById('cfg-antall-wrapper');
+  const exportCard = document.getElementById('exportCard');
   let BRICK_SRC;
+  let altTextManager = null;
+  let autoAltText = '';
   const BRICK_TILE_WIDTH = 26;
   const BRICK_TILE_HEIGHT = 13;
   const BRICK_UNIT_HEIGHT = 13;
@@ -60,6 +63,137 @@
       element.removeAttribute('role');
       element.removeAttribute('aria-label');
     }
+  }
+  function getManualAltText() {
+    if (CFG && CFG.altTextSource === 'manual') {
+      const text = typeof CFG.altText === 'string' ? CFG.altText.trim() : '';
+      if (text) return text;
+    }
+    return '';
+  }
+  function setAutoAltText(value) {
+    autoAltText = typeof value === 'string' ? value.trim() : '';
+  }
+  function getEffectiveAltText() {
+    const manual = getManualAltText();
+    return manual || autoAltText || '';
+  }
+  function getActiveContainer() {
+    if (!CFG) return brickContainer || patternContainer || rectangleContainer || null;
+    if (CFG.type === 'monster') return patternContainer || brickContainer || rectangleContainer || null;
+    if (CFG.type === 'rectangles') return rectangleContainer || brickContainer || patternContainer || null;
+    return brickContainer || patternContainer || rectangleContainer || null;
+  }
+  function updateFigureAlt(container, reason, options) {
+    const opts = options || {};
+    const target = container || getActiveContainer();
+    if (target) {
+      setFigureAlt(target, getEffectiveAltText());
+    }
+    if (!opts.skipRefresh && altTextManager && typeof altTextManager.refresh === 'function') {
+      altTextManager.refresh(reason || 'config');
+    }
+  }
+  function buildKlosserAltText(rows, cols, width, height, depth) {
+    const rowsCount = Math.max(0, Math.trunc(rows));
+    const colsCount = Math.max(0, Math.trunc(cols));
+    const widthCount = Math.max(0, Math.trunc(width));
+    const heightCount = Math.max(0, Math.trunc(height));
+    const depthCount = Math.max(0, Math.trunc(depth));
+    const totalFigures = rowsCount * colsCount;
+    const perFigure = widthCount * heightCount * depthCount;
+    if (totalFigures <= 0 || perFigure <= 0) {
+      return 'Ingen klossfigurer vist.';
+    }
+    if (totalFigures === 1) {
+      return `1 klossfigur som består av ${perFigure} klosser (${widthCount} × ${heightCount} × ${depthCount}).`;
+    }
+    const arrangement = describeArrangement(rowsCount, colsCount);
+    const total = totalFigures * perFigure;
+    return `${describePlural(totalFigures, 'klossfigur', 'klossfigurer')}. ${arrangement} Hver figur består av ${perFigure} klosser (${widthCount} × ${heightCount} × ${depthCount}), totalt ${total} klosser.`.trim();
+  }
+  function buildMonsterAltText(rows, cols, count, hasPattern) {
+    const rowsCount = Math.max(0, Math.trunc(rows));
+    const colsCount = Math.max(0, Math.trunc(cols));
+    const dotsPerFigure = Math.max(0, Math.trunc(count));
+    const totalFigures = rowsCount * colsCount;
+    if (!hasPattern || totalFigures <= 0 || dotsPerFigure <= 0) {
+      return 'Ingen numbervisual vist.';
+    }
+    if (totalFigures === 1) {
+      return `1 numbervisual med ${dotsPerFigure} prikker.`;
+    }
+    const arrangement = describeArrangement(rowsCount, colsCount);
+    const totalDots = totalFigures * dotsPerFigure;
+    return `${describePlural(totalFigures, 'numbervisual', 'numbervisualer')}. ${arrangement} Hver figur viser ${dotsPerFigure} prikker, totalt ${totalDots} prikker.`.trim();
+  }
+  function buildRectanglesAltText(figRows, figCols, rowsCount, colsCount, hasPattern) {
+    const outerRows = Math.max(0, Math.trunc(figRows));
+    const outerCols = Math.max(0, Math.trunc(figCols));
+    const innerRows = Math.max(0, Math.trunc(rowsCount));
+    const innerCols = Math.max(0, Math.trunc(colsCount));
+    const totalFigures = outerRows * outerCols;
+    const perFigure = innerRows * innerCols;
+    if (!hasPattern || totalFigures <= 0 || perFigure <= 0) {
+      return 'Ingen punktrektangler vist.';
+    }
+    if (totalFigures === 1) {
+      return `1 punktrektangel med ${innerRows} rader og ${innerCols} kolonner av prikker (${perFigure} prikker i alt).`;
+    }
+    const arrangement = describeArrangement(outerRows, outerCols);
+    const totalDots = totalFigures * perFigure;
+    return `${describePlural(totalFigures, 'punktrektangel', 'punktrektangler')}. ${arrangement} Hver figur har ${innerRows} rader og ${innerCols} kolonner av prikker (${perFigure} prikker), totalt ${totalDots} prikker.`.trim();
+  }
+  function buildAltTextForType(type) {
+    const normalizedType = type === 'monster' || type === 'rectangles' ? type : 'klosser';
+    if (!CFG) return '';
+    if (normalizedType === 'monster') {
+      const {
+        antallX = 0,
+        antallY = 0,
+        antall = 0,
+        levelScale = 1
+      } = CFG.monster || {};
+      const cols = Math.max(0, Math.trunc(antallX));
+      const rows = Math.max(0, Math.trunc(antallY));
+      const count = Math.max(0, Math.trunc(antall));
+      const points = byggMonster(count, levelScale);
+      const hasPattern = Array.isArray(points) && points.length > 0 && cols > 0 && rows > 0 && count > 0;
+      return buildMonsterAltText(rows, cols, count, hasPattern);
+    }
+    if (normalizedType === 'rectangles') {
+      const {
+        antallX = 0,
+        antallY = 0,
+        cols = 0,
+        rows = 0
+      } = CFG.rectangles || {};
+      const figCols = Math.max(0, Math.trunc(antallX));
+      const figRows = Math.max(0, Math.trunc(antallY));
+      const colsCount = Math.max(0, Math.trunc(cols));
+      const rowsCount = Math.max(0, Math.trunc(rows));
+      const hasPattern = figCols > 0 && figRows > 0 && colsCount > 0 && rowsCount > 0;
+      return buildRectanglesAltText(figRows, figCols, rowsCount, colsCount, hasPattern);
+    }
+    const {
+      antallX = 0,
+      antallY = 0,
+      bredde = 0,
+      hoyde = 0,
+      dybde = 0
+    } = CFG.klosser || {};
+    const cols = Math.max(0, Math.trunc(antallX));
+    const rows = Math.max(0, Math.trunc(antallY));
+    const width = Math.max(0, Math.trunc(bredde));
+    const height = Math.max(0, Math.trunc(hoyde));
+    const depth = Math.max(0, Math.trunc(dybde));
+    return buildKlosserAltText(rows, cols, width, height, depth);
+  }
+  function getAltTextTitle() {
+    const base = typeof document !== 'undefined' && document && document.title ? document.title : 'Kvikkbilder';
+    if (!CFG) return base;
+    const suffix = CFG.type === 'monster' ? 'Numbervisuals' : CFG.type === 'rectangles' ? 'Rektangler' : 'Klosser';
+    return `${base} – ${suffix}`;
   }
   function normalizeInteger(value) {
     return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
@@ -384,16 +518,9 @@
     }
     parts.push(`= ${total}`);
     expression.textContent = parts.join(' ');
-    let altText = 'Ingen klossfigurer vist.';
-    if (totalFigures > 0 && perFig > 0) {
-      if (totalFigures === 1) {
-        altText = `1 klossfigur som består av ${perFig} klosser (${width} × ${height} × ${depth}).`;
-      } else {
-        const arrangement = describeArrangement(rows, cols);
-        altText = `${describePlural(totalFigures, 'klossfigur', 'klossfigurer')}. ${arrangement} Hver figur består av ${perFig} klosser (${width} × ${height} × ${depth}), totalt ${total} klosser.`.trim();
-      }
-    }
-    setFigureAlt(brickContainer, altText);
+    const autoText = buildKlosserAltText(rows, cols, width, height, depth);
+    setAutoAltText(autoText);
+    updateFigureAlt(brickContainer, 'render-klosser');
     if (!BRICK_SRC) return;
     for (let i = 0; i < totalFigures; i++) {
       const fig = createBrick(width, height, depth, layerGap);
@@ -664,39 +791,31 @@
     const points = byggMonster(count, levelScale);
     const factors = primeFactors(count).filter(x => x > 1);
     const baseExpression = factors.length ? `${factors.join(DOT)} = ${count}` : `${count}`;
-    let altText = 'Ingen numbervisual vist.';
-    if (!points.length || cols <= 0 || rows <= 0) {
-      expression.textContent = baseExpression;
-      setFigureAlt(patternContainer, altText);
-      return;
-    }
-    const svg = createPatternSvg(points, {
-      radius: circleRadius,
-      spacing: dotSpacing
-    });
-    if (!svg) {
-      expression.textContent = baseExpression;
-      setFigureAlt(patternContainer, altText);
-      return;
-    }
     const totalFigures = cols * rows;
+    const hasPoints = Array.isArray(points) && points.length > 0 && cols > 0 && rows > 0;
+    let svg = null;
+    if (hasPoints) {
+      svg = createPatternSvg(points, {
+        radius: circleRadius,
+        spacing: dotSpacing
+      });
+    }
+    const hasPattern = !!svg;
+    const autoText = buildMonsterAltText(rows, cols, count, hasPattern);
+    setAutoAltText(autoText);
+    updateFigureAlt(patternContainer, 'render-monster');
+    if (!hasPattern) {
+      expression.textContent = baseExpression;
+      return;
+    }
     svg.setAttribute('aria-label', `Numbervisual ${count}`);
     const totalDots = totalFigures * count;
-    if (totalFigures > 0 && count > 0) {
-      if (totalFigures === 1) {
-        altText = `1 numbervisual med ${count} prikker.`;
-      } else {
-        const arrangement = describeArrangement(rows, cols);
-        altText = `${describePlural(totalFigures, 'numbervisual', 'numbervisualer')}. ${arrangement} Hver figur viser ${count} prikker, totalt ${totalDots} prikker.`.trim();
-      }
-    }
     for (let i = 0; i < totalFigures; i++) {
       const wrapper = document.createElement('div');
       wrapper.className = 'pattern-item';
       wrapper.appendChild(svg.cloneNode(true));
       patternContainer.appendChild(wrapper);
     }
-    setFigureAlt(patternContainer, altText);
     if (totalFigures > 1) {
       const outerFactors = filterUnitFactors([cols, rows]);
       const firstExpression = outerFactors.length ? `${joinFactors(outerFactors)}${DOT}(${baseExpression})` : baseExpression;
@@ -752,29 +871,22 @@
       expr = expr ? `${expr} = ${productStep.text}` : productStep.text;
     }
     expression.textContent = expr ? `${expr} = ${totalDots}` : `${totalDots}`;
-    let altText = 'Ingen punktrektangler vist.';
-    if (totalFigures <= 0 || colsCount <= 0 || rowsCount <= 0) {
-      setFigureAlt(rectangleContainer, altText);
-      return;
+    let svg = null;
+    if (totalFigures > 0 && colsCount > 0 && rowsCount > 0) {
+      svg = createRectangleSvg(colsCount, rowsCount, {
+        radius: radiusSafe,
+        spacingX: spacingXSafe,
+        spacingY: spacingYSafe
+      });
     }
-    const svg = createRectangleSvg(colsCount, rowsCount, {
-      radius: radiusSafe,
-      spacingX: spacingXSafe,
-      spacingY: spacingYSafe
-    });
-    if (!svg) {
-      setFigureAlt(rectangleContainer, altText);
+    const hasPattern = !!svg;
+    const autoText = buildRectanglesAltText(figRows, figCols, rowsCount, colsCount, hasPattern);
+    setAutoAltText(autoText);
+    updateFigureAlt(rectangleContainer, 'render-rectangles');
+    if (!hasPattern) {
       return;
     }
     svg.setAttribute('aria-label', `${colsCount} × ${rowsCount} prikker`);
-    if (perFigure > 0 && totalFigures > 0) {
-      if (totalFigures === 1) {
-        altText = `1 punktrektangel med ${rowsCount} rader og ${colsCount} kolonner av prikker (${perFigure} prikker i alt).`;
-      } else {
-        const arrangement = describeArrangement(figRows, figCols);
-        altText = `${describePlural(totalFigures, 'punktrektangel', 'punktrektangler')}. ${arrangement} Hver figur har ${rowsCount} rader og ${colsCount} kolonner av prikker (${perFigure} prikker), totalt ${totalDots} prikker.`.trim();
-      }
-    }
     const total = totalFigures;
     for (let i = 0; i < total; i++) {
       const wrapper = document.createElement('div');
@@ -782,7 +894,6 @@
       wrapper.appendChild(svg.cloneNode(true));
       rectangleContainer.appendChild(wrapper);
     }
-    setFigureAlt(rectangleContainer, altText);
   }
   function applyExpressionVisibility() {
     if (!expression) return;
@@ -867,11 +978,46 @@
       cfgRectPatternGap.removeAttribute('title');
     }
   }
+  function initAltTextManager() {
+    if (typeof window === 'undefined' || !window.MathVisAltText) return;
+    if (altTextManager || !exportCard) return;
+    altTextManager = window.MathVisAltText.create({
+      svg: () => getActiveSvg(),
+      container: exportCard,
+      getTitle: getAltTextTitle,
+      getState: () => ({
+        text: typeof CFG.altText === 'string' ? CFG.altText : '',
+        source: CFG.altTextSource === 'manual' ? 'manual' : 'auto'
+      }),
+      setState: (text, source) => {
+        const cleaned = typeof text === 'string' ? text.trim() : '';
+        CFG.altText = cleaned;
+        CFG.altTextSource = cleaned && source === 'manual' ? 'manual' : 'auto';
+        updateFigureAlt(null, source === 'manual' ? 'manual-state' : 'auto-state', { skipRefresh: true });
+      },
+      generate: () => buildAltTextForType(CFG.type),
+      getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
+      getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
+    });
+    if (altTextManager) {
+      altTextManager.applyCurrent();
+    }
+  }
   function sanitizeCfg() {
     if (!['monster', 'klosser', 'rectangles'].includes(CFG.type)) {
       CFG.type = DEFAULT_CFG.type;
     }
     CFG.showExpression = CFG.showExpression !== false;
+    if (typeof CFG.altText !== 'string') {
+      CFG.altText = '';
+    } else {
+      CFG.altText = CFG.altText.trim();
+    }
+    if (CFG.altText && CFG.altTextSource === 'manual') {
+      CFG.altTextSource = 'manual';
+    } else {
+      CFG.altTextSource = 'auto';
+    }
     if (!CFG.klosser || typeof CFG.klosser !== 'object') CFG.klosser = {};
     if (!CFG.monster || typeof CFG.monster !== 'object') CFG.monster = {};
     if (!CFG.rectangles || typeof CFG.rectangles !== 'object') CFG.rectangles = {};
@@ -1201,6 +1347,7 @@
     img.src = url;
   }
   render();
+  initAltTextManager();
   fetch('images/brick1.svg').then(r => r.text()).then(txt => {
     BRICK_SRC = `data:image/svg+xml;base64,${btoa(txt)}`;
     renderView();
