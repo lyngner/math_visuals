@@ -492,6 +492,7 @@ function drawLines(displayMode) {
   if (values2 && values2.length) datasets.push(values2);
   const baseValue = getBaselineValue();
   const baseY = yPos(baseValue);
+  const totals = datasets.map(arr => computeSeriesTotal(arr));
   datasets.forEach((arr, idx) => {
     const multiSeries = datasets.length > 1;
     const offsetX = multiSeries ? (idx - (datasets.length - 1) / 2) * 14 : 0;
@@ -549,10 +550,12 @@ function drawLines(displayMode) {
       a11y.addEventListener('pointerdown', onDragStart);
       a11y.addEventListener('keydown', onKeyAdjust);
       if (displayMode !== 'none') {
+        const share = computeValueShare(v, totals[idx]);
         placeValueLabel(cx, cy, v, displayMode, {
           baseY,
           series: idx,
-          xOffset: offsetX
+          xOffset: offsetX,
+          share
         });
       }
     });
@@ -664,6 +667,8 @@ function drawGroupedBars(displayMode) {
   const barSingle = hasTwo ? barTotal / 2 : barTotal;
   const baseValue = getBaselineValue();
   const baseY = yPos(baseValue);
+  const total1 = computeSeriesTotal(values);
+  const total2 = hasTwo ? computeSeriesTotal(values2) : 0;
   for (let i = 0; i < N; i++) {
     const x0 = xPos(i) - barTotal / 2;
     // serie 1
@@ -724,9 +729,11 @@ function drawGroupedBars(displayMode) {
     a1.addEventListener('pointerdown', onDragStart);
     a1.addEventListener('keydown', onKeyAdjust);
     if (displayMode !== 'none') {
+      const share1 = computeValueShare(v1, total1);
       placeValueLabel(x0 + barSingle / 2, y1, v1, displayMode, {
         baseY,
-        series: 0
+        series: 0,
+        share: share1
       });
     }
 
@@ -789,9 +796,11 @@ function drawGroupedBars(displayMode) {
       a2.addEventListener('pointerdown', onDragStart);
       a2.addEventListener('keydown', onKeyAdjust);
       if (displayMode !== 'none') {
+        const share2 = computeValueShare(v2, total2);
         placeValueLabel(x1 + barSingle / 2, y2, v2, displayMode, {
           baseY,
-          series: 1
+          series: 1,
+          share: share2
         });
       }
     }
@@ -923,14 +932,49 @@ function drawStackedBars() {
   }
 }
 function placeValueLabel(x, y, value, mode, options = {}) {
-  const text = formatValueLabel(value, mode);
-  if (!text) return;
+  const display = formatValueLabel(value, mode, options.share);
+  if (!display || !display.text) return;
   const baseY = typeof options.baseY === 'number' ? options.baseY : y;
   const offset = Number.isFinite(options.offset) ? options.offset : 12;
   const xOffset = Number.isFinite(options.xOffset) ? options.xOffset : 0;
   const finalX = x + xOffset;
   const above = typeof options.above === 'boolean' ? options.above : y <= baseY;
   const finalY = above ? y - offset : y + offset;
+  const anchor = typeof options.anchor === 'string' && options.anchor ? options.anchor : 'middle';
+  if (display.type === 'katex' && display.latex && typeof window !== 'undefined' && window.katex && typeof window.katex.render === 'function') {
+    const width = Number.isFinite(options.boxWidth) ? options.boxWidth : 140;
+    const height = Number.isFinite(options.boxHeight) ? options.boxHeight : 56;
+    const foreignObject = addTo(gVals, 'foreignObject', {
+      x: finalX - width / 2,
+      y: above ? finalY - height : finalY,
+      width,
+      height,
+      class: 'value-fo'
+    });
+    const container = document.createElement('div');
+    container.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    container.className = 'value value--html';
+    container.style.display = 'flex';
+    container.style.justifyContent = anchor === 'start' ? 'flex-start' : anchor === 'end' ? 'flex-end' : 'center';
+    container.style.alignItems = above ? 'flex-end' : 'flex-start';
+    container.style.width = '100%';
+    container.style.height = '100%';
+    container.style.pointerEvents = 'none';
+    if (Number.isFinite(options.series)) {
+      container.classList.add(`series${options.series}`);
+    }
+    const span = document.createElement('span');
+    container.appendChild(span);
+    try {
+      window.katex.render(display.latex, span, {
+        throwOnError: false
+      });
+    } catch (error) {
+      span.textContent = display.text;
+    }
+    foreignObject.appendChild(container);
+    return;
+  }
   const attrs = {
     x: finalX,
     y: finalY,
@@ -942,46 +986,137 @@ function placeValueLabel(x, y, value, mode, options = {}) {
   if (!above) {
     attrs['dominant-baseline'] = 'hanging';
   }
-  if (typeof options.anchor === 'string' && options.anchor) {
-    attrs['text-anchor'] = options.anchor;
+  if (anchor && anchor !== 'middle') {
+    attrs['text-anchor'] = anchor;
   }
   const label = addTo(gVals, 'text', attrs);
-  label.textContent = text;
+  label.textContent = display.text;
 }
-function formatValueLabel(value, mode) {
+function formatValueLabel(value, mode, share) {
   const normalized = sanitizeValueDisplay(mode);
-  if (normalized === 'none') return '';
+  if (normalized === 'none') return { type: 'none', text: '' };
   const safeValue = Number.isFinite(value) ? value : 0;
-  if (normalized === 'number') return fmt(safeValue);
-  if (normalized === 'percent') return formatPercent(safeValue * 100);
-  if (normalized === 'fraction') return formatFractionValue(safeValue);
-  return '';
+  if (normalized === 'number') {
+    return {
+      type: 'text',
+      text: fmt(safeValue)
+    };
+  }
+  const ratio = Number.isFinite(share) ? share : 0;
+  if (normalized === 'percent') {
+    return {
+      type: 'text',
+      text: formatPercent(ratio * 100)
+    };
+  }
+  if (normalized === 'fraction') {
+    const fraction = formatFractionDisplay(ratio);
+    if (fraction.latex) {
+      return {
+        type: 'katex',
+        text: fraction.text,
+        latex: fraction.latex
+      };
+    }
+    return {
+      type: 'text',
+      text: fraction.text
+    };
+  }
+  return {
+    type: 'text',
+    text: ''
+  };
+}
+function computeSeriesTotal(arr) {
+  if (!Array.isArray(arr) || !arr.length) return 0;
+  return arr.reduce((sum, value) => {
+    const safe = Number.isFinite(value) ? Math.abs(value) : 0;
+    return safe > 0 ? sum + safe : sum;
+  }, 0);
+}
+function computeValueShare(value, total) {
+  const safeTotal = Number.isFinite(total) ? total : 0;
+  if (safeTotal <= 0) return 0;
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const magnitude = Math.abs(safeValue);
+  if (magnitude <= 0) return 0;
+  const ratio = magnitude / safeTotal;
+  return safeValue < 0 ? -ratio : ratio;
 }
 function formatFractionValue(value) {
-  if (!Number.isFinite(value)) return '';
-  if (Math.abs(value) < 1e-9) return '0';
-  const sign = value < 0 ? '-' : '';
+  return formatFractionDisplay(value).text;
+}
+function formatFractionDisplay(value) {
+  if (!Number.isFinite(value)) return {
+    text: '',
+    latex: ''
+  };
+  if (Math.abs(value) < 1e-9) {
+    return {
+      text: '0',
+      latex: '0'
+    };
+  }
+  const signPrefix = value < 0 ? '-' : '';
   const absVal = Math.abs(value);
   if (Math.abs(absVal - Math.round(absVal)) < 1e-9) {
-    return sign + Math.round(absVal);
+    const rounded = Math.round(absVal);
+    const text = signPrefix + rounded;
+    return {
+      text,
+      latex: text
+    };
   }
   const approx = approximateFraction(absVal, 100);
   if (!approx) {
-    return sign + fmt(absVal);
+    const fallback = fmt(absVal);
+    const text = signPrefix + fallback;
+    return {
+      text,
+      latex: text
+    };
   }
   let numerator = approx.numerator;
   let denominator = approx.denominator;
-  if (denominator === 0) return sign + fmt(absVal);
-  if (numerator === 0) return '0';
+  if (denominator === 0) {
+    const fallback = fmt(absVal);
+    const text = signPrefix + fallback;
+    return {
+      text,
+      latex: text
+    };
+  }
+  if (numerator === 0) {
+    return {
+      text: '0',
+      latex: '0'
+    };
+  }
   const whole = Math.floor(numerator / denominator);
   const remainder = numerator % denominator;
-  let parts = [];
-  if (whole > 0) parts.push(String(whole));
-  if (remainder > 0) {
-    parts.push(`${remainder}⁄${denominator}`);
+  if (remainder === 0) {
+    const text = signPrefix + String(whole);
+    return {
+      text,
+      latex: text
+    };
   }
-  if (!parts.length) parts.push('0');
-  return sign + parts.join(' ');
+  if (whole === 0) {
+    const fractionText = `${remainder}⁄${denominator}`;
+    const text = signPrefix ? `-${fractionText}` : fractionText;
+    const latex = `${signPrefix ? '-' : ''}\\frac{${remainder}}{${denominator}}`;
+    return {
+      text,
+      latex
+    };
+  }
+  const text = `${signPrefix ? '-' : ''}${whole} ${remainder}⁄${denominator}`;
+  const latex = `${signPrefix ? '-' : ''}${whole}\\frac{${remainder}}{${denominator}}`;
+  return {
+    text,
+    latex
+  };
 }
 function approximateFraction(value, maxDenominator = 100) {
   if (!Number.isFinite(value)) return null;
@@ -1073,6 +1208,7 @@ function drawBars(displayMode) {
   gA11y.innerHTML = '';
   const baseValue = getBaselineValue();
   const baseY = yPos(baseValue);
+  const total = computeSeriesTotal(values);
   values.forEach((v, i) => {
     const cx = xPos(i);
     const y = yPos(v);
@@ -1147,9 +1283,11 @@ function drawBars(displayMode) {
 
     // 4) Verdi (øverst, ikke-interaktiv)
     if (displayMode !== 'none') {
+      const share = computeValueShare(v, total);
       placeValueLabel(cx, y, v, displayMode, {
         baseY,
-        series: 0
+        series: 0,
+        share
       });
     }
   });
