@@ -8,6 +8,7 @@ const CFG = {
   series1: '',
   start: [6, 7, 3, 5, 8, 2],
   answer: [6, 7, 3, 5, 8, 2],
+  yMin: 0,
   yMax: 8,
   snap: 1,
   tolerance: 0,
@@ -87,6 +88,26 @@ const DEFAULT_DIAGRAM_EXAMPLES = [{
       locked: []
     }
   }
+}, {
+  id: 'diagram-example-5',
+  exampleNumber: '5',
+  config: {
+    CFG: {
+      type: 'line',
+      title: 'Temperatur over fem dager',
+      labels: ['Dag 1', 'Dag 2', 'Dag 3', 'Dag 4', 'Dag 5'],
+      series1: '',
+      start: [-1, 2, 0, -3, -1],
+      answer: [-1, 2, 0, -3, -1],
+      yMin: -4,
+      yMax: 4,
+      snap: 1,
+      tolerance: 0,
+      axisXLabel: 'Dag',
+      axisYLabel: 'Temperatur (°C)',
+      locked: []
+    }
+  }
 }];
 window.DEFAULT_EXAMPLES = DEFAULT_DIAGRAM_EXAMPLES.map(ex => {
   var _ex$config, _ex$config2, _ex$config3, _ex$config4;
@@ -132,7 +153,9 @@ let series2Enabled = false;
 let seriesNames = [];
 let locked = [];
 let N = 0;
+let yMin = 0;
 let yMax = 0;
+let yStep = 1;
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
 btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => downloadSVG(svg, 'diagram.svg'));
@@ -180,8 +203,6 @@ addSeriesBtn === null || addSeriesBtn === void 0 || addSeriesBtn.addEventListene
   if (series2Fields) series2Fields.style.display = '';
   applyCfg();
 });
-const yMin = 0;
-
 // skalaer
 let xBand = 0;
 let barW = 0;
@@ -189,6 +210,7 @@ function xPos(i) {
   return M.l + xBand * i + xBand / 2;
 }
 function yPos(v) {
+  if (yMax === yMin) return M.t + innerH / 2;
   return M.t + innerH - (v - yMin) / (yMax - yMin) * innerH;
 }
 
@@ -206,7 +228,10 @@ function initFromCfg() {
   xBand = innerW / N;
   barW = xBand * 0.6;
   const allVals = [...CFG.start, ...(CFG.start2 || []), ...(CFG.answer || []), ...(CFG.answer2 || [])];
-  yMax = (_CFG$yMax = CFG.yMax) !== null && _CFG$yMax !== void 0 ? _CFG$yMax : niceMax(allVals);
+  const scale = computeScaleBounds(allVals, CFG.yMin, CFG.yMax);
+  yMin = scale.min;
+  yMax = scale.max;
+  yStep = scale.step;
   locked = alignLength(CFG.locked || [], N, false);
   lastFocusIndex = null;
   document.getElementById('chartTitle').textContent = CFG.title || '';
@@ -214,6 +239,7 @@ function initFromCfg() {
   const titleInput = document.getElementById('cfgTitle');
   const labelsInput = document.getElementById('cfgLabels');
   const lockedInput = document.getElementById('cfgLocked');
+  const yMinInput = document.getElementById('cfgYMin');
   const yMaxInput = document.getElementById('cfgYMax');
   const axisXInput = document.getElementById('cfgAxisXLabel');
   const axisYInput = document.getElementById('cfgAxisYLabel');
@@ -231,6 +257,7 @@ function initFromCfg() {
     const lockedStr = locked.some(Boolean) ? locked.map(v => v ? '1' : '0').join(',') : '';
     lockedInput.value = lockedStr;
   }
+  if (yMinInput) yMinInput.value = Number.isFinite(CFG.yMin) ? formatNumber(CFG.yMin) : '';
   if (yMaxInput) yMaxInput.value = Number.isFinite(CFG.yMax) ? formatNumber(CFG.yMax) : '';
   if (axisXInput) axisXInput.value = CFG.axisXLabel || '';
   if (axisYInput) axisYInput.value = CFG.axisYLabel || '';
@@ -285,9 +312,13 @@ function drawAxesAndGrid() {
   gGrid.innerHTML = '';
   gAxis.innerHTML = '';
   gLabels.innerHTML = '';
-  const step = chooseStep(yMax);
-  for (let y = 0; y <= yMax + 1e-9; y += step) {
-    const yy = yPos(y);
+  const step = yStep || niceStep(yMax - yMin || 1);
+  const maxTicks = 500;
+  for (let i = 0; i < maxTicks; i++) {
+    const raw = yMin + step * i;
+    if (raw > yMax + step * 0.5) break;
+    const value = normalizeTickValue(raw);
+    const yy = yPos(value);
     addTo(gGrid, 'line', {
       x1: M.l,
       y1: yy,
@@ -299,7 +330,7 @@ function drawAxesAndGrid() {
       x: M.l - 6,
       y: yy + 4,
       class: 'yTickText'
-    }).textContent = y;
+    }).textContent = formatTickValue(value);
   }
 
   // y-akse
@@ -311,11 +342,13 @@ function drawAxesAndGrid() {
     class: 'axis'
   });
   // x-akse
+  const baseValue = getBaselineValue();
+  const axisY = yPos(baseValue);
   addTo(gAxis, 'line', {
     x1: M.l,
-    y1: H - M.b,
+    y1: axisY,
     x2: W - M.r,
-    y2: H - M.b,
+    y2: axisY,
     class: 'axis'
   });
 
@@ -451,16 +484,21 @@ function drawGroupedBars() {
   const hasTwo = values2 && values2.length;
   const barTotal = xBand * 0.6;
   const barSingle = hasTwo ? barTotal / 2 : barTotal;
+  const baseValue = getBaselineValue();
+  const baseY = yPos(baseValue);
   for (let i = 0; i < N; i++) {
     const x0 = xPos(i) - barTotal / 2;
     // serie 1
     const v1 = values[i];
     const y1 = yPos(v1);
+    const rect1Y = Math.min(y1, baseY);
+    const rect1H = Math.max(2, Math.abs(baseY - y1));
+    const handleDir1 = y1 <= baseY ? -1 : 1;
     const rect1 = addTo(gBars, 'rect', {
       x: x0,
-      y: y1,
+      y: rect1Y,
       width: barSingle,
-      height: Math.max(2, H - M.b - y1),
+      height: rect1H,
       class: 'bar series0' + (locked[i] ? ' locked' : '')
     });
     rect1.dataset.index = i;
@@ -470,13 +508,13 @@ function drawGroupedBars() {
     if (!locked[i]) {
       addTo(gHands, 'circle', {
         cx: x0 + barSingle / 2,
-        cy: y1 - 2 + 2,
+        cy: y1,
         r: 16,
         class: 'handleShadow'
       });
       const h1 = addTo(gHands, 'circle', {
         cx: x0 + barSingle / 2,
-        cy: y1 - 2,
+        cy: y1 + handleDir1 * 2,
         r: 14,
         class: 'handle'
       });
@@ -513,11 +551,14 @@ function drawGroupedBars() {
       const v2 = values2[i];
       const y2 = yPos(v2);
       const x1 = x0 + barSingle;
+      const rect2Y = Math.min(y2, baseY);
+      const rect2H = Math.max(2, Math.abs(baseY - y2));
+      const handleDir2 = y2 <= baseY ? -1 : 1;
       const rect2 = addTo(gBars, 'rect', {
         x: x1,
-        y: y2,
+        y: rect2Y,
         width: barSingle,
-        height: Math.max(2, H - M.b - y2),
+        height: rect2H,
         class: 'bar series1' + (locked[i] ? ' locked' : '')
       });
       rect2.dataset.index = i;
@@ -527,13 +568,13 @@ function drawGroupedBars() {
       if (!locked[i]) {
         addTo(gHands, 'circle', {
           cx: x1 + barSingle / 2,
-          cy: y2 - 2 + 2,
+          cy: y2,
           r: 16,
           class: 'handleShadow'
         });
         const h2 = addTo(gHands, 'circle', {
           cx: x1 + barSingle / 2,
-          cy: y2 - 2,
+          cy: y2 + handleDir2 * 2,
           r: 14,
           class: 'handle'
         });
@@ -570,17 +611,21 @@ function drawGroupedBars() {
 }
 function drawStackedBars() {
   const barTotal = xBand * 0.6;
+  const baseValue = getBaselineValue();
+  const baseY = yPos(baseValue);
   for (let i = 0; i < N; i++) {
-    const base = H - M.b;
     const v1 = values[i];
     const v2 = values2 ? values2[i] : 0;
     const cx = xPos(i);
     const y1 = yPos(v1);
+    const rect1Y = Math.min(y1, baseY);
+    const rect1H = Math.max(2, Math.abs(baseY - y1));
+    const handleDir1 = y1 <= baseY ? -1 : 1;
     const rect1 = addTo(gBars, 'rect', {
       x: cx - barTotal / 2,
-      y: y1,
+      y: rect1Y,
       width: barTotal,
-      height: Math.max(2, base - y1),
+      height: rect1H,
       class: 'bar series0' + (locked[i] ? ' locked' : '')
     });
     rect1.dataset.index = i;
@@ -590,13 +635,13 @@ function drawStackedBars() {
     if (!locked[i]) {
       addTo(gHands, 'circle', {
         cx: cx,
-        cy: y1 - 2 + 2,
+        cy: y1,
         r: 16,
         class: 'handleShadow'
       });
       const h1 = addTo(gHands, 'circle', {
         cx: cx,
-        cy: y1 - 2,
+        cy: y1 + handleDir1 * 2,
         r: 14,
         class: 'handle'
       });
@@ -607,9 +652,9 @@ function drawStackedBars() {
     }
     const a1 = addTo(gA11y, 'rect', {
       x: cx - barTotal / 2,
-      y: y1,
+      y: rect1Y,
       width: barTotal,
-      height: base - y1,
+      height: rect1H,
       fill: 'transparent',
       class: 'a11y',
       tabindex: 0,
@@ -631,11 +676,14 @@ function drawStackedBars() {
 
     if (values2) {
       const y2 = yPos(v1 + v2);
+      const rect2Y = Math.min(y2, y1);
+      const rect2H = Math.max(2, Math.abs(y1 - y2));
+      const handleDir2 = y2 <= y1 ? -1 : 1;
       const rect2 = addTo(gBars, 'rect', {
         x: cx - barTotal / 2,
-        y: y2,
+        y: rect2Y,
         width: barTotal,
-        height: Math.max(2, y1 - y2),
+        height: rect2H,
         class: 'bar series1' + (locked[i] ? ' locked' : '')
       });
       rect2.dataset.index = i;
@@ -645,13 +693,13 @@ function drawStackedBars() {
       if (!locked[i]) {
         addTo(gHands, 'circle', {
           cx: cx,
-          cy: y2 - 2 + 2,
+          cy: y2,
           r: 16,
           class: 'handleShadow'
         });
         const h2 = addTo(gHands, 'circle', {
           cx: cx,
-          cy: y2 - 2,
+          cy: y2 + handleDir2 * 2,
           r: 14,
           class: 'handle'
         });
@@ -662,9 +710,9 @@ function drawStackedBars() {
       }
       const a2 = addTo(gA11y, 'rect', {
         x: cx - barTotal / 2,
-        y: y2,
+        y: rect2Y,
         width: barTotal,
-        height: y1 - y2,
+        height: rect2H,
         fill: 'transparent',
         class: 'a11y',
         tabindex: 0,
@@ -691,16 +739,22 @@ function drawBars() {
   gVals.innerHTML = '';
   gHands.innerHTML = '';
   gA11y.innerHTML = '';
+  const baseValue = getBaselineValue();
+  const baseY = yPos(baseValue);
   values.forEach((v, i) => {
     const cx = xPos(i);
     const y = yPos(v);
+    const rectY = Math.min(y, baseY);
+    const rectHeight = Math.max(2, Math.abs(baseY - y));
+    const handleDirection = y <= baseY ? -1 : 1;
+    const handleCenter = y + handleDirection * 2;
 
     // 1) SØYLE (draggbar)
     const rect = addTo(gBars, 'rect', {
       x: cx - barW / 2,
-      y: y,
+      y: rectY,
       width: barW,
-      height: Math.max(2, H - M.b - y),
+      height: rectHeight,
       class: 'bar series0' + (locked[i] ? ' locked' : '')
     });
     rect.dataset.index = i;
@@ -712,13 +766,13 @@ function drawBars() {
     if (!locked[i]) {
       addTo(gHands, 'circle', {
         cx: cx,
-        cy: y - 2 + 2,
+        cy: y,
         r: 16,
         class: 'handleShadow'
       });
       const h = addTo(gHands, 'circle', {
         cx: cx,
-        cy: y - 2,
+        cy: handleCenter,
         r: 14,
         class: 'handle'
       });
@@ -844,7 +898,7 @@ function onKeyAdjust(e) {
       target -= big;
       break;
     case 'Home':
-      target = 0;
+      target = yMin;
       break;
     case 'End':
       target = yMax - (series === 0 ? values2 ? values2[idx] : 0 : values[idx]);
@@ -1314,7 +1368,10 @@ function applyCfg() {
   const lbls = parseList(document.getElementById('cfgLabels').value);
   const starts = parseNumList(document.getElementById('cfgStart').value);
   const answers = parseNumList(document.getElementById('cfgAnswer').value);
-  const yMaxVal = parseFloat(document.getElementById('cfgYMax').value);
+  const yMinInput = document.getElementById('cfgYMin');
+  const yMaxInput = document.getElementById('cfgYMax');
+  const yMinVal = parseFloat(yMinInput ? yMinInput.value : '');
+  const yMaxVal = parseFloat(yMaxInput ? yMaxInput.value : '');
   CFG.title = document.getElementById('cfgTitle').value;
   CFG.type = document.getElementById('cfgType').value;
   CFG.series1 = document.getElementById('cfgSeries1').value;
@@ -1332,6 +1389,7 @@ function applyCfg() {
     CFG.start2 = null;
     CFG.answer2 = null;
   }
+  CFG.yMin = isNaN(yMinVal) ? undefined : yMinVal;
   CFG.yMax = isNaN(yMaxVal) ? undefined : yMaxVal;
   CFG.axisXLabel = document.getElementById('cfgAxisXLabel').value;
   CFG.axisYLabel = document.getElementById('cfgAxisYLabel').value;
@@ -1399,19 +1457,59 @@ function formatNumber(value) {
   }
   return str.length ? str : '0';
 }
-function niceMax(arr) {
-  const m = Math.max(...arr);
-  if (m <= 10) return 10;
-  if (m <= 12) return 12;
-  const pow = Math.pow(10, Math.floor(Math.log10(m)));
-  const r = Math.ceil(m / pow);
-  return r * pow;
+function normalizeTickValue(value) {
+  if (!Number.isFinite(value)) return 0;
+  const rounded = Math.round(value * 1e6) / 1e6;
+  return Math.abs(rounded) < 1e-9 ? 0 : rounded;
 }
-function chooseStep(maxY) {
-  if (maxY <= 10) return 1;
-  if (maxY <= 20) return 2;
-  if (maxY <= 50) return 5;
-  return 10;
+function formatTickValue(value) {
+  return formatNumber(value).replace('.', ',');
+}
+function getBaselineValue() {
+  if (yMin >= 0 && yMax >= 0) return yMin;
+  if (yMin <= 0 && yMax <= 0) return yMax;
+  return 0;
+}
+function computeScaleBounds(values, minOverride, maxOverride) {
+  const filtered = values.filter(v => Number.isFinite(v));
+  const data = filtered.length ? filtered.slice() : [0];
+  const hasPositive = data.some(v => v > 0);
+  const hasNegative = data.some(v => v < 0);
+  if (!hasPositive) data.push(0);
+  if (!hasNegative) data.push(0);
+  let min = Number.isFinite(minOverride) ? minOverride : Math.min(...data);
+  let max = Number.isFinite(maxOverride) ? maxOverride : Math.max(...data);
+  if (min > max) {
+    const tmp = min;
+    min = max;
+    max = tmp;
+  }
+  if (min === max) {
+    const delta = Math.abs(min) > 0 ? Math.abs(min) * 0.2 : 1;
+    min -= delta;
+    max += delta;
+  }
+  const span = max - min || 1;
+  const step = niceStep(span);
+  const niceMin = Number.isFinite(minOverride) ? min : Math.floor(min / step) * step;
+  const niceMax = Number.isFinite(maxOverride) ? max : Math.ceil(max / step) * step;
+  return {
+    min: normalizeTickValue(niceMin),
+    max: normalizeTickValue(niceMax),
+    step
+  };
+}
+function niceStep(span) {
+  const safeSpan = span > 0 ? span : 1;
+  const rough = safeSpan / 8;
+  const exponent = Math.floor(Math.log10(rough));
+  const pow = Math.pow(10, exponent);
+  const candidates = [1, 2, 2.5, 5, 10];
+  for (const c of candidates) {
+    const step = c * pow;
+    if (rough <= step * 1.001) return step;
+  }
+  return 10 * pow;
 }
 function updateStatus(msg) {
   document.getElementById('status').textContent = msg; // aria-live="polite"
