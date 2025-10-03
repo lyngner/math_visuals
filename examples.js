@@ -283,11 +283,41 @@
     const prefix = 'examples_';
     const canonicalKey = prefix + canonicalPath;
     const paths = new Set();
+    const addCandidate = candidate => {
+      if (typeof candidate !== 'string') return;
+      const trimmed = candidate.trim();
+      if (!trimmed) return;
+      paths.add(trimmed);
+      const upperEncoded = trimmed.replace(/%[0-9a-fA-F]{2}/g, match => match.toUpperCase());
+      if (upperEncoded && upperEncoded !== trimmed) {
+        paths.add(upperEncoded);
+      }
+      const lowerEncoded = trimmed.replace(/%[0-9a-fA-F]{2}/g, match => match.toLowerCase());
+      if (lowerEncoded && lowerEncoded !== trimmed) {
+        paths.add(lowerEncoded);
+      }
+    };
     const addPath = value => {
       if (typeof value !== 'string') return;
       const trimmed = value.trim();
       if (!trimmed) return;
-      paths.add(trimmed);
+      addCandidate(trimmed);
+      const attemptDecoded = decoder => {
+        try {
+          const decoded = decoder(trimmed);
+          if (decoded && decoded !== trimmed) {
+            addCandidate(decoded);
+            try {
+              const reencoded = encodeURI(decoded);
+              if (reencoded && reencoded !== trimmed) {
+                addCandidate(reencoded);
+              }
+            } catch (_) {}
+          }
+        } catch (_) {}
+      };
+      attemptDecoded(decodeURI);
+      attemptDecoded(decodeURIComponent);
     };
     addPath(rawPath);
     if (typeof rawPath === 'string') {
