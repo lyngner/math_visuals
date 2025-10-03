@@ -148,6 +148,41 @@ function alignPanelsByCenter() {
     const finalHeader = Math.max(targetHeader, it.baseHeader);
     it.header.style.height = finalHeader + "px";
   });
+  alignOperatorsByCenter();
+}
+function alignOperatorsByCenter() {
+  const container = document.querySelector(".grid2");
+  if (!container) return;
+  const ops = [...container.querySelectorAll(".opDisplay")];
+  if (!ops.length) return;
+  ops.forEach(op => {
+    op.style.transform = "";
+  });
+  const visibleOps = ops.filter(op => op.offsetParent !== null && op.style.display !== "none");
+  if (!visibleOps.length) return;
+  if (container.classList.contains("is-stacked")) return;
+  const panels = [...container.querySelectorAll(".pizzaPanel")].filter(p => p.offsetParent !== null);
+  if (panels.length < 2) return;
+  const containerRect = container.getBoundingClientRect();
+  const centers = panels.map(panel => {
+    const svg = panel.querySelector("svg.pizza");
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    return rect.top + rect.height / 2 - containerRect.top;
+  });
+  visibleOps.forEach((op, idx) => {
+    const leftCenter = centers[idx];
+    const rightCenter = centers[idx + 1];
+    let targetCenter = Number.isFinite(leftCenter) && Number.isFinite(rightCenter) ? (leftCenter + rightCenter) / 2 : Number.isFinite(leftCenter) ? leftCenter : rightCenter;
+    if (!Number.isFinite(targetCenter)) {
+      op.style.transform = "";
+      return;
+    }
+    const rect = op.getBoundingClientRect();
+    const opCenter = rect.top + rect.height / 2 - containerRect.top;
+    const delta = targetCenter - opCenter;
+    op.style.transform = `translateY(${delta}px)`;
+  });
 }
 function scheduleCenterAlign() {
   cancelAnimationFrame(_centerRaf);
