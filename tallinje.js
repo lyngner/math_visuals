@@ -21,14 +21,14 @@
   const BASE_LABEL_FONT_SIZE = 18;
 
   const DEFAULT_STATE = {
-    from: 0,
-    to: 10,
+    from: -0.4,
+    to: 10.4,
     mainStep: 1,
     subdivisions: 4,
     numberType: 'integer',
     decimalDigits: 1,
     labelFontSize: BASE_LABEL_FONT_SIZE,
-    clampToRange: false,
+    clampToRange: true,
     altText: '',
     altTextSource: 'auto'
   };
@@ -248,8 +248,14 @@
       case 'fraction':
         return getFractionRenderInfo(value);
       case 'integer':
-      default:
-        return { type: 'text', text: formatInteger(value) };
+      default: {
+        const rounded = Math.round(value);
+        if (Math.abs(value - rounded) <= 1e-9) {
+          return { type: 'text', text: formatInteger(rounded) };
+        }
+        const digits = Math.max(STATE.decimalDigits, 1);
+        return { type: 'text', text: formatDecimal(value, digits) };
+      }
     }
   }
 
@@ -308,36 +314,43 @@
 
   function computeMajorValues(from, to, step, margin = 0) {
     const values = [];
-    const epsilon = Math.max(Math.abs(step) * 1e-7, 1e-9);
-    if (step > 0) {
-      const span = Math.abs(to - from);
-      const approxCount = span > 0 ? Math.floor(span / step) + 1 : 1;
-      const maxIterations = Math.min(5000, approxCount + 2);
+    const stepAbs = Math.abs(step);
+    const epsilon = Math.max(stepAbs * 1e-7, 1e-9);
+
+    if (stepAbs > 0) {
+      const minValue = Math.min(from, to) - margin;
+      const maxValue = Math.max(from, to) + margin;
+      const start = Math.floor((minValue - epsilon) / step) * step;
+      const approxCount = Math.floor((maxValue - minValue) / stepAbs) + 5;
+      const maxIterations = Math.min(5000, Math.max(approxCount, 1));
       for (let i = 0; i < maxIterations; i++) {
-        const value = from + step * i;
-        if (value > to + epsilon) break;
-        values.push(Math.round(value * 1e9) / 1e9);
+        const value = start + step * i;
+        if (value > maxValue + epsilon) break;
+        if (value >= minValue - epsilon) {
+          values.push(Math.round(value * 1e9) / 1e9);
+        }
       }
     }
-    if (!values.length || Math.abs(values[0] - from) > epsilon) {
-      values.unshift(Math.round(from * 1e9) / 1e9);
-    }
-    const last = values[values.length - 1];
-    if (Math.abs(last - to) > epsilon) {
-      values.push(Math.round(to * 1e9) / 1e9);
-    }
-    if (margin > epsilon && step > 0 && values.length) {
-      const marginEpsilon = Math.max(Math.abs(step) * 1e-7, 1e-9);
-      const minValue = from - margin;
-      const maxValue = to + margin;
-      for (let value = values[0] - step; value >= minValue - marginEpsilon; value -= step) {
-        values.unshift(Math.round(value * 1e9) / 1e9);
+
+    const addValue = candidate => {
+      if (!Number.isFinite(candidate)) return;
+      const rounded = Math.round(candidate * 1e9) / 1e9;
+      if (!values.some(value => Math.abs(value - rounded) <= epsilon)) {
+        values.push(rounded);
       }
-      for (let value = values[values.length - 1] + step; value <= maxValue + marginEpsilon; value += step) {
-        values.push(Math.round(value * 1e9) / 1e9);
+    };
+
+    addValue(from);
+    addValue(to);
+
+    values.sort((a, b) => a - b);
+    const unique = [];
+    for (const value of values) {
+      if (!unique.length || Math.abs(value - unique[unique.length - 1]) > epsilon) {
+        unique.push(value);
       }
     }
-    return values;
+    return unique;
   }
 
   function computeRangeMargin(from, to, mainStep, subdivisions, clampToRange) {
@@ -732,14 +745,14 @@
     isDefault: true,
     config: {
       STATE: {
-        from: 0,
-        to: 10,
+        from: -0.4,
+        to: 10.4,
         mainStep: 1,
         subdivisions: 4,
         numberType: 'integer',
         decimalDigits: 1,
         labelFontSize: BASE_LABEL_FONT_SIZE,
-        clampToRange: false,
+        clampToRange: true,
         altText: '',
         altTextSource: 'auto'
       }
