@@ -196,36 +196,76 @@
     };
   }
 
-  function formatFraction(value) {
+  function getFractionRenderInfo(value) {
     const maxDen = Math.pow(10, Math.min(Math.max(STATE.decimalDigits + 2, 1), 6));
     const approx = approximateFraction(value, maxDen);
-    if (!approx) return formatDecimal(value, STATE.decimalDigits || 2);
+    if (!approx) {
+      const fallback = formatDecimal(value, STATE.decimalDigits || 2);
+      return { type: 'text', text: fallback };
+    }
+
     const { numerator, denominator } = approx;
-    if (denominator === 1) return formatInteger(numerator);
+    if (denominator === 1) {
+      const integerText = formatInteger(numerator);
+      return { type: 'text', text: integerText };
+    }
+
     const absNum = Math.abs(numerator);
     const whole = Math.trunc(absNum / denominator);
     const remainder = absNum % denominator;
-    const fractionText = `${remainder}⁄${denominator}`;
+    const sign = numerator < 0 ? '-' : '';
+
     if (whole === 0) {
-      return numerator < 0 ? `-${fractionText}` : fractionText;
+      const fractionText = `${absNum}⁄${denominator}`;
+      const text = sign ? `-${fractionText}` : fractionText;
+      const expression = `${sign}\\frac{${absNum}}{${denominator}}`;
+      return { type: 'katex', text, katex: expression };
     }
+
     if (remainder === 0) {
-      return formatInteger(numerator / denominator);
+      const integerText = formatInteger(numerator / denominator);
+      return { type: 'text', text: integerText };
     }
+
     const wholeValue = numerator < 0 ? -whole : whole;
-    return `${formatInteger(wholeValue)} ${fractionText}`;
+    const fractionText = `${remainder}⁄${denominator}`;
+    const text = `${formatInteger(wholeValue)} ${fractionText}`;
+    const expression = `${sign}${whole}\\frac{${remainder}}{${denominator}}`;
+    return { type: 'katex', text, katex: expression };
   }
 
-  function formatLabel(value) {
+  function formatFraction(value) {
+    return getFractionRenderInfo(value).text;
+  }
+
+  function getLabelRenderInfo(value) {
     switch (STATE.numberType) {
       case 'decimal':
-        return formatDecimal(value, STATE.decimalDigits);
+        return { type: 'text', text: formatDecimal(value, STATE.decimalDigits) };
       case 'fraction':
-        return formatFraction(value);
+        return getFractionRenderInfo(value);
       case 'integer':
       default:
-        return formatInteger(value);
+        return { type: 'text', text: formatInteger(value) };
     }
+  }
+
+  function renderLabelContent(container, value) {
+    const info = getLabelRenderInfo(value);
+    container.textContent = '';
+
+    if (info.type === 'katex' && window.katex && typeof window.katex.render === 'function') {
+      const span = document.createElement('span');
+      container.appendChild(span);
+      try {
+        window.katex.render(info.katex, span, { throwOnError: false });
+        return;
+      } catch (err) {
+        container.removeChild(span);
+      }
+    }
+
+    container.textContent = info.text != null ? info.text : '';
   }
 
   function formatAltNumber(value) {
@@ -321,9 +361,9 @@
     svg.appendChild(axisGroup);
 
     axisGroup.appendChild(mk('line', {
-      x1: mapValue(domainMin),
+      x1: 0,
       y1: baselineY,
-      x2: mapValue(domainMax),
+      x2: width,
       y2: baselineY,
       class: 'number-line-base'
     }));
@@ -357,15 +397,23 @@
         y2: baselineY + majorTickHeight,
         class: 'major-tick'
       }));
-      axisGroup.appendChild(mk('text', {
-        x,
-        y: baselineY + labelOffset,
-        'text-anchor': 'middle',
-        'dominant-baseline': 'middle',
-        class: 'major-label',
-        'font-size': STATE.labelFontSize,
-        textContent: formatLabel(value)
-      }));
+      const labelWidth = Math.max(STATE.labelFontSize * 4, 120);
+      const labelHeight = Math.max(STATE.labelFontSize * 1.8, 48);
+      const labelCenterY = baselineY + labelOffset;
+      const foreignObject = mk('foreignObject', {
+        x: x - labelWidth / 2,
+        y: labelCenterY - labelHeight / 2,
+        width: labelWidth,
+        height: labelHeight,
+        class: 'major-label-fo'
+      });
+      const container = document.createElement('div');
+      container.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+      container.className = 'major-label';
+      container.style.fontSize = `${STATE.labelFontSize}px`;
+      renderLabelContent(container, value);
+      foreignObject.appendChild(container);
+      axisGroup.appendChild(foreignObject);
     });
 
     lastRenderSummary = {

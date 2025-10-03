@@ -76,9 +76,39 @@
     .number-line-base { stroke: #0f172a; stroke-width: 4; stroke-linecap: round; }
     .major-tick { stroke: #0f172a; stroke-width: 3; stroke-linecap: round; }
     .minor-tick { stroke: #4b5563; stroke-width: 2; stroke-linecap: round; opacity: 0.75; }
-    .major-label { font-size: 18px; fill: #111827; font-weight: 500; }
+    .major-label-fo { pointer-events: none; overflow: visible; }
+    .major-label {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #111827;
+      font-weight: 500;
+      line-height: 1.25;
+      text-align: center;
+      pointer-events: none;
+    }
+    .major-label .katex { pointer-events: none; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .badge--beta {
+      background: #6366f1;
+      color: #fff;
+      text-transform: uppercase;
+    }
   </style>
   <link rel="stylesheet" href="split.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-ywTprUI1Q+mEFz1Ok5AR52lCstOEPCTpQJZMa2+pzSQPwXTwns32xERiqnnn6T5+" crossorigin="anonymous" />
 </head>
 <body>
   <div class="wrap">
@@ -96,6 +126,7 @@
             <textarea id="exampleDescription" placeholder="Skriv en oppgavetekst som lagres med eksemplet"></textarea>
           </div>
           <div class="toolbar">
+            <span class="badge badge--beta" aria-label="Tallinje er i betaversjon">Beta</span>
             <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>
             <button id="btnDeleteExample" class="btn" type="button">Slett eksempel</button>
           </div>
@@ -150,6 +181,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-95pQhY9qsK0kGugHgdGXNqBJ38qRAjPR9U1FVLtZL1NVr7DiJ9N6byj1LxX+BPvk" crossorigin="anonymous"></script>
   <script src="alt-text-ui.js"></script>
   <script src="tallinje.js"></script>
   <script src="examples.js"></script>
