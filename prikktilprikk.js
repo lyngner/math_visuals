@@ -767,16 +767,14 @@
     applyLabelPlacements();
   }
 
-  function positionBoardLabel(element, pos, pointId) {
+  function positionBoardLabel(element, pos) {
     if (!element || !pos) return;
-    const candidate = (pointId && labelPlacements.get(pointId)) || LABEL_PLACEMENT_CANDIDATES[0];
     const width = element.offsetWidth || element.getBoundingClientRect().width || 0;
     const height = element.offsetHeight || element.getBoundingClientRect().height || 0;
-    const offset = computePlacementOffset(candidate, { width, height }, { x: boardScaleX, y: boardScaleY });
-    const centerX = pos.x * boardScaleX + offset.x;
-    const centerY = pos.y * boardScaleY + offset.y;
-    const left = centerX - width / 2;
-    const top = centerY - height / 2;
+    const anchorX = pos.x * boardScaleX;
+    const anchorY = pos.y * boardScaleY;
+    const left = anchorX;
+    const top = anchorY - height;
     element.style.transform = `translate(${left}px, ${top}px)`;
   }
 
@@ -789,17 +787,22 @@
     const content = document.createElement('span');
     content.className = 'board-label-content';
     wrapper.appendChild(content);
-    renderLatex(content, getPointLabelText(point));
-    const pointId = point && point.id;
-    positionBoardLabel(wrapper, pos, pointId);
+    const prefix = document.createElement('span');
+    prefix.className = 'board-label-prefix';
+    prefix.textContent = ' ';
+    const text = document.createElement('span');
+    text.className = 'board-label-text';
+    content.append(prefix, text);
+    renderLatex(text, getPointLabelText(point));
+    positionBoardLabel(wrapper, pos);
     return {
       element: wrapper,
-      contentEl: content,
+      contentEl: text,
       setPosition(newPos) {
-        positionBoardLabel(wrapper, newPos, pointId);
+        positionBoardLabel(wrapper, newPos);
       },
       setText(value) {
-        renderLatex(content, value);
+        renderLatex(text, value);
       },
       setVisibility(show) {
         wrapper.style.display = show ? '' : 'none';
