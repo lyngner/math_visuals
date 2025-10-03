@@ -54,12 +54,23 @@ function resolveSharedFontSize() {
   return FONT_DEFAULT;
 }
 const SHARED_FONT_SIZE = resolveSharedFontSize();
-const FORCE_TICKS_REQUESTED = params.has('forceTicks') ? paramBool('forceTicks') : true;
+let FORCE_TICKS_REQUESTED = params.has('forceTicks') ? paramBool('forceTicks') : true;
 function parseScreen(str) {
   if (!str) return null;
   const cleaned = str.replace(/^[\s\[]+|[\]\s]+$/g, '');
   const parts = cleaned.split(',').map(s => +s.trim());
   return parts.length === 4 && parts.every(Number.isFinite) ? parts : null;
+}
+function screensEqual(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (Math.abs(a[i] - b[i]) > 1e-9) {
+      return false;
+    }
+  }
+  return true;
 }
 function buildSimple() {
   const lines = [];
@@ -4001,7 +4012,81 @@ function setupSettingsForm() {
     fontSizeInput.value = String(sanitizeFontSize(ADV.axis.grid.fontSize, FONT_DEFAULT));
   }
   const apply = () => {
+    const prevSimple = SIMPLE;
     syncSimpleFromForm();
+    const simpleChanged = SIMPLE !== prevSimple;
+    let needsRebuild = simpleChanged;
+    const screenInput = g('cfgScreen');
+    const screenRaw = screenInput ? screenInput.value.trim() : '';
+    const nextScreen = screenInput ? parseScreen(screenRaw) : null;
+    if (!screensEqual(nextScreen, ADV.screen)) {
+      ADV.screen = nextScreen;
+      needsRebuild = true;
+    }
+    const lockInput = g('cfgLock');
+    const lockChecked = !!(lockInput && lockInput.checked);
+    if (ADV.lockAspect !== lockChecked) {
+      ADV.lockAspect = lockChecked;
+      needsRebuild = true;
+    }
+    const axisXInput = g('cfgAxisX');
+    const axisYInput = g('cfgAxisY');
+    const axisXValue = axisXInput ? axisXInput.value.trim() : '';
+    const axisYValue = axisYInput ? axisYInput.value.trim() : '';
+    if ((ADV.axis.labels.x || '') !== axisXValue) {
+      ADV.axis.labels.x = axisXValue;
+      needsRebuild = true;
+    }
+    if ((ADV.axis.labels.y || '') !== axisYValue) {
+      ADV.axis.labels.y = axisYValue;
+      needsRebuild = true;
+    }
+    const panInput = g('cfgPan');
+    const panChecked = !!(panInput && panInput.checked);
+    if (ADV.interactions.pan.enabled !== panChecked) {
+      ADV.interactions.pan.enabled = panChecked;
+      needsRebuild = true;
+    }
+    const q1Input = g('cfgQ1');
+    const q1Checked = !!(q1Input && q1Input.checked);
+    if (ADV.firstQuadrant !== q1Checked) {
+      ADV.firstQuadrant = q1Checked;
+      needsRebuild = true;
+    }
+    const showNamesChecked = showNamesInput ? !!showNamesInput.checked : !!(ADV.curveName && ADV.curveName.showName);
+    const showExprChecked = showExprInput ? !!showExprInput.checked : !!(ADV.curveName && ADV.curveName.showExpression);
+    const showBracketsChecked = showBracketsInput ? !!showBracketsInput.checked : !!(ADV.domainMarkers && ADV.domainMarkers.show);
+    if (showNamesInput && ADV.curveName.showName !== showNamesChecked) {
+      ADV.curveName.showName = showNamesChecked;
+      needsRebuild = true;
+    }
+    if (showExprInput && ADV.curveName.showExpression !== showExprChecked) {
+      ADV.curveName.showExpression = showExprChecked;
+      needsRebuild = true;
+    }
+    const showAny = showNamesChecked || showExprChecked;
+    if (ADV.curveName.show !== showAny) {
+      ADV.curveName.show = showAny;
+      needsRebuild = true;
+    }
+    if (showBracketsInput && ADV.domainMarkers.show !== showBracketsChecked) {
+      ADV.domainMarkers.show = showBracketsChecked;
+      needsRebuild = true;
+    }
+    if (forceTicksInput) {
+      const requested = !!forceTicksInput.checked;
+      if (!(forceTicksInput.disabled && FORCE_TICKS_LOCKED_FALSE) && FORCE_TICKS_REQUESTED !== requested) {
+        FORCE_TICKS_REQUESTED = requested;
+        needsRebuild = true;
+      }
+    }
+    const snapInput = g('cfgSnap');
+    const snapEnabled = !!(snapInput && snapInput.checked && !snapInput.disabled);
+    if (ADV.points.snap.enabled !== snapEnabled) {
+      ADV.points.snap.enabled = snapEnabled;
+      needsRebuild = true;
+    }
+    const currentFontSize = sanitizeFontSize(ADV.axis.grid.fontSize, FONT_DEFAULT);
     const p = new URLSearchParams();
     let idx = 1;
     (funcRows ? funcRows.querySelectorAll('.func-group') : []).forEach((row, rowIdx) => {
@@ -4037,19 +4122,19 @@ function setupSettingsForm() {
         p.set('linepts', formatLinePoints(exportPoints));
       }
     }
-    if (g('cfgScreen').value.trim()) p.set('screen', g('cfgScreen').value.trim());
-    if (g('cfgLock').checked) p.set('lock', '1');else p.set('lock', '0');
-    if (g('cfgAxisX').value.trim() && g('cfgAxisX').value.trim() !== 'x') p.set('xName', g('cfgAxisX').value.trim());
-    if (g('cfgAxisY').value.trim() && g('cfgAxisY').value.trim() !== 'y') p.set('yName', g('cfgAxisY').value.trim());
-    if (g('cfgPan').checked) p.set('pan', '1');
+    if (screenRaw) p.set('screen', screenRaw);
+    if (lockChecked) p.set('lock', '1');else p.set('lock', '0');
+    if (axisXValue && axisXValue !== 'x') p.set('xName', axisXValue);
+    if (axisYValue && axisYValue !== 'y') p.set('yName', axisYValue);
+    if (panChecked) p.set('pan', '1');
     if (showNamesInput) {
-      p.set('showNames', showNamesInput.checked ? '1' : '0');
+      p.set('showNames', showNamesChecked ? '1' : '0');
     }
     if (showExprInput) {
-      p.set('showExpr', showExprInput.checked ? '1' : '0');
+      p.set('showExpr', showExprChecked ? '1' : '0');
     }
     if (showBracketsInput) {
-      p.set('brackets', showBracketsInput.checked ? '1' : '0');
+      p.set('brackets', showBracketsChecked ? '1' : '0');
     }
     if (forceTicksInput) {
       if (forceTicksInput.disabled && FORCE_TICKS_LOCKED_FALSE) {
@@ -4058,12 +4143,10 @@ function setupSettingsForm() {
         p.set('forceTicks', forceTicksInput.checked ? '1' : '0');
       }
     }
-    const snapInput = g('cfgSnap');
     if (snapInput) {
       if (snapInput.checked) p.set('snap', '1');else p.set('snap', '0');
     }
-    if (g('cfgQ1').checked) p.set('q1', '1');
-    const currentFontSize = sanitizeFontSize(ADV.axis.grid.fontSize, FONT_DEFAULT);
+    if (q1Checked) p.set('q1', '1');
     const keepFontParam = FONT_PARAM_KEYS.some(key => params.has(key)) || Math.abs(currentFontSize - FONT_DEFAULT) > 1e-9;
     const handleFontInput = (inputId, paramName, fallback, options = {}) => {
       const { keepWhenEqual = false } = options;
@@ -4092,6 +4175,17 @@ function setupSettingsForm() {
       }
     };
     handleFontInput('cfgFontSize', 'fontSize', currentFontSize, { keepWhenEqual: keepFontParam });
+    const fontSizeInput = g('cfgFontSize');
+    if (fontSizeInput) {
+      const parsedSize = Number.parseFloat(String(fontSizeInput.value).replace(',', '.'));
+      const nextFontSize = Number.isFinite(parsedSize) ? sanitizeFontSize(parsedSize, currentFontSize) : currentFontSize;
+      if (Math.abs(nextFontSize - ADV.axis.grid.fontSize) > 1e-9 || Math.abs(nextFontSize - ADV.axis.labels.fontSize) > 1e-9 || Math.abs(nextFontSize - ADV.curveName.fontSize) > 1e-9) {
+        ADV.axis.grid.fontSize = nextFontSize;
+        ADV.axis.labels.fontSize = nextFontSize;
+        ADV.curveName.fontSize = nextFontSize;
+        needsRebuild = true;
+      }
+    }
     const newSearch = p.toString();
     const currentSearch = typeof window !== 'undefined' && window.location ? window.location.search : '';
     const normalizedCurrentSearch = currentSearch.startsWith('?') ? currentSearch.slice(1) : currentSearch;
@@ -4105,6 +4199,9 @@ function setupSettingsForm() {
       } else if (typeof window !== 'undefined' && window.location) {
         window.location.search = newSearch;
       }
+    }
+    if (needsRebuild) {
+      rebuildAll();
     }
   };
   root.addEventListener('change', apply);
