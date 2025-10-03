@@ -3324,6 +3324,12 @@ function setupSettingsForm() {
     str = str.replace(/·|⋅/g, '*');
     str = str.replace(/÷/g, '/');
     str = str.replace(/−/g, '-');
+    // MathLive inserts invisible operators when exporting ASCIIMath
+    //   U+2062 INVISIBLE TIMES is used for implicit multiplication (2⁢x → 2*x)
+    //   U+2061 INVISIBLE FUNCTION APPLICATION (sin⁡(x)) should simply be removed
+    //   U+2063 INVISIBLE SEPARATOR and U+2064 INVISIBLE PLUS may also appear
+    str = str.replace(/\u2062/g, '*');
+    str = str.replace(/[\u2061\u2063\u2064]/g, '');
     str = str.replace(/\*\*/g, '^');
     str = str.replace(/\bsqrt\s*\(/gi, 'sqrt(');
     str = str.replace(/\bpi\b/gi, 'pi');
