@@ -1531,11 +1531,13 @@
     });
     currentExampleIndex = examples.length - 1;
     renderOptions();
-    alert('Eksempel lagret.');
   });
   deleteBtn === null || deleteBtn === void 0 || deleteBtn.addEventListener('click', () => {
     const examples = getExamples();
     if (examples.length <= 1) {
+      return;
+    }
+    if (!window.confirm('Er du sikker på at du vil slette dette eksempelet for alle? Velg "Ja" eller "nei".')) {
       return;
     }
     let indexToRemove = Number.isInteger(currentExampleIndex) ? currentExampleIndex : NaN;
@@ -1578,7 +1580,6 @@
     if (currentExampleIndex != null && currentExampleIndex >= 0 && examples.length > 0) {
       loadExample(currentExampleIndex);
     }
-    alert('Eksempel slettet');
   });
   renderOptions();
   if (examplesApiBase) {
