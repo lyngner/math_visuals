@@ -156,10 +156,107 @@ function ensureCfgDefaults() {
 }
 function normalizeLayout(value) {
   if (typeof value !== "string") return "quad";
-  if (value === "single" || value === "horizontal" || value === "vertical" || value === "quad") {
-    return value;
+  const trimmed = value.trim();
+  if (!trimmed) return "quad";
+  const lower = trimmed.toLowerCase();
+  const normalizedX = lower.replace(/×/g, "x");
+  const collapsed = normalizedX.replace(/[\s_-]+/g, "");
+  const aliasMap = {
+    single: "single",
+    singlerect: "single",
+    singlerectangle: "single",
+    singlerektangel: "single",
+    singlerektangler: "single",
+    singlelayout: "single",
+    singlemode: "single",
+    singlelayoutmode: "single",
+    singlerectmode: "single",
+    onerect: "single",
+    onerectangle: "single",
+    onerektangel: "single",
+    onerektangler: "single",
+    one: "single",
+    "1": "single",
+    "1rect": "single",
+    "1rektangel": "single",
+    "1rektangler": "single",
+    horizontal: "horizontal",
+    horizontalsplit: "horizontal",
+    splitvertical: "horizontal",
+    leftright: "horizontal",
+    sidebyside: "horizontal",
+    sidetoside: "horizontal",
+    vedsidenavhverandre: "horizontal",
+    vertical: "vertical",
+    verticalsplit: "vertical",
+    splithorizontal: "vertical",
+    topbottom: "vertical",
+    overunder: "vertical",
+    overhverandre: "vertical",
+    underhverandre: "vertical",
+    stacked: "vertical",
+    quad: "quad",
+    quadmode: "quad",
+    quadsplit: "quad",
+    quadrants: "quad",
+    quadrant: "quad",
+    four: "quad",
+    fourrectangles: "quad",
+    fourrects: "quad",
+    kvadrat: "quad",
+    kvadrant: "quad",
+    layoutquad: "quad",
+    quadlayout: "quad",
+    twobytwo: "quad",
+    twoxtwo: "quad",
+    towxtwo: "quad",
+    "2x2": "quad",
+    "2by2": "quad",
+    "2b2": "quad"
+  };
+  if (aliasMap[collapsed]) return aliasMap[collapsed];
+  if (normalizedX.includes("single")) return "single";
+  if (normalizedX.includes("horizontal") || normalizedX.includes("leftright") || normalizedX.includes("sidebyside") || normalizedX.includes("vedsidenav")) {
+    return "horizontal";
+  }
+  if (normalizedX.includes("vertical") || normalizedX.includes("topbottom") || normalizedX.includes("overunder") || normalizedX.includes("overhverandre") || normalizedX.includes("underhverandre") || normalizedX.includes("stack")) {
+    return "vertical";
+  }
+  if (normalizedX.includes("quad") || normalizedX.includes("2x2") || normalizedX.includes("four") || normalizedX.includes("kvadr")) {
+    return "quad";
   }
   return "quad";
+}
+
+function ensureLayoutSelectValue(value) {
+  if (typeof document === "undefined") return;
+  const select = document.getElementById("layoutMode");
+  if (!select) return;
+  const normalized = normalizeLayout(value);
+  let option = Array.from(select.options).find(opt => opt.value === normalized);
+  if (!option) {
+    option = document.createElement("option");
+    option.value = normalized;
+    switch (normalized) {
+      case "single":
+        option.textContent = "1 rektangel";
+        break;
+      case "horizontal":
+        option.textContent = "2 ved siden av hverandre";
+        break;
+      case "vertical":
+        option.textContent = "2 over hverandre";
+        break;
+      default:
+        option.textContent = "4 rektangler (2 × 2)";
+        break;
+    }
+    option.dataset.legacyLayout = "true";
+    select.appendChild(option);
+  }
+  if (select.value !== normalized) {
+    select.value = normalized;
+  }
 }
 function arealFormatInt(value) {
   if (!Number.isFinite(value)) return String(value);
@@ -2474,6 +2571,10 @@ function setSimpleConfig(o = {}) {
     if (el) el.checked = !!v;
   };
   const setSelect = (id, v) => {
+    if (id === "layoutMode") {
+      ensureLayoutSelectValue(v);
+      return;
+    }
     const el = document.getElementById(id);
     if (el && v != null) el.value = v;
   };
@@ -2531,6 +2632,10 @@ function applyConfigToInputs() {
     if (el.checked !== bool) el.checked = bool;
   };
   const setSelect = (id, value) => {
+    if (id === "layoutMode") {
+      ensureLayoutSelectValue(value);
+      return;
+    }
     const el = document.getElementById(id);
     if (!el || value == null) return;
     const str = String(value);
