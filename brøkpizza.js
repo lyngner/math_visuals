@@ -183,16 +183,25 @@ function fitPizzasToLine() {
   const gap = parseFloat(cs.columnGap || cs.gap || "0");
   const totalItems = panels.length + extras.length;
   const totalGap = gap * Math.max(0, totalItems - 1);
-  let computed = (availWidth - extrasWidth - totalGap) / panels.length;
-  if (!Number.isFinite(computed)) computed = container.clientWidth;
   const MIN = 160;
   const MAX = 420;
+  const minimalRequired = panels.length * MIN + extrasWidth + totalGap;
+  const shouldStack = minimalRequired > availWidth;
+  container.classList.toggle("is-stacked", shouldStack);
+  let computed;
+  if (shouldStack) {
+    computed = availWidth;
+  } else {
+    computed = (availWidth - extrasWidth - totalGap) / panels.length;
+  }
+  if (!Number.isFinite(computed) || computed <= 0) computed = container.clientWidth;
   computed = Math.min(MAX, Math.max(MIN, computed));
   container.style.setProperty("--panel-min", `${computed}px`);
   panels.forEach(panel => {
     const svg = panel.querySelector("svg.pizza");
     if (svg) svg.style.width = "100%";
   });
+  scheduleCenterAlign();
 }
 window.addEventListener("resize", fitPizzasToLine);
 function hidePizzaPanel(index) {
