@@ -55,6 +55,25 @@
       justify-content:center;
       padding-bottom:8px;
     }
+    .grid2.is-stacked {
+      flex-direction:column;
+      align-items:center;
+    }
+    .grid2.is-stacked .pizzaPanel,
+    .grid2.is-stacked .opDisplay,
+    .grid2.is-stacked .addFigureBtn {
+      width:min(100%, 420px);
+      align-self:stretch;
+    }
+    .grid2.is-stacked .pizzaPanel {
+      flex:0 1 auto;
+      min-width:0;
+    }
+    .grid2.is-stacked .opDisplay,
+    .grid2.is-stacked .addFigureBtn {
+      flex:0 0 auto;
+      align-self:center;
+    }
     .pizzaPanel {
       display:flex;
       flex-direction:column;
