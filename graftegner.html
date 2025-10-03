@@ -70,7 +70,13 @@
     .settings label{ display:flex; flex-direction:column; gap:6px; font-size:13px; color:#4b5563; white-space:normal; }
     .settings input[type="text"], .settings input[type="number"], .settings select{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:100%; }
     .function-controls{ display:flex; flex-direction:column; gap:16px; align-items:stretch; }
-    .function-controls #addFunc{ align-self:center; }
+    .func-actions{ display:flex; gap:12px; align-items:center; justify-content:space-between; }
+    .func-actions .btn{ flex:1; min-height:42px; }
+    .func-actions .addFigureBtn{ flex:0 0 auto; }
+    @media (max-width:600px){
+      .func-actions{ flex-direction:column; align-items:stretch; }
+      .func-actions .addFigureBtn{ align-self:center; }
+    }
     .func-groups{ display:flex; flex-direction:column; gap:12px; width:100%; }
     .func-group{ gap:14px; }
     .func-group .func-fields{
@@ -224,7 +230,10 @@
           <div class="settings">
             <div class="function-controls">
               <div id="funcRows" class="func-groups"></div>
-              <button id="addFunc" class="addFigureBtn" type="button" aria-label="Legg til funksjon">+</button>
+              <div class="func-actions">
+                <button id="btnDraw" class="btn" type="button">Tegn graf(er)</button>
+                <button id="addFunc" class="addFigureBtn" type="button" aria-label="Legg til funksjon">+</button>
+              </div>
             </div>
             <fieldset>
               <legend>Koordinatsystem</legend>

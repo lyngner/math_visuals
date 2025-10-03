@@ -3080,7 +3080,8 @@ function setupSettingsForm() {
   addBtn.setAttribute('aria-label', 'Legg til funksjon');
   addBtn.classList.remove('btn');
   addBtn.classList.add('addFigureBtn');
-  const functionsHost = document.querySelector('.function-controls');
+  const functionActions = document.querySelector('.func-actions');
+  const functionsHost = functionActions || document.querySelector('.function-controls');
   if (functionsHost && addBtn.parentElement !== functionsHost) {
     functionsHost.appendChild(addBtn);
   }
@@ -3090,6 +3091,7 @@ function setupSettingsForm() {
   const showBracketsInput = g('cfgShowBrackets');
   const forceTicksInput = g('cfgForceTicks');
   const snapCheckbox = g('cfgSnap');
+  const drawBtn = g('btnDraw');
   let gliderSection = null;
   let gliderCountInput = null;
   let gliderStartInput = null;
@@ -4222,4 +4224,9 @@ function setupSettingsForm() {
   root.addEventListener('keydown', e => {
     if (e.key === 'Enter') apply();
   });
+  if (drawBtn) {
+    drawBtn.addEventListener('click', () => {
+      apply();
+    });
+  }
 }
