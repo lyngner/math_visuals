@@ -10,6 +10,7 @@
   const MAX_DIM = 20;
   const MAX_COLORS = 6;
   const LABEL_MODES = ['hidden', 'count', 'custom'];
+  const FIGURE_TYPES = ['square', 'circle', 'line', 'star'];
   let rows = 3;
   let cols = 3;
   const colorCountInp = document.getElementById('colorCount');
@@ -42,6 +43,36 @@
     const normalized = value.toLowerCase();
     if (normalized === 'numbered') return 'count';
     return LABEL_MODES.includes(normalized) ? normalized : 'custom';
+  }
+  function normalizeFigureType(value) {
+    if (typeof value !== 'string') return null;
+    const normalized = value.toLowerCase();
+    const alias = {
+      square: 'square',
+      squares: 'square',
+      kvadrat: 'square',
+      kvadrater: 'square',
+      'filled-squares': 'square',
+      'filled square': 'square',
+      'filled squares': 'square',
+      fylte: 'square',
+      'fylte kvadrater': 'square',
+      circle: 'circle',
+      circles: 'circle',
+      sirkel: 'circle',
+      sirkler: 'circle',
+      line: 'line',
+      lines: 'line',
+      linje: 'line',
+      linjer: 'line',
+      star: 'star',
+      stars: 'star',
+      stjerne: 'star',
+      stjerner: 'star'
+    };
+    if (FIGURE_TYPES.includes(normalized)) return normalized;
+    if (alias[normalized]) return alias[normalized];
+    return null;
   }
   function clampInt(value, min, max) {
     const num = parseInt(value, 10);
@@ -121,7 +152,18 @@
     cols = clampInt((_STATE$cols = STATE.cols) !== null && _STATE$cols !== void 0 ? _STATE$cols : cols, 1, MAX_DIM);
     STATE.rows = rows;
     STATE.cols = cols;
-    STATE.circleMode = STATE.circleMode !== false;
+    let figureType = normalizeFigureType(STATE.figureType);
+    if (!figureType) {
+      if (STATE.circleMode === true) {
+        figureType = 'circle';
+      } else if (STATE.circleMode === false) {
+        figureType = 'square';
+      } else {
+        figureType = 'square';
+      }
+    }
+    STATE.figureType = figureType;
+    STATE.circleMode = figureType === 'circle';
     STATE.offset = STATE.offset !== false;
     STATE.showGrid = STATE.showGrid !== false;
     const inferredMode = typeof STATE.labelMode === 'string' ? STATE.labelMode : STATE.showFigureText === false ? 'hidden' : 'custom';
@@ -172,16 +214,36 @@
     }, 0);
   }
   function applyCellAppearance(cell, idx, colors) {
+    const shape = normalizeFigureType(STATE.figureType) || 'square';
+    const color = idx > 0 ? colors[idx - 1] || '#6C1BA2' : '';
+    const hasFill = !!color;
     cell.dataset.color = String(idx);
-    if (idx === 0) {
+    cell.style.setProperty('--cell-fill', color || 'transparent');
+    cell.classList.remove('circle', 'cell--square', 'cell--circle', 'cell--line', 'cell--star', 'cell--filled');
+    if (shape === 'circle') {
+      cell.classList.add('cell--circle');
+      if (hasFill) {
+        cell.classList.add('cell--filled');
+        cell.style.backgroundColor = color;
+      } else {
+        cell.style.backgroundColor = '#fff';
+      }
+    } else if (shape === 'line') {
+      cell.classList.add('cell--line');
       cell.style.backgroundColor = '#fff';
+      if (hasFill) cell.classList.add('cell--filled');
+    } else if (shape === 'star') {
+      cell.classList.add('cell--star');
+      cell.style.backgroundColor = '#fff';
+      if (hasFill) cell.classList.add('cell--filled');
     } else {
-      cell.style.backgroundColor = colors[idx - 1] || '#fff';
-    }
-    if (STATE.circleMode && idx !== 0) {
-      cell.classList.add('circle');
-    } else {
-      cell.classList.remove('circle');
+      cell.classList.add('cell--square');
+      if (hasFill) {
+        cell.classList.add('cell--filled');
+        cell.style.backgroundColor = color;
+      } else {
+        cell.style.backgroundColor = '#fff';
+      }
     }
   }
   function updateCellColors() {
@@ -358,23 +420,26 @@
     updateFigureLabelDisplay();
     scheduleAltTextRefresh('cells');
   }
-  const rowsMinus = document.getElementById('rowsMinus');
-  const rowsPlus = document.getElementById('rowsPlus');
-  const rowsVal = document.getElementById('rowsVal');
-  const colsMinus = document.getElementById('colsMinus');
-  const colsPlus = document.getElementById('colsPlus');
-  const colsVal = document.getElementById('colsVal');
+  const rowsInput = document.getElementById('rowsInput');
+  const colsInput = document.getElementById('colsInput');
+  const figureTypeInputs = Array.from(document.querySelectorAll('input[name="figureType"]'));
+  const showGridInputs = Array.from(document.querySelectorAll('input[name="showGrid"]'));
+  const offsetInputs = Array.from(document.querySelectorAll('input[name="offsetRows"]'));
+  const labelModeInputs = Array.from(document.querySelectorAll('input[name="labelMode"]'));
+  function setRadioGroup(inputs, value) {
+    if (!Array.isArray(inputs)) return;
+    inputs.forEach(inp => {
+      if (!inp) return;
+      inp.checked = inp.value === value;
+    });
+  }
   function applyStateToControls() {
-    if (rowsVal) rowsVal.textContent = rows;
-    if (colsVal) colsVal.textContent = cols;
-    const circleInp = document.getElementById('circleMode');
-    const offsetInp = document.getElementById('offsetRows');
-    const gridInp = document.getElementById('showGrid');
-    const labelModeSel = document.getElementById('labelMode');
-    if (circleInp) circleInp.checked = !!STATE.circleMode;
-    if (offsetInp) offsetInp.checked = !!STATE.offset;
-    if (gridInp) gridInp.checked = !!STATE.showGrid;
-    if (labelModeSel) labelModeSel.value = STATE.labelMode;
+    if (rowsInput) rowsInput.value = String(rows);
+    if (colsInput) colsInput.value = String(cols);
+    setRadioGroup(figureTypeInputs, normalizeFigureType(STATE.figureType) || 'square');
+    setRadioGroup(showGridInputs, STATE.showGrid ? 'true' : 'false');
+    setRadioGroup(offsetInputs, STATE.offset ? 'true' : 'false');
+    setRadioGroup(labelModeInputs, STATE.labelMode);
     if (colorCountInp) colorCountInp.value = String(STATE.colorCount);
     updateColorVisibility();
   }
@@ -402,41 +467,67 @@
     STATE.cols = clamped;
     render();
   }
-  rowsMinus === null || rowsMinus === void 0 || rowsMinus.addEventListener('click', () => {
-    if (rows > 1) setRows(rows - 1);
+  if (rowsInput) {
+    rowsInput.addEventListener('input', () => {
+      if (rowsInput.value === '') return;
+      setRows(rowsInput.value);
+    });
+    rowsInput.addEventListener('change', () => {
+      setRows(rowsInput.value);
+    });
+    rowsInput.addEventListener('blur', () => {
+      setRows(rowsInput.value);
+    });
+  }
+  if (colsInput) {
+    colsInput.addEventListener('input', () => {
+      if (colsInput.value === '') return;
+      setCols(colsInput.value);
+    });
+    colsInput.addEventListener('change', () => {
+      setCols(colsInput.value);
+    });
+    colsInput.addEventListener('blur', () => {
+      setCols(colsInput.value);
+    });
+  }
+  figureTypeInputs.forEach(inp => {
+    if (!inp) return;
+    inp.addEventListener('change', () => {
+      if (!inp.checked) return;
+      const nextType = normalizeFigureType(inp.value) || 'square';
+      STATE.figureType = nextType;
+      STATE.circleMode = nextType === 'circle';
+      updateCellColors();
+      scheduleAltTextRefresh('shape');
+    });
   });
-  rowsPlus === null || rowsPlus === void 0 || rowsPlus.addEventListener('click', () => {
-    if (rows < MAX_DIM) setRows(rows + 1);
+  offsetInputs.forEach(inp => {
+    if (!inp) return;
+    inp.addEventListener('change', () => {
+      if (!inp.checked) return;
+      STATE.offset = inp.value === 'true';
+      render();
+    });
   });
-  colsMinus === null || colsMinus === void 0 || colsMinus.addEventListener('click', () => {
-    if (cols > 1) setCols(cols - 1);
+  showGridInputs.forEach(inp => {
+    if (!inp) return;
+    inp.addEventListener('change', () => {
+      if (!inp.checked) return;
+      STATE.showGrid = inp.value === 'true';
+      updateGridVisibility();
+      scheduleAltTextRefresh('grid');
+    });
   });
-  colsPlus === null || colsPlus === void 0 || colsPlus.addEventListener('click', () => {
-    if (cols < MAX_DIM) setCols(cols + 1);
-  });
-  const circleInp = document.getElementById('circleMode');
-  circleInp === null || circleInp === void 0 || circleInp.addEventListener('change', () => {
-    STATE.circleMode = circleInp.checked;
-    updateCellColors();
-    scheduleAltTextRefresh('circle-mode');
-  });
-  const offsetInp = document.getElementById('offsetRows');
-  offsetInp === null || offsetInp === void 0 || offsetInp.addEventListener('change', () => {
-    STATE.offset = offsetInp.checked;
-    render();
-  });
-  const gridInp = document.getElementById('showGrid');
-  gridInp === null || gridInp === void 0 || gridInp.addEventListener('change', () => {
-    STATE.showGrid = gridInp.checked;
-    updateGridVisibility();
-    scheduleAltTextRefresh('grid');
-  });
-  const labelModeSel = document.getElementById('labelMode');
-  labelModeSel === null || labelModeSel === void 0 || labelModeSel.addEventListener('change', () => {
-    STATE.labelMode = normalizeLabelMode(labelModeSel.value);
-    STATE.showFigureText = STATE.labelMode !== 'hidden';
-    updateFigureLabelDisplay();
-    scheduleAltTextRefresh('label-mode');
+  labelModeInputs.forEach(inp => {
+    if (!inp) return;
+    inp.addEventListener('change', () => {
+      if (!inp.checked) return;
+      STATE.labelMode = normalizeLabelMode(inp.value);
+      STATE.showFigureText = STATE.labelMode !== 'hidden';
+      updateFigureLabelDisplay();
+      scheduleAltTextRefresh('label-mode');
+    });
   });
   colorCountInp === null || colorCountInp === void 0 || colorCountInp.addEventListener('input', () => {
     STATE.colorCount = clampInt(colorCountInp.value, 1, colorInputs.length || MAX_COLORS);
@@ -609,11 +700,13 @@
         });
       });
     }
+    const figureType = normalizeFigureType(STATE.figureType) || (STATE.circleMode ? 'circle' : 'square');
     return {
       figureCount,
       rows,
       cols,
-      circleMode: !!STATE.circleMode,
+      circleMode: figureType === 'circle',
+      figureType,
       offset: !!STATE.offset,
       showGrid: !!STATE.showGrid,
       figures
@@ -627,7 +720,14 @@
     sentences.push(`Visualiseringen viser ${countText} i et rutenett med ${formatCount(data.rows, 'rad', 'rader')} og ${formatCount(data.cols, 'kolonne', 'kolonner')}.`);
     const detailParts = [];
     detailParts.push(data.showGrid ? 'Rutenettet er synlig' : 'Rutenettet er skjult');
-    detailParts.push(data.circleMode ? 'Fylte posisjoner vises som sirkler' : 'Fylte posisjoner vises som kvadrater');
+    const shapeMap = {
+      square: 'Fylte posisjoner vises som kvadrater',
+      circle: 'Fylte posisjoner vises som sirkler',
+      line: 'Fylte posisjoner vises som linjer',
+      star: 'Fylte posisjoner vises som stjerner'
+    };
+    const shapeKey = normalizeFigureType(data.figureType) || (data.circleMode ? 'circle' : 'square');
+    detailParts.push(shapeMap[shapeKey] || shapeMap.square);
     if (data.offset && data.rows > 1) detailParts.push('Annenhver rad er forskjøvet');
     if (detailParts.length) {
       sentences.push(`${detailParts.join(', ')}.`);
@@ -1041,6 +1141,20 @@
     const figCount = boxes.length;
     const totalW = figCount > 0 ? figCount * figW + gap * (figCount - 1) : figW;
     const totalH = figH + nameH;
+    const shapeMode = normalizeFigureType(STATE.figureType) || 'square';
+    const buildStarPoints = (cx, cy, outerR) => {
+      const innerR = outerR * 0.45;
+      const points = [];
+      const startAngle = -Math.PI / 2;
+      for (let i = 0; i < 10; i++) {
+        const angle = startAngle + i * Math.PI / 5;
+        const radius = i % 2 === 0 ? outerR : innerR;
+        const x = cx + Math.cos(angle) * radius;
+        const y = cy + Math.sin(angle) * radius;
+        points.push(`${x},${y}`);
+      }
+      return points.join(' ');
+    };
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${totalW} ${totalH}`);
     svg.setAttribute('width', totalW);
@@ -1079,20 +1193,50 @@
           }
           g.appendChild(base);
           if (colorIdx > 0) {
-            if (STATE.circleMode) {
+            const fillColor = colors[colorIdx - 1];
+            if (shapeMode === 'circle') {
+              const radius = cellSize / 2 - (STATE.showGrid ? 1 : 0);
               const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
               circ.setAttribute('cx', x + cellSize / 2);
               circ.setAttribute('cy', yPos + cellSize / 2);
-              circ.setAttribute('r', cellSize / 2);
-              circ.setAttribute('fill', colors[colorIdx - 1]);
+              circ.setAttribute('r', Math.max(0, radius));
+              circ.setAttribute('fill', fillColor);
               g.appendChild(circ);
+            } else if (shapeMode === 'line') {
+              const inset = cellSize * 0.2;
+              const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+              line1.setAttribute('x1', x + inset);
+              line1.setAttribute('y1', yPos + inset);
+              line1.setAttribute('x2', x + cellSize - inset);
+              line1.setAttribute('y2', yPos + cellSize - inset);
+              line1.setAttribute('stroke', fillColor);
+              line1.setAttribute('stroke-width', '4');
+              line1.setAttribute('stroke-linecap', 'round');
+              const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+              line2.setAttribute('x1', x + inset);
+              line2.setAttribute('y1', yPos + cellSize - inset);
+              line2.setAttribute('x2', x + cellSize - inset);
+              line2.setAttribute('y2', yPos + inset);
+              line2.setAttribute('stroke', fillColor);
+              line2.setAttribute('stroke-width', '4');
+              line2.setAttribute('stroke-linecap', 'round');
+              g.appendChild(line1);
+              g.appendChild(line2);
+            } else if (shapeMode === 'star') {
+              const star = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+              const outerR = cellSize / 2 - 2;
+              const cx = x + cellSize / 2;
+              const cy = yPos + cellSize / 2;
+              star.setAttribute('points', buildStarPoints(cx, cy, Math.max(outerR, 4)));
+              star.setAttribute('fill', fillColor);
+              g.appendChild(star);
             } else {
               const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
               rect.setAttribute('x', x);
               rect.setAttribute('y', yPos);
               rect.setAttribute('width', cellSize);
               rect.setAttribute('height', cellSize);
-              rect.setAttribute('fill', colors[colorIdx - 1]);
+              rect.setAttribute('fill', fillColor);
               if (STATE.showGrid) {
                 rect.setAttribute('stroke', '#d1d5db');
                 rect.setAttribute('stroke-width', '1');
@@ -1128,7 +1272,8 @@
   function resetState() {
     STATE.rows = 3;
     STATE.cols = 3;
-    STATE.circleMode = true;
+    STATE.figureType = 'square';
+    STATE.circleMode = false;
     STATE.offset = true;
     STATE.showGrid = true;
     STATE.labelMode = 'custom';

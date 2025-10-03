@@ -94,14 +94,24 @@
     .btn{appearance:none;border:1px solid #d1d5db;background:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;transition:box-shadow .2s,transform .02s;}
     .btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.06);}
     .btn:active{transform:translateY(1px);}
-    .card--settings fieldset .fieldLabel{flex-direction:column;align-items:center;gap:6px;text-align:center;}
-    .card--settings fieldset .fieldLabel span{display:block;}
-    .card--settings fieldset .fieldLabel .stepper{margin:0;}
-    .card--settings fieldset .toggleLabel input{margin:0;}
+    .card--settings fieldset{display:flex;flex-direction:column;gap:12px;margin:0;padding:0;border:none;}
+    .card--settings fieldset + fieldset{margin-top:12px;}
+    .card--settings legend{font-weight:600;font-size:14px;margin-bottom:4px;color:#374151;}
+    .settingsRow{display:flex;flex-wrap:wrap;gap:16px;align-items:center;}
+    .settingsRow--grid{justify-content:flex-start;}
+    .inlineLabel{display:flex;align-items:center;gap:8px;font-size:14px;color:#4b5563;}
+    .inlineLabel span{white-space:nowrap;}
+    .segmentedControl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+    .segmentedOption{position:relative;display:inline-flex;align-items:center;justify-content:center;}
+    .segmentedOption input{position:absolute;opacity:0;pointer-events:none;}
+    .segmentedOption span{display:inline-flex;align-items:center;justify-content:center;padding:6px 12px;border:1px solid #d1d5db;border-radius:999px;background:#fff;color:#374151;font-size:14px;cursor:pointer;min-width:0;transition:background .2s,border-color .2s,color .2s,box-shadow .2s;}
+    .segmentedOption input:checked + span{background:#111827;color:#fff;border-color:#111827;box-shadow:0 2px 6px rgba(17,24,39,.18);}
+    .segmentedOption input:focus-visible + span{outline:2px solid #6366f1;outline-offset:2px;}
+    .segmentedOption input:disabled + span{opacity:.5;cursor:not-allowed;}
     .card input[type="color"]{width:40px;height:40px;padding:0;border:none;}
     .colors{display:flex;flex-wrap:wrap;gap:6px;}
     .colors input{flex:0 0 40px;width:40px;height:40px;}
-    .input--digit{width:60px;padding:8px 10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;background:#fff;box-sizing:border-box;text-align:center;}
+    .input--digit{width:72px;padding:8px 10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;background:#fff;box-sizing:border-box;text-align:center;}
     .figure{
       border-radius:10px;
       background:#fff;
@@ -124,32 +134,23 @@
       display:grid;
       grid-template-columns:repeat(var(--cols),1fr);
     }
-    .cell{
-      border:1px solid #d1d5db;
-      background:#fff;
-      cursor:pointer;
-    }
-    .box.hide-grid .cell{
-      border:none;
-    }
-    .row.offset{
-      transform:translateX(calc(var(--cellSize)/2));
-    }
-    .cell.circle{
-      border-radius:50%;
-      border:none;
-    }
-    .stepper{
-      display:flex;align-items:center;gap:12px;
-      padding:6px 10px;border:1px solid #cfcfcf;border-radius:12px;
-      box-shadow:0 2px 10px rgba(0,0,0,.06);background:#fff;
-      margin:0 auto;
-    }
-    .stepper button{
-      width:40px;height:36px;border:1px solid #cfcfcf;border-radius:8px;
-      background:#fff;font-size:20px;cursor:pointer;
-    }
-    .stepper span{min-width:32px;text-align:center;font-variant-numeric:tabular-nums;font-size:16px;}
+    .cell{position:relative;border:1px solid #d1d5db;background:#fff;cursor:pointer;transition:background .2s,box-shadow .2s;}
+    .cell::after{content:"";position:absolute;inset:12%;border-radius:999px;background:var(--cell-fill,transparent);opacity:0;transition:opacity .15s,transform .2s;}
+    .box.hide-grid .cell{border:none;}
+    .row.offset{transform:translateX(calc(var(--cellSize)/2));}
+    .cell--square::after{display:none;}
+    .cell--circle{border:none;border-radius:50%;overflow:hidden;}
+    .cell--circle::after{display:none;}
+    .cell--line{background:#fff;}
+    .cell--line::before,.cell--line::after{content:"";position:absolute;inset:18%;border-radius:999px;background:transparent;pointer-events:none;}
+    .cell--line::before{background:linear-gradient(45deg,transparent calc(50% - 2px),var(--cell-fill,transparent) calc(50% - 2px),var(--cell-fill,transparent) calc(50% + 2px),transparent calc(50% + 2px));opacity:0;}
+    .cell--line::after{background:linear-gradient(-45deg,transparent calc(50% - 2px),var(--cell-fill,transparent) calc(50% - 2px),var(--cell-fill,transparent) calc(50% + 2px),transparent calc(50% + 2px));opacity:0;}
+    .cell--star{background:#fff;}
+    .cell--star::after{clip-path:polygon(50% 5%,61% 35%,95% 35%,67% 57%,78% 90%,50% 70%,22% 90%,33% 57%,5% 35%,39% 35%);opacity:0;background:var(--cell-fill,transparent);} 
+    .cell--filled.cell--line::before,.cell--filled.cell--line::after{opacity:1;}
+    .cell--filled.cell--star::after{opacity:1;}
+    .cell--filled.cell--square{background:var(--cell-fill,#fff);}
+    .cell--filled.cell--circle{background:var(--cell-fill,#fff);}
     .nameInput{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:6px 8px;font-size:14px;box-sizing:border-box;}
     .nameDisplay{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:6px 8px;font-size:14px;box-sizing:border-box;background:#f3f4f6;color:#374151;}
     .removeFigureBtn{
@@ -196,33 +197,80 @@
         <div class="card card--settings">
           <fieldset>
             <legend>Ruter</legend>
-            <label class="fieldLabel">
-              <span>Rader</span>
-              <div class="stepper" aria-label="Antall ruter i høyden">
-                <button id="rowsMinus" type="button" aria-label="Færre rader">&minus;</button>
-                <span id="rowsVal">3</span>
-                <button id="rowsPlus" type="button" aria-label="Flere rader">+</button>
-              </div>
-            </label>
-            <label class="fieldLabel">
-              <span>Kolonner</span>
-              <div class="stepper" aria-label="Antall ruter i bredden">
-                <button id="colsMinus" type="button" aria-label="Færre kolonner">&minus;</button>
-                <span id="colsVal">3</span>
-                <button id="colsPlus" type="button" aria-label="Flere kolonner">+</button>
-              </div>
-            </label>
-            <label class="toggleLabel"><input id="showGrid" type="checkbox" /> Vis rutenett</label>
-            <label class="toggleLabel"><input id="offsetRows" type="checkbox" /> Forskyv annenhver rad</label>
-            <label class="toggleLabel"><input id="circleMode" type="checkbox" checked /> Bruk sirkler</label>
-            <label class="fieldLabel">
-              <span>Figurtekst</span>
-              <select id="labelMode">
-                <option value="hidden">Skjult</option>
-                <option value="count">Antall</option>
-                <option value="custom">Egendefinert</option>
-              </select>
-            </label>
+            <div class="settingsRow settingsRow--grid">
+              <label class="inlineLabel" for="rowsInput">
+                <span>Rader:</span>
+                <input id="rowsInput" class="input--digit" type="number" min="1" max="20" value="3" />
+              </label>
+              <label class="inlineLabel" for="colsInput">
+                <span>Kolonner:</span>
+                <input id="colsInput" class="input--digit" type="number" min="1" max="20" value="3" />
+              </label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Type</legend>
+            <div class="segmentedControl" role="group" aria-label="Type markering">
+              <label class="segmentedOption">
+                <input type="radio" name="figureType" value="square" checked />
+                <span>Fylte kvadrater</span>
+              </label>
+              <label class="segmentedOption">
+                <input type="radio" name="figureType" value="circle" />
+                <span>Sirkler</span>
+              </label>
+              <label class="segmentedOption">
+                <input type="radio" name="figureType" value="line" />
+                <span>Linjer</span>
+              </label>
+              <label class="segmentedOption">
+                <input type="radio" name="figureType" value="star" />
+                <span>Stjerner</span>
+              </label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Vis rutenett</legend>
+            <div class="segmentedControl" role="group" aria-label="Vis rutenett">
+              <label class="segmentedOption">
+                <input id="showGridNo" type="radio" name="showGrid" value="false" />
+                <span>Nei</span>
+              </label>
+              <label class="segmentedOption">
+                <input id="showGridYes" type="radio" name="showGrid" value="true" checked />
+                <span>Ja</span>
+              </label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Forskyv annenhver rad</legend>
+            <div class="segmentedControl" role="group" aria-label="Forskyv annenhver rad">
+              <label class="segmentedOption">
+                <input id="offsetRowsNo" type="radio" name="offsetRows" value="false" />
+                <span>Nei</span>
+              </label>
+              <label class="segmentedOption">
+                <input id="offsetRowsYes" type="radio" name="offsetRows" value="true" checked />
+                <span>Ja</span>
+              </label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Figurtekst</legend>
+            <div class="segmentedControl" role="group" aria-label="Figurtekst">
+              <label class="segmentedOption">
+                <input type="radio" name="labelMode" value="hidden" />
+                <span>Skjult</span>
+              </label>
+              <label class="segmentedOption">
+                <input type="radio" name="labelMode" value="count" />
+                <span>Tall</span>
+              </label>
+              <label class="segmentedOption">
+                <input type="radio" name="labelMode" value="custom" checked />
+                <span>Egendefinert</span>
+              </label>
+            </div>
           </fieldset>
           <fieldset>
             <legend>Farger</legend>
