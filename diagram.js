@@ -14,10 +14,21 @@ const CFG = {
   tolerance: 0,
   axisXLabel: 'Idrett',
   axisYLabel: 'Antall elever',
+  valueDisplay: 'none',
   locked: [],
   altText: '',
   altTextSource: 'auto'
 };
+const VALUE_DISPLAY_OPTIONS = ['none', 'number', 'fraction', 'percent'];
+function sanitizeValueDisplay(value) {
+  if (typeof value !== 'string') return 'none';
+  const normalized = value.trim().toLowerCase();
+  return VALUE_DISPLAY_OPTIONS.includes(normalized) ? normalized : 'none';
+}
+function getValueDisplayMode(type = CFG.type) {
+  const mode = sanitizeValueDisplay(CFG.valueDisplay);
+  return type === 'stacked' ? 'none' : mode;
+}
 const DEFAULT_DIAGRAM_EXAMPLES = [{
   id: 'diagram-example-1',
   exampleNumber: '1',
@@ -243,6 +254,7 @@ function initFromCfg() {
   values = CFG.start.slice();
   values2 = series2Enabled && CFG.start2 ? CFG.start2.slice() : null;
   seriesNames = [CFG.series1 || '', series2Enabled ? CFG.series2 || '' : ''];
+  CFG.valueDisplay = sanitizeValueDisplay(CFG.valueDisplay);
   N = CFG.labels.length;
   xBand = innerW / N;
   barW = xBand * 0.6;
@@ -270,6 +282,8 @@ function initFromCfg() {
   const axisYInput = document.getElementById('cfgAxisYLabel');
   const snapInput = document.getElementById('cfgSnap');
   const tolInput = document.getElementById('cfgTolerance');
+  const valueDisplaySelect = document.getElementById('cfgValueDisplay');
+  const valueDisplayWrapper = document.getElementById('cfgValueDisplayWrapper');
   const series1Input = document.getElementById('cfgSeries1');
   const startInput = document.getElementById('cfgStart');
   const answerInput = document.getElementById('cfgAnswer');
@@ -301,6 +315,7 @@ function initFromCfg() {
   if (series2Input) series2Input.value = series2Enabled ? CFG.series2 || '' : '';
   if (start2Input) start2Input.value = series2Enabled && Array.isArray(values2) ? formatNumberList(values2) : '';
   if (answer2Input) answer2Input.value = series2Enabled && Array.isArray(CFG.answer2) ? formatNumberList(CFG.answer2) : '';
+  if (valueDisplaySelect) valueDisplaySelect.value = CFG.valueDisplay;
   if (typeof CFG.altText !== 'string') CFG.altText = '';
   if (typeof CFG.altTextSource !== 'string') {
     CFG.altTextSource = CFG.altText ? 'manual' : 'auto';
@@ -330,6 +345,12 @@ function initFromCfg() {
     const desiredType = allowedTypes.includes(CFG.type) ? CFG.type : 'bar';
     typeSel.value = desiredType;
     CFG.type = desiredType;
+    if (valueDisplaySelect) {
+      valueDisplaySelect.disabled = CFG.type === 'stacked';
+    }
+    if (valueDisplayWrapper) {
+      valueDisplayWrapper.style.display = CFG.type === 'stacked' ? 'none' : '';
+    }
   }
   drawAxesAndGrid();
   drawData();
@@ -422,19 +443,20 @@ function drawData() {
   gHands.innerHTML = '';
   gA11y.innerHTML = '';
   gLegend.innerHTML = '';
+  const displayMode = getValueDisplayMode();
   if (CFG.type === 'pie') {
-    drawPie();
+    drawPie(displayMode);
     return;
   }
   const hasTwo = values2 && values2.length;
   if (CFG.type === 'line') {
-    drawLines();
+    drawLines(displayMode);
   } else if (hasTwo && CFG.type === 'grouped') {
-    drawGroupedBars();
+    drawGroupedBars(displayMode);
   } else if (hasTwo && CFG.type === 'stacked') {
     drawStackedBars();
   } else {
-    drawBars();
+    drawBars(displayMode);
   }
   drawLegend();
 }
@@ -465,10 +487,14 @@ function drawLegend() {
     }).textContent = s.name;
   });
 }
-function drawLines() {
+function drawLines(displayMode) {
   const datasets = [values];
   if (values2 && values2.length) datasets.push(values2);
+  const baseValue = getBaselineValue();
+  const baseY = yPos(baseValue);
   datasets.forEach((arr, idx) => {
+    const multiSeries = datasets.length > 1;
+    const offsetX = multiSeries ? (idx - (datasets.length - 1) / 2) * 14 : 0;
     const path = arr.map((v, i) => (i ? 'L' : 'M') + xPos(i) + ',' + yPos(v)).join(' ');
     addTo(gBars, 'path', {
       d: path,
@@ -522,10 +548,17 @@ function drawLines() {
       a11y.dataset.base = 0;
       a11y.addEventListener('pointerdown', onDragStart);
       a11y.addEventListener('keydown', onKeyAdjust);
+      if (displayMode !== 'none') {
+        placeValueLabel(cx, cy, v, displayMode, {
+          baseY,
+          series: idx,
+          xOffset: offsetX
+        });
+      }
     });
   });
 }
-function drawPie() {
+function drawPie(displayMode) {
   const count = values.length;
   if (!count) {
     const message = addTo(gLabels, 'text', {
@@ -575,7 +608,6 @@ function drawPie() {
     const lx = cx + labelRadius * Math.cos(midAngle);
     const ly = cy + labelRadius * Math.sin(midAngle);
     const label = typeof CFG.labels[i] === 'string' && CFG.labels[i].trim().length ? CFG.labels[i].trim() : `Kategori ${i + 1}`;
-    const percent = share > 0 ? share * 100 : total > 0 ? 0 : fallbackFraction * 100;
     const textAnchor = lx >= cx ? 'start' : 'end';
     const baseline = ly >= cy ? 'hanging' : 'auto';
     const textEl = addTo(gLabels, 'text', {
@@ -586,12 +618,15 @@ function drawPie() {
       'dominant-baseline': baseline
     });
     textEl.textContent = label;
-    const percentLine = document.createElementNS(svg.namespaceURI, 'tspan');
-    percentLine.setAttribute('x', lx);
-    percentLine.setAttribute('dy', ly >= cy ? '1.1em' : '1.2em');
-    percentLine.textContent = formatPercent(percent);
-    percentLine.setAttribute('class', 'pie-label__percent');
-    textEl.appendChild(percentLine);
+    const valueLineText = formatPieValueText(value, share, displayMode);
+    if (valueLineText) {
+      const valueLine = document.createElementNS(svg.namespaceURI, 'tspan');
+      valueLine.setAttribute('x', lx);
+      valueLine.setAttribute('dy', ly >= cy ? '1.1em' : '1.2em');
+      valueLine.textContent = valueLineText;
+      valueLine.setAttribute('class', 'pie-label__value');
+      textEl.appendChild(valueLine);
+    }
     const a11y = addTo(gA11y, 'path', {
       d: pathData,
       fill: 'transparent',
@@ -623,7 +658,7 @@ function drawPie() {
     class: 'pie-divider'
   });
 }
-function drawGroupedBars() {
+function drawGroupedBars(displayMode) {
   const hasTwo = values2 && values2.length;
   const barTotal = xBand * 0.6;
   const barSingle = hasTwo ? barTotal / 2 : barTotal;
@@ -688,7 +723,12 @@ function drawGroupedBars() {
     a1.dataset.base = 0;
     a1.addEventListener('pointerdown', onDragStart);
     a1.addEventListener('keydown', onKeyAdjust);
-    // Verdietikettene fjernet
+    if (displayMode !== 'none') {
+      placeValueLabel(x0 + barSingle / 2, y1, v1, displayMode, {
+        baseY,
+        series: 0
+      });
+    }
 
     if (hasTwo) {
       const v2 = values2[i];
@@ -748,7 +788,12 @@ function drawGroupedBars() {
       a2.dataset.base = 0;
       a2.addEventListener('pointerdown', onDragStart);
       a2.addEventListener('keydown', onKeyAdjust);
-      // Verdietikettene fjernet
+      if (displayMode !== 'none') {
+        placeValueLabel(x1 + barSingle / 2, y2, v2, displayMode, {
+          baseY,
+          series: 1
+        });
+      }
     }
   }
 }
@@ -877,7 +922,151 @@ function drawStackedBars() {
     }
   }
 }
-function drawBars() {
+function placeValueLabel(x, y, value, mode, options = {}) {
+  const text = formatValueLabel(value, mode);
+  if (!text) return;
+  const baseY = typeof options.baseY === 'number' ? options.baseY : y;
+  const offset = Number.isFinite(options.offset) ? options.offset : 12;
+  const xOffset = Number.isFinite(options.xOffset) ? options.xOffset : 0;
+  const finalX = x + xOffset;
+  const above = typeof options.above === 'boolean' ? options.above : y <= baseY;
+  const finalY = above ? y - offset : y + offset;
+  const attrs = {
+    x: finalX,
+    y: finalY,
+    class: 'value'
+  };
+  if (Number.isFinite(options.series)) {
+    attrs.class += ` series${options.series}`;
+  }
+  if (!above) {
+    attrs['dominant-baseline'] = 'hanging';
+  }
+  if (typeof options.anchor === 'string' && options.anchor) {
+    attrs['text-anchor'] = options.anchor;
+  }
+  const label = addTo(gVals, 'text', attrs);
+  label.textContent = text;
+}
+function formatValueLabel(value, mode) {
+  const normalized = sanitizeValueDisplay(mode);
+  if (normalized === 'none') return '';
+  const safeValue = Number.isFinite(value) ? value : 0;
+  if (normalized === 'number') return fmt(safeValue);
+  if (normalized === 'percent') return formatPercent(safeValue * 100);
+  if (normalized === 'fraction') return formatFractionValue(safeValue);
+  return '';
+}
+function formatFractionValue(value) {
+  if (!Number.isFinite(value)) return '';
+  if (Math.abs(value) < 1e-9) return '0';
+  const sign = value < 0 ? '-' : '';
+  const absVal = Math.abs(value);
+  if (Math.abs(absVal - Math.round(absVal)) < 1e-9) {
+    return sign + Math.round(absVal);
+  }
+  const approx = approximateFraction(absVal, 100);
+  if (!approx) {
+    return sign + fmt(absVal);
+  }
+  let numerator = approx.numerator;
+  let denominator = approx.denominator;
+  if (denominator === 0) return sign + fmt(absVal);
+  if (numerator === 0) return '0';
+  const whole = Math.floor(numerator / denominator);
+  const remainder = numerator % denominator;
+  let parts = [];
+  if (whole > 0) parts.push(String(whole));
+  if (remainder > 0) {
+    parts.push(`${remainder}⁄${denominator}`);
+  }
+  if (!parts.length) parts.push('0');
+  return sign + parts.join(' ');
+}
+function approximateFraction(value, maxDenominator = 100) {
+  if (!Number.isFinite(value)) return null;
+  if (value === 0) return {
+    numerator: 0,
+    denominator: 1
+  };
+  if (Math.abs(value - Math.round(value)) < 1e-9) {
+    return {
+      numerator: Math.round(value),
+      denominator: 1
+    };
+  }
+  const limit = Math.max(1, Math.floor(maxDenominator));
+  let lowerN = 0;
+  let lowerD = 1;
+  let upperN = 1;
+  let upperD = 0;
+  let bestN = 1;
+  let bestD = 1;
+  for (let i = 0; i < 64; i++) {
+    const mediantN = lowerN + upperN;
+    const mediantD = lowerD + upperD;
+    if (mediantD > limit) break;
+    bestN = mediantN;
+    bestD = mediantD;
+    const mediant = mediantN / mediantD;
+    if (Math.abs(mediant - value) <= 1e-9) break;
+    if (mediant < value) {
+      lowerN = mediantN;
+      lowerD = mediantD;
+    } else {
+      upperN = mediantN;
+      upperD = mediantD;
+    }
+  }
+  const bestVal = bestN / bestD;
+  const upperVal = upperN / upperD;
+  const lowerVal = lowerN / lowerD;
+  let chosenN = bestN;
+  let chosenD = bestD;
+  if (upperD <= limit && Math.abs(upperVal - value) < Math.abs(bestVal - value)) {
+    chosenN = upperN;
+    chosenD = upperD;
+  }
+  if (lowerD <= limit && Math.abs(lowerVal - value) < Math.abs(chosenN / chosenD - value)) {
+    chosenN = lowerN;
+    chosenD = lowerD;
+  }
+  if (chosenD === 0) {
+    chosenN = bestN;
+    chosenD = bestD;
+  }
+  const divisor = gcd(chosenN, chosenD);
+  return {
+    numerator: Math.round(chosenN / divisor),
+    denominator: Math.round(chosenD / divisor)
+  };
+}
+function gcd(a, b) {
+  let x = Math.abs(Math.round(a));
+  let y = Math.abs(Math.round(b));
+  while (y) {
+    const t = y;
+    y = x % y;
+    x = t;
+  }
+  return x || 1;
+}
+function formatPieValueText(rawValue, share, mode) {
+  const normalized = sanitizeValueDisplay(mode);
+  if (normalized === 'none') return '';
+  if (normalized === 'number') {
+    return fmt(rawValue);
+  }
+  const ratio = Number.isFinite(share) ? share : 0;
+  if (normalized === 'percent') {
+    return formatPercent(ratio * 100);
+  }
+  if (normalized === 'fraction') {
+    return formatFractionValue(ratio);
+  }
+  return '';
+}
+function drawBars(displayMode) {
   gBars.innerHTML = '';
   gVals.innerHTML = '';
   gHands.innerHTML = '';
@@ -957,7 +1146,12 @@ function drawBars() {
     }
 
     // 4) Verdi (øverst, ikke-interaktiv)
-    // Verdietikettene fjernet
+    if (displayMode !== 'none') {
+      placeValueLabel(cx, y, v, displayMode, {
+        baseY,
+        series: 0
+      });
+    }
   });
 }
 
@@ -1576,6 +1770,8 @@ function applyCfg() {
   CFG.yMax = isNaN(yMaxVal) ? undefined : yMaxVal;
   CFG.axisXLabel = document.getElementById('cfgAxisXLabel').value;
   CFG.axisYLabel = document.getElementById('cfgAxisYLabel').value;
+  const valueDisplaySelect = document.getElementById('cfgValueDisplay');
+  CFG.valueDisplay = valueDisplaySelect ? sanitizeValueDisplay(valueDisplaySelect.value) : 'none';
   const snapVal = parseFloat(document.getElementById('cfgSnap').value);
   CFG.snap = isNaN(snapVal) ? 1 : snapVal;
   const tolVal = parseFloat(document.getElementById('cfgTolerance').value);
@@ -1661,10 +1857,12 @@ function formatNumber(value) {
   return str.length ? str : '0';
 }
 function formatPercent(value) {
-  const safe = Number.isFinite(value) ? Math.max(0, value) : 0;
-  const rounded = safe >= 10 ? Math.round(safe) : Math.round(safe * 10) / 10;
+  const safe = Number.isFinite(value) ? value : 0;
+  const abs = Math.abs(safe);
+  const rounded = abs >= 10 ? Math.round(abs) : Math.round(abs * 10) / 10;
   const formatted = formatNumber(rounded).replace('.', ',');
-  return `${formatted} %`;
+  const sign = safe < 0 ? '-' : '';
+  return `${sign}${formatted} %`;
 }
 function normalizeTickValue(value) {
   if (!Number.isFinite(value)) return 0;
