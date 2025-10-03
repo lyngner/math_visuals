@@ -1184,7 +1184,7 @@ function buildBropizzaAltText() {
     const denominator = inst.n || 1;
     const gcdValue = gcd(numerator, denominator);
     const simplified = gcdValue > 1 ? `${numerator / gcdValue}/${denominator / gcdValue}` : null;
-    let sentence = `Pizza ${index + 1} viser ${formatCount(numerator, 'del')} av ${formatCount(denominator, 'del')} fylt`;
+    let sentence = `Brøksirkel ${index + 1} viser ${formatCount(numerator, 'del')} av ${formatCount(denominator, 'del')} fylt`;
     if (simplified) {
       sentence += ` (${simplified} i enkleste form)`;
     }
@@ -1220,7 +1220,7 @@ function buildBropizzaAltText() {
       default:
         name = `operatoren «${op}»`;
     }
-    sentences.push(`Mellom pizza ${left} og ${right} står ${name}.`);
+    sentences.push(`Mellom brøksirkel ${left} og ${right} står ${name}.`);
   });
   return sentences.join(' ');
 }
