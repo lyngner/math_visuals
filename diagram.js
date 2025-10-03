@@ -15,15 +15,22 @@ const CFG = {
   axisXLabel: 'Idrett',
   axisYLabel: 'Antall elever',
   valueDisplay: 'none',
+  pieLabelPosition: 'outside',
   locked: [],
   altText: '',
   altTextSource: 'auto'
 };
 const VALUE_DISPLAY_OPTIONS = ['none', 'number', 'fraction', 'percent'];
+const PIE_LABEL_POSITIONS = ['outside', 'inside'];
 function sanitizeValueDisplay(value) {
   if (typeof value !== 'string') return 'none';
   const normalized = value.trim().toLowerCase();
   return VALUE_DISPLAY_OPTIONS.includes(normalized) ? normalized : 'none';
+}
+function sanitizePieLabelPosition(value) {
+  if (typeof value !== 'string') return 'outside';
+  const normalized = value.trim().toLowerCase();
+  return PIE_LABEL_POSITIONS.includes(normalized) ? normalized : 'outside';
 }
 function getValueDisplayMode(type = CFG.type) {
   const mode = sanitizeValueDisplay(CFG.valueDisplay);
@@ -255,6 +262,7 @@ function initFromCfg() {
   values2 = series2Enabled && CFG.start2 ? CFG.start2.slice() : null;
   seriesNames = [CFG.series1 || '', series2Enabled ? CFG.series2 || '' : ''];
   CFG.valueDisplay = sanitizeValueDisplay(CFG.valueDisplay);
+  CFG.pieLabelPosition = sanitizePieLabelPosition(CFG.pieLabelPosition);
   N = CFG.labels.length;
   xBand = innerW / N;
   barW = xBand * 0.6;
@@ -284,6 +292,8 @@ function initFromCfg() {
   const tolInput = document.getElementById('cfgTolerance');
   const valueDisplaySelect = document.getElementById('cfgValueDisplay');
   const valueDisplayWrapper = document.getElementById('cfgValueDisplayWrapper');
+  const pieLabelPositionWrapper = document.getElementById('cfgPieLabelPositionWrapper');
+  const pieLabelPositionSelect = document.getElementById('cfgPieLabelPosition');
   const series1Input = document.getElementById('cfgSeries1');
   const startInput = document.getElementById('cfgStart');
   const answerInput = document.getElementById('cfgAnswer');
@@ -316,6 +326,7 @@ function initFromCfg() {
   if (start2Input) start2Input.value = series2Enabled && Array.isArray(values2) ? formatNumberList(values2) : '';
   if (answer2Input) answer2Input.value = series2Enabled && Array.isArray(CFG.answer2) ? formatNumberList(CFG.answer2) : '';
   if (valueDisplaySelect) valueDisplaySelect.value = CFG.valueDisplay;
+  if (pieLabelPositionSelect) pieLabelPositionSelect.value = CFG.pieLabelPosition;
   if (typeof CFG.altText !== 'string') CFG.altText = '';
   if (typeof CFG.altTextSource !== 'string') {
     CFG.altTextSource = CFG.altText ? 'manual' : 'auto';
@@ -350,6 +361,13 @@ function initFromCfg() {
     }
     if (valueDisplayWrapper) {
       valueDisplayWrapper.style.display = CFG.type === 'stacked' ? 'none' : '';
+    }
+    if (pieLabelPositionWrapper) {
+      pieLabelPositionWrapper.style.display = CFG.type === 'pie' ? '' : 'none';
+    }
+    if (pieLabelPositionSelect) {
+      pieLabelPositionSelect.disabled = CFG.type !== 'pie';
+      pieLabelPositionSelect.value = CFG.pieLabelPosition;
     }
   }
   drawAxesAndGrid();
@@ -579,7 +597,9 @@ function drawPie(displayMode) {
   const sanitized = values.map(v => Math.max(0, Number.isFinite(v) ? v : 0));
   const total = sanitized.reduce((sum, v) => sum + v, 0);
   let currentAngle = -Math.PI / 2;
-  const labelRadius = radius * 1.15;
+  const pieLabelPosition = sanitizePieLabelPosition(CFG.pieLabelPosition);
+  const labelsInside = pieLabelPosition === 'inside';
+  const labelRadius = radius * (labelsInside ? 0.6 : 1.15);
   const fallbackFraction = count ? 1 / count : 0;
   for (let i = 0; i < count; i++) {
     const value = sanitized[i];
@@ -611,12 +631,13 @@ function drawPie(displayMode) {
     const lx = cx + labelRadius * Math.cos(midAngle);
     const ly = cy + labelRadius * Math.sin(midAngle);
     const label = typeof CFG.labels[i] === 'string' && CFG.labels[i].trim().length ? CFG.labels[i].trim() : `Kategori ${i + 1}`;
-    const textAnchor = lx >= cx ? 'start' : 'end';
-    const baseline = ly >= cy ? 'hanging' : 'auto';
+    const textAnchor = labelsInside ? 'middle' : lx >= cx ? 'start' : 'end';
+    const baseline = labelsInside ? 'middle' : ly >= cy ? 'hanging' : 'auto';
+    const textClass = `pie-label${labelsInside ? ' pie-label--inside' : ''}`;
     const textEl = addTo(gLabels, 'text', {
       x: lx,
       y: ly,
-      class: 'pie-label',
+      class: textClass,
       'text-anchor': textAnchor,
       'dominant-baseline': baseline
     });
@@ -625,7 +646,7 @@ function drawPie(displayMode) {
     if (valueLineText) {
       const valueLine = document.createElementNS(svg.namespaceURI, 'tspan');
       valueLine.setAttribute('x', lx);
-      valueLine.setAttribute('dy', ly >= cy ? '1.1em' : '1.2em');
+      valueLine.setAttribute('dy', labelsInside ? '1.2em' : ly >= cy ? '1.1em' : '1.2em');
       valueLine.textContent = valueLineText;
       valueLine.setAttribute('class', 'pie-label__value');
       textEl.appendChild(valueLine);
@@ -1910,6 +1931,8 @@ function applyCfg() {
   CFG.axisYLabel = document.getElementById('cfgAxisYLabel').value;
   const valueDisplaySelect = document.getElementById('cfgValueDisplay');
   CFG.valueDisplay = valueDisplaySelect ? sanitizeValueDisplay(valueDisplaySelect.value) : 'none';
+  const pieLabelPositionSelect = document.getElementById('cfgPieLabelPosition');
+  CFG.pieLabelPosition = sanitizePieLabelPosition(pieLabelPositionSelect ? pieLabelPositionSelect.value : CFG.pieLabelPosition);
   const snapVal = parseFloat(document.getElementById('cfgSnap').value);
   CFG.snap = isNaN(snapVal) ? 1 : snapVal;
   const tolVal = parseFloat(document.getElementById('cfgTolerance').value);
