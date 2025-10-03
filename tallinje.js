@@ -368,8 +368,8 @@
     const paddingRight = 80;
     const width = 1000;
     const baselineY = 140;
-    const majorTickHeight = 32;
-    const minorTickHeight = 18;
+    const majorTickHeight = 16;
+    const minorTickHeight = 9;
     const labelOffset = 52 + (STATE.labelFontSize - BASE_LABEL_FONT_SIZE) * 1.2;
 
     const domainMin = clampToRange ? from : from - margin;
