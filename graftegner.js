@@ -4026,7 +4026,20 @@ function setupSettingsForm() {
       }
     };
     handleFontInput('cfgFontSize', 'fontSize', currentFontSize, { keepWhenEqual: keepFontParam });
-    location.search = p.toString();
+    const newSearch = p.toString();
+    const currentSearch = typeof window !== 'undefined' && window.location ? window.location.search : '';
+    const normalizedCurrentSearch = currentSearch.startsWith('?') ? currentSearch.slice(1) : currentSearch;
+    if (newSearch !== normalizedCurrentSearch) {
+      const hash = typeof window !== 'undefined' && window.location ? window.location.hash || '' : '';
+      const basePath = typeof window !== 'undefined' && window.location ? window.location.pathname || '' : '';
+      const nextSearch = newSearch ? `?${newSearch}` : '';
+      const nextUrl = `${basePath}${nextSearch}${hash}`;
+      if (typeof window !== 'undefined' && window.history && typeof window.history.replaceState === 'function') {
+        window.history.replaceState(null, '', nextUrl);
+      } else if (typeof window !== 'undefined' && window.location) {
+        window.location.search = newSearch;
+      }
+    }
   };
   root.addEventListener('change', apply);
   root.addEventListener('keydown', e => {
