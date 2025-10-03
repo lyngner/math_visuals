@@ -137,6 +137,31 @@ function nkantFormatList(items) {
 }
 function cloneJobForSummary(job) {
   if (!job || typeof job !== 'object') return null;
+  const cloneDimension = entry => {
+    if (!entry || typeof entry !== 'object') return null;
+    const label = typeof entry.label === 'string' ? entry.label : '';
+    const value = Number.isFinite(entry.value) ? entry.value : null;
+    const requested = Boolean(entry.requested);
+    return {
+      label,
+      value,
+      requested
+    };
+  };
+  if (job.type === 'circle') {
+    return {
+      type: 'circle',
+      radius: cloneDimension(job.obj && job.obj.radius),
+      diameter: cloneDimension(job.obj && job.obj.diameter)
+    };
+  }
+  if (job.type === 'polygon') {
+    return {
+      type: 'polygon',
+      sides: job.obj && Number.isFinite(job.obj.sides) ? Math.max(3, Math.round(job.obj.sides)) : null,
+      side: cloneDimension(job.obj && job.obj.side)
+    };
+  }
   const values = {};
   const source = job.obj && typeof job.obj === 'object' ? job.obj : {};
   ['a', 'b', 'c', 'd', 'A', 'B', 'C', 'D'].forEach(key => {
@@ -149,6 +174,21 @@ function cloneJobForSummary(job) {
     type: job.type === 'tri' ? 'tri' : 'quad',
     values
   };
+}
+function describeDimensionEntry(entry, noun) {
+  if (!entry || typeof entry !== 'object') return '';
+  const label = typeof entry.label === 'string' ? entry.label.trim() : '';
+  const numeric = Number.isFinite(entry.value) ? nkantFormatNumber(entry.value) : null;
+  if (label && /^[-+]?\d+(?:[.,]\d+)?$/.test(label.replace(/,/g, '.'))) {
+    return `${noun} ${label.replace('.', ',')}`;
+  }
+  if (label) {
+    return `${noun} merket ${label}`;
+  }
+  if (numeric) {
+    return `${noun} ${numeric}`;
+  }
+  return '';
 }
 function getNkantAltSummary() {
   const layoutMode = lastRenderSummary && typeof lastRenderSummary.layoutMode === 'string' ? lastRenderSummary.layoutMode : (STATE.layout || 'row');
@@ -175,6 +215,29 @@ function buildNkantAltText(summary) {
   const jobs = Array.isArray(data.jobs) ? data.jobs : [];
   jobs.forEach((job, idx) => {
     if (!job) return;
+    if (job.type === 'circle') {
+      let sentence = `Figur ${idx + 1} er en sirkel.`;
+      const radiusInfo = describeDimensionEntry(job.radius, 'Radius');
+      if (radiusInfo) {
+        sentence += ` ${radiusInfo}.`;
+      }
+      const diameterInfo = describeDimensionEntry(job.diameter, 'Diameter');
+      if (job.diameter && diameterInfo) {
+        sentence += ` ${diameterInfo}.`;
+      }
+      sentences.push(sentence.trim());
+      return;
+    }
+    if (job.type === 'polygon') {
+      const count = job.sides && Number.isFinite(job.sides) ? Math.max(3, Math.round(job.sides)) : 5;
+      let sentence = `Figur ${idx + 1} er en mangekant med ${count} sider.`;
+      const sideInfo = describeDimensionEntry(job.side, 'Side');
+      if (sideInfo) {
+        sentence += ` ${sideInfo}.`;
+      }
+      sentences.push(sentence.trim());
+      return;
+    }
     const typeLabel = job.type === 'tri' ? 'trekant' : 'firkant';
     const sides = [];
     const angles = [];
@@ -391,6 +454,70 @@ function parseSpec(str) {
   });
   return out;
 }
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+function parseLabeledSegments(str, entries) {
+  const result = {};
+  if (!str || !Array.isArray(entries) || entries.length === 0) return result;
+  const keywords = entries.flatMap(entry => entry.keywords || []).filter(Boolean);
+  if (keywords.length === 0) return result;
+  const splitter = new RegExp(`(?=\\b(?:${keywords.map(escapeRegExp).join('|')})\\b)`, 'i');
+  const keywordPattern = new RegExp(`^\\s*\\b(${keywords.map(escapeRegExp).join('|')})\\b`, 'i');
+  const quoteTrim = str => {
+    if (!str) return str;
+    const first = str[0];
+    const last = str[str.length - 1];
+    if ((first === '"' && last === '"') || (first === '\'' && last === '\'') || (first === '(' && last === ')') || (first === '[' && last === ']')) {
+      return str.slice(1, -1).trim();
+    }
+    return str;
+  };
+  const segments = str.split(splitter);
+  segments.forEach(segment => {
+    const match = segment.match(keywordPattern);
+    if (!match) return;
+    const keyword = match[1].toLowerCase();
+    const entry = entries.find(item => Array.isArray(item.keywords) && item.keywords.some(k => k.toLowerCase() === keyword));
+    if (!entry || result[entry.id]) return;
+    let remainder = segment.slice(match[0].length);
+    let hadSeparator = false;
+    const sepMatch = remainder.match(/^\s*([:=])/);
+    if (sepMatch) {
+      hadSeparator = true;
+      remainder = remainder.slice(sepMatch[0].length);
+    }
+    let label = quoteTrim(remainder.trim());
+    label = label.replace(/[,;|]+$/g, '').replace(/\s{2,}/g, ' ').trim();
+    if (!label) {
+      if (hadSeparator) {
+        label = '';
+      } else {
+        label = typeof entry.defaultLabel === 'string' ? entry.defaultLabel : '';
+      }
+    }
+    const numericSource = label.replace(/,/g, '.');
+    const numericMatch = numericSource.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/);
+    const value = numericMatch ? parseFloat(numericMatch[0]) : null;
+    result[entry.id] = {
+      label,
+      value: Number.isFinite(value) ? value : null,
+      requested: true
+    };
+  });
+  return result;
+}
+function normalizedDimensionText(entry, fallback) {
+  if (!entry) {
+    return typeof fallback === 'string' ? fallback : '';
+  }
+  const label = typeof entry.label === 'string' ? entry.label.trim() : '';
+  if (label) return label;
+  if (Number.isFinite(entry.value)) {
+    return nkantFormatNumber(entry.value);
+  }
+  return typeof fallback === 'string' ? fallback : '';
+}
 function parseSpecFreeform(str) {
   const out = {};
   if (!str) return out;
@@ -596,6 +723,83 @@ function parseSpecFreeform(str) {
     }
   }
   return out;
+}
+function parseCircleSpecLine(str) {
+  if (!str || !/sirkel/i.test(str)) return null;
+  const dims = parseLabeledSegments(str, [{
+    id: 'radius',
+    keywords: ['radius', 'rad'],
+    defaultLabel: 'r'
+  }, {
+    id: 'diameter',
+    keywords: ['diameter', 'diam'],
+    defaultLabel: 'd'
+  }]);
+  const radiusEntry = dims.radius ? { ...dims.radius } : {
+    label: 'r',
+    value: null,
+    requested: false
+  };
+  if (!radiusEntry.label) radiusEntry.label = 'r';
+  radiusEntry.requested = Boolean(dims.radius);
+  const diameterEntry = dims.diameter ? { ...dims.diameter, requested: true } : null;
+  const job = {
+    type: 'circle',
+    obj: {
+      radius: radiusEntry,
+      diameter: diameterEntry
+    }
+  };
+  return {
+    job,
+    normalized: str.trim()
+  };
+}
+function parsePolygonSpecLine(str) {
+  if (!str || !/mangekant/i.test(str)) return null;
+  const dims = parseLabeledSegments(str, [{
+    id: 'count',
+    keywords: ['sider', 'antall sider', 'kanter'],
+    defaultLabel: ''
+  }, {
+    id: 'side',
+    keywords: ['side', 'kant', 'kantlengde', 'sidekant', 'lengde'],
+    defaultLabel: 'a'
+  }]);
+  let sides = 5;
+  if (dims.count) {
+    if (Number.isFinite(dims.count.value)) {
+      sides = Math.max(3, Math.round(dims.count.value));
+    } else {
+      const parsed = parseInt(dims.count.label, 10);
+      if (Number.isFinite(parsed)) sides = Math.max(3, parsed);
+    }
+  }
+  const sideEntry = dims.side ? { ...dims.side } : {
+    label: 'a',
+    value: null,
+    requested: false
+  };
+  if (!sideEntry.label) sideEntry.label = 'a';
+  sideEntry.requested = Boolean(dims.side);
+  const job = {
+    type: 'polygon',
+    obj: {
+      sides,
+      side: sideEntry
+    }
+  };
+  return {
+    job,
+    normalized: str.trim()
+  };
+}
+function parseShapeSpec(str) {
+  const circle = parseCircleSpecLine(str);
+  if (circle) return circle;
+  const polygon = parsePolygonSpecLine(str);
+  if (polygon) return polygon;
+  return null;
 }
 function objToSpec(obj) {
   const order = ["a", "b", "c", "d", "A", "B", "C", "D"];
@@ -1161,6 +1365,123 @@ function drawQuadToGroup(g, rect, spec, adv) {
     "stroke-linecap": "round"
   });
 }
+function drawCircleToGroup(g, rect, spec) {
+  const cx = rect.x + rect.w / 2;
+  const cy = rect.y + rect.h / 2;
+  const radius = Math.max(40, Math.min(rect.w, rect.h) / 2 - 50);
+  const circleRadius = radius > 0 ? radius : Math.min(rect.w, rect.h) * 0.35;
+  const radiusText = normalizedDimensionText(spec && spec.radius, 'r');
+  const diameter = spec && spec.diameter;
+  const diameterText = diameter ? normalizedDimensionText(diameter, 'd') : '';
+  add(g, "circle", {
+    cx,
+    cy,
+    r: circleRadius,
+    fill: STYLE.faceFill,
+    stroke: "none"
+  });
+  add(g, "circle", {
+    cx,
+    cy,
+    r: circleRadius,
+    fill: "none",
+    stroke: STYLE.edgeStroke,
+    "stroke-width": STYLE.edgeWidth
+  });
+  const radiusAngle = -Math.PI / 4;
+  const endX = cx + circleRadius * Math.cos(radiusAngle);
+  const endY = cy + circleRadius * Math.sin(radiusAngle);
+  add(g, "line", {
+    x1: cx,
+    y1: cy,
+    x2: endX,
+    y2: endY,
+    stroke: STYLE.edgeStroke,
+    "stroke-width": STYLE.edgeWidth * 0.75,
+    "stroke-linecap": "round"
+  });
+  add(g, "circle", {
+    cx,
+    cy,
+    r: 6,
+    fill: STYLE.edgeStroke
+  });
+  if (radiusText) {
+    const midX = cx + circleRadius * Math.cos(radiusAngle) * 0.55;
+    const midY = cy + circleRadius * Math.sin(radiusAngle) * 0.55;
+    addHaloText(g, midX, midY, radiusText, STYLE.sideFS, {
+      "text-anchor": "middle",
+      "dominant-baseline": "middle"
+    });
+  }
+  if (diameter && diameter.requested && diameterText) {
+    add(g, "line", {
+      x1: cx - circleRadius,
+      y1: cy,
+      x2: cx + circleRadius,
+      y2: cy,
+      stroke: STYLE.edgeStroke,
+      "stroke-width": STYLE.edgeWidth * 0.6,
+      "stroke-linecap": "round",
+      "stroke-dasharray": "12 10"
+    });
+    addHaloText(g, cx, cy - circleRadius * 0.4, diameterText, STYLE.sideFS, {
+      "text-anchor": "middle",
+      "dominant-baseline": "middle"
+    });
+  }
+}
+function drawRegularPolygonToGroup(g, rect, spec) {
+  const countRaw = spec && Number.isFinite(spec.sides) ? spec.sides : 5;
+  const count = Math.max(3, Math.round(countRaw));
+  const cx = rect.x + rect.w / 2;
+  const cy = rect.y + rect.h / 2;
+  const radius = Math.max(40, Math.min(rect.w, rect.h) / 2 - 50);
+  const polyRadius = radius > 0 ? radius : Math.min(rect.w, rect.h) * 0.35;
+  const pts = [];
+  const startAngle = -Math.PI / 2;
+  for (let i = 0; i < count; i++) {
+    const theta = startAngle + i * 2 * Math.PI / count;
+    pts.push({
+      x: cx + polyRadius * Math.cos(theta),
+      y: cy + polyRadius * Math.sin(theta)
+    });
+  }
+  add(g, "polygon", {
+    points: ptsTo(pts),
+    fill: STYLE.faceFill,
+    stroke: "none"
+  });
+  add(g, "polygon", {
+    points: ptsTo(pts),
+    fill: "none",
+    stroke: STYLE.edgeStroke,
+    "stroke-width": STYLE.edgeWidth,
+    "stroke-linejoin": "round"
+  });
+  const ctr = polygonCentroid(pts);
+  const sideText = normalizedDimensionText(spec && spec.side, 'a');
+  if (sideText) {
+    let bestIdx = 0;
+    let bestY = -Infinity;
+    for (let i = 0; i < count; i++) {
+      const P = pts[i];
+      const Q = pts[(i + 1) % count];
+      const midY = (P.y + Q.y) / 2;
+      if (midY > bestY) {
+        bestY = midY;
+        bestIdx = i;
+      }
+    }
+    const P = pts[bestIdx];
+    const Q = pts[(bestIdx + 1) % count];
+    sideLabelText(g, P, Q, sideText, true, ctr, 18);
+  }
+  addHaloText(g, ctr.x, ctr.y, `n=${count}`, STYLE.angFS, {
+    "text-anchor": "middle",
+    "dominant-baseline": "middle"
+  });
+}
 
 /* ---------- ORKESTRERING ---------- */
 const BASE_W = 600,
@@ -1174,6 +1495,12 @@ async function collectJobsFromSpecs(text) {
     const line = raw.trim();
     if (!line) {
       newLines.push("");
+      continue;
+    }
+    const special = parseShapeSpec(line);
+    if (special) {
+      jobs.push(special.job);
+      newLines.push(special.normalized || line);
       continue;
     }
     const obj = await parseSpecAI(line);
@@ -1349,7 +1676,17 @@ async function renderCombined() {
     } = jobs[i];
     const adv = buildAdvForFig(i === 0 ? STATE.fig1 : STATE.fig2);
     try {
-      if (type === "tri") drawTriangleToGroup(groups[i], rects[i], obj, adv);else drawQuadToGroup(groups[i], rects[i], obj, adv);
+      if (type === "tri") {
+        drawTriangleToGroup(groups[i], rects[i], obj, adv);
+      } else if (type === "quad") {
+        drawQuadToGroup(groups[i], rects[i], obj, adv);
+      } else if (type === "circle") {
+        drawCircleToGroup(groups[i], rects[i], obj);
+      } else if (type === "polygon") {
+        drawRegularPolygonToGroup(groups[i], rects[i], obj);
+      } else {
+        throw new Error(`Ukjent figurtype: ${type}`);
+      }
     } catch (e) {
       errorBox(groups[i], rects[i], String(e.message || e));
     }
