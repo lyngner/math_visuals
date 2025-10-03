@@ -340,14 +340,18 @@
     return values;
   }
 
-  function computeRangeMargin(from, to, mainStep, clampToRange) {
+  function computeRangeMargin(from, to, mainStep, subdivisions, clampToRange) {
     if (clampToRange) return 0;
+    const stepAbs = Math.abs(mainStep);
+    if (stepAbs > 0) {
+      if (subdivisions > 0) {
+        return (stepAbs / (subdivisions + 1)) * 2;
+      }
+      return stepAbs / 2;
+    }
     const span = to - from;
     const effectiveRange = Math.max(Math.abs(span), 1e-6);
-    const rangeMargin = effectiveRange * 0.1;
-    if (rangeMargin > 0) return rangeMargin;
-    const stepAbs = Math.abs(mainStep);
-    if (stepAbs > 0) return stepAbs;
+    if (effectiveRange > 0) return effectiveRange * 0.1;
     return 1;
   }
 
@@ -357,7 +361,7 @@
 
     const { from, to, mainStep, subdivisions } = STATE;
     const clampToRange = Boolean(STATE.clampToRange);
-    const margin = computeRangeMargin(from, to, mainStep, clampToRange);
+    const margin = computeRangeMargin(from, to, mainStep, subdivisions, clampToRange);
     const majorValues = computeMajorValues(from, to, Math.max(mainStep, 1e-9), margin);
 
     while (svg.firstChild) {
@@ -368,8 +372,8 @@
     const paddingRight = 80;
     const width = 1000;
     const baselineY = 140;
-    const majorTickHeight = 16;
     const minorTickHeight = 9;
+    const majorTickHeight = minorTickHeight;
     const labelOffset = 52 + (STATE.labelFontSize - BASE_LABEL_FONT_SIZE) * 1.2;
 
     const domainMin = clampToRange ? from : from - margin;
@@ -387,13 +391,26 @@
 
     const axisStartValue = clampToRange ? from : domainMin;
     const axisEndValue = clampToRange ? to : domainMax;
+    const baseLineStartX = clampToRange ? mapValue(axisStartValue) : 0;
+    const baseLineEndX = clampToRange ? mapValue(axisEndValue) : width;
     axisGroup.appendChild(mk('line', {
-      x1: mapValue(axisStartValue),
+      x1: baseLineStartX,
       y1: baselineY,
-      x2: mapValue(axisEndValue),
+      x2: baseLineEndX,
       y2: baselineY,
       class: 'number-line-base'
     }));
+
+    const drawMinorTick = value => {
+      const x = mapValue(value);
+      axisGroup.appendChild(mk('line', {
+        x1: x,
+        y1: baselineY - minorTickHeight,
+        x2: x,
+        y2: baselineY + minorTickHeight,
+        class: 'minor-tick'
+      }));
+    };
 
     if (subdivisions > 0 && majorValues.length > 1) {
       for (let i = 0; i < majorValues.length - 1; i++) {
@@ -403,14 +420,25 @@
         if (!Number.isFinite(delta) || delta <= 0) continue;
         for (let j = 1; j <= subdivisions; j++) {
           const value = start + delta * j;
-          const x = mapValue(value);
-          axisGroup.appendChild(mk('line', {
-            x1: x,
-            y1: baselineY - minorTickHeight,
-            x2: x,
-            y2: baselineY + minorTickHeight,
-            class: 'minor-tick'
-          }));
+          drawMinorTick(value);
+        }
+      }
+    }
+
+    if (!clampToRange && subdivisions > 0 && majorValues.length) {
+      const spacing = Math.abs(mainStep) / (subdivisions + 1);
+      const epsilon = Math.abs(spacing) * 1e-7 + 1e-9;
+      if (spacing > 0) {
+        let value = majorValues[0] - spacing;
+        while (value > axisStartValue + epsilon) {
+          drawMinorTick(value);
+          value -= spacing;
+        }
+
+        value = majorValues[majorValues.length - 1] + spacing;
+        while (value < axisEndValue - epsilon) {
+          drawMinorTick(value);
+          value += spacing;
         }
       }
     }
@@ -469,7 +497,13 @@
 
   function buildTallinjeAltText() {
     const clampSetting = Boolean(STATE.clampToRange);
-    const margin = computeRangeMargin(STATE.from, STATE.to, STATE.mainStep, clampSetting);
+    const margin = computeRangeMargin(
+      STATE.from,
+      STATE.to,
+      STATE.mainStep,
+      STATE.subdivisions,
+      clampSetting
+    );
     const summary = lastRenderSummary || {
       from: STATE.from,
       to: STATE.to,
