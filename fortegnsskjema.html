@@ -99,11 +99,12 @@
       border: 1px solid #eef0f3;
       overflow: hidden;
       position: relative;
+      --chart-label-width: 120px;
     }
     .chart-expression {
       position: absolute;
       top: 14px;
-      left: 18px;
+      left: calc(var(--chart-label-width, 0px) + 18px);
       pointer-events: none;
       font-size: 22px;
       font-weight: 600;
@@ -117,6 +118,45 @@
     }
     .chart-expression .katex {
       font-size: 1.05em;
+    }
+    .chart-labels {
+      position: absolute;
+      inset: 0;
+      width: var(--chart-label-width, 0px);
+      padding: 0 12px;
+      box-sizing: border-box;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .chart-labels__item {
+      position: absolute;
+      right: 12px;
+      transform: translateY(-50%);
+      font-size: 16px;
+      font-weight: 600;
+      color: #111827;
+      text-align: right;
+      line-height: 1.25;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .chart-labels__item .katex {
+      font-size: 1em;
+      white-space: normal;
+      display: inline-flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      row-gap: 2px;
+    }
+    .chart-labels__item .katex-display {
+      margin: 0;
+    }
+    .chart-labels__item .katex-html {
+      white-space: normal;
+      display: contents;
+    }
+    .chart-labels--empty {
+      display: none;
     }
     .chart-overlay {
       position: absolute;
@@ -401,6 +441,7 @@
       <div class="card">
         <div class="figure">
           <div id="chartExpression" class="chart-expression chart-expression--empty" aria-hidden="true"></div>
+          <div id="chartLabels" class="chart-labels" aria-hidden="true"></div>
           <svg id="chart" role="img" aria-label="Fortegnsskjema"></svg>
           <div id="chartOverlay" class="chart-overlay"></div>
         </div>

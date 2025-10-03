@@ -2,6 +2,8 @@
   const svg = document.getElementById('chart');
   const overlay = document.getElementById('chartOverlay');
   const expressionDisplay = document.getElementById('chartExpression');
+  const labelsLayer = document.getElementById('chartLabels');
+  const figureContainer = document.querySelector('.figure');
   const exprInput = document.getElementById('exprInput');
   const btnCheck = document.getElementById('btnCheck');
   const btnAddPoint = document.getElementById('btnAddPoint');
@@ -1992,6 +1994,56 @@
     expressionDisplay.textContent = fallback;
     expressionDisplay.classList.toggle('chart-expression--empty', !fallback);
   }
+  function renderRowLabelContent(target, text, preferMath) {
+    if (!target) {
+      return;
+    }
+    const label = typeof text === 'string' ? text.trim() : '';
+    if (!label) {
+      target.textContent = '';
+      target.classList.remove('chart-labels__item--math');
+      return;
+    }
+    const hasOperators = /[=+\-*/^]/.test(label);
+    const hasParens = /[()]/.test(label);
+    const hasLatexCommand = /\\[a-zA-Z]+/.test(label);
+    const shouldUseKatex = (preferMath || hasOperators || hasParens || hasLatexCommand) && typeof window !== 'undefined' && window.katex && typeof window.katex.render === 'function';
+    if (shouldUseKatex) {
+      const latex = convertPlainExpressionToLatex(label) || label;
+      try {
+        window.katex.render(latex, target, {
+          throwOnError: false,
+          displayMode: false
+        });
+        target.classList.add('chart-labels__item--math');
+        return;
+      } catch (error) {
+        /* ignore and fallback to text */
+      }
+    }
+    target.textContent = label;
+    target.classList.remove('chart-labels__item--math');
+  }
+  function renderRowLabels(labels, width, height) {
+    if (!labelsLayer) {
+      return;
+    }
+    labelsLayer.innerHTML = '';
+    if (typeof width === 'number' && width >= 0) {
+      labelsLayer.style.width = `${width}px`;
+    }
+    if (typeof height === 'number' && height >= 0) {
+      labelsLayer.style.height = `${height}px`;
+    }
+    labels.forEach(info => {
+      const item = document.createElement('div');
+      item.className = 'chart-labels__item';
+      item.style.top = `${info.y}px`;
+      labelsLayer.appendChild(item);
+      renderRowLabelContent(item, info.text, info.preferMath);
+    });
+    labelsLayer.classList.toggle('chart-labels--empty', labels.length === 0);
+  }
   function getResultRowDisplayLabel(row) {
     const expr = typeof state.expression === 'string' ? state.expression.trim() : '';
     const fallback = expr || 'f(x)';
@@ -2187,7 +2239,7 @@
     const width = svg.clientWidth || svg.parentElement.clientWidth || 900;
     const rowSpacing = 70;
     const arrowY = 70;
-    const marginLeft = 70;
+    const marginLeft = 140;
     const marginRight = 40;
     const baseHeight = arrowY + 60 + Math.max(1, state.signRows.length) * rowSpacing + 60;
     svg.setAttribute('viewBox', `0 0 ${width} ${baseHeight}`);
@@ -2196,6 +2248,10 @@
     if (overlay) {
       overlay.innerHTML = '';
       overlay.style.height = `${baseHeight}px`;
+    }
+    const labelWidth = Math.max(0, marginLeft - 20);
+    if (figureContainer) {
+      figureContainer.style.setProperty('--chart-label-width', `${labelWidth}px`);
     }
     const axisStart = marginLeft;
     const axisEnd = width - marginRight;
@@ -2333,6 +2389,7 @@
       y: baseRowY + rowIndex * rowSpacing
     }));
     const markerTargets = rowInfos.length ? rowInfos : [{ row: null, rowIndex: 0, y: baseRowY }];
+    const rowLabels = [];
     rowInfos.forEach(({ row, rowIndex, y }) => {
       const baseline = createSvgElement('line', {
         x1: axisStart,
@@ -2343,22 +2400,18 @@
         'stroke-width': 1
       });
       svg.append(baseline);
-      const label = createSvgElement('text', {
-        x: marginLeft - 30,
-        y: y + 4,
-        'text-anchor': 'end',
-        'font-size': 16,
-        'font-weight': 600,
-        fill: '#111827'
-      });
       let displayLabel;
       if (row.role === 'result') {
         displayLabel = getResultRowDisplayLabel(row);
       } else {
-        displayLabel = row.label || `rad ${rowIndex + 1}`;
+        const labelValue = typeof row.label === 'string' ? row.label.trim() : '';
+        displayLabel = labelValue || `rad ${rowIndex + 1}`;
       }
-      label.textContent = displayLabel;
-      svg.append(label);
+      rowLabels.push({
+        text: displayLabel,
+        y,
+        preferMath: row.role === 'result' || row.role === 'factor' || !!row.locked
+      });
       const locked = chartLocked || row.locked || state.autoSync && row.role === 'result' && state.solution;
       const segments = row.segments;
       const rowZeroMarkers = getRowMarkers(row, zeroMarkers);
@@ -2422,6 +2475,7 @@
         svg.append(line);
       }
     });
+    renderRowLabels(rowLabels, labelWidth, baseHeight);
     markerTargets.forEach(({ row, y }) => {
       const markers = getRowMarkers(row, sortedPoints);
       markers.forEach(point => {
