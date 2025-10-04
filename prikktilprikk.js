@@ -754,7 +754,9 @@
       if (!point || !point.id) return;
       const label = labelElements.get(point.id);
       if (!label) return;
-      label.setPosition(toPixel(point));
+      const pos = toPixel(point);
+      const placement = labelPlacements.get(point.id);
+      label.setPosition(pos, placement);
     });
   }
 
@@ -764,14 +766,19 @@
     applyLabelPlacements();
   }
 
-  function positionBoardLabel(element, pos) {
+  function positionBoardLabel(element, pos, placement) {
     if (!element || !pos) return;
     const width = element.offsetWidth || element.getBoundingClientRect().width || 0;
     const height = element.offsetHeight || element.getBoundingClientRect().height || 0;
     const anchorX = pos.x * boardScaleX;
     const anchorY = pos.y * boardScaleY;
-    const left = anchorX;
-    const top = anchorY - height;
+    const offset = computePlacementOffset(
+      placement,
+      { width, height },
+      { x: boardScaleX, y: boardScaleY }
+    );
+    const left = anchorX + offset.x - width / 2;
+    const top = anchorY + offset.y - height / 2;
     element.style.transform = `translate(${left}px, ${top}px)`;
   }
 
@@ -797,12 +804,14 @@
     text.className = 'board-label-text';
     content.append(prefix, text);
     renderLatex(text, getPointLabelText(point));
-    positionBoardLabel(wrapper, pos);
+    const initialPlacement = pointId ? labelPlacements.get(pointId) : null;
+    positionBoardLabel(wrapper, pos, initialPlacement);
     return {
       element: wrapper,
       contentEl: text,
-      setPosition(newPos) {
-        positionBoardLabel(wrapper, newPos);
+      setPosition(newPos, newPlacement) {
+        const placement = newPlacement != null ? newPlacement : (pointId ? labelPlacements.get(pointId) : null);
+        positionBoardLabel(wrapper, newPos, placement);
       },
       setText(value) {
         renderLatex(text, value);
