@@ -3091,7 +3091,7 @@ function setupSettingsForm() {
   const showBracketsInput = g('cfgShowBrackets');
   const forceTicksInput = g('cfgForceTicks');
   const snapCheckbox = g('cfgSnap');
-  const drawBtn = g('btnDraw');
+  const drawButtonSelector = '[data-action="draw"]';
   let gliderSection = null;
   let gliderCountInput = null;
   let gliderStartInput = null;
@@ -3828,12 +3828,15 @@ function setupSettingsForm() {
         <legend>Funksjon ${index}</legend>
         <div class="func-fields func-fields--first">
           <div class="func-row func-row--main">
-            <label class="func-input">
-              <span>${titleLabel}</span>
-              <div class="func-editor">
-                <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
-              </div>
-            </label>
+            <div class="func-main">
+              <label class="func-input">
+                <span>${titleLabel}</span>
+                <div class="func-editor">
+                  <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
+                </div>
+              </label>
+              <button type="button" class="btn btn--inline-draw" data-action="draw" data-draw-index="${index}" aria-label="Tegn graf for funksjon ${index}">Tegn graf</button>
+            </div>
             <label class="domain">
               <span>Avgrensning</span>
               <input type="text" data-dom placeholder="[start, stopp]">
@@ -3869,16 +3872,21 @@ function setupSettingsForm() {
       row.innerHTML = `
         <legend>Funksjon ${index}</legend>
         <div class="func-fields">
-          <label class="func-input">
-            <span>${titleLabel}</span>
-            <div class="func-editor">
-              <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
+          <div class="func-row func-row--secondary">
+            <div class="func-main">
+              <label class="func-input">
+                <span>${titleLabel}</span>
+                <div class="func-editor">
+                  <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
+                </div>
+              </label>
+              <button type="button" class="btn btn--inline-draw" data-action="draw" data-draw-index="${index}" aria-label="Tegn graf for funksjon ${index}">Tegn graf</button>
             </div>
-          </label>
-          <label class="domain">
-            <span>Avgrensning</span>
-            <input type="text" data-dom placeholder="[start, stopp]">
-          </label>
+            <label class="domain">
+              <span>Avgrensning</span>
+              <input type="text" data-dom placeholder="[start, stopp]">
+            </label>
+          </div>
         </div>
       `;
     }
@@ -4245,9 +4253,10 @@ function setupSettingsForm() {
   root.addEventListener('keydown', e => {
     if (e.key === 'Enter') apply();
   });
-  if (drawBtn) {
-    drawBtn.addEventListener('click', () => {
-      apply();
-    });
-  }
+  root.addEventListener('click', event => {
+    const trigger = event.target.closest(drawButtonSelector);
+    if (!trigger) return;
+    event.preventDefault();
+    apply();
+  });
 }
