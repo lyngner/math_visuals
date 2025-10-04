@@ -3819,75 +3819,82 @@ function setupSettingsForm() {
     updateLinePointControls({ silent: true });
   };
   const createRow = (index, funVal = '', domVal = '') => {
-    const row = document.createElement('fieldset');
+    const row = document.createElement('div');
     row.className = 'func-group';
     row.dataset.index = String(index);
     const titleLabel = index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index;
+    const drawButtonHtml = `
+      <button type="button" class="btn btn--inline-draw func-draw" data-action="draw" data-draw-index="${index}" aria-label="Tegn graf for funksjon ${index}">Tegn graf</button>
+    `;
     if (index === 1) {
       row.innerHTML = `
-        <legend>Funksjon ${index}</legend>
-        <div class="func-fields func-fields--first">
-          <div class="func-row func-row--main">
-            <div class="func-main">
-              <label class="func-input">
-                <span>${titleLabel}</span>
-                <div class="func-editor">
-                  <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
-                </div>
-              </label>
-              <button type="button" class="btn btn--inline-draw" data-action="draw" data-draw-index="${index}" aria-label="Tegn graf for funksjon ${index}">Tegn graf</button>
-            </div>
-            <label class="domain">
-              <span>Avgrensning</span>
-              <input type="text" data-dom placeholder="[start, stopp]">
-            </label>
-          </div>
-          <div class="func-row func-row--gliders glider-row">
-            <label class="points">
-              <span>Antall punkter på grafen</span>
-              <select data-points>
-                <option value="0">0</option>
-                <option value="1">1</option>
-                <option value="2">2</option>
-              </select>
-            </label>
-            <div class="linepoints-row">
-              <label class="linepoint" data-linepoint-label="0">
-                <span>Punkt 1 (x, y)</span>
-                <input type="text" data-linepoint="0" placeholder="(0, 0)">
-              </label>
-              <label class="linepoint" data-linepoint-label="1">
-                <span>Punkt 2 (x, y)</span>
-                <input type="text" data-linepoint="1" placeholder="(1, 1)">
+        <fieldset>
+          <legend>Funksjon ${index}</legend>
+          <div class="func-fields func-fields--first">
+            <div class="func-row func-row--main">
+              <div class="func-main">
+                <label class="func-input">
+                  <span>${titleLabel}</span>
+                  <div class="func-editor">
+                    <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
+                  </div>
+                </label>
+              </div>
+              <label class="domain">
+                <span>Avgrensning</span>
+                <input type="text" data-dom placeholder="[start, stopp]">
               </label>
             </div>
-            <label class="startx-label">
-              <span>Startposisjon, x</span>
-              <input type="text" data-startx value="1" placeholder="1">
-            </label>
+            <div class="func-row func-row--gliders glider-row">
+              <label class="points">
+                <span>Antall punkter på grafen</span>
+                <select data-points>
+                  <option value="0">0</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                </select>
+              </label>
+              <div class="linepoints-row">
+                <label class="linepoint" data-linepoint-label="0">
+                  <span>Punkt 1 (x, y)</span>
+                  <input type="text" data-linepoint="0" placeholder="(0, 0)">
+                </label>
+                <label class="linepoint" data-linepoint-label="1">
+                  <span>Punkt 2 (x, y)</span>
+                  <input type="text" data-linepoint="1" placeholder="(1, 1)">
+                </label>
+              </div>
+              <label class="startx-label">
+                <span>Startposisjon, x</span>
+                <input type="text" data-startx value="1" placeholder="1">
+              </label>
+            </div>
           </div>
-        </div>
+        </fieldset>
+        ${drawButtonHtml}
       `;
     } else {
       row.innerHTML = `
-        <legend>Funksjon ${index}</legend>
-        <div class="func-fields">
-          <div class="func-row func-row--secondary">
-            <div class="func-main">
-              <label class="func-input">
-                <span>${titleLabel}</span>
-                <div class="func-editor">
-                  <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
-                </div>
+        <fieldset>
+          <legend>Funksjon ${index}</legend>
+          <div class="func-fields">
+            <div class="func-row func-row--secondary">
+              <div class="func-main">
+                <label class="func-input">
+                  <span>${titleLabel}</span>
+                  <div class="func-editor">
+                    <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
+                  </div>
+                </label>
+              </div>
+              <label class="domain">
+                <span>Avgrensning</span>
+                <input type="text" data-dom placeholder="[start, stopp]">
               </label>
-              <button type="button" class="btn btn--inline-draw" data-action="draw" data-draw-index="${index}" aria-label="Tegn graf for funksjon ${index}">Tegn graf</button>
             </div>
-            <label class="domain">
-              <span>Avgrensning</span>
-              <input type="text" data-dom placeholder="[start, stopp]">
-            </label>
           </div>
-        </div>
+        </fieldset>
+        ${drawButtonHtml}
       `;
     }
     if (funcRows) {
