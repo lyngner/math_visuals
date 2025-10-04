@@ -124,17 +124,17 @@
   const LIGHTNING_STATE = {
     coordinateOrigin: 'bottom-left',
     points: [
-      { id: 'p1', label: 'A', x: 0.7, y: 0.65 },
-      { id: 'p2', label: 'B', x: 0.55, y: 0.5 },
-      { id: 'p3', label: 'C', x: 0.65, y: 0.5 },
-      { id: 'p4', label: 'D', x: 0.5, y: 0.35 },
-      { id: 'p5', label: 'E', x: 0.6, y: 0.35 },
-      { id: 'p6', label: 'F', x: 0.5, y: 0.2 },
-      { id: 'p7', label: 'G', x: 0.75, y: 0.4 },
-      { id: 'p8', label: 'H', x: 0.65, y: 0.4 },
-      { id: 'p9', label: 'I', x: 0.8, y: 0.55 },
-      { id: 'p10', label: 'J', x: 0.7, y: 0.55 },
-      { id: 'p11', label: 'K', x: 0.8, y: 0.65 }
+      { id: 'p1', label: '\\frac12', x: 0.6667, y: 1 },
+      { id: 'p2', label: '1', x: 0.1667, y: 0.6667 },
+      { id: 'p3', label: '\\frac32', x: 0.5, y: 0.6667 },
+      { id: 'p4', label: '2', x: 0, y: 0.3333 },
+      { id: 'p5', label: '\\frac52', x: 0.3333, y: 0.3333 },
+      { id: 'p6', label: '3', x: 0, y: 0 },
+      { id: 'p7', label: '\\frac72', x: 0.8333, y: 0.4444 },
+      { id: 'p8', label: '4', x: 0.5, y: 0.4444 },
+      { id: 'p9', label: '\\frac92', x: 1, y: 0.7778 },
+      { id: 'p10', label: '5', x: 0.6667, y: 0.7778 },
+      { id: 'p11', label: '\\frac{11}{2}', x: 1, y: 1 }
     ],
     answerLines: [
       ['p1', 'p11'],
