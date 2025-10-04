@@ -46,6 +46,10 @@
 <style>
     :root { --gap: 18px; }
     html,body { height: 100%; }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
     body{
       margin:0; padding:20px; background:#f7f8fb;
       font-family:system-ui,-apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif; color:#111827;
@@ -61,6 +65,10 @@
     .toolbar{ display:flex; gap:12px; flex-wrap:wrap; justify-content:flex-start; align-items:center; }
     #toolbar{ justify-content:space-between; }
     .btn{ appearance:none; cursor:pointer; padding:8px 14px; border-radius:10px; border:1px solid #d1d5db; background:#fff; }
+    .mobile-nav{ display:none; gap:12px; margin-top:12px; flex-wrap:wrap; }
+    .mobile-nav .btn{ flex:1 1 160px; text-align:center; text-decoration:none; display:flex; justify-content:center; align-items:center; }
+    .mobile-nav .btn:link,
+    .mobile-nav .btn:visited{ color:inherit; }
     .checkbar{ display:flex; gap:10px; align-items:center; }
     .status{ padding:6px 10px; border-radius:10px; font-weight:600; border:1px solid transparent; }
     .status--ok{ color:#065f46; background:#ecfdf5; border-color:#a7f3d0; }
@@ -192,6 +200,11 @@
       grid-column:1 / -1;
       max-width:180px;
     }
+    @media (max-width:900px), (any-pointer:coarse) {
+      .mobile-nav{ display:flex; }
+    }
+    #examplesCard,
+    #settingsCard{ scroll-margin-top:24px; }
     @media (max-width:680px){
       .function-controls{ align-items:stretch; }
       .func-group{ flex-direction:column; }
@@ -246,10 +259,14 @@
           <div id="checkArea" class="checkbar"></div>
           <button id="btnReset" class="btn">Nullstill zoom/pan</button>
         </div>
+        <div class="mobile-nav" aria-label="Hurtignavigasjon">
+          <a class="btn" href="#examplesCard">Gå til eksempler</a>
+          <a class="btn" href="#settingsCard">Gå til innstillinger</a>
+        </div>
       </div>
 
       <div class="side">
-        <div class="card card--examples">
+        <div class="card card--examples" id="examplesCard">
           <div class="example-description">
             <label for="exampleDescription">Oppgavetekst (valgfritt)</label>
             <textarea id="exampleDescription" placeholder="Skriv en oppgavetekst som lagres med eksemplet"></textarea>
@@ -260,7 +277,7 @@
           </div>
         </div>
 
-        <div class="card card--settings">
+        <div class="card card--settings" id="settingsCard">
           <div class="settings">
             <div class="function-controls">
               <div id="funcRows" class="func-groups"></div>
