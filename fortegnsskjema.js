@@ -711,7 +711,19 @@
     target.domain = sanitizeDomain(target.domain);
     target.autoDomain = sanitizeAutoDomain(target.autoDomain);
     target.criticalPoints = sanitizePointsArray(target.criticalPoints);
-    target.signRows = sanitizeRowsArray(target.signRows);
+    target.signRows = sanitizeRowsArray(target.signRows).filter(row => {
+      if (!row || typeof row.label !== 'string') {
+        return true;
+      }
+      const normalizedLabel = row.label.trim().toLowerCase();
+      if (normalizedLabel !== 'observasjon') {
+        return true;
+      }
+      if (row.role === 'result' || row.role === 'factor') {
+        return true;
+      }
+      return false;
+    });
     target.solution = sanitizeSolution(target.solution);
     if (typeof target.altText !== 'string') {
       target.altText = '';
