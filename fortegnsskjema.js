@@ -116,6 +116,30 @@
     }
     return [str.slice(startIdx + 1), str.length];
   }
+  function readParenthesisGroupBackward(str, endIdx) {
+    if (typeof str !== 'string' || endIdx == null || endIdx < 0 || endIdx >= str.length) {
+      return ['', typeof endIdx === 'number' ? endIdx : 0];
+    }
+    if (str[endIdx] !== ')') {
+      return ['', endIdx];
+    }
+    let depth = 0;
+    for (let i = endIdx; i >= 0; i -= 1) {
+      const ch = str[i];
+      if (ch === ')') {
+        depth += 1;
+      } else if (ch === '(') {
+        depth -= 1;
+        if (depth === 0) {
+          return [str.slice(i + 1, endIdx), i];
+        }
+        if (depth < 0) {
+          break;
+        }
+      }
+    }
+    return ['', 0];
+  }
   function replaceLatexFractions(str) {
     if (typeof str !== 'string' || !str.includes('\\frac')) {
       return typeof str === 'string' ? str : '';
@@ -350,6 +374,7 @@
     const trimmed = collapseExpressionWhitespace(expr);
     if (!trimmed) return '';
     let str = trimmed;
+    str = restorePlainFractionsToLatex(str);
     str = str.replace(/\*\*/g, '^');
     str = applyFunctionLatexConversions(str);
     Object.keys(ASCII_TO_LATEX_COMMANDS).forEach(key => {
@@ -360,6 +385,56 @@
     str = str.replace(/([0-9a-zA-Z\\}\)])\s*\*\s*([0-9a-zA-Z\\({\\])/g, '$1\\cdot $2');
     str = str.replace(/(\d)\s*deg\b/gi, '$1^{\\circ}');
     return str;
+  }
+  function restorePlainFractionsToLatex(str) {
+    if (typeof str !== 'string' || !str.includes('/')) {
+      return typeof str === 'string' ? str : '';
+    }
+    let result = '';
+    let index = 0;
+    while (index < str.length) {
+      const slashIndex = str.indexOf('/', index);
+      if (slashIndex === -1) {
+        result += str.slice(index);
+        break;
+      }
+      let leftEnd = slashIndex - 1;
+      while (leftEnd >= index && /\s/.test(str[leftEnd])) {
+        leftEnd -= 1;
+      }
+      if (leftEnd < index || str[leftEnd] !== ')') {
+        result += str.slice(index, slashIndex + 1);
+        index = slashIndex + 1;
+        continue;
+      }
+      const leftGroup = readParenthesisGroupBackward(str, leftEnd);
+      if (!leftGroup[0] || leftGroup[1] < index) {
+        result += str.slice(index, slashIndex + 1);
+        index = slashIndex + 1;
+        continue;
+      }
+      let rightStart = slashIndex + 1;
+      while (rightStart < str.length && /\s/.test(str[rightStart])) {
+        rightStart += 1;
+      }
+      if (rightStart >= str.length || str[rightStart] !== '(') {
+        result += str.slice(index, slashIndex + 1);
+        index = slashIndex + 1;
+        continue;
+      }
+      const rightGroup = readParenthesisGroup(str, rightStart);
+      if (!rightGroup[0] || rightGroup[1] <= rightStart + 1) {
+        result += str.slice(index, slashIndex + 1);
+        index = slashIndex + 1;
+        continue;
+      }
+      const numeratorLatex = convertPlainExpressionToLatex(leftGroup[0]);
+      const denominatorLatex = convertPlainExpressionToLatex(rightGroup[0]);
+      result += str.slice(index, leftGroup[1]);
+      result += `\\frac{${numeratorLatex}}{${denominatorLatex}}`;
+      index = rightGroup[1];
+    }
+    return result;
   }
   function ensureMathFieldOptions(field) {
     if (field && typeof field.setOptions === 'function') {
@@ -469,6 +544,7 @@
     exprInput.addEventListener('math-field-ready', () => {
       ensureMathFieldOptions(exprInput);
       setExpressionInputValue(state.expression || '');
+      renderExpressionDisplay();
     });
   } else {
     setExpressionInputValue(state.expression || '');
@@ -803,6 +879,28 @@
     rowIdCounter = computeNextId(state.signRows, /^row-(\d+)$/i, 1);
   }
   sanitizeState(state);
+  function pruneFactorRowsIfDisabled() {
+    if (!Array.isArray(state.signRows)) {
+      state.signRows = [];
+      return;
+    }
+    if (state.useLinearFactors) {
+      return;
+    }
+    state.signRows = state.signRows.filter(row => {
+      if (!row) {
+        return false;
+      }
+      if (row.role === 'factor') {
+        return false;
+      }
+      if (row.locked && row.role !== 'result') {
+        return false;
+      }
+      return true;
+    });
+  }
+  pruneFactorRowsIfDisabled();
   let pointIdCounter = 1;
   let rowIdCounter = 1;
   updateIdCounters();
@@ -1955,6 +2053,23 @@
     });
     return el;
   }
+  function getExpressionLatexFromInput() {
+    if (!exprInput) {
+      return '';
+    }
+    const tag = exprInput.tagName ? exprInput.tagName.toUpperCase() : '';
+    if (tag === MATHFIELD_TAG) {
+      ensureMathFieldOptions(exprInput);
+      let latex = tryGetMathFieldValue(exprInput, 'latex-expanded');
+      if (!latex) {
+        latex = tryGetMathFieldValue(exprInput, 'latex');
+      }
+      if (typeof latex === 'string') {
+        return collapseExpressionWhitespace(latex);
+      }
+    }
+    return '';
+  }
   function renderExpressionDisplay() {
     if (!expressionDisplay) {
       return;
@@ -1965,7 +2080,14 @@
       expressionDisplay.classList.add('chart-expression--empty');
       return;
     }
-    const coreLatex = convertPlainExpressionToLatex(expr) || expr;
+    let coreLatex = getExpressionLatexFromInput();
+    if (!coreLatex) {
+      if (expr.includes('\\')) {
+        coreLatex = collapseExpressionWhitespace(expr);
+      } else {
+        coreLatex = convertPlainExpressionToLatex(expr) || expr;
+      }
+    }
     const latex = state.expressionPrefix ? `f(x)=${coreLatex}` : coreLatex;
     const fallback = state.expressionPrefix ? `f(x)=${expr}` : expr;
     if (typeof window !== 'undefined' && window.katex && typeof window.katex.render === 'function') {
@@ -2798,6 +2920,7 @@
     }
   }
   function renderAll() {
+    pruneFactorRowsIfDisabled();
     updateIdCounters();
     sortPoints();
     syncSegments();
@@ -2997,7 +3120,7 @@
           renderAll();
         }
       } else {
-        state.signRows = state.signRows.filter(row => row.role !== 'factor');
+        pruneFactorRowsIfDisabled();
         renderAll();
       }
     });
