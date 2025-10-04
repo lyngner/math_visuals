@@ -78,7 +78,9 @@
       .func-actions .addFigureBtn{ align-self:center; }
     }
     .func-groups{ display:flex; flex-direction:column; gap:12px; width:100%; }
-    .func-group{ gap:14px; }
+    .func-group{ display:flex; align-items:flex-start; gap:12px; }
+    .func-group fieldset{ flex:1 1 auto; margin:0; }
+    .func-group .func-draw{ align-self:flex-start; }
     .func-group .func-fields{
       display:grid;
       gap:12px;
@@ -101,7 +103,7 @@
     .func-main{
       display:flex;
       gap:12px;
-      align-items:flex-end;
+      align-items:stretch;
     }
     .func-main .func-input{
       flex:1 1 auto;
@@ -192,6 +194,8 @@
     }
     @media (max-width:680px){
       .function-controls{ align-items:stretch; }
+      .func-group{ flex-direction:column; }
+      .func-group .func-draw{ width:100%; }
       .func-group .func-fields{ grid-template-columns:1fr; }
       .func-fields--first .func-row,
       .func-row--secondary{ grid-template-columns:1fr; }
