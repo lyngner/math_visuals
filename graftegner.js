@@ -3440,16 +3440,22 @@ function setupSettingsForm() {
     if (!nums.every(Number.isFinite)) return null;
     return nums;
   };
+  const formatPointInputValue = pt => {
+    if (!Array.isArray(pt) || pt.length < 2) {
+      return '';
+    }
+    const [x, y] = pt;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return '';
+    }
+    return `(${formatNumber(x)}, ${formatNumber(y)})`;
+  };
   const setLinePointInputValues = points => {
     if (!Array.isArray(points)) return;
     linePointInputs.forEach((input, idx) => {
       if (!input) return;
       const pt = points[idx];
-      if (Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite)) {
-        input.value = `${formatNumber(pt[0])}, ${formatNumber(pt[1])}`;
-      } else {
-        input.value = '';
-      }
+      input.value = formatPointInputValue(pt);
     });
   };
   const applyLinePointValues = (points, spec) => {
@@ -3519,7 +3525,7 @@ function setupSettingsForm() {
     }
     return applyLinePointValues(values, spec);
   };
-  const formatLinePoints = points => points.map(pt => `(${formatNumber(pt[0])}, ${formatNumber(pt[1])})`).join('; ');
+  const formatLinePoints = points => points.map(pt => formatPointInputValue(pt)).filter(Boolean).join('; ');
   const getLinePointsFromInputs = needed => {
     if (!Array.isArray(linePointInputs) || linePointInputs.length === 0 || needed <= 0) return [];
     const limit = Math.min(needed, linePointInputs.length);
@@ -3845,11 +3851,11 @@ function setupSettingsForm() {
             <div class="linepoints-row">
               <label class="linepoint" data-linepoint-label="0">
                 <span>Punkt 1 (x, y)</span>
-                <input type="text" data-linepoint="0" placeholder="0, 0">
+                <input type="text" data-linepoint="0" placeholder="(0, 0)">
               </label>
               <label class="linepoint" data-linepoint-label="1">
                 <span>Punkt 2 (x, y)</span>
-                <input type="text" data-linepoint="1" placeholder="1, 1">
+                <input type="text" data-linepoint="1" placeholder="(1, 1)">
               </label>
             </div>
             <label class="startx-label">
@@ -3920,6 +3926,10 @@ function setupSettingsForm() {
       linePointInputs.forEach(input => {
         if (!input) return;
         const handleLinePointInputChange = () => {
+          const parsed = parseLinePointInput(input.value);
+          if (parsed) {
+            input.value = formatPointInputValue(parsed);
+          }
           linePointsEdited = true;
           syncLinePointsToBoardFromInputs();
           syncSimpleFromForm();
