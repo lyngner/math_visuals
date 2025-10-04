@@ -3943,7 +3943,12 @@ function setupSettingsForm() {
     }
     linePointsEdited = Array.isArray(SIMPLE_PARSED.linePoints) && SIMPLE_PARSED.linePoints.length > 0;
     const lines = text.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
-    const filteredLines = lines.filter(line => !/^\s*points\s*=/i.test(line) && !/^\s*startx\s*=/i.test(line));
+    const filteredLines = lines.filter(line => {
+      if (/^\s*points\s*=/i.test(line)) return false;
+      if (/^\s*startx\s*=/i.test(line)) return false;
+      if (/^\s*linepts\s*=/i.test(line)) return false;
+      return true;
+    });
     if (filteredLines.length === 0) {
       filteredLines.push('');
     }
