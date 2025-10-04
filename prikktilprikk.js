@@ -121,16 +121,19 @@
     nextPointId: 11
   };
 
-  const USER_SAMPLE_STATE = {
+  const EXAMPLE_TWO_STATE = {
     coordinateOrigin: 'bottom-left',
     points: [
-      { id: 'p1', label: '1', x: 0.2, y: 0.2 },
-      { id: 'p2', label: '2', x: 0.3, y: 0.55 },
-      { id: 'p3', label: '3', x: 0.55, y: 0.6 },
-      { id: 'p4', label: '4', x: 0.7, y: 0.35 },
-      { id: 'p5', label: '5', x: 0.55, y: 0.15 },
-      { id: 'p6', label: '6', x: 0.4, y: 0.3 },
-      { id: 'p7', label: '7', x: 0.3, y: 0.15 }
+      { id: 'p1', label: '7', x: 1, y: 0.25 },
+      { id: 'p2', label: '14', x: 0.4615, y: 1 },
+      { id: 'p3', label: '21', x: 0.1538, y: 1 },
+      { id: 'p4', label: '28', x: 0.2308, y: 0.75 },
+      { id: 'p5', label: '35', x: 0.0769, y: 0.75 },
+      { id: 'p6', label: '42', x: 0, y: 0.5 },
+      { id: 'p7', label: '49', x: 0.3077, y: 0.25 },
+      { id: 'p8', label: '56', x: 0.4615, y: 0 },
+      { id: 'p9', label: '63', x: 0.4615, y: 0.25 },
+      { id: 'p10', label: '70', x: 0.9231, y: 0.75 }
     ],
     answerLines: [
       ['p1', 'p2'],
@@ -139,12 +142,14 @@
       ['p4', 'p5'],
       ['p5', 'p6'],
       ['p6', 'p7'],
-      ['p7', 'p1']
+      ['p7', 'p8'],
+      ['p8', 'p9'],
+      ['p9', 'p10']
     ],
     predefinedLines: [],
     showLabels: true,
     labelFontSize: DEFAULT_LABEL_FONT_SIZE,
-    nextPointId: 8,
+    nextPointId: 11,
     showGrid: true,
     snapToGrid: false,
     view: { zoom: DEFAULT_ZOOM, panX: 0, panY: 0 }
@@ -163,7 +168,7 @@
     exampleNumber: '2',
     title: 'Eksempel 2',
     config: {
-      STATE: USER_SAMPLE_STATE
+      STATE: EXAMPLE_TWO_STATE
     }
   }, {
     id: 'prikktilprikk-example-3',
