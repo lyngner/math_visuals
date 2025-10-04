@@ -26,6 +26,34 @@
   }
 })();
 
+(function registerAssetServiceWorker() {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+  if (!('serviceWorker' in navigator)) return;
+  if (window.location.protocol === 'file:') return;
+  if (window.__MATH_VISUALS_SW_REGISTERED__) return;
+
+  const version = '20240305';
+  const registrationUrl = new URL('/sw.js', window.location.origin);
+  registrationUrl.searchParams.set('v', version);
+
+  const register = () => {
+    try {
+      navigator.serviceWorker
+        .register(registrationUrl.toString(), { scope: '/' })
+        .then(() => {
+          window.__MATH_VISUALS_SW_REGISTERED__ = true;
+        })
+        .catch(() => {});
+    } catch (_) {}
+  };
+
+  if (document.readyState === 'complete') {
+    register();
+  } else {
+    window.addEventListener('load', register, { once: true });
+  }
+})();
+
 (function () {
   const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
   function createMemoryStorage() {
