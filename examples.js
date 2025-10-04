@@ -1360,6 +1360,39 @@
       description: getDescriptionValue()
     };
   }
+  function notifyParentExampleChange(index) {
+    if (typeof window === 'undefined') return;
+    const targetWindow = (() => {
+      try {
+        return window.parent;
+      } catch (_) {
+        return null;
+      }
+    })();
+    const normalizedIndex = Number.isInteger(index) && index >= 0 ? index : null;
+    const exampleNumber = normalizedIndex != null ? normalizedIndex + 1 : null;
+    try {
+      if (typeof history !== 'undefined' && typeof history.replaceState === 'function') {
+        const url = new URL(window.location.href);
+        if (exampleNumber != null) {
+          url.searchParams.set('example', String(exampleNumber));
+        } else {
+          url.searchParams.delete('example');
+        }
+        history.replaceState(history.state, document.title, `${url.pathname}${url.search}${url.hash}`);
+      }
+    } catch (_) {}
+    if (!targetWindow || targetWindow === window || typeof targetWindow.postMessage !== 'function') return;
+    try {
+      targetWindow.postMessage({
+        type: 'math-visuals:example-change',
+        exampleIndex: normalizedIndex,
+        exampleNumber,
+        path: window.location.pathname,
+        href: window.location.href
+      }, '*');
+    } catch (_) {}
+  }
   function loadExample(index) {
     const examples = getExamples();
     const ex = examples[index];
@@ -1380,6 +1413,7 @@
       currentExampleIndex = index;
       updateTabSelection();
       triggerRefresh(index);
+      notifyParentExampleChange(index);
     }
     return applied;
   }
@@ -1435,15 +1469,29 @@
   function updateDeleteButtonState(count) {
     if (deleteBtn) deleteBtn.disabled = count <= 1;
   }
+  function clampExampleIndex(index, length) {
+    if (!Number.isInteger(index)) return null;
+    if (!Number.isInteger(length) || length <= 0) return null;
+    if (index < 0) return 0;
+    if (index >= length) return length - 1;
+    return index;
+  }
   let pendingRequestedIndex = parseInitialExampleIndex();
   function attemptInitialLoad() {
     if (initialLoadPerformed) return;
     if (pendingRequestedIndex == null) return;
     const examples = getExamples();
-    if (pendingRequestedIndex < 0 || pendingRequestedIndex >= examples.length) return;
+    const normalizedIndex = clampExampleIndex(pendingRequestedIndex, examples.length);
+    if (normalizedIndex == null) {
+      pendingRequestedIndex = null;
+      return;
+    }
+    if (normalizedIndex !== pendingRequestedIndex) {
+      pendingRequestedIndex = normalizedIndex;
+    }
     const loadNow = () => {
       if (initialLoadPerformed) return;
-      if (loadExample(pendingRequestedIndex)) {
+      if (loadExample(normalizedIndex)) {
         initialLoadPerformed = true;
         pendingRequestedIndex = null;
       }
@@ -1724,8 +1772,11 @@
         examples = getExamples();
       }
       if (pendingRequestedIndex != null) {
-        if (pendingRequestedIndex < 0 || pendingRequestedIndex >= examples.length) {
+        const normalizedIndex = clampExampleIndex(pendingRequestedIndex, examples.length);
+        if (normalizedIndex == null) {
           pendingRequestedIndex = null;
+        } else {
+          pendingRequestedIndex = normalizedIndex;
         }
       }
       if (currentExampleIndex == null && examples.length > 0) {
@@ -1739,8 +1790,9 @@
       if (!initialLoadPerformed) {
         const refreshed = getExamples();
         if (pendingRequestedIndex != null) {
-          if (pendingRequestedIndex >= 0 && pendingRequestedIndex < refreshed.length) {
-            if (loadExample(pendingRequestedIndex)) {
+          const normalizedIndex = clampExampleIndex(pendingRequestedIndex, refreshed.length);
+          if (normalizedIndex != null) {
+            if (loadExample(normalizedIndex)) {
               initialLoadPerformed = true;
               pendingRequestedIndex = null;
             }
