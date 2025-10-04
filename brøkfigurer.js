@@ -528,6 +528,32 @@
         element.hasPoint = () => false;
       }
     }
+    function preventDivisionClick(element) {
+      if (!element) return;
+      const nodes = [];
+      if (element.rendNode) nodes.push(element.rendNode);
+      if (element.rendNodeFront && element.rendNodeFront !== element.rendNode) nodes.push(element.rendNodeFront);
+      const handler = evt => {
+        if (!evt) return;
+        if (typeof evt.stopPropagation === 'function') evt.stopPropagation();
+        if (typeof evt.preventDefault === 'function') evt.preventDefault();
+      };
+      for (const node of nodes) {
+        if (!node) continue;
+        node.style.pointerEvents = 'stroke';
+        if (!node.style.cursor) node.style.cursor = 'default';
+        node.addEventListener('pointerdown', handler);
+        node.addEventListener('mousedown', handler);
+        node.addEventListener('click', handler);
+        try {
+          node.addEventListener('touchstart', handler, {
+            passive: false
+          });
+        } catch (error) {
+          node.addEventListener('touchstart', handler);
+        }
+      }
+    }
     function togglePart(i, element) {
       const colors = getColors();
       const current = filled.get(i) || 0;
@@ -669,9 +695,9 @@
             strokeWidth: 2,
             dash: 2,
             highlight: false,
-            fixed: true,
-            cssStyle: 'pointer-events:none;'
+            fixed: true
           });
+          preventDivisionClick(seg);
           disableHitDetection(seg);
         }
         for (let j = 1; j < rows; j++) {
@@ -681,9 +707,9 @@
             strokeWidth: 2,
             dash: 2,
             highlight: false,
-            fixed: true,
-            cssStyle: 'pointer-events:none;'
+            fixed: true
           });
+          preventDivisionClick(seg);
           disableHitDetection(seg);
         }
         board.create('circle', [[cx, cy], r], {
@@ -723,9 +749,9 @@
             strokeWidth: 2,
             dash: 2,
             highlight: false,
-            fixed: true,
-            cssStyle: 'pointer-events:none;'
+            fixed: true
           });
+          preventDivisionClick(seg);
           disableHitDetection(seg);
         }
         board.create('circle', [center, r], {
@@ -771,9 +797,9 @@
             strokeWidth: 2,
             dash: 2,
             highlight: false,
-            fixed: true,
-            cssStyle: 'pointer-events:none;'
+            fixed: true
           });
+          preventDivisionClick(seg);
           disableHitDetection(seg);
         }
       } else if (division === 'grid') {
@@ -819,9 +845,9 @@
             strokeWidth: 2,
             dash: 2,
             highlight: false,
-            fixed: true,
-            cssStyle: 'pointer-events:none;'
+            fixed: true
           });
+          preventDivisionClick(seg);
           disableHitDetection(seg);
         }
         for (let j = 1; j < rows; j++) {
@@ -831,9 +857,9 @@
             strokeWidth: 2,
             dash: 2,
             highlight: false,
-            fixed: true,
-            cssStyle: 'pointer-events:none;'
+            fixed: true
           });
+          preventDivisionClick(seg);
           disableHitDetection(seg);
         }
       } else {
@@ -879,9 +905,9 @@
               strokeWidth: 2,
               dash: 2,
               highlight: false,
-              fixed: true,
-              cssStyle: 'pointer-events:none;'
+              fixed: true
             });
+            preventDivisionClick(seg);
             disableHitDetection(seg);
           } else {
             const y = i / n;
@@ -890,9 +916,9 @@
               strokeWidth: 2,
               dash: 2,
               highlight: false,
-              fixed: true,
-              cssStyle: 'pointer-events:none;'
+              fixed: true
             });
+            preventDivisionClick(seg);
             disableHitDetection(seg);
           }
         }
@@ -994,27 +1020,27 @@
             strokeWidth: 2,
             dash: 2,
             highlight: false,
-            fixed: true,
-            cssStyle: 'pointer-events:none;'
+            fixed: true
           });
+          preventDivisionClick(seg1);
           disableHitDetection(seg1);
           const seg2 = board.create('segment', [rows[r][0], rows[m][r]], {
             strokeColor: '#000',
             strokeWidth: 2,
             dash: 2,
             highlight: false,
-            fixed: true,
-            cssStyle: 'pointer-events:none;'
+            fixed: true
           });
+          preventDivisionClick(seg2);
           disableHitDetection(seg2);
           const seg3 = board.create('segment', [rows[r][r], rows[m][m - r]], {
             strokeColor: '#000',
             strokeWidth: 2,
             dash: 2,
             highlight: false,
-            fixed: true,
-            cssStyle: 'pointer-events:none;'
+            fixed: true
           });
+          preventDivisionClick(seg3);
           disableHitDetection(seg3);
         }
         board.create('polygon', [toEqTri([0, 1]), toEqTri([1, 1]), toEqTri([0.5, 0])], {
@@ -1094,9 +1120,9 @@
               strokeWidth: 2,
               dash: 2,
               highlight: false,
-              fixed: true,
-              cssStyle: 'pointer-events:none;'
+              fixed: true
             });
+            preventDivisionClick(seg);
             disableHitDetection(seg);
           } else {
             const seg = board.create('segment', [toEq([x, 0]), toEq([0, 1])], {
@@ -1104,9 +1130,9 @@
               strokeWidth: 2,
               dash: 2,
               highlight: false,
-              fixed: true,
-              cssStyle: 'pointer-events:none;'
+              fixed: true
             });
+            preventDivisionClick(seg);
             disableHitDetection(seg);
           }
         }
@@ -1119,9 +1145,9 @@
               strokeWidth: 2,
               dash: 2,
               highlight: false,
-              fixed: true,
-              cssStyle: 'pointer-events:none;'
+              fixed: true
             });
+            preventDivisionClick(seg);
             disableHitDetection(seg);
           } else {
             const seg = board.create('segment', [toEq([0, y]), toEq([1, 0])], {
@@ -1129,9 +1155,9 @@
               strokeWidth: 2,
               dash: 2,
               highlight: false,
-              fixed: true,
-              cssStyle: 'pointer-events:none;'
+              fixed: true
             });
+            preventDivisionClick(seg);
             disableHitDetection(seg);
           }
         }
@@ -1144,9 +1170,9 @@
             strokeWidth: 2,
             dash: 2,
             highlight: false,
-            fixed: true,
-            cssStyle: 'pointer-events:none;'
+            fixed: true
           });
+          preventDivisionClick(seg);
           disableHitDetection(seg);
         }
       }
