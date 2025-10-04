@@ -120,6 +120,8 @@ let idx = 0; // antall perler til venstre
 let clipY = 0;
 let CLIP_Y_MIN = -100,
   CLIP_Y_MAX = 100;
+let CLIP_TOUCH_TOP = 0,
+  CLIP_TOUCH_BOTTOM = 0;
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
 const exportCard = document.getElementById('exportCard');
@@ -140,8 +142,8 @@ overlay.addEventListener("pointerdown", e => {
   overlay.setPointerCapture(e.pointerId);
   const p = pt(e);
   setIndex(nearestIndex(p.x));
-  const clipTop = CFG.wireY - CLIP_H + clipY;
-  const clipBottom = clipTop + CLIP_H;
+  const clipTop = CLIP_TOUCH_TOP + clipY;
+  const clipBottom = CLIP_TOUCH_BOTTOM + clipY;
   if (p.y >= clipTop && p.y <= clipBottom) {
     draggingClip = true;
     dragStartPointerY = p.y;
@@ -254,7 +256,14 @@ function layout() {
   // klype (bygges på nytt i riktig størrelse)
   gClip.innerHTML = "";
   gClip.appendChild(img(CFG.assets.clip, -CLIP_W / 2, CFG.wireY - CLIP_H, CLIP_W, CLIP_H));
-  gClip.appendChild(rect(-pitch * 1.5 / 2, CFG.wireY - CLIP_H - 60, pitch * 1.5, CLIP_H + 120, {
+  const touchPadX = Math.max(gap * 0.75, CLIP_W * 0.15);
+  const touchPadTop = CLIP_H * 0.35;
+  const touchPadBottom = CLIP_H * 0.35;
+  CLIP_TOUCH_TOP = CFG.wireY - CLIP_H - touchPadTop;
+  CLIP_TOUCH_BOTTOM = CFG.wireY + touchPadBottom;
+  const hitW = CLIP_W + touchPadX * 2;
+  const hitH = CLIP_TOUCH_BOTTOM - CLIP_TOUCH_TOP;
+  gClip.appendChild(rect(-hitW / 2, CLIP_TOUCH_TOP, hitW, hitH, {
     fill: "transparent"
   }));
 
