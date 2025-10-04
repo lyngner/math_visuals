@@ -121,38 +121,30 @@
     nextPointId: 11
   };
 
-  const LIGHTNING_STATE = {
+  const USER_SAMPLE_STATE = {
     coordinateOrigin: 'bottom-left',
     points: [
-      { id: 'p1', label: '\\frac12', x: 0.6667, y: 1 },
-      { id: 'p2', label: '1', x: 0.1667, y: 0.6667 },
-      { id: 'p3', label: '\\frac32', x: 0.5, y: 0.6667 },
-      { id: 'p4', label: '2', x: 0, y: 0.3333 },
-      { id: 'p5', label: '\\frac52', x: 0.3333, y: 0.3333 },
-      { id: 'p6', label: '3', x: 0, y: 0 },
-      { id: 'p7', label: '\\frac72', x: 0.8333, y: 0.4444 },
-      { id: 'p8', label: '4', x: 0.5, y: 0.4444 },
-      { id: 'p9', label: '\\frac92', x: 1, y: 0.7778 },
-      { id: 'p10', label: '5', x: 0.6667, y: 0.7778 },
-      { id: 'p11', label: '\\frac{11}{2}', x: 1, y: 1 }
+      { id: 'p1', label: '1', x: 0.2, y: 0.2 },
+      { id: 'p2', label: '2', x: 0.3, y: 0.55 },
+      { id: 'p3', label: '3', x: 0.55, y: 0.6 },
+      { id: 'p4', label: '4', x: 0.7, y: 0.35 },
+      { id: 'p5', label: '5', x: 0.55, y: 0.15 },
+      { id: 'p6', label: '6', x: 0.4, y: 0.3 },
+      { id: 'p7', label: '7', x: 0.3, y: 0.15 }
     ],
     answerLines: [
-      ['p1', 'p11'],
-      ['p11', 'p9'],
-      ['p9', 'p10'],
-      ['p10', 'p3'],
-      ['p3', 'p7'],
-      ['p7', 'p8'],
-      ['p8', 'p5'],
+      ['p1', 'p2'],
+      ['p2', 'p3'],
+      ['p3', 'p4'],
+      ['p4', 'p5'],
       ['p5', 'p6'],
-      ['p6', 'p4'],
-      ['p4', 'p2'],
-      ['p2', 'p1']
+      ['p6', 'p7'],
+      ['p7', 'p1']
     ],
     predefinedLines: [],
     showLabels: true,
     labelFontSize: DEFAULT_LABEL_FONT_SIZE,
-    nextPointId: 12,
+    nextPointId: 8,
     showGrid: true,
     snapToGrid: false,
     view: { zoom: DEFAULT_ZOOM, panX: 0, panY: 0 }
@@ -169,9 +161,9 @@
   }, {
     id: 'prikktilprikk-example-2',
     exampleNumber: '2',
-    title: 'Lyn',
+    title: 'Eksempel 2',
     config: {
-      STATE: LIGHTNING_STATE
+      STATE: USER_SAMPLE_STATE
     }
   }, {
     id: 'prikktilprikk-example-3',
