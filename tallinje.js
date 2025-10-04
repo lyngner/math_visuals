@@ -42,6 +42,7 @@
     maximumFractionDigits: 6
   }) : null;
   const decimalFormatterCache = new Map();
+  const pendingKatexLabels = new Set();
 
   let altTextManager = null;
   let lastRenderSummary = null;
@@ -259,24 +260,73 @@
     }
   }
 
+  function applyKatexToContainer(container, latex, fallbackText) {
+    if (!container || typeof latex !== 'string' || !latex) return false;
+    if (!window.katex || typeof window.katex.render !== 'function') return false;
+
+    try {
+      const span = document.createElementNS('http://www.w3.org/1999/xhtml', 'span');
+      span.className = 'major-label__katex';
+      container.innerHTML = '';
+      container.appendChild(span);
+      window.katex.render(latex, span, { throwOnError: false });
+      if (span.querySelector('.katex')) {
+        return true;
+      }
+      container.innerHTML = '';
+    } catch (err) {
+      container.innerHTML = '';
+    }
+    if (fallbackText != null) {
+      container.textContent = fallbackText;
+    }
+    return false;
+  }
+
+  function flushPendingKatex() {
+    if (!window.katex || typeof window.katex.render !== 'function') return;
+    const items = Array.from(pendingKatexLabels);
+    for (const container of items) {
+      if (!container || !container.dataset) {
+        pendingKatexLabels.delete(container);
+        continue;
+      }
+      const latex = container.dataset.katexExpression;
+      const fallback = container.dataset.katexFallback;
+      if (!latex) {
+        pendingKatexLabels.delete(container);
+        continue;
+      }
+      if (applyKatexToContainer(container, latex, fallback)) {
+        pendingKatexLabels.delete(container);
+      } else if (fallback != null) {
+        container.textContent = fallback;
+        pendingKatexLabels.delete(container);
+      }
+    }
+  }
+
   function renderLabelContent(container, value) {
     const info = getLabelRenderInfo(value);
     container.textContent = '';
 
-    if (info.type === 'katex' && window.katex && typeof window.katex.render === 'function') {
-      try {
-        const span = document.createElement('span');
-        span.className = 'major-label__katex';
-        container.appendChild(span);
-        window.katex.render(info.katex, span, { throwOnError: false });
-        const hasKatexContent = span.querySelector('.katex');
-        if (hasKatexContent) {
-          return;
-        }
-        container.innerHTML = '';
-      } catch (err) {
-        container.innerHTML = '';
+    if (container.dataset) {
+      delete container.dataset.katexExpression;
+      delete container.dataset.katexFallback;
+    }
+    pendingKatexLabels.delete(container);
+
+    if (info.type === 'katex') {
+      if (container.dataset) {
+        if (typeof info.katex === 'string') container.dataset.katexExpression = info.katex;
+        if (typeof info.text === 'string') container.dataset.katexFallback = info.text;
       }
+      if (applyKatexToContainer(container, info.katex, info.text)) {
+        return;
+      }
+      pendingKatexLabels.add(container);
+      container.textContent = info.text != null ? info.text : '';
+      return;
     }
 
     container.textContent = info.text != null ? info.text : '';
@@ -385,6 +435,7 @@
     while (svg.firstChild) {
       svg.removeChild(svg.firstChild);
     }
+    pendingKatexLabels.clear();
 
     const paddingLeft = 80;
     const paddingRight = 80;
@@ -480,8 +531,7 @@
         height: labelHeight,
         class: 'major-label-fo'
       });
-      const container = document.createElement('div');
-      container.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+      const container = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
       container.className = 'major-label';
       container.style.fontSize = `${STATE.labelFontSize}px`;
       renderLabelContent(container, value);
@@ -499,6 +549,7 @@
       margin
     };
 
+    flushPendingKatex();
     refreshAltText('render');
   }
 
@@ -742,6 +793,11 @@
 
   ensureStateDefaults();
   render();
+  if (document.readyState === 'complete') {
+    flushPendingKatex();
+  } else {
+    window.addEventListener('load', flushPendingKatex, { once: true });
+  }
   ensureAltTextManager();
 
   const DEFAULT_TALLINJE_EXAMPLES = [{
