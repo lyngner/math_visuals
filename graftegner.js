@@ -3091,7 +3091,7 @@ function setupSettingsForm() {
   const showBracketsInput = g('cfgShowBrackets');
   const forceTicksInput = g('cfgForceTicks');
   const snapCheckbox = g('cfgSnap');
-  const drawBtn = g('btnDraw');
+  const drawButtonSelector = '[data-action="draw"]';
   let gliderSection = null;
   let gliderCountInput = null;
   let gliderStartInput = null;
@@ -3819,6 +3819,8 @@ function setupSettingsForm() {
     updateLinePointControls({ silent: true });
   };
   const createRow = (index, funVal = '', domVal = '') => {
+    const rowWrapper = document.createElement('div');
+    rowWrapper.className = 'func-group-wrapper';
     const row = document.createElement('fieldset');
     row.className = 'func-group';
     row.dataset.index = String(index);
@@ -3869,21 +3871,35 @@ function setupSettingsForm() {
       row.innerHTML = `
         <legend>Funksjon ${index}</legend>
         <div class="func-fields">
-          <label class="func-input">
-            <span>${titleLabel}</span>
-            <div class="func-editor">
-              <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
-            </div>
-          </label>
-          <label class="domain">
-            <span>Avgrensning</span>
-            <input type="text" data-dom placeholder="[start, stopp]">
-          </label>
+          <div class="func-row func-row--secondary">
+            <label class="func-input">
+              <span>${titleLabel}</span>
+              <div class="func-editor">
+                <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
+              </div>
+            </label>
+            <label class="domain">
+              <span>Avgrensning</span>
+              <input type="text" data-dom placeholder="[start, stopp]">
+            </label>
+          </div>
         </div>
       `;
     }
+    const drawButton = document.createElement('button');
+    drawButton.type = 'button';
+    drawButton.className = 'btn btn--inline-draw';
+    drawButton.dataset.action = 'draw';
+    drawButton.dataset.drawIndex = String(index);
+    drawButton.setAttribute('aria-label', `Tegn graf for funksjon ${index}`);
+    drawButton.textContent = 'Tegn graf';
+    const drawHolder = document.createElement('div');
+    drawHolder.className = 'func-draw';
+    drawHolder.appendChild(drawButton);
+    rowWrapper.appendChild(row);
+    rowWrapper.appendChild(drawHolder);
     if (funcRows) {
-      funcRows.appendChild(row);
+      funcRows.appendChild(rowWrapper);
     }
     const funInput = row.querySelector('[data-fun]');
     const domInput = row.querySelector('input[data-dom]');
@@ -4245,9 +4261,10 @@ function setupSettingsForm() {
   root.addEventListener('keydown', e => {
     if (e.key === 'Enter') apply();
   });
-  if (drawBtn) {
-    drawBtn.addEventListener('click', () => {
-      apply();
-    });
-  }
+  root.addEventListener('click', event => {
+    const trigger = event.target.closest(drawButtonSelector);
+    if (!trigger) return;
+    event.preventDefault();
+    apply();
+  });
 }
