@@ -95,6 +95,7 @@
   const CLIP_PAD_PERCENT = CLIP_PADDING_PERCENT + CLIP_PAD_EXTRA_PERCENT;
   const CIRCLE_RADIUS = 0.45;
   const OUTLINE_STROKE_WIDTH = 6;
+  const DIVISION_SEGMENT_EXTENSION = 0.01;
   const colorCountInp = document.getElementById('colorCount');
   const allowWrongInp = document.getElementById('allowWrong');
   const colorInputs = [];
@@ -470,6 +471,7 @@
     const partsVal = document.getElementById(`partsVal${id}`);
     const panel = document.getElementById(`panel${id}`);
     let board;
+    const divisionSegmentIds = new Set();
     let filled = new Map();
     function normalizeFilledEntries(value) {
       let iterable;
@@ -533,28 +535,282 @@
       const nodes = [];
       if (element.rendNode) nodes.push(element.rendNode);
       if (element.rendNodeFront && element.rendNodeFront !== element.rendNode) nodes.push(element.rendNodeFront);
-      const handler = evt => {
+      const handleDown = evt => {
         if (!evt) return;
+        if (typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
         if (typeof evt.stopPropagation === 'function') evt.stopPropagation();
         if (typeof evt.preventDefault === 'function') evt.preventDefault();
+        if (suppressToggleResetTimer != null) {
+          clearTimeout(suppressToggleResetTimer);
+          suppressToggleResetTimer = null;
+        }
+        suppressToggle = true;
+      };
+      const handleUp = evt => {
+        if (!evt) return;
+        if (typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
+        if (typeof evt.stopPropagation === 'function') evt.stopPropagation();
+        if (typeof evt.preventDefault === 'function') evt.preventDefault();
+        if (suppressToggleResetTimer != null) clearTimeout(suppressToggleResetTimer);
+        suppressToggleResetTimer = setTimeout(() => {
+          suppressToggle = false;
+          suppressToggleResetTimer = null;
+        }, 0);
       };
       for (const node of nodes) {
         if (!node) continue;
-        node.style.pointerEvents = 'stroke';
+        node.style.pointerEvents = 'all';
         if (!node.style.cursor) node.style.cursor = 'default';
-        node.addEventListener('pointerdown', handler);
-        node.addEventListener('mousedown', handler);
-        node.addEventListener('click', handler);
+        node.addEventListener('pointerdown', handleDown, true);
+        node.addEventListener('pointerup', handleUp, true);
+        node.addEventListener('mousedown', handleDown, true);
+        node.addEventListener('mouseup', handleUp, true);
+        node.addEventListener('click', handleUp, true);
         try {
-          node.addEventListener('touchstart', handler, {
-            passive: false
+          node.addEventListener('touchstart', handleDown, {
+            passive: false,
+            capture: true
+          });
+          node.addEventListener('touchend', handleUp, {
+            passive: false,
+            capture: true
           });
         } catch (error) {
-          node.addEventListener('touchstart', handler);
+          node.addEventListener('touchstart', handleDown, true);
+          node.addEventListener('touchend', handleUp, true);
         }
       }
     }
-    function togglePart(i, element) {
+    let suppressToggle = false;
+    let suppressToggleResetTimer = null;
+    const clonePoint = point => Array.isArray(point) ? point.slice() : [Number(point == null ? void 0 : point[0]) || 0, Number(point == null ? void 0 : point[1]) || 0];
+    function ensureDivisionGuard() {
+      if (detachDivisionGuard || !panel) return;
+      const box = panel.querySelector('.box');
+      if (!box) return;
+      if (typeof window !== 'undefined') window.__guardInitCount = (window.__guardInitCount || 0) + 1;
+      const getPoint = evt => {
+        if (!evt) return null;
+        if (typeof evt.clientX === 'number' && typeof evt.clientY === 'number') return {
+          x: evt.clientX,
+          y: evt.clientY
+        };
+        const touch = evt.touches && evt.touches[0] || evt.changedTouches && evt.changedTouches[0];
+        if (touch && typeof touch.clientX === 'number' && typeof touch.clientY === 'number') return {
+          x: touch.clientX,
+          y: touch.clientY
+        };
+        return null;
+      };
+      const isDivisionStroke = el => {
+        if (!el) return false;
+        if (el.classList && el.classList.contains('brok-division-segment')) return true;
+        if (typeof el.getAttribute === 'function') {
+          const dashAttr = el.getAttribute('stroke-dasharray');
+          if (dashAttr && dashAttr !== 'none') return true;
+        }
+        if (el.style && typeof el.style.strokeDasharray === 'string' && el.style.strokeDasharray && el.style.strokeDasharray !== 'none') return true;
+        if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+          const computed = window.getComputedStyle(el);
+          if (computed && typeof computed.strokeDasharray === 'string' && computed.strokeDasharray && computed.strokeDasharray !== 'none') return true;
+        }
+        return false;
+      };
+      const findDivisionStroke = element => {
+        let current = element;
+        while (current) {
+          if (isDivisionStroke(current)) return current;
+          current = current.parentNode;
+        }
+        return null;
+      };
+      const getDivisionStrokeAtPoint = point => {
+        if (!point) return null;
+        const rect = box.getBoundingClientRect();
+        if (point.x < rect.left || point.x > rect.right || point.y < rect.top || point.y > rect.bottom) return null;
+        const target = document.elementFromPoint(point.x, point.y);
+        return findDivisionStroke(target);
+      };
+      const downHandler = evt => {
+        const point = getPoint(evt);
+        if (!point) return;
+        const strokeEl = getDivisionStrokeAtPoint(point);
+        if (strokeEl) {
+          if (suppressToggleResetTimer != null) {
+            clearTimeout(suppressToggleResetTimer);
+            suppressToggleResetTimer = null;
+          }
+          suppressToggle = true;
+        }
+      };
+      const upHandler = () => {
+        if (suppressToggleResetTimer != null) clearTimeout(suppressToggleResetTimer);
+        suppressToggleResetTimer = setTimeout(() => {
+          suppressToggle = false;
+          suppressToggleResetTimer = null;
+        }, 0);
+      };
+      const docDownHandler = evt => {
+        if (!evt) return;
+        const point = getPoint(evt);
+        const strokeEl = getDivisionStrokeAtPoint(point);
+        if (!strokeEl) return;
+        if (typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
+        if (typeof evt.stopPropagation === 'function') evt.stopPropagation();
+        if (typeof evt.preventDefault === 'function') evt.preventDefault();
+        if (suppressToggleResetTimer != null) {
+          clearTimeout(suppressToggleResetTimer);
+          suppressToggleResetTimer = null;
+        }
+        suppressToggle = true;
+      };
+      const docUpHandler = evt => {
+        if (!evt) return;
+        if (typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
+        if (typeof evt.stopPropagation === 'function') evt.stopPropagation();
+        if (typeof evt.preventDefault === 'function') evt.preventDefault();
+        if (suppressToggleResetTimer != null) clearTimeout(suppressToggleResetTimer);
+        suppressToggleResetTimer = setTimeout(() => {
+          suppressToggle = false;
+          suppressToggleResetTimer = null;
+        }, 0);
+      };
+      const listeners = [[
+        'pointerdown',
+        downHandler
+      ], [
+        'mousedown',
+        downHandler
+      ], [
+        'touchstart',
+        downHandler
+      ], [
+        'pointerup',
+        upHandler
+      ], [
+        'mouseup',
+        upHandler
+      ], [
+        'touchend',
+        upHandler
+      ], [
+        'click',
+        upHandler
+      ]];
+      const docListeners = [[
+        'pointerdown',
+        docDownHandler
+      ], [
+        'mousedown',
+        docDownHandler
+      ], [
+        'touchstart',
+        docDownHandler
+      ], [
+        'pointerup',
+        docUpHandler
+      ], [
+        'mouseup',
+        docUpHandler
+      ], [
+        'touchend',
+        docUpHandler
+      ]];
+      const winListeners = docListeners;
+      for (const [type, handler] of listeners) {
+        box.addEventListener(type, handler, true);
+      }
+      for (const [type, handler] of docListeners) {
+        document.addEventListener(type, handler, true);
+      }
+      for (const [type, handler] of winListeners) {
+        window.addEventListener(type, handler, true);
+      }
+      detachDivisionGuard = () => {
+        for (const [type, handler] of listeners) {
+          box.removeEventListener(type, handler, true);
+        }
+        for (const [type, handler] of docListeners) {
+          document.removeEventListener(type, handler, true);
+        }
+        for (const [type, handler] of winListeners) {
+          window.removeEventListener(type, handler, true);
+        }
+        detachDivisionGuard = null;
+      };
+    }
+    function extendSegmentEndpoints(start, end, extension = DIVISION_SEGMENT_EXTENSION) {
+      const p1 = clonePoint(start);
+      const p2 = clonePoint(end);
+      if (!Number.isFinite(extension) || extension <= 0) return [p1, p2];
+      const dx = p2[0] - p1[0];
+      const dy = p2[1] - p1[1];
+      const length = Math.hypot(dx, dy);
+      if (!(length > 0)) return [p1, p2];
+      const ux = dx / length;
+      const uy = dy / length;
+      return [[p1[0] - ux * extension, p1[1] - uy * extension], [p2[0] + ux * extension, p2[1] + uy * extension]];
+    }
+    function markDivisionNode(node) {
+      if (!node) return;
+      if (node.classList) node.classList.add('brok-division-segment');
+      if (typeof node.setAttribute === 'function') node.setAttribute('data-division-segment', 'true');
+      if (node.id) divisionSegmentIds.add(node.id);
+    }
+    function markPolygonBorders(polygon) {
+      if (!polygon || !Array.isArray(polygon.borders)) return;
+      for (const border of polygon.borders) {
+        if (!border) continue;
+        markDivisionNode(border.rendNode);
+        if (border.rendNodeFront && border.rendNodeFront !== border.rendNode) markDivisionNode(border.rendNodeFront);
+      }
+    }
+    function createDivisionSegment(start, end, options = {}, extend = true) {
+      const [p1, p2] = extend ? extendSegmentEndpoints(start, end) : [clonePoint(start), clonePoint(end)];
+      const seg = board.create('segment', [p1, p2], Object.assign({
+        strokeColor: '#000',
+        strokeWidth: 2,
+        dash: 2,
+        highlight: false,
+        fixed: true,
+        linecap: 'butt',
+        layer: 10
+      }, options));
+      preventDivisionClick(seg);
+      disableHitDetection(seg);
+      if (typeof seg.on === 'function') {
+        seg.on('down', evt => {
+          if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+          if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+          return false;
+        });
+      }
+      markDivisionNode(seg == null ? void 0 : seg.rendNode);
+      if (seg != null && seg.rendNodeFront && seg.rendNodeFront !== seg.rendNode) markDivisionNode(seg.rendNodeFront);
+      return seg;
+    }
+    function togglePart(i, element, evt) {
+      const evtTarget = evt == null ? void 0 : evt.target;
+      const targetId = typeof evtTarget === 'string' ? evtTarget : evtTarget && typeof evtTarget.id === 'string' ? evtTarget.id : null;
+      if (targetId && divisionSegmentIds.has(targetId)) {
+        suppressToggle = false;
+        return;
+      }
+      if (evt && typeof evt.clientX === 'number' && typeof evt.clientY === 'number') {
+        const el = document.elementFromPoint(evt.clientX, evt.clientY);
+        let current = el;
+        while (current) {
+          if (current.getAttribute && current.getAttribute('data-division-segment') === 'true') {
+            suppressToggle = false;
+            return;
+          }
+          current = current.parentNode;
+        }
+      }
+      if (suppressToggle) {
+        suppressToggle = false;
+        return;
+      }
       const colors = getColors();
       const current = filled.get(i) || 0;
       const next = (current + 1) % (colors.length + 1);
@@ -685,32 +941,17 @@
               fixed: true,
               cssStyle: 'pointer-events:fill;'
             });
-            poly.on('down', () => togglePart(idx, poly));
+            poly.on('down', evt => togglePart(idx, poly, evt));
+            markPolygonBorders(poly);
           }
         }
         for (let i = 1; i < cols; i++) {
           const x = i / cols;
-          const seg = board.create('segment', [[x, 0], [x, 1]], {
-            strokeColor: '#000',
-            strokeWidth: 2,
-            dash: 2,
-            highlight: false,
-            fixed: true
-          });
-          preventDivisionClick(seg);
-          disableHitDetection(seg);
+          createDivisionSegment([x, 0], [x, 1]);
         }
         for (let j = 1; j < rows; j++) {
           const y = j / rows;
-          const seg = board.create('segment', [[0, y], [1, y]], {
-            strokeColor: '#000',
-            strokeWidth: 2,
-            dash: 2,
-            highlight: false,
-            fixed: true
-          });
-          preventDivisionClick(seg);
-          disableHitDetection(seg);
+          createDivisionSegment([0, y], [1, y]);
         }
         board.create('circle', [[cx, cy], r], {
           strokeColor: '#333',
@@ -741,18 +982,12 @@
             fixed: true,
             cssStyle: 'pointer-events:fill;'
           });
-          sector.on('down', () => togglePart(i, sector));
+          sector.on('down', evt => togglePart(i, sector, evt));
         }
         for (const p of boundaryPts) {
-          const seg = board.create('segment', [center, p], {
-            strokeColor: '#000',
-            strokeWidth: 2,
-            dash: 2,
-            highlight: false,
-            fixed: true
-          });
-          preventDivisionClick(seg);
-          disableHitDetection(seg);
+          createDivisionSegment(center, p, {
+            strokeColor: '#000'
+          }, false);
         }
         board.create('circle', [center, r], {
           strokeColor: '#333',
@@ -791,16 +1026,11 @@
             fixed: true,
             cssStyle: 'pointer-events:fill;'
           });
-          poly.on('down', () => togglePart(i, poly));
-          const seg = board.create('segment', [c, corners[i]], {
-            strokeColor: '#000',
-            strokeWidth: 2,
-            dash: 2,
-            highlight: false,
-            fixed: true
-          });
-          preventDivisionClick(seg);
-          disableHitDetection(seg);
+          poly.on('down', evt => togglePart(i, poly, evt));
+          markPolygonBorders(poly);
+          createDivisionSegment(c, corners[i], {
+            strokeColor: '#000'
+          }, false);
         }
       } else if (division === 'grid') {
         const {
@@ -835,32 +1065,17 @@
               fixed: true,
               cssStyle: 'pointer-events:fill;'
             });
-            poly.on('down', () => togglePart(idx, poly));
+            poly.on('down', evt => togglePart(idx, poly, evt));
+            markPolygonBorders(poly);
           }
         }
         for (let i = 1; i < cols; i++) {
           const x = i / cols;
-          const seg = board.create('segment', [[x, 0], [x, 1]], {
-            strokeColor: '#000',
-            strokeWidth: 2,
-            dash: 2,
-            highlight: false,
-            fixed: true
-          });
-          preventDivisionClick(seg);
-          disableHitDetection(seg);
+          createDivisionSegment([x, 0], [x, 1]);
         }
         for (let j = 1; j < rows; j++) {
           const y = j / rows;
-          const seg = board.create('segment', [[0, y], [1, y]], {
-            strokeColor: '#000',
-            strokeWidth: 2,
-            dash: 2,
-            highlight: false,
-            fixed: true
-          });
-          preventDivisionClick(seg);
-          disableHitDetection(seg);
+          createDivisionSegment([0, y], [1, y]);
         }
       } else {
         for (let i = 0; i < n; i++) {
@@ -895,31 +1110,16 @@
           fixed: true,
           cssStyle: 'pointer-events:fill;'
         });
-          poly.on('down', () => togglePart(i, poly));
+          poly.on('down', evt => togglePart(i, poly, evt));
+          markPolygonBorders(poly);
         }
         for (let i = 1; i < n; i++) {
           if (division === 'vertical') {
             const x = i / n;
-            const seg = board.create('segment', [[x, 0], [x, 1]], {
-              strokeColor: '#000',
-              strokeWidth: 2,
-              dash: 2,
-              highlight: false,
-              fixed: true
-            });
-            preventDivisionClick(seg);
-            disableHitDetection(seg);
+            createDivisionSegment([x, 0], [x, 1]);
           } else {
             const y = i / n;
-            const seg = board.create('segment', [[0, y], [1, y]], {
-              strokeColor: '#000',
-              strokeWidth: 2,
-              dash: 2,
-              highlight: false,
-              fixed: true
-            });
-            preventDivisionClick(seg);
-            disableHitDetection(seg);
+            createDivisionSegment([0, y], [1, y]);
           }
         }
       }
@@ -983,7 +1183,8 @@
               fixed: true,
               cssStyle: 'pointer-events:fill;'
             });
-            poly.on('down', () => togglePart(idx, poly));
+            poly.on('down', evt => togglePart(idx, poly, evt));
+            markPolygonBorders(poly);
             idx++;
           }
         }
@@ -1010,38 +1211,15 @@
               fixed: true,
               cssStyle: 'pointer-events:fill;'
             });
-            poly.on('down', () => togglePart(idx, poly));
+            poly.on('down', evt => togglePart(idx, poly, evt));
+            markPolygonBorders(poly);
             idx++;
           }
         }
         for (let r = 1; r < m; r++) {
-          const seg1 = board.create('segment', [rows[r][0], rows[r][r]], {
-            strokeColor: '#000',
-            strokeWidth: 2,
-            dash: 2,
-            highlight: false,
-            fixed: true
-          });
-          preventDivisionClick(seg1);
-          disableHitDetection(seg1);
-          const seg2 = board.create('segment', [rows[r][0], rows[m][r]], {
-            strokeColor: '#000',
-            strokeWidth: 2,
-            dash: 2,
-            highlight: false,
-            fixed: true
-          });
-          preventDivisionClick(seg2);
-          disableHitDetection(seg2);
-          const seg3 = board.create('segment', [rows[r][r], rows[m][m - r]], {
-            strokeColor: '#000',
-            strokeWidth: 2,
-            dash: 2,
-            highlight: false,
-            fixed: true
-          });
-          preventDivisionClick(seg3);
-          disableHitDetection(seg3);
+          createDivisionSegment(rows[r][0], rows[r][r], {}, false);
+          createDivisionSegment(rows[r][0], rows[m][r], {}, false);
+          createDivisionSegment(rows[r][r], rows[m][m - r], {}, false);
         }
         board.create('polygon', [toEqTri([0, 1]), toEqTri([1, 1]), toEqTri([0.5, 0])], {
           borders: {
@@ -1109,71 +1287,32 @@
           fixed: true,
           cssStyle: 'pointer-events:fill;'
         });
-        poly.on('down', () => togglePart(i, poly));
+        poly.on('down', evt => togglePart(i, poly, evt));
+        markPolygonBorders(poly);
       }
       if (division === 'vertical') {
         for (let i = 1; i < n; i++) {
           const x = i / n;
           if (allowWrong) {
-            const seg = board.create('segment', [toEq([x, 0]), toEq([x, 1 - x])], {
-              strokeColor: '#000',
-              strokeWidth: 2,
-              dash: 2,
-              highlight: false,
-              fixed: true
-            });
-            preventDivisionClick(seg);
-            disableHitDetection(seg);
+            createDivisionSegment(toEq([x, 0]), toEq([x, 1 - x]), {}, false);
           } else {
-            const seg = board.create('segment', [toEq([x, 0]), toEq([0, 1])], {
-              strokeColor: '#000',
-              strokeWidth: 2,
-              dash: 2,
-              highlight: false,
-              fixed: true
-            });
-            preventDivisionClick(seg);
-            disableHitDetection(seg);
+            createDivisionSegment(toEq([x, 0]), toEq([0, 1]), {}, false);
           }
         }
       } else if (division === 'horizontal') {
         for (let i = 1; i < n; i++) {
           const y = i / n;
           if (allowWrong) {
-            const seg = board.create('segment', [toEq([0, y]), toEq([1 - y, y])], {
-              strokeColor: '#000',
-              strokeWidth: 2,
-              dash: 2,
-              highlight: false,
-              fixed: true
-            });
-            preventDivisionClick(seg);
-            disableHitDetection(seg);
+            createDivisionSegment(toEq([0, y]), toEq([1 - y, y]), {}, false);
           } else {
-            const seg = board.create('segment', [toEq([0, y]), toEq([1, 0])], {
-              strokeColor: '#000',
-              strokeWidth: 2,
-              dash: 2,
-              highlight: false,
-              fixed: true
-            });
-            preventDivisionClick(seg);
-            disableHitDetection(seg);
+            createDivisionSegment(toEq([0, y]), toEq([1, 0]), {}, false);
           }
         }
       } else {
         // diagonal
         for (let i = 1; i < n; i++) {
           const t = i / n;
-          const seg = board.create('segment', [toEq([1 - t, t]), toEq([0, 0])], {
-            strokeColor: '#000',
-            strokeWidth: 2,
-            dash: 2,
-            highlight: false,
-            fixed: true
-          });
-          preventDivisionClick(seg);
-          disableHitDetection(seg);
+          createDivisionSegment(toEq([1 - t, t]), toEq([0, 0]), {}, false);
         }
       }
       board.create('polygon', [toEq([0, 0]), toEq([1, 0]), toEq([0, 1])], {
