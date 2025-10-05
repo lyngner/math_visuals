@@ -25,6 +25,8 @@
   const MARKER_GAP_PX = 10;
   const MIN_SEGMENT_WIDTH_PX = 4;
   const NEGATIVE_SEGMENT_DASH = '12 12';
+  const LINEAR_VALIDATION_TOLERANCE = 1e-6;
+  const LINEAR_VALIDATION_POINTS = [-1, 2, 0.5];
   const MATHFIELD_TAG = 'MATH-FIELD';
   const EXPRESSION_PREFIX_REGEX = /^\s*f\s*\(\s*x\s*\)\s*=\s*/i;
   let isUpdatingExpressionInput = false;
@@ -1105,6 +1107,18 @@
       const slope = f1 - f0;
       if (Math.abs(slope) < 1e-9) return null;
       const intercept = f0;
+      for (const point of LINEAR_VALIDATION_POINTS) {
+        if (point === 0 || point === 1) continue;
+        const actual = fn(point);
+        if (!Number.isFinite(actual)) {
+          return null;
+        }
+        const expected = slope * point + intercept;
+        const tolerance = LINEAR_VALIDATION_TOLERANCE * (1 + Math.max(Math.abs(expected), Math.abs(actual)));
+        if (Math.abs(actual - expected) > tolerance) {
+          return null;
+        }
+      }
       const root = -intercept / slope;
       if (!Number.isFinite(root)) return null;
       const sign = slope >= 0 ? 1 : -1;
