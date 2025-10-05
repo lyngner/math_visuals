@@ -57,7 +57,7 @@
     }
     .figure-controls{display:flex;gap:var(--gap);align-items:center;}
     .figure-controls--cols{grid-column:2;grid-row:1;flex-direction:column;justify-self:center;}
-    .figure-controls--rows{grid-column:1;grid-row:2;justify-self:center;}
+    .figure-controls--rows{grid-column:1;grid-row:2;justify-self:center;margin-top:calc(var(--gap) * 1.5);}
     @supports not (gap: 1rem) {
       .figure-controls{gap:0;}
       .figure-controls .addFigureBtn + .addFigureBtn{margin-left:var(--gap);}
