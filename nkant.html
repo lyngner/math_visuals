@@ -23,6 +23,45 @@
     .radio-row { display: flex; gap: 14px; align-items: center; }
     .tight { padding: 4px 8px; width: 44px; }
     input[type="text"]:disabled { background: #f3f4f6; color: #9ca3af; }
+    .setting__details {
+      margin-top: 8px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      background: #f9fafb;
+    }
+    .setting__details summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 6px 10px;
+      margin: 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: #4b5563;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .setting__details summary::-webkit-details-marker { display: none; }
+    .setting__details summary::after {
+      content: '\25BC';
+      font-size: 10px;
+      color: #9ca3af;
+      transition: transform .2s ease;
+    }
+    .setting__details[open] > summary::after { transform: rotate(180deg); }
+    .setting__details[open] > .setting__hint-list {
+      border-top: 1px solid #e5e7eb;
+    }
+    .setting__hint-list {
+      margin: 0;
+      padding: 10px 14px 12px 26px;
+      font-size: 12px;
+      color: #6b7280;
+      display: grid;
+      gap: 6px;
+      list-style: disc;
+    }
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
@@ -55,12 +94,17 @@
 Rettvinklet trekant</textarea>
           <button id="btnDraw" class="btn" type="button">Tegn</button>
         </div>
-        <div class="small"><code>a=5, b=5, c=5, d=5, B=90</code> – firkant med fire like sider og rett vinkel i B</div>
-        <div class="small"><code>Rettvinklet trekant</code> – tolkes av AI</div>
-        <div class="small">Fritekst tolkes av AI; kun a–d og A–D gjenkjennes. Ukjent tekst faller tilbake til «a=3».</div>
-        <div class="small"><code>sirkel radius: r</code> tegner en sirkel med radius merket r. <code>mangekant sider: 6 side: a</code> gir en regulær mangekant – samme format som i appen 3D-figurer.</div>
-        <div class="small"><code>Femkant</code> eller <code>6kant</code> lager en regulær mangekant med det oppgitte antallet sider.</div>
-        <div class="small"><code>diagonal AC</code> eller <code>høyde A/BC</code> legger til stiplede hjelpelinjer; bruk semikolon for å kombinere flere kommandoer på samme linje.</div>
+        <details class="setting__details">
+          <summary>Tips</summary>
+          <ul class="setting__hint-list">
+            <li><code>a=5, b=5, c=5, d=5, B=90</code> gir en firkant med fire like sider og rett vinkel i B.</li>
+            <li><code>Rettvinklet trekant</code> tolkes av AI og genererer en passende figur.</li>
+            <li>Fritekst tolkes av AI; kun <strong>a–d</strong> og <strong>A–D</strong> gjenkjennes. Ukjent tekst faller tilbake til <code>a=3</code>.</li>
+            <li><code>sirkel radius: r</code> tegner en sirkel med radius merket r. <code>mangekant sider: 6 side: a</code> gir en regulær mangekant – samme format som i appen 3D-figurer.</li>
+            <li><code>Femkant</code> eller <code>6kant</code> lager en regulær mangekant med det oppgitte antallet sider.</li>
+            <li><code>diagonal AC</code> eller <code>høyde A/BC</code> legger til stiplede hjelpelinjer; bruk semikolon for å kombinere flere kommandoer på samme linje.</li>
+          </ul>
+        </details>
         <div class="sep"></div>
 
         <!-- Figur 1 -->
