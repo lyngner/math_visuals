@@ -1948,7 +1948,34 @@ function drawCircleToGroup(g, rect, spec) {
     });
   }
 }
-function drawRegularPolygonToGroup(g, rect, spec) {
+function indexToLetter(idx, upperCase) {
+  const alphabet = upperCase ? 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' : 'abcdefghijklmnopqrstuvwxyz';
+  const baseLen = alphabet.length;
+  let n = Math.max(0, Math.floor(idx));
+  let out = '';
+  do {
+    out = alphabet[n % baseLen] + out;
+    n = Math.floor(n / baseLen) - 1;
+  } while (n >= 0);
+  return out;
+}
+function deriveSequentialLabel(base, index, upperCase) {
+  const fallback = indexToLetter(index, upperCase);
+  if (!base) return fallback;
+  const trimmed = base.trim();
+  if (/^[A-Za-z]$/.test(trimmed)) {
+    const offset = trimmed.toLowerCase().charCodeAt(0) - 97;
+    return indexToLetter(offset + index, upperCase);
+  }
+  if (upperCase && !/^[A-Za-z]/.test(trimmed)) {
+    return fallback;
+  }
+  if (index === 0) {
+    return upperCase ? trimmed.toUpperCase() : trimmed;
+  }
+  return `${upperCase ? trimmed.toUpperCase() : trimmed}${index + 1}`;
+}
+function drawRegularPolygonToGroup(g, rect, spec, adv) {
   const countRaw = spec && Number.isFinite(spec.sides) ? spec.sides : 5;
   const count = Math.max(3, Math.round(countRaw));
   const cx = rect.x + rect.w / 2;
@@ -1977,22 +2004,39 @@ function drawRegularPolygonToGroup(g, rect, spec) {
     "stroke-linejoin": "round"
   });
   const ctr = polygonCentroid(pts);
-  const sideText = normalizedDimensionText(spec && spec.side, 'a');
-  if (sideText) {
-    let bestIdx = 0;
-    let bestY = -Infinity;
-    for (let i = 0; i < count; i++) {
-      const P = pts[i];
-      const Q = pts[(i + 1) % count];
-      const midY = (P.y + Q.y) / 2;
-      if (midY > bestY) {
-        bestY = midY;
-        bestIdx = i;
-      }
+  const advSides = adv && adv.sides ? adv.sides : { mode: {}, text: {} };
+  const advAngles = adv && adv.angles ? adv.angles : { mode: {}, text: {} };
+  const sideValueStr = spec && spec.side && Number.isFinite(spec.side.value) ? fmt(spec.side.value) : '';
+  const baseSideLabel = normalizedDimensionText(spec && spec.side, 'a');
+  for (let i = 0; i < count; i++) {
+    const P = pts[i];
+    const Q = pts[(i + 1) % count];
+    const sideKey = indexToLetter(i, false);
+    const mode = advSides.mode && advSides.mode[sideKey] ? advSides.mode[sideKey] : advSides.mode && advSides.mode.default;
+    const customText = advSides.text && advSides.text[sideKey] ? advSides.text[sideKey] : deriveSequentialLabel(baseSideLabel, i, false);
+    let label = buildSideText(mode, sideValueStr, customText);
+    if (!label && customText) {
+      label = customText;
     }
-    const P = pts[bestIdx];
-    const Q = pts[(bestIdx + 1) % count];
-    sideLabelText(g, P, Q, sideText, true, ctr, 18);
+    if (label) {
+      sideLabelText(g, P, Q, label, true, ctr, 18);
+    }
+  }
+  for (let i = 0; i < count; i++) {
+    const prev = pts[(i - 1 + count) % count];
+    const cur = pts[i];
+    const next = pts[(i + 1) % count];
+    const angleKey = indexToLetter(i, true);
+    const mode = advAngles.mode && advAngles.mode[angleKey] ? advAngles.mode[angleKey] : advAngles.mode && advAngles.mode.default;
+    if (!mode || String(mode).toLowerCase() === 'none') continue;
+    const customText = advAngles.text && advAngles.text[angleKey] ? advAngles.text[angleKey] : deriveSequentialLabel(baseSideLabel, i, true);
+    const angleVal = angleAt(prev, cur, next);
+    const parsed = parseAnglePointMode(mode, angleVal, customText, angleKey);
+    renderAngle(g, prev, cur, next, angleRadius(prev, cur, next), {
+      mark: parsed.mark,
+      angleText: parsed.angleText,
+      pointLabel: parsed.pointLabel
+    });
   }
   // Previously the number of sides was annotated in the centre of the polygon
   // (e.g. "n=10"). This visual label is no longer desired, so we omit it.
@@ -2205,7 +2249,7 @@ async function renderCombined() {
       } else if (type === "circle") {
         drawCircleToGroup(groups[i], rects[i], obj);
       } else if (type === "polygon") {
-        drawRegularPolygonToGroup(groups[i], rects[i], obj);
+        drawRegularPolygonToGroup(groups[i], rects[i], obj, adv);
       } else {
         throw new Error(`Ukjent figurtype: ${type}`);
       }
