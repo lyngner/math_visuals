@@ -1099,8 +1099,13 @@ function draw(skipNormalization = false) {
     const height = DEFAULT_SVG_HEIGHT * BASE_INNER_RATIO / span;
     return Number.isFinite(height) && height > 0 ? height : DEFAULT_SVG_HEIGHT;
   });
+  const uniformRowHeight = rowHeights.reduce((max, value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= max) return max;
+    return numeric;
+  }, 0) || DEFAULT_SVG_HEIGHT;
   for (const block of visibleBlocks) {
-    const height = rowHeights[block.row];
+    const height = uniformRowHeight;
     if (block === null || block === void 0 ? void 0 : block.panel) {
       const numericHeight = Number.isFinite(height) && height > 0 ? height : DEFAULT_SVG_HEIGHT;
       block.panel.style.setProperty('--tb-svg-height', `${numericHeight.toFixed(2)}px`);
