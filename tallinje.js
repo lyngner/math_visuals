@@ -514,11 +514,13 @@
   function getAxisGeometry(from, to, margin, clampToRange) {
     const domainMin = clampToRange ? from : from - margin;
     const domainMax = clampToRange ? to : to + margin;
-    const innerWidth = FIGURE_WIDTH - PADDING_LEFT - PADDING_RIGHT;
+    const paddingLeft = clampToRange ? PADDING_LEFT : 0;
+    const paddingRight = clampToRange ? PADDING_RIGHT : 0;
+    const innerWidth = FIGURE_WIDTH - paddingLeft - paddingRight;
     const mapValue = value => {
-      if (domainMax === domainMin) return PADDING_LEFT + innerWidth / 2;
+      if (domainMax === domainMin) return paddingLeft + innerWidth / 2;
       const ratio = (value - domainMin) / (domainMax - domainMin);
-      return PADDING_LEFT + ratio * innerWidth;
+      return paddingLeft + ratio * innerWidth;
     };
     const axisStartValue = clampToRange ? from : domainMin;
     const axisEndValue = clampToRange ? to : domainMax;
