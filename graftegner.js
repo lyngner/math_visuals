@@ -3847,7 +3847,7 @@ function setupSettingsForm() {
             </div>
             <div class="func-row func-row--gliders glider-row">
               <label class="points">
-                <span>Antall punkter på grafen</span>
+                <span>Punkter på grafen</span>
                 <select data-points>
                   <option value="0">0</option>
                   <option value="1">1</option>
@@ -3856,11 +3856,11 @@ function setupSettingsForm() {
               </label>
               <div class="linepoints-row">
                 <label class="linepoint" data-linepoint-label="0">
-                  <span>Punkt 1 (x, y)</span>
+                  <span>Punkt 1</span>
                   <input type="text" data-linepoint="0" placeholder="(0, 0)">
                 </label>
                 <label class="linepoint" data-linepoint-label="1">
-                  <span>Punkt 2 (x, y)</span>
+                  <span>Punkt 2</span>
                   <input type="text" data-linepoint="1" placeholder="(1, 1)">
                 </label>
               </div>
