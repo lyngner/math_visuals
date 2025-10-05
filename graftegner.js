@@ -3419,11 +3419,13 @@ function setupSettingsForm() {
     if (hasA || hasB) return 1;
     return null;
   };
-  const formatNumber = val => {
+  const formatNumber = (val, step = null) => {
     if (typeof val !== 'number') return '';
     if (!Number.isFinite(val)) return '';
-    const str = String(val);
-    return str.replace(/\.0+(?=$)/, '').replace(/(\.\d*?)0+(?=$)/, '$1');
+    if (Number.isFinite(step) && step > 0) {
+      return fmtSmartVal(val, step);
+    }
+    return toFixedTrim(val, ADV.points.decimals);
   };
   const parseStartXValues = value => {
     if (!value) return [];
@@ -3447,7 +3449,7 @@ function setupSettingsForm() {
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
       return '';
     }
-    return `(${formatNumber(x)}, ${formatNumber(y)})`;
+    return `(${formatNumber(x, stepX())}, ${formatNumber(y, stepY())})`;
   };
   const setLinePointInputValues = points => {
     if (!Array.isArray(points)) return;
@@ -3713,11 +3715,13 @@ function setupSettingsForm() {
     if (glidersActive && shouldShowStartInput() && !hasStartXLine && gliderCount > 0) {
       const startValues = parseStartXValues((gliderStartInput === null || gliderStartInput === void 0 ? void 0 : gliderStartInput.value) || '');
       if (startValues.length) {
-        lines.push(`startx=${startValues.map(formatNumber).join(', ')}`);
+        lines.push(`startx=${startValues.map(val => formatNumber(val, stepX())).join(', ')}`);
       }
     }
     if (!hasCoordsLine && Array.isArray(SIMPLE_PARSED.extraPoints)) {
-      const coords = SIMPLE_PARSED.extraPoints.filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite)).map(pt => `(${formatNumber(pt[0])}, ${formatNumber(pt[1])})`);
+      const coords = SIMPLE_PARSED.extraPoints
+        .filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite))
+        .map(pt => `(${formatNumber(pt[0], stepX())}, ${formatNumber(pt[1], stepY())})`);
       if (coords.length) {
         lines.push(`coords=${coords.join('; ')}`);
       }
@@ -4003,7 +4007,7 @@ function setupSettingsForm() {
     if (gliderStartInput) {
       var _SIMPLE_PARSED2;
       const startVals = Array.isArray((_SIMPLE_PARSED2 = SIMPLE_PARSED) === null || _SIMPLE_PARSED2 === void 0 ? void 0 : _SIMPLE_PARSED2.startX) ? SIMPLE_PARSED.startX.filter(Number.isFinite) : [];
-      gliderStartInput.value = startVals.length ? startVals.map(formatNumber).join(', ') : '1';
+      gliderStartInput.value = startVals.length ? startVals.map(val => formatNumber(val, stepX())).join(', ') : '1';
     }
     if (linePointInputs.length && SIMPLE_PARSED) {
       const resolvedPoints = resolveLineStartPoints(SIMPLE_PARSED);
@@ -4155,7 +4159,7 @@ function setupSettingsForm() {
         if (shouldShowStartInput()) {
           const startVals = parseStartXValues((gliderStartInput === null || gliderStartInput === void 0 ? void 0 : gliderStartInput.value) || '');
           if (startVals.length) {
-            p.set('startx', startVals.map(formatNumber).join(', '));
+            p.set('startx', startVals.map(val => formatNumber(val, stepX())).join(', '));
           }
         }
       }
