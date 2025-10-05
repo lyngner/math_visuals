@@ -58,18 +58,12 @@
       gap: var(--gap);
     }
     .grid {
-      display: grid;
-      gap: var(--gap);
-      grid-template-columns: 1fr 380px;
-      align-items: start;
+      --sidebar-width: 380px;
     }
     .side {
       display: flex;
       flex-direction: column;
       gap: var(--gap);
-    }
-    @media (max-width: 1000px) {
-      .grid { grid-template-columns: 1fr; }
     }
     .card {
       background: #fff;
@@ -425,7 +419,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card">
         <div class="figure">
           <div id="chartExpression" class="chart-expression chart-expression--empty" aria-hidden="true"></div>

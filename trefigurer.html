@@ -49,8 +49,6 @@
       padding: 20px;
     }
     .wrap { max-width: 1200px; margin: 0 auto; }
-    .grid { display: grid; gap: var(--gap); grid-template-columns: 1fr 420px; align-items: start; }
-    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
     .side { display: flex; flex-direction: column; gap: var(--gap); }
     .card {
       background: #fff;
@@ -186,7 +184,6 @@
     }
     .figureCanvas canvas { width: 100%; height: 100%; display: block; }
     @media (max-width: 720px) {
-      .grid { grid-template-columns: 1fr; }
       .figure-grid { --figure-columns: 1; }
       .figureCanvas { min-height: 280px; }
     }
@@ -274,7 +271,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card">
         <div id="figureGrid" class="figure-grid" data-figures="1">
           <div class="figure" data-figure-index="0">

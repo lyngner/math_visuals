@@ -8,6 +8,7 @@
   --card-border: #e5e7eb;
   --card-radius: 14px;
   --control-radius: 10px;
+  --sidebar-width: 420px;
 }
 
 html,
@@ -32,6 +33,16 @@ body {
   display: grid;
   gap: var(--gap);
   align-items: start;
+}
+
+.layout--sidebar {
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--sidebar-width));
+}
+
+@media (max-width: 980px) {
+  .layout--sidebar {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .side {

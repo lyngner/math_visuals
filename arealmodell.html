@@ -50,9 +50,8 @@
       padding: 20px;
     }
     .wrap { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--gap); }
-    .grid { display: grid; gap: var(--gap); grid-template-columns: 1fr 360px; align-items: start; }
+    .grid { --sidebar-width: 360px; }
     .side { display:flex; flex-direction:column; gap:var(--gap); }
-    @media (max-width:980px){ .grid { grid-template-columns: 1fr; } }
     .card {
       background: #fff; border: 1px solid #e5e7eb; border-radius: 14px;
       box-shadow: 0 1px 2px rgba(0,0,0,.04); padding: 14px;
@@ -95,7 +94,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card card--canvas">
         <div class="area-container">
           <svg id="area" preserveAspectRatio="xMidYMid meet" aria-label="Arealmodell"></svg>

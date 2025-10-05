@@ -50,9 +50,7 @@
       padding: 20px;
     }
     .wrap { max-width: 1200px; margin: 0 auto; }
-    .grid { display: grid; gap: var(--gap); grid-template-columns: 1fr 420px; align-items: start; }
     .side { display: flex; flex-direction: column; gap: var(--gap); }
-    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
     .card {
       background: #fff;
       border: 1px solid #e5e7eb;
@@ -430,7 +428,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card card--board">
         <div class="toolbar toolbar--mode">
           <button id="btnToggleMode" class="btn btn--primary" type="button">Gå til oppgavemodus</button>

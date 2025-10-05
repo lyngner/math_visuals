@@ -51,9 +51,8 @@
       color:#111827; background:#f7f8fb; padding:20px;
     }
     .wrap{max-width:1200px;margin:0 auto;}
-    .grid{display:grid;gap:var(--gap);grid-template-columns:minmax(0,1fr) minmax(320px,420px);align-items:start;}
+    .grid{--sidebar-width:clamp(320px,32vw,420px);}
     .side{display:flex;flex-direction:column;gap:var(--gap);}
-    @media(max-width:980px){.grid{grid-template-columns:1fr;}}
     .card{
       background:#fff;border:1px solid #e5e7eb;border-radius:14px;
       box-shadow:0 1px 2px rgba(0,0,0,.04);padding:14px;
@@ -202,7 +201,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card">
         <div id="tbBoard" class="tb-board">
           <div id="tbGrid" class="tb-grid" data-cols="1"></div>

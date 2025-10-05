@@ -49,9 +49,8 @@
       padding: 20px;
     }
     .wrap { max-width: 1200px; margin: 0 auto; }
-    .grid { display: grid; gap: var(--gap); grid-template-columns: 1fr 480px; align-items: start; }
+    .grid { --sidebar-width: 480px; }
     .side { display:flex; flex-direction:column; gap:var(--gap); }
-    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
     .card {
       background: #fff;
       border: 1px solid #e5e7eb;
@@ -91,7 +90,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card">
         <div class="figure">
           <svg id="beadSVG" viewBox="0 0 1400 460" role="img" aria-label="Perlesnor med klype"></svg>

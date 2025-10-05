@@ -55,9 +55,7 @@
       font-family:system-ui,-apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif; color:#111827;
     }
     .wrap{ max-width:1200px; margin:0 auto; }
-    .grid{ display:grid; gap:var(--gap); grid-template-columns:1fr 420px; align-items:start; }
     .side{ display:flex; flex-direction:column; gap:var(--gap); }
-    @media (max-width:980px){ .grid{ grid-template-columns:1fr; } }
     .card{ background:#fff; border:1px solid #e5e7eb; border-radius:14px; box-shadow:0 1px 2px rgba(0,0,0,.04); padding:14px; display:flex; flex-direction:column; gap:10px; }
     .card h2{ margin:0 0 6px 2px; font-size:16px; font-weight:600; color:#374151; }
     .figure{ border-radius:10px; background:#fafbfc; overflow:hidden; border:1px solid #eef0f3; }
@@ -250,7 +248,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card">
         <div class="figure">
           <div id="board" aria-label="JSXGraph-tavle"></div>
