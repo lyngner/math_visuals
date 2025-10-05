@@ -811,9 +811,13 @@
     applyingBackendUpdate = true;
     try {
       const examples = data && Array.isArray(data.examples) ? data.examples : [];
-      store(examples, {
-        reason: 'backend-sync'
-      });
+      const localExamples = getExamples();
+      const hasLocalExamples = Array.isArray(localExamples) && localExamples.length > 0;
+      if (examples.length > 0 || !hasLocalExamples) {
+        store(examples, {
+          reason: 'backend-sync'
+        });
+      }
       const deletedProvided = data && Array.isArray(data.deletedProvided) ? data.deletedProvided : [];
       deletedProvidedExamples = new Set();
       deletedProvided.forEach(value => {
