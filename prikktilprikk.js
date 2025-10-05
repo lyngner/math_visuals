@@ -264,6 +264,12 @@
   let currentValidPoints = null;
   let boardScaleX = 1;
   let boardScaleY = 1;
+  let boardClientWidth = BOARD_WIDTH;
+  let boardClientHeight = BOARD_HEIGHT;
+  let boardContentWidth = BOARD_WIDTH;
+  let boardContentHeight = BOARD_HEIGHT;
+  let boardOffsetX = 0;
+  let boardOffsetY = 0;
   let hasUserAdjustedView = false;
 
   const activeBoardPointers = new Map();
@@ -597,8 +603,18 @@
     const rect = board.getBoundingClientRect();
     const width = rect.width || BOARD_WIDTH;
     const height = rect.height || BOARD_HEIGHT;
-    boardScaleX = width / BOARD_WIDTH;
-    boardScaleY = height / BOARD_HEIGHT;
+    const scale = Math.min(
+      width > 0 ? width / BOARD_WIDTH : 1,
+      height > 0 ? height / BOARD_HEIGHT : 1
+    ) || 1;
+    boardClientWidth = width;
+    boardClientHeight = height;
+    boardScaleX = scale;
+    boardScaleY = scale;
+    boardContentWidth = BOARD_WIDTH * scale;
+    boardContentHeight = BOARD_HEIGHT * scale;
+    boardOffsetX = (width - boardContentWidth) / 2;
+    boardOffsetY = (height - boardContentHeight) / 2;
   }
 
   const LABEL_PLACEMENT_CANDIDATES = [
@@ -650,8 +666,8 @@
 
   function selectLabelPlacement(point, pos, connections, pointMap) {
     if (!point || !pos) return LABEL_PLACEMENT_CANDIDATES[0];
-    const boardWidthPx = BOARD_WIDTH * boardScaleX;
-    const boardHeightPx = BOARD_HEIGHT * boardScaleY;
+    const boardWidthPx = boardContentWidth;
+    const boardHeightPx = boardContentHeight;
     const neighborAngles = [];
     if (connections && connections.size) {
       connections.forEach(neighborId => {
@@ -681,10 +697,12 @@
         ? Math.min(...neighborAngles.map(angle => angleDistance(placementAngle, angle)))
         : Math.PI;
       const nearLine = minAngleDiff < LABEL_LINE_AVOIDANCE_THRESHOLD;
-      const centerX = pos.x * boardScaleX + offset.x;
-      const centerY = pos.y * boardScaleY + offset.y;
-      const insideX = centerX >= horizontalMargin && centerX <= boardWidthPx - horizontalMargin;
-      const insideY = centerY >= verticalMargin && centerY <= boardHeightPx - verticalMargin;
+      const centerX = pos.x * boardScaleX + offset.x + boardOffsetX;
+      const centerY = pos.y * boardScaleY + offset.y + boardOffsetY;
+      const insideX = centerX >= boardOffsetX + horizontalMargin
+        && centerX <= boardOffsetX + boardWidthPx - horizontalMargin;
+      const insideY = centerY >= boardOffsetY + verticalMargin
+        && centerY <= boardOffsetY + boardHeightPx - verticalMargin;
       const inside = insideX && insideY;
       const score = (inside ? 1 : 0) * 10 + minAngleDiff - (nearLine ? LABEL_LINE_PENALTY : 0) - index * 0.001;
       if (!best || score > best.score) {
@@ -770,8 +788,8 @@
     if (!element || !pos) return;
     const width = element.offsetWidth || element.getBoundingClientRect().width || 0;
     const height = element.offsetHeight || element.getBoundingClientRect().height || 0;
-    const anchorX = pos.x * boardScaleX;
-    const anchorY = pos.y * boardScaleY;
+    const anchorX = pos.x * boardScaleX + boardOffsetX;
+    const anchorY = pos.y * boardScaleY + boardOffsetY;
     const offset = computePlacementOffset(
       placement,
       { width, height },
@@ -1172,10 +1190,13 @@
 
   function clientToNormalized(clientX, clientY, viewOverride) {
     const rect = board.getBoundingClientRect();
-    const width = rect.width || 1;
-    const height = rect.height || 1;
-    const rawX = (clientX - rect.left) / width;
-    const rawY = (clientY - rect.top) / height;
+    computeBoardScale();
+    const width = boardClientWidth || rect.width || 1;
+    const height = boardClientHeight || rect.height || 1;
+    const contentWidth = boardContentWidth || width;
+    const contentHeight = boardContentHeight || height;
+    const rawX = (clientX - rect.left - boardOffsetX) / contentWidth;
+    const rawY = (clientY - rect.top - boardOffsetY) / contentHeight;
     const localX = clamp01(rawX);
     const localY = clamp01(1 - rawY);
     const view = viewOverride && typeof viewOverride === 'object' ? viewOverride : getViewSettings();
