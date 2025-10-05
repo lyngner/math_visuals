@@ -112,6 +112,11 @@
     if (typeof STATE.altText !== 'string') STATE.altText = '';
     STATE.altTextSource = STATE.altTextSource === 'manual' ? 'manual' : 'auto';
 
+    if (numberType === 'decimal') {
+      from = roundToDecimalDigits(from, decimalDigits);
+      to = roundToDecimalDigits(to, decimalDigits);
+    }
+
     STATE.from = from;
     STATE.to = to;
     STATE.mainStep = mainStep;
@@ -143,6 +148,44 @@
     const formatter = getDecimalFormatter(digits);
     if (formatter) return formatter.format(value);
     return value.toFixed(Math.max(0, digits));
+  }
+
+  function roundToDecimalDigits(value, digits) {
+    if (!Number.isFinite(value)) return value;
+    const safeDigits = Math.min(Math.max(Math.round(Number(digits)) || 0, 0), 6);
+    const factor = Math.pow(10, safeDigits);
+    if (!Number.isFinite(factor) || factor <= 0) return value;
+    return Math.round(value * factor) / factor;
+  }
+
+  function getActiveDecimalDigitLimit() {
+    if (!STATE || STATE.numberType !== 'decimal') return null;
+    const digits = Math.round(Number(STATE.decimalDigits));
+    if (!Number.isFinite(digits)) return 0;
+    return Math.min(Math.max(digits, 0), 6);
+  }
+
+  function countDecimalDigitsInInput(value) {
+    if (typeof value !== 'string') return 0;
+    const match = value.match(/[.,](\d*)$/);
+    if (!match) return 0;
+    return match[1].length;
+  }
+
+  function formatNumberInputValue(value) {
+    if (!Number.isFinite(value)) return '';
+    const limit = getActiveDecimalDigitLimit();
+    if (limit == null) return String(value);
+    const rounded = roundToDecimalDigits(value, limit);
+    if (limit <= 0) return String(rounded);
+    let str = rounded.toFixed(limit);
+    if (limit > 0) {
+      str = str
+        .replace(/(\.\d*[1-9])0+$/, '$1')
+        .replace(/\.0+$/, '')
+        .replace(/\.$/, '');
+    }
+    return str;
   }
 
   function gcd(a, b) {
@@ -351,8 +394,13 @@
   }
 
   function updateControlsFromState() {
-    if (fromInput) fromInput.value = String(STATE.from);
-    if (toInput) toInput.value = String(STATE.to);
+    const activeElement = typeof document !== 'undefined' ? document.activeElement : null;
+    if (fromInput && activeElement !== fromInput) {
+      fromInput.value = formatNumberInputValue(STATE.from);
+    }
+    if (toInput && activeElement !== toInput) {
+      toInput.value = formatNumberInputValue(STATE.to);
+    }
     if (mainStepInput) mainStepInput.value = String(STATE.mainStep);
     if (subdivisionsInput) subdivisionsInput.value = String(STATE.subdivisions);
     if (numberTypeSelect) numberTypeSelect.value = STATE.numberType;
@@ -421,9 +469,15 @@
     const deltaValue = deltaClientX * activeDragSession.pxToValue;
     if (!Number.isFinite(deltaValue)) return;
 
-    const newFrom = activeDragSession.startFrom - deltaValue;
-    const newTo = activeDragSession.startTo - deltaValue;
+    let newFrom = activeDragSession.startFrom - deltaValue;
+    let newTo = activeDragSession.startTo - deltaValue;
     if (!Number.isFinite(newFrom) || !Number.isFinite(newTo)) return;
+
+    const digitLimit = getActiveDecimalDigitLimit();
+    if (digitLimit != null) {
+      newFrom = roundToDecimalDigits(newFrom, digitLimit);
+      newTo = roundToDecimalDigits(newTo, digitLimit);
+    }
 
     if (STATE.from === newFrom && STATE.to === newTo) return;
     STATE.from = newFrom;
@@ -897,18 +951,38 @@
 
   if (fromInput) {
     fromInput.addEventListener('input', () => {
-      const value = Number(fromInput.value);
-      if (!Number.isFinite(value)) return;
-      STATE.from = value;
+      const rawValue = fromInput.value;
+      const numericValue = Number(rawValue);
+      if (!Number.isFinite(numericValue)) return;
+      let finalValue = numericValue;
+      const digitLimit = getActiveDecimalDigitLimit();
+      if (digitLimit != null) {
+        finalValue = roundToDecimalDigits(numericValue, digitLimit);
+        if (countDecimalDigitsInInput(rawValue) > digitLimit) {
+          const formatted = formatNumberInputValue(finalValue);
+          if (fromInput.value !== formatted) fromInput.value = formatted;
+        }
+      }
+      STATE.from = finalValue;
       render();
     });
   }
 
   if (toInput) {
     toInput.addEventListener('input', () => {
-      const value = Number(toInput.value);
-      if (!Number.isFinite(value)) return;
-      STATE.to = value;
+      const rawValue = toInput.value;
+      const numericValue = Number(rawValue);
+      if (!Number.isFinite(numericValue)) return;
+      let finalValue = numericValue;
+      const digitLimit = getActiveDecimalDigitLimit();
+      if (digitLimit != null) {
+        finalValue = roundToDecimalDigits(numericValue, digitLimit);
+        if (countDecimalDigitsInInput(rawValue) > digitLimit) {
+          const formatted = formatNumberInputValue(finalValue);
+          if (toInput.value !== formatted) toInput.value = formatted;
+        }
+      }
+      STATE.to = finalValue;
       render();
     });
   }
@@ -946,6 +1020,13 @@
       const value = Number(decimalDigitsInput.value);
       if (!Number.isFinite(value)) return;
       STATE.decimalDigits = Math.max(0, Math.min(6, Math.round(value)));
+      if (STATE.numberType === 'decimal') {
+        const digitLimit = getActiveDecimalDigitLimit();
+        if (digitLimit != null) {
+          STATE.from = roundToDecimalDigits(STATE.from, digitLimit);
+          STATE.to = roundToDecimalDigits(STATE.to, digitLimit);
+        }
+      }
       render();
     });
   }
