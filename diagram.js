@@ -259,6 +259,22 @@ function setRowVisibility(row, visible) {
 function updateSettingsVisibilityForType(type) {
   const showAxisSettings = type !== 'pie';
   setRowVisibility(axisAndRangeRow, showAxisSettings);
+  const lockedField = document.getElementById('cfgLocked');
+  const snapField = document.getElementById('cfgSnap');
+  const toleranceField = document.getElementById('cfgTolerance');
+  const answerField = document.getElementById('cfgAnswer');
+  const answerField2 = document.getElementById('cfgAnswer2');
+  const lockedLabel = lockedField ? lockedField.closest('label') : null;
+  const snapLabel = snapField ? snapField.closest('label') : null;
+  const toleranceLabel = toleranceField ? toleranceField.closest('label') : null;
+  const answerLabel = answerField ? answerField.closest('label') : null;
+  const answerLabel2 = answerField2 ? answerField2.closest('label') : null;
+  const showCommonSettings = type !== 'pie';
+  setRowVisibility(lockedLabel, showCommonSettings);
+  setRowVisibility(snapLabel, showCommonSettings);
+  setRowVisibility(toleranceLabel, showCommonSettings);
+  setRowVisibility(answerLabel, showCommonSettings);
+  setRowVisibility(answerLabel2, showCommonSettings);
 }
 // skalaer
 let xBand = 0;
