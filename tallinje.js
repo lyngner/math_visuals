@@ -51,6 +51,8 @@
   }) : null;
   const decimalFormatterCache = new Map();
   const pendingKatexLabels = new Set();
+  const VALID_NUMBER_TYPES = new Set(['integer', 'decimal', 'mixedFraction', 'improperFraction']);
+  const LEGACY_NUMBER_TYPE_MAP = { fraction: 'mixedFraction' };
 
   let altTextManager = null;
   let lastRenderSummary = null;
@@ -90,7 +92,10 @@
     subdivisions = Math.min(Math.max(subdivisions, 0), 20);
 
     let numberType = STATE.numberType;
-    if (numberType !== 'integer' && numberType !== 'decimal' && numberType !== 'fraction') {
+    if (numberType in LEGACY_NUMBER_TYPE_MAP) {
+      numberType = LEGACY_NUMBER_TYPE_MAP[numberType];
+    }
+    if (!VALID_NUMBER_TYPES.has(numberType)) {
       numberType = defaults.numberType;
     }
 
@@ -212,7 +217,8 @@
     };
   }
 
-  function getFractionRenderInfo(value) {
+  function getFractionRenderInfo(value, mode) {
+    const renderMode = mode === 'improperFraction' ? 'improperFraction' : 'mixedFraction';
     const maxDen = Math.pow(10, Math.min(Math.max(STATE.decimalDigits + 2, 1), 6));
     const approx = approximateFraction(value, maxDen);
     if (!approx) {
@@ -230,6 +236,12 @@
     const whole = Math.trunc(absNum / denominator);
     const remainder = absNum % denominator;
     const sign = numerator < 0 ? '-' : '';
+
+    if (renderMode === 'improperFraction') {
+      const fractionText = `${sign}${absNum}⁄${denominator}`;
+      const expression = `${sign}\\frac{${absNum}}{${denominator}}`;
+      return { type: 'katex', text: fractionText, katex: expression };
+    }
 
     if (whole === 0) {
       const fractionText = `${absNum}⁄${denominator}`;
@@ -250,8 +262,8 @@
     return { type: 'katex', text, katex: expression };
   }
 
-  function formatFraction(value) {
-    return getFractionRenderInfo(value).text;
+  function formatFraction(value, mode) {
+    return getFractionRenderInfo(value, mode).text;
   }
 
   function getLabelRenderInfo(value) {
@@ -259,7 +271,10 @@
       case 'decimal':
         return { type: 'text', text: formatDecimal(value, STATE.decimalDigits) };
       case 'fraction':
-        return getFractionRenderInfo(value);
+      case 'mixedFraction':
+        return getFractionRenderInfo(value, 'mixedFraction');
+      case 'improperFraction':
+        return getFractionRenderInfo(value, 'improperFraction');
       case 'integer':
       default: {
         const rounded = Math.round(value);
@@ -725,7 +740,10 @@
       case 'decimal':
         return 'desimaltall';
       case 'fraction':
-        return 'brøker';
+      case 'mixedFraction':
+        return 'blandete tall';
+      case 'improperFraction':
+        return 'uekte brøker';
       default:
         return 'heltall';
     }
@@ -934,8 +952,11 @@
   if (numberTypeSelect) {
     numberTypeSelect.addEventListener('change', () => {
       const value = numberTypeSelect.value;
-      if (value === 'integer' || value === 'decimal' || value === 'fraction') {
+      if (VALID_NUMBER_TYPES.has(value)) {
         STATE.numberType = value;
+        render();
+      } else if (value in LEGACY_NUMBER_TYPE_MAP) {
+        STATE.numberType = LEGACY_NUMBER_TYPE_MAP[value];
         render();
       }
     });
@@ -1047,7 +1068,25 @@
         to: 2,
         mainStep: 0.5,
         subdivisions: 1,
-        numberType: 'fraction',
+        numberType: 'mixedFraction',
+        decimalDigits: 2,
+        labelFontSize: BASE_LABEL_FONT_SIZE,
+        clampToRange: false,
+        lockLine: true,
+        altText: '',
+        altTextSource: 'auto'
+      }
+    }
+  }, {
+    id: 'tallinje-4',
+    exampleNumber: '4',
+    config: {
+      STATE: {
+        from: -1,
+        to: 3,
+        mainStep: 0.75,
+        subdivisions: 2,
+        numberType: 'improperFraction',
         decimalDigits: 2,
         labelFontSize: BASE_LABEL_FONT_SIZE,
         clampToRange: false,
