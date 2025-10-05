@@ -114,6 +114,9 @@
     STATE.clampToRange = Boolean(STATE.clampToRange);
     const lockValue = STATE.lockLine;
     STATE.lockLine = !(lockValue === false || lockValue === 'false' || lockValue === 0);
+    if (STATE.clampToRange) {
+      STATE.lockLine = true;
+    }
     if (typeof STATE.altText !== 'string') STATE.altText = '';
     STATE.altTextSource = STATE.altTextSource === 'manual' ? 'manual' : 'auto';
 
@@ -425,7 +428,10 @@
     }
     if (labelFontSizeInput) labelFontSizeInput.value = String(STATE.labelFontSize);
     if (clampLineInput) clampLineInput.checked = Boolean(STATE.clampToRange);
-    if (lockLineInput) lockLineInput.checked = Boolean(STATE.lockLine);
+    if (lockLineInput) {
+      lockLineInput.checked = Boolean(STATE.lockLine);
+      lockLineInput.disabled = Boolean(STATE.clampToRange);
+    }
     if (svg) {
       const isLocked = Boolean(STATE.lockLine);
       svg.classList.toggle('is-draggable', !isLocked);
@@ -1064,6 +1070,10 @@
   if (clampLineInput) {
     clampLineInput.addEventListener('change', () => {
       STATE.clampToRange = clampLineInput.checked;
+      if (STATE.clampToRange) {
+        if (!STATE.lockLine) stopActiveDrag();
+        STATE.lockLine = true;
+      }
       render();
     });
   }
