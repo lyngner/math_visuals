@@ -335,18 +335,19 @@
 
   function applyKatexToContainer(container, latex, fallbackText) {
     if (!container || typeof latex !== 'string' || !latex) return false;
-    if (!window.katex || typeof window.katex.render !== 'function') return false;
+    if (!window.katex || typeof window.katex.renderToString !== 'function') return false;
 
     try {
       const span = document.createElementNS('http://www.w3.org/1999/xhtml', 'span');
       span.className = 'major-label__katex';
-      container.innerHTML = '';
-      container.appendChild(span);
-      window.katex.render(latex, span, { throwOnError: false });
-      if (span.querySelector('.katex')) {
-        return true;
+      span.innerHTML = window.katex.renderToString(latex, { throwOnError: false });
+      if (!span.querySelector('.katex')) {
+        container.innerHTML = '';
+        throw new Error('Katex rendering failed');
       }
       container.innerHTML = '';
+      container.appendChild(span);
+      return true;
     } catch (err) {
       container.innerHTML = '';
     }
