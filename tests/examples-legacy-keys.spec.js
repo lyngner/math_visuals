@@ -22,6 +22,9 @@ function computeCanonicalKey(pathname) {
   try {
     decoded = decodeURI(path);
   } catch (error) {}
+  if (typeof decoded === 'string') {
+    decoded = decoded.toLowerCase();
+  }
   let encoded = decoded;
   try {
     encoded = encodeURI(decoded);
@@ -36,6 +39,8 @@ function computeCanonicalKey(pathname) {
 const CANONICAL_KEY = computeCanonicalKey(CANONICAL_PATH);
 const LEGACY_DECODED_KEY = 'examples_/brøkfigurer.html';
 const LEGACY_LOWERCASE_KEY = 'examples_/br%c3%b8kfigurer.html';
+const GRAFTEGNER_CANONICAL_KEY = computeCanonicalKey('/graftegner.html');
+const GRAFTEGNER_LEGACY_KEY = 'examples_/Graftegner';
 
 function legacyPayload(description) {
   return JSON.stringify([
@@ -123,5 +128,34 @@ test.describe('legacy example storage keys', () => {
 
     const legacyValue = await page.evaluate(key => window.localStorage.getItem(key), LEGACY_LOWERCASE_KEY);
     expect(legacyValue).toBeNull();
+  });
+
+  test('loads Graftegner examples saved under uppercase path casing', async ({ page }) => {
+    const payload = legacyPayload('Graftegner stor bokstav');
+    await page.addInitScript(([legacyKey, value]) => {
+      window.localStorage.setItem(legacyKey, value);
+    }, [GRAFTEGNER_LEGACY_KEY, payload]);
+
+    await page.goto('/graftegner.html');
+    await page.waitForFunction(key => {
+      const value = window.localStorage.getItem(key);
+      if (!value) return false;
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) && parsed.length > 0;
+      } catch (error) {
+        return false;
+      }
+    }, GRAFTEGNER_CANONICAL_KEY);
+
+    const stored = await page.evaluate(key => JSON.parse(window.localStorage.getItem(key)), GRAFTEGNER_CANONICAL_KEY);
+    expect(stored[0]).toMatchObject({
+      description: 'Graftegner stor bokstav'
+    });
+
+    const legacyValue = await page.evaluate(key => window.localStorage.getItem(key), GRAFTEGNER_LEGACY_KEY);
+    expect(legacyValue).toBeNull();
+
+    await expect(page.locator('#exampleDescription')).toHaveValue('Graftegner stor bokstav');
   });
 });
