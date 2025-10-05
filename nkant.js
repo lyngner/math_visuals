@@ -466,6 +466,7 @@ const rad = d => d * Math.PI / 180;
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const clampCos = x => clamp(x, -1, 1);
 const fmt = n => (Math.round(n * 10) / 10).toString().replace(".", ",");
+const specFmt = n => (Math.round(n * 10) / 10).toString();
 const rand = (min, max) => min + Math.random() * (max - min);
 function deepAssign(target, src) {
   if (!src) return;
@@ -704,14 +705,15 @@ function parseSpec(str) {
   const out = {};
   if (!str) return out;
   str = str.replace(/\bog\b/gi, ',');
-  str.split(/[\s,;\n]+/).forEach(chunk => {
-    const [kRaw, vRaw] = chunk.split("=");
-    if (!kRaw || !vRaw) return;
-    const key = kRaw.trim().replace(/\s+/g, ""); // a,b,c,d,A,B,C,D
-    const v = parseFloat(vRaw.trim().replace(",", "."));
-    if (!isFinite(v)) return;
-    out[key] = v;
-  });
+  const pairRegex = /([abcdABCD])\s*=\s*([-+]?(?:\d+[.,]\d+|\d+|\.[0-9]+))(?:\s*°)?/g;
+  let match;
+  while (match = pairRegex.exec(str)) {
+    const key = match[1].trim();
+    const rawValue = match[2];
+    const value = parseFloat(rawValue.replace(',', '.'));
+    if (!Number.isFinite(value)) continue;
+    out[key] = value;
+  }
   return out;
 }
 function escapeRegExp(str) {
@@ -1253,7 +1255,7 @@ function combineNormalizedText(core, extras) {
 }
 function objToSpec(obj) {
   const order = ["a", "b", "c", "d", "A", "B", "C", "D"];
-  return order.filter(k => k in obj).map(k => `${k}=${fmt(obj[k])}`).join(', ');
+  return order.filter(k => k in obj).map(k => `${k}=${specFmt(obj[k])}`).join(', ');
 }
 function resolveBackendEndpoint() {
   if (typeof window === 'undefined') return null;
