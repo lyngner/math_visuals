@@ -162,7 +162,7 @@ const ADV = {
       needShift: false
     },
     zoom: {
-      enabled: true,
+      enabled: params.has('zoom') ? paramBool('zoom') : true,
       wheel: true,
       needShift: false,
       factorX: 1.2,
@@ -4042,7 +4042,8 @@ function setupSettingsForm() {
   g('cfgLock').checked = params.has('lock') ? paramBool('lock') : true;
   g('cfgAxisX').value = paramStr('xName', 'x');
   g('cfgAxisY').value = paramStr('yName', 'y');
-  g('cfgPan').checked = paramBool('pan');
+  g('cfgZoom').checked = ADV.interactions.zoom.enabled;
+  g('cfgPan').checked = ADV.interactions.pan.enabled;
   g('cfgQ1').checked = paramBool('q1');
   if (showNamesInput) {
     showNamesInput.checked = !!ADV.curveName.showName;
@@ -4095,6 +4096,12 @@ function setupSettingsForm() {
     }
     if ((ADV.axis.labels.y || '') !== axisYValue) {
       ADV.axis.labels.y = axisYValue;
+      needsRebuild = true;
+    }
+    const zoomInput = g('cfgZoom');
+    const zoomChecked = !!(zoomInput && zoomInput.checked);
+    if (ADV.interactions.zoom.enabled !== zoomChecked) {
+      ADV.interactions.zoom.enabled = zoomChecked;
       needsRebuild = true;
     }
     const panInput = g('cfgPan');
@@ -4182,6 +4189,9 @@ function setupSettingsForm() {
     if (lockChecked) p.set('lock', '1');else p.set('lock', '0');
     if (axisXValue && axisXValue !== 'x') p.set('xName', axisXValue);
     if (axisYValue && axisYValue !== 'y') p.set('yName', axisYValue);
+    if (zoomInput) {
+      p.set('zoom', zoomChecked ? '1' : '0');
+    }
     if (panChecked) p.set('pan', '1');
     if (showNamesInput) {
       p.set('showNames', showNamesChecked ? '1' : '0');
