@@ -1990,10 +1990,8 @@ function drawRegularPolygonToGroup(g, rect, spec) {
     const Q = pts[(bestIdx + 1) % count];
     sideLabelText(g, P, Q, sideText, true, ctr, 18);
   }
-  addHaloText(g, ctr.x, ctr.y, `n=${count}`, STYLE.angFS, {
-    "text-anchor": "middle",
-    "dominant-baseline": "middle"
-  });
+  // Previously the number of sides was annotated in the centre of the polygon
+  // (e.g. "n=10"). This visual label is no longer desired, so we omit it.
 }
 
 /* ---------- ORKESTRERING ---------- */
