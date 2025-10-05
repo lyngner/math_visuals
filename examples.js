@@ -309,7 +309,8 @@
       globalScope.__EXAMPLES_STORAGE__ = ensureFallbackStorage();
     }
   }
-  function normalizePathname(pathname) {
+  function normalizePathname(pathname, options) {
+    const preserveCase = !!(options && options.preserveCase);
     if (typeof pathname !== 'string') return '/';
     let path = pathname.trim();
     if (!path) return '/';
@@ -332,14 +333,22 @@
     try {
       decoded = decodeURI(path);
     } catch (_) {}
+    if (!preserveCase && typeof decoded === 'string') {
+      decoded = decoded.toLowerCase();
+    }
     let encoded = decoded;
     try {
       encoded = encodeURI(decoded);
     } catch (_) {
-      encoded = path;
+      if (preserveCase) {
+        encoded = path;
+      } else {
+        encoded = typeof path === 'string' ? path.toLowerCase() : path;
+      }
     }
     if (!encoded) return '/';
-    return encoded.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
+    const normalized = encoded.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
+    return normalized;
   }
   function computeLegacyStorageKeys(rawPath, canonicalPath) {
     const prefix = 'examples_';
@@ -409,6 +418,19 @@
     }
     const canonicalBase = canonicalPath.endsWith('/') ? canonicalPath : `${canonicalPath}/`;
     addPath(canonicalBase + 'index.html');
+    const legacyCanonicalPath = normalizePathname(rawPath, { preserveCase: true });
+    if (legacyCanonicalPath && legacyCanonicalPath !== canonicalPath) {
+      addPath(legacyCanonicalPath);
+      if (legacyCanonicalPath !== '/' && !legacyCanonicalPath.endsWith('/')) {
+        addPath(`${legacyCanonicalPath}/`);
+      }
+      if (legacyCanonicalPath !== '/' && !/\.html?$/i.test(legacyCanonicalPath)) {
+        addPath(`${legacyCanonicalPath}.html`);
+        addPath(`${legacyCanonicalPath}.htm`);
+      }
+      const legacyBase = legacyCanonicalPath.endsWith('/') ? legacyCanonicalPath : `${legacyCanonicalPath}/`;
+      addPath(legacyBase + 'index.html');
+    }
     const keys = [];
     paths.forEach(path => {
       if (!path) return;
