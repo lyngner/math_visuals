@@ -1060,6 +1060,10 @@ function detectPolygonSidesFromText(str) {
 }
 function parsePolygonSpecLine(str) {
   if (!str) return null;
+  const lower = str.toLowerCase();
+  if (/\btrekant/i.test(lower) || /\btriangel/i.test(lower)) {
+    return null;
+  }
   const sidesFromWord = detectPolygonSidesFromText(str);
   const hasKeyword = /mangekant/i.test(str);
   if (!hasKeyword && sidesFromWord == null) return null;
