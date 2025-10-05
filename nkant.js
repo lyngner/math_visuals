@@ -170,10 +170,51 @@ function cloneJobForSummary(job) {
       values[key] = val;
     }
   });
-  return {
+  const decorations = summarizeJobDecorations(job);
+  const result = {
     type: job.type === 'tri' ? 'tri' : 'quad',
     values
   };
+  if (decorations.length) result.decorations = decorations;
+  return result;
+}
+function summarizeJobDecorations(job) {
+  if (!job || typeof job !== 'object' || !Array.isArray(job.decorations)) return [];
+  const type = job.type === 'tri' ? 'tri' : job.type === 'quad' ? 'quad' : null;
+  if (!type) return [];
+  const letters = type === 'tri' ? ['A', 'B', 'C'] : ['A', 'B', 'C', 'D'];
+  const seen = new Set();
+  const out = [];
+  job.decorations.forEach(dec => {
+    if (!dec || typeof dec !== 'object') return;
+    if (dec.type === 'diagonal') {
+      const from = String(dec.from || '').toUpperCase();
+      const to = String(dec.to || '').toUpperCase();
+      if (!letters.includes(from) || !letters.includes(to) || from === to) return;
+      const key = from < to ? `${from}${to}` : `${to}${from}`;
+      const tag = `diag:${key}`;
+      if (seen.has(tag)) return;
+      seen.add(tag);
+      out.push({
+        type: 'diagonal',
+        from: key[0],
+        to: key[1]
+      });
+    } else if (dec.type === 'height') {
+      const resolved = resolveHeightBase(dec, letters);
+      if (!resolved) return;
+      const tag = `height:${resolved.from}:${resolved.base}`;
+      if (seen.has(tag)) return;
+      seen.add(tag);
+      out.push({
+        type: 'height',
+        from: resolved.from,
+        base: resolved.base,
+        implied: Boolean(resolved.implied)
+      });
+    }
+  });
+  return out;
 }
 function buildAngleMarkSummary(entries) {
   if (!Array.isArray(entries)) return {};
@@ -213,6 +254,41 @@ function describeAngleMarks(angleMarks) {
       parts.push(`Vinkel ${otherAngles[0]} er markert.`);
     } else {
       parts.push(`Vinklene ${list} er markert.`);
+    }
+  }
+  return parts.join(' ');
+}
+function describeDecorationsSummary(decorations) {
+  if (!Array.isArray(decorations) || !decorations.length) return '';
+  const diagonals = [];
+  const heights = [];
+  decorations.forEach(dec => {
+    if (!dec || typeof dec !== 'object') return;
+    if (dec.type === 'diagonal' && dec.from && dec.to) {
+      diagonals.push(`${dec.from}${dec.to}`);
+    } else if (dec.type === 'height' && dec.from && dec.base) {
+      heights.push({
+        from: dec.from,
+        base: dec.base
+      });
+    }
+  });
+  const parts = [];
+  if (diagonals.length) {
+    const list = nkantFormatList(diagonals);
+    if (diagonals.length === 1) {
+      parts.push(`Diagonal ${diagonals[0]} er tegnet som stiplet linje.`);
+    } else {
+      parts.push(`Diagonalene ${list} er tegnet som stiplede linjer.`);
+    }
+  }
+  if (heights.length) {
+    const phrases = heights.map(h => `fra ${h.from} til ${h.base}`);
+    const list = nkantFormatList(phrases);
+    if (heights.length === 1) {
+      parts.push(`Høyden ${phrases[0]} er tegnet som stiplet linje.`);
+    } else {
+      parts.push(`Høydene ${list} er tegnet som stiplede linjer.`);
     }
   }
   return parts.join(' ');
@@ -306,6 +382,10 @@ function buildNkantAltText(summary) {
     if (markSentence) {
       sentence += ` ${markSentence}`;
     }
+    const decoSentence = describeDecorationsSummary(job.decorations);
+    if (decoSentence) {
+      sentence += ` ${decoSentence}`;
+    }
     sentences.push(sentence.trim());
   });
   return sentences.join(' ');
@@ -374,7 +454,10 @@ const STYLE = {
   textHaloW: 6,
   sideFS: 26,
   ptFS: 32,
-  angFS: 22
+  angFS: 22,
+  constructionStroke: "#4b5563",
+  constructionWidth: 3,
+  constructionDash: "10 8"
 };
 
 /* ---------- HJELPERE ---------- */
@@ -406,6 +489,17 @@ const mid = (P, Q) => ({
   x: (P.x + Q.x) / 2,
   y: (P.y + Q.y) / 2
 });
+function perpendicularFoot(P, U, V) {
+  const dx = V.x - U.x;
+  const dy = V.y - U.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-9) return { x: U.x, y: U.y };
+  const t = ((P.x - U.x) * dx + (P.y - U.y) * dy) / len2;
+  return {
+    x: U.x + t * dx,
+    y: U.y + t * dy
+  };
+}
 function polygonArea(pts) {
   let s = 0;
   for (let i = 0; i < pts.length; i++) {
@@ -483,6 +577,126 @@ function addHaloText(parent, x, y, txt, fontSizePx, extraAttrs = {}) {
   Object.entries(extraAttrs).forEach(([k, v]) => t.setAttribute(k, String(v)));
   t.textContent = txt;
   return t;
+}
+function drawConstructionLine(g, P, Q) {
+  add(g, "line", {
+    x1: P.x,
+    y1: P.y,
+    x2: Q.x,
+    y2: Q.y,
+    stroke: STYLE.constructionStroke,
+    "stroke-width": STYLE.constructionWidth,
+    "stroke-linecap": "round",
+    "stroke-dasharray": STYLE.constructionDash
+  });
+}
+function drawRightAngleMarker(g, foot, baseDir, altDir) {
+  const baseLen = Math.hypot(baseDir.x, baseDir.y) || 1;
+  const altLen = Math.hypot(altDir.x, altDir.y) || 1;
+  const b = {
+    x: baseDir.x / baseLen,
+    y: baseDir.y / baseLen
+  };
+  const a = {
+    x: altDir.x / altLen,
+    y: altDir.y / altLen
+  };
+  const size = Math.min(12, Math.min(baseLen, altLen) * 0.25);
+  if (!(size > 0)) return;
+  const p1 = {
+    x: foot.x + b.x * size,
+    y: foot.y + b.y * size
+  };
+  const p2 = {
+    x: p1.x + a.x * size,
+    y: p1.y + a.y * size
+  };
+  const p3 = {
+    x: foot.x + a.x * size,
+    y: foot.y + a.y * size
+  };
+  add(g, "polyline", {
+    points: `${foot.x},${foot.y} ${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y}`,
+    fill: "none",
+    stroke: STYLE.constructionStroke,
+    "stroke-width": STYLE.constructionWidth * 0.8,
+    "stroke-linejoin": "round"
+  });
+}
+function resolveHeightBase(dec, availableLetters) {
+  if (!dec || !dec.from) return null;
+  const from = String(dec.from).toUpperCase();
+  const letters = Array.isArray(availableLetters) ? availableLetters.map(l => String(l).toUpperCase()) : [];
+  if (!letters.includes(from)) return null;
+  let baseLetters = '';
+  if (dec.base) {
+    const sanitized = String(dec.base).toUpperCase().replace(/[^A-D]/g, '');
+    if (sanitized.length >= 2) {
+      const first = sanitized[0];
+      const second = sanitized[1];
+      if (letters.includes(first) && letters.includes(second) && first !== second && first !== from && second !== from) {
+        baseLetters = `${first}${second}`;
+      }
+    }
+  }
+  if (!baseLetters && letters.length === 3) {
+    const others = letters.filter(l => l !== from);
+    if (others.length >= 2) {
+      baseLetters = `${others[0]}${others[1]}`;
+    }
+  }
+  if (baseLetters.length !== 2) return null;
+  return {
+    from,
+    base: baseLetters,
+    implied: !dec.base
+  };
+}
+function renderDecorations(g, points, decorations) {
+  if (!Array.isArray(decorations) || !decorations.length) return;
+  const letters = Object.keys(points);
+  const seen = new Set();
+  decorations.forEach(dec => {
+    if (!dec || typeof dec !== 'object') return;
+    if (dec.type === 'diagonal') {
+      const from = String(dec.from || '').toUpperCase();
+      const to = String(dec.to || '').toUpperCase();
+      if (!points[from] || !points[to] || from === to) return;
+      const key = from < to ? `${from}${to}` : `${to}${from}`;
+      const tag = `diag:${key}`;
+      if (seen.has(tag)) return;
+      seen.add(tag);
+      drawConstructionLine(g, points[from], points[to]);
+    } else if (dec.type === 'height') {
+      const resolved = resolveHeightBase(dec, letters);
+      if (!resolved) return;
+      const from = resolved.from;
+      const base = resolved.base;
+      const A = base[0];
+      const B = base[1];
+      const P = points[from];
+      const U = points[A];
+      const V = points[B];
+      if (!P || !U || !V) return;
+      const tag = `height:${from}:${base}`;
+      if (seen.has(tag)) return;
+      seen.add(tag);
+      const foot = perpendicularFoot(P, U, V);
+      if (Math.hypot(P.x - foot.x, P.y - foot.y) < 1e-6) return;
+      drawConstructionLine(g, P, foot);
+      const baseDir = {
+        x: V.x - U.x,
+        y: V.y - U.y
+      };
+      const altDir = {
+        x: P.x - foot.x,
+        y: P.y - foot.y
+      };
+      if (Math.hypot(altDir.x, altDir.y) > 1e-6) {
+        drawRightAngleMarker(g, foot, baseDir, altDir);
+      }
+    }
+  });
 }
 
 /* ---------- PARSE ---------- */
@@ -801,8 +1015,52 @@ function parseCircleSpecLine(str) {
     normalized: str.trim()
   };
 }
+const NKANT_SPELLED_NUMBERS = {
+  tre: 3,
+  fire: 4,
+  fem: 5,
+  seks: 6,
+  sek: 6,
+  sju: 7,
+  syv: 7,
+  åtte: 8,
+  otte: 8,
+  ni: 9,
+  ti: 10,
+  elleve: 11,
+  tolv: 12,
+  tretten: 13,
+  fjorten: 14,
+  femten: 15,
+  seksten: 16,
+  sytten: 17,
+  atten: 18,
+  nitten: 19,
+  tjue: 20
+};
+function detectPolygonSidesFromText(str) {
+  if (!str) return null;
+  const lower = str.toLowerCase();
+  const numMatch = lower.match(/\b(\d+)(?:\s*|-)?kant(?:er)?\b/);
+  if (numMatch) {
+    const value = parseInt(numMatch[1], 10);
+    if (Number.isFinite(value)) return Math.max(3, value);
+  }
+  const wordMatch = lower.match(/\b([a-zæøå]+)(?:\s*|-)?kant(?:er)?\b/);
+  if (wordMatch) {
+    const word = wordMatch[1].replace(/[^a-zæøå]/g, '');
+    if (word) {
+      const mapped = NKANT_SPELLED_NUMBERS[word];
+      if (Number.isFinite(mapped)) return Math.max(3, mapped);
+    }
+  }
+  return null;
+}
 function parsePolygonSpecLine(str) {
-  if (!str || !/mangekant/i.test(str)) return null;
+  if (!str) return null;
+  const sidesFromWord = detectPolygonSidesFromText(str);
+  const hasKeyword = /mangekant/i.test(str);
+  if (!hasKeyword && sidesFromWord == null) return null;
   const dims = parseLabeledSegments(str, [{
     id: 'count',
     keywords: ['sider', 'antall sider', 'kanter'],
@@ -812,7 +1070,7 @@ function parsePolygonSpecLine(str) {
     keywords: ['side', 'kant', 'kantlengde', 'sidekant', 'lengde'],
     defaultLabel: 'a'
   }]);
-  let sides = 5;
+  let sides = sidesFromWord != null ? sidesFromWord : 5;
   if (dims.count) {
     if (Number.isFinite(dims.count.value)) {
       sides = Math.max(3, Math.round(dims.count.value));
@@ -835,9 +1093,11 @@ function parsePolygonSpecLine(str) {
       side: sideEntry
     }
   };
+  const sideText = normalizedDimensionText(sideEntry, 'a');
+  const normalized = sideText ? `mangekant sider: ${sides} side: ${sideText}` : `mangekant sider: ${sides}`;
   return {
     job,
-    normalized: str.trim()
+    normalized
   };
 }
 function parseShapeSpec(str) {
@@ -846,6 +1106,150 @@ function parseShapeSpec(str) {
   const polygon = parsePolygonSpecLine(str);
   if (polygon) return polygon;
   return null;
+}
+function parseDecorationSegment(segment) {
+  const trimmed = segment && segment.trim ? segment.trim() : '';
+  if (!trimmed) {
+    return {
+      handled: true,
+      decorations: [],
+      normalized: []
+    };
+  }
+  if (/^diagonaler?/i.test(trimmed)) {
+    let rest = trimmed.replace(/^diagonaler?/i, '').trim();
+    if (rest.startsWith(':') || rest.startsWith('=')) rest = rest.slice(1).trim();
+    rest = rest.replace(/\bog\b/gi, ',');
+    rest = rest.replace(/[-–—]/g, ' ');
+    const pairs = rest.toUpperCase().match(/[A-D]{2}/g) || [];
+    const seen = new Set();
+    const decorations = [];
+    const normalized = [];
+    pairs.forEach(pair => {
+      if (pair[0] === pair[1]) return;
+      const sorted = pair[0] <= pair[1] ? pair : `${pair[1]}${pair[0]}`;
+      if (seen.has(sorted)) return;
+      seen.add(sorted);
+      decorations.push({
+        type: 'diagonal',
+        from: pair[0],
+        to: pair[1]
+      });
+      normalized.push(`diagonal ${pair}`);
+    });
+    return {
+      handled: true,
+      decorations,
+      normalized
+    };
+  }
+  if (/^høyder?/i.test(trimmed)) {
+    let rest = trimmed.replace(/^høyder?/i, '').trim();
+    if (rest.startsWith(':') || rest.startsWith('=')) rest = rest.slice(1).trim();
+    rest = rest.replace(/\bog\b/gi, ',');
+    const parts = rest.split(/[,;]/).map(p => p.trim()).filter(Boolean);
+    const decorations = [];
+    const normalized = [];
+    parts.forEach(part => {
+      const spec = parseHeightSpec(part);
+      if (!spec) return;
+      decorations.push({
+        type: 'height',
+        from: spec.from,
+        base: spec.base,
+        explicitBase: spec.explicitBase
+      });
+      normalized.push(`høyde ${spec.from}${spec.base ? `/${spec.base}` : ''}`);
+    });
+    return {
+      handled: true,
+      decorations,
+      normalized
+    };
+  }
+  return {
+    handled: false,
+    decorations: [],
+    normalized: []
+  };
+}
+function parseHeightSpec(text) {
+  if (!text) return null;
+  let t = text.trim();
+  if (!t) return null;
+  t = t.replace(/^fra\s+/i, '');
+  t = t.replace(/\s+(?:til|på|mot)\s+/gi, '/');
+  t = t.replace(/[→↦↠→−–—]/g, '/');
+  t = t.replace(/->/g, '/');
+  t = t.replace(/-/g, '/');
+  t = t.replace(/\s*\/\s*/g, '/');
+  t = t.replace(/\s+/g, ' ').trim();
+  const sanitize = (str, maxLetters) => {
+    if (!str) return '';
+    const letters = (str.match(/[A-D]/gi) || []).join('').toUpperCase();
+    return letters.slice(0, maxLetters);
+  };
+  const parts = t.split('/');
+  const left = parts[0] || '';
+  const basePart = parts[1] || '';
+  const leftLetters = sanitize(left, 3);
+  if (!leftLetters) return null;
+  let from = leftLetters.slice(0, 1);
+  let baseLetters = '';
+  let explicitBase = false;
+  if (parts.length >= 2) {
+    baseLetters = sanitize(basePart, 2);
+    explicitBase = baseLetters.length === 2;
+  } else if (leftLetters.length >= 3) {
+    baseLetters = leftLetters.slice(1, 3);
+    explicitBase = baseLetters.length === 2;
+  }
+  if (baseLetters.length !== 2) baseLetters = '';
+  return {
+    from,
+    base: baseLetters || null,
+    explicitBase
+  };
+}
+function extractDecorations(line) {
+  const extras = [];
+  const normalizedExtras = [];
+  if (!line) {
+    return {
+      core: '',
+      extras,
+      normalizedExtras
+    };
+  }
+  const segments = String(line).split(';');
+  const coreSegments = [];
+  segments.forEach(seg => {
+    const trimmed = seg.trim();
+    if (!trimmed) return;
+    const parsed = parseDecorationSegment(trimmed);
+    if (parsed.handled && parsed.decorations.length) {
+      parsed.decorations.forEach(dec => extras.push(dec));
+      parsed.normalized.forEach(norm => {
+        if (norm && !normalizedExtras.includes(norm)) normalizedExtras.push(norm);
+      });
+    } else {
+      coreSegments.push(trimmed);
+    }
+  });
+  const core = coreSegments.join('; ').trim();
+  return {
+    core,
+    extras,
+    normalizedExtras
+  };
+}
+function combineNormalizedText(core, extras) {
+  const base = typeof core === 'string' ? core.trim() : '';
+  const list = Array.isArray(extras) ? extras.filter(item => typeof item === 'string' && item.trim()) : [];
+  if (!list.length) return base;
+  const extrasText = list.join('; ');
+  if (base) return `${base}; ${extrasText}`;
+  return extrasText;
 }
 function objToSpec(obj) {
   const order = ["a", "b", "c", "d", "A", "B", "C", "D"];
@@ -1177,7 +1581,7 @@ function errorBox(g, rect, msg) {
     "font-size": 16
   }).textContent = msg;
 }
-function drawTriangleToGroup(g, rect, spec, adv) {
+function drawTriangleToGroup(g, rect, spec, adv, decorations) {
   var _Cs$1$y, _Cs$, _m$a, _m$b, _m$c, _am$A, _am$B, _am$C;
   const s = typeof spec === 'string' ? parseSpec(spec) : spec;
   const sol = solveTriangle(s);
@@ -1248,6 +1652,11 @@ function drawTriangleToGroup(g, rect, spec, adv) {
     "stroke-linejoin": "round",
     "stroke-linecap": "round"
   });
+  renderDecorations(g, {
+    A,
+    B,
+    C
+  }, decorations);
   const summary = cloneJobForSummary({
     type: 'tri',
     obj: {
@@ -1257,7 +1666,8 @@ function drawTriangleToGroup(g, rect, spec, adv) {
       A: angleAVal,
       B: angleBVal,
       C: angleCVal
-    }
+    },
+    decorations
   });
   if (summary) {
     summary.angleMarks = buildAngleMarkSummary([
@@ -1268,7 +1678,7 @@ function drawTriangleToGroup(g, rect, spec, adv) {
   }
   return summary;
 }
-function drawQuadToGroup(g, rect, spec, adv) {
+function drawQuadToGroup(g, rect, spec, adv, decorations) {
   var _m$a2, _m$b2, _m$c2, _m$d, _am$A2, _am$B2, _am$C2, _am$D;
   const s = typeof spec === 'string' ? parseSpec(spec) : spec;
   let {
@@ -1436,6 +1846,12 @@ function drawQuadToGroup(g, rect, spec, adv) {
     "stroke-linejoin": "round",
     "stroke-linecap": "round"
   });
+  renderDecorations(g, {
+    A,
+    B,
+    C,
+    D
+  }, decorations);
   const summary = cloneJobForSummary({
     type: 'quad',
     obj: {
@@ -1447,7 +1863,8 @@ function drawQuadToGroup(g, rect, spec, adv) {
       B: angleBVal,
       C: angleCVal,
       D: angleDVal
-    }
+    },
+    decorations
   });
   if (summary) {
     summary.angleMarks = buildAngleMarkSummary([
@@ -1591,13 +2008,16 @@ async function collectJobsFromSpecs(text) {
       newLines.push("");
       continue;
     }
-    const special = parseShapeSpec(line);
+    const { core, extras, normalizedExtras } = extractDecorations(line);
+    const baseLine = core || '';
+    const special = parseShapeSpec(baseLine);
     if (special) {
       jobs.push(special.job);
-      newLines.push(special.normalized || line);
+      const normalized = combineNormalizedText(special.normalized || baseLine, normalizedExtras);
+      newLines.push(normalized || (special.normalized || line));
       continue;
     }
-    const obj = await parseSpecAI(line);
+    const obj = await parseSpecAI(baseLine);
     if (Object.keys(obj).length === 0) {
       newLines.push(line);
       continue;
@@ -1605,9 +2025,11 @@ async function collectJobsFromSpecs(text) {
     const isQuad = "d" in obj || "D" in obj;
     jobs.push({
       type: isQuad ? "quad" : "tri",
-      obj
+      obj,
+      decorations: extras
     });
-    newLines.push(objToSpec(obj));
+    const normalized = combineNormalizedText(objToSpec(obj), normalizedExtras);
+    newLines.push(normalized || objToSpec(obj));
   }
   const newText = newLines.join("\n");
   if (newText !== text) {
@@ -1773,9 +2195,9 @@ async function renderCombined() {
     let summaryEntry = null;
     try {
       if (type === "tri") {
-        summaryEntry = drawTriangleToGroup(groups[i], rects[i], obj, adv);
+        summaryEntry = drawTriangleToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations);
       } else if (type === "quad") {
-        summaryEntry = drawQuadToGroup(groups[i], rects[i], obj, adv);
+        summaryEntry = drawQuadToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations);
       } else if (type === "circle") {
         drawCircleToGroup(groups[i], rects[i], obj);
       } else if (type === "polygon") {
