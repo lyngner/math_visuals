@@ -11,6 +11,10 @@
    ========================================================= */
 
 /* ======================= URL-baserte innstillinger ======================= */
+if (typeof Math.log10 !== 'function') {
+  Math.log10 = x => Math.log(x) / Math.LN10;
+}
+
 const params = new URLSearchParams(location.search);
 function paramStr(id, def = '') {
   const v = params.get(id);
@@ -478,7 +482,7 @@ function parseSimple(txt) {
 }
 let SIMPLE_PARSED = parseSimple(SIMPLE);
 applyLinePointStart(SIMPLE_PARSED);
-const ALLOWED_NAMES = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'log', 'ln', 'sqrt', 'exp', 'abs', 'min', 'max', 'floor', 'ceil', 'round', 'pow'];
+const ALLOWED_NAMES = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'log', 'ln', 'lg', 'sqrt', 'exp', 'abs', 'min', 'max', 'floor', 'ceil', 'round', 'pow'];
 function isExplicitRHS(rhs) {
   let s = rhs.toLowerCase();
   for (const k of ALLOWED_NAMES) s = s.replace(new RegExp(`\\b${k}\\b`, 'g'), '');
@@ -523,6 +527,7 @@ function parseFunctionSpec(spec) {
     .replace(/([x\)])\(/g, '$1*(')
     .replace(/x(\d)/g, 'x*$1')
     .replace(/\bln\(/gi, 'log(')
+    .replace(/\blg\(/gi, 'log10(')
     .replace(/\bpi\b/gi, 'PI')
     .replace(/\be\b/gi, 'E')
     .replace(/\btau\b/gi, '(2*PI)')
@@ -657,7 +662,8 @@ function detectVerticalAsymptotes(fn, A, B, N = 1000, huge = ADV.asymptote.hugeY
     const b0 = !Number.isFinite(y0) || Math.abs(y0) > huge;
     const b1 = !Number.isFinite(y1) || Math.abs(y1) > huge;
     const opp = Number.isFinite(y0) && Number.isFinite(y1) ? Math.sign(y0) !== Math.sign(y1) : false;
-    if (b0 && b1 && opp || b0 ^ b1 && midBlow(xL, xR)) cand.push(0.5 * (xL + xR));
+    const midBad = midBlow(xL, xR);
+    if (b0 && b1 && (opp || midBad) || (b0 ^ b1) && midBad) cand.push(0.5 * (xL + xR));
   }
   const merged = [],
     tol = (B - A) / N * 4;
