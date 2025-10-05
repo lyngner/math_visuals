@@ -127,17 +127,32 @@
     .func-fields--first .func-row label{ width:100%; }
     .func-row--gliders label{ justify-self:start; }
     .func-row--gliders{
-      display:grid;
+      display:flex;
+      flex-wrap:wrap;
       gap:12px;
-      grid-template-columns:repeat(3,minmax(120px,1fr));
-      align-items:end;
+      align-items:flex-end;
+    }
+    .func-row--gliders label.points{
+      flex:1 1 120px;
+      max-width:220px;
     }
     .func-row--gliders .linepoints-row{
-      display:contents;
+      display:flex;
+      flex:2 1 260px;
+      gap:12px;
+      flex-wrap:wrap;
+      align-items:flex-end;
     }
-    .func-row--gliders label.points,
+    .func-row--gliders .linepoints-row label.linepoint{
+      flex:1 1 120px;
+      max-width:100%;
+    }
     .func-row--gliders label.linepoint{
       max-width:100%;
+    }
+    .func-row--gliders label.startx-label{
+      flex-basis:100%;
+      max-width:180px;
     }
     .func-row--gliders label.points select{
       width:100%;
