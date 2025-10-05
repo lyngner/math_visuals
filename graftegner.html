@@ -10,61 +10,20 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mathlive/dist/mathlive-static.css" />
 
   <link rel="stylesheet" href="base.css" />
-  <style data-base-theme>
-    :root {
-      --surface-bg: #f7f8fb;
-      --text-color: #111827;
-      --control-radius: 10px;
-    }
-    body {
-      margin: 0;
-      background: var(--surface-bg);
-      color: var(--text-color);
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      padding: 20px;
-    }
-    .btn {
-      appearance: none;
-      border: 1px solid #d1d5db;
-      background: #fff;
-      border-radius: var(--control-radius);
-      padding: 8px 12px;
-      font-size: 14px;
-      cursor: pointer;
-      transition: box-shadow 0.2s, transform 0.02s;
-      font-family: inherit;
-      color: inherit;
-    }
-    .btn:hover {
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-    }
-    .btn:active {
-      transform: translateY(1px);
-    }
-  </style>
+  
 
 <style>
-    :root { --gap: 18px; }
-    html,body { height: 100%; }
+    :root { --grid-side-width: 420px; }
     html { scroll-behavior: smooth; }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
     }
-    body{
-      margin:0; padding:20px; background:#f7f8fb;
-      font-family:system-ui,-apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif; color:#111827;
-    }
-    .wrap{ max-width:1200px; margin:0 auto; }
-    .grid{ display:grid; gap:var(--gap); grid-template-columns:1fr 420px; align-items:start; }
-    .side{ display:flex; flex-direction:column; gap:var(--gap); }
     @media (max-width:980px){ .grid{ grid-template-columns:1fr; } }
-    .card{ background:#fff; border:1px solid #e5e7eb; border-radius:14px; box-shadow:0 1px 2px rgba(0,0,0,.04); padding:14px; display:flex; flex-direction:column; gap:10px; }
-    .card h2{ margin:0 0 6px 2px; font-size:16px; font-weight:600; color:#374151; }
     .figure{ border-radius:10px; background:#fafbfc; overflow:hidden; border:1px solid #eef0f3; }
     #board{ width:100%; height:560px; background:#fff; }
-    .toolbar{ display:flex; gap:12px; flex-wrap:wrap; justify-content:flex-start; align-items:center; }
+    .toolbar{ gap:12px; justify-content:flex-start; }
     #toolbar{ justify-content:space-between; }
-    .btn{ appearance:none; cursor:pointer; padding:8px 14px; border-radius:10px; border:1px solid #d1d5db; background:#fff; }
+    .btn{ padding:8px 14px; }
     .mobile-nav{ display:none; gap:12px; margin-top:12px; flex-wrap:wrap; }
     .mobile-nav .btn{ flex:1 1 160px; text-align:center; text-decoration:none; display:flex; justify-content:center; align-items:center; }
     .mobile-nav .btn:link,
@@ -75,8 +34,8 @@
     .status--err{ color:#b91c1c; background:#fef2f2; border-color:#fecaca; }
     .status--info{ color:#1f2937; background:#f3f4f6; border-color:#e5e7eb; }
     .settings{ display:flex; flex-direction:column; gap:8px; }
-    .settings label{ display:flex; flex-direction:column; gap:6px; font-size:13px; color:#4b5563; white-space:normal; }
-    .settings input[type="text"], .settings input[type="number"], .settings select{ padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; font-size:14px; background:#fff; width:100%; }
+    .settings label{ white-space:normal; }
+    .settings input[type="text"], .settings input[type="number"], .settings select{ width:100%; }
     .function-controls{ display:flex; flex-direction:column; gap:16px; align-items:stretch; }
     .func-actions{ display:flex; gap:12px; align-items:center; justify-content:space-between; }
     .func-actions .btn{ flex:1; min-height:42px; }

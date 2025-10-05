@@ -8,6 +8,7 @@
   --card-border: #e5e7eb;
   --card-radius: 14px;
   --control-radius: 10px;
+  --grid-side-width: 360px;
 }
 
 html,
@@ -26,12 +27,22 @@ body {
 .wrap {
   max-width: 1200px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
 }
 
 .grid {
   display: grid;
   gap: var(--gap);
   align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--grid-side-width));
+}
+
+@media (max-width: 980px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .side {
@@ -103,6 +114,9 @@ body {
 label {
   font-size: 13px;
   color: var(--label-color);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 textarea,
