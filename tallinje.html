@@ -16,6 +16,8 @@
       border: 1px solid #eef0f3;
     }
     .figure svg { width: 100%; height: 320px; display: block; }
+    .figure svg.is-draggable { cursor: grab; touch-action: none; }
+    .figure svg.is-draggable.is-dragging { cursor: grabbing; }
     input[type="number"], select {
       width: 100%;
       box-sizing: border-box;
@@ -133,6 +135,10 @@
           <label class="checkbox-field">
             <input id="cfg-clampLine" type="checkbox" />
             Stopp tallinjen ved start- og sluttpunktet
+          </label>
+          <label class="checkbox-field">
+            <input id="cfg-lockLine" type="checkbox" />
+            Lås tallinje
           </label>
         </div>
 
