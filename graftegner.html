@@ -13,12 +13,11 @@
   
 
 <style>
-    :root { --grid-side-width: 420px; }
+    :root { --sidebar-width: 420px; }
     html { scroll-behavior: smooth; }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
     }
-    @media (max-width:980px){ .grid{ grid-template-columns:1fr; } }
     .figure{ border-radius:10px; background:#fafbfc; overflow:hidden; border:1px solid #eef0f3; }
     #board{ width:100%; height:560px; background:#fff; }
     .toolbar{ gap:12px; justify-content:flex-start; }
@@ -209,7 +208,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card">
         <div class="figure">
           <div id="board" aria-label="JSXGraph-tavle"></div>

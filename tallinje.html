@@ -8,7 +8,7 @@
   
 
 <style>
-    :root { --grid-side-width: 420px; }
+    :root { --sidebar-width: 420px; }
     .figure {
       border-radius: 12px;
       background: #fafbfc;
@@ -22,7 +22,7 @@
     }
     input[type="number"]:disabled { background: #f3f4f6; color: #9ca3af; }
     .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } .field-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 600px) { .field-grid { grid-template-columns: 1fr; } }
     .hint {
       margin: 4px 2px 0;
       font-size: 12px;
@@ -75,7 +75,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card">
         <div class="figure">
           <svg id="numberLineSvg" viewBox="0 0 1000 260" preserveAspectRatio="xMidYMid meet" aria-label=""></svg>

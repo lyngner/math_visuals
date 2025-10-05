@@ -12,9 +12,9 @@
     :root {
       --tb-stepper-gap: 0px;
       --tb-stepper-spacing: 6px;
-      --grid-side-width: 420px;
+      --sidebar-width: 420px;
+      --sidebar-min-width: 320px;
     }
-    .grid{grid-template-columns:minmax(0,1fr) minmax(320px,var(--grid-side-width));}
     /* Figur */
     .tb-board{
       position:relative;
@@ -152,7 +152,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card">
         <div id="tbBoard" class="tb-board">
           <div id="tbGrid" class="tb-grid" data-cols="1"></div>

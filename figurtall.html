@@ -9,8 +9,7 @@
   
 
 <style>
-    :root { --card-min:240px; --grid-side-width: clamp(260px,32vw,360px); }
-    .grid{grid-template-columns:minmax(0,1fr) var(--grid-side-width);}
+    :root { --card-min:240px; --sidebar-width: clamp(260px,32vw,360px); }
     .grid2{
       --panel-min:clamp(200px,22vw,260px);
       display:grid;
@@ -128,7 +127,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card">
         <div id="figureContainer" class="grid2">
           <button id="addFigure" class="addFigureBtn" type="button" aria-label="Legg til figur">+</button>
