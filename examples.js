@@ -359,6 +359,22 @@
       const trimmed = candidate.trim();
       if (!trimmed) return;
       paths.add(trimmed);
+      try {
+        const parts = trimmed.split('/');
+        const capitalizedParts = parts.map((segment, idx) => {
+          if (!segment) return segment;
+          if (idx === 0 && segment === '') return segment;
+          const first = segment.charAt(0);
+          if (!first) return segment;
+          const upper = first.toLocaleUpperCase('nb-NO');
+          if (upper === first) return segment;
+          return upper + segment.slice(1);
+        });
+        const capitalized = capitalizedParts.join('/');
+        if (capitalized && capitalized !== trimmed) {
+          paths.add(capitalized);
+        }
+      } catch (_) {}
       const upperEncoded = trimmed.replace(/%[0-9a-fA-F]{2}/g, match => match.toUpperCase());
       if (upperEncoded && upperEncoded !== trimmed) {
         paths.add(upperEncoded);
