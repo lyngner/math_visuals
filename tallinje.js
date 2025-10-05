@@ -457,7 +457,15 @@
   }
 
   function extendMajorValues(values, options) {
-    const { clampToRange, mainStep, mapValue, baseLineStartX, baseLineEndX } = options || {};
+    const {
+      clampToRange,
+      mainStep,
+      mapValue,
+      baseLineStartX,
+      baseLineEndX,
+      axisStartValue,
+      axisEndValue
+    } = options || {};
     const result = Array.isArray(values) ? values.slice() : [];
     if (clampToRange || !result.length) return result;
     const spacing = Math.abs(mainStep);
@@ -472,6 +480,7 @@
       const x = mapValue(value);
       if (!Number.isFinite(x) || x < baseLineStartX - pxTolerance) break;
       const rounded = Math.round(value * roundingFactor) / roundingFactor;
+      if (Number.isFinite(axisStartValue) && rounded < axisStartValue - epsilon) break;
       if (!result.some(existing => Math.abs(existing - rounded) <= epsilon)) {
         result.unshift(rounded);
       }
@@ -485,6 +494,7 @@
       const x = mapValue(value);
       if (!Number.isFinite(x) || x > baseLineEndX + pxTolerance) break;
       const rounded = Math.round(value * roundingFactor) / roundingFactor;
+      if (Number.isFinite(axisEndValue) && rounded > axisEndValue + epsilon) break;
       if (!result.some(existing => Math.abs(existing - rounded) <= epsilon)) {
         result.push(rounded);
       }
@@ -515,7 +525,9 @@
       mainStep,
       mapValue: geometry.mapValue,
       baseLineStartX: geometry.baseLineStartX,
-      baseLineEndX: geometry.baseLineEndX
+      baseLineEndX: geometry.baseLineEndX,
+      axisStartValue: geometry.axisStartValue,
+      axisEndValue: geometry.axisEndValue
     });
 
     while (svg.firstChild) {
@@ -671,7 +683,9 @@
           mainStep: STATE.mainStep,
           mapValue: fallbackGeometry.mapValue,
           baseLineStartX: fallbackGeometry.baseLineStartX,
-          baseLineEndX: fallbackGeometry.baseLineEndX
+          baseLineEndX: fallbackGeometry.baseLineEndX,
+          axisStartValue: fallbackGeometry.axisStartValue,
+          axisEndValue: fallbackGeometry.axisEndValue
         }
       )
     };
