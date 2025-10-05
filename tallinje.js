@@ -19,6 +19,12 @@
   window.STATE = STATE;
 
   const BASE_LABEL_FONT_SIZE = 18;
+  const FIGURE_WIDTH = 1000;
+  const PADDING_LEFT = 80;
+  const PADDING_RIGHT = 80;
+  const BASELINE_Y = 140;
+  const MINOR_TICK_HEIGHT = 9;
+  const MAJOR_TICK_HEIGHT = MINOR_TICK_HEIGHT;
 
   const DEFAULT_STATE = {
     from: -0.4,
@@ -423,6 +429,70 @@
     return 1;
   }
 
+  function getAxisGeometry(from, to, margin, clampToRange) {
+    const domainMin = clampToRange ? from : from - margin;
+    const domainMax = clampToRange ? to : to + margin;
+    const innerWidth = FIGURE_WIDTH - PADDING_LEFT - PADDING_RIGHT;
+    const mapValue = value => {
+      if (domainMax === domainMin) return PADDING_LEFT + innerWidth / 2;
+      const ratio = (value - domainMin) / (domainMax - domainMin);
+      return PADDING_LEFT + ratio * innerWidth;
+    };
+    const axisStartValue = clampToRange ? from : domainMin;
+    const axisEndValue = clampToRange ? to : domainMax;
+    const baseLineStartX = clampToRange ? mapValue(axisStartValue) : 0;
+    const baseLineEndX = clampToRange ? mapValue(axisEndValue) : FIGURE_WIDTH;
+    return {
+      domainMin,
+      domainMax,
+      innerWidth,
+      mapValue,
+      axisStartValue,
+      axisEndValue,
+      baseLineStartX,
+      baseLineEndX
+    };
+  }
+
+  function extendMajorValues(values, options) {
+    const { clampToRange, mainStep, mapValue, baseLineStartX, baseLineEndX } = options || {};
+    const result = Array.isArray(values) ? values.slice() : [];
+    if (clampToRange || !result.length) return result;
+    const spacing = Math.abs(mainStep);
+    if (!(spacing > 1e-9)) return result;
+    const epsilon = Math.max(spacing * 1e-7, 1e-9);
+    const pxTolerance = 0.5;
+    const roundingFactor = 1e9;
+
+    let iterations = 0;
+    let value = result[0] - spacing;
+    while (iterations < 10000) {
+      const x = mapValue(value);
+      if (!Number.isFinite(x) || x < baseLineStartX - pxTolerance) break;
+      const rounded = Math.round(value * roundingFactor) / roundingFactor;
+      if (!result.some(existing => Math.abs(existing - rounded) <= epsilon)) {
+        result.unshift(rounded);
+      }
+      value -= spacing;
+      iterations++;
+    }
+
+    iterations = 0;
+    value = result[result.length - 1] + spacing;
+    while (iterations < 10000) {
+      const x = mapValue(value);
+      if (!Number.isFinite(x) || x > baseLineEndX + pxTolerance) break;
+      const rounded = Math.round(value * roundingFactor) / roundingFactor;
+      if (!result.some(existing => Math.abs(existing - rounded) <= epsilon)) {
+        result.push(rounded);
+      }
+      value += spacing;
+      iterations++;
+    }
+
+    return result;
+  }
+
   function render() {
     ensureStateDefaults();
     updateControlsFromState();
@@ -430,38 +500,32 @@
     const { from, to, mainStep, subdivisions } = STATE;
     const clampToRange = Boolean(STATE.clampToRange);
     const margin = computeRangeMargin(from, to, mainStep, subdivisions, clampToRange);
-    const majorValues = computeMajorValues(from, to, Math.max(mainStep, 1e-9), margin);
+    const geometry = getAxisGeometry(from, to, margin, clampToRange);
+    const baseMajorValues = computeMajorValues(from, to, Math.max(mainStep, 1e-9), margin);
+    const majorValues = extendMajorValues(baseMajorValues, {
+      clampToRange,
+      mainStep,
+      mapValue: geometry.mapValue,
+      baseLineStartX: geometry.baseLineStartX,
+      baseLineEndX: geometry.baseLineEndX
+    });
 
     while (svg.firstChild) {
       svg.removeChild(svg.firstChild);
     }
     pendingKatexLabels.clear();
 
-    const paddingLeft = 80;
-    const paddingRight = 80;
-    const width = 1000;
-    const baselineY = 140;
-    const minorTickHeight = 9;
-    const majorTickHeight = minorTickHeight;
+    const width = FIGURE_WIDTH;
+    const baselineY = BASELINE_Y;
+    const minorTickHeight = MINOR_TICK_HEIGHT;
+    const majorTickHeight = MAJOR_TICK_HEIGHT;
     const labelOffset = 52 + (STATE.labelFontSize - BASE_LABEL_FONT_SIZE) * 1.2;
 
-    const domainMin = clampToRange ? from : from - margin;
-    const domainMax = clampToRange ? to : to + margin;
-    const innerWidth = width - paddingLeft - paddingRight;
-
-    const mapValue = value => {
-      if (domainMax === domainMin) return paddingLeft + innerWidth / 2;
-      const ratio = (value - domainMin) / (domainMax - domainMin);
-      return paddingLeft + ratio * innerWidth;
-    };
+    const { mapValue, axisStartValue, axisEndValue, baseLineStartX, baseLineEndX } = geometry;
 
     const axisGroup = mk('g');
     svg.appendChild(axisGroup);
 
-    const axisStartValue = clampToRange ? from : domainMin;
-    const axisEndValue = clampToRange ? to : domainMax;
-    const baseLineStartX = clampToRange ? mapValue(axisStartValue) : 0;
-    const baseLineEndX = clampToRange ? mapValue(axisEndValue) : width;
     axisGroup.appendChild(mk('line', {
       x1: baseLineStartX,
       y1: baselineY,
@@ -573,6 +637,12 @@
       STATE.subdivisions,
       clampSetting
     );
+    const fallbackGeometry = getAxisGeometry(
+      STATE.from,
+      STATE.to,
+      margin,
+      clampSetting
+    );
     const summary = lastRenderSummary || {
       from: STATE.from,
       to: STATE.to,
@@ -580,11 +650,20 @@
       subdivisions: STATE.subdivisions,
       clampToRange: clampSetting,
       margin,
-      majorValues: computeMajorValues(
-        STATE.from,
-        STATE.to,
-        Math.max(STATE.mainStep, 1e-9),
-        margin
+      majorValues: extendMajorValues(
+        computeMajorValues(
+          STATE.from,
+          STATE.to,
+          Math.max(STATE.mainStep, 1e-9),
+          margin
+        ),
+        {
+          clampToRange: clampSetting,
+          mainStep: STATE.mainStep,
+          mapValue: fallbackGeometry.mapValue,
+          baseLineStartX: fallbackGeometry.baseLineStartX,
+          baseLineEndX: fallbackGeometry.baseLineEndX
+        }
       )
     };
     if (!summary || !Array.isArray(summary.majorValues) || !summary.majorValues.length) {
