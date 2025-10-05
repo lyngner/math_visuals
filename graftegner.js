@@ -3091,7 +3091,6 @@ function setupSettingsForm() {
   const showBracketsInput = g('cfgShowBrackets');
   const forceTicksInput = g('cfgForceTicks');
   const snapCheckbox = g('cfgSnap');
-  const drawButtonSelector = '[data-action="draw"]';
   let gliderSection = null;
   let gliderCountInput = null;
   let gliderStartInput = null;
@@ -3823,9 +3822,6 @@ function setupSettingsForm() {
     row.className = 'func-group';
     row.dataset.index = String(index);
     const titleLabel = index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index;
-    const drawButtonHtml = `
-      <button type="button" class="btn btn--inline-draw func-draw" data-action="draw" data-draw-index="${index}" aria-label="Tegn graf for funksjon ${index}">Tegn graf</button>
-    `;
     if (index === 1) {
       row.innerHTML = `
         <fieldset>
@@ -3871,7 +3867,6 @@ function setupSettingsForm() {
             </div>
           </div>
         </fieldset>
-        ${drawButtonHtml}
       `;
     } else {
       row.innerHTML = `
@@ -3894,7 +3889,6 @@ function setupSettingsForm() {
             </div>
           </div>
         </fieldset>
-        ${drawButtonHtml}
       `;
     }
     if (funcRows) {
@@ -4259,11 +4253,5 @@ function setupSettingsForm() {
   root.addEventListener('change', apply);
   root.addEventListener('keydown', e => {
     if (e.key === 'Enter') apply();
-  });
-  root.addEventListener('click', event => {
-    const trigger = event.target.closest(drawButtonSelector);
-    if (!trigger) return;
-    event.preventDefault();
-    apply();
   });
 }
