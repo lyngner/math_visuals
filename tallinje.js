@@ -13,6 +13,7 @@
   const btnSvg = document.getElementById('btnSvg');
   const btnPng = document.getElementById('btnPng');
   const clampLineInput = document.getElementById('cfg-clampLine');
+  const lockLineInput = document.getElementById('cfg-lockLine');
   const exportCard = document.getElementById('exportCard');
 
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
@@ -35,6 +36,7 @@
     decimalDigits: 1,
     labelFontSize: BASE_LABEL_FONT_SIZE,
     clampToRange: true,
+    lockLine: true,
     altText: '',
     altTextSource: 'auto'
   };
@@ -52,6 +54,8 @@
 
   let altTextManager = null;
   let lastRenderSummary = null;
+  let currentGeometry = null;
+  let activeDragSession = null;
 
   function cloneState(source) {
     return JSON.parse(JSON.stringify(source));
@@ -103,6 +107,8 @@
     labelFontSize = Math.min(Math.max(labelFontSize, 8), 72);
 
     STATE.clampToRange = Boolean(STATE.clampToRange);
+    const lockValue = STATE.lockLine;
+    STATE.lockLine = !(lockValue === false || lockValue === 'false' || lockValue === 0);
     if (typeof STATE.altText !== 'string') STATE.altText = '';
     STATE.altTextSource = STATE.altTextSource === 'manual' ? 'manual' : 'auto';
 
@@ -356,6 +362,80 @@
     }
     if (labelFontSizeInput) labelFontSizeInput.value = String(STATE.labelFontSize);
     if (clampLineInput) clampLineInput.checked = Boolean(STATE.clampToRange);
+    if (lockLineInput) lockLineInput.checked = Boolean(STATE.lockLine);
+    if (svg) {
+      const isLocked = Boolean(STATE.lockLine);
+      svg.classList.toggle('is-draggable', !isLocked);
+      if (isLocked) {
+        svg.classList.remove('is-dragging');
+      }
+    }
+  }
+
+  function stopActiveDrag() {
+    if (!activeDragSession) return;
+    try {
+      if (svg) svg.releasePointerCapture(activeDragSession.pointerId);
+    } catch (err) {
+      // ignore
+    }
+    if (svg) {
+      svg.classList.remove('is-dragging');
+    }
+    activeDragSession = null;
+  }
+
+  function handlePointerDown(event) {
+    if (!svg || STATE.lockLine) return;
+    if (event.button != null && event.button !== 0) return;
+    const geometry = currentGeometry;
+    if (!geometry) return;
+    const rect = svg.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return;
+    const domainSpan = geometry.domainMax - geometry.domainMin;
+    if (!Number.isFinite(domainSpan) || !(geometry.innerWidth > 0)) return;
+    const pxToValue = (domainSpan / geometry.innerWidth) * (FIGURE_WIDTH / rect.width);
+    if (!Number.isFinite(pxToValue) || pxToValue === 0) return;
+
+    stopActiveDrag();
+    activeDragSession = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startFrom: STATE.from,
+      startTo: STATE.to,
+      pxToValue
+    };
+
+    svg.classList.add('is-dragging');
+    try {
+      svg.setPointerCapture(event.pointerId);
+    } catch (err) {
+      // ignore
+    }
+    if (typeof event.preventDefault === 'function') event.preventDefault();
+  }
+
+  function handlePointerMove(event) {
+    if (!activeDragSession || event.pointerId !== activeDragSession.pointerId) return;
+    const deltaClientX = event.clientX - activeDragSession.startClientX;
+    const deltaValue = deltaClientX * activeDragSession.pxToValue;
+    if (!Number.isFinite(deltaValue)) return;
+
+    const newFrom = activeDragSession.startFrom + deltaValue;
+    const newTo = activeDragSession.startTo + deltaValue;
+    if (!Number.isFinite(newFrom) || !Number.isFinite(newTo)) return;
+
+    if (STATE.from === newFrom && STATE.to === newTo) return;
+    STATE.from = newFrom;
+    STATE.to = newTo;
+    render();
+    if (typeof event.preventDefault === 'function') event.preventDefault();
+  }
+
+  function handlePointerEnd(event) {
+    if (!activeDragSession || event.pointerId !== activeDragSession.pointerId) return;
+    stopActiveDrag();
+    if (typeof event.preventDefault === 'function') event.preventDefault();
   }
 
   function mk(name, attrs) {
@@ -513,6 +593,7 @@
     const clampToRange = Boolean(STATE.clampToRange);
     const margin = computeRangeMargin(from, to, mainStep, subdivisions, clampToRange);
     const geometry = getAxisGeometry(from, to, margin, clampToRange);
+    currentGeometry = geometry;
     const baseMajorValues = computeMajorValues(
       from,
       to,
@@ -883,6 +964,22 @@
     });
   }
 
+  if (lockLineInput) {
+    lockLineInput.addEventListener('change', () => {
+      STATE.lockLine = lockLineInput.checked;
+      if (STATE.lockLine) stopActiveDrag();
+      render();
+    });
+  }
+
+  if (svg) {
+    svg.addEventListener('pointerdown', handlePointerDown);
+    svg.addEventListener('pointermove', handlePointerMove);
+    svg.addEventListener('pointerup', handlePointerEnd);
+    svg.addEventListener('pointercancel', handlePointerEnd);
+    svg.addEventListener('lostpointercapture', stopActiveDrag);
+  }
+
   if (btnSvg) {
     btnSvg.addEventListener('click', () => downloadSVG(svg, 'tallinje.svg'));
   }
@@ -916,6 +1013,7 @@
         decimalDigits: 1,
         labelFontSize: BASE_LABEL_FONT_SIZE,
         clampToRange: true,
+        lockLine: true,
         altText: '',
         altTextSource: 'auto'
       }
@@ -933,6 +1031,7 @@
         decimalDigits: 1,
         labelFontSize: BASE_LABEL_FONT_SIZE,
         clampToRange: false,
+        lockLine: true,
         altText: '',
         altTextSource: 'auto'
       }
@@ -950,6 +1049,7 @@
         decimalDigits: 2,
         labelFontSize: BASE_LABEL_FONT_SIZE,
         clampToRange: false,
+        lockLine: true,
         altText: '',
         altTextSource: 'auto'
       }
