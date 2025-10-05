@@ -24,7 +24,7 @@
   const PADDING_RIGHT = 80;
   const BASELINE_Y = 140;
   const MINOR_TICK_HEIGHT = 9;
-  const MAJOR_TICK_HEIGHT = MINOR_TICK_HEIGHT;
+  const MAJOR_TICK_HEIGHT = 18;
 
   const DEFAULT_STATE = {
     from: -0.4,
@@ -373,7 +373,7 @@
     return el;
   }
 
-  function computeMajorValues(from, to, step, margin = 0) {
+  function computeMajorValues(from, to, step, margin = 0, includeRangeEndpoints = true) {
     const values = [];
     const stepAbs = Math.abs(step);
     const epsilon = Math.max(stepAbs * 1e-7, 1e-9);
@@ -401,8 +401,10 @@
       }
     };
 
-    addValue(from);
-    addValue(to);
+    if (includeRangeEndpoints) {
+      addValue(from);
+      addValue(to);
+    }
 
     values.sort((a, b) => a - b);
     const unique = [];
@@ -501,7 +503,13 @@
     const clampToRange = Boolean(STATE.clampToRange);
     const margin = computeRangeMargin(from, to, mainStep, subdivisions, clampToRange);
     const geometry = getAxisGeometry(from, to, margin, clampToRange);
-    const baseMajorValues = computeMajorValues(from, to, Math.max(mainStep, 1e-9), margin);
+    const baseMajorValues = computeMajorValues(
+      from,
+      to,
+      Math.max(mainStep, 1e-9),
+      margin,
+      clampToRange
+    );
     const majorValues = extendMajorValues(baseMajorValues, {
       clampToRange,
       mainStep,
@@ -655,7 +663,8 @@
           STATE.from,
           STATE.to,
           Math.max(STATE.mainStep, 1e-9),
-          margin
+          margin,
+          clampSetting
         ),
         {
           clampToRange: clampSetting,
