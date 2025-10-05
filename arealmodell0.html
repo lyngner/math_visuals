@@ -9,7 +9,6 @@
   
 
 <style>
-    :root { --grid-side-width: 360px; }
     #box{width:clamp(280px,60vw,460px);aspect-ratio:1;margin:0 auto;position:relative;}
     .pairs-list{position:absolute;top:10px;right:10px;display:flex;gap:1.2em;text-align:right;pointer-events:none;font-size:16px;line-height:1.2;}
     .pairs-list .col{display:flex;flex-direction:column;gap:4px;}
@@ -25,7 +24,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card">
         <div id="box" class="jxgbox" aria-label="Arealmodell rektangel"></div>
         <div class="toolbar">

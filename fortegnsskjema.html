@@ -10,10 +10,7 @@
   
 
 <style>
-    :root { --grid-side-width: 380px; }
-    @media (max-width: 1000px) {
-      .grid { grid-template-columns: 1fr; }
-    }
+    :root { --sidebar-width: 380px; }
     .card { padding: 16px; gap: 16px; }
     .card h1 {
       margin: 0;
@@ -359,7 +356,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card">
         <div class="figure">
           <div id="chartExpression" class="chart-expression chart-expression--empty" aria-hidden="true"></div>

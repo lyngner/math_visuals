@@ -8,9 +8,7 @@
   
 
 <style>
-    :root { --grid-side-width: 360px; }
     .wrap{max-width:1400px;}
-    .grid{grid-template-columns:1fr var(--grid-side-width);}
     .figureGrid{
       --figure-columns:1;
       display:grid;
@@ -29,7 +27,6 @@
     .figurePanel .btn{align-self:center;}
     .removeFigureBtn[disabled]{opacity:0.5;cursor:not-allowed;}
     .addFigureBtn{width:clamp(36px,8vw,56px);aspect-ratio:1;border:2px dashed #cfcfcf;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;color:#6b7280;cursor:pointer;justify-self:center;align-self:center;}
-    @media(max-width:980px){.grid{grid-template-columns:1fr;}}
     @media(max-width:720px){.figureGrid{--figure-columns:1;justify-items:center;}.figurePanel{max-width:100%;}.figure{max-width:100%;}.addFigureBtn{width:clamp(36px,14vw,60px);}}
     .card{gap:10px;}
     .figure{border-radius:10px;background:#fff;overflow:hidden;border:1px solid #eef0f3;width:100%;max-width:680px;margin:0 auto;}
@@ -55,7 +52,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card">
         <div class="figureGrid">
           <div id="panel1" class="figurePanel">

@@ -6,8 +6,6 @@
   <title>Arealmodell</title>
   <link rel="stylesheet" href="base.css" />
 <style>
-    .grid { grid-template-columns: 1fr 360px; }
-    @media (max-width:980px){ .grid { grid-template-columns: 1fr; } }
     .card.card--canvas { position: relative; }
     .area-container { position: relative; }
     svg { width: 100%; height: auto; background: #fff; display: block; }
@@ -37,7 +35,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="grid">
+    <div class="grid layout--sidebar">
       <div class="card card--canvas">
         <div class="area-container">
           <svg id="area" preserveAspectRatio="xMidYMid meet" aria-label="Arealmodell"></svg>
