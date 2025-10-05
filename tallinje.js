@@ -421,8 +421,8 @@
     const deltaValue = deltaClientX * activeDragSession.pxToValue;
     if (!Number.isFinite(deltaValue)) return;
 
-    const newFrom = activeDragSession.startFrom + deltaValue;
-    const newTo = activeDragSession.startTo + deltaValue;
+    const newFrom = activeDragSession.startFrom - deltaValue;
+    const newTo = activeDragSession.startTo - deltaValue;
     if (!Number.isFinite(newFrom) || !Number.isFinite(newTo)) return;
 
     if (STATE.from === newFrom && STATE.to === newTo) return;
