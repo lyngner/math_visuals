@@ -602,10 +602,10 @@
   }
 
   const LABEL_PLACEMENT_CANDIDATES = [
+    { dx: -1, dy: 1 },
     { dx: 1, dy: -1 },
     { dx: 1, dy: 1 },
     { dx: -1, dy: -1 },
-    { dx: -1, dy: 1 },
     { dx: 1, dy: 0 },
     { dx: -1, dy: 0 },
     { dx: 0, dy: -1 },
@@ -613,7 +613,7 @@
   ];
 
   function computePlacementOffset(candidate, size, scale) {
-    const fallbackCandidate = LABEL_PLACEMENT_CANDIDATES[0] || { dx: 1, dy: -1 };
+    const fallbackCandidate = LABEL_PLACEMENT_CANDIDATES[0] || { dx: -1, dy: 1 };
     const rawDx = candidate && typeof candidate.dx === 'number' ? candidate.dx : fallbackCandidate.dx;
     const rawDy = candidate && typeof candidate.dy === 'number' ? candidate.dy : fallbackCandidate.dy;
     const dx = rawDx > 0 ? 1 : rawDx < 0 ? -1 : 0;
