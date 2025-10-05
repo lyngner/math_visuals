@@ -624,12 +624,32 @@ function drawRightAngleMarker(g, foot, baseDir, altDir) {
     "stroke-linejoin": "round"
   });
 }
+function mapHeightSideToBase(side, letters) {
+  if (!side) return null;
+  const upperLetters = Array.isArray(letters) ? letters.map(l => String(l).toUpperCase()) : [];
+  const set = new Set(upperLetters);
+  const normalizedSide = String(side).toLowerCase();
+  const has = vals => vals.every(v => set.has(v));
+  if (has(['A', 'B', 'C']) && ['a', 'b', 'c'].includes(normalizedSide)) {
+    if (normalizedSide === 'a') return 'BC';
+    if (normalizedSide === 'b') return 'AC';
+    if (normalizedSide === 'c') return 'AB';
+  }
+  if (has(['A', 'B', 'C', 'D']) && ['a', 'b', 'c', 'd'].includes(normalizedSide)) {
+    if (normalizedSide === 'a') return 'AB';
+    if (normalizedSide === 'b') return 'BC';
+    if (normalizedSide === 'c') return 'CD';
+    if (normalizedSide === 'd') return 'DA';
+  }
+  return null;
+}
 function resolveHeightBase(dec, availableLetters) {
   if (!dec || !dec.from) return null;
   const from = String(dec.from).toUpperCase();
   const letters = Array.isArray(availableLetters) ? availableLetters.map(l => String(l).toUpperCase()) : [];
   if (!letters.includes(from)) return null;
   let baseLetters = '';
+  let explicit = false;
   if (dec.base) {
     const sanitized = String(dec.base).toUpperCase().replace(/[^A-D]/g, '');
     if (sanitized.length >= 2) {
@@ -637,7 +657,15 @@ function resolveHeightBase(dec, availableLetters) {
       const second = sanitized[1];
       if (letters.includes(first) && letters.includes(second) && first !== second && first !== from && second !== from) {
         baseLetters = `${first}${second}`;
+        explicit = true;
       }
+    }
+  }
+  if (!baseLetters && dec.baseSide) {
+    const mapped = mapHeightSideToBase(dec.baseSide, letters);
+    if (mapped && mapped[0] !== from && mapped[1] !== from) {
+      baseLetters = mapped;
+      explicit = true;
     }
   }
   if (!baseLetters && letters.length === 3) {
@@ -650,7 +678,7 @@ function resolveHeightBase(dec, availableLetters) {
   return {
     from,
     base: baseLetters,
-    implied: !dec.base
+    implied: !explicit
   };
 }
 function renderDecorations(g, points, decorations) {
@@ -1122,8 +1150,8 @@ function parseDecorationSegment(segment) {
       normalized: []
     };
   }
-  if (/^diagonaler?/i.test(trimmed)) {
-    let rest = trimmed.replace(/^diagonaler?/i, '').trim();
+  if (/^diagonal(?:er)?/i.test(trimmed)) {
+    let rest = trimmed.replace(/^diagonal(?:er)?/i, '').trim();
     if (rest.startsWith(':') || rest.startsWith('=')) rest = rest.slice(1).trim();
     rest = rest.replace(/\bog\b/gi, ',');
     rest = rest.replace(/[-–—]/g, ' ');
@@ -1149,8 +1177,8 @@ function parseDecorationSegment(segment) {
       normalized
     };
   }
-  if (/^høyder?/i.test(trimmed)) {
-    let rest = trimmed.replace(/^høyder?/i, '').trim();
+  if (/^h(?:øy|oy)der?/i.test(trimmed)) {
+    let rest = trimmed.replace(/^h(?:øy|oy)der?/i, '').trim();
     if (rest.startsWith(':') || rest.startsWith('=')) rest = rest.slice(1).trim();
     rest = rest.replace(/\bog\b/gi, ',');
     const parts = rest.split(/[,;]/).map(p => p.trim()).filter(Boolean);
@@ -1163,15 +1191,36 @@ function parseDecorationSegment(segment) {
         type: 'height',
         from: spec.from,
         base: spec.base,
+        baseSide: spec.baseSide,
         explicitBase: spec.explicitBase
       });
-      normalized.push(`høyde ${spec.from}${spec.base ? `/${spec.base}` : ''}`);
+      const baseText = spec.base ? `/${spec.base}` : spec.baseSide ? `/${spec.baseSide}` : '';
+      normalized.push(`høyde ${spec.from}${baseText}`);
     });
     return {
       handled: true,
       decorations,
       normalized
     };
+  }
+  const heightInlineMatch = trimmed.match(/^([A-D])\s+(til|på|mot)\b/i);
+  if (heightInlineMatch) {
+    const spec = parseHeightSpec(trimmed);
+    if (spec) {
+      const decorations = [{
+        type: 'height',
+        from: spec.from,
+        base: spec.base,
+        baseSide: spec.baseSide,
+        explicitBase: spec.explicitBase
+      }];
+      const baseText = spec.base ? `/${spec.base}` : spec.baseSide ? `/${spec.baseSide}` : '';
+      return {
+        handled: true,
+        decorations,
+        normalized: [`høyde ${spec.from}${baseText}`]
+      };
+    }
   }
   return {
     handled: false,
@@ -1203,9 +1252,18 @@ function parseHeightSpec(text) {
   let from = leftLetters.slice(0, 1);
   let baseLetters = '';
   let explicitBase = false;
+  let baseSide = null;
   if (parts.length >= 2) {
     baseLetters = sanitize(basePart, 2);
-    explicitBase = baseLetters.length === 2;
+    if (baseLetters.length === 2) {
+      explicitBase = true;
+    } else {
+      const sideMatch = basePart.match(/\b([abcd])\b/i);
+      if (sideMatch) {
+        baseSide = sideMatch[1].toLowerCase();
+        explicitBase = true;
+      }
+    }
   } else if (leftLetters.length >= 3) {
     baseLetters = leftLetters.slice(1, 3);
     explicitBase = baseLetters.length === 2;
@@ -1214,6 +1272,7 @@ function parseHeightSpec(text) {
   return {
     from,
     base: baseLetters || null,
+    baseSide,
     explicitBase
   };
 }
@@ -1227,7 +1286,9 @@ function extractDecorations(line) {
       normalizedExtras
     };
   }
-  const segments = String(line).split(';');
+  const decorationLead = /,(\s*(?:diagonal(?:er)?|h(?:øy|oy)der?|[A-D]\s+(?:til|på|mot)\b))/gi;
+  const normalizedLine = String(line).replace(decorationLead, ';$1');
+  const segments = normalizedLine.split(';');
   const coreSegments = [];
   segments.forEach(seg => {
     const trimmed = seg.trim();
