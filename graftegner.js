@@ -1056,6 +1056,8 @@ function applyAxisStyles() {
 function applyTickSettings() {
   if (!axX || !axY) return;
   const showNumbers = !!(ADV.axis && ADV.axis.ticks && ADV.axis.ticks.showNumbers);
+  const showGrid = !!(ADV.axis && ADV.axis.grid && ADV.axis.grid.show);
+  const showTicks = showNumbers || showGrid;
   if (!ADV.axis.forceIntegers) {
     if (customTicksX) {
       try {
@@ -1070,18 +1072,19 @@ function applyTickSettings() {
       customTicksY = null;
     }
     axX.defaultTicks.setAttribute({
-      visible: true,
+      visible: showTicks,
       drawLabels: showNumbers
     });
     axY.defaultTicks.setAttribute({
-      visible: true,
+      visible: showTicks,
       drawLabels: showNumbers
     });
     return;
   }
   const tickBase = {
     drawLabels: showNumbers,
-    precision: ADV.axis.grid.labelPrecision
+    precision: ADV.axis.grid.labelPrecision,
+    visible: showTicks
   };
   const labelBase = {
     fontSize: ADV.axis.grid.fontSize,
