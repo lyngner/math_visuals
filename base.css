@@ -129,6 +129,11 @@ body {
   padding: 20px;
 }
 
+[data-app-mode="task"] .addFigureBtn,
+[data-app-mode="task"] [data-edit-only] {
+  display: none !important;
+}
+
 .wrap {
   max-width: 1200px;
   margin: 0 auto;

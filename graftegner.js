@@ -3096,6 +3096,7 @@ function setupSettingsForm() {
   addBtn.type = 'button';
   addBtn.textContent = '+';
   addBtn.setAttribute('aria-label', 'Legg til funksjon');
+  addBtn.setAttribute('data-edit-only', '');
   addBtn.classList.remove('btn');
   addBtn.classList.add('addFigureBtn');
   const functionActions = document.querySelector('.func-actions');
