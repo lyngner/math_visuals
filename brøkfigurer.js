@@ -10,80 +10,98 @@
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
   }
   function downloadSVG(svgEl, filename) {
-    const data = svgToString(svgEl);
-    const blob = new Blob([data], {
-      type: 'image/svg+xml;charset=utf-8'
+    return new Promise(resolve => {
+      const data = svgToString(svgEl);
+      const blob = new Blob([data], {
+        type: 'image/svg+xml;charset=utf-8'
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename.endsWith('.svg') ? filename : filename + '.svg';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        resolve();
+      }, 0);
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename.endsWith('.svg') ? filename : filename + '.svg';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   function downloadPNG(svgEl, filename, scale = 2, bg = '#fff') {
     var _svgEl$viewBox;
-    const vb = (_svgEl$viewBox = svgEl.viewBox) === null || _svgEl$viewBox === void 0 ? void 0 : _svgEl$viewBox.baseVal;
-    const w = (vb === null || vb === void 0 ? void 0 : vb.width) || svgEl.clientWidth || 420;
-    const h = (vb === null || vb === void 0 ? void 0 : vb.height) || svgEl.clientHeight || 420;
-    const data = svgToString(svgEl);
-    const blob = new Blob([data], {
-      type: 'image/svg+xml;charset=utf-8'
-    });
-    const url = URL.createObjectURL(blob);
-    const img = new Image();
-    const cleanup = () => URL.revokeObjectURL(url);
-    const setFallbackSrc = () => {
-      const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(data);
-      img.onerror = null;
-      img.src = dataUrl;
-    };
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(w * scale);
-      canvas.height = Math.round(h * scale);
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      cleanup();
-      const handleBlob = blob => {
-        if (blob) {
-          const urlPng = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = urlPng;
-          a.download = filename.endsWith('.png') ? filename : filename + '.png';
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          setTimeout(() => URL.revokeObjectURL(urlPng), 1000);
-        } else {
-          try {
-            const dataUrl = canvas.toDataURL('image/png');
+    return new Promise(resolve => {
+      const vb = (_svgEl$viewBox = svgEl.viewBox) === null || _svgEl$viewBox === void 0 ? void 0 : _svgEl$viewBox.baseVal;
+      const w = (vb === null || vb === void 0 ? void 0 : vb.width) || svgEl.clientWidth || 420;
+      const h = (vb === null || vb === void 0 ? void 0 : vb.height) || svgEl.clientHeight || 420;
+      const data = svgToString(svgEl);
+      const blob = new Blob([data], {
+        type: 'image/svg+xml;charset=utf-8'
+      });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      const cleanup = () => URL.revokeObjectURL(url);
+      const setFallbackSrc = () => {
+        const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(data);
+        img.onerror = () => {
+          console.error('Kunne ikke eksportere PNG');
+          setTimeout(resolve, 0);
+        };
+        img.src = dataUrl;
+      };
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(w * scale);
+        canvas.height = Math.round(h * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        cleanup();
+        const handleBlob = blob => {
+          const finish = () => setTimeout(resolve, 0);
+          if (blob) {
+            const urlPng = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = dataUrl;
+            a.href = urlPng;
             a.download = filename.endsWith('.png') ? filename : filename + '.png';
             document.body.appendChild(a);
             a.click();
             a.remove();
-          } catch (error) {
-            console.error('Kunne ikke eksportere PNG', error);
+            setTimeout(() => {
+              URL.revokeObjectURL(urlPng);
+              finish();
+            }, 0);
+          } else {
+            try {
+              const dataUrl = canvas.toDataURL('image/png');
+              const a = document.createElement('a');
+              a.href = dataUrl;
+              a.download = filename.endsWith('.png') ? filename : filename + '.png';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              finish();
+            } catch (error) {
+              console.error('Kunne ikke eksportere PNG', error);
+              finish();
+            }
           }
+        };
+        if (typeof canvas.toBlob === 'function') {
+          canvas.toBlob(blob => {
+            handleBlob(blob);
+          }, 'image/png');
+        } else {
+          handleBlob(null);
         }
       };
-      if (typeof canvas.toBlob === 'function') {
-        canvas.toBlob(handleBlob, 'image/png');
-      } else {
-        handleBlob(null);
-      }
-    };
-    img.onerror = () => {
-      cleanup();
-      setFallbackSrc();
-    };
-    img.src = url;
+      img.onerror = () => {
+        cleanup();
+        setFallbackSrc();
+      };
+      img.src = url;
+    });
   }
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const figures = [];
@@ -1488,25 +1506,40 @@
       setFilled
     };
   }
-  function downloadAllFigures(type) {
+  const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+  async function downloadAllFigures(type) {
     var _window$render, _window;
     (_window$render = (_window = window).render) === null || _window$render === void 0 || _window$render.call(_window);
     const ids = getActiveFigureIds();
-    ids.forEach(id => {
+    const jobs = ids.map(id => {
       const fig = figures[id];
-      if (!fig || typeof fig.getSvgElement !== 'function') return;
+      if (!fig || typeof fig.getSvgElement !== 'function') return null;
       const svg = fig.getSvgElement();
-      if (!svg) return;
+      if (!svg) return null;
       const baseName = `brok${id}`;
       if (type === 'svg') {
-        downloadSVG(svg, baseName + '.svg');
-      } else if (type === 'png') {
-        downloadPNG(svg, baseName + '.png', 2);
+        return () => downloadSVG(svg, baseName + '.svg');
       }
-    });
+      if (type === 'png') {
+        return () => downloadPNG(svg, baseName + '.png', 2);
+      }
+      return null;
+    }).filter(Boolean);
+    for (const run of jobs) {
+      try {
+        await run();
+      } catch (error) {
+        console.error('Kunne ikke eksportere figur', error);
+      }
+      await delay(50);
+    }
   }
-  exportSvgBtn === null || exportSvgBtn === void 0 || exportSvgBtn.addEventListener('click', () => downloadAllFigures('svg'));
-  exportPngBtn === null || exportPngBtn === void 0 || exportPngBtn.addEventListener('click', () => downloadAllFigures('png'));
+  exportSvgBtn === null || exportSvgBtn === void 0 || exportSvgBtn.addEventListener('click', () => {
+    void downloadAllFigures('svg');
+  });
+  exportPngBtn === null || exportPngBtn === void 0 || exportPngBtn.addEventListener('click', () => {
+    void downloadAllFigures('png');
+  });
   addRowBtn === null || addRowBtn === void 0 || addRowBtn.addEventListener('click', () => {
     if (rows >= MAX_ROWS) return;
     rows++;
