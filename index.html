@@ -248,6 +248,11 @@
       white-space: nowrap;
     }
 
+    .task-cluster {
+      display: inline-flex;
+      align-items: center;
+    }
+
     .task-node {
       appearance: none;
       border: 2px solid var(--profile-accent-border);
@@ -263,6 +268,16 @@
       flex: 0 0 auto;
       position: relative;
       transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .task-cluster .task-node + .task-node {
+      margin-left: -8px;
+    }
+
+    .task-cluster .task-node:focus-visible,
+    .task-cluster .task-node:hover {
+      position: relative;
+      z-index: 1;
     }
 
     .task-node::after {
