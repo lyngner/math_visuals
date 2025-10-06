@@ -118,7 +118,6 @@
     editor: DEFAULT_APP_MODE
   };
   const originalSplitSideWidths = new WeakMap();
-  const originalSplitterDisplays = new WeakMap();
   let currentAppMode = DEFAULT_APP_MODE;
   let lastAppliedAppMode = null;
   let splitterObserver = null;
@@ -158,26 +157,6 @@
         }
       } else {
         grid.style.removeProperty('--side-width');
-      }
-    });
-    const splitters = document.querySelectorAll('.splitter');
-    splitters.forEach(splitter => {
-      if (!(splitter instanceof HTMLElement)) return;
-      if (isTaskMode) {
-        if (!originalSplitterDisplays.has(splitter)) {
-          originalSplitterDisplays.set(splitter, splitter.style.display || '');
-        }
-        splitter.style.display = 'none';
-      } else if (originalSplitterDisplays.has(splitter)) {
-        const prev = originalSplitterDisplays.get(splitter);
-        originalSplitterDisplays.delete(splitter);
-        if (prev) {
-          splitter.style.display = prev;
-        } else {
-          splitter.style.removeProperty('display');
-        }
-      } else {
-        splitter.style.removeProperty('display');
       }
     });
   }
