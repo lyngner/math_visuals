@@ -1,8 +1,16 @@
 .grid.split-enabled {
+  --side-max: 420px;
   gap: 0 !important;
-  grid-template-columns: 1fr var(--gap) var(--side-width, 420px) !important;
+  grid-template-columns: minmax(
+      var(--side-min, 200px),
+      min(var(--side-width, var(--side-max, 420px)), var(--side-max, 420px))
+    )
+    var(--gap)
+    minmax(0, 1fr) !important;
+  grid-template-areas: "side splitter main";
 }
 .grid.split-enabled > .splitter {
+  grid-area: splitter;
   width: var(--gap);
   cursor: col-resize;
   position: relative;
@@ -21,10 +29,25 @@
   background: #e5e7eb;
   border-radius: 3px;
 }
+.grid.split-enabled > .side {
+  grid-area: side;
+  min-width: 0;
+}
+.grid.split-enabled > :not(.splitter):not(.side) {
+  grid-area: main;
+  min-width: 0;
+}
 @media (max-width:980px){
   .grid.split-enabled {
     grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "main"
+      "side";
     gap: var(--gap) !important;
+  }
+  .grid.split-enabled > .side,
+  .grid.split-enabled > :not(.splitter):not(.side) {
+    grid-area: auto;
   }
   .grid.split-enabled > .splitter {
     display: none;
@@ -32,17 +55,7 @@
 }
 
 body[data-app-mode="task"] .grid.split-enabled {
-  grid-template-columns: minmax(0, 1fr) !important;
-  gap: var(--gap) !important;
-  --side-width: min(360px, 100%);
-}
-
-body[data-app-mode="task"] .grid.split-enabled > .splitter {
-  display: none !important;
-}
-
-body[data-app-mode="task"] .grid.split-enabled > .side {
-  width: min(360px, 100%);
+  --side-max: 360px;
 }
 
 /* Shared styling for settings panels */
