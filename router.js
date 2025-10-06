@@ -196,8 +196,104 @@ function safeSetItem(key, value) {
   }
   switchToFallback().setItem(key, value);
 }
+
+const PROFILE_STORAGE_KEY = 'profile';
+const PROFILE_DEFAULT = 'kikora';
+const profileVariables = {
+  kikora: {
+    'profile-body-background': '#f7f8fb',
+    'profile-body-color': '#111827',
+    'profile-surface-background': '#ffffffee',
+    'profile-surface-border': '#e5e7eb',
+    'profile-title-color': '#0f172a',
+    'profile-accent-color': '#0f6d8f',
+    'profile-accent-contrast': '#ffffff',
+    'profile-accent-hover': '#0c5974',
+    'profile-accent-border': 'rgba(15, 109, 143, 0.15)',
+    'profile-accent-border-strong': 'rgba(15, 109, 143, 0.35)',
+    'profile-accent-surface': '#e6f4fa',
+    'profile-accent-shadow-soft': 'rgba(15, 109, 143, 0.08)',
+    'profile-accent-shadow-medium': 'rgba(15, 109, 143, 0.2)',
+    'profile-accent-shadow-strong': 'rgba(15, 109, 143, 0.25)',
+    'profile-tooltip-background': 'rgba(15, 109, 143, 0.95)',
+    'profile-tooltip-color': '#ffffff',
+    'profile-focus-outline': 'rgba(15, 109, 143, 0.35)',
+    'profile-nav-badge-background': '#f97316',
+    'profile-nav-badge-color': '#ffffff',
+    'profile-iframe-background': '#ffffff'
+  },
+  campus: {
+    'profile-body-background': '#f5f6ff',
+    'profile-body-color': '#10143c',
+    'profile-surface-background': '#ffffffee',
+    'profile-surface-border': '#d8ddf0',
+    'profile-title-color': '#10143c',
+    'profile-accent-color': '#2f50c1',
+    'profile-accent-contrast': '#ffffff',
+    'profile-accent-hover': '#2540a4',
+    'profile-accent-border': 'rgba(47, 80, 193, 0.2)',
+    'profile-accent-border-strong': 'rgba(47, 80, 193, 0.4)',
+    'profile-accent-surface': '#e7edff',
+    'profile-accent-shadow-soft': 'rgba(47, 80, 193, 0.12)',
+    'profile-accent-shadow-medium': 'rgba(47, 80, 193, 0.18)',
+    'profile-accent-shadow-strong': 'rgba(47, 80, 193, 0.28)',
+    'profile-tooltip-background': 'rgba(37, 64, 164, 0.95)',
+    'profile-tooltip-color': '#ffffff',
+    'profile-focus-outline': 'rgba(47, 80, 193, 0.4)',
+    'profile-nav-badge-background': '#f59e0b',
+    'profile-nav-badge-color': '#1f2937',
+    'profile-iframe-background': '#ffffff'
+  }
+};
+
+function normalizeProfileName(profile) {
+  if (typeof profile !== 'string') return PROFILE_DEFAULT;
+  const normalized = profile.trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(profileVariables, normalized) ? normalized : PROFILE_DEFAULT;
+}
+
+let currentProfile = PROFILE_DEFAULT;
+
+function updateProfileStyles(profile) {
+  const normalized = normalizeProfileName(profile);
+  const variables = profileVariables[normalized] || profileVariables[PROFILE_DEFAULT];
+  const root = typeof document !== 'undefined' ? document.documentElement : null;
+  if (root) {
+    Object.entries(variables).forEach(([key, value]) => {
+      root.style.setProperty(`--${key}`, value);
+    });
+    root.setAttribute('data-profile', normalized);
+  }
+  currentProfile = normalized;
+  return normalized;
+}
+
+if (typeof window !== 'undefined') {
+  window.mathVisualsUpdateProfileStyles = updateProfileStyles;
+}
+const storedProfileValue = safeGetItem(PROFILE_STORAGE_KEY);
+const initialProfile = updateProfileStyles(storedProfileValue || PROFILE_DEFAULT);
+if (storedProfileValue !== initialProfile) {
+  safeSetItem(PROFILE_STORAGE_KEY, initialProfile);
+}
 const iframe = document.querySelector('iframe');
 const nav = document.querySelector('nav');
+const profileControl = nav ? nav.querySelector('[data-profile-control]') : null;
+
+function syncProfileControl(profile) {
+  if (!profileControl) return;
+  if (profileControl.value !== profile) {
+    profileControl.value = profile;
+  }
+}
+
+syncProfileControl(currentProfile);
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', () => {
+    syncProfileControl(currentProfile);
+  });
+}
 const defaultPage = 'nkant.html';
 const links = Array.from(nav.querySelectorAll('a'));
 
@@ -301,6 +397,36 @@ navEntries.forEach(entry => {
   });
 });
 
+if (profileControl) {
+  profileControl.addEventListener('change', event => {
+    const target = event && event.target ? event.target : null;
+    const selected = target && typeof target.value === 'string' ? target.value : PROFILE_DEFAULT;
+    const normalized = normalizeProfileName(selected);
+    if (normalized === currentProfile) {
+      syncProfileControl(currentProfile);
+      return;
+    }
+    const applied = updateProfileStyles(normalized);
+    safeSetItem(PROFILE_STORAGE_KEY, applied);
+    syncProfileControl(applied);
+    if (iframe && iframe.contentWindow && currentEntry) {
+      try {
+        iframe.contentWindow.postMessage(
+          { type: 'math-visuals:profile-change', profile: applied },
+          '*'
+        );
+      } catch (_) {}
+    }
+    if (currentEntry) {
+      applyRoute(currentEntry, currentExampleNumber, {
+        refresh: true,
+        updateHistory: false,
+        skipStorage: true
+      });
+    }
+  });
+}
+
 const defaultEntry = navEntries.find(entry => entry.href === defaultPage) || navEntries[0] || null;
 
 function setActive(current) {
@@ -315,17 +441,36 @@ function setActive(current) {
   });
 }
 
-function buildIframeSrc(href, exampleNumber) {
-  if (!exampleNumber || !Number.isFinite(exampleNumber) || exampleNumber < 1) {
-    return href;
-  }
+function buildIframeSrc(href, exampleNumber, profile) {
+  const normalizedProfile = normalizeProfileName(profile || currentProfile);
+  const normalizedExample = Number.isFinite(exampleNumber) && exampleNumber > 0 ? Number(exampleNumber) : null;
   try {
     const url = new URL(href, window.location.origin);
-    url.searchParams.set('example', String(exampleNumber));
+    if (normalizedProfile) {
+      url.searchParams.set('profile', normalizedProfile);
+    }
+    if (normalizedExample) {
+      url.searchParams.set('example', String(normalizedExample));
+    } else {
+      url.searchParams.delete('example');
+    }
     return `${url.pathname}${url.search}${url.hash}`;
   } catch (_) {
+    const params = [];
+    if (normalizedProfile) {
+      params.push(['profile', normalizedProfile]);
+    }
+    if (normalizedExample) {
+      params.push(['example', String(normalizedExample)]);
+    }
+    if (!params.length) {
+      return href;
+    }
     const separator = href.includes('?') ? '&' : '?';
-    return `${href}${separator}example=${encodeURIComponent(exampleNumber)}`;
+    const query = params
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
+    return `${href}${separator}${query}`;
   }
 }
 
@@ -442,7 +587,7 @@ function applyRoute(entry, exampleNumber, options = {}) {
   const normalizedExample = Number.isFinite(exampleNumber) && exampleNumber > 0 ? exampleNumber : null;
   const entryChanged = currentEntry !== entry;
   const exampleChanged = normalizedExample !== (currentExampleNumber != null ? currentExampleNumber : null);
-  const targetSrc = buildIframeSrc(entry.href, normalizedExample);
+  const targetSrc = buildIframeSrc(entry.href, normalizedExample, currentProfile);
   const shouldRefresh = options.refresh === true || (!entryChanged && exampleChanged);
   setIframeSrc(targetSrc, { refresh: shouldRefresh });
   setActive(entry.href);
@@ -530,7 +675,17 @@ window.addEventListener('popstate', () => {
 window.addEventListener('message', event => {
   if (!iframe || event.source !== iframe.contentWindow) return;
   const data = event && event.data;
-  if (!data || data.type !== 'math-visuals:example-change') return;
+  if (!data || typeof data !== 'object') return;
+  if (data.type === 'math-visuals:request-profile') {
+    try {
+      event.source.postMessage(
+        { type: 'math-visuals:profile-change', profile: currentProfile },
+        '*'
+      );
+    } catch (_) {}
+    return;
+  }
+  if (data.type !== 'math-visuals:example-change') return;
   if (!currentEntry) return;
   const normalizedPath = normalizeEntryPath(data.path || data.href || '');
   if (normalizedPath && currentEntry && normalizedPath !== currentEntry.path) {

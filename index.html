@@ -8,6 +8,28 @@
   
 
 <style>
+    :root {
+      --profile-body-background: #f7f8fb;
+      --profile-body-color: #111827;
+      --profile-surface-background: #ffffffee;
+      --profile-surface-border: #e5e7eb;
+      --profile-title-color: #0f172a;
+      --profile-accent-color: #0f6d8f;
+      --profile-accent-contrast: #ffffff;
+      --profile-accent-hover: #0c5974;
+      --profile-accent-border: rgba(15, 109, 143, 0.15);
+      --profile-accent-border-strong: rgba(15, 109, 143, 0.35);
+      --profile-accent-surface: #e6f4fa;
+      --profile-accent-shadow-soft: rgba(15, 109, 143, 0.08);
+      --profile-accent-shadow-medium: rgba(15, 109, 143, 0.2);
+      --profile-accent-shadow-strong: rgba(15, 109, 143, 0.25);
+      --profile-tooltip-background: rgba(15, 109, 143, 0.95);
+      --profile-tooltip-color: #ffffff;
+      --profile-focus-outline: rgba(15, 109, 143, 0.35);
+      --profile-nav-badge-background: #f97316;
+      --profile-nav-badge-color: #ffffff;
+      --profile-iframe-background: #ffffff;
+    }
     *, *::before, *::after {
       box-sizing: border-box;
     }
@@ -18,13 +40,13 @@
       min-height: 100vh;
       min-height: 100dvh;
       font-family: system-ui, sans-serif;
-      background: #f7f8fb;
-      color: #111827;
+      background: var(--profile-body-background);
+      color: var(--profile-body-color);
     }
     nav {
       padding: 16px 20px;
-      border-bottom: 1px solid #e5e7eb;
-      background: #ffffffee;
+      border-bottom: 1px solid var(--profile-surface-border);
+      background: var(--profile-surface-background);
       backdrop-filter: blur(4px);
       display: flex;
       flex-direction: column;
@@ -42,7 +64,7 @@
     .nav-title {
       font-size: 1rem;
       font-weight: 600;
-      color: #0f172a;
+      color: var(--profile-title-color);
     }
     .nav-toggle {
       display: none;
@@ -50,22 +72,68 @@
       gap: 8px;
       padding: 8px 12px;
       border-radius: 10px;
-      border: 1px solid rgba(15, 109, 143, 0.15);
-      background: #0f6d8f;
-      color: #fff;
+      border: 1px solid var(--profile-accent-border);
+      background: var(--profile-accent-color);
+      color: var(--profile-accent-contrast);
       font: inherit;
       cursor: pointer;
       transition: background-color 0.2s ease, border-color 0.2s ease;
     }
     .nav-toggle:hover,
     .nav-toggle:focus-visible {
-      background: #0c5974;
-      border-color: rgba(15, 109, 143, 0.35);
+      background: var(--profile-accent-hover);
+      border-color: var(--profile-accent-border-strong);
       outline: none;
     }
     .nav-toggle svg {
       width: 1.3rem;
       height: 1.3rem;
+    }
+    .nav-profile {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      margin-left: auto;
+    }
+    .nav-profile label {
+      color: var(--profile-title-color);
+      font-weight: 600;
+    }
+    .nav-profile select {
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      border: 1px solid var(--profile-accent-border);
+      border-radius: 8px;
+      padding: 6px 34px 6px 10px;
+      background: var(--profile-accent-surface);
+      color: var(--profile-accent-color);
+      font: inherit;
+      line-height: 1.2;
+      cursor: pointer;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+      min-width: 8rem;
+      background-image:
+        linear-gradient(45deg, transparent 50%, var(--profile-accent-color) 50%),
+        linear-gradient(135deg, var(--profile-accent-color) 50%, transparent 50%);
+      background-position:
+        calc(100% - 18px) 50%,
+        calc(100% - 12px) 50%;
+      background-size: 7px 7px, 7px 7px;
+      background-repeat: no-repeat;
+    }
+    .nav-profile select:hover {
+      border-color: var(--profile-accent-border-strong);
+    }
+    .nav-profile select:focus-visible {
+      outline: 3px solid var(--profile-focus-outline);
+      outline-offset: 2px;
+      border-color: var(--profile-accent-border-strong);
+    }
+    .nav-profile select option {
+      color: inherit;
     }
     ul {
       list-style: none;
@@ -82,7 +150,7 @@
     }
     nav a {
       position: relative;
-      color: #0f6d8f;
+      color: var(--profile-accent-color);
       text-decoration: none;
       display: inline-flex;
       align-items: center;
@@ -90,8 +158,8 @@
       width: 3.25rem;
       height: 3.25rem;
       border-radius: 1rem;
-      background: #e6f4fa;
-      box-shadow: inset 0 0 0 1px rgba(15, 109, 143, 0.08);
+      background: var(--profile-accent-surface);
+      box-shadow: inset 0 0 0 1px var(--profile-accent-shadow-soft);
       transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
     }
     nav a::after {
@@ -102,8 +170,8 @@
       transform: translate(-50%, 8px);
       padding: 4px 8px;
       border-radius: 8px;
-      background: rgba(15, 109, 143, 0.95);
-      color: #fff;
+      background: var(--profile-tooltip-background);
+      color: var(--profile-tooltip-color);
       font-size: 0.7rem;
       font-weight: 500;
       letter-spacing: 0.01em;
@@ -111,7 +179,7 @@
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.2s ease, transform 0.2s ease;
-      box-shadow: 0 8px 16px rgba(15, 109, 143, 0.25);
+      box-shadow: 0 8px 16px var(--profile-accent-shadow-strong);
       z-index: 30;
     }
     nav a:hover::after,
@@ -125,28 +193,28 @@
       right: -6px;
       padding: 2px 6px;
       border-radius: 999px;
-      background: #f97316;
-      color: #fff;
+      background: var(--profile-nav-badge-background);
+      color: var(--profile-nav-badge-color);
       font-size: 0.65rem;
       font-weight: 600;
       letter-spacing: 0.02em;
       text-transform: uppercase;
-      box-shadow: 0 4px 10px rgba(249, 115, 22, 0.25);
+      box-shadow: 0 4px 10px var(--profile-accent-shadow-strong);
     }
     nav a:hover {
-      background: #0f6d8f;
-      color: #fff;
+      background: var(--profile-accent-color);
+      color: var(--profile-accent-contrast);
       transform: translateY(-1px);
-      box-shadow: 0 6px 12px rgba(15, 109, 143, 0.25);
+      box-shadow: 0 6px 12px var(--profile-accent-shadow-strong);
     }
     nav a.active {
-      background: #0f6d8f;
-      color: #fff;
-      box-shadow: 0 4px 10px rgba(15, 109, 143, 0.2);
+      background: var(--profile-accent-color);
+      color: var(--profile-accent-contrast);
+      box-shadow: 0 4px 10px var(--profile-accent-shadow-medium);
     }
     nav a:focus,
     nav a:focus-visible {
-      outline: 3px solid rgba(15, 109, 143, 0.35);
+      outline: 3px solid var(--profile-focus-outline);
       outline-offset: 3px;
     }
     nav svg {
@@ -170,7 +238,7 @@
       border: 0;
       width: 100%;
       height: 100%;
-      background: white;
+      background: var(--profile-iframe-background);
     }
 
     @media (min-width: 768px) {
@@ -199,6 +267,16 @@
       .nav-title {
         flex: 1 1 auto;
         font-size: 0.95rem;
+      }
+      .nav-profile {
+        flex: 1 1 100%;
+        margin-left: 0;
+      }
+      .nav-profile label {
+        font-size: 0.85rem;
+      }
+      .nav-profile select {
+        width: 100%;
       }
       .nav-toggle {
         display: inline-flex;
@@ -263,6 +341,13 @@
   <nav>
     <div class="nav-header">
       <span class="nav-title">Math Visuals</span>
+      <div class="nav-profile">
+        <label for="profile-select">Profil</label>
+        <select id="profile-select" name="profile" data-profile-control>
+          <option value="kikora">Kikora</option>
+          <option value="campus">Campus</option>
+        </select>
+      </div>
       <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="nav-list">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16" />
