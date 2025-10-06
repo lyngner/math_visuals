@@ -681,10 +681,44 @@ function resolveHeightBase(dec, availableLetters) {
     implied: !explicit
   };
 }
-function renderDecorations(g, points, decorations) {
+function collectHeightInfos(points, decorations) {
+  if (!points || typeof points !== 'object') return [];
+  if (!Array.isArray(decorations) || !decorations.length) return [];
+  const letters = Object.keys(points);
+  if (!letters.length) return [];
+  const seen = new Set();
+  const infos = [];
+  decorations.forEach(dec => {
+    if (!dec || typeof dec !== 'object' || dec.type !== 'height') return;
+    const resolved = resolveHeightBase(dec, letters);
+    if (!resolved) return;
+    const tag = `height:${resolved.from}:${resolved.base}`;
+    if (seen.has(tag)) return;
+    const from = resolved.from;
+    const base = resolved.base;
+    const vertex = points[from];
+    const baseA = points[base[0]];
+    const baseB = points[base[1]];
+    if (!vertex || !baseA || !baseB) return;
+    const foot = perpendicularFoot(vertex, baseA, baseB);
+    if (!foot || Math.hypot(vertex.x - foot.x, vertex.y - foot.y) < 1e-6) return;
+    infos.push({
+      tag,
+      from,
+      base,
+      vertex,
+      basePoints: [baseA, baseB],
+      foot
+    });
+    seen.add(tag);
+  });
+  return infos;
+}
+function renderDecorations(g, points, decorations, options = {}) {
   if (!Array.isArray(decorations) || !decorations.length) return;
   const letters = Object.keys(points);
   const seen = new Set();
+  const skipHeights = options && options.skipHeights instanceof Set ? options.skipHeights : null;
   decorations.forEach(dec => {
     if (!dec || typeof dec !== 'object') return;
     if (dec.type === 'diagonal') {
@@ -708,6 +742,7 @@ function renderDecorations(g, points, decorations) {
       const V = points[B];
       if (!P || !U || !V) return;
       const tag = `height:${from}:${base}`;
+      if (skipHeights && skipHeights.has(tag)) return;
       if (seen.has(tag)) return;
       seen.add(tag);
       const foot = perpendicularFoot(P, U, V);
@@ -1649,7 +1684,7 @@ function errorBox(g, rect, msg) {
   }).textContent = msg;
 }
 function drawTriangleToGroup(g, rect, spec, adv, decorations) {
-  var _Cs$1$y, _Cs$, _m$a, _m$b, _m$c, _am$A, _am$B, _am$C;
+  var _Cs$1$y, _Cs$, _m$a, _m$b, _m$c, _m$d, _am$A, _am$B, _am$C, _am$D;
   const s = typeof spec === 'string' ? parseSpec(spec) : spec;
   const sol = solveTriangle(s);
 
@@ -1679,6 +1714,46 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
     stroke: "none"
   });
   const ctr = polygonCentroid(poly);
+  const pointsMap = {
+    A,
+    B,
+    C
+  };
+  const heightInfos = collectHeightInfos(pointsMap, decorations);
+  const activeHeight = heightInfos.length ? heightInfos[0] : null;
+  let heightPoint = null;
+  let heightTag = null;
+  let heightLength = null;
+  let baseForAngle = null;
+  let heightAngleValue = null;
+  let heightAngleMode = null;
+  if (activeHeight) {
+    heightPoint = activeHeight.foot;
+    heightTag = activeHeight.tag;
+    pointsMap.D = heightPoint;
+    const vertex = activeHeight.vertex;
+    heightLength = dist(vertex, heightPoint);
+    const [baseA, baseB] = activeHeight.basePoints;
+    const distToA = dist(baseA, vertex);
+    const distToB = dist(baseB, vertex);
+    baseForAngle = distToA <= distToB ? baseA : baseB;
+    heightAngleValue = angleAt(heightPoint, baseForAngle, vertex);
+    const am = adv.angles.mode,
+      at = adv.angles.text;
+    heightAngleMode = parseAnglePointMode((_am$D = am.D) !== null && _am$D !== void 0 ? _am$D : am.default, heightAngleValue, at.D, "D");
+    drawConstructionLine(g, vertex, heightPoint);
+    if (heightAngleMode.mark) {
+      const baseDir = {
+        x: activeHeight.basePoints[1].x - activeHeight.basePoints[0].x,
+        y: activeHeight.basePoints[1].y - activeHeight.basePoints[0].y
+      };
+      const altDir = {
+        x: vertex.x - heightPoint.x,
+        y: vertex.y - heightPoint.y
+      };
+      drawRightAngleMarker(g, heightPoint, baseDir, altDir);
+    }
+  }
 
   // sider
   const m = adv.sides.mode,
@@ -1686,6 +1761,12 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
   sideLabelText(g, B, C, buildSideText((_m$a = m.a) !== null && _m$a !== void 0 ? _m$a : m.default, fmt(sol.a), st.a), true, ctr);
   sideLabelText(g, C, A, buildSideText((_m$b = m.b) !== null && _m$b !== void 0 ? _m$b : m.default, fmt(sol.b), st.b), true, ctr);
   sideLabelText(g, A, B, buildSideText((_m$c = m.c) !== null && _m$c !== void 0 ? _m$c : m.default, fmt(sol.c), st.c), true, ctr);
+  if (activeHeight && heightLength !== null) {
+    const heightText = buildSideText((_m$d = m.d) !== null && _m$d !== void 0 ? _m$d : m.default, fmt(heightLength), st.d);
+    if (heightText) {
+      sideLabelText(g, activeHeight.vertex, heightPoint, heightText, true, ctr, 12);
+    }
+  }
 
   // vinkler/punkter
   const am = adv.angles.mode,
@@ -1696,6 +1777,13 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
   const Ares = parseAnglePointMode((_am$A = am.A) !== null && _am$A !== void 0 ? _am$A : am.default, angleAVal, at.A, "A");
   const Bres = parseAnglePointMode((_am$B = am.B) !== null && _am$B !== void 0 ? _am$B : am.default, angleBVal, at.B, "B");
   const Cres = parseAnglePointMode((_am$C = am.C) !== null && _am$C !== void 0 ? _am$C : am.default, angleCVal, at.C, "C");
+  if (activeHeight && heightAngleMode && (heightAngleMode.angleText || heightAngleMode.pointLabel)) {
+    renderAngle(g, heightPoint, baseForAngle, activeHeight.vertex, angleRadius(heightPoint, baseForAngle, activeHeight.vertex), {
+      mark: false,
+      angleText: heightAngleMode.angleText,
+      pointLabel: heightAngleMode.pointLabel
+    });
+  }
   renderAngle(g, A, B, C, angleRadius(A, B, C), {
     mark: Ares.mark,
     angleText: Ares.angleText,
@@ -1719,29 +1807,34 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
     "stroke-linejoin": "round",
     "stroke-linecap": "round"
   });
-  renderDecorations(g, {
-    A,
-    B,
-    C
-  }, decorations);
+  const skipHeights = heightTag ? new Set([heightTag]) : null;
+  renderDecorations(g, pointsMap, decorations, {
+    skipHeights
+  });
   const summary = cloneJobForSummary({
     type: 'tri',
     obj: {
       a: sol.a,
       b: sol.b,
       c: sol.c,
+      d: heightLength,
       A: angleAVal,
       B: angleBVal,
-      C: angleCVal
+      C: angleCVal,
+      D: heightAngleValue
     },
     decorations
   });
   if (summary) {
-    summary.angleMarks = buildAngleMarkSummary([
+    const entries = [
       ['A', Ares, angleAVal],
       ['B', Bres, angleBVal],
       ['C', Cres, angleCVal]
-    ]);
+    ];
+    if (activeHeight && heightAngleMode) {
+      entries.push(['D', heightAngleMode, heightAngleValue]);
+    }
+    summary.angleMarks = buildAngleMarkSummary(entries);
   }
   return summary;
 }
