@@ -168,6 +168,82 @@ body[data-app-mode="task"] .grid.split-enabled {
   margin: 10px 0;
 }
 
+.example-description-preview .example-task {
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 12px 14px;
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.example-description-preview .example-task:last-child {
+  margin-bottom: 0;
+}
+
+.example-description-preview .example-task__header {
+  font-weight: 600;
+  color: var(--heading-color, #374151);
+}
+
+.example-description-preview .example-task__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.example-description-preview .example-task__body > *:last-child {
+  margin-bottom: 0;
+}
+
+.example-description-preview .example-math {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 2px;
+  font-size: 1.05em;
+}
+
+.example-description-preview .example-answerbox {
+  min-width: 140px;
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5f5;
+  font: inherit;
+  background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.example-description-preview textarea.example-answerbox {
+  resize: vertical;
+}
+
+.example-description-preview .example-answerbox:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.example-description-preview .example-answerbox.example-answerbox--correct,
+.example-description-preview .example-answerbox[aria-invalid="false"] {
+  border-color: #22c55e;
+  background: #dcfce7;
+}
+
+.example-description-preview .example-answerbox.example-answerbox--incorrect,
+.example-description-preview .example-answerbox[aria-invalid="true"] {
+  border-color: #ef4444;
+  background: #fee2e2;
+}
+
+.example-description-preview .example-answerbox:disabled,
+.example-description-preview .example-answerbox[readonly] {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
 .card--examples .example-description-preview th,
 .card--examples .example-description-preview td {
   border: 1px solid #d1d5db;

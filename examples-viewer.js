@@ -414,11 +414,34 @@ async function renderExamples(options) {
       const wrap = document.createElement('div');
       wrap.className = 'example';
       if (ex && typeof ex.description === 'string' && ex.description.trim()) {
-        const description = document.createElement('p');
-        description.className = 'example-description';
-        description.textContent = ex.description;
-        description.style.whiteSpace = 'pre-wrap';
+        const description = document.createElement('div');
+        description.className = 'example-description-preview';
+        description.dataset.empty = 'true';
         description.style.margin = '0 0 8px';
+        const parser = globalScope && globalScope.__MATH_VISUALS_DESCRIPTION__;
+        if (parser && typeof parser.render === 'function') {
+          const { hasContent } = parser.render(ex.description, description, {
+            clear: false,
+            setEmptyState: true
+          });
+          if (!hasContent) {
+            description.textContent = ex.description;
+            description.style.whiteSpace = 'pre-wrap';
+          }
+        } else if (parser && typeof parser.parse === 'function') {
+          const fragment = parser.parse(ex.description);
+          const hasContent = fragment && fragment.childNodes && fragment.childNodes.length > 0;
+          if (hasContent) {
+            description.appendChild(fragment);
+            description.dataset.empty = 'false';
+          } else {
+            description.textContent = ex.description;
+            description.style.whiteSpace = 'pre-wrap';
+          }
+        } else {
+          description.textContent = ex.description;
+          description.style.whiteSpace = 'pre-wrap';
+        }
         wrap.appendChild(description);
       }
       const iframe = document.createElement('iframe');

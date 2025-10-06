@@ -1152,32 +1152,6 @@
     return preview;
   }
 
-  function clearChildren(node) {
-    if (!node) return;
-    while (node.firstChild) {
-      node.removeChild(node.firstChild);
-    }
-  }
-
-  function appendDescriptionText(fragment, text) {
-    if (!fragment || typeof fragment.appendChild !== 'function') return;
-    if (typeof text !== 'string') return;
-    const normalized = text.replace(/\r\n?/g, '\n');
-    const paragraphs = normalized.split(/\n{2,}/);
-    paragraphs.forEach(paragraph => {
-      if (!paragraph.trim()) return;
-      const lines = paragraph.split('\n');
-      const p = document.createElement('p');
-      lines.forEach((line, index) => {
-        p.appendChild(document.createTextNode(line));
-        if (index < lines.length - 1) {
-          p.appendChild(document.createElement('br'));
-        }
-      });
-      fragment.appendChild(p);
-    });
-  }
-
   function createDescriptionTable(content) {
     if (typeof content !== 'string') return null;
     const normalized = content.replace(/\r\n?/g, '\n').trim();
@@ -1226,33 +1200,596 @@
     return table;
   }
 
-  function buildDescriptionPreview(value) {
-    const fragment = document.createDocumentFragment();
-    if (typeof value !== 'string') return fragment;
-    const normalized = value.replace(/\r\n?/g, '\n');
-    const pattern = /@table\s*\{([\s\S]*?)\}/gi;
-    let lastIndex = 0;
-    let match = null;
-    while ((match = pattern.exec(normalized)) !== null) {
-      const before = normalized.slice(lastIndex, match.index);
-      appendDescriptionText(fragment, before);
-      const table = createDescriptionTable(match[1]);
-      if (table) {
-        fragment.appendChild(table);
-      } else {
-        appendDescriptionText(fragment, match[0]);
+  const descriptionParser = (() => {
+    const validatedAnswerboxes = new WeakSet();
+
+    function createFragment() {
+      if (typeof document === 'undefined' || typeof document.createDocumentFragment !== 'function') {
+        return {
+          childNodes: [],
+          appendChild() {},
+          cloneNode() {
+            return this;
+          }
+        };
       }
-      lastIndex = pattern.lastIndex;
+      return document.createDocumentFragment();
     }
-    const after = normalized.slice(lastIndex);
-    appendDescriptionText(fragment, after);
-    return fragment;
+
+    function toBoolean(value, defaultValue) {
+      if (value === undefined || value === null || value === '') return defaultValue === true;
+      if (typeof value === 'boolean') return value;
+      const normalized = String(value).trim().toLowerCase();
+      if (!normalized) return defaultValue === true;
+      if (normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'ja') return true;
+      if (normalized === 'false' || normalized === '0' || normalized === 'no' || normalized === 'nei') return false;
+      return defaultValue === true;
+    }
+
+    function toNumber(value) {
+      if (value === undefined || value === null || value === '') return null;
+      const normalized = String(value).trim().replace(',', '.');
+      if (!normalized) return null;
+      const num = Number(normalized);
+      return Number.isFinite(num) ? num : null;
+    }
+
+    function parseAttributeList(source) {
+      const result = {};
+      if (typeof source !== 'string') return result;
+      const pattern = /([A-Za-z0-9_-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'\]]+)))?/g;
+      let match = null;
+      while ((match = pattern.exec(source)) !== null) {
+        const key = match[1];
+        const rawValue = match[2] != null ? match[2] : match[3] != null ? match[3] : match[4] != null ? match[4] : '';
+        if (!key) continue;
+        result[key.toLowerCase()] = rawValue;
+      }
+      return result;
+    }
+
+    function splitAnswers(value) {
+      if (typeof value !== 'string') return [];
+      const trimmed = value.trim();
+      if (!trimmed) return [];
+      const answers = [];
+      let current = '';
+      let escaping = false;
+      for (let i = 0; i < trimmed.length; i++) {
+        const char = trimmed[i];
+        if (escaping) {
+          current += char;
+          escaping = false;
+          continue;
+        }
+        if (char === '\\') {
+          escaping = true;
+          continue;
+        }
+        if (char === '|') {
+          const part = current.trim();
+          if (part) answers.push(part);
+          current = '';
+          continue;
+        }
+        current += char;
+      }
+      const last = current.trim();
+      if (last) answers.push(last);
+      return answers;
+    }
+
+    function extractBalancedRange(input, openIndex, openChar, closeChar) {
+      if (typeof input !== 'string' || openIndex < 0 || openIndex >= input.length) return null;
+      let depth = 0;
+      let start = -1;
+      for (let i = openIndex; i < input.length; i++) {
+        const char = input[i];
+        if (char === '\\') {
+          i++;
+          continue;
+        }
+        if (char === openChar) {
+          depth += 1;
+          if (depth === 1) {
+            start = i + 1;
+          }
+        } else if (char === closeChar) {
+          if (depth === 0) {
+            return null;
+          }
+          depth -= 1;
+          if (depth === 0) {
+            return {
+              content: input.slice(start, i),
+              endIndex: i
+            };
+          }
+        }
+      }
+      return null;
+    }
+
+    function findClosingBracket(input, openIndex) {
+      if (typeof input !== 'string' || openIndex < 0 || openIndex >= input.length) return null;
+      let depth = 0;
+      for (let i = openIndex; i < input.length; i++) {
+        const char = input[i];
+        if (char === '\\') {
+          i++;
+          continue;
+        }
+        if (char === '[') {
+          depth += 1;
+        } else if (char === ']') {
+          if (depth === 0) {
+            return null;
+          }
+          depth -= 1;
+          if (depth === 0) {
+            return i;
+          }
+        }
+      }
+      return null;
+    }
+
+    function createMathElement(content) {
+      const span = document.createElement('span');
+      span.className = 'example-math';
+      const mathContent = typeof content === 'string' ? content.trim() : '';
+      if (!mathContent) {
+        span.textContent = '';
+        span.dataset.mathRendering = 'text';
+        return span;
+      }
+      if (globalScope && globalScope.katex && typeof globalScope.katex.render === 'function') {
+        try {
+          globalScope.katex.render(mathContent, span, { throwOnError: false });
+          span.dataset.mathRendering = 'katex';
+          return span;
+        } catch (error) {
+          // fall through to text fallback
+        }
+      }
+      span.textContent = mathContent;
+      span.dataset.mathRendering = 'text';
+      return span;
+    }
+
+    function createAnswerboxElement(attributes, state) {
+      if (typeof document === 'undefined') return null;
+      const opts = attributes ? { ...attributes } : {};
+      if (opts.fasit != null && opts.answer == null) {
+        opts.answer = opts.fasit;
+      }
+      if (opts.answers != null && opts.answer == null) {
+        opts.answer = opts.answers;
+      }
+      const multiline = toBoolean(opts.multiline, false);
+      const element = multiline ? document.createElement('textarea') : document.createElement('input');
+      element.classList.add('example-answerbox');
+      element.dataset.answerbox = 'true';
+      if (!multiline) {
+        const type = typeof opts.type === 'string' ? opts.type.trim().toLowerCase() : '';
+        element.type = type === 'number' || type === 'numeric' ? 'number' : 'text';
+        if (element.type === 'number') {
+          element.inputMode = 'decimal';
+        }
+      } else {
+        const rows = Math.max(1, Number.parseInt(opts.rows, 10) || 3);
+        element.rows = rows;
+      }
+      element.autocomplete = 'off';
+      element.spellcheck = false;
+      if (typeof opts.placeholder === 'string') {
+        element.placeholder = opts.placeholder;
+      }
+      if (typeof opts.name === 'string') {
+        element.name = opts.name;
+      }
+      if (typeof opts.id === 'string') {
+        element.id = opts.id;
+      }
+      if (typeof opts.label === 'string' && !element.hasAttribute('aria-label')) {
+        element.setAttribute('aria-label', opts.label);
+      }
+      if (typeof opts['aria-label'] === 'string') {
+        element.setAttribute('aria-label', opts['aria-label']);
+      }
+      if (typeof opts['aria-describedby'] === 'string') {
+        element.setAttribute('aria-describedby', opts['aria-describedby']);
+      }
+      if (opts.readonly != null) {
+        element.readOnly = toBoolean(opts.readonly, true);
+      }
+      if (opts.disabled != null) {
+        element.disabled = toBoolean(opts.disabled, true);
+      }
+      if (state) {
+        state.answerboxIndex = (state.answerboxIndex || 0) + 1;
+        element.dataset.answerboxIndex = String(state.answerboxIndex);
+      }
+      if (opts.answer != null) {
+        element.dataset.expectedAnswer = String(opts.answer);
+      }
+      if (opts.validation != null) {
+        element.dataset.validation = String(opts.validation);
+      }
+      if (opts.pattern != null) {
+        element.dataset.validationPattern = String(opts.pattern);
+      } else if (opts.regex != null) {
+        element.dataset.validationPattern = String(opts.regex);
+      }
+      if (opts.min != null) {
+        element.dataset.validationMin = String(opts.min);
+      }
+      if (opts.max != null) {
+        element.dataset.validationMax = String(opts.max);
+      }
+      if (opts.casesensitive != null) {
+        element.dataset.caseSensitive = String(toBoolean(opts.casesensitive, true));
+      }
+      attachAnswerboxValidation(element, opts);
+      return element;
+    }
+
+    function safeRegExp(source) {
+      if (typeof source !== 'string') return null;
+      const trimmed = source.trim();
+      if (!trimmed) return null;
+      try {
+        if (trimmed.startsWith('/') && trimmed.lastIndexOf('/') > 0) {
+          const lastSlash = trimmed.lastIndexOf('/');
+          const pattern = trimmed.slice(1, lastSlash);
+          const flags = trimmed.slice(lastSlash + 1);
+          return new RegExp(pattern, flags);
+        }
+        return new RegExp(trimmed);
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function attachAnswerboxValidation(input, opts) {
+      if (!input || validatedAnswerboxes.has(input)) return;
+      validatedAnswerboxes.add(input);
+      const answers = splitAnswers(opts && (opts.answer != null ? String(opts.answer) : ''));
+      const caseSensitive = toBoolean(opts && (opts.casesensitive != null ? opts.casesensitive : opts && opts.caseSensitive), false);
+      const minValue = opts ? toNumber(opts.min) : null;
+      const maxValue = opts ? toNumber(opts.max) : null;
+      const pattern = opts ? safeRegExp(opts.pattern != null ? opts.pattern : opts.regex) : null;
+      const validationTokens = [];
+      if (opts && typeof opts.validation === 'string') {
+        opts.validation
+          .split(/[\s,]+/)
+          .map(token => token.trim().toLowerCase())
+          .filter(Boolean)
+          .forEach(token => {
+            if (!validationTokens.includes(token)) {
+              validationTokens.push(token);
+            }
+          });
+      }
+
+      const validators = validationTokens.map(token => {
+        if (token === 'number' || token === 'numeric') {
+          return value => {
+            if (value === '') return false;
+            const normalized = value.replace(',', '.');
+            const num = Number(normalized);
+            return Number.isFinite(num);
+          };
+        }
+        if (token === 'integer' || token === 'int') {
+          return value => {
+            if (value === '') return false;
+            const normalized = value.replace(',', '.');
+            const num = Number(normalized);
+            return Number.isInteger(num);
+          };
+        }
+        if (token === 'nonempty') {
+          return value => value.trim().length > 0;
+        }
+        return null;
+      }).filter(Boolean);
+
+      const hasConfiguredRules = () =>
+        answers.length > 0 || pattern != null || validators.length > 0 || minValue != null || maxValue != null;
+
+      const normalize = value => {
+        if (caseSensitive) return value;
+        try {
+          return value.toLocaleLowerCase('nb-NO');
+        } catch (error) {
+          return value.toLowerCase();
+        }
+      };
+
+      const evaluate = () => {
+        const rawValue = input.value != null ? String(input.value) : '';
+        const trimmed = rawValue.trim();
+        if (!trimmed) {
+          input.classList.remove('example-answerbox--correct', 'example-answerbox--incorrect');
+          input.removeAttribute('aria-invalid');
+          input.dataset.answerState = 'unanswered';
+          return;
+        }
+
+        if (!hasConfiguredRules()) {
+          input.classList.remove('example-answerbox--correct', 'example-answerbox--incorrect');
+          input.removeAttribute('aria-invalid');
+          input.dataset.answerState = 'unanswered';
+          return;
+        }
+
+        let isCorrect = false;
+        if (answers.length > 0) {
+          const normalizedValue = normalize(trimmed);
+          isCorrect = answers.some(answer => normalize(answer) === normalizedValue);
+        }
+        if (!isCorrect && pattern) {
+          isCorrect = pattern.test(trimmed);
+        }
+        if (!isCorrect && validators.length > 0) {
+          isCorrect = validators.every(fn => {
+            try {
+              return fn(trimmed);
+            } catch (error) {
+              return false;
+            }
+          });
+        }
+        if (!isCorrect && (minValue != null || maxValue != null)) {
+          const normalized = trimmed.replace(',', '.');
+          const num = Number(normalized);
+          if (Number.isFinite(num)) {
+            if ((minValue == null || num >= minValue) && (maxValue == null || num <= maxValue)) {
+              isCorrect = true;
+            }
+          }
+        }
+
+        if (isCorrect) {
+          input.classList.add('example-answerbox--correct');
+          input.classList.remove('example-answerbox--incorrect');
+          input.setAttribute('aria-invalid', 'false');
+          input.dataset.answerState = 'correct';
+        } else {
+          input.classList.remove('example-answerbox--correct');
+          input.classList.add('example-answerbox--incorrect');
+          input.setAttribute('aria-invalid', 'true');
+          input.dataset.answerState = 'incorrect';
+        }
+      };
+
+      input.addEventListener('input', evaluate);
+      input.addEventListener('change', evaluate);
+      input.addEventListener('blur', evaluate);
+      evaluate();
+    }
+
+    function appendInlineContent(target, text, state) {
+      if (!target || typeof target.appendChild !== 'function') return;
+      if (typeof text !== 'string' || !text) {
+        if (typeof text === 'string' && text === '') {
+          target.appendChild(document.createTextNode(''));
+        }
+        return;
+      }
+      let index = 0;
+      while (index < text.length) {
+        const atIndex = text.indexOf('@', index);
+        if (atIndex === -1) {
+          const remaining = text.slice(index);
+          if (remaining) target.appendChild(document.createTextNode(remaining));
+          break;
+        }
+        if (atIndex > index) {
+          target.appendChild(document.createTextNode(text.slice(index, atIndex)));
+        }
+        let handled = false;
+        if (text.slice(atIndex, atIndex + 5).toLowerCase() === '@math') {
+          let cursor = atIndex + 5;
+          while (cursor < text.length && /\s/.test(text[cursor])) cursor++;
+          if (text[cursor] === '{') {
+            const range = extractBalancedRange(text, cursor, '{', '}');
+            if (range) {
+              const mathElement = createMathElement(range.content);
+              target.appendChild(mathElement);
+              index = range.endIndex + 1;
+              handled = true;
+            }
+          }
+        } else if (text.slice(atIndex, atIndex + 11).toLowerCase() === '@answerbox') {
+          let cursor = atIndex + 11;
+          while (cursor < text.length && /\s/.test(text[cursor])) cursor++;
+          if (text[cursor] === '[') {
+            const closing = findClosingBracket(text, cursor);
+            if (closing != null) {
+              const raw = text.slice(cursor + 1, closing);
+              const attrs = parseAttributeList(raw);
+              const inputEl = createAnswerboxElement(attrs, state);
+              if (inputEl) {
+                target.appendChild(inputEl);
+                index = closing + 1;
+                handled = true;
+              }
+            }
+          }
+        }
+        if (!handled) {
+          target.appendChild(document.createTextNode('@'));
+          index = atIndex + 1;
+        }
+      }
+    }
+
+    function appendParagraphs(fragment, text, state) {
+      if (!fragment || typeof fragment.appendChild !== 'function') return;
+      if (typeof text !== 'string') return;
+      const normalized = text.replace(/\r\n?/g, '\n');
+      const paragraphs = normalized.split(/\n{2,}/);
+      paragraphs.forEach(paragraph => {
+        if (!paragraph.trim()) return;
+        const p = document.createElement('p');
+        const lines = paragraph.split('\n');
+        lines.forEach((line, index) => {
+          appendInlineContent(p, line, state);
+          if (index < lines.length - 1) {
+            p.appendChild(document.createElement('br'));
+          }
+        });
+        fragment.appendChild(p);
+      });
+    }
+
+    function createTaskElement(contentFragment, state, attributes) {
+      if (typeof document === 'undefined') return null;
+      const fragmentHasContent = contentFragment && contentFragment.childNodes && contentFragment.childNodes.length > 0;
+      const title = attributes && typeof attributes.title === 'string' ? attributes.title.trim() : '';
+      if (!fragmentHasContent && !title) return null;
+      const container = document.createElement('section');
+      container.className = 'example-task';
+      container.setAttribute('role', 'group');
+      if (state) {
+        state.taskIndex = (state.taskIndex || 0) + 1;
+        container.dataset.taskIndex = String(state.taskIndex);
+      }
+      if (title) {
+        const header = document.createElement('header');
+        header.className = 'example-task__header';
+        appendInlineContent(header, title, state);
+        container.appendChild(header);
+      }
+      const body = document.createElement('div');
+      body.className = 'example-task__body';
+      if (fragmentHasContent) {
+        body.appendChild(contentFragment);
+      }
+      container.appendChild(body);
+      return container;
+    }
+
+    function findNextBlock(input, fromIndex) {
+      if (typeof input !== 'string') return null;
+      const pattern = /@(task|table)\s*(\[[^\]]*\])?\s*\{/gi;
+      pattern.lastIndex = fromIndex;
+      const match = pattern.exec(input);
+      if (!match) return null;
+      const name = match[1].toLowerCase();
+      const attrSource = match[2] ? match[2].slice(1, -1) : '';
+      const openBraceIndex = pattern.lastIndex - 1;
+      const range = extractBalancedRange(input, openBraceIndex, '{', '}');
+      if (!range) {
+        return {
+          type: 'invalid',
+          index: match.index
+        };
+      }
+      const raw = input.slice(match.index, range.endIndex + 1);
+      return {
+        type: name,
+        index: match.index,
+        endIndex: range.endIndex,
+        content: range.content,
+        raw,
+        attributes: name === 'task' ? parseAttributeList(attrSource) : {}
+      };
+    }
+
+    function parseContent(input, state) {
+      const fragment = createFragment();
+      if (typeof document === 'undefined') return fragment;
+      if (typeof input !== 'string') return fragment;
+      const normalized = input.replace(/\r\n?/g, '\n');
+      let index = 0;
+      while (index < normalized.length) {
+        const block = findNextBlock(normalized, index);
+        if (!block) {
+          appendParagraphs(fragment, normalized.slice(index), state);
+          break;
+        }
+        if (block.type === 'invalid') {
+          appendParagraphs(fragment, normalized.slice(index), state);
+          break;
+        }
+        if (block.index > index) {
+          appendParagraphs(fragment, normalized.slice(index, block.index), state);
+        }
+        if (block.type === 'table') {
+          const table = createDescriptionTable(block.content);
+          if (table) {
+            fragment.appendChild(table);
+          } else {
+            appendParagraphs(fragment, block.raw, state);
+          }
+        } else if (block.type === 'task') {
+          const inner = parseContent(block.content, state);
+          const task = createTaskElement(inner, state, block.attributes);
+          if (task) {
+            fragment.appendChild(task);
+          } else {
+            appendParagraphs(fragment, block.raw, state);
+          }
+        }
+        index = block.endIndex + 1;
+      }
+      return fragment;
+    }
+
+    function parse(value) {
+      const state = { taskIndex: 0, answerboxIndex: 0 };
+      if (typeof value !== 'string' || !value) {
+        return createFragment();
+      }
+      return parseContent(value, state);
+    }
+
+    function render(value, target, options) {
+      if (!target || typeof target.appendChild !== 'function') {
+        return { hasContent: false };
+      }
+      const opts = options && typeof options === 'object' ? options : {};
+      if (opts.clear !== false) {
+        while (target.firstChild) {
+          target.removeChild(target.firstChild);
+        }
+      }
+      const fragment = parse(typeof value === 'string' ? value : '');
+      const hasContent = fragment && fragment.childNodes && fragment.childNodes.length > 0;
+      if (hasContent) {
+        target.appendChild(fragment);
+      }
+      if (opts.setEmptyState !== false) {
+        target.dataset.empty = hasContent ? 'false' : 'true';
+      }
+      return { hasContent };
+    }
+
+    return {
+      parse,
+      render,
+      createAnswerboxElement,
+      attachAnswerboxValidation
+    };
+  })();
+
+  if (globalScope) {
+    globalScope.__MATH_VISUALS_DESCRIPTION__ = descriptionParser;
+  }
+
+  function buildDescriptionPreview(value) {
+    return descriptionParser.parse(typeof value === 'string' ? value : '');
   }
 
   function renderDescriptionPreviewFromValue(value) {
     const preview = getDescriptionPreviewElement();
     if (!preview) return;
-    clearChildren(preview);
+    while (preview.firstChild) {
+      preview.removeChild(preview.firstChild);
+    }
     const fragment = buildDescriptionPreview(typeof value === 'string' ? value : '');
     const hasContent = fragment && fragment.childNodes && fragment.childNodes.length > 0;
     if (hasContent) {
