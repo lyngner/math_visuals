@@ -38,6 +38,8 @@ const FONT_PARAM_KEYS = ['fontSize', 'font', 'axisFont', 'tickFont', 'curveFont'
 const SHOW_CURVE_NAMES = params.has('showNames') ? paramBool('showNames') : true;
 const SHOW_CURVE_EXPRESSIONS = params.has('showExpr') ? paramBool('showExpr') : false;
 const SHOW_DOMAIN_MARKERS = params.has('brackets') ? paramBool('brackets') : true;
+const SHOW_AXIS_NUMBERS = params.has('axisNumbers') ? paramBool('axisNumbers') : true;
+const SHOW_GRID = params.has('grid') ? paramBool('grid') : true;
 function clampFontSize(val) {
   if (!Number.isFinite(val)) return null;
   if (val < FONT_LIMITS.min) return FONT_LIMITS.min;
@@ -145,7 +147,11 @@ const ADV = {
       stroke: '#111827',
       width: 2
     },
+    ticks: {
+      showNumbers: SHOW_AXIS_NUMBERS
+    },
     grid: {
+      show: SHOW_GRID,
       majorX: 1,
       majorY: 1,
       labelPrecision: 0,
@@ -1049,6 +1055,7 @@ function applyAxisStyles() {
 }
 function applyTickSettings() {
   if (!axX || !axY) return;
+  const showNumbers = !!(ADV.axis && ADV.axis.ticks && ADV.axis.ticks.showNumbers);
   if (!ADV.axis.forceIntegers) {
     if (customTicksX) {
       try {
@@ -1064,20 +1071,21 @@ function applyTickSettings() {
     }
     axX.defaultTicks.setAttribute({
       visible: true,
-      drawLabels: true
+      drawLabels: showNumbers
     });
     axY.defaultTicks.setAttribute({
       visible: true,
-      drawLabels: true
+      drawLabels: showNumbers
     });
     return;
   }
   const tickBase = {
-    drawLabels: true,
+    drawLabels: showNumbers,
     precision: ADV.axis.grid.labelPrecision
   };
   const labelBase = {
-    fontSize: ADV.axis.grid.fontSize
+    fontSize: ADV.axis.grid.fontSize,
+    visible: showNumbers
   };
   const xOpts = {
     ...tickBase,
@@ -1197,7 +1205,7 @@ function initBoard() {
   brd = JXG.JSXGraph.initBoard('board', {
     boundingbox: toBB(START_SCREEN),
     axis: true,
-    grid: !ADV.axis.forceIntegers,
+    grid: ADV.axis.grid.show && !ADV.axis.forceIntegers,
     showNavigation: false,
     showCopyright: false,
     pan: {
@@ -1215,9 +1223,7 @@ function initBoard() {
   axX = brd.defaultAxes.x;
   axY = brd.defaultAxes.y;
   applyAxisStyles();
-  if (ADV.axis.forceIntegers) {
-    applyTickSettings();
-  }
+  applyTickSettings();
   xName = null;
   yName = null;
   placeAxisNames();
@@ -1311,7 +1317,7 @@ function enforceAspectStrict() {
 
 /* ---------- GRID (statisk) ---------- */
 function rebuildGrid() {
-  if (!brd || !ADV.axis.forceIntegers) return;
+  if (!brd) return;
   for (const L of gridV) {
     try {
       brd.removeObject(L);
@@ -1324,6 +1330,9 @@ function rebuildGrid() {
   }
   gridV = [];
   gridH = [];
+  if (!ADV.axis.forceIntegers || !ADV.axis.grid.show) {
+    return;
+  }
   enforceAspectStrict();
   const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
   const sx = +ADV.axis.grid.majorX > 1e-9 ? +ADV.axis.grid.majorX : 1;
@@ -2905,9 +2914,9 @@ function hideCheckControls() {
 function updateAfterViewChange() {
   if (!brd) return;
   enforceAspectStrict();
+  applyTickSettings();
   if (ADV.axis.forceIntegers) {
     rebuildGrid();
-    applyTickSettings();
   }
   placeAxisNames();
   if (MODE === 'functions') {
@@ -3095,6 +3104,8 @@ function setupSettingsForm() {
   const showNamesInput = g('cfgShowNames');
   const showExprInput = g('cfgShowExpr');
   const showBracketsInput = g('cfgShowBrackets');
+  const showAxisNumbersInput = g('cfgShowAxisNumbers');
+  const showGridInput = g('cfgShowGrid');
   const forceTicksInput = g('cfgForceTicks');
   const snapCheckbox = g('cfgSnap');
   let gliderSection = null;
@@ -4054,6 +4065,12 @@ function setupSettingsForm() {
   if (showBracketsInput) {
     showBracketsInput.checked = !!ADV.domainMarkers.show;
   }
+  if (showAxisNumbersInput) {
+    showAxisNumbersInput.checked = !!(ADV.axis && ADV.axis.ticks && ADV.axis.ticks.showNumbers);
+  }
+  if (showGridInput) {
+    showGridInput.checked = !!(ADV.axis && ADV.axis.grid && ADV.axis.grid.show);
+  }
   if (forceTicksInput) {
     forceTicksInput.checked = !!ADV.axis.forceIntegers;
     forceTicksInput.disabled = FORCE_TICKS_LOCKED_FALSE;
@@ -4119,6 +4136,8 @@ function setupSettingsForm() {
     const showNamesChecked = showNamesInput ? !!showNamesInput.checked : !!(ADV.curveName && ADV.curveName.showName);
     const showExprChecked = showExprInput ? !!showExprInput.checked : !!(ADV.curveName && ADV.curveName.showExpression);
     const showBracketsChecked = showBracketsInput ? !!showBracketsInput.checked : !!(ADV.domainMarkers && ADV.domainMarkers.show);
+    const showAxisNumbersChecked = showAxisNumbersInput ? !!showAxisNumbersInput.checked : !!(ADV.axis && ADV.axis.ticks && ADV.axis.ticks.showNumbers);
+    const showGridChecked = showGridInput ? !!showGridInput.checked : !!(ADV.axis && ADV.axis.grid && ADV.axis.grid.show);
     if (showNamesInput && ADV.curveName.showName !== showNamesChecked) {
       ADV.curveName.showName = showNamesChecked;
       needsRebuild = true;
@@ -4134,6 +4153,14 @@ function setupSettingsForm() {
     }
     if (showBracketsInput && ADV.domainMarkers.show !== showBracketsChecked) {
       ADV.domainMarkers.show = showBracketsChecked;
+      needsRebuild = true;
+    }
+    if (showAxisNumbersInput && ADV.axis.ticks.showNumbers !== showAxisNumbersChecked) {
+      ADV.axis.ticks.showNumbers = showAxisNumbersChecked;
+      needsRebuild = true;
+    }
+    if (showGridInput && ADV.axis.grid.show !== showGridChecked) {
+      ADV.axis.grid.show = showGridChecked;
       needsRebuild = true;
     }
     if (forceTicksInput) {
@@ -4201,6 +4228,12 @@ function setupSettingsForm() {
     }
     if (showBracketsInput) {
       p.set('brackets', showBracketsChecked ? '1' : '0');
+    }
+    if (showAxisNumbersInput) {
+      p.set('axisNumbers', showAxisNumbersChecked ? '1' : '0');
+    }
+    if (showGridInput) {
+      p.set('grid', showGridChecked ? '1' : '0');
     }
     if (forceTicksInput) {
       if (forceTicksInput.disabled && FORCE_TICKS_LOCKED_FALSE) {
