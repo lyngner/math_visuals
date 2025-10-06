@@ -31,6 +31,15 @@ const ADV_CONFIG = {
     outsideMaxFactor: 0.90,
     // maks 90% av korteste naboside
     outsideMin: 6 // liten gulvavstand ut fra hjørnet
+  },
+  rightAngleMarker: {
+    vertexScale: 0.68,
+    vertexMin: 11,
+    vertexMax: 24,
+    heightScale: 0.38,
+    heightMin: 11,
+    heightMax: 18,
+    heightMaxRatio: 0.65
   }
 };
 
@@ -594,6 +603,8 @@ function drawConstructionLine(g, P, Q) {
 function drawRightAngleMarker(g, foot, baseDir, altDir) {
   const baseLen = Math.hypot(baseDir.x, baseDir.y) || 1;
   const altLen = Math.hypot(altDir.x, altDir.y) || 1;
+  const size = rightAngleSizeFromSegments(baseLen, altLen);
+  if (!(size > 0)) return;
   const b = {
     x: baseDir.x / baseLen,
     y: baseDir.y / baseLen
@@ -602,8 +613,6 @@ function drawRightAngleMarker(g, foot, baseDir, altDir) {
     x: altDir.x / altLen,
     y: altDir.y / altLen
   };
-  const size = Math.min(12, Math.min(baseLen, altLen) * 0.25);
-  if (!(size > 0)) return;
   const p1 = {
     x: foot.x + b.x * size,
     y: foot.y + b.y * size
@@ -1506,6 +1515,29 @@ function angleRadius(Q, P, R) {
   return clamp(r0, ADV_CONFIG.angle.min, ADV_CONFIG.angle.max);
 }
 
+function rightAngleSizeFromRadius(r) {
+  const cfg = ADV_CONFIG.rightAngleMarker || {};
+  const scale = cfg.vertexScale != null ? cfg.vertexScale : 0.7;
+  const minSize = cfg.vertexMin != null ? cfg.vertexMin : 12;
+  const maxSize = cfg.vertexMax != null ? cfg.vertexMax : 24;
+  return clamp(r * scale, minSize, maxSize);
+}
+
+function rightAngleSizeFromSegments(baseLen, altLen) {
+  const cfg = ADV_CONFIG.rightAngleMarker || {};
+  const scale = cfg.heightScale != null ? cfg.heightScale : 0.35;
+  const minSize = cfg.heightMin != null ? cfg.heightMin : 12;
+  const maxSize = cfg.heightMax != null ? cfg.heightMax : 18;
+  const maxRatio = cfg.heightMaxRatio != null ? cfg.heightMaxRatio : 0.65;
+  const base = Math.min(baseLen, altLen);
+  if (!(base > 0)) return 0;
+  const raw = base * scale;
+  const hi = Math.max(0, Math.min(maxSize, base * maxRatio));
+  if (!(hi > 0)) return 0;
+  const lo = Math.min(minSize, hi);
+  return clamp(raw, lo, hi);
+}
+
 /* ---------- VINKELTEGNING + PLASSERING (NY) ---------- */
 function renderAngle(g, Q, P, R, r, opts) {
   const aDeg = angleAt(Q, P, R);
@@ -1527,36 +1559,38 @@ function renderAngle(g, Q, P, R, r, opts) {
   // markering (bue/kvadrat)
   if (opts.mark) {
     if (isRight) {
-      const s = r * 1.0;
-      const q = {
-        x: Q.x,
-        y: Q.y
-      };
-      const p1 = {
-        x: Q.x + u.x * s,
-        y: Q.y + u.y * s
-      };
-      const p2 = {
-        x: Q.x + (u.x + v.x) * s,
-        y: Q.y + (u.y + v.y) * s
-      };
-      const p3 = {
-        x: Q.x + v.x * s,
-        y: Q.y + v.y * s
-      };
-      add(g, "polygon", {
-        points: `${q.x},${q.y} ${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y}`,
-        fill: STYLE.angFill,
-        stroke: "none"
-      });
-      add(g, "polyline", {
-        points: `${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y}`,
-        fill: "none",
-        stroke: STYLE.angStroke,
-        "stroke-width": STYLE.angWidth,
-        "stroke-linejoin": "round",
-        "stroke-linecap": "round"
-      });
+      const s = rightAngleSizeFromRadius(r);
+      if (s > 0) {
+        const q = {
+          x: Q.x,
+          y: Q.y
+        };
+        const p1 = {
+          x: Q.x + u.x * s,
+          y: Q.y + u.y * s
+        };
+        const p2 = {
+          x: Q.x + (u.x + v.x) * s,
+          y: Q.y + (u.y + v.y) * s
+        };
+        const p3 = {
+          x: Q.x + v.x * s,
+          y: Q.y + v.y * s
+        };
+        add(g, "polygon", {
+          points: `${q.x},${q.y} ${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y}`,
+          fill: STYLE.angFill,
+          stroke: "none"
+        });
+        add(g, "polyline", {
+          points: `${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y}`,
+          fill: "none",
+          stroke: STYLE.angStroke,
+          "stroke-width": STYLE.angWidth,
+          "stroke-linejoin": "round",
+          "stroke-linecap": "round"
+        });
+      }
     } else {
       const a1 = Math.atan2(P.y - Q.y, P.x - Q.x);
       const a2 = Math.atan2(R.y - Q.y, R.x - Q.x);
@@ -1702,7 +1736,8 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
   const C0 = Cs[0].y >= ((_Cs$1$y = (_Cs$ = Cs[1]) === null || _Cs$ === void 0 ? void 0 : _Cs$.y) !== null && _Cs$1$y !== void 0 ? _Cs$1$y : -1e9) ? Cs[0] : Cs[1] || Cs[0];
   const base = [A0, B0, C0];
   const {
-    T
+    T,
+    k: renderScale
   } = fitTransformToRect(base, rect.w, rect.h, 46);
   const A = shift(T(A0), rect),
     B = shift(T(B0), rect),
@@ -1732,7 +1767,9 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
     heightTag = activeHeight.tag;
     pointsMap.D = heightPoint;
     const vertex = activeHeight.vertex;
-    heightLength = dist(vertex, heightPoint);
+    const pixelHeight = dist(vertex, heightPoint);
+    const scale = renderScale > 0 ? renderScale : 1;
+    heightLength = pixelHeight / scale;
     const [baseA, baseB] = activeHeight.basePoints;
     const distToA = dist(baseA, vertex);
     const distToB = dist(baseB, vertex);
