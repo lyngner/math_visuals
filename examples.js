@@ -1121,6 +1121,303 @@
   let tabButtons = [];
   let descriptionInput = null;
   const descriptionInputsWithListeners = new WeakSet();
+  const descriptionPreviewTargets = new Set();
+  const KATEX_VERSION = '0.16.9';
+  const KATEX_CSS_URL = `https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.css`;
+  const KATEX_JS_URL = `https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.js`;
+  let katexLoadPromise = null;
+
+  function ensureKatexStylesheet() {
+    if (typeof document === 'undefined') return;
+    const head = document.head || document.getElementsByTagName('head')[0];
+    if (!head) return;
+    const existing = head.querySelector('link[data-math-visuals-katex]') ||
+      head.querySelector(`link[href="${KATEX_CSS_URL}"]`);
+    if (existing) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = KATEX_CSS_URL;
+    link.integrity = 'sha384-ywTprUI1Q+mEFz1Ok5AR52lCstOEPCTpQJZMa2+pzSQPwXTwns32xERiqnnn6T5+';
+    link.crossOrigin = 'anonymous';
+    link.dataset.mathVisualsKatex = 'true';
+    head.appendChild(link);
+  }
+
+  function findExistingKatexScript() {
+    if (typeof document === 'undefined') return null;
+    const scripts = document.getElementsByTagName('script');
+    for (let i = 0; i < scripts.length; i++) {
+      const script = scripts[i];
+      const src = script && typeof script.src === 'string' ? script.src : '';
+      if (!src) continue;
+      if (src === KATEX_JS_URL || src.includes('/katex.min.js')) {
+        return script;
+      }
+    }
+    return null;
+  }
+
+  function rerenderDescriptionPreviews() {
+    descriptionPreviewTargets.forEach(preview => {
+      if (!preview || !preview.isConnected) {
+        descriptionPreviewTargets.delete(preview);
+        return;
+      }
+      const source = typeof preview.dataset.mathVisualsSource === 'string' ? preview.dataset.mathVisualsSource : '';
+      if (!source || !source.includes('@math{')) return;
+      renderDescriptionContent(preview, source, Object.assign({}, preview.__mathVisualsDescriptionOptions || {}, {
+        forceKatex: true,
+        ensureKatex: false
+      }));
+    });
+  }
+
+  function ensureKatexLoaded() {
+    if (typeof window === 'undefined') return Promise.resolve(false);
+    if (window.katex && typeof window.katex.render === 'function') return Promise.resolve(true);
+    if (katexLoadPromise) return katexLoadPromise;
+    ensureKatexStylesheet();
+    const head = typeof document !== 'undefined' ? (document.head || document.getElementsByTagName('head')[0]) : null;
+    let script = findExistingKatexScript();
+    const start = Date.now();
+    if (!script && head) {
+      script = document.createElement('script');
+      script.src = KATEX_JS_URL;
+      script.defer = true;
+      script.integrity = 'sha384-95pQhY9qsK0kGugHgdGXNqBJ38qRAjPR9U1FVLtZL1NVr7DiJ9N6byj1LxX+BPvk';
+      script.crossOrigin = 'anonymous';
+      script.dataset.mathVisualsKatex = 'true';
+      head.appendChild(script);
+    }
+    katexLoadPromise = new Promise(resolve => {
+      let settled = false;
+      const finish = success => {
+        if (settled) return;
+        settled = true;
+        resolve(success);
+      };
+      if (script) {
+        script.addEventListener('error', () => finish(false), { once: true });
+      }
+      (function checkReady() {
+        if (window.katex && typeof window.katex.render === 'function') {
+          finish(true);
+          return;
+        }
+        if (Date.now() - start > 10000) {
+          finish(false);
+          return;
+        }
+        setTimeout(checkReady, 50);
+      })();
+    }).then(success => {
+      if (success) {
+        rerenderDescriptionPreviews();
+      } else {
+        katexLoadPromise = null;
+      }
+      return success;
+    });
+    return katexLoadPromise;
+  }
+
+  function parseDescriptionMathSegments(text) {
+    if (typeof text !== 'string' || text.length === 0) {
+      return [{
+        type: 'text',
+        value: typeof text === 'string' ? text : ''
+      }];
+    }
+    const segments = [];
+    const length = text.length;
+    let index = 0;
+    while (index < length) {
+      const start = text.indexOf('@math{', index);
+      if (start === -1) {
+        const remainder = text.slice(index);
+        segments.push({
+          type: 'text',
+          value: remainder
+        });
+        break;
+      }
+      if (start > index) {
+        segments.push({
+          type: 'text',
+          value: text.slice(index, start)
+        });
+      }
+      let pos = start + 6;
+      let depth = 1;
+      const base = pos;
+      let found = false;
+      while (pos < length) {
+        const ch = text[pos];
+        if (ch === '{' || ch === '}') {
+          let backslashCount = 0;
+          for (let look = pos - 1; look >= base; look--) {
+            if (text[look] === '\') {
+              backslashCount += 1;
+            } else {
+              break;
+            }
+          }
+          const isEscaped = backslashCount % 2 === 1;
+          if (!isEscaped) {
+            if (ch === '{') {
+              depth += 1;
+            } else {
+              depth -= 1;
+              if (depth === 0) {
+                segments.push({
+                  type: 'math',
+                  value: text.slice(base, pos)
+                });
+                index = pos + 1;
+                found = true;
+                break;
+              }
+            }
+          }
+        }
+        pos += 1;
+      }
+      if (!found) {
+        segments.push({
+          type: 'text',
+          value: text.slice(start)
+        });
+        index = length;
+      }
+    }
+    if (segments.length === 0) {
+      segments.push({
+        type: 'text',
+        value: text
+      });
+    }
+    return segments;
+  }
+
+  function renderDescriptionContent(target, text, options = {}) {
+    if (!target) {
+      return {
+        hasMath: false,
+        usedKatex: false
+      };
+    }
+    const config = {
+      hideWhenNoMath: options.hideWhenNoMath === true,
+      ensureKatex: options.ensureKatex !== false,
+      forceKatex: options.forceKatex === true,
+      track: options.track === true,
+      mathClassName: typeof options.mathClassName === 'string' && options.mathClassName ? options.mathClassName : 'example-description__math',
+      fallbackClassName: typeof options.fallbackClassName === 'string' && options.fallbackClassName ? options.fallbackClassName : 'example-description__math--fallback'
+    };
+    target.__mathVisualsDescriptionOptions = config;
+    const value = typeof text === 'string' ? text : '';
+    target.dataset.mathVisualsSource = value;
+    const segments = parseDescriptionMathSegments(value);
+    const hasMath = segments.some(segment => segment.type === 'math');
+    if (!hasMath && config.hideWhenNoMath) {
+      target.hidden = true;
+      target.replaceChildren();
+      descriptionPreviewTargets.delete(target);
+      return {
+        hasMath: false,
+        usedKatex: false
+      };
+    }
+    if (config.hideWhenNoMath) {
+      target.hidden = false;
+    }
+    const useKatex = config.forceKatex || (typeof window !== 'undefined' && window.katex && typeof window.katex.render === 'function');
+    const fragment = document.createDocumentFragment();
+    segments.forEach(segment => {
+      if (!segment) return;
+      if (segment.type === 'math') {
+        const span = document.createElement('span');
+        span.className = config.mathClassName;
+        if (useKatex) {
+          try {
+            window.katex.render(segment.value, span, {
+              throwOnError: false
+            });
+          } catch (error) {
+            span.textContent = segment.value;
+            span.classList.add(config.fallbackClassName);
+          }
+        } else {
+          span.textContent = segment.value;
+          span.classList.add(config.fallbackClassName);
+        }
+        fragment.appendChild(span);
+      } else {
+        fragment.appendChild(document.createTextNode(segment.value));
+      }
+    });
+    target.replaceChildren(fragment);
+    if (config.track) {
+      if (hasMath) {
+        descriptionPreviewTargets.add(target);
+      } else {
+        descriptionPreviewTargets.delete(target);
+      }
+    }
+    if (!useKatex && hasMath && config.ensureKatex) {
+      ensureKatexLoaded().then(success => {
+        if (!success || !target.isConnected) return;
+        const storedOptions = target.__mathVisualsDescriptionOptions || {};
+        renderDescriptionContent(target, target.dataset.mathVisualsSource || '', Object.assign({}, storedOptions, {
+          forceKatex: true,
+          ensureKatex: false
+        }));
+      });
+    }
+    return {
+      hasMath,
+      usedKatex: useKatex
+    };
+  }
+
+  function ensureDescriptionPreview(input) {
+    if (!input || typeof input.closest !== 'function') return null;
+    const container = input.closest('.example-description');
+    if (!container) return null;
+    let preview = container.querySelector('.example-description__preview');
+    if (!preview) {
+      preview = document.createElement('div');
+      preview.className = 'example-description__preview';
+      preview.hidden = true;
+      container.appendChild(preview);
+    }
+    return preview;
+  }
+
+  const descriptionPreviewOptions = {
+    hideWhenNoMath: true,
+    ensureKatex: true,
+    track: true
+  };
+
+  function updateDescriptionPreview(input) {
+    if (!input) return;
+    const preview = ensureDescriptionPreview(input);
+    if (!preview) return;
+    const value = typeof input.value === 'string' ? input.value : '';
+    const result = renderDescriptionContent(preview, value, descriptionPreviewOptions);
+    if (!result.hasMath) {
+      preview.hidden = true;
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.MathVisuals = window.MathVisuals || {};
+    window.MathVisuals.description = window.MathVisuals.description || {};
+    window.MathVisuals.description.renderContent = renderDescriptionContent;
+    window.MathVisuals.description.ensureKatex = ensureKatexLoaded;
+    window.MathVisuals.description.parseSegments = parseDescriptionMathSegments;
+  }
 
   function updateDescriptionCollapsedState(target) {
     const input = target && target.nodeType === 1 ? target : getDescriptionInput();
@@ -1136,11 +1433,15 @@
     if (!input || descriptionInputsWithListeners.has(input)) return;
     descriptionInputsWithListeners.add(input);
     const update = () => updateDescriptionCollapsedState(input);
-    input.addEventListener('input', update);
-    input.addEventListener('change', update);
-    input.addEventListener('focus', update);
-    input.addEventListener('blur', update);
-    setTimeout(update, 0);
+    const updateAll = () => {
+      updateDescriptionCollapsedState(input);
+      updateDescriptionPreview(input);
+    };
+    input.addEventListener('input', updateAll);
+    input.addEventListener('change', updateAll);
+    input.addEventListener('focus', updateAll);
+    input.addEventListener('blur', updateAll);
+    setTimeout(updateAll, 0);
   }
 
   function getDescriptionInput() {
@@ -1164,6 +1465,7 @@
       input.value = '';
     }
     updateDescriptionCollapsedState(input);
+    updateDescriptionPreview(input);
   }
   let defaultEnsureScheduled = false;
   let ensureDefaultsRunning = false;

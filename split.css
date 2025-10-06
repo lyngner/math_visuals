@@ -149,6 +149,36 @@ body[data-app-mode="task"] .grid.split-enabled {
   display: none;
 }
 
+.card--examples .example-description__preview {
+  display: none;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #1f2937;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.card--examples .example-description__preview:not([hidden]) {
+  display: block;
+}
+
+.card--examples .example-description__preview .example-description__math {
+  display: inline-block;
+  margin: 0 2px;
+}
+
+.card--examples .example-description__preview .example-description__math .katex {
+  font-size: 1em;
+}
+
+.card--examples .example-description__preview .example-description__math--fallback {
+  font-style: italic;
+  color: #4b5563;
+}
+
 .card--examples .example-description textarea {
   border: 1px solid #d1d5db;
   border-radius: 10px;

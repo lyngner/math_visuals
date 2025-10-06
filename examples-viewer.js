@@ -416,9 +416,16 @@ async function renderExamples(options) {
       if (ex && typeof ex.description === 'string' && ex.description.trim()) {
         const description = document.createElement('p');
         description.className = 'example-description';
-        description.textContent = ex.description;
         description.style.whiteSpace = 'pre-wrap';
         description.style.margin = '0 0 8px';
+        const renderer = window.MathVisuals && window.MathVisuals.description && typeof window.MathVisuals.description.renderContent === 'function' ? window.MathVisuals.description.renderContent : null;
+        if (renderer) {
+          renderer(description, ex.description, {
+            ensureKatex: true
+          });
+        } else {
+          description.textContent = ex.description;
+        }
         wrap.appendChild(description);
       }
       const iframe = document.createElement('iframe');
