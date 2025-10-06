@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Eksempeloversikt</title>
+  <link rel="stylesheet" href="base.css" />
+  <link rel="stylesheet" href="split.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-ywTprUI1Q+mEFz1Ok5AR52lCstOEPCTpQJZMa2+pzSQPwXTwns32xERiqnnn6T5+" crossorigin="anonymous" />
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    main {
+      max-width: 960px;
+      margin: 40px auto;
+      padding: 0 20px 60px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+    section {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      border: 1px solid rgba(15, 23, 42, 0.05);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    section h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .example {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      border-radius: 12px;
+      background: rgba(248, 250, 252, 0.9);
+    }
+    .example iframe {
+      width: 100%;
+      min-height: 360px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      border-radius: 10px;
+      background: #fff;
+    }
+    .buttons {
+      display: flex;
+      gap: 12px;
+    }
+    .buttons button {
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(15, 109, 143, 0.35);
+      background: #0f6d8f;
+      color: #fff;
+      cursor: pointer;
+      font: inherit;
+    }
+    .buttons button:hover,
+    .buttons button:focus-visible {
+      background: #0c5974;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card card--examples" style="width:100%;">
+        <main id="examples" aria-live="polite"></main>
+      </div>
+    </div>
+  </div>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-95pQhY9qsK0kGugHgdGXNqBJ38qRAjPR9U1FVLtZL1NVr7DiJ9N6byj1LxX+BPvk" crossorigin="anonymous"></script>
+  <script src="examples-viewer.js" defer></script>
+</body>
+</html>

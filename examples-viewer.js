@@ -1,5 +1,399 @@
 // Viewer for stored examples
 const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+
+const DESCRIPTION_RENDERER = (() => {
+  if (globalScope && globalScope.__EXAMPLES_DESCRIPTION__) {
+    return globalScope.__EXAMPLES_DESCRIPTION__;
+  }
+
+  const MAX_KATEX_ATTEMPTS = 8;
+
+  function normalizeLineBreaks(value) {
+    return typeof value === 'string' ? value.replace(/\r\n?/g, '\n') : '';
+  }
+
+  function createParagraphNode() {
+    return { type: 'paragraph', children: [] };
+  }
+
+  function appendTextSegment(paragraph, text) {
+    if (!paragraph || typeof text !== 'string' || !text) return;
+    const normalized = normalizeLineBreaks(text);
+    const lines = normalized.split('\n');
+    lines.forEach((line, index) => {
+      if (line) {
+        paragraph.children.push({ type: 'text', value: line });
+      }
+      if (index < lines.length - 1) {
+        paragraph.children.push({ type: 'linebreak' });
+      }
+    });
+  }
+
+  function findCommand(source, startIndex) {
+    let index = source.indexOf('@', startIndex);
+    while (index !== -1) {
+      const match = /^@([a-zA-Z]+)\s*\{/.exec(source.slice(index));
+      if (!match) {
+        index = source.indexOf('@', index + 1);
+        continue;
+      }
+      const name = match[1];
+      let depth = 1;
+      let cursor = index + match[0].length;
+      while (cursor < source.length && depth > 0) {
+        const char = source[cursor];
+        if (char === '{') {
+          depth++;
+        } else if (char === '}') {
+          depth--;
+        }
+        cursor++;
+      }
+      if (depth !== 0) {
+        index = source.indexOf('@', index + 1);
+        continue;
+      }
+      const contentStart = index + match[0].length;
+      return {
+        index,
+        name,
+        content: source.slice(contentStart, cursor - 1),
+        endIndex: cursor
+      };
+    }
+    return null;
+  }
+
+  function parseTable(content) {
+    const normalized = normalizeLineBreaks(content).trim();
+    if (!normalized) return null;
+    const lines = normalized
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line);
+    if (!lines.length) return null;
+    const rows = lines.map(line => line.split('|').map(cell => cell.trim())) || [];
+    const columnCount = rows.reduce((max, row) => (row.length > max ? row.length : max), 0);
+    if (!columnCount) return null;
+    const [headerRow, ...bodyRows] = rows;
+    return {
+      headers: headerRow,
+      rows: bodyRows.length ? bodyRows : [headerRow]
+    };
+  }
+
+  function parseDescriptionToAst(value) {
+    const source = normalizeLineBreaks(String(value != null ? value : ''));
+    const nodes = [];
+    let paragraph = createParagraphNode();
+
+    const ensureParagraph = () => {
+      if (!paragraph) paragraph = createParagraphNode();
+      return paragraph;
+    };
+
+    const commitParagraph = () => {
+      if (!paragraph) return;
+      const hasContent = paragraph.children.some(child => {
+        if (child.type === 'text') return child.value.trim().length > 0;
+        return child.type !== 'linebreak';
+      });
+      if (hasContent) {
+        nodes.push(paragraph);
+      }
+      paragraph = createParagraphNode();
+    };
+
+    const appendText = text => {
+      if (!text) return;
+      const normalized = normalizeLineBreaks(text);
+      const parts = normalized.split(/\n{2,}/);
+      parts.forEach((part, index) => {
+        if (part) {
+          appendTextSegment(ensureParagraph(), part);
+        }
+        if (index < parts.length - 1) {
+          commitParagraph();
+        }
+      });
+    };
+
+    let cursor = 0;
+    while (cursor < source.length) {
+      const command = findCommand(source, cursor);
+      if (!command) {
+        appendText(source.slice(cursor));
+        break;
+      }
+      if (command.index > cursor) {
+        appendText(source.slice(cursor, command.index));
+      }
+      const { name, content, endIndex } = command;
+      const lowerName = name.toLowerCase();
+      if (lowerName === 'task') {
+        commitParagraph();
+        nodes.push({ type: 'task', children: parseDescriptionToAst(content) });
+      } else if (lowerName === 'table') {
+        commitParagraph();
+        const table = parseTable(content);
+        if (table) {
+          nodes.push({ type: 'table', headers: table.headers, rows: table.rows });
+        } else {
+          appendText(`@${name}{${content}}`);
+        }
+      } else if (lowerName === 'answerbox') {
+        ensureParagraph().children.push({ type: 'answerbox', value: content });
+      } else {
+        appendText(`@${name}{${content}}`);
+      }
+      cursor = endIndex;
+    }
+
+    commitParagraph();
+    return nodes;
+  }
+
+  function normalizeAnswer(value) {
+    const raw = typeof value === 'string' ? value.trim() : '';
+    if (!raw) return { type: 'empty', value: '' };
+    const numericCandidate = raw.replace(',', '.');
+    if (/^[+-]?\d+(?:[.,]\d+)?$/.test(raw)) {
+      const num = Number(numericCandidate);
+      if (Number.isFinite(num)) {
+        return { type: 'number', value: num.toFixed(10).replace(/\.0+$/, '').replace(/0+$/, '').replace(/\.$/, '') };
+      }
+    }
+    return { type: 'text', value: raw.toLowerCase() };
+  }
+
+  function answersMatch(input, expected) {
+    const a = normalizeAnswer(input);
+    const b = normalizeAnswer(expected);
+    if (a.type === 'empty') return false;
+    if (a.type === 'number' && b.type === 'number') {
+      return a.value === b.value;
+    }
+    return a.value === b.value;
+  }
+
+  function parseAnswerSpec(value) {
+    if (typeof value !== 'string') return [];
+    return value
+      .split('|')
+      .map(part => part.trim())
+      .filter(Boolean);
+  }
+
+  function appendTextWithMath(container, text, context) {
+    if (!text) return;
+    const doc = container.ownerDocument || (globalScope && globalScope.document);
+    if (!doc) return;
+    const pattern = /\$(.+?)\$/g;
+    let lastIndex = 0;
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const before = text.slice(lastIndex, match.index);
+      if (before) container.appendChild(doc.createTextNode(before));
+      const latex = match[1];
+      const span = doc.createElement('span');
+      span.className = 'example-katex';
+      span.textContent = latex;
+      span.dataset.katex = latex;
+      context.katexElements.push(span);
+      container.appendChild(span);
+      lastIndex = pattern.lastIndex;
+    }
+    const after = text.slice(lastIndex);
+    if (after) container.appendChild(doc.createTextNode(after));
+  }
+
+  function createAnswerBox(value, context) {
+    const doc = (context && context.doc) || (globalScope && globalScope.document);
+    if (!doc) return null;
+    const answers = parseAnswerSpec(value);
+    const wrapper = doc.createElement('span');
+    wrapper.className = 'example-answerbox';
+    const input = doc.createElement('input');
+    input.type = 'text';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.className = 'example-answerbox__input';
+    input.setAttribute('aria-label', 'Svar');
+    const status = doc.createElement('span');
+    status.className = 'example-answerbox__status';
+    status.setAttribute('aria-live', 'polite');
+    status.textContent = '';
+    wrapper.appendChild(input);
+    wrapper.appendChild(status);
+    context.answerBoxes.push({ box: wrapper, input, status, answers });
+    return wrapper;
+  }
+
+  function renderAstNodes(nodes, context) {
+    const doc = context.doc;
+    const fragment = doc.createDocumentFragment();
+    nodes.forEach(node => {
+      if (!node) return;
+      if (node.type === 'paragraph') {
+        const p = doc.createElement('p');
+        node.children.forEach(child => {
+          if (!child) return;
+          if (child.type === 'text') {
+            appendTextWithMath(p, child.value, context);
+          } else if (child.type === 'linebreak') {
+            p.appendChild(doc.createElement('br'));
+          } else if (child.type === 'answerbox') {
+            const box = createAnswerBox(child.value, context);
+            if (box) p.appendChild(box);
+          }
+        });
+        if (p.childNodes.length) {
+          fragment.appendChild(p);
+        }
+      } else if (node.type === 'task') {
+        const task = doc.createElement('div');
+        task.className = 'example-task';
+        const body = doc.createElement('div');
+        body.className = 'example-task__body';
+        const inner = renderAstNodes(node.children || [], context);
+        body.appendChild(inner);
+        task.appendChild(body);
+        fragment.appendChild(task);
+      } else if (node.type === 'table') {
+        const table = doc.createElement('table');
+        table.className = 'example-description-table';
+        const columnCount = Math.max(node.headers.length, ...(node.rows || []).map(row => row.length));
+        if (node.headers && node.headers.length) {
+          const thead = doc.createElement('thead');
+          const tr = doc.createElement('tr');
+          for (let i = 0; i < columnCount; i++) {
+            const th = doc.createElement('th');
+            const value = node.headers[i] != null ? node.headers[i] : '';
+            appendTextWithMath(th, value, context);
+            tr.appendChild(th);
+          }
+          thead.appendChild(tr);
+          table.appendChild(thead);
+        }
+        const tbody = doc.createElement('tbody');
+        (node.rows || []).forEach(row => {
+          const tr = doc.createElement('tr');
+          for (let i = 0; i < columnCount; i++) {
+            const td = doc.createElement('td');
+            const value = row[i] != null ? row[i] : '';
+            appendTextWithMath(td, value, context);
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        fragment.appendChild(table);
+      }
+    });
+    return fragment;
+  }
+
+  function attachAnswerHandlers(answerBoxes) {
+    answerBoxes.forEach(item => {
+      if (!item || !item.input) return;
+      const { input, box, status, answers } = item;
+      const update = () => {
+        const value = input.value || '';
+        if (!value.trim()) {
+          box.classList.remove('example-answerbox--correct', 'example-answerbox--incorrect');
+          if (status) status.textContent = '';
+          return;
+        }
+        const isCorrect = answers.length ? answers.some(answer => answersMatch(value, answer)) : false;
+        box.classList.toggle('example-answerbox--correct', isCorrect);
+        box.classList.toggle('example-answerbox--incorrect', !isCorrect);
+        if (status) status.textContent = isCorrect ? 'Riktig!' : 'Prøv igjen';
+      };
+      item.update = update;
+      input.addEventListener('input', update);
+      input.addEventListener('change', update);
+      update();
+    });
+  }
+
+  function renderKatexElements(elements, attempt = 0) {
+    if (!elements || !elements.length) return;
+    const katex = globalScope && globalScope.katex;
+    if (!katex || typeof katex.render !== 'function') {
+      if (globalScope && typeof globalScope.setTimeout === 'function' && attempt < MAX_KATEX_ATTEMPTS) {
+        globalScope.setTimeout(() => renderKatexElements(elements, attempt + 1), 100 * (attempt + 1));
+      }
+      return;
+    }
+    elements.forEach(element => {
+      if (!element || !element.dataset) return;
+      const latex = element.dataset.katex;
+      const fallback = element.textContent || '';
+      try {
+        katex.render(latex || '', element, { throwOnError: false });
+      } catch (error) {
+        element.textContent = fallback;
+      }
+    });
+  }
+
+  function renderDescription(value, options) {
+    const doc = (options && options.document) || (globalScope && globalScope.document);
+    if (!doc) {
+      return {
+        fragment: null,
+        meta: { answerBoxes: [], katexElements: [] },
+        hasContent: false
+      };
+    }
+    const ast = parseDescriptionToAst(value);
+    const context = {
+      doc,
+      answerBoxes: [],
+      katexElements: []
+    };
+    const fragment = renderAstNodes(ast, context);
+    const hasContent = fragment && fragment.childNodes && fragment.childNodes.length > 0;
+    return { fragment, meta: context, hasContent };
+  }
+
+  function renderInto(container, value, options) {
+    if (!container) {
+      return renderDescription(value, options);
+    }
+    const result = renderDescription(value, { document: container.ownerDocument });
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
+    if (result.fragment) {
+      container.appendChild(result.fragment);
+    }
+    const enableKatex = !options || options.enableKatex !== false;
+    const enableAnswers = !options || options.enableAnswers !== false;
+    if (enableKatex) {
+      renderKatexElements(result.meta.katexElements || []);
+    }
+    if (enableAnswers) {
+      attachAnswerHandlers(result.meta.answerBoxes || []);
+    }
+    return result;
+  }
+
+  const helpers = {
+    parseToAst: parseDescriptionToAst,
+    render: renderDescription,
+    renderInto,
+    attachAnswerHandlers,
+    renderKatexElements
+  };
+
+  if (globalScope) {
+    globalScope.__EXAMPLES_DESCRIPTION__ = helpers;
+  }
+
+  return helpers;
+})();
 function createMemoryStorage() {
   const data = new Map();
   return {
@@ -414,12 +808,15 @@ async function renderExamples(options) {
       const wrap = document.createElement('div');
       wrap.className = 'example';
       if (ex && typeof ex.description === 'string' && ex.description.trim()) {
-        const description = document.createElement('p');
+        const description = document.createElement('div');
         description.className = 'example-description';
-        description.textContent = ex.description;
-        description.style.whiteSpace = 'pre-wrap';
-        description.style.margin = '0 0 8px';
-        wrap.appendChild(description);
+        const result = DESCRIPTION_RENDERER.renderInto(description, ex.description, {
+          enableKatex: true,
+          enableAnswers: true
+        });
+        if (result && result.hasContent) {
+          wrap.appendChild(description);
+        }
       }
       const iframe = document.createElement('iframe');
       iframe.setAttribute('loading', 'lazy');
