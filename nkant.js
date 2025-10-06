@@ -171,6 +171,20 @@ function cloneJobForSummary(job) {
       side: cloneDimension(job.obj && job.obj.side)
     };
   }
+  if (job.type === 'polygonArc') {
+    const base = job.obj && job.obj.polygon ? job.obj.polygon : null;
+    return {
+      type: 'polygonArc',
+      polygon: base ? {
+        sides: Number.isFinite(base.sides) ? Math.max(3, Math.round(base.sides)) : null,
+        side: cloneDimension(base.side)
+      } : null,
+      side: typeof (job.obj && job.obj.side) === 'string' ? job.obj.side : '',
+      radius: cloneDimension(job.obj && job.obj.radius),
+      diameter: cloneDimension(job.obj && job.obj.diameter),
+      decorations: summarizeJobDecorations(job)
+    };
+  }
   const values = {};
   const source = job.obj && typeof job.obj === 'object' ? job.obj : {};
   ['a', 'b', 'c', 'd', 'A', 'B', 'C', 'D'].forEach(key => {
@@ -189,7 +203,7 @@ function cloneJobForSummary(job) {
 }
 function summarizeJobDecorations(job) {
   if (!job || typeof job !== 'object' || !Array.isArray(job.decorations)) return [];
-  const type = job.type === 'tri' ? 'tri' : job.type === 'quad' ? 'quad' : null;
+  const type = job.type === 'tri' ? 'tri' : job.type === 'quad' || job.type === 'polygonArc' ? 'quad' : null;
   if (!type) return [];
   const letters = type === 'tri' ? ['A', 'B', 'C'] : ['A', 'B', 'C', 'D'];
   const seen = new Set();
@@ -361,6 +375,30 @@ function buildNkantAltText(summary) {
       const sideInfo = describeDimensionEntry(job.side, 'Side');
       if (sideInfo) {
         sentence += ` ${sideInfo}.`;
+      }
+      sentences.push(sentence.trim());
+      return;
+    }
+    if (job.type === 'polygonArc') {
+      const polygon = job.polygon || {};
+      const count = polygon.sides && Number.isFinite(polygon.sides) ? Math.max(3, Math.round(polygon.sides)) : null;
+      const sideLabel = typeof job.side === 'string' && job.side ? job.side : '';
+      let sentence = `Figur ${idx + 1} er en mangekant${count ? ` med ${count} sider` : ''} med en halvsirkel på side${sideLabel ? ` ${sideLabel}` : ''}.`;
+      const sideInfo = describeDimensionEntry(polygon.side, 'Side');
+      if (sideInfo) {
+        sentence += ` ${sideInfo}.`;
+      }
+      const radiusInfo = describeDimensionEntry(job.radius, 'Radius');
+      if (radiusInfo) {
+        sentence += ` ${radiusInfo}.`;
+      }
+      const diameterInfo = describeDimensionEntry(job.diameter, 'Diameter');
+      if (job.diameter && diameterInfo) {
+        sentence += ` ${diameterInfo}.`;
+      }
+      const decoSentence = describeDecorationsSummary(job.decorations);
+      if (decoSentence) {
+        sentence += ` ${decoSentence}`;
       }
       sentences.push(sentence.trim());
       return;
@@ -852,6 +890,19 @@ function normalizedDimensionText(entry, fallback) {
   }
   return typeof fallback === 'string' ? fallback : '';
 }
+function parseArcSideTokens(text) {
+  if (!text) return [];
+  const matches = String(text).toUpperCase().match(/[A-Z]+/g);
+  if (!matches || !matches.length) return [];
+  if (matches.length >= 2) {
+    return matches.slice(0, 2);
+  }
+  const single = matches[0];
+  if (single.length >= 2) {
+    return [single.slice(0, 1), single.slice(1, 2)];
+  }
+  return [single];
+}
 function parseSpecFreeform(str) {
   const out = {};
   if (!str) return out;
@@ -1060,6 +1111,7 @@ function parseSpecFreeform(str) {
 }
 function parseCircleSpecLine(str) {
   if (!str || !/sirkel/i.test(str)) return null;
+  if (/halvsirkel/i.test(str) || /halv\s*sirkel/i.test(str)) return null;
   const dims = parseLabeledSegments(str, [{
     id: 'radius',
     keywords: ['radius', 'rad'],
@@ -1178,9 +1230,80 @@ function parsePolygonSpecLine(str) {
     normalized
   };
 }
+function parsePolygonArcSpecLine(str) {
+  if (!str || !/halvsirkel/i.test(str)) return null;
+  const polygonBase = parsePolygonSpecLine(str);
+  const polygonObj = polygonBase ? polygonBase.job && polygonBase.job.obj : null;
+  const baseSides = polygonObj && Number.isFinite(polygonObj.sides) ? Math.max(3, Math.round(polygonObj.sides)) : 5;
+  const baseSideEntry = polygonObj && polygonObj.side ? {
+    ...polygonObj.side
+  } : {
+    label: 'a',
+    value: null,
+    requested: false
+  };
+  if (!baseSideEntry.label) baseSideEntry.label = 'a';
+  const dims = parseLabeledSegments(str, [{
+    id: 'radius',
+    keywords: ['radius', 'rad'],
+    defaultLabel: 'r'
+  }, {
+    id: 'diameter',
+    keywords: ['diameter', 'diam'],
+    defaultLabel: 'd'
+  }]);
+  const radiusEntry = dims.radius ? {
+    ...dims.radius
+  } : {
+    label: 'r',
+    value: null,
+    requested: false
+  };
+  if (!radiusEntry.label) radiusEntry.label = 'r';
+  radiusEntry.requested = Boolean(dims.radius);
+  const diameterEntry = dims.diameter ? {
+    ...dims.diameter,
+    requested: true
+  } : null;
+  const sideSegmentMatch = str.match(/halvsirkel\s+([A-Za-z]+(?:\s*[A-Za-z]+)?)/i);
+  const sideSegment = sideSegmentMatch ? sideSegmentMatch[1] : '';
+  const resolvedSide = normalizeArcSideSpecifier(sideSegment, baseSides);
+  const job = {
+    type: 'polygonArc',
+    obj: {
+      polygon: {
+        sides: baseSides,
+        side: baseSideEntry
+      },
+      side: resolvedSide.label,
+      radius: radiusEntry,
+      diameter: diameterEntry
+    }
+  };
+  const normalizedParts = [`halvsirkel ${resolvedSide.label}`];
+  const radiusText = normalizedDimensionText(radiusEntry, 'r');
+  if (radiusText) normalizedParts.push(`radius ${radiusText}`);
+  if (diameterEntry) {
+    const diameterText = normalizedDimensionText(diameterEntry, 'd');
+    if (diameterText) normalizedParts.push(`diameter ${diameterText}`);
+  }
+  if (polygonBase && polygonBase.normalized) {
+    normalizedParts.push(polygonBase.normalized);
+  }
+  return {
+    job,
+    normalized: normalizedParts.join('; '),
+    allowDecorations: true
+  };
+}
 function parseShapeSpec(str) {
   const circle = parseCircleSpecLine(str);
-  if (circle) return circle;
+  if (circle) return {
+    ...circle,
+    allowDecorations: false
+  };
+  const polygonWithArc = parsePolygonArcSpecLine(str);
+  if (polygonWithArc) return polygonWithArc;
   const polygon = parsePolygonSpecLine(str);
   if (polygon) return polygon;
   return null;
@@ -2150,6 +2273,48 @@ function indexToLetter(idx, upperCase) {
   } while (n >= 0);
   return out;
 }
+function normalizeArcSideSpecifier(sideSpec, count) {
+  const cappedCount = Math.max(3, Math.floor(count || 0) || 3);
+  const defaultLabels = Array.from({
+    length: cappedCount
+  }, (_, i) => indexToLetter(i, true));
+  const tokens = parseArcSideTokens(sideSpec);
+  let first = tokens[0] || '';
+  let second = tokens[1] || '';
+  if (!first) first = defaultLabels[0];
+  if (!second) second = defaultLabels[(1) % cappedCount];
+  let idxA = defaultLabels.findIndex(label => label === first);
+  let idxB = defaultLabels.findIndex(label => label === second);
+  if (idxA === -1 && idxB === -1) {
+    idxA = 0;
+    idxB = 1 % cappedCount;
+  } else if (idxA === -1) {
+    idxA = (idxB - 1 + cappedCount) % cappedCount;
+  } else if (idxB === -1) {
+    idxB = (idxA + 1) % cappedCount;
+  }
+  if ((idxA + 1) % cappedCount === idxB) {
+    return {
+      startIndex: idxA,
+      endIndex: idxB,
+      label: `${defaultLabels[idxA]}${defaultLabels[idxB]}`
+    };
+  }
+  if ((idxB + 1) % cappedCount === idxA) {
+    return {
+      startIndex: idxB,
+      endIndex: idxA,
+      label: `${defaultLabels[idxB]}${defaultLabels[idxA]}`
+    };
+  }
+  const startIndex = Math.max(0, idxA);
+  const endIndex = (startIndex + 1) % cappedCount;
+  return {
+    startIndex,
+    endIndex,
+    label: `${defaultLabels[startIndex]}${defaultLabels[endIndex]}`
+  };
+}
 function deriveSequentialLabel(base, index, upperCase) {
   const fallback = indexToLetter(index, upperCase);
   if (!base) return fallback;
@@ -2232,6 +2397,158 @@ function drawRegularPolygonToGroup(g, rect, spec, adv) {
   // Previously the number of sides was annotated in the centre of the polygon
   // (e.g. "n=10"). This visual label is no longer desired, so we omit it.
 }
+function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations) {
+  const polygonSpec = spec && spec.polygon ? spec.polygon : {};
+  const countRaw = polygonSpec && Number.isFinite(polygonSpec.sides) ? polygonSpec.sides : 5;
+  const count = Math.max(3, Math.round(countRaw));
+  const cx = rect.x + rect.w / 2;
+  const cy = rect.y + rect.h / 2;
+  const radius = Math.max(40, Math.min(rect.w, rect.h) / 2 - 50);
+  const polyRadius = radius > 0 ? radius : Math.min(rect.w, rect.h) * 0.35;
+  const pts = [];
+  const startAngle = -Math.PI / 2;
+  for (let i = 0; i < count; i++) {
+    const theta = startAngle + i * 2 * Math.PI / count;
+    pts.push({
+      x: cx + polyRadius * Math.cos(theta),
+      y: cy + polyRadius * Math.sin(theta)
+    });
+  }
+  add(g, "polygon", {
+    points: ptsTo(pts),
+    fill: STYLE.faceFill,
+    stroke: "none"
+  });
+  add(g, "polygon", {
+    points: ptsTo(pts),
+    fill: "none",
+    stroke: STYLE.edgeStroke,
+    "stroke-width": STYLE.edgeWidth,
+    "stroke-linejoin": "round"
+  });
+  const ctr = polygonCentroid(pts);
+  const advSides = adv && adv.sides ? adv.sides : { mode: {}, text: {} };
+  const advAngles = adv && adv.angles ? adv.angles : { mode: {}, text: {} };
+  const sideValueStr = polygonSpec && polygonSpec.side && Number.isFinite(polygonSpec.side.value) ? fmt(polygonSpec.side.value) : '';
+  const baseSideLabel = normalizedDimensionText(polygonSpec && polygonSpec.side, 'a');
+  for (let i = 0; i < count; i++) {
+    const P = pts[i];
+    const Q = pts[(i + 1) % count];
+    const sideKey = indexToLetter(i, false);
+    const mode = advSides.mode && advSides.mode[sideKey] ? advSides.mode[sideKey] : advSides.mode && advSides.mode.default;
+    const customText = advSides.text && advSides.text[sideKey] ? advSides.text[sideKey] : deriveSequentialLabel(baseSideLabel, i, false);
+    let label = buildSideText(mode, sideValueStr, customText);
+    if (!label && customText) {
+      label = customText;
+    }
+    if (label) {
+      sideLabelText(g, P, Q, label, true, ctr, 18);
+    }
+  }
+  for (let i = 0; i < count; i++) {
+    const prev = pts[(i - 1 + count) % count];
+    const cur = pts[i];
+    const next = pts[(i + 1) % count];
+    const angleKey = indexToLetter(i, true);
+    const mode = advAngles.mode && advAngles.mode[angleKey] ? advAngles.mode[angleKey] : advAngles.mode && advAngles.mode.default;
+    if (!mode || String(mode).toLowerCase() === 'none') continue;
+    const customText = advAngles.text && advAngles.text[angleKey] ? advAngles.text[angleKey] : deriveSequentialLabel(baseSideLabel, i, true);
+    const angleVal = angleAt(prev, cur, next);
+    const parsed = parseAnglePointMode(mode, angleVal, customText, angleKey);
+    renderAngle(g, prev, cur, next, angleRadius(prev, cur, next), {
+      mark: parsed.mark,
+      angleText: parsed.angleText,
+      pointLabel: parsed.pointLabel
+    });
+  }
+  const resolvedSide = normalizeArcSideSpecifier(spec && spec.side, count);
+  const startIndex = resolvedSide.startIndex;
+  const endIndex = resolvedSide.endIndex;
+  const P = pts[startIndex];
+  const Q = pts[endIndex];
+  const chordVec = {
+    x: Q.x - P.x,
+    y: Q.y - P.y
+  };
+  const chordLen = Math.hypot(chordVec.x, chordVec.y) || 1;
+  const center = {
+    x: (P.x + Q.x) / 2,
+    y: (P.y + Q.y) / 2
+  };
+  let normal = {
+    x: chordVec.y / chordLen,
+    y: -chordVec.x / chordLen
+  };
+  const interiorSign = (Q.x - P.x) * (ctr.y - P.y) - (Q.y - P.y) * (ctr.x - P.x);
+  if (interiorSign < 0) {
+    normal.x *= -1;
+    normal.y *= -1;
+  }
+  const arcRadius = chordLen / 2;
+  const midArc = {
+    x: center.x + normal.x * arcRadius,
+    y: center.y + normal.y * arcRadius
+  };
+  const cross = (Q.x - P.x) * (midArc.y - P.y) - (Q.y - P.y) * (midArc.x - P.x);
+  const sweep = cross < 0 ? 1 : 0;
+  add(g, "path", {
+    d: `M ${P.x} ${P.y} A ${arcRadius} ${arcRadius} 0 0 ${sweep} ${Q.x} ${Q.y}`,
+    fill: "none",
+    stroke: STYLE.edgeStroke,
+    "stroke-width": STYLE.edgeWidth,
+    "stroke-linecap": "round"
+  });
+  const radiusEntry = spec && spec.radius;
+  const diameterEntry = spec && spec.diameter;
+  const radiusText = normalizedDimensionText(radiusEntry, 'r');
+  const diameterText = diameterEntry ? normalizedDimensionText(diameterEntry, 'd') : '';
+  add(g, "line", {
+    x1: center.x,
+    y1: center.y,
+    x2: midArc.x,
+    y2: midArc.y,
+    stroke: STYLE.edgeStroke,
+    "stroke-width": STYLE.edgeWidth * 0.75,
+    "stroke-linecap": "round"
+  });
+  add(g, "circle", {
+    cx: center.x,
+    cy: center.y,
+    r: 6,
+    fill: STYLE.edgeStroke
+  });
+  if (radiusText) {
+    const labelPoint = {
+      x: center.x + normal.x * arcRadius * 0.55,
+      y: center.y + normal.y * arcRadius * 0.55
+    };
+    addHaloText(g, labelPoint.x, labelPoint.y, radiusText, STYLE.sideFS, {
+      "text-anchor": "middle",
+      "dominant-baseline": "middle"
+    });
+  }
+  if (diameterEntry && diameterEntry.requested && diameterText) {
+    const inward = {
+      x: -normal.x,
+      y: -normal.y
+    };
+    const diameterPoint = {
+      x: center.x + inward.x * Math.min(arcRadius * 0.6, 40),
+      y: center.y + inward.y * Math.min(arcRadius * 0.6, 40)
+    };
+    addHaloText(g, diameterPoint.x, diameterPoint.y, diameterText, STYLE.sideFS, {
+      "text-anchor": "middle",
+      "dominant-baseline": "middle"
+    });
+  }
+  const pointsMap = {};
+  for (let i = 0; i < count; i++) {
+    pointsMap[indexToLetter(i, true)] = pts[i];
+  }
+  if (decorations && decorations.length) {
+    renderDecorations(g, pointsMap, decorations);
+  }
+}
 
 /* ---------- ORKESTRERING ---------- */
 const BASE_W = 600,
@@ -2251,7 +2568,11 @@ async function collectJobsFromSpecs(text) {
     const baseLine = core || '';
     const special = parseShapeSpec(baseLine);
     if (special) {
-      jobs.push(special.job);
+      const job = special.job ? { ...special.job } : null;
+      if (job && special.allowDecorations && extras.length) {
+        job.decorations = extras.map(dec => ({ ...dec }));
+      }
+      if (job) jobs.push(job);
       const normalized = combineNormalizedText(special.normalized || baseLine, normalizedExtras);
       newLines.push(normalized || (special.normalized || line));
       continue;
@@ -2441,6 +2762,8 @@ async function renderCombined() {
         drawCircleToGroup(groups[i], rects[i], obj);
       } else if (type === "polygon") {
         drawRegularPolygonToGroup(groups[i], rects[i], obj, adv);
+      } else if (type === "polygonArc") {
+        drawPolygonWithArcToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations);
       } else {
         throw new Error(`Ukjent figurtype: ${type}`);
       }
