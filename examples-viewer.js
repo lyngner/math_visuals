@@ -555,6 +555,7 @@ async function renderExamples(options) {
     const description = document.createElement('div');
     description.className = 'example-description example-description-preview';
     description.style.margin = '0 0 8px';
+    description.classList.add('math-vis-description-rendered');
     if (!rendererLoadFailed) {
       try {
         const promise = ensureRendererPromise();

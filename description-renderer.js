@@ -6,6 +6,11 @@
   const KATEX_VERSION = '0.16.9';
   const KATEX_CSS_ID = 'math-vis-katex-style';
   const KATEX_SCRIPT_ID = 'math-vis-katex-script';
+  const ANSWERBOX_STATUS_MESSAGES = {
+    correct: 'Riktig!',
+    incorrect: 'Prøv igjen.'
+  };
+  let answerBoxIdCounter = 0;
 
   let katexPromise = null;
 
@@ -100,28 +105,174 @@
     return null;
   }
 
-  function appendTextWithMath(container, text, placeholders) {
-    if (!container) return;
-    if (typeof text !== 'string') return;
-    if (text === '') {
-      container.appendChild(doc.createTextNode(''));
+  function splitDescriptor(content) {
+    const parts = [];
+    if (typeof content !== 'string' || !content) return parts;
+    let current = '';
+    let escape = false;
+    for (let i = 0; i < content.length; i++) {
+      const char = content[i];
+      if (escape) {
+        current += char;
+        escape = false;
+        continue;
+      }
+      if (char === '\\') {
+        escape = true;
+        continue;
+      }
+      if (char === '|' && content[i + 1] !== '|') {
+        parts.push(current);
+        current = '';
+        continue;
+      }
+      current += char;
+      if (char === '|' && content[i + 1] === '|') {
+        i += 1;
+        current += content[i];
+      }
+    }
+    parts.push(current);
+    return parts;
+  }
+
+  function unescapeMarkup(text) {
+    if (typeof text !== 'string') return '';
+    return text.replace(/\\([\\{}|])/g, '$1');
+  }
+
+  function parseBoolean(value) {
+    if (typeof value === 'boolean') return value;
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+    return null;
+  }
+
+  function parseNumber(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function collapseWhitespace(value) {
+    if (typeof value !== 'string') return '';
+    return value.replace(/\s+/g, ' ').trim();
+  }
+
+  function toNumericValue(value) {
+    if (typeof value !== 'string') return null;
+    const stripped = value.replace(/\s+/g, '').replace(/,/g, '.');
+    if (!stripped || /[^0-9+\-.]/.test(stripped)) {
+      return null;
+    }
+    if (!/^[-+]?\d*(?:\.\d+)?$/.test(stripped)) {
+      return null;
+    }
+    const parsed = Number(stripped);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function parseAnswerDescriptor(content) {
+    const parts = splitDescriptor(content);
+    const positional = [];
+    const options = {};
+    parts.forEach(part => {
+      const trimmed = typeof part === 'string' ? part.trim() : '';
+      if (!trimmed) return;
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex > 0) {
+        const key = trimmed.slice(0, eqIndex).trim().toLowerCase();
+        const value = trimmed.slice(eqIndex + 1).trim();
+        if (key) {
+          options[key] = unescapeMarkup(value);
+        }
+      } else {
+        positional.push(unescapeMarkup(trimmed));
+      }
+    });
+    if (!options.value && positional.length) options.value = positional.shift();
+    if (!options.placeholder && positional.length) options.placeholder = positional.shift();
+    if (!options.label && positional.length) options.label = positional.shift();
+    if (!options.correct && positional.length) options.correct = positional.shift();
+    if (!options.incorrect && positional.length) options.incorrect = positional.shift();
+
+    const accepted = [];
+    const addAccepted = raw => {
+      if (typeof raw !== 'string') return;
+      const segments = raw.split(/\|\|/);
+      segments.forEach(segment => {
+        const normalized = collapseWhitespace(unescapeMarkup(segment));
+        if (normalized) {
+          accepted.push(normalized);
+        }
+      });
+    };
+    addAccepted(options.value);
+    addAccepted(options.values);
+    addAccepted(options.answer);
+    addAccepted(options.answers);
+    addAccepted(options.accept);
+
+    const caseSensitive = parseBoolean(options.caseSensitive ?? options.casesensitive ?? options.case ?? options.matchcase) === true;
+    const tolerance = parseNumber(options.tolerance ?? options.toleranse ?? options.slack);
+    const correctMessage = options.correct ?? options.correctMessage ?? options.success ?? options.ok ?? '';
+    const incorrectMessage = options.incorrect ?? options.incorrectMessage ?? options.error ?? options.fail ?? '';
+
+    return {
+      acceptedAnswers: accepted.map(answer => ({
+        raw: answer,
+        normalized: collapseWhitespace(answer),
+        comparable: collapseWhitespace(answer).toLowerCase(),
+        numeric: toNumericValue(answer)
+      })),
+      placeholder: options.placeholder || '',
+      label: options.label || '',
+      width: options.width || options.size || '',
+      caseSensitive,
+      tolerance: typeof tolerance === 'number' ? Math.max(0, tolerance) : null,
+      correctMessage: collapseWhitespace(correctMessage) || '',
+      incorrectMessage: collapseWhitespace(incorrectMessage) || ''
+    };
+  }
+
+  function findNextSpecial(text, index, allowAnswerBoxes) {
+    const nextBreak = text.indexOf('\n', index);
+    const nextMath = text.indexOf('@math{', index);
+    const nextAnswer = allowAnswerBoxes ? text.indexOf('@answer{', index) : -1;
+    let type = 'end';
+    let nextIndex = text.length;
+    if (nextBreak !== -1 && nextBreak < nextIndex) {
+      nextIndex = nextBreak;
+      type = 'break';
+    }
+    if (nextMath !== -1 && nextMath < nextIndex) {
+      nextIndex = nextMath;
+      type = 'math';
+    }
+    if (nextAnswer !== -1 && nextAnswer < nextIndex) {
+      nextIndex = nextAnswer;
+      type = 'answer';
+    }
+    return { type, nextIndex };
+  }
+
+  function appendInlineContent(container, text, placeholders, interactives, options) {
+    if (!container || typeof container.appendChild !== 'function') return;
+    if (typeof text !== 'string' || text === '') {
+      if (text === '') {
+        container.appendChild(doc.createTextNode(''));
+      }
       return;
     }
-    const marker = '@math{';
+    const allowAnswerBoxes = !(options && options.allowAnswerBoxes === false);
     let index = 0;
     while (index < text.length) {
-      const nextMath = text.indexOf(marker, index);
-      const nextBreak = text.indexOf('\n', index);
-      let nextIndex = text.length;
-      let type = 'end';
-      if (nextMath !== -1 && nextMath < nextIndex) {
-        nextIndex = nextMath;
-        type = 'math';
-      }
-      if (nextBreak !== -1 && nextBreak < nextIndex) {
-        nextIndex = nextBreak;
-        type = 'break';
-      }
+      const { type, nextIndex } = findNextSpecial(text, index, allowAnswerBoxes);
       if (type === 'end') {
         if (index < text.length) {
           container.appendChild(doc.createTextNode(text.slice(index)));
@@ -139,7 +290,7 @@
         continue;
       }
       if (type === 'math') {
-        const extraction = extractBalancedContent(text, nextIndex + marker.length);
+        const extraction = extractBalancedContent(text, nextIndex + '@math{'.length);
         if (!extraction) {
           container.appendChild(doc.createTextNode(text.slice(nextIndex)));
           break;
@@ -150,11 +301,26 @@
         placeholders.push({ element: span, tex: extraction.content });
         container.appendChild(span);
         index = extraction.endIndex + 1;
+        continue;
+      }
+      if (type === 'answer') {
+        const extraction = extractBalancedContent(text, nextIndex + '@answer{'.length);
+        if (!extraction) {
+          container.appendChild(doc.createTextNode(text.slice(nextIndex)));
+          break;
+        }
+        const answerElement = createAnswerBox(extraction.content, placeholders, interactives);
+        if (answerElement) {
+          container.appendChild(answerElement);
+        } else {
+          container.appendChild(doc.createTextNode(text.slice(nextIndex, extraction.endIndex + 1)));
+        }
+        index = extraction.endIndex + 1;
       }
     }
   }
 
-  function appendParagraphs(fragment, text, placeholders) {
+  function appendParagraphs(fragment, text, placeholders, interactives) {
     if (!fragment || typeof fragment.appendChild !== 'function') return;
     if (typeof text !== 'string') return;
     const normalized = text.replace(/\r\n?/g, '\n');
@@ -162,12 +328,12 @@
     paragraphs.forEach(paragraph => {
       if (!paragraph.trim()) return;
       const p = doc.createElement('p');
-      appendTextWithMath(p, paragraph, placeholders);
+      appendInlineContent(p, paragraph, placeholders, interactives);
       fragment.appendChild(p);
     });
   }
 
-  function createDescriptionTable(content, placeholders) {
+  function createDescriptionTable(content, placeholders, interactives) {
     if (typeof content !== 'string') return null;
     const rows = content
       .split(/\n+/)
@@ -187,7 +353,7 @@
         const headRow = doc.createElement('tr');
         for (let i = 0; i < columnCount; i++) {
           const th = doc.createElement('th');
-          appendTextWithMath(th, headerCandidate[i] != null ? headerCandidate[i] : '', placeholders);
+          appendInlineContent(th, headerCandidate[i] != null ? headerCandidate[i] : '', placeholders, interactives);
           headRow.appendChild(th);
         }
         thead.appendChild(headRow);
@@ -200,7 +366,7 @@
       const tr = doc.createElement('tr');
       for (let i = 0; i < columnCount; i++) {
         const td = doc.createElement('td');
-        appendTextWithMath(td, row && row[i] != null ? row[i] : '', placeholders);
+        appendInlineContent(td, row && row[i] != null ? row[i] : '', placeholders, interactives);
         tr.appendChild(td);
       }
       tbody.appendChild(tr);
@@ -216,30 +382,280 @@
     return table;
   }
 
+  function createAnswerBox(content, placeholders, interactives) {
+    if (!interactives || !Array.isArray(interactives.answerBoxes)) return null;
+    const descriptor = parseAnswerDescriptor(content);
+    if (!descriptor.acceptedAnswers.length) {
+      return null;
+    }
+    const container = doc.createElement('span');
+    container.className = 'math-vis-answerbox math-vis-answerbox--empty';
+    container.dataset.state = 'empty';
+
+    if (descriptor.label) {
+      const prompt = doc.createElement('span');
+      prompt.className = 'math-vis-answerbox__prompt';
+      appendInlineContent(prompt, descriptor.label, placeholders, interactives, { allowAnswerBoxes: false });
+      container.appendChild(prompt);
+    }
+
+    const inputWrap = doc.createElement('span');
+    inputWrap.className = 'math-vis-answerbox__input-wrap';
+
+    const input = doc.createElement('input');
+    input.type = 'text';
+    input.className = 'math-vis-answerbox__input';
+    if (descriptor.placeholder) input.placeholder = descriptor.placeholder;
+    if (descriptor.width) input.style.width = descriptor.width;
+    if (!descriptor.label) {
+      const ariaLabel = descriptor.placeholder || 'Svar';
+      input.setAttribute('aria-label', ariaLabel);
+    }
+
+    const status = doc.createElement('span');
+    status.className = 'math-vis-answerbox__status';
+    status.setAttribute('aria-live', 'polite');
+    const statusId = `math-vis-answerbox-status-${++answerBoxIdCounter}`;
+    status.id = statusId;
+    input.setAttribute('aria-describedby', statusId);
+
+    inputWrap.appendChild(input);
+    container.appendChild(inputWrap);
+    container.appendChild(status);
+
+    interactives.answerBoxes.push({
+      container,
+      input,
+      status,
+      descriptor
+    });
+
+    return container;
+  }
+
+  function findBlock(text, lowerText, marker, startIndex) {
+    if (!text || !marker) return null;
+    const lowerMarker = marker.toLowerCase();
+    let searchIndex = startIndex;
+    while (searchIndex < text.length) {
+      const markerIndex = lowerText.indexOf(lowerMarker, searchIndex);
+      if (markerIndex === -1) {
+        return null;
+      }
+      let cursor = markerIndex + marker.length;
+      while (cursor < text.length && /\s/.test(text[cursor])) {
+        cursor += 1;
+      }
+      if (cursor >= text.length || text[cursor] !== '{') {
+        searchIndex = markerIndex + marker.length;
+        continue;
+      }
+      const extraction = extractBalancedContent(text, cursor + 1);
+      if (!extraction) {
+        return { markerIndex, extraction: null };
+      }
+      return { markerIndex, extraction };
+    }
+    return null;
+  }
+
+  function appendFlowContent(target, text, placeholders, interactives) {
+    if (!target || typeof target.appendChild !== 'function') return;
+    if (typeof text !== 'string' || !text.trim()) {
+      appendParagraphs(target, text, placeholders, interactives);
+      return;
+    }
+    const normalized = text.replace(/\r\n?/g, '\n');
+    const lower = normalized.toLowerCase();
+    let index = 0;
+    while (index < normalized.length) {
+      const found = findBlock(normalized, lower, '@table', index);
+      if (!found) {
+        break;
+      }
+      const before = normalized.slice(index, found.markerIndex);
+      appendParagraphs(target, before, placeholders, interactives);
+      if (!found.extraction) {
+        appendParagraphs(target, normalized.slice(found.markerIndex), placeholders, interactives);
+        return;
+      }
+      const table = createDescriptionTable(found.extraction.content, placeholders, interactives);
+      if (table) {
+        target.appendChild(table);
+      } else {
+        appendParagraphs(target, normalized.slice(found.markerIndex, found.extraction.endIndex + 1), placeholders, interactives);
+      }
+      index = found.extraction.endIndex + 1;
+    }
+    const after = normalized.slice(index);
+    appendParagraphs(target, after, placeholders, interactives);
+  }
+
+  function findFirstUnescaped(text, char) {
+    if (typeof text !== 'string' || !char) return -1;
+    for (let i = 0; i < text.length; i++) {
+      const current = text[i];
+      if (current === '\\') {
+        i += 1;
+        continue;
+      }
+      if (current === char) return i;
+    }
+    return -1;
+  }
+
+  function parseTaskBlock(content) {
+    if (typeof content !== 'string') {
+      return { title: '', body: '' };
+    }
+    const normalized = content.replace(/\r\n?/g, '\n');
+    const trimmed = normalized.trim();
+    if (!trimmed) {
+      return { title: '', body: '' };
+    }
+    const pipeIndex = findFirstUnescaped(trimmed, '|');
+    let title;
+    let body;
+    if (pipeIndex !== -1) {
+      title = trimmed.slice(0, pipeIndex);
+      body = trimmed.slice(pipeIndex + 1);
+    } else {
+      const newlineIndex = trimmed.indexOf('\n');
+      if (newlineIndex !== -1) {
+        title = trimmed.slice(0, newlineIndex);
+        body = trimmed.slice(newlineIndex + 1);
+      } else {
+        title = trimmed;
+        body = '';
+      }
+    }
+    return {
+      title: collapseWhitespace(unescapeMarkup(title || '')),
+      body: unescapeMarkup(body || '').trim()
+    };
+  }
+
+  function createTaskSection(content, placeholders, interactives) {
+    const parsed = parseTaskBlock(content);
+    const { title, body } = parsed;
+    if (!title && !body) {
+      return null;
+    }
+    const section = doc.createElement('section');
+    section.className = 'math-vis-task';
+    if (title) {
+      const heading = doc.createElement('h3');
+      heading.className = 'math-vis-task__title';
+      appendInlineContent(heading, title, placeholders, interactives, { allowAnswerBoxes: false });
+      section.appendChild(heading);
+    }
+    if (body) {
+      const contentWrap = doc.createElement('div');
+      contentWrap.className = 'math-vis-task__content';
+      appendFlowContent(contentWrap, body, placeholders, interactives);
+      if (contentWrap.childNodes.length) {
+        section.appendChild(contentWrap);
+      }
+    }
+    if (!section.childNodes.length) {
+      return null;
+    }
+    return section;
+  }
+
   function parse(value) {
     const fragment = doc.createDocumentFragment();
     const placeholders = [];
+    const answerBoxes = [];
     if (typeof value !== 'string') {
-      return { fragment, placeholders };
+      return { fragment, placeholders, answerBoxes };
     }
+    const interactives = { answerBoxes };
     const normalized = value.replace(/\r\n?/g, '\n');
-    const pattern = /@table\s*\{([\s\S]*?)\}/gi;
-    let lastIndex = 0;
-    let match = null;
-    while ((match = pattern.exec(normalized)) !== null) {
-      const before = normalized.slice(lastIndex, match.index);
-      appendParagraphs(fragment, before, placeholders);
-      const table = createDescriptionTable(match[1], placeholders);
-      if (table) {
-        fragment.appendChild(table);
-      } else {
-        appendParagraphs(fragment, match[0], placeholders);
+    const lower = normalized.toLowerCase();
+    let index = 0;
+    while (index < normalized.length) {
+      const found = findBlock(normalized, lower, '@task', index);
+      if (!found) {
+        const remaining = normalized.slice(index);
+        appendFlowContent(fragment, remaining, placeholders, interactives);
+        break;
       }
-      lastIndex = pattern.lastIndex;
+      const before = normalized.slice(index, found.markerIndex);
+      appendFlowContent(fragment, before, placeholders, interactives);
+      if (!found.extraction) {
+        appendFlowContent(fragment, normalized.slice(found.markerIndex), placeholders, interactives);
+        break;
+      }
+      const section = createTaskSection(found.extraction.content, placeholders, interactives);
+      if (section) {
+        fragment.appendChild(section);
+      } else {
+        appendFlowContent(fragment, normalized.slice(found.markerIndex, found.extraction.endIndex + 1), placeholders, interactives);
+      }
+      index = found.extraction.endIndex + 1;
     }
-    const after = normalized.slice(lastIndex);
-    appendParagraphs(fragment, after, placeholders);
-    return { fragment, placeholders };
+    return { fragment, placeholders, answerBoxes };
+  }
+
+  function setAnswerBoxState(box, state) {
+    if (!box || !box.container) return;
+    const { container, status, input, descriptor } = box;
+    const states = ['empty', 'correct', 'incorrect'];
+    states.forEach(name => {
+      container.classList.toggle(`math-vis-answerbox--${name}`, name === state);
+    });
+    container.dataset.state = state;
+    if (!status || !input) return;
+    if (state === 'correct') {
+      status.textContent = descriptor.correctMessage || ANSWERBOX_STATUS_MESSAGES.correct;
+      input.setAttribute('aria-invalid', 'false');
+    } else if (state === 'incorrect') {
+      status.textContent = descriptor.incorrectMessage || ANSWERBOX_STATUS_MESSAGES.incorrect;
+      input.setAttribute('aria-invalid', 'true');
+    } else {
+      status.textContent = '';
+      input.removeAttribute('aria-invalid');
+    }
+  }
+
+  function evaluateAnswerBox(box) {
+    if (!box || !box.input) return;
+    const { input, descriptor } = box;
+    const raw = typeof input.value === 'string' ? input.value : '';
+    const trimmed = collapseWhitespace(raw);
+    if (!trimmed) {
+      setAnswerBoxState(box, 'empty');
+      return;
+    }
+    const comparable = descriptor.caseSensitive ? trimmed : trimmed.toLowerCase();
+    const numericValue = toNumericValue(raw);
+    const isCorrect = descriptor.acceptedAnswers.some(answer => {
+      if (descriptor.caseSensitive) {
+        if (trimmed === answer.normalized) return true;
+      } else if (comparable === answer.comparable) {
+        return true;
+      }
+      if (numericValue != null && answer.numeric != null) {
+        const tolerance = typeof descriptor.tolerance === 'number' ? descriptor.tolerance : 0;
+        if (Math.abs(numericValue - answer.numeric) <= tolerance + Number.EPSILON) {
+          return true;
+        }
+      }
+      return false;
+    });
+    setAnswerBoxState(box, isCorrect ? 'correct' : 'incorrect');
+  }
+
+  function setupAnswerBoxes(answerBoxes) {
+    if (!Array.isArray(answerBoxes) || !answerBoxes.length) return;
+    answerBoxes.forEach(box => {
+      if (!box || !box.input) return;
+      const handler = () => evaluateAnswerBox(box);
+      box.input.addEventListener('input', handler);
+      box.input.addEventListener('blur', handler);
+      evaluateAnswerBox(box);
+    });
   }
 
   function renderInto(target, value) {
@@ -248,18 +664,18 @@
       target.removeChild(target.firstChild);
     }
     const parsed = parse(typeof value === 'string' ? value : '');
-    const fragment = parsed.fragment;
-    const placeholders = parsed.placeholders;
+    const { fragment, placeholders, answerBoxes } = parsed;
     if (fragment) {
       target.appendChild(fragment);
     }
+    target.classList.add('math-vis-description-rendered');
     const hasContent = !!(fragment && fragment.childNodes && fragment.childNodes.length);
     if (placeholders.length) {
       const schedule = () => {
         ensureKatexLoaded()
           .then(katex => {
             placeholders.forEach(({ element, tex }) => {
-              if (!element || !tex && tex !== '') return;
+              if (!element || (!tex && tex !== '')) return;
               try {
                 katex.render(tex, element, { throwOnError: false });
               } catch (error) {
@@ -276,6 +692,9 @@
       } else {
         setTimeout(schedule, 0);
       }
+    }
+    if (answerBoxes.length) {
+      setupAnswerBoxes(answerBoxes);
     }
     return hasContent;
   }
