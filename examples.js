@@ -1389,6 +1389,7 @@
   function renderDescriptionPreviewFromValue(value) {
     const preview = getDescriptionPreviewElement();
     if (!preview) return;
+    preview.classList.add('math-vis-description-rendered');
     const stringValue = typeof value === 'string' ? value : '';
     const applyState = hasContent => {
       preview.dataset.empty = hasContent ? 'false' : 'true';
