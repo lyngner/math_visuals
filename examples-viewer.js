@@ -1,5 +1,141 @@
 // Viewer for stored examples
 const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+const VIEWER_SCRIPT_FILENAME = 'examples-viewer.js';
+const DESCRIPTION_RENDERER_FILENAME = 'description-renderer.js';
+const DESCRIPTION_RENDERER_PROMISE_KEY = '__MATH_VISUALS_DESCRIPTION_RENDERER_PROMISE__';
+const DESCRIPTION_RENDERER_URL_KEY = '__MATH_VISUALS_DESCRIPTION_RENDERER_URL__';
+let descriptionRendererLoadPromise = null;
+let descriptionRendererResolvedUrl = null;
+
+function getDescriptionRendererGlobal() {
+  if (!globalScope) return null;
+  const renderer = globalScope.MathVisDescriptionRenderer;
+  if (renderer && typeof renderer.renderInto === 'function') {
+    return renderer;
+  }
+  return null;
+}
+
+function resolveDescriptionRendererUrl() {
+  if (descriptionRendererResolvedUrl) return descriptionRendererResolvedUrl;
+  if (globalScope) {
+    const cached = globalScope[DESCRIPTION_RENDERER_URL_KEY];
+    if (typeof cached === 'string' && cached.trim()) {
+      descriptionRendererResolvedUrl = cached.trim();
+      return descriptionRendererResolvedUrl;
+    }
+  }
+  if (typeof document === 'undefined') {
+    descriptionRendererResolvedUrl = DESCRIPTION_RENDERER_FILENAME;
+    if (globalScope) {
+      globalScope[DESCRIPTION_RENDERER_URL_KEY] = descriptionRendererResolvedUrl;
+    }
+    return descriptionRendererResolvedUrl;
+  }
+  const scripts = document.getElementsByTagName('script');
+  let resolved = null;
+  for (let i = scripts.length - 1; i >= 0; i--) {
+    const script = scripts[i];
+    if (!script) continue;
+    const srcAttr = script.getAttribute && script.getAttribute('src');
+    if (typeof srcAttr !== 'string') continue;
+    const src = srcAttr.trim();
+    if (!src) continue;
+    const normalized = src.split('#')[0].split('?')[0];
+    if (!normalized.endsWith(VIEWER_SCRIPT_FILENAME)) continue;
+    try {
+      const baseHref = typeof window !== 'undefined' && window && window.location ? window.location.href : undefined;
+      const url = new URL(src, baseHref);
+      const path = url.pathname || '';
+      const basePath = path.replace(/[^/]*$/, '');
+      url.pathname = `${basePath}${DESCRIPTION_RENDERER_FILENAME}`;
+      url.search = '';
+      url.hash = '';
+      resolved = url.toString();
+      break;
+    } catch (error) {
+      const slashIndex = src.lastIndexOf('/');
+      const prefix = slashIndex >= 0 ? src.slice(0, slashIndex + 1) : '';
+      resolved = `${prefix}${DESCRIPTION_RENDERER_FILENAME}`;
+      break;
+    }
+  }
+  descriptionRendererResolvedUrl = resolved || DESCRIPTION_RENDERER_FILENAME;
+  if (globalScope) {
+    globalScope[DESCRIPTION_RENDERER_URL_KEY] = descriptionRendererResolvedUrl;
+  }
+  return descriptionRendererResolvedUrl;
+}
+
+function ensureDescriptionRendererLoaded() {
+  const existing = getDescriptionRendererGlobal();
+  if (existing) return Promise.resolve(existing);
+  if (globalScope) {
+    const shared = globalScope[DESCRIPTION_RENDERER_PROMISE_KEY];
+    if (shared && typeof shared.then === 'function') {
+      return shared.then(() => getDescriptionRendererGlobal());
+    }
+  }
+  if (descriptionRendererLoadPromise) {
+    return descriptionRendererLoadPromise.then(() => getDescriptionRendererGlobal());
+  }
+  if (typeof document === 'undefined') {
+    return Promise.resolve(null);
+  }
+  const parent = document.head || document.body || document.documentElement;
+  if (!parent) {
+    return Promise.resolve(null);
+  }
+  const scriptUrl = resolveDescriptionRendererUrl();
+  if (!scriptUrl) {
+    return Promise.resolve(null);
+  }
+  const loadPromise = new Promise(resolve => {
+    const script = document.createElement('script');
+    if (!script) {
+      resolve(null);
+      return;
+    }
+    let settled = false;
+    const cleanup = () => {
+      if (descriptionRendererLoadPromise === loadPromise) {
+        descriptionRendererLoadPromise = null;
+      }
+      if (globalScope && globalScope[DESCRIPTION_RENDERER_PROMISE_KEY] === loadPromise) {
+        delete globalScope[DESCRIPTION_RENDERER_PROMISE_KEY];
+      }
+    };
+    script.async = true;
+    script.src = scriptUrl;
+    script.onload = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      const renderer = getDescriptionRendererGlobal();
+      if (globalScope) {
+        globalScope[DESCRIPTION_RENDERER_PROMISE_KEY] = Promise.resolve(renderer);
+      }
+      resolve(renderer);
+    };
+    script.onerror = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(null);
+    };
+    parent.appendChild(script);
+  });
+  descriptionRendererLoadPromise = loadPromise;
+  if (globalScope) {
+    globalScope[DESCRIPTION_RENDERER_PROMISE_KEY] = loadPromise;
+  }
+  return loadPromise.then(renderer => {
+    if (!renderer && globalScope && globalScope[DESCRIPTION_RENDERER_PROMISE_KEY] === loadPromise) {
+      delete globalScope[DESCRIPTION_RENDERER_PROMISE_KEY];
+    }
+    return renderer || null;
+  });
+}
 function createMemoryStorage() {
   const data = new Map();
   return {
@@ -403,24 +539,65 @@ async function renderExamples(options) {
   }
   sections.sort((a, b) => a.path.localeCompare(b.path));
   container.innerHTML = '';
-  sections.forEach(sectionData => {
+  let descriptionRendererPromise = null;
+  let rendererLoadFailed = false;
+  const ensureRendererPromise = () => {
+    if (rendererLoadFailed) return null;
+    if (!descriptionRendererPromise) {
+      descriptionRendererPromise = ensureDescriptionRendererLoaded();
+    }
+    return descriptionRendererPromise;
+  };
+  const appendDescription = async (wrap, text, beforeNode) => {
+    if (!wrap || typeof text !== 'string') return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const description = document.createElement('div');
+    description.className = 'example-description example-description-preview';
+    description.style.margin = '0 0 8px';
+    if (!rendererLoadFailed) {
+      try {
+        const promise = ensureRendererPromise();
+        const renderer = promise ? await promise : null;
+        if (renderer && typeof renderer.renderInto === 'function') {
+          const hasContent = renderer.renderInto(description, text);
+          if (hasContent) {
+            if (beforeNode && typeof wrap.insertBefore === 'function') {
+              wrap.insertBefore(description, beforeNode);
+            } else {
+              wrap.appendChild(description);
+            }
+            return;
+          }
+          return;
+        }
+        rendererLoadFailed = true;
+        descriptionRendererPromise = null;
+      } catch (error) {
+        rendererLoadFailed = true;
+        descriptionRendererPromise = null;
+      }
+    }
+    if (!rendererLoadFailed) return;
+    description.textContent = text;
+    description.style.whiteSpace = 'pre-wrap';
+    if (beforeNode && typeof wrap.insertBefore === 'function') {
+      wrap.insertBefore(description, beforeNode);
+    } else {
+      wrap.appendChild(description);
+    }
+  };
+  for (const sectionData of sections) {
     const { path, examples } = sectionData;
-    if (!Array.isArray(examples) || examples.length === 0) return;
+    if (!Array.isArray(examples) || examples.length === 0) continue;
     const section = document.createElement('section');
     const h2 = document.createElement('h2');
     h2.textContent = path;
     section.appendChild(h2);
-    examples.forEach((ex, idx) => {
+    for (let idx = 0; idx < examples.length; idx++) {
+      const ex = examples[idx];
       const wrap = document.createElement('div');
       wrap.className = 'example';
-      if (ex && typeof ex.description === 'string' && ex.description.trim()) {
-        const description = document.createElement('p');
-        description.className = 'example-description';
-        description.textContent = ex.description;
-        description.style.whiteSpace = 'pre-wrap';
-        description.style.margin = '0 0 8px';
-        wrap.appendChild(description);
-      }
       const iframe = document.createElement('iframe');
       iframe.setAttribute('loading', 'lazy');
       iframe.title = `Eksempel ${idx + 1} – ${path}`;
@@ -433,6 +610,9 @@ async function renderExamples(options) {
         iframe.src = `${path}${sep}example=${idx + 1}`;
       }
       wrap.appendChild(iframe);
+      if (ex && typeof ex.description === 'string') {
+        appendDescription(wrap, ex.description, iframe).catch(() => {});
+      }
       const btns = document.createElement('div');
       btns.className = 'buttons';
       const loadBtn = document.createElement('button');
@@ -486,9 +666,9 @@ async function renderExamples(options) {
       btns.appendChild(delBtn);
       wrap.appendChild(btns);
       section.appendChild(wrap);
-    });
+    }
     container.appendChild(section);
-  });
+  }
 }
 document.addEventListener('DOMContentLoaded', () => {
   renderExamples();
