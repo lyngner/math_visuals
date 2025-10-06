@@ -365,8 +365,8 @@
           <div id="chartOverlay" class="chart-overlay"></div>
         </div>
         <div class="figure-actions" aria-hidden="false">
-          <button type="button" class="figure-action" id="overlayAddPoint">Legg til nullpunkt</button>
-          <button type="button" class="figure-action" id="overlayAddRow">Legg til fortegnslinje</button>
+          <button type="button" class="figure-action" id="overlayAddPoint" data-edit-only>Legg til nullpunkt</button>
+          <button type="button" class="figure-action" id="overlayAddRow" data-edit-only>Legg til fortegnslinje</button>
         </div>
         <div class="toolbar">
           <div class="toolbar-row">
@@ -431,13 +431,13 @@
           <div class="card" style="padding: 12px; gap: 12px;">
             <h2>Punkter</h2>
             <div class="points-list" id="pointsList"></div>
-            <button class="btn" id="btnAddPoint">Legg til punkt</button>
+            <button class="btn" id="btnAddPoint" data-edit-only>Legg til punkt</button>
           </div>
 
           <div class="card" style="padding: 12px; gap: 12px;">
             <h2>Fortegnslinjer</h2>
             <div class="rows-list" id="rowsList"></div>
-            <button class="btn" id="btnAddRow">Legg til fortegnslinje</button>
+            <button class="btn" id="btnAddRow" data-edit-only>Legg til fortegnslinje</button>
           </div>
         </div>
 
