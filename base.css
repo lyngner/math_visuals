@@ -379,6 +379,39 @@ select:disabled {
   resize: none;
 }
 
+body[data-app-mode="task"] .side {
+  gap: 0;
+}
+
+body[data-app-mode="task"] .side > :not(.card--examples),
+body[data-app-mode="task"] .card--settings,
+body[data-app-mode="task"] .card--export,
+body[data-app-mode="task"] .card:has(.alt-text) {
+  display: none !important;
+}
+
+body[data-app-mode="task"] .card--examples {
+  gap: 12px;
+}
+
+body[data-app-mode="task"] .card--examples .toolbar,
+body[data-app-mode="task"] .card--examples .example-tabs,
+body[data-app-mode="task"] .card--examples .example-settings {
+  display: none !important;
+}
+
+body[data-app-mode="task"] .card--examples .example-description {
+  gap: 10px;
+}
+
+body[data-app-mode="task"] .card--examples .example-description textarea {
+  min-height: 140px;
+}
+
+body[data-app-mode="task"] [data-export-button] {
+  display: none !important;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

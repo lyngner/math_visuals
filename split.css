@@ -31,6 +31,20 @@
   }
 }
 
+body[data-app-mode="task"] .grid.split-enabled {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: var(--gap) !important;
+  --side-width: min(360px, 100%);
+}
+
+body[data-app-mode="task"] .grid.split-enabled > .splitter {
+  display: none !important;
+}
+
+body[data-app-mode="task"] .grid.split-enabled > .side {
+  width: min(360px, 100%);
+}
+
 /* Shared styling for settings panels */
 .card--settings fieldset,
 .card[data-card="settings"] fieldset {
