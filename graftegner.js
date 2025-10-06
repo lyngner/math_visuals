@@ -16,6 +16,40 @@ if (typeof Math.log10 !== 'function') {
 }
 
 const params = new URLSearchParams(location.search);
+const DEFAULT_CURVE_COLORS = ['#9333ea', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
+const CAMPUS_CURVE_ORDER = [0, 5, 2, 3, 4, 1];
+function getThemeApi() {
+  const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
+  return theme && typeof theme === 'object' ? theme : null;
+}
+function applyThemeToDocument() {
+  const theme = getThemeApi();
+  if (theme && typeof theme.applyToDocument === 'function') {
+    theme.applyToDocument(document);
+  }
+}
+function ensureColorCount(base, fallback, count) {
+  const safeFallback = Array.isArray(fallback) && fallback.length ? fallback : DEFAULT_CURVE_COLORS;
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const candidate = Array.isArray(base) && typeof base[i] === 'string' && base[i] ? base[i] : null;
+    out.push(candidate || safeFallback[i % safeFallback.length]);
+  }
+  return out;
+}
+function resolveCurvePalette(count = DEFAULT_CURVE_COLORS.length) {
+  const theme = getThemeApi();
+  if (theme && typeof theme.getPalette === 'function') {
+    const active = typeof theme.getActiveProfileName === 'function' ? theme.getActiveProfileName() : null;
+    const palette = theme.getPalette('figures', count, { fallbackKinds: ['fractions'] });
+    if ((!active || active !== 'kikora') && Array.isArray(palette) && palette.length) {
+      const reordered = active === 'campus' ? CAMPUS_CURVE_ORDER.map(idx => palette[idx % palette.length]) : palette;
+      return ensureColorCount(reordered, DEFAULT_CURVE_COLORS, count);
+    }
+  }
+  return ensureColorCount(DEFAULT_CURVE_COLORS, DEFAULT_CURVE_COLORS, count);
+}
+applyThemeToDocument();
 function paramStr(id, def = '') {
   const v = params.get(id);
   return v == null ? def : v;
@@ -1590,8 +1624,50 @@ function makeLabelDraggable(label, g, reposition) {
 
 /* =================== FARGEPALETT =================== */
 function colorFor(i) {
-  const def = ['#9333ea', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
-  return def[i % def.length];
+  const palette = resolveCurvePalette(DEFAULT_CURVE_COLORS.length);
+  return palette[i % palette.length];
+}
+function updateCurveColorsFromTheme() {
+  if (!Array.isArray(graphs) || graphs.length === 0) return;
+  const palette = resolveCurvePalette(graphs.length);
+  let updated = false;
+  graphs.forEach((g, idx) => {
+    if (!g) return;
+    const nextColor = palette[idx % palette.length];
+    if (typeof nextColor !== 'string' || !nextColor) return;
+    if (g.color !== nextColor) {
+      g.color = nextColor;
+      updated = true;
+    }
+    if (Array.isArray(g.segs)) {
+      g.segs.forEach(seg => {
+        if (seg && typeof seg.setAttribute === 'function') {
+          seg.setAttribute({ strokeColor: nextColor });
+        }
+      });
+    }
+    if (Array.isArray(g.gliders) && g.gliders.length) {
+      g.gliders.forEach(point => {
+        if (point && typeof point.setAttribute === 'function') {
+          point.setAttribute({ strokeColor: nextColor });
+        }
+      });
+    }
+    if (g.labelElement && typeof g.labelElement.setAttribute === 'function') {
+      g.labelElement.setAttribute({
+        color: nextColor,
+        fillColor: nextColor,
+        cssStyle: `user-select:none;cursor:move;touch-action:none;color:${nextColor};display:inline-block;`
+      });
+      const node = g.labelElement.rendNode;
+      if (node && node.style) {
+        node.style.color = nextColor;
+      }
+    }
+  });
+  if (updated && brd && typeof brd.update === 'function') {
+    brd.update();
+  }
 }
 
 /* =================== SEGMENTERT TEGNING =================== */
@@ -2279,6 +2355,7 @@ function makeSmartCurveLabel(g, idx, content) {
     display: 'html',
     cssStyle: `user-select:none;cursor:move;touch-action:none;color:${g.color};display:inline-block;`
   });
+  g.labelElement = label;
   label._plainText = content.text || '';
   ensurePlateFor(label);
   g._labelManual = false;
@@ -2494,7 +2571,8 @@ function buildFunctions() {
       domain: f.domain || null,
       label: labelContent && labelContent.text || '',
       labelContent,
-      expression: f.rhs
+      expression: f.rhs,
+      gliders: []
     };
     g.fn = x => {
       try {
@@ -2643,6 +2721,7 @@ function buildFunctions() {
         });
       }
     }
+    G.gliders = gliders.slice();
     emitLinePointUpdate({ sync: false, markEdited: false });
   }
 }
@@ -2981,6 +3060,15 @@ window.addEventListener('resize', () => {
   }
   updateAfterViewChange();
 });
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('message', event => {
+    const data = event && event.data;
+    const type = typeof data === 'string' ? data : data && data.type;
+    if (type !== 'math-visuals:profile-change') return;
+    applyThemeToDocument();
+    updateCurveColorsFromTheme();
+  });
+}
 rebuildAll();
 window.render = rebuildAll;
 
