@@ -10,6 +10,9 @@
   const LABEL_LINE_AVOIDANCE_THRESHOLD = Math.PI / 8;
   const LABEL_LINE_PENALTY = 100;
   const DEFAULT_LABEL_FONT_SIZE = 18;
+  const AXIS_TICK_LENGTH = 8;
+  const AXIS_LABEL_OFFSET = 14;
+  const AXIS_LABEL_PADDING = 6;
   const POINT_DRAG_START_DISTANCE_PX = 4;
   const POINT_DRAG_START_DISTANCE_COARSE_PX = 12;
   const MIN_LABEL_FONT_SIZE = 10;
@@ -224,6 +227,8 @@
   attachListContainerListeners(falsePointListEl);
 
   const gridGroup = document.createElementNS(SVG_NS, 'g');
+  const axesGroup = document.createElementNS(SVG_NS, 'g');
+  const axisLabelsGroup = document.createElementNS(SVG_NS, 'g');
   const baseGroup = document.createElementNS(SVG_NS, 'g');
   const userGroup = document.createElementNS(SVG_NS, 'g');
   const answerGroup = document.createElementNS(SVG_NS, 'g');
@@ -232,13 +237,19 @@
   gridGroup.classList.add('grid-group');
   gridGroup.setAttribute('aria-hidden', 'true');
   gridGroup.style.pointerEvents = 'none';
+  axesGroup.classList.add('axis-group');
+  axesGroup.setAttribute('aria-hidden', 'true');
+  axesGroup.style.pointerEvents = 'none';
+  axisLabelsGroup.classList.add('axis-labels-group');
+  axisLabelsGroup.setAttribute('aria-hidden', 'true');
+  axisLabelsGroup.style.pointerEvents = 'none';
   baseGroup.classList.add('line-group', 'line-group--base');
   userGroup.classList.add('line-group', 'line-group--user');
   answerGroup.classList.add('line-group', 'line-group--answer');
   answerGroup.style.pointerEvents = 'none';
   pointsGroup.classList.add('points-group');
   labelsGroup.classList.add('labels-group');
-  board.append(gridGroup, baseGroup, userGroup, answerGroup, pointsGroup, labelsGroup);
+  board.append(gridGroup, axesGroup, axisLabelsGroup, baseGroup, userGroup, answerGroup, pointsGroup, labelsGroup);
 
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;
@@ -912,6 +923,28 @@
     if (!Number.isFinite(step) || step <= 0) return sanitizeCoordinate(value);
     const snapped = Math.round(value / step) * step;
     return sanitizeCoordinate(Number(snapped.toFixed(4)));
+  }
+
+  function computeAxisDecimals(step) {
+    if (!Number.isFinite(step) || step <= 0) return 2;
+    let decimals = 0;
+    let scaled = Math.abs(step);
+    while (scaled < 1 && decimals < 6) {
+      scaled *= 10;
+      decimals += 1;
+    }
+    return Math.min(decimals + 1, 6);
+  }
+
+  function formatAxisValue(value, decimals) {
+    if (!Number.isFinite(value)) return '0';
+    const precision = Number.isFinite(decimals) && decimals >= 0 ? Math.min(6, Math.max(0, Math.floor(decimals))) : 2;
+    const fixed = value.toFixed(precision);
+    const trimmed = fixed
+      .replace(/(\.\d*?[1-9])0+$/, '$1')
+      .replace(/\.0+$/, '')
+      .replace(/^-0$/, '0');
+    return trimmed;
   }
 
   function makeLineKey(a, b) {
@@ -2230,14 +2263,20 @@
   }
 
   function renderGrid(view) {
-    if (!gridGroup) return;
+    if (!gridGroup || !axesGroup || !axisLabelsGroup) return;
     gridGroup.innerHTML = '';
+    axesGroup.innerHTML = '';
+    axisLabelsGroup.innerHTML = '';
     if (!isEditMode || !STATE.showGrid) {
       gridGroup.style.display = 'none';
+      axesGroup.style.display = 'none';
+      axisLabelsGroup.style.display = 'none';
       return;
     }
     const currentView = view && typeof view === 'object' ? view : getViewSettings();
     gridGroup.style.display = '';
+    axesGroup.style.display = '';
+    axisLabelsGroup.style.display = '';
     const step = GRID_BASE_STEP;
     if (!Number.isFinite(step) || step <= 0) return;
     const minX = currentView.panX;
@@ -2245,6 +2284,58 @@
     const minY = currentView.panY;
     const maxY = currentView.panY + currentView.viewHeight;
     const epsilon = 1e-6;
+    const decimals = computeAxisDecimals(step);
+    const axisOrigin = toPixel({ x: minX, y: minY }, currentView);
+    const axisPixelX = axisOrigin.x;
+    const axisPixelY = axisOrigin.y;
+    const addAxisLine = (x1, y1, x2, y2, className) => {
+      const pos1 = toPixel({ x: x1, y: y1 }, currentView);
+      const pos2 = toPixel({ x: x2, y: y2 }, currentView);
+      const line = document.createElementNS(SVG_NS, 'line');
+      line.setAttribute('x1', pos1.x);
+      line.setAttribute('y1', pos1.y);
+      line.setAttribute('x2', pos2.x);
+      line.setAttribute('y2', pos2.y);
+      line.classList.add('axis-line');
+      if (className) line.classList.add(className);
+      axesGroup.appendChild(line);
+    };
+    const addAxisTick = (orientation, x, y) => {
+      const tick = document.createElementNS(SVG_NS, 'line');
+      if (orientation === 'x') {
+        tick.setAttribute('x1', x);
+        tick.setAttribute('y1', y);
+        tick.setAttribute('x2', x);
+        tick.setAttribute('y2', Math.max(0, y - AXIS_TICK_LENGTH));
+      } else {
+        tick.setAttribute('x1', x);
+        tick.setAttribute('y1', y);
+        tick.setAttribute('x2', Math.min(BOARD_WIDTH, x + AXIS_TICK_LENGTH));
+        tick.setAttribute('y2', y);
+      }
+      tick.classList.add('axis-tick');
+      axesGroup.appendChild(tick);
+    };
+    const addAxisLabel = (orientation, value, x, y) => {
+      const label = document.createElementNS(SVG_NS, 'text');
+      const text = formatAxisValue(value, decimals);
+      if (!text) return;
+      if (orientation === 'x') {
+        const labelY = Math.max(AXIS_LABEL_PADDING, y - AXIS_LABEL_OFFSET);
+        label.setAttribute('x', x);
+        label.setAttribute('y', labelY);
+        label.setAttribute('text-anchor', 'middle');
+        label.classList.add('axis-label', 'axis-label--x');
+      } else {
+        const labelX = Math.min(BOARD_WIDTH - AXIS_LABEL_PADDING, x + AXIS_LABEL_OFFSET);
+        label.setAttribute('x', labelX);
+        label.setAttribute('y', y);
+        label.setAttribute('text-anchor', 'start');
+        label.classList.add('axis-label', 'axis-label--y');
+      }
+      label.textContent = text;
+      axisLabelsGroup.appendChild(label);
+    };
     const addLine = (x1, y1, x2, y2, isMajor) => {
       const pos1 = toPixel({ x: x1, y: y1 }, currentView);
       const pos2 = toPixel({ x: x2, y: y2 }, currentView);
@@ -2257,20 +2348,50 @@
       if (isMajor) line.classList.add('grid-line--major');
       gridGroup.appendChild(line);
     };
+    addAxisLine(minX, minY, maxX, minY, 'axis-line--x');
+    addAxisLine(minX, minY, minX, maxY, 'axis-line--y');
     const startXIndex = Math.ceil((minX - epsilon) / step);
     const endXIndex = Math.floor((maxX + epsilon) / step);
+    const xLabelValues = new Set();
+    const addXAxisEntry = value => {
+      if (!Number.isFinite(value)) return;
+      if (value < minX - epsilon || value > maxX + epsilon) return;
+      const key = value.toFixed(6);
+      if (xLabelValues.has(key)) return;
+      xLabelValues.add(key);
+      const pos = toPixel({ x: value, y: minY }, currentView);
+      addAxisTick('x', pos.x, axisPixelY);
+      addAxisLabel('x', value, pos.x, axisPixelY);
+    };
     for (let idx = startXIndex; idx <= endXIndex; idx += 1) {
       const xValue = Number((idx * step).toFixed(6));
       const isMajor = GRID_MAJOR_EVERY > 0 && idx % GRID_MAJOR_EVERY === 0;
       addLine(xValue, minY, xValue, maxY, isMajor);
+      if (isMajor) addXAxisEntry(xValue);
     }
+    addXAxisEntry(minX);
+    addXAxisEntry(maxX);
     const startYIndex = Math.ceil((minY - epsilon) / step);
     const endYIndex = Math.floor((maxY + epsilon) / step);
+    const yLabelValues = new Set();
+    const addYAxisEntry = value => {
+      if (!Number.isFinite(value)) return;
+      if (value < minY - epsilon || value > maxY + epsilon) return;
+      const key = value.toFixed(6);
+      if (yLabelValues.has(key)) return;
+      yLabelValues.add(key);
+      const pos = toPixel({ x: minX, y: value }, currentView);
+      addAxisTick('y', axisPixelX, pos.y);
+      addAxisLabel('y', value, axisPixelX, pos.y);
+    };
     for (let idx = startYIndex; idx <= endYIndex; idx += 1) {
       const yValue = Number((idx * step).toFixed(6));
       const isMajor = GRID_MAJOR_EVERY > 0 && idx % GRID_MAJOR_EVERY === 0;
       addLine(minX, yValue, maxX, yValue, isMajor);
+      if (isMajor) addYAxisEntry(yValue);
     }
+    addYAxisEntry(minY);
+    addYAxisEntry(maxY);
   }
 
   function renderBoard(validPoints) {
