@@ -1123,6 +1123,50 @@
   const descriptionInputsWithListeners = new WeakSet();
   let descriptionContainer = null;
   let descriptionPreview = null;
+  let descriptionRendererPromise = null;
+  let lastDescriptionRenderToken = 0;
+
+  function loadDescriptionRenderer() {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return Promise.resolve(null);
+    }
+    if (window.MathVisDescriptionRenderer) {
+      return Promise.resolve(window.MathVisDescriptionRenderer);
+    }
+    if (descriptionRendererPromise) {
+      return descriptionRendererPromise;
+    }
+    descriptionRendererPromise = new Promise((resolve, reject) => {
+      const currentScript = document.currentScript;
+      let scriptUrl = 'description-renderer.js';
+      if (currentScript && currentScript.src) {
+        try {
+          scriptUrl = new URL('description-renderer.js', currentScript.src).toString();
+        } catch (error) {}
+      }
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = scriptUrl;
+      script.addEventListener('load', () => {
+        if (window.MathVisDescriptionRenderer) {
+          resolve(window.MathVisDescriptionRenderer);
+        } else {
+          descriptionRendererPromise = null;
+          reject(new Error('Description renderer loaded without exposing the expected global.'));
+        }
+      }, { once: true });
+      script.addEventListener('error', () => {
+        descriptionRendererPromise = null;
+        reject(new Error('Failed to load description renderer.'));
+      }, { once: true });
+      document.head.appendChild(script);
+    });
+    return descriptionRendererPromise;
+  }
+
+  if (typeof window !== 'undefined') {
+    loadDescriptionRenderer();
+  }
 
   function getDescriptionContainer() {
     if (descriptionContainer && descriptionContainer.isConnected) return descriptionContainer;
@@ -1252,15 +1296,59 @@
   function renderDescriptionPreviewFromValue(value) {
     const preview = getDescriptionPreviewElement();
     if (!preview) return;
-    clearChildren(preview);
-    const fragment = buildDescriptionPreview(typeof value === 'string' ? value : '');
-    const hasContent = fragment && fragment.childNodes && fragment.childNodes.length > 0;
-    if (hasContent) {
-      preview.appendChild(fragment);
+    const stringValue = typeof value === 'string' ? value : '';
+    const applyState = hasContent => {
+      preview.dataset.empty = hasContent ? 'false' : 'true';
+      preview.hidden = !hasContent;
+      preview.setAttribute('aria-hidden', hasContent ? 'false' : 'true');
+    };
+    const renderLegacy = () => {
+      clearChildren(preview);
+      const fragment = buildDescriptionPreview(stringValue);
+      const hasContent = fragment && fragment.childNodes && fragment.childNodes.length > 0;
+      if (hasContent) {
+        preview.appendChild(fragment);
+      }
+      applyState(hasContent);
+      return hasContent;
+    };
+    const token = ++lastDescriptionRenderToken;
+    const renderWith = renderer => {
+      if (!renderer || token !== lastDescriptionRenderToken) return;
+      try {
+        const hasContent = !!renderer.renderInto(preview, stringValue);
+        applyState(hasContent);
+      } catch (error) {
+        if (token === lastDescriptionRenderToken) {
+          renderLegacy();
+        }
+      }
+    };
+
+    if (window.MathVisDescriptionRenderer && typeof window.MathVisDescriptionRenderer.renderInto === 'function') {
+      renderWith(window.MathVisDescriptionRenderer);
+      return;
     }
-    preview.dataset.empty = hasContent ? 'false' : 'true';
-    preview.hidden = !hasContent;
-    preview.setAttribute('aria-hidden', hasContent ? 'false' : 'true');
+
+    const loader = loadDescriptionRenderer();
+    if (!loader || typeof loader.then !== 'function') {
+      renderLegacy();
+      return;
+    }
+    loader
+      .then(renderer => {
+        if (token !== lastDescriptionRenderToken) return;
+        if (renderer && typeof renderer.renderInto === 'function') {
+          renderWith(renderer);
+        } else {
+          renderLegacy();
+        }
+      })
+      .catch(() => {
+        if (token === lastDescriptionRenderToken) {
+          renderLegacy();
+        }
+      });
   }
 
   function updateDescriptionCollapsedState(target) {
