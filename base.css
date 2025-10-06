@@ -361,6 +361,36 @@ select:disabled {
   display: none;
 }
 
+.card--examples .example-description__preview {
+  display: none;
+  padding: 10px;
+  border-radius: var(--control-radius);
+  border: 1px solid var(--card-border);
+  background: #f9fafb;
+  color: var(--text-color);
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.card--examples .example-description__preview:not([hidden]) {
+  display: block;
+}
+
+.card--examples .example-description__preview .example-description__math {
+  display: inline-block;
+  margin: 0 2px;
+}
+
+.card--examples .example-description__preview .example-description__math .katex {
+  font-size: 1em;
+}
+
+.card--examples .example-description__preview .example-description__math--fallback {
+  font-style: italic;
+  color: var(--muted-color);
+}
+
 .card--examples .example-description.example-description--collapsed {
   gap: 0;
   padding: 10px;
