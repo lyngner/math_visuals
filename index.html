@@ -225,6 +225,109 @@
       outline: 3px solid var(--profile-focus-outline);
       outline-offset: 3px;
     }
+
+    .task-strip {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 4px 0 6px;
+      flex: 1 1 100%;
+    }
+
+    .task-strip::-webkit-scrollbar {
+      height: 8px;
+    }
+
+    .task-strip-empty {
+      font-size: 0.85rem;
+      color: var(--profile-title-color);
+      opacity: 0.65;
+      padding: 4px 0;
+      white-space: nowrap;
+    }
+
+    .task-node {
+      appearance: none;
+      border: 2px solid var(--profile-accent-border);
+      background: var(--profile-surface-background);
+      color: var(--profile-accent-color);
+      width: 1.9rem;
+      height: 1.9rem;
+      border-radius: 999px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      position: relative;
+      transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .task-node::after {
+      content: attr(data-label);
+      position: absolute;
+      left: 50%;
+      top: 100%;
+      transform: translate(-50%, 8px);
+      padding: 4px 8px;
+      border-radius: 8px;
+      background: var(--profile-tooltip-background);
+      color: var(--profile-tooltip-color);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      box-shadow: 0 8px 16px var(--profile-accent-shadow-strong);
+      z-index: 30;
+    }
+
+    .task-node:hover::after,
+    .task-node:focus-visible::after {
+      opacity: 1;
+      transform: translate(-50%, 14px);
+    }
+
+    .task-node:hover,
+    .task-node:focus-visible {
+      background: var(--profile-accent-color);
+      color: var(--profile-accent-contrast);
+      border-color: var(--profile-accent-border-strong);
+      box-shadow: 0 6px 12px var(--profile-accent-shadow-strong);
+      transform: translateY(-1px);
+    }
+
+    .task-node.is-active {
+      background: var(--profile-accent-color);
+      color: var(--profile-accent-contrast);
+      border-color: var(--profile-accent-border-strong);
+      box-shadow: 0 4px 10px var(--profile-accent-shadow-medium);
+    }
+
+    .task-node:focus-visible {
+      outline: 3px solid var(--profile-focus-outline);
+      outline-offset: 3px;
+    }
+
+    body[data-mode="task"] nav ul {
+      display: none !important;
+    }
+
+    body[data-mode="task"] nav.is-open ul {
+      display: none !important;
+    }
+
+    body[data-mode="task"] .nav-toggle {
+      display: none;
+    }
+
+    body[data-mode="task"] .task-strip {
+      display: flex;
+    }
     nav svg {
       width: 1.75rem;
       height: 1.75rem;
@@ -350,7 +453,7 @@
     }
   </style>
 </head>
-<body>
+<body data-mode="edit">
   <nav>
     <div class="nav-header">
       <span class="nav-title">Math Visuals</span>
@@ -555,6 +658,7 @@
         </a>
       </li>
     </ul>
+    <div class="task-strip" data-task-strip aria-label="Oppgaver" role="group" hidden></div>
   </nav>
     <iframe name="content" title="Innhold"></iframe>
     <script src="router.js"></script>

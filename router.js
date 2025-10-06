@@ -197,6 +197,72 @@ function safeSetItem(key, value) {
   switchToFallback().setItem(key, value);
 }
 
+function resolveExamplesApiBase() {
+  if (typeof window === 'undefined') return null;
+  if (window.MATH_VISUALS_EXAMPLES_API_URL) {
+    const value = String(window.MATH_VISUALS_EXAMPLES_API_URL).trim();
+    if (value) return value;
+  }
+  const origin = window.location && window.location.origin;
+  if (typeof origin === 'string' && /^https?:/i.test(origin)) {
+    return '/api/examples';
+  }
+  return null;
+}
+
+function buildExamplesApiUrl(base, path) {
+  if (!base) return null;
+  if (typeof window === 'undefined') {
+    if (!path) return base;
+    const sep = base.includes('?') ? '&' : '?';
+    return `${base}${sep}path=${encodeURIComponent(path)}`;
+  }
+  try {
+    const url = new URL(base, window.location && window.location.href ? window.location.href : undefined);
+    if (path) {
+      url.searchParams.set('path', path);
+    }
+    return url.toString();
+  } catch (error) {
+    if (!path) return base;
+    const sep = base.includes('?') ? '&' : '?';
+    return `${base}${sep}path=${encodeURIComponent(path)}`;
+  }
+}
+
+function normalizeExamplePath(pathname) {
+  if (typeof pathname !== 'string') return '/';
+  let path = pathname.trim();
+  if (!path) return '/';
+  if (!path.startsWith('/')) path = '/' + path;
+  path = path.replace(/\\+/g, '/');
+  path = path.replace(/\/+/g, '/');
+  path = path.replace(/\/index\.html?$/i, '/');
+  if (/\.html?$/i.test(path)) {
+    path = path.replace(/\.html?$/i, '');
+    if (!path) path = '/';
+  }
+  if (path.length > 1 && path.endsWith('/')) {
+    path = path.slice(0, -1);
+  }
+  if (!path) return '/';
+  let decoded = path;
+  try {
+    decoded = decodeURI(path);
+  } catch (_) {}
+  if (typeof decoded === 'string') {
+    decoded = decoded.toLowerCase();
+  }
+  let encoded = decoded;
+  try {
+    encoded = encodeURI(decoded);
+  } catch (_) {
+    encoded = typeof path === 'string' ? path.toLowerCase() : path;
+  }
+  if (!encoded) return '/';
+  return encoded.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
+}
+
 const PROFILE_STORAGE_KEY = 'profile';
 const PROFILE_DEFAULT = 'kikora';
 const MODE_STORAGE_KEY = 'mode';
@@ -295,6 +361,9 @@ const iframe = document.querySelector('iframe');
 const nav = document.querySelector('nav');
 const profileControl = nav ? nav.querySelector('[data-profile-control]') : null;
 const modeControl = nav ? nav.querySelector('[data-mode-control]') : null;
+const navList = nav ? nav.querySelector('ul') : null;
+const taskStrip = nav ? nav.querySelector('[data-task-strip]') : null;
+const examplesApiBase = resolveExamplesApiBase();
 
 function syncProfileControl(profile) {
   if (!profileControl) return;
@@ -396,6 +465,7 @@ function createNavEntry(link) {
   const label = link.getAttribute('data-label') || link.textContent || '';
   const routeSegment = buildRouteSegment(label, href);
   const path = resolveEntryPath(href);
+  const normalizedPath = normalizeExamplePath(path);
   const lookupKeys = collectLookupKeys(routeSegment, label, href, path);
   const entry = {
     link,
@@ -403,6 +473,7 @@ function createNavEntry(link) {
     label,
     routeSegment,
     path,
+    normalizedPath,
     lookupKeys
   };
   Object.defineProperty(link, '__NAV_ENTRY__', {
@@ -422,6 +493,207 @@ navEntries.forEach(entry => {
     }
   });
 });
+
+let currentEntry = null;
+let currentExampleNumber = null;
+let lastHistoryPath = null;
+
+const TASK_STORAGE_PREFIX = 'examples_';
+let taskButtons = [];
+let taskLoadPromise = null;
+let backendEntriesPromise = null;
+
+function readLocalExamples(normalizedPath) {
+  if (typeof normalizedPath !== 'string' || !normalizedPath) return [];
+  const key = `${TASK_STORAGE_PREFIX}${normalizedPath}`;
+  try {
+    const stored = safeGetItem(key);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+async function fetchBackendEntriesList() {
+  if (!examplesApiBase) return null;
+  if (backendEntriesPromise) return backendEntriesPromise;
+  const url = buildExamplesApiUrl(examplesApiBase);
+  if (!url) return null;
+  backendEntriesPromise = (async () => {
+    try {
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data && Array.isArray(data.entries)) {
+        return data.entries;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  })();
+  return backendEntriesPromise;
+}
+
+async function buildTaskData() {
+  let backendEntries = null;
+  try {
+    backendEntries = await fetchBackendEntriesList();
+  } catch (_) {
+    backendEntries = null;
+  }
+  const backendMap = new Map();
+  if (Array.isArray(backendEntries)) {
+    backendEntries.forEach(entry => {
+      if (!entry || typeof entry !== 'object') return;
+      const path = normalizeExamplePath(entry.path || '');
+      if (!path) return;
+      const examples = Array.isArray(entry.examples) ? entry.examples : [];
+      if (examples.length) {
+        backendMap.set(path, examples.slice());
+      }
+    });
+  }
+  const tasks = [];
+  let counter = 0;
+  navEntries.forEach(entry => {
+    if (!entry) return;
+    const normalizedPath = entry.normalizedPath || normalizeExamplePath(entry.path || entry.href || '');
+    if (!normalizedPath) return;
+    let examples = backendMap.get(normalizedPath) || [];
+    if (!examples.length) {
+      examples = readLocalExamples(normalizedPath);
+    }
+    if (!Array.isArray(examples) || !examples.length) return;
+    examples.forEach((_, idx) => {
+      counter += 1;
+      tasks.push({
+        entry,
+        exampleNumber: idx + 1,
+        label: `Oppgave ${counter}`,
+        normalizedPath
+      });
+    });
+  });
+  return tasks;
+}
+
+function renderTaskStrip(tasks) {
+  if (!taskStrip) return;
+  taskStrip.innerHTML = '';
+  taskButtons = [];
+  if (!tasks.length) {
+    const empty = document.createElement('div');
+    empty.className = 'task-strip-empty';
+    empty.textContent = 'Ingen oppgaver tilgjengelig';
+    taskStrip.appendChild(empty);
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  tasks.forEach(task => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'task-node';
+    button.dataset.entryPath = task.normalizedPath;
+    button.dataset.exampleNumber = String(task.exampleNumber);
+    button.dataset.label = task.label;
+    button.setAttribute('aria-label', `${task.label} – ${task.entry.label}`);
+    button.addEventListener('click', () => {
+      const isSameEntry = currentEntry === task.entry;
+      const currentNumber = Number.isFinite(currentExampleNumber) ? currentExampleNumber : 1;
+      const options = {
+        pushHistory: true,
+        refresh: isSameEntry && currentNumber === task.exampleNumber
+      };
+      applyRoute(task.entry, task.exampleNumber, options);
+    });
+    fragment.appendChild(button);
+    taskButtons.push(button);
+  });
+  taskStrip.appendChild(fragment);
+  updateActiveTaskIndicator();
+}
+
+function updateTaskModeUI() {
+  const body = typeof document !== 'undefined' ? document.body : null;
+  if (body) {
+    body.dataset.mode = currentMode;
+  }
+  const isTaskMode = currentMode === 'task';
+  if (nav) {
+    nav.classList.toggle('nav--task-mode', isTaskMode);
+  }
+  if (navList) {
+    if (isTaskMode) {
+      navList.setAttribute('aria-hidden', 'true');
+    } else {
+      navList.removeAttribute('aria-hidden');
+    }
+  }
+  if (taskStrip) {
+    taskStrip.hidden = !isTaskMode;
+    taskStrip.setAttribute('aria-hidden', isTaskMode ? 'false' : 'true');
+  }
+}
+
+async function ensureTasksRendered(options = {}) {
+  if (!taskStrip || currentMode !== 'task') return;
+  if (taskLoadPromise) {
+    await taskLoadPromise;
+    if (!options || options.force !== true) {
+      return;
+    }
+  }
+  const loadPromise = (async () => {
+    const tasks = await buildTaskData();
+    renderTaskStrip(tasks);
+    updateTaskModeUI();
+  })();
+  taskLoadPromise = loadPromise;
+  try {
+    await loadPromise;
+  } finally {
+    if (taskLoadPromise === loadPromise) {
+      taskLoadPromise = null;
+    }
+  }
+}
+
+function handleModeUpdate(options = {}) {
+  updateTaskModeUI();
+  if (currentMode === 'task') {
+    ensureTasksRendered({ force: options.forceTasks === true })
+      .then(() => {
+        updateTaskModeUI();
+        updateActiveTaskIndicator();
+      })
+      .catch(() => {});
+  }
+}
+
+handleModeUpdate({ forceTasks: true });
+
+function updateActiveTaskIndicator() {
+  if (!taskButtons.length) return;
+  const activePath = currentEntry && currentEntry.normalizedPath ? currentEntry.normalizedPath : null;
+  const activeNumber = Number.isFinite(currentExampleNumber) ? currentExampleNumber : null;
+  taskButtons.forEach(button => {
+    if (!button) return;
+    const buttonPath = button.dataset.entryPath || '';
+    const buttonExample = Number(button.dataset.exampleNumber);
+    let isActive = false;
+    if (activePath && buttonPath === activePath) {
+      if (activeNumber != null) {
+        isActive = Number.isFinite(buttonExample) && buttonExample === activeNumber;
+      } else {
+        isActive = Number.isFinite(buttonExample) && buttonExample === 1;
+      }
+    }
+    button.classList.toggle('is-active', isActive);
+  });
+}
 
 if (profileControl) {
   profileControl.addEventListener('change', event => {
@@ -465,6 +737,7 @@ if (modeControl) {
     currentMode = normalized;
     safeSetItem(MODE_STORAGE_KEY, normalized);
     syncModeControl(normalized);
+    handleModeUpdate({ forceTasks: true });
     if (iframe && iframe.contentWindow) {
       try {
         iframe.contentWindow.postMessage(
@@ -609,10 +882,6 @@ function parseRouteFromLocation() {
   return { entry, exampleNumber };
 }
 
-let currentEntry = null;
-let currentExampleNumber = null;
-let lastHistoryPath = null;
-
 function updateHistoryState(entry, exampleNumber, options = {}) {
   if (typeof window === 'undefined' || typeof history === 'undefined') return;
   const method = options.replaceHistory ? 'replaceState' : options.pushHistory ? 'pushState' : 'replaceState';
@@ -663,6 +932,10 @@ function applyRoute(entry, exampleNumber, options = {}) {
   }
   currentEntry = entry;
   currentExampleNumber = normalizedExample;
+  updateActiveTaskIndicator();
+  if (currentMode === 'task') {
+    ensureTasksRendered().catch(() => {});
+  }
 }
 
 const saved = safeGetItem('currentPage');
@@ -730,6 +1003,7 @@ window.addEventListener('popstate', event => {
       modeChanged = true;
     }
     syncModeControl(currentMode);
+    handleModeUpdate({ forceTasks: modeChanged });
   }
   const route = parseRouteFromLocation();
   if (route && route.entry) {
@@ -777,6 +1051,16 @@ window.addEventListener('message', event => {
     } catch (_) {}
     return;
   }
+  if (data.type === 'math-visuals:mode-change') {
+    const normalized = normalizeMode(data.mode);
+    if (normalized && normalized !== currentMode) {
+      currentMode = normalized;
+      safeSetItem(MODE_STORAGE_KEY, normalized);
+      syncModeControl(normalized);
+      handleModeUpdate({ forceTasks: true });
+    }
+    return;
+  }
   if (data.type !== 'math-visuals:example-change') return;
   if (!currentEntry) return;
   const normalizedPath = normalizeEntryPath(data.path || data.href || '');
@@ -787,4 +1071,8 @@ window.addEventListener('message', event => {
   const exampleNumber = Number.isFinite(parsedNumber) && parsedNumber > 0 ? parsedNumber : null;
   currentExampleNumber = exampleNumber;
   updateHistoryState(currentEntry, exampleNumber, { replaceHistory: true, force: true });
+  updateActiveTaskIndicator();
+  if (currentMode === 'task') {
+    ensureTasksRendered({ force: true }).catch(() => {});
+  }
 });
