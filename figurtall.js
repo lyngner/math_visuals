@@ -20,14 +20,40 @@
     if (!inp) break;
     colorInputs.push(inp);
   }
-  const DEFAULT_COLOR_SETS = {
-    1: ['#6C1BA2'],
-    2: ['#BF4474', '#534477'],
-    3: ['#B25FE3', '#6C1BA2', '#BF4474'],
-    4: ['#B25FE3', '#6C1BA2', '#534477', '#BF4474'],
-    5: ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474'],
-    6: ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D']
-  };
+  const LEGACY_COLOR_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D'];
+  function getThemeApi() {
+    const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
+    return theme && typeof theme === 'object' ? theme : null;
+  }
+  function applyThemeToDocument() {
+    const theme = getThemeApi();
+    if (theme && typeof theme.applyToDocument === 'function') {
+      theme.applyToDocument(document);
+    }
+  }
+  applyThemeToDocument();
+  function getPaletteFromTheme(count) {
+    const theme = getThemeApi();
+    let palette = null;
+    if (theme && typeof theme.getPalette === 'function') {
+      palette = theme.getPalette('figures', count, { fallbackKinds: ['fractions'] });
+    }
+    const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : 0;
+    const base = Array.isArray(palette) && palette.length ? palette.slice() : LEGACY_COLOR_PALETTE.slice();
+    if (target <= 0) return base.slice();
+    if (base.length >= target) return base.slice(0, target);
+    const result = base.slice();
+    for (let i = base.length; i < target; i++) {
+      result.push(base[i % base.length]);
+    }
+    return result;
+  }
+  function getDefaultColorForIndex(index) {
+    if (!Number.isFinite(index) || index < 0) return LEGACY_COLOR_PALETTE[0];
+    const palette = getPaletteFromTheme(index + 1);
+    if (Array.isArray(palette) && palette[index]) return palette[index];
+    return LEGACY_COLOR_PALETTE[index % LEGACY_COLOR_PALETTE.length];
+  }
   const STATE = typeof window.STATE === 'object' && window.STATE ? window.STATE : {};
   window.STATE = STATE;
   const modifiedColorIndexes = new Set();
@@ -37,7 +63,6 @@
     });
   }
   let autoPaletteEnabled = modifiedColorIndexes.size === 0;
-  let lastAppliedPaletteSize = null;
   function normalizeLabelMode(value) {
     if (typeof value !== 'string') return 'custom';
     const normalized = value.toLowerCase();
@@ -94,39 +119,24 @@
     return matrix;
   }
   function ensureColors(count) {
-    const palette = DEFAULT_COLOR_SETS[count] || DEFAULT_COLOR_SETS[MAX_COLORS] || ['#6C1BA2'];
-    const fillPalette = DEFAULT_COLOR_SETS[MAX_COLORS] || palette;
-    if (autoPaletteEnabled) {
-      if (lastAppliedPaletteSize !== count || !Array.isArray(STATE.colors)) {
-        STATE.colors = palette.slice();
-      }
-    } else if (!Array.isArray(STATE.colors)) {
-      STATE.colors = [];
-    }
-    if (!Array.isArray(STATE.colors)) STATE.colors = [];
     const required = Math.max(count, MAX_COLORS);
+    const palette = getPaletteFromTheme(required);
+    if (!Array.isArray(STATE.colors)) STATE.colors = [];
+    if (autoPaletteEnabled) {
+      STATE.colors = palette.slice(0, required);
+    }
     for (let i = 0; i < required; i++) {
-      const withinCount = i < count;
-      const source = withinCount ? palette : fillPalette;
-      let defaultColor = '#6C1BA2';
-      if (Array.isArray(source) && source.length > 0) {
-        var _source$Math$min;
-        defaultColor = (_source$Math$min = source[Math.min(i, source.length - 1)]) !== null && _source$Math$min !== void 0 ? _source$Math$min : '#6C1BA2';
-      } else if (Array.isArray(palette) && palette.length > 0) {
-        var _palette$Math$min;
-        defaultColor = (_palette$Math$min = palette[Math.min(withinCount ? i : palette.length - 1, palette.length - 1)]) !== null && _palette$Math$min !== void 0 ? _palette$Math$min : '#6C1BA2';
-      }
+      const defaultColor = palette[i] || getDefaultColorForIndex(i);
       const hasColor = typeof STATE.colors[i] === 'string' && STATE.colors[i];
       const shouldUseDefault = autoPaletteEnabled || !modifiedColorIndexes.has(i);
       if (shouldUseDefault || !hasColor) {
-        STATE.colors[i] = defaultColor || '#6C1BA2';
+        STATE.colors[i] = defaultColor;
       }
       if (typeof STATE.colors[i] !== 'string' || !STATE.colors[i]) {
-        STATE.colors[i] = '#6C1BA2';
+        STATE.colors[i] = defaultColor || LEGACY_COLOR_PALETTE[i % LEGACY_COLOR_PALETTE.length];
       }
     }
     if (STATE.colors.length > required) STATE.colors.length = required;
-    lastAppliedPaletteSize = count;
   }
   function createFigureState(name, rowCount, colCount, coords) {
     var _STATE$figures;
@@ -215,7 +225,7 @@
   }
   function applyCellAppearance(cell, idx, colors) {
     const shape = normalizeFigureType(STATE.figureType) || 'square';
-    const color = idx > 0 ? colors[idx - 1] || '#6C1BA2' : '';
+    const color = idx > 0 ? colors[idx - 1] || getDefaultColorForIndex(idx - 1) : '';
     const hasFill = !!color;
     cell.dataset.color = String(idx);
     cell.style.setProperty('--cell-fill', color || 'transparent');
@@ -1282,7 +1292,6 @@
     STATE.colors = [];
     modifiedColorIndexes.clear();
     autoPaletteEnabled = true;
-    lastAppliedPaletteSize = null;
     ensureColors(STATE.colorCount);
     STATE.figures = [];
     STATE.altText = '';
@@ -1309,4 +1318,14 @@
   render();
   updateFigureLayout();
   window.render = render;
+  function handleThemeProfileChange(event) {
+    const data = event && event.data;
+    const type = typeof data === 'string' ? data : data && data.type;
+    if (type !== 'math-visuals:profile-change') return;
+    applyThemeToDocument();
+    render();
+  }
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('message', handleThemeProfileChange);
+  }
 })();

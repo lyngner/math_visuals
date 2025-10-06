@@ -10,6 +10,32 @@ const SIMPLE = {
 if (typeof window !== 'undefined') window.SIMPLE = SIMPLE;
 const PANEL_HTML = [];
 let altTextManager = null;
+const LEGACY_PIZZA_COLORS = {
+  fill: '#5B2AA5',
+  rim: '#333333',
+  dash: '#000000',
+  handle: '#e9e6f7',
+  handleStroke: '#333333'
+};
+function getThemeApi() {
+  const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
+  return theme && typeof theme === 'object' ? theme : null;
+}
+function applyThemeToDocument() {
+  const theme = getThemeApi();
+  if (theme && typeof theme.applyToDocument === 'function') {
+    theme.applyToDocument(document);
+  }
+}
+function getThemeColor(token, fallback) {
+  const theme = getThemeApi();
+  if (theme && typeof theme.getColor === 'function') {
+    const color = theme.getColor(token, fallback);
+    if (typeof color === 'string' && color) return color;
+  }
+  return fallback;
+}
+applyThemeToDocument();
 function readConfigFromHtml() {
   const pizzas = [];
   for (let i = 1; i <= 3; i++) {
@@ -609,19 +635,26 @@ class Pizza {
 /* =======================
    SVG-eksport – stil
    ======================= */
-const EXPORT_SVG_STYLE = `
-.rim{fill:none;stroke:#333;stroke-width:6}
+function getExportSvgStyle() {
+  const fill = getThemeColor('pizza.fill', LEGACY_PIZZA_COLORS.fill);
+  const rim = getThemeColor('pizza.rim', LEGACY_PIZZA_COLORS.rim);
+  const dash = getThemeColor('pizza.dash', LEGACY_PIZZA_COLORS.dash);
+  const handleFill = getThemeColor('pizza.handle', LEGACY_PIZZA_COLORS.handle);
+  const handleStroke = getThemeColor('pizza.handleStroke', LEGACY_PIZZA_COLORS.handleStroke || rim);
+  return `
+.rim{fill:none;stroke:${rim};stroke-width:6}
 .sector{stroke:#fff;stroke-width:6}
-.sector-fill{fill:#5B2AA5}
+.sector-fill{fill:${fill}}
 .sector-empty{fill:#fff}
-.dash{stroke:#000;stroke-dasharray:4 4;stroke-width:2}
-.handle{fill:#e9e6f7;stroke:#333;stroke-width:2;cursor:pointer}
+.dash{stroke:${dash};stroke-dasharray:4 4;stroke-width:2}
+.handle{fill:${handleFill};stroke:${handleStroke};stroke-width:2;cursor:pointer}
 .a11y:focus{outline:none;stroke:#1e88e5;stroke-width:3}
 .btn{fill:#fff;stroke:#cfcfcf;stroke-width:1;cursor:pointer}
 .btnLabel{font-size:18px;dominant-baseline:middle;text-anchor:middle;pointer-events:none}
 .meta, .fracNum, .fracDen{font-size:22px;text-anchor:middle}
-.fracLine{stroke:#000;stroke-width:2}
+.fracLine{stroke:${dash};stroke-width:2}
 `;
+}
 const INTERACTIVE_SVG_SCRIPT = `
 /*<![CDATA[*/
 (function(){
@@ -810,7 +843,7 @@ function downloadSVG(svgEl, filename = "pizza.svg") {
   clone.insertBefore(bg, clone.firstChild);
   const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
   styleEl.setAttribute("type", "text/css");
-  styleEl.appendChild(document.createTextNode(EXPORT_SVG_STYLE));
+  styleEl.appendChild(document.createTextNode(getExportSvgStyle()));
   clone.insertBefore(styleEl, clone.firstChild);
   const xml = new XMLSerializer().serializeToString(clone);
   const file = `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
@@ -861,7 +894,7 @@ function downloadInteractiveSVG(svgEl, filename = "pizza-interaktiv.svg") {
   // Innebygd stil
   const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
   styleEl.setAttribute("type", "text/css");
-  styleEl.appendChild(document.createTextNode(EXPORT_SVG_STYLE));
+  styleEl.appendChild(document.createTextNode(getExportSvgStyle()));
   clone.insertBefore(styleEl, clone.firstChild);
 
   // State fra levende instans
@@ -959,7 +992,7 @@ function buildAllPizzasSVG() {
   const styleEl = mk("style", {
     type: "text/css"
   });
-  styleEl.appendChild(document.createTextNode(EXPORT_SVG_STYLE));
+  styleEl.appendChild(document.createTextNode(getExportSvgStyle()));
   root.appendChild(styleEl);
   let x = 0;
   svgs.forEach((svg, i) => {
@@ -1077,7 +1110,7 @@ function downloadAllPizzasInteractiveSVG(filename = "broksirkler-interaktiv.svg"
   const styleEl = mk("style", {
     type: "text/css"
   });
-  styleEl.appendChild(document.createTextNode(EXPORT_SVG_STYLE));
+  styleEl.appendChild(document.createTextNode(getExportSvgStyle()));
   root.appendChild(styleEl);
   let x = 0;
   svgs.forEach((svg, i) => {
@@ -1511,4 +1544,12 @@ function applyExamplesConfig() {
 if (typeof window !== 'undefined') {
   window.applyConfig = applyExamplesConfig;
   window.render = applyExamplesConfig;
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('message', event => {
+      const data = event && event.data;
+      const type = typeof data === 'string' ? data : data && data.type;
+      if (type !== 'math-visuals:profile-change') return;
+      applyThemeToDocument();
+    });
+  }
 }

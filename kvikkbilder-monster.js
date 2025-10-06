@@ -13,6 +13,26 @@
   const expression = document.getElementById('expression');
   const btnSvg = document.getElementById('btnSvg');
   const btnPng = document.getElementById('btnPng');
+  const DOT_FALLBACK = '#534477';
+  function getThemeApi() {
+    const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
+    return theme && typeof theme === 'object' ? theme : null;
+  }
+  function applyThemeToDocument() {
+    const theme = getThemeApi();
+    if (theme && typeof theme.applyToDocument === 'function') {
+      theme.applyToDocument(document);
+    }
+  }
+  function getDotColor() {
+    const theme = getThemeApi();
+    if (theme && typeof theme.getColor === 'function') {
+      const color = theme.getColor('dots.default', DOT_FALLBACK);
+      if (typeof color === 'string' && color) return color;
+    }
+    return DOT_FALLBACK;
+  }
+  applyThemeToDocument();
   const MONSTER_POINT_RADIUS_MIN = 1;
   const MONSTER_POINT_RADIUS_MAX = 60;
   const DEFAULT_CIRCLE_RADIUS = 10;
@@ -235,7 +255,7 @@
       c.setAttribute('cx', x + offsetX);
       c.setAttribute('cy', y + offsetY);
       c.setAttribute('r', radius);
-      c.setAttribute('fill', '#534477');
+      c.setAttribute('fill', getDotColor());
       svg.appendChild(c);
     });
     return svg;
@@ -359,6 +379,17 @@
   updateVisibility();
   render();
   applyExpressionVisibility();
+  function handleThemeProfileChange(event) {
+    const data = event && event.data;
+    const type = typeof data === 'string' ? data : data && data.type;
+    if (type !== 'math-visuals:profile-change') return;
+    applyThemeToDocument();
+    render();
+    applyExpressionVisibility();
+  }
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('message', handleThemeProfileChange);
+  }
   function svgToString(svgEl) {
     const clone = svgEl.cloneNode(true);
     const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');

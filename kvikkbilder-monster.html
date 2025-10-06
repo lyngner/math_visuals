@@ -52,8 +52,8 @@
       height:160px;
       border-radius:50%;
       border:none;
-      background:#10b981;
-      color:#fff;
+      background:var(--play-button, #10b981);
+      color:var(--play-button-text, #fff);
       font-size:64px;
       display:flex;
       align-items:center;
@@ -61,6 +61,7 @@
       cursor:pointer;
       box-shadow:0 2px 8px rgba(0,0,0,.15);
     }
+    #playBtn:hover{background:var(--play-button-hover, #059669);}
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
@@ -128,6 +129,7 @@
       </div>
     </div>
   </div>
+  <script src="theme-profiles.js"></script>
   <script src="kvikkbilder-monster.js"></script>
   <script src="split.js"></script>
   <script src="examples.js"></script>

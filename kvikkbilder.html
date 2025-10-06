@@ -84,12 +84,15 @@
       height:160px;
       border:none;
       border-radius:50%;
-      background:#10b981;
-      color:#fff;
+      background:var(--play-button, #10b981);
+      color:var(--play-button-text, #fff);
       display:flex;
       align-items:center;
       justify-content:center;
       box-shadow:0 2px 8px rgba(0,0,0,.15);
+    }
+    #playBtn:hover{
+      background:var(--play-button-hover, #059669);
     }
   </style>
   <link rel="stylesheet" href="split.css" />
@@ -232,6 +235,7 @@
       </div>
     </div>
   </div>
+  <script src="theme-profiles.js"></script>
   <script src="alt-text-ui.js"></script>
   <script src="kvikkbilder.js"></script>
   <script src="split.js"></script>

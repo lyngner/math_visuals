@@ -33,6 +33,32 @@
   const btnPng = document.getElementById('btnPng');
   const cfgAntallWrapper = document.getElementById('cfg-antall-wrapper');
   const exportCard = document.getElementById('exportCard');
+  const DOT_FALLBACKS = {
+    default: '#534477',
+    monster: '#534477',
+    rectangles: '#534477',
+    klosser: '#534477'
+  };
+  function getThemeApi() {
+    const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
+    return theme && typeof theme === 'object' ? theme : null;
+  }
+  function applyThemeToDocument() {
+    const theme = getThemeApi();
+    if (theme && typeof theme.applyToDocument === 'function') {
+      theme.applyToDocument(document);
+    }
+  }
+  function getDotColor(kind) {
+    const fallback = DOT_FALLBACKS[kind] || DOT_FALLBACKS.default;
+    const theme = getThemeApi();
+    if (theme && typeof theme.getColor === 'function') {
+      const color = theme.getColor('dots.default', fallback);
+      if (typeof color === 'string' && color) return color;
+    }
+    return fallback;
+  }
+  applyThemeToDocument();
   let BRICK_SRC;
   let altTextManager = null;
   let autoAltText = '';
@@ -716,7 +742,7 @@
       c.setAttribute('cx', x + offsetX);
       c.setAttribute('cy', y + offsetY);
       c.setAttribute('r', radius);
-      c.setAttribute('fill', '#534477');
+      c.setAttribute('fill', getDotColor('monster'));
       svg.appendChild(c);
     });
     return svg;
@@ -755,7 +781,7 @@
         circle.setAttribute('cx', cx);
         circle.setAttribute('cy', cy);
         circle.setAttribute('r', radius);
-        circle.setAttribute('fill', '#534477');
+        circle.setAttribute('fill', getDotColor('rectangles'));
         svg.appendChild(circle);
       }
     }
@@ -1155,6 +1181,16 @@
     renderView();
   }
   window.render = render;
+  function handleThemeProfileChange(event) {
+    const data = event && event.data;
+    const type = typeof data === 'string' ? data : data && data.type;
+    if (type !== 'math-visuals:profile-change') return;
+    applyThemeToDocument();
+    render();
+  }
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('message', handleThemeProfileChange);
+  }
   function bindNumberInput(input, targetGetter, key, min = 0) {
     if (!input) return;
     input.addEventListener('input', () => {
