@@ -797,8 +797,13 @@
       if (!polygon || !Array.isArray(polygon.borders)) return;
       for (const border of polygon.borders) {
         if (!border) continue;
-        markDivisionNode(border.rendNode);
-        if (border.rendNodeFront && border.rendNodeFront !== border.rendNode) markDivisionNode(border.rendNodeFront);
+        const nodes = [border.rendNode, border.rendNodeFront && border.rendNodeFront !== border.rendNode ? border.rendNodeFront : null];
+        for (const node of nodes) {
+          if (!node) continue;
+          node.setAttribute('stroke-linecap', 'butt');
+          node.setAttribute('stroke-linejoin', 'miter');
+          markDivisionNode(node);
+        }
       }
     }
     function createDivisionSegment(start, end, options = {}, extend = true) {
