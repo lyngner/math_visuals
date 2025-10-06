@@ -138,6 +138,49 @@ body[data-app-mode="task"] .grid.split-enabled {
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
+.card--examples .example-description-preview {
+  display: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #111827;
+  background: #fff;
+  overflow-x: auto;
+}
+
+.card--examples .example-description-preview[data-empty="true"] {
+  display: none;
+}
+
+.card--examples .example-description-preview p {
+  margin: 0 0 10px;
+}
+
+.card--examples .example-description-preview p:last-child {
+  margin-bottom: 0;
+}
+
+.card--examples .example-description-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+}
+
+.card--examples .example-description-preview th,
+.card--examples .example-description-preview td {
+  border: 1px solid #d1d5db;
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.card--examples .example-description-preview th {
+  background: #f1f5f9;
+  font-weight: 600;
+}
+
 .card--examples .example-description label {
   display: flex;
   align-items: center;
@@ -182,6 +225,23 @@ body[data-app-mode="task"] .grid.split-enabled {
   opacity: 0;
   overflow: hidden;
   resize: none;
+}
+
+body[data-app-mode="task"] .card--examples {
+  gap: 12px;
+}
+
+body[data-app-mode="task"] .card--examples .example-description textarea {
+  display: none;
+  min-height: 0;
+}
+
+body[data-app-mode="task"] .card--examples .example-description label {
+  display: none;
+}
+
+body[data-app-mode="task"] .card--examples .example-description .example-description-preview:not([data-empty="true"]) {
+  display: block;
 }
 
 .card--settings input[type="checkbox"],
