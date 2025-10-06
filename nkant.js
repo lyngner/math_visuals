@@ -171,6 +171,39 @@ function cloneJobForSummary(job) {
       side: cloneDimension(job.obj && job.obj.side)
     };
   }
+  if (job.type === 'double-tri') {
+    const triangles = [];
+    const pushTriangle = (source, fallbackLetters) => {
+      if (!source) return;
+      const valuesSource = source.values && typeof source.values === 'object' ? source.values : source;
+      const values = {};
+      ['a', 'b', 'c', 'A', 'B', 'C'].forEach(key => {
+        const val = valuesSource && typeof valuesSource[key] === 'number' && Number.isFinite(valuesSource[key]) ? valuesSource[key] : null;
+        if (val != null) values[key] = val;
+      });
+      if (Object.keys(values).length === 0) return;
+      const letters = typeof source.letters === 'string' && source.letters.trim() ? source.letters.trim() : fallbackLetters;
+      triangles.push({
+        letters,
+        values
+      });
+    };
+    if (job.obj && Array.isArray(job.obj.triangles)) {
+      job.obj.triangles.forEach((tri, idx) => pushTriangle(tri, idx === 0 ? 'ABC' : 'DBC'));
+    } else {
+      pushTriangle(job.obj && job.obj.tri1, 'ABC');
+      pushTriangle(job.obj && job.obj.tri2, 'DBC');
+    }
+    const shared = job.obj && job.obj.shared ? cloneDimension(job.obj.shared) : null;
+    const decorations = summarizeJobDecorations(job);
+    const result = {
+      type: 'double-tri',
+      triangles
+    };
+    if (shared) result.shared = shared;
+    if (decorations.length) result.decorations = decorations;
+    return result;
+  }
   const values = {};
   const source = job.obj && typeof job.obj === 'object' ? job.obj : {};
   ['a', 'b', 'c', 'd', 'A', 'B', 'C', 'D'].forEach(key => {
@@ -189,7 +222,7 @@ function cloneJobForSummary(job) {
 }
 function summarizeJobDecorations(job) {
   if (!job || typeof job !== 'object' || !Array.isArray(job.decorations)) return [];
-  const type = job.type === 'tri' ? 'tri' : job.type === 'quad' ? 'quad' : null;
+  const type = job.type === 'tri' ? 'tri' : job.type === 'quad' ? 'quad' : job.type === 'double-tri' ? 'double-tri' : null;
   if (!type) return [];
   const letters = type === 'tri' ? ['A', 'B', 'C'] : ['A', 'B', 'C', 'D'];
   const seen = new Set();
@@ -361,6 +394,53 @@ function buildNkantAltText(summary) {
       const sideInfo = describeDimensionEntry(job.side, 'Side');
       if (sideInfo) {
         sentence += ` ${sideInfo}.`;
+      }
+      sentences.push(sentence.trim());
+      return;
+    }
+    if (job.type === 'double-tri') {
+      const sharedInfo = describeDimensionEntry(job.shared, 'Felles side');
+      let sentence = `Figur ${idx + 1} består av to trekanter som deler en felles side.`;
+      if (sharedInfo) {
+        sentence += ` ${sharedInfo}.`;
+      }
+      const triangles = Array.isArray(job.triangles) ? job.triangles : [];
+      const triSentences = [];
+      triangles.forEach((tri, triIdx) => {
+        if (!tri) return;
+        const lettersRaw = typeof tri.letters === 'string' && tri.letters.trim() ? tri.letters.trim() : triIdx === 0 ? 'ABC' : 'DBC';
+        const letters = lettersRaw.replace(/[^A-Za-z]/g, '') || (triIdx === 0 ? 'ABC' : 'DBC');
+        const valuesSource = tri.values && typeof tri.values === 'object' ? tri.values : tri;
+        const sides = [];
+        ['a', 'b', 'c'].forEach(key => {
+          const val = valuesSource && Number.isFinite(valuesSource[key]) ? nkantFormatNumber(valuesSource[key]) : null;
+          if (val != null) sides.push(`${key}=${val}`);
+        });
+        const angles = [];
+        ['A', 'B', 'C'].forEach(key => {
+          const val = valuesSource && Number.isFinite(valuesSource[key]) ? nkantFormatNumber(valuesSource[key]) : null;
+          if (val != null) angles.push(`${key}=${val}°`);
+        });
+        let triSentence = `Trekant ${letters}`;
+        if (sides.length) {
+          triSentence += ` har sider ${nkantFormatList(sides)}`;
+        }
+        triSentence += '.';
+        if (angles.length) {
+          triSentence += ` Vinkler ${nkantFormatList(angles)}.`;
+        }
+        triSentences.push(triSentence.trim());
+      });
+      if (triSentences.length) {
+        sentence += ` ${triSentences.join(' ')}`;
+      }
+      const markSentence = describeAngleMarks(job.angleMarks);
+      if (markSentence) {
+        sentence += ` ${markSentence}`;
+      }
+      const decoSentence = describeDecorationsSummary(job.decorations);
+      if (decoSentence) {
+        sentence += ` ${decoSentence}`;
       }
       sentences.push(sentence.trim());
       return;
@@ -1178,7 +1258,93 @@ function parsePolygonSpecLine(str) {
     normalized
   };
 }
+function extractFirstParentheticalSegment(text) {
+  if (typeof text !== 'string') return {
+    segment: null,
+    rest: text
+  };
+  const start = text.indexOf('(');
+  if (start === -1) {
+    return {
+      segment: null,
+      rest: text
+    };
+  }
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '(') {
+      depth++;
+    } else if (ch === ')') {
+      depth--;
+      if (depth === 0) {
+        const segment = text.slice(start + 1, i);
+        const rest = text.slice(i + 1);
+        return {
+          segment,
+          rest
+        };
+      }
+    }
+  }
+  return {
+    segment: null,
+    rest: text
+  };
+}
+function parseDoubleTriangleSpecLine(str) {
+  if (!str || !/dobbel\s+trekant/i.test(str)) return null;
+  const withoutKeyword = str.replace(/^[^()]*?dobbel\s+trekant/i, '').trim();
+  const first = extractFirstParentheticalSegment(withoutKeyword);
+  if (!first.segment) return null;
+  const second = extractFirstParentheticalSegment(first.rest.trim());
+  if (!second.segment) return null;
+  const tri1 = parseSpec(first.segment);
+  const tri2 = parseSpec(second.segment);
+  if (!tri1 || Object.keys(tri1).length === 0) return null;
+  if (!tri2 || Object.keys(tri2).length === 0) return null;
+  const rest = second.rest || '';
+  const dims = parseLabeledSegments(rest, [{
+    id: 'shared',
+    keywords: ['felles', 'delt', 'felles side', 'delt side', 'felleskant', 'felles kant'],
+    defaultLabel: 's'
+  }]);
+  let sharedEntry = dims.shared ? {
+    ...dims.shared
+  } : {
+    label: '',
+    value: null,
+    requested: false
+  };
+  if (sharedEntry && sharedEntry.label == null) {
+    sharedEntry = {
+      ...sharedEntry,
+      label: ''
+    };
+  }
+  const job = {
+    type: 'double-tri',
+    obj: {
+      tri1,
+      tri2,
+      shared: sharedEntry
+    }
+  };
+  const parts = ['dobbel trekant'];
+  parts.push(`(${objToSpec(tri1)})`);
+  parts.push(`(${objToSpec(tri2)})`);
+  if (dims.shared) {
+    const sharedText = normalizedDimensionText(sharedEntry, 's');
+    parts.push(`felles: ${sharedText}`);
+  }
+  return {
+    job,
+    normalized: parts.join(' ')
+  };
+}
 function parseShapeSpec(str) {
+  const doubleTri = parseDoubleTriangleSpecLine(str);
+  if (doubleTri) return doubleTri;
   const circle = parseCircleSpecLine(str);
   if (circle) return circle;
   const polygon = parsePolygonSpecLine(str);
@@ -1716,6 +1882,192 @@ function errorBox(g, rect, msg) {
     fill: "#c00",
     "font-size": 16
   }).textContent = msg;
+}
+function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations) {
+  const src = spec && typeof spec === 'object' ? spec : {};
+  const tri1Spec = typeof src.tri1 === 'string' ? parseSpec(src.tri1) : src.tri1;
+  const tri2Spec = typeof src.tri2 === 'string' ? parseSpec(src.tri2) : src.tri2;
+  if (!tri1Spec || !tri2Spec) throw new Error('Dobbel trekant: mangler verdier for begge trekantene.');
+  const sol1 = solveTriangle(tri1Spec);
+  const sol2 = solveTriangle(tri2Spec);
+  if (!(sol1 && sol2)) throw new Error('Dobbel trekant: klarte ikke å løse trekantene.');
+  const sharedLen1 = sol1.a;
+  const sharedLen2 = sol2.a;
+  if (!(sharedLen1 > 0 && sharedLen2 > 0)) throw new Error('Dobbel trekant: delt side mangler.');
+  if (Math.abs(sharedLen1 - sharedLen2) > 1e-3) {
+    throw new Error('Dobbel trekant: trekantene har ulik verdi for den felles siden.');
+  }
+  const sharedLen = (sharedLen1 + sharedLen2) / 2;
+  const computeVertex = (solution, flip) => {
+    const base = sharedLen;
+    const denom = 2 * base;
+    if (!(denom > 0)) throw new Error('Dobbel trekant: delt side må være positiv.');
+    const x = (solution.c * solution.c - solution.b * solution.b + base * base) / denom;
+    const h2 = solution.c * solution.c - x * x;
+    if (h2 < -1e-3) {
+      throw new Error('Dobbel trekant: ugyldige mål – sjekk verdiene.');
+    }
+    const y = Math.sqrt(Math.max(0, h2));
+    return {
+      x,
+      y: flip ? -y : y
+    };
+  };
+  const B0 = {
+    x: 0,
+    y: 0
+  };
+  const C0 = {
+    x: sharedLen,
+    y: 0
+  };
+  const A0 = computeVertex(sol1, false);
+  const D0 = computeVertex(sol2, true);
+  const base = [A0, B0, C0, D0];
+  const {
+    T
+  } = fitTransformToRect(base, rect.w, rect.h, 46);
+  const toRect = P => shift(T(P), rect);
+  const A = toRect(A0);
+  const B = toRect(B0);
+  const C = toRect(C0);
+  const D = toRect(D0);
+  const tri1Poly = [A, B, C];
+  const tri2Poly = [D, C, B];
+  add(g, "polygon", {
+    points: ptsTo(tri1Poly),
+    fill: STYLE.faceFill,
+    stroke: "none"
+  });
+  add(g, "polygon", {
+    points: ptsTo(tri2Poly),
+    fill: STYLE.faceFill,
+    stroke: "none"
+  });
+  const drawEdge = (P, Q) => {
+    add(g, "line", {
+      x1: P.x,
+      y1: P.y,
+      x2: Q.x,
+      y2: Q.y,
+      stroke: STYLE.edgeStroke,
+      "stroke-width": STYLE.edgeWidth,
+      "stroke-linecap": "round"
+    });
+  };
+  [[A, B], [B, C], [C, A], [D, C], [B, D]].forEach(edge => drawEdge(edge[0], edge[1]));
+  const centroid = {
+    x: (A.x + B.x + C.x + D.x) / 4,
+    y: (A.y + B.y + C.y + D.y) / 4
+  };
+  const advSides = adv && adv.sides ? adv.sides : {
+    mode: {},
+    text: {}
+  };
+  const sideModes = advSides.mode || {};
+  const sideText = advSides.text || {};
+  const sharedEntry = src.shared ? {
+    ...src.shared
+  } : {
+    label: '',
+    value: null,
+    requested: false
+  };
+  let sharedValue = Number.isFinite(sharedEntry.value) ? sharedEntry.value : null;
+  if (sharedValue != null && Math.abs(sharedValue - sharedLen) > 1e-3) {
+    throw new Error('Dobbel trekant: oppgitt felles side stemmer ikke med trekantene.');
+  }
+  if (sharedValue == null) sharedValue = sharedLen;
+  const sideAB = buildSideText(sideModes.a != null ? sideModes.a : sideModes.default, fmt(sol1.c), sideText.a);
+  const sideBC = buildSideText(sideModes.b != null ? sideModes.b : sideModes.default, fmt(sharedLen), sideText.b);
+  const sideCA = buildSideText(sideModes.c != null ? sideModes.c : sideModes.default, fmt(sol1.b), sideText.c);
+  const sideBD = buildSideText(sideModes.d != null ? sideModes.d : sideModes.default, fmt(sol2.c), sideText.d);
+  if (sideAB) sideLabelText(g, A, B, sideAB, true, centroid);
+  if (sideBC) sideLabelText(g, B, C, sideBC, true, centroid);
+  if (sideCA) sideLabelText(g, C, A, sideCA, true, centroid);
+  if (sideBD) sideLabelText(g, B, D, sideBD, true, centroid);
+  const advAngles = adv && adv.angles ? adv.angles : {
+    mode: {},
+    text: {}
+  };
+  const angModes = advAngles.mode || {};
+  const angText = advAngles.text || {};
+  const angleAVal = angleAt(A, B, C);
+  const angleBVal = angleAt(B, C, A);
+  const angleCVal = angleAt(C, A, B);
+  const angleDVal = angleAt(D, C, B);
+  const Ares = parseAnglePointMode(angModes.A != null ? angModes.A : angModes.default, angleAVal, angText.A, 'A');
+  const Bres = parseAnglePointMode(angModes.B != null ? angModes.B : angModes.default, angleBVal, angText.B, 'B');
+  const Cres = parseAnglePointMode(angModes.C != null ? angModes.C : angModes.default, angleCVal, angText.C, 'C');
+  const Dres = parseAnglePointMode(angModes.D != null ? angModes.D : angModes.default, angleDVal, angText.D, 'D');
+  renderAngle(g, A, B, C, angleRadius(A, B, C), {
+    mark: Ares.mark,
+    angleText: Ares.angleText,
+    pointLabel: Ares.pointLabel
+  });
+  renderAngle(g, B, C, A, angleRadius(B, C, A), {
+    mark: Bres.mark,
+    angleText: Bres.angleText,
+    pointLabel: Bres.pointLabel
+  });
+  renderAngle(g, C, A, B, angleRadius(C, A, B), {
+    mark: Cres.mark,
+    angleText: Cres.angleText,
+    pointLabel: Cres.pointLabel
+  });
+  renderAngle(g, D, C, B, angleRadius(D, C, B), {
+    mark: Dres.mark,
+    angleText: Dres.angleText,
+    pointLabel: Dres.pointLabel
+  });
+  renderDecorations(g, {
+    A,
+    B,
+    C,
+    D
+  }, decorations);
+  const sharedSummary = {
+    label: typeof sharedEntry.label === 'string' ? sharedEntry.label : '',
+    value: Number.isFinite(sharedValue) ? sharedValue : null,
+    requested: Boolean(sharedEntry && sharedEntry.requested)
+  };
+  const summary = cloneJobForSummary({
+    type: 'double-tri',
+    obj: {
+      triangles: [{
+        letters: 'ABC',
+        values: {
+          a: sharedLen,
+          b: sol1.b,
+          c: sol1.c,
+          A: sol1.A,
+          B: sol1.B,
+          C: sol1.C
+        }
+      }, {
+        letters: 'DBC',
+        values: {
+          a: sharedLen,
+          b: sol2.b,
+          c: sol2.c,
+          A: sol2.A,
+          B: sol2.B,
+          C: sol2.C
+        }
+      }],
+      shared: sharedSummary
+    },
+    decorations
+  });
+  if (summary) {
+    summary.angleMarks = buildAngleMarkSummary([
+      ['A', Ares, angleAVal],
+      ['B', Bres, angleBVal],
+      ['C', Cres, angleCVal],
+      ['D', Dres, angleDVal]
+    ]);
+  }
+  return summary;
 }
 function drawTriangleToGroup(g, rect, spec, adv, decorations) {
   var _Cs$1$y, _Cs$, _m$a, _m$b, _m$c, _m$d, _am$A, _am$B, _am$C, _am$D;
@@ -2437,6 +2789,8 @@ async function renderCombined() {
         summaryEntry = drawTriangleToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations);
       } else if (type === "quad") {
         summaryEntry = drawQuadToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations);
+      } else if (type === "double-tri") {
+        summaryEntry = drawDoubleTriangleToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations);
       } else if (type === "circle") {
         drawCircleToGroup(groups[i], rects[i], obj);
       } else if (type === "polygon") {
