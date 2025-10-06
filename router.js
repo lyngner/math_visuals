@@ -592,7 +592,15 @@ function renderTaskStrip(tasks) {
     return;
   }
   const fragment = document.createDocumentFragment();
+  let currentCluster = null;
   tasks.forEach(task => {
+    if (!currentCluster || currentCluster.entry !== task.entry) {
+      const cluster = document.createElement('div');
+      cluster.className = 'task-cluster';
+      fragment.appendChild(cluster);
+      currentCluster = { entry: task.entry, element: cluster };
+    }
+
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'task-node';
@@ -609,7 +617,7 @@ function renderTaskStrip(tasks) {
       };
       applyRoute(task.entry, task.exampleNumber, options);
     });
-    fragment.appendChild(button);
+    currentCluster.element.appendChild(button);
     taskButtons.push(button);
   });
   taskStrip.appendChild(fragment);
