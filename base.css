@@ -351,7 +351,7 @@ select:disabled {
 }
 
 .card--examples .example-description-preview {
-  display: none;
+  display: block;
   border: 1px solid var(--card-border);
   border-radius: var(--control-radius);
   padding: 12px 14px;
@@ -360,10 +360,25 @@ select:disabled {
   color: var(--text-color);
   background: #fff;
   overflow-x: auto;
+  margin-top: 4px;
+}
+
+.card--examples .example-description-preview[hidden] {
+  display: none;
 }
 
 .card--examples .example-description-preview[data-empty="true"] {
   display: none;
+}
+
+.card--examples .example-description-preview .katex {
+  display: inline-block;
+  font-size: 1.05em;
+}
+
+.card--examples .example-description-preview .katex-display {
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .card--examples .example-description-preview p {
