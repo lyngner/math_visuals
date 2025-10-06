@@ -530,9 +530,23 @@
   }
 
   function computeMajorValues(from, to, step, margin = 0, includeRangeEndpoints = true) {
-    const values = [];
     const stepAbs = Math.abs(step);
     const epsilon = Math.max(stepAbs * 1e-7, 1e-9);
+    const roundingFactor = 1e9;
+    const entryMap = new Map();
+
+    const setEntry = (candidate, source) => {
+      if (!Number.isFinite(candidate)) return;
+      const rounded = Math.round(candidate * roundingFactor) / roundingFactor;
+      const existing = entryMap.get(rounded);
+      if (!existing) {
+        entryMap.set(rounded, { value: rounded, source });
+        return;
+      }
+      if (existing.source !== 'grid' && source === 'grid') {
+        existing.source = 'grid';
+      }
+    };
 
     if (stepAbs > 0) {
       const minValue = Math.min(from, to) - margin;
@@ -544,32 +558,35 @@
         const value = start + step * i;
         if (value > maxValue + epsilon) break;
         if (value >= minValue - epsilon) {
-          values.push(Math.round(value * 1e9) / 1e9);
+          setEntry(value, 'grid');
         }
       }
     }
 
-    const addValue = candidate => {
-      if (!Number.isFinite(candidate)) return;
-      const rounded = Math.round(candidate * 1e9) / 1e9;
-      if (!values.some(value => Math.abs(value - rounded) <= epsilon)) {
-        values.push(rounded);
-      }
-    };
-
     if (includeRangeEndpoints) {
-      addValue(from);
-      addValue(to);
+      setEntry(from, 'endpoint');
+      setEntry(to, 'endpoint');
     }
 
-    values.sort((a, b) => a - b);
-    const unique = [];
-    for (const value of values) {
-      if (!unique.length || Math.abs(value - unique[unique.length - 1]) > epsilon) {
-        unique.push(value);
+    const entries = Array.from(entryMap.values());
+    entries.sort((a, b) => a.value - b.value);
+
+    const values = [];
+    const endpointValues = new Set();
+    for (const entry of entries) {
+      if (values.length && Math.abs(entry.value - values[values.length - 1]) <= epsilon) {
+        if (endpointValues.has(values[values.length - 1]) && entry.source === 'grid') {
+          endpointValues.delete(values[values.length - 1]);
+        }
+        continue;
+      }
+      values.push(entry.value);
+      if (entry.source !== 'grid') {
+        endpointValues.add(entry.value);
       }
     }
-    return unique;
+
+    return { values, endpointValues };
   }
 
   function computeRangeMargin(from, to, mainStep, subdivisions, clampToRange) {
@@ -614,7 +631,7 @@
     };
   }
 
-  function extendMajorValues(values, options) {
+  function extendMajorValues(baseValues, options) {
     const {
       clampToRange,
       mainStep,
@@ -624,10 +641,28 @@
       axisStartValue,
       axisEndValue
     } = options || {};
-    const result = Array.isArray(values) ? values.slice() : [];
-    if (clampToRange || !result.length) return result;
+    let result = [];
+    let endpointValues = new Set();
+
+    if (Array.isArray(baseValues)) {
+      result = baseValues.slice();
+    } else if (baseValues && Array.isArray(baseValues.values)) {
+      result = baseValues.values.slice();
+      const baseEndpoints = baseValues.endpointValues;
+      if (baseEndpoints instanceof Set) {
+        endpointValues = new Set(baseEndpoints);
+      } else if (Array.isArray(baseEndpoints)) {
+        endpointValues = new Set(baseEndpoints);
+      }
+    }
+
+    if (clampToRange || !result.length) {
+      return { values: result, endpointValues };
+    }
     const spacing = Math.abs(mainStep);
-    if (!(spacing > 1e-9)) return result;
+    if (!(spacing > 1e-9)) {
+      return { values: result, endpointValues };
+    }
     const epsilon = Math.max(spacing * 1e-7, 1e-9);
     const pxTolerance = 0.5;
     const roundingFactor = 1e9;
@@ -641,6 +676,7 @@
       if (Number.isFinite(axisStartValue) && rounded < axisStartValue - epsilon) break;
       if (!result.some(existing => Math.abs(existing - rounded) <= epsilon)) {
         result.unshift(rounded);
+        endpointValues.delete(rounded);
       }
       value -= spacing;
       iterations++;
@@ -655,12 +691,34 @@
       if (Number.isFinite(axisEndValue) && rounded > axisEndValue + epsilon) break;
       if (!result.some(existing => Math.abs(existing - rounded) <= epsilon)) {
         result.push(rounded);
+        endpointValues.delete(rounded);
       }
       value += spacing;
       iterations++;
     }
 
-    return result;
+    return { values: result, endpointValues };
+  }
+
+  function normalizeMajorInfo(info) {
+    if (Array.isArray(info)) {
+      return {
+        values: info.slice(),
+        hiddenArray: [],
+        hiddenSet: new Set()
+      };
+    }
+    const values = info && Array.isArray(info.values) ? info.values.slice() : [];
+    let hiddenArray = [];
+    if (info) {
+      if (info.endpointValues instanceof Set) {
+        hiddenArray = Array.from(info.endpointValues);
+      } else if (Array.isArray(info.endpointValues)) {
+        hiddenArray = info.endpointValues.slice();
+      }
+    }
+    const hiddenSet = new Set(hiddenArray);
+    return { values, hiddenArray, hiddenSet };
   }
 
   function render() {
@@ -679,7 +737,7 @@
       margin,
       clampToRange
     );
-    const majorValues = extendMajorValues(baseMajorValues, {
+    const majorInfo = extendMajorValues(baseMajorValues, {
       clampToRange,
       mainStep,
       mapValue: geometry.mapValue,
@@ -688,6 +746,9 @@
       axisStartValue: geometry.axisStartValue,
       axisEndValue: geometry.axisEndValue
     });
+    const normalizedMajor = normalizeMajorInfo(majorInfo);
+    const majorValues = normalizedMajor.values;
+    const hiddenMajorValues = normalizedMajor.hiddenSet;
 
     while (svg.firstChild) {
       svg.removeChild(svg.firstChild);
@@ -756,6 +817,7 @@
     }
 
     majorValues.forEach(value => {
+      if (hiddenMajorValues.has(value)) return;
       const x = mapValue(value);
       axisGroup.appendChild(mk('line', {
         x1: x,
@@ -782,12 +844,16 @@
       axisGroup.appendChild(foreignObject);
     });
 
+    const visibleMajorValues = majorValues.filter(value => !hiddenMajorValues.has(value));
+
     lastRenderSummary = {
       from,
       to,
       mainStep,
       subdivisions,
-      majorValues: majorValues.slice(),
+      majorValues: visibleMajorValues,
+      hiddenMajorValues: normalizedMajor.hiddenArray.slice(),
+      allMajorValues: majorValues.slice(),
       clampToRange,
       margin
     };
@@ -825,14 +891,8 @@
       margin,
       clampSetting
     );
-    const summary = lastRenderSummary || {
-      from: STATE.from,
-      to: STATE.to,
-      mainStep: STATE.mainStep,
-      subdivisions: STATE.subdivisions,
-      clampToRange: clampSetting,
-      margin,
-      majorValues: extendMajorValues(
+    const summary = lastRenderSummary || (() => {
+      const fallbackMajorInfo = extendMajorValues(
         computeMajorValues(
           STATE.from,
           STATE.to,
@@ -849,8 +909,23 @@
           axisStartValue: fallbackGeometry.axisStartValue,
           axisEndValue: fallbackGeometry.axisEndValue
         }
-      )
-    };
+      );
+      const normalizedFallback = normalizeMajorInfo(fallbackMajorInfo);
+      const fallbackVisible = normalizedFallback.values.filter(
+        value => !normalizedFallback.hiddenSet.has(value)
+      );
+      return {
+        from: STATE.from,
+        to: STATE.to,
+        mainStep: STATE.mainStep,
+        subdivisions: STATE.subdivisions,
+        clampToRange: clampSetting,
+        margin,
+        majorValues: fallbackVisible,
+        hiddenMajorValues: normalizedFallback.hiddenArray.slice(),
+        allMajorValues: normalizedFallback.values.slice()
+      };
+    })();
     if (!summary || !Array.isArray(summary.majorValues) || !summary.majorValues.length) {
       return 'Tallinjen viser ingen markeringer.';
     }
