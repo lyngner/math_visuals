@@ -16,19 +16,19 @@ function readConfigFromHtml() {
     var _document$getElementB, _document$getElementB2, _document$getElementB3, _document$getElementB4, _document$getElementB5, _document$getElementB6, _document$getElementB7, _document$getElementB8, _document$getElementB9, _document$getElementB0, _document$getElementB1, _document$getElementB10;
     const t = parseInt((_document$getElementB = document.getElementById(`p${i}T`)) === null || _document$getElementB === void 0 ? void 0 : _document$getElementB.value, 10);
     const n = parseInt((_document$getElementB2 = document.getElementById(`p${i}N`)) === null || _document$getElementB2 === void 0 ? void 0 : _document$getElementB2.value, 10);
-    const lockN = (_document$getElementB3 = (_document$getElementB4 = document.getElementById(`p${i}LockN`)) === null || _document$getElementB4 === void 0 ? void 0 : _document$getElementB4.checked) !== null && _document$getElementB3 !== void 0 ? _document$getElementB3 : false;
-    const lockT = (_document$getElementB5 = (_document$getElementB6 = document.getElementById(`p${i}LockT`)) === null || _document$getElementB6 === void 0 ? void 0 : _document$getElementB6.checked) !== null && _document$getElementB5 !== void 0 ? _document$getElementB5 : false;
+    const canChangeN = (_document$getElementB3 = (_document$getElementB4 = document.getElementById(`p${i}LockN`)) === null || _document$getElementB4 === void 0 ? void 0 : _document$getElementB4.checked) !== null && _document$getElementB3 !== void 0 ? _document$getElementB3 : false;
+    const canChangeT = (_document$getElementB5 = (_document$getElementB6 = document.getElementById(`p${i}LockT`)) === null || _document$getElementB6 === void 0 ? void 0 : _document$getElementB6.checked) !== null && _document$getElementB5 !== void 0 ? _document$getElementB5 : false;
     const text = (_document$getElementB7 = (_document$getElementB8 = document.getElementById(`p${i}Text`)) === null || _document$getElementB8 === void 0 ? void 0 : _document$getElementB8.value) !== null && _document$getElementB7 !== void 0 ? _document$getElementB7 : "none";
     const minN = parseInt((_document$getElementB9 = document.getElementById(`p${i}MinN`)) === null || _document$getElementB9 === void 0 ? void 0 : _document$getElementB9.value, 10);
     const maxN = parseInt((_document$getElementB0 = document.getElementById(`p${i}MaxN`)) === null || _document$getElementB0 === void 0 ? void 0 : _document$getElementB0.value, 10);
-    const hideNVal = (_document$getElementB1 = (_document$getElementB10 = document.getElementById(`p${i}HideNVal`)) === null || _document$getElementB10 === void 0 ? void 0 : _document$getElementB10.checked) !== null && _document$getElementB1 !== void 0 ? _document$getElementB1 : false;
+    const showNVal = (_document$getElementB1 = (_document$getElementB10 = document.getElementById(`p${i}HideNVal`)) === null || _document$getElementB10 === void 0 ? void 0 : _document$getElementB10.checked) !== null && _document$getElementB1 !== void 0 ? _document$getElementB1 : false;
     pizzas.push({
       t: isFinite(t) ? t : 0,
       n: isFinite(n) ? n : 1,
-      lockN,
-      lockT,
+      lockN: !canChangeN,
+      lockT: !canChangeT,
       text,
-      hideNVal,
+      hideNVal: !showNVal,
       minN: isFinite(minN) ? minN : 1,
       maksN: isFinite(maxN) ? maxN : 24
     });
@@ -1461,10 +1461,10 @@ function applySimpleConfigToInputs() {
     const cfg = ensurePizza(i - 1);
     setVal(`p${i}T`, cfg.t);
     setVal(`p${i}N`, cfg.n);
-    setChk(`p${i}LockN`, cfg.lockN);
-    setChk(`p${i}LockT`, cfg.lockT);
+    setChk(`p${i}LockN`, !cfg.lockN);
+    setChk(`p${i}LockT`, !cfg.lockT);
     setVal(`p${i}Text`, cfg.text);
-    setChk(`p${i}HideNVal`, cfg.hideNVal);
+    setChk(`p${i}HideNVal`, !cfg.hideNVal);
     setVal(`p${i}MinN`, cfg.minN);
     setVal(`p${i}MaxN`, cfg.maksN);
     const textSel = document.getElementById(`p${i}Text`);
