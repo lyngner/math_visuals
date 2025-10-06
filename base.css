@@ -154,9 +154,29 @@ body {
   grid-template-columns: minmax(0, 1fr) minmax(var(--sidebar-min-width), var(--sidebar-width));
 }
 
+body[data-app="graftegner"] .layout--sidebar:not(.split-enabled) {
+  grid-template-columns: minmax(var(--sidebar-min-width), var(--sidebar-width)) minmax(0, 1fr);
+}
+
+body[data-app="graftegner"] .layout--sidebar:not(.split-enabled) > .side {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+body[data-app="graftegner"] .layout--sidebar:not(.split-enabled) > :not(.side) {
+  grid-column: 2;
+  grid-row: 1;
+}
+
 @media (max-width: 980px) {
   .layout--sidebar {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  body[data-app="graftegner"] .layout--sidebar:not(.split-enabled) > .side,
+  body[data-app="graftegner"] .layout--sidebar:not(.split-enabled) > :not(.side) {
+    grid-column: auto;
+    grid-row: auto;
   }
 }
 
