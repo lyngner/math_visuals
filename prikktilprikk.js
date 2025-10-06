@@ -195,7 +195,6 @@
   const board = document.getElementById('dotBoard');
   if (!board) return;
 
-  const modeToggleBtn = document.getElementById('btnToggleMode');
   const modeLabel = document.getElementById('modeLabel');
   const modeHint = document.getElementById('modeHint');
   const checkBtn = document.getElementById('btnCheck');
@@ -247,7 +246,20 @@
   const baseLines = new Set();
   const userLines = new Set();
 
+  const initialModeValue = (() => {
+    if (typeof mode !== 'undefined') return mode;
+    if (typeof window !== 'undefined' && typeof window.mode !== 'undefined') return window.mode;
+    return null;
+  })();
+
   let isEditMode = true;
+  if (initialModeValue != null) {
+    const normalizedInitialMode = String(initialModeValue).toLowerCase();
+    isEditMode = normalizedInitialMode === 'edit';
+    if (typeof window !== 'undefined') {
+      window.mode = normalizedInitialMode;
+    }
+  }
   let isPredefDrawingMode = false;
   let selectedPointId = null;
   let predefAnchorPointId = null;
@@ -2520,10 +2532,7 @@
   }
 
   function updateModeUI() {
-    if (modeToggleBtn) {
-      modeToggleBtn.textContent = isEditMode ? 'Gå til oppgavemodus' : 'Gå til redigeringsmodus';
-    }
-    if (modeLabel) modeLabel.textContent = isEditMode ? 'Redigeringsmodus' : 'Oppgavemodus';
+    if (modeLabel) modeLabel.textContent = isEditMode ? 'Modus: Redigeringsmodus' : 'Modus: Oppgavemodus';
     if (checkBtn) checkBtn.disabled = isEditMode;
     if (clearBtn) clearBtn.disabled = isEditMode;
     document.body.classList.toggle('is-edit-mode', isEditMode);
@@ -2637,15 +2646,35 @@
     });
   }
 
-  if (modeToggleBtn) {
-    modeToggleBtn.addEventListener('click', () => {
-      isEditMode = !isEditMode;
-      selectedPointId = null;
-      if (!isEditMode) predefAnchorPointId = null;
-      clearStatus();
+  function applyModeChange(nextMode) {
+    if (typeof nextMode !== 'string') return;
+    const normalized = nextMode.toLowerCase();
+    const editModes = new Set(['edit']);
+    const playModes = new Set(['play', 'solve', 'student', 'view']);
+    if (!editModes.has(normalized) && !playModes.has(normalized)) return;
+    const nextIsEditMode = editModes.has(normalized);
+    if (typeof window !== 'undefined') {
+      window.mode = normalized;
+    }
+    if (nextIsEditMode === isEditMode) {
       updateModeUI();
-      renderBoard();
-    });
+      return;
+    }
+    isEditMode = nextIsEditMode;
+    selectedPointId = null;
+    if (!isEditMode) predefAnchorPointId = null;
+    clearStatus();
+    updateModeUI();
+    renderBoard();
+  }
+
+  function handleModeMessage(event) {
+    if (!event) return;
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+    const { type, mode: nextMode } = data;
+    if (type !== 'math-visuals:mode-change') return;
+    applyModeChange(nextMode);
   }
 
   if (showGridToggle) {
@@ -2712,6 +2741,22 @@
       updateAllLabelPositions();
     });
   }
+
+  window.addEventListener('message', handleModeMessage);
+
+  function requestInitialMode() {
+    if (typeof window === 'undefined') return;
+    const message = { type: 'math-visuals:request-mode' };
+    try {
+      window.parent.postMessage(message, '*');
+    } catch (_) {
+      try {
+        window.postMessage(message, '*');
+      } catch (_) {}
+    }
+  }
+
+  requestInitialMode();
 
   window.addEventListener('resize', () => {
     updateAllLabelPositions();
