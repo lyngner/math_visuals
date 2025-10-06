@@ -89,18 +89,26 @@
       width: 1.3rem;
       height: 1.3rem;
     }
-    .nav-profile {
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-left: auto;
+      flex-wrap: wrap;
+    }
+    .nav-control {
       display: flex;
       align-items: center;
       gap: 8px;
       font-size: 0.9rem;
-      margin-left: auto;
     }
-    .nav-profile label {
+    .nav-control label {
       color: var(--profile-title-color);
       font-weight: 600;
     }
-    .nav-profile select {
+    .nav-control select {
+      flex: 1 1 auto;
       appearance: none;
       -webkit-appearance: none;
       -moz-appearance: none;
@@ -124,15 +132,15 @@
       background-size: 7px 7px, 7px 7px;
       background-repeat: no-repeat;
     }
-    .nav-profile select:hover {
+    .nav-control select:hover {
       border-color: var(--profile-accent-border-strong);
     }
-    .nav-profile select:focus-visible {
+    .nav-control select:focus-visible {
       outline: 3px solid var(--profile-focus-outline);
       outline-offset: 2px;
       border-color: var(--profile-accent-border-strong);
     }
-    .nav-profile select option {
+    .nav-control select option {
       color: inherit;
     }
     ul {
@@ -268,14 +276,19 @@
         flex: 1 1 auto;
         font-size: 0.95rem;
       }
-      .nav-profile {
+      .nav-controls {
         flex: 1 1 100%;
         margin-left: 0;
+        justify-content: flex-start;
+        gap: 8px;
       }
-      .nav-profile label {
+      .nav-control {
+        flex: 1 1 100%;
+      }
+      .nav-control label {
         font-size: 0.85rem;
       }
-      .nav-profile select {
+      .nav-control select {
         width: 100%;
       }
       .nav-toggle {
@@ -341,12 +354,21 @@
   <nav>
     <div class="nav-header">
       <span class="nav-title">Math Visuals</span>
-      <div class="nav-profile">
-        <label for="profile-select">Profil</label>
-        <select id="profile-select" name="profile" data-profile-control>
-          <option value="kikora">Kikora</option>
-          <option value="campus">Campus</option>
-        </select>
+      <div class="nav-controls">
+        <div class="nav-control nav-control--profile">
+          <label for="profile-select">Profil</label>
+          <select id="profile-select" name="profile" data-profile-control>
+            <option value="kikora">Kikora</option>
+            <option value="campus">Campus</option>
+          </select>
+        </div>
+        <div class="nav-control nav-control--mode">
+          <label for="mode-select">Modus</label>
+          <select id="mode-select" name="mode" data-mode-control>
+            <option value="edit">Rediger</option>
+            <option value="task">Oppgave</option>
+          </select>
+        </div>
       </div>
       <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="nav-list">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true">
