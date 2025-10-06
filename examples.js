@@ -1168,6 +1168,99 @@
     loadDescriptionRenderer();
   }
 
+  const DESCRIPTION_FALLBACK_FIELDS = [
+    'descriptionHtml',
+    'descriptionHTML',
+    'description_html',
+    'descriptionRich',
+    'description_rich',
+    'descriptionRichText',
+    'description_rich_text',
+    'richDescription',
+    'taskDescription',
+    'task_description',
+    'taskText',
+    'task_text',
+    'task',
+    'oppgave',
+    'oppgavetekst',
+    'oppgaveTekst'
+  ];
+
+  function normalizeDescriptionString(value) {
+    if (typeof value !== 'string') return '';
+    const normalized = value
+      .replace(/\r\n?/g, '\n')
+      .replace(/\u00a0/g, ' ')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n');
+    return normalized.trim();
+  }
+
+  function convertHtmlToPlainText(html) {
+    if (typeof html !== 'string') return '';
+    const trimmed = html.trim();
+    if (!trimmed) return '';
+    const sanitized = trimmed
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+    const replaced = sanitized
+      .replace(/<\s*br\s*\/?>/gi, '\n')
+      .replace(/<\s*li\b[^>]*>/gi, '\n- ')
+      .replace(/<\/(?:p|div|section|article|li|tr|thead|tbody|tfoot|table|h[1-6])\s*>/gi, '\n');
+    if (typeof document !== 'undefined') {
+      const container = document.createElement('div');
+      container.innerHTML = replaced;
+      return normalizeDescriptionString(container.textContent || '');
+    }
+    const stripped = replaced.replace(/<[^>]+>/g, '');
+    return normalizeDescriptionString(stripped);
+  }
+
+  function extractDescriptionFromExample(example) {
+    if (!example || typeof example !== 'object') return '';
+    if (typeof example.description === 'string' && example.description.trim()) {
+      return normalizeDescriptionString(example.description);
+    }
+    for (const key of DESCRIPTION_FALLBACK_FIELDS) {
+      if (!Object.prototype.hasOwnProperty.call(example, key)) continue;
+      const value = example[key];
+      if (typeof value !== 'string') continue;
+      if (!value.trim()) continue;
+      const processed = /html|rich/i.test(key) ? convertHtmlToPlainText(value) : normalizeDescriptionString(value);
+      if (processed) return processed;
+    }
+    if (typeof example.description === 'string') {
+      return normalizeDescriptionString(example.description);
+    }
+    return '';
+  }
+
+  function normalizeExamplesForStorage(examples) {
+    const list = Array.isArray(examples) ? examples : [];
+    return list.map(example => {
+      const copy = cloneValue(example);
+      if (!copy || typeof copy !== 'object') {
+        return {};
+      }
+      const description = extractDescriptionFromExample(copy);
+      if (typeof description === 'string') {
+        copy.description = description;
+      }
+      if (copy.description == null) {
+        copy.description = '';
+      } else if (typeof copy.description === 'string') {
+        copy.description = normalizeDescriptionString(copy.description);
+      }
+      DESCRIPTION_FALLBACK_FIELDS.forEach(field => {
+        if (field !== 'description' && Object.prototype.hasOwnProperty.call(copy, field)) {
+          delete copy[field];
+        }
+      });
+      return copy;
+    });
+  }
+
   function getDescriptionContainer() {
     if (descriptionContainer && descriptionContainer.isConnected) return descriptionContainer;
     if (typeof document === 'undefined') return null;
@@ -1455,7 +1548,7 @@
     return cachedExamples;
   }
   function store(examples, options) {
-    const normalized = Array.isArray(examples) ? examples : [];
+    const normalized = normalizeExamplesForStorage(examples);
     const serialized = JSON.stringify(normalized);
     applyRawExamples(serialized, options);
   }
@@ -1716,7 +1809,10 @@
     };
     if (typeof example.svg === 'string') sanitized.svg = example.svg;
     if (typeof example.title === 'string') sanitized.title = example.title;
-    if (typeof example.description === 'string') sanitized.description = example.description;
+    const providedDescription = extractDescriptionFromExample(example);
+    if (typeof providedDescription === 'string') {
+      sanitized.description = providedDescription;
+    }
     if (typeof example.exampleNumber === 'string' || typeof example.exampleNumber === 'number') {
       sanitized.exampleNumber = String(example.exampleNumber).trim();
     } else if (typeof example.label === 'string') {
