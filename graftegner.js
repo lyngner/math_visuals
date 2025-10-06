@@ -2438,6 +2438,7 @@ function makeSmartCurveLabel(g, idx, content) {
   position();
   brd.on('boundingbox', position);
   makeLabelDraggable(label, g, position);
+  g._repositionLabel = position;
 }
 function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, closed) {
   g._br = g._br || {};
@@ -2729,9 +2730,11 @@ function buildFunctions() {
 /* =================== LINJE FRA PUNKTER =================== */
 function buildPointsLine() {
   var _SIMPLE_PARSED$funcs$;
+  graphs = [];
   A = null;
   B = null;
   moving = [];
+  const lineColor = colorFor(0);
   const first = (_SIMPLE_PARSED$funcs$ = SIMPLE_PARSED.funcs[0]) !== null && _SIMPLE_PARSED$funcs$ !== void 0 ? _SIMPLE_PARSED$funcs$ : {
     rhs: 'ax+b'
   };
@@ -2747,7 +2750,7 @@ function buildPointsLine() {
       size: 3,
       face: 'o',
       fillColor: '#fff',
-      strokeColor: '#9333ea',
+      strokeColor: lineColor,
       withLabel: true,
       showInfobox: false
     });
@@ -2756,7 +2759,7 @@ function buildPointsLine() {
       size: 3,
       face: 'o',
       fillColor: '#fff',
-      strokeColor: '#9333ea',
+      strokeColor: lineColor,
       withLabel: true,
       showInfobox: false
     });
@@ -2774,7 +2777,7 @@ function buildPointsLine() {
       size: 3,
       face: 'o',
       fillColor: '#fff',
-      strokeColor: '#9333ea',
+      strokeColor: lineColor,
       withLabel: true,
       showInfobox: false
     });
@@ -2787,7 +2790,7 @@ function buildPointsLine() {
       size: 3,
       face: 'o',
       fillColor: '#fff',
-      strokeColor: '#9333ea',
+      strokeColor: lineColor,
       withLabel: true,
       showInfobox: false
     });
@@ -2800,10 +2803,55 @@ function buildPointsLine() {
     B = Q;
     moving = [P];
   }
-  brd.create('line', [A, B], {
-    strokeColor: '#9333ea',
+  const line = brd.create('line', [A, B], {
+    strokeColor: lineColor,
     strokeWidth: 4
   });
+  const labelFun = SIMPLE_PARSED.funcs && SIMPLE_PARSED.funcs.length ? SIMPLE_PARSED.funcs[0] : null;
+  const labelContent = labelFun ? buildCurveLabelContent(labelFun) : null;
+  if (labelContent) {
+    const g = {
+      color: lineColor,
+      domain: null,
+      label: labelContent.text || '',
+      labelContent,
+      expression: labelFun.rhs || '',
+      gliders: Array.isArray(moving) ? moving.slice() : [],
+      segs: [line]
+    };
+    g.fn = x => {
+      if (!A || !B || typeof A.X !== 'function' || typeof A.Y !== 'function' || typeof B.X !== 'function' || typeof B.Y !== 'function') {
+        return NaN;
+      }
+      const x1 = A.X();
+      const y1 = A.Y();
+      const x2 = B.X();
+      const y2 = B.Y();
+      if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
+        return NaN;
+      }
+      const dx = x2 - x1;
+      if (Math.abs(dx) < 1e-9) {
+        return NaN;
+      }
+      const m = (y2 - y1) / dx;
+      return y1 + m * (x - x1);
+    };
+    graphs.push(g);
+    makeSmartCurveLabel(g, 0, labelContent);
+    const refreshLabelPosition = () => {
+      if (g && typeof g._repositionLabel === 'function') {
+        g._repositionLabel(true);
+      }
+    };
+    if (Array.isArray(moving)) {
+      moving.forEach(point => {
+        if (!point || typeof point.on !== 'function') return;
+        point.on('drag', refreshLabelPosition);
+        point.on('up', refreshLabelPosition);
+      });
+    }
+  }
   function stepXv() {
     return (ADV.points.snap.stepX != null ? ADV.points.snap.stepX : +ADV.axis.grid.majorX) || 1;
   }
