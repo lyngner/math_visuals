@@ -56,6 +56,17 @@ const ADV = {
     rightColorClass: "blue"
   }
 };
+function getThemeApi() {
+  const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
+  return theme && typeof theme === 'object' ? theme : null;
+}
+function applyThemeToDocument() {
+  const theme = getThemeApi();
+  if (theme && typeof theme.applyToDocument === 'function') {
+    theme.applyToDocument(document);
+  }
+}
+applyThemeToDocument();
 
 /* ============ DERIVERT KONFIG FOR RENDER (IKKE REDIGER) ============ */
 function makeCFG() {
@@ -131,6 +142,14 @@ btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => d
 setupSettingsUI();
 applyConfig();
 initAltTextManager();
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('message', event => {
+    const data = event && event.data;
+    const type = typeof data === 'string' ? data : data && data.type;
+    if (type !== 'math-visuals:profile-change') return;
+    applyThemeToDocument();
+  });
+}
 
 /* ============ INTERAKSJON ============ */
 let dragging = false;

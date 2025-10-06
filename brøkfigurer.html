@@ -11,7 +11,7 @@
   
 
 <style>
-    :root { --purple:#5B2AA5; --rim:#333; --dash:#000; --grid-side-width: 420px; }
+    :root { --grid-side-width: 420px; }
     body{ display:flex; flex-direction:column; }
     .wrap{
       flex:1;
@@ -182,12 +182,12 @@
               <input id="colorCount" class="input--digit" type="number" min="1" max="6" value="1" />
             </label>
             <div class="colors">
-              <input id="color_1" type="color" value="#6C1BA2" />
-              <input id="color_2" type="color" value="#534477" />
-              <input id="color_3" type="color" value="#BF4474" />
-              <input id="color_4" type="color" value="#B25FE3" />
-              <input id="color_5" type="color" value="#873E79" />
-              <input id="color_6" type="color" value="#E31C3D" />
+              <input id="color_1" type="color" />
+              <input id="color_2" type="color" />
+              <input id="color_3" type="color" />
+              <input id="color_4" type="color" />
+              <input id="color_5" type="color" />
+              <input id="color_6" type="color" />
             </div>
           </fieldset>
           <div id="figureSettings" class="figureSettings"></div>
@@ -202,6 +202,7 @@
       </div>
     </div>
   </div>
+  <script src="theme-profiles.js"></script>
   <script src="brøkfigurer.js"></script>
   <script src="examples.js"></script>
   <script src="split.js"></script>

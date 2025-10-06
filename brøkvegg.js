@@ -7,7 +7,43 @@
     decimal: 'desimaltall'
   };
   const DEFAULT_DENOMS = [1, 2, 3, 4, 5, 6, 8, 9, 10, 12];
-  const COLOR_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D'];
+  const LEGACY_COLOR_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D'];
+  function getThemeApi() {
+    const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
+    return theme && typeof theme === 'object' ? theme : null;
+  }
+  function applyThemeToDocument() {
+    const theme = getThemeApi();
+    if (theme && typeof theme.applyToDocument === 'function') {
+      theme.applyToDocument(document);
+    }
+  }
+  applyThemeToDocument();
+  function getPaletteFromTheme(count) {
+    const theme = getThemeApi();
+    let palette = null;
+    if (theme && typeof theme.getPalette === 'function') {
+      palette = theme.getPalette('fractions', count, { fallbackKinds: ['figures'] });
+    }
+    const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : 0;
+    const base = Array.isArray(palette) && palette.length ? palette.slice() : LEGACY_COLOR_PALETTE.slice();
+    if (target <= 0) return base.slice();
+    if (base.length >= target) return base.slice(0, target);
+    const result = base.slice();
+    for (let i = base.length; i < target; i++) {
+      result.push(base[i % base.length]);
+    }
+    return result;
+  }
+  function getRowPalette(length) {
+    const target = Math.max(length, LEGACY_COLOR_PALETTE.length);
+    return getPaletteFromTheme(target);
+  }
+  function getPaletteColor(palette, index) {
+    const colors = Array.isArray(palette) && palette.length ? palette : LEGACY_COLOR_PALETTE;
+    if (!colors.length) return '#B25FE3';
+    return colors[index % colors.length] || colors[0];
+  }
   const TEXT_COLOR_DARK = '#0f172a';
   const TEXT_COLOR_LIGHT = '#ffffff';
   const TILE_AREA_WIDTH = 800;
@@ -409,6 +445,7 @@
     cleanTileModes();
     updateControlsFromState();
     const denominators = STATE.denominators;
+    const palette = getRowPalette(denominators.length);
     const labelWidth = STATE.showLabels ? LABEL_WIDTH : 0;
     const contentHeight = denominators.length * ROW_HEIGHT + Math.max(0, denominators.length - 1) * ROW_GAP;
     const totalHeight = contentHeight + MARGIN_Y * 2;
@@ -431,7 +468,7 @@
       const rowGroup = createSvgElement('g', {
         transform: `translate(${MARGIN_X}, ${y})`
       });
-      const baseColor = COLOR_PALETTE[rowIndex % COLOR_PALETTE.length] || '#B25FE3';
+      const baseColor = getPaletteColor(palette, rowIndex);
       if (STATE.showLabels) {
         const labelGroup = createSvgElement('g');
         const rect = createSvgElement('rect', {
@@ -538,6 +575,16 @@
   }
   render();
   window.render = render;
+  function handleThemeProfileChange(event) {
+    const data = event && event.data;
+    const type = typeof data === 'string' ? data : data && data.type;
+    if (type !== 'math-visuals:profile-change') return;
+    applyThemeToDocument();
+    render();
+  }
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('message', handleThemeProfileChange);
+  }
   function setDenominatorsFromInput(raw) {
     const parsed = sanitizeDenominators(raw);
     STATE.denominators = parsed.length ? parsed : DEFAULT_DENOMS.slice();

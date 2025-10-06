@@ -8,14 +8,20 @@
   
 
 <style>
-    :root { --sidebar-width: 480px; }
+    :root {
+      --sidebar-width: 480px;
+      --bead-primary: #d24a2c;
+      --bead-primary-stroke: #b23d22;
+      --bead-secondary: #3f7dc0;
+      --bead-secondary-stroke: #2a5e91;
+    }
     .figure { border-radius: 10px; background: #fafbfc; overflow: hidden; border: 1px solid #eef0f3; }
     .figure svg { width: 100%; height: 360px; display: block; touch-action: none; }
     input[type="number"] { width: 100%; box-sizing: border-box; }
 
     .beadShadow{ filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)); }
-    .beadFallback.red{ fill:#d24a2c; stroke:#b23d22; stroke-width:2; }
-    .beadFallback.blue{ fill:#3f7dc0; stroke:#2a5e91; stroke-width:2; }
+    .beadFallback.red{ fill:var(--bead-primary, #d24a2c); stroke:var(--bead-primary-stroke, var(--bead-primary, #d24a2c)); stroke-width:2; }
+    .beadFallback.blue{ fill:var(--bead-secondary, #3f7dc0); stroke:var(--bead-secondary-stroke, var(--bead-secondary, #3f7dc0)); stroke-width:2; }
     .clip{ cursor:grab; }
     .clip:active{ cursor:grabbing; }
     .slider:focus{ outline:none; stroke:#1e88e5; stroke-width:3; }
@@ -64,6 +70,7 @@
     </div>
   </div>
 
+  <script src="theme-profiles.js"></script>
   <script src="alt-text-ui.js"></script>
   <script src="perlesnor.js"></script>
   <script src="examples.js"></script>
