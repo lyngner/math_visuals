@@ -199,6 +199,9 @@ function safeSetItem(key, value) {
 
 const PROFILE_STORAGE_KEY = 'profile';
 const PROFILE_DEFAULT = 'kikora';
+const MODE_STORAGE_KEY = 'mode';
+const MODE_DEFAULT = 'edit';
+const MODE_VALUES = ['edit', 'task'];
 const profileVariables = {
   kikora: {
     'profile-body-background': '#f7f8fb',
@@ -253,6 +256,7 @@ function normalizeProfileName(profile) {
 }
 
 let currentProfile = PROFILE_DEFAULT;
+let currentMode = MODE_DEFAULT;
 
 function updateProfileStyles(profile) {
   const normalized = normalizeProfileName(profile);
@@ -276,9 +280,21 @@ const initialProfile = updateProfileStyles(storedProfileValue || PROFILE_DEFAULT
 if (storedProfileValue !== initialProfile) {
   safeSetItem(PROFILE_STORAGE_KEY, initialProfile);
 }
+function normalizeMode(value) {
+  if (typeof value !== 'string') return MODE_DEFAULT;
+  const normalized = value.trim().toLowerCase();
+  return MODE_VALUES.includes(normalized) ? normalized : MODE_DEFAULT;
+}
+const storedModeValue = safeGetItem(MODE_STORAGE_KEY);
+const initialMode = normalizeMode(storedModeValue || MODE_DEFAULT);
+currentMode = initialMode;
+if (storedModeValue !== initialMode) {
+  safeSetItem(MODE_STORAGE_KEY, initialMode);
+}
 const iframe = document.querySelector('iframe');
 const nav = document.querySelector('nav');
 const profileControl = nav ? nav.querySelector('[data-profile-control]') : null;
+const modeControl = nav ? nav.querySelector('[data-mode-control]') : null;
 
 function syncProfileControl(profile) {
   if (!profileControl) return;
@@ -289,9 +305,19 @@ function syncProfileControl(profile) {
 
 syncProfileControl(currentProfile);
 
+function syncModeControl(mode) {
+  if (!modeControl) return;
+  if (modeControl.value !== mode) {
+    modeControl.value = mode;
+  }
+}
+
+syncModeControl(currentMode);
+
 if (typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', () => {
     syncProfileControl(currentProfile);
+    syncModeControl(currentMode);
   });
 }
 const defaultPage = 'nkant.html';
@@ -427,6 +453,36 @@ if (profileControl) {
   });
 }
 
+if (modeControl) {
+  modeControl.addEventListener('change', event => {
+    const target = event && event.target ? event.target : null;
+    const selected = target && typeof target.value === 'string' ? target.value : MODE_DEFAULT;
+    const normalized = normalizeMode(selected);
+    if (normalized === currentMode) {
+      syncModeControl(currentMode);
+      return;
+    }
+    currentMode = normalized;
+    safeSetItem(MODE_STORAGE_KEY, normalized);
+    syncModeControl(normalized);
+    if (iframe && iframe.contentWindow) {
+      try {
+        iframe.contentWindow.postMessage(
+          { type: 'math-visuals:mode-change', mode: normalized },
+          '*'
+        );
+      } catch (_) {}
+    }
+    if (currentEntry) {
+      applyRoute(currentEntry, currentExampleNumber, {
+        refresh: true,
+        updateHistory: false,
+        skipStorage: true
+      });
+    }
+  });
+}
+
 const defaultEntry = navEntries.find(entry => entry.href === defaultPage) || navEntries[0] || null;
 
 function setActive(current) {
@@ -441,13 +497,17 @@ function setActive(current) {
   });
 }
 
-function buildIframeSrc(href, exampleNumber, profile) {
+function buildIframeSrc(href, exampleNumber, profile, mode) {
   const normalizedProfile = normalizeProfileName(profile || currentProfile);
+  const normalizedMode = normalizeMode(mode || currentMode);
   const normalizedExample = Number.isFinite(exampleNumber) && exampleNumber > 0 ? Number(exampleNumber) : null;
   try {
     const url = new URL(href, window.location.origin);
     if (normalizedProfile) {
       url.searchParams.set('profile', normalizedProfile);
+    }
+    if (normalizedMode) {
+      url.searchParams.set('mode', normalizedMode);
     }
     if (normalizedExample) {
       url.searchParams.set('example', String(normalizedExample));
@@ -459,6 +519,9 @@ function buildIframeSrc(href, exampleNumber, profile) {
     const params = [];
     if (normalizedProfile) {
       params.push(['profile', normalizedProfile]);
+    }
+    if (normalizedMode) {
+      params.push(['mode', normalizedMode]);
     }
     if (normalizedExample) {
       params.push(['example', String(normalizedExample)]);
@@ -563,7 +626,8 @@ function updateHistoryState(entry, exampleNumber, options = {}) {
     __mathVisualsRoute__: true,
     segment: entry ? entry.routeSegment : null,
     href: entry ? entry.href : null,
-    example: exampleNumber != null && Number.isFinite(exampleNumber) ? exampleNumber : null
+    example: exampleNumber != null && Number.isFinite(exampleNumber) ? exampleNumber : null,
+    mode: currentMode
   };
   history[method](state, '', path);
   lastHistoryPath = path;
@@ -587,7 +651,7 @@ function applyRoute(entry, exampleNumber, options = {}) {
   const normalizedExample = Number.isFinite(exampleNumber) && exampleNumber > 0 ? exampleNumber : null;
   const entryChanged = currentEntry !== entry;
   const exampleChanged = normalizedExample !== (currentExampleNumber != null ? currentExampleNumber : null);
-  const targetSrc = buildIframeSrc(entry.href, normalizedExample, currentProfile);
+  const targetSrc = buildIframeSrc(entry.href, normalizedExample, currentProfile, currentMode);
   const shouldRefresh = options.refresh === true || (!entryChanged && exampleChanged);
   setIframeSrc(targetSrc, { refresh: shouldRefresh });
   setActive(entry.href);
@@ -655,19 +719,38 @@ nav.addEventListener('click', event => {
   applyRoute(entry, null, options);
 });
 
-window.addEventListener('popstate', () => {
+window.addEventListener('popstate', event => {
+  const state = event && event.state && typeof event.state === 'object' ? event.state : null;
+  let modeChanged = false;
+  if (state && Object.prototype.hasOwnProperty.call(state, 'mode')) {
+    const normalized = normalizeMode(state.mode);
+    if (normalized !== currentMode) {
+      currentMode = normalized;
+      safeSetItem(MODE_STORAGE_KEY, normalized);
+      modeChanged = true;
+    }
+    syncModeControl(currentMode);
+  }
   const route = parseRouteFromLocation();
   if (route && route.entry) {
-    applyRoute(route.entry, route.exampleNumber, {
+    const options = {
       updateHistory: false,
       skipStorage: false
-    });
+    };
+    if (modeChanged) {
+      options.refresh = true;
+    }
+    applyRoute(route.entry, route.exampleNumber, options);
     lastHistoryPath = window.location.pathname || lastHistoryPath;
   } else if (defaultEntry) {
-    applyRoute(defaultEntry, null, {
+    const options = {
       updateHistory: false,
       skipStorage: false
-    });
+    };
+    if (modeChanged) {
+      options.refresh = true;
+    }
+    applyRoute(defaultEntry, null, options);
     lastHistoryPath = window.location.pathname || lastHistoryPath;
   }
 });
@@ -680,6 +763,15 @@ window.addEventListener('message', event => {
     try {
       event.source.postMessage(
         { type: 'math-visuals:profile-change', profile: currentProfile },
+        '*'
+      );
+    } catch (_) {}
+    return;
+  }
+  if (data.type === 'math-visuals:request-mode') {
+    try {
+      event.source.postMessage(
+        { type: 'math-visuals:mode-change', mode: currentMode },
         '*'
       );
     } catch (_) {}
