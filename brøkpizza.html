@@ -14,6 +14,7 @@
     .settings fieldset { flex:1; }
     legend { font-weight:600; font-size:13px; color:#374151; padding:0 4px; }
     .checkbox-row { display:flex; align-items:center; gap:6px; }
+    .checkbox-row--disabled { opacity:0.5; }
     .field-row { display:flex; gap:10px; flex-wrap:wrap; }
     .field-row .field { flex:1 1 140px; display:flex; flex-direction:column; gap:4px; }
     .input-stack { display:flex; flex-direction:column; gap:4px; }
@@ -206,9 +207,6 @@
                 <input id="p1N" type="number" value="10" min="1">
               </div>
             </div>
-            <div class="checkbox-row"><input id="p1LockN" type="checkbox"><label for="p1LockN">Mulighet for å endre nevner</label></div>
-            <div class="checkbox-row"><input id="p1HideNVal" type="checkbox"><label for="p1HideNVal">Vis verdien til nevner</label></div>
-            <div class="checkbox-row"><input id="p1LockT" type="checkbox"><label for="p1LockT">Mulighet for å endre teller</label></div>
             <label for="p1Text">Vis tekst over brøkpizza som:</label>
             <select id="p1Text">
               <option value="none" selected>Ingen tekst</option>
@@ -216,6 +214,9 @@
               <option value="decimal">Desimaltall</option>
               <option value="percent">prosent</option>
             </select>
+            <div class="checkbox-row"><input id="p1LockT" type="checkbox"><label for="p1LockT">Mulighet for å endre teller</label></div>
+            <div class="checkbox-row"><input id="p1LockN" type="checkbox"><label for="p1LockN">Mulighet for å endre nevner</label></div>
+            <div class="checkbox-row" data-denominator-visibility><input id="p1HideNVal" type="checkbox"><label for="p1HideNVal">Vis verdien til nevner</label></div>
             <div class="field-row">
               <div class="field">
                 <label for="p1MinN">Min n</label>
@@ -249,9 +250,6 @@
                 <input id="p2N" type="number" value="10" min="1">
               </div>
             </div>
-            <div class="checkbox-row"><input id="p2LockN" type="checkbox"><label for="p2LockN">Mulighet for å endre nevner</label></div>
-            <div class="checkbox-row"><input id="p2HideNVal" type="checkbox"><label for="p2HideNVal">Vis verdien til nevner</label></div>
-            <div class="checkbox-row"><input id="p2LockT" type="checkbox"><label for="p2LockT">Mulighet for å endre teller</label></div>
             <label for="p2Text">Vis tekst over brøkpizza som:</label>
             <select id="p2Text">
               <option value="none" selected>Ingen tekst</option>
@@ -259,6 +257,9 @@
               <option value="decimal">Desimaltall</option>
               <option value="percent">prosent</option>
             </select>
+            <div class="checkbox-row"><input id="p2LockT" type="checkbox"><label for="p2LockT">Mulighet for å endre teller</label></div>
+            <div class="checkbox-row"><input id="p2LockN" type="checkbox"><label for="p2LockN">Mulighet for å endre nevner</label></div>
+            <div class="checkbox-row" data-denominator-visibility><input id="p2HideNVal" type="checkbox"><label for="p2HideNVal">Vis verdien til nevner</label></div>
             <div class="field-row">
               <div class="field">
                 <label for="p2MinN">Min n</label>
@@ -292,9 +293,6 @@
                 <input id="p3N" type="number" value="10" min="1">
               </div>
             </div>
-            <div class="checkbox-row"><input id="p3LockN" type="checkbox"><label for="p3LockN">Mulighet for å endre nevner</label></div>
-            <div class="checkbox-row"><input id="p3HideNVal" type="checkbox"><label for="p3HideNVal">Vis verdien til nevner</label></div>
-            <div class="checkbox-row"><input id="p3LockT" type="checkbox"><label for="p3LockT">Mulighet for å endre teller</label></div>
             <label for="p3Text">Vis tekst over brøkpizza som:</label>
             <select id="p3Text">
               <option value="none" selected>Ingen tekst</option>
@@ -302,6 +300,9 @@
               <option value="decimal">Desimaltall</option>
               <option value="percent">prosent</option>
             </select>
+            <div class="checkbox-row"><input id="p3LockT" type="checkbox"><label for="p3LockT">Mulighet for å endre teller</label></div>
+            <div class="checkbox-row"><input id="p3LockN" type="checkbox"><label for="p3LockN">Mulighet for å endre nevner</label></div>
+            <div class="checkbox-row" data-denominator-visibility><input id="p3HideNVal" type="checkbox"><label for="p3HideNVal">Vis verdien til nevner</label></div>
             <div class="field-row">
               <div class="field">
                 <label for="p3MinN">Min n</label>
