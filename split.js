@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let gridWidth = 0;
     const onMove = e => {
       const dx = e.clientX - startX;
-      let newWidth = startWidth - dx;
+      let newWidth = startWidth + dx;
       const maxWidth = Math.max(minWidth, gridWidth - 100);
       if (newWidth < minWidth) newWidth = minWidth;
       if (newWidth > maxWidth) newWidth = maxWidth;
