@@ -99,6 +99,42 @@ const CFG = {
     }
   }
 };
+const DEFAULT_RECT_COLORS = ["#e07c7c", "#f0c667", "#7fb2d6", "#8bb889"];
+const CAMPUS_RECT_ORDER = [0, 5, 2, 4];
+function getThemeApi() {
+  const theme = typeof window !== "undefined" ? window.MathVisualsTheme : null;
+  return theme && typeof theme === "object" ? theme : null;
+}
+function applyThemeToDocument() {
+  const theme = getThemeApi();
+  if (theme && typeof theme.applyToDocument === "function") {
+    theme.applyToDocument(document);
+  }
+}
+function ensureColors(base, fallback, count) {
+  const safeFallback = Array.isArray(fallback) && fallback.length ? fallback : DEFAULT_RECT_COLORS;
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const candidate = Array.isArray(base) && typeof base[i] === "string" && base[i] ? base[i] : null;
+    out.push(candidate || safeFallback[i % safeFallback.length]);
+  }
+  return out;
+}
+function resolveRectColors(count = DEFAULT_RECT_COLORS.length) {
+  const theme = getThemeApi();
+  if (theme && typeof theme.getPalette === "function") {
+    const active = typeof theme.getActiveProfileName === "function" ? theme.getActiveProfileName() : null;
+    const palette = theme.getPalette("figures", count, { fallbackKinds: ["fractions"] });
+    if ((!active || active !== "kikora") && Array.isArray(palette) && palette.length) {
+      const reordered = active === "campus" ? CAMPUS_RECT_ORDER.map(idx => palette[idx % palette.length]) : palette;
+      return ensureColors(reordered, DEFAULT_RECT_COLORS, count);
+    }
+  }
+  return ensureColors(DEFAULT_RECT_COLORS, DEFAULT_RECT_COLORS, count);
+}
+applyThemeToDocument();
+CFG.ADV.colors = resolveRectColors();
+let runtimeStyleElement = null;
 const DEFAULT_SIMPLE_CFG = JSON.parse(JSON.stringify(CFG.SIMPLE));
 const DEFAULT_ADV_CFG = JSON.parse(JSON.stringify(CFG.ADV));
 let cleanupCurrentDraw = null;
@@ -912,6 +948,8 @@ function readConfigFromHtml() {
 function draw() {
   var _SV$height$cells, _SV$height, _SV$length$cells, _SV$length, _ADV$check$ten, _ADV$check, _ADV$handleIcons$size, _ADV$handleIcons, _ADV$margins$l, _ADV$margins, _ADV$margins$r, _ADV$margins2, _ADV$margins$t, _ADV$margins3, _ADV$margins$b, _ADV$margins4, _ADV$classes$outer, _ADV$classes, _ADV$classes$grid, _ADV$classes2, _ADV$classes$split, _ADV$classes3, _ADV$classes$handle, _ADV$classes4, _ADV$classes$labelCel, _ADV$classes5, _ADV$classes$labelEdg, _ADV$classes6, _ADV$classes$cells, _ADV$classes7, _SV$height2, _SV$length2, _ADV$drag, _ADV$drag2, _ADV$limits$minColsEa, _ADV$limits, _ADV$limits$minRowsEa, _ADV$limits2, _SV$length$handle, _SV$length3, _SV$height$handle, _SV$height3, _SV$height4, _SV$length4, _ADV$handleIcons$hori, _ADV$handleIcons2, _ADV$handleIcons$vert, _ADV$handleIcons3, _ADV$fit$maxVh, _ADV$fit, _ADV$labels$dot, _ADV$labels, _ADV$labels$equals, _ADV$labels2, _ADV$labels$edgeMode, _ADV$labels3, _ADV$labels$cellMode, _ADV$labels4, _SV$totalHandle;
   ensureCfgDefaults();
+  CFG.ADV.colors = resolveRectColors();
+  applyThemeToDocument();
   if (typeof cleanupCurrentDraw === "function") {
     cleanupCurrentDraw();
     cleanupCurrentDraw = null;
@@ -2205,7 +2243,7 @@ function draw() {
 
   // === FARGER/typografi ===
   function getInlineStyleDefaults() {
-    const cols = ADV.colors || ["#e07c7c", "#f0c667", "#7fb2d6", "#8bb889"];
+    const cols = ensureColors(ADV.colors, DEFAULT_RECT_COLORS, 4);
     return `
 .outer { fill: white; stroke: #333; stroke-width: 3; pointer-events: none; }
 .split { stroke: #333; stroke-width: 3; transition: stroke-width .12s ease; pointer-events: none; }
@@ -2235,11 +2273,18 @@ svg text { user-select: none; -webkit-user-select: none; }
 `;
   }
   function injectRuntimeStyles() {
-    if (document.getElementById("arealmodell-runtime-css")) return;
-    const style = document.createElement("style");
-    style.id = "arealmodell-runtime-css";
-    style.textContent = getInlineStyleDefaults();
-    document.head.appendChild(style);
+    const css = getInlineStyleDefaults();
+    if (runtimeStyleElement && runtimeStyleElement.parentNode) {
+      runtimeStyleElement.textContent = css;
+      return;
+    }
+    const existing = document.getElementById("arealmodell-runtime-css");
+    runtimeStyleElement = existing || document.createElement("style");
+    runtimeStyleElement.id = "arealmodell-runtime-css";
+    runtimeStyleElement.textContent = css;
+    if (!existing) {
+      document.head.appendChild(runtimeStyleElement);
+    }
   }
 
   // -------- Base-SVG uten skript --------
@@ -2685,6 +2730,16 @@ window.addEventListener('load', () => {
     el.addEventListener('input', initFromHtml);
   });
 });
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+  window.addEventListener('message', event => {
+    const data = event && event.data;
+    const type = typeof data === 'string' ? data : data && data.type;
+    if (type !== 'math-visuals:profile-change') return;
+    applyThemeToDocument();
+    CFG.ADV.colors = resolveRectColors();
+    render();
+  });
+}
 if (typeof window !== 'undefined') {
   window.applyConfig = applyExamplesConfig;
   window.applyState = applyExamplesConfig;
