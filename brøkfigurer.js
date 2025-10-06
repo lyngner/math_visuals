@@ -98,6 +98,8 @@
   const DIVISION_SEGMENT_EXTENSION = 0.01;
   const colorCountInp = document.getElementById('colorCount');
   const allowWrongInp = document.getElementById('allowWrong');
+  const showDivisionLinesInp = document.getElementById('showDivisionLines');
+  const showOutlineInp = document.getElementById('showOutline');
   const colorInputs = [];
   for (let i = 1;; i++) {
     const inp = document.getElementById('color_' + i);
@@ -145,6 +147,12 @@
   }
   STATE.allowWrong = allowWrongGlobal;
   if (allowWrongInp) allowWrongInp.checked = allowWrongGlobal;
+  let showDivisionLinesGlobal = typeof STATE.showDivisionLines === 'boolean' ? STATE.showDivisionLines : true;
+  STATE.showDivisionLines = showDivisionLinesGlobal;
+  if (showDivisionLinesInp) showDivisionLinesInp.checked = showDivisionLinesGlobal;
+  let showOutlineGlobal = typeof STATE.showOutline === 'boolean' ? STATE.showOutline : true;
+  STATE.showOutline = showOutlineGlobal;
+  if (showOutlineInp) showOutlineInp.checked = showOutlineGlobal;
   const maxColors = colorInputs.length || 1;
   const defaultColorCount = clampInt((_colorCountInp$value = colorCountInp === null || colorCountInp === void 0 ? void 0 : colorCountInp.value) !== null && _colorCountInp$value !== void 0 ? _colorCountInp$value : 1, 1, maxColors);
   const stateColorCount = STATE.colorCount != null ? clampInt(STATE.colorCount, 1, maxColors) : null;
@@ -226,6 +234,20 @@
       renderAll();
     });
   }
+  if (showDivisionLinesInp) {
+    showDivisionLinesInp.addEventListener('change', () => {
+      showDivisionLinesGlobal = !!showDivisionLinesInp.checked;
+      STATE.showDivisionLines = showDivisionLinesGlobal;
+      window.render();
+    });
+  }
+  if (showOutlineInp) {
+    showOutlineInp.addEventListener('change', () => {
+      showOutlineGlobal = !!showOutlineInp.checked;
+      STATE.showOutline = showOutlineGlobal;
+      window.render();
+    });
+  }
   const DEFAULT_COLOR_SETS = {
     1: ['#6C1BA2'],
     2: ['#BF4474', '#534477'],
@@ -301,6 +323,20 @@
     allowWrongGlobal = !!STATE.allowWrong;
     STATE.allowWrong = allowWrongGlobal;
     if (allowWrongInp) allowWrongInp.checked = allowWrongGlobal;
+    if (typeof STATE.showDivisionLines === 'boolean') {
+      showDivisionLinesGlobal = STATE.showDivisionLines;
+    } else {
+      showDivisionLinesGlobal = true;
+    }
+    STATE.showDivisionLines = showDivisionLinesGlobal;
+    if (showDivisionLinesInp) showDivisionLinesInp.checked = showDivisionLinesGlobal;
+    if (typeof STATE.showOutline === 'boolean') {
+      showOutlineGlobal = STATE.showOutline;
+    } else {
+      showOutlineGlobal = true;
+    }
+    STATE.showOutline = showOutlineGlobal;
+    if (showOutlineInp) showOutlineInp.checked = showOutlineGlobal;
     colorCount = clampInt(STATE.colorCount, 1, maxColors);
     STATE.colorCount = colorCount;
     if (colorCountInp) colorCountInp.value = String(colorCount);
@@ -766,6 +802,7 @@
       }
     }
     function createDivisionSegment(start, end, options = {}, extend = true) {
+      if (!showDivisionLinesGlobal) return null;
       const [p1, p2] = extend ? extendSegmentEndpoints(start, end) : [clonePoint(start), clonePoint(end)];
       const seg = board.create('segment', [p1, p2], Object.assign({
         strokeColor: '#000',
@@ -953,15 +990,17 @@
           const y = j / rows;
           createDivisionSegment([0, y], [1, y]);
         }
-        board.create('circle', [[cx, cy], r], {
-          strokeColor: '#333',
-          strokeWidth: OUTLINE_STROKE_WIDTH,
-          fillColor: 'none',
-          highlight: false,
-          fixed: true,
-          hasInnerPoints: false,
-          cssStyle: 'pointer-events:none;'
-        });
+        if (showOutlineGlobal) {
+          board.create('circle', [[cx, cy], r], {
+            strokeColor: '#333',
+            strokeWidth: OUTLINE_STROKE_WIDTH,
+            fillColor: 'none',
+            highlight: false,
+            fixed: true,
+            hasInnerPoints: false,
+            cssStyle: 'pointer-events:none;'
+          });
+        }
       } else {
         const center = board.create('point', [cx, cy], pointOpts);
         const boundaryPts = [];
@@ -989,15 +1028,17 @@
             strokeColor: '#000'
           }, false);
         }
-        board.create('circle', [center, r], {
-          strokeColor: '#333',
-          strokeWidth: OUTLINE_STROKE_WIDTH,
-          fillColor: 'none',
-          highlight: false,
-          fixed: true,
-          hasInnerPoints: false,
-          cssStyle: 'pointer-events:none;'
-        });
+        if (showOutlineGlobal) {
+          board.create('circle', [center, r], {
+            strokeColor: '#333',
+            strokeWidth: OUTLINE_STROKE_WIDTH,
+            fillColor: 'none',
+            highlight: false,
+            fixed: true,
+            hasInnerPoints: false,
+            cssStyle: 'pointer-events:none;'
+          });
+        }
       }
     }
     function drawRect(n, division, colorFor) {
@@ -1123,25 +1164,27 @@
           }
         }
       }
-      board.create('polygon', [[0, 0], [1, 0], [1, 1], [0, 1]], {
-        borders: {
-          strokeColor: '#333',
-          strokeWidth: 6
-        },
-        vertices: {
-          visible: false,
-          name: '',
+      if (showOutlineGlobal) {
+        board.create('polygon', [[0, 0], [1, 0], [1, 1], [0, 1]], {
+          borders: {
+            strokeColor: '#333',
+            strokeWidth: 6
+          },
+          vertices: {
+            visible: false,
+            name: '',
+            fixed: true,
+            label: {
+              visible: false
+            }
+          },
+          fillColor: 'none',
+          highlight: false,
           fixed: true,
-          label: {
-            visible: false
-          }
-        },
-        fillColor: 'none',
-        highlight: false,
-        fixed: true,
-        hasInnerPoints: false,
-        cssStyle: 'pointer-events:none;'
-      });
+          hasInnerPoints: false,
+          cssStyle: 'pointer-events:none;'
+        });
+      }
     }
     function drawTriangle(n, division, allowWrong, colorFor) {
       const h = Math.sqrt(3) / 2;
@@ -1221,25 +1264,27 @@
           createDivisionSegment(rows[r][0], rows[m][r], {}, false);
           createDivisionSegment(rows[r][r], rows[m][m - r], {}, false);
         }
-        board.create('polygon', [toEqTri([0, 1]), toEqTri([1, 1]), toEqTri([0.5, 0])], {
-          borders: {
-            strokeColor: '#333',
-            strokeWidth: 6
-          },
-          vertices: {
-            visible: false,
-            name: '',
+        if (showOutlineGlobal) {
+          board.create('polygon', [toEqTri([0, 1]), toEqTri([1, 1]), toEqTri([0.5, 0])], {
+            borders: {
+              strokeColor: '#333',
+              strokeWidth: 6
+            },
+            vertices: {
+              visible: false,
+              name: '',
+              fixed: true,
+              label: {
+                visible: false
+              }
+            },
+            fillColor: 'none',
+            highlight: false,
             fixed: true,
-            label: {
-              visible: false
-            }
-          },
-          fillColor: 'none',
-          highlight: false,
-          fixed: true,
-          hasInnerPoints: false,
-          cssStyle: 'pointer-events:none;'
-        });
+            hasInnerPoints: false,
+            cssStyle: 'pointer-events:none;'
+          });
+        }
         return;
       }
       for (let i = 0; i < n; i++) {
@@ -1315,25 +1360,27 @@
           createDivisionSegment(toEq([1 - t, t]), toEq([0, 0]), {}, false);
         }
       }
-      board.create('polygon', [toEq([0, 0]), toEq([1, 0]), toEq([0, 1])], {
-        borders: {
-          strokeColor: '#333',
-          strokeWidth: 6
-        },
-        vertices: {
-          visible: false,
-          name: '',
+      if (showOutlineGlobal) {
+        board.create('polygon', [toEq([0, 0]), toEq([1, 0]), toEq([0, 1])], {
+          borders: {
+            strokeColor: '#333',
+            strokeWidth: 6
+          },
+          vertices: {
+            visible: false,
+            name: '',
+            fixed: true,
+            label: {
+              visible: false
+            }
+          },
+          fillColor: 'none',
+          highlight: false,
           fixed: true,
-          label: {
-            visible: false
-          }
-        },
-        fillColor: 'none',
-        highlight: false,
-        fixed: true,
-        hasInnerPoints: false,
-        cssStyle: 'pointer-events:none;'
-      });
+          hasInnerPoints: false,
+          cssStyle: 'pointer-events:none;'
+        });
+      }
     }
     function applyClip(shape, division) {
       var _board;
