@@ -39,14 +39,16 @@
       flex-wrap: wrap;
       align-items: center;
     }
-    .toolbar--mode {
-      justify-content: space-between;
-      align-items: center;
-    }
     .mode-label {
       font-size: 14px;
       color: #4b5563;
       font-weight: 600;
+    }
+    .mode-status {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-bottom: 8px;
     }
     .hint {
       margin: 0;
@@ -352,9 +354,6 @@
     body.labels-hidden .point-label { display: none; }
     body.is-edit-mode .predef-tool { display: flex; }
     body.is-predef-mode .predef-tool { background: #eff6ff; border-color: #bfdbfe; }
-    @media (max-width: 600px) {
-      .toolbar--mode { flex-direction: column; align-items: flex-start; gap: 8px; }
-    }
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
@@ -362,9 +361,8 @@
   <div class="wrap">
     <div class="grid layout--sidebar">
       <div class="card card--board">
-        <div class="toolbar toolbar--mode">
-          <button id="btnToggleMode" class="btn btn--primary" type="button">Gå til oppgavemodus</button>
-          <span id="modeLabel" class="mode-label">Redigeringsmodus</span>
+        <div class="mode-status" role="status" aria-live="polite">
+          <span id="modeLabel" class="mode-label">Modus: Redigeringsmodus</span>
         </div>
         <div class="figure">
           <svg id="dotBoard" viewBox="0 0 1000 700" role="img" aria-label="Prikk-til-prikk-tegning"></svg>
