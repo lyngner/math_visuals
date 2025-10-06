@@ -1121,6 +1121,147 @@
   let tabButtons = [];
   let descriptionInput = null;
   const descriptionInputsWithListeners = new WeakSet();
+  let descriptionContainer = null;
+  let descriptionPreview = null;
+
+  function getDescriptionContainer() {
+    if (descriptionContainer && descriptionContainer.isConnected) return descriptionContainer;
+    if (typeof document === 'undefined') return null;
+    const container = document.querySelector('.example-description');
+    if (container instanceof HTMLElement) {
+      descriptionContainer = container;
+      return container;
+    }
+    descriptionContainer = null;
+    return null;
+  }
+
+  function getDescriptionPreviewElement() {
+    if (descriptionPreview && descriptionPreview.isConnected) return descriptionPreview;
+    const container = getDescriptionContainer();
+    if (!container) return null;
+    let preview = container.querySelector('.example-description-preview');
+    if (!(preview instanceof HTMLElement)) {
+      preview = document.createElement('div');
+      preview.className = 'example-description-preview';
+      preview.setAttribute('aria-hidden', 'true');
+      preview.dataset.empty = 'true';
+      container.appendChild(preview);
+    }
+    descriptionPreview = preview;
+    return preview;
+  }
+
+  function clearChildren(node) {
+    if (!node) return;
+    while (node.firstChild) {
+      node.removeChild(node.firstChild);
+    }
+  }
+
+  function appendDescriptionText(fragment, text) {
+    if (!fragment || typeof fragment.appendChild !== 'function') return;
+    if (typeof text !== 'string') return;
+    const normalized = text.replace(/\r\n?/g, '\n');
+    const paragraphs = normalized.split(/\n{2,}/);
+    paragraphs.forEach(paragraph => {
+      if (!paragraph.trim()) return;
+      const lines = paragraph.split('\n');
+      const p = document.createElement('p');
+      lines.forEach((line, index) => {
+        p.appendChild(document.createTextNode(line));
+        if (index < lines.length - 1) {
+          p.appendChild(document.createElement('br'));
+        }
+      });
+      fragment.appendChild(p);
+    });
+  }
+
+  function createDescriptionTable(content) {
+    if (typeof content !== 'string') return null;
+    const normalized = content.replace(/\r\n?/g, '\n').trim();
+    if (!normalized) return null;
+    const lines = normalized
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line);
+    if (!lines.length) return null;
+    const rows = lines.map(line => line.split('|').map(cell => cell.trim()));
+    const columnCount = rows.reduce((max, row) => (row.length > max ? row.length : max), 0);
+    if (!columnCount) return null;
+    const table = document.createElement('table');
+    table.className = 'example-description-table';
+    let bodyStartIndex = 0;
+    if (rows.length > 1) {
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      for (let i = 0; i < columnCount; i++) {
+        const th = document.createElement('th');
+        th.textContent = rows[0][i] != null ? rows[0][i] : '';
+        headRow.appendChild(th);
+      }
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+      bodyStartIndex = 1;
+    }
+    const tbody = document.createElement('tbody');
+    const appendRow = row => {
+      const tr = document.createElement('tr');
+      for (let i = 0; i < columnCount; i++) {
+        const cell = document.createElement('td');
+        cell.textContent = row && row[i] != null ? row[i] : '';
+        tr.appendChild(cell);
+      }
+      tbody.appendChild(tr);
+    };
+    if (rows.length === 1) {
+      appendRow(rows[0]);
+    } else {
+      for (let i = bodyStartIndex; i < rows.length; i++) {
+        appendRow(rows[i]);
+      }
+    }
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function buildDescriptionPreview(value) {
+    const fragment = document.createDocumentFragment();
+    if (typeof value !== 'string') return fragment;
+    const normalized = value.replace(/\r\n?/g, '\n');
+    const pattern = /@table\s*\{([\s\S]*?)\}/gi;
+    let lastIndex = 0;
+    let match = null;
+    while ((match = pattern.exec(normalized)) !== null) {
+      const before = normalized.slice(lastIndex, match.index);
+      appendDescriptionText(fragment, before);
+      const table = createDescriptionTable(match[1]);
+      if (table) {
+        fragment.appendChild(table);
+      } else {
+        appendDescriptionText(fragment, match[0]);
+      }
+      lastIndex = pattern.lastIndex;
+    }
+    const after = normalized.slice(lastIndex);
+    appendDescriptionText(fragment, after);
+    return fragment;
+  }
+
+  function renderDescriptionPreviewFromValue(value) {
+    const preview = getDescriptionPreviewElement();
+    if (!preview) return;
+    clearChildren(preview);
+    const fragment = buildDescriptionPreview(typeof value === 'string' ? value : '');
+    const hasContent = fragment && fragment.childNodes && fragment.childNodes.length > 0;
+    if (hasContent) {
+      preview.appendChild(fragment);
+    }
+    preview.dataset.empty = hasContent ? 'false' : 'true';
+    preview.hidden = !hasContent;
+    preview.setAttribute('aria-hidden', hasContent ? 'false' : 'true');
+  }
 
   function updateDescriptionCollapsedState(target) {
     const input = target && target.nodeType === 1 ? target : getDescriptionInput();
@@ -1135,7 +1276,10 @@
   function ensureDescriptionListeners(input) {
     if (!input || descriptionInputsWithListeners.has(input)) return;
     descriptionInputsWithListeners.add(input);
-    const update = () => updateDescriptionCollapsedState(input);
+    const update = () => {
+      updateDescriptionCollapsedState(input);
+      renderDescriptionPreviewFromValue(input.value);
+    };
     input.addEventListener('input', update);
     input.addEventListener('change', update);
     input.addEventListener('focus', update);
@@ -1164,6 +1308,7 @@
       input.value = '';
     }
     updateDescriptionCollapsedState(input);
+    renderDescriptionPreviewFromValue(input.value);
   }
   let defaultEnsureScheduled = false;
   let ensureDefaultsRunning = false;
