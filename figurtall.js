@@ -340,6 +340,7 @@
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.className = 'removeFigureBtn';
+    removeBtn.setAttribute('data-edit-only', '');
     removeBtn.textContent = 'Fjern figur';
     if (STATE.figures.length <= 1) {
       removeBtn.disabled = true;
