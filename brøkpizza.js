@@ -1325,6 +1325,7 @@ function initFromHtml() {
   const cfg = readConfigFromHtml();
   SIMPLE.pizzas = cfg.pizzas;
   SIMPLE.ops = cfg.ops;
+  updateDenominatorValueToggles();
   let visibleCount = 0;
   REG.clear();
   PIZZA_DOM.forEach((map, i) => {
@@ -1370,6 +1371,7 @@ function initFromHtml() {
       displayEl.style.display = "none";
     }
   });
+  updateDenominatorValueToggles();
   scheduleCenterAlign();
   fitPizzasToLine();
   setupRemovePizzaButtons();
@@ -1406,6 +1408,17 @@ window.addEventListener("load", () => {
     el.addEventListener("change", initFromHtml);
   });
 });
+
+function updateDenominatorValueToggles() {
+  for (let i = 1; i <= 3; i++) {
+    const canChangeCheckbox = document.getElementById(`p${i}LockN`);
+    const showValueCheckbox = document.getElementById(`p${i}HideNVal`);
+    const row = showValueCheckbox === null || showValueCheckbox === void 0 ? void 0 : showValueCheckbox.closest('[data-denominator-visibility]');
+    const canChange = !!(canChangeCheckbox && canChangeCheckbox.checked);
+    if (showValueCheckbox) showValueCheckbox.disabled = !canChange;
+    if (row) row.classList.toggle('checkbox-row--disabled', !canChange);
+  }
+}
 function applySimpleConfigToInputs() {
   const pizzas = Array.isArray(SIMPLE.pizzas) ? SIMPLE.pizzas : [];
   const ops = Array.isArray(SIMPLE.ops) ? SIMPLE.ops : [];
@@ -1470,6 +1483,7 @@ function applySimpleConfigToInputs() {
     const textSel = document.getElementById(`p${i}Text`);
     if (textSel && cfg.text) textSel.value = cfg.text;
   }
+  updateDenominatorValueToggles();
   ops.forEach((op, idx) => {
     const wrapper = document.getElementById(`op${idx + 1}Wrapper`);
     const selectId = `op${idx + 1}`;
