@@ -99,6 +99,251 @@
 
 (function () {
   const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+  const DEFAULT_APP_MODE = 'default';
+  const APP_MODE_ALIASES = {
+    task: 'task',
+    tasks: 'task',
+    oppgave: 'task',
+    oppgaver: 'task',
+    oppgavemodus: 'task',
+    student: 'task',
+    elev: 'task',
+    default: DEFAULT_APP_MODE,
+    standard: DEFAULT_APP_MODE,
+    teacher: DEFAULT_APP_MODE,
+    undervisning: DEFAULT_APP_MODE,
+    edit: DEFAULT_APP_MODE,
+    rediger: DEFAULT_APP_MODE,
+    author: DEFAULT_APP_MODE,
+    editor: DEFAULT_APP_MODE
+  };
+  const originalSplitSideWidths = new WeakMap();
+  const originalSplitterDisplays = new WeakMap();
+  let currentAppMode = DEFAULT_APP_MODE;
+  let lastAppliedAppMode = null;
+  let splitterObserver = null;
+  function normalizeAppMode(value) {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed) return null;
+    if (APP_MODE_ALIASES[trimmed]) return APP_MODE_ALIASES[trimmed];
+    if (trimmed === 'task-mode') return 'task';
+    return null;
+  }
+  function adjustSplitLayoutForMode(isTaskMode) {
+    if (typeof document === 'undefined') return;
+    const grids = document.querySelectorAll('.grid');
+    grids.forEach(grid => {
+      if (!(grid instanceof HTMLElement)) return;
+      const side = grid.querySelector('.side');
+      if (!side) return;
+      if (isTaskMode) {
+        if (!originalSplitSideWidths.has(grid)) {
+          const rect = side.getBoundingClientRect();
+          if (rect && Number.isFinite(rect.width) && rect.width > 0) {
+            originalSplitSideWidths.set(grid, `${Math.round(rect.width)}px`);
+          } else {
+            const current = grid.style.getPropertyValue('--side-width');
+            originalSplitSideWidths.set(grid, current || '');
+          }
+        }
+        grid.style.setProperty('--side-width', 'min(360px, 100%)');
+      } else if (originalSplitSideWidths.has(grid)) {
+        const previous = originalSplitSideWidths.get(grid);
+        originalSplitSideWidths.delete(grid);
+        if (previous) {
+          grid.style.setProperty('--side-width', previous);
+        } else {
+          grid.style.removeProperty('--side-width');
+        }
+      } else {
+        grid.style.removeProperty('--side-width');
+      }
+    });
+    const splitters = document.querySelectorAll('.splitter');
+    splitters.forEach(splitter => {
+      if (!(splitter instanceof HTMLElement)) return;
+      if (isTaskMode) {
+        if (!originalSplitterDisplays.has(splitter)) {
+          originalSplitterDisplays.set(splitter, splitter.style.display || '');
+        }
+        splitter.style.display = 'none';
+      } else if (originalSplitterDisplays.has(splitter)) {
+        const prev = originalSplitterDisplays.get(splitter);
+        originalSplitterDisplays.delete(splitter);
+        if (prev) {
+          splitter.style.display = prev;
+        } else {
+          splitter.style.removeProperty('display');
+        }
+      } else {
+        splitter.style.removeProperty('display');
+      }
+    });
+  }
+  function applyAppMode(mode) {
+    if (typeof document === 'undefined') return;
+    const body = document.body;
+    if (!body) return;
+    const normalized = normalizeAppMode(mode) || DEFAULT_APP_MODE;
+    if (body.dataset.appMode !== normalized) {
+      body.dataset.appMode = normalized;
+    }
+    const isTaskMode = normalized === 'task';
+    adjustSplitLayoutForMode(isTaskMode);
+    if (isTaskMode) {
+      const raf = typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function' ? window.requestAnimationFrame : null;
+      if (raf) {
+        raf(() => adjustSplitLayoutForMode(true));
+      } else {
+        setTimeout(() => adjustSplitLayoutForMode(true), 16);
+      }
+    }
+    lastAppliedAppMode = normalized;
+  }
+  function postParentAppMode(mode) {
+    if (typeof window === 'undefined') return;
+    if (!window.parent || window.parent === window) return;
+    try {
+      window.parent.postMessage({
+        type: 'math-visuals:mode-change',
+        mode
+      }, '*');
+    } catch (error) {}
+  }
+  function setAppMode(mode, options) {
+    const normalized = normalizeAppMode(mode) || DEFAULT_APP_MODE;
+    const opts = options && typeof options === 'object' ? options : {};
+    const notifyParent = opts.notifyParent !== false;
+    const force = opts.force === true;
+    const changed = normalized !== currentAppMode;
+    currentAppMode = normalized;
+    if (force || normalized !== lastAppliedAppMode) {
+      applyAppMode(normalized);
+    }
+    if (notifyParent && (changed || opts.alwaysNotify === true)) {
+      postParentAppMode(normalized);
+    }
+    if (changed && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      try {
+        window.dispatchEvent(new CustomEvent('math-visuals:app-mode-changed', {
+          detail: {
+            mode: normalized
+          }
+        }));
+      } catch (error) {}
+    }
+    return normalized;
+  }
+  function parseInitialAppMode() {
+    if (typeof window === 'undefined') return null;
+    try {
+      if (typeof URLSearchParams !== 'undefined') {
+        const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
+        const fromQuery = normalizeAppMode(params.get('mode'));
+        if (fromQuery) return fromQuery;
+      }
+    } catch (error) {}
+    return null;
+  }
+  function requestParentAppMode() {
+    if (typeof window === 'undefined') return;
+    if (!window.parent || window.parent === window) return;
+    try {
+      window.parent.postMessage({
+        type: 'math-visuals:request-mode'
+      }, '*');
+    } catch (error) {}
+  }
+  function handleParentMessage(event) {
+    if (!event) return;
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+    if (data.type === 'math-visuals:mode-change') {
+      setAppMode(data.mode, {
+        notifyParent: false
+      });
+    }
+  }
+  function handleLocalModeEvent(event) {
+    if (!event) return;
+    const detail = event.detail;
+    if (!detail || typeof detail !== 'object') return;
+    setAppMode(detail.mode, {
+      notifyParent: detail.notifyParent !== false,
+      force: detail.force === true
+    });
+  }
+  function ensureSplitterObserver() {
+    if (typeof document === 'undefined') return;
+    if (typeof MutationObserver !== 'function') return;
+    if (splitterObserver) return;
+    splitterObserver = new MutationObserver(mutations => {
+      if (currentAppMode !== 'task') return;
+      let shouldAdjust = false;
+      mutations.forEach(mutation => {
+        if (shouldAdjust) return;
+        if (!mutation.addedNodes) return;
+        mutation.addedNodes.forEach(node => {
+          if (shouldAdjust) return;
+          if (node && node.nodeType === 1) {
+            const element = node;
+            if (element.classList && element.classList.contains('splitter')) {
+              shouldAdjust = true;
+              return;
+            }
+            if (element.querySelector && element.querySelector('.splitter')) {
+              shouldAdjust = true;
+            }
+          }
+        });
+      });
+      if (shouldAdjust) {
+        adjustSplitLayoutForMode(true);
+      }
+    });
+    if (!document.body) return;
+    splitterObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  }
+  ensureSplitterObserver();
+  const initialAppMode = parseInitialAppMode() || DEFAULT_APP_MODE;
+  setAppMode(initialAppMode, {
+    notifyParent: false,
+    force: true
+  });
+  if (typeof window !== 'undefined') {
+    window.addEventListener('message', handleParentMessage);
+    window.addEventListener('math-visuals:set-mode', handleLocalModeEvent);
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('math-visuals:set-mode', handleLocalModeEvent);
+  }
+  if (typeof window !== 'undefined') {
+    if (window.parent && window.parent !== window) {
+      const request = () => {
+        requestParentAppMode();
+      };
+      if (document && (document.readyState === 'interactive' || document.readyState === 'complete')) {
+        request();
+      } else if (document) {
+        document.addEventListener('DOMContentLoaded', request, {
+          once: true
+        });
+      } else {
+        request();
+      }
+    }
+  }
+  if (globalScope) {
+    globalScope.mathVisuals = globalScope.mathVisuals && typeof globalScope.mathVisuals === 'object' ? globalScope.mathVisuals :
+ {};
+    globalScope.mathVisuals.applyAppMode = applyAppMode;
+    globalScope.mathVisuals.setAppMode = (mode, options) => setAppMode(mode, options);
+    globalScope.mathVisuals.getAppMode = () => currentAppMode;
+  }
   function createMemoryStorage() {
     const data = new Map();
     return {
