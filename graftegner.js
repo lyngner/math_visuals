@@ -168,7 +168,7 @@ const ADV = {
       needShift: false
     },
     zoom: {
-      enabled: params.has('zoom') ? paramBool('zoom') : true,
+      enabled: params.has('zoom') ? paramBool('zoom') : false,
       wheel: true,
       needShift: false,
       factorX: 1.2,
