@@ -665,11 +665,11 @@
     }
     const parsed = parse(typeof value === 'string' ? value : '');
     const { fragment, placeholders, answerBoxes } = parsed;
+    const hasContent = !!(fragment && fragment.childNodes && fragment.childNodes.length);
     if (fragment) {
       target.appendChild(fragment);
     }
     target.classList.add('math-vis-description-rendered');
-    const hasContent = !!(fragment && fragment.childNodes && fragment.childNodes.length);
     if (placeholders.length) {
       const schedule = () => {
         ensureKatexLoaded()
