@@ -6,9 +6,88 @@
   const KATEX_VERSION = '0.16.9';
   const KATEX_CSS_ID = 'math-vis-katex-style';
   const KATEX_SCRIPT_ID = 'math-vis-katex-script';
+  const DESCRIPTION_STYLE_ID = 'math-vis-description-style';
+  const DESCRIPTION_RENDERER_URL_KEY = '__MATH_VISUALS_DESCRIPTION_RENDERER_URL__';
+  const DESCRIPTION_RENDERER_CSS = 'description-renderer.css';
+
+  let scriptAssetUrl = null;
+
+  function resolveScriptUrl() {
+    if (scriptAssetUrl) return scriptAssetUrl;
+    if (!doc) {
+      scriptAssetUrl = 'description-renderer.js';
+      return scriptAssetUrl;
+    }
+    const current = doc.currentScript;
+    const candidates = [];
+    if (current && current.src) {
+      candidates.push(current.src);
+    }
+    const scripts = doc.getElementsByTagName ? doc.getElementsByTagName('script') : [];
+    for (let i = scripts.length - 1; i >= 0; i--) {
+      const script = scripts[i];
+      if (!script) continue;
+      const src = script.getAttribute && script.getAttribute('src');
+      if (typeof src === 'string' && src.trim()) {
+        candidates.push(src.trim());
+        if (src.endsWith('description-renderer.js')) break;
+      }
+    }
+    if (global && typeof global[DESCRIPTION_RENDERER_URL_KEY] === 'string') {
+      candidates.push(global[DESCRIPTION_RENDERER_URL_KEY]);
+    }
+    for (const value of candidates) {
+      if (!value) continue;
+      try {
+        scriptAssetUrl = new URL(value, doc.baseURI).toString();
+        break;
+      } catch (error) {
+        scriptAssetUrl = value;
+        break;
+      }
+    }
+    if (!scriptAssetUrl) {
+      scriptAssetUrl = 'description-renderer.js';
+    }
+    if (global) {
+      try {
+        global[DESCRIPTION_RENDERER_URL_KEY] = scriptAssetUrl;
+      } catch (error) {}
+    }
+    return scriptAssetUrl;
+  }
+
+  function resolveAssetUrl(filename) {
+    if (!filename) return '';
+    const scriptUrl = resolveScriptUrl();
+    if (!scriptUrl) return filename;
+    try {
+      return new URL(filename, scriptUrl).toString();
+    } catch (error) {
+      return filename;
+    }
+  }
+
+  function ensureDescriptionStylesLoaded() {
+    if (!doc || typeof doc.createElement !== 'function') return;
+    if (doc.getElementById && doc.getElementById(DESCRIPTION_STYLE_ID)) {
+      return;
+    }
+    const parent = doc.head || doc.body || doc.documentElement;
+    if (!parent) return;
+    const link = doc.createElement('link');
+    if (!link) return;
+    link.id = DESCRIPTION_STYLE_ID;
+    link.rel = 'stylesheet';
+    link.href = resolveAssetUrl(DESCRIPTION_RENDERER_CSS);
+    link.setAttribute('data-mathvis-description-style', 'true');
+    parent.appendChild(link);
+  }
 
   let katexPromise = null;
   let answerBoxIdCounter = 0;
+
+  ensureDescriptionStylesLoaded();
 
   function ensureKatexLoaded() {
     if (global.katex && typeof global.katex.render === 'function') {
