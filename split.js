@@ -11,6 +11,19 @@ document.addEventListener('DOMContentLoaded', () => {
     grid.insertBefore(splitter, side);
     grid.classList.add('split-enabled');
     grid.style.setProperty('--side-width', `${initialWidth}px`);
+
+    const computedStyle = getComputedStyle(grid);
+    const baseSideMax = Number.parseFloat(
+      computedStyle.getPropertyValue('--side-max')
+    );
+    const applySideMax = () => {
+      const currentWidth = grid.clientWidth;
+      if (!currentWidth) return;
+      const desiredMax = Math.max(baseSideMax || 0, currentWidth * 0.5);
+      grid.style.setProperty('--side-max', `${desiredMax}px`);
+    };
+    applySideMax();
+    window.addEventListener('resize', applySideMax);
     let startX = 0;
     let startWidth = 0;
     const minWidth = 200;
@@ -49,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const startDrag = e => {
       e.preventDefault();
+      applySideMax();
       startX = e.clientX;
       startWidth = side.getBoundingClientRect().width;
       gridWidth = grid.clientWidth;
