@@ -2170,7 +2170,31 @@
   }
   saveBtn === null || saveBtn === void 0 || saveBtn.addEventListener('click', () => {
     const examples = getExamples();
-    const ex = collectConfig();
+    let ex;
+    try {
+      ex = collectConfig();
+    } catch (error) {
+      console.error('[examples] failed to collect config for new example', error);
+      const fallbackConfig = {};
+      for (const name of BINDING_NAMES) {
+        const binding = getBinding(name);
+        if (binding != null && typeof binding !== 'function') {
+          fallbackConfig[name] = cloneValue(binding);
+        }
+      }
+      ex = {
+        config: fallbackConfig,
+        svg: '',
+        description: getDescriptionValue()
+      };
+    }
+    if (!ex || typeof ex !== 'object') {
+      ex = {
+        config: {},
+        svg: '',
+        description: getDescriptionValue()
+      };
+    }
     examples.push(ex);
     store(examples, {
       reason: 'manual-save'
