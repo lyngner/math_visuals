@@ -105,4 +105,54 @@ test.describe('Persisted example compatibility', () => {
     expect(Array.isArray(storedPayload)).toBeTruthy();
     expect(storedPayload[0]).toMatchObject({ description: persistedExample.description, exampleNumber: 'Persistert' });
   });
+
+  test('preserves Map and Set structures when saving and reloading', async ({ page }) => {
+    await page.goto('/brøkfigurer.html', { waitUntil: 'load' });
+
+    await page.evaluate(() => {
+      const colors = new Map();
+      colors.set('første', new Set(['rød', 'blå']));
+      colors.set('andre', new Set(['grønn']));
+      window.STATE = { colors };
+    });
+
+    const tabs = page.locator('#exampleTabs .example-tab');
+    const initialCount = await tabs.count();
+
+    await page.locator('#btnSaveExample').click();
+
+    await expect(tabs).toHaveCount(initialCount + 1);
+
+    await page.evaluate(() => {
+      window.STATE = { colors: null };
+    });
+
+    const savedTab = tabs.nth(initialCount);
+    await savedTab.click();
+
+    await page.waitForFunction(() => {
+      const state = window.STATE;
+      return !!(state && state.colors instanceof Map && state.colors.size === 2);
+    });
+
+    const roundTrip = await page.evaluate(() => {
+      const state = window.STATE;
+      if (!state || !(state.colors instanceof Map)) return null;
+      const collected = [];
+      state.colors.forEach((set, key) => {
+        const values = set instanceof Set ? Array.from(set).sort() : [];
+        collected.push([key, values]);
+      });
+      collected.sort((a, b) => {
+        if (a[0] === b[0]) return 0;
+        return a[0] < b[0] ? -1 : 1;
+      });
+      return collected;
+    });
+
+    expect(roundTrip).toEqual([
+      ['andre', ['grønn']],
+      ['første', ['blå', 'rød']]
+    ]);
+  });
 });

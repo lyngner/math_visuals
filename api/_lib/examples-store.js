@@ -17,6 +17,150 @@ const memoryIndex = globalScope.__EXAMPLES_MEMORY_INDEX__;
 let kvClientPromise = null;
 let kvConfigWarningLogged = false;
 
+const EXAMPLE_VALUE_TYPE_KEY = '__mathVisualsType__';
+const EXAMPLE_VALUE_DATA_KEY = '__mathVisualsValue__';
+
+function serializeExampleValue(value, seen) {
+  if (value == null) return value;
+  const valueType = typeof value;
+  if (valueType === 'function' || valueType === 'symbol') return undefined;
+  if (valueType !== 'object') return value;
+  if (seen.has(value)) return seen.get(value);
+  const tag = Object.prototype.toString.call(value);
+  if (tag === '[object Map]') {
+    const entries = [];
+    const marker = {
+      [EXAMPLE_VALUE_TYPE_KEY]: 'map',
+      [EXAMPLE_VALUE_DATA_KEY]: entries
+    };
+    seen.set(value, marker);
+    value.forEach((entryValue, entryKey) => {
+      entries.push([
+        serializeExampleValue(entryKey, seen),
+        serializeExampleValue(entryValue, seen)
+      ]);
+    });
+    return marker;
+  }
+  if (tag === '[object Set]') {
+    const items = [];
+    const marker = {
+      [EXAMPLE_VALUE_TYPE_KEY]: 'set',
+      [EXAMPLE_VALUE_DATA_KEY]: items
+    };
+    seen.set(value, marker);
+    value.forEach(entryValue => {
+      items.push(serializeExampleValue(entryValue, seen));
+    });
+    return marker;
+  }
+  if (tag === '[object Date]') {
+    return {
+      [EXAMPLE_VALUE_TYPE_KEY]: 'date',
+      [EXAMPLE_VALUE_DATA_KEY]: value.toISOString()
+    };
+  }
+  if (tag === '[object RegExp]') {
+    return {
+      [EXAMPLE_VALUE_TYPE_KEY]: 'regexp',
+      pattern: value.source,
+      flags: value.flags || ''
+    };
+  }
+  if (Array.isArray(value)) {
+    const arr = [];
+    seen.set(value, arr);
+    for (let i = 0; i < value.length; i++) {
+      arr[i] = serializeExampleValue(value[i], seen);
+    }
+    return arr;
+  }
+  if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, EXAMPLE_VALUE_TYPE_KEY)) {
+    const clone = {};
+    seen.set(value, clone);
+    Object.keys(value).forEach(key => {
+      const encoded = serializeExampleValue(value[key], seen);
+      if (encoded !== undefined) {
+        clone[key] = encoded;
+      }
+    });
+    return clone;
+  }
+  const obj = {};
+  seen.set(value, obj);
+  Object.keys(value).forEach(key => {
+    const encoded = serializeExampleValue(value[key], seen);
+    if (encoded !== undefined) {
+      obj[key] = encoded;
+    }
+  });
+  return obj;
+}
+
+function deserializeExampleValue(value, seen) {
+  if (value == null || typeof value !== 'object') {
+    return value;
+  }
+  if (seen.has(value)) {
+    return seen.get(value);
+  }
+  if (Array.isArray(value)) {
+    const arr = [];
+    seen.set(value, arr);
+    for (let i = 0; i < value.length; i++) {
+      arr[i] = deserializeExampleValue(value[i], seen);
+    }
+    return arr;
+  }
+  const type = value[EXAMPLE_VALUE_TYPE_KEY];
+  if (type === 'map') {
+    const result = new Map();
+    seen.set(value, result);
+    const entries = Array.isArray(value[EXAMPLE_VALUE_DATA_KEY]) ? value[EXAMPLE_VALUE_DATA_KEY] : [];
+    entries.forEach(entry => {
+      if (!Array.isArray(entry) || entry.length < 2) return;
+      const key = deserializeExampleValue(entry[0], seen);
+      const entryValue = deserializeExampleValue(entry[1], seen);
+      try {
+        result.set(key, entryValue);
+      } catch (_) {}
+    });
+    return result;
+  }
+  if (type === 'set') {
+    const result = new Set();
+    seen.set(value, result);
+    const items = Array.isArray(value[EXAMPLE_VALUE_DATA_KEY]) ? value[EXAMPLE_VALUE_DATA_KEY] : [];
+    items.forEach(item => {
+      result.add(deserializeExampleValue(item, seen));
+    });
+    return result;
+  }
+  if (type === 'date') {
+    const isoValue = value[EXAMPLE_VALUE_DATA_KEY];
+    return typeof isoValue === 'string' ? new Date(isoValue) : new Date(NaN);
+  }
+  if (type === 'regexp') {
+    const pattern = typeof value.pattern === 'string' ? value.pattern : '';
+    const flags = typeof value.flags === 'string' ? value.flags : '';
+    try {
+      return new RegExp(pattern, flags);
+    } catch (_) {
+      try {
+        return new RegExp(pattern);
+      } catch (_) {
+        return new RegExp('');
+      }
+    }
+  }
+  const obj = {};
+  seen.set(value, obj);
+  Object.keys(value).forEach(key => {
+    obj[key] = deserializeExampleValue(value[key], seen);
+  });
+  return obj;
+}
+
 class KvOperationError extends Error {
   constructor(message, options) {
     super(message);
@@ -69,16 +213,19 @@ function makeKey(path) {
 
 function clone(value) {
   if (value == null) return value;
+  const serialized = serializeExampleValue(value, new WeakMap());
   try {
-    return JSON.parse(JSON.stringify(value));
+    return JSON.parse(JSON.stringify(serialized));
   } catch (error) {
-    return value;
+    return serialized;
   }
 }
 
 function sanitizeExamples(arr) {
   if (!Array.isArray(arr)) return [];
-  return arr.filter(item => item && typeof item === 'object').map(item => clone(item));
+  return arr
+    .filter(item => item && typeof item === 'object')
+    .map(item => serializeExampleValue(item, new WeakMap()));
 }
 
 function sanitizeDeleted(list) {
@@ -265,5 +412,7 @@ module.exports = {
   deleteEntry,
   listEntries,
   KvOperationError,
-  isKvConfigured
+  isKvConfigured,
+  __serializeExampleValue: value => serializeExampleValue(value, new WeakMap()),
+  __deserializeExampleValue: value => deserializeExampleValue(value, new WeakMap())
 };
