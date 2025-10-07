@@ -2770,8 +2770,8 @@
   function applyModeChange(nextMode) {
     if (typeof nextMode !== 'string') return;
     const normalized = nextMode.toLowerCase();
-    const editModes = new Set(['edit']);
-    const playModes = new Set(['play', 'solve', 'student', 'view']);
+    const editModes = new Set(['edit', 'default']);
+    const playModes = new Set(['play', 'solve', 'student', 'view', 'task']);
     if (!editModes.has(normalized) && !playModes.has(normalized)) return;
     const nextIsEditMode = editModes.has(normalized);
     if (typeof window !== 'undefined') {
@@ -2796,6 +2796,13 @@
     const { type, mode: nextMode } = data;
     if (type !== 'math-visuals:mode-change') return;
     applyModeChange(nextMode);
+  }
+
+  function handleAppModeEvent(event) {
+    if (!event) return;
+    const detail = event.detail;
+    if (!detail || typeof detail !== 'object') return;
+    applyModeChange(detail.mode);
   }
 
   if (showGridToggle) {
@@ -2864,6 +2871,7 @@
   }
 
   window.addEventListener('message', handleModeMessage);
+  window.addEventListener('math-visuals:app-mode-changed', handleAppModeEvent);
 
   function requestInitialMode() {
     if (typeof window === 'undefined') return;
