@@ -655,9 +655,12 @@
     const normalized = normalizeLineEndings(text);
     const TASK_MARKER = '@task{';
     const TABLE_MARKER = '@table{';
+    const withinTask = !!(context && context.withinTask);
+    const allowTaskBlocks = !withinTask;
+    const allowAnswerbox = !context || context.allowAnswerbox !== false;
     let index = 0;
     while (index < normalized.length) {
-      const nextTask = normalized.indexOf(TASK_MARKER, index);
+      const nextTask = allowTaskBlocks ? normalized.indexOf(TASK_MARKER, index) : -1;
       const nextTable = normalized.indexOf(TABLE_MARKER, index);
       let nextIndex = normalized.length;
       let type = null;
@@ -671,17 +674,17 @@
       }
       if (type === null) {
         const remaining = normalized.slice(index);
-        appendParagraphs(target, remaining, placeholders, behaviors, { allowAnswerbox: true });
+        appendParagraphs(target, remaining, placeholders, behaviors, { allowAnswerbox });
         break;
       }
       if (nextIndex > index) {
         const before = normalized.slice(index, nextIndex);
-        appendParagraphs(target, before, placeholders, behaviors, { allowAnswerbox: true });
+        appendParagraphs(target, before, placeholders, behaviors, { allowAnswerbox });
       }
       if (type === 'task') {
         const extraction = extractBalancedContent(normalized, nextIndex + TASK_MARKER.length);
         if (!extraction) {
-          appendParagraphs(target, normalized.slice(nextIndex), placeholders, behaviors, { allowAnswerbox: true });
+          appendParagraphs(target, normalized.slice(nextIndex), placeholders, behaviors, { allowAnswerbox });
           break;
         }
         renderTaskBlock(target, extraction.content, placeholders, behaviors);
@@ -691,14 +694,14 @@
       if (type === 'table') {
         const extraction = extractBalancedContent(normalized, nextIndex + TABLE_MARKER.length);
         if (!extraction) {
-          appendParagraphs(target, normalized.slice(nextIndex), placeholders, behaviors, { allowAnswerbox: true });
+          appendParagraphs(target, normalized.slice(nextIndex), placeholders, behaviors, { allowAnswerbox });
           break;
         }
         const table = createDescriptionTable(extraction.content, placeholders, behaviors);
         if (table) {
           target.appendChild(table);
         } else {
-          appendParagraphs(target, normalized.slice(nextIndex, extraction.endIndex + 1), placeholders, behaviors, { allowAnswerbox: true });
+          appendParagraphs(target, normalized.slice(nextIndex, extraction.endIndex + 1), placeholders, behaviors, { allowAnswerbox });
         }
         index = extraction.endIndex + 1;
         continue;
