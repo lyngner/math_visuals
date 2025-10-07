@@ -120,15 +120,9 @@ function setHiddenFlag(target, key, value) {
     enumerable: false
   });
 }
-function getRowSpanRatios(rowIndex, totalRows) {
-  const rows = Number.isFinite(totalRows) && totalRows > 0 ? Math.floor(totalRows) : 1;
-  const safeIndex = Number.isFinite(rowIndex) ? Math.min(Math.max(Math.floor(rowIndex), 0), rows - 1) : 0;
-  let topRatio = TOP_RATIO;
-  let bottomRatio = BOTTOM_RATIO;
-  if (rows > 1) {
-    if (safeIndex > 0) topRatio = 0;
-    if (safeIndex < rows - 1) bottomRatio = 1;
-  }
+function getRowSpanRatios() {
+  const topRatio = clamp(TOP_RATIO, 0, 1);
+  const bottomRatio = clamp(BOTTOM_RATIO, topRatio, 1);
   return {
     topRatio,
     bottomRatio
@@ -614,26 +608,26 @@ function getBlockMetrics(block) {
   } = getSvgViewport(block);
   const left = width * SIDE_MARGIN_RATIO;
   const right = width - left;
-  let top = height * TOP_RATIO;
-  let bottom = height * BOTTOM_RATIO;
+  const { topRatio, bottomRatio } = getRowSpanRatios();
+  let top = height * topRatio;
+  let bottom = height * bottomRatio;
   const bracketTick = height * BRACKET_TICK_RATIO;
   let braceY = height * BRACE_Y_RATIO;
   let labelOffsetY = height * LABEL_OFFSET_RATIO;
-  const frameInset = getFrameInset(block);
-  const totalRows = Number.isFinite(CONFIG === null || CONFIG === void 0 ? void 0 : CONFIG.rows) ? Number(CONFIG.rows) : 1;
-  const rowIndex = Number.isFinite(block === null || block === void 0 ? void 0 : block.row) ? Number(block.row) : 0;
-  const isFirstRow = rowIndex <= 0;
-  const isLastRow = rowIndex >= totalRows - 1;
-  if (totalRows > 1) {
-    if (!isFirstRow) {
-      top = 0;
-      braceY = Math.max(bracketTick, Math.min(braceY, bracketTick * 2));
-      labelOffsetY = Math.max(0, Math.min(labelOffsetY, braceY - 8));
-    }
-    if (!isLastRow) {
-      bottom = height;
+  if (bottom <= top) {
+    bottom = Math.max(top, height);
+  }
+  const span = bottom - top;
+  if (span > 0) {
+    const desiredInner = height * BASE_INNER_RATIO;
+    const innerDelta = span - desiredInner;
+    if (Math.abs(innerDelta) > 0.001) {
+      const adjust = innerDelta / 2;
+      top -= adjust;
+      bottom += adjust;
     }
   }
+  const frameInset = getFrameInset(block);
   const outerWidth = Math.max(0, right - left);
   const outerHeight = Math.max(0, bottom - top);
   const clampedInset = Math.min(frameInset, outerWidth / 2, outerHeight / 2);
@@ -1092,8 +1086,8 @@ function draw(skipNormalization = false) {
   }
   const rowHeights = Array.from({
     length: CONFIG.rows
-  }, (_, rowIndex) => {
-    const { topRatio, bottomRatio } = getRowSpanRatios(rowIndex, CONFIG.rows);
+  }, () => {
+    const { topRatio, bottomRatio } = getRowSpanRatios();
     const span = bottomRatio - topRatio;
     if (!(span > 0)) return DEFAULT_SVG_HEIGHT;
     const height = DEFAULT_SVG_HEIGHT * BASE_INNER_RATIO / span;
