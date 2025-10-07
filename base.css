@@ -496,7 +496,8 @@ body[data-app-mode="task"] .card:has(.alt-text) {
   display: none !important;
 }
 
-body[data-app-mode="task"] .card--examples {
+body[data-app-mode="task"] .side > .card.card--examples {
+  display: flex !important;
   gap: 12px;
 }
 

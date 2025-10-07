@@ -678,9 +678,82 @@
     if (!Array.isArray(answerBoxes) || !answerBoxes.length) return;
     answerBoxes.forEach(box => {
       if (!box || !box.input) return;
+      const { container, input, status } = box;
       const handler = () => evaluateAnswerBox(box);
-      box.input.addEventListener('input', handler);
-      box.input.addEventListener('blur', handler);
+      const focusInput = event => {
+        if (!input || typeof input.focus !== 'function') return;
+        if (event && event.target && event.target.closest && event.target.closest('.math-vis-answerbox__input')) {
+          return;
+        }
+        if (event && typeof event.preventDefault === 'function') {
+          event.preventDefault();
+        }
+        try {
+          const descriptionInput = doc && doc.getElementById ? doc.getElementById('exampleDescription') : null;
+          if (descriptionInput && typeof descriptionInput.blur === 'function') {
+            descriptionInput.blur();
+          }
+        } catch (error) {}
+        try {
+          input.focus({ preventScroll: true });
+        } catch (error) {
+          input.focus();
+        }
+      };
+
+      if (container && typeof container.addEventListener === 'function') {
+        container.addEventListener('pointerdown', focusInput);
+        container.addEventListener('mousedown', focusInput);
+      }
+      if (status && typeof status.addEventListener === 'function') {
+        status.addEventListener('pointerdown', focusInput);
+        status.addEventListener('mousedown', focusInput);
+      }
+      if (input && typeof input.addEventListener === 'function') {
+        input.addEventListener('pointerdown', () => {
+          try {
+            const descriptionInput = doc && doc.getElementById ? doc.getElementById('exampleDescription') : null;
+            if (descriptionInput && typeof descriptionInput.blur === 'function') {
+              descriptionInput.blur();
+            }
+            input.focus({ preventScroll: true });
+          } catch (error) {
+            input.focus();
+          }
+        });
+        input.addEventListener('mousedown', () => {
+          try {
+            const descriptionInput = doc && doc.getElementById ? doc.getElementById('exampleDescription') : null;
+            if (descriptionInput && typeof descriptionInput.blur === 'function') {
+              descriptionInput.blur();
+            }
+            input.focus({ preventScroll: true });
+          } catch (error) {
+            input.focus();
+          }
+        });
+        input.addEventListener('input', handler);
+        input.addEventListener('blur', handler);
+
+        const proto = Object.getPrototypeOf(input);
+        const valueDescriptor = proto && Object.getOwnPropertyDescriptor(proto, 'value');
+        if (valueDescriptor && typeof valueDescriptor.get === 'function' && typeof valueDescriptor.set === 'function') {
+          if (!input.hasAttribute('data-answerbox-value-patch')) {
+            Object.defineProperty(input, 'value', {
+              configurable: true,
+              enumerable: valueDescriptor.enumerable,
+              get() {
+                return valueDescriptor.get.call(this);
+              },
+              set(newValue) {
+                valueDescriptor.set.call(this, newValue);
+                handler();
+              }
+            });
+            input.setAttribute('data-answerbox-value-patch', 'true');
+          }
+        }
+      }
       evaluateAnswerBox(box);
     });
   }
@@ -722,6 +795,12 @@
     }
     if (answerBoxes.length) {
       setupAnswerBoxes(answerBoxes);
+      try {
+        const descriptionInput = doc && doc.getElementById ? doc.getElementById('exampleDescription') : null;
+        if (descriptionInput && doc.activeElement === descriptionInput && typeof descriptionInput.blur === 'function') {
+          descriptionInput.blur();
+        }
+      } catch (error) {}
     }
     return hasContent;
   }
