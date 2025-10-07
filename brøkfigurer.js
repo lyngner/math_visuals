@@ -105,6 +105,7 @@
   }
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const figures = [];
+  let altTextManager = null;
   const BOARD_MARGIN = 0.05;
   const BOARD_SIZE = 1 + BOARD_MARGIN * 2;
   const BOARD_BOUNDING_BOX = [-BOARD_MARGIN, 1 + BOARD_MARGIN, 1 + BOARD_MARGIN, -BOARD_MARGIN];
@@ -176,6 +177,8 @@
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;
   const modifiedColorIndexes = new Set();
+  if (typeof STATE.altText !== 'string') STATE.altText = '';
+  if (STATE.altTextSource !== 'manual') STATE.altTextSource = 'auto';
   if (Array.isArray(STATE.colors)) {
     STATE.colors.forEach((color, idx) => {
       if (typeof color === 'string' && color) modifiedColorIndexes.add(idx);
@@ -422,6 +425,7 @@
       if (fig && typeof fig.draw === 'function') fig.draw();
     }
     scheduleFigureSizeUpdate();
+    refreshAltText('render');
   }
   function createFigurePanel(id) {
     const panel = document.createElement('div');
@@ -524,6 +528,263 @@
         figures[id] = setupFigure(id);
       }
     }
+  }
+  function joinWithOg(items) {
+    if (!Array.isArray(items)) return '';
+    const filtered = items.filter(item => typeof item === 'string' && item);
+    const count = filtered.length;
+    if (count === 0) return '';
+    if (count === 1) return filtered[0];
+    if (count === 2) return `${filtered[0]} og ${filtered[1]}`;
+    return `${filtered.slice(0, -1).join(', ')} og ${filtered[count - 1]}`;
+  }
+  function formatCount(value, singular, plural) {
+    const num = Number.isFinite(value) ? Math.round(value) : 0;
+    const abs = Math.abs(num);
+    const word = abs === 1 ? singular : plural || `${singular}er`;
+    return `${num} ${word}`;
+  }
+  function getShapeInfo(shape) {
+    switch (shape) {
+      case 'circle':
+        return { article: 'en', noun: 'sirkel' };
+      case 'rectangle':
+        return { article: 'et', noun: 'rektangel' };
+      case 'square':
+        return { article: 'et', noun: 'kvadrat' };
+      case 'triangle':
+        return { article: 'en', noun: 'trekant' };
+      default:
+        return { article: 'en', noun: 'figur' };
+    }
+  }
+  function computeGridDimensionsForParts(parts) {
+    const n = Math.max(1, Math.round(Number(parts) || 0));
+    let cols = Math.max(1, Math.floor(Math.sqrt(n)));
+    while (cols > 1 && n % cols !== 0) cols--;
+    if (cols <= 0) cols = 1;
+    const rowsCount = Math.max(1, Math.round(n / cols));
+    return { rows: rowsCount, cols };
+  }
+  function describeDivision(fig) {
+    const totalText = formatCount(fig.parts, 'del', 'deler');
+    switch (fig.division) {
+      case 'horizontal':
+        return `delt horisontalt i ${totalText}`;
+      case 'vertical':
+        return `delt vertikalt i ${totalText}`;
+      case 'diagonal':
+        return `delt diagonalt i ${totalText}`;
+      case 'grid': {
+        if (fig.gridRows && fig.gridCols) {
+          const gridText = joinWithOg([
+            formatCount(fig.gridRows, 'rad', 'rader'),
+            formatCount(fig.gridCols, 'kolonne', 'kolonner')
+          ]);
+          if (gridText) {
+            return `delt i et rutenett med ${gridText} (${totalText} totalt)`;
+          }
+        }
+        return `delt i et rutenett med ${totalText}`;
+      }
+      case 'triangular': {
+        if (fig.triangularSize) {
+          return `delt i et trekantsrutenett på ${formatCount(fig.triangularSize, 'rad', 'rader')} (${totalText} totalt)`;
+        }
+        return `delt i et trekantsrutenett med ${totalText}`;
+      }
+      default:
+        return `delt i ${totalText}`;
+    }
+  }
+  function describeFillUsage(fig) {
+    const counts = Array.isArray(fig.colorCounts) ? fig.colorCounts : [];
+    const parts = [];
+    counts.forEach((count, idx) => {
+      if (!Number.isFinite(count) || count <= 0) return;
+      parts.push(`${formatCount(count, 'del', 'deler')} i farge ${idx + 1}`);
+    });
+    if (Number.isFinite(fig.emptyCount) && fig.emptyCount > 0) {
+      parts.push(`${formatCount(fig.emptyCount, 'del', 'deler')} uten farge`);
+    }
+    if (parts.length === 0) {
+      return 'Ingen deler er fylt.';
+    }
+    return `Fordeling: ${joinWithOg(parts)}.`;
+  }
+  function collectBrokfigurerAltSummary() {
+    const ids = getActiveFigureIds();
+    const figureIds = Array.isArray(ids) ? ids : [];
+    const summary = {
+      rows,
+      cols,
+      figureCount: figureIds.length,
+      figures: []
+    };
+    if (figureIds.length === 0) return summary;
+    const paletteLength = getColors().length;
+    figureIds.forEach((id, index) => {
+      const figState = ensureFigureState(id);
+      const shape = typeof (figState == null ? void 0 : figState.shape) === 'string' ? figState.shape : 'rectangle';
+      const division = typeof (figState == null ? void 0 : figState.division) === 'string' ? figState.division : 'horizontal';
+      const parts = clampInt(figState == null ? void 0 : figState.parts, 1);
+      const entries = Array.isArray(figState == null ? void 0 : figState.filled) ? figState.filled : [];
+      const colorCounts = [];
+      const seenParts = new Set();
+      let filledTotal = 0;
+      entries.forEach(entry => {
+        if (!entry || entry.length < 2) return;
+        const partIndex = Number(entry[0]);
+        if (Number.isFinite(partIndex)) {
+          if (seenParts.has(partIndex)) return;
+          seenParts.add(partIndex);
+        }
+        const colorIndex = Number(entry[1]);
+        if (!Number.isFinite(colorIndex) || colorIndex <= 0) return;
+        const idx = Math.max(0, Math.floor(colorIndex - 1));
+        while (colorCounts.length <= idx) colorCounts.push(0);
+        colorCounts[idx] += 1;
+        filledTotal += 1;
+      });
+      if (paletteLength > colorCounts.length) {
+        for (let i = colorCounts.length; i < paletteLength; i++) {
+          colorCounts[i] = 0;
+        }
+      } else {
+        for (let i = 0; i < colorCounts.length; i++) {
+          if (!Number.isFinite(colorCounts[i]) || colorCounts[i] < 0) colorCounts[i] = 0;
+        }
+      }
+      const emptyCount = Math.max(0, parts - filledTotal);
+      let gridRows = null;
+      let gridCols = null;
+      let triangularSize = null;
+      if (division === 'grid') {
+        const dims = computeGridDimensionsForParts(parts);
+        gridRows = dims.rows;
+        gridCols = dims.cols;
+      } else if (division === 'triangular') {
+        triangularSize = Math.max(1, Math.round(Math.sqrt(Math.max(1, parts))));
+      }
+      summary.figures.push({
+        id,
+        index: index + 1,
+        shape,
+        division,
+        parts,
+        colorCounts,
+        emptyCount,
+        gridRows,
+        gridCols,
+        triangularSize
+      });
+    });
+    return summary;
+  }
+  function describeFigureSummary(fig) {
+    const shapeInfo = getShapeInfo(fig.shape);
+    const base = `Figur ${fig.index} er ${shapeInfo.article} ${shapeInfo.noun} ${describeDivision(fig)}.`;
+    const fill = describeFillUsage(fig);
+    return fill ? `${base} ${fill}` : base;
+  }
+  function buildBrokfigurerAltText(summary) {
+    const data = summary || collectBrokfigurerAltSummary();
+    if (!data) return 'Brøkfigurer.';
+    const sentences = [];
+    if (data.figureCount > 0) {
+      const layout = joinWithOg([
+        formatCount(data.rows, 'rad', 'rader'),
+        formatCount(data.cols, 'kolonne', 'kolonner')
+      ]);
+      const figureText = data.figureCount === 1 ? 'én figur' : `${data.figureCount} figurer`;
+      if (layout) {
+        sentences.push(`Oppsettet viser ${figureText} fordelt på ${layout}.`);
+      } else {
+        sentences.push(`Oppsettet viser ${figureText}.`);
+      }
+    } else {
+      sentences.push('Oppsettet viser ingen figurer.');
+    }
+    if (Array.isArray(data.figures)) {
+      data.figures.forEach(fig => {
+        sentences.push(describeFigureSummary(fig));
+      });
+    }
+    return sentences.filter(Boolean).join(' ');
+  }
+  function getBrokfigurerAltTitle() {
+    const summary = collectBrokfigurerAltSummary();
+    if (!summary) return 'Brøkfigurer';
+    return summary.figureCount === 1 ? 'Brøkfigur' : 'Brøkfigurer';
+  }
+  function ensureAltTextAnchor() {
+    if (typeof document === 'undefined') return null;
+    let anchor = document.getElementById('brokfigurer-alt-anchor');
+    if (!anchor) {
+      anchor = document.createElementNS(SVG_NS, 'svg');
+      anchor.setAttribute('id', 'brokfigurer-alt-anchor');
+      anchor.setAttribute('width', '0');
+      anchor.setAttribute('height', '0');
+      anchor.setAttribute('aria-hidden', 'true');
+      anchor.style.position = 'absolute';
+      anchor.style.width = '0';
+      anchor.style.height = '0';
+      anchor.style.overflow = 'hidden';
+      anchor.style.left = '-9999px';
+      if (document.body) {
+        document.body.appendChild(anchor);
+      }
+    }
+    return anchor;
+  }
+  function updateAltTextTargetAttributes() {
+    if (typeof document === 'undefined' || !window.MathVisAltText) return;
+    const board = document.getElementById('figureBoard');
+    const anchor = document.getElementById('brokfigurer-alt-anchor');
+    if (!board || !anchor) return;
+    const nodes = window.MathVisAltText.ensureSvgA11yNodes(anchor);
+    board.setAttribute('role', 'img');
+    board.setAttribute('aria-label', getBrokfigurerAltTitle());
+    if (nodes.titleEl && nodes.titleEl.id) {
+      board.setAttribute('aria-labelledby', nodes.titleEl.id);
+    }
+    if (nodes.descEl && nodes.descEl.id) {
+      board.setAttribute('aria-describedby', nodes.descEl.id);
+    }
+  }
+  function refreshAltText(reason) {
+    if (altTextManager && typeof altTextManager.refresh === 'function') {
+      altTextManager.refresh(reason || 'auto');
+    }
+    updateAltTextTargetAttributes();
+  }
+  function initAltTextManager() {
+    if (typeof window === 'undefined' || !window.MathVisAltText) return;
+    if (altTextManager) {
+      updateAltTextTargetAttributes();
+      return;
+    }
+    const container = document.getElementById('exportCard');
+    if (!container) return;
+    const anchor = ensureAltTextAnchor();
+    if (!anchor) return;
+    altTextManager = window.MathVisAltText.create({
+      svg: () => anchor,
+      container,
+      getTitle: getBrokfigurerAltTitle,
+      getState: () => ({
+        text: typeof STATE.altText === 'string' ? STATE.altText : '',
+        source: STATE.altTextSource === 'manual' ? 'manual' : 'auto'
+      }),
+      setState: (text, source) => {
+        STATE.altText = text;
+        STATE.altTextSource = source === 'manual' ? 'manual' : 'auto';
+      },
+      generate: () => buildBrokfigurerAltText(),
+      getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
+      getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
+    });
+    updateAltTextTargetAttributes();
   }
   window.render = renderAll;
   function setupFigure(id) {
@@ -899,6 +1160,7 @@
       }
       board.update();
       syncFilledState();
+      refreshAltText('fill-change');
     }
     function gridDims(n) {
       let cols = Math.floor(Math.sqrt(n));
@@ -1584,6 +1846,7 @@
     window.render();
   });
   rebuildLayout();
+  initAltTextManager();
   window.addEventListener('examples:collect', event => {
     var _window$render3, _window3, _window$render4, _window4;
     const detail = event === null || event === void 0 ? void 0 : event.detail;
