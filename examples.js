@@ -1070,7 +1070,33 @@
   function applyBackendData(data) {
     applyingBackendUpdate = true;
     try {
-      const examples = data && Array.isArray(data.examples) ? data.examples : [];
+      let examples = data && Array.isArray(data.examples) ? data.examples.map(example => example && typeof example === 'object' ? { ...example } : example) : [];
+      const providedDefaults = getProvidedExamples();
+      if (Array.isArray(providedDefaults) && providedDefaults.length) {
+        const existingKeys = new Set();
+        examples.forEach(ex => {
+          const key = normalizeKey(ex && ex.__builtinKey);
+          if (key) existingKeys.add(key);
+        });
+        providedDefaults.forEach(ex => {
+          if (!ex || typeof ex !== 'object') return;
+          const key = normalizeKey(ex.__builtinKey);
+          if (key && existingKeys.has(key)) return;
+          const copy = {
+            config: cloneValue(ex.config),
+            svg: typeof ex.svg === 'string' ? ex.svg : ''
+          };
+          if (key) copy.__builtinKey = key;
+          if (typeof ex.title === 'string') copy.title = ex.title;
+          if (typeof ex.description === 'string') copy.description = ex.description;
+          if (typeof ex.exampleNumber === 'string' || typeof ex.exampleNumber === 'number') {
+            copy.exampleNumber = ex.exampleNumber;
+          }
+          if (ex.isDefault === true) copy.isDefault = true;
+          examples.push(copy);
+          if (key) existingKeys.add(key);
+        });
+      }
       const localExamples = getExamples();
       const hasLocalExamples = Array.isArray(localExamples) && localExamples.length > 0;
       if (examples.length > 0 || !hasLocalExamples) {
