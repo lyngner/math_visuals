@@ -3356,6 +3356,23 @@ window.addEventListener("DOMContentLoaded", async () => {
   initAltTextManager();
   await renderCombined();
 });
+
+window.addEventListener("examples:loaded", () => {
+  applyStateToUI();
+  if (!altTextManager) {
+    initAltTextManager();
+  }
+  if (altTextManager) {
+    altTextManager.applyCurrent();
+    maybeRefreshAltText("examples");
+  }
+});
+
+window.addEventListener("examples:collect", () => {
+  if (altTextManager) {
+    altTextManager.applyCurrent();
+  }
+});
 function applyStateToUI() {
   var _STATE$specsText;
   const specInput = document.getElementById("inpSpecs");
