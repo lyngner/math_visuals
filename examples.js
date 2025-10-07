@@ -496,8 +496,15 @@
       const value = String(window.MATH_VISUALS_EXAMPLES_API_URL).trim();
       if (value) return value;
     }
-    const origin = window.location && window.location.origin;
-    if (typeof origin === 'string' && /^https?:/i.test(origin)) {
+    const { location } = window;
+    if (!location || typeof location !== 'object') return null;
+    const origin = typeof location.origin === 'string' && location.origin ? location.origin : null;
+    if (origin && /^https?:/i.test(origin)) {
+      return '/api/examples';
+    }
+    const protocol = typeof location.protocol === 'string' ? location.protocol : '';
+    const host = typeof location.host === 'string' ? location.host : '';
+    if (protocol && /^https?:$/i.test(protocol) && host) {
       return '/api/examples';
     }
     return null;
