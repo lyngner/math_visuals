@@ -407,34 +407,54 @@
       }
     };
   }
-  function createFallbackStorage() {
-    return createSessionFallbackStorage() || createMemoryStorage();
-  }
-  const fallbackStorage = (() => {
-    if (globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function') {
-      return globalScope.__EXAMPLES_FALLBACK_STORAGE__;
-    }
-    const store = createFallbackStorage();
+  let fallbackStorage = null;
+  let fallbackStorageMode = 'memory';
+  let fallbackStorageInitialized = false;
+  function applyFallbackStorage(store, mode) {
+    fallbackStorage = store;
+    fallbackStorageMode = mode === 'session' ? 'session' : 'memory';
     if (globalScope) {
       globalScope.__EXAMPLES_FALLBACK_STORAGE__ = store;
+      globalScope.__EXAMPLES_FALLBACK_STORAGE_MODE__ = fallbackStorageMode;
     }
-    return store;
-  })();
+    if (fallbackStorageMode === 'memory') {
+      scheduleMemoryFallbackNotice();
+    }
+    return fallbackStorage;
+  }
+  function initializeFallbackStorage() {
+    if (fallbackStorageInitialized) {
+      return fallbackStorage;
+    }
+    fallbackStorageInitialized = true;
+    if (globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function') {
+      const existing = globalScope.__EXAMPLES_FALLBACK_STORAGE__;
+      const mode = globalScope.__EXAMPLES_FALLBACK_STORAGE_MODE__ === 'session' ? 'session' : 'memory';
+      return applyFallbackStorage(existing, mode);
+    }
+    const sessionStore = createSessionFallbackStorage();
+    if (sessionStore) {
+      return applyFallbackStorage(sessionStore, 'session');
+    }
+    return applyFallbackStorage(createMemoryStorage(), 'memory');
+  }
+  initializeFallbackStorage();
   let usingFallbackStorage = false;
   let updateRestoreButtonState = () => {};
-    function ensureFallbackStorage() {
-      if (!usingFallbackStorage) {
-        usingFallbackStorage = true;
-        let localStorageAvailable = false;
+  function ensureFallbackStorage() {
+    const target = initializeFallbackStorage() || createMemoryStorage();
+    if (!usingFallbackStorage) {
+      usingFallbackStorage = true;
+      let localStorageAvailable = false;
+      try {
+        localStorageAvailable = typeof localStorage !== 'undefined';
+      } catch (_) {
+        localStorageAvailable = false;
+      }
+      if (localStorageAvailable) {
         try {
-          localStorageAvailable = typeof localStorage !== 'undefined';
-        } catch (_) {
-          localStorageAvailable = false;
-        }
-        if (localStorageAvailable) {
-          try {
-            const total = Number(localStorage.length) || 0;
-            for (let i = 0; i < total; i++) {
+          const total = Number(localStorage.length) || 0;
+          for (let i = 0; i < total; i++) {
             let key = null;
             try {
               key = localStorage.key(i);
@@ -444,50 +464,137 @@
             if (!key) continue;
             try {
               const value = localStorage.getItem(key);
-              if (value != null) fallbackStorage.setItem(key, value);
+              if (value != null) target.setItem(key, value);
             } catch (_) {}
           }
         } catch (_) {}
       }
       if (globalScope) {
-        globalScope.__EXAMPLES_STORAGE__ = fallbackStorage;
+        globalScope.__EXAMPLES_STORAGE__ = target;
       }
     }
-    return fallbackStorage;
+    return target;
+  }
+  function copyStorageContents(source, target) {
+    if (!source || !target || source === target) return;
+    let total = 0;
+    try {
+      total = Number(source.length) || 0;
+    } catch (_) {
+      total = 0;
+    }
+    for (let i = 0; i < total; i++) {
+      let key = null;
+      try {
+        key = source.key(i);
+      } catch (_) {
+        key = null;
+      }
+      if (!key) continue;
+      try {
+        const value = source.getItem(key);
+        if (value != null) target.setItem(key, value);
+      } catch (_) {}
+    }
+  }
+  function switchToMemoryFallback() {
+    const current = initializeFallbackStorage();
+    if (fallbackStorageMode === 'memory' && current) {
+      return current;
+    }
+    const memory = createMemoryStorage();
+    if (current && typeof current.getItem === 'function') {
+      copyStorageContents(current, memory);
+    }
+    applyFallbackStorage(memory, 'memory');
+    if (usingFallbackStorage && globalScope) {
+      globalScope.__EXAMPLES_STORAGE__ = memory;
+    }
+    return memory;
+  }
+  function trySetItemOn(store, key, value) {
+    if (!store || typeof store.setItem !== 'function') return false;
+    try {
+      store.setItem(key, value);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+  function tryGetItemFrom(store, key) {
+    if (!store || typeof store.getItem !== 'function') {
+      return { success: false, value: null };
+    }
+    try {
+      return { success: true, value: store.getItem(key) };
+    } catch (_) {
+      return { success: false, value: null };
+    }
+  }
+  function tryRemoveItemFrom(store, key) {
+    if (!store || typeof store.removeItem !== 'function') return false;
+    try {
+      store.removeItem(key);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
   function safeGetItem(key) {
     if (usingFallbackStorage) {
-      return fallbackStorage.getItem(key);
+      const store = initializeFallbackStorage();
+      const result = tryGetItemFrom(store, key);
+      if (result.success) return result.value;
+      const memory = switchToMemoryFallback();
+      const fallbackResult = tryGetItemFrom(memory, key);
+      return fallbackResult.success ? fallbackResult.value : null;
     }
     try {
       if (typeof localStorage === 'undefined') throw new Error('Storage not available');
       return localStorage.getItem(key);
     } catch (_) {
-      return ensureFallbackStorage().getItem(key);
+      const store = ensureFallbackStorage();
+      const result = tryGetItemFrom(store, key);
+      if (result.success) return result.value;
+      const memory = switchToMemoryFallback();
+      const fallbackResult = tryGetItemFrom(memory, key);
+      return fallbackResult.success ? fallbackResult.value : null;
     }
   }
   function safeSetItem(key, value) {
     if (usingFallbackStorage) {
-      fallbackStorage.setItem(key, value);
+      const store = initializeFallbackStorage();
+      if (trySetItemOn(store, key, value)) return;
+      const memory = switchToMemoryFallback();
+      trySetItemOn(memory, key, value);
       return;
     }
     try {
       if (typeof localStorage === 'undefined') throw new Error('Storage not available');
       localStorage.setItem(key, value);
     } catch (_) {
-      ensureFallbackStorage().setItem(key, value);
+      const store = ensureFallbackStorage();
+      if (trySetItemOn(store, key, value)) return;
+      const memory = switchToMemoryFallback();
+      trySetItemOn(memory, key, value);
     }
   }
   function safeRemoveItem(key) {
     if (usingFallbackStorage) {
-      fallbackStorage.removeItem(key);
+      const store = initializeFallbackStorage();
+      if (tryRemoveItemFrom(store, key)) return;
+      const memory = switchToMemoryFallback();
+      tryRemoveItemFrom(memory, key);
       return;
     }
     try {
       if (typeof localStorage === 'undefined') throw new Error('Storage not available');
       localStorage.removeItem(key);
     } catch (_) {
-      ensureFallbackStorage().removeItem(key);
+      const store = ensureFallbackStorage();
+      if (tryRemoveItemFrom(store, key)) return;
+      const memory = switchToMemoryFallback();
+      tryRemoveItemFrom(memory, key);
     }
   }
   function resolveExamplesApiBase() {
@@ -797,7 +904,7 @@
       };
     }
     try {
-      const parsed = JSON.parse(trimmed);
+      const parsed = deserializeExamplesFromRaw(trimmed);
       if (Array.isArray(parsed)) {
         return {
           status: 'ok',
@@ -1331,6 +1438,165 @@
     });
   }
 
+  const EXAMPLE_VALUE_TYPE_KEY = '__mathVisualsType__';
+  const EXAMPLE_VALUE_DATA_KEY = '__mathVisualsValue__';
+
+  function serializeExampleValue(value, seen) {
+    if (value == null) return value;
+    const valueType = typeof value;
+    if (valueType === 'function' || valueType === 'symbol') return undefined;
+    if (valueType !== 'object') return value;
+    if (seen.has(value)) return seen.get(value);
+    const tag = Object.prototype.toString.call(value);
+    if (tag === '[object Map]') {
+      const entries = [];
+      const marker = {
+        [EXAMPLE_VALUE_TYPE_KEY]: 'map',
+        [EXAMPLE_VALUE_DATA_KEY]: entries
+      };
+      seen.set(value, marker);
+      value.forEach((entryValue, entryKey) => {
+        entries.push([
+          serializeExampleValue(entryKey, seen),
+          serializeExampleValue(entryValue, seen)
+        ]);
+      });
+      return marker;
+    }
+    if (tag === '[object Set]') {
+      const items = [];
+      const marker = {
+        [EXAMPLE_VALUE_TYPE_KEY]: 'set',
+        [EXAMPLE_VALUE_DATA_KEY]: items
+      };
+      seen.set(value, marker);
+      value.forEach(entryValue => {
+        items.push(serializeExampleValue(entryValue, seen));
+      });
+      return marker;
+    }
+    if (tag === '[object Date]') {
+      return {
+        [EXAMPLE_VALUE_TYPE_KEY]: 'date',
+        [EXAMPLE_VALUE_DATA_KEY]: value.toISOString()
+      };
+    }
+    if (tag === '[object RegExp]') {
+      return {
+        [EXAMPLE_VALUE_TYPE_KEY]: 'regexp',
+        pattern: value.source,
+        flags: value.flags || ''
+      };
+    }
+    if (Array.isArray(value)) {
+      const arr = [];
+      seen.set(value, arr);
+      for (let i = 0; i < value.length; i++) {
+        arr[i] = serializeExampleValue(value[i], seen);
+      }
+      return arr;
+    }
+    if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, EXAMPLE_VALUE_TYPE_KEY)) {
+      const clone = {};
+      seen.set(value, clone);
+      Object.keys(value).forEach(key => {
+        const encoded = serializeExampleValue(value[key], seen);
+        if (encoded !== undefined) {
+          clone[key] = encoded;
+        }
+      });
+      return clone;
+    }
+    const obj = {};
+    seen.set(value, obj);
+    Object.keys(value).forEach(key => {
+      const encoded = serializeExampleValue(value[key], seen);
+      if (encoded !== undefined) {
+        obj[key] = encoded;
+      }
+    });
+    return obj;
+  }
+
+  function deserializeExampleValue(value, seen) {
+    if (value == null || typeof value !== 'object') {
+      return value;
+    }
+    if (seen.has(value)) {
+      return seen.get(value);
+    }
+    if (Array.isArray(value)) {
+      const arr = [];
+      seen.set(value, arr);
+      for (let i = 0; i < value.length; i++) {
+        arr[i] = deserializeExampleValue(value[i], seen);
+      }
+      return arr;
+    }
+    const type = value[EXAMPLE_VALUE_TYPE_KEY];
+    if (type === 'map') {
+      const result = new Map();
+      seen.set(value, result);
+      const entries = Array.isArray(value[EXAMPLE_VALUE_DATA_KEY]) ? value[EXAMPLE_VALUE_DATA_KEY] : [];
+      entries.forEach(entry => {
+        if (!Array.isArray(entry) || entry.length < 2) return;
+        const key = deserializeExampleValue(entry[0], seen);
+        const entryValue = deserializeExampleValue(entry[1], seen);
+        try {
+          result.set(key, entryValue);
+        } catch (_) {}
+      });
+      return result;
+    }
+    if (type === 'set') {
+      const result = new Set();
+      seen.set(value, result);
+      const items = Array.isArray(value[EXAMPLE_VALUE_DATA_KEY]) ? value[EXAMPLE_VALUE_DATA_KEY] : [];
+      items.forEach(item => {
+        result.add(deserializeExampleValue(item, seen));
+      });
+      return result;
+    }
+    if (type === 'date') {
+      const isoValue = value[EXAMPLE_VALUE_DATA_KEY];
+      const date = typeof isoValue === 'string' ? new Date(isoValue) : new Date(NaN);
+      return date;
+    }
+    if (type === 'regexp') {
+      const pattern = typeof value.pattern === 'string' ? value.pattern : '';
+      const flags = typeof value.flags === 'string' ? value.flags : '';
+      try {
+        return new RegExp(pattern, flags);
+      } catch (_) {
+        try {
+          return new RegExp(pattern);
+        } catch (_) {
+          return new RegExp('');
+        }
+      }
+    }
+    const obj = {};
+    seen.set(value, obj);
+    Object.keys(value).forEach(key => {
+      obj[key] = deserializeExampleValue(value[key], seen);
+    });
+    return obj;
+  }
+
+  function serializeExamplesForStorage(examples) {
+    const seen = new WeakMap();
+    return JSON.stringify(examples, (_, value) => serializeExampleValue(value, seen));
+  }
+
+  function deserializeExamplesFromRaw(raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      return deserializeExampleValue(parsed, new WeakMap());
+    } catch (error) {
+      throw error;
+    }
+  }
+
   function getDescriptionContainer() {
     if (descriptionContainer && descriptionContainer.isConnected) return descriptionContainer;
     if (typeof document === 'undefined') return null;
@@ -1583,6 +1849,99 @@
   let defaultEnsureScheduled = false;
   let ensureDefaultsRunning = false;
   let tabsHostCard = null;
+  let memoryFallbackNoticePending = false;
+  let memoryFallbackNoticeRendered = false;
+  let memoryFallbackNoticeElement = null;
+  let memoryFallbackNoticeRenderTimeout = null;
+  let memoryFallbackNoticeDomReadyHandler = null;
+
+  function resolveMemoryFallbackNoticeHost() {
+    if (memoryFallbackNoticeElement && memoryFallbackNoticeElement.isConnected) {
+      return memoryFallbackNoticeElement.parentElement;
+    }
+    if (tabsContainer && tabsContainer.parentElement) {
+      return tabsContainer.parentElement;
+    }
+    if (tabsHostCard && tabsHostCard.isConnected) {
+      return tabsHostCard;
+    }
+    if (typeof document === 'undefined') return null;
+    const card = document.querySelector('.card--examples');
+    if (card instanceof HTMLElement) {
+      return card;
+    }
+    const fallbackCard = document.querySelector('.card');
+    if (fallbackCard instanceof HTMLElement) {
+      return fallbackCard;
+    }
+    return document.body || null;
+  }
+
+  function ensureMemoryFallbackNotice() {
+    if (!memoryFallbackNoticePending || memoryFallbackNoticeRendered) return;
+    if (typeof document === 'undefined') return;
+    const host = resolveMemoryFallbackNoticeHost();
+    if (!host) {
+      if (!memoryFallbackNoticeRenderTimeout) {
+        memoryFallbackNoticeRenderTimeout = setTimeout(() => {
+          memoryFallbackNoticeRenderTimeout = null;
+          ensureMemoryFallbackNotice();
+        }, 100);
+      }
+      return;
+    }
+    let notice = memoryFallbackNoticeElement;
+    if (!(notice instanceof HTMLElement)) {
+      notice = document.createElement('div');
+      notice.className = 'example-storage-notice';
+      notice.setAttribute('role', 'status');
+      notice.setAttribute('aria-live', 'polite');
+      const heading = document.createElement('strong');
+      heading.className = 'example-storage-notice__title';
+      heading.textContent = 'Eksempler lagres midlertidig.';
+      const message = document.createElement('span');
+      message.className = 'example-storage-notice__message';
+      message.textContent = 'Nettleserens lagring er utilgjengelig, så nye eksempler beholdes bare så lenge denne siden er åpen.';
+      notice.appendChild(heading);
+      notice.appendChild(document.createTextNode(' '));
+      notice.appendChild(message);
+    }
+    notice.hidden = false;
+    if (!notice.isConnected) {
+      if (host.firstChild) {
+        host.insertBefore(notice, host.firstChild);
+      } else {
+        host.appendChild(notice);
+      }
+    }
+    memoryFallbackNoticeElement = notice;
+    memoryFallbackNoticeRendered = true;
+    memoryFallbackNoticePending = false;
+  }
+
+  function scheduleMemoryFallbackNotice() {
+    if (memoryFallbackNoticeRendered) return;
+    memoryFallbackNoticePending = true;
+    if (typeof document === 'undefined') return;
+    if (document.readyState === 'loading') {
+      if (!memoryFallbackNoticeDomReadyHandler) {
+        memoryFallbackNoticeDomReadyHandler = () => {
+          memoryFallbackNoticeDomReadyHandler = null;
+          ensureMemoryFallbackNotice();
+        };
+        document.addEventListener('DOMContentLoaded', memoryFallbackNoticeDomReadyHandler, { once: true });
+      }
+      return;
+    }
+    if (memoryFallbackNoticeRenderTimeout) {
+      clearTimeout(memoryFallbackNoticeRenderTimeout);
+      memoryFallbackNoticeRenderTimeout = null;
+    }
+    memoryFallbackNoticeRenderTimeout = setTimeout(() => {
+      memoryFallbackNoticeRenderTimeout = null;
+      ensureMemoryFallbackNotice();
+    }, 0);
+  }
   const hasUrlOverrides = (() => {
     if (typeof URLSearchParams === 'undefined') return false;
     const search = new URLSearchParams(window.location.search);
@@ -1638,7 +1997,7 @@
   }
   function store(examples, options) {
     const normalized = normalizeExamplesForStorage(examples);
-    const serialized = JSON.stringify(normalized);
+    const serialized = serializeExamplesForStorage(normalized);
     const opts = options && typeof options === 'object' ? options : {};
     applyRawExamples(serialized, opts);
   }
@@ -1715,6 +2074,9 @@
 .example-tab.is-active{background:#fff;color:#111827;border-color:var(--purple,#5B2AA5);border-bottom:1px solid #fff;box-shadow:0 -2px 0 var(--purple,#5B2AA5) inset;}
 .example-tab:focus-visible{outline:2px solid var(--purple,#5B2AA5);outline-offset:2px;}
 .example-tabs-empty{font-size:13px;color:#6b7280;padding:6px 0;}
+.example-storage-notice{margin-top:12px;margin-bottom:12px;padding:10px 14px;border-radius:10px;background:#fef3c7;border:1px solid #fcd34d;color:#92400e;font-size:14px;line-height:1.4;display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
+.example-storage-notice__title{font-weight:600;display:inline-flex;align-items:center;}
+.example-storage-notice__message{display:inline-flex;align-items:center;}
 .card-has-settings .example-settings{margin-top:6px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;flex-direction:column;gap:10px;}
 .card-has-settings .example-settings > h2:first-child{margin-top:0;}
 .card-has-settings .example-tabs{margin-bottom:-6px;}
@@ -1827,6 +2189,31 @@
       return undefined;
     }
   }
+  function valueRequiresCustomClone(value, seen) {
+    if (value == null || typeof value !== 'object') return false;
+    if (seen.has(value)) return false;
+    seen.add(value);
+    const tag = Object.prototype.toString.call(value);
+    if (tag === '[object Map]' || tag === '[object Set]' || tag === '[object Date]' || tag === '[object RegExp]') {
+      return true;
+    }
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i++) {
+        if (valueRequiresCustomClone(value[i], seen)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    const keys = Object.keys(value);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (valueRequiresCustomClone(value[key], seen)) {
+        return true;
+      }
+    }
+    return false;
+  }
   function cloneValue(value) {
     if (value == null) return value;
     if (typeof structuredClone === 'function') {
@@ -1834,9 +2221,11 @@
         return structuredClone(value);
       } catch (error) {}
     }
-    try {
-      return JSON.parse(JSON.stringify(value));
-    } catch (error) {}
+    if (!valueRequiresCustomClone(value, new WeakSet())) {
+      try {
+        return JSON.parse(JSON.stringify(value));
+      } catch (error) {}
+    }
     return cloneValueFallback(value, new WeakMap());
   }
   function cloneValueFallback(value, seen) {
@@ -2248,6 +2637,9 @@
         });
         updateTabSelection();
       }
+    }
+    if (memoryFallbackNoticePending && !memoryFallbackNoticeRendered) {
+      ensureMemoryFallbackNotice();
     }
     updateDeleteButtonState(examples.length);
     attemptInitialLoad();
