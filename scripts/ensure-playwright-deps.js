@@ -24,7 +24,15 @@ if (process.getuid && process.getuid() !== 0) {
   process.exit(1);
 }
 
-const result = spawnSync('npx', ['playwright', 'install-deps'], { stdio: 'inherit' });
+const env = { ...process.env };
+if (!env.PLAYWRIGHT_DOWNLOAD_HOST) {
+  env.PLAYWRIGHT_DOWNLOAD_HOST = 'https://playwright.azureedge.net';
+}
+
+const result = spawnSync('npx', ['playwright', 'install-deps'], {
+  stdio: 'inherit',
+  env,
+});
 if (result.status !== 0) {
   console.error('[playwright] Failed to install system dependencies automatically.');
   console.error('Please run `npx playwright install-deps` manually to review the error output.');

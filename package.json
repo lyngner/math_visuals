@@ -5,7 +5,7 @@
   "main": "arealmodell0.js",
   "scripts": {
     "pretest": "node scripts/ensure-playwright-deps.js",
-    "test": "node tests/check-shared-styles.js && playwright test",
+    "test": "node tests/check-shared-styles.js && node scripts/run-playwright.js test",
     "start": "npx http-server -c-1"
   },
   "keywords": [],
