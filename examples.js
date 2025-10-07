@@ -1621,6 +1621,29 @@
     return '';
   }
 
+  const MAX_SVG_STORAGE_BYTES = 120000;
+  function computeByteLength(str) {
+    if (typeof str !== 'string') return 0;
+    if (typeof TextEncoder === 'function') {
+      try {
+        return new TextEncoder().encode(str).length;
+      } catch (_) {}
+    }
+    return str.length;
+  }
+  function sanitizeSvgForStorage(svg) {
+    if (typeof svg !== 'string') return '';
+    const trimmed = svg.trim();
+    if (!trimmed) return '';
+    if (computeByteLength(trimmed) <= MAX_SVG_STORAGE_BYTES) {
+      return trimmed;
+    }
+    const normalized = trimmed.replace(/\s{2,}/g, ' ');
+    if (computeByteLength(normalized) <= MAX_SVG_STORAGE_BYTES) {
+      return normalized;
+    }
+    return '';
+  }
   function normalizeExamplesForStorage(examples) {
     const list = Array.isArray(examples) ? examples : [];
     return list.map(example => {
@@ -1636,6 +1659,9 @@
         copy.description = '';
       } else if (typeof copy.description === 'string') {
         copy.description = normalizeDescriptionString(copy.description);
+      }
+      if (copy.svg != null) {
+        copy.svg = sanitizeSvgForStorage(copy.svg);
       }
       DESCRIPTION_FALLBACK_FIELDS.forEach(field => {
         if (field !== 'description' && Object.prototype.hasOwnProperty.call(copy, field)) {
