@@ -58,8 +58,8 @@
   }) : null;
   const decimalFormatterCache = new Map();
   const pendingKatexLabels = new Set();
-  const VALID_NUMBER_TYPES = new Set(['integer', 'decimal', 'mixedFraction', 'improperFraction']);
-  const LEGACY_NUMBER_TYPE_MAP = { fraction: 'mixedFraction' };
+  const VALID_NUMBER_TYPES = new Set(['integer', 'decimal', 'fraction', 'mixedFraction', 'improperFraction']);
+  const LEGACY_NUMBER_TYPE_MAP = {};
 
   let altTextManager = null;
   let lastRenderSummary = null;
@@ -428,6 +428,7 @@
       case 'decimal':
         return { type: 'text', text: formatDecimal(value, STATE.decimalDigits) };
       case 'fraction':
+        return getFractionRenderInfo(value, 'improperFraction');
       case 'mixedFraction':
         return getFractionRenderInfo(value, 'mixedFraction');
       case 'improperFraction':
@@ -446,12 +447,21 @@
 
   function applyKatexToContainer(container, latex, fallbackText) {
     if (!container || typeof latex !== 'string' || !latex) return false;
-    if (!window.katex || typeof window.katex.renderToString !== 'function') return false;
+    if (
+      !window.katex ||
+      (typeof window.katex.render !== 'function' && typeof window.katex.renderToString !== 'function')
+    ) {
+      return false;
+    }
 
     try {
       const span = document.createElementNS('http://www.w3.org/1999/xhtml', 'span');
       span.className = 'major-label__katex';
-      span.innerHTML = window.katex.renderToString(latex, { throwOnError: false });
+      if (typeof window.katex.render === 'function') {
+        window.katex.render(latex, span, { throwOnError: false });
+      } else {
+        span.innerHTML = window.katex.renderToString(latex, { throwOnError: false });
+      }
       if (!span.querySelector('.katex')) {
         container.innerHTML = '';
         throw new Error('Katex rendering failed');
@@ -469,7 +479,12 @@
   }
 
   function flushPendingKatex() {
-    if (!window.katex || typeof window.katex.render !== 'function') return;
+    if (
+      !window.katex ||
+      (typeof window.katex.render !== 'function' && typeof window.katex.renderToString !== 'function')
+    ) {
+      return;
+    }
     const items = Array.from(pendingKatexLabels);
     for (const container of items) {
       if (!container || !container.dataset) {
@@ -1455,6 +1470,7 @@
       case 'decimal':
         return 'desimaltall';
       case 'fraction':
+        return 'brøker';
       case 'mixedFraction':
         return 'blandete tall';
       case 'improperFraction':
