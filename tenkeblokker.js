@@ -8,7 +8,7 @@ const DEFAULT_BLOCKS = [{
   hideBlock: false,
   lockDenominator: true,
   lockNumerator: true,
-  hideNValue: false,
+  hideNValue: true,
   valueDisplay: 'number',
   showCustomText: false,
   customText: ''
@@ -20,7 +20,7 @@ const DEFAULT_BLOCKS = [{
   hideBlock: false,
   lockDenominator: true,
   lockNumerator: true,
-  hideNValue: false,
+  hideNValue: true,
   valueDisplay: 'number',
   showCustomText: false,
   customText: ''
@@ -44,7 +44,7 @@ const DEFAULT_TENKEBLOKKER_EXAMPLES = [{
         hideBlock: false,
         lockDenominator: false,
         lockNumerator: false,
-        hideNValue: false,
+        hideNValue: true,
         valueDisplay: 'fraction',
         showCustomText: false,
         customText: '',
@@ -1343,12 +1343,13 @@ function createBlock(row, col, cfg) {
   lockNInput.type = 'checkbox';
   lockNInput.id = `${block.uid}-lock-n`;
   lockNInput.addEventListener('change', () => {
-    block.cfg.lockDenominator = !!lockNInput.checked;
+    block.cfg.lockDenominator = !lockNInput.checked;
     draw(true);
   });
   const lockNLabel = document.createElement('label');
   lockNLabel.setAttribute('for', lockNInput.id);
-  lockNLabel.textContent = 'Lås nevner';
+  lockNLabel.textContent = 'Mulighet for å endre nevner';
+  lockNInput.checked = !(cfg !== null && cfg !== void 0 && cfg.lockDenominator);
   lockNRow.append(lockNInput, lockNLabel);
   fieldset.appendChild(lockNRow);
   const lockKRow = document.createElement('div');
@@ -1357,12 +1358,13 @@ function createBlock(row, col, cfg) {
   lockKInput.type = 'checkbox';
   lockKInput.id = `${block.uid}-lock-k`;
   lockKInput.addEventListener('change', () => {
-    block.cfg.lockNumerator = !!lockKInput.checked;
+    block.cfg.lockNumerator = !lockKInput.checked;
     draw(true);
   });
   const lockKLabel = document.createElement('label');
   lockKLabel.setAttribute('for', lockKInput.id);
-  lockKLabel.textContent = 'Lås teller';
+  lockKLabel.textContent = 'Mulighet for å endre teller';
+  lockKInput.checked = !(cfg !== null && cfg !== void 0 && cfg.lockNumerator);
   lockKRow.append(lockKInput, lockKLabel);
   fieldset.appendChild(lockKRow);
   const hideNRow = document.createElement('div');
@@ -1371,12 +1373,13 @@ function createBlock(row, col, cfg) {
   hideNInput.type = 'checkbox';
   hideNInput.id = `${block.uid}-hide-n`;
   hideNInput.addEventListener('change', () => {
-    block.cfg.hideNValue = !!hideNInput.checked;
+    block.cfg.hideNValue = !hideNInput.checked;
     draw(true);
   });
   const hideNLabel = document.createElement('label');
   hideNLabel.setAttribute('for', hideNInput.id);
-  hideNLabel.textContent = 'Skjul n-verdi';
+  hideNLabel.textContent = 'Vis verdien til nevner';
+  hideNInput.checked = !(cfg !== null && cfg !== void 0 && cfg.hideNValue);
   hideNRow.append(hideNInput, hideNLabel);
   fieldset.appendChild(hideNRow);
   const displayLabel = document.createElement('label');
@@ -1605,9 +1608,9 @@ function drawBlock(block) {
       }
     }
     if (hideBlockInput) hideBlockInput.checked = !!cfg.hideBlock;
-    if (lockN) lockN.checked = !!cfg.lockDenominator;
-    if (lockK) lockK.checked = !!cfg.lockNumerator;
-    if (hideN) hideN.checked = !!cfg.hideNValue;
+    if (lockN) lockN.checked = !cfg.lockDenominator;
+    if (lockK) lockK.checked = !cfg.lockNumerator;
+    if (hideN) hideN.checked = !cfg.hideNValue;
     if (display) {
       const mode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
       display.value = mode;
