@@ -8,9 +8,56 @@
   const KATEX_SCRIPT_ID = 'math-vis-katex-script';
   const DESCRIPTION_STYLE_ID = 'math-vis-description-style';
   const DESCRIPTION_RENDERER_URL_KEY = '__MATH_VISUALS_DESCRIPTION_RENDERER_URL__';
+  const DESCRIPTION_RENDERER_SCRIPT_KEY = '__MATH_VISUALS_DESCRIPTION_RENDERER_SCRIPT__';
+  const DESCRIPTION_RENDERER_CSS_KEY = '__MATH_VISUALS_DESCRIPTION_RENDERER_CSS__';
   const DESCRIPTION_RENDERER_CSS = 'description-renderer.css';
 
   let scriptAssetUrl = null;
+  let rendererScriptElement = null;
+
+  function rememberRendererScript(element) {
+    if (!element || rendererScriptElement === element) return;
+    rendererScriptElement = element;
+    try {
+      if (global) {
+        global[DESCRIPTION_RENDERER_SCRIPT_KEY] = element;
+      }
+    } catch (error) {}
+  }
+
+  function getRendererScriptElement() {
+    if (rendererScriptElement) return rendererScriptElement;
+    if (!doc) return null;
+    const current = doc.currentScript;
+    if (current) {
+      rememberRendererScript(current);
+      return rendererScriptElement;
+    }
+    if (global) {
+      try {
+        const stored = global[DESCRIPTION_RENDERER_SCRIPT_KEY];
+        if (stored && stored.tagName && stored.tagName.toLowerCase() === 'script') {
+          rendererScriptElement = stored;
+          return rendererScriptElement;
+        }
+      } catch (error) {}
+    }
+    const scripts = doc.getElementsByTagName ? doc.getElementsByTagName('script') : [];
+    for (let i = scripts.length - 1; i >= 0; i--) {
+      const script = scripts[i];
+      if (!script) continue;
+      if (script.getAttribute && script.getAttribute('data-mathvis-description-renderer') === 'true') {
+        rememberRendererScript(script);
+        break;
+      }
+      const src = script.getAttribute && script.getAttribute('src');
+      if (typeof src === 'string' && src.includes('description-renderer.js')) {
+        rememberRendererScript(script);
+        break;
+      }
+    }
+    return rendererScriptElement;
+  }
 
   function resolveScriptUrl() {
     if (scriptAssetUrl) return scriptAssetUrl;
@@ -21,6 +68,7 @@
     const current = doc.currentScript;
     const candidates = [];
     if (current && current.src) {
+      rememberRendererScript(current);
       candidates.push(current.src);
     }
     const scripts = doc.getElementsByTagName ? doc.getElementsByTagName('script') : [];
@@ -30,7 +78,10 @@
       const src = script.getAttribute && script.getAttribute('src');
       if (typeof src === 'string' && src.trim()) {
         candidates.push(src.trim());
-        if (src.endsWith('description-renderer.js')) break;
+        if (src.includes('description-renderer.js')) {
+          rememberRendererScript(script);
+          break;
+        }
       }
     }
     if (global && typeof global[DESCRIPTION_RENDERER_URL_KEY] === 'string') {
@@ -68,6 +119,41 @@
     }
   }
 
+  function resolveStylesheetUrl() {
+    if (global && typeof global[DESCRIPTION_RENDERER_CSS_KEY] === 'string') {
+      return global[DESCRIPTION_RENDERER_CSS_KEY];
+    }
+    const script = getRendererScriptElement();
+    const attributeNames = [
+      'data-mathvis-description-style',
+      'data-description-style',
+      'data-style'
+    ];
+    if (script && script.getAttribute) {
+      for (let i = 0; i < attributeNames.length; i++) {
+        const value = script.getAttribute(attributeNames[i]);
+        if (typeof value === 'string' && value.trim()) {
+          const resolved = resolveAssetUrl(value.trim());
+          if (resolved) {
+            try {
+              if (global) {
+                global[DESCRIPTION_RENDERER_CSS_KEY] = resolved;
+              }
+            } catch (error) {}
+            return resolved;
+          }
+        }
+      }
+    }
+    const fallback = resolveAssetUrl(DESCRIPTION_RENDERER_CSS);
+    try {
+      if (global) {
+        global[DESCRIPTION_RENDERER_CSS_KEY] = fallback;
+      }
+    } catch (error) {}
+    return fallback;
+  }
+
   function ensureDescriptionStylesLoaded() {
     if (!doc || typeof doc.createElement !== 'function') return;
     if (doc.getElementById && doc.getElementById(DESCRIPTION_STYLE_ID)) {
@@ -79,7 +165,7 @@
     if (!link) return;
     link.id = DESCRIPTION_STYLE_ID;
     link.rel = 'stylesheet';
-    link.href = resolveAssetUrl(DESCRIPTION_RENDERER_CSS);
+    link.href = resolveStylesheetUrl();
     link.setAttribute('data-mathvis-description-style', 'true');
     parent.appendChild(link);
   }
