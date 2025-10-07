@@ -15,28 +15,54 @@ test.describe('Description renderer interactions', () => {
 
     await setDescription(
       page,
-      '@task{Regn ut|Hva er 5 + 7? @answer{value=12|placeholder=Skriv svaret}}'
+      [
+        '@task{Regn ut|Hva er 5 + 7? @answer{value=12|placeholder=Skriv svaret}}',
+        '@task{Regn ut igjen|Hva er 9 + 3? @answerbox[value=12|placeholder=Skriv svaret 2]}'
+      ].join('\n\n')
     );
 
     const preview = page.locator('.example-description-preview');
-    const answerBox = preview.locator('.math-vis-answerbox');
-    const input = answerBox.locator('.math-vis-answerbox__input');
-    const status = answerBox.locator('.math-vis-answerbox__status');
+    const answerBoxes = preview.locator('.math-vis-answerbox');
 
-    await expect(input).toBeVisible();
-    await expect(answerBox).toHaveClass(/math-vis-answerbox--empty/);
+    await expect(answerBoxes).toHaveCount(2);
 
-    await input.fill('10');
-    await expect(answerBox).toHaveClass(/math-vis-answerbox--incorrect/);
-    await expect(status).toHaveText('Prøv igjen.');
+    const classicAnswer = answerBoxes.nth(0);
+    const classicInput = classicAnswer.locator('.math-vis-answerbox__input');
+    const classicStatus = classicAnswer.locator('.math-vis-answerbox__status');
 
-    await input.fill('12');
-    await expect(answerBox).toHaveClass(/math-vis-answerbox--correct/);
-    await expect(status).toHaveText('Riktig!');
+    await expect(classicInput).toBeVisible();
+    await expect(classicAnswer).toHaveClass(/math-vis-answerbox--empty/);
 
-    await input.fill('');
-    await expect(answerBox).toHaveClass(/math-vis-answerbox--empty/);
-    await expect(status).toHaveText('');
+    await classicInput.fill('10');
+    await expect(classicAnswer).toHaveClass(/math-vis-answerbox--incorrect/);
+    await expect(classicStatus).toHaveText('Prøv igjen.');
+
+    await classicInput.fill('12');
+    await expect(classicAnswer).toHaveClass(/math-vis-answerbox--correct/);
+    await expect(classicStatus).toHaveText('Riktig!');
+
+    await classicInput.fill('');
+    await expect(classicAnswer).toHaveClass(/math-vis-answerbox--empty/);
+    await expect(classicStatus).toHaveText('');
+
+    const aliasAnswer = answerBoxes.nth(1);
+    const aliasInput = aliasAnswer.locator('.math-vis-answerbox__input');
+    const aliasStatus = aliasAnswer.locator('.math-vis-answerbox__status');
+
+    await expect(aliasInput).toBeVisible();
+    await expect(aliasAnswer).toHaveClass(/math-vis-answerbox--empty/);
+
+    await aliasInput.fill('11');
+    await expect(aliasAnswer).toHaveClass(/math-vis-answerbox--incorrect/);
+    await expect(aliasStatus).toHaveText('Prøv igjen.');
+
+    await aliasInput.fill('12');
+    await expect(aliasAnswer).toHaveClass(/math-vis-answerbox--correct/);
+    await expect(aliasStatus).toHaveText('Riktig!');
+
+    await aliasInput.fill('');
+    await expect(aliasAnswer).toHaveClass(/math-vis-answerbox--empty/);
+    await expect(aliasStatus).toHaveText('');
   });
 
   test('falls back to plain text math when KaTeX is unavailable', async ({ page }) => {
