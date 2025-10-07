@@ -94,8 +94,8 @@
       align-items: center;
       justify-content: flex-end;
       gap: 12px;
-      margin-left: auto;
       flex-wrap: wrap;
+      margin-left: auto;
     }
     .nav-control {
       display: flex;
@@ -142,6 +142,20 @@
     }
     .nav-control select option {
       color: inherit;
+    }
+    .nav-item--trash {
+      margin-left: auto;
+    }
+    .nav-item--trash a {
+      color: #dc2626;
+      background: rgba(220, 38, 38, 0.12);
+      box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.18);
+    }
+    .nav-item--trash a:hover,
+    .nav-item--trash a:focus-visible {
+      color: #fff;
+      background: #dc2626;
+      box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.35), 0 6px 18px rgba(220, 38, 38, 0.28);
     }
     ul {
       list-style: none;
@@ -409,6 +423,9 @@
       .nav-control select {
         width: 100%;
       }
+      .nav-item--trash {
+        margin-left: 0;
+      }
       .nav-toggle {
         display: inline-flex;
         padding: 6px 10px;
@@ -670,6 +687,19 @@
           </svg>
           <span class="sr-only">Tallinje</span>
           <span class="nav-badge" aria-hidden="true">Beta</span>
+        </a>
+      </li>
+      <li class="nav-item--trash">
+        <a href="examples-trash.html" target="content" data-label="Søppelbøtte" aria-label="Søppelbøtte">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 4h6" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 7h14" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 10v7" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v7" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10v7" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 7l1 11a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-11" />
+          </svg>
+          <span class="sr-only">Søppelbøtte</span>
         </a>
       </li>
     </ul>

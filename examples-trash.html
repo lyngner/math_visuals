@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Søppelbøtte for eksempler</title>
+  <link rel="stylesheet" href="base.css" />
+  <style>
+    :root {
+      color-scheme: light;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f7f8fb;
+      color: #111827;
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+    .trash-header {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .trash-header__title {
+      font-size: clamp(1.6rem, 3vw, 2rem);
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0;
+    }
+    .trash-header__description {
+      margin: 0;
+      font-size: 1rem;
+      color: #374151;
+      max-width: 60ch;
+      line-height: 1.5;
+    }
+    .trash-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .trash-toolbar__button {
+      appearance: none;
+      border: 1px solid rgba(15, 109, 143, 0.25);
+      background: #0f6d8f;
+      color: #fff;
+      border-radius: 12px;
+      padding: 8px 14px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .trash-toolbar__button:hover,
+    .trash-toolbar__button:focus-visible {
+      background: #0c5974;
+      box-shadow: 0 4px 12px rgba(15, 109, 143, 0.2);
+      outline: none;
+      transform: translateY(-1px);
+    }
+    .trash-status {
+      font-size: 0.95rem;
+      color: #6b7280;
+      min-height: 1.4em;
+    }
+    .trash-groups {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .trash-empty {
+      margin: 0;
+      padding: 24px;
+      border-radius: 16px;
+      background: #fff;
+      border: 1px dashed rgba(15, 109, 143, 0.25);
+      text-align: center;
+      font-size: 1rem;
+      color: #4b5563;
+    }
+    .trash-group {
+      background: #fff;
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .trash-group__header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+    }
+    .trash-group__title {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .trash-group__meta {
+      font-size: 0.9rem;
+      color: #6b7280;
+    }
+    .trash-item-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .trash-item {
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      border-radius: 14px;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      background: rgba(249, 250, 251, 0.75);
+    }
+    .trash-item__header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .trash-item__title {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #1f2937;
+    }
+    .trash-item__timestamp {
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    .trash-item__description {
+      margin: 0;
+      font-size: 0.95rem;
+      color: #374151;
+      line-height: 1.45;
+      white-space: pre-line;
+    }
+    .trash-item__meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+    .trash-item__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .trash-button {
+      appearance: none;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      padding: 8px 14px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .trash-button:disabled {
+      opacity: 0.55;
+      cursor: progress;
+    }
+    .trash-button--restore {
+      background: #0f6d8f;
+      color: #fff;
+      border-color: rgba(15, 109, 143, 0.35);
+    }
+    .trash-button--restore:hover,
+    .trash-button--restore:focus-visible {
+      background: #0c5974;
+      box-shadow: 0 4px 12px rgba(15, 109, 143, 0.25);
+      transform: translateY(-1px);
+      outline: none;
+    }
+    .trash-button--delete {
+      background: #fff5f5;
+      color: #b91c1c;
+      border-color: rgba(220, 38, 38, 0.25);
+    }
+    .trash-button--delete:hover,
+    .trash-button--delete:focus-visible {
+      background: #fee2e2;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.18);
+      transform: translateY(-1px);
+      outline: none;
+    }
+    .trash-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15, 109, 143, 0.12);
+      color: #0f6d8f;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    @media (max-width: 640px) {
+      main {
+        padding: 24px 14px 36px;
+      }
+      .trash-group {
+        padding: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="trash-header">
+      <h1 class="trash-header__title">Søppelbøtte for eksempler</h1>
+      <p class="trash-header__description">
+        Her finner du eksempler som er slettet fra verktøyene. Du kan gjenopprette dem til opprinnelig verktøy,
+        eller slette dem permanent.
+      </p>
+      <div class="trash-toolbar">
+        <button type="button" class="trash-toolbar__button" data-refresh>
+          <span aria-hidden="true">⟳</span>
+          Oppdater liste
+        </button>
+        <span class="trash-status" data-status aria-live="polite"></span>
+      </div>
+    </header>
+    <section class="trash-groups" data-trash-groups>
+      <p class="trash-empty" data-empty>Ingen arkiverte eksempler er tilgjengelige.</p>
+    </section>
+  </main>
+  <template id="trash-group-template">
+    <section class="trash-group" data-group>
+      <header class="trash-group__header">
+        <h2 class="trash-group__title" data-group-title></h2>
+        <span class="trash-group__meta" data-group-meta></span>
+      </header>
+      <ul class="trash-item-list" data-group-list></ul>
+    </section>
+  </template>
+  <template id="trash-item-template">
+    <li class="trash-item" data-item>
+      <div class="trash-item__header">
+        <h3 class="trash-item__title" data-item-title></h3>
+        <span class="trash-item__timestamp" data-item-timestamp></span>
+      </div>
+      <div class="trash-item__meta" data-item-meta></div>
+      <p class="trash-item__description" data-item-description hidden></p>
+      <div class="trash-item__actions">
+        <button type="button" class="trash-button trash-button--restore" data-action="restore">Gjenopprett</button>
+        <button type="button" class="trash-button trash-button--delete" data-action="delete">Slett permanent</button>
+      </div>
+    </li>
+  </template>
+  <script src="examples-trash.js"></script>
+</body>
+</html>
