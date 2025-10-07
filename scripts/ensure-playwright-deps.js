@@ -19,9 +19,10 @@ if (fs.existsSync(SENTINEL)) {
 }
 
 if (process.getuid && process.getuid() !== 0) {
-  console.error('[playwright] Missing browser system dependencies.');
-  console.error('Run `sudo npx playwright install-deps` (or manually install the dependencies) before running the tests.');
-  process.exit(1);
+  console.warn('[playwright] Missing browser system dependencies.');
+  console.warn('[playwright] Skipping automatic installation because this process does not have root privileges.');
+  console.warn('[playwright] Run `sudo npx playwright install-deps` manually if browser tests fail to launch.');
+  process.exit(0);
 }
 
 const env = { ...process.env };
