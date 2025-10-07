@@ -2007,6 +2007,8 @@
     }
     if (applied) {
       currentExampleIndex = index;
+      pendingRequestedIndex = null;
+      initialLoadPerformed = true;
       updateTabSelection();
       triggerRefresh(index);
       notifyParentExampleChange(index);
