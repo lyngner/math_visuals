@@ -29,8 +29,10 @@
   const BASELINE_Y = 140;
   const MINOR_TICK_HEIGHT = 9;
   const MAJOR_TICK_HEIGHT = 18;
-  const DEFAULT_DRAGGABLE_WIDTH = 160;
-  const DEFAULT_DRAGGABLE_HEIGHT = 64;
+  const DEFAULT_DRAGGABLE_WIDTH = 72;
+  const DEFAULT_DRAGGABLE_HEIGHT = 72;
+  const MIN_DRAGGABLE_DIAMETER = 56;
+  const MAX_DRAGGABLE_DIAMETER = 108;
   const DEFAULT_DRAGGABLE_OFFSET_Y = -120;
 
   const DEFAULT_STATE = {
@@ -559,14 +561,13 @@
     if (!item || !geometry) return null;
     const fontSizeValue = Number(STATE.labelFontSize);
     const normalizedFontSize = Number.isFinite(fontSizeValue) ? fontSizeValue : BASE_LABEL_FONT_SIZE;
-    const width = Math.max(
-      DEFAULT_DRAGGABLE_WIDTH,
-      Math.min(360, Math.max(normalizedFontSize * 6, DEFAULT_DRAGGABLE_WIDTH))
+    const baseSize = Math.max(normalizedFontSize * 2.6, DEFAULT_DRAGGABLE_HEIGHT);
+    const diameter = Math.max(
+      MIN_DRAGGABLE_DIAMETER,
+      Math.min(MAX_DRAGGABLE_DIAMETER, baseSize)
     );
-    const height = Math.max(
-      DEFAULT_DRAGGABLE_HEIGHT,
-      Math.min(200, Math.max(normalizedFontSize * 2.6, DEFAULT_DRAGGABLE_HEIGHT))
-    );
+    const width = diameter;
+    const height = diameter;
 
     const startPosition = item.startPosition && typeof item.startPosition === 'object' ? item.startPosition : {};
     const startValue = Number(startPosition.value);
@@ -596,6 +597,8 @@
     const y = centerY - height / 2;
     const topLeftX = x - width / 2;
 
+    const radius = diameter / 2;
+
     const group = mk('g', { class: 'draggable-item' });
     group.dataset.index = String(index);
     group.dataset.width = String(width);
@@ -611,13 +614,34 @@
 
     group.addEventListener('pointerdown', handleDraggablePointerDown);
 
-    const background = mk('rect', {
-      x: 0,
-      y: 0,
-      width,
-      height,
-      rx: 14,
-      ry: 14,
+    if (isPlaced) {
+      const baselineWithinGroup = BASELINE_Y - y;
+      const pointerThreshold = height + 12;
+      if (baselineWithinGroup > pointerThreshold) {
+        const pointerGroup = mk('g', { class: 'draggable-item__pointer' });
+        const pointerTop = height - 6;
+        const pointerNeckY = Math.max(pointerTop + 6, baselineWithinGroup - 10);
+        const pointerLine = mk('line', {
+          x1: radius,
+          y1: pointerTop,
+          x2: radius,
+          y2: pointerNeckY,
+          class: 'draggable-item__pointer-line'
+        });
+        const pointerHead = mk('polygon', {
+          points: `${radius - 6},${pointerNeckY} ${radius + 6},${pointerNeckY} ${radius},${baselineWithinGroup}`,
+          class: 'draggable-item__pointer-head'
+        });
+        pointerGroup.appendChild(pointerLine);
+        pointerGroup.appendChild(pointerHead);
+        group.appendChild(pointerGroup);
+      }
+    }
+
+    const background = mk('circle', {
+      cx: radius,
+      cy: radius,
+      r: Math.max(radius - 1, 0),
       class: 'draggable-item__bg'
     });
     group.appendChild(background);
