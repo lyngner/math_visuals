@@ -71,6 +71,45 @@
       color: #fff;
       text-transform: uppercase;
     }
+    .draggable-item { cursor: grab; touch-action: none; }
+    .draggable-item.is-placed .draggable-item__bg { fill: #eef2ff; }
+    .draggable-item.is-dragging, .draggable-item:active { cursor: grabbing; }
+    .draggable-item__bg { fill: #fff; stroke: #6366f1; stroke-width: 2; }
+    .draggable-item__fo { pointer-events: none; }
+    .draggable-item__label {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 600;
+      color: #1f2937;
+      text-align: center;
+      padding: 6px 8px;
+      line-height: 1.35;
+      pointer-events: none;
+    }
+    .draggable-config-list { display: flex; flex-direction: column; gap: 12px; }
+    .draggable-config-item {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .draggable-config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    @media (max-width: 600px) { .draggable-config-grid { grid-template-columns: 1fr; } }
+    .draggable-config-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .card--draggables > .draggable-config-actions { margin-top: 12px; }
+    .draggable-config-empty { font-size: 13px; color: #6b7280; margin: 0; }
+    .draggable-config-title { font-size: 14px; font-weight: 600; color: #1f2937; margin: 0; }
+    .btn--ghost { background: transparent; }
+    .btn--ghost:hover { background: #f3f4f6; }
+    .btn--danger { border-color: #ef4444; color: #b91c1c; }
+    .btn--danger:hover { background: #fee2e2; }
   </style>
   <link rel="stylesheet" href="split.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-ywTprUI1Q+mEFz1Ok5AR52lCstOEPCTpQJZMa2+pzSQPwXTwns32xERiqnnn6T5+" crossorigin="anonymous" />
@@ -141,6 +180,15 @@
             <input id="cfg-lockLine" type="checkbox" />
             Lås tallinje
           </label>
+        </div>
+
+        <div class="card card--draggables">
+          <h2>Draggable elementer</h2>
+          <p class="hint">Lag brikker som eleven kan dra til riktig plass på tallinjen.</p>
+          <div id="draggableItems" class="draggable-config-list"></div>
+          <div class="draggable-config-actions">
+            <button id="btnAddDraggable" class="btn" type="button">Legg til element</button>
+          </div>
         </div>
 
         <div class="card" id="exportCard">
