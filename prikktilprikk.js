@@ -905,15 +905,9 @@
     return Math.min(decimals + 1, 6);
   }
 
-  function formatAxisValue(value, decimals) {
+  function formatAxisValue(value) {
     if (!Number.isFinite(value)) return '0';
-    const precision = Number.isFinite(decimals) && decimals >= 0 ? Math.min(6, Math.max(0, Math.floor(decimals))) : 2;
-    const fixed = value.toFixed(precision);
-    const trimmed = fixed
-      .replace(/(\.\d*?[1-9])0+$/, '$1')
-      .replace(/\.0+$/, '')
-      .replace(/^-0$/, '0');
-    return trimmed;
+    return percentString(value);
   }
 
   function makeLineKey(a, b) {
