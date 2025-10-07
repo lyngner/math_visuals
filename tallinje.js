@@ -15,17 +15,23 @@
   const clampLineInput = document.getElementById('cfg-clampLine');
   const lockLineInput = document.getElementById('cfg-lockLine');
   const exportCard = document.getElementById('exportCard');
+  const draggableListContainer = document.getElementById('draggableItems');
+  const addDraggableButton = document.getElementById('btnAddDraggable');
 
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;
 
   const BASE_LABEL_FONT_SIZE = 18;
   const FIGURE_WIDTH = 1000;
+  const FIGURE_HEIGHT = 260;
   const PADDING_LEFT = 80;
   const PADDING_RIGHT = 80;
   const BASELINE_Y = 140;
   const MINOR_TICK_HEIGHT = 9;
   const MAJOR_TICK_HEIGHT = 18;
+  const DEFAULT_DRAGGABLE_WIDTH = 160;
+  const DEFAULT_DRAGGABLE_HEIGHT = 64;
+  const DEFAULT_DRAGGABLE_OFFSET_Y = -120;
 
   const DEFAULT_STATE = {
     from: -0.4,
@@ -38,7 +44,8 @@
     clampToRange: true,
     lockLine: true,
     altText: '',
-    altTextSource: 'auto'
+    altTextSource: 'auto',
+    draggableItems: []
   };
 
   const integerFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO', {
@@ -58,9 +65,79 @@
   let lastRenderSummary = null;
   let currentGeometry = null;
   let activeDragSession = null;
+  let activeDraggableSession = null;
+  let draggableIdCounter = 1;
+  let pendingDraggableFocus = null;
 
   function cloneState(source) {
     return JSON.parse(JSON.stringify(source));
+  }
+
+  function computePlacedOffset(height) {
+    const effectiveHeight = Number.isFinite(height) && height > 0 ? height : DEFAULT_DRAGGABLE_HEIGHT;
+    return -(MAJOR_TICK_HEIGHT + effectiveHeight / 2 + 12);
+  }
+
+  function sanitizeDraggableItems(items) {
+    const list = Array.isArray(items) ? items : [];
+    const sanitized = [];
+    let nextId = Math.max(1, draggableIdCounter);
+
+    const updateCounterFromId = id => {
+      if (typeof id !== 'string') return;
+      const match = id.match(/^draggable-(\d+)$/);
+      if (!match) return;
+      const value = Number.parseInt(match[1], 10);
+      if (Number.isFinite(value) && value + 1 > nextId) {
+        nextId = value + 1;
+      }
+    };
+
+    list.forEach(rawItem => {
+      const item = rawItem && typeof rawItem === 'object' ? rawItem : {};
+      let id = typeof item.id === 'string' && item.id ? item.id : '';
+      if (!id) {
+        id = `draggable-${nextId++}`;
+      } else {
+        updateCounterFromId(id);
+      }
+
+      const label = typeof item.label === 'string' ? item.label : '';
+
+      let value = Number(item.value);
+      if (!Number.isFinite(value)) value = 0;
+
+      const start = item.startPosition && typeof item.startPosition === 'object' ? item.startPosition : {};
+      let startValue = Number(start.value);
+      if (!Number.isFinite(startValue)) startValue = value;
+      let startOffset = Number(start.offsetY);
+      if (!Number.isFinite(startOffset)) startOffset = DEFAULT_DRAGGABLE_OFFSET_Y;
+
+      let currentValue = Number(item.currentValue);
+      if (!Number.isFinite(currentValue)) currentValue = startValue;
+
+      let currentOffsetY = Number(item.currentOffsetY);
+      if (!Number.isFinite(currentOffsetY)) currentOffsetY = startOffset;
+
+      let isPlaced = Boolean(item.isPlaced) && Number.isFinite(item.currentValue);
+      if (!isPlaced) {
+        currentValue = startValue;
+        currentOffsetY = startOffset;
+      }
+
+      item.id = id;
+      item.label = label;
+      item.value = value;
+      item.startPosition = { value: startValue, offsetY: startOffset };
+      item.currentValue = currentValue;
+      item.currentOffsetY = currentOffsetY;
+      item.isPlaced = isPlaced;
+
+      sanitized.push(item);
+    });
+
+    draggableIdCounter = Math.max(nextId, sanitized.length + 1);
+    return sanitized;
   }
 
   function ensureStateDefaults() {
@@ -120,6 +197,8 @@
     if (typeof STATE.altText !== 'string') STATE.altText = '';
     STATE.altTextSource = STATE.altTextSource === 'manual' ? 'manual' : 'auto';
 
+    STATE.draggableItems = sanitizeDraggableItems(STATE.draggableItems);
+
     if (numberType === 'decimal') {
       from = roundToDecimalDigits(from, decimalDigits);
       to = roundToDecimalDigits(to, decimalDigits);
@@ -164,6 +243,38 @@
     const factor = Math.pow(10, safeDigits);
     if (!Number.isFinite(factor) || factor <= 0) return value;
     return Math.round(value * factor) / factor;
+  }
+
+  function getViewBoxPoint(event) {
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+    const x = ((event.clientX - rect.left) / rect.width) * FIGURE_WIDTH;
+    const y = ((event.clientY - rect.top) / rect.height) * FIGURE_HEIGHT;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y };
+  }
+
+  function getSnapSpacing() {
+    let mainStep = Number(STATE.mainStep);
+    if (!Number.isFinite(mainStep) || Math.abs(mainStep) <= 1e-12) {
+      mainStep = 1;
+    }
+    const subdivisions = Math.max(0, Math.round(Number(STATE.subdivisions)) || 0);
+    const spacing = subdivisions > 0 ? mainStep / (subdivisions + 1) : mainStep;
+    if (!Number.isFinite(spacing) || Math.abs(spacing) <= 1e-12) return 1;
+    return Math.abs(spacing);
+  }
+
+  function snapValueToNearest(value) {
+    if (!Number.isFinite(value)) return value;
+    const spacing = getSnapSpacing();
+    if (!(spacing > 1e-12)) return value;
+    const base = Number(STATE.from);
+    const reference = Number.isFinite(base) ? base : 0;
+    const steps = Math.round((value - reference) / spacing);
+    const snapped = reference + steps * spacing;
+    return roundToDecimalDigits(snapped, Math.max((STATE.decimalDigits || 0) + 3, 6));
   }
 
   function getActiveDecimalDigitLimit() {
@@ -406,6 +517,328 @@
     container.textContent = info.text != null ? info.text : '';
   }
 
+  function renderDraggableItemLabel(container, item) {
+    if (!container) return;
+    container.textContent = '';
+    if (container.dataset) {
+      delete container.dataset.katexExpression;
+      delete container.dataset.katexFallback;
+    }
+    pendingKatexLabels.delete(container);
+
+    if (!item || typeof item !== 'object') {
+      container.textContent = '';
+      return;
+    }
+
+    const labelText = typeof item.label === 'string' ? item.label.trim() : '';
+    if (labelText) {
+      container.textContent = labelText;
+      return;
+    }
+
+    renderLabelContent(container, item.value);
+  }
+
+  function buildDraggableNode(item, index, geometry) {
+    if (!item || !geometry) return null;
+    const fontSizeValue = Number(STATE.labelFontSize);
+    const normalizedFontSize = Number.isFinite(fontSizeValue) ? fontSizeValue : BASE_LABEL_FONT_SIZE;
+    const width = Math.max(
+      DEFAULT_DRAGGABLE_WIDTH,
+      Math.min(360, Math.max(normalizedFontSize * 6, DEFAULT_DRAGGABLE_WIDTH))
+    );
+    const height = Math.max(
+      DEFAULT_DRAGGABLE_HEIGHT,
+      Math.min(200, Math.max(normalizedFontSize * 2.6, DEFAULT_DRAGGABLE_HEIGHT))
+    );
+
+    const startPosition = item.startPosition && typeof item.startPosition === 'object' ? item.startPosition : {};
+    const startValue = Number(startPosition.value);
+    const startOffset = Number(startPosition.offsetY);
+    const isPlaced = Boolean(item.isPlaced);
+
+    let currentValue = Number(item.currentValue);
+    if (!Number.isFinite(currentValue)) {
+      currentValue = Number.isFinite(startValue) ? startValue : 0;
+    }
+    let offsetY = Number(item.currentOffsetY);
+    if (isPlaced) {
+      if (!Number.isFinite(offsetY)) {
+        offsetY = computePlacedOffset(height);
+        item.currentOffsetY = offsetY;
+      }
+    } else {
+      offsetY = Number.isFinite(startOffset) ? startOffset : DEFAULT_DRAGGABLE_OFFSET_Y;
+      if (!Number.isFinite(item.currentOffsetY)) {
+        item.currentOffsetY = offsetY;
+      }
+    }
+
+    const x = geometry.mapValue(currentValue);
+    if (!Number.isFinite(x)) return null;
+    const centerY = BASELINE_Y + offsetY;
+    const y = centerY - height / 2;
+    const topLeftX = x - width / 2;
+
+    const group = mk('g', { class: 'draggable-item' });
+    group.dataset.index = String(index);
+    group.dataset.width = String(width);
+    group.dataset.height = String(height);
+    group.dataset.x = String(topLeftX);
+    group.dataset.y = String(y);
+    group.setAttribute('transform', `translate(${topLeftX}, ${y})`);
+    if (isPlaced) {
+      group.classList.add('is-placed');
+    }
+
+    group.style.touchAction = 'none';
+
+    group.addEventListener('pointerdown', handleDraggablePointerDown);
+
+    const background = mk('rect', {
+      x: 0,
+      y: 0,
+      width,
+      height,
+      rx: 14,
+      ry: 14,
+      class: 'draggable-item__bg'
+    });
+    group.appendChild(background);
+
+    const foreignObject = mk('foreignObject', {
+      x: 0,
+      y: 0,
+      width,
+      height,
+      class: 'draggable-item__fo'
+    });
+    const container = document.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+    container.className = 'draggable-item__label';
+    container.style.fontSize = `${normalizedFontSize}px`;
+    renderDraggableItemLabel(container, item);
+    foreignObject.appendChild(container);
+    group.appendChild(foreignObject);
+
+    return group;
+  }
+
+  function renderDraggableItemsLayer(root, geometry) {
+    if (!root || !geometry) return;
+    const items = Array.isArray(STATE.draggableItems) ? STATE.draggableItems : [];
+    if (!items.length) return;
+    const group = mk('g', { class: 'draggable-items-layer' });
+    items.forEach((item, index) => {
+      const node = buildDraggableNode(item, index, geometry);
+      if (node) {
+        group.appendChild(node);
+      }
+    });
+    root.appendChild(group);
+  }
+
+  function scheduleDraggableEditorFocus(itemId, field, input) {
+    if (!input) return;
+    let selectionStart = null;
+    let selectionEnd = null;
+    try {
+      selectionStart = input.selectionStart;
+      selectionEnd = input.selectionEnd;
+    } catch (err) {}
+    pendingDraggableFocus = {
+      id: itemId,
+      field,
+      selectionStart,
+      selectionEnd
+    };
+  }
+
+  function applyDraggableEditorFocus(input, itemId, field, focusRequest) {
+    if (!focusRequest || !input) return;
+    if (focusRequest.id !== itemId || focusRequest.field !== field) return;
+    setTimeout(() => {
+      try {
+        input.focus();
+        if (
+          focusRequest.selectionStart != null &&
+          focusRequest.selectionEnd != null &&
+          typeof input.setSelectionRange === 'function'
+        ) {
+          input.setSelectionRange(focusRequest.selectionStart, focusRequest.selectionEnd);
+        }
+      } catch (err) {}
+    }, 0);
+  }
+
+  function renderDraggableEditor() {
+    if (!draggableListContainer) return;
+    const items = Array.isArray(STATE.draggableItems) ? STATE.draggableItems : [];
+    draggableListContainer.innerHTML = '';
+
+    const focusRequest = pendingDraggableFocus;
+    pendingDraggableFocus = null;
+
+    if (!items.length) {
+      const empty = document.createElement('p');
+      empty.className = 'draggable-config-empty';
+      empty.textContent = 'Ingen draggable elementer er lagt til.';
+      draggableListContainer.appendChild(empty);
+      return;
+    }
+
+    items.forEach((item, index) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'draggable-config-item';
+
+      const title = document.createElement('div');
+      title.className = 'draggable-config-title';
+      title.textContent = `Element ${index + 1}`;
+      wrapper.appendChild(title);
+
+      const grid = document.createElement('div');
+      grid.className = 'draggable-config-grid';
+
+      const labelField = document.createElement('label');
+      labelField.textContent = 'Etikett (valgfritt)';
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.value = item.label || '';
+      labelInput.addEventListener('input', () => {
+        item.label = labelInput.value;
+        scheduleDraggableEditorFocus(item.id, 'label', labelInput);
+        render();
+      });
+      labelField.appendChild(labelInput);
+      grid.appendChild(labelField);
+      applyDraggableEditorFocus(labelInput, item.id, 'label', focusRequest);
+
+      const valueField = document.createElement('label');
+      valueField.textContent = 'Riktig verdi på tallinjen';
+      const valueInput = document.createElement('input');
+      valueInput.type = 'number';
+      valueInput.step = 'any';
+      valueInput.value = formatNumberInputValue(item.value);
+      valueInput.addEventListener('input', () => {
+        const raw = valueInput.value;
+        if (!raw.trim()) return;
+        const numericValue = Number(raw);
+        if (!Number.isFinite(numericValue)) return;
+        item.value = numericValue;
+        const startVal = item.startPosition && Number.isFinite(item.startPosition.value)
+          ? item.startPosition.value
+          : numericValue;
+        const offsetVal = item.startPosition && Number.isFinite(item.startPosition.offsetY)
+          ? item.startPosition.offsetY
+          : DEFAULT_DRAGGABLE_OFFSET_Y;
+        item.currentValue = startVal;
+        item.currentOffsetY = offsetVal;
+        item.isPlaced = false;
+        scheduleDraggableEditorFocus(item.id, 'value', valueInput);
+        render();
+      });
+      valueField.appendChild(valueInput);
+      grid.appendChild(valueField);
+      applyDraggableEditorFocus(valueInput, item.id, 'value', focusRequest);
+
+      const startValueField = document.createElement('label');
+      startValueField.textContent = 'Startverdi (x-posisjon)';
+      const startValueInput = document.createElement('input');
+      startValueInput.type = 'number';
+      startValueInput.step = 'any';
+      startValueInput.value = formatNumberInputValue(
+        item.startPosition && Number.isFinite(item.startPosition.value) ? item.startPosition.value : item.value
+      );
+      startValueInput.addEventListener('input', () => {
+        const raw = startValueInput.value;
+        if (!raw.trim()) return;
+        const numericValue = Number(raw);
+        if (!Number.isFinite(numericValue)) return;
+        if (!item.startPosition || typeof item.startPosition !== 'object') {
+          item.startPosition = { value: numericValue, offsetY: DEFAULT_DRAGGABLE_OFFSET_Y };
+        }
+        item.startPosition.value = numericValue;
+        item.currentValue = numericValue;
+        const offsetVal = item.startPosition && Number.isFinite(item.startPosition.offsetY)
+          ? item.startPosition.offsetY
+          : DEFAULT_DRAGGABLE_OFFSET_Y;
+        item.currentOffsetY = offsetVal;
+        item.isPlaced = false;
+        scheduleDraggableEditorFocus(item.id, 'startValue', startValueInput);
+        render();
+      });
+      startValueField.appendChild(startValueInput);
+      grid.appendChild(startValueField);
+      applyDraggableEditorFocus(startValueInput, item.id, 'startValue', focusRequest);
+
+      const offsetField = document.createElement('label');
+      offsetField.textContent = 'Vertikal forskyvning (i px)';
+      const offsetInput = document.createElement('input');
+      offsetInput.type = 'number';
+      offsetInput.step = 'any';
+      const currentOffset = item.startPosition && Number.isFinite(item.startPosition.offsetY)
+        ? item.startPosition.offsetY
+        : DEFAULT_DRAGGABLE_OFFSET_Y;
+      offsetInput.value = Number.isFinite(currentOffset) ? String(currentOffset) : '';
+      offsetInput.addEventListener('input', () => {
+        const raw = offsetInput.value;
+        if (!raw.trim()) return;
+        const numericValue = Number(raw);
+        if (!Number.isFinite(numericValue)) return;
+        if (!item.startPosition || typeof item.startPosition !== 'object') {
+          item.startPosition = { value: item.value, offsetY: numericValue };
+        }
+        item.startPosition.offsetY = numericValue;
+        item.currentOffsetY = numericValue;
+        item.currentValue = item.startPosition && Number.isFinite(item.startPosition.value)
+          ? item.startPosition.value
+          : item.value;
+        item.isPlaced = false;
+        scheduleDraggableEditorFocus(item.id, 'offset', offsetInput);
+        render();
+      });
+      offsetField.appendChild(offsetInput);
+      grid.appendChild(offsetField);
+      applyDraggableEditorFocus(offsetInput, item.id, 'offset', focusRequest);
+
+      wrapper.appendChild(grid);
+
+      const actions = document.createElement('div');
+      actions.className = 'draggable-config-actions';
+
+      const resetButton = document.createElement('button');
+      resetButton.type = 'button';
+      resetButton.className = 'btn btn--ghost';
+      resetButton.textContent = 'Tilbakestill posisjon';
+      resetButton.addEventListener('click', () => {
+        item.isPlaced = false;
+        const startVal = item.startPosition && Number.isFinite(item.startPosition.value)
+          ? item.startPosition.value
+          : item.value;
+        const offsetVal = item.startPosition && Number.isFinite(item.startPosition.offsetY)
+          ? item.startPosition.offsetY
+          : DEFAULT_DRAGGABLE_OFFSET_Y;
+        item.currentValue = startVal;
+        item.currentOffsetY = offsetVal;
+        render();
+      });
+      actions.appendChild(resetButton);
+
+      const removeButton = document.createElement('button');
+      removeButton.type = 'button';
+      removeButton.className = 'btn btn--danger';
+      removeButton.textContent = 'Fjern';
+      removeButton.addEventListener('click', () => {
+        STATE.draggableItems.splice(index, 1);
+        render();
+      });
+      actions.appendChild(removeButton);
+
+      wrapper.appendChild(actions);
+      draggableListContainer.appendChild(wrapper);
+    });
+  }
+
   function formatAltNumber(value) {
     if (!Number.isFinite(value)) return String(value);
     if (altNumberFormatter) return altNumberFormatter.format(value);
@@ -440,6 +873,156 @@
         svg.classList.remove('is-dragging');
       }
     }
+  }
+
+  function stopActiveDraggableDrag(options) {
+    if (!activeDraggableSession) return;
+    const session = activeDraggableSession;
+    activeDraggableSession = null;
+    if (session.element) {
+      session.element.classList.remove('is-dragging');
+    }
+    if (svg && session.pointerId != null) {
+      try {
+        svg.releasePointerCapture(session.pointerId);
+      } catch (err) {}
+    }
+    if (options && options.render) {
+      render();
+    }
+  }
+
+  function updateActiveDraggableTransform(session, x, y) {
+    if (!session || !session.element) return;
+    const tx = Number.isFinite(x) ? x : 0;
+    const ty = Number.isFinite(y) ? y : 0;
+    session.element.setAttribute('transform', `translate(${tx}, ${ty})`);
+    session.element.dataset.x = String(tx);
+    session.element.dataset.y = String(ty);
+  }
+
+  function handleDraggablePointerDown(event) {
+    if (!svg) return;
+    const target = event.currentTarget;
+    if (!target || !target.dataset) return;
+    const index = Number(target.dataset.index);
+    if (!Number.isFinite(index) || index < 0) return;
+    const item = STATE.draggableItems && STATE.draggableItems[index];
+    if (!item) return;
+
+    const point = getViewBoxPoint(event);
+    if (!point) return;
+
+    const width = Number(target.dataset.width) || DEFAULT_DRAGGABLE_WIDTH;
+    const height = Number(target.dataset.height) || DEFAULT_DRAGGABLE_HEIGHT;
+    const currentX = Number(target.dataset.x) || 0;
+    const currentY = Number(target.dataset.y) || 0;
+
+    stopActiveDrag();
+    stopActiveDraggableDrag();
+
+    activeDraggableSession = {
+      pointerId: event.pointerId,
+      index,
+      offsetX: point.x - currentX,
+      offsetY: point.y - currentY,
+      width,
+      height,
+      element: target,
+      currentX,
+      currentY
+    };
+
+    target.classList.add('is-dragging');
+
+    try {
+      svg.setPointerCapture(event.pointerId);
+    } catch (err) {}
+
+    if (typeof event.stopPropagation === 'function') event.stopPropagation();
+    if (typeof event.preventDefault === 'function') event.preventDefault();
+  }
+
+  function handleActiveDraggablePointerMove(event) {
+    if (!activeDraggableSession || event.pointerId !== activeDraggableSession.pointerId) return false;
+    const point = getViewBoxPoint(event);
+    if (!point) return false;
+
+    const newX = point.x - activeDraggableSession.offsetX;
+    const newY = point.y - activeDraggableSession.offsetY;
+    activeDraggableSession.currentX = newX;
+    activeDraggableSession.currentY = newY;
+    updateActiveDraggableTransform(activeDraggableSession, newX, newY);
+
+    if (typeof event.preventDefault === 'function') event.preventDefault();
+    return true;
+  }
+
+  function finalizeActiveDraggableDrag(commit) {
+    if (!activeDraggableSession) return;
+    const session = activeDraggableSession;
+    const item = STATE.draggableItems && STATE.draggableItems[session.index];
+    const geometry = currentGeometry;
+    const width = Number.isFinite(session.width) ? session.width : DEFAULT_DRAGGABLE_WIDTH;
+    const height = Number.isFinite(session.height) ? session.height : DEFAULT_DRAGGABLE_HEIGHT;
+    const datasetX = session.element && session.element.dataset ? Number(session.element.dataset.x) : null;
+    const x = Number.isFinite(session.currentX)
+      ? session.currentX
+      : Number.isFinite(datasetX)
+        ? datasetX
+        : 0;
+
+    stopActiveDraggableDrag();
+
+    if (!commit || !item || !geometry) {
+      render();
+      return;
+    }
+
+    const clampToRange = Boolean(STATE.clampToRange);
+    const paddingLeft = clampToRange ? PADDING_LEFT : 0;
+    const domainSpan = geometry.domainMax - geometry.domainMin;
+    const ratio = geometry.innerWidth > 0 ? (x + width / 2 - paddingLeft) / geometry.innerWidth : 0;
+    let domainValue = geometry.domainMin + ratio * domainSpan;
+    if (!Number.isFinite(domainValue)) domainValue = item.currentValue;
+
+    let snapped = snapValueToNearest(domainValue);
+    if (!Number.isFinite(snapped)) snapped = domainValue;
+    if (clampToRange) {
+      snapped = Math.min(Math.max(snapped, STATE.from), STATE.to);
+    }
+
+    item.currentValue = snapped;
+    item.isPlaced = true;
+    const placedOffset = computePlacedOffset(height);
+    item.currentOffsetY = placedOffset;
+
+    render();
+  }
+
+  function handleActiveDraggablePointerEnd(event) {
+    if (!activeDraggableSession || event.pointerId !== activeDraggableSession.pointerId) return false;
+    finalizeActiveDraggableDrag(true);
+    if (typeof event.preventDefault === 'function') event.preventDefault();
+    return true;
+  }
+
+  function handleActiveDraggablePointerCancel(event) {
+    if (!activeDraggableSession || event.pointerId !== activeDraggableSession.pointerId) return false;
+    stopActiveDraggableDrag();
+    render();
+    if (typeof event.preventDefault === 'function') event.preventDefault();
+    return true;
+  }
+
+  function handleSvgPointerCancel(event) {
+    if (handleActiveDraggablePointerCancel(event)) return;
+    handlePointerEnd(event);
+  }
+
+  function handleSvgLostPointerCapture() {
+    stopActiveDraggableDrag();
+    stopActiveDrag();
   }
 
   function stopActiveDrag() {
@@ -486,6 +1069,7 @@
   }
 
   function handlePointerMove(event) {
+    if (handleActiveDraggablePointerMove(event)) return;
     if (!activeDragSession || event.pointerId !== activeDragSession.pointerId) return;
     const deltaClientX = event.clientX - activeDragSession.startClientX;
     const deltaValue = deltaClientX * activeDragSession.pxToValue;
@@ -509,6 +1093,7 @@
   }
 
   function handlePointerEnd(event) {
+    if (handleActiveDraggablePointerEnd(event)) return;
     if (!activeDragSession || event.pointerId !== activeDragSession.pointerId) return;
     stopActiveDrag();
     if (typeof event.preventDefault === 'function') event.preventDefault();
@@ -724,6 +1309,7 @@
   function render() {
     ensureStateDefaults();
     updateControlsFromState();
+    renderDraggableEditor();
 
     const { from, to, mainStep, subdivisions } = STATE;
     const clampToRange = Boolean(STATE.clampToRange);
@@ -843,6 +1429,8 @@
       foreignObject.appendChild(container);
       axisGroup.appendChild(foreignObject);
     });
+
+    renderDraggableItemsLayer(svg, geometry);
 
     const visibleMajorValues = majorValues.filter(value => !hiddenMajorValues.has(value));
 
@@ -1162,12 +1750,41 @@
     });
   }
 
+  if (addDraggableButton) {
+    addDraggableButton.addEventListener('click', () => {
+      let baseValue = Number(STATE.from);
+      if (!Number.isFinite(baseValue)) baseValue = 0;
+      const newItem = {
+        id: `draggable-${draggableIdCounter++}`,
+        label: '',
+        value: baseValue,
+        startPosition: { value: baseValue, offsetY: DEFAULT_DRAGGABLE_OFFSET_Y },
+        currentValue: baseValue,
+        currentOffsetY: DEFAULT_DRAGGABLE_OFFSET_Y,
+        isPlaced: false
+      };
+      if (!Array.isArray(STATE.draggableItems)) {
+        STATE.draggableItems = [];
+      }
+      STATE.draggableItems.push(newItem);
+      render();
+      if (draggableListContainer) {
+        setTimeout(() => {
+          const lastInput = draggableListContainer.querySelector('.draggable-config-item:last-of-type input[type="text"]');
+          if (lastInput && typeof lastInput.focus === 'function') {
+            lastInput.focus();
+          }
+        }, 0);
+      }
+    });
+  }
+
   if (svg) {
     svg.addEventListener('pointerdown', handlePointerDown);
     svg.addEventListener('pointermove', handlePointerMove);
     svg.addEventListener('pointerup', handlePointerEnd);
-    svg.addEventListener('pointercancel', handlePointerEnd);
-    svg.addEventListener('lostpointercapture', stopActiveDrag);
+    svg.addEventListener('pointercancel', handleSvgPointerCancel);
+    svg.addEventListener('lostpointercapture', handleSvgLostPointerCapture);
   }
 
   if (btnSvg) {
@@ -1189,5 +1806,52 @@
   }
   ensureAltTextManager();
 
-  window.DEFAULT_EXAMPLES = [];
+  const draggableExampleState = cloneState(DEFAULT_STATE);
+  draggableExampleState.from = 0;
+  draggableExampleState.to = 1;
+  draggableExampleState.mainStep = 0.25;
+  draggableExampleState.subdivisions = 1;
+  draggableExampleState.numberType = 'mixedFraction';
+  draggableExampleState.decimalDigits = 2;
+  draggableExampleState.clampToRange = true;
+  draggableExampleState.lockLine = true;
+  draggableExampleState.draggableItems = [
+    {
+      id: 'draggable-1',
+      label: '',
+      value: 0.25,
+      startPosition: { value: 0.05, offsetY: DEFAULT_DRAGGABLE_OFFSET_Y },
+      currentValue: 0.05,
+      currentOffsetY: DEFAULT_DRAGGABLE_OFFSET_Y,
+      isPlaced: false
+    },
+    {
+      id: 'draggable-2',
+      label: 'En halv',
+      value: 0.5,
+      startPosition: { value: 0.85, offsetY: DEFAULT_DRAGGABLE_OFFSET_Y },
+      currentValue: 0.85,
+      currentOffsetY: DEFAULT_DRAGGABLE_OFFSET_Y,
+      isPlaced: false
+    },
+    {
+      id: 'draggable-3',
+      label: '',
+      value: 0.75,
+      startPosition: { value: 0.35, offsetY: DEFAULT_DRAGGABLE_OFFSET_Y },
+      currentValue: 0.35,
+      currentOffsetY: DEFAULT_DRAGGABLE_OFFSET_Y,
+      isPlaced: false
+    }
+  ];
+
+  window.DEFAULT_EXAMPLES = [
+    {
+      title: 'Plasser brøkene',
+      description: 'Dra de tre brøkene til riktig plass på tallinjen.',
+      config: {
+        STATE: draggableExampleState
+      }
+    }
+  ];
 })();
