@@ -86,13 +86,13 @@
     return katexPromise;
   }
 
-  function extractBalancedContent(text, startIndex) {
+  function extractBalancedContent(text, startIndex, openChar = '{', closeChar = '}') {
     let depth = 1;
     for (let i = startIndex; i < text.length; i++) {
       const char = text[i];
-      if (char === '{') {
+      if (char === openChar) {
         depth += 1;
-      } else if (char === '}') {
+      } else if (char === closeChar) {
         depth -= 1;
         if (depth === 0) {
           return {
@@ -243,22 +243,41 @@
   function findNextSpecial(text, index, allowAnswerBoxes) {
     const nextBreak = text.indexOf('\n', index);
     const nextMath = text.indexOf('@math{', index);
-    const nextAnswer = allowAnswerBoxes ? text.indexOf('@answer{', index) : -1;
-    let type = 'end';
-    let nextIndex = text.length;
-    if (nextBreak !== -1 && nextBreak < nextIndex) {
-      nextIndex = nextBreak;
-      type = 'break';
+    const result = {
+      type: 'end',
+      nextIndex: text.length,
+      marker: null,
+      openChar: null,
+      closeChar: null
+    };
+    if (nextBreak !== -1 && nextBreak < result.nextIndex) {
+      result.type = 'break';
+      result.nextIndex = nextBreak;
     }
-    if (nextMath !== -1 && nextMath < nextIndex) {
-      nextIndex = nextMath;
-      type = 'math';
+    if (nextMath !== -1 && nextMath < result.nextIndex) {
+      result.type = 'math';
+      result.nextIndex = nextMath;
+      result.marker = null;
+      result.openChar = null;
+      result.closeChar = null;
     }
-    if (nextAnswer !== -1 && nextAnswer < nextIndex) {
-      nextIndex = nextAnswer;
-      type = 'answer';
+    if (allowAnswerBoxes) {
+      const answerMarkers = [
+        { marker: '@answer{', openChar: '{', closeChar: '}' },
+        { marker: '@answerbox[', openChar: '[', closeChar: ']' }
+      ];
+      answerMarkers.forEach(({ marker, openChar, closeChar }) => {
+        const position = text.indexOf(marker, index);
+        if (position !== -1 && position < result.nextIndex) {
+          result.type = 'answer';
+          result.nextIndex = position;
+          result.marker = marker;
+          result.openChar = openChar;
+          result.closeChar = closeChar;
+        }
+      });
     }
-    return { type, nextIndex };
+    return result;
   }
 
   function appendInlineContent(container, text, placeholders, interactives, options) {
@@ -272,7 +291,7 @@
     const allowAnswerBoxes = !(options && options.allowAnswerBoxes === false);
     let index = 0;
     while (index < text.length) {
-      const { type, nextIndex } = findNextSpecial(text, index, allowAnswerBoxes);
+      const { type, nextIndex, marker, openChar, closeChar } = findNextSpecial(text, index, allowAnswerBoxes);
       if (type === 'end') {
         if (index < text.length) {
           container.appendChild(doc.createTextNode(text.slice(index)));
@@ -304,7 +323,13 @@
         continue;
       }
       if (type === 'answer') {
-        const extraction = extractBalancedContent(text, nextIndex + '@answer{'.length);
+        const markerLength = typeof marker === 'string' ? marker.length : '@answer{'.length;
+        const extraction = extractBalancedContent(
+          text,
+          nextIndex + markerLength,
+          openChar || '{',
+          closeChar || '}'
+        );
         if (!extraction) {
           container.appendChild(doc.createTextNode(text.slice(nextIndex)));
           break;
@@ -446,11 +471,13 @@
       while (cursor < text.length && /\s/.test(text[cursor])) {
         cursor += 1;
       }
-      if (cursor >= text.length || text[cursor] !== '{') {
+      if (cursor >= text.length || !'{['.includes(text[cursor])) {
         searchIndex = markerIndex + marker.length;
         continue;
       }
-      const extraction = extractBalancedContent(text, cursor + 1);
+      const openChar = text[cursor];
+      const closeChar = openChar === '{' ? '}' : ']';
+      const extraction = extractBalancedContent(text, cursor + 1, openChar, closeChar);
       if (!extraction) {
         return { markerIndex, extraction: null };
       }
