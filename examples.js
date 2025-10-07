@@ -2897,9 +2897,6 @@
     if (examples.length <= 1) {
       return;
     }
-    if (!window.confirm('Er du sikker på at du vil slette dette eksempelet for alle? Velg "Ja" eller "nei".')) {
-      return;
-    }
     let indexToRemove = Number.isInteger(currentExampleIndex) ? currentExampleIndex : NaN;
     if (!Number.isInteger(indexToRemove)) {
       var _tabsContainer;
