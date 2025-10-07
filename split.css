@@ -183,6 +183,118 @@ body[data-app-mode="task"] .grid.split-enabled {
   margin: 10px 0;
 }
 
+.card--examples .example-description-preview .math-vis-task {
+  border: 1px solid #cbd5f5;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 14px;
+  box-shadow: inset 0 1px 0 rgba(79, 70, 229, 0.06);
+}
+
+.card--examples .example-description-preview .math-vis-task:last-child {
+  margin-bottom: 0;
+}
+
+.card--examples .example-description-preview .math-vis-task__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+}
+
+.card--examples .example-description-preview .math-vis-task__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.card--examples .example-description-preview .math-vis-task__content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card--examples .example-description-preview .math-vis-task__content > * + * {
+  margin-top: 0;
+}
+
+.card--examples .example-description-preview .math-vis-task__content p {
+  margin: 0;
+}
+
+.card--examples .example-description-preview .math-vis-answerbox {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card--examples .example-description-preview .math-vis-answerbox__label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--label-color);
+}
+
+.card--examples .example-description-preview .math-vis-answerbox__control {
+  display: flex;
+}
+
+.card--examples .example-description-preview .math-vis-answerbox__input {
+  width: 100%;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 1rem;
+  line-height: 1.4;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card--examples .example-description-preview .math-vis-answerbox__input:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.35);
+  outline-offset: 2px;
+  border-color: #2563eb;
+}
+
+.card--examples .example-description-preview .math-vis-answerbox__prompt {
+  font-size: 0.9rem;
+  color: var(--muted-color);
+}
+
+.card--examples .example-description-preview .math-vis-answerbox__status {
+  font-size: 0.85rem;
+  min-height: 1em;
+}
+
+.card--examples .example-description-preview .math-vis-answerbox--correct {
+  border-color: #22c55e;
+  background: #ecfdf5;
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.15);
+}
+
+.card--examples .example-description-preview .math-vis-answerbox--correct .math-vis-answerbox__status {
+  color: #15803d;
+}
+
+.card--examples .example-description-preview .math-vis-answerbox--incorrect {
+  border-color: #f97316;
+  background: #fff7ed;
+  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.15);
+}
+
+.card--examples .example-description-preview .math-vis-answerbox--incorrect .math-vis-answerbox__status {
+  color: #c2410c;
+}
+
 .card--examples .example-description-preview th,
 .card--examples .example-description-preview td {
   border: 1px solid #d1d5db;

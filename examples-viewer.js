@@ -591,6 +591,7 @@ async function renderExamples(options) {
     const { path, examples } = sectionData;
     if (!Array.isArray(examples) || examples.length === 0) continue;
     const section = document.createElement('section');
+    section.className = 'examples-section';
     const h2 = document.createElement('h2');
     h2.textContent = path;
     section.appendChild(h2);
