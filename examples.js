@@ -1430,15 +1430,32 @@
     return fragment;
   }
 
-  function renderDescriptionPreviewFromValue(value) {
+  let lastRenderedDescriptionValue = null;
+
+  function renderDescriptionPreviewFromValue(value, options) {
     const preview = getDescriptionPreviewElement();
     if (!preview) return;
     preview.classList.add('math-vis-description-rendered');
+    const opts = options && typeof options === 'object' ? options : {};
+    const force = opts.force === true;
     const stringValue = typeof value === 'string' ? value : '';
+    if (!force && stringValue === lastRenderedDescriptionValue) {
+      return preview.dataset.empty !== 'true';
+    }
     const applyState = hasContent => {
-      preview.dataset.empty = hasContent ? 'false' : 'true';
-      preview.hidden = !hasContent;
-      preview.setAttribute('aria-hidden', hasContent ? 'false' : 'true');
+      const emptyValue = hasContent ? 'false' : 'true';
+      preview.dataset.empty = emptyValue;
+      if (hasContent) {
+        preview.removeAttribute('hidden');
+        preview.setAttribute('aria-hidden', 'false');
+      } else {
+        preview.setAttribute('hidden', '');
+        preview.setAttribute('aria-hidden', 'true');
+      }
+    };
+    const markRendered = hasContent => {
+      lastRenderedDescriptionValue = stringValue;
+      return hasContent;
     };
     const renderLegacy = () => {
       clearChildren(preview);
@@ -1448,7 +1465,7 @@
         preview.appendChild(fragment);
       }
       applyState(hasContent);
-      return hasContent;
+      return markRendered(hasContent);
     };
     const token = ++lastDescriptionRenderToken;
     const renderWith = renderer => {
@@ -1456,6 +1473,7 @@
       try {
         const hasContent = !!renderer.renderInto(preview, stringValue);
         applyState(hasContent);
+        markRendered(hasContent);
       } catch (error) {
         if (token === lastDescriptionRenderToken) {
           renderLegacy();
@@ -1534,7 +1552,7 @@
       input.value = '';
     }
     updateDescriptionCollapsedState(input);
-    renderDescriptionPreviewFromValue(input.value);
+    renderDescriptionPreviewFromValue(input.value, { force: true });
   }
   let defaultEnsureScheduled = false;
   let ensureDefaultsRunning = false;
@@ -2041,7 +2059,8 @@
       setDescriptionValue('');
       return false;
     }
-    setDescriptionValue(typeof ex.description === 'string' ? ex.description : '');
+    const description = extractDescriptionFromExample(ex);
+    setDescriptionValue(description);
     const cfg = ex.config;
     let applied = false;
     for (const name of BINDING_NAMES) {

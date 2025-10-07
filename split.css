@@ -266,6 +266,7 @@ body[data-app-mode="task"] .grid.split-enabled {
 }
 
 body[data-app-mode="task"] .card--examples {
+  display: flex !important;
   gap: 12px;
 }
 
