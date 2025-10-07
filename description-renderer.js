@@ -628,10 +628,18 @@
   function setAnswerBoxState(box, state) {
     if (!box || !box.container) return;
     const { container, status, input, descriptor } = box;
-    const states = ['empty', 'correct', 'incorrect'];
-    states.forEach(name => {
-      container.classList.toggle(`math-vis-answerbox--${name}`, name === state);
+    const stateClasses = ['math-vis-answerbox--empty', 'math-vis-answerbox--correct', 'math-vis-answerbox--incorrect'];
+    stateClasses.forEach(className => {
+      if (container.classList.contains(className)) {
+        container.classList.remove(className);
+      }
     });
+    if (state && typeof state === 'string') {
+      const nextClass = `math-vis-answerbox--${state}`;
+      if (stateClasses.includes(nextClass)) {
+        container.classList.add(nextClass);
+      }
+    }
     container.dataset.state = state;
     if (!status || !input) return;
     if (state === 'correct') {
