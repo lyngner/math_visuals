@@ -2758,9 +2758,9 @@ function drawRegularPolygonToGroup(g, rect, spec, adv) {
     const mode = advAngles.mode && advAngles.mode[angleKey] ? advAngles.mode[angleKey] : advAngles.mode && advAngles.mode.default;
     if (!mode || String(mode).toLowerCase() === 'none') continue;
     const customText = advAngles.text && advAngles.text[angleKey] ? advAngles.text[angleKey] : deriveSequentialLabel(baseSideLabel, i, true);
-    const angleVal = angleAt(prev, cur, next);
+    const angleVal = angleAt(cur, prev, next);
     const parsed = parseAnglePointMode(mode, angleVal, customText, angleKey);
-    renderAngle(g, prev, cur, next, angleRadius(prev, cur, next), {
+    renderAngle(g, cur, prev, next, angleRadius(cur, prev, next), {
       mark: parsed.mark,
       angleText: parsed.angleText,
       pointLabel: parsed.pointLabel
@@ -2825,9 +2825,9 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations) {
     const mode = advAngles.mode && advAngles.mode[angleKey] ? advAngles.mode[angleKey] : advAngles.mode && advAngles.mode.default;
     if (!mode || String(mode).toLowerCase() === 'none') continue;
     const customText = advAngles.text && advAngles.text[angleKey] ? advAngles.text[angleKey] : deriveSequentialLabel(baseSideLabel, i, true);
-    const angleVal = angleAt(prev, cur, next);
+    const angleVal = angleAt(cur, prev, next);
     const parsed = parseAnglePointMode(mode, angleVal, customText, angleKey);
-    renderAngle(g, prev, cur, next, angleRadius(prev, cur, next), {
+    renderAngle(g, cur, prev, next, angleRadius(cur, prev, next), {
       mark: parsed.mark,
       angleText: parsed.angleText,
       pointLabel: parsed.pointLabel
