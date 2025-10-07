@@ -368,6 +368,88 @@
     return '';
   }
 
+  function sanitizeSvgElementTree(element) {
+    if (!element || typeof element.tagName !== 'string') return;
+    const tagName = element.tagName.toLowerCase();
+    if (tagName === 'script' || tagName === 'foreignobject') {
+      element.remove();
+      return;
+    }
+    if (element.attributes) {
+      for (let i = element.attributes.length - 1; i >= 0; i--) {
+        const attr = element.attributes[i];
+        if (!attr || typeof attr.name !== 'string') continue;
+        const name = attr.name;
+        if (/^on/i.test(name)) {
+          element.removeAttribute(name);
+          continue;
+        }
+        const value = typeof attr.value === 'string' ? attr.value : '';
+        if ((name === 'href' || name === 'xlink:href') && /^(\s*javascript:|\s*data:(?!image\/(?:svg\+xml|png|jpeg|gif)))/i.test(value)) {
+          element.removeAttribute(name);
+          continue;
+        }
+        if (name === 'style' && (/(expression\s*\()/i.test(value) || /url\(\s*['"]?javascript:/i.test(value))) {
+          element.removeAttribute(name);
+        }
+      }
+    }
+    const children = element.children ? Array.from(element.children) : [];
+    children.forEach(child => sanitizeSvgElementTree(child));
+  }
+
+  function createSvgPreviewNode(svgMarkup) {
+    if (typeof document === 'undefined') return null;
+    if (typeof svgMarkup !== 'string') return null;
+    const trimmed = svgMarkup.trim();
+    if (!trimmed) return null;
+    let svgElement = null;
+    if (typeof DOMParser === 'function') {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(trimmed, 'image/svg+xml');
+        const hasParserError = doc && doc.getElementsByTagName('parsererror').length > 0;
+        if (!hasParserError && doc && doc.documentElement && doc.documentElement.tagName && doc.documentElement.tagName.toLowerCase() === 'svg') {
+          svgElement = document.importNode(doc.documentElement, true);
+        }
+      } catch (error) {
+        svgElement = null;
+      }
+    }
+    if (!svgElement) {
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = trimmed;
+      const candidate = wrapper.querySelector('svg');
+      if (candidate) {
+        svgElement = candidate.cloneNode(true);
+      }
+    }
+    if (!svgElement) return null;
+    sanitizeSvgElementTree(svgElement);
+    return svgElement;
+  }
+
+  function renderExamplePreview(container, example) {
+    if (!container) return false;
+    if (!example || typeof example !== 'object') {
+      container.innerHTML = '';
+      return false;
+    }
+    const svgMarkup = typeof example.svg === 'string' ? example.svg : '';
+    if (!svgMarkup || !svgMarkup.trim()) {
+      container.innerHTML = '';
+      return false;
+    }
+    const svgElement = createSvgPreviewNode(svgMarkup);
+    if (!svgElement) {
+      container.innerHTML = '';
+      return false;
+    }
+    container.innerHTML = '';
+    container.appendChild(svgElement);
+    return true;
+  }
+
   function formatTimestamp(value) {
     if (typeof value !== 'string') return '';
     const trimmed = value.trim();
@@ -519,7 +601,7 @@
     const entries = loadTrashEntriesForPath(path);
     const index = entries.findIndex(entry => entry.id === id);
     if (index === -1) {
-      throw new Error('Fant ikke eksempelet i søppelbøtten.');
+      throw new Error('Fant ikke eksempelet i arkivet.');
     }
     const [record] = entries.splice(index, 1);
     saveTrashEntriesForPath(path, entries);
@@ -711,15 +793,22 @@
             li.className = 'trash-item';
             li.dataset.item = '';
             li.innerHTML = `
-              <div class="trash-item__header">
-                <h3 class="trash-item__title" data-item-title></h3>
-                <span class="trash-item__timestamp" data-item-timestamp></span>
+              <div class="trash-item__content">
+                <div class="trash-item__header">
+                  <h3 class="trash-item__title" data-item-title></h3>
+                  <span class="trash-item__timestamp" data-item-timestamp></span>
+                </div>
+                <div class="trash-item__meta" data-item-meta></div>
+                <p class="trash-item__description" data-item-description hidden></p>
+                <div class="trash-item__actions">
+                  <button type="button" class="trash-button trash-button--restore" data-action="restore">Gjenopprett</button>
+                  <button type="button" class="trash-button trash-button--delete" data-action="delete">Slett permanent</button>
+                </div>
               </div>
-              <div class="trash-item__meta" data-item-meta></div>
-              <p class="trash-item__description" data-item-description hidden></p>
-              <div class="trash-item__actions">
-                <button type="button" class="trash-button trash-button--restore" data-action="restore">Gjenopprett</button>
-                <button type="button" class="trash-button trash-button--delete" data-action="delete">Slett permanent</button>
+              <div class="trash-item__preview" data-item-preview hidden>
+                <div class="trash-item__preview-inner">
+                  <div class="trash-item__preview-content" data-item-preview-content></div>
+                </div>
               </div>
             `;
             itemNode.appendChild(li);
@@ -729,6 +818,8 @@
           const timestamp = itemNode.querySelector('[data-item-timestamp]');
           const meta = itemNode.querySelector('[data-item-meta]');
           const description = itemNode.querySelector('[data-item-description]');
+          const preview = itemNode.querySelector('[data-item-preview]');
+          const previewContent = itemNode.querySelector('[data-item-preview-content]');
           if (item) {
             item.dataset.id = record.id;
           }
@@ -773,6 +864,20 @@
             }
             meta.hidden = !meta.childNodes.length;
           }
+          let hasPreview = false;
+          if (previewContent) {
+            hasPreview = renderExamplePreview(previewContent, record.example);
+          }
+          if (preview) {
+            preview.hidden = !hasPreview;
+          }
+          if (item) {
+            if (hasPreview) {
+              item.classList.add('trash-item--has-preview');
+            } else {
+              item.classList.remove('trash-item--has-preview');
+            }
+          }
           listEl.appendChild(itemNode);
         });
       }
@@ -786,7 +891,7 @@
       renderGroups(groups);
       if (!groups.length) {
         if (!(options && options.silent)) {
-          setStatus('Søppelbøtten er tom.', { timeout: 4000 });
+          setStatus('Arkivet er tomt.', { timeout: 4000 });
         }
       } else if (!(options && options.silent)) {
         const total = groups.reduce((sum, group) => sum + group.records.length, 0);
@@ -795,7 +900,7 @@
       }
     } catch (error) {
       console.error('[trash] failed to load trash entries', error);
-      setStatus('Kunne ikke laste søppelbøtten.', { timeout: 5000 });
+      setStatus('Kunne ikke laste arkivet.', { timeout: 5000 });
     }
   }
 
