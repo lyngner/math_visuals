@@ -2073,7 +2073,10 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
         x: vertex.x - heightPoint.x,
         y: vertex.y - heightPoint.y
       };
-      drawRightAngleMarker(g, heightPoint, baseDir, altDir);
+      const shouldDrawMarker = !(heightAngleMode.angleText || heightAngleMode.pointLabel);
+      if (shouldDrawMarker) {
+        drawRightAngleMarker(g, heightPoint, baseDir, altDir);
+      }
     }
   }
 
@@ -2099,9 +2102,9 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
   const Ares = parseAnglePointMode((_am$A = am.A) !== null && _am$A !== void 0 ? _am$A : am.default, angleAVal, at.A, "A");
   const Bres = parseAnglePointMode((_am$B = am.B) !== null && _am$B !== void 0 ? _am$B : am.default, angleBVal, at.B, "B");
   const Cres = parseAnglePointMode((_am$C = am.C) !== null && _am$C !== void 0 ? _am$C : am.default, angleCVal, at.C, "C");
-  if (activeHeight && heightAngleMode && (heightAngleMode.angleText || heightAngleMode.pointLabel)) {
+  if (activeHeight && heightAngleMode && (heightAngleMode.mark || heightAngleMode.angleText || heightAngleMode.pointLabel)) {
     renderAngle(g, heightPoint, baseForAngle, activeHeight.vertex, angleRadius(heightPoint, baseForAngle, activeHeight.vertex), {
-      mark: false,
+      mark: heightAngleMode.mark,
       angleText: heightAngleMode.angleText,
       pointLabel: heightAngleMode.pointLabel
     });
