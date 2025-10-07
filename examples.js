@@ -835,6 +835,7 @@
     const opts = options && typeof options === 'object' ? options : {};
     const reason = typeof opts.reason === 'string' && opts.reason.trim() ? opts.reason.trim() : 'update';
     const skipHistory = opts.skipHistory === true;
+    const skipBackendSync = opts.skipBackendSync === true;
     const normalizedRaw = typeof rawValue === 'string' ? rawValue.trim() : '';
     if (!normalizedRaw) {
       if (!skipHistory && typeof lastStoredRawValue === 'string' && lastStoredRawValue.trim()) {
@@ -846,7 +847,12 @@
         safeRemoveItem(key);
       } catch (_) {}
       lastStoredRawValue = null;
-      notifyBackendChange();
+      if (skipBackendSync) {
+        backendSyncDeferred = true;
+      } else {
+        backendSyncDeferred = false;
+        notifyBackendChange();
+      }
       try {
         updateRestoreButtonState();
       } catch (_) {}
@@ -865,7 +871,12 @@
       safeSetItem(key, normalizedRaw);
     } catch (_) {}
     lastStoredRawValue = normalizedRaw;
-    notifyBackendChange();
+    if (skipBackendSync) {
+      backendSyncDeferred = true;
+    } else {
+      backendSyncDeferred = false;
+      notifyBackendChange();
+    }
     try {
       updateRestoreButtonState();
     } catch (_) {}
@@ -983,6 +994,8 @@
   }
   const examplesApiBase = resolveExamplesApiBase();
   let backendAvailable = !!examplesApiBase;
+  let backendReady = !examplesApiBase;
+  let backendSyncDeferred = false;
   let applyingBackendUpdate = false;
   let backendSyncTimer = null;
   let backendSyncPromise = null;
@@ -1085,42 +1098,66 @@
   async function loadExamplesFromBackend() {
     if (!examplesApiBase) return null;
     const url = buildExamplesApiUrl(examplesApiBase, storagePath);
-    if (!url) return null;
-    let res;
-    try {
-      res = await fetch(url, {
-        headers: {
-          Accept: 'application/json'
-        }
-      });
-    } catch (error) {
-      backendAvailable = false;
+    if (!url) {
+      backendReady = true;
+      if (backendSyncDeferred) {
+        backendSyncDeferred = false;
+      }
       return null;
     }
-    if (res.status === 404) {
+    let backendWasEmpty = false;
+    try {
+      let res;
+      try {
+        res = await fetch(url, {
+          headers: {
+            Accept: 'application/json'
+          }
+        });
+      } catch (error) {
+        backendAvailable = false;
+        return null;
+      }
+      if (res.status === 404) {
+        backendAvailable = true;
+        backendWasEmpty = true;
+        return {
+          path: storagePath,
+          examples: [],
+          deletedProvided: []
+        };
+      }
+      if (!res.ok) {
+        backendAvailable = false;
+        return null;
+      }
+      let backendData = null;
+      try {
+        backendData = await res.json();
+      } catch (error) {
+        backendAvailable = false;
+        return null;
+      }
       backendAvailable = true;
-      return {
-        path: storagePath,
-        examples: [],
-        deletedProvided: []
-      };
+      const normalized = backendData || {};
+      const backendExamples = Array.isArray(normalized.examples) ? normalized.examples : [];
+      const backendDeleted = Array.isArray(normalized.deletedProvided) ? normalized.deletedProvided : [];
+      backendWasEmpty = backendExamples.length === 0 && backendDeleted.length === 0;
+      applyBackendData(normalized);
+      renderOptions();
+      scheduleEnsureDefaults({ force: true });
+      return normalized;
+    } finally {
+      backendReady = true;
+      if (backendSyncDeferred) {
+        if (backendWasEmpty) {
+          backendSyncDeferred = false;
+          scheduleBackendSync();
+        } else if (backendAvailable) {
+          backendSyncDeferred = false;
+        }
+      }
     }
-    if (!res.ok) {
-      backendAvailable = false;
-      return null;
-    }
-    let data = null;
-    try {
-      data = await res.json();
-    } catch (error) {
-      backendAvailable = false;
-      return null;
-    }
-    backendAvailable = true;
-    applyBackendData(data || {});
-    renderOptions();
-    scheduleEnsureDefaults({ force: true });
-    return data;
   }
   let initialLoadPerformed = false;
   let currentExampleIndex = null;
@@ -1558,7 +1595,8 @@
   function store(examples, options) {
     const normalized = normalizeExamplesForStorage(examples);
     const serialized = JSON.stringify(normalized);
-    applyRawExamples(serialized, options);
+    const opts = options && typeof options === 'object' ? options : {};
+    applyRawExamples(serialized, opts);
   }
   const BINDING_NAMES = ['STATE', 'CFG', 'CONFIG', 'SIMPLE'];
   const DELETED_PROVIDED_KEY = key + '_deletedProvidedExamples';
@@ -2395,8 +2433,10 @@
         }
       }
       if (updated) {
+        const skipBackendSync = !backendReady;
         store(examples, {
-          reason: 'ensure-default'
+          reason: 'ensure-default',
+          skipBackendSync
         });
         examples = getExamples();
       }
