@@ -178,6 +178,19 @@ body[data-app="graftegner"] .layout--sidebar:not(.split-enabled) > :not(.side) {
     grid-column: auto;
     grid-row: auto;
   }
+
+  body[data-app-mode="task"] .layout--sidebar {
+    display: flex;
+    flex-direction: column;
+  }
+
+  body[data-app-mode="task"] .layout--sidebar > .side {
+    order: 1;
+  }
+
+  body[data-app-mode="task"] .layout--sidebar > :not(.side) {
+    order: 2;
+  }
 }
 
 .side {
