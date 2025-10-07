@@ -120,9 +120,26 @@ function setHiddenFlag(target, key, value) {
     enumerable: false
   });
 }
-function getRowSpanRatios() {
+function hasVisibleBlockBelow(block) {
+  if (!block || typeof block.row !== 'number' || typeof block.col !== 'number') return false;
+  const rows = Number(CONFIG === null || CONFIG === void 0 ? void 0 : CONFIG.rows);
+  if (!Number.isFinite(rows) || block.row >= rows - 1) return false;
+  if (!(Array.isArray(CONFIG === null || CONFIG === void 0 ? void 0 : CONFIG.blocks))) return false;
+  const nextRowIndex = block.row + 1;
+  if (nextRowIndex >= rows) return false;
+  const nextRow = CONFIG.blocks[nextRowIndex];
+  if (!Array.isArray(nextRow)) return false;
+  const cfg = nextRow[block.col];
+  if (!(cfg && typeof cfg === 'object')) return false;
+  return cfg.hideBlock !== true;
+}
+function getRowSpanRatios(block) {
   const topRatio = clamp(TOP_RATIO, 0, 1);
-  const bottomRatio = clamp(BOTTOM_RATIO, topRatio, 1);
+  let bottomRatio = clamp(BOTTOM_RATIO, topRatio, 1);
+  const hasBlockBelow = block && typeof block.hasVisibleBlockBelow === 'boolean' ? block.hasVisibleBlockBelow : hasVisibleBlockBelow(block);
+  if (hasBlockBelow) {
+    bottomRatio = 1;
+  }
   return {
     topRatio,
     bottomRatio
@@ -608,7 +625,7 @@ function getBlockMetrics(block) {
   } = getSvgViewport(block);
   const left = width * SIDE_MARGIN_RATIO;
   const right = width - left;
-  const { topRatio, bottomRatio } = getRowSpanRatios();
+  const { topRatio, bottomRatio } = getRowSpanRatios(block);
   let top = height * topRatio;
   let bottom = height * bottomRatio;
   const bracketTick = height * BRACKET_TICK_RATIO;
@@ -1428,7 +1445,8 @@ function updateBlockPanelLayout(block, rowTotal) {
   const positiveTotal = Number.isFinite(totalValue) && totalValue > 0 ? totalValue : 0;
   const hasRowTotal = Number.isFinite(rowTotal) && rowTotal > 0;
   const stepperVisible = !(cfg !== null && cfg !== void 0 && cfg.lockDenominator);
-  const hasBlockBelow = Number.isFinite(CONFIG === null || CONFIG === void 0 ? void 0 : CONFIG.rows) && block.row < CONFIG.rows - 1;
+  const hasBlockBelow = hasVisibleBlockBelow(block);
+  block.hasVisibleBlockBelow = hasBlockBelow;
   const needsVerticalSpace = stepperVisible && hasBlockBelow;
   block.panel.style.flexBasis = '0px';
   block.panel.style.flexShrink = '1';
