@@ -653,6 +653,26 @@ function fracStr(x) {
   const [n, d] = rationalApprox(x, 64);
   return d === 1 ? `${n}` : `${n}/${d}`;
 }
+
+function fracPlain(x) {
+  if (!Number.isFinite(x)) return '';
+  const sign = x < 0 ? '-' : '';
+  const [n, d] = rationalApprox(Math.abs(x), 64);
+  if (d === 1) {
+    return `${sign}${n}`;
+  }
+  return `${sign}${n}/${d}`;
+}
+
+function fracLatex(x) {
+  if (!Number.isFinite(x)) return '';
+  const sign = x < 0 ? '-' : '';
+  const [n, d] = rationalApprox(Math.abs(x), 64);
+  if (d === 1) {
+    return `${sign}${n}`;
+  }
+  return `${sign}\\frac{${n}}{${d}}`;
+}
 function linearStr(m, b) {
   if (ADV.points.snap.enabled) {
     if (m === 0) return `y = ${fracStr(b)}`;
@@ -2809,6 +2829,56 @@ function buildPointsLine() {
   });
   const labelFun = SIMPLE_PARSED.funcs && SIMPLE_PARSED.funcs.length ? SIMPLE_PARSED.funcs[0] : null;
   const labelContent = labelFun ? buildCurveLabelContent(labelFun) : null;
+  let updateLabelWithAB = null;
+  if (labelContent && labelFun) {
+    const templateForLabel = interpretLineTemplate(labelFun.rhs || '');
+    if (templateForLabel && templateForLabel.kind === 'two') {
+      const baseText = labelContent.text || '';
+      const baseLatex = labelContent.latex || '';
+      const baseHtml = labelContent.html || '';
+      updateLabelWithAB = () => {
+        if (!ADV.curveName || !ADV.curveName.showExpression) {
+          if (labelContent.text !== baseText || labelContent.latex !== baseLatex || labelContent.html !== baseHtml) {
+            labelContent.text = baseText;
+            labelContent.latex = baseLatex;
+            labelContent.html = baseHtml;
+          }
+          return;
+        }
+        const { m, b } = currentMB();
+        if (!Number.isFinite(m) || !Number.isFinite(b)) {
+          if (labelContent.text !== baseText || labelContent.latex !== baseLatex || labelContent.html !== baseHtml) {
+            labelContent.text = baseText;
+            labelContent.latex = baseLatex;
+            labelContent.html = baseHtml;
+          }
+          return;
+        }
+        const latexA = fracLatex(m);
+        const latexB = fracLatex(b);
+        const textA = fracPlain(m);
+        const textB = fracPlain(b);
+        if (!latexA || !latexB || !textA || !textB) {
+          if (labelContent.text !== baseText || labelContent.latex !== baseLatex || labelContent.html !== baseHtml) {
+            labelContent.text = baseText;
+            labelContent.latex = baseLatex;
+            labelContent.html = baseHtml;
+          }
+          return;
+        }
+        const extraLatex = `a = ${latexA},\\; b = ${latexB}`;
+        const extraText = `a = ${textA}, b = ${textB}`;
+        const nextLatex = baseLatex ? `${baseLatex} \\ ${extraLatex}` : extraLatex;
+        const nextText = baseText ? `${baseText}\n${extraText}` : extraText;
+        if (labelContent.latex !== nextLatex || labelContent.text !== nextText) {
+          labelContent.latex = nextLatex;
+          labelContent.text = nextText;
+          labelContent.html = '';
+        }
+      };
+      updateLabelWithAB();
+    }
+  }
   if (labelContent) {
     const g = {
       color: lineColor,
@@ -2862,6 +2932,9 @@ function buildPointsLine() {
     P.moveTo([nearestMultiple(P.X(), stepXv()), nearestMultiple(P.Y(), stepYv())]);
   }
   const emitLinePointUpdate = (options = {}) => {
+    if (typeof updateLabelWithAB === 'function') {
+      updateLabelWithAB();
+    }
     if (typeof window === 'undefined' || !Array.isArray(moving) || moving.length === 0) {
       return;
     }
