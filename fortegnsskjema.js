@@ -2049,7 +2049,7 @@
     }
     labels.forEach(info => {
       const item = document.createElement('div');
-      item.className = 'chart-labels__item';
+      item.className = typeof info.className === 'string' && info.className ? info.className : 'chart-labels__item';
       item.style.top = `${info.y}px`;
       labelsLayer.appendChild(item);
       renderRowLabelContent(item, info.text, info.preferMath);
@@ -2422,7 +2422,8 @@
       rowLabels.push({
         text: displayLabel,
         y,
-        preferMath: row.role === 'result' || row.role === 'factor' || !!row.locked
+        preferMath: row.role === 'result' || row.role === 'factor' || !!row.locked,
+        className: row.role === 'result' ? 'chart-labels__item chart-labels__item--result' : 'chart-labels__item'
       });
       const locked = chartLocked || row.locked || state.autoSync && row.role === 'result' && state.solution;
       const segments = row.segments;
