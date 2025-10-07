@@ -25,36 +25,7 @@ const DEFAULT_BLOCKS = [{
   showCustomText: false,
   customText: ''
 }];
-const DEFAULT_TENKEBLOKKER_EXAMPLES = [{
-  id: 'tenkeblokker-example-1',
-  exampleNumber: '1',
-  title: 'Brøk av en hel',
-  isDefault: true,
-  config: {
-    CONFIG: {
-      minN: 1,
-      maxN: 12,
-      rows: 1,
-      cols: 1,
-      blocks: [[{
-        total: 12,
-        n: 4,
-        k: 3,
-        showWhole: false,
-        hideBlock: false,
-        lockDenominator: false,
-        lockNumerator: false,
-        hideNValue: true,
-        valueDisplay: 'fraction',
-        showCustomText: false,
-        customText: '',
-        showFraction: true,
-        showPercent: false
-      }]],
-      showCombinedWhole: false
-    }
-  }
-}];
+const DEFAULT_TENKEBLOKKER_EXAMPLES = [];
 const DISPLAY_OPTIONS = ['number', 'fraction', 'percent'];
 function sanitizeDisplayMode(value) {
   if (typeof value !== 'string') return null;
@@ -517,16 +488,7 @@ function initAltTextManager() {
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
 if (typeof window !== 'undefined') {
-  window.DEFAULT_EXAMPLES = DEFAULT_TENKEBLOKKER_EXAMPLES.map(example => {
-    var _example$config;
-    return {
-      ...example,
-      config: {
-        ...example.config,
-        CONFIG: cloneExampleConfig((_example$config = example.config) === null || _example$config === void 0 ? void 0 : _example$config.CONFIG)
-      }
-    };
-  });
+  window.DEFAULT_EXAMPLES = [];
 }
 const combinedWholeOverlays = {
   horizontal: createCombinedWholeOverlay('horizontal'),

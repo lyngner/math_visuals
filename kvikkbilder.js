@@ -317,93 +317,9 @@
     }
     return base;
   }
-  const DEFAULT_KVIKKBILDER_EXAMPLES = [{
-    id: 'kvikkbilder-klosser-1',
-    exampleNumber: '1',
-    title: '4 · 2 · (2 · 3 · 2)',
-    isDefault: true,
-    config: {
-      CFG: createExampleCfg({
-        type: 'klosser',
-        showExpression: true,
-        klosser: {
-          antallX: 4,
-          antallY: 2,
-          bredde: 2,
-          hoyde: 3,
-          dybde: 2,
-          showBtn: false
-        }
-      })
-    }
-  }, {
-    id: 'kvikkbilder-klosser-2',
-    exampleNumber: '2',
-    title: '3 · 3 · (3 · 2 · 1)',
-    config: {
-      CFG: createExampleCfg({
-        type: 'klosser',
-        showExpression: true,
-        klosser: {
-          antallX: 3,
-          antallY: 3,
-          bredde: 3,
-          hoyde: 2,
-          dybde: 1,
-          showBtn: false
-        }
-      })
-    }
-  }, {
-    id: 'kvikkbilder-monster-3',
-    exampleNumber: '3',
-    title: 'Numbervisual 12',
-    config: {
-      CFG: createExampleCfg({
-        type: 'monster',
-        showExpression: true,
-        monster: {
-          antallX: 2,
-          antallY: 2,
-          antall: 12,
-          showBtn: false
-        }
-      })
-    }
-  }, {
-    id: 'kvikkbilder-rectangles-4',
-    exampleNumber: '4',
-    title: 'Rektangler 4 · 3',
-    config: {
-      CFG: createExampleCfg({
-        type: 'rectangles',
-        showExpression: true,
-        rectangles: {
-          antallX: 2,
-          antallY: 2,
-          cols: 4,
-          rows: 3,
-          radius: 8,
-          spacingX: 6,
-          spacingY: 6,
-          patternGap: 18,
-          showBtn: false
-        }
-      })
-    }
-  }];
+  const DEFAULT_KVIKKBILDER_EXAMPLES = [];
   if (typeof window !== 'undefined') {
-    window.__EXAMPLES_FORCE_PROVIDED__ = true;
-    window.DEFAULT_EXAMPLES = DEFAULT_KVIKKBILDER_EXAMPLES.map(example => {
-      var _example$config;
-      return {
-        ...example,
-        config: {
-          ...example.config,
-          CFG: deepClone((_example$config = example.config) === null || _example$config === void 0 ? void 0 : _example$config.CFG)
-        }
-      };
-    });
+    window.DEFAULT_EXAMPLES = [];
   }
   const globalCfg = typeof window.CFG === 'object' && window.CFG ? window.CFG : {};
   const CFG = window.CFG = globalCfg;

@@ -158,41 +158,10 @@
     view: { zoom: DEFAULT_ZOOM, panX: 0, panY: 0 }
   };
 
-  const DEFAULT_PRIKK_TIL_PRIKK_EXAMPLES = [{
-    id: 'prikktilprikk-example-1',
-    exampleNumber: '1',
-    title: 'Eksempel 1',
-    isDefault: true,
-    config: {
-      STATE: DEFAULT_STATE
-    }
-  }, {
-    id: 'prikktilprikk-example-2',
-    exampleNumber: '2',
-    title: 'Eksempel 2',
-    config: {
-      STATE: EXAMPLE_TWO_STATE
-    }
-  }, {
-    id: 'prikktilprikk-example-3',
-    exampleNumber: '3',
-    title: 'Hai',
-    config: {
-      STATE: SHARK_STATE
-    }
-  }];
+  const DEFAULT_PRIKK_TIL_PRIKK_EXAMPLES = [];
 
   if (typeof window !== 'undefined') {
-    window.DEFAULT_EXAMPLES = DEFAULT_PRIKK_TIL_PRIKK_EXAMPLES.map(example => {
-      const exampleState = example.config && example.config.STATE;
-      return {
-        ...example,
-        config: {
-          ...example.config,
-          STATE: deepClone(exampleState)
-        }
-      };
-    });
+    window.DEFAULT_EXAMPLES = [];
   }
 
   const board = document.getElementById('dotBoard');
