@@ -135,11 +135,7 @@ function hasVisibleBlockBelow(block) {
 }
 function getRowSpanRatios(block) {
   const topRatio = clamp(TOP_RATIO, 0, 1);
-  let bottomRatio = clamp(BOTTOM_RATIO, topRatio, 1);
-  const hasBlockBelow = block && typeof block.hasVisibleBlockBelow === 'boolean' ? block.hasVisibleBlockBelow : hasVisibleBlockBelow(block);
-  if (hasBlockBelow) {
-    bottomRatio = 1;
-  }
+  const bottomRatio = clamp(BOTTOM_RATIO, topRatio, 1);
   return {
     topRatio,
     bottomRatio
