@@ -3159,20 +3159,39 @@ if (btnReset) {
     updateAfterViewChange();
   });
 }
+function cloneBoardSvgRoot() {
+  if (!brd || !brd.renderer || !brd.renderer.svgRoot) return null;
+  const width = brd.canvasWidth;
+  const height = brd.canvasHeight;
+  const node = brd.renderer.svgRoot.cloneNode(true);
+  node.removeAttribute('style');
+  node.setAttribute('width', `${width}`);
+  node.setAttribute('height', `${height}`);
+  node.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  node.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  node.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  return { node, width, height };
+}
+function serializeBoardSvg(clone) {
+  if (!clone || !clone.node) return '';
+  return new XMLSerializer().serializeToString(clone.node).replace(/\swidth="[^"]*"\s(?=.*width=")/, ' ').replace(/\sheight="[^"]*"\s(?=.*height=")/, ' ');
+}
+function buildBoardSvgExport() {
+  const clone = cloneBoardSvgRoot();
+  if (!clone) return null;
+  return {
+    markup: serializeBoardSvg(clone),
+    width: clone.width,
+    height: clone.height,
+    node: clone.node
+  };
+}
 const btnSvg = document.getElementById('btnSvg');
 if (btnSvg) {
   btnSvg.addEventListener('click', () => {
-    const src = brd.renderer.svgRoot.cloneNode(true);
-    src.removeAttribute('style');
-    const w = brd.canvasWidth,
-      h = brd.canvasHeight;
-    src.setAttribute('width', `${w}`);
-    src.setAttribute('height', `${h}`);
-    src.setAttribute('viewBox', `0 0 ${w} ${h}`);
-    src.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    src.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-    const xml = new XMLSerializer().serializeToString(src).replace(/\swidth="[^"]*"\s(?=.*width=")/, ' ').replace(/\sheight="[^"]*"\s(?=.*height=")/, ' ');
-    const blob = new Blob([xml], {
+    const svgExport = buildBoardSvgExport();
+    if (!svgExport || !svgExport.markup) return;
+    const blob = new Blob([svgExport.markup], {
       type: 'image/svg+xml;charset=utf-8'
     });
     const a = document.createElement('a');
@@ -3185,25 +3204,17 @@ if (btnSvg) {
 const btnPng = document.getElementById('btnPng');
 if (btnPng) {
   btnPng.addEventListener('click', () => {
-    const src = brd.renderer.svgRoot.cloneNode(true);
-    src.removeAttribute('style');
-    const w = brd.canvasWidth,
-      h = brd.canvasHeight;
-    src.setAttribute('width', `${w}`);
-    src.setAttribute('height', `${h}`);
-    src.setAttribute('viewBox', `0 0 ${w} ${h}`);
-    src.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    src.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-    const xml = new XMLSerializer().serializeToString(src).replace(/\swidth="[^"]*"\s(?=.*width=")/, ' ').replace(/\sheight="[^"]*"\s(?=.*height=")/, ' ');
-    const svgBlob = new Blob([xml], {
+    const svgExport = buildBoardSvgExport();
+    if (!svgExport || !svgExport.markup) return;
+    const svgBlob = new Blob([svgExport.markup], {
       type: 'image/svg+xml;charset=utf-8'
     });
     const url = URL.createObjectURL(svgBlob);
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
+      canvas.width = svgExport.width;
+      canvas.height = svgExport.height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
       URL.revokeObjectURL(url);
@@ -3946,6 +3957,24 @@ function setupSettingsForm() {
   };
   if (typeof window !== 'undefined') {
     window.addEventListener('graf:linepoints-changed', handleExternalLinePointUpdate);
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('examples:collect', event => {
+      try {
+        syncSimpleFromForm();
+      } catch (_) {}
+      if (!event || !event.detail) return;
+      if (event.detail.svgOverride) return;
+      const clone = cloneBoardSvgRoot();
+      if (clone && clone.node) {
+        event.detail.svgOverride = clone.node;
+      } else {
+        const svgExport = buildBoardSvgExport();
+        if (svgExport && svgExport.markup) {
+          event.detail.svgOverride = svgExport.markup;
+        }
+      }
+    });
   }
   const handleGliderCountChange = () => {
     updateStartInputState();
