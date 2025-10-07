@@ -2,7 +2,7 @@
 <html lang="no">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Arkiv for eksempler</title>
   <link rel="stylesheet" href="base.css" />
   <style>
@@ -280,25 +280,29 @@
   </style>
 </head>
 <body>
-  <main>
-    <header class="trash-header">
-      <h1 class="trash-header__title">Arkiv for eksempler</h1>
-      <p class="trash-header__description">
-        Her finner du eksempler som er arkivert fra verktøyene. Du kan gjenopprette dem til opprinnelig verktøy,
-        eller slette dem permanent.
-      </p>
-      <div class="trash-toolbar">
-        <button type="button" class="trash-toolbar__button" data-refresh>
-          <span aria-hidden="true">⟳</span>
-          Oppdater liste
-        </button>
-        <span class="trash-status" data-status aria-live="polite"></span>
-      </div>
-    </header>
-    <section class="trash-groups" data-trash-groups>
-      <p class="trash-empty" data-empty>Ingen arkiverte eksempler er tilgjengelige.</p>
-    </section>
-  </main>
+  <div class="wrap">
+    <div class="grid">
+      <main>
+        <header class="trash-header">
+          <h1 class="trash-header__title">Arkiv for eksempler</h1>
+          <p class="trash-header__description">
+            Her finner du eksempler som er arkivert fra verktøyene. Du kan gjenopprette dem til opprinnelig verktøy,
+            eller slette dem permanent.
+          </p>
+          <div class="trash-toolbar">
+            <button type="button" class="trash-toolbar__button" data-refresh>
+              <span aria-hidden="true">⟳</span>
+              Oppdater liste
+            </button>
+            <span class="trash-status" data-status aria-live="polite"></span>
+          </div>
+        </header>
+        <section class="trash-groups" data-trash-groups>
+          <p class="trash-empty" data-empty>Ingen arkiverte eksempler er tilgjengelige.</p>
+        </section>
+      </main>
+    </div>
+  </div>
   <template id="trash-group-template">
     <section class="trash-group" data-group>
       <header class="trash-group__header">
