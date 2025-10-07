@@ -1073,6 +1073,19 @@
       let examples = data && Array.isArray(data.examples) ? data.examples.map(example => example && typeof example === 'object' ? { ...example } : example) : [];
       const providedDefaults = getProvidedExamples();
       if (Array.isArray(providedDefaults) && providedDefaults.length) {
+        const deletedProvidedSet = new Set();
+        const backendDeleted = data && Array.isArray(data.deletedProvided) ? data.deletedProvided : [];
+        backendDeleted.forEach(value => {
+          const key = normalizeKey(value);
+          if (key) deletedProvidedSet.add(key);
+        });
+        const localDeleted = getDeletedProvidedExamples();
+        if (localDeleted && localDeleted.size) {
+          localDeleted.forEach(value => {
+            const key = normalizeKey(value);
+            if (key) deletedProvidedSet.add(key);
+          });
+        }
         const existingKeys = new Set();
         examples.forEach(ex => {
           const key = normalizeKey(ex && ex.__builtinKey);
@@ -1081,7 +1094,7 @@
         providedDefaults.forEach(ex => {
           if (!ex || typeof ex !== 'object') return;
           const key = normalizeKey(ex.__builtinKey);
-          if (key && existingKeys.has(key)) return;
+          if (key && (existingKeys.has(key) || deletedProvidedSet.has(key))) return;
           const copy = {
             config: cloneValue(ex.config),
             svg: typeof ex.svg === 'string' ? ex.svg : ''
