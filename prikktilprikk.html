@@ -239,12 +239,13 @@
       box-sizing: border-box;
     }
     .point-input--coord {
-      flex: 0 0 auto;
-      width: 11ch;
-      max-width: 11ch;
+      flex: 1 1 clamp(6ch, 20%, 7ch);
+      width: auto;
+      min-width: 5.5ch;
+      max-width: 7ch;
       font-variant-numeric: tabular-nums;
     }
-    .point-input--label { flex: 2 1 180px; }
+    .point-input--label { flex: 2 1 180px; min-width: 0; }
     .point-actions {
       margin-left: auto;
       display: flex;
