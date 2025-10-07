@@ -18,7 +18,12 @@
     .sep { height: 1px; background: #eef0f3; margin: 8px 0; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
-    .grid-3 { display: grid; grid-template-columns: 24px max-content 44px; gap: 4px; align-items: center; }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 4px;
+      align-items: center;
+    }
     .legend { font-weight: 600; font-size: 13px; color: #374151; margin-top: 8px; }
     .radio-row { display: flex; gap: 14px; align-items: center; }
     .tight { padding: 4px 8px; width: 44px; }
@@ -138,75 +143,67 @@ Rettvinklet trekant</textarea>
           <div>
             <div class="legend">Enkeltside</div>
             <div class="grid-3">
-              <label>a</label>
-              <select id="f1SideA">
+              <input id="f1SideATxt" class="tight" type="text" placeholder="a" aria-label="Merking for side a" />
+              <select id="f1SideA" aria-label="Standard for side a">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
                 <option value="custom">custom</option><option value="custom+value">custom+value</option>
               </select>
-              <input id="f1SideATxt" class="tight" type="text" placeholder="a" />
             </div>
             <div class="grid-3">
-              <label>b</label>
-              <select id="f1SideB">
+              <input id="f1SideBTxt" class="tight" type="text" placeholder="b" aria-label="Merking for side b" />
+              <select id="f1SideB" aria-label="Standard for side b">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
                 <option value="custom">custom</option><option value="custom+value">custom+value</option>
               </select>
-              <input id="f1SideBTxt" class="tight" type="text" placeholder="b" />
             </div>
             <div class="grid-3">
-              <label>c</label>
-              <select id="f1SideC">
+              <input id="f1SideCTxt" class="tight" type="text" placeholder="c" aria-label="Merking for side c" />
+              <select id="f1SideC" aria-label="Standard for side c">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
                 <option value="custom">custom</option><option value="custom+value">custom+value</option>
               </select>
-              <input id="f1SideCTxt" class="tight" type="text" placeholder="c" />
             </div>
             <div class="grid-3">
-              <label>d</label>
-              <select id="f1SideD">
+              <input id="f1SideDTxt" class="tight" type="text" placeholder="d" aria-label="Merking for side d" />
+              <select id="f1SideD" aria-label="Standard for side d">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
                 <option value="custom">custom</option><option value="custom+value">custom+value</option>
               </select>
-              <input id="f1SideDTxt" class="tight" type="text" placeholder="d" />
             </div>
           </div>
           <div>
             <div class="legend"><strong>Vinkler/punkter</strong> (per punkt)</div>
             <div class="grid-3">
-              <label>A</label>
-              <select id="f1AngA">
+              <input id="f1AngATxt" class="tight" type="text" placeholder="A" aria-label="Merking for punkt A" />
+              <select id="f1AngA" aria-label="Standard for punkt A">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
                 <option value="mark+value">mark+value</option><option value="custom">custom</option>
                 <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
               </select>
-              <input id="f1AngATxt" class="tight" type="text" placeholder="A" />
             </div>
             <div class="grid-3">
-              <label>B</label>
-              <select id="f1AngB">
+              <input id="f1AngBTxt" class="tight" type="text" placeholder="B" aria-label="Merking for punkt B" />
+              <select id="f1AngB" aria-label="Standard for punkt B">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
                 <option value="mark+value">mark+value</option><option value="custom">custom</option>
                 <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
               </select>
-              <input id="f1AngBTxt" class="tight" type="text" placeholder="B" />
             </div>
             <div class="grid-3">
-              <label>C</label>
-              <select id="f1AngC">
+              <input id="f1AngCTxt" class="tight" type="text" placeholder="C" aria-label="Merking for punkt C" />
+              <select id="f1AngC" aria-label="Standard for punkt C">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
                 <option value="mark+value">mark+value</option><option value="custom">custom</option>
                 <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
               </select>
-              <input id="f1AngCTxt" class="tight" type="text" placeholder="C" />
             </div>
             <div class="grid-3">
-              <label>D</label>
-              <select id="f1AngD">
+              <input id="f1AngDTxt" class="tight" type="text" placeholder="D" aria-label="Merking for punkt D" />
+              <select id="f1AngD" aria-label="Standard for punkt D">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
                 <option value="mark+value">mark+value</option><option value="custom">custom</option>
                 <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
               </select>
-              <input id="f1AngDTxt" class="tight" type="text" placeholder="D" />
             </div>
           </div>
         </div>
@@ -244,75 +241,67 @@ Rettvinklet trekant</textarea>
           <div>
             <div class="legend">Enkeltside</div>
             <div class="grid-3">
-              <label>a</label>
-              <select id="f2SideA">
+              <input id="f2SideATxt" class="tight" type="text" placeholder="a" aria-label="Merking for side a" />
+              <select id="f2SideA" aria-label="Standard for side a">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
                 <option value="custom">custom</option><option value="custom+value">custom+value</option>
               </select>
-              <input id="f2SideATxt" class="tight" type="text" placeholder="a" />
             </div>
             <div class="grid-3">
-              <label>b</label>
-              <select id="f2SideB">
+              <input id="f2SideBTxt" class="tight" type="text" placeholder="b" aria-label="Merking for side b" />
+              <select id="f2SideB" aria-label="Standard for side b">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
                 <option value="custom">custom</option><option value="custom+value">custom+value</option>
               </select>
-              <input id="f2SideBTxt" class="tight" type="text" placeholder="b" />
             </div>
             <div class="grid-3">
-              <label>c</label>
-              <select id="f2SideC">
+              <input id="f2SideCTxt" class="tight" type="text" placeholder="c" aria-label="Merking for side c" />
+              <select id="f2SideC" aria-label="Standard for side c">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
                 <option value="custom">custom</option><option value="custom+value">custom+value</option>
               </select>
-              <input id="f2SideCTxt" class="tight" type="text" placeholder="c" />
             </div>
             <div class="grid-3">
-              <label>d</label>
-              <select id="f2SideD">
+              <input id="f2SideDTxt" class="tight" type="text" placeholder="d" aria-label="Merking for side d" />
+              <select id="f2SideD" aria-label="Standard for side d">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="value">value</option>
                 <option value="custom">custom</option><option value="custom+value">custom+value</option>
               </select>
-              <input id="f2SideDTxt" class="tight" type="text" placeholder="d" />
             </div>
           </div>
           <div>
             <div class="legend"><strong>Vinkler/punkter</strong> (per punkt)</div>
             <div class="grid-3">
-              <label>A</label>
-              <select id="f2AngA">
+              <input id="f2AngATxt" class="tight" type="text" placeholder="A" aria-label="Merking for punkt A" />
+              <select id="f2AngA" aria-label="Standard for punkt A">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
                 <option value="mark+value">mark+value</option><option value="custom">custom</option>
                 <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
               </select>
-              <input id="f2AngATxt" class="tight" type="text" placeholder="A" />
             </div>
             <div class="grid-3">
-              <label>B</label>
-              <select id="f2AngB">
+              <input id="f2AngBTxt" class="tight" type="text" placeholder="B" aria-label="Merking for punkt B" />
+              <select id="f2AngB" aria-label="Standard for punkt B">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
                 <option value="mark+value">mark+value</option><option value="custom">custom</option>
                 <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
               </select>
-              <input id="f2AngBTxt" class="tight" type="text" placeholder="B" />
             </div>
             <div class="grid-3">
-              <label>C</label>
-              <select id="f2AngC">
+              <input id="f2AngCTxt" class="tight" type="text" placeholder="C" aria-label="Merking for punkt C" />
+              <select id="f2AngC" aria-label="Standard for punkt C">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
                 <option value="mark+value">mark+value</option><option value="custom">custom</option>
                 <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
               </select>
-              <input id="f2AngCTxt" class="tight" type="text" placeholder="C" />
             </div>
             <div class="grid-3">
-              <label>D</label>
-              <select id="f2AngD">
+              <input id="f2AngDTxt" class="tight" type="text" placeholder="D" aria-label="Merking for punkt D" />
+              <select id="f2AngD" aria-label="Standard for punkt D">
                 <option value="inherit">inherit</option><option value="none">none</option><option value="mark">mark</option>
                 <option value="mark+value">mark+value</option><option value="custom">custom</option>
                 <option value="custom+mark">custom+mark</option><option value="custom+mark+value">custom+mark+value</option>
               </select>
-              <input id="f2AngDTxt" class="tight" type="text" placeholder="D" />
             </div>
           </div>
         </div>
