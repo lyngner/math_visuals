@@ -797,10 +797,16 @@
   const storagePath = normalizePathname(rawPath);
   const key = 'examples_' + storagePath;
   const historyKey = key + '_history';
+  const trashKey = key + '_trash';
+  const trashMigratedKey = key + '_trash_migrated_v1';
+  const MAX_TRASH_ENTRIES = 200;
   const MAX_HISTORY_ENTRIES = 10;
   let lastStoredRawValue = null;
   let historyEntriesCache = null;
   let historyEntriesLoaded = false;
+  let trashEntriesCache = null;
+  let trashEntriesLoaded = false;
+  let trashMigrationAttempted = false;
   function normalizeHistoryEntry(entry) {
     if (!entry || typeof entry !== 'object') return null;
     const raw = typeof entry.data === 'string' ? entry.data.trim() : '';
@@ -882,6 +888,208 @@
     });
     existing.forEach(entry => pushEntry(entry));
     persistHistoryEntries(entries);
+  }
+
+  function serializeTrashEntries(entries) {
+    const seen = new WeakMap();
+    return JSON.stringify(entries, (_, value) => serializeExampleValue(value, seen));
+  }
+
+  function deserializeTrashEntries(raw) {
+    if (typeof raw !== 'string' || !raw.trim()) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      const value = deserializeExampleValue(parsed, new WeakMap());
+      return Array.isArray(value) ? value : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function deriveExampleLabel(example) {
+    if (!example || typeof example !== 'object') return '';
+    if (typeof example.title === 'string' && example.title.trim()) {
+      return example.title.trim();
+    }
+    if (typeof example.exampleNumber === 'string' && example.exampleNumber.trim()) {
+      return example.exampleNumber.trim();
+    }
+    if (typeof example.exampleNumber === 'number' && Number.isFinite(example.exampleNumber)) {
+      return String(example.exampleNumber);
+    }
+    if (typeof example.description === 'string' && example.description.trim()) {
+      const condensed = example.description.replace(/\s+/g, ' ').trim();
+      if (condensed.length <= 80) return condensed;
+      return `${condensed.slice(0, 77)}…`;
+    }
+    return '';
+  }
+
+  function generateTrashId() {
+    const rand = Math.random().toString(36).slice(2, 10);
+    const timestamp = Date.now().toString(36);
+    return `${timestamp}-${rand}`;
+  }
+
+  function normalizeTrashEntry(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    const normalizedExample = entry.example && typeof entry.example === 'object' ? cloneValue(entry.example) : null;
+    if (!normalizedExample) return null;
+    const now = new Date().toISOString();
+    const label = typeof entry.label === 'string' && entry.label.trim() ? entry.label.trim() : deriveExampleLabel(normalizedExample);
+    return {
+      id: typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : generateTrashId(),
+      example: normalizedExample,
+      deletedAt: typeof entry.deletedAt === 'string' && entry.deletedAt.trim() ? entry.deletedAt.trim() : now,
+      sourcePath: typeof entry.sourcePath === 'string' && entry.sourcePath.trim() ? entry.sourcePath.trim() : storagePath,
+      sourceHref: typeof entry.sourceHref === 'string' && entry.sourceHref.trim() ? entry.sourceHref.trim() : rawPath,
+      sourceTitle: typeof entry.sourceTitle === 'string' ? entry.sourceTitle : typeof document !== 'undefined' && document.title ? document.title : '',
+      reason: typeof entry.reason === 'string' && entry.reason.trim() ? entry.reason.trim() : 'delete',
+      removedAtIndex: Number.isInteger(entry.removedAtIndex) ? entry.removedAtIndex : null,
+      label,
+      importedFromHistory: entry.importedFromHistory === true
+    };
+  }
+
+  function loadTrashEntries() {
+    if (trashEntriesLoaded) return trashEntriesCache || [];
+    trashEntriesLoaded = true;
+    trashEntriesCache = [];
+    let raw = null;
+    try {
+      raw = safeGetItem(trashKey);
+    } catch (_) {
+      raw = null;
+    }
+    if (typeof raw === 'string' && raw.trim()) {
+      const parsed = deserializeTrashEntries(raw);
+      if (Array.isArray(parsed)) {
+        const normalized = [];
+        parsed.forEach(item => {
+          const normalizedEntry = normalizeTrashEntry(item);
+          if (normalizedEntry) normalized.push(normalizedEntry);
+        });
+        trashEntriesCache = normalized;
+      }
+    }
+    return trashEntriesCache;
+  }
+
+  function persistTrashEntries(entries) {
+    trashEntriesCache = Array.isArray(entries) ? entries.map(normalizeTrashEntry).filter(Boolean) : [];
+    trashEntriesLoaded = true;
+    if (!trashEntriesCache.length) {
+      try {
+        safeRemoveItem(trashKey);
+      } catch (_) {}
+      return trashEntriesCache;
+    }
+    try {
+      const serialized = serializeTrashEntries(trashEntriesCache);
+      safeSetItem(trashKey, serialized);
+    } catch (_) {}
+    return trashEntriesCache;
+  }
+
+  function buildExampleSignature(example) {
+    if (!example || typeof example !== 'object') return '';
+    try {
+      const serialized = serializeExamplesForStorage([example]);
+      return serialized || '';
+    } catch (error) {
+      try {
+        return JSON.stringify(example);
+      } catch (_) {
+        return '';
+      }
+    }
+  }
+
+  function addExampleToTrash(example, options) {
+    if (!example || typeof example !== 'object') return;
+    const opts = options && typeof options === 'object' ? options : {};
+    const normalizedExample = opts.preNormalized === true && example && typeof example === 'object' ? cloneValue(example) : normalizeExamplesForStorage([example])[0] || {};
+    const record = normalizeTrashEntry({
+      id: typeof opts.id === 'string' && opts.id.trim() ? opts.id.trim() : undefined,
+      example: normalizedExample,
+      deletedAt: typeof opts.deletedAt === 'string' ? opts.deletedAt : undefined,
+      sourcePath: typeof opts.sourcePath === 'string' ? opts.sourcePath : storagePath,
+      sourceHref: typeof opts.sourceHref === 'string' ? opts.sourceHref : rawPath,
+      sourceTitle: typeof opts.sourceTitle === 'string' ? opts.sourceTitle : undefined,
+      reason: typeof opts.reason === 'string' ? opts.reason : 'delete',
+      removedAtIndex: Number.isInteger(opts.index) ? opts.index : null,
+      label: typeof opts.label === 'string' ? opts.label : undefined,
+      importedFromHistory: opts.importedFromHistory === true
+    });
+    if (!record) return;
+    const current = loadTrashEntries().slice();
+    if (opts.prepend === false) {
+      current.push(record);
+    } else {
+      current.unshift(record);
+    }
+    persistTrashEntries(current.slice(0, MAX_TRASH_ENTRIES));
+  }
+
+  function ensureTrashHistoryMigration() {
+    if (trashMigrationAttempted) return;
+    trashMigrationAttempted = true;
+    let migrated = false;
+    let alreadyMigrated = false;
+    try {
+      const marker = safeGetItem(trashMigratedKey);
+      if (typeof marker === 'string' && marker.trim()) {
+        alreadyMigrated = true;
+      }
+    } catch (_) {
+      alreadyMigrated = false;
+    }
+    if (alreadyMigrated) {
+      loadTrashEntries();
+      return;
+    }
+    const existingTrash = loadTrashEntries();
+    const seenSignatures = new Set();
+    existingTrash.forEach(entry => {
+      const signature = buildExampleSignature(entry && entry.example);
+      if (signature) seenSignatures.add(signature);
+    });
+    const currentExamples = getExamples();
+    const normalizedCurrent = normalizeExamplesForStorage(currentExamples);
+    normalizedCurrent.forEach(example => {
+      const signature = buildExampleSignature(example);
+      if (signature) seenSignatures.add(signature);
+    });
+    const historyEntries = loadHistoryEntries();
+    historyEntries.forEach(entry => {
+      if (!entry || typeof entry.data !== 'string') return;
+      const parsed = parseExamplesFromRaw(entry.data);
+      if (parsed.status !== 'ok' || !Array.isArray(parsed.examples)) return;
+      const normalized = normalizeExamplesForStorage(parsed.examples);
+      normalized.forEach((example, idx) => {
+        const signature = buildExampleSignature(example);
+        if (!signature || seenSignatures.has(signature)) return;
+        addExampleToTrash(example, {
+          preNormalized: true,
+          prepend: false,
+          deletedAt: typeof entry.savedAt === 'string' ? entry.savedAt : undefined,
+          reason: 'history',
+          index: idx,
+          importedFromHistory: true
+        });
+        seenSignatures.add(signature);
+        migrated = true;
+      });
+    });
+    if (migrated) {
+      const refreshed = loadTrashEntries();
+      persistTrashEntries(refreshed.slice(0, MAX_TRASH_ENTRIES));
+    }
+    try {
+      safeSetItem(trashMigratedKey, new Date().toISOString());
+    } catch (_) {}
   }
   function parseExamplesFromRaw(rawValue) {
     if (rawValue == null) {
@@ -2707,6 +2915,10 @@
     if (removed && removed.length) {
       const removedExample = removed[0];
       if (removedExample && typeof removedExample === 'object') {
+        addExampleToTrash(removedExample, {
+          index: indexToRemove,
+          reason: 'delete'
+        });
         markProvidedExampleDeleted(removedExample.__builtinKey);
       }
     }
@@ -2733,6 +2945,7 @@
       loadExample(currentExampleIndex);
     }
   });
+  ensureTrashHistoryMigration();
   renderOptions();
   if (examplesApiBase) {
     loadExamplesFromBackend();
