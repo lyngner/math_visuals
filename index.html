@@ -28,6 +28,12 @@
       --profile-focus-outline: rgba(15, 109, 143, 0.35);
       --profile-nav-badge-background: #f97316;
       --profile-nav-badge-color: #ffffff;
+      --profile-trash-background: #fee2e2;
+      --profile-trash-border: rgba(248, 113, 113, 0.55);
+      --profile-trash-color: #b91c1c;
+      --profile-trash-hover: #dc2626;
+      --profile-trash-shadow: rgba(220, 38, 38, 0.28);
+      --profile-trash-contrast: #ffffff;
       --profile-iframe-background: #ffffff;
     }
     *, *::before, *::after {
@@ -379,6 +385,25 @@
         flex-wrap: wrap;
         overflow-x: visible;
       }
+      .nav-item--trash {
+        margin-left: auto;
+      }
+      .nav-item--trash a {
+        background: var(--profile-trash-background);
+        color: var(--profile-trash-color);
+        box-shadow: inset 0 0 0 1px var(--profile-trash-border);
+      }
+      .nav-item--trash a:hover,
+      .nav-item--trash a:focus-visible {
+        background: var(--profile-trash-hover);
+        color: var(--profile-trash-contrast);
+        box-shadow: 0 6px 14px var(--profile-trash-shadow);
+      }
+      .nav-item--trash a.active {
+        background: var(--profile-trash-hover);
+        color: var(--profile-trash-contrast);
+        box-shadow: 0 4px 12px var(--profile-trash-shadow);
+      }
     }
 
     @media (max-width: 768px) {
@@ -672,15 +697,12 @@
           <span class="nav-badge" aria-hidden="true">Beta</span>
         </a>
       </li>
-      <li>
+      <li class="nav-item--trash">
         <a href="examples-trash.html" target="content" data-label="Søppelbøtte" aria-label="Søppelbøtte">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 4h6" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M5 7h14" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 10v7" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v7" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10v7" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M7 7l1 11a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-11" />
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" fill-opacity=".14" d="M7.65 7h8.7l-.78 10.24a1.85 1.85 0 0 1-1.84 1.71h-3.46a1.85 1.85 0 0 1-1.84-1.71L7.65 7Z" />
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.5 5V4.5A1.5 1.5 0 0 1 11 3h2a1.5 1.5 0 0 1 1.5 1.5V5m2.75 0h-9.5l.9 11.4a2 2 0 0 0 2 1.85h3.45a2 2 0 0 0 2-1.85L17.25 5Z" />
+            <path stroke="currentColor" stroke-linecap="round" stroke-width="1.4" d="M10.5 10.8v4.9m3-4.9v4.9M12 10.8v4.9" />
           </svg>
           <span class="sr-only">Søppelbøtte</span>
         </a>
