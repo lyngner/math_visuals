@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Søppelbøtte for eksempler</title>
+  <title>Arkiv for eksempler</title>
   <link rel="stylesheet" href="base.css" />
   <style>
     :root {
@@ -131,8 +131,23 @@
       border-radius: 14px;
       padding: 16px;
       display: grid;
-      gap: 12px;
+      gap: 16px;
+      align-items: start;
       background: rgba(249, 250, 251, 0.75);
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .trash-item--has-preview {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    @media (min-width: 720px) {
+      .trash-item--has-preview {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
+      }
+    }
+    .trash-item__content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
     .trash-item__header {
       display: flex;
@@ -169,6 +184,36 @@
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
+    }
+    .trash-item__preview {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .trash-item__preview-inner {
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      border-radius: 12px;
+      background: #fff;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 120px;
+      max-height: 280px;
+      overflow: hidden;
+    }
+    .trash-item__preview-content {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .trash-item__preview-content svg {
+      max-width: 100%;
+      max-height: 100%;
+      width: 100%;
+      height: auto;
     }
     .trash-button {
       appearance: none;
@@ -237,9 +282,9 @@
 <body>
   <main>
     <header class="trash-header">
-      <h1 class="trash-header__title">Søppelbøtte for eksempler</h1>
+      <h1 class="trash-header__title">Arkiv for eksempler</h1>
       <p class="trash-header__description">
-        Her finner du eksempler som er slettet fra verktøyene. Du kan gjenopprette dem til opprinnelig verktøy,
+        Her finner du eksempler som er arkivert fra verktøyene. Du kan gjenopprette dem til opprinnelig verktøy,
         eller slette dem permanent.
       </p>
       <div class="trash-toolbar">
@@ -265,15 +310,22 @@
   </template>
   <template id="trash-item-template">
     <li class="trash-item" data-item>
-      <div class="trash-item__header">
-        <h3 class="trash-item__title" data-item-title></h3>
-        <span class="trash-item__timestamp" data-item-timestamp></span>
+      <div class="trash-item__content">
+        <div class="trash-item__header">
+          <h3 class="trash-item__title" data-item-title></h3>
+          <span class="trash-item__timestamp" data-item-timestamp></span>
+        </div>
+        <div class="trash-item__meta" data-item-meta></div>
+        <p class="trash-item__description" data-item-description hidden></p>
+        <div class="trash-item__actions">
+          <button type="button" class="trash-button trash-button--restore" data-action="restore">Gjenopprett</button>
+          <button type="button" class="trash-button trash-button--delete" data-action="delete">Slett permanent</button>
+        </div>
       </div>
-      <div class="trash-item__meta" data-item-meta></div>
-      <p class="trash-item__description" data-item-description hidden></p>
-      <div class="trash-item__actions">
-        <button type="button" class="trash-button trash-button--restore" data-action="restore">Gjenopprett</button>
-        <button type="button" class="trash-button trash-button--delete" data-action="delete">Slett permanent</button>
+      <div class="trash-item__preview" data-item-preview hidden>
+        <div class="trash-item__preview-inner">
+          <div class="trash-item__preview-content" data-item-preview-content></div>
+        </div>
       </div>
     </li>
   </template>
