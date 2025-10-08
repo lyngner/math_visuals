@@ -515,8 +515,11 @@ body[data-app-mode="task"] .card--examples {
 }
 
 body[data-app-mode="task"] .card--examples .toolbar,
-body[data-app-mode="task"] .card--examples .example-tabs,
-body[data-app-mode="task"] .card--examples .example-settings {
+body[data-app-mode="task"] .card--examples .example-tabs {
+  display: none !important;
+}
+
+body[data-app-mode="task"] .card--examples .example-settings > :not(.example-description) {
   display: none !important;
 }
 
