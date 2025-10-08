@@ -203,7 +203,7 @@
     if (notifyParent && (changed || opts.alwaysNotify === true)) {
       postParentAppMode(normalized);
     }
-    if (changed && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    if ((changed || force) && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       try {
         window.dispatchEvent(new CustomEvent('math-visuals:app-mode-changed', {
           detail: {
