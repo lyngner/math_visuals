@@ -202,6 +202,8 @@
     }
     if (normalized === 'task') {
       ensureTaskModeDescriptionRendered();
+    } else if (changed || force) {
+      ensureDescriptionPreviewMatchesAppMode();
     }
     if (notifyParent && (changed || opts.alwaysNotify === true)) {
       postParentAppMode(normalized);
@@ -2297,6 +2299,13 @@
     if (isEmpty || isHidden) {
       renderDescriptionPreviewFromValue(value, { force: true });
     }
+  }
+
+  function ensureDescriptionPreviewMatchesAppMode() {
+    const input = getDescriptionInput();
+    if (!input) return;
+    const value = typeof input.value === 'string' ? input.value : '';
+    renderDescriptionPreviewFromValue(value, { force: true });
   }
 
   function updateDescriptionCollapsedState(target) {
