@@ -2315,7 +2315,7 @@
     cachedExamples = [];
     return cachedExamples;
   }
-  const USER_INITIATED_REASONS = new Set(['manual-save', 'delete', 'ensure-default', 'history']);
+  const USER_INITIATED_REASONS = new Set(['manual-save', 'manual-update', 'delete', 'ensure-default', 'history']);
   function isUserInitiatedReason(reason) {
     return typeof reason === 'string' && USER_INITIATED_REASONS.has(reason);
   }
@@ -2849,11 +2849,12 @@
     } catch (error) {}
     safeRemoveItem('example_to_load');
   })();
-  const saveBtn = document.getElementById('btnSaveExample');
+  const createBtn = document.getElementById('btnSaveExample');
+  const updateBtn = document.getElementById('btnUpdateExample');
   const deleteBtn = document.getElementById('btnDeleteExample');
-  if (!saveBtn && !deleteBtn) return;
+  if (!createBtn && !updateBtn && !deleteBtn) return;
   ensureTabStyles();
-  const toolbar = (saveBtn === null || saveBtn === void 0 ? void 0 : saveBtn.parentElement) || (deleteBtn === null || deleteBtn === void 0 ? void 0 : deleteBtn.parentElement);
+  const toolbar = (updateBtn === null || updateBtn === void 0 ? void 0 : updateBtn.parentElement) || (createBtn === null || createBtn === void 0 ? void 0 : createBtn.parentElement) || (deleteBtn === null || deleteBtn === void 0 ? void 0 : deleteBtn.parentElement);
   tabsContainer = document.createElement('div');
   tabsContainer.id = 'exampleTabs';
   tabsContainer.className = 'example-tabs';
@@ -2872,8 +2873,9 @@
   }
   moveSettingsIntoExampleCard();
   window.addEventListener('resize', adjustTabsSpacing);
-  function updateDeleteButtonState(count) {
+  function updateActionButtonState(count) {
     if (deleteBtn) deleteBtn.disabled = count <= 1;
+    if (updateBtn) updateBtn.disabled = count === 0;
   }
   function clampExampleIndex(index, length) {
     if (!Number.isInteger(index)) return null;
@@ -2970,7 +2972,7 @@
     if (memoryFallbackNoticePending && !memoryFallbackNoticeRendered) {
       ensureMemoryFallbackNotice();
     }
-    updateDeleteButtonState(examples.length);
+    updateActionButtonState(examples.length);
     attemptInitialLoad();
     if (!initialLoadPerformed && pendingRequestedIndex == null && examples.length > 0) {
       let idx = Number.isInteger(currentExampleIndex) ? currentExampleIndex : 0;
@@ -2979,13 +2981,12 @@
       if (loadExample(idx)) initialLoadPerformed = true;
     }
   }
-  saveBtn === null || saveBtn === void 0 || saveBtn.addEventListener('click', () => {
-    const examples = getExamples();
+  function collectCurrentExampleState() {
     let ex;
     try {
       ex = collectConfig();
     } catch (error) {
-      console.error('[examples] failed to collect config for new example', error);
+      console.error('[examples] failed to collect config for example', error);
       const fallbackConfig = {};
       for (const name of BINDING_NAMES) {
         const binding = getBinding(name);
@@ -3006,6 +3007,27 @@
         description: getDescriptionValue()
       };
     }
+    return ex;
+  }
+  function getActiveExampleIndex(examples) {
+    if (!Array.isArray(examples) || examples.length === 0) return null;
+    let index = Number.isInteger(currentExampleIndex) ? currentExampleIndex : NaN;
+    if (!Number.isInteger(index)) {
+      var _tabsContainer;
+      const activeTab = (_tabsContainer = tabsContainer) === null || _tabsContainer === void 0 ? void 0 : _tabsContainer.querySelector('.example-tab.is-active');
+      const parsed = activeTab ? Number(activeTab.dataset.exampleIndex) : NaN;
+      if (Number.isInteger(parsed)) index = parsed;
+    }
+    if (!Number.isInteger(index)) {
+      index = examples.length - 1;
+    }
+    if (!Number.isInteger(index)) return null;
+    index = Math.max(0, Math.min(examples.length - 1, index));
+    return index;
+  }
+  createBtn === null || createBtn === void 0 || createBtn.addEventListener('click', () => {
+    const examples = getExamples();
+    const ex = collectCurrentExampleState();
     examples.push(ex);
     store(examples, {
       reason: 'manual-save'
@@ -3013,22 +3035,43 @@
     currentExampleIndex = examples.length - 1;
     renderOptions();
   });
+  updateBtn === null || updateBtn === void 0 || updateBtn.addEventListener('click', () => {
+    const examples = getExamples();
+    if (examples.length === 0) {
+      if (createBtn && typeof createBtn.click === 'function') {
+        createBtn.click();
+      }
+      return;
+    }
+    const indexToUpdate = getActiveExampleIndex(examples);
+    if (indexToUpdate == null) return;
+    const payload = collectCurrentExampleState();
+    const existing = examples[indexToUpdate];
+    const updated = existing && typeof existing === 'object' ? { ...existing } : {};
+    updated.config = payload && typeof payload.config === 'object' ? payload.config : {};
+    updated.svg = typeof (payload === null || payload === void 0 ? void 0 : payload.svg) === 'string' ? payload.svg : '';
+    if (payload && Object.prototype.hasOwnProperty.call(payload, 'description')) {
+      updated.description = typeof payload.description === 'string' ? payload.description : '';
+    } else {
+      updated.description = getDescriptionValue();
+    }
+    examples[indexToUpdate] = updated;
+    store(examples, {
+      reason: 'manual-update'
+    });
+    currentExampleIndex = indexToUpdate;
+    renderOptions();
+  });
   deleteBtn === null || deleteBtn === void 0 || deleteBtn.addEventListener('click', () => {
     const examples = getExamples();
     if (examples.length <= 1) {
       return;
     }
-    let indexToRemove = Number.isInteger(currentExampleIndex) ? currentExampleIndex : NaN;
-    if (!Number.isInteger(indexToRemove)) {
-      var _tabsContainer;
-      const activeTab = (_tabsContainer = tabsContainer) === null || _tabsContainer === void 0 ? void 0 : _tabsContainer.querySelector('.example-tab.is-active');
-      const parsed = activeTab ? Number(activeTab.dataset.exampleIndex) : NaN;
-      if (Number.isInteger(parsed)) indexToRemove = parsed;
+    const indexToUpdate = getActiveExampleIndex(examples);
+    if (indexToUpdate == null) {
+      return;
     }
-    if (!Number.isInteger(indexToRemove)) {
-      indexToRemove = examples.length - 1;
-    }
-    indexToRemove = Math.max(0, Math.min(examples.length - 1, indexToRemove));
+    const indexToRemove = indexToUpdate;
     const removed = examples.splice(indexToRemove, 1);
     if (removed && removed.length) {
       const removedExample = removed[0];
