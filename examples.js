@@ -2347,10 +2347,15 @@
     const value = typeof input.value === 'string' ? input.value : '';
     const trimmed = value && typeof value.trim === 'function' ? value.trim() : '';
     if (!trimmed) return;
-    const hasContent = renderDescriptionPreviewFromValue(value, { force: true, bypassFormattingCheck: true });
-    if (hasContent) return;
+    renderDescriptionPreviewFromValue(value, { force: true, bypassFormattingCheck: true });
     const preview = getDescriptionPreviewElement();
     if (!preview) return;
+    const hasRendererContent =
+      preview.dataset.empty === 'false' &&
+      preview.dataset.placeholder !== 'true' &&
+      preview.childNodes &&
+      preview.childNodes.length > 0;
+    if (hasRendererContent) return;
     clearChildren(preview);
     preview.textContent = trimmed;
     preview.dataset.empty = 'false';
