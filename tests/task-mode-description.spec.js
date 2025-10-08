@@ -1,6 +1,16 @@
 const { test, expect } = require('@playwright/test');
 
 test.describe('task mode description preview', () => {
+  test('shows placeholder text when description is empty', async ({ page }) => {
+    await page.goto('/diagram/index.html', { waitUntil: 'load' });
+    const input = page.locator('#exampleDescription');
+    const placeholder = await input.getAttribute('placeholder');
+    await input.fill('');
+    const preview = page.locator('.example-description-preview');
+    await expect(preview).toBeVisible();
+    await expect(preview).toHaveText(placeholder || '');
+  });
+
   test('shows description text when switching to task mode', async ({ page }) => {
     await page.goto('/diagram/index.html', { waitUntil: 'load' });
     const description = 'Dette er en testoppgave';

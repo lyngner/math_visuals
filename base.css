@@ -404,6 +404,11 @@ select:disabled {
   display: none;
 }
 
+.card--examples .example-description-preview[data-placeholder="true"] {
+  color: var(--placeholder-color, #64748b);
+  font-style: italic;
+}
+
 .card--examples .example-description-preview .katex {
   display: inline-block;
   font-size: 1.05em;
