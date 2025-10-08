@@ -3409,6 +3409,24 @@
     }
     const hashMatch = window.location.hash && window.location.hash.match(/example=([0-9]+)/i);
     if (hashMatch) return parseValue(hashMatch[1]);
+    const pathname = typeof window.location.pathname === 'string' ? window.location.pathname : '';
+    if (pathname) {
+      const segments = pathname.split('/').filter(Boolean);
+      for (let i = segments.length - 1; i >= 0; i--) {
+        const segment = segments[i];
+        let decoded = segment;
+        try {
+          decoded = decodeURIComponent(segment);
+        } catch (_) {}
+        const match = decoded.match(/^eksempel[-_]?([0-9]+)$/i);
+        if (match) {
+          const parsed = parseValue(match[1]);
+          if (parsed != null) {
+            return parsed;
+          }
+        }
+      }
+    }
     return null;
   }
   function ensureDefaultsNow() {
