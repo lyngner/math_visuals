@@ -336,18 +336,24 @@
     return snapshot;
   }
   const toString = Object.prototype.toString;
-  function cloneState(value) {
+  function cloneState(value, seen) {
     if (!value || typeof value !== 'object') return value;
     if (typeof structuredClone === 'function') {
       try {
         return structuredClone(value);
       } catch (_) {}
     }
+    const references =
+      seen || (typeof WeakMap === 'function' ? new WeakMap() : new Map());
+    if (references.has(value)) {
+      return references.get(value);
+    }
     const tag = toString.call(value);
     if (tag === '[object Array]') {
       const clone = new Array(value.length);
+      references.set(value, clone);
       for (let i = 0; i < value.length; i++) {
-        clone[i] = cloneState(value[i]);
+        clone[i] = cloneState(value[i], references);
       }
       return clone;
     }
@@ -380,14 +386,15 @@
     }
     if (tag === '[object Object]') {
       const clone = {};
+      references.set(value, clone);
       const keys = Object.keys(value);
       for (let i = 0; i < keys.length; i++) {
-        clone[keys[i]] = cloneState(value[keys[i]]);
+        clone[keys[i]] = cloneState(value[keys[i]], references);
       }
       if (typeof Object.getOwnPropertySymbols === 'function') {
         const symbols = Object.getOwnPropertySymbols(value);
         for (let i = 0; i < symbols.length; i++) {
-          clone[symbols[i]] = cloneState(value[symbols[i]]);
+          clone[symbols[i]] = cloneState(value[symbols[i]], references);
         }
       }
       return clone;
