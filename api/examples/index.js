@@ -8,7 +8,7 @@ const {
   deleteEntry,
   listEntries,
   KvOperationError,
-  isKvConfigured
+  getStoreMode
 } = require('../_lib/examples-store');
 
 function parseAllowedOrigins() {
@@ -85,7 +85,7 @@ module.exports = async function handler(req, res) {
     res.setHeader('Vary', 'Origin');
   }
 
-  res.setHeader('X-Examples-Store-Mode', isKvConfigured() ? 'kv' : 'memory');
+  res.setHeader('X-Examples-Store-Mode', getStoreMode());
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
@@ -126,7 +126,7 @@ module.exports = async function handler(req, res) {
         return;
       }
       await deleteEntry(target);
-      res.setHeader('X-Examples-Storage-Result', isKvConfigured() ? 'kv' : 'memory');
+      res.setHeader('X-Examples-Storage-Result', getStoreMode());
       sendJson(res, 200, { ok: true });
       return;
     }
