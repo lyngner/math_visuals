@@ -323,9 +323,93 @@
     globalScope.mathVisuals.setAppMode = (mode, options) => setAppMode(mode, options);
     globalScope.mathVisuals.getAppMode = () => currentAppMode;
   }
-  function createMemoryStorage() {
+  const MEMORY_STORAGE_WINDOW_PREFIX = '__MATH_VISUALS_STORAGE__:';
+  let memoryStorageWindowNameOriginal = null;
+  function serializeMemorySnapshot(data) {
+    if (!data || data.size === 0) {
+      return null;
+    }
+    const snapshot = {};
+    data.forEach((value, key) => {
+      snapshot[key] = value;
+    });
+    return snapshot;
+  }
+  function readMemorySnapshotFromWindow() {
+    if (typeof window === 'undefined') {
+      return { data: null, original: '' };
+    }
+    const current = typeof window.name === 'string' ? window.name : '';
+    if (!current.startsWith(MEMORY_STORAGE_WINDOW_PREFIX)) {
+      return { data: null, original: current };
+    }
+    const payload = current.slice(MEMORY_STORAGE_WINDOW_PREFIX.length);
+    try {
+      const parsed = JSON.parse(payload);
+      if (parsed && typeof parsed === 'object') {
+        const restored = parsed.data && typeof parsed.data === 'object' ? parsed.data : null;
+        const original = typeof parsed.original === 'string' ? parsed.original : '';
+        return { data: restored, original };
+      }
+    } catch (_) {}
+    return { data: null, original: '' };
+  }
+  function writeMemorySnapshotToWindow(snapshot) {
+    if (typeof window === 'undefined') return;
+    if (!snapshot || (typeof snapshot === 'object' && Object.keys(snapshot).length === 0)) {
+      const restore = memoryStorageWindowNameOriginal != null ? memoryStorageWindowNameOriginal : '';
+      window.name = restore;
+      return;
+    }
+    const payload = {
+      data: snapshot,
+      original: memoryStorageWindowNameOriginal != null ? memoryStorageWindowNameOriginal : ''
+    };
+    try {
+      window.name = MEMORY_STORAGE_WINDOW_PREFIX + JSON.stringify(payload);
+    } catch (_) {}
+  }
+  function snapshotFromStorage(store) {
+    const snapshot = {};
+    if (!store || typeof store.length !== 'number' || typeof store.key !== 'function') {
+      return snapshot;
+    }
+    let total = 0;
+    try {
+      total = Number(store.length) || 0;
+    } catch (_) {
+      total = 0;
+    }
+    for (let i = 0; i < total; i++) {
+      let key = null;
+      try {
+        key = store.key(i);
+      } catch (_) {
+        key = null;
+      }
+      if (typeof key !== 'string') continue;
+      let value = null;
+      try {
+        value = store.getItem(key);
+      } catch (_) {
+        value = null;
+      }
+      if (value != null) {
+        snapshot[key] = value;
+      }
+    }
+    return snapshot;
+  }
+  function createMemoryStorage(options) {
+    const opts = options && typeof options === 'object' ? options : {};
     const data = new Map();
-    return {
+    let suppressNotify = false;
+    const notifyChange = () => {
+      if (suppressNotify) return;
+      if (typeof opts.onChange !== 'function') return;
+      opts.onChange(serializeMemorySnapshot(data));
+    };
+    const api = {
       get length() {
         return data.size;
       },
@@ -348,15 +432,30 @@
         if (key == null) return;
         const normalized = String(key);
         data.set(normalized, value == null ? 'null' : String(value));
+        notifyChange();
       },
       removeItem(key) {
         if (key == null) return;
         data.delete(String(key));
+        notifyChange();
       },
       clear() {
         data.clear();
+        notifyChange();
       }
     };
+    if (opts.initialData && typeof opts.initialData === 'object') {
+      suppressNotify = true;
+      try {
+        Object.keys(opts.initialData).forEach(key => {
+          const normalized = String(key);
+          const value = opts.initialData[key];
+          data.set(normalized, value == null ? 'null' : String(value));
+        });
+      } catch (_) {}
+      suppressNotify = false;
+    }
+    return api;
   }
   function createSessionFallbackStorage() {
     if (typeof sessionStorage === 'undefined') return null;
@@ -442,13 +541,28 @@
     if (globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function') {
       const existing = globalScope.__EXAMPLES_FALLBACK_STORAGE__;
       const mode = globalScope.__EXAMPLES_FALLBACK_STORAGE_MODE__ === 'session' ? 'session' : 'memory';
+      if (mode === 'memory') {
+        const snapshot = snapshotFromStorage(existing);
+        const store = createMemoryStorage({
+          initialData: snapshot,
+          onChange: writeMemorySnapshotToWindow
+        });
+        return applyFallbackStorage(store, 'memory');
+      }
       return applyFallbackStorage(existing, mode);
     }
     const sessionStore = createSessionFallbackStorage();
     if (sessionStore) {
       return applyFallbackStorage(sessionStore, 'session');
     }
-    return applyFallbackStorage(createMemoryStorage(), 'memory');
+    const { data: initialSnapshot, original } = readMemorySnapshotFromWindow();
+    memoryStorageWindowNameOriginal = original;
+    const memoryStore = createMemoryStorage({
+      initialData: initialSnapshot,
+      onChange: writeMemorySnapshotToWindow
+    });
+    writeMemorySnapshotToWindow(initialSnapshot);
+    return applyFallbackStorage(memoryStore, 'memory');
   }
   initializeFallbackStorage();
   let usingFallbackStorage = false;
