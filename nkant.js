@@ -576,8 +576,9 @@ const STYLE_DEFAULTS = {
   angWidth: 4,
   angFill: "#147a9c22",
   textFill: "#111827",
-  textHalo: "#fff",
-  textHaloW: 6,
+  textHalo: null,
+  textHaloW: 0,
+  fontFamily: "system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
   sideFS: 26,
   ptFS: 32,
   angFS: 22,
@@ -591,9 +592,9 @@ const STYLE_PROFILE_OVERRIDES = {
     edgeStroke: "#2C395B",
     angStroke: "#ffffff",
     angFill: "rgba(255, 255, 255, 0.9)",
-    textFill: "#ffffff",
-    textHalo: "#2C395B",
-    textHaloW: 6,
+    textFill: "#2C395B",
+    textHalo: null,
+    textHaloW: 0,
     constructionStroke: "#ffffff",
     constructionWidth: 4,
     constructionDash: "6 6"
@@ -742,8 +743,14 @@ function addHaloText(parent, x, y, txt, fontSizePx, extraAttrs = {}) {
     y,
     fill: STYLE.textFill,
     "font-size": fontSizePx,
-    style: `paint-order:stroke fill;stroke:${STYLE.textHalo};stroke-width:${STYLE.textHaloW};stroke-linejoin:round;`
+    "font-family": STYLE.fontFamily,
   });
+  if (STYLE.textHalo && STYLE.textHaloW > 0) {
+    t.setAttribute(
+      "style",
+      `paint-order:stroke fill;stroke:${STYLE.textHalo};stroke-width:${STYLE.textHaloW};stroke-linejoin:round;`
+    );
+  }
   Object.entries(extraAttrs).forEach(([k, v]) => t.setAttribute(k, String(v)));
   t.textContent = txt;
   return t;
