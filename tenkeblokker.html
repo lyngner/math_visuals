@@ -25,6 +25,7 @@
     }
     .tb-grid{
       --tb-label-max-width:0px;
+      --tb-grid-padding-left:28px;
       grid-column:1;
       grid-row:1;
       display:flex;
@@ -32,7 +33,7 @@
       gap:0;
       row-gap:0;
       column-gap:0;
-      padding:var(--tb-grid-padding-top,20px) 18px 18px 28px;
+      padding:var(--tb-grid-padding-top,20px) 18px 18px var(--tb-grid-padding-left,28px);
       width:100%;
       align-items:flex-start;
       overflow:visible;
