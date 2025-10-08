@@ -105,6 +105,60 @@
     return null;
   }
 
+  function shouldTreatCommaAsSeparator(content, index, current) {
+    const trimmedCurrent = typeof current === 'string' ? current.trim() : '';
+    if (!trimmedCurrent || !trimmedCurrent.includes('=')) {
+      return false;
+    }
+
+    let lookaheadEscape = false;
+    let lookaheadInSingleQuote = false;
+    let lookaheadInDoubleQuote = false;
+    let keyStart = null;
+
+    for (let i = index + 1; i < content.length; i++) {
+      const char = content[i];
+      if (lookaheadEscape) {
+        lookaheadEscape = false;
+        continue;
+      }
+      if (char === '\\') {
+        lookaheadEscape = true;
+        continue;
+      }
+      if (char === "'" && !lookaheadInDoubleQuote) {
+        lookaheadInSingleQuote = !lookaheadInSingleQuote;
+        continue;
+      }
+      if (char === '"' && !lookaheadInSingleQuote) {
+        lookaheadInDoubleQuote = !lookaheadInDoubleQuote;
+        continue;
+      }
+      if (lookaheadInSingleQuote || lookaheadInDoubleQuote) {
+        continue;
+      }
+      if (keyStart === null) {
+        if (/\s/.test(char)) {
+          continue;
+        }
+        if (char === '|' || char === ',') {
+          return false;
+        }
+        keyStart = i;
+        continue;
+      }
+      if (char === '=') {
+        const key = content.slice(keyStart, i).trim();
+        return key.length > 0;
+      }
+      if (char === '|' || char === ',') {
+        return false;
+      }
+    }
+
+    return false;
+  }
+
   function splitDescriptor(content) {
     const parts = [];
     if (typeof content !== 'string' || !content) return parts;
@@ -138,13 +192,7 @@
         if (char === '|') {
           isSeparator = true;
         } else if (char === ',') {
-          const prevChar = content[i - 1];
-          const nextChar = content[i + 1];
-          const nextIsWhitespace = typeof nextChar === 'string' && /\s/.test(nextChar);
-          const nextIsQuote = nextChar === '"' || nextChar === "'";
-          if (prevChar === '"' || prevChar === "'" || nextIsWhitespace || nextIsQuote) {
-            isSeparator = true;
-          }
+          isSeparator = shouldTreatCommaAsSeparator(content, i, current);
         }
       }
       if (isSeparator) {
