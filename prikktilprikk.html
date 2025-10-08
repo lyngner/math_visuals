@@ -372,6 +372,15 @@
     body.labels-hidden .point-label { display: none; }
     body.is-edit-mode .predef-tool { display: flex; }
     body.is-predef-mode .predef-tool { background: #eff6ff; border-color: #bfdbfe; }
+    .example-description [data-task-check-host] {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .example-description [data-task-check-host][hidden] { display: none; }
+    .example-description [data-task-check-host] .status { width: 100%; }
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
@@ -397,16 +406,18 @@
           <span class="legend-item"><span class="legend-swatch legend-swatch--answer"></span> Fasit (kun i redigering)</span>
         </div>
         <div class="toolbar">
-          <button id="btnCheck" class="btn btn--success" type="button">Sjekk svar</button>
           <button id="btnClear" class="btn" type="button">Tøm streker</button>
         </div>
-        <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
       </div>
       <div class="side">
         <div class="card card--examples">
           <div class="example-description">
             <label for="exampleDescription">Oppgavetekst (valgfritt)</label>
             <textarea id="exampleDescription" placeholder="Skriv en oppgavetekst som lagres med eksemplet"></textarea>
+            <div class="task-check-host" data-task-check-host hidden>
+              <button id="btnCheck" class="btn btn--success" type="button">Sjekk svar</button>
+              <div id="statusMessage" class="status" role="status" aria-live="polite" hidden></div>
+            </div>
           </div>
           <div class="toolbar">
             <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>

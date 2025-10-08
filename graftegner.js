@@ -3212,6 +3212,7 @@ function ensureCheckControls() {
     msg.textContent = '';
     host.appendChild(msg);
   }
+  applyAppModeToTaskCheckHost(getCurrentAppMode() || 'task');
   const setStatus = (type, text) => {
     msg.className = 'status ' + (type === 'ok' ? 'status--ok' : type === 'err' ? 'status--err' : 'status--info');
     msg.textContent = text || '';
@@ -3223,6 +3224,72 @@ function ensureCheckControls() {
   };
 }
 
+const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
+
+function ensureTaskCheckHostChildren() {
+  if (!taskCheckHost) return;
+  const btn = document.getElementById('btnCheck');
+  const msg = document.getElementById('checkMsg');
+  if (btn && btn.parentElement !== taskCheckHost) {
+    taskCheckHost.appendChild(btn);
+  }
+  if (msg && msg.parentElement !== taskCheckHost) {
+    taskCheckHost.appendChild(msg);
+  }
+}
+
+function applyAppModeToTaskCheckHost(mode) {
+  if (!taskCheckHost) return;
+  const normalized = typeof mode === 'string' ? mode.toLowerCase() : '';
+  const isTaskMode = normalized === 'task';
+  if (isTaskMode) {
+    ensureTaskCheckHostChildren();
+    taskCheckHost.hidden = false;
+    const btn = document.getElementById('btnCheck');
+    const msg = document.getElementById('checkMsg');
+    if (btn) {
+      btn.hidden = false;
+      if (btn.dataset) delete btn.dataset.prevHidden;
+    }
+    if (msg) {
+      if (msg.dataset && 'prevHidden' in msg.dataset) {
+        const wasHidden = msg.dataset.prevHidden === '1';
+        delete msg.dataset.prevHidden;
+        msg.hidden = wasHidden;
+      }
+    }
+  } else {
+    taskCheckHost.hidden = true;
+    const btn = document.getElementById('btnCheck');
+    const msg = document.getElementById('checkMsg');
+    if (btn) {
+      if (btn.dataset) {
+        btn.dataset.prevHidden = btn.hidden ? '1' : '0';
+      }
+      btn.hidden = true;
+    }
+    if (msg) {
+      if (msg.dataset) {
+        msg.dataset.prevHidden = msg.hidden ? '1' : '0';
+      }
+      msg.hidden = true;
+    }
+  }
+}
+
+function getCurrentAppMode() {
+  if (typeof window === 'undefined') return null;
+  const mv = window.mathVisuals;
+  if (mv && typeof mv.getAppMode === 'function') {
+    try {
+      return mv.getAppMode();
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
+
 /* ====== Reset & SVG (robust eksport) ====== */
 const btnReset = document.getElementById('btnReset');
 if (btnReset) {
@@ -3230,6 +3297,17 @@ if (btnReset) {
     const scr = initialScreen();
     brd.setBoundingBox(toBB(scr), true);
     updateAfterViewChange();
+  });
+}
+
+applyAppModeToTaskCheckHost(getCurrentAppMode() || 'task');
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('math-visuals:app-mode-changed', event => {
+    if (!event) return;
+    const detail = event.detail;
+    if (!detail || typeof detail.mode !== 'string') return;
+    applyAppModeToTaskCheckHost(detail.mode);
   });
 }
 function cloneBoardSvgRoot() {

@@ -144,6 +144,19 @@
       border-color: #bfdbfe;
       color: #1d4ed8;
     }
+    .example-description [data-task-check-host] {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .example-description [data-task-check-host][hidden] {
+      display: none;
+    }
+    .example-description [data-task-check-host] .status {
+      width: 100%;
+    }
   </style>
   <link rel="stylesheet" href="split.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-ywTprUI1Q+mEFz1Ok5AR52lCstOEPCTpQJZMa2+pzSQPwXTwns32xERiqnnn6T5+" crossorigin="anonymous" />
@@ -155,10 +168,6 @@
         <div class="figure">
           <svg id="numberLineSvg" viewBox="0 0 1000 260" preserveAspectRatio="xMidYMid meet" aria-label=""></svg>
         </div>
-        <div class="toolbar">
-          <button id="btnCheck" class="btn btn--success" type="button">Sjekk svar</button>
-        </div>
-        <div id="checkStatus" class="status" role="status" aria-live="polite" hidden></div>
       </div>
 
       <div class="side">
@@ -166,6 +175,10 @@
           <div class="example-description">
             <label for="exampleDescription">Oppgavetekst (valgfritt)</label>
             <textarea id="exampleDescription" placeholder="Skriv en oppgavetekst som lagres med eksemplet"></textarea>
+            <div class="task-check-host" data-task-check-host hidden>
+              <button id="btnCheck" class="btn btn--success" type="button">Sjekk svar</button>
+              <div id="checkStatus" class="status" role="status" aria-live="polite" hidden></div>
+            </div>
           </div>
           <div class="toolbar">
             <span class="badge badge--beta" aria-label="Tallinje er i betaversjon">Beta</span>

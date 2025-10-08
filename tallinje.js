@@ -19,6 +19,75 @@
   const addDraggableButton = document.getElementById('btnAddDraggable');
   const checkButton = document.getElementById('btnCheck');
   const checkStatus = document.getElementById('checkStatus');
+  const taskCheckHost = document.querySelector('[data-task-check-host]');
+  const taskCheckControls = [checkButton, checkStatus].filter(Boolean);
+
+  function ensureTaskControlsAppended() {
+    if (!taskCheckHost) return;
+    taskCheckControls.forEach(control => {
+      if (control && control.parentElement !== taskCheckHost) {
+        taskCheckHost.appendChild(control);
+      }
+    });
+  }
+
+  function applyAppModeToTaskControls(mode) {
+    if (!taskCheckHost) return;
+    const normalized = typeof mode === 'string' ? mode.toLowerCase() : '';
+    const isTaskMode = normalized === 'task';
+    if (isTaskMode) {
+      ensureTaskControlsAppended();
+      taskCheckHost.hidden = false;
+      taskCheckControls.forEach(control => {
+        if (!control) return;
+        if (control === checkButton) {
+          control.hidden = false;
+          if (control.dataset) delete control.dataset.prevHidden;
+          return;
+        }
+        if (control.dataset && 'prevHidden' in control.dataset) {
+          const wasHidden = control.dataset.prevHidden === '1';
+          delete control.dataset.prevHidden;
+          control.hidden = wasHidden;
+        }
+      });
+    } else {
+      taskCheckHost.hidden = true;
+      taskCheckControls.forEach(control => {
+        if (!control) return;
+        if (control.dataset) {
+          control.dataset.prevHidden = control.hidden ? '1' : '0';
+        }
+        control.hidden = true;
+      });
+    }
+  }
+
+  function getCurrentAppMode() {
+    if (typeof window === 'undefined') return null;
+    const mv = window.mathVisuals;
+    if (mv && typeof mv.getAppMode === 'function') {
+      try {
+        return mv.getAppMode();
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  function handleAppModeChanged(event) {
+    if (!event) return;
+    const detail = event.detail;
+    if (!detail || typeof detail.mode !== 'string') return;
+    applyAppModeToTaskControls(detail.mode);
+  }
+
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('math-visuals:app-mode-changed', handleAppModeChanged);
+  }
+
+  applyAppModeToTaskControls(getCurrentAppMode() || 'task');
 
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;

@@ -172,6 +172,8 @@
   const checkBtn = document.getElementById('btnCheck');
   const clearBtn = document.getElementById('btnClear');
   const statusBox = document.getElementById('statusMessage');
+  const taskCheckHost = document.querySelector('[data-task-check-host]');
+  const taskCheckControls = [checkBtn, statusBox].filter(Boolean);
   const addPointBtn = document.getElementById('btnAddPoint');
   const addPointFalseBtn = document.getElementById('btnAddPointFalse');
   const pointListEl = document.getElementById('pointList');
@@ -2534,10 +2536,12 @@
     if (!type || !heading) {
       statusBox.className = 'status';
       statusBox.innerHTML = '';
+      statusBox.hidden = true;
       return;
     }
     statusBox.className = `status status--${type}`;
     statusBox.innerHTML = '';
+    statusBox.hidden = false;
     const strong = document.createElement('strong');
     if (type === 'success') {
       const icon = document.createElement('span');
@@ -2736,6 +2740,7 @@
     const editModes = new Set(['edit', 'default']);
     const playModes = new Set(['play', 'solve', 'student', 'view', 'task']);
     if (!editModes.has(normalized) && !playModes.has(normalized)) return;
+    updateTaskControlsVisibility(normalized);
     const nextIsEditMode = editModes.has(normalized);
     if (typeof window !== 'undefined') {
       window.mode = normalized;
@@ -2865,3 +2870,59 @@
 
   window.render = () => rebuildAll(true);
 })();
+  function ensureTaskControlsInHost() {
+    if (!taskCheckHost) return;
+    taskCheckControls.forEach(control => {
+      if (control && control.parentElement !== taskCheckHost) {
+        taskCheckHost.appendChild(control);
+      }
+    });
+  }
+
+  function updateTaskControlsVisibility(mode) {
+    if (!taskCheckHost) return;
+    const normalized = typeof mode === 'string' ? mode.toLowerCase() : '';
+    const isTaskMode = normalized === 'task';
+    if (isTaskMode) {
+      ensureTaskControlsInHost();
+      taskCheckHost.hidden = false;
+      taskCheckControls.forEach(control => {
+        if (!control) return;
+        if (control === checkBtn) {
+          control.hidden = false;
+          if (control.dataset) delete control.dataset.prevHidden;
+          return;
+        }
+        if (control.dataset && 'prevHidden' in control.dataset) {
+          const wasHidden = control.dataset.prevHidden === '1';
+          delete control.dataset.prevHidden;
+          control.hidden = wasHidden;
+        }
+      });
+    } else {
+      taskCheckHost.hidden = true;
+      taskCheckControls.forEach(control => {
+        if (!control) return;
+        if (control.dataset) {
+          control.dataset.prevHidden = control.hidden ? '1' : '0';
+        }
+        control.hidden = true;
+      });
+    }
+  }
+
+  function getCurrentAppMode() {
+    if (typeof window === 'undefined') return null;
+    const mv = window.mathVisuals;
+    if (mv && typeof mv.getAppMode === 'function') {
+      try {
+        return mv.getAppMode();
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  updateTaskControlsVisibility(getCurrentAppMode() || 'task');
+
