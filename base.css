@@ -182,6 +182,7 @@ body[data-app="graftegner"] .layout--sidebar:not(.split-enabled) > :not(.side) {
   body[data-app-mode="task"] .layout--sidebar {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
   }
 
   body[data-app-mode="task"] .layout--sidebar > .side {
