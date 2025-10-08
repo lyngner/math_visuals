@@ -170,6 +170,8 @@
       if (typeof document === 'undefined') return;
       const body = document.body;
       if (!body) return;
+      pendingAppModeForBody = null;
+      pendingAppModeApplyScheduled = false;
       if (body.dataset.appMode !== targetMode) {
         body.dataset.appMode = targetMode;
       }
@@ -197,8 +199,11 @@
           const target = pendingAppModeForBody != null ? pendingAppModeForBody : currentAppMode;
           pendingAppModeForBody = null;
           if (document.body) {
-            execute(target);
+            if (target !== lastAppliedAppMode) {
+              execute(target);
+            }
           } else if (typeof window !== 'undefined') {
+            pendingAppModeApplyScheduled = true;
             setTimeout(applyWhenReady, 16);
           }
         };
