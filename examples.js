@@ -1023,6 +1023,17 @@
     if (!example || typeof example !== 'object') return;
     const opts = options && typeof options === 'object' ? options : {};
     const normalizedExample = opts.preNormalized === true && example && typeof example === 'object' ? cloneValue(example) : normalizeExamplesForStorage([example])[0] || {};
+    if (opts.capturePreview === true) {
+      try {
+        const previewSvg = collectExampleSvgMarkup();
+        const sanitizedPreview = sanitizeSvgForStorage(previewSvg);
+        if (sanitizedPreview) {
+          normalizedExample.svg = sanitizedPreview;
+        }
+      } catch (error) {
+        console.error('[examples] failed to capture svg preview for trash entry', error);
+      }
+    }
     const record = normalizeTrashEntry({
       id: typeof opts.id === 'string' && opts.id.trim() ? opts.id.trim() : undefined,
       example: normalizedExample,
@@ -2392,6 +2403,56 @@
       }
     });
   }
+  function collectExampleSvgMarkup(options) {
+    if (typeof document === 'undefined') return '';
+    const opts = options && typeof options === 'object' ? options : {};
+    if (opts.flush !== false) {
+      try {
+        flushPendingChanges();
+      } catch (_) {}
+    }
+    const detail = { svgOverride: null };
+    if (typeof window !== 'undefined' && window) {
+      try {
+        let evt;
+        if (typeof CustomEvent === 'function') {
+          evt = new CustomEvent('examples:collect', {
+            detail
+          });
+        } else {
+          evt = new Event('examples:collect');
+          try {
+            evt.detail = detail;
+          } catch (_) {}
+        }
+        window.dispatchEvent(evt);
+      } catch (error) {
+        try {
+          const evt = new Event('examples:collect');
+          try {
+            evt.detail = detail;
+          } catch (_) {}
+          window.dispatchEvent(evt);
+        } catch (_) {}
+      }
+    }
+    let svgMarkup = '';
+    const override = detail.svgOverride;
+    if (override != null) {
+      if (typeof override === 'string') {
+        svgMarkup = override;
+      } else if (override && typeof override.outerHTML === 'string') {
+        svgMarkup = override.outerHTML;
+      }
+    }
+    if (!svgMarkup) {
+      const svg = document.querySelector('svg');
+      if (svg && typeof svg.outerHTML === 'string') {
+        svgMarkup = svg.outerHTML;
+      }
+    }
+    return typeof svgMarkup === 'string' ? svgMarkup : '';
+  }
   function ensureTabStyles() {
     if (document.getElementById('exampleTabStyles')) return;
     const style = document.createElement('style');
@@ -2713,49 +2774,13 @@
   }
   function collectConfig() {
     flushPendingChanges();
-    const collectionDetail = {
-      svgOverride: null
-    };
-    try {
-      if (typeof window !== 'undefined' && window) {
-        let evt;
-        if (typeof CustomEvent === 'function') {
-          evt = new CustomEvent('examples:collect', {
-            detail: collectionDetail
-          });
-        } else {
-          evt = new Event('examples:collect');
-          try {
-            evt.detail = collectionDetail;
-          } catch (_) {}
-        }
-        window.dispatchEvent(evt);
-      }
-    } catch (_) {
-      try {
-        const evt = new Event('examples:collect');
-        try {
-          evt.detail = collectionDetail;
-        } catch (_) {}
-        window.dispatchEvent(evt);
-      } catch (_) {}
-    }
+    const svgMarkup = collectExampleSvgMarkup({ flush: false });
     const cfg = {};
     for (const name of BINDING_NAMES) {
       const binding = getBinding(name);
       if (binding != null && typeof binding !== 'function') {
         cfg[name] = cloneValue(binding);
       }
-    }
-    let svgMarkup = '';
-    if (collectionDetail.svgOverride != null) {
-      if (typeof collectionDetail.svgOverride === 'string') svgMarkup = collectionDetail.svgOverride;else if (collectionDetail.svgOverride && typeof collectionDetail.svgOverride.outerHTML === 'string') {
-        svgMarkup = collectionDetail.svgOverride.outerHTML;
-      }
-    }
-    if (!svgMarkup) {
-      const svg = document.querySelector('svg');
-      svgMarkup = svg ? svg.outerHTML : '';
     }
     return {
       config: cfg,
@@ -3078,7 +3103,8 @@
       if (removedExample && typeof removedExample === 'object') {
         addExampleToTrash(removedExample, {
           index: indexToRemove,
-          reason: 'delete'
+          reason: 'delete',
+          capturePreview: true
         });
         markProvidedExampleDeleted(removedExample.__builtinKey);
       }
