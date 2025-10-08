@@ -2154,6 +2154,23 @@
       lastRenderedDescriptionValue = stringValue;
       return hasContent;
     };
+    const trimmedValue = stringValue.trim();
+    if (!trimmedValue) {
+      const input = getDescriptionInput();
+      const placeholder =
+        input && typeof input.placeholder === 'string' ? input.placeholder.trim() : '';
+      clearChildren(preview);
+      if (placeholder) {
+        preview.textContent = placeholder;
+        preview.dataset.placeholder = 'true';
+        applyState(true);
+        return markRendered(true);
+      }
+      delete preview.dataset.placeholder;
+      applyState(false);
+      return markRendered(false);
+    }
+    delete preview.dataset.placeholder;
     const renderLegacy = () => {
       clearChildren(preview);
       const fragment = buildDescriptionPreview(stringValue);
