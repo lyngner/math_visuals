@@ -2582,96 +2582,78 @@
 .example-storage-notice__title{font-weight:600;display:inline-flex;align-items:center;}
 .example-storage-notice__message{display:inline-flex;align-items:center;}
 .card-has-settings .example-settings{margin-top:6px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;flex-direction:column;gap:10px;}
+.card-has-settings .example-settings > .example-tabs{margin-top:0;margin-bottom:0;}
 .card-has-settings .example-settings > h2:first-child{margin-top:0;}
-.card-has-settings .example-tabs{margin-bottom:-6px;}
+.card-has-settings .example-settings > .example-tabs + h2{margin-top:0;}
 `;
     document.head.appendChild(style);
   }
+  function placeTabsInsideSettings(exampleCard) {
+    if (!tabsContainer || !exampleCard) return;
+    const settingsWrapper = exampleCard.querySelector(':scope > .example-settings');
+    if (!settingsWrapper) return;
+    let firstChild = settingsWrapper.firstChild;
+    if (firstChild === tabsContainer) return;
+    tabsContainer.remove();
+    while (firstChild && firstChild.nodeType === Node.TEXT_NODE && !firstChild.textContent.trim()) {
+      const toRemove = firstChild;
+      firstChild = firstChild.nextSibling;
+      settingsWrapper.removeChild(toRemove);
+    }
+    settingsWrapper.insertBefore(tabsContainer, firstChild);
+  }
   function adjustTabsSpacing() {
-    if (!tabsContainer || !tabsHostCard) return;
-    if (!tabsHostCard.isConnected) {
-      tabsHostCard = null;
+    if (!tabsContainer) return;
+    const parent = tabsContainer.parentElement;
+    if (parent && parent.classList && parent.classList.contains('example-settings')) {
+      tabsContainer.style.marginTop = '0';
+      tabsContainer.style.marginBottom = '0';
+    } else {
+      tabsContainer.style.removeProperty('margin-top');
       tabsContainer.style.removeProperty('margin-bottom');
-      return;
     }
-    if (!tabsHostCard.classList.contains('card-has-settings')) {
-      tabsContainer.style.removeProperty('margin-bottom');
-      return;
-    }
-    let gapValue = '';
-    try {
-      const styles = window.getComputedStyle(tabsHostCard);
-      gapValue = styles.getPropertyValue('row-gap');
-      if (!gapValue || gapValue === '0px' || gapValue === 'normal') {
-        gapValue = styles.getPropertyValue('gap');
-      }
-    } catch (_) {}
-    if (gapValue) {
-      gapValue = gapValue.trim();
-    }
-    if (gapValue && gapValue !== '0px' && gapValue !== 'normal') {
-      const match = gapValue.match(/^(-?\d*\.?\d+)(.*)$/);
-      if (match) {
-        const numeric = Number.parseFloat(match[1]);
-        if (Number.isFinite(numeric)) {
-          const unit = match[2].trim() || 'px';
-          tabsContainer.style.marginBottom = `${numeric * -1}${unit}`;
-          return;
-        }
-      }
-      if (!gapValue.startsWith('-')) {
-        tabsContainer.style.marginBottom = `-${gapValue}`;
-        return;
-      }
-      tabsContainer.style.marginBottom = gapValue;
-      return;
-    }
-    tabsContainer.style.marginBottom = '-6px';
   }
   function moveSettingsIntoExampleCard() {
     if (!toolbar) return;
     const exampleCard = toolbar.closest('.card');
     if (!exampleCard) return;
     tabsHostCard = exampleCard;
-    if (exampleCard.classList.contains('card-has-settings')) {
-      adjustTabsSpacing();
-      return;
-    }
-    let candidate = exampleCard.nextElementSibling;
-    let settingsCard = null;
-    while (candidate) {
-      if (candidate.nodeType !== Node.ELEMENT_NODE) {
+    if (!exampleCard.classList.contains('card-has-settings')) {
+      let candidate = exampleCard.nextElementSibling;
+      let settingsCard = null;
+      while (candidate) {
+        if (candidate.nodeType !== Node.ELEMENT_NODE) {
+          candidate = candidate.nextElementSibling;
+          continue;
+        }
+        if (!candidate.classList.contains('card')) {
+          candidate = candidate.nextElementSibling;
+          continue;
+        }
+        if (candidate.classList.contains('card--settings') || candidate.getAttribute('data-card') === 'settings') {
+          settingsCard = candidate;
+          break;
+        }
+        const heading = candidate.querySelector(':scope > h2');
+        const text = heading ? heading.textContent.trim().toLowerCase() : '';
+        if (text === 'innstillinger' || text === 'innstilling') {
+          settingsCard = candidate;
+          break;
+        }
         candidate = candidate.nextElementSibling;
-        continue;
       }
-      if (!candidate.classList.contains('card')) {
-        candidate = candidate.nextElementSibling;
-        continue;
+      if (settingsCard) {
+        const settingsWrapper = document.createElement('div');
+        settingsWrapper.className = 'example-settings';
+        while (settingsCard.firstChild) {
+          settingsWrapper.appendChild(settingsCard.firstChild);
+        }
+        exampleCard.appendChild(settingsWrapper);
+        settingsCard.remove();
+        exampleCard.classList.add('card-has-settings');
       }
-      if (candidate.classList.contains('card--settings') || candidate.getAttribute('data-card') === 'settings') {
-        settingsCard = candidate;
-        break;
-      }
-      const heading = candidate.querySelector(':scope > h2');
-      const text = heading ? heading.textContent.trim().toLowerCase() : '';
-      if (text === 'innstillinger' || text === 'innstilling') {
-        settingsCard = candidate;
-        break;
-      }
-      candidate = candidate.nextElementSibling;
     }
-    if (!settingsCard) {
-      adjustTabsSpacing();
-      return;
-    }
-    const settingsWrapper = document.createElement('div');
-    settingsWrapper.className = 'example-settings';
-    while (settingsCard.firstChild) {
-      settingsWrapper.appendChild(settingsCard.firstChild);
-    }
-    exampleCard.appendChild(settingsWrapper);
-    settingsCard.remove();
-    exampleCard.classList.add('card-has-settings');
+    placeTabsInsideSettings(exampleCard);
     adjustTabsSpacing();
   }
   function getBinding(name) {
