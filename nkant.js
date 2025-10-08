@@ -592,9 +592,9 @@ const STYLE_PROFILE_OVERRIDES = {
     edgeStroke: "#2C395B",
     angStroke: "#ffffff",
     angFill: "rgba(255, 255, 255, 0.9)",
-    textFill: "#2C395B",
-    textHalo: null,
-    textHaloW: 0,
+    textFill: "#ffffff",
+    textHalo: "#2C395B",
+    textHaloW: 5,
     constructionStroke: "#ffffff",
     constructionWidth: 4,
     constructionDash: "6 6"
