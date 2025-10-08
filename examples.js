@@ -2225,13 +2225,26 @@
     const input = getDescriptionInput();
     if (!input) return;
     const value = typeof input.value === 'string' ? input.value : '';
-    if (!value || !value.trim()) return;
+    const trimmedValue = value && typeof value === 'string' ? value.trim() : '';
+    if (!trimmedValue) return;
     const preview = getDescriptionPreviewElement();
     if (!preview) return;
     const isEmpty = preview.getAttribute('data-empty') !== 'false';
     const isHidden = preview.hasAttribute('hidden');
     if (isEmpty || isHidden) {
-      renderDescriptionPreviewFromValue(value, { force: true });
+      const rendered = renderDescriptionPreviewFromValue(value, { force: true });
+      if (!rendered) {
+        const stillHidden = preview.getAttribute('data-empty') !== 'false' || preview.hasAttribute('hidden');
+        if (stillHidden) {
+          delete preview.dataset.placeholder;
+          clearChildren(preview);
+          preview.textContent = trimmedValue;
+          preview.dataset.empty = 'false';
+          preview.classList.add('math-vis-description-rendered');
+          preview.removeAttribute('hidden');
+          preview.setAttribute('aria-hidden', 'false');
+        }
+      }
     }
   }
 
