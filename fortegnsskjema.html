@@ -358,6 +358,15 @@
       font-size: 12px;
       color: #6b7280;
     }
+    .example-description [data-task-check-host] {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .example-description [data-task-check-host][hidden] { display: none; }
+    .example-description [data-task-check-host] .status { width: 100%; }
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
@@ -376,10 +385,6 @@
           <button type="button" class="figure-action" id="overlayAddRow" data-edit-only>Legg til fortegnslinje</button>
         </div>
         <div class="toolbar">
-          <div class="toolbar-row">
-            <button class="btn" id="btnCheck">Sjekk fortegnsskjema</button>
-            <div id="checkStatus" class="status status--info" hidden></div>
-          </div>
           <div class="note">Klikk på en del av en fortegnslinje for å bytte mellom positiv og negativ. Dra nullpunkter for å flytte dem.</div>
         </div>
       </div>
@@ -389,6 +394,10 @@
           <div class="example-description">
             <label for="exampleDescription">Oppgavetekst (valgfritt)</label>
             <textarea id="exampleDescription" placeholder="Skriv en oppgavetekst som lagres med eksemplet"></textarea>
+            <div class="task-check-host" data-task-check-host hidden>
+              <button class="btn" id="btnCheck" type="button">Sjekk fortegnsskjema</button>
+              <div id="checkStatus" class="status status--info" hidden></div>
+            </div>
           </div>
           <div class="toolbar">
             <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>

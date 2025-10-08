@@ -10,6 +10,15 @@
 
   <style>
     svg { touch-action: none; }
+    .example-description [data-task-check-host] {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .example-description [data-task-check-host][hidden] { display: none; }
+    .example-description [data-task-check-host] .status { width: 100%; }
   </style>
   <link rel="stylesheet" href="../split.css" />
 
@@ -23,11 +32,9 @@
           <svg id="barsvg" viewBox="0 0 900 560" aria-label="Interaktivt stolpediagram"></svg>
         </div>
         <div class="toolbar">
-          <button id="btnCheck" class="btn">Sjekk</button>
           <button id="btnReset" class="btn">Nullstill</button>
           <button id="btnShow" class="btn">Vis fasit</button>
         </div>
-        <div id="status" class="status" role="status" aria-live="polite"></div>
       </div>
 
       <div class="side">
@@ -35,6 +42,10 @@
           <div class="example-description">
             <label for="exampleDescription">Oppgavetekst (valgfritt)</label>
             <textarea id="exampleDescription" placeholder="Skriv en oppgavetekst som lagres med eksemplet"></textarea>
+            <div class="task-check-host" data-task-check-host hidden>
+              <button id="btnCheck" class="btn" type="button">Sjekk</button>
+              <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+            </div>
           </div>
           <div class="toolbar">
             <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>

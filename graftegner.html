@@ -27,7 +27,7 @@
     .mobile-nav .btn{ flex:1 1 160px; text-align:center; text-decoration:none; display:flex; justify-content:center; align-items:center; }
     .mobile-nav .btn:link,
     .mobile-nav .btn:visited{ color:inherit; }
-    .checkbar{ display:flex; gap:10px; align-items:center; }
+    .checkbar{ display:flex; flex-direction:column; gap:10px; align-items:flex-start; }
     .status{ padding:6px 10px; border-radius:10px; font-weight:600; border:1px solid transparent; }
     .status--ok{ color:#065f46; background:#ecfdf5; border-color:#a7f3d0; }
     .status--err{ color:#b91c1c; background:#fef2f2; border-color:#fecaca; }
@@ -208,6 +208,15 @@
     .font-grid label span{ flex:1; font-size:12px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; color:#374151; }
     .font-grid label input{ width:82px; text-align:right; }
     #cfgFontSize{ width:48px; text-align:center; padding:6px 8px; }
+    .example-description [data-task-check-host]{
+      margin-top:12px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      align-items:flex-start;
+    }
+    .example-description [data-task-check-host][hidden]{ display:none; }
+    .example-description [data-task-check-host] .status{ width:100%; }
   </style>
   <link rel="stylesheet" href="split.css" />
   <script defer src="https://cdn.jsdelivr.net/npm/mathlive/dist/mathlive.min.js"></script>
@@ -220,7 +229,6 @@
           <div id="board" aria-label="JSXGraph-tavle"></div>
         </div>
         <div class="toolbar" id="toolbar">
-          <div id="checkArea" class="checkbar"></div>
           <button id="btnReset" class="btn">Nullstill zoom/pan</button>
         </div>
         <div class="mobile-nav" aria-label="Hurtignavigasjon">
@@ -234,6 +242,7 @@
           <div class="example-description">
             <label for="exampleDescription">Oppgavetekst (valgfritt)</label>
             <textarea id="exampleDescription" placeholder="Skriv en oppgavetekst som lagres med eksemplet"></textarea>
+            <div id="checkArea" class="checkbar" data-task-check-host hidden></div>
           </div>
           <div class="toolbar">
             <button id="btnSaveExample" class="btn" type="button">Lagre eksempel</button>

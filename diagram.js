@@ -79,6 +79,75 @@ btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => d
 const altTextField = document.getElementById('altText');
 const altTextStatus = document.getElementById('altTextStatus');
 const regenerateAltTextBtn = document.getElementById('btnRegenerateAltText');
+const checkBtn = document.getElementById('btnCheck');
+const statusEl = document.getElementById('status');
+const taskCheckHost = document.querySelector('[data-task-check-host]');
+const taskCheckControls = [checkBtn, statusEl].filter(Boolean);
+
+function ensureTaskControlsHost() {
+  if (!taskCheckHost) return;
+  taskCheckControls.forEach(control => {
+    if (control && control.parentElement !== taskCheckHost) {
+      taskCheckHost.appendChild(control);
+    }
+  });
+}
+
+function applyAppModeToTaskControls(mode) {
+  if (!taskCheckHost) return;
+  const normalized = typeof mode === 'string' ? mode.toLowerCase() : '';
+  const isTaskMode = normalized === 'task';
+  if (isTaskMode) {
+    ensureTaskControlsHost();
+    taskCheckHost.hidden = false;
+    taskCheckControls.forEach(control => {
+      if (!control) return;
+      if (control === checkBtn) {
+        control.hidden = false;
+        if (control.dataset) delete control.dataset.prevHidden;
+        return;
+      }
+      if (control.dataset && 'prevHidden' in control.dataset) {
+        const wasHidden = control.dataset.prevHidden === '1';
+        delete control.dataset.prevHidden;
+        control.hidden = wasHidden;
+      }
+    });
+  } else {
+    taskCheckHost.hidden = true;
+    taskCheckControls.forEach(control => {
+      if (!control) return;
+      if (control.dataset) {
+        control.dataset.prevHidden = control.hidden ? '1' : '0';
+      }
+      control.hidden = true;
+    });
+  }
+}
+
+function getCurrentAppMode() {
+  if (typeof window === 'undefined') return null;
+  const mv = window.mathVisuals;
+  if (mv && typeof mv.getAppMode === 'function') {
+    try {
+      return mv.getAppMode();
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
+
+applyAppModeToTaskControls(getCurrentAppMode() || 'task');
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('math-visuals:app-mode-changed', event => {
+    if (!event) return;
+    const detail = event.detail;
+    if (!detail || typeof detail.mode !== 'string') return;
+    applyAppModeToTaskControls(detail.mode);
+  });
+}
 let altTextGenerationTimer = null;
 let altTextAbortController = null;
 if (altTextField) {
@@ -1813,13 +1882,15 @@ document.getElementById('btnShow').addEventListener('click', () => {
   scheduleAltTextUpdate('show');
   updateStatus('Dette er én fasit.');
 });
-document.getElementById('btnCheck').addEventListener('click', () => {
-  markCorrectness();
-  const ok1 = isCorrect(values, CFG.answer, CFG.tolerance || 0);
-  const ok2 = values2 ? isCorrect(values2, CFG.answer2, CFG.tolerance || 0) : true;
-  const ok = ok1 && ok2;
-  updateStatus(ok ? 'Riktig! 🎉' : 'Prøv igjen 🙂');
-});
+if (checkBtn) {
+  checkBtn.addEventListener('click', () => {
+    markCorrectness();
+    const ok1 = isCorrect(values, CFG.answer, CFG.tolerance || 0);
+    const ok2 = values2 ? isCorrect(values2, CFG.answer2, CFG.tolerance || 0) : true;
+    const ok = ok1 && ok2;
+    updateStatus(ok ? 'Riktig! 🎉' : 'Prøv igjen 🙂');
+  });
+}
 document.querySelector('.settings').addEventListener('input', applyCfg);
 function applyCfg() {
   const lbls = parseList(document.getElementById('cfgLabels').value);
@@ -2001,7 +2072,9 @@ function niceStep(span) {
   return 10 * pow;
 }
 function updateStatus(msg) {
-  document.getElementById('status').textContent = msg; // aria-live="polite"
+  if (!statusEl) return;
+  statusEl.textContent = msg || '';
+  statusEl.hidden = !msg;
 }
 function clearBadges() {
   [...gBars.querySelectorAll('.bar, .pie-slice')].forEach(b => b.classList.remove('badge-ok', 'badge-no'));
