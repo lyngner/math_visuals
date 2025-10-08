@@ -693,8 +693,11 @@
   const groupsContainer = document.querySelector('[data-trash-groups]');
   const statusElement = document.querySelector('[data-status]');
   const refreshButton = document.querySelector('[data-refresh]');
+  const filterSelect = document.querySelector('[data-filter]');
   const groupTemplate = document.getElementById('trash-group-template');
   const itemTemplate = document.getElementById('trash-item-template');
+  let cachedGroups = [];
+  let currentFilterValue = 'all';
   let emptyTemplate = null;
   if (groupsContainer) {
     const existingEmpty = groupsContainer.querySelector('[data-empty]');
@@ -723,16 +726,133 @@
     }
   }
 
+
+  function getFilterValue() {
+    if (filterSelect) {
+      const value = filterSelect.value || 'all';
+      currentFilterValue = value;
+      return value;
+    }
+    return currentFilterValue || 'all';
+  }
+
+  function isFilterActive() {
+    return getFilterValue() !== 'all';
+  }
+
+  function getVisibleGroups(groups) {
+    if (!Array.isArray(groups) || !groups.length) {
+      return [];
+    }
+    const filterValue = getFilterValue();
+    if (!filterValue || filterValue === 'all') {
+      return groups.slice();
+    }
+    return groups.filter(group => group && group.path === filterValue);
+  }
+
+  function updateFilterOptions(groups) {
+    if (!filterSelect) return;
+    const previousValue = currentFilterValue || 'all';
+    const options = [{ value: 'all', label: 'Alle apper' }];
+    const seen = new Set();
+    if (Array.isArray(groups)) {
+      groups.forEach(group => {
+        if (!group || typeof group.path !== 'string') return;
+        const path = group.path;
+        if (seen.has(path)) return;
+        seen.add(path);
+        const label = group.title || prettifyPath(path);
+        options.push({ value: path, label });
+      });
+    }
+    let needsUpdate = filterSelect.options.length !== options.length;
+    if (!needsUpdate) {
+      for (let i = 0; i < options.length; i++) {
+        const option = options[i];
+        const existing = filterSelect.options[i];
+        if (!existing || existing.value !== option.value || existing.textContent !== option.label) {
+          needsUpdate = true;
+          break;
+        }
+      }
+    }
+    if (needsUpdate) {
+      filterSelect.innerHTML = '';
+      const fragment = document.createDocumentFragment();
+      options.forEach(option => {
+        const optionEl = document.createElement('option');
+        optionEl.value = option.value;
+        optionEl.textContent = option.label;
+        fragment.appendChild(optionEl);
+      });
+      filterSelect.appendChild(fragment);
+    }
+    const allowedValues = new Set(options.map(option => option.value));
+    const nextValue = allowedValues.has(previousValue) ? previousValue : 'all';
+    if (filterSelect.value !== nextValue) {
+      filterSelect.value = nextValue;
+    }
+    currentFilterValue = nextValue;
+  }
+
+  function updateStatusForGroups(allGroups, visibleGroups, options) {
+    if (options && options.silent) return;
+    if (!Array.isArray(allGroups) || !allGroups.length) {
+      setStatus('Arkivet er tomt.', { timeout: 4000 });
+      return;
+    }
+    const visibleCount = Array.isArray(visibleGroups)
+      ? visibleGroups.reduce((sum, group) => sum + (Array.isArray(group.records) ? group.records.length : 0), 0)
+      : 0;
+    if (!visibleCount) {
+      if (isFilterActive()) {
+        setStatus('Ingen arkiverte eksempler for valgt app.', { timeout: 4000 });
+      } else {
+        setStatus('Ingen arkiverte eksempler er tilgjengelige.', { timeout: 4000 });
+      }
+      return;
+    }
+    const baseLabel = visibleCount === 1 ? 'Viser 1 arkivert eksempel.' : `Viser ${visibleCount} arkiverte eksempler.`;
+    if (isFilterActive()) {
+      let filterLabel = '';
+      if (filterSelect && filterSelect.options && filterSelect.selectedIndex >= 0) {
+        const selected = filterSelect.options[filterSelect.selectedIndex];
+        if (selected && selected.textContent) {
+          filterLabel = selected.textContent.trim();
+        }
+      }
+      if (filterLabel) {
+        setStatus(`${baseLabel} (app: «${filterLabel}»).`, { timeout: 5000 });
+      } else {
+        setStatus(baseLabel, { timeout: 5000 });
+      }
+    } else {
+      setStatus(baseLabel, { timeout: 4000 });
+    }
+  }
+
+  function applyFilterAndRender(options) {
+    const visibleGroups = getVisibleGroups(cachedGroups);
+    renderGroups(visibleGroups);
+    updateStatusForGroups(cachedGroups, visibleGroups, options);
+  }
+
   function renderGroups(groups) {
     if (!groupsContainer) return;
     groupsContainer.innerHTML = '';
     if (!groups.length) {
+      const emptyMessage = isFilterActive()
+        ? 'Ingen arkiverte eksempler for valgt app.'
+        : 'Ingen arkiverte eksempler er tilgjengelige.';
       if (emptyTemplate) {
-        groupsContainer.appendChild(emptyTemplate.cloneNode(true));
+        const emptyNode = emptyTemplate.cloneNode(true);
+        emptyNode.textContent = emptyMessage;
+        groupsContainer.appendChild(emptyNode);
       } else {
         const fallback = document.createElement('p');
         fallback.className = 'trash-empty';
-        fallback.textContent = 'Ingen arkiverte eksempler er tilgjengelige.';
+        fallback.textContent = emptyMessage;
         groupsContainer.appendChild(fallback);
       }
       return;
@@ -888,16 +1008,9 @@
   function refreshGroups(options) {
     try {
       const groups = loadTrashGroups();
-      renderGroups(groups);
-      if (!groups.length) {
-        if (!(options && options.silent)) {
-          setStatus('Arkivet er tomt.', { timeout: 4000 });
-        }
-      } else if (!(options && options.silent)) {
-        const total = groups.reduce((sum, group) => sum + group.records.length, 0);
-        const message = total === 1 ? '1 arkivert eksempel.' : `${total} arkiverte eksempler.`;
-        setStatus(message, { timeout: 4000 });
-      }
+      cachedGroups = Array.isArray(groups) ? groups : [];
+      updateFilterOptions(cachedGroups);
+      applyFilterAndRender(options);
     } catch (error) {
       console.error('[trash] failed to load trash entries', error);
       setStatus('Kunne ikke laste arkivet.', { timeout: 5000 });
@@ -987,6 +1100,14 @@
       refreshGroups();
     });
   }
+
+  if (filterSelect) {
+    filterSelect.addEventListener('change', () => {
+      currentFilterValue = filterSelect.value || 'all';
+      applyFilterAndRender();
+    });
+  }
+
 
   if (typeof window !== 'undefined') {
     window.addEventListener('storage', event => {
