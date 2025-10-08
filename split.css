@@ -98,6 +98,11 @@ body[data-app-mode="task"] .grid.split-enabled {
   gap: 8px;
 }
 
+.card--settings label.checkbox input,
+.card[data-card="settings"] label.checkbox input {
+  order: -1;
+}
+
 .card--settings .settings-divider,
 .card[data-card="settings"] .settings-divider {
   height: 10px;
