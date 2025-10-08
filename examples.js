@@ -594,6 +594,32 @@
     }
     const fallback = initializeFallbackStorage();
     if (fallback && fallback !== persistentStore) {
+      const snapshot = snapshotFromStorage(fallback);
+      const fallbackKeys = new Set(snapshot ? Object.keys(snapshot) : []);
+      let persistentTotal = 0;
+      try {
+        persistentTotal = Number(persistentStore.length) || 0;
+      } catch (_) {
+        persistentTotal = 0;
+      }
+      const keysToRemove = [];
+      for (let i = 0; i < persistentTotal; i++) {
+        let key = null;
+        try {
+          key = persistentStore.key(i);
+        } catch (_) {
+          key = null;
+        }
+        if (typeof key !== 'string') continue;
+        if (!key.startsWith('examples_')) continue;
+        if (fallbackKeys.has(key)) continue;
+        keysToRemove.push(key);
+      }
+      if (keysToRemove.length) {
+        keysToRemove.forEach(key => {
+          tryRemoveItemFrom(persistentStore, key);
+        });
+      }
       copyStorageContents(fallback, persistentStore);
     }
     usingFallbackStorage = false;
