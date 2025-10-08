@@ -3432,6 +3432,9 @@
   renderOptions();
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('math-visuals:app-mode-changed', () => {
+      if (currentAppMode === 'task') {
+        ensureTaskModeDescriptionRendered();
+      }
       const examples = getExamples();
       if (!examples.length) return;
       const normalizedIndex = clampExampleIndex(currentExampleIndex, examples.length);
