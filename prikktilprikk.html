@@ -245,7 +245,10 @@
       max-width: 7ch;
       font-variant-numeric: tabular-nums;
     }
-    .point-input--label { flex: 2 1 180px; min-width: 0; }
+    .point-input--label {
+      flex: 1 1 clamp(90px, 30%, 200px);
+      min-width: 0;
+    }
     .point-actions {
       margin-left: auto;
       display: flex;
