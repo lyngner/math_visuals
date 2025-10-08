@@ -2345,8 +2345,17 @@
     const input = getDescriptionInput();
     if (!input) return;
     const value = typeof input.value === 'string' ? input.value : '';
-    if (!value || !value.trim()) return;
-    renderDescriptionPreviewFromValue(value, { force: true, bypassFormattingCheck: true });
+    const trimmed = value && typeof value.trim === 'function' ? value.trim() : '';
+    if (!trimmed) return;
+    const hasContent = renderDescriptionPreviewFromValue(value, { force: true, bypassFormattingCheck: true });
+    if (hasContent) return;
+    const preview = getDescriptionPreviewElement();
+    if (!preview) return;
+    clearChildren(preview);
+    preview.textContent = trimmed;
+    preview.dataset.empty = 'false';
+    preview.removeAttribute('hidden');
+    preview.setAttribute('aria-hidden', 'false');
   }
 
   function updateDescriptionCollapsedState(target) {
