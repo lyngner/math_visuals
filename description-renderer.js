@@ -110,6 +110,8 @@
     if (typeof content !== 'string' || !content) return parts;
     let current = '';
     let escape = false;
+    let inSingleQuote = false;
+    let inDoubleQuote = false;
     for (let i = 0; i < content.length; i++) {
       const char = content[i];
       if (escape) {
@@ -121,16 +123,43 @@
         escape = true;
         continue;
       }
-      if (char === '|' && content[i + 1] !== '|') {
+      if (char === "'" && !inDoubleQuote) {
+        inSingleQuote = !inSingleQuote;
+        current += char;
+        continue;
+      }
+      if (char === '"' && !inSingleQuote) {
+        inDoubleQuote = !inDoubleQuote;
+        current += char;
+        continue;
+      }
+      let isSeparator = false;
+      if (!inSingleQuote && !inDoubleQuote) {
+        if (char === '|') {
+          isSeparator = true;
+        } else if (char === ',') {
+          const prevChar = content[i - 1];
+          const nextChar = content[i + 1];
+          const nextIsWhitespace = typeof nextChar === 'string' && /\s/.test(nextChar);
+          const nextIsQuote = nextChar === '"' || nextChar === "'";
+          if (prevChar === '"' || prevChar === "'" || nextIsWhitespace || nextIsQuote) {
+            isSeparator = true;
+          }
+        }
+      }
+      if (isSeparator) {
+        const nextChar = content[i + 1];
+        if (nextChar === char) {
+          current += char;
+          i += 1;
+          current += content[i];
+          continue;
+        }
         parts.push(current);
         current = '';
         continue;
       }
       current += char;
-      if (char === '|' && content[i + 1] === '|') {
-        i += 1;
-        current += content[i];
-      }
     }
     parts.push(current);
     return parts;
@@ -138,7 +167,25 @@
 
   function unescapeMarkup(text) {
     if (typeof text !== 'string') return '';
-    return text.replace(/\\([\\{}|])/g, '$1');
+    return text.replace(/\\([\\{}|,])/g, '$1');
+  }
+
+  function stripEnclosingQuotes(value) {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    if (trimmed.length >= 2) {
+      const first = trimmed[0];
+      const last = trimmed[trimmed.length - 1];
+      if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+        return trimmed.slice(1, -1);
+      }
+    }
+    return trimmed;
+  }
+
+  function sanitizeDescriptorValue(value) {
+    if (typeof value !== 'string') return '';
+    return stripEnclosingQuotes(unescapeMarkup(value));
   }
 
   function parseBoolean(value) {
@@ -187,12 +234,12 @@
       const eqIndex = trimmed.indexOf('=');
       if (eqIndex > 0) {
         const key = trimmed.slice(0, eqIndex).trim().toLowerCase();
-        const value = trimmed.slice(eqIndex + 1).trim();
+        const value = trimmed.slice(eqIndex + 1);
         if (key) {
-          options[key] = unescapeMarkup(value);
+          options[key] = sanitizeDescriptorValue(value);
         }
       } else {
-        positional.push(unescapeMarkup(trimmed));
+        positional.push(sanitizeDescriptorValue(trimmed));
       }
     });
     if (!options.value && positional.length) options.value = positional.shift();
@@ -232,7 +279,8 @@
       })),
       placeholder: options.placeholder || '',
       label: options.label || '',
-      width: options.width || options.size || '',
+      width: options.width || options.bredde || '',
+      size: options.size || options.length || '',
       caseSensitive,
       tolerance: typeof tolerance === 'number' ? Math.max(0, tolerance) : null,
       correctMessage: collapseWhitespace(correctMessage) || '',
@@ -264,7 +312,8 @@
     if (allowAnswerBoxes) {
       const answerMarkers = [
         { marker: '@answer{', openChar: '{', closeChar: '}' },
-        { marker: '@answerbox[', openChar: '[', closeChar: ']' }
+        { marker: '@answerbox[', openChar: '[', closeChar: ']' },
+        { marker: '@input[', openChar: '[', closeChar: ']' }
       ];
       answerMarkers.forEach(({ marker, openChar, closeChar }) => {
         const position = text.indexOf(marker, index);
@@ -334,7 +383,7 @@
           container.appendChild(doc.createTextNode(text.slice(nextIndex)));
           break;
         }
-        const answerElement = createAnswerBox(extraction.content, placeholders, interactives);
+        const answerElement = createAnswerBox(extraction.content, placeholders, interactives, marker);
         if (answerElement) {
           container.appendChild(answerElement);
         } else {
@@ -407,7 +456,7 @@
     return table;
   }
 
-  function createAnswerBox(content, placeholders, interactives) {
+  function createAnswerBox(content, placeholders, interactives, marker) {
     if (!interactives || !Array.isArray(interactives.answerBoxes)) return null;
     const descriptor = parseAnswerDescriptor(content);
     if (!descriptor.acceptedAnswers.length) {
@@ -416,6 +465,10 @@
     const container = doc.createElement('span');
     container.className = 'math-vis-answerbox math-vis-answerbox--empty';
     container.dataset.state = 'empty';
+
+    if (marker === '@input[') {
+      container.classList.add('math-vis-answerbox--input');
+    }
 
     if (descriptor.label) {
       const prompt = doc.createElement('span');
@@ -431,7 +484,17 @@
     input.type = 'text';
     input.className = 'math-vis-answerbox__input';
     if (descriptor.placeholder) input.placeholder = descriptor.placeholder;
-    if (descriptor.width) input.style.width = descriptor.width;
+    if (descriptor.width) {
+      input.style.width = descriptor.width;
+    } else if (descriptor.size) {
+      const numericSize = Number(descriptor.size);
+      if (Number.isFinite(numericSize) && numericSize > 0) {
+        const rounded = Math.max(1, Math.round(numericSize));
+        input.setAttribute('size', String(rounded));
+      } else {
+        input.style.width = descriptor.size;
+      }
+    }
     if (!descriptor.label) {
       const ariaLabel = descriptor.placeholder || 'Svar';
       input.setAttribute('aria-label', ariaLabel);
@@ -452,7 +515,8 @@
       container,
       input,
       status,
-      descriptor
+      descriptor,
+      variant: marker === '@input[' ? 'input' : 'answerbox'
     });
 
     return container;

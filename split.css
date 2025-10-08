@@ -325,6 +325,13 @@ body[data-app-mode="task"] .card--examples .example-description .example-descrip
   vertical-align: middle;
 }
 
+.math-vis-answerbox--input {
+  padding: 0;
+  border: none;
+  background: none;
+  gap: 4px;
+}
+
 .math-vis-answerbox + .math-vis-answerbox {
   margin-left: 6px;
 }
@@ -349,6 +356,10 @@ body[data-app-mode="task"] .card--examples .example-description .example-descrip
   background: #fff;
 }
 
+.math-vis-answerbox--input .math-vis-answerbox__input {
+  min-width: 0;
+}
+
 .math-vis-answerbox__input:focus {
   outline: 2px solid #6366f1;
   outline-offset: 1px;
@@ -360,6 +371,10 @@ body[data-app-mode="task"] .card--examples .example-description .example-descrip
   min-width: 1.5em;
   font-size: 0.85em;
   color: #4338ca;
+}
+
+.math-vis-answerbox--input .math-vis-answerbox__status {
+  min-width: 0;
 }
 
 .math-vis-answerbox--correct {
