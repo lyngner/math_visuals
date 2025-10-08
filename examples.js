@@ -1414,21 +1414,39 @@
       }
       const localExamples = getExamples();
       const hasLocalExamples = Array.isArray(localExamples) && localExamples.length > 0;
-      if (examples.length > 0 || !hasLocalExamples) {
+      let backendUpdatedAtMs = 0;
+      if (data && data.updatedAt != null) {
+        if (typeof data.updatedAt === 'number' && Number.isFinite(data.updatedAt)) {
+          backendUpdatedAtMs = data.updatedAt;
+        } else {
+          const parsed = Date.parse(data.updatedAt);
+          if (Number.isFinite(parsed)) {
+            backendUpdatedAtMs = parsed;
+          }
+        }
+      }
+      const backendIsStale = backendUpdatedAtMs < lastLocalUpdateMs;
+      const shouldApplyExamples = examples.length > 0 || !hasLocalExamples;
+      if (shouldApplyExamples && !backendIsStale) {
         store(examples, {
           reason: 'backend-sync'
         });
+        if (backendUpdatedAtMs > lastLocalUpdateMs) {
+          lastLocalUpdateMs = backendUpdatedAtMs;
+        }
       }
       const deletedProvided = data && Array.isArray(data.deletedProvided) ? data.deletedProvided : [];
-      deletedProvidedExamples = new Set();
-      deletedProvided.forEach(value => {
-        const key = normalizeKey(value);
-        if (key) deletedProvidedExamples.add(key);
-      });
-      if (deletedProvidedExamples.size > 0) {
-        safeSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
-      } else {
-        safeRemoveItem(DELETED_PROVIDED_KEY);
+      if (!backendIsStale) {
+        deletedProvidedExamples = new Set();
+        deletedProvided.forEach(value => {
+          const key = normalizeKey(value);
+          if (key) deletedProvidedExamples.add(key);
+        });
+        if (deletedProvidedExamples.size > 0) {
+          safeSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
+        } else {
+          safeRemoveItem(DELETED_PROVIDED_KEY);
+        }
       }
     } catch (error) {
       deletedProvidedExamples = deletedProvidedExamples || new Set();
@@ -2204,6 +2222,7 @@
   }
   let cachedExamples = [];
   let cachedExamplesInitialized = false;
+  let lastLocalUpdateMs = 0;
   function getExamples() {
     if (!cachedExamplesInitialized) {
       cachedExamplesInitialized = true;
@@ -2229,11 +2248,20 @@
     cachedExamples = [];
     return cachedExamples;
   }
+  const USER_INITIATED_REASONS = new Set(['manual-save', 'delete', 'ensure-default', 'history']);
+  function isUserInitiatedReason(reason) {
+    return typeof reason === 'string' && USER_INITIATED_REASONS.has(reason);
+  }
   function store(examples, options) {
     const normalized = normalizeExamplesForStorage(examples);
     const serialized = serializeExamplesForStorage(normalized);
     const opts = options && typeof options === 'object' ? options : {};
-    applyRawExamples(serialized, opts);
+    const reason = typeof opts.reason === 'string' ? opts.reason : '';
+    const skipBackendSync = opts.skipBackendSync === true;
+    const applied = applyRawExamples(serialized, opts);
+    if (applied && isUserInitiatedReason(reason) && !skipBackendSync) {
+      lastLocalUpdateMs = Date.now();
+    }
   }
   const BINDING_NAMES = ['STATE', 'CFG', 'CONFIG', 'SIMPLE'];
   const DELETED_PROVIDED_KEY = key + '_deletedProvidedExamples';
