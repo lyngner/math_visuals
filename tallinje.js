@@ -1532,14 +1532,25 @@
     };
 
     if (subdivisions > 0 && majorValues.length > 1) {
-      for (let i = 0; i < majorValues.length - 1; i++) {
-        const start = majorValues[i];
-        const end = majorValues[i + 1];
-        const delta = (end - start) / (subdivisions + 1);
-        if (!Number.isFinite(delta) || delta <= 0) continue;
-        for (let j = 1; j <= subdivisions; j++) {
-          const value = start + delta * j;
-          drawMinorTick(value);
+      const spacing = Math.abs(mainStep) / (subdivisions + 1);
+      const epsilon = Math.abs(spacing) * 1e-7 + 1e-9;
+      if (spacing > 0) {
+        for (let i = 0; i < majorValues.length - 1; i++) {
+          const start = majorValues[i];
+          const end = majorValues[i + 1];
+          if (!(Number.isFinite(start) && Number.isFinite(end))) continue;
+          const direction = end >= start ? 1 : -1;
+          let value = start + spacing * direction;
+          let count = 0;
+          while (
+            count < subdivisions &&
+            ((direction > 0 && value < end - epsilon) ||
+              (direction < 0 && value > end + epsilon))
+          ) {
+            drawMinorTick(value);
+            value += spacing * direction;
+            count++;
+          }
         }
       }
     }
