@@ -1052,6 +1052,9 @@ function draw(skipNormalization = false) {
   const rowTotals = Array.from({
     length: CONFIG.rows
   }, () => 0);
+  const blocksByRow = Array.from({
+    length: CONFIG.rows
+  }, () => []);
   const visibleBlocks = [];
   let visibleBlockCount = 0;
   for (const block of BLOCKS) {
@@ -1061,6 +1064,9 @@ function draw(skipNormalization = false) {
     block.cfg = cfg;
     block.index = block.row * CONFIG.cols + block.col;
     visibleBlocks.push(block);
+    if (Array.isArray(blocksByRow[block.row])) {
+      blocksByRow[block.row].push(block);
+    }
     if (!cfg.hideBlock) visibleBlockCount += 1;
     const totalValue = Number(cfg.total);
     if (Number.isFinite(totalValue) && totalValue > 0 && rowTotals[block.row] !== undefined) {
@@ -1101,11 +1107,20 @@ function draw(skipNormalization = false) {
   if (globalControls.verticalRow) {
     globalControls.verticalRow.classList.toggle('is-disabled', !verticalAvailable);
   }
+  const defaultRatios = getRowSpanRatios();
+  const defaultSpan = defaultRatios.bottomRatio - defaultRatios.topRatio;
   const rowHeights = Array.from({
     length: CONFIG.rows
-  }, () => {
-    const { topRatio, bottomRatio } = getRowSpanRatios();
-    const span = bottomRatio - topRatio;
+  }, (_, rowIndex) => {
+    const blocksInRow = blocksByRow[rowIndex];
+    let span = defaultSpan;
+    if (Array.isArray(blocksInRow) && blocksInRow.length > 0) {
+      for (const block of blocksInRow) {
+        const { topRatio, bottomRatio } = getRowSpanRatios(block);
+        const blockSpan = bottomRatio - topRatio;
+        if (blockSpan > span) span = blockSpan;
+      }
+    }
     if (!(span > 0)) return DEFAULT_SVG_HEIGHT;
     const height = DEFAULT_SVG_HEIGHT * BASE_INNER_RATIO / span;
     return Number.isFinite(height) && height > 0 ? height : DEFAULT_SVG_HEIGHT;
@@ -1116,7 +1131,8 @@ function draw(skipNormalization = false) {
     return numeric;
   }, 0) || DEFAULT_SVG_HEIGHT;
   for (const block of visibleBlocks) {
-    const height = uniformRowHeight;
+    const rowHeight = rowHeights[block.row];
+    const height = Number.isFinite(rowHeight) && rowHeight > 0 ? rowHeight : uniformRowHeight;
     if (block === null || block === void 0 ? void 0 : block.panel) {
       const numericHeight = Number.isFinite(height) && height > 0 ? height : DEFAULT_SVG_HEIGHT;
       block.panel.style.setProperty('--tb-svg-height', `${numericHeight.toFixed(2)}px`);
