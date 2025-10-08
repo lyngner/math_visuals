@@ -17,6 +17,8 @@
   const exportCard = document.getElementById('exportCard');
   const draggableListContainer = document.getElementById('draggableItems');
   const addDraggableButton = document.getElementById('btnAddDraggable');
+  const checkButton = document.getElementById('btnCheck');
+  const checkStatus = document.getElementById('checkStatus');
 
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;
@@ -882,6 +884,125 @@
     if (!Number.isFinite(value)) return String(value);
     if (altNumberFormatter) return altNumberFormatter.format(value);
     return String(Math.round(value * 1e6) / 1e6);
+  }
+
+  function formatValueForStatus(value) {
+    if (!Number.isFinite(value)) {
+      return String(value);
+    }
+    const info = getLabelRenderInfo(value);
+    if (info && typeof info.text === 'string' && info.text.trim()) {
+      return info.text.trim();
+    }
+    return formatAltNumber(value);
+  }
+
+  function describeDraggableItem(item, index) {
+    if (!item || typeof item !== 'object') {
+      return `Element ${index + 1}`;
+    }
+    const label = typeof item.label === 'string' ? item.label.trim() : '';
+    if (label) return label;
+    const value = Number(item.value);
+    if (Number.isFinite(value)) {
+      return formatValueForStatus(value);
+    }
+    return `Element ${index + 1}`;
+  }
+
+  function setCheckStatus(type, heading, detailLines) {
+    if (!checkStatus) return;
+    if (!type) {
+      checkStatus.hidden = true;
+      checkStatus.className = 'status';
+      checkStatus.textContent = '';
+      return;
+    }
+    checkStatus.hidden = false;
+    checkStatus.className = `status status--${type}`;
+    checkStatus.textContent = '';
+    if (heading) {
+      const strong = document.createElement('strong');
+      strong.textContent = heading;
+      checkStatus.appendChild(strong);
+    }
+    if (Array.isArray(detailLines)) {
+      detailLines.forEach(line => {
+        if (!line) return;
+        const div = document.createElement('div');
+        div.textContent = line;
+        checkStatus.appendChild(div);
+      });
+    }
+  }
+
+  function getCheckTolerance() {
+    const spacing = getSnapSpacing();
+    if (!Number.isFinite(spacing) || spacing <= 0) {
+      return 1e-6;
+    }
+    return Math.max(spacing * 0.01, 1e-6);
+  }
+
+  function checkDraggablePlacements() {
+    ensureStateDefaults();
+    const items = Array.isArray(STATE.draggableItems) ? STATE.draggableItems : [];
+    if (!items.length) {
+      setCheckStatus('info', 'Ingen fasit er definert ennå.');
+      return;
+    }
+
+    const tolerance = getCheckTolerance();
+    const missing = [];
+    const incorrect = [];
+    let placedCorrectly = 0;
+
+    items.forEach((item, index) => {
+      const expected = Number(item && item.value);
+      if (!Number.isFinite(expected)) {
+        missing.push({ item, index });
+        return;
+      }
+      const isPlaced = Boolean(item && item.isPlaced);
+      const current = Number(item && item.currentValue);
+      if (!isPlaced || !Number.isFinite(current)) {
+        missing.push({ item, index });
+        return;
+      }
+      const diff = Math.abs(current - expected);
+      if (diff <= tolerance) {
+        placedCorrectly += 1;
+      } else {
+        incorrect.push({ item, index, expected, current });
+      }
+    });
+
+    if (!missing.length && !incorrect.length) {
+      const heading = placedCorrectly === 1
+        ? 'Elementet er riktig plassert!'
+        : 'Alle elementene er riktig plassert!';
+      setCheckStatus('success', heading);
+      return;
+    }
+
+    const details = [];
+    if (missing.length) {
+      const names = missing.map(entry => describeDraggableItem(entry.item, entry.index));
+      if (missing.length === 1) {
+        details.push(`${names[0]} er ikke plassert ennå.`);
+      } else {
+        details.push(`${missing.length} elementer er ikke plassert: ${names.join(', ')}.`);
+      }
+    }
+    if (incorrect.length) {
+      incorrect.forEach(entry => {
+        const name = describeDraggableItem(entry.item, entry.index);
+        const expectedText = formatValueForStatus(entry.expected);
+        const currentText = formatValueForStatus(entry.current);
+        details.push(`${name} skal være ved ${expectedText}, men står ved ${currentText}.`);
+      });
+    }
+    setCheckStatus('error', 'Ikke helt riktig ennå.', details);
   }
 
   function updateControlsFromState() {
@@ -1816,6 +1937,12 @@
           }
         }, 0);
       }
+    });
+  }
+
+  if (checkButton) {
+    checkButton.addEventListener('click', () => {
+      checkDraggablePlacements();
     });
   }
 
