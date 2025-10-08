@@ -2613,6 +2613,32 @@
       tabsContainer.style.removeProperty('margin-bottom');
     }
   }
+  function moveDescriptionBelowTabs() {
+    if (!tabsContainer) return;
+    const description = document.querySelector('.example-description');
+    if (!description || !description.parentElement) return;
+    const settingsWrapper = tabsContainer.closest('.example-settings');
+    const targetParent = settingsWrapper || tabsContainer.parentElement;
+    if (!targetParent) return;
+    let referenceNode = tabsContainer.nextSibling;
+    while (referenceNode && referenceNode.nodeType === Node.TEXT_NODE && !referenceNode.textContent.trim()) {
+      referenceNode = referenceNode.nextSibling;
+    }
+    if (referenceNode === description) return;
+    if (description.parentElement !== targetParent) {
+      if (referenceNode) {
+        targetParent.insertBefore(description, referenceNode);
+      } else {
+        targetParent.appendChild(description);
+      }
+      return;
+    }
+    if (referenceNode) {
+      targetParent.insertBefore(description, referenceNode);
+    } else {
+      targetParent.appendChild(description);
+    }
+  }
   function moveSettingsIntoExampleCard() {
     if (!toolbar) return;
     const exampleCard = toolbar.closest('.card');
@@ -2655,6 +2681,7 @@
     }
     placeTabsInsideSettings(exampleCard);
     adjustTabsSpacing();
+    moveDescriptionBelowTabs();
   }
   function getBinding(name) {
     if (name in window && window[name]) return window[name];
@@ -2993,6 +3020,7 @@
     document.body.appendChild(tabsContainer);
   }
   moveSettingsIntoExampleCard();
+  moveDescriptionBelowTabs();
   window.addEventListener('resize', adjustTabsSpacing);
   function updateActionButtonState(count) {
     if (deleteBtn) deleteBtn.disabled = count <= 1;
