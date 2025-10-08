@@ -27,7 +27,11 @@
     }
     const tag = toString.call(value);
     if (tag === '[object Array]') {
-      return value.slice();
+      const clone = new Array(value.length);
+      for (let i = 0; i < value.length; i++) {
+        clone[i] = cloneState(value[i]);
+      }
+      return clone;
     }
     if (tag === '[object Date]') {
       return new Date(value.getTime());
@@ -60,12 +64,12 @@
       const clone = {};
       const keys = Object.keys(value);
       for (let i = 0; i < keys.length; i++) {
-        clone[keys[i]] = value[keys[i]];
+        clone[keys[i]] = cloneState(value[keys[i]]);
       }
       if (typeof Object.getOwnPropertySymbols === 'function') {
         const symbols = Object.getOwnPropertySymbols(value);
         for (let i = 0; i < symbols.length; i++) {
-          clone[symbols[i]] = value[symbols[i]];
+          clone[symbols[i]] = cloneState(value[symbols[i]]);
         }
       }
       return clone;
