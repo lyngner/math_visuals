@@ -162,6 +162,9 @@ const ROW_GAP = 18;
 const ROW_LABEL_GAP = 18;
 const DEFAULT_FRAME_INSET = 3;
 const DEFAULT_GRID_PADDING_TOP = 20;
+const DEFAULT_GRID_PADDING_LEFT = 28;
+const ROW_LABEL_EXTRA_LEFT_PADDING = 100;
+const ROW_LABEL_EXTRA_PADDING_ROWS = 3;
 const COMBINED_WHOLE_TOP_MARGIN = 12;
 const BLOCKS = [];
 let multipleBlocksActive = false;
@@ -979,9 +982,11 @@ function draw(skipNormalization = false) {
     });
   }
   let maxLabelWidth = 0;
+  let needsFrontPadding = false;
   if (grid) {
     grid.style.setProperty('--tb-row-label-gap', `${ROW_LABEL_GAP}px`);
     grid.style.setProperty('--tb-label-max-width', '0px');
+    grid.style.setProperty('--tb-grid-padding-left', `${DEFAULT_GRID_PADDING_LEFT}px`);
   }
   ROW_LABEL_ELEMENTS.forEach((label, index) => {
     if (!label) return;
@@ -999,6 +1004,9 @@ function draw(skipNormalization = false) {
       const measured = measureRowLabelWidth(trimmed);
       const padded = Math.ceil(Number.isFinite(measured) ? measured : 0) + ROW_LABEL_GAP;
       if (padded > maxLabelWidth) maxLabelWidth = padded;
+      if (!needsFrontPadding && index < ROW_LABEL_EXTRA_PADDING_ROWS) {
+        needsFrontPadding = true;
+      }
     } else {
       label.style.display = 'none';
     }
@@ -1006,6 +1014,10 @@ function draw(skipNormalization = false) {
   if (grid) {
     const safeMax = Math.max(0, Math.ceil(maxLabelWidth));
     grid.style.setProperty('--tb-label-max-width', `${safeMax}px`);
+    if (needsFrontPadding) {
+      const paddingLeft = DEFAULT_GRID_PADDING_LEFT + ROW_LABEL_EXTRA_LEFT_PADDING;
+      grid.style.setProperty('--tb-grid-padding-left', `${paddingLeft}px`);
+    }
   }
   const rowTotals = Array.from({
     length: CONFIG.rows
