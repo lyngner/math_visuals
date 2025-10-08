@@ -3173,6 +3173,16 @@
         if (!initialLoadPerformed && refreshed.length > 0) {
           let targetIndex = Number.isInteger(currentExampleIndex) ? currentExampleIndex : NaN;
           if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= refreshed.length) {
+            const firstCustomIndex = refreshed.findIndex(example => {
+              if (!example || typeof example !== 'object') return false;
+              const key = normalizeKey(example.__builtinKey);
+              return !key;
+            });
+            if (Number.isInteger(firstCustomIndex) && firstCustomIndex >= 0) {
+              targetIndex = firstCustomIndex;
+            }
+          }
+          if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= refreshed.length) {
             targetIndex = refreshed.findIndex(ex => ex && ex.isDefault === true);
           }
           if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= refreshed.length) {
