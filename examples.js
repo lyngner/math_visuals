@@ -1677,6 +1677,7 @@
   let tabButtons = [];
   let descriptionInput = null;
   const descriptionInputsWithListeners = new WeakSet();
+  const descriptionContainersWithListeners = new WeakSet();
   let descriptionContainer = null;
   let descriptionPreview = null;
   let descriptionRendererPromise = null;
@@ -2239,6 +2240,32 @@
     input.addEventListener('change', update);
     input.addEventListener('focus', update);
     input.addEventListener('blur', update);
+    const container = input.closest('.example-description');
+    if (container && !descriptionContainersWithListeners.has(container)) {
+      const handleContainerClick = event => {
+        if (!input || currentAppMode === 'task') return;
+        if (event && event.defaultPrevented) return;
+        const target = event && event.target;
+        if (target && typeof target.closest === 'function') {
+          if (target.closest('textarea') === input) return;
+          const preview = container.querySelector('.example-description-preview');
+          if (preview && preview.contains(target) && !preview.hasAttribute('hidden') && preview.dataset.empty !== 'true') {
+            return;
+          }
+        }
+        if (typeof input.focus === 'function' && document.activeElement !== input) {
+          try {
+            input.focus({ preventScroll: true });
+          } catch (_) {
+            try {
+              input.focus();
+            } catch (_) {}
+          }
+        }
+      };
+      container.addEventListener('click', handleContainerClick);
+      descriptionContainersWithListeners.add(container);
+    }
     setTimeout(update, 0);
   }
 
