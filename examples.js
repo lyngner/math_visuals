@@ -2014,6 +2014,70 @@
     return null;
   }
 
+  const DESCRIPTION_FORMATTING_PATTERN = /@(math|table|task|answer(?:box)?|input)\s*[\[{]/i;
+  let descriptionFormattingHelp = null;
+
+  function hasDescriptionFormatting(value) {
+    if (typeof value !== 'string') return false;
+    return DESCRIPTION_FORMATTING_PATTERN.test(value);
+  }
+
+  function ensureDescriptionFormattingHelp(container) {
+    if (!container) return null;
+    if (descriptionFormattingHelp && descriptionFormattingHelp.isConnected) {
+      return descriptionFormattingHelp;
+    }
+    let help = container.querySelector('.example-description-help');
+    if (!(help instanceof HTMLElement)) {
+      help = document.createElement('details');
+      help.className = 'example-description-help';
+
+      const summary = document.createElement('summary');
+      summary.textContent = 'Forklaring til formatering av oppgavetekst';
+      help.appendChild(summary);
+
+      const list = document.createElement('ul');
+      list.className = 'example-description-help__list';
+
+      const examples = [
+        {
+          code: '@math{a^2 + b^2 = c^2}',
+          description: 'viser matematikkuttrykk i teksten.'
+        },
+        {
+          code: '@task{Tittel|Spørsmål eller instruksjon}',
+          description: 'lager en oppgave med tittel og innhold.'
+        },
+        {
+          code: '@answer{value=12|placeholder=Skriv svaret}',
+          description: 'lager en svarboks som kan sjekkes automatisk.'
+        },
+        {
+          code: '@input[answer="0"|size="5"]',
+          description: 'lager et kort svarfelt i løpende tekst.'
+        },
+        {
+          code: '@table{Overskrift|Kolonne 1|Kolonne 2\nRad 1|5|7}',
+          description: 'lager en enkel tabell. Bruk linjeskift for rader og | for kolonner.'
+        }
+      ];
+
+      examples.forEach(item => {
+        const listItem = document.createElement('li');
+        const code = document.createElement('code');
+        code.textContent = item.code;
+        listItem.appendChild(code);
+        listItem.appendChild(document.createTextNode(` ${item.description}`));
+        list.appendChild(listItem);
+      });
+
+      help.appendChild(list);
+      container.appendChild(help);
+    }
+    descriptionFormattingHelp = help;
+    return help;
+  }
+
   function getDescriptionPreviewElement() {
     if (descriptionPreview && descriptionPreview.isConnected) return descriptionPreview;
     const container = getDescriptionContainer();
@@ -2023,10 +2087,12 @@
       preview = document.createElement('div');
       preview.className = 'example-description-preview';
       preview.setAttribute('aria-hidden', 'true');
+      preview.setAttribute('hidden', '');
       preview.dataset.empty = 'true';
       container.appendChild(preview);
     }
     descriptionPreview = preview;
+    ensureDescriptionFormattingHelp(container);
     return preview;
   }
 
@@ -2156,16 +2222,14 @@
     };
     const trimmedValue = stringValue.trim();
     if (!trimmedValue) {
-      const input = getDescriptionInput();
-      const placeholder =
-        input && typeof input.placeholder === 'string' ? input.placeholder.trim() : '';
       clearChildren(preview);
-      if (placeholder) {
-        preview.textContent = placeholder;
-        preview.dataset.placeholder = 'true';
-        applyState(true);
-        return markRendered(true);
-      }
+      delete preview.dataset.placeholder;
+      applyState(false);
+      return markRendered(false);
+    }
+    const shouldRender = currentAppMode === 'task' || hasDescriptionFormatting(stringValue);
+    if (!shouldRender) {
+      clearChildren(preview);
       delete preview.dataset.placeholder;
       applyState(false);
       return markRendered(false);

@@ -469,6 +469,62 @@ select:disabled {
   margin: 4px 4px 4px 0;
 }
 
+.card--examples .example-description-help {
+  border: 1px solid var(--card-border);
+  border-radius: var(--control-radius);
+  background: #f9fafb;
+  padding: 0;
+  color: var(--text-color);
+  font-size: 13px;
+}
+
+.card--examples .example-description-help > summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  font-weight: 600;
+  list-style: none;
+  position: relative;
+}
+
+.card--examples .example-description-help > summary::-webkit-details-marker {
+  display: none;
+}
+
+.card--examples .example-description-help > summary::after {
+  content: '';
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 10px;
+  height: 6px;
+  background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6" fill="none"%3E%3Cpath d="M1 1L5 5L9 1" stroke="%236b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/%3E%3C/svg%3E');
+  background-repeat: no-repeat;
+  background-position: center;
+  transform: translateY(-50%);
+  transition: transform 0.2s ease;
+}
+
+.card--examples .example-description-help[open] > summary::after {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.card--examples .example-description-help__list {
+  margin: 0;
+  padding: 0 18px 12px 32px;
+  list-style: disc;
+  display: grid;
+  gap: 6px;
+  color: #4b5563;
+}
+
+.card--examples .example-description-help__list code {
+  font-size: 12px;
+  background: #eef2ff;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: #4338ca;
+}
+
 .card--examples .example-description label {
   display: flex;
   align-items: center;
