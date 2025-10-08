@@ -275,6 +275,15 @@ body[data-app-mode="task"] .card--examples {
   gap: 12px;
 }
 
+body[data-app-mode="task"] .card--examples .toolbar,
+body[data-app-mode="task"] .card--examples .example-tabs {
+  display: none !important;
+}
+
+body[data-app-mode="task"] .card--examples .example-settings > :not(.example-description) {
+  display: none !important;
+}
+
 body[data-app-mode="task"] .card--examples .example-description textarea {
   display: none;
   min-height: 0;
