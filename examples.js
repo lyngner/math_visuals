@@ -3583,6 +3583,16 @@
       if (!examples.length) return;
       const normalizedIndex = clampExampleIndex(currentExampleIndex, examples.length);
       const targetIndex = normalizedIndex == null ? 0 : normalizedIndex;
+      if (currentAppMode === 'task') {
+        const currentDescription = normalizeDescriptionString(getDescriptionValue());
+        if (currentDescription) {
+          const example = examples[targetIndex];
+          const exampleDescription = extractDescriptionFromExample(example);
+          if (!exampleDescription || currentDescription !== exampleDescription) {
+            return;
+          }
+        }
+      }
       loadExample(targetIndex);
     });
   }
