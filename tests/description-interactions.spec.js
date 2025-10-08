@@ -17,14 +17,15 @@ test.describe('Description renderer interactions', () => {
       page,
       [
         '@task{Regn ut|Hva er 5 + 7? @answer{value=12|placeholder=Skriv svaret}}',
-        '@task{Regn ut igjen|Hva er 9 + 3? @answerbox[value=12|placeholder=Skriv svaret 2]}'
+        '@task{Regn ut igjen|Hva er 9 + 3? @answerbox[value=12|placeholder=Skriv svaret 2]}',
+        '@task{Les av grafen|f(2) = @input[answer="0"|size="5"]}'
       ].join('\n\n')
     );
 
     const preview = page.locator('.example-description-preview');
     const answerBoxes = preview.locator('.math-vis-answerbox');
 
-    await expect(answerBoxes).toHaveCount(2);
+    await expect(answerBoxes).toHaveCount(3);
 
     const classicAnswer = answerBoxes.nth(0);
     const classicInput = classicAnswer.locator('.math-vis-answerbox__input');
@@ -63,6 +64,26 @@ test.describe('Description renderer interactions', () => {
     await aliasInput.fill('');
     await expect(aliasAnswer).toHaveClass(/math-vis-answerbox--empty/);
     await expect(aliasStatus).toHaveText('');
+
+    const inlineAnswer = answerBoxes.nth(2);
+    const inlineInput = inlineAnswer.locator('.math-vis-answerbox__input');
+    const inlineStatus = inlineAnswer.locator('.math-vis-answerbox__status');
+
+    await expect(inlineAnswer).toHaveClass(/math-vis-answerbox--input/);
+    await expect(inlineAnswer).toHaveClass(/math-vis-answerbox--empty/);
+    await expect(inlineInput).toHaveAttribute('size', '5');
+
+    await inlineInput.fill('1');
+    await expect(inlineAnswer).toHaveClass(/math-vis-answerbox--incorrect/);
+    await expect(inlineStatus).toHaveText('Prøv igjen.');
+
+    await inlineInput.fill('0');
+    await expect(inlineAnswer).toHaveClass(/math-vis-answerbox--correct/);
+    await expect(inlineStatus).toHaveText('Riktig!');
+
+    await inlineInput.fill('');
+    await expect(inlineAnswer).toHaveClass(/math-vis-answerbox--empty/);
+    await expect(inlineStatus).toHaveText('');
   });
 
   test('falls back to plain text math when KaTeX is unavailable', async ({ page }) => {
