@@ -416,6 +416,7 @@
   let fallbackStorage = null;
   let fallbackStorageMode = 'memory';
   let fallbackStorageInitialized = false;
+  let suppressMemoryFallbackNotice = false;
   function applyFallbackStorage(store, mode) {
     fallbackStorage = store;
     fallbackStorageMode = mode === 'session' ? 'session' : 'memory';
@@ -423,7 +424,7 @@
       globalScope.__EXAMPLES_FALLBACK_STORAGE__ = store;
       globalScope.__EXAMPLES_FALLBACK_STORAGE_MODE__ = fallbackStorageMode;
     }
-    if (fallbackStorageMode === 'memory') {
+    if (fallbackStorageMode === 'memory' && !suppressMemoryFallbackNotice) {
       scheduleMemoryFallbackNotice();
     }
     return fallbackStorage;
@@ -1314,6 +1315,9 @@
     }
   }
   const examplesApiBase = resolveExamplesApiBase();
+  if (examplesApiBase) {
+    setMemoryFallbackNoticeSuppressed(true);
+  }
   let backendAvailable = !!examplesApiBase;
   let backendReady = !examplesApiBase;
   let backendSyncDeferred = false;
@@ -1336,6 +1340,9 @@
           method: 'DELETE'
         });
         backendAvailable = res.ok || res.status === 404;
+        if (backendAvailable) {
+          setMemoryFallbackNoticeSuppressed(true);
+        }
       } else {
         const payload = {
           path: storagePath,
@@ -1352,9 +1359,11 @@
         });
         if (!res.ok) throw new Error(`Backend sync failed (${res.status})`);
         backendAvailable = true;
+        setMemoryFallbackNoticeSuppressed(true);
       }
     } catch (error) {
       backendAvailable = false;
+      setMemoryFallbackNoticeSuppressed(false);
       backendSyncRequested = true;
     }
   }
@@ -1481,10 +1490,12 @@
         });
       } catch (error) {
         backendAvailable = false;
+        setMemoryFallbackNoticeSuppressed(false);
         return null;
       }
       if (res.status === 404) {
         backendAvailable = true;
+        setMemoryFallbackNoticeSuppressed(true);
         backendWasEmpty = true;
         return {
           path: storagePath,
@@ -1494,6 +1505,7 @@
       }
       if (!res.ok) {
         backendAvailable = false;
+        setMemoryFallbackNoticeSuppressed(false);
         return null;
       }
       let backendData = null;
@@ -1501,9 +1513,11 @@
         backendData = await res.json();
       } catch (error) {
         backendAvailable = false;
+        setMemoryFallbackNoticeSuppressed(false);
         return null;
       }
       backendAvailable = true;
+      setMemoryFallbackNoticeSuppressed(true);
       const normalized = backendData || {};
       const backendExamples = Array.isArray(normalized.examples) ? normalized.examples : [];
       const backendDeleted = Array.isArray(normalized.deletedProvided) ? normalized.deletedProvided : [];
@@ -2113,6 +2127,51 @@
   let memoryFallbackNoticeRenderTimeout = null;
   let memoryFallbackNoticeDomReadyHandler = null;
 
+  function hideMemoryFallbackNotice() {
+    if (memoryFallbackNoticeRenderTimeout) {
+      clearTimeout(memoryFallbackNoticeRenderTimeout);
+      memoryFallbackNoticeRenderTimeout = null;
+    }
+    if (typeof document !== 'undefined' && memoryFallbackNoticeDomReadyHandler) {
+      try {
+        document.removeEventListener('DOMContentLoaded', memoryFallbackNoticeDomReadyHandler);
+      } catch (_) {}
+    }
+    memoryFallbackNoticeDomReadyHandler = null;
+    memoryFallbackNoticePending = false;
+    memoryFallbackNoticeRendered = false;
+    if (memoryFallbackNoticeElement) {
+      try {
+        if (typeof memoryFallbackNoticeElement.remove === 'function') {
+          memoryFallbackNoticeElement.remove();
+        } else if (memoryFallbackNoticeElement.parentElement) {
+          memoryFallbackNoticeElement.parentElement.removeChild(memoryFallbackNoticeElement);
+        }
+      } catch (_) {
+        if (memoryFallbackNoticeElement.parentElement) {
+          try {
+            memoryFallbackNoticeElement.parentElement.removeChild(memoryFallbackNoticeElement);
+          } catch (_) {}
+        }
+      }
+      try {
+        memoryFallbackNoticeElement.hidden = true;
+      } catch (_) {}
+    }
+    memoryFallbackNoticeElement = null;
+  }
+
+  function setMemoryFallbackNoticeSuppressed(value) {
+    const next = value === true;
+    if (next === suppressMemoryFallbackNotice) return;
+    suppressMemoryFallbackNotice = next;
+    if (next) {
+      hideMemoryFallbackNotice();
+    } else if (fallbackStorageMode === 'memory' && usingFallbackStorage) {
+      scheduleMemoryFallbackNotice();
+    }
+  }
+
   function resolveMemoryFallbackNoticeHost() {
     if (memoryFallbackNoticeElement && memoryFallbackNoticeElement.isConnected) {
       return memoryFallbackNoticeElement.parentElement;
@@ -2136,6 +2195,7 @@
   }
 
   function ensureMemoryFallbackNotice() {
+    if (suppressMemoryFallbackNotice) return;
     if (!memoryFallbackNoticePending || memoryFallbackNoticeRendered) return;
     if (typeof document === 'undefined') return;
     const host = resolveMemoryFallbackNoticeHost();
@@ -2178,6 +2238,7 @@
   }
 
   function scheduleMemoryFallbackNotice() {
+    if (suppressMemoryFallbackNotice) return;
     if (memoryFallbackNoticeRendered) return;
     memoryFallbackNoticePending = true;
     if (typeof document === 'undefined') return;
