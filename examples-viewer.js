@@ -640,13 +640,20 @@ async function renderExamples(options) {
       delBtn.textContent = 'Slett';
       delBtn.addEventListener('click', async () => {
         const updated = examples.slice();
-        updated.splice(idx, 1);
+        const removed = updated.splice(idx, 1);
         const deletedProvided = readDeletedProvided(path);
+        const builtinKey = removed && removed.length ? removed[0] && removed[0].__builtinKey : null;
+        if (typeof builtinKey === 'string') {
+          const normalized = builtinKey.trim();
+          if (normalized && !deletedProvided.includes(normalized)) {
+            deletedProvided.push(normalized);
+          }
+        }
         writeLocalEntry(path, {
           examples: updated,
           deletedProvided
         });
-        if (updated.length) {
+        if (updated.length || deletedProvided.length) {
           updateBackendCache(path, {
             path,
             examples: updated,
