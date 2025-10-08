@@ -3575,14 +3575,26 @@
   ensureTrashHistoryMigration();
   renderOptions();
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-    window.addEventListener('math-visuals:app-mode-changed', () => {
+    window.addEventListener('math-visuals:app-mode-changed', event => {
+      if (!event) return;
       if (currentAppMode === 'task') {
         ensureTaskModeDescriptionRendered();
       }
       const examples = getExamples();
       if (!examples.length) return;
-      const normalizedIndex = clampExampleIndex(currentExampleIndex, examples.length);
-      const targetIndex = normalizedIndex == null ? 0 : normalizedIndex;
+      let targetIndex = null;
+      if (pendingRequestedIndex != null) {
+        targetIndex = clampExampleIndex(pendingRequestedIndex, examples.length);
+      }
+      if (targetIndex == null) {
+        targetIndex = clampExampleIndex(currentExampleIndex, examples.length);
+      }
+      if (targetIndex == null) {
+        targetIndex = 0;
+      }
+      if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= examples.length) {
+        return;
+      }
       loadExample(targetIndex);
     });
   }
