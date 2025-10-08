@@ -2260,7 +2260,7 @@
       applyState(false);
       return markRendered(false);
     }
-    const shouldRender = currentAppMode === 'task' || hasDescriptionFormatting(stringValue);
+    const shouldRender = force || currentAppMode === 'task' || hasDescriptionFormatting(stringValue);
     if (!shouldRender) {
       clearChildren(preview);
       delete preview.dataset.placeholder;
