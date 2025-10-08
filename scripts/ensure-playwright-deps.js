@@ -13,14 +13,13 @@ async function markInstalled() {
 
 async function validateDependencies() {
   try {
-    const { registry } = require('playwright-core/lib/server/registry');
-    const { getEmbedderName } = require('playwright-core/lib/server/utils/userAgent');
+    const { registry } = require('playwright-core/lib/server');
     const executables = registry.defaultExecutables();
     if (!executables.length) {
       return { ok: true };
     }
-    const { embedderName } = getEmbedderName();
-    await registry.validateHostRequirementsForExecutablesIfNeeded(executables, embedderName);
+    const sdkLanguage = process.env.PW_LANG_NAME || 'javascript';
+    await registry.validateHostRequirementsForExecutablesIfNeeded(executables, sdkLanguage);
     return { ok: true };
   } catch (error) {
     return { ok: false, error };
