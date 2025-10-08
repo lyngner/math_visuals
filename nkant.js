@@ -1,7 +1,7 @@
 /* ==========================================================
    NKANT – ÉN SVG med 1–2 figurer
    • Sider: none | value | custom | custom+value
-   • Vinkler/punkter: none | mark | mark+value | custom | custom+mark | custom+mark+value
+   • Vinkler/punkter (per punkt): none | mark | mark+value | custom | custom+mark | custom+mark+value
    • Ved custom*: punktnavn vises utenfor langs vinkelhalveringen; vinkelverdi inne i sektoren
    ========================================================== */
 
@@ -1769,7 +1769,7 @@ function buildSideText(mode, valueStr, customText) {
   return valueStr; // fallback
 }
 
-/* Vinkler/punkter:
+/* Vinkler/punkter (per punkt):
    none | mark | mark+value | custom | custom+mark | custom+mark+value
    → { mark:bool, angleText:string|null, pointLabel:string|null } */
 function parseAnglePointMode(modeStr, valueDeg, customText, fallbackPointLetter) {
