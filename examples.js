@@ -1682,6 +1682,45 @@
   let descriptionRendererPromise = null;
   let lastDescriptionRenderToken = 0;
 
+  function resolveDescriptionRendererUrl() {
+    if (typeof document === 'undefined') {
+      return 'description-renderer.js';
+    }
+    const candidates = [];
+    const { currentScript } = document;
+    if (currentScript && currentScript.src) {
+      candidates.push(currentScript.src);
+    }
+    const scripts = typeof document.getElementsByTagName === 'function' ? document.getElementsByTagName('script') : null;
+    if (scripts && scripts.length) {
+      for (let i = scripts.length - 1; i >= 0; i--) {
+        const script = scripts[i];
+        if (!script || !script.src) continue;
+        const src = script.src;
+        if (!candidates.includes(src)) {
+          candidates.push(src);
+        }
+        if (/\bexamples(?:\.min)?\.js(?:\?|#|$)/.test(src)) {
+          candidates.unshift(src);
+          break;
+        }
+      }
+    }
+    if (typeof window !== 'undefined' && window.location && window.location.href) {
+      candidates.push(window.location.href);
+      if (window.location.origin) {
+        candidates.push(window.location.origin + '/');
+      }
+    }
+    for (const base of candidates) {
+      if (typeof base !== 'string' || !base) continue;
+      try {
+        return new URL('description-renderer.js', base).toString();
+      } catch (error) {}
+    }
+    return 'description-renderer.js';
+  }
+
   function loadDescriptionRenderer() {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
       return Promise.resolve(null);
@@ -1693,13 +1732,7 @@
       return descriptionRendererPromise;
     }
     descriptionRendererPromise = new Promise((resolve, reject) => {
-      const currentScript = document.currentScript;
-      let scriptUrl = 'description-renderer.js';
-      if (currentScript && currentScript.src) {
-        try {
-          scriptUrl = new URL('description-renderer.js', currentScript.src).toString();
-        } catch (error) {}
-      }
+      const scriptUrl = resolveDescriptionRendererUrl();
       const script = document.createElement('script');
       script.async = true;
       script.src = scriptUrl;
