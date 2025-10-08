@@ -2240,9 +2240,7 @@
     if (!input || typeof input.value !== 'string') return;
     const container = input.closest('.example-description');
     if (!container) return;
-    const isFocused = document.activeElement === input;
-    const shouldCollapse = !isFocused && input.value.trim() === '';
-    container.classList.toggle('example-description--collapsed', shouldCollapse);
+    container.classList.remove('example-description--collapsed');
   }
 
   function ensureDescriptionListeners(input) {
