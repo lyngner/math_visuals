@@ -17,13 +17,60 @@
     });
     return snapshot;
   }
+  const toString = Object.prototype.toString;
   function cloneState(value) {
     if (!value || typeof value !== 'object') return value;
-    try {
-      return JSON.parse(JSON.stringify(value));
-    } catch (_) {
-      return value;
+    if (typeof structuredClone === 'function') {
+      try {
+        return structuredClone(value);
+      } catch (_) {}
     }
+    const tag = toString.call(value);
+    if (tag === '[object Array]') {
+      return value.slice();
+    }
+    if (tag === '[object Date]') {
+      return new Date(value.getTime());
+    }
+    if (tag === '[object RegExp]') {
+      return new RegExp(value);
+    }
+    if (tag === '[object Map]') {
+      return new Map(value);
+    }
+    if (tag === '[object Set]') {
+      return new Set(value);
+    }
+    if (tag === '[object ArrayBuffer]' && typeof value.slice === 'function') {
+      return value.slice(0);
+    }
+    if (ArrayBuffer.isView && ArrayBuffer.isView(value)) {
+      if (typeof value.slice === 'function') {
+        try {
+          return value.slice();
+        } catch (_) {}
+      }
+      try {
+        return new value.constructor(value);
+      } catch (_) {
+        return value;
+      }
+    }
+    if (tag === '[object Object]') {
+      const clone = {};
+      const keys = Object.keys(value);
+      for (let i = 0; i < keys.length; i++) {
+        clone[keys[i]] = value[keys[i]];
+      }
+      if (typeof Object.getOwnPropertySymbols === 'function') {
+        const symbols = Object.getOwnPropertySymbols(value);
+        for (let i = 0; i < symbols.length; i++) {
+          clone[symbols[i]] = value[symbols[i]];
+        }
+      }
+      return clone;
+    }
+    return value;
   }
   function replaceHistoryState(state) {
     if (typeof history === 'undefined' || typeof history.replaceState !== 'function') return;
