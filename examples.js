@@ -627,6 +627,59 @@
   }
   initializeFallbackStorage();
   let usingFallbackStorage = false;
+  const explicitDisablePersistentStorage =
+    typeof window !== 'undefined' && window.MATH_VISUALS_DISABLE_LOCAL_STORAGE === true;
+  const explicitEnablePersistentStorage =
+    typeof window !== 'undefined' && window.MATH_VISUALS_ENABLE_LOCAL_STORAGE === true;
+  let persistentStorageDisabled = explicitDisablePersistentStorage && !explicitEnablePersistentStorage;
+  function enforceMemoryStorage() {
+    usingFallbackStorage = true;
+    const store = switchToMemoryFallback();
+    if (globalScope && store) {
+      globalScope.__EXAMPLES_STORAGE__ = store;
+    }
+    return store;
+  }
+  function restorePersistentStorageFromFallback() {
+    let persistentStore = null;
+    try {
+      if (typeof localStorage === 'undefined') {
+        throw new Error('Storage not available');
+      }
+      persistentStore = localStorage;
+    } catch (_) {
+      return null;
+    }
+    const fallback = initializeFallbackStorage();
+    if (fallback && fallback !== persistentStore) {
+      copyStorageContents(fallback, persistentStore);
+    }
+    usingFallbackStorage = false;
+    if (globalScope) {
+      globalScope.__EXAMPLES_STORAGE__ = persistentStore;
+    }
+    return persistentStore;
+  }
+  function applyPersistentStoragePreference(disable) {
+    const shouldDisable = !!disable;
+    if (shouldDisable) {
+      if (explicitEnablePersistentStorage) {
+        return;
+      }
+    } else if (explicitDisablePersistentStorage && !explicitEnablePersistentStorage) {
+      return;
+    }
+    if (shouldDisable === persistentStorageDisabled) return;
+    persistentStorageDisabled = shouldDisable;
+    if (persistentStorageDisabled) {
+      enforceMemoryStorage();
+    } else {
+      restorePersistentStorageFromFallback();
+    }
+  }
+  if (persistentStorageDisabled) {
+    enforceMemoryStorage();
+  }
   let updateRestoreButtonState = () => {};
   function ensureFallbackStorage() {
     const target = initializeFallbackStorage() || createMemoryStorage();
@@ -638,7 +691,7 @@
       } catch (_) {
         localStorageAvailable = false;
       }
-      if (localStorageAvailable) {
+      if (localStorageAvailable && !persistentStorageDisabled) {
         try {
           const total = Number(localStorage.length) || 0;
           for (let i = 0; i < total; i++) {
@@ -728,6 +781,14 @@
     }
   }
   function safeGetItem(key) {
+    if (persistentStorageDisabled) {
+      const store = enforceMemoryStorage();
+      const result = tryGetItemFrom(store, key);
+      if (result.success) return result.value;
+      const memory = switchToMemoryFallback();
+      const fallbackResult = tryGetItemFrom(memory, key);
+      return fallbackResult.success ? fallbackResult.value : null;
+    }
     if (usingFallbackStorage) {
       const store = initializeFallbackStorage();
       const result = tryGetItemFrom(store, key);
@@ -749,6 +810,13 @@
     }
   }
   function safeSetItem(key, value) {
+    if (persistentStorageDisabled) {
+      const store = enforceMemoryStorage();
+      if (trySetItemOn(store, key, value)) return;
+      const memory = switchToMemoryFallback();
+      trySetItemOn(memory, key, value);
+      return;
+    }
     if (usingFallbackStorage) {
       const store = initializeFallbackStorage();
       if (trySetItemOn(store, key, value)) return;
@@ -767,6 +835,13 @@
     }
   }
   function safeRemoveItem(key) {
+    if (persistentStorageDisabled) {
+      const store = enforceMemoryStorage();
+      if (tryRemoveItemFrom(store, key)) return;
+      const memory = switchToMemoryFallback();
+      tryRemoveItemFrom(memory, key);
+      return;
+    }
     if (usingFallbackStorage) {
       const store = initializeFallbackStorage();
       if (tryRemoveItemFrom(store, key)) return;
@@ -824,14 +899,13 @@
   }
   if (globalScope && !globalScope.__EXAMPLES_STORAGE__) {
     try {
-      if (typeof localStorage !== 'undefined') {
+      if (typeof localStorage !== 'undefined' && !persistentStorageDisabled) {
         globalScope.__EXAMPLES_STORAGE__ = localStorage;
       } else {
-        globalScope.__EXAMPLES_STORAGE__ = fallbackStorage;
-        usingFallbackStorage = true;
+        globalScope.__EXAMPLES_STORAGE__ = enforceMemoryStorage();
       }
     } catch (_) {
-      globalScope.__EXAMPLES_STORAGE__ = ensureFallbackStorage();
+      globalScope.__EXAMPLES_STORAGE__ = enforceMemoryStorage();
     }
   }
   function normalizePathname(pathname, options) {
@@ -1506,16 +1580,25 @@
     }
   }
   const examplesApiBase = resolveExamplesApiBase();
-  if (examplesApiBase) {
-    setMemoryFallbackNoticeSuppressed(true);
-  }
-  let backendAvailable = !!examplesApiBase;
+  let backendAvailable = false;
   let backendReady = !examplesApiBase;
   let backendSyncDeferred = false;
   let applyingBackendUpdate = false;
   let backendSyncTimer = null;
   let backendSyncPromise = null;
   let backendSyncRequested = false;
+  function markBackendAvailable() {
+    backendAvailable = true;
+    setMemoryFallbackNoticeSuppressed(true);
+    if (!explicitEnablePersistentStorage) {
+      applyPersistentStoragePreference(true);
+    }
+  }
+  function markBackendUnavailable() {
+    backendAvailable = false;
+    setMemoryFallbackNoticeSuppressed(false);
+    applyPersistentStoragePreference(false);
+  }
   async function performBackendSync() {
     if (!examplesApiBase || applyingBackendUpdate) return;
     const url = buildExamplesApiUrl(examplesApiBase, storagePath);
@@ -1530,9 +1613,10 @@
         const res = await fetch(url, {
           method: 'DELETE'
         });
-        backendAvailable = res.ok || res.status === 404;
-        if (backendAvailable) {
-          setMemoryFallbackNoticeSuppressed(true);
+        if (res.ok || res.status === 404) {
+          markBackendAvailable();
+        } else {
+          markBackendUnavailable();
         }
       } else {
         const payload = {
@@ -1549,12 +1633,10 @@
           body: JSON.stringify(payload)
         });
         if (!res.ok) throw new Error(`Backend sync failed (${res.status})`);
-        backendAvailable = true;
-        setMemoryFallbackNoticeSuppressed(true);
+        markBackendAvailable();
       }
     } catch (error) {
-      backendAvailable = false;
-      setMemoryFallbackNoticeSuppressed(false);
+      markBackendUnavailable();
       backendSyncRequested = true;
     }
   }
@@ -1679,13 +1761,11 @@
           }
         });
       } catch (error) {
-        backendAvailable = false;
-        setMemoryFallbackNoticeSuppressed(false);
+        markBackendUnavailable();
         return null;
       }
       if (res.status === 404) {
-        backendAvailable = true;
-        setMemoryFallbackNoticeSuppressed(true);
+        markBackendAvailable();
         backendWasEmpty = true;
         return {
           path: storagePath,
@@ -1694,20 +1774,17 @@
         };
       }
       if (!res.ok) {
-        backendAvailable = false;
-        setMemoryFallbackNoticeSuppressed(false);
+        markBackendUnavailable();
         return null;
       }
       let backendData = null;
       try {
         backendData = await res.json();
       } catch (error) {
-        backendAvailable = false;
-        setMemoryFallbackNoticeSuppressed(false);
+        markBackendUnavailable();
         return null;
       }
-      backendAvailable = true;
-      setMemoryFallbackNoticeSuppressed(true);
+      markBackendAvailable();
       const normalized = backendData || {};
       const backendExamples = Array.isArray(normalized.examples) ? normalized.examples : [];
       const backendDeleted = Array.isArray(normalized.deletedProvided) ? normalized.deletedProvided : [];
