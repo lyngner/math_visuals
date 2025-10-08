@@ -256,6 +256,18 @@
       force: detail.force === true
     });
   }
+  let initialLoadPerformed = false;
+  let currentExampleIndex = null;
+  let tabsContainer = null;
+  let tabButtons = [];
+  let descriptionInput = null;
+  const descriptionInputsWithListeners = new WeakSet();
+  const descriptionContainersWithListeners = new WeakSet();
+  let descriptionContainer = null;
+  let descriptionPreview = null;
+  let descriptionRendererPromise = null;
+  let lastDescriptionRenderToken = 0;
+
   function ensureSplitterObserver() {
     if (typeof document === 'undefined') return;
     if (typeof MutationObserver !== 'function') return;
@@ -1670,18 +1682,6 @@
       }
     }
   }
-  let initialLoadPerformed = false;
-  let currentExampleIndex = null;
-  let tabsContainer = null;
-  let tabButtons = [];
-  let descriptionInput = null;
-  const descriptionInputsWithListeners = new WeakSet();
-  const descriptionContainersWithListeners = new WeakSet();
-  let descriptionContainer = null;
-  let descriptionPreview = null;
-  let descriptionRendererPromise = null;
-  let lastDescriptionRenderToken = 0;
-
   function resolveDescriptionRendererUrl() {
     if (typeof document === 'undefined') {
       return 'description-renderer.js';
@@ -3211,6 +3211,9 @@
     const examples = getExamples();
     const normalizedIndex = clampExampleIndex(pendingRequestedIndex, examples.length);
     if (normalizedIndex == null) {
+      if (!examples || examples.length === 0) {
+        return;
+      }
       pendingRequestedIndex = null;
       return;
     }
@@ -3430,12 +3433,40 @@
   ensureTrashHistoryMigration();
   renderOptions();
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-    window.addEventListener('math-visuals:app-mode-changed', () => {
+    window.addEventListener('math-visuals:app-mode-changed', event => {
       const examples = getExamples();
       if (!examples.length) return;
-      const normalizedIndex = clampExampleIndex(currentExampleIndex, examples.length);
-      const targetIndex = normalizedIndex == null ? 0 : normalizedIndex;
-      loadExample(targetIndex);
+      let targetIndex = null;
+      const pendingIndex = clampExampleIndex(pendingRequestedIndex, examples.length);
+      if (pendingIndex != null && !initialLoadPerformed) {
+        targetIndex = pendingIndex;
+      } else {
+        const normalizedIndex = clampExampleIndex(currentExampleIndex, examples.length);
+        if (normalizedIndex != null) {
+          targetIndex = normalizedIndex;
+        } else {
+          const defaultIndex = examples.findIndex(ex => ex && ex.isDefault === true);
+          targetIndex = clampExampleIndex(defaultIndex, examples.length);
+          if (targetIndex == null) {
+            targetIndex = 0;
+          }
+        }
+      }
+      const detail = event && event.detail && typeof event.detail === 'object' ? event.detail : null;
+      const mode = detail && typeof detail.mode === 'string' ? normalizeAppMode(detail.mode) : null;
+      if (mode === 'task') {
+        const input = getDescriptionInput();
+        const currentValue = input && typeof input.value === 'string' ? input.value.trim() : '';
+        const targetExample = examples[targetIndex];
+        const storedDescription = extractDescriptionFromExample(targetExample);
+        if (currentValue && !storedDescription) {
+          renderDescriptionPreviewFromValue(currentValue, { force: true });
+          return;
+        }
+      }
+      if (targetIndex != null) {
+        loadExample(targetIndex);
+      }
     });
   }
   if (examplesApiBase) {
@@ -3607,7 +3638,11 @@
       if (pendingRequestedIndex != null) {
         const normalizedIndex = clampExampleIndex(pendingRequestedIndex, examples.length);
         if (normalizedIndex == null) {
-          pendingRequestedIndex = null;
+          if (!examples || examples.length === 0) {
+            // keep pending index until examples are available
+          } else {
+            pendingRequestedIndex = null;
+          }
         } else {
           pendingRequestedIndex = normalizedIndex;
         }
@@ -3629,6 +3664,8 @@
               initialLoadPerformed = true;
               pendingRequestedIndex = null;
             }
+          } else if (refreshed && refreshed.length === 0) {
+            // keep pending index until examples populate
           } else {
             pendingRequestedIndex = null;
           }
