@@ -393,17 +393,23 @@
       setItem(key, value) {
         try {
           sessionStorage.setItem(key, value);
-        } catch (_) {}
+        } catch (error) {
+          throw error;
+        }
       },
       removeItem(key) {
         try {
           sessionStorage.removeItem(key);
-        } catch (_) {}
+        } catch (error) {
+          throw error;
+        }
       },
       clear() {
         try {
           sessionStorage.clear();
-        } catch (_) {}
+        } catch (error) {
+          throw error;
+        }
       }
     };
   }
