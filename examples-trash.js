@@ -5,8 +5,8 @@
   const EXAMPLE_VALUE_TYPE_KEY = '__mathVisualsType__';
   const EXAMPLE_VALUE_DATA_KEY = '__mathVisualsValue__';
 
-  const MEMORY_STORAGE_WINDOW_PREFIX = '__MATH_VISUALS_STORAGE__:';
-  let memoryStorageWindowNameOriginal = null;
+  const MEMORY_STORAGE_HISTORY_KEY = '__MATH_VISUALS_STORAGE__';
+  let memoryStorageHistoryStateOriginal = null;
   function serializeMemorySnapshot(data) {
     if (!data || data.size === 0) {
       return null;
@@ -17,39 +17,98 @@
     });
     return snapshot;
   }
-  function readMemorySnapshotFromWindow() {
-    if (typeof window === 'undefined') {
-      return { data: null, original: '' };
-    }
-    const current = typeof window.name === 'string' ? window.name : '';
-    if (!current.startsWith(MEMORY_STORAGE_WINDOW_PREFIX)) {
-      return { data: null, original: current };
-    }
-    const payload = current.slice(MEMORY_STORAGE_WINDOW_PREFIX.length);
+  function cloneState(value) {
+    if (!value || typeof value !== 'object') return value;
     try {
-      const parsed = JSON.parse(payload);
-      if (parsed && typeof parsed === 'object') {
-        const restored = parsed.data && typeof parsed.data === 'object' ? parsed.data : null;
-        const original = typeof parsed.original === 'string' ? parsed.original : '';
-        return { data: restored, original };
+      return JSON.parse(JSON.stringify(value));
+    } catch (_) {
+      return value;
+    }
+  }
+  function replaceHistoryState(state) {
+    if (typeof history === 'undefined' || typeof history.replaceState !== 'function') return;
+    const title = typeof document !== 'undefined' && typeof document.title === 'string' ? document.title : '';
+    const hasHref = typeof location !== 'undefined' && typeof location.href === 'string';
+    try {
+      if (hasHref) {
+        history.replaceState(state, title, location.href);
+      } else {
+        history.replaceState(state, title);
       }
     } catch (_) {}
-    return { data: null, original: '' };
   }
-  function writeMemorySnapshotToWindow(snapshot) {
-    if (typeof window === 'undefined') return;
+  function readMemorySnapshotFromHistory() {
+    if (typeof history === 'undefined') {
+      return { data: null, original: null };
+    }
+    let currentState = null;
+    try {
+      currentState = history.state;
+    } catch (_) {
+      currentState = null;
+    }
+    if (!currentState || typeof currentState !== 'object') {
+      return { data: null, original: currentState };
+    }
+    const payload = currentState[MEMORY_STORAGE_HISTORY_KEY];
+    if (!payload || typeof payload !== 'object') {
+      return { data: null, original: currentState };
+    }
+    const restored = payload.data && typeof payload.data === 'object' ? payload.data : null;
+    const original = 'original' in payload ? payload.original : null;
+    return { data: restored, original };
+  }
+  function writeMemorySnapshotToHistory(snapshot) {
+    if (typeof history === 'undefined' || typeof history.replaceState !== 'function') return;
+    let currentState = null;
+    try {
+      currentState = history.state;
+    } catch (_) {
+      currentState = null;
+    }
+    const existingPayload = currentState && typeof currentState === 'object' ? currentState[MEMORY_STORAGE_HISTORY_KEY] : null;
+    let originalState = memoryStorageHistoryStateOriginal;
+    if (originalState == null) {
+      if (existingPayload && typeof existingPayload === 'object' && 'original' in existingPayload) {
+        originalState = existingPayload.original;
+      } else {
+        originalState = currentState && typeof currentState === 'object' ? cloneState(currentState) : currentState;
+      }
+    }
+    if (originalState != null && typeof originalState === 'object') {
+      memoryStorageHistoryStateOriginal = cloneState(originalState);
+    } else {
+      memoryStorageHistoryStateOriginal = originalState;
+    }
     if (!snapshot || (typeof snapshot === 'object' && Object.keys(snapshot).length === 0)) {
-      const restore = memoryStorageWindowNameOriginal != null ? memoryStorageWindowNameOriginal : '';
-      window.name = restore;
+      const restore = originalState != null ? originalState : null;
+      if (restore != null && typeof restore === 'object') {
+        memoryStorageHistoryStateOriginal = cloneState(restore);
+        const cleaned = cloneState(restore);
+        if (cleaned && typeof cleaned === 'object') {
+          delete cleaned[MEMORY_STORAGE_HISTORY_KEY];
+        }
+        replaceHistoryState(cleaned);
+      } else {
+        memoryStorageHistoryStateOriginal = restore;
+        replaceHistoryState(restore);
+      }
       return;
     }
-    const payload = {
+    const nextState = originalState && typeof originalState === 'object' ? cloneState(originalState) : {};
+    if (!nextState || typeof nextState !== 'object') {
+      const payload = {
+        data: snapshot,
+        original: originalState != null ? cloneState(originalState) : null
+      };
+      replaceHistoryState({ [MEMORY_STORAGE_HISTORY_KEY]: payload });
+      return;
+    }
+    nextState[MEMORY_STORAGE_HISTORY_KEY] = {
       data: snapshot,
-      original: memoryStorageWindowNameOriginal != null ? memoryStorageWindowNameOriginal : ''
+      original: originalState != null ? cloneState(originalState) : null
     };
-    try {
-      window.name = MEMORY_STORAGE_WINDOW_PREFIX + JSON.stringify(payload);
-    } catch (_) {}
+    replaceHistoryState(nextState);
   }
   function snapshotFromStorage(store) {
     const snapshot = {};
@@ -157,12 +216,15 @@
           const mode = scope.__EXAMPLES_FALLBACK_STORAGE_MODE__ === 'session' ? 'session' : 'memory';
           if (mode === 'memory') {
             const snapshot = snapshotFromStorage(shared);
-            memoryStorageWindowNameOriginal = (readMemorySnapshotFromWindow() || {}).original || '';
+            const snapshotInfo = readMemorySnapshotFromHistory() || {};
+            memoryStorageHistoryStateOriginal = snapshotInfo.original != null && typeof snapshotInfo.original === 'object'
+              ? cloneState(snapshotInfo.original)
+              : snapshotInfo.original;
             const store = createMemoryStorage({
               initialData: snapshot,
-              onChange: writeMemorySnapshotToWindow
+              onChange: writeMemorySnapshotToHistory
             });
-            writeMemorySnapshotToWindow(snapshot);
+            writeMemorySnapshotToHistory(snapshot);
             return store;
           }
         }
@@ -180,13 +242,13 @@
         return fallback;
       }
     }
-    const { data: initialSnapshot, original } = readMemorySnapshotFromWindow();
-    memoryStorageWindowNameOriginal = original;
+    const { data: initialSnapshot, original } = readMemorySnapshotFromHistory();
+    memoryStorageHistoryStateOriginal = original != null && typeof original === 'object' ? cloneState(original) : original;
     const store = createMemoryStorage({
       initialData: initialSnapshot,
-      onChange: writeMemorySnapshotToWindow
+      onChange: writeMemorySnapshotToHistory
     });
-    writeMemorySnapshotToWindow(initialSnapshot);
+    writeMemorySnapshotToHistory(initialSnapshot);
     return store;
   }
 
