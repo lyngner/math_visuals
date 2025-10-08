@@ -25,6 +25,7 @@ Dette vil:
 
 ## Feilsøking
 - **Manglende nettleserbinærer:** Playwright kan be deg kjøre `npx playwright install` første gang. Det kan du trygt gjøre i Codex før du lager PR.
+- **«Host system is missing dependencies»-feil:** Dersom nettleserstart feiler med denne meldingen må nødvendige systempakker installeres. `npm test` forsøker automatisk å kjøre `npx playwright install-deps` når skriptet kjøres som root (via `scripts/ensure-playwright-deps.js`), men i miljøer uten root-tilgang må kommandoen kjøres manuelt med tilstrekkelige rettigheter.
 - **Treg testoppstart:** Playwright starter en lokal HTTP-server under `npm test`. I Codex skjer dette automatisk via testene.
 
 Med dette oppsettet kan du trygt kjøre hele testpakken i Codex før du lager en PR til GitHub.
