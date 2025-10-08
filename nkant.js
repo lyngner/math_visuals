@@ -568,7 +568,7 @@ function initAltTextManager() {
 }
 
 /* ---------- STIL ---------- */
-const STYLE = {
+const STYLE_DEFAULTS = {
   faceFill: "#f5f7fa",
   edgeStroke: "#333",
   edgeWidth: 4,
@@ -585,6 +585,49 @@ const STYLE = {
   constructionWidth: 3,
   constructionDash: "10 8"
 };
+const STYLE_PROFILE_OVERRIDES = {
+  campus: {
+    faceFill: "#2C395B",
+    edgeStroke: "#2C395B",
+    angStroke: "#ffffff",
+    angFill: "rgba(255, 255, 255, 0.9)",
+    textFill: "#ffffff",
+    textHalo: "#2C395B",
+    textHaloW: 6,
+    constructionStroke: "#ffffff",
+    constructionWidth: 4,
+    constructionDash: "6 6"
+  }
+};
+const STYLE = {
+  ...STYLE_DEFAULTS
+};
+
+function getThemeApi() {
+  const theme = typeof window !== "undefined" ? window.MathVisualsTheme : null;
+  return theme && typeof theme === "object" ? theme : null;
+}
+
+function applyThemeToDocument() {
+  const theme = getThemeApi();
+  if (theme && typeof theme.applyToDocument === "function" && typeof document !== "undefined") {
+    theme.applyToDocument(document);
+  }
+}
+
+function applyThemeStyles() {
+  const theme = getThemeApi();
+  const profileName = theme && typeof theme.getActiveProfileName === "function" ? theme.getActiveProfileName() : null;
+  const normalized = typeof profileName === "string" ? profileName.toLowerCase() : "";
+  const overrides = normalized && STYLE_PROFILE_OVERRIDES[normalized] ? STYLE_PROFILE_OVERRIDES[normalized] : null;
+  Object.assign(STYLE, STYLE_DEFAULTS);
+  if (overrides) {
+    Object.assign(STYLE, overrides);
+  }
+}
+
+applyThemeToDocument();
+applyThemeStyles();
 
 /* ---------- HJELPERE ---------- */
 const deg = r => r * 180 / Math.PI;
@@ -3167,6 +3210,22 @@ async function renderCombined() {
   };
   maybeRefreshAltText('config');
   svg.setAttribute("aria-label", n === 1 ? "Én figur" : `${n} figurer i samme bilde`);
+}
+
+function handleThemeProfileChange(event) {
+  const data = event && event.data;
+  const type = typeof data === "string" ? data : data && data.type;
+  if (type !== "math-visuals:profile-change") return;
+  applyThemeToDocument();
+  applyThemeStyles();
+  const result = renderCombined();
+  if (result && typeof result.catch === "function") {
+    result.catch(() => {});
+  }
+}
+
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+  window.addEventListener("message", handleThemeProfileChange);
 }
 
 /* ---------- UI BIND ---------- */
