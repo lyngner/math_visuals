@@ -3316,6 +3316,15 @@
   });
   ensureTrashHistoryMigration();
   renderOptions();
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('math-visuals:app-mode-changed', () => {
+      const examples = getExamples();
+      if (!examples.length) return;
+      const normalizedIndex = clampExampleIndex(currentExampleIndex, examples.length);
+      const targetIndex = normalizedIndex == null ? 0 : normalizedIndex;
+      loadExample(targetIndex);
+    });
+  }
   if (examplesApiBase) {
     loadExamplesFromBackend();
   }
