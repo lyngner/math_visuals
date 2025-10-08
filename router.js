@@ -1127,9 +1127,23 @@ window.addEventListener('message', event => {
     return;
   }
   const parsedNumber = Number(data.exampleNumber);
-  const exampleNumber = Number.isFinite(parsedNumber) && parsedNumber > 0 ? parsedNumber : null;
+  const exampleNumber = Number.isFinite(parsedNumber) && parsedNumber > 0 ? Math.trunc(parsedNumber) : null;
+  const previousExampleWasExplicit = currentExampleIsExplicit === true;
+  let defaultExampleNumber = null;
+  if (
+    currentEntry &&
+    Number.isFinite(currentEntry.defaultExampleNumber) &&
+    currentEntry.defaultExampleNumber > 0
+  ) {
+    defaultExampleNumber = Math.trunc(currentEntry.defaultExampleNumber);
+  }
+  const matchesDefaultFallback =
+    exampleNumber != null &&
+    defaultExampleNumber != null &&
+    exampleNumber === defaultExampleNumber &&
+    !previousExampleWasExplicit;
   currentExampleNumber = exampleNumber;
-  currentExampleIsExplicit = Number.isFinite(exampleNumber);
+  currentExampleIsExplicit = exampleNumber != null && !matchesDefaultFallback;
   updateHistoryState(currentEntry, exampleNumber, { replaceHistory: true, force: true });
   updateActiveTaskIndicator();
   if (currentMode === 'task') {
