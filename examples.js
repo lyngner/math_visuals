@@ -121,6 +121,7 @@
   let currentAppMode = DEFAULT_APP_MODE;
   let lastAppliedAppMode = null;
   let splitterObserver = null;
+  let splitterObserverStarted = false;
   function normalizeAppMode(value) {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim().toLowerCase();
@@ -160,25 +161,63 @@
       }
     });
   }
+  let pendingAppModeForBody = null;
+  let pendingAppModeApplyScheduled = false;
   function applyAppMode(mode) {
     if (typeof document === 'undefined') return;
-    const body = document.body;
-    if (!body) return;
     const normalized = normalizeAppMode(mode) || DEFAULT_APP_MODE;
-    if (body.dataset.appMode !== normalized) {
-      body.dataset.appMode = normalized;
-    }
-    const isTaskMode = normalized === 'task';
-    adjustSplitLayoutForMode(isTaskMode);
-    if (isTaskMode) {
-      const raf = typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function' ? window.requestAnimationFrame : null;
-      if (raf) {
-        raf(() => adjustSplitLayoutForMode(true));
-      } else {
-        setTimeout(() => adjustSplitLayoutForMode(true), 16);
+    const execute = targetMode => {
+      if (typeof document === 'undefined') return;
+      const body = document.body;
+      if (!body) return;
+      if (body.dataset.appMode !== targetMode) {
+        body.dataset.appMode = targetMode;
       }
+      const isTaskMode = targetMode === 'task';
+      adjustSplitLayoutForMode(isTaskMode);
+      if (isTaskMode) {
+        const raf =
+          typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+            ? window.requestAnimationFrame
+            : null;
+        if (raf) {
+          raf(() => adjustSplitLayoutForMode(true));
+        } else {
+          setTimeout(() => adjustSplitLayoutForMode(true), 16);
+        }
+      }
+      lastAppliedAppMode = targetMode;
+    };
+    if (!document.body) {
+      pendingAppModeForBody = normalized;
+      if (!pendingAppModeApplyScheduled) {
+        pendingAppModeApplyScheduled = true;
+        const applyWhenReady = () => {
+          pendingAppModeApplyScheduled = false;
+          const target = pendingAppModeForBody != null ? pendingAppModeForBody : currentAppMode;
+          pendingAppModeForBody = null;
+          if (document.body) {
+            execute(target);
+          } else if (typeof window !== 'undefined') {
+            setTimeout(applyWhenReady, 16);
+          }
+        };
+        const schedule = () => {
+          if (document.body) {
+            applyWhenReady();
+          } else if (typeof window !== 'undefined') {
+            setTimeout(schedule, 16);
+          }
+        };
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', schedule, { once: true });
+        } else {
+          schedule();
+        }
+      }
+      return;
     }
-    lastAppliedAppMode = normalized;
+    execute(normalized);
   }
   function postParentAppMode(mode) {
     if (typeof window === 'undefined') return;
@@ -284,11 +323,30 @@
         adjustSplitLayoutForMode(true);
       }
     });
-    if (!document.body) return;
-    splitterObserver.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
+    const startObserving = () => {
+      if (!document.body || !splitterObserver || splitterObserverStarted) return;
+      splitterObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+      splitterObserverStarted = true;
+    };
+    if (!document.body) {
+      const initWhenReady = () => {
+        if (document.body) {
+          startObserving();
+        } else if (typeof window !== 'undefined') {
+          setTimeout(initWhenReady, 16);
+        }
+      };
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initWhenReady, { once: true });
+      } else {
+        initWhenReady();
+      }
+      return;
+    }
+    startObserving();
   }
   ensureSplitterObserver();
   const initialAppMode = parseInitialAppMode() || DEFAULT_APP_MODE;
