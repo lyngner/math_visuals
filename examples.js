@@ -1535,30 +1535,29 @@
     try {
       let examples = data && Array.isArray(data.examples) ? data.examples.map(example => example && typeof example === 'object' ? { ...example } : example) : [];
       const providedDefaults = getProvidedExamples();
-      if (Array.isArray(providedDefaults) && providedDefaults.length) {
-        const existingKeys = new Set();
-        examples.forEach(ex => {
+      if (examples.length === 0 && Array.isArray(providedDefaults) && providedDefaults.length) {
+        const deletedProvided = getDeletedProvidedExamples();
+        const availableDefaults = providedDefaults.filter(ex => {
           const key = normalizeKey(ex && ex.__builtinKey);
-          if (key) existingKeys.add(key);
+          return !key || !deletedProvided.has(key);
         });
-        providedDefaults.forEach(ex => {
-          if (!ex || typeof ex !== 'object') return;
-          const key = normalizeKey(ex.__builtinKey);
-          if (key && existingKeys.has(key)) return;
-          const copy = {
-            config: cloneValue(ex.config),
-            svg: typeof ex.svg === 'string' ? ex.svg : ''
-          };
-          if (key) copy.__builtinKey = key;
-          if (typeof ex.title === 'string') copy.title = ex.title;
-          if (typeof ex.description === 'string') copy.description = ex.description;
-          if (typeof ex.exampleNumber === 'string' || typeof ex.exampleNumber === 'number') {
-            copy.exampleNumber = ex.exampleNumber;
-          }
-          if (ex.isDefault === true) copy.isDefault = true;
-          examples.push(copy);
-          if (key) existingKeys.add(key);
-        });
+        if (availableDefaults.length > 0) {
+          examples = availableDefaults.map(ex => {
+            const key = normalizeKey(ex && ex.__builtinKey);
+            const copy = {
+              config: cloneValue(ex.config),
+              svg: typeof ex.svg === 'string' ? ex.svg : ''
+            };
+            if (key) copy.__builtinKey = key;
+            if (typeof ex.title === 'string') copy.title = ex.title;
+            if (typeof ex.description === 'string') copy.description = ex.description;
+            if (typeof ex.exampleNumber === 'string' || typeof ex.exampleNumber === 'number') {
+              copy.exampleNumber = ex.exampleNumber;
+            }
+            if (ex.isDefault === true) copy.isDefault = true;
+            return copy;
+          });
+        }
       }
       const localExamples = getExamples();
       const hasLocalExamples = Array.isArray(localExamples) && localExamples.length > 0;
@@ -3360,6 +3359,11 @@
         const key = normalizeKey(ex && ex.__builtinKey);
         return !key || !deletedProvided.has(key);
       });
+      const hasUserExamples = examples.some(example => {
+        if (!example || typeof example !== 'object') return false;
+        const key = normalizeKey(example.__builtinKey);
+        return !key;
+      });
       if (requireProvided && availableDefaults.length > 0 && examples.length === 1) {
         const only = examples[0];
         const onlyObj = only && typeof only === 'object' ? only : null;
@@ -3411,7 +3415,7 @@
             updated = true;
           }
         }
-        if (availableDefaults.length > 0) {
+        if (!hasUserExamples && availableDefaults.length > 0) {
           const existingKeys = new Set();
           examples.forEach(ex => {
             if (!ex || typeof ex !== 'object') return;
