@@ -2230,7 +2230,8 @@
     if (!preview) return;
     const isEmpty = preview.getAttribute('data-empty') !== 'false';
     const isHidden = preview.hasAttribute('hidden');
-    if (isEmpty || isHidden) {
+    const isPlaceholder = preview.dataset && preview.dataset.placeholder === 'true';
+    if (isEmpty || isHidden || isPlaceholder) {
       renderDescriptionPreviewFromValue(value, { force: true });
     }
   }
