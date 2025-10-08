@@ -200,6 +200,9 @@
     if (force || normalized !== lastAppliedAppMode) {
       applyAppMode(normalized);
     }
+    if (normalized === 'task') {
+      ensureTaskModeDescriptionRendered();
+    }
     if (notifyParent && (changed || opts.alwaysNotify === true)) {
       postParentAppMode(normalized);
     }
@@ -2199,6 +2202,20 @@
           renderLegacy();
         }
       });
+  }
+
+  function ensureTaskModeDescriptionRendered() {
+    const input = getDescriptionInput();
+    if (!input) return;
+    const value = typeof input.value === 'string' ? input.value : '';
+    if (!value || !value.trim()) return;
+    const preview = getDescriptionPreviewElement();
+    if (!preview) return;
+    const isEmpty = preview.getAttribute('data-empty') !== 'false';
+    const isHidden = preview.hasAttribute('hidden');
+    if (isEmpty || isHidden) {
+      renderDescriptionPreviewFromValue(value, { force: true });
+    }
   }
 
   function updateDescriptionCollapsedState(target) {
