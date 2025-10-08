@@ -467,6 +467,24 @@ function createNavEntry(link) {
   const path = resolveEntryPath(href);
   const normalizedPath = normalizeExamplePath(path);
   const lookupKeys = collectLookupKeys(routeSegment, label, href, path);
+  const defaultExampleAttr = link.getAttribute('data-default-example');
+  let defaultExampleNumber = null;
+  if (defaultExampleAttr != null && defaultExampleAttr !== '') {
+    const parsedDefaultExample = Number.parseInt(defaultExampleAttr, 10);
+    if (Number.isFinite(parsedDefaultExample) && parsedDefaultExample > 0) {
+      defaultExampleNumber = parsedDefaultExample;
+    }
+  }
+  let includeExampleInPath = false;
+  if (link.hasAttribute('data-include-example-in-path')) {
+    const includeAttr = link.getAttribute('data-include-example-in-path');
+    if (includeAttr == null || includeAttr === '') {
+      includeExampleInPath = true;
+    } else {
+      const normalized = includeAttr.trim().toLowerCase();
+      includeExampleInPath = normalized !== 'false' && normalized !== '0' && normalized !== 'no';
+    }
+  }
   const entry = {
     link,
     href,
@@ -474,7 +492,9 @@ function createNavEntry(link) {
     routeSegment,
     path,
     normalizedPath,
-    lookupKeys
+    lookupKeys,
+    defaultExampleNumber,
+    includeExampleInPath
   };
   Object.defineProperty(link, '__NAV_ENTRY__', {
     value: entry,
@@ -831,11 +851,21 @@ function normalizeEntryPath(path) {
 
 function buildHistoryPath(entry, exampleNumber) {
   if (!entry) return '/';
-  const baseSegment = `/${entry.routeSegment || ''}`.replace(/\/+$/, '');
-  if (!exampleNumber || !Number.isFinite(exampleNumber) || exampleNumber <= 1) {
-    return baseSegment || '/';
+  const segment = typeof entry.routeSegment === 'string' ? entry.routeSegment.replace(/^\/+|\/+$/g, '') : '';
+  const basePath = segment ? `/${segment}` : '/';
+  const parsedExample = Number(exampleNumber);
+  if (!Number.isFinite(parsedExample) || parsedExample <= 0) {
+    return basePath;
   }
-  return `${baseSegment || ''}/eksempel${exampleNumber}`;
+  const exampleInt = Math.trunc(parsedExample);
+  const includeExample = exampleInt > 1 || entry.includeExampleInPath === true;
+  if (!includeExample) {
+    return basePath;
+  }
+  if (basePath === '/') {
+    return `/eksempel${exampleInt}`;
+  }
+  return `${basePath}/eksempel${exampleInt}`;
 }
 
 function resolveEntryFromSegment(segment) {
@@ -925,7 +955,11 @@ function setIframeSrc(targetSrc, { refresh } = {}) {
 
 function applyRoute(entry, exampleNumber, options = {}) {
   if (!entry) return;
-  const normalizedExample = Number.isFinite(exampleNumber) && exampleNumber > 0 ? exampleNumber : null;
+  const explicitExample = Number.isFinite(exampleNumber) && exampleNumber > 0 ? Math.trunc(exampleNumber) : null;
+  let normalizedExample = explicitExample;
+  if (normalizedExample == null && Number.isFinite(entry.defaultExampleNumber) && entry.defaultExampleNumber > 0) {
+    normalizedExample = Math.trunc(entry.defaultExampleNumber);
+  }
   const entryChanged = currentEntry !== entry;
   const exampleChanged = normalizedExample !== (currentExampleNumber != null ? currentExampleNumber : null);
   const targetSrc = buildIframeSrc(entry.href, normalizedExample, currentProfile, currentMode);
