@@ -2201,6 +2201,7 @@
     preview.classList.add('math-vis-description-rendered');
     const opts = options && typeof options === 'object' ? options : {};
     const force = opts.force === true;
+    const bypassFormattingCheck = opts.bypassFormattingCheck === true;
     const stringValue = typeof value === 'string' ? value : '';
     if (!force && stringValue === lastRenderedDescriptionValue) {
       return preview.dataset.empty !== 'true';
@@ -2227,7 +2228,7 @@
       applyState(false);
       return markRendered(false);
     }
-    const shouldRender = currentAppMode === 'task' || hasDescriptionFormatting(stringValue);
+    const shouldRender = bypassFormattingCheck || currentAppMode === 'task' || hasDescriptionFormatting(stringValue);
     if (!shouldRender) {
       clearChildren(preview);
       delete preview.dataset.placeholder;
@@ -2312,7 +2313,7 @@
     if (!input) return;
     const value = typeof input.value === 'string' ? input.value : '';
     if (!value || !value.trim()) return;
-    renderDescriptionPreviewFromValue(value, { force: true });
+    renderDescriptionPreviewFromValue(value, { force: true, bypassFormattingCheck: true });
   }
 
   function updateDescriptionCollapsedState(target) {
