@@ -416,6 +416,11 @@
   let fallbackStorage = null;
   let fallbackStorageMode = 'memory';
   let fallbackStorageInitialized = false;
+  let memoryFallbackNoticePending = false;
+  let memoryFallbackNoticeRendered = false;
+  let memoryFallbackNoticeElement = null;
+  let memoryFallbackNoticeRenderTimeout = null;
+  let memoryFallbackNoticeDomReadyHandler = null;
   function applyFallbackStorage(store, mode) {
     fallbackStorage = store;
     fallbackStorageMode = mode === 'session' ? 'session' : 'memory';
@@ -2107,11 +2112,6 @@
   let defaultEnsureScheduled = false;
   let ensureDefaultsRunning = false;
   let tabsHostCard = null;
-  let memoryFallbackNoticePending = false;
-  let memoryFallbackNoticeRendered = false;
-  let memoryFallbackNoticeElement = null;
-  let memoryFallbackNoticeRenderTimeout = null;
-  let memoryFallbackNoticeDomReadyHandler = null;
 
   function resolveMemoryFallbackNoticeHost() {
     if (memoryFallbackNoticeElement && memoryFallbackNoticeElement.isConnected) {
