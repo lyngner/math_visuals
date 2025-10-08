@@ -516,6 +516,7 @@ navEntries.forEach(entry => {
 
 let currentEntry = null;
 let currentExampleNumber = null;
+let currentExampleIsExplicit = false;
 let lastHistoryPath = null;
 
 const TASK_STORAGE_PREFIX = 'examples_';
@@ -744,7 +745,10 @@ if (profileControl) {
       } catch (_) {}
     }
     if (currentEntry) {
-      applyRoute(currentEntry, currentExampleNumber, {
+      const exampleArg = currentExampleIsExplicit && Number.isFinite(currentExampleNumber)
+        ? currentExampleNumber
+        : null;
+      applyRoute(currentEntry, exampleArg, {
         refresh: true,
         updateHistory: false,
         skipStorage: true
@@ -775,7 +779,10 @@ if (modeControl) {
       } catch (_) {}
     }
     if (currentEntry) {
-      applyRoute(currentEntry, currentExampleNumber, {
+      const exampleArg = currentExampleIsExplicit && Number.isFinite(currentExampleNumber)
+        ? currentExampleNumber
+        : null;
+      applyRoute(currentEntry, exampleArg, {
         refresh: true,
         updateHistory: false,
         skipStorage: true
@@ -957,12 +964,21 @@ function applyRoute(entry, exampleNumber, options = {}) {
   if (!entry) return;
   const explicitExample = Number.isFinite(exampleNumber) && exampleNumber > 0 ? Math.trunc(exampleNumber) : null;
   let normalizedExample = explicitExample;
-  if (normalizedExample == null && Number.isFinite(entry.defaultExampleNumber) && entry.defaultExampleNumber > 0) {
-    normalizedExample = Math.trunc(entry.defaultExampleNumber);
+  let defaultExample = null;
+  if (Number.isFinite(entry.defaultExampleNumber) && entry.defaultExampleNumber > 0) {
+    defaultExample = Math.trunc(entry.defaultExampleNumber);
   }
+  if (normalizedExample == null && defaultExample != null) {
+    normalizedExample = defaultExample;
+  }
+  const usingDefaultExample = normalizedExample != null && normalizedExample === defaultExample && explicitExample == null;
+  const appliedExample = usingDefaultExample ? null : normalizedExample;
+  const previousExample = currentExampleIsExplicit && Number.isFinite(currentExampleNumber)
+    ? Math.trunc(currentExampleNumber)
+    : null;
   const entryChanged = currentEntry !== entry;
-  const exampleChanged = normalizedExample !== (currentExampleNumber != null ? currentExampleNumber : null);
-  const targetSrc = buildIframeSrc(entry.href, normalizedExample, currentProfile, currentMode);
+  const exampleChanged = appliedExample !== previousExample;
+  const targetSrc = buildIframeSrc(entry.href, appliedExample, currentProfile, currentMode);
   const shouldRefresh = options.refresh === true || (!entryChanged && exampleChanged);
   setIframeSrc(targetSrc, { refresh: shouldRefresh });
   setActive(entry.href);
@@ -970,10 +986,11 @@ function applyRoute(entry, exampleNumber, options = {}) {
     safeSetItem('currentPage', entry.href);
   }
   if (options.updateHistory !== false) {
-    updateHistoryState(entry, normalizedExample, options);
+    updateHistoryState(entry, appliedExample, options);
   }
   currentEntry = entry;
-  currentExampleNumber = normalizedExample;
+  currentExampleNumber = normalizedExample != null ? normalizedExample : null;
+  currentExampleIsExplicit = appliedExample != null;
   updateActiveTaskIndicator();
   if (currentMode === 'task') {
     ensureTasksRendered().catch(() => {});
@@ -1112,6 +1129,7 @@ window.addEventListener('message', event => {
   const parsedNumber = Number(data.exampleNumber);
   const exampleNumber = Number.isFinite(parsedNumber) && parsedNumber > 0 ? parsedNumber : null;
   currentExampleNumber = exampleNumber;
+  currentExampleIsExplicit = Number.isFinite(exampleNumber);
   updateHistoryState(currentEntry, exampleNumber, { replaceHistory: true, force: true });
   updateActiveTaskIndicator();
   if (currentMode === 'task') {
