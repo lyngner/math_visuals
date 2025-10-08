@@ -1686,25 +1686,27 @@
     if (typeof document === 'undefined') {
       return 'description-renderer.js';
     }
-    const candidates = [];
+    const matchScriptSrc = (src) => /\bexamples(?:\.min)?\.js(?:\?|#|$)/.test(src);
+    let matchedScriptSrc = null;
     const { currentScript } = document;
-    if (currentScript && currentScript.src) {
-      candidates.push(currentScript.src);
+    if (currentScript && currentScript.src && matchScriptSrc(currentScript.src)) {
+      matchedScriptSrc = currentScript.src;
     }
-    const scripts = typeof document.getElementsByTagName === 'function' ? document.getElementsByTagName('script') : null;
-    if (scripts && scripts.length) {
-      for (let i = scripts.length - 1; i >= 0; i--) {
-        const script = scripts[i];
-        if (!script || !script.src) continue;
-        const src = script.src;
-        if (!candidates.includes(src)) {
-          candidates.push(src);
-        }
-        if (/\bexamples(?:\.min)?\.js(?:\?|#|$)/.test(src)) {
-          candidates.unshift(src);
+    if (!matchedScriptSrc && typeof document.getElementsByTagName === 'function') {
+      const scripts = document.getElementsByTagName('script');
+      if (scripts && scripts.length) {
+        for (let i = scripts.length - 1; i >= 0; i--) {
+          const script = scripts[i];
+          if (!script || !script.src || !matchScriptSrc(script.src)) continue;
+          matchedScriptSrc = script.src;
           break;
         }
       }
+    }
+
+    const candidates = [];
+    if (matchedScriptSrc) {
+      candidates.push(matchedScriptSrc);
     }
     if (typeof window !== 'undefined' && window.location && window.location.href) {
       candidates.push(window.location.href);
@@ -1712,6 +1714,7 @@
         candidates.push(window.location.origin + '/');
       }
     }
+
     for (const base of candidates) {
       if (typeof base !== 'string' || !base) continue;
       try {
