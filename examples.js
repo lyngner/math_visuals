@@ -2234,14 +2234,30 @@
       applyState(false);
       return markRendered(false);
     }
-    delete preview.dataset.placeholder;
-    const renderLegacy = () => {
-      clearChildren(preview);
+    const renderPlainText = () => {
       const fragment = buildDescriptionPreview(stringValue);
-      const hasContent = fragment && fragment.childNodes && fragment.childNodes.length > 0;
-      if (hasContent) {
+      const hasFragmentContent = fragment && fragment.childNodes && fragment.childNodes.length > 0;
+      clearChildren(preview);
+      if (hasFragmentContent) {
         preview.appendChild(fragment);
+      } else {
+        preview.textContent = stringValue;
       }
+      return hasFragmentContent || !!trimmedValue;
+    };
+    let placeholderRendered = false;
+    const renderPlainTextPlaceholder = () => {
+      if (placeholderRendered) return true;
+      const hasContent = renderPlainText();
+      preview.dataset.placeholder = 'true';
+      applyState(hasContent);
+      markRendered(hasContent);
+      placeholderRendered = true;
+      return hasContent;
+    };
+    const renderLegacy = () => {
+      const hasContent = renderPlainText();
+      delete preview.dataset.placeholder;
       applyState(hasContent);
       return markRendered(hasContent);
     };
@@ -2250,8 +2266,13 @@
       if (!renderer || token !== lastDescriptionRenderToken) return;
       try {
         const hasContent = !!renderer.renderInto(preview, stringValue);
-        applyState(hasContent);
-        markRendered(hasContent);
+        if (hasContent) {
+          delete preview.dataset.placeholder;
+          applyState(hasContent);
+          markRendered(hasContent);
+        } else if (!preview.childNodes || preview.childNodes.length === 0) {
+          renderPlainTextPlaceholder();
+        }
       } catch (error) {
         if (token === lastDescriptionRenderToken) {
           renderLegacy();
@@ -2269,6 +2290,7 @@
       renderLegacy();
       return;
     }
+    renderPlainTextPlaceholder();
     loader
       .then(renderer => {
         if (token !== lastDescriptionRenderToken) return;
@@ -2290,14 +2312,7 @@
     if (!input) return;
     const value = typeof input.value === 'string' ? input.value : '';
     if (!value || !value.trim()) return;
-    const preview = getDescriptionPreviewElement();
-    if (!preview) return;
-    const isEmpty = preview.getAttribute('data-empty') !== 'false';
-    const isHidden = preview.hasAttribute('hidden');
-    const isPlaceholder = preview.dataset && preview.dataset.placeholder === 'true';
-    if (isEmpty || isHidden || isPlaceholder) {
-      renderDescriptionPreviewFromValue(value, { force: true });
-    }
+    renderDescriptionPreviewFromValue(value, { force: true });
   }
 
   function updateDescriptionCollapsedState(target) {
