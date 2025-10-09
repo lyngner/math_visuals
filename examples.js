@@ -123,6 +123,7 @@
   let splitterObserver = null;
   let splitterObserverStarted = false;
   let taskModeDescriptionRenderRetryScheduled = false;
+  let descriptionFormattingHelp = null;
   function normalizeAppMode(value) {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim().toLowerCase();
@@ -176,6 +177,7 @@
       }
       const isTaskMode = targetMode === 'task';
       adjustSplitLayoutForMode(isTaskMode);
+      updateDescriptionFormattingHelpVisibility();
       if (isTaskMode) {
         const raf =
           typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
@@ -2236,7 +2238,18 @@
   }
 
   const DESCRIPTION_FORMATTING_PATTERN = /@(math|table|task|answer(?:box)?|input)\s*[\[{]/i;
-  let descriptionFormattingHelp = null;
+
+  function updateDescriptionFormattingHelpVisibility() {
+    if (!(descriptionFormattingHelp instanceof HTMLElement)) return;
+    if (currentAppMode === 'task') {
+      descriptionFormattingHelp.open = false;
+      descriptionFormattingHelp.setAttribute('hidden', '');
+      descriptionFormattingHelp.setAttribute('aria-hidden', 'true');
+    } else {
+      descriptionFormattingHelp.removeAttribute('hidden');
+      descriptionFormattingHelp.removeAttribute('aria-hidden');
+    }
+  }
 
   function hasDescriptionFormatting(value) {
     if (typeof value !== 'string') return false;
@@ -2296,6 +2309,7 @@
       container.appendChild(help);
     }
     descriptionFormattingHelp = help;
+    updateDescriptionFormattingHelpVisibility();
     return help;
   }
 
