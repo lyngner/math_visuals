@@ -1987,6 +1987,41 @@ function renderLatexToHtml(latex) {
   }
   return '';
 }
+const KATEX_TEXT_ESCAPE_REGEX = /([#%&$^_{}\\])/g;
+function escapeKatexPlainText(text) {
+  return String(text).replace(KATEX_TEXT_ESCAPE_REGEX, '\\$1');
+}
+function renderKatexPlainText(target, text) {
+  if (!target) return;
+  const str = typeof text === 'string' ? text : '';
+  if (!str) {
+    target.textContent = '';
+    return;
+  }
+  const katex = typeof window !== 'undefined' ? window.katex : null;
+  if (katex && typeof katex.render === 'function') {
+    try {
+      katex.render(`\\text{${escapeKatexPlainText(str)}}`, target, { throwOnError: false });
+      return;
+    } catch (_) {}
+  }
+  target.textContent = str;
+}
+function enhanceFunctionLabelWithKatex(labelElement, text) {
+  if (!labelElement) return;
+  const plain = typeof text === 'string' ? text : '';
+  const sr = document.createElement('span');
+  sr.className = 'sr-only';
+  sr.textContent = plain;
+  const math = document.createElement('span');
+  math.className = 'func-label__math';
+  math.setAttribute('aria-hidden', 'true');
+  renderKatexPlainText(math, plain);
+  labelElement.textContent = '';
+  labelElement.classList.add('func-label');
+  labelElement.appendChild(sr);
+  labelElement.appendChild(math);
+}
 function normalizeExpressionText(str) {
   if (typeof str !== 'string') return '';
   const trimmed = str.trim();
@@ -4353,6 +4388,10 @@ function setupSettingsForm() {
     }
     if (funcRows) {
       funcRows.appendChild(row);
+    }
+    if (index === 1) {
+      const labelSpan = row.querySelector('.func-input > span');
+      enhanceFunctionLabelWithKatex(labelSpan, titleLabel);
     }
     let funInput = row.querySelector('[data-fun]');
     funInput = ensureFunctionInputElement(funInput);
