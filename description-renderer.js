@@ -4,7 +4,7 @@
   if (!doc) return;
 
   const KATEX_VERSION = '0.16.9';
-  const KATEX_VENDOR_BASE = '/public/vendor/katex';
+  const KATEX_VENDOR_BASE = '/vendor/katex';
   const KATEX_LOCAL_ASSETS = {
     css: `${KATEX_VENDOR_BASE}/katex.min.css`,
     js: `${KATEX_VENDOR_BASE}/katex.min.js`

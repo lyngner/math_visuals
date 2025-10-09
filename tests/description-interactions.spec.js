@@ -87,7 +87,7 @@ test.describe('Description renderer interactions', () => {
   });
 
   test('falls back to plain text math when KaTeX is unavailable', async ({ page }) => {
-    await page.route('**/katex.min.js', route => route.abort());
+    await page.route('**/vendor/katex/katex.min.js', route => route.abort());
     await page.goto(DIAGRAM_PATH, { waitUntil: 'load' });
 
     await setDescription(page, 'Formel: @math{a^2 + b^2 = c^2}');
