@@ -1004,8 +1004,10 @@
     const normalized = encoded.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
     return normalized;
   }
+  const STORAGE_KEY_PREFIX = 'examples_';
+
   function computeLegacyStorageKeys(rawPath, canonicalPath) {
-    const prefix = 'examples_';
+    const prefix = STORAGE_KEY_PREFIX;
     const canonicalKey = prefix + canonicalPath;
     const paths = new Set();
     const addCandidate = candidate => {
@@ -1109,9 +1111,17 @@
     });
     return keys;
   }
+
+  function storageKeyToPath(storageKey) {
+    if (typeof storageKey !== 'string') return null;
+    if (!storageKey.startsWith(STORAGE_KEY_PREFIX)) return null;
+    const suffix = storageKey.slice(STORAGE_KEY_PREFIX.length);
+    if (!suffix) return '/';
+    return suffix.startsWith('/') ? suffix : `/${suffix}`;
+  }
   const rawPath = location && typeof location.pathname === 'string' ? location.pathname : '/';
   const storagePath = normalizePathname(rawPath);
-  const key = 'examples_' + storagePath;
+  const key = STORAGE_KEY_PREFIX + storagePath;
   const historyKey = key + '_history';
   const trashKey = key + '_trash';
   const trashMigratedKey = key + '_trash_migrated_v1';
@@ -1796,10 +1806,53 @@
       applyingBackendUpdate = false;
     }
   }
+  async function migrateLegacyBackendEntry(legacyPath, data) {
+    if (!examplesApiBase) return;
+    if (!legacyPath || legacyPath === storagePath) return;
+    const canonicalUrl = buildExamplesApiUrl(examplesApiBase, storagePath);
+    const legacyUrl = buildExamplesApiUrl(examplesApiBase, legacyPath);
+    if (!canonicalUrl || !legacyUrl) return;
+    const examples = Array.isArray(data && data.examples) ? data.examples : [];
+    const deletedRaw = Array.isArray(data && data.deletedProvided) ? data.deletedProvided : [];
+    const deletedProvidedList = deletedRaw.map(normalizeKey).filter(Boolean);
+    const hasExamples = examples.length > 0;
+    const hasDeleted = deletedProvidedList.length > 0;
+    let canonicalOk = false;
+    try {
+      if (!hasExamples && !hasDeleted) {
+        const deleteRes = await fetch(canonicalUrl, { method: 'DELETE' });
+        canonicalOk = !!deleteRes && (deleteRes.ok || deleteRes.status === 404);
+      } else {
+        const payload = {
+          path: storagePath,
+          examples,
+          deletedProvided: deletedProvidedList,
+          updatedAt: new Date().toISOString()
+        };
+        const putRes = await fetch(canonicalUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        canonicalOk = !!putRes && putRes.ok;
+      }
+    } catch (_) {
+      canonicalOk = false;
+    }
+    if (!canonicalOk) return;
+    try {
+      const res = await fetch(legacyUrl, { method: 'DELETE' });
+      if (res && (res.ok || res.status === 404)) {
+        return;
+      }
+    } catch (_) {}
+  }
   async function loadExamplesFromBackend() {
     if (!examplesApiBase) return null;
-    const url = buildExamplesApiUrl(examplesApiBase, storagePath);
-    if (!url) {
+    const canonicalUrl = buildExamplesApiUrl(examplesApiBase, storagePath);
+    if (!canonicalUrl) {
       backendReady = true;
       if (backendSyncDeferred) {
         backendSyncDeferred = false;
@@ -1808,18 +1861,60 @@
     }
     let backendWasEmpty = false;
     try {
+      const fetchOptions = {
+        headers: {
+          Accept: 'application/json'
+        }
+      };
+      const legacyPaths = [];
+      const seenLegacyPaths = new Set();
+      for (const legacyKey of legacyKeys) {
+        const candidatePath = storageKeyToPath(legacyKey);
+        if (!candidatePath || candidatePath === storagePath) continue;
+        if (seenLegacyPaths.has(candidatePath)) continue;
+        seenLegacyPaths.add(candidatePath);
+        legacyPaths.push(candidatePath);
+      }
       let res;
       try {
-        res = await fetch(url, {
-          headers: {
-            Accept: 'application/json'
-          }
-        });
+        res = await fetch(canonicalUrl, fetchOptions);
       } catch (error) {
         markBackendUnavailable();
         return null;
       }
-      if (res.status === 404) {
+      let legacyPathUsed = null;
+      if (res && res.status === 404 && legacyPaths.length > 0) {
+        for (const legacyPath of legacyPaths) {
+          const legacyUrl = buildExamplesApiUrl(examplesApiBase, legacyPath);
+          if (!legacyUrl) continue;
+          let legacyRes;
+          try {
+            legacyRes = await fetch(legacyUrl, fetchOptions);
+          } catch (error) {
+            markBackendUnavailable();
+            return null;
+          }
+          if (legacyRes.status === 404) {
+            continue;
+          }
+          if (!legacyRes.ok) {
+            markBackendUnavailable();
+            return null;
+          }
+          res = legacyRes;
+          legacyPathUsed = legacyPath;
+          break;
+        }
+        if (!legacyPathUsed && (!res || res.status === 404)) {
+          markBackendAvailable();
+          backendWasEmpty = true;
+          return {
+            path: storagePath,
+            examples: [],
+            deletedProvided: []
+          };
+        }
+      } else if (res && res.status === 404) {
         markBackendAvailable();
         backendWasEmpty = true;
         return {
@@ -1828,7 +1923,7 @@
           deletedProvided: []
         };
       }
-      if (!res.ok) {
+      if (!res || !res.ok) {
         markBackendUnavailable();
         return null;
       }
@@ -1840,13 +1935,19 @@
         return null;
       }
       markBackendAvailable();
-      const normalized = backendData || {};
+      const normalized = backendData && typeof backendData === 'object' ? { ...backendData } : {};
+      normalized.path = storagePath;
       const backendExamples = Array.isArray(normalized.examples) ? normalized.examples : [];
       const backendDeleted = Array.isArray(normalized.deletedProvided) ? normalized.deletedProvided : [];
       backendWasEmpty = backendExamples.length === 0 && backendDeleted.length === 0;
       applyBackendData(normalized);
       renderOptions();
       scheduleEnsureDefaults({ force: true });
+      if (legacyPathUsed) {
+        try {
+          await migrateLegacyBackendEntry(legacyPathUsed, normalized);
+        } catch (_) {}
+      }
       return normalized;
     } finally {
       backendReady = true;
