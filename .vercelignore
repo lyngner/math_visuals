@@ -1,0 +1,9 @@
+# Utelat utviklerfiler fra den statiske eksporten
+.git/
+.github/
+node_modules/
+package-lock.json
+tests/
+docs/
+playwright.config.js
+test-results.log

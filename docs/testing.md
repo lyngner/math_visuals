@@ -8,7 +8,7 @@ Dette prosjektet har allerede en testpakke konfigurert gjennom npm-skriptet `npm
    npm install
    ```
 
-2. (Valgfritt) Sørg for at du har bygget eventuelle statiske ressurser som testene forventer. De fleste testene i dette repoet bruker de rå HTML/JS-filene og trenger ikke en eksplisitt build.
+2. Kjør `npm run materialize-vendor` dersom du jobber i et ferskt miljø. Skriptet kopierer inn tredjepartsressursene under `public/vendor/` slik at Playwright og andre tester finner KaTeX og tilsvarende avhengigheter.
 
 ## Kjøre testene
 Kjør følgende kommando fra rotmappen til prosjektet:
@@ -18,8 +18,9 @@ npm test
 ```
 
 Dette vil:
-1. Kjør `node tests/check-shared-styles.js` for å kontrollere at delte stiler er konsistente.
-2. Kjør `playwright test` for å starte Playwright-testene definert i `tests/`-mappen.
+1. Kjøre `npm run materialize-vendor` automatisk via `pretest`-hooken for å sikre at vendor-filene finnes.
+2. Kjør `node tests/check-shared-styles.js` for å kontrollere at delte stiler er konsistente.
+3. Kjør `playwright test` for å starte Playwright-testene definert i `tests/`-mappen.
 
 > **Tips:** Dersom Playwright ikke er installert i miljøet ennå, vil `npm install`-steget ovenfor ta seg av det.
 
