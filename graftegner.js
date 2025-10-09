@@ -16,6 +16,72 @@ if (typeof Math.log10 !== 'function') {
 }
 
 const params = new URLSearchParams(location.search);
+const GLOBAL_SCOPE = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+let JXG_INSTANCE = GLOBAL_SCOPE && typeof GLOBAL_SCOPE.JXG === 'object' ? GLOBAL_SCOPE.JXG : null;
+let jxgConfigured = false;
+const jxgReadyQueue = [];
+let jxgCheckScheduled = false;
+function getJXG() {
+  if (JXG_INSTANCE && typeof JXG_INSTANCE === 'object') {
+    return JXG_INSTANCE;
+  }
+  if (GLOBAL_SCOPE && typeof GLOBAL_SCOPE.JXG === 'object') {
+    JXG_INSTANCE = GLOBAL_SCOPE.JXG;
+    return JXG_INSTANCE;
+  }
+  return null;
+}
+function configureJXGOptions(jxg) {
+  if (!jxg || jxgConfigured) return;
+  if (jxg.Options && typeof jxg.Options === 'object') {
+    try {
+      jxg.Options.showCopyright = false;
+      jxg.Options.showNavigation = false;
+      if (jxg.Options.text) {
+        jxg.Options.text.display = 'internal';
+      }
+    } catch (_) {}
+  }
+  jxgConfigured = true;
+}
+if (JXG_INSTANCE) {
+  configureJXGOptions(JXG_INSTANCE);
+}
+function flushJXGReadyQueue(jxg) {
+  if (!jxg) return;
+  configureJXGOptions(jxg);
+  while (jxgReadyQueue.length) {
+    const cb = jxgReadyQueue.shift();
+    try {
+      cb(jxg);
+    } catch (_) {}
+  }
+}
+function scheduleJXGCheck() {
+  if (jxgCheckScheduled || !GLOBAL_SCOPE) return;
+  jxgCheckScheduled = true;
+  const poll = () => {
+    jxgCheckScheduled = false;
+    const jxg = getJXG();
+    if (jxg) {
+      flushJXGReadyQueue(jxg);
+      return;
+    }
+    GLOBAL_SCOPE.setTimeout(poll, 16);
+    jxgCheckScheduled = true;
+  };
+  poll();
+}
+function whenJXGReady(callback) {
+  if (typeof callback !== 'function') return;
+  const jxg = getJXG();
+  if (jxg) {
+    callback(jxg);
+    return;
+  }
+  jxgReadyQueue.push(callback);
+  scheduleJXGCheck();
+}
 const DEFAULT_CURVE_COLORS = ['#9333ea', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
 const CAMPUS_CURVE_ORDER = [0, 5, 2, 3, 4, 1];
 function getThemeApi() {
@@ -1043,9 +1109,6 @@ function computeAutoScreenPoints() {
 const toBB = scr => [scr[0], scr[3], scr[1], scr[2]];
 
 /* ===================== Init JSXGraph ===================== */
-JXG.Options.showCopyright = false;
-JXG.Options.showNavigation = false;
-JXG.Options.text.display = 'internal';
 function initialScreen() {
   var _ADV$screen;
   let scr = (_ADV$screen = ADV.screen) !== null && _ADV$screen !== void 0 ? _ADV$screen : MODE === 'functions' ? computeAutoScreenFunctions() : computeAutoScreenPoints();
@@ -1077,7 +1140,10 @@ function destroyBoard() {
       }
     } catch (_) {}
     try {
-      JXG.JSXGraph.freeBoard(brd);
+      const jxg = getJXG();
+      if (jxg && jxg.JSXGraph && typeof jxg.JSXGraph.freeBoard === 'function') {
+        jxg.JSXGraph.freeBoard(brd);
+      }
     } catch (_) {}
   }
   brd = null;
@@ -1259,7 +1325,12 @@ function initBoard() {
   if (!START_SCREEN) {
     START_SCREEN = initialScreen();
   }
-  brd = JXG.JSXGraph.initBoard('board', {
+  const jxg = getJXG();
+  if (!jxg || !jxg.JSXGraph || typeof jxg.JSXGraph.initBoard !== 'function') {
+    brd = null;
+    return;
+  }
+  brd = jxg.JSXGraph.initBoard('board', {
     boundingbox: toBB(START_SCREEN),
     axis: true,
     grid: ADV.axis.grid.show && !ADV.axis.forceIntegers,
@@ -3166,8 +3237,8 @@ function rebuildAll() {
   LAST_RENDERED_SIMPLE = SIMPLE;
 }
 window.addEventListener('resize', () => {
-  var _JXG;
-  const resizeBoards = (_JXG = JXG) === null || _JXG === void 0 || (_JXG = _JXG.JSXGraph) === null || _JXG === void 0 ? void 0 : _JXG.resizeBoards;
+  const jxg = getJXG();
+  const resizeBoards = jxg && jxg.JSXGraph && typeof jxg.JSXGraph.resizeBoards === 'function' ? jxg.JSXGraph.resizeBoards : null;
   if (typeof resizeBoards === 'function') {
     resizeBoards();
   } else if (brd && typeof brd.resizeContainer === 'function') {
@@ -3190,8 +3261,15 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     updateCurveColorsFromTheme();
   });
 }
-rebuildAll();
-window.render = rebuildAll;
+function requestRebuild() {
+  whenJXGReady(() => {
+    rebuildAll();
+  });
+}
+requestRebuild();
+if (typeof window !== 'undefined') {
+  window.render = requestRebuild;
+}
 
 /* ====== Sjekk-knapp + status (monteres i #checkArea i HTML) ====== */
 function ensureCheckControls() {
@@ -4620,7 +4698,7 @@ function setupSettingsForm() {
       }
     }
     if (needsRebuild) {
-      rebuildAll();
+      requestRebuild();
     }
   };
   root.addEventListener('change', apply);
