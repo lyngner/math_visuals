@@ -63,7 +63,7 @@ async function pathsAreEqual(src, dest, srcStat) {
   }
 }
 
-async function copyFileIfNeeded(pkgName, sourceDir, fileName, { optional = false } = {}) {
+async function processManifestEntry(pkgName, sourceDir, fileName, { optional = false, mode = 'materialize' } = {}) {
   const src = path.resolve(repoRoot, sourceDir, fileName);
   const destDir = path.resolve(repoRoot, 'public', 'vendor', pkgName);
   const dest = path.join(destDir, fileName);
@@ -74,7 +74,7 @@ async function copyFileIfNeeded(pkgName, sourceDir, fileName, { optional = false
   } catch (error) {
     if (error && error.code === 'ENOENT') {
       if (optional) {
-        return { status: 'missing-optional', pkgName, fileName };
+        return { status: 'missing-optional-source', pkgName, fileName };
       }
       throw new Error(`Fant ikke kildefilen for ${pkgName}: ${src}`);
     }
@@ -82,13 +82,44 @@ async function copyFileIfNeeded(pkgName, sourceDir, fileName, { optional = false
   }
   if (!srcStat.isFile()) {
     if (optional) {
-      return { status: 'missing-optional', pkgName, fileName };
+      return { status: 'missing-optional-source', pkgName, fileName };
     }
     throw new Error(`Kilden er ikke en fil for ${pkgName}: ${src}`);
   }
 
-  if (await pathsAreEqual(src, dest, srcStat)) {
+  let destStat = null;
+  let destExists = false;
+  try {
+    destStat = await fs.stat(dest);
+    if (!destStat.isFile()) {
+      throw new Error(`Målbanen er ikke en fil for ${pkgName}: ${dest}`);
+    }
+    destExists = true;
+  } catch (error) {
+    if (!(error && error.code === 'ENOENT')) {
+      throw error;
+    }
+  }
+
+  if (mode === 'verify') {
+    if (!destExists) {
+      if (optional) {
+        return { status: 'missing-optional-dest', pkgName, fileName };
+      }
+      throw new Error(`Generert fil mangler for ${pkgName}: ${dest}`);
+    }
+    return { status: 'present', pkgName, fileName };
+  }
+
+  if (destExists && await pathsAreEqual(src, dest, srcStat)) {
     return { status: 'skipped', pkgName, fileName };
+  }
+
+  if (mode === 'check') {
+    if (optional) {
+      return { status: 'would-copy-optional', pkgName, fileName };
+    }
+    return { status: 'would-copy', pkgName, fileName };
   }
 
   await ensureDirectory(destDir);
@@ -98,7 +129,7 @@ async function copyFileIfNeeded(pkgName, sourceDir, fileName, { optional = false
   return { status: 'copied', pkgName, fileName };
 }
 
-async function materializeVendor() {
+async function materializeVendor({ mode = 'materialize' } = {}) {
   const manifest = await readManifest();
   const results = [];
   for (const [pkgName, descriptor] of Object.entries(manifest)) {
@@ -127,23 +158,72 @@ async function materializeVendor() {
       } else {
         throw new Error(`Oppføringen for ${pkgName} inneholder en ugyldig fil.`);
       }
-      const result = await copyFileIfNeeded(pkgName, source, fileName, { optional });
+      const result = await processManifestEntry(pkgName, source, fileName, { optional, mode });
       results.push(result);
     }
   }
   return results;
 }
 
-materializeVendor()
+function printResult(result, mode) {
+  if (result.status === 'copied') {
+    console.log(`Kopierte ${result.pkgName}/${result.fileName}`);
+    return;
+  }
+  if (result.status === 'skipped') {
+    console.log(`Uendret ${result.pkgName}/${result.fileName}`);
+    return;
+  }
+  if (result.status === 'present') {
+    console.log(`Verifisert ${result.pkgName}/${result.fileName}`);
+    return;
+  }
+  if (result.status === 'would-copy') {
+    console.log(`Må regenerere ${result.pkgName}/${result.fileName}`);
+    return;
+  }
+  if (result.status === 'would-copy-optional') {
+    console.log(`Må regenerere (valgfri) ${result.pkgName}/${result.fileName}`);
+    return;
+  }
+  if (result.status === 'missing-optional-source') {
+    if (mode === 'verify') {
+      console.log(`Mangler valgfri kildefil ${result.pkgName}/${result.fileName}`);
+    } else {
+      console.log(`Mangler valgfri kildefil ${result.pkgName}/${result.fileName}`);
+    }
+    return;
+  }
+  if (result.status === 'missing-optional-dest') {
+    console.log(`Mangler valgfri generert fil ${result.pkgName}/${result.fileName}`);
+    return;
+  }
+  console.log(`Ukjent status for ${result.pkgName}/${result.fileName}: ${result.status}`);
+}
+
+function hasBlockingIssues(results) {
+  return results.some(result => result.status === 'would-copy' || result.status === 'would-copy-optional');
+}
+
+const args = new Set(process.argv.slice(2));
+const checkMode = args.has('--check');
+const verifyMode = args.has('--verify');
+
+if (checkMode && verifyMode) {
+  console.error('Bruk enten --check eller --verify, ikke begge.');
+  process.exit(1);
+}
+
+const mode = verifyMode ? 'verify' : checkMode ? 'check' : 'materialize';
+
+materializeVendor({ mode })
   .then(results => {
     for (const result of results) {
-      if (result.status === 'copied') {
-        console.log(`Kopierte ${result.pkgName}/${result.fileName}`);
-      } else if (result.status === 'missing-optional') {
-        console.log(`Mangler valgfri ${result.pkgName}/${result.fileName}`);
-      } else {
-        console.log(`Uendret ${result.pkgName}/${result.fileName}`);
-      }
+      printResult(result, mode);
+    }
+    if (mode === 'check' && hasBlockingIssues(results)) {
+      console.error('Vendor-artefakter er ikke oppdatert. Kjør npm run materialize-vendor.');
+      process.exitCode = 1;
     }
   })
   .catch(error => {

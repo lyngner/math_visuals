@@ -7,8 +7,34 @@ on:
       - main
 
 jobs:
+  vendor:
+    name: Vendor manifest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Materialize vendor assets
+        run: npm run materialize-vendor
+
+      - name: Validate vendor assets are up to date
+        run: npm run materialize-vendor -- --check
+
+      - name: Ensure vendor artifacts are not tracked
+        run: git diff --exit-code -- public/vendor
+
   test:
     name: Shared styling & Playwright tests
+    needs: vendor
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
