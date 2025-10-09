@@ -40,13 +40,10 @@
           const link = doc.createElement('link');
           link.id = KATEX_CSS_ID;
           link.rel = 'stylesheet';
-          const cdnHref = `https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.css`;
           link.href = KATEX_LOCAL_ASSETS.css;
           link.setAttribute('data-mathvis-loader', 'true');
           link.addEventListener('error', () => {
-            if (link.dataset.mathvisFallbackUsed === 'true') return;
-            link.dataset.mathvisFallbackUsed = 'true';
-            link.href = cdnHref;
+            cleanupOnError(new Error('Failed to load KaTeX stylesheet'));
           }, { once: true });
           doc.head.appendChild(link);
         }
@@ -66,7 +63,6 @@
       if (resolveIfReady()) return;
 
       let script = doc.getElementById(KATEX_SCRIPT_ID);
-      const cdnSrc = `https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.js`;
       const attachHandlers = currentScript => {
         if (currentScript.dataset.mathvisHandlersAttached === 'true') {
           return;
@@ -79,13 +75,8 @@
           }
         };
         function handleError() {
-          if (currentScript.dataset.mathvisFallbackUsed === 'true') {
-            currentScript.removeEventListener('load', handleLoad);
-            cleanupOnError(new Error('Failed to load KaTeX assets'));
-            return;
-          }
-          currentScript.dataset.mathvisFallbackUsed = 'true';
-          currentScript.src = cdnSrc;
+          currentScript.removeEventListener('load', handleLoad);
+          cleanupOnError(new Error('Failed to load KaTeX script'));
         }
         currentScript.addEventListener('load', handleLoad, { once: true });
         currentScript.addEventListener('error', handleError);
@@ -101,8 +92,9 @@
         doc.head.appendChild(script);
       } else if (script.hasAttribute('data-mathvis-loader')) {
         attachHandlers(script);
-        if (!script.dataset.mathvisFallbackUsed && (!script.src || script.src === cdnSrc)) {
-          script.src = KATEX_LOCAL_ASSETS.js;
+        const currentSrc = script.getAttribute('src');
+        if (currentSrc !== KATEX_LOCAL_ASSETS.js) {
+          script.setAttribute('src', KATEX_LOCAL_ASSETS.js);
         }
       } else if (resolveIfReady()) {
         return;
