@@ -18,6 +18,17 @@
         "jsxgraph.css",
         "jsxgraphcore.js"
       ]
+    },
+    "mathlive": {
+      "baseDir": "node_modules/mathlive",
+      "files": [
+        "mathlive.min.js",
+        "mathlive-static.css"
+      ],
+      "directories": [
+        "fonts",
+        "sounds"
+      ]
     }
   }
 }
