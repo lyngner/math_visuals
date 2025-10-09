@@ -192,10 +192,23 @@
       let currentOffsetY = Number(item.currentOffsetY);
       if (!Number.isFinite(currentOffsetY)) currentOffsetY = startOffset;
 
+      const lockRaw = item.lockPosition;
+      const lockPosition = !(lockRaw === false || lockRaw === 'false' || lockRaw === 0);
+
       let isPlaced = Boolean(item.isPlaced) && Number.isFinite(item.currentValue);
-      if (!isPlaced) {
+      if (lockPosition) {
+        isPlaced = true;
+        if (Number.isFinite(item.currentValue)) {
+          currentValue = Number(item.currentValue);
+        } else if (Number.isFinite(value)) {
+          currentValue = value;
+        }
+      } else if (!isPlaced) {
         currentValue = startValue;
         currentOffsetY = startOffset;
+      }
+      if (lockPosition && Number.isFinite(value)) {
+        currentValue = value;
       }
 
       item.id = id;
@@ -204,7 +217,8 @@
       item.startPosition = { value: startValue, offsetY: startOffset };
       item.currentValue = currentValue;
       item.currentOffsetY = currentOffsetY;
-      item.isPlaced = isPlaced;
+      item.isPlaced = lockPosition ? true : isPlaced;
+      item.lockPosition = lockPosition;
 
       sanitized.push(item);
     });
@@ -643,14 +657,32 @@
     const startPosition = item.startPosition && typeof item.startPosition === 'object' ? item.startPosition : {};
     const startValue = Number(startPosition.value);
     const startOffset = Number(startPosition.offsetY);
-    const isPlaced = Boolean(item.isPlaced);
+    const isLocked = Boolean(item.lockPosition);
+    const isPlaced = isLocked || Boolean(item.isPlaced);
 
     let currentValue = Number(item.currentValue);
     if (!Number.isFinite(currentValue)) {
       currentValue = Number.isFinite(startValue) ? startValue : 0;
     }
+    if (isLocked) {
+      const lockedValue = Number(item.value);
+      if (Number.isFinite(lockedValue)) {
+        currentValue = lockedValue;
+        if (item.currentValue !== lockedValue) {
+          item.currentValue = lockedValue;
+        }
+      }
+    }
     let offsetY = Number(item.currentOffsetY);
-    if (isPlaced) {
+    if (isLocked) {
+      offsetY = computePlacedOffset(height);
+      if (item.currentOffsetY !== offsetY) {
+        item.currentOffsetY = offsetY;
+      }
+      if (!item.isPlaced) {
+        item.isPlaced = true;
+      }
+    } else if (isPlaced) {
       if (!Number.isFinite(offsetY)) {
         offsetY = computePlacedOffset(height);
         item.currentOffsetY = offsetY;
@@ -680,10 +712,15 @@
     if (isPlaced) {
       group.classList.add('is-placed');
     }
+    if (isLocked) {
+      group.classList.add('is-locked');
+    }
 
     group.style.touchAction = 'none';
 
-    group.addEventListener('pointerdown', handleDraggablePointerDown);
+    if (!isLocked) {
+      group.addEventListener('pointerdown', handleDraggablePointerDown);
+    }
 
     if (isPlaced) {
       const baselineWithinGroup = BASELINE_Y - y;
@@ -809,6 +846,8 @@
       const grid = document.createElement('div');
       grid.className = 'draggable-config-grid';
 
+      const isLocked = Boolean(item.lockPosition);
+
       const labelField = document.createElement('label');
       labelField.textContent = 'Etikett (valgfritt)';
       const labelInput = document.createElement('input');
@@ -835,15 +874,21 @@
         const numericValue = Number(raw);
         if (!Number.isFinite(numericValue)) return;
         item.value = numericValue;
-        const startVal = item.startPosition && Number.isFinite(item.startPosition.value)
-          ? item.startPosition.value
-          : numericValue;
-        const offsetVal = item.startPosition && Number.isFinite(item.startPosition.offsetY)
-          ? item.startPosition.offsetY
-          : DEFAULT_DRAGGABLE_OFFSET_Y;
-        item.currentValue = startVal;
-        item.currentOffsetY = offsetVal;
-        item.isPlaced = false;
+        if (item.lockPosition) {
+          item.currentValue = numericValue;
+          item.currentOffsetY = NaN;
+          item.isPlaced = true;
+        } else {
+          const startVal = item.startPosition && Number.isFinite(item.startPosition.value)
+            ? item.startPosition.value
+            : numericValue;
+          const offsetVal = item.startPosition && Number.isFinite(item.startPosition.offsetY)
+            ? item.startPosition.offsetY
+            : DEFAULT_DRAGGABLE_OFFSET_Y;
+          item.currentValue = startVal;
+          item.currentOffsetY = offsetVal;
+          item.isPlaced = false;
+        }
         scheduleDraggableEditorFocus(item.id, 'value', valueInput);
         render();
       });
@@ -859,7 +904,9 @@
       startValueInput.value = formatNumberInputValue(
         item.startPosition && Number.isFinite(item.startPosition.value) ? item.startPosition.value : item.value
       );
+      startValueInput.disabled = isLocked;
       startValueInput.addEventListener('input', () => {
+        if (item.lockPosition) return;
         const raw = startValueInput.value;
         if (!raw.trim()) return;
         const numericValue = Number(raw);
@@ -890,7 +937,9 @@
         ? item.startPosition.offsetY
         : DEFAULT_DRAGGABLE_OFFSET_Y;
       offsetInput.value = Number.isFinite(currentOffset) ? String(currentOffset) : '';
+      offsetInput.disabled = isLocked;
       offsetInput.addEventListener('input', () => {
+        if (item.lockPosition) return;
         const raw = offsetInput.value;
         if (!raw.trim()) return;
         const numericValue = Number(raw);
@@ -911,6 +960,43 @@
       grid.appendChild(offsetField);
       applyDraggableEditorFocus(offsetInput, item.id, 'offset', focusRequest);
 
+      const lockField = document.createElement('label');
+      lockField.className = 'checkbox';
+      lockField.style.gridColumn = '1 / -1';
+      const lockInput = document.createElement('input');
+      lockInput.type = 'checkbox';
+      lockInput.checked = isLocked;
+      lockInput.addEventListener('change', () => {
+        const checked = lockInput.checked;
+        item.lockPosition = checked;
+        if (checked) {
+          const numericValue = Number(item.value);
+          if (Number.isFinite(numericValue)) {
+            item.currentValue = numericValue;
+          }
+          item.currentOffsetY = NaN;
+          item.isPlaced = true;
+        } else {
+          const startVal = item.startPosition && Number.isFinite(item.startPosition.value)
+            ? item.startPosition.value
+            : item.value;
+          const offsetVal = item.startPosition && Number.isFinite(item.startPosition.offsetY)
+            ? item.startPosition.offsetY
+            : DEFAULT_DRAGGABLE_OFFSET_Y;
+          item.currentValue = Number.isFinite(startVal) ? startVal : item.currentValue;
+          item.currentOffsetY = offsetVal;
+          item.isPlaced = false;
+        }
+        scheduleDraggableEditorFocus(item.id, 'lockPosition', lockInput);
+        render();
+      });
+      lockField.appendChild(lockInput);
+      const lockLabel = document.createElement('span');
+      lockLabel.textContent = 'Lås posisjon';
+      lockField.appendChild(lockLabel);
+      grid.appendChild(lockField);
+      applyDraggableEditorFocus(lockInput, item.id, 'lockPosition', focusRequest);
+
       wrapper.appendChild(grid);
 
       const actions = document.createElement('div');
@@ -921,6 +1007,7 @@
       resetButton.className = 'btn btn--ghost';
       resetButton.textContent = 'Tilbakestill posisjon';
       resetButton.addEventListener('click', () => {
+        if (item.lockPosition) return;
         item.isPlaced = false;
         const startVal = item.startPosition && Number.isFinite(item.startPosition.value)
           ? item.startPosition.value
@@ -932,6 +1019,7 @@
         item.currentOffsetY = offsetVal;
         render();
       });
+      resetButton.disabled = isLocked;
       actions.appendChild(resetButton);
 
       const removeButton = document.createElement('button');
@@ -1138,6 +1226,7 @@
     if (!Number.isFinite(index) || index < 0) return;
     const item = STATE.draggableItems && STATE.draggableItems[index];
     if (!item) return;
+    if (item.lockPosition) return;
 
     const point = getViewBoxPoint(event);
     if (!point) return;
@@ -2002,7 +2091,8 @@
         startPosition: { value: baseValue, offsetY: DEFAULT_DRAGGABLE_OFFSET_Y },
         currentValue: baseValue,
         currentOffsetY: DEFAULT_DRAGGABLE_OFFSET_Y,
-        isPlaced: false
+        isPlaced: false,
+        lockPosition: false
       };
       if (!Array.isArray(STATE.draggableItems)) {
         STATE.draggableItems = [];
