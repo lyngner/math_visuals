@@ -1849,6 +1849,24 @@
       }
     } catch (_) {}
   }
+  async function deleteLegacyBackendEntries(paths, skipPath) {
+    if (!examplesApiBase) return;
+    if (!Array.isArray(paths) || paths.length === 0) return;
+    const skipped = new Set();
+    skipped.add(storagePath);
+    if (skipPath) skipped.add(skipPath);
+    for (const legacyPath of paths) {
+      if (!legacyPath || skipped.has(legacyPath)) continue;
+      const legacyUrl = buildExamplesApiUrl(examplesApiBase, legacyPath);
+      if (!legacyUrl) continue;
+      try {
+        const res = await fetch(legacyUrl, { method: 'DELETE' });
+        if (!res || (!res.ok && res.status !== 404)) {
+          continue;
+        }
+      } catch (_) {}
+    }
+  }
   async function loadExamplesFromBackend() {
     if (!examplesApiBase) return null;
     const canonicalUrl = buildExamplesApiUrl(examplesApiBase, storagePath);
@@ -1946,6 +1964,14 @@
       if (legacyPathUsed) {
         try {
           await migrateLegacyBackendEntry(legacyPathUsed, normalized);
+        } catch (_) {}
+      }
+      const cleanupTargets = legacyPaths.filter(
+        path => path && path !== storagePath && path !== legacyPathUsed
+      );
+      if (cleanupTargets.length > 0) {
+        try {
+          await deleteLegacyBackendEntries(cleanupTargets, legacyPathUsed);
         } catch (_) {}
       }
       return normalized;

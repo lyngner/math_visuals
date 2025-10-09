@@ -63,4 +63,58 @@ test.describe('examples-store path normalization', () => {
     expect(normalizePath('index.html')).toBe('/');
     expect(normalizePath('/index.htm')).toBe('/');
   });
+
+  test('normalizes legacy html path variants to canonical form', () => {
+    const variants = [
+      '/Diagram.HTML',
+      '/diagram/index.HTML',
+      '/diagram/index.htm',
+      'diagram/index.html',
+      '/diagram.html',
+      '/diagram.HTML',
+      '/diagram/index.html'
+    ];
+    variants.forEach(value => {
+      expect(normalizePath(value)).toBe('/diagram');
+    });
+    expect(normalizePath('/Br%C3%98KVEGG.HTML')).toBe('/br%C3%B8kvegg');
+    expect(normalizePath('/brøkvegg/index.html')).toBe('/br%C3%B8kvegg');
+  });
+});
+
+test.describe('examples-store canonical entry handling', () => {
+  test('coerces html paths to canonical storage keys', async () => {
+    const path = '/diagram/index.html';
+    const payload = {
+      examples: [
+        {
+          description: 'Legacy backend entry',
+          config: { STATE: { migrated: true } }
+        }
+      ],
+      deletedProvided: ['legacy-provided']
+    };
+    const cleanupTarget = '/diagram';
+    try {
+      const entry = await setEntry(path, payload);
+      expect(entry).not.toBeNull();
+      expect(entry.path).toBe('/diagram');
+
+      const canonical = await getEntry('/diagram');
+      expect(canonical).not.toBeNull();
+      expect(Array.isArray(canonical.examples)).toBe(true);
+      expect(canonical.examples[0]).toMatchObject({ description: 'Legacy backend entry' });
+
+      const htmlVariant = await getEntry('/diagram.html');
+      expect(htmlVariant).not.toBeNull();
+      expect(htmlVariant.path).toBe('/diagram');
+
+      const deletedKey = canonical.deletedProvided || [];
+      expect(deletedKey).toContain('legacy-provided');
+    } finally {
+      try {
+        await deleteEntry(cleanupTarget);
+      } catch (error) {}
+    }
+  });
 });

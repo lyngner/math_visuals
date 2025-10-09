@@ -327,10 +327,34 @@ function normalizePath(value) {
     path = path.slice(0, -1);
   }
   if (!path) path = '/';
-  if (path.length > 512) {
-    path = path.slice(0, 512);
+  let decoded = path;
+  try {
+    decoded = decodeURI(path);
+  } catch (error) {}
+  if (typeof decoded === 'string') {
+    decoded = decoded.toLowerCase();
+  } else {
+    decoded = String(path).toLowerCase();
   }
-  return path;
+  let encoded = decoded;
+  try {
+    encoded = encodeURI(decoded);
+  } catch (error) {
+    encoded = typeof decoded === 'string' ? decoded : path;
+  }
+  if (!encoded) encoded = '/';
+  if (!encoded.startsWith('/')) {
+    encoded = '/' + encoded;
+  }
+  encoded = encoded.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
+  if (encoded.length > 1 && encoded.endsWith('/')) {
+    encoded = encoded.slice(0, -1);
+  }
+  if (!encoded) encoded = '/';
+  if (encoded.length > 512) {
+    encoded = encoded.slice(0, 512);
+  }
+  return encoded;
 }
 
 function makeKey(path) {
