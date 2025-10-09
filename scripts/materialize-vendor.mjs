@@ -1,13 +1,19 @@
 import { createHash } from 'crypto';
 import { createReadStream } from 'fs';
 import { promises as fs } from 'fs';
+import { execFile } from 'child_process';
 import path from 'path';
+import { promisify } from 'util';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const manifestPath = path.join(__dirname, 'vendor-manifest.json');
+const execFileAsync = promisify(execFile);
+const args = new Set(process.argv.slice(2));
+const checkMode = args.has('--check');
+const verifyMode = args.has('--verify') || checkMode;
 
 async function readManifest() {
   let raw;
@@ -98,35 +104,39 @@ async function copyFileIfNeeded(pkgName, sourceDir, fileName, { optional = false
   return { status: 'copied', pkgName, fileName };
 }
 
-async function materializeVendor() {
-  const manifest = await readManifest();
-  const results = [];
-  for (const [pkgName, descriptor] of Object.entries(manifest)) {
-    if (!descriptor || typeof descriptor !== 'object') {
-      throw new Error(`Ugyldig manifestoppføring for ${pkgName}`);
-    }
-    const { source, files } = descriptor;
-    if (typeof source !== 'string' || !source) {
-      throw new Error(`Oppføringen for ${pkgName} mangler 'source'.`);
-    }
-    if (!Array.isArray(files) || files.length === 0) {
-      throw new Error(`Oppføringen for ${pkgName} må liste filer i 'files'.`);
-    }
-    for (const fileDescriptor of files) {
-      let fileName;
-      let optional = false;
-      if (typeof fileDescriptor === 'string') {
-        fileName = fileDescriptor;
-      } else if (fileDescriptor && typeof fileDescriptor === 'object' && !Array.isArray(fileDescriptor)) {
-        const { name, optional: isOptional } = fileDescriptor;
-        if (typeof name !== 'string' || !name) {
-          throw new Error(`Oppføringen for ${pkgName} inneholder en ugyldig fil.`);
-        }
-        fileName = name;
-        optional = Boolean(isOptional);
-      } else {
+function normalizeFiles(pkgName, descriptor) {
+  if (!descriptor || typeof descriptor !== 'object') {
+    throw new Error(`Ugyldig manifestoppføring for ${pkgName}`);
+  }
+  const { source, files } = descriptor;
+  if (typeof source !== 'string' || !source) {
+    throw new Error(`Oppføringen for ${pkgName} mangler 'source'.`);
+  }
+  if (!Array.isArray(files) || files.length === 0) {
+    throw new Error(`Oppføringen for ${pkgName} må liste filer i 'files'.`);
+  }
+  const normalized = [];
+  for (const fileDescriptor of files) {
+    if (typeof fileDescriptor === 'string') {
+      normalized.push({ name: fileDescriptor, optional: false });
+    } else if (fileDescriptor && typeof fileDescriptor === 'object' && !Array.isArray(fileDescriptor)) {
+      const { name, optional: isOptional } = fileDescriptor;
+      if (typeof name !== 'string' || !name) {
         throw new Error(`Oppføringen for ${pkgName} inneholder en ugyldig fil.`);
       }
+      normalized.push({ name, optional: Boolean(isOptional) });
+    } else {
+      throw new Error(`Oppføringen for ${pkgName} inneholder en ugyldig fil.`);
+    }
+  }
+  return { source, files: normalized };
+}
+
+async function materializeVendor(manifest) {
+  const results = [];
+  for (const [pkgName, descriptor] of Object.entries(manifest)) {
+    const { source, files } = normalizeFiles(pkgName, descriptor);
+    for (const { name: fileName, optional } of files) {
       const result = await copyFileIfNeeded(pkgName, source, fileName, { optional });
       results.push(result);
     }
@@ -134,8 +144,66 @@ async function materializeVendor() {
   return results;
 }
 
-materializeVendor()
-  .then(results => {
+async function verifyMaterialized(manifest) {
+  const missing = [];
+  for (const [pkgName, descriptor] of Object.entries(manifest)) {
+    const { files } = normalizeFiles(pkgName, descriptor);
+    for (const { name, optional } of files) {
+      const dest = path.resolve(repoRoot, 'public', 'vendor', pkgName, name);
+      try {
+        const stat = await fs.stat(dest);
+        if (!stat.isFile()) {
+          if (!optional) {
+            missing.push(`${pkgName}/${name}`);
+          }
+        }
+      } catch (error) {
+        if (!(error && error.code === 'ENOENT')) {
+          throw error;
+        }
+        if (!optional) {
+          missing.push(`${pkgName}/${name}`);
+        }
+      }
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error(`Følgende vendorfiler mangler etter materialisering:\n- ${missing.join('\n- ')}`);
+  }
+}
+
+async function assertVendorCleanInGit() {
+  try {
+    const { stdout: trackedStdout } = await execFileAsync('git', ['ls-files', '--', 'public/vendor']);
+    const trackedFiles = trackedStdout
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+      .filter(file => file !== 'public/vendor/.gitignore');
+    if (trackedFiles.length > 0) {
+      throw new Error(`Vendor-artefakter er sjekket inn i Git:\n- ${trackedFiles.join('\n- ')}`);
+    }
+
+    const { stdout: statusStdout } = await execFileAsync('git', ['status', '--porcelain', '--', 'public/vendor']);
+    const clean = statusStdout
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+      .length === 0;
+    if (!clean) {
+      throw new Error('public/vendor/ inneholder sporede endringer i Git.');
+    }
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      throw new Error('Git er ikke tilgjengelig i dette miljøet, kan ikke sjekke vendor-tilstand.');
+    }
+    throw error;
+  }
+}
+
+readManifest()
+  .then(async manifest => {
+    const results = await materializeVendor(manifest);
     for (const result of results) {
       if (result.status === 'copied') {
         console.log(`Kopierte ${result.pkgName}/${result.fileName}`);
@@ -144,6 +212,12 @@ materializeVendor()
       } else {
         console.log(`Uendret ${result.pkgName}/${result.fileName}`);
       }
+    }
+    if (verifyMode) {
+      await verifyMaterialized(manifest);
+    }
+    if (checkMode) {
+      await assertVendorCleanInGit();
     }
   })
   .catch(error => {
