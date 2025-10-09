@@ -146,6 +146,7 @@ for (const { rel, absPath } of extraneous) {
 if (checkOnly) {
   if (problems.length > 0) {
     console.error('Vendor verification failed:\n' + problems.join('\n'));
+    console.error('\nKjør `npm run materialize-vendor` for å oppdatere vendorfiler fra `node_modules`.');
     process.exitCode = 1;
   } else {
     console.log('Vendor assets are up to date.');

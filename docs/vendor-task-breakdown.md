@@ -6,6 +6,8 @@ This document breaks the monolithic "Servér eksterne biblioteker lokalt i eksem
 >
 > The repository now generates KaTeX, MathLive og JSXGraph-ressurser via `npm run materialize-vendor`, som kopierer pakkene fra `node_modules` til `vendor/cdn/`. Playwright- og `npm start`-kommandoer kjører skriptet automatisk gjennom `pretest`/`prestart`, og `npm run verify-vendor` kan brukes i CI for å sikre at manifestet er synkronisert. Oppgavene under beskriver hvordan migreringen ble planlagt før automatiseringen kom på plass, men de kan fortsatt brukes som inspirasjon dersom nye biblioteker skal vendoreres senere.
 
+> **Tips:** `npm run materialize-vendor` kjøres automatisk før `npm test`, `npm run test:e2e` og `npm start` gjennom `pre*`-skript, så i de fleste arbeidsflyter blir vendorfiler oppdatert uten ekstra steg. Dersom `npm run verify-vendor` likevel rapporterer `Out of date`-filer (f.eks. etter `npm install` eller når du bare har kjørt `npm run verify-vendor` direkte), kan du manuelt synkronisere ved å kjøre `npm run materialize-vendor` for å kopiere siste versjon fra `node_modules` før du prøver testen igjen.
+
 ## Task 1 – Establish local vendor structure
 
 :::task-stub{title="Task 1 – Etabler vendorkatalog og synk-skript"}
