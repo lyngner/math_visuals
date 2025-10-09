@@ -780,6 +780,31 @@
       return false;
     }
   }
+  function canUsePersistentStorage() {
+    try {
+      return typeof localStorage !== 'undefined';
+    } catch (_) {
+      return false;
+    }
+  }
+  function mirrorPersistentSetItem(key, value) {
+    if (!canUsePersistentStorage()) return false;
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+  function mirrorPersistentRemoveItem(key) {
+    if (!canUsePersistentStorage()) return false;
+    try {
+      localStorage.removeItem(key);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
   function safeGetItem(key) {
     if (persistentStorageDisabled) {
       const store = enforceMemoryStorage();
@@ -812,16 +837,20 @@
   function safeSetItem(key, value) {
     if (persistentStorageDisabled) {
       const store = enforceMemoryStorage();
-      if (trySetItemOn(store, key, value)) return;
-      const memory = switchToMemoryFallback();
-      trySetItemOn(memory, key, value);
+      if (!trySetItemOn(store, key, value)) {
+        const memory = switchToMemoryFallback();
+        trySetItemOn(memory, key, value);
+      }
+      mirrorPersistentSetItem(key, value);
       return;
     }
     if (usingFallbackStorage) {
       const store = initializeFallbackStorage();
-      if (trySetItemOn(store, key, value)) return;
-      const memory = switchToMemoryFallback();
-      trySetItemOn(memory, key, value);
+      if (!trySetItemOn(store, key, value)) {
+        const memory = switchToMemoryFallback();
+        trySetItemOn(memory, key, value);
+      }
+      mirrorPersistentSetItem(key, value);
       return;
     }
     try {
@@ -829,24 +858,29 @@
       localStorage.setItem(key, value);
     } catch (_) {
       const store = ensureFallbackStorage();
-      if (trySetItemOn(store, key, value)) return;
-      const memory = switchToMemoryFallback();
-      trySetItemOn(memory, key, value);
+      if (!trySetItemOn(store, key, value)) {
+        const memory = switchToMemoryFallback();
+        trySetItemOn(memory, key, value);
+      }
     }
   }
   function safeRemoveItem(key) {
     if (persistentStorageDisabled) {
       const store = enforceMemoryStorage();
-      if (tryRemoveItemFrom(store, key)) return;
-      const memory = switchToMemoryFallback();
-      tryRemoveItemFrom(memory, key);
+      if (!tryRemoveItemFrom(store, key)) {
+        const memory = switchToMemoryFallback();
+        tryRemoveItemFrom(memory, key);
+      }
+      mirrorPersistentRemoveItem(key);
       return;
     }
     if (usingFallbackStorage) {
       const store = initializeFallbackStorage();
-      if (tryRemoveItemFrom(store, key)) return;
-      const memory = switchToMemoryFallback();
-      tryRemoveItemFrom(memory, key);
+      if (!tryRemoveItemFrom(store, key)) {
+        const memory = switchToMemoryFallback();
+        tryRemoveItemFrom(memory, key);
+      }
+      mirrorPersistentRemoveItem(key);
       return;
     }
     try {
@@ -854,9 +888,10 @@
       localStorage.removeItem(key);
     } catch (_) {
       const store = ensureFallbackStorage();
-      if (tryRemoveItemFrom(store, key)) return;
-      const memory = switchToMemoryFallback();
-      tryRemoveItemFrom(memory, key);
+      if (!tryRemoveItemFrom(store, key)) {
+        const memory = switchToMemoryFallback();
+        tryRemoveItemFrom(memory, key);
+      }
     }
   }
   function resolveExamplesApiBase() {
