@@ -8,7 +8,7 @@ Dette prosjektet har allerede en testpakke konfigurert gjennom npm-skriptet `npm
    npm install
    ```
 
-2. (Valgfritt) Sørg for at du har bygget eventuelle statiske ressurser som testene forventer. De fleste testene i dette repoet bruker de rå HTML/JS-filene og trenger ikke en eksplisitt build.
+2. Kjør `npm run materialize-vendor` dersom du trenger tredjepartsressursene i `public/vendor/`. Dette skjer automatisk i `npm test`, men det kan være greit å gjøre lokalt på forhånd slik at ressursene allerede ligger på plass.
 
 ## Kjøre testene
 Kjør følgende kommando fra rotmappen til prosjektet:

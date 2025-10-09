@@ -10,7 +10,8 @@
     "materialize-vendor": "node scripts/materialize-vendor.mjs",
     "prestart": "npm run materialize-vendor",
     "preplaywright": "npm run materialize-vendor",
-    "playwright": "node scripts/run-playwright.js"
+    "playwright": "node scripts/run-playwright.js",
+    "vercel-build": "npm run materialize-vendor -- --verify"
   },
   "keywords": [],
   "author": "",
