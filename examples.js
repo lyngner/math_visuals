@@ -780,6 +780,34 @@
       return false;
     }
   }
+  function canUseLocalStorage() {
+    if (persistentStorageDisabled) {
+      return false;
+    }
+    try {
+      return typeof localStorage !== 'undefined';
+    } catch (_) {
+      return false;
+    }
+  }
+  function trySetItemInLocalStorage(key, value) {
+    if (!canUseLocalStorage()) return false;
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+  function tryRemoveItemFromLocalStorage(key) {
+    if (!canUseLocalStorage()) return false;
+    try {
+      localStorage.removeItem(key);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
   function safeGetItem(key) {
     if (persistentStorageDisabled) {
       const store = enforceMemoryStorage();
@@ -819,9 +847,11 @@
     }
     if (usingFallbackStorage) {
       const store = initializeFallbackStorage();
-      if (trySetItemOn(store, key, value)) return;
-      const memory = switchToMemoryFallback();
-      trySetItemOn(memory, key, value);
+      if (!trySetItemOn(store, key, value)) {
+        const memory = switchToMemoryFallback();
+        trySetItemOn(memory, key, value);
+      }
+      trySetItemInLocalStorage(key, value);
       return;
     }
     try {
@@ -832,6 +862,7 @@
       if (trySetItemOn(store, key, value)) return;
       const memory = switchToMemoryFallback();
       trySetItemOn(memory, key, value);
+      trySetItemInLocalStorage(key, value);
     }
   }
   function safeRemoveItem(key) {
@@ -844,9 +875,11 @@
     }
     if (usingFallbackStorage) {
       const store = initializeFallbackStorage();
-      if (tryRemoveItemFrom(store, key)) return;
-      const memory = switchToMemoryFallback();
-      tryRemoveItemFrom(memory, key);
+      if (!tryRemoveItemFrom(store, key)) {
+        const memory = switchToMemoryFallback();
+        tryRemoveItemFrom(memory, key);
+      }
+      tryRemoveItemFromLocalStorage(key);
       return;
     }
     try {
@@ -857,6 +890,7 @@
       if (tryRemoveItemFrom(store, key)) return;
       const memory = switchToMemoryFallback();
       tryRemoveItemFrom(memory, key);
+      tryRemoveItemFromLocalStorage(key);
     }
   }
   function resolveExamplesApiBase() {
