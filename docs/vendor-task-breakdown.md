@@ -4,9 +4,9 @@ This document breaks the monolithic "Servér eksterne biblioteker lokalt i eksem
 
 > **Status update (materialize-vendor pipeline)**
 >
-> The repository now generates KaTeX og JSXGraph-ressurser via `npm run materialize-vendor`, som kopierer pakkene fra `node_modules` til `vendor/cdn/`. MathLive leveres i stedet fra CDN, og apper som Graftegner har en innebygd tekstinput-fallback slik at funksjonsfeltet fungerer uten at binære font-/lydfiler sjekkes inn. Playwright- og `npm start`-kommandoer kjører skriptet automatisk gjennom `pretest`/`prestart`, og `npm run verify-vendor` kan brukes i CI for å sikre at manifestet er synkronisert. Oppgavene under beskriver hvordan migreringen ble planlagt før automatiseringen kom på plass, men de kan fortsatt brukes som inspirasjon dersom nye biblioteker skal vendoreres senere.
+> Alle KaTeX-, JSXGraph- og MathLive-ressurser genereres nå lokalt via `npm run materialize-vendor`, som kopierer filene direkte fra `node_modules` til `vendor/cdn/` uten at binære artefakter sjekkes inn i git. Playwright- og `npm start`-kommandoene kjører skriptet automatisk gjennom `pretest`/`prestart`, og `npm run verify-vendor` kan brukes i CI for å sikre at manifestet er synkronisert. Oppgavene under beskriver hvordan migreringen opprinnelig var planlagt før automatiseringen kom på plass, men de kan fortsatt brukes som inspirasjon dersom nye biblioteker skal vendoreres senere.
 
-> **Tips:** `npm run materialize-vendor` kjøres automatisk før `npm test`, `npm run test:e2e` og `npm start` gjennom `pre*`-skript, så i de fleste arbeidsflyter blir vendorfiler oppdatert uten ekstra steg. Dersom `npm run verify-vendor` likevel rapporterer `Out of date`-filer (f.eks. etter `npm install` eller når du bare har kjørt `npm run verify-vendor` direkte), kan du manuelt synkronisere ved å kjøre `npm run materialize-vendor` for å kopiere siste versjon fra `node_modules` før du prøver testen igjen.
+> **Tips:** `npm run materialize-vendor` kjøres automatisk før `npm test`, `npm run test:e2e` og `npm start` gjennom `pre*`-skript. Dersom `npm run verify-vendor` likevel rapporterer `Out of date`-filer (f.eks. etter `npm install` eller når du bare har kjørt `npm run verify-vendor` direkte), kan du manuelt synkronisere ved å kjøre `npm run materialize-vendor` for å kopiere siste versjon fra `node_modules` før du prøver testen igjen.
 
 ## Task 1 – Establish local vendor structure
 
@@ -30,8 +30,7 @@ This document breaks the monolithic "Servér eksterne biblioteker lokalt i eksem
 ## Task 3 – Vendoring MathLive for algebra/interactive examples
 
 :::task-stub{title="Task 3 – Vendore MathLive for interaktive oppgaver"}
-> **Merk:** Denne planen er arkivert. MathLive servres nå fra CDN (med tekstinput-fallback i apper som Graftegner) for å unngå at binære font- og lydfiler sjekkes inn. Trinnene under beholdes kun som historikk dersom strategien endres i fremtiden.
-1. Synk `vendor/mathlive/` via `npm run sync-vendor`.
+1. Synk `vendor/mathlive/` via `npm run materialize-vendor` (kjøres automatisk av `pretest`/`prestart`).
 2. Oppdater MathLive-referanser i `prikktilprikk.html`, `tallinje.html`, `graftegner.html`, `brøkfigurer.html`, `tallinje.js` og tilknyttede komponenter til å bruke de vendorede filene.
 3. Verifiser hvert delsteg ved å laste sidene lokalt og sikre at MathLive initialiseres uten CDN-kall.
 4. Legg til en enkel enhetstest eller Playwright-sjekk som bekrefter at MathLive-editoren starter med lokale assets.

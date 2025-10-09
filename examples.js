@@ -3139,15 +3139,14 @@
       ? normalizedList[0]
       : {};
     const copy = { ...base };
-    if (typeof copy.description === 'string') {
+    const fallbackDescription = extractDescriptionFromExample(example);
+    if (fallbackDescription) {
+      copy.description = fallbackDescription;
+    } else if (typeof copy.description === 'string') {
       copy.description = copy.description.trim();
     }
-    if (!copy.description) {
-      const originalDescription =
-        typeof example.description === 'string' ? normalizeDescriptionString(example.description) : '';
-      if (originalDescription) {
-        copy.description = originalDescription;
-      }
+    if (!copy.description && copy.description !== '') {
+      copy.description = '';
     }
     if (Object.prototype.hasOwnProperty.call(copy, '__builtinKey')) {
       const key = normalizeKey(copy.__builtinKey);
