@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
 const {
+  normalizePath,
   setEntry,
   getEntry,
   deleteEntry,
@@ -48,5 +49,18 @@ test.describe('examples-store serialization', () => {
     ]);
 
     await deleteEntry(path);
+  });
+});
+
+test.describe('examples-store path normalization', () => {
+  test('strips html suffixes to match canonical keys', () => {
+    expect(normalizePath('/nkant.html')).toBe('/nkant');
+    expect(normalizePath('/nkant.htm')).toBe('/nkant');
+    expect(normalizePath('nkant.html')).toBe('/nkant');
+  });
+
+  test('retains root path when stripping html suffix', () => {
+    expect(normalizePath('index.html')).toBe('/');
+    expect(normalizePath('/index.htm')).toBe('/');
   });
 });
