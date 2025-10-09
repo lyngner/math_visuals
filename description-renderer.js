@@ -4,6 +4,11 @@
   if (!doc) return;
 
   const KATEX_VERSION = '0.16.9';
+  const KATEX_VENDOR_BASE = '/public/vendor/katex';
+  const KATEX_LOCAL_ASSETS = {
+    css: `${KATEX_VENDOR_BASE}/katex.min.css`,
+    js: `${KATEX_VENDOR_BASE}/katex.min.js`
+  };
   const KATEX_CSS_ID = 'math-vis-katex-style';
   const KATEX_SCRIPT_ID = 'math-vis-katex-script';
   const ANSWERBOX_STATUS_MESSAGES = {
@@ -35,7 +40,14 @@
           const link = doc.createElement('link');
           link.id = KATEX_CSS_ID;
           link.rel = 'stylesheet';
-          link.href = `https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.css`;
+          const cdnHref = `https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.css`;
+          link.href = KATEX_LOCAL_ASSETS.css;
+          link.setAttribute('data-mathvis-loader', 'true');
+          link.addEventListener('error', () => {
+            if (link.dataset.mathvisFallbackUsed === 'true') return;
+            link.dataset.mathvisFallbackUsed = 'true';
+            link.href = cdnHref;
+          }, { once: true });
           doc.head.appendChild(link);
         }
       } catch (error) {
@@ -54,31 +66,44 @@
       if (resolveIfReady()) return;
 
       let script = doc.getElementById(KATEX_SCRIPT_ID);
+      const cdnSrc = `https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.js`;
+      const attachHandlers = currentScript => {
+        if (currentScript.dataset.mathvisHandlersAttached === 'true') {
+          return;
+        }
+        currentScript.dataset.mathvisHandlersAttached = 'true';
+        const handleLoad = () => {
+          currentScript.removeEventListener('error', handleError);
+          if (!resolveIfReady()) {
+            cleanupOnError(new Error('KaTeX failed to initialize'));
+          }
+        };
+        function handleError() {
+          if (currentScript.dataset.mathvisFallbackUsed === 'true') {
+            currentScript.removeEventListener('load', handleLoad);
+            cleanupOnError(new Error('Failed to load KaTeX assets'));
+            return;
+          }
+          currentScript.dataset.mathvisFallbackUsed = 'true';
+          currentScript.src = cdnSrc;
+        }
+        currentScript.addEventListener('load', handleLoad, { once: true });
+        currentScript.addEventListener('error', handleError);
+      };
       if (!script) {
         script = doc.createElement('script');
         script.id = KATEX_SCRIPT_ID;
         script.type = 'text/javascript';
         script.async = true;
-        script.src = `https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.js`;
         script.setAttribute('data-mathvis-loader', 'true');
-        script.addEventListener('load', () => {
-          if (!resolveIfReady()) {
-            cleanupOnError(new Error('KaTeX failed to initialize'));
-          }
-        });
-        script.addEventListener('error', event => {
-          cleanupOnError(new Error('Failed to load KaTeX assets'));
-        });
+        attachHandlers(script);
+        script.src = KATEX_LOCAL_ASSETS.js;
         doc.head.appendChild(script);
       } else if (script.hasAttribute('data-mathvis-loader')) {
-        script.addEventListener('load', () => {
-          if (!resolveIfReady()) {
-            cleanupOnError(new Error('KaTeX failed to initialize'));
-          }
-        }, { once: true });
-        script.addEventListener('error', event => {
-          cleanupOnError(new Error('Failed to load KaTeX assets'));
-        }, { once: true });
+        attachHandlers(script);
+        if (!script.dataset.mathvisFallbackUsed && (!script.src || script.src === cdnSrc)) {
+          script.src = KATEX_LOCAL_ASSETS.js;
+        }
       } else if (resolveIfReady()) {
         return;
       }
