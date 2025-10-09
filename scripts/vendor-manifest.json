@@ -7,9 +7,10 @@
         "katex.min.css",
         "katex.min.js"
       ],
-      "directories": [
-        "fonts"
-      ]
+      "inlineFonts": {
+        "directory": "fonts",
+        "targetCss": "katex.min.css"
+      }
     },
     "mathlive": {
       "baseDir": "node_modules/mathlive",
