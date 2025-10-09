@@ -1440,6 +1440,23 @@ function syncConfigFromValues(series) {
 /* =========================================================
    ALT-TEKST (AI)
    ========================================================= */
+let altTextServiceEnabled = true;
+let altTextServiceWarningLogged = false;
+
+function disableAltTextService(reason, error) {
+  const shouldLog = !altTextServiceWarningLogged;
+  altTextServiceEnabled = false;
+  if (shouldLog) {
+    const message = reason ? `Alt-tekst-tjeneste deaktivert: ${reason}.` : 'Alt-tekst-tjeneste deaktivert.';
+    if (error) {
+      console.warn(message, error);
+    } else {
+      console.warn(message);
+    }
+    altTextServiceWarningLogged = true;
+  }
+}
+
 function scheduleAltTextUpdate(reason = 'auto', delayOverride) {
   if (!altTextField) return;
   applyAltTextToSvg(CFG.altText || '');
@@ -1512,49 +1529,74 @@ async function requestAltText(context, signal) {
   return performAltTextRequest(prompt, signal);
 }
 async function performAltTextRequest(prompt, signal) {
-  let backendError = null;
-  try {
-    const endpoint = resolveAltTextEndpoint();
-    if (endpoint) {
+  if (!altTextServiceEnabled) return '';
+  const endpoint = resolveAltTextEndpoint();
+  if (endpoint) {
+    try {
       return await requestAltTextFromBackend(endpoint, prompt, signal);
+    } catch (error) {
+      if (!altTextServiceEnabled) return '';
+      throw error;
     }
-  } catch (error) {
-    backendError = error;
-    if (error) console.warn('Alt-tekst backend utilgjengelig', error);
   }
-  try {
-    return await requestAltTextDirect(prompt, signal);
-  } catch (error) {
-    if (backendError) console.warn('Alt-tekst direktkall feilet etter backend', error);
-    throw error;
-  }
+  if (!altTextServiceEnabled) return '';
+  return requestAltTextDirect(prompt, signal);
 }
 async function requestAltTextFromBackend(endpoint, prompt, signal) {
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      prompt
-    }),
-    signal
-  });
+  if (!altTextServiceEnabled) {
+    throw new Error('Alt-tekst-tjeneste deaktivert');
+  }
+  let res;
+  try {
+    res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        prompt
+      }),
+      signal
+    });
+  } catch (error) {
+    if (!(signal && signal.aborted)) {
+      disableAltTextService('nettverksfeil mot alt-tekst-tjenesten', error);
+    }
+    throw error;
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`Backend error ${res.status}${text ? `: ${text}` : ''}`);
+    const error = new Error(`Backend error ${res.status}${text ? `: ${text}` : ''}`);
+    disableAltTextService('ugyldig svar fra alt-tekst-tjenesten', error);
+    throw error;
   }
-  const data = await res.json().catch(() => null);
+  let data;
+  try {
+    data = await res.json();
+  } catch (error) {
+    disableAltTextService('JSON-feil fra alt-tekst-tjenesten', error);
+    throw error;
+  }
   if (!data || typeof data.text !== 'string') {
-    throw new Error('Ugyldig svar fra alt-tekst-tjenesten');
+    const error = new Error('Ugyldig svar fra alt-tekst-tjenesten');
+    disableAltTextService('ugyldig svar fra alt-tekst-tjenesten', error);
+    throw error;
   }
   const txt = data.text.trim();
-  if (!txt) throw new Error('Tom alt-tekst fra tjenesten');
+  if (!txt) {
+    const error = new Error('Tom alt-tekst fra tjenesten');
+    disableAltTextService('ugyldig svar fra alt-tekst-tjenesten', error);
+    throw error;
+  }
   return txt;
 }
 async function requestAltTextDirect(prompt, signal) {
+  if (!altTextServiceEnabled) throw new Error('Alt-tekst-tjeneste deaktivert');
   const apiKey = typeof window !== 'undefined' ? window.OPENAI_API_KEY : null;
-  if (!apiKey) throw new Error('Mangler API-nøkkel for direktekall');
+  if (!apiKey) {
+    disableAltTextService('mangler API-nøkkel for OpenAI');
+    throw new Error('Mangler API-nøkkel for direktekall');
+  }
   const body = {
     model: 'gpt-4o-mini',
     messages: [{
