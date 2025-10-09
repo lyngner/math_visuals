@@ -4,6 +4,7 @@
   if (!doc) return;
 
   const KATEX_VERSION = '0.16.9';
+  const KATEX_BASE_PATH = '/vendor/cdn/katex';
   const KATEX_CSS_ID = 'math-vis-katex-style';
   const KATEX_SCRIPT_ID = 'math-vis-katex-script';
   const ANSWERBOX_STATUS_MESSAGES = {
@@ -35,7 +36,7 @@
           const link = doc.createElement('link');
           link.id = KATEX_CSS_ID;
           link.rel = 'stylesheet';
-          link.href = `https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.css`;
+          link.href = `${KATEX_BASE_PATH}/katex.min.css`;
           doc.head.appendChild(link);
         }
       } catch (error) {
@@ -59,7 +60,7 @@
         script.id = KATEX_SCRIPT_ID;
         script.type = 'text/javascript';
         script.async = true;
-        script.src = `https://cdn.jsdelivr.net/npm/katex@${KATEX_VERSION}/dist/katex.min.js`;
+        script.src = `${KATEX_BASE_PATH}/katex.min.js`;
         script.setAttribute('data-mathvis-loader', 'true');
         script.addEventListener('load', () => {
           if (!resolveIfReady()) {
