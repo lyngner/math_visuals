@@ -7,10 +7,12 @@
 
   <link rel="stylesheet" href="/vendor/cdn/jsxgraph/jsxgraph.css">
   <link rel="stylesheet" href="vendor/cdn/katex/katex.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mathlive@0.107.1/mathlive-static.css" />
 
   <link rel="stylesheet" href="base.css" />
 
   <script defer src="vendor/cdn/katex/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathlive@0.107.1/mathlive.min.js"></script>
 
 
 <style>
@@ -28,7 +30,6 @@
     .mobile-nav .btn{ flex:1 1 160px; text-align:center; text-decoration:none; display:flex; justify-content:center; align-items:center; }
     .mobile-nav .btn:link,
     .mobile-nav .btn:visited{ color:inherit; }
-    .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
     .checkbar{ display:flex; flex-direction:column; gap:10px; align-items:flex-start; }
     .status{ padding:6px 10px; border-radius:10px; font-weight:600; border:1px solid transparent; }
     .status--ok{ color:#065f46; background:#ecfdf5; border-color:#a7f3d0; }
@@ -81,9 +82,6 @@
       flex-direction:column;
       gap:4px;
     }
-    .func-label{ display:inline-block; position:relative; }
-    .func-label__math{ display:inline-block; min-height:1em; }
-    .func-label__math .katex{ font-size:1em; }
     .func-math-field{
       display:block;
       width:100%;
@@ -96,6 +94,19 @@
       background:#fff;
       box-sizing:border-box;
       transition:border-color .15s ease, box-shadow .15s ease;
+    }
+    .func-math-field::part(container){
+      min-height:26px;
+      padding:0;
+    }
+    .func-math-field::part(content){
+      font-size:15px;
+      line-height:1.4;
+      padding:0;
+    }
+    .func-math-field::part(menu-toggle),
+    .func-math-field::part(virtual-keyboard-toggle){
+      display:none;
     }
     .func-math-field:focus{
       outline:none;

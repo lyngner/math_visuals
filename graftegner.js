@@ -1987,41 +1987,6 @@ function renderLatexToHtml(latex) {
   }
   return '';
 }
-const KATEX_TEXT_ESCAPE_REGEX = /([#%&$^_{}\\])/g;
-function escapeKatexPlainText(text) {
-  return String(text).replace(KATEX_TEXT_ESCAPE_REGEX, '\\$1');
-}
-function renderKatexPlainText(target, text) {
-  if (!target) return;
-  const str = typeof text === 'string' ? text : '';
-  if (!str) {
-    target.textContent = '';
-    return;
-  }
-  const katex = typeof window !== 'undefined' ? window.katex : null;
-  if (katex && typeof katex.render === 'function') {
-    try {
-      katex.render(`\\text{${escapeKatexPlainText(str)}}`, target, { throwOnError: false });
-      return;
-    } catch (_) {}
-  }
-  target.textContent = str;
-}
-function enhanceFunctionLabelWithKatex(labelElement, text) {
-  if (!labelElement) return;
-  const plain = typeof text === 'string' ? text : '';
-  const sr = document.createElement('span');
-  sr.className = 'sr-only';
-  sr.textContent = plain;
-  const math = document.createElement('span');
-  math.className = 'func-label__math';
-  math.setAttribute('aria-hidden', 'true');
-  renderKatexPlainText(math, plain);
-  labelElement.textContent = '';
-  labelElement.classList.add('func-label');
-  labelElement.appendChild(sr);
-  labelElement.appendChild(math);
-}
 function normalizeExpressionText(str) {
   if (typeof str !== 'string') return '';
   const trimmed = str.trim();
@@ -3535,6 +3500,17 @@ function setupSettingsForm() {
   let linePointVisibleCount = 0;
   let linePointsEdited = false;
   const MATHFIELD_TAG = 'MATH-FIELD';
+  const nav = typeof navigator !== 'undefined' ? navigator : null;
+  const hasTouchSupport = typeof window !== 'undefined' && (
+    'ontouchstart' in window ||
+    (nav && (nav.maxTouchPoints > 0 || nav.msMaxTouchPoints > 0))
+  );
+  const hasCoarsePointer = typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(pointer: coarse)').matches;
+  const enableVirtualKeyboard = hasTouchSupport || hasCoarsePointer;
+  const mathFieldKeyboardMode = enableVirtualKeyboard ? 'onfocus' : 'off';
+  const mathFieldKeyboardAttr = `virtual-keyboard-mode="${mathFieldKeyboardMode}"`;
   const COMMAND_NAME_MAP = {
     cdot: '*',
     times: '*',
@@ -4316,7 +4292,8 @@ function setupSettingsForm() {
     row.className = 'func-group';
     row.dataset.index = String(index);
     const titleLabel = index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index;
-    const placeholderAttr = index === 1 ? ' placeholder="f(x)=x^2-2"' : '';
+    const exampleExpression = 'f(x)=x^2-2';
+    const placeholderAttr = index === 1 ? ` placeholder="${exampleExpression}"` : '';
     if (index === 1) {
       row.innerHTML = `
         <fieldset>
@@ -4327,7 +4304,7 @@ function setupSettingsForm() {
                 <label class="func-input">
                   <span>${titleLabel}</span>
                   <div class="func-editor">
-                    <input type="text" data-fun class="func-math-field" aria-label="${titleLabel}" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"${placeholderAttr}>
+                    <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"${placeholderAttr}></math-field>
                   </div>
                 </label>
               </div>
@@ -4373,7 +4350,7 @@ function setupSettingsForm() {
                 <label class="func-input">
                   <span>${titleLabel}</span>
                   <div class="func-editor">
-                    <input type="text" data-fun class="func-math-field" aria-label="${titleLabel}" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"${placeholderAttr}>
+                    <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"${placeholderAttr}></math-field>
                   </div>
                 </label>
               </div>
@@ -4388,10 +4365,6 @@ function setupSettingsForm() {
     }
     if (funcRows) {
       funcRows.appendChild(row);
-    }
-    if (index === 1) {
-      const labelSpan = row.querySelector('.func-input > span');
-      enhanceFunctionLabelWithKatex(labelSpan, titleLabel);
     }
     let funInput = row.querySelector('[data-fun]');
     funInput = ensureFunctionInputElement(funInput);
