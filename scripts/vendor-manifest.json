@@ -55,7 +55,10 @@
     ]
   },
   "mathlive": {
-    "source": "node_modules/mathlive",
+    "source": [
+      "node_modules/mathlive/dist",
+      "node_modules/mathlive"
+    ],
     "files": [
       "mathlive.min.js",
       "mathlive-static.css",
