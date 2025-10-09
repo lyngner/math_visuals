@@ -3081,7 +3081,7 @@
     const reason = typeof opts.reason === 'string' ? opts.reason : '';
     const skipBackendSync = opts.skipBackendSync === true;
     const applied = applyRawExamples(serialized, opts);
-    if (applied && isUserInitiatedReason(reason)) {
+    if (applied && isUserInitiatedReason(reason) && !skipBackendSync) {
       lastLocalUpdateMs = Date.now();
       persistLocalUpdatedAt(lastLocalUpdateMs);
     }
