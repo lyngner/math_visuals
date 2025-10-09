@@ -4,15 +4,12 @@
   "description": "",
   "main": "arealmodell0.js",
   "scripts": {
-    "pretest": "npm run materialize-vendor && node scripts/ensure-playwright-deps.js",
-    "test": "node tests/check-shared-styles.js && node scripts/run-playwright.js test",
-    "start": "npx http-server -c-1",
     "materialize-vendor": "node scripts/materialize-vendor.mjs",
-    "check:vendor": "npm run materialize-vendor -- --check",
-    "prestart": "npm run materialize-vendor",
-    "preplaywright": "npm run materialize-vendor",
-    "playwright": "node scripts/run-playwright.js",
-    "vercel-build": "npm run materialize-vendor -- --verify"
+    "verify-vendor": "node scripts/materialize-vendor.mjs --check",
+    "prestart": "node scripts/materialize-vendor.mjs",
+    "pretest": "node scripts/materialize-vendor.mjs && node scripts/ensure-playwright-deps.js",
+    "test": "node tests/check-shared-styles.js && node scripts/run-playwright.js test",
+    "start": "npx http-server -c-1"
   },
   "keywords": [],
   "author": "",
@@ -26,12 +23,12 @@
     "@babel/plugin-transform-optional-chaining": "^7.27.1",
     "@playwright/test": "^1.42.0",
     "http-server": "^14.1.1",
+    "jsxgraph": "^1.12.0",
+    "katex": "^0.16.23",
+    "mathlive": "^0.107.1",
     "pngjs": "^7.0.0"
   },
   "dependencies": {
-    "@vercel/kv": "^3.0.0",
-    "jsxgraph": "^1.12.0",
-    "katex": "^0.16.9",
-    "mathlive": "^0.107.1"
+    "@vercel/kv": "^3.0.0"
   }
 }
