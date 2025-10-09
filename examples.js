@@ -122,6 +122,7 @@
   let lastAppliedAppMode = null;
   let splitterObserver = null;
   let splitterObserverStarted = false;
+  let taskModeDescriptionRenderRetryScheduled = false;
   function normalizeAppMode(value) {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim().toLowerCase();
@@ -780,6 +781,28 @@
       return false;
     }
   }
+  function tryMirrorPersistentSet(key, value) {
+    if (!persistentStorageDisabled && !usingFallbackStorage) return;
+    try {
+      if (typeof localStorage === 'undefined') return;
+    } catch (_) {
+      return;
+    }
+    try {
+      localStorage.setItem(key, value);
+    } catch (_) {}
+  }
+  function tryMirrorPersistentRemove(key) {
+    if (!persistentStorageDisabled && !usingFallbackStorage) return;
+    try {
+      if (typeof localStorage === 'undefined') return;
+    } catch (_) {
+      return;
+    }
+    try {
+      localStorage.removeItem(key);
+    } catch (_) {}
+  }
   function safeGetItem(key) {
     if (persistentStorageDisabled) {
       const store = enforceMemoryStorage();
@@ -812,16 +835,26 @@
   function safeSetItem(key, value) {
     if (persistentStorageDisabled) {
       const store = enforceMemoryStorage();
-      if (trySetItemOn(store, key, value)) return;
+      if (trySetItemOn(store, key, value)) {
+        tryMirrorPersistentSet(key, value);
+        return;
+      }
       const memory = switchToMemoryFallback();
-      trySetItemOn(memory, key, value);
+      if (trySetItemOn(memory, key, value)) {
+        tryMirrorPersistentSet(key, value);
+      }
       return;
     }
     if (usingFallbackStorage) {
       const store = initializeFallbackStorage();
-      if (trySetItemOn(store, key, value)) return;
+      if (trySetItemOn(store, key, value)) {
+        tryMirrorPersistentSet(key, value);
+        return;
+      }
       const memory = switchToMemoryFallback();
-      trySetItemOn(memory, key, value);
+      if (trySetItemOn(memory, key, value)) {
+        tryMirrorPersistentSet(key, value);
+      }
       return;
     }
     try {
@@ -837,16 +870,26 @@
   function safeRemoveItem(key) {
     if (persistentStorageDisabled) {
       const store = enforceMemoryStorage();
-      if (tryRemoveItemFrom(store, key)) return;
+      if (tryRemoveItemFrom(store, key)) {
+        tryMirrorPersistentRemove(key);
+        return;
+      }
       const memory = switchToMemoryFallback();
-      tryRemoveItemFrom(memory, key);
+      if (tryRemoveItemFrom(memory, key)) {
+        tryMirrorPersistentRemove(key);
+      }
       return;
     }
     if (usingFallbackStorage) {
       const store = initializeFallbackStorage();
-      if (tryRemoveItemFrom(store, key)) return;
+      if (tryRemoveItemFrom(store, key)) {
+        tryMirrorPersistentRemove(key);
+        return;
+      }
       const memory = switchToMemoryFallback();
-      tryRemoveItemFrom(memory, key);
+      if (tryRemoveItemFrom(memory, key)) {
+        tryMirrorPersistentRemove(key);
+      }
       return;
     }
     try {
@@ -2477,11 +2520,57 @@
   }
 
   function ensureTaskModeDescriptionRendered() {
-    const input = getDescriptionInput();
+    let input;
+    try {
+      input = getDescriptionInput();
+    } catch (error) {
+      if (error && typeof error.message === 'string' && error.message.includes('descriptionInput')) {
+        if (!taskModeDescriptionRenderRetryScheduled) {
+          taskModeDescriptionRenderRetryScheduled = true;
+          setTimeout(() => {
+            taskModeDescriptionRenderRetryScheduled = false;
+            try {
+              ensureTaskModeDescriptionRendered();
+            } catch (_) {}
+          }, 0);
+        }
+        return;
+      }
+      throw error;
+    }
     if (!input) return;
-    const value = typeof input.value === 'string' ? input.value : '';
-    const trimmed = value && typeof value.trim === 'function' ? value.trim() : '';
-    if (!trimmed) return;
+    let value = typeof input.value === 'string' ? input.value : '';
+    let trimmed = value && typeof value.trim === 'function' ? value.trim() : '';
+    if (!trimmed) {
+      try {
+        const examples = getExamples();
+        const index = getActiveExampleIndex(examples);
+        if (index != null) {
+          const example = examples[index];
+          const fallback = extractDescriptionFromExample(example);
+          if (fallback && typeof fallback === 'string' && fallback.trim()) {
+            setDescriptionValue(fallback);
+            value = fallback;
+            trimmed = fallback.trim();
+          }
+        }
+      } catch (error) {
+        if (error && typeof error.message === 'string' && error.message.includes('descriptionInput')) {
+          if (!taskModeDescriptionRenderRetryScheduled) {
+            taskModeDescriptionRenderRetryScheduled = true;
+            setTimeout(() => {
+              taskModeDescriptionRenderRetryScheduled = false;
+              try {
+                ensureTaskModeDescriptionRendered();
+              } catch (_) {}
+            }, 0);
+          }
+          return;
+        }
+        return;
+      }
+      if (!trimmed) return;
+    }
     const hasContent = renderDescriptionPreviewFromValue(value, { force: true, bypassFormattingCheck: true });
     if (hasContent) return;
     const preview = getDescriptionPreviewElement();
@@ -3269,6 +3358,9 @@
     }
     const description = extractDescriptionFromExample(ex);
     setDescriptionValue(description);
+    if (currentAppMode === 'task') {
+      ensureTaskModeDescriptionRendered();
+    }
     const cfg = ex.config;
     let applied = false;
     for (const name of BINDING_NAMES) {
