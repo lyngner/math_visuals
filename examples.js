@@ -340,11 +340,11 @@
   }
   function readMemorySnapshotFromWindow() {
     if (typeof window === 'undefined') {
-      return { data: null, original: '' };
+      return { data: null, original: '', seededFromPersistent: false };
     }
     const current = typeof window.name === 'string' ? window.name : '';
     if (!current.startsWith(MEMORY_STORAGE_WINDOW_PREFIX)) {
-      return { data: null, original: current };
+      return { data: null, original: current, seededFromPersistent: false };
     }
     const payload = current.slice(MEMORY_STORAGE_WINDOW_PREFIX.length);
     try {
@@ -352,10 +352,11 @@
       if (parsed && typeof parsed === 'object') {
         const restored = parsed.data && typeof parsed.data === 'object' ? parsed.data : null;
         const original = typeof parsed.original === 'string' ? parsed.original : '';
-        return { data: restored, original };
+        const seeded = parsed.seeded === true;
+        return { data: restored, original, seededFromPersistent: seeded };
       }
     } catch (_) {}
-    return { data: null, original: '' };
+    return { data: null, original: '', seededFromPersistent: false };
   }
   function writeMemorySnapshotToWindow(snapshot) {
     if (typeof window === 'undefined') return;
@@ -366,7 +367,8 @@
     }
     const payload = {
       data: snapshot,
-      original: memoryStorageWindowNameOriginal != null ? memoryStorageWindowNameOriginal : ''
+      original: memoryStorageWindowNameOriginal != null ? memoryStorageWindowNameOriginal : '',
+      seeded: fallbackSeededFromPersistent === true
     };
     try {
       window.name = MEMORY_STORAGE_WINDOW_PREFIX + JSON.stringify(payload);
@@ -517,16 +519,29 @@
   }
   let fallbackStorage = null;
   let fallbackStorageMode = 'memory';
+  let fallbackSeededFromPersistent = false;
   let fallbackStorageInitialized = false;
+  function updateFallbackSeededFromPersistent(value) {
+    fallbackSeededFromPersistent = value === true;
+    if (globalScope) {
+      globalScope.__EXAMPLES_FALLBACK_SEEDED_FROM_PERSISTENT__ = fallbackSeededFromPersistent;
+    }
+    if (fallbackStorage && typeof fallbackStorage === 'object') {
+      try {
+        fallbackStorage.__EXAMPLES_FALLBACK_SEEDED_FROM_PERSISTENT__ = fallbackSeededFromPersistent;
+      } catch (_) {}
+    }
+  }
   let suppressMemoryFallbackNotice = false;
   let memoryFallbackNoticePending = false;
   let memoryFallbackNoticeRendered = false;
   let memoryFallbackNoticeElement = null;
   let memoryFallbackNoticeRenderTimeout = null;
   let memoryFallbackNoticeDomReadyHandler = null;
-  function applyFallbackStorage(store, mode) {
+  function applyFallbackStorage(store, mode, seededFromPersistent = fallbackSeededFromPersistent) {
     fallbackStorage = store;
     fallbackStorageMode = mode === 'session' ? 'session' : 'memory';
+    updateFallbackSeededFromPersistent(seededFromPersistent);
     if (globalScope) {
       globalScope.__EXAMPLES_FALLBACK_STORAGE__ = store;
       globalScope.__EXAMPLES_FALLBACK_STORAGE_MODE__ = fallbackStorageMode;
@@ -544,21 +559,25 @@
     if (globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function') {
       const existing = globalScope.__EXAMPLES_FALLBACK_STORAGE__;
       const mode = globalScope.__EXAMPLES_FALLBACK_STORAGE_MODE__ === 'session' ? 'session' : 'memory';
+      const seededFromPersistent =
+        !!(globalScope.__EXAMPLES_FALLBACK_SEEDED_FROM_PERSISTENT__ === true ||
+          (existing && typeof existing === 'object' && existing.__EXAMPLES_FALLBACK_SEEDED_FROM_PERSISTENT__ === true));
       if (mode === 'memory') {
         const snapshot = snapshotFromStorage(existing);
         const store = createMemoryStorage({
           initialData: snapshot,
           onChange: writeMemorySnapshotToWindow
         });
-        return applyFallbackStorage(store, 'memory');
+        return applyFallbackStorage(store, 'memory', seededFromPersistent);
       }
-      return applyFallbackStorage(existing, mode);
+      return applyFallbackStorage(existing, mode, seededFromPersistent);
     }
     const sessionStore = createSessionFallbackStorage();
     if (sessionStore) {
-      return applyFallbackStorage(sessionStore, 'session');
+      return applyFallbackStorage(sessionStore, 'session', false);
     }
-    const { data: initialSnapshot, original } = readMemorySnapshotFromWindow();
+    const { data: initialSnapshot, original, seededFromPersistent: seededFromWindow } = readMemorySnapshotFromWindow();
+    updateFallbackSeededFromPersistent(seededFromWindow);
     memoryStorageWindowNameOriginal = original;
     const memoryStore = createMemoryStorage({
       initialData: initialSnapshot,
@@ -596,29 +615,31 @@
     if (fallback && fallback !== persistentStore) {
       const snapshot = snapshotFromStorage(fallback);
       const fallbackKeys = new Set(snapshot ? Object.keys(snapshot) : []);
-      let persistentTotal = 0;
-      try {
-        persistentTotal = Number(persistentStore.length) || 0;
-      } catch (_) {
-        persistentTotal = 0;
-      }
-      const keysToRemove = [];
-      for (let i = 0; i < persistentTotal; i++) {
-        let key = null;
+      if (fallbackSeededFromPersistent) {
+        let persistentTotal = 0;
         try {
-          key = persistentStore.key(i);
+          persistentTotal = Number(persistentStore.length) || 0;
         } catch (_) {
-          key = null;
+          persistentTotal = 0;
         }
-        if (typeof key !== 'string') continue;
-        if (!key.startsWith('examples_')) continue;
-        if (fallbackKeys.has(key)) continue;
-        keysToRemove.push(key);
-      }
-      if (keysToRemove.length) {
-        keysToRemove.forEach(key => {
-          tryRemoveItemFrom(persistentStore, key);
-        });
+        const keysToRemove = [];
+        for (let i = 0; i < persistentTotal; i++) {
+          let key = null;
+          try {
+            key = persistentStore.key(i);
+          } catch (_) {
+            key = null;
+          }
+          if (typeof key !== 'string') continue;
+          if (!key.startsWith('examples_')) continue;
+          if (fallbackKeys.has(key)) continue;
+          keysToRemove.push(key);
+        }
+        if (keysToRemove.length) {
+          keysToRemove.forEach(key => {
+            tryRemoveItemFrom(persistentStore, key);
+          });
+        }
       }
       copyStorageContents(fallback, persistentStore);
     }
@@ -662,6 +683,7 @@
       if (localStorageAvailable && !persistentStorageDisabled) {
         try {
           const total = Number(localStorage.length) || 0;
+          let seededFromPersistent = fallbackSeededFromPersistent;
           for (let i = 0; i < total; i++) {
             let key = null;
             try {
@@ -672,8 +694,16 @@
             if (!key) continue;
             try {
               const value = localStorage.getItem(key);
-              if (value != null) target.setItem(key, value);
+              if (value != null) {
+                target.setItem(key, value);
+                if (!seededFromPersistent && typeof key === 'string' && key.startsWith('examples_')) {
+                  seededFromPersistent = true;
+                }
+              }
             } catch (_) {}
+          }
+          if (seededFromPersistent && !fallbackSeededFromPersistent) {
+            updateFallbackSeededFromPersistent(true);
           }
         } catch (_) {}
       }
