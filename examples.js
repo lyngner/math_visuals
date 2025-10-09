@@ -1010,11 +1010,31 @@
     const prefix = STORAGE_KEY_PREFIX;
     const canonicalKey = prefix + canonicalPath;
     const paths = new Set();
+    const seenCandidates = new Set();
     const addCandidate = candidate => {
       if (typeof candidate !== 'string') return;
       const trimmed = candidate.trim();
       if (!trimmed) return;
+      if (seenCandidates.has(trimmed)) return;
+      seenCandidates.add(trimmed);
       paths.add(trimmed);
+      if (trimmed.startsWith('/') && trimmed.length > 1) {
+        addCandidate(trimmed.slice(1));
+      } else if (!trimmed.startsWith('/')) {
+        addCandidate(`/${trimmed}`);
+      }
+      try {
+        const normalizedSlashes = trimmed.replace(/\+/g, '/').replace(/\/+/g, '/');
+        if (normalizedSlashes && normalizedSlashes !== trimmed) {
+          addCandidate(normalizedSlashes);
+        }
+      } catch (_) {}
+      if (trimmed.endsWith('/')) {
+        const withoutTrailing = trimmed.replace(/\/+$/, '');
+        if (withoutTrailing && withoutTrailing !== trimmed) {
+          addCandidate(withoutTrailing);
+        }
+      }
       try {
         const parts = trimmed.split('/');
         const capitalizedParts = parts.map((segment, idx) => {
@@ -1028,16 +1048,16 @@
         });
         const capitalized = capitalizedParts.join('/');
         if (capitalized && capitalized !== trimmed) {
-          paths.add(capitalized);
+          addCandidate(capitalized);
         }
       } catch (_) {}
       const upperEncoded = trimmed.replace(/%[0-9a-fA-F]{2}/g, match => match.toUpperCase());
       if (upperEncoded && upperEncoded !== trimmed) {
-        paths.add(upperEncoded);
+        addCandidate(upperEncoded);
       }
       const lowerEncoded = trimmed.replace(/%[0-9a-fA-F]{2}/g, match => match.toLowerCase());
       if (lowerEncoded && lowerEncoded !== trimmed) {
-        paths.add(lowerEncoded);
+        addCandidate(lowerEncoded);
       }
     };
     const addPath = value => {
@@ -1669,9 +1689,10 @@
     const url = buildExamplesApiUrl(examplesApiBase, storagePath);
     if (!url) return;
     const examples = Array.isArray(cachedExamples) ? cachedExamples : [];
+    const backendExamples = normalizeBackendExamples(examples);
     const deletedSet = getDeletedProvidedExamples();
     const deletedProvidedList = deletedSet ? Array.from(deletedSet).map(normalizeKey).filter(Boolean) : [];
-    const hasExamples = examples.length > 0;
+    const hasExamples = backendExamples.length > 0;
     const hasDeleted = deletedProvidedList.length > 0;
     try {
       if (!hasExamples && !hasDeleted) {
@@ -1686,7 +1707,7 @@
       } else {
         const payload = {
           path: storagePath,
-          examples,
+          examples: backendExamples,
           deletedProvided: deletedProvidedList,
           updatedAt: new Date().toISOString()
         };
@@ -1738,7 +1759,7 @@
   function applyBackendData(data) {
     applyingBackendUpdate = true;
     try {
-      let examples = data && Array.isArray(data.examples) ? data.examples.map(example => example && typeof example === 'object' ? { ...example } : example) : [];
+      let examples = normalizeBackendExamples(data && data.examples);
       const providedDefaults = getProvidedExamples();
       if (examples.length === 0 && Array.isArray(providedDefaults) && providedDefaults.length) {
         const deletedProvided = getDeletedProvidedExamples();
@@ -1812,7 +1833,7 @@
     const canonicalUrl = buildExamplesApiUrl(examplesApiBase, storagePath);
     const legacyUrl = buildExamplesApiUrl(examplesApiBase, legacyPath);
     if (!canonicalUrl || !legacyUrl) return;
-    const examples = Array.isArray(data && data.examples) ? data.examples : [];
+    const examples = normalizeBackendExamples(data && data.examples);
     const deletedRaw = Array.isArray(data && data.deletedProvided) ? data.deletedProvided : [];
     const deletedProvidedList = deletedRaw.map(normalizeKey).filter(Boolean);
     const hasExamples = examples.length > 0;
@@ -2990,6 +3011,29 @@
   let deletedProvidedExamples = null;
   function normalizeKey(value) {
     return (typeof value === 'string' ? value.trim() : '') || '';
+  }
+
+  function normalizeBackendExample(example) {
+    if (!example || typeof example !== 'object') {
+      return {};
+    }
+    const copy = { ...example };
+    if (Object.prototype.hasOwnProperty.call(copy, '__builtinKey')) {
+      const key = normalizeKey(copy.__builtinKey);
+      if (key) {
+        copy.__builtinKey = key;
+      } else {
+        delete copy.__builtinKey;
+      }
+    }
+    return copy;
+  }
+
+  function normalizeBackendExamples(examples) {
+    if (!Array.isArray(examples)) {
+      return [];
+    }
+    return examples.map(example => normalizeBackendExample(example));
   }
   function getDeletedProvidedExamples() {
     if (deletedProvidedExamples) return deletedProvidedExamples;
