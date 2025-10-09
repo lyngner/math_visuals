@@ -172,6 +172,61 @@ async function verifyMaterialized(manifest) {
   }
 }
 
+function getExpectedVendorFiles(manifest) {
+  const expected = new Set();
+  for (const [pkgName, descriptor] of Object.entries(manifest)) {
+    const { files } = normalizeFiles(pkgName, descriptor);
+    for (const { name } of files) {
+      const normalized = path.posix.join(pkgName, name.split(path.sep).join(path.posix.sep));
+      expected.add(normalized);
+    }
+  }
+  expected.add('.gitignore');
+  return expected;
+}
+
+async function listVendorFiles(relativeDir = '') {
+  const vendorRoot = path.resolve(repoRoot, 'public', 'vendor');
+  const targetDir = path.resolve(vendorRoot, relativeDir);
+  let dirEntries;
+  try {
+    dirEntries = await fs.readdir(targetDir, { withFileTypes: true });
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
+  const results = [];
+  for (const entry of dirEntries) {
+    const relativePath = path.posix.join(
+      relativeDir.split(path.sep).join(path.posix.sep),
+      entry.name
+    );
+    if (entry.isDirectory()) {
+      const nested = await listVendorFiles(path.join(relativeDir, entry.name));
+      results.push(...nested);
+    } else if (entry.isFile()) {
+      results.push(relativePath);
+    }
+  }
+  return results;
+}
+
+async function assertNoUnexpectedVendorFiles(manifest) {
+  const expected = getExpectedVendorFiles(manifest);
+  const actual = await listVendorFiles();
+  const unexpected = actual
+    .map(entry => entry.split(path.sep).join(path.posix.sep))
+    .filter(entry => !expected.has(entry));
+  if (unexpected.length > 0) {
+    throw new Error(
+      `Fant uventede filer i public/vendor/:\n- ${unexpected.sort().join('\n- ')}\n` +
+      'Fjern filene eller oppdater manifestet.'
+    );
+  }
+}
+
 async function assertVendorCleanInGit() {
   try {
     const { stdout: trackedStdout } = await execFileAsync('git', ['ls-files', '--', 'public/vendor']);
@@ -215,6 +270,7 @@ readManifest()
     }
     if (verifyMode) {
       await verifyMaterialized(manifest);
+      await assertNoUnexpectedVendorFiles(manifest);
     }
     if (checkMode) {
       await assertVendorCleanInGit();
