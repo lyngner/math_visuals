@@ -3058,7 +3058,11 @@
     if (!example || typeof example !== 'object') {
       return {};
     }
-    const copy = { ...example };
+    const normalizedList = normalizeExamplesForStorage([example]);
+    const base = Array.isArray(normalizedList) && normalizedList.length > 0 && normalizedList[0]
+      ? normalizedList[0]
+      : {};
+    const copy = { ...base };
     if (Object.prototype.hasOwnProperty.call(copy, '__builtinKey')) {
       const key = normalizeKey(copy.__builtinKey);
       if (key) {
