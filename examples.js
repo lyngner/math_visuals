@@ -841,7 +841,6 @@
         const memory = switchToMemoryFallback();
         trySetItemOn(memory, key, value);
       }
-      mirrorPersistentSetItem(key, value);
       return;
     }
     if (usingFallbackStorage) {
@@ -871,7 +870,6 @@
         const memory = switchToMemoryFallback();
         tryRemoveItemFrom(memory, key);
       }
-      mirrorPersistentRemoveItem(key);
       return;
     }
     if (usingFallbackStorage) {
