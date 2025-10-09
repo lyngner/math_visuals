@@ -64,28 +64,43 @@ async function pathsAreEqual(src, dest, srcStat) {
 }
 
 async function copyFileIfNeeded(pkgName, sourceDir, fileName, { optional = false } = {}) {
-  const src = path.resolve(repoRoot, sourceDir, fileName);
-  const destDir = path.resolve(repoRoot, 'public', 'vendor', pkgName);
-  const dest = path.join(destDir, fileName);
-
+  const sourceDirs = Array.isArray(sourceDir) ? sourceDir : [sourceDir];
+  let src;
   let srcStat;
-  try {
-    srcStat = await fs.stat(src);
-  } catch (error) {
-    if (error && error.code === 'ENOENT') {
-      if (optional) {
-        return { status: 'missing-optional', pkgName, fileName };
+  let lastError;
+  for (const dir of sourceDirs) {
+    const candidate = path.resolve(repoRoot, dir, fileName);
+    try {
+      const candidateStat = await fs.stat(candidate);
+      if (!candidateStat.isFile()) {
+        lastError = new Error('not-a-file');
+        continue;
       }
-      throw new Error(`Fant ikke kildefilen for ${pkgName}: ${src}`);
+      src = candidate;
+      srcStat = candidateStat;
+      break;
+    } catch (error) {
+      if (error && error.code === 'ENOENT') {
+        lastError = error;
+        continue;
+      }
+      throw error;
     }
-    throw error;
   }
-  if (!srcStat.isFile()) {
+  if (!srcStat) {
     if (optional) {
       return { status: 'missing-optional', pkgName, fileName };
     }
-    throw new Error(`Kilden er ikke en fil for ${pkgName}: ${src}`);
+    const attemptedPaths = sourceDirs
+      .map(dir => path.resolve(repoRoot, dir, fileName))
+      .join(', ');
+    if (lastError && lastError.message === 'not-a-file') {
+      throw new Error(`Kilden er ikke en fil for ${pkgName}: ${attemptedPaths}`);
+    }
+    throw new Error(`Fant ikke kildefilen for ${pkgName}: ${attemptedPaths}`);
   }
+  const destDir = path.resolve(repoRoot, 'public', 'vendor', pkgName);
+  const dest = path.join(destDir, fileName);
 
   if (await pathsAreEqual(src, dest, srcStat)) {
     return { status: 'skipped', pkgName, fileName };
@@ -106,7 +121,10 @@ async function materializeVendor() {
       throw new Error(`Ugyldig manifestoppføring for ${pkgName}`);
     }
     const { source, files } = descriptor;
-    if (typeof source !== 'string' || !source) {
+    const hasValidSource =
+      (typeof source === 'string' && source) ||
+      (Array.isArray(source) && source.length > 0 && source.every(entry => typeof entry === 'string' && entry));
+    if (!hasValidSource) {
       throw new Error(`Oppføringen for ${pkgName} mangler 'source'.`);
     }
     if (!Array.isArray(files) || files.length === 0) {
