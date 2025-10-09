@@ -63,7 +63,7 @@ async function pathsAreEqual(src, dest, srcStat) {
   }
 }
 
-async function copyFileIfNeeded(pkgName, sourceDir, fileName) {
+async function copyFileIfNeeded(pkgName, sourceDir, fileName, { optional = false } = {}) {
   const src = path.resolve(repoRoot, sourceDir, fileName);
   const destDir = path.resolve(repoRoot, 'public', 'vendor', pkgName);
   const dest = path.join(destDir, fileName);
@@ -73,11 +73,17 @@ async function copyFileIfNeeded(pkgName, sourceDir, fileName) {
     srcStat = await fs.stat(src);
   } catch (error) {
     if (error && error.code === 'ENOENT') {
+      if (optional) {
+        return { status: 'missing-optional', pkgName, fileName };
+      }
       throw new Error(`Fant ikke kildefilen for ${pkgName}: ${src}`);
     }
     throw error;
   }
   if (!srcStat.isFile()) {
+    if (optional) {
+      return { status: 'missing-optional', pkgName, fileName };
+    }
     throw new Error(`Kilden er ikke en fil for ${pkgName}: ${src}`);
   }
 
@@ -86,6 +92,7 @@ async function copyFileIfNeeded(pkgName, sourceDir, fileName) {
   }
 
   await ensureDirectory(destDir);
+  await ensureDirectory(path.dirname(dest));
   await fs.copyFile(src, dest);
   await fs.utimes(dest, srcStat.atime, srcStat.mtime);
   return { status: 'copied', pkgName, fileName };
@@ -105,11 +112,22 @@ async function materializeVendor() {
     if (!Array.isArray(files) || files.length === 0) {
       throw new Error(`Oppføringen for ${pkgName} må liste filer i 'files'.`);
     }
-    for (const fileName of files) {
-      if (typeof fileName !== 'string' || !fileName) {
+    for (const fileDescriptor of files) {
+      let fileName;
+      let optional = false;
+      if (typeof fileDescriptor === 'string') {
+        fileName = fileDescriptor;
+      } else if (fileDescriptor && typeof fileDescriptor === 'object' && !Array.isArray(fileDescriptor)) {
+        const { name, optional: isOptional } = fileDescriptor;
+        if (typeof name !== 'string' || !name) {
+          throw new Error(`Oppføringen for ${pkgName} inneholder en ugyldig fil.`);
+        }
+        fileName = name;
+        optional = Boolean(isOptional);
+      } else {
         throw new Error(`Oppføringen for ${pkgName} inneholder en ugyldig fil.`);
       }
-      const result = await copyFileIfNeeded(pkgName, source, fileName);
+      const result = await copyFileIfNeeded(pkgName, source, fileName, { optional });
       results.push(result);
     }
   }
@@ -121,6 +139,8 @@ materializeVendor()
     for (const result of results) {
       if (result.status === 'copied') {
         console.log(`Kopierte ${result.pkgName}/${result.fileName}`);
+      } else if (result.status === 'missing-optional') {
+        console.log(`Mangler valgfri ${result.pkgName}/${result.fileName}`);
       } else {
         console.log(`Uendret ${result.pkgName}/${result.fileName}`);
       }
