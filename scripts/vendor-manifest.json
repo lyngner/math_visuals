@@ -12,17 +12,6 @@
         "targetCss": "katex.min.css"
       }
     },
-    "mathlive": {
-      "baseDir": "node_modules/mathlive",
-      "files": [
-        "mathlive-static.css",
-        "mathlive.min.js"
-      ],
-      "directories": [
-        "fonts",
-        "sounds"
-      ]
-    },
     "jsxgraph": {
       "baseDir": "node_modules/jsxgraph/distrib",
       "files": [

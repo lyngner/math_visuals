@@ -3500,17 +3500,6 @@ function setupSettingsForm() {
   let linePointVisibleCount = 0;
   let linePointsEdited = false;
   const MATHFIELD_TAG = 'MATH-FIELD';
-  const nav = typeof navigator !== 'undefined' ? navigator : null;
-  const hasTouchSupport = typeof window !== 'undefined' && (
-    'ontouchstart' in window ||
-    (nav && (nav.maxTouchPoints > 0 || nav.msMaxTouchPoints > 0))
-  );
-  const hasCoarsePointer = typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(pointer: coarse)').matches;
-  const enableVirtualKeyboard = hasTouchSupport || hasCoarsePointer;
-  const mathFieldKeyboardMode = enableVirtualKeyboard ? 'onfocus' : 'off';
-  const mathFieldKeyboardAttr = `virtual-keyboard-mode="${mathFieldKeyboardMode}"`;
   const COMMAND_NAME_MAP = {
     cdot: '*',
     times: '*',
@@ -3763,6 +3752,29 @@ function setupSettingsForm() {
     const val = element.value != null ? element.value : '';
     return normalizePlainExpression(val);
   };
+  const getMathFieldConstructor = () => {
+    if (typeof window === 'undefined') return null;
+    if (window.customElements && typeof window.customElements.get === 'function') {
+      const defined = window.customElements.get('math-field');
+      if (defined) {
+        return defined;
+      }
+    }
+    if (typeof window.MathfieldElement !== 'undefined') {
+      return window.MathfieldElement;
+    }
+    return null;
+  };
+  const isMathLiveReady = () => {
+    const ctor = getMathFieldConstructor();
+    if (!ctor || !ctor.prototype) {
+      return false;
+    }
+    return (
+      typeof ctor.prototype.getValue === 'function' &&
+      typeof ctor.prototype.setValue === 'function'
+    );
+  };
   const ensureMathFieldOptions = field => {
     if (field && typeof field.setOptions === 'function') {
       field.setOptions({
@@ -3770,6 +3782,34 @@ function setupSettingsForm() {
         virtualKeyboardMode: 'off'
       });
     }
+  };
+  const convertMathFieldToTextInput = field => {
+    if (!field) return field;
+    const replacement = document.createElement('input');
+    replacement.type = 'text';
+    replacement.className = field.className || '';
+    replacement.setAttribute('aria-label', field.getAttribute('aria-label') || '');
+    if (field.hasAttribute('placeholder')) {
+      replacement.setAttribute('placeholder', field.getAttribute('placeholder'));
+    }
+    if (field.dataset) {
+      Object.keys(field.dataset).forEach(key => {
+        replacement.dataset[key] = field.dataset[key];
+      });
+    }
+    if (typeof field.value === 'string' && field.value) {
+      replacement.value = field.value;
+    }
+    field.replaceWith(replacement);
+    return replacement;
+  };
+  const ensureFunctionInputElement = element => {
+    if (!element) return element;
+    const tag = element.tagName ? element.tagName.toUpperCase() : '';
+    if (tag === MATHFIELD_TAG && !isMathLiveReady()) {
+      return convertMathFieldToTextInput(element);
+    }
+    return element;
   };
   const setFunctionInputValue = (element, value) => {
     if (!element) return;
@@ -4241,6 +4281,7 @@ function setupSettingsForm() {
     row.className = 'func-group';
     row.dataset.index = String(index);
     const titleLabel = index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index;
+    const placeholderAttr = index === 1 ? ' placeholder="f(x)=x^2-2"' : '';
     if (index === 1) {
       row.innerHTML = `
         <fieldset>
@@ -4251,7 +4292,7 @@ function setupSettingsForm() {
                 <label class="func-input">
                   <span>${titleLabel}</span>
                   <div class="func-editor">
-                    <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
+                    <input type="text" data-fun class="func-math-field" aria-label="${titleLabel}" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"${placeholderAttr}>
                   </div>
                 </label>
               </div>
@@ -4297,7 +4338,7 @@ function setupSettingsForm() {
                 <label class="func-input">
                   <span>${titleLabel}</span>
                   <div class="func-editor">
-                    <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"></math-field>
+                    <input type="text" data-fun class="func-math-field" aria-label="${titleLabel}" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"${placeholderAttr}>
                   </div>
                 </label>
               </div>
@@ -4313,7 +4354,8 @@ function setupSettingsForm() {
     if (funcRows) {
       funcRows.appendChild(row);
     }
-    const funInput = row.querySelector('[data-fun]');
+    let funInput = row.querySelector('[data-fun]');
+    funInput = ensureFunctionInputElement(funInput);
     const domInput = row.querySelector('input[data-dom]');
     if (funInput) {
       setFunctionInputValue(funInput, funVal || '');
