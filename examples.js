@@ -1888,19 +1888,56 @@
   async function deleteLegacyBackendEntries(paths, skipPath) {
     if (!examplesApiBase) return;
     if (!Array.isArray(paths) || paths.length === 0) return;
-    const skipped = new Set();
-    skipped.add(storagePath);
-    if (skipPath) skipped.add(skipPath);
-    for (const legacyPath of paths) {
-      if (!legacyPath || skipped.has(legacyPath)) continue;
-      const legacyUrl = buildExamplesApiUrl(examplesApiBase, legacyPath);
-      if (!legacyUrl) continue;
+    const canonicalSkips = new Set();
+    const canonicalPath = typeof storagePath === 'string' ? storagePath.trim() : '';
+    if (canonicalPath) {
+      canonicalSkips.add(canonicalPath);
+      if (!canonicalPath.endsWith('/')) {
+        canonicalSkips.add(`${canonicalPath}/`);
+      }
+    }
+    const skipExact = typeof skipPath === 'string' ? skipPath.trim() : '';
+    if (skipExact) {
+      canonicalSkips.add(skipExact);
+    }
+    const attempted = new Set();
+    const buildDeleteVariants = legacyPath => {
+      const variants = [];
+      const trimmed = typeof legacyPath === 'string' ? legacyPath.trim() : '';
+      if (!trimmed) return variants;
+      variants.push(trimmed);
       try {
-        const res = await fetch(legacyUrl, { method: 'DELETE' });
-        if (!res || (!res.ok && res.status !== 404)) {
-          continue;
+        const normalized = normalizePathname(trimmed, { preserveCase: true });
+        if (normalized && normalized !== trimmed) {
+          variants.push(normalized);
         }
+        const appendIndex = value => {
+          if (!value || /\.html?$/i.test(value)) return;
+          const base = value.endsWith('/') ? value : `${value}/`;
+          variants.push(base + 'index.html');
+        };
+        appendIndex(trimmed);
+        appendIndex(normalized);
       } catch (_) {}
+      return variants;
+    };
+    for (const legacyPath of paths) {
+      const candidates = buildDeleteVariants(legacyPath);
+      for (const candidate of candidates) {
+        if (!candidate) continue;
+        const trimmedCandidate = candidate.trim();
+        if (!trimmedCandidate || attempted.has(trimmedCandidate)) continue;
+        attempted.add(trimmedCandidate);
+        if (canonicalSkips.has(trimmedCandidate)) continue;
+        const legacyUrl = buildExamplesApiUrl(examplesApiBase, trimmedCandidate);
+        if (!legacyUrl) continue;
+        try {
+          const res = await fetch(legacyUrl, { method: 'DELETE' });
+          if (!res || (!res.ok && res.status !== 404)) {
+            continue;
+          }
+        } catch (_) {}
+      }
     }
   }
   async function loadExamplesFromBackend() {
@@ -3063,6 +3100,16 @@
       ? normalizedList[0]
       : {};
     const copy = { ...base };
+    if (typeof copy.description === 'string') {
+      copy.description = copy.description.trim();
+    }
+    if (!copy.description) {
+      const originalDescription =
+        typeof example.description === 'string' ? normalizeDescriptionString(example.description) : '';
+      if (originalDescription) {
+        copy.description = originalDescription;
+      }
+    }
     if (Object.prototype.hasOwnProperty.call(copy, '__builtinKey')) {
       const key = normalizeKey(copy.__builtinKey);
       if (key) {
