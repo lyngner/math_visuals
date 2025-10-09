@@ -1145,6 +1145,7 @@
   const historyKey = key + '_history';
   const trashKey = key + '_trash';
   const trashMigratedKey = key + '_trash_migrated_v1';
+  const updatedAtKey = key + '_updatedAtMs';
   const MAX_TRASH_ENTRIES = 200;
   const MAX_HISTORY_ENTRIES = 10;
   let lastStoredRawValue = null;
@@ -1153,6 +1154,40 @@
   let trashEntriesCache = null;
   let trashEntriesLoaded = false;
   let trashMigrationAttempted = false;
+  function parseUpdatedAtValue(value) {
+    if (value == null) return 0;
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    if (!trimmed) return 0;
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return numeric;
+    }
+    const parsed = Date.parse(trimmed);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+    return 0;
+  }
+  function loadPersistedUpdatedAt() {
+    let raw = null;
+    try {
+      raw = safeGetItem(updatedAtKey);
+    } catch (_) {
+      raw = null;
+    }
+    return parseUpdatedAtValue(raw);
+  }
+  function persistLocalUpdatedAt(value) {
+    if (!Number.isFinite(value) || value <= 0) {
+      try {
+        safeRemoveItem(updatedAtKey);
+      } catch (_) {}
+      return;
+    }
+    try {
+      safeSetItem(updatedAtKey, String(value));
+    } catch (_) {}
+  }
   function normalizeHistoryEntry(entry) {
     if (!entry || typeof entry !== 'object') return null;
     const raw = typeof entry.data === 'string' ? entry.data.trim() : '';
@@ -1519,6 +1554,8 @@
         safeRemoveItem(key);
       } catch (_) {}
       lastStoredRawValue = null;
+      lastLocalUpdateMs = 0;
+      persistLocalUpdatedAt(0);
       if (skipBackendSync) {
         backendSyncDeferred = true;
       } else {
@@ -1821,6 +1858,7 @@
         }
         if (backendUpdatedAtMs > lastLocalUpdateMs) {
           lastLocalUpdateMs = backendUpdatedAtMs;
+          persistLocalUpdatedAt(lastLocalUpdateMs);
         }
       }
       const deletedProvided = data && Array.isArray(data.deletedProvided) ? data.deletedProvided : [];
@@ -3043,7 +3081,7 @@
   }
   let cachedExamples = [];
   let cachedExamplesInitialized = false;
-  let lastLocalUpdateMs = 0;
+  let lastLocalUpdateMs = loadPersistedUpdatedAt();
   function getExamples() {
     if (!cachedExamplesInitialized) {
       cachedExamplesInitialized = true;
@@ -3080,8 +3118,9 @@
     const reason = typeof opts.reason === 'string' ? opts.reason : '';
     const skipBackendSync = opts.skipBackendSync === true;
     const applied = applyRawExamples(serialized, opts);
-    if (applied && isUserInitiatedReason(reason) && !skipBackendSync) {
+    if (applied && isUserInitiatedReason(reason)) {
       lastLocalUpdateMs = Date.now();
+      persistLocalUpdatedAt(lastLocalUpdateMs);
     }
   }
   const BINDING_NAMES = ['STATE', 'CFG', 'CONFIG', 'SIMPLE'];
