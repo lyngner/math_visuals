@@ -3317,6 +3317,50 @@
   const updateBtn = document.getElementById('btnUpdateExample');
   const deleteBtn = document.getElementById('btnDeleteExample');
   if (!createBtn && !updateBtn && !deleteBtn) return;
+
+  function serializeValueForComparison(value) {
+    const normalized = serializeExampleValue(value, new WeakMap());
+    if (normalized === undefined) {
+      return 'undefined';
+    }
+    try {
+      return JSON.stringify(normalized);
+    } catch (error) {
+      try {
+        return JSON.stringify(cloneValue(normalized));
+      } catch (_) {
+        return '';
+      }
+    }
+  }
+
+  function hasMeaningfulExampleChanges(previous, next) {
+    if (!previous && next) return true;
+    if (!next) return false;
+    const prevConfig = previous && typeof previous === 'object' ? previous.config : undefined;
+    const nextConfig = next && typeof next === 'object' ? next.config : undefined;
+    if (serializeValueForComparison(prevConfig) !== serializeValueForComparison(nextConfig)) {
+      return true;
+    }
+    const prevDescription = extractDescriptionFromExample(previous);
+    const nextDescription = extractDescriptionFromExample(next);
+    if (prevDescription !== nextDescription) {
+      return true;
+    }
+    const prevSvg = sanitizeSvgForStorage(previous && previous.svg);
+    const nextSvg = sanitizeSvgForStorage(next && next.svg);
+    return prevSvg !== nextSvg;
+  }
+
+  function detachProvidedMetadata(example) {
+    if (!example || typeof example !== 'object') return;
+    if (Object.prototype.hasOwnProperty.call(example, '__builtinKey')) {
+      delete example.__builtinKey;
+    }
+    if (Object.prototype.hasOwnProperty.call(example, 'id')) {
+      delete example.id;
+    }
+  }
   ensureTabStyles();
   const toolbar = (updateBtn === null || updateBtn === void 0 ? void 0 : updateBtn.parentElement) || (createBtn === null || createBtn === void 0 ? void 0 : createBtn.parentElement) || (deleteBtn === null || deleteBtn === void 0 ? void 0 : deleteBtn.parentElement);
   tabsContainer = document.createElement('div');
@@ -3519,6 +3563,10 @@
       updated.description = typeof payload.description === 'string' ? payload.description : '';
     } else {
       updated.description = getDescriptionValue();
+    }
+    const shouldDetach = existing && typeof existing === 'object' && typeof existing.__builtinKey === 'string' && existing.__builtinKey && hasMeaningfulExampleChanges(existing, updated);
+    if (shouldDetach) {
+      detachProvidedMetadata(updated);
     }
     examples[indexToUpdate] = updated;
     store(examples, {
