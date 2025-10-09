@@ -572,6 +572,7 @@ const STYLE_DEFAULTS = {
   faceFill: "#f5f7fa",
   edgeStroke: "#333",
   edgeWidth: 4,
+  radiusStroke: null,
   angStroke: "#147a9c",
   angWidth: 4,
   angFill: "#147a9c22",
@@ -590,6 +591,7 @@ const STYLE_PROFILE_OVERRIDES = {
   campus: {
     faceFill: "#2C395B",
     edgeStroke: "#2C395B",
+    radiusStroke: "#ffffff",
     angStroke: "#ffffff",
     angFill: "rgba(255, 255, 255, 0.9)",
     textFill: "#ffffff",
@@ -2649,7 +2651,7 @@ function drawCircleToGroup(g, rect, spec) {
     y1: cy,
     x2: endX,
     y2: endY,
-    stroke: STYLE.edgeStroke,
+    stroke: STYLE.radiusStroke || STYLE.edgeStroke,
     "stroke-width": STYLE.edgeWidth * 0.75,
     "stroke-linecap": "round"
   });
@@ -2657,7 +2659,7 @@ function drawCircleToGroup(g, rect, spec) {
     cx,
     cy,
     r: 6,
-    fill: STYLE.edgeStroke
+    fill: STYLE.radiusStroke || STYLE.edgeStroke
   });
   if (radiusText) {
     const midX = cx + circleRadius * Math.cos(radiusAngle) * 0.55;
