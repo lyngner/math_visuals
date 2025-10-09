@@ -1,4 +1,5 @@
 node_modules/
+public/vendor/
 playwright-report/
 test-results/
 .cache/

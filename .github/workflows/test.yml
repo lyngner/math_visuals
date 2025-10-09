@@ -23,6 +23,12 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Materialize vendor assets
+        run: npm run materialize-vendor
+
+      - name: Verify vendor manifest
+        run: npm run materialize-vendor -- --check
+
       - name: Install Playwright browsers (Chromium, Firefox, WebKit)
         run: npx playwright install --with-deps
 

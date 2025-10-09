@@ -3,11 +3,15 @@ import { createReadStream } from 'fs';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import process from 'process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const manifestPath = path.join(__dirname, 'vendor-manifest.json');
+const vendorRoot = path.resolve(repoRoot, 'public', 'vendor');
+const argv = process.argv.slice(2);
+const checkMode = argv.includes('--check');
 
 async function readManifest() {
   let raw;
@@ -44,12 +48,15 @@ async function hashFile(filePath) {
   });
 }
 
-async function pathsAreEqual(src, dest, srcStat) {
+async function pathsAreEqual(src, dest, srcStat, destStat = null) {
   try {
-    const destStat = await fs.stat(dest);
-    if (!destStat.isFile()) return false;
-    const sameMtime = Math.abs(destStat.mtimeMs - srcStat.mtimeMs) < 1;
-    if (sameMtime && destStat.size === srcStat.size) {
+    let destStats = destStat;
+    if (!destStats) {
+      destStats = await fs.stat(dest);
+    }
+    if (!destStats.isFile()) return false;
+    const sameMtime = Math.abs(destStats.mtimeMs - srcStat.mtimeMs) < 1;
+    if (sameMtime && destStats.size === srcStat.size) {
       return true;
     }
     const [srcHash, destHash] = await Promise.all([
@@ -63,9 +70,9 @@ async function pathsAreEqual(src, dest, srcStat) {
   }
 }
 
-async function copyFileIfNeeded(pkgName, sourceDir, fileName, { optional = false } = {}) {
+async function copyFileIfNeeded(pkgName, sourceDir, fileName, { optional = false, mode = 'copy' } = {}) {
   const src = path.resolve(repoRoot, sourceDir, fileName);
-  const destDir = path.resolve(repoRoot, 'public', 'vendor', pkgName);
+  const destDir = path.resolve(vendorRoot, pkgName);
   const dest = path.join(destDir, fileName);
 
   let srcStat;
@@ -87,6 +94,25 @@ async function copyFileIfNeeded(pkgName, sourceDir, fileName, { optional = false
     throw new Error(`Kilden er ikke en fil for ${pkgName}: ${src}`);
   }
 
+  if (mode === 'check') {
+    let destStat;
+    try {
+      destStat = await fs.stat(dest);
+    } catch (error) {
+      if (error && error.code === 'ENOENT') {
+        return { status: optional ? 'missing-optional' : 'missing', pkgName, fileName };
+      }
+      throw error;
+    }
+    if (!destStat.isFile()) {
+      return { status: optional ? 'missing-optional' : 'missing', pkgName, fileName };
+    }
+    if (await pathsAreEqual(src, dest, srcStat, destStat)) {
+      return { status: 'ok', pkgName, fileName };
+    }
+    return { status: 'outdated', pkgName, fileName };
+  }
+
   if (await pathsAreEqual(src, dest, srcStat)) {
     return { status: 'skipped', pkgName, fileName };
   }
@@ -98,9 +124,27 @@ async function copyFileIfNeeded(pkgName, sourceDir, fileName, { optional = false
   return { status: 'copied', pkgName, fileName };
 }
 
+async function listFilesRecursively(rootDir) {
+  const entries = await fs.readdir(rootDir, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const entryPath = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      const subFiles = await listFilesRecursively(entryPath);
+      for (const subFile of subFiles) {
+        files.push(path.join(entry.name, subFile));
+      }
+    } else if (entry.isFile()) {
+      files.push(entry.name);
+    }
+  }
+  return files;
+}
+
 async function materializeVendor() {
   const manifest = await readManifest();
   const results = [];
+  const expectedFiles = new Map();
   for (const [pkgName, descriptor] of Object.entries(manifest)) {
     if (!descriptor || typeof descriptor !== 'object') {
       throw new Error(`Ugyldig manifestoppføring for ${pkgName}`);
@@ -112,6 +156,8 @@ async function materializeVendor() {
     if (!Array.isArray(files) || files.length === 0) {
       throw new Error(`Oppføringen for ${pkgName} må liste filer i 'files'.`);
     }
+    const expectedSet = new Set();
+    expectedFiles.set(pkgName, expectedSet);
     for (const fileDescriptor of files) {
       let fileName;
       let optional = false;
@@ -127,8 +173,55 @@ async function materializeVendor() {
       } else {
         throw new Error(`Oppføringen for ${pkgName} inneholder en ugyldig fil.`);
       }
-      const result = await copyFileIfNeeded(pkgName, source, fileName, { optional });
+      expectedSet.add(fileName);
+      const result = await copyFileIfNeeded(pkgName, source, fileName, { optional, mode: checkMode ? 'check' : 'copy' });
       results.push(result);
+    }
+  }
+
+  if (checkMode) {
+    let vendorEntries = [];
+    try {
+      vendorEntries = await fs.readdir(vendorRoot, { withFileTypes: true });
+    } catch (error) {
+      if (!(error && error.code === 'ENOENT')) {
+        throw error;
+      }
+      vendorEntries = [];
+    }
+    for (const entry of vendorEntries) {
+      if (!entry.isDirectory()) continue;
+      const pkgName = entry.name;
+      if (!expectedFiles.has(pkgName)) {
+        const extraFiles = await listFilesRecursively(path.join(vendorRoot, pkgName));
+        for (const fileName of extraFiles) {
+          results.push({ status: 'extraneous', pkgName, fileName });
+        }
+      }
+    }
+
+    for (const [pkgName, expectedSet] of expectedFiles.entries()) {
+      const packageVendorDir = path.resolve(vendorRoot, pkgName);
+      let actualFiles = [];
+      try {
+        actualFiles = await listFilesRecursively(packageVendorDir);
+      } catch (error) {
+        if (!(error && error.code === 'ENOENT')) {
+          throw error;
+        }
+        if (expectedSet.size === 0) {
+          continue;
+        }
+        if (![...expectedSet].every(fileName => fileName.includes('fonts/'))) {
+          // Missing directory already handled by file checks (missing status)
+        }
+        continue;
+      }
+      for (const fileName of actualFiles) {
+        if (!expectedSet.has(fileName)) {
+          results.push({ status: 'extraneous', pkgName, fileName });
+        }
+      }
     }
   }
   return results;
@@ -136,14 +229,32 @@ async function materializeVendor() {
 
 materializeVendor()
   .then(results => {
+    let hasErrors = false;
     for (const result of results) {
       if (result.status === 'copied') {
         console.log(`Kopierte ${result.pkgName}/${result.fileName}`);
+      } else if (result.status === 'skipped') {
+        console.log(`Uendret ${result.pkgName}/${result.fileName}`);
       } else if (result.status === 'missing-optional') {
         console.log(`Mangler valgfri ${result.pkgName}/${result.fileName}`);
+      } else if (result.status === 'ok') {
+        console.log(`OK ${result.pkgName}/${result.fileName}`);
+      } else if (result.status === 'missing') {
+        console.error(`Mangler ${result.pkgName}/${result.fileName}`);
+        hasErrors = true;
+      } else if (result.status === 'outdated') {
+        console.error(`Utdatert ${result.pkgName}/${result.fileName}`);
+        hasErrors = true;
+      } else if (result.status === 'extraneous') {
+        console.error(`Overflødig fil i vendor: ${result.pkgName}/${result.fileName}`);
+        hasErrors = true;
       } else {
-        console.log(`Uendret ${result.pkgName}/${result.fileName}`);
+        console.log(`${result.status} ${result.pkgName}/${result.fileName}`);
       }
+    }
+    if (checkMode && hasErrors) {
+      console.error('Vendor-mappene er ikke oppdatert. Kjør "npm run materialize-vendor" for å regenerere filene.');
+      process.exitCode = 1;
     }
   })
   .catch(error => {
