@@ -1801,9 +1801,24 @@
       const backendIsStale = backendUpdatedAtMs < lastLocalUpdateMs;
       const shouldApplyExamples = examples.length > 0 || !hasLocalExamples;
       if (shouldApplyExamples && !backendIsStale) {
+        const previousIndex = Number.isInteger(currentExampleIndex) ? currentExampleIndex : null;
         store(examples, {
           reason: 'backend-sync'
         });
+        if (initialLoadPerformed) {
+          try {
+            const refreshed = getExamples();
+            if (Array.isArray(refreshed) && refreshed.length > 0) {
+              let indexToLoad = Number.isInteger(previousIndex) ? previousIndex : 0;
+              if (indexToLoad < 0) {
+                indexToLoad = 0;
+              } else if (indexToLoad >= refreshed.length) {
+                indexToLoad = refreshed.length - 1;
+              }
+              loadExample(indexToLoad);
+            }
+          } catch (_) {}
+        }
         if (backendUpdatedAtMs > lastLocalUpdateMs) {
           lastLocalUpdateMs = backendUpdatedAtMs;
         }
