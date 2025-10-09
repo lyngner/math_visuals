@@ -4,7 +4,70 @@
   if (!doc) return;
 
   const KATEX_VERSION = '0.16.9';
-  const KATEX_BASE_PATH = '/vendor/cdn/katex';
+  const DEFAULT_KATEX_BASE_PATH = '/vendor/cdn/katex';
+  const scriptList = () => {
+    if (!doc || typeof doc.getElementsByTagName !== 'function') return [];
+    const list = [];
+    if (doc.currentScript) list.push(doc.currentScript);
+    list.push(...doc.getElementsByTagName('script'));
+    return list;
+  };
+
+  const normalizeBasePath = value => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    return trimmed.replace(/\/+$/, '');
+  };
+
+  const resolveFromScript = script => {
+    if (!script) return null;
+    const dataValue = script.dataset && (script.dataset.mathVisKatexBase || script.dataset.mathvisKatexBase);
+    const attrValue = script.getAttribute && (script.getAttribute('data-math-vis-katex-base') || script.getAttribute('data-mathvis-katex-base'));
+    const explicit = normalizeBasePath(dataValue || attrValue);
+    if (explicit) return explicit;
+    if (script.src) {
+      try {
+        const url = new URL('vendor/cdn/katex/', script.src);
+        return normalizeBasePath(url.href);
+      } catch (error) {
+        // Ignore resolution errors and fall through to other strategies.
+      }
+    }
+    return null;
+  };
+
+  const resolveKatexBasePath = () => {
+    const explicitGlobal = normalizeBasePath(global.__MATH_VIS_KATEX_BASE_PATH__);
+    if (explicitGlobal) return explicitGlobal;
+
+    for (const script of scriptList()) {
+      const resolved = resolveFromScript(script);
+      if (resolved) return resolved;
+    }
+
+    if (doc && typeof doc.baseURI === 'string') {
+      try {
+        const url = new URL(DEFAULT_KATEX_BASE_PATH.replace(/^\//, ''), doc.baseURI);
+        return normalizeBasePath(url.href) || DEFAULT_KATEX_BASE_PATH;
+      } catch (error) {
+        // Ignore resolution errors and fall back to default path.
+      }
+    }
+
+    if (global.location && typeof global.location.href === 'string') {
+      try {
+        const url = new URL(DEFAULT_KATEX_BASE_PATH.replace(/^\//, ''), global.location.href);
+        return normalizeBasePath(url.href) || DEFAULT_KATEX_BASE_PATH;
+      } catch (error) {
+        // Ignore resolution errors and fall back to default path.
+      }
+    }
+
+    return DEFAULT_KATEX_BASE_PATH;
+  };
+
+  const KATEX_BASE_PATH = resolveKatexBasePath();
   const KATEX_CSS_ID = 'math-vis-katex-style';
   const KATEX_SCRIPT_ID = 'math-vis-katex-script';
   const ANSWERBOX_STATUS_MESSAGES = {
