@@ -1,0 +1,6 @@
+{
+  "katex": {
+    "source": "node_modules/katex/dist",
+    "files": ["katex.min.css", "katex.min.js"]
+  }
+}
