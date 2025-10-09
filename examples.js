@@ -1652,6 +1652,15 @@
   let backendSyncTimer = null;
   let backendSyncPromise = null;
   let backendSyncRequested = false;
+  const INITIAL_LOAD_REASON_URL_OVERRIDES = 'url-overrides';
+  const INITIAL_LOAD_REASON_EXAMPLE_LOADED = 'example-loaded';
+  const INITIAL_LOAD_REASON_OTHER = 'other';
+  let initialLoadPerformed = false;
+  let initialLoadReason = null;
+  function markInitialLoadPerformed(reason) {
+    initialLoadPerformed = true;
+    initialLoadReason = reason || INITIAL_LOAD_REASON_OTHER;
+  }
   function markBackendAvailable() {
     backendAvailable = true;
     setMemoryFallbackNoticeSuppressed(true);
@@ -1784,7 +1793,7 @@
         store(examples, {
           reason: 'backend-sync'
         });
-        if (initialLoadPerformed) {
+        if (initialLoadPerformed && initialLoadReason !== INITIAL_LOAD_REASON_URL_OVERRIDES) {
           try {
             const refreshed = getExamples();
             if (Array.isArray(refreshed) && refreshed.length > 0) {
@@ -2002,7 +2011,6 @@
       }
     }
   }
-  let initialLoadPerformed = false;
   let currentExampleIndex = null;
   let tabsContainer = null;
   let tabButtons = [];
@@ -2981,7 +2989,7 @@
     return false;
   })();
   if (hasUrlOverrides) {
-    initialLoadPerformed = true;
+    markInitialLoadPerformed(INITIAL_LOAD_REASON_URL_OVERRIDES);
   }
   let cachedExamples = [];
   let cachedExamplesInitialized = false;
@@ -3538,7 +3546,7 @@
     if (applied) {
       currentExampleIndex = index;
       pendingRequestedIndex = null;
-      initialLoadPerformed = true;
+      markInitialLoadPerformed(INITIAL_LOAD_REASON_EXAMPLE_LOADED);
       updateTabSelection();
       triggerRefresh(index);
       notifyParentExampleChange(index);
@@ -3566,7 +3574,7 @@
         index
       } = JSON.parse(loadInfo);
       if (path === location.pathname) {
-        if (loadExample(index)) initialLoadPerformed = true;
+        loadExample(index);
       }
     } catch (error) {}
     safeRemoveItem('example_to_load');
@@ -3667,7 +3675,6 @@
     const loadNow = () => {
       if (initialLoadPerformed) return;
       if (loadExample(normalizedIndex)) {
-        initialLoadPerformed = true;
         pendingRequestedIndex = null;
       }
     };
@@ -3745,7 +3752,7 @@
       let idx = Number.isInteger(currentExampleIndex) ? currentExampleIndex : 0;
       if (idx < 0) idx = 0;
       if (idx >= examples.length) idx = examples.length - 1;
-      if (loadExample(idx)) initialLoadPerformed = true;
+      loadExample(idx);
     }
   }
   function collectCurrentExampleState() {
@@ -4090,7 +4097,6 @@
           const normalizedIndex = clampExampleIndex(pendingRequestedIndex, refreshed.length);
           if (normalizedIndex != null) {
             if (loadExample(normalizedIndex)) {
-              initialLoadPerformed = true;
               pendingRequestedIndex = null;
             }
           } else {
@@ -4115,9 +4121,7 @@
           if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= refreshed.length) {
             targetIndex = 0;
           }
-          if (loadExample(targetIndex)) {
-            initialLoadPerformed = true;
-          }
+          loadExample(targetIndex);
         }
       }
       if (globalForceProvided && typeof window !== 'undefined' && window) {
