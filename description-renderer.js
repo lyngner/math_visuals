@@ -76,6 +76,13 @@
         };
         function handleError() {
           currentScript.removeEventListener('load', handleLoad);
+          currentScript.removeEventListener('error', handleError);
+          if (currentScript.dataset.mathvisHandlersAttached === 'true') {
+            delete currentScript.dataset.mathvisHandlersAttached;
+          }
+          if (currentScript.hasAttribute('data-mathvis-loader') && currentScript.parentNode) {
+            currentScript.parentNode.removeChild(currentScript);
+          }
           cleanupOnError(new Error('Failed to load KaTeX script'));
         }
         currentScript.addEventListener('load', handleLoad, { once: true });
