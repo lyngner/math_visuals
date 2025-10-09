@@ -1,4 +1,11 @@
 {
+  "jsxgraph": {
+    "source": "node_modules/jsxgraph/distrib",
+    "files": [
+      "jsxgraph.css",
+      "jsxgraphcore.js"
+    ]
+  },
   "katex": {
     "source": "node_modules/katex/dist",
     "files": [
