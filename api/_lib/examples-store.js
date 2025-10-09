@@ -311,14 +311,20 @@ async function persistFallbackStore() {
   }
 }
 
-function normalizePath(value) {
+function normalizePath(value, options) {
   if (typeof value !== 'string') return null;
+  const opts = options || {};
+  const stripHtml = opts.stripHtml !== false;
   let path = value.trim();
   if (!path) return null;
   if (!path.startsWith('/')) path = '/' + path;
   path = path.replace(/[\\]+/g, '/');
   path = path.replace(/\/+/g, '/');
   path = path.replace(/\/index\.html?$/i, '/');
+  if (stripHtml && /\.html?$/i.test(path)) {
+    path = path.replace(/\.html?$/i, '');
+    if (!path) path = '/';
+  }
   if (path.length > 1 && path.endsWith('/')) {
     path = path.slice(0, -1);
   }
@@ -448,8 +454,8 @@ function readFromMemory(path) {
   return value ? clone(value) : null;
 }
 
-async function getEntry(path) {
-  const normalized = normalizePath(path);
+async function getEntry(path, options) {
+  const normalized = normalizePath(path, options);
   if (!normalized) return null;
   await ensureFallbackLoaded();
   const kvValue = await readFromKv(normalized);
@@ -468,8 +474,8 @@ async function getEntry(path) {
   return null;
 }
 
-async function setEntry(path, payload) {
-  const normalized = normalizePath(path);
+async function setEntry(path, payload, options) {
+  const normalized = normalizePath(path, options);
   if (!normalized) return null;
   await ensureFallbackLoaded();
   const entry = buildEntry(normalized, payload || {});
@@ -492,8 +498,8 @@ async function setEntry(path, payload) {
   return clone(entry);
 }
 
-async function deleteEntry(path) {
-  const normalized = normalizePath(path);
+async function deleteEntry(path, options) {
+  const normalized = normalizePath(path, options);
   if (!normalized) return false;
   await ensureFallbackLoaded();
   const result = await deleteFromKv(normalized);

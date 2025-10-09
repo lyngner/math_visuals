@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
 const {
+  normalizePath,
   setEntry,
   getEntry,
   deleteEntry,
@@ -48,5 +49,19 @@ test.describe('examples-store serialization', () => {
     ]);
 
     await deleteEntry(path);
+  });
+});
+
+test.describe('examples-store normalizePath', () => {
+  test('strips html extensions by default', () => {
+    expect(normalizePath('/graftegner.html')).toBe('/graftegner');
+    expect(normalizePath('/graftegner.htm')).toBe('/graftegner');
+    expect(normalizePath('/sub/side/index.html')).toBe('/sub/side');
+  });
+
+  test('preserves html extensions when requested', () => {
+    expect(normalizePath('/graftegner.html', { stripHtml: false })).toBe('/graftegner.html');
+    expect(normalizePath('graftegner.html', { stripHtml: false })).toBe('/graftegner.html');
+    expect(normalizePath('/sub/side/index.html', { stripHtml: false })).toBe('/sub/side');
   });
 });

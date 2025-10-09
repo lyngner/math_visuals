@@ -101,12 +101,15 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const queryPath = normalizePath(url.searchParams.get('path'));
+  const rawParam = url.searchParams.get('raw');
+  const treatAsRaw = typeof rawParam === 'string' && /^(1|true)$/i.test(rawParam.trim());
+  const queryOptions = treatAsRaw ? { stripHtml: false } : undefined;
+  const queryPath = normalizePath(url.searchParams.get('path'), queryOptions);
 
   try {
     if (req.method === 'GET') {
       if (queryPath) {
-        const entry = await getEntry(queryPath);
+        const entry = await getEntry(queryPath, queryOptions);
         if (!entry) {
           sendJson(res, 404, { error: 'Not Found' });
           return;
@@ -125,7 +128,7 @@ module.exports = async function handler(req, res) {
         sendJson(res, 400, { error: 'Missing path parameter' });
         return;
       }
-      await deleteEntry(target);
+      await deleteEntry(target, queryOptions);
       res.setHeader('X-Examples-Storage-Result', getStoreMode());
       sendJson(res, 200, { ok: true });
       return;

@@ -933,23 +933,46 @@
     }
     return null;
   }
-  function buildExamplesApiUrl(base, path) {
+  function buildExamplesApiUrl(base, path, options) {
     if (!base) return null;
+    const opts = options || {};
+    const raw = !!opts.raw;
     if (typeof window === 'undefined') {
-      if (!path) return base;
+      const queryParts = [];
+      if (path) {
+        queryParts.push(`path=${encodeURIComponent(path)}`);
+      }
+      if (raw) {
+        queryParts.push('raw=1');
+      }
+      if (queryParts.length === 0) {
+        return base;
+      }
       const sep = base.includes('?') ? '&' : '?';
-      return `${base}${sep}path=${encodeURIComponent(path)}`;
+      return `${base}${sep}${queryParts.join('&')}`;
     }
     try {
       const url = new URL(base, window.location && window.location.href ? window.location.href : undefined);
       if (path) {
         url.searchParams.set('path', path);
       }
+      if (raw) {
+        url.searchParams.set('raw', '1');
+      }
       return url.toString();
     } catch (error) {
-      if (!path) return base;
+      const queryParts = [];
+      if (path) {
+        queryParts.push(`path=${encodeURIComponent(path)}`);
+      }
+      if (raw) {
+        queryParts.push('raw=1');
+      }
+      if (queryParts.length === 0) {
+        return base;
+      }
       const sep = base.includes('?') ? '&' : '?';
-      return `${base}${sep}path=${encodeURIComponent(path)}`;
+      return `${base}${sep}${queryParts.join('&')}`;
     }
   }
   if (globalScope && !globalScope.__EXAMPLES_STORAGE__) {
@@ -1654,6 +1677,118 @@
     setMemoryFallbackNoticeSuppressed(false);
     applyPersistentStoragePreference(false);
   }
+  function extractLegacyBackendPaths() {
+    const prefix = 'examples_';
+    const seen = new Set();
+    const paths = [];
+    if (!Array.isArray(legacyKeys)) return paths;
+    legacyKeys.forEach(keyValue => {
+      if (typeof keyValue !== 'string') return;
+      let candidate = keyValue;
+      if (candidate.startsWith(prefix)) {
+        candidate = candidate.slice(prefix.length);
+      }
+      if (!candidate) return;
+      if (!candidate.startsWith('/')) {
+        candidate = `/${candidate}`;
+      }
+      if (!candidate || candidate === storagePath) return;
+      if (seen.has(candidate)) return;
+      seen.add(candidate);
+      paths.push(candidate);
+    });
+    return paths;
+  }
+  async function fetchLegacyBackendEntry() {
+    if (!examplesApiBase) {
+      return { status: 'missing' };
+    }
+    const candidates = extractLegacyBackendPaths();
+    if (candidates.length === 0) {
+      return { status: 'missing' };
+    }
+    for (const legacyPath of candidates) {
+      const legacyUrl = buildExamplesApiUrl(examplesApiBase, legacyPath, { raw: true });
+      if (!legacyUrl) continue;
+      let legacyRes;
+      try {
+        legacyRes = await fetch(legacyUrl, {
+          headers: {
+            Accept: 'application/json'
+          }
+        });
+      } catch (error) {
+        return { status: 'error', error };
+      }
+      if (legacyRes.status === 404) {
+        continue;
+      }
+      if (!legacyRes.ok) {
+        return { status: 'error', statusCode: legacyRes.status };
+      }
+      let legacyData = null;
+      try {
+        legacyData = await legacyRes.json();
+      } catch (error) {
+        return { status: 'error', error };
+      }
+      return {
+        status: 'found',
+        legacyPath,
+        data: legacyData || {}
+      };
+    }
+    return { status: 'missing' };
+  }
+  async function migrateLegacyBackendEntry(legacyPath, entry) {
+    if (!examplesApiBase) return;
+    const canonicalUrl = buildExamplesApiUrl(examplesApiBase, storagePath);
+    if (!canonicalUrl) return;
+    const payload = {
+      path: storagePath,
+      examples: entry && Array.isArray(entry.examples) ? entry.examples : [],
+      deletedProvided:
+        entry && Array.isArray(entry.deletedProvided) ? entry.deletedProvided : [],
+      updatedAt:
+        entry && typeof entry.updatedAt === 'string'
+          ? entry.updatedAt
+          : new Date().toISOString()
+    };
+    let canonicalUploaded = false;
+    try {
+      const putRes = await fetch(canonicalUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      canonicalUploaded = !!(putRes && putRes.ok);
+      if (!canonicalUploaded) {
+        console.warn('[examples] Failed to migrate legacy examples entry to canonical path', {
+          path: storagePath,
+          status: putRes ? putRes.status : 'unknown'
+        });
+      }
+    } catch (error) {
+      console.warn('[examples] Failed to migrate legacy examples entry to canonical path', error);
+    }
+    if (!canonicalUploaded) return;
+    if (!legacyPath || legacyPath === storagePath) return;
+    const deleteUrl = buildExamplesApiUrl(examplesApiBase, legacyPath, { raw: true });
+    if (!deleteUrl) return;
+    try {
+      const deleteRes = await fetch(deleteUrl, { method: 'DELETE' });
+      if (!(deleteRes && (deleteRes.ok || deleteRes.status === 404))) {
+        console.warn('[examples] Failed to delete legacy examples entry', {
+          legacyPath,
+          status: deleteRes ? deleteRes.status : 'unknown'
+        });
+      }
+    } catch (error) {
+      console.warn('[examples] Failed to delete legacy examples entry', error);
+    }
+  }
   async function performBackendSync() {
     if (!examplesApiBase || applyingBackendUpdate) return;
     const url = buildExamplesApiUrl(examplesApiBase, storagePath);
@@ -1820,13 +1955,36 @@
         return null;
       }
       if (res.status === 404) {
+        const legacyResult = await fetchLegacyBackendEntry();
+        if (legacyResult.status === 'error') {
+          markBackendUnavailable();
+          return null;
+        }
+        if (legacyResult.status !== 'found') {
+          markBackendAvailable();
+          backendWasEmpty = true;
+          return {
+            path: storagePath,
+            examples: [],
+            deletedProvided: []
+          };
+        }
+        const legacyData = legacyResult.data || {};
         markBackendAvailable();
-        backendWasEmpty = true;
-        return {
-          path: storagePath,
-          examples: [],
-          deletedProvided: []
-        };
+        const backendExamples = Array.isArray(legacyData.examples) ? legacyData.examples : [];
+        const backendDeleted = Array.isArray(legacyData.deletedProvided)
+          ? legacyData.deletedProvided
+          : [];
+        backendWasEmpty = backendExamples.length === 0 && backendDeleted.length === 0;
+        applyBackendData(legacyData);
+        renderOptions();
+        scheduleEnsureDefaults({ force: true });
+        try {
+          await migrateLegacyBackendEntry(legacyResult.legacyPath, legacyData);
+        } catch (error) {
+          console.warn('[examples] Failed migrating legacy backend entry', error);
+        }
+        return legacyData;
       }
       if (!res.ok) {
         markBackendUnavailable();
