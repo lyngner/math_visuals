@@ -862,9 +862,14 @@
       localStorage.setItem(key, value);
     } catch (_) {
       const store = ensureFallbackStorage();
-      if (trySetItemOn(store, key, value)) return;
+      if (trySetItemOn(store, key, value)) {
+        tryMirrorPersistentSet(key, value);
+        return;
+      }
       const memory = switchToMemoryFallback();
-      trySetItemOn(memory, key, value);
+      if (trySetItemOn(memory, key, value)) {
+        tryMirrorPersistentSet(key, value);
+      }
     }
   }
   function safeRemoveItem(key) {
@@ -897,9 +902,14 @@
       localStorage.removeItem(key);
     } catch (_) {
       const store = ensureFallbackStorage();
-      if (tryRemoveItemFrom(store, key)) return;
+      if (tryRemoveItemFrom(store, key)) {
+        tryMirrorPersistentRemove(key);
+        return;
+      }
       const memory = switchToMemoryFallback();
-      tryRemoveItemFrom(memory, key);
+      if (tryRemoveItemFrom(memory, key)) {
+        tryMirrorPersistentRemove(key);
+      }
     }
   }
   function resolveExamplesApiBase() {
