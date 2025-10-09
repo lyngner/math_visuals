@@ -908,7 +908,29 @@
     }
     let suppressToggle = false;
     let suppressToggleResetTimer = null;
-    const clonePoint = point => Array.isArray(point) ? point.slice() : [Number(point == null ? void 0 : point[0]) || 0, Number(point == null ? void 0 : point[1]) || 0];
+  const clonePoint = point => {
+    if (Array.isArray(point)) return point.slice();
+    if (point && typeof point === 'object') {
+      if (typeof point.X === 'function' && typeof point.Y === 'function') {
+        const x = Number(point.X());
+        const y = Number(point.Y());
+        if (Number.isFinite(x) && Number.isFinite(y)) return [x, y];
+      }
+      const usrCoords = point.coords && point.coords.usrCoords;
+      if (usrCoords && usrCoords.length >= 3) {
+        const w = Number(usrCoords[0]);
+        const x = Number(usrCoords[1]);
+        const y = Number(usrCoords[2]);
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          if (Number.isFinite(w) && w !== 0) {
+            return [x / w, y / w];
+          }
+          return [x, y];
+        }
+      }
+    }
+    return [Number(point == null ? void 0 : point[0]) || 0, Number(point == null ? void 0 : point[1]) || 0];
+  };
     function ensureDivisionGuard() {
       if (detachDivisionGuard || !panel) return;
       const box = panel.querySelector('.box');
