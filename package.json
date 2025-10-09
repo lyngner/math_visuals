@@ -8,6 +8,7 @@
     "test": "node tests/check-shared-styles.js && node scripts/run-playwright.js test",
     "start": "npx http-server -c-1",
     "materialize-vendor": "node scripts/materialize-vendor.mjs",
+    "check:vendor": "npm run materialize-vendor -- --check",
     "prestart": "npm run materialize-vendor",
     "preplaywright": "npm run materialize-vendor",
     "playwright": "node scripts/run-playwright.js",

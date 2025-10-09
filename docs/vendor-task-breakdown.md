@@ -23,11 +23,14 @@ I CI brukes en kontrollmodus for å sikre at manifestet fortsatt stemmer, og at 
 
 ```bash
 npm run materialize-vendor -- --check
+# eller kortversjonen
+npm run check:vendor
 ```
 
-`--check` gjør to ting:
+`--check` gjør tre ting:
 
 - Den kjører materialiseringen og bekrefter at alle obligatoriske filer faktisk kan kopieres fra `node_modules`.
+- Den verifiserer at `public/vendor/` kun inneholder filene som er definert i manifestet.
 - Den feiler hvis `public/vendor/` inneholder sporede filer i Git (det skal kun ligge en `.gitignore` der).
 
 Dersom du kun ønsker å bekrefte at filene finnes uten å gjøre Git-sjekken, kan du bruke `--verify`:
