@@ -1,84 +1,33 @@
 {
-  "jsxgraph": {
-    "source": "node_modules/jsxgraph/distrib",
-    "files": [
-      "jsxgraph.css",
-      "jsxgraphcore.js"
-    ]
-  },
-  "katex": {
-    "source": "node_modules/katex/dist",
-    "files": [
-      "katex.min.css",
-      "katex.min.js",
-      { "name": "katex.min.js.map", "optional": true },
-      "fonts/KaTeX_AMS-Regular.woff2",
-      "fonts/KaTeX_AMS-Regular.woff",
-      "fonts/KaTeX_Caligraphic-Bold.woff2",
-      "fonts/KaTeX_Caligraphic-Bold.woff",
-      "fonts/KaTeX_Caligraphic-Regular.woff2",
-      "fonts/KaTeX_Caligraphic-Regular.woff",
-      "fonts/KaTeX_Fraktur-Bold.woff2",
-      "fonts/KaTeX_Fraktur-Bold.woff",
-      "fonts/KaTeX_Fraktur-Regular.woff2",
-      "fonts/KaTeX_Fraktur-Regular.woff",
-      "fonts/KaTeX_Main-Bold.woff2",
-      "fonts/KaTeX_Main-Bold.woff",
-      "fonts/KaTeX_Main-BoldItalic.woff2",
-      "fonts/KaTeX_Main-BoldItalic.woff",
-      "fonts/KaTeX_Main-Italic.woff2",
-      "fonts/KaTeX_Main-Italic.woff",
-      "fonts/KaTeX_Main-Regular.woff2",
-      "fonts/KaTeX_Main-Regular.woff",
-      "fonts/KaTeX_Math-BoldItalic.woff2",
-      "fonts/KaTeX_Math-BoldItalic.woff",
-      "fonts/KaTeX_Math-Italic.woff2",
-      "fonts/KaTeX_Math-Italic.woff",
-      "fonts/KaTeX_SansSerif-Bold.woff2",
-      "fonts/KaTeX_SansSerif-Bold.woff",
-      "fonts/KaTeX_SansSerif-Italic.woff2",
-      "fonts/KaTeX_SansSerif-Italic.woff",
-      "fonts/KaTeX_SansSerif-Regular.woff2",
-      "fonts/KaTeX_SansSerif-Regular.woff",
-      "fonts/KaTeX_Script-Regular.woff2",
-      "fonts/KaTeX_Script-Regular.woff",
-      "fonts/KaTeX_Size1-Regular.woff2",
-      "fonts/KaTeX_Size1-Regular.woff",
-      "fonts/KaTeX_Size2-Regular.woff2",
-      "fonts/KaTeX_Size2-Regular.woff",
-      "fonts/KaTeX_Size3-Regular.woff2",
-      "fonts/KaTeX_Size3-Regular.woff",
-      "fonts/KaTeX_Size4-Regular.woff2",
-      "fonts/KaTeX_Size4-Regular.woff",
-      "fonts/KaTeX_Typewriter-Regular.woff2",
-      "fonts/KaTeX_Typewriter-Regular.woff"
-    ]
-  },
-  "mathlive": {
-    "source": "node_modules/mathlive",
-    "files": [
-      "mathlive.min.js",
-      "mathlive-static.css",
-      "fonts/KaTeX_AMS-Regular.woff2",
-      "fonts/KaTeX_Caligraphic-Bold.woff2",
-      "fonts/KaTeX_Caligraphic-Regular.woff2",
-      "fonts/KaTeX_Fraktur-Bold.woff2",
-      "fonts/KaTeX_Fraktur-Regular.woff2",
-      "fonts/KaTeX_Main-Bold.woff2",
-      "fonts/KaTeX_Main-BoldItalic.woff2",
-      "fonts/KaTeX_Main-Italic.woff2",
-      "fonts/KaTeX_Main-Regular.woff2",
-      "fonts/KaTeX_Math-BoldItalic.woff2",
-      "fonts/KaTeX_Math-Italic.woff2",
-      "fonts/KaTeX_SansSerif-Bold.woff2",
-      "fonts/KaTeX_SansSerif-Italic.woff2",
-      "fonts/KaTeX_SansSerif-Regular.woff2",
-      "fonts/KaTeX_Script-Regular.woff2",
-      "fonts/KaTeX_Size1-Regular.woff2",
-      "fonts/KaTeX_Size2-Regular.woff2",
-      "fonts/KaTeX_Size3-Regular.woff2",
-      "fonts/KaTeX_Size4-Regular.woff2",
-      "fonts/KaTeX_Typewriter-Regular.woff2"
-    ]
+  "outputRoot": "vendor/cdn",
+  "packages": {
+    "katex": {
+      "baseDir": "node_modules/katex/dist",
+      "files": [
+        "katex.min.css",
+        "katex.min.js"
+      ],
+      "directories": [
+        "fonts"
+      ]
+    },
+    "mathlive": {
+      "baseDir": "node_modules/mathlive",
+      "files": [
+        "mathlive-static.css",
+        "mathlive.min.js"
+      ],
+      "directories": [
+        "fonts",
+        "sounds"
+      ]
+    },
+    "jsxgraph": {
+      "baseDir": "node_modules/jsxgraph/distrib",
+      "files": [
+        "jsxgraph.css",
+        "jsxgraphcore.js"
+      ]
+    }
   }
 }

@@ -1,283 +1,158 @@
-import { createHash } from 'crypto';
-import { createReadStream } from 'fs';
-import { promises as fs } from 'fs';
-import { execFile } from 'child_process';
-import path from 'path';
-import { promisify } from 'util';
-import { fileURLToPath } from 'url';
+#!/usr/bin/env node
+import { readFile, mkdir, copyFile, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { resolve, dirname, join } from 'node:path';
+import { readdir } from 'node:fs/promises';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
-const manifestPath = path.join(__dirname, 'vendor-manifest.json');
-const execFileAsync = promisify(execFile);
-const args = new Set(process.argv.slice(2));
-const checkMode = args.has('--check');
-const verifyMode = args.has('--verify') || checkMode;
+const CHECK_FLAGS = new Set(['--check', '--verify']);
+const args = process.argv.slice(2);
+const checkOnly = args.some((arg) => CHECK_FLAGS.has(arg));
 
-async function readManifest() {
-  let raw;
-  try {
-    raw = await fs.readFile(manifestPath, 'utf8');
-  } catch (error) {
-    if (error && error.code === 'ENOENT') {
-      throw new Error(`Fant ikke manifestfilen på ${manifestPath}`);
-    }
-    throw error;
-  }
-  try {
-    const manifest = JSON.parse(raw);
-    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
-      throw new Error('Manifestet må være et objekt med pakkenavn som nøkler.');
-    }
-    return manifest;
-  } catch (error) {
-    throw new Error(`Kunne ikke tolke manifestet: ${error.message}`);
-  }
+const manifestPath = resolve('scripts/vendor-manifest.json');
+let manifest;
+try {
+  manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+} catch (error) {
+  console.error(`Failed to read vendor manifest at ${manifestPath}`);
+  console.error(error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+  process.exit(1);
 }
 
-async function ensureDirectory(dirPath) {
-  await fs.mkdir(dirPath, { recursive: true });
+const outputRoot = resolve(manifest.outputRoot ?? 'vendor/cdn');
+const packages = manifest.packages ?? {};
+
+const expectedFiles = new Map(); // destRel -> srcAbs
+
+async function ensureDir(dirPath) {
+  await mkdir(dirPath, { recursive: true });
 }
 
-async function hashFile(filePath) {
-  return new Promise((resolve, reject) => {
-    const hash = createHash('sha256');
-    const stream = createReadStream(filePath);
-    stream.on('error', reject);
-    stream.on('data', chunk => hash.update(chunk));
-    stream.on('end', () => resolve(hash.digest('hex')));
-  });
-}
-
-async function pathsAreEqual(src, dest, srcStat) {
-  try {
-    const destStat = await fs.stat(dest);
-    if (!destStat.isFile()) return false;
-    const sameMtime = Math.abs(destStat.mtimeMs - srcStat.mtimeMs) < 1;
-    if (sameMtime && destStat.size === srcStat.size) {
-      return true;
-    }
-    const [srcHash, destHash] = await Promise.all([
-      hashFile(src),
-      hashFile(dest)
-    ]);
-    return srcHash === destHash;
-  } catch (error) {
-    if (error && error.code === 'ENOENT') return false;
-    throw error;
-  }
-}
-
-async function copyFileIfNeeded(pkgName, sourceDir, fileName, { optional = false } = {}) {
-  const src = path.resolve(repoRoot, sourceDir, fileName);
-  const destDir = path.resolve(repoRoot, 'public', 'vendor', pkgName);
-  const dest = path.join(destDir, fileName);
-
-  let srcStat;
-  try {
-    srcStat = await fs.stat(src);
-  } catch (error) {
-    if (error && error.code === 'ENOENT') {
-      if (optional) {
-        return { status: 'missing-optional', pkgName, fileName };
-      }
-      throw new Error(`Fant ikke kildefilen for ${pkgName}: ${src}`);
-    }
-    throw error;
-  }
-  if (!srcStat.isFile()) {
-    if (optional) {
-      return { status: 'missing-optional', pkgName, fileName };
-    }
-    throw new Error(`Kilden er ikke en fil for ${pkgName}: ${src}`);
-  }
-
-  if (await pathsAreEqual(src, dest, srcStat)) {
-    return { status: 'skipped', pkgName, fileName };
-  }
-
-  await ensureDirectory(destDir);
-  await ensureDirectory(path.dirname(dest));
-  await fs.copyFile(src, dest);
-  await fs.utimes(dest, srcStat.atime, srcStat.mtime);
-  return { status: 'copied', pkgName, fileName };
-}
-
-function normalizeFiles(pkgName, descriptor) {
-  if (!descriptor || typeof descriptor !== 'object') {
-    throw new Error(`Ugyldig manifestoppføring for ${pkgName}`);
-  }
-  const { source, files } = descriptor;
-  if (typeof source !== 'string' || !source) {
-    throw new Error(`Oppføringen for ${pkgName} mangler 'source'.`);
-  }
-  if (!Array.isArray(files) || files.length === 0) {
-    throw new Error(`Oppføringen for ${pkgName} må liste filer i 'files'.`);
-  }
-  const normalized = [];
-  for (const fileDescriptor of files) {
-    if (typeof fileDescriptor === 'string') {
-      normalized.push({ name: fileDescriptor, optional: false });
-    } else if (fileDescriptor && typeof fileDescriptor === 'object' && !Array.isArray(fileDescriptor)) {
-      const { name, optional: isOptional } = fileDescriptor;
-      if (typeof name !== 'string' || !name) {
-        throw new Error(`Oppføringen for ${pkgName} inneholder en ugyldig fil.`);
-      }
-      normalized.push({ name, optional: Boolean(isOptional) });
-    } else {
-      throw new Error(`Oppføringen for ${pkgName} inneholder en ugyldig fil.`);
-    }
-  }
-  return { source, files: normalized };
-}
-
-async function materializeVendor(manifest) {
-  const results = [];
-  for (const [pkgName, descriptor] of Object.entries(manifest)) {
-    const { source, files } = normalizeFiles(pkgName, descriptor);
-    for (const { name: fileName, optional } of files) {
-      const result = await copyFileIfNeeded(pkgName, source, fileName, { optional });
-      results.push(result);
-    }
-  }
-  return results;
-}
-
-async function verifyMaterialized(manifest) {
-  const missing = [];
-  for (const [pkgName, descriptor] of Object.entries(manifest)) {
-    const { files } = normalizeFiles(pkgName, descriptor);
-    for (const { name, optional } of files) {
-      const dest = path.resolve(repoRoot, 'public', 'vendor', pkgName, name);
-      try {
-        const stat = await fs.stat(dest);
-        if (!stat.isFile()) {
-          if (!optional) {
-            missing.push(`${pkgName}/${name}`);
-          }
-        }
-      } catch (error) {
-        if (!(error && error.code === 'ENOENT')) {
-          throw error;
-        }
-        if (!optional) {
-          missing.push(`${pkgName}/${name}`);
-        }
-      }
-    }
-  }
-  if (missing.length > 0) {
-    throw new Error(`Følgende vendorfiler mangler etter materialisering:\n- ${missing.join('\n- ')}`);
-  }
-}
-
-function getExpectedVendorFiles(manifest) {
-  const expected = new Set();
-  for (const [pkgName, descriptor] of Object.entries(manifest)) {
-    const { files } = normalizeFiles(pkgName, descriptor);
-    for (const { name } of files) {
-      const normalized = path.posix.join(pkgName, name.split(path.sep).join(path.posix.sep));
-      expected.add(normalized);
-    }
-  }
-  expected.add('.gitignore');
-  return expected;
-}
-
-async function listVendorFiles(relativeDir = '') {
-  const vendorRoot = path.resolve(repoRoot, 'public', 'vendor');
-  const targetDir = path.resolve(vendorRoot, relativeDir);
-  let dirEntries;
-  try {
-    dirEntries = await fs.readdir(targetDir, { withFileTypes: true });
-  } catch (error) {
-    if (error && error.code === 'ENOENT') {
-      return [];
-    }
-    throw error;
-  }
-  const results = [];
-  for (const entry of dirEntries) {
-    const relativePath = path.posix.join(
-      relativeDir.split(path.sep).join(path.posix.sep),
-      entry.name
-    );
+async function collectDirectory(baseDir, relDir) {
+  const abs = resolve(baseDir, relDir);
+  const entries = await readdir(abs, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const entryRel = join(relDir, entry.name);
     if (entry.isDirectory()) {
-      const nested = await listVendorFiles(path.join(relativeDir, entry.name));
-      results.push(...nested);
+      files.push(...await collectDirectory(baseDir, entryRel));
     } else if (entry.isFile()) {
-      results.push(relativePath);
+      files.push(entryRel);
     }
   }
-  return results;
+  return files;
 }
 
-async function assertNoUnexpectedVendorFiles(manifest) {
-  const expected = getExpectedVendorFiles(manifest);
-  const actual = await listVendorFiles();
-  const unexpected = actual
-    .map(entry => entry.split(path.sep).join(path.posix.sep))
-    .filter(entry => !expected.has(entry));
-  if (unexpected.length > 0) {
-    throw new Error(
-      `Fant uventede filer i public/vendor/:\n- ${unexpected.sort().join('\n- ')}\n` +
-      'Fjern filene eller oppdater manifestet.'
-    );
-  }
-}
-
-async function assertVendorCleanInGit() {
+async function fileHash(path) {
   try {
-    const { stdout: trackedStdout } = await execFileAsync('git', ['ls-files', '--', 'public/vendor']);
-    const trackedFiles = trackedStdout
-      .split('\n')
-      .map(line => line.trim())
-      .filter(Boolean)
-      .filter(file => file !== 'public/vendor/.gitignore');
-    if (trackedFiles.length > 0) {
-      throw new Error(`Vendor-artefakter er sjekket inn i Git:\n- ${trackedFiles.join('\n- ')}`);
-    }
-
-    const { stdout: statusStdout } = await execFileAsync('git', ['status', '--porcelain', '--', 'public/vendor']);
-    const clean = statusStdout
-      .split('\n')
-      .map(line => line.trim())
-      .filter(Boolean)
-      .length === 0;
-    if (!clean) {
-      throw new Error('public/vendor/ inneholder sporede endringer i Git.');
-    }
+    const data = await readFile(path);
+    const hash = createHash('sha256').update(data).digest('hex');
+    return hash;
   } catch (error) {
     if (error && error.code === 'ENOENT') {
-      throw new Error('Git er ikke tilgjengelig i dette miljøet, kan ikke sjekke vendor-tilstand.');
+      return null;
     }
     throw error;
   }
 }
 
-readManifest()
-  .then(async manifest => {
-    const results = await materializeVendor(manifest);
-    for (const result of results) {
-      if (result.status === 'copied') {
-        console.log(`Kopierte ${result.pkgName}/${result.fileName}`);
-      } else if (result.status === 'missing-optional') {
-        console.log(`Mangler valgfri ${result.pkgName}/${result.fileName}`);
+async function addExpectedFiles(pkgName, pkgConfig) {
+  const baseDir = resolve(pkgConfig.baseDir);
+  const packageOutputRoot = join(outputRoot, pkgName);
+  await ensureDir(packageOutputRoot);
+
+  const fileList = Array.isArray(pkgConfig.files) ? [...pkgConfig.files] : [];
+  const directories = Array.isArray(pkgConfig.directories) ? pkgConfig.directories : [];
+
+  for (const dirRel of directories) {
+    const collected = await collectDirectory(baseDir, dirRel);
+    fileList.push(...collected);
+  }
+
+  for (const relPath of fileList) {
+    const src = resolve(baseDir, relPath);
+    const destRel = join(pkgName, relPath);
+    const dest = join(outputRoot, destRel);
+    expectedFiles.set(destRel.replace(/\\/g, '/'), { src, dest });
+  }
+}
+
+for (const [pkgName, pkgConfig] of Object.entries(packages)) {
+  await addExpectedFiles(pkgName, pkgConfig);
+}
+
+const operations = [];
+const problems = [];
+
+for (const [destRel, { src, dest }] of expectedFiles.entries()) {
+  operations.push((async () => {
+    const destDir = dirname(dest);
+    await ensureDir(destDir);
+    const [srcHash, destHash] = await Promise.all([fileHash(src), fileHash(dest)]);
+    if (srcHash == null) {
+      problems.push(`Source missing: ${src}`);
+      return;
+    }
+    if (destHash !== srcHash) {
+      if (checkOnly) {
+        problems.push(`Out of date: ${destRel}`);
       } else {
-        console.log(`Uendret ${result.pkgName}/${result.fileName}`);
+        await copyFile(src, dest);
       }
     }
-    if (verifyMode) {
-      await verifyMaterialized(manifest);
-      await assertNoUnexpectedVendorFiles(manifest);
-    }
-    if (checkMode) {
-      await assertVendorCleanInGit();
-    }
-  })
-  .catch(error => {
-    console.error(error.message || error);
-    process.exitCode = 1;
-  });
+  })());
+}
 
+await Promise.all(operations);
+
+async function listDestFiles(rootDir, prefix = '') {
+  const abs = join(rootDir, prefix);
+  const entries = await readdir(abs, { withFileTypes: true });
+  let files = [];
+  for (const entry of entries) {
+    if (entry.name === '.gitignore') {
+      continue;
+    }
+    const nextPrefix = join(prefix, entry.name);
+    const absPath = join(rootDir, nextPrefix);
+    if (entry.isDirectory()) {
+      files.push(...await listDestFiles(rootDir, nextPrefix));
+    } else if (entry.isFile()) {
+      files.push({ rel: nextPrefix.replace(/\\/g, '/'), absPath });
+    }
+  }
+  return files;
+}
+
+let extraneous = [];
+try {
+  extraneous = await listDestFiles(outputRoot);
+} catch (error) {
+  if (error && error.code !== 'ENOENT') {
+    throw error;
+  }
+}
+
+for (const { rel, absPath } of extraneous) {
+  if (!expectedFiles.has(rel)) {
+    if (checkOnly) {
+      problems.push(`Unexpected file: ${rel}`);
+    } else {
+      await rm(absPath, { force: true });
+    }
+  }
+}
+
+if (checkOnly) {
+  if (problems.length > 0) {
+    console.error('Vendor verification failed:\n' + problems.join('\n'));
+    process.exitCode = 1;
+  } else {
+    console.log('Vendor assets are up to date.');
+  }
+} else {
+  if (problems.length > 0) {
+    console.error('Encountered issues while copying vendor assets:\n' + problems.join('\n'));
+    process.exitCode = 1;
+  }
+}

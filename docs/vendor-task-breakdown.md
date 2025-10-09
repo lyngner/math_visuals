@@ -1,53 +1,54 @@
-# Vendor-artefakter og materialisering
+# Vendor Asset Migration Task Breakdown
 
-Dette repoet sjekker ikke inn minifiserte eller tredjepartsbygg fra `node_modules`. I stedet beskriver `scripts/vendor-manifest.json` hvilke filer vi trenger i `public/vendor/`, og vi genererer dem lokalt eller i byggpipelines når det trengs.
+This document breaks the monolithic "Servér eksterne biblioteker lokalt i eksempel-sidene" task into a set of smaller, sequential tasks that can be completed (and code-reviewed) independently. Each task keeps the repository in a working state and limits the amount of vendored code that needs to be reviewed at once. The individual task descriptions are provided as `task-stub` blocks so they can be copied directly into Codex without triggering the "Binary files not suported" error.
 
-Årsaken til at vi **ikke** sjekker inn de ferdigbygde filene er todelt:
+> **Status update (materialize-vendor pipeline)**
+>
+> The repository now generates KaTeX, MathLive og JSXGraph-ressurser via `npm run materialize-vendor`, som kopierer pakkene fra `node_modules` til `vendor/cdn/`. Playwright- og `npm start`-kommandoer kjører skriptet automatisk gjennom `pretest`/`prestart`, og `npm run verify-vendor` kan brukes i CI for å sikre at manifestet er synkronisert. Oppgavene under beskriver hvordan migreringen ble planlagt før automatiseringen kom på plass, men de kan fortsatt brukes som inspirasjon dersom nye biblioteker skal vendoreres senere.
 
-1. Minifiserte vendor-filer er store og støyende i Git-historikken, og det er vanskelig å kodegjennomgå diffs av dem.
-2. Vi vil unngå at repoet driver med «bit-rot» når upstream oppdaterer filene – manifestet peker alltid på én kildeversjon i `node_modules`.
+## Task 1 – Establish local vendor structure
 
-## Generere filer lokalt
+:::task-stub{title="Task 1 – Etabler vendorkatalog og synk-skript"}
+1. Opprett `vendor/` med undermapper `katex/`, `mathlive/` og `jsxgraph/`.
+2. Lag `vendor/README.md` som beskriver versjonskilde, oppdateringsrutine og lisensreferanser.
+3. Implementer et skript (f.eks. `scripts/sync-vendor.js`) og npm-kommando `npm run sync-vendor` som kopierer de minifiserte bundlene fra `node_modules` inn i `vendor/`.
+4. Oppdater `.gitignore` slik at vendorfiler sjekkes inn, men midlertidige arkiver/utpakkede tarballer ignoreres.
+5. Kjør `npm run lint` og `npm test` for å bekrefte at repoet fortsatt er grønt etter strukturendringen.
+:::
 
-Kjør følgende kommando etter `npm install` når du trenger vendor-filer for lokal testing eller utvikling:
+## Task 2 – Vendoring KaTeX and updating diagram-related pages
 
-```bash
-npm run materialize-vendor
-```
+:::task-stub{title="Task 2 – Vendore KaTeX for diagramvisninger"}
+1. Kjør `npm run sync-vendor` for å fylle `vendor/katex/` med nødvendige `*.min.js`- og `*.min.css`-filer.
+2. Oppdater KaTeX-importene i `diagram/index.html`, `diagram.js`, `fortegnsskjema.html` og delte komponenter (f.eks. `description-renderer.js`) til å peke på `/vendor/katex/...`.
+3. Sørg for at eventuell dynamisk lastelogikk i `diagram.js` fungerer med de nye banene.
+4. Kjør Playwright-scenarier som dekker diagram-/fortegnsskjema-funksjonalitet for å sikre at gjengivelse fungerer uten nettverkstilgang.
+:::
 
-Skriptet kopierer filene som er listet opp i manifestet til `public/vendor/`. Valgfrie filer (for eksempel kartfiler som ikke alltid følger med i pakken) logges, men stopper ikke skriptet.
+## Task 3 – Vendoring MathLive for algebra/interactive examples
 
-## Verifisere at manifestet er gyldig
+:::task-stub{title="Task 3 – Vendore MathLive for interaktive oppgaver"}
+1. Synk `vendor/mathlive/` via `npm run sync-vendor`.
+2. Oppdater MathLive-referanser i `prikktilprikk.html`, `tallinje.html`, `graftegner.html`, `brøkfigurer.html`, `tallinje.js` og tilknyttede komponenter til å bruke de vendorede filene.
+3. Verifiser hvert delsteg ved å laste sidene lokalt og sikre at MathLive initialiseres uten CDN-kall.
+4. Legg til en enkel enhetstest eller Playwright-sjekk som bekrefter at MathLive-editoren starter med lokale assets.
+:::
 
-I CI brukes en kontrollmodus for å sikre at manifestet fortsatt stemmer, og at vi ikke har sjekket inn genererte artefakter:
+## Task 4 – Vendoring JSXGraph for geometry demos
 
-```bash
-npm run materialize-vendor -- --check
-# eller kortversjonen
-npm run check:vendor
-```
+:::task-stub{title="Task 4 – Vendore JSXGraph for geometri"}
+1. Synk `vendor/jsxgraph/` med nødvendige `jsxgraphcore.js`- og `jsxgraph.css`-filer.
+2. Oppdater `arealmodell*.html`, `kuler.html`, `trefigurer.html`, `arealmodell0.js`, `kuler.js` osv. til å referere til `vendor/jsxgraph/`.
+3. Test geometri-sidene manuelt eller via Playwright for å bekrefte at tavlene rendres og at det ikke gjøres CDN-kall.
+:::
 
-`--check` gjør tre ting:
+## Task 5 – Remove CDN fallbacks and tidy build pipeline
 
-- Den kjører materialiseringen og bekrefter at alle obligatoriske filer faktisk kan kopieres fra `node_modules`.
-- Den verifiserer at `public/vendor/` kun inneholder filene som er definert i manifestet.
-- Den feiler hvis `public/vendor/` inneholder sporede filer i Git (det skal kun ligge en `.gitignore` der).
+:::task-stub{title="Task 5 – Fjern CDN-fallback og oppdater prosess"}
+1. Søk etter kode som fortsatt refererer til CDN-URL-er (inkludert betingede fallbacks) og erstatt/fjern dem.
+2. Oppdater `docs/testing.md`, `docs/test-plan.md` eller relevante deploy-notater med instruksjon om `npm run sync-vendor`.
+3. Legg til en CI-jobb eller npm-kommando (`npm run verify-vendor`) som sjekker at vendorfiler er synkronisert mot `node_modules`.
+4. Gjennomfør en siste Playwright-/røyk-test for å bekrefte at alle sider fungerer uten eksterne forespørsler.
+:::
 
-Dersom du kun ønsker å bekrefte at filene finnes uten å gjøre Git-sjekken, kan du bruke `--verify`:
-
-```bash
-npm run materialize-vendor -- --verify
-```
-
-Denne varianten er nyttig i byggmiljøer (f.eks. Vercel) der Git ikke er tilgjengelig, men vi likevel må forsikre oss om at filene er generert før vi eksporterer statiske ressurser.
-
-## Når bør jeg kjøre skriptet?
-
-- **Lokal utvikling:** Kjør `npm run materialize-vendor` én gang etter `npm install`. Kjør på nytt hvis du oppdaterer `vendor-manifest.json` eller avhengighetene i `package.json`.
-- **CI og bygg:** Bruk `--check` i CI for å sikre at manifestet stemmer, og `--verify` i byggsteg som produserer distribuerbare artefakter.
-
-Husk at pull requests **ikke** skal inkludere filer under `public/vendor/` – la skriptet materialisere dem i miljøet som trenger dem.
-
-## Vercel-builds
-
-`package.json` definerer et `vercel-build`-skript som Vercel plukker opp automatisk. Skriptet kjører `npm run materialize-vendor -- --verify`, slik at de genererte filene ligger i `public/vendor/` når Vercel gjør statisk eksport. På den måten publiseres vendor-ressursene uten at vi trenger å sjekke dem inn i Git.
+Each task is sized to keep the diff under a few hundred lines, making it feasible to review and merge iteratively while gradually eliminating CDN dependencies.
