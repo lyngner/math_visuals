@@ -2662,7 +2662,10 @@ function drawCircleToGroup(g, rect, spec) {
   if (radiusText) {
     const midX = cx + circleRadius * Math.cos(radiusAngle) * 0.55;
     const midY = cy + circleRadius * Math.sin(radiusAngle) * 0.55;
-    addHaloText(g, midX, midY, radiusText, STYLE.sideFS, {
+    const labelOffset = 16;
+    const labelX = midX + Math.cos(radiusAngle + Math.PI / 2) * labelOffset;
+    const labelY = midY + Math.sin(radiusAngle + Math.PI / 2) * labelOffset;
+    addHaloText(g, labelX, labelY, radiusText, STYLE.sideFS, {
       "text-anchor": "middle",
       "dominant-baseline": "middle"
     });
