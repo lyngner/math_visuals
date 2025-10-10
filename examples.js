@@ -387,103 +387,26 @@
     globalScope.mathVisuals.setAppMode = (mode, options) => setAppMode(mode, options);
     globalScope.mathVisuals.getAppMode = () => currentAppMode;
   }
-  const MEMORY_STORAGE_WINDOW_PREFIX = '__MATH_VISUALS_STORAGE__:';
-  let memoryStorageWindowNameOriginal = null;
-  function serializeMemorySnapshot(data) {
-    if (!data || data.size === 0) {
-      return null;
-    }
-    const snapshot = {};
-    data.forEach((value, key) => {
-      snapshot[key] = value;
-    });
-    return snapshot;
-  }
-  function readMemorySnapshotFromWindow() {
-    if (typeof window === 'undefined') {
-      return { data: null, original: '' };
-    }
-    const current = typeof window.name === 'string' ? window.name : '';
-    if (!current.startsWith(MEMORY_STORAGE_WINDOW_PREFIX)) {
-      return { data: null, original: current };
-    }
-    const payload = current.slice(MEMORY_STORAGE_WINDOW_PREFIX.length);
-    try {
-      const parsed = JSON.parse(payload);
-      if (parsed && typeof parsed === 'object') {
-        const restored = parsed.data && typeof parsed.data === 'object' ? parsed.data : null;
-        const original = typeof parsed.original === 'string' ? parsed.original : '';
-        return { data: restored, original };
-      }
-    } catch (_) {}
-    return { data: null, original: '' };
-  }
-  function writeMemorySnapshotToWindow(snapshot) {
-    if (typeof window === 'undefined') return;
-    if (!snapshot || (typeof snapshot === 'object' && Object.keys(snapshot).length === 0)) {
-      const restore = memoryStorageWindowNameOriginal != null ? memoryStorageWindowNameOriginal : '';
-      window.name = restore;
-      return;
-    }
-    const payload = {
-      data: snapshot,
-      original: memoryStorageWindowNameOriginal != null ? memoryStorageWindowNameOriginal : ''
-    };
-    try {
-      window.name = MEMORY_STORAGE_WINDOW_PREFIX + JSON.stringify(payload);
-    } catch (_) {}
-  }
-  function snapshotFromStorage(store) {
-    const snapshot = {};
-    if (!store || typeof store.length !== 'number' || typeof store.key !== 'function') {
-      return snapshot;
-    }
-    let total = 0;
-    try {
-      total = Number(store.length) || 0;
-    } catch (_) {
-      total = 0;
-    }
-    for (let i = 0; i < total; i++) {
-      let key = null;
-      try {
-        key = store.key(i);
-      } catch (_) {
-        key = null;
-      }
-      if (typeof key !== 'string') continue;
-      let value = null;
-      try {
-        value = store.getItem(key);
-      } catch (_) {
-        value = null;
-      }
-      if (value != null) {
-        snapshot[key] = value;
-      }
-    }
-    return snapshot;
-  }
-  function createMemoryStorage(options) {
-    const opts = options && typeof options === 'object' ? options : {};
+  const STORAGE_GLOBAL_KEY = '__EXAMPLES_STORAGE__';
+  function createMemoryStorage(initialData) {
     const data = new Map();
-    let suppressNotify = false;
-    const notifyChange = () => {
-      if (suppressNotify) return;
-      if (typeof opts.onChange !== 'function') return;
-      opts.onChange(serializeMemorySnapshot(data));
-    };
-    const api = {
+    if (initialData && typeof initialData === 'object') {
+      Object.keys(initialData).forEach(key => {
+        const normalized = String(key);
+        const value = initialData[key];
+        data.set(normalized, value == null ? 'null' : String(value));
+      });
+    }
+    return {
       get length() {
         return data.size;
       },
       key(index) {
-        if (!Number.isInteger(index) || index < 0) return null;
-        if (index >= data.size) return null;
+        if (!Number.isInteger(index) || index < 0 || index >= data.size) return null;
         let i = 0;
         for (const key of data.keys()) {
           if (i === index) return key;
-          i++;
+          i += 1;
         }
         return null;
       },
@@ -496,424 +419,59 @@
         if (key == null) return;
         const normalized = String(key);
         data.set(normalized, value == null ? 'null' : String(value));
-        notifyChange();
       },
       removeItem(key) {
         if (key == null) return;
         data.delete(String(key));
-        notifyChange();
       },
       clear() {
         data.clear();
-        notifyChange();
-      }
-    };
-    if (opts.initialData && typeof opts.initialData === 'object') {
-      suppressNotify = true;
-      try {
-        Object.keys(opts.initialData).forEach(key => {
-          const normalized = String(key);
-          const value = opts.initialData[key];
-          data.set(normalized, value == null ? 'null' : String(value));
-        });
-      } catch (_) {}
-      suppressNotify = false;
-    }
-    return api;
-  }
-  function createSessionFallbackStorage() {
-    if (typeof sessionStorage === 'undefined') return null;
-    try {
-      const testKey = '__examples_session_test__';
-      sessionStorage.setItem(testKey, '1');
-      sessionStorage.removeItem(testKey);
-    } catch (_) {
-      return null;
-    }
-    return {
-      get length() {
-        try {
-          const value = sessionStorage.length;
-          return typeof value === 'number' ? value : 0;
-        } catch (_) {
-          return 0;
-        }
-      },
-      key(index) {
-        try {
-          return sessionStorage.key(index);
-        } catch (_) {
-          return null;
-        }
-      },
-      getItem(key) {
-        try {
-          return sessionStorage.getItem(key);
-        } catch (_) {
-          return null;
-        }
-      },
-      setItem(key, value) {
-        try {
-          sessionStorage.setItem(key, value);
-        } catch (error) {
-          throw error;
-        }
-      },
-      removeItem(key) {
-        try {
-          sessionStorage.removeItem(key);
-        } catch (error) {
-          throw error;
-        }
-      },
-      clear() {
-        try {
-          sessionStorage.clear();
-        } catch (error) {
-          throw error;
-        }
       }
     };
   }
-  let fallbackStorage = null;
-  let fallbackStorageMode = 'memory';
-  let fallbackStorageInitialized = false;
-  let suppressMemoryFallbackNotice = false;
-  let memoryFallbackNoticePending = false;
-  let memoryFallbackNoticeRendered = false;
-  let memoryFallbackNoticeElement = null;
-  let memoryFallbackNoticeRenderTimeout = null;
-  let memoryFallbackNoticeDomReadyHandler = null;
-  function applyFallbackStorage(store, mode) {
-    fallbackStorage = store;
-    fallbackStorageMode = mode === 'session' ? 'session' : 'memory';
+  let sharedMemoryStorage = null;
+  function getSharedMemoryStorage() {
+    if (sharedMemoryStorage && typeof sharedMemoryStorage.getItem === 'function') {
+      return sharedMemoryStorage;
+    }
+    if (globalScope && globalScope[STORAGE_GLOBAL_KEY] && typeof globalScope[STORAGE_GLOBAL_KEY].getItem === 'function') {
+      sharedMemoryStorage = globalScope[STORAGE_GLOBAL_KEY];
+      return sharedMemoryStorage;
+    }
+    sharedMemoryStorage = createMemoryStorage();
     if (globalScope) {
-      globalScope.__EXAMPLES_FALLBACK_STORAGE__ = store;
-      globalScope.__EXAMPLES_FALLBACK_STORAGE_MODE__ = fallbackStorageMode;
+      globalScope[STORAGE_GLOBAL_KEY] = sharedMemoryStorage;
     }
-    if (fallbackStorageMode === 'memory' && !suppressMemoryFallbackNotice) {
-      scheduleMemoryFallbackNotice();
-    }
-    return fallbackStorage;
+    return sharedMemoryStorage;
   }
-  function initializeFallbackStorage() {
-    if (fallbackStorageInitialized) {
-      return fallbackStorage;
-    }
-    fallbackStorageInitialized = true;
-    if (globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function') {
-      const existing = globalScope.__EXAMPLES_FALLBACK_STORAGE__;
-      const mode = globalScope.__EXAMPLES_FALLBACK_STORAGE_MODE__ === 'session' ? 'session' : 'memory';
-      if (mode === 'memory') {
-        const snapshot = snapshotFromStorage(existing);
-        const store = createMemoryStorage({
-          initialData: snapshot,
-          onChange: writeMemorySnapshotToWindow
-        });
-        return applyFallbackStorage(store, 'memory');
-      }
-      return applyFallbackStorage(existing, mode);
-    }
-    const sessionStore = createSessionFallbackStorage();
-    if (sessionStore) {
-      return applyFallbackStorage(sessionStore, 'session');
-    }
-    const { data: initialSnapshot, original } = readMemorySnapshotFromWindow();
-    memoryStorageWindowNameOriginal = original;
-    const memoryStore = createMemoryStorage({
-      initialData: initialSnapshot,
-      onChange: writeMemorySnapshotToWindow
-    });
-    writeMemorySnapshotToWindow(initialSnapshot);
-    return applyFallbackStorage(memoryStore, 'memory');
-  }
-  initializeFallbackStorage();
-  let usingFallbackStorage = false;
-  const explicitDisablePersistentStorage =
-    typeof window !== 'undefined' && window.MATH_VISUALS_DISABLE_LOCAL_STORAGE === true;
-  const explicitEnablePersistentStorage =
-    typeof window !== 'undefined' && window.MATH_VISUALS_ENABLE_LOCAL_STORAGE === true;
-  let persistentStorageDisabled = explicitDisablePersistentStorage && !explicitEnablePersistentStorage;
-  function enforceMemoryStorage() {
-    usingFallbackStorage = true;
-    const store = switchToMemoryFallback();
-    if (globalScope && store) {
-      globalScope.__EXAMPLES_STORAGE__ = store;
-    }
-    return store;
-  }
-  function restorePersistentStorageFromFallback() {
-    let persistentStore = null;
+  function storageGetItem(key) {
+    if (key == null) return null;
+    const store = getSharedMemoryStorage();
+    if (!store || typeof store.getItem !== 'function') return null;
     try {
-      if (typeof localStorage === 'undefined') {
-        throw new Error('Storage not available');
-      }
-      persistentStore = localStorage;
+      return store.getItem(key);
     } catch (_) {
       return null;
     }
-    const fallback = initializeFallbackStorage();
-    if (fallback && fallback !== persistentStore) {
-      copyStorageContents(fallback, persistentStore);
-    }
-    usingFallbackStorage = false;
-    if (globalScope) {
-      globalScope.__EXAMPLES_STORAGE__ = persistentStore;
-    }
-    return persistentStore;
   }
-  function applyPersistentStoragePreference(disable) {
-    const shouldDisable = !!disable;
-    if (shouldDisable) {
-      if (explicitEnablePersistentStorage) {
-        return;
-      }
-    } else if (explicitDisablePersistentStorage && !explicitEnablePersistentStorage) {
-      return;
-    }
-    if (shouldDisable === persistentStorageDisabled) return;
-    persistentStorageDisabled = shouldDisable;
-    if (persistentStorageDisabled) {
-      enforceMemoryStorage();
-    } else {
-      restorePersistentStorageFromFallback();
-    }
+  function storageSetItem(key, value) {
+    if (key == null) return;
+    const store = getSharedMemoryStorage();
+    if (!store || typeof store.setItem !== 'function') return;
+    try {
+      store.setItem(String(key), value == null ? 'null' : String(value));
+    } catch (_) {}
   }
-  if (persistentStorageDisabled) {
-    enforceMemoryStorage();
+  function storageRemoveItem(key) {
+    if (key == null) return;
+    const store = getSharedMemoryStorage();
+    if (!store || typeof store.removeItem !== 'function') return;
+    try {
+      store.removeItem(String(key));
+    } catch (_) {}
   }
   let updateRestoreButtonState = () => {};
-  function ensureFallbackStorage() {
-    const target = initializeFallbackStorage() || createMemoryStorage();
-    if (!usingFallbackStorage) {
-      usingFallbackStorage = true;
-      let localStorageAvailable = false;
-      try {
-        localStorageAvailable = typeof localStorage !== 'undefined';
-      } catch (_) {
-        localStorageAvailable = false;
-      }
-      if (localStorageAvailable && !persistentStorageDisabled) {
-        try {
-          const total = Number(localStorage.length) || 0;
-          for (let i = 0; i < total; i++) {
-            let key = null;
-            try {
-              key = localStorage.key(i);
-            } catch (_) {
-              key = null;
-            }
-            if (!key) continue;
-            try {
-              const value = localStorage.getItem(key);
-              if (value != null) target.setItem(key, value);
-            } catch (_) {}
-          }
-        } catch (_) {}
-      }
-      if (globalScope) {
-        globalScope.__EXAMPLES_STORAGE__ = target;
-      }
-    }
-    return target;
-  }
-  function copyStorageContents(source, target) {
-    if (!source || !target || source === target) return;
-    let total = 0;
-    try {
-      total = Number(source.length) || 0;
-    } catch (_) {
-      total = 0;
-    }
-    for (let i = 0; i < total; i++) {
-      let key = null;
-      try {
-        key = source.key(i);
-      } catch (_) {
-        key = null;
-      }
-      if (!key) continue;
-      try {
-        const value = source.getItem(key);
-        if (value != null) target.setItem(key, value);
-      } catch (_) {}
-    }
-  }
-  function switchToMemoryFallback() {
-    const current = initializeFallbackStorage();
-    if (fallbackStorageMode === 'memory' && current) {
-      return current;
-    }
-    const memory = createMemoryStorage();
-    if (current && typeof current.getItem === 'function') {
-      copyStorageContents(current, memory);
-    }
-    applyFallbackStorage(memory, 'memory');
-    if (usingFallbackStorage && globalScope) {
-      globalScope.__EXAMPLES_STORAGE__ = memory;
-    }
-    return memory;
-  }
-  function trySetItemOn(store, key, value) {
-    if (!store || typeof store.setItem !== 'function') return false;
-    try {
-      store.setItem(key, value);
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
-  function tryGetItemFrom(store, key) {
-    if (!store || typeof store.getItem !== 'function') {
-      return { success: false, value: null };
-    }
-    try {
-      return { success: true, value: store.getItem(key) };
-    } catch (_) {
-      return { success: false, value: null };
-    }
-  }
-  function tryRemoveItemFrom(store, key) {
-    if (!store || typeof store.removeItem !== 'function') return false;
-    try {
-      store.removeItem(key);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-  function tryMirrorPersistentSet(key, value) {
-    if (!persistentStorageDisabled && !usingFallbackStorage) return;
-    try {
-      if (typeof localStorage === 'undefined') return;
-    } catch (_) {
-      return;
-    }
-    try {
-      localStorage.setItem(key, value);
-    } catch (_) {}
-  }
-  function tryMirrorPersistentRemove(key) {
-    if (!persistentStorageDisabled && !usingFallbackStorage) return;
-    try {
-      if (typeof localStorage === 'undefined') return;
-    } catch (_) {
-      return;
-    }
-    try {
-      localStorage.removeItem(key);
-    } catch (_) {}
-  }
-  function safeGetItem(key) {
-    if (persistentStorageDisabled) {
-      const store = enforceMemoryStorage();
-      const result = tryGetItemFrom(store, key);
-      if (result.success) return result.value;
-      const memory = switchToMemoryFallback();
-      const fallbackResult = tryGetItemFrom(memory, key);
-      return fallbackResult.success ? fallbackResult.value : null;
-    }
-    if (usingFallbackStorage) {
-      const store = initializeFallbackStorage();
-      const result = tryGetItemFrom(store, key);
-      if (result.success) return result.value;
-      const memory = switchToMemoryFallback();
-      const fallbackResult = tryGetItemFrom(memory, key);
-      return fallbackResult.success ? fallbackResult.value : null;
-    }
-    try {
-      if (typeof localStorage === 'undefined') throw new Error('Storage not available');
-      return localStorage.getItem(key);
-    } catch (_) {
-      const store = ensureFallbackStorage();
-      const result = tryGetItemFrom(store, key);
-      if (result.success) return result.value;
-      const memory = switchToMemoryFallback();
-      const fallbackResult = tryGetItemFrom(memory, key);
-      return fallbackResult.success ? fallbackResult.value : null;
-    }
-  }
-  function safeSetItem(key, value) {
-    if (persistentStorageDisabled) {
-      const store = enforceMemoryStorage();
-      if (trySetItemOn(store, key, value)) {
-        tryMirrorPersistentSet(key, value);
-        return;
-      }
-      const memory = switchToMemoryFallback();
-      if (trySetItemOn(memory, key, value)) {
-        tryMirrorPersistentSet(key, value);
-      }
-      return;
-    }
-    if (usingFallbackStorage) {
-      const store = initializeFallbackStorage();
-      if (trySetItemOn(store, key, value)) {
-        tryMirrorPersistentSet(key, value);
-        return;
-      }
-      const memory = switchToMemoryFallback();
-      if (trySetItemOn(memory, key, value)) {
-        tryMirrorPersistentSet(key, value);
-      }
-      return;
-    }
-    try {
-      if (typeof localStorage === 'undefined') throw new Error('Storage not available');
-      localStorage.setItem(key, value);
-    } catch (_) {
-      const store = ensureFallbackStorage();
-      if (trySetItemOn(store, key, value)) {
-        tryMirrorPersistentSet(key, value);
-        return;
-      }
-      const memory = switchToMemoryFallback();
-      if (trySetItemOn(memory, key, value)) {
-        tryMirrorPersistentSet(key, value);
-      }
-    }
-  }
-  function safeRemoveItem(key) {
-    if (persistentStorageDisabled) {
-      const store = enforceMemoryStorage();
-      if (tryRemoveItemFrom(store, key)) {
-        tryMirrorPersistentRemove(key);
-        return;
-      }
-      const memory = switchToMemoryFallback();
-      if (tryRemoveItemFrom(memory, key)) {
-        tryMirrorPersistentRemove(key);
-      }
-      return;
-    }
-    if (usingFallbackStorage) {
-      const store = initializeFallbackStorage();
-      if (tryRemoveItemFrom(store, key)) {
-        tryMirrorPersistentRemove(key);
-        return;
-      }
-      const memory = switchToMemoryFallback();
-      if (tryRemoveItemFrom(memory, key)) {
-        tryMirrorPersistentRemove(key);
-      }
-      return;
-    }
-    try {
-      if (typeof localStorage === 'undefined') throw new Error('Storage not available');
-      localStorage.removeItem(key);
-    } catch (_) {
-      const store = ensureFallbackStorage();
-      if (tryRemoveItemFrom(store, key)) {
-        tryMirrorPersistentRemove(key);
-        return;
-      }
-      const memory = switchToMemoryFallback();
-      if (tryRemoveItemFrom(memory, key)) {
-        tryMirrorPersistentRemove(key);
-      }
-    }
-  }
+  let updateActionButtonState = () => {};
   function resolveExamplesApiBase() {
     if (typeof window === 'undefined') return null;
     if (window.MATH_VISUALS_EXAMPLES_API_URL) {
@@ -950,17 +508,6 @@
       if (!path) return base;
       const sep = base.includes('?') ? '&' : '?';
       return `${base}${sep}path=${encodeURIComponent(path)}`;
-    }
-  }
-  if (globalScope && !globalScope.__EXAMPLES_STORAGE__) {
-    try {
-      if (typeof localStorage !== 'undefined' && !persistentStorageDisabled) {
-        globalScope.__EXAMPLES_STORAGE__ = localStorage;
-      } else {
-        globalScope.__EXAMPLES_STORAGE__ = enforceMemoryStorage();
-      }
-    } catch (_) {
-      globalScope.__EXAMPLES_STORAGE__ = enforceMemoryStorage();
     }
   }
   function normalizePathname(pathname, options) {
@@ -1171,7 +718,7 @@
   function loadPersistedUpdatedAt() {
     let raw = null;
     try {
-      raw = safeGetItem(updatedAtKey);
+      raw = storageGetItem(updatedAtKey);
     } catch (_) {
       raw = null;
     }
@@ -1180,12 +727,12 @@
   function persistLocalUpdatedAt(value) {
     if (!Number.isFinite(value) || value <= 0) {
       try {
-        safeRemoveItem(updatedAtKey);
+        storageRemoveItem(updatedAtKey);
       } catch (_) {}
       return;
     }
     try {
-      safeSetItem(updatedAtKey, String(value));
+      storageSetItem(updatedAtKey, String(value));
     } catch (_) {}
   }
   function normalizeHistoryEntry(entry) {
@@ -1205,7 +752,7 @@
     historyEntriesCache = [];
     let rawHistory = null;
     try {
-      rawHistory = safeGetItem(historyKey);
+      rawHistory = storageGetItem(historyKey);
     } catch (_) {
       rawHistory = null;
     }
@@ -1231,11 +778,11 @@
     historyEntriesLoaded = true;
     if (!historyEntriesCache.length) {
       try {
-        safeRemoveItem(historyKey);
+        storageRemoveItem(historyKey);
       } catch (_) {}
     } else {
       try {
-        safeSetItem(historyKey, JSON.stringify(historyEntriesCache));
+        storageSetItem(historyKey, JSON.stringify(historyEntriesCache));
       } catch (_) {}
     }
     try {
@@ -1340,7 +887,7 @@
     trashEntriesCache = [];
     let raw = null;
     try {
-      raw = safeGetItem(trashKey);
+      raw = storageGetItem(trashKey);
     } catch (_) {
       raw = null;
     }
@@ -1363,13 +910,13 @@
     trashEntriesLoaded = true;
     if (!trashEntriesCache.length) {
       try {
-        safeRemoveItem(trashKey);
+        storageRemoveItem(trashKey);
       } catch (_) {}
       return trashEntriesCache;
     }
     try {
       const serialized = serializeTrashEntries(trashEntriesCache);
-      safeSetItem(trashKey, serialized);
+      storageSetItem(trashKey, serialized);
     } catch (_) {}
     return trashEntriesCache;
   }
@@ -1431,7 +978,7 @@
     let migrated = false;
     let alreadyMigrated = false;
     try {
-      const marker = safeGetItem(trashMigratedKey);
+      const marker = storageGetItem(trashMigratedKey);
       if (typeof marker === 'string' && marker.trim()) {
         alreadyMigrated = true;
       }
@@ -1480,7 +1027,7 @@
       persistTrashEntries(refreshed.slice(0, MAX_TRASH_ENTRIES));
     }
     try {
-      safeSetItem(trashMigratedKey, new Date().toISOString());
+      storageSetItem(trashMigratedKey, new Date().toISOString());
     } catch (_) {}
   }
   function parseExamplesFromRaw(rawValue) {
@@ -1542,7 +1089,6 @@
     const opts = options && typeof options === 'object' ? options : {};
     const reason = typeof opts.reason === 'string' && opts.reason.trim() ? opts.reason.trim() : 'update';
     const skipHistory = opts.skipHistory === true;
-    const skipBackendSync = opts.skipBackendSync === true;
     const normalizedRaw = typeof rawValue === 'string' ? rawValue.trim() : '';
     if (!normalizedRaw) {
       if (!skipHistory && typeof lastStoredRawValue === 'string' && lastStoredRawValue.trim()) {
@@ -1551,17 +1097,11 @@
       cachedExamples = [];
       cachedExamplesInitialized = true;
       try {
-        safeRemoveItem(key);
+        storageRemoveItem(key);
       } catch (_) {}
       lastStoredRawValue = null;
       lastLocalUpdateMs = 0;
       persistLocalUpdatedAt(0);
-      if (skipBackendSync) {
-        backendSyncDeferred = true;
-      } else {
-        backendSyncDeferred = false;
-        notifyBackendChange();
-      }
       try {
         updateRestoreButtonState();
       } catch (_) {}
@@ -1577,15 +1117,9 @@
     cachedExamples = Array.isArray(parsed.examples) ? parsed.examples : [];
     cachedExamplesInitialized = true;
     try {
-      safeSetItem(key, normalizedRaw);
+      storageSetItem(key, normalizedRaw);
     } catch (_) {}
     lastStoredRawValue = normalizedRaw;
-    if (skipBackendSync) {
-      backendSyncDeferred = true;
-    } else {
-      backendSyncDeferred = false;
-      notifyBackendChange();
-    }
     try {
       updateRestoreButtonState();
     } catch (_) {}
@@ -1639,61 +1173,59 @@
   }
   const legacyKeys = computeLegacyStorageKeys(rawPath, storagePath);
   try {
-    if (typeof localStorage !== 'undefined' || usingFallbackStorage) {
-      let canonicalValue = safeGetItem(key);
-      if (canonicalValue == null) {
-        for (const legacyKey of legacyKeys) {
-          const legacyValue = safeGetItem(legacyKey);
-          if (legacyValue != null) {
-            safeSetItem(key, legacyValue);
-            canonicalValue = legacyValue;
-            break;
+    let canonicalValue = storageGetItem(key);
+    if (canonicalValue == null) {
+      for (const legacyKey of legacyKeys) {
+        const legacyValue = storageGetItem(legacyKey);
+        if (legacyValue != null) {
+          storageSetItem(key, legacyValue);
+          canonicalValue = legacyValue;
+          break;
+        }
+      }
+    }
+    if (canonicalValue != null) {
+      legacyKeys.forEach(legacyKey => {
+        if (legacyKey === key) return;
+        try {
+          const legacyValue = storageGetItem(legacyKey);
+          if (legacyValue != null && legacyValue === canonicalValue) {
+            storageRemoveItem(legacyKey);
           }
+        } catch (_) {}
+      });
+      if (typeof canonicalValue === 'string') {
+        lastStoredRawValue = canonicalValue;
+      }
+    }
+    const deletedKey = key + '_deletedProvidedExamples';
+    let canonicalDeletedValue = storageGetItem(deletedKey);
+    if (canonicalDeletedValue == null) {
+      for (const legacyKey of legacyKeys) {
+        const candidate = legacyKey + '_deletedProvidedExamples';
+        const legacyValue = storageGetItem(candidate);
+        if (legacyValue != null) {
+          storageSetItem(deletedKey, legacyValue);
+          canonicalDeletedValue = legacyValue;
+          break;
         }
       }
-      if (canonicalValue != null) {
-        legacyKeys.forEach(legacyKey => {
-          if (legacyKey === key) return;
-          try {
-            const legacyValue = safeGetItem(legacyKey);
-            if (legacyValue != null && legacyValue === canonicalValue) {
-              safeRemoveItem(legacyKey);
-            }
-          } catch (_) {}
-        });
-        if (typeof canonicalValue === 'string') {
-          lastStoredRawValue = canonicalValue;
-        }
-      }
-      const deletedKey = key + '_deletedProvidedExamples';
-      let canonicalDeletedValue = safeGetItem(deletedKey);
-      if (canonicalDeletedValue == null) {
-        for (const legacyKey of legacyKeys) {
-          const candidate = legacyKey + '_deletedProvidedExamples';
-          const legacyValue = safeGetItem(candidate);
-          if (legacyValue != null) {
-            safeSetItem(deletedKey, legacyValue);
-            canonicalDeletedValue = legacyValue;
-            break;
+    }
+    if (canonicalDeletedValue != null) {
+      legacyKeys.forEach(legacyKey => {
+        const candidate = legacyKey + '_deletedProvidedExamples';
+        try {
+          const legacyValue = storageGetItem(candidate);
+          if (legacyValue != null && legacyValue === canonicalDeletedValue) {
+            storageRemoveItem(candidate);
           }
-        }
-      }
-      if (canonicalDeletedValue != null) {
-        legacyKeys.forEach(legacyKey => {
-          const candidate = legacyKey + '_deletedProvidedExamples';
-          try {
-            const legacyValue = safeGetItem(candidate);
-            if (legacyValue != null && legacyValue === canonicalDeletedValue) {
-              safeRemoveItem(candidate);
-            }
-          } catch (_) {}
-        });
-      }
+        } catch (_) {}
+      });
     }
   } catch (_) {}
   if (lastStoredRawValue == null) {
     try {
-      const initialRaw = safeGetItem(key);
+      const initialRaw = storageGetItem(key);
       if (typeof initialRaw === 'string') {
         lastStoredRawValue = initialRaw;
       }
@@ -1702,24 +1234,107 @@
     }
   }
   const examplesApiBase = resolveExamplesApiBase();
-  let backendAvailable = false;
+  let backendAvailable = !examplesApiBase;
+  let backendStatusKnown = !examplesApiBase;
   let backendReady = !examplesApiBase;
   let backendSyncDeferred = false;
   let applyingBackendUpdate = false;
   let backendSyncTimer = null;
   let backendSyncPromise = null;
   let backendSyncRequested = false;
+  let backendNoticeElement = null;
+  let backendNoticeDomReadyHandler = null;
+
+  function resolveBackendNoticeHost() {
+    if (typeof document === 'undefined') return null;
+    const specific = document.querySelector('.card--examples');
+    if (specific instanceof HTMLElement) return specific;
+    const generic = document.querySelector('.card');
+    if (generic instanceof HTMLElement) return generic;
+    return document.body || null;
+  }
+
+  function hideBackendUnavailableNotice() {
+    if (typeof document !== 'undefined' && backendNoticeDomReadyHandler) {
+      try {
+        document.removeEventListener('DOMContentLoaded', backendNoticeDomReadyHandler);
+      } catch (_) {}
+    }
+    backendNoticeDomReadyHandler = null;
+    const notice = backendNoticeElement;
+    if (!notice) return;
+    backendNoticeElement = null;
+    try {
+      if (typeof notice.remove === 'function') {
+        notice.remove();
+      } else if (notice.parentElement) {
+        notice.parentElement.removeChild(notice);
+      }
+    } catch (_) {}
+  }
+
+  function showBackendUnavailableNotice() {
+    if (typeof document === 'undefined') return;
+    const render = () => {
+      const host = resolveBackendNoticeHost();
+      if (!host) return;
+      let notice = backendNoticeElement;
+      if (!(notice instanceof HTMLElement)) {
+        notice = document.createElement('div');
+        notice.className = 'example-backend-notice';
+        notice.setAttribute('role', 'alert');
+        const title = document.createElement('strong');
+        title.className = 'example-backend-notice__title';
+        title.textContent = 'Ingen backend-tilkobling';
+        const message = document.createElement('span');
+        message.className = 'example-backend-notice__message';
+        message.textContent = 'Endringer lagres midlertidig og kan gå tapt hvis siden lastes på nytt.';
+        notice.appendChild(title);
+        notice.appendChild(document.createTextNode(' '));
+        notice.appendChild(message);
+      }
+      notice.hidden = false;
+      if (!notice.isConnected) {
+        host.insertBefore(notice, host.firstChild);
+      }
+      backendNoticeElement = notice;
+    };
+    if (document.readyState === 'loading') {
+      if (!backendNoticeDomReadyHandler) {
+        backendNoticeDomReadyHandler = () => {
+          backendNoticeDomReadyHandler = null;
+          render();
+        };
+        document.addEventListener('DOMContentLoaded', backendNoticeDomReadyHandler, { once: true });
+      }
+      return;
+    }
+    render();
+  }
+
+  function updateBackendUiState() {
+    backendStatusKnown = true;
+    try {
+      const examples = getExamples();
+      const count = Array.isArray(examples) ? examples.length : 0;
+      updateActionButtonState(count);
+    } catch (_) {
+      updateActionButtonState(0);
+    }
+    if (backendAvailable) {
+      hideBackendUnavailableNotice();
+    } else {
+      showBackendUnavailableNotice();
+    }
+  }
+
   function markBackendAvailable() {
     backendAvailable = true;
-    setMemoryFallbackNoticeSuppressed(true);
-    if (!explicitEnablePersistentStorage) {
-      applyPersistentStoragePreference(true);
-    }
+    updateBackendUiState();
   }
   function markBackendUnavailable() {
     backendAvailable = false;
-    setMemoryFallbackNoticeSuppressed(false);
-    applyPersistentStoragePreference(false);
+    updateBackendUiState();
   }
   async function performBackendSync() {
     if (!examplesApiBase || applyingBackendUpdate) return;
@@ -1769,8 +1384,14 @@
       clearTimeout(backendSyncTimer);
       backendSyncTimer = null;
     }
-    if (!backendSyncRequested || backendSyncPromise || !examplesApiBase || applyingBackendUpdate) {
-      return;
+    if (!examplesApiBase || applyingBackendUpdate) {
+      return backendSyncPromise || null;
+    }
+    if (!backendSyncRequested) {
+      return backendSyncPromise || null;
+    }
+    if (backendSyncPromise) {
+      return backendSyncPromise;
     }
     backendSyncRequested = false;
     backendSyncPromise = performBackendSync().finally(() => {
@@ -1779,6 +1400,7 @@
         scheduleBackendSync();
       }
     });
+    return backendSyncPromise;
   }
   function scheduleBackendSync() {
     if (!examplesApiBase || applyingBackendUpdate) return;
@@ -1794,7 +1416,7 @@
     if (!examplesApiBase || applyingBackendUpdate) return;
     scheduleBackendSync();
   }
-  function applyBackendData(data) {
+  async function applyBackendData(data) {
     applyingBackendUpdate = true;
     try {
       let examples = normalizeBackendExamples(data && data.examples);
@@ -1840,7 +1462,7 @@
       const shouldApplyExamples = examples.length > 0 || !hasLocalExamples;
       if (shouldApplyExamples && !backendIsStale) {
         const previousIndex = Number.isInteger(currentExampleIndex) ? currentExampleIndex : null;
-        store(examples, {
+        await store(examples, {
           reason: 'backend-sync'
         });
         if (initialLoadPerformed) {
@@ -1870,9 +1492,9 @@
           if (key) deletedProvidedExamples.add(key);
         });
         if (deletedProvidedExamples.size > 0) {
-          safeSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
+          storageSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
         } else {
-          safeRemoveItem(DELETED_PROVIDED_KEY);
+          storageRemoveItem(DELETED_PROVIDED_KEY);
         }
       }
     } catch (error) {
@@ -2000,13 +1622,13 @@
       }
       let rawExamples = null;
       try {
-        rawExamples = safeGetItem(key);
+        rawExamples = storageGetItem(key);
       } catch (_) {
         rawExamples = null;
       }
       let rawDeleted = null;
       try {
-        rawDeleted = safeGetItem(DELETED_PROVIDED_KEY);
+        rawDeleted = storageGetItem(DELETED_PROVIDED_KEY);
       } catch (_) {
         rawDeleted = null;
       }
@@ -2200,7 +1822,7 @@
       const backendExamples = Array.isArray(normalized.examples) ? normalized.examples : [];
       const backendDeleted = Array.isArray(normalized.deletedProvided) ? normalized.deletedProvided : [];
       backendWasEmpty = backendExamples.length === 0 && backendDeleted.length === 0;
-      applyBackendData(normalized);
+      await applyBackendData(normalized);
       renderOptions();
       scheduleEnsureDefaults({ force: true });
       if (legacyPathUsed) {
@@ -3050,139 +2672,8 @@
   let ensureDefaultsRunning = false;
   let tabsHostCard = null;
 
-  function hideMemoryFallbackNotice() {
-    if (memoryFallbackNoticeRenderTimeout) {
-      clearTimeout(memoryFallbackNoticeRenderTimeout);
-      memoryFallbackNoticeRenderTimeout = null;
-    }
-    if (typeof document !== 'undefined' && memoryFallbackNoticeDomReadyHandler) {
-      try {
-        document.removeEventListener('DOMContentLoaded', memoryFallbackNoticeDomReadyHandler);
-      } catch (_) {}
-    }
-    memoryFallbackNoticeDomReadyHandler = null;
-    memoryFallbackNoticePending = false;
-    memoryFallbackNoticeRendered = false;
-    if (memoryFallbackNoticeElement) {
-      try {
-        if (typeof memoryFallbackNoticeElement.remove === 'function') {
-          memoryFallbackNoticeElement.remove();
-        } else if (memoryFallbackNoticeElement.parentElement) {
-          memoryFallbackNoticeElement.parentElement.removeChild(memoryFallbackNoticeElement);
-        }
-      } catch (_) {
-        if (memoryFallbackNoticeElement.parentElement) {
-          try {
-            memoryFallbackNoticeElement.parentElement.removeChild(memoryFallbackNoticeElement);
-          } catch (_) {}
-        }
-      }
-      try {
-        memoryFallbackNoticeElement.hidden = true;
-      } catch (_) {}
-    }
-    memoryFallbackNoticeElement = null;
-  }
-
-  function setMemoryFallbackNoticeSuppressed(value) {
-    const next = value === true;
-    if (next === suppressMemoryFallbackNotice) return;
-    suppressMemoryFallbackNotice = next;
-    if (next) {
-      hideMemoryFallbackNotice();
-    } else if (fallbackStorageMode === 'memory' && usingFallbackStorage) {
-      scheduleMemoryFallbackNotice();
-    }
-  }
-
-  function resolveMemoryFallbackNoticeHost() {
-    if (memoryFallbackNoticeElement && memoryFallbackNoticeElement.isConnected) {
-      return memoryFallbackNoticeElement.parentElement;
-    }
-    if (tabsContainer && tabsContainer.parentElement) {
-      return tabsContainer.parentElement;
-    }
-    if (tabsHostCard && tabsHostCard.isConnected) {
-      return tabsHostCard;
-    }
-    if (typeof document === 'undefined') return null;
-    const card = document.querySelector('.card--examples');
-    if (card instanceof HTMLElement) {
-      return card;
-    }
-    const fallbackCard = document.querySelector('.card');
-    if (fallbackCard instanceof HTMLElement) {
-      return fallbackCard;
-    }
-    return document.body || null;
-  }
-
-  function ensureMemoryFallbackNotice() {
-    if (suppressMemoryFallbackNotice) return;
-    if (!memoryFallbackNoticePending || memoryFallbackNoticeRendered) return;
-    if (typeof document === 'undefined') return;
-    const host = resolveMemoryFallbackNoticeHost();
-    if (!host) {
-      if (!memoryFallbackNoticeRenderTimeout) {
-        memoryFallbackNoticeRenderTimeout = setTimeout(() => {
-          memoryFallbackNoticeRenderTimeout = null;
-          ensureMemoryFallbackNotice();
-        }, 100);
-      }
       return;
     }
-    let notice = memoryFallbackNoticeElement;
-    if (!(notice instanceof HTMLElement)) {
-      notice = document.createElement('div');
-      notice.className = 'example-storage-notice';
-      notice.setAttribute('role', 'status');
-      notice.setAttribute('aria-live', 'polite');
-      const heading = document.createElement('strong');
-      heading.className = 'example-storage-notice__title';
-      heading.textContent = 'Eksempler lagres midlertidig.';
-      const message = document.createElement('span');
-      message.className = 'example-storage-notice__message';
-      message.textContent = 'Nettleserens lagring er utilgjengelig, så nye eksempler beholdes bare så lenge denne siden er åpen.';
-      notice.appendChild(heading);
-      notice.appendChild(document.createTextNode(' '));
-      notice.appendChild(message);
-    }
-    notice.hidden = false;
-    if (!notice.isConnected) {
-      if (host.firstChild) {
-        host.insertBefore(notice, host.firstChild);
-      } else {
-        host.appendChild(notice);
-      }
-    }
-    memoryFallbackNoticeElement = notice;
-    memoryFallbackNoticeRendered = true;
-    memoryFallbackNoticePending = false;
-  }
-
-  function scheduleMemoryFallbackNotice() {
-    if (suppressMemoryFallbackNotice) return;
-    if (memoryFallbackNoticeRendered) return;
-    memoryFallbackNoticePending = true;
-    if (typeof document === 'undefined') return;
-    if (document.readyState === 'loading') {
-      if (!memoryFallbackNoticeDomReadyHandler) {
-        memoryFallbackNoticeDomReadyHandler = () => {
-          memoryFallbackNoticeDomReadyHandler = null;
-          ensureMemoryFallbackNotice();
-        };
-        document.addEventListener('DOMContentLoaded', memoryFallbackNoticeDomReadyHandler, { once: true });
-      }
-      return;
-    }
-    if (memoryFallbackNoticeRenderTimeout) {
-      clearTimeout(memoryFallbackNoticeRenderTimeout);
-      memoryFallbackNoticeRenderTimeout = null;
-    }
-    memoryFallbackNoticeRenderTimeout = setTimeout(() => {
-      memoryFallbackNoticeRenderTimeout = null;
-      ensureMemoryFallbackNotice();
-    }, 0);
   }
   const hasUrlOverrides = (() => {
     if (typeof URLSearchParams === 'undefined') return false;
@@ -3218,7 +2709,7 @@
       cachedExamplesInitialized = true;
       cachedExamples = [];
     }
-    const stored = safeGetItem(key);
+    const stored = storageGetItem(key);
     lastStoredRawValue = typeof stored === 'string' ? stored : null;
     if (stored == null) {
       return cachedExamples;
@@ -3242,17 +2733,33 @@
   function isUserInitiatedReason(reason) {
     return typeof reason === 'string' && USER_INITIATED_REASONS.has(reason);
   }
-  function store(examples, options) {
+  async function store(examples, options) {
     const normalized = normalizeExamplesForStorage(examples);
     const serialized = serializeExamplesForStorage(normalized);
     const opts = options && typeof options === 'object' ? options : {};
     const reason = typeof opts.reason === 'string' ? opts.reason : '';
-    const skipBackendSync = opts.skipBackendSync === true;
     const applied = applyRawExamples(serialized, opts);
-    if (applied && isUserInitiatedReason(reason)) {
+    if (!applied) {
+      return false;
+    }
+    if (isUserInitiatedReason(reason)) {
       lastLocalUpdateMs = Date.now();
       persistLocalUpdatedAt(lastLocalUpdateMs);
     }
+    const shouldSkipSync = opts.skipBackendSync === true || !backendReady;
+    if (shouldSkipSync) {
+      backendSyncDeferred = true;
+      return true;
+    }
+    backendSyncDeferred = false;
+    notifyBackendChange();
+    const syncPromise = flushBackendSync();
+    if (syncPromise) {
+      await syncPromise;
+    } else {
+      await performBackendSync();
+    }
+    return true;
   }
   const BINDING_NAMES = ['STATE', 'CFG', 'CONFIG', 'SIMPLE'];
   const DELETED_PROVIDED_KEY = key + '_deletedProvidedExamples';
@@ -3301,7 +2808,7 @@
     if (deletedProvidedExamples) return deletedProvidedExamples;
     deletedProvidedExamples = new Set();
     try {
-      const stored = safeGetItem(DELETED_PROVIDED_KEY);
+      const stored = storageGetItem(DELETED_PROVIDED_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
@@ -3319,7 +2826,7 @@
   function persistDeletedProvidedExamples() {
     if (!deletedProvidedExamples) return;
     try {
-      safeSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
+      storageSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
     } catch (error) {}
     notifyBackendChange();
   }
@@ -3330,7 +2837,7 @@
     }
     let stored = null;
     try {
-      stored = safeGetItem(MIGRATION_FLAG_STORAGE_KEY);
+      stored = storageGetItem(MIGRATION_FLAG_STORAGE_KEY);
     } catch (_) {
       stored = null;
     }
@@ -3345,15 +2852,15 @@
       window.__EXAMPLES_MIGRATION_DONE__ = true;
     }
     try {
-      safeSetItem(MIGRATION_FLAG_STORAGE_KEY, '1');
+      storageSetItem(MIGRATION_FLAG_STORAGE_KEY, '1');
     } catch (_) {}
   }
   function clearLegacyExamplesStorageArtifacts() {
     try {
-      safeRemoveItem(key);
+      storageRemoveItem(key);
     } catch (_) {}
     try {
-      safeRemoveItem(DELETED_PROVIDED_KEY);
+      storageRemoveItem(DELETED_PROVIDED_KEY);
     } catch (_) {}
   }
   function markProvidedExampleDeleted(value) {
@@ -3447,9 +2954,9 @@
 .example-tab.is-active{background:#fff;color:#111827;border-color:var(--purple,#5B2AA5);border-bottom:1px solid #fff;box-shadow:0 -2px 0 var(--purple,#5B2AA5) inset;}
 .example-tab:focus-visible{outline:2px solid var(--purple,#5B2AA5);outline-offset:2px;}
 .example-tabs-empty{font-size:13px;color:#6b7280;padding:6px 0;}
-.example-storage-notice{margin-top:12px;margin-bottom:12px;padding:10px 14px;border-radius:10px;background:#fef3c7;border:1px solid #fcd34d;color:#92400e;font-size:14px;line-height:1.4;display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
-.example-storage-notice__title{font-weight:600;display:inline-flex;align-items:center;}
-.example-storage-notice__message{display:inline-flex;align-items:center;}
+.example-backend-notice{margin-top:12px;margin-bottom:12px;padding:10px 14px;border-radius:10px;background:#fee2e2;border:1px solid #f87171;color:#991b1b;font-size:14px;line-height:1.4;display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
+.example-backend-notice__title{font-weight:600;display:inline-flex;align-items:center;}
+.example-backend-notice__message{display:inline-flex;align-items:center;}
 .card-has-settings .example-settings{margin-top:6px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;flex-direction:column;gap:10px;}
 .card-has-settings .example-settings > .example-tabs{margin-top:0;margin-bottom:0;}
 .card-has-settings .example-settings > h2:first-child{margin-top:0;}
@@ -3856,7 +3363,7 @@
   // Load example if viewer requested
   (function () {
     if (hasUrlOverrides) return;
-    const loadInfo = safeGetItem('example_to_load');
+    const loadInfo = storageGetItem('example_to_load');
     if (!loadInfo) return;
     try {
       const {
@@ -3867,7 +3374,7 @@
         if (loadExample(index)) initialLoadPerformed = true;
       }
     } catch (error) {}
-    safeRemoveItem('example_to_load');
+    storageRemoveItem('example_to_load');
   })();
   const createBtn = document.getElementById('btnSaveExample');
   const updateBtn = document.getElementById('btnUpdateExample');
@@ -3938,10 +3445,12 @@
   moveSettingsIntoExampleCard();
   moveDescriptionBelowTabs();
   window.addEventListener('resize', adjustTabsSpacing);
-  function updateActionButtonState(count) {
-    if (deleteBtn) deleteBtn.disabled = count <= 1;
-    if (updateBtn) updateBtn.disabled = count === 0;
-  }
+  updateActionButtonState = count => {
+    const disableActions = backendStatusKnown && !backendAvailable;
+    if (deleteBtn) deleteBtn.disabled = disableActions || count <= 1;
+    if (updateBtn) updateBtn.disabled = disableActions || count === 0;
+    if (createBtn) createBtn.disabled = disableActions;
+  };
   function clampExampleIndex(index, length) {
     if (!Number.isInteger(index)) return null;
     if (!Number.isInteger(length) || length <= 0) return null;
@@ -4034,9 +3543,6 @@
         updateTabSelection();
       }
     }
-    if (memoryFallbackNoticePending && !memoryFallbackNoticeRendered) {
-      ensureMemoryFallbackNotice();
-    }
     updateActionButtonState(examples.length);
     attemptInitialLoad();
     if (!initialLoadPerformed && pendingRequestedIndex == null && examples.length > 0) {
@@ -4090,92 +3596,110 @@
     index = Math.max(0, Math.min(examples.length - 1, index));
     return index;
   }
-  createBtn === null || createBtn === void 0 || createBtn.addEventListener('click', () => {
-    const examples = getExamples();
-    const ex = collectCurrentExampleState();
-    examples.push(ex);
-    store(examples, {
-      reason: 'manual-save'
-    });
-    currentExampleIndex = examples.length - 1;
-    renderOptions();
-  });
-  updateBtn === null || updateBtn === void 0 || updateBtn.addEventListener('click', () => {
-    const examples = getExamples();
-    if (examples.length === 0) {
-      if (createBtn && typeof createBtn.click === 'function') {
-        createBtn.click();
-      }
-      return;
-    }
-    const indexToUpdate = getActiveExampleIndex(examples);
-    if (indexToUpdate == null) return;
-    const payload = collectCurrentExampleState();
-    const existing = examples[indexToUpdate];
-    const updated = existing && typeof existing === 'object' ? { ...existing } : {};
-    updated.config = payload && typeof payload.config === 'object' ? payload.config : {};
-    updated.svg = typeof (payload === null || payload === void 0 ? void 0 : payload.svg) === 'string' ? payload.svg : '';
-    if (payload && Object.prototype.hasOwnProperty.call(payload, 'description')) {
-      updated.description = typeof payload.description === 'string' ? payload.description : '';
-    } else {
-      updated.description = getDescriptionValue();
-    }
-    const shouldDetach = existing && typeof existing === 'object' && typeof existing.__builtinKey === 'string' && existing.__builtinKey && hasMeaningfulExampleChanges(existing, updated);
-    if (shouldDetach) {
-      detachProvidedMetadata(updated);
-    }
-    examples[indexToUpdate] = updated;
-    store(examples, {
-      reason: 'manual-update'
-    });
-    currentExampleIndex = indexToUpdate;
-    renderOptions();
-  });
-  deleteBtn === null || deleteBtn === void 0 || deleteBtn.addEventListener('click', () => {
-    const examples = getExamples();
-    if (examples.length <= 1) {
-      return;
-    }
-    const indexToUpdate = getActiveExampleIndex(examples);
-    if (indexToUpdate == null) {
-      return;
-    }
-    const indexToRemove = indexToUpdate;
-    const removed = examples.splice(indexToRemove, 1);
-    if (removed && removed.length) {
-      const removedExample = removed[0];
-      if (removedExample && typeof removedExample === 'object') {
-        addExampleToTrash(removedExample, {
-          index: indexToRemove,
-          reason: 'delete',
-          capturePreview: true
+  if (createBtn) {
+    createBtn.addEventListener('click', async () => {
+      const examples = getExamples();
+      const ex = collectCurrentExampleState();
+      examples.push(ex);
+      try {
+        await store(examples, {
+          reason: 'manual-save'
         });
-        markProvidedExampleDeleted(removedExample.__builtinKey);
+      } catch (error) {
+        console.error('[examples] failed to save example', error);
       }
-    }
-    examples.forEach((ex, idx) => {
-      if (!ex || typeof ex !== 'object') return;
-      if (idx === 0) {
-        ex.isDefault = true;
-      } else if (Object.prototype.hasOwnProperty.call(ex, 'isDefault')) {
-        delete ex.isDefault;
-      }
-    });
-    store(examples, {
-      reason: 'delete'
-    });
-    if (examples.length === 0) {
-      currentExampleIndex = null;
-    } else if (indexToRemove >= examples.length) {
       currentExampleIndex = examples.length - 1;
-    } else {
-      currentExampleIndex = indexToRemove;
-    }
-    renderOptions();
-    if (currentExampleIndex != null && currentExampleIndex >= 0 && examples.length > 0) {
-      loadExample(currentExampleIndex);
-    }
-  });
+      renderOptions();
+    });
+  }
+  if (updateBtn) {
+    updateBtn.addEventListener('click', async () => {
+      const examples = getExamples();
+      if (examples.length === 0) {
+        if (createBtn && typeof createBtn.click === 'function') {
+          createBtn.click();
+        }
+        return;
+      }
+      const indexToUpdate = getActiveExampleIndex(examples);
+      if (indexToUpdate == null) return;
+      const payload = collectCurrentExampleState();
+      const existing = examples[indexToUpdate];
+      const updated = existing && typeof existing === 'object' ? { ...existing } : {};
+      updated.config = payload && typeof payload.config === 'object' ? payload.config : {};
+      updated.svg = typeof (payload === null || payload === void 0 ? void 0 : payload.svg) === 'string' ? payload.svg : '';
+      if (payload && Object.prototype.hasOwnProperty.call(payload, 'description')) {
+        updated.description = typeof payload.description === 'string' ? payload.description : '';
+      } else {
+        updated.description = getDescriptionValue();
+      }
+      const shouldDetach = existing && typeof existing === 'object' && typeof existing.__builtinKey === 'string' && existing.__builtinKey && hasMeaningfulExampleChanges(existing, updated);
+      if (shouldDetach) {
+        detachProvidedMetadata(updated);
+      }
+      examples[indexToUpdate] = updated;
+      try {
+        await store(examples, {
+          reason: 'manual-update'
+        });
+      } catch (error) {
+        console.error('[examples] failed to update example', error);
+      }
+      currentExampleIndex = indexToUpdate;
+      renderOptions();
+    });
+  }
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', async () => {
+      const examples = getExamples();
+      if (examples.length <= 1) {
+        return;
+      }
+      const indexToUpdate = getActiveExampleIndex(examples);
+      if (indexToUpdate == null) {
+        return;
+      }
+      const indexToRemove = indexToUpdate;
+      const removed = examples.splice(indexToRemove, 1);
+      if (removed && removed.length) {
+        const removedExample = removed[0];
+        if (removedExample && typeof removedExample === 'object') {
+          addExampleToTrash(removedExample, {
+            index: indexToRemove,
+            reason: 'delete',
+            capturePreview: true
+          });
+          markProvidedExampleDeleted(removedExample.__builtinKey);
+        }
+      }
+      examples.forEach((ex, idx) => {
+        if (!ex || typeof ex !== 'object') return;
+        if (idx === 0) {
+          ex.isDefault = true;
+        } else if (Object.prototype.hasOwnProperty.call(ex, 'isDefault')) {
+          delete ex.isDefault;
+        }
+      });
+      try {
+        await store(examples, {
+          reason: 'delete'
+        });
+      } catch (error) {
+        console.error('[examples] failed to delete example', error);
+      }
+      if (examples.length === 0) {
+        currentExampleIndex = null;
+      } else if (indexToRemove >= examples.length) {
+        currentExampleIndex = examples.length - 1;
+      } else {
+        currentExampleIndex = indexToRemove;
+      }
+      renderOptions();
+      if (currentExampleIndex != null && currentExampleIndex >= 0 && examples.length > 0) {
+        loadExample(currentExampleIndex);
+      }
+    });
+  }
   ensureTrashHistoryMigration();
   renderOptions();
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
