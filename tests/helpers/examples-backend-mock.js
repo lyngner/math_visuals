@@ -326,6 +326,42 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     return deleted;
   };
 
+  const seedDefaultsIntoStore = async seedConfig => {
+    const config = seedConfig && typeof seedConfig === 'object' ? seedConfig : {};
+    const allowedPaths = Array.isArray(config.paths)
+      ? new Set(
+          config.paths
+            .map(value => normalizePath(value))
+            .filter(Boolean)
+        )
+      : null;
+    try {
+      const defaultsModule = require('../../api/_lib/examples-defaults');
+      const loadDefaults = defaultsModule && typeof defaultsModule.loadDefaultExampleEntries === 'function'
+        ? defaultsModule.loadDefaultExampleEntries
+        : null;
+      if (!loadDefaults) {
+        return;
+      }
+      const defaults = await loadDefaults();
+      defaults.forEach(entry => {
+        if (!entry || typeof entry !== 'object') return;
+        const canonicalPath = normalizePath(entry.path);
+        if (!canonicalPath) return;
+        if (allowedPaths && !allowedPaths.has(canonicalPath)) return;
+        const payload = {
+          examples: Array.isArray(entry.examples) ? clone(entry.examples) : [],
+          deletedProvided: Array.isArray(entry.deletedProvided) ? entry.deletedProvided.slice() : []
+        };
+        setEntry(canonicalPath, payload, { promote: true });
+      });
+    } catch (error) {
+      if (config.throwOnError) {
+        throw error;
+      }
+    }
+  };
+
   const handleRequest = async route => {
     const request = route.request();
     const method = request.method();
@@ -500,6 +536,19 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     window.MATH_VISUALS_EXAMPLES_API_URL = '/api/examples';
   });
   await context.route('**/api/examples**', handleRequest);
+
+  if (options && options.seedDefaults) {
+    const seedConfig = options.seedDefaults === true
+      ? {}
+      : options.seedDefaults;
+    const mergedConfig = seedConfig && typeof seedConfig === 'object'
+      ? { ...seedConfig }
+      : {};
+    if (options.throwOnSeedError) {
+      mergedConfig.throwOnError = true;
+    }
+    await seedDefaultsIntoStore(mergedConfig);
+  }
 
   if (initialState && typeof initialState === 'object') {
     Object.entries(initialState).forEach(([path, payload]) => {
