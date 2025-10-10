@@ -55,8 +55,10 @@ const {
   getEntry,
   deleteEntry,
   listEntries,
+  setMemoryEntry,
   __deserializeExampleValue
 } = require('../api/_lib/examples-store');
+const { loadDefaultExampleEntries } = require('../api/_lib/examples-defaults');
 
 test.beforeEach(() => {
   mockKv.clear();
@@ -279,5 +281,36 @@ test.describe('examples-store memory fallback', () => {
     expect(stillHasB).toBeTruthy();
     expect(stillHasB.storage).toBe('memory');
     expect(stillHasB.mode).toBe('memory');
+  });
+
+  test('listEntries returns seeded defaults when memory store is empty', async () => {
+    const entriesBefore = await listEntries();
+    expect(Array.isArray(entriesBefore)).toBe(true);
+    expect(entriesBefore.length).toBe(0);
+
+    const defaults = await loadDefaultExampleEntries();
+    expect(Array.isArray(defaults)).toBe(true);
+    expect(defaults.length).toBeGreaterThan(0);
+
+    defaults.forEach(entry => {
+      setMemoryEntry(entry.path, {
+        examples: entry.examples,
+        deletedProvided: entry.deletedProvided
+      });
+    });
+
+    const seededEntries = await listEntries();
+    expect(seededEntries.length).toBeGreaterThanOrEqual(defaults.length);
+
+    defaults.forEach(entry => {
+      const stored = seededEntries.find(item => item.path === entry.path);
+      expect(stored).toBeTruthy();
+      expect(Array.isArray(stored.examples)).toBe(true);
+      expect(stored.examples).toEqual(entry.examples);
+      expect(Array.isArray(stored.deletedProvided)).toBe(true);
+      expect(stored.deletedProvided).toEqual(entry.deletedProvided);
+      expect(stored.storage).toBe('memory');
+      expect(stored.mode).toBe('memory');
+    });
   });
 });

@@ -1,6 +1,7 @@
 'use strict';
 
 const { normalizePath } = require('../../api/_lib/examples-store');
+const { loadDefaultExampleEntries } = require('../../api/_lib/examples-defaults');
 
 const DEFAULT_HEADERS = { 'Content-Type': 'application/json' };
 let currentMode = 'kv';
@@ -236,6 +237,8 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
   const putEvents = createEventTracker();
   const deleteEvents = createEventTracker();
   let requestFailureFactory = null;
+  const shouldAutoSeedDefaults = Boolean(options && options.autoSeedDefaults);
+  let defaultsSeeded = false;
 
   const applyRecordMode = (record, mode) => {
     if (!record || !record.data) return;
@@ -253,6 +256,38 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
   const requestedMode = normalizeStoreMode(options && options.mode);
   currentMode = requestedMode || 'kv';
   synchronizeStoreMode(currentMode);
+
+  const markDefaultsSeeded = () => {
+    if (!shouldAutoSeedDefaults) return;
+    defaultsSeeded = true;
+  };
+
+  const ensureDefaultsSeeded = async modeHint => {
+    if (!shouldAutoSeedDefaults || defaultsSeeded) {
+      return;
+    }
+    const resolvedMode = normalizeStoreMode(modeHint || currentMode);
+    if (resolvedMode !== 'memory') {
+      markDefaultsSeeded();
+      return;
+    }
+    const hasPromotedEntries = Array.from(store.canonical.values()).some(record => record && record.promoted);
+    if (hasPromotedEntries) {
+      markDefaultsSeeded();
+      return;
+    }
+    const defaults = await loadDefaultExampleEntries();
+    defaults.forEach(entry => {
+      if (!entry || typeof entry !== 'object') return;
+      const path = typeof entry.path === 'string' ? entry.path : null;
+      if (!path) return;
+      setEntry(path, {
+        examples: Array.isArray(entry.examples) ? entry.examples : [],
+        deletedProvided: Array.isArray(entry.deletedProvided) ? entry.deletedProvided : []
+      }, { promote: true });
+    });
+    markDefaultsSeeded();
+  };
 
   const setEntry = (path, payload, options = {}) => {
     const rawPath = typeof path === 'string' && path.trim() ? path.trim() : '/';
@@ -377,6 +412,7 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
 
     if (method === 'GET') {
       if (!rawPath) {
+        await ensureDefaultsSeeded(currentMode);
         const entries = Array.from(store.canonical.values())
           .filter(record => record.promoted)
           .map(record => decorateEntry(clone(record.data)));
@@ -510,6 +546,10 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     });
   }
 
+  if (shouldAutoSeedDefaults && store.canonical.size > 0) {
+    markDefaultsSeeded();
+  }
+
   function toApiEntry(path) {
     const entry = readEntry(path);
     if (!entry) return undefined;
@@ -519,6 +559,7 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
 
   const client = {
     async list() {
+      await ensureDefaultsSeeded(currentMode);
       const entries = Array.from(store.canonical.entries())
         .filter(([, record]) => record && record.promoted)
         .map(([, record]) => decorateEntry(clone(record.data)));
@@ -555,6 +596,13 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     if (!normalized) return currentMode;
     currentMode = normalized;
     synchronizeStoreMode(currentMode);
+    if (shouldAutoSeedDefaults) {
+      if (currentMode === 'memory') {
+        defaultsSeeded = false;
+      } else {
+        markDefaultsSeeded();
+      }
+    }
     return currentMode;
   };
 
