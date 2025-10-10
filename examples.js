@@ -1391,7 +1391,7 @@
         message.className = 'example-backend-notice__message';
         message.textContent =
           normalizedMode === 'memory'
-            ? 'Endringer lagres bare midlertidig på serveren og kan forsvinne ved omstart.'
+            ? 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.'
             : 'Endringer lagres midlertidig og kan gå tapt hvis siden lastes på nytt.';
         notice.appendChild(title);
         notice.appendChild(document.createTextNode(' '));
@@ -1405,7 +1405,7 @@
         if (message) {
           message.textContent =
             normalizedMode === 'memory'
-              ? 'Endringer lagres bare midlertidig på serveren og kan forsvinne ved omstart.'
+              ? 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.'
               : 'Endringer lagres midlertidig og kan gå tapt hvis siden lastes på nytt.';
         }
       }
