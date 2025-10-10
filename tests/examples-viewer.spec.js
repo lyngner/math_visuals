@@ -4,6 +4,10 @@ const {
   attachExamplesBackendMock,
   normalizeExamplePath
 } = require('./helpers/examples-backend-mock');
+const {
+  createExamplesApiRouteHandler,
+  resetExamplesMemoryStore
+} = require('./helpers/examples-api-utils');
 
 const VIEWER_FIXTURE_PATH = '/tests/fixtures/examples-viewer.html';
 const MEMORY_WARNING_TEXT = 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.';
@@ -57,5 +61,56 @@ test.describe('Examples viewer – memory mode awareness', () => {
     expect(storedEntry).toBeTruthy();
     expect(storedEntry.mode).toBe('memory');
     expect(storedEntry.storage).toBe('memory');
+  });
+});
+
+test.describe('Examples viewer – auto seeded defaults', () => {
+  let originalKvUrl;
+  let originalKvToken;
+
+  test.beforeAll(() => {
+    originalKvUrl = process.env.KV_REST_API_URL;
+    originalKvToken = process.env.KV_REST_API_TOKEN;
+  });
+
+  test.beforeEach(async ({ context }) => {
+    delete process.env.KV_REST_API_URL;
+    delete process.env.KV_REST_API_TOKEN;
+    resetExamplesMemoryStore();
+    await context.route('**/api/examples**', createExamplesApiRouteHandler());
+  });
+
+  test.afterEach(async ({ context }) => {
+    await context.unroute('**/api/examples**');
+    resetExamplesMemoryStore();
+  });
+
+  test.afterAll(() => {
+    if (originalKvUrl !== undefined) {
+      process.env.KV_REST_API_URL = originalKvUrl;
+    } else {
+      delete process.env.KV_REST_API_URL;
+    }
+    if (originalKvToken !== undefined) {
+      process.env.KV_REST_API_TOKEN = originalKvToken;
+    } else {
+      delete process.env.KV_REST_API_TOKEN;
+    }
+  });
+
+  test('renders default examples provided by memory auto-seeding', async ({ page }) => {
+    await page.goto(VIEWER_FIXTURE_PATH, { waitUntil: 'load' });
+
+    const banner = page.locator('#examples-store-banner');
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText(MEMORY_WARNING_TEXT);
+
+    const sections = page.locator('#examples section');
+    await expect(sections.first()).toBeVisible();
+
+    const tallinjeSection = sections.filter({ hasText: '/tallinje' });
+    await expect(tallinjeSection).toHaveCount(1);
+    const tallinjeExamples = tallinjeSection.first().locator('.example');
+    await expect(tallinjeExamples).not.toHaveCount(0);
   });
 });
