@@ -1757,6 +1757,7 @@
         });
         if (!res.ok) throw new Error(`Backend sync failed (${res.status})`);
         markBackendAvailable();
+        clearLegacyExamplesStorageArtifacts();
       }
     } catch (error) {
       markBackendUnavailable();
@@ -1911,6 +1912,9 @@
           body: JSON.stringify(payload)
         });
         canonicalOk = !!putRes && putRes.ok;
+        if (canonicalOk) {
+          clearLegacyExamplesStorageArtifacts();
+        }
       }
     } catch (_) {
       canonicalOk = false;
@@ -1976,6 +1980,133 @@
           }
         } catch (_) {}
       }
+    }
+  }
+  async function migrateLegacyExamples() {
+    if (!examplesApiBase) return;
+    if (typeof window === 'undefined') return;
+    if (hasCompletedExamplesMigration()) return;
+    if (window.__EXAMPLES_MIGRATION_RUNNING__) {
+      return;
+    }
+    window.__EXAMPLES_MIGRATION_RUNNING__ = true;
+    let migrationCompleted = false;
+    let shouldClearLocal = false;
+    try {
+      const canonicalUrl = buildExamplesApiUrl(examplesApiBase, storagePath);
+      if (!canonicalUrl) {
+        migrationCompleted = true;
+        return;
+      }
+      let rawExamples = null;
+      try {
+        rawExamples = safeGetItem(key);
+      } catch (_) {
+        rawExamples = null;
+      }
+      let rawDeleted = null;
+      try {
+        rawDeleted = safeGetItem(DELETED_PROVIDED_KEY);
+      } catch (_) {
+        rawDeleted = null;
+      }
+      const parsed = parseExamplesFromRaw(rawExamples);
+      const examples = parsed.status === 'ok' ? normalizeBackendExamples(parsed.examples) : [];
+      const deletedProvidedList = [];
+      if (typeof rawDeleted === 'string' && rawDeleted.trim()) {
+        try {
+          const parsedDeleted = JSON.parse(rawDeleted);
+          if (Array.isArray(parsedDeleted)) {
+            parsedDeleted.forEach(value => {
+              const normalized = normalizeKey(value);
+              if (normalized && !deletedProvidedList.includes(normalized)) {
+                deletedProvidedList.push(normalized);
+              }
+            });
+          }
+        } catch (error) {
+          console.warn('Examples migration: failed to parse deleted markers', error);
+        }
+      }
+      const hasLegacyData = examples.length > 0 || deletedProvidedList.length > 0;
+      if (!hasLegacyData) {
+        migrationCompleted = true;
+        return;
+      }
+      let res;
+      try {
+        res = await fetch(canonicalUrl, {
+          headers: {
+            Accept: 'application/json'
+          }
+        });
+      } catch (error) {
+        console.warn('Examples migration: failed to inspect backend state', error);
+        return;
+      }
+      let backendEmpty = false;
+      if (res && res.status === 404) {
+        backendEmpty = true;
+      } else if (res && res.ok) {
+        try {
+          const backendPayload = await res.json();
+          const backendExamples = Array.isArray(backendPayload && backendPayload.examples)
+            ? backendPayload.examples
+            : [];
+          const backendDeleted = Array.isArray(backendPayload && backendPayload.deletedProvided)
+            ? backendPayload.deletedProvided
+            : [];
+          backendEmpty = backendExamples.length === 0 && backendDeleted.length === 0;
+        } catch (error) {
+          console.warn('Examples migration: failed to parse backend payload', error);
+          return;
+        }
+        if (!backendEmpty) {
+          shouldClearLocal = true;
+          migrationCompleted = true;
+          return;
+        }
+      } else {
+        console.warn('Examples migration: unexpected backend response', res && res.status);
+        return;
+      }
+      if (!backendEmpty) {
+        migrationCompleted = true;
+        return;
+      }
+      const payload = {
+        path: storagePath,
+        examples,
+        deletedProvided: deletedProvidedList,
+        updatedAt: new Date().toISOString()
+      };
+      let postRes;
+      try {
+        postRes = await fetch(examplesApiBase, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+      } catch (error) {
+        console.warn('Examples migration: failed to migrate legacy examples', error);
+        return;
+      }
+      if (!postRes || !postRes.ok) {
+        console.warn('Examples migration: backend rejected legacy examples', postRes && postRes.status);
+        return;
+      }
+      shouldClearLocal = true;
+      migrationCompleted = true;
+    } finally {
+      if (shouldClearLocal) {
+        clearLegacyExamplesStorageArtifacts();
+      }
+      if (migrationCompleted) {
+        markExamplesMigrationComplete();
+      }
+      delete window.__EXAMPLES_MIGRATION_RUNNING__;
     }
   }
   async function loadExamplesFromBackend() {
@@ -3125,6 +3256,7 @@
   }
   const BINDING_NAMES = ['STATE', 'CFG', 'CONFIG', 'SIMPLE'];
   const DELETED_PROVIDED_KEY = key + '_deletedProvidedExamples';
+  const MIGRATION_FLAG_STORAGE_KEY = key + '_backend_migrated_v1';
   let deletedProvidedExamples = null;
   function normalizeKey(value) {
     return (typeof value === 'string' ? value.trim() : '') || '';
@@ -3190,6 +3322,39 @@
       safeSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
     } catch (error) {}
     notifyBackendChange();
+  }
+  function hasCompletedExamplesMigration() {
+    if (typeof window === 'undefined') return true;
+    if (window.__EXAMPLES_MIGRATION_DONE__ === true) {
+      return true;
+    }
+    let stored = null;
+    try {
+      stored = safeGetItem(MIGRATION_FLAG_STORAGE_KEY);
+    } catch (_) {
+      stored = null;
+    }
+    if (stored === '1') {
+      window.__EXAMPLES_MIGRATION_DONE__ = true;
+      return true;
+    }
+    return false;
+  }
+  function markExamplesMigrationComplete() {
+    if (typeof window !== 'undefined') {
+      window.__EXAMPLES_MIGRATION_DONE__ = true;
+    }
+    try {
+      safeSetItem(MIGRATION_FLAG_STORAGE_KEY, '1');
+    } catch (_) {}
+  }
+  function clearLegacyExamplesStorageArtifacts() {
+    try {
+      safeRemoveItem(key);
+    } catch (_) {}
+    try {
+      safeRemoveItem(DELETED_PROVIDED_KEY);
+    } catch (_) {}
   }
   function markProvidedExampleDeleted(value) {
     const key = normalizeKey(value);
@@ -4036,7 +4201,14 @@
     });
   }
   if (examplesApiBase) {
-    loadExamplesFromBackend();
+    const migrationPromise = migrateLegacyExamples();
+    if (migrationPromise && typeof migrationPromise.then === 'function') {
+      migrationPromise.catch(() => {}).then(() => {
+        loadExamplesFromBackend();
+      });
+    } else {
+      loadExamplesFromBackend();
+    }
   }
   function parseInitialExampleIndex() {
     const parseValue = value => {
