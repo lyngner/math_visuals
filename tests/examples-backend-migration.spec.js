@@ -1,7 +1,12 @@
 const { test, expect } = require('@playwright/test');
 
+const {
+  attachExamplesBackendMock,
+  normalizeExamplePath
+} = require('./helpers/examples-backend-mock');
+
 const PAGE_PATH = '/brøkfigurer.html';
-const CANONICAL_PATH = '/br%C3%B8kfigurer';
+const CANONICAL_PATH = normalizeExamplePath(PAGE_PATH);
 const LEGACY_PRIMARY_PATH = '/brøkfigurer.html';
 const LEGACY_VARIANTS = [
   LEGACY_PRIMARY_PATH,
@@ -17,9 +22,8 @@ const LEGACY_VARIANTS = [
   '/br%C3%B8kfigurer.htm'
 ];
 
-function buildLegacyResponse() {
+function buildLegacyEntry() {
   return {
-    path: LEGACY_PRIMARY_PATH,
     examples: [
       {
         description: 'Backend legacy eksempel',
@@ -28,113 +32,55 @@ function buildLegacyResponse() {
         config: { STATE: { migrated: true } }
       }
     ],
-    deletedProvided: ['legacy-backend-provided'],
-    updatedAt: new Date().toISOString()
+    deletedProvided: ['legacy-backend-provided']
   };
 }
 
 test.describe('examples backend migration', () => {
   test('migrates legacy backend entries to the canonical path', async ({ page }) => {
-    const canonicalKey = 'examples_/br%C3%B8kfigurer';
-    const deletedKey = `${canonicalKey}_deletedProvidedExamples`;
-    const recorded = {
-      canonicalGets: 0,
-      legacyGets: [],
-      canonicalPut: null,
-      legacyDeletes: []
-    };
-    let canonicalResponse = null;
-
-    await page.route('**/api/examples**', async route => {
-      const request = route.request();
-      const method = request.method();
-      const url = new URL(request.url());
-      const path = url.searchParams.get('path');
-      const headers = { 'Content-Type': 'application/json' };
-
-      if (method === 'GET') {
-        if (path === CANONICAL_PATH) {
-          recorded.canonicalGets += 1;
-          if (canonicalResponse) {
-            await route.fulfill({ status: 200, headers, body: JSON.stringify(canonicalResponse) });
-          } else {
-            await route.fulfill({ status: 404, headers, body: JSON.stringify({ error: 'Not Found' }) });
-          }
-          return;
-        }
-        if (path === LEGACY_PRIMARY_PATH) {
-          recorded.legacyGets.push(path);
-          await route.fulfill({ status: 200, headers, body: JSON.stringify(buildLegacyResponse()) });
-          return;
-        }
-        if (LEGACY_VARIANTS.includes(path)) {
-          recorded.legacyGets.push(path);
-          await route.fulfill({ status: 404, headers, body: JSON.stringify({ error: 'Not Found' }) });
-          return;
-        }
-      }
-
-      if (method === 'PUT' && path === CANONICAL_PATH) {
-        const payload = JSON.parse(request.postData() || '{}');
-        recorded.canonicalPut = payload;
-        canonicalResponse = {
-          path: CANONICAL_PATH,
-          examples: Array.isArray(payload.examples) ? payload.examples : [],
-          deletedProvided: Array.isArray(payload.deletedProvided) ? payload.deletedProvided : [],
-          updatedAt: payload.updatedAt || new Date().toISOString(),
-          storage: 'memory'
-        };
-        await route.fulfill({ status: 200, headers, body: JSON.stringify(canonicalResponse) });
-        return;
-      }
-
-      if (method === 'DELETE' && LEGACY_VARIANTS.includes(path)) {
-        recorded.legacyDeletes.push(path);
-        await route.fulfill({ status: 200, headers, body: JSON.stringify({ ok: true }) });
-        return;
-      }
-
-      await route.fulfill({
-        status: 404,
-        headers,
-        body: JSON.stringify({ error: 'Unhandled request', method, path })
-      });
+    const backend = await attachExamplesBackendMock(page.context(), {
+      [LEGACY_PRIMARY_PATH]: buildLegacyEntry()
     });
 
-    await page.addInitScript(() => {
-      window.MATH_VISUALS_EXAMPLES_API_URL = '/api/examples';
-    });
+    const putPromise = backend.waitForPut(CANONICAL_PATH);
+    const primaryDeletePromise = backend.waitForDelete(LEGACY_PRIMARY_PATH);
 
     await page.goto(PAGE_PATH);
 
-    await page.waitForFunction(key => {
-      try {
-        const value = window.localStorage.getItem(key);
-        if (!value) return false;
-        const parsed = JSON.parse(value);
-        return Array.isArray(parsed) && parsed.length > 0;
-      } catch (error) {
-        return false;
-      }
-    }, canonicalKey);
+    const canonicalPut = await putPromise;
+    const primaryDelete = await primaryDeletePromise;
 
-    const storedExamples = await page.evaluate(key => JSON.parse(window.localStorage.getItem(key)), canonicalKey);
-    expect(storedExamples[0]).toMatchObject({ description: 'Backend legacy eksempel' });
+    expect(canonicalPut.path).toBe(CANONICAL_PATH);
+    expect(Array.isArray(canonicalPut.payload.examples)).toBe(true);
+    expect(canonicalPut.payload.examples[0]).toMatchObject({ description: 'Backend legacy eksempel' });
+    expect(canonicalPut.payload.deletedProvided).toEqual(['legacy-backend-provided']);
 
-    const storedDeleted = await page.evaluate(key => JSON.parse(window.localStorage.getItem(key)), deletedKey);
-    expect(storedDeleted).toEqual(['legacy-backend-provided']);
+    expect(primaryDelete.path).toBe(normalizeExamplePath(LEGACY_PRIMARY_PATH));
+
+    const canonicalEntry = await backend.read(CANONICAL_PATH);
+    expect(canonicalEntry).toBeTruthy();
+    expect(Array.isArray(canonicalEntry.examples)).toBe(true);
+    expect(canonicalEntry.examples[0]).toMatchObject({ description: 'Backend legacy eksempel' });
+    expect(canonicalEntry.deletedProvided).toEqual(['legacy-backend-provided']);
+
+    const legacyEntry = await backend.read(LEGACY_PRIMARY_PATH);
+    expect(legacyEntry).toBeUndefined();
 
     await expect(page.locator('#exampleDescription')).toHaveValue('Backend legacy eksempel');
 
-    expect(recorded.canonicalGets).toBeGreaterThan(0);
-    expect(recorded.legacyGets).toContain(LEGACY_PRIMARY_PATH);
-    expect(recorded.canonicalPut).not.toBeNull();
-    expect(recorded.canonicalPut.path).toBe(CANONICAL_PATH);
-    expect(recorded.canonicalPut.examples[0]).toMatchObject({ description: 'Backend legacy eksempel' });
-    expect(recorded.canonicalPut.deletedProvided).toEqual(['legacy-backend-provided']);
-    expect(recorded.legacyDeletes).toContain(LEGACY_PRIMARY_PATH);
-    expect(recorded.legacyDeletes).toEqual(
-      expect.arrayContaining(['/br%C3%B8kfigurer.html', '/brøkfigurer/index.html'])
-    );
+    const normalizedVariants = LEGACY_VARIANTS.map(value => normalizeExamplePath(value));
+    const legacyDeletes = backend.history
+      .filter(event => event.type === 'DELETE' && normalizedVariants.includes(event.path))
+      .map(event => event.path);
+    expect(legacyDeletes).toEqual(expect.arrayContaining([
+      normalizeExamplePath(LEGACY_PRIMARY_PATH),
+      normalizeExamplePath('/brøkfigurer/index.html')
+    ]));
+
+    const canonicalGets = backend.history.filter(event => event.type === 'GET' && event.path === CANONICAL_PATH);
+    expect(canonicalGets.length).toBeGreaterThan(0);
+
+    const legacyGets = backend.history.filter(event => event.type === 'GET' && normalizedVariants.includes(event.path));
+    expect(legacyGets.length).toBeGreaterThan(0);
   });
 });

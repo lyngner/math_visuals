@@ -1,90 +1,52 @@
 const { test, expect } = require('@playwright/test');
 
-const EXAMPLE_PATH = '/diagram/index.html';
-const STORAGE_KEY = 'examples_/diagram';
-const DELETED_KEY = `${STORAGE_KEY}_deletedProvidedExamples`;
+const {
+  attachExamplesBackendMock,
+  normalizeExamplePath
+} = require('./helpers/examples-backend-mock');
 
-async function clearExampleStorage(page) {
-  await page.addInitScript(({ key, deletedKey }) => {
-    const eraseKey = (store, target) => {
-      if (!store || typeof store.removeItem !== 'function') return;
-      try {
-        store.removeItem(target);
-      } catch (error) {
-        // ignore storage access issues
-      }
-    };
-    const eraseIfAvailable = target => {
-      try {
-        if (typeof window.localStorage !== 'undefined') {
-          eraseKey(window.localStorage, target);
-        }
-      } catch (error) {}
-      if (window.__EXAMPLES_STORAGE__ && typeof window.__EXAMPLES_STORAGE__.removeItem === 'function') {
-        try {
-          window.__EXAMPLES_STORAGE__.removeItem(target);
-        } catch (error) {}
-      }
-      if (window.__EXAMPLES_FALLBACK_STORAGE__ && typeof window.__EXAMPLES_FALLBACK_STORAGE__.removeItem === 'function') {
-        try {
-          window.__EXAMPLES_FALLBACK_STORAGE__.removeItem(target);
-        } catch (error) {}
-      }
-    };
-    eraseIfAvailable(key);
-    eraseIfAvailable(deletedKey);
-  }, { key: STORAGE_KEY, deletedKey: DELETED_KEY });
-}
+const EXAMPLE_PATH = '/diagram/index.html';
+const CANONICAL_PATH = normalizeExamplePath(EXAMPLE_PATH);
+
+const persistedExample = {
+  description: 'Lagret før oppdatering',
+  exampleNumber: 'Persistert',
+  isDefault: true,
+  config: {
+    CFG: {
+      type: 'bar',
+      title: 'Forhåndslagret data',
+      labels: ['A', 'B', 'C'],
+      series1: '',
+      start: [1, 2, 3],
+      answer: [1, 2, 3],
+      yMin: 0,
+      yMax: 5,
+      snap: 1,
+      tolerance: 0,
+      axisXLabel: 'Kategori',
+      axisYLabel: 'Verdi',
+      valueDisplay: 'none',
+      locked: []
+    }
+  }
+};
+
+const seedPayload = {
+  examples: [persistedExample],
+  deletedProvided: []
+};
 
 test.describe('Persisted example compatibility', () => {
+  let backend;
+
   test.beforeEach(async ({ page }) => {
-    await clearExampleStorage(page);
+    backend = await attachExamplesBackendMock(page.context(), {
+      [CANONICAL_PATH]: seedPayload
+    });
   });
 
   test('loads user saved examples stored under the canonical key', async ({ page }) => {
-    const persistedExample = {
-      description: 'Lagret før oppdatering',
-      exampleNumber: 'Persistert',
-      isDefault: true,
-      config: {
-        CFG: {
-          type: 'bar',
-          title: 'Forhåndslagret data',
-          labels: ['A', 'B', 'C'],
-          series1: '',
-          start: [1, 2, 3],
-          answer: [1, 2, 3],
-          yMin: 0,
-          yMax: 5,
-          snap: 1,
-          tolerance: 0,
-          axisXLabel: 'Kategori',
-          axisYLabel: 'Verdi',
-          valueDisplay: 'none',
-          locked: []
-        }
-      }
-    };
-
-    await page.addInitScript(({ key, deletedKey, value }) => {
-      try {
-        window.localStorage.setItem(key, value);
-      } catch (error) {}
-      if (window.__EXAMPLES_STORAGE__ && window.__EXAMPLES_STORAGE__ !== window.localStorage) {
-        try {
-          window.__EXAMPLES_STORAGE__.setItem(key, value);
-        } catch (error) {}
-      }
-      if (window.__EXAMPLES_FALLBACK_STORAGE__) {
-        try {
-          window.__EXAMPLES_FALLBACK_STORAGE__.setItem(key, value);
-        } catch (error) {}
-      }
-      try {
-        window.localStorage.setItem(deletedKey, '[]');
-      } catch (error) {}
-    }, { key: STORAGE_KEY, deletedKey: DELETED_KEY, value: JSON.stringify([persistedExample]) });
-
     await page.goto(EXAMPLE_PATH, { waitUntil: 'load' });
 
     const savedTab = page.locator('#exampleTabs .example-tab', { hasText: 'Persistert' });
@@ -93,21 +55,21 @@ test.describe('Persisted example compatibility', () => {
     await savedTab.click();
     await expect(page.locator('#exampleDescription')).toHaveValue(persistedExample.description);
 
-    const storedPayload = await page.evaluate(key => {
-      try {
-        const value = window.localStorage.getItem(key);
-        return value ? JSON.parse(value) : null;
-      } catch (error) {
-        return null;
-      }
-    }, STORAGE_KEY);
-
-    expect(Array.isArray(storedPayload)).toBeTruthy();
-    expect(storedPayload[0]).toMatchObject({ description: persistedExample.description, exampleNumber: 'Persistert' });
+    const storedEntry = await backend.read(CANONICAL_PATH);
+    expect(storedEntry).toBeTruthy();
+    expect(Array.isArray(storedEntry.examples)).toBe(true);
+    expect(storedEntry.examples[0]).toMatchObject({
+      description: persistedExample.description,
+      exampleNumber: 'Persistert'
+    });
   });
 
   test('preserves Map and Set structures when saving and reloading', async ({ page }) => {
-    await page.goto('/brøkfigurer.html', { waitUntil: 'load' });
+    const figurePath = '/brøkfigurer.html';
+    const canonicalFigurePath = normalizeExamplePath(figurePath);
+    backend.seed(canonicalFigurePath, { examples: [] });
+
+    await page.goto(figurePath, { waitUntil: 'load' });
 
     await page.evaluate(() => {
       const colors = new Map();
@@ -119,9 +81,14 @@ test.describe('Persisted example compatibility', () => {
     const tabs = page.locator('#exampleTabs .example-tab');
     const initialCount = await tabs.count();
 
+    const savePromise = backend.waitForPut(canonicalFigurePath);
     await page.locator('#btnSaveExample').click();
 
+    const putResult = await savePromise;
     await expect(tabs).toHaveCount(initialCount + 1);
+
+    expect(Array.isArray(putResult.payload.examples)).toBe(true);
+    expect(putResult.payload.examples.length).toBeGreaterThan(0);
 
     await page.evaluate(() => {
       window.STATE = { colors: null };
@@ -154,5 +121,12 @@ test.describe('Persisted example compatibility', () => {
       ['andre', ['grønn']],
       ['første', ['blå', 'rød']]
     ]);
+
+    const stored = await backend.read(canonicalFigurePath);
+    expect(stored).toBeTruthy();
+    expect(Array.isArray(stored.examples)).toBe(true);
+    expect(stored.examples[stored.examples.length - 1]).toMatchObject({
+      description: expect.any(String)
+    });
   });
 });
