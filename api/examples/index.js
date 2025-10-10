@@ -175,7 +175,19 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       try {
         if (queryPath) {
-          const entry = await getEntry(queryPath);
+          let entry = await getEntry(queryPath);
+          if (!entry && normalizeStoreMode(currentMode) === 'memory') {
+            const defaults = await loadDefaultExampleEntries();
+            const normalizedQueryPath = normalizePath(queryPath);
+            const defaultEntry = defaults.find(item => item.path === normalizedQueryPath);
+            if (defaultEntry) {
+              const seeded = getMemoryEntry(defaultEntry.path);
+              entry = seeded || setMemoryEntry(defaultEntry.path, {
+                examples: defaultEntry.examples,
+                deletedProvided: defaultEntry.deletedProvided
+              });
+            }
+          }
           if (!entry) {
             const metadata = applyModeHeaders(res, currentMode);
             sendJson(res, 404, { error: 'Not Found', ...metadata });
@@ -197,6 +209,11 @@ module.exports = async function handler(req, res) {
             if (!entry || typeof entry !== 'object') continue;
             const { path, examples, deletedProvided } = entry;
             if (!path) continue;
+            const existing = getMemoryEntry(path);
+            if (existing) {
+              seeded.push(existing);
+              continue;
+            }
             const stored = setMemoryEntry(path, { examples, deletedProvided });
             if (stored) {
               seeded.push(stored);
