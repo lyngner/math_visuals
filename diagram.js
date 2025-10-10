@@ -125,20 +125,30 @@ function applyAppModeToTaskControls(mode) {
   }
 }
 
-function getCurrentAppMode() {
-  if (typeof window === 'undefined') return null;
-  const mv = window.mathVisuals;
-  if (mv && typeof mv.getAppMode === 'function') {
-    try {
-      return mv.getAppMode();
-    } catch (_) {
-      return null;
+  function getCurrentAppMode() {
+    if (typeof window === 'undefined') return 'default';
+    const mv = window.mathVisuals;
+    if (mv && typeof mv.getAppMode === 'function') {
+      try {
+        const mode = mv.getAppMode();
+        if (typeof mode === 'string' && mode) {
+          return mode;
+        }
+      } catch (_) {
+        // fall through to query parsing below
+      }
     }
+    try {
+      const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
+      const fromQuery = params.get('mode');
+      if (typeof fromQuery === 'string' && fromQuery.trim()) {
+        return fromQuery.trim().toLowerCase() === 'task' ? 'task' : 'default';
+      }
+    } catch (_) {}
+    return 'default';
   }
-  return null;
-}
 
-applyAppModeToTaskControls(getCurrentAppMode() || 'task');
+  applyAppModeToTaskControls(getCurrentAppMode() || 'task');
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('math-visuals:app-mode-changed', event => {
