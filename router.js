@@ -61,140 +61,34 @@ function createMemoryStorage() {
     }
   };
 }
-function createSessionFallbackStorage() {
-  if (typeof sessionStorage === 'undefined') return null;
+
+function resolveSharedStorage() {
+  if (globalScope && globalScope.__EXAMPLES_STORAGE__ && typeof globalScope.__EXAMPLES_STORAGE__.getItem === 'function') {
+    return globalScope.__EXAMPLES_STORAGE__;
+  }
+  const store = createMemoryStorage();
+  if (globalScope) {
+    globalScope.__EXAMPLES_STORAGE__ = store;
+  }
+  return store;
+}
+
+const storage = resolveSharedStorage();
+
+function safeGetItem(key) {
+  if (!storage || typeof storage.getItem !== 'function') return null;
   try {
-    const testKey = '__examples_session_test__';
-    sessionStorage.setItem(testKey, '1');
-    sessionStorage.removeItem(testKey);
+    return storage.getItem(key);
   } catch (_) {
     return null;
   }
-  return {
-    get length() {
-      try {
-        const value = sessionStorage.length;
-        return typeof value === 'number' ? value : 0;
-      } catch (_) {
-        return 0;
-      }
-    },
-    key(index) {
-      try {
-        return sessionStorage.key(index);
-      } catch (_) {
-        return null;
-      }
-    },
-    getItem(key) {
-      try {
-        return sessionStorage.getItem(key);
-      } catch (_) {
-        return null;
-      }
-    },
-    setItem(key, value) {
-      try {
-        sessionStorage.setItem(key, value);
-      } catch (_) {}
-    },
-    removeItem(key) {
-      try {
-        sessionStorage.removeItem(key);
-      } catch (_) {}
-    },
-    clear() {
-      try {
-        sessionStorage.clear();
-      } catch (_) {}
-    }
-  };
 }
-function createFallbackStorage() {
-  return createSessionFallbackStorage() || createMemoryStorage();
-}
-const sharedFallback = (() => {
-  if (globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function') {
-    return globalScope.__EXAMPLES_FALLBACK_STORAGE__;
-  }
-  const store = createFallbackStorage();
-  if (globalScope) {
-    globalScope.__EXAMPLES_FALLBACK_STORAGE__ = store;
-  }
-  return store;
-})();
-let storage = null;
-let usingFallback = false;
-if (globalScope) {
-  const shared = globalScope.__EXAMPLES_STORAGE__;
-  if (shared && typeof shared.getItem === 'function') {
-    storage = shared;
-    usingFallback = shared === sharedFallback;
-  }
-}
-if (!storage) {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      storage = localStorage;
-    } else {
-      storage = sharedFallback;
-      usingFallback = true;
-    }
-  } catch (_) {
-    storage = sharedFallback;
-    usingFallback = true;
-  }
-}
-if (globalScope && (!globalScope.__EXAMPLES_STORAGE__ || typeof globalScope.__EXAMPLES_STORAGE__.getItem !== 'function')) {
-  globalScope.__EXAMPLES_STORAGE__ = storage;
-}
-function switchToFallback() {
-  if (usingFallback) return storage;
-  if (storage && storage !== sharedFallback) {
-    try {
-      const total = Number(storage.length) || 0;
-      for (let i = 0; i < total; i++) {
-        let key = null;
-        try {
-          key = storage.key(i);
-        } catch (_) {
-          key = null;
-        }
-        if (!key) continue;
-        try {
-          const value = storage.getItem(key);
-          if (value != null) sharedFallback.setItem(key, value);
-        } catch (_) {}
-      }
-    } catch (_) {}
-  }
-  usingFallback = true;
-  storage = sharedFallback;
-  if (globalScope) {
-    globalScope.__EXAMPLES_STORAGE__ = storage;
-  }
-  return storage;
-}
-function safeGetItem(key) {
-  if (!usingFallback && storage && typeof storage.getItem === 'function') {
-    try {
-      return storage.getItem(key);
-    } catch (_) {
-      return switchToFallback().getItem(key);
-    }
-  }
-  return storage && typeof storage.getItem === 'function' ? storage.getItem(key) : null;
-}
+
 function safeSetItem(key, value) {
-  if (!usingFallback && storage && typeof storage.setItem === 'function') {
-    try {
-      storage.setItem(key, value);
-      return;
-    } catch (_) {
-      // fall through
-    }
-  }
-  switchToFallback().setItem(key, value);
+  if (!storage || typeof storage.setItem !== 'function') return;
+  try {
+    storage.setItem(key, value);
+  } catch (_) {}
 }
 
 function resolveExamplesApiBase() {
