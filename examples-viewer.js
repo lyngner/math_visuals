@@ -4,8 +4,73 @@ const VIEWER_SCRIPT_FILENAME = 'examples-viewer.js';
 const DESCRIPTION_RENDERER_FILENAME = 'description-renderer.js';
 const DESCRIPTION_RENDERER_PROMISE_KEY = '__MATH_VISUALS_DESCRIPTION_RENDERER_PROMISE__';
 const DESCRIPTION_RENDERER_URL_KEY = '__MATH_VISUALS_DESCRIPTION_RENDERER_URL__';
+const SHARED_STORAGE_KEY = '__EXAMPLES_STORAGE__';
+const EXAMPLE_SELECTION_KEY = 'example_to_load';
+const CURRENT_PAGE_KEY = 'currentPage';
 let descriptionRendererLoadPromise = null;
 let descriptionRendererResolvedUrl = null;
+
+function createMemoryStorage(initialData) {
+  const data = new Map();
+  if (initialData && typeof initialData === 'object') {
+    Object.keys(initialData).forEach(key => {
+      const normalized = String(key);
+      const value = initialData[key];
+      data.set(normalized, value == null ? 'null' : String(value));
+    });
+  }
+  return {
+    get length() {
+      return data.size;
+    },
+    key(index) {
+      if (!Number.isInteger(index) || index < 0 || index >= data.size) return null;
+      let i = 0;
+      for (const key of data.keys()) {
+        if (i === index) return key;
+        i += 1;
+      }
+      return null;
+    },
+    getItem(key) {
+      if (key == null) return null;
+      const normalized = String(key);
+      return data.has(normalized) ? data.get(normalized) : null;
+    },
+    setItem(key, value) {
+      if (key == null) return;
+      const normalized = String(key);
+      data.set(normalized, value == null ? 'null' : String(value));
+    },
+    removeItem(key) {
+      if (key == null) return;
+      data.delete(String(key));
+    },
+    clear() {
+      data.clear();
+    }
+  };
+}
+
+function getSharedExamplesStorage() {
+  if (globalScope && globalScope[SHARED_STORAGE_KEY] && typeof globalScope[SHARED_STORAGE_KEY].getItem === 'function') {
+    return globalScope[SHARED_STORAGE_KEY];
+  }
+  const store = createMemoryStorage();
+  if (globalScope) {
+    globalScope[SHARED_STORAGE_KEY] = store;
+  }
+  return store;
+}
+
+function sharedStorageSetItem(key, value) {
+  if (!key) return;
+  const store = getSharedExamplesStorage();
+  if (!store || typeof store.setItem !== 'function') return;
+  try {
+    store.setItem(String(key), value == null ? 'null' : String(value));
+  } catch (error) {}
+}
 
 function getDescriptionRendererGlobal() {
   if (!globalScope) return null;
@@ -300,12 +365,15 @@ async function persistBackendEntry(path, entry) {
   }
 }
 function rememberExampleSelection(path, index) {
+  const selection = JSON.stringify({ path, index });
+  sharedStorageSetItem(EXAMPLE_SELECTION_KEY, selection);
+  sharedStorageSetItem(CURRENT_PAGE_KEY, path);
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem('example_to_load', JSON.stringify({ path, index }));
+    window.localStorage.setItem(EXAMPLE_SELECTION_KEY, selection);
   } catch (error) {}
   try {
-    window.localStorage.setItem('currentPage', path);
+    window.localStorage.setItem(CURRENT_PAGE_KEY, path);
   } catch (error) {}
 }
 async function fetchBackendEntries() {
