@@ -46,18 +46,18 @@ function createMockKv() {
 }
 
 const mockKv = createMockKv();
-const kvModulePath = require.resolve('@vercel/kv');
-require.cache[kvModulePath] = { exports: { kv: mockKv.api } };
 
 const {
   normalizePath,
   setEntry,
   getEntry,
   deleteEntry,
-  __deserializeExampleValue
+  __deserializeExampleValue,
+  __setKvClient
 } = require('../api/_lib/examples-store');
 
 test.beforeEach(() => {
+  __setKvClient(mockKv.api);
   mockKv.clear();
   if (global.__EXAMPLES_MEMORY_STORE__) {
     global.__EXAMPLES_MEMORY_STORE__.clear();
@@ -65,6 +65,10 @@ test.beforeEach(() => {
   if (global.__EXAMPLES_MEMORY_INDEX__) {
     global.__EXAMPLES_MEMORY_INDEX__.clear();
   }
+});
+
+test.afterAll(() => {
+  __setKvClient(null);
 });
 
 function buildPath() {
