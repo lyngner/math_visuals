@@ -12,6 +12,46 @@ const {
   getStoreMode
 } = require('../_lib/examples-store');
 
+function normalizeStoreMode(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === 'kv' || normalized === 'vercel-kv') return 'kv';
+  if (normalized === 'memory' || normalized === 'mem' || normalized === 'unconfigured') return 'memory';
+  return null;
+}
+
+function buildModeMetadata(modeHint) {
+  const resolved = normalizeStoreMode(modeHint) || normalizeStoreMode(getStoreMode()) || 'memory';
+  const storage = resolved === 'kv' ? 'kv' : 'memory';
+  return {
+    storage,
+    mode: storage,
+    persistent: storage === 'kv',
+    ephemeral: storage !== 'kv'
+  };
+}
+
+function augmentEntry(entry, fallbackMode) {
+  if (!entry || typeof entry !== 'object') {
+    return buildModeMetadata(fallbackMode);
+  }
+  const metadata = buildModeMetadata(entry.mode || entry.storage || fallbackMode);
+  return { ...entry, ...metadata };
+}
+
+function augmentEntries(entries, fallbackMode) {
+  if (!Array.isArray(entries)) return [];
+  return entries.map(entry => augmentEntry(entry, fallbackMode));
+}
+
+function applyStoreModeHeader(res, mode) {
+  if (!res || typeof res.setHeader !== 'function') return;
+  const metadata = buildModeMetadata(mode);
+  res.setHeader('X-Examples-Store-Mode', metadata.mode);
+  return metadata;
+}
+
 function parseAllowedOrigins() {
   const envValue = process.env.EXAMPLES_ALLOWED_ORIGINS || process.env.ALLOWED_ORIGINS;
   if (!envValue) return ['*'];
@@ -86,7 +126,11 @@ module.exports = async function handler(req, res) {
     res.setHeader('Vary', 'Origin');
   }
 
-  res.setHeader('X-Examples-Store-Mode', getStoreMode());
+  let currentMode = getStoreMode();
+  const initialMetadata = applyStoreModeHeader(res, currentMode);
+  if (initialMetadata && initialMetadata.mode) {
+    currentMode = initialMetadata.mode;
+  }
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
@@ -112,11 +156,16 @@ module.exports = async function handler(req, res) {
           sendJson(res, 404, { error: 'Not Found' });
           return;
         }
-        sendJson(res, 200, entry);
+        const payload = augmentEntry(entry, currentMode);
+        applyStoreModeHeader(res, payload.mode);
+        sendJson(res, 200, payload);
         return;
       }
       const entries = await listEntries();
-      sendJson(res, 200, { entries });
+      const payloadEntries = augmentEntries(entries, currentMode);
+      const listMetadata = buildModeMetadata(payloadEntries.length ? payloadEntries[0].mode : currentMode);
+      applyStoreModeHeader(res, listMetadata.mode);
+      sendJson(res, 200, { ...listMetadata, entries: payloadEntries });
       return;
     }
 
@@ -127,8 +176,10 @@ module.exports = async function handler(req, res) {
         return;
       }
       await deleteEntry(target);
-      res.setHeader('X-Examples-Storage-Result', getStoreMode());
-      sendJson(res, 200, { ok: true });
+      const metadata = applyStoreModeHeader(res, currentMode);
+      const storageResult = metadata ? metadata.mode : getStoreMode();
+      res.setHeader('X-Examples-Storage-Result', storageResult);
+      sendJson(res, 200, { ok: true, ...metadata });
       return;
     }
 
@@ -151,24 +202,30 @@ module.exports = async function handler(req, res) {
         updatedAt: typeof body.updatedAt === 'string' ? body.updatedAt : undefined
       };
       const entry = await setEntry(target, payload);
-      res.setHeader('X-Examples-Storage-Result', entry.storage || 'memory');
-      sendJson(res, 200, entry);
+      const responseEntry = augmentEntry(entry, currentMode);
+      applyStoreModeHeader(res, responseEntry.mode);
+      res.setHeader('X-Examples-Storage-Result', responseEntry.mode);
+      sendJson(res, 200, responseEntry);
       return;
     }
 
     sendJson(res, 405, { error: 'Method Not Allowed' });
   } catch (error) {
     if (error instanceof KvConfigurationError) {
-      sendJson(res, 503, {
+      const metadata = applyStoreModeHeader(res, 'memory');
+      sendJson(res, 200, {
         error: 'KVNotConfigured',
-        message: error.message
+        message: error.message,
+        ...metadata
       });
       return;
     }
     if (error instanceof KvOperationError) {
+      const metadata = applyStoreModeHeader(res, currentMode);
       sendJson(res, 503, {
         error: 'KVUnavailable',
-        message: error.message
+        message: error.message,
+        ...metadata
       });
       return;
     }

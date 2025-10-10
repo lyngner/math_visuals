@@ -1256,9 +1256,57 @@
     }
   }
   const examplesApiBase = resolveExamplesApiBase();
+
+  function normalizeBackendStoreMode(value) {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return null;
+    if (normalized === 'kv' || normalized === 'vercel-kv') return 'kv';
+    if (normalized === 'memory' || normalized === 'mem' || normalized === 'unconfigured') return 'memory';
+    return null;
+  }
+
+  function readStoreModeFromHeadersLike(headers) {
+    if (!headers) return null;
+    try {
+      if (typeof headers.get === 'function') {
+        const value = headers.get('X-Examples-Store-Mode');
+        const normalized = normalizeBackendStoreMode(value);
+        if (normalized) return normalized;
+      }
+    } catch (_) {}
+    try {
+      const direct = headers['X-Examples-Store-Mode'] || headers['x-examples-store-mode'];
+      const normalized = normalizeBackendStoreMode(direct);
+      if (normalized) return normalized;
+    } catch (_) {}
+    return null;
+  }
+
+  function readStoreModeFromPayload(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    const direct = normalizeBackendStoreMode(
+      payload.mode || payload.storage || payload.storageMode || payload.storeMode
+    );
+    if (direct) return direct;
+    if (Array.isArray(payload.entries)) {
+      for (const entry of payload.entries) {
+        const entryMode = readStoreModeFromPayload(entry);
+        if (entryMode) return entryMode;
+      }
+    }
+    return null;
+  }
+
+  function resolveStoreModeFromResponse(res, payload) {
+    const headerMode = readStoreModeFromHeadersLike(res && res.headers);
+    if (headerMode) return headerMode;
+    return readStoreModeFromPayload(payload);
+  }
   let backendAvailable = !examplesApiBase;
   let backendStatusKnown = !examplesApiBase;
   let backendReady = !examplesApiBase;
+  let backendMode = !examplesApiBase ? 'disabled' : null;
   let backendSyncDeferred = false;
   let applyingBackendUpdate = false;
   let backendSyncTimer = null;
@@ -1266,6 +1314,7 @@
   let backendSyncRequested = false;
   let backendNoticeElement = null;
   let backendNoticeDomReadyHandler = null;
+  let backendNoticeMode = null;
 
   function resolveBackendNoticeHost() {
     if (typeof document === 'undefined') return null;
@@ -1276,7 +1325,7 @@
     return document.body || null;
   }
 
-  function hideBackendUnavailableNotice() {
+  function hideBackendNotice() {
     if (typeof document !== 'undefined' && backendNoticeDomReadyHandler) {
       try {
         document.removeEventListener('DOMContentLoaded', backendNoticeDomReadyHandler);
@@ -1286,6 +1335,7 @@
     const notice = backendNoticeElement;
     if (!notice) return;
     backendNoticeElement = null;
+    backendNoticeMode = null;
     try {
       if (typeof notice.remove === 'function') {
         notice.remove();
@@ -1295,8 +1345,9 @@
     } catch (_) {}
   }
 
-  function showBackendUnavailableNotice() {
+  function showBackendNotice(mode) {
     if (typeof document === 'undefined') return;
+    const normalizedMode = mode === 'memory' ? 'memory' : 'offline';
     const render = () => {
       const host = resolveBackendNoticeHost();
       if (!host) return;
@@ -1307,19 +1358,36 @@
         notice.setAttribute('role', 'alert');
         const title = document.createElement('strong');
         title.className = 'example-backend-notice__title';
-        title.textContent = 'Ingen backend-tilkobling';
+        title.textContent = normalizedMode === 'memory' ? 'Midlertidig lagring' : 'Ingen backend-tilkobling';
         const message = document.createElement('span');
         message.className = 'example-backend-notice__message';
-        message.textContent = 'Endringer lagres midlertidig og kan gå tapt hvis siden lastes på nytt.';
+        message.textContent =
+          normalizedMode === 'memory'
+            ? 'Endringer lagres bare midlertidig på serveren og kan forsvinne ved omstart.'
+            : 'Endringer lagres midlertidig og kan gå tapt hvis siden lastes på nytt.';
         notice.appendChild(title);
         notice.appendChild(document.createTextNode(' '));
         notice.appendChild(message);
+      } else {
+        const title = notice.querySelector('.example-backend-notice__title');
+        if (title) {
+          title.textContent = normalizedMode === 'memory' ? 'Midlertidig lagring' : 'Ingen backend-tilkobling';
+        }
+        const message = notice.querySelector('.example-backend-notice__message');
+        if (message) {
+          message.textContent =
+            normalizedMode === 'memory'
+              ? 'Endringer lagres bare midlertidig på serveren og kan forsvinne ved omstart.'
+              : 'Endringer lagres midlertidig og kan gå tapt hvis siden lastes på nytt.';
+        }
       }
       notice.hidden = false;
+      notice.dataset.noticeMode = normalizedMode;
       if (!notice.isConnected) {
         host.insertBefore(notice, host.firstChild);
       }
       backendNoticeElement = notice;
+      backendNoticeMode = normalizedMode;
     };
     if (document.readyState === 'loading') {
       if (!backendNoticeDomReadyHandler) {
@@ -1334,6 +1402,26 @@
     render();
   }
 
+  function updateBackendNotice() {
+    if (!examplesApiBase) {
+      hideBackendNotice();
+      return;
+    }
+    if (backendMode === 'memory') {
+      if (backendNoticeMode !== 'memory' || !backendNoticeElement) {
+        showBackendNotice('memory');
+      }
+      return;
+    }
+    if (!backendAvailable || backendMode === 'offline') {
+      if (backendNoticeMode !== 'offline' || !backendNoticeElement) {
+        showBackendNotice('offline');
+      }
+      return;
+    }
+    hideBackendNotice();
+  }
+
   function updateBackendUiState() {
     backendStatusKnown = true;
     try {
@@ -1343,19 +1431,22 @@
     } catch (_) {
       updateActionButtonState(0);
     }
-    if (backendAvailable) {
-      hideBackendUnavailableNotice();
-    } else {
-      showBackendUnavailableNotice();
-    }
+    updateBackendNotice();
   }
 
-  function markBackendAvailable() {
+  function markBackendAvailable(mode) {
     backendAvailable = true;
+    const resolved = normalizeBackendStoreMode(mode);
+    if (resolved) {
+      backendMode = resolved;
+    } else if (!backendMode || backendMode === 'offline') {
+      backendMode = 'kv';
+    }
     updateBackendUiState();
   }
   function markBackendUnavailable() {
     backendAvailable = false;
+    backendMode = 'offline';
     updateBackendUiState();
   }
   async function performBackendSync() {
@@ -1374,7 +1465,8 @@
           method: 'DELETE'
         });
         if (res.ok || res.status === 404) {
-          markBackendAvailable();
+          const mode = resolveStoreModeFromResponse(res);
+          markBackendAvailable(mode);
         } else {
           markBackendUnavailable();
         }
@@ -1393,7 +1485,8 @@
           body: JSON.stringify(payload)
         });
         if (!res.ok) throw new Error(`Backend sync failed (${res.status})`);
-        markBackendAvailable();
+        const mode = resolveStoreModeFromResponse(res);
+        markBackendAvailable(mode);
         clearLegacyExamplesStorageArtifacts();
       }
     } catch (error) {
@@ -1810,7 +1903,8 @@
           break;
         }
         if (!legacyPathUsed && (!res || res.status === 404)) {
-          markBackendAvailable();
+          const mode = resolveStoreModeFromResponse(res);
+          markBackendAvailable(mode);
           backendWasEmpty = true;
           return {
             path: storagePath,
@@ -1819,7 +1913,8 @@
           };
         }
       } else if (res && res.status === 404) {
-        markBackendAvailable();
+        const mode = resolveStoreModeFromResponse(res);
+        markBackendAvailable(mode);
         backendWasEmpty = true;
         return {
           path: storagePath,
@@ -1838,7 +1933,8 @@
         markBackendUnavailable();
         return null;
       }
-      markBackendAvailable();
+      const responseMode = resolveStoreModeFromResponse(res, backendData);
+      markBackendAvailable(responseMode);
       const normalized = backendData && typeof backendData === 'object' ? { ...backendData } : {};
       normalized.path = storagePath;
       const backendExamples = Array.isArray(normalized.examples) ? normalized.examples : [];

@@ -186,6 +186,77 @@ function normalizePath(value) {
 }
 const examplesApiBase = resolveExamplesApiBase();
 const backendEntriesCache = new Map();
+let backendStoreMode = null;
+
+function normalizeBackendStoreMode(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === 'kv' || normalized === 'vercel-kv') return 'kv';
+  if (normalized === 'memory' || normalized === 'mem' || normalized === 'unconfigured') return 'memory';
+  return null;
+}
+
+function readStoreModeFromHeaders(headers) {
+  if (!headers) return null;
+  try {
+    if (typeof headers.get === 'function') {
+      const value = headers.get('X-Examples-Store-Mode');
+      const normalized = normalizeBackendStoreMode(value);
+      if (normalized) return normalized;
+    }
+  } catch (_) {}
+  try {
+    const direct = headers['X-Examples-Store-Mode'] || headers['x-examples-store-mode'];
+    const normalized = normalizeBackendStoreMode(direct);
+    if (normalized) return normalized;
+  } catch (_) {}
+  return null;
+}
+
+function readStoreModeFromPayload(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  const direct = normalizeBackendStoreMode(
+    payload.mode || payload.storage || payload.storageMode || payload.storeMode
+  );
+  if (direct) return direct;
+  if (Array.isArray(payload.entries)) {
+    for (const entry of payload.entries) {
+      const entryMode = readStoreModeFromPayload(entry);
+      if (entryMode) return entryMode;
+    }
+  }
+  return null;
+}
+
+function resolveStoreMode(res, payload) {
+  const headerMode = readStoreModeFromHeaders(res && res.headers);
+  if (headerMode) return headerMode;
+  return readStoreModeFromPayload(payload);
+}
+
+function updateBackendStoreMode(mode) {
+  const normalized = normalizeBackendStoreMode(mode);
+  if (!normalized) return;
+  backendStoreMode = normalized;
+  if (normalized === 'memory') {
+    if (lastStatusType !== 'error') {
+      setStatusMessage('Eksempler lagres midlertidig og kan forsvinne ved omstart.', 'warning');
+    }
+  } else if (lastStatusType === 'warning') {
+    setStatusMessage('', '');
+  } else if (!lastStatusMessage) {
+    setStatusMessage('', '');
+  }
+}
+
+function applyStoreModeFromResponse(res, payload) {
+  const mode = resolveStoreMode(res, payload);
+  if (mode) {
+    updateBackendStoreMode(mode);
+  }
+  return mode;
+}
 let lastStatusMessage = '';
 let lastStatusType = '';
 
@@ -230,6 +301,7 @@ function setStatusMessage(message, type) {
     delete el.dataset.statusType;
   }
   el.classList.toggle('examples-status--error', normalizedType === 'error');
+  el.classList.toggle('examples-status--warning', normalizedType === 'warning');
 }
 function getCachedEntry(path) {
   const entry = backendEntriesCache.get(path);
@@ -261,6 +333,7 @@ async function persistBackendEntry(path, entry) {
       if (res.ok || res.status === 404) {
         backendEntriesCache.delete(path);
         setStatusMessage('', '');
+        applyStoreModeFromResponse(res);
       } else {
         setStatusMessage(`Kunne ikke fjerne eksempelet «${path}» fra serveren.`, 'error');
       }
@@ -295,6 +368,7 @@ async function persistBackendEntry(path, entry) {
       updateBackendCache(path, payload);
     }
     setStatusMessage('', '');
+    applyStoreModeFromResponse(response, persisted);
   } catch (error) {
     setStatusMessage(`Kunne ikke lagre endringene for «${path}» på serveren.`, 'error');
   }
@@ -340,6 +414,8 @@ async function fetchBackendEntries() {
     setStatusMessage('Kunne ikke tolke svaret fra serveren.', 'error');
     return null;
   }
+  setStatusMessage('', '');
+  applyStoreModeFromResponse(res, data);
   const entries = Array.isArray(data && data.entries) ? data.entries : [];
   const normalized = [];
   entries.forEach(item => {
@@ -362,7 +438,6 @@ async function fetchBackendEntries() {
       });
     }
   });
-  setStatusMessage('', '');
   return normalized;
 }
 async function renderExamples(options) {

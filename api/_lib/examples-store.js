@@ -182,8 +182,25 @@ function isKvConfigured() {
 }
 
 function getStoreMode() {
-  if (isKvConfigured()) return 'kv';
-  return 'unconfigured';
+  return isKvConfigured() ? 'kv' : 'memory';
+}
+
+function normalizeStoreMode(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === 'kv' || normalized === 'vercel-kv') return 'kv';
+  if (normalized === 'memory' || normalized === 'mem' || normalized === 'unconfigured') return 'memory';
+  return null;
+}
+
+function applyStorageMetadata(entry, mode) {
+  if (!entry || typeof entry !== 'object') return entry;
+  const resolved = normalizeStoreMode(mode) || normalizeStoreMode(entry.mode) || normalizeStoreMode(entry.storage) || getStoreMode();
+  const storageMode = resolved === 'kv' ? 'kv' : 'memory';
+  entry.storage = storageMode;
+  entry.mode = storageMode;
+  return entry;
 }
 
 async function loadKvClient() {
@@ -372,17 +389,18 @@ function readFromMemory(path) {
 async function getEntry(path) {
   const normalized = normalizePath(path);
   if (!normalized) return null;
-  const kvValue = await readFromKv(normalized);
-  if (kvValue) {
-    const entry = buildEntry(normalized, kvValue);
-    entry.storage = 'kv';
-    writeToMemory(normalized, entry);
-    return clone(entry);
+  if (isKvConfigured()) {
+    const kvValue = await readFromKv(normalized);
+    if (kvValue) {
+      const entry = buildEntry(normalized, kvValue);
+      applyStorageMetadata(entry, 'kv');
+      writeToMemory(normalized, entry);
+      return clone(entry);
+    }
   }
   const memoryValue = readFromMemory(normalized);
   if (memoryValue) {
-    const entry = clone(memoryValue);
-    entry.storage = entry.storage || 'memory';
+    const entry = applyStorageMetadata(clone(memoryValue), memoryValue.mode || memoryValue.storage || 'memory');
     return entry;
   }
   return null;
@@ -392,40 +410,58 @@ async function setEntry(path, payload) {
   const normalized = normalizePath(path);
   if (!normalized) return null;
   const entry = buildEntry(normalized, payload || {});
-  await writeToKv(normalized, entry);
-  entry.storage = 'kv';
-  writeToMemory(normalized, entry);
-  return clone(entry);
+  if (isKvConfigured()) {
+    await writeToKv(normalized, entry);
+    const annotated = applyStorageMetadata({ ...entry }, 'kv');
+    writeToMemory(normalized, annotated);
+    return clone(annotated);
+  }
+  const annotated = applyStorageMetadata(entry, 'memory');
+  writeToMemory(normalized, annotated);
+  return clone(annotated);
 }
 
 async function deleteEntry(path) {
   const normalized = normalizePath(path);
   if (!normalized) return false;
-  await deleteFromKv(normalized);
+  if (isKvConfigured()) {
+    await deleteFromKv(normalized);
+  }
   deleteFromMemory(normalized);
   return true;
 }
 
 async function listEntries() {
-  const kv = await loadKvClient();
   const entries = [];
-  let paths = [];
-  try {
-    const raw = await kv.smembers(INDEX_KEY);
-    if (Array.isArray(raw)) paths = raw;
-  } catch (error) {
-    throw new KvOperationError('Failed to read index from KV', { cause: error });
+  if (isKvConfigured()) {
+    const kv = await loadKvClient();
+    let paths = [];
+    try {
+      const raw = await kv.smembers(INDEX_KEY);
+      if (Array.isArray(raw)) paths = raw;
+    } catch (error) {
+      throw new KvOperationError('Failed to read index from KV', { cause: error });
+    }
+    for (const value of paths) {
+      const normalized = normalizePath(value);
+      if (!normalized) continue;
+      const stored = await readFromKv(normalized);
+      if (!stored) continue;
+      const entry = buildEntry(normalized, stored);
+      applyStorageMetadata(entry, 'kv');
+      writeToMemory(normalized, entry);
+      entries.push(clone(entry));
+    }
+    return entries;
   }
-  for (const value of paths) {
-    const normalized = normalizePath(value);
-    if (!normalized) continue;
-    const stored = await readFromKv(normalized);
-    if (!stored) continue;
-    const entry = buildEntry(normalized, stored);
-    entry.storage = 'kv';
-    writeToMemory(normalized, entry);
-    entries.push(clone(entry));
-  }
+  memoryIndex.forEach(path => {
+    const normalized = normalizePath(path);
+    if (!normalized) return;
+    const stored = readFromMemory(normalized);
+    if (!stored) return;
+    const annotated = applyStorageMetadata(stored, 'memory');
+    entries.push(clone(annotated));
+  });
   return entries;
 }
 
