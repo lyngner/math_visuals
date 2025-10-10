@@ -29,3 +29,12 @@ Dette vil:
 - **Treg testoppstart:** Playwright starter en lokal HTTP-server under `npm test`. I Codex skjer dette automatisk via testene.
 
 Med dette oppsettet kan du trygt kjøre hele testpakken i Codex før du lager en PR til GitHub.
+
+## Kjøre enkeltstående scenarier
+
+For å verifisere nye testscenarier isolert kan du be Playwright om å kjøre enkelttester direkte:
+
+- Minnelagringslogikk for eksempellageret: `npx playwright test tests/examples-store.spec.js`
+- Viewer-siden i minnemodus (bruker backend-mocken i «memory»): `npx playwright test tests/examples-viewer.spec.js`
+
+Begge kommandoene starter samme lokale testserver som `npm test`, men hopper over øvrige tester slik at det går raskere å iterere.

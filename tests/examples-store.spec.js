@@ -180,53 +180,104 @@ test.describe('examples-store canonical entry handling', () => {
 });
 
 test.describe('examples-store memory fallback', () => {
-  test('provides in-memory storage when KV is not configured', async () => {
-    const originalUrl = process.env.KV_REST_API_URL;
-    const originalToken = process.env.KV_REST_API_TOKEN;
+  let originalUrl;
+  let originalToken;
+
+  test.beforeEach(() => {
+    originalUrl = process.env.KV_REST_API_URL;
+    originalToken = process.env.KV_REST_API_TOKEN;
     delete process.env.KV_REST_API_URL;
     delete process.env.KV_REST_API_TOKEN;
-    const path = buildPath();
-    try {
-      const payload = {
-        examples: [
-          {
-            description: 'Memory fallback example',
-            config: { STATE: { value: 42 } }
-          }
-        ],
-        deletedProvided: []
-      };
-      const entry = await setEntry(path, payload);
-      expect(entry).not.toBeNull();
-      expect(entry.storage).toBe('memory');
-      expect(entry.mode).toBe('memory');
+  });
 
-      const stored = await getEntry(path);
-      expect(stored).not.toBeNull();
-      expect(stored.storage).toBe('memory');
-      expect(stored.mode).toBe('memory');
-
-      const entries = await listEntries();
-      const canonicalPath = normalizePath(path);
-      const listed = entries.find(item => item && item.path === canonicalPath);
-      expect(listed).toBeTruthy();
-      expect(listed.storage).toBe('memory');
-      expect(listed.mode).toBe('memory');
-
-      await deleteEntry(path);
-      const afterDelete = await getEntry(path);
-      expect(afterDelete).toBeNull();
-    } finally {
-      if (originalUrl !== undefined) {
-        process.env.KV_REST_API_URL = originalUrl;
-      } else {
-        delete process.env.KV_REST_API_URL;
-      }
-      if (originalToken !== undefined) {
-        process.env.KV_REST_API_TOKEN = originalToken;
-      } else {
-        delete process.env.KV_REST_API_TOKEN;
-      }
+  test.afterEach(() => {
+    if (originalUrl !== undefined) {
+      process.env.KV_REST_API_URL = originalUrl;
+    } else {
+      delete process.env.KV_REST_API_URL;
     }
+    if (originalToken !== undefined) {
+      process.env.KV_REST_API_TOKEN = originalToken;
+    } else {
+      delete process.env.KV_REST_API_TOKEN;
+    }
+  });
+
+  test('setEntry and getEntry operate entirely in memory when KV is unconfigured', async () => {
+    const path = buildPath();
+    const payload = {
+      examples: [
+        {
+          description: 'Memory fallback example',
+          config: { STATE: { value: 42 } }
+        }
+      ],
+      deletedProvided: []
+    };
+
+    const entry = await setEntry(path, payload);
+    expect(entry).not.toBeNull();
+    expect(entry.path).toBe(normalizePath(path));
+    expect(entry.storage).toBe('memory');
+    expect(entry.mode).toBe('memory');
+    expect(entry.persistent).toBe(false);
+    expect(entry.ephemeral).toBe(true);
+
+    const stored = await getEntry(path);
+    expect(stored).not.toBeNull();
+    expect(stored.storage).toBe('memory');
+    expect(stored.mode).toBe('memory');
+    expect(Array.isArray(stored.examples)).toBe(true);
+    expect(stored.examples[0]).toMatchObject({ description: 'Memory fallback example' });
+  });
+
+  test('listEntries and deleteEntry use memory metadata when KV variables are missing', async () => {
+    const pathA = buildPath();
+    const pathB = buildPath();
+
+    await setEntry(pathA, {
+      examples: [
+        {
+          description: 'Entry A',
+          config: { STATE: { label: 'A' } }
+        }
+      ],
+      deletedProvided: []
+    });
+
+    await setEntry(pathB, {
+      examples: [
+        {
+          description: 'Entry B',
+          config: { STATE: { label: 'B' } }
+        }
+      ],
+      deletedProvided: []
+    });
+
+    const entries = await listEntries();
+    expect(entries.length).toBeGreaterThanOrEqual(2);
+    const normalizedA = normalizePath(pathA);
+    const normalizedB = normalizePath(pathB);
+    const entryA = entries.find(item => item.path === normalizedA);
+    const entryB = entries.find(item => item.path === normalizedB);
+    expect(entryA).toBeTruthy();
+    expect(entryA.storage).toBe('memory');
+    expect(entryA.mode).toBe('memory');
+    expect(entryB).toBeTruthy();
+    expect(entryB.storage).toBe('memory');
+    expect(entryB.mode).toBe('memory');
+
+    const deleted = await deleteEntry(pathA);
+    expect(deleted).toBe(true);
+    const afterDelete = await getEntry(pathA);
+    expect(afterDelete).toBeNull();
+
+    const remaining = await listEntries();
+    expect(remaining.some(item => item.path === normalizedA)).toBe(false);
+    const stillHasB = remaining.find(item => item.path === normalizedB);
+    expect(stillHasB).toBeTruthy();
+    expect(stillHasB.storage).toBe('memory');
+    expect(stillHasB.mode).toBe('memory');
   });
 });
