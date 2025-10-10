@@ -8,6 +8,7 @@ const {
   deleteEntry,
   listEntries,
   KvOperationError,
+  KvConfigurationError,
   getStoreMode
 } = require('../_lib/examples-store');
 
@@ -157,6 +158,13 @@ module.exports = async function handler(req, res) {
 
     sendJson(res, 405, { error: 'Method Not Allowed' });
   } catch (error) {
+    if (error instanceof KvConfigurationError) {
+      sendJson(res, 503, {
+        error: 'KVNotConfigured',
+        message: error.message
+      });
+      return;
+    }
     if (error instanceof KvOperationError) {
       sendJson(res, 503, {
         error: 'KVUnavailable',

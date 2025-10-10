@@ -1,8 +1,5 @@
 'use strict';
 
-const nodePath = require('path');
-const fsPromises = require('fs/promises');
-
 const KEY_PREFIX = 'examples:';
 const INDEX_KEY = 'examples:__paths__';
 
@@ -18,18 +15,6 @@ const memoryStore = globalScope.__EXAMPLES_MEMORY_STORE__;
 const memoryIndex = globalScope.__EXAMPLES_MEMORY_INDEX__;
 
 let kvClientPromise = null;
-let kvConfigWarningLogged = false;
-
-const FALLBACK_DATA_DIR = process.env.EXAMPLES_FALLBACK_DIR
-  ? nodePath.resolve(process.cwd(), process.env.EXAMPLES_FALLBACK_DIR)
-  : nodePath.join(process.cwd(), '.data');
-const FALLBACK_DATA_FILE = process.env.EXAMPLES_FALLBACK_FILE
-  ? nodePath.resolve(process.cwd(), process.env.EXAMPLES_FALLBACK_FILE)
-  : nodePath.join(FALLBACK_DATA_DIR, 'examples-store.json');
-
-let fallbackStoreLoaded = false;
-let fallbackStoreLoading = null;
-let fallbackPersistenceEnabled = true;
 
 const EXAMPLE_VALUE_TYPE_KEY = '__mathVisualsType__';
 const EXAMPLE_VALUE_DATA_KEY = '__mathVisualsValue__';
@@ -185,130 +170,41 @@ class KvOperationError extends Error {
   }
 }
 
+class KvConfigurationError extends Error {
+  constructor(message) {
+    super(message);
+    this.code = 'KV_NOT_CONFIGURED';
+  }
+}
+
 function isKvConfigured() {
   return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 }
 
 function getStoreMode() {
   if (isKvConfigured()) return 'kv';
-  return fallbackPersistenceEnabled ? 'file' : 'memory';
+  return 'unconfigured';
 }
 
 async function loadKvClient() {
   if (!isKvConfigured()) {
-    if (!kvConfigWarningLogged) {
-      kvConfigWarningLogged = true;
-      console.warn('[examples-store] KV client not configured – using in-memory fallback');
-    }
-    return null;
+    throw new KvConfigurationError(
+      'Examples KV is not configured. Set KV_REST_API_URL and KV_REST_API_TOKEN to enable persistent storage.'
+    );
   }
   if (!kvClientPromise) {
-    kvClientPromise = import('@vercel/kv').then(mod => mod && mod.kv ? mod.kv : null).catch(() => null);
+    kvClientPromise = import('@vercel/kv')
+      .then(mod => {
+        if (mod && mod.kv) {
+          return mod.kv;
+        }
+        throw new KvOperationError('Failed to load @vercel/kv client module');
+      })
+      .catch(error => {
+        throw new KvOperationError('Unable to initialize Vercel KV client', { cause: error });
+      });
   }
   return kvClientPromise;
-}
-
-async function ensureFallbackDirectoryExists() {
-  if (!fallbackPersistenceEnabled) return false;
-  try {
-    await fsPromises.mkdir(nodePath.dirname(FALLBACK_DATA_FILE), { recursive: true });
-    return true;
-  } catch (error) {
-    fallbackPersistenceEnabled = false;
-    console.warn('[examples-store] Failed to create fallback data directory', {
-      path: FALLBACK_DATA_FILE,
-      error
-    });
-    return false;
-  }
-}
-
-async function loadFallbackStore() {
-  if (fallbackStoreLoaded || !fallbackPersistenceEnabled) return;
-  if (!fallbackStoreLoading) {
-    fallbackStoreLoading = (async () => {
-      try {
-        const raw = await fsPromises.readFile(FALLBACK_DATA_FILE, 'utf8');
-        let parsed = null;
-        try {
-          parsed = JSON.parse(raw);
-        } catch (error) {
-          console.warn('[examples-store] Failed to parse fallback data file', {
-            path: FALLBACK_DATA_FILE,
-            error
-          });
-          parsed = null;
-        }
-        if (parsed && Array.isArray(parsed.entries)) {
-          memoryStore.clear();
-          memoryIndex.clear();
-          parsed.entries.forEach(item => {
-            if (!item || typeof item !== 'object') return;
-            const normalized = normalizePath(item.path);
-            if (!normalized) return;
-            const entry = buildEntry(normalized, item);
-            entry.storage = 'file';
-            writeToMemory(normalized, entry);
-          });
-        }
-      } catch (error) {
-        if (error && error.code === 'ENOENT') {
-          // Missing file is fine; nothing to load yet.
-        } else {
-          fallbackPersistenceEnabled = false;
-          console.warn('[examples-store] Failed to read fallback data file', {
-            path: FALLBACK_DATA_FILE,
-            error
-          });
-        }
-      } finally {
-        fallbackStoreLoaded = true;
-        fallbackStoreLoading = null;
-      }
-    })();
-  }
-  return fallbackStoreLoading;
-}
-
-async function ensureFallbackLoaded() {
-  if (isKvConfigured()) return;
-  await loadFallbackStore();
-}
-
-async function persistFallbackStore() {
-  if (isKvConfigured() || !fallbackPersistenceEnabled) {
-    return false;
-  }
-  const dirReady = await ensureFallbackDirectoryExists();
-  if (!dirReady) {
-    return false;
-  }
-  const entries = [];
-  memoryIndex.forEach(pathValue => {
-    const normalized = normalizePath(pathValue);
-    if (!normalized) return;
-    const stored = readFromMemory(normalized);
-    if (!stored) return;
-    const cloneValue = clone(stored);
-    cloneValue.storage = 'file';
-    entries.push(cloneValue);
-  });
-  const payload = {
-    version: 1,
-    updatedAt: new Date().toISOString(),
-    entries
-  };
-  try {
-    await fsPromises.writeFile(FALLBACK_DATA_FILE, JSON.stringify(payload, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    fallbackPersistenceEnabled = false;
-    console.warn('[examples-store] Failed to persist fallback data file', {
-      path: FALLBACK_DATA_FILE,
-      error
-    });
-    return false;
-  }
 }
 
 function normalizePath(value) {
@@ -408,35 +304,28 @@ function buildEntry(path, payload) {
 
 async function writeToKv(path, entry) {
   const kv = await loadKvClient();
-  if (!kv) return { ok: false, reason: 'unconfigured' };
   const key = makeKey(path);
   try {
     await kv.set(key, entry);
     await kv.sadd(INDEX_KEY, path);
-    return { ok: true };
   } catch (error) {
-    console.error('[examples-store] Failed to write entry to KV', { path, error });
-    return { ok: false, reason: 'error', error };
+    throw new KvOperationError(`Failed to write entry to KV for path ${path}`, { cause: error });
   }
 }
 
 async function deleteFromKv(path) {
   const kv = await loadKvClient();
-  if (!kv) return { ok: false, reason: 'unconfigured' };
   const key = makeKey(path);
   try {
     await kv.del(key);
     await kv.srem(INDEX_KEY, path);
-    return { ok: true };
   } catch (error) {
-    console.error('[examples-store] Failed to delete entry in KV', { path, error });
-    return { ok: false, reason: 'error', error };
+    throw new KvOperationError(`Failed to delete entry in KV for path ${path}`, { cause: error });
   }
 }
 
 async function readFromKv(path) {
   const kv = await loadKvClient();
-  if (!kv) return null;
   const key = makeKey(path);
   try {
     const value = await kv.get(key);
@@ -445,16 +334,20 @@ async function readFromKv(path) {
       try {
         return JSON.parse(value);
       } catch (error) {
-        return null;
+        throw new KvOperationError('Failed to parse KV entry payload', { cause: error });
       }
     }
     if (typeof value === 'object') {
       return value;
     }
-    return null;
+    throw new KvOperationError('Unsupported KV entry payload type', {
+      code: 'KV_UNSUPPORTED_VALUE_TYPE'
+    });
   } catch (error) {
-    console.error('[examples-store] Failed to read entry from KV', { path, error });
-    return null;
+    if (error instanceof KvOperationError) {
+      throw error;
+    }
+    throw new KvOperationError(`Failed to read entry from KV for path ${path}`, { cause: error });
   }
 }
 
@@ -479,7 +372,6 @@ function readFromMemory(path) {
 async function getEntry(path) {
   const normalized = normalizePath(path);
   if (!normalized) return null;
-  await ensureFallbackLoaded();
   const kvValue = await readFromKv(normalized);
   if (kvValue) {
     const entry = buildEntry(normalized, kvValue);
@@ -499,75 +391,41 @@ async function getEntry(path) {
 async function setEntry(path, payload) {
   const normalized = normalizePath(path);
   if (!normalized) return null;
-  await ensureFallbackLoaded();
   const entry = buildEntry(normalized, payload || {});
-  const result = await writeToKv(normalized, entry);
-  if (!result || result.reason === 'error') {
-    throw new KvOperationError('Failed to write entry to KV', { cause: result && result.error });
-  }
-  if (result && result.ok) {
-    entry.storage = 'kv';
-    writeToMemory(normalized, entry);
-    return clone(entry);
-  }
-  entry.storage = 'file';
+  await writeToKv(normalized, entry);
+  entry.storage = 'kv';
   writeToMemory(normalized, entry);
-  const persisted = await persistFallbackStore();
-  if (!persisted) {
-    entry.storage = 'memory';
-    writeToMemory(normalized, entry);
-  }
   return clone(entry);
 }
 
 async function deleteEntry(path) {
   const normalized = normalizePath(path);
   if (!normalized) return false;
-  await ensureFallbackLoaded();
-  const result = await deleteFromKv(normalized);
-  if (!result || result.reason === 'error') {
-    throw new KvOperationError('Failed to delete entry in KV', { cause: result && result.error });
-  }
+  await deleteFromKv(normalized);
   deleteFromMemory(normalized);
-  if (!result.ok) {
-    await persistFallbackStore();
-  }
   return true;
 }
 
 async function listEntries() {
   const kv = await loadKvClient();
-  await ensureFallbackLoaded();
   const entries = [];
-  if (kv) {
-    let paths = [];
-    try {
-      const raw = await kv.smembers(INDEX_KEY);
-      if (Array.isArray(raw)) paths = raw;
-    } catch (error) {
-      paths = [];
-    }
-    for (const value of paths) {
-      const normalized = normalizePath(value);
-      if (!normalized) continue;
-      const stored = await readFromKv(normalized);
-      if (!stored) continue;
-      const entry = buildEntry(normalized, stored);
-      entry.storage = 'kv';
-      writeToMemory(normalized, entry);
-      entries.push(clone(entry));
-    }
-    return entries;
+  let paths = [];
+  try {
+    const raw = await kv.smembers(INDEX_KEY);
+    if (Array.isArray(raw)) paths = raw;
+  } catch (error) {
+    throw new KvOperationError('Failed to read index from KV', { cause: error });
   }
-  memoryIndex.forEach(path => {
-    const normalized = normalizePath(path);
-    if (!normalized) return;
-    const stored = readFromMemory(normalized);
-    if (!stored) return;
-    const entry = clone(stored);
-    entry.storage = entry.storage || 'memory';
-    entries.push(entry);
-  });
+  for (const value of paths) {
+    const normalized = normalizePath(value);
+    if (!normalized) continue;
+    const stored = await readFromKv(normalized);
+    if (!stored) continue;
+    const entry = buildEntry(normalized, stored);
+    entry.storage = 'kv';
+    writeToMemory(normalized, entry);
+    entries.push(clone(entry));
+  }
   return entries;
 }
 
@@ -578,6 +436,7 @@ module.exports = {
   deleteEntry,
   listEntries,
   KvOperationError,
+  KvConfigurationError,
   isKvConfigured,
   getStoreMode,
   __serializeExampleValue: value => serializeExampleValue(value, new WeakMap()),

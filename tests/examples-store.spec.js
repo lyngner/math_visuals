@@ -1,5 +1,54 @@
 const { test, expect } = require('@playwright/test');
 
+process.env.KV_REST_API_URL = process.env.KV_REST_API_URL || 'http://127.0.0.1:0';
+process.env.KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN || 'test-token';
+
+function createMockKv() {
+  const data = new Map();
+  const sets = new Map();
+  const ensureSet = key => {
+    if (!sets.has(key)) {
+      sets.set(key, new Set());
+    }
+    return sets.get(key);
+  };
+  return {
+    api: {
+      async set(key, value) {
+        data.set(key, value);
+      },
+      async get(key) {
+        return data.has(key) ? data.get(key) : null;
+      },
+      async del(key) {
+        data.delete(key);
+      },
+      async sadd(key, member) {
+        ensureSet(key).add(member);
+      },
+      async srem(key, member) {
+        if (!sets.has(key)) return;
+        const target = sets.get(key);
+        target.delete(member);
+        if (target.size === 0) {
+          sets.delete(key);
+        }
+      },
+      async smembers(key) {
+        return sets.has(key) ? Array.from(sets.get(key)) : [];
+      }
+    },
+    clear() {
+      data.clear();
+      sets.clear();
+    }
+  };
+}
+
+const mockKv = createMockKv();
+const kvModulePath = require.resolve('@vercel/kv');
+require.cache[kvModulePath] = { exports: { kv: mockKv.api } };
+
 const {
   normalizePath,
   setEntry,
@@ -7,6 +56,16 @@ const {
   deleteEntry,
   __deserializeExampleValue
 } = require('../api/_lib/examples-store');
+
+test.beforeEach(() => {
+  mockKv.clear();
+  if (global.__EXAMPLES_MEMORY_STORE__) {
+    global.__EXAMPLES_MEMORY_STORE__.clear();
+  }
+  if (global.__EXAMPLES_MEMORY_INDEX__) {
+    global.__EXAMPLES_MEMORY_INDEX__.clear();
+  }
+});
 
 function buildPath() {
   return `/serialization-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;

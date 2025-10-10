@@ -34,3 +34,6 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Smoke test examples API
+        run: node tests/examples-api-smoke.mjs
