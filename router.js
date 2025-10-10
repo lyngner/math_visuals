@@ -27,6 +27,9 @@
 })();
 
 const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+const STORAGE_GLOBAL_KEY = '__EXAMPLES_STORAGE__';
+const FALLBACK_STORAGE_GLOBAL_KEY = '__EXAMPLES_FALLBACK_STORAGE__';
+
 function createMemoryStorage() {
   const data = new Map();
   return {
@@ -62,33 +65,113 @@ function createMemoryStorage() {
   };
 }
 
-function resolveSharedStorage() {
-  if (globalScope && globalScope.__EXAMPLES_STORAGE__ && typeof globalScope.__EXAMPLES_STORAGE__.getItem === 'function') {
-    return globalScope.__EXAMPLES_STORAGE__;
+function resolveFallbackStorage() {
+  if (globalScope && globalScope[FALLBACK_STORAGE_GLOBAL_KEY] && typeof globalScope[FALLBACK_STORAGE_GLOBAL_KEY].getItem === 'function') {
+    return globalScope[FALLBACK_STORAGE_GLOBAL_KEY];
   }
   const store = createMemoryStorage();
   if (globalScope) {
-    globalScope.__EXAMPLES_STORAGE__ = store;
+    globalScope[FALLBACK_STORAGE_GLOBAL_KEY] = store;
   }
   return store;
 }
 
-const storage = resolveSharedStorage();
-
-function safeGetItem(key) {
-  if (!storage || typeof storage.getItem !== 'function') return null;
+function resolveLocalStorage() {
+  if (typeof window === 'undefined') return null;
   try {
-    return storage.getItem(key);
+    const storage = window.localStorage;
+    if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {
+      return null;
+    }
+    const testKey = '__math_visuals_storage_test__';
+    storage.setItem(testKey, testKey);
+    storage.removeItem(testKey);
+    return storage;
   } catch (_) {
     return null;
   }
 }
 
+function copyStorageContents(source, target) {
+  if (!source || !target || source === target) return;
+  if (typeof source.length !== 'number' || typeof source.key !== 'function' || typeof target.setItem !== 'function') {
+    return;
+  }
+  const seenKeys = new Set();
+  const safeKey = index => {
+    try {
+      return source.key(index);
+    } catch (_) {
+      return null;
+    }
+  };
+  for (let i = 0; i < source.length; i += 1) {
+    const key = safeKey(i);
+    if (typeof key !== 'string' || !key || seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    try {
+      const value = source.getItem(key);
+      if (value == null) continue;
+      target.setItem(key, value);
+    } catch (_) {}
+  }
+}
+
+function resolveSharedStorage() {
+  const existing = globalScope && globalScope[STORAGE_GLOBAL_KEY] && typeof globalScope[STORAGE_GLOBAL_KEY].getItem === 'function'
+    ? globalScope[STORAGE_GLOBAL_KEY]
+    : null;
+  const local = resolveLocalStorage();
+  const fallback = resolveFallbackStorage();
+  if (local) {
+    if (existing && existing !== local) {
+      copyStorageContents(existing, local);
+    }
+    if (globalScope) {
+      globalScope[STORAGE_GLOBAL_KEY] = local;
+    }
+    return local;
+  }
+  if (existing) {
+    return existing;
+  }
+  if (globalScope) {
+    globalScope[STORAGE_GLOBAL_KEY] = fallback;
+  }
+  return fallback;
+}
+
+const storage = resolveSharedStorage();
+const fallbackStorage = resolveFallbackStorage();
+
+function safeGetItem(key) {
+  if (key == null) return null;
+  const stores = [];
+  if (storage && typeof storage.getItem === 'function') stores.push(storage);
+  if (fallbackStorage && typeof fallbackStorage.getItem === 'function' && fallbackStorage !== storage) {
+    stores.push(fallbackStorage);
+  }
+  for (const store of stores) {
+    try {
+      const value = store.getItem(key);
+      if (value != null) return value;
+    } catch (_) {}
+  }
+  return null;
+}
+
 function safeSetItem(key, value) {
-  if (!storage || typeof storage.setItem !== 'function') return;
-  try {
-    storage.setItem(key, value);
-  } catch (_) {}
+  if (key == null) return;
+  const stores = [];
+  if (storage && typeof storage.setItem === 'function') stores.push(storage);
+  if (fallbackStorage && typeof fallbackStorage.setItem === 'function' && fallbackStorage !== storage) {
+    stores.push(fallbackStorage);
+  }
+  for (const store of stores) {
+    try {
+      store.setItem(key, value);
+    } catch (_) {}
+  }
 }
 
 function resolveExamplesApiBase() {
