@@ -55,7 +55,7 @@ test.describe('Persisted example compatibility', () => {
     await savedTab.click();
     await expect(page.locator('#exampleDescription')).toHaveValue(persistedExample.description);
 
-    const storedEntry = await backend.read(CANONICAL_PATH);
+    const storedEntry = await backend.client.get(CANONICAL_PATH);
     expect(storedEntry).toBeTruthy();
     expect(Array.isArray(storedEntry.examples)).toBe(true);
     expect(storedEntry.examples[0]).toMatchObject({
@@ -67,7 +67,7 @@ test.describe('Persisted example compatibility', () => {
   test('preserves Map and Set structures when saving and reloading', async ({ page }) => {
     const figurePath = '/brøkfigurer.html';
     const canonicalFigurePath = normalizeExamplePath(figurePath);
-    backend.seed(canonicalFigurePath, { examples: [] });
+    await backend.client.put(canonicalFigurePath, { examples: [], deletedProvided: [] });
 
     await page.goto(figurePath, { waitUntil: 'load' });
 
@@ -122,7 +122,7 @@ test.describe('Persisted example compatibility', () => {
       ['første', ['blå', 'rød']]
     ]);
 
-    const stored = await backend.read(canonicalFigurePath);
+    const stored = await backend.client.get(canonicalFigurePath);
     expect(stored).toBeTruthy();
     expect(Array.isArray(stored.examples)).toBe(true);
     expect(stored.examples[stored.examples.length - 1]).toMatchObject({

@@ -1,6 +1,14 @@
 const { test, expect } = require('@playwright/test');
 
+const { attachExamplesBackendMock } = require('./helpers/examples-backend-mock');
+
 test.describe('task mode description preview', () => {
+  let backend;
+
+  test.beforeEach(async ({ page }) => {
+    backend = await attachExamplesBackendMock(page.context());
+  });
+
   test('hides preview until formatting is used', async ({ page }) => {
     await page.goto('/diagram/index.html', { waitUntil: 'load' });
     const input = page.locator('#exampleDescription');
@@ -32,9 +40,7 @@ test.describe('task mode description preview', () => {
       isDefault: true,
       config: { CFG: cfg }
     }];
-    await page.evaluate(exampleData => {
-      localStorage.setItem('examples_/diagram', JSON.stringify(exampleData));
-    }, htmlExample);
+    await backend.client.put('/diagram', { examples: htmlExample, deletedProvided: [] });
     await page.goto('/diagram/index.html?mode=oppgave', { waitUntil: 'load' });
     const htmlPreview = page.locator('.example-description-preview');
     await expect(htmlPreview).toBeVisible();

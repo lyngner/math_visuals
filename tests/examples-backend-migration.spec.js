@@ -57,13 +57,13 @@ test.describe('examples backend migration', () => {
 
     expect(primaryDelete.path).toBe(normalizeExamplePath(LEGACY_PRIMARY_PATH));
 
-    const canonicalEntry = await backend.read(CANONICAL_PATH);
+    const canonicalEntry = await backend.client.get(CANONICAL_PATH);
     expect(canonicalEntry).toBeTruthy();
     expect(Array.isArray(canonicalEntry.examples)).toBe(true);
     expect(canonicalEntry.examples[0]).toMatchObject({ description: 'Backend legacy eksempel' });
     expect(canonicalEntry.deletedProvided).toEqual(['legacy-backend-provided']);
 
-    const legacyEntry = await backend.read(LEGACY_PRIMARY_PATH);
+    const legacyEntry = await backend.client.get(LEGACY_PRIMARY_PATH);
     expect(legacyEntry).toBeUndefined();
 
     await expect(page.locator('#exampleDescription')).toHaveValue('Backend legacy eksempel');

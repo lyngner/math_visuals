@@ -2,14 +2,11 @@ const { test, expect } = require('@playwright/test');
 
 const {
   attachExamplesBackendMock,
-  normalizeExamplePath,
-  computeExamplesStorageKey
+  normalizeExamplePath
 } = require('./helpers/examples-backend-mock');
 
 const EXAMPLE_PATH = '/diagram/index.html';
 const CANONICAL_PATH = normalizeExamplePath(EXAMPLE_PATH);
-const STORAGE_KEY = computeExamplesStorageKey(EXAMPLE_PATH);
-const DELETED_KEY = `${STORAGE_KEY}_deletedProvidedExamples`;
 
 async function acceptNextAlert(page) {
   const handler = dialog => {
@@ -24,7 +21,7 @@ test.describe('Example creation portability', () => {
     const sharedStore = { raw: new Map(), canonical: new Map() };
     const backend = await attachExamplesBackendMock(
       page.context(),
-      { [CANONICAL_PATH]: { examples: [], deletedProvided: [], provided: [] } },
+      { [CANONICAL_PATH]: { examples: [], deletedProvided: [] } },
       sharedStore
     );
 
@@ -63,7 +60,7 @@ test.describe('Example creation portability', () => {
     await expect(otherPage.locator('#exampleDescription')).toHaveValue(descriptionValue);
     await expect(otherPage.locator('#cfgTitle')).toHaveValue(titleValue);
 
-    const replicatedEntry = await otherBackend.read(CANONICAL_PATH);
+    const replicatedEntry = await otherBackend.client.get(CANONICAL_PATH);
     expect(replicatedEntry).toBeTruthy();
     expect(Array.isArray(replicatedEntry.examples)).toBe(true);
     expect(replicatedEntry.examples.some(example => example.description === descriptionValue)).toBe(true);
@@ -71,51 +68,24 @@ test.describe('Example creation portability', () => {
     await otherContext.close();
   });
 
-  test('uses fallback storage when localStorage is unavailable', async ({ browser }, testInfo) => {
+  test('shows guidance when the backend is unavailable', async ({ browser }) => {
     const context = await browser.newContext();
-    const backend = await attachExamplesBackendMock(
-      context,
-      { [CANONICAL_PATH]: { examples: [], deletedProvided: [], provided: [] } }
-    );
-    await context.addInitScript(({ key, deletedKey }) => {
-      Object.defineProperty(window, 'localStorage', {
-        configurable: true,
-        get() {
-          throw new Error('Access denied');
-        }
-      });
-      if (window.__EXAMPLES_FALLBACK_STORAGE__ && typeof window.__EXAMPLES_FALLBACK_STORAGE__.removeItem === 'function') {
-        window.__EXAMPLES_FALLBACK_STORAGE__.removeItem(key);
-        window.__EXAMPLES_FALLBACK_STORAGE__.removeItem(deletedKey);
-      }
-    }, { key: STORAGE_KEY, deletedKey: DELETED_KEY });
+    const backend = await attachExamplesBackendMock(context);
+    backend.simulateOutage(() => {
+      const error = new Error('Mock backend outage');
+      error.status = 503;
+      return error;
+    });
 
     const page = await context.newPage();
     await acceptNextAlert(page);
     await page.goto(EXAMPLE_PATH, { waitUntil: 'load' });
 
-    const fallbackDetected = await page.evaluate(() => {
-      return !!window.__EXAMPLES_STORAGE__ && window.__EXAMPLES_STORAGE__ === window.__EXAMPLES_FALLBACK_STORAGE__;
-    });
-    expect(fallbackDetected).toBe(true);
+    const status = page.locator('#examples-status');
+    await expect(status).toBeVisible();
+    await expect(status).toContainText(/kunne ikke|eksempeltjenesten/i);
 
-    const descriptionValue = `Fallback-${testInfo.project.name}-${Date.now()}`;
-    await page.fill('#exampleDescription', descriptionValue);
-    const tabLocator = page.locator('#exampleTabs .example-tab');
-    const initialCount = await tabLocator.count();
-    const savePromise = backend.waitForPut(CANONICAL_PATH);
-    await page.click('#btnSaveExample');
-    const putResult = await savePromise;
-    await expect(tabLocator).toHaveCount(initialCount + 1);
-
-    expect(Array.isArray(putResult.payload.examples)).toBe(true);
-    const last = putResult.payload.examples[putResult.payload.examples.length - 1];
-    expect(last.description).toBe(descriptionValue);
-
-    const storedEntry = await backend.read(CANONICAL_PATH);
-    expect(storedEntry).toBeTruthy();
-    expect(storedEntry.examples.some(example => example.description === descriptionValue)).toBe(true);
-
+    backend.clearOutage();
     await context.close();
   });
 });

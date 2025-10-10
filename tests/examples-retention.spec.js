@@ -41,11 +41,10 @@ function collectExamplePages(startDir) {
 const examplePages = collectExamplePages(repoRoot).sort();
 
 async function readExampleCounts(page, backend, path) {
-  const entry = await backend.read(path);
+  const entry = await backend.client.get(path);
   const user = entry && Array.isArray(entry.examples) ? entry.examples.length : 0;
   const domCount = await page.locator('#exampleTabs .example-tab').count();
-  const providedFromBackend = entry && Array.isArray(entry.provided) ? entry.provided.length : null;
-  const provided = providedFromBackend != null ? providedFromBackend : Math.max(domCount - user, 0);
+  const provided = Math.max(domCount - user, 0);
   return { provided, user, domCount };
 }
 
@@ -69,7 +68,7 @@ test.describe('Examples retention across apps', () => {
         const routePath = `/${relativePath}`;
 
         const canonicalPath = normalizeExamplePath(routePath);
-        backend.seed(canonicalPath, { examples: [], deletedProvided: [], provided: [] });
+        await backend.client.put(canonicalPath, { examples: [], deletedProvided: [] });
 
         await page.goto(routePath, { waitUntil: 'load' });
 
@@ -79,19 +78,14 @@ test.describe('Examples retention across apps', () => {
         });
 
         const initialDomCount = await tabLocator.count();
-        const currentEntry = await backend.read(canonicalPath);
+        const currentEntry = await backend.client.get(canonicalPath);
         const currentExamples = currentEntry && Array.isArray(currentEntry.examples) ? currentEntry.examples : [];
         const currentDeleted = currentEntry && Array.isArray(currentEntry.deletedProvided)
           ? currentEntry.deletedProvided
           : [];
-        const providedExamples = Array.from({ length: Math.max(initialDomCount - currentExamples.length, 0) }).map((_, index) => ({
-          __builtinKey: `provided-${index}`,
-          description: `${relativePath}-provided-${index + 1}`
-        }));
-        backend.seed(canonicalPath, {
+        await backend.client.put(canonicalPath, {
           examples: currentExamples,
-          deletedProvided: currentDeleted,
-          provided: providedExamples
+          deletedProvided: currentDeleted
         });
 
         const initialCounts = await readExampleCounts(page, backend, canonicalPath);
@@ -119,7 +113,7 @@ test.describe('Examples retention across apps', () => {
         expect(afterSave.provided).toBe(initialCounts.provided);
         expect(afterSave.domCount).toBe(initialCounts.domCount + 1);
 
-        const storedEntry = await backend.read(canonicalPath);
+        const storedEntry = await backend.client.get(canonicalPath);
         expect(storedEntry).toBeTruthy();
         expect(Array.isArray(storedEntry.examples)).toBe(true);
         expect(storedEntry.examples.length).toBe(afterSave.user);
