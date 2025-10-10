@@ -1303,10 +1303,38 @@
     if (headerMode) return headerMode;
     return readStoreModeFromPayload(payload);
   }
+  const BACKEND_STORAGE_MODE_KEY = key + '_backend_store_mode';
+  let persistedBackendMode = null;
+  function loadPersistedBackendMode() {
+    if (!examplesApiBase) return null;
+    let stored = null;
+    try {
+      stored = storageGetItem(BACKEND_STORAGE_MODE_KEY);
+    } catch (_) {
+      stored = null;
+    }
+    return normalizeBackendStoreMode(stored);
+  }
+  function persistBackendMode(mode) {
+    if (!examplesApiBase) return;
+    const normalized = normalizeBackendStoreMode(mode);
+    if (!normalized) {
+      persistedBackendMode = null;
+      try {
+        storageRemoveItem(BACKEND_STORAGE_MODE_KEY);
+      } catch (_) {}
+      return;
+    }
+    persistedBackendMode = normalized;
+    try {
+      storageSetItem(BACKEND_STORAGE_MODE_KEY, normalized);
+    } catch (_) {}
+  }
+  persistedBackendMode = examplesApiBase ? loadPersistedBackendMode() : null;
   let backendAvailable = !examplesApiBase;
   let backendStatusKnown = !examplesApiBase;
   let backendReady = !examplesApiBase;
-  let backendMode = !examplesApiBase ? 'disabled' : null;
+  let backendMode = !examplesApiBase ? 'disabled' : persistedBackendMode || null;
   let backendSyncDeferred = false;
   let applyingBackendUpdate = false;
   let backendSyncTimer = null;
@@ -1407,15 +1435,15 @@
       hideBackendNotice();
       return;
     }
-    if (backendMode === 'memory') {
-      if (backendNoticeMode !== 'memory' || !backendNoticeElement) {
-        showBackendNotice('memory');
-      }
-      return;
-    }
     if (!backendAvailable || backendMode === 'offline') {
       if (backendNoticeMode !== 'offline' || !backendNoticeElement) {
         showBackendNotice('offline');
+      }
+      return;
+    }
+    if (backendMode === 'memory') {
+      if (backendNoticeMode !== 'memory' || !backendNoticeElement) {
+        showBackendNotice('memory');
       }
       return;
     }
@@ -1439,8 +1467,14 @@
     const resolved = normalizeBackendStoreMode(mode);
     if (resolved) {
       backendMode = resolved;
-    } else if (!backendMode || backendMode === 'offline') {
+      persistBackendMode(resolved);
+    } else if (backendMode && backendMode !== 'offline' && backendMode !== 'disabled') {
+      persistBackendMode(backendMode);
+    } else if (persistedBackendMode) {
+      backendMode = persistedBackendMode;
+    } else {
       backendMode = 'kv';
+      persistBackendMode(backendMode);
     }
     updateBackendUiState();
   }
@@ -1477,6 +1511,10 @@
           deletedProvided: deletedProvidedList,
           updatedAt: new Date().toISOString()
         };
+        const payloadMode = normalizeBackendStoreMode(backendMode) || persistedBackendMode;
+        if (payloadMode) {
+          payload.storage = payloadMode;
+        }
         const res = await fetch(url, {
           method: 'PUT',
           headers: {
@@ -1936,6 +1974,14 @@
       const responseMode = resolveStoreModeFromResponse(res, backendData);
       markBackendAvailable(responseMode);
       const normalized = backendData && typeof backendData === 'object' ? { ...backendData } : {};
+      const normalizedMode =
+        normalizeBackendStoreMode(responseMode) ||
+        normalizeBackendStoreMode(normalized.storage || normalized.mode || normalized.storageMode || normalized.storeMode);
+      if (normalizedMode) {
+        normalized.storage = normalizedMode;
+      } else if (Object.prototype.hasOwnProperty.call(normalized, 'storage')) {
+        delete normalized.storage;
+      }
       normalized.path = storagePath;
       const backendExamples = Array.isArray(normalized.examples) ? normalized.examples : [];
       const backendDeleted = Array.isArray(normalized.deletedProvided) ? normalized.deletedProvided : [];
