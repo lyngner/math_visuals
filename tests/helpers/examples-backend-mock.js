@@ -124,6 +124,7 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
   const history = [];
   const putEvents = createEventTracker();
   const deleteEvents = createEventTracker();
+  let requestFailureFactory = null;
 
   const setEntry = (path, payload, options = {}) => {
     const rawPath = typeof path === 'string' && path.trim() ? path.trim() : '/';
@@ -212,6 +213,27 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     }
     const rawPath = url.searchParams.get('path');
     const normalizedPath = rawPath ? normalizePath(rawPath) : null;
+
+    if (requestFailureFactory) {
+      const buildError = () => {
+        try {
+          const produced = typeof requestFailureFactory === 'function'
+            ? requestFailureFactory({ route, request, rawPath, normalizedPath })
+            : requestFailureFactory;
+          if (produced instanceof Error) return produced;
+          if (produced && typeof produced === 'object' && 'error' in produced) {
+            const error = new Error(String(produced.error || 'Mock backend failure'));
+            if (produced.status) error.status = produced.status;
+            return error;
+          }
+          if (produced == null) return new Error('Mock backend failure');
+          return produced instanceof Error ? produced : new Error(String(produced));
+        } catch (error) {
+          return error;
+        }
+      };
+      throw buildError();
+    }
 
     const recordHistory = (type, payload) => {
       history.push({
@@ -335,7 +357,17 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     waitForPut: path => putEvents.wait(path),
     waitForDelete: path => deleteEvents.wait(path),
     history,
-    store
+    store,
+    simulateOutage: (factory = () => {
+      const error = new Error('Mock examples backend outage');
+      error.status = 500;
+      return error;
+    }) => {
+      requestFailureFactory = factory;
+    },
+    clearOutage: () => {
+      requestFailureFactory = null;
+    }
   };
 }
 
