@@ -170,171 +170,60 @@ function createMemoryStorage() {
     }
   };
 }
-function createSessionFallbackStorage() {
-  if (typeof sessionStorage === 'undefined') return null;
+
+function resolveSharedStorage() {
+  if (globalScope && globalScope.__EXAMPLES_STORAGE__ && typeof globalScope.__EXAMPLES_STORAGE__.getItem === 'function') {
+    return globalScope.__EXAMPLES_STORAGE__;
+  }
+  const store = createMemoryStorage();
+  if (globalScope) {
+    globalScope.__EXAMPLES_STORAGE__ = store;
+  }
+  return store;
+}
+
+const storage = resolveSharedStorage();
+
+function safeGetItem(key) {
+  if (!storage || typeof storage.getItem !== 'function') return null;
   try {
-    const testKey = '__examples_session_test__';
-    sessionStorage.setItem(testKey, '1');
-    sessionStorage.removeItem(testKey);
+    return storage.getItem(key);
   } catch (_) {
     return null;
   }
-  return {
-    get length() {
-      try {
-        const value = sessionStorage.length;
-        return typeof value === 'number' ? value : 0;
-      } catch (_) {
-        return 0;
-      }
-    },
-    key(index) {
-      try {
-        return sessionStorage.key(index);
-      } catch (_) {
-        return null;
-      }
-    },
-    getItem(key) {
-      try {
-        return sessionStorage.getItem(key);
-      } catch (_) {
-        return null;
-      }
-    },
-    setItem(key, value) {
-      try {
-        sessionStorage.setItem(key, value);
-      } catch (_) {}
-    },
-    removeItem(key) {
-      try {
-        sessionStorage.removeItem(key);
-      } catch (_) {}
-    },
-    clear() {
-      try {
-        sessionStorage.clear();
-      } catch (_) {}
-    }
-  };
 }
-function createFallbackStorage() {
-  return createSessionFallbackStorage() || createMemoryStorage();
-}
-const sharedFallback = (() => {
-  if (globalScope && globalScope.__EXAMPLES_FALLBACK_STORAGE__ && typeof globalScope.__EXAMPLES_FALLBACK_STORAGE__.getItem === 'function') {
-    return globalScope.__EXAMPLES_FALLBACK_STORAGE__;
-  }
-  const store = createFallbackStorage();
-  if (globalScope) {
-    globalScope.__EXAMPLES_FALLBACK_STORAGE__ = store;
-  }
-  return store;
-})();
-let storage = null;
-let usingFallback = false;
-if (globalScope) {
-  const shared = globalScope.__EXAMPLES_STORAGE__;
-  if (shared && typeof shared.getItem === 'function') {
-    storage = shared;
-    usingFallback = shared === sharedFallback;
-  }
-}
-if (!storage) {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      storage = localStorage;
-    } else {
-      storage = sharedFallback;
-      usingFallback = true;
-    }
-  } catch (_) {
-    storage = sharedFallback;
-    usingFallback = true;
-  }
-}
-function switchToFallback() {
-  if (usingFallback) return storage;
-  usingFallback = true;
-  if (storage && storage !== sharedFallback) {
-    try {
-      const total = Number(storage.length) || 0;
-      for (let i = 0; i < total; i++) {
-        let key = null;
-        try {
-          key = storage.key(i);
-        } catch (_) {
-          key = null;
-        }
-        if (!key) continue;
-        try {
-          const value = storage.getItem(key);
-          if (value != null) sharedFallback.setItem(key, value);
-        } catch (_) {}
-      }
-    } catch (_) {}
-  }
-  storage = sharedFallback;
-  if (globalScope) {
-    globalScope.__EXAMPLES_STORAGE__ = storage;
-  }
-  return storage;
-}
-function safeGetItem(key) {
-  if (storage && typeof storage.getItem === 'function') {
-    try {
-      return storage.getItem(key);
-    } catch (_) {
-      return switchToFallback().getItem(key);
-    }
-  }
-  return switchToFallback().getItem(key);
-}
+
 function safeSetItem(key, value) {
-  if (storage && typeof storage.setItem === 'function') {
-    try {
-      storage.setItem(key, value);
-      return;
-    } catch (_) {
-      // fall through to fallback
-    }
-  }
-  switchToFallback().setItem(key, value);
+  if (!storage || typeof storage.setItem !== 'function') return;
+  try {
+    storage.setItem(key, value);
+  } catch (_) {}
 }
+
 function safeRemoveItem(key) {
-  if (storage && typeof storage.removeItem === 'function') {
-    try {
-      storage.removeItem(key);
-      return;
-    } catch (_) {
-      // fall through
-    }
-  }
-  switchToFallback().removeItem(key);
+  if (!storage || typeof storage.removeItem !== 'function') return;
+  try {
+    storage.removeItem(key);
+  } catch (_) {}
 }
+
 function safeKey(index) {
-  if (storage && typeof storage.key === 'function') {
-    try {
-      return storage.key(index);
-    } catch (_) {
-      // fall through
-    }
+  if (!storage || typeof storage.key !== 'function') return null;
+  try {
+    return storage.key(index);
+  } catch (_) {
+    return null;
   }
-  const fallback = switchToFallback();
-  return typeof fallback.key === 'function' ? fallback.key(index) : null;
 }
+
 function safeLength() {
-  if (storage) {
-    try {
-      const value = storage.length;
-      return typeof value === 'number' ? value : 0;
-    } catch (_) {
-      // fall through
-    }
+  if (!storage || typeof storage.length !== 'number') return 0;
+  try {
+    const value = storage.length;
+    return typeof value === 'number' ? value : 0;
+  } catch (_) {
+    return 0;
   }
-  const fallback = switchToFallback();
-  return typeof fallback.length === 'number' ? fallback.length : 0;
 }
 function resolveExamplesApiBase() {
   if (typeof window === 'undefined') return null;
@@ -386,6 +275,51 @@ function normalizePath(value) {
 }
 const examplesApiBase = resolveExamplesApiBase();
 const backendEntriesCache = new Map();
+let lastStatusMessage = '';
+let lastStatusType = '';
+
+function ensureStatusElement() {
+  if (typeof document === 'undefined') return null;
+  if (ensureStatusElement.element && ensureStatusElement.element.isConnected) {
+    return ensureStatusElement.element;
+  }
+  let el = document.getElementById('examples-status');
+  if (!el) {
+    el = document.createElement('p');
+    el.id = 'examples-status';
+    el.className = 'examples-status';
+    el.setAttribute('role', 'status');
+    el.hidden = true;
+    const container = document.getElementById('examples');
+    if (container && container.parentNode) {
+      container.parentNode.insertBefore(el, container);
+    } else if (document.body) {
+      document.body.insertBefore(el, document.body.firstChild || null);
+    }
+  }
+  ensureStatusElement.element = el;
+  return el;
+}
+
+function setStatusMessage(message, type) {
+  const normalizedMessage = typeof message === 'string' ? message : '';
+  const normalizedType = typeof type === 'string' ? type : '';
+  if (normalizedMessage === lastStatusMessage && normalizedType === lastStatusType) {
+    return;
+  }
+  lastStatusMessage = normalizedMessage;
+  lastStatusType = normalizedType;
+  const el = ensureStatusElement();
+  if (!el) return;
+  el.textContent = normalizedMessage;
+  el.hidden = !normalizedMessage;
+  if (normalizedType) {
+    el.dataset.statusType = normalizedType;
+  } else if (el.dataset && Object.prototype.hasOwnProperty.call(el.dataset, 'statusType')) {
+    delete el.dataset.statusType;
+  }
+  el.classList.toggle('examples-status--error', normalizedType === 'error');
+}
 function writeLocalEntry(path, entry) {
   const key = 'examples_' + path;
   const examples = entry && Array.isArray(entry.examples) ? entry.examples : [];
@@ -437,6 +371,9 @@ async function persistBackendEntry(path, entry) {
       const res = await fetch(url, { method: 'DELETE' });
       if (res.ok || res.status === 404) {
         backendEntriesCache.delete(path);
+        setStatusMessage('', '');
+      } else {
+        setStatusMessage(`Kunne ikke fjerne eksempelet «${path}» fra serveren.`, 'error');
       }
       return;
     }
@@ -446,20 +383,33 @@ async function persistBackendEntry(path, entry) {
       deletedProvided,
       updatedAt: new Date().toISOString()
     };
-    await fetch(url, {
+    const response = await fetch(url, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
     });
+    if (!response.ok) {
+      setStatusMessage(`Kunne ikke lagre endringene for «${path}» på serveren.`, 'error');
+      return;
+    }
     updateBackendCache(path, payload);
-  } catch (error) {}
+    setStatusMessage('', '');
+  } catch (error) {
+    setStatusMessage(`Kunne ikke lagre endringene for «${path}» på serveren.`, 'error');
+  }
 }
 async function fetchBackendEntries() {
-  if (!examplesApiBase) return null;
+  if (!examplesApiBase) {
+    setStatusMessage('Lagringstjenesten for eksempler er ikke konfigurert.', 'error');
+    return null;
+  }
   const url = buildExamplesApiUrl(examplesApiBase);
-  if (!url) return null;
+  if (!url) {
+    setStatusMessage('Fant ikke adressen til eksempellageret.', 'error');
+    return null;
+  }
   let res;
   try {
     res = await fetch(url, {
@@ -468,13 +418,18 @@ async function fetchBackendEntries() {
       }
     });
   } catch (error) {
+    setStatusMessage('Kunne ikke hente eksempler fra serveren.', 'error');
     return null;
   }
-  if (!res.ok) return null;
+  if (!res.ok) {
+    setStatusMessage(`Serveren svarte med ${res.status}.`, 'error');
+    return null;
+  }
   let data = null;
   try {
     data = await res.json();
   } catch (error) {
+    setStatusMessage('Kunne ikke tolke svaret fra serveren.', 'error');
     return null;
   }
   const entries = Array.isArray(data && data.entries) ? data.entries : [];
@@ -500,6 +455,7 @@ async function fetchBackendEntries() {
       });
     }
   });
+  setStatusMessage('', '');
   return normalized;
 }
 async function renderExamples(options) {
@@ -623,18 +579,32 @@ async function renderExamples(options) {
           path,
           index: idx
         }));
-        const iframeEl = window.parent.document.querySelector('iframe');
-        iframeEl.src = path;
         try {
-          window.parent.localStorage.setItem('currentPage', path);
-        } catch (_) {
+          const parentWindow = window.parent;
+          if (!parentWindow || parentWindow === window) {
+            return;
+          }
+          let iframeEl = null;
           try {
-            if (window.parent.__EXAMPLES_STORAGE__ && typeof window.parent.__EXAMPLES_STORAGE__.setItem === 'function') {
-              window.parent.__EXAMPLES_STORAGE__.setItem('currentPage', path);
-            }
-          } catch (_) {}
-        }
-        if (window.parent.setActive) window.parent.setActive(path);
+            iframeEl = parentWindow.document && typeof parentWindow.document.querySelector === 'function'
+              ? parentWindow.document.querySelector('iframe')
+              : null;
+          } catch (_) {
+            iframeEl = null;
+          }
+          if (iframeEl) {
+            iframeEl.src = path;
+          }
+          const shared = parentWindow.__EXAMPLES_STORAGE__;
+          if (shared && typeof shared.setItem === 'function') {
+            try {
+              shared.setItem('currentPage', path);
+            } catch (_) {}
+          }
+          if (typeof parentWindow.setActive === 'function') {
+            parentWindow.setActive(path);
+          }
+        } catch (_) {}
       });
       const delBtn = document.createElement('button');
       delBtn.textContent = 'Slett';
@@ -679,5 +649,6 @@ async function renderExamples(options) {
   }
 }
 document.addEventListener('DOMContentLoaded', () => {
+  setStatusMessage('', '');
   renderExamples();
 });

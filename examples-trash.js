@@ -4,94 +4,11 @@
   const MAX_HISTORY_ENTRIES = 10;
   const EXAMPLE_VALUE_TYPE_KEY = '__mathVisualsType__';
   const EXAMPLE_VALUE_DATA_KEY = '__mathVisualsValue__';
+  const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
 
-  const MEMORY_STORAGE_WINDOW_PREFIX = '__MATH_VISUALS_STORAGE__:';
-  let memoryStorageWindowNameOriginal = null;
-  function serializeMemorySnapshot(data) {
-    if (!data || data.size === 0) {
-      return null;
-    }
-    const snapshot = {};
-    data.forEach((value, key) => {
-      snapshot[key] = value;
-    });
-    return snapshot;
-  }
-  function readMemorySnapshotFromWindow() {
-    if (typeof window === 'undefined') {
-      return { data: null, original: '' };
-    }
-    const current = typeof window.name === 'string' ? window.name : '';
-    if (!current.startsWith(MEMORY_STORAGE_WINDOW_PREFIX)) {
-      return { data: null, original: current };
-    }
-    const payload = current.slice(MEMORY_STORAGE_WINDOW_PREFIX.length);
-    try {
-      const parsed = JSON.parse(payload);
-      if (parsed && typeof parsed === 'object') {
-        const restored = parsed.data && typeof parsed.data === 'object' ? parsed.data : null;
-        const original = typeof parsed.original === 'string' ? parsed.original : '';
-        return { data: restored, original };
-      }
-    } catch (_) {}
-    return { data: null, original: '' };
-  }
-  function writeMemorySnapshotToWindow(snapshot) {
-    if (typeof window === 'undefined') return;
-    if (!snapshot || (typeof snapshot === 'object' && Object.keys(snapshot).length === 0)) {
-      const restore = memoryStorageWindowNameOriginal != null ? memoryStorageWindowNameOriginal : '';
-      window.name = restore;
-      return;
-    }
-    const payload = {
-      data: snapshot,
-      original: memoryStorageWindowNameOriginal != null ? memoryStorageWindowNameOriginal : ''
-    };
-    try {
-      window.name = MEMORY_STORAGE_WINDOW_PREFIX + JSON.stringify(payload);
-    } catch (_) {}
-  }
-  function snapshotFromStorage(store) {
-    const snapshot = {};
-    if (!store || typeof store.length !== 'number' || typeof store.key !== 'function') {
-      return snapshot;
-    }
-    let total = 0;
-    try {
-      total = Number(store.length) || 0;
-    } catch (_) {
-      total = 0;
-    }
-    for (let i = 0; i < total; i++) {
-      let key = null;
-      try {
-        key = store.key(i);
-      } catch (_) {
-        key = null;
-      }
-      if (typeof key !== 'string') continue;
-      let value = null;
-      try {
-        value = store.getItem(key);
-      } catch (_) {
-        value = null;
-      }
-      if (value != null) {
-        snapshot[key] = value;
-      }
-    }
-    return snapshot;
-  }
-  function createMemoryStorage(options) {
-    const opts = options && typeof options === 'object' ? options : {};
+  function createMemoryStorage() {
     const data = new Map();
-    let suppressNotify = false;
-    const notifyChange = () => {
-      if (suppressNotify) return;
-      if (typeof opts.onChange !== 'function') return;
-      opts.onChange(serializeMemorySnapshot(data));
-    };
-    const api = {
+    return {
       get length() {
         return data.size;
       },
@@ -112,85 +29,29 @@
       setItem(key, value) {
         if (key == null) return;
         data.set(String(key), value == null ? 'null' : String(value));
-        notifyChange();
       },
       removeItem(key) {
         if (key == null) return;
         data.delete(String(key));
-        notifyChange();
       },
       clear() {
         data.clear();
-        notifyChange();
       }
     };
-    if (opts.initialData && typeof opts.initialData === 'object') {
-      suppressNotify = true;
-      try {
-        Object.keys(opts.initialData).forEach(key => {
-          const normalized = String(key);
-          const value = opts.initialData[key];
-          data.set(normalized, value == null ? 'null' : String(value));
-        });
-      } catch (_) {}
-      suppressNotify = false;
-    }
-    return api;
   }
 
-  function resolveStorage() {
-    if (typeof window === 'undefined') {
-      return createMemoryStorage({ initialData: null, onChange: () => {} });
+  function resolveSharedStorage() {
+    if (globalScope && globalScope.__EXAMPLES_STORAGE__ && typeof globalScope.__EXAMPLES_STORAGE__.getItem === 'function') {
+      return globalScope.__EXAMPLES_STORAGE__;
     }
-    const scopes = [window, window.parent === window ? null : (() => {
-      try {
-        return window.parent;
-      } catch (error) {
-        return null;
-      }
-    })()];
-    for (const scope of scopes) {
-      if (!scope) continue;
-      const shared = scope.__EXAMPLES_STORAGE__;
-      if (shared && typeof shared.getItem === 'function') {
-        if (scope.__EXAMPLES_FALLBACK_STORAGE__ && shared === scope.__EXAMPLES_FALLBACK_STORAGE__) {
-          const mode = scope.__EXAMPLES_FALLBACK_STORAGE_MODE__ === 'session' ? 'session' : 'memory';
-          if (mode === 'memory') {
-            const snapshot = snapshotFromStorage(shared);
-            memoryStorageWindowNameOriginal = (readMemorySnapshotFromWindow() || {}).original || '';
-            const store = createMemoryStorage({
-              initialData: snapshot,
-              onChange: writeMemorySnapshotToWindow
-            });
-            writeMemorySnapshotToWindow(snapshot);
-            return store;
-          }
-        }
-        return shared;
-      }
+    const store = createMemoryStorage();
+    if (globalScope) {
+      globalScope.__EXAMPLES_STORAGE__ = store;
     }
-    try {
-      if (typeof localStorage !== 'undefined') {
-        return localStorage;
-      }
-    } catch (error) {}
-    if (typeof window.__EXAMPLES_FALLBACK_STORAGE__ !== 'undefined' && window.__EXAMPLES_FALLBACK_STORAGE__) {
-      const fallback = window.__EXAMPLES_FALLBACK_STORAGE__;
-      if (fallback && typeof fallback.getItem === 'function') {
-        return fallback;
-      }
-    }
-    const { data: initialSnapshot, original } = readMemorySnapshotFromWindow();
-    memoryStorageWindowNameOriginal = original;
-    const store = createMemoryStorage({
-      initialData: initialSnapshot,
-      onChange: writeMemorySnapshotToWindow
-    });
-    writeMemorySnapshotToWindow(initialSnapshot);
     return store;
   }
 
-  const storage = resolveStorage();
+  const storage = resolveSharedStorage();
 
   function safeGetItem(key) {
     if (!storage || typeof storage.getItem !== 'function') return null;
@@ -215,33 +76,57 @@
     } catch (error) {}
   }
 
-  function listStorageKeys() {
-    if (!storage) return [];
-    const keys = [];
-    if (typeof storage.length === 'number' && typeof storage.key === 'function') {
-      const total = Number(storage.length) || 0;
-      for (let i = 0; i < total; i++) {
-        let key = null;
-        try {
-          key = storage.key(i);
-        } catch (error) {
-          key = null;
-        }
-        if (typeof key === 'string' && key) {
-          keys.push(key);
-        }
-      }
-    } else {
-      try {
-        for (const key in storage) {
-          if (Object.prototype.hasOwnProperty.call(storage, key)) {
-            keys.push(key);
-          }
-        }
-      } catch (error) {}
+  function resolveExamplesApiBase() {
+    if (typeof window === 'undefined') return null;
+    if (window.MATH_VISUALS_EXAMPLES_API_URL) {
+      const value = String(window.MATH_VISUALS_EXAMPLES_API_URL).trim();
+      if (value) return value;
     }
-    return keys;
+    const origin = window.location && window.location.origin;
+    if (typeof origin === 'string' && /^https?:/i.test(origin)) {
+      return '/api/examples';
+    }
+    return null;
   }
+
+  function buildExamplesApiUrl(base, path) {
+    if (!base) return null;
+    if (typeof window === 'undefined') {
+      if (!path) return base;
+      const sep = base.includes('?') ? '&' : '?';
+      return `${base}${sep}path=${encodeURIComponent(path)}`;
+    }
+    try {
+      const url = new URL(base, window.location && window.location.href ? window.location.href : undefined);
+      if (path) {
+        url.searchParams.set('path', path);
+      }
+      return url.toString();
+    } catch (error) {
+      if (!path) return base;
+      const sep = base.includes('?') ? '&' : '?';
+      return `${base}${sep}path=${encodeURIComponent(path)}`;
+    }
+  }
+
+  function normalizeBackendPath(value) {
+    if (typeof value !== 'string') return '';
+    let path = value.trim();
+    if (!path) return '';
+    if (!path.startsWith('/')) {
+      path = `/${path}`;
+    }
+    path = path.replace(/[\\]+/g, '/');
+    path = path.replace(/\/+/g, '/');
+    if (path.length > 1 && path.endsWith('/')) {
+      path = path.slice(0, -1);
+    }
+    return path;
+  }
+
+  const examplesApiBase = resolveExamplesApiBase();
+  const backendEntriesCache = new Map();
+  let backendIndexPromise = null;
 
   function serializeExampleValue(value, seen) {
     if (value == null) return value;
@@ -782,33 +667,6 @@
     return `${trimmed}.html`;
   }
 
-  function loadTrashGroups() {
-    const keys = listStorageKeys();
-    const paths = new Set();
-    keys.forEach(key => {
-      if (typeof key !== 'string') return;
-      if (!key.startsWith('examples_') || !key.endsWith('_trash')) return;
-      const path = key.slice('examples_'.length, -'_trash'.length);
-      if (path) paths.add(path);
-    });
-    const groups = [];
-    paths.forEach(path => {
-      const records = loadTrashEntriesForPath(path);
-      if (!records.length) return;
-      const reference = records.find(record => record.sourceTitle) || records[0];
-      const title = reference && reference.sourceTitle ? reference.sourceTitle : prettifyPath(path);
-      const href = resolveGroupHref(reference, path);
-      groups.push({
-        path,
-        title,
-        href,
-        records
-      });
-    });
-    groups.sort((a, b) => a.title.localeCompare(b.title, 'nb')); // fallback to Norwegian sorting
-    return groups;
-  }
-
   const groupsContainer = document.querySelector('[data-trash-groups]');
   const statusElement = document.querySelector('[data-status]');
   const refreshButton = document.querySelector('[data-refresh]');
@@ -843,6 +701,127 @@
         }
       }, options.timeout);
     }
+  }
+
+
+  async function fetchBackendIndex() {
+    if (!examplesApiBase) {
+      const error = new Error('Lagringstjenesten for eksempler er ikke konfigurert.');
+      error.code = 'BACKEND_NOT_CONFIGURED';
+      throw error;
+    }
+    if (backendIndexPromise) {
+      return backendIndexPromise;
+    }
+    const url = buildExamplesApiUrl(examplesApiBase);
+    if (!url) {
+      const error = new Error('Fant ikke adressen til eksempellageret.');
+      error.code = 'INVALID_URL';
+      throw error;
+    }
+    backendIndexPromise = (async () => {
+      let res;
+      try {
+        res = await fetch(url, {
+          headers: {
+            Accept: 'application/json'
+          }
+        });
+      } catch (cause) {
+        const error = new Error('Kunne ikke kontakte serveren.');
+        error.code = 'NETWORK_ERROR';
+        error.cause = cause;
+        throw error;
+      }
+      if (!res.ok) {
+        const error = new Error(`Serveren svarte med ${res.status}.`);
+        error.code = 'HTTP_ERROR';
+        error.status = res.status;
+        throw error;
+      }
+      let payload;
+      try {
+        payload = await res.json();
+      } catch (cause) {
+        const error = new Error('Kunne ikke tolke svaret fra serveren.');
+        error.code = 'INVALID_RESPONSE';
+        error.cause = cause;
+        throw error;
+      }
+      backendEntriesCache.clear();
+      const entries = Array.isArray(payload && payload.entries) ? payload.entries : [];
+      entries.forEach(item => {
+        if (!item || typeof item !== 'object') return;
+        const path = normalizeBackendPath(item.path);
+        if (!path) return;
+        backendEntriesCache.set(path, {
+          path,
+          updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : null,
+          examples: Array.isArray(item.examples) ? item.examples.slice() : [],
+          deletedProvided: Array.isArray(item.deletedProvided) ? item.deletedProvided.slice() : []
+        });
+      });
+      return backendEntriesCache;
+    })();
+    try {
+      return await backendIndexPromise;
+    } finally {
+      backendIndexPromise = null;
+    }
+  }
+
+  async function loadTrashGroups(options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    if (!opts.skipBackend) {
+      await fetchBackendIndex();
+    }
+    const groups = [];
+    backendEntriesCache.forEach((entry, path) => {
+      const records = loadTrashEntriesForPath(path);
+      if (!records.length) return;
+      const reference = records.find(record => record.sourceTitle) || records[0];
+      const title = reference && reference.sourceTitle ? reference.sourceTitle : prettifyPath(path);
+      const href = resolveGroupHref(reference, path);
+      groups.push({
+        path,
+        title,
+        href,
+        records
+      });
+    });
+    groups.sort((a, b) => a.title.localeCompare(b.title, 'nb'));
+    return groups;
+  }
+
+  async function deleteBackendEntry(path) {
+    if (!examplesApiBase) {
+      const error = new Error('Lagringstjenesten for eksempler er ikke konfigurert.');
+      error.code = 'BACKEND_NOT_CONFIGURED';
+      throw error;
+    }
+    const url = buildExamplesApiUrl(examplesApiBase, path);
+    if (!url) {
+      const error = new Error('Fant ikke adressen til eksempellageret.');
+      error.code = 'INVALID_URL';
+      throw error;
+    }
+    let res;
+    try {
+      res = await fetch(url, { method: 'DELETE' });
+    } catch (cause) {
+      const error = new Error('Kunne ikke kontakte serveren for å slette eksempelet.');
+      error.code = 'NETWORK_ERROR';
+      error.cause = cause;
+      throw error;
+    }
+    if (res.ok || res.status === 404) {
+      backendEntriesCache.delete(path);
+      return true;
+    }
+    const error = new Error(`Serveren avviste sletting (${res.status}).`);
+    error.code = 'HTTP_ERROR';
+    error.status = res.status;
+    throw error;
   }
 
 
@@ -916,7 +895,7 @@
   }
 
   function updateStatusForGroups(allGroups, visibleGroups, options) {
-    if (options && options.silent) return;
+    if (options && (options.silent || options.skipStatus)) return;
     if (!Array.isArray(allGroups) || !allGroups.length) {
       setStatus('Arkivet er tomt.', { timeout: 4000 });
       return;
@@ -1124,15 +1103,34 @@
     });
   }
 
-  function refreshGroups(options) {
+  async function refreshGroups(options) {
+    let groups = null;
+    let backendFailed = false;
     try {
-      const groups = loadTrashGroups();
-      cachedGroups = Array.isArray(groups) ? groups : [];
-      updateFilterOptions(cachedGroups);
-      applyFilterAndRender(options);
+      groups = await loadTrashGroups(options);
     } catch (error) {
+      backendFailed = true;
       console.error('[trash] failed to load trash entries', error);
-      setStatus('Kunne ikke laste arkivet.', { timeout: 5000 });
+      const message = error && error.message ? error.message : 'Kunne ikke laste arkivet fra serveren.';
+      setStatus(message, { timeout: 6000 });
+    }
+    if (Array.isArray(groups)) {
+      cachedGroups = groups;
+    } else if (!backendFailed) {
+      cachedGroups = [];
+    }
+    if (!Array.isArray(cachedGroups)) {
+      cachedGroups = [];
+    }
+    updateFilterOptions(cachedGroups);
+    if (backendFailed) {
+      if (cachedGroups.length) {
+        applyFilterAndRender(Object.assign({}, options || {}, { skipStatus: true }));
+      } else {
+        renderGroups([]);
+      }
+    } else {
+      applyFilterAndRender(options);
     }
   }
 
@@ -1175,7 +1173,9 @@
         setStatus(message, { timeout: 6000 });
       }
     });
-    refreshGroups({ silent: true });
+    refreshGroups({ silent: true, skipBackend: true }).catch(error => {
+      console.error('[trash] failed to refresh after restore', error);
+    });
   }
 
   function handleDelete(event) {
@@ -1192,13 +1192,28 @@
       try {
         deleteTrashRecord(target.path, target.id);
         setStatus('Eksempelet ble slettet permanent.', { timeout: 5000 });
+        const remaining = loadTrashEntriesForPath(target.path);
+        if (!remaining.length) {
+          const backendEntry = backendEntriesCache.get(target.path);
+          const hasActiveExamples = backendEntry && Array.isArray(backendEntry.examples) && backendEntry.examples.length > 0;
+          const hasDeletedProvided = backendEntry && Array.isArray(backendEntry.deletedProvided) && backendEntry.deletedProvided.length > 0;
+          if (!hasActiveExamples && !hasDeletedProvided) {
+            deleteBackendEntry(target.path).catch(error => {
+              console.error('[trash] failed to delete backend entry', error);
+              const message = error && error.message ? error.message : 'Kunne ikke slette eksempelet fra serveren.';
+              setStatus(message, { timeout: 6000 });
+            });
+          }
+        }
       } catch (error) {
         console.error('[trash] failed to remove example', error);
         const message = error && error.message ? error.message : 'Kunne ikke slette eksempelet.';
         setStatus(message, { timeout: 6000 });
       }
     });
-    refreshGroups({ silent: true });
+    refreshGroups({ silent: true, skipBackend: true }).catch(error => {
+      console.error('[trash] failed to refresh after delete', error);
+    });
   }
 
   if (groupsContainer) {
@@ -1216,7 +1231,9 @@
 
   if (refreshButton) {
     refreshButton.addEventListener('click', () => {
-      refreshGroups();
+      refreshGroups().catch(error => {
+        console.error('[trash] failed to refresh on demand', error);
+      });
     });
   }
 
@@ -1232,9 +1249,13 @@
     window.addEventListener('storage', event => {
       if (!event || typeof event.key !== 'string') return;
       if (!event.key.startsWith('examples_')) return;
-      refreshGroups({ silent: true });
+      refreshGroups({ silent: true, skipBackend: true }).catch(error => {
+        console.error('[trash] failed to refresh after storage event', error);
+      });
     });
   }
 
-  refreshGroups({ silent: true });
+  refreshGroups({ silent: true }).catch(error => {
+    console.error('[trash] initial refresh failed', error);
+  });
 })();
