@@ -48,8 +48,12 @@ test.describe('legacy example storage keys', () => {
     const payload = legacyPayload(description, { deletedProvided: ['provided-decoded'] });
     await backend.client.put(LEGACY_DECODED_PATH, payload);
 
-    const putPromise = backend.waitForPut(CANONICAL_PATH);
-    const deletePromise = backend.waitForDelete(LEGACY_DECODED_PATH);
+    const putPromise = backend.waitForPut(CANONICAL_PATH, {
+      description: 'migrate decoded legacy key'
+    });
+    const deletePromise = backend.waitForDelete(LEGACY_DECODED_PATH, {
+      description: 'delete decoded legacy key'
+    });
 
     await page.goto(PAGE_PATH);
 
@@ -78,8 +82,12 @@ test.describe('legacy example storage keys', () => {
     const description = 'Legacy lower-case percent';
     await backend.client.put(LEGACY_LOWERCASE_PATH, legacyPayload(description));
 
-    const putPromise = backend.waitForPut(CANONICAL_PATH);
-    const deletePromise = backend.waitForDelete(LEGACY_LOWERCASE_PATH);
+    const putPromise = backend.waitForPut(CANONICAL_PATH, {
+      description: 'migrate lowercase legacy key'
+    });
+    const deletePromise = backend.waitForDelete(LEGACY_LOWERCASE_PATH, {
+      description: 'delete lowercase legacy key'
+    });
 
     await page.goto(PAGE_PATH);
 
@@ -99,8 +107,12 @@ test.describe('legacy example storage keys', () => {
     const description = 'Graftegner stor bokstav';
     await backend.client.put(GRAFTEGNER_LEGACY_PATH, legacyPayload(description));
 
-    const putPromise = backend.waitForPut(GRAFTEGNER_CANONICAL_PATH);
-    const deletePromise = backend.waitForDelete(GRAFTEGNER_LEGACY_PATH);
+    const putPromise = backend.waitForPut(GRAFTEGNER_CANONICAL_PATH, {
+      description: 'migrate Graftegner legacy key'
+    });
+    const deletePromise = backend.waitForDelete(GRAFTEGNER_LEGACY_PATH, {
+      description: 'delete Graftegner legacy key'
+    });
 
     await page.goto(GRAFTEGNER_PAGE);
 

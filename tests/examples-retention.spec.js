@@ -98,7 +98,9 @@ test.describe('Examples retention across apps', () => {
           await description.fill(descriptionValue);
         }
 
-        const savePromise = backend.waitForPut(canonicalPath);
+        const savePromise = backend.waitForPut(canonicalPath, {
+          description: `save example on ${routePath}`
+        });
         await page.locator('#btnSaveExample').click();
         const putResult = await savePromise;
         await expect(tabLocator).toHaveCount(initialCounts.domCount + 1);

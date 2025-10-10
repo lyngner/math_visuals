@@ -48,7 +48,24 @@ function buildEntry(rawPath, payload) {
   };
 }
 
-function createEventTracker() {
+const DEFAULT_EVENT_WAIT_TIMEOUT = 20000;
+
+function resolveTimeoutValue(timeout, defaultValue) {
+  if (timeout === undefined) {
+    return defaultValue;
+  }
+  if (timeout === Infinity) {
+    return Infinity;
+  }
+  const numeric = Number(timeout);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return defaultValue;
+  }
+  return numeric;
+}
+
+function createEventTracker(options = {}) {
+  const defaultTimeout = resolveTimeoutValue(options.defaultTimeout, DEFAULT_EVENT_WAIT_TIMEOUT);
   const queue = new Map();
   const waiters = new Map();
   const normalize = value => normalizePath(value) || normalizePath('/') || '/';
@@ -56,24 +73,72 @@ function createEventTracker() {
     const key = normalize(path);
     const pending = waiters.get(key);
     if (pending && pending.length > 0) {
-      const resolve = pending.shift();
-      resolve(payload);
+      const waiter = pending.shift();
+      if (pending.length === 0) {
+        waiters.delete(key);
+      }
+      waiter.resolve(payload);
       return;
     }
     const existing = queue.get(key) || [];
     existing.push(payload);
     queue.set(key, existing);
   };
-  const wait = path => {
+  const wait = (path, options = {}) => {
     const key = normalize(path);
     const existing = queue.get(key);
     if (existing && existing.length > 0) {
-      return Promise.resolve(existing.shift());
+      const next = existing.shift();
+      if (existing.length === 0) {
+        queue.delete(key);
+      }
+      return Promise.resolve(next);
     }
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       const pending = waiters.get(key) || [];
-      pending.push(resolve);
+      let timeoutId = null;
+      const resolvedTimeout = resolveTimeoutValue(options.timeout, defaultTimeout);
+      const description = typeof options.description === 'string' && options.description.trim()
+        ? options.description.trim()
+        : '';
+      const cleanup = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        const current = waiters.get(key);
+        if (!current) {
+          return;
+        }
+        const index = current.indexOf(entry);
+        if (index !== -1) {
+          current.splice(index, 1);
+        }
+        if (current.length === 0) {
+          waiters.delete(key);
+        }
+      };
+      const entry = {
+        resolve: payload => {
+          cleanup();
+          resolve(payload);
+        },
+        reject: error => {
+          cleanup();
+          reject(error);
+        }
+      };
+      pending.push(entry);
       waiters.set(key, pending);
+
+      if (resolvedTimeout !== Infinity && resolvedTimeout > 0) {
+        timeoutId = setTimeout(() => {
+          const message = typeof options.timeoutMessage === 'string' && options.timeoutMessage.trim()
+            ? options.timeoutMessage.trim()
+            : `Timed out waiting for event for ${key}${description ? ` (${description})` : ''}`;
+          entry.reject(new Error(message));
+        }, resolvedTimeout);
+      }
     });
   };
   return { push, wait };
@@ -394,8 +459,8 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
       setEntry(rawPath, payload, { promote });
     },
     read: readEntry,
-    waitForPut: path => putEvents.wait(path),
-    waitForDelete: path => deleteEvents.wait(path),
+    waitForPut: (path, options) => putEvents.wait(path, options),
+    waitForDelete: (path, options) => deleteEvents.wait(path, options),
     history,
     store,
     client,

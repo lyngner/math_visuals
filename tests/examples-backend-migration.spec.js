@@ -42,8 +42,12 @@ test.describe('examples backend migration', () => {
       [LEGACY_PRIMARY_PATH]: buildLegacyEntry()
     });
 
-    const putPromise = backend.waitForPut(CANONICAL_PATH);
-    const primaryDeletePromise = backend.waitForDelete(LEGACY_PRIMARY_PATH);
+    const putPromise = backend.waitForPut(CANONICAL_PATH, {
+      description: 'migrate legacy example to canonical path'
+    });
+    const primaryDeletePromise = backend.waitForDelete(LEGACY_PRIMARY_PATH, {
+      description: 'remove legacy primary path entry'
+    });
 
     await page.goto(PAGE_PATH);
 
