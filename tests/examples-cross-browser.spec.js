@@ -1,63 +1,15 @@
 const { test, expect } = require('@playwright/test');
 
-const EXAMPLE_PATH = '/diagram/index.html';
-const STORAGE_KEY = computeStorageKey(EXAMPLE_PATH);
-const DELETED_KEY = `${STORAGE_KEY}_deletedProvidedExamples`;
+const {
+  attachExamplesBackendMock,
+  normalizeExamplePath,
+  computeExamplesStorageKey
+} = require('./helpers/examples-backend-mock');
 
-function computeStorageKey(pathname) {
-  if (typeof pathname !== 'string') return 'examples_/';
-  let path = pathname.trim();
-  if (!path) path = '/';
-  path = path.split('\\').join('/');
-  if (!path.startsWith('/')) path = `/${path}`;
-  while (path.includes('//')) {
-    path = path.replace('//', '/');
-  }
-  const lower = path.toLowerCase();
-  if (lower.endsWith('/index.html')) {
-    path = path.slice(0, -'/index.html'.length);
-  } else if (lower.endsWith('/index.htm')) {
-    path = path.slice(0, -'/index.htm'.length);
-  }
-  if (path.length > 1 && path.endsWith('/')) {
-    path = path.slice(0, -1);
-  }
-  if (!path) {
-    path = '/';
-  }
-  return `examples_${path}`;
-}
-async function clearExampleStorage(page) {
-  await page.addInitScript(({ key, deletedKey }) => {
-    const eraseKey = (store, target) => {
-      if (!store || typeof store.removeItem !== 'function') return;
-      try {
-        store.removeItem(target);
-      } catch (error) {
-        // Ignore storage access errors – fallback storage will kick in later.
-      }
-    };
-    const eraseIfAvailable = target => {
-      try {
-        if (typeof window.localStorage !== 'undefined') {
-          eraseKey(window.localStorage, target);
-        }
-      } catch (error) {}
-      if (window.__EXAMPLES_STORAGE__ && typeof window.__EXAMPLES_STORAGE__.removeItem === 'function') {
-        try {
-          window.__EXAMPLES_STORAGE__.removeItem(target);
-        } catch (error) {}
-      }
-      if (window.__EXAMPLES_FALLBACK_STORAGE__ && typeof window.__EXAMPLES_FALLBACK_STORAGE__.removeItem === 'function') {
-        try {
-          window.__EXAMPLES_FALLBACK_STORAGE__.removeItem(target);
-        } catch (error) {}
-      }
-    };
-    eraseIfAvailable(key);
-    eraseIfAvailable(deletedKey);
-  }, { key: STORAGE_KEY, deletedKey: DELETED_KEY });
-}
+const EXAMPLE_PATH = '/diagram/index.html';
+const CANONICAL_PATH = normalizeExamplePath(EXAMPLE_PATH);
+const STORAGE_KEY = computeExamplesStorageKey(EXAMPLE_PATH);
+const DELETED_KEY = `${STORAGE_KEY}_deletedProvidedExamples`;
 
 async function acceptNextAlert(page) {
   const handler = dialog => {
@@ -68,11 +20,14 @@ async function acceptNextAlert(page) {
 }
 
 test.describe('Example creation portability', () => {
-  test.beforeEach(async ({ page }) => {
-    await clearExampleStorage(page);
-  });
-
   test('saves and reloads examples across browser contexts', async ({ page, browser }, testInfo) => {
+    const sharedStore = { raw: new Map(), canonical: new Map() };
+    const backend = await attachExamplesBackendMock(
+      page.context(),
+      { [CANONICAL_PATH]: { examples: [], deletedProvided: [], provided: [] } },
+      sharedStore
+    );
+
     await acceptNextAlert(page);
     await page.goto(EXAMPLE_PATH, { waitUntil: 'load' });
 
@@ -84,47 +39,18 @@ test.describe('Example creation portability', () => {
 
     await page.fill('#cfgTitle', titleValue);
     await page.fill('#exampleDescription', descriptionValue);
+    const savePromise = backend.waitForPut(CANONICAL_PATH);
     await page.click('#btnSaveExample');
 
+    const putResult = await savePromise;
     await expect(tabLocator).toHaveCount(initialCount + 1);
 
-    const serialized = await page.evaluate(key => {
-      const storage = window.__EXAMPLES_STORAGE__ || window.localStorage;
-      if (!storage || typeof storage.getItem !== 'function') return null;
-      try {
-        return storage.getItem(key);
-      } catch (error) {
-        return null;
-      }
-    }, STORAGE_KEY);
-
-    expect(serialized, 'serialized example data should exist').toBeTruthy();
-
-    const parsed = JSON.parse(serialized);
-    const savedExample = parsed[parsed.length - 1];
+    const savedExample = putResult.payload.examples[putResult.payload.examples.length - 1];
     expect(savedExample.description).toBe(descriptionValue);
     expect(savedExample.config).toBeTruthy();
 
     const otherContext = await browser.newContext();
-    await otherContext.addInitScript(({ key, value }) => {
-      const trySet = store => {
-        if (!store || typeof store.setItem !== 'function') return false;
-        try {
-          store.setItem(key, value);
-          return true;
-        } catch (error) {
-          return false;
-        }
-      };
-      if (!trySet(window.localStorage)) {
-        if (window.__EXAMPLES_STORAGE__ && window.__EXAMPLES_STORAGE__ !== window.localStorage) {
-          trySet(window.__EXAMPLES_STORAGE__);
-        }
-        if (window.__EXAMPLES_FALLBACK_STORAGE__) {
-          trySet(window.__EXAMPLES_FALLBACK_STORAGE__);
-        }
-      }
-    }, { key: STORAGE_KEY, value: serialized });
+    const otherBackend = await attachExamplesBackendMock(otherContext, {}, sharedStore);
 
     const otherPage = await otherContext.newPage();
     await acceptNextAlert(otherPage);
@@ -137,11 +63,20 @@ test.describe('Example creation portability', () => {
     await expect(otherPage.locator('#exampleDescription')).toHaveValue(descriptionValue);
     await expect(otherPage.locator('#cfgTitle')).toHaveValue(titleValue);
 
+    const replicatedEntry = await otherBackend.read(CANONICAL_PATH);
+    expect(replicatedEntry).toBeTruthy();
+    expect(Array.isArray(replicatedEntry.examples)).toBe(true);
+    expect(replicatedEntry.examples.some(example => example.description === descriptionValue)).toBe(true);
+
     await otherContext.close();
   });
 
   test('uses fallback storage when localStorage is unavailable', async ({ browser }, testInfo) => {
     const context = await browser.newContext();
+    const backend = await attachExamplesBackendMock(
+      context,
+      { [CANONICAL_PATH]: { examples: [], deletedProvided: [], provided: [] } }
+    );
     await context.addInitScript(({ key, deletedKey }) => {
       Object.defineProperty(window, 'localStorage', {
         configurable: true,
@@ -168,19 +103,18 @@ test.describe('Example creation portability', () => {
     await page.fill('#exampleDescription', descriptionValue);
     const tabLocator = page.locator('#exampleTabs .example-tab');
     const initialCount = await tabLocator.count();
+    const savePromise = backend.waitForPut(CANONICAL_PATH);
     await page.click('#btnSaveExample');
+    const putResult = await savePromise;
     await expect(tabLocator).toHaveCount(initialCount + 1);
 
-    const stored = await page.evaluate(key => {
-      const storage = window.__EXAMPLES_STORAGE__;
-      if (!storage || typeof storage.getItem !== 'function') return null;
-      return storage.getItem(key);
-    }, STORAGE_KEY);
-
-    expect(stored).toBeTruthy();
-    const parsed = JSON.parse(stored);
-    const last = parsed[parsed.length - 1];
+    expect(Array.isArray(putResult.payload.examples)).toBe(true);
+    const last = putResult.payload.examples[putResult.payload.examples.length - 1];
     expect(last.description).toBe(descriptionValue);
+
+    const storedEntry = await backend.read(CANONICAL_PATH);
+    expect(storedEntry).toBeTruthy();
+    expect(storedEntry.examples.some(example => example.description === descriptionValue)).toBe(true);
 
     await context.close();
   });
