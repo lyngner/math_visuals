@@ -34,9 +34,23 @@ Eksempeltjenesten krever at følgende miljøvariabler er satt i distribusjonsmil
 
 | Variabel | Beskrivelse |
 | --- | --- |
-| `KV_REST_API_URL` | Base-URL til Vercel KV REST-API-et. |
-| `KV_REST_API_TOKEN` | API-tokenet som gir skrivetilgang til KV-instansen. |
-| `EXAMPLES_ALLOWED_ORIGINS` | Kommaseparert liste over opprinnelser som kan gjøre cross-origin-kall mot `/api/examples`. Bruk `*` for å åpne for alle. |
+| `KV_REST_API_URL` | Base-URL til Vercel KV REST-API-et. I Vercel-prosjektet: gå til **Storage → KV**, og velg **View Details → REST API**. Hvis du i stedet ser siden «Create a database», klikker du **Create** på «Upstash (Serverless DB)» for å opprette KV-integrasjonen først. |
+| `KV_REST_API_TOKEN` | API-tokenet som gir skrivetilgang til KV-instansen. Opprett eller kopier et token fra samme KV-side i Vercel (eventuelt etter at du har opprettet Upstash-integrasjonen som over). |
+| `EXAMPLES_ALLOWED_ORIGINS` | Kommaseparert liste over opprinnelser som kan gjøre cross-origin-kall mot `/api/examples`. Bruk `*` for å åpne for alle, eller legg inn konkrete URL-er (f.eks. `https://mathvisuals.no,https://admin.mathvisuals.no`). |
+
+> **Merk om Upstash:** Du trenger ikke å opprette en separat Upstash Redis-instans via "Databases"-seksjonen. Det du trenger er Vercel sin KV-integrasjon. I prosjektet ditt: åpne **Storage**. Hvis du allerede har opprettet KV, vises den direkte. Hvis ikke, velger du **Create a database → Upstash (Serverless DB)**. Dette oppretter Vercel KV-instansen, og miljøvariablene over skal peke til den.
+>
+> **Ikke bruk Blob eller Edge Config:** Disse tjenestene mangler funksjonene vi trenger (atomiske skriver, TTL-er og oppslag via REST med skrivetilgang). Eksempel-API-et forventer en ren KV-backend, så konfigurer miljøvariablene mot den samme **Storage → KV**-instansen og ikke mot Blob Storage eller Edge Config.
+
+### Slik fyller du inn miljøvariablene i Vercel
+
+1. Åpne Vercel-prosjektet som hoster Math Visuals og gå til **Settings → Environment Variables**.
+2. Legg til en ny variabel `KV_REST_API_URL` og lim inn verdien fra KV-sidens REST API-panel (ser vanligvis ut som `https://...vercel-storage.com`).
+3. Legg til en ny variabel `KV_REST_API_TOKEN`. Bruk et eksisterende token eller klikk «Create Token» på KV-siden for å generere en ny streng. Lim tokenet inn som verdi.
+4. (Valgfritt) Opprett `EXAMPLES_ALLOWED_ORIGINS` hvis du vil begrense opprinnelser. Skriv `*` for å tillate alle, eller angi en kommaseparert liste over fullstendige opprinnelser.
+5. Lagre endringene og redeployer prosjektet slik at funksjonen `/api/examples` får tilgang til de nye variablene.
+
+Etter at du har lagret, skal listen under **Environment Variables** vise både `KV_REST_API_URL` og `KV_REST_API_TOKEN` med de miljøene du aktiverte (f.eks. Production, Preview og Development). URL-en skal peke på ditt prosjekt (ser typisk ut som `https://<slug>.vercel-storage.com`), og tokenet er en lang streng med bokstaver og tall. Hvis oversikten ser slik ut, har du konfigurert variablene riktig.
 
 Begge KV-variablene bør være konfigurert før serverless-funksjonen starter for å få vedvarende lagring. Uten dem havner API-et i minnemodus og data går tapt når prosessen avsluttes.
 
