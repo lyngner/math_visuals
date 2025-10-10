@@ -24,3 +24,33 @@ Når back-end igjen blir tilgjengelig, fortsetter `performBackendSync()` å fors
 ## Konsekvens
 
 Etter endringen i commit `89ee1e2` lagres eksempler fortsatt kun midlertidig i minnet på klienten når back-end er oppe; den vedvarende kopien ligger i back-end databasen. Dersom back-end ikke svarer, gjenaktiveres nettleserlagringen automatisk slik at brukeren ikke mister endringene før synkronisering er mulig igjen.
+
+## Distribusjon og miljøvariabler
+
+Eksempeltjenesten krever at følgende miljøvariabler er satt i distribusjonsmiljøet:
+
+| Variabel | Beskrivelse |
+| --- | --- |
+| `KV_REST_API_URL` | Base-URL til Vercel KV REST-API-et. |
+| `KV_REST_API_TOKEN` | API-tokenet som gir skrivetilgang til KV-instansen. |
+| `EXAMPLES_ALLOWED_ORIGINS` | Kommaseparert liste over opprinnelser som kan gjøre cross-origin-kall mot `/api/examples`. Bruk `*` for å åpne for alle. |
+
+Begge KV-variablene må være konfigurert før serverless-funksjonen starter; ellers kaster back-end en klar konfigurasjonsfeil.
+
+## Såing av standardeksempler
+
+For at back-end skal inneholde de avtalte standardeksemplene må KV-databasen seedes. Skriptet `scripts/seed-examples.mjs` skriver disse postene direkte til Vercel KV og **må derfor bare kjøres når du har satt `KV_REST_API_URL` og `KV_REST_API_TOKEN` til en gyldig instans.**
+
+Kjøring lokalt (merk at dette gjør faktiske KV-skrivinger):
+
+```bash
+node scripts/seed-examples.mjs
+```
+
+Prosjektet har også en npm-kommando som wrapper skriptet:
+
+```bash
+npm run seed-examples
+```
+
+Begge variantene forventer at miljøvariablene over (pluss eventuelle proxyer for å treffe KV) er konfigurert. Hvis skriptet mislykkes logges første feil og prosessen avsluttes med en ikke-null exit-kode.
