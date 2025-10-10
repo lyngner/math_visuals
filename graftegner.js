@@ -3394,16 +3394,26 @@ function applyAppModeToTaskCheckHost(mode) {
 }
 
 function getCurrentAppMode() {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === 'undefined') return 'default';
   const mv = window.mathVisuals;
   if (mv && typeof mv.getAppMode === 'function') {
     try {
-      return mv.getAppMode();
+      const mode = mv.getAppMode();
+      if (typeof mode === 'string' && mode) {
+        return mode;
+      }
     } catch (_) {
-      return null;
+      // fall through to query parsing below
     }
   }
-  return null;
+  try {
+    const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
+    const fromQuery = params.get('mode');
+    if (typeof fromQuery === 'string' && fromQuery.trim()) {
+      return fromQuery.trim().toLowerCase() === 'task' ? 'task' : 'default';
+    }
+  } catch (_) {}
+  return 'default';
 }
 
 /* ====== Reset & SVG (robust eksport) ====== */
