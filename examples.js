@@ -470,6 +470,31 @@
       store.removeItem(String(key));
     } catch (_) {}
   }
+  function localStorageGetItem(key) {
+    if (key == null) return null;
+    if (typeof window === 'undefined') return null;
+    const { localStorage } = window;
+    if (!localStorage || typeof localStorage.getItem !== 'function') {
+      return null;
+    }
+    try {
+      const value = localStorage.getItem(String(key));
+      return typeof value === 'string' ? value : value == null ? null : String(value);
+    } catch (_) {
+      return null;
+    }
+  }
+  function localStorageRemoveItem(key) {
+    if (key == null) return;
+    if (typeof window === 'undefined') return;
+    const { localStorage } = window;
+    if (!localStorage || typeof localStorage.removeItem !== 'function') {
+      return;
+    }
+    try {
+      localStorage.removeItem(String(key));
+    } catch (_) {}
+  }
   let updateRestoreButtonState = () => {};
   let updateActionButtonState = () => {};
   function resolveExamplesApiBase() {
@@ -3363,7 +3388,10 @@
   // Load example if viewer requested
   (function () {
     if (hasUrlOverrides) return;
-    const loadInfo = storageGetItem('example_to_load');
+    let loadInfo = storageGetItem('example_to_load');
+    if (!loadInfo) {
+      loadInfo = localStorageGetItem('example_to_load');
+    }
     if (!loadInfo) return;
     try {
       const {
@@ -3375,6 +3403,7 @@
       }
     } catch (error) {}
     storageRemoveItem('example_to_load');
+    localStorageRemoveItem('example_to_load');
   })();
   const createBtn = document.getElementById('btnSaveExample');
   const updateBtn = document.getElementById('btnUpdateExample');
