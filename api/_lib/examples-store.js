@@ -389,7 +389,9 @@ function readFromMemory(path) {
 async function getEntry(path) {
   const normalized = normalizePath(path);
   if (!normalized) return null;
-  if (isKvConfigured()) {
+  const storeMode = getStoreMode();
+  const useKv = storeMode === 'kv';
+  if (useKv) {
     const kvValue = await readFromKv(normalized);
     if (kvValue) {
       const entry = buildEntry(normalized, kvValue);
@@ -400,7 +402,10 @@ async function getEntry(path) {
   }
   const memoryValue = readFromMemory(normalized);
   if (memoryValue) {
-    const entry = applyStorageMetadata(clone(memoryValue), memoryValue.mode || memoryValue.storage || 'memory');
+    const entryMode = storeMode === 'memory'
+      ? 'memory'
+      : memoryValue.mode || memoryValue.storage || storeMode;
+    const entry = applyStorageMetadata(clone(memoryValue), entryMode);
     return entry;
   }
   return null;
@@ -410,13 +415,14 @@ async function setEntry(path, payload) {
   const normalized = normalizePath(path);
   if (!normalized) return null;
   const entry = buildEntry(normalized, payload || {});
-  if (isKvConfigured()) {
+  const storeMode = getStoreMode();
+  if (storeMode === 'kv') {
     await writeToKv(normalized, entry);
     const annotated = applyStorageMetadata({ ...entry }, 'kv');
     writeToMemory(normalized, annotated);
     return clone(annotated);
   }
-  const annotated = applyStorageMetadata(entry, 'memory');
+  const annotated = applyStorageMetadata(entry, storeMode);
   writeToMemory(normalized, annotated);
   return clone(annotated);
 }
@@ -424,7 +430,8 @@ async function setEntry(path, payload) {
 async function deleteEntry(path) {
   const normalized = normalizePath(path);
   if (!normalized) return false;
-  if (isKvConfigured()) {
+  const storeMode = getStoreMode();
+  if (storeMode === 'kv') {
     await deleteFromKv(normalized);
   }
   deleteFromMemory(normalized);
@@ -433,7 +440,8 @@ async function deleteEntry(path) {
 
 async function listEntries() {
   const entries = [];
-  if (isKvConfigured()) {
+  const storeMode = getStoreMode();
+  if (storeMode === 'kv') {
     const kv = await loadKvClient();
     let paths = [];
     try {
@@ -459,7 +467,7 @@ async function listEntries() {
     if (!normalized) return;
     const stored = readFromMemory(normalized);
     if (!stored) return;
-    const annotated = applyStorageMetadata(stored, 'memory');
+    const annotated = applyStorageMetadata(stored, storeMode);
     entries.push(clone(annotated));
   });
   return entries;
