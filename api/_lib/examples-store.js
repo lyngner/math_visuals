@@ -519,6 +519,67 @@ async function listEntries() {
   return entries;
 }
 
+async function seedMemoryStoreWithDefaults(options = {}) {
+  const resolvedOptions = options && typeof options === 'object' ? options : {};
+  const overwriteExisting = resolvedOptions.overwriteExisting === true;
+  const allowedPaths = Array.isArray(resolvedOptions.paths)
+    ? new Set(
+        resolvedOptions.paths
+          .map(value => normalizePath(value))
+          .filter(Boolean)
+      )
+    : null;
+
+  let loadDefaultsFn = null;
+  try {
+    const defaultsModule = require('./examples-defaults');
+    if (defaultsModule && typeof defaultsModule.loadDefaultExampleEntries === 'function') {
+      loadDefaultsFn = defaultsModule.loadDefaultExampleEntries;
+    }
+  } catch (error) {
+    if (resolvedOptions.throwOnError) {
+      throw error;
+    }
+    return [];
+  }
+
+  if (typeof loadDefaultsFn !== 'function') {
+    return [];
+  }
+
+  let defaults = [];
+  try {
+    defaults = await loadDefaultsFn();
+  } catch (error) {
+    if (resolvedOptions.throwOnError) {
+      throw error;
+    }
+    return [];
+  }
+
+  const seeded = [];
+  for (const entry of defaults) {
+    if (!entry || typeof entry !== 'object') continue;
+    const targetPath = normalizePath(entry.path);
+    if (!targetPath) continue;
+    if (allowedPaths && !allowedPaths.has(targetPath)) continue;
+    if (!overwriteExisting) {
+      const existing = readFromMemory(targetPath);
+      if (existing) continue;
+    }
+    const payload = {
+      examples: Array.isArray(entry.examples) ? clone(entry.examples) : [],
+      deletedProvided: Array.isArray(entry.deletedProvided) ? entry.deletedProvided.slice() : [],
+      updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : undefined
+    };
+    const stored = setMemoryEntry(targetPath, payload);
+    if (stored) {
+      seeded.push(stored);
+    }
+  }
+  return seeded;
+}
+
 module.exports = {
   normalizePath,
   getEntry,
@@ -533,6 +594,7 @@ module.exports = {
   setMemoryEntry,
   deleteMemoryEntry,
   listMemoryEntries,
+  seedMemoryStoreWithDefaults,
   __serializeExampleValue: value => serializeExampleValue(value, new WeakMap()),
   __deserializeExampleValue: value => deserializeExampleValue(value, new WeakMap())
 };
