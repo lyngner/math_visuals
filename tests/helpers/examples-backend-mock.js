@@ -215,24 +215,72 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     const normalizedPath = rawPath ? normalizePath(rawPath) : null;
 
     if (requestFailureFactory) {
-      const buildError = () => {
+      const buildFailure = () => {
         try {
           const produced = typeof requestFailureFactory === 'function'
             ? requestFailureFactory({ route, request, rawPath, normalizedPath })
             : requestFailureFactory;
-          if (produced instanceof Error) return produced;
-          if (produced && typeof produced === 'object' && 'error' in produced) {
-            const error = new Error(String(produced.error || 'Mock backend failure'));
-            if (produced.status) error.status = produced.status;
-            return error;
+
+          if (produced instanceof Error) {
+            return {
+              status: typeof produced.status === 'number' ? produced.status : undefined,
+              message: produced.message || 'Mock backend failure'
+            };
           }
-          if (produced == null) return new Error('Mock backend failure');
-          return produced instanceof Error ? produced : new Error(String(produced));
+
+          if (produced && typeof produced === 'object') {
+            if ('abort' in produced) {
+              return { type: 'abort', errorCode: typeof produced.abort === 'string' ? produced.abort : 'failed' };
+            }
+            if ('body' in produced || 'status' in produced || 'headers' in produced) {
+              return {
+                status: typeof produced.status === 'number' ? produced.status : undefined,
+                headers: produced.headers,
+                body: produced.body,
+                message: 'error' in produced ? String(produced.error || 'Mock backend failure') : undefined
+              };
+            }
+            if ('error' in produced) {
+              return {
+                status: typeof produced.status === 'number' ? produced.status : undefined,
+                message: String(produced.error || 'Mock backend failure')
+              };
+            }
+          }
+
+          if (produced == null) {
+            return { message: 'Mock backend failure' };
+          }
+
+          return { message: String(produced) };
         } catch (error) {
-          return error;
+          return {
+            status: typeof error.status === 'number' ? error.status : 500,
+            message: error.message || 'Mock backend failure'
+          };
         }
       };
-      throw buildError();
+
+      const failure = buildFailure() || {};
+      if (failure && failure.type === 'abort') {
+        await route.abort(failure.errorCode || 'failed');
+      } else {
+        const status = typeof failure.status === 'number' ? failure.status : 503;
+        const headers = {
+          ...DEFAULT_HEADERS,
+          ...(failure && failure.headers ? failure.headers : {})
+        };
+        const message = failure && failure.message ? failure.message : 'Mock backend failure';
+        let body = failure && 'body' in failure ? failure.body : undefined;
+        if (body == null) {
+          body = { error: message };
+        }
+        if (!Buffer.isBuffer(body) && typeof body !== 'string') {
+          body = JSON.stringify(body);
+        }
+        await route.fulfill({ status, headers, body });
+      }
+      return;
     }
 
     const recordHistory = (type, payload) => {
