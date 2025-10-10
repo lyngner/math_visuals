@@ -3388,9 +3388,10 @@
   // Load example if viewer requested
   (function () {
     if (hasUrlOverrides) return;
-    let loadInfo = storageGetItem('example_to_load');
+    const selectionKey = 'example_to_load';
+    let loadInfo = localStorageGetItem(selectionKey);
     if (!loadInfo) {
-      loadInfo = localStorageGetItem('example_to_load');
+      loadInfo = storageGetItem(selectionKey);
     }
     if (!loadInfo) return;
     try {
@@ -3402,8 +3403,8 @@
         if (loadExample(index)) initialLoadPerformed = true;
       }
     } catch (error) {}
-    storageRemoveItem('example_to_load');
-    localStorageRemoveItem('example_to_load');
+    localStorageRemoveItem(selectionKey);
+    storageRemoveItem(selectionKey);
   })();
   const createBtn = document.getElementById('btnSaveExample');
   const updateBtn = document.getElementById('btnUpdateExample');
