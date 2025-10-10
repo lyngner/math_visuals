@@ -107,6 +107,8 @@ function ensureSimpleDefaults() {
 }
 
 /* ============================== State ============================== */
+const JSXGRAPH_EXPORT_SRC = "https://cdn.jsdelivr.net/npm/jsxgraph@1.12.0/distrib/jsxgraphcore.js";
+
 const S = {
   w: CFG.SIMPLE.length.cells,
   h: CFG.SIMPLE.height.cells,
@@ -731,7 +733,7 @@ function downloadInteractiveSVG() {
   parts.push('<foreignObject x="0" y="0" width="100%" height="100%">');
   parts.push('<div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;position:relative">');
   parts.push('<div id="jxgbox" class="jxgbox" style="width:100%;height:100%"></div>');
-  parts.push('<' + 'script src="/vendor/cdn/jsxgraph/jsxgraphcore.js">' + '</' + 'script>');
+  parts.push('<' + 'script src="' + JSXGRAPH_EXPORT_SRC + '"></' + 'script>');
   // vent til JXG finnes, deretter eval innerJS (base64) – kun trygge ASCII-tegn i elementet
   parts.push('<' + 'script>(function(){var s="' + b64 + '";(function start(){if(window.JXG&&document.getElementById("jxgbox")){eval(atob(s));}else{setTimeout(start,50);}})();})();</' + 'script>');
   parts.push('</div></foreignObject></svg>');
@@ -787,7 +789,7 @@ function downloadInteractiveHTML() {
   html.push('<style>html,body{height:100%;margin:0}#jxgbox{width:100%;height:100%}</style>');
   html.push('</head><body>');
   html.push('<div id="jxgbox" class="jxgbox"></div>');
-  html.push('<' + 'script src="/vendor/cdn/jsxgraph/jsxgraphcore.js">' + '</' + 'script>');
+  html.push('<' + 'script src="' + JSXGRAPH_EXPORT_SRC + '"></' + 'script>');
   html.push('<' + 'script>(function(){var s="' + b64 + '";(function start(){if(window.JXG&&document.getElementById("jxgbox")){eval(atob(s));}else{setTimeout(start,50);}})();})();</' + 'script>');
   html.push('</body></html>');
   const blob = new Blob([html.join("")], {
