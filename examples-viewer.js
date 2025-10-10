@@ -199,27 +199,53 @@ function normalizeBackendStoreMode(value) {
 
 function readStoreModeFromHeaders(headers) {
   if (!headers) return null;
-  try {
-    if (typeof headers.get === 'function') {
-      const value = headers.get('X-Examples-Store-Mode');
-      const normalized = normalizeBackendStoreMode(value);
+  const headerCandidates = [
+    'X-Examples-Store-Mode',
+    'X-Examples-Storage-Mode',
+    'X-Examples-Storage-Result',
+    'X-Examples-Storage'
+  ];
+  for (const header of headerCandidates) {
+    try {
+      if (typeof headers.get === 'function') {
+        const value = headers.get(header);
+        const normalized = normalizeBackendStoreMode(value);
+        if (normalized) return normalized;
+      }
+    } catch (_) {}
+    try {
+      const direct = headers[header] || headers[header.toLowerCase()];
+      const normalized = normalizeBackendStoreMode(direct);
       if (normalized) return normalized;
-    }
-  } catch (_) {}
-  try {
-    const direct = headers['X-Examples-Store-Mode'] || headers['x-examples-store-mode'];
-    const normalized = normalizeBackendStoreMode(direct);
-    if (normalized) return normalized;
-  } catch (_) {}
+    } catch (_) {}
+  }
   return null;
 }
 
 function readStoreModeFromPayload(payload) {
-  if (!payload || typeof payload !== 'object') return null;
+  if (!payload) return null;
+  if (Array.isArray(payload)) {
+    for (const entry of payload) {
+      const nested = readStoreModeFromPayload(entry);
+      if (nested) return nested;
+    }
+    return null;
+  }
+  if (typeof payload !== 'object') return null;
   const direct = normalizeBackendStoreMode(
     payload.mode || payload.storage || payload.storageMode || payload.storeMode
   );
   if (direct) return direct;
+  const nestedCandidates = [
+    payload.metadata,
+    payload.meta,
+    payload.result,
+    payload.data
+  ];
+  for (const candidate of nestedCandidates) {
+    const nested = readStoreModeFromPayload(candidate);
+    if (nested) return nested;
+  }
   if (Array.isArray(payload.entries)) {
     for (const entry of payload.entries) {
       const entryMode = readStoreModeFromPayload(entry);
@@ -232,21 +258,61 @@ function readStoreModeFromPayload(payload) {
 function resolveStoreMode(res, payload) {
   const headerMode = readStoreModeFromHeaders(res && res.headers);
   if (headerMode) return headerMode;
-  return readStoreModeFromPayload(payload);
+  const payloadMode = readStoreModeFromPayload(payload);
+  if (payloadMode) return payloadMode;
+  return null;
+}
+
+const MEMORY_WARNING_TEXT = 'Eksempler lagres midlertidig og kan forsvinne ved omstart.';
+
+function ensureStoreBannerElement() {
+  if (typeof document === 'undefined') return null;
+  if (ensureStoreBannerElement.element && ensureStoreBannerElement.element.isConnected) {
+    return ensureStoreBannerElement.element;
+  }
+  let el = document.getElementById('examples-store-banner');
+  if (!el) {
+    el = document.createElement('div');
+    if (!el) return null;
+    el.id = 'examples-store-banner';
+    el.className = 'examples-store-banner';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.hidden = true;
+    const container = document.getElementById('examples');
+    if (container && container.parentNode) {
+      container.parentNode.insertBefore(el, container);
+    } else if (document.body) {
+      document.body.insertBefore(el, document.body.firstChild || null);
+    }
+  }
+  ensureStoreBannerElement.element = el;
+  return el;
+}
+
+function setStoreBannerMessage(message) {
+  const el = ensureStoreBannerElement();
+  if (!el) return;
+  const normalized = typeof message === 'string' ? message.trim() : '';
+  el.textContent = normalized;
+  el.hidden = !normalized;
+  el.classList.toggle('examples-store-banner--active', Boolean(normalized));
 }
 
 function updateBackendStoreMode(mode) {
-  const normalized = normalizeBackendStoreMode(mode);
-  if (!normalized) return;
-  backendStoreMode = normalized;
-  if (normalized === 'memory') {
+  const normalized = normalizeBackendStoreMode(mode) || (mode ? null : 'kv');
+  const resolved = normalized || backendStoreMode || 'kv';
+  backendStoreMode = resolved;
+  if (resolved === 'memory') {
+    setStoreBannerMessage(MEMORY_WARNING_TEXT);
     if (lastStatusType !== 'error') {
-      setStatusMessage('Eksempler lagres midlertidig og kan forsvinne ved omstart.', 'warning');
+      setStatusMessage(MEMORY_WARNING_TEXT, 'warning');
     }
-  } else if (lastStatusType === 'warning') {
-    setStatusMessage('', '');
-  } else if (!lastStatusMessage) {
-    setStatusMessage('', '');
+  } else {
+    setStoreBannerMessage('');
+    if (lastStatusType === 'warning' && lastStatusMessage === MEMORY_WARNING_TEXT) {
+      setStatusMessage('', '');
+    }
   }
 }
 
@@ -254,8 +320,12 @@ function applyStoreModeFromResponse(res, payload) {
   const mode = resolveStoreMode(res, payload);
   if (mode) {
     updateBackendStoreMode(mode);
+    return mode;
   }
-  return mode;
+  if (!backendStoreMode) {
+    updateBackendStoreMode('kv');
+  }
+  return backendStoreMode;
 }
 let lastStatusMessage = '';
 let lastStatusType = '';
