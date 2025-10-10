@@ -1238,6 +1238,7 @@
   let backendStatusKnown = !examplesApiBase;
   let backendReady = !examplesApiBase;
   let backendSyncDeferred = false;
+  let lastBackendUpdatedAtMs = 0;
   let applyingBackendUpdate = false;
   let backendSyncTimer = null;
   let backendSyncPromise = null;
@@ -1742,6 +1743,7 @@
       return null;
     }
     let backendWasEmpty = false;
+    let backendUpdatedAtMs = lastBackendUpdatedAtMs;
     try {
       const fetchOptions = {
         headers: {
@@ -1790,6 +1792,8 @@
         if (!legacyPathUsed && (!res || res.status === 404)) {
           markBackendAvailable();
           backendWasEmpty = true;
+          backendUpdatedAtMs = 0;
+          lastBackendUpdatedAtMs = backendUpdatedAtMs;
           return {
             path: storagePath,
             examples: [],
@@ -1799,6 +1803,8 @@
       } else if (res && res.status === 404) {
         markBackendAvailable();
         backendWasEmpty = true;
+        backendUpdatedAtMs = 0;
+        lastBackendUpdatedAtMs = backendUpdatedAtMs;
         return {
           path: storagePath,
           examples: [],
@@ -1822,6 +1828,8 @@
       const backendExamples = Array.isArray(normalized.examples) ? normalized.examples : [];
       const backendDeleted = Array.isArray(normalized.deletedProvided) ? normalized.deletedProvided : [];
       backendWasEmpty = backendExamples.length === 0 && backendDeleted.length === 0;
+      backendUpdatedAtMs = parseUpdatedAtValue(normalized.updatedAt);
+      lastBackendUpdatedAtMs = backendUpdatedAtMs;
       await applyBackendData(normalized);
       renderOptions();
       scheduleEnsureDefaults({ force: true });
@@ -1842,11 +1850,12 @@
     } finally {
       backendReady = true;
       if (backendSyncDeferred) {
-        if (backendWasEmpty) {
+        if (backendAvailable) {
+          const localIsNewerThanBackend = lastLocalUpdateMs > backendUpdatedAtMs;
           backendSyncDeferred = false;
-          scheduleBackendSync();
-        } else if (backendAvailable) {
-          backendSyncDeferred = false;
+          if (backendWasEmpty || localIsNewerThanBackend) {
+            scheduleBackendSync();
+          }
         }
       }
     }
