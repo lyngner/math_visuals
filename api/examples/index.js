@@ -9,7 +9,11 @@ const {
   listEntries,
   KvOperationError,
   KvConfigurationError,
-  getStoreMode
+  getStoreMode,
+  getMemoryEntry,
+  setMemoryEntry,
+  deleteMemoryEntry,
+  listMemoryEntries
 } = require('../_lib/examples-store');
 
 function normalizeStoreMode(value) {
@@ -27,6 +31,7 @@ function buildModeMetadata(modeHint) {
   return {
     storage,
     mode: storage,
+    storageMode: storage,
     persistent: storage === 'kv',
     ephemeral: storage !== 'kv'
   };
@@ -49,6 +54,20 @@ function applyStoreModeHeader(res, mode) {
   if (!res || typeof res.setHeader !== 'function') return;
   const metadata = buildModeMetadata(mode);
   res.setHeader('X-Examples-Store-Mode', metadata.mode);
+  return metadata;
+}
+
+function applyStorageResultHeader(res, mode) {
+  if (!res || typeof res.setHeader !== 'function') return;
+  if (!mode) return;
+  res.setHeader('X-Examples-Storage-Result', mode);
+}
+
+function applyModeHeaders(res, mode) {
+  const metadata = applyStoreModeHeader(res, mode);
+  if (metadata && metadata.mode) {
+    applyStorageResultHeader(res, metadata.mode);
+  }
   return metadata;
 }
 
@@ -150,23 +169,47 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      if (queryPath) {
-        const entry = await getEntry(queryPath);
-        if (!entry) {
-          sendJson(res, 404, { error: 'Not Found' });
+      try {
+        if (queryPath) {
+          const entry = await getEntry(queryPath);
+          if (!entry) {
+            const metadata = applyModeHeaders(res, currentMode);
+            sendJson(res, 404, { error: 'Not Found', ...metadata });
+            return;
+          }
+          const payload = augmentEntry(entry, currentMode);
+          applyModeHeaders(res, payload.mode);
+          sendJson(res, 200, payload);
           return;
         }
-        const payload = augmentEntry(entry, currentMode);
-        applyStoreModeHeader(res, payload.mode);
-        sendJson(res, 200, payload);
+        const entries = await listEntries();
+        const payloadEntries = augmentEntries(entries, currentMode);
+        const effectiveMode = payloadEntries.length ? payloadEntries[0].mode : currentMode;
+        const listMetadata = buildModeMetadata(effectiveMode);
+        applyModeHeaders(res, listMetadata.mode);
+        sendJson(res, 200, { ...listMetadata, entries: payloadEntries });
         return;
+      } catch (error) {
+        if (error instanceof KvConfigurationError) {
+          const fallbackMode = 'memory';
+          const metadata = applyModeHeaders(res, fallbackMode);
+          if (queryPath) {
+            const fallbackEntry = getMemoryEntry(queryPath);
+            if (!fallbackEntry) {
+              sendJson(res, 404, { error: 'Not Found', ...metadata });
+              return;
+            }
+            const payload = augmentEntry(fallbackEntry, fallbackMode);
+            sendJson(res, 200, payload);
+            return;
+          }
+          const entries = listMemoryEntries();
+          const payloadEntries = augmentEntries(entries, fallbackMode);
+          sendJson(res, 200, { ...metadata, entries: payloadEntries });
+          return;
+        }
+        throw error;
       }
-      const entries = await listEntries();
-      const payloadEntries = augmentEntries(entries, currentMode);
-      const listMetadata = buildModeMetadata(payloadEntries.length ? payloadEntries[0].mode : currentMode);
-      applyStoreModeHeader(res, listMetadata.mode);
-      sendJson(res, 200, { ...listMetadata, entries: payloadEntries });
-      return;
     }
 
     if (req.method === 'DELETE') {
@@ -175,12 +218,20 @@ module.exports = async function handler(req, res) {
         sendJson(res, 400, { error: 'Missing path parameter' });
         return;
       }
-      await deleteEntry(target);
-      const metadata = applyStoreModeHeader(res, currentMode);
-      const storageResult = metadata ? metadata.mode : getStoreMode();
-      res.setHeader('X-Examples-Storage-Result', storageResult);
-      sendJson(res, 200, { ok: true, ...metadata });
-      return;
+      try {
+        await deleteEntry(target);
+        const metadata = applyModeHeaders(res, currentMode);
+        sendJson(res, 200, { ok: true, ...metadata });
+        return;
+      } catch (error) {
+        if (error instanceof KvConfigurationError) {
+          deleteMemoryEntry(target);
+          const metadata = applyModeHeaders(res, 'memory');
+          sendJson(res, 200, { ok: true, ...metadata });
+          return;
+        }
+        throw error;
+      }
     }
 
     if (req.method === 'POST' || req.method === 'PUT') {
@@ -201,27 +252,33 @@ module.exports = async function handler(req, res) {
         deletedProvided: Array.isArray(body.deletedProvided) ? body.deletedProvided : [],
         updatedAt: typeof body.updatedAt === 'string' ? body.updatedAt : undefined
       };
-      const entry = await setEntry(target, payload);
-      const responseEntry = augmentEntry(entry, currentMode);
-      applyStoreModeHeader(res, responseEntry.mode);
-      res.setHeader('X-Examples-Storage-Result', responseEntry.mode);
-      sendJson(res, 200, responseEntry);
-      return;
+      try {
+        const entry = await setEntry(target, payload);
+        const responseEntry = augmentEntry(entry, currentMode);
+        applyModeHeaders(res, responseEntry.mode);
+        sendJson(res, 200, responseEntry);
+        return;
+      } catch (error) {
+        if (error instanceof KvConfigurationError) {
+          const entry = setMemoryEntry(target, payload);
+          const responseEntry = augmentEntry(entry, 'memory');
+          applyModeHeaders(res, responseEntry.mode);
+          sendJson(res, 200, responseEntry);
+          return;
+        }
+        throw error;
+      }
     }
 
     sendJson(res, 405, { error: 'Method Not Allowed' });
   } catch (error) {
     if (error instanceof KvConfigurationError) {
-      const metadata = applyStoreModeHeader(res, 'memory');
-      sendJson(res, 200, {
-        error: 'KVNotConfigured',
-        message: error.message,
-        ...metadata
-      });
+      const metadata = applyModeHeaders(res, 'memory');
+      sendJson(res, 200, { ok: true, message: error.message, ...metadata });
       return;
     }
     if (error instanceof KvOperationError) {
-      const metadata = applyStoreModeHeader(res, currentMode);
+      const metadata = applyModeHeaders(res, currentMode);
       sendJson(res, 503, {
         error: 'KVUnavailable',
         message: error.message,
