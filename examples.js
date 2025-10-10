@@ -1238,6 +1238,7 @@
   let backendStatusKnown = !examplesApiBase;
   let backendReady = !examplesApiBase;
   let backendSyncDeferred = false;
+  let backendSyncDeferredHasLocalChanges = false;
   let lastBackendUpdatedAtMs = 0;
   let applyingBackendUpdate = false;
   let backendSyncTimer = null;
@@ -1740,6 +1741,7 @@
       if (backendSyncDeferred) {
         backendSyncDeferred = false;
       }
+      backendSyncDeferredHasLocalChanges = false;
       return null;
     }
     let backendWasEmpty = false;
@@ -1852,10 +1854,19 @@
       if (backendSyncDeferred) {
         if (backendAvailable) {
           const localIsNewerThanBackend = lastLocalUpdateMs > backendUpdatedAtMs;
+          const shouldSyncDeferredChanges =
+            backendSyncDeferredHasLocalChanges || backendWasEmpty || localIsNewerThanBackend;
           backendSyncDeferred = false;
-          if (backendWasEmpty || localIsNewerThanBackend) {
+          if (shouldSyncDeferredChanges) {
+            backendSyncDeferredHasLocalChanges = false;
             scheduleBackendSync();
           }
+        }
+      } else if (backendSyncDeferredHasLocalChanges && backendAvailable) {
+        const localIsNewerThanBackend = lastLocalUpdateMs > backendUpdatedAtMs;
+        if (backendWasEmpty || localIsNewerThanBackend) {
+          backendSyncDeferredHasLocalChanges = false;
+          scheduleBackendSync();
         }
       }
     }
@@ -2758,9 +2769,13 @@
     const shouldSkipSync = opts.skipBackendSync === true || !backendReady;
     if (shouldSkipSync) {
       backendSyncDeferred = true;
+      if (isUserInitiatedReason(reason)) {
+        backendSyncDeferredHasLocalChanges = true;
+      }
       return true;
     }
     backendSyncDeferred = false;
+    backendSyncDeferredHasLocalChanges = false;
     notifyBackendChange();
     const syncPromise = flushBackendSync();
     if (syncPromise) {
