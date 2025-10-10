@@ -434,9 +434,31 @@
     if (sharedMemoryStorage && typeof sharedMemoryStorage.getItem === 'function') {
       return sharedMemoryStorage;
     }
-    if (globalScope && globalScope[STORAGE_GLOBAL_KEY] && typeof globalScope[STORAGE_GLOBAL_KEY].getItem === 'function') {
-      sharedMemoryStorage = globalScope[STORAGE_GLOBAL_KEY];
-      return sharedMemoryStorage;
+    if (globalScope) {
+      try {
+        const localStore = globalScope.localStorage;
+        if (
+          localStore &&
+          typeof localStore.getItem === 'function' &&
+          typeof localStore.setItem === 'function'
+        ) {
+          const testKey = `${STORAGE_GLOBAL_KEY}__test__`;
+          try {
+            localStore.setItem(testKey, testKey);
+            localStore.removeItem(testKey);
+            sharedMemoryStorage = localStore;
+            return sharedMemoryStorage;
+          } catch (error) {
+            try {
+              localStore.removeItem(testKey);
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+      if (globalScope[STORAGE_GLOBAL_KEY] && typeof globalScope[STORAGE_GLOBAL_KEY].getItem === 'function') {
+        sharedMemoryStorage = globalScope[STORAGE_GLOBAL_KEY];
+        return sharedMemoryStorage;
+      }
     }
     sharedMemoryStorage = createMemoryStorage();
     if (globalScope) {

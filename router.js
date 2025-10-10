@@ -63,8 +63,29 @@ function createMemoryStorage() {
 }
 
 function resolveSharedStorage() {
-  if (globalScope && globalScope.__EXAMPLES_STORAGE__ && typeof globalScope.__EXAMPLES_STORAGE__.getItem === 'function') {
-    return globalScope.__EXAMPLES_STORAGE__;
+  if (globalScope) {
+    try {
+      const localStore = globalScope.localStorage;
+      if (
+        localStore &&
+        typeof localStore.getItem === 'function' &&
+        typeof localStore.setItem === 'function'
+      ) {
+        const testKey = '__EXAMPLES_STORAGE__TEST__';
+        try {
+          localStore.setItem(testKey, testKey);
+          localStore.removeItem(testKey);
+          return localStore;
+        } catch (error) {
+          try {
+            localStore.removeItem(testKey);
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+    if (globalScope.__EXAMPLES_STORAGE__ && typeof globalScope.__EXAMPLES_STORAGE__.getItem === 'function') {
+      return globalScope.__EXAMPLES_STORAGE__;
+    }
   }
   const store = createMemoryStorage();
   if (globalScope) {
