@@ -216,7 +216,21 @@ function computeExamplesStorageKey(path, options = {}) {
   return `examples_${normalized}`;
 }
 
-async function attachExamplesBackendMock(context, initialState = {}, sharedStore) {
+async function attachExamplesBackendMock(context, initialState = {}, sharedStoreOrOptions, maybeOptions) {
+  let sharedStore = sharedStoreOrOptions;
+  let options = maybeOptions;
+  const sharedCandidate = sharedStoreOrOptions;
+  const isSharedStoreCandidate =
+    sharedCandidate &&
+    typeof sharedCandidate === 'object' &&
+    (sharedCandidate.raw instanceof Map || sharedCandidate.canonical instanceof Map);
+  if (!isSharedStoreCandidate && sharedCandidate && typeof sharedCandidate === 'object' && maybeOptions === undefined) {
+    options = sharedCandidate;
+    sharedStore = undefined;
+  }
+  if (options && typeof options !== 'object') {
+    options = undefined;
+  }
   const store = ensureStore(sharedStore);
   const history = [];
   const putEvents = createEventTracker();
@@ -235,6 +249,10 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
       applyRecordMode(record, resolved);
     });
   };
+
+  const requestedMode = normalizeStoreMode(options && options.mode);
+  currentMode = requestedMode || 'kv';
+  synchronizeStoreMode(currentMode);
 
   const setEntry = (path, payload, options = {}) => {
     const rawPath = typeof path === 'string' && path.trim() ? path.trim() : '/';
