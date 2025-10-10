@@ -6,7 +6,7 @@ const {
 } = require('./helpers/examples-backend-mock');
 
 const VIEWER_FIXTURE_PATH = '/tests/fixtures/examples-viewer.html';
-const MEMORY_WARNING_TEXT = 'Eksempler lagres midlertidig og kan forsvinne ved omstart.';
+const MEMORY_WARNING_TEXT = 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.';
 const EXAMPLE_PATH = '/diagram/index.html';
 const CANONICAL_PATH = normalizeExamplePath(EXAMPLE_PATH);
 
@@ -33,7 +33,7 @@ test.describe('Examples viewer – memory mode awareness', () => {
 
     const status = page.locator('#examples-status');
     await expect(status).toBeVisible();
-    await expect(status).toContainText('Eksempler lagres midlertidig');
+    await expect(status).toContainText('midlertidig minnelagring');
     await expect(status).toHaveAttribute('data-status-type', 'warning');
 
     const banner = page.locator('#examples-store-banner');

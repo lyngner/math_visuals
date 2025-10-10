@@ -15,6 +15,9 @@ const {
   deleteMemoryEntry,
   listMemoryEntries
 } = require('../_lib/examples-store');
+const { loadDefaultExampleEntries } = require('../_lib/examples-defaults');
+
+const MEMORY_LIMITATION_NOTE = 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.';
 
 function normalizeStoreMode(value) {
   if (typeof value !== 'string') return null;
@@ -33,7 +36,8 @@ function buildModeMetadata(modeHint) {
     mode: storage,
     storageMode: storage,
     persistent: storage === 'kv',
-    ephemeral: storage !== 'kv'
+    ephemeral: storage !== 'kv',
+    limitation: storage === 'memory' ? MEMORY_LIMITATION_NOTE : undefined
   };
 }
 
@@ -182,7 +186,26 @@ module.exports = async function handler(req, res) {
           sendJson(res, 200, payload);
           return;
         }
-        const entries = await listEntries();
+        let entries = await listEntries();
+        if (!Array.isArray(entries)) {
+          entries = [];
+        }
+        if (!entries.length && normalizeStoreMode(currentMode) === 'memory') {
+          const defaults = await loadDefaultExampleEntries();
+          const seeded = [];
+          for (const entry of defaults) {
+            if (!entry || typeof entry !== 'object') continue;
+            const { path, examples, deletedProvided } = entry;
+            if (!path) continue;
+            const stored = setMemoryEntry(path, { examples, deletedProvided });
+            if (stored) {
+              seeded.push(stored);
+            }
+          }
+          if (seeded.length) {
+            entries = seeded;
+          }
+        }
         const payloadEntries = augmentEntries(entries, currentMode);
         const effectiveMode = payloadEntries.length ? payloadEntries[0].mode : currentMode;
         const listMetadata = buildModeMetadata(effectiveMode);

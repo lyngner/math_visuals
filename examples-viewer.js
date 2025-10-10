@@ -263,7 +263,7 @@ function resolveStoreMode(res, payload) {
   return null;
 }
 
-const MEMORY_WARNING_TEXT = 'Eksempler lagres midlertidig og kan forsvinne ved omstart.';
+const MEMORY_WARNING_TEXT = 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.';
 
 function ensureStoreBannerElement() {
   if (typeof document === 'undefined') return null;
