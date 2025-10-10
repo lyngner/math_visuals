@@ -1,6 +1,7 @@
 'use strict';
 
 const { normalizePath } = require('../../api/_lib/examples-store');
+const { seedDefaultExampleEntries } = require('./examples-default-seed');
 
 const DEFAULT_HEADERS = { 'Content-Type': 'application/json' };
 let currentMode = 'kv';
@@ -507,6 +508,20 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
       const normalized = normalizePath(rawPath);
       const promote = rawPath === (normalized || rawPath);
       setEntry(rawPath, payload, { promote });
+    });
+  }
+
+  const shouldSeedDefaults = options && options.seedDefaults;
+  if (shouldSeedDefaults && store.canonical.size === 0) {
+    await seedDefaultExampleEntries({
+      apply: (path, payload) => {
+        const entryPayload = {
+          ...payload,
+          provided: Array.isArray(payload.provided) ? payload.provided : undefined
+        };
+        setEntry(path, entryPayload, { promote: true });
+        return readEntry(path);
+      }
     });
   }
 

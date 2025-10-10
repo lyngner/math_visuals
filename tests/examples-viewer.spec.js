@@ -7,26 +7,16 @@ const {
 
 const VIEWER_FIXTURE_PATH = '/tests/fixtures/examples-viewer.html';
 const MEMORY_WARNING_TEXT = 'Eksempler lagres midlertidig og kan forsvinne ved omstart.';
-const EXAMPLE_PATH = '/diagram/index.html';
-const CANONICAL_PATH = normalizeExamplePath(EXAMPLE_PATH);
-
-const viewerSeedPayload = {
-  examples: [
-    {
-      description: 'Viewer minnetest',
-      config: { STATE: { note: 'lagret i minne' } }
-    }
-  ],
-  deletedProvided: []
-};
+const DEFAULT_EXAMPLE_PATH = '/tallinje';
+const CANONICAL_PATH = normalizeExamplePath(DEFAULT_EXAMPLE_PATH);
 
 test.describe('Examples viewer – memory mode awareness', () => {
   test('shows memory status alert and renders entries from the backend', async ({ page }) => {
     const backend = await attachExamplesBackendMock(
       page.context(),
-      { [CANONICAL_PATH]: viewerSeedPayload },
+      null,
       undefined,
-      { mode: 'memory' }
+      { mode: 'memory', seedDefaults: true }
     );
 
     await page.goto(VIEWER_FIXTURE_PATH, { waitUntil: 'load' });
@@ -49,7 +39,8 @@ test.describe('Examples viewer – memory mode awareness', () => {
     const exampleCards = sections.first().locator('.example');
     await expect(exampleCards).toHaveCount(1);
     const iframe = exampleCards.first().locator('iframe');
-    await expect(iframe).toHaveAttribute('src', /\/diagram(\?|$)/);
+    await expect(iframe).toHaveAttribute('src', /\/tallinje(\?|$)/);
+    await expect(exampleCards.first()).toContainText('Dra de tre brøkene til riktig plass på tallinjen.');
     await expect(exampleCards.first().getByRole('button', { name: 'Last inn' })).toBeVisible();
     await expect(exampleCards.first().getByRole('button', { name: 'Slett' })).toBeVisible();
 
@@ -57,5 +48,10 @@ test.describe('Examples viewer – memory mode awareness', () => {
     expect(storedEntry).toBeTruthy();
     expect(storedEntry.mode).toBe('memory');
     expect(storedEntry.storage).toBe('memory');
+    expect(Array.isArray(storedEntry.examples)).toBe(true);
+    expect(storedEntry.examples[0]).toMatchObject({
+      title: 'Plasser brøkene',
+      isDefault: true
+    });
   });
 });

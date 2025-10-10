@@ -57,6 +57,7 @@ const {
   listEntries,
   __deserializeExampleValue
 } = require('../api/_lib/examples-store');
+const { seedDefaultExampleEntries } = require('./helpers/examples-default-seed');
 
 test.beforeEach(() => {
   mockKv.clear();
@@ -279,5 +280,26 @@ test.describe('examples-store memory fallback', () => {
     expect(stillHasB).toBeTruthy();
     expect(stillHasB.storage).toBe('memory');
     expect(stillHasB.mode).toBe('memory');
+  });
+
+  test('default examples helper seeds memory store entries', async () => {
+    const seeded = await seedDefaultExampleEntries();
+    expect(Array.isArray(seeded)).toBe(true);
+    expect(seeded.length).toBeGreaterThan(0);
+
+    const entries = await listEntries();
+    expect(Array.isArray(entries)).toBe(true);
+    expect(entries.length).toBeGreaterThanOrEqual(seeded.length);
+    expect(entries.every(entry => entry.storage === 'memory')).toBe(true);
+    expect(entries.every(entry => entry.mode === 'memory')).toBe(true);
+
+    const tallinje = entries.find(entry => entry.path === '/tallinje');
+    expect(tallinje).toBeTruthy();
+    expect(Array.isArray(tallinje.examples)).toBe(true);
+    expect(tallinje.examples.length).toBeGreaterThan(0);
+    expect(tallinje.examples[0]).toMatchObject({
+      title: 'Plasser brøkene',
+      isDefault: true
+    });
   });
 });
