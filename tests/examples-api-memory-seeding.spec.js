@@ -6,6 +6,7 @@ const {
 } = require('./helpers/examples-api-utils');
 
 const DEFAULT_SEEDED_PATH = '/tallinje';
+const ADDITIONAL_SEEDED_PATHS = ['/brøkpizza', '/graftegner'];
 
 let originalKvUrl;
 let originalKvToken;
@@ -49,6 +50,14 @@ test.describe('Examples API – memory auto-seeding', () => {
     expect(tallinjeEntry).toBeTruthy();
     expect(Array.isArray(tallinjeEntry.examples)).toBe(true);
     expect(tallinjeEntry.examples.length).toBeGreaterThan(0);
+
+    for (const path of ADDITIONAL_SEEDED_PATHS) {
+      const entry = response.json.entries.find(item => item.path === path);
+      expect(entry).toBeTruthy();
+      expect(Array.isArray(entry.examples)).toBe(true);
+      expect(entry.examples.length).toBeGreaterThan(0);
+      expect(entry.examples[0].__builtinKey).toBeTruthy();
+    }
   });
 
   test('GET /api/examples?path= seeds specific entry when missing', async () => {
@@ -62,5 +71,7 @@ test.describe('Examples API – memory auto-seeding', () => {
     expect(response.json.mode).toBe('memory');
     expect(response.json.storage).toBe('memory');
     expect(Array.isArray(response.json.examples)).toBe(true);
+    expect(response.json.examples.length).toBeGreaterThan(0);
+    expect(response.json.examples[0].__builtinKey).toBeTruthy();
   });
 });
