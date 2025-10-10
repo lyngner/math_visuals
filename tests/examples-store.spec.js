@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
-process.env.KV_REST_API_URL = process.env.KV_REST_API_URL || 'http://127.0.0.1:0';
-process.env.KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN || 'test-token';
+process.env.KV_REST_API_URL = process.env.KV_REST_API_URL || '';
+process.env.KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN || '';
 
 function createMockKv() {
   const data = new Map();
@@ -54,6 +54,7 @@ const {
   setEntry,
   getEntry,
   deleteEntry,
+  listEntries,
   __deserializeExampleValue
 } = require('../api/_lib/examples-store');
 
@@ -174,6 +175,58 @@ test.describe('examples-store canonical entry handling', () => {
       try {
         await deleteEntry(cleanupTarget);
       } catch (error) {}
+    }
+  });
+});
+
+test.describe('examples-store memory fallback', () => {
+  test('provides in-memory storage when KV is not configured', async () => {
+    const originalUrl = process.env.KV_REST_API_URL;
+    const originalToken = process.env.KV_REST_API_TOKEN;
+    delete process.env.KV_REST_API_URL;
+    delete process.env.KV_REST_API_TOKEN;
+    const path = buildPath();
+    try {
+      const payload = {
+        examples: [
+          {
+            description: 'Memory fallback example',
+            config: { STATE: { value: 42 } }
+          }
+        ],
+        deletedProvided: []
+      };
+      const entry = await setEntry(path, payload);
+      expect(entry).not.toBeNull();
+      expect(entry.storage).toBe('memory');
+      expect(entry.mode).toBe('memory');
+
+      const stored = await getEntry(path);
+      expect(stored).not.toBeNull();
+      expect(stored.storage).toBe('memory');
+      expect(stored.mode).toBe('memory');
+
+      const entries = await listEntries();
+      const canonicalPath = normalizePath(path);
+      const listed = entries.find(item => item && item.path === canonicalPath);
+      expect(listed).toBeTruthy();
+      expect(listed.storage).toBe('memory');
+      expect(listed.mode).toBe('memory');
+
+      await deleteEntry(path);
+      const afterDelete = await getEntry(path);
+      expect(afterDelete).toBeNull();
+    } finally {
+      if (originalUrl !== undefined) {
+        process.env.KV_REST_API_URL = originalUrl;
+      } else {
+        delete process.env.KV_REST_API_URL;
+      }
+      if (originalToken !== undefined) {
+        process.env.KV_REST_API_TOKEN = originalToken;
+      } else {
+        delete process.env.KV_REST_API_TOKEN;
+      }
     }
   });
 });

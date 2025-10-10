@@ -3,6 +3,38 @@
 const { normalizePath } = require('../../api/_lib/examples-store');
 
 const DEFAULT_HEADERS = { 'Content-Type': 'application/json' };
+let currentMode = 'kv';
+
+function normalizeStoreMode(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === 'kv' || normalized === 'vercel-kv') return 'kv';
+  if (normalized === 'memory' || normalized === 'mem' || normalized === 'unconfigured') return 'memory';
+  return null;
+}
+
+function buildModeMetadata(modeHint) {
+  const resolved = normalizeStoreMode(modeHint) || currentMode;
+  const storage = resolved === 'kv' ? 'kv' : 'memory';
+  return {
+    storage,
+    mode: storage,
+    persistent: storage === 'kv',
+    ephemeral: storage !== 'kv'
+  };
+}
+
+function decorateEntry(entry, modeHint) {
+  if (!entry || typeof entry !== 'object') return entry;
+  const metadata = buildModeMetadata(modeHint || entry.mode || entry.storage);
+  return { ...entry, ...metadata };
+}
+
+function buildHeaders(modeHint, extra = {}) {
+  const metadata = buildModeMetadata(modeHint);
+  return { ...DEFAULT_HEADERS, 'X-Examples-Store-Mode': metadata.mode, ...extra };
+}
 
 function clone(value) {
   if (value == null) return value;
@@ -33,7 +65,7 @@ function buildEntry(rawPath, payload) {
   const deletedProvided = Array.isArray(payload.deletedProvided) ? clone(payload.deletedProvided) : [];
   const provided = Array.isArray(payload.provided) ? clone(payload.provided) : [];
   const updatedAt = typeof payload.updatedAt === 'string' ? payload.updatedAt : new Date().toISOString();
-  const storage = typeof payload.storage === 'string' ? payload.storage : 'memory';
+  const metadata = buildModeMetadata(payload.mode || payload.storage);
   return {
     rawPath,
     canonicalPath,
@@ -42,7 +74,7 @@ function buildEntry(rawPath, payload) {
       examples,
       deletedProvided,
       updatedAt,
-      storage
+      ...metadata
     },
     provided
   };
@@ -191,6 +223,19 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
   const deleteEvents = createEventTracker();
   let requestFailureFactory = null;
 
+  const applyRecordMode = (record, mode) => {
+    if (!record || !record.data) return;
+    const metadata = buildModeMetadata(mode);
+    record.data = { ...record.data, ...metadata };
+  };
+
+  const synchronizeStoreMode = mode => {
+    const resolved = normalizeStoreMode(mode) || currentMode;
+    store.canonical.forEach(record => {
+      applyRecordMode(record, resolved);
+    });
+  };
+
   const setEntry = (path, payload, options = {}) => {
     const rawPath = typeof path === 'string' && path.trim() ? path.trim() : '/';
     const entry = buildEntry(rawPath, payload || {});
@@ -214,6 +259,7 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     if (promote) {
       record.promoted = true;
     }
+    applyRecordMode(record, currentMode);
     store.canonical.set(canonicalKey, record);
     store.raw.set(rawPath, record);
   };
@@ -271,7 +317,7 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     } catch (error) {
       await route.fulfill({
         status: 400,
-        headers: DEFAULT_HEADERS,
+        headers: buildHeaders(),
         body: JSON.stringify({ error: 'Invalid request URL' })
       });
       return;
@@ -315,41 +361,65 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
       if (!rawPath) {
         const entries = Array.from(store.canonical.values())
           .filter(record => record.promoted)
-          .map(record => clone(record.data));
+          .map(record => decorateEntry(clone(record.data)));
         recordHistory('GET', { entries: entries.map(entry => entry.path) });
-        await route.fulfill({ status: 200, headers: DEFAULT_HEADERS, body: JSON.stringify({ entries }) });
+        const metadata = buildModeMetadata();
+        await route.fulfill({
+          status: 200,
+          headers: buildHeaders(metadata.mode),
+          body: JSON.stringify({ ...metadata, entries })
+        });
         return;
       }
       const direct = store.raw.get(rawPath);
       if (direct) {
         recordHistory('GET', { hit: true });
-        await route.fulfill({ status: 200, headers: DEFAULT_HEADERS, body: JSON.stringify(clone(direct.data)) });
+        const payload = decorateEntry(clone(direct.data));
+        await route.fulfill({
+          status: 200,
+          headers: buildHeaders(payload.mode),
+          body: JSON.stringify(payload)
+        });
         return;
       }
       const canonicalRecord = normalizedPath ? store.canonical.get(normalizedPath) : null;
       if (canonicalRecord && canonicalRecord.promoted) {
         recordHistory('GET', { hit: true });
-        await route.fulfill({ status: 200, headers: DEFAULT_HEADERS, body: JSON.stringify(clone(canonicalRecord.data)) });
+        const payload = decorateEntry(clone(canonicalRecord.data));
+        await route.fulfill({
+          status: 200,
+          headers: buildHeaders(payload.mode),
+          body: JSON.stringify(payload)
+        });
         return;
       }
       recordHistory('GET', { hit: false });
-      await route.fulfill({ status: 404, headers: DEFAULT_HEADERS, body: JSON.stringify({ error: 'Not Found' }) });
+      await route.fulfill({
+        status: 404,
+        headers: buildHeaders(),
+        body: JSON.stringify({ error: 'Not Found' })
+      });
       return;
     }
 
     if (method === 'DELETE') {
       if (!rawPath) {
         recordHistory('DELETE', { error: 'Missing path' });
-        await route.fulfill({ status: 400, headers: DEFAULT_HEADERS, body: JSON.stringify({ error: 'Missing path parameter' }) });
+        await route.fulfill({
+          status: 400,
+          headers: buildHeaders(),
+          body: JSON.stringify({ error: 'Missing path parameter' })
+        });
         return;
       }
       deleteEntry(rawPath);
       deleteEvents.push(rawPath, { path: normalizePath(rawPath) || rawPath, rawPath });
       recordHistory('DELETE', {});
+      const metadata = buildModeMetadata();
       await route.fulfill({
         status: 200,
-        headers: { ...DEFAULT_HEADERS, 'X-Examples-Storage-Result': 'memory' },
-        body: JSON.stringify({ ok: true })
+        headers: buildHeaders(metadata.mode, { 'X-Examples-Storage-Result': metadata.mode }),
+        body: JSON.stringify({ ok: true, ...metadata })
       });
       return;
     }
@@ -360,13 +430,21 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
         body = JSON.parse(request.postData() || '{}');
       } catch (error) {
         recordHistory('PUT', { error: 'Invalid JSON' });
-        await route.fulfill({ status: 400, headers: DEFAULT_HEADERS, body: JSON.stringify({ error: 'Invalid JSON body' }) });
+        await route.fulfill({
+          status: 400,
+          headers: buildHeaders(),
+          body: JSON.stringify({ error: 'Invalid JSON body' })
+        });
         return;
       }
       const target = body && body.path ? normalizePath(body.path) : normalizedPath;
       if (!target) {
         recordHistory('PUT', { error: 'Missing path' });
-        await route.fulfill({ status: 400, headers: DEFAULT_HEADERS, body: JSON.stringify({ error: 'Missing path' }) });
+        await route.fulfill({
+          status: 400,
+          headers: buildHeaders(),
+          body: JSON.stringify({ error: 'Missing path' })
+        });
         return;
       }
       const payload = {
@@ -377,22 +455,27 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
       };
       setEntry(target, { ...payload, provided: body && Array.isArray(body.provided) ? body.provided : undefined }, { promote: true });
       const entry = readEntry(target);
-      const responseEntry = entry ? (() => {
-        const { provided: _provided, ...rest } = entry;
-        return rest;
-      })() : { path: target, examples: payload.examples, deletedProvided: payload.deletedProvided };
+      const responseEntry = toApiEntry(target) || decorateEntry({
+        path: target,
+        examples: payload.examples,
+        deletedProvided: payload.deletedProvided
+      });
       putEvents.push(target, { path: target, payload: clone(payload), entry: entry ? clone(entry) : undefined });
       recordHistory('PUT', { path: target, examples: payload.examples.length });
       await route.fulfill({
         status: 200,
-        headers: { ...DEFAULT_HEADERS, 'X-Examples-Storage-Result': entry && entry.storage ? entry.storage : 'memory' },
+        headers: buildHeaders(responseEntry.mode, { 'X-Examples-Storage-Result': responseEntry.mode }),
         body: JSON.stringify(responseEntry)
       });
       return;
     }
 
     recordHistory('UNHANDLED', {});
-    await route.fulfill({ status: 405, headers: DEFAULT_HEADERS, body: JSON.stringify({ error: 'Method Not Allowed' }) });
+    await route.fulfill({
+      status: 405,
+      headers: buildHeaders(),
+      body: JSON.stringify({ error: 'Method Not Allowed' })
+    });
   };
 
   await context.addInitScript(() => {
@@ -413,15 +496,15 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     const entry = readEntry(path);
     if (!entry) return undefined;
     const { provided: _provided, ...rest } = entry;
-    return rest;
+    return decorateEntry(rest);
   }
 
   const client = {
     async list() {
       const entries = Array.from(store.canonical.entries())
         .filter(([, record]) => record && record.promoted)
-        .map(([, record]) => clone(record.data));
-      return { entries };
+        .map(([, record]) => decorateEntry(clone(record.data)));
+      return { ...buildModeMetadata(), entries };
     },
     async get(path) {
       return toApiEntry(path);
@@ -445,8 +528,16 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
       const rawPath = typeof path === 'string' && path.trim() ? path.trim() : '/';
       deleteEntry(rawPath);
       deleteEvents.push(rawPath, { path: normalizePath(rawPath) || rawPath, rawPath });
-      return { ok: true };
+      return { ok: true, ...buildModeMetadata() };
     }
+  };
+
+  const setMode = mode => {
+    const normalized = normalizeStoreMode(mode);
+    if (!normalized) return currentMode;
+    currentMode = normalized;
+    synchronizeStoreMode(currentMode);
+    return currentMode;
   };
 
   return {
@@ -464,6 +555,10 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     history,
     store,
     client,
+    setMode,
+    useMemoryMode: () => setMode('memory'),
+    usePersistentMode: () => setMode('kv'),
+    getMode: () => currentMode,
     simulateOutage: (factory = () => {
       const error = new Error('Mock examples backend outage');
       error.status = 500;
