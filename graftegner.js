@@ -84,6 +84,7 @@ function whenJXGReady(callback) {
 }
 const DEFAULT_CURVE_COLORS = ['#9333ea', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
 const CAMPUS_CURVE_ORDER = [0, 5, 2, 3, 4, 1];
+const DEFAULT_FUNCTION_EXPRESSION = 'f(x)=x^2-2';
 function getThemeApi() {
   const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
   return theme && typeof theme === 'object' ? theme : null;
@@ -183,7 +184,7 @@ function buildSimple() {
   let i = 1;
   while (true) {
     const key = `fun${i}`;
-    const fun = paramStr(key, i === 1 ? 'f(x)=x^2-2' : '').trim();
+    const fun = paramStr(key, i === 1 ? DEFAULT_FUNCTION_EXPRESSION : '').trim();
     const dom = paramStr(`dom${i}`, '').trim();
     if (i === 1 || params.has(key)) {
       if (fun) {
@@ -2007,20 +2008,22 @@ function renderKatexPlainText(target, text) {
   }
   target.textContent = str;
 }
-function enhanceFunctionLabelWithKatex(labelElement, text) {
-  if (!labelElement) return;
-  const plain = typeof text === 'string' ? text : '';
-  const sr = document.createElement('span');
-  sr.className = 'sr-only';
-  sr.textContent = plain;
-  const math = document.createElement('span');
-  math.className = 'func-label__math';
-  math.setAttribute('aria-hidden', 'true');
-  renderKatexPlainText(math, plain);
-  labelElement.textContent = '';
-  labelElement.classList.add('func-label');
-  labelElement.appendChild(sr);
-  labelElement.appendChild(math);
+function renderKatexMath(target, latex, fallbackText = '') {
+  if (!target) return;
+  const str = typeof latex === 'string' ? latex : '';
+  const fallback = typeof fallbackText === 'string' && fallbackText ? fallbackText : str;
+  if (!str) {
+    target.textContent = fallback;
+    return;
+  }
+  const katex = typeof window !== 'undefined' ? window.katex : null;
+  if (katex && typeof katex.render === 'function') {
+    try {
+      katex.render(str, target, { throwOnError: false });
+      return;
+    } catch (_) {}
+  }
+  target.textContent = fallback || str;
 }
 function normalizeExpressionText(str) {
   if (typeof str !== 'string') return '';
@@ -3535,6 +3538,17 @@ function setupSettingsForm() {
   let linePointVisibleCount = 0;
   let linePointsEdited = false;
   const MATHFIELD_TAG = 'MATH-FIELD';
+  const nav = typeof navigator !== 'undefined' ? navigator : null;
+  const hasTouchSupport = typeof window !== 'undefined' && (
+    'ontouchstart' in window ||
+    (nav && (nav.maxTouchPoints > 0 || nav.msMaxTouchPoints > 0))
+  );
+  const hasCoarsePointer = typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(pointer: coarse)').matches;
+  const enableVirtualKeyboard = hasTouchSupport || hasCoarsePointer;
+  const mathFieldKeyboardMode = enableVirtualKeyboard ? 'onfocus' : 'off';
+  const mathFieldKeyboardAttr = `virtual-keyboard-mode="${mathFieldKeyboardMode}"`;
   const COMMAND_NAME_MAP = {
     cdot: '*',
     times: '*',
@@ -3834,6 +3848,16 @@ function setupSettingsForm() {
     }
     if (typeof field.value === 'string' && field.value) {
       replacement.value = field.value;
+    } else if (field.hasAttribute('value')) {
+      const attrVal = field.getAttribute('value');
+      if (attrVal) {
+        replacement.value = attrVal;
+      }
+    } else {
+      const textValue = (field.textContent || '').trim();
+      if (textValue) {
+        replacement.value = textValue;
+      }
     }
     field.replaceWith(replacement);
     return replacement;
@@ -4316,7 +4340,7 @@ function setupSettingsForm() {
     row.className = 'func-group';
     row.dataset.index = String(index);
     const titleLabel = index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index;
-    const placeholderAttr = index === 1 ? ' placeholder="f(x)=x^2-2"' : '';
+    const placeholderAttr = index === 1 ? ` placeholder="${DEFAULT_FUNCTION_EXPRESSION}"` : '';
     if (index === 1) {
       row.innerHTML = `
         <fieldset>
@@ -4327,7 +4351,7 @@ function setupSettingsForm() {
                 <label class="func-input">
                   <span>${titleLabel}</span>
                   <div class="func-editor">
-                    <input type="text" data-fun class="func-math-field" aria-label="${titleLabel}" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"${placeholderAttr}>
+                    <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"${placeholderAttr}></math-field>
                   </div>
                 </label>
               </div>
@@ -4373,7 +4397,7 @@ function setupSettingsForm() {
                 <label class="func-input">
                   <span>${titleLabel}</span>
                   <div class="func-editor">
-                    <input type="text" data-fun class="func-math-field" aria-label="${titleLabel}" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"${placeholderAttr}>
+                    <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"${placeholderAttr}></math-field>
                   </div>
                 </label>
               </div>
@@ -4391,7 +4415,9 @@ function setupSettingsForm() {
     }
     if (index === 1) {
       const labelSpan = row.querySelector('.func-input > span');
-      enhanceFunctionLabelWithKatex(labelSpan, titleLabel);
+      if (labelSpan) {
+        labelSpan.textContent = titleLabel;
+      }
     }
     let funInput = row.querySelector('[data-fun]');
     funInput = ensureFunctionInputElement(funInput);
