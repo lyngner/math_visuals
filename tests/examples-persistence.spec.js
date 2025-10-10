@@ -81,7 +81,9 @@ test.describe('Persisted example compatibility', () => {
     const tabs = page.locator('#exampleTabs .example-tab');
     const initialCount = await tabs.count();
 
-    const savePromise = backend.waitForPut(canonicalFigurePath);
+    const savePromise = backend.waitForPut(canonicalFigurePath, {
+      description: `persist example for ${figurePath}`
+    });
     await page.locator('#btnSaveExample').click();
 
     const putResult = await savePromise;

@@ -36,7 +36,9 @@ test.describe('Example creation portability', () => {
 
     await page.fill('#cfgTitle', titleValue);
     await page.fill('#exampleDescription', descriptionValue);
-    const savePromise = backend.waitForPut(CANONICAL_PATH);
+    const savePromise = backend.waitForPut(CANONICAL_PATH, {
+      description: `cross-browser save (${testInfo.project.name})`
+    });
     await page.click('#btnSaveExample');
 
     const putResult = await savePromise;

@@ -26,7 +26,9 @@ test.describe('Graftegner examples', () => {
 
     const tabs = page.locator('#exampleTabs .example-tab');
     const initialCount = await tabs.count();
-    const savePromise = backend.waitForPut('/graftegner');
+    const savePromise = backend.waitForPut('/graftegner', {
+      description: 'Graftegner save creates tab'
+    });
     await page.click('#btnSaveExample');
     await savePromise;
 
@@ -96,7 +98,9 @@ test.describe('Graftegner examples', () => {
     const uniqueDescription = `Lokal test ${Date.now()}`;
     await descriptionField.fill(uniqueDescription);
 
-    const savePromise = backend.waitForPut('/graftegner');
+    const savePromise = backend.waitForPut('/graftegner', {
+      description: 'Graftegner save after stale backend response'
+    });
     await page.click('#btnSaveExample');
 
     await expect(tabs).toHaveCount(initialCount + 1);
