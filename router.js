@@ -143,14 +143,38 @@ function resolveSharedStorage() {
 
 const storage = resolveSharedStorage();
 const fallbackStorage = resolveFallbackStorage();
+let primaryStorage = storage;
+
+function refreshPrimaryStorage() {
+  const local = resolveLocalStorage();
+  if (local && primaryStorage !== local) {
+    copyStorageContents(primaryStorage, local);
+    if (fallbackStorage && fallbackStorage !== local) {
+      copyStorageContents(fallbackStorage, local);
+    }
+    primaryStorage = local;
+    if (globalScope) {
+      globalScope[STORAGE_GLOBAL_KEY] = local;
+    }
+  }
+  return primaryStorage;
+}
+
+function buildStorageChain(mode) {
+  const stores = [];
+  const primary = refreshPrimaryStorage();
+  if (primary && typeof primary[mode] === 'function') {
+    stores.push(primary);
+  }
+  if (fallbackStorage && fallbackStorage !== primary && typeof fallbackStorage[mode] === 'function') {
+    stores.push(fallbackStorage);
+  }
+  return stores;
+}
 
 function safeGetItem(key) {
   if (key == null) return null;
-  const stores = [];
-  if (storage && typeof storage.getItem === 'function') stores.push(storage);
-  if (fallbackStorage && typeof fallbackStorage.getItem === 'function' && fallbackStorage !== storage) {
-    stores.push(fallbackStorage);
-  }
+  const stores = buildStorageChain('getItem');
   for (const store of stores) {
     try {
       const value = store.getItem(key);
@@ -162,11 +186,7 @@ function safeGetItem(key) {
 
 function safeSetItem(key, value) {
   if (key == null) return;
-  const stores = [];
-  if (storage && typeof storage.setItem === 'function') stores.push(storage);
-  if (fallbackStorage && typeof fallbackStorage.setItem === 'function' && fallbackStorage !== storage) {
-    stores.push(fallbackStorage);
-  }
+  const stores = buildStorageChain('setItem');
   for (const store of stores) {
     try {
       store.setItem(key, value);
