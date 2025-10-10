@@ -537,7 +537,7 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
   });
   await context.route('**/api/examples**', handleRequest);
 
-  if (options && options.seedDefaults) {
+  if (options && options.seedDefaults && normalizeStoreMode(currentMode) === 'memory') {
     const seedConfig = options.seedDefaults === true
       ? {}
       : options.seedDefaults;
