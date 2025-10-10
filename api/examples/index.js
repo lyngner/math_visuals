@@ -10,12 +10,14 @@ const {
   KvOperationError,
   KvConfigurationError,
   getStoreMode,
-  getMemoryEntry,
   setMemoryEntry,
   deleteMemoryEntry,
   listMemoryEntries
 } = require('../_lib/examples-store');
-const { loadDefaultExampleEntries } = require('../_lib/examples-defaults');
+const {
+  seedMemoryDefaults,
+  ensureMemoryEntry
+} = require('../_lib/examples-defaults');
 
 const MEMORY_LIMITATION_NOTE = 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.';
 
@@ -175,7 +177,10 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       try {
         if (queryPath) {
-          const entry = await getEntry(queryPath);
+          let entry = await getEntry(queryPath);
+          if (!entry && normalizeStoreMode(currentMode) === 'memory') {
+            entry = await ensureMemoryEntry(queryPath);
+          }
           if (!entry) {
             const metadata = applyModeHeaders(res, currentMode);
             sendJson(res, 404, { error: 'Not Found', ...metadata });
@@ -191,20 +196,7 @@ module.exports = async function handler(req, res) {
           entries = [];
         }
         if (!entries.length && normalizeStoreMode(currentMode) === 'memory') {
-          const defaults = await loadDefaultExampleEntries();
-          const seeded = [];
-          for (const entry of defaults) {
-            if (!entry || typeof entry !== 'object') continue;
-            const { path, examples, deletedProvided } = entry;
-            if (!path) continue;
-            const stored = setMemoryEntry(path, { examples, deletedProvided });
-            if (stored) {
-              seeded.push(stored);
-            }
-          }
-          if (seeded.length) {
-            entries = seeded;
-          }
+          entries = await seedMemoryDefaults();
         }
         const payloadEntries = augmentEntries(entries, currentMode);
         const effectiveMode = payloadEntries.length ? payloadEntries[0].mode : currentMode;
@@ -217,7 +209,7 @@ module.exports = async function handler(req, res) {
           const fallbackMode = 'memory';
           const metadata = applyModeHeaders(res, fallbackMode);
           if (queryPath) {
-            const fallbackEntry = getMemoryEntry(queryPath);
+            let fallbackEntry = await ensureMemoryEntry(queryPath);
             if (!fallbackEntry) {
               sendJson(res, 404, { error: 'Not Found', ...metadata });
               return;
@@ -226,7 +218,10 @@ module.exports = async function handler(req, res) {
             sendJson(res, 200, payload);
             return;
           }
-          const entries = listMemoryEntries();
+          let entries = listMemoryEntries();
+          if (!entries.length) {
+            entries = await seedMemoryDefaults();
+          }
           const payloadEntries = augmentEntries(entries, fallbackMode);
           sendJson(res, 200, { ...metadata, entries: payloadEntries });
           return;
