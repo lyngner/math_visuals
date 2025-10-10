@@ -35,16 +35,25 @@ test.describe('Examples viewer – memory mode awareness', () => {
     await expect(banner).toContainText(MEMORY_WARNING_TEXT);
 
     const sections = page.locator('#examples section');
-    await expect(sections).toHaveCount(1);
-    const sectionHeading = sections.first().locator('h2');
-    await expect(sectionHeading).toHaveText(CANONICAL_PATH);
+    const sectionCount = await sections.count();
+    expect(sectionCount).toBeGreaterThan(1);
 
-    const exampleCards = sections.first().locator('.example');
-    await expect(exampleCards).toHaveCount(1);
-    const iframe = exampleCards.first().locator('iframe');
+    const tallinjeSection = sections.filter({ hasText: CANONICAL_PATH });
+    await expect(tallinjeSection).toHaveCount(1);
+    const tallinjeHeading = tallinjeSection.first().locator('h2');
+    await expect(tallinjeHeading).toHaveText(CANONICAL_PATH);
+
+    const tallinjeCards = tallinjeSection.first().locator('.example');
+    await expect(tallinjeCards).toHaveCount(1);
+    const iframe = tallinjeCards.first().locator('iframe');
     await expect(iframe).toHaveAttribute('src', /\/tallinje(\?|$)/);
-    await expect(exampleCards.first().getByRole('button', { name: 'Last inn' })).toBeVisible();
-    await expect(exampleCards.first().getByRole('button', { name: 'Slett' })).toBeVisible();
+    await expect(tallinjeCards.first().getByRole('button', { name: 'Last inn' })).toBeVisible();
+    await expect(tallinjeCards.first().getByRole('button', { name: 'Slett' })).toBeVisible();
+
+    const additionalSection = sections.filter({ hasText: '/brøkpizza' });
+    await expect(additionalSection).toHaveCount(1);
+    const pizzaCards = additionalSection.first().locator('.example');
+    await expect(pizzaCards).not.toHaveCount(0);
 
     const storedEntry = await backend.client.get(CANONICAL_PATH);
     expect(storedEntry).toBeTruthy();
@@ -107,5 +116,10 @@ test.describe('Examples viewer – auto seeded defaults', () => {
     await expect(tallinjeSection).toHaveCount(1);
     const tallinjeExamples = tallinjeSection.first().locator('.example');
     await expect(tallinjeExamples).not.toHaveCount(0);
+
+    const pizzaSection = sections.filter({ hasText: '/brøkpizza' });
+    await expect(pizzaSection).toHaveCount(1);
+    const pizzaExamples = pizzaSection.first().locator('.example');
+    await expect(pizzaExamples).not.toHaveCount(0);
   });
 });
