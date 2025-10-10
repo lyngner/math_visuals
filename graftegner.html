@@ -82,9 +82,6 @@
       flex-direction:column;
       gap:4px;
     }
-    .func-label{ display:inline-block; position:relative; }
-    .func-label__math{ display:inline-block; min-height:1em; }
-    .func-label__math .katex{ font-size:1em; }
     .func-math-field{
       display:block;
       width:100%;
@@ -98,10 +95,24 @@
       box-sizing:border-box;
       transition:border-color .15s ease, box-shadow .15s ease;
     }
-    .func-math-field:focus{
+    .func-math-field:focus,
+    .func-math-field:focus-within{
       outline:none;
       border-color:#6366f1;
       box-shadow:0 0 0 3px rgba(99,102,241,.15);
+    }
+    .func-math-field::part(container){
+      min-height:26px;
+      padding:0;
+    }
+    .func-math-field::part(content){
+      font-size:15px;
+      line-height:1.4;
+      padding:8px 10px;
+    }
+    .func-math-field::part(menu-toggle),
+    .func-math-field::part(virtual-keyboard-toggle){
+      display:none;
     }
     .func-fields--first{
       grid-template-columns:1fr;
