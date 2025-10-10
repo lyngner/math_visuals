@@ -200,6 +200,9 @@ function applyStorageMetadata(entry, mode) {
   const storageMode = resolved === 'kv' ? 'kv' : 'memory';
   entry.storage = storageMode;
   entry.mode = storageMode;
+  entry.storageMode = storageMode;
+  entry.persistent = storageMode === 'kv';
+  entry.ephemeral = storageMode !== 'kv';
   return entry;
 }
 
@@ -317,6 +320,49 @@ function buildEntry(path, payload) {
     updatedAt: typeof payload.updatedAt === 'string' ? payload.updatedAt : now
   };
   return entry;
+}
+
+function annotateForMemory(entry) {
+  if (!entry || typeof entry !== 'object') return entry;
+  const annotated = applyStorageMetadata({ ...entry }, 'memory');
+  return clone(annotated);
+}
+
+function getMemoryEntry(path) {
+  const normalized = normalizePath(path);
+  if (!normalized) return null;
+  const stored = readFromMemory(normalized);
+  if (!stored) return null;
+  return annotateForMemory(stored);
+}
+
+function setMemoryEntry(path, payload) {
+  const normalized = normalizePath(path);
+  if (!normalized) return null;
+  const entry = buildEntry(normalized, payload || {});
+  const annotated = applyStorageMetadata({ ...entry }, 'memory');
+  writeToMemory(normalized, annotated);
+  return clone(annotated);
+}
+
+function deleteMemoryEntry(path) {
+  const normalized = normalizePath(path);
+  if (!normalized) return false;
+  deleteFromMemory(normalized);
+  return true;
+}
+
+function listMemoryEntries() {
+  const entries = [];
+  memoryIndex.forEach(path => {
+    const normalized = normalizePath(path);
+    if (!normalized) return;
+    const stored = readFromMemory(normalized);
+    if (!stored) return;
+    const annotated = applyStorageMetadata({ ...stored }, 'memory');
+    entries.push(clone(annotated));
+  });
+  return entries;
 }
 
 async function writeToKv(path, entry) {
@@ -483,6 +529,10 @@ module.exports = {
   KvConfigurationError,
   isKvConfigured,
   getStoreMode,
+  getMemoryEntry,
+  setMemoryEntry,
+  deleteMemoryEntry,
+  listMemoryEntries,
   __serializeExampleValue: value => serializeExampleValue(value, new WeakMap()),
   __deserializeExampleValue: value => deserializeExampleValue(value, new WeakMap())
 };
