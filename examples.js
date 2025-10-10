@@ -430,6 +430,18 @@
     };
   }
   let sharedMemoryStorage = null;
+  function getParentWindow() {
+    if (!globalScope) return null;
+    try {
+      const parentWindow = globalScope.parent;
+      if (parentWindow && parentWindow !== globalScope) {
+        return parentWindow;
+      }
+    } catch (error) {
+      return null;
+    }
+    return null;
+  }
   function getSharedMemoryStorage() {
     if (sharedMemoryStorage && typeof sharedMemoryStorage.getItem === 'function') {
       return sharedMemoryStorage;
@@ -438,7 +450,20 @@
       sharedMemoryStorage = globalScope[STORAGE_GLOBAL_KEY];
       return sharedMemoryStorage;
     }
+    const parentWindow = getParentWindow();
+    if (parentWindow && parentWindow[STORAGE_GLOBAL_KEY] && typeof parentWindow[STORAGE_GLOBAL_KEY].getItem === 'function') {
+      sharedMemoryStorage = parentWindow[STORAGE_GLOBAL_KEY];
+      if (globalScope) {
+        globalScope[STORAGE_GLOBAL_KEY] = sharedMemoryStorage;
+      }
+      return sharedMemoryStorage;
+    }
     sharedMemoryStorage = createMemoryStorage();
+    if (parentWindow) {
+      try {
+        parentWindow[STORAGE_GLOBAL_KEY] = sharedMemoryStorage;
+      } catch (error) {}
+    }
     if (globalScope) {
       globalScope[STORAGE_GLOBAL_KEY] = sharedMemoryStorage;
     }
