@@ -193,7 +193,8 @@
       if (!Number.isFinite(currentOffsetY)) currentOffsetY = startOffset;
 
       const lockRaw = item.lockPosition;
-      const lockPosition = !(lockRaw === false || lockRaw === 'false' || lockRaw === 0);
+      const lockPosition =
+        lockRaw === true || lockRaw === 'true' || lockRaw === 1 || lockRaw === '1';
 
       let isPlaced = Boolean(item.isPlaced) && Number.isFinite(item.currentValue);
       if (lockPosition) {
