@@ -3446,10 +3446,10 @@
   moveDescriptionBelowTabs();
   window.addEventListener('resize', adjustTabsSpacing);
   updateActionButtonState = count => {
-    const disableActions = backendStatusKnown && !backendAvailable;
-    if (deleteBtn) deleteBtn.disabled = disableActions || count <= 1;
-    if (updateBtn) updateBtn.disabled = disableActions || count === 0;
-    if (createBtn) createBtn.disabled = disableActions;
+    const totalExamples = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+    if (deleteBtn) deleteBtn.disabled = totalExamples <= 1;
+    if (updateBtn) updateBtn.disabled = totalExamples === 0;
+    if (createBtn) createBtn.disabled = false;
   };
   function clampExampleIndex(index, length) {
     if (!Number.isInteger(index)) return null;
