@@ -15,6 +15,7 @@ const memoryStore = globalScope.__EXAMPLES_MEMORY_STORE__;
 const memoryIndex = globalScope.__EXAMPLES_MEMORY_INDEX__;
 
 let kvClientPromise = null;
+let kvClientOverride = null;
 
 const EXAMPLE_VALUE_TYPE_KEY = '__mathVisualsType__';
 const EXAMPLE_VALUE_DATA_KEY = '__mathVisualsValue__';
@@ -187,6 +188,9 @@ function getStoreMode() {
 }
 
 async function loadKvClient() {
+  if (kvClientOverride) {
+    return kvClientOverride;
+  }
   if (!isKvConfigured()) {
     throw new KvConfigurationError(
       'Examples KV is not configured. Set KV_REST_API_URL and KV_REST_API_TOKEN to enable persistent storage.'
@@ -205,6 +209,11 @@ async function loadKvClient() {
       });
   }
   return kvClientPromise;
+}
+
+function setKvClientOverride(client) {
+  kvClientOverride = client || null;
+  kvClientPromise = client ? Promise.resolve(client) : null;
 }
 
 function normalizePath(value) {
@@ -439,6 +448,7 @@ module.exports = {
   KvConfigurationError,
   isKvConfigured,
   getStoreMode,
+  __setKvClient: setKvClientOverride,
   __serializeExampleValue: value => serializeExampleValue(value, new WeakMap()),
   __deserializeExampleValue: value => deserializeExampleValue(value, new WeakMap())
 };
