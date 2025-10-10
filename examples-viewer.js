@@ -136,95 +136,6 @@ function ensureDescriptionRendererLoaded() {
     return renderer || null;
   });
 }
-function createMemoryStorage() {
-  const data = new Map();
-  return {
-    get length() {
-      return data.size;
-    },
-    key(index) {
-      if (!Number.isInteger(index) || index < 0) return null;
-      if (index >= data.size) return null;
-      let i = 0;
-      for (const key of data.keys()) {
-        if (i === index) return key;
-        i++;
-      }
-      return null;
-    },
-    getItem(key) {
-      if (key == null) return null;
-      const normalized = String(key);
-      return data.has(normalized) ? data.get(normalized) : null;
-    },
-    setItem(key, value) {
-      if (key == null) return;
-      data.set(String(key), value == null ? 'null' : String(value));
-    },
-    removeItem(key) {
-      if (key == null) return;
-      data.delete(String(key));
-    },
-    clear() {
-      data.clear();
-    }
-  };
-}
-
-function resolveSharedStorage() {
-  if (globalScope && globalScope.__EXAMPLES_STORAGE__ && typeof globalScope.__EXAMPLES_STORAGE__.getItem === 'function') {
-    return globalScope.__EXAMPLES_STORAGE__;
-  }
-  const store = createMemoryStorage();
-  if (globalScope) {
-    globalScope.__EXAMPLES_STORAGE__ = store;
-  }
-  return store;
-}
-
-const storage = resolveSharedStorage();
-
-function safeGetItem(key) {
-  if (!storage || typeof storage.getItem !== 'function') return null;
-  try {
-    return storage.getItem(key);
-  } catch (_) {
-    return null;
-  }
-}
-
-function safeSetItem(key, value) {
-  if (!storage || typeof storage.setItem !== 'function') return;
-  try {
-    storage.setItem(key, value);
-  } catch (_) {}
-}
-
-function safeRemoveItem(key) {
-  if (!storage || typeof storage.removeItem !== 'function') return;
-  try {
-    storage.removeItem(key);
-  } catch (_) {}
-}
-
-function safeKey(index) {
-  if (!storage || typeof storage.key !== 'function') return null;
-  try {
-    return storage.key(index);
-  } catch (_) {
-    return null;
-  }
-}
-
-function safeLength() {
-  if (!storage || typeof storage.length !== 'number') return 0;
-  try {
-    const value = storage.length;
-    return typeof value === 'number' ? value : 0;
-  } catch (_) {
-    return 0;
-  }
-}
 function resolveExamplesApiBase() {
   if (typeof window === 'undefined') return null;
   if (window.MATH_VISUALS_EXAMPLES_API_URL) {
@@ -320,37 +231,15 @@ function setStatusMessage(message, type) {
   }
   el.classList.toggle('examples-status--error', normalizedType === 'error');
 }
-function writeLocalEntry(path, entry) {
-  const key = 'examples_' + path;
-  const examples = entry && Array.isArray(entry.examples) ? entry.examples : [];
-  if (examples.length) {
-    safeSetItem(key, JSON.stringify(examples));
-  } else {
-    safeRemoveItem(key);
-  }
-  const deleted = entry && Array.isArray(entry.deletedProvided) ? entry.deletedProvided.filter(value => typeof value === 'string' && value.trim()) : [];
-  const deletedKey = key + '_deletedProvidedExamples';
-  if (deleted.length) {
-    safeSetItem(deletedKey, JSON.stringify(deleted));
-  } else {
-    safeRemoveItem(deletedKey);
-  }
-}
-function readDeletedProvided(path) {
-  const cached = backendEntriesCache.get(path);
-  if (cached && Array.isArray(cached.deletedProvided)) {
-    return cached.deletedProvided.slice();
-  }
-  const key = 'examples_' + path + '_deletedProvidedExamples';
-  try {
-    const stored = safeGetItem(key);
-    if (!stored) return [];
-    const parsed = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map(value => typeof value === 'string' ? value.trim() : '').filter(Boolean);
-  } catch (error) {
-    return [];
-  }
+function getCachedEntry(path) {
+  const entry = backendEntriesCache.get(path);
+  if (!entry) return { path, examples: [], deletedProvided: [], updatedAt: null };
+  return {
+    path,
+    examples: Array.isArray(entry.examples) ? entry.examples.slice() : [],
+    deletedProvided: Array.isArray(entry.deletedProvided) ? entry.deletedProvided.slice() : [],
+    updatedAt: entry && entry.updatedAt ? entry.updatedAt : null
+  };
 }
 function updateBackendCache(path, entry) {
   backendEntriesCache.set(path, {
@@ -394,11 +283,30 @@ async function persistBackendEntry(path, entry) {
       setStatusMessage(`Kunne ikke lagre endringene for «${path}» på serveren.`, 'error');
       return;
     }
-    updateBackendCache(path, payload);
+    let persisted = null;
+    try {
+      persisted = await response.json();
+    } catch (error) {
+      persisted = null;
+    }
+    if (persisted && typeof persisted === 'object') {
+      updateBackendCache(path, persisted);
+    } else {
+      updateBackendCache(path, payload);
+    }
     setStatusMessage('', '');
   } catch (error) {
     setStatusMessage(`Kunne ikke lagre endringene for «${path}» på serveren.`, 'error');
   }
+}
+function rememberExampleSelection(path, index) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem('example_to_load', JSON.stringify({ path, index }));
+  } catch (error) {}
+  try {
+    window.localStorage.setItem('currentPage', path);
+  } catch (error) {}
 }
 async function fetchBackendEntries() {
   if (!examplesApiBase) {
@@ -447,7 +355,6 @@ async function fetchBackendEntries() {
       updatedAt: item.updatedAt || null
     };
     updateBackendCache(path, entry);
-    writeLocalEntry(path, entry);
     if (examples.length) {
       normalized.push({
         path,
@@ -466,33 +373,13 @@ async function renderExamples(options) {
     await fetchBackendEntries();
   }
   const sections = [];
-  const seen = new Set();
   backendEntriesCache.forEach(entry => {
     if (!entry || !Array.isArray(entry.examples) || entry.examples.length === 0) return;
     sections.push({
       path: entry.path,
       examples: entry.examples.slice()
     });
-    seen.add(entry.path);
   });
-  const total = safeLength();
-  for (let i = 0; i < total; i++) {
-    const key = safeKey(i);
-    if (typeof key !== 'string' || !key || !key.startsWith('examples_')) continue;
-    const path = key.slice('examples_'.length);
-    if (seen.has(path)) continue;
-    let arr;
-    try {
-      arr = JSON.parse(safeGetItem(key)) || [];
-    } catch (error) {
-      arr = [];
-    }
-    if (!Array.isArray(arr) || arr.length === 0) continue;
-    sections.push({
-      path,
-      examples: arr.slice()
-    });
-  }
   sections.sort((a, b) => a.path.localeCompare(b.path));
   container.innerHTML = '';
   let descriptionRendererPromise = null;
@@ -575,10 +462,7 @@ async function renderExamples(options) {
       const loadBtn = document.createElement('button');
       loadBtn.textContent = 'Last inn';
       loadBtn.addEventListener('click', () => {
-        safeSetItem('example_to_load', JSON.stringify({
-          path,
-          index: idx
-        }));
+        rememberExampleSelection(path, idx);
         try {
           const parentWindow = window.parent;
           if (!parentWindow || parentWindow === window) {
@@ -595,12 +479,6 @@ async function renderExamples(options) {
           if (iframeEl) {
             iframeEl.src = path;
           }
-          const shared = parentWindow.__EXAMPLES_STORAGE__;
-          if (shared && typeof shared.setItem === 'function') {
-            try {
-              shared.setItem('currentPage', path);
-            } catch (_) {}
-          }
           if (typeof parentWindow.setActive === 'function') {
             parentWindow.setActive(path);
           }
@@ -609,9 +487,10 @@ async function renderExamples(options) {
       const delBtn = document.createElement('button');
       delBtn.textContent = 'Slett';
       delBtn.addEventListener('click', async () => {
-        const updated = examples.slice();
+        const cached = getCachedEntry(path);
+        const updated = Array.isArray(cached.examples) ? cached.examples.slice() : examples.slice();
         const removed = updated.splice(idx, 1);
-        const deletedProvided = readDeletedProvided(path);
+        const deletedProvided = Array.isArray(cached.deletedProvided) ? cached.deletedProvided.slice() : [];
         const builtinKey = removed && removed.length ? removed[0] && removed[0].__builtinKey : null;
         if (typeof builtinKey === 'string') {
           const normalized = builtinKey.trim();
@@ -619,10 +498,6 @@ async function renderExamples(options) {
             deletedProvided.push(normalized);
           }
         }
-        writeLocalEntry(path, {
-          examples: updated,
-          deletedProvided
-        });
         if (updated.length || deletedProvided.length) {
           updateBackendCache(path, {
             path,
@@ -632,12 +507,10 @@ async function renderExamples(options) {
         } else {
           backendEntriesCache.delete(path);
         }
-        if (examplesApiBase) {
-          await persistBackendEntry(path, {
-            examples: updated,
-            deletedProvided
-          });
-        }
+        await persistBackendEntry(path, {
+          examples: updated,
+          deletedProvided
+        });
         renderExamples({ skipBackend: true });
       });
       btns.appendChild(loadBtn);

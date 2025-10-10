@@ -46,7 +46,7 @@ test.describe('legacy example storage keys', () => {
   test('migrates decoded path storage keys', async ({ page }) => {
     const description = 'Legacy example description';
     const payload = legacyPayload(description, { deletedProvided: ['provided-decoded'] });
-    backend.seed(LEGACY_DECODED_PATH, payload);
+    await backend.client.put(LEGACY_DECODED_PATH, payload);
 
     const putPromise = backend.waitForPut(CANONICAL_PATH);
     const deletePromise = backend.waitForDelete(LEGACY_DECODED_PATH);
@@ -59,7 +59,7 @@ test.describe('legacy example storage keys', () => {
     expect(putResult.path).toBe(CANONICAL_PATH);
     expect(deleteResult.path).toBe(normalizeExamplePath(LEGACY_DECODED_PATH));
 
-    const canonicalEntry = await backend.read(CANONICAL_PATH);
+    const canonicalEntry = await backend.client.get(CANONICAL_PATH);
     expect(canonicalEntry).toBeTruthy();
     expect(Array.isArray(canonicalEntry.examples)).toBe(true);
     expect(canonicalEntry.examples[0]).toMatchObject({
@@ -68,7 +68,7 @@ test.describe('legacy example storage keys', () => {
     });
     expect(canonicalEntry.deletedProvided).toEqual(['provided-decoded']);
 
-    const legacyEntry = await backend.read(LEGACY_DECODED_PATH);
+    const legacyEntry = await backend.client.get(LEGACY_DECODED_PATH);
     expect(legacyEntry).toBeUndefined();
 
     await expect(page.locator('#exampleDescription')).toHaveValue(description);
@@ -76,7 +76,7 @@ test.describe('legacy example storage keys', () => {
 
   test('migrates lowercase percent-encoded keys', async ({ page }) => {
     const description = 'Legacy lower-case percent';
-    backend.seed(LEGACY_LOWERCASE_PATH, legacyPayload(description));
+    await backend.client.put(LEGACY_LOWERCASE_PATH, legacyPayload(description));
 
     const putPromise = backend.waitForPut(CANONICAL_PATH);
     const deletePromise = backend.waitForDelete(LEGACY_LOWERCASE_PATH);
@@ -86,18 +86,18 @@ test.describe('legacy example storage keys', () => {
     await putPromise;
     await deletePromise;
 
-    const canonicalEntry = await backend.read(CANONICAL_PATH);
+    const canonicalEntry = await backend.client.get(CANONICAL_PATH);
     expect(canonicalEntry).toBeTruthy();
     expect(Array.isArray(canonicalEntry.examples)).toBe(true);
     expect(canonicalEntry.examples[0]).toMatchObject({ description });
 
-    const legacyEntry = await backend.read(LEGACY_LOWERCASE_PATH);
+    const legacyEntry = await backend.client.get(LEGACY_LOWERCASE_PATH);
     expect(legacyEntry).toBeUndefined();
   });
 
   test('loads Graftegner examples saved under uppercase path casing', async ({ page }) => {
     const description = 'Graftegner stor bokstav';
-    backend.seed(GRAFTEGNER_LEGACY_PATH, legacyPayload(description));
+    await backend.client.put(GRAFTEGNER_LEGACY_PATH, legacyPayload(description));
 
     const putPromise = backend.waitForPut(GRAFTEGNER_CANONICAL_PATH);
     const deletePromise = backend.waitForDelete(GRAFTEGNER_LEGACY_PATH);
@@ -107,12 +107,12 @@ test.describe('legacy example storage keys', () => {
     await putPromise;
     await deletePromise;
 
-    const canonicalEntry = await backend.read(GRAFTEGNER_CANONICAL_PATH);
+    const canonicalEntry = await backend.client.get(GRAFTEGNER_CANONICAL_PATH);
     expect(canonicalEntry).toBeTruthy();
     expect(Array.isArray(canonicalEntry.examples)).toBe(true);
     expect(canonicalEntry.examples[0]).toMatchObject({ description });
 
-    const legacyEntry = await backend.read(GRAFTEGNER_LEGACY_PATH);
+    const legacyEntry = await backend.client.get(GRAFTEGNER_LEGACY_PATH);
     expect(legacyEntry).toBeUndefined();
 
     await expect(page.locator('#exampleDescription')).toHaveValue(description);

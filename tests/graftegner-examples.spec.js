@@ -1,39 +1,46 @@
 const { test, expect } = require('@playwright/test');
 
+const { attachExamplesBackendMock } = require('./helpers/examples-backend-mock');
+
 const PAGE_PATH = '/graftegner.html';
 
-async function clearStorage(page) {
-  await page.addInitScript(() => {
-    const storage = window.__EXAMPLES_STORAGE__ || window.localStorage;
-    if (!storage || typeof storage.removeItem !== 'function') return;
-    const key = 'examples_/graftegner';
-    try {
-      storage.removeItem(key);
-      storage.removeItem(`${key}_history`);
-      storage.removeItem(`${key}_deletedProvidedExamples`);
-    } catch (error) {
-      // ignore
-    }
-  });
+async function acceptNextAlert(page) {
+  const handler = dialog => {
+    dialog.accept().catch(() => {});
+    page.off('dialog', handler);
+  };
+  page.on('dialog', handler);
 }
 
 test.describe('Graftegner examples', () => {
+  let backend;
+
   test.beforeEach(async ({ page }) => {
-    await clearStorage(page);
+    backend = await attachExamplesBackendMock(page.context());
   });
 
   test('saving creates a new example tab', async ({ page }) => {
-    await page.goto(PAGE_PATH);
+    await backend.client.delete('/graftegner');
+    await acceptNextAlert(page);
+    await page.goto(PAGE_PATH, { waitUntil: 'load' });
+
     const tabs = page.locator('#exampleTabs .example-tab');
     const initialCount = await tabs.count();
+    const savePromise = backend.waitForPut('/graftegner');
     await page.click('#btnSaveExample');
+    await savePromise;
+
     await expect(tabs).toHaveCount(initialCount + 1);
+
+    const storedEntry = await backend.client.get('/graftegner');
+    expect(storedEntry).toBeTruthy();
+    expect(Array.isArray(storedEntry.examples)).toBe(true);
+    expect(storedEntry.examples.length).toBeGreaterThan(0);
   });
 
   test('retains locally saved example when backend response is stale', async ({ page }) => {
-    await page.addInitScript(() => {
-      window.MATH_VISUALS_EXAMPLES_API_URL = '/api/examples';
-    });
+    await backend.client.delete('/graftegner');
+    await acceptNextAlert(page);
 
     let resolveBackendGet;
     const backendGetHandled = new Promise(resolve => {
@@ -70,14 +77,6 @@ test.describe('Graftegner examples', () => {
         }
         return;
       }
-      if (method === 'PUT' || method === 'DELETE') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: '{}'
-        });
-        return;
-      }
       await route.fallback();
     });
 
@@ -88,7 +87,7 @@ test.describe('Graftegner examples', () => {
       }
     }, 2000);
 
-    await page.goto(PAGE_PATH);
+    await page.goto(PAGE_PATH, { waitUntil: 'load' });
 
     const tabs = page.locator('#exampleTabs .example-tab');
     const descriptionField = page.locator('#exampleDescription');
@@ -97,6 +96,7 @@ test.describe('Graftegner examples', () => {
     const uniqueDescription = `Lokal test ${Date.now()}`;
     await descriptionField.fill(uniqueDescription);
 
+    const savePromise = backend.waitForPut('/graftegner');
     await page.click('#btnSaveExample');
 
     await expect(tabs).toHaveCount(initialCount + 1);
@@ -109,30 +109,9 @@ test.describe('Graftegner examples', () => {
     await newTab.click();
     await expect(descriptionField).toHaveValue(uniqueDescription);
 
-    const storedDescriptions = await page.evaluate(storageKey => {
-      const resolveStorage = () => {
-        try {
-          const local = window.localStorage && window.localStorage.getItem(storageKey);
-          if (local) return local;
-        } catch (error) {}
-        if (window.__EXAMPLES_STORAGE__ && typeof window.__EXAMPLES_STORAGE__.getItem === 'function') {
-          try {
-            return window.__EXAMPLES_STORAGE__.getItem(storageKey);
-          } catch (error) {}
-        }
-        return null;
-      };
-      try {
-        const raw = resolveStorage();
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) return [];
-        return parsed.map(example => (example && typeof example.description === 'string') ? example.description : null);
-      } catch (error) {
-        return [];
-      }
-    }, 'examples_/graftegner');
-
-    expect(storedDescriptions).toContain(uniqueDescription);
+    const storedEntry = await backend.client.get('/graftegner');
+    expect(storedEntry).toBeTruthy();
+    expect(Array.isArray(storedEntry.examples)).toBe(true);
+    expect(storedEntry.examples.some(example => example.description === uniqueDescription)).toBe(true);
   });
 });

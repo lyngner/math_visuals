@@ -1,29 +1,31 @@
 # Eksempel-lagring
 
-Denne siden dokumenterer hvordan `examples.js` håndterer lagring av brukergenererte eksempler.
+Denne siden dokumenterer hvordan `examples.js` samhandler med API-et på `/api/examples` for å lagre og hente brukergenererte eksempler.
 
 ## Persistensstrategi
 
-* Når nettleseren har tilgang til `localStorage`, brukes dette som primær lagring frem til eksempeltjenesten på `/api/examples` har svart minst én gang.
-* Etter en vellykket respons fra back-end kalles `markBackendAvailable()` som igjen bruker `applyPersistentStoragePreference(true)` til å tvangsstyre `safeSetItem`/`safeGetItem` over i et rent minnelager. Dermed lagres ikke nye eksempler i `localStorage` når back-end er oppe (se `examples.js`).
-* Hvis synkronisering mot back-end feiler (for eksempel ved nettverksbrudd eller nedetid), kalles `markBackendUnavailable()`. Denne funksjonen gjenaktiverer `localStorage`, kopierer minnebufferen tilbake slik at eksisterende eksempler overlever en sideoppdatering, og lar klienten fortsette i offline-modus til back-end er tilbake.
-* Uavhengig av lokal lagring synkroniseres dataene til back-end ved hvert bruker-initiert kall til `store()`, som via `notifyBackendChange()` setter i gang en `fetch`-forespørsel (`PUT`/`DELETE`) mot API-et.
+* Alle eksempler lagres nå i back-end via `/api/examples`. Front-end oppretter, oppdaterer og sletter poster ved å sende `PUT`/`DELETE`-forespørsler med hele datasettet for hvert verktøy.
+* Når en side åpnes, henter klienten hele posten fra API-et. Hvis forespørselen lykkes, vises både innebygde og brukerlagrede eksempler direkte fra back-end.
+* Hvis API-et svarer med en feil, beholder UI-et gjeldende visning og viser en statusmelding. Ettersom lokal fallback er fjernet, er API-et eneste kilde for vedvarende lagring.
 
 ## Tilgjengelighet for eksempeltjenesten
 
-Eksempeltjenesten er en del av back-end-distribusjonen og blir vanligvis eksponert som `/api/examples`. Koden i `resolveExamplesApiBase()` forsøker å bruke den kun når miljøet har en kjent HTTP(S)-opprinnelse eller når `window.MATH_VISUALS_EXAMPLES_API_URL` er satt manuelt. Hvis verktøyene kjøres lokalt rett fra filsystemet (`file://`), via et enkelt statisk filoppsett uten proxy til API-et, i en test med nettverk blokkert – eller back-end rett og slett er nede – får skriptet ikke kontakt og kan verken annonsere at tjenesten er tilgjengelig eller synkronisere.
+Eksempeltjenesten er en del av back-end-distribusjonen og eksponeres som `/api/examples`. Forventninger i den nye modellen:
 
-Disse scenariene er grunnen til at vi fortsatt beholder støtte for nettleserens `localStorage` (eller minnebasert reserve):
+* Verktøyene må kjøres fra en opprinnelse som kan kontakte API-et. Lokale statiske speil uten proxy eller nedstengt back-end gir ikke lenger en fungerende lagring.
+* `window.MATH_VISUALS_EXAMPLES_API_URL` kan settes manuelt for å peke mot et alternativt endepunkt (for eksempel i Playwright-tester eller ved lokal utvikling der API-et kjører på en annen port).
+* Hver respons inneholder feltene `examples`, `deletedProvided` og `updatedAt`. Klienten forventer at disse feltene er arrays/ISO-strenger og tilpasser UI-et basert på dem.
 
-* **Offline- og utviklingsmodus** – lærere og utviklere kjører ofte appene lokalt uten å starte back-end. Uten en klient-sidebuffer ville lagring av eksempler feile umiddelbart.
-* **Robusthet ved nedetid** – dersom back-end midlertidig er utilgjengelig, sikrer lokal lagring at eksempler ikke mistes før synkronisering lykkes senere.
-* **Sandkassemiljøer** – enkelte læringsplattformer kjører verktøyet i en streng iframe der nettverkstilgang er begrenset. Da er lokal lagring den eneste vedvarende mekanismen vi kan kontrollere.
+## Feilsøking
 
-Når back-end igjen blir tilgjengelig, fortsetter `performBackendSync()` å forsøke synkronisering. Når den lykkes, kalles `markBackendAvailable()` slik at nye endringer igjen kun havner i minnet mens serveren holder den vedvarende kopien. Den lokale bufferen beholdes i bakgrunnen og aktiveres automatisk dersom back-end faller fra senere.
+Når brukere rapporterer at eksempler ikke lagres eller listes opp, bør man sjekke følgende:
 
-## Konsekvens
+1. **API-status** – Gå til `/api/examples` i nettleseren. Får du 200 OK med JSON-innhold? Hvis ikke, må back-end startes eller loggene undersøkes.
+2. **CORS og opprinnelse** – Sørg for at `EXAMPLES_ALLOWED_ORIGINS` inkluderer opprinnelsen som laster appen. Feil CORS-konfigurasjon blokkerer forespørslene.
+3. **Miljøvariabler for KV** – API-et krever `KV_REST_API_URL` og `KV_REST_API_TOKEN`. Uten disse returneres en 503-feil (`KVNotConfigured`).
+4. **Nettverksfeil i konsollen** – Åpne nettleserens utviklerverktøy og se etter blokkerte forespørsler mot `/api/examples`. Feilmeldingen gir som regel beskjed om problemet.
 
-Etter endringen i commit `89ee1e2` lagres eksempler fortsatt kun midlertidig i minnet på klienten når back-end er oppe; den vedvarende kopien ligger i back-end databasen. Dersom back-end ikke svarer, gjenaktiveres nettleserlagringen automatisk slik at brukeren ikke mister endringene før synkronisering er mulig igjen.
+Dersom API-et er nede, vil statuslinjene i verktøyene forklare hva som skjedde og anbefale å kontrollere back-end i stedet for å instruere brukere om å slette lokal lagring.
 
 ## Distribusjon og miljøvariabler
 

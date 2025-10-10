@@ -344,6 +344,46 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     });
   }
 
+  function toApiEntry(path) {
+    const entry = readEntry(path);
+    if (!entry) return undefined;
+    const { provided: _provided, ...rest } = entry;
+    return rest;
+  }
+
+  const client = {
+    async list() {
+      const entries = Array.from(store.canonical.entries())
+        .filter(([, record]) => record && record.promoted)
+        .map(([, record]) => clone(record.data));
+      return { entries };
+    },
+    async get(path) {
+      return toApiEntry(path);
+    },
+    async put(path, payload) {
+      const rawPath = typeof path === 'string' && path.trim() ? path.trim() : '/';
+      const normalized = normalizePath(rawPath);
+      const target = normalized || rawPath;
+      const entryPayload = {
+        examples: Array.isArray(payload && payload.examples) ? payload.examples : [],
+        deletedProvided: Array.isArray(payload && payload.deletedProvided) ? payload.deletedProvided : [],
+        updatedAt: typeof (payload && payload.updatedAt) === 'string' ? payload.updatedAt : new Date().toISOString(),
+        provided: payload && Array.isArray(payload.provided) ? payload.provided : undefined
+      };
+      setEntry(target, entryPayload, { promote: true });
+      const entry = readEntry(target);
+      putEvents.push(target, { path: target, payload: clone(entryPayload), entry: entry ? clone(entry) : undefined });
+      return toApiEntry(target);
+    },
+    async delete(path) {
+      const rawPath = typeof path === 'string' && path.trim() ? path.trim() : '/';
+      deleteEntry(rawPath);
+      deleteEvents.push(rawPath, { path: normalizePath(rawPath) || rawPath, rawPath });
+      return { ok: true };
+    }
+  };
+
   return {
     seed: (path, payload, options) => {
       const rawPath = typeof path === 'string' && path.trim() ? path.trim() : '/';
@@ -358,6 +398,7 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     waitForDelete: path => deleteEvents.wait(path),
     history,
     store,
+    client,
     simulateOutage: (factory = () => {
       const error = new Error('Mock examples backend outage');
       error.status = 500;
