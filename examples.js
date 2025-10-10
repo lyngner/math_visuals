@@ -2835,10 +2835,6 @@
   let defaultEnsureScheduled = false;
   let ensureDefaultsRunning = false;
   let tabsHostCard = null;
-
-      return;
-    }
-  }
   const hasUrlOverrides = (() => {
     if (typeof URLSearchParams === 'undefined') return false;
     const search = new URLSearchParams(window.location.search);
