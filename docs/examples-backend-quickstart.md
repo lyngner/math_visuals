@@ -9,14 +9,18 @@ Alt som ligger på GitHub eller Vercel er på nett. For å kjøre kommandoene m�
 1. Åpne Terminal og velg en mappe der du vil ha prosjektet.
 2. Kjør `git clone https://github.com/<ditt-prosjektnavn>/math_visuals.git` (bruk din egen URL hvis prosjektet ligger et annet sted).
 3. Gå inn i mappen med `cd math_visuals`.
+4. Skriv `ls` og sjekk at du ser `package.json`. Hvis du ikke ser den, er du i feil mappe (zip-filer kan lage en ekstra undermappe, f.eks. `math_visuals-main/math_visuals`).
 
-Hvis du har fått prosjektet via nedlasting fra Vercel/GitHub (zip-fil), pakker du ut zip-filen og går inn i mappen i Terminal. Etter dette kan du følge stegene under.
+Hvis du har fått prosjektet via nedlasting fra Vercel/GitHub (zip-fil), pakker du ut zip-filen og går inn i den innerste mappen som inneholder `package.json` før du fortsetter.
 
 ## 1. Start serveren
 
 * Åpne **Terminal** på Mac (Spotlight → skriv `Terminal`).
 * Kjør `npm install` én gang i prosjektmappen (`cd path/til/math_visuals`).
-* Start deretter både front-end og back-end. Den vanligste måten er å kjøre `vercel dev` i samme terminal.
+  * Får du feilen «no such file or directory, open '.../package.json'», betyr det at du ikke står i mappen som inneholder `package.json`. Gå ett hakk lenger inn og prøv igjen.
+* Start deretter både front-end og back-end.
+  * Har du allerede Vercel CLI, kan du kjøre `vercel dev` i samme terminal.
+  * Får du «command not found: vercel», installer Vercel CLI med `npm install -g vercel`, eller bruk `npx vercel dev` som ikke krever global installasjon.
   * Bruker du en annen løsning (for eksempel et eget Express-API), starter du den på tilsvarende måte.
 * Test i nettleseren at siden åpner seg.
 
