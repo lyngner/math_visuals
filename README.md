@@ -18,7 +18,7 @@ Dette repositoriet inneholder statiske verktøy og eksempler for Math Visuals-pr
 
 Skriptet finnes i `scripts/check-examples-api.mjs` og kan også vise hvor mange eksempler som ligger lagret. Hvis API-et ikke svarer i det hele tatt får du en klar feilmelding som peker på at back-enden ikke kjører eller er utilgjengelig.
 
-Se også [docs/examples-backend-quickstart.md](docs/examples-backend-quickstart.md) for en ekstra kort steg-for-steg-guide.
+For en komplett «teskje»-guide til lokal kjøring på Mac (inkludert riktig Node-versjon, `npx vercel dev` og hvor du skal kjøre kommandoene), se [docs/local-development-mac.md](docs/local-development-mac.md).
 
 ## Krav til eksempeltjenesten
 
