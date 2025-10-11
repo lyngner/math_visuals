@@ -28,6 +28,17 @@ Når brukere rapporterer at eksempler ikke lagres eller listes opp, bør man sje
 
 Dersom API-et er nede, vil statuslinjene i verktøyene forklare hva som skjedde og anbefale å kontrollere back-end i stedet for å instruere brukere om å slette lokal lagring.
 
+### Lokalt fungerer, men ikke produksjon
+
+Dette scenarioet betyr vanligvis at produksjonsmiljøet mangler KV-nøklene, selv om de er satt lokalt. Slik feilsøker du:
+
+1. Kjør `npm run check-examples-api -- --url=https://<ditt-produksjonsdomene>/api/examples` og se hva skriptet rapporterer.
+   * «midlertidig minne» bekrefter at instansen ikke fant KV-konfigurasjonen.
+2. Logg inn på Vercel og åpne **Settings → Environment Variables** for prosjektet.
+3. Kontroller at både `KV_REST_API_URL` og `KV_REST_API_TOKEN` er satt for miljøet som kjører distribusjonen (vanligvis **Production**, men sett dem også for **Preview** om du ønsker vedvarende lagring der).
+4. Lagre endringene og redeployer (`vercel --prod` eller via dashbordet). Serverless-funksjonen henter bare miljøvariablene ved oppstart.
+5. Kjør sjekkskriptet på nytt mot produksjonsadressen. Når det viser «varig lagring (KV)», skal eksemplene bestå på `https://...` akkurat som lokalt.
+
 ## Distribusjon og miljøvariabler
 
 Eksempeltjenesten krever at følgende miljøvariabler er satt i distribusjonsmiljøet:
@@ -37,6 +48,12 @@ Eksempeltjenesten krever at følgende miljøvariabler er satt i distribusjonsmil
 | `KV_REST_API_URL` | Base-URL til Vercel KV REST-API-et. I Vercel-prosjektet: gå til **Storage → KV**, og velg **View Details → REST API**. Hvis du i stedet ser siden «Create a database», klikker du **Create** på «Upstash (Serverless DB)» for å opprette KV-integrasjonen først. |
 | `KV_REST_API_TOKEN` | API-tokenet som gir skrivetilgang til KV-instansen. Opprett eller kopier et token fra samme KV-side i Vercel (eventuelt etter at du har opprettet Upstash-integrasjonen som over). |
 | `EXAMPLES_ALLOWED_ORIGINS` | Kommaseparert liste over opprinnelser som kan gjøre cross-origin-kall mot `/api/examples`. Bruk `*` for å åpne for alle, eller legg inn konkrete URL-er (f.eks. `https://mathvisuals.no,https://admin.mathvisuals.no`). |
+
+> **Hvilke variabler trenger jeg egentlig?**
+>
+> * API-et leser kun `KV_REST_API_URL` og `KV_REST_API_TOKEN`. Disse to må være satt for hvert Vercel-miljø som skal ha varig lagring (Development, Preview og/eller Production).
+> * Variabler som `KV_URL`, `REDIS_URL` eller `KV_REST_API_READ_ONLY_TOKEN` kan også dukke opp i Vercel/Upstash-panelet, men de brukes ikke av `/api/examples`. Det er helt greit å la dem stå tomme dersom du ikke har andre tjenester som trenger dem.
+> * Del aldri de faktiske verdiene offentlig eller i Git-commits. Lim dem inn som Environment Variables i Vercel-konsollen eller legg dem i en lokal `.env.local` som er med i `.gitignore`.
 
 > **Merk om Upstash:** Du trenger ikke å opprette en separat Upstash Redis-instans via "Databases"-seksjonen. Det du trenger er Vercel sin KV-integrasjon. I prosjektet ditt: åpne **Storage**. Hvis du allerede har opprettet KV, vises den direkte. Hvis ikke, velger du **Create a database → Upstash (Serverless DB)**. Dette oppretter Vercel KV-instansen, og miljøvariablene over skal peke til den.
 >
