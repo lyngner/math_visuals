@@ -57,7 +57,7 @@ async function fetchJson(url) {
   } catch (_) {
     data = null;
   }
-  return { response, data };
+  return { response, data, text };
 }
 
 async function main() {
@@ -77,16 +77,34 @@ async function main() {
   console.log(`Sjekker ${targetUrl} ...`);
 
   try {
-    const { response, data } = await fetchJson(targetUrl);
+    const { response, data, text } = await fetchJson(targetUrl);
     if (!response.ok) {
       console.error(`❌ API-et svarte med status ${response.status}.`);
 
-      if (data && data.error) {
-        const message =
-          typeof data.error === 'string'
-            ? data.error
-            : JSON.stringify(data.error);
-        console.error(`Melding: ${message}`);
+      const messageParts = [];
+      if (data) {
+        if (typeof data.error === 'string') {
+          messageParts.push(data.error);
+        } else if (data.error) {
+          messageParts.push(JSON.stringify(data.error, null, 2));
+        }
+        if (typeof data.message === 'string') {
+          messageParts.push(data.message);
+        }
+      }
+      if (!messageParts.length && text) {
+        const trimmed = text.trim();
+        if (trimmed) messageParts.push(trimmed);
+      }
+      if (!messageParts.length && response.statusText) {
+        messageParts.push(response.statusText);
+      }
+
+      if (messageParts.length) {
+        console.error('Melding:');
+        for (const part of messageParts) {
+          console.error(part);
+        }
       } else if (response.status === 404) {
         console.error('Fant ikke stien.');
       }
