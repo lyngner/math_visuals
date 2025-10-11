@@ -4,18 +4,34 @@ Denne siden er en **enkel veiledning** for å kjøre Math Visuals lokalt og sjek
 
 ## 0. Sørg for riktig Node- og npm-versjon
 
-`@cortex-js/compute-engine` krever minst **Node 21.7.3** og **npm 10.5.0**. Hvis du ser advarsler om «Unsupported engine», bør du oppdatere.
+`@cortex-js/compute-engine` krever minst **Node 21.7.3** og **npm 10.5.0**. Hvis du ser advarsler om «Unsupported engine», må du oppdatere Node/npm.
 
-1. Installer [nvm](https://github.com/nvm-sh/nvm#installing-and-updating) hvis du ikke allerede har det.
-2. Åpne Terminal (⌘ + Mellomrom → skriv `Terminal`).
-3. Kjør:
+### 0a. Installer `nvm` (hvis du får `command not found`)
+
+1. Åpne Terminal (⌘ + Mellomrom → skriv `Terminal`).
+2. Lim inn denne linjen og trykk Enter:
+   ```bash
+   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+   ```
+3. Lukk terminalvinduet helt og åpne et nytt. (I VS Code: lukk terminalfanen og åpne `Terminal` på nytt.)
+4. Sjekk at `nvm` nå finnes:
+   ```bash
+   command -v nvm
+   ```
+   Hvis du ser `nvm`, er installasjonen vellykket. Hvis den fortsatt mangler, se feilsøking nederst.
+
+> **Alternativ uten nvm:** Hvis du foretrekker Homebrew, kan du kjøre `brew install node@22` og deretter `brew link --overwrite node@22`. Pass da på at `node -v` i terminalen din viser `v22.x` før du går videre.
+
+### 0b. Bytt til Node 22 med `nvm`
+
+1. I terminalen:
    ```bash
    nvm install 22
    nvm use 22
    node -v && npm -v
    ```
-   Output bør vise Node ≥ 22 og npm ≥ 10.5.
-4. Hvis du jobber i VS Code, lukk og åpne terminalen på nytt etter `nvm use 22`, slik at den får riktig versjon.
+2. Output skal vise Node ≥ 22 og npm ≥ 10.5.
+3. Hvis du jobber i VS Code, lukk og åpne terminalen på nytt etter `nvm use 22`, slik at den fanger opp riktig versjon.
 
 ## 1. Last ned prosjektet lokalt
 
@@ -96,3 +112,16 @@ npm run check-examples-api
 * Du ser fortsatt «midlertidig minne» etter at du har lagt inn KV-variablene.
 
 Del skjermdump eller terminal-output når du spør om hjelp – da er det enklere å se hva som mangler.
+
+## Feilsøking
+
+**`nvm` finnes fortsatt ikke etter installasjon**
+
+1. Sjekk at du har lagt til følgende i `~/.zshrc` eller `~/.bashrc` (installasjonsskriptet gjør det automatisk, men hvis du bruker VS Code sin innebygde terminal kan det hende du må logge helt ut/inn):
+   ```bash
+   export NVM_DIR="$HOME/.nvm"
+   [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+   [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+   ```
+2. Lukk alle terminalvinduer og åpne et nytt. Skriv `command -v nvm` igjen.
+3. Fungerer det fortsatt ikke, prøv å installere på nytt eller bruk `brew install node@22` som midlertidig løsning.
