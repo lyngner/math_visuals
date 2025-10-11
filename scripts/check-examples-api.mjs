@@ -83,7 +83,14 @@ async function main() {
       if (data && data.error) {
         console.error(`Melding: ${data.error}`);
       } else if (response.status === 404) {
-        console.error('Fant ikke stien. Sjekk at verktøyet har lagrede eksempler.');
+        console.error('Fant ikke stien på API-et.');
+        if (args.path) {
+          console.error(`Tips: Verktøyet «${args.path}» har kanskje ikke lagrede eksempler ennå.`);
+          console.error('      Åpne verktøyet og lagre et eksempel, eller fjern --path for å sjekke hele API-et.');
+        } else {
+          console.error('Tips: Sjekk at URL-en peker til /api/examples i miljøet du vil teste.');
+          console.error('      Bruk --url=https://<domene>/api/examples for å teste en annen server, eller start dev-serveren lokalt.');
+        }
       }
       process.exitCode = 1;
       return;
