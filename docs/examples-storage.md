@@ -49,6 +49,12 @@ Eksempeltjenesten krever at følgende miljøvariabler er satt i distribusjonsmil
 | `KV_REST_API_TOKEN` | API-tokenet som gir skrivetilgang til KV-instansen. Opprett eller kopier et token fra samme KV-side i Vercel (eventuelt etter at du har opprettet Upstash-integrasjonen som over). |
 | `EXAMPLES_ALLOWED_ORIGINS` | Kommaseparert liste over opprinnelser som kan gjøre cross-origin-kall mot `/api/examples`. Bruk `*` for å åpne for alle, eller legg inn konkrete URL-er (f.eks. `https://mathvisuals.no,https://admin.mathvisuals.no`). |
 
+> **Hvilke variabler trenger jeg egentlig?**
+>
+> * API-et leser kun `KV_REST_API_URL` og `KV_REST_API_TOKEN`. Disse to må være satt for hvert Vercel-miljø som skal ha varig lagring (Development, Preview og/eller Production).
+> * Variabler som `KV_URL`, `REDIS_URL` eller `KV_REST_API_READ_ONLY_TOKEN` kan også dukke opp i Vercel/Upstash-panelet, men de brukes ikke av `/api/examples`. Det er helt greit å la dem stå tomme dersom du ikke har andre tjenester som trenger dem.
+> * Del aldri de faktiske verdiene offentlig eller i Git-commits. Lim dem inn som Environment Variables i Vercel-konsollen eller legg dem i en lokal `.env.local` som er med i `.gitignore`.
+
 > **Merk om Upstash:** Du trenger ikke å opprette en separat Upstash Redis-instans via "Databases"-seksjonen. Det du trenger er Vercel sin KV-integrasjon. I prosjektet ditt: åpne **Storage**. Hvis du allerede har opprettet KV, vises den direkte. Hvis ikke, velger du **Create a database → Upstash (Serverless DB)**. Dette oppretter Vercel KV-instansen, og miljøvariablene over skal peke til den.
 >
 > **Ikke bruk Blob eller Edge Config:** Disse tjenestene mangler funksjonene vi trenger (atomiske skriver, TTL-er og oppslag via REST med skrivetilgang). Eksempel-API-et forventer en ren KV-backend, så konfigurer miljøvariablene mot den samme **Storage → KV**-instansen og ikke mot Blob Storage eller Edge Config.
