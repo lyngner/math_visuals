@@ -28,6 +28,17 @@ Når brukere rapporterer at eksempler ikke lagres eller listes opp, bør man sje
 
 Dersom API-et er nede, vil statuslinjene i verktøyene forklare hva som skjedde og anbefale å kontrollere back-end i stedet for å instruere brukere om å slette lokal lagring.
 
+### Lokalt fungerer, men ikke produksjon
+
+Dette scenarioet betyr vanligvis at produksjonsmiljøet mangler KV-nøklene, selv om de er satt lokalt. Slik feilsøker du:
+
+1. Kjør `npm run check-examples-api -- --url=https://<ditt-produksjonsdomene>/api/examples` og se hva skriptet rapporterer.
+   * «midlertidig minne» bekrefter at instansen ikke fant KV-konfigurasjonen.
+2. Logg inn på Vercel og åpne **Settings → Environment Variables** for prosjektet.
+3. Kontroller at både `KV_REST_API_URL` og `KV_REST_API_TOKEN` er satt for miljøet som kjører distribusjonen (vanligvis **Production**, men sett dem også for **Preview** om du ønsker vedvarende lagring der).
+4. Lagre endringene og redeployer (`vercel --prod` eller via dashbordet). Serverless-funksjonen henter bare miljøvariablene ved oppstart.
+5. Kjør sjekkskriptet på nytt mot produksjonsadressen. Når det viser «varig lagring (KV)», skal eksemplene bestå på `https://...` akkurat som lokalt.
+
 ## Distribusjon og miljøvariabler
 
 Eksempeltjenesten krever at følgende miljøvariabler er satt i distribusjonsmiljøet:
