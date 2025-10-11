@@ -4,10 +4,14 @@ import process from 'node:process';
 const DEFAULT_URL = 'http://localhost:3000/api/examples';
 
 function parseArgs(argv) {
-  const result = { url: DEFAULT_URL, path: null };
+  const result = { url: DEFAULT_URL, path: null, verbose: false };
   for (const arg of argv) {
     if (arg === '--help' || arg === '-h') {
       result.help = true;
+      continue;
+    }
+    if (arg === '--verbose' || arg === '-v') {
+      result.verbose = true;
       continue;
     }
     if (arg.startsWith('--url=')) {
@@ -29,10 +33,11 @@ function parseArgs(argv) {
 
 function printHelp() {
   console.log('Slik bruker du skriptet:');
-  console.log('  node scripts/check-examples-api.mjs [--url=URL] [--path=sti]');
+  console.log('  node scripts/check-examples-api.mjs [--url=URL] [--path=sti] [--verbose]');
   console.log('');
   console.log('Standard-URL er http://localhost:3000/api/examples.');
   console.log('Hvis du oppgir --path, sjekkes ett bestemt verktøy.');
+  console.log('Bruk --verbose for å se råresponsen når noe feiler.');
 }
 
 function describeMode(mode) {
@@ -105,6 +110,8 @@ async function main() {
         for (const part of messageParts) {
           console.error(part);
         }
+      } else if (args.verbose && !text) {
+        console.error('Melding: (tom respons fra serveren)');
       } else if (response.status === 404) {
         console.error('Fant ikke stien.');
       }
@@ -119,6 +126,24 @@ async function main() {
           'Tips: Sjekk at verktøyet du oppga med --path faktisk har lagrede eksempler. '
             + 'Åpne siden, lagre et nytt eksempel og kjør skriptet igjen.'
         );
+      }
+
+      if (args.verbose) {
+        console.error('');
+        console.error('--- Detaljer ---');
+        const statusText = response.statusText ? ` ${response.statusText}` : '';
+        console.error(`Statuslinje: ${response.status}${statusText}`);
+        const contentType = response.headers.get('content-type');
+        if (contentType) {
+          console.error(`Content-Type: ${contentType}`);
+        }
+        if (text && text.trim()) {
+          console.error('Rårespons:');
+          console.error(text.trim());
+        } else if (!messageParts.length) {
+          console.error('Rårespons: (tom)');
+        }
+        console.error('----------------');
       }
 
       process.exitCode = 1;
@@ -147,6 +172,10 @@ async function main() {
     console.log('ℹ️  API-et svarte, men formatet var uventet.');
     if (data) {
       console.log(JSON.stringify(data, null, 2));
+    }
+    if (args.verbose && text && text.trim()) {
+      console.log('Rårespons:');
+      console.log(text.trim());
     }
     if (!persistent) {
       console.log('⚠️  Sjekk at KV_REST_API_URL og KV_REST_API_TOKEN er satt.');
