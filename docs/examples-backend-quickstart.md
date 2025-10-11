@@ -4,8 +4,10 @@ Denne siden forklarer **enkelt** hva du må gjøre for at eksempler du lager i M
 
 ## 1. Start serveren
 
-* Kjør `npm install` én gang.
-* Start deretter både front-end og back-end (for eksempel med `vercel dev` eller den løsningen du allerede bruker).
+* Åpne **Terminal** på Mac (Spotlight → skriv `Terminal`).
+* Kjør `npm install` én gang i prosjektmappen (`cd path/til/math_visuals`).
+* Start deretter både front-end og back-end. Den vanligste måten er å kjøre `vercel dev` i samme terminal.
+  * Bruker du en annen løsning (for eksempel et eget Express-API), starter du den på tilsvarende måte.
 * Test i nettleseren at siden åpner seg.
 
 Hvis du kjører front-end på en annen port enn API-et, må du sette `window.MATH_VISUALS_EXAMPLES_API_URL` til adressen til API-et (kan gjøres i nettleserkonsollen før du bruker verktøyene).
@@ -20,7 +22,7 @@ Uten disse verdiene bruker API-et et midlertidig minne, og alle eksempler forsvi
 
 ## 3. Sjekk at alt virker
 
-Kjør skriptet vi la til for deg:
+I **samme Terminal-vindu** (eller et nytt vindu i prosjektmappen) kjører du skriptet vi la til for deg:
 
 ```bash
 npm run check-examples-api
