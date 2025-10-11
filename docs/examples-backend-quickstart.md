@@ -2,6 +2,16 @@
 
 Denne siden forklarer **enkelt** hva du må gjøre for at eksempler du lager i Math Visuals skal bli lagret.
 
+## 0. Last ned prosjektet lokalt
+
+Alt som ligger på GitHub eller Vercel er på nett. For å kjøre kommandoene må du ha en **lokal kopi** av prosjektet på Mac-en din:
+
+1. Åpne Terminal og velg en mappe der du vil ha prosjektet.
+2. Kjør `git clone https://github.com/<ditt-prosjektnavn>/math_visuals.git` (bruk din egen URL hvis prosjektet ligger et annet sted).
+3. Gå inn i mappen med `cd math_visuals`.
+
+Hvis du har fått prosjektet via nedlasting fra Vercel/GitHub (zip-fil), pakker du ut zip-filen og går inn i mappen i Terminal. Etter dette kan du følge stegene under.
+
 ## 1. Start serveren
 
 * Åpne **Terminal** på Mac (Spotlight → skriv `Terminal`).
