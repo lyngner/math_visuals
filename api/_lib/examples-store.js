@@ -374,6 +374,22 @@ async function writeToKv(path, entry) {
   } catch (error) {
     throw new KvOperationError(`Failed to write entry to KV for path ${path}`, { cause: error });
   }
+  try {
+    const verification = await kv.get(key);
+    if (verification == null) {
+      throw new KvOperationError(`Failed to verify KV entry after writing path ${path}`, {
+        code: 'KV_WRITE_VERIFICATION_FAILED'
+      });
+    }
+  } catch (error) {
+    if (error instanceof KvOperationError) {
+      throw error;
+    }
+    throw new KvOperationError(`Failed to verify entry in KV for path ${path}`, {
+      cause: error,
+      code: 'KV_WRITE_VERIFICATION_FAILED'
+    });
+  }
 }
 
 async function deleteFromKv(path) {

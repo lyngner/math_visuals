@@ -183,6 +183,28 @@ test.describe('examples-store canonical entry handling', () => {
   });
 });
 
+test.describe('examples-store KV verification', () => {
+  test('fails when KV write verification does not return stored entry', async () => {
+    const path = '/kv-verification-failure';
+    const originalGet = mockKv.api.get;
+    mockKv.api.get = async key => {
+      if (typeof key === 'string' && key.includes('kv-verification-failure')) {
+        return null;
+      }
+      return originalGet.call(mockKv.api, key);
+    };
+
+    try {
+      await expect(setEntry(path, { examples: [] })).rejects.toThrow(/verify/i);
+    } finally {
+      mockKv.api.get = originalGet;
+      try {
+        await deleteEntry(path);
+      } catch (error) {}
+    }
+  });
+});
+
 test.describe('examples-store memory defaults', () => {
   test('seedMemoryStoreWithDefaults seeds the bundled tallinje example', async () => {
     const path = '/tallinje';
