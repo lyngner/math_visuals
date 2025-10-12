@@ -258,9 +258,9 @@ const DEFAULT_FORTEGNSSKJEMA_STATE = {
   altTextSource: 'auto'
 };
 
-const DEFAULT_GRAFTEGNER_SIMPLE = ['y=x^2-1', 'y=2x+3'].join('\n');
+const DEFAULT_GRAFTEGNER_SIMPLE = 'y=x^2-1\ny=2x+3';
 
-const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = ['y=sin(x)', 'y=cos(x)'].join('\n');
+const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = 'y=sin(x)\ny=cos(x)';
 
 const DEFAULT_KULER_SIMPLE = {
   beadRadius: 28,
