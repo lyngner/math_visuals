@@ -186,11 +186,19 @@ test.describe('examples-store canonical entry handling', () => {
 test.describe('examples-store KV verification', () => {
   test('fails when KV write verification does not return stored entry', async () => {
     const path = '/kv-verification-failure';
-    const previousUrl = process.env.KV_REST_API_URL;
-    const previousToken = process.env.KV_REST_API_TOKEN;
-    const restoreEnvVar = (key, value) => {
-      if (typeof value === 'string') {
-        process.env[key] = value;
+    const snapshotEnvVar = key => ({
+      present: Object.prototype.hasOwnProperty.call(process.env, key),
+      value: process.env[key]
+    });
+    const previousUrl = snapshotEnvVar('KV_REST_API_URL');
+    const previousToken = snapshotEnvVar('KV_REST_API_TOKEN');
+    const restoreEnvVar = (key, snapshot) => {
+      if (snapshot.present) {
+        if (typeof snapshot.value === 'string') {
+          process.env[key] = snapshot.value;
+        } else {
+          delete process.env[key];
+        }
       } else {
         delete process.env[key];
       }
