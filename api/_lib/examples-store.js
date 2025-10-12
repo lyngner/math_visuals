@@ -281,6 +281,32 @@ function normalizePath(value) {
   return normalized;
 }
 
+function getStoragePathVariants(path) {
+  const variants = new Set();
+  const canonical = normalizePath(path);
+  if (!canonical) return [];
+  variants.add(canonical);
+  if (typeof path === 'string') {
+    let trimmed = path.trim();
+    if (trimmed) {
+      if (!trimmed.startsWith('/')) {
+        trimmed = '/' + trimmed.replace(/^\\+/g, '');
+      }
+      if (trimmed.length > 1 && trimmed.endsWith('/')) {
+        trimmed = trimmed.slice(0, -1);
+      }
+      if (trimmed) {
+        variants.add(trimmed);
+      }
+    }
+  }
+  const lowercaseEncoded = canonical.replace(/%[0-9A-F]{2}/g, match => match.toLowerCase());
+  if (lowercaseEncoded) {
+    variants.add(lowercaseEncoded);
+  }
+  return Array.from(variants);
+}
+
 function decodeDisplayPath(path) {
   if (typeof path !== 'string') return null;
   let trimmed = path.trim();
@@ -414,17 +440,22 @@ function listMemoryEntries() {
 
 async function writeToKv(path, entry) {
   const kv = await loadKvClient();
-  const key = makeKey(path);
+  const variants = getStoragePathVariants(path);
+  if (!variants.length) {
+    throw new KvOperationError(`Failed to derive storage key variants for path ${path}`);
+  }
+  const [canonicalPath, ...legacyPaths] = variants;
+  const canonicalKey = makeKey(canonicalPath);
   try {
-    await kv.set(key, entry);
-    await kv.sadd(INDEX_KEY, path);
+    await kv.set(canonicalKey, entry);
+    await kv.sadd(INDEX_KEY, canonicalPath);
   } catch (error) {
-    throw new KvOperationError(`Failed to write entry to KV for path ${path}`, { cause: error });
+    throw new KvOperationError(`Failed to write entry to KV for path ${canonicalPath}`, { cause: error });
   }
   try {
-    const verification = await kv.get(key);
+    const verification = await kv.get(canonicalKey);
     if (verification == null) {
-      throw new KvOperationError(`Failed to verify KV entry after writing path ${path}`, {
+      throw new KvOperationError(`Failed to verify KV entry after writing path ${canonicalPath}`, {
         code: 'KV_WRITE_VERIFICATION_FAILED'
       });
     }
@@ -432,49 +463,86 @@ async function writeToKv(path, entry) {
     if (error instanceof KvOperationError) {
       throw error;
     }
-    throw new KvOperationError(`Failed to verify entry in KV for path ${path}`, {
+    throw new KvOperationError(`Failed to verify entry in KV for path ${canonicalPath}`, {
       cause: error,
       code: 'KV_WRITE_VERIFICATION_FAILED'
     });
+  }
+  if (legacyPaths.length > 0) {
+    for (const legacyPath of legacyPaths) {
+      const legacyKey = makeKey(legacyPath);
+      try {
+        await kv.del(legacyKey);
+      } catch (_) {}
+      try {
+        await kv.srem(INDEX_KEY, legacyPath);
+      } catch (_) {}
+    }
   }
 }
 
 async function deleteFromKv(path) {
   const kv = await loadKvClient();
-  const key = makeKey(path);
-  try {
-    await kv.del(key);
-    await kv.srem(INDEX_KEY, path);
-  } catch (error) {
-    throw new KvOperationError(`Failed to delete entry in KV for path ${path}`, { cause: error });
+  const variants = getStoragePathVariants(path);
+  if (!variants.length) {
+    throw new KvOperationError(`Failed to derive storage key variants for path ${path}`);
+  }
+  for (const variant of variants) {
+    const key = makeKey(variant);
+    try {
+      await kv.del(key);
+    } catch (error) {
+      throw new KvOperationError(`Failed to delete entry in KV for path ${variant}`, { cause: error });
+    }
+    try {
+      await kv.srem(INDEX_KEY, variant);
+    } catch (_) {}
   }
 }
 
 async function readFromKv(path) {
   const kv = await loadKvClient();
-  const key = makeKey(path);
-  try {
-    const value = await kv.get(key);
-    if (value == null) return null;
-    if (typeof value === 'string') {
-      try {
-        return JSON.parse(value);
-      } catch (error) {
-        throw new KvOperationError('Failed to parse KV entry payload', { cause: error });
+  const variants = getStoragePathVariants(path);
+  if (!variants.length) return null;
+  const [canonicalPath, ...otherPaths] = variants;
+  const canonicalKey = makeKey(canonicalPath);
+  const candidateKeys = [canonicalKey, ...otherPaths.map(makeKey)];
+  for (let i = 0; i < candidateKeys.length; i++) {
+    const key = candidateKeys[i];
+    try {
+      const value = await kv.get(key);
+      if (value == null) continue;
+      if (i > 0) {
+        try {
+          await kv.set(canonicalKey, value);
+          await kv.del(key);
+        } catch (_) {}
+        try {
+          await kv.sadd(INDEX_KEY, canonicalPath);
+          await kv.srem(INDEX_KEY, variants[i]);
+        } catch (_) {}
       }
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch (error) {
+          throw new KvOperationError('Failed to parse KV entry payload', { cause: error });
+        }
+      }
+      if (typeof value === 'object') {
+        return value;
+      }
+      throw new KvOperationError('Unsupported KV entry payload type', {
+        code: 'KV_UNSUPPORTED_VALUE_TYPE'
+      });
+    } catch (error) {
+      if (error instanceof KvOperationError) {
+        throw error;
+      }
+      throw new KvOperationError(`Failed to read entry from KV for path ${variants[i]}`, { cause: error });
     }
-    if (typeof value === 'object') {
-      return value;
-    }
-    throw new KvOperationError('Unsupported KV entry payload type', {
-      code: 'KV_UNSUPPORTED_VALUE_TYPE'
-    });
-  } catch (error) {
-    if (error instanceof KvOperationError) {
-      throw error;
-    }
-    throw new KvOperationError(`Failed to read entry from KV for path ${path}`, { cause: error });
   }
+  return null;
 }
 
 function writeToMemory(path, entry) {

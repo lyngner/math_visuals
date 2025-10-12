@@ -50,6 +50,9 @@ const kvModulePath = require.resolve('@vercel/kv');
 require.cache[kvModulePath] = { exports: { kv: mockKv.api } };
 global.__EXAMPLES_KV_CLIENT__ = mockKv.api;
 
+const KEY_PREFIX = 'examples:';
+const INDEX_KEY = 'examples:__paths__';
+
 const {
   normalizePath,
   setEntry,
@@ -184,6 +187,66 @@ test.describe('examples-store canonical entry handling', () => {
         await deleteEntry(cleanupTarget);
       } catch (error) {}
     }
+  });
+});
+
+test.describe('examples-store KV compatibility', () => {
+  let originalUrl;
+  let originalToken;
+
+  test.beforeEach(() => {
+    originalUrl = process.env.KV_REST_API_URL;
+    originalToken = process.env.KV_REST_API_TOKEN;
+    process.env.KV_REST_API_URL = 'https://kv.example.test';
+    process.env.KV_REST_API_TOKEN = 'token';
+  });
+
+  test.afterEach(() => {
+    if (originalUrl !== undefined) {
+      process.env.KV_REST_API_URL = originalUrl;
+    } else {
+      delete process.env.KV_REST_API_URL;
+    }
+    if (originalToken !== undefined) {
+      process.env.KV_REST_API_TOKEN = originalToken;
+    } else {
+      delete process.env.KV_REST_API_TOKEN;
+    }
+  });
+
+  test('getEntry migrates legacy percent-encoded KV keys', async () => {
+    const normalized = normalizePath('/brøkvegg');
+    const legacyPath = normalized.replace(/%[0-9A-F]{2}/g, match => match.toLowerCase());
+    const legacyKey = `${KEY_PREFIX}${legacyPath}`;
+    const canonicalKey = `${KEY_PREFIX}${normalized}`;
+    const payload = {
+      path: normalized,
+      examples: [
+        {
+          description: 'Legacy KV entry',
+          config: { STATE: { legacy: true } }
+        }
+      ],
+      deletedProvided: [],
+      updatedAt: new Date().toISOString()
+    };
+
+    await mockKv.api.set(legacyKey, payload);
+    await mockKv.api.sadd(INDEX_KEY, legacyPath);
+
+    const entry = await getEntry('/brøkvegg');
+    expect(entry).not.toBeNull();
+    expect(entry.path).toBe(normalizePath('/brøkvegg'));
+    expect(entry.displayPath).toBe('/brøkvegg');
+    expect(entry.examples[0]).toMatchObject({ description: 'Legacy KV entry' });
+
+    const canonicalStored = await mockKv.api.get(canonicalKey);
+    expect(canonicalStored).not.toBeNull();
+    const legacyStored = await mockKv.api.get(legacyKey);
+    expect(legacyStored).toBeNull();
+    const indexMembers = await mockKv.api.smembers(INDEX_KEY);
+    expect(indexMembers).toContain(normalized);
+    expect(indexMembers).not.toContain(legacyPath);
   });
 });
 
