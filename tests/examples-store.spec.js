@@ -186,6 +186,10 @@ test.describe('examples-store canonical entry handling', () => {
 test.describe('examples-store KV verification', () => {
   test('fails when KV write verification does not return stored entry', async () => {
     const path = '/kv-verification-failure';
+    const previousUrl = process.env.KV_REST_API_URL;
+    const previousToken = process.env.KV_REST_API_TOKEN;
+    process.env.KV_REST_API_URL = 'https://kv.example.test';
+    process.env.KV_REST_API_TOKEN = 'test-token';
     const originalGet = mockKv.api.get;
     mockKv.api.get = async key => {
       if (typeof key === 'string' && key.includes('kv-verification-failure')) {
@@ -197,6 +201,8 @@ test.describe('examples-store KV verification', () => {
     try {
       await expect(setEntry(path, { examples: [] })).rejects.toThrow(/verify/i);
     } finally {
+      process.env.KV_REST_API_URL = previousUrl;
+      process.env.KV_REST_API_TOKEN = previousToken;
       mockKv.api.get = originalGet;
       try {
         await deleteEntry(path);
