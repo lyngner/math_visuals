@@ -201,8 +201,16 @@ test.describe('examples-store KV verification', () => {
     try {
       await expect(setEntry(path, { examples: [] })).rejects.toThrow(/verify/i);
     } finally {
-      process.env.KV_REST_API_URL = previousUrl;
-      process.env.KV_REST_API_TOKEN = previousToken;
+      if (previousUrl === undefined) {
+        delete process.env.KV_REST_API_URL;
+      } else {
+        process.env.KV_REST_API_URL = previousUrl;
+      }
+      if (previousToken === undefined) {
+        delete process.env.KV_REST_API_TOKEN;
+      } else {
+        process.env.KV_REST_API_TOKEN = previousToken;
+      }
       mockKv.api.get = originalGet;
       try {
         await deleteEntry(path);
