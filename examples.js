@@ -1673,9 +1673,14 @@
         }
       }
       const backendHasTimestamp = backendUpdatedAtMs > 0;
+      const backendLacksTimestamp = !backendHasTimestamp;
       const backendIsStale = backendHasTimestamp && backendUpdatedAtMs < lastLocalUpdateMs;
+      const backendMissingTimestampButSafeToApply =
+        backendLacksTimestamp && (!hasLocalExamples || lastLocalUpdateMs === 0);
       const shouldApplyExamples = examples.length > 0 || !hasLocalExamples;
-      if (shouldApplyExamples && !backendIsStale) {
+      const backendCanBeApplied =
+        !backendIsStale && (backendHasTimestamp || backendMissingTimestampButSafeToApply);
+      if (shouldApplyExamples && backendCanBeApplied) {
         const previousIndex = Number.isInteger(currentExampleIndex) ? currentExampleIndex : null;
         await store(examples, {
           reason: 'backend-sync'
