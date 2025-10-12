@@ -356,16 +356,33 @@ function normalizePath(value) {
     normalized = normalized.slice(0, 512);
   }
 
+  normalized = uppercasePercentEncoding(normalized);
+
   if (/[^A-Za-z0-9\-_.~!$&'()*+,;=:@/%]/.test(normalized)) {
     const reencoded = encodePathWithFallback(normalized);
     if (reencoded) {
       normalized = reencoded.startsWith('/') ? reencoded : `/${reencoded.replace(/^\/+/, '')}`;
+      if (normalized.length > 1 && normalized.endsWith('/')) {
+        normalized = normalized.slice(0, -1);
+      }
+      normalized = uppercasePercentEncoding(normalized || '/');
     } else {
-      normalized = originalSanitized || '/';
+      normalized = encodePathWithFallback(originalSanitized || '/') || originalSanitized || '/';
+      if (!normalized.startsWith('/')) {
+        normalized = '/' + normalized.replace(/^\/+/, '');
+      }
+      if (normalized.length > 1 && normalized.endsWith('/')) {
+        normalized = normalized.slice(0, -1);
+      }
+      normalized = uppercasePercentEncoding(normalized || '/');
     }
-    if (normalized.length > 1 && normalized.endsWith('/')) {
-      normalized = normalized.slice(0, -1);
-    }
+  }
+
+  if (normalized.length > 512) {
+    normalized = normalized.slice(0, 512);
+  }
+  if (!normalized) {
+    normalized = '/';
   }
 
   return normalized;
@@ -376,6 +393,13 @@ function getStoragePathVariants(path) {
   const canonical = normalizePath(path);
   if (!canonical) return [];
   variants.add(canonical);
+  const encodedCanonical = encodePathWithFallback(canonical);
+  if (encodedCanonical) {
+    const formatted = encodedCanonical.startsWith('/')
+      ? encodedCanonical
+      : `/${encodedCanonical.replace(/^\/+/, '')}`;
+    variants.add(formatted.length > 1 && formatted.endsWith('/') ? formatted.slice(0, -1) : formatted);
+  }
   if (typeof path === 'string') {
     let trimmed = path.trim();
     if (trimmed) {
@@ -387,6 +411,13 @@ function getStoragePathVariants(path) {
       }
       if (trimmed) {
         variants.add(trimmed);
+        const encodedTrimmed = encodePathWithFallback(trimmed);
+        if (encodedTrimmed) {
+          const formatted = encodedTrimmed.startsWith('/')
+            ? encodedTrimmed
+            : `/${encodedTrimmed.replace(/^\/+/, '')}`;
+          variants.add(formatted.length > 1 && formatted.endsWith('/') ? formatted.slice(0, -1) : formatted);
+        }
       }
     }
   }
