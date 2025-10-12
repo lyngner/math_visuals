@@ -252,25 +252,27 @@ function normalizePath(value) {
   } else {
     decoded = String(path).toLowerCase();
   }
-  let encoded = decoded;
+  let normalized = decoded;
   try {
-    encoded = encodeURI(decoded);
+    const reencoded = encodeURI(decoded || '/');
+    normalized = decodeURI(
+      reencoded.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase())
+    );
   } catch (error) {
-    encoded = typeof decoded === 'string' ? decoded : path;
+    normalized = typeof decoded === 'string' && decoded ? decoded : path;
   }
-  if (!encoded) encoded = '/';
-  if (!encoded.startsWith('/')) {
-    encoded = '/' + encoded;
+  if (!normalized) normalized = '/';
+  if (!normalized.startsWith('/')) {
+    normalized = '/' + normalized;
   }
-  encoded = encoded.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
-  if (encoded.length > 1 && encoded.endsWith('/')) {
-    encoded = encoded.slice(0, -1);
+  if (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1);
   }
-  if (!encoded) encoded = '/';
-  if (encoded.length > 512) {
-    encoded = encoded.slice(0, 512);
+  if (!normalized) normalized = '/';
+  if (normalized.length > 512) {
+    normalized = normalized.slice(0, 512);
   }
-  return encoded;
+  return normalized;
 }
 
 function makeKey(path) {
