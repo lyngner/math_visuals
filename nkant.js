@@ -99,6 +99,67 @@ const STATE = {
   altTextSource: "auto"
 };
 const DEFAULT_STATE = JSON.parse(JSON.stringify(STATE));
+
+function cloneExampleState(value) {
+  if (value == null) return value;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    if (typeof value === "object") {
+      return Array.isArray(value) ? value.map(item => cloneExampleState(item)) : { ...value };
+    }
+    return value;
+  }
+}
+
+const NKANT_DEFAULT_SIMPLE_STATE = {
+  sides: 8,
+  showDiagonals: true,
+  snapAngle: 15,
+  radius: 160,
+  altText: "",
+  altTextSource: "auto"
+};
+
+const NKANT_FIVE_POINT_STAR_STATE = {
+  sides: 5,
+  showDiagonals: true,
+  snapAngle: 18,
+  radius: 150,
+  altText: "",
+  altTextSource: "auto"
+};
+
+const BUILTIN_NKANT_EXAMPLES = [
+  {
+    id: "nkant-åttekant",
+    title: "Regulær åttekant",
+    description: "Konstruer en regulær åttekant med diagonaler.",
+    exampleNumber: "1",
+    isDefault: true,
+    state: NKANT_DEFAULT_SIMPLE_STATE
+  },
+  {
+    id: "nkant-femkant-stjerne",
+    title: "Femkant med diagonaler",
+    description: "Vis diagonaler i en regulær femkant og undersøk vinklene.",
+    exampleNumber: "2",
+    state: NKANT_FIVE_POINT_STAR_STATE
+  }
+];
+
+if (typeof window !== "undefined") {
+  window.DEFAULT_EXAMPLES = BUILTIN_NKANT_EXAMPLES.map(example => ({
+    id: example.id,
+    title: example.title,
+    description: example.description,
+    exampleNumber: example.exampleNumber,
+    isDefault: example.isDefault === true,
+    config: {
+      STATE: cloneExampleState(example.state)
+    }
+  }));
+}
 function ensureStateDefaults() {
   const fill = (target, defaults) => {
     if (!defaults || typeof defaults !== "object") return;

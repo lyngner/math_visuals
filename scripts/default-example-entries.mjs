@@ -283,6 +283,31 @@ const DEFAULT_GRAFTEGNER_SIMPLE = {
   altTextSource: 'auto'
 };
 
+const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = {
+  axes: {
+    xMin: -7,
+    xMax: 7,
+    yMin: -2,
+    yMax: 2
+  },
+  expressions: [
+    {
+      id: 'expr-1',
+      latex: 'y=\\sin(x)',
+      color: '#0ea5e9',
+      visible: true
+    },
+    {
+      id: 'expr-2',
+      latex: 'y=\\cos(x)',
+      color: '#10b981',
+      visible: true
+    }
+  ],
+  altText: '',
+  altTextSource: 'auto'
+};
+
 const DEFAULT_KULER_SIMPLE = {
   beadRadius: 28,
   bowls: [
@@ -329,6 +354,15 @@ const DEFAULT_NKANT_STATE = {
   showDiagonals: true,
   snapAngle: 15,
   radius: 160,
+  altText: '',
+  altTextSource: 'auto'
+};
+
+const DEFAULT_NKANT_STAR_STATE = {
+  sides: 5,
+  showDiagonals: true,
+  snapAngle: 18,
+  radius: 150,
   altText: '',
   altTextSource: 'auto'
 };
@@ -539,8 +573,18 @@ export const DEFAULT_EXAMPLE_ENTRIES = [
         __builtinKey: 'graftegner-parabel-og-linje',
         title: 'Parabel og linje',
         description: 'Tegn grafene til y = x² − 1 og y = 2x + 3.',
+        exampleNumber: '1',
         config: {
           SIMPLE: DEFAULT_GRAFTEGNER_SIMPLE
+        }
+      },
+      {
+        __builtinKey: 'graftegner-sinus-og-cosinus',
+        title: 'Sinus og cosinus',
+        description: 'Sammenlign grafene til y = sin(x) og y = cos(x) over to perioder.',
+        exampleNumber: '2',
+        config: {
+          SIMPLE: DEFAULT_GRAFTEGNER_TRIG_SIMPLE
         }
       }
     ]
@@ -591,8 +635,18 @@ export const DEFAULT_EXAMPLE_ENTRIES = [
         __builtinKey: 'nkant-åttekant',
         title: 'Regulær åttekant',
         description: 'Konstruer en regulær åttekant med diagonaler.',
+        exampleNumber: '1',
         config: {
           STATE: DEFAULT_NKANT_STATE
+        }
+      },
+      {
+        __builtinKey: 'nkant-femkant-stjerne',
+        title: 'Femkant med diagonaler',
+        description: 'Vis diagonaler i en regulær femkant og undersøk vinklene.',
+        exampleNumber: '2',
+        config: {
+          STATE: DEFAULT_NKANT_STAR_STATE
         }
       }
     ]
