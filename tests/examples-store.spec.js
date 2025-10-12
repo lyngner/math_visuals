@@ -48,6 +48,7 @@ function createMockKv() {
 const mockKv = createMockKv();
 const kvModulePath = require.resolve('@vercel/kv');
 require.cache[kvModulePath] = { exports: { kv: mockKv.api } };
+global.__EXAMPLES_KV_CLIENT__ = mockKv.api;
 
 const {
   normalizePath,
@@ -163,15 +164,18 @@ test.describe('examples-store canonical entry handling', () => {
       const entry = await setEntry(path, payload);
       expect(entry).not.toBeNull();
       expect(entry.path).toBe('/diagram');
+      expect(entry.displayPath).toBe('/diagram');
 
       const canonical = await getEntry('/diagram');
       expect(canonical).not.toBeNull();
       expect(Array.isArray(canonical.examples)).toBe(true);
       expect(canonical.examples[0]).toMatchObject({ description: 'Legacy backend entry' });
+      expect(canonical.displayPath).toBe('/diagram');
 
       const htmlVariant = await getEntry('/diagram.html');
       expect(htmlVariant).not.toBeNull();
       expect(htmlVariant.path).toBe('/diagram');
+      expect(htmlVariant.displayPath).toBe('/diagram');
 
       const deletedKey = canonical.deletedProvided || [];
       expect(deletedKey).toContain('legacy-provided');
@@ -187,6 +191,10 @@ test.describe('examples-store KV verification', () => {
   test('fails when KV write verification does not return stored entry', async () => {
     const path = '/kv-verification-failure';
     const originalGet = mockKv.api.get;
+    const originalUrl = process.env.KV_REST_API_URL;
+    const originalToken = process.env.KV_REST_API_TOKEN;
+    process.env.KV_REST_API_URL = 'https://kv.example.test';
+    process.env.KV_REST_API_TOKEN = 'token';
     mockKv.api.get = async key => {
       if (typeof key === 'string' && key.includes('kv-verification-failure')) {
         return null;
@@ -197,6 +205,16 @@ test.describe('examples-store KV verification', () => {
     try {
       await expect(setEntry(path, { examples: [] })).rejects.toThrow(/verify/i);
     } finally {
+      if (originalUrl !== undefined) {
+        process.env.KV_REST_API_URL = originalUrl;
+      } else {
+        delete process.env.KV_REST_API_URL;
+      }
+      if (originalToken !== undefined) {
+        process.env.KV_REST_API_TOKEN = originalToken;
+      } else {
+        delete process.env.KV_REST_API_TOKEN;
+      }
       mockKv.api.get = originalGet;
       try {
         await deleteEntry(path);
@@ -224,6 +242,7 @@ test.describe('examples-store memory defaults', () => {
       expect(entry.storage).toBe('memory');
       expect(Array.isArray(entry.examples)).toBe(true);
       expect(entry.examples.length).toBeGreaterThan(0);
+      expect(entry.displayPath).toBe(path);
       expect(entry.examples[0]).toMatchObject({
         title: 'Plasser brøkene',
         isDefault: true

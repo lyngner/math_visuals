@@ -212,6 +212,9 @@ async function loadKvClient() {
       'Examples KV is not configured. Set KV_REST_API_URL and KV_REST_API_TOKEN to enable persistent storage.'
     );
   }
+  if (globalScope.__EXAMPLES_KV_CLIENT__ && typeof globalScope.__EXAMPLES_KV_CLIENT__ === 'object') {
+    return globalScope.__EXAMPLES_KV_CLIENT__;
+  }
   if (!kvClientPromise) {
     kvClientPromise = import('@vercel/kv')
       .then(mod => {
@@ -254,12 +257,15 @@ function normalizePath(value) {
   }
   let normalized = decoded;
   try {
-    const reencoded = encodeURI(decoded || '/');
-    normalized = decodeURI(
-      reencoded.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase())
-    );
+    normalized = encodeURI(decoded || '/')
+      .replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
   } catch (error) {
-    normalized = typeof decoded === 'string' && decoded ? decoded : path;
+    try {
+      normalized = encodeURI(path || '/')
+        .replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
+    } catch (_) {
+      normalized = typeof decoded === 'string' && decoded ? decoded : path;
+    }
   }
   if (!normalized) normalized = '/';
   if (!normalized.startsWith('/')) {
@@ -273,6 +279,40 @@ function normalizePath(value) {
     normalized = normalized.slice(0, 512);
   }
   return normalized;
+}
+
+function decodeDisplayPath(path) {
+  if (typeof path !== 'string') return null;
+  let trimmed = path.trim();
+  if (!trimmed) return null;
+  if (!trimmed.startsWith('/')) {
+    trimmed = '/' + trimmed.replace(/^\/+/g, '');
+  }
+  if (trimmed.length > 1 && trimmed.endsWith('/')) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  try {
+    const decoded = decodeURI(trimmed);
+    return decoded || '/';
+  } catch (error) {
+    return trimmed || '/';
+  }
+}
+
+function ensureDisplayPath(entry) {
+  if (!entry || typeof entry !== 'object') return entry;
+  const existing = typeof entry.displayPath === 'string' ? entry.displayPath.trim() : '';
+  if (existing) {
+    entry.displayPath = existing.startsWith('/') ? existing : `/${existing.replace(/^\/+/g, '')}`;
+    return entry;
+  }
+  const canonical = typeof entry.path === 'string' ? entry.path : null;
+  if (!canonical) return entry;
+  const decoded = decodeDisplayPath(canonical);
+  if (decoded) {
+    entry.displayPath = decoded;
+  }
+  return entry;
 }
 
 function makeKey(path) {
@@ -317,16 +357,19 @@ function buildEntry(path, payload) {
   const deletedProvided = sanitizeDeleted(payload.deletedProvided);
   const entry = {
     path,
+    displayPath: typeof payload.displayPath === 'string' ? payload.displayPath : undefined,
     examples,
     deletedProvided,
     updatedAt: typeof payload.updatedAt === 'string' ? payload.updatedAt : now
   };
+  ensureDisplayPath(entry);
   return entry;
 }
 
 function annotateForMemory(entry) {
   if (!entry || typeof entry !== 'object') return entry;
   const annotated = applyStorageMetadata({ ...entry }, 'memory');
+  ensureDisplayPath(annotated);
   return clone(annotated);
 }
 
@@ -343,6 +386,7 @@ function setMemoryEntry(path, payload) {
   if (!normalized) return null;
   const entry = buildEntry(normalized, payload || {});
   const annotated = applyStorageMetadata({ ...entry }, 'memory');
+  ensureDisplayPath(annotated);
   writeToMemory(normalized, annotated);
   return clone(annotated);
 }
@@ -362,6 +406,7 @@ function listMemoryEntries() {
     const stored = readFromMemory(normalized);
     if (!stored) return;
     const annotated = applyStorageMetadata({ ...stored }, 'memory');
+    ensureDisplayPath(annotated);
     entries.push(clone(annotated));
   });
   return entries;
@@ -460,6 +505,7 @@ async function getEntry(path) {
     if (kvValue) {
       const entry = buildEntry(normalized, kvValue);
       applyStorageMetadata(entry, 'kv');
+      ensureDisplayPath(entry);
       writeToMemory(normalized, entry);
       return clone(entry);
     }
@@ -470,6 +516,7 @@ async function getEntry(path) {
       ? 'memory'
       : memoryValue.mode || memoryValue.storage || storeMode;
     const entry = applyStorageMetadata(clone(memoryValue), entryMode);
+    ensureDisplayPath(entry);
     return entry;
   }
   return null;
@@ -483,10 +530,12 @@ async function setEntry(path, payload) {
   if (storeMode === 'kv') {
     await writeToKv(normalized, entry);
     const annotated = applyStorageMetadata({ ...entry }, 'kv');
+    ensureDisplayPath(annotated);
     writeToMemory(normalized, annotated);
     return clone(annotated);
   }
   const annotated = applyStorageMetadata(entry, storeMode);
+  ensureDisplayPath(annotated);
   writeToMemory(normalized, annotated);
   return clone(annotated);
 }
@@ -521,6 +570,7 @@ async function listEntries() {
       if (!stored) continue;
       const entry = buildEntry(normalized, stored);
       applyStorageMetadata(entry, 'kv');
+      ensureDisplayPath(entry);
       writeToMemory(normalized, entry);
       entries.push(clone(entry));
     }
@@ -532,6 +582,7 @@ async function listEntries() {
     const stored = readFromMemory(normalized);
     if (!stored) return;
     const annotated = applyStorageMetadata(stored, storeMode);
+    ensureDisplayPath(annotated);
     entries.push(clone(annotated));
   });
   return entries;
@@ -590,7 +641,7 @@ async function seedMemoryStoreWithDefaults(options = {}) {
       deletedProvided: Array.isArray(entry.deletedProvided) ? entry.deletedProvided.slice() : [],
       updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : undefined
     };
-    const stored = setMemoryEntry(targetPath, payload);
+    const stored = setMemoryEntry(entry.path, payload);
     if (stored) {
       seeded.push(stored);
     }

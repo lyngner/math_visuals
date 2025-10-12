@@ -184,6 +184,33 @@ function normalizePath(value) {
   }
   return path || '/';
 }
+
+function resolveDisplayPath(path, displayPath) {
+  const candidates = [];
+  if (typeof displayPath === 'string') {
+    candidates.push(displayPath);
+  }
+  if (typeof path === 'string') {
+    candidates.push(path);
+  }
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    let value = candidate.trim();
+    if (!value) continue;
+    if (!value.startsWith('/')) {
+      value = '/' + value.replace(/^\/+/g, '');
+    }
+    try {
+      const decoded = decodeURI(value);
+      const normalized = normalizePath(decoded);
+      if (normalized) return normalized;
+    } catch (error) {
+      const normalized = normalizePath(value);
+      if (normalized) return normalized;
+    }
+  }
+  return '/';
+}
 const examplesApiBase = resolveExamplesApiBase();
 const backendEntriesCache = new Map();
 let backendStoreMode = null;
@@ -375,17 +402,21 @@ function setStatusMessage(message, type) {
 }
 function getCachedEntry(path) {
   const entry = backendEntriesCache.get(path);
-  if (!entry) return { path, examples: [], deletedProvided: [], updatedAt: null };
+  const displayPath = resolveDisplayPath(path, entry && entry.displayPath);
+  if (!entry) return { path, displayPath, examples: [], deletedProvided: [], updatedAt: null };
   return {
     path,
+    displayPath,
     examples: Array.isArray(entry.examples) ? entry.examples.slice() : [],
     deletedProvided: Array.isArray(entry.deletedProvided) ? entry.deletedProvided.slice() : [],
     updatedAt: entry && entry.updatedAt ? entry.updatedAt : null
   };
 }
 function updateBackendCache(path, entry) {
+  const displayPath = resolveDisplayPath(path, entry && entry.displayPath);
   backendEntriesCache.set(path, {
     path,
+    displayPath,
     examples: entry && Array.isArray(entry.examples) ? entry.examples.slice() : [],
     deletedProvided: entry && Array.isArray(entry.deletedProvided) ? entry.deletedProvided.slice() : [],
     updatedAt: entry && entry.updatedAt ? entry.updatedAt : null
@@ -397,6 +428,7 @@ async function persistBackendEntry(path, entry) {
   if (!url) return;
   const examples = entry && Array.isArray(entry.examples) ? entry.examples : [];
   const deletedProvided = entry && Array.isArray(entry.deletedProvided) ? entry.deletedProvided.filter(value => typeof value === 'string' && value.trim()) : [];
+  const displayPath = resolveDisplayPath(path, entry && entry.displayPath);
   try {
     if (!examples.length && !deletedProvided.length) {
       const res = await fetch(url, { method: 'DELETE' });
@@ -405,12 +437,13 @@ async function persistBackendEntry(path, entry) {
         setStatusMessage('', '');
         applyStoreModeFromResponse(res);
       } else {
-        setStatusMessage(`Kunne ikke fjerne eksempelet «${path}» fra serveren.`, 'error');
+        setStatusMessage(`Kunne ikke fjerne eksempelet «${displayPath}» fra serveren.`, 'error');
       }
       return;
     }
     const payload = {
       path,
+      displayPath,
       examples,
       deletedProvided,
       updatedAt: new Date().toISOString()
@@ -423,7 +456,7 @@ async function persistBackendEntry(path, entry) {
       body: JSON.stringify(payload)
     });
     if (!response.ok) {
-      setStatusMessage(`Kunne ikke lagre endringene for «${path}» på serveren.`, 'error');
+      setStatusMessage(`Kunne ikke lagre endringene for «${displayPath}» på serveren.`, 'error');
       return;
     }
     let persisted = null;
@@ -440,7 +473,7 @@ async function persistBackendEntry(path, entry) {
     setStatusMessage('', '');
     applyStoreModeFromResponse(response, persisted);
   } catch (error) {
-    setStatusMessage(`Kunne ikke lagre endringene for «${path}» på serveren.`, 'error');
+    setStatusMessage(`Kunne ikke lagre endringene for «${displayPath}» på serveren.`, 'error');
   }
 }
 function rememberExampleSelection(path, index) {
@@ -492,10 +525,12 @@ async function fetchBackendEntries() {
     if (!item || typeof item !== 'object') return;
     const path = normalizePath(item.path);
     if (!path) return;
+    const displayPath = resolveDisplayPath(path, item.displayPath);
     const examples = Array.isArray(item.examples) ? item.examples : [];
     const deletedProvided = Array.isArray(item.deletedProvided) ? item.deletedProvided.filter(value => typeof value === 'string' && value.trim()) : [];
     const entry = {
       path,
+      displayPath,
       examples,
       deletedProvided,
       updatedAt: item.updatedAt || null
@@ -504,6 +539,7 @@ async function fetchBackendEntries() {
     if (examples.length) {
       normalized.push({
         path,
+        displayPath,
         examples
       });
     }
@@ -522,10 +558,15 @@ async function renderExamples(options) {
     if (!entry || !Array.isArray(entry.examples) || entry.examples.length === 0) return;
     sections.push({
       path: entry.path,
+      displayPath: resolveDisplayPath(entry.path, entry.displayPath),
       examples: entry.examples.slice()
     });
   });
-  sections.sort((a, b) => a.path.localeCompare(b.path));
+  sections.sort((a, b) => {
+    const left = (a.displayPath || a.path || '').toString();
+    const right = (b.displayPath || b.path || '').toString();
+    return left.localeCompare(right);
+  });
   container.innerHTML = '';
   let descriptionRendererPromise = null;
   let rendererLoadFailed = false;
@@ -577,11 +618,12 @@ async function renderExamples(options) {
     }
   };
   for (const sectionData of sections) {
-    const { path, examples } = sectionData;
+    const { path, displayPath, examples } = sectionData;
     if (!Array.isArray(examples) || examples.length === 0) continue;
+    const visiblePath = displayPath || resolveDisplayPath(path);
     const section = document.createElement('section');
     const h2 = document.createElement('h2');
-    h2.textContent = path;
+    h2.textContent = visiblePath;
     section.appendChild(h2);
     for (let idx = 0; idx < examples.length; idx++) {
       const ex = examples[idx];
@@ -589,7 +631,7 @@ async function renderExamples(options) {
       wrap.className = 'example';
       const iframe = document.createElement('iframe');
       iframe.setAttribute('loading', 'lazy');
-      iframe.title = `Eksempel ${idx + 1} – ${path}`;
+      iframe.title = `Eksempel ${idx + 1} – ${visiblePath}`;
       try {
         const url = new URL(path, window.location.href);
         url.searchParams.set('example', String(idx + 1));
@@ -646,6 +688,7 @@ async function renderExamples(options) {
         if (updated.length || deletedProvided.length) {
           updateBackendCache(path, {
             path,
+            displayPath: cached.displayPath,
             examples: updated,
             deletedProvided
           });
@@ -654,7 +697,8 @@ async function renderExamples(options) {
         }
         await persistBackendEntry(path, {
           examples: updated,
-          deletedProvided
+          deletedProvided,
+          displayPath: cached.displayPath
         });
         renderExamples({ skipBackend: true });
       });
