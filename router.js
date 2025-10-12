@@ -542,6 +542,7 @@ function renderTaskStrip(tasks) {
     button.dataset.entryPath = task.normalizedPath;
     button.dataset.exampleNumber = String(task.exampleNumber);
     button.dataset.label = task.label;
+    button.textContent = String(task.exampleNumber);
     button.setAttribute('aria-label', `${task.label} – ${task.entry.label}`);
     button.addEventListener('click', () => {
       const isSameEntry = currentEntry === task.entry;
