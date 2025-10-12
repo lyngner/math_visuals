@@ -123,3 +123,27 @@ test.describe('Examples viewer – auto seeded defaults', () => {
     await expect(pizzaExamples).not.toHaveCount(0);
   });
 });
+
+test.describe('Examples viewer – missing API diagnostics', () => {
+  test('shows guidance when API responds with non-JSON 404', async ({ page, context }) => {
+    await context.route('**/api/examples**', route => {
+      route.fulfill({
+        status: 404,
+        contentType: 'text/html',
+        body: '<html><body>Not Found</body></html>'
+      });
+    });
+
+    try {
+      await page.goto(VIEWER_FIXTURE_PATH, { waitUntil: 'load' });
+
+      const status = page.locator('#examples-status');
+      await expect(status).toBeVisible();
+      await expect(status).toHaveAttribute('data-status-type', 'error');
+      await expect(status).toContainText(/eksempeltjenesten/i);
+      await expect(status).toContainText('/api/examples');
+    } finally {
+      await context.unroute('**/api/examples**');
+    }
+  });
+});

@@ -1,6 +1,9 @@
 (function () {
   'use strict';
 
+  const MISSING_API_GUIDANCE =
+    'Fant ikke eksempeltjenesten (/api/examples). Sjekk at back-end kjører og at distribusjonen inkluderer serverless-funksjoner.';
+
   function resolveExamplesApiBase() {
     if (typeof window === 'undefined') return null;
     if (window.MATH_VISUALS_EXAMPLES_API_URL) {
@@ -32,6 +35,43 @@
       const sep = base.includes('?') ? '&' : '?';
       return `${base}${sep}path=${encodeURIComponent(path)}`;
     }
+  }
+
+  function extractContentType(headers) {
+    if (!headers) return null;
+    let value = null;
+    try {
+      if (typeof headers.get === 'function') {
+        value = headers.get('content-type') || headers.get('Content-Type');
+      }
+    } catch (_) {
+      value = null;
+    }
+    if (!value && typeof headers === 'object') {
+      try {
+        value = headers['content-type'] || headers['Content-Type'] || null;
+      } catch (_) {
+        value = null;
+      }
+    }
+    return typeof value === 'string' ? value : null;
+  }
+
+  function isJsonContentType(value) {
+    if (typeof value !== 'string') return false;
+    const [first] = value.split(';', 1);
+    const normalized = (first || value).trim().toLowerCase();
+    if (!normalized) return false;
+    if (normalized === 'application/json') return true;
+    if (normalized.endsWith('+json')) return true;
+    if (/\bjson\b/.test(normalized)) return true;
+    return false;
+  }
+
+  function responseLooksLikeJson(res) {
+    if (!res) return false;
+    const header = extractContentType(res.headers);
+    return isJsonContentType(header);
   }
 
   function normalizePath(value) {
@@ -237,7 +277,15 @@
     } catch (error) {
       throw new Error('Kunne ikke kontakte eksempeltjenesten.');
     }
+    if (!responseLooksLikeJson(response)) {
+      const suffix = Number.isFinite(response && response.status) ? ` (status ${response.status})` : '';
+      throw new Error(`${MISSING_API_GUIDANCE}${suffix}`);
+    }
     if (!response.ok) {
+      if (response.status === 404) {
+        const suffix = Number.isFinite(response.status) ? ` (status ${response.status})` : '';
+        throw new Error(`${MISSING_API_GUIDANCE}${suffix}`);
+      }
       throw new Error(`Serveren svarte med ${response.status}.`);
     }
     let payload;
