@@ -3411,26 +3411,29 @@
     });
   }
   // Load example if viewer requested
-  (function () {
-    if (hasUrlOverrides) return;
-    const selectionKey = 'example_to_load';
-    let loadInfo = localStorageGetItem(selectionKey);
-    if (!loadInfo) {
-      loadInfo = storageGetItem(selectionKey);
-    }
-    if (!loadInfo) return;
-    try {
-      const {
-        path,
-        index
-      } = JSON.parse(loadInfo);
-      if (path === location.pathname) {
-        if (loadExample(index)) initialLoadPerformed = true;
+    (function () {
+      if (hasUrlOverrides) return;
+      const selectionKey = 'example_to_load';
+      let loadInfo = storageGetItem(selectionKey);
+      if (!loadInfo) {
+        loadInfo = localStorageGetItem(selectionKey);
       }
-    } catch (error) {}
-    localStorageRemoveItem(selectionKey);
-    storageRemoveItem(selectionKey);
-  })();
+      if (!loadInfo) return;
+      try {
+        const {
+          path,
+          index
+        } = JSON.parse(loadInfo);
+        const targetPath = typeof path === 'string' ? path : null;
+        const normalizedTarget = targetPath ? normalizePathname(targetPath) : null;
+        const normalizedCurrent = normalizePathname(location && location.pathname ? location.pathname : '');
+        if (normalizedTarget && normalizedTarget === normalizedCurrent) {
+          if (loadExample(index)) initialLoadPerformed = true;
+        }
+      } catch (error) {}
+      storageRemoveItem(selectionKey);
+      localStorageRemoveItem(selectionKey);
+    })();
   const createBtn = document.getElementById('btnSaveExample');
   const updateBtn = document.getElementById('btnUpdateExample');
   const deleteBtn = document.getElementById('btnDeleteExample');
