@@ -170,27 +170,27 @@ const BUILTIN_GRAFTEGNER_EXAMPLES = [
     description: 'Tegn grafene til y = x² − 1 og y = 2x + 3.',
     exampleNumber: '1',
     isDefault: true,
-    simple: DEFAULT_GRAFTEGNER_SIMPLE,
-    fallbackSimple: DEFAULT_GRAFTEGNER_SIMPLE
+    defaultSimple: DEFAULT_GRAFTEGNER_SIMPLE
   },
   {
     id: 'graftegner-sinus-og-cosinus',
     title: 'Sinus og cosinus',
     description: 'Sammenlign grafene til y = sin(x) og y = cos(x) over to perioder.',
     exampleNumber: '2',
-    simple: DEFAULT_GRAFTEGNER_TRIG_SIMPLE,
-    fallbackSimple: DEFAULT_GRAFTEGNER_TRIG_SIMPLE
+    defaultSimple: DEFAULT_GRAFTEGNER_TRIG_SIMPLE
   }
 ];
 
+function resolveBuiltinSimple(example) {
+  const defaultSimple = ensureSimpleString(cloneExampleConfig(example && example.defaultSimple)) || DEFAULT_GRAFTEGNER_SIMPLE;
+  const normalizedSimple = ensureSimpleString(cloneExampleConfig(example && example.simple));
+  const normalizedFallback = ensureSimpleString(cloneExampleConfig(example && example.fallbackSimple));
+  return normalizedSimple || normalizedFallback || defaultSimple;
+}
+
 if (typeof window !== 'undefined') {
   window.DEFAULT_EXAMPLES = BUILTIN_GRAFTEGNER_EXAMPLES.map(example => {
-    const simpleClone = cloneExampleConfig(example.simple);
-    const normalizedSimple = ensureSimpleString(simpleClone);
-    const fallbackSimple =
-      ensureSimpleString(example.fallbackSimple) ||
-      (typeof example.simple === 'string' ? example.simple : '') ||
-      DEFAULT_GRAFTEGNER_SIMPLE;
+    const resolvedSimple = resolveBuiltinSimple(example);
     return {
       id: example.id,
       title: example.title,
@@ -198,7 +198,7 @@ if (typeof window !== 'undefined') {
       exampleNumber: example.exampleNumber,
       isDefault: example.isDefault === true,
       config: {
-        SIMPLE: normalizedSimple || fallbackSimple || DEFAULT_GRAFTEGNER_SIMPLE
+        SIMPLE: resolvedSimple
       }
     };
   });
