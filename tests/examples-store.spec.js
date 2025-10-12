@@ -147,6 +147,7 @@ test.describe('examples-store path normalization', () => {
     });
     expect(normalizePath('/Br%C3%98KVEGG.HTML')).toBe('/br%C3%B8kvegg');
     expect(normalizePath('/brøkvegg/index.html')).toBe('/br%C3%B8kvegg');
+    expect(normalizePath('/brøkvegg')).toBe('/br%C3%B8kvegg');
   });
 });
 

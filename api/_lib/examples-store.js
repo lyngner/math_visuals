@@ -271,19 +271,36 @@ function encodePathWithFallback(value) {
 
   try {
     let out = '';
-    for (const char of value) {
+    for (let index = 0; index < value.length;) {
+      const char = value[index];
       if (char === '/') {
         out += char;
+        index += 1;
         continue;
       }
-      if (SAFE_PATH_CHARS.has(char)) {
-        out += char;
+      if (char === '%') {
+        const nextTwo = value.slice(index + 1, index + 3);
+        if (/^[0-9a-fA-F]{2}$/.test(nextTwo)) {
+          out += `%${nextTwo.toUpperCase()}`;
+          index += 3;
+          continue;
+        }
+        out += '%25';
+        index += 1;
         continue;
       }
-      const bytes = Buffer.from(char);
+      const codePoint = value.codePointAt(index);
+      const character = String.fromCodePoint(codePoint);
+      if (SAFE_PATH_CHARS.has(character)) {
+        out += character;
+        index += character.length;
+        continue;
+      }
+      const bytes = Buffer.from(character);
       for (const byte of bytes) {
         out += `%${byte.toString(16).toUpperCase().padStart(2, '0')}`;
       }
+      index += character.length;
     }
     if (out) {
       return out;
@@ -309,6 +326,7 @@ function normalizePath(value) {
     path = path.slice(0, -1);
   }
   if (!path) path = '/';
+  const originalSanitized = uppercasePercentEncoding(path);
   let decoded = path;
   try {
     decoded = decodeURI(path);
@@ -321,10 +339,10 @@ function normalizePath(value) {
 
   let normalized = encodePathWithFallback(decoded || '/');
   if (!normalized) {
-    normalized = encodePathWithFallback(path || '/');
+    normalized = encodePathWithFallback(originalSanitized || '/');
   }
   if (!normalized) {
-    normalized = '/';
+    normalized = originalSanitized || '/';
   }
 
   if (!normalized.startsWith('/')) {
@@ -337,6 +355,19 @@ function normalizePath(value) {
   if (normalized.length > 512) {
     normalized = normalized.slice(0, 512);
   }
+
+  if (/[^A-Za-z0-9\-_.~!$&'()*+,;=:@/%]/.test(normalized)) {
+    const reencoded = encodePathWithFallback(normalized);
+    if (reencoded) {
+      normalized = reencoded.startsWith('/') ? reencoded : `/${reencoded.replace(/^\/+/, '')}`;
+    } else {
+      normalized = originalSanitized || '/';
+    }
+    if (normalized.length > 1 && normalized.endsWith('/')) {
+      normalized = normalized.slice(0, -1);
+    }
+  }
+
   return normalized;
 }
 
