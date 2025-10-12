@@ -29,10 +29,11 @@ For en komplett «teskje»-guide til lokal kjøring på Mac (inkludert riktig No
 ## Feilsøking
 
 1. Åpne `/api/examples` i nettleseren for å bekrefte at API-et svarer.
-2. Undersøk nettverkspanelet i utviklerverktøyene og se etter blokkerte forespørsler.
-3. Kontroller at `EXAMPLES_ALLOWED_ORIGINS` inkluderer opprinnelsen du tester fra.
-4. Verifiser at `KV_REST_API_URL` og `KV_REST_API_TOKEN` er satt i miljøet der API-et kjører. Husk at Vercel har egne sett med variabler for **Development**, **Preview** og **Production** – legg dem inn i den/de miljøene som skal bruke permanent lagring, og redeployer etterpå.
-5. Hvis det kun feiler i en distribuert versjon, kjør `npm run check-examples-api -- --url=https://ditt-domene/api/examples` for å bekrefte om back-end rapporterer «midlertidig minne». Det betyr at den kjørende instansen ikke finner KV-nøklene sine.
+2. Hvis Vercel returnerer `FUNCTION_NOT_FOUND`, er prosjektet distribuert som ren statisk hosting. Fjern eventuell manuelt satt «Output Directory»/override slik at `api/`-mappen tas med, og redeployer med serverless-funksjoner aktivert.
+3. Undersøk nettverkspanelet i utviklerverktøyene og se etter blokkerte forespørsler.
+4. Kontroller at `EXAMPLES_ALLOWED_ORIGINS` inkluderer opprinnelsen du tester fra.
+5. Verifiser at `KV_REST_API_URL` og `KV_REST_API_TOKEN` er satt i miljøet der API-et kjører. Husk at Vercel har egne sett med variabler for **Development**, **Preview** og **Production** – legg dem inn i den/de miljøene som skal bruke permanent lagring, og redeployer etterpå.
+6. Hvis det kun feiler i en distribuert versjon, kjør `npm run check-examples-api -- --url=https://ditt-domene/api/examples` for å bekrefte om back-end rapporterer «midlertidig minne». Det betyr at den kjørende instansen ikke finner KV-nøklene sine.
 
 > **Merk:** Det er bare `KV_REST_API_URL` og `KV_REST_API_TOKEN` som brukes av `/api/examples`. Andre nøkler som `KV_URL`, `REDIS_URL` eller `KV_REST_API_READ_ONLY_TOKEN` kan ignoreres dersom du ikke har andre tjenester som trenger dem – men del aldri de faktiske verdiene i klartekst utenfor sikre miljøvariabler.
 
