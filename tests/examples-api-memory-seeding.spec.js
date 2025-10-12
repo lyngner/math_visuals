@@ -46,14 +46,16 @@ test.describe('Examples API – memory auto-seeding', () => {
     expect(Array.isArray(response.json.entries)).toBe(true);
     expect(response.json.entries.length).toBeGreaterThan(0);
 
-    const tallinjeEntry = response.json.entries.find(entry => entry.path === DEFAULT_SEEDED_PATH);
+    const tallinjeEntry = response.json.entries.find(entry => entry.displayPath === DEFAULT_SEEDED_PATH);
     expect(tallinjeEntry).toBeTruthy();
+    expect(tallinjeEntry.path).toBe(encodeURI(DEFAULT_SEEDED_PATH));
     expect(Array.isArray(tallinjeEntry.examples)).toBe(true);
     expect(tallinjeEntry.examples.length).toBeGreaterThan(0);
 
     for (const path of ADDITIONAL_SEEDED_PATHS) {
-      const entry = response.json.entries.find(item => item.path === path);
+      const entry = response.json.entries.find(item => item.displayPath === path);
       expect(entry).toBeTruthy();
+      expect(entry.path).toBe(encodeURI(path));
       expect(Array.isArray(entry.examples)).toBe(true);
       expect(entry.examples.length).toBeGreaterThan(0);
       expect(entry.examples[0].__builtinKey).toBeTruthy();
@@ -67,7 +69,8 @@ test.describe('Examples API – memory auto-seeding', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json).toBeTruthy();
-    expect(response.json.path).toBe('/diagram');
+    expect(response.json.path).toBe(encodeURI('/diagram'));
+    expect(response.json.displayPath).toBe('/diagram');
     expect(response.json.mode).toBe('memory');
     expect(response.json.storage).toBe('memory');
     expect(Array.isArray(response.json.examples)).toBe(true);
