@@ -3007,7 +3007,7 @@
     cachedExamples = [];
     return cachedExamples;
   }
-  const USER_INITIATED_REASONS = new Set(['manual-save', 'manual-update', 'delete', 'ensure-default', 'history']);
+  const USER_INITIATED_REASONS = new Set(['manual-save', 'manual-update', 'delete', 'history']);
   function isUserInitiatedReason(reason) {
     return typeof reason === 'string' && USER_INITIATED_REASONS.has(reason);
   }
