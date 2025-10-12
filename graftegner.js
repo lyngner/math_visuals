@@ -85,6 +85,99 @@ function whenJXGReady(callback) {
 const DEFAULT_CURVE_COLORS = ['#9333ea', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
 const CAMPUS_CURVE_ORDER = [0, 5, 2, 3, 4, 1];
 const DEFAULT_FUNCTION_EXPRESSION = 'f(x)=x^2-2';
+
+function cloneExampleConfig(value) {
+  if (value == null) return value;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    if (typeof value === 'object') {
+      return Array.isArray(value) ? value.map(item => cloneExampleConfig(item)) : { ...value };
+    }
+    return value;
+  }
+}
+
+const DEFAULT_GRAFTEGNER_SIMPLE = {
+  axes: {
+    xMin: -5,
+    xMax: 5,
+    yMin: -4,
+    yMax: 6
+  },
+  expressions: [
+    {
+      id: 'expr-1',
+      latex: 'y=x^2-1',
+      color: '#2563eb',
+      visible: true
+    },
+    {
+      id: 'expr-2',
+      latex: 'y=2x+3',
+      color: '#f97316',
+      visible: true
+    }
+  ],
+  altText: '',
+  altTextSource: 'auto'
+};
+
+const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = {
+  axes: {
+    xMin: -7,
+    xMax: 7,
+    yMin: -2,
+    yMax: 2
+  },
+  expressions: [
+    {
+      id: 'expr-1',
+      latex: 'y=\\sin(x)',
+      color: '#0ea5e9',
+      visible: true
+    },
+    {
+      id: 'expr-2',
+      latex: 'y=\\cos(x)',
+      color: '#10b981',
+      visible: true
+    }
+  ],
+  altText: '',
+  altTextSource: 'auto'
+};
+
+const BUILTIN_GRAFTEGNER_EXAMPLES = [
+  {
+    id: 'graftegner-parabel-og-linje',
+    title: 'Parabel og linje',
+    description: 'Tegn grafene til y = x² − 1 og y = 2x + 3.',
+    exampleNumber: '1',
+    isDefault: true,
+    simpleConfig: DEFAULT_GRAFTEGNER_SIMPLE
+  },
+  {
+    id: 'graftegner-sinus-og-cosinus',
+    title: 'Sinus og cosinus',
+    description: 'Sammenlign grafene til y = sin(x) og y = cos(x) over to perioder.',
+    exampleNumber: '2',
+    simpleConfig: DEFAULT_GRAFTEGNER_TRIG_SIMPLE
+  }
+];
+
+if (typeof window !== 'undefined') {
+  window.DEFAULT_EXAMPLES = BUILTIN_GRAFTEGNER_EXAMPLES.map(example => ({
+    id: example.id,
+    title: example.title,
+    description: example.description,
+    exampleNumber: example.exampleNumber,
+    isDefault: example.isDefault === true,
+    config: {
+      SIMPLE: cloneExampleConfig(example.simpleConfig)
+    }
+  }));
+}
 function getThemeApi() {
   const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
   return theme && typeof theme === 'object' ? theme : null;
