@@ -264,6 +264,45 @@ function resolveStoreMode(res, payload) {
 }
 
 const MEMORY_WARNING_TEXT = 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.';
+const MISSING_API_GUIDANCE =
+  'Fant ikke eksempeltjenesten (/api/examples). Sjekk at back-end kjører og at distribusjonen inkluderer serverless-funksjoner.';
+
+function extractContentType(headers) {
+  if (!headers) return null;
+  let value = null;
+  try {
+    if (typeof headers.get === 'function') {
+      value = headers.get('content-type') || headers.get('Content-Type');
+    }
+  } catch (_) {
+    value = null;
+  }
+  if (!value && typeof headers === 'object') {
+    try {
+      value = headers['content-type'] || headers['Content-Type'] || null;
+    } catch (_) {
+      value = null;
+    }
+  }
+  return typeof value === 'string' ? value : null;
+}
+
+function isJsonContentType(value) {
+  if (typeof value !== 'string') return false;
+  const [first] = value.split(';', 1);
+  const normalized = (first || value).trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized === 'application/json') return true;
+  if (normalized.endsWith('+json')) return true;
+  if (/\bjson\b/.test(normalized)) return true;
+  return false;
+}
+
+function responseLooksLikeJson(res) {
+  if (!res) return false;
+  const header = extractContentType(res.headers);
+  return isJsonContentType(header);
+}
 
 function ensureStoreBannerElement() {
   if (typeof document === 'undefined') return null;
@@ -373,6 +412,11 @@ function setStatusMessage(message, type) {
   el.classList.toggle('examples-status--error', normalizedType === 'error');
   el.classList.toggle('examples-status--warning', normalizedType === 'warning');
 }
+
+function reportMissingExamplesApi(status) {
+  const suffix = Number.isFinite(status) ? ` (status ${status})` : '';
+  setStatusMessage(`${MISSING_API_GUIDANCE}${suffix}`, 'error');
+}
 function getCachedEntry(path) {
   const entry = backendEntriesCache.get(path);
   if (!entry) return { path, examples: [], deletedProvided: [], updatedAt: null };
@@ -400,6 +444,10 @@ async function persistBackendEntry(path, entry) {
   try {
     if (!examples.length && !deletedProvided.length) {
       const res = await fetch(url, { method: 'DELETE' });
+      if (!responseLooksLikeJson(res)) {
+        reportMissingExamplesApi(res && res.status);
+        return;
+      }
       if (res.ok || res.status === 404) {
         backendEntriesCache.delete(path);
         setStatusMessage('', '');
@@ -422,6 +470,10 @@ async function persistBackendEntry(path, entry) {
       },
       body: JSON.stringify(payload)
     });
+    if (!responseLooksLikeJson(response)) {
+      reportMissingExamplesApi(response && response.status);
+      return;
+    }
     if (!response.ok) {
       setStatusMessage(`Kunne ikke lagre endringene for «${path}» på serveren.`, 'error');
       return;
@@ -473,8 +525,16 @@ async function fetchBackendEntries() {
     setStatusMessage('Kunne ikke hente eksempler fra serveren.', 'error');
     return null;
   }
+  if (!responseLooksLikeJson(res)) {
+    reportMissingExamplesApi(res && res.status);
+    return null;
+  }
   if (!res.ok) {
-    setStatusMessage(`Serveren svarte med ${res.status}.`, 'error');
+    if (res.status === 404) {
+      reportMissingExamplesApi(res.status);
+    } else {
+      setStatusMessage(`Serveren svarte med ${res.status}.`, 'error');
+    }
     return null;
   }
   let data = null;

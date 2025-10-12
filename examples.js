@@ -532,6 +532,40 @@
       return `${base}${sep}path=${encodeURIComponent(path)}`;
     }
   }
+  function extractContentType(headers) {
+    if (!headers) return null;
+    let value = null;
+    try {
+      if (typeof headers.get === 'function') {
+        value = headers.get('content-type') || headers.get('Content-Type');
+      }
+    } catch (_) {
+      value = null;
+    }
+    if (!value && typeof headers === 'object') {
+      try {
+        value = headers['content-type'] || headers['Content-Type'] || null;
+      } catch (_) {
+        value = null;
+      }
+    }
+    return typeof value === 'string' ? value : null;
+  }
+  function isJsonContentType(value) {
+    if (typeof value !== 'string') return false;
+    const [first] = value.split(';', 1);
+    const normalized = (first || value).trim().toLowerCase();
+    if (!normalized) return false;
+    if (normalized === 'application/json') return true;
+    if (normalized.endsWith('+json')) return true;
+    if (/\bjson\b/.test(normalized)) return true;
+    return false;
+  }
+  function responseLooksLikeJson(res) {
+    if (!res) return false;
+    const header = extractContentType(res.headers);
+    return isJsonContentType(header);
+  }
   function normalizePathname(pathname, options) {
     const preserveCase = !!(options && options.preserveCase);
     if (typeof pathname !== 'string') return '/';
@@ -1343,6 +1377,7 @@
   let backendNoticeElement = null;
   let backendNoticeDomReadyHandler = null;
   let backendNoticeMode = null;
+  let backendUnavailableReason = null;
 
   function resolveBackendNoticeHost() {
     if (typeof document === 'undefined') return null;
@@ -1375,7 +1410,7 @@
 
   function showBackendNotice(mode) {
     if (typeof document === 'undefined') return;
-    const normalizedMode = mode === 'memory' ? 'memory' : 'offline';
+    const normalizedMode = mode === 'memory' ? 'memory' : mode === 'missing' ? 'missing' : 'offline';
     const render = () => {
       const host = resolveBackendNoticeHost();
       if (!host) return;
@@ -1386,12 +1421,19 @@
         notice.setAttribute('role', 'alert');
         const title = document.createElement('strong');
         title.className = 'example-backend-notice__title';
-        title.textContent = normalizedMode === 'memory' ? 'Midlertidig lagring' : 'Ingen backend-tilkobling';
+        title.textContent =
+          normalizedMode === 'memory'
+            ? 'Midlertidig lagring'
+            : normalizedMode === 'missing'
+            ? 'Eksempeltjenesten mangler'
+            : 'Ingen backend-tilkobling';
         const message = document.createElement('span');
         message.className = 'example-backend-notice__message';
         message.textContent =
           normalizedMode === 'memory'
             ? 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.'
+            : normalizedMode === 'missing'
+            ? 'Fant ikke eksempeltjenesten (/api/examples). Sjekk at back-end kjører med serverless-funksjoner.'
             : 'Endringer lagres midlertidig og kan gå tapt hvis siden lastes på nytt.';
         notice.appendChild(title);
         notice.appendChild(document.createTextNode(' '));
@@ -1399,13 +1441,20 @@
       } else {
         const title = notice.querySelector('.example-backend-notice__title');
         if (title) {
-          title.textContent = normalizedMode === 'memory' ? 'Midlertidig lagring' : 'Ingen backend-tilkobling';
+          title.textContent =
+            normalizedMode === 'memory'
+              ? 'Midlertidig lagring'
+              : normalizedMode === 'missing'
+              ? 'Eksempeltjenesten mangler'
+              : 'Ingen backend-tilkobling';
         }
         const message = notice.querySelector('.example-backend-notice__message');
         if (message) {
           message.textContent =
             normalizedMode === 'memory'
               ? 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.'
+              : normalizedMode === 'missing'
+              ? 'Fant ikke eksempeltjenesten (/api/examples). Sjekk at back-end kjører med serverless-funksjoner.'
               : 'Endringer lagres midlertidig og kan gå tapt hvis siden lastes på nytt.';
         }
       }
@@ -1435,9 +1484,11 @@
       hideBackendNotice();
       return;
     }
-    if (!backendAvailable || backendMode === 'offline') {
-      if (backendNoticeMode !== 'offline' || !backendNoticeElement) {
-        showBackendNotice('offline');
+    if (!backendAvailable || backendMode === 'offline' || backendMode === 'missing') {
+      const desiredMode =
+        backendMode === 'missing' || backendUnavailableReason === 'missing' ? 'missing' : 'offline';
+      if (backendNoticeMode !== desiredMode || !backendNoticeElement) {
+        showBackendNotice(desiredMode);
       }
       return;
     }
@@ -1464,6 +1515,7 @@
 
   function markBackendAvailable(mode) {
     backendAvailable = true;
+    backendUnavailableReason = null;
     const resolved = normalizeBackendStoreMode(mode);
     if (resolved) {
       backendMode = resolved;
@@ -1478,9 +1530,10 @@
     }
     updateBackendUiState();
   }
-  function markBackendUnavailable() {
+  function markBackendUnavailable(reason) {
     backendAvailable = false;
-    backendMode = 'offline';
+    backendUnavailableReason = typeof reason === 'string' ? reason : null;
+    backendMode = reason === 'missing' ? 'missing' : 'offline';
     updateBackendUiState();
   }
   async function performBackendSync() {
@@ -1498,6 +1551,10 @@
         const res = await fetch(url, {
           method: 'DELETE'
         });
+        if (!responseLooksLikeJson(res)) {
+          markBackendUnavailable('missing');
+          return;
+        }
         if (res.ok || res.status === 404) {
           const mode = resolveStoreModeFromResponse(res);
           markBackendAvailable(mode);
@@ -1522,6 +1579,10 @@
           },
           body: JSON.stringify(payload)
         });
+        if (!responseLooksLikeJson(res)) {
+          markBackendUnavailable('missing');
+          return;
+        }
         if (!res.ok) throw new Error(`Backend sync failed (${res.status})`);
         const mode = resolveStoreModeFromResponse(res);
         markBackendAvailable(mode);
@@ -1956,6 +2017,10 @@
         markBackendUnavailable();
         return null;
       }
+      if (!responseLooksLikeJson(res)) {
+        markBackendUnavailable('missing');
+        return null;
+      }
       let legacyPathUsed = null;
       if (res && res.status === 404 && legacyPaths.length > 0) {
         for (const legacyPath of legacyPaths) {
@@ -1966,6 +2031,10 @@
             legacyRes = await fetch(legacyUrl, fetchOptions);
           } catch (error) {
             markBackendUnavailable();
+            return null;
+          }
+          if (!responseLooksLikeJson(legacyRes)) {
+            markBackendUnavailable('missing');
             return null;
           }
           if (legacyRes.status === 404) {
@@ -1998,6 +2067,10 @@
           examples: [],
           deletedProvided: []
         };
+      }
+      if (!responseLooksLikeJson(res)) {
+        markBackendUnavailable('missing');
+        return null;
       }
       if (!res || !res.ok) {
         markBackendUnavailable();
