@@ -67,7 +67,7 @@ Du kan ignorere meldinger om utdaterte pakker, men **ikke** meldingen «Unsuppor
    npx vercel dev
    ```
    `npx` gjør at du slipper å installere Vercel CLI globalt.
-2. Første gang må du kanskje logge inn i Vercel fra terminalen. Følg instruksjonene som dukker opp.
+2. Første gang må du kanskje logge inn i Vercel fra terminalen (`npx vercel login`). Følg instruksjonene som dukker opp. Når CLI-en ber om å «linke» prosjektet, kan du trygt svare ja på å knytte mappen til eksisterende Vercel-prosjekt. Hvis den ikke spør, kjører du `npx vercel link` én gang for å knytte mappen manuelt før du prøver `npx vercel dev` på nytt.
 3. Når serveren er i gang ser du en linje som ligner:
    ```
    > Ready! Available at http://localhost:3000
@@ -88,16 +88,24 @@ npm run check-examples-api
 
 ## 6. Legg inn KV-nøkler når du trenger permanent lagring
 
-1. I Vercel: gå til **Storage → KV → View Details → REST API**.
-2. Kopier `KV_REST_API_URL` og `KV_REST_API_TOKEN`.
-3. Legg dem inn som miljøvariabler i Vercel (Production/Preview) og lokalt:
-   ```bash
-   export KV_REST_API_URL="https://...vercel-storage.com"
-   export KV_REST_API_TOKEN="kv-..."
+1. I Vercel: gå til **Storage → KV → View Details → REST API** og noter verdiene for `KV_REST_API_URL` og `KV_REST_API_TOKEN`.
+2. I prosjektmappen kjører du `npx vercel login` (om nødvendig) og `npx vercel link` for å koble CLI-en til riktig prosjekt.
+3. Synkroniser variablene til en lokal fil med `npx vercel env pull .env.development.local`. Kommandoen henter alle variabler for valgt miljø og skriver dem på formen `KEY="value"`, som `npx vercel dev` plukker opp automatisk. Typisk output ser slik ut:
    ```
-   Bruk `.env.local` om du heller vil lagre dem i fil for `vercel dev`.
-4. Start `npx vercel dev` på nytt etter at variablene er satt.
-5. Kjør `npm run check-examples-api` igjen for å bekrefte at lagringen nå er «varig».
+   ✅  Created .env.development.local file
+   Vercel CLI 48.2.9
+   > Overwriting existing .env.development.local file
+   > Downloading `development` Environment Variables for brukernavn/prosjekt
+
+   Changes:
+   + VERCEL_OIDC_TOKEN (Updated)
+
+   ✅  Updated .env.development.local file
+   ```
+   ✔️ Alt betyr at filen er skrevet – du trenger ikke gjøre noe mer. Hvis du ser `cd: no such file or directory: math_visuals` rett før eller etterpå, betyr det bare at du allerede sto i riktig mappe og kan ignorere feilen.
+4. Skal du lime inn verdiene manuelt i Vercel sitt webgrensesnitt, må du droppe hermetegn når du fyller inn tekstfeltene (`https://...` og `kv-...`). Lokalt kan du derimot la hermetegn stå i `.env.development.local`.
+5. Start `npx vercel dev` på nytt etter at variablene er på plass.
+6. Kjør `npm run check-examples-api` igjen for å bekrefte at lagringen nå er «varig».
 
 ## 7. Test i nettleseren
 

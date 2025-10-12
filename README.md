@@ -28,11 +28,14 @@ For en komplett «teskje»-guide til lokal kjøring på Mac (inkludert riktig No
 
 ## Feilsøking
 
-1. Åpne `/api/examples` i nettleseren for å bekrefte at API-et svarer.
+1. Åpne `/api/examples` i nettleseren for å bekrefte at API-et svarer. En tom `entries: []` betyr at KV-tilkoblingen fungerer, men at databasen er tom; etter at du lagrer et eksempel skal du se posten din under `entries`.
 2. Undersøk nettverkspanelet i utviklerverktøyene og se etter blokkerte forespørsler.
 3. Kontroller at `EXAMPLES_ALLOWED_ORIGINS` inkluderer opprinnelsen du tester fra.
 4. Verifiser at `KV_REST_API_URL` og `KV_REST_API_TOKEN` er satt i miljøet der API-et kjører. Husk at Vercel har egne sett med variabler for **Development**, **Preview** og **Production** – legg dem inn i den/de miljøene som skal bruke permanent lagring, og redeployer etterpå.
+   * I Vercel sitt webgrensesnitt skal verdiene limes inn **uten** anførselstegn. Hvis du skriver `"https://..."` i stedet for `https://...`, blir hermetegnene en del av verdien og klienten får ikke koblet til.
+   * Skal du bruke de samme verdiene lokalt, kobler du CLI-en til prosjektet (`npx vercel login` etterfulgt av `npx vercel link`) og kjører `npx vercel env pull .env.development.local`. Kommandoen henter alle miljøvariabler for valgt miljø og skriver dem til en `.env`-fil som `vercel dev` leser automatisk. Endre eller slett filen når du er ferdig – den er med i `.gitignore` og bør ikke sjekkes inn.
 5. Hvis det kun feiler i en distribuert versjon, kjør `npm run check-examples-api -- --url=https://ditt-domene/api/examples` for å bekrefte om back-end rapporterer «midlertidig minne». Det betyr at den kjørende instansen ikke finner KV-nøklene sine.
+6. Får du `404` med feilen `FUNCTION_NOT_FOUND`, betyr det at distribusjonen mangler serverless-funksjonen. Sjekk at Vercel-prosjektet ikke er satt opp som «Other» med en statisk *Output Directory* som utelater `api/`, og redeployer uten denne overstyringen.
 
 > **Merk:** Det er bare `KV_REST_API_URL` og `KV_REST_API_TOKEN` som brukes av `/api/examples`. Andre nøkler som `KV_URL`, `REDIS_URL` eller `KV_REST_API_READ_ONLY_TOKEN` kan ignoreres dersom du ikke har andre tjenester som trenger dem – men del aldri de faktiske verdiene i klartekst utenfor sikre miljøvariabler.
 

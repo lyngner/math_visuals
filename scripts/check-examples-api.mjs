@@ -81,7 +81,32 @@ async function main() {
     if (!response.ok) {
       console.error(`❌ API-et svarte med status ${response.status}.`);
       if (data && data.error) {
-        console.error(`Melding: ${data.error}`);
+        const errorValue = data.error;
+        let errorMessage = null;
+        if (typeof errorValue === 'string') {
+          errorMessage = errorValue;
+        } else if (errorValue && typeof errorValue === 'object') {
+          if (typeof errorValue.message === 'string') {
+            errorMessage = errorValue.message;
+          } else {
+            try {
+              errorMessage = JSON.stringify(errorValue);
+            } catch (_) {}
+          }
+        }
+        if (errorMessage) {
+          console.error(`Melding: ${errorMessage}`);
+        }
+        if (
+          response.status === 404 &&
+          errorValue &&
+          typeof errorValue === 'object' &&
+          errorValue.code === 'FUNCTION_NOT_FOUND'
+        ) {
+          console.error('Hint: Distribusjonen mangler serverless-funksjonen.');
+          console.error('      Sjekk at prosjektet ikke er konfigurert som rent statisk uten `/api`-mappen.');
+          console.error('      En redeploy uten "Output Directory" eller en `vercel build` fra CLI gjenoppretter funksjonen.');
+        }
       } else if (response.status === 404) {
         console.error('Fant ikke stien på API-et.');
         if (args.path) {
