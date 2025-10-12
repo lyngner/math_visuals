@@ -189,10 +189,10 @@ test.describe('examples-store KV verification', () => {
     const previousUrl = process.env.KV_REST_API_URL;
     const previousToken = process.env.KV_REST_API_TOKEN;
     const restoreEnvVar = (key, value) => {
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
+      if (typeof value === 'string') {
         process.env[key] = value;
+      } else {
+        delete process.env[key];
       }
     };
     process.env.KV_REST_API_URL = 'https://kv.example.test';
