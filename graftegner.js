@@ -102,6 +102,67 @@ const DEFAULT_GRAFTEGNER_SIMPLE = ['y=x^2-1', 'y=2x+3'].join('\n');
 
 const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = ['y=sin(x)', 'y=cos(x)'].join('\n');
 
+const SIMPLE_EXPRESSION_KEYS = ['simple', 'expression', 'expr', 'latex', 'value', 'text', 'line', 'raw'];
+
+function normalizeSimpleExpression(entry) {
+  if (entry == null) return '';
+  if (typeof entry === 'string' || typeof entry === 'number') {
+    return String(entry).trim();
+  }
+  if (typeof entry !== 'object') return '';
+  for (const key of SIMPLE_EXPRESSION_KEYS) {
+    const candidate = entry[key];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+  if (typeof entry.fn === 'string' && entry.fn.trim()) {
+    return entry.fn.trim();
+  }
+  return '';
+}
+
+function ensureSimpleString(value) {
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const lines = value
+      .map(item => normalizeSimpleExpression(item))
+      .filter(Boolean);
+    return lines.join('\n');
+  }
+  if (value && typeof value === 'object') {
+    if (typeof value.SIMPLE === 'string' && value.SIMPLE.trim()) {
+      return value.SIMPLE.trim();
+    }
+    if (typeof value.simple === 'string' && value.simple.trim()) {
+      return value.simple.trim();
+    }
+    if (Array.isArray(value.lines)) {
+      const fromLines = value.lines
+        .map(item => normalizeSimpleExpression(item))
+        .filter(Boolean);
+      if (fromLines.length) {
+        return fromLines.join('\n');
+      }
+    }
+    if (Array.isArray(value.expressions)) {
+      const fromExpressions = value.expressions
+        .map(item => normalizeSimpleExpression(item))
+        .filter(Boolean);
+      if (fromExpressions.length) {
+        return fromExpressions.join('\n');
+      }
+    }
+    const direct = normalizeSimpleExpression(value);
+    if (direct) {
+      return direct;
+    }
+  }
+  return '';
+}
+
 const BUILTIN_GRAFTEGNER_EXAMPLES = [
   {
     id: 'graftegner-parabel-og-linje',
@@ -109,28 +170,40 @@ const BUILTIN_GRAFTEGNER_EXAMPLES = [
     description: 'Tegn grafene til y = x² − 1 og y = 2x + 3.',
     exampleNumber: '1',
     isDefault: true,
-    simpleConfig: DEFAULT_GRAFTEGNER_SIMPLE
+    simpleConfig: DEFAULT_GRAFTEGNER_SIMPLE,
+    simpleString: DEFAULT_GRAFTEGNER_SIMPLE
   },
   {
     id: 'graftegner-sinus-og-cosinus',
     title: 'Sinus og cosinus',
     description: 'Sammenlign grafene til y = sin(x) og y = cos(x) over to perioder.',
     exampleNumber: '2',
-    simpleConfig: DEFAULT_GRAFTEGNER_TRIG_SIMPLE
+    simpleConfig: DEFAULT_GRAFTEGNER_TRIG_SIMPLE,
+    simpleString: DEFAULT_GRAFTEGNER_TRIG_SIMPLE
   }
 ];
 
 if (typeof window !== 'undefined') {
-  window.DEFAULT_EXAMPLES = BUILTIN_GRAFTEGNER_EXAMPLES.map(example => ({
-    id: example.id,
-    title: example.title,
-    description: example.description,
-    exampleNumber: example.exampleNumber,
-    isDefault: example.isDefault === true,
-    config: {
-      SIMPLE: cloneExampleConfig(example.simpleConfig)
-    }
-  }));
+  window.DEFAULT_EXAMPLES = BUILTIN_GRAFTEGNER_EXAMPLES.map(example => {
+    const simpleClone = cloneExampleConfig(example.simpleConfig);
+    const normalizedSimple = ensureSimpleString(simpleClone);
+    const fallbackSimple =
+      typeof example.simpleString === 'string' && example.simpleString.trim()
+        ? example.simpleString
+        : typeof example.simpleConfig === 'string'
+        ? example.simpleConfig
+        : ensureSimpleString(example.simpleConfig);
+    return {
+      id: example.id,
+      title: example.title,
+      description: example.description,
+      exampleNumber: example.exampleNumber,
+      isDefault: example.isDefault === true,
+      config: {
+        SIMPLE: normalizedSimple || fallbackSimple || DEFAULT_GRAFTEGNER_SIMPLE
+      }
+    };
+  });
 }
 function getThemeApi() {
   const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
