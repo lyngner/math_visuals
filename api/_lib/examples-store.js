@@ -327,6 +327,13 @@ function normalizePath(value) {
     normalized = '/';
   }
 
+  if (/[^\u0000-\u007F]/.test(normalized)) {
+    const ascii = encodePathWithFallback(normalized);
+    if (ascii) {
+      normalized = ascii;
+    }
+  }
+
   if (!normalized.startsWith('/')) {
     normalized = '/' + normalized;
   }
@@ -341,29 +348,46 @@ function normalizePath(value) {
 }
 
 function getStoragePathVariants(path) {
-  const variants = new Set();
   const canonical = normalizePath(path);
   if (!canonical) return [];
-  variants.add(canonical);
+
+  const seen = new Set();
+  const ordered = [];
+  const addVariant = candidate => {
+    if (typeof candidate !== 'string' || !candidate) return;
+    let variant = candidate;
+    if (!variant.startsWith('/')) {
+      variant = '/' + variant.replace(/^\\+/g, '');
+    }
+    if (variant.length > 1 && variant.endsWith('/')) {
+      variant = variant.slice(0, -1);
+    }
+    if (!variant) {
+      variant = '/';
+    }
+    if (!seen.has(variant)) {
+      seen.add(variant);
+      ordered.push(variant);
+    }
+  };
+
+  addVariant(canonical);
+
   if (typeof path === 'string') {
-    let trimmed = path.trim();
+    const trimmed = path.trim();
     if (trimmed) {
-      if (!trimmed.startsWith('/')) {
-        trimmed = '/' + trimmed.replace(/^\\+/g, '');
-      }
-      if (trimmed.length > 1 && trimmed.endsWith('/')) {
-        trimmed = trimmed.slice(0, -1);
-      }
-      if (trimmed) {
-        variants.add(trimmed);
+      addVariant(trimmed);
+      const encodedOriginal = encodePathWithFallback(trimmed);
+      if (encodedOriginal) {
+        addVariant(encodedOriginal);
+        addVariant(encodedOriginal.replace(/%[0-9A-F]{2}/g, match => match.toLowerCase()));
       }
     }
   }
-  const lowercaseEncoded = canonical.replace(/%[0-9A-F]{2}/g, match => match.toLowerCase());
-  if (lowercaseEncoded) {
-    variants.add(lowercaseEncoded);
-  }
-  return Array.from(variants);
+
+  addVariant(canonical.replace(/%[0-9A-F]{2}/g, match => match.toLowerCase()));
+
+  return ordered;
 }
 
 function decodeDisplayPath(path) {
