@@ -118,4 +118,73 @@ test.describe('Graftegner examples', () => {
     expect(Array.isArray(storedEntry.examples)).toBe(true);
     expect(storedEntry.examples.some(example => example.description === uniqueDescription)).toBe(true);
   });
+
+  test('keeps backend entry after reload or navigation away and back', async ({ page }) => {
+    await backend.client.delete('/graftegner');
+    await acceptNextAlert(page);
+
+    await page.goto(PAGE_PATH, { waitUntil: 'load' });
+
+    const tabs = page.locator('#exampleTabs .example-tab');
+    const descriptionField = page.locator('#exampleDescription');
+    await expect(descriptionField).toBeVisible();
+    const initialTabCount = await tabs.count();
+    const newTabIndex = initialTabCount;
+    const uniqueDescription = `Graftegner reload retention ${Date.now()}`;
+    await descriptionField.fill(uniqueDescription);
+
+    const savePromise = backend.waitForPut('/graftegner', {
+      description: 'Graftegner retains backend entry across navigation'
+    });
+    await page.click('#btnSaveExample');
+    await savePromise;
+
+    await expect(tabs).toHaveCount(initialTabCount + 1);
+    const newTab = tabs.nth(newTabIndex);
+    await newTab.click();
+    await expect(descriptionField).toHaveValue(uniqueDescription);
+
+    const countDeletesForGraftegner = () =>
+      backend.history.filter(entry => entry.type === 'DELETE' && entry.path === '/graftegner').length;
+    const initialDeleteCount = countDeletesForGraftegner();
+
+    const storedAfterSave = await backend.client.get('/graftegner');
+    expect(storedAfterSave).toBeTruthy();
+    expect(Array.isArray(storedAfterSave.examples)).toBe(true);
+    expect(storedAfterSave.examples.some(example => example.description === uniqueDescription)).toBe(true);
+
+    await page.reload({ waitUntil: 'load' });
+
+    await expect(tabs).toHaveCount(initialTabCount + 1);
+    const descriptionAfterReload = page.locator('#exampleDescription');
+    await expect(descriptionAfterReload).toBeVisible();
+    const reloadedTab = tabs.nth(newTabIndex);
+    await reloadedTab.click();
+    await expect(descriptionAfterReload).toHaveValue(uniqueDescription);
+
+    const storedAfterReload = await backend.client.get('/graftegner');
+    expect(storedAfterReload).toBeTruthy();
+    expect(Array.isArray(storedAfterReload.examples)).toBe(true);
+    expect(storedAfterReload.examples.some(example => example.description === uniqueDescription)).toBe(true);
+    expect(countDeletesForGraftegner()).toBe(initialDeleteCount);
+
+    await acceptNextAlert(page);
+    await page.goto('/index.html', { waitUntil: 'load' });
+    await acceptNextAlert(page);
+    await page.goto(PAGE_PATH, { waitUntil: 'load' });
+
+    const tabsAfterReturn = page.locator('#exampleTabs .example-tab');
+    await expect(tabsAfterReturn).toHaveCount(initialTabCount + 1);
+    const descriptionAfterReturn = page.locator('#exampleDescription');
+    await expect(descriptionAfterReturn).toBeVisible();
+    const returnedTab = tabsAfterReturn.nth(newTabIndex);
+    await returnedTab.click();
+    await expect(descriptionAfterReturn).toHaveValue(uniqueDescription);
+
+    const storedAfterReturn = await backend.client.get('/graftegner');
+    expect(storedAfterReturn).toBeTruthy();
+    expect(Array.isArray(storedAfterReturn.examples)).toBe(true);
+    expect(storedAfterReturn.examples.some(example => example.description === uniqueDescription)).toBe(true);
+    expect(countDeletesForGraftegner()).toBe(initialDeleteCount);
+  });
 });

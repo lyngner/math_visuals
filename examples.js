@@ -1706,16 +1706,40 @@
     if (!examplesApiBase) return;
     if (!Array.isArray(paths) || paths.length === 0) return;
     const canonicalSkips = new Set();
+    const registerSkip = value => {
+      if (typeof value !== 'string') return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      canonicalSkips.add(trimmed);
+      if (!trimmed.endsWith('/')) {
+        canonicalSkips.add(`${trimmed}/`);
+      }
+      try {
+        const normalized = normalizePathname(trimmed);
+        if (normalized) {
+          canonicalSkips.add(normalized);
+          if (!normalized.endsWith('/')) {
+            canonicalSkips.add(`${normalized}/`);
+          }
+        }
+      } catch (_) {}
+    };
     const canonicalPath = typeof storagePath === 'string' ? storagePath.trim() : '';
+    let normalizedStoragePath = '';
     if (canonicalPath) {
-      canonicalSkips.add(canonicalPath);
-      if (!canonicalPath.endsWith('/')) {
-        canonicalSkips.add(`${canonicalPath}/`);
+      registerSkip(canonicalPath);
+      try {
+        normalizedStoragePath = normalizePathname(canonicalPath);
+        if (normalizedStoragePath && normalizedStoragePath !== canonicalPath) {
+          registerSkip(normalizedStoragePath);
+        }
+      } catch (_) {
+        normalizedStoragePath = '';
       }
     }
     const skipExact = typeof skipPath === 'string' ? skipPath.trim() : '';
     if (skipExact) {
-      canonicalSkips.add(skipExact);
+      registerSkip(skipExact);
     }
     const attempted = new Set();
     const buildDeleteVariants = legacyPath => {
@@ -1743,10 +1767,25 @@
       for (const candidate of candidates) {
         if (!candidate) continue;
         const trimmedCandidate = candidate.trim();
-        if (!trimmedCandidate || attempted.has(trimmedCandidate)) continue;
+        if (!trimmedCandidate) continue;
+        if (attempted.has(trimmedCandidate)) continue;
+        let normalizedCandidate = '';
+        try {
+          normalizedCandidate = normalizePathname(trimmedCandidate);
+        } catch (_) {
+          normalizedCandidate = '';
+        }
+        if (normalizedCandidate) {
+          if (attempted.has(normalizedCandidate)) continue;
+          attempted.add(normalizedCandidate);
+        }
         attempted.add(trimmedCandidate);
         if (canonicalSkips.has(trimmedCandidate)) continue;
-        const legacyUrl = buildExamplesApiUrl(examplesApiBase, trimmedCandidate);
+        if (normalizedCandidate && canonicalSkips.has(normalizedCandidate)) continue;
+        if (normalizedStoragePath && normalizedCandidate === normalizedStoragePath) continue;
+        const deleteTarget = normalizedCandidate || trimmedCandidate;
+        if (!deleteTarget || canonicalSkips.has(deleteTarget)) continue;
+        const legacyUrl = buildExamplesApiUrl(examplesApiBase, deleteTarget);
         if (!legacyUrl) continue;
         try {
           const res = await fetch(legacyUrl, { method: 'DELETE' });
