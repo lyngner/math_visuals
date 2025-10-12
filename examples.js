@@ -1672,7 +1672,8 @@
           }
         }
       }
-      const backendIsStale = backendUpdatedAtMs < lastLocalUpdateMs;
+      const backendHasTimestamp = backendUpdatedAtMs > 0;
+      const backendIsStale = backendHasTimestamp && backendUpdatedAtMs < lastLocalUpdateMs;
       const shouldApplyExamples = examples.length > 0 || !hasLocalExamples;
       if (shouldApplyExamples && !backendIsStale) {
         const previousIndex = Number.isInteger(currentExampleIndex) ? currentExampleIndex : null;
