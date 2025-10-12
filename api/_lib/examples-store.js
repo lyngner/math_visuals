@@ -230,6 +230,69 @@ async function loadKvClient() {
   return kvClientPromise;
 }
 
+const SAFE_PATH_CHARS = new Set(
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!$&'()*+,;=:@"
+);
+
+function uppercasePercentEncoding(value) {
+  return value.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
+}
+
+function encodePathWithFallback(value) {
+  if (typeof value !== 'string' || !value) {
+    return null;
+  }
+
+  const tryEncode = candidate => {
+    if (typeof candidate !== 'string' || !candidate) return null;
+    try {
+      return uppercasePercentEncoding(encodeURI(candidate));
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const encoded = tryEncode(value);
+  if (encoded) return encoded;
+
+  try {
+    const parts = value.split('/');
+    const encodedParts = parts.map((segment, index) => {
+      if (index === 0 && segment === '') {
+        return '';
+      }
+      return encodeURIComponent(segment);
+    });
+    const recombined = encodedParts.join('/');
+    if (recombined) {
+      return uppercasePercentEncoding(recombined);
+    }
+  } catch (_) {}
+
+  try {
+    let out = '';
+    for (const char of value) {
+      if (char === '/') {
+        out += char;
+        continue;
+      }
+      if (SAFE_PATH_CHARS.has(char)) {
+        out += char;
+        continue;
+      }
+      const bytes = Buffer.from(char);
+      for (const byte of bytes) {
+        out += `%${byte.toString(16).toUpperCase().padStart(2, '0')}`;
+      }
+    }
+    if (out) {
+      return out;
+    }
+  } catch (_) {}
+
+  return null;
+}
+
 function normalizePath(value) {
   if (typeof value !== 'string') return null;
   let path = value.trim();
@@ -255,19 +318,15 @@ function normalizePath(value) {
   } else {
     decoded = String(path).toLowerCase();
   }
-  let normalized = decoded;
-  try {
-    normalized = encodeURI(decoded || '/')
-      .replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
-  } catch (error) {
-    try {
-      normalized = encodeURI(path || '/')
-        .replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
-    } catch (_) {
-      normalized = typeof decoded === 'string' && decoded ? decoded : path;
-    }
+
+  let normalized = encodePathWithFallback(decoded || '/');
+  if (!normalized) {
+    normalized = encodePathWithFallback(path || '/');
   }
-  if (!normalized) normalized = '/';
+  if (!normalized) {
+    normalized = '/';
+  }
+
   if (!normalized.startsWith('/')) {
     normalized = '/' + normalized;
   }
