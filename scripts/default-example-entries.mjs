@@ -258,55 +258,9 @@ const DEFAULT_FORTEGNSSKJEMA_STATE = {
   altTextSource: 'auto'
 };
 
-const DEFAULT_GRAFTEGNER_SIMPLE = {
-  axes: {
-    xMin: -5,
-    xMax: 5,
-    yMin: -4,
-    yMax: 6
-  },
-  expressions: [
-    {
-      id: 'expr-1',
-      latex: 'y=x^2-1',
-      color: '#2563eb',
-      visible: true
-    },
-    {
-      id: 'expr-2',
-      latex: 'y=2x+3',
-      color: '#f97316',
-      visible: true
-    }
-  ],
-  altText: '',
-  altTextSource: 'auto'
-};
+const DEFAULT_GRAFTEGNER_SIMPLE = ['y=x^2-1', 'y=2x+3'].join('\n');
 
-const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = {
-  axes: {
-    xMin: -7,
-    xMax: 7,
-    yMin: -2,
-    yMax: 2
-  },
-  expressions: [
-    {
-      id: 'expr-1',
-      latex: 'y=\\sin(x)',
-      color: '#0ea5e9',
-      visible: true
-    },
-    {
-      id: 'expr-2',
-      latex: 'y=\\cos(x)',
-      color: '#10b981',
-      visible: true
-    }
-  ],
-  altText: '',
-  altTextSource: 'auto'
-};
+const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = ['y=sin(x)', 'y=cos(x)'].join('\n');
 
 const DEFAULT_KULER_SIMPLE = {
   beadRadius: 28,
