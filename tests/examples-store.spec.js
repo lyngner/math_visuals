@@ -188,6 +188,13 @@ test.describe('examples-store KV verification', () => {
     const path = '/kv-verification-failure';
     const previousUrl = process.env.KV_REST_API_URL;
     const previousToken = process.env.KV_REST_API_TOKEN;
+    const restoreEnvVar = (key, value) => {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    };
     process.env.KV_REST_API_URL = 'https://kv.example.test';
     process.env.KV_REST_API_TOKEN = 'test-token';
     const originalGet = mockKv.api.get;
@@ -201,16 +208,8 @@ test.describe('examples-store KV verification', () => {
     try {
       await expect(setEntry(path, { examples: [] })).rejects.toThrow(/verify/i);
     } finally {
-      if (previousUrl === undefined) {
-        delete process.env.KV_REST_API_URL;
-      } else {
-        process.env.KV_REST_API_URL = previousUrl;
-      }
-      if (previousToken === undefined) {
-        delete process.env.KV_REST_API_TOKEN;
-      } else {
-        process.env.KV_REST_API_TOKEN = previousToken;
-      }
+      restoreEnvVar('KV_REST_API_URL', previousUrl);
+      restoreEnvVar('KV_REST_API_TOKEN', previousToken);
       mockKv.api.get = originalGet;
       try {
         await deleteEntry(path);
