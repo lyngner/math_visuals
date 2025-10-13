@@ -36,8 +36,6 @@ function getValueDisplayMode(type = CFG.type) {
   const mode = sanitizeValueDisplay(CFG.valueDisplay);
   return type === 'stacked' ? 'none' : mode;
 }
-window.DEFAULT_EXAMPLES = [];
-
 /* =========================================================
    OPPSETT
    ========================================================= */

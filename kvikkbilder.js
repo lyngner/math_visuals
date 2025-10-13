@@ -317,10 +317,6 @@
     }
     return base;
   }
-  const DEFAULT_KVIKKBILDER_EXAMPLES = [];
-  if (typeof window !== 'undefined') {
-    window.DEFAULT_EXAMPLES = [];
-  }
   const globalCfg = typeof window.CFG === 'object' && window.CFG ? window.CFG : {};
   const CFG = window.CFG = globalCfg;
   function iso(x, y, z, tileW, tileH, unitH) {

@@ -158,12 +158,6 @@
     view: { zoom: DEFAULT_ZOOM, panX: 0, panY: 0 }
   };
 
-  const DEFAULT_PRIKK_TIL_PRIKK_EXAMPLES = [];
-
-  if (typeof window !== 'undefined') {
-    window.DEFAULT_EXAMPLES = [];
-  }
-
   const board = document.getElementById('dotBoard');
   if (!board) return;
 

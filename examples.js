@@ -1634,31 +1634,6 @@
     applyingBackendUpdate = true;
     try {
       let examples = normalizeBackendExamples(data && data.examples);
-      const providedDefaults = getProvidedExamples();
-      if (examples.length === 0 && Array.isArray(providedDefaults) && providedDefaults.length) {
-        const deletedProvided = getDeletedProvidedExamples();
-        const availableDefaults = providedDefaults.filter(ex => {
-          const key = normalizeKey(ex && ex.__builtinKey);
-          return !key || !deletedProvided.has(key);
-        });
-        if (availableDefaults.length > 0) {
-          examples = availableDefaults.map(ex => {
-            const key = normalizeKey(ex && ex.__builtinKey);
-            const copy = {
-              config: cloneValue(ex.config),
-              svg: typeof ex.svg === 'string' ? ex.svg : ''
-            };
-            if (key) copy.__builtinKey = key;
-            if (typeof ex.title === 'string') copy.title = ex.title;
-            if (typeof ex.description === 'string') copy.description = ex.description;
-            if (typeof ex.exampleNumber === 'string' || typeof ex.exampleNumber === 'number') {
-              copy.exampleNumber = ex.exampleNumber;
-            }
-            if (ex.isDefault === true) copy.isDefault = true;
-            return copy;
-          });
-        }
-      }
       const localExamples = getExamples();
       const hasLocalExamples = Array.isArray(localExamples) && localExamples.length > 0;
       let backendUpdatedAtMs = 0;
@@ -2101,7 +2076,6 @@
       backendWasEmpty = backendExamples.length === 0 && backendDeleted.length === 0;
       await applyBackendData(normalized);
       renderOptions();
-      scheduleEnsureDefaults({ force: true });
       if (legacyPathUsed) {
         try {
           await migrateLegacyBackendEntry(legacyPathUsed, normalized);
@@ -2945,8 +2919,6 @@
     updateDescriptionCollapsedState(input);
     renderDescriptionPreviewFromValue(input.value, { force: true });
   }
-  let defaultEnsureScheduled = false;
-  let ensureDefaultsRunning = false;
   let tabsHostCard = null;
   const hasUrlOverrides = (() => {
     if (typeof URLSearchParams === 'undefined') return false;
@@ -3002,7 +2974,7 @@
     cachedExamples = [];
     return cachedExamples;
   }
-  const USER_INITIATED_REASONS = new Set(['manual-save', 'manual-update', 'delete', 'ensure-default', 'history']);
+  const USER_INITIATED_REASONS = new Set(['manual-save', 'manual-update', 'delete', 'history']);
   function isUserInitiatedReason(reason) {
     return typeof reason === 'string' && USER_INITIATED_REASONS.has(reason);
   }
@@ -3226,7 +3198,11 @@
 .example-tab:hover{background:#e5e7eb;}
 .example-tab.is-active{background:#fff;color:#111827;border-color:var(--purple,#5B2AA5);border-bottom:1px solid #fff;box-shadow:0 -2px 0 var(--purple,#5B2AA5) inset;}
 .example-tab:focus-visible{outline:2px solid var(--purple,#5B2AA5);outline-offset:2px;}
-.example-tabs-empty{font-size:13px;color:#6b7280;padding:6px 0;}
+.example-tabs-empty{font-size:13px;color:#6b7280;padding:12px 0;display:flex;flex-wrap:wrap;align-items:center;gap:10px;}
+.example-tabs-empty__message{flex:0 0 auto;}
+.example-tabs-empty__cta{appearance:none;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:9999px;padding:6px 16px;font-size:13px;line-height:1;cursor:pointer;transition:background-color .2s,border-color .2s,color .2s,box-shadow .2s;}
+.example-tabs-empty__cta:hover{background:#f3f4f6;border-color:#cbd5f5;}
+.example-tabs-empty__cta:focus-visible{outline:2px solid var(--purple,#5B2AA5);outline-offset:2px;}
 .example-backend-notice{margin-top:12px;margin-bottom:12px;padding:10px 14px;border-radius:10px;background:#fee2e2;border:1px solid #f87171;color:#991b1b;font-size:14px;line-height:1.4;display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
 .example-backend-notice__title{font-weight:600;display:inline-flex;align-items:center;}
 .example-backend-notice__message{display:inline-flex;align-items:center;}
@@ -3433,53 +3409,6 @@
       clone[key] = cloneValueFallback(value[key], seen);
     });
     return clone;
-  }
-  function sanitizeProvidedExample(example, idx) {
-    if (!example || typeof example !== 'object') return null;
-    const sourceConfig = example.config;
-    if (!sourceConfig || typeof sourceConfig !== 'object') return null;
-    const config = {};
-    for (const name of BINDING_NAMES) {
-      if (sourceConfig[name] != null) {
-        config[name] = cloneValue(sourceConfig[name]);
-      }
-    }
-    if (Object.keys(config).length === 0) return null;
-    const sanitized = {
-      config
-    };
-    if (typeof example.svg === 'string') sanitized.svg = example.svg;
-    if (typeof example.title === 'string') sanitized.title = example.title;
-    const providedDescription = extractDescriptionFromExample(example);
-    if (typeof providedDescription === 'string') {
-      sanitized.description = providedDescription;
-    }
-    if (typeof example.exampleNumber === 'string' || typeof example.exampleNumber === 'number') {
-      sanitized.exampleNumber = String(example.exampleNumber).trim();
-    } else if (typeof example.label === 'string') {
-      sanitized.exampleNumber = example.label.trim();
-    }
-    if (example.isDefault === true) sanitized.isDefault = true;
-    if (typeof example.id === 'string' && example.id.trim().length) {
-      sanitized.__builtinKey = example.id.trim();
-    } else {
-      sanitized.__builtinKey = `provided-${idx}`;
-    }
-    return sanitized;
-  }
-  function getProvidedExamples() {
-    if (typeof window === 'undefined') return [];
-    const provided = window.DEFAULT_EXAMPLES;
-    if (!Array.isArray(provided)) return [];
-    const sanitized = [];
-    provided.forEach((ex, idx) => {
-      const normalized = sanitizeProvidedExample(ex, idx);
-      if (normalized) sanitized.push(normalized);
-    });
-    if (sanitized.length > 0 && !sanitized.some(ex => ex.isDefault)) {
-      sanitized[0].isDefault = true;
-    }
-    return sanitized;
   }
   function replaceContents(target, source) {
     if (!target || source == null) return false;
@@ -3757,21 +3686,52 @@
   }
   function renderOptions() {
     const examples = getExamples();
-    if (examples.length === 0) {
+    const total = Array.isArray(examples) ? examples.length : 0;
+    if (total === 0) {
       currentExampleIndex = null;
-    } else if (currentExampleIndex == null || currentExampleIndex >= examples.length) {
-      const fallback = currentExampleIndex == null ? 0 : examples.length - 1;
-      currentExampleIndex = Math.min(examples.length - 1, Math.max(0, fallback));
+      pendingRequestedIndex = null;
+    } else {
+      if (pendingRequestedIndex != null) {
+        const normalized = clampExampleIndex(pendingRequestedIndex, total);
+        pendingRequestedIndex = normalized == null ? null : normalized;
+      }
+      if (currentExampleIndex == null || currentExampleIndex >= total) {
+        const fallback = currentExampleIndex == null ? 0 : total - 1;
+        currentExampleIndex = Math.min(total - 1, Math.max(0, fallback));
+      }
     }
     if (tabsContainer) {
       tabsContainer.innerHTML = '';
       tabButtons = [];
-      if (examples.length === 0) {
+      if (total === 0) {
+        tabsContainer.setAttribute('role', 'presentation');
+        tabsContainer.setAttribute('aria-label', 'Ingen lagrede eksempler');
+        tabsContainer.removeAttribute('aria-orientation');
         const empty = document.createElement('div');
         empty.className = 'example-tabs-empty';
-        empty.textContent = 'Ingen eksempler';
+        empty.setAttribute('role', 'status');
+        empty.setAttribute('aria-live', 'polite');
+        const message = document.createElement('span');
+        message.className = 'example-tabs-empty__message';
+        message.textContent = 'Ingen lagrede eksempler ennå.';
+        empty.appendChild(message);
+        if (createBtn) {
+          const cta = document.createElement('button');
+          cta.type = 'button';
+          cta.className = 'example-tabs-empty__cta';
+          cta.textContent = 'Lag nytt eksempel';
+          cta.addEventListener('click', () => {
+            if (createBtn && typeof createBtn.click === 'function') {
+              createBtn.click();
+            }
+          });
+          empty.appendChild(cta);
+        }
         tabsContainer.appendChild(empty);
       } else {
+        tabsContainer.setAttribute('role', 'tablist');
+        tabsContainer.setAttribute('aria-label', 'Lagrede eksempler');
+        tabsContainer.setAttribute('aria-orientation', 'horizontal');
         const numericLabelPattern = /^[0-9]+$/;
         examples.forEach((ex, idx) => {
           const btn = document.createElement('button');
@@ -3802,10 +3762,10 @@
             event.preventDefault();
             if (!tabButtons.length) return;
             const dir = event.key === 'ArrowRight' ? 1 : -1;
-            const total = tabButtons.length;
+            const totalButtons = tabButtons.length;
             let next = idx;
             do {
-              next = (next + dir + total) % total;
+              next = (next + dir + totalButtons) % totalButtons;
             } while (next !== idx && !tabButtons[next]);
             loadExample(next);
             (_tabButtons$next = tabButtons[next]) === null || _tabButtons$next === void 0 || _tabButtons$next.focus();
@@ -3816,12 +3776,12 @@
         updateTabSelection();
       }
     }
-    updateActionButtonState(examples.length);
+    updateActionButtonState(total);
     attemptInitialLoad();
-    if (!initialLoadPerformed && pendingRequestedIndex == null && examples.length > 0) {
+    if (!initialLoadPerformed && pendingRequestedIndex == null && total > 0) {
       let idx = Number.isInteger(currentExampleIndex) ? currentExampleIndex : 0;
       if (idx < 0) idx = 0;
-      if (idx >= examples.length) idx = examples.length - 1;
+      if (idx >= total) idx = total - 1;
       if (loadExample(idx)) initialLoadPerformed = true;
     }
   }
@@ -4043,216 +4003,4 @@
     }
     return null;
   }
-  function ensureDefaultsNow() {
-    if (ensureDefaultsRunning) return;
-    ensureDefaultsRunning = true;
-    try {
-      let examples = getExamples();
-      let updated = false;
-      const globalForceProvided = typeof window !== 'undefined' && window && window.__EXAMPLES_FORCE_PROVIDED__ === true;
-      const requireProvided = globalForceProvided === true;
-      const deletedProvided = getDeletedProvidedExamples();
-      let deletedUpdated = false;
-      examples.forEach(ex => {
-        if (!ex || typeof ex !== 'object') return;
-        const key = normalizeKey(ex.__builtinKey);
-        if (key && deletedProvided.has(key)) {
-          deletedProvided.delete(key);
-          deletedUpdated = true;
-        }
-      });
-      if (deletedUpdated) persistDeletedProvidedExamples();
-      const firstValidIndex = examples.findIndex(ex => ex && typeof ex === 'object');
-      if (firstValidIndex === -1) {
-        if (examples.length) {
-          examples = [];
-          updated = true;
-        }
-      } else if (firstValidIndex > 0) {
-        examples = examples.slice(firstValidIndex);
-        if (Number.isInteger(currentExampleIndex)) {
-          currentExampleIndex = Math.max(0, currentExampleIndex - firstValidIndex);
-        }
-        updated = true;
-      }
-      const providedDefaults = getProvidedExamples();
-      const availableDefaults = providedDefaults.filter(ex => {
-        const key = normalizeKey(ex && ex.__builtinKey);
-        return !key || !deletedProvided.has(key);
-      });
-      const hasUserExamples = examples.some(example => {
-        if (!example || typeof example !== 'object') return false;
-        const key = normalizeKey(example.__builtinKey);
-        return !key;
-      });
-      if (requireProvided && availableDefaults.length > 0 && examples.length === 1) {
-        const only = examples[0];
-        const onlyObj = only && typeof only === 'object' ? only : null;
-        const hasKey = onlyObj ? !!normalizeKey(onlyObj.__builtinKey) : false;
-        const hasSvg = onlyObj && typeof onlyObj.svg === 'string' ? onlyObj.svg.trim().length > 0 : false;
-        if (onlyObj && onlyObj.isDefault === true && !hasKey && !hasSvg) {
-          examples = [];
-          currentExampleIndex = 0;
-          updated = true;
-        }
-      }
-      if (examples.length === 0) {
-        if (availableDefaults.length > 0) {
-          let defaultIdx = availableDefaults.findIndex(ex => ex.isDefault);
-          if (defaultIdx < 0) defaultIdx = 0;
-          examples = availableDefaults.map((ex, idx) => {
-            const copy = {
-              config: cloneValue(ex.config),
-              svg: typeof ex.svg === 'string' ? ex.svg : ''
-            };
-            if (ex.__builtinKey) copy.__builtinKey = ex.__builtinKey;
-            if (ex.title) copy.title = ex.title;
-            if (ex.description) copy.description = ex.description;
-            if (ex.exampleNumber) copy.exampleNumber = ex.exampleNumber;
-            if (idx === defaultIdx) {
-              copy.isDefault = true;
-            }
-            return copy;
-          });
-          currentExampleIndex = Math.min(Math.max(defaultIdx, 0), examples.length - 1);
-          updated = true;
-        } else {
-          const defaultExample = collectConfig();
-          defaultExample.isDefault = true;
-          examples = [defaultExample];
-          currentExampleIndex = 0;
-          updated = true;
-        }
-      } else {
-        const first = examples[0];
-        if (first.isDefault !== true) {
-          first.isDefault = true;
-          updated = true;
-        }
-        for (let i = 1; i < examples.length; i++) {
-          const ex = examples[i];
-          if (ex && typeof ex === 'object' && Object.prototype.hasOwnProperty.call(ex, 'isDefault')) {
-            delete ex.isDefault;
-            updated = true;
-          }
-        }
-        if (!hasUserExamples && availableDefaults.length > 0) {
-          const existingKeys = new Set();
-          examples.forEach(ex => {
-            if (!ex || typeof ex !== 'object') return;
-            const key = normalizeKey(ex.__builtinKey);
-            if (key) existingKeys.add(key);
-          });
-          let appended = false;
-          availableDefaults.forEach(ex => {
-            const key = normalizeKey(ex.__builtinKey);
-            if (key && existingKeys.has(key)) return;
-            const copy = {
-              config: cloneValue(ex.config),
-              svg: typeof ex.svg === 'string' ? ex.svg : ''
-            };
-            if (key) copy.__builtinKey = key;
-            if (ex.title) copy.title = ex.title;
-            if (ex.description) copy.description = ex.description;
-            if (ex.exampleNumber) copy.exampleNumber = ex.exampleNumber;
-            examples.push(copy);
-            if (key) existingKeys.add(key);
-            appended = true;
-          });
-          if (appended) updated = true;
-        }
-      }
-      if (updated) {
-        const skipBackendSync = !backendReady;
-        store(examples, {
-          reason: 'ensure-default',
-          skipBackendSync
-        });
-        examples = getExamples();
-      }
-      if (pendingRequestedIndex != null) {
-        const normalizedIndex = clampExampleIndex(pendingRequestedIndex, examples.length);
-        if (normalizedIndex == null) {
-          pendingRequestedIndex = null;
-        } else {
-          pendingRequestedIndex = normalizedIndex;
-        }
-      }
-      if (currentExampleIndex == null && examples.length > 0) {
-        currentExampleIndex = 0;
-      }
-      if (currentExampleIndex != null && examples.length > 0) {
-        const maxIdx = examples.length - 1;
-        currentExampleIndex = Math.min(Math.max(currentExampleIndex, 0), maxIdx);
-      }
-      renderOptions();
-      if (!initialLoadPerformed) {
-        const refreshed = getExamples();
-        if (pendingRequestedIndex != null) {
-          const normalizedIndex = clampExampleIndex(pendingRequestedIndex, refreshed.length);
-          if (normalizedIndex != null) {
-            if (loadExample(normalizedIndex)) {
-              initialLoadPerformed = true;
-              pendingRequestedIndex = null;
-            }
-          } else {
-            pendingRequestedIndex = null;
-          }
-        }
-        if (!initialLoadPerformed && refreshed.length > 0) {
-          let targetIndex = Number.isInteger(currentExampleIndex) ? currentExampleIndex : NaN;
-          if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= refreshed.length) {
-            const firstCustomIndex = refreshed.findIndex(example => {
-              if (!example || typeof example !== 'object') return false;
-              const key = normalizeKey(example.__builtinKey);
-              return !key;
-            });
-            if (Number.isInteger(firstCustomIndex) && firstCustomIndex >= 0) {
-              targetIndex = firstCustomIndex;
-            }
-          }
-          if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= refreshed.length) {
-            targetIndex = refreshed.findIndex(ex => ex && ex.isDefault === true);
-          }
-          if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= refreshed.length) {
-            targetIndex = 0;
-          }
-          if (loadExample(targetIndex)) {
-            initialLoadPerformed = true;
-          }
-        }
-      }
-      if (globalForceProvided && typeof window !== 'undefined' && window) {
-        window.__EXAMPLES_FORCE_PROVIDED__ = false;
-      }
-    } finally {
-      ensureDefaultsRunning = false;
-    }
-  }
-  function scheduleEnsureDefaults(options) {
-    const opts = options && typeof options === 'object' ? options : {};
-    const force = opts.force === true;
-    const runEnsure = () => {
-      if (!force) {
-        defaultEnsureScheduled = false;
-      }
-      ensureDefaultsNow();
-    };
-    if (!force) {
-      if (defaultEnsureScheduled) return;
-      defaultEnsureScheduled = true;
-    }
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      setTimeout(runEnsure, 0);
-      return;
-    }
-    const handler = () => {
-      document.removeEventListener('DOMContentLoaded', handler);
-      window.removeEventListener('load', handler);
-      setTimeout(runEnsure, 0);
-    };
-    document.addEventListener('DOMContentLoaded', handler);
-    window.addEventListener('load', handler);
-  }
-  scheduleEnsureDefaults();
 })();

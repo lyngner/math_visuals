@@ -745,9 +745,6 @@
     } catch (error) {}
     return value;
   }
-  if (typeof window !== 'undefined') {
-    window.DEFAULT_EXAMPLES = [];
-  }
   function computeNextId(items, pattern, startIndex) {
     let max = startIndex - 1;
     (items || []).forEach(item => {
