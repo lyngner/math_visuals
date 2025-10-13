@@ -41,11 +41,10 @@ async function archiveExample(page, descriptionText = 'Eksempel for gjenoppretti
   await Promise.all([deleteRequest, trashPost]);
 }
 
-test.describe('Examples trash restore flow', () => {
+test.describe('Examples trash guidance', () => {
   let backend;
   let trashEntries;
   let trashRouteHandler;
-  let deleteRequests;
 
   test.beforeEach(async ({ page }) => {
     backend = await attachExamplesBackendMock(page.context());
@@ -53,7 +52,6 @@ test.describe('Examples trash restore flow', () => {
       await backend.client.delete(CANONICAL_PATH);
     } catch (error) {}
     trashEntries = [];
-    deleteRequests = [];
     trashRouteHandler = async route => {
       const request = route.request();
       const method = request.method();
@@ -132,7 +130,6 @@ test.describe('Examples trash restore flow', () => {
         }
         const removed = [];
         if (ids.length) {
-          deleteRequests.push({ url: request.url(), ids: ids.slice() });
           trashEntries = trashEntries.filter(entry => {
             if (entry && ids.includes(entry.id)) {
               removed.push(entry.id);
@@ -175,97 +172,29 @@ test.describe('Examples trash restore flow', () => {
       } catch (error) {}
       trashRouteHandler = null;
     }
-    deleteRequests = [];
     if (backend) {
       await backend.dispose();
       backend = null;
     }
   });
 
-  test('archives and restores an example via restore dialog', async ({ page }) => {
+  test('deleting an example posts to trash and shows guidance message', async ({ page }) => {
     await archiveExample(page);
 
-    await expect(page.locator('.example-tabs-empty')).toBeVisible();
+    await expect(page.locator('#btnRestoreExample')).toHaveCount(0);
+    await expect(page.locator('.example-save-status__text')).toContainText('examples-trash.html');
 
-    const trashLoad = page.waitForRequest(
-      request => request.url().includes('/api/examples/trash') && request.method() === 'GET'
-    );
-    await page.locator('#btnRestoreExample').click();
-    await trashLoad;
-
-    const frame = page.frameLocator('iframe[data-restore-frame]');
-    await expect(frame.locator('[data-group]')).toHaveCount(1);
-
-    const restorePut = page.waitForRequest(
-      request => request.url().includes('/api/examples') && request.method() === 'PUT'
-    );
-    const trashDelete = page.waitForRequest(
-      request => request.url().includes('/api/examples/trash') && request.method() === 'DELETE'
-    );
-    await frame.locator('button[data-action="restore"]').first().click();
-    await Promise.all([restorePut, trashDelete]);
-
-    await expect(frame.locator('.trash-empty')).toBeVisible();
-
-    await expect(page.locator('#exampleTabs .example-tab')).toHaveCount(1);
-    await expect(page.locator('#exampleDescription')).toHaveValue('Eksempel for gjenoppretting');
-
-    await page.locator('[data-restore-close]').click();
-    await expect(page.locator('.example-restore-overlay')).toBeHidden();
-  });
-
-  test('permanently deletes an example after confirmation', async ({ page }) => {
-    await archiveExample(page, 'Permanent sletting test');
-
-    const trashLoad = page.waitForRequest(
-      request => request.url().includes('/api/examples/trash') && request.method() === 'GET'
-    );
-    await page.locator('#btnRestoreExample').click();
-    await trashLoad;
-
-    const frame = page.frameLocator('iframe[data-restore-frame]');
-    await expect(frame.locator('[data-group]')).toHaveCount(1);
-
-    const deleteRequest = page.waitForRequest(
-      request => request.url().includes('/api/examples/trash?entryId=') && request.method() === 'DELETE'
-    );
-    const dialogPromise = page.waitForEvent('dialog');
-    await frame.locator('button[data-action="delete"]').first().click();
-    const dialog = await dialogPromise;
-    expect(dialog.type()).toBe('confirm');
-    expect(dialog.message()).toContain('permanent');
-    await dialog.accept();
-    await deleteRequest;
-
-    await expect(frame.locator('.trash-empty')).toBeVisible();
-    await expect(frame.locator('[data-group]')).toHaveCount(0);
-    expect(deleteRequests.length).toBe(1);
-    expect(deleteRequests[0].ids).toContainEqual(expect.stringMatching(/.+/));
-    expect(trashEntries.length).toBe(0);
-  });
-
-  test('cancelling permanent deletion keeps archive unchanged', async ({ page }) => {
-    await archiveExample(page, 'Avbryt sletting test');
-
-    const trashLoad = page.waitForRequest(
-      request => request.url().includes('/api/examples/trash') && request.method() === 'GET'
-    );
-    await page.locator('#btnRestoreExample').click();
-    await trashLoad;
-
-    const frame = page.frameLocator('iframe[data-restore-frame]');
-    await expect(frame.locator('[data-group]')).toHaveCount(1);
-
-    const dialogPromise = page.waitForEvent('dialog');
-    await frame.locator('button[data-action="delete"]').first().click();
-    const dialog = await dialogPromise;
-    expect(dialog.type()).toBe('confirm');
-    expect(dialog.message()).toContain('permanent');
-    await dialog.dismiss();
-
-    await expect(frame.locator('[data-group]')).toHaveCount(1);
-    await expect(frame.locator('.trash-empty')).toHaveCount(0);
-    expect(deleteRequests.length).toBe(0);
     expect(trashEntries.length).toBe(1);
+    const [entry] = trashEntries;
+    expect(entry).toBeDefined();
+    expect((entry.example && entry.example.description) || '').toContain(
+      'Eksempel for gjenoppretting'
+    );
+  });
+
+  test('restore dialog elements are not injected', async ({ page }) => {
+    await expect(page.locator('#btnRestoreExample')).toHaveCount(0);
+    await expect(page.locator('#exampleRestoreStyles')).toHaveCount(0);
+    await expect(page.locator('.example-restore-overlay')).toHaveCount(0);
   });
 });
