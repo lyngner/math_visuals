@@ -159,8 +159,8 @@ async function augmentTrashEntries(entries) {
     const status = entry.sourcePath ? pathStatus.get(entry.sourcePath) : null;
     return {
       ...entry,
-      sourceActive: status ? status.sourceActive : false,
-      sourceArchived: status ? status.sourceArchived : false
+      sourceActive: status ? status.sourceActive === true : false,
+      sourceArchived: status ? status.sourceArchived === true : false
     };
   });
 }
@@ -171,6 +171,47 @@ function buildTrashApiUrl(req) {
     return url;
   } catch (error) {
     return null;
+  }
+}
+
+function getRequestHeader(req, name) {
+  if (!req || !req.headers || typeof name !== 'string') return null;
+  const value = req.headers[name] || req.headers[name.toLowerCase()];
+  if (Array.isArray(value)) {
+    return value.length ? String(value[0]) : null;
+  }
+  return typeof value === 'string' ? value : null;
+}
+
+function extractRequestIp(req) {
+  const forwarded = getRequestHeader(req, 'x-forwarded-for');
+  if (forwarded && typeof forwarded === 'string') {
+    const [first] = forwarded.split(',');
+    if (first && first.trim()) {
+      return first.trim();
+    }
+  }
+  if (req && req.socket && typeof req.socket.remoteAddress === 'string') {
+    return req.socket.remoteAddress;
+  }
+  if (req && req.connection && typeof req.connection.remoteAddress === 'string') {
+    return req.connection.remoteAddress;
+  }
+  return null;
+}
+
+function logTrashAudit(event, details) {
+  const payload = {
+    source: 'examples-trash',
+    event,
+    timestamp: new Date().toISOString(),
+    ...details
+  };
+  try {
+    const serialized = JSON.stringify(payload);
+    console.info('[examples:audit]', serialized);
+  } catch (error) {
+    console.info('[examples:audit]', payload);
   }
 }
 
@@ -250,6 +291,65 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'DELETE') {
+      if (requestUrl.searchParams.has('entryId')) {
+        const entryIdRaw = requestUrl.searchParams.get('entryId') || '';
+        const entryId = entryIdRaw.trim();
+        if (!entryId) {
+          const metadata = applyModeHeaders(res, currentMode);
+          sendJson(res, 400, {
+            ...metadata,
+            error: 'InvalidEntryId',
+            message: 'entryId query parameter is required'
+          });
+          return;
+        }
+
+        const auditBase = {
+          entryId,
+          ip: extractRequestIp(req),
+          userAgent: getRequestHeader(req, 'user-agent'),
+          referer: getRequestHeader(req, 'referer') || getRequestHeader(req, 'referrer') || null
+        };
+
+        try {
+          const result = await deleteTrashEntries(entryId);
+          const augmented = await augmentTrashEntries(result.entries);
+          const metadata = applyModeHeaders(res, currentMode);
+          const storageMode = (metadata && metadata.mode) || currentMode;
+          logTrashAudit('permanent-delete', {
+            ...auditBase,
+            storageMode,
+            removedCount: result.removed,
+            outcome: result.removed > 0 ? 'removed' : 'not_found'
+          });
+          sendJson(res, 200, { ...metadata, entryId, removed: result.removed, entries: augmented });
+          return;
+        } catch (error) {
+          if (error instanceof KvConfigurationError) {
+            const metadata = applyModeHeaders(res, 'memory');
+            const storageMode = (metadata && metadata.mode) || 'memory';
+            logTrashAudit('permanent-delete', {
+              ...auditBase,
+              storageMode,
+              removedCount: 0,
+              outcome: 'error',
+              error: error.message,
+              errorCode: error.code || 'KV_NOT_CONFIGURED'
+            });
+            sendJson(res, 503, { error: 'KVUnavailable', message: error.message, ...metadata });
+            return;
+          }
+          logTrashAudit('permanent-delete', {
+            ...auditBase,
+            storageMode: currentMode,
+            removedCount: 0,
+            outcome: 'error',
+            error: error && error.message ? error.message : 'Unknown error'
+          });
+          throw error;
+        }
+      }
+
       let body;
       try {
         body = await readJsonBody(req);
