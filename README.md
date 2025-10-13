@@ -44,4 +44,5 @@ For mer informasjon om lagringsmodellen, se dokumentasjonen i `docs/examples-sto
 Kjør følgende tester før du distribuerer endringer til produksjon:
 
 1. `npx playwright test tests/examples-api-entries.spec.js`
-   * Verifiserer at alle eksempler fra produksjonslisten på `https://math-visuals.vercel.app/api/examples` fortsatt er tilgjengelige og laster nødvendig klienttilstand.
+   * Henter produksjonslisten fra `https://math-visuals.vercel.app/api/examples`, sjekker at svaret er gyldig JSON, og laster hvert eksempel i et skjult Playwright-vindu.
+   * Feiler dersom en side returnerer 404, mangler `STATE/CFG/CONFIG/SIMPLE`-bindingene eller loggfører JavaScript-feil i konsollen.
