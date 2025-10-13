@@ -1720,9 +1720,11 @@
       const backendIsStale = backendHasTimestamp && backendUpdatedAtMs < lastLocalUpdateMs;
       const onlyEnsureDefaultsLocally = ensureDefaultsOnly === true && hasLocalExamples;
       const lastChangeWasEnsureDefault = lastAppliedExamplesReason === 'ensure-default';
+      const lastEnsureDefaultWasBaseline =
+        lastChangeWasEnsureDefault && (!hasLocalExamples || ensureDefaultsOnly === true);
       const backendMissingTimestampButSafeToApply =
         backendLacksTimestamp &&
-        (!hasLocalExamples || lastLocalUpdateMs === 0 || onlyEnsureDefaultsLocally || lastChangeWasEnsureDefault);
+        (!hasLocalExamples || lastLocalUpdateMs === 0 || onlyEnsureDefaultsLocally || lastEnsureDefaultWasBaseline);
       const shouldApplyExamples = examples.length > 0 || !hasLocalExamples;
       const backendCanBeApplied =
         !backendIsStale && (backendHasTimestamp || backendMissingTimestampButSafeToApply);
