@@ -6,20 +6,41 @@ const {
 } = require('./helpers/examples-backend-mock');
 const {
   createExamplesApiRouteHandler,
-  resetExamplesMemoryStore
+  resetExamplesMemoryStore,
+  invokeExamplesApi
 } = require('./helpers/examples-api-utils');
 
 const VIEWER_FIXTURE_PATH = '/tests/fixtures/examples-viewer.html';
 const MEMORY_WARNING_TEXT = 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.';
 const EXAMPLE_PATH = '/tallinje';
 const CANONICAL_PATH = normalizeExamplePath(EXAMPLE_PATH);
+const SAMPLE_MEMORY_ENTRIES = {
+  '/tallinje': {
+    examples: [
+      {
+        title: 'Tallinje eksempel',
+        description: 'Øv på å plassere tall på linjen.'
+      }
+    ],
+    deletedProvided: []
+  },
+  '/brøkpizza': {
+    examples: [
+      {
+        title: 'Brøkpizza eksempel',
+        description: 'Del pizzaen i riktige brøker.'
+      }
+    ],
+    deletedProvided: []
+  }
+};
 
 test.describe('Examples viewer – memory mode awareness', () => {
   test('shows memory status alert and renders entries from the backend', async ({ page }) => {
     const backend = await attachExamplesBackendMock(
       page.context(),
-      undefined,
-      { mode: 'memory', seedDefaults: true }
+      SAMPLE_MEMORY_ENTRIES,
+      { mode: 'memory' }
     );
 
     await page.goto(VIEWER_FIXTURE_PATH, { waitUntil: 'load' });
@@ -44,7 +65,7 @@ test.describe('Examples viewer – memory mode awareness', () => {
     await expect(tallinjeHeading).toHaveText(CANONICAL_PATH);
 
     const tallinjeCards = tallinjeSection.first().locator('.example');
-    await expect(tallinjeCards).toHaveCount(1);
+    await expect(tallinjeCards).toHaveCount(SAMPLE_MEMORY_ENTRIES['/tallinje'].examples.length);
     const iframe = tallinjeCards.first().locator('iframe');
     await expect(iframe).toHaveAttribute('src', /\/tallinje(\?|$)/);
     await expect(tallinjeCards.first().getByRole('button', { name: 'Last inn' })).toBeVisible();
@@ -53,7 +74,7 @@ test.describe('Examples viewer – memory mode awareness', () => {
     const additionalSection = sections.filter({ hasText: '/brøkpizza' });
     await expect(additionalSection).toHaveCount(1);
     const pizzaCards = additionalSection.first().locator('.example');
-    await expect(pizzaCards).not.toHaveCount(0);
+    await expect(pizzaCards).toHaveCount(SAMPLE_MEMORY_ENTRIES['/brøkpizza'].examples.length);
 
     const storedEntry = await backend.client.get(CANONICAL_PATH);
     expect(storedEntry).toBeTruthy();
@@ -62,13 +83,12 @@ test.describe('Examples viewer – memory mode awareness', () => {
     expect(Array.isArray(storedEntry.examples)).toBe(true);
     expect(storedEntry.examples.length).toBeGreaterThan(0);
     expect(storedEntry.examples[0]).toMatchObject({
-      title: 'Plasser brøkene',
-      isDefault: true
+      title: 'Tallinje eksempel'
     });
   });
 });
 
-test.describe('Examples viewer – auto seeded defaults', () => {
+test.describe('Examples viewer – manual API seeding', () => {
   let originalKvUrl;
   let originalKvToken;
 
@@ -82,6 +102,14 @@ test.describe('Examples viewer – auto seeded defaults', () => {
     delete process.env.KV_REST_API_TOKEN;
     resetExamplesMemoryStore();
     await context.route('**/api/examples**', createExamplesApiRouteHandler());
+    for (const [path, payload] of Object.entries(SAMPLE_MEMORY_ENTRIES)) {
+      await invokeExamplesApi({
+        method: 'POST',
+        url: '/api/examples',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ path, ...payload })
+      });
+    }
   });
 
   test.afterEach(async ({ context }) => {
@@ -102,7 +130,7 @@ test.describe('Examples viewer – auto seeded defaults', () => {
     }
   });
 
-  test('renders default examples provided by memory auto-seeding', async ({ page }) => {
+  test('renders examples stored via the API before the test', async ({ page }) => {
     await page.goto(VIEWER_FIXTURE_PATH, { waitUntil: 'load' });
 
     const banner = page.locator('#examples-store-banner');
@@ -115,12 +143,12 @@ test.describe('Examples viewer – auto seeded defaults', () => {
     const tallinjeSection = sections.filter({ hasText: '/tallinje' });
     await expect(tallinjeSection).toHaveCount(1);
     const tallinjeExamples = tallinjeSection.first().locator('.example');
-    await expect(tallinjeExamples).not.toHaveCount(0);
+    await expect(tallinjeExamples).toHaveCount(SAMPLE_MEMORY_ENTRIES['/tallinje'].examples.length);
 
     const pizzaSection = sections.filter({ hasText: '/brøkpizza' });
     await expect(pizzaSection).toHaveCount(1);
     const pizzaExamples = pizzaSection.first().locator('.example');
-    await expect(pizzaExamples).not.toHaveCount(0);
+    await expect(pizzaExamples).toHaveCount(SAMPLE_MEMORY_ENTRIES['/brøkpizza'].examples.length);
   });
 });
 

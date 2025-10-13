@@ -15,7 +15,6 @@ const {
   deleteMemoryEntry,
   listMemoryEntries
 } = require('../_lib/examples-store');
-const { loadDefaultExampleEntries } = require('../_lib/examples-defaults');
 
 const MEMORY_LIMITATION_NOTE = 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.';
 
@@ -175,19 +174,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       try {
         if (queryPath) {
-          let entry = await getEntry(queryPath);
-          if (!entry && normalizeStoreMode(currentMode) === 'memory') {
-            const defaults = await loadDefaultExampleEntries();
-            const normalizedQueryPath = normalizePath(queryPath);
-            const defaultEntry = defaults.find(item => item.path === normalizedQueryPath);
-            if (defaultEntry) {
-              const seeded = getMemoryEntry(defaultEntry.path);
-              entry = seeded || setMemoryEntry(defaultEntry.path, {
-                examples: defaultEntry.examples,
-                deletedProvided: defaultEntry.deletedProvided
-              });
-            }
-          }
+          const entry = await getEntry(queryPath);
           if (!entry) {
             const metadata = applyModeHeaders(res, currentMode);
             sendJson(res, 404, { error: 'Not Found', ...metadata });
@@ -201,27 +188,6 @@ module.exports = async function handler(req, res) {
         let entries = await listEntries();
         if (!Array.isArray(entries)) {
           entries = [];
-        }
-        if (!entries.length && normalizeStoreMode(currentMode) === 'memory') {
-          const defaults = await loadDefaultExampleEntries();
-          const seeded = [];
-          for (const entry of defaults) {
-            if (!entry || typeof entry !== 'object') continue;
-            const { path, examples, deletedProvided } = entry;
-            if (!path) continue;
-            const existing = getMemoryEntry(path);
-            if (existing) {
-              seeded.push(existing);
-              continue;
-            }
-            const stored = setMemoryEntry(path, { examples, deletedProvided });
-            if (stored) {
-              seeded.push(stored);
-            }
-          }
-          if (seeded.length) {
-            entries = seeded;
-          }
         }
         const payloadEntries = augmentEntries(entries, currentMode);
         const effectiveMode = payloadEntries.length ? payloadEntries[0].mode : currentMode;
