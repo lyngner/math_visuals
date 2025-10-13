@@ -1656,6 +1656,9 @@
           markBackendAvailable(mode);
           clearLegacyExamplesStorageArtifacts();
           const merged = mergeBackendSyncPayload(payload);
+          try {
+            updateActionButtonState(0);
+          } catch (_) {}
           result.action = 'delete';
           result.payload = payload;
           result.merged = merged;
@@ -1704,6 +1707,13 @@
       markBackendAvailable(mode);
       clearLegacyExamplesStorageArtifacts();
       const merged = mergeBackendSyncPayload(responsePayload || payload);
+      try {
+        const finalCount =
+          merged && Array.isArray(merged.examples)
+            ? merged.examples.length
+            : backendExamples.length;
+        updateActionButtonState(finalCount);
+      } catch (_) {}
       result.action = 'put';
       result.payload = responsePayload;
       result.merged = merged;
@@ -2162,6 +2172,9 @@
           const mode = resolveStoreModeFromResponse(res);
           markBackendAvailable(mode);
           backendWasEmpty = true;
+          try {
+            updateActionButtonState(0);
+          } catch (_) {}
           return {
             path: storagePath,
             examples: [],
@@ -2172,6 +2185,9 @@
         const mode = resolveStoreModeFromResponse(res);
         markBackendAvailable(mode);
         backendWasEmpty = true;
+        try {
+          updateActionButtonState(0);
+        } catch (_) {}
         return {
           path: storagePath,
           examples: [],
@@ -2208,6 +2224,9 @@
       const backendExamples = Array.isArray(normalized.examples) ? normalized.examples : [];
       const backendDeleted = Array.isArray(normalized.deletedProvided) ? normalized.deletedProvided : [];
       backendWasEmpty = backendExamples.length === 0 && backendDeleted.length === 0;
+      try {
+        updateActionButtonState(backendExamples.length);
+      } catch (_) {}
       await applyBackendData(normalized);
       renderOptions();
       if (legacyPathUsed) {
@@ -3331,11 +3350,34 @@
       updatedAtMs
     };
   }
+  const MINIMUM_EXAMPLE_WARNING_MESSAGE = 'Du må ha minst ett lagret eksempel.';
+
+  function showMinimumExampleWarning() {
+    try {
+      setSaveStatusState('error', { message: MINIMUM_EXAMPLE_WARNING_MESSAGE });
+    } catch (_) {}
+  }
+
   async function store(examples, options) {
+    const previousExamples = getExamples();
+    const previousCount = Array.isArray(previousExamples) ? previousExamples.length : 0;
     const normalized = normalizeExamplesForStorage(examples);
+    const nextCount = Array.isArray(normalized) ? normalized.length : 0;
     const serialized = serializeExamplesForStorage(normalized);
     const opts = options && typeof options === 'object' ? options : {};
     const reason = typeof opts.reason === 'string' ? opts.reason : '';
+    if (reason === 'delete' && (previousCount <= 1 || nextCount <= 0)) {
+      lastKnownActionButtonCount = previousCount;
+      showMinimumExampleWarning();
+      try {
+        updateActionButtonState(previousCount);
+      } catch (_) {}
+      return {
+        ok: false,
+        reason: 'minimum-examples',
+        examples: previousExamples
+      };
+    }
     const applied = applyRawExamples(serialized, opts);
     if (!applied) {
       return { ok: false, examples: getExamples() };
@@ -4512,6 +4554,10 @@ body.examples-restore-open{overflow:hidden;}
     deleteBtn.addEventListener('click', async () => {
       const examples = getExamples();
       if (examples.length <= 1) {
+        showMinimumExampleWarning();
+        try {
+          updateActionButtonState(examples.length);
+        } catch (_) {}
         return;
       }
       const indexToUpdate = getActiveExampleIndex(examples);
