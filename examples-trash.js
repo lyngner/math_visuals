@@ -36,6 +36,23 @@
       return `${base}${sep}path=${encodeURIComponent(path)}`;
     }
   }
+  function buildTrashApiBase(base) {
+    if (!base) return null;
+    const trimmed = base.replace(/\/+$/, '');
+    return `${trimmed}/trash`;
+  }
+  function buildTrashApiUrl(base) {
+    if (!base) return null;
+    if (typeof window === 'undefined') {
+      return base;
+    }
+    try {
+      const url = new URL(base, window.location && window.location.href ? window.location.href : undefined);
+      return url.toString();
+    } catch (error) {
+      return base;
+    }
+  }
 
   function extractContentType(headers) {
     if (!headers) return null;
@@ -211,6 +228,7 @@
   }
 
   const apiBase = resolveExamplesApiBase();
+  const trashApiBase = apiBase ? buildTrashApiBase(apiBase) : null;
   const groupsContainer = typeof document !== 'undefined' ? document.querySelector('[data-trash-groups]') : null;
   const statusElement = typeof document !== 'undefined' ? document.querySelector('[data-status]') : null;
   const refreshButton = typeof document !== 'undefined' ? document.querySelector('[data-refresh]') : null;
@@ -229,9 +247,20 @@
   }
 
   const state = {
-    entries: new Map(),
+    groups: [],
+    groupsMap: new Map(),
     filter: 'all'
   };
+
+  function updateGroups(groups) {
+    const list = Array.isArray(groups) ? groups : [];
+    state.groups = list;
+    state.groupsMap = new Map();
+    list.forEach(group => {
+      if (!group || typeof group.path !== 'string') return;
+      state.groupsMap.set(group.path, group);
+    });
+  }
 
   function setStatus(message, type) {
     if (!statusElement) return;
@@ -248,34 +277,93 @@
     }
   }
 
-  function normalizeEntry(path, payload) {
-    const normalizedPath = normalizePath(path);
-    const examples = Array.isArray(payload && payload.examples) ? payload.examples.slice() : [];
-    const deletedProvided = Array.isArray(payload && payload.deletedProvided)
-      ? payload.deletedProvided.map(value => typeof value === 'string' ? value.trim() : '').filter(Boolean)
-      : [];
-    const updatedAt = typeof (payload && payload.updatedAt) === 'string' ? payload.updatedAt : null;
+  function normalizeTrashItem(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : null;
+    if (!id) return null;
+    const example = payload.example && typeof payload.example === 'object' ? payload.example : null;
+    if (!example) return null;
+    const deletedAt = typeof payload.deletedAt === 'string' ? payload.deletedAt : '';
+    const rawPath = typeof payload.sourcePathRaw === 'string' ? payload.sourcePathRaw.trim() : '';
+    const normalizedSource = typeof payload.sourcePath === 'string' && payload.sourcePath.trim()
+      ? normalizePath(payload.sourcePath)
+      : rawPath
+        ? normalizePath(rawPath)
+        : null;
+    const sourceHref = typeof payload.sourceHref === 'string' ? payload.sourceHref.trim() : '';
+    const sourceTitle = typeof payload.sourceTitle === 'string' ? payload.sourceTitle : '';
+    const reason = typeof payload.reason === 'string' ? payload.reason : 'delete';
+    const removedAtIndex = Number.isInteger(payload.removedAtIndex) ? payload.removedAtIndex : null;
+    const label = typeof payload.label === 'string' ? payload.label : '';
+    const importedFromHistory = payload.importedFromHistory === true;
+    const sourceArchived = payload.sourceArchived === true;
+    const sourceActive = payload.sourceActive === true;
     return {
-      path: normalizedPath || path,
-      examples,
-      deletedProvided,
-      updatedAt
+      id,
+      example,
+      deletedAt,
+      sourcePath: normalizedSource,
+      sourcePathRaw: rawPath || null,
+      sourceHref: sourceHref || null,
+      sourceTitle,
+      reason,
+      removedAtIndex,
+      label,
+      importedFromHistory,
+      sourceArchived,
+      sourceActive
     };
   }
 
-  async function fetchEntriesFromBackend() {
-    if (!apiBase) {
-      throw new Error('Fant ikke eksempeltjenesten. Sørg for at back-end kjører.');
+  function buildGroupsFromItems(items) {
+    const groupsMap = new Map();
+    if (Array.isArray(items)) {
+      items.forEach(item => {
+        const normalized = normalizeTrashItem(item);
+        if (!normalized || normalized.sourceActive) return;
+        let path = normalized.sourcePath;
+        if (!path) {
+          const fallback = normalized.sourcePathRaw || normalized.sourceHref || '';
+          path = fallback ? normalizePath(fallback) : '';
+        }
+        if (!path) return;
+        if (!groupsMap.has(path)) {
+          groupsMap.set(path, {
+            path,
+            sourceTitle: normalized.sourceTitle,
+            items: []
+          });
+        }
+        groupsMap.get(path).items.push({ ...normalized, path });
+      });
     }
-    const url = buildExamplesApiUrl(apiBase);
+    const groups = Array.from(groupsMap.values());
+    groups.forEach(group => {
+      group.items.sort((a, b) => {
+        const timeA = Date.parse(b.deletedAt || '') || 0;
+        const timeB = Date.parse(a.deletedAt || '') || 0;
+        return timeA - timeB;
+      });
+      group.count = group.items.length;
+      group.latestDeletedAt = group.items.length ? group.items[0].deletedAt : null;
+    });
+    groups.sort((a, b) => a.path.localeCompare(b.path, 'nb'));
+    return groups;
+  }
+
+  async function fetchEntriesFromBackend() {
+    if (!trashApiBase) {
+      throw new Error('Fant ikke arkivtjenesten. Sørg for at back-end kjører.');
+    }
+    const url = buildTrashApiUrl(trashApiBase);
     if (!url) {
-      throw new Error('Kunne ikke finne adressen til eksempellageret.');
+      throw new Error('Kunne ikke finne adressen til arkivet.');
     }
     let response;
     try {
       response = await fetch(url, { headers: { Accept: 'application/json' } });
     } catch (error) {
-      throw new Error('Kunne ikke kontakte eksempeltjenesten.');
+      throw new Error('Kunne ikke kontakte arkivtjenesten.');
     }
     if (!responseLooksLikeJson(response)) {
       const suffix = Number.isFinite(response && response.status) ? ` (status ${response.status})` : '';
@@ -295,45 +383,38 @@
       throw new Error('Kunne ikke tolke svaret fra serveren.');
     }
     const entries = Array.isArray(payload && payload.entries) ? payload.entries : [];
-    const map = new Map();
-    entries.forEach(item => {
-      if (!item || typeof item !== 'object') return;
-      const normalized = normalizeEntry(item.path, item);
-      if (!normalized.path) return;
-      map.set(normalized.path, normalized);
-    });
-    state.entries = map;
+    const groups = buildGroupsFromItems(entries);
+    updateGroups(groups);
   }
 
   function buildFilterOptions() {
     if (!filterSelect) return;
-    const currentValue = filterSelect.value || 'all';
     const selected = state.filter || 'all';
-    const existing = new Set(['all']);
     const options = Array.from(filterSelect.querySelectorAll('option'));
+    const existingValues = new Set();
     options.forEach(option => {
       const value = option.value || '';
-      if (value === 'all') return;
-      existing.add(value);
+      existingValues.add(value);
     });
-    const desired = new Set(['all']);
-    const paths = Array.from(state.entries.keys()).sort((a, b) => a.localeCompare(b, 'nb'));
-    paths.forEach(path => {
-      desired.add(path);
-      if (!existing.has(path)) {
+    const desiredValues = new Set(['all']);
+    const groups = Array.isArray(state.groups) ? state.groups : [];
+    groups.forEach(group => {
+      if (!group || typeof group.path !== 'string') return;
+      desiredValues.add(group.path);
+      if (!existingValues.has(group.path)) {
         const option = document.createElement('option');
-        option.value = path;
-        option.textContent = prettifyPath(path);
+        option.value = group.path;
+        option.textContent = prettifyPath(group.path);
         filterSelect.appendChild(option);
       }
     });
     options.forEach(option => {
       const value = option.value || '';
-      if (!desired.has(value)) {
+      if (!desiredValues.has(value)) {
         option.remove();
       }
     });
-    if (desired.has(selected)) {
+    if (desiredValues.has(selected)) {
       filterSelect.value = selected;
     } else {
       filterSelect.value = 'all';
@@ -341,16 +422,13 @@
     }
   }
 
-  function getFilteredEntries() {
+  function getFilteredGroups() {
     const filterValue = state.filter || 'all';
-    const entries = [];
-    state.entries.forEach(entry => {
-      if (!entry || !Array.isArray(entry.examples) || entry.examples.length === 0) return;
-      if (filterValue !== 'all' && entry.path !== filterValue) return;
-      entries.push(entry);
-    });
-    entries.sort((a, b) => a.path.localeCompare(b.path, 'nb'));
-    return entries;
+    const groups = Array.isArray(state.groups) ? state.groups : [];
+    if (filterValue === 'all') {
+      return groups;
+    }
+    return groups.filter(group => group && group.path === filterValue);
   }
 
   function buildGroupNode(entry) {
@@ -383,24 +461,27 @@
       titleEl.textContent = prettifyPath(entry.path);
     }
     if (metaEl) {
-      const count = entry.examples.length;
-      const countLabel = count === 1 ? '1 lagret eksempel' : `${count} lagrede eksempler`;
+      const count = Array.isArray(entry.items) ? entry.items.length : 0;
+      const countLabel = count === 1 ? '1 arkivert eksempel' : `${count} arkiverte eksempler`;
       metaEl.textContent = countLabel;
-      const timestamp = formatTimestamp(entry.updatedAt);
+      const timestamp = formatTimestamp(entry.latestDeletedAt);
       if (timestamp) {
-        metaEl.appendChild(document.createTextNode(` · Oppdatert ${timestamp}`));
+        metaEl.appendChild(document.createTextNode(` · Sist arkivert ${timestamp}`));
       }
-      const link = document.createElement('a');
-      link.href = entry.path.endsWith('.html') ? entry.path : `${entry.path}.html`;
-      link.textContent = 'Åpne verktøy';
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      metaEl.appendChild(document.createTextNode(' · '));
-      metaEl.appendChild(link);
+      const href = resolveGroupHref(entry);
+      if (href) {
+        const link = document.createElement('a');
+        link.href = href;
+        link.textContent = 'Åpne verktøy';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        metaEl.appendChild(document.createTextNode(' · '));
+        metaEl.appendChild(link);
+      }
     }
     if (listEl) {
       listEl.innerHTML = '';
-      entry.examples.forEach((example, index) => {
+      entry.items.forEach((itemData, index) => {
         let itemNode = null;
         if (itemTemplate && itemTemplate.content) {
           itemNode = itemTemplate.content.cloneNode(true);
@@ -442,33 +523,46 @@
         const deleteButton = itemNode.querySelector('[data-action="delete"]');
         if (item) {
           item.dataset.index = String(index);
+          if (itemData && itemData.id) {
+            item.dataset.id = itemData.id;
+          }
         }
-        const titleText = typeof example.title === 'string' && example.title.trim()
-          ? example.title.trim()
-          : typeof example.description === 'string' && example.description.trim()
-            ? example.description.trim().slice(0, 120)
-            : `Eksempel ${index + 1}`;
+        const titleText = typeof itemData.label === 'string' && itemData.label.trim()
+          ? itemData.label.trim()
+          : typeof itemData.example?.title === 'string' && itemData.example.title.trim()
+            ? itemData.example.title.trim()
+            : typeof itemData.example?.description === 'string' && itemData.example.description.trim()
+              ? itemData.example.description.trim().slice(0, 120)
+              : `Eksempel ${index + 1}`;
         if (title) {
           title.textContent = titleText;
         }
         if (timestampEl) {
-          timestampEl.textContent = entry.updatedAt ? `Oppdatert ${formatTimestamp(entry.updatedAt)}` : '';
+          timestampEl.textContent = itemData.deletedAt
+            ? `Slettet ${formatTimestamp(itemData.deletedAt)}`
+            : '';
         }
         if (meta) {
           meta.innerHTML = '';
           const parts = [];
-          if (example.exampleNumber) {
-            parts.push(`Eksempelnummer: ${example.exampleNumber}`);
+          if (itemData.example && itemData.example.exampleNumber) {
+            parts.push(`Eksempelnummer: ${itemData.example.exampleNumber}`);
           }
-          if (example.__builtinKey) {
-            parts.push(`Innebygd nøkkel: ${example.__builtinKey}`);
+          if (itemData.example && itemData.example.__builtinKey) {
+            parts.push(`Innebygd nøkkel: ${itemData.example.__builtinKey}`);
+          }
+          if (itemData.reason && itemData.reason !== 'delete') {
+            parts.push(`Årsak: ${itemData.reason}`);
+          }
+          if (itemData.importedFromHistory) {
+            parts.push('Importert fra historikk');
           }
           if (parts.length) {
             meta.appendChild(document.createTextNode(parts.join(' · ')));
           }
         }
         if (description) {
-          const text = typeof example.description === 'string' ? example.description.trim() : '';
+          const text = typeof itemData.example?.description === 'string' ? itemData.example.description.trim() : '';
           if (text) {
             description.hidden = false;
             description.textContent = text;
@@ -478,7 +572,7 @@
           }
         }
         if (preview) {
-          if (previewContent && renderExamplePreview(previewContent, example)) {
+          if (previewContent && renderExamplePreview(previewContent, itemData.example)) {
             preview.hidden = false;
           } else {
             preview.hidden = true;
@@ -488,10 +582,16 @@
         if (openButton) {
           openButton.dataset.action = 'open';
           openButton.dataset.index = String(index);
+          if (itemData && itemData.id) {
+            openButton.dataset.id = itemData.id;
+          }
           openButton.textContent = 'Åpne eksempel';
         }
         if (deleteButton) {
           deleteButton.dataset.index = String(index);
+          if (itemData && itemData.id) {
+            deleteButton.dataset.id = itemData.id;
+          }
           deleteButton.textContent = 'Slett';
         }
         listEl.appendChild(itemNode);
@@ -503,14 +603,14 @@
   function renderEntries() {
     if (!groupsContainer) return;
     groupsContainer.innerHTML = '';
-    const entries = getFilteredEntries();
-    if (!entries.length) {
+    const groups = getFilteredGroups();
+    if (!groups.length) {
       if (emptyTemplate) {
         groupsContainer.appendChild(emptyTemplate.cloneNode(true));
       }
       return;
     }
-    entries.forEach(entry => {
+    groups.forEach(entry => {
       const node = buildGroupNode(entry);
       if (node) {
         groupsContainer.appendChild(node);
@@ -518,114 +618,97 @@
     });
   }
 
-  function openExample(path, index) {
+  function resolveItemHref(group, item) {
+    if (!item) return null;
+    const raw = typeof item.sourceHref === 'string' && item.sourceHref.trim()
+      ? item.sourceHref.trim()
+      : group && typeof group.path === 'string'
+        ? group.path
+        : item.sourcePath || '';
+    if (!raw) return null;
+    if (/\.html?(?:[?#]|$)/i.test(raw)) {
+      return raw;
+    }
+    return `${raw}.html`;
+  }
+
+  function resolveGroupHref(group) {
+    if (!group) return null;
+    if (Array.isArray(group.items) && group.items.length) {
+      const candidate = resolveItemHref(group, group.items[0]);
+      if (candidate) {
+        return candidate;
+      }
+    }
+    if (typeof group.path === 'string' && group.path) {
+      return group.path.endsWith('.html') ? group.path : `${group.path}.html`;
+    }
+    return null;
+  }
+
+  function openExample(path, id) {
     if (typeof window === 'undefined') return;
     if (typeof path !== 'string') return;
-    const exampleIndex = Number(index);
-    if (!Number.isInteger(exampleIndex) || exampleIndex < 0) return;
+    const group = state.groupsMap.get(path);
+    if (!group || !Array.isArray(group.items)) return;
+    const item = group.items.find(entry => entry && entry.id === id);
+    if (!item) return;
+    const href = resolveItemHref(group, item);
+    if (!href) return;
+    const index = Number.isInteger(item.removedAtIndex) ? item.removedAtIndex : 0;
     try {
-      const url = new URL(path, window.location && window.location.href ? window.location.href : undefined);
-      url.searchParams.set('example', String(exampleIndex + 1));
+      const url = new URL(href, window.location && window.location.href ? window.location.href : undefined);
+      if (Number.isInteger(index)) {
+        url.searchParams.set('example', String(index + 1));
+      }
       window.open(url.toString(), '_blank', 'noopener');
     } catch (error) {
-      const base = path.includes('?') ? '&' : '?';
-      const target = `${path}${base}example=${exampleIndex + 1}`;
-      window.open(target, '_blank', 'noopener');
+      const base = href.includes('?') ? '&' : '?';
+      const suffix = Number.isInteger(index) ? `${base}example=${index + 1}` : '';
+      window.open(`${href}${suffix}`, '_blank', 'noopener');
     }
   }
 
-  async function putEntry(path, entry) {
-    if (!apiBase) {
-      throw new Error('Eksempeltjenesten er ikke konfigurert.');
+  async function deleteTrashItems(ids) {
+    if (!trashApiBase) {
+      throw new Error('Arkivtjenesten er ikke konfigurert.');
     }
-    const url = buildExamplesApiUrl(apiBase, path);
-    if (!url) {
-      throw new Error('Kunne ikke bygge URL for lagring.');
+    const validIds = Array.isArray(ids)
+      ? ids.map(value => (typeof value === 'string' ? value.trim() : '')).filter(Boolean)
+      : [];
+    if (!validIds.length) {
+      return;
     }
-    const payload = {
-      path,
-      examples: Array.isArray(entry.examples) ? entry.examples : [],
-      deletedProvided: Array.isArray(entry.deletedProvided) ? entry.deletedProvided : [],
-      updatedAt: new Date().toISOString()
-    };
-    let response;
-    try {
-      response = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-    } catch (error) {
-      throw new Error('Kunne ikke kontakte serveren for å lagre endringer.');
-    }
-    if (!response.ok) {
-      throw new Error(`Serveren avviste oppdateringen (${response.status}).`);
-    }
-    let result;
-    try {
-      result = await response.json();
-    } catch (error) {
-      result = payload;
-    }
-    state.entries.set(path, normalizeEntry(path, result));
-  }
-
-  async function deleteEntry(path) {
-    if (!apiBase) {
-      throw new Error('Eksempeltjenesten er ikke konfigurert.');
-    }
-    const url = buildExamplesApiUrl(apiBase, path);
+    const url = buildTrashApiUrl(trashApiBase);
     if (!url) {
       throw new Error('Kunne ikke bygge URL for sletting.');
     }
     let response;
     try {
-      response = await fetch(url, { method: 'DELETE' });
+      response = await fetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: validIds })
+      });
     } catch (error) {
-      throw new Error('Kunne ikke kontakte serveren for å slette.');
+      throw new Error('Kunne ikke kontakte arkivtjenesten for sletting.');
     }
-    if (!response.ok && response.status !== 404) {
+    if (!response.ok) {
       throw new Error(`Serveren avviste sletting (${response.status}).`);
     }
-    state.entries.delete(path);
-  }
-
-  async function deleteExample(path, index) {
-    const entry = state.entries.get(path);
-    if (!entry || !Array.isArray(entry.examples)) {
-      return;
-    }
-    const exampleIndex = Number(index);
-    if (!Number.isInteger(exampleIndex) || exampleIndex < 0 || exampleIndex >= entry.examples.length) {
-      return;
-    }
-    const examples = entry.examples.slice();
-    const [removed] = examples.splice(exampleIndex, 1);
-    const deletedProvided = Array.isArray(entry.deletedProvided) ? entry.deletedProvided.slice() : [];
-    if (removed && typeof removed.__builtinKey === 'string') {
-      const key = removed.__builtinKey.trim();
-      if (key && !deletedProvided.includes(key)) {
-        deletedProvided.push(key);
-      }
-    }
-    if (!examples.length && !deletedProvided.length) {
-      await deleteEntry(path);
-      return;
-    }
-    await putEntry(path, { examples, deletedProvided });
   }
 
   async function refreshEntries() {
-    setStatus('Laster eksempler …', 'info');
+    setStatus('Laster arkiverte eksempler …', 'info');
     try {
       await fetchEntriesFromBackend();
       buildFilterOptions();
       renderEntries();
       setStatus('', '');
     } catch (error) {
-      state.entries.clear();
+      updateGroups([]);
       renderEntries();
-      setStatus(error && error.message ? error.message : 'Kunne ikke hente eksempler.', 'error');
+      setStatus(error && error.message ? error.message : 'Kunne ikke hente arkivet.', 'error');
     }
   }
 
@@ -644,19 +727,22 @@
     const path = group ? group.dataset.path : null;
     if (!path) return;
     if (action === 'open') {
-      const index = item ? item.dataset.index : null;
-      openExample(path, index);
+      const id = item && item.dataset ? item.dataset.id : button.dataset.id;
+      openExample(path, id);
       return;
     }
     if (action === 'delete') {
-      const index = item ? item.dataset.index : null;
+      const id = item && item.dataset ? item.dataset.id : button.dataset.id;
+      if (!id) return;
       button.disabled = true;
       try {
-        await deleteExample(path, index);
+        await deleteTrashItems([id]);
+        await fetchEntriesFromBackend();
+        buildFilterOptions();
         renderEntries();
         setStatus('', '');
       } catch (error) {
-        setStatus(error && error.message ? error.message : 'Kunne ikke slette eksempelet.', 'error');
+        setStatus(error && error.message ? error.message : 'Kunne ikke slette elementet.', 'error');
       } finally {
         button.disabled = false;
       }

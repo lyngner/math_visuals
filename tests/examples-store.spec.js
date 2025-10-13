@@ -55,6 +55,10 @@ const {
   getEntry,
   deleteEntry,
   listEntries,
+  getTrashEntries,
+  setTrashEntries,
+  appendTrashEntries,
+  deleteTrashEntries,
   getMemoryEntry,
   setMemoryEntry,
   deleteMemoryEntry,
@@ -304,5 +308,76 @@ test.describe('examples-store memory fallback', () => {
     expect(stillHasB).toBeTruthy();
     expect(stillHasB.storage).toBe('memory');
     expect(stillHasB.mode).toBe('memory');
+  });
+});
+
+test.describe('examples-store trash operations', () => {
+  test.beforeEach(async () => {
+    await setTrashEntries([]);
+  });
+
+  test('setTrashEntries normalizes trash payloads', async () => {
+    const entries = await setTrashEntries([
+      {
+        id: 'custom-id',
+        example: { title: 'Trash demo', config: { STATE: { value: 1 } } },
+        deletedAt: '2024-01-02T03:04:05.000Z',
+        sourcePath: '/Diagram/Index.html',
+        reason: 'history'
+      }
+    ]);
+
+    expect(entries).toHaveLength(1);
+    const [stored] = entries;
+    expect(stored.id).toBe('custom-id');
+    expect(stored.sourcePath).toBe('/diagram');
+    expect(stored.sourcePathRaw).toBe('/Diagram/Index.html');
+    expect(stored.reason).toBe('history');
+    expect(stored.example).toMatchObject({ title: 'Trash demo' });
+
+    const roundTrip = await getTrashEntries();
+    expect(roundTrip).toHaveLength(1);
+    expect(roundTrip[0].id).toBe('custom-id');
+    expect(roundTrip[0].sourcePath).toBe('/diagram');
+  });
+
+  test('appendTrashEntries prepends new entries and enforces limit', async () => {
+    await setTrashEntries([
+      { id: 'existing', example: { title: 'Existing' }, deletedAt: '2024-01-01T00:00:00.000Z' }
+    ]);
+
+    const updated = await appendTrashEntries(
+      [
+        { id: 'newer', example: { title: 'Newer' }, deletedAt: '2024-02-01T00:00:00.000Z' },
+        { id: 'existing', example: { title: 'Duplicate' } }
+      ],
+      { mode: 'prepend', limit: 2 }
+    );
+
+    expect(updated[0].id).toBe('newer');
+    expect(updated).toHaveLength(2);
+    const ids = updated.map(entry => entry.id);
+    expect(ids).toContain('existing');
+
+    const appended = await appendTrashEntries(
+      [{ id: 'tail', example: { title: 'Tail' }, deletedAt: '2024-03-01T00:00:00.000Z' }],
+      { mode: 'append', limit: 2 }
+    );
+    expect(appended).toHaveLength(2);
+    expect(appended[appended.length - 1].id).toBe('tail');
+  });
+
+  test('deleteTrashEntries removes matching ids', async () => {
+    await setTrashEntries([
+      { id: 'keep', example: { title: 'Keep' } },
+      { id: 'remove', example: { title: 'Remove' } }
+    ]);
+
+    const result = await deleteTrashEntries(['remove']);
+    expect(result.removed).toBe(1);
+    const remaining = await getTrashEntries();
+    const remainingIds = remaining.map(entry => entry.id);
+    expect(remainingIds).toContain('keep');
+    expect(remainingIds).not.toContain('remove');
   });
 });
