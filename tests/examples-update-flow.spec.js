@@ -84,4 +84,57 @@ test.describe('Examples update flow', () => {
     await expect(tabs).toHaveCount(0);
     await expect(page.locator('#exampleDescription')).toHaveValue('');
   });
+
+  test('disables action buttons during update and reflects saving state', async ({ page }) => {
+    const description = page.locator('#exampleDescription');
+    const saveButton = page.locator('#btnSaveExample');
+    const updateButton = page.locator('#btnUpdateExample');
+    const deleteButton = page.locator('#btnDeleteExample');
+    const statusIndicator = page.locator('.example-save-status');
+    const spinner = page.locator('.example-save-status__spinner');
+
+    await description.fill('Eksempel én');
+    const firstSave = page.waitForRequest(
+      request => request.url().includes('/api/examples') && request.method() === 'PUT'
+    );
+    await saveButton.click();
+    await firstSave;
+
+    await description.fill('Eksempel to');
+    const secondSave = page.waitForRequest(
+      request => request.url().includes('/api/examples') && request.method() === 'PUT'
+    );
+    await saveButton.click();
+    await secondSave;
+
+    await expect(deleteButton).toBeEnabled();
+
+    await description.fill('Oppdatert eksempel to');
+
+    const updateRequestPromise = page.waitForRequest(
+      request => request.url().includes('/api/examples') && request.method() === 'PUT'
+    );
+
+    await updateButton.click();
+
+    await expect(statusIndicator).toHaveAttribute('data-status', 'saving');
+    await expect(spinner).toBeVisible();
+    await expect(saveButton).toBeDisabled();
+    await expect(updateButton).toBeDisabled();
+    await expect(deleteButton).toBeDisabled();
+
+    const updateRequest = await updateRequestPromise;
+    const payload = updateRequest.postDataJSON();
+    expect(payload).toBeTruthy();
+    expect(Array.isArray(payload.examples)).toBe(true);
+    expect(payload.examples.length).toBeGreaterThan(0);
+    const updatedExample = payload.examples[payload.examples.length - 1];
+    expect(updatedExample.description).toContain('Oppdatert eksempel to');
+
+    await expect(statusIndicator).toHaveAttribute('data-status', 'success');
+    await expect(page.locator('.example-save-status__text')).toHaveText(/Sist lagret kl\./);
+    await expect(saveButton).toBeEnabled();
+    await expect(updateButton).toBeEnabled();
+    await expect(deleteButton).toBeEnabled();
+  });
 });

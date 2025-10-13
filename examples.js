@@ -494,6 +494,16 @@
   }
   let updateRestoreButtonState = () => {};
   let updateActionButtonState = () => {};
+  let actionButtonsBusy = false;
+  let lastKnownActionButtonCount = 0;
+  let setActionButtonsBusy = value => {
+    actionButtonsBusy = value === true;
+    if (typeof updateActionButtonState === 'function') {
+      try {
+        updateActionButtonState(lastKnownActionButtonCount);
+      } catch (_) {}
+    }
+  };
   function resolveExamplesApiBase() {
     if (typeof window === 'undefined') return null;
     if (window.MATH_VISUALS_EXAMPLES_API_URL) {
@@ -1583,10 +1593,13 @@
         if (res.ok || res.status === 404) {
           const mode = resolveStoreModeFromResponse(res, payload);
           markBackendAvailable(mode);
+          clearLegacyExamplesStorageArtifacts();
+          const merged = mergeBackendSyncPayload(payload);
           result.action = 'delete';
           result.payload = payload;
+          result.merged = merged;
           if (!skipStatusUpdate && pendingUserSaveReason) {
-            markUserSaveSuccess(payload);
+            markUserSaveSuccess(merged || payload);
           }
           return result;
         }
@@ -3258,8 +3271,9 @@
     const reason = typeof opts.reason === 'string' ? opts.reason : '';
     const applied = applyRawExamples(serialized, opts);
     if (!applied) {
-      return false;
+      return { ok: false, examples: getExamples() };
     }
+    lastKnownActionButtonCount = Array.isArray(normalized) ? normalized.length : 0;
     const userInitiated = isUserInitiatedReason(reason);
     if (userInitiated) {
       lastLocalUpdateMs = Date.now();
@@ -3267,12 +3281,13 @@
       beginUserSaveStatus(reason);
     }
     const shouldSkipSync = opts.skipBackendSync === true || !backendReady;
+    const shouldLockButtons = userInitiated && !shouldSkipSync;
     if (shouldSkipSync) {
       backendSyncDeferred = true;
       if (userInitiated) {
         markUserSaveDeferred();
       }
-      return true;
+      return { ok: true, deferred: true, examples: getExamples(), updatedAt: null };
     }
     backendSyncDeferred = false;
     notifyBackendChange();
@@ -3282,6 +3297,9 @@
     };
     let syncResult = null;
     try {
+      if (shouldLockButtons) {
+        setActionButtonsBusy(true);
+      }
       const syncPromise = flushBackendSync(syncOptions);
       if (syncPromise) {
         syncResult = await syncPromise;
@@ -3293,15 +3311,26 @@
         markUserSaveError(error);
       }
       throw error;
+    } finally {
+      if (shouldLockButtons) {
+        setActionButtonsBusy(false);
+      }
     }
+    const updatedAtIso =
+      (syncResult && syncResult.merged && syncResult.merged.updatedAt) ||
+      (syncResult && syncResult.payload && normalizeUpdatedAtIso(syncResult.payload)) ||
+      null;
     if (userInitiated) {
-      const updatedAtIso =
-        (syncResult && syncResult.merged && syncResult.merged.updatedAt) ||
-        (syncResult && syncResult.payload && normalizeUpdatedAtIso(syncResult.payload)) ||
-        null;
       markUserSaveSuccess(updatedAtIso);
     }
-    return true;
+    return {
+      ok: true,
+      result: syncResult,
+      merged: syncResult ? syncResult.merged || null : null,
+      payload: syncResult ? syncResult.payload || null : null,
+      examples: getExamples(),
+      updatedAt: updatedAtIso
+    };
   }
   const BINDING_NAMES = ['STATE', 'CFG', 'CONFIG', 'SIMPLE'];
   const DELETED_PROVIDED_KEY = key + '_deletedProvidedExamples';
@@ -3982,9 +4011,11 @@
   window.addEventListener('resize', adjustTabsSpacing);
   updateActionButtonState = count => {
     const totalExamples = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
-    if (deleteBtn) deleteBtn.disabled = totalExamples <= 1;
-    if (updateBtn) updateBtn.disabled = totalExamples === 0;
-    if (createBtn) createBtn.disabled = false;
+    lastKnownActionButtonCount = totalExamples;
+    const disableAll = actionButtonsBusy === true;
+    if (deleteBtn) deleteBtn.disabled = disableAll || totalExamples <= 1;
+    if (updateBtn) updateBtn.disabled = disableAll || totalExamples === 0;
+    if (createBtn) createBtn.disabled = disableAll;
   };
   function clampExampleIndex(index, length) {
     if (!Number.isInteger(index)) return null;
@@ -4165,17 +4196,27 @@
   if (createBtn) {
     createBtn.addEventListener('click', async () => {
       const examples = getExamples();
+      const nextExamples = Array.isArray(examples) ? examples.slice() : [];
       const ex = collectCurrentExampleState();
-      examples.push(ex);
+      nextExamples.push(ex);
       try {
-        await store(examples, {
+        const result = await store(nextExamples, {
           reason: 'manual-save'
         });
+        if (!result || result.ok !== true) {
+          return;
+        }
+        const finalExamples =
+          result && Array.isArray(result.examples) ? result.examples : getExamples();
+        const total = Array.isArray(finalExamples) ? finalExamples.length : 0;
+        currentExampleIndex = total > 0 ? total - 1 : null;
+        renderOptions();
+        if (currentExampleIndex != null && total > 0) {
+          loadExample(currentExampleIndex);
+        }
       } catch (error) {
         console.error('[examples] failed to save example', error);
       }
-      currentExampleIndex = examples.length - 1;
-      renderOptions();
     });
   }
   if (updateBtn) {
@@ -4203,16 +4244,27 @@
       if (shouldDetach) {
         detachProvidedMetadata(updated);
       }
-      examples[indexToUpdate] = updated;
+      const nextExamples = Array.isArray(examples) ? examples.slice() : [];
+      nextExamples[indexToUpdate] = updated;
       try {
-        await store(examples, {
+        const result = await store(nextExamples, {
           reason: 'manual-update'
         });
+        if (!result || result.ok !== true) {
+          return;
+        }
+        const finalExamples =
+          result && Array.isArray(result.examples) ? result.examples : getExamples();
+        const total = Array.isArray(finalExamples) ? finalExamples.length : 0;
+        const boundedIndex = total === 0 ? null : Math.max(0, Math.min(indexToUpdate, total - 1));
+        currentExampleIndex = boundedIndex;
+        renderOptions();
+        if (boundedIndex != null) {
+          loadExample(boundedIndex);
+        }
       } catch (error) {
         console.error('[examples] failed to update example', error);
       }
-      currentExampleIndex = indexToUpdate;
-      renderOptions();
     });
   }
   if (deleteBtn) {
@@ -4226,19 +4278,15 @@
         return;
       }
       const indexToRemove = indexToUpdate;
-      const removed = examples.splice(indexToRemove, 1);
-      if (removed && removed.length) {
-        const removedExample = removed[0];
-        if (removedExample && typeof removedExample === 'object') {
-          addExampleToTrash(removedExample, {
-            index: indexToRemove,
-            reason: 'delete',
-            capturePreview: true
-          });
-          markProvidedExampleDeleted(removedExample.__builtinKey);
-        }
+      const removedExample = examples[indexToRemove];
+      if (removedExample && typeof removedExample === 'object') {
+        markProvidedExampleDeleted(removedExample.__builtinKey);
       }
-      examples.forEach((ex, idx) => {
+      const nextExamples = Array.isArray(examples)
+        ? examples.map(example => (example && typeof example === 'object' ? { ...example } : example))
+        : [];
+      nextExamples.splice(indexToRemove, 1);
+      nextExamples.forEach((ex, idx) => {
         if (!ex || typeof ex !== 'object') return;
         if (idx === 0) {
           ex.isDefault = true;
@@ -4247,22 +4295,34 @@
         }
       });
       try {
-        await store(examples, {
+        const result = await store(nextExamples, {
           reason: 'delete'
         });
+        if (!result || result.ok !== true) {
+          return;
+        }
+        const finalExamples =
+          result && Array.isArray(result.examples) ? result.examples : getExamples();
+        if (removedExample && typeof removedExample === 'object') {
+          addExampleToTrash(removedExample, {
+            index: indexToRemove,
+            reason: 'delete',
+            capturePreview: true
+          });
+        }
+        if (!Array.isArray(finalExamples) || finalExamples.length === 0) {
+          currentExampleIndex = null;
+        } else if (indexToRemove >= finalExamples.length) {
+          currentExampleIndex = finalExamples.length - 1;
+        } else {
+          currentExampleIndex = indexToRemove;
+        }
+        renderOptions();
+        if (currentExampleIndex != null && currentExampleIndex >= 0 && finalExamples.length > 0) {
+          loadExample(currentExampleIndex);
+        }
       } catch (error) {
         console.error('[examples] failed to delete example', error);
-      }
-      if (examples.length === 0) {
-        currentExampleIndex = null;
-      } else if (indexToRemove >= examples.length) {
-        currentExampleIndex = examples.length - 1;
-      } else {
-        currentExampleIndex = indexToRemove;
-      }
-      renderOptions();
-      if (currentExampleIndex != null && currentExampleIndex >= 0 && examples.length > 0) {
-        loadExample(currentExampleIndex);
       }
     });
   }
