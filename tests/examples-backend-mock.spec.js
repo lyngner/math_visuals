@@ -24,22 +24,29 @@ function createStubContext() {
   };
 }
 
-test.describe('examples backend mock defaults', () => {
-  test('auto-seeds bundled defaults when requested', async () => {
+test.describe('examples backend mock manual seeding', () => {
+  test('stores provided initial state when requested', async () => {
     const context = createStubContext();
-    const backend = await attachExamplesBackendMock(context, undefined, { mode: 'memory', seedDefaults: true });
+    const initialState = {
+      '/tallinje': {
+        examples: [
+          {
+            title: 'Tallinje eksempel',
+            description: 'Øv på å plassere tall på linjen.'
+          }
+        ]
+      }
+    };
+    const backend = await attachExamplesBackendMock(context, initialState, { mode: 'memory' });
 
     const entry = backend.read('/tallinje');
     expect(entry).toBeTruthy();
     expect(entry.mode).toBe('memory');
     expect(entry.storage).toBe('memory');
     expect(Array.isArray(entry.examples)).toBe(true);
-    expect(entry.examples.length).toBeGreaterThan(0);
+    expect(entry.examples.length).toBe(initialState['/tallinje'].examples.length);
     expect(entry.examples[0]).toMatchObject({
-      title: 'Plasser brøkene',
-      isDefault: true
+      title: 'Tallinje eksempel'
     });
-
-    await backend.dispose();
   });
 });

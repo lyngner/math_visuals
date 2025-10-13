@@ -58,7 +58,6 @@ const {
   getMemoryEntry,
   setMemoryEntry,
   deleteMemoryEntry,
-  seedMemoryStoreWithDefaults,
   __deserializeExampleValue
 } = require('../api/_lib/examples-store');
 
@@ -201,43 +200,6 @@ test.describe('examples-store KV verification', () => {
       try {
         await deleteEntry(path);
       } catch (error) {}
-    }
-  });
-});
-
-test.describe('examples-store memory defaults', () => {
-  test('seedMemoryStoreWithDefaults seeds the bundled tallinje example', async () => {
-    const path = '/tallinje';
-    const previous = getMemoryEntry(path);
-    try {
-      if (previous) {
-        deleteMemoryEntry(path);
-      }
-
-      const seeded = await seedMemoryStoreWithDefaults({ paths: [path], overwriteExisting: true });
-      expect(Array.isArray(seeded)).toBe(true);
-      expect(seeded.length).toBeGreaterThan(0);
-
-      const entry = getMemoryEntry(path);
-      expect(entry).toBeTruthy();
-      expect(entry.mode).toBe('memory');
-      expect(entry.storage).toBe('memory');
-      expect(Array.isArray(entry.examples)).toBe(true);
-      expect(entry.examples.length).toBeGreaterThan(0);
-      expect(entry.examples[0]).toMatchObject({
-        title: 'Plasser brøkene',
-        isDefault: true
-      });
-    } finally {
-      if (previous) {
-        setMemoryEntry(path, {
-          examples: Array.isArray(previous.examples) ? previous.examples : [],
-          deletedProvided: Array.isArray(previous.deletedProvided) ? previous.deletedProvided : [],
-          updatedAt: previous.updatedAt
-        });
-      } else {
-        deleteMemoryEntry(path);
-      }
     }
   });
 });

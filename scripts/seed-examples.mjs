@@ -8,7 +8,7 @@ const {
   isKvConfigured
 } = require('../api/_lib/examples-store');
 
-import DEFAULT_EXAMPLE_ENTRIES from './default-example-entries.mjs';
+const DEFAULT_EXAMPLE_ENTRIES = [];
 
 async function seedEntry(entry) {
   const payload = {
@@ -27,6 +27,11 @@ async function seedEntry(entry) {
 async function main() {
   if (!isKvConfigured()) {
     throw new Error('Examples KV client is not configured. Set KV_REST_API_URL and KV_REST_API_TOKEN before seeding.');
+  }
+
+  if (DEFAULT_EXAMPLE_ENTRIES.length === 0) {
+    console.log('No bundled example entries to seed.');
+    return;
   }
 
   for (const entry of DEFAULT_EXAMPLE_ENTRIES) {
