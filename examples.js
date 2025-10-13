@@ -1674,12 +1674,13 @@
       }
       const backendHasTimestamp = backendUpdatedAtMs > 0;
       const backendLacksTimestamp = !backendHasTimestamp;
-      const backendIsStale = backendHasTimestamp && backendUpdatedAtMs < lastLocalUpdateMs;
       const backendMissingTimestampButSafeToApply =
         backendLacksTimestamp && (!hasLocalExamples || lastLocalUpdateMs === 0);
+      const backendIsStale =
+        (backendHasTimestamp && backendUpdatedAtMs < lastLocalUpdateMs) ||
+        (backendLacksTimestamp && !backendMissingTimestampButSafeToApply);
       const shouldApplyExamples = examples.length > 0 || !hasLocalExamples;
-      const backendCanBeApplied =
-        !backendIsStale && (backendHasTimestamp || backendMissingTimestampButSafeToApply);
+      const backendCanBeApplied = !backendIsStale;
       if (shouldApplyExamples && backendCanBeApplied) {
         const previousIndex = Number.isInteger(currentExampleIndex) ? currentExampleIndex : null;
         await store(examples, {
