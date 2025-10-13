@@ -238,36 +238,10 @@ function uppercasePercentEncoding(value) {
   return value.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
 }
 
-function encodePathWithFallback(value) {
+function manualPercentEncodePath(value) {
   if (typeof value !== 'string' || !value) {
     return null;
   }
-
-  const tryEncode = candidate => {
-    if (typeof candidate !== 'string' || !candidate) return null;
-    try {
-      return uppercasePercentEncoding(encodeURI(candidate));
-    } catch (_) {
-      return null;
-    }
-  };
-
-  const encoded = tryEncode(value);
-  if (encoded) return encoded;
-
-  try {
-    const parts = value.split('/');
-    const encodedParts = parts.map((segment, index) => {
-      if (index === 0 && segment === '') {
-        return '';
-      }
-      return encodeURIComponent(segment);
-    });
-    const recombined = encodedParts.join('/');
-    if (recombined) {
-      return uppercasePercentEncoding(recombined);
-    }
-  } catch (_) {}
 
   try {
     let out = '';
@@ -308,6 +282,40 @@ function encodePathWithFallback(value) {
   } catch (_) {}
 
   return null;
+}
+
+function encodePathWithFallback(value) {
+  if (typeof value !== 'string' || !value) {
+    return null;
+  }
+
+  const tryEncode = candidate => {
+    if (typeof candidate !== 'string' || !candidate) return null;
+    try {
+      return uppercasePercentEncoding(encodeURI(candidate));
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const encoded = tryEncode(value);
+  if (encoded) return encoded;
+
+  try {
+    const parts = value.split('/');
+    const encodedParts = parts.map((segment, index) => {
+      if (index === 0 && segment === '') {
+        return '';
+      }
+      return encodeURIComponent(segment);
+    });
+    const recombined = encodedParts.join('/');
+    if (recombined) {
+      return uppercasePercentEncoding(recombined);
+    }
+  } catch (_) {}
+
+  return manualPercentEncodePath(value);
 }
 
 function normalizePath(value) {
@@ -357,7 +365,7 @@ function normalizePath(value) {
   }
 
   if (/[^A-Za-z0-9\-_.~!$&'()*+,;=:@/%]/.test(normalized)) {
-    const reencoded = encodePathWithFallback(normalized);
+    const reencoded = manualPercentEncodePath(normalized);
     if (reencoded) {
       normalized = reencoded.startsWith('/') ? reencoded : `/${reencoded.replace(/^\/+/, '')}`;
     } else {
