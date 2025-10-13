@@ -3074,12 +3074,6 @@
   }
   let tabsHostCard = null;
   let toolbarElement = null;
-  let restoreDialogOverlay = null;
-  let restoreDialogCloseButton = null;
-  let restoreDialogIframe = null;
-  let restoreDialogOpen = false;
-  let restoreDialogPreviousFocus = null;
-  let restoreButton = null;
   const hasUrlOverrides = (() => {
     if (typeof URLSearchParams === 'undefined') return false;
     const search = new URLSearchParams(window.location.search);
@@ -3355,6 +3349,14 @@
   function showMinimumExampleWarning() {
     try {
       setSaveStatusState('error', { message: MINIMUM_EXAMPLE_WARNING_MESSAGE });
+    } catch (_) {}
+  }
+
+  function showTrashRestoreHelp() {
+    try {
+      setSaveStatusState('success', {
+        message: 'Slettede eksempler kan gjenopprettes via examples-trash.html.'
+      });
     } catch (_) {}
   }
 
@@ -3645,152 +3647,6 @@
     }
     return typeof svgMarkup === 'string' ? svgMarkup : '';
   }
-  function ensureRestoreDialogStyles() {
-    if (typeof document === 'undefined') return;
-    if (document.getElementById('exampleRestoreStyles')) return;
-    const style = document.createElement('style');
-    style.id = 'exampleRestoreStyles';
-    style.textContent = `
-.example-restore-overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.55);backdrop-filter:blur(2px);padding:24px;z-index:1200;}
-.example-restore-overlay[hidden]{display:none !important;}
-.example-restore-dialog{background:#fff;color:#0f172a;border-radius:18px;border:1px solid rgba(15,109,143,.2);box-shadow:0 30px 80px rgba(15,23,42,.25);width:min(960px,100%);max-height:min(90vh,90dvh);display:flex;flex-direction:column;overflow:hidden;}
-.example-restore-dialog__header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid rgba(148,163,184,.35);background:#f8fafc;}
-.example-restore-dialog__title{margin:0;font-size:1.1rem;font-weight:650;color:#0f172a;}
-.example-restore-dialog__close{appearance:none;border:1px solid rgba(148,163,184,.35);background:#fff;color:#0f172a;border-radius:10px;padding:6px 12px;font:inherit;font-size:.9rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background-color .2s ease,box-shadow .2s ease,transform .2s ease,border-color .2s ease;}
-.example-restore-dialog__close:hover,.example-restore-dialog__close:focus-visible{background:#f3f4f6;border-color:rgba(15,109,143,.35);box-shadow:0 4px 12px rgba(15,109,143,.18);transform:translateY(-1px);outline:none;}
-.example-restore-dialog__body{flex:1 1 auto;display:flex;background:#f8fafc;}
-.example-restore-dialog__frame{border:0;flex:1 1 auto;width:100%;height:100%;background:#f8fafc;}
-body.examples-restore-open{overflow:hidden;}
-@media (max-width:720px){.example-restore-dialog{width:100%;max-height:92vh;border-radius:12px;padding-bottom:env(safe-area-inset-bottom,0);} .example-restore-dialog__header{padding:16px;} }
-`;
-    document.head.appendChild(style);
-  }
-
-  function ensureRestoreDialog() {
-    if (restoreDialogOverlay && restoreDialogOverlay.isConnected) {
-      return restoreDialogOverlay;
-    }
-    if (typeof document === 'undefined') return null;
-    ensureRestoreDialogStyles();
-    const overlay = document.createElement('div');
-    overlay.className = 'example-restore-overlay';
-    overlay.hidden = true;
-    overlay.setAttribute('aria-hidden', 'true');
-    const dialog = document.createElement('div');
-    dialog.className = 'example-restore-dialog';
-    dialog.setAttribute('role', 'dialog');
-    dialog.setAttribute('aria-modal', 'true');
-    dialog.setAttribute('aria-label', 'Arkiverte eksempler');
-    dialog.tabIndex = -1;
-    const header = document.createElement('div');
-    header.className = 'example-restore-dialog__header';
-    const title = document.createElement('h2');
-    title.className = 'example-restore-dialog__title';
-    title.textContent = 'Arkiverte eksempler';
-    const closeButton = document.createElement('button');
-    closeButton.type = 'button';
-    closeButton.className = 'example-restore-dialog__close';
-    closeButton.setAttribute('data-restore-close', 'true');
-    closeButton.textContent = 'Lukk';
-    header.appendChild(title);
-    header.appendChild(closeButton);
-    const body = document.createElement('div');
-    body.className = 'example-restore-dialog__body';
-    const frame = document.createElement('iframe');
-    frame.className = 'example-restore-dialog__frame';
-    frame.setAttribute('title', 'Arkiverte eksempler');
-    frame.setAttribute('data-restore-frame', 'true');
-    frame.setAttribute('loading', 'lazy');
-    body.appendChild(frame);
-    dialog.appendChild(header);
-    dialog.appendChild(body);
-    overlay.appendChild(dialog);
-    const closeHandler = () => closeRestoreDialog();
-    closeButton.addEventListener('click', closeHandler);
-    overlay.addEventListener('mousedown', event => {
-      if (event.target === overlay) {
-        event.preventDefault();
-        closeRestoreDialog();
-      }
-    });
-    if (typeof document.addEventListener === 'function') {
-      document.addEventListener('keydown', event => {
-        if (!restoreDialogOpen) return;
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          closeRestoreDialog();
-        }
-      });
-    }
-    (document.body || document.documentElement).appendChild(overlay);
-    restoreDialogOverlay = overlay;
-    restoreDialogCloseButton = closeButton;
-    restoreDialogIframe = frame;
-    return restoreDialogOverlay;
-  }
-
-  function openRestoreDialog() {
-    const overlay = ensureRestoreDialog();
-    if (!overlay) return;
-    restoreDialogPreviousFocus =
-      typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    overlay.hidden = false;
-    overlay.setAttribute('aria-hidden', 'false');
-    if (document.body) {
-      document.body.classList.add('examples-restore-open');
-    }
-    restoreDialogOpen = true;
-    if (restoreDialogIframe) {
-      try {
-        restoreDialogIframe.src = `examples-trash.html?ts=${Date.now()}`;
-      } catch (error) {
-        restoreDialogIframe.src = 'examples-trash.html';
-      }
-    }
-    setTimeout(() => {
-      if (restoreDialogOverlay) {
-        const dialog = restoreDialogOverlay.querySelector('.example-restore-dialog');
-        if (dialog && typeof dialog.focus === 'function') {
-          try {
-            dialog.focus();
-          } catch (_) {}
-        }
-      }
-      if (restoreDialogCloseButton && typeof restoreDialogCloseButton.focus === 'function') {
-        try {
-          restoreDialogCloseButton.focus();
-        } catch (_) {}
-      }
-    }, 0);
-  }
-
-  function closeRestoreDialog(options = {}) {
-    if (!restoreDialogOverlay) return;
-    restoreDialogOverlay.hidden = true;
-    restoreDialogOverlay.setAttribute('aria-hidden', 'true');
-    if (document.body) {
-      document.body.classList.remove('examples-restore-open');
-    }
-    restoreDialogOpen = false;
-    const skipRefresh = options && options.skipRefresh === true;
-    if (!skipRefresh) {
-      try {
-        const promise = loadExamplesFromBackend();
-        if (promise && typeof promise.catch === 'function') {
-          promise.catch(() => {});
-        }
-      } catch (_) {}
-    }
-    if (restoreDialogPreviousFocus && typeof restoreDialogPreviousFocus.focus === 'function') {
-      try {
-        restoreDialogPreviousFocus.focus();
-      } catch (_) {}
-    }
-    restoreDialogPreviousFocus = null;
-  }
-
   function ensureTabStyles() {
     if (document.getElementById('exampleTabStyles')) return;
     const style = document.createElement('style');
@@ -4244,34 +4100,6 @@ body.examples-restore-open{overflow:hidden;}
     toolbarElement;
   if (toolbarElement) {
     ensureSaveStatusElement();
-    ensureRestoreDialogStyles();
-    restoreButton = document.getElementById('btnRestoreExample');
-    if (!restoreButton) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.id = 'btnRestoreExample';
-      button.className = 'btn btn--ghost';
-      button.textContent = 'Gjenopprett fra arkiv';
-      button.setAttribute('data-restore-open', 'true');
-      if (deleteBtn && deleteBtn.parentElement === toolbarElement) {
-        if (deleteBtn.nextSibling) {
-          toolbarElement.insertBefore(button, deleteBtn.nextSibling);
-        } else {
-          toolbarElement.appendChild(button);
-        }
-      } else {
-        toolbarElement.appendChild(button);
-      }
-      restoreButton = button;
-    }
-    if (restoreButton && !restoreButton.__restoreListenerAttached) {
-      restoreButton.addEventListener('click', () => {
-        openRestoreDialog();
-      });
-      restoreButton.__restoreListenerAttached = true;
-    }
-  } else {
-    ensureRestoreDialogStyles();
   }
   tabsContainer = document.createElement('div');
   tabsContainer.id = 'exampleTabs';
@@ -4596,6 +4424,7 @@ body.examples-restore-open{overflow:hidden;}
             reason: 'delete',
             capturePreview: true
           });
+          showTrashRestoreHelp();
         }
         if (!Array.isArray(finalExamples) || finalExamples.length === 0) {
           currentExampleIndex = null;
@@ -4618,28 +4447,6 @@ body.examples-restore-open{overflow:hidden;}
     trashMigrationPromise.catch(() => {});
   }
   renderOptions();
-  function handleTrashMessage(event) {
-    if (!event || typeof event.data !== 'object' || event.data == null) return;
-    const origin = typeof event.origin === 'string' ? event.origin : '';
-    if (
-      origin &&
-      origin !== 'null' &&
-      typeof window !== 'undefined' &&
-      window.location &&
-      origin !== window.location.origin
-    ) {
-      return;
-    }
-    if (event.data.type === 'examples-trash:restored') {
-      try {
-        const promise = loadExamplesFromBackend();
-        if (promise && typeof promise.catch === 'function') {
-          promise.catch(() => {});
-        }
-      } catch (_) {}
-    }
-  }
-
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('math-visuals:app-mode-changed', () => {
       if (currentAppMode === 'task') {
@@ -4661,7 +4468,6 @@ body.examples-restore-open{overflow:hidden;}
       }
       loadExample(targetIndex);
     });
-    window.addEventListener('message', handleTrashMessage);
   }
   if (examplesApiBase) {
     const migrationPromise = migrateLegacyExamples();
