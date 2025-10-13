@@ -542,6 +542,23 @@
       return `${base}${sep}path=${encodeURIComponent(path)}`;
     }
   }
+  function buildTrashApiBase(base) {
+    if (!base) return null;
+    const trimmed = base.replace(/\/+$/, '');
+    return `${trimmed}/trash`;
+  }
+  function buildTrashApiUrl(base) {
+    if (!base) return null;
+    if (typeof window === 'undefined') {
+      return base;
+    }
+    try {
+      const url = new URL(base, window.location && window.location.href ? window.location.href : undefined);
+      return url.toString();
+    } catch (error) {
+      return base;
+    }
+  }
   function extractContentType(headers) {
     if (!headers) return null;
     let value = null;
@@ -764,8 +781,6 @@
   let lastStoredRawValue = null;
   let historyEntriesCache = null;
   let historyEntriesLoaded = false;
-  let trashEntriesCache = null;
-  let trashEntriesLoaded = false;
   let trashMigrationAttempted = false;
   function parseUpdatedAtValue(value) {
     if (value == null) return 0;
@@ -884,11 +899,6 @@
     persistHistoryEntries(entries);
   }
 
-  function serializeTrashEntries(entries) {
-    const seen = new WeakMap();
-    return JSON.stringify(entries, (_, value) => serializeExampleValue(value, seen));
-  }
-
   function deserializeTrashEntries(raw) {
     if (typeof raw !== 'string' || !raw.trim()) {
       return [];
@@ -947,44 +957,82 @@
     };
   }
 
-  function loadTrashEntries() {
-    if (trashEntriesLoaded) return trashEntriesCache || [];
-    trashEntriesLoaded = true;
-    trashEntriesCache = [];
+  function loadLegacyTrashEntries() {
     let raw = null;
     try {
       raw = storageGetItem(trashKey);
     } catch (_) {
       raw = null;
     }
-    if (typeof raw === 'string' && raw.trim()) {
-      const parsed = deserializeTrashEntries(raw);
-      if (Array.isArray(parsed)) {
-        const normalized = [];
-        parsed.forEach(item => {
-          const normalizedEntry = normalizeTrashEntry(item);
-          if (normalizedEntry) normalized.push(normalizedEntry);
-        });
-        trashEntriesCache = normalized;
-      }
+    if (typeof raw !== 'string' || !raw.trim()) {
+      return [];
     }
-    return trashEntriesCache;
+    const parsed = deserializeTrashEntries(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    const normalized = [];
+    parsed.forEach(item => {
+      const normalizedEntry = normalizeTrashEntry(item);
+      if (normalizedEntry) {
+        normalized.push(normalizedEntry);
+      }
+    });
+    return normalized;
   }
 
-  function persistTrashEntries(entries) {
-    trashEntriesCache = Array.isArray(entries) ? entries.map(normalizeTrashEntry).filter(Boolean) : [];
-    trashEntriesLoaded = true;
-    if (!trashEntriesCache.length) {
-      try {
-        storageRemoveItem(trashKey);
-      } catch (_) {}
-      return trashEntriesCache;
+  function clearLegacyTrashEntries() {
+    try {
+      storageRemoveItem(trashKey);
+    } catch (_) {}
+  }
+
+  function buildTrashPayload(entries, options) {
+    const normalized = Array.isArray(entries)
+      ? entries.map(normalizeTrashEntry).filter(Boolean)
+      : [];
+    const payload = { entries: normalized };
+    if (options && options.replace === true) {
+      payload.replace = true;
+    }
+    if (options && typeof options.mode === 'string' && options.mode.trim()) {
+      payload.mode = options.mode.trim();
+    }
+    if (options && Number.isInteger(options.limit) && options.limit > 0) {
+      payload.limit = options.limit;
+    }
+    return payload;
+  }
+
+  async function postTrashEntries(entries, options) {
+    if (!trashApiBase) {
+      return null;
+    }
+    if (typeof fetch !== 'function') {
+      return null;
+    }
+    const url = buildTrashApiUrl(trashApiBase);
+    if (!url) {
+      return null;
+    }
+    const payload = buildTrashPayload(entries, options);
+    if (!payload.entries.length && payload.replace !== true) {
+      return null;
     }
     try {
-      const serialized = serializeTrashEntries(trashEntriesCache);
-      storageSetItem(trashKey, serialized);
-    } catch (_) {}
-    return trashEntriesCache;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        throw new Error(`Trash API responded with ${response.status}`);
+      }
+      return response;
+    } catch (error) {
+      console.error('[examples] failed to communicate with trash API', error);
+      return null;
+    }
   }
 
   function buildExampleSignature(example) {
@@ -1029,19 +1077,20 @@
       importedFromHistory: opts.importedFromHistory === true
     });
     if (!record) return;
-    const current = loadTrashEntries().slice();
-    if (opts.prepend === false) {
-      current.push(record);
-    } else {
-      current.unshift(record);
+    const upload = postTrashEntries([record], {
+      mode: opts.prepend === false ? 'append' : 'prepend',
+      limit: MAX_TRASH_ENTRIES
+    });
+    if (upload && typeof upload.catch === 'function') {
+      upload.catch(error => {
+        console.error('[examples] failed to persist trash entry', error);
+      });
     }
-    persistTrashEntries(current.slice(0, MAX_TRASH_ENTRIES));
   }
 
-  function ensureTrashHistoryMigration() {
+  async function ensureTrashHistoryMigration() {
     if (trashMigrationAttempted) return;
     trashMigrationAttempted = true;
-    let migrated = false;
     let alreadyMigrated = false;
     try {
       const marker = storageGetItem(trashMigratedKey);
@@ -1051,21 +1100,25 @@
     } catch (_) {
       alreadyMigrated = false;
     }
-    if (alreadyMigrated) {
-      loadTrashEntries();
+    const existingTrash = loadLegacyTrashEntries();
+    if (alreadyMigrated && existingTrash.length === 0) {
       return;
     }
-    const existingTrash = loadTrashEntries();
+    const working = existingTrash.slice();
     const seenSignatures = new Set();
-    existingTrash.forEach(entry => {
+    working.forEach(entry => {
       const signature = buildExampleSignature(entry && entry.example);
-      if (signature) seenSignatures.add(signature);
+      if (signature) {
+        seenSignatures.add(signature);
+      }
     });
     const currentExamples = getExamples();
     const normalizedCurrent = normalizeExamplesForStorage(currentExamples);
     normalizedCurrent.forEach(example => {
       const signature = buildExampleSignature(example);
-      if (signature) seenSignatures.add(signature);
+      if (signature) {
+        seenSignatures.add(signature);
+      }
     });
     const historyEntries = loadHistoryEntries();
     historyEntries.forEach(entry => {
@@ -1076,21 +1129,28 @@
       normalized.forEach((example, idx) => {
         const signature = buildExampleSignature(example);
         if (!signature || seenSignatures.has(signature)) return;
-        addExampleToTrash(example, {
-          preNormalized: true,
-          prepend: false,
+        const record = normalizeTrashEntry({
+          example,
           deletedAt: typeof entry.savedAt === 'string' ? entry.savedAt : undefined,
           reason: 'history',
-          index: idx,
+          removedAtIndex: idx,
           importedFromHistory: true
         });
-        seenSignatures.add(signature);
-        migrated = true;
+        if (record) {
+          working.push(record);
+          seenSignatures.add(signature);
+        }
       });
     });
-    if (migrated) {
-      const refreshed = loadTrashEntries();
-      persistTrashEntries(refreshed.slice(0, MAX_TRASH_ENTRIES));
+    const finalEntries = working.slice(0, MAX_TRASH_ENTRIES);
+    if (trashApiBase && typeof fetch === 'function') {
+      const result = await postTrashEntries(finalEntries, {
+        replace: true,
+        limit: MAX_TRASH_ENTRIES
+      });
+      if (result) {
+        clearLegacyTrashEntries();
+      }
     }
     try {
       storageSetItem(trashMigratedKey, new Date().toISOString());
@@ -1300,6 +1360,7 @@
     }
   }
   const examplesApiBase = resolveExamplesApiBase();
+  const trashApiBase = examplesApiBase ? buildTrashApiBase(examplesApiBase) : null;
 
   function normalizeBackendStoreMode(value) {
     if (typeof value !== 'string') return null;
@@ -4326,7 +4387,10 @@
       }
     });
   }
-  ensureTrashHistoryMigration();
+  const trashMigrationPromise = ensureTrashHistoryMigration();
+  if (trashMigrationPromise && typeof trashMigrationPromise.catch === 'function') {
+    trashMigrationPromise.catch(() => {});
+  }
   renderOptions();
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('math-visuals:app-mode-changed', () => {

@@ -2,9 +2,12 @@
 
 const KEY_PREFIX = 'examples:';
 const INDEX_KEY = 'examples:__paths__';
+const TRASH_KEY = 'examples:__trash__';
+const MAX_TRASH_ENTRIES = 200;
 
 const memoryStore = new Map();
 const memoryIndex = new Set();
+let memoryTrashEntries = [];
 
 let kvClientPromise = null;
 
@@ -309,6 +312,64 @@ function sanitizeDeleted(list) {
   return out;
 }
 
+function generateTrashId() {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).slice(2, 10);
+  return `${timestamp}-${random}`;
+}
+
+function sanitizeTrashEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const serializedExample = serializeExampleValue(entry.example, new WeakMap());
+  if (!serializedExample) return null;
+  const now = new Date().toISOString();
+  const sourcePathRaw = typeof entry.sourcePath === 'string' ? entry.sourcePath.trim() : '';
+  const normalizedPath = sourcePathRaw ? normalizePath(sourcePathRaw) : null;
+  const trimmedHref = typeof entry.sourceHref === 'string' ? entry.sourceHref.trim() : '';
+  const trimmedTitle = typeof entry.sourceTitle === 'string' ? entry.sourceTitle : '';
+  const trimmedReason = typeof entry.reason === 'string' ? entry.reason.trim() : 'delete';
+  const trimmedLabel = typeof entry.label === 'string' ? entry.label : '';
+  const deletedAt = typeof entry.deletedAt === 'string' && entry.deletedAt.trim() ? entry.deletedAt.trim() : now;
+  const id = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : generateTrashId();
+  const sanitized = {
+    id,
+    example: serializedExample,
+    deletedAt,
+    sourcePath: normalizedPath || null,
+    sourcePathRaw: sourcePathRaw && sourcePathRaw !== (normalizedPath || '') ? sourcePathRaw : null,
+    sourceHref: trimmedHref || null,
+    sourceTitle: trimmedTitle || '',
+    reason: trimmedReason,
+    removedAtIndex: Number.isInteger(entry.removedAtIndex) ? entry.removedAtIndex : null,
+    label: trimmedLabel || null,
+    importedFromHistory: entry.importedFromHistory === true
+  };
+  if (entry.metadata && typeof entry.metadata === 'object') {
+    sanitized.metadata = serializeExampleValue(entry.metadata, new WeakMap());
+  }
+  return sanitized;
+}
+
+function sanitizeTrashEntries(entries) {
+  if (!Array.isArray(entries)) return [];
+  const sanitized = [];
+  const seenIds = new Set();
+  entries.forEach(entry => {
+    const normalized = sanitizeTrashEntry(entry);
+    if (!normalized) return;
+    const id = normalized.id;
+    if (seenIds.has(id)) return;
+    seenIds.add(id);
+    sanitized.push(normalized);
+  });
+  return sanitized;
+}
+
+function cloneTrashEntries(entries) {
+  if (!Array.isArray(entries)) return [];
+  return entries.map(entry => clone(entry));
+}
+
 function buildEntry(path, payload) {
   const now = new Date().toISOString();
   const examples = sanitizeExamples(payload.examples);
@@ -320,6 +381,67 @@ function buildEntry(path, payload) {
     updatedAt: typeof payload.updatedAt === 'string' ? payload.updatedAt : now
   };
   return entry;
+}
+
+function writeTrashToMemory(entries) {
+  memoryTrashEntries = sanitizeTrashEntries(entries);
+}
+
+function readTrashFromMemory() {
+  return cloneTrashEntries(memoryTrashEntries);
+}
+
+async function writeTrashToKv(entries) {
+  const kv = await loadKvClient();
+  try {
+    await kv.set(TRASH_KEY, entries);
+  } catch (error) {
+    throw new KvOperationError('Failed to write trash entries to KV', { cause: error });
+  }
+  try {
+    const verification = await kv.get(TRASH_KEY);
+    if (verification == null) {
+      throw new KvOperationError('Failed to verify trash entries in KV', {
+        code: 'KV_WRITE_VERIFICATION_FAILED'
+      });
+    }
+  } catch (error) {
+    if (error instanceof KvOperationError) {
+      throw error;
+    }
+    throw new KvOperationError('Unable to verify trash entries in KV', {
+      cause: error,
+      code: 'KV_WRITE_VERIFICATION_FAILED'
+    });
+  }
+}
+
+async function readTrashFromKv() {
+  const kv = await loadKvClient();
+  try {
+    const value = await kv.get(TRASH_KEY);
+    if (value == null) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        throw new KvOperationError('Failed to parse trash entries from KV', { cause: error });
+      }
+    }
+    if (typeof value === 'object' && value && Array.isArray(value.entries)) {
+      return value.entries;
+    }
+    throw new KvOperationError('Unsupported KV payload for trash entries', {
+      code: 'KV_UNSUPPORTED_VALUE_TYPE'
+    });
+  } catch (error) {
+    if (error instanceof KvOperationError) {
+      throw error;
+    }
+    throw new KvOperationError('Failed to read trash entries from KV', { cause: error });
+  }
 }
 
 async function writeToKv(path, entry) {
@@ -492,12 +614,98 @@ async function listEntries() {
   return entries;
 }
 
+async function getTrashEntries() {
+  const storeMode = getStoreMode();
+  if (storeMode === 'kv') {
+    const kvEntries = await readTrashFromKv();
+    const sanitized = sanitizeTrashEntries(kvEntries);
+    writeTrashToMemory(sanitized);
+    return cloneTrashEntries(sanitized);
+  }
+  const memoryEntries = readTrashFromMemory();
+  const sanitized = sanitizeTrashEntries(memoryEntries);
+  writeTrashToMemory(sanitized);
+  return cloneTrashEntries(sanitized);
+}
+
+async function setTrashEntries(entries) {
+  const sanitized = sanitizeTrashEntries(entries).slice(0, MAX_TRASH_ENTRIES);
+  const storeMode = getStoreMode();
+  if (storeMode === 'kv') {
+    await writeTrashToKv(sanitized);
+    writeTrashToMemory(sanitized);
+    return cloneTrashEntries(sanitized);
+  }
+  writeTrashToMemory(sanitized);
+  return cloneTrashEntries(sanitized);
+}
+
+async function appendTrashEntries(entries, options) {
+  const sanitizedNew = sanitizeTrashEntries(entries);
+  if (!sanitizedNew.length) {
+    return getTrashEntries();
+  }
+  const mode = options && options.mode === 'append' ? 'append' : 'prepend';
+  const limit = Number.isInteger(options && options.limit)
+    ? Math.max(1, options.limit)
+    : MAX_TRASH_ENTRIES;
+  const existing = await getTrashEntries();
+  const combined = mode === 'append' ? existing.concat(sanitizedNew) : sanitizedNew.concat(existing);
+  const deduped = [];
+  const seen = new Set();
+  combined.forEach(entry => {
+    if (!entry || typeof entry !== 'object') return;
+    const id = typeof entry.id === 'string' ? entry.id : null;
+    if (id && seen.has(id)) return;
+    if (id) seen.add(id);
+    deduped.push(entry);
+  });
+  const truncated = deduped.slice(0, limit);
+  return setTrashEntries(truncated);
+}
+
+async function deleteTrashEntries(ids) {
+  const values = Array.isArray(ids) ? ids : [ids];
+  const targets = new Set();
+  values.forEach(value => {
+    if (typeof value !== 'string') return;
+    const trimmed = value.trim();
+    if (trimmed) {
+      targets.add(trimmed);
+    }
+  });
+  if (targets.size === 0) {
+    const entries = await getTrashEntries();
+    return { removed: 0, entries };
+  }
+  const existing = await getTrashEntries();
+  const remaining = [];
+  let removed = 0;
+  existing.forEach(entry => {
+    if (!entry || typeof entry.id !== 'string') {
+      remaining.push(entry);
+      return;
+    }
+    if (targets.has(entry.id)) {
+      removed += 1;
+      return;
+    }
+    remaining.push(entry);
+  });
+  const updated = await setTrashEntries(remaining);
+  return { removed, entries: updated };
+}
+
 module.exports = {
   normalizePath,
   getEntry,
   setEntry,
   deleteEntry,
   listEntries,
+  getTrashEntries,
+  setTrashEntries,
+  appendTrashEntries,
+  deleteTrashEntries,
   KvOperationError,
   KvConfigurationError,
   isKvConfigured,
