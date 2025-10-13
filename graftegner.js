@@ -3862,6 +3862,37 @@ function setupSettingsForm() {
     const val = element.value != null ? element.value : '';
     return normalizePlainExpression(val);
   };
+  const updateFunctionPreview = element => {
+    if (!element) return;
+    const editor = element.closest ? element.closest('.func-editor') : null;
+    if (!editor) return;
+    const preview = editor.querySelector('[data-fun-preview]');
+    if (!preview) return;
+    const value = getFunctionInputValue(element);
+    const latex = convertExpressionToLatex(value);
+    const html = latex ? renderLatexToHtml(latex) : '';
+    const plain = normalizeExpressionText(value);
+    preview.innerHTML = '';
+    preview.textContent = '';
+    preview.classList.remove('func-preview--latex', 'func-preview--text', 'func-preview--empty');
+    if (html) {
+      preview.innerHTML = html;
+      preview.style.display = 'block';
+      preview.classList.add('func-preview--latex');
+      preview.setAttribute('data-mode', 'latex');
+      return;
+    }
+    if (plain) {
+      preview.textContent = plain;
+      preview.style.display = 'block';
+      preview.classList.add('func-preview--text');
+      preview.setAttribute('data-mode', 'text');
+      return;
+    }
+    preview.style.display = 'none';
+    preview.classList.add('func-preview--empty');
+    preview.setAttribute('data-mode', 'empty');
+  };
   const getMathFieldConstructor = () => {
     if (typeof window === 'undefined') return null;
     if (window.customElements && typeof window.customElements.get === 'function') {
@@ -3940,6 +3971,7 @@ function setupSettingsForm() {
       if (typeof element.setValue === 'function') {
         try {
           element.setValue(str, { format: 'ascii-math' });
+          updateFunctionPreview(element);
           return;
         } catch (_) {
           // fall back to latex
@@ -3947,9 +3979,11 @@ function setupSettingsForm() {
       }
       const latex = convertExpressionToLatex(str);
       element.value = latex;
+      updateFunctionPreview(element);
       return;
     }
     element.value = str;
+    updateFunctionPreview(element);
   };
   const isCoords = str => /^\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?)(?:\s*;\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?))*\s*$/.test(str);
   const isExplicitFun = str => {
@@ -4413,6 +4447,7 @@ function setupSettingsForm() {
                   <span>${titleLabel}</span>
                   <div class="func-editor">
                     <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"${placeholderAttr}></math-field>
+                    <div class="func-preview" data-fun-preview aria-hidden="true"></div>
                   </div>
                 </label>
               </div>
@@ -4459,6 +4494,7 @@ function setupSettingsForm() {
                   <span>${titleLabel}</span>
                   <div class="func-editor">
                     <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"${placeholderAttr}></math-field>
+                    <div class="func-preview" data-fun-preview aria-hidden="true"></div>
                   </div>
                 </label>
               </div>
@@ -4486,6 +4522,7 @@ function setupSettingsForm() {
     if (funInput) {
       setFunctionInputValue(funInput, funVal || '');
       const handleChange = () => {
+        updateFunctionPreview(funInput);
         toggleDomain(funInput);
         updateLinePointControls();
         syncSimpleFromForm();
