@@ -871,7 +871,7 @@
   }
 
   async function refreshEntries() {
-    setStatus('Laster arkiverte eksempler …', 'info');
+    setStatus('Laster arkivet med slettede (arkiverte) eksempler …', 'info');
     try {
       await fetchEntriesFromBackend();
       buildFilterOptions();
@@ -880,7 +880,10 @@
     } catch (error) {
       updateGroups([]);
       renderEntries();
-      setStatus(error && error.message ? error.message : 'Kunne ikke hente arkivet.', 'error');
+      setStatus(
+        error && error.message ? error.message : 'Kunne ikke hente de slettede (arkiverte) eksemplene.',
+        'error'
+      );
     }
   }
 
@@ -911,18 +914,20 @@
       const targetItem = groupEntry.items.find(entry => entry && entry.id === id);
       if (!targetItem) return;
       button.disabled = true;
-      setStatus('Gjenoppretter eksempel …', 'info');
+      setStatus('Gjenoppretter det arkiverte eksempelet slik at det blir tilgjengelig igjen …', 'info');
       try {
         await restoreTrashEntry(path, targetItem);
         await deleteExample(id, { skipConfirm: true });
         await fetchEntriesFromBackend();
         buildFilterOptions();
         renderEntries();
-        setStatus('Eksempel gjenopprettet.', 'success');
+        setStatus('Eksempel gjenopprettet fra arkivet.', 'success');
         notifyParentAboutRestore(path, targetItem);
       } catch (error) {
         setStatus(
-          error && error.message ? error.message : 'Kunne ikke gjenopprette elementet.',
+          error && error.message
+            ? error.message
+            : 'Kunne ikke gjenopprette det arkiverte eksempelet.',
           'error'
         );
       } finally {
@@ -937,7 +942,7 @@
       try {
         const result = await deleteExample(id);
         if (result && result.cancelled) {
-          setStatus('Sletting avbrutt. Elementet ligger fortsatt i arkivet.', 'info');
+          setStatus('Sletting avbrutt. Elementet ligger fortsatt i arkivet over slettede eksempler.', 'info');
           return;
         }
         await fetchEntriesFromBackend();
@@ -945,7 +950,10 @@
         renderEntries();
         setStatus('', '');
       } catch (error) {
-        setStatus(error && error.message ? error.message : 'Kunne ikke slette elementet.', 'error');
+        setStatus(
+          error && error.message ? error.message : 'Kunne ikke slette det arkiverte eksempelet permanent.',
+          'error'
+        );
       } finally {
         button.disabled = false;
       }
