@@ -21,12 +21,20 @@ function toBuffer(value) {
   return Buffer.from(String(value));
 }
 
-function resetExamplesMemoryStore() {
-  if (global.__EXAMPLES_MEMORY_STORE__ && typeof global.__EXAMPLES_MEMORY_STORE__.clear === 'function') {
-    global.__EXAMPLES_MEMORY_STORE__.clear();
+async function resetExamplesMemoryStore() {
+  const listResponse = await invokeExamplesApi({ url: '/api/examples' });
+  if (!listResponse || listResponse.statusCode !== 200) {
+    return;
   }
-  if (global.__EXAMPLES_MEMORY_INDEX__ && typeof global.__EXAMPLES_MEMORY_INDEX__.clear === 'function') {
-    global.__EXAMPLES_MEMORY_INDEX__.clear();
+  const entries = listResponse.json && Array.isArray(listResponse.json.entries)
+    ? listResponse.json.entries
+    : [];
+  for (const entry of entries) {
+    if (!entry || typeof entry.path !== 'string') continue;
+    await invokeExamplesApi({
+      method: 'DELETE',
+      url: `/api/examples?path=${encodeURIComponent(entry.path)}`
+    });
   }
 }
 

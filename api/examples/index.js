@@ -10,10 +10,6 @@ const {
   KvOperationError,
   KvConfigurationError,
   getStoreMode,
-  getMemoryEntry,
-  setMemoryEntry,
-  deleteMemoryEntry,
-  listMemoryEntries
 } = require('../_lib/examples-store');
 
 const MEMORY_LIMITATION_NOTE = 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.';
@@ -200,18 +196,10 @@ module.exports = async function handler(req, res) {
           const fallbackMode = 'memory';
           const metadata = applyModeHeaders(res, fallbackMode);
           if (queryPath) {
-            const fallbackEntry = getMemoryEntry(queryPath);
-            if (!fallbackEntry) {
-              sendJson(res, 404, { error: 'Not Found', ...metadata });
-              return;
-            }
-            const payload = augmentEntry(fallbackEntry, fallbackMode);
-            sendJson(res, 200, payload);
+            sendJson(res, 404, { error: 'Not Found', ...metadata });
             return;
           }
-          const entries = listMemoryEntries();
-          const payloadEntries = augmentEntries(entries, fallbackMode);
-          sendJson(res, 200, { ...metadata, entries: payloadEntries });
+          sendJson(res, 200, { ...metadata, entries: [] });
           return;
         }
         throw error;
@@ -231,9 +219,8 @@ module.exports = async function handler(req, res) {
         return;
       } catch (error) {
         if (error instanceof KvConfigurationError) {
-          deleteMemoryEntry(target);
           const metadata = applyModeHeaders(res, 'memory');
-          sendJson(res, 200, { ok: true, ...metadata });
+          sendJson(res, 404, { error: 'Not Found', ...metadata });
           return;
         }
         throw error;
@@ -266,10 +253,8 @@ module.exports = async function handler(req, res) {
         return;
       } catch (error) {
         if (error instanceof KvConfigurationError) {
-          const entry = setMemoryEntry(target, payload);
-          const responseEntry = augmentEntry(entry, 'memory');
-          applyModeHeaders(res, responseEntry.mode);
-          sendJson(res, 200, responseEntry);
+          const metadata = applyModeHeaders(res, 'memory');
+          sendJson(res, 404, { error: 'Not Found', ...metadata });
           return;
         }
         throw error;
