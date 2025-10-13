@@ -337,7 +337,6 @@ function normalizePath(value) {
   if (!path) path = '/';
   const originalSanitized = uppercasePercentEncoding(path);
   const lowercasedSanitized = lowercasePathPreservingPercentEncoding(originalSanitized || '/');
-  const encodedFromOriginal = encodePathWithFallback(lowercasedSanitized || '/');
 
   let decoded = path;
   try {
@@ -349,12 +348,12 @@ function normalizePath(value) {
     decoded = String(path).toLowerCase();
   }
 
-  let normalized = encodedFromOriginal;
+  let normalized = lowercasedSanitized;
   if (!normalized) {
     normalized = encodePathWithFallback(decoded || '/');
   }
   if (!normalized) {
-    normalized = lowercasedSanitized || '/';
+    normalized = originalSanitized || '/';
   }
 
   if (/[^\u0000-\u007F]/.test(normalized)) {
@@ -386,6 +385,8 @@ function normalizePath(value) {
       normalized = normalized.slice(0, -1);
     }
   }
+
+  normalized = lowercasePathPreservingPercentEncoding(uppercasePercentEncoding(normalized));
 
   return normalized;
 }
