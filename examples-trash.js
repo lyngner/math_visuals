@@ -500,7 +500,8 @@
               <div class="trash-item__meta" data-item-meta></div>
               <p class="trash-item__description" data-item-description hidden></p>
               <div class="trash-item__actions">
-                <button type="button" class="trash-button trash-button--restore" data-action="open">Åpne eksempel</button>
+                <button type="button" class="trash-button trash-button--restore" data-action="restore">Gjenopprett</button>
+                <button type="button" class="trash-button trash-button--open" data-action="open">Åpne eksempel</button>
                 <button type="button" class="trash-button trash-button--delete" data-action="delete">Slett</button>
               </div>
             </div>
@@ -519,7 +520,8 @@
         const description = itemNode.querySelector('[data-item-description]');
         const preview = itemNode.querySelector('[data-item-preview]');
         const previewContent = itemNode.querySelector('[data-item-preview-content]');
-        const openButton = itemNode.querySelector('[data-action="restore"], [data-action="open"]');
+        const restoreButton = itemNode.querySelector('[data-action="restore"]');
+        const openButton = itemNode.querySelector('[data-action="open"]');
         const deleteButton = itemNode.querySelector('[data-action="delete"]');
         if (item) {
           item.dataset.index = String(index);
@@ -579,9 +581,16 @@
             if (previewContent) previewContent.innerHTML = '';
           }
         }
+        if (restoreButton) {
+          restoreButton.dataset.index = String(index);
+          restoreButton.dataset.action = 'restore';
+          if (itemData && itemData.id) {
+            restoreButton.dataset.id = itemData.id;
+          }
+        }
         if (openButton) {
-          openButton.dataset.action = 'open';
           openButton.dataset.index = String(index);
+          openButton.dataset.action = 'open';
           if (itemData && itemData.id) {
             openButton.dataset.id = itemData.id;
           }
@@ -698,6 +707,129 @@
     }
   }
 
+  async function fetchExamplesEntry(path) {
+    if (!apiBase) {
+      throw new Error('Fant ikke eksempeltjenesten.');
+    }
+    const url = buildExamplesApiUrl(apiBase, path);
+    if (!url) {
+      throw new Error('Kunne ikke finne adressen til eksempeltjenesten.');
+    }
+    let response;
+    try {
+      response = await fetch(url, { headers: { Accept: 'application/json' } });
+    } catch (error) {
+      throw new Error('Kunne ikke hente eksemplene fra serveren.');
+    }
+    if (response && response.status === 404) {
+      return { path, examples: [], deletedProvided: [] };
+    }
+    if (!responseLooksLikeJson(response)) {
+      throw new Error(`Serveren avviste forespørselen (${response && response.status ? response.status : 'ukjent'})`);
+    }
+    if (!response.ok) {
+      throw new Error(`Serveren avviste forespørselen (${response.status}).`);
+    }
+    try {
+      return await response.json();
+    } catch (error) {
+      throw new Error('Kunne ikke tolke svaret fra serveren.');
+    }
+  }
+
+  async function putExamplesEntry(path, payload) {
+    if (!apiBase) {
+      throw new Error('Fant ikke eksempeltjenesten.');
+    }
+    const url = buildExamplesApiUrl(apiBase, path);
+    if (!url) {
+      throw new Error('Kunne ikke finne adressen til eksempeltjenesten.');
+    }
+    const normalizedExamples = Array.isArray(payload && payload.examples) ? payload.examples : [];
+    const normalizedDeletedProvided = Array.isArray(payload && payload.deletedProvided)
+      ? payload.deletedProvided
+      : [];
+    let response;
+    try {
+      response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path,
+          examples: normalizedExamples,
+          deletedProvided: normalizedDeletedProvided,
+          updatedAt: new Date().toISOString()
+        })
+      });
+    } catch (error) {
+      throw new Error('Kunne ikke lagre eksempelet på serveren.');
+    }
+    if (!responseLooksLikeJson(response)) {
+      throw new Error(`Serveren avviste forespørselen (${response && response.status ? response.status : 'ukjent'})`);
+    }
+    if (!response.ok) {
+      throw new Error(`Serveren avviste forespørselen (${response.status}).`);
+    }
+    try {
+      return await response.json();
+    } catch (error) {
+      throw new Error('Kunne ikke tolke svaret fra serveren.');
+    }
+  }
+
+  function cloneExampleForRestore(example) {
+    if (!example || typeof example !== 'object') return {};
+    try {
+      return JSON.parse(JSON.stringify(example));
+    } catch (error) {
+      const copy = {};
+      Object.keys(example).forEach(key => {
+        copy[key] = example[key];
+      });
+      return copy;
+    }
+  }
+
+  function determineInsertIndex(length, removedAtIndex) {
+    const total = Number.isInteger(length) && length >= 0 ? length : 0;
+    if (!Number.isInteger(removedAtIndex)) {
+      return total;
+    }
+    if (removedAtIndex < 0) {
+      return 0;
+    }
+    if (removedAtIndex > total) {
+      return total;
+    }
+    return removedAtIndex;
+  }
+
+  async function restoreTrashEntry(path, item) {
+    if (!item || typeof item !== 'object') {
+      throw new Error('Fant ikke elementet som skulle gjenopprettes.');
+    }
+    const entry = await fetchExamplesEntry(path);
+    const existingExamples = Array.isArray(entry && entry.examples) ? entry.examples.slice() : [];
+    const deletedProvided = Array.isArray(entry && entry.deletedProvided) ? entry.deletedProvided.slice() : [];
+    const examplePayload = cloneExampleForRestore(item.example);
+    const insertIndex = determineInsertIndex(existingExamples.length, item.removedAtIndex);
+    existingExamples.splice(insertIndex, 0, examplePayload);
+    await putExamplesEntry(path, { examples: existingExamples, deletedProvided });
+  }
+
+  function notifyParentAboutRestore(path, item) {
+    if (typeof window === 'undefined') return;
+    if (!window.parent || window.parent === window) return;
+    const payload = {
+      type: 'examples-trash:restored',
+      path,
+      id: item && item.id ? item.id : null
+    };
+    try {
+      window.parent.postMessage(payload, '*');
+    } catch (_) {}
+  }
+
   async function refreshEntries() {
     setStatus('Laster arkiverte eksempler …', 'info');
     try {
@@ -729,6 +861,33 @@
     if (action === 'open') {
       const id = item && item.dataset ? item.dataset.id : button.dataset.id;
       openExample(path, id);
+      return;
+    }
+    if (action === 'restore') {
+      const id = item && item.dataset ? item.dataset.id : button.dataset.id;
+      if (!id) return;
+      const groupEntry = state.groupsMap.get(path);
+      if (!groupEntry || !Array.isArray(groupEntry.items)) return;
+      const targetItem = groupEntry.items.find(entry => entry && entry.id === id);
+      if (!targetItem) return;
+      button.disabled = true;
+      setStatus('Gjenoppretter eksempel …', 'info');
+      try {
+        await restoreTrashEntry(path, targetItem);
+        await deleteTrashItems([id]);
+        await fetchEntriesFromBackend();
+        buildFilterOptions();
+        renderEntries();
+        setStatus('Eksempel gjenopprettet.', 'success');
+        notifyParentAboutRestore(path, targetItem);
+      } catch (error) {
+        setStatus(
+          error && error.message ? error.message : 'Kunne ikke gjenopprette elementet.',
+          'error'
+        );
+      } finally {
+        button.disabled = false;
+      }
       return;
     }
     if (action === 'delete') {

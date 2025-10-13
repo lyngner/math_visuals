@@ -283,6 +283,18 @@
       transform: translateY(-1px);
       outline: none;
     }
+    .trash-button--open {
+      background: #fff;
+      color: #0f172a;
+      border-color: rgba(148, 163, 184, 0.35);
+    }
+    .trash-button--open:hover,
+    .trash-button--open:focus-visible {
+      background: #f3f4f6;
+      box-shadow: 0 4px 12px rgba(148, 163, 184, 0.2);
+      transform: translateY(-1px);
+      outline: none;
+    }
     .trash-button--delete {
       background: #fff5f5;
       color: #b91c1c;
@@ -367,7 +379,8 @@
         <div class="trash-item__meta" data-item-meta></div>
         <p class="trash-item__description" data-item-description hidden></p>
         <div class="trash-item__actions">
-          <button type="button" class="trash-button trash-button--restore" data-action="open">Åpne eksempel</button>
+          <button type="button" class="trash-button trash-button--restore" data-action="restore">Gjenopprett</button>
+          <button type="button" class="trash-button trash-button--open" data-action="open">Åpne eksempel</button>
           <button type="button" class="trash-button trash-button--delete" data-action="delete">Slett</button>
         </div>
       </div>
