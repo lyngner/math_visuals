@@ -57,4 +57,31 @@ test.describe('Examples update flow', () => {
     await expect(statusIndicator).toHaveAttribute('data-status', 'success');
     await expect(page.locator('.example-save-status__text')).toHaveText(/Sist lagret kl\./);
   });
+
+  test('applies backend clearing after saving first example', async ({ page }) => {
+    const tabs = page.locator('#exampleTabs .example-tab');
+    await expect(tabs).toHaveCount(0);
+    await expect(page.locator('.example-tabs-empty')).toBeVisible();
+
+    const initialSave = backend.waitForPut(CANONICAL_PATH, {
+      description: 'bootstrap first example'
+    });
+    await page.locator('#btnSaveExample').click();
+    const initialResult = await initialSave;
+    expect(Array.isArray(initialResult && initialResult.payload && initialResult.payload.examples)).toBe(true);
+    expect(initialResult.payload.examples.length).toBe(1);
+    await expect(tabs).toHaveCount(1);
+
+    await backend.client.put(CANONICAL_PATH, {
+      examples: [],
+      deletedProvided: [],
+      updatedAt: new Date().toISOString()
+    });
+
+    await page.reload({ waitUntil: 'load' });
+
+    await expect(page.locator('.example-tabs-empty')).toBeVisible();
+    await expect(tabs).toHaveCount(0);
+    await expect(page.locator('#exampleDescription')).toHaveValue('');
+  });
 });

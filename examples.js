@@ -1690,8 +1690,6 @@
     applyingBackendUpdate = true;
     try {
       let examples = normalizeBackendExamples(data && data.examples);
-      const localExamples = getExamples();
-      const hasLocalExamples = Array.isArray(localExamples) && localExamples.length > 0;
       let backendUpdatedAtMs = 0;
       if (data && data.updatedAt != null) {
         if (typeof data.updatedAt === 'number' && Number.isFinite(data.updatedAt)) {
@@ -1705,8 +1703,7 @@
       }
       const backendHasTimestamp = backendUpdatedAtMs > 0;
       const backendIsStale = backendHasTimestamp && backendUpdatedAtMs < lastLocalUpdateMs;
-      const shouldApplyExamples = examples.length > 0 || !hasLocalExamples;
-      if (shouldApplyExamples && !backendIsStale) {
+      if (!backendIsStale) {
         const previousIndex = Number.isInteger(currentExampleIndex) ? currentExampleIndex : null;
         await store(examples, {
           reason: 'backend-sync'
@@ -1722,6 +1719,13 @@
                 indexToLoad = refreshed.length - 1;
               }
               loadExample(indexToLoad);
+            } else {
+              currentExampleIndex = null;
+              updateTabSelection();
+              setDescriptionValue('');
+              if (currentAppMode === 'task') {
+                ensureTaskModeDescriptionRendered();
+              }
             }
           } catch (_) {}
         }
@@ -3013,26 +3017,12 @@
   function getExamples() {
     if (!cachedExamplesInitialized) {
       cachedExamplesInitialized = true;
-      cachedExamples = [];
+      if (Array.isArray(cachedExamples)) {
+        cachedExamples = cachedExamples.slice();
+      } else {
+        cachedExamples = [];
+      }
     }
-    const stored = storageGetItem(key);
-    lastStoredRawValue = typeof stored === 'string' ? stored : null;
-    if (stored == null) {
-      return cachedExamples;
-    }
-    const parsed = parseExamplesFromRaw(stored);
-    if (parsed.status === 'ok') {
-      cachedExamples = Array.isArray(parsed.examples) ? parsed.examples : [];
-      return cachedExamples;
-    }
-    if (parsed.status === 'empty') {
-      cachedExamples = [];
-      return cachedExamples;
-    }
-    if (attemptHistoryRecovery(stored)) {
-      return cachedExamples;
-    }
-    cachedExamples = [];
     return cachedExamples;
   }
   const USER_INITIATED_REASONS = new Set(['manual-save', 'manual-update', 'delete', 'history']);
