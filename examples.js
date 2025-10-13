@@ -1675,7 +1675,7 @@
       const backendHasTimestamp = backendUpdatedAtMs > 0;
       const backendLacksTimestamp = !backendHasTimestamp;
       const backendMissingTimestampButSafeToApply =
-        backendLacksTimestamp && (!hasLocalExamples || lastLocalUpdateMs === 0);
+        backendLacksTimestamp && !hasLocalExamples && lastLocalUpdateMs === 0;
       const backendIsStale =
         (backendHasTimestamp && backendUpdatedAtMs < lastLocalUpdateMs) ||
         (backendLacksTimestamp && !backendMissingTimestampButSafeToApply);
