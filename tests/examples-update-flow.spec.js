@@ -137,4 +137,44 @@ test.describe('Examples update flow', () => {
     await expect(updateButton).toBeEnabled();
     await expect(deleteButton).toBeEnabled();
   });
+
+  test('prevents deleting the final example and blocks direct archive attempts', async ({ page }) => {
+    const description = page.locator('#exampleDescription');
+    const deleteButton = page.locator('#btnDeleteExample');
+    const statusIndicator = page.locator('.example-save-status');
+    const statusText = page.locator('.example-save-status__text');
+
+    await description.fill('Eneste eksempel');
+
+    const initialSave = backend.waitForPut(CANONICAL_PATH, {
+      timeout: 5000,
+      description: 'initial save for single example guard'
+    });
+    await page.locator('#btnSaveExample').click();
+    await initialSave;
+
+    await expect(deleteButton).toBeDisabled();
+
+    const deleteAttempt = backend.waitForDelete(CANONICAL_PATH, {
+      timeout: 1500,
+      description: 'should not delete final example'
+    });
+
+    await page.evaluate(() => {
+      const btn = document.getElementById('btnDeleteExample');
+      if (btn) {
+        btn.disabled = false;
+        btn.click();
+      }
+    });
+
+    await expect(deleteAttempt).rejects.toThrow(/Timed out/i);
+    await expect(statusIndicator).toHaveAttribute('data-status', 'error');
+    await expect(statusText).toHaveText('Du må ha minst ett lagret eksempel.');
+
+    const stored = await backend.client.get(CANONICAL_PATH);
+    expect(stored).toBeTruthy();
+    expect(Array.isArray(stored.examples)).toBe(true);
+    expect(stored.examples.length).toBe(1);
+  });
 });
