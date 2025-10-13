@@ -749,6 +749,7 @@
   const trashKey = key + '_trash';
   const trashMigratedKey = key + '_trash_migrated_v1';
   const updatedAtKey = key + '_updatedAtMs';
+  const ensureDefaultsOnlyKey = key + '_ensureDefaultsOnly';
   const MAX_TRASH_ENTRIES = 200;
   const MAX_HISTORY_ENTRIES = 10;
   let lastStoredRawValue = null;
@@ -757,6 +758,7 @@
   let trashEntriesCache = null;
   let trashEntriesLoaded = false;
   let trashMigrationAttempted = false;
+  let ensureDefaultsOnly = false;
   function parseUpdatedAtValue(value) {
     if (value == null) return 0;
     const trimmed = typeof value === 'string' ? value.trim() : '';
@@ -780,6 +782,13 @@
     }
     return parseUpdatedAtValue(raw);
   }
+  function loadEnsureDefaultsOnlyFlag() {
+    try {
+      return storageGetItem(ensureDefaultsOnlyKey) === '1';
+    } catch (_) {
+      return false;
+    }
+  }
   function persistLocalUpdatedAt(value) {
     if (!Number.isFinite(value) || value <= 0) {
       try {
@@ -790,6 +799,22 @@
     try {
       storageSetItem(updatedAtKey, String(value));
     } catch (_) {}
+  }
+  function persistEnsureDefaultsOnlyFlag(value) {
+    if (value) {
+      try {
+        storageSetItem(ensureDefaultsOnlyKey, '1');
+      } catch (_) {}
+      return;
+    }
+    try {
+      storageRemoveItem(ensureDefaultsOnlyKey);
+    } catch (_) {}
+  }
+  function setEnsureDefaultsOnly(value) {
+    const normalized = value === true;
+    ensureDefaultsOnly = normalized;
+    persistEnsureDefaultsOnlyFlag(normalized);
   }
   function normalizeHistoryEntry(entry) {
     if (!entry || typeof entry !== 'object') return null;
@@ -1158,6 +1183,7 @@
       lastStoredRawValue = null;
       lastLocalUpdateMs = 0;
       persistLocalUpdatedAt(0);
+      setEnsureDefaultsOnly(false);
       try {
         updateRestoreButtonState();
       } catch (_) {}
@@ -1176,6 +1202,20 @@
       storageSetItem(key, normalizedRaw);
     } catch (_) {}
     lastStoredRawValue = normalizedRaw;
+    if (reason === 'ensure-default') {
+      const containsUserExamples = cachedExamples.some(example => {
+        if (!example || typeof example !== 'object') return false;
+        const key = normalizeKey(example.__builtinKey);
+        return !key;
+      });
+      if (!containsUserExamples && cachedExamples.length > 0) {
+        setEnsureDefaultsOnly(true);
+      } else {
+        setEnsureDefaultsOnly(false);
+      }
+    } else {
+      setEnsureDefaultsOnly(false);
+    }
     try {
       updateRestoreButtonState();
     } catch (_) {}
@@ -1675,8 +1715,9 @@
       const backendHasTimestamp = backendUpdatedAtMs > 0;
       const backendLacksTimestamp = !backendHasTimestamp;
       const backendIsStale = backendHasTimestamp && backendUpdatedAtMs < lastLocalUpdateMs;
+      const onlyEnsureDefaultsLocally = ensureDefaultsOnly === true && hasLocalExamples;
       const backendMissingTimestampButSafeToApply =
-        backendLacksTimestamp && (!hasLocalExamples || lastLocalUpdateMs === 0);
+        backendLacksTimestamp && (!hasLocalExamples || lastLocalUpdateMs === 0 || onlyEnsureDefaultsLocally);
       const shouldApplyExamples = examples.length > 0 || !hasLocalExamples;
       const backendCanBeApplied =
         !backendIsStale && (backendHasTimestamp || backendMissingTimestampButSafeToApply);
@@ -2982,6 +3023,7 @@
   let cachedExamples = [];
   let cachedExamplesInitialized = false;
   let lastLocalUpdateMs = loadPersistedUpdatedAt();
+  ensureDefaultsOnly = loadEnsureDefaultsOnlyFlag();
   function getExamples() {
     if (!cachedExamplesInitialized) {
       cachedExamplesInitialized = true;
