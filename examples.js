@@ -759,6 +759,7 @@
   let trashEntriesLoaded = false;
   let trashMigrationAttempted = false;
   let ensureDefaultsOnly = false;
+  let lastAppliedExamplesReason = '';
   function parseUpdatedAtValue(value) {
     if (value == null) return 0;
     const trimmed = typeof value === 'string' ? value.trim() : '';
@@ -1184,6 +1185,7 @@
       lastLocalUpdateMs = 0;
       persistLocalUpdatedAt(0);
       setEnsureDefaultsOnly(false);
+      lastAppliedExamplesReason = reason;
       try {
         updateRestoreButtonState();
       } catch (_) {}
@@ -1216,6 +1218,7 @@
     } else {
       setEnsureDefaultsOnly(false);
     }
+    lastAppliedExamplesReason = reason;
     try {
       updateRestoreButtonState();
     } catch (_) {}
@@ -1716,8 +1719,10 @@
       const backendLacksTimestamp = !backendHasTimestamp;
       const backendIsStale = backendHasTimestamp && backendUpdatedAtMs < lastLocalUpdateMs;
       const onlyEnsureDefaultsLocally = ensureDefaultsOnly === true && hasLocalExamples;
+      const lastChangeWasEnsureDefault = lastAppliedExamplesReason === 'ensure-default';
       const backendMissingTimestampButSafeToApply =
-        backendLacksTimestamp && (!hasLocalExamples || lastLocalUpdateMs === 0 || onlyEnsureDefaultsLocally);
+        backendLacksTimestamp &&
+        (!hasLocalExamples || lastLocalUpdateMs === 0 || onlyEnsureDefaultsLocally || lastChangeWasEnsureDefault);
       const shouldApplyExamples = examples.length > 0 || !hasLocalExamples;
       const backendCanBeApplied =
         !backendIsStale && (backendHasTimestamp || backendMissingTimestampButSafeToApply);
