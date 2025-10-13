@@ -73,9 +73,15 @@ test.describe('Examples retention across apps', () => {
         await page.goto(routePath, { waitUntil: 'load' });
 
         const tabLocator = page.locator('#exampleTabs .example-tab');
-        await page.waitForFunction(() => {
-          return document.querySelectorAll('#exampleTabs .example-tab').length > 0;
+        await expect(tabLocator).toHaveCount(0);
+
+        const bootstrapSave = backend.waitForPut(canonicalPath, {
+          description: `bootstrap example for ${routePath}`
         });
+        await page.locator('#btnSaveExample').click();
+        await bootstrapSave;
+
+        await expect(tabLocator).toHaveCount(1);
 
         const initialDomCount = await tabLocator.count();
         const currentEntry = await backend.client.get(canonicalPath);

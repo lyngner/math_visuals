@@ -86,18 +86,6 @@ const DEFAULT_CURVE_COLORS = ['#9333ea', '#475569', '#ef4444', '#0ea5e9', '#10b9
 const CAMPUS_CURVE_ORDER = [0, 5, 2, 3, 4, 1];
 const DEFAULT_FUNCTION_EXPRESSION = 'f(x)=x^2-2';
 
-function cloneExampleConfig(value) {
-  if (value == null) return value;
-  try {
-    return JSON.parse(JSON.stringify(value));
-  } catch (error) {
-    if (typeof value === 'object') {
-      return Array.isArray(value) ? value.map(item => cloneExampleConfig(item)) : { ...value };
-    }
-    return value;
-  }
-}
-
 const DEFAULT_GRAFTEGNER_SIMPLE = {
   axes: {
     xMin: -5,
@@ -148,36 +136,6 @@ const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = {
   altTextSource: 'auto'
 };
 
-const BUILTIN_GRAFTEGNER_EXAMPLES = [
-  {
-    id: 'graftegner-parabel-og-linje',
-    title: 'Parabel og linje',
-    description: 'Tegn grafene til y = x² − 1 og y = 2x + 3.',
-    exampleNumber: '1',
-    isDefault: true,
-    simpleConfig: DEFAULT_GRAFTEGNER_SIMPLE
-  },
-  {
-    id: 'graftegner-sinus-og-cosinus',
-    title: 'Sinus og cosinus',
-    description: 'Sammenlign grafene til y = sin(x) og y = cos(x) over to perioder.',
-    exampleNumber: '2',
-    simpleConfig: DEFAULT_GRAFTEGNER_TRIG_SIMPLE
-  }
-];
-
-if (typeof window !== 'undefined') {
-  window.DEFAULT_EXAMPLES = BUILTIN_GRAFTEGNER_EXAMPLES.map(example => ({
-    id: example.id,
-    title: example.title,
-    description: example.description,
-    exampleNumber: example.exampleNumber,
-    isDefault: example.isDefault === true,
-    config: {
-      SIMPLE: cloneExampleConfig(example.simpleConfig)
-    }
-  }));
-}
 function getThemeApi() {
   const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
   return theme && typeof theme === 'object' ? theme : null;

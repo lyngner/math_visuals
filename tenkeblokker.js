@@ -490,9 +490,6 @@ function initAltTextManager() {
 }
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
-if (typeof window !== 'undefined') {
-  window.DEFAULT_EXAMPLES = [];
-}
 const combinedWholeOverlays = {
   horizontal: createCombinedWholeOverlay('horizontal'),
   vertical: createCombinedWholeOverlay('vertical')
