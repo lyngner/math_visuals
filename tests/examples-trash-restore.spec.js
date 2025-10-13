@@ -7,6 +7,7 @@ const {
 
 const EXAMPLE_PATH = '/diagram/index.html';
 const CANONICAL_PATH = normalizeExamplePath(EXAMPLE_PATH);
+const TRASH_ARCHIVE_PATH = '/examples-trash.html';
 
 const TRASH_HEADERS = {
   'Content-Type': 'application/json',
@@ -39,6 +40,15 @@ async function archiveExample(page, descriptionText = 'Eksempel for gjenoppretti
   );
   await page.locator('#btnDeleteExample').click();
   await Promise.all([deleteRequest, trashPost]);
+}
+
+async function openTrashArchivePage(context) {
+  const archivePage = await context.newPage();
+  await archivePage.goto(TRASH_ARCHIVE_PATH, { waitUntil: 'domcontentloaded' });
+  await expect(
+    archivePage.getByRole('heading', { name: 'Arkiv for arkiverte (slettede) eksempler' })
+  ).toBeVisible();
+  return archivePage;
 }
 
 test.describe('Examples trash guidance', () => {
@@ -181,8 +191,9 @@ test.describe('Examples trash guidance', () => {
   test('deleting an example posts to trash and shows guidance message', async ({ page }) => {
     await archiveExample(page);
 
-    await expect(page.locator('#btnRestoreExample')).toHaveCount(0);
-    await expect(page.locator('.example-save-status__text')).toContainText('examples-trash.html');
+    await expect(page.locator('.example-save-status__text')).toContainText(
+      'Slettede eksempler kan gjenopprettes via examples-trash.html.'
+    );
 
     expect(trashEntries.length).toBe(1);
     const [entry] = trashEntries;
@@ -192,9 +203,77 @@ test.describe('Examples trash guidance', () => {
     );
   });
 
-  test('restore dialog elements are not injected', async ({ page }) => {
-    await expect(page.locator('#btnRestoreExample')).toHaveCount(0);
-    await expect(page.locator('#exampleRestoreStyles')).toHaveCount(0);
-    await expect(page.locator('.example-restore-overlay')).toHaveCount(0);
+  test('restoring an archived example reinserts it via the backend', async ({ page }) => {
+    const description = 'Arkivtest – gjenoppretting';
+    await archiveExample(page, description);
+
+    await backend.waitForPut(CANONICAL_PATH);
+
+    const archivePage = await openTrashArchivePage(page.context());
+    const item = archivePage
+      .locator('[data-item]')
+      .filter({ hasText: description });
+    await expect(item).toHaveCount(1);
+
+    const restoreButton = item.getByRole('button', { name: 'Gjenopprett' });
+    const restorePut = backend.waitForPut(CANONICAL_PATH);
+    const deleteRequest = archivePage.waitForRequest(
+      request => request.url().includes('/api/examples/trash') && request.method() === 'DELETE'
+    );
+    const refreshRequest = archivePage.waitForRequest(
+      request => request.url().includes('/api/examples/trash') && request.method() === 'GET'
+    );
+
+    await restoreButton.click();
+
+    const [restoreEvent] = await Promise.all([restorePut, deleteRequest, refreshRequest]);
+
+    await expect(archivePage.getByText('Eksempel gjenopprettet fra arkivet.')).toBeVisible();
+    await expect(archivePage.locator('[data-item]')).toHaveCount(0);
+
+    expect(trashEntries.length).toBe(0);
+    const restoredExamples =
+      restoreEvent &&
+      restoreEvent.entry &&
+      restoreEvent.entry.data &&
+      Array.isArray(restoreEvent.entry.data.examples)
+        ? restoreEvent.entry.data.examples
+        : [];
+    const restored = restoredExamples.some(example => {
+      const text = typeof example.description === 'string' ? example.description : '';
+      return text.includes(description);
+    });
+    expect(restored).toBe(true);
+  });
+
+  test('permanently deleting an archived example removes it from the archive', async ({ page }) => {
+    const description = 'Arkivtest – sletting';
+    await archiveExample(page, description);
+
+    await backend.waitForPut(CANONICAL_PATH);
+
+    const archivePage = await openTrashArchivePage(page.context());
+    const item = archivePage
+      .locator('[data-item]')
+      .filter({ hasText: description });
+    await expect(item).toHaveCount(1);
+
+    const deleteButton = item.getByRole('button', { name: 'Slett' });
+    const deleteRequest = archivePage.waitForRequest(
+      request => request.url().includes('/api/examples/trash') && request.method() === 'DELETE'
+    );
+    const refreshRequest = archivePage.waitForRequest(
+      request => request.url().includes('/api/examples/trash') && request.method() === 'GET'
+    );
+    const dialogPromise = archivePage.waitForEvent('dialog');
+
+    await deleteButton.click();
+    const dialog = await dialogPromise;
+    await dialog.accept();
+
+    await Promise.all([deleteRequest, refreshRequest]);
+
+    await expect(archivePage.getByText('Ingen arkiverte eksempler er tilgjengelige.')).toBeVisible();
+    expect(trashEntries.length).toBe(0);
   });
 });
