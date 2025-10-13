@@ -3687,6 +3687,64 @@ body.examples-restore-open{overflow:hidden;}
     return restoreDialogOverlay;
   }
 
+  function ensureRestoreButtonInTrashSection() {
+    if (typeof document === 'undefined') return null;
+    const findSideColumn = () => {
+      if (toolbarElement) {
+        const exampleCard = toolbarElement.closest('.card');
+        if (exampleCard && exampleCard.parentElement && exampleCard.parentElement.classList) {
+          const parent = exampleCard.parentElement;
+          if (parent.classList.contains('side')) {
+            return parent;
+          }
+        }
+      }
+      const side = document.querySelector('.side');
+      if (side) return side;
+      const exampleCard = document.querySelector('.card--examples');
+      return exampleCard && exampleCard.parentElement ? exampleCard.parentElement : null;
+    };
+    const sideColumn = findSideColumn();
+    if (!sideColumn) return null;
+    let trashCard = sideColumn.querySelector('[data-card="trash"]');
+    if (!trashCard) {
+      trashCard = document.createElement('div');
+      trashCard.className = 'card card--trash';
+      trashCard.setAttribute('data-card', 'trash');
+      const heading = document.createElement('h2');
+      heading.textContent = 'Arkiv (søppelbøtte)';
+      trashCard.appendChild(heading);
+      const description = document.createElement('p');
+      description.textContent =
+        'Finn igjen arkiverte eksempler og gjenopprett dem dersom de ble kastet ved en feil.';
+      trashCard.appendChild(description);
+      const toolbar = document.createElement('div');
+      toolbar.className = 'toolbar';
+      trashCard.appendChild(toolbar);
+      const settingsCard = sideColumn.querySelector('.card--settings, [data-card="settings"]');
+      if (settingsCard) {
+        sideColumn.insertBefore(trashCard, settingsCard);
+      } else {
+        sideColumn.appendChild(trashCard);
+      }
+    }
+    let button = trashCard.querySelector('#btnRestoreExample');
+    if (!button) {
+      button = document.createElement('button');
+      button.type = 'button';
+      button.id = 'btnRestoreExample';
+      button.className = 'btn btn--ghost';
+      const toolbar = trashCard.querySelector('.toolbar') || trashCard;
+      button.textContent = 'Gjenopprett (fra arkiv)';
+      button.setAttribute('data-restore-open', 'true');
+      toolbar.appendChild(button);
+    } else {
+      button.textContent = 'Gjenopprett (fra arkiv)';
+      button.setAttribute('data-restore-open', 'true');
+    }
+    return button;
+  }
+
   function openRestoreDialog() {
     const overlay = ensureRestoreDialog();
     if (!overlay) return;
@@ -4202,34 +4260,14 @@ body.examples-restore-open{overflow:hidden;}
     toolbarElement;
   if (toolbarElement) {
     ensureSaveStatusElement();
-    ensureRestoreDialogStyles();
-    restoreButton = document.getElementById('btnRestoreExample');
-    if (!restoreButton) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.id = 'btnRestoreExample';
-      button.className = 'btn btn--ghost';
-      button.textContent = 'Gjenopprett fra arkiv';
-      button.setAttribute('data-restore-open', 'true');
-      if (deleteBtn && deleteBtn.parentElement === toolbarElement) {
-        if (deleteBtn.nextSibling) {
-          toolbarElement.insertBefore(button, deleteBtn.nextSibling);
-        } else {
-          toolbarElement.appendChild(button);
-        }
-      } else {
-        toolbarElement.appendChild(button);
-      }
-      restoreButton = button;
-    }
-    if (restoreButton && !restoreButton.__restoreListenerAttached) {
-      restoreButton.addEventListener('click', () => {
-        openRestoreDialog();
-      });
-      restoreButton.__restoreListenerAttached = true;
-    }
-  } else {
-    ensureRestoreDialogStyles();
+  }
+  ensureRestoreDialogStyles();
+  restoreButton = ensureRestoreButtonInTrashSection();
+  if (restoreButton && !restoreButton.__restoreListenerAttached) {
+    restoreButton.addEventListener('click', () => {
+      openRestoreDialog();
+    });
+    restoreButton.__restoreListenerAttached = true;
   }
   tabsContainer = document.createElement('div');
   tabsContainer.id = 'exampleTabs';
