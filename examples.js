@@ -1536,16 +1536,35 @@
     backendMode = reason === 'missing' ? 'missing' : 'offline';
     updateBackendUiState();
   }
-  async function performBackendSync() {
-    if (!examplesApiBase || applyingBackendUpdate) return;
+  function schedulePostSyncReload() {
+    if (!examplesApiBase) return;
+    if (typeof setTimeout !== 'function') return;
+    setTimeout(() => {
+      try {
+        const promise = loadExamplesFromBackend();
+        if (promise && typeof promise.then === 'function') {
+          promise.catch(() => {});
+        }
+      } catch (_) {}
+    }, 0);
+  }
+  async function performBackendSync(options) {
+    if (!examplesApiBase || applyingBackendUpdate) return null;
+    const opts = options && typeof options === 'object' ? options : {};
+    const skipStatusUpdate = opts.skipStatusUpdate === true;
     const url = buildExamplesApiUrl(examplesApiBase, storagePath);
-    if (!url) return;
+    if (!url) return null;
     const examples = Array.isArray(cachedExamples) ? cachedExamples : [];
     const backendExamples = normalizeBackendExamples(examples);
     const deletedSet = getDeletedProvidedExamples();
     const deletedProvidedList = deletedSet ? Array.from(deletedSet).map(normalizeKey).filter(Boolean) : [];
     const hasExamples = backendExamples.length > 0;
     const hasDeleted = deletedProvidedList.length > 0;
+    const result = {
+      action: null,
+      payload: null,
+      merged: null
+    };
     try {
       if (!hasExamples && !hasDeleted) {
         const res = await fetch(url, {
@@ -1553,47 +1572,84 @@
         });
         if (!responseLooksLikeJson(res)) {
           markBackendUnavailable('missing');
-          return;
+          const missingError = new Error('Examples backend mangler');
+          missingError.backendReason = 'missing';
+          throw missingError;
         }
+        let payload = null;
+        try {
+          payload = await res.json();
+        } catch (_) {}
         if (res.ok || res.status === 404) {
-          const mode = resolveStoreModeFromResponse(res);
+          const mode = resolveStoreModeFromResponse(res, payload);
           markBackendAvailable(mode);
-        } else {
-          markBackendUnavailable();
+          result.action = 'delete';
+          result.payload = payload;
+          if (!skipStatusUpdate && pendingUserSaveReason) {
+            markUserSaveSuccess(payload);
+          }
+          return result;
         }
-      } else {
-        const payload = {
-          path: storagePath,
-          examples: backendExamples,
-          deletedProvided: deletedProvidedList,
-          updatedAt: new Date().toISOString()
-        };
-        const payloadMode = normalizeBackendStoreMode(backendMode) || persistedBackendMode;
-        if (payloadMode) {
-          payload.storage = payloadMode;
-        }
-        const res = await fetch(url, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
-        if (!responseLooksLikeJson(res)) {
-          markBackendUnavailable('missing');
-          return;
-        }
-        if (!res.ok) throw new Error(`Backend sync failed (${res.status})`);
-        const mode = resolveStoreModeFromResponse(res);
-        markBackendAvailable(mode);
-        clearLegacyExamplesStorageArtifacts();
+        const error = new Error(`Backend sync failed (${res.status})`);
+        throw error;
       }
+      const payload = {
+        path: storagePath,
+        examples: backendExamples,
+        deletedProvided: deletedProvidedList,
+        updatedAt: new Date().toISOString()
+      };
+      const payloadMode = normalizeBackendStoreMode(backendMode) || persistedBackendMode;
+      if (payloadMode) {
+        payload.storage = payloadMode;
+      }
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!responseLooksLikeJson(res)) {
+        markBackendUnavailable('missing');
+        const missingError = new Error('Examples backend mangler');
+        missingError.backendReason = 'missing';
+        throw missingError;
+      }
+      let responsePayload = null;
+      try {
+        responsePayload = await res.json();
+      } catch (_) {
+        responsePayload = null;
+      }
+      if (!res.ok) {
+        const error = new Error(`Backend sync failed (${res.status})`);
+        throw error;
+      }
+      const mode = resolveStoreModeFromResponse(res, responsePayload);
+      markBackendAvailable(mode);
+      clearLegacyExamplesStorageArtifacts();
+      const merged = mergeBackendSyncPayload(responsePayload || payload);
+      result.action = 'put';
+      result.payload = responsePayload;
+      result.merged = merged;
+      schedulePostSyncReload();
+      if (!skipStatusUpdate && pendingUserSaveReason) {
+        markUserSaveSuccess((merged && merged.updatedAt) || responsePayload);
+      }
+      return result;
     } catch (error) {
-      markBackendUnavailable();
       backendSyncRequested = true;
+      if (!skipStatusUpdate && pendingUserSaveReason) {
+        markUserSaveError(error);
+      }
+      if (!(error && error.backendReason === 'missing')) {
+        markBackendUnavailable();
+      }
+      throw error;
     }
   }
-  function flushBackendSync() {
+  function flushBackendSync(options) {
     if (backendSyncTimer) {
       clearTimeout(backendSyncTimer);
       backendSyncTimer = null;
@@ -1608,7 +1664,7 @@
       return backendSyncPromise;
     }
     backendSyncRequested = false;
-    backendSyncPromise = performBackendSync().finally(() => {
+    backendSyncPromise = performBackendSync(options).finally(() => {
       backendSyncPromise = null;
       if (backendSyncRequested) {
         scheduleBackendSync();
@@ -2920,6 +2976,7 @@
     renderDescriptionPreviewFromValue(input.value, { force: true });
   }
   let tabsHostCard = null;
+  let toolbarElement = null;
   const hasUrlOverrides = (() => {
     if (typeof URLSearchParams === 'undefined') return false;
     const search = new URLSearchParams(window.location.search);
@@ -2949,6 +3006,10 @@
   let cachedExamples = [];
   let cachedExamplesInitialized = false;
   let lastLocalUpdateMs = loadPersistedUpdatedAt();
+  let saveStatusElement = null;
+  let saveStatusTextElement = null;
+  let pendingUserSaveReason = null;
+  let lastSuccessfulSaveIso = null;
   function getExamples() {
     if (!cachedExamplesInitialized) {
       cachedExamplesInitialized = true;
@@ -2978,6 +3039,228 @@
   function isUserInitiatedReason(reason) {
     return typeof reason === 'string' && USER_INITIATED_REASONS.has(reason);
   }
+  function ensureSaveStatusElement() {
+    if (typeof document === 'undefined') return null;
+    if (saveStatusElement && saveStatusElement.isConnected) {
+      if (toolbarElement && saveStatusElement.parentElement !== toolbarElement) {
+        try {
+          toolbarElement.appendChild(saveStatusElement);
+        } catch (_) {}
+      }
+      return saveStatusElement;
+    }
+    const host = toolbarElement || document.querySelector('.toolbar') || document.body;
+    if (!host || typeof host.appendChild !== 'function') {
+      return null;
+    }
+    const status = document.createElement('div');
+    status.className = 'example-save-status';
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    status.hidden = true;
+    status.dataset.status = 'idle';
+    const spinner = document.createElement('span');
+    spinner.className = 'example-save-status__spinner';
+    spinner.setAttribute('aria-hidden', 'true');
+    const text = document.createElement('span');
+    text.className = 'example-save-status__text';
+    status.appendChild(spinner);
+    status.appendChild(text);
+    try {
+      host.appendChild(status);
+    } catch (error) {
+      if (host !== document.body || !document.body) {
+        return null;
+      }
+      document.body.appendChild(status);
+    }
+    saveStatusElement = status;
+    saveStatusTextElement = text;
+    return saveStatusElement;
+  }
+  function formatSaveStatusTime(value) {
+    let date = null;
+    if (value instanceof Date) {
+      date = Number.isFinite(value.getTime()) ? value : null;
+    } else if (typeof value === 'number' && Number.isFinite(value)) {
+      date = new Date(value);
+    } else if (typeof value === 'string' && value) {
+      const parsed = Date.parse(value);
+      if (Number.isFinite(parsed)) {
+        date = new Date(parsed);
+      }
+    }
+    if (!date) return null;
+    try {
+      return date.toLocaleTimeString('nb-NO', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    } catch (error) {
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+  }
+  function normalizeUpdatedAtIso(details) {
+    if (!details) return null;
+    if (typeof details === 'string' && details) {
+      const parsed = Date.parse(details);
+      if (Number.isFinite(parsed)) {
+        return new Date(parsed).toISOString();
+      }
+      return details;
+    }
+    if (typeof details === 'number' && Number.isFinite(details)) {
+      return new Date(details).toISOString();
+    }
+    if (typeof details === 'object') {
+      if (typeof details.updatedAt === 'string' && details.updatedAt) {
+        const parsed = Date.parse(details.updatedAt);
+        if (Number.isFinite(parsed)) {
+          return new Date(parsed).toISOString();
+        }
+        return details.updatedAt;
+      }
+      if (typeof details.updatedAt === 'number' && Number.isFinite(details.updatedAt)) {
+        return new Date(details.updatedAt).toISOString();
+      }
+      if (typeof details.updatedAtMs === 'number' && Number.isFinite(details.updatedAtMs)) {
+        return new Date(details.updatedAtMs).toISOString();
+      }
+    }
+    return null;
+  }
+  function setSaveStatusState(state, details = {}) {
+    if (typeof document === 'undefined') return;
+    const host = ensureSaveStatusElement();
+    if (!host) return;
+    const normalizedState = typeof state === 'string' && state ? state : 'idle';
+    host.dataset.status = normalizedState;
+    host.hidden = normalizedState === 'idle';
+    if (!saveStatusTextElement) return;
+    let message = '';
+    if (normalizedState === 'saving') {
+      message = typeof details.message === 'string' && details.message ? details.message : 'Lagrer …';
+      if (host.dataset.updatedAt) {
+        delete host.dataset.updatedAt;
+      }
+    } else if (normalizedState === 'pending-sync') {
+      message =
+        typeof details.message === 'string' && details.message
+          ? details.message
+          : 'Lagret lokalt – venter på server…';
+      if (host.dataset.updatedAt) {
+        delete host.dataset.updatedAt;
+      }
+    } else if (normalizedState === 'success') {
+      const iso = normalizeUpdatedAtIso(details) || lastSuccessfulSaveIso || new Date().toISOString();
+      const timeText = formatSaveStatusTime(iso) || formatSaveStatusTime(Date.now());
+      message =
+        typeof details.message === 'string' && details.message
+          ? details.message
+          : timeText
+          ? `Sist lagret kl. ${timeText}`
+          : 'Sist lagret.';
+      host.dataset.updatedAt = iso;
+    } else if (normalizedState === 'error') {
+      message = typeof details.message === 'string' && details.message ? details.message : 'Kunne ikke lagre endringer.';
+      if (host.dataset.updatedAt) {
+        delete host.dataset.updatedAt;
+      }
+    } else {
+      message = typeof details.message === 'string' ? details.message : '';
+      if (host.dataset.updatedAt) {
+        delete host.dataset.updatedAt;
+      }
+    }
+    saveStatusTextElement.textContent = message;
+  }
+  function beginUserSaveStatus(reason) {
+    if (typeof reason === 'string' && reason) {
+      pendingUserSaveReason = reason;
+    } else {
+      pendingUserSaveReason = 'user-action';
+    }
+    setSaveStatusState('saving');
+  }
+  function markUserSaveDeferred() {
+    if (!pendingUserSaveReason) {
+      pendingUserSaveReason = 'user-action';
+    }
+    setSaveStatusState('pending-sync');
+  }
+  function markUserSaveSuccess(details) {
+    const iso = normalizeUpdatedAtIso(details) || lastSuccessfulSaveIso || new Date().toISOString();
+    lastSuccessfulSaveIso = iso;
+    pendingUserSaveReason = null;
+    setSaveStatusState('success', { updatedAt: iso });
+  }
+  function markUserSaveError(error) {
+    pendingUserSaveReason = null;
+    let message = 'Kunne ikke lagre endringer.';
+    if (error && typeof error === 'object') {
+      if (typeof error.userMessage === 'string' && error.userMessage.trim()) {
+        message = error.userMessage.trim();
+      } else if (typeof error.message === 'string' && error.message.trim()) {
+        message = error.message.trim();
+      }
+    } else if (typeof error === 'string' && error.trim()) {
+      message = error.trim();
+    }
+    setSaveStatusState('error', { message });
+  }
+  function parseBackendUpdatedAt(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string' && value) {
+      const parsed = Date.parse(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+    return null;
+  }
+  function mergeBackendSyncPayload(payload) {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+    const examplesFromServer = Array.isArray(payload.examples) ? payload.examples : [];
+    const normalizedExamples = normalizeExamplesForStorage(examplesFromServer);
+    const serialized = serializeExamplesForStorage(normalizedExamples);
+    if (typeof serialized === 'string') {
+      applyRawExamples(serialized, {
+        reason: 'backend-sync',
+        skipHistory: true,
+        skipBackendSync: true
+      });
+    }
+    const deletedProvidedList = Array.isArray(payload.deletedProvided) ? payload.deletedProvided : [];
+    replaceDeletedProvidedExamples(deletedProvidedList);
+    let updatedAtMs = null;
+    if (Object.prototype.hasOwnProperty.call(payload, 'updatedAt')) {
+      updatedAtMs = parseBackendUpdatedAt(payload.updatedAt);
+    }
+    if (updatedAtMs == null && Object.prototype.hasOwnProperty.call(payload, 'updatedAtMs')) {
+      updatedAtMs = parseBackendUpdatedAt(payload.updatedAtMs);
+    }
+    if (updatedAtMs != null) {
+      lastLocalUpdateMs = updatedAtMs;
+      persistLocalUpdatedAt(lastLocalUpdateMs);
+    }
+    const updatedAtIso =
+      updatedAtMs != null
+        ? new Date(updatedAtMs).toISOString()
+        : normalizeUpdatedAtIso(payload) || null;
+    return {
+      examples: normalizedExamples,
+      deletedProvided: deletedProvidedList.map(normalizeKey).filter(Boolean),
+      updatedAt: updatedAtIso,
+      updatedAtMs
+    };
+  }
   async function store(examples, options) {
     const normalized = normalizeExamplesForStorage(examples);
     const serialized = serializeExamplesForStorage(normalized);
@@ -2987,22 +3270,46 @@
     if (!applied) {
       return false;
     }
-    if (isUserInitiatedReason(reason)) {
+    const userInitiated = isUserInitiatedReason(reason);
+    if (userInitiated) {
       lastLocalUpdateMs = Date.now();
       persistLocalUpdatedAt(lastLocalUpdateMs);
+      beginUserSaveStatus(reason);
     }
     const shouldSkipSync = opts.skipBackendSync === true || !backendReady;
     if (shouldSkipSync) {
       backendSyncDeferred = true;
+      if (userInitiated) {
+        markUserSaveDeferred();
+      }
       return true;
     }
     backendSyncDeferred = false;
     notifyBackendChange();
-    const syncPromise = flushBackendSync();
-    if (syncPromise) {
-      await syncPromise;
-    } else {
-      await performBackendSync();
+    const syncOptions = {
+      initiatedBy: userInitiated ? reason : null,
+      skipStatusUpdate: userInitiated
+    };
+    let syncResult = null;
+    try {
+      const syncPromise = flushBackendSync(syncOptions);
+      if (syncPromise) {
+        syncResult = await syncPromise;
+      } else {
+        syncResult = await performBackendSync(syncOptions);
+      }
+    } catch (error) {
+      if (userInitiated) {
+        markUserSaveError(error);
+      }
+      throw error;
+    }
+    if (userInitiated) {
+      const updatedAtIso =
+        (syncResult && syncResult.merged && syncResult.merged.updatedAt) ||
+        (syncResult && syncResult.payload && normalizeUpdatedAtIso(syncResult.payload)) ||
+        null;
+      markUserSaveSuccess(updatedAtIso);
     }
     return true;
   }
@@ -3074,6 +3381,28 @@
       storageSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
     } catch (error) {}
     notifyBackendChange();
+  }
+  function replaceDeletedProvidedExamples(list) {
+    const next = new Set();
+    if (Array.isArray(list)) {
+      list.forEach(value => {
+        const key = normalizeKey(value);
+        if (key) {
+          next.add(key);
+        }
+      });
+    }
+    deletedProvidedExamples = next;
+    if (deletedProvidedExamples.size > 0) {
+      try {
+        storageSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
+      } catch (_) {}
+    } else {
+      try {
+        storageRemoveItem(DELETED_PROVIDED_KEY);
+      } catch (_) {}
+    }
+    return deletedProvidedExamples;
   }
   function hasCompletedExamplesMigration() {
     if (typeof window === 'undefined') return true;
@@ -3206,6 +3535,13 @@
 .example-backend-notice{margin-top:12px;margin-bottom:12px;padding:10px 14px;border-radius:10px;background:#fee2e2;border:1px solid #f87171;color:#991b1b;font-size:14px;line-height:1.4;display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
 .example-backend-notice__title{font-weight:600;display:inline-flex;align-items:center;}
 .example-backend-notice__message{display:inline-flex;align-items:center;}
+.example-save-status{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:#6b7280;line-height:1.2;}
+.example-save-status[data-status="success"]{color:#047857;}
+.example-save-status[data-status="error"]{color:#b91c1c;}
+.example-save-status__spinner{display:none;width:14px;height:14px;border-radius:50%;border:2px solid rgba(107,114,128,.35);border-top-color:var(--purple,#5B2AA5);animation:example-save-status-spin .8s linear infinite;}
+.example-save-status[data-status="saving"] .example-save-status__spinner,.example-save-status[data-status="pending-sync"] .example-save-status__spinner{display:inline-flex;}
+.example-save-status__text{display:inline-flex;align-items:center;}
+@keyframes example-save-status-spin{to{transform:rotate(360deg);}}
 .card-has-settings .example-settings{margin-top:6px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;flex-direction:column;gap:10px;}
 .card-has-settings .example-settings > .example-tabs{margin-top:0;margin-bottom:0;}
 .card-has-settings .example-settings > h2:first-child{margin-top:0;}
@@ -3265,8 +3601,8 @@
     }
   }
   function moveSettingsIntoExampleCard() {
-    if (!toolbar) return;
-    const exampleCard = toolbar.closest('.card');
+    if (!toolbarElement) return;
+    const exampleCard = toolbarElement.closest('.card');
     if (!exampleCard) return;
     tabsHostCard = exampleCard;
     if (!exampleCard.classList.contains('card-has-settings')) {
@@ -3627,17 +3963,24 @@
     }
   }
   ensureTabStyles();
-  const toolbar = (updateBtn === null || updateBtn === void 0 ? void 0 : updateBtn.parentElement) || (createBtn === null || createBtn === void 0 ? void 0 : createBtn.parentElement) || (deleteBtn === null || deleteBtn === void 0 ? void 0 : deleteBtn.parentElement);
+  toolbarElement =
+    (updateBtn === null || updateBtn === void 0 ? void 0 : updateBtn.parentElement) ||
+    (createBtn === null || createBtn === void 0 ? void 0 : createBtn.parentElement) ||
+    (deleteBtn === null || deleteBtn === void 0 ? void 0 : deleteBtn.parentElement) ||
+    toolbarElement;
+  if (toolbarElement) {
+    ensureSaveStatusElement();
+  }
   tabsContainer = document.createElement('div');
   tabsContainer.id = 'exampleTabs';
   tabsContainer.className = 'example-tabs';
   tabsContainer.setAttribute('role', 'tablist');
   tabsContainer.setAttribute('aria-orientation', 'horizontal');
   tabsContainer.setAttribute('aria-label', 'Lagrede eksempler');
-  const toolbarParent = (toolbar === null || toolbar === void 0 ? void 0 : toolbar.parentElement) || toolbar;
+  const toolbarParent = (toolbarElement === null || toolbarElement === void 0 ? void 0 : toolbarElement.parentElement) || toolbarElement;
   if (toolbarParent) {
-    if (toolbar !== null && toolbar !== void 0 && toolbar.nextSibling) {
-      toolbarParent.insertBefore(tabsContainer, toolbar.nextSibling);
+    if (toolbarElement !== null && toolbarElement !== void 0 && toolbarElement.nextSibling) {
+      toolbarParent.insertBefore(tabsContainer, toolbarElement.nextSibling);
     } else {
       toolbarParent.appendChild(tabsContainer);
     }
