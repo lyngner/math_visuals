@@ -252,14 +252,20 @@ function normalizePath(value) {
   } else {
     decoded = String(path).toLowerCase();
   }
-  let normalized = decoded;
+  let encodedPath = null;
   try {
-    const reencoded = encodeURI(decoded || '/');
-    normalized = decodeURI(
-      reencoded.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase())
-    );
+    encodedPath = encodeURI(decoded || '/');
   } catch (error) {
-    normalized = typeof decoded === 'string' && decoded ? decoded : path;
+    try {
+      const fallbackSource = typeof decoded === 'string' && decoded ? decoded : String(path || '/');
+      encodedPath = encodeURI(fallbackSource);
+    } catch (_) {
+      encodedPath = typeof path === 'string' && path ? path : '/';
+    }
+  }
+  let normalized = encodedPath;
+  if (typeof normalized === 'string') {
+    normalized = normalized.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
   }
   if (!normalized) normalized = '/';
   if (!normalized.startsWith('/')) {
