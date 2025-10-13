@@ -88,7 +88,7 @@ test.describe('Examples API production entries', () => {
         await page.route('**/*', route => {
           const type = route.request().resourceType();
           if (type === 'image' || type === 'media' || type === 'font') {
-            return route.abort();
+            return route.fulfill({ status: 204 });
           }
           return route.continue();
         });
