@@ -338,7 +338,7 @@
     if (Array.isArray(items)) {
       items.forEach(item => {
         const normalized = normalizeTrashItem(item);
-        if (!normalized || normalized.sourceActive) return;
+        if (!normalized) return;
         let path = normalized.sourcePath;
         if (!path) {
           const fallback = normalized.sourcePathRaw || normalized.sourceHref || '';
