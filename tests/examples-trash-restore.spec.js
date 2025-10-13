@@ -22,6 +22,17 @@ function clone(value) {
   }
 }
 
+function withDefaultSourceState(entry) {
+  const copy = clone(entry);
+  if (!Object.prototype.hasOwnProperty.call(copy, 'sourceActive')) {
+    copy.sourceActive = false;
+  }
+  if (!Object.prototype.hasOwnProperty.call(copy, 'sourceArchived')) {
+    copy.sourceArchived = true;
+  }
+  return copy;
+}
+
 async function archiveExample(page, descriptionText = 'Eksempel for gjenoppretting') {
   const description = page.locator('#exampleDescription');
   await description.fill(descriptionText);
@@ -72,11 +83,7 @@ test.describe('Examples trash guidance', () => {
           storageMode: 'memory',
           persistent: false,
           ephemeral: true,
-          entries: trashEntries.map(entry => ({
-            ...clone(entry),
-            sourceActive: false,
-            sourceArchived: true
-          }))
+          entries: trashEntries.map(entry => withDefaultSourceState(entry))
         };
         await route.fulfill({ status: 200, headers: TRASH_HEADERS, body: JSON.stringify(body) });
         return;
@@ -110,11 +117,7 @@ test.describe('Examples trash guidance', () => {
           storageMode: 'memory',
           persistent: false,
           ephemeral: true,
-          entries: trashEntries.map(entry => ({
-            ...clone(entry),
-            sourceActive: false,
-            sourceArchived: true
-          }))
+          entries: trashEntries.map(entry => withDefaultSourceState(entry))
         };
         await route.fulfill({ status: 200, headers: TRASH_HEADERS, body: JSON.stringify(body) });
         return;
@@ -156,11 +159,7 @@ test.describe('Examples trash guidance', () => {
           ephemeral: true,
           removed,
           entryId: ids.length === 1 ? ids[0] : null,
-          entries: trashEntries.map(entry => ({
-            ...clone(entry),
-            sourceActive: false,
-            sourceArchived: true
-          }))
+          entries: trashEntries.map(entry => withDefaultSourceState(entry))
         };
         await route.fulfill({ status: 200, headers: TRASH_HEADERS, body: JSON.stringify(body) });
         return;
@@ -275,5 +274,26 @@ test.describe('Examples trash guidance', () => {
 
     await expect(archivePage.getByText('Ingen arkiverte eksempler er tilgjengelige.')).toBeVisible();
     expect(trashEntries.length).toBe(0);
+  });
+
+  test('archived examples remain visible even if the source path still has active examples', async ({ page }) => {
+    const description = 'Arkivtest – aktiv kilde';
+    await archiveExample(page, description);
+
+    await backend.waitForPut(CANONICAL_PATH);
+
+    trashEntries = trashEntries.map(entry => ({
+      ...entry,
+      sourceActive: true,
+      sourceArchived: false
+    }));
+
+    const archivePage = await openTrashArchivePage(page.context());
+    const item = archivePage
+      .locator('[data-item]')
+      .filter({ hasText: description });
+    await expect(item).toHaveCount(1);
+
+    await archivePage.close();
   });
 });
