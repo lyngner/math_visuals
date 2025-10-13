@@ -145,6 +145,7 @@ test.describe('examples-store path normalization', () => {
     variants.forEach(value => {
       expect(normalizePath(value)).toBe('/diagram');
     });
+    expect(normalizePath('/br%C3%B8kvegg')).toBe('/br%C3%B8kvegg');
     expect(normalizePath('/Br%C3%98KVEGG.HTML')).toBe('/br%C3%B8kvegg');
     expect(normalizePath('/brøkvegg/index.html')).toBe('/br%C3%B8kvegg');
     expect(normalizePath('/brøkvegg')).toBe('/br%C3%B8kvegg');
