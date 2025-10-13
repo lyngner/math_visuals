@@ -310,6 +310,15 @@ function encodePathWithFallback(value) {
   return null;
 }
 
+function lowercasePathPreservingPercentEncoding(value) {
+  if (typeof value !== 'string' || !value) {
+    return value;
+  }
+  return value.replace(/%[0-9A-F]{2}|[^%]+/g, segment =>
+    segment.startsWith('%') ? segment : segment.toLowerCase(),
+  );
+}
+
 function normalizePath(value) {
   if (typeof value !== 'string') return null;
   let path = value.trim();
@@ -327,7 +336,8 @@ function normalizePath(value) {
   }
   if (!path) path = '/';
   const originalSanitized = uppercasePercentEncoding(path);
-  const encodedFromOriginal = encodePathWithFallback(originalSanitized || '/');
+  const lowercasedSanitized = lowercasePathPreservingPercentEncoding(originalSanitized || '/');
+  const encodedFromOriginal = encodePathWithFallback(lowercasedSanitized || '/');
 
   let decoded = path;
   try {
@@ -344,7 +354,7 @@ function normalizePath(value) {
     normalized = encodePathWithFallback(decoded || '/');
   }
   if (!normalized) {
-    normalized = originalSanitized || '/';
+    normalized = lowercasedSanitized || '/';
   }
 
   if (/[^\u0000-\u007F]/.test(normalized)) {
