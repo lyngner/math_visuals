@@ -173,7 +173,18 @@ function createEventTracker(options = {}) {
       }
     });
   };
-  return { push, wait };
+  const dispose = () => {
+    queue.clear();
+    waiters.forEach(entries => {
+      entries.forEach(entry => {
+        try {
+          entry.reject(new Error('Event tracker disposed'));
+        } catch (_) {}
+      });
+    });
+    waiters.clear();
+  };
+  return { push, wait, dispose };
 }
 
 function normalizeExamplePath(value, options = {}) {
@@ -231,6 +242,7 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
   if (options && typeof options !== 'object') {
     options = undefined;
   }
+  const usingSharedStore = Boolean(sharedStore);
   const store = ensureStore(sharedStore);
   const history = [];
   const putEvents = createEventTracker();
@@ -535,7 +547,8 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
   await context.addInitScript(() => {
     window.MATH_VISUALS_EXAMPLES_API_URL = '/api/examples';
   });
-  await context.route('**/api/examples**', handleRequest);
+  const routePattern = '**/api/examples**';
+  await context.route(routePattern, handleRequest);
 
   if (options && options.seedDefaults && normalizeStoreMode(currentMode) === 'memory') {
     const seedConfig = options.seedDefaults === true
@@ -635,6 +648,35 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     },
     clearOutage: () => {
       requestFailureFactory = null;
+    },
+    dispose: async () => {
+      requestFailureFactory = null;
+      if (putEvents && typeof putEvents.dispose === 'function') {
+        try {
+          putEvents.dispose();
+        } catch (_) {}
+      }
+      if (deleteEvents && typeof deleteEvents.dispose === 'function') {
+        try {
+          deleteEvents.dispose();
+        } catch (_) {}
+      }
+      if (history && history.length) {
+        history.length = 0;
+      }
+      if (!usingSharedStore && store) {
+        try {
+          store.raw && typeof store.raw.clear === 'function' && store.raw.clear();
+        } catch (_) {}
+        try {
+          store.canonical && typeof store.canonical.clear === 'function' && store.canonical.clear();
+        } catch (_) {}
+      }
+      if (context && typeof context.unroute === 'function') {
+        try {
+          await context.unroute(routePattern, handleRequest);
+        } catch (_) {}
+      }
     }
   };
 }

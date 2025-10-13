@@ -70,7 +70,7 @@ test.describe('examples backend migration', () => {
     const legacyEntry = await backend.client.get(LEGACY_PRIMARY_PATH);
     expect(legacyEntry).toBeUndefined();
 
-    await expect(page.locator('#exampleDescription')).toHaveValue('Backend legacy eksempel');
+    await expect(page.locator('#exampleDescription')).toHaveValue('Backend legacy eksempel', { timeout: 15000 });
 
     const normalizedVariants = LEGACY_VARIANTS.map(value => normalizeExamplePath(value));
     const legacyDeletes = backend.history

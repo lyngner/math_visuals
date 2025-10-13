@@ -13,12 +13,43 @@ test.describe('Examples API production entries', () => {
     const json = await response.json();
     expect(Array.isArray(json?.entries), 'Responsen mangler entries-listen').toBe(true);
 
+    const normalizePublishedPath = value => {
+      if (typeof value !== 'string') return '/';
+      let path = value.trim();
+      if (!path) return '/';
+      if (!path.startsWith('/')) {
+        path = `/${path}`;
+      }
+      const suffixMatch = path.match(/([?#].*)$/);
+      let base = path;
+      let suffix = '';
+      if (suffixMatch) {
+        suffix = suffixMatch[1];
+        base = path.slice(0, -suffix.length);
+      }
+      if (base.length > 1 && base.endsWith('/')) {
+        base = base.replace(/\/+$/g, '');
+        if (!base) {
+          base = '/';
+        }
+      }
+      if (base === '/') {
+        base = '/index.html';
+        return `${base}${suffix}`;
+      }
+      if (/\.[a-z0-9]+$/i.test(base)) {
+        return `${base}${suffix}`;
+      }
+      return `${base}.html${suffix}`;
+    };
+
     for (const entry of json.entries) {
       if (!entry || typeof entry.path !== 'string') {
         continue;
       }
 
-      const targetUrl = new URL(entry.path, BASE_URL).toString();
+      const publishedPath = normalizePublishedPath(entry.path);
+      const targetUrl = new URL(publishedPath, BASE_URL).toString();
       const gotoResponse = await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
       const status = gotoResponse?.status();
 
