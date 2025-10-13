@@ -234,6 +234,34 @@ const SAFE_PATH_CHARS = new Set(
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~!$&'()*+,;=:@"
 );
 
+function looksLikeEncodedPath(value) {
+  if (typeof value !== 'string' || !value) {
+    return false;
+  }
+
+  for (let index = 0; index < value.length;) {
+    const char = value[index];
+    if (char === '/') {
+      index += 1;
+      continue;
+    }
+    if (char === '%') {
+      const nextTwo = value.slice(index + 1, index + 3);
+      if (!/^[0-9a-fA-F]{2}$/.test(nextTwo)) {
+        return false;
+      }
+      index += 3;
+      continue;
+    }
+    if (!SAFE_PATH_CHARS.has(char)) {
+      return false;
+    }
+    index += 1;
+  }
+
+  return true;
+}
+
 function uppercasePercentEncoding(value) {
   return value.replace(/%[0-9a-f]{2}/gi, match => match.toUpperCase());
 }
@@ -245,6 +273,9 @@ function encodePathWithFallback(value) {
 
   const tryEncode = candidate => {
     if (typeof candidate !== 'string' || !candidate) return null;
+    if (looksLikeEncodedPath(candidate)) {
+      return uppercasePercentEncoding(candidate);
+    }
     try {
       return uppercasePercentEncoding(encodeURI(candidate));
     } catch (_) {
@@ -339,9 +370,9 @@ function normalizePath(value) {
     decoded = String(path).toLowerCase();
   }
 
-  let normalized = encodedFromOriginal;
+  let normalized = encodePathWithFallback(decoded || '/');
   if (!normalized) {
-    normalized = encodePathWithFallback(decoded || '/');
+    normalized = encodedFromOriginal;
   }
   if (!normalized) {
     normalized = originalSanitized || '/';
