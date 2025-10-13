@@ -38,3 +38,10 @@ For en komplett «teskje»-guide til lokal kjøring på Mac (inkludert riktig No
 > **Merk:** Det er bare `KV_REST_API_URL` og `KV_REST_API_TOKEN` som brukes av `/api/examples`. Andre nøkler som `KV_URL`, `REDIS_URL` eller `KV_REST_API_READ_ONLY_TOKEN` kan ignoreres dersom du ikke har andre tjenester som trenger dem – men del aldri de faktiske verdiene i klartekst utenfor sikre miljøvariabler.
 
 For mer informasjon om lagringsmodellen, se dokumentasjonen i `docs/examples-storage.md`.
+
+## Tester før utrulling
+
+Kjør følgende tester før du distribuerer endringer til produksjon:
+
+1. `npx playwright test tests/examples-api-entries.spec.js`
+   * Verifiserer at alle eksempler fra produksjonslisten på `https://math-visuals.vercel.app/api/examples` fortsatt er tilgjengelige og laster nødvendig klienttilstand.
