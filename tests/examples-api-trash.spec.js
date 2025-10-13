@@ -54,25 +54,38 @@ test.describe('Examples trash API', () => {
     expect(first.sourceActive).toBe(false);
   });
 
-  test('DELETE removes specified trash entries', async () => {
+  test('DELETE with entryId removes entry and logs audit info', async () => {
     await setTrashEntries([
       { id: 'keep', example: { title: 'Keep' }, deletedAt: '2024-03-01T00:00:00.000Z' },
       { id: 'remove', example: { title: 'Remove' }, deletedAt: '2024-03-02T00:00:00.000Z' }
     ]);
 
-    const deleteResponse = await invokeExamplesTrashApi({
-      method: 'DELETE',
-      url: '/api/examples/trash',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: ['remove'] })
-    });
+    const originalInfo = console.info;
+    const auditLogs = [];
+    console.info = (...args) => {
+      auditLogs.push(args.map(value => (typeof value === 'string' ? value : JSON.stringify(value))).join(' '));
+    };
 
-    expect(deleteResponse.statusCode).toBe(200);
-    expect(deleteResponse.json.removed).toBe(1);
+    try {
+      const deleteResponse = await invokeExamplesTrashApi({
+        method: 'DELETE',
+        url: '/api/examples/trash?entryId=remove'
+      });
 
-    const afterDelete = await invokeExamplesTrashApi({ url: '/api/examples/trash' });
-    const ids = afterDelete.json.entries.map(entry => entry.id);
-    expect(ids).toContain('keep');
-    expect(ids).not.toContain('remove');
+      expect(deleteResponse.statusCode).toBe(200);
+      expect(deleteResponse.json.removed).toBe(1);
+      expect(deleteResponse.json.entryId).toBe('remove');
+
+      const afterDelete = await invokeExamplesTrashApi({ url: '/api/examples/trash' });
+      const ids = afterDelete.json.entries.map(entry => entry.id);
+      expect(ids).toContain('keep');
+      expect(ids).not.toContain('remove');
+
+      const serializedAudit = auditLogs.join('\n');
+      expect(serializedAudit).toContain('permanent-delete');
+      expect(serializedAudit).toContain('remove');
+    } finally {
+      console.info = originalInfo;
+    }
   });
 });

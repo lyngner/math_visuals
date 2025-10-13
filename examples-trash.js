@@ -54,6 +54,24 @@
     }
   }
 
+  function buildTrashDeleteUrl(base, entryId) {
+    if (!base) return null;
+    const id = typeof entryId === 'string' ? entryId : '';
+    const encodedId = encodeURIComponent(id);
+    if (typeof window === 'undefined') {
+      const separator = base.includes('?') ? '&' : '?';
+      return `${base}${separator}entryId=${encodedId}`;
+    }
+    try {
+      const url = new URL(base, window.location && window.location.href ? window.location.href : undefined);
+      url.searchParams.set('entryId', id);
+      return url.toString();
+    } catch (error) {
+      const separator = base.includes('?') ? '&' : '?';
+      return `${base}${separator}entryId=${encodedId}`;
+    }
+  }
+
   function extractContentType(headers) {
     if (!headers) return null;
     let value = null;
@@ -678,33 +696,55 @@
     }
   }
 
-  async function deleteTrashItems(ids) {
+  async function deleteExample(id, options = {}) {
     if (!trashApiBase) {
       throw new Error('Arkivtjenesten er ikke konfigurert.');
     }
-    const validIds = Array.isArray(ids)
-      ? ids.map(value => (typeof value === 'string' ? value.trim() : '')).filter(Boolean)
-      : [];
-    if (!validIds.length) {
-      return;
+    const entryId = typeof id === 'string' ? id.trim() : '';
+    if (!entryId) {
+      return { cancelled: false, removed: false };
     }
-    const url = buildTrashApiUrl(trashApiBase);
+
+    const skipConfirm = options && options.skipConfirm === true;
+    if (!skipConfirm && typeof window !== 'undefined' && typeof window.confirm === 'function') {
+      const confirmed = window.confirm(
+        'Er du sikker på at du vil slette dette eksempelet permanent? Denne handlingen kan ikke angres.'
+      );
+      if (!confirmed) {
+        return { cancelled: true, removed: false };
+      }
+    }
+
+    const url = buildTrashDeleteUrl(buildTrashApiUrl(trashApiBase), entryId);
     if (!url) {
-      throw new Error('Kunne ikke bygge URL for sletting.');
+      throw new Error('Kunne ikke bygge URL for permanent sletting.');
     }
+
     let response;
     try {
-      response = await fetch(url, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: validIds })
-      });
+      response = await fetch(url, { method: 'DELETE', headers: { Accept: 'application/json' } });
     } catch (error) {
       throw new Error('Kunne ikke kontakte arkivtjenesten for sletting.');
     }
+
     if (!response.ok) {
       throw new Error(`Serveren avviste sletting (${response.status}).`);
     }
+
+    let removed = true;
+    try {
+      const text = await response.text();
+      if (text) {
+        const payload = JSON.parse(text);
+        if (payload && typeof payload === 'object' && typeof payload.removed === 'number') {
+          removed = payload.removed > 0;
+        }
+      }
+    } catch (error) {
+      removed = true;
+    }
+
+    return { cancelled: false, removed };
   }
 
   async function fetchExamplesEntry(path) {
@@ -874,7 +914,7 @@
       setStatus('Gjenoppretter eksempel …', 'info');
       try {
         await restoreTrashEntry(path, targetItem);
-        await deleteTrashItems([id]);
+        await deleteExample(id, { skipConfirm: true });
         await fetchEntriesFromBackend();
         buildFilterOptions();
         renderEntries();
@@ -895,7 +935,11 @@
       if (!id) return;
       button.disabled = true;
       try {
-        await deleteTrashItems([id]);
+        const result = await deleteExample(id);
+        if (result && result.cancelled) {
+          setStatus('Sletting avbrutt. Elementet ligger fortsatt i arkivet.', 'info');
+          return;
+        }
         await fetchEntriesFromBackend();
         buildFilterOptions();
         renderEntries();
