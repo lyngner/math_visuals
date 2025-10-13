@@ -207,6 +207,9 @@ test.describe('Examples trash guidance', () => {
     const description = 'Arkivtest – gjenoppretting';
     await archiveExample(page, description);
 
+    // Drain both archive-related PUT events (initial save + delete) before waiting for
+    // the restore-specific request to avoid consuming a stale payload.
+    await backend.waitForPut(CANONICAL_PATH);
     await backend.waitForPut(CANONICAL_PATH);
 
     const archivePage = await openTrashArchivePage(page.context());
