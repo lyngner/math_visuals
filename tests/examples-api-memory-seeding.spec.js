@@ -14,10 +14,10 @@ test.describe('Examples API – memory mode without defaults', () => {
     originalKvToken = process.env.KV_REST_API_TOKEN;
   });
 
-  test.beforeEach(() => {
+  test.beforeEach(async () => {
     delete process.env.KV_REST_API_URL;
     delete process.env.KV_REST_API_TOKEN;
-    resetExamplesMemoryStore();
+    await resetExamplesMemoryStore();
   });
 
   test.afterAll(() => {

@@ -3,16 +3,8 @@
 const KEY_PREFIX = 'examples:';
 const INDEX_KEY = 'examples:__paths__';
 
-const globalScope = typeof globalThis !== 'undefined' ? globalThis : global;
-if (!globalScope.__EXAMPLES_MEMORY_STORE__) {
-  globalScope.__EXAMPLES_MEMORY_STORE__ = new Map();
-}
-if (!globalScope.__EXAMPLES_MEMORY_INDEX__) {
-  globalScope.__EXAMPLES_MEMORY_INDEX__ = new Set();
-}
-
-const memoryStore = globalScope.__EXAMPLES_MEMORY_STORE__;
-const memoryIndex = globalScope.__EXAMPLES_MEMORY_INDEX__;
+const memoryStore = new Map();
+const memoryIndex = new Set();
 
 let kvClientPromise = null;
 
@@ -330,49 +322,6 @@ function buildEntry(path, payload) {
   return entry;
 }
 
-function annotateForMemory(entry) {
-  if (!entry || typeof entry !== 'object') return entry;
-  const annotated = applyStorageMetadata({ ...entry }, 'memory');
-  return clone(annotated);
-}
-
-function getMemoryEntry(path) {
-  const normalized = normalizePath(path);
-  if (!normalized) return null;
-  const stored = readFromMemory(normalized);
-  if (!stored) return null;
-  return annotateForMemory(stored);
-}
-
-function setMemoryEntry(path, payload) {
-  const normalized = normalizePath(path);
-  if (!normalized) return null;
-  const entry = buildEntry(normalized, payload || {});
-  const annotated = applyStorageMetadata({ ...entry }, 'memory');
-  writeToMemory(normalized, annotated);
-  return clone(annotated);
-}
-
-function deleteMemoryEntry(path) {
-  const normalized = normalizePath(path);
-  if (!normalized) return false;
-  deleteFromMemory(normalized);
-  return true;
-}
-
-function listMemoryEntries() {
-  const entries = [];
-  memoryIndex.forEach(path => {
-    const normalized = normalizePath(path);
-    if (!normalized) return;
-    const stored = readFromMemory(normalized);
-    if (!stored) return;
-    const annotated = applyStorageMetadata({ ...stored }, 'memory');
-    entries.push(clone(annotated));
-  });
-  return entries;
-}
-
 async function writeToKv(path, entry) {
   const kv = await loadKvClient();
   const key = makeKey(path);
@@ -553,10 +502,6 @@ module.exports = {
   KvConfigurationError,
   isKvConfigured,
   getStoreMode,
-  getMemoryEntry,
-  setMemoryEntry,
-  deleteMemoryEntry,
-  listMemoryEntries,
   __serializeExampleValue: value => serializeExampleValue(value, new WeakMap()),
   __deserializeExampleValue: value => deserializeExampleValue(value, new WeakMap())
 };

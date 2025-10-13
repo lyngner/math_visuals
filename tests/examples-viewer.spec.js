@@ -100,7 +100,7 @@ test.describe('Examples viewer – manual API seeding', () => {
   test.beforeEach(async ({ context }) => {
     delete process.env.KV_REST_API_URL;
     delete process.env.KV_REST_API_TOKEN;
-    resetExamplesMemoryStore();
+    await resetExamplesMemoryStore();
     await context.route('**/api/examples**', createExamplesApiRouteHandler());
     for (const [path, payload] of Object.entries(SAMPLE_MEMORY_ENTRIES)) {
       await invokeExamplesApi({
@@ -114,7 +114,7 @@ test.describe('Examples viewer – manual API seeding', () => {
 
   test.afterEach(async ({ context }) => {
     await context.unroute('**/api/examples**');
-    resetExamplesMemoryStore();
+    await resetExamplesMemoryStore();
   });
 
   test.afterAll(() => {
