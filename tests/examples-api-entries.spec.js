@@ -1,7 +1,22 @@
 const { test, expect } = require('@playwright/test');
 
-const API_URL = 'https://math-visuals.vercel.app/api/examples';
-const BASE_URL = 'https://math-visuals.vercel.app/';
+// The production site is used as default, but the environment variables below allow
+// local development to override the endpoints for faster test iterations.
+//  - EXAMPLES_API_BASE_URL: base URL used when fetching the examples API.
+//  - EXAMPLES_BASE_URL: base URL for page loads (defaults to the API base).
+//  - EXAMPLES_API_ENTRY_WORKERS: number of concurrent page verifications (1-8).
+const DEFAULT_BASE_URL = 'https://math-visuals.vercel.app/';
+const API_BASE_URL = process.env.EXAMPLES_API_BASE_URL || DEFAULT_BASE_URL;
+const BASE_URL = process.env.EXAMPLES_BASE_URL || API_BASE_URL;
+const API_URL = new URL('api/examples', API_BASE_URL).toString();
+
+const MAX_WORKERS = Math.max(
+  1,
+  Math.min(
+    8,
+    Number.parseInt(process.env.EXAMPLES_API_ENTRY_WORKERS, 10) || 4
+  )
+);
 
 test.describe.configure({ mode: 'serial' });
 
@@ -55,84 +70,115 @@ test.describe('Examples API production entries', () => {
     const payload = await response.json();
     expect(Array.isArray(payload?.entries), 'Responsen mangler entries-listen').toBe(true);
 
-    const context = await browser.newContext({ ignoreHTTPSErrors: true });
-    const page = await context.newPage();
-    page.setDefaultTimeout(15000);
+    const entries = payload.entries.filter(entry => entry && typeof entry.path === 'string');
+    if (entries.length === 0) {
+      return;
+    }
 
-    const consoleErrors = [];
-    const pageErrors = [];
+    let nextIndex = 0;
 
-    page.on('console', message => {
-      if (message.type() === 'error') {
-        const text = message.text();
-        console.error(`[examples-api-entries] console error: ${text}`);
-        consoleErrors.push(text);
-      }
-    });
+    const workerCount = Math.min(MAX_WORKERS, entries.length);
 
-    page.on('pageerror', error => {
-      console.error(`[examples-api-entries] JavaScript-feil: ${error.message}`);
-      pageErrors.push(error);
-    });
+    await Promise.all(
+      Array.from({ length: workerCount }, async () => {
+        const context = await browser.newContext({ ignoreHTTPSErrors: true });
+        const page = await context.newPage();
+        page.setDefaultTimeout(15000);
 
-    try {
-      for (const entry of payload.entries) {
-        if (!entry || typeof entry.path !== 'string') {
-          continue;
-        }
+        await page.route('**/*', route => {
+          const type = route.request().resourceType();
+          if (type === 'image' || type === 'media' || type === 'font') {
+            return route.abort();
+          }
+          return route.continue();
+        });
 
-        consoleErrors.length = 0;
-        pageErrors.length = 0;
+        const consoleErrors = [];
+        const pageErrors = [];
 
-        const publishedPath = normalizePublishedPath(entry.path);
-        const targetUrl = new URL(publishedPath, BASE_URL).toString();
-        const gotoResponse = await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
-        const status = gotoResponse?.status();
+        const consoleListener = message => {
+          if (message.type() === 'error') {
+            const text = message.text();
+            console.error(`[examples-api-entries] console error: ${text}`);
+            consoleErrors.push(text);
+          }
+        };
 
-        if (!gotoResponse) {
-          throw new Error(`Fikk ikke svar ved lasting av ${targetUrl}`);
-        }
+        const pageErrorListener = error => {
+          console.error(`[examples-api-entries] JavaScript-feil: ${error.message}`);
+          pageErrors.push(error);
+        };
 
-        if (status === 404) {
-          const message = `[examples-api-entries] 404 Not Found: ${entry.path}`;
-          console.error(message);
-          throw new Error(message);
-        }
-
-        if (status && status >= 400) {
-          const message = `[examples-api-entries] Uventet status ${status} for ${targetUrl}`;
-          console.error(message);
-          throw new Error(message);
-        }
+        page.on('console', consoleListener);
+        page.on('pageerror', pageErrorListener);
 
         try {
-          await expect
-            .poll(async () => {
-              try {
-                return await page.evaluate(() =>
-                  Boolean(window.STATE || window.CFG || window.CONFIG || window.SIMPLE)
-                );
-              } catch (error) {
-                console.error(`[examples-api-entries] eval-feil (${entry.path}): ${error?.message || error}`);
-                throw error;
-              }
-            }, { message: `Mangler STATE/CFG/CONFIG/SIMPLE for ${entry.path}` })
-            .toBe(true);
-        } catch (error) {
-          console.error(`[examples-api-entries] mangler binding for ${entry.path}`);
-          throw error;
-        }
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            const currentIndex = nextIndex++;
+            if (currentIndex >= entries.length) {
+              break;
+            }
 
-        if (consoleErrors.length > 0 || pageErrors.length > 0) {
-          const errorMessages = [
-            ...consoleErrors.map(text => `console: ${text}`),
-            ...pageErrors.map(err => `pageerror: ${err.message}`)
-          ].join('\n');
-          throw new Error(`[examples-api-entries] JavaScript-feil oppdaget for ${entry.path}:\n${errorMessages}`);
+            const entry = entries[currentIndex];
+            consoleErrors.length = 0;
+            pageErrors.length = 0;
+
+            const publishedPath = normalizePublishedPath(entry.path);
+            const targetUrl = new URL(publishedPath, BASE_URL).toString();
+            const gotoResponse = await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
+            const status = gotoResponse?.status();
+
+            if (!gotoResponse) {
+              throw new Error(`Fikk ikke svar ved lasting av ${targetUrl}`);
+            }
+
+            if (status === 404) {
+              const message = `[examples-api-entries] 404 Not Found: ${entry.path}`;
+              console.error(message);
+              throw new Error(message);
+            }
+
+            if (status && status >= 400) {
+              const message = `[examples-api-entries] Uventet status ${status} for ${targetUrl}`;
+              console.error(message);
+              throw new Error(message);
+            }
+
+            try {
+              await expect
+                .poll(async () => {
+                  try {
+                    return await page.evaluate(() =>
+                      Boolean(window.STATE || window.CFG || window.CONFIG || window.SIMPLE)
+                    );
+                  } catch (error) {
+                    console.error(
+                      `[examples-api-entries] eval-feil (${entry.path}): ${error?.message || error}`
+                    );
+                    throw error;
+                  }
+                }, { message: `Mangler STATE/CFG/CONFIG/SIMPLE for ${entry.path}` })
+                .toBe(true);
+            } catch (error) {
+              console.error(`[examples-api-entries] mangler binding for ${entry.path}`);
+              throw error;
+            }
+
+            if (consoleErrors.length > 0 || pageErrors.length > 0) {
+              const errorMessages = [
+                ...consoleErrors.map(text => `console: ${text}`),
+                ...pageErrors.map(err => `pageerror: ${err.message}`)
+              ].join('\n');
+              throw new Error(`[examples-api-entries] JavaScript-feil oppdaget for ${entry.path}:\n${errorMessages}`);
+            }
+          }
+        } finally {
+          page.off('console', consoleListener);
+          page.off('pageerror', pageErrorListener);
+          await context.close();
         }
-      }
-    } finally {
-      await context.close();
-    }
+      })
+    );
   });
 });
