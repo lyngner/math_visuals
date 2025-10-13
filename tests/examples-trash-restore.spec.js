@@ -144,7 +144,7 @@ test.describe('Examples trash restore flow', () => {
     }
   });
 
-  test('archives and restores an example via restore dialog', async ({ page }) => {
+  test('archives and restores an example via the archive page', async ({ page }) => {
     const description = page.locator('#exampleDescription');
     await description.fill('Eksempel for gjenoppretting');
 
@@ -164,31 +164,36 @@ test.describe('Examples trash restore flow', () => {
     await Promise.all([deleteRequest, trashPost]);
 
     await expect(page.locator('.example-tabs-empty')).toBeVisible();
+    await expect(page.locator('#btnRestoreExample')).toHaveCount(0);
 
-    const trashLoad = page.waitForRequest(
+    const archivePage = await page.context().newPage();
+    const trashLoad = archivePage.waitForRequest(
       request => request.url().includes('/api/examples/trash') && request.method() === 'GET'
     );
-    await page.locator('#btnRestoreExample').click();
+    await archivePage.goto('/examples-trash.html', { waitUntil: 'load' });
     await trashLoad;
 
-    const frame = page.frameLocator('iframe[data-restore-frame]');
-    await expect(frame.locator('[data-group]')).toHaveCount(1);
+    await expect(archivePage.locator('[data-group]')).toHaveCount(1);
 
-    const restorePut = page.waitForRequest(
+    const restorePut = archivePage.waitForRequest(
       request => request.url().includes('/api/examples') && request.method() === 'PUT'
     );
-    const trashDelete = page.waitForRequest(
+    const trashDelete = archivePage.waitForRequest(
       request => request.url().includes('/api/examples/trash') && request.method() === 'DELETE'
     );
-    await frame.locator('button[data-action="restore"]').first().click();
+    await archivePage.locator('button[data-action="restore"]').first().click();
     await Promise.all([restorePut, trashDelete]);
 
-    await expect(frame.locator('.trash-empty')).toBeVisible();
+    await expect(archivePage.locator('.trash-empty')).toBeVisible();
+    await archivePage.close();
+
+    const reloadExamples = page.waitForRequest(
+      request => request.url().includes('/api/examples') && request.method() === 'GET'
+    );
+    await page.reload({ waitUntil: 'load' });
+    await reloadExamples;
 
     await expect(page.locator('#exampleTabs .example-tab')).toHaveCount(1);
     await expect(page.locator('#exampleDescription')).toHaveValue('Eksempel for gjenoppretting');
-
-    await page.locator('[data-restore-close]').click();
-    await expect(page.locator('.example-restore-overlay')).toBeHidden();
   });
 });
