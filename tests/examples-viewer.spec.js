@@ -88,6 +88,18 @@ test.describe('Examples viewer – memory mode awareness', () => {
   });
 });
 
+test.describe('Examples viewer – empty backend', () => {
+  test('renders no entries when backend has no data', async ({ page }) => {
+    await attachExamplesBackendMock(page.context(), {});
+
+    await page.goto(VIEWER_FIXTURE_PATH, { waitUntil: 'load' });
+
+    const sections = page.locator('#examples section');
+    await expect(sections).toHaveCount(0);
+    await expect(page.locator('#examples').locator('section')).toHaveCount(0);
+  });
+});
+
 test.describe('Examples viewer – manual API seeding', () => {
   let originalKvUrl;
   let originalKvToken;
