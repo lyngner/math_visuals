@@ -552,6 +552,14 @@ body[data-app-mode="task"] .card:has(.alt-text):not(.card--examples) {
 body[data-app-mode="task"] .card--examples {
   display: flex !important;
   gap: 12px;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+}
+
+body[data-app-mode="task"] .card--examples .example-description {
+  padding: 0;
 }
 
 body[data-app-mode="task"] .card--examples .toolbar,
@@ -578,6 +586,10 @@ body[data-app-mode="task"] .card--examples .example-description label {
 
 body[data-app-mode="task"] .card--examples .example-description .example-description-preview:not([data-empty="true"]) {
   display: block;
+}
+
+body[data-app-mode="task"] .card--examples .example-description .example-description-preview {
+  margin-top: 0;
 }
 
 body[data-app-mode="task"] [data-export-button] {
