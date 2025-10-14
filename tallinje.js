@@ -110,7 +110,8 @@
   const PADDING_RIGHT = 80;
   const BASELINE_Y = 140;
   const MINOR_TICK_HEIGHT = 9;
-  const MAJOR_TICK_HEIGHT = 18;
+  const MAJOR_TICK_HEIGHT = 9;
+  const ARROW_SIZE = 16;
   const DEFAULT_DRAGGABLE_WIDTH = 72;
   const DEFAULT_DRAGGABLE_HEIGHT = 72;
   const MIN_DRAGGABLE_DIAMETER = 56;
@@ -1696,16 +1697,20 @@
       class: 'number-line-base'
     }));
 
-    if (!clampToRange || STATE.showArrow) {
-      const arrowSize = 16;
+    const arrowVisible = !clampToRange || STATE.showArrow;
+
+    if (arrowVisible) {
       axisGroup.appendChild(mk('path', {
-        d: `M ${baseLineEndX} ${baselineY} l -${arrowSize} -${arrowSize / 2} v ${arrowSize} z`,
+        d: `M ${baseLineEndX} ${baselineY} l -${ARROW_SIZE} -${ARROW_SIZE / 2} v ${ARROW_SIZE} z`,
         class: 'number-line-arrow'
       }));
     }
 
     const drawMinorTick = value => {
       const x = mapValue(value);
+      if (arrowVisible && x > baseLineEndX - ARROW_SIZE) {
+        return;
+      }
       axisGroup.appendChild(mk('line', {
         x1: x,
         y1: baselineY - minorTickHeight,
