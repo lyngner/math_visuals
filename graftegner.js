@@ -4675,15 +4675,37 @@ function setupSettingsForm() {
     const domInput = row.querySelector('input[data-dom]');
     if (funInput) {
       setFunctionInputValue(funInput, funVal || '');
-      const handleChange = () => {
+      const rememberCommittedValue = () => {
+        funInput.dataset.lastCommittedValue = getFunctionInputValue(funInput);
+      };
+      const runInputSideEffects = () => {
         updateFunctionPreview(funInput);
         toggleDomain(funInput);
         updateLinePointControls();
+      };
+      const commitIfChanged = () => {
+        runInputSideEffects();
+        const currentValue = getFunctionInputValue(funInput);
+        if (funInput.dataset.lastCommittedValue === currentValue) {
+          return;
+        }
+        funInput.dataset.lastCommittedValue = currentValue;
         syncSimpleFromForm();
         scheduleSimpleRebuild();
       };
-      funInput.addEventListener('input', handleChange);
-      funInput.addEventListener('change', handleChange);
+      const scheduleRemember = typeof queueMicrotask === 'function'
+        ? queueMicrotask
+        : callback => setTimeout(callback, 0);
+      scheduleRemember(rememberCommittedValue);
+      funInput.addEventListener('input', runInputSideEffects);
+      funInput.addEventListener('change', commitIfChanged);
+      funInput.addEventListener('blur', commitIfChanged);
+      funInput.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          commitIfChanged();
+        }
+      });
     }
     if (domInput) {
       domInput.value = domVal || '';
