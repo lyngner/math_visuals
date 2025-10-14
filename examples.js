@@ -123,7 +123,6 @@
   let splitterObserver = null;
   let splitterObserverStarted = false;
   let taskModeDescriptionRenderRetryScheduled = false;
-  let descriptionFormattingHelp = null;
   function normalizeAppMode(value) {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim().toLowerCase();
@@ -177,7 +176,6 @@
       }
       const isTaskMode = targetMode === 'task';
       adjustSplitLayoutForMode(isTaskMode);
-      updateDescriptionFormattingHelpVisibility();
       if (isTaskMode) {
         const raf =
           typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
@@ -2695,70 +2693,9 @@
 
   const DESCRIPTION_FORMATTING_PATTERN = /@(math|table|task|answer(?:box)?|input)\s*[\[{]/i;
 
-  function updateDescriptionFormattingHelpVisibility() {
-    if (!(descriptionFormattingHelp instanceof HTMLElement)) return;
-    if (currentAppMode === 'task') {
-      descriptionFormattingHelp.open = false;
-      descriptionFormattingHelp.setAttribute('hidden', '');
-      descriptionFormattingHelp.setAttribute('aria-hidden', 'true');
-    } else {
-      descriptionFormattingHelp.removeAttribute('hidden');
-      descriptionFormattingHelp.removeAttribute('aria-hidden');
-    }
-  }
-
   function hasDescriptionFormatting(value) {
     if (typeof value !== 'string') return false;
     return DESCRIPTION_FORMATTING_PATTERN.test(value);
-  }
-
-  function ensureDescriptionFormattingHelp(container) {
-    if (!container) return null;
-    if (descriptionFormattingHelp && descriptionFormattingHelp.isConnected) {
-      return descriptionFormattingHelp;
-    }
-    let help = container.querySelector('.example-description-help');
-    if (!(help instanceof HTMLElement)) {
-      help = document.createElement('details');
-      help.className = 'example-description-help';
-
-      const summary = document.createElement('summary');
-      summary.textContent = 'Forklaring til formatering av oppgavetekst';
-      help.appendChild(summary);
-
-      const list = document.createElement('ul');
-      list.className = 'example-description-help__list';
-
-      const examples = [
-        {
-          code: '@math{a^2 + b^2 = c^2}',
-          description: 'viser matematikkuttrykk i teksten.'
-        },
-        {
-          code: '@input[answer="0"|size="5"]',
-          description: 'lager et kort svarfelt i løpende tekst.'
-        },
-        {
-          code: '@table{Overskrift|Kolonne 1|Kolonne 2\nRad 1|5|7}',
-          description: 'lager en enkel tabell. Bruk linjeskift for rader og | for kolonner.'
-        }
-      ];
-
-      examples.forEach(item => {
-        const listItem = document.createElement('li');
-        const code = document.createElement('code');
-        code.textContent = item.code;
-        listItem.appendChild(code);
-        listItem.appendChild(document.createTextNode(` ${item.description}`));
-        list.appendChild(listItem);
-      });
-
-      help.appendChild(list);
-      container.appendChild(help);
-    }
-    descriptionFormattingHelp = help;
-    updateDescriptionFormattingHelpVisibility();
-    return help;
   }
 
   function getDescriptionPreviewElement() {
@@ -2775,7 +2712,6 @@
       container.appendChild(preview);
     }
     descriptionPreview = preview;
-    ensureDescriptionFormattingHelp(container);
     return preview;
   }
 
