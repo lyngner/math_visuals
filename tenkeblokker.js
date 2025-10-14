@@ -1315,7 +1315,7 @@ function createBlock(row, col, cfg) {
   });
   const lockNLabel = document.createElement('label');
   lockNLabel.setAttribute('for', lockNInput.id);
-  lockNLabel.textContent = 'Mulighet for å endre nevner';
+  lockNLabel.textContent = 'Endre nevner';
   lockNInput.checked = !(cfg !== null && cfg !== void 0 && cfg.lockDenominator);
   lockNRow.append(lockNInput, lockNLabel);
   fieldset.appendChild(lockNRow);
@@ -1330,7 +1330,7 @@ function createBlock(row, col, cfg) {
   });
   const lockKLabel = document.createElement('label');
   lockKLabel.setAttribute('for', lockKInput.id);
-  lockKLabel.textContent = 'Mulighet for å endre teller';
+  lockKLabel.textContent = 'Endre teller';
   lockKInput.checked = !(cfg !== null && cfg !== void 0 && cfg.lockNumerator);
   lockKRow.append(lockKInput, lockKLabel);
   fieldset.appendChild(lockKRow);
