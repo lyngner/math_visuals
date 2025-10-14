@@ -3892,6 +3892,7 @@ function setupSettingsForm() {
     if (!editor) return;
     const preview = editor.querySelector('[data-fun-preview]');
     if (!preview) return;
+    const tag = element.tagName ? element.tagName.toUpperCase() : '';
     const setMode = mode => {
       if (!editor) return;
       if (mode === 'latex') {
@@ -3900,6 +3901,16 @@ function setupSettingsForm() {
         editor.removeAttribute('data-preview-mode');
       }
     };
+    if (tag === MATHFIELD_TAG && isMathLiveReady()) {
+      preview.innerHTML = '';
+      preview.textContent = '';
+      preview.style.display = 'none';
+      preview.classList.remove('func-preview--latex', 'func-preview--text');
+      preview.classList.add('func-preview--empty');
+      preview.setAttribute('data-mode', 'empty');
+      setMode('');
+      return;
+    }
     const value = getFunctionInputValue(element);
     const latex = convertExpressionToLatex(value);
     const html = latex ? renderLatexToHtml(latex) : '';
@@ -3951,70 +3962,114 @@ function setupSettingsForm() {
       typeof ctor.prototype.setValue === 'function'
     );
   };
+  const MATHLIVE_READY_QUEUE = [];
+  let mathLiveReadyHandled = false;
+  let mathLiveReadyPromise = null;
+  const getMathLiveReadyPromise = () => {
+    if (mathLiveReadyPromise) {
+      return mathLiveReadyPromise;
+    }
+    if (typeof window !== 'undefined' && window.customElements && typeof window.customElements.whenDefined === 'function') {
+      mathLiveReadyPromise = window.customElements.whenDefined('math-field').catch(() => {});
+    } else if (typeof Promise !== 'undefined') {
+      mathLiveReadyPromise = Promise.resolve();
+    }
+    return mathLiveReadyPromise;
+  };
+  const flushMathLiveReadyQueue = () => {
+    if (mathLiveReadyHandled) return;
+    if (!isMathLiveReady()) {
+      if (typeof window !== 'undefined' && typeof window.setTimeout === 'function') {
+        window.setTimeout(flushMathLiveReadyQueue, 50);
+      }
+      return;
+    }
+    mathLiveReadyHandled = true;
+    while (MATHLIVE_READY_QUEUE.length) {
+      const cb = MATHLIVE_READY_QUEUE.shift();
+      if (typeof cb === 'function') {
+        try {
+          cb();
+        } catch (_) {}
+      }
+    }
+  };
+  const whenMathLiveReady = callback => {
+    if (typeof callback !== 'function') return;
+    if (isMathLiveReady()) {
+      callback();
+      return;
+    }
+    MATHLIVE_READY_QUEUE.push(callback);
+    const readyPromise = getMathLiveReadyPromise();
+    if (readyPromise && typeof readyPromise.then === 'function') {
+      readyPromise.then(() => {
+        if (typeof window !== 'undefined' && window.setTimeout) {
+          window.setTimeout(flushMathLiveReadyQueue, 0);
+        } else {
+          flushMathLiveReadyQueue();
+        }
+      }).catch(() => {});
+    }
+  };
   const ensureMathFieldOptions = field => {
-    if (field && typeof field.setOptions === 'function') {
-      field.setOptions({
-        smartMode: false,
-        virtualKeyboardMode: 'off'
-      });
-    }
-  };
-  const convertMathFieldToTextInput = field => {
-    if (!field) return field;
-    const replacement = document.createElement('input');
-    replacement.type = 'text';
-    replacement.className = field.className || '';
-    replacement.setAttribute('aria-label', field.getAttribute('aria-label') || '');
-    if (field.hasAttribute('placeholder')) {
-      replacement.setAttribute('placeholder', field.getAttribute('placeholder'));
-    }
-    if (field.dataset) {
-      Object.keys(field.dataset).forEach(key => {
-        replacement.dataset[key] = field.dataset[key];
-      });
-    }
-    if (typeof field.value === 'string' && field.value) {
-      replacement.value = field.value;
-    } else if (field.hasAttribute('value')) {
-      const attrVal = field.getAttribute('value');
-      if (attrVal) {
-        replacement.value = attrVal;
+    const apply = () => {
+      if (field && typeof field.setOptions === 'function') {
+        field.setOptions({
+          smartMode: false,
+          virtualKeyboardMode: 'off'
+        });
       }
-    } else {
-      const textValue = (field.textContent || '').trim();
-      if (textValue) {
-        replacement.value = textValue;
-      }
+    };
+    if (isMathLiveReady()) {
+      apply();
+      return;
     }
-    field.replaceWith(replacement);
-    return replacement;
+    whenMathLiveReady(apply);
   };
-  const ensureFunctionInputElement = element => {
-    if (!element) return element;
-    const tag = element.tagName ? element.tagName.toUpperCase() : '';
-    if (tag === MATHFIELD_TAG && !isMathLiveReady()) {
-      return convertMathFieldToTextInput(element);
-    }
-    return element;
-  };
+  const ensureFunctionInputElement = element => element;
   const setFunctionInputValue = (element, value) => {
     if (!element) return;
     const str = value != null ? String(value) : '';
     const tag = element.tagName ? element.tagName.toUpperCase() : '';
     if (tag === MATHFIELD_TAG) {
-      ensureMathFieldOptions(element);
-      if (typeof element.setValue === 'function') {
-        try {
-          element.setValue(str, { format: 'ascii-math' });
-          updateFunctionPreview(element);
-          return;
-        } catch (_) {
-          // fall back to latex
+      const applyValue = () => {
+        if (!element || !element.isConnected) return;
+        ensureMathFieldOptions(element);
+        if (typeof element.setValue === 'function') {
+          try {
+            element.setValue(str, { format: 'ascii-math' });
+            updateFunctionPreview(element);
+            return;
+          } catch (_) {
+            try {
+              const latexValue = convertExpressionToLatex(str);
+              element.setValue(latexValue, { format: 'latex' });
+              updateFunctionPreview(element);
+              return;
+            } catch (_) {}
+          }
         }
+        const latex = convertExpressionToLatex(str);
+        if ('value' in element) {
+          element.value = latex;
+        } else {
+          element.setAttribute('value', latex);
+        }
+        updateFunctionPreview(element);
+      };
+      if (!isMathLiveReady() || typeof element.setValue !== 'function') {
+        const latex = convertExpressionToLatex(str);
+        if ('value' in element) {
+          element.value = latex;
+        } else {
+          element.setAttribute('value', latex);
+        }
+        updateFunctionPreview(element);
+        whenMathLiveReady(applyValue);
+        return;
       }
-      const latex = convertExpressionToLatex(str);
-      element.value = latex;
-      updateFunctionPreview(element);
+      applyValue();
       return;
     }
     element.value = str;
