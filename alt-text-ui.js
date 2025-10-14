@@ -95,7 +95,8 @@
       setState,
       generate,
       getAutoMessage,
-      getManualMessage
+      getManualMessage,
+      getSignature
     } = options || {};
 
     if (!svg || !container || typeof getState !== 'function' || typeof setState !== 'function' || typeof generate !== 'function') {
@@ -108,6 +109,41 @@
     const { textarea, button, status } = els;
 
     let generationTimer = null;
+    let currentSignature = null;
+    let savedSignature = null;
+    let manualStale = false;
+    let pendingAutoFromStale = false;
+
+    function normalizeSignature(value) {
+      if (value == null) return '';
+      if (typeof value === 'string') return value;
+      if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+      try {
+        return JSON.stringify(value);
+      } catch (err) {
+        return String(value);
+      }
+    }
+
+    function fetchSignature(signatureOverride) {
+      if (typeof signatureOverride !== 'undefined') {
+        return normalizeSignature(signatureOverride);
+      }
+      if (typeof getSignature === 'function') {
+        try {
+          return normalizeSignature(getSignature());
+        } catch (err) {
+          return '';
+        }
+      }
+      return currentSignature == null ? '' : currentSignature;
+    }
+
+    function setSavedSignature(signature) {
+      savedSignature = signature == null ? currentSignature : signature;
+      manualStale = false;
+      pendingAutoFromStale = false;
+    }
 
     function applyToSvg(text) {
       const targetSvg = svgSource();
@@ -124,13 +160,37 @@
       if (descEl && descEl.id) targetSvg.setAttribute('aria-describedby', descEl.id);
     }
 
-    function setStatus(message, isError) {
+    function setStatus(message, isError, actions) {
       if (!status) return;
-      status.textContent = message || '';
+      status.textContent = '';
+      while (status.firstChild) {
+        status.removeChild(status.firstChild);
+      }
       if (isError) {
         status.classList.add('alt-text__status--error');
       } else {
         status.classList.remove('alt-text__status--error');
+      }
+      if (message) {
+        const doc = status.ownerDocument || document;
+        const span = doc.createElement('span');
+        span.textContent = message;
+        status.appendChild(span);
+      }
+      if (Array.isArray(actions) && actions.length) {
+        const doc = status.ownerDocument || document;
+        actions.forEach(action => {
+          if (!action || typeof action.onClick !== 'function') return;
+          const btn = doc.createElement('button');
+          btn.type = 'button';
+          btn.className = 'alt-text__status-action';
+          btn.textContent = action.label || 'OK';
+          btn.addEventListener('click', event => {
+            event.preventDefault();
+            action.onClick();
+          });
+          status.appendChild(btn);
+        });
       }
     }
 
@@ -140,6 +200,7 @@
         textarea.value = text;
       }
       applyToSvg(text);
+      setSavedSignature();
     }
 
     function autoGenerate(reason) {
@@ -147,6 +208,7 @@
       setStateAndApply(next, 'auto');
       const message = typeof getAutoMessage === 'function' ? getAutoMessage(reason) : 'Alternativ tekst oppdatert automatisk.';
       setStatus(message, false);
+      pendingAutoFromStale = false;
     }
 
     function scheduleAuto(reason = 'auto', delay = 600) {
@@ -174,12 +236,56 @@
       }
     }
 
+    function showManualStaleStatus() {
+      const message = 'Figuren er endret. Den manuelle teksten er utdatert.';
+      const actions = [
+        {
+          label: 'Generer automatisk',
+          onClick: () => {
+            pendingAutoFromStale = true;
+            setStatus('Genererer forslag …', false);
+            scheduleAuto('manual-stale-regenerate', 0);
+          }
+        },
+        {
+          label: 'Bytt til automatisk tekst',
+          onClick: () => {
+            pendingAutoFromStale = true;
+            setStateAndApply('', 'auto');
+            setStatus('Genererer forslag …', false);
+            scheduleAuto('manual-stale-reset', 0);
+          }
+        }
+      ];
+      setStatus(message, true, actions);
+    }
+
+    function notifyFigureChange(signatureOverride) {
+      currentSignature = fetchSignature(signatureOverride);
+      const currentState = normalizeState(getState());
+      const trimmed = currentState.text.trim();
+      if (currentState.source === 'manual' && trimmed) {
+        const staleNow = savedSignature !== currentSignature;
+        manualStale = staleNow;
+        if (staleNow && !pendingAutoFromStale) {
+          showManualStaleStatus();
+        }
+      } else {
+        manualStale = false;
+        pendingAutoFromStale = false;
+      }
+      return currentSignature;
+    }
+
     textarea.addEventListener('input', handleManualInput);
     button.addEventListener('click', () => {
       setStatus('Genererer forslag …', false);
       scheduleAuto('manual-regenerate', 0);
     });
 
+    const initialSignature = fetchSignature();
+    currentSignature = initialSignature;
+    savedSignature = initialSignature;
     const initial = normalizeState(getState());
     textarea.value = initial.text;
     applyToSvg(initial.text);
@@ -190,14 +296,17 @@
     }
 
     return {
-      refresh(reason) {
+      refresh(reason, signatureOverride) {
+        notifyFigureChange(signatureOverride);
         const current = normalizeState(getState());
         if (textarea && textarea.value !== current.text) {
           textarea.value = current.text;
         }
         applyToSvg(current.text);
         if (current.source === 'manual' && current.text.trim()) {
-          setStatus('', false);
+          if (!manualStale) {
+            setStatus('', false);
+          }
           return;
         }
         setStatus('Oppdaterer alternativ tekst …', false);
@@ -207,6 +316,9 @@
         const current = normalizeState(getState());
         textarea.value = current.text;
         applyToSvg(current.text);
+      },
+      notifyFigureChange(signatureOverride) {
+        return notifyFigureChange(signatureOverride);
       },
       ensureDom() {
         return els.wrap;

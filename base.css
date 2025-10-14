@@ -363,6 +363,27 @@ textarea {
   color: #b91c1c;
 }
 
+.alt-text__status-action {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background-color: #ffffff;
+  color: inherit;
+  cursor: pointer;
+}
+
+.alt-text__status.alt-text__status--error .alt-text__status-action {
+  border-color: #fca5a5;
+}
+
+.alt-text__status-action + .alt-text__status-action {
+  margin-left: 6px;
+}
+
 select {
   background-color: #fff;
 }

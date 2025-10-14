@@ -113,11 +113,15 @@
   function updateFigureAlt(container, reason, options) {
     const opts = options || {};
     const target = container || getActiveContainer();
+    const signature = buildAltTextForType(CFG ? CFG.type : undefined);
     if (target) {
       setFigureAlt(target, getEffectiveAltText());
     }
-    if (!opts.skipRefresh && altTextManager && typeof altTextManager.refresh === 'function') {
-      altTextManager.refresh(reason || 'config');
+    if (!altTextManager) return;
+    if (!opts.skipRefresh && typeof altTextManager.refresh === 'function') {
+      altTextManager.refresh(reason || 'config', signature);
+    } else if (typeof altTextManager.notifyFigureChange === 'function') {
+      altTextManager.notifyFigureChange(signature);
     }
   }
   function buildKlosserAltText(rows, cols, width, height, depth) {
@@ -934,6 +938,7 @@
         updateFigureAlt(null, source === 'manual' ? 'manual-state' : 'auto-state', { skipRefresh: true });
       },
       generate: () => buildAltTextForType(CFG.type),
+      getSignature: () => buildAltTextForType(CFG.type),
       getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
       getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
     });

@@ -2266,8 +2266,11 @@
     return sentences.join(' ');
   }
   function refreshAltText(reason) {
-    if (altTextManager) {
-      altTextManager.refresh(reason || 'auto');
+    const signature = buildFortegnsskjemaAltText();
+    if (altTextManager && typeof altTextManager.refresh === 'function') {
+      altTextManager.refresh(reason || 'auto', signature);
+    } else if (altTextManager && typeof altTextManager.notifyFigureChange === 'function') {
+      altTextManager.notifyFigureChange(signature);
     }
   }
   function initAltTextManager() {
@@ -2299,6 +2302,7 @@
           state.altTextSource = source === 'manual' ? 'manual' : 'auto';
         },
         generate: () => buildFortegnsskjemaAltText(),
+        getSignature: () => buildFortegnsskjemaAltText(),
         getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
         getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
       });

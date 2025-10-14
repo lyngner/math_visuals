@@ -2478,8 +2478,11 @@ function resolveAltTextTitle() {
   return 'Graftegner';
 }
 function refreshAltText(reason) {
-  if (altTextManager) {
-    altTextManager.refresh(reason || 'auto');
+  const signature = buildGrafAltText();
+  if (altTextManager && typeof altTextManager.refresh === 'function') {
+    altTextManager.refresh(reason || 'auto', signature);
+  } else if (altTextManager && typeof altTextManager.notifyFigureChange === 'function') {
+    altTextManager.notifyFigureChange(signature);
   }
 }
 function applyAltTextToBoard() {
@@ -2512,6 +2515,7 @@ function initAltTextManager() {
       }
     },
     generate: () => buildGrafAltText(),
+    getSignature: () => buildGrafAltText(),
     getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
     getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
   });

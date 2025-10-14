@@ -151,7 +151,6 @@ const challengeRuntime = {
   oriented: new Set()
 };
 let altTextManager = null;
-let lastAltTextSignature = null;
 const arealIntFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 function ensureCfgDefaults() {
   const fill = (target, defaults) => {
@@ -448,11 +447,11 @@ function getActiveArealmodellAltText() {
 }
 function maybeRefreshAltText(reason) {
   const summary = getArealmodellAltSummary();
-  const key = JSON.stringify(summary);
-  const shouldRefresh = key !== lastAltTextSignature;
-  lastAltTextSignature = key;
-  if (shouldRefresh && altTextManager) {
-    altTextManager.refresh(reason || 'auto');
+  const signature = JSON.stringify(summary);
+  if (altTextManager && typeof altTextManager.refresh === 'function') {
+    altTextManager.refresh(reason || 'auto', signature);
+  } else if (altTextManager && typeof altTextManager.notifyFigureChange === 'function') {
+    altTextManager.notifyFigureChange(signature);
   }
 }
 function escapeXml(text) {
@@ -492,11 +491,11 @@ function initAltTextManager() {
       CFG.SIMPLE.altTextSource = source === 'manual' ? 'manual' : 'auto';
     },
     generate: () => buildArealmodellAltText(),
+    getSignature: () => JSON.stringify(getArealmodellAltSummary()),
     getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
     getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
   });
   if (altTextManager) {
-    lastAltTextSignature = null;
     altTextManager.applyCurrent();
     maybeRefreshAltText('init');
   }
