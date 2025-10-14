@@ -110,8 +110,20 @@
   const matchesTarget = element => {
     if (!element) return false;
     const text = normalize(element.textContent || '');
-    if (!text) return false;
-    return text.includes(targetNormalized);
+    if (text && text.includes(targetNormalized)) {
+      return true;
+    }
+    if (element.attributes && element.attributes.length) {
+      for (let i = 0; i < element.attributes.length; i++) {
+        const attr = element.attributes[i];
+        if (!attr) continue;
+        const value = normalize(attr.value || '');
+        if (value && value.includes(targetNormalized)) {
+          return true;
+        }
+      }
+    }
+    return false;
   };
 
   const removeNode = element => {
@@ -131,17 +143,39 @@
   };
 
   const processRoot = root => {
-    if (!root || typeof root.querySelectorAll !== 'function') return;
-    if (matchesTarget(root)) {
-      removeNode(root);
-      return;
-    }
-    const elements = root.querySelectorAll('*');
-    elements.forEach(element => {
-      if (matchesTarget(element)) {
-        removeNode(element);
+    if (!root) return;
+    const visited = new WeakSet();
+    const walk = node => {
+      if (!node || visited.has(node)) return;
+      visited.add(node);
+      const nodeType = node.nodeType;
+      if (nodeType === 1) {
+        const element = node;
+        if (matchesTarget(element)) {
+          removeNode(element);
+          return;
+        }
+        if (element.shadowRoot) {
+          walk(element.shadowRoot);
+        }
+      } else if (nodeType !== 9 && nodeType !== 11) {
+        if (node.parentNode) {
+          walk(node.parentNode);
+        }
+        return;
       }
-    });
+      if (nodeType === 11 && node.host && matchesTarget(node.host)) {
+        removeNode(node.host);
+        return;
+      }
+      const children = node.childNodes;
+      if (children && children.length) {
+        for (let i = 0; i < children.length; i++) {
+          walk(children[i]);
+        }
+      }
+    };
+    walk(root);
   };
 
   const init = () => {
@@ -2795,13 +2829,6 @@
     return null;
   }
 
-  const DESCRIPTION_FORMATTING_PATTERN = /@(math|table|task|answer(?:box)?|input)\s*[\[{]/i;
-
-  function hasDescriptionFormatting(value) {
-    if (typeof value !== 'string') return false;
-    return DESCRIPTION_FORMATTING_PATTERN.test(value);
-  }
-
   function getDescriptionPreviewElement() {
     if (descriptionPreview && descriptionPreview.isConnected) return descriptionPreview;
     const container = getDescriptionContainer();
@@ -3039,13 +3066,6 @@
     };
     const trimmedValue = stringValue.trim();
     if (!trimmedValue) {
-      clearChildren(preview);
-      delete preview.dataset.placeholder;
-      applyState(false);
-      return markRendered(false);
-    }
-    const shouldRender = bypassFormattingCheck || currentAppMode === 'task' || hasDescriptionFormatting(stringValue);
-    if (!shouldRender) {
       clearChildren(preview);
       delete preview.dataset.placeholder;
       applyState(false);
