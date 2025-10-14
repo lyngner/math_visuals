@@ -78,29 +78,54 @@
       min-width:0;
     }
     .func-input .func-editor{
-      display:flex;
-      flex-direction:column;
-      gap:4px;
+      position:relative;
+      display:block;
+      min-height:44px;
+    }
+    .func-editor[data-preview-mode] .func-math-field{
+      min-height:44px;
     }
     .func-preview{
+      position:absolute;
+      inset:0;
       display:none;
-      margin-top:2px;
-      padding:6px 8px;
-      border-radius:8px;
-      border:1px solid #e5e7eb;
-      background:#f9fafb;
-      font-size:14px;
+      padding:8px 10px;
+      border-radius:10px;
+      font-size:16px;
       line-height:1.4;
       color:#111827;
       word-break:break-word;
-      overflow-x:auto;
+      overflow:auto;
+      pointer-events:none;
+      box-sizing:border-box;
+      background:#fff;
+      z-index:0;
+    }
+    .func-editor[data-preview-mode="latex"] .func-preview,
+    .func-editor[data-preview-mode="text"] .func-preview{
+      display:block;
     }
     .func-preview--latex{
-      font-size:16px;
       font-family:"KaTeX_Main","Times New Roman",Times,serif;
     }
     .func-preview--text{
       font-family:inherit;
+      font-size:15px;
+    }
+    .func-editor[data-preview-mode="latex"] .func-math-field,
+    .func-editor[data-preview-mode="latex"] .func-math-field::part(container),
+    .func-editor[data-preview-mode="latex"] .func-math-field::part(content){
+      color:transparent;
+      caret-color:#111827;
+      background-color:transparent;
+    }
+    .func-editor[data-preview-mode="latex"] input.func-math-field{
+      color:transparent;
+      caret-color:#111827;
+      background-color:transparent;
+    }
+    .func-editor[data-preview-mode="latex"] input.func-math-field::placeholder{
+      color:transparent;
     }
     .func-math-field{
       display:block;
