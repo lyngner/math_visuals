@@ -266,6 +266,29 @@ function buildSimple() {
 }
 let SIMPLE = typeof window !== 'undefined' && typeof window.SIMPLE !== 'undefined' ? window.SIMPLE : buildSimple();
 let LAST_RENDERED_SIMPLE = SIMPLE;
+let PENDING_SIMPLE_REBUILD = null;
+function cancelScheduledSimpleRebuild() {
+  if (PENDING_SIMPLE_REBUILD != null) {
+    clearTimeout(PENDING_SIMPLE_REBUILD);
+    PENDING_SIMPLE_REBUILD = null;
+  }
+}
+function scheduleSimpleRebuild() {
+  if (typeof setTimeout !== 'function') {
+    return;
+  }
+  if (SIMPLE === LAST_RENDERED_SIMPLE) {
+    cancelScheduledSimpleRebuild();
+    return;
+  }
+  cancelScheduledSimpleRebuild();
+  PENDING_SIMPLE_REBUILD = setTimeout(() => {
+    PENDING_SIMPLE_REBUILD = null;
+    if (SIMPLE !== LAST_RENDERED_SIMPLE) {
+      requestRebuild();
+    }
+  }, 180);
+}
 if (typeof window !== 'undefined') {
   window.SIMPLE = SIMPLE;
 }
@@ -3351,6 +3374,7 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
   });
 }
 function requestRebuild() {
+  cancelScheduledSimpleRebuild();
   whenJXGReady(() => {
     rebuildAll();
   });
@@ -4231,6 +4255,7 @@ function setupSettingsForm() {
     }
     if (changed && !silent) {
       syncSimpleFromForm();
+      scheduleSimpleRebuild();
     }
     updateSnapAvailability();
   };
@@ -4280,6 +4305,7 @@ function setupSettingsForm() {
     updateStartInputState();
     if (visibilityChanged || forcedChanged) {
       syncSimpleFromForm();
+      scheduleSimpleRebuild();
     }
   };
   const buildSimpleFromForm = () => {
@@ -4413,17 +4439,24 @@ function setupSettingsForm() {
   const handleGliderCountChange = () => {
     updateStartInputState();
     syncSimpleFromForm();
+    scheduleSimpleRebuild();
   };
   if (gliderCountInput) {
     const onCountChange = () => {
       updateStartInputState();
       syncSimpleFromForm();
+      scheduleSimpleRebuild();
     };
     gliderCountInput.addEventListener('input', onCountChange);
     gliderCountInput.addEventListener('change', onCountChange);
   }
   if (gliderStartInput) {
-    gliderStartInput.addEventListener('input', syncSimpleFromForm);
+    const onStartChange = () => {
+      syncSimpleFromForm();
+      scheduleSimpleRebuild();
+    };
+    gliderStartInput.addEventListener('input', onStartChange);
+    gliderStartInput.addEventListener('change', onStartChange);
   }
   const toggleDomain = input => {
     const row = input.closest('.func-group');
@@ -4537,13 +4570,19 @@ function setupSettingsForm() {
         toggleDomain(funInput);
         updateLinePointControls();
         syncSimpleFromForm();
+        scheduleSimpleRebuild();
       };
       funInput.addEventListener('input', handleChange);
       funInput.addEventListener('change', handleChange);
     }
     if (domInput) {
       domInput.value = domVal || '';
-      domInput.addEventListener('input', syncSimpleFromForm);
+      const handleDomChange = () => {
+        syncSimpleFromForm();
+        scheduleSimpleRebuild();
+      };
+      domInput.addEventListener('input', handleDomChange);
+      domInput.addEventListener('change', handleDomChange);
     }
     if (index === 1) {
       gliderSection = row.querySelector('.glider-row');
@@ -4558,7 +4597,12 @@ function setupSettingsForm() {
         gliderCountInput.addEventListener('change', handleGliderCountChange);
       }
       if (gliderStartInput) {
-        gliderStartInput.addEventListener('input', syncSimpleFromForm);
+        const onStartChange = () => {
+          syncSimpleFromForm();
+          scheduleSimpleRebuild();
+        };
+        gliderStartInput.addEventListener('input', onStartChange);
+        gliderStartInput.addEventListener('change', onStartChange);
       }
       linePointSection = row.querySelector('.linepoints-row');
       linePointInputs = linePointSection ? Array.from(linePointSection.querySelectorAll('input[data-linepoint]')) : [];
@@ -4577,6 +4621,7 @@ function setupSettingsForm() {
           linePointsEdited = true;
           syncLinePointsToBoardFromInputs();
           syncSimpleFromForm();
+          scheduleSimpleRebuild();
         };
         input.addEventListener('input', handleLinePointInputChange);
         input.addEventListener('change', handleLinePointInputChange);
@@ -4656,6 +4701,7 @@ function setupSettingsForm() {
       const index = (funcRows ? funcRows.querySelectorAll('.func-group').length : 0) + 1;
       createRow(index, '', '');
       syncSimpleFromForm();
+      scheduleSimpleRebuild();
     });
   }
   if (typeof window !== 'undefined') {
