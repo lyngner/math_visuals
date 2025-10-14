@@ -14,6 +14,7 @@
   const btnPng = document.getElementById('btnPng');
   const clampLineInput = document.getElementById('cfg-clampLine');
   const lockLineInput = document.getElementById('cfg-lockLine');
+  const showArrowInput = document.getElementById('cfg-showArrow');
   const exportCard = document.getElementById('exportCard');
   const draggableListContainer = document.getElementById('draggableItems');
   const addDraggableButton = document.getElementById('btnAddDraggable');
@@ -126,6 +127,7 @@
     labelFontSize: BASE_LABEL_FONT_SIZE,
     clampToRange: true,
     lockLine: true,
+    showArrow: false,
     altText: '',
     altTextSource: 'auto',
     draggableItems: []
@@ -286,6 +288,7 @@
     labelFontSize = Math.min(Math.max(labelFontSize, 8), 72);
 
     STATE.clampToRange = Boolean(STATE.clampToRange);
+    STATE.showArrow = Boolean(STATE.showArrow);
     const lockValue = STATE.lockLine;
     STATE.lockLine = !(lockValue === false || lockValue === 'false' || lockValue === 0);
     if (STATE.clampToRange) {
@@ -1189,6 +1192,7 @@
     }
     if (labelFontSizeInput) labelFontSizeInput.value = String(STATE.labelFontSize);
     if (clampLineInput) clampLineInput.checked = Boolean(STATE.clampToRange);
+    if (showArrowInput) showArrowInput.checked = Boolean(STATE.showArrow);
     if (lockLineInput) {
       lockLineInput.checked = Boolean(STATE.lockLine);
       lockLineInput.disabled = Boolean(STATE.clampToRange);
@@ -1688,7 +1692,7 @@
       class: 'number-line-base'
     }));
 
-    if (!clampToRange) {
+    if (!clampToRange || STATE.showArrow) {
       const arrowSize = 16;
       axisGroup.appendChild(mk('path', {
         d: `M ${baseLineEndX} ${baselineY} l -${arrowSize} -${arrowSize / 2} v ${arrowSize} z`,
@@ -1814,6 +1818,7 @@
 
   function buildTallinjeAltText() {
     const clampSetting = Boolean(STATE.clampToRange);
+    const hasArrow = !clampSetting || Boolean(STATE.showArrow);
     const margin = computeRangeMargin(
       STATE.from,
       STATE.to,
@@ -1884,6 +1889,9 @@
       parts.push('Tallinjen stopper ved start- og sluttverdien.');
     } else {
       parts.push('Tallinjen har ekstra plass med markeringer foran og bak start og stopp.');
+    }
+    if (hasArrow) {
+      parts.push('Tallinjen har en pil i høyre ende.');
     }
     parts.push(`Tallene vises som ${typeLabel}.`);
     return parts.join(' ');
@@ -2100,6 +2108,13 @@
     lockLineInput.addEventListener('change', () => {
       STATE.lockLine = lockLineInput.checked;
       if (STATE.lockLine) stopActiveDrag();
+      render();
+    });
+  }
+
+  if (showArrowInput) {
+    showArrowInput.addEventListener('change', () => {
+      STATE.showArrow = showArrowInput.checked;
       render();
     });
   }
