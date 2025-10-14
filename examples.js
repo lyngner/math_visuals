@@ -2459,7 +2459,7 @@
         const script = scripts[i];
         if (!script || !script.src) continue;
         const src = script.src;
-        addCandidate(src, 'script[src]', 0);
+        addCandidate(src, 'script[src]', 3);
         if (/\bexamples(?:\.min)?\.js(?:\?|#|$)/.test(src)) {
           addCandidate(src, 'examples.js script[src]', 0);
           break;
