@@ -97,6 +97,82 @@
   });
 })();
 
+(function removeTaskDescriptionFormattingField() {
+  if (typeof document === 'undefined') return;
+  const TARGET_TEXT = 'Forklaring til formatering av oppgavetekst';
+  const normalize = value => {
+    if (typeof value !== 'string') return '';
+    return value.replace(/\s+/g, ' ').trim().toLowerCase();
+  };
+  const targetNormalized = normalize(TARGET_TEXT);
+  if (!targetNormalized) return;
+
+  const matchesTarget = element => {
+    if (!element) return false;
+    const text = normalize(element.textContent || '');
+    if (!text) return false;
+    return text.includes(targetNormalized);
+  };
+
+  const removeNode = element => {
+    if (!element || !element.parentNode) return;
+    let container = element;
+    if (typeof element.closest === 'function') {
+      const closest = element.closest(
+        'details, [data-description-formatting], .description-formatting, .example-description-formatting'
+      );
+      if (closest) container = closest;
+    }
+    if (container.parentNode) {
+      try {
+        container.parentNode.removeChild(container);
+      } catch (_) {}
+    }
+  };
+
+  const processRoot = root => {
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+    if (matchesTarget(root)) {
+      removeNode(root);
+      return;
+    }
+    const elements = root.querySelectorAll('*');
+    elements.forEach(element => {
+      if (matchesTarget(element)) {
+        removeNode(element);
+      }
+    });
+  };
+
+  const init = () => {
+    if (!document.body) return;
+    processRoot(document.body);
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+
+  if (typeof MutationObserver !== 'function') return;
+  const observer = new MutationObserver(mutations => {
+    mutations.forEach(mutation => {
+      if (!mutation.addedNodes) return;
+      mutation.addedNodes.forEach(node => {
+        if (!node) return;
+        if (node.nodeType === 1) {
+          processRoot(node);
+        }
+      });
+    });
+  });
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true
+  });
+})();
+
 (function () {
   const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
   const DEFAULT_APP_MODE = 'default';
