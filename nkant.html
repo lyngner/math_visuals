@@ -67,6 +67,19 @@
       gap: 6px;
       list-style: disc;
     }
+    .setting__hint-list--specs {
+      padding-left: 30px;
+      padding-right: 18px;
+      color: #4b5563;
+    }
+    .setting__hint-list--specs code {
+      font-size: 12px;
+      background: #eef2ff;
+      padding: 2px 4px;
+      border-radius: 4px;
+      color: #4338ca;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
@@ -101,15 +114,17 @@ Rettvinklet trekant</textarea>
         </div>
         <details class="setting__details">
           <summary>Forklaring til spesifikasjon av figurer</summary>
-          <ul class="setting__hint-list">
-            <li><code>a=5, b=5, c=5, d=5, B=90</code> gir en firkant med fire like sider og rett vinkel i B.</li>
-            <li><code>Rettvinklet trekant</code> tolkes av AI og genererer en passende figur.</li>
-            <li>Fritekst tolkes av AI; kun <strong>a–d</strong> og <strong>A–D</strong> gjenkjennes. Ukjent tekst faller tilbake til <code>a=3</code>.</li>
-            <li><code>sirkel radius: r</code> tegner en sirkel med radius merket r. <code>mangekant sider: 6 side: a</code> gir en regulær mangekant – samme format som i appen 3D-figurer.</li>
-            <li><code>Femkant</code> eller <code>6kant</code> lager en regulær mangekant med det oppgitte antallet sider.</li>
-            <li><code>diagonal AC</code>, <code>diagonaler AC, BD</code> eller <code>høyde A/BC</code> legger til stiplede hjelpelinjer. Du kan kombinere flere hjelpelinjer på samme figur med semikolon (<code>;</code>).</li>
-            <li><code>halvsirkel AB radius: r; mangekant sider: 5</code> lager en regulær femkant med en halvsirkel over siden <em>AB</em>. Bruk <code>radius</code> eller <code>diameter</code> for å merke halvsirkelen.</li>
-            <li><code>dobbel trekant | a=4, b=5, C=30 | b=4, c=5, A=40</code> gir to trekanter som deler en side. Kombiner gjerne med diagonaler eller halvsirkler ved å skille kommandoene med semikolon for å bygge sammensatte figurer.</li>
+          <ul class="setting__hint-list setting__hint-list--specs">
+            <li><code>a=5, b=5, c=5, d=5, B=90</code> gir en firkant med fire like sider og rett vinkel i <strong>B</strong>.</li>
+            <li><code>Rettvinklet trekant</code> tolkes av AI og genererer en passende figur når du bare beskriver formen.</li>
+            <li><code>sirkel radius: r</code> tegner en sirkel merket med radiusen <strong>r</strong>. <code>mangekant sider: 6 side: a</code> gir en regulær sekskant – samme format som i appen 3D-figurer.</li>
+            <li><code>Femkant</code>, <code>6kant</code> eller andre tall + <code>kant</code> lager en regulær mangekant med valgt antall sider.</li>
+            <li>Hjelpelinjer: <code>diagonaler AC, BD</code> eller <code>høyde A/BC</code> legger til stiplede linjer. Kombiner flere ved å skille dem med semikolon (<code>;</code>).</li>
+            <li><code>halvsirkel AB radius: r; mangekant sider: 5</code> lager en regulær femkant med en halvsirkel på siden <strong>AB</strong>. Bruk <code>radius</code> eller <code>diameter</code> for merkingen.</li>
+            <li><code>dobbel trekant | a=4, b=5, C=30 | b=4, c=5, A=40</code> tegner to trekanter som deler den første oppgitte siden. <em>Dobbel trekant</em> må stå først i linjen, og de to trekantene skilles med <code>|</code>.</li>
+            <li><code>dobbel trekant | felles side: AB | a=3, b=4, C=90 | a=3, B=50, C=40</code> viser felles side <strong>AB</strong> med navn og lar deg blande sider og vinkler for hver trekant.</li>
+            <li><code>dobbel trekant | a=6, B=45, C=60 | b=6, A=55, C=45; diagonaler AD</code> lager to trekanter med delt side og legger til hjelpelinje <strong>AD</strong>. Dekorasjoner (f.eks. diagonaler eller høyder) kan fortsatt legges til med semikolon etter spesifikasjonen.</li>
+            <li>Fritekst tolkes av AI; kun sidene <strong>a–d</strong> og vinklene <strong>A–D</strong> gjenkjennes. Ukjent tekst faller tilbake til <code>a=3</code>.</li>
           </ul>
         </details>
         <div class="sep"></div>
