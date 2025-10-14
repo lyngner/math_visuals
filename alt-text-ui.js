@@ -216,10 +216,15 @@
         clearTimeout(generationTimer);
         generationTimer = null;
       }
+      const wait = Math.max(0, delay);
+      if (wait === 0) {
+        autoGenerate(reason);
+        return;
+      }
       generationTimer = setTimeout(() => {
         generationTimer = null;
         autoGenerate(reason);
-      }, Math.max(0, delay));
+      }, wait);
     }
 
     function handleManualInput() {

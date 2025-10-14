@@ -460,8 +460,11 @@ function updateFeedbackUI() {
 
 /* ===== ALT-TEKST ===== */
 function initAltTextManager() {
-  if (!window.MathVisAltText || !exportCard) return;
-  altTextManager = window.MathVisAltText.create({
+  if (!exportCard) return;
+  const altTextApi = window.MathVisAltText;
+  if (!altTextApi || typeof altTextApi.create !== 'function') return;
+  const initialSignature = buildPerlesnorAltText();
+  altTextManager = altTextApi.create({
     svg,
     container: exportCard,
     getTitle: () => document.title || 'Perlesnor',
@@ -480,15 +483,16 @@ function initAltTextManager() {
   });
   if (altTextManager) {
     altTextManager.applyCurrent();
-    syncAltText('init');
+    syncAltText('init', initialSignature);
   }
 }
 
-function syncAltText(reason) {
-  const signature = buildPerlesnorAltText();
-  if (altTextManager && typeof altTextManager.refresh === 'function') {
+function syncAltText(reason, signatureOverride) {
+  if (!altTextManager) return;
+  const signature = signatureOverride !== undefined ? signatureOverride : buildPerlesnorAltText();
+  if (typeof altTextManager.refresh === 'function') {
     altTextManager.refresh(reason || 'auto', signature);
-  } else if (altTextManager && typeof altTextManager.notifyFigureChange === 'function') {
+  } else if (typeof altTextManager.notifyFigureChange === 'function') {
     altTextManager.notifyFigureChange(signature);
   }
 }
