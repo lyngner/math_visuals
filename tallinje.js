@@ -1688,6 +1688,14 @@
       class: 'number-line-base'
     }));
 
+    if (!clampToRange) {
+      const arrowSize = 16;
+      axisGroup.appendChild(mk('path', {
+        d: `M ${baseLineEndX} ${baselineY} l -${arrowSize} -${arrowSize / 2} v ${arrowSize} z`,
+        class: 'number-line-arrow'
+      }));
+    }
+
     const drawMinorTick = value => {
       const x = mapValue(value);
       axisGroup.appendChild(mk('line', {
