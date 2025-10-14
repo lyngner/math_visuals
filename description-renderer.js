@@ -78,19 +78,58 @@
 
   let katexPromise = null;
 
+  const DESCRIPTION_RENDERER_LOG_PREFIX = '[math-vis:description-renderer]';
+  function logDescriptionRendererEvent(level, message, details) {
+    if (!global || !global.console) return;
+    const consoleRef = global.console;
+    const method = typeof consoleRef[level] === 'function' ? consoleRef[level] : consoleRef.log;
+    try {
+      if (details !== undefined) {
+        method.call(consoleRef, `${DESCRIPTION_RENDERER_LOG_PREFIX} ${message}`, details);
+      } else {
+        method.call(consoleRef, `${DESCRIPTION_RENDERER_LOG_PREFIX} ${message}`);
+      }
+    } catch (_) {}
+  }
+
+  function describeError(error) {
+    if (!error) return null;
+    const details = {};
+    if (typeof error.name === 'string' && error.name) {
+      details.name = error.name;
+    }
+    if (typeof error.message === 'string' && error.message) {
+      details.message = error.message;
+    } else {
+      try {
+        details.message = String(error);
+      } catch (_) {}
+    }
+    if (typeof error.stack === 'string' && error.stack) {
+      details.stack = error.stack;
+    }
+    return details;
+  }
+
   function ensureKatexLoaded() {
     if (global.katex && typeof global.katex.render === 'function') {
+      logDescriptionRendererEvent('debug', 'KaTeX already loaded – skipping loader');
       return Promise.resolve(global.katex);
     }
     if (!doc || typeof doc.createElement !== 'function') {
       return Promise.reject(new Error('Document is not available'));
     }
     if (katexPromise) {
+      logDescriptionRendererEvent('debug', 'Reusing pending KaTeX load promise');
       return katexPromise;
     }
     katexPromise = new Promise((resolve, reject) => {
       const cleanupOnError = error => {
         katexPromise = null;
+        logDescriptionRendererEvent('error', 'KaTeX loader failed', {
+          basePath: KATEX_BASE_PATH,
+          error: describeError(error)
+        });
         reject(error);
       };
 
@@ -100,6 +139,7 @@
           link.id = KATEX_CSS_ID;
           link.rel = 'stylesheet';
           link.href = `${KATEX_BASE_PATH}/katex.min.css`;
+          logDescriptionRendererEvent('info', 'Injecting KaTeX stylesheet', { href: link.href });
           doc.head.appendChild(link);
         }
       } catch (error) {
@@ -125,9 +165,12 @@
         script.async = true;
         script.src = `${KATEX_BASE_PATH}/katex.min.js`;
         script.setAttribute('data-mathvis-loader', 'true');
+        logDescriptionRendererEvent('info', 'Injecting KaTeX script', { src: script.src });
         script.addEventListener('load', () => {
           if (!resolveIfReady()) {
             cleanupOnError(new Error('KaTeX failed to initialize'));
+          } else {
+            logDescriptionRendererEvent('info', 'KaTeX script loaded successfully', { src: script.src });
           }
         });
         script.addEventListener('error', event => {
@@ -138,6 +181,8 @@
         script.addEventListener('load', () => {
           if (!resolveIfReady()) {
             cleanupOnError(new Error('KaTeX failed to initialize'));
+          } else {
+            logDescriptionRendererEvent('info', 'KaTeX script load event received (existing loader)', { src: script.src });
           }
         }, { once: true });
         script.addEventListener('error', event => {
@@ -739,11 +784,19 @@
                 katex.render(tex, element, { throwOnError: false });
               } catch (error) {
                 element.classList.add('math-vis-description-math--error');
+                logDescriptionRendererEvent('error', 'KaTeX rendering failed for placeholder', {
+                  tex,
+                  error: describeError(error)
+                });
               }
             });
           })
-          .catch(() => {
+          .catch(error => {
             // Graceful fallback: leave text content untouched
+            logDescriptionRendererEvent('warn', 'KaTeX unavailable during rendering – falling back to text', {
+              basePath: KATEX_BASE_PATH,
+              error: describeError(error)
+            });
           });
       };
       if (typeof Promise === 'function' && Promise.resolve) {

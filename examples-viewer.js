@@ -4,8 +4,26 @@ const VIEWER_SCRIPT_FILENAME = 'examples-viewer.js';
 const DESCRIPTION_RENDERER_FILENAME = 'description-renderer.js';
 const DESCRIPTION_RENDERER_PROMISE_KEY = '__MATH_VISUALS_DESCRIPTION_RENDERER_PROMISE__';
 const DESCRIPTION_RENDERER_URL_KEY = '__MATH_VISUALS_DESCRIPTION_RENDERER_URL__';
+const DESCRIPTION_RENDERER_LOG_PREFIX = '[math-vis:viewer:description-loader]';
 let descriptionRendererLoadPromise = null;
 let descriptionRendererResolvedUrl = null;
+
+function logDescriptionRendererEvent(level, message, details) {
+  const loggerRoot =
+    (globalScope && globalScope.console && globalScope) ||
+    (typeof console !== 'undefined' && { console }) ||
+    null;
+  if (!loggerRoot || !loggerRoot.console) return;
+  const consoleRef = loggerRoot.console;
+  const method = typeof consoleRef[level] === 'function' ? consoleRef[level] : consoleRef.log;
+  try {
+    if (details !== undefined) {
+      method.call(consoleRef, `${DESCRIPTION_RENDERER_LOG_PREFIX} ${message}`, details);
+    } else {
+      method.call(consoleRef, `${DESCRIPTION_RENDERER_LOG_PREFIX} ${message}`);
+    }
+  } catch (_) {}
+}
 
 function getDescriptionRendererGlobal() {
   if (!globalScope) return null;
@@ -32,8 +50,29 @@ function resolveDescriptionRendererUrl() {
     }
     return descriptionRendererResolvedUrl;
   }
+  const candidates = [];
+  const seenBases = new Set();
+  const addCandidate = (base, reason, priority = 1) => {
+    if (typeof base !== 'string') return;
+    const trimmed = base.trim();
+    if (!trimmed) return;
+    if (seenBases.has(trimmed)) return;
+    seenBases.add(trimmed);
+    candidates.push({ base: trimmed, reason, priority, order: candidates.length });
+  };
+  if (globalScope && globalScope.location) {
+    const { origin, href } = globalScope.location;
+    if (typeof origin === 'string' && origin && origin !== 'null') {
+      addCandidate(origin.endsWith('/') ? origin : `${origin}/`, 'window.location.origin', 0);
+    }
+    if (typeof href === 'string' && href) {
+      addCandidate(href, 'window.location.href', 1);
+    }
+  }
+  if (typeof document.baseURI === 'string' && document.baseURI) {
+    addCandidate(document.baseURI, 'document.baseURI', 1);
+  }
   const scripts = document.getElementsByTagName('script');
-  let resolved = null;
   for (let i = scripts.length - 1; i >= 0; i--) {
     const script = scripts[i];
     if (!script) continue;
@@ -41,26 +80,45 @@ function resolveDescriptionRendererUrl() {
     if (typeof srcAttr !== 'string') continue;
     const src = srcAttr.trim();
     if (!src) continue;
+    addCandidate(src, 'script[src]', 2);
     const normalized = src.split('#')[0].split('?')[0];
     if (!normalized.endsWith(VIEWER_SCRIPT_FILENAME)) continue;
+    addCandidate(src, 'examples-viewer script[src]', 2);
+    break;
+  }
+  const orderedCandidates = candidates.slice().sort((a, b) => {
+    if (a.priority === b.priority) {
+      return a.order - b.order;
+    }
+    return a.priority - b.priority;
+  });
+  logDescriptionRendererEvent('debug', 'Evaluating viewer description renderer URL candidates', orderedCandidates);
+  let resolved = null;
+  for (const candidate of orderedCandidates) {
+    const base = candidate && candidate.base;
+    if (!base) continue;
     try {
-      const baseHref = typeof window !== 'undefined' && window && window.location ? window.location.href : undefined;
-      const url = new URL(src, baseHref);
-      const path = url.pathname || '';
-      const basePath = path.replace(/[^/]*$/, '');
-      url.pathname = `${basePath}${DESCRIPTION_RENDERER_FILENAME}`;
-      url.search = '';
-      url.hash = '';
-      resolved = url.toString();
+      const url = new URL(DESCRIPTION_RENDERER_FILENAME, base).toString();
+      logDescriptionRendererEvent('debug', 'Resolved viewer description renderer URL candidate', {
+        base,
+        reason: candidate.reason,
+        resolved: url
+      });
+      resolved = url;
       break;
     } catch (error) {
-      const slashIndex = src.lastIndexOf('/');
-      const prefix = slashIndex >= 0 ? src.slice(0, slashIndex + 1) : '';
-      resolved = `${prefix}${DESCRIPTION_RENDERER_FILENAME}`;
-      break;
+      logDescriptionRendererEvent('warn', 'Failed to resolve viewer description renderer URL candidate', {
+        base,
+        reason: candidate.reason,
+        error: error && error.message ? error.message : String(error)
+      });
     }
   }
-  descriptionRendererResolvedUrl = resolved || DESCRIPTION_RENDERER_FILENAME;
+  if (!resolved) {
+    logDescriptionRendererEvent('warn', 'Viewer falling back to relative description renderer URL');
+    resolved = DESCRIPTION_RENDERER_FILENAME;
+  }
+  descriptionRendererResolvedUrl = resolved;
   if (globalScope) {
     globalScope[DESCRIPTION_RENDERER_URL_KEY] = descriptionRendererResolvedUrl;
   }
@@ -107,6 +165,8 @@ function ensureDescriptionRendererLoaded() {
     };
     script.async = true;
     script.src = scriptUrl;
+    script.setAttribute('data-mathvis-description-loader', 'viewer');
+    logDescriptionRendererEvent('info', 'Loading description renderer script for viewer', { url: scriptUrl });
     script.onload = () => {
       if (settled) return;
       settled = true;
@@ -115,12 +175,14 @@ function ensureDescriptionRendererLoaded() {
       if (globalScope) {
         globalScope[DESCRIPTION_RENDERER_PROMISE_KEY] = Promise.resolve(renderer);
       }
+      logDescriptionRendererEvent('info', 'Viewer description renderer script loaded', { url: scriptUrl });
       resolve(renderer);
     };
     script.onerror = () => {
       if (settled) return;
       settled = true;
       cleanup();
+      logDescriptionRendererEvent('error', 'Viewer failed to load description renderer script', { url: scriptUrl });
       resolve(null);
     };
     parent.appendChild(script);
