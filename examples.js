@@ -2267,14 +2267,53 @@
   let descriptionRendererPromise = null;
   let lastDescriptionRenderToken = 0;
 
+  const descriptionRendererLogPrefix = '[math-vis:description-loader]';
+  function logDescriptionRendererEvent(level, message, details) {
+    const root =
+      (typeof window !== 'undefined' && window && window.console && window) ||
+      (typeof globalThis !== 'undefined' && globalThis && globalThis.console && globalThis) ||
+      null;
+    if (!root || !root.console) return;
+    const consoleRef = root.console;
+    const method = typeof consoleRef[level] === 'function' ? consoleRef[level] : consoleRef.log;
+    try {
+      if (details !== undefined) {
+        method.call(consoleRef, `${descriptionRendererLogPrefix} ${message}`, details);
+      } else {
+        method.call(consoleRef, `${descriptionRendererLogPrefix} ${message}`);
+      }
+    } catch (_) {}
+  }
+
   function resolveDescriptionRendererUrl() {
     if (typeof document === 'undefined') {
       return 'description-renderer.js';
     }
     const candidates = [];
+    const seenBases = new Set();
+    const addCandidate = (base, reason, priority = 1) => {
+      if (typeof base !== 'string') return;
+      const trimmed = base.trim();
+      if (!trimmed) return;
+      if (seenBases.has(trimmed)) return;
+      seenBases.add(trimmed);
+      candidates.push({ base: trimmed, reason, priority, order: candidates.length });
+    };
+    if (typeof window !== 'undefined' && window.location) {
+      const { origin, href } = window.location;
+      if (typeof origin === 'string' && origin && origin !== 'null') {
+        addCandidate(origin.endsWith('/') ? origin : `${origin}/`, 'window.location.origin', 0);
+      }
+      if (typeof href === 'string' && href) {
+        addCandidate(href, 'window.location.href', 1);
+      }
+    }
+    if (typeof document.baseURI === 'string' && document.baseURI) {
+      addCandidate(document.baseURI, 'document.baseURI', 1);
+    }
     const { currentScript } = document;
     if (currentScript && currentScript.src) {
-      candidates.push(currentScript.src);
+      addCandidate(currentScript.src, 'document.currentScript.src', 2);
     }
     const scripts = typeof document.getElementsByTagName === 'function' ? document.getElementsByTagName('script') : null;
     if (scripts && scripts.length) {
@@ -2282,27 +2321,40 @@
         const script = scripts[i];
         if (!script || !script.src) continue;
         const src = script.src;
-        if (!candidates.includes(src)) {
-          candidates.push(src);
-        }
+        addCandidate(src, 'script[src]', 2);
         if (/\bexamples(?:\.min)?\.js(?:\?|#|$)/.test(src)) {
-          candidates.unshift(src);
+          addCandidate(src, 'examples.js script[src]', 2);
           break;
         }
       }
     }
-    if (typeof window !== 'undefined' && window.location && window.location.href) {
-      candidates.push(window.location.href);
-      if (window.location.origin) {
-        candidates.push(window.location.origin + '/');
+    const orderedCandidates = candidates.slice().sort((a, b) => {
+      if (a.priority === b.priority) {
+        return a.order - b.order;
       }
-    }
-    for (const base of candidates) {
+      return a.priority - b.priority;
+    });
+    logDescriptionRendererEvent('debug', 'Evaluating description renderer URL candidates', orderedCandidates);
+    for (const candidate of orderedCandidates) {
+      const base = candidate && candidate.base;
       if (typeof base !== 'string' || !base) continue;
       try {
-        return new URL('description-renderer.js', base).toString();
-      } catch (error) {}
+        const resolved = new URL('description-renderer.js', base).toString();
+        logDescriptionRendererEvent('debug', 'Resolved description renderer URL candidate', {
+          base,
+          reason: candidate.reason,
+          resolved
+        });
+        return resolved;
+      } catch (error) {
+        logDescriptionRendererEvent('warn', 'Failed to resolve description renderer URL candidate', {
+          base,
+          reason: candidate.reason,
+          error: error && error.message ? error.message : String(error)
+        });
+      }
     }
+    logDescriptionRendererEvent('warn', 'Falling back to relative description renderer URL');
     return 'description-renderer.js';
   }
 
@@ -2311,26 +2363,35 @@
       return Promise.resolve(null);
     }
     if (window.MathVisDescriptionRenderer) {
+      logDescriptionRendererEvent('debug', 'Description renderer already available on window');
       return Promise.resolve(window.MathVisDescriptionRenderer);
     }
     if (descriptionRendererPromise) {
+      logDescriptionRendererEvent('debug', 'Reusing pending description renderer load promise');
       return descriptionRendererPromise;
     }
     descriptionRendererPromise = new Promise((resolve, reject) => {
       const scriptUrl = resolveDescriptionRendererUrl();
+      logDescriptionRendererEvent('info', 'Loading description renderer script', { url: scriptUrl });
       const script = document.createElement('script');
       script.async = true;
       script.src = scriptUrl;
+      script.setAttribute('data-mathvis-description-loader', 'true');
       script.addEventListener('load', () => {
         if (window.MathVisDescriptionRenderer) {
+          logDescriptionRendererEvent('info', 'Description renderer script loaded successfully', { url: scriptUrl });
           resolve(window.MathVisDescriptionRenderer);
         } else {
           descriptionRendererPromise = null;
+          logDescriptionRendererEvent('error', 'Description renderer script loaded without exposing global', {
+            url: scriptUrl
+          });
           reject(new Error('Description renderer loaded without exposing the expected global.'));
         }
       }, { once: true });
       script.addEventListener('error', () => {
         descriptionRendererPromise = null;
+        logDescriptionRendererEvent('error', 'Failed to load description renderer script', { url: scriptUrl });
         reject(new Error('Failed to load description renderer.'));
       }, { once: true });
       document.head.appendChild(script);

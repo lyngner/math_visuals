@@ -10,6 +10,40 @@ async function setDescription(page, value) {
 }
 
 test.describe('Description renderer interactions', () => {
+  test('serves renderer assets without console errors', async ({ page }) => {
+    const consoleErrors = [];
+    const pageErrors = [];
+    page.on('console', message => {
+      if (message.type() === 'error') {
+        consoleErrors.push(message.text());
+      }
+    });
+    page.on('pageerror', error => {
+      pageErrors.push(error && error.message ? error.message : String(error));
+    });
+    const rendererResponsePromise = page.waitForResponse(response => {
+      if (!response.url().includes('description-renderer.js')) return false;
+      try {
+        const url = new URL(response.url());
+        return url.pathname.endsWith('/description-renderer.js');
+      } catch (error) {
+        return /description-renderer\.js(?:$|\?)/.test(response.url());
+      }
+    });
+
+    await page.goto(DIAGRAM_PATH, { waitUntil: 'load' });
+    const rendererResponse = await rendererResponsePromise;
+    expect(rendererResponse.ok()).toBe(true);
+
+    await setDescription(page, 'Test @math{1 + 1} og @input[answer="2"|placeholder=Svar]');
+    const preview = page.locator('.example-description-preview');
+    await expect(preview).toBeVisible();
+    await expect(preview.locator('.math-vis-description-math')).toHaveCount(1);
+
+    expect(consoleErrors).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
+
   test('validates input fields as the user types', async ({ page }) => {
     await page.goto(DIAGRAM_PATH, { waitUntil: 'load' });
 
