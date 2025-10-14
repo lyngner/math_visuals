@@ -72,4 +72,14 @@ test.describe('task mode description preview', () => {
     await expect(inputField).toHaveCount(1);
     await expect(inputField).toHaveAttribute('size', '3');
   });
+
+  test('renders simple fractions as proper fractions in task mode', async ({ page }) => {
+    await page.goto('/diagram/index.html', { waitUntil: 'load' });
+    await page.fill('#exampleDescription', 'Regn ut @math{1/2}');
+    await page.evaluate(() => window.mathVisuals.setAppMode('task', { force: true }));
+
+    const preview = page.locator('.example-description-preview');
+    await expect(preview).toBeVisible();
+    await expect(preview.locator('.math-vis-description-math .mfrac')).toHaveCount(1);
+  });
 });

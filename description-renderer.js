@@ -397,6 +397,20 @@
     };
   }
 
+  function normalizeMathContent(tex) {
+    if (typeof tex !== 'string') return tex;
+    const trimmed = tex.trim();
+    if (!trimmed) return tex;
+    const fractionMatch = trimmed.match(/^([-+]?\d+)\s*\/\s*([-+]?\d+)$/);
+    if (fractionMatch) {
+      const [, numerator, denominator] = fractionMatch;
+      if (denominator !== '0') {
+        return `\\tfrac{${numerator}}{${denominator}}`;
+      }
+    }
+    return tex;
+  }
+
   function findNextSpecial(text, index, allowInputs) {
     const nextBreak = text.indexOf('\n', index);
     const nextMath = text.indexOf('@math{', index);
@@ -468,8 +482,9 @@
         }
         const span = doc.createElement('span');
         span.className = 'math-vis-description-math';
-        span.textContent = extraction.content;
-        placeholders.push({ element: span, tex: extraction.content });
+        const normalizedTex = normalizeMathContent(extraction.content);
+        span.textContent = normalizedTex;
+        placeholders.push({ element: span, tex: normalizedTex });
         container.appendChild(span);
         index = extraction.endIndex + 1;
         continue;
