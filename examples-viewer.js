@@ -72,11 +72,12 @@ function resolveDescriptionRendererUrl() {
     if (typeof srcAttr !== 'string') continue;
     const src = srcAttr.trim();
     if (!src) continue;
-    addCandidate(src, 'script[src]', 3);
     const normalized = src.split('#')[0].split('?')[0];
-    if (!normalized.endsWith(VIEWER_SCRIPT_FILENAME)) continue;
-    addCandidate(src, 'examples-viewer script[src]', 0);
-    break;
+    if (normalized.endsWith(VIEWER_SCRIPT_FILENAME)) {
+      addCandidate(src, 'examples-viewer script[src]', 0);
+      break;
+    }
+    addCandidate(src, 'script[src]', 3);
   }
   if (globalScope && globalScope.location) {
     const { origin, href } = globalScope.location;
