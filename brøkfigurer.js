@@ -753,8 +753,9 @@
     }
   }
   function refreshAltText(reason) {
+    const signature = buildBrokfigurerAltText();
     if (altTextManager && typeof altTextManager.refresh === 'function') {
-      altTextManager.refresh(reason || 'auto');
+      altTextManager.refresh(reason || 'auto', signature);
     }
     updateAltTextTargetAttributes();
   }
@@ -781,6 +782,7 @@
         STATE.altTextSource = source === 'manual' ? 'manual' : 'auto';
       },
       generate: () => buildBrokfigurerAltText(),
+      getSignature: () => buildBrokfigurerAltText(),
       getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
       getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
     });

@@ -1905,6 +1905,7 @@
         STATE.altTextSource = source === 'manual' ? 'manual' : 'auto';
       },
       generate: () => buildTallinjeAltText(),
+      getSignature: () => buildTallinjeAltText(),
       getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
       getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
     });
@@ -1916,8 +1917,13 @@
   function refreshAltText(reason) {
     if (typeof window === 'undefined' || !window.MathVisAltText) return;
     ensureAltTextManager();
+    const signature = buildTallinjeAltText();
     if (altTextManager) {
-      altTextManager.refresh(reason || 'auto');
+      if (typeof altTextManager.refresh === 'function') {
+        altTextManager.refresh(reason || 'auto', signature);
+      } else if (typeof altTextManager.notifyFigureChange === 'function') {
+        altTextManager.notifyFigureChange(signature);
+      }
     } else {
       const nodes = window.MathVisAltText.ensureSvgA11yNodes(svg);
       if (nodes && nodes.descEl) nodes.descEl.textContent = buildTallinjeAltText();

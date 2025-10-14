@@ -328,7 +328,7 @@ function setIndex(v) {
   if (cl !== idx) {
     idx = cl;
     draw();
-    if (altTextManager) altTextManager.refresh('interaction');
+    syncAltText('interaction');
   }
 }
 function setClipYFromPoint(py) {
@@ -360,7 +360,7 @@ function applyConfig() {
   overlay.setAttribute("aria-valuenow", String(idx));
   layout();
   draw();
-  if (altTextManager) altTextManager.refresh('config');
+  syncAltText('config');
 }
 function setupSettingsUI() {
   var _SIMPLE$correct;
@@ -474,11 +474,22 @@ function initAltTextManager() {
       SIMPLE.altTextSource = source === 'manual' ? 'manual' : 'auto';
     },
     generate: () => buildPerlesnorAltText(),
+    getSignature: () => buildPerlesnorAltText(),
     getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
     getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
   });
   if (altTextManager) {
     altTextManager.applyCurrent();
+    syncAltText('init');
+  }
+}
+
+function syncAltText(reason) {
+  const signature = buildPerlesnorAltText();
+  if (altTextManager && typeof altTextManager.refresh === 'function') {
+    altTextManager.refresh(reason || 'auto', signature);
+  } else if (altTextManager && typeof altTextManager.notifyFigureChange === 'function') {
+    altTextManager.notifyFigureChange(signature);
   }
 }
 

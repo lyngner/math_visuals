@@ -435,9 +435,11 @@ function refreshAltText(reason) {
   const signature = JSON.stringify(collectTenkeblokkerAltSummary());
   if (signature !== lastAltTextSignature) {
     lastAltTextSignature = signature;
-    altTextManager.refresh(reason || 'auto');
+    altTextManager.refresh(reason || 'auto', signature);
   } else if (!reason || reason === 'init') {
-    altTextManager.refresh(reason || 'auto');
+    altTextManager.refresh(reason || 'auto', signature);
+  } else if (typeof altTextManager.notifyFigureChange === 'function') {
+    altTextManager.notifyFigureChange(signature);
   }
 }
 
@@ -470,6 +472,7 @@ function initAltTextManager() {
       CONFIG.altTextSource = source === 'manual' ? 'manual' : 'auto';
     },
     generate: () => buildTenkeblokkerAltText(),
+    getSignature: () => JSON.stringify(collectTenkeblokkerAltSummary()),
     getAutoMessage: reason => (reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.'),
     getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
   });

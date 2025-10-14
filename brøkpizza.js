@@ -1299,8 +1299,11 @@ function getActiveAltText() {
 }
 
 function refreshAltText(reason) {
-  if (altTextManager) {
-    altTextManager.refresh(reason || 'auto');
+  const signature = buildBropizzaAltText();
+  if (altTextManager && typeof altTextManager.refresh === 'function') {
+    altTextManager.refresh(reason || 'auto', signature);
+  } else if (altTextManager && typeof altTextManager.notifyFigureChange === 'function') {
+    altTextManager.notifyFigureChange(signature);
   }
 }
 
@@ -1322,6 +1325,7 @@ function initAltTextManager() {
       SIMPLE.altTextSource = source === 'manual' ? 'manual' : 'auto';
     },
     generate: () => buildBropizzaAltText(),
+    getSignature: () => buildBropizzaAltText(),
     getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
     getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
   });

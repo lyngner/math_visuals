@@ -140,7 +140,6 @@ function ensureStateDefaults() {
   return STATE;
 }
 let altTextManager = null;
-let lastAltTextSignature = null;
 let lastRenderSummary = {
   layoutMode: STATE.layout || 'row',
   count: 0,
@@ -625,11 +624,11 @@ function getActiveNkantAltText() {
 }
 function maybeRefreshAltText(reason) {
   const summary = getNkantAltSummary();
-  const key = JSON.stringify(summary);
-  const shouldRefresh = key !== lastAltTextSignature;
-  lastAltTextSignature = key;
-  if (shouldRefresh && altTextManager) {
-    altTextManager.refresh(reason || 'auto');
+  const signature = JSON.stringify(summary);
+  if (altTextManager && typeof altTextManager.refresh === 'function') {
+    altTextManager.refresh(reason || 'auto', signature);
+  } else if (altTextManager && typeof altTextManager.notifyFigureChange === 'function') {
+    altTextManager.notifyFigureChange(signature);
   }
 }
 function initAltTextManager() {
@@ -650,11 +649,11 @@ function initAltTextManager() {
       STATE.altTextSource = source === 'manual' ? 'manual' : 'auto';
     },
     generate: () => buildNkantAltText(),
+    getSignature: () => JSON.stringify(getNkantAltSummary()),
     getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
     getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
   });
   if (altTextManager) {
-    lastAltTextSignature = null;
     altTextManager.applyCurrent();
     maybeRefreshAltText('init');
   }

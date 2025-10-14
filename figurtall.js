@@ -1087,9 +1087,11 @@
         figurtallAiAbortController = null;
       }
       figurtallAiPendingSignature = null;
-      altTextManager.refresh(reason || 'auto');
+      altTextManager.refresh(reason || 'auto', signature);
     } else if (!reason || reason === 'init') {
-      altTextManager.refresh(reason || 'auto');
+      altTextManager.refresh(reason || 'auto', signature);
+    } else if (typeof altTextManager.notifyFigureChange === 'function') {
+      altTextManager.notifyFigureChange(signature);
     }
   }
   function scheduleAltTextRefresh(reason = 'auto') {
@@ -1123,6 +1125,7 @@
         }
       },
       generate: () => buildFigurtallAltText(),
+      getSignature: () => JSON.stringify(collectFigurtallAltSummary()),
       getAutoMessage: reason => (reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.'),
       getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
     });

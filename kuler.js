@@ -917,12 +917,13 @@ function buildKulerAltText() {
   return `${intro} ${details}`.trim();
 }
 
-function applyAltTextToDom() {
+function applyAltTextToDom(autoAltText) {
   if (typeof window === "undefined" || !window.MathVisAltText) return;
   const state = getAltTextState();
   const trimmed = (state.text || "").trim();
   const useManual = state.source === "manual" && trimmed;
-  const description = useManual ? trimmed : buildKulerAltText();
+  const generated = typeof autoAltText === "string" ? autoAltText : buildKulerAltText();
+  const description = useManual ? trimmed : generated;
   const anchor = ensureAltTextAnchor();
   if (!anchor) return;
   const nodes = window.MathVisAltText.ensureSvgA11yNodes(anchor);
@@ -967,14 +968,10 @@ function applyAltTextToDom() {
 
 function refreshAltText(reason) {
   if (typeof window === "undefined" || !window.MathVisAltText) return;
-  applyAltTextToDom();
+  const signature = buildKulerAltText();
+  applyAltTextToDom(signature);
   if (!altTextManager) return;
-  const state = getAltTextState();
-  if ((state.text || "").trim() && state.source === "manual") {
-    altTextManager.applyCurrent();
-    return;
-  }
-  altTextManager.refresh(reason || "auto");
+  altTextManager.refresh(reason || "auto", signature);
 }
 
 function initAltTextManager() {
@@ -991,6 +988,7 @@ function initAltTextManager() {
       applyAltTextToDom();
     },
     generate: () => buildKulerAltText(),
+    getSignature: () => buildKulerAltText(),
     getAutoMessage: reason => reason && reason.startsWith("manual") ? "Alternativ tekst oppdatert." : "Alternativ tekst oppdatert automatisk.",
     getManualMessage: () => "Alternativ tekst oppdatert manuelt."
   });
@@ -1002,10 +1000,17 @@ function initAltTextManager() {
 
 function annotateExportClones(clones) {
   if (!Array.isArray(clones) || !clones.length || typeof window === "undefined" || !window.MathVisAltText) return;
+  const signature = buildKulerAltText();
+  if (altTextManager && typeof altTextManager.refresh === "function") {
+    altTextManager.refresh("export", signature);
+    altTextManager.applyCurrent();
+  } else if (altTextManager && typeof altTextManager.notifyFigureChange === "function") {
+    altTextManager.notifyFigureChange(signature);
+  }
   const state = getAltTextState();
   const trimmed = (state.text || "").trim();
   const useManual = state.source === "manual" && trimmed;
-  const fallback = useManual ? trimmed : buildKulerAltText();
+  const fallback = useManual ? trimmed : signature;
   const summaries = buildBowlSummaries();
   clones.forEach((clone, index) => {
     if (!clone) return;
