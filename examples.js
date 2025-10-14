@@ -1787,7 +1787,8 @@
       merged: null
     };
     try {
-      if (!hasExamples && !hasDeleted) {
+      const initiatedByDelete = opts.initiatedBy === 'delete';
+      if (!hasExamples && !hasDeleted && !initiatedByDelete) {
         const res = await fetch(url, {
           method: 'DELETE'
         });
@@ -3666,7 +3667,7 @@
     const serialized = serializeExamplesForStorage(normalized);
     const opts = options && typeof options === 'object' ? options : {};
     const reason = typeof opts.reason === 'string' ? opts.reason : '';
-    if (reason === 'delete' && (previousCount <= 1 || nextCount <= 0)) {
+    if (reason === 'delete' && (previousCount <= 0 || nextCount < 0)) {
       lastKnownActionButtonCount = previousCount;
       showMinimumExampleWarning();
       try {
@@ -4554,7 +4555,7 @@
     const totalExamples = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
     lastKnownActionButtonCount = totalExamples;
     const disableAll = actionButtonsBusy === true;
-    if (deleteBtn) deleteBtn.disabled = disableAll || totalExamples <= 1;
+    if (deleteBtn) deleteBtn.disabled = disableAll || totalExamples === 0;
     if (updateBtn) updateBtn.disabled = disableAll || totalExamples === 0;
     if (createBtn) createBtn.disabled = disableAll;
   };
@@ -4818,7 +4819,7 @@
   if (deleteBtn) {
     deleteBtn.addEventListener('click', async () => {
       const examples = getExamples();
-      if (examples.length <= 1) {
+      if (examples.length === 0) {
         showMinimumExampleWarning();
         try {
           updateActionButtonState(examples.length);

@@ -33,6 +33,21 @@ function withDefaultSourceState(entry) {
   return copy;
 }
 
+async function drainPendingPutEvents(backend, path) {
+  if (!backend || typeof backend.waitForPut !== 'function') return;
+  const drainMessage = 'drain pending put events';
+  while (true) {
+    try {
+      await backend.waitForPut(path, { timeout: 200, timeoutMessage: drainMessage });
+    } catch (error) {
+      if (error && typeof error.message === 'string' && error.message.includes(drainMessage)) {
+        break;
+      }
+      throw error;
+    }
+  }
+}
+
 async function archiveExample(page, descriptionText = 'Eksempel for gjenoppretting') {
   const description = page.locator('#exampleDescription');
   await description.fill(descriptionText);
@@ -170,14 +185,14 @@ test.describe('Examples trash guidance', () => {
         body: JSON.stringify({ error: 'Method Not Allowed', method })
       });
     };
-    await page.context().route('**/api/examples/trash', trashRouteHandler);
+    await page.context().route('**/api/examples/trash**', trashRouteHandler);
     await page.goto(EXAMPLE_PATH, { waitUntil: 'load' });
   });
 
   test.afterEach(async ({ page }) => {
     if (trashRouteHandler) {
       try {
-        await page.context().unroute('**/api/examples/trash', trashRouteHandler);
+      await page.context().unroute('**/api/examples/trash**', trashRouteHandler);
       } catch (error) {}
       trashRouteHandler = null;
     }
@@ -206,7 +221,7 @@ test.describe('Examples trash guidance', () => {
     const description = 'Arkivtest – gjenoppretting';
     await archiveExample(page, description);
 
-    await backend.waitForPut(CANONICAL_PATH);
+    await drainPendingPutEvents(backend, CANONICAL_PATH);
 
     const archivePage = await openTrashArchivePage(page.context());
     const item = archivePage
@@ -215,7 +230,6 @@ test.describe('Examples trash guidance', () => {
     await expect(item).toHaveCount(1);
 
     const restoreButton = item.getByRole('button', { name: 'Gjenopprett' });
-    const restorePut = backend.waitForPut(CANONICAL_PATH);
     const deleteRequest = archivePage.waitForRequest(
       request => request.url().includes('/api/examples/trash') && request.method() === 'DELETE'
     );
@@ -225,24 +239,24 @@ test.describe('Examples trash guidance', () => {
 
     await restoreButton.click();
 
-    const [restoreEvent] = await Promise.all([restorePut, deleteRequest, refreshRequest]);
+    await Promise.all([deleteRequest, refreshRequest]);
+
+    const matchesDescription = example => {
+      const text = typeof example.description === 'string' ? example.description : '';
+      return text.includes(description);
+    };
 
     await expect(archivePage.getByText('Eksempel gjenopprettet fra arkivet.')).toBeVisible();
     await expect(archivePage.locator('[data-item]')).toHaveCount(0);
 
     expect(trashEntries.length).toBe(0);
-    const restoredExamples =
-      restoreEvent &&
-      restoreEvent.entry &&
-      restoreEvent.entry.data &&
-      Array.isArray(restoreEvent.entry.data.examples)
-        ? restoreEvent.entry.data.examples
-        : [];
-    const restored = restoredExamples.some(example => {
-      const text = typeof example.description === 'string' ? example.description : '';
-      return text.includes(description);
-    });
-    expect(restored).toBe(true);
+    await expect.poll(() => {
+      const store = backend && backend.store && backend.store.canonical;
+      if (!store || typeof store.get !== 'function') return false;
+      const entry = store.get(CANONICAL_PATH);
+      if (!entry || !entry.data || !Array.isArray(entry.data.examples)) return false;
+      return entry.data.examples.some(matchesDescription);
+    }).toBe(true);
   });
 
   test('permanently deleting an archived example removes it from the archive', async ({ page }) => {
@@ -258,21 +272,26 @@ test.describe('Examples trash guidance', () => {
     await expect(item).toHaveCount(1);
 
     const deleteButton = item.getByRole('button', { name: 'Slett' });
+    await archivePage.evaluate(() => {
+      window.confirm = () => true;
+    });
     const deleteRequest = archivePage.waitForRequest(
       request => request.url().includes('/api/examples/trash') && request.method() === 'DELETE'
     );
     const refreshRequest = archivePage.waitForRequest(
       request => request.url().includes('/api/examples/trash') && request.method() === 'GET'
     );
-    const dialogPromise = archivePage.waitForEvent('dialog');
 
     await deleteButton.click();
-    const dialog = await dialogPromise;
-    await dialog.accept();
 
     await Promise.all([deleteRequest, refreshRequest]);
 
-    await expect(archivePage.getByText('Ingen arkiverte eksempler er tilgjengelige.')).toBeVisible();
+    await expect(archivePage.locator('[data-item]')).toHaveCount(0);
+    await expect(
+      archivePage.getByText('Det finnes foreløpig ingen slettede eller arkiverte eksempler å gjenopprette.', {
+        exact: true
+      })
+    ).toBeVisible();
     expect(trashEntries.length).toBe(0);
   });
 
