@@ -10,8 +10,59 @@ async function setDescription(page, value) {
 }
 
 test.describe('Description renderer interactions', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__mathVisRenderIntoCalls = 0;
+      window.__mathVisRenderIntoErrors = [];
+
+      const ensurePatched = () => {
+        const renderer = window.MathVisDescriptionRenderer;
+        if (!renderer || typeof renderer.renderInto !== 'function') {
+          return false;
+        }
+        if (renderer.renderInto.__mathVisPatched) {
+          return true;
+        }
+        const original = renderer.renderInto.bind(renderer);
+        const patched = function patchedRenderInto(...args) {
+          try {
+            const result = original(...args);
+            window.__mathVisRenderIntoCalls += 1;
+            return result;
+          } catch (error) {
+            if (!Array.isArray(window.__mathVisRenderIntoErrors)) {
+              window.__mathVisRenderIntoErrors = [];
+            }
+            const message = error && (error.stack || error.message) ? error.stack || error.message : String(error);
+            window.__mathVisRenderIntoErrors.push(message);
+            throw error;
+          }
+        };
+        patched.__mathVisPatched = true;
+        renderer.renderInto = patched;
+        return true;
+      };
+
+      window.__mathVisEnsureRendererPatched = ensurePatched;
+      ensurePatched();
+      window.__mathVisRendererWatcher = setInterval(() => {
+        if (ensurePatched()) {
+          clearInterval(window.__mathVisRendererWatcher);
+          window.__mathVisRendererWatcher = null;
+        }
+      }, 10);
+    });
+
+    const response = await page.request.get('/description-renderer.js');
+    expect(response.ok()).toBeTruthy();
+    const body = await response.text();
+    expect(body).toContain('MathVisDescriptionRenderer');
+  });
+
   test('validates answer boxes as the user types', async ({ page }) => {
     await page.goto(DIAGRAM_PATH, { waitUntil: 'load' });
+
+    await page.waitForFunction(() => !!(window.MathVisDescriptionRenderer && typeof window.MathVisDescriptionRenderer.renderInto === 'function'));
 
     await setDescription(
       page,
@@ -84,16 +135,26 @@ test.describe('Description renderer interactions', () => {
     await inlineInput.fill('');
     await expect(inlineAnswer).toHaveClass(/math-vis-answerbox--empty/);
     await expect(inlineStatus).toHaveText('');
+
+    await page.waitForFunction(() => (window.__mathVisRenderIntoCalls || 0) > 0);
+    const renderErrors = await page.evaluate(() => window.__mathVisRenderIntoErrors || []);
+    expect(renderErrors).toEqual([]);
   });
 
   test('falls back to plain text math when KaTeX is unavailable', async ({ page }) => {
     await page.route('**/katex.min.js', route => route.abort());
     await page.goto(DIAGRAM_PATH, { waitUntil: 'load' });
 
+    await page.waitForFunction(() => !!(window.MathVisDescriptionRenderer && typeof window.MathVisDescriptionRenderer.renderInto === 'function'));
+
     await setDescription(page, 'Formel: @math{a^2 + b^2 = c^2}');
 
     const mathNode = page.locator('.example-description-preview .math-vis-description-math');
     await expect(mathNode).toHaveText('a^2 + b^2 = c^2');
     await expect(mathNode.locator('.katex')).toHaveCount(0);
+
+    await page.waitForFunction(() => (window.__mathVisRenderIntoCalls || 0) > 0);
+    const renderErrors = await page.evaluate(() => window.__mathVisRenderIntoErrors || []);
+    expect(renderErrors).toEqual([]);
   });
 });

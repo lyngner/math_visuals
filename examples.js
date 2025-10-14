@@ -2267,6 +2267,15 @@
   let descriptionRendererPromise = null;
   let lastDescriptionRenderToken = 0;
 
+  function logDescriptionRendererEvent(...args) {
+    if (typeof console === 'undefined') return;
+    const method = typeof console.info === 'function' ? console.info : typeof console.log === 'function' ? console.log : null;
+    if (!method) return;
+    try {
+      method.call(console, '[MathVis] loadDescriptionRenderer:', ...args);
+    } catch (error) {}
+  }
+
   function resolveDescriptionRendererUrl() {
     if (typeof document === 'undefined') {
       return 'description-renderer.js';
@@ -2291,10 +2300,12 @@
         }
       }
     }
-    if (typeof window !== 'undefined' && window.location && window.location.href) {
-      candidates.push(window.location.href);
+    if (typeof window !== 'undefined' && window.location) {
       if (window.location.origin) {
         candidates.push(window.location.origin + '/');
+      }
+      if (window.location.href) {
+        candidates.push(window.location.href);
       }
     }
     for (const base of candidates) {
@@ -2311,18 +2322,23 @@
       return Promise.resolve(null);
     }
     if (window.MathVisDescriptionRenderer) {
+      logDescriptionRendererEvent('Reusing existing global.');
       return Promise.resolve(window.MathVisDescriptionRenderer);
     }
     if (descriptionRendererPromise) {
+      logDescriptionRendererEvent('Reusing pending promise.');
       return descriptionRendererPromise;
     }
     descriptionRendererPromise = new Promise((resolve, reject) => {
       const scriptUrl = resolveDescriptionRendererUrl();
+      logDescriptionRendererEvent('Resolved script URL', scriptUrl);
       const script = document.createElement('script');
       script.async = true;
       script.src = scriptUrl;
       script.addEventListener('load', () => {
-        if (window.MathVisDescriptionRenderer) {
+        const renderer = window.MathVisDescriptionRenderer;
+        logDescriptionRendererEvent('Script loaded', scriptUrl, 'rendererPresent:', !!renderer);
+        if (renderer) {
           resolve(window.MathVisDescriptionRenderer);
         } else {
           descriptionRendererPromise = null;
@@ -2330,6 +2346,7 @@
         }
       }, { once: true });
       script.addEventListener('error', () => {
+        logDescriptionRendererEvent('Failed to load script', scriptUrl);
         descriptionRendererPromise = null;
         reject(new Error('Failed to load description renderer.'));
       }, { once: true });
