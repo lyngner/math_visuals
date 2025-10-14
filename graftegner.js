@@ -3957,7 +3957,9 @@ function setupSettingsForm() {
         editor.removeAttribute('data-preview-mode');
       }
     };
-    if (tag === MATHFIELD_TAG && isMathLiveReady()) {
+    const previewLayout = editor ? editor.getAttribute('data-preview-layout') : '';
+    const allowMathFieldPreview = tag === MATHFIELD_TAG && previewLayout === 'below';
+    if (tag === MATHFIELD_TAG && isMathLiveReady() && !allowMathFieldPreview) {
       preview.innerHTML = '';
       preview.textContent = '';
       preview.style.display = 'none';
@@ -4712,7 +4714,7 @@ function setupSettingsForm() {
         editor.setAttribute('data-preview-layout', 'below');
       }
       if (preview) {
-        preview.setAttribute('data-preview-no-latex', '');
+        preview.removeAttribute('data-preview-no-latex');
       }
     }
     let funInput = row.querySelector('[data-fun]');
