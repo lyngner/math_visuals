@@ -91,6 +91,40 @@
       margin: 0;
       padding: 10px 14px 12px 26px;
     }
+    .settings-section--view .settings-section__content { gap: 8px; }
+    .settings-section--view .settings-group { gap: 10px; }
+    .settings-section--view .setting { gap: 6px; }
+    .setting--view {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      row-gap: 4px;
+      column-gap: 12px;
+      align-items: center;
+    }
+    .setting--view .setting__label {
+      grid-column: 1 / -1;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+    }
+    .setting__controls--view {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      width: 100%;
+    }
+    .setting--view .range-input { grid-column: 1 / 2; }
+    .setting--view .setting__value {
+      font-size: 12px;
+      color: #4b5563;
+      text-align: right;
+    }
+    .setting--view .setting__hint {
+      grid-column: 1 / -1;
+      font-size: 11px;
+      color: #6b7280;
+    }
     .figure-grid {
       --figure-columns: 1;
       display: grid;
@@ -265,38 +299,38 @@
                 </ul>
               </details>
             </div>
-            <details class="settings-section" open>
+            <details class="settings-section settings-section--view">
               <summary>Visning</summary>
               <div class="settings-section__content">
-                <div class="settings-group settings-group--columns">
-                  <div class="setting setting--slider">
-                    <div class="setting__header">
-                      <label for="rngViewRotation">Rotasjon (<span data-view-figure-label>Figur 1</span>)</label>
+                <div class="settings-group">
+                  <div class="setting setting--view">
+                    <label class="setting__label" for="rngViewRotation">Rotasjon (<span data-view-figure-label>Figur 1</span>)</label>
+                    <div class="setting__controls setting__controls--view">
+                      <input id="rngViewRotation" class="range-input" type="range" min="0" max="360" step="1" value="0" />
                       <span id="lblViewRotation" class="setting__value">0°</span>
                     </div>
-                    <input id="rngViewRotation" class="range-input" type="range" min="0" max="360" step="1" value="0" />
                     <div class="setting__hint">Juster kameravinkelen horisontalt.</div>
                   </div>
-                  <div class="setting setting--slider">
-                    <div class="setting__header">
-                      <label for="rngViewElevation">Vinkel opp/ned (<span data-view-figure-label>Figur 1</span>)</label>
+                  <div class="setting setting--view">
+                    <label class="setting__label" for="rngViewElevation">Vinkel opp/ned (<span data-view-figure-label>Figur 1</span>)</label>
+                    <div class="setting__controls setting__controls--view">
+                      <input id="rngViewElevation" class="range-input" type="range" min="-80" max="80" step="1" value="0" />
                       <span id="lblViewElevation" class="setting__value">0°</span>
                     </div>
-                    <input id="rngViewElevation" class="range-input" type="range" min="-80" max="80" step="1" value="0" />
                     <div class="setting__hint">Juster kameravinkelen vertikalt.</div>
                   </div>
-                  <div class="setting setting--slider">
-                    <div class="setting__header">
-                      <label for="rngViewZoom">Zoom (<span data-view-figure-label>Figur 1</span>)</label>
+                  <div class="setting setting--view">
+                    <label class="setting__label" for="rngViewZoom">Zoom (<span data-view-figure-label>Figur 1</span>)</label>
+                    <div class="setting__controls setting__controls--view">
+                      <input id="rngViewZoom" class="range-input" type="range" min="40" max="250" step="1" value="100" />
                       <span id="lblViewZoom" class="setting__value">100%</span>
                     </div>
-                    <input id="rngViewZoom" class="range-input" type="range" min="40" max="250" step="1" value="100" />
                     <div class="setting__hint">100% tilsvarer standardavstanden.</div>
                   </div>
                 </div>
               </div>
             </details>
-            <details class="settings-section" open>
+            <details class="settings-section">
               <summary>Utseende</summary>
               <div class="settings-section__content">
                 <div class="settings-group settings-group--columns">
@@ -321,7 +355,7 @@
                 </div>
               </div>
             </details>
-            <details class="settings-section" open>
+            <details class="settings-section">
               <summary>Oppførsel</summary>
               <div class="settings-section__content">
                 <div class="settings-checkboxes">
