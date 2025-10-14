@@ -60,17 +60,9 @@ function resolveDescriptionRendererUrl() {
     seenBases.add(trimmed);
     candidates.push({ base: trimmed, reason, priority, order: candidates.length });
   };
-  if (globalScope && globalScope.location) {
-    const { origin, href } = globalScope.location;
-    if (typeof origin === 'string' && origin && origin !== 'null') {
-      addCandidate(origin.endsWith('/') ? origin : `${origin}/`, 'window.location.origin', 0);
-    }
-    if (typeof href === 'string' && href) {
-      addCandidate(href, 'window.location.href', 1);
-    }
-  }
-  if (typeof document.baseURI === 'string' && document.baseURI) {
-    addCandidate(document.baseURI, 'document.baseURI', 1);
+  const currentScript = document.currentScript;
+  if (currentScript && currentScript.src) {
+    addCandidate(currentScript.src, 'document.currentScript.src', 0);
   }
   const scripts = document.getElementsByTagName('script');
   for (let i = scripts.length - 1; i >= 0; i--) {
@@ -80,11 +72,23 @@ function resolveDescriptionRendererUrl() {
     if (typeof srcAttr !== 'string') continue;
     const src = srcAttr.trim();
     if (!src) continue;
-    addCandidate(src, 'script[src]', 2);
+    addCandidate(src, 'script[src]', 0);
     const normalized = src.split('#')[0].split('?')[0];
     if (!normalized.endsWith(VIEWER_SCRIPT_FILENAME)) continue;
-    addCandidate(src, 'examples-viewer script[src]', 2);
+    addCandidate(src, 'examples-viewer script[src]', 0);
     break;
+  }
+  if (globalScope && globalScope.location) {
+    const { origin, href } = globalScope.location;
+    if (typeof origin === 'string' && origin && origin !== 'null') {
+      addCandidate(origin.endsWith('/') ? origin : `${origin}/`, 'window.location.origin', 2);
+    }
+    if (typeof href === 'string' && href) {
+      addCandidate(href, 'window.location.href', 3);
+    }
+  }
+  if (typeof document.baseURI === 'string' && document.baseURI) {
+    addCandidate(document.baseURI, 'document.baseURI', 3);
   }
   const orderedCandidates = candidates.slice().sort((a, b) => {
     if (a.priority === b.priority) {
