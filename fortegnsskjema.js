@@ -4,7 +4,7 @@
   const expressionDisplay = document.getElementById('chartExpression');
   const labelsLayer = document.getElementById('chartLabels');
   const figureContainer = document.querySelector('.figure');
-  const exprInput = document.getElementById('exprInput');
+  let exprInput = document.getElementById('exprInput');
   const btnCheck = document.getElementById('btnCheck');
   const btnAddPoint = document.getElementById('btnAddPoint');
   const btnAddRow = document.getElementById('btnAddRow');
@@ -23,13 +23,14 @@
   const downloadSvgButton = document.getElementById('btnDownloadSvg');
   const downloadPngButton = document.getElementById('btnDownloadPng');
   let altTextManager = null;
+  const MATHFIELD_TAG = 'MATH-FIELD';
   const POINT_TOLERANCE = 1e-6;
   const MARKER_GAP_PX = 10;
   const MIN_SEGMENT_WIDTH_PX = 4;
   const NEGATIVE_SEGMENT_DASH = '12 12';
   const LINEAR_VALIDATION_TOLERANCE = 1e-6;
   const LINEAR_VALIDATION_POINTS = [-1, 2, 0.5];
-  const MATHFIELD_TAG = 'MATH-FIELD';
+  exprInput = ensureExpressionInputElement(exprInput);
   const EXPRESSION_PREFIX_REGEX = /^\s*f\s*\(\s*x\s*\)\s*=\s*/i;
   let isUpdatingExpressionInput = false;
   const COMMAND_NAME_MAP = {
@@ -65,6 +66,72 @@
     ceil: 'ceil',
     round: 'round'
   };
+  function getMathFieldConstructor() {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    if (window.customElements && typeof window.customElements.get === 'function') {
+      const defined = window.customElements.get('math-field');
+      if (defined) {
+        return defined;
+      }
+    }
+    if (typeof window.MathfieldElement !== 'undefined') {
+      return window.MathfieldElement;
+    }
+    return null;
+  }
+  function isMathLiveReady() {
+    const ctor = getMathFieldConstructor();
+    if (!ctor || !ctor.prototype) {
+      return false;
+    }
+    return (
+      typeof ctor.prototype.getValue === 'function' &&
+      typeof ctor.prototype.setValue === 'function'
+    );
+  }
+  function convertMathFieldToTextInput(field) {
+    if (!field) return field;
+    const replacement = document.createElement('input');
+    replacement.type = 'text';
+    replacement.id = field.id || '';
+    replacement.className = field.className || '';
+    if (field.getAttribute('aria-label')) {
+      replacement.setAttribute('aria-label', field.getAttribute('aria-label'));
+    }
+    if (field.hasAttribute('placeholder')) {
+      replacement.setAttribute('placeholder', field.getAttribute('placeholder'));
+    }
+    if (field.dataset) {
+      Object.keys(field.dataset).forEach(key => {
+        replacement.dataset[key] = field.dataset[key];
+      });
+    }
+    if (typeof field.value === 'string' && field.value) {
+      replacement.value = field.value;
+    } else if (field.hasAttribute('value')) {
+      const attrVal = field.getAttribute('value');
+      if (attrVal) {
+        replacement.value = attrVal;
+      }
+    } else {
+      const textValue = (field.textContent || '').trim();
+      if (textValue) {
+        replacement.value = textValue;
+      }
+    }
+    field.replaceWith(replacement);
+    return replacement;
+  }
+  function ensureExpressionInputElement(element) {
+    if (!element) return element;
+    const tag = element.tagName ? element.tagName.toUpperCase() : '';
+    if (tag === MATHFIELD_TAG && !isMathLiveReady()) {
+      return convertMathFieldToTextInput(element);
+    }
+    return element;
+  }
   function tryGetMathFieldValue(field, format) {
     if (!field || typeof field.getValue !== 'function') return '';
     try {
