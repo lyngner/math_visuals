@@ -2235,20 +2235,113 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
   return summary;
 }
 
+function rotateTriangleSolution(sol, rotation) {
+  if (!sol || typeof sol !== "object") return null;
+  const r = ((rotation % 3) + 3) % 3;
+  if (r === 0) {
+    return {
+      a: sol.a,
+      b: sol.b,
+      c: sol.c,
+      A: sol.A,
+      B: sol.B,
+      C: sol.C
+    };
+  }
+  const sideOrder = [
+    ["a", "b", "c"],
+    ["b", "c", "a"],
+    ["c", "a", "b"]
+  ];
+  const angleOrder = [
+    ["A", "B", "C"],
+    ["B", "C", "A"],
+    ["C", "A", "B"]
+  ];
+  const sides = sideOrder[r];
+  const angles = angleOrder[r];
+  return {
+    a: sol[sides[0]],
+    b: sol[sides[1]],
+    c: sol[sides[2]],
+    A: sol[angles[0]],
+    B: sol[angles[1]],
+    C: sol[angles[2]]
+  };
+}
+
+function pickSharedSideForDoubleTriangle(firstSol, secondSol, firstSpec, secondSpec) {
+  if (!firstSol || !secondSol) return null;
+  const sideKeys = ["a", "b", "c"];
+  const firstExplicit = new Set(sideKeys.filter(key => firstSpec && Object.prototype.hasOwnProperty.call(firstSpec, key)));
+  const secondExplicit = new Set(sideKeys.filter(key => secondSpec && Object.prototype.hasOwnProperty.call(secondSpec, key)));
+  const combos = [];
+  sideKeys.forEach(firstKey => {
+    const v1 = firstSol[firstKey];
+    if (!(v1 > 0)) return;
+    sideKeys.forEach(secondKey => {
+      const v2 = secondSol[secondKey];
+      if (!(v2 > 0)) return;
+      const diff = Math.abs(v1 - v2);
+      const relDiff = diff / Math.max(v1, v2, 1e-9);
+      combos.push({
+        firstKey,
+        secondKey,
+        firstValue: v1,
+        secondValue: v2,
+        diff,
+        relDiff,
+        explicitFirst: firstExplicit.has(firstKey),
+        explicitSecond: secondExplicit.has(secondKey),
+        sameLetter: firstKey === secondKey
+      });
+    });
+  });
+  if (!combos.length) return null;
+  combos.sort((a, b) => {
+    const explicitA = (a.explicitFirst ? 1 : 0) + (a.explicitSecond ? 1 : 0);
+    const explicitB = (b.explicitFirst ? 1 : 0) + (b.explicitSecond ? 1 : 0);
+    if (explicitA !== explicitB) return explicitB - explicitA;
+    if (a.sameLetter !== b.sameLetter) return (b.sameLetter ? 1 : 0) - (a.sameLetter ? 1 : 0);
+    if (a.relDiff !== b.relDiff) return a.relDiff - b.relDiff;
+    if (a.diff !== b.diff) return a.diff - b.diff;
+    return 0;
+  });
+  const REL_TOLERANCE = 0.02;
+  const ABS_TOLERANCE = 1e-3;
+  for (const combo of combos) {
+    if (combo.relDiff <= REL_TOLERANCE || combo.diff <= ABS_TOLERANCE) {
+      return combo;
+    }
+  }
+  return combos[0];
+}
+
 function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations) {
   const sharedSpec = spec && spec.shared ? { ...spec.shared } : { label: '', value: null, requested: false };
   const firstSpec = spec && spec.first ? spec.first : {};
   const secondSpec = spec && spec.second ? spec.second : {};
-  const firstSol = solveTriangle(firstSpec);
-  const secondSol = solveTriangle(secondSpec);
-  if (!(firstSol.c > 0) || !(secondSol.c > 0)) {
+  let firstSol = solveTriangle(firstSpec);
+  let secondSol = solveTriangle(secondSpec);
+  const shared = pickSharedSideForDoubleTriangle(firstSol, secondSol, firstSpec, secondSpec);
+  if (!shared) {
     throw new Error('Dobbel trekant: begge trekantene må ha en felles side.');
   }
-  const diff = Math.abs(firstSol.c - secondSol.c);
-  const tolerance = Math.max(1e-3, firstSol.c * 0.01);
-  if (diff > tolerance) {
+  const rotationMap = { a: 1, b: 2, c: 0 };
+  const firstRot = rotateTriangleSolution(firstSol, rotationMap[shared.firstKey] || 0);
+  const secondRot = rotateTriangleSolution(secondSol, rotationMap[shared.secondKey] || 0);
+  if (!firstRot || !secondRot) {
+    throw new Error('Dobbel trekant: klarte ikke å identifisere felles side.');
+  }
+  firstSol = firstRot;
+  secondSol = secondRot;
+  const baseDiff = Math.abs(firstSol.c - secondSol.c);
+  const baseTol = Math.max(1e-3, Math.max(firstSol.c, secondSol.c) * 0.02);
+  if (!(firstSol.c > 0) || !(secondSol.c > 0) || baseDiff > baseTol) {
     throw new Error('Dobbel trekant: felles side må være lik i begge spesifikasjonene.');
   }
+  sharedSpec.value = firstSol.c;
+  secondSol = { ...secondSol, c: firstSol.c };
   const baseLength = firstSol.c;
   const A0 = { x: 0, y: 0 };
   const B0 = { x: baseLength, y: 0 };
