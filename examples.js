@@ -130,23 +130,24 @@
     }
   };
 
-  const isRemovableRoot = node => {
-    if (!node) return false;
-    if (node === document || node === document.documentElement || node === document.body) {
-      return false;
-    }
-    if (typeof Node !== 'undefined' && node.nodeType !== Node.ELEMENT_NODE) {
-      return false;
-    }
-    return true;
-  };
-
   const processRoot = root => {
     if (!root) return;
 
-    if (isRemovableRoot(root) && matchesTarget(root)) {
-      removeNode(root);
-      return;
+    const elements = [];
+
+    const shouldProcessElement = element => {
+      if (!element) return false;
+      if (typeof Node !== 'undefined' && element.nodeType !== Node.ELEMENT_NODE) {
+        return false;
+      }
+      if (element === document || element === document.documentElement || element === document.body) {
+        return false;
+      }
+      return true;
+    };
+
+    if (shouldProcessElement(root)) {
+      elements.push(root);
     }
 
     const queryAll =
@@ -156,9 +157,14 @@
         ? document.querySelectorAll.bind(document)
         : null;
 
-    if (!queryAll) return;
+    if (queryAll) {
+      queryAll('*').forEach(element => {
+        if (shouldProcessElement(element)) {
+          elements.push(element);
+        }
+      });
+    }
 
-    const elements = queryAll('*');
     elements.forEach(element => {
       if (matchesTarget(element)) {
         removeNode(element);
