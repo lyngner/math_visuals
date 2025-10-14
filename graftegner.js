@@ -3868,6 +3868,14 @@ function setupSettingsForm() {
     if (!editor) return;
     const preview = editor.querySelector('[data-fun-preview]');
     if (!preview) return;
+    const setMode = mode => {
+      if (!editor) return;
+      if (mode === 'latex') {
+        editor.setAttribute('data-preview-mode', 'latex');
+      } else {
+        editor.removeAttribute('data-preview-mode');
+      }
+    };
     const value = getFunctionInputValue(element);
     const latex = convertExpressionToLatex(value);
     const html = latex ? renderLatexToHtml(latex) : '';
@@ -3880,6 +3888,7 @@ function setupSettingsForm() {
       preview.style.display = 'block';
       preview.classList.add('func-preview--latex');
       preview.setAttribute('data-mode', 'latex');
+      setMode('latex');
       return;
     }
     if (plain) {
@@ -3887,11 +3896,13 @@ function setupSettingsForm() {
       preview.style.display = 'block';
       preview.classList.add('func-preview--text');
       preview.setAttribute('data-mode', 'text');
+      setMode('text');
       return;
     }
     preview.style.display = 'none';
     preview.classList.add('func-preview--empty');
     preview.setAttribute('data-mode', 'empty');
+    setMode('');
   };
   const getMathFieldConstructor = () => {
     if (typeof window === 'undefined') return null;
