@@ -46,6 +46,7 @@
     legend { font-weight: 600; font-size: 13px; color: #374151; padding: 0 4px; }
     .checkbox {
       display: inline-flex;
+      flex-direction: row;
       align-items: center;
       gap: 8px;
       font-size: 13px;
@@ -56,7 +57,11 @@
     .checkbox input {
       width: 16px;
       height: 16px;
+      margin: 0;
       accent-color: #3b82f6;
+    }
+    .checkbox span {
+      display: inline;
     }
     .presetButtons {
       display: flex;
