@@ -85,7 +85,7 @@
     .func-editor[data-preview-mode] .func-math-field{
       min-height:44px;
     }
-    .func-preview{
+    .func-preview{ 
       position:absolute;
       inset:0;
       display:none;
@@ -100,6 +100,25 @@
       box-sizing:border-box;
       background:#fff;
       z-index:0;
+    }
+    .func-editor[data-preview-layout="below"]{
+      display:flex;
+      flex-direction:column;
+      align-items:stretch;
+    }
+    .func-editor[data-preview-layout="below"] .func-preview{
+      position:static;
+      inset:auto;
+      display:none;
+      margin-top:6px;
+      padding:0;
+      background:transparent;
+      pointer-events:none;
+      z-index:auto;
+    }
+    .func-editor[data-preview-layout="below"] .func-preview.func-preview--latex,
+    .func-editor[data-preview-layout="below"] .func-preview.func-preview--text{
+      display:block;
     }
     .func-editor[data-preview-mode="latex"] .func-preview,
     .func-editor[data-preview-mode="text"] .func-preview{

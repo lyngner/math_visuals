@@ -3899,8 +3899,15 @@ function setupSettingsForm() {
     const tag = element.tagName ? element.tagName.toUpperCase() : '';
     const setMode = mode => {
       if (!editor) return;
+      const layout = editor.getAttribute('data-preview-layout');
+      if (layout === 'below') {
+        editor.removeAttribute('data-preview-mode');
+        return;
+      }
       if (mode === 'latex') {
         editor.setAttribute('data-preview-mode', 'latex');
+      } else if (mode === 'text') {
+        editor.setAttribute('data-preview-mode', 'text');
       } else {
         editor.removeAttribute('data-preview-mode');
       }
@@ -3916,8 +3923,9 @@ function setupSettingsForm() {
       return;
     }
     const value = getFunctionInputValue(element);
-    const latex = convertExpressionToLatex(value);
-    const html = latex ? renderLatexToHtml(latex) : '';
+    const allowLatex = !preview.hasAttribute('data-preview-no-latex');
+    const latex = allowLatex ? convertExpressionToLatex(value) : '';
+    const html = allowLatex && latex ? renderLatexToHtml(latex) : '';
     const plain = normalizeExpressionText(value);
     preview.innerHTML = '';
     preview.textContent = '';
@@ -4648,10 +4656,18 @@ function setupSettingsForm() {
     if (funcRows) {
       funcRows.appendChild(row);
     }
+    const editor = row.querySelector('.func-editor');
+    const preview = editor ? editor.querySelector('[data-fun-preview]') : null;
     if (index === 1) {
       const labelSpan = row.querySelector('.func-input > span');
       if (labelSpan) {
         labelSpan.textContent = titleLabel;
+      }
+      if (editor) {
+        editor.setAttribute('data-preview-layout', 'below');
+      }
+      if (preview) {
+        preview.setAttribute('data-preview-no-latex', '');
       }
     }
     let funInput = row.querySelector('[data-fun]');
