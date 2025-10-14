@@ -46,4 +46,15 @@ test.describe('task mode description preview', () => {
     await expect(htmlPreview).toBeVisible();
     await expect(htmlPreview).toHaveText('Oppgave med fet tekst');
   });
+
+  test('renders math markup without exposing raw tokens in task mode', async ({ page }) => {
+    await page.goto('/diagram/index.html', { waitUntil: 'load' });
+    const description = 'Flytt punktene slik at linja gir @math{y=ax+b}.';
+    await page.fill('#exampleDescription', description);
+    await page.evaluate(() => window.mathVisuals.setAppMode('task', { force: true }));
+    const preview = page.locator('.example-description-preview');
+    await expect(preview).toBeVisible();
+    await expect(preview).not.toContainText('@math');
+    await expect(preview).toContainText(/y\s*=\s*ax\s*\+\s*b/);
+  });
 });
