@@ -2299,21 +2299,9 @@
       seenBases.add(trimmed);
       candidates.push({ base: trimmed, reason, priority, order: candidates.length });
     };
-    if (typeof window !== 'undefined' && window.location) {
-      const { origin, href } = window.location;
-      if (typeof origin === 'string' && origin && origin !== 'null') {
-        addCandidate(origin.endsWith('/') ? origin : `${origin}/`, 'window.location.origin', 0);
-      }
-      if (typeof href === 'string' && href) {
-        addCandidate(href, 'window.location.href', 1);
-      }
-    }
-    if (typeof document.baseURI === 'string' && document.baseURI) {
-      addCandidate(document.baseURI, 'document.baseURI', 1);
-    }
     const { currentScript } = document;
     if (currentScript && currentScript.src) {
-      addCandidate(currentScript.src, 'document.currentScript.src', 2);
+      addCandidate(currentScript.src, 'document.currentScript.src', 0);
     }
     const scripts = typeof document.getElementsByTagName === 'function' ? document.getElementsByTagName('script') : null;
     if (scripts && scripts.length) {
@@ -2321,11 +2309,23 @@
         const script = scripts[i];
         if (!script || !script.src) continue;
         const src = script.src;
-        addCandidate(src, 'script[src]', 2);
         if (/\bexamples(?:\.min)?\.js(?:\?|#|$)/.test(src)) {
-          addCandidate(src, 'examples.js script[src]', 2);
+          addCandidate(src, 'examples.js script[src]', 0);
           break;
         }
+        addCandidate(src, 'script[src]', 1);
+      }
+    }
+    if (typeof document.baseURI === 'string' && document.baseURI) {
+      addCandidate(document.baseURI, 'document.baseURI', 2);
+    }
+    if (typeof window !== 'undefined' && window.location) {
+      const { origin, href } = window.location;
+      if (typeof href === 'string' && href) {
+        addCandidate(href, 'window.location.href', 3);
+      }
+      if (typeof origin === 'string' && origin && origin !== 'null') {
+        addCandidate(origin.endsWith('/') ? origin : `${origin}/`, 'window.location.origin', 4);
       }
     }
     const orderedCandidates = candidates.slice().sort((a, b) => {

@@ -60,31 +60,31 @@ function resolveDescriptionRendererUrl() {
     seenBases.add(trimmed);
     candidates.push({ base: trimmed, reason, priority, order: candidates.length });
   };
-  if (globalScope && globalScope.location) {
-    const { origin, href } = globalScope.location;
-    if (typeof origin === 'string' && origin && origin !== 'null') {
-      addCandidate(origin.endsWith('/') ? origin : `${origin}/`, 'window.location.origin', 0);
-    }
-    if (typeof href === 'string' && href) {
-      addCandidate(href, 'window.location.href', 1);
-    }
-  }
   if (typeof document.baseURI === 'string' && document.baseURI) {
-    addCandidate(document.baseURI, 'document.baseURI', 1);
+    addCandidate(document.baseURI, 'document.baseURI', 2);
   }
   const scripts = document.getElementsByTagName('script');
   for (let i = scripts.length - 1; i >= 0; i--) {
     const script = scripts[i];
     if (!script) continue;
-    const srcAttr = script.getAttribute && script.getAttribute('src');
-    if (typeof srcAttr !== 'string') continue;
-    const src = srcAttr.trim();
+    const srcValue = typeof script.src === 'string' ? script.src : null;
+    const src = srcValue ? srcValue.trim() : '';
     if (!src) continue;
-    addCandidate(src, 'script[src]', 2);
     const normalized = src.split('#')[0].split('?')[0];
-    if (!normalized.endsWith(VIEWER_SCRIPT_FILENAME)) continue;
-    addCandidate(src, 'examples-viewer script[src]', 2);
-    break;
+    if (normalized.endsWith(VIEWER_SCRIPT_FILENAME)) {
+      addCandidate(src, 'examples-viewer script[src]', 0);
+      break;
+    }
+    addCandidate(src, 'script[src]', 1);
+  }
+  if (globalScope && globalScope.location) {
+    const { origin, href } = globalScope.location;
+    if (typeof origin === 'string' && origin && origin !== 'null') {
+      addCandidate(origin.endsWith('/') ? origin : `${origin}/`, 'window.location.origin', 4);
+    }
+    if (typeof href === 'string' && href) {
+      addCandidate(href, 'window.location.href', 3);
+    }
   }
   const orderedCandidates = candidates.slice().sort((a, b) => {
     if (a.priority === b.priority) {
