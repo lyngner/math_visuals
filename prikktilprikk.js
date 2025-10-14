@@ -166,7 +166,7 @@
   const checkBtn = document.getElementById('btnCheck');
   const clearBtn = document.getElementById('btnClear');
   const statusBox = document.getElementById('statusMessage');
-  const taskCheckHost = document.querySelector('[data-task-check-host]');
+  const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
   const taskCheckControls = [checkBtn, statusBox].filter(Boolean);
   const addPointBtn = document.getElementById('btnAddPoint');
   const addPointFalseBtn = document.getElementById('btnAddPointFalse');
@@ -2863,7 +2863,7 @@
   clearStatus();
 
   window.render = () => rebuildAll(true);
-})();
+
   function ensureTaskControlsInHost() {
     if (!taskCheckHost) return;
     taskCheckControls.forEach(control => {
@@ -2929,4 +2929,4 @@
   }
 
   updateTaskControlsVisibility(getCurrentAppMode() || 'task');
-
+})();

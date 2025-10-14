@@ -19,7 +19,7 @@
   const addDraggableButton = document.getElementById('btnAddDraggable');
   const checkButton = document.getElementById('btnCheck');
   const checkStatus = document.getElementById('checkStatus');
-  const taskCheckHost = document.querySelector('[data-task-check-host]');
+  const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
   const taskCheckControls = [checkButton, checkStatus].filter(Boolean);
 
   function ensureTaskControlsAppended() {

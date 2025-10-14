@@ -18,7 +18,7 @@
   const domainMaxInput = document.getElementById('domainMax');
   const decimalPlacesInput = document.getElementById('decimalPlaces');
   const checkStatus = document.getElementById('checkStatus');
-  const taskCheckHost = document.querySelector('[data-task-check-host]');
+  const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
   const taskCheckControls = [btnCheck, checkStatus].filter(Boolean);
   const downloadSvgButton = document.getElementById('btnDownloadSvg');
   const downloadPngButton = document.getElementById('btnDownloadPng');
@@ -3152,7 +3152,7 @@
   createDefaultRow();
   initAltTextManager();
   renderAll();
-})();
+
   function ensureTaskControlsHost() {
     if (!taskCheckHost) return;
     taskCheckControls.forEach(control => {
@@ -3229,3 +3229,4 @@
   }
 
   applyAppModeToTaskControls(getCurrentAppMode() || 'task');
+})();
