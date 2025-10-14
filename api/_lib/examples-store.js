@@ -10,6 +10,15 @@ const memoryIndex = new Set();
 let memoryTrashEntries = [];
 
 let kvClientPromise = null;
+const INJECTED_KV_CLIENT_KEY = '__MATH_VISUALS_KV_CLIENT__';
+
+function getInjectedKvClient() {
+  if (typeof globalThis !== 'object' || !globalThis) {
+    return null;
+  }
+  const injected = globalThis[INJECTED_KV_CLIENT_KEY];
+  return injected ? injected : null;
+}
 
 const EXAMPLE_VALUE_TYPE_KEY = '__mathVisualsType__';
 const EXAMPLE_VALUE_DATA_KEY = '__mathVisualsValue__';
@@ -202,6 +211,20 @@ function applyStorageMetadata(entry, mode) {
 }
 
 async function loadKvClient() {
+  const injected = getInjectedKvClient();
+  if (injected) {
+    if (!kvClientPromise || !kvClientPromise.__mathVisualsInjected) {
+      const resolved = Promise.resolve(injected).then(client => {
+        if (!client) {
+          throw new KvOperationError('Injected KV client is not available');
+        }
+        return client;
+      });
+      resolved.__mathVisualsInjected = true;
+      kvClientPromise = resolved;
+    }
+    return kvClientPromise;
+  }
   if (!isKvConfigured()) {
     throw new KvConfigurationError(
       'Examples KV is not configured. Set KV_REST_API_URL and KV_REST_API_TOKEN to enable persistent storage.'
@@ -650,7 +673,11 @@ async function appendTrashEntries(entries, options) {
     ? Math.max(1, options.limit)
     : MAX_TRASH_ENTRIES;
   const existing = await getTrashEntries();
-  const combined = mode === 'append' ? existing.concat(sanitizedNew) : sanitizedNew.concat(existing);
+  const existingList = Array.isArray(existing) ? existing : [];
+  const combined =
+    mode === 'append'
+      ? existingList.slice().reverse().concat(sanitizedNew)
+      : sanitizedNew.concat(existingList);
   const deduped = [];
   const seen = new Set();
   combined.forEach(entry => {
@@ -660,7 +687,7 @@ async function appendTrashEntries(entries, options) {
     if (id) seen.add(id);
     deduped.push(entry);
   });
-  const truncated = deduped.slice(0, limit);
+  const truncated = mode === 'append' ? deduped.slice(-limit) : deduped.slice(0, limit);
   return setTrashEntries(truncated);
 }
 

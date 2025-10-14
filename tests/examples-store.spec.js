@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
-process.env.KV_REST_API_URL = process.env.KV_REST_API_URL || '';
-process.env.KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN || '';
+process.env.KV_REST_API_URL = process.env.KV_REST_API_URL || 'https://kv.test.local';
+process.env.KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN || 'test-token';
 
 function createMockKv() {
   const data = new Map();
@@ -46,8 +46,7 @@ function createMockKv() {
 }
 
 const mockKv = createMockKv();
-const kvModulePath = require.resolve('@vercel/kv');
-require.cache[kvModulePath] = { exports: { kv: mockKv.api } };
+global.__MATH_VISUALS_KV_CLIENT__ = mockKv.api;
 
 const {
   normalizePath,
@@ -73,6 +72,10 @@ test.beforeEach(() => {
   if (global.__EXAMPLES_MEMORY_INDEX__) {
     global.__EXAMPLES_MEMORY_INDEX__.clear();
   }
+});
+
+test.afterAll(() => {
+  delete global.__MATH_VISUALS_KV_CLIENT__;
 });
 
 function buildPath() {
