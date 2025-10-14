@@ -1145,14 +1145,69 @@ function renderDecorations(g, points, decorations, options = {}) {
 }
 
 /* ---------- PARSE ---------- */
+const SPEC_SIDE_MAP_TRI = {
+  AB: 'c',
+  BA: 'c',
+  BC: 'a',
+  CB: 'a',
+  AC: 'b',
+  CA: 'b'
+};
+const SPEC_SIDE_MAP_QUAD = {
+  AB: 'a',
+  BA: 'a',
+  BC: 'b',
+  CB: 'b',
+  CD: 'c',
+  DC: 'c',
+  AD: 'd',
+  DA: 'd'
+};
+function normalizeSpecKey(rawKey, shapeHint) {
+  if (!rawKey) return null;
+  const letters = rawKey.replace(/[^A-Za-z]/g, '');
+  if (!letters) return null;
+  if (letters.length === 1) {
+    const single = letters;
+    if (/[abcd]/.test(single)) return single.toLowerCase();
+    if (/[ABCD]/.test(single)) return single.toUpperCase();
+    return single;
+  }
+  if (letters.length === 2) {
+    const up = letters.toUpperCase();
+    if (shapeHint === 'quad' && SPEC_SIDE_MAP_QUAD[up]) return SPEC_SIDE_MAP_QUAD[up];
+    if (shapeHint === 'tri' && SPEC_SIDE_MAP_TRI[up]) return SPEC_SIDE_MAP_TRI[up];
+    if (SPEC_SIDE_MAP_QUAD[up]) return SPEC_SIDE_MAP_QUAD[up];
+    if (SPEC_SIDE_MAP_TRI[up]) return SPEC_SIDE_MAP_TRI[up];
+    return null;
+  }
+  if (letters.length === 3) {
+    const mid = letters[1].toUpperCase();
+    if (/[ABCD]/.test(mid)) return mid;
+  }
+  return null;
+}
 function parseSpec(str) {
   const out = {};
   if (!str) return out;
+  let shapeHint = null;
+  const prefixMatch = str.match(/^\s*(trekant|triangel|firkant|rektangel|kvadrat)\b/i);
+  if (prefixMatch) {
+    const keyword = prefixMatch[1].toLowerCase();
+    if (keyword.startsWith('trek') || keyword.startsWith('tria')) {
+      shapeHint = 'tri';
+    } else {
+      shapeHint = 'quad';
+    }
+    str = str.slice(prefixMatch[0].length);
+    str = str.replace(/^[\s:=,-]+/, '');
+  }
   str = str.replace(/\bog\b/gi, ',');
-  const pairRegex = /([abcdABCD])\s*=\s*([-+]?(?:\d+[.,]\d+|\d+|\.[0-9]+))(?:\s*°)?/g;
+  const pairRegex = /([A-Za-z]{1,3})\s*=\s*([-+]?(?:\d+[.,]\d+|\d+|\.[0-9]+))(?:\s*(?:°|[a-zA-Z]+))?/g;
   let match;
   while (match = pairRegex.exec(str)) {
-    const key = match[1].trim();
+    const key = normalizeSpecKey(match[1].trim(), shapeHint);
+    if (!key) continue;
     const rawValue = match[2];
     const value = parseFloat(rawValue.replace(',', '.'));
     if (!Number.isFinite(value)) continue;
