@@ -547,12 +547,23 @@
             item.dataset.id = itemData.id;
           }
         }
+        const exampleForTitle = itemData && itemData.example && typeof itemData.example === 'object'
+          ? itemData.example
+          : null;
+        const exampleTitle =
+          exampleForTitle && typeof exampleForTitle.title === 'string' && exampleForTitle.title.trim()
+            ? exampleForTitle.title.trim()
+            : '';
+        const exampleDescriptionForTitle =
+          exampleForTitle && typeof exampleForTitle.description === 'string'
+            ? exampleForTitle.description.trim()
+            : '';
         const titleText = typeof itemData.label === 'string' && itemData.label.trim()
           ? itemData.label.trim()
-          : typeof itemData.example?.title === 'string' && itemData.example.title.trim()
-            ? itemData.example.title.trim()
-            : typeof itemData.example?.description === 'string' && itemData.example.description.trim()
-              ? itemData.example.description.trim().slice(0, 120)
+          : exampleTitle
+            ? exampleTitle
+            : exampleDescriptionForTitle
+              ? exampleDescriptionForTitle.slice(0, 120)
               : `Eksempel ${index + 1}`;
         if (title) {
           title.textContent = titleText;
@@ -582,7 +593,13 @@
           }
         }
         if (description) {
-          const text = typeof itemData.example?.description === 'string' ? itemData.example.description.trim() : '';
+          const exampleForDescription = itemData && itemData.example && typeof itemData.example === 'object'
+            ? itemData.example
+            : null;
+          const text =
+            exampleForDescription && typeof exampleForDescription.description === 'string'
+              ? exampleForDescription.description.trim()
+              : '';
           if (text) {
             description.hidden = false;
             description.textContent = text;
