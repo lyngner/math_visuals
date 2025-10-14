@@ -184,11 +184,14 @@ function cloneJobForSummary(job) {
     };
   }
   if (job.type === 'polygon') {
-    return {
+    const summary = {
       type: 'polygon',
       sides: job.obj && Number.isFinite(job.obj.sides) ? Math.max(3, Math.round(job.obj.sides)) : null,
       side: cloneDimension(job.obj && job.obj.side)
     };
+    const decorations = summarizeJobDecorations(job);
+    if (decorations.length) summary.decorations = decorations;
+    return summary;
   }
   if (job.type === 'polygonArc') {
     const base = job.obj && job.obj.polygon ? job.obj.polygon : null;
@@ -256,9 +259,34 @@ function cloneJobForSummary(job) {
 }
 function summarizeJobDecorations(job) {
   if (!job || typeof job !== 'object' || !Array.isArray(job.decorations)) return [];
-  const type = job.type === 'tri' ? 'tri' : job.type === 'quad' || job.type === 'polygonArc' || job.type === 'doubleTri' ? 'quad' : null;
-  if (!type) return [];
-  const letters = type === 'tri' ? ['A', 'B', 'C'] : ['A', 'B', 'C', 'D'];
+  const cloneDimension = entry => {
+    if (!entry || typeof entry !== 'object') return null;
+    const label = typeof entry.label === 'string' ? entry.label : '';
+    const value = Number.isFinite(entry.value) ? entry.value : null;
+    const requested = Boolean(entry.requested);
+    return { label, value, requested };
+  };
+  const determineLetters = () => {
+    if (job.type === 'tri') return ['A', 'B', 'C'];
+    if (job.type === 'quad' || job.type === 'doubleTri') return ['A', 'B', 'C', 'D'];
+    if (job.type === 'polygonArc') {
+      const sides = job.obj && job.obj.polygon && Number.isFinite(job.obj.polygon.sides) ? Math.max(3, Math.round(job.obj.polygon.sides)) : null;
+      if (Number.isFinite(sides)) {
+        return Array.from({ length: sides }, (_, i) => indexToLetter(i, true));
+      }
+      return ['A', 'B', 'C', 'D'];
+    }
+    if (job.type === 'polygon') {
+      const sides = job.obj && Number.isFinite(job.obj.sides) ? Math.max(3, Math.round(job.obj.sides)) : null;
+      if (Number.isFinite(sides)) {
+        return Array.from({ length: sides }, (_, i) => indexToLetter(i, true));
+      }
+      return ['A', 'B', 'C', 'D'];
+    }
+    return [];
+  };
+  const letters = determineLetters();
+  if (!letters.length) return [];
   const seen = new Set();
   const out = [];
   job.decorations.forEach(dec => {
@@ -288,6 +316,24 @@ function summarizeJobDecorations(job) {
         base: resolved.base,
         implied: Boolean(resolved.implied)
       });
+    } else if (dec.type === 'semicircle') {
+      const from = String(dec.from || '').toUpperCase();
+      const to = String(dec.to || '').toUpperCase();
+      if (!from || !to || from === to) return;
+      if (letters.length && (!letters.includes(from) || !letters.includes(to))) return;
+      const key = from < to ? `${from}${to}` : `${to}${from}`;
+      const tag = `semicircle:${key}`;
+      if (seen.has(tag)) return;
+      seen.add(tag);
+      const entry = {
+        type: 'semicircle',
+        side: key
+      };
+      const radius = cloneDimension(dec.radius);
+      const diameter = cloneDimension(dec.diameter);
+      if (radius) entry.radius = radius;
+      if (diameter) entry.diameter = diameter;
+      out.push(entry);
     }
   });
   return out;
@@ -338,6 +384,7 @@ function describeDecorationsSummary(decorations) {
   if (!Array.isArray(decorations) || !decorations.length) return '';
   const diagonals = [];
   const heights = [];
+  const semicircles = [];
   decorations.forEach(dec => {
     if (!dec || typeof dec !== 'object') return;
     if (dec.type === 'diagonal' && dec.from && dec.to) {
@@ -346,6 +393,12 @@ function describeDecorationsSummary(decorations) {
       heights.push({
         from: dec.from,
         base: dec.base
+      });
+    } else if (dec.type === 'semicircle' && dec.side) {
+      semicircles.push({
+        side: dec.side,
+        radius: dec.radius,
+        diameter: dec.diameter
       });
     }
   });
@@ -365,6 +418,27 @@ function describeDecorationsSummary(decorations) {
       parts.push(`Høyden ${phrases[0]} er tegnet som stiplet linje.`);
     } else {
       parts.push(`Høydene ${list} er tegnet som stiplede linjer.`);
+    }
+  }
+  if (semicircles.length) {
+    const phrases = semicircles.map(info => {
+      let base = `halvsirkel på side ${info.side}`;
+      const dims = [];
+      const radiusText = describeDimensionEntry(info.radius, 'radius');
+      const diameterText = describeDimensionEntry(info.diameter, 'diameter');
+      if (radiusText) dims.push(radiusText);
+      if (diameterText) dims.push(diameterText);
+      if (dims.length) {
+        const dimList = nkantFormatList(dims);
+        base += ` med ${dimList}`;
+      }
+      return base;
+    });
+    const list = nkantFormatList(phrases);
+    if (phrases.length === 1) {
+      parts.push(`Det er tegnet en ${phrases[0]}.`);
+    } else {
+      parts.push(`Det er tegnet ${list}.`);
     }
   }
   return parts.join(' ');
@@ -911,11 +985,34 @@ function collectHeightInfos(points, decorations) {
   });
   return infos;
 }
+function centroidFromPointMap(points, order) {
+  if (!points || typeof points !== 'object') return null;
+  if (Array.isArray(order) && order.length >= 3) {
+    const polygon = order.map(label => points[label]).filter(p => p && typeof p.x === 'number' && typeof p.y === 'number');
+    if (polygon.length >= 3) {
+      return polygonCentroid(polygon);
+    }
+  }
+  const entries = Object.values(points).filter(p => p && typeof p.x === 'number' && typeof p.y === 'number');
+  if (!entries.length) return null;
+  let sumX = 0;
+  let sumY = 0;
+  entries.forEach(p => {
+    sumX += p.x;
+    sumY += p.y;
+  });
+  return {
+    x: sumX / entries.length,
+    y: sumY / entries.length
+  };
+}
 function renderDecorations(g, points, decorations, options = {}) {
   if (!Array.isArray(decorations) || !decorations.length) return;
   const letters = Object.keys(points);
   const seen = new Set();
   const skipHeights = options && options.skipHeights instanceof Set ? options.skipHeights : null;
+  const pointOrder = options && Array.isArray(options.pointOrder) ? options.pointOrder : null;
+  const baseCentroid = options && options.centroid ? options.centroid : centroidFromPointMap(points, pointOrder);
   decorations.forEach(dec => {
     if (!dec || typeof dec !== 'object') return;
     if (dec.type === 'diagonal') {
@@ -955,6 +1052,94 @@ function renderDecorations(g, points, decorations, options = {}) {
       };
       if (Math.hypot(altDir.x, altDir.y) > 1e-6) {
         drawRightAngleMarker(g, foot, baseDir, altDir);
+      }
+    } else if (dec.type === 'semicircle') {
+      const from = String(dec.from || '').toUpperCase();
+      const to = String(dec.to || '').toUpperCase();
+      if (!letters.includes(from) || !letters.includes(to) || from === to) return;
+      const key = from < to ? `${from}${to}` : `${to}${from}`;
+      const tag = `semicircle:${key}`;
+      if (seen.has(tag)) return;
+      seen.add(tag);
+      const P = points[from];
+      const Q = points[to];
+      if (!P || !Q) return;
+      const chordVec = {
+        x: Q.x - P.x,
+        y: Q.y - P.y
+      };
+      const chordLen = Math.hypot(chordVec.x, chordVec.y);
+      if (!(chordLen > 1e-6)) return;
+      const center = {
+        x: (P.x + Q.x) / 2,
+        y: (P.y + Q.y) / 2
+      };
+      let normal = {
+        x: chordVec.y / chordLen,
+        y: -chordVec.x / chordLen
+      };
+      const reference = baseCentroid || center;
+      const interiorSign = (Q.x - P.x) * (reference.y - P.y) - (Q.y - P.y) * (reference.x - P.x);
+      if (interiorSign < 0) {
+        normal.x *= -1;
+        normal.y *= -1;
+      }
+      const arcRadius = chordLen / 2;
+      const midArc = {
+        x: center.x + normal.x * arcRadius,
+        y: center.y + normal.y * arcRadius
+      };
+      const cross = (Q.x - P.x) * (midArc.y - P.y) - (Q.y - P.y) * (midArc.x - P.x);
+      const sweep = cross < 0 ? 1 : 0;
+      add(g, 'path', {
+        d: `M ${P.x} ${P.y} A ${arcRadius} ${arcRadius} 0 0 ${sweep} ${Q.x} ${Q.y}`,
+        fill: 'none',
+        stroke: STYLE.edgeStroke,
+        'stroke-width': STYLE.edgeWidth,
+        'stroke-linecap': 'round'
+      });
+      add(g, 'line', {
+        x1: center.x,
+        y1: center.y,
+        x2: midArc.x,
+        y2: midArc.y,
+        stroke: STYLE.edgeStroke,
+        'stroke-width': STYLE.edgeWidth * 0.75,
+        'stroke-linecap': 'round'
+      });
+      add(g, 'circle', {
+        cx: center.x,
+        cy: center.y,
+        r: 6,
+        fill: STYLE.edgeStroke
+      });
+      const radiusEntry = dec.radius && typeof dec.radius === 'object' ? dec.radius : null;
+      const diameterEntry = dec.diameter && typeof dec.diameter === 'object' ? dec.diameter : null;
+      const radiusText = radiusEntry ? normalizedDimensionText(radiusEntry, 'r') : '';
+      if (radiusEntry && radiusText) {
+        const labelPoint = {
+          x: center.x + normal.x * arcRadius * 0.55,
+          y: center.y + normal.y * arcRadius * 0.55
+        };
+        addHaloText(g, labelPoint.x, labelPoint.y, radiusText, STYLE.sideFS, {
+          'text-anchor': 'middle',
+          'dominant-baseline': 'middle'
+        });
+      }
+      const diameterText = diameterEntry ? normalizedDimensionText(diameterEntry, 'd') : '';
+      if (diameterEntry && diameterText) {
+        const inward = {
+          x: -normal.x,
+          y: -normal.y
+        };
+        const diameterPoint = {
+          x: center.x + inward.x * Math.min(arcRadius * 0.6, 40),
+          y: center.y + inward.y * Math.min(arcRadius * 0.6, 40)
+        };
+        addHaloText(g, diameterPoint.x, diameterPoint.y, diameterText, STYLE.sideFS, {
+          'text-anchor': 'middle',
+          'dominant-baseline': 'middle'
+        });
       }
     }
   });
@@ -1575,6 +1760,63 @@ function parseDecorationSegment(segment) {
       handled: true,
       decorations,
       normalized
+    };
+  }
+  if (/^halvsirkel/i.test(trimmed)) {
+    const dims = parseLabeledSegments(trimmed, [{
+      id: 'radius',
+      keywords: ['radius', 'rad'],
+      defaultLabel: 'r'
+    }, {
+      id: 'diameter',
+      keywords: ['diameter', 'diam'],
+      defaultLabel: 'd'
+    }]);
+    const radiusEntry = dims.radius ? {
+      ...dims.radius,
+      requested: true
+    } : null;
+    if (radiusEntry && !radiusEntry.label) radiusEntry.label = 'r';
+    const diameterEntry = dims.diameter ? {
+      ...dims.diameter,
+      requested: true
+    } : null;
+    if (diameterEntry && !diameterEntry.label) diameterEntry.label = 'd';
+    const sideMatch = trimmed.match(/halvsirkel\s+([A-Za-z]+(?:\s*[A-Za-z]+)?)/i);
+    const sideSegment = sideMatch ? sideMatch[1] : '';
+    const tokens = parseArcSideTokens(sideSegment);
+    let first = tokens[0] || 'A';
+    let second = tokens[1] || '';
+    if (!second) {
+      if (tokens[0] && tokens[0].length >= 2) {
+        second = tokens[0].slice(1, 2);
+      } else {
+        second = String.fromCharCode(first.charCodeAt(0) + 1);
+      }
+    }
+    first = first.slice(0, 1).toUpperCase();
+    second = second.slice(0, 1).toUpperCase();
+    if (!first) first = 'A';
+    if (!second) second = first === 'Z' ? 'A' : String.fromCharCode(first.charCodeAt(0) + 1);
+    if (first === second) {
+      second = second === 'Z' ? 'A' : String.fromCharCode(second.charCodeAt(0) + 1);
+    }
+    const normalizedParts = [`halvsirkel ${first}${second}`];
+    const radiusText = radiusEntry ? normalizedDimensionText(radiusEntry, 'r') : '';
+    const diameterText = diameterEntry ? normalizedDimensionText(diameterEntry, 'd') : '';
+    if (radiusEntry && radiusText) normalizedParts.push(`radius ${radiusText}`);
+    if (diameterEntry && diameterText) normalizedParts.push(`diameter ${diameterText}`);
+    const decoration = {
+      type: 'semicircle',
+      from: first,
+      to: second
+    };
+    if (radiusEntry) decoration.radius = radiusEntry;
+    if (diameterEntry) decoration.diameter = diameterEntry;
+    return {
+      handled: true,
+      decorations: [decoration],
+      normalized: normalizedParts
     };
   }
   if (/^h(?:øy|oy)der?/i.test(trimmed)) {
@@ -2205,7 +2447,9 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
   });
   const skipHeights = heightTag ? new Set([heightTag]) : null;
   renderDecorations(g, pointsMap, decorations, {
-    skipHeights
+    skipHeights,
+    centroid: ctr,
+    pointOrder: ['A', 'B', 'C']
   });
   const summary = cloneJobForSummary({
     type: 'tri',
@@ -2509,7 +2753,11 @@ function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations) {
   });
   const pointsMap = { A, B, C, D };
   if (decorations && decorations.length) {
-    renderDecorations(g, pointsMap, decorations);
+    const decoCentroid = centroidFromPointMap(pointsMap, ['A', 'B', 'C', 'D']);
+    renderDecorations(g, pointsMap, decorations, {
+      centroid: decoCentroid,
+      pointOrder: ['A', 'B', 'C', 'D']
+    });
   }
   const angleMarksTop = buildAngleMarkSummary([
     ['A', AresTop, firstSol.A],
@@ -2742,7 +2990,10 @@ function drawQuadToGroup(g, rect, spec, adv, decorations) {
     B,
     C,
     D
-  }, decorations);
+  }, decorations, {
+    centroid: ctr,
+    pointOrder: ['A', 'B', 'C', 'D']
+  });
   const summary = cloneJobForSummary({
     type: 'quad',
     obj: {
@@ -3116,11 +3367,17 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations) {
     });
   }
   const pointsMap = {};
+  const pointOrder = [];
   for (let i = 0; i < count; i++) {
-    pointsMap[indexToLetter(i, true)] = pts[i];
+    const label = indexToLetter(i, true);
+    pointOrder.push(label);
+    pointsMap[label] = pts[i];
   }
   if (decorations && decorations.length) {
-    renderDecorations(g, pointsMap, decorations);
+    renderDecorations(g, pointsMap, decorations, {
+      centroid: ctr,
+      pointOrder
+    });
   }
 }
 
