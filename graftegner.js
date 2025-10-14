@@ -4027,7 +4027,42 @@ function setupSettingsForm() {
     }
     whenMathLiveReady(apply);
   };
-  const ensureFunctionInputElement = element => element;
+  const createFunctionFallbackInput = source => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = source && source.className ? source.className : 'func-math-field';
+    input.setAttribute('data-fun', '');
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    if (source) {
+      const placeholder = source.getAttribute('placeholder');
+      const ariaLabel = source.getAttribute('aria-label');
+      const existingValue = source.hasAttribute('value') ? source.getAttribute('value') : source.textContent;
+      if (placeholder) {
+        input.setAttribute('placeholder', placeholder);
+      }
+      if (ariaLabel) {
+        input.setAttribute('aria-label', ariaLabel);
+      }
+      if (existingValue) {
+        input.value = existingValue;
+      }
+    }
+    return input;
+  };
+  const ensureFunctionInputElement = element => {
+    if (!element) return element;
+    const tag = element.tagName ? element.tagName.toUpperCase() : '';
+    if (tag === MATHFIELD_TAG) {
+      const ctor = getMathFieldConstructor();
+      if (!ctor) {
+        const fallback = createFunctionFallbackInput(element);
+        element.replaceWith(fallback);
+        return fallback;
+      }
+    }
+    return element;
+  };
   const setFunctionInputValue = (element, value) => {
     if (!element) return;
     const str = value != null ? String(value) : '';
