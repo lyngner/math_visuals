@@ -57,4 +57,19 @@ test.describe('task mode description preview', () => {
     await expect(preview).not.toContainText('@math');
     await expect(preview).toContainText(/y\s*=\s*ax\s*\+\s*b/);
   });
+
+  test('renders KaTeX math and answer inputs in task mode', async ({ page }) => {
+    await page.goto('/diagram/index.html', { waitUntil: 'load' });
+    const description = 'Regn ut @math{\\tfrac{1}{2}} + @input[answer="7/12"|size="3"]';
+    await page.fill('#exampleDescription', description);
+    await page.evaluate(() => window.mathVisuals.setAppMode('task', { force: true }));
+
+    const preview = page.locator('.example-description-preview');
+    await expect(preview).toBeVisible();
+    await expect(preview.locator('.math-vis-description-math .katex')).toHaveCount(1);
+
+    const inputField = preview.locator('.math-vis-answerbox__input');
+    await expect(inputField).toHaveCount(1);
+    await expect(inputField).toHaveAttribute('size', '3');
+  });
 });
