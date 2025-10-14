@@ -274,6 +274,19 @@
   }
   let pendingAppModeForBody = null;
   let pendingAppModeApplyScheduled = false;
+  let descriptionVisibilityUpdateScheduled = false;
+
+  function scheduleDescriptionVisibilityUpdate(targetMode) {
+    if (descriptionVisibilityUpdateScheduled) return;
+    descriptionVisibilityUpdateScheduled = true;
+    setTimeout(() => {
+      descriptionVisibilityUpdateScheduled = false;
+      try {
+        updateDescriptionEditVisibilityForMode(targetMode);
+      } catch (_) {}
+    }, 0);
+  }
+
   function applyAppMode(mode) {
     if (typeof document === 'undefined') return;
     const normalized = normalizeAppMode(mode) || DEFAULT_APP_MODE;
@@ -286,6 +299,7 @@
       }
       const isTaskMode = targetMode === 'task';
       adjustSplitLayoutForMode(isTaskMode);
+      updateDescriptionEditVisibilityForMode(targetMode);
       if (isTaskMode) {
         const raf =
           typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
@@ -3144,6 +3158,61 @@
       });
   }
 
+  function updateDescriptionEditVisibilityForMode(mode) {
+    const normalized = normalizeAppMode(mode != null ? mode : currentAppMode) || DEFAULT_APP_MODE;
+    const isTaskMode = normalized === 'task';
+    let input = null;
+    try {
+      input = getDescriptionInput();
+    } catch (error) {
+      if (isTaskMode) {
+        scheduleDescriptionVisibilityUpdate(normalized);
+      }
+      return;
+    }
+    if (!input) {
+      if (isTaskMode) {
+        scheduleDescriptionVisibilityUpdate(normalized);
+      }
+      return;
+    }
+    const container = input.closest('.example-description');
+    if (container) {
+      if (isTaskMode) {
+        container.classList.add('example-description--task-mode');
+      } else {
+        container.classList.remove('example-description--task-mode');
+      }
+    }
+    if (isTaskMode) {
+      input.setAttribute('data-task-mode-hidden', 'true');
+      input.hidden = true;
+      input.setAttribute('aria-hidden', 'true');
+    } else {
+      if (input.getAttribute('data-task-mode-hidden') === 'true') {
+        input.hidden = false;
+        input.removeAttribute('hidden');
+      }
+      input.removeAttribute('data-task-mode-hidden');
+      input.removeAttribute('aria-hidden');
+    }
+    const preview = getDescriptionPreviewElement();
+    if (preview) {
+      if (isTaskMode) {
+        if (preview.dataset.empty === 'true') {
+          preview.setAttribute('hidden', '');
+          preview.setAttribute('aria-hidden', 'true');
+        } else {
+          preview.removeAttribute('hidden');
+          preview.setAttribute('aria-hidden', 'false');
+        }
+      } else if (preview.dataset.empty === 'true') {
+        preview.setAttribute('hidden', '');
+        preview.setAttribute('aria-hidden', 'true');
+      }
+    }
+  }
+
   function ensureTaskModeDescriptionRendered() {
     let input;
     try {
@@ -3164,6 +3233,7 @@
       throw error;
     }
     if (!input) return;
+    updateDescriptionEditVisibilityForMode('task');
     let value = typeof input.value === 'string' ? input.value : '';
     let trimmed = value && typeof value.trim === 'function' ? value.trim() : '';
     if (!trimmed) {
