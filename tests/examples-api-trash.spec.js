@@ -1,5 +1,18 @@
 const { test, expect } = require('@playwright/test');
 
+const TEST_KV_URL = 'https://kv.test.local';
+const TEST_KV_TOKEN = 'test-token';
+
+const originalKvUrl = process.env.KV_REST_API_URL;
+const originalKvToken = process.env.KV_REST_API_TOKEN;
+
+process.env.KV_REST_API_URL = originalKvUrl || TEST_KV_URL;
+process.env.KV_REST_API_TOKEN = originalKvToken || TEST_KV_TOKEN;
+
+const { setupKvMock } = require('./helpers/kv-mock');
+
+const { mockKv, cleanup: cleanupKvMock } = setupKvMock();
+
 const {
   invokeExamplesTrashApi
 } = require('./helpers/examples-trash-api-utils');
@@ -10,7 +23,22 @@ const {
 
 test.describe('Examples trash API', () => {
   test.beforeEach(async () => {
+    mockKv.clear();
     await setTrashEntries([]);
+  });
+
+  test.afterAll(() => {
+    cleanupKvMock();
+    if (originalKvUrl !== undefined) {
+      process.env.KV_REST_API_URL = originalKvUrl;
+    } else {
+      delete process.env.KV_REST_API_URL;
+    }
+    if (originalKvToken !== undefined) {
+      process.env.KV_REST_API_TOKEN = originalKvToken;
+    } else {
+      delete process.env.KV_REST_API_TOKEN;
+    }
   });
 
   test('POST stores trash entries and GET returns archived payload', async () => {
