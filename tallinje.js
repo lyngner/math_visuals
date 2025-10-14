@@ -839,7 +839,7 @@
     if (!items.length) {
       const empty = document.createElement('p');
       empty.className = 'draggable-config-empty';
-      empty.textContent = 'Ingen draggable elementer er lagt til.';
+      empty.textContent = 'Ingen elementer er lagt til.';
       draggableListContainer.appendChild(empty);
       return;
     }
@@ -853,8 +853,11 @@
       title.textContent = `Element ${index + 1}`;
       wrapper.appendChild(title);
 
-      const grid = document.createElement('div');
-      grid.className = 'draggable-config-grid';
+      const topGrid = document.createElement('div');
+      topGrid.className = 'draggable-config-grid draggable-config-grid--triple';
+
+      const bottomGrid = document.createElement('div');
+      bottomGrid.className = 'draggable-config-grid';
 
       const isLocked = Boolean(item.lockPosition);
 
@@ -869,7 +872,7 @@
         render();
       });
       labelField.appendChild(labelInput);
-      grid.appendChild(labelField);
+      topGrid.appendChild(labelField);
       applyDraggableEditorFocus(labelInput, item.id, 'label', focusRequest);
 
       const valueField = document.createElement('label');
@@ -903,7 +906,7 @@
         render();
       });
       valueField.appendChild(valueInput);
-      grid.appendChild(valueField);
+      topGrid.appendChild(valueField);
       applyDraggableEditorFocus(valueInput, item.id, 'value', focusRequest);
 
       const startValueField = document.createElement('label');
@@ -935,7 +938,7 @@
         render();
       });
       startValueField.appendChild(startValueInput);
-      grid.appendChild(startValueField);
+      topGrid.appendChild(startValueField);
       applyDraggableEditorFocus(startValueInput, item.id, 'startValue', focusRequest);
 
       const offsetField = document.createElement('label');
@@ -967,7 +970,7 @@
         render();
       });
       offsetField.appendChild(offsetInput);
-      grid.appendChild(offsetField);
+      bottomGrid.appendChild(offsetField);
       applyDraggableEditorFocus(offsetInput, item.id, 'offset', focusRequest);
 
       const lockField = document.createElement('label');
@@ -1004,10 +1007,11 @@
       const lockLabel = document.createElement('span');
       lockLabel.textContent = 'Lås posisjon';
       lockField.appendChild(lockLabel);
-      grid.appendChild(lockField);
+      bottomGrid.appendChild(lockField);
       applyDraggableEditorFocus(lockInput, item.id, 'lockPosition', focusRequest);
 
-      wrapper.appendChild(grid);
+      wrapper.appendChild(topGrid);
+      wrapper.appendChild(bottomGrid);
 
       const actions = document.createElement('div');
       actions.className = 'draggable-config-actions';
