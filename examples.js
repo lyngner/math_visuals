@@ -3900,15 +3900,24 @@
       return replaceContents(target, cloned);
     };
     const target = getBinding(name);
-    if (applyToTarget(target)) {
-      if (name in window && window[name] !== target) {
-        window[name] = target;
-      }
+    const appliedToTarget = applyToTarget(target);
+    if (target && window[name] !== target) {
+      window[name] = target;
+    }
+    if (appliedToTarget) {
       return;
     }
     const winVal = name in window ? window[name] : undefined;
     if (applyToTarget(winVal)) return;
     window[name] = cloneValue(value);
+  }
+  if (typeof window !== 'undefined') {
+    for (const name of BINDING_NAMES) {
+      const binding = getBinding(name);
+      if (binding != null && window[name] !== binding) {
+        window[name] = binding;
+      }
+    }
   }
   function triggerRefresh(index) {
     const tried = new Set();
