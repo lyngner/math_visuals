@@ -3864,6 +3864,22 @@ function setupSettingsForm() {
     }
     return collapseExpressionWhitespace(convertAsciiMathLikeToPlain(raw));
   };
+  const getPendingMathFieldPlainValue = element => {
+    if (!element || typeof element.getAttribute !== 'function') return '';
+    const pendingPlain = element.getAttribute('data-plain-value');
+    if (pendingPlain) {
+      return pendingPlain;
+    }
+    const pendingLatex = element.getAttribute('value');
+    if (pendingLatex) {
+      return convertLatexLikeToPlain(pendingLatex);
+    }
+    return '';
+  };
+  const clearPendingMathFieldPlainValue = element => {
+    if (!element || typeof element.removeAttribute !== 'function') return;
+    element.removeAttribute('data-plain-value');
+  };
   const getFunctionInputValue = element => {
     if (!element) return '';
     const tag = element.tagName ? element.tagName.toUpperCase() : '';
@@ -3880,6 +3896,9 @@ function setupSettingsForm() {
       }
       if (!plain && typeof element.value === 'string') {
         plain = element.value;
+      }
+      if (!plain) {
+        plain = getPendingMathFieldPlainValue(element);
       }
       return normalizePlainExpression(plain);
     }
@@ -4040,12 +4059,14 @@ function setupSettingsForm() {
           try {
             element.setValue(str, { format: 'ascii-math' });
             updateFunctionPreview(element);
+            clearPendingMathFieldPlainValue(element);
             return;
           } catch (_) {
             try {
               const latexValue = convertExpressionToLatex(str);
               element.setValue(latexValue, { format: 'latex' });
               updateFunctionPreview(element);
+              clearPendingMathFieldPlainValue(element);
               return;
             } catch (_) {}
           }
@@ -4057,6 +4078,7 @@ function setupSettingsForm() {
           element.setAttribute('value', latex);
         }
         updateFunctionPreview(element);
+        clearPendingMathFieldPlainValue(element);
       };
       if (!isMathLiveReady() || typeof element.setValue !== 'function') {
         const latex = convertExpressionToLatex(str);
@@ -4064,6 +4086,9 @@ function setupSettingsForm() {
           element.value = latex;
         } else {
           element.setAttribute('value', latex);
+        }
+        if (element && typeof element.setAttribute === 'function') {
+          element.setAttribute('data-plain-value', str);
         }
         updateFunctionPreview(element);
         whenMathLiveReady(applyValue);
