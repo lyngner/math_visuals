@@ -814,6 +814,46 @@ function fracLatex(x) {
   }
   return `${sign}\\frac{${n}}{${d}}`;
 }
+
+const LINEAR_EPSILON = 1e-9;
+
+function isNearly(value, target) {
+  return Math.abs(value - target) < LINEAR_EPSILON;
+}
+
+function isNearlyZero(value) {
+  return Math.abs(value) < LINEAR_EPSILON;
+}
+
+function formatLineEquation(lhs, slope, intercept, formatter, variable = 'x') {
+  const safeLhs = typeof lhs === 'string' ? lhs.trim() : '';
+  const varSymbol = typeof variable === 'string' && variable ? variable : 'x';
+  let rhs = '';
+  if (!isNearlyZero(slope)) {
+    if (isNearly(slope, 1)) {
+      rhs = varSymbol;
+    } else if (isNearly(slope, -1)) {
+      rhs = `-${varSymbol}`;
+    } else {
+      const slopePart = formatter(slope);
+      if (!slopePart) return '';
+      rhs = `${slopePart}${varSymbol}`;
+    }
+  }
+  if (!isNearlyZero(intercept)) {
+    const interceptPart = formatter(Math.abs(intercept));
+    if (!interceptPart) return '';
+    if (rhs) {
+      rhs += ` ${intercept >= 0 ? '+' : '-'} ${interceptPart}`;
+    } else {
+      rhs = intercept >= 0 ? interceptPart : `-${interceptPart}`;
+    }
+  }
+  if (!rhs) {
+    rhs = '0';
+  }
+  return safeLhs ? `${safeLhs} = ${rhs}` : rhs;
+}
 function linearStr(m, b) {
   if (ADV.points.snap.enabled) {
     if (m === 0) return `y = ${fracStr(b)}`;
@@ -3023,8 +3063,15 @@ function buildPointsLine() {
       const baseText = labelContent.text || '';
       const baseLatex = labelContent.latex || '';
       const baseHtml = labelContent.html || '';
+      const extractLhs = value => {
+        if (typeof value !== 'string') return '';
+        const eqIndex = value.indexOf('=');
+        if (eqIndex === -1) return '';
+        return value.slice(0, eqIndex).trim();
+      };
       updateLabelWithAB = () => {
-        if (!ADV.curveName || !ADV.curveName.showExpression) {
+        const shouldShowExpression = !!(ADV.curveName && ADV.curveName.showExpression);
+        if (!shouldShowExpression) {
           if (labelContent.text !== baseText || labelContent.latex !== baseLatex || labelContent.html !== baseHtml) {
             labelContent.text = baseText;
             labelContent.latex = baseLatex;
@@ -3041,11 +3088,13 @@ function buildPointsLine() {
           }
           return;
         }
-        const latexA = fracLatex(m);
-        const latexB = fracLatex(b);
-        const textA = fracPlain(m);
-        const textB = fracPlain(b);
-        if (!latexA || !latexB || !textA || !textB) {
+        const normalizedLabel = normalizeExpressionText(labelFun.label || '') || (labelFun.name || '').trim();
+        const lhsText = extractLhs(baseText) || normalizedLabel || 'y';
+        const latexSource = labelFun.label || labelFun.name || normalizedLabel || 'y';
+        const lhsLatex = extractLhs(baseLatex) || convertExpressionToLatex(latexSource) || convertExpressionToLatex('y') || 'y';
+        const nextText = formatLineEquation(lhsText, m, b, fracPlain);
+        const nextLatex = formatLineEquation(lhsLatex, m, b, fracLatex);
+        if (!nextText || !nextLatex) {
           if (labelContent.text !== baseText || labelContent.latex !== baseLatex || labelContent.html !== baseHtml) {
             labelContent.text = baseText;
             labelContent.latex = baseLatex;
@@ -3053,14 +3102,10 @@ function buildPointsLine() {
           }
           return;
         }
-        const extraLatex = `a = ${latexA},\\; b = ${latexB}`;
-        const extraText = `a = ${textA}, b = ${textB}`;
-        const nextLatex = baseLatex ? `${baseLatex} \\ ${extraLatex}` : extraLatex;
-        const nextText = baseText ? `${baseText}\n${extraText}` : extraText;
-        if (labelContent.latex !== nextLatex || labelContent.text !== nextText) {
-          labelContent.latex = nextLatex;
+        if (labelContent.text !== nextText || labelContent.latex !== nextLatex) {
           labelContent.text = nextText;
-          labelContent.html = '';
+          labelContent.latex = nextLatex;
+          labelContent.html = renderLatexToHtml(nextLatex);
         }
       };
       updateLabelWithAB();
