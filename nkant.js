@@ -2270,7 +2270,26 @@ function rotateTriangleSolution(sol, rotation) {
   };
 }
 
-function pickSharedSideForDoubleTriangle(firstSol, secondSol, firstSpec, secondSpec) {
+function inferSharedSideKey(label) {
+  if (!label || typeof label !== "string") return null;
+  const trimmed = label.trim();
+  if (!trimmed) return null;
+  if (/^[abc]$/i.test(trimmed)) return trimmed.toLowerCase();
+  const letters = trimmed.toUpperCase().replace(/[^A-Z]/g, "");
+  if (!letters) return null;
+  const pair = letters.length >= 2 ? letters.slice(0, 2) : letters;
+  const map = {
+    AB: "c",
+    BA: "c",
+    BC: "a",
+    CB: "a",
+    AC: "b",
+    CA: "b"
+  };
+  return map[pair] || null;
+}
+
+function pickSharedSideForDoubleTriangle(firstSol, secondSol, firstSpec, secondSpec, sharedLabel) {
   if (!firstSol || !secondSol) return null;
   const sideKeys = ["a", "b", "c"];
   const firstExplicit = new Set(sideKeys.filter(key => firstSpec && Object.prototype.hasOwnProperty.call(firstSpec, key)));
@@ -2309,9 +2328,25 @@ function pickSharedSideForDoubleTriangle(firstSol, secondSol, firstSpec, secondS
   });
   const REL_TOLERANCE = 0.02;
   const ABS_TOLERANCE = 1e-3;
+  const withinTolerance = combo => combo.relDiff <= REL_TOLERANCE || combo.diff <= ABS_TOLERANCE;
+  const preferredKey = inferSharedSideKey(sharedLabel);
+  if (preferredKey) {
+    const preferredCombos = combos.filter(combo => combo.firstKey === preferredKey && combo.secondKey === preferredKey);
+    for (const combo of preferredCombos) {
+      if (withinTolerance(combo)) {
+        return combo;
+      }
+    }
+  }
   for (const combo of combos) {
-    if (combo.relDiff <= REL_TOLERANCE || combo.diff <= ABS_TOLERANCE) {
+    if (withinTolerance(combo)) {
       return combo;
+    }
+  }
+  if (preferredKey) {
+    const fallbackPreferred = combos.find(combo => combo.firstKey === preferredKey && combo.secondKey === preferredKey);
+    if (fallbackPreferred) {
+      return fallbackPreferred;
     }
   }
   return combos[0];
@@ -2323,7 +2358,7 @@ function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations) {
   const secondSpec = spec && spec.second ? spec.second : {};
   let firstSol = solveTriangle(firstSpec);
   let secondSol = solveTriangle(secondSpec);
-  const shared = pickSharedSideForDoubleTriangle(firstSol, secondSol, firstSpec, secondSpec);
+  const shared = pickSharedSideForDoubleTriangle(firstSol, secondSol, firstSpec, secondSpec, sharedSpec && sharedSpec.label);
   if (!shared) {
     throw new Error('Dobbel trekant: begge trekantene må ha en felles side.');
   }
