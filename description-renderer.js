@@ -70,11 +70,11 @@
   const KATEX_BASE_PATH = resolveKatexBasePath();
   const KATEX_CSS_ID = 'math-vis-katex-style';
   const KATEX_SCRIPT_ID = 'math-vis-katex-script';
-  const ANSWERBOX_STATUS_MESSAGES = {
+  const INPUT_STATUS_MESSAGES = {
     correct: 'Riktig!',
     incorrect: 'Prøv igjen.'
   };
-  let answerBoxIdCounter = 0;
+  let inputFieldIdCounter = 0;
 
   let katexPromise = null;
 
@@ -288,7 +288,7 @@
     return Number.isFinite(parsed) ? parsed : null;
   }
 
-  function parseAnswerDescriptor(content) {
+  function parseInputDescriptor(content) {
     const parts = splitDescriptor(content);
     const positional = [];
     const options = {};
@@ -352,7 +352,7 @@
     };
   }
 
-  function findNextSpecial(text, index, allowAnswerBoxes) {
+  function findNextSpecial(text, index, allowInputs) {
     const nextBreak = text.indexOf('\n', index);
     const nextMath = text.indexOf('@math{', index);
     const result = {
@@ -373,22 +373,16 @@
       result.openChar = null;
       result.closeChar = null;
     }
-    if (allowAnswerBoxes) {
-      const answerMarkers = [
-        { marker: '@answer{', openChar: '{', closeChar: '}' },
-        { marker: '@answerbox[', openChar: '[', closeChar: ']' },
-        { marker: '@input[', openChar: '[', closeChar: ']' }
-      ];
-      answerMarkers.forEach(({ marker, openChar, closeChar }) => {
-        const position = text.indexOf(marker, index);
-        if (position !== -1 && position < result.nextIndex) {
-          result.type = 'answer';
-          result.nextIndex = position;
-          result.marker = marker;
-          result.openChar = openChar;
-          result.closeChar = closeChar;
-        }
-      });
+    if (allowInputs) {
+      const marker = '@input[';
+      const position = text.indexOf(marker, index);
+      if (position !== -1 && position < result.nextIndex) {
+        result.type = 'input';
+        result.nextIndex = position;
+        result.marker = marker;
+        result.openChar = '[';
+        result.closeChar = ']';
+      }
     }
     return result;
   }
@@ -401,10 +395,10 @@
       }
       return;
     }
-    const allowAnswerBoxes = !(options && options.allowAnswerBoxes === false);
+    const allowInputs = !(options && options.allowInputs === false);
     let index = 0;
     while (index < text.length) {
-      const { type, nextIndex, marker, openChar, closeChar } = findNextSpecial(text, index, allowAnswerBoxes);
+      const { type, nextIndex, marker, openChar, closeChar } = findNextSpecial(text, index, allowInputs);
       if (type === 'end') {
         if (index < text.length) {
           container.appendChild(doc.createTextNode(text.slice(index)));
@@ -435,8 +429,8 @@
         index = extraction.endIndex + 1;
         continue;
       }
-      if (type === 'answer') {
-        const markerLength = typeof marker === 'string' ? marker.length : '@answer{'.length;
+      if (type === 'input') {
+        const markerLength = marker.length;
         const extraction = extractBalancedContent(
           text,
           nextIndex + markerLength,
@@ -447,9 +441,9 @@
           container.appendChild(doc.createTextNode(text.slice(nextIndex)));
           break;
         }
-        const answerElement = createAnswerBox(extraction.content, placeholders, interactives, marker);
-        if (answerElement) {
-          container.appendChild(answerElement);
+        const inputElement = createInputField(extraction.content, placeholders, interactives);
+        if (inputElement) {
+          container.appendChild(inputElement);
         } else {
           container.appendChild(doc.createTextNode(text.slice(nextIndex, extraction.endIndex + 1)));
         }
@@ -520,24 +514,21 @@
     return table;
   }
 
-  function createAnswerBox(content, placeholders, interactives, marker) {
-    if (!interactives || !Array.isArray(interactives.answerBoxes)) return null;
-    const descriptor = parseAnswerDescriptor(content);
+  function createInputField(content, placeholders, interactives) {
+    if (!interactives || !Array.isArray(interactives.inputFields)) return null;
+    const descriptor = parseInputDescriptor(content);
     if (!descriptor.acceptedAnswers.length) {
       return null;
     }
     const container = doc.createElement('span');
     container.className = 'math-vis-answerbox math-vis-answerbox--empty';
     container.dataset.state = 'empty';
-
-    if (marker === '@input[') {
-      container.classList.add('math-vis-answerbox--input');
-    }
+    container.classList.add('math-vis-answerbox--input');
 
     if (descriptor.label) {
       const prompt = doc.createElement('span');
       prompt.className = 'math-vis-answerbox__prompt';
-      appendInlineContent(prompt, descriptor.label, placeholders, interactives, { allowAnswerBoxes: false });
+      appendInlineContent(prompt, descriptor.label, placeholders, interactives, { allowInputs: false });
       container.appendChild(prompt);
     }
 
@@ -567,7 +558,7 @@
     const status = doc.createElement('span');
     status.className = 'math-vis-answerbox__status';
     status.setAttribute('aria-live', 'polite');
-    const statusId = `math-vis-answerbox-status-${++answerBoxIdCounter}`;
+    const statusId = `math-vis-answerbox-status-${++inputFieldIdCounter}`;
     status.id = statusId;
     input.setAttribute('aria-describedby', statusId);
 
@@ -575,12 +566,12 @@
     container.appendChild(inputWrap);
     container.appendChild(status);
 
-    interactives.answerBoxes.push({
+    interactives.inputFields.push({
       container,
       input,
       status,
       descriptor,
-      variant: marker === '@input[' ? 'input' : 'answerbox'
+      variant: 'input'
     });
 
     return container;
@@ -646,114 +637,19 @@
     appendParagraphs(target, after, placeholders, interactives);
   }
 
-  function findFirstUnescaped(text, char) {
-    if (typeof text !== 'string' || !char) return -1;
-    for (let i = 0; i < text.length; i++) {
-      const current = text[i];
-      if (current === '\\') {
-        i += 1;
-        continue;
-      }
-      if (current === char) return i;
-    }
-    return -1;
-  }
-
-  function parseTaskBlock(content) {
-    if (typeof content !== 'string') {
-      return { title: '', body: '' };
-    }
-    const normalized = content.replace(/\r\n?/g, '\n');
-    const trimmed = normalized.trim();
-    if (!trimmed) {
-      return { title: '', body: '' };
-    }
-    const pipeIndex = findFirstUnescaped(trimmed, '|');
-    let title;
-    let body;
-    if (pipeIndex !== -1) {
-      title = trimmed.slice(0, pipeIndex);
-      body = trimmed.slice(pipeIndex + 1);
-    } else {
-      const newlineIndex = trimmed.indexOf('\n');
-      if (newlineIndex !== -1) {
-        title = trimmed.slice(0, newlineIndex);
-        body = trimmed.slice(newlineIndex + 1);
-      } else {
-        title = trimmed;
-        body = '';
-      }
-    }
-    return {
-      title: collapseWhitespace(unescapeMarkup(title || '')),
-      body: unescapeMarkup(body || '').trim()
-    };
-  }
-
-  function createTaskSection(content, placeholders, interactives) {
-    const parsed = parseTaskBlock(content);
-    const { title, body } = parsed;
-    if (!title && !body) {
-      return null;
-    }
-    const section = doc.createElement('section');
-    section.className = 'math-vis-task';
-    if (title) {
-      const heading = doc.createElement('h3');
-      heading.className = 'math-vis-task__title';
-      appendInlineContent(heading, title, placeholders, interactives, { allowAnswerBoxes: false });
-      section.appendChild(heading);
-    }
-    if (body) {
-      const contentWrap = doc.createElement('div');
-      contentWrap.className = 'math-vis-task__content';
-      appendFlowContent(contentWrap, body, placeholders, interactives);
-      if (contentWrap.childNodes.length) {
-        section.appendChild(contentWrap);
-      }
-    }
-    if (!section.childNodes.length) {
-      return null;
-    }
-    return section;
-  }
-
   function parse(value) {
     const fragment = doc.createDocumentFragment();
     const placeholders = [];
-    const answerBoxes = [];
+    const inputFields = [];
     if (typeof value !== 'string') {
-      return { fragment, placeholders, answerBoxes };
+      return { fragment, placeholders, inputFields };
     }
-    const interactives = { answerBoxes };
-    const normalized = value.replace(/\r\n?/g, '\n');
-    const lower = normalized.toLowerCase();
-    let index = 0;
-    while (index < normalized.length) {
-      const found = findBlock(normalized, lower, '@task', index);
-      if (!found) {
-        const remaining = normalized.slice(index);
-        appendFlowContent(fragment, remaining, placeholders, interactives);
-        break;
-      }
-      const before = normalized.slice(index, found.markerIndex);
-      appendFlowContent(fragment, before, placeholders, interactives);
-      if (!found.extraction) {
-        appendFlowContent(fragment, normalized.slice(found.markerIndex), placeholders, interactives);
-        break;
-      }
-      const section = createTaskSection(found.extraction.content, placeholders, interactives);
-      if (section) {
-        fragment.appendChild(section);
-      } else {
-        appendFlowContent(fragment, normalized.slice(found.markerIndex, found.extraction.endIndex + 1), placeholders, interactives);
-      }
-      index = found.extraction.endIndex + 1;
-    }
-    return { fragment, placeholders, answerBoxes };
+    const interactives = { inputFields };
+    appendFlowContent(fragment, value, placeholders, interactives);
+    return { fragment, placeholders, inputFields };
   }
 
-  function setAnswerBoxState(box, state) {
+  function setInputFieldState(box, state) {
     if (!box || !box.container) return;
     const { container, status, input, descriptor } = box;
     const stateClasses = ['math-vis-answerbox--empty', 'math-vis-answerbox--correct', 'math-vis-answerbox--incorrect'];
@@ -771,10 +667,10 @@
     container.dataset.state = state;
     if (!status || !input) return;
     if (state === 'correct') {
-      status.textContent = descriptor.correctMessage || ANSWERBOX_STATUS_MESSAGES.correct;
+      status.textContent = descriptor.correctMessage || INPUT_STATUS_MESSAGES.correct;
       input.setAttribute('aria-invalid', 'false');
     } else if (state === 'incorrect') {
-      status.textContent = descriptor.incorrectMessage || ANSWERBOX_STATUS_MESSAGES.incorrect;
+      status.textContent = descriptor.incorrectMessage || INPUT_STATUS_MESSAGES.incorrect;
       input.setAttribute('aria-invalid', 'true');
     } else {
       status.textContent = '';
@@ -782,13 +678,13 @@
     }
   }
 
-  function evaluateAnswerBox(box) {
+  function evaluateInputField(box) {
     if (!box || !box.input) return;
     const { input, descriptor } = box;
     const raw = typeof input.value === 'string' ? input.value : '';
     const trimmed = collapseWhitespace(raw);
     if (!trimmed) {
-      setAnswerBoxState(box, 'empty');
+      setInputFieldState(box, 'empty');
       return;
     }
     const comparable = descriptor.caseSensitive ? trimmed : trimmed.toLowerCase();
@@ -807,17 +703,17 @@
       }
       return false;
     });
-    setAnswerBoxState(box, isCorrect ? 'correct' : 'incorrect');
+    setInputFieldState(box, isCorrect ? 'correct' : 'incorrect');
   }
 
-  function setupAnswerBoxes(answerBoxes) {
-    if (!Array.isArray(answerBoxes) || !answerBoxes.length) return;
-    answerBoxes.forEach(box => {
+  function setupInputFields(inputFields) {
+    if (!Array.isArray(inputFields) || !inputFields.length) return;
+    inputFields.forEach(box => {
       if (!box || !box.input) return;
-      const handler = () => evaluateAnswerBox(box);
+      const handler = () => evaluateInputField(box);
       box.input.addEventListener('input', handler);
       box.input.addEventListener('blur', handler);
-      evaluateAnswerBox(box);
+      evaluateInputField(box);
     });
   }
 
@@ -827,7 +723,7 @@
       target.removeChild(target.firstChild);
     }
     const parsed = parse(typeof value === 'string' ? value : '');
-    const { fragment, placeholders, answerBoxes } = parsed;
+    const { fragment, placeholders, inputFields } = parsed;
     const hasContent = !!(fragment && fragment.childNodes && fragment.childNodes.length);
     if (fragment) {
       target.appendChild(fragment);
@@ -856,8 +752,8 @@
         setTimeout(schedule, 0);
       }
     }
-    if (answerBoxes.length) {
-      setupAnswerBoxes(answerBoxes);
+    if (inputFields.length) {
+      setupInputFields(inputFields);
     }
     return hasContent;
   }

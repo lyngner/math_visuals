@@ -2674,14 +2674,6 @@
           description: 'viser matematikkuttrykk i teksten.'
         },
         {
-          code: '@task{Tittel|Spørsmål eller instruksjon}',
-          description: 'lager en oppgave med tittel og innhold.'
-        },
-        {
-          code: '@answer{value=12|placeholder=Skriv svaret}',
-          description: 'lager en svarboks som kan sjekkes automatisk.'
-        },
-        {
           code: '@input[answer="0"|size="5"]',
           description: 'lager et kort svarfelt i løpende tekst.'
         },
