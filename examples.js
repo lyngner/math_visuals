@@ -2416,6 +2416,10 @@
   let descriptionPreview = null;
   let descriptionRendererPromise = null;
   let lastDescriptionRenderToken = 0;
+  let loadingOverlayElement = null;
+  let loadingOverlayVisible = false;
+  let loadingOverlayHideTimer = null;
+  let loadingOverlayLastShownAt = 0;
 
   const descriptionRendererLogPrefix = '[math-vis:description-loader]';
   function logDescriptionRendererEvent(level, message, details) {
@@ -3941,6 +3945,101 @@
     }
     return typeof svgMarkup === 'string' ? svgMarkup : '';
   }
+  function ensureLoadingOverlayElement() {
+    if (typeof document === 'undefined') return null;
+    if (loadingOverlayElement && loadingOverlayElement.isConnected) {
+      return loadingOverlayElement;
+    }
+    const existing = document.getElementById('exampleLoadingOverlay');
+    if (existing && existing.classList && existing.classList.contains('example-loading-overlay')) {
+      loadingOverlayElement = existing;
+    } else {
+      const overlay = document.createElement('div');
+      overlay.id = 'exampleLoadingOverlay';
+      overlay.className = 'example-loading-overlay';
+      overlay.setAttribute('aria-hidden', 'true');
+      const content = document.createElement('div');
+      content.className = 'example-loading-overlay__content';
+      content.setAttribute('role', 'status');
+      content.setAttribute('aria-live', 'polite');
+      const spinner = document.createElement('div');
+      spinner.className = 'example-loading-overlay__spinner';
+      const text = document.createElement('div');
+      text.className = 'example-loading-overlay__text';
+      text.textContent = 'Laster inn eksempel …';
+      content.appendChild(spinner);
+      content.appendChild(text);
+      overlay.appendChild(content);
+      loadingOverlayElement = overlay;
+    }
+    const attachOverlay = () => {
+      const parent = document.body || document.documentElement;
+      if (!parent || !loadingOverlayElement) return false;
+      if (loadingOverlayElement.parentNode === parent) return true;
+      try {
+        parent.appendChild(loadingOverlayElement);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    };
+    if (!attachOverlay()) {
+      const onReady = () => {
+        document.removeEventListener('DOMContentLoaded', onReady);
+        attachOverlay();
+      };
+      document.addEventListener('DOMContentLoaded', onReady);
+    }
+    return loadingOverlayElement;
+  }
+  function showLoadingOverlay() {
+    if (typeof document === 'undefined') return;
+    const overlay = ensureLoadingOverlayElement();
+    if (!overlay) return;
+    if (loadingOverlayHideTimer) {
+      clearTimeout(loadingOverlayHideTimer);
+      loadingOverlayHideTimer = null;
+    }
+    loadingOverlayVisible = true;
+    loadingOverlayLastShownAt = Date.now();
+    overlay.classList.add('is-visible');
+    overlay.setAttribute('aria-hidden', 'false');
+  }
+  function hideLoadingOverlay(options) {
+    if (typeof document === 'undefined') return;
+    const overlay = ensureLoadingOverlayElement();
+    if (!overlay) return;
+    const opts = options && typeof options === 'object' ? options : {};
+    const immediate = opts.immediate === true;
+    const finalize = () => {
+      overlay.classList.remove('is-visible');
+      overlay.setAttribute('aria-hidden', 'true');
+      loadingOverlayVisible = false;
+      if (loadingOverlayHideTimer) {
+        clearTimeout(loadingOverlayHideTimer);
+        loadingOverlayHideTimer = null;
+      }
+    };
+    if (!loadingOverlayVisible && !immediate) {
+      finalize();
+      return;
+    }
+    if (immediate) {
+      finalize();
+      return;
+    }
+    const minVisibleMs = 150;
+    const elapsed = Date.now() - loadingOverlayLastShownAt;
+    const delay = elapsed < minVisibleMs ? minVisibleMs - elapsed : 0;
+    if (delay > 0) {
+      if (loadingOverlayHideTimer) {
+        clearTimeout(loadingOverlayHideTimer);
+      }
+      loadingOverlayHideTimer = setTimeout(finalize, delay);
+    } else {
+      finalize();
+    }
+  }
   function ensureTabStyles() {
     if (document.getElementById('exampleTabStyles')) return;
     const style = document.createElement('style');
@@ -3966,6 +4065,12 @@
 .example-save-status[data-status="saving"] .example-save-status__spinner,.example-save-status[data-status="pending-sync"] .example-save-status__spinner{display:inline-flex;}
 .example-save-status__text{display:inline-flex;align-items:center;}
 @keyframes example-save-status-spin{to{transform:rotate(360deg);}}
+.example-loading-overlay{position:fixed;z-index:2147483640;inset:0;background:rgba(255,255,255,.95);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s ease;}
+.example-loading-overlay.is-visible{opacity:1;pointer-events:auto;}
+.example-loading-overlay__content{display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px 32px;border-radius:16px;background:#fff;box-shadow:0 10px 40px rgba(15,23,42,.15);color:#1f2937;text-align:center;}
+.example-loading-overlay__spinner{width:48px;height:48px;border-radius:50%;border:4px solid rgba(107,114,128,.25);border-top-color:var(--purple,#5B2AA5);animation:example-loading-overlay-spin .9s linear infinite;}
+.example-loading-overlay__text{font-size:16px;font-weight:600;}
+@keyframes example-loading-overlay-spin{to{transform:rotate(360deg);}}
 .card-has-settings .example-settings{margin-top:6px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;flex-direction:column;gap:10px;}
 .card-has-settings .example-settings > .example-tabs{margin-top:0;margin-bottom:0;}
 .card-has-settings .example-settings > h2:first-child{margin-top:0;}
@@ -4292,10 +4397,29 @@
     } catch (_) {}
   }
   function loadExample(index) {
+    const scheduleOverlayHide = immediate => {
+      if (immediate) {
+        hideLoadingOverlay({ immediate: true });
+        return;
+      }
+      const raf =
+        typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+          ? window.requestAnimationFrame
+          : null;
+      if (raf) {
+        raf(() => {
+          raf(() => hideLoadingOverlay());
+        });
+      } else {
+        setTimeout(() => hideLoadingOverlay(), 32);
+      }
+    };
+    showLoadingOverlay();
     const examples = getExamples();
     const ex = examples[index];
     if (!ex || !ex.config) {
       setDescriptionValue('');
+      scheduleOverlayHide(true);
       return false;
     }
     const description = extractDescriptionFromExample(ex);
@@ -4318,6 +4442,9 @@
       updateTabSelection();
       triggerRefresh(index);
       notifyParentExampleChange(index);
+      scheduleOverlayHide(false);
+    } else {
+      scheduleOverlayHide(true);
     }
     return applied;
   }
@@ -4471,6 +4598,7 @@
     const total = Array.isArray(examples) ? examples.length : 0;
     if (total === 0) {
       currentExampleIndex = null;
+      hideLoadingOverlay({ immediate: true });
     } else {
       if (pendingRequestedIndex != null) {
         const normalized = clampExampleIndex(pendingRequestedIndex, total);
@@ -4556,6 +4684,9 @@
         });
         updateTabSelection();
       }
+    }
+    if (total > 0 && !initialLoadPerformed) {
+      showLoadingOverlay();
     }
     updateActionButtonState(total);
     attemptInitialLoad();
