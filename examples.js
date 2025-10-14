@@ -4141,7 +4141,11 @@
     if (initialLoadPerformed) return;
     if (pendingRequestedIndex == null) return;
     const examples = getExamples();
-    const normalizedIndex = clampExampleIndex(pendingRequestedIndex, examples.length);
+    const total = Array.isArray(examples) ? examples.length : 0;
+    if (total <= 0) {
+      return;
+    }
+    const normalizedIndex = clampExampleIndex(pendingRequestedIndex, total);
     if (normalizedIndex == null) {
       pendingRequestedIndex = null;
       return;
@@ -4165,11 +4169,10 @@
     const total = Array.isArray(examples) ? examples.length : 0;
     if (total === 0) {
       currentExampleIndex = null;
-      pendingRequestedIndex = null;
     } else {
       if (pendingRequestedIndex != null) {
         const normalized = clampExampleIndex(pendingRequestedIndex, total);
-        pendingRequestedIndex = normalized == null ? null : normalized;
+        pendingRequestedIndex = normalized == null ? pendingRequestedIndex : normalized;
       }
       if (currentExampleIndex == null || currentExampleIndex >= total) {
         const fallback = currentExampleIndex == null ? 0 : total - 1;
