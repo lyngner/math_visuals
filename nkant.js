@@ -1723,7 +1723,12 @@ function parseShapeSpec(str) {
   const polygonWithArc = parsePolygonArcSpecLine(str);
   if (polygonWithArc) return polygonWithArc;
   const polygon = parsePolygonSpecLine(str);
-  if (polygon) return polygon;
+  if (polygon) {
+    return {
+      ...polygon,
+      allowDecorations: true
+    };
+  }
   return null;
 }
 function parseDecorationSegment(segment) {
