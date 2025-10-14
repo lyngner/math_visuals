@@ -1005,6 +1005,47 @@ function centroidFromPointMap(points, order) {
     y: sumY / entries.length
   };
 }
+
+function collectSemicircleExtentPoints(points, decorations, order) {
+  if (!points || typeof points !== 'object') return [];
+  if (!Array.isArray(decorations) || !decorations.length) return [];
+  const centroid = centroidFromPointMap(points, order);
+  if (!centroid) return [];
+  const extras = [];
+  decorations.forEach(dec => {
+    if (!dec || typeof dec !== 'object' || dec.type !== 'semicircle') return;
+    const from = String(dec.from || '').toUpperCase();
+    const to = String(dec.to || '').toUpperCase();
+    const P = points[from];
+    const Q = points[to];
+    if (!P || !Q) return;
+    const chordVec = {
+      x: Q.x - P.x,
+      y: Q.y - P.y
+    };
+    const chordLen = Math.hypot(chordVec.x, chordVec.y);
+    if (!(chordLen > 1e-6)) return;
+    const center = {
+      x: (P.x + Q.x) / 2,
+      y: (P.y + Q.y) / 2
+    };
+    let normal = {
+      x: chordVec.y / chordLen,
+      y: -chordVec.x / chordLen
+    };
+    const interiorSign = (Q.x - P.x) * (centroid.y - P.y) - (Q.y - P.y) * (centroid.x - P.x);
+    if (interiorSign < 0) {
+      normal.x *= -1;
+      normal.y *= -1;
+    }
+    const arcRadius = chordLen / 2;
+    extras.push({
+      x: center.x + normal.x * arcRadius,
+      y: center.y + normal.y * arcRadius
+    });
+  });
+  return extras;
+}
 function renderDecorations(g, points, decorations, options = {}) {
   if (!Array.isArray(decorations) || !decorations.length) return;
   const letters = Object.keys(points);
@@ -2387,10 +2428,17 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
   if (Cs.length === 0) throw new Error("Trekant: ingen løsning fra oppgitte verdier.");
   const C0 = Cs[0].y >= ((_Cs$1$y = (_Cs$ = Cs[1]) === null || _Cs$ === void 0 ? void 0 : _Cs$.y) !== null && _Cs$1$y !== void 0 ? _Cs$1$y : -1e9) ? Cs[0] : Cs[1] || Cs[0];
   const base = [A0, B0, C0];
+  const basePointsMap = {
+    A: A0,
+    B: B0,
+    C: C0
+  };
+  const semicircleExtents = collectSemicircleExtentPoints(basePointsMap, decorations, ['A', 'B', 'C']);
+  const fitPts = semicircleExtents.length ? base.concat(semicircleExtents) : base;
   const {
     T,
     k: renderScale
-  } = fitTransformToRect(base, rect.w, rect.h, 46);
+  } = fitTransformToRect(fitPts, rect.w, rect.h, 46);
   const A = shift(T(A0), rect),
     B = shift(T(B0), rect),
     C = shift(T(C0), rect),
@@ -2702,7 +2750,11 @@ function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations) {
   if (Math.abs(D0.y) < 1e-6) {
     D0 = { x: D0.x, y: -Math.max(baseLength * 0.4, 1) };
   }
-  const { T } = fitTransformToRect([A0, B0, C0, D0], rect.w, rect.h, 46);
+  const basePointsMap = { A: A0, B: B0, C: C0, D: D0 };
+  const semicircleExtents = collectSemicircleExtentPoints(basePointsMap, decorations, ['A', 'B', 'C', 'D']);
+  const basePts = [A0, B0, C0, D0];
+  const fitPts = semicircleExtents.length ? basePts.concat(semicircleExtents) : basePts;
+  const { T } = fitTransformToRect(fitPts, rect.w, rect.h, 46);
   const A = shift(T(A0), rect);
   const B = shift(T(B0), rect);
   const C = shift(T(C0), rect);
@@ -2977,9 +3029,17 @@ function drawQuadToGroup(g, rect, spec, adv, decorations) {
     throw new Error("Firkant: støttes med d+1 vinkel eller to vinkler B og D.");
   }
   const base = [A0, B0, C0, D0];
+  const basePointsMap = {
+    A: A0,
+    B: B0,
+    C: C0,
+    D: D0
+  };
+  const semicircleExtents = collectSemicircleExtentPoints(basePointsMap, decorations, ['A', 'B', 'C', 'D']);
+  const fitPts = semicircleExtents.length ? base.concat(semicircleExtents) : base;
   const {
     T
-  } = fitTransformToRect(base, rect.w, rect.h, 46);
+  } = fitTransformToRect(fitPts, rect.w, rect.h, 46);
   const A = shift(T(A0), rect),
     B = shift(T(B0), rect),
     C = shift(T(C0), rect),
