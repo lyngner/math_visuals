@@ -1,6 +1,14 @@
 const { test, expect } = require('@playwright/test');
 
+const { attachExamplesBackendMock } = require('./helpers/examples-backend-mock');
+
 const DIAGRAM_PATH = '/diagram/index.html';
+
+const EMPTY_DIAGRAM_ENTRY = {
+  examples: [],
+  deletedProvided: [],
+  updatedAt: new Date(0).toISOString()
+};
 
 async function setDescription(page, value) {
   const input = page.locator('#exampleDescription');
@@ -10,6 +18,53 @@ async function setDescription(page, value) {
 }
 
 test.describe('Description renderer interactions', () => {
+  let backend;
+  let trashRouteHandler;
+
+  test.beforeEach(async ({ page }) => {
+    backend = await attachExamplesBackendMock(page.context(), {
+      '/diagram': EMPTY_DIAGRAM_ENTRY
+    });
+
+    trashRouteHandler = async route => {
+      const { method } = route.request();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            entries: [],
+            storage: 'memory',
+            storageMode: 'memory',
+            mode: 'memory',
+            persistent: false,
+            ephemeral: true
+          })
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true })
+      });
+    };
+
+    await page.context().route('**/api/examples/trash**', trashRouteHandler);
+  });
+
+  test.afterEach(async ({ page }) => {
+    if (backend) {
+      await backend.dispose();
+      backend = null;
+    }
+    if (trashRouteHandler) {
+      await page.context().unroute('**/api/examples/trash**', trashRouteHandler);
+      trashRouteHandler = null;
+    }
+  });
+
   test('serves renderer assets without console errors', async ({ page }) => {
     const consoleErrors = [];
     const pageErrors = [];
@@ -32,6 +87,8 @@ test.describe('Description renderer interactions', () => {
     });
 
     await page.goto(DIAGRAM_PATH, { waitUntil: 'load' });
+    expect(consoleErrors).toEqual([]);
+    expect(pageErrors).toEqual([]);
     const rendererResponse = await rendererResponsePromise;
     expect(rendererResponse.ok()).toBe(true);
 
