@@ -44,5 +44,8 @@ For mer informasjon om lagringsmodellen, se dokumentasjonen i `docs/examples-sto
 Kjør følgende tester før du distribuerer endringer til produksjon:
 
 1. `npx playwright test tests/examples-api-entries.spec.js`
-   * Henter produksjonslisten fra `https://math-visuals.vercel.app/api/examples`, sjekker at svaret er gyldig JSON, og laster hvert eksempel i et skjult Playwright-vindu.
-   * Feiler dersom en side returnerer 404, mangler `STATE/CFG/CONFIG/SIMPLE`-bindingene eller loggfører JavaScript-feil i konsollen.
+   * Som standard bruker testen Playwright-konfigurasjonens `baseURL` (`http://127.0.0.1:4173`) og starter en lokal `http-server` automatisk.
+   * Testen feiler hvis en side returnerer 404, mangler `STATE/CFG/CONFIG/SIMPLE`-bindingene eller loggfører JavaScript-feil i konsollen.
+   * For å kjøre mot produksjon må du eksplisitt sette både `EXAMPLES_API_ENABLE_PRODUCTION=1` og `EXAMPLES_API_BASE_URL=https://math-visuals.vercel.app/` (eventuelt `EXAMPLES_BASE_URL` dersom HTML-en serveres fra en annen opprinnelse). Uten disse variablene hoppes produksjonsløpet over.
+
+I CI kan du gjenbruke den samme kommandoen. Sett `EXAMPLES_API_BASE_URL` og `EXAMPLES_API_ENABLE_PRODUCTION=1` i byggmiljøet for å validere mot produksjon; hvis API-et ikke svarer vil testen avbrytes med `test.skip` i stedet for å krasje.

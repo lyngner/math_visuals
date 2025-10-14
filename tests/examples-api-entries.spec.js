@@ -1,14 +1,13 @@
 const { test, expect } = require('@playwright/test');
 
-// The production site is used as default, but the environment variables below allow
-// local development to override the endpoints for faster test iterations.
+// Local development is used as default, but the environment variables below allow
+// developers (and CI) to override the endpoints when needed.
 //  - EXAMPLES_API_BASE_URL: base URL used when fetching the examples API.
 //  - EXAMPLES_BASE_URL: base URL for page loads (defaults to the API base).
 //  - EXAMPLES_API_ENTRY_WORKERS: number of concurrent page verifications (1-8).
-const DEFAULT_BASE_URL = 'https://math-visuals.vercel.app/';
-const API_BASE_URL = process.env.EXAMPLES_API_BASE_URL || DEFAULT_BASE_URL;
-const BASE_URL = process.env.EXAMPLES_BASE_URL || API_BASE_URL;
-const API_URL = new URL('api/examples', API_BASE_URL).toString();
+//  - EXAMPLES_API_ENABLE_PRODUCTION: must be set to "1" to allow targeting the
+//    production deployment.
+const PRODUCTION_ORIGIN = 'https://math-visuals.vercel.app';
 
 const MAX_WORKERS = Math.max(
   1,
@@ -50,20 +49,54 @@ const normalizePublishedPath = value => {
   return `${base}.html${suffix}`;
 };
 
-const ensureJsonResponse = response => {
+const ensureJsonResponse = (response, url) => {
   const status = response.status();
   if (status !== 200) {
-    throw new Error(`Forventet 200 fra ${API_URL}, men fikk ${status}`);
+    throw new Error(`Forventet 200 fra ${url}, men fikk ${status}`);
   }
 
   const contentType = response.headers()['content-type'] || '';
   if (!contentType.includes('application/json')) {
-    throw new Error(`Forventet JSON fra ${API_URL}, men mottok Content-Type: ${contentType || 'ukjent'}`);
+    throw new Error(
+      `Forventet JSON fra ${url}, men mottok Content-Type: ${contentType || 'ukjent'}`
+    );
   }
 };
 
-test.describe('Examples API production entries', () => {
-  test('all published entries render state', async ({ browser, request }) => {
+const isTruthyFlag = value => value === '1' || value?.toLowerCase?.() === 'true';
+
+const isProductionUrl = value => {
+  if (!value) return false;
+  try {
+    const candidate = new URL(value);
+    const production = new URL(PRODUCTION_ORIGIN);
+    return candidate.origin === production.origin;
+  } catch (error) {
+    return false;
+  }
+};
+
+test.describe('Examples API entries', () => {
+  test('all published entries render state', async ({ browser, request }, testInfo) => {
+    const projectBaseUrl = testInfo.project.use?.baseURL;
+    const explicitApiBaseUrl = process.env.EXAMPLES_API_BASE_URL;
+    const explicitBaseUrl = process.env.EXAMPLES_BASE_URL;
+    const allowProduction = isTruthyFlag(process.env.EXAMPLES_API_ENABLE_PRODUCTION);
+
+    if (!projectBaseUrl && !explicitApiBaseUrl) {
+      test.skip('Ingen baseURL er konfigurert for testen.');
+      return;
+    }
+
+    if (isProductionUrl(explicitApiBaseUrl) && !allowProduction) {
+      test.skip('Produksjon kan kun nås når EXAMPLES_API_ENABLE_PRODUCTION=1.');
+      return;
+    }
+
+    const apiBaseUrl = explicitApiBaseUrl || projectBaseUrl;
+    const baseUrl = explicitBaseUrl || apiBaseUrl;
+    const API_URL = new URL('api/examples', apiBaseUrl).toString();
+
     let response;
     try {
       response = await request.get(API_URL);
@@ -73,7 +106,7 @@ test.describe('Examples API production entries', () => {
     }
 
     try {
-      ensureJsonResponse(response);
+      ensureJsonResponse(response, API_URL);
     } catch (error) {
       const status = typeof response?.status === 'function' ? response.status() : null;
       if (status && status >= 400) {
@@ -142,7 +175,7 @@ test.describe('Examples API production entries', () => {
             pageErrors.length = 0;
 
             const publishedPath = normalizePublishedPath(entry.path);
-            const targetUrl = new URL(publishedPath, BASE_URL).toString();
+            const targetUrl = new URL(publishedPath, baseUrl).toString();
             const gotoResponse = await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
             const status = gotoResponse?.status();
 
