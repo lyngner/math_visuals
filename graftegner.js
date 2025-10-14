@@ -3957,7 +3957,9 @@ function setupSettingsForm() {
         editor.removeAttribute('data-preview-mode');
       }
     };
-    if (tag === MATHFIELD_TAG && isMathLiveReady()) {
+    const previewLayout = editor ? editor.getAttribute('data-preview-layout') : '';
+    const allowMathFieldPreview = tag === MATHFIELD_TAG && (previewLayout === 'below' || editor.hasAttribute('data-preview-allow-mathfield'));
+    if (tag === MATHFIELD_TAG && isMathLiveReady() && !allowMathFieldPreview) {
       preview.innerHTML = '';
       preview.textContent = '';
       preview.style.display = 'none';
@@ -4709,10 +4711,11 @@ function setupSettingsForm() {
         labelSpan.textContent = titleLabel;
       }
       if (editor) {
-        editor.setAttribute('data-preview-layout', 'below');
+        editor.removeAttribute('data-preview-layout');
+        editor.setAttribute('data-preview-allow-mathfield', 'true');
       }
       if (preview) {
-        preview.setAttribute('data-preview-no-latex', '');
+        preview.removeAttribute('data-preview-no-latex');
       }
     }
     let funInput = row.querySelector('[data-fun]');
