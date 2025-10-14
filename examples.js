@@ -2786,10 +2786,102 @@
     }
   }
 
+  const DESCRIPTION_MARKERS = [
+    { type: 'math', marker: '@math{', open: '{', close: '}' },
+    { type: 'task', marker: '@task{', open: '{', close: '}' },
+    { type: 'answerbox', marker: '@answerbox[', open: '[', close: ']' },
+    { type: 'answer', marker: '@answer[', open: '[', close: ']' },
+    { type: 'input', marker: '@input[', open: '[', close: ']' }
+  ].map(marker => ({ ...marker, markerLower: marker.marker.toLowerCase() }));
+
+  function extractBalancedSegment(text, startIndex, openChar, closeChar) {
+    if (typeof text !== 'string') return null;
+    let depth = 1;
+    for (let i = startIndex; i < text.length; i++) {
+      const char = text[i];
+      if (char === openChar) {
+        depth += 1;
+      } else if (char === closeChar) {
+        depth -= 1;
+      }
+      if (depth === 0) {
+        return {
+          content: text.slice(startIndex, i),
+          endIndex: i
+        };
+      }
+    }
+    return null;
+  }
+
+  function findNextDescriptionMarker(text, startIndex) {
+    if (typeof text !== 'string') return null;
+    const lower = text.toLowerCase();
+    let next = null;
+    DESCRIPTION_MARKERS.forEach(marker => {
+      const index = lower.indexOf(marker.markerLower, startIndex);
+      if (index === -1) return;
+      if (
+        !next ||
+        index < next.index ||
+        (index === next.index && marker.marker.length > next.marker.length)
+      ) {
+        next = { ...marker, index };
+      }
+    });
+    return next;
+  }
+
+  function extractOptionValue(options, keys) {
+    if (typeof options !== 'string') return '';
+    for (const key of keys) {
+      const pattern = new RegExp(
+        `(?:^|[|,])\\s*${key}\\s*=\\s*(\"([^\"]*)\"|'([^']*)'|([^|"'\]]+))`,
+        'i'
+      );
+      const match = options.match(pattern);
+      if (match) {
+        const value = match[2] || match[3] || match[4] || '';
+        if (value) return value.trim();
+      }
+    }
+    return '';
+  }
+
+  function stripDescriptionMarkup(text) {
+    if (typeof text !== 'string' || text.indexOf('@') === -1) return text;
+    let result = '';
+    let index = 0;
+    while (index < text.length) {
+      const marker = findNextDescriptionMarker(text, index);
+      if (!marker) {
+        result += text.slice(index);
+        break;
+      }
+      result += text.slice(index, marker.index);
+      const offset = marker.index + marker.marker.length;
+      const extraction = extractBalancedSegment(text, offset, marker.open, marker.close);
+      if (!extraction) {
+        result += text.slice(marker.index);
+        break;
+      }
+      const { content, endIndex } = extraction;
+      if (marker.type === 'math' || marker.type === 'task') {
+        result += content;
+      } else {
+        const placeholder = extractOptionValue(content, ['placeholder', 'label']);
+        result += placeholder || '____';
+      }
+      index = endIndex + 1;
+    }
+    return result;
+  }
+
   function appendDescriptionText(fragment, text) {
     if (!fragment || typeof fragment.appendChild !== 'function') return;
     if (typeof text !== 'string') return;
-    const normalized = text.replace(/\r\n?/g, '\n');
+    const stripped = stripDescriptionMarkup(text);
+    const normalized = stripped.replace(/\r\n?/g, '\n');
     const paragraphs = normalized.split(/\n{2,}/);
     paragraphs.forEach(paragraph => {
       if (!paragraph.trim()) return;
@@ -2837,7 +2929,8 @@
       const tr = document.createElement('tr');
       for (let i = 0; i < columnCount; i++) {
         const cell = document.createElement('td');
-        cell.textContent = row && row[i] != null ? row[i] : '';
+        const value = row && row[i] != null ? stripDescriptionMarkup(row[i]) : '';
+        cell.textContent = value;
         tr.appendChild(cell);
       }
       tbody.appendChild(tr);
