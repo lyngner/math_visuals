@@ -3196,8 +3196,10 @@
       }
       if (!trimmed) return;
     }
-    const hasContent = renderDescriptionPreviewFromValue(value, { force: true, bypassFormattingCheck: true });
-    if (hasContent) return;
+    const renderResult = renderDescriptionPreviewFromValue(value, { force: true, bypassFormattingCheck: true });
+    if (renderResult === true) return;
+    if (renderResult == null) return;
+    if (renderResult !== false) return;
     const preview = getDescriptionPreviewElement();
     if (!preview) return;
     clearChildren(preview);
