@@ -462,25 +462,6 @@ select:disabled {
   font-weight: 600;
 }
 
-.card--examples .example-description-preview .math-vis-task {
-  margin: 16px 0;
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid #c7d2fe;
-  background: #eef2ff;
-}
-
-.card--examples .example-description-preview .math-vis-task__title {
-  margin: 0 0 8px;
-  font-size: 1.05em;
-  font-weight: 600;
-  color: #312e81;
-}
-
-.card--examples .example-description-preview .math-vis-task__content > *:last-child {
-  margin-bottom: 0;
-}
-
 .card--examples .example-description-preview .math-vis-answerbox {
   margin: 4px 4px 4px 0;
 }
@@ -623,30 +604,6 @@ body[data-app-mode="task"] [data-export-button] {
 
 .math-vis-description-rendered {
   display: block;
-}
-
-.math-vis-task {
-  margin: 16px 0;
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid #c7d2fe;
-  background: #eef2ff;
-}
-
-.math-vis-task__title {
-  margin: 0 0 8px;
-  font-size: 1.05em;
-  font-weight: 600;
-  color: #312e81;
-}
-
-.math-vis-task__content p {
-  margin: 0 0 10px;
-}
-
-.math-vis-task__content p:last-child,
-.math-vis-task__content > *:last-child {
-  margin-bottom: 0;
 }
 
 .math-vis-answerbox {

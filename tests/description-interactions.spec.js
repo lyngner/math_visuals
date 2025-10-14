@@ -10,24 +10,24 @@ async function setDescription(page, value) {
 }
 
 test.describe('Description renderer interactions', () => {
-  test('validates answer boxes as the user types', async ({ page }) => {
+  test('validates input fields as the user types', async ({ page }) => {
     await page.goto(DIAGRAM_PATH, { waitUntil: 'load' });
 
     await setDescription(
       page,
       [
-        '@task{Regn ut|Hva er 5 + 7? @answer{value=12|placeholder=Skriv svaret}}',
-        '@task{Regn ut igjen|Hva er 9 + 3? @answerbox[value=12|placeholder=Skriv svaret 2]}',
-        '@task{Les av grafen|f(2) = @input[answer="0"|size="5"]}'
+        'Regn ut: @input[answer="12"|placeholder=Skriv svaret]',
+        'Ny oppgave: @input[answer="12"|placeholder=Skriv svaret 2|label=Oppgave 2]',
+        'Les av grafen: f(2) = @input[answer="0"|size="5"]'
       ].join('\n\n')
     );
 
     const preview = page.locator('.example-description-preview');
-    const answerBoxes = preview.locator('.math-vis-answerbox');
+    const inputFields = preview.locator('.math-vis-answerbox');
 
-    await expect(answerBoxes).toHaveCount(3);
+    await expect(inputFields).toHaveCount(3);
 
-    const classicAnswer = answerBoxes.nth(0);
+    const classicAnswer = inputFields.nth(0);
     const classicInput = classicAnswer.locator('.math-vis-answerbox__input');
     const classicStatus = classicAnswer.locator('.math-vis-answerbox__status');
 
@@ -46,26 +46,28 @@ test.describe('Description renderer interactions', () => {
     await expect(classicAnswer).toHaveClass(/math-vis-answerbox--empty/);
     await expect(classicStatus).toHaveText('');
 
-    const aliasAnswer = answerBoxes.nth(1);
-    const aliasInput = aliasAnswer.locator('.math-vis-answerbox__input');
-    const aliasStatus = aliasAnswer.locator('.math-vis-answerbox__status');
+    const labelledAnswer = inputFields.nth(1);
+    const labelledPrompt = labelledAnswer.locator('.math-vis-answerbox__prompt');
+    const labelledInput = labelledAnswer.locator('.math-vis-answerbox__input');
+    const labelledStatus = labelledAnswer.locator('.math-vis-answerbox__status');
 
-    await expect(aliasInput).toBeVisible();
-    await expect(aliasAnswer).toHaveClass(/math-vis-answerbox--empty/);
+    await expect(labelledPrompt).toHaveText('Oppgave 2');
+    await expect(labelledInput).toBeVisible();
+    await expect(labelledAnswer).toHaveClass(/math-vis-answerbox--empty/);
 
-    await aliasInput.fill('11');
-    await expect(aliasAnswer).toHaveClass(/math-vis-answerbox--incorrect/);
-    await expect(aliasStatus).toHaveText('Prøv igjen.');
+    await labelledInput.fill('11');
+    await expect(labelledAnswer).toHaveClass(/math-vis-answerbox--incorrect/);
+    await expect(labelledStatus).toHaveText('Prøv igjen.');
 
-    await aliasInput.fill('12');
-    await expect(aliasAnswer).toHaveClass(/math-vis-answerbox--correct/);
-    await expect(aliasStatus).toHaveText('Riktig!');
+    await labelledInput.fill('12');
+    await expect(labelledAnswer).toHaveClass(/math-vis-answerbox--correct/);
+    await expect(labelledStatus).toHaveText('Riktig!');
 
-    await aliasInput.fill('');
-    await expect(aliasAnswer).toHaveClass(/math-vis-answerbox--empty/);
-    await expect(aliasStatus).toHaveText('');
+    await labelledInput.fill('');
+    await expect(labelledAnswer).toHaveClass(/math-vis-answerbox--empty/);
+    await expect(labelledStatus).toHaveText('');
 
-    const inlineAnswer = answerBoxes.nth(2);
+    const inlineAnswer = inputFields.nth(2);
     const inlineInput = inlineAnswer.locator('.math-vis-answerbox__input');
     const inlineStatus = inlineAnswer.locator('.math-vis-answerbox__status');
 
