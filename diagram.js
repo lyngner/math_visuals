@@ -79,7 +79,7 @@ const altTextStatus = document.getElementById('altTextStatus');
 const regenerateAltTextBtn = document.getElementById('btnRegenerateAltText');
 const checkBtn = document.getElementById('btnCheck');
 const statusEl = document.getElementById('status');
-const taskCheckHost = document.querySelector('[data-task-check-host]');
+const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
 const taskCheckControls = [checkBtn, statusEl].filter(Boolean);
 
 function ensureTaskControlsHost() {
