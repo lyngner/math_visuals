@@ -1203,7 +1203,7 @@ function parseSpec(str) {
     str = str.replace(/^[\s:=,-]+/, '');
   }
   str = str.replace(/\bog\b/gi, ',');
-  const pairRegex = /([A-Za-z]{1,3})\s*=\s*([-+]?(?:\d+[.,]\d+|\d+|\.[0-9]+))(?:\s*(?:°|[a-zA-Z]+))?/g;
+  const pairRegex = /([A-Za-z]{1,3})\s*=\s*([-+]?(?:\d+[.,]\d+|\d+|\.[0-9]+))(?:\s*(?:°|[a-zA-Z]+)(?!\s*=))?/g;
   let match;
   while (match = pairRegex.exec(str)) {
     const key = normalizeSpecKey(match[1].trim(), shapeHint);
