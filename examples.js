@@ -2875,6 +2875,16 @@
     { type: 'input', marker: '@input[', open: '[', close: ']' }
   ].map(marker => ({ ...marker, markerLower: marker.marker.toLowerCase() }));
 
+  function hasDescriptionFormatting(value) {
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (findNextDescriptionMarker(trimmed, 0)) return true;
+    const lower = trimmed.toLowerCase();
+    if (/@table\s*\{/.test(lower)) return true;
+    return false;
+  }
+
   function extractBalancedSegment(text, startIndex, openChar, closeChar) {
     if (typeof text !== 'string') return null;
     let depth = 1;
@@ -3080,6 +3090,12 @@
     };
     const trimmedValue = stringValue.trim();
     if (!trimmedValue) {
+      clearChildren(preview);
+      delete preview.dataset.placeholder;
+      applyState(false);
+      return markRendered(false);
+    }
+    if (!bypassFormattingCheck && !hasDescriptionFormatting(stringValue)) {
       clearChildren(preview);
       delete preview.dataset.placeholder;
       applyState(false);
