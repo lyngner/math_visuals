@@ -1,52 +1,17 @@
 const { test, expect } = require('@playwright/test');
 
-process.env.KV_REST_API_URL = process.env.KV_REST_API_URL || 'https://kv.test.local';
-process.env.KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN || 'test-token';
+const TEST_KV_URL = 'https://kv.test.local';
+const TEST_KV_TOKEN = 'test-token';
 
-function createMockKv() {
-  const data = new Map();
-  const sets = new Map();
-  const ensureSet = key => {
-    if (!sets.has(key)) {
-      sets.set(key, new Set());
-    }
-    return sets.get(key);
-  };
-  return {
-    api: {
-      async set(key, value) {
-        data.set(key, value);
-      },
-      async get(key) {
-        return data.has(key) ? data.get(key) : null;
-      },
-      async del(key) {
-        data.delete(key);
-      },
-      async sadd(key, member) {
-        ensureSet(key).add(member);
-      },
-      async srem(key, member) {
-        if (!sets.has(key)) return;
-        const target = sets.get(key);
-        target.delete(member);
-        if (target.size === 0) {
-          sets.delete(key);
-        }
-      },
-      async smembers(key) {
-        return sets.has(key) ? Array.from(sets.get(key)) : [];
-      }
-    },
-    clear() {
-      data.clear();
-      sets.clear();
-    }
-  };
-}
+const originalKvUrl = process.env.KV_REST_API_URL;
+const originalKvToken = process.env.KV_REST_API_TOKEN;
 
-const mockKv = createMockKv();
-global.__MATH_VISUALS_KV_CLIENT__ = mockKv.api;
+process.env.KV_REST_API_URL = originalKvUrl || TEST_KV_URL;
+process.env.KV_REST_API_TOKEN = originalKvToken || TEST_KV_TOKEN;
+
+const { setupKvMock } = require('./helpers/kv-mock');
+
+const { mockKv, cleanup: cleanupKvMock } = setupKvMock();
 
 const {
   normalizePath,
@@ -75,7 +40,17 @@ test.beforeEach(() => {
 });
 
 test.afterAll(() => {
-  delete global.__MATH_VISUALS_KV_CLIENT__;
+  cleanupKvMock();
+  if (originalKvUrl !== undefined) {
+    process.env.KV_REST_API_URL = originalKvUrl;
+  } else {
+    delete process.env.KV_REST_API_URL;
+  }
+  if (originalKvToken !== undefined) {
+    process.env.KV_REST_API_TOKEN = originalKvToken;
+  } else {
+    delete process.env.KV_REST_API_TOKEN;
+  }
 });
 
 function buildPath() {
