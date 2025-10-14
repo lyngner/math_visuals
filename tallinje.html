@@ -114,6 +114,22 @@
     .card--draggables { padding: 12px; gap: 12px; }
     .card--draggables > .draggable-config-actions { margin-top: 8px; }
     .draggable-config-grid .checkbox { grid-column: 1 / -1; }
+    .checkbox {
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #4b5563;
+      cursor: pointer;
+    }
+    .checkbox input {
+      margin: 0;
+    }
+    .checkbox span {
+      display: inline;
+      margin: 0;
+    }
     .draggable-config-empty { font-size: 13px; color: #6b7280; margin: 0; }
     .draggable-config-title { font-size: 14px; font-weight: 600; color: #1f2937; margin: 0; }
     .btn--ghost { background: transparent; }

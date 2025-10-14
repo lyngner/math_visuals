@@ -233,6 +233,22 @@
       gap: 12px;
       align-items: center;
     }
+    .checkbox {
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #4b5563;
+      cursor: pointer;
+    }
+    .checkbox input {
+      margin: 0;
+    }
+    .checkbox span {
+      display: inline;
+      margin: 0;
+    }
     label span {
       font-size: 13px;
       color: #4b5563;
@@ -425,10 +441,12 @@
             </label>
             <div class="toolbar-row">
               <label class="checkbox">
-                <input type="checkbox" id="autoSync"> Vis fasit
+                <input type="checkbox" id="autoSync">
+                <span>Vis fasit</span>
               </label>
               <label class="checkbox">
-                <input type="checkbox" id="useLinearFactors"> Bruk lineære faktorer
+                <input type="checkbox" id="useLinearFactors">
+                <span>Bruk lineære faktorer</span>
               </label>
             </div>
             <div class="domain-controls">
