@@ -83,17 +83,18 @@ test.describe('Examples API entries', () => {
     const explicitBaseUrl = process.env.EXAMPLES_BASE_URL;
     const allowProduction = isTruthyFlag(process.env.EXAMPLES_API_ENABLE_PRODUCTION);
 
-    if (!projectBaseUrl && !explicitApiBaseUrl) {
+    const apiBaseUrl = explicitApiBaseUrl || projectBaseUrl;
+
+    if (!apiBaseUrl) {
       test.skip('Ingen baseURL er konfigurert for testen.');
       return;
     }
 
-    if (isProductionUrl(explicitApiBaseUrl) && !allowProduction) {
+    if (isProductionUrl(apiBaseUrl) && !allowProduction) {
       test.skip('Produksjon kan kun nås når EXAMPLES_API_ENABLE_PRODUCTION=1.');
       return;
     }
 
-    const apiBaseUrl = explicitApiBaseUrl || projectBaseUrl;
     const baseUrl = explicitBaseUrl || apiBaseUrl;
     const API_URL = new URL('api/examples', apiBaseUrl).toString();
 
