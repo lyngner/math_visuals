@@ -268,6 +268,9 @@
       border-color: #6366f1;
       box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
     }
+    #exprInput:focus {
+      outline: none;
+    }
     #exprInput::part(container) {
       min-height: 26px;
       padding: 0;
@@ -275,7 +278,7 @@
     #exprInput::part(content) {
       font-size: 15px;
       line-height: 1.4;
-      padding: 0;
+      padding: 8px 10px;
     }
     #exprInput::part(menu-toggle),
     #exprInput::part(virtual-keyboard-toggle) {
