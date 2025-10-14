@@ -272,6 +272,11 @@
       fig.parts = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
     }
     if (divisionEl && fig.division == null) fig.division = divisionEl.value;
+    if (typeof fig.allowDenominatorChange === 'string') {
+      fig.allowDenominatorChange = fig.allowDenominatorChange === 'true';
+    } else if (typeof fig.allowDenominatorChange !== 'boolean') {
+      fig.allowDenominatorChange = false;
+    }
     fig.allowWrong = allowWrongGlobal;
     STATE.figures[id] = fig;
     return fig;
@@ -379,6 +384,12 @@
     for (const id of getActiveFigureIds()) {
       const figState = ensureFigureState(id);
       figState.allowWrong = allowWrongGlobal;
+      if (typeof figState.allowDenominatorChange !== 'boolean') {
+        figState.allowDenominatorChange = false;
+      }
+      const allowDenominator = !!figState.allowDenominatorChange;
+      const allowDenominatorInp = document.getElementById(`allowDenominator${id}`);
+      if (allowDenominatorInp) allowDenominatorInp.checked = allowDenominator;
       const shapeSel = document.getElementById(`shape${id}`);
       if (shapeSel && figState.shape) {
         const options = Array.from(shapeSel.options || []);
@@ -386,6 +397,18 @@
       }
       const partsInp = document.getElementById(`parts${id}`);
       const partsVal = document.getElementById(`partsVal${id}`);
+      const figureController = figures[id];
+      if (figureController && typeof figureController.updateDenominatorControls === 'function') {
+        figureController.updateDenominatorControls(allowDenominator);
+      } else {
+        if (partsInp) partsInp.disabled = !allowDenominator;
+        const stepper = document.getElementById(`partsStepper${id}`);
+        if (stepper) stepper.style.display = allowDenominator ? '' : 'none';
+        const minusBtn = document.getElementById(`partsMinus${id}`);
+        if (minusBtn) minusBtn.disabled = !allowDenominator;
+        const plusBtn = document.getElementById(`partsPlus${id}`);
+        if (plusBtn) plusBtn.disabled = !allowDenominator;
+      }
       if (partsInp) {
         const parts = clampInt(figState.parts, 1);
         figState.parts = parts;
@@ -434,7 +457,7 @@
     panel.dataset.figureId = String(id);
     panel.innerHTML = `
       <div class="figure"><div id="box${id}" class="box"></div></div>
-      <div class="stepper" aria-label="Antall deler">
+      <div class="stepper" id="partsStepper${id}" aria-label="Antall deler">
         <button id="partsMinus${id}" type="button" aria-label="Færre deler">−</button>
         <span id="partsVal${id}">4</span>
         <button id="partsPlus${id}" type="button" aria-label="Flere deler">+</button>
@@ -458,6 +481,10 @@
       <label>Antall deler
         <input id="parts${id}" class="input--digit input--small" type="number" min="1" value="4" />
       </label>
+      <div class="checkbox-row">
+        <input id="allowDenominator${id}" type="checkbox" />
+        <label for="allowDenominator${id}">Endre nevner</label>
+      </div>
       <label>Delt
         <select id="division${id}">
           <option value="horizontal">horisontalt</option>
@@ -794,10 +821,45 @@
     const minusBtn = document.getElementById(`partsMinus${id}`);
     const plusBtn = document.getElementById(`partsPlus${id}`);
     const partsVal = document.getElementById(`partsVal${id}`);
+    const allowDenominatorInp = document.getElementById(`allowDenominator${id}`);
+    const stepperEl = document.getElementById(`partsStepper${id}`);
     const panel = document.getElementById(`panel${id}`);
     let board;
     const divisionSegmentIds = new Set();
     let filled = new Map();
+    function updateDenominatorControls(override, figStateOverride) {
+      const figState = figStateOverride || ensureFigureState(id);
+      let enabled;
+      if (typeof override === 'boolean') {
+        enabled = override;
+      } else if (typeof figState.allowDenominatorChange === 'boolean') {
+        enabled = figState.allowDenominatorChange;
+      } else if (typeof figState.allowDenominatorChange === 'string') {
+        enabled = figState.allowDenominatorChange === 'true';
+      } else {
+        enabled = false;
+      }
+      if (figState.allowDenominatorChange !== enabled) {
+        figState.allowDenominatorChange = enabled;
+      }
+      if (allowDenominatorInp && allowDenominatorInp.checked !== enabled) {
+        allowDenominatorInp.checked = enabled;
+      }
+      if (partsInp) {
+        partsInp.disabled = !enabled;
+      }
+      if (minusBtn) minusBtn.disabled = !enabled;
+      if (plusBtn) plusBtn.disabled = !enabled;
+      if (stepperEl) {
+        stepperEl.style.display = enabled ? '' : 'none';
+        if (enabled) {
+          stepperEl.removeAttribute('aria-hidden');
+        } else {
+          stepperEl.setAttribute('aria-hidden', 'true');
+        }
+      }
+      return enabled;
+    }
     function normalizeFilledEntries(value) {
       let iterable;
       if (value instanceof Map) {
@@ -1204,6 +1266,7 @@
       var _ref, _partsInp$value;
       if (!panel || !panel.isConnected || panel.style.display === 'none') return;
       const figState = ensureFigureState(id);
+      updateDenominatorControls(figState.allowDenominatorChange, figState);
       setFilled(figState.filled);
       initBoard();
       let n = clampInt((_ref = (_partsInp$value = partsInp === null || partsInp === void 0 ? void 0 : partsInp.value) !== null && _partsInp$value !== void 0 ? _partsInp$value : figState.parts) !== null && _ref !== void 0 ? _ref : 1, 1);
@@ -1758,6 +1821,11 @@
         if (clipPath) clipPath.remove();
       }
     }
+    allowDenominatorInp === null || allowDenominatorInp === void 0 || allowDenominatorInp.addEventListener('change', () => {
+      const enabled = !!allowDenominatorInp.checked;
+      updateDenominatorControls(enabled);
+      window.render();
+    });
     shapeSel === null || shapeSel === void 0 || shapeSel.addEventListener('change', () => {
       const figState = ensureFigureState(id);
       figState.shape = shapeSel.value;
@@ -1765,6 +1833,12 @@
     });
     partsInp === null || partsInp === void 0 || partsInp.addEventListener('input', () => {
       const figState = ensureFigureState(id);
+      if (!figState.allowDenominatorChange) {
+        const current = clampInt(figState.parts, 1);
+        partsInp.value = String(current);
+        if (partsVal) partsVal.textContent = String(current);
+        return;
+      }
       figState.parts = clampInt(partsInp.value, 1);
       window.render();
     });
@@ -1797,12 +1871,14 @@
       var _board2;
       return (_board2 = board) === null || _board2 === void 0 || (_board2 = _board2.renderer) === null || _board2 === void 0 ? void 0 : _board2.svgRoot;
     }
+    updateDenominatorControls();
     return {
       draw,
       panel,
       getSvgElement,
       getFilled,
-      setFilled
+      setFilled,
+      updateDenominatorControls
     };
   }
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
