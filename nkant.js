@@ -333,6 +333,18 @@ function summarizeJobDecorations(job) {
       if (radius) entry.radius = radius;
       if (diameter) entry.diameter = diameter;
       out.push(entry);
+    } else if (dec.type === 'square') {
+      const from = String(dec.from || '').toUpperCase();
+      const to = String(dec.to || '').toUpperCase();
+      if (!letters.includes(from) || !letters.includes(to) || from === to) return;
+      const key = from < to ? `${from}${to}` : `${to}${from}`;
+      const tag = `square:${key}`;
+      if (seen.has(tag)) return;
+      seen.add(tag);
+      out.push({
+        type: 'square',
+        side: key
+      });
     }
   });
   return out;
@@ -384,6 +396,7 @@ function describeDecorationsSummary(decorations) {
   const diagonals = [];
   const heights = [];
   const semicircles = [];
+  const squares = [];
   decorations.forEach(dec => {
     if (!dec || typeof dec !== 'object') return;
     if (dec.type === 'diagonal' && dec.from && dec.to) {
@@ -399,6 +412,8 @@ function describeDecorationsSummary(decorations) {
         radius: dec.radius,
         diameter: dec.diameter
       });
+    } else if (dec.type === 'square' && dec.side) {
+      squares.push(dec.side);
     }
   });
   const parts = [];
@@ -438,6 +453,14 @@ function describeDecorationsSummary(decorations) {
       parts.push(`Det er tegnet en ${phrases[0]}.`);
     } else {
       parts.push(`Det er tegnet ${list}.`);
+    }
+  }
+  if (squares.length) {
+    if (squares.length === 1) {
+      parts.push(`Det er tegnet et kvadrat på side ${squares[0]}.`);
+    } else {
+      const list = nkantFormatList(squares.map(side => `side ${side}`));
+      parts.push(`Det er tegnet kvadrater på ${list}.`);
     }
   }
   return parts.join(' ');
@@ -1046,6 +1069,45 @@ function collectSemicircleExtentPoints(points, decorations, order) {
   });
   return extras;
 }
+function collectSquareExtentPoints(points, decorations, order) {
+  if (!points || typeof points !== 'object') return [];
+  if (!Array.isArray(decorations) || !decorations.length) return [];
+  const centroid = centroidFromPointMap(points, order);
+  if (!centroid) return [];
+  const extras = [];
+  decorations.forEach(dec => {
+    if (!dec || typeof dec !== 'object' || dec.type !== 'square') return;
+    const from = String(dec.from || '').toUpperCase();
+    const to = String(dec.to || '').toUpperCase();
+    const P = points[from];
+    const Q = points[to];
+    if (!P || !Q) return;
+    const baseVec = {
+      x: Q.x - P.x,
+      y: Q.y - P.y
+    };
+    const baseLen = Math.hypot(baseVec.x, baseVec.y);
+    if (!(baseLen > 1e-6)) return;
+    let normal = {
+      x: baseVec.y / baseLen,
+      y: -baseVec.x / baseLen
+    };
+    const interiorSign = (Q.x - P.x) * (centroid.y - P.y) - (Q.y - P.y) * (centroid.x - P.x);
+    if (interiorSign < 0) {
+      normal.x *= -1;
+      normal.y *= -1;
+    }
+    extras.push({
+      x: Q.x + normal.x * baseLen,
+      y: Q.y + normal.y * baseLen
+    });
+    extras.push({
+      x: P.x + normal.x * baseLen,
+      y: P.y + normal.y * baseLen
+    });
+  });
+  return extras;
+}
 function renderDecorations(g, points, decorations, options = {}) {
   if (!Array.isArray(decorations) || !decorations.length) return;
   const letters = Object.keys(points);
@@ -1155,8 +1217,9 @@ function renderDecorations(g, points, decorations, options = {}) {
       });
       const radiusEntry = dec.radius && typeof dec.radius === 'object' ? dec.radius : null;
       const diameterEntry = dec.diameter && typeof dec.diameter === 'object' ? dec.diameter : null;
-      const radiusText = radiusEntry ? normalizedDimensionText(radiusEntry, 'r') : '';
-      if (radiusEntry && radiusText) {
+      const showRadius = radiusEntry && radiusEntry.requested;
+      const radiusText = showRadius ? normalizedDimensionText(radiusEntry, 'r') : '';
+      if (showRadius && radiusText) {
         const labelPoint = {
           x: center.x + normal.x * arcRadius * 0.55,
           y: center.y + normal.y * arcRadius * 0.55
@@ -1167,7 +1230,7 @@ function renderDecorations(g, points, decorations, options = {}) {
         });
       }
       const diameterText = diameterEntry ? normalizedDimensionText(diameterEntry, 'd') : '';
-      if (diameterEntry && diameterText) {
+      if (diameterEntry && diameterEntry.requested && diameterText) {
         const inward = {
           x: -normal.x,
           y: -normal.y
@@ -1181,6 +1244,51 @@ function renderDecorations(g, points, decorations, options = {}) {
           'dominant-baseline': 'middle'
         });
       }
+    } else if (dec.type === 'square') {
+      const from = String(dec.from || '').toUpperCase();
+      const to = String(dec.to || '').toUpperCase();
+      if (!letters.includes(from) || !letters.includes(to) || from === to) return;
+      const key = from < to ? `${from}${to}` : `${to}${from}`;
+      const tag = `square:${key}`;
+      if (seen.has(tag)) return;
+      seen.add(tag);
+      const P = points[from];
+      const Q = points[to];
+      if (!P || !Q) return;
+      const baseVec = {
+        x: Q.x - P.x,
+        y: Q.y - P.y
+      };
+      const baseLen = Math.hypot(baseVec.x, baseVec.y);
+      if (!(baseLen > 1e-6)) return;
+      let normal = {
+        x: baseVec.y / baseLen,
+        y: -baseVec.x / baseLen
+      };
+      const reference = baseCentroid || {
+        x: (P.x + Q.x) / 2,
+        y: (P.y + Q.y) / 2
+      };
+      const interiorSign = (Q.x - P.x) * (reference.y - P.y) - (Q.y - P.y) * (reference.x - P.x);
+      if (interiorSign < 0) {
+        normal.x *= -1;
+        normal.y *= -1;
+      }
+      const R = {
+        x: Q.x + normal.x * baseLen,
+        y: Q.y + normal.y * baseLen
+      };
+      const S = {
+        x: P.x + normal.x * baseLen,
+        y: P.y + normal.y * baseLen
+      };
+      add(g, 'polygon', {
+        points: ptsTo([P, Q, R, S]),
+        fill: 'none',
+        stroke: STYLE.edgeStroke,
+        'stroke-width': STYLE.edgeWidth,
+        'stroke-linejoin': 'round'
+      });
     }
   });
 }
@@ -1551,13 +1659,11 @@ function parseCircleSpecLine(str) {
     keywords: ['diameter', 'diam'],
     defaultLabel: 'd'
   }]);
-  const radiusEntry = dims.radius ? { ...dims.radius } : {
-    label: 'r',
-    value: null,
-    requested: false
-  };
-  if (!radiusEntry.label) radiusEntry.label = 'r';
-  radiusEntry.requested = Boolean(dims.radius);
+  const radiusEntry = dims.radius ? { ...dims.radius } : null;
+  if (radiusEntry) {
+    if (!radiusEntry.label) radiusEntry.label = 'r';
+    radiusEntry.requested = true;
+  }
   const diameterEntry = dims.diameter ? { ...dims.diameter, requested: true } : null;
   const job = {
     type: 'circle',
@@ -1684,13 +1790,9 @@ function parsePolygonArcSpecLine(str) {
   }]);
   const radiusEntry = dims.radius ? {
     ...dims.radius
-  } : {
-    label: 'r',
-    value: null,
-    requested: false
-  };
-  if (!radiusEntry.label) radiusEntry.label = 'r';
-  radiusEntry.requested = Boolean(dims.radius);
+  } : null;
+  if (radiusEntry && !radiusEntry.label) radiusEntry.label = 'r';
+  if (radiusEntry) radiusEntry.requested = true;
   const diameterEntry = dims.diameter ? {
     ...dims.diameter,
     requested: true
@@ -1711,7 +1813,7 @@ function parsePolygonArcSpecLine(str) {
     }
   };
   const normalizedParts = [`halvsirkel ${resolvedSide.label}`];
-  const radiusText = normalizedDimensionText(radiusEntry, 'r');
+  const radiusText = radiusEntry && radiusEntry.requested ? normalizedDimensionText(radiusEntry, 'r') : '';
   if (radiusText) normalizedParts.push(`radius ${radiusText}`);
   if (diameterEntry) {
     const diameterText = normalizedDimensionText(diameterEntry, 'd');
@@ -1897,10 +1999,10 @@ function parseDecorationSegment(segment) {
       second = second === 'Z' ? 'A' : String.fromCharCode(second.charCodeAt(0) + 1);
     }
     const normalizedParts = [`halvsirkel ${first}${second}`];
-    const radiusText = radiusEntry ? normalizedDimensionText(radiusEntry, 'r') : '';
+    const radiusText = radiusEntry && radiusEntry.requested ? normalizedDimensionText(radiusEntry, 'r') : '';
     const diameterText = diameterEntry ? normalizedDimensionText(diameterEntry, 'd') : '';
-    if (radiusEntry && radiusText) normalizedParts.push(`radius ${radiusText}`);
-    if (diameterEntry && diameterText) normalizedParts.push(`diameter ${diameterText}`);
+    if (radiusEntry && radiusEntry.requested && radiusText) normalizedParts.push(`radius ${radiusText}`);
+    if (diameterEntry && diameterEntry.requested && diameterText) normalizedParts.push(`diameter ${diameterText}`);
     const decoration = {
       type: 'semicircle',
       from: first,
@@ -1912,6 +2014,38 @@ function parseDecorationSegment(segment) {
       handled: true,
       decorations: [decoration],
       normalized: normalizedParts
+    };
+  }
+  if (/^kvadrat/i.test(trimmed)) {
+    const sideMatch = trimmed.match(/kvadrat\s+([A-Za-z]+(?:\s*[A-Za-z]+)?)/i);
+    const sideSegment = sideMatch ? sideMatch[1] : '';
+    const tokens = parseArcSideTokens(sideSegment);
+    let first = tokens[0] || 'A';
+    let second = tokens[1] || '';
+    if (!second) {
+      if (tokens[0] && tokens[0].length >= 2) {
+        second = tokens[0].slice(1, 2);
+      } else {
+        second = String.fromCharCode(first.charCodeAt(0) + 1);
+      }
+    }
+    first = first.slice(0, 1).toUpperCase();
+    second = second.slice(0, 1).toUpperCase();
+    if (!first) first = 'A';
+    if (!second) second = first === 'Z' ? 'A' : String.fromCharCode(first.charCodeAt(0) + 1);
+    if (first === second) {
+      second = second === 'Z' ? 'A' : String.fromCharCode(second.charCodeAt(0) + 1);
+    }
+    const decoration = {
+      type: 'square',
+      from: first,
+      to: second
+    };
+    const normalized = [`kvadrat ${first}${second}`];
+    return {
+      handled: true,
+      decorations: [decoration],
+      normalized
     };
   }
   if (/^h(?:øy|oy)der?/i.test(trimmed)) {
@@ -2434,7 +2568,9 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
     C: C0
   };
   const semicircleExtents = collectSemicircleExtentPoints(basePointsMap, decorations, ['A', 'B', 'C']);
-  const fitPts = semicircleExtents.length ? base.concat(semicircleExtents) : base;
+  const squareExtents = collectSquareExtentPoints(basePointsMap, decorations, ['A', 'B', 'C']);
+  const extraPts = semicircleExtents.concat(squareExtents);
+  const fitPts = extraPts.length ? base.concat(extraPts) : base;
   const {
     T,
     k: renderScale
@@ -2752,8 +2888,10 @@ function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations) {
   }
   const basePointsMap = { A: A0, B: B0, C: C0, D: D0 };
   const semicircleExtents = collectSemicircleExtentPoints(basePointsMap, decorations, ['A', 'B', 'C', 'D']);
+  const squareExtents = collectSquareExtentPoints(basePointsMap, decorations, ['A', 'B', 'C', 'D']);
   const basePts = [A0, B0, C0, D0];
-  const fitPts = semicircleExtents.length ? basePts.concat(semicircleExtents) : basePts;
+  const extraPts = semicircleExtents.concat(squareExtents);
+  const fitPts = extraPts.length ? basePts.concat(extraPts) : basePts;
   const { T } = fitTransformToRect(fitPts, rect.w, rect.h, 46);
   const A = shift(T(A0), rect);
   const B = shift(T(B0), rect);
@@ -3036,7 +3174,9 @@ function drawQuadToGroup(g, rect, spec, adv, decorations) {
     D: D0
   };
   const semicircleExtents = collectSemicircleExtentPoints(basePointsMap, decorations, ['A', 'B', 'C', 'D']);
-  const fitPts = semicircleExtents.length ? base.concat(semicircleExtents) : base;
+  const squareExtents = collectSquareExtentPoints(basePointsMap, decorations, ['A', 'B', 'C', 'D']);
+  const extraPts = semicircleExtents.concat(squareExtents);
+  const fitPts = extraPts.length ? base.concat(extraPts) : base;
   const {
     T
   } = fitTransformToRect(fitPts, rect.w, rect.h, 46);
@@ -3137,7 +3277,9 @@ function drawCircleToGroup(g, rect, spec) {
   const cy = rect.y + rect.h / 2;
   const radius = Math.max(40, Math.min(rect.w, rect.h) / 2 - 50);
   const circleRadius = radius > 0 ? radius : Math.min(rect.w, rect.h) * 0.35;
-  const radiusText = normalizedDimensionText(spec && spec.radius, 'r');
+  const radiusEntry = spec && spec.radius;
+  const showRadius = radiusEntry && radiusEntry.requested;
+  const radiusText = showRadius ? normalizedDimensionText(radiusEntry, 'r') : '';
   const diameter = spec && spec.diameter;
   const diameterText = diameter ? normalizedDimensionText(diameter, 'd') : '';
   add(g, "circle", {
@@ -3173,7 +3315,7 @@ function drawCircleToGroup(g, rect, spec) {
     r: 6,
     fill: STYLE.radiusStroke || STYLE.edgeStroke
   });
-  if (radiusText) {
+  if (showRadius && radiusText) {
     const midX = cx + circleRadius * Math.cos(radiusAngle) * 0.55;
     const midY = cy + circleRadius * Math.sin(radiusAngle) * 0.55;
     const labelOffset = 16;
@@ -3438,8 +3580,9 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations) {
     "stroke-linecap": "round"
   });
   const radiusEntry = spec && spec.radius;
+  const showRadius = radiusEntry && radiusEntry.requested;
   const diameterEntry = spec && spec.diameter;
-  const radiusText = normalizedDimensionText(radiusEntry, 'r');
+  const radiusText = showRadius ? normalizedDimensionText(radiusEntry, 'r') : '';
   const diameterText = diameterEntry ? normalizedDimensionText(diameterEntry, 'd') : '';
   add(g, "line", {
     x1: center.x,
@@ -3456,7 +3599,7 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations) {
     r: 6,
     fill: STYLE.edgeStroke
   });
-  if (radiusText) {
+  if (showRadius && radiusText) {
     const labelPoint = {
       x: center.x + normal.x * arcRadius * 0.55,
       y: center.y + normal.y * arcRadius * 0.55
