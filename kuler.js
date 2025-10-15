@@ -1,4 +1,6 @@
 /* ============ ENKEL KONFIG (FORFATTER) ============ */
+let typeIdCounter = 0;
+
 const DEFAULT_ITEM_CONFIG = [{
   emoji: "🍎",
   label: "epler",
@@ -96,7 +98,6 @@ const LEGACY_COLOR_EMOJIS = {
   pink: "🩷",
   purple: "🟣"
 };
-let typeIdCounter = 0;
 const FALLBACK_TYPE_IDS = DEFAULT_ITEM_CONFIG.map((_, index) => `fallback-${index}`);
 if (typeof SIMPLE.altText !== "string") SIMPLE.altText = "";
 if (SIMPLE.altTextSource !== "manual") SIMPLE.altTextSource = "auto";
