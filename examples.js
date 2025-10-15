@@ -2402,6 +2402,7 @@
           scheduleBackendSync();
         } else if (backendAvailable) {
           backendSyncDeferred = false;
+          scheduleBackendSync();
         }
       }
     }
