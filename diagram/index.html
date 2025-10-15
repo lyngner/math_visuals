@@ -27,7 +27,7 @@
   <div class="wrap">
     <div class="grid layout--sidebar">
       <div class="card">
-        <h2 id="chartTitle">Favorittidretter i 5B</h2>
+        <h2 id="chartTitle">Skjermtid i 7A</h2>
         <div class="figure">
           <svg id="barsvg" viewBox="0 0 900 560" aria-label="Interaktivt stolpediagram"></svg>
         </div>
@@ -59,10 +59,10 @@
             <legend>Diagram</legend>
             <label>Type
               <select id="cfgType">
-                <option value="bar" selected>Stolpe</option>
+                <option value="bar">Stolpe</option>
                 <option value="line">Linje</option>
                 <option value="grouped">Grupperte stolper</option>
-                <option value="stacked">Stablede stolper</option>
+                <option value="stacked" selected>Stablede stolper</option>
                 <option value="pie">Sektordiagram</option>
               </select>
             </label>
@@ -81,11 +81,11 @@
               </select>
             </label>
             <label>Overskrift
-              <input id="cfgTitle" type="text" value="Favorittidretter i 5B">
+              <input id="cfgTitle" type="text" value="Skjermtid i 7A">
             </label>
             <div class="settings-row">
               <label>Etiketter (kommaseparert)
-                <input id="cfgLabels" type="text" value="Klatring,Fotball,Håndball,Basket,Tennis,Bowling">
+                <input id="cfgLabels" type="text" value="1,2,3,4,5,6,7">
               </label>
               <label>Vis håndtak (skriv feks 1,0,1....)
                 <input id="cfgLocked" type="text" value="">
@@ -96,10 +96,10 @@
                 <input id="cfgYMin" type="text" value="0">
               </label>
               <label>Maks y
-                <input id="cfgYMax" type="text" value="8">
+                <input id="cfgYMax" type="text" value="9">
               </label>
               <label>Navn på x-akse
-                <input id="cfgAxisXLabel" type="text" value="Idrett">
+                <input id="cfgAxisXLabel" type="text" value="Timer per dag">
               </label>
               <label>Navn på y-akse
                 <input id="cfgAxisYLabel" type="text" value="Antall elever">
@@ -118,25 +118,25 @@
             <fieldset id="series1Fields">
               <legend>Dataserie 1</legend>
               <label>Serienavn
-                <input id="cfgSeries1" type="text" value="">
+                <input id="cfgSeries1" type="text" value="Gutter">
               </label>
               <label>Startverdier
-                <input id="cfgStart" type="text" value="6,7,3,5,8,2">
+                <input id="cfgStart" type="text" value="2,5,4,2,3,1,0">
               </label>
               <label>Fasitverdier
-                <input id="cfgAnswer" type="text" value="6,7,3,5,8,2">
+                <input id="cfgAnswer" type="text" value="2,5,4,2,3,1,0">
               </label>
             </fieldset>
             <fieldset id="series2Fields" style="display:none">
               <legend>Dataserie 2</legend>
               <label>Serienavn
-                <input id="cfgSeries2" type="text" value="">
+                <input id="cfgSeries2" type="text" value="Jenter">
               </label>
               <label>Startverdier
-                <input id="cfgStart2" type="text" value="">
+                <input id="cfgStart2" type="text" value="2,3,3,1,1,1,0">
               </label>
               <label>Fasitverdier
-                <input id="cfgAnswer2" type="text" value="">
+                <input id="cfgAnswer2" type="text" value="2,3,3,1,1,1,0">
               </label>
             </fieldset>
             <button id="addSeries" class="addFigureBtn" type="button" aria-label="Legg til dataserie" data-edit-only>+</button>
