@@ -1,27 +1,19 @@
 /* ============ ENKEL KONFIG (FORFATTER) ============ */
+const DEFAULT_ITEM_CONFIG = [{
+  emoji: "🍎",
+  label: "epler",
+  count: 3
+}, {
+  emoji: "🍐",
+  label: "pærer",
+  count: 2
+}];
+
 const SIMPLE = {
   // Global radius for all beads. Optional – falls back to ADV.beadRadius.
   beadRadius: 30,
   bowls: [{
-    colorCounts: [{
-      color: "blue",
-      count: 2
-    }, {
-      color: "red",
-      count: 3
-    }, {
-      color: "green",
-      count: 0
-    }, {
-      color: "yellow",
-      count: 0
-    }, {
-      color: "pink",
-      count: 0
-    }, {
-      color: "purple",
-      count: 0
-    }]
+    items: cloneDefaultItems()
   }],
   altText: "",
   altTextSource: "auto"
@@ -31,17 +23,7 @@ const SIMPLE = {
 // Technical defaults. beadRadius here is only used if SIMPLE.beadRadius is not set.
 const ADV = {
   beadRadius: 30,
-  beadGap: 12,
-  assets: {
-    beads: {
-      blue: "images/blueWave.svg",
-      red: "images/redDots.svg",
-      green: "images/greenStar.svg",
-      yellow: "images/yellowGrid.svg",
-      pink: "images/pinkLabyrinth.svg",
-      purple: "images/purpleZigzag.svg"
-    }
-  }
+  beadGap: 12
 };
 
 /* ============ DERIVERT KONFIG FOR RENDER (IKKE REDIGER) ============ */
@@ -50,25 +32,33 @@ function makeCFG() {
   const globalRadius = (_SIMPLE$beadRadius = SIMPLE.beadRadius) !== null && _SIMPLE$beadRadius !== void 0 ? _SIMPLE$beadRadius : ADV.beadRadius;
   const bowls = Array.isArray(SIMPLE.bowls) ? SIMPLE.bowls : [];
   const cfgBowls = bowls.map(b => {
-    const colorsArr = [];
-    const counts = Array.isArray(b.colorCounts) ? b.colorCounts : [];
-    counts.forEach(cc => {
-      const col = ADV.assets.beads[cc.color];
-      const raw = cc === null || cc === void 0 ? void 0 : cc.count;
-      const count = Number.isFinite(raw) ? Math.max(0, Math.round(raw)) : 0;
-      if (col) for (let i = 0; i < count; i++) colorsArr.push(col);
+    const instances = [];
+    const items = Array.isArray(b.items) ? b.items : [];
+    items.forEach(item => {
+      const typeId = typeof (item === null || item === void 0 ? void 0 : item.id) === "string" && item.id ? item.id : createTypeId();
+      const emoji = sanitizeEmoji(item === null || item === void 0 ? void 0 : item.emoji) || DEFAULT_ITEM_CONFIG[0].emoji;
+      const raw = item === null || item === void 0 ? void 0 : item.count;
+      const count = sanitizeCount(raw);
+      for (let i = 0; i < count; i++) {
+        instances.push({
+          emoji,
+          typeId
+        });
+      }
     });
-    if (!colorsArr.length) colorsArr.push(...Object.values(ADV.assets.beads));
+    if (!instances.length) {
+      fallbackInstances().forEach(inst => instances.push(inst));
+    }
     const radiusRaw = Number.isFinite(b === null || b === void 0 ? void 0 : b.beadRadius) ? b.beadRadius : globalRadius;
     const beadRadius = Math.min(60, Math.max(5, radiusRaw !== null && radiusRaw !== void 0 ? radiusRaw : ADV.beadRadius));
     return {
-      colors: colorsArr,
+      instances,
       beadRadius
     };
   });
   if (!cfgBowls.length) {
     cfgBowls.push({
-      colors: Object.values(ADV.assets.beads),
+      instances: fallbackInstances(),
       beadRadius: Math.min(60, Math.max(5, globalRadius !== null && globalRadius !== void 0 ? globalRadius : ADV.beadRadius))
     });
   }
@@ -90,8 +80,7 @@ const figureViews = [];
 const STATE = window.STATE && typeof window.STATE === "object" ? window.STATE : {};
 window.STATE = STATE;
 if (!Array.isArray(STATE.bowls)) STATE.bowls = [];
-const colors = Object.keys(ADV.assets.beads);
-const COLOR_LABELS = {
+const LEGACY_COLOR_LABELS = {
   blue: "blå",
   red: "rød",
   green: "grønn",
@@ -99,10 +88,16 @@ const COLOR_LABELS = {
   pink: "rosa",
   purple: "lilla"
 };
-const assetToColor = Object.entries(ADV.assets.beads).reduce((acc, [color, src]) => {
-  acc[src] = color;
-  return acc;
-}, {});
+const LEGACY_COLOR_EMOJIS = {
+  blue: "🔵",
+  red: "🔴",
+  green: "🟢",
+  yellow: "🟡",
+  pink: "🩷",
+  purple: "🟣"
+};
+let typeIdCounter = 0;
+const FALLBACK_TYPE_IDS = DEFAULT_ITEM_CONFIG.map((_, index) => `fallback-${index}`);
 if (typeof SIMPLE.altText !== "string") SIMPLE.altText = "";
 if (SIMPLE.altTextSource !== "manual") SIMPLE.altTextSource = "auto";
 const controlsWrap = document.getElementById("controls");
@@ -219,29 +214,15 @@ function createFigure(idx, svg, gBowls) {
   const legend = document.createElement("legend");
   legend.textContent = `Kuler ${idx + 1}`;
   fieldset.appendChild(legend);
-  const counts = {};
-  const displays = {};
-  colors.forEach(color => {
-    const row = document.createElement("div");
-    row.className = "ctrlRow";
-    const label = document.createElement("span");
-    label.textContent = `${cap(color)} kuler`;
-    const minus = document.createElement("button");
-    minus.type = "button";
-    minus.textContent = "−";
-    const countSpan = document.createElement("span");
-    countSpan.className = "count";
-    countSpan.textContent = "0";
-    const plus = document.createElement("button");
-    plus.type = "button";
-    plus.textContent = "+";
-    minus.addEventListener("click", () => changeCount(idx, color, -1));
-    plus.addEventListener("click", () => changeCount(idx, color, 1));
-    row.append(label, minus, countSpan, plus);
-    fieldset.appendChild(row);
-    displays[color] = countSpan;
-    counts[color] = 0;
-  });
+  const typeList = document.createElement("div");
+  typeList.className = "emojiTypeList";
+  fieldset.appendChild(typeList);
+  const addTypeBtn = document.createElement("button");
+  addTypeBtn.type = "button";
+  addTypeBtn.className = "btn emojiAddBtn";
+  addTypeBtn.textContent = "Legg til type";
+  addTypeBtn.addEventListener("click", () => addType(idx));
+  fieldset.appendChild(addTypeBtn);
   const sizeRow = document.createElement("div");
   sizeRow.className = "ctrlRow ctrlRow--size";
   const sizeLabel = document.createElement("span");
@@ -272,8 +253,8 @@ function createFigure(idx, svg, gBowls) {
     svg,
     gBowls,
     fieldset,
-    counts,
-    displays,
+    typeList,
+    addTypeBtn,
     sizeDisplay: sizeSpan,
     sizeSlider: sizeInput,
     beadRadius: Math.min(60, Math.max(5, (_SIMPLE$beadRadius3 = SIMPLE.beadRadius) !== null && _SIMPLE$beadRadius3 !== void 0 ? _SIMPLE$beadRadius3 : ADV.beadRadius)),
@@ -287,45 +268,49 @@ function ensureSimpleBowl(idx) {
   let bowl = SIMPLE.bowls[idx];
   if (!bowl || typeof bowl !== "object") {
     const template = idx > 0 ? ensureSimpleBowl(0) : null;
-    const counts = new Map();
-    if (template && Array.isArray(template.colorCounts)) {
-      template.colorCounts.forEach(cc => {
-        const count = Number.isFinite(cc === null || cc === void 0 ? void 0 : cc.count) ? Math.max(0, Math.round(cc.count)) : 0;
-        counts.set(cc.color, count);
-      });
-    }
-    const colorCounts = colors.map(color => {
-      var _counts$get;
-      return {
-        color,
-        count: (_counts$get = counts.get(color)) !== null && _counts$get !== void 0 ? _counts$get : 0
-      };
-    });
+    const templateItems = template && Array.isArray(template.items) ? template.items : [];
+    const items = templateItems.length ? templateItems.map(item => ({
+      id: createTypeId(),
+      emoji: sanitizeEmoji(item === null || item === void 0 ? void 0 : item.emoji),
+      label: sanitizeLabel(item === null || item === void 0 ? void 0 : item.label),
+      count: sanitizeCount(item === null || item === void 0 ? void 0 : item.count)
+    })) : cloneDefaultItems();
     const radiusSource = Number.isFinite(template === null || template === void 0 ? void 0 : template.beadRadius) ? template.beadRadius : globalRadius;
     bowl = {
-      colorCounts,
+      items,
       beadRadius: radiusSource
     };
     SIMPLE.bowls[idx] = bowl;
   } else {
-    const counts = new Map();
-    (bowl.colorCounts || []).forEach(cc => {
-      const count = Number.isFinite(cc === null || cc === void 0 ? void 0 : cc.count) ? Math.max(0, Math.round(cc.count)) : 0;
-      counts.set(cc.color, count);
-    });
-    bowl.colorCounts = colors.map(color => {
-      var _counts$get2;
+    if (!Array.isArray(bowl.items) && Array.isArray(bowl.colorCounts)) {
+      bowl.items = bowl.colorCounts.map(cc => ({
+        id: createTypeId(),
+        emoji: LEGACY_COLOR_EMOJIS[cc.color] || DEFAULT_ITEM_CONFIG[0].emoji,
+        label: LEGACY_COLOR_LABELS[cc.color] || cc.color,
+        count: sanitizeCount(cc === null || cc === void 0 ? void 0 : cc.count)
+      }));
+      delete bowl.colorCounts;
+    }
+    if (!Array.isArray(bowl.items)) bowl.items = [];
+    const seen = new Set();
+    bowl.items = bowl.items.map(item => {
+      let id = typeof (item === null || item === void 0 ? void 0 : item.id) === "string" && item.id ? item.id : createTypeId();
+      while (seen.has(id)) id = createTypeId();
+      seen.add(id);
       return {
-        color,
-        count: (_counts$get2 = counts.get(color)) !== null && _counts$get2 !== void 0 ? _counts$get2 : 0
+        id,
+        emoji: sanitizeEmoji(item === null || item === void 0 ? void 0 : item.emoji),
+        label: sanitizeLabel(item === null || item === void 0 ? void 0 : item.label),
+        count: sanitizeCount(item === null || item === void 0 ? void 0 : item.count)
       };
     });
+    if (!bowl.items.length) bowl.items = [createEmptyItem()];
     const radiusSource = Number.isFinite(bowl.beadRadius) ? bowl.beadRadius : globalRadius;
     bowl.beadRadius = Math.min(60, Math.max(5, radiusSource));
   }
   return bowl;
 }
-function applySimpleToFigures() {
+function applySimpleToFigures(options = {}) {
   const visible = getVisibleCount();
   figureViews.forEach(fig => {
     var _SIMPLE$beadRadius7;
@@ -337,12 +322,7 @@ function applySimpleToFigures() {
     fig.renderRadius = radius;
     if (fig.sizeDisplay) fig.sizeDisplay.textContent = radius;
     if (fig.sizeSlider) fig.sizeSlider.value = String(radius);
-    colors.forEach(color => {
-      const entry = bowl.colorCounts.find(cc => cc.color === color);
-      const count = Number.isFinite(entry === null || entry === void 0 ? void 0 : entry.count) ? Math.max(0, Math.round(entry.count)) : 0;
-      fig.counts[color] = count;
-      if (fig.displays[color]) fig.displays[color].textContent = String(count);
-    });
+    updateFigureTypeControls(fig, bowl, options);
   });
 }
 function syncSimpleFromFigures() {
@@ -352,25 +332,187 @@ function syncSimpleFromFigures() {
     if (!fig) return;
     if (fig.idx >= visible) return;
     const bowl = ensureSimpleBowl(fig.idx);
-    bowl.colorCounts = colors.map(color => {
-      const value = Number.isFinite(fig.counts[color]) ? Math.max(0, Math.round(fig.counts[color])) : 0;
-      return {
-        color,
-        count: value
-      };
-    });
     bowl.beadRadius = Math.min(60, Math.max(5, (_ref = (_ref2 = (_fig$beadRadius = fig.beadRadius) !== null && _fig$beadRadius !== void 0 ? _fig$beadRadius : bowl.beadRadius) !== null && _ref2 !== void 0 ? _ref2 : SIMPLE.beadRadius) !== null && _ref !== void 0 ? _ref : ADV.beadRadius));
   });
   if (figureViews[0]) SIMPLE.beadRadius = figureViews[0].beadRadius;
 }
-function changeCount(idx, color, delta) {
+function changeCount(idx, typeId, delta) {
   const fig = figureViews[idx];
   if (!fig) return;
-  const current = Number.isFinite(fig.counts[color]) ? fig.counts[color] : 0;
+  const bowl = ensureSimpleBowl(idx);
+  if (!Array.isArray(bowl.items)) bowl.items = [];
+  const item = bowl.items.find(entry => entry.id === typeId);
+  if (!item) return;
+  const current = sanitizeCount(item.count);
   const next = Math.max(0, current + delta);
-  fig.counts[color] = next;
-  if (fig.displays[color]) fig.displays[color].textContent = String(next);
+  item.count = next;
   updateConfig();
+}
+function changeEmoji(idx, typeId, value, selection) {
+  const bowl = ensureSimpleBowl(idx);
+  if (!Array.isArray(bowl.items)) bowl.items = [];
+  const item = bowl.items.find(entry => entry.id === typeId);
+  if (!item) return;
+  const sanitized = sanitizeEmoji(value);
+  if (item.emoji === sanitized) return;
+  item.emoji = sanitized;
+  updateConfig({
+    focus: makeFocusState(idx, typeId, "emoji", selection, sanitized.length)
+  });
+}
+function changeLabel(idx, typeId, value, selection) {
+  const bowl = ensureSimpleBowl(idx);
+  if (!Array.isArray(bowl.items)) bowl.items = [];
+  const item = bowl.items.find(entry => entry.id === typeId);
+  if (!item) return;
+  const sanitized = sanitizeLabel(value);
+  if (item.label === sanitized) return;
+  item.label = sanitized;
+  updateConfig({
+    focus: makeFocusState(idx, typeId, "label", selection, sanitized.length)
+  });
+}
+function makeFocusState(bowlIdx, typeId, field, selection, fallbackLength) {
+  const state = {
+    bowlIdx,
+    typeId,
+    field
+  };
+  if (selection && typeof selection.start === "number" && typeof selection.end === "number") {
+    state.selectionStart = selection.start;
+    state.selectionEnd = selection.end;
+  } else if (typeof fallbackLength === "number") {
+    state.selectionStart = fallbackLength;
+    state.selectionEnd = fallbackLength;
+  }
+  return state;
+}
+function addType(idx) {
+  const bowl = ensureSimpleBowl(idx);
+  if (!Array.isArray(bowl.items)) bowl.items = [];
+  const newItem = {
+    id: createTypeId(),
+    emoji: "",
+    label: "",
+    count: 1
+  };
+  bowl.items.push(newItem);
+  updateConfig({
+    focus: makeFocusState(idx, newItem.id, "emoji", {
+      start: newItem.emoji.length,
+      end: newItem.emoji.length
+    })
+  });
+}
+function removeType(idx, typeId) {
+  const bowl = ensureSimpleBowl(idx);
+  if (!Array.isArray(bowl.items)) bowl.items = [];
+  const nextItems = bowl.items.filter(item => item.id !== typeId);
+  bowl.items = nextItems.length ? nextItems : [createEmptyItem()];
+  const bowlState = getBowlState(idx);
+  if (bowlState.byType && bowlState.byType[typeId]) {
+    delete bowlState.byType[typeId];
+  }
+  updateConfig();
+}
+function updateFigureTypeControls(fig, bowl, options = {}) {
+  if (!fig || !fig.typeList) return;
+  const list = fig.typeList;
+  list.innerHTML = "";
+  const items = Array.isArray(bowl.items) ? bowl.items : [];
+  const focus = options.focus && options.focus.bowlIdx === fig.idx ? options.focus : null;
+  items.forEach(item => {
+    const row = document.createElement("div");
+    row.className = "ctrlRow ctrlRow--emoji";
+    row.dataset.typeId = item.id;
+    const emojiInput = document.createElement("input");
+    emojiInput.type = "text";
+    emojiInput.className = "emojiInput";
+    emojiInput.maxLength = 8;
+    const emojiValue = sanitizeEmoji(item === null || item === void 0 ? void 0 : item.emoji);
+    emojiInput.value = emojiValue;
+    emojiInput.placeholder = DEFAULT_ITEM_CONFIG[0].emoji;
+    emojiInput.dataset.typeId = item.id;
+    emojiInput.dataset.field = "emoji";
+    emojiInput.addEventListener("input", e => {
+      const target = e.target;
+      const rawStart = target.selectionStart;
+      const sanitizedValue = sanitizeEmoji(target.value);
+      if (sanitizedValue !== target.value) {
+        target.value = sanitizedValue;
+        if (typeof target.setSelectionRange === "function") {
+          const pos = typeof rawStart === "number" ? Math.min(sanitizedValue.length, rawStart) : sanitizedValue.length;
+          try {
+            target.setSelectionRange(pos, pos);
+          } catch (_) {}
+        }
+      }
+      changeEmoji(fig.idx, item.id, sanitizedValue, {
+        start: target.selectionStart,
+        end: target.selectionEnd
+      });
+    });
+    const labelInput = document.createElement("input");
+    labelInput.type = "text";
+    labelInput.className = "emojiLabelInput";
+    labelInput.placeholder = "Navn (valgfritt)";
+    const labelValue = sanitizeLabel(item === null || item === void 0 ? void 0 : item.label);
+    labelInput.value = labelValue;
+    labelInput.dataset.typeId = item.id;
+    labelInput.dataset.field = "label";
+    labelInput.maxLength = 40;
+    labelInput.addEventListener("input", e => {
+      const target = e.target;
+      const sanitizedValue = sanitizeLabel(target.value);
+      if (sanitizedValue !== target.value) {
+        target.value = sanitizedValue;
+        if (typeof target.setSelectionRange === "function") {
+          const pos = sanitizedValue.length;
+          try {
+            target.setSelectionRange(pos, pos);
+          } catch (_) {}
+        }
+      }
+      changeLabel(fig.idx, item.id, sanitizedValue, {
+        start: target.selectionStart,
+        end: target.selectionEnd
+      });
+    });
+    const minus = document.createElement("button");
+    minus.type = "button";
+    minus.textContent = "−";
+    minus.addEventListener("click", () => changeCount(fig.idx, item.id, -1));
+    const countSpan = document.createElement("span");
+    countSpan.className = "count";
+    countSpan.textContent = String(sanitizeCount(item === null || item === void 0 ? void 0 : item.count));
+    const plus = document.createElement("button");
+    plus.type = "button";
+    plus.textContent = "+";
+    plus.addEventListener("click", () => changeCount(fig.idx, item.id, 1));
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "removeTypeBtn";
+    removeBtn.setAttribute("aria-label", "Fjern type");
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => removeType(fig.idx, item.id));
+    row.append(emojiInput, labelInput, minus, countSpan, plus, removeBtn);
+    list.appendChild(row);
+  });
+  if (focus) {
+    const selector = `[data-type-id="${focus.typeId}"][data-field="${focus.field}"]`;
+    const target = list.querySelector(selector);
+    if (target && typeof target.focus === "function") {
+      target.focus();
+      if (typeof focus.selectionStart === "number" && typeof focus.selectionEnd === "number" && typeof target.setSelectionRange === "function") {
+        try {
+          target.setSelectionRange(focus.selectionStart, focus.selectionEnd);
+        } catch (_) {}
+      }
+    }
+  }
+  if (fig.addTypeBtn) {
+    fig.addTypeBtn.disabled = false;
+  }
 }
 function adjustSize(idx, delta) {
   const fig = figureViews[idx];
@@ -386,9 +528,9 @@ function setSize(idx, value) {
   if (fig.sizeSlider && fig.sizeSlider.value !== String(next)) fig.sizeSlider.value = String(next);
   updateConfig();
 }
-function updateConfig() {
+function updateConfig(options = {}) {
   syncSimpleFromFigures();
-  render();
+  render(options);
 }
 function removeBowl(idx) {
   var _dragState$fig;
@@ -429,12 +571,8 @@ function removeBowl(idx) {
   }
   if (Array.isArray(SIMPLE.bowls) && SIMPLE.bowls.length === 0) {
     var _SIMPLE$beadRadius8;
-    const fallback = colors.map(color => ({
-      color,
-      count: 0
-    }));
     SIMPLE.bowls.push({
-      colorCounts: fallback,
+      items: cloneDefaultItems(),
       beadRadius: (_SIMPLE$beadRadius8 = SIMPLE.beadRadius) !== null && _SIMPLE$beadRadius8 !== void 0 ? _SIMPLE$beadRadius8 : ADV.beadRadius
     });
   }
@@ -443,7 +581,7 @@ function removeBowl(idx) {
   setVisibleCount(desired);
   render();
 }
-function render() {
+function render(options = {}) {
   const available = Array.isArray(SIMPLE.bowls) ? SIMPLE.bowls.length : 0;
   const maxVisible = Math.max(1, Math.min(MAX_FIGURES, available || 1));
   const currentVisible = getVisibleCount();
@@ -453,7 +591,7 @@ function render() {
     setVisibleCount(currentVisible);
   }
   CFG = makeCFG();
-  applySimpleToFigures();
+  applySimpleToFigures(options);
   if (STATE.bowls.length > CFG.bowls.length) STATE.bowls.length = CFG.bowls.length;
   figureViews.forEach(fig => renderFigure(fig));
   applyFigureVisibility();
@@ -495,10 +633,11 @@ function renderFigure(fig) {
   const gBeads = mk("g", {
     class: "beads"
   });
-  const nBeads = cfg.colors.length;
+  const instances = Array.isArray(cfg.instances) ? cfg.instances : [];
+  const nBeads = instances.length;
   const bowlState = getBowlState(idx);
-  const colorPositions = bowlState.byColor;
-  const colorUsage = {};
+  const typePositions = bowlState.byType;
+  const typeUsage = {};
   const placed = [];
   const cx = midX;
   const cy = rimY + bowlDepth;
@@ -527,40 +666,42 @@ function renderFigure(fig) {
     };
   }
   for (let i = 0; i < nBeads; i++) {
-    var _colorUsage$colorKey;
-    const src = cfg.colors[i % cfg.colors.length];
-    const colorKey = assetToColor[src] || src;
-    const useIdx = (_colorUsage$colorKey = colorUsage[colorKey]) !== null && _colorUsage$colorKey !== void 0 ? _colorUsage$colorKey : 0;
-    const arr = Array.isArray(colorPositions[colorKey]) ? colorPositions[colorKey] : colorPositions[colorKey] = [];
+    var _typeUsage$typeKey;
+    const instance = instances[i];
+    const typeKey = instance && typeof instance.typeId === "string" && instance.typeId ? instance.typeId : `type-${i}`;
+    const emoji = sanitizeEmoji(instance === null || instance === void 0 ? void 0 : instance.emoji) || DEFAULT_ITEM_CONFIG[0].emoji;
+    const useIdx = (_typeUsage$typeKey = typeUsage[typeKey]) !== null && _typeUsage$typeKey !== void 0 ? _typeUsage$typeKey : 0;
+    const arr = Array.isArray(typePositions[typeKey]) ? typePositions[typeKey] : typePositions[typeKey] = [];
     let pos = arr[useIdx];
     if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
       pos = randPos();
       arr[useIdx] = pos;
     }
     placed.push(pos);
-    colorUsage[colorKey] = useIdx + 1;
-    const bead = mk("image", {
-      href: src,
-      x: pos.x - beadRadius,
-      y: pos.y - beadRadius,
-      width: beadD,
-      height: beadD,
-      class: "bead beadShadow"
+    typeUsage[typeKey] = useIdx + 1;
+    const bead = mk("text", {
+      x: pos.x,
+      y: pos.y,
+      class: "bead beadShadow",
+      "text-anchor": "middle",
+      "dominant-baseline": "middle",
+      "font-size": String(beadRadius * 1.6)
     });
+    bead.textContent = emoji || DEFAULT_ITEM_CONFIG[0].emoji;
     bead.dataset.figure = String(idx);
     bead.dataset.bowl = String(idx);
-    bead.dataset.color = colorKey;
-    bead.dataset.colorIndex = String(useIdx);
+    bead.dataset.type = typeKey;
+    bead.dataset.typeIndex = String(useIdx);
     bead.addEventListener("pointerdown", startDrag);
     gBeads.appendChild(bead);
   }
-  Object.keys(colorPositions).forEach(key => {
-    var _colorUsage$key;
-    const used = (_colorUsage$key = colorUsage[key]) !== null && _colorUsage$key !== void 0 ? _colorUsage$key : 0;
-    if (!Array.isArray(colorPositions[key])) {
-      colorPositions[key] = [];
-    } else if (colorPositions[key].length > used) {
-      colorPositions[key].length = used;
+  Object.keys(typePositions).forEach(key => {
+    var _typeUsage$key;
+    const used = (_typeUsage$key = typeUsage[key]) !== null && _typeUsage$key !== void 0 ? _typeUsage$key : 0;
+    if (!Array.isArray(typePositions[key])) {
+      typePositions[key] = [];
+    } else if (typePositions[key].length > used) {
+      typePositions[key].length = used;
     }
   });
   g.appendChild(bowlImg);
@@ -621,9 +762,14 @@ function getBowlState(idx) {
     STATE.bowls[idx] = {};
   }
   const bowlState = STATE.bowls[idx];
-  if (!bowlState.byColor || typeof bowlState.byColor !== "object") {
-    bowlState.byColor = {};
+  if (!bowlState.byType || typeof bowlState.byType !== "object") {
+    if (bowlState.byColor && typeof bowlState.byColor === "object") {
+      bowlState.byType = bowlState.byColor;
+    } else {
+      bowlState.byType = {};
+    }
   }
+  if (bowlState.byColor) delete bowlState.byColor;
   return bowlState;
 }
 let dragState = null;
@@ -634,12 +780,12 @@ function startDrag(e) {
   const fig = figureViews[figIdx];
   if (!fig || !fig.svg) return;
   const bowlIdx = Number.parseInt(bead.dataset.bowl, 10);
-  const colorIdx = Number.parseInt(bead.dataset.colorIndex, 10);
-  const colorKey = bead.dataset.color;
+  const typeIdx = Number.parseInt(bead.dataset.typeIndex, 10);
+  const typeKey = bead.dataset.type;
   const info = {
     bowlIdx: Number.isNaN(bowlIdx) ? null : bowlIdx,
-    colorKey: typeof colorKey === "string" && colorKey ? colorKey : null,
-    colorIndex: Number.isNaN(colorIdx) ? null : colorIdx
+    typeKey: typeof typeKey === "string" && typeKey ? typeKey : null,
+    typeIndex: Number.isNaN(typeIdx) ? null : typeIdx
   };
   const pt = svgPoint(fig.svg, e);
   const x = parseFloat(bead.getAttribute("x"));
@@ -690,29 +836,26 @@ function endDrag(e) {
   dragState = null;
 }
 function storeDragPosition() {
-  var _ref4, _fig$renderRadius, _SIMPLE$beadRadius9;
   if (!dragState) return;
   const {
     bead,
-    info,
-    fig
+    info
   } = dragState;
   const {
     bowlIdx,
-    colorKey,
-    colorIndex
+    typeKey,
+    typeIndex
   } = info;
-  if (bowlIdx == null || colorKey == null || colorIndex == null) return;
+  if (bowlIdx == null || typeKey == null || typeIndex == null) return;
   const x = parseFloat(bead.getAttribute("x"));
   const y = parseFloat(bead.getAttribute("y"));
   if (!Number.isFinite(x) || !Number.isFinite(y)) return;
   const bowlState = getBowlState(bowlIdx);
-  const colorPositions = bowlState.byColor;
-  const arr = Array.isArray(colorPositions[colorKey]) ? colorPositions[colorKey] : colorPositions[colorKey] = [];
-  const radius = (_ref4 = (_fig$renderRadius = fig.renderRadius) !== null && _fig$renderRadius !== void 0 ? _fig$renderRadius : fig.beadRadius) !== null && _ref4 !== void 0 ? _ref4 : (_SIMPLE$beadRadius9 = SIMPLE.beadRadius) !== null && _SIMPLE$beadRadius9 !== void 0 ? _SIMPLE$beadRadius9 : ADV.beadRadius;
-  arr[colorIndex] = {
-    x: x + radius,
-    y: y + radius
+  const typePositions = bowlState.byType;
+  const arr = Array.isArray(typePositions[typeKey]) ? typePositions[typeKey] : typePositions[typeKey] = [];
+  arr[typeIndex] = {
+    x,
+    y
   };
 }
 function svgPoint(svgEl, evt) {
@@ -854,18 +997,21 @@ function ensureAltTextAnchor() {
   return altTextAnchor;
 }
 
-function getColorLabel(color) {
-  const key = typeof color === "string" ? color : "";
-  if (COLOR_LABELS[key]) return COLOR_LABELS[key];
-  return key.replace(/[-_]+/g, " ") || key;
+function getItemLabel(item) {
+  if (!item || typeof item !== "object") return "";
+  const label = sanitizeLabel(item.label);
+  if (label) return label;
+  const emoji = sanitizeEmoji(item.emoji);
+  if (emoji) return emoji;
+  return "element";
 }
 
-function formatColorCount(count, color) {
-  const safe = Number.isFinite(count) ? Math.max(0, Math.round(count)) : 0;
+function formatItemCount(count, item) {
+  const safe = sanitizeCount(count);
   if (!safe) return "";
-  const noun = safe === 1 ? "kule" : "kuler";
-  const label = getColorLabel(color);
-  return `${safe} ${label} ${noun}`;
+  const label = getItemLabel(item);
+  if (label) return `${safe} ${label}`;
+  return safe === 1 ? "1 element" : `${safe} elementer`;
 }
 
 function formatList(items) {
@@ -881,24 +1027,24 @@ function buildBowlSummaries() {
   const summaries = [];
   for (let i = 0; i < visible; i++) {
     const bowl = ensureSimpleBowl(i);
-    const counts = Array.isArray(bowl === null || bowl === void 0 ? void 0 : bowl.colorCounts) ? bowl.colorCounts : [];
+    const counts = Array.isArray(bowl === null || bowl === void 0 ? void 0 : bowl.items) ? bowl.items : [];
     let total = 0;
     const parts = [];
-    counts.forEach(cc => {
-      const value = Number.isFinite(cc === null || cc === void 0 ? void 0 : cc.count) ? Math.max(0, Math.round(cc.count)) : 0;
+    counts.forEach(item => {
+      const value = sanitizeCount(item === null || item === void 0 ? void 0 : item.count);
       if (value > 0) {
-        parts.push(formatColorCount(value, cc.color));
+        parts.push(formatItemCount(value, item));
         total += value;
       }
     });
     const indexLabel = `Bolle ${i + 1}`;
-    const title = `${indexLabel} med kuler`;
+    const title = `${indexLabel} med symboler`;
     let description;
     if (total === 0) {
       description = `${indexLabel} er tom.`;
     } else {
       const details = formatList(parts);
-      description = details ? `${indexLabel} inneholder ${details}.` : `${indexLabel} inneholder kuler.`;
+      description = details ? `${indexLabel} inneholder ${details}.` : `${indexLabel} inneholder symboler.`;
     }
     summaries.push({
       title,
@@ -912,7 +1058,7 @@ function buildBowlSummaries() {
 function buildKulerAltText() {
   const summaries = buildBowlSummaries();
   if (!summaries.length) return "Illustrasjonen viser ingen boller.";
-  const intro = summaries.length === 1 ? "Illustrasjonen viser en bolle med kuler." : `Illustrasjonen viser ${summaries.length} boller med kuler.`;
+  const intro = summaries.length === 1 ? "Illustrasjonen viser en bolle med symboler." : `Illustrasjonen viser ${summaries.length} boller med symboler.`;
   const details = summaries.map(s => s.description).join(" ");
   return `${intro} ${details}`.trim();
 }
@@ -1033,8 +1179,58 @@ function mk(n, attrs = {}) {
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
   return e;
 }
-function cap(s) {
-  return s[0].toUpperCase() + s.slice(1);
+function createTypeId() {
+  typeIdCounter += 1;
+  return `emoji-type-${typeIdCounter}`;
+}
+function cloneDefaultItems() {
+  return DEFAULT_ITEM_CONFIG.map(item => ({
+    id: createTypeId(),
+    emoji: sanitizeEmoji(item.emoji),
+    label: sanitizeLabel(item.label),
+    count: sanitizeCount(item.count)
+  }));
+}
+function createEmptyItem() {
+  return {
+    id: createTypeId(),
+    emoji: "",
+    label: "",
+    count: 0
+  };
+}
+function fallbackInstances() {
+  const instances = [];
+  DEFAULT_ITEM_CONFIG.forEach((item, index) => {
+    const emoji = sanitizeEmoji(item.emoji) || DEFAULT_ITEM_CONFIG[0].emoji;
+    const count = Math.max(1, sanitizeCount(item.count));
+    const typeId = FALLBACK_TYPE_IDS[index] || `fallback-${index}`;
+    for (let i = 0; i < count; i++) {
+      instances.push({
+        emoji,
+        typeId
+      });
+    }
+  });
+  if (!instances.length) {
+    instances.push({
+      emoji: DEFAULT_ITEM_CONFIG[0].emoji,
+      typeId: FALLBACK_TYPE_IDS[0] || "fallback-0"
+    });
+  }
+  return instances;
+}
+function sanitizeCount(value) {
+  const num = Number.isFinite(value) ? Math.round(value) : 0;
+  return Math.max(0, num);
+}
+function sanitizeEmoji(value) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, 8);
+}
+function sanitizeLabel(value) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, 40);
 }
 async function inlineImages(svgEl) {
   const imgs = svgEl.querySelectorAll("image");
