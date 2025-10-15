@@ -3187,17 +3187,16 @@
     try {
       input = getDescriptionInput();
     } catch (error) {
-      if (isTaskMode) {
-        scheduleDescriptionVisibilityUpdate(normalized);
-      }
+      scheduleDescriptionVisibilityUpdate(normalized);
       return;
     }
     if (!input) {
-      if (isTaskMode) {
-        scheduleDescriptionVisibilityUpdate(normalized);
-      }
+      scheduleDescriptionVisibilityUpdate(normalized);
       return;
     }
+
+    renderDescriptionPreviewFromValue(input.value, { force: true });
+
     const container = input.closest('.example-description');
     if (container) {
       if (isTaskMode) {
