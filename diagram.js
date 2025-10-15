@@ -2,23 +2,26 @@
    KONFIG – forfatter styrer alt her
    ========================================================= */
 const CFG = {
-  type: 'bar',
-  title: 'Favorittidretter i 5B',
-  labels: ['Klatring', 'Fotball', 'Håndball', 'Basket', 'Tennis', 'Bowling'],
-  series1: '',
-  start: [6, 7, 3, 5, 8, 2],
-  answer: [6, 7, 3, 5, 8, 2],
+  type: 'stacked',
+  title: 'Skjermtid i 7A',
+  labels: ['1', '2', '3', '4', '5', '6', '7'],
+  series1: 'Gutter',
+  start: [2, 5, 4, 2, 3, 1, 0],
+  answer: [2, 5, 4, 2, 3, 1, 0],
   yMin: 0,
-  yMax: 8,
+  yMax: 9,
   snap: 1,
   tolerance: 0,
-  axisXLabel: 'Idrett',
+  axisXLabel: 'Timer per dag',
   axisYLabel: 'Antall elever',
   valueDisplay: 'none',
   pieLabelPosition: 'outside',
   locked: [],
   altText: '',
-  altTextSource: 'auto'
+  altTextSource: 'auto',
+  series2: 'Jenter',
+  start2: [2, 3, 3, 1, 1, 1, 0],
+  answer2: [2, 3, 3, 1, 1, 1, 0]
 };
 const VALUE_DISPLAY_OPTIONS = ['none', 'number', 'fraction', 'percent'];
 const PIE_LABEL_POSITIONS = ['outside', 'inside'];
