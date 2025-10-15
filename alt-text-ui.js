@@ -194,11 +194,19 @@
       }
     }
 
-    function setStateAndApply(text, source) {
-      setState(text, source);
-      if (textarea && textarea.value !== text) {
+    function syncTextarea(text) {
+      if (!textarea) return;
+      if (textarea.value !== text) {
         textarea.value = text;
       }
+      if (textarea.textContent !== text) {
+        textarea.textContent = text;
+      }
+    }
+
+    function setStateAndApply(text, source) {
+      setState(text, source);
+      syncTextarea(text);
       applyToSvg(text);
       setSavedSignature();
     }
@@ -292,7 +300,7 @@
     currentSignature = initialSignature;
     savedSignature = initialSignature;
     const initial = normalizeState(getState());
-    textarea.value = initial.text;
+    syncTextarea(initial.text);
     applyToSvg(initial.text);
     if (initial.text) {
       setStatus('', false);
@@ -304,9 +312,7 @@
       refresh(reason, signatureOverride) {
         notifyFigureChange(signatureOverride);
         const current = normalizeState(getState());
-        if (textarea && textarea.value !== current.text) {
-          textarea.value = current.text;
-        }
+        syncTextarea(current.text);
         applyToSvg(current.text);
         if (current.source === 'manual' && current.text.trim()) {
           if (!manualStale) {
@@ -319,7 +325,7 @@
       },
       applyCurrent() {
         const current = normalizeState(getState());
-        textarea.value = current.text;
+        syncTextarea(current.text);
         applyToSvg(current.text);
       },
       notifyFigureChange(signatureOverride) {
