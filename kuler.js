@@ -9,6 +9,25 @@ const DEFAULT_ITEM_CONFIG = [{
   count: 2
 }];
 
+const LEGACY_COLOR_LABELS = {
+  blue: "blå",
+  red: "rød",
+  green: "grønn",
+  yellow: "gul",
+  pink: "rosa",
+  purple: "lilla"
+};
+const LEGACY_COLOR_EMOJIS = {
+  blue: "🔵",
+  red: "🔴",
+  green: "🟢",
+  yellow: "🟡",
+  pink: "🩷",
+  purple: "🟣"
+};
+let typeIdCounter = 0;
+const FALLBACK_TYPE_IDS = DEFAULT_ITEM_CONFIG.map((_, index) => `fallback-${index}`);
+
 const SIMPLE = {
   // Global radius for all beads. Optional – falls back to ADV.beadRadius.
   beadRadius: 30,
@@ -27,13 +46,38 @@ const ADV = {
 };
 
 /* ============ DERIVERT KONFIG FOR RENDER (IKKE REDIGER) ============ */
+function convertLegacyColorCounts(colorCounts) {
+  if (!Array.isArray(colorCounts)) return [];
+  return colorCounts.map((cc = {}) => {
+    const colorKey = typeof cc.color === "string" ? cc.color : "";
+    const emojiSource = typeof LEGACY_COLOR_EMOJIS[colorKey] === "string" ? LEGACY_COLOR_EMOJIS[colorKey] : "";
+    const labelSource = typeof LEGACY_COLOR_LABELS[colorKey] === "string" ? LEGACY_COLOR_LABELS[colorKey] : colorKey;
+    const emoji = sanitizeEmoji(emojiSource) || DEFAULT_ITEM_CONFIG[0].emoji;
+    return {
+      id: createTypeId(),
+      emoji,
+      label: sanitizeLabel(labelSource),
+      count: sanitizeCount(cc === null || cc === void 0 ? void 0 : cc.count)
+    };
+  });
+}
+function getBowlItemsForRender(bowl) {
+  if (!bowl || typeof bowl !== "object") return [];
+  if (!Array.isArray(bowl.items) && Array.isArray(bowl.colorCounts)) {
+    const converted = convertLegacyColorCounts(bowl.colorCounts);
+    bowl.items = converted;
+    delete bowl.colorCounts;
+  }
+  return Array.isArray(bowl.items) ? bowl.items : [];
+}
 function makeCFG() {
   var _SIMPLE$beadRadius;
   const globalRadius = (_SIMPLE$beadRadius = SIMPLE.beadRadius) !== null && _SIMPLE$beadRadius !== void 0 ? _SIMPLE$beadRadius : ADV.beadRadius;
   const bowls = Array.isArray(SIMPLE.bowls) ? SIMPLE.bowls : [];
   const cfgBowls = bowls.map(b => {
     const instances = [];
-    const items = Array.isArray(b.items) ? b.items : [];
+    const bowlConfig = b && typeof b === "object" ? b : {};
+    const items = getBowlItemsForRender(bowlConfig);
     items.forEach(item => {
       const typeId = typeof (item === null || item === void 0 ? void 0 : item.id) === "string" && item.id ? item.id : createTypeId();
       const emoji = sanitizeEmoji(item === null || item === void 0 ? void 0 : item.emoji) || DEFAULT_ITEM_CONFIG[0].emoji;
@@ -80,24 +124,6 @@ const figureViews = [];
 const STATE = window.STATE && typeof window.STATE === "object" ? window.STATE : {};
 window.STATE = STATE;
 if (!Array.isArray(STATE.bowls)) STATE.bowls = [];
-const LEGACY_COLOR_LABELS = {
-  blue: "blå",
-  red: "rød",
-  green: "grønn",
-  yellow: "gul",
-  pink: "rosa",
-  purple: "lilla"
-};
-const LEGACY_COLOR_EMOJIS = {
-  blue: "🔵",
-  red: "🔴",
-  green: "🟢",
-  yellow: "🟡",
-  pink: "🩷",
-  purple: "🟣"
-};
-let typeIdCounter = 0;
-const FALLBACK_TYPE_IDS = DEFAULT_ITEM_CONFIG.map((_, index) => `fallback-${index}`);
 if (typeof SIMPLE.altText !== "string") SIMPLE.altText = "";
 if (SIMPLE.altTextSource !== "manual") SIMPLE.altTextSource = "auto";
 const controlsWrap = document.getElementById("controls");
@@ -283,12 +309,7 @@ function ensureSimpleBowl(idx) {
     SIMPLE.bowls[idx] = bowl;
   } else {
     if (!Array.isArray(bowl.items) && Array.isArray(bowl.colorCounts)) {
-      bowl.items = bowl.colorCounts.map(cc => ({
-        id: createTypeId(),
-        emoji: LEGACY_COLOR_EMOJIS[cc.color] || DEFAULT_ITEM_CONFIG[0].emoji,
-        label: LEGACY_COLOR_LABELS[cc.color] || cc.color,
-        count: sanitizeCount(cc === null || cc === void 0 ? void 0 : cc.count)
-      }));
+      bowl.items = convertLegacyColorCounts(bowl.colorCounts);
       delete bowl.colorCounts;
     }
     if (!Array.isArray(bowl.items)) bowl.items = [];
