@@ -1030,22 +1030,7 @@
 
   function buildSequentialAnswerLines(points) {
     if (!Array.isArray(points)) return [];
-    const collator = new Intl.Collator('nb', { numeric: true, sensitivity: 'base' });
-    const ordered = points
-      .map((point, index) => ({ point, index }))
-      .filter(entry => entry.point && !entry.point.isFalse)
-      .sort((a, b) => {
-        const labelA = typeof a.point.label === 'string' ? a.point.label : '';
-        const labelB = typeof b.point.label === 'string' ? b.point.label : '';
-        const compareLabel = collator.compare(labelA, labelB);
-        if (compareLabel !== 0) return compareLabel;
-        const idA = typeof a.point.id === 'string' ? a.point.id : '';
-        const idB = typeof b.point.id === 'string' ? b.point.id : '';
-        const compareId = collator.compare(idA, idB);
-        if (compareId !== 0) return compareId;
-        return a.index - b.index;
-      })
-      .map(entry => entry.point);
+    const ordered = points.filter(point => point && !point.isFalse);
     const sequential = [];
     const usedKeys = new Set();
     let previous = null;
