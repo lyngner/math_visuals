@@ -136,6 +136,9 @@ function getDefaultBlock(index = 0) {
     ...base
   };
 }
+const DEFAULT_ROW_GAP = 4;
+const MIN_ROW_GAP = 0;
+const MAX_ROW_GAP = 200;
 const CONFIG = {
   minN: 1,
   maxN: 12,
@@ -145,6 +148,7 @@ const CONFIG = {
   showCombinedWhole: false,
   showCombinedWholeVertical: false,
   rowLabels: [],
+  rowGap: DEFAULT_ROW_GAP,
   altText: '',
   altTextSource: 'auto'
 };
@@ -158,7 +162,6 @@ const BRACKET_TICK_RATIO = 16 / VBH;
 const LABEL_OFFSET_RATIO = 14 / VBH;
 const DEFAULT_SVG_HEIGHT = 260;
 const BASE_INNER_RATIO = BOTTOM_RATIO - TOP_RATIO;
-const ROW_GAP = 4;
 const ROW_LABEL_GAP = 18;
 const DEFAULT_FRAME_INSET = 3;
 const DEFAULT_GRID_PADDING_TOP = 20;
@@ -220,8 +223,19 @@ const globalControls = {
   horizontalRow: null,
   vertical: null,
   verticalRow: null,
-  rowLabelInputs: []
+  rowLabelInputs: [],
+  rowGapInput: null
 };
+
+function sanitizeRowGap(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_ROW_GAP;
+  return clamp(Math.round(numeric), MIN_ROW_GAP, MAX_ROW_GAP);
+}
+
+function getConfiguredRowGap() {
+  return sanitizeRowGap(CONFIG.rowGap);
+}
 
 function getEffectiveActiveBlockCount() {
   const visible = Number(CONFIG === null || CONFIG === void 0 ? void 0 : CONFIG.visibleBlockCount);
@@ -833,6 +847,7 @@ function normalizeConfig(initial = false) {
   CONFIG.rowLabels = normalizedRowLabels;
   CONFIG.showCombinedWhole = toBoolean(CONFIG.showCombinedWhole, false);
   CONFIG.showCombinedWholeVertical = toBoolean(CONFIG.showCombinedWholeVertical, false);
+  CONFIG.rowGap = sanitizeRowGap(CONFIG.rowGap);
   const rowsChanged = Number.isFinite(previousRows) && previousRows !== rows;
   const colsChanged = Number.isFinite(previousCols) && previousCols !== cols;
   if (rowsChanged || colsChanged) structureChanged = true;
@@ -890,6 +905,7 @@ function buildGlobalSettings(targetFragment) {
   globalControls.vertical = null;
   globalControls.verticalRow = null;
   globalControls.rowLabelInputs = [];
+  globalControls.rowGapInput = null;
   const fieldset = document.createElement('fieldset');
   fieldset.className = 'tb-settings-global';
   const legend = document.createElement('legend');
@@ -918,6 +934,32 @@ function buildGlobalSettings(targetFragment) {
     }
     fieldset.appendChild(labelWrapper);
   }
+  const gapLabel = document.createElement('label');
+  gapLabel.textContent = 'Mellomrom mellom blokker';
+  const gapInput = document.createElement('input');
+  gapInput.type = 'number';
+  gapInput.min = String(MIN_ROW_GAP);
+  gapInput.max = String(MAX_ROW_GAP);
+  gapInput.step = '1';
+  gapInput.value = String(getConfiguredRowGap());
+  const applyGap = () => {
+    const parsed = Number.parseFloat(String(gapInput.value).replace(',', '.'));
+    if (!Number.isFinite(parsed)) {
+      gapInput.value = String(getConfiguredRowGap());
+      return;
+    }
+    const sanitized = sanitizeRowGap(parsed);
+    CONFIG.rowGap = sanitized;
+    if (gapInput.value !== String(sanitized)) {
+      gapInput.value = String(sanitized);
+    }
+    draw(true);
+  };
+  gapInput.addEventListener('change', applyGap);
+  gapInput.addEventListener('blur', applyGap);
+  gapLabel.appendChild(gapInput);
+  fieldset.appendChild(gapLabel);
+  globalControls.rowGapInput = gapInput;
   const horizontalRow = document.createElement('div');
   horizontalRow.className = 'checkbox-row';
   const horizontalInput = document.createElement('input');
@@ -981,10 +1023,19 @@ function draw(skipNormalization = false) {
       if (input.value !== value) input.value = value;
     });
   }
+  if (globalControls.rowGapInput) {
+    const desiredGap = String(getConfiguredRowGap());
+    if (globalControls.rowGapInput.value !== desiredGap) {
+      globalControls.rowGapInput.value = desiredGap;
+    }
+  }
   let maxLabelWidth = 0;
   let needsFrontPadding = false;
   if (grid) {
+    const configuredRowGap = getConfiguredRowGap();
     grid.style.setProperty('--tb-row-label-gap', `${ROW_LABEL_GAP}px`);
+    grid.style.setProperty('--tb-row-gap', `${configuredRowGap}px`);
+    grid.style.rowGap = `${configuredRowGap}px`;
     grid.style.setProperty('--tb-label-max-width', '0px');
     grid.style.setProperty('--tb-grid-padding-left', `${DEFAULT_GRID_PADDING_LEFT}px`);
   }
@@ -2162,6 +2213,7 @@ function getExportSvg() {
   }
   const figureWidth = rowInfo.reduce((max, row) => Math.max(max, row.width || 0), 0) || VBW;
   const rowLabels = Array.isArray(CONFIG.rowLabels) ? CONFIG.rowLabels : [];
+  const exportRowGap = getConfiguredRowGap();
   const labelTexts = rowInfo.map((_, index) => {
     const value = rowLabels[index];
     return typeof value === 'string' ? value.trim() : '';
@@ -2175,7 +2227,7 @@ function getExportSvg() {
   const labelSpace = labelBaseWidth > 0 ? labelBaseWidth + labelPadding : 0;
   const exportHeight = rowInfo.reduce((sum, row, index) => {
     if (!row.blocks.length) return sum;
-    const gap = index > 0 ? ROW_GAP : 0;
+    const gap = index > 0 ? exportRowGap : 0;
     return sum + row.height + gap;
   }, 0) || DEFAULT_SVG_HEIGHT;
   const activeCount = getEffectiveActiveBlockCount();
@@ -2204,7 +2256,7 @@ function getExportSvg() {
   let offsetY = 0;
   rowInfo.forEach((row, rowIndex) => {
     if (!row.blocks.length) return;
-    if (rowIndex > 0) offsetY += ROW_GAP;
+    if (rowIndex > 0) offsetY += exportRowGap;
     const rowContainer = document.createElementNS(ns, 'g');
     rowContainer.setAttribute('transform', `translate(0,${offsetY})`);
     exportSvg.appendChild(rowContainer);
@@ -2255,7 +2307,7 @@ function getExportSvg() {
     let offsetYForRows = 0;
     rowInfo.forEach((row, rowIndex) => {
       if (!row.blocks.length) return;
-      if (rowIndex > 0) offsetYForRows += ROW_GAP;
+      if (rowIndex > 0) offsetYForRows += exportRowGap;
       for (const { metrics } of row.blocks) {
         if (!metrics) continue;
         const outerTop = Number.isFinite(metrics.outerTop) ? metrics.outerTop : 0;
