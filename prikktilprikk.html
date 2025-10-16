@@ -152,11 +152,6 @@
       border-color: #2563eb;
       color: #fff;
     }
-    .btn--success {
-      background: #059669;
-      border-color: #059669;
-      color: #fff;
-    }
     .btn--small { padding: 6px 10px; font-size: 13px; }
     label { font-size: 13px; color: #4b5563; display: flex; flex-direction: column; gap: 4px; }
     input[type="text"], input[type="number"], select {
@@ -375,15 +370,6 @@
     body.labels-hidden .point-label { display: none; }
     body.is-edit-mode .predef-tool { display: flex; }
     body.is-predef-mode .predef-tool { background: #eff6ff; border-color: #bfdbfe; }
-    .example-description [data-task-check-host] {
-      margin-top: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      align-items: flex-start;
-    }
-    .example-description [data-task-check-host][hidden] { display: none; }
-    .example-description [data-task-check-host] .status { width: 100%; }
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
@@ -405,7 +391,7 @@
           <div class="example-description">
             <textarea id="exampleDescription" aria-label="Oppgavetekst (valgfritt)" placeholder="Skriv oppgavetekst her"></textarea>
             <div class="task-check-host" data-task-check-host hidden>
-              <button id="btnCheck" class="btn btn--success" type="button">Sjekk svar</button>
+              <button id="btnCheck" class="btn btn--task-check" type="button">Sjekk svar</button>
               <div id="statusMessage" class="status" role="status" aria-live="polite" hidden></div>
             </div>
           </div>

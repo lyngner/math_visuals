@@ -289,6 +289,16 @@ body[data-app-mode="task"] .figure {
   transform: translateY(1px);
 }
 
+.btn--task-check {
+  border-color: #34d399;
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.btn--task-check:hover {
+  background: #d1fae5;
+}
+
 label {
   font-size: 13px;
   color: var(--label-color);
@@ -491,6 +501,22 @@ select:disabled {
   font-size: 13px;
   color: var(--label-color);
   transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.card--examples .example-description [data-task-check-host] {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.card--examples .example-description [data-task-check-host][hidden] {
+  display: none;
+}
+
+.card--examples .example-description [data-task-check-host] .status {
+  width: 100%;
 }
 
 .card--examples .example-description-preview {
