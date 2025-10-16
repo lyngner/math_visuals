@@ -4793,9 +4793,6 @@ function setupSettingsForm() {
       if (labelSpan) {
         labelSpan.textContent = titleLabel;
       }
-      if (editor) {
-        editor.setAttribute('data-preview-layout', 'below');
-      }
       if (preview) {
         preview.removeAttribute('data-preview-no-latex');
       }
