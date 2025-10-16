@@ -3586,21 +3586,23 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations) {
   const diameterEntry = spec && spec.diameter;
   const radiusText = showRadius ? normalizedDimensionText(radiusEntry, 'r') : '';
   const diameterText = diameterEntry ? normalizedDimensionText(diameterEntry, 'd') : '';
-  add(g, "line", {
-    x1: center.x,
-    y1: center.y,
-    x2: midArc.x,
-    y2: midArc.y,
-    stroke: STYLE.edgeStroke,
-    "stroke-width": STYLE.edgeWidth * 0.75,
-    "stroke-linecap": "round"
-  });
-  add(g, "circle", {
-    cx: center.x,
-    cy: center.y,
-    r: 6,
-    fill: STYLE.edgeStroke
-  });
+  if (showRadius) {
+    add(g, "line", {
+      x1: center.x,
+      y1: center.y,
+      x2: midArc.x,
+      y2: midArc.y,
+      stroke: STYLE.edgeStroke,
+      "stroke-width": STYLE.edgeWidth * 0.75,
+      "stroke-linecap": "round"
+    });
+    add(g, "circle", {
+      cx: center.x,
+      cy: center.y,
+      r: 6,
+      fill: STYLE.edgeStroke
+    });
+  }
   if (showRadius && radiusText) {
     const labelPoint = {
       x: center.x + normal.x * arcRadius * 0.55,
