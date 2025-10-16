@@ -114,31 +114,41 @@
               </label>
             </div>
           </fieldset>
-          <div class="series-settings">
-            <fieldset id="series1Fields">
-              <legend>Dataserie 1</legend>
-              <label>Serienavn
-                <input id="cfgSeries1" type="text" value="Gutter">
-              </label>
-              <label>Startverdier
-                <input id="cfgStart" type="text" value="2,5,4,2,3,1,0">
-              </label>
-              <label>Fasitverdier
-                <input id="cfgAnswer" type="text" value="2,5,4,2,3,1,0">
-              </label>
-            </fieldset>
-            <fieldset id="series2Fields" style="display:none">
-              <legend>Dataserie 2</legend>
-              <label>Serienavn
-                <input id="cfgSeries2" type="text" value="Jenter">
-              </label>
-              <label>Startverdier
-                <input id="cfgStart2" type="text" value="2,3,3,1,1,1,0">
-              </label>
-              <label>Fasitverdier
-                <input id="cfgAnswer2" type="text" value="2,3,3,1,1,1,0">
-              </label>
-            </fieldset>
+          <div class="series-settings series-settings--single">
+            <div class="series-settings__rows">
+              <div class="settings-row series-settings__row series-settings__row--legend">
+                <div class="series-settings__column" data-series-column="1">
+                  <span class="series-settings__legend">Dataserie 1</span>
+                </div>
+                <div class="series-settings__column" data-series-column="2">
+                  <span class="series-settings__legend">Dataserie 2</span>
+                </div>
+              </div>
+              <div class="settings-row series-settings__row">
+                <label class="series-settings__column" data-series-column="1">Serienavn
+                  <input id="cfgSeries1" type="text" value="Gutter">
+                </label>
+                <label class="series-settings__column" data-series-column="2">Serienavn
+                  <input id="cfgSeries2" type="text" value="Jenter">
+                </label>
+              </div>
+              <div class="settings-row series-settings__row">
+                <label class="series-settings__column" data-series-column="1">Startverdier
+                  <input id="cfgStart" type="text" value="2,5,4,2,3,1,0">
+                </label>
+                <label class="series-settings__column" data-series-column="2">Startverdier
+                  <input id="cfgStart2" type="text" value="2,3,3,1,1,1,0">
+                </label>
+              </div>
+              <div class="settings-row series-settings__row">
+                <label class="series-settings__column" data-series-column="1">Fasitverdier
+                  <input id="cfgAnswer" type="text" value="2,5,4,2,3,1,0">
+                </label>
+                <label class="series-settings__column" data-series-column="2">Fasitverdier
+                  <input id="cfgAnswer2" type="text" value="2,3,3,1,1,1,0">
+                </label>
+              </div>
+            </div>
             <button id="addSeries" class="addFigureBtn" type="button" aria-label="Legg til dataserie" data-edit-only>+</button>
           </div>
         </div>

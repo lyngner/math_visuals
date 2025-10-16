@@ -192,12 +192,13 @@ if (regenerateAltTextBtn) {
   });
 }
 const addSeriesBtn = document.getElementById('addSeries');
-const series2Fields = document.getElementById('series2Fields');
+const seriesSettings = document.querySelector('.series-settings');
+const series2Columns = Array.from(document.querySelectorAll('[data-series-column="2"]'));
 const axisAndRangeRow = document.getElementById('cfgAxisAndRangeRow');
 addSeriesBtn === null || addSeriesBtn === void 0 || addSeriesBtn.addEventListener('click', () => {
   series2Enabled = true;
   addSeriesBtn.style.display = 'none';
-  if (series2Fields) series2Fields.style.display = '';
+  setSeries2Visibility(true);
   applyCfg();
 });
 
@@ -213,6 +214,24 @@ function setRowVisibility(row, visible) {
   } else {
     row.removeAttribute('aria-hidden');
   }
+}
+
+function setSeries2Visibility(visible) {
+  if (seriesSettings) {
+    seriesSettings.classList.toggle('series-settings--single', !visible);
+  }
+  series2Columns.forEach(column => {
+    column.style.display = visible ? '' : 'none';
+    const interactiveElements = column.querySelectorAll('input, select, textarea, button');
+    interactiveElements.forEach(el => {
+      el.disabled = !visible;
+    });
+    if (!visible) {
+      column.setAttribute('aria-hidden', 'true');
+    } else {
+      column.removeAttribute('aria-hidden');
+    }
+  });
 }
 
 function updateSettingsVisibilityForType(type) {
@@ -314,9 +333,7 @@ function initFromCfg() {
   if (addSeriesBtn) {
     addSeriesBtn.style.display = series2Enabled ? 'none' : '';
   }
-  if (series2Fields) {
-    series2Fields.style.display = series2Enabled ? '' : 'none';
-  }
+  setSeries2Visibility(series2Enabled);
   if (series2Input) series2Input.value = series2Enabled ? CFG.series2 || '' : '';
   if (start2Input) start2Input.value = series2Enabled && Array.isArray(values2) ? formatNumberList(values2) : '';
   if (answer2Input) answer2Input.value = series2Enabled && Array.isArray(CFG.answer2) ? formatNumberList(CFG.answer2) : '';
