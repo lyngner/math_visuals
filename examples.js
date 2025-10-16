@@ -3706,6 +3706,7 @@
       skipStatusUpdate: userInitiated
     };
     let syncResult = null;
+    let syncError = null;
     try {
       if (shouldLockButtons) {
         setActionButtonsBusy(true);
@@ -3720,11 +3721,20 @@
       if (userInitiated) {
         markUserSaveError(error);
       }
-      throw error;
+      syncError = error;
     } finally {
       if (shouldLockButtons) {
         setActionButtonsBusy(false);
       }
+    }
+    if (syncError) {
+      return {
+        ok: true,
+        offline: true,
+        error: syncError,
+        examples: getExamples(),
+        updatedAt: null
+      };
     }
     const updatedAtIso =
       (syncResult && syncResult.merged && syncResult.merged.updatedAt) ||
@@ -4755,8 +4765,12 @@
         if (!result || result.ok !== true) {
           return;
         }
-        const finalExamples =
-          result && Array.isArray(result.examples) ? result.examples : getExamples();
+        const useCachedExamples = !!(result && result.offline);
+        const finalExamples = useCachedExamples
+          ? getExamples()
+          : result && Array.isArray(result.examples)
+          ? result.examples
+          : getExamples();
         const total = Array.isArray(finalExamples) ? finalExamples.length : 0;
         currentExampleIndex = total > 0 ? total - 1 : null;
         renderOptions();
@@ -4802,8 +4816,12 @@
         if (!result || result.ok !== true) {
           return;
         }
-        const finalExamples =
-          result && Array.isArray(result.examples) ? result.examples : getExamples();
+        const useCachedExamples = !!(result && result.offline);
+        const finalExamples = useCachedExamples
+          ? getExamples()
+          : result && Array.isArray(result.examples)
+          ? result.examples
+          : getExamples();
         const total = Array.isArray(finalExamples) ? finalExamples.length : 0;
         const boundedIndex = total === 0 ? null : Math.max(0, Math.min(indexToUpdate, total - 1));
         currentExampleIndex = boundedIndex;
@@ -4854,8 +4872,12 @@
         if (!result || result.ok !== true) {
           return;
         }
-        const finalExamples =
-          result && Array.isArray(result.examples) ? result.examples : getExamples();
+        const useCachedExamples = !!(result && result.offline);
+        const finalExamples = useCachedExamples
+          ? getExamples()
+          : result && Array.isArray(result.examples)
+          ? result.examples
+          : getExamples();
         if (removedExample && typeof removedExample === 'object') {
           addExampleToTrash(removedExample, {
             index: indexToRemove,
