@@ -434,8 +434,8 @@
   const rowsInput = document.getElementById('rowsInput');
   const colsInput = document.getElementById('colsInput');
   const figureTypeInputs = Array.from(document.querySelectorAll('input[name="figureType"]'));
-  const showGridInputs = Array.from(document.querySelectorAll('input[name="showGrid"]'));
-  const offsetInputs = Array.from(document.querySelectorAll('input[name="offsetRows"]'));
+  const showGridToggle = document.getElementById('showGridToggle');
+  const offsetToggle = document.getElementById('offsetRowsToggle');
   const labelModeInputs = Array.from(document.querySelectorAll('input[name="labelMode"]'));
   function setRadioGroup(inputs, value) {
     if (!Array.isArray(inputs)) return;
@@ -448,8 +448,8 @@
     if (rowsInput) rowsInput.value = String(rows);
     if (colsInput) colsInput.value = String(cols);
     setRadioGroup(figureTypeInputs, normalizeFigureType(STATE.figureType) || 'square');
-    setRadioGroup(showGridInputs, STATE.showGrid ? 'true' : 'false');
-    setRadioGroup(offsetInputs, STATE.offset ? 'true' : 'false');
+    if (showGridToggle) showGridToggle.checked = !!STATE.showGrid;
+    if (offsetToggle) offsetToggle.checked = !!STATE.offset;
     setRadioGroup(labelModeInputs, STATE.labelMode);
     if (colorCountInp) colorCountInp.value = String(STATE.colorCount);
     updateColorVisibility();
@@ -513,23 +513,19 @@
       scheduleAltTextRefresh('shape');
     });
   });
-  offsetInputs.forEach(inp => {
-    if (!inp) return;
-    inp.addEventListener('change', () => {
-      if (!inp.checked) return;
-      STATE.offset = inp.value === 'true';
+  if (offsetToggle) {
+    offsetToggle.addEventListener('change', () => {
+      STATE.offset = !!offsetToggle.checked;
       render();
     });
-  });
-  showGridInputs.forEach(inp => {
-    if (!inp) return;
-    inp.addEventListener('change', () => {
-      if (!inp.checked) return;
-      STATE.showGrid = inp.value === 'true';
+  }
+  if (showGridToggle) {
+    showGridToggle.addEventListener('change', () => {
+      STATE.showGrid = !!showGridToggle.checked;
       updateGridVisibility();
       scheduleAltTextRefresh('grid');
     });
-  });
+  }
   labelModeInputs.forEach(inp => {
     if (!inp) return;
     inp.addEventListener('change', () => {

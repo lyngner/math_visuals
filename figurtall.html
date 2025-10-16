@@ -45,21 +45,9 @@
     }
     .card--settings fieldset + fieldset{margin-top:12px;}
     .card--settings legend{font-weight:600;font-size:14px;margin-bottom:4px;color:#374151;}
-    .settingsRow{display:flex;flex-wrap:wrap;gap:16px;align-items:center;}
-    .settingsRow--grid{justify-content:flex-start;}
-    .inlineLabel{display:flex;align-items:center;gap:8px;font-size:14px;color:#4b5563;}
-    .inlineLabel span{white-space:nowrap;}
-    .segmentedControl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
-    .segmentedOption{position:relative;display:inline-flex;align-items:center;justify-content:center;}
-    .segmentedOption input{position:absolute;opacity:0;pointer-events:none;}
-    .segmentedOption span{display:inline-flex;align-items:center;justify-content:center;padding:6px 12px;border:1px solid #d1d5db;border-radius:999px;background:#fff;color:#374151;font-size:14px;cursor:pointer;min-width:0;transition:background .2s,border-color .2s,color .2s,box-shadow .2s;}
-    .segmentedOption input:checked + span{background:#111827;color:#fff;border-color:#111827;box-shadow:0 2px 6px rgba(17,24,39,.18);}
-    .segmentedOption input:focus-visible + span{outline:2px solid #6366f1;outline-offset:2px;}
-    .segmentedOption input:disabled + span{opacity:.5;cursor:not-allowed;}
     .card input[type="color"]{width:40px;height:40px;padding:0;border:none;}
-    .colors{display:flex;flex-wrap:wrap;gap:6px;}
-    .colors input{flex:0 0 40px;width:40px;height:40px;}
-    .input--digit{width:72px;padding:8px 10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;background:#fff;box-sizing:border-box;text-align:center;}
+    .color-grid{display:flex;flex-wrap:wrap;gap:6px;}
+    .color-grid input{flex:0 0 40px;width:40px;height:40px;}
     .figure{
       border-radius:10px;
       background:#fff;
@@ -144,97 +132,94 @@
           </div>
         </div>
         <div class="card card--settings">
-          <fieldset>
-            <legend>Ruter</legend>
-            <div class="settingsRow settingsRow--grid">
-              <label class="inlineLabel" for="rowsInput">
-                <span>Rader:</span>
-                <input id="rowsInput" class="input--digit" type="number" min="1" max="20" value="3" />
-              </label>
-              <label class="inlineLabel" for="colsInput">
-                <span>Kolonner:</span>
-                <input id="colsInput" class="input--digit" type="number" min="1" max="20" value="3" />
-              </label>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Type</legend>
-            <div class="segmentedControl" role="group" aria-label="Type markering">
-              <label class="segmentedOption">
-                <input type="radio" name="figureType" value="square" checked />
-                <span>Fylte kvadrater</span>
-              </label>
-              <label class="segmentedOption">
-                <input type="radio" name="figureType" value="circle" />
-                <span>Sirkler</span>
-              </label>
-              <label class="segmentedOption">
-                <input type="radio" name="figureType" value="line" />
-                <span>Linjer</span>
-              </label>
-              <label class="segmentedOption">
-                <input type="radio" name="figureType" value="star" />
-                <span>Stjerner</span>
-              </label>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Vis rutenett</legend>
-            <div class="segmentedControl" role="group" aria-label="Vis rutenett">
-              <label class="segmentedOption">
-                <input id="showGridNo" type="radio" name="showGrid" value="false" />
-                <span>Nei</span>
-              </label>
-              <label class="segmentedOption">
-                <input id="showGridYes" type="radio" name="showGrid" value="true" checked />
-                <span>Ja</span>
-              </label>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Forskyv annenhver rad</legend>
-            <div class="segmentedControl" role="group" aria-label="Forskyv annenhver rad">
-              <label class="segmentedOption">
-                <input id="offsetRowsNo" type="radio" name="offsetRows" value="false" />
-                <span>Nei</span>
-              </label>
-              <label class="segmentedOption">
-                <input id="offsetRowsYes" type="radio" name="offsetRows" value="true" checked />
-                <span>Ja</span>
-              </label>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Figurtekst</legend>
-            <div class="segmentedControl" role="group" aria-label="Figurtekst">
-              <label class="segmentedOption">
-                <input type="radio" name="labelMode" value="hidden" />
-                <span>Skjult</span>
-              </label>
-              <label class="segmentedOption">
-                <input type="radio" name="labelMode" value="count" />
-                <span>Tall</span>
-              </label>
-              <label class="segmentedOption">
-                <input type="radio" name="labelMode" value="custom" checked />
-                <span>Egendefinert</span>
-              </label>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Farger</legend>
-            <label>Antall farger
-              <input id="colorCount" class="input--digit" type="number" min="1" max="6" value="1" />
-            </label>
-            <div class="colors">
-              <input id="color_1" type="color" />
-              <input id="color_2" type="color" />
-              <input id="color_3" type="color" />
-              <input id="color_4" type="color" />
-              <input id="color_5" type="color" />
-              <input id="color_6" type="color" />
-            </div>
-          </fieldset>
+          <div class="settings">
+            <fieldset>
+              <legend>Ruter</legend>
+              <div class="field-row">
+                <div class="field">
+                  <label for="rowsInput">Rader</label>
+                  <input id="rowsInput" type="number" min="1" max="20" value="3" />
+                </div>
+                <div class="field">
+                  <label for="colsInput">Kolonner</label>
+                  <input id="colsInput" type="number" min="1" max="20" value="3" />
+                </div>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Type</legend>
+              <div class="input-stack" role="group" aria-label="Type markering">
+                <div class="checkbox-row">
+                  <input id="figureTypeSquare" type="radio" name="figureType" value="square" checked />
+                  <label for="figureTypeSquare">Fylte kvadrater</label>
+                </div>
+                <div class="checkbox-row">
+                  <input id="figureTypeCircle" type="radio" name="figureType" value="circle" />
+                  <label for="figureTypeCircle">Sirkler</label>
+                </div>
+                <div class="checkbox-row">
+                  <input id="figureTypeLine" type="radio" name="figureType" value="line" />
+                  <label for="figureTypeLine">Linjer</label>
+                </div>
+                <div class="checkbox-row">
+                  <input id="figureTypeStar" type="radio" name="figureType" value="star" />
+                  <label for="figureTypeStar">Stjerner</label>
+                </div>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Vis rutenett</legend>
+              <div class="input-stack">
+                <div class="checkbox-row">
+                  <input id="showGridToggle" type="checkbox" name="showGrid" checked />
+                  <label for="showGridToggle">Vis rutenett</label>
+                </div>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Forskyv annenhver rad</legend>
+              <div class="input-stack">
+                <div class="checkbox-row">
+                  <input id="offsetRowsToggle" type="checkbox" name="offsetRows" checked />
+                  <label for="offsetRowsToggle">Forskyv annenhver rad</label>
+                </div>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Figurtekst</legend>
+              <div class="input-stack" role="group" aria-label="Figurtekst">
+                <div class="checkbox-row">
+                  <input id="labelModeHidden" type="radio" name="labelMode" value="hidden" />
+                  <label for="labelModeHidden">Skjult</label>
+                </div>
+                <div class="checkbox-row">
+                  <input id="labelModeCount" type="radio" name="labelMode" value="count" />
+                  <label for="labelModeCount">Tall</label>
+                </div>
+                <div class="checkbox-row">
+                  <input id="labelModeCustom" type="radio" name="labelMode" value="custom" checked />
+                  <label for="labelModeCustom">Egendefinert</label>
+                </div>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Farger</legend>
+              <div class="field-row">
+                <div class="field">
+                  <label for="colorCount">Antall farger</label>
+                  <input id="colorCount" type="number" min="1" max="6" value="1" />
+                </div>
+              </div>
+              <div class="color-grid">
+                <input id="color_1" type="color" />
+                <input id="color_2" type="color" />
+                <input id="color_3" type="color" />
+                <input id="color_4" type="color" />
+                <input id="color_5" type="color" />
+                <input id="color_6" type="color" />
+              </div>
+            </fieldset>
+          </div>
           <div class="toolbar">
             <button id="resetBtn" class="btn" type="button">Nullstill</button>
           </div>
