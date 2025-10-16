@@ -56,6 +56,35 @@
 
 body[data-app-mode="task"] .grid.split-enabled {
   --side-max: 360px;
+  grid-template-columns: minmax(
+        var(--side-min, 200px),
+        min(var(--side-width, var(--side-max, 420px)), var(--side-max, 420px))
+      )
+      minmax(0, 1fr) !important;
+  grid-template-areas: "side main";
+  gap: var(--gap) !important;
+  padding: var(--gap);
+  background: #fff;
+  border: 1px solid var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+body[data-app-mode="task"] .grid.split-enabled > .splitter {
+  display: none !important;
+}
+
+body[data-app-mode="task"] .grid.split-enabled > .splitter::before {
+  background: #fff;
+}
+
+@media (max-width: 980px) {
+  body[data-app-mode="task"] .grid.split-enabled {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "main"
+      "side";
+  }
 }
 
 /* Shared styling for settings panels */
