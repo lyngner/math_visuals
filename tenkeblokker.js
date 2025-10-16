@@ -137,7 +137,7 @@ function getDefaultBlock(index = 0) {
   };
 }
 const DEFAULT_ROW_GAP = 4;
-const MIN_ROW_GAP = 0;
+const MIN_ROW_GAP = -100;
 const MAX_ROW_GAP = 200;
 const CONFIG = {
   minN: 1,
@@ -1033,9 +1033,12 @@ function draw(skipNormalization = false) {
   let needsFrontPadding = false;
   if (grid) {
     const configuredRowGap = getConfiguredRowGap();
+    const positiveRowGap = Math.max(configuredRowGap, 0);
+    const negativeRowGap = Math.min(configuredRowGap, 0);
     grid.style.setProperty('--tb-row-label-gap', `${ROW_LABEL_GAP}px`);
-    grid.style.setProperty('--tb-row-gap', `${configuredRowGap}px`);
-    grid.style.rowGap = `${configuredRowGap}px`;
+    grid.style.setProperty('--tb-row-gap', `${positiveRowGap}px`);
+    grid.style.setProperty('--tb-negative-row-gap', `${negativeRowGap}px`);
+    grid.style.rowGap = `${positiveRowGap}px`;
     grid.style.setProperty('--tb-label-max-width', '0px');
     grid.style.setProperty('--tb-grid-padding-left', `${DEFAULT_GRID_PADDING_LEFT}px`);
   }
