@@ -1599,6 +1599,84 @@
   let backendNoticeDomReadyHandler = null;
   let backendNoticeMode = null;
   let backendUnavailableReason = null;
+  let backendStatusLastMessage = '';
+  let backendStatusLastType = '';
+
+  function ensureExamplesStatusElement() {
+    if (typeof document === 'undefined') return null;
+    if (
+      ensureExamplesStatusElement.element &&
+      ensureExamplesStatusElement.element.isConnected
+    ) {
+      return ensureExamplesStatusElement.element;
+    }
+    let el = document.getElementById('examples-status');
+    if (!el) {
+      el = document.createElement('p');
+      el.id = 'examples-status';
+      el.className = 'examples-status';
+      el.setAttribute('role', 'status');
+      el.hidden = true;
+      const host = resolveBackendNoticeHost();
+      if (host && host.parentNode) {
+        host.parentNode.insertBefore(el, host);
+      } else if (document.body) {
+        document.body.insertBefore(el, document.body.firstChild || null);
+      }
+    }
+    ensureExamplesStatusElement.element = el;
+    return el;
+  }
+
+  function setBackendStatusMessage(message, type) {
+    const normalizedMessage = typeof message === 'string' ? message : '';
+    const normalizedType = typeof type === 'string' ? type : '';
+    if (
+      normalizedMessage === backendStatusLastMessage &&
+      normalizedType === backendStatusLastType
+    ) {
+      return;
+    }
+    backendStatusLastMessage = normalizedMessage;
+    backendStatusLastType = normalizedType;
+    const el = ensureExamplesStatusElement();
+    if (!el) return;
+    el.textContent = normalizedMessage;
+    el.hidden = !normalizedMessage;
+    if (normalizedType) {
+      el.dataset.statusType = normalizedType;
+    } else if (el.dataset && Object.prototype.hasOwnProperty.call(el.dataset, 'statusType')) {
+      delete el.dataset.statusType;
+    }
+    el.classList.toggle('examples-status--error', normalizedType === 'error');
+    el.classList.toggle('examples-status--warning', normalizedType === 'warning');
+  }
+
+  function applyBackendStatusMessage(mode) {
+    const normalizedMode = mode === 'missing' ? 'missing' : mode === 'memory' ? 'memory' : mode === 'offline' ? 'offline' : '';
+    if (!normalizedMode) {
+      setBackendStatusMessage('', '');
+      return;
+    }
+    if (normalizedMode === 'missing') {
+      setBackendStatusMessage(
+        'Eksempeltjenesten er ikke tilgjengelig. Fant ikke back-end (/api/examples).',
+        'error'
+      );
+      return;
+    }
+    if (normalizedMode === 'memory') {
+      setBackendStatusMessage(
+        'Eksempeltjenesten kjører i minnemodus. Eksempler tilbakestilles ved omstart.',
+        'warning'
+      );
+      return;
+    }
+    setBackendStatusMessage(
+      'Kunne ikke koble til eksempeltjenesten. Endringer lagres midlertidig.',
+      'warning'
+    );
+  }
 
   function resolveBackendNoticeHost() {
     if (typeof document === 'undefined') return null;
@@ -1703,6 +1781,7 @@
   function updateBackendNotice() {
     if (!examplesApiBase) {
       hideBackendNotice();
+      applyBackendStatusMessage('');
       return;
     }
     if (!backendAvailable || backendMode === 'offline' || backendMode === 'missing') {
@@ -1711,15 +1790,18 @@
       if (backendNoticeMode !== desiredMode || !backendNoticeElement) {
         showBackendNotice(desiredMode);
       }
+      applyBackendStatusMessage(desiredMode);
       return;
     }
     if (backendMode === 'memory') {
       if (backendNoticeMode !== 'memory' || !backendNoticeElement) {
         showBackendNotice('memory');
       }
+      applyBackendStatusMessage('memory');
       return;
     }
     hideBackendNotice();
+    applyBackendStatusMessage('');
   }
 
   function updateBackendUiState() {
@@ -1749,12 +1831,14 @@
       backendMode = 'kv';
       persistBackendMode(backendMode);
     }
+    applyBackendStatusMessage(backendMode === 'memory' ? 'memory' : '');
     updateBackendUiState();
   }
   function markBackendUnavailable(reason) {
     backendAvailable = false;
     backendUnavailableReason = typeof reason === 'string' ? reason : null;
     backendMode = reason === 'missing' ? 'missing' : 'offline';
+    applyBackendStatusMessage(backendMode);
     updateBackendUiState();
   }
   function schedulePostSyncReload() {
