@@ -1058,8 +1058,20 @@ function buildBowlSummaries() {
 
 function buildKulerAltText() {
   const summaries = buildBowlSummaries();
-  if (!summaries.length) return "Illustrasjonen viser ingen boller.";
-  const intro = summaries.length === 1 ? "Illustrasjonen viser en bolle med symboler." : `Illustrasjonen viser ${summaries.length} boller med symboler.`;
+  if (!summaries.length) return "Ingen boller.";
+  if (summaries.length === 1) {
+    const summary = summaries[0];
+    if (!summary || typeof summary !== "object") return "En bolle.";
+    if (summary.total === 0) return "En tom bolle.";
+    if (typeof summary.description === "string") {
+      const trimmed = summary.description.trim();
+      const withoutPrefix = trimmed.replace(/^Bolle\s+\d+\s+inneholder\s+/i, "");
+      const withoutPeriod = withoutPrefix.replace(/\.$/, "");
+      if (withoutPeriod) return `En bolle med ${withoutPeriod}.`;
+    }
+    return "En bolle med symboler.";
+  }
+  const intro = `Illustrasjonen viser ${summaries.length} boller med symboler.`;
   const details = summaries.map(s => s.description).join(" ");
   return `${intro} ${details}`.trim();
 }
