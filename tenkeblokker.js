@@ -104,13 +104,57 @@ function hasVisibleBlockBelow(block) {
   if (!(cfg && typeof cfg === 'object')) return false;
   return cfg.hideBlock !== true;
 }
-function getRowSpanRatios(block) {
-  const topRatio = clamp(TOP_RATIO, 0, 1);
-  const bottomRatio = clamp(BOTTOM_RATIO, topRatio, 1);
+function getRowSpanRatios(block, options = {}) {
+  const { forLayout = false } = options;
+  const baseTop = clamp(TOP_RATIO, 0, 1);
+  const baseBottom = clamp(BOTTOM_RATIO, baseTop, 1);
+  let topRatio = baseTop;
+  let bottomRatio = baseBottom;
+  let compactApplied = false;
+  const wantsCompact = getConfiguredRowGap() < 0;
+  const horizontalOverlayActive = multipleBlocksActive && CONFIG.showCombinedWhole;
+  const requireFullPadding = forLayout ? anyBlockNeedsFullPadding() : blockNeedsFullPadding(block);
+  if (wantsCompact && !horizontalOverlayActive && !requireFullPadding) {
+    const rowGap = getConfiguredRowGap();
+    const progress = Math.min(1, Math.max(0, -rowGap / Math.abs(MIN_ROW_GAP || 1)));
+    const targetSpan = Math.min(TARGET_COMPACT_SPAN, 1 - MIN_SPAN_RATIO);
+    const baseSpan = baseBottom - baseTop;
+    if (progress > 0 && targetSpan > baseSpan) {
+      compactApplied = true;
+    }
+    const span = clamp(baseSpan + (targetSpan - baseSpan) * progress, baseSpan, targetSpan);
+    const maxTop = 1 - span;
+    const centeredTop = BASE_CENTER_RATIO - span / 2;
+    topRatio = clamp(centeredTop, 0, maxTop);
+    bottomRatio = topRatio + span;
+  }
   return {
     topRatio,
-    bottomRatio
+    bottomRatio,
+    compactApplied
   };
+}
+
+function blockNeedsFullPadding(block) {
+  var _block$cfg;
+  if (!block) return anyBlockNeedsFullPadding();
+  const cfg = (_block$cfg = block.cfg) !== null && _block$cfg !== void 0 ? _block$cfg : null;
+  if (!cfg || typeof cfg !== 'object') return false;
+  if (cfg.hideBlock && !cfg.showWhole) return false;
+  return cfg.showWhole === true;
+}
+
+function anyBlockNeedsFullPadding() {
+  if (!Array.isArray(CONFIG.blocks)) return false;
+  for (const row of CONFIG.blocks) {
+    if (!Array.isArray(row)) continue;
+    for (const cell of row) {
+      if (!cell || typeof cell !== 'object') continue;
+      if (cell.hideBlock && !cell.showWhole) continue;
+      if (cell.showWhole) return true;
+    }
+  }
+  return false;
 }
 function isMeaningfulBlockCell(cell) {
   if (cell == null) return false;
@@ -157,13 +201,16 @@ const VBH = 420;
 const SIDE_MARGIN_RATIO = 0;
 const TOP_RATIO = 130 / VBH;
 const BOTTOM_RATIO = (VBH - 60) / VBH;
+const MIN_SPAN_RATIO = 0.05;
 const BRACE_Y_RATIO = 78 / VBH;
 const BRACKET_TICK_RATIO = 16 / VBH;
 const LABEL_OFFSET_RATIO = 14 / VBH;
 const DEFAULT_SVG_HEIGHT = 260;
 const BASE_INNER_RATIO = BOTTOM_RATIO - TOP_RATIO;
+const BASE_CENTER_RATIO = (TOP_RATIO + BOTTOM_RATIO) / 2;
 const ROW_LABEL_GAP = 18;
 const DEFAULT_FRAME_INSET = 3;
+const TARGET_COMPACT_SPAN = Math.min(1 - MIN_SPAN_RATIO, (DEFAULT_SVG_HEIGHT + MIN_ROW_GAP + 2 * DEFAULT_FRAME_INSET) / DEFAULT_SVG_HEIGHT);
 const DEFAULT_GRID_PADDING_TOP = 20;
 const DEFAULT_GRID_PADDING_LEFT = 28;
 const ROW_LABEL_EXTRA_LEFT_PADDING = 100;
@@ -600,7 +647,10 @@ function getBlockMetrics(block) {
   } = getSvgViewport(block);
   const left = width * SIDE_MARGIN_RATIO;
   const right = width - left;
-  const { topRatio, bottomRatio } = getRowSpanRatios(block);
+  const ratios = getRowSpanRatios(block);
+  const topRatio = ratios.topRatio;
+  const bottomRatio = ratios.bottomRatio;
+  const compactApplied = ratios.compactApplied === true;
   let top = height * topRatio;
   let bottom = height * bottomRatio;
   const bracketTick = height * BRACKET_TICK_RATIO;
@@ -613,7 +663,7 @@ function getBlockMetrics(block) {
   if (span > 0) {
     const desiredInner = height * BASE_INNER_RATIO;
     const innerDelta = span - desiredInner;
-    if (Math.abs(innerDelta) > 0.001) {
+    if (!compactApplied && Math.abs(innerDelta) > 0.001) {
       const adjust = innerDelta / 2;
       top -= adjust;
       bottom += adjust;
@@ -1125,20 +1175,15 @@ function draw(skipNormalization = false) {
   if (globalControls.verticalRow) {
     globalControls.verticalRow.classList.toggle('is-disabled', !verticalAvailable);
   }
-  const rowHeights = Array.from({
-    length: CONFIG.rows
-  }, () => {
-    const { topRatio, bottomRatio } = getRowSpanRatios();
-    const span = bottomRatio - topRatio;
-    if (!(span > 0)) return DEFAULT_SVG_HEIGHT;
-    const height = DEFAULT_SVG_HEIGHT * BASE_INNER_RATIO / span;
-    return Number.isFinite(height) && height > 0 ? height : DEFAULT_SVG_HEIGHT;
-  });
-  const uniformRowHeight = rowHeights.reduce((max, value) => {
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric) || numeric <= max) return max;
-    return numeric;
-  }, 0) || DEFAULT_SVG_HEIGHT;
+  let uniformRowHeight = DEFAULT_SVG_HEIGHT;
+  const { topRatio, bottomRatio } = getRowSpanRatios(null, { forLayout: true });
+  const span = bottomRatio - topRatio;
+  if (span > 0) {
+    const candidateHeight = DEFAULT_SVG_HEIGHT * BASE_INNER_RATIO / span;
+    if (Number.isFinite(candidateHeight) && candidateHeight > DEFAULT_SVG_HEIGHT) {
+      uniformRowHeight = candidateHeight;
+    }
+  }
   for (const block of visibleBlocks) {
     const height = uniformRowHeight;
     if (block === null || block === void 0 ? void 0 : block.panel) {
