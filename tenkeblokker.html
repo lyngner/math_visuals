@@ -26,12 +26,13 @@
     .tb-grid{
       --tb-label-max-width:0px;
       --tb-grid-padding-left:28px;
+      --tb-row-gap:0px;
       grid-column:1;
       grid-row:1;
       display:flex;
       flex-direction:column;
-      gap:0;
-      row-gap:0;
+      gap:var(--tb-row-gap,0px);
+      row-gap:var(--tb-row-gap,0px);
       column-gap:0;
       padding:var(--tb-grid-padding-top,20px) 18px 18px var(--tb-grid-padding-left,28px);
       width:100%;
