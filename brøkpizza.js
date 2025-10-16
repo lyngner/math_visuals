@@ -1245,6 +1245,19 @@ function buildBropizzaAltText() {
   if (!pizzas.length) {
     return 'Figuren viser ingen brøksirkler.';
   }
+  const ops = Array.isArray(SIMPLE.ops) ? SIMPLE.ops : [];
+  if (pizzas.length === 1) {
+    const { index, inst } = pizzas[0];
+    const numerator = inst.k;
+    const denominator = inst.n || 1;
+    const locks = describeLocks(inst);
+    const textMode = inst.textMode;
+    const hasExtraInfo = Boolean(locks) || textMode === 'percent' || textMode === 'decimal';
+    const hasOperator = Boolean(ops[index]);
+    if (!hasExtraInfo && !hasOperator) {
+      return `Brøksirkel med ${formatCount(numerator, 'del')} av ${formatCount(denominator, 'del')} fylt.`;
+    }
+  }
   const sentences = [];
   sentences.push(`Figuren viser ${pizzas.length === 1 ? 'én brøksirkel' : `${pizzas.length} brøksirkler`}.`);
   pizzas.forEach(({ index, inst }) => {
@@ -1267,7 +1280,6 @@ function buildBropizzaAltText() {
     if (locks) sentence += ` ${locks}`;
     sentences.push(sentence);
   });
-  const ops = Array.isArray(SIMPLE.ops) ? SIMPLE.ops : [];
   pizzas.forEach((entry, idx) => {
     if (idx >= pizzas.length - 1) return;
     const op = ops[entry.index];
