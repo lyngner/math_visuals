@@ -226,6 +226,13 @@ body[data-app="graftegner"] .layout--sidebar:not(.split-enabled) > :not(.side) {
   gap: 10px;
 }
 
+body[data-app-mode="task"] .card {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
 .card h2 {
   margin: 0 0 6px 2px;
   font-size: 16px;
@@ -238,6 +245,12 @@ body[data-app="graftegner"] .layout--sidebar:not(.split-enabled) > :not(.side) {
   background: #fafbfc;
   overflow: hidden;
   border: 1px solid #eef0f3;
+}
+
+body[data-app-mode="task"] .figure {
+  background: none;
+  border: none;
+  border-radius: 0;
 }
 
 .figure svg {
@@ -292,6 +305,11 @@ fieldset {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+body[data-app-mode="task"] fieldset {
+  border: none;
+  padding: 0;
 }
 
 .settings {
