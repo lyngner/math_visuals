@@ -692,9 +692,22 @@
         }
       } else {
         const heightValue = typeof dims.height === 'number' && Number.isFinite(dims.height) ? dims.height : null;
-        let baseY = 0.2;
-        if (heightValue && heightValue > 0.2) {
-          baseY = Math.min(Math.max(heightValue * 0.12, 0.15), heightValue - 0.15);
+        let baseY;
+        if (type === 'cone') {
+          const minLift = 0.02;
+          const ratioLift = heightValue && heightValue > 0 ? heightValue * 0.005 : minLift;
+          baseY = Math.max(ratioLift, minLift);
+          if (heightValue && heightValue > minLift) {
+            const maxAllowed = heightValue - 0.15;
+            if (maxAllowed > minLift) {
+              baseY = Math.min(baseY, maxAllowed);
+            }
+          }
+        } else {
+          baseY = 0.2;
+          if (heightValue && heightValue > 0.2) {
+            baseY = Math.min(Math.max(heightValue * 0.12, 0.15), heightValue - 0.15);
+          }
         }
         start = new THREE.Vector3(0, baseY, 0);
         end = new THREE.Vector3(radiusValue, baseY, 0);
