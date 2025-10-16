@@ -3298,23 +3298,25 @@ function drawCircleToGroup(g, rect, spec) {
     "stroke-width": STYLE.edgeWidth
   });
   const radiusAngle = -Math.PI / 4;
-  const endX = cx + circleRadius * Math.cos(radiusAngle);
-  const endY = cy + circleRadius * Math.sin(radiusAngle);
-  add(g, "line", {
-    x1: cx,
-    y1: cy,
-    x2: endX,
-    y2: endY,
-    stroke: STYLE.radiusStroke || STYLE.edgeStroke,
-    "stroke-width": STYLE.edgeWidth * 0.75,
-    "stroke-linecap": "round"
-  });
-  add(g, "circle", {
-    cx,
-    cy,
-    r: 6,
-    fill: STYLE.radiusStroke || STYLE.edgeStroke
-  });
+  if (showRadius) {
+    const endX = cx + circleRadius * Math.cos(radiusAngle);
+    const endY = cy + circleRadius * Math.sin(radiusAngle);
+    add(g, "line", {
+      x1: cx,
+      y1: cy,
+      x2: endX,
+      y2: endY,
+      stroke: STYLE.radiusStroke || STYLE.edgeStroke,
+      "stroke-width": STYLE.edgeWidth * 0.75,
+      "stroke-linecap": "round"
+    });
+    add(g, "circle", {
+      cx,
+      cy,
+      r: 6,
+      fill: STYLE.radiusStroke || STYLE.edgeStroke
+    });
+  }
   if (showRadius && radiusText) {
     const midX = cx + circleRadius * Math.cos(radiusAngle) * 0.55;
     const midY = cy + circleRadius * Math.sin(radiusAngle) * 0.55;

@@ -17,4 +17,18 @@ test.describe('nKant sirkel-kommando', () => {
     const radiusLabel = page.locator('#paper text', { hasText: 'r' });
     await expect(radiusLabel.first()).toBeVisible();
   });
+
+  test('tegner sirkel uten radiuslinje når ingen radius er spesifisert', async ({ page }) => {
+    await page.goto('/nkant.html', { waitUntil: 'load' });
+
+    const specs = page.locator('#inpSpecs');
+    await specs.fill('sirkel');
+    await page.click('#btnDraw');
+
+    const circles = page.locator('#paper circle');
+    await expect.poll(async () => await circles.count()).toBe(2);
+
+    const radiusDot = page.locator('#paper circle[r="6"]');
+    await expect(radiusDot).toHaveCount(0);
+  });
 });
