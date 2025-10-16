@@ -391,9 +391,6 @@
   <div class="wrap">
     <div class="grid layout--sidebar">
       <div class="card card--board">
-        <div class="mode-status" role="status" aria-live="polite">
-          <span id="modeLabel" class="mode-label">Modus: Redigeringsmodus</span>
-        </div>
         <div class="figure">
           <svg id="dotBoard" viewBox="0 0 1000 700" role="img" aria-label="Prikk-til-prikk-tegning"></svg>
           <div id="boardLabelsLayer" class="board-label-layer" aria-hidden="true"></div>
@@ -401,15 +398,6 @@
         <div id="predefTool" class="predef-tool" aria-live="polite">
           <p id="predefHelperText" class="predef-tool__text">Aktiver tegning for å legge til eller fjerne forhåndsdefinerte streker.</p>
           <button id="btnTogglePredef" class="btn btn--small" type="button">Tegn forhåndsdefinerte streker</button>
-        </div>
-        <p id="modeHint" class="hint"></p>
-        <div class="legend">
-          <span class="legend-item"><span class="legend-swatch legend-swatch--user"></span> Elevens streker</span>
-          <span class="legend-item"><span class="legend-swatch legend-swatch--predef"></span> Forhåndsdefinerte streker</span>
-          <span class="legend-item"><span class="legend-swatch legend-swatch--answer"></span> Fasit (kun i redigering)</span>
-        </div>
-        <div class="toolbar">
-          <button id="btnClear" class="btn" type="button">Tøm streker</button>
         </div>
       </div>
       <div class="side">
