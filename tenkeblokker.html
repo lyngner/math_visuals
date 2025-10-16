@@ -14,6 +14,7 @@
       --sidebar-width: 420px;
       --sidebar-min-width: 320px;
       --tb-row-gap: 0px;
+      --tb-negative-row-gap: 0px;
     }
     /* Figur */
     .tb-board{
@@ -27,6 +28,7 @@
     .tb-grid{
       --tb-label-max-width:0px;
       --tb-grid-padding-left:28px;
+      --tb-negative-row-gap:0px;
       grid-column:1;
       grid-row:1;
       display:flex;
@@ -47,6 +49,9 @@
       margin-left:calc(-1 * var(--tb-row-effective-label-width,0px));
       gap:0;
       align-items:stretch;
+    }
+    .tb-row + .tb-row{
+      margin-top:var(--tb-negative-row-gap, 0px);
     }
     .tb-row[data-has-label="false"]{
       --tb-row-effective-label-width:0px;
