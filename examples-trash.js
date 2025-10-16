@@ -109,6 +109,115 @@
     return isJsonContentType(header);
   }
 
+  const TRASH_FALLBACK_STORAGE_KEY = 'math_visuals_examples_trash_fallback_v1';
+  const FALLBACK_STATUS_MESSAGE =
+    'Viser arkiverte eksempler lagret lokalt fordi arkivtjenesten er tom akkurat nå.';
+  const FALLBACK_UNAVAILABLE_STATUS_MESSAGE =
+    'Viser arkiverte eksempler lagret lokalt fordi arkivtjenesten ikke er tilgjengelig.';
+  let localStorageSupport = null;
+
+  function supportsLocalStorage() {
+    if (typeof window === 'undefined') return false;
+    try {
+      if (!window.localStorage) return false;
+      const testKey = '__math_visuals_examples_trash_support__';
+      window.localStorage.setItem(testKey, '1');
+      window.localStorage.removeItem(testKey);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function canUseLocalStorage() {
+    if (localStorageSupport === null) {
+      localStorageSupport = supportsLocalStorage();
+    }
+    return localStorageSupport;
+  }
+
+  function dedupeEntriesById(entries) {
+    if (!Array.isArray(entries)) return [];
+    const seen = new Set();
+    const result = [];
+    entries.forEach(entry => {
+      if (!entry || typeof entry !== 'object') return;
+      const id = typeof entry.id === 'string' ? entry.id : null;
+      if (id && seen.has(id)) return;
+      if (id) seen.add(id);
+      result.push(entry);
+    });
+    return result;
+  }
+
+  function saveFallbackEntries(entries) {
+    if (!canUseLocalStorage()) return;
+    const sanitized = dedupeEntriesById(entries);
+    const payload = {
+      entries: sanitized,
+      savedAt: new Date().toISOString()
+    };
+    try {
+      window.localStorage.setItem(TRASH_FALLBACK_STORAGE_KEY, JSON.stringify(payload));
+    } catch (_) {}
+  }
+
+  function loadFallbackEntries() {
+    if (!canUseLocalStorage()) return [];
+    let raw = null;
+    try {
+      raw = window.localStorage.getItem(TRASH_FALLBACK_STORAGE_KEY);
+    } catch (_) {
+      raw = null;
+    }
+    if (typeof raw !== 'string' || !raw.trim()) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      const entries = Array.isArray(parsed && parsed.entries) ? parsed.entries : [];
+      return dedupeEntriesById(entries);
+    } catch (error) {
+      try {
+        window.localStorage.removeItem(TRASH_FALLBACK_STORAGE_KEY);
+      } catch (_) {}
+      return [];
+    }
+  }
+
+  function clearFallbackEntries() {
+    if (!canUseLocalStorage()) return;
+    try {
+      window.localStorage.removeItem(TRASH_FALLBACK_STORAGE_KEY);
+    } catch (_) {}
+  }
+
+  function extractArchiveMetadata(payload) {
+    if (!payload || typeof payload !== 'object') return {};
+    const metadata = {};
+    if (typeof payload.storage === 'string') metadata.storage = payload.storage;
+    if (typeof payload.mode === 'string') metadata.mode = payload.mode;
+    if (typeof payload.storageMode === 'string') metadata.storageMode = payload.storageMode;
+    if (typeof payload.persistent === 'boolean') metadata.persistent = payload.persistent;
+    if (typeof payload.ephemeral === 'boolean') metadata.ephemeral = payload.ephemeral;
+    return metadata;
+  }
+
+  function normalizeMetadataStorageHint(metadata) {
+    if (!metadata || typeof metadata !== 'object') return '';
+    const hint = metadata.storageMode || metadata.storage || metadata.mode || '';
+    return typeof hint === 'string' ? hint.trim().toLowerCase() : '';
+  }
+
+  function isEphemeralArchive(metadata) {
+    if (!metadata || typeof metadata !== 'object') return false;
+    if (metadata.ephemeral === true) return true;
+    if (metadata.persistent === false) return true;
+    const storageHint = normalizeMetadataStorageHint(metadata);
+    if (storageHint && storageHint !== 'kv') return true;
+    return false;
+  }
+
   function normalizePath(value) {
     if (typeof value !== 'string') return '';
     let path = value.trim();
@@ -267,7 +376,9 @@
   const state = {
     groups: [],
     groupsMap: new Map(),
-    filter: 'all'
+    filter: 'all',
+    metadata: null,
+    lastFetchUsedFallback: false
   };
 
   function updateGroups(groups) {
@@ -400,9 +511,32 @@
     } catch (error) {
       throw new Error('Kunne ikke tolke svaret fra serveren.');
     }
+    const metadata = extractArchiveMetadata(payload);
     const entries = Array.isArray(payload && payload.entries) ? payload.entries : [];
-    const groups = buildGroupsFromItems(entries);
+    const cleanedEntries = dedupeEntriesById(entries);
+    const archiveIsEphemeral = isEphemeralArchive(metadata);
+    if (archiveIsEphemeral) {
+      if (cleanedEntries.length) {
+        saveFallbackEntries(cleanedEntries);
+      }
+    } else {
+      clearFallbackEntries();
+    }
+    if (archiveIsEphemeral && cleanedEntries.length === 0) {
+      const fallbackEntries = loadFallbackEntries();
+      if (fallbackEntries.length) {
+        const fallbackGroups = buildGroupsFromItems(fallbackEntries);
+        updateGroups(fallbackGroups);
+        state.metadata = metadata;
+        state.lastFetchUsedFallback = true;
+        return { metadata, entries: fallbackEntries, usedFallback: true };
+      }
+    }
+    const groups = buildGroupsFromItems(cleanedEntries);
     updateGroups(groups);
+    state.metadata = metadata;
+    state.lastFetchUsedFallback = false;
+    return { metadata, entries: cleanedEntries, usedFallback: false };
   }
 
   function buildFilterOptions() {
@@ -890,11 +1024,26 @@
   async function refreshEntries() {
     setStatus('Laster arkivet med slettede (arkiverte) eksempler …', 'info');
     try {
-      await fetchEntriesFromBackend();
+      const result = await fetchEntriesFromBackend();
       buildFilterOptions();
       renderEntries();
-      setStatus('', '');
+      if (result && result.usedFallback) {
+        setStatus(FALLBACK_STATUS_MESSAGE, 'info');
+      } else {
+        setStatus('', '');
+      }
     } catch (error) {
+      const fallbackEntries = loadFallbackEntries();
+      state.lastFetchUsedFallback = false;
+      if (fallbackEntries.length) {
+        const fallbackGroups = buildGroupsFromItems(fallbackEntries);
+        updateGroups(fallbackGroups);
+        state.lastFetchUsedFallback = true;
+        buildFilterOptions();
+        renderEntries();
+        setStatus(FALLBACK_UNAVAILABLE_STATUS_MESSAGE, 'warning');
+        return;
+      }
       updateGroups([]);
       renderEntries();
       setStatus(
@@ -962,10 +1111,14 @@
           setStatus('Sletting avbrutt. Elementet ligger fortsatt i arkivet over slettede eksempler.', 'info');
           return;
         }
-        await fetchEntriesFromBackend();
+        const fetchResult = await fetchEntriesFromBackend();
         buildFilterOptions();
         renderEntries();
-        setStatus('', '');
+        if (fetchResult && fetchResult.usedFallback) {
+          setStatus(FALLBACK_STATUS_MESSAGE, 'info');
+        } else {
+          setStatus('', '');
+        }
       } catch (error) {
         setStatus(
           error && error.message ? error.message : 'Kunne ikke slette det arkiverte eksempelet permanent.',
