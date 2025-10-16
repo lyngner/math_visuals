@@ -192,14 +192,34 @@ if (regenerateAltTextBtn) {
   });
 }
 const addSeriesBtn = document.getElementById('addSeries');
+const removeSeriesBtn = document.getElementById('removeSeries');
 const series2Fields = document.getElementById('series2Fields');
 const axisAndRangeRow = document.getElementById('cfgAxisAndRangeRow');
 addSeriesBtn === null || addSeriesBtn === void 0 || addSeriesBtn.addEventListener('click', () => {
   series2Enabled = true;
   addSeriesBtn.style.display = 'none';
   if (series2Fields) series2Fields.style.display = '';
+  if (removeSeriesBtn) removeSeriesBtn.style.display = '';
   applyCfg();
 });
+if (removeSeriesBtn) {
+  removeSeriesBtn.addEventListener('click', () => {
+    series2Enabled = false;
+    if (series2Fields) series2Fields.style.display = 'none';
+    if (addSeriesBtn) addSeriesBtn.style.display = '';
+    removeSeriesBtn.style.display = 'none';
+    CFG.series2 = undefined;
+    CFG.start2 = null;
+    CFG.answer2 = null;
+    const series2Input = document.getElementById('cfgSeries2');
+    const start2Input = document.getElementById('cfgStart2');
+    const answer2Input = document.getElementById('cfgAnswer2');
+    if (series2Input) series2Input.value = '';
+    if (start2Input) start2Input.value = '';
+    if (answer2Input) answer2Input.value = '';
+    applyCfg();
+  });
+}
 
 function setRowVisibility(row, visible) {
   if (!row) return;
@@ -316,6 +336,9 @@ function initFromCfg() {
   }
   if (series2Fields) {
     series2Fields.style.display = series2Enabled ? '' : 'none';
+  }
+  if (removeSeriesBtn) {
+    removeSeriesBtn.style.display = series2Enabled ? '' : 'none';
   }
   if (series2Input) series2Input.value = series2Enabled ? CFG.series2 || '' : '';
   if (start2Input) start2Input.value = series2Enabled && Array.isArray(values2) ? formatNumberList(values2) : '';
