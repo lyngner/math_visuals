@@ -181,6 +181,15 @@ function paramNumber(id, def = null) {
   const n = Number.parseFloat(String(v).replace(',', '.'));
   return Number.isFinite(n) ? n : def;
 }
+const DEFAULT_POINT_MARKER = 'o';
+function sanitizePointMarkerValue(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim();
+}
+function isDefaultPointMarker(value) {
+  const normalized = sanitizePointMarkerValue(value);
+  return !normalized || normalized === DEFAULT_POINT_MARKER;
+}
 const FONT_LIMITS = {
   min: 6,
   max: 72
@@ -257,6 +266,10 @@ function buildSimple() {
   const coords = paramStr('coords', '').trim();
   if (coords) {
     lines.push(`coords=${coords}`);
+  }
+  const marker = sanitizePointMarkerValue(paramStr('marker', ''));
+  if (!isDefaultPointMarker(marker)) {
+    lines.push(`marker=${marker}`);
   }
   const linepts = paramStr('linepts', '').trim();
   if (linepts) {
@@ -357,6 +370,7 @@ const ADV = {
     startX: [1],
     // start-X for glidere (kan overstyres i SIMPLE)
     showCoordsOnHover: true,
+    marker: sanitizePointMarkerValue(paramStr('marker', DEFAULT_POINT_MARKER)) || DEFAULT_POINT_MARKER,
     decimals: 2,
     guideArrows: true,
     // bare i funksjons-modus
@@ -520,6 +534,7 @@ function parseSimple(txt) {
     extraPoints: [],
     linePoints: [],
     answer: null,
+    pointMarker: '',
     raw: txt
   };
   const parseDomain = dom => {
@@ -638,6 +653,11 @@ function parseSimple(txt) {
       for (const pt of pts) {
         if (pt.length === 2) out.extraPoints.push(pt);
       }
+      continue;
+    }
+    const mm = L.match(/^marker\s*=\s*(.+)$/i);
+    if (mm) {
+      out.pointMarker = sanitizePointMarkerValue(mm[1]);
       continue;
     }
     const lm = L.match(/^linepts\s*=\s*(.+)$/i);
@@ -3302,8 +3322,10 @@ function parseAnswerToMB(answerLine) {
 }
 function addFixedPoints() {
   if (!Array.isArray(SIMPLE_PARSED.extraPoints)) return;
+  const markerValue = sanitizePointMarkerValue(ADV.points.marker);
+  const useCustomMarker = !isDefaultPointMarker(markerValue);
   for (const pt of SIMPLE_PARSED.extraPoints) {
-    const P = brd.create('point', pt.slice(), {
+    const pointOptions = {
       name: '',
       size: 3,
       face: 'o',
@@ -3312,7 +3334,22 @@ function addFixedPoints() {
       withLabel: true,
       fixed: true,
       showInfobox: false
-    });
+    };
+    if (useCustomMarker) {
+      pointOptions.strokeOpacity = 0;
+      pointOptions.fillOpacity = 0;
+    }
+    const P = brd.create('point', pt.slice(), pointOptions);
+    if (useCustomMarker) {
+      brd.create('text', [pt[0], pt[1], markerValue], {
+        anchorX: 'middle',
+        anchorY: 'middle',
+        fontSize: 24,
+        strokeColor: '#111827',
+        fixed: true,
+        layer: 9
+      });
+    }
     if (ADV.points.showCoordsOnHover) {
       P.label.setAttribute({
         visible: false
@@ -3369,6 +3406,10 @@ function rebuildAll() {
   }
   SIMPLE_PARSED = parseSimple(SIMPLE);
   applyLinePointStart(SIMPLE_PARSED);
+  {
+    const parsedMarker = sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker);
+    ADV.points.marker = isDefaultPointMarker(parsedMarker) ? DEFAULT_POINT_MARKER : parsedMarker;
+  }
   MODE = decideMode(SIMPLE_PARSED);
   hideCheckControls();
   destroyBoard();
@@ -3671,6 +3712,8 @@ function setupSettingsForm() {
   let linePointLabels = [];
   let linePointVisibleCount = 0;
   let linePointsEdited = false;
+  let pointMarkerInput = null;
+  let pointMarkerContainer = null;
   const MATHFIELD_TAG = 'MATH-FIELD';
   const nav = typeof navigator !== 'undefined' ? navigator : null;
   const hasTouchSupport = typeof window !== 'undefined' && (
@@ -4182,6 +4225,25 @@ function setupSettingsForm() {
     const firstRowInput = firstGroup ? firstGroup.querySelector('[data-fun]') : null;
     return firstRowInput ? getFunctionInputValue(firstRowInput) : '';
   };
+  const getPointMarkerInputValue = () => {
+    if (!pointMarkerInput) return '';
+    return sanitizePointMarkerValue(pointMarkerInput.value);
+  };
+  const setPointMarkerInputValue = value => {
+    if (!pointMarkerInput) return;
+    const normalized = sanitizePointMarkerValue(value);
+    pointMarkerInput.value = normalized || DEFAULT_POINT_MARKER;
+  };
+  const getPointMarkerValueForExport = () => {
+    const raw = getPointMarkerInputValue();
+    return raw && !isDefaultPointMarker(raw) ? raw : '';
+  };
+  const updatePointMarkerVisibility = () => {
+    if (!pointMarkerContainer) return;
+    const firstValue = getFirstFunctionValue();
+    const show = !!firstValue && isCoords(firstValue);
+    pointMarkerContainer.style.display = show ? '' : 'none';
+  };
   const determineForcedGliderCount = value => {
     if (!value) return null;
     const match = value.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/) || value.match(/^y\s*=\s*(.+)$/i);
@@ -4465,6 +4527,9 @@ function setupSettingsForm() {
     const firstIsCoords = !!firstVal && isCoords(firstVal);
     const lineSpec = interpretLineTemplateFromExpression(firstVal);
     const neededLinePoints = getLinePointCount(lineSpec);
+    const markerInputValue = pointMarkerInput ? getPointMarkerInputValue() : null;
+    const parsedMarkerValue = sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker);
+    const markerCandidate = markerInputValue != null ? markerInputValue : parsedMarkerValue;
     const lines = [];
     rows.forEach((row, idx) => {
       const funInput = row.querySelector('[data-fun]');
@@ -4474,12 +4539,16 @@ function setupSettingsForm() {
       if (!fun) return;
       if (idx === 0 && firstIsCoords) {
         lines.push(`coords=${fun}`);
+        if (!isDefaultPointMarker(markerCandidate)) {
+          lines.push(`marker=${markerCandidate}`);
+        }
         return;
       }
       const dom = domInput ? domInput.value.trim() : '';
       lines.push(dom ? `${fun}, x in ${dom}` : fun);
     });
-    const hasCoordsLine = lines.some(L => /^\s*coords\s*=/i.test(L));
+    let hasCoordsLine = lines.some(L => /^\s*coords\s*=/i.test(L));
+    let hasMarkerLine = lines.some(L => /^\s*marker\s*=/i.test(L));
     const hasPointsLine = lines.some(L => /^\s*points\s*=/i.test(L));
     const hasStartXLine = lines.some(L => /^\s*startx\s*=/i.test(L));
     const hasLinePtsLine = lines.some(L => /^\s*linepts\s*=/i.test(L));
@@ -4501,6 +4570,14 @@ function setupSettingsForm() {
         .map(pt => `(${formatNumber(pt[0], stepX())}, ${formatNumber(pt[1], stepY())})`);
       if (coords.length) {
         lines.push(`coords=${coords.join('; ')}`);
+        hasCoordsLine = true;
+      }
+    }
+    if (!hasMarkerLine && hasCoordsLine) {
+      const markerForFallback = markerInputValue != null ? markerInputValue : parsedMarkerValue;
+      if (!isDefaultPointMarker(markerForFallback)) {
+        lines.push(`marker=${markerForFallback}`);
+        hasMarkerLine = true;
       }
     }
     if (!hasLinePtsLine && neededLinePoints > 0 && (linePointsEdited || Array.isArray(SIMPLE_PARSED.linePoints) && SIMPLE_PARSED.linePoints.length > 0)) {
@@ -4649,6 +4726,12 @@ function setupSettingsForm() {
                 <input type="text" data-dom placeholder="[start, stopp]">
               </label>
             </div>
+            <div class="func-row point-marker-row">
+              <label class="point-marker" data-point-marker-container>
+                <span>Punktmarkør</span>
+                <input type="text" data-point-marker placeholder="${DEFAULT_POINT_MARKER}" value="${DEFAULT_POINT_MARKER}" autocomplete="off" spellcheck="false">
+              </label>
+            </div>
             <div class="func-row func-row--gliders glider-row">
               <label class="points">
                 <span>Punkter på grafen</span>
@@ -4729,6 +4812,7 @@ function setupSettingsForm() {
         updateFunctionPreview(funInput);
         toggleDomain(funInput);
         updateLinePointControls();
+        updatePointMarkerVisibility();
       };
       const commitIfChanged = () => {
         runInputSideEffects();
@@ -4771,6 +4855,23 @@ function setupSettingsForm() {
       gliderCountInput = row.querySelector('[data-points]');
       gliderStartInput = row.querySelector('input[data-startx]');
       gliderStartLabel = gliderStartInput ? gliderStartInput.closest('label') : null;
+      pointMarkerInput = row.querySelector('input[data-point-marker]');
+      const pointMarkerLabel = row.querySelector('[data-point-marker-container]');
+      pointMarkerContainer = pointMarkerLabel ? pointMarkerLabel.closest('.point-marker-row') || pointMarkerLabel : null;
+      if (pointMarkerContainer) {
+        pointMarkerContainer.style.display = 'none';
+      }
+      if (pointMarkerInput) {
+        pointMarkerInput.dataset.defaultValue = DEFAULT_POINT_MARKER;
+        pointMarkerInput.addEventListener('input', () => {
+          syncSimpleFromForm();
+          scheduleSimpleRebuild();
+        });
+        pointMarkerInput.addEventListener('change', () => {
+          syncSimpleFromForm();
+          scheduleSimpleRebuild();
+        });
+      }
       if (gliderCountInput) {
         gliderCountInput.addEventListener('input', handleGliderCountChange);
         gliderCountInput.addEventListener('change', handleGliderCountChange);
@@ -4808,6 +4909,7 @@ function setupSettingsForm() {
     }
     if (funInput) {
       toggleDomain(funInput);
+      updatePointMarkerVisibility();
     }
     return row;
   };
@@ -4825,6 +4927,7 @@ function setupSettingsForm() {
       if (/^\s*points\s*=/i.test(line)) return false;
       if (/^\s*startx\s*=/i.test(line)) return false;
       if (/^\s*linepts\s*=/i.test(line)) return false;
+      if (/^\s*marker\s*=/i.test(line)) return false;
       return true;
     });
     if (filteredLines.length === 0) {
@@ -4870,6 +4973,11 @@ function setupSettingsForm() {
     }
     updateGliderVisibility();
     updateLinePointControls({ silent: true });
+    if (pointMarkerInput) {
+      const parsedMarker = sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker);
+      setPointMarkerInputValue(parsedMarker);
+    }
+    updatePointMarkerVisibility();
     syncSimpleFromForm();
     updateSnapAvailability();
     refreshAltText('form-fill');
@@ -5025,6 +5133,12 @@ function setupSettingsForm() {
       if (!fun) return;
       if (rowIdx === 0 && isCoords(fun)) {
         p.set('coords', fun);
+        const markerForParams = pointMarkerInput
+          ? getPointMarkerValueForExport()
+          : (!isDefaultPointMarker(SIMPLE_PARSED.pointMarker) ? sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker) : '');
+        if (markerForParams) {
+          p.set('marker', markerForParams);
+        }
       } else {
         p.set(`fun${idx}`, fun);
         if (dom) p.set(`dom${idx}`, dom);
@@ -5040,6 +5154,20 @@ function setupSettingsForm() {
           if (startVals.length) {
             p.set('startx', startVals.map(val => formatNumber(val, stepX())).join(', '));
           }
+        }
+      }
+    }
+    if (!p.has('coords') && Array.isArray(SIMPLE_PARSED.extraPoints)) {
+      const exportCoords = SIMPLE_PARSED.extraPoints
+        .filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite))
+        .map(pt => `(${formatNumber(pt[0], stepX())}, ${formatNumber(pt[1], stepY())})`);
+      if (exportCoords.length) {
+        p.set('coords', exportCoords.join('; '));
+        const markerFromParsed = !isDefaultPointMarker(SIMPLE_PARSED.pointMarker)
+          ? sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker)
+          : '';
+        if (markerFromParsed) {
+          p.set('marker', markerFromParsed);
         }
       }
     }
