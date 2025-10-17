@@ -456,8 +456,9 @@ function drawAxesAndGrid() {
       width: width,
       height: height
     });
-    rect.setAttribute('rx', height / 2);
-    rect.setAttribute('ry', height / 2);
+    const cornerRadius = Math.min(height / 2, 10);
+    rect.setAttribute('rx', cornerRadius);
+    rect.setAttribute('ry', cornerRadius);
     let rectX = -width / 2;
     let textX = 0;
     if (anchor === 'start') {
@@ -487,8 +488,8 @@ function drawAxesAndGrid() {
     y2: H - M.b,
     class: 'axis'
   });
-  addTo(yAxisGroup, 'polygon', {
-    points: `${M.l},${yLineStart - yArrowLength} ${M.l - yArrowHalfWidth},${yLineStart} ${M.l + yArrowHalfWidth},${yLineStart}`,
+  addTo(yAxisGroup, 'path', {
+    d: `M ${M.l - yArrowHalfWidth} ${yLineStart} L ${M.l} ${yLineStart - yArrowLength} L ${M.l + yArrowHalfWidth} ${yLineStart}`,
     class: 'axis-arrow axis-arrow--y'
   });
 
@@ -513,8 +514,8 @@ function drawAxesAndGrid() {
     y2: axisY,
     class: 'axis'
   });
-  addTo(xAxisGroup, 'polygon', {
-    points: `${xLineEnd + xArrowLength},${axisY} ${xLineEnd},${axisY + xArrowHalfHeight} ${xLineEnd},${axisY - xArrowHalfHeight}`,
+  addTo(xAxisGroup, 'path', {
+    d: `M ${xLineEnd} ${axisY - xArrowHalfHeight} L ${xLineEnd + xArrowLength} ${axisY} L ${xLineEnd} ${axisY + xArrowHalfHeight}`,
     class: 'axis-arrow axis-arrow--x'
   });
 
