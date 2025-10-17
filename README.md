@@ -31,7 +31,7 @@ For en komplett «teskje»-guide til lokal kjøring på Mac (inkludert riktig No
 1. Åpne `/api/examples` i nettleseren for å bekrefte at API-et svarer.
 2. Hvis Vercel returnerer `FUNCTION_NOT_FOUND`, er prosjektet distribuert som ren statisk hosting. Fjern eventuell manuelt satt «Output Directory»/override slik at `api/`-mappen tas med, og redeployer med serverless-funksjoner aktivert.
 3. Undersøk nettverkspanelet i utviklerverktøyene og se etter blokkerte forespørsler.
-4. Kontroller at `EXAMPLES_ALLOWED_ORIGINS` inkluderer opprinnelsen du tester fra.
+4. Kontroller at `EXAMPLES_ALLOWED_ORIGINS` (og eventuelt `SVG_ALLOWED_ORIGINS`) inkluderer opprinnelsen du tester fra.
 5. Verifiser at `KV_REST_API_URL` og `KV_REST_API_TOKEN` er satt i miljøet der API-et kjører. Husk at Vercel har egne sett med variabler for **Development**, **Preview** og **Production** – legg dem inn i den/de miljøene som skal bruke permanent lagring, og redeployer etterpå.
 6. Hvis det kun feiler i en distribuert versjon, kjør `npm run check-examples-api -- --url=https://ditt-domene/api/examples` for å bekrefte om back-end rapporterer «midlertidig minne». Det betyr at den kjørende instansen ikke finner KV-nøklene sine.
 
