@@ -674,17 +674,38 @@ async function appendTrashEntries(entries, options) {
     : MAX_TRASH_ENTRIES;
   const existing = await getTrashEntries();
   const existingList = Array.isArray(existing) ? existing : [];
-  const combined =
-    mode === 'append'
-      ? existingList.slice().reverse().concat(sanitizedNew)
-      : sanitizedNew.concat(existingList);
-  const deduped = [];
-  const seen = new Set();
-  combined.forEach(entry => {
+  const mapOrder = mode === 'append'
+    ? sanitizedNew.concat(existingList)
+    : existingList.concat(sanitizedNew);
+  const preferFirst = mode === 'append';
+  const idMap = new Map();
+  mapOrder.forEach(entry => {
     if (!entry || typeof entry !== 'object') return;
     const id = typeof entry.id === 'string' ? entry.id : null;
-    if (id && seen.has(id)) return;
-    if (id) seen.add(id);
+    if (!id) return;
+    if (preferFirst) {
+      if (!idMap.has(id)) {
+        idMap.set(id, entry);
+      }
+    } else {
+      idMap.set(id, entry);
+    }
+  });
+  const outputOrder = mode === 'append'
+    ? existingList.concat(sanitizedNew)
+    : sanitizedNew.concat(existingList);
+  const deduped = [];
+  const seenIds = new Set();
+  outputOrder.forEach(entry => {
+    if (!entry || typeof entry !== 'object') return;
+    const id = typeof entry.id === 'string' ? entry.id : null;
+    if (id) {
+      if (seenIds.has(id)) return;
+      const resolved = idMap.has(id) ? idMap.get(id) : entry;
+      deduped.push(resolved);
+      seenIds.add(id);
+      return;
+    }
     deduped.push(entry);
   });
   const truncated = mode === 'append' ? deduped.slice(-limit) : deduped.slice(0, limit);
