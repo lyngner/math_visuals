@@ -977,32 +977,34 @@ function buildGlobalSettings(targetFragment) {
     }
     fieldset.appendChild(labelWrapper);
   }
-  const gapLabel = document.createElement('label');
-  gapLabel.textContent = 'Mellomrom mellom blokker';
-  const gapInput = document.createElement('input');
-  gapInput.type = 'number';
-  gapInput.min = String(MIN_ROW_GAP);
-  gapInput.max = String(MAX_ROW_GAP);
-  gapInput.step = '1';
-  gapInput.value = String(getConfiguredRowGap());
-  const applyGap = () => {
-    const parsed = Number.parseFloat(String(gapInput.value).replace(',', '.'));
-    if (!Number.isFinite(parsed)) {
-      gapInput.value = String(getConfiguredRowGap());
-      return;
-    }
-    const sanitized = sanitizeRowGap(parsed);
-    CONFIG.rowGap = sanitized;
-    if (gapInput.value !== String(sanitized)) {
-      gapInput.value = String(sanitized);
-    }
-    draw(true);
-  };
-  gapInput.addEventListener('change', applyGap);
-  gapInput.addEventListener('blur', applyGap);
-  gapLabel.appendChild(gapInput);
-  fieldset.appendChild(gapLabel);
-  globalControls.rowGapInput = gapInput;
+  if (rowCount > 1) {
+    const gapLabel = document.createElement('label');
+    gapLabel.textContent = 'Mellomrom mellom blokker';
+    const gapInput = document.createElement('input');
+    gapInput.type = 'number';
+    gapInput.min = String(MIN_ROW_GAP);
+    gapInput.max = String(MAX_ROW_GAP);
+    gapInput.step = '1';
+    gapInput.value = String(getConfiguredRowGap());
+    const applyGap = () => {
+      const parsed = Number.parseFloat(String(gapInput.value).replace(',', '.'));
+      if (!Number.isFinite(parsed)) {
+        gapInput.value = String(getConfiguredRowGap());
+        return;
+      }
+      const sanitized = sanitizeRowGap(parsed);
+      CONFIG.rowGap = sanitized;
+      if (gapInput.value !== String(sanitized)) {
+        gapInput.value = String(sanitized);
+      }
+      draw(true);
+    };
+    gapInput.addEventListener('change', applyGap);
+    gapInput.addEventListener('blur', applyGap);
+    gapLabel.appendChild(gapInput);
+    fieldset.appendChild(gapLabel);
+    globalControls.rowGapInput = gapInput;
+  }
   const horizontalRow = document.createElement('div');
   horizontalRow.className = 'checkbox-row';
   const horizontalInput = document.createElement('input');
