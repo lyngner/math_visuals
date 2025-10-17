@@ -1200,24 +1200,26 @@ function renderDecorations(g, points, decorations, options = {}) {
         'stroke-width': STYLE.edgeWidth,
         'stroke-linecap': 'round'
       });
-      add(g, 'line', {
-        x1: center.x,
-        y1: center.y,
-        x2: midArc.x,
-        y2: midArc.y,
-        stroke: STYLE.edgeStroke,
-        'stroke-width': STYLE.edgeWidth * 0.75,
-        'stroke-linecap': 'round'
-      });
-      add(g, 'circle', {
-        cx: center.x,
-        cy: center.y,
-        r: 6,
-        fill: STYLE.edgeStroke
-      });
       const radiusEntry = dec.radius && typeof dec.radius === 'object' ? dec.radius : null;
       const diameterEntry = dec.diameter && typeof dec.diameter === 'object' ? dec.diameter : null;
       const showRadius = radiusEntry && radiusEntry.requested;
+      if (showRadius) {
+        add(g, 'line', {
+          x1: center.x,
+          y1: center.y,
+          x2: midArc.x,
+          y2: midArc.y,
+          stroke: STYLE.edgeStroke,
+          'stroke-width': STYLE.edgeWidth * 0.75,
+          'stroke-linecap': 'round'
+        });
+        add(g, 'circle', {
+          cx: center.x,
+          cy: center.y,
+          r: 6,
+          fill: STYLE.edgeStroke
+        });
+      }
       const radiusText = showRadius ? normalizedDimensionText(radiusEntry, 'r') : '';
       if (showRadius && radiusText) {
         const labelPoint = {
