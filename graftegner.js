@@ -4685,6 +4685,19 @@ function setupSettingsForm() {
     gliderStartInput.addEventListener('input', onStartChange);
     gliderStartInput.addEventListener('change', onStartChange);
   }
+  const isFunctionInputActive = input => {
+    if (!input || typeof document === 'undefined') return false;
+    if (document.activeElement === input) {
+      return true;
+    }
+    if (typeof input.matches === 'function' && input.matches(':focus')) {
+      return true;
+    }
+    if (input.shadowRoot && input.shadowRoot.activeElement) {
+      return true;
+    }
+    return false;
+  };
   const toggleDomain = input => {
     const row = input.closest('.func-group');
     if (!row) return;
@@ -4806,14 +4819,16 @@ function setupSettingsForm() {
       const rememberCommittedValue = () => {
         funInput.dataset.lastCommittedValue = getFunctionInputValue(funInput);
       };
-      const runInputSideEffects = () => {
+      const runInputSideEffects = (options = {}) => {
+        const { commitPhase = false } = options;
         updateFunctionPreview(funInput);
         toggleDomain(funInput);
-        updateLinePointControls();
+        const shouldSilenceLineUpdates = !commitPhase && isFunctionInputActive(funInput);
+        updateLinePointControls({ silent: shouldSilenceLineUpdates });
         updatePointMarkerVisibility();
       };
       const commitIfChanged = () => {
-        runInputSideEffects();
+        runInputSideEffects({ commitPhase: true });
         const currentValue = getFunctionInputValue(funInput);
         if (funInput.dataset.lastCommittedValue === currentValue) {
           return;
@@ -4826,7 +4841,7 @@ function setupSettingsForm() {
         ? queueMicrotask
         : callback => setTimeout(callback, 0);
       scheduleRemember(rememberCommittedValue);
-      funInput.addEventListener('input', runInputSideEffects);
+      funInput.addEventListener('input', () => runInputSideEffects({ commitPhase: false }));
       funInput.addEventListener('change', commitIfChanged);
       funInput.addEventListener('blur', commitIfChanged);
       funInput.addEventListener('keydown', event => {

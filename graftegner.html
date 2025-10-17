@@ -124,6 +124,9 @@
     .func-editor[data-preview-mode="text"] .func-preview{
       display:block;
     }
+    .func-editor:not([data-preview-layout="below"]):focus-within .func-preview{
+      display:none !important;
+    }
     .func-preview--latex{
       font-family:"KaTeX_Main","Times New Roman",Times,serif;
     }
