@@ -3986,31 +3986,15 @@ function setupSettingsForm() {
     const preview = editor.querySelector('[data-fun-preview]');
     if (!preview) return;
     const tag = element.tagName ? element.tagName.toUpperCase() : '';
-    const setMode = mode => {
-      if (!editor) return;
-      const layout = editor.getAttribute('data-preview-layout');
-      if (layout === 'below') {
-        editor.removeAttribute('data-preview-mode');
-        return;
-      }
-      if (mode === 'latex') {
-        editor.setAttribute('data-preview-mode', 'latex');
-      } else if (mode === 'text') {
-        editor.setAttribute('data-preview-mode', 'text');
-      } else {
-        editor.removeAttribute('data-preview-mode');
-      }
-    };
     const previewLayout = editor ? editor.getAttribute('data-preview-layout') : '';
     const allowMathFieldPreview = tag === MATHFIELD_TAG && previewLayout === 'below';
     if (tag === MATHFIELD_TAG && isMathLiveReady() && !allowMathFieldPreview) {
       preview.innerHTML = '';
       preview.textContent = '';
-      preview.style.display = 'none';
       preview.classList.remove('func-preview--latex', 'func-preview--text');
       preview.classList.add('func-preview--empty');
       preview.setAttribute('data-mode', 'empty');
-      setMode('');
+      updateFunctionPreviewAccessibility(editor, preview);
       return;
     }
     const value = getFunctionInputValue(element);
@@ -4021,26 +4005,42 @@ function setupSettingsForm() {
     preview.innerHTML = '';
     preview.textContent = '';
     preview.classList.remove('func-preview--latex', 'func-preview--text', 'func-preview--empty');
+    preview.removeAttribute('data-mode');
     if (html) {
       preview.innerHTML = html;
-      preview.style.display = 'block';
       preview.classList.add('func-preview--latex');
       preview.setAttribute('data-mode', 'latex');
-      setMode('latex');
-      return;
-    }
-    if (plain) {
+    } else if (plain) {
       preview.textContent = plain;
-      preview.style.display = 'block';
       preview.classList.add('func-preview--text');
       preview.setAttribute('data-mode', 'text');
-      setMode('text');
-      return;
+    } else {
+      preview.classList.add('func-preview--empty');
+      preview.setAttribute('data-mode', 'empty');
     }
-    preview.style.display = 'none';
-    preview.classList.add('func-preview--empty');
-    preview.setAttribute('data-mode', 'empty');
-    setMode('');
+    updateFunctionPreviewAccessibility(editor, preview);
+  };
+  const updateFunctionPreviewAccessibility = (editor, preview) => {
+    if (!editor || !preview) return;
+    const isPreviewMode = editor.getAttribute('data-editor-mode') === 'preview';
+    const isEmpty = preview.classList.contains('func-preview--empty');
+    if (isPreviewMode && !isEmpty) {
+      preview.setAttribute('aria-hidden', 'false');
+      preview.tabIndex = 0;
+    } else {
+      preview.setAttribute('aria-hidden', 'true');
+      preview.tabIndex = -1;
+    }
+  };
+  const setFunctionEditorMode = (element, mode) => {
+    if (!element) return;
+    const editor = element.closest ? element.closest('.func-editor') : null;
+    if (!editor) return;
+    const preview = editor.querySelector('[data-fun-preview]');
+    const desired = mode === 'preview' ? 'preview' : 'edit';
+    const effective = desired === 'preview' && preview && preview.classList.contains('func-preview--empty') ? 'edit' : desired;
+    editor.setAttribute('data-editor-mode', effective);
+    updateFunctionPreviewAccessibility(editor, preview);
   };
   const getMathFieldConstructor = () => {
     if (typeof window === 'undefined') return null;
@@ -4157,12 +4157,9 @@ function setupSettingsForm() {
     if (!element) return element;
     const tag = element.tagName ? element.tagName.toUpperCase() : '';
     if (tag === MATHFIELD_TAG) {
-      const ctor = getMathFieldConstructor();
-      if (!ctor) {
-        const fallback = createFunctionFallbackInput(element);
-        element.replaceWith(fallback);
-        return fallback;
-      }
+      const fallback = createFunctionFallbackInput(element);
+      element.replaceWith(fallback);
+      return fallback;
     }
     return element;
   };
@@ -4178,12 +4175,14 @@ function setupSettingsForm() {
           try {
             element.setValue(str, { format: 'ascii-math' });
             updateFunctionPreview(element);
+            setFunctionEditorMode(element, normalizePlainExpression(str) ? 'preview' : 'edit');
             return;
           } catch (_) {
             try {
               const latexValue = convertExpressionToLatex(str);
               element.setValue(latexValue, { format: 'latex' });
               updateFunctionPreview(element);
+              setFunctionEditorMode(element, normalizePlainExpression(str) ? 'preview' : 'edit');
               return;
             } catch (_) {}
           }
@@ -4195,6 +4194,7 @@ function setupSettingsForm() {
           element.setAttribute('value', latex);
         }
         updateFunctionPreview(element);
+        setFunctionEditorMode(element, normalizePlainExpression(str) ? 'preview' : 'edit');
       };
       if (!isMathLiveReady() || typeof element.setValue !== 'function') {
         const latex = convertExpressionToLatex(str);
@@ -4205,6 +4205,7 @@ function setupSettingsForm() {
         }
         updateFunctionPreview(element);
         whenMathLiveReady(applyValue);
+        setFunctionEditorMode(element, normalizePlainExpression(str) ? 'preview' : 'edit');
         return;
       }
       applyValue();
@@ -4212,6 +4213,7 @@ function setupSettingsForm() {
     }
     element.value = str;
     updateFunctionPreview(element);
+    setFunctionEditorMode(element, normalizePlainExpression(str) ? 'preview' : 'edit');
   };
   const isCoords = str => /^\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?)(?:\s*;\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?))*\s*$/.test(str);
   const isExplicitFun = str => {
@@ -4801,6 +4803,47 @@ function setupSettingsForm() {
     const domInput = row.querySelector('input[data-dom]');
     if (funInput) {
       setFunctionInputValue(funInput, funVal || '');
+      const beginEditing = () => {
+        setFunctionEditorMode(funInput, 'edit');
+        const focusInput = () => {
+          if (typeof funInput.focus === 'function') {
+            try {
+              funInput.focus({ preventScroll: true });
+            } catch (_) {
+              funInput.focus();
+            }
+          }
+          if (typeof funInput.setSelectionRange === 'function') {
+            const value = funInput.value != null ? String(funInput.value) : '';
+            try {
+              funInput.setSelectionRange(value.length, value.length);
+            } catch (_) {}
+          }
+        };
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+          window.requestAnimationFrame(focusInput);
+        } else if (typeof setTimeout === 'function') {
+          setTimeout(focusInput, 0);
+        } else {
+          focusInput();
+        }
+      };
+      if (preview) {
+        preview.setAttribute('role', 'button');
+        if (!preview.getAttribute('aria-label')) {
+          preview.setAttribute('aria-label', `Klikk for å redigere ${titleLabel}`);
+        }
+        preview.addEventListener('click', event => {
+          event.preventDefault();
+          beginEditing();
+        });
+        preview.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            beginEditing();
+          }
+        });
+      }
       const rememberCommittedValue = () => {
         funInput.dataset.lastCommittedValue = getFunctionInputValue(funInput);
       };
@@ -4813,6 +4856,11 @@ function setupSettingsForm() {
       const commitIfChanged = () => {
         runInputSideEffects();
         const currentValue = getFunctionInputValue(funInput);
+        if (currentValue) {
+          setFunctionEditorMode(funInput, 'preview');
+        } else {
+          setFunctionEditorMode(funInput, 'edit');
+        }
         if (funInput.dataset.lastCommittedValue === currentValue) {
           return;
         }
@@ -4827,10 +4875,16 @@ function setupSettingsForm() {
       funInput.addEventListener('input', runInputSideEffects);
       funInput.addEventListener('change', commitIfChanged);
       funInput.addEventListener('blur', commitIfChanged);
+      funInput.addEventListener('focus', () => {
+        setFunctionEditorMode(funInput, 'edit');
+      });
       funInput.addEventListener('keydown', event => {
         if (event.key === 'Enter') {
           event.preventDefault();
           commitIfChanged();
+          if (typeof funInput.blur === 'function') {
+            funInput.blur();
+          }
         }
       });
     }

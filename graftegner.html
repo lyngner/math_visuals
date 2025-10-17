@@ -94,16 +94,13 @@
       display:block;
       min-height:44px;
     }
-    .func-editor[data-preview-mode] .func-math-field{
-      min-height:44px;
-    }
-    .func-preview{ 
+    .func-preview{
       position:absolute;
       inset:0;
       display:none;
       padding:8px 10px;
       border-radius:10px;
-      font-size:16px;
+      font-size:15px;
       line-height:1.4;
       color:#111827;
       word-break:break-word;
@@ -128,14 +125,6 @@
       pointer-events:none;
       z-index:auto;
     }
-    .func-editor[data-preview-layout="below"] .func-preview.func-preview--latex,
-    .func-editor[data-preview-layout="below"] .func-preview.func-preview--text{
-      display:block;
-    }
-    .func-editor[data-preview-mode="latex"] .func-preview,
-    .func-editor[data-preview-mode="text"] .func-preview{
-      display:block;
-    }
     .func-preview--latex{
       font-family:"KaTeX_Main","Times New Roman",Times,serif;
     }
@@ -143,30 +132,49 @@
       font-family:inherit;
       font-size:15px;
     }
-    .func-editor[data-preview-mode="latex"] .func-math-field,
-    .func-editor[data-preview-mode="latex"] .func-math-field::part(container),
-    .func-editor[data-preview-mode="latex"] .func-math-field::part(content){
-      color:transparent;
-      caret-color:#111827;
-      background-color:transparent;
+    .func-preview.func-preview--empty{
+      display:none;
     }
-    .func-editor[data-preview-mode="latex"] input.func-math-field{
-      color:transparent;
-      caret-color:#111827;
-      background-color:transparent;
+    .func-editor[data-editor-mode="edit"] .func-preview{
+      display:none;
     }
-    .func-editor[data-preview-mode="latex"] input.func-math-field::placeholder{
-      color:transparent;
+    .func-editor[data-editor-mode="preview"] .func-math-field,
+    .func-editor[data-editor-mode="preview"] input.func-math-field{
+      display:none;
     }
-    .func-editor[data-preview-mode="latex"]:focus-within .func-math-field,
-    .func-editor[data-preview-mode="latex"]:focus-within .func-math-field::part(container),
-    .func-editor[data-preview-mode="latex"]:focus-within .func-math-field::part(content),
-    .func-editor[data-preview-mode="latex"]:focus-within input.func-math-field{
-      color:#111827;
-      background-color:#fff;
+    .func-editor[data-editor-mode="preview"] .func-preview{
+      position:static;
+      display:block;
+      border:1px solid #d1d5db;
+      border-radius:10px;
+      padding:8px 10px;
+      min-height:44px;
+      background:#fff;
+      box-sizing:border-box;
+      pointer-events:auto;
+      cursor:text;
+      transition:border-color .15s ease, box-shadow .15s ease;
     }
-    .func-editor[data-preview-mode="latex"]:focus-within input.func-math-field::placeholder{
-      color:#9ca3af;
+    .func-editor[data-editor-mode="preview"] .func-preview:focus,
+    .func-editor[data-editor-mode="preview"] .func-preview:focus-visible{
+      outline:none;
+      border-color:#6366f1;
+      box-shadow:0 0 0 3px rgba(99,102,241,.15);
+    }
+    .func-editor[data-editor-mode="preview"][data-preview-layout="below"] .func-preview{
+      position:static;
+      border:0;
+      border-radius:0;
+      padding:0;
+      margin-top:6px;
+      background:transparent;
+      cursor:pointer;
+      box-shadow:none;
+    }
+    .func-editor[data-editor-mode="preview"][data-preview-layout="below"] .func-preview:focus,
+    .func-editor[data-editor-mode="preview"][data-preview-layout="below"] .func-preview:focus-visible{
+      border:0;
+      box-shadow:none;
     }
     .func-math-field{
       display:block;
