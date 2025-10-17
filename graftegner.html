@@ -161,6 +161,16 @@
     .func-editor[data-preview-mode="latex"] input.func-math-field::placeholder{
       color:transparent;
     }
+    .func-editor[data-preview-mode="latex"]:focus-within .func-math-field,
+    .func-editor[data-preview-mode="latex"]:focus-within .func-math-field::part(container),
+    .func-editor[data-preview-mode="latex"]:focus-within .func-math-field::part(content),
+    .func-editor[data-preview-mode="latex"]:focus-within input.func-math-field{
+      color:#111827;
+      background-color:#fff;
+    }
+    .func-editor[data-preview-mode="latex"]:focus-within input.func-math-field::placeholder{
+      color:#9ca3af;
+    }
     .func-math-field{
       display:block;
       width:100%;
