@@ -51,6 +51,9 @@
     .card--settings .settings input[type="number"]{width:100%;}
     .card--settings .global-settings{display:flex;flex-direction:column;gap:12px;}
     .card--settings .global-settings > .checkbox-row{gap:8px;}
+    .card--settings .global-settings .settings-group{display:flex;flex-direction:column;gap:10px;padding-top:4px;border-top:1px solid #e5e7eb;}
+    .card--settings .global-settings .settings-group:first-of-type{padding-top:0;border-top:none;}
+    .card--settings .global-settings .settings-group-title{font-weight:600;font-size:13px;color:#4b5563;}
     .card--settings legend{font-weight:600;font-size:14px;margin-bottom:4px;color:#374151;}
     .card input[type="color"]{width:40px;height:40px;padding:0;border:none;}
     .color-grid{display:flex;flex-wrap:wrap;gap:6px;}
@@ -142,53 +145,53 @@
           <div class="settings">
             <fieldset class="global-settings">
               <legend>Globale innstillinger</legend>
-              <div class="input-stack">
-                <label for="rowsInput">Rader</label>
-                <input id="rowsInput" type="number" min="1" max="20" value="3" />
-                <label for="colsInput">Kolonner</label>
-                <input id="colsInput" type="number" min="1" max="20" value="3" />
+              <div class="settings-group">
+                <div class="input-stack">
+                  <label for="rowsInput">Rader</label>
+                  <input id="rowsInput" type="number" min="1" max="20" value="3" />
+                  <label for="colsInput">Kolonner</label>
+                  <input id="colsInput" type="number" min="1" max="20" value="3" />
+                </div>
+                <div class="input-stack">
+                  <label for="figureTypeSelect">Type markering</label>
+                  <select id="figureTypeSelect" aria-label="Type markering">
+                    <option value="square">Fylte kvadrater</option>
+                    <option value="circle">Sirkler</option>
+                    <option value="line">Linjer</option>
+                    <option value="star">Stjerner</option>
+                  </select>
+                </div>
+                <div class="checkbox-row">
+                  <input id="showGridToggle" type="checkbox" name="showGrid" checked />
+                  <label for="showGridToggle">Vis rutenett</label>
+                </div>
+                <div class="checkbox-row">
+                  <input id="offsetRowsToggle" type="checkbox" name="offsetRows" checked />
+                  <label for="offsetRowsToggle">Forskyv annenhver rad</label>
+                </div>
+                <div class="input-stack">
+                  <label for="labelModeSelect">Figurtekst</label>
+                  <select id="labelModeSelect" aria-label="Figurtekst">
+                    <option value="hidden">Skjult</option>
+                    <option value="count">Tall</option>
+                    <option value="custom">Egendefinert</option>
+                  </select>
+                </div>
               </div>
-              <div class="input-stack">
-                <label for="figureTypeSelect">Type markering</label>
-                <select id="figureTypeSelect" aria-label="Type markering">
-                  <option value="square">Fylte kvadrater</option>
-                  <option value="circle">Sirkler</option>
-                  <option value="line">Linjer</option>
-                  <option value="star">Stjerner</option>
-                </select>
-              </div>
-              <div class="checkbox-row">
-                <input id="showGridToggle" type="checkbox" name="showGrid" checked />
-                <label for="showGridToggle">Vis rutenett</label>
-              </div>
-              <div class="checkbox-row">
-                <input id="offsetRowsToggle" type="checkbox" name="offsetRows" checked />
-                <label for="offsetRowsToggle">Forskyv annenhver rad</label>
-              </div>
-              <div class="input-stack">
-                <label for="labelModeSelect">Figurtekst</label>
-                <select id="labelModeSelect" aria-label="Figurtekst">
-                  <option value="hidden">Skjult</option>
-                  <option value="count">Tall</option>
-                  <option value="custom">Egendefinert</option>
-                </select>
-              </div>
-            </fieldset>
-            <fieldset>
-              <legend>Farger</legend>
-              <div class="field-row">
-                <div class="field">
+              <div class="settings-group">
+                <span class="settings-group-title" id="globalColorSettingsHeading">Farger</span>
+                <div class="input-stack">
                   <label for="colorCount">Antall farger</label>
                   <input id="colorCount" type="number" min="1" max="6" value="1" />
                 </div>
-              </div>
-              <div class="color-grid">
-                <input id="color_1" type="color" />
-                <input id="color_2" type="color" />
-                <input id="color_3" type="color" />
-                <input id="color_4" type="color" />
-                <input id="color_5" type="color" />
-                <input id="color_6" type="color" />
+                <div class="color-grid" role="group" aria-labelledby="globalColorSettingsHeading">
+                  <input id="color_1" type="color" />
+                  <input id="color_2" type="color" />
+                  <input id="color_3" type="color" />
+                  <input id="color_4" type="color" />
+                  <input id="color_5" type="color" />
+                  <input id="color_6" type="color" />
+                </div>
               </div>
             </fieldset>
           </div>
