@@ -10,7 +10,8 @@ test.describe('nKant firkant rettvinkel-resgresjon', () => {
 
     await expect.poll(async () => await page.locator('#paper polygon').count()).toBeGreaterThan(0);
     await expect(page.locator('#paper text', { hasText: 'angi vinkel' })).toHaveCount(0);
-    await expect(specs).toHaveValue('a=1, b=2, c=4, d=3, A=90');
+    const expectedNormalizedSpec = 'a=1, b=2, c=4, d=3, A=90';
+    await expect(specs).toHaveValue(expectedNormalizedSpec);
   });
 
   test('fungerer også med firkant-prefiks', async ({ page }) => {
