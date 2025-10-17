@@ -22,11 +22,14 @@
 #chartTitle { text-align: center; font-size: 20px; margin: 0 0 6px; }
 
 /* Akser og rutenett */
-.axis{stroke:#222;stroke-width:3;fill:none}
+.axis{stroke:#0f172a;stroke-width:3.5;fill:none}
+.axis-group{pointer-events:none}
+.axis-arrow{fill:#0f172a;stroke:none}
+.axis-label-chip{fill:rgba(226,232,240,.92);stroke:rgba(148,163,184,.55);filter:drop-shadow(0 10px 20px rgba(15,23,42,.16)) drop-shadow(0 3px 6px rgba(15,23,42,.12))}
+.axis-label-text{fill:#0f172a;font-weight:600;letter-spacing:.02em;font-size:18px;dominant-baseline:middle}
 .gridline{stroke:#999;stroke-width:1;opacity:.6}
 .yTickText{fill:#333;font-size:14px;text-anchor:end}
 .xLabel{fill:#333;font-size:18px;text-anchor:middle}
-.yLabel{fill:#333;font-size:18px}
 
 /* Søyler + vurderingsrammer */
 .bar{stroke:#000;stroke-width:4;opacity:1;fill-opacity:1}
