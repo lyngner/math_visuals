@@ -3731,13 +3731,25 @@ async function collectJobsFromSpecs(text) {
       continue;
     }
     const isQuad = "d" in obj || "D" in obj;
+    let finalObj = obj;
+    let normalizedBase = objToSpec(finalObj);
+    if (isQuad) {
+      const hasAngle = ["A", "B", "C", "D"].some(key => Number.isFinite(finalObj[key]));
+      if (!hasAngle) {
+        finalObj = {
+          ...finalObj,
+          A: 90
+        };
+        normalizedBase = objToSpec(finalObj);
+      }
+    }
     jobs.push({
       type: isQuad ? "quad" : "tri",
-      obj,
+      obj: finalObj,
       decorations: extras
     });
-    const normalized = combineNormalizedText(objToSpec(obj), normalizedExtras);
-    newLines.push(normalized || objToSpec(obj));
+    const normalized = combineNormalizedText(normalizedBase, normalizedExtras);
+    newLines.push(normalized || normalizedBase);
   }
   const newText = newLines.join("\n");
   if (newText !== text) {
