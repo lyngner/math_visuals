@@ -3937,8 +3937,8 @@ function setupSettingsForm() {
   let linePointLabels = [];
   let linePointVisibleCount = 0;
   let linePointsEdited = false;
-  let pointMarkerInput = null;
-  let pointMarkerContainer = null;
+  const pointMarkerControls = [];
+  let pointMarkerValue = DEFAULT_POINT_MARKER;
   const MATHFIELD_TAG = 'MATH-FIELD';
   const nav = typeof navigator !== 'undefined' ? navigator : null;
   const hasTouchSupport = typeof window !== 'undefined' && (
@@ -4452,24 +4452,48 @@ function setupSettingsForm() {
     const firstRowInput = firstGroup ? firstGroup.querySelector('[data-fun]') : null;
     return firstRowInput ? getFunctionInputValue(firstRowInput) : '';
   };
-  const getPointMarkerInputValue = () => {
-    if (!pointMarkerInput) return '';
-    return sanitizePointMarkerValue(pointMarkerInput.value);
-  };
+  const getPointMarkerInputValue = () => sanitizePointMarkerValue(pointMarkerValue);
   const setPointMarkerInputValue = value => {
-    if (!pointMarkerInput) return;
     const normalized = sanitizePointMarkerValue(value);
-    pointMarkerInput.value = normalized || DEFAULT_POINT_MARKER;
+    pointMarkerValue = normalized ? normalized : DEFAULT_POINT_MARKER;
+    pointMarkerControls.forEach(control => {
+      if (!control || !control.input) return;
+      control.input.value = pointMarkerValue;
+    });
+  };
+  const syncPointMarkerValueFromInput = input => {
+    if (!input) return;
+    const normalized = sanitizePointMarkerValue(input.value);
+    pointMarkerValue = normalized;
+    const displayValue = normalized;
+    pointMarkerControls.forEach(control => {
+      if (!control || !control.input) return;
+      if (control.input === input) {
+        if (control.input.value !== displayValue) {
+          control.input.value = displayValue;
+        }
+        return;
+      }
+      control.input.value = displayValue;
+    });
   };
   const getPointMarkerValueForExport = () => {
     const raw = getPointMarkerInputValue();
     return raw && !isDefaultPointMarker(raw) ? raw : '';
   };
   const updatePointMarkerVisibility = () => {
-    if (!pointMarkerContainer) return;
-    const firstValue = getFirstFunctionValue();
-    const show = !!firstValue && isCoords(firstValue);
-    pointMarkerContainer.style.display = show ? '' : 'none';
+    pointMarkerControls.forEach(control => {
+      if (!control || !control.row) return;
+      const funInput = control.row.querySelector('[data-fun]');
+      const value = funInput ? getFunctionInputValue(funInput) : '';
+      const show = !!value && isCoords(value);
+      if (control.container) {
+        control.container.style.display = show ? '' : 'none';
+      }
+      if (control.input) {
+        control.input.disabled = !show;
+      }
+    });
   };
   const determineForcedGliderCount = value => {
     if (!value) return null;
@@ -4754,7 +4778,7 @@ function setupSettingsForm() {
     const firstIsCoords = !!firstVal && isCoords(firstVal);
     const lineSpec = interpretLineTemplateFromExpression(firstVal);
     const neededLinePoints = getLinePointCount(lineSpec);
-    const markerInputValue = pointMarkerInput ? getPointMarkerInputValue() : null;
+    const markerInputValue = pointMarkerControls.length ? getPointMarkerInputValue() : null;
     const parsedMarkerValue = sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker);
     const markerCandidate = markerInputValue != null ? markerInputValue : parsedMarkerValue;
     const lines = [];
@@ -4933,32 +4957,9 @@ function setupSettingsForm() {
     const row = document.createElement('div');
     row.className = 'func-group';
     row.dataset.index = String(index);
-    const titleLabel = index === 1 ? 'Funksjon eller punkter' : 'Funksjon ' + index;
+    const titleLabel = 'Funksjon eller punkter';
     const placeholderAttr = index === 1 ? ` placeholder="${DEFAULT_FUNCTION_EXPRESSION}"` : '';
-    if (index === 1) {
-      row.innerHTML = `
-        <fieldset>
-          <legend>Funksjon ${index}</legend>
-          <div class="func-fields func-fields--first">
-            <div class="func-row func-row--main func-row--main--with-marker">
-              <div class="func-main">
-                <label class="func-input">
-                  <span>${titleLabel}</span>
-                  <div class="func-editor">
-                    <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"${placeholderAttr}></math-field>
-                    <div class="func-preview" data-fun-preview aria-hidden="true"></div>
-                  </div>
-                </label>
-              </div>
-              <label class="point-marker" data-point-marker-container>
-                <span>Punktmarkør</span>
-                <input type="text" data-point-marker placeholder="${DEFAULT_POINT_MARKER}" value="${DEFAULT_POINT_MARKER}" autocomplete="off" spellcheck="false">
-              </label>
-              <label class="domain">
-                <span>Avgrensning</span>
-                <input type="text" data-dom placeholder="[start, stopp]">
-              </label>
-            </div>
+    const gliderMarkup = index === 1 ? `
             <div class="func-row func-row--gliders glider-row">
               <label class="points">
                 <span>Punkter på grafen</span>
@@ -4983,33 +4984,35 @@ function setupSettingsForm() {
                 <input type="text" data-startx value="1" placeholder="1">
               </label>
             </div>
-          </div>
-        </fieldset>
-      `;
-    } else {
-      row.innerHTML = `
-        <fieldset>
-          <legend>Funksjon ${index}</legend>
-          <div class="func-fields">
-            <div class="func-row func-row--secondary">
-              <div class="func-main">
-                <label class="func-input">
-                  <span>${titleLabel}</span>
-                  <div class="func-editor">
-                    <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"${placeholderAttr}></math-field>
-                    <div class="func-preview" data-fun-preview aria-hidden="true"></div>
-                  </div>
-                </label>
-              </div>
-              <label class="domain">
-                <span>Avgrensning</span>
-                <input type="text" data-dom placeholder="[start, stopp]">
+    ` : '';
+    const fieldsClass = index === 1 ? 'func-fields func-fields--first' : 'func-fields';
+    row.innerHTML = `
+      <fieldset>
+        <legend>Funksjon ${index}</legend>
+        <div class="${fieldsClass}">
+          <div class="func-row func-row--main func-row--main--with-marker">
+            <div class="func-main">
+              <label class="func-input">
+                <span>${titleLabel}</span>
+                <div class="func-editor">
+                  <math-field data-fun class="func-math-field" ${mathFieldKeyboardAttr} smart-mode="false" aria-label="${titleLabel}"${placeholderAttr}></math-field>
+                  <div class="func-preview" data-fun-preview aria-hidden="true"></div>
+                </div>
               </label>
             </div>
+            <label class="point-marker" data-point-marker-container>
+              <span>Punktmarkør</span>
+              <input type="text" data-point-marker placeholder="${DEFAULT_POINT_MARKER}" value="${DEFAULT_POINT_MARKER}" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="domain">
+              <span>Avgrensning</span>
+              <input type="text" data-dom placeholder="[start, stopp]">
+            </label>
           </div>
-        </fieldset>
-      `;
-    }
+          ${gliderMarkup}
+        </div>
+      </fieldset>
+    `;
     if (funcRows) {
       funcRows.appendChild(row);
     }
@@ -5023,6 +5026,24 @@ function setupSettingsForm() {
       if (preview) {
         preview.removeAttribute('data-preview-no-latex');
       }
+    }
+    const markerLabel = row.querySelector('[data-point-marker-container]');
+    const markerContainer = markerLabel ? markerLabel.closest('.point-marker-row') || markerLabel : null;
+    if (markerContainer) {
+      markerContainer.style.display = 'none';
+    }
+    const markerInput = row.querySelector('input[data-point-marker]');
+    if (markerInput) {
+      markerInput.dataset.defaultValue = DEFAULT_POINT_MARKER;
+      markerInput.value = pointMarkerValue;
+      pointMarkerControls.push({ row, input: markerInput, container: markerContainer });
+      const handleMarkerInput = () => {
+        syncPointMarkerValueFromInput(markerInput);
+        syncSimpleFromForm();
+        scheduleSimpleRebuild();
+      };
+      markerInput.addEventListener('input', handleMarkerInput);
+      markerInput.addEventListener('change', handleMarkerInput);
     }
     let funInput = row.querySelector('[data-fun]');
     funInput = ensureFunctionInputElement(funInput);
@@ -5144,23 +5165,6 @@ function setupSettingsForm() {
       gliderCountInput = row.querySelector('[data-points]');
       gliderStartInput = row.querySelector('input[data-startx]');
       gliderStartLabel = gliderStartInput ? gliderStartInput.closest('label') : null;
-      pointMarkerInput = row.querySelector('input[data-point-marker]');
-      const pointMarkerLabel = row.querySelector('[data-point-marker-container]');
-      pointMarkerContainer = pointMarkerLabel ? pointMarkerLabel.closest('.point-marker-row') || pointMarkerLabel : null;
-      if (pointMarkerContainer) {
-        pointMarkerContainer.style.display = 'none';
-      }
-      if (pointMarkerInput) {
-        pointMarkerInput.dataset.defaultValue = DEFAULT_POINT_MARKER;
-        pointMarkerInput.addEventListener('input', () => {
-          syncSimpleFromForm();
-          scheduleSimpleRebuild();
-        });
-        pointMarkerInput.addEventListener('change', () => {
-          syncSimpleFromForm();
-          scheduleSimpleRebuild();
-        });
-      }
       if (gliderCountInput) {
         gliderCountInput.addEventListener('input', handleGliderCountChange);
         gliderCountInput.addEventListener('change', handleGliderCountChange);
@@ -5231,6 +5235,8 @@ function setupSettingsForm() {
       linePointInputs = [];
       linePointLabels = [];
       linePointVisibleCount = 0;
+      pointMarkerControls.length = 0;
+      pointMarkerValue = DEFAULT_POINT_MARKER;
       funcRows.innerHTML = '';
     }
     glidersVisible = false;
@@ -5267,10 +5273,8 @@ function setupSettingsForm() {
     }
     updateGliderVisibility();
     updateLinePointControls({ silent: true });
-    if (pointMarkerInput) {
-      const parsedMarker = sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker);
-      setPointMarkerInputValue(parsedMarker);
-    }
+    const parsedMarker = sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker);
+    setPointMarkerInputValue(parsedMarker);
     updatePointMarkerVisibility();
     syncSimpleFromForm();
     updateSnapAvailability();
@@ -5427,7 +5431,7 @@ function setupSettingsForm() {
       if (!fun) return;
       if (rowIdx === 0 && isCoords(fun)) {
         p.set('coords', fun);
-        const markerForParams = pointMarkerInput
+        const markerForParams = pointMarkerControls.length
           ? getPointMarkerValueForExport()
           : (!isDefaultPointMarker(SIMPLE_PARSED.pointMarker) ? sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker) : '');
         if (markerForParams) {
