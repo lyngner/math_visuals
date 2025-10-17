@@ -189,22 +189,18 @@
       background:#fff;
       box-sizing:border-box;
       transition:border-color .15s ease, box-shadow .15s ease;
+      --caret-color:var(--text-color);
+      --selection-color:var(--text-color);
+      --contains-highlight-color:var(--text-color);
+      --selection-background-color:rgba(99,102,241,.12);
+      --text-highlight-background-color:rgba(99,102,241,.12);
+      --contains-highlight-background-color:rgba(99,102,241,.12);
     }
     .func-math-field:focus,
     .func-math-field:focus-within{
       outline:none;
       border-color:#6366f1;
       box-shadow:0 0 0 3px rgba(99,102,241,.15);
-    }
-    .func-math-field::part(container){
-      min-height:26px;
-      padding:0;
-    }
-    .func-math-field::part(content){
-      font-size:15px;
-      line-height:1.4;
-      padding:8px 10px;
-      color:var(--text-color);
     }
     .func-math-field::part(menu-toggle),
     .func-math-field::part(virtual-keyboard-toggle){
