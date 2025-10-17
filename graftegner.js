@@ -5112,10 +5112,15 @@ function setupSettingsForm() {
     filteredLines.forEach((line, idx) => {
       let funVal = line;
       let domVal = '';
-      const domMatch = line.match(/,\s*x\s*(?:in|∈)\s*(.+)$/i);
-      if (domMatch) {
-        funVal = line.slice(0, domMatch.index).trim();
-        domVal = domMatch[1].trim();
+      const coordsMatch = line.match(/^coords\s*=\s*(.+)$/i);
+      if (coordsMatch) {
+        funVal = coordsMatch[1].trim();
+      } else {
+        const domMatch = line.match(/,\s*x\s*(?:in|∈)\s*(.+)$/i);
+        if (domMatch) {
+          funVal = line.slice(0, domMatch.index).trim();
+          domVal = domMatch[1].trim();
+        }
       }
       createRow(idx + 1, funVal, domVal);
     });
