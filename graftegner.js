@@ -1667,6 +1667,12 @@ function ensureAxisArrowShapes() {
     borders: {
       visible: false
     },
+    vertices: {
+      visible: false,
+      highlight: false,
+      fixed: true,
+      size: 0
+    },
     cssStyle: 'pointer-events:none;'
   };
   if (!axisArrowX) {
