@@ -654,10 +654,44 @@ function formatDomainNumber(value) {
   if (Number.isInteger(normalized)) {
     return String(normalized);
   }
-  let out = normalized
-    .toFixed(6)
+  let str = normalized.toString();
+  if (/[eE]/.test(str)) {
+    const [mantissa, exponentStr] = str.split(/[eE]/);
+    const exponent = Number(exponentStr);
+    const negative = mantissa.startsWith('-');
+    const unsignedMantissa = negative ? mantissa.slice(1) : mantissa;
+    const [integerPartRaw, fractionPartRaw = ''] = unsignedMantissa.split('.');
+    const integerPart = integerPartRaw || '0';
+    const fractionPart = fractionPartRaw;
+    if (exponent >= 0) {
+      const combined = integerPart + fractionPart;
+      const zerosNeeded = exponent - fractionPart.length;
+      if (zerosNeeded >= 0) {
+        str = combined + '0'.repeat(zerosNeeded);
+      } else {
+        const index = integerPart.length + exponent;
+        str = combined.slice(0, index) + '.' + combined.slice(index);
+      }
+      if (negative) {
+        str = '-' + str;
+      }
+    } else {
+      const shift = -exponent;
+      if (shift < integerPart.length) {
+        const index = integerPart.length - shift;
+        const left = integerPart.slice(0, index) || '0';
+        const right = integerPart.slice(index) + fractionPart;
+        str = (negative ? '-' : '') + left + '.' + right;
+      } else {
+        const zeros = '0'.repeat(shift - integerPart.length);
+        str = (negative ? '-' : '') + '0.' + zeros + integerPart + fractionPart;
+      }
+    }
+  }
+  let out = str
     .replace(/(\.\d*?)0+$/, '$1')
     .replace(/\.$/, '');
+  if (out === '-0') out = '0';
   if (out.includes('.')) {
     out = out.replace('.', ',');
   }
