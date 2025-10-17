@@ -1199,19 +1199,31 @@
     }
   }
 
-  function addExampleToTrash(example, options) {
+  async function addExampleToTrash(example, options) {
     if (!example || typeof example !== 'object') return;
     const opts = options && typeof options === 'object' ? options : {};
     const normalizedExample = opts.preNormalized === true && example && typeof example === 'object' ? cloneValue(example) : normalizeExamplesForStorage([example])[0] || {};
+    let sanitizedPreview = null;
     if (opts.capturePreview === true) {
       try {
         const previewSvg = collectExampleSvgMarkup();
-        const sanitizedPreview = sanitizeSvgForStorage(previewSvg);
+        sanitizedPreview = sanitizeSvgForStorage(previewSvg);
         if (sanitizedPreview) {
           normalizedExample.svg = sanitizedPreview;
         }
       } catch (error) {
         console.error('[examples] failed to capture svg preview for trash entry', error);
+      }
+    }
+    const thumbnailSource = sanitizedPreview || (typeof normalizedExample.svg === 'string' ? normalizedExample.svg : '');
+    if (thumbnailSource) {
+      try {
+        const thumbnail = await generateExampleThumbnail(thumbnailSource);
+        if (thumbnail) {
+          normalizedExample.thumbnail = thumbnail;
+        }
+      } catch (error) {
+        console.error('[examples] failed to generate svg thumbnail for trash entry', error);
       }
     }
     const record = normalizeTrashEntry({
@@ -1227,14 +1239,13 @@
       importedFromHistory: opts.importedFromHistory === true
     });
     if (!record) return;
-    const upload = postTrashEntries([record], {
-      mode: opts.prepend === false ? 'append' : 'prepend',
-      limit: MAX_TRASH_ENTRIES
-    });
-    if (upload && typeof upload.catch === 'function') {
-      upload.catch(error => {
-        console.error('[examples] failed to persist trash entry', error);
+    try {
+      await postTrashEntries([record], {
+        mode: opts.prepend === false ? 'append' : 'prepend',
+        limit: MAX_TRASH_ENTRIES
       });
+    } catch (error) {
+      console.error('[examples] failed to persist trash entry', error);
     }
   }
 
@@ -2712,6 +2723,8 @@
   }
 
   const MAX_SVG_STORAGE_BYTES = 120000;
+  const MAX_THUMBNAIL_STORAGE_BYTES = 24000;
+  const MAX_THUMBNAIL_DIMENSION = 256;
   function computeByteLength(str) {
     if (typeof str !== 'string') return 0;
     if (typeof TextEncoder === 'function') {
@@ -3990,6 +4003,128 @@
       }
     });
   }
+  async function generateExampleThumbnail(svgMarkup) {
+    if (typeof svgMarkup !== 'string') return null;
+    const sanitized = svgMarkup.trim();
+    if (!sanitized) return null;
+    if (typeof document === 'undefined') return null;
+    if (typeof Blob !== 'function' || typeof Image !== 'function') return null;
+    if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return null;
+    const createCanvas = () => {
+      if (typeof document.createElement === 'function') {
+        try {
+          const canvas = document.createElement('canvas');
+          if (canvas && typeof canvas.getContext === 'function') {
+            return canvas;
+          }
+        } catch (_) {}
+      }
+      if (typeof OffscreenCanvas === 'function') {
+        try {
+          return new OffscreenCanvas(1, 1);
+        } catch (_) {}
+      }
+      return null;
+    };
+    const canvas = createCanvas();
+    if (!canvas) return null;
+    let objectUrl = null;
+    try {
+      const blob = new Blob([sanitized], { type: 'image/svg+xml' });
+      objectUrl = URL.createObjectURL(blob);
+      const image = await new Promise((resolve, reject) => {
+        const img = new Image();
+        const cleanup = () => {
+          img.onload = null;
+          img.onerror = null;
+        };
+        img.onload = () => {
+          cleanup();
+          resolve(img);
+        };
+        img.onerror = () => {
+          cleanup();
+          reject(new Error('Failed to load SVG for thumbnail'));
+        };
+        img.src = objectUrl;
+      });
+      if (image && typeof image.decode === 'function') {
+        try {
+          await image.decode();
+        } catch (_) {}
+      }
+      const naturalWidth = Number(image && (image.naturalWidth || image.width || 0));
+      const naturalHeight = Number(image && (image.naturalHeight || image.height || 0));
+      const fallbackSize = MAX_THUMBNAIL_DIMENSION;
+      const rawWidth = Number.isFinite(naturalWidth) && naturalWidth > 0 ? naturalWidth : fallbackSize;
+      const rawHeight = Number.isFinite(naturalHeight) && naturalHeight > 0 ? naturalHeight : fallbackSize;
+      const longestSide = Math.max(rawWidth, rawHeight, 1);
+      const scale = longestSide > MAX_THUMBNAIL_DIMENSION ? MAX_THUMBNAIL_DIMENSION / longestSide : 1;
+      const width = Math.max(1, Math.round(rawWidth * scale));
+      const height = Math.max(1, Math.round(rawHeight * scale));
+      if (typeof canvas.width === 'number') {
+        canvas.width = width;
+      }
+      if (typeof canvas.height === 'number') {
+        canvas.height = height;
+      }
+      const context = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
+      if (!context || typeof context.drawImage !== 'function') {
+        return null;
+      }
+      if (typeof context.clearRect === 'function') {
+        context.clearRect(0, 0, width, height);
+      }
+      try {
+        context.drawImage(image, 0, 0, width, height);
+      } catch (_) {
+        return null;
+      }
+      let dataUrl = null;
+      if (typeof canvas.toDataURL === 'function') {
+        try {
+          dataUrl = canvas.toDataURL('image/png');
+        } catch (_) {
+          dataUrl = null;
+        }
+      } else if (typeof canvas.convertToBlob === 'function' && typeof FileReader === 'function') {
+        try {
+          const pngBlob = await canvas.convertToBlob({ type: 'image/png' });
+          dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              resolve(typeof reader.result === 'string' ? reader.result : '');
+            };
+            reader.onerror = () => {
+              reject(new Error('Failed to read thumbnail blob'));
+            };
+            reader.readAsDataURL(pngBlob);
+          });
+        } catch (_) {
+          dataUrl = null;
+        }
+      }
+      if (typeof dataUrl !== 'string') {
+        return null;
+      }
+      const trimmedUrl = dataUrl.trim();
+      if (!trimmedUrl || !/^data:image\/png;base64,/i.test(trimmedUrl)) {
+        return null;
+      }
+      if (computeByteLength(trimmedUrl) > MAX_THUMBNAIL_STORAGE_BYTES) {
+        return null;
+      }
+      return trimmedUrl;
+    } catch (_) {
+      return null;
+    } finally {
+      if (objectUrl && typeof URL.revokeObjectURL === 'function') {
+        try {
+          URL.revokeObjectURL(objectUrl);
+        } catch (_) {}
+      }
+    }
+  }
   function collectExampleSvgMarkup(options) {
     if (typeof document === 'undefined') return '';
     const opts = options && typeof options === 'object' ? options : {};
@@ -4963,7 +5098,7 @@
           ? result.examples
           : getExamples();
         if (removedExample && typeof removedExample === 'object') {
-          addExampleToTrash(removedExample, {
+          await addExampleToTrash(removedExample, {
             index: indexToRemove,
             reason: 'delete',
             capturePreview: true
