@@ -17,7 +17,10 @@
       min-height: 100vh;
       min-height: 100dvh;
     }
-    main {
+    .trash-layout {
+      justify-content: center;
+    }
+    .trash-page {
       max-width: 960px;
       margin: 0 auto;
       padding: 32px 20px 48px;
@@ -329,7 +332,7 @@
       letter-spacing: 0.05em;
     }
     @media (max-width: 640px) {
-      main {
+      .trash-page {
         padding: 24px 14px 36px;
       }
       .trash-group {
@@ -339,9 +342,9 @@
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="grid">
-      <main>
+  <div class="wrap wrap--trash">
+    <div class="grid layout--full trash-layout">
+      <main class="trash-page">
         <header class="trash-header">
           <h1 class="trash-header__title">Arkiv for arkiverte (slettede) eksempler</h1>
           <p class="trash-header__description">
