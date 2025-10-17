@@ -121,8 +121,6 @@
     .btn--ghost:hover { background: #f3f4f6; }
     .btn--danger { border-color: #ef4444; color: #b91c1c; }
     .btn--danger:hover { background: #fee2e2; }
-    .btn--success { border-color: #34d399; color: #047857; background: #ecfdf5; }
-    .btn--success:hover { background: #d1fae5; }
     .status {
       display: none;
       padding: 10px 12px;
@@ -151,19 +149,6 @@
       border-color: #bfdbfe;
       color: #1d4ed8;
     }
-    .example-description [data-task-check-host] {
-      margin-top: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      align-items: flex-start;
-    }
-    .example-description [data-task-check-host][hidden] {
-      display: none;
-    }
-    .example-description [data-task-check-host] .status {
-      width: 100%;
-    }
   </style>
   <link rel="stylesheet" href="split.css" />
   <link rel="stylesheet" href="vendor/cdn/katex/katex.min.css" />
@@ -182,7 +167,7 @@
           <div class="example-description">
             <textarea id="exampleDescription" aria-label="Oppgavetekst (valgfritt)" placeholder="Skriv oppgavetekst her"></textarea>
             <div class="task-check-host" data-task-check-host hidden>
-              <button id="btnCheck" class="btn btn--success" type="button">Sjekk svar</button>
+              <button id="btnCheck" class="btn btn--task-check" type="button">Sjekk svar</button>
               <div id="checkStatus" class="status" role="status" aria-live="polite" hidden></div>
             </div>
           </div>

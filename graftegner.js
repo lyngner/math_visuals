@@ -3482,8 +3482,9 @@ function ensureCheckControls() {
   if (!btn) {
     btn = document.createElement('button');
     btn.id = 'btnCheck';
-    btn.textContent = 'Sjekk';
-    btn.className = 'btn';
+    btn.textContent = 'Sjekk svar';
+    btn.className = 'btn btn--task-check';
+    btn.type = 'button';
     host.appendChild(btn);
   }
   if (!msg) {
