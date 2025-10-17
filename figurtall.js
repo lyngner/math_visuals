@@ -619,6 +619,15 @@
     if (filtered.length === 2) return `${filtered[0]} og ${filtered[1]}`;
     return `${filtered.slice(0, -1).join(', ')} og ${filtered[filtered.length - 1]}`;
   }
+  function getShapeWords(shapeKey) {
+    const shapes = {
+      square: { singular: 'rute', plural: 'ruter' },
+      circle: { singular: 'sirkel', plural: 'sirkler' },
+      line: { singular: 'linje', plural: 'linjer' },
+      star: { singular: 'stjerne', plural: 'stjerner' }
+    };
+    return shapes[shapeKey] || shapes.square;
+  }
   function formatColumnRange(start, end) {
     const from = Number(start);
     const to = Number(end);
@@ -627,23 +636,45 @@
     if (from === to) return fromLabel;
     return `${fromLabel}–${to + 1}`;
   }
-  function buildRowDistributionText(fig) {
-    if (!fig || !Array.isArray(fig.rowDetails)) return '';
-    const rowParts = fig.rowDetails
-      .filter(row => Number(row === null || row === void 0 ? void 0 : row.count) > 0)
-      .map(row => {
-        const rowNumber = Number(row.rowIndex) + 1;
-        const segmentParts = Array.isArray(row.segments)
-          ? row.segments
-              .map(seg => formatColumnRange(seg.start, seg.end))
-              .filter(Boolean)
-          : [];
-        const segmentText = segmentParts.length ? ` i ${joinWithOg(segmentParts)}` : '';
-        const offsetText = row.isOffset ? ' (forskjøvet)' : '';
-        return `${formatCount(row.count, 'rute', 'ruter')} i rad ${rowNumber}${offsetText}${segmentText}`;
-      });
-    if (!rowParts.length) return '';
-    return `fordelt som ${joinWithOg(rowParts)}`;
+  function describeRowPosition(rowIndex, totalRows) {
+    const idx = Number(rowIndex);
+    const rowsCount = Number(totalRows);
+    if (!Number.isFinite(idx)) return 'Raden';
+    if (!Number.isFinite(rowsCount) || rowsCount <= 1) return 'Raden';
+    if (idx === 0) return 'Øverste rad';
+    if (idx === rowsCount - 1) return 'Nederste rad';
+    if (idx === 1) return 'Neste rad';
+    return `Rad ${idx + 1}`;
+  }
+  function formatRowSegments(row) {
+    if (!row || !Array.isArray(row.segments)) return '';
+    const segments = row.segments
+      .map(seg => formatColumnRange(seg.start, seg.end))
+      .filter(Boolean);
+    if (!segments.length) return '';
+    return ` i ${joinWithOg(segments)}`;
+  }
+  function buildRowDistributionText(fig, options = {}) {
+    if (!fig || !Array.isArray(fig.rowDetails)) return null;
+    const totalRows = Number.isFinite(options.totalRows) ? options.totalRows : rows;
+    const shapeWords = options.shapeWords || getShapeWords(options.shapeKey);
+    const rowsWithMarks = fig.rowDetails.filter(row => Number(row === null || row === void 0 ? void 0 : row.count) > 0);
+    if (!rowsWithMarks.length) return null;
+    const rowCountText = rowsWithMarks.length === 1 ? 'én rad' : `${rowsWithMarks.length} rader`;
+    const rowDescriptions = rowsWithMarks.map((row, idx) => {
+      let position = describeRowPosition(row.rowIndex, totalRows);
+      if (idx > 0 && typeof position === 'string' && position.length) {
+        position = position.charAt(0).toLowerCase() + position.slice(1);
+      }
+      const countText = formatCount(row.count, shapeWords.singular, shapeWords.plural);
+      const segmentText = formatRowSegments(row);
+      const offsetText = row.isOffset ? ' og er forskjøvet' : '';
+      return `${position} har ${countText}${segmentText}${offsetText}`;
+    });
+    return {
+      overview: rowCountText,
+      detail: joinWithOg(rowDescriptions)
+    };
   }
   function collectFigurtallAltSummary() {
     const figureCount = Array.isArray(STATE.figures) ? STATE.figures.length : 0;
@@ -716,45 +747,37 @@
     const data = summary || collectFigurtallAltSummary();
     if (!data) return 'Figurtall.';
     const sentences = [];
-    const countText = data.figureCount === 0 ? 'ingen figurer' : data.figureCount === 1 ? 'én figur' : `${data.figureCount} figurer`;
-    sentences.push(`Visualiseringen viser ${countText} i et rutenett med ${formatCount(data.rows, 'rad', 'rader')} og ${formatCount(data.cols, 'kolonne', 'kolonner')}.`);
-    const detailParts = [];
-    detailParts.push(data.showGrid ? 'Rutenettet er synlig' : 'Rutenettet er skjult');
-    const shapeMap = {
-      square: 'Fylte posisjoner vises som kvadrater',
-      circle: 'Fylte posisjoner vises som sirkler',
-      line: 'Fylte posisjoner vises som linjer',
-      star: 'Fylte posisjoner vises som stjerner'
-    };
     const shapeKey = normalizeFigureType(data.figureType) || (data.circleMode ? 'circle' : 'square');
-    detailParts.push(shapeMap[shapeKey] || shapeMap.square);
-    if (data.offset && data.rows > 1) detailParts.push('Annenhver rad er forskjøvet');
-    if (detailParts.length) {
-      sentences.push(`${detailParts.join(', ')}.`);
+    const shapeWords = getShapeWords(shapeKey);
+    if (data.figureCount <= 0) {
+      sentences.push('Ingen figurer.');
+    } else {
+      const figureIntro = data.figureCount === 1 ? 'Én figur' : `${data.figureCount} figurer`;
+      sentences.push(`${figureIntro} med ${shapeWords.plural}.`);
     }
     if (Array.isArray(data.figures) && data.figures.length) {
       data.figures.forEach(fig => {
-        const filledText = fig.filled > 0 ? formatCount(fig.filled, 'markert rute', 'markerte ruter') : 'ingen markerte ruter';
-        let sentence = `${fig.name} har ${filledText}`;
+        const totalShapes = fig.filled || 0;
+        const totalText = totalShapes > 0 ? formatCount(totalShapes, shapeWords.singular, shapeWords.plural) : `ingen ${shapeWords.plural}`;
+        let sentence = `${fig.name} har ${totalText}`;
+        const rowDistribution = buildRowDistributionText(fig, { totalRows: data.rows, shapeWords, shapeKey });
+        if (rowDistribution && rowDistribution.overview) {
+          sentence += ` fordelt på ${rowDistribution.overview}`;
+        }
+        sentence += '.';
+        sentences.push(sentence.trim());
         const colorParts = Array.isArray(fig.colorUsage)
           ? fig.colorUsage
-              .map((count, idx) => (count > 0 ? `${formatCount(count, 'rute', 'ruter')} i farge ${idx + 1}` : ''))
+              .map((count, idx) => (count > 0 ? `${formatCount(count, shapeWords.singular, shapeWords.plural)} i farge ${idx + 1}` : ''))
               .filter(Boolean)
           : [];
-        if (colorParts.length) sentence += ` (${colorParts.join(', ')})`;
-        const rowDistribution = buildRowDistributionText(fig);
-        if (rowDistribution) sentence += ` ${rowDistribution}`;
-        sentence += '.';
-        sentences.push(sentence);
-      });
-      if (data.figures.length > 1) {
-        const totals = data.figures.map(fig => `${fig.name}: ${fig.filled}`);
-        if (totals.length) {
-          sentences.push(`Antall markerte ruter per figur er ${joinWithOg(totals)}.`);
+        if (colorParts.length) sentences.push(`Farger: ${joinWithOg(colorParts)}.`);
+        if (rowDistribution && rowDistribution.detail) {
+          sentences.push(`${rowDistribution.detail}.`);
         }
-      }
+      });
     } else {
-      sentences.push('Ingen ruter er markert.');
+      sentences.push('Ingen markeringer.');
     }
     return sentences.filter(Boolean).join(' ');
   }
