@@ -4711,7 +4711,7 @@ function setupSettingsForm() {
         <fieldset>
           <legend>Funksjon ${index}</legend>
           <div class="func-fields func-fields--first">
-            <div class="func-row func-row--main">
+            <div class="func-row func-row--main func-row--main--with-marker">
               <div class="func-main">
                 <label class="func-input">
                   <span>${titleLabel}</span>
@@ -4721,15 +4721,13 @@ function setupSettingsForm() {
                   </div>
                 </label>
               </div>
-              <label class="domain">
-                <span>Avgrensning</span>
-                <input type="text" data-dom placeholder="[start, stopp]">
-              </label>
-            </div>
-            <div class="func-row point-marker-row">
               <label class="point-marker" data-point-marker-container>
                 <span>Punktmarkør</span>
                 <input type="text" data-point-marker placeholder="${DEFAULT_POINT_MARKER}" value="${DEFAULT_POINT_MARKER}" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="domain">
+                <span>Avgrensning</span>
+                <input type="text" data-dom placeholder="[start, stopp]">
               </label>
             </div>
             <div class="func-row func-row--gliders glider-row">

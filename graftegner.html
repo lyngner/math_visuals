@@ -73,6 +73,18 @@
       gap:12px;
       align-items:stretch;
     }
+    .func-row--main--with-marker{
+      grid-template-columns:minmax(0,1fr) minmax(160px, auto) minmax(0,1fr);
+      align-items:start;
+    }
+    .func-row--main--with-marker .point-marker{
+      width:auto;
+    }
+    @media (max-width:900px){
+      .func-row--main--with-marker{
+        grid-template-columns:minmax(0,1fr);
+      }
+    }
     .func-main .func-input{
       flex:1 1 auto;
       min-width:0;
