@@ -136,6 +136,13 @@ const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = {
   altTextSource: 'auto'
 };
 
+const AXIS_ARROW_PIXELS = {
+  length: 26,
+  width: 18
+};
+
+const POINT_MARKER_SIZE = 4;
+
 function getThemeApi() {
   const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
   return theme && typeof theme === 'object' ? theme : null;
@@ -705,6 +712,8 @@ let axX = null;
 let axY = null;
 let xName = null;
 let yName = null;
+let axisArrowX = null;
+let axisArrowY = null;
 let customTicksX = null;
 let customTicksY = null;
 let gridV = [];
@@ -1286,6 +1295,8 @@ function destroyBoard() {
   axY = null;
   xName = null;
   yName = null;
+  axisArrowX = null;
+  axisArrowY = null;
   customTicksX = null;
   customTicksY = null;
   gridV = [];
@@ -1304,9 +1315,10 @@ function applyAxisStyles() {
       strokeColor: ADV.axis.style.stroke,
       strokeWidth: ADV.axis.style.width,
       firstArrow: false,
-      lastArrow: true
+      lastArrow: false
     });
   });
+  updateAxisArrows();
 }
 function applyTickSettings() {
   if (!axX || !axY) return;
@@ -1495,6 +1507,103 @@ function initBoard() {
 }
 
 /* ---------- akser og navn ---------- */
+function axisArrowLengthX() {
+  if (!brd) return 0;
+  const [xmin, , xmax] = brd.getBoundingBox();
+  const span = xmax - xmin;
+  if (!Number.isFinite(span) || span === 0) return 0;
+  const px = Math.max(1, brd.canvasWidth || 1);
+  const len = (span / px) * AXIS_ARROW_PIXELS.length;
+  return Math.max(len, span * 0.01);
+}
+
+function axisArrowHalfHeight() {
+  if (!brd) return 0;
+  const [, ymax, , ymin] = brd.getBoundingBox();
+  const span = ymax - ymin;
+  if (!Number.isFinite(span) || span === 0) return 0;
+  const px = Math.max(1, brd.canvasHeight || 1);
+  const half = (span / px) * (AXIS_ARROW_PIXELS.width / 2);
+  return Math.max(half, span * 0.01);
+}
+
+function axisArrowLengthY() {
+  if (!brd) return 0;
+  const [, ymax, , ymin] = brd.getBoundingBox();
+  const span = ymax - ymin;
+  if (!Number.isFinite(span) || span === 0) return 0;
+  const px = Math.max(1, brd.canvasHeight || 1);
+  const len = (span / px) * AXIS_ARROW_PIXELS.length;
+  return Math.max(len, span * 0.01);
+}
+
+function axisArrowHalfWidth() {
+  if (!brd) return 0;
+  const [xmin, , xmax] = brd.getBoundingBox();
+  const span = xmax - xmin;
+  if (!Number.isFinite(span) || span === 0) return 0;
+  const px = Math.max(1, brd.canvasWidth || 1);
+  const half = (span / px) * (AXIS_ARROW_PIXELS.width / 2);
+  return Math.max(half, span * 0.01);
+}
+
+function ensureAxisArrowShapes() {
+  if (!brd) return;
+  const baseOptions = {
+    fillColor: ADV.axis.style.stroke,
+    strokeColor: ADV.axis.style.stroke,
+    fillOpacity: 1,
+    highlight: false,
+    fixed: true,
+    layer: 41,
+    borders: {
+      visible: false
+    },
+    cssStyle: 'pointer-events:none;'
+  };
+  if (!axisArrowX) {
+    axisArrowX = brd.create('polygon', [
+      [() => (brd ? brd.getBoundingBox()[2] : 0), () => 0],
+      [() => (brd ? brd.getBoundingBox()[2] - axisArrowLengthX() : 0), () => axisArrowHalfHeight()],
+      [() => (brd ? brd.getBoundingBox()[2] - axisArrowLengthX() : 0), () => -axisArrowHalfHeight()]
+    ], baseOptions);
+  }
+  if (!axisArrowY) {
+    axisArrowY = brd.create('polygon', [
+      [() => 0, () => (brd ? brd.getBoundingBox()[1] : 0)],
+      [() => -axisArrowHalfWidth(), () => (brd ? brd.getBoundingBox()[1] - axisArrowLengthY() : 0)],
+      [() => axisArrowHalfWidth(), () => (brd ? brd.getBoundingBox()[1] - axisArrowLengthY() : 0)]
+    ], baseOptions);
+  }
+}
+
+function updateAxisArrows() {
+  if (!brd) return;
+  ensureAxisArrowShapes();
+  const axisColor = ADV.axis.style.stroke;
+  if (axisArrowX) {
+    axisArrowX.setAttribute({
+      fillColor: axisColor,
+      strokeColor: axisColor
+    });
+  }
+  if (axisArrowY) {
+    axisArrowY.setAttribute({
+      fillColor: axisColor,
+      strokeColor: axisColor
+    });
+  }
+}
+
+function axisLabelChip(axisKey) {
+  const fallback = axisKey;
+  const raw = axisKey === 'x' ? ADV.axis.labels.x : ADV.axis.labels.y;
+  const text = raw && String(raw).trim() ? raw : fallback;
+  const color = ADV.axis.style.stroke;
+  const fontSize = ADV.axis.labels.fontSize;
+  return `<span class="graf-axis-label" style="color:${color};font-size:${fontSize}px;">${escapeHtml(text)}</span>`;
+}
+
 function placeAxisNames() {
   if (!brd) return;
   const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
@@ -1503,41 +1612,44 @@ function placeAxisNames() {
     off = 0.04;
   const xLabelPos = [xmax - off * rx, off * ry];
   const yLabelPos = [off * rx, ymax - off * ry];
-  const axisFont = ADV.axis.labels.fontSize;
-  const axisColor = ADV.axis.style.stroke;
+  const axisLabelCss = 'pointer-events:none;user-select:none;';
   if (!xName) {
-    xName = brd.create('text', [...xLabelPos, () => ADV.axis.labels.x || 'x'], {
-      display: 'internal',
+    xName = brd.create('text', [...xLabelPos, () => axisLabelChip('x')], {
+      display: 'html',
       anchorX: 'left',
       anchorY: 'bottom',
       fixed: true,
-      fontSize: axisFont,
       layer: 40,
-      color: axisColor,
-      cssStyle: 'pointer-events:none;user-select:none;'
+      highlight: false,
+      cssStyle: axisLabelCss
     });
   } else {
     xName.setAttribute({
-      fontSize: axisFont,
-      color: axisColor
+      cssStyle: axisLabelCss,
+      highlight: false
     });
   }
   if (!yName) {
-    yName = brd.create('text', [...yLabelPos, () => ADV.axis.labels.y || 'y'], {
-      display: 'internal',
+    yName = brd.create('text', [...yLabelPos, () => axisLabelChip('y')], {
+      display: 'html',
       anchorX: 'left',
       anchorY: 'top',
       fixed: true,
-      fontSize: axisFont,
       layer: 40,
-      color: axisColor,
-      cssStyle: 'pointer-events:none;user-select:none;'
+      highlight: false,
+      cssStyle: axisLabelCss
     });
   } else {
     yName.setAttribute({
-      fontSize: axisFont,
-      color: axisColor
+      cssStyle: axisLabelCss,
+      highlight: false
     });
+  }
+  if (xName) {
+    xName.setText(() => axisLabelChip('x'));
+  }
+  if (yName) {
+    yName.setText(() => axisLabelChip('y'));
   }
   xName.moveTo(xLabelPos);
   yName.moveTo(yLabelPos);
@@ -2919,7 +3031,7 @@ function buildFunctions() {
         name: '',
         withLabel: true,
         face: 'o',
-        size: 3,
+        size: POINT_MARKER_SIZE,
         strokeColor: G.color,
         fillColor: '#fff',
         showInfobox: false
@@ -3014,7 +3126,7 @@ function buildPointsLine() {
   if (kind === 'two') {
     const P0 = brd.create('point', start0.slice(), {
       name: '',
-      size: 3,
+      size: POINT_MARKER_SIZE,
       face: 'o',
       fillColor: '#fff',
       strokeColor: lineColor,
@@ -3023,7 +3135,7 @@ function buildPointsLine() {
     });
     const P1 = brd.create('point', start1.slice(), {
       name: '',
-      size: 3,
+      size: POINT_MARKER_SIZE,
       face: 'o',
       fillColor: '#fff',
       strokeColor: lineColor,
@@ -3041,7 +3153,7 @@ function buildPointsLine() {
     });
     const P = brd.create('point', start0.slice(), {
       name: '',
-      size: 3,
+      size: POINT_MARKER_SIZE,
       face: 'o',
       fillColor: '#fff',
       strokeColor: lineColor,
@@ -3054,7 +3166,7 @@ function buildPointsLine() {
   } else {
     const P = brd.create('point', start0.slice(), {
       name: '',
-      size: 3,
+      size: POINT_MARKER_SIZE,
       face: 'o',
       fillColor: '#fff',
       strokeColor: lineColor,
@@ -3327,7 +3439,7 @@ function addFixedPoints() {
   for (const pt of SIMPLE_PARSED.extraPoints) {
     const pointOptions = {
       name: '',
-      size: 3,
+      size: POINT_MARKER_SIZE,
       face: 'o',
       fillColor: '#fff',
       strokeColor: '#111827',
@@ -3391,6 +3503,7 @@ function updateAfterViewChange() {
     rebuildGrid();
   }
   placeAxisNames();
+  updateAxisArrows();
   if (MODE === 'functions') {
     rebuildAllFunctionSegments();
     updateAllBrackets();
