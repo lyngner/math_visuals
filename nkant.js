@@ -1338,9 +1338,19 @@ function normalizeSpecKey(rawKey, shapeHint) {
   }
   return null;
 }
+function setShapeHint(target, hint) {
+  if (!target || typeof target !== 'object') return target;
+  Object.defineProperty(target, '__shapeHint', {
+    value: hint || null,
+    writable: true,
+    configurable: true,
+    enumerable: false
+  });
+  return target;
+}
 function parseSpec(str) {
   const out = {};
-  if (!str) return out;
+  if (!str) return setShapeHint(out, null);
   let shapeHint = null;
   const prefixMatch = str.match(/^\s*(trekant|triangel|firkant|rektangel|kvadrat)\b/i);
   if (prefixMatch) {
@@ -1364,7 +1374,7 @@ function parseSpec(str) {
     if (!Number.isFinite(value)) continue;
     out[key] = value;
   }
-  return out;
+  return setShapeHint(out, shapeHint);
 }
 
 function reinterpretSquareFromRightAngles(obj) {
@@ -2258,7 +2268,7 @@ async function parseSpecAI(str) {
   const direct = parseSpec(str);
   if (Object.keys(direct).length > 0) return direct;
   const quick = parseSpecFreeform(str);
-  if (Object.keys(quick).length > 0) return quick;
+  if (Object.keys(quick).length > 0) return setShapeHint(quick, null);
   let data = null;
   let backendFailed = false;
   try {
@@ -2305,7 +2315,7 @@ async function parseSpecAI(str) {
         }
       });
       if (Object.keys(out).length === 0) return parseSpec(str);
-      return out;
+      return setShapeHint(out, null);
     } catch (err) {
       if (!backendFailed) console.warn('parseSpecAI fallback', err);
       return parseSpec(str);
@@ -2324,7 +2334,7 @@ async function parseSpecAI(str) {
       }
     });
     if (Object.keys(out).length === 0) return parseSpec(str);
-    return out;
+    return setShapeHint(out, null);
   } catch (err) {
     console.warn('parseSpecAI parse error', err);
     return parseSpec(str);
@@ -3718,6 +3728,7 @@ async function collectJobsFromSpecs(text) {
       newLines.push(line);
       continue;
     }
+    const shapeHint = obj.__shapeHint || null;
     const squareOverride = reinterpretSquareFromRightAngles(obj);
     if (squareOverride) {
       const normalizedBase = squareOverride.normalized || objToSpec(squareOverride.obj);
@@ -3730,7 +3741,11 @@ async function collectJobsFromSpecs(text) {
       newLines.push(normalized || normalizedBase);
       continue;
     }
-    const isQuad = "d" in obj || "D" in obj;
+    if (shapeHint === 'quad') {
+      if (!('c' in obj) && ('a' in obj)) obj.c = obj.a;
+      if (!('d' in obj) && ('b' in obj)) obj.d = obj.b;
+    }
+    const isQuad = shapeHint === 'quad' || "d" in obj || "D" in obj;
     jobs.push({
       type: isQuad ? "quad" : "tri",
       obj,
