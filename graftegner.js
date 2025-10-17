@@ -137,15 +137,40 @@ const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = {
 };
 
 const AXIS_ARROW_PIXELS = {
-  length: 26,
-  width: 18
+  length: 42,
+  width: 26
 };
 
-const POINT_MARKER_SIZE = 4;
+const DEFAULT_AXIS_COLOR = '#111827';
+const CAMPUS_AXIS_COLOR = '#2563eb';
+
+const POINT_MARKER_SIZE = 6;
 
 function getThemeApi() {
   const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
   return theme && typeof theme === 'object' ? theme : null;
+}
+
+function resolveAxisStrokeColor() {
+  const theme = getThemeApi();
+  const normalize = value => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  };
+  if (theme && typeof theme.getColor === 'function') {
+    const tokenColor = normalize(theme.getColor('graphs.axis'));
+    if (tokenColor) {
+      return tokenColor;
+    }
+    const activeRaw = typeof theme.getActiveProfileName === 'function' ? normalize(theme.getActiveProfileName()) : null;
+    const active = activeRaw ? activeRaw.toLowerCase() : null;
+    if (active === 'campus') {
+      const campusPrimary = normalize(theme.getColor('ui.primary'));
+      return campusPrimary || CAMPUS_AXIS_COLOR;
+    }
+  }
+  return DEFAULT_AXIS_COLOR;
 }
 function applyThemeToDocument() {
   const theme = getThemeApi();
@@ -339,8 +364,8 @@ const ADV = {
       fontSize: SHARED_FONT_SIZE
     },
     style: {
-      stroke: '#111827',
-      width: 2
+      stroke: resolveAxisStrokeColor(),
+      width: 3
     },
     ticks: {
       showNumbers: SHOW_AXIS_NUMBERS
@@ -1309,6 +1334,10 @@ function destroyBoard() {
 }
 function applyAxisStyles() {
   if (!brd) return;
+  const stroke = resolveAxisStrokeColor();
+  if (stroke) {
+    ADV.axis.style.stroke = stroke;
+  }
   ['x', 'y'].forEach(ax => {
     brd.defaultAxes[ax].setAttribute({
       withLabel: false,
@@ -1319,6 +1348,18 @@ function applyAxisStyles() {
     });
   });
   updateAxisArrows();
+}
+
+function updateAxisThemeStyling() {
+  const stroke = resolveAxisStrokeColor();
+  if (stroke) {
+    ADV.axis.style.stroke = stroke;
+  }
+  applyAxisStyles();
+  placeAxisNames();
+  if (brd && typeof brd.update === 'function') {
+    brd.update();
+  }
 }
 function applyTickSettings() {
   if (!axX || !axY) return;
@@ -1552,6 +1593,7 @@ function ensureAxisArrowShapes() {
   const baseOptions = {
     fillColor: ADV.axis.style.stroke,
     strokeColor: ADV.axis.style.stroke,
+    strokeWidth: ADV.axis.style.width,
     fillOpacity: 1,
     highlight: false,
     fixed: true,
@@ -1584,13 +1626,15 @@ function updateAxisArrows() {
   if (axisArrowX) {
     axisArrowX.setAttribute({
       fillColor: axisColor,
-      strokeColor: axisColor
+      strokeColor: axisColor,
+      strokeWidth: ADV.axis.style.width
     });
   }
   if (axisArrowY) {
     axisArrowY.setAttribute({
       fillColor: axisColor,
-      strokeColor: axisColor
+      strokeColor: axisColor,
+      strokeWidth: ADV.axis.style.width
     });
   }
 }
@@ -3574,6 +3618,7 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     if (type !== 'math-visuals:profile-change') return;
     applyThemeToDocument();
     updateCurveColorsFromTheme();
+    updateAxisThemeStyling();
   });
 }
 function requestRebuild() {
