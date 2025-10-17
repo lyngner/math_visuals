@@ -1314,6 +1314,40 @@ const SPEC_SIDE_MAP_QUAD = {
   AD: 'd',
   DA: 'd'
 };
+const SPEC_SHAPE_HINT = Symbol('specShapeHint');
+function setSpecShapeHint(target, info) {
+  if (!target || typeof target !== 'object' || !info) return target;
+  Object.defineProperty(target, SPEC_SHAPE_HINT, {
+    value: info,
+    enumerable: false,
+    configurable: true,
+    writable: true
+  });
+  return target;
+}
+function getSpecShapeHint(target) {
+  return target && target[SPEC_SHAPE_HINT];
+}
+function cloneSpecWithHint(source) {
+  if (!source || typeof source !== 'object') return {};
+  const clone = { ...source };
+  const hint = getSpecShapeHint(source);
+  if (hint) setSpecShapeHint(clone, hint);
+  return clone;
+}
+function detectShapeHintFromPrefix(str) {
+  if (!str) return null;
+  const match = str.match(/^\s*(trekant|triangel|firkant|rektangel|kvadrat)\b/i);
+  if (!match) return null;
+  const keyword = match[1];
+  const lower = keyword.toLowerCase();
+  const type = lower.startsWith('trek') || lower.startsWith('tria') ? 'tri' : 'quad';
+  return {
+    type,
+    keyword,
+    match: match[0]
+  };
+}
 function normalizeSpecKey(rawKey, shapeHint) {
   if (!rawKey) return null;
   const letters = rawKey.replace(/[^A-Za-z]/g, '');
@@ -1342,15 +1376,10 @@ function parseSpec(str) {
   const out = {};
   if (!str) return out;
   let shapeHint = null;
-  const prefixMatch = str.match(/^\s*(trekant|triangel|firkant|rektangel|kvadrat)\b/i);
-  if (prefixMatch) {
-    const keyword = prefixMatch[1].toLowerCase();
-    if (keyword.startsWith('trek') || keyword.startsWith('tria')) {
-      shapeHint = 'tri';
-    } else {
-      shapeHint = 'quad';
-    }
-    str = str.slice(prefixMatch[0].length);
+  const shapeInfo = detectShapeHintFromPrefix(str);
+  if (shapeInfo) {
+    shapeHint = shapeInfo.type;
+    str = str.slice(shapeInfo.match.length);
     str = str.replace(/^[\s:=,-]+/, '');
   }
   str = str.replace(/\bog\b/gi, ',');
@@ -1363,6 +1392,9 @@ function parseSpec(str) {
     const value = parseFloat(rawValue.replace(',', '.'));
     if (!Number.isFinite(value)) continue;
     out[key] = value;
+  }
+  if (shapeInfo && Object.keys(out).length > 0) {
+    setSpecShapeHint(out, shapeInfo);
   }
   return out;
 }
@@ -1390,6 +1422,10 @@ function reinterpretSquareFromRightAngles(obj) {
     C: 90,
     D: 90
   };
+  setSpecShapeHint(square, {
+    type: 'quad',
+    keyword: 'kvadrat'
+  });
   return {
     obj: square,
     normalized: `kvadrat a=${specFmt(sideValue)}`
@@ -1475,6 +1511,7 @@ function parseArcSideTokens(text) {
 function parseSpecFreeform(str) {
   const out = {};
   if (!str) return out;
+  const prefixHint = detectShapeHintFromPrefix(str);
 
   // Håndter eksplisitte nøkkel/verdi-par før vi normaliserer teksten
   const pairRegex = /([abcdABCD])\s*=\s*([0-9]+(?:[.,][0-9]+)?)/g;
@@ -1514,6 +1551,11 @@ function parseSpecFreeform(str) {
       d: s,
       B: 90
     });
+    const keywordMatch = str.match(/kvadrat/i);
+    setSpecShapeHint(out, prefixHint && prefixHint.type === 'quad' ? prefixHint : {
+      type: 'quad',
+      keyword: keywordMatch ? keywordMatch[0] : 'kvadrat'
+    });
     return out;
   }
   if (/firkant/.test(text)) {
@@ -1538,6 +1580,11 @@ function parseSpecFreeform(str) {
         B: 90
       });
     }
+    const keywordMatch = str.match(/firkant/i);
+    setSpecShapeHint(out, prefixHint && prefixHint.type === 'quad' ? prefixHint : {
+      type: 'quad',
+      keyword: keywordMatch ? keywordMatch[0] : 'firkant'
+    });
     return out;
   }
   if (/rektangel/.test(text)) {
@@ -1560,6 +1607,11 @@ function parseSpecFreeform(str) {
       d: h,
       B: 90
     });
+    const keywordMatch = str.match(/rektangel/i);
+    setSpecShapeHint(out, prefixHint && prefixHint.type === 'quad' ? prefixHint : {
+      type: 'quad',
+      keyword: keywordMatch ? keywordMatch[0] : 'rektangel'
+    });
     return out;
   }
   if (/parallellogram/.test(text)) {
@@ -1575,6 +1627,11 @@ function parseSpecFreeform(str) {
       d: h,
       B
     });
+    const keywordMatch = str.match(/parallellogram/i);
+    setSpecShapeHint(out, prefixHint && prefixHint.type === 'quad' ? prefixHint : {
+      type: 'quad',
+      keyword: keywordMatch ? keywordMatch[0] : 'parallellogram'
+    });
     return out;
   }
   if (/rombe/.test(text)) {
@@ -1589,6 +1646,11 @@ function parseSpecFreeform(str) {
       d: s,
       B
     });
+    const keywordMatch = str.match(/rombe/i);
+    setSpecShapeHint(out, prefixHint && prefixHint.type === 'quad' ? prefixHint : {
+      type: 'quad',
+      keyword: keywordMatch ? keywordMatch[0] : 'rombe'
+    });
     return out;
   }
   if (/likesidet/.test(text) && /trekant/.test(text)) {
@@ -1598,6 +1660,11 @@ function parseSpecFreeform(str) {
       a: s,
       b: s,
       c: s
+    });
+    const keywordMatch = str.match(/(likesidet\s+trekant|trekant)/i);
+    setSpecShapeHint(out, prefixHint && prefixHint.type === 'tri' ? prefixHint : {
+      type: 'tri',
+      keyword: keywordMatch ? keywordMatch[0] : 'trekant'
     });
     return out;
   }
@@ -2221,8 +2288,15 @@ function combineNormalizedText(core, extras) {
   return extrasText;
 }
 function objToSpec(obj) {
+  if (!obj || typeof obj !== 'object') return '';
   const order = ["a", "b", "c", "d", "A", "B", "C", "D"];
-  return order.filter(k => k in obj).map(k => `${k}=${specFmt(obj[k])}`).join(', ');
+  const core = order.filter(k => k in obj).map(k => `${k}=${specFmt(obj[k])}`).join(', ');
+  const hint = getSpecShapeHint(obj);
+  if (hint && typeof hint.keyword === 'string' && hint.keyword.trim()) {
+    const keyword = hint.keyword.trim();
+    return core ? `${keyword} ${core}` : keyword;
+  }
+  return core;
 }
 function resolveBackendEndpoint() {
   if (typeof window === 'undefined') return null;
@@ -2305,6 +2379,8 @@ async function parseSpecAI(str) {
         }
       });
       if (Object.keys(out).length === 0) return parseSpec(str);
+      const detectedHint = detectShapeHintFromPrefix(str);
+      if (detectedHint) setSpecShapeHint(out, detectedHint);
       return out;
     } catch (err) {
       if (!backendFailed) console.warn('parseSpecAI fallback', err);
@@ -2324,6 +2400,8 @@ async function parseSpecAI(str) {
       }
     });
     if (Object.keys(out).length === 0) return parseSpec(str);
+    const detectedHint = detectShapeHintFromPrefix(str);
+    if (detectedHint) setSpecShapeHint(out, detectedHint);
     return out;
   } catch (err) {
     console.warn('parseSpecAI parse error', err);
@@ -3730,19 +3808,34 @@ async function collectJobsFromSpecs(text) {
       newLines.push(normalized || normalizedBase);
       continue;
     }
-    const isQuad = "d" in obj || "D" in obj;
+    const hint = getSpecShapeHint(obj);
+    const isQuadFromHint = hint && hint.type === 'quad';
+    const isQuad = isQuadFromHint || "d" in obj || "D" in obj;
     let finalObj = obj;
-    let normalizedBase = objToSpec(finalObj);
     if (isQuad) {
+      const working = cloneSpecWithHint(finalObj);
+      if (isQuadFromHint) {
+        const syncOpposites = (keyA, keyB) => {
+          const valA = Number.isFinite(working[keyA]) ? working[keyA] : null;
+          const valB = Number.isFinite(working[keyB]) ? working[keyB] : null;
+          if (valA != null && valB == null) {
+            working[keyB] = valA;
+          } else if (valB != null && valA == null) {
+            working[keyA] = valB;
+          }
+        };
+        syncOpposites('a', 'c');
+        syncOpposites('b', 'd');
+      }
+      finalObj = working;
       const hasAngle = ["A", "B", "C", "D"].some(key => Number.isFinite(finalObj[key]));
       if (!hasAngle) {
-        finalObj = {
-          ...finalObj,
-          A: 90
-        };
-        normalizedBase = objToSpec(finalObj);
+        const augmented = cloneSpecWithHint(finalObj);
+        augmented.A = 90;
+        finalObj = augmented;
       }
     }
+    let normalizedBase = objToSpec(finalObj);
     jobs.push({
       type: isQuad ? "quad" : "tri",
       obj: finalObj,
