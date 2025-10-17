@@ -82,6 +82,51 @@ test.describe('Examples trash API', () => {
     expect(first.sourceActive).toBe(false);
   });
 
+  test('POST append deduplicates by keeping latest appended payload', async () => {
+    await setTrashEntries([
+      { id: 'dup', example: { title: 'Original' }, deletedAt: '2024-01-01T00:00:00.000Z' },
+      { id: 'other', example: { title: 'Other' }, deletedAt: '2024-01-02T00:00:00.000Z' }
+    ]);
+
+    const appendPayload = {
+      mode: 'append',
+      entries: [
+        {
+          id: 'dup',
+          example: { title: 'Appended v1' },
+          deletedAt: '2024-03-01T00:00:00.000Z'
+        },
+        {
+          id: 'dup',
+          example: { title: 'Appended v2' },
+          deletedAt: '2024-03-02T00:00:00.000Z'
+        }
+      ]
+    };
+
+    const postResponse = await invokeExamplesTrashApi({
+      method: 'POST',
+      url: '/api/examples/trash',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(appendPayload)
+    });
+
+    expect(postResponse.statusCode).toBe(200);
+    expect(Array.isArray(postResponse.json.entries)).toBe(true);
+    expect(postResponse.json.entries.length).toBe(2);
+    expect(postResponse.json.entries.map(entry => entry.id)).toEqual(['dup', 'other']);
+
+    const [dupEntry] = postResponse.json.entries;
+    expect(dupEntry.example.title).toBe('Appended v2');
+    expect(dupEntry.deletedAt).toBe('2024-03-02T00:00:00.000Z');
+
+    const getResponse = await invokeExamplesTrashApi({ url: '/api/examples/trash' });
+    expect(getResponse.statusCode).toBe(200);
+    expect(getResponse.json.entries.map(entry => entry.id)).toEqual(['dup', 'other']);
+    expect(getResponse.json.entries[0].example.title).toBe('Appended v2');
+    expect(getResponse.json.entries[0].deletedAt).toBe('2024-03-02T00:00:00.000Z');
+  });
+
   test('DELETE with entryId removes entry and logs audit info', async () => {
     await setTrashEntries([
       { id: 'keep', example: { title: 'Keep' }, deletedAt: '2024-03-01T00:00:00.000Z' },

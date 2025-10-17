@@ -376,13 +376,17 @@ function sanitizeTrashEntry(entry) {
 function sanitizeTrashEntries(entries) {
   if (!Array.isArray(entries)) return [];
   const sanitized = [];
-  const seenIds = new Set();
+  const idIndexMap = new Map();
   entries.forEach(entry => {
     const normalized = sanitizeTrashEntry(entry);
     if (!normalized) return;
     const id = normalized.id;
-    if (seenIds.has(id)) return;
-    seenIds.add(id);
+    if (idIndexMap.has(id)) {
+      const index = idIndexMap.get(id);
+      sanitized[index] = normalized;
+      return;
+    }
+    idIndexMap.set(id, sanitized.length);
     sanitized.push(normalized);
   });
   return sanitized;
@@ -674,22 +678,13 @@ async function appendTrashEntries(entries, options) {
     : MAX_TRASH_ENTRIES;
   const existing = await getTrashEntries();
   const existingList = Array.isArray(existing) ? existing : [];
-  const mapOrder = mode === 'append'
-    ? sanitizedNew.concat(existingList)
-    : existingList.concat(sanitizedNew);
-  const preferFirst = mode === 'append';
+  const mapOrder = existingList.concat(sanitizedNew);
   const idMap = new Map();
   mapOrder.forEach(entry => {
     if (!entry || typeof entry !== 'object') return;
     const id = typeof entry.id === 'string' ? entry.id : null;
     if (!id) return;
-    if (preferFirst) {
-      if (!idMap.has(id)) {
-        idMap.set(id, entry);
-      }
-    } else {
-      idMap.set(id, entry);
-    }
+    idMap.set(id, entry);
   });
   const outputOrder = mode === 'append'
     ? existingList.concat(sanitizedNew)
