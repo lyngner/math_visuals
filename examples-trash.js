@@ -333,17 +333,56 @@
     return svgElement;
   }
 
+  function resolvePreviewWrapper(container) {
+    if (!container || typeof container.closest !== 'function') {
+      return null;
+    }
+    const wrapper = container.closest('[data-preview-inner]');
+    return wrapper instanceof HTMLElement ? wrapper : null;
+  }
+
+  function setPreviewKind(container, kind) {
+    const wrapper = resolvePreviewWrapper(container);
+    if (!wrapper) return;
+    if (typeof kind === 'string' && kind.trim()) {
+      wrapper.setAttribute('data-preview-kind', kind.trim());
+    } else {
+      wrapper.removeAttribute('data-preview-kind');
+    }
+  }
+
+  function resolveThumbnailSource(example) {
+    if (!example || typeof example !== 'object') return '';
+    const raw = example.thumbnail;
+    if (typeof raw === 'string' && raw.trim()) {
+      return raw.trim();
+    }
+    if (raw && typeof raw === 'object') {
+      const candidates = ['data', 'dataUrl', 'url', 'src', 'href'];
+      for (let i = 0; i < candidates.length; i++) {
+        const key = candidates[i];
+        const value = raw[key];
+        if (typeof value === 'string' && value.trim()) {
+          return value.trim();
+        }
+      }
+    }
+    return '';
+  }
+
   function renderExamplePreview(container, example) {
     if (!container) return false;
     container.innerHTML = '';
+    setPreviewKind(container, null);
     if (!example || typeof example !== 'object') {
       return false;
     }
 
-    const thumbnailSource =
-      typeof example.thumbnail === 'string' ? example.thumbnail.trim() : '';
+    const thumbnailSource = resolveThumbnailSource(example);
     if (thumbnailSource && /^data:image\//i.test(thumbnailSource)) {
       const img = document.createElement('img');
+      img.decoding = 'async';
+      img.loading = 'lazy';
       img.src = thumbnailSource;
       const altText =
         typeof example.title === 'string' && example.title.trim()
@@ -352,7 +391,9 @@
             ? example.description.trim().slice(0, 120)
             : 'Forhåndsvisning av eksempel';
       img.alt = altText;
+      img.setAttribute('draggable', 'false');
       container.appendChild(img);
+      setPreviewKind(container, 'image');
       return true;
     }
 
@@ -365,6 +406,7 @@
       return false;
     }
     container.appendChild(svgElement);
+    setPreviewKind(container, 'svg');
     return true;
   }
 
@@ -672,7 +714,7 @@
               </div>
             </div>
             <div class="trash-item__preview" data-item-preview hidden>
-              <div class="trash-item__preview-inner">
+              <div class="trash-item__preview-inner" data-preview-inner>
                 <div class="trash-item__preview-content" data-item-preview-content></div>
               </div>
             </div>
@@ -756,12 +798,18 @@
             description.textContent = '';
           }
         }
+        let previewRendered = false;
+        if (previewContent) {
+          previewRendered = renderExamplePreview(previewContent, itemData.example);
+        }
         if (preview) {
-          if (previewContent && renderExamplePreview(previewContent, itemData.example)) {
-            preview.hidden = false;
+          preview.hidden = !previewRendered;
+        }
+        if (item) {
+          if (previewRendered) {
+            item.classList.add('trash-item--has-preview');
           } else {
-            preview.hidden = true;
-            if (previewContent) previewContent.innerHTML = '';
+            item.classList.remove('trash-item--has-preview');
           }
         }
         if (restoreButton) {
