@@ -432,24 +432,98 @@ function drawAxesAndGrid() {
     }).textContent = formatTickValue(value);
   }
 
+  const createAxisLabelGroup = (parent, textValue, options = {}) => {
+    const { anchor = 'middle', paddingX = 14, paddingY = 8 } = options;
+    const group = addTo(parent, 'g', { class: 'axis-label-group' });
+    group.setAttribute('pointer-events', 'none');
+    const textEl = addTo(group, 'text', {
+      class: 'axis-label-text',
+      'text-anchor': anchor,
+      'dominant-baseline': 'middle'
+    });
+    const rawText = typeof textValue === 'string' ? textValue : '';
+    textEl.textContent = rawText;
+    const hasVisibleText = rawText.trim().length > 0;
+    const bbox = textEl.getBBox();
+    if (!hasVisibleText) {
+      group.setAttribute('display', 'none');
+      return { group, text: textEl, rect: null, width: 0, height: 0 };
+    }
+    const width = Math.max(bbox.width, 0) + paddingX * 2;
+    const height = Math.max(bbox.height, 0) + paddingY * 2;
+    const rect = addTo(group, 'rect', {
+      class: 'axis-label-chip',
+      width: width,
+      height: height
+    });
+    rect.setAttribute('rx', height / 2);
+    rect.setAttribute('ry', height / 2);
+    let rectX = -width / 2;
+    let textX = 0;
+    if (anchor === 'start') {
+      rectX = 0;
+      textX = paddingX;
+    } else if (anchor === 'end') {
+      rectX = -width;
+      textX = -paddingX;
+    }
+    rect.setAttribute('x', rectX);
+    rect.setAttribute('y', -height / 2);
+    textEl.setAttribute('x', textX);
+    textEl.setAttribute('y', 0);
+    group.insertBefore(rect, textEl);
+    return { group, text: textEl, rect, width, height };
+  };
+
   // y-akse
-  addTo(gAxis, 'line', {
+  const yAxisGroup = addTo(gAxis, 'g', { class: 'axis-group axis-group--y' });
+  const yArrowLength = 16;
+  const yArrowHalfWidth = 8;
+  const yLineStart = M.t - 8;
+  addTo(yAxisGroup, 'line', {
     x1: M.l,
-    y1: M.t - 8,
+    y1: yLineStart,
     x2: M.l,
     y2: H - M.b,
     class: 'axis'
   });
+  addTo(yAxisGroup, 'polygon', {
+    points: `${M.l},${yLineStart - yArrowLength} ${M.l - yArrowHalfWidth},${yLineStart} ${M.l + yArrowHalfWidth},${yLineStart}`,
+    class: 'axis-arrow axis-arrow--y'
+  });
+
+  const yLabel = createAxisLabelGroup(yAxisGroup, CFG.axisYLabel || '', { anchor: 'middle' });
+  if (yLabel.group) {
+    const yLabelX = M.l - 56;
+    const yLabelY = M.t + innerH / 2;
+    yLabel.group.setAttribute('transform', `translate(${yLabelX} ${yLabelY}) rotate(-90)`);
+  }
+
   // x-akse
   const baseValue = getBaselineValue();
   const axisY = yPos(baseValue);
-  addTo(gAxis, 'line', {
+  const xAxisGroup = addTo(gAxis, 'g', { class: 'axis-group axis-group--x' });
+  const xArrowLength = 18;
+  const xArrowHalfHeight = 8;
+  const xLineEnd = W - M.r;
+  addTo(xAxisGroup, 'line', {
     x1: M.l,
     y1: axisY,
-    x2: W - M.r,
+    x2: xLineEnd,
     y2: axisY,
     class: 'axis'
   });
+  addTo(xAxisGroup, 'polygon', {
+    points: `${xLineEnd + xArrowLength},${axisY} ${xLineEnd},${axisY + xArrowHalfHeight} ${xLineEnd},${axisY - xArrowHalfHeight}`,
+    class: 'axis-arrow axis-arrow--x'
+  });
+
+  const xLabel = createAxisLabelGroup(xAxisGroup, CFG.axisXLabel || '', { anchor: 'end' });
+  if (xLabel.group) {
+    const xLabelX = xLineEnd - 12;
+    const xLabelY = axisY - 32;
+    xLabel.group.setAttribute('transform', `translate(${xLabelX} ${xLabelY})`);
+  }
 
   // x-etiketter
   CFG.labels.forEach((lab, i) => {
@@ -459,20 +533,6 @@ function drawAxesAndGrid() {
       class: 'xLabel'
     }).textContent = lab;
   });
-
-  // aksetekster
-  const yLab = addTo(gLabels, 'text', {
-    x: M.l - 56,
-    y: M.t + innerH / 2,
-    class: 'yLabel'
-  });
-  yLab.setAttribute('transform', `rotate(-90, ${M.l - 56}, ${M.t + innerH / 2})`);
-  yLab.textContent = CFG.axisYLabel || '';
-  addTo(gLabels, 'text', {
-    x: M.l + innerW / 2,
-    y: H - 24,
-    class: 'xAxisLabel'
-  }).textContent = CFG.axisXLabel || '';
 }
 function drawData() {
   gBars.innerHTML = '';
