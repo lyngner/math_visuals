@@ -433,24 +433,21 @@
   }
   const rowsInput = document.getElementById('rowsInput');
   const colsInput = document.getElementById('colsInput');
-  const figureTypeInputs = Array.from(document.querySelectorAll('input[name="figureType"]'));
+  const figureTypeSelect = document.getElementById('figureTypeSelect');
   const showGridToggle = document.getElementById('showGridToggle');
   const offsetToggle = document.getElementById('offsetRowsToggle');
-  const labelModeInputs = Array.from(document.querySelectorAll('input[name="labelMode"]'));
-  function setRadioGroup(inputs, value) {
-    if (!Array.isArray(inputs)) return;
-    inputs.forEach(inp => {
-      if (!inp) return;
-      inp.checked = inp.value === value;
-    });
-  }
+  const labelModeSelect = document.getElementById('labelModeSelect');
   function applyStateToControls() {
     if (rowsInput) rowsInput.value = String(rows);
     if (colsInput) colsInput.value = String(cols);
-    setRadioGroup(figureTypeInputs, normalizeFigureType(STATE.figureType) || 'square');
+    if (figureTypeSelect) {
+      figureTypeSelect.value = normalizeFigureType(STATE.figureType) || 'square';
+    }
     if (showGridToggle) showGridToggle.checked = !!STATE.showGrid;
     if (offsetToggle) offsetToggle.checked = !!STATE.offset;
-    setRadioGroup(labelModeInputs, STATE.labelMode);
+    if (labelModeSelect) {
+      labelModeSelect.value = normalizeLabelMode(STATE.labelMode);
+    }
     if (colorCountInp) colorCountInp.value = String(STATE.colorCount);
     updateColorVisibility();
   }
@@ -502,17 +499,15 @@
       setCols(colsInput.value);
     });
   }
-  figureTypeInputs.forEach(inp => {
-    if (!inp) return;
-    inp.addEventListener('change', () => {
-      if (!inp.checked) return;
-      const nextType = normalizeFigureType(inp.value) || 'square';
+  if (figureTypeSelect) {
+    figureTypeSelect.addEventListener('change', () => {
+      const nextType = normalizeFigureType(figureTypeSelect.value) || 'square';
       STATE.figureType = nextType;
       STATE.circleMode = nextType === 'circle';
       updateCellColors();
       scheduleAltTextRefresh('shape');
     });
-  });
+  }
   if (offsetToggle) {
     offsetToggle.addEventListener('change', () => {
       STATE.offset = !!offsetToggle.checked;
@@ -526,16 +521,14 @@
       scheduleAltTextRefresh('grid');
     });
   }
-  labelModeInputs.forEach(inp => {
-    if (!inp) return;
-    inp.addEventListener('change', () => {
-      if (!inp.checked) return;
-      STATE.labelMode = normalizeLabelMode(inp.value);
+  if (labelModeSelect) {
+    labelModeSelect.addEventListener('change', () => {
+      STATE.labelMode = normalizeLabelMode(labelModeSelect.value);
       STATE.showFigureText = STATE.labelMode !== 'hidden';
       updateFigureLabelDisplay();
       scheduleAltTextRefresh('label-mode');
     });
-  });
+  }
   colorCountInp === null || colorCountInp === void 0 || colorCountInp.addEventListener('input', () => {
     STATE.colorCount = clampInt(colorCountInp.value, 1, colorInputs.length || MAX_COLORS);
     render();
