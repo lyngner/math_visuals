@@ -10,7 +10,7 @@
   const MAX_DIM = 20;
   const MAX_COLORS = 6;
   const LABEL_MODES = ['hidden', 'count', 'custom'];
-  const FIGURE_TYPES = ['square', 'circle', 'line', 'star'];
+  const FIGURE_TYPES = ['square', 'square-outline', 'circle', 'circle-outline', 'star'];
   let rows = 3;
   let cols = 3;
   const colorCountInp = document.getElementById('colorCount');
@@ -75,21 +75,30 @@
     const alias = {
       square: 'square',
       squares: 'square',
-      kvadrat: 'square',
-      kvadrater: 'square',
+      kvadrat: 'square-outline',
+      kvadrater: 'square-outline',
       'filled-squares': 'square',
       'filled square': 'square',
       'filled squares': 'square',
       fylte: 'square',
       'fylte kvadrater': 'square',
+      'hule kvadrater': 'square-outline',
+      'outline-square': 'square-outline',
+      'outline-squares': 'square-outline',
       circle: 'circle',
       circles: 'circle',
-      sirkel: 'circle',
-      sirkler: 'circle',
-      line: 'line',
-      lines: 'line',
-      linje: 'line',
-      linjer: 'line',
+      'filled circle': 'circle',
+      'filled circles': 'circle',
+      'fylte sirkel': 'circle',
+      'fylte sirkler': 'circle',
+      sirkel: 'circle-outline',
+      sirkler: 'circle-outline',
+      'outline-circle': 'circle-outline',
+      'outline-circles': 'circle-outline',
+      line: 'square-outline',
+      lines: 'square-outline',
+      linje: 'square-outline',
+      linjer: 'square-outline',
       star: 'star',
       stars: 'star',
       stjerne: 'star',
@@ -98,6 +107,16 @@
     if (FIGURE_TYPES.includes(normalized)) return normalized;
     if (alias[normalized]) return alias[normalized];
     return null;
+  }
+  function isCircleFigureType(value) {
+    const normalized = normalizeFigureType(value);
+    return normalized === 'circle' || normalized === 'circle-outline';
+  }
+  function figureTypeToShapeKey(value) {
+    const normalized = normalizeFigureType(value);
+    if (normalized === 'circle' || normalized === 'circle-outline') return 'circle';
+    if (normalized === 'star') return 'star';
+    return 'square';
   }
   function clampInt(value, min, max) {
     const num = parseInt(value, 10);
@@ -173,7 +192,7 @@
       }
     }
     STATE.figureType = figureType;
-    STATE.circleMode = figureType === 'circle';
+    STATE.circleMode = isCircleFigureType(figureType);
     STATE.offset = STATE.offset !== false;
     STATE.showGrid = STATE.showGrid !== false;
     const inferredMode = typeof STATE.labelMode === 'string' ? STATE.labelMode : STATE.showFigureText === false ? 'hidden' : 'custom';
@@ -229,7 +248,8 @@
     const hasFill = !!color;
     cell.dataset.color = String(idx);
     cell.style.setProperty('--cell-fill', color || 'transparent');
-    cell.classList.remove('circle', 'cell--square', 'cell--circle', 'cell--line', 'cell--star', 'cell--filled');
+    cell.classList.remove('circle', 'cell--square', 'cell--square-outline', 'cell--circle', 'cell--circle-outline', 'cell--star', 'cell--filled');
+    cell.style.backgroundColor = '#fff';
     if (shape === 'circle') {
       cell.classList.add('cell--circle');
       if (hasFill) {
@@ -238,13 +258,15 @@
       } else {
         cell.style.backgroundColor = '#fff';
       }
-    } else if (shape === 'line') {
-      cell.classList.add('cell--line');
-      cell.style.backgroundColor = '#fff';
+    } else if (shape === 'circle-outline') {
+      cell.classList.add('cell--circle-outline');
       if (hasFill) cell.classList.add('cell--filled');
     } else if (shape === 'star') {
       cell.classList.add('cell--star');
       cell.style.backgroundColor = '#fff';
+      if (hasFill) cell.classList.add('cell--filled');
+    } else if (shape === 'square-outline') {
+      cell.classList.add('cell--square-outline');
       if (hasFill) cell.classList.add('cell--filled');
     } else {
       cell.classList.add('cell--square');
@@ -503,7 +525,7 @@
     figureTypeSelect.addEventListener('change', () => {
       const nextType = normalizeFigureType(figureTypeSelect.value) || 'square';
       STATE.figureType = nextType;
-      STATE.circleMode = nextType === 'circle';
+      STATE.circleMode = isCircleFigureType(nextType);
       updateCellColors();
       scheduleAltTextRefresh('shape');
     });
@@ -623,7 +645,6 @@
     const shapes = {
       square: { singular: 'rute', plural: 'ruter' },
       circle: { singular: 'sirkel', plural: 'sirkler' },
-      line: { singular: 'linje', plural: 'linjer' },
       star: { singular: 'stjerne', plural: 'stjerner' }
     };
     return shapes[shapeKey] || shapes.square;
@@ -736,7 +757,7 @@
       figureCount,
       rows,
       cols,
-      circleMode: figureType === 'circle',
+      circleMode: isCircleFigureType(figureType),
       figureType,
       offset: !!STATE.offset,
       showGrid: !!STATE.showGrid,
@@ -747,7 +768,8 @@
     const data = summary || collectFigurtallAltSummary();
     if (!data) return 'Figurtall.';
     const sentences = [];
-    const shapeKey = normalizeFigureType(data.figureType) || (data.circleMode ? 'circle' : 'square');
+    const fallbackShape = data.circleMode ? 'circle' : 'square';
+    const shapeKey = figureTypeToShapeKey(data.figureType || fallbackShape);
     const shapeWords = getShapeWords(shapeKey);
     if (data.figureCount <= 0) {
       sentences.push('Ingen figurer.');
@@ -916,7 +938,16 @@
       parts.push(`Rutenett: ${summary.rows} rader x ${summary.cols} kolonner.`);
     }
     if (summary.offset && summary.rows > 1) parts.push('Annenhver rad er forskjøvet.');
-    parts.push(summary.circleMode ? 'Fylte posisjoner vises som sirkler.' : 'Fylte posisjoner vises som kvadrater.');
+    const figureType = normalizeFigureType(summary.figureType) || (summary.circleMode ? 'circle' : 'square');
+    const shapeKey = figureTypeToShapeKey(figureType);
+    const isOutline = figureType === 'square-outline' || figureType === 'circle-outline';
+    if (shapeKey === 'star') {
+      parts.push('Markeringene vises som stjerner.');
+    } else if (shapeKey === 'circle') {
+      parts.push(isOutline ? 'Markeringene vises som sirkler uten fyll.' : 'Markeringene vises som fylte sirkler.');
+    } else {
+      parts.push(isOutline ? 'Markeringene vises som kvadrater uten fyll.' : 'Markeringene vises som fylte kvadrater.');
+    }
     if (summary.showGrid === false) parts.push('Rutenettet er skjult.');
     if (Array.isArray(summary.figures)) {
       summary.figures.forEach((fig, idx) => {
@@ -1221,33 +1252,26 @@
           if (colorIdx > 0) {
             const fillColor = colors[colorIdx - 1];
             if (shapeMode === 'circle') {
-              const radius = cellSize / 2 - (STATE.showGrid ? 1 : 0);
+              const inset = Math.max(2, cellSize * 0.12);
+              const radius = Math.max(0, cellSize / 2 - inset);
               const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
               circ.setAttribute('cx', x + cellSize / 2);
               circ.setAttribute('cy', yPos + cellSize / 2);
-              circ.setAttribute('r', Math.max(0, radius));
+              circ.setAttribute('r', radius);
               circ.setAttribute('fill', fillColor);
               g.appendChild(circ);
-            } else if (shapeMode === 'line') {
-              const inset = cellSize * 0.2;
-              const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-              line1.setAttribute('x1', x + inset);
-              line1.setAttribute('y1', yPos + inset);
-              line1.setAttribute('x2', x + cellSize - inset);
-              line1.setAttribute('y2', yPos + cellSize - inset);
-              line1.setAttribute('stroke', fillColor);
-              line1.setAttribute('stroke-width', '4');
-              line1.setAttribute('stroke-linecap', 'round');
-              const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-              line2.setAttribute('x1', x + inset);
-              line2.setAttribute('y1', yPos + cellSize - inset);
-              line2.setAttribute('x2', x + cellSize - inset);
-              line2.setAttribute('y2', yPos + inset);
-              line2.setAttribute('stroke', fillColor);
-              line2.setAttribute('stroke-width', '4');
-              line2.setAttribute('stroke-linecap', 'round');
-              g.appendChild(line1);
-              g.appendChild(line2);
+            } else if (shapeMode === 'circle-outline') {
+              const inset = Math.max(3, cellSize * 0.18);
+              const strokeWidth = Math.max(2, cellSize * 0.08);
+              const radius = Math.max(0, cellSize / 2 - inset);
+              const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+              circ.setAttribute('cx', x + cellSize / 2);
+              circ.setAttribute('cy', yPos + cellSize / 2);
+              circ.setAttribute('r', radius);
+              circ.setAttribute('fill', 'none');
+              circ.setAttribute('stroke', fillColor);
+              circ.setAttribute('stroke-width', strokeWidth);
+              g.appendChild(circ);
             } else if (shapeMode === 'star') {
               const star = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
               const outerR = cellSize / 2 - 2;
@@ -1256,17 +1280,30 @@
               star.setAttribute('points', buildStarPoints(cx, cy, Math.max(outerR, 4)));
               star.setAttribute('fill', fillColor);
               g.appendChild(star);
-            } else {
+            } else if (shapeMode === 'square-outline') {
+              const inset = Math.max(3, cellSize * 0.18);
+              const strokeWidth = Math.max(2, cellSize * 0.08);
               const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-              rect.setAttribute('x', x);
-              rect.setAttribute('y', yPos);
-              rect.setAttribute('width', cellSize);
-              rect.setAttribute('height', cellSize);
+              const size = Math.max(0, cellSize - inset * 2);
+              rect.setAttribute('x', x + inset);
+              rect.setAttribute('y', yPos + inset);
+              rect.setAttribute('width', size);
+              rect.setAttribute('height', size);
+              rect.setAttribute('fill', 'none');
+              rect.setAttribute('stroke', fillColor);
+              rect.setAttribute('stroke-width', strokeWidth);
+              rect.setAttribute('rx', Math.min(strokeWidth * 1.5, size / 2));
+              rect.setAttribute('ry', Math.min(strokeWidth * 1.5, size / 2));
+              rect.setAttribute('stroke-linejoin', 'round');
+              g.appendChild(rect);
+            } else {
+              const inset = Math.max(2, cellSize * 0.12);
+              const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              rect.setAttribute('x', x + inset);
+              rect.setAttribute('y', yPos + inset);
+              rect.setAttribute('width', Math.max(0, cellSize - inset * 2));
+              rect.setAttribute('height', Math.max(0, cellSize - inset * 2));
               rect.setAttribute('fill', fillColor);
-              if (STATE.showGrid) {
-                rect.setAttribute('stroke', '#d1d5db');
-                rect.setAttribute('stroke-width', '1');
-              }
               g.appendChild(rect);
             }
           }

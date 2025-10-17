@@ -81,22 +81,23 @@
       grid-template-columns:repeat(var(--cols),1fr);
     }
     .cell{position:relative;border:1px solid #d1d5db;background:#fff;cursor:pointer;transition:background .2s,box-shadow .2s;}
-    .cell::after{content:"";position:absolute;inset:12%;border-radius:999px;background:var(--cell-fill,transparent);opacity:0;transition:opacity .15s,transform .2s;}
+    .cell::after{content:"";position:absolute;inset:12%;border-radius:999px;background:var(--cell-fill,transparent);opacity:0;transition:opacity .15s,transform .2s;pointer-events:none;}
     .box.hide-grid .cell{border:none;}
     .row.offset{transform:translateX(calc(var(--cellSize)/2));}
     .cell--square::after{display:none;}
     .cell--circle{border:none;border-radius:50%;overflow:hidden;}
     .cell--circle::after{display:none;}
-    .cell--line{background:#fff;}
-    .cell--line::before,.cell--line::after{content:"";position:absolute;inset:18%;border-radius:999px;background:transparent;pointer-events:none;}
-    .cell--line::before{background:linear-gradient(45deg,transparent calc(50% - 2px),var(--cell-fill,transparent) calc(50% - 2px),var(--cell-fill,transparent) calc(50% + 2px),transparent calc(50% + 2px));opacity:0;}
-    .cell--line::after{background:linear-gradient(-45deg,transparent calc(50% - 2px),var(--cell-fill,transparent) calc(50% - 2px),var(--cell-fill,transparent) calc(50% + 2px),transparent calc(50% + 2px));opacity:0;}
     .cell--star{background:#fff;}
-    .cell--star::after{clip-path:polygon(50% 5%,61% 35%,95% 35%,67% 57%,78% 90%,50% 70%,22% 90%,33% 57%,5% 35%,39% 35%);opacity:0;background:var(--cell-fill,transparent);} 
-    .cell--filled.cell--line::before,.cell--filled.cell--line::after{opacity:1;}
+    .cell--star::after{clip-path:polygon(50% 5%,61% 35%,95% 35%,67% 57%,78% 90%,50% 70%,22% 90%,33% 57%,5% 35%,39% 35%);opacity:0;background:var(--cell-fill,transparent);}
     .cell--filled.cell--star::after{opacity:1;}
-    .cell--filled.cell--square{background:var(--cell-fill,#fff);}
-    .cell--filled.cell--circle{background:var(--cell-fill,#fff);}
+    .cell--filled.cell--square{background:var(--cell-fill,#fff);outline:2px solid #fff;outline-offset:-2px;}
+    .cell--filled.cell--circle{background:var(--cell-fill,#fff);outline:2px solid #fff;outline-offset:-2px;}
+    .cell--square-outline{background:#fff;}
+    .cell--square-outline::after{content:"";position:absolute;inset:16%;border-radius:6px;border:3px solid var(--cell-fill,transparent);background:transparent;opacity:0;transition:opacity .15s;}
+    .cell--square-outline.cell--filled::after{opacity:1;}
+    .cell--circle-outline{background:#fff;border:none;border-radius:50%;}
+    .cell--circle-outline::after{content:"";position:absolute;inset:18%;border-radius:999px;border:3px solid var(--cell-fill,transparent);background:transparent;opacity:0;transition:opacity .15s;}
+    .cell--circle-outline.cell--filled::after{opacity:1;}
     .nameInput{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:6px 8px;font-size:14px;box-sizing:border-box;}
     .nameDisplay{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:6px 8px;font-size:14px;box-sizing:border-box;background:#f3f4f6;color:#374151;text-align:center;}
     body[data-app-mode="task"] .nameDisplay{border:none;border-radius:0;padding:0;background:transparent;text-align:center;}
@@ -156,8 +157,9 @@
                   <label for="figureTypeSelect">Type markering</label>
                   <select id="figureTypeSelect" aria-label="Type markering">
                     <option value="square">Fylte kvadrater</option>
-                    <option value="circle">Sirkler</option>
-                    <option value="line">Linjer</option>
+                    <option value="square-outline">Kvadrater</option>
+                    <option value="circle-outline">Sirkler</option>
+                    <option value="circle">Fylte sirkler</option>
                     <option value="star">Stjerner</option>
                   </select>
                 </div>
