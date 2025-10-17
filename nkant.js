@@ -1364,6 +1364,35 @@ function parseSpec(str) {
   }
   return out;
 }
+
+function reinterpretSquareFromRightAngles(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  const approxRight = value => typeof value === "number" && isFinite(value) && Math.abs(value - 90) < 1e-3;
+  const angleKeys = ["A", "B", "C", "D"].filter(key => approxRight(obj[key]));
+  if (angleKeys.length < 3) return null;
+  const sideKeys = ["a", "b", "c", "d"].filter(key => typeof obj[key] === "number" && isFinite(obj[key]) && obj[key] > 0);
+  if (sideKeys.length > 1) {
+    const firstVal = obj[sideKeys[0]];
+    const consistent = sideKeys.every(key => Math.abs(obj[key] - firstVal) < 1e-3);
+    if (!consistent) return null;
+  }
+  const sideValue = sideKeys.length ? obj[sideKeys[0]] : 3;
+  if (!(typeof sideValue === "number" && isFinite(sideValue) && sideValue > 0)) return null;
+  const square = {
+    a: sideValue,
+    b: sideValue,
+    c: sideValue,
+    d: sideValue,
+    A: 90,
+    B: 90,
+    C: 90,
+    D: 90
+  };
+  return {
+    obj: square,
+    normalized: `kvadrat a=${specFmt(sideValue)}`
+  };
+}
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -3685,6 +3714,18 @@ async function collectJobsFromSpecs(text) {
     const obj = await parseSpecAI(baseLine);
     if (Object.keys(obj).length === 0) {
       newLines.push(line);
+      continue;
+    }
+    const squareOverride = reinterpretSquareFromRightAngles(obj);
+    if (squareOverride) {
+      const normalizedBase = squareOverride.normalized || objToSpec(squareOverride.obj);
+      const normalized = combineNormalizedText(normalizedBase, normalizedExtras);
+      jobs.push({
+        type: "quad",
+        obj: squareOverride.obj,
+        decorations: extras
+      });
+      newLines.push(normalized || normalizedBase);
       continue;
     }
     const isQuad = "d" in obj || "D" in obj;
