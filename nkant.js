@@ -3862,15 +3862,73 @@ function svgToString(svgEl) {
   clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
 }
-function downloadSVG(svgEl, filename) {
+function formatNkantCount(count, singular, plural) {
+  return count === 1 ? `1 ${singular}` : `${count} ${plural}`;
+}
+function buildNkantExportMeta(summary) {
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  if (!summary || !Array.isArray(summary.jobs) || summary.jobs.length === 0) {
+    const slug = helper && typeof helper.slugify === 'function' ? helper.slugify('nkant tom', 'nkant') : 'nkant-tom';
+    return {
+      description: 'N-kant uten figurer.',
+      slug,
+      defaultBaseName: 'nkant'
+    };
+  }
+  const counts = summary.jobs.reduce((acc, job) => {
+    const type = job && typeof job.type === 'string' ? job.type : 'figur';
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {});
+  const typeLabels = {
+    tri: ['trekant', 'trekanter'],
+    quad: ['firkant', 'firkanter'],
+    doubleTri: ['dobbelt-trekant', 'dobbelt-trekanter'],
+    polygon: ['polygon', 'polygoner'],
+    polygonArc: ['polygon med bue', 'polygoner med bue'],
+    circle: ['sirkel', 'sirkler'],
+    figur: ['figur', 'figurer']
+  };
+  const parts = Object.entries(counts).map(([type, count]) => {
+    const labels = typeLabels[type] || typeLabels.figur;
+    return formatNkantCount(count, labels[0], labels[1]);
+  });
+  const layoutText = summary.layoutMode === 'col' ? 'kolonner' : 'rader';
+  const description = `N-kant med ${parts.join(', ')} i ${layoutText}.`;
+  const slugBaseParts = ['nkant', summary.layoutMode === 'col' ? 'kol' : 'rad'];
+  Object.entries(counts).forEach(([type, count]) => {
+    slugBaseParts.push(`${count}${type}`);
+  });
+  const slugBase = slugBaseParts.join(' ');
+  const slug = helper && typeof helper.slugify === 'function' ? helper.slugify(slugBase, 'nkant') : slugBaseParts.join('-').toLowerCase();
+  return {
+    description,
+    slug,
+    defaultBaseName: slug || 'nkant'
+  };
+}
+async function downloadSVG(svgEl, filename) {
+  const suggestedName = typeof filename === 'string' && filename ? filename : 'nkant.svg';
   const data = svgToString(svgEl);
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const meta = buildNkantExportMeta(lastRenderSummary);
+  if (helper && typeof helper.exportSvgWithArchive === 'function') {
+    await helper.exportSvgWithArchive(svgEl, suggestedName, 'nkant', {
+      svgString: data,
+      description: meta.description,
+      slug: meta.slug,
+      defaultBaseName: meta.defaultBaseName,
+      summary: lastRenderSummary
+    });
+    return;
+  }
   const blob = new Blob([data], {
     type: "image/svg+xml;charset=utf-8"
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = filename.endsWith(".svg") ? filename : filename + ".svg";
+  a.download = suggestedName.endsWith(".svg") ? suggestedName : suggestedName + ".svg";
   document.body.appendChild(a);
   a.click();
   a.remove();

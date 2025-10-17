@@ -19,6 +19,18 @@ test.describe('Kuler export buttons', () => {
   test('exported SVG and PNG have expected content', async ({ page }, testInfo) => {
     await page.goto('/kuler.html', { waitUntil: 'load' });
 
+    const uploadRequests = [];
+    await page.route('**/api/svg', async route => {
+      const request = route.request();
+      try {
+        uploadRequests.push(await request.postDataJSON());
+      } catch (err) {
+        uploadRequests.push(null);
+      }
+      await route.fulfill({ status: 200, body: '{}' });
+    });
+    page.on('dialog', dialog => dialog.accept());
+
     const svgDownloadPromise = page.waitForEvent('download');
     await page.click('#downloadSVG1');
     const svgDownload = await svgDownloadPromise;
@@ -45,5 +57,12 @@ test.describe('Kuler export buttons', () => {
     expect(png.height).toBe(300);
     const colors = await collectUniqueColors(png);
     expect(colors.size).toBeGreaterThan(10);
+
+    expect(uploadRequests.length).toBeGreaterThan(0);
+    const lastUpload = uploadRequests[uploadRequests.length - 1];
+    expect(lastUpload).toBeTruthy();
+    expect(lastUpload.filename).toBe('kuler1.svg');
+    expect(lastUpload.toolId).toBe('kuler');
+    expect(typeof lastUpload.svg).toBe('string');
   });
 });

@@ -2290,15 +2290,51 @@ async function svgToString(svgEl) {
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
 }
+function buildDiagramExportMeta() {
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const context = collectAltTextContext();
+  const typeName = describeDiagramType(context.type);
+  const labelCount = (Array.isArray(context.labels) ? context.labels.filter(label => !!label) : []).length || context.values.length;
+  const hasSecondSeries = Array.isArray(context.values2) && context.values2.length > 0;
+  const title = (CFG.title || '').trim();
+  const descriptionParts = [];
+  if (title) descriptionParts.push(title);
+  const baseDesc = `${typeName} med ${labelCount || 1} kategorier${hasSecondSeries ? ' og to dataserier' : ''}`;
+  descriptionParts.push(baseDesc);
+  const description = descriptionParts.join(' – ');
+  const slugPieces = ['diagram', typeName, `${Math.max(labelCount, 1)}kat`];
+  if (hasSecondSeries) slugPieces.push('to-serier');
+  const slugBase = slugPieces.join(' ');
+  const slug = helper && typeof helper.slugify === 'function' ? helper.slugify(slugBase, 'diagram') : slugPieces.join('-').toLowerCase();
+  return {
+    description,
+    slug,
+    defaultBaseName: slug || 'diagram',
+    summary: context
+  };
+}
 async function downloadSVG(svgEl, filename) {
+  const suggestedName = typeof filename === 'string' && filename ? filename : 'diagram.svg';
   const data = await svgToString(svgEl);
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const meta = buildDiagramExportMeta();
+  if (helper && typeof helper.exportSvgWithArchive === 'function') {
+    await helper.exportSvgWithArchive(svgEl, suggestedName, 'diagram', {
+      svgString: data,
+      description: meta.description,
+      slug: meta.slug,
+      defaultBaseName: meta.defaultBaseName,
+      summary: meta.summary
+    });
+    return;
+  }
   const blob = new Blob([data], {
     type: 'image/svg+xml;charset=utf-8'
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename.endsWith('.svg') ? filename : filename + '.svg';
+  a.download = suggestedName.endsWith('.svg') ? suggestedName : suggestedName + '.svg';
   document.body.appendChild(a);
   a.click();
   a.remove();

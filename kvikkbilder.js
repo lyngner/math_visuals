@@ -1252,15 +1252,77 @@
     clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
   }
-  function downloadSVG(svgEl, filename) {
+  function collectKvikkbilderSummary() {
+    const type = typeof CFG.type === 'string' ? CFG.type : 'klosser';
+    if (type === 'monster') {
+      const m = CFG.monster || {};
+      return {
+        type,
+        antallX: Number(m.antallX),
+        antallY: Number(m.antallY),
+        antall: Number(m.antall)
+      };
+    }
+    if (type === 'rectangles') {
+      const r = CFG.rectangles || {};
+      return {
+        type,
+        antallX: Number(r.antallX),
+        antallY: Number(r.antallY),
+        figCols: Number(r.cols),
+        figRows: Number(r.rows)
+      };
+    }
+    const k = CFG.klosser || {};
+    return {
+      type: 'klosser',
+      antallX: Number(k.antallX),
+      antallY: Number(k.antallY),
+      bredde: Number(k.bredde),
+      hoyde: Number(k.hoyde),
+      dybde: Number(k.dybde)
+    };
+  }
+  function buildKvikkbilderExportMeta() {
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const summary = collectKvikkbilderSummary();
+    const type = summary.type || 'klosser';
+    const description = buildAltTextForType(type) || `Kvikkbilder (${type}).`;
+    const slugParts = ['kvikkbilder', type];
+    if (Number.isFinite(summary.antallX) && Number.isFinite(summary.antallY)) {
+      slugParts.push(`${summary.antallX}x${summary.antallY}`);
+    }
+    const slugBase = slugParts.join(' ');
+    const slug = helper && typeof helper.slugify === 'function' ? helper.slugify(slugBase, 'kvikkbilder') : slugParts.join('-').toLowerCase();
+    return {
+      description,
+      slug,
+      defaultBaseName: slug || 'kvikkbilder',
+      summary
+    };
+  }
+  async function downloadSVG(svgEl, filename) {
+    const suggestedName = typeof filename === 'string' && filename ? filename : 'kvikkbilder.svg';
     const data = svgToString(svgEl);
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const meta = buildKvikkbilderExportMeta();
+    if (helper && typeof helper.exportSvgWithArchive === 'function') {
+      await helper.exportSvgWithArchive(svgEl, suggestedName, 'kvikkbilder', {
+        svgString: data,
+        description: meta.description,
+        slug: meta.slug,
+        defaultBaseName: meta.defaultBaseName,
+        summary: meta.summary
+      });
+      return;
+    }
     const blob = new Blob([data], {
       type: 'image/svg+xml;charset=utf-8'
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename.endsWith('.svg') ? filename : filename + '.svg';
+    a.download = suggestedName.endsWith('.svg') ? suggestedName : suggestedName + '.svg';
     document.body.appendChild(a);
     a.click();
     a.remove();

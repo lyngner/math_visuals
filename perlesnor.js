@@ -648,15 +648,63 @@ function svgToString(svgEl) {
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
 }
-function downloadSVG(svgEl, filename) {
+function buildPerlesnorExportMeta() {
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const beadCountRaw = Number(SIMPLE.nBeads);
+  const beadCount = Number.isFinite(beadCountRaw) ? Math.max(0, Math.round(beadCountRaw)) : 0;
+  const clipRaw = Number(SIMPLE.startIndex);
+  const clipIndex = Number.isFinite(clipRaw) ? Math.max(0, Math.round(clipRaw)) : 0;
+  const descriptionParts = [`Perlesnor med ${beadCount} perler`];
+  descriptionParts.push(`klype ved posisjon ${clipIndex}`);
+  const correct = SIMPLE.correct;
+  let fasitText = '';
+  if (typeof correct === 'number') {
+    fasitText = `fasit ${correct}`;
+  } else if (correct && typeof correct === 'object') {
+    if (typeof correct.value === 'number') {
+      fasitText = `fasit ${correct.value}`;
+    } else if (typeof correct.leftCount === 'number') {
+      fasitText = `fasit ${correct.leftCount}`;
+    }
+  }
+  if (fasitText) descriptionParts.push(fasitText);
+  const description = descriptionParts.join('. ') + '.';
+  const slugParts = ['perlesnor', `${beadCount}perler`, `start${clipIndex}`];
+  const slugBase = slugParts.join(' ');
+  const slug = helper && typeof helper.slugify === 'function' ? helper.slugify(slugBase, 'perlesnor') : slugParts.join('-').toLowerCase();
+  return {
+    description,
+    slug,
+    defaultBaseName: slug || 'perlesnor',
+    summary: {
+      beadCount,
+      clipIndex,
+      correct: fasitText
+    }
+  };
+}
+async function downloadSVG(svgEl, filename) {
+  const suggestedName = typeof filename === 'string' && filename ? filename : 'perlesnor.svg';
   const data = svgToString(svgEl);
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const meta = buildPerlesnorExportMeta();
+  if (helper && typeof helper.exportSvgWithArchive === 'function') {
+    await helper.exportSvgWithArchive(svgEl, suggestedName, 'perlesnor', {
+      svgString: data,
+      description: meta.description,
+      slug: meta.slug,
+      defaultBaseName: meta.defaultBaseName,
+      summary: meta.summary
+    });
+    return;
+  }
   const blob = new Blob([data], {
     type: 'image/svg+xml;charset=utf-8'
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename.endsWith('.svg') ? filename : filename + '.svg';
+  a.download = suggestedName.endsWith('.svg') ? suggestedName : suggestedName + '.svg';
   document.body.appendChild(a);
   a.click();
   a.remove();

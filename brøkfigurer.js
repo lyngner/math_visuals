@@ -9,16 +9,55 @@
     clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
   }
+  function buildBrokfigurerExportMeta() {
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const summary = collectBrokfigurerAltSummary();
+    const figureCount = summary && Number.isFinite(summary.figureCount) ? Math.max(0, summary.figureCount) : 0;
+    const baseDescription = figureCount === 1 ? '1 figur' : `${figureCount} figurer`;
+    const descriptionParts = [`Brøkfigurer med ${baseDescription}`];
+    if (summary && Number.isFinite(summary.rows) && Number.isFinite(summary.cols)) {
+      descriptionParts.push(`${summary.rows}×${summary.cols} rutenett`);
+    }
+    if (summary && Array.isArray(summary.figures) && summary.figures.length) {
+      const shapeNames = Array.from(new Set(summary.figures.map(fig => fig.shape || 'figur')));
+      descriptionParts.push(`former: ${shapeNames.join(', ')}`);
+    }
+    const description = `${descriptionParts.join(' – ')}.`;
+    const slugParts = ['brokfigurer', `${figureCount}fig`];
+    if (summary && Number.isFinite(summary.rows) && Number.isFinite(summary.cols)) {
+      slugParts.push(`${summary.rows}x${summary.cols}`);
+    }
+    const slugBase = slugParts.join(' ');
+    const slug = helper && typeof helper.slugify === 'function' ? helper.slugify(slugBase, 'brokfigurer') : slugParts.join('-').toLowerCase();
+  return {
+    description,
+    slug,
+    defaultBaseName: slug || 'brokfigurer',
+    summary
+  };
+}
   function downloadSVG(svgEl, filename) {
+    const suggestedName = typeof filename === 'string' && filename ? filename : 'brokfigurer.svg';
+    const data = svgToString(svgEl);
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const meta = buildBrokfigurerExportMeta();
+    if (helper && typeof helper.exportSvgWithArchive === 'function') {
+      return helper.exportSvgWithArchive(svgEl, suggestedName, 'brokfigurer', {
+        svgString: data,
+        description: meta.description,
+        slug: meta.slug,
+        defaultBaseName: meta.defaultBaseName,
+        summary: meta.summary
+      });
+    }
     return new Promise(resolve => {
-      const data = svgToString(svgEl);
       const blob = new Blob([data], {
         type: 'image/svg+xml;charset=utf-8'
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = filename.endsWith('.svg') ? filename : filename + '.svg';
+      a.download = suggestedName.endsWith('.svg') ? suggestedName : suggestedName + '.svg';
       document.body.appendChild(a);
       a.click();
       a.remove();

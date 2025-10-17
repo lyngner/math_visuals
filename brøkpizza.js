@@ -822,6 +822,36 @@ const INTERACTIVE_SVG_SCRIPT = `
 /* =======================
    Last ned figurer: statisk SVG
    ======================= */
+function buildBropizzaExportMeta(options = {}) {
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const instances = getVisiblePizzaInstances();
+  const description = buildBropizzaAltText();
+  const baseName = typeof options.baseName === 'string' && options.baseName ? options.baseName : instances.length > 1 ? 'broksirkler' : 'pizza';
+  const slugParts = [baseName, `${instances.length}fig`];
+  if (instances.length === 1) {
+    const inst = instances[0].inst;
+    slugParts.push(`${inst.k || 0}-${inst.n || 1}`);
+  }
+  const slugBase = slugParts.join(' ');
+  const slug = helper && typeof helper.slugify === 'function' ? helper.slugify(slugBase, baseName) : slugParts.join('-').toLowerCase();
+  const pizzasSummary = instances.map(({ index, inst }) => ({
+    index,
+    numerator: inst.k,
+    denominator: inst.n,
+    textMode: inst.textMode,
+    lockedNumerator: !!(inst.cfg && inst.cfg.lockNumerator),
+    lockedDenominator: !!(inst.cfg && inst.cfg.lockDenominator)
+  }));
+  return {
+    description,
+    slug,
+    defaultBaseName: slug || baseName,
+    summary: {
+      pizzas: pizzasSummary
+    },
+    instances: pizzasSummary
+  };
+}
 function downloadSVG(svgEl, filename = "pizza.svg") {
   if (!svgEl) return;
   const clone = svgEl.cloneNode(true);
@@ -847,6 +877,19 @@ function downloadSVG(svgEl, filename = "pizza.svg") {
   clone.insertBefore(styleEl, clone.firstChild);
   const xml = new XMLSerializer().serializeToString(clone);
   const file = `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const baseName = filename.replace(/\.svg$/i, '');
+  const meta = buildBropizzaExportMeta({ baseName });
+  if (helper && typeof helper.exportSvgWithArchive === 'function') {
+    helper.exportSvgWithArchive(clone, filename, 'brokpizza', {
+      svgString: file,
+      description: meta.description,
+      slug: meta.slug,
+      defaultBaseName: meta.defaultBaseName,
+      summary: meta.summary
+    });
+    return;
+  }
   const blob = new Blob([file], {
     type: "image/svg+xml;charset=utf-8"
   });
@@ -956,7 +999,7 @@ function getVisiblePizzas() {
     return svg && ((_svg$closest = svg.closest(".pizzaPanel")) === null || _svg$closest === void 0 ? void 0 : _svg$closest.style.display) !== "none";
   });
 }
-function buildAllPizzasSVG() {
+function buildAllPizzasSvgData() {
   const svgs = getVisiblePizzas();
   if (!svgs.length) return null;
   const gap = 24,
@@ -1023,12 +1066,31 @@ function buildAllPizzasSVG() {
     }
   });
   const xml = new XMLSerializer().serializeToString(root);
-  return `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
+  return {
+    svg: root,
+    xml: `<?xml version="1.0" encoding="UTF-8"?>\n` + xml
+  };
+}
+function buildAllPizzasSVG() {
+  const data = buildAllPizzasSvgData();
+  return data ? data.xml : null;
 }
 function downloadAllPizzasSVG(filename = "broksirkler.svg") {
-  const file = buildAllPizzasSVG();
-  if (!file) return;
-  const blob = new Blob([file], {
+  const data = buildAllPizzasSvgData();
+  if (!data) return;
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const meta = buildBropizzaExportMeta({ baseName: filename.replace(/\.svg$/i, '') });
+  if (helper && typeof helper.exportSvgWithArchive === 'function') {
+    helper.exportSvgWithArchive(data.svg, filename, 'brokpizza', {
+      svgString: data.xml,
+      description: meta.description,
+      slug: meta.slug,
+      defaultBaseName: meta.defaultBaseName,
+      summary: meta.summary
+    });
+    return;
+  }
+  const blob = new Blob([data.xml], {
     type: "image/svg+xml;charset=utf-8"
   });
   const url = URL.createObjectURL(blob);
@@ -1041,9 +1103,9 @@ function downloadAllPizzasSVG(filename = "broksirkler.svg") {
   URL.revokeObjectURL(url);
 }
 function downloadAllPizzasPNG(filename = "broksirkler.png") {
-  const file = buildAllPizzasSVG();
-  if (!file) return;
-  const blob = new Blob([file], {
+  const data = buildAllPizzasSvgData();
+  if (!data) return;
+  const blob = new Blob([data.xml], {
     type: "image/svg+xml;charset=utf-8"
   });
   const url = URL.createObjectURL(blob);
@@ -1170,6 +1232,18 @@ function downloadAllPizzasInteractiveSVG(filename = "broksirkler-interaktiv.svg"
   });
   const xml = new XMLSerializer().serializeToString(root);
   const file = `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const meta = buildBropizzaExportMeta({ baseName: filename.replace(/\.svg$/i, '') });
+  if (helper && typeof helper.exportSvgWithArchive === 'function') {
+    helper.exportSvgWithArchive(root, filename, 'brokpizza', {
+      svgString: file,
+      description: meta.description,
+      slug: meta.slug,
+      defaultBaseName: meta.defaultBaseName,
+      summary: { ...meta.summary, interactive: true }
+    });
+    return;
+  }
   const blob = new Blob([file], {
     type: "image/svg+xml;charset=utf-8"
   });

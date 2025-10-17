@@ -37,6 +37,7 @@
   const MONSTER_POINT_RADIUS_MAX = 60;
   const DEFAULT_CIRCLE_RADIUS = 10;
   const DEFAULT_DOT_SPACING = 3;
+  let lastExportSummary = null;
   function setFigureAlt(element, text) {
     if (!element) return;
     const value = typeof text === 'string' ? text.trim() : '';
@@ -298,6 +299,20 @@
     const points = byggMonster(n, levelScale);
     const factors = primeFactors(n).filter(x => x > 1);
     const baseExpression = factors.length ? `${factors.join(' · ')} = ${n}` : `${n}`;
+    const totalFigures = Math.max(0, antallX) * Math.max(0, antallY);
+    const totalDots = totalFigures * Math.max(0, n);
+    lastExportSummary = {
+      type: 'numbervisual',
+      n,
+      columns: cols,
+      rows,
+      totalFigures,
+      totalDots,
+      circleRadius,
+      levelScale,
+      patternGap: gapOverride !== null ? gapOverride : gapPx,
+      altText
+    };
     if (!points.length || antallX <= 0 || antallY <= 0) {
       expression.textContent = baseExpression;
       return;
@@ -310,9 +325,7 @@
       expression.textContent = baseExpression;
       return;
     }
-    const totalFigures = antallX * antallY;
     svg.setAttribute('aria-label', `Numbervisual ${n}`);
-    const totalDots = totalFigures * n;
     if (totalFigures > 0 && n > 0) {
       if (totalFigures === 1) {
         altText = `1 numbervisual med ${n} prikker.`;
@@ -332,6 +345,11 @@
       expression.textContent = `${antallX} · ${antallY} · (${baseExpression}) = ${totalFigures} · ${n} = ${totalFigures * n}`;
     } else {
       expression.textContent = baseExpression;
+    }
+    if (lastExportSummary) {
+      lastExportSummary.altText = altText;
+      lastExportSummary.totalFigures = totalFigures;
+      lastExportSummary.totalDots = totalDots;
     }
   }
   function applyExpressionVisibility() {
@@ -400,15 +418,43 @@
     clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
   }
+  function buildNumbervisualExportMeta() {
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const summary = lastExportSummary || {};
+    const alt = typeof summary.altText === 'string' ? summary.altText.trim() : '';
+    const description = alt || `Numbervisual med ${summary.totalDots || 0} prikker.`;
+    const slugParts = ['numbervisual', `${summary.n || 0}prikker`, `${summary.totalFigures || 0}fig`];
+    const slugBase = slugParts.join(' ');
+    const slug = helper && typeof helper.slugify === 'function' ? helper.slugify(slugBase, 'numbervisuals') : slugParts.join('-').toLowerCase();
+    return {
+      description,
+      slug,
+      defaultBaseName: slug || 'numbervisuals',
+      summary
+    };
+  }
   function downloadSVG(svgEl, filename) {
+    const suggestedName = typeof filename === 'string' && filename ? filename : 'numbervisuals.svg';
     const data = svgToString(svgEl);
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const meta = buildNumbervisualExportMeta();
+    if (helper && typeof helper.exportSvgWithArchive === 'function') {
+      helper.exportSvgWithArchive(svgEl, suggestedName, 'numbervisuals', {
+        svgString: data,
+        description: meta.description,
+        slug: meta.slug,
+        defaultBaseName: meta.defaultBaseName,
+        summary: meta.summary
+      });
+      return;
+    }
     const blob = new Blob([data], {
       type: 'image/svg+xml;charset=utf-8'
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename.endsWith('.svg') ? filename : filename + '.svg';
+    a.download = suggestedName.endsWith('.svg') ? suggestedName : suggestedName + '.svg';
     document.body.appendChild(a);
     a.click();
     a.remove();
