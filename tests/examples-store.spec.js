@@ -345,6 +345,27 @@ test.describe('examples-store trash operations', () => {
     expect(appended[appended.length - 1].id).toBe('tail');
   });
 
+  test('appendTrashEntries keeps newer payloads when appending duplicates', async () => {
+    await setTrashEntries([
+      { id: 'duplicate', example: { title: 'Original' }, deletedAt: '2024-01-01T00:00:00.000Z' }
+    ]);
+
+    const appended = await appendTrashEntries(
+      [
+        {
+          id: 'duplicate',
+          example: { title: 'Updated', extra: 'new data' },
+          deletedAt: '2024-02-01T00:00:00.000Z'
+        }
+      ],
+      { mode: 'append', limit: 5 }
+    );
+
+    expect(appended).toHaveLength(1);
+    expect(appended[0].id).toBe('duplicate');
+    expect(appended[0].example).toMatchObject({ title: 'Updated', extra: 'new data' });
+  });
+
   test('deleteTrashEntries removes matching ids', async () => {
     await setTrashEntries([
       { id: 'keep', example: { title: 'Keep' } },

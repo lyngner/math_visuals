@@ -674,10 +674,64 @@ async function appendTrashEntries(entries, options) {
     : MAX_TRASH_ENTRIES;
   const existing = await getTrashEntries();
   const existingList = Array.isArray(existing) ? existing : [];
-  const combined =
-    mode === 'append'
-      ? existingList.slice().reverse().concat(sanitizedNew)
-      : sanitizedNew.concat(existingList);
+  if (mode === 'append') {
+    const entriesById = new Map();
+    const appendedWithoutId = [];
+
+    sanitizedNew.forEach(entry => {
+      if (!entry || typeof entry !== 'object') return;
+      const id = typeof entry.id === 'string' ? entry.id : null;
+      if (id) {
+        entriesById.set(id, entry);
+        return;
+      }
+      appendedWithoutId.push(entry);
+    });
+
+    existingList.forEach(entry => {
+      if (!entry || typeof entry !== 'object') return;
+      const id = typeof entry.id === 'string' ? entry.id : null;
+      if (!id || entriesById.has(id)) {
+        return;
+      }
+      entriesById.set(id, entry);
+    });
+
+    const deduped = [];
+    const usedIds = new Set();
+
+    existingList.forEach(entry => {
+      if (!entry || typeof entry !== 'object') return;
+      const id = typeof entry.id === 'string' ? entry.id : null;
+      if (!id) {
+        deduped.push(entry);
+        return;
+      }
+      if (entriesById.has(id) && !usedIds.has(id)) {
+        deduped.push(entriesById.get(id));
+        usedIds.add(id);
+      }
+    });
+
+    appendedWithoutId.forEach(entry => {
+      deduped.push(entry);
+    });
+
+    sanitizedNew.forEach(entry => {
+      if (!entry || typeof entry !== 'object') return;
+      const id = typeof entry.id === 'string' ? entry.id : null;
+      if (!id || usedIds.has(id) || !entriesById.has(id)) {
+        return;
+      }
+      deduped.push(entriesById.get(id));
+      usedIds.add(id);
+    });
+
+    const truncated = deduped.slice(-limit);
+    return setTrashEntries(truncated);
+  }
+
+  const combined = sanitizedNew.concat(existingList);
   const deduped = [];
   const seen = new Set();
   combined.forEach(entry => {
@@ -687,7 +741,7 @@ async function appendTrashEntries(entries, options) {
     if (id) seen.add(id);
     deduped.push(entry);
   });
-  const truncated = mode === 'append' ? deduped.slice(-limit) : deduped.slice(0, limit);
+  const truncated = deduped.slice(0, limit);
   return setTrashEntries(truncated);
 }
 
