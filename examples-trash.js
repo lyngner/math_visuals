@@ -335,21 +335,35 @@
 
   function renderExamplePreview(container, example) {
     if (!container) return false;
+    container.innerHTML = '';
     if (!example || typeof example !== 'object') {
-      container.innerHTML = '';
       return false;
     }
+
+    const thumbnailSource =
+      typeof example.thumbnail === 'string' ? example.thumbnail.trim() : '';
+    if (thumbnailSource && /^data:image\//i.test(thumbnailSource)) {
+      const img = document.createElement('img');
+      img.src = thumbnailSource;
+      const altText =
+        typeof example.title === 'string' && example.title.trim()
+          ? example.title.trim()
+          : typeof example.description === 'string' && example.description.trim()
+            ? example.description.trim().slice(0, 120)
+            : 'Forhåndsvisning av eksempel';
+      img.alt = altText;
+      container.appendChild(img);
+      return true;
+    }
+
     const svgMarkup = typeof example.svg === 'string' ? example.svg : '';
     if (!svgMarkup || !svgMarkup.trim()) {
-      container.innerHTML = '';
       return false;
     }
     const svgElement = createSvgPreviewNode(svgMarkup);
     if (!svgElement) {
-      container.innerHTML = '';
       return false;
     }
-    container.innerHTML = '';
     container.appendChild(svgElement);
     return true;
   }
