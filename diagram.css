@@ -24,8 +24,8 @@
 /* Akser og rutenett */
 .axis{stroke:#0f172a;stroke-width:3.5;fill:none}
 .axis-group{pointer-events:none}
-.axis-arrow{fill:#0f172a;stroke:none}
-.axis-label-chip{fill:rgba(226,232,240,.92);stroke:rgba(148,163,184,.55);filter:drop-shadow(0 10px 20px rgba(15,23,42,.16)) drop-shadow(0 3px 6px rgba(15,23,42,.12))}
+.axis-arrow{fill:none;stroke:#0f172a;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
+.axis-label-chip{fill:#e2e8f0;stroke:#cbd5f5}
 .axis-label-text{fill:#0f172a;font-weight:600;letter-spacing:.02em;font-size:18px;dominant-baseline:middle}
 .gridline{stroke:#999;stroke-width:1;opacity:.6}
 .yTickText{fill:#333;font-size:14px;text-anchor:end}
