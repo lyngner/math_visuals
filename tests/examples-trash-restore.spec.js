@@ -16,6 +16,11 @@ const TRASH_HEADERS = {
 
 function clone(value) {
   try {
+    if (typeof structuredClone === 'function') {
+      return structuredClone(value);
+    }
+  } catch (error) {}
+  try {
     return JSON.parse(JSON.stringify(value));
   } catch (error) {
     return value;
@@ -215,6 +220,10 @@ test.describe('Examples trash guidance', () => {
     expect((entry.example && entry.example.description) || '').toContain(
       'Eksempel for gjenoppretting'
     );
+    const thumbnail = entry && entry.example ? entry.example.thumbnail : null;
+    expect(typeof thumbnail).toBe('string');
+    expect(thumbnail && thumbnail.trim()).toBeTruthy();
+    expect(thumbnail).toMatch(/^data:image\//i);
   });
 
   test('restoring an archived example reinserts it via the backend', async ({ page }) => {
@@ -228,6 +237,11 @@ test.describe('Examples trash guidance', () => {
       .locator('[data-item]')
       .filter({ hasText: description });
     await expect(item).toHaveCount(1);
+
+    await expect(item.locator('[data-item-preview]')).toBeVisible();
+    const previewImage = item.locator('[data-item-preview-content] img');
+    await expect(previewImage).toHaveCount(1);
+    await expect(previewImage).toHaveAttribute('src', /^data:image\//i);
 
     const restoreButton = item.getByRole('button', { name: 'Gjenopprett' });
     const deleteRequest = archivePage.waitForRequest(

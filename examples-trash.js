@@ -333,11 +333,33 @@
     return svgElement;
   }
 
+  function createThumbnailPreviewNode(thumbnailSource) {
+    if (typeof document === 'undefined') return null;
+    if (typeof thumbnailSource !== 'string') return null;
+    const trimmed = thumbnailSource.trim();
+    if (!trimmed) return null;
+    const img = document.createElement('img');
+    img.decoding = 'async';
+    img.loading = 'lazy';
+    img.alt = '';
+    img.src = trimmed;
+    return img;
+  }
+
   function renderExamplePreview(container, example) {
     if (!container) return false;
     if (!example || typeof example !== 'object') {
       container.innerHTML = '';
       return false;
+    }
+    const thumbnailMarkup = typeof example.thumbnail === 'string' ? example.thumbnail : '';
+    if (thumbnailMarkup && thumbnailMarkup.trim()) {
+      const thumbnailElement = createThumbnailPreviewNode(thumbnailMarkup);
+      if (thumbnailElement) {
+        container.innerHTML = '';
+        container.appendChild(thumbnailElement);
+        return true;
+      }
     }
     const svgMarkup = typeof example.svg === 'string' ? example.svg : '';
     if (!svgMarkup || !svgMarkup.trim()) {

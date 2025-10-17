@@ -39,6 +39,11 @@ function buildHeaders(modeHint, extra = {}) {
 function clone(value) {
   if (value == null) return value;
   try {
+    if (typeof structuredClone === 'function') {
+      return structuredClone(value);
+    }
+  } catch (error) {}
+  try {
     return JSON.parse(JSON.stringify(value));
   } catch (error) {
     return value;
