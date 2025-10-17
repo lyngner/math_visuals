@@ -21,6 +21,9 @@
           default: '#534477',
           highlight: '#BF4474'
         },
+        graphs: {
+          axis: '#111827'
+        },
         beads: {
           primary: {
             fill: '#d24a2c',
@@ -59,6 +62,9 @@
         dots: {
           default: '#2C395B',
           highlight: '#E3B660'
+        },
+        graphs: {
+          axis: '#2563eb'
         },
         beads: {
           primary: {
