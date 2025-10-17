@@ -192,6 +192,29 @@
     } catch (_) {}
   }
 
+  function removeFallbackEntriesByIds(ids) {
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    const normalizedIds = ids
+      .map(id => (typeof id === 'string' ? id.trim() : ''))
+      .filter(Boolean);
+    if (!normalizedIds.length) return;
+    const fallbackEntries = loadFallbackEntries();
+    if (!fallbackEntries.length) return;
+    const removalSet = new Set(normalizedIds);
+    const remainingEntries = fallbackEntries.filter(entry => {
+      if (!entry || typeof entry !== 'object') return true;
+      const entryId = typeof entry.id === 'string' ? entry.id : '';
+      if (!entryId) return true;
+      return !removalSet.has(entryId.trim());
+    });
+    if (remainingEntries.length === fallbackEntries.length) return;
+    if (remainingEntries.length) {
+      saveFallbackEntries(remainingEntries);
+    } else {
+      clearFallbackEntries();
+    }
+  }
+
   function extractArchiveMetadata(payload) {
     if (!payload || typeof payload !== 'object') return {};
     const metadata = {};
@@ -1083,7 +1106,10 @@
       setStatus('Gjenoppretter det arkiverte eksempelet slik at det blir tilgjengelig igjen …', 'info');
       try {
         await restoreTrashEntry(path, targetItem);
-        await deleteExample(id, { skipConfirm: true });
+        const deleteResult = await deleteExample(id, { skipConfirm: true });
+        if (!deleteResult || deleteResult.removed !== false) {
+          removeFallbackEntriesByIds([id]);
+        }
         await fetchEntriesFromBackend();
         buildFilterOptions();
         renderEntries();
@@ -1110,6 +1136,9 @@
         if (result && result.cancelled) {
           setStatus('Sletting avbrutt. Elementet ligger fortsatt i arkivet over slettede eksempler.', 'info');
           return;
+        }
+        if (!result || result.removed !== false) {
+          removeFallbackEntriesByIds([id]);
         }
         const fetchResult = await fetchEntriesFromBackend();
         buildFilterOptions();
