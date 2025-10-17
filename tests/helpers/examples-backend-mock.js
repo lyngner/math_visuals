@@ -38,11 +38,45 @@ function buildHeaders(modeHint, extra = {}) {
 
 function clone(value) {
   if (value == null) return value;
+  if (typeof globalThis.structuredClone === 'function') {
+    try {
+      return globalThis.structuredClone(value);
+    } catch (_) {}
+  }
   try {
     return JSON.parse(JSON.stringify(value));
-  } catch (error) {
+  } catch (_) {}
+  return deepClone(value, new WeakMap());
+}
+
+function deepClone(value, seen) {
+  if (value == null || typeof value !== 'object') {
     return value;
   }
+  const tag = Object.prototype.toString.call(value);
+  if (tag === '[object Date]') {
+    return new Date(value.getTime());
+  }
+  if (tag === '[object RegExp]') {
+    return new RegExp(value.source, value.flags);
+  }
+  if (seen.has(value)) {
+    return seen.get(value);
+  }
+  if (Array.isArray(value)) {
+    const arr = [];
+    seen.set(value, arr);
+    for (let i = 0; i < value.length; i++) {
+      arr[i] = deepClone(value[i], seen);
+    }
+    return arr;
+  }
+  const cloneObj = {};
+  seen.set(value, cloneObj);
+  Object.keys(value).forEach(key => {
+    cloneObj[key] = deepClone(value[key], seen);
+  });
+  return cloneObj;
 }
 
 function ensureStore(shared) {

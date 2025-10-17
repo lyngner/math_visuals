@@ -217,6 +217,29 @@ test.describe('Examples trash guidance', () => {
     );
   });
 
+  test('archived examples capture thumbnails and render them in the trash archive', async ({ page }) => {
+    const description = 'Arkivtest – miniatyr';
+    await archiveExample(page, description);
+
+    expect(trashEntries.length).toBeGreaterThan(0);
+    const [entry] = trashEntries;
+    expect(entry && entry.example && entry.example.thumbnail).toMatch(/^data:image\//);
+
+    const archivePage = await openTrashArchivePage(page.context());
+    const item = archivePage.locator('[data-item]').filter({ hasText: description });
+    await expect(item).toHaveCount(1);
+
+    const preview = item.locator('[data-item-preview]');
+    await expect(preview).toBeVisible();
+    const previewInner = preview.locator('[data-preview-inner]');
+    await expect(previewInner).toHaveAttribute('data-preview-kind', 'image');
+    const image = preview.locator('img');
+    await expect(image).toBeVisible();
+    await expect(image).toHaveAttribute('src', /^data:image\//);
+
+    await archivePage.close();
+  });
+
   test('restoring an archived example reinserts it via the backend', async ({ page }) => {
     const description = 'Arkivtest – gjenoppretting';
     await archiveExample(page, description);
