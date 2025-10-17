@@ -107,26 +107,19 @@ function hasVisibleBlockBelow(block) {
 function getRowSpanRatios(block, options = {}) {
   const { forLayout = false } = options;
   const baseTop = clamp(TOP_RATIO, 0, 1);
-  const baseBottom = clamp(BOTTOM_RATIO, baseTop, 1);
+  const baseBottom = clamp(BOTTOM_RATIO, baseTop + MIN_SPAN_RATIO, 1);
   let topRatio = baseTop;
   let bottomRatio = baseBottom;
   let compactApplied = false;
-  const wantsCompact = getConfiguredRowGap() < 0;
   const horizontalOverlayActive = multipleBlocksActive && CONFIG.showCombinedWhole;
   const requireFullPadding = forLayout ? anyBlockNeedsFullPadding() : blockNeedsFullPadding(block);
-  if (wantsCompact && !horizontalOverlayActive && !requireFullPadding) {
-    const rowGap = getConfiguredRowGap();
-    const progress = Math.min(1, Math.max(0, -rowGap / Math.abs(MIN_ROW_GAP || 1)));
-    const targetSpan = TARGET_COMPACT_SPAN;
-    const baseSpan = baseBottom - baseTop;
-    if (progress > 0 && targetSpan > baseSpan) {
-      compactApplied = true;
-    }
-    const span = clamp(baseSpan + (targetSpan - baseSpan) * progress, baseSpan, targetSpan);
-    const maxTop = 1 - span;
-    const centeredTop = BASE_CENTER_RATIO - span / 2;
-    topRatio = clamp(centeredTop, 0, maxTop);
-    bottomRatio = topRatio + span;
+  const allowCompact = !horizontalOverlayActive && !requireFullPadding;
+  if (allowCompact) {
+    const compactTop = clamp(COMPACT_TOP_RATIO, 0, 1 - MIN_SPAN_RATIO);
+    const compactBottom = clamp(COMPACT_BOTTOM_RATIO, compactTop + MIN_SPAN_RATIO, 1);
+    topRatio = compactTop;
+    bottomRatio = compactBottom;
+    compactApplied = true;
   }
   return {
     topRatio,
@@ -201,16 +194,16 @@ const VBH = 420;
 const SIDE_MARGIN_RATIO = 0;
 const TOP_RATIO = 130 / VBH;
 const BOTTOM_RATIO = (VBH - 60) / VBH;
+const COMPACT_TOP_RATIO = 24 / VBH;
+const COMPACT_BOTTOM_RATIO = (VBH - 32) / VBH;
 const MIN_SPAN_RATIO = 0.05;
 const BRACE_Y_RATIO = 78 / VBH;
 const BRACKET_TICK_RATIO = 16 / VBH;
 const LABEL_OFFSET_RATIO = 14 / VBH;
 const DEFAULT_SVG_HEIGHT = 260;
 const BASE_INNER_RATIO = BOTTOM_RATIO - TOP_RATIO;
-const BASE_CENTER_RATIO = (TOP_RATIO + BOTTOM_RATIO) / 2;
 const ROW_LABEL_GAP = 18;
 const DEFAULT_FRAME_INSET = 3;
-const TARGET_COMPACT_SPAN = Math.min(1, (DEFAULT_SVG_HEIGHT + Math.abs(MIN_ROW_GAP) + 2 * DEFAULT_FRAME_INSET) / DEFAULT_SVG_HEIGHT);
 const DEFAULT_GRID_PADDING_TOP = 20;
 const DEFAULT_GRID_PADDING_LEFT = 28;
 const ROW_LABEL_EXTRA_LEFT_PADDING = 100;
