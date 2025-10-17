@@ -44,6 +44,20 @@
       .grid2{gap:16px;}
     }
     .card--settings fieldset + fieldset{margin-top:12px;}
+    .card--settings .settings{flex-direction:column;}
+    .card--settings .settings .input-stack{gap:8px;}
+    .card--settings .settings label{font-weight:500;font-size:13px;color:#4b5563;}
+    .card--settings .settings select,
+    .card--settings .settings input[type="number"]{width:100%;}
+    .card--settings .global-settings{display:flex;flex-direction:column;gap:16px;}
+    .card--settings .global-settings > .checkbox-row{gap:8px;}
+    .card--settings .global-settings .field-group{display:flex;flex-direction:column;gap:8px;}
+    .card--settings .global-settings .section-label{margin:0;font-weight:600;font-size:13px;color:#1f2937;}
+    .card--settings .global-settings .dimension-inputs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+    .card--settings .global-settings .dimension-inputs label{display:flex;flex-direction:column;gap:4px;}
+    .card--settings .global-settings .dimension-inputs input[type="number"]{width:100%;}
+    .card--settings .global-settings .color-controls{display:flex;flex-direction:column;gap:10px;}
+    .card--settings .global-settings .color-count{display:flex;flex-direction:column;gap:6px;}
     .card--settings legend{font-weight:600;font-size:14px;margin-bottom:4px;color:#374151;}
     .card input[type="color"]{width:40px;height:40px;padding:0;border:none;}
     .color-grid{display:flex;flex-wrap:wrap;gap:6px;}
@@ -133,90 +147,58 @@
         </div>
         <div class="card card--settings">
           <div class="settings">
-            <fieldset>
-              <legend>Ruter</legend>
-              <div class="field-row">
-                <div class="field">
-                  <label for="rowsInput">Rader</label>
-                  <input id="rowsInput" type="number" min="1" max="20" value="3" />
-                </div>
-                <div class="field">
-                  <label for="colsInput">Kolonner</label>
-                  <input id="colsInput" type="number" min="1" max="20" value="3" />
-                </div>
-              </div>
-            </fieldset>
-            <fieldset>
-              <legend>Type</legend>
-              <div class="input-stack" role="group" aria-label="Type markering">
-                <div class="checkbox-row">
-                  <input id="figureTypeSquare" type="radio" name="figureType" value="square" checked />
-                  <label for="figureTypeSquare">Fylte kvadrater</label>
-                </div>
-                <div class="checkbox-row">
-                  <input id="figureTypeCircle" type="radio" name="figureType" value="circle" />
-                  <label for="figureTypeCircle">Sirkler</label>
-                </div>
-                <div class="checkbox-row">
-                  <input id="figureTypeLine" type="radio" name="figureType" value="line" />
-                  <label for="figureTypeLine">Linjer</label>
-                </div>
-                <div class="checkbox-row">
-                  <input id="figureTypeStar" type="radio" name="figureType" value="star" />
-                  <label for="figureTypeStar">Stjerner</label>
+            <fieldset class="global-settings">
+              <legend>Globale innstillinger</legend>
+              <div class="field-group">
+                <p class="section-label">Ruter</p>
+                <div class="dimension-inputs">
+                  <label for="rowsInput">Rader
+                    <input id="rowsInput" type="number" min="1" max="20" value="3" />
+                  </label>
+                  <label for="colsInput">Kolonner
+                    <input id="colsInput" type="number" min="1" max="20" value="3" />
+                  </label>
                 </div>
               </div>
-            </fieldset>
-            <fieldset>
-              <legend>Vis rutenett</legend>
-              <div class="input-stack">
-                <div class="checkbox-row">
-                  <input id="showGridToggle" type="checkbox" name="showGrid" checked />
-                  <label for="showGridToggle">Vis rutenett</label>
-                </div>
+              <div class="field-group">
+                <label for="figureTypeSelect">Type</label>
+                <select id="figureTypeSelect" aria-label="Type">
+                  <option value="square">Fylte kvadrater</option>
+                  <option value="circle">Sirkler</option>
+                  <option value="line">Linjer</option>
+                  <option value="star">Stjerner</option>
+                </select>
               </div>
-            </fieldset>
-            <fieldset>
-              <legend>Forskyv annenhver rad</legend>
-              <div class="input-stack">
-                <div class="checkbox-row">
-                  <input id="offsetRowsToggle" type="checkbox" name="offsetRows" checked />
-                  <label for="offsetRowsToggle">Forskyv annenhver rad</label>
-                </div>
+              <div class="checkbox-row">
+                <input id="showGridToggle" type="checkbox" name="showGrid" checked />
+                <label for="showGridToggle">Vis rutenett</label>
               </div>
-            </fieldset>
-            <fieldset>
-              <legend>Figurtekst</legend>
-              <div class="input-stack" role="group" aria-label="Figurtekst">
-                <div class="checkbox-row">
-                  <input id="labelModeHidden" type="radio" name="labelMode" value="hidden" />
-                  <label for="labelModeHidden">Skjult</label>
-                </div>
-                <div class="checkbox-row">
-                  <input id="labelModeCount" type="radio" name="labelMode" value="count" />
-                  <label for="labelModeCount">Tall</label>
-                </div>
-                <div class="checkbox-row">
-                  <input id="labelModeCustom" type="radio" name="labelMode" value="custom" checked />
-                  <label for="labelModeCustom">Egendefinert</label>
-                </div>
+              <div class="checkbox-row">
+                <input id="offsetRowsToggle" type="checkbox" name="offsetRows" checked />
+                <label for="offsetRowsToggle">Forskyv annenhver rad</label>
               </div>
-            </fieldset>
-            <fieldset>
-              <legend>Farger</legend>
-              <div class="field-row">
-                <div class="field">
+              <div class="field-group">
+                <label for="labelModeSelect">Figurtekst</label>
+                <select id="labelModeSelect" aria-label="Figurtekst">
+                  <option value="hidden">Skjult</option>
+                  <option value="count">Tall</option>
+                  <option value="custom">Egendefinert</option>
+                </select>
+              </div>
+              <div class="field-group color-controls">
+                <p class="section-label">Farger</p>
+                <div class="color-count">
                   <label for="colorCount">Antall farger</label>
                   <input id="colorCount" type="number" min="1" max="6" value="1" />
                 </div>
-              </div>
-              <div class="color-grid">
-                <input id="color_1" type="color" />
-                <input id="color_2" type="color" />
-                <input id="color_3" type="color" />
-                <input id="color_4" type="color" />
-                <input id="color_5" type="color" />
-                <input id="color_6" type="color" />
+                <div class="color-grid">
+                  <input id="color_1" type="color" />
+                  <input id="color_2" type="color" />
+                  <input id="color_3" type="color" />
+                  <input id="color_4" type="color" />
+                  <input id="color_5" type="color" />
+                  <input id="color_6" type="color" />
+                </div>
               </div>
             </fieldset>
           </div>
