@@ -918,18 +918,55 @@ function exportFileName(idx, count, type) {
   const base = count > 1 ? "kuler" : `kuler${idx + 1}`;
   return `${base}.${type}`;
 }
+function buildKulerExportMeta(exportData) {
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const summaries = buildBowlSummaries();
+  const count = exportData && Number.isFinite(exportData.count) ? exportData.count : getVisibleCount();
+  const descriptionParts = [];
+  descriptionParts.push(count === 1 ? 'Kuler med 1 bolle' : `Kuler med ${count} boller`);
+  if (summaries && summaries.length) {
+    const details = summaries.slice(0, count).map(entry => entry && entry.description ? entry.description : '').filter(Boolean);
+    if (details.length) descriptionParts.push(details.join(' '));
+  }
+  const description = `${descriptionParts.join('. ')}.`.replace(/\.\.+$/, '.');
+  const slugParts = ['kuler', `${count}boller`];
+  const slugBase = slugParts.join(' ');
+  const slug = helper && typeof helper.slugify === 'function' ? helper.slugify(slugBase, 'kuler') : slugParts.join('-').toLowerCase();
+  return {
+    description,
+    slug,
+    defaultBaseName: slug || 'kuler',
+    summary: {
+      count,
+      bowls: summaries.slice(0, count)
+    }
+  };
+}
 async function downloadSvgFigure(idx) {
   if (idx >= getVisibleCount()) return;
   const exportData = await buildExportSvg();
   if (!exportData) return;
   const data = new XMLSerializer().serializeToString(exportData.svg);
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const meta = buildKulerExportMeta(exportData);
+  const filename = exportFileName(idx, exportData.count, "svg");
+  if (helper && typeof helper.exportSvgWithArchive === 'function') {
+    await helper.exportSvgWithArchive(exportData.svg, filename, 'kuler', {
+      svgString: data,
+      description: meta.description,
+      slug: meta.slug,
+      defaultBaseName: meta.defaultBaseName,
+      summary: meta.summary
+    });
+    return;
+  }
   const blob = new Blob([data], {
     type: "image/svg+xml"
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = exportFileName(idx, exportData.count, "svg");
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }

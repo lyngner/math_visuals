@@ -583,15 +583,62 @@
     clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
   }
-  function downloadSVG(svgEl, filename) {
+  function buildFigurtallExportMeta() {
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const summary = collectFigurtallAltSummary();
+    if (!summary) {
+      const slug = helper && typeof helper.slugify === 'function' ? helper.slugify('figurtall tom', 'figurtall') : 'figurtall';
+      return {
+        description: 'Figurtall uten figurer.',
+        slug,
+        defaultBaseName: slug,
+        summary: null
+      };
+    }
+    const figureCount = Math.max(0, Math.round(summary.figureCount || 0));
+    const gridPart = Number.isFinite(summary.rows) && Number.isFinite(summary.cols)
+      ? `${summary.rows}×${summary.cols} rutenett`
+      : null;
+    const shapeKey = summary.circleMode ? 'sirkel' : summary.figureType || 'figur';
+    const descriptionParts = [
+      figureCount === 1 ? 'Én figur' : `${figureCount} figurer`,
+      summary.circleMode ? 'sirkelmodus' : shapeKey
+    ];
+    if (gridPart) descriptionParts.push(gridPart);
+    const description = `Figurtall med ${descriptionParts.filter(Boolean).join(' – ')}.`;
+    const slugParts = ['figurtall', `${figureCount}fig`, summary.circleMode ? 'sirkel' : shapeKey];
+    if (gridPart) slugParts.push(`${summary.rows}x${summary.cols}`);
+    const slugBase = slugParts.join(' ');
+    const slug = helper && typeof helper.slugify === 'function' ? helper.slugify(slugBase, 'figurtall') : slugParts.join('-').toLowerCase();
+    return {
+      description,
+      slug,
+      defaultBaseName: slug || 'figurtall',
+      summary
+    };
+  }
+  async function downloadSVG(svgEl, filename) {
+    const suggestedName = typeof filename === 'string' && filename ? filename : 'figurtall.svg';
     const data = svgToString(svgEl);
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const meta = buildFigurtallExportMeta();
+    if (helper && typeof helper.exportSvgWithArchive === 'function') {
+      await helper.exportSvgWithArchive(svgEl, suggestedName, 'figurtall', {
+        svgString: data,
+        description: meta.description,
+        slug: meta.slug,
+        defaultBaseName: meta.defaultBaseName,
+        summary: meta.summary
+      });
+      return;
+    }
     const blob = new Blob([data], {
       type: 'image/svg+xml;charset=utf-8'
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename.endsWith('.svg') ? filename : filename + '.svg';
+    a.download = suggestedName.endsWith('.svg') ? suggestedName : suggestedName + '.svg';
     document.body.appendChild(a);
     a.click();
     a.remove();

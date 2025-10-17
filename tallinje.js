@@ -1963,13 +1963,60 @@
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
   }
 
-  function downloadSVG(svgEl, filename) {
+  function buildTallinjeExportMeta() {
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const summary = lastRenderSummary || {};
+    const fromValue = Number.isFinite(summary.from) ? summary.from : Number(STATE.from);
+    const toValue = Number.isFinite(summary.to) ? summary.to : Number(STATE.to);
+    const stepValue = Number.isFinite(summary.mainStep) ? summary.mainStep : Number(STATE.mainStep);
+    const subValue = Number.isFinite(summary.subdivisions) ? summary.subdivisions : Number(STATE.subdivisions);
+    const clamp = summary.clampToRange != null ? summary.clampToRange : Boolean(STATE.clampToRange);
+    const typeLabel = getNumberTypeLabel();
+    const descriptionParts = [`Tallinje fra ${fromValue} til ${toValue}`];
+    if (Number.isFinite(stepValue) && stepValue > 0) descriptionParts.push(`hovedsteg ${stepValue}`);
+    if (Number.isFinite(subValue) && subValue > 1) descriptionParts.push(`${subValue} delstreker`);
+    if (typeLabel) descriptionParts.push(typeLabel);
+    if (clamp) descriptionParts.push('avgrenset til intervallet');
+    const description = `${descriptionParts.join(' – ')}.`;
+    const slugParts = ['tallinje', `${fromValue}`, `${toValue}`];
+    if (Number.isFinite(stepValue) && stepValue > 0) slugParts.push(`steg${stepValue}`);
+    const slugBase = slugParts.join(' ');
+    const slug = helper && typeof helper.slugify === 'function' ? helper.slugify(slugBase, 'tallinje') : slugParts.join('-').toLowerCase();
+    return {
+      description,
+      slug,
+      defaultBaseName: slug || 'tallinje',
+      summary: {
+        from: fromValue,
+        to: toValue,
+        mainStep: stepValue,
+        subdivisions: subValue,
+        clampToRange: clamp,
+        numberType: typeLabel
+      }
+    };
+  }
+
+  async function downloadSVG(svgEl, filename) {
+    const suggestedName = typeof filename === 'string' && filename ? filename : 'tallinje.svg';
     const data = svgToString(svgEl);
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const meta = buildTallinjeExportMeta();
+    if (helper && typeof helper.exportSvgWithArchive === 'function') {
+      await helper.exportSvgWithArchive(svgEl, suggestedName, 'tallinje', {
+        svgString: data,
+        description: meta.description,
+        slug: meta.slug,
+        defaultBaseName: meta.defaultBaseName,
+        summary: meta.summary
+      });
+      return;
+    }
     const blob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename.endsWith('.svg') ? filename : `${filename}.svg`;
+    a.download = suggestedName.endsWith('.svg') ? suggestedName : `${suggestedName}.svg`;
     document.body.appendChild(a);
     a.click();
     a.remove();
