@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/svg/(.*)", "destination": "/api/svg/raw?path=/$1" }
+  ]
+}
