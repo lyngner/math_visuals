@@ -48,4 +48,15 @@ Kjør følgende tester før du distribuerer endringer til produksjon:
    * Testen feiler hvis en side returnerer 404, mangler `STATE/CFG/CONFIG/SIMPLE`-bindingene eller loggfører JavaScript-feil i konsollen.
    * For å kjøre mot produksjon må du eksplisitt sette både `EXAMPLES_API_ENABLE_PRODUCTION=1` og `EXAMPLES_API_BASE_URL=https://math-visuals.vercel.app/` (eventuelt `EXAMPLES_BASE_URL` dersom HTML-en serveres fra en annen opprinnelse). Uten disse variablene hoppes produksjonsløpet over.
 
+### Tips for lokale Playwright-tester
+
+På Linux-miljøer må Playwright ha en del systembiblioteker tilgjengelig for å starte Chromium/Firefox/WebKit. Kjør `npx playwright install-deps` én gang etter `npm install` for å installere dem automatisk. Deretter kan du kjøre
+
+```
+npm run pretest
+npm test
+```
+
+`npm run pretest` materialiserer vendortillegg og sjekker at Playwright-avhengighetene er installert før selve testene kjøres.
+
 I CI kan du gjenbruke den samme kommandoen. Sett `EXAMPLES_API_BASE_URL` og `EXAMPLES_API_ENABLE_PRODUCTION=1` i byggmiljøet for å validere mot produksjon; hvis API-et ikke svarer vil testen avbrytes med `test.skip` i stedet for å krasje.
