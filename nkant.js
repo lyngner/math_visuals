@@ -1390,7 +1390,7 @@ function reinterpretSquareFromRightAngles(obj) {
   };
   return {
     obj: square,
-    normalized: `kvadrat a=${specFmt(sideValue)}`
+    normalized: objToSpec(square)
   };
 }
 function escapeRegExp(str) {
