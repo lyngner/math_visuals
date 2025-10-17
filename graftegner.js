@@ -4804,14 +4804,16 @@ function setupSettingsForm() {
       const rememberCommittedValue = () => {
         funInput.dataset.lastCommittedValue = getFunctionInputValue(funInput);
       };
-      const runInputSideEffects = () => {
+      const runInputSideEffects = ({ forceLinePointUpdate = false } = {}) => {
         updateFunctionPreview(funInput);
         toggleDomain(funInput);
-        updateLinePointControls();
+        if (forceLinePointUpdate || document.activeElement !== funInput) {
+          updateLinePointControls();
+        }
         updatePointMarkerVisibility();
       };
       const commitIfChanged = () => {
-        runInputSideEffects();
+        runInputSideEffects({ forceLinePointUpdate: true });
         const currentValue = getFunctionInputValue(funInput);
         if (funInput.dataset.lastCommittedValue === currentValue) {
           return;
