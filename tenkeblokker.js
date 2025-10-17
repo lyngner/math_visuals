@@ -117,7 +117,7 @@ function getRowSpanRatios(block, options = {}) {
   if (wantsCompact && !horizontalOverlayActive && !requireFullPadding) {
     const rowGap = getConfiguredRowGap();
     const progress = Math.min(1, Math.max(0, -rowGap / Math.abs(MIN_ROW_GAP || 1)));
-    const targetSpan = Math.min(TARGET_COMPACT_SPAN, 1 - MIN_SPAN_RATIO);
+    const targetSpan = TARGET_COMPACT_SPAN;
     const baseSpan = baseBottom - baseTop;
     if (progress > 0 && targetSpan > baseSpan) {
       compactApplied = true;
@@ -210,7 +210,7 @@ const BASE_INNER_RATIO = BOTTOM_RATIO - TOP_RATIO;
 const BASE_CENTER_RATIO = (TOP_RATIO + BOTTOM_RATIO) / 2;
 const ROW_LABEL_GAP = 18;
 const DEFAULT_FRAME_INSET = 3;
-const TARGET_COMPACT_SPAN = Math.min(1 - MIN_SPAN_RATIO, (DEFAULT_SVG_HEIGHT + Math.abs(MIN_ROW_GAP) + 2 * DEFAULT_FRAME_INSET) / DEFAULT_SVG_HEIGHT);
+const TARGET_COMPACT_SPAN = Math.min(1, (DEFAULT_SVG_HEIGHT + Math.abs(MIN_ROW_GAP) + 2 * DEFAULT_FRAME_INSET) / DEFAULT_SVG_HEIGHT);
 const DEFAULT_GRID_PADDING_TOP = 20;
 const DEFAULT_GRID_PADDING_LEFT = 28;
 const ROW_LABEL_EXTRA_LEFT_PADDING = 100;
