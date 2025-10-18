@@ -10,6 +10,63 @@
   }
 
   let allEntries = [];
+  let openMenu = null;
+  const focusableSelectors = [
+    'button:not([disabled]):not([tabindex="-1"])',
+    '[href]:not([tabindex="-1"])',
+    'input:not([disabled]):not([tabindex="-1"])',
+    'select:not([disabled]):not([tabindex="-1"])',
+    'textarea:not([disabled]):not([tabindex="-1"])',
+    '[tabindex]:not([tabindex="-1"])'
+  ].join(', ');
+
+  function getFocusableElements(container) {
+    return Array.from(container.querySelectorAll(focusableSelectors)).filter(element => {
+      if (element.disabled) {
+        return false;
+      }
+      if (element.getAttribute('aria-hidden') === 'true') {
+        return false;
+      }
+      const rects = element.getClientRects();
+      const isSvgElement = typeof window !== 'undefined' && window.SVGElement
+        ? element instanceof window.SVGElement
+        : false;
+      return rects.length > 0 && (element.offsetParent !== null || isSvgElement);
+    });
+  }
+
+  function focusNextElementAfter(reference) {
+    const allFocusable = Array.from(document.querySelectorAll(focusableSelectors)).filter(element => {
+      if (element.disabled) {
+        return false;
+      }
+      if (element.getAttribute('aria-hidden') === 'true') {
+        return false;
+      }
+      if (typeof element.closest === 'function' && element.closest('[hidden]')) {
+        return false;
+      }
+      const rects = element.getClientRects();
+      const isSvgElement = typeof window !== 'undefined' && window.SVGElement
+        ? element instanceof window.SVGElement
+        : false;
+      return rects.length > 0 && (element.offsetParent !== null || isSvgElement);
+    });
+    const currentIndex = allFocusable.indexOf(reference);
+    if (currentIndex === -1) {
+      return false;
+    }
+    for (let index = currentIndex + 1; index < allFocusable.length; index += 1) {
+      const candidate = allFocusable[index];
+      if (!candidate) {
+        continue;
+      }
+      candidate.focus();
+      return true;
+    }
+    return false;
+  }
 
   function setStatus(message, state) {
     if (!statusElement) return;
@@ -112,12 +169,159 @@
     return item;
   }
 
+  function removeGlobalMenuListeners() {
+    document.removeEventListener('pointerdown', handleGlobalPointerDown, true);
+    document.removeEventListener('keydown', handleGlobalKeydown, true);
+  }
+
+  function handleMenuKeydown(event) {
+    if (!openMenu || event.key !== 'Tab') {
+      return;
+    }
+
+    const { trigger, menu } = openMenu;
+    const focusableItems = getFocusableElements(menu);
+
+    if (!focusableItems.length) {
+      if (event.shiftKey) {
+        event.preventDefault();
+        closeMenu({ focusTrigger: true });
+      } else {
+        closeMenu({ focusTrigger: false });
+        requestAnimationFrame(() => {
+          focusNextElementAfter(trigger);
+        });
+      }
+      return;
+    }
+
+    const firstItem = focusableItems[0];
+    const lastItem = focusableItems[focusableItems.length - 1];
+    const activeElement = document.activeElement;
+
+    if (event.shiftKey && activeElement === firstItem) {
+      event.preventDefault();
+      closeMenu({ focusTrigger: true });
+      return;
+    }
+
+    if (!event.shiftKey && activeElement === lastItem) {
+      event.preventDefault();
+      const focusOrigin = trigger;
+      closeMenu({ focusTrigger: false });
+      requestAnimationFrame(() => {
+        if (!focusNextElementAfter(focusOrigin)) {
+          focusOrigin.blur();
+        }
+      });
+    }
+  }
+
+  function handleGlobalPointerDown(event) {
+    if (!openMenu) {
+      return;
+    }
+
+    const { trigger, menu } = openMenu;
+    const target = event.target;
+
+    if (trigger.contains(target) || menu.contains(target)) {
+      return;
+    }
+
+    closeMenu({ focusTrigger: false });
+  }
+
+  function handleGlobalKeydown(event) {
+    if (!openMenu) {
+      return;
+    }
+
+    if (event.key === 'Escape' || event.key === 'Esc') {
+      event.preventDefault();
+      closeMenu({ focusTrigger: true });
+    }
+  }
+
+  function closeMenu(options = {}) {
+    if (!openMenu) {
+      return;
+    }
+
+    const { focusTrigger = false } = options;
+    const { trigger, menu, previousTabIndex } = openMenu;
+
+    menu.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+    menu.removeEventListener('keydown', handleMenuKeydown);
+    removeGlobalMenuListeners();
+
+    if (previousTabIndex === null) {
+      menu.removeAttribute('tabindex');
+    } else if (previousTabIndex !== undefined) {
+      menu.setAttribute('tabindex', previousTabIndex);
+    }
+
+    openMenu = null;
+
+    if (focusTrigger) {
+      trigger.focus();
+    }
+  }
+
+  function openMenuForTrigger(trigger) {
+    const card = trigger.closest('.svg-archive__card');
+    if (!card) {
+      return;
+    }
+
+    const menu = card.querySelector('.svg-archive__menu');
+    if (!menu) {
+      return;
+    }
+
+    if (openMenu && openMenu.trigger === trigger) {
+      closeMenu({ focusTrigger: false });
+      return;
+    }
+
+    if (openMenu) {
+      closeMenu({ focusTrigger: false });
+    }
+
+    const previousTabIndex = menu.hasAttribute('tabindex') ? menu.getAttribute('tabindex') : null;
+
+    menu.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+
+    openMenu = { trigger, menu, previousTabIndex };
+
+    const focusableItems = getFocusableElements(menu);
+    if (focusableItems.length) {
+      requestAnimationFrame(() => {
+        focusableItems[0].focus();
+      });
+    } else {
+      if (previousTabIndex === null) {
+        menu.setAttribute('tabindex', '-1');
+      }
+      requestAnimationFrame(() => {
+        menu.focus();
+      });
+    }
+
+    menu.addEventListener('keydown', handleMenuKeydown);
+    document.addEventListener('pointerdown', handleGlobalPointerDown, true);
+    document.addEventListener('keydown', handleGlobalKeydown, true);
+  }
+
   function render() {
     const selectedTool = filterSelect && filterSelect.value !== 'all' ? filterSelect.value : null;
     const filteredEntries = selectedTool
       ? allEntries.filter(entry => entry.tool === selectedTool)
       : allEntries.slice();
 
+    closeMenu({ focusTrigger: false });
     grid.innerHTML = '';
 
     if (!filteredEntries.length) {
@@ -340,4 +544,48 @@
   }
 
   loadEntries();
+
+  function handleGridActivation(event) {
+    const trigger = event.target instanceof Element
+      ? event.target.closest('.svg-archive__menu-trigger')
+      : null;
+
+    if (!trigger || !grid.contains(trigger)) {
+      return;
+    }
+
+    openMenuForTrigger(trigger);
+  }
+
+  grid.addEventListener('click', event => {
+    const trigger = event.target instanceof Element
+      ? event.target.closest('.svg-archive__menu-trigger')
+      : null;
+
+    if (trigger && trigger.dataset.menuTriggerKeyboard === 'true') {
+      delete trigger.dataset.menuTriggerKeyboard;
+      return;
+    }
+
+    handleGridActivation(event);
+  });
+
+  grid.addEventListener('keydown', event => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+      const trigger = event.target.closest('.svg-archive__menu-trigger');
+      if (!trigger || !grid.contains(trigger)) {
+        return;
+      }
+      event.preventDefault();
+      trigger.dataset.menuTriggerKeyboard = 'true';
+      handleGridActivation(event);
+      setTimeout(() => {
+        delete trigger.dataset.menuTriggerKeyboard;
+      }, 0);
+    }
+  });
 })();
