@@ -118,4 +118,49 @@ test.describe('svg-store kv mode', () => {
     const afterDelete = await listSvgs();
     expect(afterDelete).toHaveLength(0);
   });
+
+  test('getSvg and listSvgs hydrate legacy KV entries stored with extensions', async () => {
+    const legacyPayload = {
+      slug: 'icons/legacy.svg',
+      title: 'Legacy icon',
+      tool: 'vector',
+      svg: '<svg>legacy</svg>',
+      createdAt: '2023-01-01T00:00:00.000Z',
+      updatedAt: '2023-01-02T00:00:00.000Z',
+      filename: 'legacy.svg',
+      files: {
+        svg: {
+          slug: 'icons/legacy.svg',
+          filename: 'legacy.svg',
+          url: '/bildearkiv/icons/legacy.svg',
+          contentType: 'image/svg+xml'
+        }
+      },
+      urls: {
+        svg: '/bildearkiv/icons/legacy.svg'
+      }
+    };
+
+    await mockKv.api.set('svg:icons/legacy.svg', legacyPayload);
+    await mockKv.api.sadd('svg:__slugs__', 'icons/legacy.svg');
+    clearMemoryStore();
+
+    const fetched = await getSvg('icons/legacy');
+    expect(fetched).not.toBeNull();
+    expect(fetched.slug).toBe('icons/legacy.svg');
+    expect(fetched.svg).toBe('<svg>legacy</svg>');
+    expect(fetched.mode).toBe('kv');
+
+    const listed = await listSvgs();
+    expect(listed).toHaveLength(1);
+    expect(listed[0].slug).toBe('icons/legacy.svg');
+    expect(listed[0].mode).toBe('kv');
+
+    const deleted = await deleteSvg('icons/legacy');
+    expect(deleted).toBe(true);
+    const indexMembers = await mockKv.api.smembers('svg:__slugs__');
+    expect(indexMembers).not.toContain('icons/legacy.svg');
+    const legacyValue = await mockKv.api.get('svg:icons/legacy.svg');
+    expect(legacyValue).toBeNull();
+  });
 });
