@@ -597,6 +597,17 @@ function resolveLineStartPoints(parsed) {
 function applyLinePointStart(parsed) {
   const resolved = resolveLineStartPoints(parsed);
   ADV.points.start = resolved.map(pt => pt.slice());
+  if (parsed && typeof parsed === 'object') {
+    const xValues = resolved
+      .map(pt => Array.isArray(pt) && pt.length > 0 ? pt[0] : null)
+      .filter(val => Number.isFinite(val));
+    if (xValues.length) {
+      const existingStartX = Array.isArray(parsed.startX) ? parsed.startX.filter(Number.isFinite) : [];
+      if (existingStartX.length < xValues.length) {
+        parsed.startX = xValues.slice();
+      }
+    }
+  }
   return resolved;
 }
 
@@ -4743,61 +4754,102 @@ function setupSettingsForm() {
       input.value = formatPointInputValue(pt);
     });
   };
-  const applyLinePointValues = (points, spec) => {
-    if (!Array.isArray(points) || !points.length) {
-      return false;
-    }
-    const clones = points.map(pt => Array.isArray(pt) ? pt.slice(0, 2) : null).filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite));
-    if (!clones.length) {
-      return false;
-    }
-    if (SIMPLE_PARSED && typeof SIMPLE_PARSED === 'object') {
-      SIMPLE_PARSED.linePoints = clones.map(pt => pt.slice());
-    }
-    if (Array.isArray(ADV.points.start)) {
-      for (let i = 0; i < clones.length && i < ADV.points.start.length; i++) {
-        ADV.points.start[i] = clones[i].slice();
+    const applyLinePointValues = (points, spec) => {
+      if (!Array.isArray(points) || !points.length) {
+        return false;
       }
-    }
-    if (MODE === 'points' && brd && Array.isArray(moving) && moving.length) {
-      const resolvedSpec = spec || getLineTemplateSpec();
-      const kind = resolvedSpec && resolvedSpec.kind ? resolvedSpec.kind : null;
-      const moveTargets = kind === 'two' ? clones : [clones[0]];
-      const limit = Math.min(moveTargets.length, moving.length);
-      for (let i = 0; i < limit; i++) {
-        const point = moving[i];
-        const target = kind === 'two' ? moveTargets[i] : moveTargets[0];
-        if (!point || !Array.isArray(target)) continue;
-        const [tx, ty] = target;
-        if (!Number.isFinite(tx) || !Number.isFinite(ty)) continue;
-        if (typeof point.moveTo === 'function') {
-          let moveNeeded = true;
-          if (typeof point.X === 'function' && typeof point.Y === 'function') {
-            const currentX = point.X();
-            const currentY = point.Y();
-            if (Number.isFinite(currentX) && Number.isFinite(currentY)) {
-              const EPS = 1e-9;
-              moveNeeded = Math.abs(currentX - tx) > EPS || Math.abs(currentY - ty) > EPS;
-            }
-          }
-          if (moveNeeded) {
-            try {
-              point.moveTo([tx, ty]);
-              if (point.label && typeof point.label.setText === 'function') {
-                point.label.setText(() => fmtCoordsStatic(point));
+      const clones = points
+        .map(pt => (Array.isArray(pt) ? pt.slice(0, 2) : null))
+        .filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite));
+      if (!clones.length) {
+        return false;
+      }
+      const xValues = clones.map(pt => pt[0]).filter(Number.isFinite);
+      if (SIMPLE_PARSED && typeof SIMPLE_PARSED === 'object') {
+        SIMPLE_PARSED.linePoints = clones.map(pt => pt.slice());
+        if (xValues.length) {
+          SIMPLE_PARSED.startX = xValues.slice();
+        }
+      }
+      if (Array.isArray(ADV.points.start)) {
+        for (let i = 0; i < clones.length && i < ADV.points.start.length; i++) {
+          ADV.points.start[i] = clones[i].slice();
+        }
+      }
+      if (xValues.length) {
+        ADV.points.startX = xValues.slice();
+      }
+      if (MODE === 'points' && brd && Array.isArray(moving) && moving.length) {
+        const resolvedSpec = spec || getLineTemplateSpec();
+        const kind = resolvedSpec && resolvedSpec.kind ? resolvedSpec.kind : null;
+        const moveTargets = kind === 'two' ? clones : [clones[0]];
+        const limit = Math.min(moveTargets.length, moving.length);
+        for (let i = 0; i < limit; i++) {
+          const point = moving[i];
+          const target = kind === 'two' ? moveTargets[i] : moveTargets[0];
+          if (!point || !Array.isArray(target)) continue;
+          const [tx, ty] = target;
+          if (!Number.isFinite(tx) || !Number.isFinite(ty)) continue;
+          if (typeof point.moveTo === 'function') {
+            let moveNeeded = true;
+            if (typeof point.X === 'function' && typeof point.Y === 'function') {
+              const currentX = point.X();
+              const currentY = point.Y();
+              if (Number.isFinite(currentX) && Number.isFinite(currentY)) {
+                const EPS = 1e-9;
+                moveNeeded = Math.abs(currentX - tx) > EPS || Math.abs(currentY - ty) > EPS;
               }
-            } catch (_) {
-              // ignore move errors
+            }
+            if (moveNeeded) {
+              try {
+                point.moveTo([tx, ty]);
+                if (point.label && typeof point.label.setText === 'function') {
+                  point.label.setText(() => fmtCoordsStatic(point));
+                }
+              } catch (_) {
+                // ignore move errors
+              }
             }
           }
         }
+        if (typeof brd.update === 'function') {
+          brd.update();
+        }
+      } else if (MODE === 'functions' && Array.isArray(graphs) && graphs.length > 0) {
+        const resolvedSpec = spec || getLineTemplateSpec();
+        const targetPoints = resolvedSpec && resolvedSpec.kind === 'two' ? clones : [clones[0]];
+        const primary = graphs[0];
+        if (primary && Array.isArray(primary.gliders) && primary.gliders.length) {
+          const domain = primary.domain || null;
+          const gliders = primary.gliders;
+          const limit = Math.min(targetPoints.length, gliders.length);
+          for (let i = 0; i < limit; i++) {
+            const glider = gliders[i];
+            const target = targetPoints[i];
+            if (!glider || !Array.isArray(target)) continue;
+            const rawX = target[0];
+            if (!Number.isFinite(rawX)) continue;
+            const clampedX = domain && Number.isFinite(domain.min) && Number.isFinite(domain.max)
+              ? Math.max(domain.min, Math.min(domain.max, rawX))
+              : rawX;
+            const fnY = typeof primary.fn === 'function' ? primary.fn(clampedX) : NaN;
+            if (!Number.isFinite(fnY) || typeof glider.moveTo !== 'function') {
+              continue;
+            }
+            try {
+              glider.moveTo([clampedX, fnY]);
+              if (glider.label && typeof glider.label.setText === 'function') {
+                glider.label.setText(() => fmtCoordsStatic(glider));
+              }
+            } catch (_) {}
+          }
+          if (brd && typeof brd.update === 'function') {
+            brd.update();
+          }
+        }
       }
-      if (typeof brd.update === 'function') {
-        brd.update();
-      }
-    }
-    return true;
-  };
+      return true;
+    };
   const syncLinePointsToBoardFromInputs = () => {
     const spec = getLineTemplateSpec();
     const needed = getLinePointCount(spec);
