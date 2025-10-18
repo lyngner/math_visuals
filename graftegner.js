@@ -4812,15 +4812,27 @@ function setupSettingsForm() {
     if (parsedMode === 'points') {
       return true;
     }
+    const firstValue = getFirstFunctionValue();
+    if (firstValue && isCoords(firstValue)) {
+      return true;
+    }
     if (shouldEnableGliders() && getGliderCount() > 0) {
       return true;
     }
-    const firstValue = getFirstFunctionValue();
     if (firstValue && !isCoords(firstValue) && !isExplicitFun(firstValue)) {
       return true;
     }
     const parsedCount = SIMPLE_PARSED && Number.isFinite(SIMPLE_PARSED.pointsCount) ? SIMPLE_PARSED.pointsCount : 0;
-    return parsedCount > 0;
+    if (parsedCount > 0) {
+      return true;
+    }
+    const parsedExtraPoints = SIMPLE_PARSED && Array.isArray(SIMPLE_PARSED.extraPoints)
+      ? SIMPLE_PARSED.extraPoints.length
+      : 0;
+    if (parsedExtraPoints > 0) {
+      return true;
+    }
+    return false;
   };
   const updateSnapAvailability = () => {
     if (!snapCheckbox) return;
