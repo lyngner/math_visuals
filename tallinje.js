@@ -1958,6 +1958,43 @@
 
   function svgToString(svgEl) {
     const clone = svgEl.cloneNode(true);
+    const hasWindow = typeof window !== 'undefined' && typeof window.getComputedStyle === 'function';
+    if (hasWindow) {
+      const props = [
+        'fill',
+        'stroke',
+        'stroke-width',
+        'font-family',
+        'font-size',
+        'font-weight',
+        'font-style',
+        'opacity',
+        'text-anchor',
+        'paint-order',
+        'stroke-linecap',
+        'stroke-linejoin',
+        'stroke-dasharray',
+        'color'
+      ];
+      const alwaysCopy = new Set(['fill', 'stroke', 'color']);
+      const copyComputed = (src, dst) => {
+        if (!src || !dst) return;
+        const comp = window.getComputedStyle(src);
+        props.forEach(prop => {
+          const value = comp.getPropertyValue(prop);
+          if (!value) return;
+          const trimmed = value.trim();
+          if (!alwaysCopy.has(prop) && (trimmed === 'normal' || trimmed === '0px' || trimmed === 'none')) return;
+          dst.setAttribute(prop, trimmed);
+        });
+      };
+      copyComputed(svgEl, clone);
+      const srcEls = svgEl.querySelectorAll('*');
+      const cloneEls = clone.querySelectorAll('*');
+      srcEls.forEach((src, index) => {
+        copyComputed(src, cloneEls[index]);
+      });
+    }
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
