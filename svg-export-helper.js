@@ -5,6 +5,7 @@
   let toastStyleInjected = false;
   let toastContainer = null;
   let archiveEntriesPromise = null;
+  let archiveEntriesCache = null;
 
   function ensureToastStyle(doc) {
     if (toastStyleInjected) return;
@@ -208,10 +209,13 @@
   }
 
   async function ensureArchiveEntries() {
+    if (Array.isArray(archiveEntriesCache)) {
+      return archiveEntriesCache;
+    }
     if (archiveEntriesPromise) return archiveEntriesPromise;
     if (typeof global.fetch !== 'function') {
-      archiveEntriesPromise = Promise.resolve([]);
-      return archiveEntriesPromise;
+      archiveEntriesCache = [];
+      return archiveEntriesCache;
     }
     archiveEntriesPromise = global.fetch('/api/svg', {
       headers: {
@@ -228,8 +232,44 @@
           .catch(() => []);
       })
       .catch(() => []);
-    archiveEntriesPromise = archiveEntriesPromise.then(entries => (Array.isArray(entries) ? entries : []));
+    archiveEntriesPromise = archiveEntriesPromise
+      .then(entries => (Array.isArray(entries) ? entries : []))
+      .then(entries => {
+        archiveEntriesCache = entries.slice();
+        return archiveEntriesCache;
+      })
+      .catch(() => {
+        archiveEntriesCache = [];
+        return archiveEntriesCache;
+      })
+      .finally(() => {
+        archiveEntriesPromise = null;
+      });
     return archiveEntriesPromise;
+  }
+
+  function rememberArchiveEntry(entry) {
+    if (!entry || typeof entry !== 'object') return;
+    const tool = typeof entry.tool === 'string' ? entry.tool.trim() : '';
+    const slug = typeof entry.slug === 'string' ? entry.slug.trim() : '';
+    const title = typeof entry.title === 'string' ? entry.title.trim() : '';
+    const baseName = typeof entry.baseName === 'string' ? entry.baseName.trim() : '';
+    const identifier = slug || baseName || title;
+    if (!Array.isArray(archiveEntriesCache)) {
+      archiveEntriesCache = [];
+    }
+    const exists = archiveEntriesCache.some(existing => {
+      if (!existing || typeof existing !== 'object') return false;
+      const existingTool = typeof existing.tool === 'string' ? existing.tool.trim() : '';
+      const existingSlug = typeof existing.slug === 'string' ? existing.slug.trim() : '';
+      const existingBase = typeof existing.baseName === 'string' ? existing.baseName.trim() : '';
+      const existingTitle = typeof existing.title === 'string' ? existing.title.trim() : '';
+      const existingIdentifier = existingSlug || existingBase || existingTitle;
+      return existingTool === tool && identifier && existingIdentifier === identifier;
+    });
+    if (!exists) {
+      archiveEntriesCache.push({ tool, slug, title, baseName });
+    }
   }
 
   function extractArchiveBaseName(entry) {
@@ -438,6 +478,7 @@
       })
         .then(response => {
           if (response && response.ok) {
+            rememberArchiveEntry(payload);
             showToast(`Grafikk lastet ned og arkivert som ${baseName}.`, 'success');
             return response;
           }
