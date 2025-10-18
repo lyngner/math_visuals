@@ -80,8 +80,19 @@ test.describe('SVG-arkiv', () => {
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
 
-    const hrefs = await page.$$eval('[data-svg-grid] a', anchors => anchors.map(anchor => anchor.getAttribute('href')));
-    expect(hrefs).toEqual(expectedOrder.map(entry => entry.urls.svg));
+    const svgHrefs = await page.$$eval('[data-svg-grid] a', anchors =>
+      anchors
+        .filter(anchor => anchor.textContent && anchor.textContent.trim() === 'Åpne SVG')
+        .map(anchor => anchor.getAttribute('href'))
+    );
+    expect(svgHrefs).toEqual(expectedOrder.map(entry => entry.urls.svg));
+
+    const pngHrefs = await page.$$eval('[data-svg-grid] a', anchors =>
+      anchors
+        .filter(anchor => anchor.textContent && anchor.textContent.trim() === 'Åpne PNG')
+        .map(anchor => anchor.getAttribute('href'))
+    );
+    expect(pngHrefs).toEqual(expectedOrder.map(entry => entry.urls.png));
 
     const imageSources = await page.$$eval('[data-svg-grid] img', images => images.map(img => img.getAttribute('src')));
     expect(imageSources.every(src => typeof src === 'string' && src.startsWith('/bildearkiv/') && src.endsWith('.png'))).toBe(true);
