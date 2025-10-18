@@ -6,14 +6,26 @@ const TEST_ENTRIES = [
     title: 'Koordinatfigur',
     tool: 'Graftegner',
     createdAt: '2024-01-02T12:30:00.000Z',
-    summary: 'Testoppføring for graftegner'
+    summary: 'Testoppføring for graftegner',
+    files: {
+      svg: '/bildearkiv/graftegner/koordinater.svg',
+      png: '/bildearkiv/graftegner/koordinater.png'
+    },
+    svgUrl: '/bildearkiv/graftegner/koordinater.svg',
+    pngUrl: '/bildearkiv/graftegner/koordinater.png'
   },
   {
     slug: 'kuler/symmetri.svg',
     title: 'Symmetrirekke',
     tool: 'Kuler',
     createdAt: '2023-12-18T09:15:00.000Z',
-    summary: 'Eksempel fra kuler'
+    summary: 'Eksempel fra kuler',
+    files: {
+      svg: '/bildearkiv/kuler/symmetri.svg',
+      png: '/bildearkiv/kuler/symmetri.png'
+    },
+    svgUrl: '/bildearkiv/kuler/symmetri.svg',
+    pngUrl: '/bildearkiv/kuler/symmetri.png'
   }
 ];
 
@@ -45,10 +57,10 @@ test.describe('SVG-arkiv', () => {
     );
 
     const hrefs = await page.$$eval('[data-svg-grid] a', anchors => anchors.map(anchor => anchor.getAttribute('href')));
-    expect(hrefs).toEqual(expectedOrder.map(entry => `/svg/${entry.slug}`));
+    expect(hrefs).toEqual(expectedOrder.map(entry => `/bildearkiv/${entry.slug}`));
 
     const imageSources = await page.$$eval('[data-svg-grid] img', images => images.map(img => img.getAttribute('src')));
-    expect(imageSources.every(src => typeof src === 'string' && src.startsWith('/svg/') && src.endsWith('.svg'))).toBe(true);
+    expect(imageSources.every(src => typeof src === 'string' && src.startsWith('/bildearkiv/') && src.endsWith('.png'))).toBe(true);
 
     await expect(page.locator('[data-status]')).toBeHidden();
     await expect(page.locator('[data-storage-note]')).toHaveText('Denne testen bruker midlertidige data.');

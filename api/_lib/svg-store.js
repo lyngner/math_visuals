@@ -169,22 +169,142 @@ function sanitizeRequiredText(value) {
   return value.trim();
 }
 
+function sanitizeFilename(value, fallback) {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  const parts = trimmed.split(/[\\/]+/);
+  const name = parts[parts.length - 1];
+  return name || fallback;
+}
+
+function resolveCanonicalSlug(input) {
+  const normalized = normalizeSlug(input);
+  if (!normalized) return null;
+  if (/\.svg$/i.test(normalized)) {
+    return normalized;
+  }
+  if (/\.png$/i.test(normalized)) {
+    return normalizeSlug(normalized.replace(/\.png$/i, '.svg'));
+  }
+  return normalizeSlug(`${normalized}.svg`);
+}
+
+function deriveSlugMetadata(slug, payload, existing) {
+  const canonicalSlug = resolveCanonicalSlug(slug || (existing && existing.slug));
+  const fromExistingSlug = existing && typeof existing.slug === 'string' ? existing.slug : null;
+  const finalSlug = canonicalSlug || resolveCanonicalSlug(fromExistingSlug) || fromExistingSlug || '';
+  const slugBase = finalSlug ? finalSlug.replace(/\.svg$/i, '') : '';
+  const slugSegments = finalSlug ? finalSlug.split('/') : [];
+  const directorySegments = slugSegments.length > 1 ? slugSegments.slice(0, -1) : [];
+  const directory = directorySegments.join('/');
+  const filenameFallback = slugSegments.length ? slugSegments[slugSegments.length - 1] : '';
+  const providedFilename = sanitizeFilename(payload && payload.filename, existing && existing.filename);
+  const normalizedFilename = sanitizeFilename(providedFilename, filenameFallback) || filenameFallback;
+  const svgFilename = normalizedFilename.toLowerCase().endsWith('.svg')
+    ? normalizedFilename
+    : normalizedFilename
+      ? `${normalizedFilename}.svg`
+      : filenameFallback;
+  const baseFilename = svgFilename ? svgFilename.replace(/\.svg$/i, '') : slugBase.split('/').pop() || '';
+  const pngFilename = baseFilename ? `${baseFilename}.png` : existing && existing.pngFilename ? existing.pngFilename : '';
+  const pngSlugFromPayload = normalizeSlug(payload && payload.pngSlug);
+  const pngSlug = pngSlugFromPayload
+    ? pngSlugFromPayload
+    : slugBase
+      ? `${slugBase}.png`
+      : existing && typeof existing.pngSlug === 'string'
+        ? existing.pngSlug
+        : '';
+
+  return {
+    slug: finalSlug,
+    slugBase,
+    slugDirectory: directory,
+    filename: svgFilename || filenameFallback,
+    filenameBase: baseFilename,
+    slugExtension: 'svg',
+    pngFilename,
+    pngSlug,
+    pngExtension: pngFilename ? 'png' : '',
+    requestedSlug: slug
+  };
+}
+
+function sanitizePayloadString(value, fallback) {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+  return typeof fallback === 'string' ? fallback : undefined;
+}
+
 function buildSvgEntry(slug, payload, existing) {
   const now = new Date().toISOString();
-  const summary = sanitizeOptionalText(payload.summary);
+  const metadata = deriveSlugMetadata(slug, payload || {}, existing || {});
+  const summary =
+    payload && Object.prototype.hasOwnProperty.call(payload, 'summary')
+      ? sanitizeOptionalText(payload.summary)
+      : sanitizeOptionalText(existing && existing.summary);
+  const description =
+    payload && Object.prototype.hasOwnProperty.call(payload, 'description')
+      ? sanitizeOptionalText(payload.description)
+      : sanitizeOptionalText(existing && existing.description);
   const storedCreatedAt = existing && typeof existing.createdAt === 'string' ? existing.createdAt : null;
-  const createdAt = typeof payload.createdAt === 'string' && payload.createdAt.trim()
-    ? payload.createdAt.trim()
-    : storedCreatedAt || now;
+  const createdAt = sanitizePayloadString(payload && payload.createdAt, storedCreatedAt) || now;
   const entry = {
-    slug,
-    title: sanitizeRequiredText(payload.title),
-    tool: sanitizeRequiredText(payload.tool),
-    svg: typeof payload.svg === 'string' ? payload.svg : '',
-    createdAt
+    slug: metadata.slug,
+    slugBase: metadata.slugBase,
+    slugDirectory: metadata.slugDirectory,
+    slugExtension: metadata.slugExtension,
+    filename: metadata.filename,
+    filenameBase: metadata.filenameBase,
+    pngFilename: metadata.pngFilename,
+    pngSlug: metadata.pngSlug,
+    pngExtension: metadata.pngExtension,
+    title:
+      payload && Object.prototype.hasOwnProperty.call(payload, 'title')
+        ? sanitizeRequiredText(payload.title)
+        : sanitizeRequiredText(existing && existing.title),
+    tool:
+      payload && Object.prototype.hasOwnProperty.call(payload, 'tool')
+        ? sanitizeRequiredText(payload.tool)
+        : sanitizeRequiredText(existing && existing.tool),
+    toolId:
+      payload && Object.prototype.hasOwnProperty.call(payload, 'toolId')
+        ? sanitizeRequiredText(payload.toolId)
+        : sanitizeRequiredText(existing && existing.toolId),
+    description,
+    summary,
+    svg:
+      payload && Object.prototype.hasOwnProperty.call(payload, 'svg') && typeof payload.svg === 'string'
+        ? payload.svg
+        : existing && typeof existing.svg === 'string'
+          ? existing.svg
+          : '',
+    png:
+      payload && Object.prototype.hasOwnProperty.call(payload, 'png') && typeof payload.png === 'string'
+        ? payload.png
+        : existing && typeof existing.png === 'string'
+          ? existing.png
+          : '',
+    createdAt,
+    updatedAt: now
   };
+  if (metadata.slugBase && !entry.slugBase) {
+    entry.slugBase = metadata.slugBase;
+  }
   if (summary) {
     entry.summary = summary;
+  } else if (entry.summary === undefined) {
+    delete entry.summary;
+  }
+  if (description) {
+    entry.description = description;
+  } else if (entry.description === undefined) {
+    delete entry.description;
   }
   return entry;
 }
@@ -272,57 +392,107 @@ async function readFromKv(slug) {
   }
 }
 
-async function getSvg(slug) {
+function resolveReadCandidates(slug) {
+  const candidates = [];
   const normalized = normalizeSlug(slug);
-  if (!normalized) return null;
+  if (!normalized) {
+    return candidates;
+  }
+  const canonical = resolveCanonicalSlug(normalized);
+  if (canonical) {
+    candidates.push(canonical);
+  }
+  if (normalized && normalized !== canonical) {
+    candidates.push(normalized);
+  }
+  if (/\.png$/i.test(normalized)) {
+    const svgVersion = resolveCanonicalSlug(normalized);
+    if (svgVersion && !candidates.includes(svgVersion)) {
+      candidates.push(svgVersion);
+    }
+  }
+  return Array.from(new Set(candidates));
+}
+
+async function getSvg(slug) {
+  const candidates = resolveReadCandidates(slug);
+  if (!candidates.length) return null;
   const storeMode = getStoreMode();
   const useKv = storeMode === 'kv';
   if (useKv) {
-    const kvValue = await readFromKv(normalized);
-    if (kvValue) {
-      const entry = buildSvgEntry(normalized, kvValue, kvValue);
-      applyStorageMetadata(entry, 'kv');
-      writeToMemory(normalized, entry);
-      return clone(entry);
+    for (const candidate of candidates) {
+      const kvValue = await readFromKv(candidate);
+      if (kvValue) {
+        const entry = buildSvgEntry(candidate, kvValue, kvValue);
+        applyStorageMetadata(entry, 'kv');
+        writeToMemory(entry.slug, entry);
+        return clone(entry);
+      }
     }
   }
-  const memoryValue = readFromMemory(normalized);
-  if (memoryValue) {
-    const entryMode = storeMode === 'memory'
-      ? 'memory'
-      : memoryValue.mode || memoryValue.storage || storeMode;
-    const entry = applyStorageMetadata(clone(memoryValue), entryMode);
-    return entry;
+  for (const candidate of candidates) {
+    const memoryValue = readFromMemory(candidate);
+    if (memoryValue) {
+      const entryMode = storeMode === 'memory'
+        ? 'memory'
+        : memoryValue.mode || memoryValue.storage || storeMode;
+      const entry = applyStorageMetadata(clone(memoryValue), entryMode);
+      return entry;
+    }
   }
   return null;
 }
 
 async function setSvg(slug, payload) {
-  const normalized = normalizeSlug(slug || (payload && payload.slug));
-  if (!normalized) return null;
-  const existing = readFromMemory(normalized);
-  const entry = buildSvgEntry(normalized, payload || {}, existing || null);
+  const payloadObject = payload || {};
+  const inputSlug = typeof slug === 'string' ? slug : payloadObject.slug;
+  const canonicalSlug = resolveCanonicalSlug(inputSlug || payloadObject.slug);
+  if (!canonicalSlug) return null;
+  const fallbackSlug = normalizeSlug(inputSlug || payloadObject.slug) || null;
+  let existing = readFromMemory(canonicalSlug);
+  if (!existing && fallbackSlug && fallbackSlug !== canonicalSlug) {
+    existing = readFromMemory(fallbackSlug);
+  }
+  const entry = buildSvgEntry(canonicalSlug, payloadObject, existing || null);
   const storeMode = getStoreMode();
   if (storeMode === 'kv') {
-    await writeToKv(normalized, entry);
+    await writeToKv(entry.slug, entry);
+    if (fallbackSlug && fallbackSlug !== entry.slug) {
+      try {
+        await deleteFromKv(fallbackSlug);
+      } catch (error) {
+        // ignore fallback cleanup failures
+      }
+    }
     const annotated = applyStorageMetadata({ ...entry }, 'kv');
-    writeToMemory(normalized, annotated);
+    writeToMemory(entry.slug, annotated);
+    if (fallbackSlug && fallbackSlug !== entry.slug) {
+      deleteFromMemory(fallbackSlug);
+    }
     return clone(annotated);
   }
   const annotated = applyStorageMetadata(entry, storeMode);
-  writeToMemory(normalized, annotated);
+  writeToMemory(entry.slug, annotated);
+  if (fallbackSlug && fallbackSlug !== entry.slug) {
+    deleteFromMemory(fallbackSlug);
+  }
   return clone(annotated);
 }
 
 async function deleteSvg(slug) {
-  const normalized = normalizeSlug(slug);
-  if (!normalized) return false;
+  const candidates = resolveReadCandidates(slug);
+  if (!candidates.length) return false;
   const storeMode = getStoreMode();
-  if (storeMode === 'kv') {
-    await deleteFromKv(normalized);
+  const deletedCandidates = new Set();
+  for (const candidate of candidates) {
+    if (deletedCandidates.has(candidate)) continue;
+    if (storeMode === 'kv') {
+      await deleteFromKv(candidate);
+    }
+    deleteFromMemory(candidate);
+    deletedCandidates.add(candidate);
   }
-  deleteFromMemory(normalized);
-  return true;
+  return deletedCandidates.size > 0;
 }
 
 async function listSvgs() {
@@ -338,23 +508,44 @@ async function listSvgs() {
       throw new KvOperationError('Failed to read SVG index from KV', { cause: error });
     }
     for (const value of slugs) {
-      const normalized = normalizeSlug(value);
-      if (!normalized) continue;
-      const stored = await readFromKv(normalized);
+      const canonical = resolveCanonicalSlug(value);
+      const normalizedValue = normalizeSlug(value);
+      const primarySlug = canonical || normalizedValue;
+      if (!primarySlug) continue;
+      let stored = await readFromKv(primarySlug);
+      let sourceSlug = primarySlug;
+      if (!stored && canonical && normalizedValue && canonical !== normalizedValue) {
+        stored = await readFromKv(normalizedValue);
+        if (stored) {
+          sourceSlug = normalizedValue;
+        }
+      }
       if (!stored) continue;
-      const entry = buildSvgEntry(normalized, stored, stored);
+      const entry = buildSvgEntry(sourceSlug, stored, stored);
       applyStorageMetadata(entry, 'kv');
-      writeToMemory(normalized, entry);
+      writeToMemory(entry.slug, entry);
       entries.push(clone(entry));
     }
     return entries;
   }
   memoryIndex.forEach(slug => {
-    const normalized = normalizeSlug(slug);
+    const canonical = resolveCanonicalSlug(slug);
+    const normalized = canonical || normalizeSlug(slug);
     if (!normalized) return;
-    const stored = readFromMemory(normalized);
+    let stored = readFromMemory(normalized);
+    if (!stored && canonical && normalized !== canonical) {
+      stored = readFromMemory(canonical);
+    }
+    if (!stored && slug !== normalized) {
+      const fallback = normalizeSlug(slug);
+      if (fallback && fallback !== normalized) {
+        stored = readFromMemory(fallback);
+      }
+    }
     if (!stored) return;
-    const annotated = applyStorageMetadata(stored, storeMode);
+    const normalizedEntry = buildSvgEntry(normalized, stored, stored);
+    const annotated = applyStorageMetadata(normalizedEntry, storeMode);
+    writeToMemory(annotated.slug || normalized, annotated);
     entries.push(clone(annotated));
   });
   return entries;
@@ -362,6 +553,7 @@ async function listSvgs() {
 
 module.exports = {
   normalizeSlug,
+  resolveCanonicalSlug,
   getSvg,
   setSvg,
   deleteSvg,

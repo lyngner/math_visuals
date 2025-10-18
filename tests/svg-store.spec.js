@@ -22,6 +22,9 @@ const {
   getStoreMode
 } = require('../api/_lib/svg-store');
 
+const PNG_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIW2N89+7dfwAImwPfLpmj0gAAAABJRU5ErkJggg==';
+
 function clearMemoryStore() {
   if (global.__SVG_MEMORY_STORE__) {
     global.__SVG_MEMORY_STORE__.clear();
@@ -71,21 +74,25 @@ test.describe('svg-store memory mode', () => {
       title: 'Memory entry',
       tool: 'editor',
       svg: '<svg>memory</svg>',
-      summary: 'Stored in memory'
+      summary: 'Stored in memory',
+      png: PNG_DATA_URL
     });
     expect(stored).not.toBeNull();
     expect(stored.storage).toBe('memory');
     expect(stored.slug).toBe('memory/example.svg');
+    expect(stored.png).toBe(PNG_DATA_URL);
 
     const listed = await listSvgs();
     expect(Array.isArray(listed)).toBe(true);
     expect(listed).toHaveLength(1);
     expect(listed[0].summary).toBe('Stored in memory');
     expect(listed[0].mode).toBe('memory');
+    expect(listed[0].png).toBe(PNG_DATA_URL);
 
     const fetched = await getSvg('memory/example.svg');
     expect(fetched).not.toBeNull();
     expect(fetched.title).toBe('Memory entry');
+    expect(fetched.png).toBe(PNG_DATA_URL);
     expect(getStoreMode()).toBe('memory');
   });
 });
@@ -95,11 +102,13 @@ test.describe('svg-store kv mode', () => {
     const stored = await setSvg('Icons/Star.svg', {
       title: 'Star',
       tool: 'vector',
-      svg: '<svg>star</svg>'
+      svg: '<svg>star</svg>',
+      png: PNG_DATA_URL
     });
     expect(stored).not.toBeNull();
     expect(stored.mode).toBe('kv');
     expect(stored.slug).toBe('icons/star.svg');
+    expect(stored.png).toBe(PNG_DATA_URL);
 
     // Simuler ny prosess ved å tømme minneindeksen.
     clearMemoryStore();
@@ -108,10 +117,12 @@ test.describe('svg-store kv mode', () => {
     expect(listed).toHaveLength(1);
     expect(listed[0].mode).toBe('kv');
     expect(listed[0].svg).toBe('<svg>star</svg>');
+    expect(listed[0].png).toBe(PNG_DATA_URL);
 
     const fetched = await getSvg('icons/star.svg');
     expect(fetched).not.toBeNull();
     expect(fetched.storage).toBe('kv');
+    expect(fetched.png).toBe(PNG_DATA_URL);
 
     const deleted = await deleteSvg('icons/star.svg');
     expect(deleted).toBe(true);

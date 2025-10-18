@@ -3,6 +3,7 @@
 const { URL } = require('url');
 const {
   normalizeSlug,
+  resolveCanonicalSlug,
   getSvg,
   setSvg,
   deleteSvg,
@@ -114,10 +115,60 @@ function buildOrigin(req) {
   return `${protocol}://${host}`;
 }
 
+function buildFileUrls(entry) {
+  if (!entry || typeof entry !== 'object') return { files: {}, svgUrl: undefined, pngUrl: undefined };
+  const slug = typeof entry.slug === 'string' ? entry.slug : '';
+  const slugBase = typeof entry.slugBase === 'string' && entry.slugBase
+    ? entry.slugBase
+    : slug
+      ? slug.replace(/\.svg$/i, '')
+      : '';
+  const pngSlug = typeof entry.pngSlug === 'string' && entry.pngSlug
+    ? entry.pngSlug
+    : slugBase
+      ? `${slugBase}.png`
+      : '';
+  const svgUrl = slug ? `/bildearkiv/${slug}` : undefined;
+  const pngUrl = pngSlug ? `/bildearkiv/${pngSlug}` : undefined;
+  return {
+    files: {
+      svg: svgUrl,
+      png: pngUrl
+    },
+    svgUrl,
+    pngUrl,
+    slugBase,
+    pngSlug
+  };
+}
+
+function augmentEntry(entry) {
+  if (!entry || typeof entry !== 'object') return entry;
+  const cloned = { ...entry };
+  const { files, svgUrl, pngUrl, slugBase, pngSlug } = buildFileUrls(cloned);
+  cloned.files = files;
+  cloned.urls = files;
+  if (svgUrl) cloned.svgUrl = svgUrl;
+  if (pngUrl) cloned.pngUrl = pngUrl;
+  if (slugBase && !cloned.slugBase) cloned.slugBase = slugBase;
+  if (pngSlug && !cloned.pngSlug) cloned.pngSlug = pngSlug;
+  return cloned;
+}
+
+function augmentEntries(entries) {
+  if (!Array.isArray(entries)) return [];
+  return entries.map(entry => augmentEntry(entry));
+}
+
 function extractSlugFromBody(body, fallback) {
   if (body && typeof body.slug === 'string') {
+    const canonical = resolveCanonicalSlug(body.slug);
+    if (canonical) return canonical;
     const normalized = normalizeSlug(body.slug);
-    if (normalized) return normalized;
+    if (normalized) {
+      const resolved = resolveCanonicalSlug(normalized);
+      return resolved || normalized;
+    }
   }
   return fallback || null;
 }
@@ -151,7 +202,8 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const querySlug = normalizeSlug(url.searchParams.get('slug'));
+  const querySlugInput = url.searchParams.get('slug');
+  const querySlug = resolveCanonicalSlug(querySlugInput) || normalizeSlug(querySlugInput);
 
   try {
     if (req.method === 'GET') {
@@ -162,7 +214,7 @@ module.exports = async function handler(req, res) {
           sendJson(res, 404, { error: 'Not Found', ...metadata });
           return;
         }
-        const payload = { ...entry };
+        const payload = augmentEntry(entry);
         applyModeHeaders(res, payload.mode);
         sendJson(res, 200, payload);
         return;
@@ -174,7 +226,7 @@ module.exports = async function handler(req, res) {
       const effectiveMode = entries.length ? entries[0].mode : currentMode;
       const listMetadata = buildModeMetadata(effectiveMode);
       applyModeHeaders(res, listMetadata.mode);
-      sendJson(res, 200, { ...listMetadata, entries });
+      sendJson(res, 200, { ...listMetadata, entries: augmentEntries(entries) });
       return;
     }
 
@@ -191,13 +243,22 @@ module.exports = async function handler(req, res) {
         sendJson(res, 400, { error: 'Slug is required' });
         return;
       }
+      if (!body || typeof body.svg !== 'string' || !body.svg.length) {
+        sendJson(res, 400, { error: 'SVG data is required' });
+        return;
+      }
+      if (!body || typeof body.png !== 'string' || !body.png.length) {
+        sendJson(res, 400, { error: 'PNG data is required' });
+        return;
+      }
+      body.slug = slugFromBody;
       const stored = await setSvg(slugFromBody, body);
       if (!stored) {
         sendJson(res, 400, { error: 'Unable to store SVG entry' });
         return;
       }
       applyModeHeaders(res, stored.mode);
-      sendJson(res, 200, stored);
+      sendJson(res, 200, augmentEntry(stored));
       return;
     }
 

@@ -55,7 +55,10 @@
 
     const link = document.createElement('a');
     link.className = 'svg-archive__link';
-    link.href = `/svg/${entry.slug}`;
+    const defaultSvgPath = entry.slug ? `/bildearkiv/${entry.slug}` : '';
+    const legacySvgPath = entry.slug ? `/svg/${entry.slug}` : '';
+    const linkHref = entry.svgUrl || defaultSvgPath || legacySvgPath || '#';
+    link.href = linkHref;
     link.target = '_blank';
     link.rel = 'noopener';
 
@@ -63,7 +66,7 @@
     preview.className = 'svg-archive__preview';
 
     const img = document.createElement('img');
-    img.src = `/svg/${entry.slug}`;
+    img.src = entry.pngUrl || entry.svgUrl || defaultSvgPath || legacySvgPath || '';
     img.alt = entry.title || entry.slug || 'SVG-fil';
     img.loading = 'lazy';
 
@@ -197,18 +200,61 @@
       const payload = await response.json();
       const entries = Array.isArray(payload.entries) ? payload.entries : [];
       allEntries = entries
-        .map(entry => ({
-          slug: typeof entry.slug === 'string' ? entry.slug.trim() : '',
-          title: typeof entry.title === 'string' ? entry.title.trim() : '',
-          tool: typeof entry.tool === 'string' ? entry.tool.trim() : '',
-          createdAt:
+        .map(entry => {
+          const slug = typeof entry.slug === 'string' ? entry.slug.trim() : '';
+          const svgUrl = typeof entry.svgUrl === 'string'
+            ? entry.svgUrl
+            : entry && entry.files && typeof entry.files.svg === 'string'
+              ? entry.files.svg
+              : slug
+                ? `/bildearkiv/${slug}`
+                : '';
+          const pngUrl = typeof entry.pngUrl === 'string'
+            ? entry.pngUrl
+            : entry && entry.files && typeof entry.files.png === 'string'
+              ? entry.files.png
+              : '';
+          const toolValue = typeof entry.tool === 'string' && entry.tool.trim()
+            ? entry.tool.trim()
+            : typeof entry.toolId === 'string'
+              ? entry.toolId.trim()
+              : '';
+          const createdAt =
             typeof entry.createdAt === 'string' && entry.createdAt.trim()
               ? entry.createdAt.trim()
-              : typeof entry.updatedAt === 'string'
+              : typeof entry.updatedAt === 'string' && entry.updatedAt.trim()
                 ? entry.updatedAt.trim()
-                : '',
-          summary: typeof entry.summary === 'string' ? entry.summary.trim() : ''
-        }))
+                : '';
+          const summary = typeof entry.summary === 'string' ? entry.summary.trim() : '';
+          const title = typeof entry.title === 'string' && entry.title.trim()
+            ? entry.title.trim()
+            : typeof entry.filenameBase === 'string' && entry.filenameBase.trim()
+              ? entry.filenameBase.trim()
+              : slug;
+          return {
+            slug,
+            slugBase:
+              typeof entry.slugBase === 'string' && entry.slugBase.trim()
+                ? entry.slugBase.trim()
+                : slug && slug.endsWith('.svg')
+                  ? slug.replace(/\.svg$/i, '')
+                  : slug,
+            title,
+            tool: toolValue,
+            createdAt,
+            updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt.trim() : '',
+            summary,
+            svgUrl,
+            pngUrl,
+            files: entry && entry.files && typeof entry.files === 'object'
+              ? {
+                  svg: svgUrl,
+                  png: pngUrl,
+                  ...entry.files
+                }
+              : { svg: svgUrl, png: pngUrl }
+          };
+        })
         .filter(entry => entry.slug);
 
       allEntries.sort((a, b) => {

@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/bildearkiv/(.*)\\.svg", "destination": "/api/svg/raw?path=/$1.svg" },
+    { "source": "/bildearkiv/(.*)\\.png", "destination": "/api/svg/raw?path=/$1.png" },
     { "source": "/svg/(.*)", "destination": "/api/svg/raw?path=/$1" }
   ]
 }

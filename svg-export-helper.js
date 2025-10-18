@@ -126,6 +126,115 @@
     return name.toLowerCase().endsWith('.svg') ? name : `${name}.svg`;
   }
 
+  function measureSvgDimensions(svgElement) {
+    if (!svgElement) {
+      return { width: 0, height: 0 };
+    }
+    const viewBox = svgElement.viewBox && svgElement.viewBox.baseVal;
+    if (viewBox && Number.isFinite(viewBox.width) && Number.isFinite(viewBox.height)) {
+      return { width: viewBox.width, height: viewBox.height };
+    }
+    const widthAttr = svgElement.getAttribute ? Number.parseFloat(svgElement.getAttribute('width')) : NaN;
+    const heightAttr = svgElement.getAttribute ? Number.parseFloat(svgElement.getAttribute('height')) : NaN;
+    if (Number.isFinite(widthAttr) && Number.isFinite(heightAttr) && widthAttr > 0 && heightAttr > 0) {
+      return { width: widthAttr, height: heightAttr };
+    }
+    try {
+      if (typeof svgElement.getBBox === 'function') {
+        const box = svgElement.getBBox();
+        if (box && Number.isFinite(box.width) && Number.isFinite(box.height) && box.width > 0 && box.height > 0) {
+          return { width: box.width, height: box.height };
+        }
+      }
+    } catch (error) {
+      // ignore getBBox errors for invisible elements
+    }
+    if (typeof svgElement.getBoundingClientRect === 'function') {
+      const rect = svgElement.getBoundingClientRect();
+      if (rect && Number.isFinite(rect.width) && Number.isFinite(rect.height)) {
+        return { width: rect.width, height: rect.height };
+      }
+    }
+    return { width: 1024, height: 768 };
+  }
+
+  async function renderPngFromSvg(svgElement, svgString, options = {}) {
+    if (typeof Blob !== 'function' || typeof svgString !== 'string' || !svgString.length) {
+      return null;
+    }
+    if (!global.URL || typeof global.URL.createObjectURL !== 'function' || typeof global.URL.revokeObjectURL !== 'function') {
+      return null;
+    }
+    const doc = svgElement && svgElement.ownerDocument ? svgElement.ownerDocument : typeof document !== 'undefined' ? document : null;
+    if (!doc || typeof doc.createElement !== 'function') {
+      return null;
+    }
+    const dimensions = measureSvgDimensions(svgElement);
+    const baseWidth = Number.isFinite(options.width) && options.width > 0 ? options.width : dimensions.width || svgElement.clientWidth || 1024;
+    const baseHeight = Number.isFinite(options.height) && options.height > 0 ? options.height : dimensions.height || svgElement.clientHeight || 768;
+    const scale = Number.isFinite(options.scale) && options.scale > 0 ? options.scale : 2;
+    const targetWidth = Math.max(1, Math.round(baseWidth * scale));
+    const targetHeight = Math.max(1, Math.round(baseHeight * scale));
+
+    return new Promise((resolve, reject) => {
+      let objectUrl;
+      try {
+        const blob = new Blob([svgString], {
+          type: 'image/svg+xml;charset=utf-8'
+        });
+        objectUrl = global.URL.createObjectURL(blob);
+      } catch (error) {
+        reject(error);
+        return;
+      }
+
+      const image = new Image();
+      image.decoding = 'async';
+      image.onload = () => {
+        try {
+          const canvas = doc.createElement('canvas');
+          canvas.width = Number.isFinite(targetWidth) && targetWidth > 0 ? targetWidth : image.naturalWidth || 1;
+          canvas.height = Number.isFinite(targetHeight) && targetHeight > 0 ? targetHeight : image.naturalHeight || 1;
+          const context = canvas.getContext('2d');
+          if (!context) {
+            throw new Error('PNG canvas context unavailable');
+          }
+          const background = typeof options.background === 'string' ? options.background : '#ffffff';
+          if (background && background.toLowerCase() !== 'transparent') {
+            context.fillStyle = background;
+            context.fillRect(0, 0, canvas.width, canvas.height);
+          } else {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+          }
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/png');
+          resolve({ dataUrl, width: canvas.width, height: canvas.height });
+        } catch (conversionError) {
+          reject(conversionError);
+        } finally {
+          if (objectUrl) {
+            try {
+              global.URL.revokeObjectURL(objectUrl);
+            } catch (error) {
+              // ignore revoke errors
+            }
+          }
+        }
+      };
+      image.onerror = () => {
+        if (objectUrl) {
+          try {
+            global.URL.revokeObjectURL(objectUrl);
+          } catch (error) {
+            // ignore revoke errors
+          }
+        }
+        reject(new Error('PNG rendering failed'));
+      };
+      image.src = objectUrl;
+    });
+  }
+
   async function exportSvgWithArchive(svgElement, suggestedName, toolId, options = {}) {
     if (!svgElement) throw new Error('svgElement mangler');
     const doc = svgElement.ownerDocument || (typeof document !== 'undefined' ? document : null);
@@ -173,45 +282,85 @@
       }, 1000);
     }
 
+    const slugParts = [];
+    const toolSlug = toolId ? slugify(toolId, 'verktoy') : '';
+    if (toolSlug) {
+      slugParts.push(toolSlug);
+    }
+    if (slug) {
+      slugParts.push(slug);
+    }
+    const slugBasePath = slugParts.join('/');
+    const svgSlug = slugBasePath ? `${slugBasePath}.svg` : `${slug}.svg`;
+    const pngSlug = slugBasePath ? `${slugBasePath}.png` : `${slug}.png`;
+    const slugDirectory = slugParts.length > 1 ? slugParts.slice(0, -1).join('/') : '';
+    const filenameBase = sanitizeBaseName(finalName, baseSuggested).replace(/\.svg$/i, '');
+    const svgFilename = withSvgFileSuffix(filenameBase);
+    const pngFilename = `${filenameBase}.png`;
+
+    let pngResult = null;
+    try {
+      pngResult = await renderPngFromSvg(svgElement, svgString, {
+        scale: options.pngScale || 2,
+        background: options.pngBackground || '#ffffff'
+      });
+    } catch (error) {
+      console.warn('Kunne ikke generere PNG for arkivopplasting', error);
+    }
+
     const payload = {
-      toolId: toolId || 'ukjent',
-      filename: finalName,
-      slug,
+      toolId: toolId || toolSlug || 'ukjent',
+      tool: typeof options.toolName === 'string' ? options.toolName : toolId || toolSlug || 'ukjent',
+      filename: svgFilename,
+      filenameBase,
+      slug: svgSlug,
+      slugBase: slugBasePath,
+      slugDirectory,
+      slugExtension: 'svg',
+      pngFilename,
+      pngSlug,
       description,
       summary: options.summary || null,
       createdAt: new Date().toISOString(),
-      svg: svgString
+      svg: svgString,
+      png: pngResult && pngResult.dataUrl ? pngResult.dataUrl : '',
+      pngWidth: pngResult && pngResult.width ? pngResult.width : undefined,
+      pngHeight: pngResult && pngResult.height ? pngResult.height : undefined
     };
 
     let uploadPromise = null;
     if (typeof global.fetch === 'function') {
-      uploadPromise = global.fetch('/api/svg', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-      uploadPromise
-        .then(response => {
-          if (response && response.ok) {
-            showToast(`SVG lastet ned og arkivert som ${finalName}.`, 'success');
-          } else {
-            const status = response ? response.status : 'ukjent';
-            showToast(`SVG lastet ned, men arkivopplasting feilet (status ${status}).`, 'error');
-          }
-        })
-        .catch(error => {
-          const message = error && error.message ? error.message : String(error);
-          showToast(`SVG lastet ned, men arkivopplasting feilet: ${message}.`, 'error');
+      if (!payload.png) {
+        showToast('SVG lastet ned, men PNG-forhåndsvisning kunne ikke genereres for arkivet.', 'error');
+      } else {
+        uploadPromise = global.fetch('/api/svg', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify(payload)
         });
+        uploadPromise
+          .then(response => {
+            if (response && response.ok) {
+              showToast(`SVG lastet ned og arkivert som ${finalName}.`, 'success');
+            } else {
+              const status = response ? response.status : 'ukjent';
+              showToast(`SVG lastet ned, men arkivopplasting feilet (status ${status}).`, 'error');
+            }
+          })
+          .catch(error => {
+            const message = error && error.message ? error.message : String(error);
+            showToast(`SVG lastet ned, men arkivopplasting feilet: ${message}.`, 'error');
+          });
+      }
     } else {
       showToast(`SVG lastet ned som ${finalName}. (Arkivopplasting ikke tilgjengelig.)`, 'info');
     }
 
     return {
       filename: finalName,
-      slug,
+      slug: svgSlug,
       description,
       uploadPromise
     };
