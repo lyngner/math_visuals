@@ -593,22 +593,31 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     async put(path, payload) {
       const rawPath = typeof path === 'string' && path.trim() ? path.trim() : '/';
       const normalized = normalizePath(rawPath);
-      const target = normalized || rawPath;
+      const isCanonicalRequest = normalized && rawPath === normalized;
+      const target = rawPath;
       const entryPayload = {
         examples: Array.isArray(payload && payload.examples) ? payload.examples : [],
         deletedProvided: Array.isArray(payload && payload.deletedProvided) ? payload.deletedProvided : [],
         updatedAt: typeof (payload && payload.updatedAt) === 'string' ? payload.updatedAt : new Date().toISOString(),
         provided: payload && Array.isArray(payload.provided) ? payload.provided : undefined
       };
-      setEntry(target, entryPayload, { promote: true });
+      setEntry(target, entryPayload, { promote: isCanonicalRequest });
       const entry = readEntry(target);
-      putEvents.push(target, { path: target, payload: clone(entryPayload), entry: entry ? clone(entry) : undefined });
+      if (isCanonicalRequest) {
+        const eventPath = normalized || target;
+        putEvents.push(eventPath, { path: eventPath, payload: clone(entryPayload), entry: entry ? clone(entry) : undefined });
+      }
       return toApiEntry(target);
     },
     async delete(path) {
       const rawPath = typeof path === 'string' && path.trim() ? path.trim() : '/';
+      const normalized = normalizePath(rawPath);
+      const isCanonicalRequest = normalized && rawPath === normalized;
       deleteEntry(rawPath);
-      deleteEvents.push(rawPath, { path: normalizePath(rawPath) || rawPath, rawPath });
+      if (isCanonicalRequest) {
+        const eventPath = normalized || rawPath;
+        deleteEvents.push(eventPath, { path: eventPath, rawPath });
+      }
       return { ok: true, ...buildModeMetadata() };
     }
   };
