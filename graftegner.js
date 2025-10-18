@@ -218,9 +218,36 @@ function sanitizePointMarkerValue(value) {
   if (typeof value !== 'string') return '';
   return value.trim();
 }
+function parsePointMarkerList(value) {
+  if (typeof value !== 'string') return [];
+  return value
+    .split(';')
+    .map(part => sanitizePointMarkerValue(part))
+    .map(part => part.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+function formatPointMarkerList(markers) {
+  if (!Array.isArray(markers) || !markers.length) return '';
+  return markers.map(marker => sanitizePointMarkerValue(marker)).filter(Boolean).join('; ');
+}
+function normalizePointMarkerValue(value) {
+  const markers = parsePointMarkerList(value);
+  if (!markers.length) return '';
+  return formatPointMarkerList(markers);
+}
+function markerValueForIndex(markers, index) {
+  if (!Array.isArray(markers) || markers.length === 0) {
+    return '';
+  }
+  if (index < markers.length) {
+    return markers[index];
+  }
+  return markers[markers.length - 1];
+}
 function isDefaultPointMarker(value) {
-  const normalized = sanitizePointMarkerValue(value);
-  return !normalized || normalized === DEFAULT_POINT_MARKER;
+  const markers = parsePointMarkerList(value);
+  if (!markers.length) return true;
+  return markers.every(marker => sanitizePointMarkerValue(marker) === DEFAULT_POINT_MARKER);
 }
 const FONT_LIMITS = {
   min: 6,
@@ -299,7 +326,7 @@ function buildSimple() {
   if (coords) {
     lines.push(`coords=${coords}`);
   }
-  const marker = sanitizePointMarkerValue(paramStr('marker', ''));
+  const marker = normalizePointMarkerValue(paramStr('marker', ''));
   if (!isDefaultPointMarker(marker)) {
     lines.push(`marker=${marker}`);
   }
@@ -356,6 +383,12 @@ if (typeof window !== 'undefined') {
 let altTextManager = null;
 
 /* ====================== AVANSERT KONFIG ===================== */
+const INITIAL_POINT_MARKER_RAW = paramStr('marker', DEFAULT_POINT_MARKER);
+const INITIAL_POINT_MARKER_NORMALIZED = normalizePointMarkerValue(INITIAL_POINT_MARKER_RAW);
+const INITIAL_POINT_MARKER_LIST = parsePointMarkerList(INITIAL_POINT_MARKER_RAW);
+const INITIAL_POINT_MARKER_VALUE = !INITIAL_POINT_MARKER_NORMALIZED || isDefaultPointMarker(INITIAL_POINT_MARKER_NORMALIZED)
+  ? DEFAULT_POINT_MARKER
+  : INITIAL_POINT_MARKER_NORMALIZED;
 const ADV = {
   axis: {
     labels: {
@@ -402,7 +435,8 @@ const ADV = {
     startX: [1],
     // start-X for glidere (kan overstyres i SIMPLE)
     showCoordsOnHover: true,
-    marker: sanitizePointMarkerValue(paramStr('marker', DEFAULT_POINT_MARKER)) || DEFAULT_POINT_MARKER,
+    marker: INITIAL_POINT_MARKER_VALUE,
+    markerList: INITIAL_POINT_MARKER_LIST,
     decimals: 2,
     guideArrows: true,
     // bare i funksjons-modus
@@ -697,6 +731,7 @@ function parseSimple(txt) {
     linePoints: [],
     answer: null,
     pointMarker: '',
+    pointMarkers: [],
     raw: txt
   };
   const parseFunctionLine = line => {
@@ -755,7 +790,9 @@ function parseSimple(txt) {
     }
     const mm = L.match(/^marker\s*=\s*(.+)$/i);
     if (mm) {
-      out.pointMarker = sanitizePointMarkerValue(mm[1]);
+      const normalizedMarker = normalizePointMarkerValue(mm[1]);
+      out.pointMarkers = parsePointMarkerList(mm[1]);
+      out.pointMarker = normalizedMarker || sanitizePointMarkerValue(mm[1]);
       continue;
     }
     const lm = L.match(/^linepts\s*=\s*(.+)$/i);
@@ -776,6 +813,12 @@ function parseSimple(txt) {
       out.answer = am[1].trim();
       continue;
     }
+  }
+  if (out.pointMarkers.length > out.extraPoints.length) {
+    out.pointMarkers = out.pointMarkers.slice(0, out.extraPoints.length);
+  }
+  if (!out.pointMarker && out.pointMarkers.length) {
+    out.pointMarker = formatPointMarkerList(out.pointMarkers);
   }
   return out;
 }
@@ -3542,11 +3585,78 @@ function parseAnswerToMB(answerLine) {
     return null;
   }
 }
+function formatPointCoordinateForInput(value, step) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '';
+  if (Number.isFinite(step) && step > 0) {
+    return fmtSmartVal(value, step);
+  }
+  return toFixedTrim(value, ADV.points.decimals);
+}
+function formatPointForInput(pt) {
+  if (!Array.isArray(pt) || pt.length < 2) return '';
+  const [x, y] = pt;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return '';
+  const formattedX = formatPointCoordinateForInput(x, stepX());
+  const formattedY = formatPointCoordinateForInput(y, stepY());
+  if (!formattedX || !formattedY) return '';
+  return `(${formattedX}, ${formattedY})`;
+}
+function formatExtraPointsForInput(points) {
+  if (!Array.isArray(points)) return '';
+  return points.map(formatPointForInput).filter(Boolean).join('; ');
+}
+function updateCoordsInputFromPoints(points, options = {}) {
+  if (typeof document === 'undefined') return;
+  const { triggerInput = false, triggerChange = false } = options;
+  const firstGroup = document.querySelector('.func-group[data-index="1"]');
+  if (!firstGroup) return;
+  const input = firstGroup.querySelector('[data-fun]');
+  if (!input) return;
+  const nextValue = formatExtraPointsForInput(points);
+  let currentValue = '';
+  if ('value' in input) {
+    currentValue = input.value != null ? String(input.value) : '';
+  } else if (typeof input.textContent === 'string') {
+    currentValue = input.textContent;
+  }
+  if (nextValue === currentValue) {
+    if (triggerInput || triggerChange) {
+      if (triggerInput) {
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      if (triggerChange) {
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+    return;
+  }
+  const tag = input.tagName ? input.tagName.toUpperCase() : '';
+  if (tag === 'MATH-FIELD' && typeof input.setValue === 'function') {
+    try {
+      input.setValue(nextValue, { format: 'ascii-math' });
+    } catch (_) {
+      if ('value' in input) {
+        input.value = nextValue;
+      }
+    }
+  } else if ('value' in input) {
+    input.value = nextValue;
+  } else {
+    input.textContent = nextValue;
+  }
+  if (triggerInput) {
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  if (triggerChange) {
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+}
 function addFixedPoints() {
   if (!Array.isArray(SIMPLE_PARSED.extraPoints)) return;
-  const markerValue = sanitizePointMarkerValue(ADV.points.marker);
-  const useCustomMarker = !isDefaultPointMarker(markerValue);
-  for (const pt of SIMPLE_PARSED.extraPoints) {
+  const markerList = Array.isArray(SIMPLE_PARSED.pointMarkers) && SIMPLE_PARSED.pointMarkers.length
+    ? SIMPLE_PARSED.pointMarkers
+    : parsePointMarkerList(ADV.points.marker);
+  SIMPLE_PARSED.extraPoints.forEach((pt, idx) => {
     const pointOptions = {
       name: '',
       size: POINT_MARKER_SIZE,
@@ -3554,16 +3664,19 @@ function addFixedPoints() {
       fillColor: '#fff',
       strokeColor: '#111827',
       withLabel: true,
-      fixed: true,
+      fixed: false,
       showInfobox: false
     };
+    const markerCandidate = markerValueForIndex(markerList, idx);
+    const markerValue = sanitizePointMarkerValue(markerCandidate);
+    const useCustomMarker = !isDefaultPointMarker(markerValue);
     if (useCustomMarker) {
       pointOptions.strokeOpacity = 0;
       pointOptions.fillOpacity = 0;
     }
     const P = brd.create('point', pt.slice(), pointOptions);
     if (useCustomMarker) {
-      brd.create('text', [pt[0], pt[1], markerValue], {
+      brd.create('text', [() => P.X(), () => P.Y(), markerValue], {
         anchorX: 'middle',
         anchorY: 'middle',
         fontSize: 24,
@@ -3586,7 +3699,20 @@ function addFixedPoints() {
         visible: false
       }));
     }
-  }
+    const updatePointState = commit => {
+      if (!Array.isArray(SIMPLE_PARSED.extraPoints)) return;
+      const x = typeof P.X === 'function' ? P.X() : NaN;
+      const y = typeof P.Y === 'function' ? P.Y() : NaN;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      SIMPLE_PARSED.extraPoints[idx] = [x, y];
+      updateCoordsInputFromPoints(SIMPLE_PARSED.extraPoints, {
+        triggerInput: true,
+        triggerChange: !!commit
+      });
+    };
+    P.on('drag', () => updatePointState(false));
+    P.on('up', () => updatePointState(true));
+  });
 }
 
 /* ================= bygg valgt modus ================= */
@@ -3630,8 +3756,15 @@ function rebuildAll() {
   SIMPLE_PARSED = parseSimple(SIMPLE);
   applyLinePointStart(SIMPLE_PARSED);
   {
-    const parsedMarker = sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker);
-    ADV.points.marker = isDefaultPointMarker(parsedMarker) ? DEFAULT_POINT_MARKER : parsedMarker;
+    const markerList = Array.isArray(SIMPLE_PARSED.pointMarkers)
+      ? SIMPLE_PARSED.pointMarkers.map(sanitizePointMarkerValue).filter(Boolean)
+      : [];
+    const markerFromList = markerList.length ? formatPointMarkerList(markerList) : SIMPLE_PARSED.pointMarker;
+    const normalizedMarker = normalizePointMarkerValue(markerFromList);
+    ADV.points.markerList = markerList.slice();
+    ADV.points.marker = !normalizedMarker || isDefaultPointMarker(normalizedMarker)
+      ? DEFAULT_POINT_MARKER
+      : normalizedMarker;
   }
   MODE = decideMode(SIMPLE_PARSED);
   hideCheckControls();
@@ -4452,20 +4585,20 @@ function setupSettingsForm() {
     const firstRowInput = firstGroup ? firstGroup.querySelector('[data-fun]') : null;
     return firstRowInput ? getFunctionInputValue(firstRowInput) : '';
   };
-  const getPointMarkerInputValue = () => sanitizePointMarkerValue(pointMarkerValue);
+  const getPointMarkerInputValue = () => normalizePointMarkerValue(pointMarkerValue) || '';
   const setPointMarkerInputValue = value => {
-    const normalized = sanitizePointMarkerValue(value);
-    pointMarkerValue = normalized ? normalized : DEFAULT_POINT_MARKER;
+    const normalized = normalizePointMarkerValue(value);
+    pointMarkerValue = normalized || DEFAULT_POINT_MARKER;
     pointMarkerControls.forEach(control => {
       if (!control || !control.input) return;
-      control.input.value = pointMarkerValue;
+      control.input.value = normalized || DEFAULT_POINT_MARKER;
     });
   };
   const syncPointMarkerValueFromInput = input => {
     if (!input) return;
-    const normalized = sanitizePointMarkerValue(input.value);
-    pointMarkerValue = normalized;
-    const displayValue = normalized;
+    const normalized = normalizePointMarkerValue(input.value);
+    pointMarkerValue = normalized || DEFAULT_POINT_MARKER;
+    const displayValue = normalized || DEFAULT_POINT_MARKER;
     pointMarkerControls.forEach(control => {
       if (!control || !control.input) return;
       if (control.input === input) {
@@ -4478,8 +4611,8 @@ function setupSettingsForm() {
     });
   };
   const getPointMarkerValueForExport = () => {
-    const raw = getPointMarkerInputValue();
-    return raw && !isDefaultPointMarker(raw) ? raw : '';
+    const normalized = normalizePointMarkerValue(pointMarkerValue);
+    return normalized && !isDefaultPointMarker(normalized) ? normalized : '';
   };
   const updatePointMarkerVisibility = () => {
     pointMarkerControls.forEach(control => {
@@ -4778,9 +4911,13 @@ function setupSettingsForm() {
     const firstIsCoords = !!firstVal && isCoords(firstVal);
     const lineSpec = interpretLineTemplateFromExpression(firstVal);
     const neededLinePoints = getLinePointCount(lineSpec);
-    const markerInputValue = pointMarkerControls.length ? getPointMarkerInputValue() : null;
-    const parsedMarkerValue = sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker);
-    const markerCandidate = markerInputValue != null ? markerInputValue : parsedMarkerValue;
+    const resolveMarkerValue = value => normalizePointMarkerValue(value) || '';
+    const markerInputValue = pointMarkerControls.length ? resolveMarkerValue(getPointMarkerInputValue()) : '';
+    const parsedMarkerValue = resolveMarkerValue(SIMPLE_PARSED.pointMarker);
+    const parsedMarkerListValue = Array.isArray(SIMPLE_PARSED.pointMarkers) && SIMPLE_PARSED.pointMarkers.length
+      ? resolveMarkerValue(formatPointMarkerList(SIMPLE_PARSED.pointMarkers))
+      : '';
+    const markerCandidate = markerInputValue || parsedMarkerListValue || parsedMarkerValue;
     const lines = [];
     rows.forEach((row, idx) => {
       const funInput = row.querySelector('[data-fun]');
@@ -4790,9 +4927,9 @@ function setupSettingsForm() {
       if (!fun) return;
       if (idx === 0 && firstIsCoords) {
         lines.push(`coords=${fun}`);
-        if (!isDefaultPointMarker(markerCandidate)) {
+        if (markerCandidate && !isDefaultPointMarker(markerCandidate)) {
           lines.push(`marker=${markerCandidate}`);
-        }
+          }
         return;
       }
       const domRaw = domInput ? domInput.value.trim() : '';
@@ -4827,8 +4964,8 @@ function setupSettingsForm() {
       }
     }
     if (!hasMarkerLine && hasCoordsLine) {
-      const markerForFallback = markerInputValue != null ? markerInputValue : parsedMarkerValue;
-      if (!isDefaultPointMarker(markerForFallback)) {
+      const markerForFallback = markerInputValue || parsedMarkerListValue || parsedMarkerValue;
+      if (markerForFallback && !isDefaultPointMarker(markerForFallback)) {
         lines.push(`marker=${markerForFallback}`);
         hasMarkerLine = true;
       }
@@ -4941,7 +5078,9 @@ function setupSettingsForm() {
     const row = input.closest('.func-group');
     if (!row) return;
     const domLabel = row.querySelector('label.domain');
-    if (isExplicitFun(getFunctionInputValue(input))) {
+    const value = getFunctionInputValue(input);
+    const showDomain = isExplicitFun(value);
+    if (showDomain) {
       if (domLabel) domLabel.style.display = '';
     } else {
       if (domLabel) {
@@ -4949,6 +5088,10 @@ function setupSettingsForm() {
         const domInput = domLabel.querySelector('input[data-dom]');
         if (domInput) domInput.value = '';
       }
+    }
+    const mainRow = row.querySelector('.func-row--main--with-marker');
+    if (mainRow) {
+      mainRow.setAttribute('data-has-domain', showDomain ? 'true' : 'false');
     }
     updateGliderVisibility();
     updateLinePointControls({ silent: true });
@@ -4990,7 +5133,7 @@ function setupSettingsForm() {
       <fieldset>
         <legend>Funksjon ${index}</legend>
         <div class="${fieldsClass}">
-          <div class="func-row func-row--main func-row--main--with-marker">
+          <div class="func-row func-row--main func-row--main--with-marker" data-has-domain="true">
             <div class="func-main">
               <label class="func-input">
                 <span>${titleLabel}</span>
@@ -5273,7 +5416,10 @@ function setupSettingsForm() {
     }
     updateGliderVisibility();
     updateLinePointControls({ silent: true });
-    const parsedMarker = sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker);
+    const parsedMarkerValueForInput = Array.isArray(SIMPLE_PARSED.pointMarkers) && SIMPLE_PARSED.pointMarkers.length
+      ? formatPointMarkerList(SIMPLE_PARSED.pointMarkers)
+      : SIMPLE_PARSED.pointMarker;
+    const parsedMarker = normalizePointMarkerValue(parsedMarkerValueForInput);
     setPointMarkerInputValue(parsedMarker);
     updatePointMarkerVisibility();
     syncSimpleFromForm();
@@ -5423,6 +5569,10 @@ function setupSettingsForm() {
     }
     const currentFontSize = sanitizeFontSize(ADV.axis.grid.fontSize, FONT_DEFAULT);
     const p = new URLSearchParams();
+    const parsedMarkerListForExport = Array.isArray(SIMPLE_PARSED.pointMarkers) && SIMPLE_PARSED.pointMarkers.length
+      ? formatPointMarkerList(SIMPLE_PARSED.pointMarkers)
+      : '';
+    const parsedMarkerNormalized = normalizePointMarkerValue(parsedMarkerListForExport || SIMPLE_PARSED.pointMarker);
     let idx = 1;
     (funcRows ? funcRows.querySelectorAll('.func-group') : []).forEach((row, rowIdx) => {
       const funInput = row.querySelector('[data-fun]');
@@ -5433,7 +5583,7 @@ function setupSettingsForm() {
         p.set('coords', fun);
         const markerForParams = pointMarkerControls.length
           ? getPointMarkerValueForExport()
-          : (!isDefaultPointMarker(SIMPLE_PARSED.pointMarker) ? sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker) : '');
+          : (parsedMarkerNormalized && !isDefaultPointMarker(parsedMarkerNormalized) ? parsedMarkerNormalized : '');
         if (markerForParams) {
           p.set('marker', markerForParams);
         }
@@ -5461,8 +5611,8 @@ function setupSettingsForm() {
         .map(pt => `(${formatNumber(pt[0], stepX())}, ${formatNumber(pt[1], stepY())})`);
       if (exportCoords.length) {
         p.set('coords', exportCoords.join('; '));
-        const markerFromParsed = !isDefaultPointMarker(SIMPLE_PARSED.pointMarker)
-          ? sanitizePointMarkerValue(SIMPLE_PARSED.pointMarker)
+        const markerFromParsed = parsedMarkerNormalized && !isDefaultPointMarker(parsedMarkerNormalized)
+          ? parsedMarkerNormalized
           : '';
         if (markerFromParsed) {
           p.set('marker', markerFromParsed);
