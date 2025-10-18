@@ -51,36 +51,36 @@
   function createCard(entry) {
     const item = document.createElement('li');
     item.className = 'svg-archive__item';
-    item.dataset.svgItem = entry.svgSlug || entry.slug;
+    item.dataset.svgItem = entry.svgSlug || entry.slug || entry.baseName || '';
 
-    const link = document.createElement('a');
-    link.className = 'svg-archive__link';
-    link.href = entry.svgUrl || `/svg/${entry.slug}`;
-    link.target = '_blank';
-    link.rel = 'noopener';
+    const card = document.createElement('article');
+    card.className = 'svg-archive__card';
 
     const preview = document.createElement('div');
     preview.className = 'svg-archive__preview';
 
     const img = document.createElement('img');
-    img.src = entry.pngUrl || entry.svgUrl || `/svg/${entry.slug}`;
-    img.alt = entry.title || entry.slug || 'SVG-fil';
+    img.src = entry.thumbnailUrl;
+    img.alt = entry.altText || `Forhåndsvisning av ${entry.displayTitle}`;
     img.loading = 'lazy';
+    img.decoding = 'async';
 
     preview.appendChild(img);
 
-    const content = document.createElement('div');
-    content.className = 'svg-archive__content';
+    const body = document.createElement('div');
+    body.className = 'svg-archive__body';
 
-    const title = document.createElement('p');
+    const title = document.createElement('h3');
     title.className = 'svg-archive__title';
-    title.textContent = entry.title || entry.slug || 'Uten tittel';
+    title.textContent = entry.displayTitle;
+    body.appendChild(title);
 
     const meta = document.createElement('div');
     meta.className = 'svg-archive__meta';
 
     if (entry.tool) {
       const toolTag = document.createElement('span');
+      toolTag.className = 'svg-archive__tag';
       toolTag.textContent = entry.tool;
       meta.appendChild(toolTag);
     }
@@ -93,25 +93,63 @@
       meta.appendChild(time);
     }
 
+    if (entry.sequenceLabel) {
+      const sequence = document.createElement('span');
+      sequence.className = 'svg-archive__sequence';
+      sequence.textContent = entry.sequenceLabel;
+      meta.appendChild(sequence);
+    }
+
     if (!meta.childElementCount) {
       const fallbackMeta = document.createElement('span');
       fallbackMeta.textContent = 'Detaljer ukjent';
       meta.appendChild(fallbackMeta);
     }
 
-    content.appendChild(title);
-    content.appendChild(meta);
+    body.appendChild(meta);
 
-    if (entry.summary) {
-      const summary = document.createElement('p');
-      summary.className = 'svg-archive__summary';
-      summary.textContent = entry.summary;
-      content.appendChild(summary);
+    const fileInfoItems = [];
+    if (entry.baseName) {
+      fileInfoItems.push(`Filnavn: ${entry.baseName}`);
+    }
+    if (entry.fileSizeLabel) {
+      fileInfoItems.push(entry.fileSizeLabel);
     }
 
-    link.appendChild(preview);
-    link.appendChild(content);
-    item.appendChild(link);
+    if (fileInfoItems.length || entry.summary) {
+      const details = document.createElement('p');
+      details.className = 'svg-archive__details';
+      const infoText = [fileInfoItems.join(' · '), entry.summary].filter(Boolean).join(' — ');
+      details.textContent = infoText;
+      body.appendChild(details);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'svg-archive__actions';
+
+    const svgLink = document.createElement('a');
+    svgLink.className = 'svg-archive__action';
+    svgLink.href = entry.svgUrl;
+    svgLink.target = '_blank';
+    svgLink.rel = 'noopener';
+    svgLink.textContent = 'Åpne SVG';
+    svgLink.setAttribute('aria-label', `Åpne SVG-fil for ${entry.displayTitle}`);
+
+    const pngLink = document.createElement('a');
+    pngLink.className = 'svg-archive__action';
+    pngLink.href = entry.pngUrl;
+    pngLink.target = '_blank';
+    pngLink.rel = 'noopener';
+    pngLink.textContent = 'Åpne PNG';
+    pngLink.setAttribute('aria-label', `Åpne PNG-forhåndsvisning for ${entry.displayTitle}`);
+
+    actions.appendChild(svgLink);
+    actions.appendChild(pngLink);
+    body.appendChild(actions);
+
+    card.appendChild(preview);
+    card.appendChild(body);
+    item.appendChild(card);
 
     return item;
   }
@@ -201,6 +239,7 @@
           const slug = typeof entry.slug === 'string' ? entry.slug.trim() : '';
           const files = entry && typeof entry === 'object' && entry.files ? entry.files : {};
           const urls = entry && typeof entry === 'object' && entry.urls ? entry.urls : {};
+          const metadata = entry && typeof entry === 'object' && entry.metadata ? entry.metadata : {};
           const svgFile = files && typeof files === 'object' ? files.svg : null;
           const pngFile = files && typeof files === 'object' ? files.png : null;
           const svgSlug = typeof entry.svgSlug === 'string' && entry.svgSlug.trim()
@@ -213,30 +252,101 @@
             : pngFile && typeof pngFile.slug === 'string' && pngFile.slug.trim()
               ? pngFile.slug.trim()
               : slug ? `${slug}.png` : '';
-          const svgUrl = typeof urls.svg === 'string' && urls.svg.trim()
-            ? urls.svg.trim()
-            : svgFile && typeof svgFile.url === 'string' && svgFile.url.trim()
-              ? svgFile.url.trim()
+          const svgUrl = typeof entry.svgUrl === 'string' && entry.svgUrl.trim()
+            ? entry.svgUrl.trim()
+            : typeof urls.svg === 'string' && urls.svg.trim()
+              ? urls.svg.trim()
+              : svgFile && typeof svgFile.url === 'string' && svgFile.url.trim()
+                ? svgFile.url.trim()
+                : svgSlug
+                  ? (svgSlug.startsWith('/') ? svgSlug : `/${svgSlug}`)
+                  : slug
+                    ? `/svg/${slug}`
+                    : '';
+          const pngUrl = typeof entry.pngUrl === 'string' && entry.pngUrl.trim()
+            ? entry.pngUrl.trim()
+            : typeof urls.png === 'string' && urls.png.trim()
+              ? urls.png.trim()
+              : pngFile && typeof pngFile.url === 'string' && pngFile.url.trim()
+                ? pngFile.url.trim()
+                : pngSlug
+                  ? (pngSlug.startsWith('/') ? pngSlug : `/${pngSlug}`)
+                  : svgUrl;
+
+          const baseName = typeof entry.baseName === 'string' && entry.baseName.trim()
+            ? entry.baseName.trim()
+            : typeof entry.fileName === 'string' && entry.fileName.trim()
+              ? entry.fileName.trim()
+              : slug;
+          const summary = typeof entry.summary === 'string' ? entry.summary.trim() : '';
+          const altText = typeof entry.altText === 'string' && entry.altText.trim()
+            ? entry.altText.trim()
+            : summary
+              ? summary
+              : baseName
+                ? `Grafikkfil for ${baseName}`
+                : 'SVG-fil';
+
+          const sequenceRaw = entry.sequence ?? entry.sequenceNumber ?? metadata.sequence ?? metadata.index;
+          let sequenceNumber = null;
+          if (typeof sequenceRaw === 'number' && Number.isFinite(sequenceRaw)) {
+            sequenceNumber = sequenceRaw;
+          } else if (typeof sequenceRaw === 'string' && sequenceRaw.trim()) {
+            const parsedSequence = Number(sequenceRaw.trim());
+            if (Number.isFinite(parsedSequence)) {
+              sequenceNumber = parsedSequence;
+            }
+          }
+          const sequenceLabel = sequenceNumber !== null ? `#${sequenceNumber}` : '';
+
+          const fileSizeValue = metadata.size ?? metadata.fileSize ?? (svgFile && svgFile.size);
+          let fileSizeLabel = '';
+          if (typeof fileSizeValue === 'number' && Number.isFinite(fileSizeValue)) {
+            const kiloBytes = fileSizeValue / 1024;
+            fileSizeLabel = kiloBytes >= 1024
+              ? `${(kiloBytes / 1024).toFixed(kiloBytes > 10 * 1024 ? 0 : 1)} MB`
+              : `${kiloBytes.toFixed(kiloBytes > 100 ? 0 : 1)} kB`;
+          } else if (typeof fileSizeValue === 'string' && fileSizeValue.trim()) {
+            fileSizeLabel = fileSizeValue.trim();
+          }
+
+          const thumbnailUrl = typeof entry.thumbnailUrl === 'string' && entry.thumbnailUrl.trim()
+            ? entry.thumbnailUrl.trim()
+            : pngUrl || svgUrl;
+
+          const normalizedSlug = (slug && slug.trim())
+            ? slug.trim()
+            : baseName
+              ? baseName.replace(/\.[^/.]+$/, '')
               : svgSlug
-                ? (svgSlug.startsWith('/') ? svgSlug : `/${svgSlug}`)
-                : slug
-                  ? `/svg/${slug}`
-                  : '';
-          const pngUrl = typeof urls.png === 'string' && urls.png.trim()
-            ? urls.png.trim()
-            : pngFile && typeof pngFile.url === 'string' && pngFile.url.trim()
-              ? pngFile.url.trim()
-              : pngSlug
-                ? (pngSlug.startsWith('/') ? pngSlug : `/${pngSlug}`)
-                : svgUrl;
+                ? svgSlug.replace(/\.svg$/i, '')
+                : '';
+
+          const resolvedSvgUrl = svgUrl && (svgUrl.startsWith('http') || svgUrl.startsWith('/'))
+            ? svgUrl
+            : normalizedSlug
+              ? `/svg/${normalizedSlug}`
+              : '';
+          const resolvedPngUrl = pngUrl && (pngUrl.startsWith('http') || pngUrl.startsWith('/'))
+            ? pngUrl
+            : resolvedSvgUrl;
+          const resolvedThumbnailUrl = thumbnailUrl && (thumbnailUrl.startsWith('http') || thumbnailUrl.startsWith('/'))
+            ? thumbnailUrl
+            : resolvedPngUrl || resolvedSvgUrl;
 
           return {
-            slug,
+            slug: normalizedSlug || slug,
             svgSlug,
             pngSlug,
-            svgUrl: svgUrl.startsWith('http') || svgUrl.startsWith('/') ? svgUrl : `/svg/${slug}`,
-            pngUrl: pngUrl.startsWith('http') || pngUrl.startsWith('/') ? pngUrl : svgUrl,
+            svgUrl: resolvedSvgUrl,
+            pngUrl: resolvedPngUrl,
+            thumbnailUrl: resolvedThumbnailUrl,
             title: typeof entry.title === 'string' ? entry.title.trim() : '',
+            displayTitle: (typeof entry.title === 'string' && entry.title.trim())
+              ? entry.title.trim()
+              : baseName || normalizedSlug || 'Uten tittel',
+            altText,
+            baseName,
             tool: typeof entry.tool === 'string' ? entry.tool.trim() : '',
             createdAt:
               typeof entry.createdAt === 'string' && entry.createdAt.trim()
@@ -244,7 +354,9 @@
                 : typeof entry.updatedAt === 'string'
                   ? entry.updatedAt.trim()
                   : '',
-            summary: typeof entry.summary === 'string' ? entry.summary.trim() : ''
+            summary,
+            sequenceLabel,
+            fileSizeLabel
           };
         })
         .filter(entry => entry.slug && entry.svgUrl);
