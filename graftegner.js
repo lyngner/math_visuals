@@ -4040,12 +4040,20 @@ if (btnSvg) {
   btnSvg.addEventListener('click', () => {
     const svgExport = buildBoardSvgExport();
     if (!svgExport || !svgExport.markup) return;
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const suggestedName = 'graf.svg';
+    if (helper && typeof helper.exportSvgWithArchive === 'function') {
+      helper.exportSvgWithArchive(svgExport.node, suggestedName, 'graftegner', {
+        svgString: svgExport.markup
+      });
+      return;
+    }
     const blob = new Blob([svgExport.markup], {
       type: 'image/svg+xml;charset=utf-8'
     });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'graf.svg';
+    a.download = suggestedName;
     a.click();
     URL.revokeObjectURL(a.href);
   });
