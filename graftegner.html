@@ -23,19 +23,25 @@
     .figure{ border-radius:10px; background:#fafbfc; overflow:hidden; border:1px solid #eef0f3; }
     #board{ width:100%; height:560px; background:#fff; }
     .graf-axis-label{
+      --graf-axis-label-text:#0f172a;
+      --graf-axis-label-font-size:16px;
       display:inline-flex;
       align-items:center;
       justify-content:center;
-      padding:6px 14px;
-      border-radius:999px;
-      background:rgba(226,232,240,.92);
-      color:#0f172a;
+      box-sizing:border-box;
+      padding:6px 12px;
+      min-height:32px;
+      min-width:32px;
+      border-radius:6px;
+      background:#dae0e9;
+      color:var(--graf-axis-label-text);
+      font-size:var(--graf-axis-label-font-size);
       font-weight:600;
-      line-height:1;
-      letter-spacing:.02em;
+      line-height:1.1;
+      letter-spacing:.01em;
       white-space:nowrap;
-      border:1px solid rgba(148,163,184,.55);
-      box-shadow:0 10px 20px rgba(15,23,42,.16),0 3px 6px rgba(15,23,42,.12);
+      border:none;
+      box-shadow:none;
     }
     .toolbar{ gap:12px; justify-content:flex-start; }
     #toolbar{ justify-content:space-between; }

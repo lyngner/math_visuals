@@ -1783,8 +1783,13 @@ function axisLabelChip(axisKey) {
   const raw = axisKey === 'x' ? ADV.axis.labels.x : ADV.axis.labels.y;
   const text = raw && String(raw).trim() ? raw : fallback;
   const color = ADV.axis.style.stroke;
-  const fontSize = ADV.axis.labels.fontSize;
-  return `<span class="graf-axis-label" style="color:${color};font-size:${fontSize}px;">${escapeHtml(text)}</span>`;
+  const fontSizeRaw = Number.parseFloat(ADV.axis.labels.fontSize);
+  const fontSize = Number.isFinite(fontSizeRaw) ? fontSizeRaw : 16;
+  const styleTokens = [
+    `--graf-axis-label-text:${color}`,
+    `--graf-axis-label-font-size:${fontSize}px`
+  ];
+  return `<span class="graf-axis-label" style="${styleTokens.join(';')};">${escapeHtml(text)}</span>`;
 }
 
 function placeAxisNames() {
