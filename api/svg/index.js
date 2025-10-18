@@ -115,6 +115,26 @@ function buildOrigin(req) {
   return `${protocol}://${host}`;
 }
 
+function hasStoredPng(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return false;
+  }
+  const { png } = entry;
+  if (typeof png === 'string') {
+    return png.trim().length > 0;
+  }
+  if (png && typeof png === 'object' && typeof png.length === 'number') {
+    return png.length > 0;
+  }
+  if (typeof entry.pngSize === 'number') {
+    return entry.pngSize > 0;
+  }
+  if (typeof entry.hasPng === 'boolean') {
+    return entry.hasPng;
+  }
+  return false;
+}
+
 function buildFileUrls(entry) {
   if (!entry || typeof entry !== 'object') {
     return { files: {}, svgUrl: undefined, pngUrl: undefined, hasPng: false };
@@ -125,17 +145,14 @@ function buildFileUrls(entry) {
     : slug
       ? slug.replace(/\.svg$/i, '')
       : '';
-  const pngSlug = typeof entry.pngSlug === 'string' && entry.pngSlug
+  const derivedPngSlug = typeof entry.pngSlug === 'string' && entry.pngSlug
     ? entry.pngSlug
     : slugBase
       ? `${slugBase}.png`
       : '';
   const svgUrl = slug ? `/bildearkiv/${slug}` : undefined;
-  const hasPng = Boolean(
-    (typeof entry.png === 'string' && entry.png.trim()) ||
-      (typeof entry.pngSlug === 'string' && entry.pngSlug.trim()) ||
-      (typeof entry.pngFilename === 'string' && entry.pngFilename.trim())
-  );
+  const hasPng = hasStoredPng(entry);
+  const pngSlug = hasPng && derivedPngSlug ? derivedPngSlug : '';
   const pngUrl = hasPng && pngSlug ? `/bildearkiv/${pngSlug}` : undefined;
   const files = {};
   if (svgUrl) {
@@ -167,7 +184,11 @@ function augmentEntry(entry) {
     delete cloned.pngUrl;
   }
   if (slugBase && !cloned.slugBase) cloned.slugBase = slugBase;
-  if (hasPng && pngSlug && !cloned.pngSlug) cloned.pngSlug = pngSlug;
+  if (hasPng && pngSlug && !cloned.pngSlug) {
+    cloned.pngSlug = pngSlug;
+  } else if (!hasPng && cloned.pngSlug) {
+    delete cloned.pngSlug;
+  }
   return cloned;
 }
 
