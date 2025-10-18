@@ -2,14 +2,50 @@ const { test, expect } = require('@playwright/test');
 
 const TEST_ENTRIES = [
   {
-    slug: 'graftegner/koordinater.svg',
+    slug: 'bildearkiv/graftegner/koordinater',
+    svgSlug: 'bildearkiv/graftegner/koordinater.svg',
+    pngSlug: 'bildearkiv/graftegner/koordinater.png',
+    urls: {
+      svg: '/bildearkiv/graftegner/koordinater.svg',
+      png: '/bildearkiv/graftegner/koordinater.png'
+    },
+    files: {
+      svg: {
+        slug: 'bildearkiv/graftegner/koordinater.svg',
+        url: '/bildearkiv/graftegner/koordinater.svg',
+        filename: 'koordinatfigur.svg'
+      },
+      png: {
+        slug: 'bildearkiv/graftegner/koordinater.png',
+        url: '/bildearkiv/graftegner/koordinater.png',
+        filename: 'koordinatfigur.png'
+      }
+    },
     title: 'Koordinatfigur',
     tool: 'Graftegner',
     createdAt: '2024-01-02T12:30:00.000Z',
     summary: 'Testoppføring for graftegner'
   },
   {
-    slug: 'kuler/symmetri.svg',
+    slug: 'bildearkiv/kuler/symmetri',
+    svgSlug: 'bildearkiv/kuler/symmetri.svg',
+    pngSlug: 'bildearkiv/kuler/symmetri.png',
+    urls: {
+      svg: '/bildearkiv/kuler/symmetri.svg',
+      png: '/bildearkiv/kuler/symmetri.png'
+    },
+    files: {
+      svg: {
+        slug: 'bildearkiv/kuler/symmetri.svg',
+        url: '/bildearkiv/kuler/symmetri.svg',
+        filename: 'symmetri.svg'
+      },
+      png: {
+        slug: 'bildearkiv/kuler/symmetri.png',
+        url: '/bildearkiv/kuler/symmetri.png',
+        filename: 'symmetri.png'
+      }
+    },
     title: 'Symmetrirekke',
     tool: 'Kuler',
     createdAt: '2023-12-18T09:15:00.000Z',
@@ -45,10 +81,10 @@ test.describe('SVG-arkiv', () => {
     );
 
     const hrefs = await page.$$eval('[data-svg-grid] a', anchors => anchors.map(anchor => anchor.getAttribute('href')));
-    expect(hrefs).toEqual(expectedOrder.map(entry => `/svg/${entry.slug}`));
+    expect(hrefs).toEqual(expectedOrder.map(entry => entry.urls.svg));
 
     const imageSources = await page.$$eval('[data-svg-grid] img', images => images.map(img => img.getAttribute('src')));
-    expect(imageSources.every(src => typeof src === 'string' && src.startsWith('/svg/') && src.endsWith('.svg'))).toBe(true);
+    expect(imageSources.every(src => typeof src === 'string' && src.startsWith('/bildearkiv/') && src.endsWith('.png'))).toBe(true);
 
     await expect(page.locator('[data-status]')).toBeHidden();
     await expect(page.locator('[data-storage-note]')).toHaveText('Denne testen bruker midlertidige data.');
@@ -58,7 +94,7 @@ test.describe('SVG-arkiv', () => {
     await filter.selectOption('Kuler');
 
     await expect(items).toHaveCount(1);
-    await expect(items.first()).toHaveAttribute('data-svg-item', 'kuler/symmetri.svg');
+    await expect(items.first()).toHaveAttribute('data-svg-item', 'bildearkiv/kuler/symmetri.svg');
 
     const statusText = await page.locator('[data-status]').textContent();
     expect(statusText).toBe('');

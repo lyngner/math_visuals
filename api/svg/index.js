@@ -122,6 +122,51 @@ function extractSlugFromBody(body, fallback) {
   return fallback || null;
 }
 
+function normalizePngPayload(body) {
+  if (!body || typeof body !== 'object') {
+    return { dataUrl: null, width: null, height: null };
+  }
+  const source = body.png;
+  let dataUrl = null;
+  let width = null;
+  let height = null;
+
+  if (typeof source === 'string') {
+    dataUrl = source.trim();
+  } else if (source && typeof source === 'object') {
+    if (typeof source.dataUrl === 'string') {
+      dataUrl = source.dataUrl.trim();
+    }
+    if (source.width != null) {
+      const parsedWidth = Number(source.width);
+      if (Number.isFinite(parsedWidth)) {
+        width = parsedWidth;
+      }
+    }
+    if (source.height != null) {
+      const parsedHeight = Number(source.height);
+      if (Number.isFinite(parsedHeight)) {
+        height = parsedHeight;
+      }
+    }
+  }
+
+  if (body.pngWidth != null) {
+    const parsed = Number(body.pngWidth);
+    if (Number.isFinite(parsed)) {
+      width = parsed;
+    }
+  }
+  if (body.pngHeight != null) {
+    const parsed = Number(body.pngHeight);
+    if (Number.isFinite(parsed)) {
+      height = parsed;
+    }
+  }
+
+  return { dataUrl, width, height };
+}
+
 module.exports = async function handler(req, res) {
   const corsOrigin = resolveCorsOrigin(req);
   res.setHeader('Access-Control-Allow-Origin', corsOrigin);
@@ -190,6 +235,19 @@ module.exports = async function handler(req, res) {
       if (!slugFromBody) {
         sendJson(res, 400, { error: 'Slug is required' });
         return;
+      }
+      const pngPayload = normalizePngPayload(body);
+      const pngDataUrl = pngPayload.dataUrl;
+      if (!pngDataUrl || !/^data:image\/png;base64,/i.test(pngDataUrl)) {
+        sendJson(res, 400, { error: 'PNG data is required' });
+        return;
+      }
+      body.png = pngDataUrl;
+      if (Number.isFinite(pngPayload.width)) {
+        body.pngWidth = Number(pngPayload.width);
+      }
+      if (Number.isFinite(pngPayload.height)) {
+        body.pngHeight = Number(pngPayload.height);
       }
       const stored = await setSvg(slugFromBody, body);
       if (!stored) {

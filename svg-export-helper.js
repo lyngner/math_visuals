@@ -419,6 +419,12 @@
     };
     if (pngData && pngData.dataUrl) {
       payload.png = pngData.dataUrl;
+      if (Number.isFinite(pngData.width)) {
+        payload.pngWidth = Number(pngData.width);
+      }
+      if (Number.isFinite(pngData.height)) {
+        payload.pngHeight = Number(pngData.height);
+      }
     }
     if (summary != null) {
       payload.summary = summary;
@@ -428,7 +434,8 @@
     }
 
     let uploadPromise = null;
-    if (typeof global.fetch === 'function') {
+    const canUpload = typeof payload.png === 'string' && payload.png.trim().length > 0;
+    if (typeof global.fetch === 'function' && canUpload) {
       uploadPromise = global.fetch('/api/svg', {
         method: 'POST',
         headers: {
@@ -450,8 +457,10 @@
           showToast(`Grafikk lastet ned, men arkivopplasting feilet: ${message}.`, 'error');
           throw error;
         });
-    } else {
+    } else if (typeof global.fetch !== 'function') {
       showToast(`Grafikk lastet ned som ${svgFilename} og ${pngFilename}. (Arkivopplasting ikke tilgjengelig.)`, 'info');
+    } else if (!canUpload) {
+      showToast(`Grafikk lastet ned, men PNG-forhåndsvisning manglet. Arkivopplasting ble hoppet over.`, 'warning');
     }
 
     return {

@@ -11,10 +11,38 @@ const CONTENT_TYPE = 'image/svg+xml; charset=utf-8';
 const SHORT_CACHE_HEADER = 'public, max-age=5, s-maxage=5, stale-while-revalidate=30';
 const LONG_CACHE_HEADER = 'public, max-age=60, s-maxage=86400, stale-while-revalidate=43200';
 
+const PNG_DATA_URL_PATTERN = /^data:image\/png;base64,/i;
+
 function buildOrigin(req) {
   const protocol = req && req.headers ? req.headers['x-forwarded-proto'] || 'http' : 'http';
   const host = req && req.headers ? req.headers.host || 'localhost' : 'localhost';
   return `${protocol}://${host}`;
+}
+
+function stripAssetExtension(slug) {
+  if (typeof slug !== 'string') return slug;
+  return slug.replace(/\.(?:svg|png)$/gi, '');
+}
+
+function normalizeAssetFormat(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'png' || normalized === '.png') return 'png';
+  if (normalized === 'svg' || normalized === '.svg') return 'svg';
+  return null;
+}
+
+function resolveAssetDescriptor(rawSlug, queryFormat) {
+  const normalized = normalizeSlug(rawSlug);
+  if (!normalized) return null;
+  const match = normalized.match(/^(.*?)(?:\.(svg|png))?$/i);
+  const base = match && match[1] ? match[1] : normalized;
+  const inferredFormat = match && match[2] ? normalizeAssetFormat(match[2]) : null;
+  const normalizedFormat = normalizeAssetFormat(queryFormat);
+  const format = inferredFormat || normalizedFormat || 'svg';
+  const baseSlug = stripAssetExtension(base);
+  if (!baseSlug) return null;
+  return { baseSlug, format };
 }
 
 function applyModeHeaders(res, entryMode) {
@@ -45,30 +73,46 @@ function sendNotFound(res) {
   res.end('Not Found');
 }
 
-function resolveSlugFromQuery(req, url) {
+function resolveRequestedAsset(req, url) {
   if (!url) {
     return null;
   }
-  const pathParam = url.searchParams.get('path') || url.searchParams.get('slug') || url.searchParams.get('s');
-  const normalizedFromQuery = normalizeSlug(pathParam);
-  if (normalizedFromQuery) {
-    return normalizedFromQuery;
+  const queryFormat = url.searchParams.get('format') || (req && req.query && req.query.format);
+  const candidates = [url.searchParams.get('path'), url.searchParams.get('slug'), url.searchParams.get('s')];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const descriptor = resolveAssetDescriptor(candidate, queryFormat);
+    if (descriptor) return descriptor;
   }
   if (req && typeof req.query === 'object' && req.query) {
     if (typeof req.query.path === 'string') {
-      const normalizedFromReq = normalizeSlug(req.query.path);
-      if (normalizedFromReq) {
-        return normalizedFromReq;
-      }
+      const descriptor = resolveAssetDescriptor(req.query.path, queryFormat);
+      if (descriptor) return descriptor;
     }
     if (typeof req.query.slug === 'string') {
-      const normalizedFromReqSlug = normalizeSlug(req.query.slug);
-      if (normalizedFromReqSlug) {
-        return normalizedFromReqSlug;
-      }
+      const descriptor = resolveAssetDescriptor(req.query.slug, queryFormat);
+      if (descriptor) return descriptor;
+    }
+    if (typeof req.query.s === 'string') {
+      const descriptor = resolveAssetDescriptor(req.query.s, queryFormat);
+      if (descriptor) return descriptor;
     }
   }
   return null;
+}
+
+function decodePngDataUrl(dataUrl) {
+  if (typeof dataUrl !== 'string' || !PNG_DATA_URL_PATTERN.test(dataUrl)) {
+    return null;
+  }
+  const commaIndex = dataUrl.indexOf(',');
+  if (commaIndex === -1) return null;
+  const base64 = dataUrl.slice(commaIndex + 1);
+  try {
+    return Buffer.from(base64, 'base64');
+  } catch (error) {
+    return null;
+  }
 }
 
 module.exports = async function handler(req, res) {
@@ -82,8 +126,8 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const normalizedSlug = resolveSlugFromQuery(req, url);
-  if (!normalizedSlug) {
+  const asset = resolveRequestedAsset(req, url);
+  if (!asset || !asset.baseSlug) {
     sendNotFound(res);
     return;
   }
@@ -97,17 +141,45 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const entry = await getSvg(normalizedSlug);
-    if (!entry || typeof entry.svg !== 'string' || entry.svg.length === 0) {
+    const entry = await getSvg(asset.baseSlug);
+    if (!entry) {
       sendNotFound(res);
       return;
     }
 
     applyModeHeaders(res, entry.mode || entry.storageMode || entry.storage);
     applyCacheHeader(res, entry);
-    res.setHeader('Content-Type', CONTENT_TYPE);
-    res.setHeader('X-Svg-Slug', entry.slug || normalizedSlug);
 
+    const effectiveSlug = entry.slug || asset.baseSlug;
+    res.setHeader('X-Svg-Slug', effectiveSlug);
+    res.setHeader('X-Svg-Asset-Format', asset.format);
+
+    if (asset.format === 'png') {
+      const pngData = typeof entry.png === 'string' ? entry.png : null;
+      const buffer = decodePngDataUrl(pngData);
+      if (!buffer) {
+        sendNotFound(res);
+        return;
+      }
+      res.setHeader('Content-Type', 'image/png');
+      if (buffer.length) {
+        res.setHeader('Content-Length', buffer.length);
+      }
+      res.statusCode = 200;
+      if (req.method === 'HEAD') {
+        res.end();
+        return;
+      }
+      res.end(buffer);
+      return;
+    }
+
+    if (typeof entry.svg !== 'string' || entry.svg.length === 0) {
+      sendNotFound(res);
+      return;
+    }
+
+    res.setHeader('Content-Type', CONTENT_TYPE);
     res.statusCode = 200;
     if (req.method === 'HEAD') {
       res.end();

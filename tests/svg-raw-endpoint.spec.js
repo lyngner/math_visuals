@@ -8,6 +8,9 @@ const {
   deleteSvg
 } = require('../api/_lib/svg-store');
 
+const TEST_PNG_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==';
+
 const originalKvUrl = process.env.KV_REST_API_URL;
 const originalKvToken = process.env.KV_REST_API_TOKEN;
 
@@ -24,14 +27,22 @@ async function startServer() {
   const server = http.createServer((req, res) => {
     const originalUrl = req.url || '';
     const [pathPart, searchPart = ''] = originalUrl.split('?');
-    if (pathPart.startsWith('/svg/')) {
-      const slugPath = pathPart.slice('/svg'.length);
-      const normalizedPath = slugPath.startsWith('/') ? slugPath : `/${slugPath}`;
-      const query = new URLSearchParams(searchPart);
-      if (!query.has('path')) {
-        query.set('path', normalizedPath);
+    const rewrites = [
+      { prefix: '/bildearkiv/', target: '/api/svg/raw' },
+      { prefix: '/svg/', target: '/api/svg/raw' }
+    ];
+
+    for (const rewrite of rewrites) {
+      if (pathPart.startsWith(rewrite.prefix)) {
+        const slugPath = pathPart.slice(rewrite.prefix.length - 1);
+        const normalizedPath = slugPath.startsWith('/') ? slugPath : `/${slugPath}`;
+        const query = new URLSearchParams(searchPart);
+        if (!query.has('path')) {
+          query.set('path', normalizedPath);
+        }
+        req.url = `${rewrite.target}?${query.toString()}`;
+        break;
       }
-      req.url = `/api/svg/raw?${query.toString()}`;
     }
 
     if (req.url && req.url.startsWith('/api/svg/raw')) {
@@ -84,10 +95,13 @@ test.describe('SVG raw delivery endpoint', () => {
   });
 
   test('serves uploaded SVG markup with correct headers', async () => {
-    const stored = await setSvg('icons/test-shape.svg', {
+    const stored = await setSvg('bildearkiv/icons/test-shape', {
       title: 'Test shape',
       tool: 'integration-test',
-      svg: '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="red" /></svg>'
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="red" /></svg>',
+      png: TEST_PNG_DATA_URL,
+      pngWidth: 10,
+      pngHeight: 10
     });
     expect(stored).not.toBeNull();
 
@@ -95,15 +109,23 @@ test.describe('SVG raw delivery endpoint', () => {
     const baseUrl = `http://127.0.0.1:${port}`;
 
     try {
-      const response = await fetch(`${baseUrl}/svg/icons/test-shape.svg`);
+      const response = await fetch(`${baseUrl}/bildearkiv/icons/test-shape.svg`);
       expect(response.status).toBe(200);
       expect(response.headers.get('content-type')).toContain('image/svg+xml');
+      expect(response.headers.get('x-svg-asset-format')).toBe('svg');
       const body = await response.text();
       expect(body).toContain('<svg');
       expect(body).toContain('<rect');
+
+      const pngResponse = await fetch(`${baseUrl}/bildearkiv/icons/test-shape.png`);
+      expect(pngResponse.status).toBe(200);
+      expect(pngResponse.headers.get('content-type')).toBe('image/png');
+      expect(pngResponse.headers.get('x-svg-asset-format')).toBe('png');
+      const buffer = Buffer.from(await pngResponse.arrayBuffer());
+      expect(buffer.byteLength).toBeGreaterThan(0);
     } finally {
       await new Promise(resolve => server.close(resolve));
-      await deleteSvg('icons/test-shape.svg');
+      await deleteSvg('bildearkiv/icons/test-shape');
     }
   });
 
@@ -112,7 +134,7 @@ test.describe('SVG raw delivery endpoint', () => {
     const baseUrl = `http://127.0.0.1:${port}`;
 
     try {
-      const response = await fetch(`${baseUrl}/svg/does-not-exist.svg`);
+      const response = await fetch(`${baseUrl}/bildearkiv/does-not-exist.svg`);
       expect(response.status).toBe(404);
       expect(response.headers.get('content-type')).toContain('text/plain');
     } finally {
