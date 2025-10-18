@@ -3,9 +3,9 @@
 }
 
 body {
-  font-family: "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background: #f6f7fb;
-  color: #0f172a;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--surface-bg);
+  color: var(--text-color);
   min-height: 100vh;
 }
 
