@@ -1663,6 +1663,10 @@
     el.classList.toggle('examples-status--warning', normalizedType === 'warning');
   }
 
+  if (examplesApiBase) {
+    setBackendStatusMessage('Laster eksempeltjenesten …', '');
+  }
+
   function applyBackendStatusMessage(mode) {
     const normalizedMode = mode === 'missing' ? 'missing' : mode === 'memory' ? 'memory' : mode === 'offline' ? 'offline' : '';
     if (!normalizedMode) {

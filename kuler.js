@@ -935,7 +935,7 @@ function buildKulerExportMeta(exportData) {
   return {
     description,
     slug,
-    defaultBaseName: slug || 'kuler',
+    defaultBaseName: count === 1 ? 'kuler1' : slug || 'kuler',
     summary: {
       count,
       bowls: summaries.slice(0, count)
