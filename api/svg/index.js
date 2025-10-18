@@ -116,7 +116,9 @@ function buildOrigin(req) {
 }
 
 function buildFileUrls(entry) {
-  if (!entry || typeof entry !== 'object') return { files: {}, svgUrl: undefined, pngUrl: undefined };
+  if (!entry || typeof entry !== 'object') {
+    return { files: {}, svgUrl: undefined, pngUrl: undefined, hasPng: false };
+  }
   const slug = typeof entry.slug === 'string' ? entry.slug : '';
   const slugBase = typeof entry.slugBase === 'string' && entry.slugBase
     ? entry.slugBase
@@ -129,29 +131,43 @@ function buildFileUrls(entry) {
       ? `${slugBase}.png`
       : '';
   const svgUrl = slug ? `/bildearkiv/${slug}` : undefined;
-  const pngUrl = pngSlug ? `/bildearkiv/${pngSlug}` : undefined;
+  const hasPng = Boolean(
+    (typeof entry.png === 'string' && entry.png.trim()) ||
+      (typeof entry.pngSlug === 'string' && entry.pngSlug.trim()) ||
+      (typeof entry.pngFilename === 'string' && entry.pngFilename.trim())
+  );
+  const pngUrl = hasPng && pngSlug ? `/bildearkiv/${pngSlug}` : undefined;
+  const files = {};
+  if (svgUrl) {
+    files.svg = svgUrl;
+  }
+  if (pngUrl) {
+    files.png = pngUrl;
+  }
   return {
-    files: {
-      svg: svgUrl,
-      png: pngUrl
-    },
+    files,
     svgUrl,
     pngUrl,
     slugBase,
-    pngSlug
+    pngSlug,
+    hasPng
   };
 }
 
 function augmentEntry(entry) {
   if (!entry || typeof entry !== 'object') return entry;
   const cloned = { ...entry };
-  const { files, svgUrl, pngUrl, slugBase, pngSlug } = buildFileUrls(cloned);
+  const { files, svgUrl, pngUrl, slugBase, pngSlug, hasPng } = buildFileUrls(cloned);
   cloned.files = files;
   cloned.urls = files;
   if (svgUrl) cloned.svgUrl = svgUrl;
-  if (pngUrl) cloned.pngUrl = pngUrl;
+  if (hasPng && pngUrl) {
+    cloned.pngUrl = pngUrl;
+  } else if (!hasPng) {
+    delete cloned.pngUrl;
+  }
   if (slugBase && !cloned.slugBase) cloned.slugBase = slugBase;
-  if (pngSlug && !cloned.pngSlug) cloned.pngSlug = pngSlug;
+  if (hasPng && pngSlug && !cloned.pngSlug) cloned.pngSlug = pngSlug;
   return cloned;
 }
 
