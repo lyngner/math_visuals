@@ -31,10 +31,22 @@ test.describe('Kuler export buttons', () => {
     });
     page.on('dialog', dialog => dialog.accept());
 
-    const svgDownloadPromise = page.waitForEvent('download');
+    const firstDownloadPromise = page.waitForEvent('download');
+    const secondDownloadPromise = page.waitForEvent('download');
     await page.click('#downloadSVG1');
-    const svgDownload = await svgDownloadPromise;
-    expect(svgDownload.suggestedFilename()).toBe('kuler1.svg');
+    const [firstDownload, secondDownload] = await Promise.all([
+      firstDownloadPromise,
+      secondDownloadPromise
+    ]);
+
+    const downloads = [firstDownload, secondDownload];
+    const svgDownload = downloads.find(download => download.suggestedFilename().endsWith('.svg'));
+    const pngDownload = downloads.find(download => download.suggestedFilename().endsWith('.png'));
+    expect(svgDownload).toBeTruthy();
+    expect(pngDownload).toBeTruthy();
+    expect(svgDownload && svgDownload.suggestedFilename()).toBe('kuler1.svg');
+    expect(pngDownload && pngDownload.suggestedFilename()).toBe('kuler1.png');
+
     const svgPath = testInfo.outputPath('kuler-export.svg');
     await svgDownload.saveAs(svgPath);
 
@@ -43,11 +55,6 @@ test.describe('Kuler export buttons', () => {
     expect(svgContent).toContain('viewBox="0 0 500 300"');
     expect(svgContent).not.toContain('href="images/');
     expect(svgContent).toMatch(/<image[^>]+href="data:image\/svg\+xml;base64/);
-
-    const pngDownloadPromise = page.waitForEvent('download');
-    await page.click('#downloadPNG1');
-    const pngDownload = await pngDownloadPromise;
-    expect(pngDownload.suggestedFilename()).toBe('kuler1.png');
     const pngPath = testInfo.outputPath('kuler-export.png');
     await pngDownload.saveAs(pngPath);
 
@@ -59,10 +66,18 @@ test.describe('Kuler export buttons', () => {
     expect(colors.size).toBeGreaterThan(10);
 
     expect(uploadRequests.length).toBeGreaterThan(0);
-    const lastUpload = uploadRequests[uploadRequests.length - 1];
+    const uploads = uploadRequests.filter(Boolean);
+    expect(uploads.length).toBeGreaterThan(0);
+    const lastUpload = uploads[uploads.length - 1];
     expect(lastUpload).toBeTruthy();
     expect(lastUpload.filename).toBe('kuler1.svg');
+    expect(lastUpload.baseName).toBe('kuler1');
+    expect(lastUpload.tool).toBe('kuler');
     expect(lastUpload.toolId).toBe('kuler');
+    expect(lastUpload.slug).toBe('bildearkiv/kuler1');
     expect(typeof lastUpload.svg).toBe('string');
+    expect(lastUpload.svg).toContain('<svg');
+    expect(typeof lastUpload.png).toBe('string');
+    expect(lastUpload.png).toMatch(/^data:image\/png;base64,/);
   });
 });

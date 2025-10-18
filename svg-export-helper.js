@@ -4,6 +4,7 @@
   const helper = {};
   let toastStyleInjected = false;
   let toastContainer = null;
+  let archiveEntriesPromise = null;
 
   function ensureToastStyle(doc) {
     if (toastStyleInjected) return;
@@ -126,7 +127,189 @@
     return name.toLowerCase().endsWith('.svg') ? name : `${name}.svg`;
   }
 
-  async function exportSvgWithArchive(svgElement, suggestedName, toolId, options = {}) {
+  function escapeRegExp(input) {
+    return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function parseLength(length) {
+    if (length == null) return NaN;
+    if (typeof length === 'number') return length;
+    if (typeof length === 'string') {
+      const trimmed = length.trim();
+      if (!trimmed) return NaN;
+      const match = trimmed.match(/^([0-9]+(?:\.[0-9]+)?)/);
+      if (match) {
+        return Number.parseFloat(match[1]);
+      }
+    }
+    return NaN;
+  }
+
+  function getSvgDimensions(svgElement) {
+    if (!svgElement || typeof svgElement !== 'object') {
+      return { width: 0, height: 0 };
+    }
+    const viewBox = svgElement.viewBox && svgElement.viewBox.baseVal;
+    if (viewBox && Number.isFinite(viewBox.width) && Number.isFinite(viewBox.height)) {
+      return { width: viewBox.width, height: viewBox.height };
+    }
+    const widthAttr = parseLength(svgElement.getAttribute && svgElement.getAttribute('width'));
+    const heightAttr = parseLength(svgElement.getAttribute && svgElement.getAttribute('height'));
+    if (Number.isFinite(widthAttr) && Number.isFinite(heightAttr) && widthAttr > 0 && heightAttr > 0) {
+      return { width: widthAttr, height: heightAttr };
+    }
+    if (typeof svgElement.getBBox === 'function') {
+      try {
+        const bbox = svgElement.getBBox();
+        if (bbox && Number.isFinite(bbox.width) && Number.isFinite(bbox.height)) {
+          return { width: bbox.width || 0, height: bbox.height || 0 };
+        }
+      } catch (error) {}
+    }
+    return { width: 1024, height: 768 };
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    if (typeof dataUrl !== 'string') return null;
+    const parts = dataUrl.split(',');
+    if (parts.length < 2) return null;
+    const header = parts[0];
+    const data = parts.slice(1).join(',');
+    const mimeMatch = header.match(/^data:([^;,]+)(?:;base64)?/i);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+    const isBase64 = /;base64/i.test(header);
+    try {
+      if (isBase64 && typeof global.atob === 'function') {
+        const binary = global.atob(data);
+        const length = binary.length;
+        const bytes = new Uint8Array(length);
+        for (let i = 0; i < length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return new Blob([bytes], { type: mimeType });
+      }
+      const decoded = decodeURIComponent(data);
+      return new Blob([decoded], { type: mimeType });
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function triggerDownload(doc, href, filename) {
+    if (!href || !doc || !doc.body) return;
+    const anchor = doc.createElement('a');
+    anchor.href = href;
+    anchor.download = filename;
+    anchor.rel = 'noopener';
+    anchor.style.display = 'none';
+    doc.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+
+  async function ensureArchiveEntries() {
+    if (archiveEntriesPromise) return archiveEntriesPromise;
+    if (typeof global.fetch !== 'function') {
+      archiveEntriesPromise = Promise.resolve([]);
+      return archiveEntriesPromise;
+    }
+    archiveEntriesPromise = global.fetch('/api/svg', {
+      headers: {
+        Accept: 'application/json'
+      }
+    })
+      .then(response => {
+        if (!response || !response.ok) {
+          return [];
+        }
+        return response
+          .json()
+          .then(payload => (Array.isArray(payload && payload.entries) ? payload.entries : []))
+          .catch(() => []);
+      })
+      .catch(() => []);
+    archiveEntriesPromise = archiveEntriesPromise.then(entries => (Array.isArray(entries) ? entries : []));
+    return archiveEntriesPromise;
+  }
+
+  function extractArchiveBaseName(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    const slug = typeof entry.slug === 'string' ? entry.slug.trim() : '';
+    if (slug) {
+      const parts = slug.split('/');
+      const last = parts[parts.length - 1];
+      if (last) return last;
+    }
+    const title = typeof entry.title === 'string' ? entry.title.trim() : '';
+    if (title) return title;
+    return null;
+  }
+
+  async function suggestArchiveBaseName(toolId, fallback) {
+    const tool = typeof toolId === 'string' && toolId.trim() ? toolId.trim() : 'export';
+    const sanitizedTool = sanitizeBaseName(tool, 'export');
+    const fallbackBase = sanitizeBaseName(fallback || `${sanitizedTool || 'export'}1`, sanitizedTool || 'export');
+    const entries = await ensureArchiveEntries();
+    if (!Array.isArray(entries) || !entries.length) {
+      return fallbackBase || `${sanitizedTool || 'export'}1`;
+    }
+    const normalizedTool = tool.toLowerCase();
+    const pattern = new RegExp(`^${escapeRegExp(sanitizedTool)}(\\d+)$`, 'i');
+    let maxIndex = 0;
+    for (const entry of entries) {
+      const entryTool = entry && typeof entry.tool === 'string' ? entry.tool.trim() : '';
+      if (!entryTool) continue;
+      if (entryTool.toLowerCase() !== normalizedTool) continue;
+      const baseName = extractArchiveBaseName(entry);
+      if (!baseName) continue;
+      const match = baseName.match(pattern);
+      if (!match) continue;
+      const index = Number.parseInt(match[1], 10);
+      if (Number.isFinite(index) && index > maxIndex) {
+        maxIndex = index;
+      }
+    }
+    const nextIndex = maxIndex + 1 || 1;
+    return `${sanitizedTool}${nextIndex}`;
+  }
+
+  async function renderSvgToPng(doc, svgUrl, svgString, dimensions) {
+    if (!doc) throw new Error('document mangler');
+    const canvas = doc.createElement('canvas');
+    const width = Math.max(1, Math.round(Number.isFinite(dimensions.width) ? dimensions.width : 0));
+    const height = Math.max(1, Math.round(Number.isFinite(dimensions.height) ? dimensions.height : 0));
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
+    if (!ctx) {
+      throw new Error('Canvas 2D-kontekst er ikke tilgjengelig');
+    }
+    const img = doc.createElement('img');
+    img.decoding = 'async';
+    if ('crossOrigin' in img) {
+      img.crossOrigin = 'anonymous';
+    }
+    await new Promise((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('Kunne ikke laste SVG for PNG-konvertering'));
+      img.src = svgUrl || `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
+    });
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
+    let dataUrl;
+    try {
+      dataUrl = canvas.toDataURL('image/png');
+    } catch (error) {
+      throw new Error('Kunne ikke generere PNG-data-URL');
+    }
+    const blob = dataUrlToBlob(dataUrl);
+    if (!blob) {
+      throw new Error('Kunne ikke lage PNG-blob');
+    }
+    return { dataUrl, blob, width, height };
+  }
+
+  async function exportGraphicWithArchive(svgElement, suggestedName, toolId, options = {}) {
     if (!svgElement) throw new Error('svgElement mangler');
     const doc = svgElement.ownerDocument || (typeof document !== 'undefined' ? document : null);
     if (!doc) throw new Error('document mangler');
@@ -141,47 +324,108 @@
       svgString = new XMLSerializer().serializeToString(svgElement);
     }
 
+    const tool = typeof toolId === 'string' && toolId.trim() ? toolId.trim() : 'ukjent';
     const description = typeof options.description === 'string' ? options.description.trim() : '';
-    const slugInput = typeof options.slug === 'string' && options.slug ? options.slug : description;
-    const fallbackSlugBase = sanitizeBaseName(suggestedName || toolId || 'export');
-    const slug = slugify(slugInput, fallbackSlugBase);
+    const summary = options.summary != null ? options.summary : null;
+    const createdAt = new Date().toISOString();
 
-    const baseSuggested = sanitizeBaseName(options.defaultBaseName || suggestedName || slug || toolId || 'export', fallbackSlugBase);
-    const promptDefault = withSvgFileSuffix(baseSuggested);
-    let finalName = promptDefault;
+    const dimensions = getSvgDimensions(svgElement);
+
+    const fallbackBase = sanitizeBaseName(options.defaultBaseName || suggestedName || tool || 'export', sanitizeBaseName(tool || 'export'));
+    let baseNameSuggestion;
+    try {
+      baseNameSuggestion = await suggestArchiveBaseName(tool, fallbackBase);
+    } catch (error) {
+      baseNameSuggestion = fallbackBase || 'export1';
+    }
+    const sanitizedDefault = sanitizeBaseName(baseNameSuggestion || fallbackBase || tool || 'export', fallbackBase || tool || 'export');
+
+    let baseName = sanitizedDefault;
     if (typeof global.prompt === 'function') {
-      const response = global.prompt('Filnavn for SVG-eksport', promptDefault);
+      const response = global.prompt('Filnavn for eksport (uten filendelse)', sanitizedDefault);
       if (typeof response === 'string' && response.trim()) {
-        const sanitized = sanitizeBaseName(response.trim(), baseSuggested);
-        finalName = withSvgFileSuffix(sanitized);
+        baseName = sanitizeBaseName(response.trim(), sanitizedDefault);
       }
     }
+    if (!baseName) {
+      baseName = sanitizeBaseName(tool, 'export') || 'export';
+    }
 
-    const blob = new Blob([svgString], {
+    const svgFilename = withSvgFileSuffix(baseName);
+    const pngFilename = `${baseName}.png`;
+
+    const svgBlob = new Blob([svgString], {
       type: 'image/svg+xml;charset=utf-8'
     });
-    const url = global.URL ? global.URL.createObjectURL(blob) : null;
-    if (url) {
-      const anchor = doc.createElement('a');
-      anchor.href = url;
-      anchor.download = finalName;
-      doc.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
+    const urlApi = global.URL || (typeof URL !== 'undefined' ? URL : null);
+    const svgUrl = urlApi ? urlApi.createObjectURL(svgBlob) : null;
+
+    let pngData = null;
+    let pngUrl = null;
+    let pngError = null;
+    try {
+      const pngResult = await renderSvgToPng(doc, svgUrl, svgString, dimensions);
+      pngData = pngResult;
+      if (urlApi) {
+        pngUrl = urlApi.createObjectURL(pngResult.blob);
+      }
+    } catch (error) {
+      pngError = error;
+    }
+
+    if (svgUrl) {
+      triggerDownload(doc, svgUrl, svgFilename);
+    } else {
+      triggerDownload(doc, `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`, svgFilename);
+    }
+    if (pngUrl) {
+      triggerDownload(doc, pngUrl, pngFilename);
+    } else if (pngData && pngData.dataUrl) {
+      triggerDownload(doc, pngData.dataUrl, pngFilename);
+    }
+
+    if (urlApi && svgUrl) {
       setTimeout(() => {
-        if (global.URL) global.URL.revokeObjectURL(url);
+        try {
+          urlApi.revokeObjectURL(svgUrl);
+        } catch (error) {}
+      }, 1000);
+    }
+    if (urlApi && pngUrl) {
+      setTimeout(() => {
+        try {
+          urlApi.revokeObjectURL(pngUrl);
+        } catch (error) {}
       }, 1000);
     }
 
+    if (pngError) {
+      const message = pngError && pngError.message ? pngError.message : 'Ukjent feil';
+      showToast(`PNG ble ikke generert: ${message}.`, 'error');
+    }
+
+    const slugSegment = slugify(baseName, sanitizeBaseName(tool, 'export'));
+    const slug = `bildearkiv/${slugSegment}`;
+    const title = typeof options.title === 'string' && options.title.trim() ? options.title.trim() : baseName;
     const payload = {
-      toolId: toolId || 'ukjent',
-      filename: finalName,
+      title,
+      tool,
+      toolId: tool,
       slug,
-      description,
-      summary: options.summary || null,
-      createdAt: new Date().toISOString(),
-      svg: svgString
+      baseName,
+      filename: svgFilename,
+      svg: svgString,
+      createdAt
     };
+    if (pngData && pngData.dataUrl) {
+      payload.png = pngData.dataUrl;
+    }
+    if (summary != null) {
+      payload.summary = summary;
+    }
+    if (description) {
+      payload.description = description;
+    }
 
     let uploadPromise = null;
     if (typeof global.fetch === 'function') {
@@ -191,32 +435,70 @@
           'content-type': 'application/json'
         },
         body: JSON.stringify(payload)
-      });
-      uploadPromise
+      })
         .then(response => {
           if (response && response.ok) {
-            showToast(`SVG lastet ned og arkivert som ${finalName}.`, 'success');
-          } else {
-            const status = response ? response.status : 'ukjent';
-            showToast(`SVG lastet ned, men arkivopplasting feilet (status ${status}).`, 'error');
+            showToast(`Grafikk lastet ned og arkivert som ${baseName}.`, 'success');
+            return response;
           }
+          const status = response ? response.status : 'ukjent';
+          showToast(`Grafikk lastet ned, men arkivopplasting feilet (status ${status}).`, 'error');
+          return response;
         })
         .catch(error => {
           const message = error && error.message ? error.message : String(error);
-          showToast(`SVG lastet ned, men arkivopplasting feilet: ${message}.`, 'error');
+          showToast(`Grafikk lastet ned, men arkivopplasting feilet: ${message}.`, 'error');
+          throw error;
         });
     } else {
-      showToast(`SVG lastet ned som ${finalName}. (Arkivopplasting ikke tilgjengelig.)`, 'info');
+      showToast(`Grafikk lastet ned som ${svgFilename} og ${pngFilename}. (Arkivopplasting ikke tilgjengelig.)`, 'info');
     }
 
     return {
-      filename: finalName,
+      baseName,
       slug,
+      title,
+      tool,
       description,
+      createdAt,
+      dimensions,
+      svg: {
+        filename: svgFilename,
+        blob: svgBlob,
+        data: svgString
+      },
+      png: pngData
+        ? {
+            filename: pngFilename,
+            blob: pngData.blob,
+            dataUrl: pngData.dataUrl,
+            width: pngData.width,
+            height: pngData.height
+          }
+        : {
+            filename: pngFilename,
+            blob: null,
+            dataUrl: null,
+            width: dimensions.width,
+            height: dimensions.height
+          },
+      pngError: pngError || null,
+      payload,
       uploadPromise
     };
   }
 
+  async function exportSvgWithArchive(svgElement, suggestedName, toolId, options = {}) {
+    const result = await exportGraphicWithArchive(svgElement, suggestedName, toolId, options);
+    return {
+      filename: result && result.svg ? result.svg.filename : null,
+      slug: result ? result.slug : null,
+      description: result ? result.description : '',
+      uploadPromise: result ? result.uploadPromise : null
+    };
+  }
+
+  helper.exportGraphicWithArchive = exportGraphicWithArchive;
   helper.exportSvgWithArchive = exportSvgWithArchive;
   helper.slugify = slugify;
   helper.showToast = showToast;
