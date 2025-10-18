@@ -162,6 +162,24 @@
     const menuContainer = document.createElement('div');
     menuContainer.className = 'svg-archive__menu';
     menuContainer.hidden = true;
+
+    const actions = [
+      { action: 'download-svg', label: 'Last ned SVG' },
+      { action: 'download-png', label: 'Last ned PNG' },
+      { action: 'open', label: 'Åpne figur' },
+      { action: 'delete', label: 'Slett figur' }
+    ];
+
+    for (const { action, label } of actions) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'svg-archive__menu-action';
+      button.dataset.action = action;
+      button.dataset.slug = slugValue;
+      button.textContent = label;
+      menuContainer.appendChild(button);
+    }
+
     card.appendChild(menuContainer);
 
     item.appendChild(card);
@@ -557,7 +575,94 @@
     openMenuForTrigger(trigger);
   }
 
-  grid.addEventListener('click', event => {
+  async function handleMenuAction(actionElement) {
+    const card = actionElement.closest('.svg-archive__card');
+    if (!card) {
+      return;
+    }
+
+    const slug = card.dataset.slug || actionElement.dataset.slug || '';
+    if (!slug) {
+      setStatus('Fant ikke figuren som hører til handlingen.', 'error');
+      closeMenu({ focusTrigger: false });
+      return;
+    }
+
+    const entry = allEntries.find(item => item.slug === slug);
+    if (!entry) {
+      setStatus('Fant ikke figuren som hører til handlingen.', 'error');
+      closeMenu({ focusTrigger: false });
+      return;
+    }
+
+    const action = actionElement.dataset.action;
+
+    try {
+      if (action === 'download-svg' || action === 'download-png') {
+        const isSvg = action === 'download-svg';
+        const url = isSvg ? entry.svgUrl : entry.pngUrl;
+        if (!url) {
+          setStatus('Fant ikke nedlastingslenken for figuren.', 'error');
+          return;
+        }
+
+        const link = document.createElement('a');
+        link.href = url;
+        const fallbackName = `${entry.slug || 'figur'}${isSvg ? '.svg' : '.png'}`;
+        link.download = isSvg
+          ? (entry.svgSlug || `${entry.baseName || entry.slug || 'figur'}.svg`)
+          : (entry.pngSlug || `${entry.baseName || entry.slug || 'figur'}.png`);
+        if (!link.download) {
+          link.download = fallbackName;
+        }
+        link.rel = 'noopener';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setStatus(isSvg ? 'Starter nedlasting av SVG.' : 'Starter nedlasting av PNG.', 'success');
+      } else if (action === 'open') {
+        const url = entry.svgUrl || entry.pngUrl;
+        if (!url) {
+          setStatus('Fant ikke en URL å åpne for figuren.', 'error');
+          return;
+        }
+        window.open(url, '_blank', 'noopener');
+        setStatus('Åpner figur i ny fane.', 'success');
+      } else if (action === 'delete') {
+        const confirmed = window.confirm(`Er du sikker på at du vil slette «${entry.displayTitle}»?`);
+        if (!confirmed) {
+          return;
+        }
+
+        const response = await fetch(`/api/svg?slug=${encodeURIComponent(slug)}`, { method: 'DELETE' });
+        if (!response.ok) {
+          throw new Error(`Uventet svar: ${response.status}`);
+        }
+
+        allEntries = allEntries.filter(item => item.slug !== slug);
+        render();
+        setStatus('Figur slettet.', 'success');
+      }
+    } catch (error) {
+      console.error('Kunne ikke utføre handlingen', error);
+      setStatus('Klarte ikke å utføre handlingen. Prøv igjen senere.', 'error');
+    } finally {
+      closeMenu({ focusTrigger: false });
+    }
+  }
+
+  grid.addEventListener('click', async event => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+
+    const actionElement = event.target.closest('[data-action]');
+    if (actionElement && grid.contains(actionElement)) {
+      event.preventDefault();
+      await handleMenuAction(actionElement);
+      return;
+    }
+
     const trigger = event.target instanceof Element
       ? event.target.closest('.svg-archive__menu-trigger')
       : null;
