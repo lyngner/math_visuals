@@ -145,6 +145,17 @@ function normalizeSlug(value) {
   return normalized;
 }
 
+function stripAssetExtension(slug) {
+  if (typeof slug !== 'string') return slug;
+  return slug.replace(/\.(?:svg|png)$/gi, '');
+}
+
+function normalizeEntrySlug(value) {
+  const normalized = normalizeSlug(value);
+  if (!normalized) return null;
+  return stripAssetExtension(normalized);
+}
+
 function makeKey(slug) {
   return KEY_PREFIX + slug;
 }
@@ -169,50 +180,239 @@ function sanitizeRequiredText(value) {
   return value.trim();
 }
 
-function buildSvgEntry(slug, payload, existing) {
-  const now = new Date().toISOString();
+function sanitizeFileBaseName(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const withoutExt = trimmed.replace(/\.[^/.]+$/g, '');
+  const sanitized = withoutExt.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '');
+  return sanitized || '';
+}
+
+function deriveFileBaseName(slug, payload, existing) {
+  const fromPayload =
+    sanitizeFileBaseName(payload.baseName) ||
+    sanitizeFileBaseName(payload.filename) ||
+    sanitizeFileBaseName(payload.svgFilename) ||
+    sanitizeFileBaseName(payload.pngFilename);
+  if (fromPayload) return fromPayload;
+
+  if (existing && typeof existing === 'object') {
+    const existingBase =
+      sanitizeFileBaseName(existing.baseName) ||
+      sanitizeFileBaseName(existing.filename) ||
+      (existing.files && existing.files.svg && sanitizeFileBaseName(existing.files.svg.filename)) ||
+      (existing.files && existing.files.png && sanitizeFileBaseName(existing.files.png.filename));
+    if (existingBase) return existingBase;
+  }
+
+  if (typeof slug === 'string' && slug) {
+    const parts = slug.split('/');
+    const last = parts[parts.length - 1];
+    const sanitized = sanitizeFileBaseName(last);
+    if (sanitized) return sanitized;
+  }
+
+  return 'export';
+}
+
+function buildAssetSlug(baseSlug, extension) {
+  if (!baseSlug) return null;
+  const normalizedBase = stripAssetExtension(baseSlug);
+  if (!normalizedBase) return null;
+  const ext = extension === 'png' ? 'png' : 'svg';
+  return `${normalizedBase}.${ext}`;
+}
+
+function buildAssetUrl(assetSlug) {
+  if (!assetSlug) return null;
+  const trimmed = assetSlug.replace(/^\/+/, '');
+  if (trimmed.startsWith('bildearkiv/')) {
+    return `/${trimmed}`;
+  }
+  return `/bildearkiv/${trimmed}`;
+}
+
+function parseDimension(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  if (number <= 0) return null;
+  return Math.round(number);
+}
+
+function extractPngInfo(payload, existing) {
+  const pngValue = payload ? payload.png : undefined;
+  let dataUrl = '';
+  let width = null;
+  let height = null;
+
+  if (typeof pngValue === 'string') {
+    dataUrl = pngValue.trim();
+  } else if (pngValue && typeof pngValue === 'object') {
+    if (typeof pngValue.dataUrl === 'string') {
+      dataUrl = pngValue.dataUrl.trim();
+    }
+    if (Number.isFinite(pngValue.width)) {
+      width = parseDimension(pngValue.width);
+    }
+    if (Number.isFinite(pngValue.height)) {
+      height = parseDimension(pngValue.height);
+    }
+  }
+
+  if (!dataUrl && existing && typeof existing === 'object') {
+    const existingPng = existing.png && typeof existing.png === 'string' ? existing.png.trim() : '';
+    if (existingPng) {
+      dataUrl = existingPng;
+    }
+  }
+
+  if (width == null) {
+    const fromPayload = parseDimension(payload && payload.pngWidth);
+    if (fromPayload != null) {
+      width = fromPayload;
+    } else if (existing && existing.files && existing.files.png && existing.files.png.width) {
+      const existingWidth = parseDimension(existing.files.png.width);
+      if (existingWidth != null) width = existingWidth;
+    }
+  }
+
+  if (height == null) {
+    const fromPayload = parseDimension(payload && payload.pngHeight);
+    if (fromPayload != null) {
+      height = fromPayload;
+    } else if (existing && existing.files && existing.files.png && existing.files.png.height) {
+      const existingHeight = parseDimension(existing.files.png.height);
+      if (existingHeight != null) height = existingHeight;
+    }
+  }
+
+  return { dataUrl, width: width == null ? undefined : width, height: height == null ? undefined : height };
+}
+
+function buildFileMetadata(baseSlug, baseName, extension, overrides) {
+  const slug = buildAssetSlug(baseSlug, extension);
+  const filename = `${baseName}.${extension}`;
+  const url = buildAssetUrl(slug);
+  const result = {
+    slug,
+    filename,
+    url,
+    contentType: extension === 'png' ? 'image/png' : 'image/svg+xml'
+  };
+  if (overrides && typeof overrides === 'object') {
+    if (overrides.width != null) result.width = overrides.width;
+    if (overrides.height != null) result.height = overrides.height;
+  }
+  return result;
+}
+
+function ensureEntryShape(slug, payload, existing) {
+  const baseName = deriveFileBaseName(slug, payload || {}, existing || {});
+  const { dataUrl: pngDataUrl, width: pngWidth, height: pngHeight } = extractPngInfo(payload || {}, existing || {});
   const summary = sanitizeOptionalText(payload.summary);
+  const description = sanitizeOptionalText(payload.description);
+
+  const nowIso = new Date().toISOString();
   const storedCreatedAt = existing && typeof existing.createdAt === 'string' ? existing.createdAt : null;
   const createdAt = typeof payload.createdAt === 'string' && payload.createdAt.trim()
     ? payload.createdAt.trim()
-    : storedCreatedAt || now;
+    : storedCreatedAt || nowIso;
+  const updatedAt = nowIso;
+
+  const svgMarkup = typeof payload.svg === 'string' ? payload.svg : existing && typeof existing.svg === 'string' ? existing.svg : '';
+
+  const svgFile = buildFileMetadata(slug, baseName, 'svg', existing && existing.files && existing.files.svg);
+  const pngFileOverrides = existing && existing.files && existing.files.png ? existing.files.png : {};
+  if (pngWidth != null) pngFileOverrides.width = pngWidth;
+  if (pngHeight != null) pngFileOverrides.height = pngHeight;
+  const pngFile = buildFileMetadata(slug, baseName, 'png', pngFileOverrides);
+
   const entry = {
     slug,
-    title: sanitizeRequiredText(payload.title),
-    tool: sanitizeRequiredText(payload.tool),
-    svg: typeof payload.svg === 'string' ? payload.svg : '',
-    createdAt
+    baseName,
+    title: sanitizeRequiredText(payload.title || (existing && existing.title)),
+    tool: sanitizeRequiredText(payload.tool || (existing && existing.tool)),
+    svg: svgMarkup,
+    png: pngDataUrl,
+    createdAt,
+    updatedAt,
+    filename: svgFile.filename,
+    svgFilename: svgFile.filename,
+    pngFilename: pngFile.filename,
+    svgSlug: svgFile.slug,
+    pngSlug: pngFile.slug,
+    files: {
+      svg: svgFile,
+      png: pngFile
+    },
+    urls: {
+      svg: svgFile.url,
+      png: pngFile.url
+    }
   };
+
   if (summary) {
     entry.summary = summary;
+  }
+  if (description) {
+    entry.description = description;
+  }
+  if (pngWidth != null) {
+    entry.pngWidth = pngWidth;
+  }
+  if (pngHeight != null) {
+    entry.pngHeight = pngHeight;
+  }
+
+  return entry;
+}
+
+function buildSvgEntry(slug, payload, existing) {
+  const now = new Date().toISOString();
+  const baseSlug = stripAssetExtension(slug);
+  const entry = ensureEntryShape(baseSlug, payload, existing);
+  entry.updatedAt = now;
+  if (!entry.createdAt) {
+    entry.createdAt = now;
   }
   return entry;
 }
 
 function writeToMemory(slug, entry) {
-  const key = makeKey(slug);
+  const normalized = normalizeEntrySlug(slug);
+  if (!normalized) return;
+  const key = makeKey(normalized);
   memoryStore.set(key, clone(entry));
-  memoryIndex.add(slug);
+  memoryIndex.add(normalized);
 }
 
 function deleteFromMemory(slug) {
-  const key = makeKey(slug);
+  const normalized = normalizeEntrySlug(slug);
+  if (!normalized) return;
+  const key = makeKey(normalized);
   memoryStore.delete(key);
-  memoryIndex.delete(slug);
+  memoryIndex.delete(normalized);
 }
 
 function readFromMemory(slug) {
-  const key = makeKey(slug);
+  const normalized = normalizeEntrySlug(slug);
+  if (!normalized) return null;
+  const key = makeKey(normalized);
   const value = memoryStore.get(key);
   return value ? clone(value) : null;
 }
 
 async function writeToKv(slug, entry) {
   const kv = await loadKvClient();
-  const key = makeKey(slug);
+  const normalized = normalizeEntrySlug(slug);
+  if (!normalized) {
+    throw new KvOperationError('Invalid slug for KV write', { code: 'INVALID_SLUG' });
+  }
+  const key = makeKey(normalized);
   try {
     await kv.set(key, entry);
-    await kv.sadd(INDEX_KEY, slug);
+    await kv.sadd(INDEX_KEY, normalized);
   } catch (error) {
     throw new KvOperationError(`Failed to write SVG entry for slug ${slug}`, { cause: error });
   }
@@ -236,10 +436,14 @@ async function writeToKv(slug, entry) {
 
 async function deleteFromKv(slug) {
   const kv = await loadKvClient();
-  const key = makeKey(slug);
+  const normalized = normalizeEntrySlug(slug);
+  if (!normalized) {
+    throw new KvOperationError('Invalid slug for KV delete', { code: 'INVALID_SLUG' });
+  }
+  const key = makeKey(normalized);
   try {
     await kv.del(key);
-    await kv.srem(INDEX_KEY, slug);
+    await kv.srem(INDEX_KEY, normalized);
   } catch (error) {
     throw new KvOperationError(`Failed to delete SVG entry for slug ${slug}`, { cause: error });
   }
@@ -247,7 +451,11 @@ async function deleteFromKv(slug) {
 
 async function readFromKv(slug) {
   const kv = await loadKvClient();
-  const key = makeKey(slug);
+  const normalized = normalizeEntrySlug(slug);
+  if (!normalized) {
+    throw new KvOperationError('Invalid slug for KV read', { code: 'INVALID_SLUG' });
+  }
+  const key = makeKey(normalized);
   try {
     const value = await kv.get(key);
     if (value == null) return null;
@@ -273,7 +481,7 @@ async function readFromKv(slug) {
 }
 
 async function getSvg(slug) {
-  const normalized = normalizeSlug(slug);
+  const normalized = normalizeEntrySlug(slug);
   if (!normalized) return null;
   const storeMode = getStoreMode();
   const useKv = storeMode === 'kv';
@@ -288,17 +496,22 @@ async function getSvg(slug) {
   }
   const memoryValue = readFromMemory(normalized);
   if (memoryValue) {
+    const shaped =
+      memoryValue && memoryValue.files && memoryValue.files.svg && memoryValue.files.png && typeof memoryValue.png === 'string'
+        ? memoryValue
+        : buildSvgEntry(normalized, memoryValue, memoryValue);
     const entryMode = storeMode === 'memory'
       ? 'memory'
-      : memoryValue.mode || memoryValue.storage || storeMode;
-    const entry = applyStorageMetadata(clone(memoryValue), entryMode);
+      : shaped.mode || shaped.storage || storeMode;
+    const entry = applyStorageMetadata(clone(shaped), entryMode);
+    writeToMemory(normalized, entry);
     return entry;
   }
   return null;
 }
 
 async function setSvg(slug, payload) {
-  const normalized = normalizeSlug(slug || (payload && payload.slug));
+  const normalized = normalizeEntrySlug(slug || (payload && payload.slug));
   if (!normalized) return null;
   const existing = readFromMemory(normalized);
   const entry = buildSvgEntry(normalized, payload || {}, existing || null);
@@ -315,7 +528,7 @@ async function setSvg(slug, payload) {
 }
 
 async function deleteSvg(slug) {
-  const normalized = normalizeSlug(slug);
+  const normalized = normalizeEntrySlug(slug);
   if (!normalized) return false;
   const storeMode = getStoreMode();
   if (storeMode === 'kv') {
@@ -338,7 +551,7 @@ async function listSvgs() {
       throw new KvOperationError('Failed to read SVG index from KV', { cause: error });
     }
     for (const value of slugs) {
-      const normalized = normalizeSlug(value);
+      const normalized = normalizeEntrySlug(value);
       if (!normalized) continue;
       const stored = await readFromKv(normalized);
       if (!stored) continue;
@@ -350,11 +563,15 @@ async function listSvgs() {
     return entries;
   }
   memoryIndex.forEach(slug => {
-    const normalized = normalizeSlug(slug);
+    const normalized = normalizeEntrySlug(slug);
     if (!normalized) return;
     const stored = readFromMemory(normalized);
     if (!stored) return;
-    const annotated = applyStorageMetadata(stored, storeMode);
+    const shaped =
+      stored && stored.files && stored.files.svg && stored.files.png && typeof stored.png === 'string'
+        ? stored
+        : buildSvgEntry(normalized, stored, stored);
+    const annotated = applyStorageMetadata(shaped, storeMode);
     entries.push(clone(annotated));
   });
   return entries;

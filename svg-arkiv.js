@@ -51,11 +51,11 @@
   function createCard(entry) {
     const item = document.createElement('li');
     item.className = 'svg-archive__item';
-    item.dataset.svgItem = entry.slug;
+    item.dataset.svgItem = entry.svgSlug || entry.slug;
 
     const link = document.createElement('a');
     link.className = 'svg-archive__link';
-    link.href = `/svg/${entry.slug}`;
+    link.href = entry.svgUrl || `/svg/${entry.slug}`;
     link.target = '_blank';
     link.rel = 'noopener';
 
@@ -63,7 +63,7 @@
     preview.className = 'svg-archive__preview';
 
     const img = document.createElement('img');
-    img.src = `/svg/${entry.slug}`;
+    img.src = entry.pngUrl || entry.svgUrl || `/svg/${entry.slug}`;
     img.alt = entry.title || entry.slug || 'SVG-fil';
     img.loading = 'lazy';
 
@@ -197,19 +197,57 @@
       const payload = await response.json();
       const entries = Array.isArray(payload.entries) ? payload.entries : [];
       allEntries = entries
-        .map(entry => ({
-          slug: typeof entry.slug === 'string' ? entry.slug.trim() : '',
-          title: typeof entry.title === 'string' ? entry.title.trim() : '',
-          tool: typeof entry.tool === 'string' ? entry.tool.trim() : '',
-          createdAt:
-            typeof entry.createdAt === 'string' && entry.createdAt.trim()
-              ? entry.createdAt.trim()
-              : typeof entry.updatedAt === 'string'
-                ? entry.updatedAt.trim()
-                : '',
-          summary: typeof entry.summary === 'string' ? entry.summary.trim() : ''
-        }))
-        .filter(entry => entry.slug);
+        .map(entry => {
+          const slug = typeof entry.slug === 'string' ? entry.slug.trim() : '';
+          const files = entry && typeof entry === 'object' && entry.files ? entry.files : {};
+          const urls = entry && typeof entry === 'object' && entry.urls ? entry.urls : {};
+          const svgFile = files && typeof files === 'object' ? files.svg : null;
+          const pngFile = files && typeof files === 'object' ? files.png : null;
+          const svgSlug = typeof entry.svgSlug === 'string' && entry.svgSlug.trim()
+            ? entry.svgSlug.trim()
+            : svgFile && typeof svgFile.slug === 'string' && svgFile.slug.trim()
+              ? svgFile.slug.trim()
+              : slug ? `${slug}.svg` : '';
+          const pngSlug = typeof entry.pngSlug === 'string' && entry.pngSlug.trim()
+            ? entry.pngSlug.trim()
+            : pngFile && typeof pngFile.slug === 'string' && pngFile.slug.trim()
+              ? pngFile.slug.trim()
+              : slug ? `${slug}.png` : '';
+          const svgUrl = typeof urls.svg === 'string' && urls.svg.trim()
+            ? urls.svg.trim()
+            : svgFile && typeof svgFile.url === 'string' && svgFile.url.trim()
+              ? svgFile.url.trim()
+              : svgSlug
+                ? (svgSlug.startsWith('/') ? svgSlug : `/${svgSlug}`)
+                : slug
+                  ? `/svg/${slug}`
+                  : '';
+          const pngUrl = typeof urls.png === 'string' && urls.png.trim()
+            ? urls.png.trim()
+            : pngFile && typeof pngFile.url === 'string' && pngFile.url.trim()
+              ? pngFile.url.trim()
+              : pngSlug
+                ? (pngSlug.startsWith('/') ? pngSlug : `/${pngSlug}`)
+                : svgUrl;
+
+          return {
+            slug,
+            svgSlug,
+            pngSlug,
+            svgUrl: svgUrl.startsWith('http') || svgUrl.startsWith('/') ? svgUrl : `/svg/${slug}`,
+            pngUrl: pngUrl.startsWith('http') || pngUrl.startsWith('/') ? pngUrl : svgUrl,
+            title: typeof entry.title === 'string' ? entry.title.trim() : '',
+            tool: typeof entry.tool === 'string' ? entry.tool.trim() : '',
+            createdAt:
+              typeof entry.createdAt === 'string' && entry.createdAt.trim()
+                ? entry.createdAt.trim()
+                : typeof entry.updatedAt === 'string'
+                  ? entry.updatedAt.trim()
+                  : '',
+            summary: typeof entry.summary === 'string' ? entry.summary.trim() : ''
+          };
+        })
+        .filter(entry => entry.slug && entry.svgUrl);
 
       allEntries.sort((a, b) => {
         const aTime = Date.parse(a.createdAt || '') || 0;
