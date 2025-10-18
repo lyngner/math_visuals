@@ -64,6 +64,131 @@
     return normalized;
   }
 
+  let activeMenu = null;
+  let activeMenuTrigger = null;
+  let menuListenersInitialized = false;
+
+  function closeActiveMenu() {
+    if (!activeMenu || !activeMenuTrigger) {
+      activeMenu = null;
+      activeMenuTrigger = null;
+      return;
+    }
+
+    activeMenu.hidden = true;
+    activeMenuTrigger.setAttribute('aria-expanded', 'false');
+    activeMenu = null;
+    activeMenuTrigger = null;
+  }
+
+  function initializeMenuGlobalListeners() {
+    if (menuListenersInitialized) {
+      return;
+    }
+
+    document.addEventListener('click', event => {
+      if (!activeMenu || !activeMenuTrigger) {
+        return;
+      }
+
+      if (activeMenu.contains(event.target) || activeMenuTrigger.contains(event.target)) {
+        return;
+      }
+
+      closeActiveMenu();
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        closeActiveMenu();
+      }
+    });
+
+    menuListenersInitialized = true;
+  }
+
+  function populateMenu(trigger, container, entry) {
+    const menuItems = [];
+
+    if (entry.svgUrl) {
+      menuItems.push({
+        label: 'Åpne SVG',
+        url: entry.svgUrl,
+        format: 'svg'
+      });
+    }
+
+    if (entry.pngUrl && entry.pngUrl !== entry.svgUrl) {
+      menuItems.push({
+        label: 'Åpne PNG',
+        url: entry.pngUrl,
+        format: 'png'
+      });
+    }
+
+    container.innerHTML = '';
+
+    if (!menuItems.length) {
+      trigger.disabled = true;
+      trigger.hidden = true;
+      container.hidden = true;
+      return;
+    }
+
+    const list = document.createElement('ul');
+    list.className = 'svg-archive__menu-list';
+
+    for (const item of menuItems) {
+      const listItem = document.createElement('li');
+      listItem.className = 'svg-archive__menu-item';
+
+      const link = document.createElement('a');
+      link.className = 'svg-archive__menu-link';
+      link.href = item.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = item.label;
+      link.dataset.format = item.format;
+
+      link.addEventListener('click', () => {
+        closeActiveMenu();
+      });
+
+      listItem.appendChild(link);
+      list.appendChild(listItem);
+    }
+
+    container.appendChild(list);
+
+    trigger.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (activeMenu === container) {
+        closeActiveMenu();
+        return;
+      }
+
+      closeActiveMenu();
+
+      container.hidden = false;
+      trigger.setAttribute('aria-expanded', 'true');
+      activeMenu = container;
+      activeMenuTrigger = trigger;
+
+      const firstLink = container.querySelector('a');
+      if (firstLink) {
+        firstLink.focus();
+      }
+    });
+
+    container.addEventListener('click', event => {
+      event.stopPropagation();
+    });
+
+    initializeMenuGlobalListeners();
+  }
+
   function createCard(entry) {
     const slugValue = entry.slug || entry.svgSlug || entry.baseName || '';
 
@@ -105,6 +230,8 @@
     const menuContainer = document.createElement('div');
     menuContainer.className = 'svg-archive__menu';
     menuContainer.hidden = true;
+    populateMenu(menuTrigger, menuContainer, entry);
+
     card.appendChild(menuContainer);
 
     item.appendChild(card);
@@ -114,6 +241,8 @@
 
   function render() {
     const selectedTool = filterSelect && filterSelect.value !== 'all' ? filterSelect.value : null;
+    closeActiveMenu();
+
     const filteredEntries = selectedTool
       ? allEntries.filter(entry => entry.tool === selectedTool)
       : allEntries.slice();
