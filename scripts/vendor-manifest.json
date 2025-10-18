@@ -25,10 +25,10 @@
         "mathlive.min.js",
         "mathlive-static.css"
       ],
-      "directories": [
-        "fonts",
-        "sounds"
-      ]
+      "inlineFonts": {
+        "directory": "fonts",
+        "targetCss": "mathlive-static.css"
+      }
     }
   }
 }
