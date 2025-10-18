@@ -32,22 +32,6 @@
     grid.setAttribute('aria-busy', String(Boolean(isBusy)));
   }
 
-  function formatTimestamp(value) {
-    if (!value) return '';
-    try {
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) {
-        return '';
-      }
-      return new Intl.DateTimeFormat('nb-NO', {
-        dateStyle: 'medium',
-        timeStyle: 'short'
-      }).format(date);
-    } catch (error) {
-      return '';
-    }
-  }
-
   function normalizeAssetUrl(url, formatHint) {
     if (typeof url !== 'string') {
       return '';
@@ -81,12 +65,17 @@
   }
 
   function createCard(entry) {
+    const slugValue = entry.slug || entry.svgSlug || entry.baseName || '';
+
     const item = document.createElement('li');
     item.className = 'svg-archive__item';
-    item.dataset.svgItem = entry.svgSlug || entry.slug || entry.baseName || '';
+    item.dataset.svgItem = slugValue;
 
     const card = document.createElement('article');
     card.className = 'svg-archive__card';
+    card.dataset.slug = slugValue;
+    card.dataset.svgUrl = normalizeAssetUrl(entry.svgUrl, 'svg') || entry.svgUrl || '';
+    card.dataset.pngUrl = normalizeAssetUrl(entry.pngUrl, 'png') || entry.pngUrl || '';
 
     const preview = document.createElement('div');
     preview.className = 'svg-archive__preview';
@@ -99,88 +88,25 @@
 
     preview.appendChild(img);
 
-    const body = document.createElement('div');
-    body.className = 'svg-archive__body';
+    const menuTrigger = document.createElement('button');
+    menuTrigger.type = 'button';
+    menuTrigger.className = 'svg-archive__menu-trigger';
+    menuTrigger.setAttribute('aria-haspopup', 'true');
+    menuTrigger.setAttribute('aria-expanded', 'false');
+    menuTrigger.setAttribute('aria-label', `Åpne meny for ${entry.displayTitle}`);
+    menuTrigger.dataset.slug = slugValue;
+    menuTrigger.dataset.svgUrl = card.dataset.svgUrl;
+    menuTrigger.dataset.pngUrl = card.dataset.pngUrl;
 
-    const title = document.createElement('h3');
-    title.className = 'svg-archive__title';
-    title.textContent = entry.displayTitle;
-    body.appendChild(title);
-
-    const meta = document.createElement('div');
-    meta.className = 'svg-archive__meta';
-
-    if (entry.tool) {
-      const toolTag = document.createElement('span');
-      toolTag.className = 'svg-archive__tag';
-      toolTag.textContent = entry.tool;
-      meta.appendChild(toolTag);
-    }
-
-    const formattedTime = formatTimestamp(entry.createdAt);
-    if (formattedTime) {
-      const time = document.createElement('time');
-      time.dateTime = entry.createdAt;
-      time.textContent = formattedTime;
-      meta.appendChild(time);
-    }
-
-    if (entry.sequenceLabel) {
-      const sequence = document.createElement('span');
-      sequence.className = 'svg-archive__sequence';
-      sequence.textContent = entry.sequenceLabel;
-      meta.appendChild(sequence);
-    }
-
-    if (!meta.childElementCount) {
-      const fallbackMeta = document.createElement('span');
-      fallbackMeta.textContent = 'Detaljer ukjent';
-      meta.appendChild(fallbackMeta);
-    }
-
-    body.appendChild(meta);
-
-    const fileInfoItems = [];
-    if (entry.baseName) {
-      fileInfoItems.push(`Filnavn: ${entry.baseName}`);
-    }
-    if (entry.fileSizeLabel) {
-      fileInfoItems.push(entry.fileSizeLabel);
-    }
-
-    if (fileInfoItems.length || entry.summary) {
-      const details = document.createElement('p');
-      details.className = 'svg-archive__details';
-      const infoText = [fileInfoItems.join(' · '), entry.summary].filter(Boolean).join(' — ');
-      details.textContent = infoText;
-      body.appendChild(details);
-    }
-
-    const actions = document.createElement('div');
-    actions.className = 'svg-archive__actions';
-
-    const svgLink = document.createElement('a');
-    svgLink.className = 'svg-archive__action';
-    svgLink.href = normalizeAssetUrl(entry.svgUrl, 'svg') || entry.svgUrl || '#';
-    svgLink.target = '_blank';
-    svgLink.rel = 'noopener';
-    svgLink.textContent = 'Åpne SVG';
-    svgLink.setAttribute('aria-label', `Åpne SVG-fil for ${entry.displayTitle}`);
-
-    const pngLink = document.createElement('a');
-    pngLink.className = 'svg-archive__action';
-    pngLink.href = normalizeAssetUrl(entry.pngUrl, 'png') || entry.pngUrl || '#';
-    pngLink.target = '_blank';
-    pngLink.rel = 'noopener';
-    pngLink.textContent = 'Åpne PNG';
-    pngLink.setAttribute('aria-label', `Åpne PNG-forhåndsvisning for ${entry.displayTitle}`);
-
-    actions.appendChild(svgLink);
-    actions.appendChild(pngLink);
-    body.appendChild(actions);
+    preview.appendChild(menuTrigger);
 
     card.appendChild(preview);
-    card.appendChild(body);
+
+    const menuContainer = document.createElement('div');
+    menuContainer.className = 'svg-archive__menu';
+    menuContainer.hidden = true;
+    card.appendChild(menuContainer);
+
     item.appendChild(card);
 
     return item;
