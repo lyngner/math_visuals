@@ -8,28 +8,32 @@
   <link rel="stylesheet" href="svg-arkiv.css" />
 </head>
 <body>
-  <main class="svg-archive" aria-labelledby="page-title">
-    <header class="svg-archive__header">
-      <h1 id="page-title">SVG-arkiv</h1>
-      <p>
-        Utforsk lagrede SVG-er fra verktøyene. Bruk filteret for å finne filer fra et bestemt verktøy.
-      </p>
-      <p class="svg-archive__note" data-storage-note hidden></p>
-    </header>
+  <div class="wrap">
+    <div class="grid">
+      <main class="svg-archive" aria-labelledby="page-title">
+        <header class="svg-archive__header">
+          <h1 id="page-title">SVG-arkiv</h1>
+          <p>
+            Utforsk lagrede SVG-er fra verktøyene. Bruk filteret for å finne filer fra et bestemt verktøy.
+          </p>
+          <p class="svg-archive__note" data-storage-note hidden></p>
+        </header>
 
-    <section class="svg-archive__controls" aria-label="Filtrering">
-      <label class="svg-archive__filter" data-filter-wrapper hidden>
-        <span>Filtrer etter verktøy</span>
-        <select data-tool-filter>
-          <option value="all">Alle verktøy</option>
-        </select>
-      </label>
-    </section>
+        <section class="svg-archive__controls" aria-label="Filtrering">
+          <label class="svg-archive__filter" data-filter-wrapper hidden>
+            <span>Filtrer etter verktøy</span>
+            <select data-tool-filter>
+              <option value="all">Alle verktøy</option>
+            </select>
+          </label>
+        </section>
 
-    <p class="svg-archive__status" data-status role="status">Laster SVG-arkivet …</p>
+        <p class="svg-archive__status" data-status role="status">Laster SVG-arkivet …</p>
 
-    <ul class="svg-archive__grid" data-svg-grid aria-live="polite" aria-busy="true"></ul>
-  </main>
+        <ul class="svg-archive__grid" data-svg-grid aria-live="polite" aria-busy="true"></ul>
+      </main>
+    </div>
+  </div>
 
   <script src="svg-arkiv.js" defer></script>
 </body>
