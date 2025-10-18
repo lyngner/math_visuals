@@ -1804,7 +1804,7 @@ function placeAxisNames() {
   if (!xName) {
     xName = brd.create('text', [...xLabelPos, () => axisLabelChip('x')], {
       display: 'html',
-      anchorX: 'left',
+      anchorX: 'right',
       anchorY: 'bottom',
       fixed: true,
       layer: 40,
@@ -1814,7 +1814,8 @@ function placeAxisNames() {
   } else {
     xName.setAttribute({
       cssStyle: axisLabelCss,
-      highlight: false
+      highlight: false,
+      anchorX: 'right'
     });
   }
   if (!yName) {
