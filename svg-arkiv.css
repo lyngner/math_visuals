@@ -96,99 +96,29 @@ body {
 }
 
 .svg-archive__card {
-  display: grid;
-  grid-template-rows: auto 1fr;
+  position: relative;
+  display: block;
   height: 100%;
 }
 
 .svg-archive__preview {
-  padding: 8px;
-  background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 120px;
+  padding: 12px;
+  background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  border-radius: 12px 12px 0 0;
 }
 
 .svg-archive__preview img {
-  width: min(120px, 90%);
+  width: auto;
   height: auto;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
-}
-
-.svg-archive__body {
-  display: grid;
-  gap: 6px;
-  padding: 12px 14px 14px;
-}
-
-.svg-archive__title {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0;
-  color: #0f172a;
-  line-height: 1.2;
-}
-
-.svg-archive__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  font-size: 0.78rem;
-  color: #475569;
-  align-items: center;
-}
-
-.svg-archive__meta time {
-  font-variant-numeric: tabular-nums;
-}
-
-.svg-archive__tag,
-.svg-archive__sequence {
-  background: #e0f2fe;
-  color: #0c4a6e;
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-weight: 500;
-}
-
-.svg-archive__sequence {
-  background: #ede9fe;
-  color: #5b21b6;
-}
-
-.svg-archive__details {
-  font-size: 0.8rem;
-  color: #334155;
-  margin: 0;
-}
-
-.svg-archive__actions {
-  display: inline-flex;
-  gap: 8px;
-  margin-top: 6px;
-}
-
-.svg-archive__action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid #cbd5f5;
-  background: #f8fafc;
-  color: #1d4ed8;
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
-.svg-archive__action:focus-visible,
-.svg-archive__action:hover {
-  background: #eff6ff;
-  border-color: #93c5fd;
-  color: #1e40af;
 }
 
 .svg-archive__item:focus-within,
@@ -197,9 +127,82 @@ body {
   box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
 }
 
-.svg-archive__item:focus-within .svg-archive__action:first-child {
+.svg-archive__menu-trigger {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  inline-size: 34px;
+  block-size: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid #cbd5f5;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1e293b;
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.08);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.svg-archive__menu-trigger::before {
+  content: '\22ee';
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.svg-archive__menu-trigger:hover {
+  background: #f8fafc;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+.svg-archive__menu-trigger:focus-visible {
   outline: 3px solid rgba(59, 130, 246, 0.45);
   outline-offset: 2px;
+}
+
+.svg-archive__menu {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-inline-size: 190px;
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #fff;
+  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.18);
+  z-index: 20;
+  overflow: hidden;
+}
+
+.svg-archive__menu-action {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #1f2937;
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.svg-archive__menu-action:hover {
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+.svg-archive__menu-action:focus-visible {
+  background: #eff6ff;
+  color: #1e40af;
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: -2px;
 }
 
 @media (max-width: 640px) {
@@ -213,5 +216,14 @@ body {
 
   .svg-archive__filter select {
     width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .svg-archive__menu {
+    left: 12px;
+    right: 12px;
+    min-inline-size: auto;
+    max-inline-size: calc(100% - 24px);
   }
 }
