@@ -1,15 +1,18 @@
 const { test, expect } = require('@playwright/test');
 
 async function blockJsdelivr(page, blockedRequests) {
-  await page.route('**/*', route => {
+  const jsdelivrRoute = '**/*jsdelivr.net/**';
+  const handler = route => {
     const url = route.request().url();
-    if (/^https?:\/\/[^/]*jsdelivr\.net\//i.test(url)) {
-      blockedRequests.push(url);
-      route.abort();
-      return;
-    }
-    route.continue();
-  });
+    blockedRequests.push(url);
+    route.abort();
+  };
+
+  await page.route(jsdelivrRoute, handler);
+
+  return async () => {
+    await page.unroute(jsdelivrRoute, handler);
+  };
 }
 
 test.describe('MathLive offline support', () => {
@@ -31,17 +34,25 @@ test.describe('MathLive offline support', () => {
 
   test('fortegnsskjema loads MathLive assets locally when jsdelivr is blocked', async ({ page }) => {
     const blockedRequests = [];
-    await blockJsdelivr(page, blockedRequests);
-    await page.goto('/fortegnsskjema.html', { waitUntil: 'load' });
-    await expectMathLiveReady(page);
-    expect(blockedRequests).toEqual([]);
+    const cleanup = await blockJsdelivr(page, blockedRequests);
+    try {
+      await page.goto('/fortegnsskjema.html', { waitUntil: 'load' });
+      await expectMathLiveReady(page);
+      expect(blockedRequests).toEqual([]);
+    } finally {
+      await cleanup();
+    }
   });
 
   test('graftegner loads MathLive assets locally when jsdelivr is blocked', async ({ page }) => {
     const blockedRequests = [];
-    await blockJsdelivr(page, blockedRequests);
-    await page.goto('/graftegner.html', { waitUntil: 'load' });
-    await expectMathLiveReady(page);
-    expect(blockedRequests).toEqual([]);
+    const cleanup = await blockJsdelivr(page, blockedRequests);
+    try {
+      await page.goto('/graftegner.html', { waitUntil: 'load' });
+      await expectMathLiveReady(page);
+      expect(blockedRequests).toEqual([]);
+    } finally {
+      await cleanup();
+    }
   });
 });
