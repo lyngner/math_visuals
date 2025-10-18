@@ -48,6 +48,38 @@
     }
   }
 
+  function normalizeAssetUrl(url, formatHint) {
+    if (typeof url !== 'string') {
+      return '';
+    }
+
+    const trimmed = url.trim();
+    if (!trimmed) {
+      return '';
+    }
+
+    if (/^(?:https?:)?\/\//.test(trimmed)) {
+      return trimmed;
+    }
+
+    if (trimmed.startsWith('/api/svg/raw')) {
+      return trimmed;
+    }
+
+    const normalized = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+
+    if (normalized.startsWith('/bildearkiv/')) {
+      const searchParams = new URLSearchParams();
+      searchParams.set('path', normalized.replace(/^\/+/, ''));
+      if (formatHint) {
+        searchParams.set('format', formatHint);
+      }
+      return `/api/svg/raw?${searchParams.toString()}`;
+    }
+
+    return normalized;
+  }
+
   function createCard(entry) {
     const item = document.createElement('li');
     item.className = 'svg-archive__item';
@@ -60,7 +92,7 @@
     preview.className = 'svg-archive__preview';
 
     const img = document.createElement('img');
-    img.src = entry.thumbnailUrl;
+    img.src = normalizeAssetUrl(entry.thumbnailUrl, 'png') || entry.thumbnailUrl || '';
     img.alt = entry.altText || `Forhåndsvisning av ${entry.displayTitle}`;
     img.loading = 'lazy';
     img.decoding = 'async';
@@ -129,7 +161,7 @@
 
     const svgLink = document.createElement('a');
     svgLink.className = 'svg-archive__action';
-    svgLink.href = entry.svgUrl;
+    svgLink.href = normalizeAssetUrl(entry.svgUrl, 'svg') || entry.svgUrl || '#';
     svgLink.target = '_blank';
     svgLink.rel = 'noopener';
     svgLink.textContent = 'Åpne SVG';
@@ -137,7 +169,7 @@
 
     const pngLink = document.createElement('a');
     pngLink.className = 'svg-archive__action';
-    pngLink.href = entry.pngUrl;
+    pngLink.href = normalizeAssetUrl(entry.pngUrl, 'png') || entry.pngUrl || '#';
     pngLink.target = '_blank';
     pngLink.rel = 'noopener';
     pngLink.textContent = 'Åpne PNG';
@@ -322,17 +354,9 @@
                 ? svgSlug.replace(/\.svg$/i, '')
                 : '';
 
-          const resolvedSvgUrl = svgUrl && (svgUrl.startsWith('http') || svgUrl.startsWith('/'))
-            ? svgUrl
-            : normalizedSlug
-              ? `/svg/${normalizedSlug}`
-              : '';
-          const resolvedPngUrl = pngUrl && (pngUrl.startsWith('http') || pngUrl.startsWith('/'))
-            ? pngUrl
-            : resolvedSvgUrl;
-          const resolvedThumbnailUrl = thumbnailUrl && (thumbnailUrl.startsWith('http') || thumbnailUrl.startsWith('/'))
-            ? thumbnailUrl
-            : resolvedPngUrl || resolvedSvgUrl;
+          const resolvedSvgUrl = normalizeAssetUrl(svgUrl, 'svg') || (normalizedSlug ? normalizeAssetUrl(`/svg/${normalizedSlug}`, 'svg') : '');
+          const resolvedPngUrl = normalizeAssetUrl(pngUrl, 'png') || resolvedSvgUrl;
+          const resolvedThumbnailUrl = normalizeAssetUrl(thumbnailUrl, 'png') || resolvedPngUrl || resolvedSvgUrl;
 
           return {
             slug: normalizedSlug || slug,
