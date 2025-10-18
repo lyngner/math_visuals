@@ -389,6 +389,17 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     const rawPath = url.searchParams.get('path');
     const normalizedPath = rawPath ? normalizePath(rawPath) : null;
 
+    const recordHistory = (type, payload) => {
+      history.push({
+        type,
+        method,
+        rawPath,
+        path: normalizedPath,
+        timestamp: Date.now(),
+        ...payload
+      });
+    };
+
     if (requestFailureFactory) {
       const buildError = () => {
         try {
@@ -407,19 +418,23 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
           return error;
         }
       };
-      throw buildError();
-    }
 
-    const recordHistory = (type, payload) => {
-      history.push({
-        type,
-        method,
-        rawPath,
-        path: normalizedPath,
-        timestamp: Date.now(),
-        ...payload
+      const error = buildError();
+      const numericStatus = typeof error.status === 'number' ? error.status : Number(error.status);
+      const status = Number.isFinite(numericStatus) && numericStatus >= 400 ? numericStatus : 503;
+      const message = error && typeof error.message === 'string'
+        ? error.message
+        : String(error || 'Mock backend failure');
+
+      recordHistory('FAILURE', { status, error: message });
+
+      await route.fulfill({
+        status,
+        headers: buildHeaders(currentMode),
+        body: JSON.stringify({ error: message, status })
       });
-    };
+      return;
+    }
 
     if (method === 'GET') {
       if (!rawPath) {
