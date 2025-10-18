@@ -255,10 +255,8 @@
     const title = typeof entry.title === 'string' ? entry.title.trim() : '';
     const baseName = typeof entry.baseName === 'string' ? entry.baseName.trim() : '';
     const identifier = slug || baseName || title;
-    if (!Array.isArray(archiveEntriesCache)) {
-      archiveEntriesCache = [];
-    }
-    const exists = archiveEntriesCache.some(existing => {
+    const nextCache = Array.isArray(archiveEntriesCache) ? archiveEntriesCache.slice() : [];
+    const exists = nextCache.some(existing => {
       if (!existing || typeof existing !== 'object') return false;
       const existingTool = typeof existing.tool === 'string' ? existing.tool.trim() : '';
       const existingSlug = typeof existing.slug === 'string' ? existing.slug.trim() : '';
@@ -268,8 +266,50 @@
       return existingTool === tool && identifier && existingIdentifier === identifier;
     });
     if (!exists) {
-      archiveEntriesCache.push({ tool, slug, title, baseName });
+      nextCache.push({ tool, slug, title, baseName });
     }
+    archiveEntriesCache = nextCache;
+    archiveEntriesPromise = Promise.resolve(archiveEntriesCache);
+  }
+
+  function refreshArchiveEntriesFromResponse(response, fallbackEntry) {
+    const useEntry = entry => {
+      if (entry && typeof entry === 'object') {
+        rememberArchiveEntry(entry);
+      } else if (fallbackEntry && typeof fallbackEntry === 'object') {
+        rememberArchiveEntry(fallbackEntry);
+      }
+    };
+    if (!response || typeof response.clone !== 'function' || typeof response.json !== 'function') {
+      useEntry(fallbackEntry);
+      return Promise.resolve();
+    }
+    let cloned;
+    try {
+      cloned = response.clone();
+    } catch (error) {
+      useEntry(fallbackEntry);
+      return Promise.resolve();
+    }
+    return cloned
+      .json()
+      .then(payload => {
+        if (payload && typeof payload === 'object') {
+          if (Array.isArray(payload.entries) && payload.entries.length) {
+            const last = payload.entries[payload.entries.length - 1];
+            useEntry(last);
+            return;
+          }
+          if (payload.entry && typeof payload.entry === 'object') {
+            useEntry(payload.entry);
+            return;
+          }
+        }
+        useEntry(fallbackEntry);
+      })
+      .catch(() => {
+        useEntry(fallbackEntry);
+      });
   }
 
   function extractArchiveBaseName(entry) {
@@ -478,9 +518,12 @@
       })
         .then(response => {
           if (response && response.ok) {
-            rememberArchiveEntry(payload);
-            showToast(`Grafikk lastet ned og arkivert som ${baseName}.`, 'success');
-            return response;
+            return refreshArchiveEntriesFromResponse(response, payload)
+              .catch(() => {})
+              .then(() => {
+                showToast(`Grafikk lastet ned og arkivert som ${baseName}.`, 'success');
+                return response;
+              });
           }
           const status = response ? response.status : 'ukjent';
           showToast(`Grafikk lastet ned, men arkivopplasting feilet (status ${status}).`, 'error');
