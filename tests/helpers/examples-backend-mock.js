@@ -426,12 +426,13 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
         ? error.message
         : String(error || 'Mock backend failure');
 
-      recordHistory('FAILURE', { status, error: message });
+      const failurePayload = { error: message, status };
+      recordHistory('FAILURE', failurePayload);
 
       await route.fulfill({
         status,
         headers: buildHeaders(currentMode),
-        body: JSON.stringify({ error: message, status })
+        body: JSON.stringify(failurePayload)
       });
       return;
     }
