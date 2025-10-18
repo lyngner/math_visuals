@@ -2,6 +2,7 @@
 
 const KEY_PREFIX = 'svg:';
 const INDEX_KEY = 'svg:__slugs__';
+const LEGACY_KEY_EXTENSIONS = ['svg', 'png'];
 const INJECTED_KV_CLIENT_KEY = '__MATH_VISUALS_KV_CLIENT__';
 
 const globalScope = typeof globalThis === 'object' && globalThis ? globalThis : global;
@@ -158,6 +159,38 @@ function normalizeEntrySlug(value) {
 
 function makeKey(slug) {
   return KEY_PREFIX + slug;
+}
+
+function buildLegacySlugs(slug) {
+  const normalized = stripAssetExtension(slug);
+  if (!normalized) return [];
+  const legacySlugs = [];
+  const seen = new Set();
+  for (const extension of LEGACY_KEY_EXTENSIONS) {
+    const ext = typeof extension === 'string' ? extension.trim().toLowerCase() : '';
+    if (!ext) continue;
+    const candidate = `${normalized}.${ext}`;
+    if (candidate === slug) continue;
+    if (seen.has(candidate)) continue;
+    seen.add(candidate);
+    legacySlugs.push(candidate);
+  }
+  return legacySlugs;
+}
+
+async function removeLegacyKvEntries(kv, slug, options = {}) {
+  const legacySlugs = buildLegacySlugs(slug);
+  if (!legacySlugs.length) return;
+  const deleteResults = await Promise.allSettled(legacySlugs.map(legacySlug => kv.del(makeKey(legacySlug))));
+  const indexResults = await Promise.allSettled(legacySlugs.map(legacySlug => kv.srem(INDEX_KEY, legacySlug)));
+  const failures = [...deleteResults, ...indexResults].filter(result => result.status === 'rejected');
+  if (failures.length && options.strict) {
+    const reason = failures[0] && failures[0].reason ? failures[0].reason : undefined;
+    throw new KvOperationError('Failed to clean up legacy SVG entries from KV', {
+      cause: reason instanceof Error ? reason : undefined,
+      code: 'KV_LEGACY_CLEANUP_FAILED'
+    });
+  }
 }
 
 function clone(entry) {
@@ -329,7 +362,7 @@ function ensureEntryShape(slug, payload, existing) {
   const pngFile = buildFileMetadata(slug, baseName, 'png', pngFileOverrides);
 
   const entry = {
-    slug,
+    slug: svgFile.slug,
     baseName,
     title: sanitizeRequiredText(payload.title || (existing && existing.title)),
     tool: sanitizeRequiredText(payload.tool || (existing && existing.tool)),
@@ -432,6 +465,7 @@ async function writeToKv(slug, entry) {
       code: 'KV_WRITE_VERIFICATION_FAILED'
     });
   }
+  await removeLegacyKvEntries(kv, normalized);
 }
 
 async function deleteFromKv(slug) {
@@ -444,34 +478,63 @@ async function deleteFromKv(slug) {
   try {
     await kv.del(key);
     await kv.srem(INDEX_KEY, normalized);
+    await removeLegacyKvEntries(kv, normalized, { strict: true });
   } catch (error) {
     throw new KvOperationError(`Failed to delete SVG entry for slug ${slug}`, { cause: error });
   }
 }
 
-async function readFromKv(slug) {
+async function readFromKv(slug, options = {}) {
   const kv = await loadKvClient();
-  const normalized = normalizeEntrySlug(slug);
+  const normalized = normalizeEntrySlug(options.normalized || slug);
   if (!normalized) {
     throw new KvOperationError('Invalid slug for KV read', { code: 'INVALID_SLUG' });
   }
-  const key = makeKey(normalized);
+  const variants = [];
+  const seen = new Set();
+  const enqueue = candidate => {
+    if (typeof candidate !== 'string') return;
+    const normalizedCandidate = normalizeSlug(candidate);
+    if (!normalizedCandidate) return;
+    if (seen.has(normalizedCandidate)) return;
+    seen.add(normalizedCandidate);
+    variants.push(normalizedCandidate);
+  };
+
+  enqueue(normalized);
+  enqueue(slug);
+  if (typeof options.originalSlug === 'string') {
+    enqueue(options.originalSlug);
+  }
+  for (const legacySlug of buildLegacySlugs(normalized)) {
+    enqueue(legacySlug);
+  }
+  if (typeof options.originalSlug === 'string') {
+    for (const legacySlug of buildLegacySlugs(options.originalSlug)) {
+      enqueue(legacySlug);
+    }
+  }
+
   try {
-    const value = await kv.get(key);
-    if (value == null) return null;
-    if (typeof value === 'string') {
-      try {
-        return JSON.parse(value);
-      } catch (error) {
-        throw new KvOperationError('Failed to parse SVG entry from KV', { cause: error });
+    for (const variant of variants) {
+      const key = makeKey(variant);
+      const value = await kv.get(key);
+      if (value == null) continue;
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch (error) {
+          throw new KvOperationError('Failed to parse SVG entry from KV', { cause: error });
+        }
       }
+      if (typeof value === 'object') {
+        return value;
+      }
+      throw new KvOperationError('Unsupported KV payload type for SVG entry', {
+        code: 'KV_UNSUPPORTED_VALUE_TYPE'
+      });
     }
-    if (typeof value === 'object') {
-      return value;
-    }
-    throw new KvOperationError('Unsupported KV payload type for SVG entry', {
-      code: 'KV_UNSUPPORTED_VALUE_TYPE'
-    });
+    return null;
   } catch (error) {
     if (error instanceof KvOperationError) {
       throw error;
@@ -486,7 +549,7 @@ async function getSvg(slug) {
   const storeMode = getStoreMode();
   const useKv = storeMode === 'kv';
   if (useKv) {
-    const kvValue = await readFromKv(normalized);
+    const kvValue = await readFromKv(normalized, { originalSlug: slug });
     if (kvValue) {
       const entry = buildSvgEntry(normalized, kvValue, kvValue);
       applyStorageMetadata(entry, 'kv');
@@ -553,7 +616,7 @@ async function listSvgs() {
     for (const value of slugs) {
       const normalized = normalizeEntrySlug(value);
       if (!normalized) continue;
-      const stored = await readFromKv(normalized);
+      const stored = await readFromKv(normalized, { originalSlug: value });
       if (!stored) continue;
       const entry = buildSvgEntry(normalized, stored, stored);
       applyStorageMetadata(entry, 'kv');
