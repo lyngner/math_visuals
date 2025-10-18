@@ -3716,8 +3716,27 @@ function addFixedPoints() {
         triggerChange: !!commit
       });
     };
-    P.on('drag', () => updatePointState(false));
-    P.on('up', () => updatePointState(true));
+    const snapMode = ADV.points.snap.mode || 'up';
+    const snapEnabled = !!ADV.points.snap.enabled;
+    const shouldSnapOnDrag = snapEnabled && snapMode === 'drag';
+    const shouldSnapOnUp = snapEnabled && snapMode !== 'drag';
+    const applySnap = () => {
+      const x = nearestMultiple(P.X(), stepX());
+      const y = nearestMultiple(P.Y(), stepY());
+      P.moveTo([x, y]);
+    };
+    P.on('drag', () => {
+      if (shouldSnapOnDrag) {
+        applySnap();
+      }
+      updatePointState(false);
+    });
+    P.on('up', () => {
+      if (shouldSnapOnUp) {
+        applySnap();
+      }
+      updatePointState(true);
+    });
   });
 }
 
