@@ -28,6 +28,11 @@
       --profile-focus-outline: rgba(15, 109, 143, 0.35);
       --profile-nav-badge-background: #f97316;
       --profile-nav-badge-color: #ffffff;
+      --profile-svg-nav-color: #7c3aed;
+      --profile-svg-nav-surface: rgba(124, 58, 237, 0.12);
+      --profile-svg-nav-shadow: rgba(124, 58, 237, 0.2);
+      --profile-svg-nav-hover: #6d28d9;
+      --profile-svg-nav-hover-shadow: rgba(109, 40, 217, 0.32);
       --profile-trash-background: #fee2e2;
       --profile-trash-border: rgba(248, 113, 113, 0.55);
       --profile-trash-color: #b91c1c;
@@ -200,6 +205,25 @@
     nav a:focus-visible::after {
       opacity: 1;
       transform: translate(-50%, 14px);
+    }
+    .nav-item--svg {
+      margin-left: auto;
+    }
+    .nav-item--svg > a {
+      color: var(--profile-svg-nav-color);
+      background: var(--profile-svg-nav-surface);
+      box-shadow: inset 0 0 0 1px var(--profile-svg-nav-shadow);
+    }
+    .nav-item--svg > a:hover,
+    .nav-item--svg > a:focus-visible {
+      background: var(--profile-svg-nav-hover);
+      color: var(--profile-accent-contrast);
+      box-shadow: 0 6px 12px var(--profile-svg-nav-hover-shadow);
+    }
+    .nav-item--svg > a.active {
+      background: var(--profile-svg-nav-hover);
+      color: var(--profile-accent-contrast);
+      box-shadow: 0 4px 10px var(--profile-svg-nav-hover-shadow);
     }
     .nav-badge {
       position: absolute;
@@ -654,6 +678,24 @@
       </li>
       <li>
         <a
+          href="tallinje.html"
+          target="content"
+          data-label="Tallinje"
+          aria-label="Tallinje"
+          data-default-example="1"
+          data-include-example-in-path="true"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+            <line x1="3" y1="12" x2="21" y2="12" stroke-linecap="round" />
+            <line x1="7" y1="9" x2="7" y2="15" stroke-linecap="round" />
+            <line x1="12" y1="9" x2="12" y2="15" stroke-linecap="round" />
+            <line x1="17" y1="9" x2="17" y2="15" stroke-linecap="round" />
+          </svg>
+          <span class="sr-only">Tallinje</span>
+        </a>
+      </li>
+      <li>
+        <a
           href="perlesnor.html"
           target="content"
           data-label="Perlesnor"
@@ -783,47 +825,31 @@
           <span class="nav-badge" aria-hidden="true">Beta</span>
         </a>
       </li>
-      <li>
-        <a
-          href="tallinje.html"
-          target="content"
-          data-label="Tallinje"
-          aria-label="Tallinje"
-          data-default-example="1"
-          data-include-example-in-path="true"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-            <line x1="3" y1="12" x2="21" y2="12" stroke-linecap="round" />
-            <line x1="7" y1="9" x2="7" y2="15" stroke-linecap="round" />
-            <line x1="12" y1="9" x2="12" y2="15" stroke-linecap="round" />
-            <line x1="17" y1="9" x2="17" y2="15" stroke-linecap="round" />
-          </svg>
-          <span class="sr-only">Tallinje</span>
-        </a>
-      </li>
-      <li>
-        <a href="svg-arkiv.html" target="content" data-label="SVG" aria-label="SVG-arkiv">
+      <li class="nav-item--svg">
+        <a href="svg-arkiv.html" target="content" data-label="SVG-arkiv (beta)" aria-label="SVG-arkiv (beta)">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
             <rect x="4" y="4" width="16" height="16" rx="2.5" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 15.5 10 12l2.5 3.5 2-2.5L16.5 15" />
             <circle cx="8" cy="9" r="1" fill="currentColor" stroke="none" />
           </svg>
-          <span class="sr-only">SVG-arkiv</span>
+          <span class="sr-only">SVG-arkiv (beta)</span>
+          <span class="nav-badge" aria-hidden="true">Beta</span>
         </a>
       </li>
       <li class="nav-item--trash">
         <a
           href="examples-trash.html"
           target="content"
-          data-label="Arkiv for arkiverte (slettede) eksempler"
-          aria-label="Arkiv for arkiverte (slettede) eksempler"
+          data-label="Arkiv (beta)"
+          aria-label="Arkiv for arkiverte (slettede) eksempler (beta)"
         >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
             <path fill="currentColor" fill-opacity=".14" d="M7.65 7h8.7l-.78 10.24a1.85 1.85 0 0 1-1.84 1.71h-3.46a1.85 1.85 0 0 1-1.84-1.71L7.65 7Z" />
             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.5 5V4.5A1.5 1.5 0 0 1 11 3h2a1.5 1.5 0 0 1 1.5 1.5V5m2.75 0h-9.5l.9 11.4a2 2 0 0 0 2 1.85h3.45a2 2 0 0 0 2-1.85L17.25 5Z" />
             <path stroke="currentColor" stroke-linecap="round" stroke-width="1.4" d="M10.5 10.8v4.9m3-4.9v4.9M12 10.8v4.9" />
           </svg>
-          <span class="sr-only">Arkiv for arkiverte (slettede) eksempler</span>
+          <span class="sr-only">Arkiv for arkiverte (slettede) eksempler (beta)</span>
+          <span class="nav-badge" aria-hidden="true">Beta</span>
         </a>
       </li>
     </ul>
