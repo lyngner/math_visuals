@@ -105,10 +105,21 @@
       const header = document.createElement('header');
       header.className = 'svg-archive__dialog-header';
 
+      const titleGroup = document.createElement('div');
+      titleGroup.className = 'svg-archive__dialog-titlegroup';
+
       const title = document.createElement('h2');
       title.id = 'svg-archive-dialog-title';
       title.className = 'svg-archive__dialog-title';
-      header.appendChild(title);
+      titleGroup.appendChild(title);
+
+      const subtitle = document.createElement('p');
+      subtitle.className = 'svg-archive__dialog-subtitle';
+      subtitle.setAttribute('aria-live', 'polite');
+      subtitle.setAttribute('hidden', '');
+      titleGroup.appendChild(subtitle);
+
+      header.appendChild(titleGroup);
 
       const closeButton = document.createElement('button');
       closeButton.type = 'button';
@@ -174,6 +185,7 @@
 
     const titleElement = dialog.querySelector('.svg-archive__dialog-title');
     const closeButton = dialog.querySelector('.svg-archive__dialog-close');
+    const subtitleElement = dialog.querySelector('.svg-archive__dialog-subtitle');
     const captionElement = dialog.querySelector('.svg-archive__dialog-caption');
     const imageElement = dialog.querySelector('.svg-archive__dialog-image');
     const metaElement = dialog.querySelector('.svg-archive__dialog-meta');
@@ -188,21 +200,11 @@
 
       const metaPairs = [];
 
-      if (entry.tool) {
-        metaPairs.push(['Verktøy', entry.tool]);
-      }
       if (entry.sequenceLabel) {
         metaPairs.push(['Sekvens', entry.sequenceLabel]);
       }
       if (entry.fileSizeLabel) {
         metaPairs.push(['Filstørrelse', entry.fileSizeLabel]);
-      }
-      if (entry.createdAt) {
-        const formatted = new Date(entry.createdAt).toLocaleString('nb-NO', {
-          dateStyle: 'medium',
-          timeStyle: 'short'
-        });
-        metaPairs.push(['Opprettet', formatted]);
       }
 
       if (!metaPairs.length) {
@@ -226,6 +228,19 @@
     function updateDialog(entry) {
       activeEntry = entry;
       titleElement.textContent = entry.displayTitle || entry.title || entry.baseName || 'Detaljer';
+      if (subtitleElement) {
+        if (entry.createdAt) {
+          const formatted = new Date(entry.createdAt).toLocaleString('nb-NO', {
+            dateStyle: 'medium',
+            timeStyle: 'short'
+          });
+          subtitleElement.textContent = formatted;
+          subtitleElement.removeAttribute('hidden');
+        } else {
+          subtitleElement.textContent = '';
+          subtitleElement.setAttribute('hidden', '');
+        }
+      }
       captionElement.textContent = entry.summary || entry.altText || '';
       if (captionElement.textContent) {
         captionElement.removeAttribute('hidden');
