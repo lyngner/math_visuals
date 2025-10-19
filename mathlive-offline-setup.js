@@ -47,10 +47,6 @@
   const mathfieldAssetConfig = {
     fontsDirectory: `${ASSET_BASE_PATH}/fonts`,
     soundsDirectory: `${ASSET_BASE_PATH}/sounds`,
-    virtualKeyboardLayout: `${ASSET_BASE_PATH}/virtual-keyboards`,
-    customVirtualKeyboardLayers: `${ASSET_BASE_PATH}/virtual-keyboards/layers`,
-    customVirtualKeyboards: `${ASSET_BASE_PATH}/virtual-keyboards/layouts`,
-    virtualKeyboardToolbar: `${ASSET_BASE_PATH}/virtual-keyboards/toolbar`,
   };
 
   const keyboardAssetConfig = {
