@@ -926,6 +926,11 @@
   const trashKey = key + '_trash';
   const trashMigratedKey = key + '_trash_migrated_v1';
   const updatedAtKey = key + '_updatedAtMs';
+  const OPEN_REQUEST_STORAGE_KEY = 'archive_open_request';
+  const TEMPORARY_EXAMPLE_FLAG = '__isTemporaryExample';
+  const TEMPORARY_EXAMPLE_REQUEST_ID = '__openRequestId';
+  const TEMPORARY_EXAMPLE_SOURCE_PATH = '__openRequestSourcePath';
+  const TEMPORARY_EXAMPLE_CREATED_AT = '__openRequestCreatedAt';
   const MAX_TRASH_ENTRIES = 200;
   const MAX_HISTORY_ENTRIES = 10;
   let lastStoredRawValue = null;
@@ -2770,6 +2775,18 @@
       if (copy.svg != null) {
         copy.svg = sanitizeSvgForStorage(copy.svg);
       }
+      if (Object.prototype.hasOwnProperty.call(copy, TEMPORARY_EXAMPLE_FLAG)) {
+        delete copy[TEMPORARY_EXAMPLE_FLAG];
+      }
+      if (Object.prototype.hasOwnProperty.call(copy, TEMPORARY_EXAMPLE_REQUEST_ID)) {
+        delete copy[TEMPORARY_EXAMPLE_REQUEST_ID];
+      }
+      if (Object.prototype.hasOwnProperty.call(copy, TEMPORARY_EXAMPLE_SOURCE_PATH)) {
+        delete copy[TEMPORARY_EXAMPLE_SOURCE_PATH];
+      }
+      if (Object.prototype.hasOwnProperty.call(copy, TEMPORARY_EXAMPLE_CREATED_AT)) {
+        delete copy[TEMPORARY_EXAMPLE_CREATED_AT];
+      }
       DESCRIPTION_FALLBACK_FIELDS.forEach(field => {
         if (field !== 'description' && Object.prototype.hasOwnProperty.call(copy, field)) {
           delete copy[field];
@@ -3517,6 +3534,74 @@
       }
     }
     return cachedExamples;
+  }
+  function createTemporaryExample(example, options) {
+    const examples = getExamples();
+    const opts = options && typeof options === 'object' ? options : {};
+    if (!example || typeof example !== 'object') return null;
+    const sanitizedList = normalizeExamplesForStorage([example]);
+    const sanitized = Array.isArray(sanitizedList) && sanitizedList.length > 0 ? sanitizedList[0] : null;
+    const normalized = sanitized && typeof sanitized === 'object' ? { ...sanitized } : null;
+    if (!normalized) return null;
+    if (!normalized.config || typeof normalized.config !== 'object') {
+      normalized.config = {};
+    }
+    const requestIdRaw = opts.requestId != null ? opts.requestId : normalized.id || null;
+    const requestId = requestIdRaw != null ? String(requestIdRaw) : null;
+    normalized[TEMPORARY_EXAMPLE_FLAG] = true;
+    if (requestId) {
+      normalized[TEMPORARY_EXAMPLE_REQUEST_ID] = requestId;
+    }
+    if (opts.sourcePath) {
+      normalized[TEMPORARY_EXAMPLE_SOURCE_PATH] = String(opts.sourcePath);
+    }
+    if (Object.prototype.hasOwnProperty.call(opts, 'createdAt') && opts.createdAt != null) {
+      normalized[TEMPORARY_EXAMPLE_CREATED_AT] = opts.createdAt;
+    } else if (!Object.prototype.hasOwnProperty.call(normalized, TEMPORARY_EXAMPLE_CREATED_AT)) {
+      try {
+        normalized[TEMPORARY_EXAMPLE_CREATED_AT] = new Date().toISOString();
+      } catch (_) {}
+    }
+    let targetIndex = Number.isInteger(opts.index) ? Math.max(0, Math.min(examples.length, opts.index)) : examples.length;
+    if (requestId) {
+      const existingIndex = examples.findIndex(item => item && item[TEMPORARY_EXAMPLE_REQUEST_ID] === requestId);
+      if (existingIndex >= 0) {
+        examples.splice(existingIndex, 1, normalized);
+        return { index: existingIndex, example: normalized };
+      }
+    }
+    examples.splice(targetIndex, 0, normalized);
+    return { index: targetIndex, example: normalized };
+  }
+  function readArchiveOpenRequest() {
+    let raw = null;
+    try {
+      raw = storageGetItem(OPEN_REQUEST_STORAGE_KEY);
+    } catch (_) {
+      raw = null;
+    }
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      return null;
+    }
+  }
+  function writeArchiveOpenRequest(payload) {
+    if (!payload || typeof payload !== 'object') {
+      try {
+        storageRemoveItem(OPEN_REQUEST_STORAGE_KEY);
+      } catch (_) {}
+      return;
+    }
+    try {
+      storageSetItem(OPEN_REQUEST_STORAGE_KEY, JSON.stringify(payload));
+    } catch (error) {}
+  }
+  function clearArchiveOpenRequest() {
+    try {
+      storageRemoveItem(OPEN_REQUEST_STORAGE_KEY);
+    } catch (_) {}
   }
   const USER_INITIATED_REASONS = new Set(['manual-save', 'manual-update', 'delete', 'history']);
   function isUserInitiatedReason(reason) {
@@ -4284,6 +4369,8 @@
 .example-tab:hover{background:#e5e7eb;}
 .example-tab.is-active{background:#fff;color:#111827;border-color:var(--purple,#5B2AA5);border-bottom:1px solid #fff;box-shadow:0 -2px 0 var(--purple,#5B2AA5) inset;}
 .example-tab:focus-visible{outline:2px solid var(--purple,#5B2AA5);outline-offset:2px;}
+.example-tab.is-new{position:relative;}
+.example-tab.is-new::after{content:'NY';margin-left:8px;font-size:11px;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:.04em;}
 .example-tabs-empty{font-size:13px;color:#6b7280;padding:12px 0;display:flex;flex-wrap:wrap;align-items:center;gap:10px;}
 .example-tabs-empty__message{flex:0 0 auto;}
 .example-tabs-empty__cta{appearance:none;border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:9999px;padding:6px 16px;font-size:13px;line-height:1;cursor:pointer;transition:background-color .2s,border-color .2s,color .2s,box-shadow .2s;}
@@ -4581,7 +4668,7 @@
       } catch (_) {}
     }
   }
-  function collectConfig() {
+  function collectCurrentConfig() {
     flushPendingChanges();
     const svgMarkup = collectExampleSvgMarkup({ flush: false });
     const cfg = {};
@@ -4692,22 +4779,122 @@
       btn.tabIndex = isActive ? 0 : -1;
     });
   }
-  // Load example if viewer requested
-  (function () {
-    if (hasUrlOverrides) return;
-    const loadInfo = storageGetItem('example_to_load');
-    if (!loadInfo) return;
-    try {
-      const {
-        path,
-        index
-      } = JSON.parse(loadInfo);
-      if (path === location.pathname) {
-        if (loadExample(index)) initialLoadPerformed = true;
+  function extractExampleFromOpenRequest(request) {
+    if (!request || typeof request !== 'object') return null;
+    const direct = request.example || request.exampleData || request.payload;
+    if (direct && typeof direct === 'object') {
+      return direct;
+    }
+    if (Array.isArray(request.examples) && request.examples.length > 0) {
+      const idx = Number.isInteger(request.index) && request.index >= 0 && request.index < request.examples.length ? request.index : 0;
+      const candidate = request.examples[idx];
+      if (candidate && typeof candidate === 'object') {
+        return candidate;
       }
-    } catch (error) {}
-    storageRemoveItem('example_to_load');
-  })();
+    }
+    return null;
+  }
+  function getOpenRequestTargetPath(request) {
+    if (!request || typeof request !== 'object') return null;
+    const candidates = [request.canonicalPath, request.path, request.target, request.href];
+    for (const candidate of candidates) {
+      if (typeof candidate !== 'string') continue;
+      const trimmed = candidate.trim();
+      if (!trimmed) continue;
+      try {
+        const normalized = normalizePathname(trimmed);
+        if (normalized) return normalized;
+      } catch (_) {}
+    }
+    return null;
+  }
+  function handleArchiveOpenRequest(request, options) {
+    if (!request || typeof request !== 'object') return false;
+    const targetPath = getOpenRequestTargetPath(request);
+    if (targetPath && targetPath !== storagePath) {
+      return false;
+    }
+    const exampleData = extractExampleFromOpenRequest(request);
+    const opts = options && typeof options === 'object' ? options : {};
+    const metadata = {
+      index: Number.isInteger(request.index) ? Math.max(0, request.index) : undefined,
+      requestId: request.id || request.requestId || request.referenceId || request.createdAt || opts.requestId || null,
+      sourcePath: typeof request.path === 'string' ? request.path : typeof request.sourcePath === 'string' ? request.sourcePath : null,
+      createdAt: request.createdAt || request.created || null
+    };
+    if (exampleData) {
+      const inserted = createTemporaryExample(exampleData, metadata);
+      if (!inserted) {
+        return false;
+      }
+      currentExampleIndex = inserted.index;
+      renderOptions();
+      return loadExample(inserted.index);
+    }
+    if (Number.isInteger(metadata.index)) {
+      const indexToLoad = Math.max(0, metadata.index);
+      return loadExample(indexToLoad);
+    }
+    return false;
+  }
+  function handleLegacyOpenRequest(request) {
+    if (!request || typeof request !== 'object') return false;
+    const normalizedPath = typeof request.path === 'string' ? normalizePathname(request.path) : null;
+    if (normalizedPath && normalizedPath !== storagePath) {
+      return false;
+    }
+    const index = Number.isInteger(request.index) ? request.index : Number.isInteger(request.exampleIndex) ? request.exampleIndex : null;
+    if (index == null || index < 0) {
+      return false;
+    }
+    return loadExample(index);
+  }
+  function consumeOpenRequest(options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    let handled = false;
+    const archiveRequest = readArchiveOpenRequest();
+    if (archiveRequest) {
+      handled = handleArchiveOpenRequest(archiveRequest, opts) === true;
+      if (handled) {
+        clearArchiveOpenRequest();
+      }
+    }
+    let legacyHandled = false;
+    let legacyRaw = null;
+    try {
+      legacyRaw = storageGetItem('example_to_load');
+    } catch (_) {
+      legacyRaw = null;
+    }
+    if (legacyRaw) {
+      let legacyRequest = null;
+      try {
+        legacyRequest = JSON.parse(legacyRaw);
+      } catch (error) {
+        legacyRequest = null;
+      }
+      legacyHandled = handleLegacyOpenRequest(legacyRequest);
+      try {
+        storageRemoveItem('example_to_load');
+      } catch (_) {}
+    }
+    return handled || legacyHandled;
+  }
+  if (typeof window !== 'undefined') {
+    const existingApi = window.MathVisExamples && typeof window.MathVisExamples === 'object' ? window.MathVisExamples : {};
+    const api = {
+      ...existingApi,
+      collectConfig: () => collectCurrentConfig(),
+      createTemporaryExample: (example, options) => createTemporaryExample(example, options),
+      readOpenRequest: () => readArchiveOpenRequest(),
+      writeOpenRequest: payload => writeArchiveOpenRequest(payload),
+      clearOpenRequest: () => clearArchiveOpenRequest(),
+      consumeOpenRequest: options => consumeOpenRequest(options),
+      getExamples: () => getExamples().slice()
+    };
+    window.MathVisExamples = api;
+  }
+  // Load example if viewer requested (handled after initial setup)
   const createBtn = document.getElementById('btnSaveExample');
   const updateBtn = document.getElementById('btnUpdateExample');
   const deleteBtn = document.getElementById('btnDeleteExample');
@@ -4895,7 +5082,14 @@
           btn.textContent = label;
           btn.dataset.exampleIndex = String(idx);
           btn.setAttribute('role', 'tab');
-          btn.setAttribute('aria-label', `Eksempel ${label}`);
+          let ariaLabel = `Eksempel ${label}`;
+          if (ex && ex[TEMPORARY_EXAMPLE_FLAG]) {
+            btn.classList.add('is-new');
+            btn.dataset.exampleState = 'new';
+            ariaLabel = `${ariaLabel} (nytt)`;
+            btn.title = `${label} – nytt eksempel`;
+          }
+          btn.setAttribute('aria-label', ariaLabel);
           btn.addEventListener('click', () => {
             loadExample(idx);
           });
@@ -4934,7 +5128,7 @@
   function collectCurrentExampleState() {
     let ex;
     try {
-      ex = collectConfig();
+      ex = collectCurrentConfig();
     } catch (error) {
       console.error('[examples] failed to collect config for example', error);
       const fallbackConfig = {};
@@ -5026,6 +5220,18 @@
       } else {
         updated.description = getDescriptionValue();
       }
+      if (Object.prototype.hasOwnProperty.call(updated, TEMPORARY_EXAMPLE_FLAG)) {
+        delete updated[TEMPORARY_EXAMPLE_FLAG];
+      }
+      if (Object.prototype.hasOwnProperty.call(updated, TEMPORARY_EXAMPLE_REQUEST_ID)) {
+        delete updated[TEMPORARY_EXAMPLE_REQUEST_ID];
+      }
+      if (Object.prototype.hasOwnProperty.call(updated, TEMPORARY_EXAMPLE_SOURCE_PATH)) {
+        delete updated[TEMPORARY_EXAMPLE_SOURCE_PATH];
+      }
+      if (Object.prototype.hasOwnProperty.call(updated, TEMPORARY_EXAMPLE_CREATED_AT)) {
+        delete updated[TEMPORARY_EXAMPLE_CREATED_AT];
+      }
       const shouldDetach = existing && typeof existing === 'object' && typeof existing.__builtinKey === 'string' && existing.__builtinKey && hasMeaningfulExampleChanges(existing, updated);
       if (shouldDetach) {
         detachProvidedMetadata(updated);
@@ -5101,7 +5307,7 @@
           : result && Array.isArray(result.examples)
           ? result.examples
           : getExamples();
-        if (removedExample && typeof removedExample === 'object') {
+        if (removedExample && typeof removedExample === 'object' && !removedExample[TEMPORARY_EXAMPLE_FLAG]) {
           await addExampleToTrash(removedExample, {
             index: indexToRemove,
             reason: 'delete',
@@ -5130,6 +5336,9 @@
     trashMigrationPromise.catch(() => {});
   }
   renderOptions();
+  if (!hasUrlOverrides) {
+    consumeOpenRequest();
+  }
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('math-visuals:app-mode-changed', () => {
       if (currentAppMode === 'task') {
