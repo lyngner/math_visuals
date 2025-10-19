@@ -405,7 +405,7 @@
 
   async function loadEntries() {
     setBusy(true);
-    setStatus('Laster SVG-arkivet …');
+    setStatus('Laster arkivet …');
 
     try {
       const response = await fetch('/api/svg', { headers: { Accept: 'application/json' } });
@@ -543,8 +543,8 @@
       applyStorageNote(payload);
       render();
     } catch (error) {
-      console.error('Kunne ikke laste SVG-arkivet', error);
-      setStatus('Klarte ikke å hente SVG-arkivet akkurat nå. Prøv igjen senere.', 'error');
+      console.error('Kunne ikke laste arkivet', error);
+      setStatus('Klarte ikke å hente arkivet akkurat nå. Prøv igjen senere.', 'error');
       grid.innerHTML = '';
       if (storageNote) {
         storageNote.hidden = true;

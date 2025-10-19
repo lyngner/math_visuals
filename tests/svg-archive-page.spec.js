@@ -53,7 +53,7 @@ const TEST_ENTRIES = [
   }
 ];
 
-test.describe('SVG-arkiv', () => {
+test.describe('Arkiv', () => {
   test('viser SVG-liste fra API og filtrering', async ({ page }) => {
     await page.route('**/api/svg', async route => {
       if (route.request().method() !== 'GET') {
