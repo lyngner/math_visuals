@@ -87,6 +87,30 @@ body {
   gap: clamp(12px, 2.6vw, 20px);
 }
 
+@media (max-width: 700px) {
+  .svg-archive {
+    padding: 20px 18px 48px;
+  }
+
+  .svg-archive__controls {
+    justify-content: flex-start;
+  }
+
+  .svg-archive__filter {
+    width: 100%;
+  }
+
+  .svg-archive__filter select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .svg-archive__grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+  }
+}
+
 .svg-archive__item {
   background: #fff;
   border-radius: 12px;
