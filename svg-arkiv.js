@@ -619,6 +619,7 @@
           const files = entry && typeof entry === 'object' && entry.files ? entry.files : {};
           const urls = entry && typeof entry === 'object' && entry.urls ? entry.urls : {};
           const metadata = entry && typeof entry === 'object' && entry.metadata ? entry.metadata : {};
+          const exampleState = entry.exampleState ?? metadata.exampleState;
           const svgFile = files && typeof files === 'object' ? files.svg : null;
           const pngFile = files && typeof files === 'object' ? files.png : null;
           const svgSlug = typeof entry.svgSlug === 'string' && entry.svgSlug.trim()
@@ -727,7 +728,8 @@
                   : '',
             summary,
             sequenceLabel,
-            fileSizeLabel
+            fileSizeLabel,
+            exampleState
           };
         })
         .filter(entry => entry.slug && entry.svgUrl);
