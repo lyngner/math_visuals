@@ -32,6 +32,45 @@ body {
   max-width: 65ch;
 }
 
+.svg-archive__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.svg-archive__action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: #0f6d8f;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.svg-archive__action-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.svg-archive__action-button:hover,
+.svg-archive__action-button:focus-visible {
+  background: #0c5974;
+  box-shadow: 0 6px 18px rgba(15, 109, 143, 0.2);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.svg-archive__action-button:focus-visible {
+  outline: 2px solid rgba(15, 109, 143, 0.35);
+  outline-offset: 2px;
+}
+
 .svg-archive__note {
   padding: 12px 16px;
   background: #f1f5f9;
