@@ -8,6 +8,8 @@
   const trashArchive = document.querySelector('[data-trash-archive]');
   const trashClose = document.querySelector('[data-trash-close]');
   const trashStatus = document.querySelector('[data-trash-status]');
+  const trashList = document.querySelector('[data-trash-list]');
+  const trashEmpty = document.querySelector('[data-trash-empty]');
 
   if (!grid || !statusElement) {
     return;
@@ -26,6 +28,24 @@
     'textarea:not([disabled]):not([tabindex="-1"])',
     '[tabindex]:not([tabindex="-1"])'
   ].join(', ');
+
+  const TrashArchiveViewerModule = window.MathVisualsTrashArchiveViewer || null;
+  const TrashArchiveViewerClass = TrashArchiveViewerModule ? TrashArchiveViewerModule.TrashArchiveViewer : null;
+  const trashViewerState = {
+    groups: [],
+    groupsMap: new Map(),
+    filter: 'all',
+    metadata: null,
+    lastFetchUsedFallback: false
+  };
+  let trashViewer = null;
+  let trashViewerInitialized = false;
+  const examplesApiBase = TrashArchiveViewerClass
+    ? TrashArchiveViewerClass.resolveExamplesApiBase()
+    : null;
+  const trashApiBase = TrashArchiveViewerClass
+    ? TrashArchiveViewerClass.buildTrashApiBase(examplesApiBase)
+    : null;
 
   function normalizeToolIdentifier(value) {
     if (typeof value !== 'string') {
@@ -151,6 +171,338 @@
     trashStatus.textContent = message || '';
   }
 
+  function setTrashViewerStatus(message, state) {
+    if (!trashStatus) {
+      return;
+    }
+    trashStatus.textContent = message || '';
+    if (state) {
+      trashStatus.dataset.state = state;
+    } else {
+      delete trashStatus.dataset.state;
+    }
+  }
+
+  function updateTrashViewerGroups(groups) {
+    const list = Array.isArray(groups) ? groups : [];
+    trashViewerState.groups = list;
+    trashViewerState.groupsMap = new Map();
+    list.forEach(group => {
+      if (!group || typeof group.path !== 'string') return;
+      trashViewerState.groupsMap.set(group.path, group);
+    });
+  }
+
+  function formatTrashTimestamp(value) {
+    if (typeof value !== 'string' || !value.trim()) {
+      return '';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+    try {
+      return date.toLocaleString('no-NO', { dateStyle: 'medium', timeStyle: 'short' });
+    } catch (error) {
+      return date.toISOString();
+    }
+  }
+
+  function renderTrashViewer() {
+    if (!trashList) {
+      return;
+    }
+
+    Array.from(trashList.querySelectorAll('[data-group]')).forEach(node => node.remove());
+
+    const groups = Array.isArray(trashViewerState.groups) ? trashViewerState.groups : [];
+    if (!groups.length) {
+      if (trashEmpty) {
+        trashEmpty.hidden = false;
+        if (!trashEmpty.parentNode) {
+          trashList.appendChild(trashEmpty);
+        }
+      }
+      return;
+    }
+
+    if (trashEmpty) {
+      trashEmpty.hidden = true;
+      if (!trashEmpty.parentNode) {
+        trashList.appendChild(trashEmpty);
+      }
+    }
+
+    const fragment = document.createDocumentFragment();
+
+    groups.forEach(group => {
+      if (!group || !Array.isArray(group.items) || !group.items.length) {
+        return;
+      }
+
+      const section = document.createElement('section');
+      section.className = 'svg-archive__trash-group';
+      section.dataset.group = '';
+      section.dataset.path = group.path;
+
+      const header = document.createElement('header');
+      header.className = 'svg-archive__trash-group-header';
+
+      const title = document.createElement('h3');
+      title.className = 'svg-archive__trash-group-title';
+      title.textContent = group.sourceTitle || group.path;
+      header.appendChild(title);
+
+      const meta = document.createElement('p');
+      meta.className = 'svg-archive__trash-group-meta';
+      const count = group.items.length;
+      const countLabel = count === 1 ? '1 arkivert element' : `${count} arkiverte elementer`;
+      const latest = formatTrashTimestamp(group.latestDeletedAt);
+      meta.textContent = latest ? `${countLabel} · Sist slettet ${latest}` : countLabel;
+      header.appendChild(meta);
+
+      section.appendChild(header);
+
+      const list = document.createElement('ul');
+      list.className = 'svg-archive__trash-items';
+
+      group.items.forEach((item, index) => {
+        if (!item || typeof item !== 'object') {
+          return;
+        }
+
+        const listItem = document.createElement('li');
+        listItem.className = 'svg-archive__trash-item';
+        listItem.dataset.item = '';
+        if (item.id) {
+          listItem.dataset.id = item.id;
+        }
+
+        const itemBody = document.createElement('div');
+        itemBody.className = 'svg-archive__trash-item-body';
+
+        const itemTitle = document.createElement('h4');
+        itemTitle.className = 'svg-archive__trash-item-title';
+        const example = item.example && typeof item.example === 'object' ? item.example : null;
+        const label = typeof item.label === 'string' && item.label.trim() ? item.label.trim() : '';
+        const exampleTitle = example && typeof example.title === 'string' && example.title.trim()
+          ? example.title.trim()
+          : '';
+        const exampleDescription = example && typeof example.description === 'string'
+          ? example.description.trim()
+          : '';
+        const fallbackTitle = exampleDescription ? exampleDescription.slice(0, 120) : `Element ${index + 1}`;
+        itemTitle.textContent = label || exampleTitle || fallbackTitle;
+        itemBody.appendChild(itemTitle);
+
+        const itemMeta = document.createElement('p');
+        itemMeta.className = 'svg-archive__trash-item-meta';
+        const deletedLabel = formatTrashTimestamp(item.deletedAt);
+        const reason = item.reason === 'history-import' ? 'Importert' : item.reason === 'archive' ? 'Arkivert' : null;
+        const metaParts = [];
+        if (deletedLabel) {
+          metaParts.push(`Slettet ${deletedLabel}`);
+        }
+        if (typeof item.removedAtIndex === 'number' && Number.isFinite(item.removedAtIndex)) {
+          metaParts.push(`Plass ${item.removedAtIndex + 1}`);
+        }
+        if (reason) {
+          metaParts.push(reason);
+        }
+        itemMeta.textContent = metaParts.join(' · ');
+        itemBody.appendChild(itemMeta);
+
+        const actions = document.createElement('div');
+        actions.className = 'svg-archive__trash-actions';
+
+        const restoreButton = document.createElement('button');
+        restoreButton.type = 'button';
+        restoreButton.className = 'svg-archive__trash-action';
+        restoreButton.dataset.action = 'restore';
+        restoreButton.textContent = 'Gjenopprett';
+        actions.appendChild(restoreButton);
+
+        const openButton = document.createElement('button');
+        openButton.type = 'button';
+        openButton.className = 'svg-archive__trash-action';
+        openButton.dataset.action = 'open';
+        openButton.textContent = 'Åpne';
+        actions.appendChild(openButton);
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'svg-archive__trash-action svg-archive__trash-action--danger';
+        deleteButton.dataset.action = 'delete';
+        deleteButton.textContent = 'Slett permanent';
+        actions.appendChild(deleteButton);
+
+        itemBody.appendChild(actions);
+        listItem.appendChild(itemBody);
+        list.appendChild(listItem);
+      });
+
+      section.appendChild(list);
+      fragment.appendChild(section);
+    });
+
+    trashList.appendChild(fragment);
+  }
+
+  function dedupeTrashEntries(entries) {
+    if (!Array.isArray(entries)) {
+      return [];
+    }
+    const seen = new Set();
+    const result = [];
+    entries.forEach(entry => {
+      if (!entry || typeof entry !== 'object') {
+        return;
+      }
+      const id = typeof entry.id === 'string' ? entry.id : null;
+      if (id && seen.has(id)) {
+        return;
+      }
+      if (id) {
+        seen.add(id);
+      }
+      result.push(entry);
+    });
+    return result;
+  }
+
+  async function fetchTrashEntries() {
+    if (!trashViewer || !TrashArchiveViewerClass) {
+      throw new Error('Fant ikke visningen for slettede figurer.');
+    }
+    if (!trashApiBase) {
+      throw new Error('Arkivtjenesten for slettede figurer er ikke konfigurert.');
+    }
+
+    const url = TrashArchiveViewerClass.buildTrashApiUrl(trashApiBase);
+    if (!url) {
+      throw new Error('Kunne ikke finne adressen til arkivtjenesten.');
+    }
+
+    let response;
+    try {
+      response = await fetch(url, { headers: { Accept: 'application/json' } });
+    } catch (error) {
+      throw new Error('Kunne ikke hente slettede figurer.');
+    }
+
+    if (!TrashArchiveViewerClass.responseLooksLikeJson(response)) {
+      const status = response && response.status ? response.status : 'ukjent';
+      throw new Error(`Uventet svar fra arkivtjenesten (${status}).`);
+    }
+
+    if (!response.ok) {
+      throw new Error(`Arkivtjenesten svarte med ${response.status}.`);
+    }
+
+    let payload;
+    try {
+      payload = await response.json();
+    } catch (error) {
+      throw new Error('Kunne ikke tolke svaret fra arkivtjenesten.');
+    }
+
+    const entries = dedupeTrashEntries(Array.isArray(payload && payload.entries) ? payload.entries : []);
+    const groups = trashViewer.buildGroupsFromItems(entries);
+    updateTrashViewerGroups(groups);
+    return { entries, usedFallback: false };
+  }
+
+  function openTrashExample(path, id) {
+    if (typeof path !== 'string' || !path) {
+      return;
+    }
+    const group = trashViewerState.groupsMap.get(path);
+    if (!group || !Array.isArray(group.items)) {
+      return;
+    }
+    const item = group.items.find(entry => entry && entry.id === id);
+    if (!item) {
+      return;
+    }
+    let href = typeof item.sourceHref === 'string' && item.sourceHref.trim() ? item.sourceHref.trim() : '';
+    if (!href) {
+      href = typeof group.path === 'string' && group.path
+        ? (group.path.endsWith('.html') ? group.path : `${group.path}.html`)
+        : '';
+    }
+    if (!href) {
+      return;
+    }
+    const index = Number.isInteger(item.removedAtIndex) ? item.removedAtIndex : 0;
+    try {
+      const url = new URL(href, window.location && window.location.href ? window.location.href : undefined);
+      if (Number.isInteger(index)) {
+        url.searchParams.set('example', String(index + 1));
+      }
+      window.open(url.toString(), '_blank', 'noopener');
+    } catch (error) {
+      const base = href.includes('?') ? '&' : '?';
+      const suffix = Number.isInteger(index) ? `${base}example=${index + 1}` : '';
+      window.open(`${href}${suffix}`, '_blank', 'noopener');
+    }
+  }
+
+  async function ensureTrashViewerInitialized() {
+    if (trashViewerInitialized) {
+      return;
+    }
+    if (!TrashArchiveViewerClass) {
+      setTrashViewerStatus('Visningen for slettede figurer er ikke tilgjengelig i denne nettleseren.', 'error');
+      trashViewerInitialized = true;
+      return;
+    }
+
+    trashViewer = new TrashArchiveViewerClass({
+      apiBase: examplesApiBase,
+      trashApiBase,
+      state: trashViewerState,
+      updateGroups: updateTrashViewerGroups,
+      buildFilterOptions: () => {},
+      renderEntries: renderTrashViewer,
+      setStatus: setTrashViewerStatus,
+      openExample: openTrashExample,
+      onFetchEntries: fetchTrashEntries,
+      notifyParent: () => {},
+      messages: {
+        fallbackStatus: '',
+        restoreFallbackStatus: '',
+        restoreInProgress: 'Gjenoppretter figuren …',
+        restoreSuccess: 'Figur gjenopprettet.',
+        restoreError: 'Kunne ikke gjenopprette figuren.',
+        deleteCancelled: 'Sletting avbrutt.',
+        deleteError: 'Kunne ikke slette figuren permanent.',
+        deleteSuccess: 'Figur slettet.'
+      }
+    });
+
+    if (trashList) {
+      trashList.addEventListener('click', trashViewer.handleAction);
+    }
+
+    trashViewerInitialized = true;
+
+    try {
+      setTrashViewerStatus('Laster slettede figurer …', 'info');
+      await fetchTrashEntries();
+      renderTrashViewer();
+      if (!trashViewerState.groups.length) {
+        setTrashViewerStatus('Ingen slettede figurer ennå.', 'info');
+      } else {
+        setTrashViewerStatus('Slettede figurer er klare.', 'success');
+      }
+    } catch (error) {
+      setTrashViewerStatus(
+        error && error.message ? error.message : 'Kunne ikke hente slettede figurer.',
+        'error'
+      );
+    }
+  }
+
   function syncTrashToggleState(isOpen) {
     if (!trashToggle) {
       return;
@@ -180,11 +532,19 @@
     }
 
     if (isOpen) {
+      if (!trashViewerInitialized) {
+        ensureTrashViewerInitialized().catch(error => {
+          setTrashViewerStatus(
+            error && error.message ? error.message : 'Kunne ikke hente slettede figurer.',
+            'error'
+          );
+        });
+      }
       trashRestoreFocusTo = triggeredBy || document.activeElement || trashToggle;
       trashArchive.removeAttribute('hidden');
       trashArchive.setAttribute('aria-hidden', 'false');
       syncTrashToggleState(true);
-      if (announce) {
+      if (announce && !trashViewerInitialized) {
         announceTrash('Viser slettede figurer.');
       }
       if (focusPanel) {

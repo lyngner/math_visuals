@@ -1,6 +1,9 @@
 (function () {
   'use strict';
 
+  const TrashArchiveViewerModule = window.MathVisualsTrashArchiveViewer || null;
+  const TrashArchiveViewerClass = TrashArchiveViewerModule ? TrashArchiveViewerModule.TrashArchiveViewer : null;
+
   const MISSING_API_GUIDANCE =
     'Fant ikke eksempeltjenesten (/api/examples). Sjekk at back-end kjører og at distribusjonen inkluderer serverless-funksjoner.';
 
@@ -437,6 +440,8 @@
     lastFetchUsedFallback: false
   };
 
+  let trashViewer = null;
+
   function updateGroups(groups) {
     const list = Array.isArray(groups) ? groups : [];
     state.groups = list;
@@ -460,80 +465,6 @@
     } else {
       statusElement.removeAttribute('data-status-type');
     }
-  }
-
-  function normalizeTrashItem(payload) {
-    if (!payload || typeof payload !== 'object') return null;
-    const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : null;
-    if (!id) return null;
-    const example = payload.example && typeof payload.example === 'object' ? payload.example : null;
-    if (!example) return null;
-    const deletedAt = typeof payload.deletedAt === 'string' ? payload.deletedAt : '';
-    const rawPath = typeof payload.sourcePathRaw === 'string' ? payload.sourcePathRaw.trim() : '';
-    const normalizedSource = typeof payload.sourcePath === 'string' && payload.sourcePath.trim()
-      ? normalizePath(payload.sourcePath)
-      : rawPath
-        ? normalizePath(rawPath)
-        : null;
-    const sourceHref = typeof payload.sourceHref === 'string' ? payload.sourceHref.trim() : '';
-    const sourceTitle = typeof payload.sourceTitle === 'string' ? payload.sourceTitle : '';
-    const reason = typeof payload.reason === 'string' ? payload.reason : 'delete';
-    const removedAtIndex = Number.isInteger(payload.removedAtIndex) ? payload.removedAtIndex : null;
-    const label = typeof payload.label === 'string' ? payload.label : '';
-    const importedFromHistory = payload.importedFromHistory === true;
-    const sourceArchived = payload.sourceArchived === true;
-    const sourceActive = payload.sourceActive === true;
-    return {
-      id,
-      example,
-      deletedAt,
-      sourcePath: normalizedSource,
-      sourcePathRaw: rawPath || null,
-      sourceHref: sourceHref || null,
-      sourceTitle,
-      reason,
-      removedAtIndex,
-      label,
-      importedFromHistory,
-      sourceArchived,
-      sourceActive
-    };
-  }
-
-  function buildGroupsFromItems(items) {
-    const groupsMap = new Map();
-    if (Array.isArray(items)) {
-      items.forEach(item => {
-        const normalized = normalizeTrashItem(item);
-        if (!normalized) return;
-        let path = normalized.sourcePath;
-        if (!path) {
-          const fallback = normalized.sourcePathRaw || normalized.sourceHref || '';
-          path = fallback ? normalizePath(fallback) : '';
-        }
-        if (!path) return;
-        if (!groupsMap.has(path)) {
-          groupsMap.set(path, {
-            path,
-            sourceTitle: normalized.sourceTitle,
-            items: []
-          });
-        }
-        groupsMap.get(path).items.push({ ...normalized, path });
-      });
-    }
-    const groups = Array.from(groupsMap.values());
-    groups.forEach(group => {
-      group.items.sort((a, b) => {
-        const timeA = Date.parse(b.deletedAt || '') || 0;
-        const timeB = Date.parse(a.deletedAt || '') || 0;
-        return timeA - timeB;
-      });
-      group.count = group.items.length;
-      group.latestDeletedAt = group.items.length ? group.items[0].deletedAt : null;
-    });
-    groups.sort((a, b) => a.path.localeCompare(b.path, 'nb'));
-    return groups;
   }
 
   async function fetchEntriesFromBackend() {
@@ -581,14 +512,14 @@
     if (archiveIsEphemeral && cleanedEntries.length === 0) {
       const fallbackEntries = loadFallbackEntries();
       if (fallbackEntries.length) {
-        const fallbackGroups = buildGroupsFromItems(fallbackEntries);
+        const fallbackGroups = trashViewer ? trashViewer.buildGroupsFromItems(fallbackEntries) : [];
         updateGroups(fallbackGroups);
         state.metadata = metadata;
         state.lastFetchUsedFallback = true;
         return { metadata, entries: fallbackEntries, usedFallback: true };
       }
     }
-    const groups = buildGroupsFromItems(cleanedEntries);
+    const groups = trashViewer ? trashViewer.buildGroupsFromItems(cleanedEntries) : [];
     updateGroups(groups);
     state.metadata = metadata;
     state.lastFetchUsedFallback = false;
@@ -909,167 +840,6 @@
     }
   }
 
-  async function deleteExample(id, options = {}) {
-    if (!trashApiBase) {
-      throw new Error('Arkivtjenesten er ikke konfigurert.');
-    }
-    const entryId = typeof id === 'string' ? id.trim() : '';
-    if (!entryId) {
-      return { cancelled: false, removed: false };
-    }
-
-    const skipConfirm = options && options.skipConfirm === true;
-    if (!skipConfirm && typeof window !== 'undefined' && typeof window.confirm === 'function') {
-      const confirmed = window.confirm(
-        'Er du sikker på at du vil slette dette eksempelet permanent? Denne handlingen kan ikke angres.'
-      );
-      if (!confirmed) {
-        return { cancelled: true, removed: false };
-      }
-    }
-
-    const url = buildTrashDeleteUrl(buildTrashApiUrl(trashApiBase), entryId);
-    if (!url) {
-      throw new Error('Kunne ikke bygge URL for permanent sletting.');
-    }
-
-    let response;
-    try {
-      response = await fetch(url, { method: 'DELETE', headers: { Accept: 'application/json' } });
-    } catch (error) {
-      throw new Error('Kunne ikke kontakte arkivtjenesten for sletting.');
-    }
-
-    if (!response.ok) {
-      throw new Error(`Serveren avviste sletting (${response.status}).`);
-    }
-
-    let removed = true;
-    try {
-      const text = await response.text();
-      if (text) {
-        const payload = JSON.parse(text);
-        if (payload && typeof payload === 'object' && typeof payload.removed === 'number') {
-          removed = payload.removed > 0;
-        }
-      }
-    } catch (error) {
-      removed = true;
-    }
-
-    return { cancelled: false, removed };
-  }
-
-  async function fetchExamplesEntry(path) {
-    if (!apiBase) {
-      throw new Error('Fant ikke eksempeltjenesten.');
-    }
-    const url = buildExamplesApiUrl(apiBase, path);
-    if (!url) {
-      throw new Error('Kunne ikke finne adressen til eksempeltjenesten.');
-    }
-    let response;
-    try {
-      response = await fetch(url, { headers: { Accept: 'application/json' } });
-    } catch (error) {
-      throw new Error('Kunne ikke hente eksemplene fra serveren.');
-    }
-    if (response && response.status === 404) {
-      return { path, examples: [], deletedProvided: [] };
-    }
-    if (!responseLooksLikeJson(response)) {
-      throw new Error(`Serveren avviste forespørselen (${response && response.status ? response.status : 'ukjent'})`);
-    }
-    if (!response.ok) {
-      throw new Error(`Serveren avviste forespørselen (${response.status}).`);
-    }
-    try {
-      return await response.json();
-    } catch (error) {
-      throw new Error('Kunne ikke tolke svaret fra serveren.');
-    }
-  }
-
-  async function putExamplesEntry(path, payload) {
-    if (!apiBase) {
-      throw new Error('Fant ikke eksempeltjenesten.');
-    }
-    const url = buildExamplesApiUrl(apiBase, path);
-    if (!url) {
-      throw new Error('Kunne ikke finne adressen til eksempeltjenesten.');
-    }
-    const normalizedExamples = Array.isArray(payload && payload.examples) ? payload.examples : [];
-    const normalizedDeletedProvided = Array.isArray(payload && payload.deletedProvided)
-      ? payload.deletedProvided
-      : [];
-    let response;
-    try {
-      response = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          path,
-          examples: normalizedExamples,
-          deletedProvided: normalizedDeletedProvided,
-          updatedAt: new Date().toISOString()
-        })
-      });
-    } catch (error) {
-      throw new Error('Kunne ikke lagre eksempelet på serveren.');
-    }
-    if (!responseLooksLikeJson(response)) {
-      throw new Error(`Serveren avviste forespørselen (${response && response.status ? response.status : 'ukjent'})`);
-    }
-    if (!response.ok) {
-      throw new Error(`Serveren avviste forespørselen (${response.status}).`);
-    }
-    try {
-      return await response.json();
-    } catch (error) {
-      throw new Error('Kunne ikke tolke svaret fra serveren.');
-    }
-  }
-
-  function cloneExampleForRestore(example) {
-    if (!example || typeof example !== 'object') return {};
-    try {
-      return JSON.parse(JSON.stringify(example));
-    } catch (error) {
-      const copy = {};
-      Object.keys(example).forEach(key => {
-        copy[key] = example[key];
-      });
-      return copy;
-    }
-  }
-
-  function determineInsertIndex(length, removedAtIndex) {
-    const total = Number.isInteger(length) && length >= 0 ? length : 0;
-    if (!Number.isInteger(removedAtIndex)) {
-      return total;
-    }
-    if (removedAtIndex < 0) {
-      return 0;
-    }
-    if (removedAtIndex > total) {
-      return total;
-    }
-    return removedAtIndex;
-  }
-
-  async function restoreTrashEntry(path, item) {
-    if (!item || typeof item !== 'object') {
-      throw new Error('Fant ikke elementet som skulle gjenopprettes.');
-    }
-    const entry = await fetchExamplesEntry(path);
-    const existingExamples = Array.isArray(entry && entry.examples) ? entry.examples.slice() : [];
-    const deletedProvided = Array.isArray(entry && entry.deletedProvided) ? entry.deletedProvided.slice() : [];
-    const examplePayload = cloneExampleForRestore(item.example);
-    const insertIndex = determineInsertIndex(existingExamples.length, item.removedAtIndex);
-    existingExamples.splice(insertIndex, 0, examplePayload);
-    await putExamplesEntry(path, { examples: existingExamples, deletedProvided });
-  }
-
   function notifyParentAboutRestore(path, item) {
     if (typeof window === 'undefined') return;
     if (!window.parent || window.parent === window) return;
@@ -1098,7 +868,7 @@
       const fallbackEntries = loadFallbackEntries();
       state.lastFetchUsedFallback = false;
       if (fallbackEntries.length) {
-        const fallbackGroups = buildGroupsFromItems(fallbackEntries);
+        const fallbackGroups = trashViewer ? trashViewer.buildGroupsFromItems(fallbackEntries) : [];
         updateGroups(fallbackGroups);
         state.lastFetchUsedFallback = true;
         buildFilterOptions();
@@ -1115,94 +885,55 @@
     }
   }
 
-  function handleFilterChange(event) {
-    const value = event && event.target ? event.target.value : 'all';
-    state.filter = value || 'all';
-    renderEntries();
-  }
-
-  async function handleAction(event) {
-    const button = event.target && event.target.closest ? event.target.closest('button[data-action]') : null;
-    if (!button) return;
-    const action = button.dataset.action;
-    const item = button.closest('[data-item]');
-    const group = button.closest('[data-group]');
-    const path = group ? group.dataset.path : null;
-    if (!path) return;
-    if (action === 'open') {
-      const id = item && item.dataset ? item.dataset.id : button.dataset.id;
-      openExample(path, id);
-      return;
-    }
-    if (action === 'restore') {
-      const id = item && item.dataset ? item.dataset.id : button.dataset.id;
-      if (!id) return;
-      const groupEntry = state.groupsMap.get(path);
-      if (!groupEntry || !Array.isArray(groupEntry.items)) return;
-      const targetItem = groupEntry.items.find(entry => entry && entry.id === id);
-      if (!targetItem) return;
-      button.disabled = true;
-      setStatus('Gjenoppretter det arkiverte eksempelet slik at det blir tilgjengelig igjen …', 'info');
-      try {
-        await restoreTrashEntry(path, targetItem);
-        await deleteExample(id, { skipConfirm: true });
-        await fetchEntriesFromBackend();
-        buildFilterOptions();
-        renderEntries();
-        setStatus('Eksempel gjenopprettet fra arkivet.', 'success');
-        notifyParentAboutRestore(path, targetItem);
-      } catch (error) {
-        setStatus(
-          error && error.message
-            ? error.message
-            : 'Kunne ikke gjenopprette det arkiverte eksempelet.',
-          'error'
-        );
-      } finally {
-        button.disabled = false;
-      }
-      return;
-    }
-    if (action === 'delete') {
-      const id = item && item.dataset ? item.dataset.id : button.dataset.id;
-      if (!id) return;
-      button.disabled = true;
-      try {
-        const result = await deleteExample(id);
-        if (result && result.cancelled) {
-          setStatus('Sletting avbrutt. Elementet ligger fortsatt i arkivet over slettede eksempler.', 'info');
-          return;
-        }
-        const fetchResult = await fetchEntriesFromBackend();
-        buildFilterOptions();
-        renderEntries();
-        if (fetchResult && fetchResult.usedFallback) {
-          setStatus(FALLBACK_STATUS_MESSAGE, 'info');
-        } else {
-          setStatus('', '');
-        }
-      } catch (error) {
-        setStatus(
-          error && error.message ? error.message : 'Kunne ikke slette det arkiverte eksempelet permanent.',
-          'error'
-        );
-      } finally {
-        button.disabled = false;
-      }
-    }
-  }
-
   function init() {
     if (!groupsContainer) return;
+    if (!TrashArchiveViewerClass) {
+      if (typeof window !== 'undefined') {
+        const target = 'svg-arkiv.html?view=trash';
+        try {
+          window.location.href = target;
+        } catch (error) {
+          try {
+            window.location.assign(target);
+          } catch (_) {}
+        }
+      }
+      return;
+    }
+
+    trashViewer = new TrashArchiveViewerClass({
+      apiBase,
+      trashApiBase,
+      state,
+      updateGroups,
+      buildFilterOptions,
+      renderEntries,
+      setStatus,
+      openExample,
+      onFetchEntries: fetchEntriesFromBackend,
+      notifyParent: notifyParentAboutRestore,
+      messages: {
+        fallbackStatus: FALLBACK_STATUS_MESSAGE,
+        restoreFallbackStatus: FALLBACK_STATUS_MESSAGE,
+        restoreInProgress:
+          'Gjenoppretter det arkiverte eksempelet slik at det blir tilgjengelig igjen …',
+        restoreSuccess: 'Eksempel gjenopprettet fra arkivet.',
+        restoreError: 'Kunne ikke gjenopprette det arkiverte eksempelet.',
+        deleteCancelled: 'Sletting avbrutt. Elementet ligger fortsatt i arkivet over slettede eksempler.',
+        deleteError: 'Kunne ikke slette det arkiverte eksempelet permanent.',
+        deleteSuccess: ''
+      }
+    });
+
     if (refreshButton) {
       refreshButton.addEventListener('click', () => {
         refreshEntries().catch(() => {});
       });
     }
     if (filterSelect) {
-      filterSelect.addEventListener('change', handleFilterChange);
+      filterSelect.addEventListener('change', trashViewer.handleFilterChange);
     }
-    groupsContainer.addEventListener('click', handleAction);
+    groupsContainer.addEventListener('click', trashViewer.handleAction);
     refreshEntries().catch(() => {});
   }
 
