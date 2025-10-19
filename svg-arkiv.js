@@ -10,7 +10,7 @@
   }
 
   let allEntries = [];
-  let openMenu = null;
+  let archiveDialog = null;
   const focusableSelectors = [
     'button:not([disabled]):not([tabindex="-1"])',
     '[href]:not([tabindex="-1"])',
@@ -34,38 +34,6 @@
         : false;
       return rects.length > 0 && (element.offsetParent !== null || isSvgElement);
     });
-  }
-
-  function focusNextElementAfter(reference) {
-    const allFocusable = Array.from(document.querySelectorAll(focusableSelectors)).filter(element => {
-      if (element.disabled) {
-        return false;
-      }
-      if (element.getAttribute('aria-hidden') === 'true') {
-        return false;
-      }
-      if (typeof element.closest === 'function' && element.closest('[hidden]')) {
-        return false;
-      }
-      const rects = element.getClientRects();
-      const isSvgElement = typeof window !== 'undefined' && window.SVGElement
-        ? element instanceof window.SVGElement
-        : false;
-      return rects.length > 0 && (element.offsetParent !== null || isSvgElement);
-    });
-    const currentIndex = allFocusable.indexOf(reference);
-    if (currentIndex === -1) {
-      return false;
-    }
-    for (let index = currentIndex + 1; index < allFocusable.length; index += 1) {
-      const candidate = allFocusable[index];
-      if (!candidate) {
-        continue;
-      }
-      candidate.focus();
-      return true;
-    }
-    return false;
   }
 
   function setStatus(message, state) {
@@ -121,6 +89,303 @@
     return normalized;
   }
 
+  function createArchiveDialog(options = {}) {
+    const dialog = document.querySelector('dialog[data-archive-viewer]') || (() => {
+      const dialogElement = document.createElement('dialog');
+      dialogElement.dataset.archiveViewer = 'true';
+      dialogElement.className = 'svg-archive__dialog';
+      dialogElement.setAttribute('aria-modal', 'true');
+      dialogElement.setAttribute('role', 'dialog');
+      dialogElement.setAttribute('aria-labelledby', 'svg-archive-dialog-title');
+      dialogElement.setAttribute('aria-describedby', 'svg-archive-dialog-caption');
+
+      const overlay = document.createElement('div');
+      overlay.className = 'svg-archive__dialog-surface';
+
+      const header = document.createElement('header');
+      header.className = 'svg-archive__dialog-header';
+
+      const title = document.createElement('h2');
+      title.id = 'svg-archive-dialog-title';
+      title.className = 'svg-archive__dialog-title';
+      header.appendChild(title);
+
+      const closeButton = document.createElement('button');
+      closeButton.type = 'button';
+      closeButton.className = 'svg-archive__dialog-close';
+      closeButton.setAttribute('aria-label', 'Lukk visning');
+      closeButton.innerHTML = '&times;';
+      header.appendChild(closeButton);
+
+      const body = document.createElement('div');
+      body.className = 'svg-archive__dialog-body';
+
+      const figure = document.createElement('figure');
+      figure.className = 'svg-archive__dialog-figure';
+
+      const image = document.createElement('img');
+      image.className = 'svg-archive__dialog-image';
+      image.alt = '';
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      figure.appendChild(image);
+
+      const figcaption = document.createElement('figcaption');
+      figcaption.id = 'svg-archive-dialog-caption';
+      figcaption.className = 'svg-archive__dialog-caption';
+      figure.appendChild(figcaption);
+
+      const meta = document.createElement('dl');
+      meta.id = 'svg-archive-dialog-meta';
+      meta.className = 'svg-archive__dialog-meta';
+
+      const actions = document.createElement('div');
+      actions.className = 'svg-archive__dialog-actions';
+      actions.setAttribute('role', 'group');
+      actions.setAttribute('aria-label', 'Handlinger for figur');
+
+      const actionConfig = [
+        { action: 'download-svg', label: 'Last ned SVG' },
+        { action: 'download-png', label: 'Last ned PNG' },
+        { action: 'open', label: 'Åpne figur' },
+        { action: 'delete', label: 'Slett figur' }
+      ];
+
+      for (const { action, label } of actionConfig) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'svg-archive__dialog-action';
+        button.dataset.action = action;
+        button.textContent = label;
+        actions.appendChild(button);
+      }
+
+      body.appendChild(figure);
+      body.appendChild(meta);
+      body.appendChild(actions);
+
+      overlay.appendChild(header);
+      overlay.appendChild(body);
+      dialogElement.appendChild(overlay);
+      document.body.appendChild(dialogElement);
+
+      return dialogElement;
+    })();
+
+    const titleElement = dialog.querySelector('.svg-archive__dialog-title');
+    const closeButton = dialog.querySelector('.svg-archive__dialog-close');
+    const captionElement = dialog.querySelector('.svg-archive__dialog-caption');
+    const imageElement = dialog.querySelector('.svg-archive__dialog-image');
+    const metaElement = dialog.querySelector('.svg-archive__dialog-meta');
+    const actionsContainer = dialog.querySelector('.svg-archive__dialog-actions');
+    const actionButtons = Array.from(actionsContainer.querySelectorAll('[data-action]'));
+
+    let activeEntry = null;
+    let restoreFocusTo = null;
+
+    function renderMeta(entry) {
+      metaElement.innerHTML = '';
+
+      const metaPairs = [];
+
+      if (entry.tool) {
+        metaPairs.push(['Verktøy', entry.tool]);
+      }
+      if (entry.sequenceLabel) {
+        metaPairs.push(['Sekvens', entry.sequenceLabel]);
+      }
+      if (entry.fileSizeLabel) {
+        metaPairs.push(['Filstørrelse', entry.fileSizeLabel]);
+      }
+      if (entry.createdAt) {
+        const formatted = new Date(entry.createdAt).toLocaleString('nb-NO', {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        });
+        metaPairs.push(['Opprettet', formatted]);
+      }
+
+      if (!metaPairs.length) {
+        metaElement.setAttribute('hidden', '');
+        return;
+      }
+
+      metaElement.removeAttribute('hidden');
+
+      for (const [term, description] of metaPairs) {
+        const dt = document.createElement('dt');
+        dt.textContent = term;
+        metaElement.appendChild(dt);
+
+        const dd = document.createElement('dd');
+        dd.textContent = description;
+        metaElement.appendChild(dd);
+      }
+    }
+
+    function updateDialog(entry) {
+      activeEntry = entry;
+      titleElement.textContent = entry.displayTitle || entry.title || entry.baseName || 'Detaljer';
+      captionElement.textContent = entry.summary || entry.altText || '';
+      if (captionElement.textContent) {
+        captionElement.removeAttribute('hidden');
+      } else {
+        captionElement.setAttribute('hidden', '');
+      }
+      if (entry.pngUrl) {
+        imageElement.src = entry.pngUrl;
+      } else if (entry.svgUrl) {
+        imageElement.src = entry.svgUrl;
+      } else {
+        imageElement.removeAttribute('src');
+      }
+      imageElement.alt = entry.altText || entry.displayTitle || 'Forhåndsvisning';
+
+      renderMeta(entry);
+
+      const descriptionIds = [];
+      if (!captionElement.hasAttribute('hidden')) {
+        descriptionIds.push('svg-archive-dialog-caption');
+      }
+      if (!metaElement.hasAttribute('hidden')) {
+        descriptionIds.push('svg-archive-dialog-meta');
+      }
+      if (descriptionIds.length) {
+        dialog.setAttribute('aria-describedby', descriptionIds.join(' '));
+      } else {
+        dialog.removeAttribute('aria-describedby');
+      }
+
+      for (const button of actionButtons) {
+        const action = button.dataset.action;
+        const hasUrl = action === 'download-svg'
+          ? Boolean(entry.svgUrl)
+          : action === 'download-png'
+            ? Boolean(entry.pngUrl)
+            : action === 'open'
+              ? Boolean(entry.svgUrl || entry.pngUrl)
+              : true;
+
+        if (!hasUrl) {
+          button.disabled = true;
+          button.setAttribute('aria-hidden', 'true');
+        } else {
+          button.disabled = false;
+          button.removeAttribute('aria-hidden');
+        }
+      }
+    }
+
+    function closeDialog(options = {}) {
+      const { returnFocus = true } = options;
+      if (!dialog.open) {
+        return;
+      }
+      dialog.close();
+      dialog.removeEventListener('keydown', trapFocus, true);
+      dialog.removeEventListener('cancel', handleCancel, true);
+      dialog.removeEventListener('click', handleBackdropClick);
+      if (returnFocus && restoreFocusTo && typeof restoreFocusTo.focus === 'function') {
+        restoreFocusTo.focus();
+      }
+      restoreFocusTo = null;
+      activeEntry = null;
+    }
+
+    function trapFocus(event) {
+      if (event.key !== 'Tab') {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          closeDialog();
+        }
+        return;
+      }
+
+      const focusable = getFocusableElements(dialog);
+      if (!focusable.length) {
+        event.preventDefault();
+        closeDialog();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    function handleCancel(event) {
+      event.preventDefault();
+      closeDialog();
+    }
+
+    function handleBackdropClick(event) {
+      if (event.target === dialog) {
+        closeDialog();
+      }
+    }
+
+    closeButton.addEventListener('click', () => {
+      closeDialog();
+    });
+
+    actionsContainer.addEventListener('click', async event => {
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+      const button = event.target.closest('[data-action]');
+      if (!button || !actionsContainer.contains(button)) {
+        return;
+      }
+      event.preventDefault();
+      if (!activeEntry) {
+        return;
+      }
+      const action = button.dataset.action;
+      if (!action) {
+        return;
+      }
+      await options.onAction?.(action, activeEntry, {
+        close: closeDialog
+      });
+    });
+
+    return {
+      open(entry, { focusActions = false, trigger = null } = {}) {
+        restoreFocusTo = trigger || document.activeElement;
+        updateDialog(entry);
+        dialog.showModal();
+        dialog.addEventListener('keydown', trapFocus, true);
+        dialog.addEventListener('cancel', handleCancel, true);
+        dialog.addEventListener('click', handleBackdropClick);
+
+        const focusTarget = focusActions
+          ? actionButtons.find(button => !button.disabled)
+          : closeButton;
+
+        requestAnimationFrame(() => {
+          if (focusTarget) {
+            focusTarget.focus();
+          }
+        });
+      },
+      close: closeDialog,
+      isOpen: () => dialog.open,
+      getCurrentEntry: () => activeEntry
+    };
+  }
+
+  archiveDialog = createArchiveDialog({
+    onAction: performEntryAction
+  });
+
   function createCard(entry) {
     const slugValue = entry.slug || entry.svgSlug || entry.baseName || '';
 
@@ -134,8 +399,21 @@
     card.dataset.svgUrl = normalizeAssetUrl(entry.svgUrl, 'svg') || entry.svgUrl || '';
     card.dataset.pngUrl = normalizeAssetUrl(entry.pngUrl, 'png') || entry.pngUrl || '';
 
-    const preview = document.createElement('div');
+    const menuTrigger = document.createElement('button');
+    menuTrigger.type = 'button';
+    menuTrigger.className = 'svg-archive__menu-trigger';
+    menuTrigger.setAttribute('aria-haspopup', 'dialog');
+    menuTrigger.setAttribute('aria-label', `Åpne meny for ${entry.displayTitle}`);
+    menuTrigger.dataset.slug = slugValue;
+    menuTrigger.dataset.svgUrl = card.dataset.svgUrl;
+    menuTrigger.dataset.pngUrl = card.dataset.pngUrl;
+
+    const preview = document.createElement('button');
+    preview.type = 'button';
     preview.className = 'svg-archive__preview';
+    preview.dataset.previewTrigger = 'true';
+    preview.setAttribute('aria-haspopup', 'dialog');
+    preview.setAttribute('aria-label', `Vis detaljer for ${entry.displayTitle}`);
 
     const img = document.createElement('img');
     img.src = normalizeAssetUrl(entry.thumbnailUrl, 'png') || entry.thumbnailUrl || '';
@@ -145,192 +423,16 @@
 
     preview.appendChild(img);
 
-    const menuTrigger = document.createElement('button');
-    menuTrigger.type = 'button';
-    menuTrigger.className = 'svg-archive__menu-trigger';
-    menuTrigger.setAttribute('aria-haspopup', 'true');
-    menuTrigger.setAttribute('aria-expanded', 'false');
-    menuTrigger.setAttribute('aria-label', `Åpne meny for ${entry.displayTitle}`);
-    menuTrigger.dataset.slug = slugValue;
-    menuTrigger.dataset.svgUrl = card.dataset.svgUrl;
-    menuTrigger.dataset.pngUrl = card.dataset.pngUrl;
+    const toolbar = document.createElement('div');
+    toolbar.className = 'svg-archive__card-toolbar';
+    toolbar.appendChild(menuTrigger);
 
-    preview.appendChild(menuTrigger);
-
+    card.appendChild(toolbar);
     card.appendChild(preview);
-
-    const menuContainer = document.createElement('div');
-    menuContainer.className = 'svg-archive__menu';
-    menuContainer.hidden = true;
-
-    const actions = [
-      { action: 'download-svg', label: 'Last ned SVG' },
-      { action: 'download-png', label: 'Last ned PNG' },
-      { action: 'open', label: 'Åpne figur' },
-      { action: 'delete', label: 'Slett figur' }
-    ];
-
-    for (const { action, label } of actions) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'svg-archive__menu-action';
-      button.dataset.action = action;
-      button.dataset.slug = slugValue;
-      button.textContent = label;
-      menuContainer.appendChild(button);
-    }
-
-    card.appendChild(menuContainer);
 
     item.appendChild(card);
 
     return item;
-  }
-
-  function removeGlobalMenuListeners() {
-    document.removeEventListener('pointerdown', handleGlobalPointerDown, true);
-    document.removeEventListener('keydown', handleGlobalKeydown, true);
-  }
-
-  function handleMenuKeydown(event) {
-    if (!openMenu || event.key !== 'Tab') {
-      return;
-    }
-
-    const { trigger, menu } = openMenu;
-    const focusableItems = getFocusableElements(menu);
-
-    if (!focusableItems.length) {
-      if (event.shiftKey) {
-        event.preventDefault();
-        closeMenu({ focusTrigger: true });
-      } else {
-        closeMenu({ focusTrigger: false });
-        requestAnimationFrame(() => {
-          focusNextElementAfter(trigger);
-        });
-      }
-      return;
-    }
-
-    const firstItem = focusableItems[0];
-    const lastItem = focusableItems[focusableItems.length - 1];
-    const activeElement = document.activeElement;
-
-    if (event.shiftKey && activeElement === firstItem) {
-      event.preventDefault();
-      closeMenu({ focusTrigger: true });
-      return;
-    }
-
-    if (!event.shiftKey && activeElement === lastItem) {
-      event.preventDefault();
-      const focusOrigin = trigger;
-      closeMenu({ focusTrigger: false });
-      requestAnimationFrame(() => {
-        if (!focusNextElementAfter(focusOrigin)) {
-          focusOrigin.blur();
-        }
-      });
-    }
-  }
-
-  function handleGlobalPointerDown(event) {
-    if (!openMenu) {
-      return;
-    }
-
-    const { trigger, menu } = openMenu;
-    const target = event.target;
-
-    if (trigger.contains(target) || menu.contains(target)) {
-      return;
-    }
-
-    closeMenu({ focusTrigger: false });
-  }
-
-  function handleGlobalKeydown(event) {
-    if (!openMenu) {
-      return;
-    }
-
-    if (event.key === 'Escape' || event.key === 'Esc') {
-      event.preventDefault();
-      closeMenu({ focusTrigger: true });
-    }
-  }
-
-  function closeMenu(options = {}) {
-    if (!openMenu) {
-      return;
-    }
-
-    const { focusTrigger = false } = options;
-    const { trigger, menu, previousTabIndex } = openMenu;
-
-    menu.hidden = true;
-    trigger.setAttribute('aria-expanded', 'false');
-    menu.removeEventListener('keydown', handleMenuKeydown);
-    removeGlobalMenuListeners();
-
-    if (previousTabIndex === null) {
-      menu.removeAttribute('tabindex');
-    } else if (previousTabIndex !== undefined) {
-      menu.setAttribute('tabindex', previousTabIndex);
-    }
-
-    openMenu = null;
-
-    if (focusTrigger) {
-      trigger.focus();
-    }
-  }
-
-  function openMenuForTrigger(trigger) {
-    const card = trigger.closest('.svg-archive__card');
-    if (!card) {
-      return;
-    }
-
-    const menu = card.querySelector('.svg-archive__menu');
-    if (!menu) {
-      return;
-    }
-
-    if (openMenu && openMenu.trigger === trigger) {
-      closeMenu({ focusTrigger: false });
-      return;
-    }
-
-    if (openMenu) {
-      closeMenu({ focusTrigger: false });
-    }
-
-    const previousTabIndex = menu.hasAttribute('tabindex') ? menu.getAttribute('tabindex') : null;
-
-    menu.hidden = false;
-    trigger.setAttribute('aria-expanded', 'true');
-
-    openMenu = { trigger, menu, previousTabIndex };
-
-    const focusableItems = getFocusableElements(menu);
-    if (focusableItems.length) {
-      requestAnimationFrame(() => {
-        focusableItems[0].focus();
-      });
-    } else {
-      if (previousTabIndex === null) {
-        menu.setAttribute('tabindex', '-1');
-      }
-      requestAnimationFrame(() => {
-        menu.focus();
-      });
-    }
-
-    menu.addEventListener('keydown', handleMenuKeydown);
-    document.addEventListener('pointerdown', handleGlobalPointerDown, true);
-    document.addEventListener('keydown', handleGlobalKeydown, true);
   }
 
   function render() {
@@ -339,7 +441,9 @@
       ? allEntries.filter(entry => entry.tool === selectedTool)
       : allEntries.slice();
 
-    closeMenu({ focusTrigger: false });
+    if (archiveDialog && archiveDialog.isOpen()) {
+      archiveDialog.close({ returnFocus: false });
+    }
     grid.innerHTML = '';
 
     if (!filteredEntries.length) {
@@ -563,39 +667,32 @@
 
   loadEntries();
 
-  function handleGridActivation(event) {
-    const trigger = event.target instanceof Element
-      ? event.target.closest('.svg-archive__menu-trigger')
-      : null;
-
-    if (!trigger || !grid.contains(trigger)) {
-      return;
-    }
-
-    openMenuForTrigger(trigger);
-  }
-
-  async function handleMenuAction(actionElement) {
-    const card = actionElement.closest('.svg-archive__card');
+  function openEntryForTrigger(trigger, { focusActions = false } = {}) {
+    const card = trigger.closest('.svg-archive__card');
     if (!card) {
       return;
     }
 
-    const slug = card.dataset.slug || actionElement.dataset.slug || '';
+    const slug = card.dataset.slug;
     if (!slug) {
       setStatus('Fant ikke figuren som hører til handlingen.', 'error');
-      closeMenu({ focusTrigger: false });
       return;
     }
 
     const entry = allEntries.find(item => item.slug === slug);
     if (!entry) {
       setStatus('Fant ikke figuren som hører til handlingen.', 'error');
-      closeMenu({ focusTrigger: false });
       return;
     }
 
-    const action = actionElement.dataset.action;
+    archiveDialog.open(entry, { focusActions, trigger });
+  }
+
+  async function performEntryAction(action, entry, helpers = {}) {
+    if (!entry) {
+      setStatus('Fant ikke figuren som hører til handlingen.', 'error');
+      return;
+    }
 
     try {
       if (action === 'download-svg' || action === 'download-png') {
@@ -634,63 +731,39 @@
           return;
         }
 
-        const response = await fetch(`/api/svg?slug=${encodeURIComponent(slug)}`, { method: 'DELETE' });
+        const response = await fetch(`/api/svg?slug=${encodeURIComponent(entry.slug)}`, { method: 'DELETE' });
         if (!response.ok) {
           throw new Error(`Uventet svar: ${response.status}`);
         }
 
-        allEntries = allEntries.filter(item => item.slug !== slug);
+        allEntries = allEntries.filter(item => item.slug !== entry.slug);
         render();
         setStatus('Figur slettet.', 'success');
+        helpers.close?.({ returnFocus: false });
+        return;
       }
     } catch (error) {
       console.error('Kunne ikke utføre handlingen', error);
       setStatus('Klarte ikke å utføre handlingen. Prøv igjen senere.', 'error');
-    } finally {
-      closeMenu({ focusTrigger: false });
     }
   }
 
-  grid.addEventListener('click', async event => {
+  grid.addEventListener('click', event => {
     if (!(event.target instanceof Element)) {
       return;
     }
 
-    const actionElement = event.target.closest('[data-action]');
-    if (actionElement && grid.contains(actionElement)) {
+    const previewTrigger = event.target.closest('[data-preview-trigger="true"]');
+    if (previewTrigger && grid.contains(previewTrigger)) {
       event.preventDefault();
-      await handleMenuAction(actionElement);
+      openEntryForTrigger(previewTrigger, { focusActions: false });
       return;
     }
 
-    const trigger = event.target instanceof Element
-      ? event.target.closest('.svg-archive__menu-trigger')
-      : null;
-
-    if (trigger && trigger.dataset.menuTriggerKeyboard === 'true') {
-      delete trigger.dataset.menuTriggerKeyboard;
-      return;
-    }
-
-    handleGridActivation(event);
-  });
-
-  grid.addEventListener('keydown', event => {
-    if (!(event.target instanceof Element)) {
-      return;
-    }
-
-    if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
-      const trigger = event.target.closest('.svg-archive__menu-trigger');
-      if (!trigger || !grid.contains(trigger)) {
-        return;
-      }
+    const menuTrigger = event.target.closest('.svg-archive__menu-trigger');
+    if (menuTrigger && grid.contains(menuTrigger)) {
       event.preventDefault();
-      trigger.dataset.menuTriggerKeyboard = 'true';
-      handleGridActivation(event);
-      setTimeout(() => {
-        delete trigger.dataset.menuTriggerKeyboard;
-      }, 0);
+      openEntryForTrigger(menuTrigger, { focusActions: true });
     }
   });
 })();

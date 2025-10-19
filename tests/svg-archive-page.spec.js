@@ -54,7 +54,7 @@ const TEST_ENTRIES = [
 ];
 
 test.describe('Arkiv', () => {
-  test('viser SVG-liste fra API og filtrering', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await page.route('**/api/svg', async route => {
       if (route.request().method() !== 'GET') {
         await route.fallback();
@@ -72,7 +72,9 @@ test.describe('Arkiv', () => {
 
     const response = await page.goto('/svg-arkiv.html', { waitUntil: 'networkidle' });
     expect(response?.ok()).toBeTruthy();
+  });
 
+  test('viser SVG-liste fra API og filtrering', async ({ page }) => {
     const items = page.locator('[data-svg-grid] [data-svg-item]');
     await expect(items).toHaveCount(TEST_ENTRIES.length);
 
@@ -80,11 +82,15 @@ test.describe('Arkiv', () => {
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
 
-    const hrefs = await page.$$eval('[data-svg-grid] a', anchors => anchors.map(anchor => anchor.getAttribute('href')));
-    expect(hrefs).toEqual(expectedOrder.map(entry => entry.urls.svg));
+    const itemSlugs = await items.evaluateAll(elements =>
+      elements.map(element => element.getAttribute('data-svg-item'))
+    );
+    expect(itemSlugs).toEqual(expectedOrder.map(entry => entry.slug));
 
-    const imageSources = await page.$$eval('[data-svg-grid] img', images => images.map(img => img.getAttribute('src')));
-    expect(imageSources.every(src => typeof src === 'string' && src.startsWith('/bildearkiv/') && src.endsWith('.png'))).toBe(true);
+    const imageSources = await page.$$eval('[data-svg-grid] img', images =>
+      images.map(img => img.getAttribute('src') || '')
+    );
+    expect(imageSources.every(src => src.startsWith('/api/svg/raw'))).toBe(true);
 
     await expect(page.locator('[data-status]')).toBeHidden();
     await expect(page.locator('[data-storage-note]')).toHaveText('Denne testen bruker midlertidige data.');
@@ -94,9 +100,71 @@ test.describe('Arkiv', () => {
     await filter.selectOption('Kuler');
 
     await expect(items).toHaveCount(1);
-    await expect(items.first()).toHaveAttribute('data-svg-item', 'bildearkiv/kuler/symmetri.svg');
+    const remainingSlug = await items.first().getAttribute('data-svg-item');
+    expect(remainingSlug).toBe(TEST_ENTRIES.find(entry => entry.tool === 'Kuler').slug);
 
-    const statusText = await page.locator('[data-status]').textContent();
-    expect(statusText).toBe('');
+    await expect(page.locator('[data-status]')).toBeHidden();
+  });
+
+  test('åpner dialog og bruker handlinger', async ({ page }) => {
+    await page.route('**/api/svg?slug=*', async route => {
+      if (route.request().method() === 'DELETE') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+        return;
+      }
+      await route.fallback();
+    });
+
+    await page.route('**/api/svg/raw**', async route => {
+      const url = route.request().url();
+      if (url.includes('format=png') || url.endsWith('.png')) {
+        await route.fulfill({ status: 200, headers: { 'content-type': 'image/png' }, body: 'PNG' });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'image/svg+xml' },
+        body: '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
+      });
+    });
+
+    const menuTrigger = page.locator('.svg-archive__menu-trigger').first();
+    await menuTrigger.click();
+
+    const dialog = page.locator('dialog[data-archive-viewer]');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('[data-action="download-svg"]')).toBeFocused();
+
+    await dialog.locator('.svg-archive__dialog-close').click();
+    await expect(dialog).toBeHidden();
+    await expect(menuTrigger).toBeFocused();
+
+    const previewTrigger = page.locator('[data-preview-trigger="true"]').first();
+    await previewTrigger.click();
+
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('.svg-archive__dialog-title')).toHaveText(TEST_ENTRIES[0].title);
+
+    const downloadPromise = page.waitForEvent('download');
+    await dialog.locator('[data-action="download-svg"]').click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/koordinat/);
+
+    const popupPromise = page.waitForEvent('popup');
+    await dialog.locator('[data-action="open"]').click();
+    const popup = await popupPromise;
+    await popup.close();
+    await expect(page.locator('[data-status]')).toHaveText('Åpner figur i ny fane.');
+
+    page.once('dialog', async confirmDialog => {
+      expect(confirmDialog.message()).toContain('Koordinatfigur');
+      await confirmDialog.accept();
+    });
+
+    await dialog.locator('[data-action="delete"]').click();
+
+    await expect(page.locator('[data-status]')).toHaveText('Figur slettet.');
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('[data-svg-grid] [data-svg-item]')).toHaveCount(TEST_ENTRIES.length - 1);
   });
 });
