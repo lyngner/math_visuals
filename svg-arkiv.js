@@ -20,6 +20,86 @@
     '[tabindex]:not([tabindex="-1"])'
   ].join(', ');
 
+  function normalizeToolIdentifier(value) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/[\u00e6]/g, 'ae')
+      .replace(/[\u00f8\u0153]/g, 'o')
+      .replace(/[\u00e5]/g, 'a')
+      .replace(/[^a-z0-9]+/g, '');
+  }
+
+  const TOOL_OPEN_TARGETS = (() => {
+    const definitions = [
+      { names: ['Graftegner'], url: '/graftegner.html', storagePath: '/graftegner' },
+      { names: ['nKant', 'N-kant'], url: '/nkant.html', storagePath: '/nkant' },
+      { names: ['Diagram'], url: '/diagram/index.html', storagePath: '/diagram' },
+      { names: ['Brøkpizza'], url: '/brøkpizza.html', storagePath: '/brøkpizza' },
+      { names: ['Brøkfigurer'], url: '/brøkfigurer.html', storagePath: '/brøkfigurer' },
+      { names: ['Figurtall'], url: '/figurtall.html', storagePath: '/figurtall' },
+      { names: ['Tenkeblokker'], url: '/tenkeblokker.html', storagePath: '/tenkeblokker' },
+      {
+        names: ['Arealmodell', 'Arealmodellen', 'Arealmodellen 1', 'Arealmodellen 2', 'Arealmodell 0'],
+        url: '/arealmodell.html',
+        storagePath: '/arealmodell'
+      },
+      { names: ['Tallinje'], url: '/tallinje.html', storagePath: '/tallinje' },
+      { names: ['Perlesnor'], url: '/perlesnor.html', storagePath: '/perlesnor' },
+      { names: ['Kuler'], url: '/kuler.html', storagePath: '/kuler' },
+      { names: ['Kvikkbilder'], url: '/kvikkbilder.html', storagePath: '/kvikkbilder' },
+      { names: ['3D-figurer', 'Trefigurer'], url: '/trefigurer.html', storagePath: '/trefigurer' },
+      { names: ['Brøkvegg'], url: '/brøkvegg.html', storagePath: '/brøkvegg' },
+      {
+        names: ['Prikk til prikk', 'Prikk til prikk (beta)'],
+        url: '/prikktilprikk.html',
+        storagePath: '/prikktilprikk'
+      },
+      {
+        names: ['Fortegnsskjema', 'Fortegnsskjema – under utvikling'],
+        url: '/fortegnsskjema.html',
+        storagePath: '/fortegnsskjema'
+      }
+    ];
+
+    const map = new Map();
+    for (const definition of definitions) {
+      const entry = {
+        url: definition.url,
+        storagePath: definition.storagePath,
+        displayName: definition.displayName || (definition.names && definition.names[0]) || ''
+      };
+      if (!Array.isArray(definition.names)) {
+        continue;
+      }
+      for (const name of definition.names) {
+        const key = normalizeToolIdentifier(name);
+        if (!key || map.has(key)) {
+          continue;
+        }
+        map.set(key, entry);
+      }
+    }
+    return map;
+  })();
+
+  function resolveToolOpenTarget(toolName) {
+    if (typeof toolName !== 'string') {
+      return null;
+    }
+
+    const key = normalizeToolIdentifier(toolName);
+    if (!key) {
+      return null;
+    }
+
+    return TOOL_OPEN_TARGETS.get(key) || null;
+  }
+
   function getFocusableElements(container) {
     return Array.from(container.querySelectorAll(focusableSelectors)).filter(element => {
       if (element.disabled) {
@@ -733,13 +813,58 @@
         document.body.removeChild(link);
         setStatus(isSvg ? 'Starter nedlasting av SVG.' : 'Starter nedlasting av PNG.', 'success');
       } else if (action === 'open') {
-        const url = entry.svgUrl || entry.pngUrl;
-        if (!url) {
-          setStatus('Fant ikke en URL å åpne for figuren.', 'error');
-          return;
+        const targetConfig = resolveToolOpenTarget(entry.tool || '');
+        const exampleState = entry.exampleState;
+        const hasExampleState = exampleState != null;
+
+        if (hasExampleState && targetConfig && targetConfig.url && targetConfig.storagePath) {
+          const slug = entry.slug || entry.svgSlug || entry.baseName || '';
+          const title = entry.displayTitle || entry.title || entry.baseName || slug || 'Figur';
+          const toolLabel = (entry.tool && entry.tool.trim()) || targetConfig.displayName || 'verktøyet';
+
+          const openRequest = {
+            id: slug || entry.svgSlug || entry.pngSlug || undefined,
+            slug,
+            title,
+            tool: entry.tool || targetConfig.displayName,
+            storagePath: targetConfig.storagePath,
+            canonicalPath: targetConfig.storagePath,
+            path: targetConfig.storagePath,
+            targetUrl: targetConfig.url,
+            example: exampleState,
+            exampleState,
+            summary: entry.summary,
+            createdAt: entry.createdAt,
+            svgUrl: entry.svgUrl,
+            pngUrl: entry.pngUrl,
+            source: 'svg-archive'
+          };
+
+          try {
+            window.MathVisExamples?.prepareOpenRequest?.(openRequest);
+          } catch (error) {
+            console.error('Kunne ikke forberede åpning av eksempel', error);
+          }
+
+          const popup = window.open(targetConfig.url, '_blank', 'noopener');
+          if (popup) {
+            setStatus(`Figuren åpnes i ${toolLabel} med et midlertidig eksempel.`, 'success');
+          } else {
+            setStatus('Klarte ikke å åpne verktøyet. Tillat sprettoppvinduer og prøv igjen.', 'error');
+          }
+        } else {
+          const url = entry.svgUrl || entry.pngUrl;
+          if (!url) {
+            setStatus('Fant ikke en URL å åpne for figuren.', 'error');
+            return;
+          }
+          const popup = window.open(url, '_blank', 'noopener');
+          if (popup) {
+            setStatus('Åpner figur i ny fane.', 'success');
+          } else {
+            setStatus('Klarte ikke å åpne figuren. Tillat sprettoppvinduer og prøv igjen.', 'error');
+          }
         }
-        window.open(url, '_blank', 'noopener');
-        setStatus('Åpner figur i ny fane.', 'success');
       } else if (action === 'delete') {
         const confirmed = window.confirm(`Er du sikker på at du vil slette «${entry.displayTitle}»?`);
         if (!confirmed) {
