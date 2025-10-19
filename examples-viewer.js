@@ -561,8 +561,41 @@ async function persistBackendEntry(path, entry) {
     setStatusMessage(`Kunne ikke lagre endringene for «${path}» på serveren.`, 'error');
   }
 }
-function rememberExampleSelection(path, index) {
+function rememberExampleSelection(path, index, example) {
   if (typeof window === 'undefined') return;
+  const canonicalPath = normalizePath(path);
+  const request = {
+    path,
+    canonicalPath,
+    index,
+    createdAt: new Date().toISOString()
+  };
+  try {
+    const identifier = `${canonicalPath || path || ''}#${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    request.requestId = identifier;
+  } catch (error) {}
+  if (example && typeof example === 'object') {
+    let payload = null;
+    try {
+      payload = JSON.parse(JSON.stringify(example));
+    } catch (error) {
+      payload = null;
+    }
+    if (!payload || typeof payload !== 'object') {
+      payload = {
+        config: example && typeof example.config === 'object' ? example.config : {},
+        description: typeof example.description === 'string' ? example.description : '',
+        svg: typeof example.svg === 'string' ? example.svg : ''
+      };
+      if (typeof example.exampleNumber === 'string') {
+        payload.exampleNumber = example.exampleNumber;
+      }
+    }
+    request.example = payload;
+  }
+  try {
+    window.localStorage.setItem('archive_open_request', JSON.stringify(request));
+  } catch (error) {}
   try {
     window.localStorage.setItem('example_to_load', JSON.stringify({ path, index }));
   } catch (error) {}
@@ -733,7 +766,7 @@ async function renderExamples(options) {
       const loadBtn = document.createElement('button');
       loadBtn.textContent = 'Last inn';
       loadBtn.addEventListener('click', () => {
-        rememberExampleSelection(path, idx);
+        rememberExampleSelection(path, idx, ex);
         try {
           const parentWindow = window.parent;
           if (!parentWindow || parentWindow === window) {
