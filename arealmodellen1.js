@@ -445,6 +445,51 @@ function getActiveArealmodellAltText() {
   if (source === 'manual' && stored) return stored;
   return stored || buildArealmodellAltText();
 }
+function buildArealmodellExportMeta() {
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const summary = getArealmodellAltSummary();
+  const altText = getActiveArealmodellAltText();
+  const colLabel = arealFormatInt(summary.totalCols);
+  const rowLabel = arealFormatInt(summary.totalRows);
+  const description = altText || `Arealmodell med ${colLabel} kolonner og ${rowLabel} rader.`;
+  const baseParts = ['arealmodell'];
+  if (Number.isFinite(summary.totalCols) && Number.isFinite(summary.totalRows)) {
+    baseParts.push(`${summary.totalCols}x${summary.totalRows}`);
+  }
+  if (summary.layout && summary.layout !== 'quad') {
+    baseParts.push(summary.layout);
+  }
+  const slugBase = baseParts.join(' ');
+  const defaultBaseName = helper && typeof helper.slugify === 'function'
+    ? helper.slugify(slugBase, 'arealmodell')
+    : slugBase
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'arealmodell';
+  return {
+    description,
+    defaultBaseName,
+    summary: {
+      layout: summary.layout,
+      totalCols: summary.totalCols,
+      totalRows: summary.totalRows,
+      leftCols: summary.leftCols,
+      rightCols: summary.rightCols,
+      bottomRows: summary.bottomRows,
+      topRows: summary.topRows,
+      showGrid: summary.showGrid,
+      cellMode: summary.cellMode,
+      edgeMode: summary.edgeMode,
+      splitLines: summary.splitLines,
+      showLengthAxis: summary.showLengthAxis,
+      showHeightAxis: summary.showHeightAxis,
+      challengeActive: summary.challengeActive,
+      challengeGoal: summary.challengeGoal,
+      altText
+    },
+    title: getArealmodellTitle()
+  };
+}
 function maybeRefreshAltText(reason) {
   const summary = getArealmodellAltSummary();
   const signature = JSON.stringify(summary);
@@ -2126,9 +2171,28 @@ function draw() {
     downloadPNGFromString(svgStr, ((_ADV$export4 = ADV.export) === null || _ADV$export4 === void 0 ? void 0 : _ADV$export4.filenamePng) || "arealmodell.png");
   };
   const btnSvgInteractive = document.getElementById("btnSvgInteractive") || (legacySvgStaticBtn ? document.getElementById("btnSvg") : null);
-  if (btnSvgInteractive) btnSvgInteractive.onclick = () => {
+  if (btnSvgInteractive) btnSvgInteractive.onclick = async () => {
     var _ADV$export5;
-    const svgStr = buildInteractiveSvgString(buildExportOptions());
+    const exportOptions = buildExportOptions();
+    const svgStr = buildInteractiveSvgString(exportOptions);
+    const svgElement = document.getElementById("area");
+    const helper = typeof window !== "undefined" ? window.MathVisSvgExport : null;
+    if (svgElement && helper && typeof helper.exportGraphicWithArchive === "function") {
+      maybeRefreshAltText("export");
+      const meta = buildArealmodellExportMeta();
+      try {
+        await helper.exportGraphicWithArchive(svgElement, ((_ADV$export5 = ADV.export) === null || _ADV$export5 === void 0 ? void 0 : _ADV$export5.filename) || "arealmodell_interaktiv.svg", "arealmodell", {
+          svgString: svgStr,
+          description: meta.description,
+          defaultBaseName: meta.defaultBaseName,
+          summary: meta.summary,
+          title: meta.title
+        });
+        return;
+      } catch (error) {
+        console.error("Kunne ikke eksportere via arkivet", error);
+      }
+    }
     downloadText(((_ADV$export5 = ADV.export) === null || _ADV$export5 === void 0 ? void 0 : _ADV$export5.filename) || "arealmodell_interaktiv.svg", svgStr, "image/svg+xml");
   };
 
