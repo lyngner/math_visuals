@@ -21,6 +21,14 @@
       justify-content: center;
       padding: 24px;
     }
+    .wrap {
+      width: min(100%, 560px);
+      min-height: calc(min(100vh, 100dvh) - 48px);
+      justify-content: center;
+    }
+    .grid {
+      display: grid;
+    }
     main {
       max-width: 560px;
       background: #ffffff;
@@ -69,15 +77,19 @@
   </style>
 </head>
 <body>
-  <main aria-labelledby="page-title">
-    <h1 id="page-title">Slettede eksempler er flyttet</h1>
-    <p>
-      Arkivet for slettede eksempler er nå en del av Arkiv-siden. Du finner de slettede elementene ved å åpne
-      <strong>svg-arkiv.html</strong> og aktivere knappen <em>Vis slettede figurer</em> øverst på siden.
-    </p>
-    <p>
-      <a href="svg-arkiv.html">Åpne arkivet</a>
-    </p>
-  </main>
+  <div class="wrap">
+    <div class="grid">
+      <main aria-labelledby="page-title">
+        <h1 id="page-title">Slettede eksempler er flyttet</h1>
+        <p>
+          Arkivet for slettede eksempler er nå en del av Arkiv-siden. Du finner de slettede elementene ved å åpne
+          <strong>svg-arkiv.html</strong> og aktivere knappen <em>Vis slettede figurer</em> øverst på siden.
+        </p>
+        <p>
+          <a href="svg-arkiv.html">Åpne arkivet</a>
+        </p>
+      </main>
+    </div>
+  </div>
 </body>
 </html>
