@@ -180,11 +180,18 @@ dialog.svg-archive__dialog::backdrop {
 
 .svg-archive__dialog-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   padding: 24px 28px 16px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.svg-archive__dialog-titlegroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .svg-archive__dialog-title {
@@ -192,6 +199,12 @@ dialog.svg-archive__dialog::backdrop {
   font-size: clamp(1.35rem, 2.4vw, 1.7rem);
   font-weight: 600;
   color: #0f172a;
+}
+
+.svg-archive__dialog-subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #475569;
 }
 
 .svg-archive__dialog-close {
@@ -221,12 +234,15 @@ dialog.svg-archive__dialog::backdrop {
   outline-offset: 2px;
 }
 
+
 .svg-archive__dialog-body {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
-  gap: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
   padding: 28px;
+  flex: 1 1 auto;
   overflow: auto;
+  min-height: 0;
 }
 
 .svg-archive__dialog-figure {
@@ -234,19 +250,22 @@ dialog.svg-archive__dialog::backdrop {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  align-items: center;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .svg-archive__dialog-image {
-  max-width: min(100%, 520px);
-  max-height: 60vh;
-  width: auto;
-  height: auto;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  max-height: none;
   object-fit: contain;
   border-radius: 16px;
   background: linear-gradient(145deg, #f1f5f9, #fff);
   padding: 18px;
   box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.18);
+  min-height: 0;
 }
 
 .svg-archive__dialog-caption {
@@ -275,10 +294,10 @@ dialog.svg-archive__dialog::backdrop {
 }
 
 .svg-archive__dialog-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  align-self: start;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  align-self: stretch;
 }
 
 .svg-archive__dialog-action {
@@ -350,26 +369,11 @@ dialog.svg-archive__dialog::backdrop {
 
 @media (max-width: 900px) {
   .svg-archive__dialog-body {
-    grid-template-columns: 1fr;
     padding: 24px;
-  }
-
-  .svg-archive__dialog-figure {
-    align-items: stretch;
   }
 
   .svg-archive__dialog-caption {
     text-align: left;
-  }
-
-  .svg-archive__dialog-actions {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .svg-archive__dialog-action {
-    flex: 1 1 calc(50% - 12px);
   }
 }
 
@@ -392,10 +396,6 @@ dialog.svg-archive__dialog::backdrop {
   .svg-archive__dialog-body {
     gap: 20px;
     padding: 20px;
-  }
-
-  .svg-archive__dialog-actions {
-    flex-direction: column;
   }
 }
 
