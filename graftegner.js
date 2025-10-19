@@ -862,6 +862,8 @@ let MODE = decideMode(SIMPLE_PARSED);
 const FORCE_TICKS_AUTO_DISABLE_LIMIT = 20;
 let FORCE_TICKS_LOCKED_FALSE = false;
 let START_SCREEN = null;
+let LAST_COMPUTED_SCREEN = null;
+let LAST_SCREEN_SOURCE = 'auto';
 let brd = null;
 let axX = null;
 let axY = null;
@@ -952,6 +954,50 @@ function fmtCoordsStatic(P) {
 function fmtCoordsDrag(P) {
   const d = ADV.points.decimals;
   return `(${toFixedTrim(P.X(), d)}, ${toFixedTrim(P.Y(), d)})`;
+}
+
+function formatScreenNumber(val) {
+  if (!Number.isFinite(val)) return '';
+  const abs = Math.abs(val);
+  let decimals = 4;
+  if (abs >= 1000) {
+    decimals = 2;
+  } else if (abs >= 100) {
+    decimals = 3;
+  }
+  return toFixedTrim(val, decimals);
+}
+
+function formatScreenForInput(screen) {
+  if (!Array.isArray(screen) || screen.length !== 4) return '';
+  return screen.map(formatScreenNumber).join(', ');
+}
+
+function syncScreenInputFromState() {
+  if (typeof document === 'undefined') return;
+  const input = document.getElementById('cfgScreen');
+  if (!input) return;
+  if (Array.isArray(LAST_COMPUTED_SCREEN) && LAST_COMPUTED_SCREEN.length === 4) {
+    const formatted = formatScreenForInput(LAST_COMPUTED_SCREEN);
+    input.value = formatted;
+    if (LAST_SCREEN_SOURCE === 'auto') {
+      if (input.dataset) input.dataset.autoscreen = '1';
+      input.classList.add('is-auto');
+    } else {
+      if (input.dataset) delete input.dataset.autoscreen;
+      input.classList.remove('is-auto');
+    }
+  } else {
+    input.value = '';
+    if (input.dataset) delete input.dataset.autoscreen;
+    input.classList.remove('is-auto');
+  }
+}
+
+function rememberScreenState(screen, source) {
+  LAST_COMPUTED_SCREEN = Array.isArray(screen) ? screen.slice(0, 4) : null;
+  LAST_SCREEN_SOURCE = source === 'manual' ? 'manual' : 'auto';
+  syncScreenInputFromState();
 }
 
 /* ======= brøk for m & b (melding ved snap / “Riktig:”) ======= */
@@ -1410,11 +1456,13 @@ const toBB = scr => [scr[0], scr[3], scr[1], scr[2]];
 /* ===================== Init JSXGraph ===================== */
 function initialScreen() {
   var _ADV$screen;
+  const hasManualScreen = Array.isArray(ADV.screen) && ADV.screen.length === 4;
   let scr = (_ADV$screen = ADV.screen) !== null && _ADV$screen !== void 0 ? _ADV$screen : MODE === 'functions' ? computeAutoScreenFunctions() : computeAutoScreenPoints();
   if (ADV.firstQuadrant) {
     if (scr[0] < 0) scr[0] = 0;
     if (scr[2] < 0) scr[2] = 0;
   }
+  rememberScreenState(scr, hasManualScreen ? 'manual' : 'auto');
   return scr;
 }
 function syncSimpleFromWindow() {
@@ -4190,6 +4238,7 @@ function setupSettingsForm() {
   const showAxisNumbersInput = g('cfgShowAxisNumbers');
   const showGridInput = g('cfgShowGrid');
   const forceTicksInput = g('cfgForceTicks');
+  const screenInput = g('cfgScreen');
   const snapCheckbox = g('cfgSnap');
   let gliderSection = null;
   let gliderCountInput = null;
@@ -5629,7 +5678,13 @@ function setupSettingsForm() {
       fillFormFromSimple(window.SIMPLE);
     });
   }
-  g('cfgScreen').value = paramStr('screen', '');
+  if (screenInput) {
+    screenInput.addEventListener('input', () => {
+      if (screenInput.dataset) delete screenInput.dataset.autoscreen;
+      screenInput.classList.remove('is-auto');
+    });
+  }
+  syncScreenInputFromState();
   g('cfgLock').checked = params.has('lock') ? paramBool('lock') : true;
   g('cfgAxisX').value = paramStr('xName', 'x');
   g('cfgAxisY').value = paramStr('yName', 'y');
@@ -5670,8 +5725,10 @@ function setupSettingsForm() {
     const currentSimple = syncSimpleFromForm();
     const simpleChanged = currentSimple !== prevSimple;
     let needsRebuild = simpleChanged;
-    const screenInput = g('cfgScreen');
-    const screenRaw = screenInput ? screenInput.value.trim() : '';
+    let screenRaw = screenInput ? screenInput.value.trim() : '';
+    if (screenInput && screenInput.dataset && screenInput.dataset.autoscreen === '1') {
+      screenRaw = '';
+    }
     const nextScreen = screenInput ? parseScreen(screenRaw) : null;
     if (!screensEqual(nextScreen, ADV.screen)) {
       ADV.screen = nextScreen;
