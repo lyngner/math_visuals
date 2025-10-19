@@ -83,7 +83,7 @@ function whenJXGReady(callback) {
   scheduleJXGCheck();
 }
 const DEFAULT_CURVE_COLORS = ['#9333ea', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
-const CAMPUS_CURVE_ORDER = [0, 5, 2, 3, 4, 1];
+const CAMPUS_CURVE_ORDER = [0, 1, 2, 3, 4, 5];
 const DEFAULT_FUNCTION_EXPRESSION = 'f(x)=x^2-2';
 
 const DEFAULT_GRAFTEGNER_SIMPLE = {
