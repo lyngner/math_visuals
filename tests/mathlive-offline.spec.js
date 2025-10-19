@@ -1,17 +1,20 @@
 const { test, expect } = require('@playwright/test');
 
-async function blockJsdelivr(page, blockedRequests) {
-  const jsdelivrRoute = '**/*jsdelivr.net/**';
-  const handler = route => {
-    const url = route.request().url();
-    blockedRequests.push(url);
-    route.abort();
+function trackJsdelivrRequests(page) {
+  const requests = [];
+  const listener = request => {
+    if (request.url().includes('jsdelivr.net')) {
+      requests.push(request.url());
+    }
   };
 
-  await page.route(jsdelivrRoute, handler);
+  page.on('request', listener);
 
-  return async () => {
-    await page.unroute(jsdelivrRoute, handler);
+  return {
+    requests,
+    dispose() {
+      page.off('request', listener);
+    },
   };
 }
 
@@ -33,26 +36,24 @@ test.describe('MathLive offline support', () => {
   }
 
   test('fortegnsskjema loads MathLive assets locally when jsdelivr is blocked', async ({ page }) => {
-    const blockedRequests = [];
-    const cleanup = await blockJsdelivr(page, blockedRequests);
+    const tracker = trackJsdelivrRequests(page);
     try {
       await page.goto('/fortegnsskjema.html', { waitUntil: 'load' });
       await expectMathLiveReady(page);
-      expect(blockedRequests).toEqual([]);
+      expect(tracker.requests).toEqual([]);
     } finally {
-      await cleanup();
+      tracker.dispose();
     }
   });
 
   test('graftegner loads MathLive assets locally when jsdelivr is blocked', async ({ page }) => {
-    const blockedRequests = [];
-    const cleanup = await blockJsdelivr(page, blockedRequests);
+    const tracker = trackJsdelivrRequests(page);
     try {
       await page.goto('/graftegner.html', { waitUntil: 'load' });
       await expectMathLiveReady(page);
-      expect(blockedRequests).toEqual([]);
+      expect(tracker.requests).toEqual([]);
     } finally {
-      await cleanup();
+      tracker.dispose();
     }
   });
 });
