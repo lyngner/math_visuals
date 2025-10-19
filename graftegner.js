@@ -4025,6 +4025,63 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     applyAppModeToTaskCheckHost(detail.mode);
   });
 }
+function extractInlineStyleValue(styleString, properties) {
+  if (!styleString || typeof styleString !== 'string') return null;
+  const normalized = Array.isArray(properties) ? properties : [properties];
+  for (const property of normalized) {
+    if (!property) continue;
+    const pattern = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`${pattern}\\s*:\\s*([^;]+)`, 'i');
+    const match = styleString.match(regex);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  return null;
+}
+
+function sanitizeSvgForeignObjects(svgNode) {
+  if (!svgNode || typeof svgNode.querySelectorAll !== 'function') return;
+  const doc = svgNode.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  const nodes = Array.from(svgNode.querySelectorAll('foreignObject'));
+  if (!doc || typeof doc.createElementNS !== 'function') {
+    nodes.forEach(node => node.remove());
+    return;
+  }
+  nodes.forEach(node => {
+    const parent = node.parentNode;
+    if (!parent) return;
+    const textContent = (node.textContent || '').trim();
+    if (!textContent) {
+      parent.removeChild(node);
+      return;
+    }
+    const replacement = doc.createElementNS('http://www.w3.org/2000/svg', 'text');
+    const xAttr = node.getAttribute('x');
+    const yAttr = node.getAttribute('y');
+    if (xAttr != null) replacement.setAttribute('x', xAttr);
+    if (yAttr != null) replacement.setAttribute('y', yAttr);
+    replacement.setAttribute('dominant-baseline', 'text-before-edge');
+    replacement.setAttribute('font-family', 'Inter, "Segoe UI", system-ui, sans-serif');
+    const styleSources = [node.getAttribute('style') || ''];
+    if (node.firstElementChild && typeof node.firstElementChild.getAttribute === 'function') {
+      styleSources.push(node.firstElementChild.getAttribute('style') || '');
+    }
+    const colorValue = styleSources.reduce((acc, style) => acc || extractInlineStyleValue(style, ['color', '--graf-axis-label-text']), null);
+    if (colorValue) {
+      replacement.setAttribute('fill', colorValue);
+    } else {
+      replacement.setAttribute('fill', '#111827');
+    }
+    const fontSizeValue = styleSources.reduce((acc, style) => acc || extractInlineStyleValue(style, ['font-size', '--graf-axis-label-font-size']), null);
+    if (fontSizeValue) {
+      replacement.setAttribute('font-size', fontSizeValue);
+    }
+    replacement.textContent = textContent;
+    parent.replaceChild(replacement, node);
+  });
+}
+
 function cloneBoardSvgRoot() {
   if (!brd || !brd.renderer || !brd.renderer.svgRoot) return null;
   const width = brd.canvasWidth;
@@ -4036,6 +4093,7 @@ function cloneBoardSvgRoot() {
   node.setAttribute('viewBox', `0 0 ${width} ${height}`);
   node.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   node.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  sanitizeSvgForeignObjects(node);
   return { node, width, height };
 }
 function serializeBoardSvg(clone) {
