@@ -1,5 +1,6 @@
 (function () {
   const SVG_NS = 'http://www.w3.org/2000/svg';
+  const XLINK_NS = 'http://www.w3.org/1999/xlink';
   const svg = document.getElementById('numberLineSvg');
   if (!svg) return;
 
@@ -103,6 +104,7 @@
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;
 
+  const axisArrowUtils = typeof window !== 'undefined' ? window.MathVisualsAxisArrow : null;
   const BASE_LABEL_FONT_SIZE = 18;
   const FIGURE_WIDTH = 1000;
   const FIGURE_HEIGHT = 260;
@@ -111,7 +113,9 @@
   const BASELINE_Y = 140;
   const MINOR_TICK_HEIGHT = 9;
   const MAJOR_TICK_HEIGHT = 9;
-  const ARROW_SIZE = 16;
+  const LEGACY_ARROW_SIZE = 16;
+  const AXIS_ARROW_THICKNESS = 26;
+  const AXIS_ARROW_COLOR = '#0f172a';
   const DEFAULT_DRAGGABLE_WIDTH = 72;
   const DEFAULT_DRAGGABLE_HEIGHT = 72;
   const MIN_DRAGGABLE_DIAMETER = 56;
@@ -1443,6 +1447,9 @@
         if (value == null) continue;
         if (key === 'textContent') {
           el.textContent = value;
+        } else if (key === 'href') {
+          el.setAttributeNS(XLINK_NS, 'href', value);
+          el.setAttribute(key, value);
         } else {
           el.setAttribute(key, value);
         }
@@ -1698,17 +1705,35 @@
     }));
 
     const arrowVisible = !clampToRange || STATE.showArrow;
+    let arrowGuardX = Number.POSITIVE_INFINITY;
 
     if (arrowVisible) {
-      axisGroup.appendChild(mk('path', {
-        d: `M ${baseLineEndX} ${baselineY} l -${ARROW_SIZE} -${ARROW_SIZE / 2} v ${ARROW_SIZE} z`,
-        class: 'number-line-arrow'
-      }));
+      if (axisArrowUtils && typeof axisArrowUtils.getSvgData === 'function' && typeof axisArrowUtils.getScaledSize === 'function') {
+        const scaledSize = axisArrowUtils.getScaledSize('x', AXIS_ARROW_THICKNESS);
+        const arrowWidth = Number.isFinite(scaledSize.width) && scaledSize.width > 0 ? scaledSize.width : LEGACY_ARROW_SIZE;
+        const arrowHeight = Number.isFinite(scaledSize.height) && scaledSize.height > 0 ? scaledSize.height : AXIS_ARROW_THICKNESS;
+        arrowGuardX = baseLineEndX - arrowWidth;
+        axisGroup.appendChild(mk('image', {
+          class: 'number-line-arrow',
+          href: axisArrowUtils.getSvgData('x', AXIS_ARROW_COLOR, AXIS_ARROW_COLOR),
+          x: baseLineEndX - arrowWidth,
+          y: baselineY - arrowHeight / 2,
+          width: arrowWidth,
+          height: arrowHeight,
+          'preserveAspectRatio': 'none'
+        }));
+      } else {
+        arrowGuardX = baseLineEndX - LEGACY_ARROW_SIZE;
+        axisGroup.appendChild(mk('path', {
+          d: `M ${baseLineEndX} ${baselineY} l -${LEGACY_ARROW_SIZE} -${LEGACY_ARROW_SIZE / 2} v ${LEGACY_ARROW_SIZE} z`,
+          class: 'number-line-arrow'
+        }));
+      }
     }
 
     const drawMinorTick = value => {
       const x = mapValue(value);
-      if (arrowVisible && x > baseLineEndX - ARROW_SIZE) {
+      if (arrowVisible && x > arrowGuardX) {
         return;
       }
       axisGroup.appendChild(mk('line', {
@@ -1765,6 +1790,9 @@
     majorValues.forEach(value => {
       if (hiddenMajorValues.has(value)) return;
       const x = mapValue(value);
+      if (arrowVisible && x > arrowGuardX) {
+        return;
+      }
       axisGroup.appendChild(mk('line', {
         x1: x,
         y1: baselineY - majorTickHeight,
