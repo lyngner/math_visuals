@@ -3923,7 +3923,7 @@
   function showTrashRestoreHelp() {
     try {
       setSaveStatusState('success', {
-        message: 'Slettede eksempler kan gjenopprettes via examples-trash.html.'
+        message: 'Slettede eksempler ligger i arkivet. Åpne svg-arkiv.html og trykk «Vis slettede figurer».'
       });
     } catch (_) {}
   }
