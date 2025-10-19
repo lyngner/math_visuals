@@ -467,7 +467,7 @@
       setStatus: setTrashViewerStatus,
       openExample: openTrashExample,
       onFetchEntries: fetchTrashEntries,
-      notifyParent: () => {},
+      notifyParent: handleTrashViewerRestore,
       messages: {
         fallbackStatus: '',
         restoreFallbackStatus: '',
@@ -1057,6 +1057,13 @@
     }
     storageNote.hidden = false;
     storageNote.textContent = metadata.limitation;
+  }
+
+  function handleTrashViewerRestore() {
+    const refreshPromise = loadEntries();
+    if (refreshPromise && typeof refreshPromise.catch === 'function') {
+      refreshPromise.catch(() => {});
+    }
   }
 
   async function loadEntries() {
