@@ -4061,12 +4061,46 @@ function sanitizeSvgForeignObjects(svgNode) {
     const yAttr = node.getAttribute('y');
     if (xAttr != null) replacement.setAttribute('x', xAttr);
     if (yAttr != null) replacement.setAttribute('y', yAttr);
-    replacement.setAttribute('dominant-baseline', 'text-before-edge');
-    replacement.setAttribute('font-family', 'Inter, "Segoe UI", system-ui, sans-serif');
+    const transformAttr = node.getAttribute('transform');
+    if (transformAttr != null) replacement.setAttribute('transform', transformAttr);
     const styleSources = [node.getAttribute('style') || ''];
     if (node.firstElementChild && typeof node.firstElementChild.getAttribute === 'function') {
       styleSources.push(node.firstElementChild.getAttribute('style') || '');
     }
+
+    const textAlignValue = styleSources.reduce(
+      (acc, style) => acc || extractInlineStyleValue(style, ['text-align', 'justify-content']),
+      null
+    );
+    if (textAlignValue) {
+      const normalized = textAlignValue.trim().toLowerCase();
+      if (normalized === 'center') {
+        replacement.setAttribute('text-anchor', 'middle');
+      } else if (normalized === 'right' || normalized === 'flex-end' || normalized === 'end') {
+        replacement.setAttribute('text-anchor', 'end');
+      } else if (normalized === 'left' || normalized === 'flex-start' || normalized === 'start') {
+        replacement.setAttribute('text-anchor', 'start');
+      }
+    }
+
+    const verticalAlignValue = styleSources.reduce(
+      (acc, style) => acc || extractInlineStyleValue(style, ['align-items', 'vertical-align']),
+      null
+    );
+    if (verticalAlignValue) {
+      const normalized = verticalAlignValue.trim().toLowerCase();
+      if (normalized === 'center' || normalized === 'middle') {
+        replacement.setAttribute('dominant-baseline', 'middle');
+      } else if (normalized === 'flex-end' || normalized === 'bottom' || normalized === 'end') {
+        replacement.setAttribute('dominant-baseline', 'text-after-edge');
+      } else if (normalized === 'flex-start' || normalized === 'top' || normalized === 'start') {
+        replacement.setAttribute('dominant-baseline', 'text-before-edge');
+      }
+    }
+    if (!replacement.hasAttribute('dominant-baseline')) {
+      replacement.setAttribute('dominant-baseline', 'text-before-edge');
+    }
+    replacement.setAttribute('font-family', 'Inter, "Segoe UI", system-ui, sans-serif');
     const colorValue = styleSources.reduce((acc, style) => acc || extractInlineStyleValue(style, ['color', '--graf-axis-label-text']), null);
     if (colorValue) {
       replacement.setAttribute('fill', colorValue);
