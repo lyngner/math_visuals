@@ -30,6 +30,11 @@
   const NEGATIVE_SEGMENT_DASH = '12 12';
   const LINEAR_VALIDATION_TOLERANCE = 1e-6;
   const LINEAR_VALIDATION_POINTS = [-1, 2, 0.5];
+  const axisArrowUtils = typeof window !== 'undefined' ? window.MathVisualsAxisArrow : null;
+  const AXIS_ARROW_THICKNESS = 22;
+  const AXIS_ARROW_COLOR = '#4b5563';
+  const LEGACY_ARROW_WIDTH = 12;
+  const XLINK_NS = 'http://www.w3.org/1999/xlink';
   exprInput = ensureExpressionInputElement(exprInput);
   const EXPRESSION_PREFIX_REGEX = /^\s*f\s*\(\s*x\s*\)\s*=\s*/i;
   let isUpdatingExpressionInput = false;
@@ -2015,7 +2020,12 @@
     const el = document.createElementNS('http://www.w3.org/2000/svg', name);
     Object.entries(attrs).forEach(([key, value]) => {
       if (value !== null && value !== undefined) {
-        el.setAttribute(key, value);
+        if (key === 'href') {
+          el.setAttributeNS(XLINK_NS, 'href', value);
+          el.setAttribute(key, value);
+        } else {
+          el.setAttribute(key, value);
+        }
       }
     });
     return el;
@@ -2358,11 +2368,26 @@
       'stroke-width': 2
     });
     svg.append(axisLine);
-    const arrowHead = createSvgElement('path', {
-      d: `M ${axisEnd} ${arrowY} l -12 -6 v12 z`,
-      fill: '#4b5563'
-    });
-    svg.append(arrowHead);
+    const arrowSize = axisArrowUtils && typeof axisArrowUtils.getScaledSize === 'function' ? axisArrowUtils.getScaledSize('x', AXIS_ARROW_THICKNESS) : null;
+    const arrowWidth = arrowSize && Number.isFinite(arrowSize.width) && arrowSize.width > 0 ? arrowSize.width : LEGACY_ARROW_WIDTH;
+    const arrowHeight = arrowSize && Number.isFinite(arrowSize.height) && arrowSize.height > 0 ? arrowSize.height : AXIS_ARROW_THICKNESS;
+    if (axisArrowUtils && typeof axisArrowUtils.getSvgData === 'function' && arrowSize) {
+      svg.append(createSvgElement('image', {
+        class: 'chart-axis-arrow',
+        href: axisArrowUtils.getSvgData('x', AXIS_ARROW_COLOR, AXIS_ARROW_COLOR),
+        x: axisEnd - arrowWidth,
+        y: arrowY - arrowHeight / 2,
+        width: arrowWidth,
+        height: arrowHeight,
+        'preserveAspectRatio': 'none'
+      }));
+    } else {
+      svg.append(createSvgElement('path', {
+        d: `M ${axisEnd} ${arrowY} l -${LEGACY_ARROW_WIDTH} -${LEGACY_ARROW_WIDTH / 2} v ${LEGACY_ARROW_WIDTH} z`,
+        fill: AXIS_ARROW_COLOR,
+        class: 'chart-axis-arrow'
+      }));
+    }
     const axisLabel = createSvgElement('text', {
       x: axisEnd + 16,
       y: arrowY + 4,
