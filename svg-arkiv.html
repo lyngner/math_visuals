@@ -19,16 +19,56 @@
           <p class="svg-archive__note" data-storage-note hidden></p>
         </header>
 
-        <section class="svg-archive__controls" aria-label="Filtrering">
+        <section class="svg-archive__controls" aria-label="Filtrering og alternativer">
           <label class="svg-archive__filter" data-filter-wrapper hidden>
             <span>Filtrer etter verktøy</span>
             <select data-tool-filter>
               <option value="all">Alle verktøy</option>
             </select>
           </label>
+          <button
+            type="button"
+            class="svg-archive__trash-toggle"
+            data-trash-toggle
+            data-label-default="Vis slettede figurer"
+            data-label-active="Skjul slettede figurer"
+            aria-expanded="false"
+            aria-controls="trash-archive-panel"
+          >
+            Vis slettede figurer
+          </button>
         </section>
 
         <p class="svg-archive__status" data-status role="status">Laster arkivet …</p>
+
+        <section
+          id="trash-archive-panel"
+          class="svg-archive__trash-panel"
+          data-trash-archive
+          role="region"
+          aria-hidden="true"
+          aria-labelledby="trash-archive-title"
+          tabindex="-1"
+          hidden
+        >
+          <header class="svg-archive__trash-panel-header">
+            <div class="svg-archive__trash-panel-heading">
+              <h2 id="trash-archive-title">Slettede figurer</h2>
+              <p class="svg-archive__trash-panel-description">
+                Figurenes avfallskasse gir deg mulighet til å angre en sletting. Elementene forsvinner permanent når nettleserdata tømmes.
+              </p>
+            </div>
+            <button type="button" class="svg-archive__trash-close" data-trash-close>
+              Lukk
+            </button>
+          </header>
+          <p class="svg-archive__trash-panel-status" data-trash-status role="status" aria-live="polite">
+            Slettede figurer er skjult.
+          </p>
+          <div class="svg-archive__trash-list" data-trash-list aria-live="polite">
+            <p class="svg-archive__trash-empty" data-trash-empty>Ingen slettede figurer ennå.</p>
+          </div>
+        </section>
 
         <ul class="svg-archive__grid" data-svg-grid aria-live="polite" aria-busy="true"></ul>
       </main>

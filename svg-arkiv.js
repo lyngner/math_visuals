@@ -4,6 +4,10 @@
   const filterWrapper = document.querySelector('[data-filter-wrapper]');
   const filterSelect = document.querySelector('[data-tool-filter]');
   const storageNote = document.querySelector('[data-storage-note]');
+  const trashToggle = document.querySelector('[data-trash-toggle]');
+  const trashArchive = document.querySelector('[data-trash-archive]');
+  const trashClose = document.querySelector('[data-trash-close]');
+  const trashStatus = document.querySelector('[data-trash-status]');
 
   if (!grid || !statusElement) {
     return;
@@ -11,6 +15,9 @@
 
   let allEntries = [];
   let archiveDialog = null;
+  let trashRestoreFocusTo = null;
+  const defaultTrashToggleLabel = (trashToggle?.dataset.labelDefault || trashToggle?.textContent || '').trim() || 'Vis slettede figurer';
+  const activeTrashToggleLabel = (trashToggle?.dataset.labelActive || '').trim() || 'Skjul slettede figurer';
   const focusableSelectors = [
     'button:not([disabled]):not([tabindex="-1"])',
     '[href]:not([tabindex="-1"])',
@@ -135,6 +142,96 @@
 
   function setBusy(isBusy) {
     grid.setAttribute('aria-busy', String(Boolean(isBusy)));
+  }
+
+  function announceTrash(message) {
+    if (!trashStatus) {
+      return;
+    }
+    trashStatus.textContent = message || '';
+  }
+
+  function syncTrashToggleState(isOpen) {
+    if (!trashToggle) {
+      return;
+    }
+    trashToggle.setAttribute('aria-expanded', String(Boolean(isOpen)));
+    const label = isOpen ? activeTrashToggleLabel : defaultTrashToggleLabel;
+    trashToggle.textContent = label;
+  }
+
+  function isTrashPanelOpen() {
+    return Boolean(trashArchive && !trashArchive.hasAttribute('hidden'));
+  }
+
+  function setTrashPanelVisibility(isOpen, { focusPanel = true, triggeredBy = null, announce = true } = {}) {
+    if (!trashArchive || !trashToggle) {
+      return;
+    }
+
+    const currentlyOpen = isTrashPanelOpen();
+    if (currentlyOpen === Boolean(isOpen)) {
+      if (isOpen && focusPanel) {
+        requestAnimationFrame(() => {
+          trashArchive.focus();
+        });
+      }
+      return;
+    }
+
+    if (isOpen) {
+      trashRestoreFocusTo = triggeredBy || document.activeElement || trashToggle;
+      trashArchive.removeAttribute('hidden');
+      trashArchive.setAttribute('aria-hidden', 'false');
+      syncTrashToggleState(true);
+      if (announce) {
+        announceTrash('Viser slettede figurer.');
+      }
+      if (focusPanel) {
+        requestAnimationFrame(() => {
+          trashArchive.focus();
+        });
+      }
+    } else {
+      trashArchive.setAttribute('hidden', '');
+      trashArchive.setAttribute('aria-hidden', 'true');
+      syncTrashToggleState(false);
+      if (announce) {
+        announceTrash('Slettede figurer er skjult.');
+      }
+      const focusTarget = trashRestoreFocusTo && typeof trashRestoreFocusTo.focus === 'function'
+        ? trashRestoreFocusTo
+        : trashToggle;
+      trashRestoreFocusTo = null;
+      requestAnimationFrame(() => {
+        focusTarget?.focus?.();
+      });
+    }
+  }
+
+  if (trashToggle && trashArchive) {
+    syncTrashToggleState(false);
+    trashToggle.addEventListener('click', event => {
+      event.preventDefault();
+      const nextOpen = !isTrashPanelOpen();
+      setTrashPanelVisibility(nextOpen, { triggeredBy: trashToggle });
+    });
+  }
+
+  if (trashClose) {
+    trashClose.addEventListener('click', event => {
+      event.preventDefault();
+      setTrashPanelVisibility(false, { announce: true });
+    });
+  }
+
+  if (trashArchive) {
+    trashArchive.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && isTrashPanelOpen()) {
+        event.preventDefault();
+        setTrashPanelVisibility(false, { announce: true });
+      }
+    });
   }
 
   function normalizeAssetUrl(url, formatHint) {
