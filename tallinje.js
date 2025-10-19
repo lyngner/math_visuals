@@ -1984,9 +1984,97 @@
     }
   }
 
+  function parseNumericAttribute(element, name) {
+    if (!element) return NaN;
+    const value = element.getAttribute(name);
+    if (value == null) return NaN;
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  }
+
+  function collectForeignObjectStyles(svgEl) {
+    if (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') {
+      return [];
+    }
+    const foreignObjects = svgEl.querySelectorAll('foreignObject');
+    return Array.from(foreignObjects, foreignObject => {
+      const target = foreignObject.firstElementChild || foreignObject;
+      const comp = window.getComputedStyle(target);
+      const getProp = prop => {
+        const value = comp.getPropertyValue(prop);
+        return value ? value.trim() : '';
+      };
+      return {
+        fontFamily: getProp('font-family'),
+        fontSize: getProp('font-size'),
+        fontWeight: getProp('font-weight'),
+        fontStyle: getProp('font-style'),
+        color: getProp('color'),
+        lineHeight: getProp('line-height')
+      };
+    });
+  }
+
+  function replaceForeignObjectsWithText(clone, styleData) {
+    const foreignObjects = clone.querySelectorAll('foreignObject');
+    foreignObjects.forEach((foreignObject, index) => {
+      const parent = foreignObject.parentNode;
+      if (!parent) return;
+      const textContent = foreignObject.textContent;
+      if (!textContent || !textContent.trim()) {
+        parent.removeChild(foreignObject);
+        return;
+      }
+
+      const styleInfo = Array.isArray(styleData) ? styleData[index] : null;
+      const doc = foreignObject.ownerDocument;
+      const textEl = doc.createElementNS(SVG_NS, 'text');
+      const width = parseNumericAttribute(foreignObject, 'width');
+      const height = parseNumericAttribute(foreignObject, 'height');
+      const x = parseNumericAttribute(foreignObject, 'x');
+      const y = parseNumericAttribute(foreignObject, 'y');
+      const centerX = Number.isFinite(width) && Number.isFinite(x) ? x + width / 2 : Number.isFinite(x) ? x : 0;
+      const centerY = Number.isFinite(height) && Number.isFinite(y) ? y + height / 2 : Number.isFinite(y) ? y : 0;
+
+      textEl.setAttribute('x', String(centerX));
+      textEl.setAttribute('y', String(centerY));
+      textEl.setAttribute('text-anchor', 'middle');
+      textEl.setAttribute('dominant-baseline', 'middle');
+      textEl.setAttribute('xml:space', 'preserve');
+
+      const existingClass = foreignObject.getAttribute('class');
+      const fallbackClass = existingClass ? `${existingClass} foreign-object-fallback` : 'foreign-object-fallback';
+      textEl.setAttribute('class', fallbackClass);
+
+      const sanitized = textContent.replace(/\s+/g, ' ').trim();
+      textEl.textContent = sanitized;
+
+      if (styleInfo) {
+        if (styleInfo.fontFamily) {
+          textEl.setAttribute('font-family', styleInfo.fontFamily);
+        }
+        if (styleInfo.fontSize) {
+          textEl.setAttribute('font-size', styleInfo.fontSize);
+        }
+        if (styleInfo.fontWeight && styleInfo.fontWeight !== 'normal') {
+          textEl.setAttribute('font-weight', styleInfo.fontWeight);
+        }
+        if (styleInfo.fontStyle && styleInfo.fontStyle !== 'normal') {
+          textEl.setAttribute('font-style', styleInfo.fontStyle);
+        }
+        if (styleInfo.color) {
+          textEl.setAttribute('fill', styleInfo.color);
+        }
+      }
+
+      parent.replaceChild(textEl, foreignObject);
+    });
+  }
+
   function svgToString(svgEl) {
     const clone = svgEl.cloneNode(true);
     const hasWindow = typeof window !== 'undefined' && typeof window.getComputedStyle === 'function';
+    const foreignObjectStyles = hasWindow ? collectForeignObjectStyles(svgEl) : [];
     if (hasWindow) {
       const props = [
         'fill',
@@ -2023,6 +2111,9 @@
         copyComputed(src, cloneEls[index]);
       });
     }
+
+    replaceForeignObjectsWithText(clone, foreignObjectStyles);
+
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
