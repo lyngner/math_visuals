@@ -3,6 +3,7 @@
     console.error('THREE.js er ikke lastet inn.');
     return;
   }
+  const SVG_NS = 'http://www.w3.org/2000/svg';
   const ORBIT_CONTROLS_MODULE_URL = 'https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js?module';
   const ORBIT_CONTROLS_SCRIPT_SRC = (() => {
     if (typeof document === 'undefined') {
@@ -1053,6 +1054,7 @@
   const exportCard = document.getElementById('exportCard');
   const exportRows = Array.from(document.querySelectorAll('[data-export-index]'));
   const exportButtons = Array.from(document.querySelectorAll('[data-export-button]'));
+  const svgExportHelper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
   let altTextManager = null;
   let altTextAnchor = null;
   function clampTransparency(value) {
@@ -1469,6 +1471,44 @@
     const safeBackground = typeof background === 'string' && background.trim() ? background.trim() : '#ffffff';
     return `<?xml version="1.0" encoding="UTF-8"?>\n` + `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">\n` + `  <rect width="100%" height="100%" fill="${safeBackground}" />\n` + `  <image width="${width}" height="${height}" href="${pngDataUrl}" xlink:href="${pngDataUrl}" preserveAspectRatio="none" />\n` + `</svg>`;
   }
+
+  function buildFigureExportMeta(info, index) {
+    const fallbackFileName = getExportFileName(index, 'svg');
+    const fallbackBase = typeof fallbackFileName === 'string'
+      ? fallbackFileName.replace(/\.svg$/i, '')
+      : `figur-${index + 1}`;
+    const label = getFigureDisplayLabel(info, index);
+    const typeLabel = formatTypeLabel(info && info.type);
+    const slugSourceParts = ['trefigurer'];
+    if (label) slugSourceParts.push(label);
+    if (typeLabel) slugSourceParts.push(typeLabel);
+    const slugSource = slugSourceParts.join(' ').trim() || fallbackBase;
+    const defaultBaseName = svgExportHelper && typeof svgExportHelper.slugify === 'function'
+      ? svgExportHelper.slugify(slugSource, fallbackBase || `figur-${index + 1}`)
+      : (slugSource || `figur-${index + 1}`).replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || `figur-${index + 1}`;
+    const description = describeFigure(info) || (label ? `${label}.` : '3D-figur.');
+    const transparencyValue = Number(window.STATE && window.STATE.transparency);
+    const summary = {
+      index: index + 1,
+      type: info && typeof info.type === 'string' ? info.type : null,
+      input: info && typeof info.input === 'string' ? info.input : null,
+      dimensions: info && info.dimensions ? {
+        radius: info.dimensions.radius || null,
+        height: info.dimensions.height || null
+      } : null,
+      floating: Boolean(window.STATE && window.STATE.freeFigure),
+      rotationLocked: Boolean(window.STATE && window.STATE.rotationLocked),
+      transparency: Number.isFinite(transparencyValue) ? transparencyValue : null,
+      useCustomColor: Boolean(window.STATE && window.STATE.useCustomColor),
+      customColor: window.STATE && window.STATE.useCustomColor ? window.STATE.customColor || null : null
+    };
+    return {
+      description,
+      defaultBaseName,
+      summary,
+      title: label || `Figur ${index + 1}`
+    };
+  }
   function updateExportControls(figures) {
     if (!exportCard) return;
     const hasAny = Array.isArray(figures) && figures.some(item => Boolean(item));
@@ -1683,6 +1723,8 @@
     if (!renderer || typeof renderer.captureSnapshot !== 'function') return;
     const snapshot = renderer.captureSnapshot();
     if (!snapshot || !snapshot.canvas) return;
+    const figures = getCurrentFigures();
+    const info = Array.isArray(figures) ? figures[index] : null;
     if (format === 'png') {
       const blob = await canvasToBlob(snapshot.canvas);
       if (!blob) return;
@@ -1698,6 +1740,30 @@
         type: 'image/svg+xml;charset=utf-8'
       });
       const filename = getExportFileName(index, 'svg');
+      const helper = svgExportHelper;
+      if (helper && typeof helper.exportSvgWithArchive === 'function' && typeof document !== 'undefined') {
+        try {
+          const exportSvg = document.createElementNS(SVG_NS, 'svg');
+          const width = Number.isFinite(snapshot.width) ? snapshot.width : snapshot.canvas.width;
+          const height = Number.isFinite(snapshot.height) ? snapshot.height : snapshot.canvas.height;
+          if (Number.isFinite(width) && Number.isFinite(height)) {
+            exportSvg.setAttribute('width', String(width));
+            exportSvg.setAttribute('height', String(height));
+            exportSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+          }
+          const meta = buildFigureExportMeta(info, index);
+          await helper.exportSvgWithArchive(exportSvg, filename, 'trefigurer', {
+            svgString: svgContent,
+            description: meta.description,
+            defaultBaseName: meta.defaultBaseName,
+            summary: meta.summary,
+            title: meta.title
+          });
+          return;
+        } catch (error) {
+          console.error('Klarte ikke eksportere via arkivet.', error);
+        }
+      }
       downloadBlob(blob, filename);
     }
   }

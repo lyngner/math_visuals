@@ -113,6 +113,7 @@
   const resetModesButton = document.getElementById('resetModes');
   const downloadSvgButton = document.getElementById('btnDownloadSvg');
   const downloadPngButton = document.getElementById('btnDownloadPng');
+  const svgExportHelper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;
   let altTextManager = null;
@@ -350,6 +351,59 @@
       sentences.push(buildRowAltText(den));
     });
     return sentences.join(' ');
+  }
+
+  function buildFractionWallExportMeta() {
+    ensureStateDefaults();
+    const denominators = Array.isArray(STATE.denominators) ? STATE.denominators.slice().sort((a, b) => a - b) : [];
+    const rowCount = denominators.length;
+    const mode = TEXT_MODES.includes(STATE.defaultMode) ? STATE.defaultMode : 'fraction';
+    const modeLabel = MODE_LABELS[mode] || mode;
+    const descriptionParts = [];
+    if (rowCount === 0) {
+      descriptionParts.push('Brøkvegg uten rader.');
+    } else if (rowCount === 1) {
+      descriptionParts.push('Brøkvegg med én rad.');
+    } else {
+      descriptionParts.push(`Brøkvegg med ${rowCount} rader.`);
+    }
+    if (denominators.length) {
+      const denomLabel = rowCount === 1 ? 'nevner' : 'nevnere';
+      descriptionParts.push(`${denomLabel} ${denominators.join(', ')}.`);
+    }
+    if (!STATE.showLabels) {
+      descriptionParts.push('Radetikettene er skjult.');
+    }
+    if (modeLabel) {
+      descriptionParts.push(`Standardvisningen er ${modeLabel}.`);
+    }
+    const description = descriptionParts.join(' ');
+    const slugSource = ['brokvegg'];
+    if (rowCount) {
+      slugSource.push(`${rowCount} rader`);
+    }
+    if (denominators.length) {
+      slugSource.push(`nevner ${denominators.join('-')}`);
+    }
+    const fallbackBaseName = slugSource.join(' ').trim() || 'brokvegg';
+    const defaultBaseName = svgExportHelper && typeof svgExportHelper.slugify === 'function'
+      ? svgExportHelper.slugify(fallbackBaseName, 'brokvegg')
+      : fallbackBaseName.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'brokvegg';
+    const summary = {
+      rowCount,
+      denominators,
+      defaultMode: mode,
+      showLabels: Boolean(STATE.showLabels),
+      decimalDigits: Number.isFinite(Number(STATE.decimalDigits)) ? Number(STATE.decimalDigits) : DEFAULT_DECIMAL_DIGITS,
+      percentDigits: Number.isFinite(Number(STATE.percentDigits)) ? Number(STATE.percentDigits) : DEFAULT_PERCENT_DIGITS,
+      trimTrailingZeros: Boolean(STATE.trimTrailingZeros),
+      manualOverrides: STATE.tileModes ? Object.keys(STATE.tileModes).length : 0
+    };
+    return {
+      description,
+      defaultBaseName,
+      summary
+    };
   }
   function refreshAltText(reason) {
     if (altTextManager) {
@@ -699,7 +753,25 @@
     };
     img.src = url;
   }
-  downloadSvgButton === null || downloadSvgButton === void 0 || downloadSvgButton.addEventListener('click', () => {
+  downloadSvgButton === null || downloadSvgButton === void 0 || downloadSvgButton.addEventListener('click', async () => {
+    const suggestedName = 'brokvegg.svg';
+    const helper = svgExportHelper;
+    if (helper && typeof helper.exportSvgWithArchive === 'function') {
+      try {
+        const svgString = svgToString(svg);
+        const meta = buildFractionWallExportMeta();
+        await helper.exportSvgWithArchive(svg, suggestedName, 'brøkvegg', {
+          svgString,
+          description: meta.description || buildFractionWallAltText(),
+          defaultBaseName: meta.defaultBaseName,
+          summary: meta.summary,
+          title: getFractionWallTitle()
+        });
+        return;
+      } catch (error) {
+        console.error('Klarte ikke eksportere via arkivet.', error);
+      }
+    }
     downloadSvg(svg, 'brokvegg');
   });
   downloadPngButton === null || downloadPngButton === void 0 || downloadPngButton.addEventListener('click', () => {
