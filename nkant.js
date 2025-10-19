@@ -703,18 +703,21 @@ const STYLE_DEFAULTS = {
   constructionDash: "10 8"
 };
 const STYLE_PROFILE_OVERRIDES = {
-  campus: {
-    faceFill: "#2C395B",
-    edgeStroke: "#2C395B",
-    radiusStroke: "#ffffff",
-    angStroke: "#ffffff",
-    angFill: "rgba(255, 255, 255, 0.9)",
-    textFill: "#ffffff",
-    textHalo: "#2C395B",
-    textHaloW: 5,
-    constructionStroke: "#ffffff",
-    constructionWidth: 4,
-    constructionDash: "6 6"
+  campus: theme => {
+    const campusBlue = resolveThemeColor(theme, "graphs.axis", "#2563eb");
+    return {
+      faceFill: "#ffffff",
+      edgeStroke: "#000000",
+      radiusStroke: campusBlue,
+      angStroke: campusBlue,
+      angFill: withAlphaColor(campusBlue, 0.25, "rgba(37, 99, 235, 0.25)"),
+      textFill: "#111827",
+      textHalo: null,
+      textHaloW: 0,
+      constructionStroke: "#6b7280",
+      constructionWidth: 3,
+      constructionDash: "10 8"
+    };
   }
 };
 const STYLE = {
@@ -724,6 +727,33 @@ const STYLE = {
 function getThemeApi() {
   const theme = typeof window !== "undefined" ? window.MathVisualsTheme : null;
   return theme && typeof theme === "object" ? theme : null;
+}
+
+function resolveThemeColor(theme, token, fallback) {
+  if (!theme || typeof theme.getColor !== "function") return fallback;
+  const value = theme.getColor(token, fallback);
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return fallback;
+}
+
+function withAlphaColor(color, alpha, fallback) {
+  const normalized = typeof color === "string" ? color.trim() : "";
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(normalized)) {
+    const hex = normalized.slice(1);
+    const chunk = hex.length === 3
+      ? hex.split("").map(c => parseInt(c + c, 16))
+      : [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+    if (chunk.every(v => Number.isFinite(v))) {
+      return `rgba(${chunk[0]}, ${chunk[1]}, ${chunk[2]}, ${alpha})`;
+    }
+  }
+  if (/^rgb\s*\(/i.test(normalized)) {
+    const parts = normalized.replace(/rgba?\(|\)|\s+/gi, "").split(",").slice(0, 3).map(Number);
+    if (parts.length === 3 && parts.every(v => Number.isFinite(v))) {
+      return `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`;
+    }
+  }
+  return fallback;
 }
 
 function applyThemeToDocument() {
@@ -737,8 +767,9 @@ function applyThemeStyles() {
   const theme = getThemeApi();
   const profileName = theme && typeof theme.getActiveProfileName === "function" ? theme.getActiveProfileName() : null;
   const normalized = typeof profileName === "string" ? profileName.toLowerCase() : "";
-  const overrides = normalized && STYLE_PROFILE_OVERRIDES[normalized] ? STYLE_PROFILE_OVERRIDES[normalized] : null;
+  const overridesFactory = normalized && STYLE_PROFILE_OVERRIDES[normalized] ? STYLE_PROFILE_OVERRIDES[normalized] : null;
   Object.assign(STYLE, STYLE_DEFAULTS);
+  const overrides = typeof overridesFactory === "function" ? overridesFactory(theme) : overridesFactory;
   if (overrides) {
     Object.assign(STYLE, overrides);
   }
