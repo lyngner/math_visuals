@@ -43,8 +43,11 @@ body {
 
 .svg-archive__controls {
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
 .svg-archive__filter {
@@ -53,6 +56,39 @@ body {
   gap: 4px;
   font-size: 0.95rem;
   color: #1f2937;
+}
+
+.svg-archive__trash-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(59, 130, 246, 0.18));
+  color: #1e3a8a;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.svg-archive__trash-toggle:hover,
+.svg-archive__trash-toggle:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(37, 99, 235, 0.22);
+  border-color: rgba(37, 99, 235, 0.45);
+  outline: none;
+}
+
+.svg-archive__trash-toggle:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.45);
+  outline-offset: 3px;
+}
+
+.svg-archive__trash-toggle[aria-expanded="true"] {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.24), rgba(59, 130, 246, 0.32));
+  color: #1e40af;
 }
 
 .svg-archive__filter select {
@@ -85,6 +121,83 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: clamp(12px, 2.6vw, 20px);
+}
+
+.svg-archive__trash-panel {
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: linear-gradient(135deg, rgba(226, 232, 240, 0.65), rgba(248, 250, 252, 0.9));
+  padding: clamp(16px, 3.4vw, 24px);
+  margin-bottom: clamp(18px, 4vw, 28px);
+  box-shadow: 0 18px 38px rgba(30, 64, 175, 0.14);
+  color: #0f172a;
+}
+
+.svg-archive__trash-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.svg-archive__trash-panel-heading h2 {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.6vw, 1.5rem);
+}
+
+.svg-archive__trash-panel-description {
+  margin: 6px 0 0;
+  color: #334155;
+  font-size: 0.95rem;
+  max-width: 62ch;
+}
+
+.svg-archive__trash-close {
+  align-self: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  background: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.svg-archive__trash-close:hover,
+.svg-archive__trash-close:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(30, 64, 175, 0.18);
+  border-color: rgba(30, 64, 175, 0.42);
+  outline: none;
+}
+
+.svg-archive__trash-close:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.45);
+  outline-offset: 3px;
+}
+
+.svg-archive__trash-panel-status {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  color: #1e293b;
+}
+
+.svg-archive__trash-list {
+  display: grid;
+  gap: 12px;
+}
+
+.svg-archive__trash-empty {
+  margin: 0;
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px dashed rgba(148, 163, 184, 0.65);
+  border-radius: 14px;
+  color: #475569;
+  text-align: center;
+  font-size: 0.95rem;
 }
 
 .svg-archive__item {
