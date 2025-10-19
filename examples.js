@@ -931,6 +931,8 @@
   const TEMPORARY_EXAMPLE_REQUEST_ID = '__openRequestId';
   const TEMPORARY_EXAMPLE_SOURCE_PATH = '__openRequestSourcePath';
   const TEMPORARY_EXAMPLE_CREATED_AT = '__openRequestCreatedAt';
+  const TEMPORARY_EXAMPLE_NOTICE_PENDING = '__openRequestNoticePending';
+  const TEMPORARY_EXAMPLE_NOTICE_SHOWN = '__openRequestNoticeShown';
   const MAX_TRASH_ENTRIES = 200;
   const MAX_HISTORY_ENTRIES = 10;
   let lastStoredRawValue = null;
@@ -2778,6 +2780,9 @@
       if (Object.prototype.hasOwnProperty.call(copy, TEMPORARY_EXAMPLE_FLAG)) {
         delete copy[TEMPORARY_EXAMPLE_FLAG];
       }
+      if (Object.prototype.hasOwnProperty.call(copy, 'temporary')) {
+        delete copy.temporary;
+      }
       if (Object.prototype.hasOwnProperty.call(copy, TEMPORARY_EXAMPLE_REQUEST_ID)) {
         delete copy[TEMPORARY_EXAMPLE_REQUEST_ID];
       }
@@ -2786,6 +2791,12 @@
       }
       if (Object.prototype.hasOwnProperty.call(copy, TEMPORARY_EXAMPLE_CREATED_AT)) {
         delete copy[TEMPORARY_EXAMPLE_CREATED_AT];
+      }
+      if (Object.prototype.hasOwnProperty.call(copy, TEMPORARY_EXAMPLE_NOTICE_PENDING)) {
+        delete copy[TEMPORARY_EXAMPLE_NOTICE_PENDING];
+      }
+      if (Object.prototype.hasOwnProperty.call(copy, TEMPORARY_EXAMPLE_NOTICE_SHOWN)) {
+        delete copy[TEMPORARY_EXAMPLE_NOTICE_SHOWN];
       }
       DESCRIPTION_FALLBACK_FIELDS.forEach(field => {
         if (field !== 'description' && Object.prototype.hasOwnProperty.call(copy, field)) {
@@ -3519,25 +3530,48 @@
   }
   let cachedExamples = [];
   let cachedExamplesInitialized = false;
+  let pendingArchiveExampleNotice = null;
   let lastLocalUpdateMs = loadPersistedUpdatedAt();
   let saveStatusElement = null;
   let saveStatusTextElement = null;
   let pendingUserSaveReason = null;
   let lastSuccessfulSaveIso = null;
+  function hydrateCachedExamples() {
+    if (cachedExamplesInitialized) return;
+    cachedExamplesInitialized = true;
+    const rawValue = typeof lastStoredRawValue === 'string' ? lastStoredRawValue.trim() : '';
+    if (rawValue) {
+      try {
+        const parsed = parseExamplesFromRaw(rawValue);
+        if (parsed && parsed.status === 'ok' && Array.isArray(parsed.examples)) {
+          cachedExamples = parsed.examples.slice();
+          return;
+        }
+        if (parsed && parsed.status !== 'ok') {
+          try {
+            if (attemptHistoryRecovery(rawValue)) {
+              return;
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+    if (Array.isArray(cachedExamples)) {
+      cachedExamples = cachedExamples.slice();
+    } else {
+      cachedExamples = [];
+    }
+  }
   function getExamples() {
     if (!cachedExamplesInitialized) {
-      cachedExamplesInitialized = true;
-      if (Array.isArray(cachedExamples)) {
-        cachedExamples = cachedExamples.slice();
-      } else {
-        cachedExamples = [];
-      }
+      hydrateCachedExamples();
     }
     return cachedExamples;
   }
   function createTemporaryExample(example, options) {
     const examples = getExamples();
     const opts = options && typeof options === 'object' ? options : {};
+    const skipNotice = opts.skipNotice === true;
     if (!example || typeof example !== 'object') return null;
     const sanitizedList = normalizeExamplesForStorage([example]);
     const sanitized = Array.isArray(sanitizedList) && sanitizedList.length > 0 ? sanitizedList[0] : null;
@@ -3549,6 +3583,20 @@
     const requestIdRaw = opts.requestId != null ? opts.requestId : normalized.id || null;
     const requestId = requestIdRaw != null ? String(requestIdRaw) : null;
     normalized[TEMPORARY_EXAMPLE_FLAG] = true;
+    normalized.temporary = true;
+    if (skipNotice) {
+      if (Object.prototype.hasOwnProperty.call(normalized, TEMPORARY_EXAMPLE_NOTICE_PENDING)) {
+        delete normalized[TEMPORARY_EXAMPLE_NOTICE_PENDING];
+      }
+      if (Object.prototype.hasOwnProperty.call(normalized, TEMPORARY_EXAMPLE_NOTICE_SHOWN)) {
+        delete normalized[TEMPORARY_EXAMPLE_NOTICE_SHOWN];
+      }
+    } else {
+      normalized[TEMPORARY_EXAMPLE_NOTICE_PENDING] = true;
+      if (Object.prototype.hasOwnProperty.call(normalized, TEMPORARY_EXAMPLE_NOTICE_SHOWN)) {
+        delete normalized[TEMPORARY_EXAMPLE_NOTICE_SHOWN];
+      }
+    }
     if (requestId) {
       normalized[TEMPORARY_EXAMPLE_REQUEST_ID] = requestId;
     }
@@ -3778,6 +3826,32 @@
       message = error.trim();
     }
     setSaveStatusState('error', { message });
+  }
+  function announceArchiveTemporaryExample(example) {
+    if (!example || typeof example !== 'object') return;
+    if (pendingUserSaveReason) return;
+    try {
+      const message = 'Eksemplet er åpnet fra arkivet. Trykk «Lagre» for å beholde det permanent.';
+      setSaveStatusState('pending-sync', { message });
+    } catch (_) {}
+  }
+  function maybeAnnounceTemporaryExample(index, example) {
+    if (!Number.isInteger(index)) return;
+    if (!example || typeof example !== 'object') return;
+    if (!example[TEMPORARY_EXAMPLE_FLAG]) return;
+    if (example[TEMPORARY_EXAMPLE_NOTICE_SHOWN]) return;
+    const shouldAnnounce =
+      example[TEMPORARY_EXAMPLE_NOTICE_PENDING] === true ||
+      (pendingArchiveExampleNotice && pendingArchiveExampleNotice.index === index);
+    if (!shouldAnnounce) return;
+    announceArchiveTemporaryExample(example);
+    example[TEMPORARY_EXAMPLE_NOTICE_SHOWN] = true;
+    if (Object.prototype.hasOwnProperty.call(example, TEMPORARY_EXAMPLE_NOTICE_PENDING)) {
+      delete example[TEMPORARY_EXAMPLE_NOTICE_PENDING];
+    }
+    if (pendingArchiveExampleNotice && pendingArchiveExampleNotice.index === index) {
+      pendingArchiveExampleNotice = null;
+    }
   }
   function parseBackendUpdatedAt(value) {
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -4763,6 +4837,7 @@
       updateTabSelection();
       triggerRefresh(index);
       notifyParentExampleChange(index);
+      maybeAnnounceTemporaryExample(index, ex);
       scheduleOverlayHide(false);
     } else {
       scheduleOverlayHide(true);
@@ -4809,13 +4884,16 @@
     return null;
   }
   function handleArchiveOpenRequest(request, options) {
-    if (!request || typeof request !== 'object') return false;
+    if (!request || typeof request !== 'object') return null;
     const targetPath = getOpenRequestTargetPath(request);
     if (targetPath && targetPath !== storagePath) {
-      return false;
+      return null;
     }
     const exampleData = extractExampleFromOpenRequest(request);
     const opts = options && typeof options === 'object' ? options : {};
+    const deferRender = opts.deferRender === true || opts.skipRender === true;
+    const deferLoad = opts.deferLoad === true || opts.skipLoad === true;
+    const skipNotice = opts.skipNotice === true;
     const metadata = {
       index: Number.isInteger(request.index) ? Math.max(0, request.index) : undefined,
       requestId: request.id || request.requestId || request.referenceId || request.createdAt || opts.requestId || null,
@@ -4823,19 +4901,85 @@
       createdAt: request.createdAt || request.created || null
     };
     if (exampleData) {
-      const inserted = createTemporaryExample(exampleData, metadata);
+      const inserted = createTemporaryExample(exampleData, { ...metadata, skipNotice });
       if (!inserted) {
-        return false;
+        return { handled: false, type: 'archive', reason: 'insert-failed', metadata };
+      }
+      if (!skipNotice && Number.isInteger(inserted.index)) {
+        pendingArchiveExampleNotice = {
+          index: inserted.index,
+          requestId:
+            metadata.requestId != null
+              ? String(metadata.requestId)
+              : inserted.example && inserted.example[TEMPORARY_EXAMPLE_REQUEST_ID]
+              ? String(inserted.example[TEMPORARY_EXAMPLE_REQUEST_ID])
+              : null,
+          sourcePath: metadata.sourcePath || null,
+          createdAt: metadata.createdAt || null
+        };
+      } else if (skipNotice && pendingArchiveExampleNotice && pendingArchiveExampleNotice.index === inserted.index) {
+        pendingArchiveExampleNotice = null;
+      }
+      if (deferRender) {
+        return {
+          handled: true,
+          type: 'archive',
+          mode: deferLoad ? 'injected' : 'queued',
+          index: inserted.index,
+          example: inserted.example,
+          metadata
+        };
       }
       currentExampleIndex = inserted.index;
       renderOptions();
-      return loadExample(inserted.index);
+      let loaded = true;
+      if (!deferLoad) {
+        loaded = loadExample(inserted.index);
+      }
+      return {
+        handled: !!loaded,
+        type: 'archive',
+        mode: deferLoad ? 'queued' : 'loaded',
+        index: inserted.index,
+        example: inserted.example,
+        metadata
+      };
     }
     if (Number.isInteger(metadata.index)) {
       const indexToLoad = Math.max(0, metadata.index);
-      return loadExample(indexToLoad);
+      if (deferRender) {
+        return {
+          handled: true,
+          type: 'archive',
+          mode: 'queued',
+          index: indexToLoad,
+          example: null,
+          metadata
+        };
+      }
+      if (deferLoad) {
+        currentExampleIndex = indexToLoad;
+        renderOptions();
+        return {
+          handled: true,
+          type: 'archive',
+          mode: 'queued',
+          index: indexToLoad,
+          example: null,
+          metadata
+        };
+      }
+      const loaded = loadExample(indexToLoad);
+      return {
+        handled: !!loaded,
+        type: 'archive',
+        mode: 'loaded',
+        index: indexToLoad,
+        example: null,
+        metadata
+      };
     }
-    return false;
+    return { handled: false, type: 'archive', reason: 'no-example', metadata };
   }
   function handleLegacyOpenRequest(request) {
     if (!request || typeof request !== 'object') return false;
@@ -4851,34 +4995,49 @@
   }
   function consumeOpenRequest(options) {
     const opts = options && typeof options === 'object' ? options : {};
-    let handled = false;
-    const archiveRequest = readArchiveOpenRequest();
-    if (archiveRequest) {
-      handled = handleArchiveOpenRequest(archiveRequest, opts) === true;
-      if (handled) {
-        clearArchiveOpenRequest();
+    const skipArchive = opts.skipArchive === true;
+    const skipLegacy = opts.skipLegacy === true;
+    const returnDetails = opts.returnDetails === true;
+    let archiveResult = null;
+    if (!skipArchive) {
+      const archiveRequest = readArchiveOpenRequest();
+      if (archiveRequest) {
+        archiveResult = handleArchiveOpenRequest(archiveRequest, opts);
+        if (archiveResult && archiveResult.handled) {
+          clearArchiveOpenRequest();
+        }
       }
     }
     let legacyHandled = false;
-    let legacyRaw = null;
-    try {
-      legacyRaw = storageGetItem('example_to_load');
-    } catch (_) {
-      legacyRaw = null;
-    }
-    if (legacyRaw) {
-      let legacyRequest = null;
+    if (!skipLegacy) {
+      let legacyRaw = null;
       try {
-        legacyRequest = JSON.parse(legacyRaw);
-      } catch (error) {
-        legacyRequest = null;
+        legacyRaw = storageGetItem('example_to_load');
+      } catch (_) {
+        legacyRaw = null;
       }
-      legacyHandled = handleLegacyOpenRequest(legacyRequest);
-      try {
-        storageRemoveItem('example_to_load');
-      } catch (_) {}
+      if (legacyRaw) {
+        let legacyRequest = null;
+        try {
+          legacyRequest = JSON.parse(legacyRaw);
+        } catch (error) {
+          legacyRequest = null;
+        }
+        legacyHandled = handleLegacyOpenRequest(legacyRequest);
+        try {
+          storageRemoveItem('example_to_load');
+        } catch (_) {}
+      }
     }
-    return handled || legacyHandled;
+    const handled = (archiveResult && archiveResult.handled) || legacyHandled;
+    if (returnDetails) {
+      return {
+        handled,
+        archive: archiveResult,
+        legacy: legacyHandled
+      };
+    }
+    return handled;
   }
   if (typeof window !== 'undefined') {
     const existingApi = window.MathVisExamples && typeof window.MathVisExamples === 'object' ? window.MathVisExamples : {};
@@ -4987,6 +5146,20 @@
     return index;
   }
   let pendingRequestedIndex = parseInitialExampleIndex();
+  if (!hasUrlOverrides) {
+    try {
+      const initialOpenRequest = consumeOpenRequest({
+        deferRender: true,
+        deferLoad: true,
+        skipLegacy: true,
+        returnDetails: true
+      });
+      const archiveDetails = initialOpenRequest && initialOpenRequest.archive;
+      if (archiveDetails && archiveDetails.handled && Number.isInteger(archiveDetails.index)) {
+        pendingRequestedIndex = archiveDetails.index;
+      }
+    } catch (_) {}
+  }
   function attemptInitialLoad() {
     if (initialLoadPerformed) return;
     if (pendingRequestedIndex == null) return;
@@ -5223,6 +5396,9 @@
       if (Object.prototype.hasOwnProperty.call(updated, TEMPORARY_EXAMPLE_FLAG)) {
         delete updated[TEMPORARY_EXAMPLE_FLAG];
       }
+      if (Object.prototype.hasOwnProperty.call(updated, 'temporary')) {
+        delete updated.temporary;
+      }
       if (Object.prototype.hasOwnProperty.call(updated, TEMPORARY_EXAMPLE_REQUEST_ID)) {
         delete updated[TEMPORARY_EXAMPLE_REQUEST_ID];
       }
@@ -5231,6 +5407,12 @@
       }
       if (Object.prototype.hasOwnProperty.call(updated, TEMPORARY_EXAMPLE_CREATED_AT)) {
         delete updated[TEMPORARY_EXAMPLE_CREATED_AT];
+      }
+      if (Object.prototype.hasOwnProperty.call(updated, TEMPORARY_EXAMPLE_NOTICE_PENDING)) {
+        delete updated[TEMPORARY_EXAMPLE_NOTICE_PENDING];
+      }
+      if (Object.prototype.hasOwnProperty.call(updated, TEMPORARY_EXAMPLE_NOTICE_SHOWN)) {
+        delete updated[TEMPORARY_EXAMPLE_NOTICE_SHOWN];
       }
       const shouldDetach = existing && typeof existing === 'object' && typeof existing.__builtinKey === 'string' && existing.__builtinKey && hasMeaningfulExampleChanges(existing, updated);
       if (shouldDetach) {
