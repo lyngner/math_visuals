@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Arkiv for arkiverte (slettede) eksempler</title>
+  <title>Arkiverte eksempler har flyttet</title>
   <link rel="stylesheet" href="base.css" />
   <style>
     :root {
@@ -11,412 +11,72 @@
     }
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f7f8fb;
-      color: #111827;
       min-height: 100vh;
       min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      background: #f7f8fb;
+      color: #0f172a;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     main {
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 32px 20px 48px;
-      display: flex;
-      flex-direction: column;
-      gap: 32px;
-    }
-    .trash-header {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .trash-header__title {
-      font-size: clamp(1.6rem, 3vw, 2rem);
-      font-weight: 700;
-      color: #0f172a;
-      margin: 0;
-    }
-    .trash-header__description {
-      margin: 0;
-      font-size: 1rem;
-      color: #374151;
-      max-width: 60ch;
-      line-height: 1.5;
-    }
-    .trash-toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-    }
-    .trash-filter {
-      display: inline-flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-      padding: 6px 10px;
-      border: 1px solid rgba(15, 109, 143, 0.25);
-      border-radius: 12px;
-      background: #fff;
-      color: #0f172a;
-      font-size: 0.95rem;
-    }
-    .trash-filter__label {
-      font-weight: 600;
-    }
-    .trash-filter__select {
-      appearance: none;
-      border: 1px solid rgba(148, 163, 184, 0.6);
-      background: #f9fafb;
-      border-radius: 10px;
-      padding: 6px 24px 6px 10px;
-      font: inherit;
-      font-size: 0.95rem;
-      color: inherit;
-      cursor: pointer;
-      background-image: linear-gradient(45deg, transparent 50%, #0f6d8f 50%),
-        linear-gradient(135deg, #0f6d8f 50%, transparent 50%),
-        linear-gradient(to right, rgba(148, 163, 184, 0.6), rgba(148, 163, 184, 0.6));
-      background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px), calc(100% - 2.4em) 50%;
-      background-size: 6px 6px, 6px 6px, 1px 70%;
-      background-repeat: no-repeat;
-    }
-    .trash-filter__select:focus-visible {
-      outline: 2px solid #0f6d8f;
-      outline-offset: 2px;
-    }
-    .trash-filter__select option {
-      color: #0f172a;
-    }
-    .trash-toolbar__button {
-      appearance: none;
-      border: 1px solid rgba(15, 109, 143, 0.25);
-      background: #0f6d8f;
-      color: #fff;
-      border-radius: 12px;
-      padding: 8px 14px;
-      font: inherit;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .trash-toolbar__button:hover,
-    .trash-toolbar__button:focus-visible {
-      background: #0c5974;
-      box-shadow: 0 4px 12px rgba(15, 109, 143, 0.2);
-      outline: none;
-      transform: translateY(-1px);
-    }
-    .trash-status {
-      font-size: 0.95rem;
-      color: #6b7280;
-      min-height: 1.4em;
-    }
-    .trash-groups {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-    .trash-empty {
-      margin: 0;
-      padding: 24px;
-      border-radius: 16px;
-      background: #fff;
-      border: 1px dashed rgba(15, 109, 143, 0.25);
-      text-align: center;
-      font-size: 1rem;
-      color: #4b5563;
-    }
-    .trash-group {
-      background: #fff;
+      background: #ffffff;
+      border: 1px solid rgba(15, 109, 143, 0.15);
       border-radius: 18px;
-      border: 1px solid rgba(148, 163, 184, 0.35);
-      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    .trash-group__header {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: baseline;
-    }
-    .trash-group__title {
-      margin: 0;
-      font-size: 1.35rem;
-      font-weight: 600;
-      color: #0f172a;
-    }
-    .trash-group__meta {
-      font-size: 0.9rem;
-      color: #6b7280;
-    }
-    .trash-item-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .trash-item {
-      border: 1px solid rgba(148, 163, 184, 0.4);
-      border-radius: 14px;
-      padding: 16px;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+      padding: clamp(24px, 5vw, 48px);
+      max-width: min(520px, calc(100vw - 32px));
       display: grid;
       gap: 16px;
-      align-items: start;
-      background: rgba(249, 250, 251, 0.75);
-      grid-template-columns: minmax(0, 1fr);
+      text-align: center;
     }
-    .trash-item--has-preview {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    @media (min-width: 720px) {
-      .trash-item--has-preview {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
-      }
-    }
-    .trash-item__content {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .trash-item__header {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .trash-item__title {
+    h1 {
       margin: 0;
-      font-size: 1.1rem;
-      font-weight: 600;
-      color: #1f2937;
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 700;
     }
-    .trash-item__timestamp {
-      font-size: 0.85rem;
-      color: #6b7280;
-    }
-    .trash-item__description {
+    p {
       margin: 0;
-      font-size: 0.95rem;
+      font-size: 1.05rem;
+      line-height: 1.6;
       color: #374151;
-      line-height: 1.45;
-      white-space: pre-line;
     }
-    .trash-item__meta {
-      display: flex;
-      flex-wrap: wrap;
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       gap: 8px;
-      font-size: 0.85rem;
-      color: #6b7280;
-    }
-    .trash-item__actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-    .trash-item__preview {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .trash-item__preview-inner {
-      border: 1px solid rgba(148, 163, 184, 0.4);
-      border-radius: 12px;
-      background: #fff;
-      padding: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 120px;
-      max-height: 280px;
-      overflow: hidden;
-      transition: background 0.2s ease, box-shadow 0.2s ease;
-    }
-    .trash-item__preview-inner[data-preview-kind='image'] {
-      padding: 0;
-      background: linear-gradient(160deg, rgba(15, 109, 143, 0.08), rgba(15, 109, 143, 0.02));
-      box-shadow: inset 0 0 0 1px rgba(15, 109, 143, 0.08);
-    }
-    .trash-item__preview-inner[data-preview-kind='image'] .trash-item__preview-content {
-      padding: 12px;
-      width: 100%;
-      height: 100%;
-      background: rgba(255, 255, 255, 0.92);
-    }
-    .trash-item__preview-content {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .trash-item__preview-content img {
-      display: block;
-      max-width: 100%;
-      max-height: 100%;
-      width: auto;
-      height: auto;
-      object-fit: contain;
-      border-radius: 10px;
-      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
-    }
-    .trash-item__preview-inner[data-preview-kind='image'] .trash-item__preview-content img {
-      width: 100%;
-    }
-    .trash-item__preview-content svg {
-      max-width: 100%;
-      max-height: 100%;
-      width: 100%;
-      height: auto;
-      display: block;
-    }
-    .trash-button {
-      appearance: none;
-      border-radius: 10px;
-      border: 1px solid transparent;
-      padding: 8px 14px;
-      font: inherit;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .trash-button:disabled {
-      opacity: 0.55;
-      cursor: progress;
-    }
-    .trash-button--restore {
-      background: #0f6d8f;
-      color: #fff;
-      border-color: rgba(15, 109, 143, 0.35);
-    }
-    .trash-button--restore:hover,
-    .trash-button--restore:focus-visible {
-      background: #0c5974;
-      box-shadow: 0 4px 12px rgba(15, 109, 143, 0.25);
-      transform: translateY(-1px);
-      outline: none;
-    }
-    .trash-button--open {
-      background: #fff;
-      color: #0f172a;
-      border-color: rgba(148, 163, 184, 0.35);
-    }
-    .trash-button--open:hover,
-    .trash-button--open:focus-visible {
-      background: #f3f4f6;
-      box-shadow: 0 4px 12px rgba(148, 163, 184, 0.2);
-      transform: translateY(-1px);
-      outline: none;
-    }
-    .trash-button--delete {
-      background: #fff5f5;
-      color: #b91c1c;
-      border-color: rgba(220, 38, 38, 0.25);
-    }
-    .trash-button--delete:hover,
-    .trash-button--delete:focus-visible {
-      background: #fee2e2;
-      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.18);
-      transform: translateY(-1px);
-      outline: none;
-    }
-    .trash-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: rgba(15, 109, 143, 0.12);
-      color: #0f6d8f;
-      padding: 4px 8px;
       border-radius: 999px;
-      font-size: 0.75rem;
+      padding: 10px 20px;
+      font-size: 1.05rem;
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      color: #fff;
+      background: #0f6d8f;
+      text-decoration: none;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
     }
-    @media (max-width: 640px) {
-      main {
-        padding: 24px 14px 36px;
-      }
-      .trash-group {
-        padding: 16px;
-      }
+    .cta:hover,
+    .cta:focus-visible {
+      background: #0c5974;
+      box-shadow: 0 12px 24px rgba(15, 109, 143, 0.25);
+      transform: translateY(-1px);
+      outline: none;
+    }
+    .hint {
+      font-size: 0.95rem;
+      color: #4b5563;
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="grid">
-      <main>
-        <header class="trash-header">
-          <h1 class="trash-header__title">Arkiv for arkiverte (slettede) eksempler</h1>
-          <p class="trash-header__description">
-            Her kan du gjenopprette slettede eksempler tilbake til hovedlisten, eller fjerne dem permanent dersom de ikke lenger
-            skal være tilgjengelige. Forhåndsvis et eksempel for å dobbeltsjekke innholdet før du bestemmer deg.
-          </p>
-          <div class="trash-toolbar">
-            <label class="trash-filter">
-              <span class="trash-filter__label">App:</span>
-              <select class="trash-filter__select" data-filter>
-                <option value="all">Alle apper</option>
-              </select>
-            </label>
-            <button type="button" class="trash-toolbar__button" data-refresh>
-              <span aria-hidden="true">⟳</span>
-              Oppdater liste
-            </button>
-            <span class="trash-status" data-status aria-live="polite"></span>
-          </div>
-        </header>
-        <section class="trash-groups" data-trash-groups>
-          <p class="trash-empty" data-empty>Det finnes foreløpig ingen slettede eller arkiverte eksempler å gjenopprette.</p>
-        </section>
-      </main>
-    </div>
-  </div>
-  <template id="trash-group-template">
-    <section class="trash-group" data-group>
-      <header class="trash-group__header">
-        <h2 class="trash-group__title" data-group-title></h2>
-        <span class="trash-group__meta" data-group-meta></span>
-      </header>
-      <ul class="trash-item-list" data-group-list></ul>
-    </section>
-  </template>
-  <template id="trash-item-template">
-    <li class="trash-item" data-item>
-      <div class="trash-item__content">
-        <div class="trash-item__header">
-          <h3 class="trash-item__title" data-item-title></h3>
-          <span class="trash-item__timestamp" data-item-timestamp></span>
-        </div>
-        <div class="trash-item__meta" data-item-meta></div>
-        <p class="trash-item__description" data-item-description hidden></p>
-        <div class="trash-item__actions">
-          <button type="button" class="trash-button trash-button--restore" data-action="restore">Gjenopprett</button>
-          <button type="button" class="trash-button trash-button--open" data-action="open">Forhåndsvis</button>
-          <button type="button" class="trash-button trash-button--delete" data-action="delete">Slett permanent</button>
-        </div>
-      </div>
-      <div class="trash-item__preview" data-item-preview hidden>
-        <div class="trash-item__preview-inner" data-preview-inner>
-          <div class="trash-item__preview-content" data-item-preview-content></div>
-        </div>
-      </div>
-    </li>
-  </template>
-  <script src="examples-trash.js"></script>
+  <main>
+    <h1>Arkiverte eksempler finner du nå i arkivet</h1>
+    <p>
+      Denne siden er erstattet av arkivet for tegninger. For å hente tilbake slettede eksempler åpner du arkivet og
+      bruker knappen «Vis slettede».
+    </p>
+    <a class="cta" href="svg-arkiv.html#trash">Gå til arkivet</a>
+    <p class="hint">Du kan også åpne arkivet fra menyen i eksempeleditoren.</p>
+  </main>
 </body>
 </html>

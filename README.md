@@ -26,6 +26,10 @@ For en komplett «teskje»-guide til lokal kjøring på Mac (inkludert riktig No
 * Dersom du kjører verktøyene lokalt uten proxy, sett `window.MATH_VISUALS_EXAMPLES_API_URL` til adressen til API-et (for eksempel i Playwright-tester eller i nettleserkonsollen).
 * Ved feil vil UI-et vise en statuslinje som forklarer hva som gikk galt. Se [docs/examples-storage.md](docs/examples-storage.md) for detaljer og feilsøking.
 
+### Arkiverte eksempler
+
+Arkiverte (slettede) eksempler håndteres nå i tegnearkivet. I editoren åpner du arkivet via menyen og bruker knappen «Vis slettede» for å hente dem tilbake. Dersom du tidligere brukte `examples-trash.html`, vil du nå bli sendt videre til arkivet (`svg-arkiv.html`).
+
 ## Feilsøking
 
 1. Åpne `/api/examples` i nettleseren for å bekrefte at API-et svarer.

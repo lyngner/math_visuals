@@ -3923,7 +3923,7 @@
   function showTrashRestoreHelp() {
     try {
       setSaveStatusState('success', {
-        message: 'Slettede eksempler kan gjenopprettes via examples-trash.html.'
+        message: 'Bruk «Vis slettede» i arkivet for å gjenopprette eksempler.'
       });
     } catch (_) {}
   }
