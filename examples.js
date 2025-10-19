@@ -2044,9 +2044,49 @@
       const backendIsStale = backendHasTimestamp && backendUpdatedAtMs < lastLocalUpdateMs;
       if (!backendIsStale) {
         const previousIndex = Number.isInteger(currentExampleIndex) ? currentExampleIndex : null;
+        const temporaryExamplesToRestore = [];
+        const currentExamplesSnapshot = getExamples();
+        if (Array.isArray(currentExamplesSnapshot)) {
+          for (let i = 0; i < currentExamplesSnapshot.length; i++) {
+            const candidate = currentExamplesSnapshot[i];
+            if (!candidate || typeof candidate !== 'object') continue;
+            if (!candidate[TEMPORARY_EXAMPLE_FLAG]) continue;
+            const cloned = cloneValue(candidate);
+            if (!cloned || typeof cloned !== 'object') continue;
+            temporaryExamplesToRestore.push({
+              index: i,
+              example: cloned
+            });
+          }
+        }
         await store(examples, {
           reason: 'backend-sync'
         });
+        if (temporaryExamplesToRestore.length > 0) {
+          temporaryExamplesToRestore.forEach(entry => {
+            if (!entry || !entry.example || typeof entry.example !== 'object') return;
+            if (!entry.example[TEMPORARY_EXAMPLE_FLAG]) return;
+            const options = {};
+            const currentCount = (() => {
+              const list = getExamples();
+              return Array.isArray(list) ? list.length : 0;
+            })();
+            if (Number.isInteger(entry.index)) {
+              options.index = Math.max(0, Math.min(currentCount, entry.index));
+            }
+            const requestIdRaw = entry.example[TEMPORARY_EXAMPLE_REQUEST_ID];
+            if (requestIdRaw != null) {
+              options.requestId = String(requestIdRaw);
+            }
+            if (Object.prototype.hasOwnProperty.call(entry.example, TEMPORARY_EXAMPLE_SOURCE_PATH)) {
+              options.sourcePath = entry.example[TEMPORARY_EXAMPLE_SOURCE_PATH];
+            }
+            if (Object.prototype.hasOwnProperty.call(entry.example, TEMPORARY_EXAMPLE_CREATED_AT)) {
+              options.createdAt = entry.example[TEMPORARY_EXAMPLE_CREATED_AT];
+            }
+            createTemporaryExample(entry.example, options);
+          });
+        }
         if (initialLoadPerformed) {
           try {
             const refreshed = getExamples();
