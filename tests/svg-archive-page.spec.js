@@ -9,6 +9,16 @@ const TEST_ENTRIES = [
       svg: '/bildearkiv/graftegner/koordinater.svg',
       png: '/bildearkiv/graftegner/koordinater.png'
     },
+    exampleState: {
+      description: 'Eksempel fra arkiv',
+      exampleNumber: 'Arkiv',
+      config: {
+        CFG: {
+          type: 'bar',
+          title: 'Arkivfigur'
+        }
+      }
+    },
     files: {
       svg: {
         slug: 'bildearkiv/graftegner/koordinater.svg',
@@ -150,11 +160,30 @@ test.describe('Arkiv', () => {
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toMatch(/koordinat/);
 
+    await page.evaluate(() => {
+      window.__openRequests = [];
+      window.MathVisExamples = {
+        prepareOpenRequest: request => {
+          window.__openRequests.push(request);
+        }
+      };
+    });
+
     const popupPromise = page.waitForEvent('popup');
     await dialog.locator('[data-action="open"]').click();
     const popup = await popupPromise;
     await popup.close();
-    await expect(page.locator('[data-status]')).toHaveText('Åpner figur i ny fane.');
+    await expect(page.locator('[data-status]')).toHaveText('Figuren åpnes i Graftegner med et midlertidig eksempel.');
+
+    const preparedRequests = await page.evaluate(() => window.__openRequests || []);
+    expect(preparedRequests).toHaveLength(1);
+    expect(preparedRequests[0]).toMatchObject({
+      storagePath: '/graftegner',
+      canonicalPath: '/graftegner',
+      path: '/graftegner',
+      targetUrl: '/graftegner.html'
+    });
+    expect(preparedRequests[0].example).toBeTruthy();
 
     page.once('dialog', async confirmDialog => {
       expect(confirmDialog.message()).toContain('Koordinatfigur');
