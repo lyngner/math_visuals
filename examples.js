@@ -1927,9 +1927,18 @@
         const error = new Error(`Backend sync failed (${res.status})`);
         throw error;
       }
+      let payloadExamples = backendExamples;
+      try {
+        const serializedExamples = serializeExamplesForStorage(backendExamples);
+        if (typeof serializedExamples === 'string') {
+          payloadExamples = JSON.parse(serializedExamples);
+        }
+      } catch (_) {
+        payloadExamples = backendExamples;
+      }
       const payload = {
         path: storagePath,
-        examples: backendExamples,
+        examples: payloadExamples,
         deletedProvided: deletedProvidedList,
         updatedAt: new Date().toISOString()
       };
