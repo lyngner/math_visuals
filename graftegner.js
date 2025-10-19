@@ -5035,7 +5035,6 @@ function setupSettingsForm() {
     const rows = funcRows ? Array.from(funcRows.querySelectorAll('.func-group')) : [];
     const firstInput = (_rows$ = rows[0]) === null || _rows$ === void 0 ? void 0 : _rows$.querySelector('[data-fun]');
     const firstVal = firstInput ? getFunctionInputValue(firstInput) : '';
-    const firstIsCoords = !!firstVal && isCoords(firstVal);
     const lineSpec = interpretLineTemplateFromExpression(firstVal);
     const neededLinePoints = getLinePointCount(lineSpec);
     const resolveMarkerValue = value => normalizePointMarkerValue(value) || '';
@@ -5044,7 +5043,6 @@ function setupSettingsForm() {
     const parsedMarkerListValue = Array.isArray(SIMPLE_PARSED.pointMarkers) && SIMPLE_PARSED.pointMarkers.length
       ? resolveMarkerValue(formatPointMarkerList(SIMPLE_PARSED.pointMarkers))
       : '';
-    const markerCandidate = markerInputValue || parsedMarkerListValue || parsedMarkerValue;
     const lines = [];
     rows.forEach((row, idx) => {
       const funInput = row.querySelector('[data-fun]');
@@ -5052,11 +5050,17 @@ function setupSettingsForm() {
       if (!funInput) return;
       const fun = getFunctionInputValue(funInput);
       if (!fun) return;
-      if (idx === 0 && firstIsCoords) {
-        lines.push(`coords=${fun}`);
-        if (markerCandidate && !isDefaultPointMarker(markerCandidate)) {
-          lines.push(`marker=${markerCandidate}`);
+      if (isCoords(fun)) {
+        const parsedPoints = parsePointListString(fun)
+          .filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite));
+        if (parsedPoints.length) {
+          const coords = parsedPoints
+            .map(pt => `(${formatNumber(pt[0], stepX())}, ${formatNumber(pt[1], stepY())})`)
+            .filter(Boolean);
+          if (coords.length) {
+            lines.push(`coords=${coords.join('; ')}`);
           }
+        }
         return;
       }
       const domRaw = domInput ? domInput.value.trim() : '';
