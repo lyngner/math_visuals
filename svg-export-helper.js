@@ -407,6 +407,22 @@
     const slugSegment = slugify(baseName, sanitizeBaseName(tool, 'export'));
     const slug = `bildearkiv/${slugSegment}`;
     const title = typeof options.title === 'string' && options.title.trim() ? options.title.trim() : baseName;
+
+    let serializedExampleState = null;
+    if (global && typeof global === 'object') {
+      try {
+        const exampleState = global.MathVisExamples?.collectCurrentState?.();
+        if (exampleState !== undefined) {
+          const stringified = JSON.stringify(exampleState);
+          if (typeof stringified === 'string') {
+            serializedExampleState = stringified;
+          }
+        }
+      } catch (error) {
+        // Ignorer feil fra eksempelinnhenting for å unngå å stoppe eksport.
+      }
+    }
+
     const payload = {
       title,
       tool,
@@ -431,6 +447,9 @@
     }
     if (description) {
       payload.description = description;
+    }
+    if (serializedExampleState) {
+      payload.exampleState = serializedExampleState;
     }
 
     let uploadPromise = null;
