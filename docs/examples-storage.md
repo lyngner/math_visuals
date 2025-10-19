@@ -2,6 +2,12 @@
 
 Denne siden dokumenterer hvordan `examples.js` samhandler med API-et på `/api/examples` for å lagre og hente brukergenererte eksempler.
 
+## Arkiverte og slettede eksempler
+
+* Når en bruker sletter et eksempel fra et verktøy, flyttes posten til arkivtjenesten (`/api/examples/trash`). Etter sletting viser statuslinjen meldingen «Slettede eksempler ligger i arkivet. Åpne svg-arkiv.html og trykk «Vis slettede figurer».».
+* Arkivet åpnes via `svg-arkiv.html`. Trykk på knappen **Vis slettede figurer** for å hente listen over slettede elementer. Panelet lar deg gjenopprette, forhåndsvise eller slette oppføringer permanent.
+* Siden `/examples-trash.html` finnes fortsatt, men viser kun en veiledning som peker videre til `svg-arkiv.html`. Alle faktiske trash-operasjoner håndteres nå i Arkiv-siden.
+
 ## Persistensstrategi
 
 * Alle eksempler lagres nå i back-end via `/api/examples`. Front-end oppretter, oppdaterer og sletter poster ved å sende `PUT`/`DELETE`-forespørsler med hele datasettet for hvert verktøy.

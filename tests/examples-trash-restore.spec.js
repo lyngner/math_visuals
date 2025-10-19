@@ -7,7 +7,7 @@ const {
 
 const EXAMPLE_PATH = '/diagram/index.html';
 const CANONICAL_PATH = normalizeExamplePath(EXAMPLE_PATH);
-const TRASH_ARCHIVE_PATH = '/examples-trash.html';
+const SVG_ARCHIVE_PATH = '/svg-arkiv.html';
 
 const TRASH_HEADERS = {
   'Content-Type': 'application/json',
@@ -70,10 +70,17 @@ async function archiveExample(page, descriptionText = 'Eksempel for gjenoppretti
 
 async function openTrashArchivePage(context) {
   const archivePage = await context.newPage();
-  await archivePage.goto(TRASH_ARCHIVE_PATH, { waitUntil: 'domcontentloaded' });
-  await expect(
-    archivePage.getByRole('heading', { name: 'Arkiv for arkiverte (slettede) eksempler' })
-  ).toBeVisible();
+  await archivePage.goto(SVG_ARCHIVE_PATH, { waitUntil: 'domcontentloaded' });
+  await expect(archivePage.getByRole('heading', { name: 'Arkiv' })).toBeVisible();
+  const toggle = archivePage.getByRole('button', { name: /Vis slettede figurer/i });
+  await expect(toggle).toBeVisible();
+  const trashRequest = archivePage.waitForRequest(
+    request => request.url().includes('/api/examples/trash') && request.method() === 'GET'
+  );
+  await toggle.click();
+  await trashRequest;
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(archivePage.locator('[data-trash-archive]')).toBeVisible();
   return archivePage;
 }
 
@@ -206,7 +213,7 @@ test.describe('Examples trash guidance', () => {
     await archiveExample(page);
 
     await expect(page.locator('.example-save-status__text')).toContainText(
-      'Slettede eksempler kan gjenopprettes via examples-trash.html.'
+      'Slettede eksempler ligger i arkivet. Åpne svg-arkiv.html og trykk «Vis slettede figurer».'
     );
 
     expect(trashEntries.length).toBe(1);
@@ -226,16 +233,16 @@ test.describe('Examples trash guidance', () => {
     expect(entry && entry.example && entry.example.thumbnail).toMatch(/^data:image\//);
 
     const archivePage = await openTrashArchivePage(page.context());
-    const item = archivePage.locator('[data-item]').filter({ hasText: description });
+    const item = archivePage
+      .locator('[data-trash-list] [data-item]')
+      .filter({ hasText: description });
     await expect(item).toHaveCount(1);
 
-    const preview = item.locator('[data-item-preview]');
-    await expect(preview).toBeVisible();
-    const previewInner = preview.locator('[data-preview-inner]');
-    await expect(previewInner).toHaveAttribute('data-preview-kind', 'image');
-    const image = preview.locator('img');
-    await expect(image).toBeVisible();
-    await expect(image).toHaveAttribute('src', /^data:image\//);
+    await expect(item.locator('.svg-archive__trash-item-title')).toContainText(description);
+    await expect(item.locator('.svg-archive__trash-item-meta')).toContainText('Slettet');
+    await expect(item.locator('[data-action="restore"]')).toHaveCount(1);
+    await expect(item.locator('[data-action="open"]')).toHaveCount(1);
+    await expect(item.locator('[data-action="delete"]')).toHaveCount(1);
 
     await archivePage.close();
   });
@@ -248,7 +255,7 @@ test.describe('Examples trash guidance', () => {
 
     const archivePage = await openTrashArchivePage(page.context());
     const item = archivePage
-      .locator('[data-item]')
+      .locator('[data-trash-list] [data-item]')
       .filter({ hasText: description });
     await expect(item).toHaveCount(1);
 
@@ -269,8 +276,8 @@ test.describe('Examples trash guidance', () => {
       return text.includes(description);
     };
 
-    await expect(archivePage.getByText('Eksempel gjenopprettet fra arkivet.')).toBeVisible();
-    await expect(archivePage.locator('[data-item]')).toHaveCount(0);
+    await expect(archivePage.locator('[data-trash-status]')).toHaveText('Figur gjenopprettet.');
+    await expect(archivePage.locator('[data-trash-list] [data-item]')).toHaveCount(0);
 
     expect(trashEntries.length).toBe(0);
     await expect.poll(() => {
@@ -290,7 +297,7 @@ test.describe('Examples trash guidance', () => {
 
     const archivePage = await openTrashArchivePage(page.context());
     const item = archivePage
-      .locator('[data-item]')
+      .locator('[data-trash-list] [data-item]')
       .filter({ hasText: description });
     await expect(item).toHaveCount(1);
 
@@ -309,9 +316,9 @@ test.describe('Examples trash guidance', () => {
 
     await Promise.all([deleteRequest, refreshRequest]);
 
-    await expect(archivePage.locator('[data-item]')).toHaveCount(0);
+    await expect(archivePage.locator('[data-trash-list] [data-item]')).toHaveCount(0);
     await expect(
-      archivePage.getByText('Det finnes foreløpig ingen slettede eller arkiverte eksempler å gjenopprette.', {
+      archivePage.getByText('Ingen slettede figurer ennå.', {
         exact: true
       })
     ).toBeVisible();
@@ -332,7 +339,7 @@ test.describe('Examples trash guidance', () => {
 
     const archivePage = await openTrashArchivePage(page.context());
     const item = archivePage
-      .locator('[data-item]')
+      .locator('[data-trash-list] [data-item]')
       .filter({ hasText: description });
     await expect(item).toHaveCount(1);
 
