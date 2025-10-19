@@ -180,6 +180,44 @@ function sanitizeRequiredText(value) {
   return value.trim();
 }
 
+function parseExampleStateValue(raw) {
+  if (raw == null) return undefined;
+  let value = raw;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    try {
+      value = JSON.parse(trimmed);
+    } catch (error) {
+      return undefined;
+    }
+  }
+  if (typeof value !== 'object' || value === null) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    return undefined;
+  }
+}
+
+function extractExampleState(payload, existing) {
+  if (payload && Object.prototype.hasOwnProperty.call(payload, 'exampleState')) {
+    const parsed = parseExampleStateValue(payload.exampleState);
+    if (parsed !== undefined) {
+      return parsed;
+    }
+  }
+  if (existing && Object.prototype.hasOwnProperty.call(existing, 'exampleState')) {
+    const parsed = parseExampleStateValue(existing.exampleState);
+    if (parsed !== undefined) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
 function sanitizeFileBaseName(value) {
   if (typeof value !== 'string') return '';
   const trimmed = value.trim();
@@ -363,6 +401,13 @@ function ensureEntryShape(slug, payload, existing) {
   }
   if (pngHeight != null) {
     entry.pngHeight = pngHeight;
+  }
+
+  const exampleState = extractExampleState(payload || {}, existing || {});
+  if (exampleState !== undefined) {
+    entry.exampleState = exampleState;
+  } else {
+    delete entry.exampleState;
   }
 
   return entry;
