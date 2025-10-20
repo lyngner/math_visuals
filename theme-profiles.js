@@ -47,8 +47,8 @@
       id: 'campus',
       label: 'Campus',
       palettes: {
-        fractions: ['#2563eb', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
-        figures: ['#2563eb', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9']
+        fractions: ['#1F4DE2', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
+        figures: ['#1F4DE2', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9']
       },
       colors: {
         ui: {
@@ -64,7 +64,7 @@
           highlight: '#E3B660'
         },
         graphs: {
-          axis: '#2563eb'
+          axis: '#1F4DE2'
         },
         beads: {
           primary: {

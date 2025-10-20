@@ -152,7 +152,7 @@ function axisArrowSvgData(axis, color) {
 }
 
 const DEFAULT_AXIS_COLOR = '#111827';
-const CAMPUS_AXIS_COLOR = '#2563eb';
+const CAMPUS_AXIS_COLOR = '#1F4DE2';
 
 const POINT_MARKER_SIZE = 6;
 
@@ -204,7 +204,14 @@ function resolveCurvePalette(count = DEFAULT_CURVE_COLORS.length) {
     const palette = theme.getPalette('figures', count, { fallbackKinds: ['fractions'] });
     if ((!active || active !== 'kikora') && Array.isArray(palette) && palette.length) {
       const reordered = active === 'campus' ? CAMPUS_CURVE_ORDER.map(idx => palette[idx % palette.length]) : palette;
-      return ensureColorCount(reordered, DEFAULT_CURVE_COLORS, count);
+      const resolved = ensureColorCount(reordered, DEFAULT_CURVE_COLORS, count);
+      if (active && active.toLowerCase() === 'campus') {
+        const campusPrimary = resolveAxisStrokeColor();
+        if (typeof campusPrimary === 'string' && campusPrimary.trim()) {
+          resolved[0] = campusPrimary.trim();
+        }
+      }
+      return resolved;
     }
   }
   return ensureColorCount(DEFAULT_CURVE_COLORS, DEFAULT_CURVE_COLORS, count);
