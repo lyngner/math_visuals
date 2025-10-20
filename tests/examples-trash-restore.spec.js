@@ -301,7 +301,7 @@ test.describe('Examples trash guidance', () => {
       .filter({ hasText: description });
     await expect(item).toHaveCount(1);
 
-    const deleteButton = item.getByRole('button', { name: 'Slett' });
+    const deleteButton = item.getByRole('button', { name: 'Slett permanent' });
     await archivePage.evaluate(() => {
       window.confirm = () => true;
     });
