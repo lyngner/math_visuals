@@ -5552,10 +5552,6 @@ function setupSettingsForm() {
                 </div>
               </label>
             </div>
-            <label class="func-color">
-              <span>Farge</span>
-              <input type="color" data-color value="${colorAttr}">
-            </label>
             <label class="point-marker" data-point-marker-container>
               <span>Punktmarkør</span>
               <input type="text" data-point-marker placeholder="${DEFAULT_POINT_MARKER}" value="${DEFAULT_POINT_MARKER}" autocomplete="off" spellcheck="false">
@@ -5563,6 +5559,10 @@ function setupSettingsForm() {
             <label class="domain">
               <span>Avgrensning</span>
               <input type="text" data-dom placeholder="[start, stopp]">
+            </label>
+            <label class="func-color">
+              <span>Farge</span>
+              <input type="color" data-color value="${colorAttr}">
             </label>
           </div>
           ${gliderMarkup}
