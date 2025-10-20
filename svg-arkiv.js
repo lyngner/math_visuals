@@ -693,8 +693,7 @@
       actions.setAttribute('aria-label', 'Handlinger for figur');
 
       const actionConfig = [
-        { action: 'download-svg', label: 'Last ned SVG' },
-        { action: 'download-png', label: 'Last ned PNG' },
+        { action: 'download-svg', label: 'Eksporter' },
         { action: 'open', label: 'Åpne figur' },
         { action: 'delete', label: 'Slett figur' }
       ];
