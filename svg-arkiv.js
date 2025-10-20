@@ -46,6 +46,227 @@
   const trashApiBase = TrashArchiveViewerClass
     ? TrashArchiveViewerClass.buildTrashApiBase(examplesApiBase)
     : null;
+  const TRASH_QUEUE_STORAGE_KEY = 'mathvis:examples:trashQueue:v1';
+  let manualTrashReplayInFlight = false;
+
+  function getGlobalTrashQueue() {
+    const globalObject = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+    if (!globalObject) {
+      return null;
+    }
+    const queue = globalObject.MathVisExamplesTrashQueue;
+    if (!queue || typeof queue !== 'object') {
+      return null;
+    }
+    if (typeof queue.flushPending === 'function') {
+      return queue;
+    }
+    if (typeof queue.flush === 'function') {
+      return queue;
+    }
+    return null;
+  }
+
+  function getTrashQueueStorage() {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    const storage = window.localStorage;
+    if (!storage) {
+      return null;
+    }
+    try {
+      const probeKey = `${TRASH_QUEUE_STORAGE_KEY}__probe`;
+      storage.setItem(probeKey, '1');
+      storage.removeItem(probeKey);
+      return storage;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function readQueuedTrashEntries() {
+    const storage = getTrashQueueStorage();
+    if (!storage) {
+      return [];
+    }
+    let raw = null;
+    try {
+      raw = storage.getItem(TRASH_QUEUE_STORAGE_KEY);
+    } catch (error) {
+      raw = null;
+    }
+    if (!raw) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(item => item && typeof item === 'object');
+      }
+      return [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function writeQueuedTrashEntries(queue) {
+    const storage = getTrashQueueStorage();
+    if (!storage) {
+      return;
+    }
+    const list = Array.isArray(queue) ? queue : [];
+    if (!list.length) {
+      try {
+        storage.removeItem(TRASH_QUEUE_STORAGE_KEY);
+      } catch (error) {}
+      return;
+    }
+    try {
+      storage.setItem(TRASH_QUEUE_STORAGE_KEY, JSON.stringify(list));
+    } catch (error) {}
+  }
+
+  function getPendingTrashQueueCount() {
+    const globalQueue = getGlobalTrashQueue();
+    if (globalQueue && typeof globalQueue.getQueueLength === 'function') {
+      try {
+        return Number(globalQueue.getQueueLength()) || 0;
+      } catch (error) {}
+    }
+    return readQueuedTrashEntries().length;
+  }
+
+  async function fallbackFlushQueuedTrashEntries() {
+    const storage = getTrashQueueStorage();
+    if (!storage) {
+      return { processed: 0, remaining: 0 };
+    }
+    let queue = readQueuedTrashEntries();
+    if (!queue.length) {
+      return { processed: 0, remaining: 0 };
+    }
+    if (!trashApiBase || !TrashArchiveViewerClass) {
+      throw new Error('Arkivtjenesten for slettede figurer er ikke tilgjengelig.');
+    }
+    const url = TrashArchiveViewerClass.buildTrashApiUrl(trashApiBase);
+    if (!url) {
+      throw new Error('Fant ikke adressen til arkivtjenesten.');
+    }
+    let processed = 0;
+    while (queue.length) {
+      const current = queue[0];
+      if (!current || typeof current !== 'object') {
+        queue.shift();
+        processed++;
+        writeQueuedTrashEntries(queue);
+        continue;
+      }
+      const record = current.record && typeof current.record === 'object' ? current.record : null;
+      if (!record) {
+        queue.shift();
+        processed++;
+        writeQueuedTrashEntries(queue);
+        continue;
+      }
+      const payload = {
+        entries: [record],
+        mode: current.mode === 'append' ? 'append' : 'prepend'
+      };
+      if (Number.isInteger(current.limit) && current.limit > 0) {
+        payload.limit = current.limit;
+      }
+      let response;
+      try {
+        response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (error) {
+        throw new Error('Kunne ikke sende ventende slettinger til arkivet.');
+      }
+      if (!response || !response.ok) {
+        const status = response && response.status ? response.status : 'ukjent';
+        throw new Error(`Arkivtjenesten avviste ventende slettinger (status ${status}).`);
+      }
+      queue.shift();
+      processed++;
+      writeQueuedTrashEntries(queue);
+    }
+    return { processed, remaining: queue.length };
+  }
+
+  async function replayQueuedTrashEntries(options = {}) {
+    const globalQueue = getGlobalTrashQueue();
+    if (globalQueue && typeof globalQueue.flushPending === 'function') {
+      return globalQueue.flushPending(options);
+    }
+    if (globalQueue && typeof globalQueue.flush === 'function') {
+      return globalQueue.flush(options);
+    }
+    return fallbackFlushQueuedTrashEntries();
+  }
+
+  function buildTrashRetryAction() {
+    const hasPending = getPendingTrashQueueCount() > 0;
+    if (!hasPending || manualTrashReplayInFlight) {
+      return null;
+    }
+    return {
+      label: 'Send lagrede slettinger nå',
+      onClick: () => {
+        if (manualTrashReplayInFlight) {
+          return;
+        }
+        manualTrashReplayInFlight = true;
+        setTrashViewerStatus({ text: 'Sender lagrede slettinger …' }, 'info');
+        replayQueuedTrashEntries({ silent: true })
+          .then(async result => {
+            manualTrashReplayInFlight = false;
+            const processed = result && typeof result.processed === 'number' ? result.processed : 0;
+            if (processed > 0) {
+              setTrashViewerStatus('Ventende slettinger ble sendt til arkivet.', 'success');
+              try {
+                await fetchTrashEntries();
+                renderTrashViewer();
+              } catch (error) {
+                setTrashViewerStatus(
+                  {
+                    text: 'Slettingene ble sendt, men arkivlisten kunne ikke oppdateres. Oppdater siden for å se endringene.',
+                    actions: [buildTrashRetryAction()].filter(Boolean)
+                  },
+                  'warning'
+                );
+              }
+            } else {
+              setTrashViewerStatus('Fant ingen ventende slettinger å sende.', 'info');
+            }
+          })
+          .catch(error => {
+            manualTrashReplayInFlight = false;
+            const message = error && error.message ? error.message : 'Kunne ikke sende ventende slettinger.';
+            setTrashViewerStatus(
+              {
+                text: `${message} Arkivet kan fortsatt være ufullstendig.`,
+                actions: [buildTrashRetryAction()].filter(Boolean)
+              },
+              'error'
+            );
+          });
+      }
+    };
+  }
+
+  function showTrashArchiveWarning(error) {
+    const baseMessage = error && error.message ? error.message : 'Kunne ikke hente slettede figurer.';
+    const action = buildTrashRetryAction();
+    const payload = {
+      text: `${baseMessage} Arkivet kan være ufullstendig.`,
+      actions: action ? [action] : []
+    };
+    setTrashViewerStatus(payload, 'error');
+  }
 
   function normalizeToolIdentifier(value) {
     if (typeof value !== 'string') {
@@ -175,7 +396,48 @@
     if (!trashStatus) {
       return;
     }
-    trashStatus.textContent = message || '';
+    let text = '';
+    let actions = [];
+    if (message && typeof message === 'object' && !Array.isArray(message)) {
+      text = typeof message.text === 'string' ? message.text : '';
+      if (Array.isArray(message.actions)) {
+        actions = message.actions.filter(action => action && typeof action === 'object');
+      }
+    } else if (typeof message === 'string') {
+      text = message;
+    }
+
+    while (trashStatus.firstChild) {
+      trashStatus.removeChild(trashStatus.firstChild);
+    }
+
+    if (!text && actions.length === 0) {
+      trashStatus.textContent = '';
+      trashStatus.hidden = true;
+    } else {
+      trashStatus.hidden = false;
+      if (text) {
+        const textNode = document.createElement('span');
+        textNode.textContent = text;
+        trashStatus.appendChild(textNode);
+      }
+      if (actions.length) {
+        const actionsContainer = document.createElement('span');
+        actionsContainer.className = 'svg-archive__trash-panel-actions';
+        actions.forEach(action => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'svg-archive__trash-panel-action';
+          button.textContent = typeof action.label === 'string' && action.label.trim() ? action.label : 'Prøv igjen';
+          if (typeof action.onClick === 'function') {
+            button.addEventListener('click', action.onClick);
+          }
+          actionsContainer.appendChild(button);
+        });
+        trashStatus.appendChild(actionsContainer);
+      }
+    }
+
     if (state) {
       trashStatus.dataset.state = state;
     } else {
@@ -496,10 +758,7 @@
         setTrashViewerStatus('Slettede figurer er klare.', 'success');
       }
     } catch (error) {
-      setTrashViewerStatus(
-        error && error.message ? error.message : 'Kunne ikke hente slettede figurer.',
-        'error'
-      );
+      showTrashArchiveWarning(error);
     }
   }
 

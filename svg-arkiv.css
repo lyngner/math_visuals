@@ -184,6 +184,36 @@ body {
   color: #1e293b;
 }
 
+.svg-archive__trash-panel-actions {
+  display: inline-flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-left: 0.75rem;
+}
+
+.svg-archive__trash-panel-action {
+  appearance: none;
+  border: 1px solid #1d4ed8;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.svg-archive__trash-panel-action:hover {
+  background: #1e40af;
+  border-color: #1e40af;
+  transform: translateY(-1px);
+}
+
+.svg-archive__trash-panel-action:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.45);
+  outline-offset: 3px;
+}
+
 .svg-archive__trash-list {
   display: grid;
   gap: 12px;
