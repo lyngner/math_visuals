@@ -5560,12 +5560,14 @@ function setupSettingsForm() {
               <span>Avgrensning</span>
               <input type="text" data-dom placeholder="[start, stopp]">
             </label>
+          </div>
+          ${gliderMarkup}
+          <div class="func-row func-row--color">
             <label class="func-color">
               <span>Farge</span>
               <input type="color" data-color value="${colorAttr}">
             </label>
           </div>
-          ${gliderMarkup}
         </div>
       </fieldset>
     `;
