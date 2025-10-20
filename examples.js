@@ -919,7 +919,10 @@
     if (!suffix) return '/';
     return suffix.startsWith('/') ? suffix : `/${suffix}`;
   }
-  const rawPath = location && typeof location.pathname === 'string' ? location.pathname : '/';
+  const rawPath =
+    typeof location !== 'undefined' && location && typeof location.pathname === 'string'
+      ? location.pathname
+      : '/';
   const storagePath = normalizePathname(rawPath);
   const key = STORAGE_KEY_PREFIX + storagePath;
   const historyKey = key + '_history';
@@ -934,6 +937,7 @@
   const TEMPORARY_EXAMPLE_NOTICE_PENDING = '__openRequestNoticePending';
   const TEMPORARY_EXAMPLE_NOTICE_SHOWN = '__openRequestNoticeShown';
   const MAX_TRASH_ENTRIES = 200;
+  const TRASH_QUEUE_STORAGE_KEY = 'mathvis:examples:trashQueue:v1';
   const MAX_HISTORY_ENTRIES = 10;
   let lastStoredRawValue = null;
   let historyEntriesCache = null;
@@ -1192,6 +1196,448 @@
     }
   }
 
+  function createMemoryStorage() {
+    const map = new Map();
+    return {
+      getItem(key) {
+        if (!map.has(key)) return null;
+        return map.get(key);
+      },
+      setItem(key, value) {
+        map.set(key, String(value));
+      },
+      removeItem(key) {
+        map.delete(key);
+      }
+    };
+  }
+
+  function createTrashQueueManager({ storage, storageKey = TRASH_QUEUE_STORAGE_KEY, sendEntry } = {}) {
+    const resolvedStorage = storage && typeof storage.getItem === 'function' ? storage : createMemoryStorage();
+    let cache = null;
+    let flushPromise = null;
+    const listeners = new Set();
+
+    function emit(event) {
+      if (!event || typeof event !== 'object') return;
+      listeners.forEach(listener => {
+        if (typeof listener !== 'function') return;
+        try {
+          listener(event);
+        } catch (_) {}
+      });
+    }
+
+    function cloneEntry(entry) {
+      if (!entry || typeof entry !== 'object') return null;
+      try {
+        return cloneValue(entry);
+      } catch (_) {
+        try {
+          return JSON.parse(JSON.stringify(entry));
+        } catch (error) {
+          return { ...entry };
+        }
+      }
+    }
+
+    function readQueue() {
+      if (Array.isArray(cache)) {
+        return cache;
+      }
+      let raw = null;
+      try {
+        raw = resolvedStorage.getItem(storageKey);
+      } catch (error) {
+        raw = null;
+      }
+      if (!raw) {
+        cache = [];
+        return cache;
+      }
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          cache = parsed.filter(item => item && typeof item === 'object');
+        } else {
+          cache = [];
+        }
+      } catch (error) {
+        cache = [];
+      }
+      return cache;
+    }
+
+    function writeQueue(list) {
+      cache = Array.isArray(list) ? list : [];
+      if (!cache.length) {
+        try {
+          resolvedStorage.removeItem(storageKey);
+        } catch (_) {}
+        emit({ type: 'update', queue: [] });
+        return;
+      }
+      try {
+        resolvedStorage.setItem(storageKey, JSON.stringify(cache));
+      } catch (error) {}
+      emit({ type: 'update', queue: cache.map(cloneEntry).filter(Boolean) });
+    }
+
+    function normalizeMode(mode) {
+      return mode === 'append' ? 'append' : 'prepend';
+    }
+
+    function normalizeEntry(entry) {
+      if (!entry || typeof entry !== 'object') return null;
+      const record = entry.record && typeof entry.record === 'object' ? cloneEntry(entry.record) : null;
+      if (!record) return null;
+      const normalized = {
+        record,
+        mode: normalizeMode(entry.mode),
+        queuedAt:
+          typeof entry.queuedAt === 'string' && entry.queuedAt.trim()
+            ? entry.queuedAt.trim()
+            : (() => {
+                try {
+                  return new Date().toISOString();
+                } catch (_) {
+                  return '';
+                }
+              })()
+      };
+      const limit = Number.isInteger(entry.limit) && entry.limit > 0 ? entry.limit : null;
+      if (limit) {
+        normalized.limit = limit;
+      }
+      return normalized;
+    }
+
+    function getQueueSnapshot() {
+      return readQueue()
+        .map(cloneEntry)
+        .filter(entry => entry && typeof entry === 'object');
+    }
+
+    function enqueue(entry) {
+      const normalized = normalizeEntry(entry);
+      if (!normalized) return null;
+      const queue = readQueue();
+      queue.push(normalized);
+      writeQueue(queue);
+      emit({ type: 'enqueue', entry: cloneEntry(normalized), queue: getQueueSnapshot() });
+      return cloneEntry(normalized);
+    }
+
+    async function flush() {
+      if (flushPromise) {
+        return flushPromise;
+      }
+      const queue = readQueue();
+      if (!queue.length) {
+        return { processed: 0, remaining: 0 };
+      }
+      if (typeof sendEntry !== 'function') {
+        throw new Error('Trash queue is missing a sendEntry handler.');
+      }
+      let processed = 0;
+      flushPromise = (async () => {
+        while (queue.length) {
+          const current = queue[0];
+          if (!current || !current.record) {
+            queue.shift();
+            processed++;
+            writeQueue(queue);
+            continue;
+          }
+          try {
+            await sendEntry(cloneEntry(current));
+          } catch (error) {
+            emit({ type: 'error', error, entry: cloneEntry(current), processed, remaining: queue.length });
+            throw error;
+          }
+          queue.shift();
+          processed++;
+          writeQueue(queue);
+          emit({ type: 'processed', entry: cloneEntry(current), processed, remaining: queue.length });
+        }
+        return { processed, remaining: queue.length };
+      })();
+      try {
+        const result = await flushPromise;
+        emit({ type: 'flushed', result, queue: getQueueSnapshot() });
+        return result;
+      } finally {
+        flushPromise = null;
+      }
+    }
+
+    function hasPending() {
+      return readQueue().length > 0;
+    }
+
+    function getQueueLength() {
+      return readQueue().length;
+    }
+
+    function clear() {
+      writeQueue([]);
+    }
+
+    function subscribe(listener) {
+      if (typeof listener !== 'function') {
+        return () => {};
+      }
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    }
+
+    return {
+      enqueue,
+      flush,
+      hasPending,
+      getQueue: getQueueSnapshot,
+      getQueueLength,
+      clear,
+      subscribe,
+      storage: resolvedStorage,
+      storageKey
+    };
+  }
+
+  function getDefaultTrashQueueStorage() {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return createMemoryStorage();
+    }
+    try {
+      const storage = window.localStorage;
+      const probeKey = `${TRASH_QUEUE_STORAGE_KEY}__probe`;
+      storage.setItem(probeKey, '1');
+      storage.removeItem(probeKey);
+      return storage;
+    } catch (error) {
+      return createMemoryStorage();
+    }
+  }
+
+  let trashToastStyleInjected = false;
+  let trashToastContainer = null;
+
+  function ensureTrashToastContainer(doc) {
+    if (!doc || typeof doc.createElement !== 'function') return null;
+    if (!trashToastStyleInjected) {
+      const style = doc.createElement('style');
+      style.type = 'text/css';
+      style.textContent =
+        '.examples-trash-toast-container{position:fixed;bottom:1.5rem;right:1.5rem;display:flex;flex-direction:column;gap:0.5rem;z-index:2147483000;max-width:min(28rem,calc(100vw - 2rem));}' +
+        '.examples-trash-toast{background:#1c1c1f;color:#fff;padding:0.75rem 1rem;border-radius:0.75rem;box-shadow:0 0.75rem 2rem rgba(0,0,0,0.2);font-size:0.95rem;line-height:1.4;display:flex;align-items:flex-start;gap:0.75rem;transition:opacity 200ms ease,transform 200ms ease;}' +
+        '.examples-trash-toast--error{background:#b3261e;color:#fff;}' +
+        '.examples-trash-toast--success{background:#0b6a0b;color:#fff;}' +
+        '.examples-trash-toast--info{background:#1c1c1f;color:#fff;}' +
+        '.examples-trash-toast--closing{opacity:0;transform:translateY(25%);}';
+      try {
+        doc.head.appendChild(style);
+        trashToastStyleInjected = true;
+      } catch (error) {}
+    }
+    if (trashToastContainer && trashToastContainer.isConnected) {
+      return trashToastContainer;
+    }
+    const container = doc.createElement('div');
+    container.className = 'examples-trash-toast-container';
+    try {
+      doc.body.appendChild(container);
+      trashToastContainer = container;
+      return container;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function showTrashToast(message, type = 'info') {
+    if (typeof document === 'undefined') {
+      if (type === 'error') {
+        console.error(message);
+      } else {
+        console.log(message);
+      }
+      return null;
+    }
+    const doc = document;
+    const container = ensureTrashToastContainer(doc);
+    if (!container) {
+      if (type === 'error') {
+        console.error(message);
+      } else {
+        console.log(message);
+      }
+      return null;
+    }
+    const toast = doc.createElement('div');
+    toast.className = `examples-trash-toast examples-trash-toast--${type}`;
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    toast.textContent = String(message || '');
+    container.appendChild(toast);
+    const timeout = setTimeout(() => {
+      toast.classList.add('examples-trash-toast--closing');
+      const removeTimer = setTimeout(() => {
+        if (toast.isConnected) {
+          toast.remove();
+        }
+        clearTimeout(removeTimer);
+      }, 220);
+    }, 6000);
+    toast.addEventListener('click', () => {
+      toast.classList.add('examples-trash-toast--closing');
+      clearTimeout(timeout);
+      setTimeout(() => {
+        if (toast.isConnected) {
+          toast.remove();
+        }
+      }, 200);
+    });
+    return toast;
+  }
+
+  function describeTrashQueueError(error) {
+    if (!error) return 'ukjent feil';
+    if (typeof error === 'string') return error;
+    if (error && typeof error.message === 'string' && error.message.trim()) {
+      return error.message.trim();
+    }
+    try {
+      return JSON.stringify(error);
+    } catch (_) {
+      return String(error);
+    }
+  }
+
+  const trashQueueManager = createTrashQueueManager({
+    storage: getDefaultTrashQueueStorage(),
+    sendEntry: async entry => {
+      if (!entry || typeof entry !== 'object' || !entry.record) {
+        return null;
+      }
+      const mode = entry.mode === 'append' ? 'append' : 'prepend';
+      const limit = Number.isInteger(entry.limit) && entry.limit > 0 ? entry.limit : MAX_TRASH_ENTRIES;
+      const response = await postTrashEntries([entry.record], { mode, limit });
+      if (!response) {
+        throw new Error('Kunne ikke nå tjenesten for slettede figurer.');
+      }
+      return response;
+    }
+  });
+
+  function queueTrashEntryForRetry(entry, reason) {
+    const queued = trashQueueManager.enqueue(entry);
+    if (!queued) {
+      showTrashToast('Kunne ikke lagre slettet eksempel for opplasting senere.', 'error');
+      return;
+    }
+    const message =
+      reason === 'flush-failed'
+        ? 'Kunne ikke sende slettede figurer til arkivet. Vi prøver igjen senere.'
+        : 'Kunne ikke sende slettet eksempel til arkivet. Vi prøver igjen senere.';
+    showTrashToast(message, 'error');
+  }
+
+  let trashQueueRetryInitialized = false;
+
+  function flushQueuedTrashEntries({ silent = false } = {}) {
+    if (!trashQueueManager.hasPending()) {
+      if (!silent) {
+        showTrashToast('Ingen slettede figurer venter på opplasting.', 'info');
+      }
+      return Promise.resolve({ processed: 0, remaining: 0 });
+    }
+    return trashQueueManager
+      .flush()
+      .then(result => {
+        if (!silent) {
+          showTrashToast('Ventende slettede figurer ble sendt til arkivet.', 'success');
+        }
+        return result;
+      })
+      .catch(error => {
+        if (!silent) {
+          const message = describeTrashQueueError(error);
+          showTrashToast(`Kunne ikke sende ventende slettinger: ${message}.`, 'error');
+        }
+        throw error;
+      });
+  }
+
+  function ensureTrashQueueRetryListeners() {
+    if (trashQueueRetryInitialized) {
+      return;
+    }
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const retry = (silentReason = true) => {
+      flushQueuedTrashEntries({ silent: silentReason !== false }).catch(() => {});
+    };
+    window.addEventListener('focus', () => retry(true));
+    window.addEventListener('online', () => retry(true));
+    if (typeof document !== 'undefined' && document) {
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          retry(true);
+        }
+      });
+      if (document.readyState === 'complete') {
+        retry(true);
+      } else {
+        document.addEventListener(
+          'DOMContentLoaded',
+          () => {
+            retry(true);
+          },
+          { once: true }
+        );
+      }
+    } else {
+      retry(true);
+    }
+    trashQueueRetryInitialized = true;
+  }
+
+  ensureTrashQueueRetryListeners();
+
+  if (globalScope) {
+    const publicInterface = {
+      enqueue(entry) {
+        return trashQueueManager.enqueue(entry);
+      },
+      flush(options) {
+        return flushQueuedTrashEntries(options || {});
+      },
+      flushPending(options) {
+        return flushQueuedTrashEntries(options || {});
+      },
+      hasPending() {
+        return trashQueueManager.hasPending();
+      },
+      getQueue() {
+        return trashQueueManager.getQueue();
+      },
+      getQueueLength() {
+        return trashQueueManager.getQueueLength();
+      },
+      storageKey: TRASH_QUEUE_STORAGE_KEY,
+      __isMathVisTrashQueue: true
+    };
+    globalScope.MathVisExamplesTrashQueue = publicInterface;
+  }
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = module.exports || {};
+    module.exports.createTrashQueueManager = createTrashQueueManager;
+    module.exports.TRASH_QUEUE_STORAGE_KEY = TRASH_QUEUE_STORAGE_KEY;
+  }
+
   function buildExampleSignature(example) {
     if (!example || typeof example !== 'object') return '';
     try {
@@ -1246,13 +1692,22 @@
       importedFromHistory: opts.importedFromHistory === true
     });
     if (!record) return;
+    const mode = opts.prepend === false ? 'append' : 'prepend';
     try {
-      await postTrashEntries([record], {
-        mode: opts.prepend === false ? 'append' : 'prepend',
+      const response = await postTrashEntries([record], {
+        mode,
         limit: MAX_TRASH_ENTRIES
       });
+      if (!response) {
+        throw new Error('Trash API returned et tomt svar.');
+      }
     } catch (error) {
       console.error('[examples] failed to persist trash entry', error);
+      queueTrashEntryForRetry({
+        record,
+        mode,
+        limit: MAX_TRASH_ENTRIES
+      });
     }
   }
 
@@ -3513,7 +3968,13 @@
   let toolbarElement = null;
   const hasUrlOverrides = (() => {
     if (typeof URLSearchParams === 'undefined') return false;
-    const search = new URLSearchParams(window.location.search);
+    const currentLocation =
+      typeof window !== 'undefined' && window && window.location ? window.location : null;
+    const searchValue = currentLocation && typeof currentLocation.search === 'string' ? currentLocation.search : '';
+    if (!searchValue) {
+      return false;
+    }
+    const search = new URLSearchParams(searchValue);
     for (const key of search.keys()) {
       if (key === 'example') continue;
       if (/^fun\d+$/i.test(key) || /^dom\d+$/i.test(key)) return true;
