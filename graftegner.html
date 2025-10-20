@@ -95,14 +95,47 @@
       align-items:stretch;
     }
     .func-row--main--with-marker{
-      grid-template-columns:minmax(0,1fr) minmax(160px, auto) minmax(0,1fr);
+      grid-template-columns:minmax(0,1fr) minmax(140px, auto) minmax(160px, auto) minmax(0,1fr);
       align-items:start;
     }
     .func-row--main--with-marker[data-has-domain="false"]{
-      grid-template-columns:minmax(0,1fr) minmax(160px, auto);
+      grid-template-columns:minmax(0,1fr) minmax(140px, auto) minmax(160px, auto);
     }
     .func-row--main--with-marker .point-marker{
       width:auto;
+    }
+    .func-row--main--with-marker .func-color{
+      width:auto;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .func-color input[type="color"]{
+      width:100%;
+      min-height:42px;
+      padding:0;
+      border-radius:10px;
+      border:1px solid #d1d5db;
+      background:#fff;
+      cursor:pointer;
+    }
+    .func-color input[type="color"]:focus,
+    .func-color input[type="color"]:focus-visible{
+      outline:none;
+      border-color:#6366f1;
+      box-shadow:0 0 0 3px rgba(99,102,241,.15);
+    }
+    .func-color input[type="color"]::-webkit-color-swatch-wrapper{
+      padding:0;
+      border-radius:8px;
+    }
+    .func-color input[type="color"]::-webkit-color-swatch{
+      border:none;
+      border-radius:8px;
+    }
+    .func-color input[type="color"]::-moz-color-swatch{
+      border:none;
+      border-radius:8px;
     }
     @media (max-width:900px){
       .func-row--main--with-marker{

@@ -197,6 +197,18 @@ function ensureColorCount(base, fallback, count) {
   }
   return out;
 }
+function normalizeColorValue(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const match = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(trimmed);
+  if (!match) return '';
+  let hex = match[1].toLowerCase();
+  if (hex.length === 3) {
+    hex = hex.split('').map(ch => ch + ch).join('');
+  }
+  return `#${hex}`;
+}
 function resolveCurvePalette(count = DEFAULT_CURVE_COLORS.length) {
   const theme = getThemeApi();
   if (theme && typeof theme.getPalette === 'function') {
@@ -322,9 +334,13 @@ function buildSimple() {
     const key = `fun${i}`;
     const fun = paramStr(key, i === 1 ? DEFAULT_FUNCTION_EXPRESSION : '').trim();
     const dom = paramStr(`dom${i}`, '').trim();
+    const colorParam = paramStr(`color${i}`, '').trim();
+    const colorValue = normalizeColorValue(colorParam);
     if (i === 1 || params.has(key)) {
       if (fun) {
-        lines.push(dom ? `${fun}, x in ${dom}` : fun);
+        const baseLine = dom ? `${fun}, x in ${dom}` : fun;
+        const withColor = colorValue ? `${baseLine}, color=${colorValue}` : baseLine;
+        lines.push(withColor);
       }
       i++;
     } else {
@@ -783,10 +799,29 @@ function parseSimple(txt) {
     }
     let rhs = rhsWithDom;
     let domain = null;
-    const domMatch = /,\s*x\s*(?:in|∈)\s*(.+)$/i.exec(rhsWithDom);
-    if (domMatch) {
-      rhs = rhsWithDom.slice(0, domMatch.index).trim();
-      domain = parseDomainString(domMatch[1]);
+    let color = '';
+    let colorSource = 'auto';
+    let searching = true;
+    while (searching) {
+      searching = false;
+      const colorMatch = /,?\s*color\s*=\s*([^,]+)$/i.exec(rhs);
+      if (colorMatch) {
+        const normalizedColor = normalizeColorValue(colorMatch[1]);
+        if (normalizedColor) {
+          color = normalizedColor;
+          colorSource = 'manual';
+        }
+        rhs = rhs.slice(0, colorMatch.index).trim();
+        searching = true;
+        continue;
+      }
+      const domMatch = /,?\s*x\s*(?:in|∈)\s*(.+)$/i.exec(rhs);
+      if (domMatch) {
+        rhs = rhs.slice(0, domMatch.index).trim();
+        domain = parseDomainString(domMatch[1]);
+        searching = true;
+        continue;
+      }
     }
     rhs = rhs.trim();
     if (!rhs) return null;
@@ -794,7 +829,9 @@ function parseSimple(txt) {
       name,
       rhs,
       domain,
-      label
+      label,
+      color,
+      colorSource
     };
   };
   for (const L of lines) {
@@ -2227,34 +2264,37 @@ function updateCurveColorsFromTheme() {
   graphs.forEach((g, idx) => {
     if (!g) return;
     const nextColor = palette[idx % palette.length];
-    if (typeof nextColor !== 'string' || !nextColor) return;
-    if (g.color !== nextColor) {
-      g.color = nextColor;
+    const paletteColor = typeof nextColor === 'string' && nextColor ? nextColor : null;
+    const manual = !!g.manualColor;
+    if (!manual && paletteColor && g.color !== paletteColor) {
+      g.color = paletteColor;
       updated = true;
     }
+    const appliedColor = typeof g.color === 'string' && g.color ? g.color : paletteColor;
+    if (!appliedColor) return;
     if (Array.isArray(g.segs)) {
       g.segs.forEach(seg => {
         if (seg && typeof seg.setAttribute === 'function') {
-          seg.setAttribute({ strokeColor: nextColor });
+          seg.setAttribute({ strokeColor: appliedColor });
         }
       });
     }
     if (Array.isArray(g.gliders) && g.gliders.length) {
       g.gliders.forEach(point => {
         if (point && typeof point.setAttribute === 'function') {
-          point.setAttribute({ strokeColor: nextColor });
+          point.setAttribute({ strokeColor: appliedColor });
         }
       });
     }
     if (g.labelElement && typeof g.labelElement.setAttribute === 'function') {
       g.labelElement.setAttribute({
-        color: nextColor,
-        fillColor: nextColor,
-        cssStyle: `user-select:none;cursor:move;touch-action:none;color:${nextColor};display:inline-block;`
+        color: appliedColor,
+        fillColor: appliedColor,
+        cssStyle: `user-select:none;cursor:move;touch-action:none;color:${appliedColor};display:inline-block;`
       });
       const node = g.labelElement.rendNode;
       if (node && node.style) {
-        node.style.color = nextColor;
+        node.style.color = appliedColor;
       }
     }
   });
@@ -3196,13 +3236,18 @@ function buildCurveLabelContent(fun) {
 }
 function buildFunctions() {
   graphs = [];
+  const fallbackColor = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#9333ea';
+  const palette = resolveCurvePalette(Math.max(DEFAULT_CURVE_COLORS.length, SIMPLE_PARSED.funcs.length || 1));
   SIMPLE_PARSED.funcs.forEach((f, i) => {
-    const color = colorFor(i);
+    const defaultColor = normalizeColorValue(palette[i % palette.length]) || fallbackColor;
+    const manualColor = f && f.colorSource === 'manual' ? normalizeColorValue(f.color) : '';
+    const color = manualColor || defaultColor;
     const fn = parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
     const labelContent = buildCurveLabelContent(f);
     const g = {
       name: f.name,
       color,
+      manualColor: !!manualColor,
       domain: f.domain || null,
       label: labelContent && labelContent.text || '',
       labelContent,
@@ -3368,10 +3413,14 @@ function buildPointsLine() {
   A = null;
   B = null;
   moving = [];
-  const lineColor = colorFor(0);
+  const fallbackColor = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#9333ea';
+  const paletteColor = normalizeColorValue(colorFor(0)) || fallbackColor;
   const first = (_SIMPLE_PARSED$funcs$ = SIMPLE_PARSED.funcs[0]) !== null && _SIMPLE_PARSED$funcs$ !== void 0 ? _SIMPLE_PARSED$funcs$ : {
     rhs: 'ax+b'
   };
+  const manualLineColor = first && first.colorSource === 'manual' ? normalizeColorValue(first.color) : '';
+  const lineColor = manualLineColor || paletteColor;
+  const lineColorManual = !!manualLineColor;
   const template = interpretLineTemplate(first.rhs);
   const kind = template.kind || 'two';
   const anchorC = template.anchorC;
@@ -3501,6 +3550,7 @@ function buildPointsLine() {
   if (labelContent) {
     const g = {
       color: lineColor,
+      manualColor: lineColorManual,
       domain: null,
       label: labelContent.text || '',
       labelContent,
@@ -3939,6 +3989,7 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     applyThemeToDocument();
     updateCurveColorsFromTheme();
     updateAxisThemeStyling();
+    refreshFunctionColorDefaults();
   });
 }
 function requestRebuild() {
@@ -4218,6 +4269,7 @@ if (btnPng) {
 }
 setupSettingsForm();
 initAltTextManager();
+let refreshFunctionColorDefaults = () => {};
 function setupSettingsForm() {
   const root = document.querySelector('.settings');
   if (!root) return;
@@ -4259,6 +4311,109 @@ function setupSettingsForm() {
   let linePointVisibleCount = 0;
   let linePointsEdited = false;
   const pointMarkerControls = [];
+  const functionColorControls = [];
+  const DEFAULT_COLOR_FALLBACK = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#9333ea';
+  const getRowIndex = row => {
+    if (!row || !row.dataset) return 1;
+    const parsed = Number.parseInt(row.dataset.index, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  };
+  const computeDefaultColorForIndex = index => normalizeColorValue(colorFor(index - 1)) || DEFAULT_COLOR_FALLBACK;
+  const applyColorManualClass = (row, manual) => {
+    if (!row || !row.classList) return;
+    if (manual) {
+      row.classList.add('func-group--color-manual');
+    } else {
+      row.classList.remove('func-group--color-manual');
+    }
+  };
+  const registerFunctionColorControl = (row, input, options = {}) => {
+    if (!row || !input) return null;
+    const index = getRowIndex(row);
+    const providedDefault = normalizeColorValue(options.defaultColor);
+    const manualColor = normalizeColorValue(options.manualColor);
+    const control = {
+      row,
+      input,
+      defaultColor: providedDefault || computeDefaultColorForIndex(index),
+      value: '',
+      manual: false
+    };
+    if (!control.defaultColor) {
+      control.defaultColor = computeDefaultColorForIndex(index);
+    }
+    if (options.manual && manualColor) {
+      control.manual = true;
+      control.value = manualColor;
+    } else if (manualColor && manualColor !== control.defaultColor) {
+      control.manual = true;
+      control.value = manualColor;
+    } else {
+      control.manual = false;
+      control.value = control.defaultColor;
+    }
+    if (!control.value) {
+      control.value = control.defaultColor || DEFAULT_COLOR_FALLBACK;
+    }
+    input.value = control.value;
+    applyColorManualClass(row, control.manual);
+    const handleColorInput = () => {
+      const normalized = normalizeColorValue(input.value);
+      if (normalized) {
+        input.value = normalized;
+      }
+      const nextValue = normalized || control.defaultColor || DEFAULT_COLOR_FALLBACK;
+      if (normalized && control.defaultColor && normalized === control.defaultColor) {
+        control.manual = false;
+        control.value = control.defaultColor;
+        input.value = control.defaultColor;
+      } else if (normalized) {
+        control.manual = true;
+        control.value = normalized;
+      } else {
+        control.manual = false;
+        control.value = control.defaultColor || DEFAULT_COLOR_FALLBACK;
+        input.value = control.value;
+      }
+      applyColorManualClass(row, control.manual);
+      syncSimpleFromForm();
+      scheduleSimpleRebuild();
+    };
+    input.addEventListener('input', handleColorInput);
+    input.addEventListener('change', handleColorInput);
+    functionColorControls.push(control);
+    return control;
+  };
+  const clearFunctionColorControls = () => {
+    functionColorControls.length = 0;
+  };
+  const getFunctionColorInfoForRow = row => {
+    const control = functionColorControls.find(entry => entry && entry.row === row);
+    if (!control) {
+      return {
+        manual: false,
+        value: '',
+        defaultColor: computeDefaultColorForIndex(getRowIndex(row))
+      };
+    }
+    return {
+      manual: !!control.manual,
+      value: control.manual ? control.value : '',
+      defaultColor: control.defaultColor || computeDefaultColorForIndex(getRowIndex(row))
+    };
+  };
+  let refreshFunctionColorDefaultsLocal = () => {
+    functionColorControls.forEach(control => {
+      if (!control || !control.row) return;
+      const nextDefault = computeDefaultColorForIndex(getRowIndex(control.row));
+      control.defaultColor = nextDefault || control.defaultColor || DEFAULT_COLOR_FALLBACK;
+      if (!control.manual) {
+        control.value = control.defaultColor || DEFAULT_COLOR_FALLBACK;
+        control.input.value = control.value;
+      }
+      applyColorManualClass(control.row, control.manual);
+    });
+  };
   let pointMarkerValue = DEFAULT_POINT_MARKER;
   const MATHFIELD_TAG = 'MATH-FIELD';
   const nav = typeof navigator !== 'undefined' ? navigator : null;
@@ -5180,7 +5335,11 @@ function setupSettingsForm() {
       const domRaw = domInput ? domInput.value.trim() : '';
       const normalizedDom = domRaw ? normalizeDomainInputValue(domRaw) : null;
       const dom = normalizedDom ? normalizedDom.formatted : domRaw;
-      lines.push(dom ? `${fun}, x in ${dom}` : fun);
+      const colorInfo = getFunctionColorInfoForRow(row);
+      const manualColor = colorInfo.manual && colorInfo.value ? normalizeColorValue(colorInfo.value) : '';
+      const baseLine = dom ? `${fun}, x in ${dom}` : fun;
+      const withColor = manualColor ? `${baseLine}, color=${manualColor}` : baseLine;
+      lines.push(withColor);
     });
     let hasCoordsLine = lines.some(L => /^\s*coords\s*=/i.test(L));
     let hasMarkerLine = lines.some(L => /^\s*marker\s*=/i.test(L));
@@ -5341,12 +5500,17 @@ function setupSettingsForm() {
     updateGliderVisibility();
     updateLinePointControls({ silent: true });
   };
-  const createRow = (index, funVal = '', domVal = '') => {
+  const createRow = (index, funVal = '', domVal = '', colorVal = '', colorManual = false) => {
     const row = document.createElement('div');
     row.className = 'func-group';
     row.dataset.index = String(index);
     const titleLabel = 'Funksjon eller punkter';
     const placeholderAttr = index === 1 ? ` placeholder="${DEFAULT_FUNCTION_EXPRESSION}"` : '';
+    const defaultColor = computeDefaultColorForIndex(index);
+    const manualColor = normalizeColorValue(colorVal);
+    const isManualColor = !!colorManual && !!manualColor;
+    const initialColor = isManualColor ? manualColor : (defaultColor || DEFAULT_COLOR_FALLBACK);
+    const colorAttr = initialColor || DEFAULT_COLOR_FALLBACK;
     const gliderMarkup = index === 1 ? `
             <div class="func-row func-row--gliders glider-row">
               <label class="points">
@@ -5388,6 +5552,10 @@ function setupSettingsForm() {
                 </div>
               </label>
             </div>
+            <label class="func-color">
+              <span>Farge</span>
+              <input type="color" data-color value="${colorAttr}">
+            </label>
             <label class="point-marker" data-point-marker-container>
               <span>Punktmarkør</span>
               <input type="text" data-point-marker placeholder="${DEFAULT_POINT_MARKER}" value="${DEFAULT_POINT_MARKER}" autocomplete="off" spellcheck="false">
@@ -5414,6 +5582,14 @@ function setupSettingsForm() {
       if (preview) {
         preview.removeAttribute('data-preview-no-latex');
       }
+    }
+    const colorInput = row.querySelector('input[data-color]');
+    if (colorInput) {
+      registerFunctionColorControl(row, colorInput, {
+        defaultColor,
+        manualColor,
+        manual: isManualColor
+      });
     }
     const markerLabel = row.querySelector('[data-point-marker-container]');
     const markerContainer = markerLabel ? markerLabel.closest('.point-marker-row') || markerLabel : null;
@@ -5624,11 +5800,13 @@ function setupSettingsForm() {
       linePointLabels = [];
       linePointVisibleCount = 0;
       pointMarkerControls.length = 0;
+      clearFunctionColorControls();
       pointMarkerValue = DEFAULT_POINT_MARKER;
       funcRows.innerHTML = '';
     }
     glidersVisible = false;
     forcedGliderCount = null;
+    let funcIndex = 0;
     filteredLines.forEach((line, idx) => {
       let funVal = line;
       let domVal = '';
@@ -5642,8 +5820,20 @@ function setupSettingsForm() {
           domVal = domMatch[1].trim();
         }
       }
-      createRow(idx + 1, funVal, domVal);
+      let colorVal = '';
+      let colorManualFlag = false;
+      const isFunctionLine = !coordsMatch && /=/.test(line);
+      if (isFunctionLine && Array.isArray(SIMPLE_PARSED.funcs)) {
+        const parsedFunc = SIMPLE_PARSED.funcs[funcIndex] || null;
+        if (parsedFunc) {
+          colorVal = typeof parsedFunc.color === 'string' ? parsedFunc.color : '';
+          colorManualFlag = parsedFunc.colorSource === 'manual' && !!colorVal;
+        }
+        funcIndex++;
+      }
+      createRow(idx + 1, funVal, domVal, colorVal, colorManualFlag);
     });
+    refreshFunctionColorDefaultsLocal();
     if (gliderCountInput) {
       var _SIMPLE_PARSED;
       const count = Number.isFinite((_SIMPLE_PARSED = SIMPLE_PARSED) === null || _SIMPLE_PARSED === void 0 ? void 0 : _SIMPLE_PARSED.pointsCount) ? SIMPLE_PARSED.pointsCount : 0;
@@ -5832,6 +6022,8 @@ function setupSettingsForm() {
       const fun = funInput ? getFunctionInputValue(funInput) : '';
       const dom = row.querySelector('input[data-dom]').value.trim();
       if (!fun) return;
+      const colorInfo = getFunctionColorInfoForRow(row);
+      const manualColor = colorInfo.manual && colorInfo.value ? normalizeColorValue(colorInfo.value) : '';
       if (rowIdx === 0 && isCoords(fun)) {
         p.set('coords', fun);
         const markerForParams = pointMarkerControls.length
@@ -5843,6 +6035,9 @@ function setupSettingsForm() {
       } else {
         p.set(`fun${idx}`, fun);
         if (dom) p.set(`dom${idx}`, dom);
+        if (manualColor) {
+          p.set(`color${idx}`, manualColor);
+        }
         idx++;
       }
     });
@@ -5971,6 +6166,7 @@ function setupSettingsForm() {
       requestRebuild();
     }
   };
+  refreshFunctionColorDefaults = refreshFunctionColorDefaultsLocal;
   root.addEventListener('change', apply);
   root.addEventListener('keydown', e => {
     if (e.key === 'Enter') apply();
