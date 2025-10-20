@@ -152,7 +152,7 @@ function axisArrowSvgData(axis, color) {
 }
 
 const DEFAULT_AXIS_COLOR = '#111827';
-const CAMPUS_AXIS_COLOR = '#2563eb';
+const CAMPUS_AXIS_COLOR = '#1F4DE2';
 
 const POINT_MARKER_SIZE = 6;
 
