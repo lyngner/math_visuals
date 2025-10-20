@@ -23,6 +23,24 @@ const SIMPLE = {
 };
 
 /* ============ ADV KONFIG (TEKNISK/VALGFRITT) ============ */
+const DEFAULT_BEAD_COLORS = {
+  red: {
+    fill: "#d24a2c",
+    stroke: "#b23d22"
+  },
+  blue: {
+    fill: "#3f7dc0",
+    stroke: "#2a5e91"
+  }
+};
+const DEFAULT_ROPE_COLORS = {
+  fill: "#d8b58f",
+  stroke: "#b0855e"
+};
+const DEFAULT_CLIP_COLORS = {
+  fill: "#f2c89a",
+  stroke: "#c48853"
+};
 const ADV = {
   groupSize: 5,
   rBase: 42,
@@ -148,6 +166,8 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     const type = typeof data === 'string' ? data : data && data.type;
     if (type !== 'math-visuals:profile-change') return;
     applyThemeToDocument();
+    refreshFallbackStyles();
+    draw();
   });
 }
 
@@ -255,6 +275,15 @@ function layout() {
   // snor
   gRope.innerHTML = "";
   const ropeH = r * 1.6;
+  const ropeFallback = rect(20, CFG.wireY - ropeH / 2, VB_W - 40, ropeH, {
+    class: "ropeFallback",
+    rx: ropeH / 2,
+    ry: ropeH / 2,
+    "aria-hidden": "true"
+  });
+  styleRopeFallback(ropeFallback, ropeH);
+  ropeFallback.setAttribute("pointer-events", "none");
+  gRope.appendChild(ropeFallback);
   gRope.appendChild(img(CFG.assets.rope, 20, CFG.wireY - ropeH / 2, VB_W - 40, ropeH));
 
   // Valgfritt: lette gruppedelere (hver groupSize)
@@ -274,6 +303,14 @@ function layout() {
 
   // klype (bygges på nytt i riktig størrelse)
   gClip.innerHTML = "";
+  const clipFallback = mk("path", {
+    d: buildClipFallbackPath(CLIP_W, CLIP_H, CFG.wireY),
+    class: "clipFallback",
+    "aria-hidden": "true"
+  });
+  styleClipFallback(clipFallback, CLIP_W, CLIP_H);
+  clipFallback.setAttribute("pointer-events", "none");
+  gClip.appendChild(clipFallback);
   gClip.appendChild(img(CFG.assets.clip, -CLIP_W / 2, CFG.wireY - CLIP_H, CLIP_W, CLIP_H));
   const touchPadX = Math.max(gap * 0.75, CLIP_W * 0.15);
   const touchPadTop = CLIP_H * 0.35;
@@ -308,11 +345,10 @@ function draw() {
     const cx = centers[i] + (i >= idx ? shift : 0);
     const grp = i < idx ? gLeft : gRight;
 
-    // fallback-sirkel vises umiddelbart
-    grp.appendChild(circle(cx, CFG.wireY, r, `beadFallback ${colorClass}`));
-
-    // svg-bilde oppå (hvis lastet)
     const href = colorClass === (((_CFG$ui4 = CFG.ui) === null || _CFG$ui4 === void 0 ? void 0 : _CFG$ui4.leftColorClass) || "red") ? CFG.assets.beadRed : CFG.assets.beadBlue;
+    const fallbackCircle = circle(cx, CFG.wireY, r, `beadFallback ${colorClass}`);
+    applyBeadFallbackStyle(fallbackCircle, colorClass, r);
+    grp.appendChild(fallbackCircle);
     grp.appendChild(img(href, cx - r, CFG.wireY - r, r * 2, r * 2, "beadShadow"));
   }
 
@@ -601,6 +637,61 @@ function circle(cx, cy, r, cls) {
     class: cls
   });
 }
+function getCssVar(name, fallback) {
+  if (typeof window === "undefined" || !window.getComputedStyle) return fallback;
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(name);
+  return value && value.trim() ? value.trim() : fallback;
+}
+function applyBeadFallbackStyle(el, colorClass, radius) {
+  if (!el) return;
+  const defaults = DEFAULT_BEAD_COLORS[colorClass] || DEFAULT_BEAD_COLORS.red;
+  const fillVar = `--bead-${colorClass}`;
+  const strokeVar = `--bead-${colorClass}-stroke`;
+  el.setAttribute("fill", getCssVar(fillVar, defaults.fill));
+  el.setAttribute("stroke", getCssVar(strokeVar, defaults.stroke));
+  el.setAttribute("stroke-width", Math.max(1, radius * 0.12));
+}
+function styleRopeFallback(el, ropeHeight) {
+  if (!el) return;
+  const height = Number.isFinite(ropeHeight) ? ropeHeight : parseFloat(el.getAttribute("height")) || 0;
+  const effectiveHeight = height > 0 ? height : ropeHeight;
+  el.setAttribute("fill", getCssVar("--rope-fill", DEFAULT_ROPE_COLORS.fill));
+  el.setAttribute("stroke", getCssVar("--rope-stroke", DEFAULT_ROPE_COLORS.stroke));
+  el.setAttribute("stroke-width", Math.max(1, (effectiveHeight || 0) * 0.12));
+}
+function styleClipFallback(el, width) {
+  if (!el) return;
+  const effectiveWidth = Number.isFinite(width) && width > 0 ? width : CLIP_W;
+  el.setAttribute("fill", getCssVar("--clip-fill", DEFAULT_CLIP_COLORS.fill));
+  el.setAttribute("stroke", getCssVar("--clip-stroke", DEFAULT_CLIP_COLORS.stroke));
+  el.setAttribute("stroke-width", Math.max(1, effectiveWidth * 0.06));
+  el.setAttribute("stroke-linejoin", "round");
+}
+function refreshFallbackStyles() {
+  const ropeFallback = gRope.querySelector('.ropeFallback');
+  if (ropeFallback) styleRopeFallback(ropeFallback);
+  const clipFallback = gClip.querySelector('.clipFallback');
+  if (clipFallback) styleClipFallback(clipFallback);
+}
+function buildClipFallbackPath(width, height, wireY) {
+  const half = width / 2;
+  const top = wireY - height;
+  const mid = top + height * 0.55;
+  const jaw = top + height * 0.35;
+  const bottom = wireY;
+  const neck = width * 0.18;
+  return [
+    `M ${-half} ${top}`,
+    `L ${-neck} ${mid}`,
+    `L ${-neck * 0.6} ${bottom}`,
+    `L ${neck * 0.6} ${bottom}`,
+    `L ${neck} ${mid}`,
+    `L ${half} ${top}`,
+    `L ${neck * 0.55} ${jaw}`,
+    `L ${-neck * 0.55} ${jaw}`,
+    "Z"
+  ].join(" ");
+}
 function clamp(v, a, b) {
   return Math.max(a, Math.min(b, v));
 }
@@ -714,12 +805,15 @@ function downloadPNG(svgEl, filename, scale = 2, bg = '#fff') {
   const vb = svgEl.viewBox.baseVal;
   const w = (vb === null || vb === void 0 ? void 0 : vb.width) || svgEl.clientWidth || VB_W;
   const h = (vb === null || vb === void 0 ? void 0 : vb.height) || svgEl.clientHeight || VB_H;
+  refreshFallbackStyles();
   const data = svgToString(svgEl);
   const blob = new Blob([data], {
     type: 'image/svg+xml;charset=utf-8'
   });
   const url = URL.createObjectURL(blob);
   const img = new Image();
+  if ('decoding' in img) img.decoding = 'async';
+  if ('crossOrigin' in img) img.crossOrigin = 'anonymous';
   img.onload = () => {
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(w * scale);
