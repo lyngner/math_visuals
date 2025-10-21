@@ -298,7 +298,7 @@ function layout() {
   styleRopeFallback(ropeFallback, ropeH);
   ropeFallback.setAttribute("pointer-events", "none");
   gRope.appendChild(ropeFallback);
-  gRope.appendChild(img(CFG.assets.rope, 20, CFG.wireY - ropeH / 2, VB_W - 40, ropeH));
+  gRope.appendChild(imageWithFallback(CFG.assets.rope, 20, CFG.wireY - ropeH / 2, VB_W - 40, ropeH, "", ropeFallback));
 
   // Valgfritt: lette gruppedelere (hver groupSize)
   if ((_CFG$ui = CFG.ui) !== null && _CFG$ui !== void 0 && _CFG$ui.showGroupTicks) {
@@ -325,7 +325,7 @@ function layout() {
   styleClipFallback(clipFallback, CLIP_W);
   clipFallback.setAttribute("pointer-events", "none");
   gClip.appendChild(clipFallback);
-  gClip.appendChild(img(CFG.assets.clip, -CLIP_W / 2, CFG.wireY - CLIP_H, CLIP_W, CLIP_H));
+  gClip.appendChild(imageWithFallback(CFG.assets.clip, -CLIP_W / 2, CFG.wireY - CLIP_H, CLIP_W, CLIP_H, "", clipFallback));
   const touchPadX = Math.max(gap * 0.75, CLIP_W * 0.15);
   const touchPadTop = CLIP_H * 0.35;
   const touchPadBottom = CLIP_H * 0.35;
@@ -633,6 +633,26 @@ function img(href, x, y, w, h, cls = "") {
     height: h,
     class: cls
   });
+}
+function imageWithFallback(href, x, y, w, h, cls = "", fallbackEl) {
+  const imageEl = img(href, x, y, w, h, cls);
+  if (fallbackEl) {
+    const showFallback = () => fallbackEl.removeAttribute("visibility");
+    const hideFallback = () => fallbackEl.setAttribute("visibility", "hidden");
+    showFallback();
+    imageEl.addEventListener("load", hideFallback, {
+      once: true
+    });
+    imageEl.addEventListener("error", showFallback, {
+      once: true
+    });
+    if (typeof imageEl.decode === "function") {
+      imageEl.decode().then(hideFallback).catch(() => {
+        showFallback();
+      });
+    }
+  }
+  return imageEl;
 }
 function rect(x, y, w, h, attrs) {
   return mk("rect", {
