@@ -133,13 +133,19 @@ function getRowSpanRatios(block, options = {}) {
   };
 }
 
+function blockAllowsWholeBrace(cfg) {
+  if (!cfg || typeof cfg !== 'object') return false;
+  if (cfg.showWhole !== true) return false;
+  const blockHidden = cfg.hideBlock === true;
+  if (multipleBlocksActive && !blockHidden) return false;
+  return true;
+}
+
 function blockNeedsFullPadding(block) {
   var _block$cfg;
   if (!block) return anyBlockNeedsFullPadding();
   const cfg = (_block$cfg = block.cfg) !== null && _block$cfg !== void 0 ? _block$cfg : null;
-  if (!cfg || typeof cfg !== 'object') return false;
-  if (cfg.hideBlock && !cfg.showWhole) return false;
-  return cfg.showWhole === true;
+  return blockAllowsWholeBrace(cfg);
 }
 
 function anyBlockNeedsFullPadding() {
@@ -148,8 +154,7 @@ function anyBlockNeedsFullPadding() {
     if (!Array.isArray(row)) continue;
     for (const cell of row) {
       if (!cell || typeof cell !== 'object') continue;
-      if (cell.hideBlock && !cell.showWhole) continue;
-      if (cell.showWhole) return true;
+      if (blockAllowsWholeBrace(cell)) return true;
     }
   }
   return false;
