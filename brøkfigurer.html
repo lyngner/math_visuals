@@ -177,9 +177,18 @@
         <div class="card card--settings">
           <fieldset>
             <legend>Globale innstillinger</legend>
-            <label class="checkbox"><input id="allowWrong" type="checkbox" /> <span>Tillat gale illustrasjoner</span></label>
-            <label class="checkbox"><input id="showDivisionLines" type="checkbox" checked /> <span>Vis hjelpelinjer</span></label>
-            <label class="checkbox"><input id="showOutline" type="checkbox" checked /> <span>Vis omriss</span></label>
+            <div class="checkbox-row">
+              <input id="allowWrong" type="checkbox" />
+              <label for="allowWrong">Tillat gale illustrasjoner</label>
+            </div>
+            <div class="checkbox-row">
+              <input id="showDivisionLines" type="checkbox" checked />
+              <label for="showDivisionLines">Vis hjelpelinjer</label>
+            </div>
+            <div class="checkbox-row">
+              <input id="showOutline" type="checkbox" checked />
+              <label for="showOutline">Vis omriss</label>
+            </div>
             <div class="settings-divider" aria-hidden="true"></div>
             <label>Antall farger
               <input id="colorCount" class="input--digit" type="number" min="1" max="6" value="1" />
