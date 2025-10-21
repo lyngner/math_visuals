@@ -113,7 +113,8 @@ function getRowSpanRatios(block, options = {}) {
   let compactApplied = false;
   const horizontalOverlayActive = multipleBlocksActive && CONFIG.showCombinedWhole;
   const requireFullPadding = forLayout ? anyBlockNeedsFullPadding() : blockNeedsFullPadding(block);
-  const allowCompact = !horizontalOverlayActive && !requireFullPadding;
+  const enforceUniformHeights = true; // Always use the same height for every block.
+  const allowCompact = !enforceUniformHeights && !horizontalOverlayActive && !requireFullPadding;
   if (allowCompact) {
     const compactTop = clamp(COMPACT_TOP_RATIO, 0, 1 - MIN_SPAN_RATIO);
     const compactBottom = clamp(COMPACT_BOTTOM_RATIO, compactTop + MIN_SPAN_RATIO, 1);
