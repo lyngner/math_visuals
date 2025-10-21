@@ -724,6 +724,20 @@ const STYLE = {
   ...STYLE_DEFAULTS
 };
 
+let currentTextScale = 1;
+
+function pushTextScale(renderScale) {
+  const previousScale = currentTextScale;
+  if (Number.isFinite(renderScale) && renderScale > 0) {
+    currentTextScale = 1 / renderScale;
+  } else {
+    currentTextScale = 1;
+  }
+  return () => {
+    currentTextScale = previousScale;
+  };
+}
+
 function getThemeApi() {
   const theme = typeof window !== "undefined" ? window.MathVisualsTheme : null;
   return theme && typeof theme === "object" ? theme : null;
@@ -886,11 +900,14 @@ function unitVec(A, B) {
   };
 }
 function addHaloText(parent, x, y, txt, fontSizePx, extraAttrs = {}) {
+  const baseSize = typeof fontSizePx === "number" ? fontSizePx : Number(fontSizePx);
+  const scale = Number.isFinite(currentTextScale) && currentTextScale > 0 ? currentTextScale : 1;
+  const effectiveFontSize = Number.isFinite(baseSize) ? baseSize * scale : fontSizePx;
   const t = add(parent, "text", {
     x,
     y,
     fill: STYLE.textFill,
-    "font-size": fontSizePx,
+    "font-size": effectiveFontSize,
     "font-family": STYLE.fontFamily,
   });
   if (STYLE.textHalo && STYLE.textHaloW > 0) {
@@ -2715,146 +2732,151 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
     T,
     k: renderScale
   } = fitTransformToRect(fitPts, rect.w, rect.h, 46);
-  const A = shift(T(A0), rect),
-    B = shift(T(B0), rect),
-    C = shift(T(C0), rect),
-    poly = [A, B, C];
-  add(g, "polygon", {
-    points: ptsTo(poly),
-    fill: STYLE.faceFill,
-    stroke: "none"
-  });
-  const ctr = polygonCentroid(poly);
-  const pointsMap = {
-    A,
-    B,
-    C
-  };
-  const heightInfos = collectHeightInfos(pointsMap, decorations);
-  const activeHeight = heightInfos.length ? heightInfos[0] : null;
-  let heightPoint = null;
-  let heightTag = null;
-  let heightLength = null;
-  let baseForAngle = null;
-  let heightAngleValue = null;
-  let heightAngleMode = null;
-  if (activeHeight) {
-    heightPoint = activeHeight.foot;
-    heightTag = activeHeight.tag;
-    pointsMap.D = heightPoint;
-    const vertex = activeHeight.vertex;
-    const pixelHeight = dist(vertex, heightPoint);
-    const scale = renderScale > 0 ? renderScale : 1;
-    heightLength = pixelHeight / scale;
-    const [baseA, baseB] = activeHeight.basePoints;
-    const distToA = dist(baseA, vertex);
-    const distToB = dist(baseB, vertex);
-    baseForAngle = distToA <= distToB ? baseA : baseB;
-    heightAngleValue = angleAt(heightPoint, baseForAngle, vertex);
-    const am = adv.angles.mode,
-      at = adv.angles.text;
-    heightAngleMode = parseAnglePointMode((_am$D = am.D) !== null && _am$D !== void 0 ? _am$D : am.default, heightAngleValue, at.D, "D");
-    drawConstructionLine(g, vertex, heightPoint);
-    if (heightAngleMode.mark) {
-      const baseDir = {
-        x: activeHeight.basePoints[1].x - activeHeight.basePoints[0].x,
-        y: activeHeight.basePoints[1].y - activeHeight.basePoints[0].y
-      };
-      const altDir = {
-        x: vertex.x - heightPoint.x,
-        y: vertex.y - heightPoint.y
-      };
-      const shouldDrawMarker = !(heightAngleMode.angleText || heightAngleMode.pointLabel);
-      if (shouldDrawMarker) {
-        drawRightAngleMarker(g, heightPoint, baseDir, altDir);
+  const restoreTextScale = pushTextScale(renderScale);
+  try {
+    const A = shift(T(A0), rect),
+      B = shift(T(B0), rect),
+      C = shift(T(C0), rect),
+      poly = [A, B, C];
+    add(g, "polygon", {
+      points: ptsTo(poly),
+      fill: STYLE.faceFill,
+      stroke: "none"
+    });
+    const ctr = polygonCentroid(poly);
+    const pointsMap = {
+      A,
+      B,
+      C
+    };
+    const heightInfos = collectHeightInfos(pointsMap, decorations);
+    const activeHeight = heightInfos.length ? heightInfos[0] : null;
+    let heightPoint = null;
+    let heightTag = null;
+    let heightLength = null;
+    let baseForAngle = null;
+    let heightAngleValue = null;
+    let heightAngleMode = null;
+    if (activeHeight) {
+      heightPoint = activeHeight.foot;
+      heightTag = activeHeight.tag;
+      pointsMap.D = heightPoint;
+      const vertex = activeHeight.vertex;
+      const pixelHeight = dist(vertex, heightPoint);
+      const scale = renderScale > 0 ? renderScale : 1;
+      heightLength = pixelHeight / scale;
+      const [baseA, baseB] = activeHeight.basePoints;
+      const distToA = dist(baseA, vertex);
+      const distToB = dist(baseB, vertex);
+      baseForAngle = distToA <= distToB ? baseA : baseB;
+      heightAngleValue = angleAt(heightPoint, baseForAngle, vertex);
+      const am = adv.angles.mode,
+        at = adv.angles.text;
+      heightAngleMode = parseAnglePointMode((_am$D = am.D) !== null && _am$D !== void 0 ? _am$D : am.default, heightAngleValue, at.D, "D");
+      drawConstructionLine(g, vertex, heightPoint);
+      if (heightAngleMode.mark) {
+        const baseDir = {
+          x: activeHeight.basePoints[1].x - activeHeight.basePoints[0].x,
+          y: activeHeight.basePoints[1].y - activeHeight.basePoints[0].y
+        };
+        const altDir = {
+          x: vertex.x - heightPoint.x,
+          y: vertex.y - heightPoint.y
+        };
+        const shouldDrawMarker = !(heightAngleMode.angleText || heightAngleMode.pointLabel);
+        if (shouldDrawMarker) {
+          drawRightAngleMarker(g, heightPoint, baseDir, altDir);
+        }
       }
     }
-  }
 
-  // sider
-  const m = adv.sides.mode,
-    st = adv.sides.text;
-  sideLabelText(g, B, C, buildSideText((_m$a = m.a) !== null && _m$a !== void 0 ? _m$a : m.default, fmt(sol.a), st.a), true, ctr);
-  sideLabelText(g, C, A, buildSideText((_m$b = m.b) !== null && _m$b !== void 0 ? _m$b : m.default, fmt(sol.b), st.b), true, ctr);
-  sideLabelText(g, A, B, buildSideText((_m$c = m.c) !== null && _m$c !== void 0 ? _m$c : m.default, fmt(sol.c), st.c), true, ctr);
-  if (activeHeight && heightLength !== null) {
-    const heightText = buildSideText((_m$d = m.d) !== null && _m$d !== void 0 ? _m$d : m.default, fmt(heightLength), st.d);
-    if (heightText) {
-      sideLabelText(g, activeHeight.vertex, heightPoint, heightText, true, ctr, 12);
+    // sider
+    const m = adv.sides.mode,
+      st = adv.sides.text;
+    sideLabelText(g, B, C, buildSideText((_m$a = m.a) !== null && _m$a !== void 0 ? _m$a : m.default, fmt(sol.a), st.a), true, ctr);
+    sideLabelText(g, C, A, buildSideText((_m$b = m.b) !== null && _m$b !== void 0 ? _m$b : m.default, fmt(sol.b), st.b), true, ctr);
+    sideLabelText(g, A, B, buildSideText((_m$c = m.c) !== null && _m$c !== void 0 ? _m$c : m.default, fmt(sol.c), st.c), true, ctr);
+    if (activeHeight && heightLength !== null) {
+      const heightText = buildSideText((_m$d = m.d) !== null && _m$d !== void 0 ? _m$d : m.default, fmt(heightLength), st.d);
+      if (heightText) {
+        sideLabelText(g, activeHeight.vertex, heightPoint, heightText, true, ctr, 12);
+      }
     }
-  }
 
-  // vinkler/punkter
-  const am = adv.angles.mode,
-    at = adv.angles.text;
-  const angleAVal = angleAt(A, B, C);
-  const angleBVal = angleAt(B, C, A);
-  const angleCVal = angleAt(C, A, B);
-  const Ares = parseAnglePointMode((_am$A = am.A) !== null && _am$A !== void 0 ? _am$A : am.default, angleAVal, at.A, "A");
-  const Bres = parseAnglePointMode((_am$B = am.B) !== null && _am$B !== void 0 ? _am$B : am.default, angleBVal, at.B, "B");
-  const Cres = parseAnglePointMode((_am$C = am.C) !== null && _am$C !== void 0 ? _am$C : am.default, angleCVal, at.C, "C");
-  if (activeHeight && heightAngleMode && (heightAngleMode.mark || heightAngleMode.angleText || heightAngleMode.pointLabel)) {
-    renderAngle(g, heightPoint, baseForAngle, activeHeight.vertex, angleRadius(heightPoint, baseForAngle, activeHeight.vertex), {
-      mark: heightAngleMode.mark,
-      angleText: heightAngleMode.angleText,
-      pointLabel: heightAngleMode.pointLabel
+    // vinkler/punkter
+    const am = adv.angles.mode,
+      at = adv.angles.text;
+    const angleAVal = angleAt(A, B, C);
+    const angleBVal = angleAt(B, C, A);
+    const angleCVal = angleAt(C, A, B);
+    const Ares = parseAnglePointMode((_am$A = am.A) !== null && _am$A !== void 0 ? _am$A : am.default, angleAVal, at.A, "A");
+    const Bres = parseAnglePointMode((_am$B = am.B) !== null && _am$B !== void 0 ? _am$B : am.default, angleBVal, at.B, "B");
+    const Cres = parseAnglePointMode((_am$C = am.C) !== null && _am$C !== void 0 ? _am$C : am.default, angleCVal, at.C, "C");
+    if (activeHeight && heightAngleMode && (heightAngleMode.mark || heightAngleMode.angleText || heightAngleMode.pointLabel)) {
+      renderAngle(g, heightPoint, baseForAngle, activeHeight.vertex, angleRadius(heightPoint, baseForAngle, activeHeight.vertex), {
+        mark: heightAngleMode.mark,
+        angleText: heightAngleMode.angleText,
+        pointLabel: heightAngleMode.pointLabel
+      });
+    }
+    renderAngle(g, A, B, C, angleRadius(A, B, C), {
+      mark: Ares.mark,
+      angleText: Ares.angleText,
+      pointLabel: Ares.pointLabel
     });
-  }
-  renderAngle(g, A, B, C, angleRadius(A, B, C), {
-    mark: Ares.mark,
-    angleText: Ares.angleText,
-    pointLabel: Ares.pointLabel
-  });
-  renderAngle(g, B, C, A, angleRadius(B, C, A), {
-    mark: Bres.mark,
-    angleText: Bres.angleText,
-    pointLabel: Bres.pointLabel
-  });
-  renderAngle(g, C, A, B, angleRadius(C, A, B), {
-    mark: Cres.mark,
-    angleText: Cres.angleText,
-    pointLabel: Cres.pointLabel
-  });
-  add(g, "polygon", {
-    points: ptsTo(poly),
-    fill: "none",
-    stroke: STYLE.edgeStroke,
-    "stroke-width": STYLE.edgeWidth,
-    "stroke-linejoin": "round",
-    "stroke-linecap": "round"
-  });
-  const skipHeights = heightTag ? new Set([heightTag]) : null;
-  renderDecorations(g, pointsMap, decorations, {
-    skipHeights,
-    centroid: ctr,
-    pointOrder: ['A', 'B', 'C']
-  });
-  const summary = cloneJobForSummary({
-    type: 'tri',
-    obj: {
-      a: sol.a,
-      b: sol.b,
-      c: sol.c,
-      d: heightLength,
-      A: angleAVal,
-      B: angleBVal,
-      C: angleCVal,
-      D: heightAngleValue
-    },
-    decorations
-  });
-  if (summary) {
-    const entries = [
-      ['A', Ares, angleAVal],
-      ['B', Bres, angleBVal],
-      ['C', Cres, angleCVal]
-    ];
-    if (activeHeight && heightAngleMode) {
-      entries.push(['D', heightAngleMode, heightAngleValue]);
+    renderAngle(g, B, C, A, angleRadius(B, C, A), {
+      mark: Bres.mark,
+      angleText: Bres.angleText,
+      pointLabel: Bres.pointLabel
+    });
+    renderAngle(g, C, A, B, angleRadius(C, A, B), {
+      mark: Cres.mark,
+      angleText: Cres.angleText,
+      pointLabel: Cres.pointLabel
+    });
+    add(g, "polygon", {
+      points: ptsTo(poly),
+      fill: "none",
+      stroke: STYLE.edgeStroke,
+      "stroke-width": STYLE.edgeWidth,
+      "stroke-linejoin": "round",
+      "stroke-linecap": "round"
+    });
+    const skipHeights = heightTag ? new Set([heightTag]) : null;
+    renderDecorations(g, pointsMap, decorations, {
+      skipHeights,
+      centroid: ctr,
+      pointOrder: ['A', 'B', 'C']
+    });
+    const summary = cloneJobForSummary({
+      type: 'tri',
+      obj: {
+        a: sol.a,
+        b: sol.b,
+        c: sol.c,
+        d: heightLength,
+        A: angleAVal,
+        B: angleBVal,
+        C: angleCVal,
+        D: heightAngleValue
+      },
+      decorations
+    });
+    if (summary) {
+      const entries = [
+        ['A', Ares, angleAVal],
+        ['B', Bres, angleBVal],
+        ['C', Cres, angleCVal]
+      ];
+      if (activeHeight && heightAngleMode) {
+        entries.push(['D', heightAngleMode, heightAngleValue]);
+      }
+      summary.angleMarks = buildAngleMarkSummary(entries);
     }
-    summary.angleMarks = buildAngleMarkSummary(entries);
+    return summary;
+  } finally {
+    restoreTextScale();
   }
-  return summary;
 }
 
 function rotateTriangleSolution(sol, rotation) {
@@ -3032,174 +3054,179 @@ function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations) {
   const basePts = [A0, B0, C0, D0];
   const extraPts = semicircleExtents.concat(squareExtents);
   const fitPts = extraPts.length ? basePts.concat(extraPts) : basePts;
-  const { T } = fitTransformToRect(fitPts, rect.w, rect.h, 46);
-  const A = shift(T(A0), rect);
-  const B = shift(T(B0), rect);
-  const C = shift(T(C0), rect);
-  const D = shift(T(D0), rect);
-  const topPoly = [A, B, C];
-  const bottomPoly = [A, B, D];
-  add(g, 'polygon', {
-    points: ptsTo(bottomPoly),
-    fill: STYLE.faceFill,
-    stroke: 'none'
-  });
-  add(g, 'polygon', {
-    points: ptsTo(topPoly),
-    fill: STYLE.faceFill,
-    stroke: 'none'
-  });
-  const edges = [
-    [A, B],
-    [B, C],
-    [C, A],
-    [B, D],
-    [D, A]
-  ];
-  edges.forEach(([P, Q]) => {
-    add(g, 'line', {
-      x1: P.x,
-      y1: P.y,
-      x2: Q.x,
-      y2: Q.y,
-      stroke: STYLE.edgeStroke,
-      'stroke-width': STYLE.edgeWidth,
-      'stroke-linecap': 'round'
+  const { T, k: renderScale } = fitTransformToRect(fitPts, rect.w, rect.h, 46);
+  const restoreTextScale = pushTextScale(renderScale);
+  try {
+    const A = shift(T(A0), rect);
+    const B = shift(T(B0), rect);
+    const C = shift(T(C0), rect);
+    const D = shift(T(D0), rect);
+    const topPoly = [A, B, C];
+    const bottomPoly = [A, B, D];
+    add(g, 'polygon', {
+      points: ptsTo(bottomPoly),
+      fill: STYLE.faceFill,
+      stroke: 'none'
     });
-  });
-  const advSides = adv && adv.sides ? adv.sides : { mode: {}, text: {} };
-  const advAngles = adv && adv.angles ? adv.angles : { mode: {}, text: {} };
-  const centroidTop = polygonCentroid(topPoly);
-  const centroidBottom = polygonCentroid(bottomPoly);
-  const sharedLabel = typeof sharedSpec.label === 'string' ? sharedSpec.label.trim() : '';
-  const baseMode = advSides.mode && advSides.mode.c ? advSides.mode.c : advSides.mode && advSides.mode.default;
-  const baseCustom = advSides.text && typeof advSides.text.c === 'string' && advSides.text.c.trim() ? advSides.text.c : (sharedLabel || 'c');
-  const baseValueStr = fmt(firstSol.c);
-  const baseText = buildSideText(baseMode, baseValueStr, baseCustom);
-  if (baseText) {
-    sideLabelText(g, A, B, baseText, true, centroidTop, 24);
-  }
-  const sideMode = key => advSides.mode && advSides.mode[key] ? advSides.mode[key] : advSides.mode && advSides.mode.default;
-  const sideText = (key, fallback) => {
-    const txt = advSides.text && advSides.text[key];
-    if (typeof txt === 'string' && txt.trim()) return txt;
-    return fallback;
-  };
-  const topAVal = fmt(firstSol.a);
-  const topBVal = fmt(firstSol.b);
-  const topAText = buildSideText(sideMode('a'), topAVal, sideText('a', 'a'));
-  if (topAText) sideLabelText(g, B, C, topAText, true, centroidTop);
-  const topBText = buildSideText(sideMode('b'), topBVal, sideText('b', 'b'));
-  if (topBText) sideLabelText(g, A, C, topBText, true, centroidTop);
-  const bottomAVal = fmt(secondSol.a);
-  const bottomBVal = fmt(secondSol.b);
-  const bottomAText = buildSideText(sideMode('d'), bottomAVal, sideText('d', 'a₂'));
-  if (bottomAText) sideLabelText(g, B, D, bottomAText, true, centroidBottom);
-  const bottomBText = buildSideText(sideMode('e'), bottomBVal, sideText('e', 'b₂'));
-  if (bottomBText) sideLabelText(g, A, D, bottomBText, true, centroidBottom);
-  const angleMode = key => advAngles.mode && advAngles.mode[key] ? advAngles.mode[key] : advAngles.mode && advAngles.mode.default;
-  const angleText = key => advAngles.text && advAngles.text[key];
-  const AresTop = parseAnglePointMode(angleMode('A'), firstSol.A, angleText('A'), 'A');
-  const BresTop = parseAnglePointMode(angleMode('B'), firstSol.B, angleText('B'), 'B');
-  const CresTop = parseAnglePointMode(angleMode('C'), firstSol.C, angleText('C'), 'C');
-  renderAngle(g, B, A, C, angleRadius(B, A, C), {
-    mark: AresTop.mark,
-    angleText: AresTop.angleText,
-    pointLabel: AresTop.pointLabel
-  });
-  renderAngle(g, A, B, C, angleRadius(A, B, C), {
-    mark: BresTop.mark,
-    angleText: BresTop.angleText,
-    pointLabel: BresTop.pointLabel
-  });
-  renderAngle(g, A, C, B, angleRadius(A, C, B), {
-    mark: CresTop.mark,
-    angleText: CresTop.angleText,
-    pointLabel: CresTop.pointLabel
-  });
-  const AresBottom = parseAnglePointMode(angleMode('A'), secondSol.A, angleText('A'), 'A');
-  const BresBottom = parseAnglePointMode(angleMode('B'), secondSol.B, angleText('B'), 'B');
-  const DresBottom = parseAnglePointMode(angleMode('D'), secondSol.C, angleText('D'), 'D');
-  renderAngle(g, B, A, D, angleRadius(B, A, D), {
-    mark: AresBottom.mark,
-    angleText: AresBottom.angleText,
-    pointLabel: AresBottom.pointLabel
-  });
-  renderAngle(g, A, B, D, angleRadius(A, B, D), {
-    mark: BresBottom.mark,
-    angleText: BresBottom.angleText,
-    pointLabel: BresBottom.pointLabel
-  });
-  renderAngle(g, A, D, B, angleRadius(A, D, B), {
-    mark: DresBottom.mark,
-    angleText: DresBottom.angleText,
-    pointLabel: DresBottom.pointLabel
-  });
-  const pointsMap = { A, B, C, D };
-  if (decorations && decorations.length) {
-    const decoCentroid = centroidFromPointMap(pointsMap, ['A', 'B', 'C', 'D']);
-    renderDecorations(g, pointsMap, decorations, {
-      centroid: decoCentroid,
-      pointOrder: ['A', 'B', 'C', 'D']
+    add(g, 'polygon', {
+      points: ptsTo(topPoly),
+      fill: STYLE.faceFill,
+      stroke: 'none'
     });
-  }
-  const angleMarksTop = buildAngleMarkSummary([
-    ['A', AresTop, firstSol.A],
-    ['B', BresTop, firstSol.B],
-    ['C', CresTop, firstSol.C]
-  ]);
-  const angleMarksBottom = buildAngleMarkSummary([
-    ['A', AresBottom, secondSol.A],
-    ['B', BresBottom, secondSol.B],
-    ['D', DresBottom, secondSol.C]
-  ]);
-  const angleMarks = { ...angleMarksTop };
-  Object.entries(angleMarksBottom).forEach(([key, info]) => {
-    if (!info) return;
-    if (!angleMarks[key]) {
-      angleMarks[key] = { ...info };
-    } else {
-      angleMarks[key] = {
-        label: info.label || angleMarks[key].label,
-        marked: Boolean((angleMarks[key] && angleMarks[key].marked) || info.marked),
-        right: Boolean((angleMarks[key] && angleMarks[key].right) || info.right)
-      };
-      if (!angleMarks[key].label && angleMarksTop[key]) {
-        angleMarks[key].label = angleMarksTop[key].label;
-      }
+    const edges = [
+      [A, B],
+      [B, C],
+      [C, A],
+      [B, D],
+      [D, A]
+    ];
+    edges.forEach(([P, Q]) => {
+      add(g, 'line', {
+        x1: P.x,
+        y1: P.y,
+        x2: Q.x,
+        y2: Q.y,
+        stroke: STYLE.edgeStroke,
+        'stroke-width': STYLE.edgeWidth,
+        'stroke-linecap': 'round'
+      });
+    });
+    const advSides = adv && adv.sides ? adv.sides : { mode: {}, text: {} };
+    const advAngles = adv && adv.angles ? adv.angles : { mode: {}, text: {} };
+    const centroidTop = polygonCentroid(topPoly);
+    const centroidBottom = polygonCentroid(bottomPoly);
+    const sharedLabel = typeof sharedSpec.label === 'string' ? sharedSpec.label.trim() : '';
+    const baseMode = advSides.mode && advSides.mode.c ? advSides.mode.c : advSides.mode && advSides.mode.default;
+    const baseCustom = advSides.text && typeof advSides.text.c === 'string' && advSides.text.c.trim() ? advSides.text.c : (sharedLabel || 'c');
+    const baseValueStr = fmt(firstSol.c);
+    const baseText = buildSideText(baseMode, baseValueStr, baseCustom);
+    if (baseText) {
+      sideLabelText(g, A, B, baseText, true, centroidTop, 24);
     }
-  });
-  const summary = cloneJobForSummary({
-    type: 'doubleTri',
-    obj: {
-      shared: {
-        label: sharedLabel,
-        value: firstSol.c,
-        requested: Boolean(sharedSpec && sharedSpec.requested)
-      },
-      first: {
-        a: firstSol.a,
-        b: firstSol.b,
-        c: firstSol.c,
-        A: firstSol.A,
-        B: firstSol.B,
-        C: firstSol.C
-      },
-      second: {
-        a: secondSol.a,
-        b: secondSol.b,
-        c: secondSol.c,
-        A: secondSol.A,
-        B: secondSol.B,
-        D: secondSol.C
+    const sideMode = key => advSides.mode && advSides.mode[key] ? advSides.mode[key] : advSides.mode && advSides.mode.default;
+    const sideText = (key, fallback) => {
+      const txt = advSides.text && advSides.text[key];
+      if (typeof txt === 'string' && txt.trim()) return txt;
+      return fallback;
+    };
+    const topAVal = fmt(firstSol.a);
+    const topBVal = fmt(firstSol.b);
+    const topAText = buildSideText(sideMode('a'), topAVal, sideText('a', 'a'));
+    if (topAText) sideLabelText(g, B, C, topAText, true, centroidTop);
+    const topBText = buildSideText(sideMode('b'), topBVal, sideText('b', 'b'));
+    if (topBText) sideLabelText(g, A, C, topBText, true, centroidTop);
+    const bottomAVal = fmt(secondSol.a);
+    const bottomBVal = fmt(secondSol.b);
+    const bottomAText = buildSideText(sideMode('d'), bottomAVal, sideText('d', 'a₂'));
+    if (bottomAText) sideLabelText(g, B, D, bottomAText, true, centroidBottom);
+    const bottomBText = buildSideText(sideMode('e'), bottomBVal, sideText('e', 'b₂'));
+    if (bottomBText) sideLabelText(g, A, D, bottomBText, true, centroidBottom);
+    const angleMode = key => advAngles.mode && advAngles.mode[key] ? advAngles.mode[key] : advAngles.mode && advAngles.mode.default;
+    const angleText = key => advAngles.text && advAngles.text[key];
+    const AresTop = parseAnglePointMode(angleMode('A'), firstSol.A, angleText('A'), 'A');
+    const BresTop = parseAnglePointMode(angleMode('B'), firstSol.B, angleText('B'), 'B');
+    const CresTop = parseAnglePointMode(angleMode('C'), firstSol.C, angleText('C'), 'C');
+    renderAngle(g, B, A, C, angleRadius(B, A, C), {
+      mark: AresTop.mark,
+      angleText: AresTop.angleText,
+      pointLabel: AresTop.pointLabel
+    });
+    renderAngle(g, A, B, C, angleRadius(A, B, C), {
+      mark: BresTop.mark,
+      angleText: BresTop.angleText,
+      pointLabel: BresTop.pointLabel
+    });
+    renderAngle(g, A, C, B, angleRadius(A, C, B), {
+      mark: CresTop.mark,
+      angleText: CresTop.angleText,
+      pointLabel: CresTop.pointLabel
+    });
+    const AresBottom = parseAnglePointMode(angleMode('A'), secondSol.A, angleText('A'), 'A');
+    const BresBottom = parseAnglePointMode(angleMode('B'), secondSol.B, angleText('B'), 'B');
+    const DresBottom = parseAnglePointMode(angleMode('D'), secondSol.C, angleText('D'), 'D');
+    renderAngle(g, B, A, D, angleRadius(B, A, D), {
+      mark: AresBottom.mark,
+      angleText: AresBottom.angleText,
+      pointLabel: AresBottom.pointLabel
+    });
+    renderAngle(g, A, B, D, angleRadius(A, B, D), {
+      mark: BresBottom.mark,
+      angleText: BresBottom.angleText,
+      pointLabel: BresBottom.pointLabel
+    });
+    renderAngle(g, A, D, B, angleRadius(A, D, B), {
+      mark: DresBottom.mark,
+      angleText: DresBottom.angleText,
+      pointLabel: DresBottom.pointLabel
+    });
+    const pointsMap = { A, B, C, D };
+    if (decorations && decorations.length) {
+      const decoCentroid = centroidFromPointMap(pointsMap, ['A', 'B', 'C', 'D']);
+      renderDecorations(g, pointsMap, decorations, {
+        centroid: decoCentroid,
+        pointOrder: ['A', 'B', 'C', 'D']
+      });
+    }
+    const angleMarksTop = buildAngleMarkSummary([
+      ['A', AresTop, firstSol.A],
+      ['B', BresTop, firstSol.B],
+      ['C', CresTop, firstSol.C]
+    ]);
+    const angleMarksBottom = buildAngleMarkSummary([
+      ['A', AresBottom, secondSol.A],
+      ['B', BresBottom, secondSol.B],
+      ['D', DresBottom, secondSol.C]
+    ]);
+    const angleMarks = { ...angleMarksTop };
+    Object.entries(angleMarksBottom).forEach(([key, info]) => {
+      if (!info) return;
+      if (!angleMarks[key]) {
+        angleMarks[key] = { ...info };
+      } else {
+        angleMarks[key] = {
+          label: info.label || angleMarks[key].label,
+          marked: Boolean((angleMarks[key] && angleMarks[key].marked) || info.marked),
+          right: Boolean((angleMarks[key] && angleMarks[key].right) || info.right)
+        };
+        if (!angleMarks[key].label && angleMarksTop[key]) {
+          angleMarks[key].label = angleMarksTop[key].label;
+        }
       }
-    },
-    decorations
-  });
-  if (summary) {
-    summary.angleMarks = angleMarks;
+    });
+    const summary = cloneJobForSummary({
+      type: 'doubleTri',
+      obj: {
+        shared: {
+          label: sharedLabel,
+          value: firstSol.c,
+          requested: Boolean(sharedSpec && sharedSpec.requested)
+        },
+        first: {
+          a: firstSol.a,
+          b: firstSol.b,
+          c: firstSol.c,
+          A: firstSol.A,
+          B: firstSol.B,
+          C: firstSol.C
+        },
+        second: {
+          a: secondSol.a,
+          b: secondSol.b,
+          c: secondSol.c,
+          A: secondSol.A,
+          B: secondSol.B,
+          D: secondSol.C
+        }
+      },
+      decorations
+    });
+    if (summary) {
+      summary.angleMarks = angleMarks;
+    }
+    return summary;
+  } finally {
+    restoreTextScale();
   }
-  return summary;
 }
 function drawQuadToGroup(g, rect, spec, adv, decorations) {
   var _m$a2, _m$b2, _m$c2, _m$d, _am$A2, _am$B2, _am$C2, _am$D;
@@ -3318,99 +3345,105 @@ function drawQuadToGroup(g, rect, spec, adv, decorations) {
   const extraPts = semicircleExtents.concat(squareExtents);
   const fitPts = extraPts.length ? base.concat(extraPts) : base;
   const {
-    T
+    T,
+    k: renderScale
   } = fitTransformToRect(fitPts, rect.w, rect.h, 46);
-  const A = shift(T(A0), rect),
-    B = shift(T(B0), rect),
-    C = shift(T(C0), rect),
-    D = shift(T(D0), rect);
-  const poly = [A, B, C, D];
-  add(g, "polygon", {
-    points: ptsTo(poly),
-    fill: STYLE.faceFill,
-    stroke: "none"
-  });
-  const ctr = polygonCentroid(poly);
+  const restoreTextScale = pushTextScale(renderScale);
+  try {
+    const A = shift(T(A0), rect),
+      B = shift(T(B0), rect),
+      C = shift(T(C0), rect),
+      D = shift(T(D0), rect);
+    const poly = [A, B, C, D];
+    add(g, "polygon", {
+      points: ptsTo(poly),
+      fill: STYLE.faceFill,
+      stroke: "none"
+    });
+    const ctr = polygonCentroid(poly);
 
-  // sider
-  const m = adv.sides.mode,
-    st = adv.sides.text;
-  sideLabelText(g, A, B, buildSideText((_m$a2 = m.a) !== null && _m$a2 !== void 0 ? _m$a2 : m.default, fmt(a), st.a), true, ctr);
-  sideLabelText(g, B, C, buildSideText((_m$b2 = m.b) !== null && _m$b2 !== void 0 ? _m$b2 : m.default, fmt(b), st.b), true, ctr);
-  sideLabelText(g, C, D, buildSideText((_m$c2 = m.c) !== null && _m$c2 !== void 0 ? _m$c2 : m.default, fmt(c), st.c), true, ctr);
-  sideLabelText(g, D, A, buildSideText((_m$d = m.d) !== null && _m$d !== void 0 ? _m$d : m.default, fmt(d), st.d), true, ctr);
+    // sider
+    const m = adv.sides.mode,
+      st = adv.sides.text;
+    sideLabelText(g, A, B, buildSideText((_m$a2 = m.a) !== null && _m$a2 !== void 0 ? _m$a2 : m.default, fmt(a), st.a), true, ctr);
+    sideLabelText(g, B, C, buildSideText((_m$b2 = m.b) !== null && _m$b2 !== void 0 ? _m$b2 : m.default, fmt(b), st.b), true, ctr);
+    sideLabelText(g, C, D, buildSideText((_m$c2 = m.c) !== null && _m$c2 !== void 0 ? _m$c2 : m.default, fmt(c), st.c), true, ctr);
+    sideLabelText(g, D, A, buildSideText((_m$d = m.d) !== null && _m$d !== void 0 ? _m$d : m.default, fmt(d), st.d), true, ctr);
 
-  // vinkler/punkter
-  const am = adv.angles.mode,
-    at = adv.angles.text;
-  const angleAVal = angleAt(A, D, B);
-  const angleBVal = angleAt(B, A, C);
-  const angleCVal = angleAt(C, B, D);
-  const angleDVal = angleAt(D, C, A);
-  const Ares = parseAnglePointMode((_am$A2 = am.A) !== null && _am$A2 !== void 0 ? _am$A2 : am.default, angleAVal, at.A, "A");
-  const Bres = parseAnglePointMode((_am$B2 = am.B) !== null && _am$B2 !== void 0 ? _am$B2 : am.default, angleBVal, at.B, "B");
-  const Cres = parseAnglePointMode((_am$C2 = am.C) !== null && _am$C2 !== void 0 ? _am$C2 : am.default, angleCVal, at.C, "C");
-  const Dres = parseAnglePointMode((_am$D = am.D) !== null && _am$D !== void 0 ? _am$D : am.default, angleDVal, at.D, "D");
-  renderAngle(g, A, D, B, angleRadius(A, D, B), {
-    mark: Ares.mark,
-    angleText: Ares.angleText,
-    pointLabel: Ares.pointLabel
-  });
-  renderAngle(g, B, A, C, angleRadius(B, A, C), {
-    mark: Bres.mark,
-    angleText: Bres.angleText,
-    pointLabel: Bres.pointLabel
-  });
-  renderAngle(g, C, B, D, angleRadius(C, B, D), {
-    mark: Cres.mark,
-    angleText: Cres.angleText,
-    pointLabel: Cres.pointLabel
-  });
-  renderAngle(g, D, C, A, angleRadius(D, C, A), {
-    mark: Dres.mark,
-    angleText: Dres.angleText,
-    pointLabel: Dres.pointLabel
-  });
-  add(g, "polygon", {
-    points: ptsTo(poly),
-    fill: "none",
-    stroke: STYLE.edgeStroke,
-    "stroke-width": STYLE.edgeWidth,
-    "stroke-linejoin": "round",
-    "stroke-linecap": "round"
-  });
-  renderDecorations(g, {
-    A,
-    B,
-    C,
-    D
-  }, decorations, {
-    centroid: ctr,
-    pointOrder: ['A', 'B', 'C', 'D']
-  });
-  const summary = cloneJobForSummary({
-    type: 'quad',
-    obj: {
-      a,
-      b,
-      c,
-      d,
-      A: angleAVal,
-      B: angleBVal,
-      C: angleCVal,
-      D: angleDVal
-    },
-    decorations
-  });
-  if (summary) {
-    summary.angleMarks = buildAngleMarkSummary([
-      ['A', Ares, angleAVal],
-      ['B', Bres, angleBVal],
-      ['C', Cres, angleCVal],
-      ['D', Dres, angleDVal]
-    ]);
+    // vinkler/punkter
+    const am = adv.angles.mode,
+      at = adv.angles.text;
+    const angleAVal = angleAt(A, D, B);
+    const angleBVal = angleAt(B, A, C);
+    const angleCVal = angleAt(C, B, D);
+    const angleDVal = angleAt(D, C, A);
+    const Ares = parseAnglePointMode((_am$A2 = am.A) !== null && _am$A2 !== void 0 ? _am$A2 : am.default, angleAVal, at.A, "A");
+    const Bres = parseAnglePointMode((_am$B2 = am.B) !== null && _am$B2 !== void 0 ? _am$B2 : am.default, angleBVal, at.B, "B");
+    const Cres = parseAnglePointMode((_am$C2 = am.C) !== null && _am$C2 !== void 0 ? _am$C2 : am.default, angleCVal, at.C, "C");
+    const Dres = parseAnglePointMode((_am$D = am.D) !== null && _am$D !== void 0 ? _am$D : am.default, angleDVal, at.D, "D");
+    renderAngle(g, A, D, B, angleRadius(A, D, B), {
+      mark: Ares.mark,
+      angleText: Ares.angleText,
+      pointLabel: Ares.pointLabel
+    });
+    renderAngle(g, B, A, C, angleRadius(B, A, C), {
+      mark: Bres.mark,
+      angleText: Bres.angleText,
+      pointLabel: Bres.pointLabel
+    });
+    renderAngle(g, C, B, D, angleRadius(C, B, D), {
+      mark: Cres.mark,
+      angleText: Cres.angleText,
+      pointLabel: Cres.pointLabel
+    });
+    renderAngle(g, D, C, A, angleRadius(D, C, A), {
+      mark: Dres.mark,
+      angleText: Dres.angleText,
+      pointLabel: Dres.pointLabel
+    });
+    add(g, "polygon", {
+      points: ptsTo(poly),
+      fill: "none",
+      stroke: STYLE.edgeStroke,
+      "stroke-width": STYLE.edgeWidth,
+      "stroke-linejoin": "round",
+      "stroke-linecap": "round"
+    });
+    renderDecorations(g, {
+      A,
+      B,
+      C,
+      D
+    }, decorations, {
+      centroid: ctr,
+      pointOrder: ['A', 'B', 'C', 'D']
+    });
+    const summary = cloneJobForSummary({
+      type: 'quad',
+      obj: {
+        a,
+        b,
+        c,
+        d,
+        A: angleAVal,
+        B: angleBVal,
+        C: angleCVal,
+        D: angleDVal
+      },
+      decorations
+    });
+    if (summary) {
+      summary.angleMarks = buildAngleMarkSummary([
+        ['A', Ares, angleAVal],
+        ['B', Bres, angleBVal],
+        ['C', Cres, angleCVal],
+        ['D', Dres, angleDVal]
+      ]);
+    }
+    return summary;
+  } finally {
+    restoreTextScale();
   }
-  return summary;
 }
 function drawCircleToGroup(g, rect, spec) {
   const cx = rect.x + rect.w / 2;
