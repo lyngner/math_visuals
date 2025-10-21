@@ -112,9 +112,13 @@ function getRowSpanRatios(block, options = {}) {
   let bottomRatio = baseBottom;
   let compactApplied = false;
   const horizontalOverlayActive = multipleBlocksActive && CONFIG.showCombinedWhole;
-  const requireFullPadding = forLayout ? anyBlockNeedsFullPadding() : blockNeedsFullPadding(block);
-  const enforceUniformHeights = true; // Always use the same height for every block.
-  const allowCompact = !enforceUniformHeights && !horizontalOverlayActive && !requireFullPadding;
+  let needsFullPadding;
+  if (block) {
+    needsFullPadding = blockNeedsFullPadding(block);
+  } else {
+    needsFullPadding = anyBlockNeedsFullPadding();
+  }
+  const allowCompact = !horizontalOverlayActive && !needsFullPadding;
   if (allowCompact) {
     const compactTop = clamp(COMPACT_TOP_RATIO, 0, 1 - MIN_SPAN_RATIO);
     const compactBottom = clamp(COMPACT_BOTTOM_RATIO, compactTop + MIN_SPAN_RATIO, 1);
@@ -1172,14 +1176,58 @@ function draw(skipNormalization = false) {
     globalControls.verticalRow.classList.toggle('is-disabled', !verticalAvailable);
   }
   let uniformRowHeight = DEFAULT_SVG_HEIGHT;
-  const { topRatio, bottomRatio } = getRowSpanRatios(null, { forLayout: true });
-  const span = bottomRatio - topRatio;
-  if (span > 0) {
-    const candidateHeight = DEFAULT_SVG_HEIGHT * BASE_INNER_RATIO / span;
-    if (Number.isFinite(candidateHeight) && candidateHeight > DEFAULT_SVG_HEIGHT) {
-      uniformRowHeight = candidateHeight;
+  let maxRequiredHeight = DEFAULT_SVG_HEIGHT;
+  let minTopRatio = Number.POSITIVE_INFINITY;
+  let maxBottomRatio = Number.NEGATIVE_INFINITY;
+  let hasVisibleRatios = false;
+  for (const block of visibleBlocks) {
+    const cfg = block.cfg;
+    if (!cfg || cfg.hideBlock) continue;
+    const ratios = getRowSpanRatios(block, { forLayout: true });
+    const { topRatio, bottomRatio } = ratios;
+    if (Number.isFinite(topRatio)) {
+      minTopRatio = Math.min(minTopRatio, topRatio);
+    }
+    if (Number.isFinite(bottomRatio)) {
+      maxBottomRatio = Math.max(maxBottomRatio, bottomRatio);
+    }
+    if (Number.isFinite(topRatio) && Number.isFinite(bottomRatio)) {
+      const spanRatio = clamp(bottomRatio - topRatio, MIN_SPAN_RATIO, 1);
+      if (spanRatio > 0) {
+        const requiredHeight = DEFAULT_SVG_HEIGHT * BASE_INNER_RATIO / spanRatio;
+        if (Number.isFinite(requiredHeight) && requiredHeight > maxRequiredHeight) {
+          maxRequiredHeight = requiredHeight;
+        }
+      }
+      hasVisibleRatios = true;
     }
   }
+  if (!hasVisibleRatios) {
+    const fallbackRatios = getRowSpanRatios(null, { forLayout: true });
+    const fallbackSpan = clamp(fallbackRatios.bottomRatio - fallbackRatios.topRatio, MIN_SPAN_RATIO, 1);
+    if (fallbackSpan > 0) {
+      const fallbackHeight = DEFAULT_SVG_HEIGHT * BASE_INNER_RATIO / fallbackSpan;
+      if (Number.isFinite(fallbackHeight) && fallbackHeight > maxRequiredHeight) {
+        maxRequiredHeight = fallbackHeight;
+      }
+    }
+    if (Number.isFinite(fallbackRatios.topRatio)) {
+      minTopRatio = Math.min(minTopRatio, fallbackRatios.topRatio);
+    }
+    if (Number.isFinite(fallbackRatios.bottomRatio)) {
+      maxBottomRatio = Math.max(maxBottomRatio, fallbackRatios.bottomRatio);
+    }
+  }
+  if (Number.isFinite(minTopRatio) && Number.isFinite(maxBottomRatio)) {
+    const aggregateSpan = clamp(maxBottomRatio - minTopRatio, MIN_SPAN_RATIO, 1);
+    if (aggregateSpan > 0) {
+      const aggregateHeight = DEFAULT_SVG_HEIGHT * BASE_INNER_RATIO / aggregateSpan;
+      if (Number.isFinite(aggregateHeight) && aggregateHeight > maxRequiredHeight) {
+        maxRequiredHeight = aggregateHeight;
+      }
+    }
+  }
+  uniformRowHeight = maxRequiredHeight;
   for (const block of visibleBlocks) {
     const height = uniformRowHeight;
     if (block === null || block === void 0 ? void 0 : block.panel) {
