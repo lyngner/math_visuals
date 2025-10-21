@@ -41,6 +41,11 @@ const DEFAULT_CLIP_COLORS = {
   fill: "#f2c89a",
   stroke: "#c48853"
 };
+const ROPE_ASSETS = {
+  short: "images/rope10.svg",
+  long: "images/rope20.svg"
+};
+const CLIP_ASSET = "images/clothesPin.svg";
 const ADV = {
   groupSize: 5,
   rBase: 42,
@@ -54,10 +59,12 @@ const ADV = {
   // ekstra gap som klypa "krever" i forhold til klype-bredde
 
   assets: {
-    rope: "images/perlesnor-rope.svg",
+    rope: ROPE_ASSETS.long,
+    ropeShort: ROPE_ASSETS.short,
+    ropeLong: ROPE_ASSETS.long,
     beadRed: "images/redDots.svg",
     beadBlue: "images/blueWave.svg",
-    clip: "images/perlesnor-clip.svg"
+    clip: CLIP_ASSET
   },
   a11y: {
     ariaLabel: "Posisjon for klypa. Bruk piltaster eller dra.",
@@ -92,8 +99,15 @@ function makeCFG() {
   const rBase = (_SIMPLE$beadRadius = SIMPLE.beadRadius) !== null && _SIMPLE$beadRadius !== void 0 ? _SIMPLE$beadRadius : ADV.rBase;
   const scale = rBase / ADV.rBase;
   const gapBase = ADV.gapBase * scale;
+  const nBeads = SIMPLE.nBeads;
+  const advAssets = ADV.assets || {};
+  const assets = {
+    ...advAssets,
+    clip: advAssets.clip || CLIP_ASSET,
+    rope: (nBeads <= 10 ? advAssets.ropeShort : advAssets.ropeLong) || (nBeads <= 10 ? ROPE_ASSETS.short : ROPE_ASSETS.long)
+  };
   return {
-    nBeads: SIMPLE.nBeads,
+    nBeads,
     startIndex: clamp(SIMPLE.startIndex, 0, SIMPLE.nBeads),
     groupSize: ADV.groupSize,
     rBase,
@@ -102,7 +116,7 @@ function makeCFG() {
     kW: ADV.kW,
     kH: ADV.kH,
     clipGapRatio: ADV.clipGapRatio,
-    assets: ADV.assets,
+    assets,
     a11y: ADV.a11y,
     ui: ADV.ui
   };
