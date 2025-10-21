@@ -625,7 +625,7 @@ function mk(n, attrs = {}) {
   return e;
 }
 function img(href, x, y, w, h, cls = "") {
-  return mk("image", {
+  const imageEl = mk("image", {
     href,
     x,
     y,
@@ -633,6 +633,14 @@ function img(href, x, y, w, h, cls = "") {
     height: h,
     class: cls
   });
+  if (href && typeof imageEl.setAttributeNS === "function") {
+    try {
+      imageEl.setAttributeNS("http://www.w3.org/1999/xlink", "href", href);
+    } catch (_) {
+      // Ignorer hvis navnerom ikke støttes
+    }
+  }
+  return imageEl;
 }
 function imageWithFallback(href, x, y, w, h, cls = "", fallbackEl) {
   const imageEl = img(href, x, y, w, h, cls);
@@ -753,6 +761,23 @@ function svgToString(svgEl) {
   style.textContent = css;
   clone.insertBefore(style, clone.firstChild);
 
+  clone.querySelectorAll('.beadFallback, .ropeFallback, .clipFallback').forEach(el => {
+    el.removeAttribute('visibility');
+    if (el.style) {
+      el.style.visibility = '';
+    }
+  });
+  clone.querySelectorAll('image').forEach(imageEl => {
+    const href = imageEl.getAttribute('href');
+    if (href && typeof imageEl.setAttributeNS === 'function') {
+      try {
+        imageEl.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
+      } catch (_) {
+        // Ignorer hvis navnerom ikke støttes
+      }
+    }
+  });
+
   // Kopier beskrivelser referert av aria-describedby inn i SVG-en
   const ids = new Set();
   clone.querySelectorAll('[aria-describedby]').forEach(el => {
@@ -810,6 +835,7 @@ function buildPerlesnorExportMeta() {
 }
 async function downloadSVG(svgEl, filename) {
   const suggestedName = typeof filename === 'string' && filename ? filename : 'perlesnor.svg';
+  refreshFallbackStyles();
   const data = svgToString(svgEl);
   const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
   const meta = buildPerlesnorExportMeta();
