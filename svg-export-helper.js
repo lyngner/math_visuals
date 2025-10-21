@@ -145,6 +145,106 @@
     return NaN;
   }
 
+  function parseViewBox(viewBoxValue) {
+    if (typeof viewBoxValue !== 'string') return null;
+    const trimmed = viewBoxValue.trim();
+    if (!trimmed) return null;
+    const parts = trimmed
+      .split(/[\s,]+/)
+      .map(part => Number.parseFloat(part))
+      .filter(Number.isFinite);
+    if (parts.length < 4) return null;
+    const [minX, minY, width, height] = parts;
+    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(width) || !Number.isFinite(height)) {
+      return null;
+    }
+    return { minX, minY, width, height };
+  }
+
+  function getSvgCanvasBounds(svgElement, fallbackBounds) {
+    if (!svgElement || typeof svgElement !== 'object') {
+      return fallbackBounds || { minX: 0, minY: 0, width: 0, height: 0 };
+    }
+    const boundsOption = fallbackBounds && typeof fallbackBounds === 'object' ? fallbackBounds : null;
+    const resolveNumber = (...candidates) => {
+      for (const candidate of candidates) {
+        const parsed = Number.parseFloat(candidate);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return null;
+    };
+    if (boundsOption) {
+      const resolved = {
+        minX: resolveNumber(boundsOption.minX, boundsOption.x, 0) ?? 0,
+        minY: resolveNumber(boundsOption.minY, boundsOption.y, 0) ?? 0,
+        width: resolveNumber(boundsOption.width, boundsOption.w, 0) ?? 0,
+        height: resolveNumber(boundsOption.height, boundsOption.h, 0) ?? 0
+      };
+      if (resolved.width > 0 && resolved.height > 0) {
+        return resolved;
+      }
+    }
+    const viewBoxAttr = typeof svgElement.getAttribute === 'function' ? svgElement.getAttribute('viewBox') : null;
+    const parsedViewBox = parseViewBox(viewBoxAttr);
+    if (parsedViewBox && parsedViewBox.width > 0 && parsedViewBox.height > 0) {
+      return parsedViewBox;
+    }
+    const widthAttr = parseLength(svgElement.getAttribute && svgElement.getAttribute('width'));
+    const heightAttr = parseLength(svgElement.getAttribute && svgElement.getAttribute('height'));
+    const width = Number.isFinite(widthAttr) && widthAttr > 0 ? widthAttr : getSvgDimensions(svgElement).width;
+    const height = Number.isFinite(heightAttr) && heightAttr > 0 ? heightAttr : getSvgDimensions(svgElement).height;
+    const xAttr = parseLength(svgElement.getAttribute && svgElement.getAttribute('x'));
+    const yAttr = parseLength(svgElement.getAttribute && svgElement.getAttribute('y'));
+    return {
+      minX: Number.isFinite(xAttr) ? xAttr : 0,
+      minY: Number.isFinite(yAttr) ? yAttr : 0,
+      width: Number.isFinite(width) ? width : 0,
+      height: Number.isFinite(height) ? height : 0
+    };
+  }
+
+  function ensureSvgBackground(svgElement, options = {}) {
+    if (!svgElement || typeof svgElement !== 'object') return null;
+    const ownerDocument = svgElement.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    if (!ownerDocument || typeof ownerDocument.createElementNS !== 'function') {
+      return null;
+    }
+    const bounds = getSvgCanvasBounds(svgElement, options.bounds || options);
+    if (!(Number.isFinite(bounds.width) && bounds.width > 0 && Number.isFinite(bounds.height) && bounds.height > 0)) {
+      return null;
+    }
+    const ns = 'http://www.w3.org/2000/svg';
+    let rect = null;
+    let node = svgElement.firstChild;
+    while (node) {
+      if (node.nodeType === 1 && typeof node.tagName === 'string' && node.tagName.toLowerCase() === 'rect') {
+        if (node.getAttribute('data-export-background') === 'true') {
+          rect = node;
+          break;
+        }
+      }
+      node = node.nextSibling;
+    }
+    if (!rect) {
+      rect = ownerDocument.createElementNS(ns, 'rect');
+      rect.setAttribute('data-export-background', 'true');
+      const firstElement = svgElement.firstChild;
+      if (firstElement) {
+        svgElement.insertBefore(rect, firstElement);
+      } else {
+        svgElement.appendChild(rect);
+      }
+    } else if (rect !== svgElement.firstChild) {
+      svgElement.insertBefore(rect, svgElement.firstChild);
+    }
+    rect.setAttribute('x', String(bounds.minX || 0));
+    rect.setAttribute('y', String(bounds.minY || 0));
+    rect.setAttribute('width', String(bounds.width));
+    rect.setAttribute('height', String(bounds.height));
+    rect.setAttribute('fill', typeof options.fill === 'string' ? options.fill : '#ffffff');
+    return rect;
+  }
+
   function getSvgDimensions(svgElement) {
     if (!svgElement || typeof svgElement !== 'object') {
       return { width: 0, height: 0 };
@@ -224,16 +324,9 @@
       return null;
     }
     const clone = svgElement.cloneNode(true);
-    const ownerDocument = (clone && clone.ownerDocument) || (typeof document !== 'undefined' ? document : null);
-    if (clone && ownerDocument && typeof ownerDocument.createElementNS === 'function' && typeof clone.insertBefore === 'function') {
-      const backgroundRect = ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      backgroundRect.setAttribute('width', '100%');
-      backgroundRect.setAttribute('height', '100%');
-      backgroundRect.setAttribute('fill', '#ffffff');
-      clone.insertBefore(backgroundRect, clone.firstChild);
-    }
     ensureSvgNamespaces(clone);
     ensureSvgSizingAttributes(clone, svgElement);
+    ensureSvgBackground(clone);
     return clone;
   }
 
@@ -472,14 +565,15 @@
     const doc = svgElement.ownerDocument || (typeof document !== 'undefined' ? document : null);
     if (!doc) throw new Error('document mangler');
 
+    const exportSvg = cloneSvgForExport(svgElement) || svgElement;
     const serializer = options.serialize;
     let svgString;
     if (options.svgString != null) {
       svgString = await Promise.resolve(options.svgString);
     } else if (typeof serializer === 'function') {
-      svgString = await Promise.resolve(serializer(svgElement));
+      svgString = await Promise.resolve(serializer(exportSvg));
     } else {
-      svgString = new XMLSerializer().serializeToString(svgElement);
+      svgString = new XMLSerializer().serializeToString(exportSvg);
     }
 
     const tool = typeof toolId === 'string' && toolId.trim() ? toolId.trim() : 'ukjent';
@@ -487,7 +581,7 @@
     const summary = options.summary != null ? options.summary : null;
     const createdAt = new Date().toISOString();
 
-    const dimensions = getSvgDimensions(svgElement);
+    const dimensions = getSvgDimensions(exportSvg);
 
     const fallbackBase = sanitizeBaseName(options.defaultBaseName || suggestedName || tool || 'export', sanitizeBaseName(tool || 'export'));
     let baseNameSuggestion;
@@ -689,6 +783,8 @@
   helper.slugify = slugify;
   helper.showToast = showToast;
   helper.cloneSvgForExport = cloneSvgForExport;
+  helper.ensureSvgBackground = ensureSvgBackground;
+  helper.getSvgCanvasBounds = getSvgCanvasBounds;
 
   global.MathVisSvgExport = helper;
 })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);

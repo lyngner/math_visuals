@@ -908,6 +908,20 @@ async function buildExportSvg() {
   });
   annotateExportClones(clones);
   await inlineImages(exportSvg);
+  const helper = typeof window !== "undefined" ? window.MathVisSvgExport : null;
+  if (helper && typeof helper.ensureSvgBackground === "function") {
+    helper.ensureSvgBackground(exportSvg, {
+      bounds: { minX: 0, minY: 0, width: layout.width, height: layout.height }
+    });
+  } else if (exportSvg && typeof exportSvg.insertBefore === "function" && typeof document !== "undefined") {
+    const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.setAttribute("x", "0");
+    bg.setAttribute("y", "0");
+    bg.setAttribute("width", String(layout.width));
+    bg.setAttribute("height", String(layout.height));
+    bg.setAttribute("fill", "#ffffff");
+    exportSvg.insertBefore(bg, exportSvg.firstChild);
+  }
   return {
     svg: exportSvg,
     layout,
