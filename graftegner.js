@@ -4428,6 +4428,8 @@ function setupSettingsForm() {
   const showGridInput = g('cfgShowGrid');
   const forceTicksInput = g('cfgForceTicks');
   const screenInput = g('cfgScreen');
+  const axisXInputElement = g('cfgAxisX');
+  const axisYInputElement = g('cfgAxisY');
   const snapCheckbox = g('cfgSnap');
   let gliderSection = null;
   let gliderCountInput = null;
@@ -6083,8 +6085,8 @@ function setupSettingsForm() {
       ADV.lockAspect = lockChecked;
       needsRebuild = true;
     }
-    const axisXInput = g('cfgAxisX');
-    const axisYInput = g('cfgAxisY');
+    const axisXInput = axisXInputElement || g('cfgAxisX');
+    const axisYInput = axisYInputElement || g('cfgAxisY');
     const axisXValue = axisXInput ? axisXInput.value.trim() : '';
     const axisYValue = axisYInput ? axisYInput.value.trim() : '';
     if ((ADV.axis.labels.x || '') !== axisXValue) {
@@ -6312,6 +6314,37 @@ function setupSettingsForm() {
       requestRebuild();
     }
   };
+  const syncAxisLabelsFromInputs = () => {
+    const axisXValue = axisXInputElement ? axisXInputElement.value.trim() : '';
+    const axisYValue = axisYInputElement ? axisYInputElement.value.trim() : '';
+    let changed = false;
+    if ((ADV.axis.labels.x || '') !== axisXValue) {
+      ADV.axis.labels.x = axisXValue;
+      changed = true;
+    }
+    if ((ADV.axis.labels.y || '') !== axisYValue) {
+      ADV.axis.labels.y = axisYValue;
+      changed = true;
+    }
+    if (changed) {
+      requestRebuild();
+    }
+  };
+  const bindAxisInput = input => {
+    if (!input) return;
+    const handle = () => {
+      syncAxisLabelsFromInputs();
+      apply();
+    };
+    input.addEventListener('input', handle);
+    input.addEventListener('change', handle);
+    input.addEventListener('blur', handle);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') handle();
+    });
+  };
+  bindAxisInput(axisXInputElement);
+  bindAxisInput(axisYInputElement);
   refreshFunctionColorDefaults = refreshFunctionColorDefaultsLocal;
   root.addEventListener('change', apply);
   root.addEventListener('keydown', e => {
