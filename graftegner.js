@@ -243,6 +243,7 @@ function paramNumber(id, def = null) {
   return Number.isFinite(n) ? n : def;
 }
 const DEFAULT_POINT_MARKER = 'o';
+const DEFAULT_DOMAIN_VALUE = '-∞, ∞';
 function sanitizePointMarkerValue(value) {
   if (typeof value !== 'string') return '';
   return value.trim();
@@ -5482,16 +5483,19 @@ function setupSettingsForm() {
     const row = input.closest('.func-group');
     if (!row) return;
     const domLabel = row.querySelector('label.domain');
+    const domInput = domLabel ? domLabel.querySelector('input[data-dom]') : null;
     const value = getFunctionInputValue(input);
     const showDomain = isExplicitFun(value);
     if (showDomain) {
-      if (domLabel) domLabel.style.display = '';
-    } else {
       if (domLabel) {
-        domLabel.style.display = 'none';
-        const domInput = domLabel.querySelector('input[data-dom]');
-        if (domInput) domInput.value = '';
+        domLabel.style.display = '';
+        if (domInput && !domInput.value.trim()) {
+          domInput.value = DEFAULT_DOMAIN_VALUE;
+        }
       }
+    } else if (domLabel) {
+      domLabel.style.display = 'none';
+      if (domInput) domInput.value = '';
     }
     const mainRow = row.querySelector('.func-row--main--with-marker');
     if (mainRow) {
