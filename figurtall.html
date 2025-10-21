@@ -136,6 +136,10 @@
         <div class="card card--examples">
           <div class="example-description">
             <textarea id="exampleDescription" aria-label="Oppgavetekst (valgfritt)" placeholder="Skriv oppgavetekst her"></textarea>
+            <div class="task-check-host" data-task-check-host hidden>
+              <button id="btnCheck" class="btn btn--task-check" type="button">Sjekk svar</button>
+              <div id="taskStatus" class="status" role="status" aria-live="polite" hidden></div>
+            </div>
           </div>
           <div class="toolbar">
             <button id="btnUpdateExample" class="btn" type="button">Oppdater</button>
@@ -169,8 +173,16 @@
                   <label for="showGridToggle">Vis rutenett</label>
                 </div>
                 <div class="checkbox-row">
+                  <input id="gridLastFigureToggle" type="checkbox" name="gridLastOnly" />
+                  <label for="gridLastFigureToggle">Vis rutenett kun i siste figur</label>
+                </div>
+                <div class="checkbox-row">
                   <input id="offsetRowsToggle" type="checkbox" name="offsetRows" checked />
                   <label for="offsetRowsToggle">Forskyv annenhver rad</label>
+                </div>
+                <div class="checkbox-row">
+                  <input id="lastFigureAnswerToggle" type="checkbox" name="lastFigureAnswer" />
+                  <label for="lastFigureAnswerToggle">Siste figur som fasit</label>
                 </div>
                 <div class="input-stack">
                   <label for="labelModeSelect">Figurtekst</label>
