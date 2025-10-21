@@ -2253,8 +2253,10 @@ async function svgToString(svgEl) {
   if (cloneDesc && cloneDesc.id) clone.setAttribute('aria-describedby', cloneDesc.id);
 
   // Kopier beregnede stilverdier som attributter for å unngå svarte figurer
-  const srcEls = svgEl.querySelectorAll('*');
-  const cloneEls = clone.querySelectorAll('*');
+  const srcEls = Array.from(svgEl.querySelectorAll('*'));
+  const cloneEls = Array.from(clone.querySelectorAll('*')).filter(
+    el => el.getAttribute('data-export-background') !== 'true'
+  );
   srcEls.forEach((src, i) => {
     const dst = cloneEls[i];
     const comp = getComputedStyle(src);
@@ -2262,7 +2264,7 @@ async function svgToString(svgEl) {
     props.forEach(p => {
       const val = comp.getPropertyValue(p);
       // Include 'none' for fill and stroke to preserve transparency
-      if (val && val !== 'normal' && val !== '0px') {
+      if (dst && val && val !== 'normal' && val !== '0px') {
         dst.setAttribute(p, val);
       }
     });
