@@ -82,6 +82,9 @@
       gap:6px;
       width:100%;
     }
+    .func-group .func-fields label.func-color{
+      width:auto;
+    }
     .func-row--main,
     .func-row--secondary{
       display:grid;
@@ -95,26 +98,36 @@
       align-items:stretch;
     }
     .func-row--main--with-marker{
-      grid-template-columns:minmax(0,1fr) minmax(140px, auto) minmax(160px, auto) minmax(0,1fr);
+      grid-template-columns:minmax(0,1fr) minmax(140px, auto) minmax(160px, auto);
       align-items:start;
     }
     .func-row--main--with-marker[data-has-domain="false"]{
-      grid-template-columns:minmax(0,1fr) minmax(140px, auto) minmax(160px, auto);
+      grid-template-columns:minmax(0,1fr) minmax(140px, auto);
     }
     .func-row--main--with-marker .point-marker{
       width:auto;
     }
-    .func-row--main--with-marker .func-color{
-      width:auto;
+    .func-row--color{
+      display:flex;
+      justify-content:flex-start;
+      align-items:flex-end;
+      grid-column:1 / -1;
+    }
+    .func-color{
       display:flex;
       flex-direction:column;
       gap:6px;
+      width:auto;
+    }
+    .func-row--gliders label.func-color{
+      flex:0 0 auto;
+      align-self:flex-end;
     }
     .func-color input[type="color"]{
-      width:100%;
-      min-height:42px;
+      width:40px;
+      height:32px;
       padding:0;
-      border-radius:10px;
+      border-radius:8px;
       border:1px solid #d1d5db;
       background:#fff;
       cursor:pointer;
@@ -267,7 +280,7 @@
       grid-template-columns:1fr;
       gap:16px;
     }
-    .func-fields--first .func-row{
+    .func-fields--first .func-row:not(.func-row--color){
       display:grid;
       gap:12px;
       grid-template-columns:repeat(2,minmax(0,1fr));
@@ -275,6 +288,9 @@
     }
     .func-fields--first .func-row label,
     .func-group .func-fields label{ min-width:0; }
+    .func-fields--first .func-row label.func-color{
+      width:auto;
+    }
     .func-row--main label,
     .func-row--gliders label{ width:100%; }
     .func-fields--first .func-row label{ width:100%; }
@@ -328,7 +344,7 @@
       .function-controls{ align-items:stretch; }
       .func-group{ flex-direction:column; }
       .func-group .func-fields{ grid-template-columns:1fr; }
-      .func-fields--first .func-row,
+      .func-fields--first .func-row:not(.func-row--color),
       .func-row--secondary{ grid-template-columns:1fr; }
       .func-main{ flex-direction:column; align-items:stretch; }
       .func-row--gliders{ grid-template-columns:1fr; }

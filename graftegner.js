@@ -5511,6 +5511,12 @@ function setupSettingsForm() {
     const isManualColor = !!colorManual && !!manualColor;
     const initialColor = isManualColor ? manualColor : (defaultColor || DEFAULT_COLOR_FALLBACK);
     const colorAttr = initialColor || DEFAULT_COLOR_FALLBACK;
+    const colorControlMarkup = `
+              <label class="func-color">
+                <span>Farge</span>
+                <input type="color" data-color value="${colorAttr}">
+              </label>
+    `;
     const gliderMarkup = index === 1 ? `
             <div class="func-row func-row--gliders glider-row">
               <label class="points">
@@ -5535,8 +5541,14 @@ function setupSettingsForm() {
                 <span>Startposisjon, x</span>
                 <input type="text" data-startx value="1" placeholder="1">
               </label>
+${colorControlMarkup}
             </div>
     ` : '';
+    const colorRowMarkup = index === 1 ? '' : `
+          <div class="func-row func-row--color">
+${colorControlMarkup}
+          </div>
+    `;
     const fieldsClass = index === 1 ? 'func-fields func-fields--first' : 'func-fields';
     row.innerHTML = `
       <fieldset>
@@ -5560,12 +5572,9 @@ function setupSettingsForm() {
               <span>Avgrensning</span>
               <input type="text" data-dom placeholder="[start, stopp]">
             </label>
-            <label class="func-color">
-              <span>Farge</span>
-              <input type="color" data-color value="${colorAttr}">
-            </label>
           </div>
           ${gliderMarkup}
+          ${colorRowMarkup}
         </div>
       </fieldset>
     `;
