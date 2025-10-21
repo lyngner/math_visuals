@@ -1359,9 +1359,30 @@
     const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(w * scale);
-      canvas.height = Math.round(h * scale);
+    const canvas = document.createElement('canvas');
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const sizing = helper && typeof helper.ensureMinimumPngDimensions === 'function'
+      ? helper.ensureMinimumPngDimensions({ width: w, height: h }, { scale })
+      : (() => {
+          const minDimension = 100;
+          const baseScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+          const safeWidth = Number.isFinite(w) && w > 0 ? w : minDimension;
+          const safeHeight = Number.isFinite(h) && h > 0 ? h : minDimension;
+          const scaledWidth = safeWidth * baseScale;
+          const scaledHeight = safeHeight * baseScale;
+          const scaleMultiplier = Math.max(
+            1,
+            scaledWidth > 0 ? minDimension / scaledWidth : 1,
+            scaledHeight > 0 ? minDimension / scaledHeight : 1
+          );
+          const finalScale = baseScale * scaleMultiplier;
+          return {
+            width: Math.max(minDimension, Math.round(safeWidth * finalScale)),
+            height: Math.max(minDimension, Math.round(safeHeight * finalScale))
+          };
+        })();
+    canvas.width = sizing.width;
+    canvas.height = sizing.height;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, canvas.width, canvas.height);

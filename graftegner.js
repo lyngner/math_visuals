@@ -4384,11 +4384,23 @@ if (btnPng) {
     const url = URL.createObjectURL(svgBlob);
     const img = new Image();
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = svgExport.width;
-      canvas.height = svgExport.height;
+    const canvas = document.createElement('canvas');
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const sizing = helper && typeof helper.ensureMinimumPngDimensions === 'function'
+      ? helper.ensureMinimumPngDimensions({ width: svgExport.width, height: svgExport.height })
+      : (() => {
+          const minDimension = 100;
+          const safeWidth = Number.isFinite(svgExport.width) && svgExport.width > 0 ? svgExport.width : minDimension;
+          const safeHeight = Number.isFinite(svgExport.height) && svgExport.height > 0 ? svgExport.height : minDimension;
+          return {
+            width: Math.max(minDimension, Math.round(safeWidth)),
+            height: Math.max(minDimension, Math.round(safeHeight))
+          };
+        })();
+    canvas.width = sizing.width;
+    canvas.height = sizing.height;
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
       canvas.toBlob(blob => {
         const a = document.createElement('a');

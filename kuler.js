@@ -1009,12 +1009,26 @@ function buildKulerExportMeta(exportData) {
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      canvas.width = exportData.layout.width;
-      canvas.height = exportData.layout.height;
+      const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+      const layoutWidth = exportData.layout.width;
+      const layoutHeight = exportData.layout.height;
+      const sizing = helper && typeof helper.ensureMinimumPngDimensions === 'function'
+        ? helper.ensureMinimumPngDimensions({ width: layoutWidth, height: layoutHeight })
+        : (() => {
+            const minDimension = 100;
+            const safeWidth = Number.isFinite(layoutWidth) && layoutWidth > 0 ? layoutWidth : minDimension;
+            const safeHeight = Number.isFinite(layoutHeight) && layoutHeight > 0 ? layoutHeight : minDimension;
+            return {
+              width: Math.max(minDimension, Math.round(safeWidth)),
+              height: Math.max(minDimension, Math.round(safeHeight))
+            };
+          })();
+      canvas.width = sizing.width;
+      canvas.height = sizing.height;
       const ctx = canvas.getContext("2d");
       ctx.fillStyle = backgroundFill;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
       canvas.toBlob(blob => {
         if (!blob) return;
