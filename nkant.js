@@ -3785,7 +3785,8 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations) {
 /* ---------- ORKESTRERING ---------- */
 const BASE_W = 600,
   BASE_H = 420,
-  GAP = 60;
+  GAP = 60,
+  TIGHT_VIEWBOX_MARGIN = 10;
 async function collectJobsFromSpecs(text) {
   const lines = String(text).split(/\n/);
   const jobs = [];
@@ -3882,6 +3883,45 @@ async function collectJobsFromSpecs(text) {
     if (el) el.value = newText;
   }
   return jobs;
+}
+function adjustSvgViewBoxToContent(svg, margin = TIGHT_VIEWBOX_MARGIN) {
+  if (!svg || typeof svg.querySelectorAll !== 'function') return;
+  const elements = Array.from(svg.querySelectorAll('*')).filter(el => el.tagName !== 'defs' && typeof el.getBBox === 'function');
+  if (elements.length === 0) return;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const el of elements) {
+    try {
+      const bbox = el.getBBox();
+      if (!bbox) continue;
+      const { x, y, width, height } = bbox;
+      if (![x, y, width, height].every(Number.isFinite)) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + width);
+      maxY = Math.max(maxY, y + height);
+    } catch (err) {
+      // Ignorer elementer som ikke kan gi bounding box (for eksempel definisjoner).
+    }
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return;
+  }
+  const maxStroke = Math.max(
+    Number.isFinite(STYLE.edgeWidth) ? STYLE.edgeWidth : 0,
+    Number.isFinite(STYLE.angWidth) ? STYLE.angWidth : 0,
+    Number.isFinite(STYLE.constructionWidth) ? STYLE.constructionWidth : 0
+  );
+  const pad = Math.max(0, margin) + maxStroke / 2;
+  const width = Math.max(1, maxX - minX);
+  const height = Math.max(1, maxY - minY);
+  const finalWidth = width + pad * 2;
+  const finalHeight = height + pad * 2;
+  const finalX = minX - pad;
+  const finalY = minY - pad;
+  svg.setAttribute('viewBox', `${finalX} ${finalY} ${finalWidth} ${finalHeight}`);
 }
 function svgToString(svgEl) {
   const clone = svgEl.cloneNode(true);
@@ -4123,6 +4163,7 @@ async function renderCombined() {
     jobs: summaries
   };
   maybeRefreshAltText('config');
+  adjustSvgViewBoxToContent(svg);
   svg.setAttribute("aria-label", n === 1 ? "Én figur" : `${n} figurer i samme bilde`);
 }
 
