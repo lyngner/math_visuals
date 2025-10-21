@@ -54,10 +54,10 @@ const ADV = {
   // ekstra gap som klypa "krever" i forhold til klype-bredde
 
   assets: {
-    rope: "https://test.kikora.no/img/drive/illustrasjoner/Matteobjekter/Hjelpemidler/snor20.svg",
-    beadRed: "https://test.kikora.no/img/drive/figures/games/spheres/redDots.svg",
-    beadBlue: "https://test.kikora.no/img/drive/figures/games/spheres/blueWave.svg",
-    clip: "https://test.kikora.no/img/drive/figures/objects/tools/clothesPin.svg"
+    rope: "images/perlesnor-rope.svg",
+    beadRed: "images/redDots.svg",
+    beadBlue: "images/blueWave.svg",
+    clip: "images/perlesnor-clip.svg"
   },
   a11y: {
     ariaLabel: "Posisjon for klypa. Bruk piltaster eller dra.",
@@ -68,7 +68,7 @@ const ADV = {
     coarseStep: 12 // Pil i px (vertikalt)
   },
   ui: {
-    showGroupTicks: true,
+    showGroupTicks: false,
     leftColorClass: "red",
     // samsvarer med CSS-klassene i beadFallback
     rightColorClass: "blue"
@@ -308,7 +308,7 @@ function layout() {
     class: "clipFallback",
     "aria-hidden": "true"
   });
-  styleClipFallback(clipFallback, CLIP_W, CLIP_H);
+  styleClipFallback(clipFallback, CLIP_W);
   clipFallback.setAttribute("pointer-events", "none");
   gClip.appendChild(clipFallback);
   gClip.appendChild(img(CFG.assets.clip, -CLIP_W / 2, CFG.wireY - CLIP_H, CLIP_W, CLIP_H));
