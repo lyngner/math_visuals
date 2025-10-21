@@ -2320,15 +2320,27 @@ function draw() {
     const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
-      const w = img.width,
-        h = img.height;
+      const w = img.width;
+      const h = img.height;
+      const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+      const sizing = helper && typeof helper.ensureMinimumPngDimensions === 'function'
+        ? helper.ensureMinimumPngDimensions({ width: w, height: h })
+        : (() => {
+            const minDimension = 100;
+            const safeWidth = Number.isFinite(w) && w > 0 ? w : minDimension;
+            const safeHeight = Number.isFinite(h) && h > 0 ? h : minDimension;
+            return {
+              width: Math.max(minDimension, Math.round(safeWidth)),
+              height: Math.max(minDimension, Math.round(safeHeight))
+            };
+          })();
       const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
+      canvas.width = sizing.width;
+      canvas.height = sizing.height;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, w, h);
-      ctx.drawImage(img, 0, 0, w, h);
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
       canvas.toBlob(b => {
         const urlPng = URL.createObjectURL(b);

@@ -2,6 +2,7 @@
   if (typeof global !== 'object' || !global) return;
 
   const helper = {};
+  const MINIMUM_PNG_DIMENSION = 100;
   let toastStyleInjected = false;
   let toastContainer = null;
   let archiveEntriesPromise = null;
@@ -269,6 +270,31 @@
     return { width: 1024, height: 768 };
   }
 
+  function ensureMinimumPngDimensions(dimensions, options = {}) {
+    const minDimensionOption = Number.isFinite(options.minimum) && options.minimum > 0 ? options.minimum : MINIMUM_PNG_DIMENSION;
+    const baseScaleOption = Number.isFinite(options.scale) && options.scale > 0 ? options.scale : 1;
+    const widthInput = dimensions && Number.isFinite(dimensions.width) && dimensions.width > 0 ? dimensions.width : minDimensionOption;
+    const heightInput = dimensions && Number.isFinite(dimensions.height) && dimensions.height > 0 ? dimensions.height : minDimensionOption;
+    const scaledWidth = widthInput * baseScaleOption;
+    const scaledHeight = heightInput * baseScaleOption;
+    const scaleMultiplier = Math.max(
+      1,
+      scaledWidth > 0 ? minDimensionOption / scaledWidth : 1,
+      scaledHeight > 0 ? minDimensionOption / scaledHeight : 1
+    );
+    const finalScale = baseScaleOption * scaleMultiplier;
+    const finalWidth = Math.max(minDimensionOption, Math.round(widthInput * finalScale));
+    const finalHeight = Math.max(minDimensionOption, Math.round(heightInput * finalScale));
+    return {
+      width: finalWidth,
+      height: finalHeight,
+      scale: finalScale,
+      baseWidth: widthInput,
+      baseHeight: heightInput,
+      minimum: minDimensionOption
+    };
+  }
+
   function ensureSvgNamespaces(svgElement) {
     if (!svgElement || typeof svgElement.setAttribute !== 'function') {
       return svgElement;
@@ -500,8 +526,9 @@
     if (!doc) throw new Error('document mangler');
     await waitForDocumentFonts(doc);
     const canvas = doc.createElement('canvas');
-    const width = Math.max(1, Math.round(Number.isFinite(dimensions.width) ? dimensions.width : 0));
-    const height = Math.max(1, Math.round(Number.isFinite(dimensions.height) ? dimensions.height : 0));
+    const sizing = ensureMinimumPngDimensions(dimensions);
+    const width = sizing.width;
+    const height = sizing.height;
     canvas.width = width;
     canvas.height = height;
     const ctx = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
@@ -785,6 +812,8 @@
   helper.cloneSvgForExport = cloneSvgForExport;
   helper.ensureSvgBackground = ensureSvgBackground;
   helper.getSvgCanvasBounds = getSvgCanvasBounds;
+  helper.ensureMinimumPngDimensions = ensureMinimumPngDimensions;
+  helper.MINIMUM_PNG_DIMENSION = MINIMUM_PNG_DIMENSION;
 
   global.MathVisSvgExport = helper;
 })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);
