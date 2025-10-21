@@ -296,8 +296,48 @@
     return `${sanitizedTool}${nextIndex}`;
   }
 
+  async function waitForDocumentFonts(doc) {
+    if (!doc) return;
+    const fontSet = doc.fonts;
+    if (fontSet) {
+      if (fontSet.ready && typeof fontSet.ready.then === 'function') {
+        try {
+          await fontSet.ready;
+          return;
+        } catch (error) {
+          // ignore errors from fonts.ready and fall back to manual loading
+        }
+      }
+      if (typeof fontSet.load === 'function') {
+        const fontFamilies = ['Inter', 'Segoe UI', 'system-ui', 'sans-serif'];
+        const fontSpecs = [];
+        fontFamilies.forEach(family => {
+          const quoted = family.includes(' ') ? `"${family}"` : family;
+          fontSpecs.push(`16px ${quoted}`);
+          fontSpecs.push(`600 28px ${quoted}`);
+          fontSpecs.push(`700 34px ${quoted}`);
+        });
+        const requests = fontSpecs.map(spec => {
+          try {
+            return fontSet.load(spec);
+          } catch (error) {
+            return Promise.resolve();
+          }
+        });
+        try {
+          await Promise.all(requests.map(promise => Promise.resolve(promise).catch(() => null)));
+          return;
+        } catch (error) {
+          // ignore font loading errors
+        }
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+
   async function renderSvgToPng(doc, svgUrl, svgString, dimensions) {
     if (!doc) throw new Error('document mangler');
+    await waitForDocumentFonts(doc);
     const canvas = doc.createElement('canvas');
     const width = Math.max(1, Math.round(Number.isFinite(dimensions.width) ? dimensions.width : 0));
     const height = Math.max(1, Math.round(Number.isFinite(dimensions.height) ? dimensions.height : 0));

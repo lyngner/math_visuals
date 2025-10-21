@@ -15,6 +15,7 @@
       --sidebar-min-width: 320px;
       --tb-row-gap: 0px;
       --tb-negative-row-gap: 0px;
+      --tb-font-family: "Inter", "Segoe UI", system-ui, sans-serif;
     }
     /* Figur */
     .tb-board{
@@ -70,6 +71,14 @@
     }
     .tb-row-label[data-empty="true"]{display:none;}
     .tb-row-label-text{font-size:32px;font-weight:600;fill:#374151;letter-spacing:0.01em;}
+    .tb-row-label,
+    .tb-row-label-text,
+    .tb-total,
+    .tb-val,
+    .tb-frac text,
+    .tb-frac tspan {
+      font-family: var(--tb-font-family, "Inter", "Segoe UI", system-ui, sans-serif);
+    }
     .tb-panel{display:flex;flex-direction:column;align-items:stretch;gap:0;width:100%;min-width:0;flex:1 1 0;}
     .tb-panel .tb-header:not(:empty){margin-bottom:var(--tb-stepper-spacing,6px);}
     .tb-panel .tb-stepper{align-self:center;}
