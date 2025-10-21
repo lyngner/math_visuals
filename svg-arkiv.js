@@ -282,6 +282,19 @@
       .replace(/[^a-z0-9]+/g, '');
   }
 
+  function normalizeStoragePath(value) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return '';
+    }
+
+    return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  }
+
   const TOOL_OPEN_TARGETS = (() => {
     const definitions = [
       { names: ['Graftegner'], url: '/graftegner.html', storagePath: '/graftegner' },
@@ -321,12 +334,17 @@
     ];
 
     const map = new Map();
+    const storageMap = new Map();
     for (const definition of definitions) {
       const entry = {
         url: definition.url,
-        storagePath: definition.storagePath,
+        storagePath: normalizeStoragePath(definition.storagePath),
         displayName: definition.displayName || (definition.names && definition.names[0]) || ''
       };
+      const storageKey = entry.storagePath;
+      if (storageKey && !storageMap.has(storageKey)) {
+        storageMap.set(storageKey, entry);
+      }
       if (!Array.isArray(definition.names)) {
         continue;
       }
@@ -338,6 +356,7 @@
         map.set(key, entry);
       }
     }
+    map.byStoragePath = storageMap;
     return map;
   })();
 
@@ -352,6 +371,54 @@
     }
 
     return TOOL_OPEN_TARGETS.get(key) || null;
+  }
+
+  function resolveTargetFromStorageIndicator(indicator) {
+    if (!indicator || !TOOL_OPEN_TARGETS.byStoragePath) {
+      return null;
+    }
+
+    const normalizedIndicator = String(indicator).toLowerCase();
+    if (!normalizedIndicator) {
+      return null;
+    }
+
+    for (const [storagePath, target] of TOOL_OPEN_TARGETS.byStoragePath.entries()) {
+      if (!storagePath) {
+        continue;
+      }
+      const normalizedPath = storagePath.toLowerCase();
+      const pathWithoutLeadingSlash = normalizedPath.replace(/^\//, '');
+      if (
+        normalizedIndicator.includes(normalizedPath) ||
+        (pathWithoutLeadingSlash && normalizedIndicator.includes(pathWithoutLeadingSlash))
+      ) {
+        return target;
+      }
+    }
+
+    return null;
+  }
+
+  function resolveEntryOpenTarget(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return null;
+    }
+
+    const explicitTarget = resolveToolOpenTarget(entry.tool || '');
+    if (explicitTarget) {
+      return explicitTarget;
+    }
+
+    const indicators = [entry.storagePath, entry.slug, entry.svgUrl, entry.pngUrl, entry.thumbnailUrl];
+    for (const indicator of indicators) {
+      const target = resolveTargetFromStorageIndicator(indicator);
+      if (target) {
+        return target;
+      }
+    }
+
+    return null;
   }
 
   function getFocusableElements(container) {
@@ -1076,7 +1143,7 @@
 
       const hasSvg = Boolean(entry.svgUrl);
       const hasPng = Boolean(entry.pngUrl);
-      const targetConfig = resolveToolOpenTarget(entry.tool || '');
+      const targetConfig = resolveEntryOpenTarget(entry);
       const hasExampleState = entry.exampleState != null;
       const canEdit = Boolean(targetConfig && hasExampleState);
       const canDownload = hasSvg || hasPng;
@@ -1557,7 +1624,7 @@
           break;
         }
         case 'edit': {
-          const targetConfig = resolveToolOpenTarget(entry.tool || '');
+          const targetConfig = resolveEntryOpenTarget(entry);
           const exampleState = entry.exampleState;
           const hasExampleState = exampleState != null;
           const hasTarget = Boolean(targetConfig && targetConfig.url && targetConfig.storagePath);
