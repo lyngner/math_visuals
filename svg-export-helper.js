@@ -581,7 +581,19 @@
     const summary = options.summary != null ? options.summary : null;
     const createdAt = new Date().toISOString();
 
-    const dimensions = getSvgDimensions(exportSvg);
+    let measurementTarget = exportSvg;
+    if (svgElement) {
+      let isSvgConnected = false;
+      if (typeof svgElement.isConnected === 'boolean') {
+        isSvgConnected = svgElement.isConnected;
+      } else if (doc && typeof doc.contains === 'function') {
+        isSvgConnected = doc.contains(svgElement);
+      }
+      if (isSvgConnected) {
+        measurementTarget = svgElement;
+      }
+    }
+    const dimensions = getSvgDimensions(measurementTarget);
 
     const fallbackBase = sanitizeBaseName(options.defaultBaseName || suggestedName || tool || 'export', sanitizeBaseName(tool || 'export'));
     let baseNameSuggestion;
