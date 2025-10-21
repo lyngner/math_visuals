@@ -677,6 +677,22 @@
       sprite.userData.isMeasurement = true;
       return sprite;
     }
+    createThickSegmentMesh(start, end, thickness, material) {
+      if (!start || !end || !material) return null;
+      const direction = end.clone().sub(start);
+      const length = direction.length();
+      if (!(length > 1e-4)) return null;
+      const geometry = new THREE.BoxGeometry(thickness, length, thickness);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.copy(start.clone().add(end).multiplyScalar(0.5));
+      const up = new THREE.Vector3(0, 1, 0);
+      const normalizedDirection = direction.clone().normalize();
+      const quaternion = new THREE.Quaternion().setFromUnitVectors(up, normalizedDirection);
+      mesh.setRotationFromQuaternion(quaternion);
+      mesh.renderOrder = 10;
+      mesh.userData.isMeasurement = true;
+      return mesh;
+    }
     addMeasurementLine(targetGroup, start, end, options = {}) {
       var _options$color;
       if (!targetGroup || !start || !end) return;
@@ -684,18 +700,22 @@
       const length = direction.length();
       if (!(length > 1e-4)) return;
       const color = (_options$color = options.color) !== null && _options$color !== void 0 ? _options$color : 0x111827;
-      const lineMaterial = new THREE.LineBasicMaterial({
-        color
+      const thickness = typeof options.thickness === 'number' && options.thickness > 0 ? options.thickness : 0.028;
+      const lineMaterial = new THREE.MeshBasicMaterial({
+        color,
+        depthTest: false,
+        depthWrite: false,
+        toneMapped: false
       });
-      lineMaterial.depthTest = false;
-      lineMaterial.depthWrite = false;
-      lineMaterial.toneMapped = false;
+      lineMaterial.polygonOffset = true;
+      lineMaterial.polygonOffsetFactor = -1;
+      lineMaterial.polygonOffsetUnits = -1;
       const measurementGroup = new THREE.Group();
       measurementGroup.userData.isMeasurement = true;
-      const mainGeometry = new THREE.BufferGeometry().setFromPoints([start.clone(), end.clone()]);
-      const mainLine = new THREE.Line(mainGeometry, lineMaterial);
-      mainLine.userData.isMeasurement = true;
-      measurementGroup.add(mainLine);
+      const mainMesh = this.createThickSegmentMesh(start, end, thickness, lineMaterial);
+      if (mainMesh) {
+        measurementGroup.add(mainMesh);
+      }
       const markerLength = options.markerLength && options.markerLength > 0 ? options.markerLength : Math.min(Math.max(length * 0.25, 0.16), 0.35);
       const normalizedDirection = direction.clone().normalize();
       const tempVector = new THREE.Vector3(0, 1, 0);
@@ -711,10 +731,12 @@
       }
       markerDirection.normalize().multiplyScalar(markerLength / 2);
       const markerPoints = [start.clone().add(markerDirection), start.clone().sub(markerDirection), end.clone().add(markerDirection), end.clone().sub(markerDirection)];
-      const markerGeometry = new THREE.BufferGeometry().setFromPoints(markerPoints);
-      const markerSegments = new THREE.LineSegments(markerGeometry, lineMaterial);
-      markerSegments.userData.isMeasurement = true;
-      measurementGroup.add(markerSegments);
+      for (let i = 0; i < markerPoints.length; i += 2) {
+        const markerMesh = this.createThickSegmentMesh(markerPoints[i], markerPoints[i + 1], thickness, lineMaterial);
+        if (markerMesh) {
+          measurementGroup.add(markerMesh);
+        }
+      }
       targetGroup.add(measurementGroup);
       const labelText = typeof options.label === 'string' ? options.label.trim() : '';
       if (labelText.length) {
