@@ -426,7 +426,11 @@
       const action = button.dataset.action;
       const item = button.closest ? button.closest('[data-item]') : null;
       const group = button.closest ? button.closest('[data-group]') : null;
-      const path = group ? group.dataset.path : null;
+      const path = group && group.dataset && group.dataset.path
+        ? group.dataset.path
+        : button.dataset && button.dataset.path
+          ? button.dataset.path
+          : null;
       if (!path) return;
 
       if (action === 'open') {
