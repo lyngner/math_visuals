@@ -37,8 +37,37 @@ test.describe('Archive open integration', () => {
     };
 
     await page.addInitScript(payload => {
-      window.localStorage.clear();
-      window.localStorage.setItem('archive_open_request', JSON.stringify(payload.request));
+      try {
+        window.localStorage.clear();
+      } catch (_) {}
+      window.__preparedOpenRequest = null;
+      const descriptor = {
+        configurable: true,
+        get() {
+          return undefined;
+        },
+        set(value) {
+          Object.defineProperty(window, 'MathVisExamples', {
+            value,
+            writable: true,
+            configurable: true,
+            enumerable: true
+          });
+          if (value && typeof value.prepareOpenRequest === 'function') {
+            try {
+              const prepared = value.prepareOpenRequest(payload.request);
+              window.__preparedOpenRequest = prepared || null;
+            } catch (_) {
+              window.__preparedOpenRequest = null;
+            }
+          }
+        }
+      };
+      try {
+        Object.defineProperty(window, 'MathVisExamples', descriptor);
+      } catch (_) {
+        window.MathVisExamples = undefined;
+      }
     }, { request: openRequest });
 
     await page.goto(TOOL_PATH, { waitUntil: 'networkidle' });
@@ -46,6 +75,13 @@ test.describe('Archive open integration', () => {
     await page.waitForFunction(() => {
       const api = window.MathVisExamples;
       return !!(api && typeof api.getExamples === 'function' && api.getExamples().length > 0);
+    });
+
+    const preparedRequest = await page.evaluate(() => window.__preparedOpenRequest);
+    expect(preparedRequest).toBeTruthy();
+    expect(preparedRequest.example || preparedRequest.exampleState).toMatchObject({
+      description: ARCHIVE_EXAMPLE.description,
+      config: ARCHIVE_EXAMPLE.config
     });
 
     const activeTab = page.locator('#exampleTabs .example-tab.is-active');
@@ -71,7 +107,9 @@ test.describe('Archive open integration', () => {
         count: examples.length,
         temporary: first.temporary === true,
         hasTempFlag: first.__isTemporaryExample === true,
-        noticeShown: first.__openRequestNoticeShown === true
+        noticeShown: first.__openRequestNoticeShown === true,
+        title: first.config && first.config.CFG && first.config.CFG.title,
+        description: first.description
       };
     });
 
@@ -79,6 +117,8 @@ test.describe('Archive open integration', () => {
     expect(flags.temporary).toBe(true);
     expect(flags.hasTempFlag).toBe(true);
     expect(flags.noticeShown).toBe(true);
+    expect(flags.title).toBe(ARCHIVE_EXAMPLE.config.CFG.title);
+    expect(flags.description).toBe(ARCHIVE_EXAMPLE.description);
 
     await description.fill('Arkivoppgave oppdatert');
     await expect(description).toHaveValue('Arkivoppgave oppdatert');
