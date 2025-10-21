@@ -952,8 +952,10 @@
       actions.setAttribute('aria-label', 'Handlinger for figur');
 
       const actionConfig = [
-        { action: 'download-svg', label: 'Eksporter' },
-        { action: 'open', label: 'Åpne figur' },
+        { action: 'open-svg', label: 'Åpne SVG' },
+        { action: 'open-png', label: 'Åpne PNG' },
+        { action: 'edit', label: 'Rediger i verktøy' },
+        { action: 'download', label: 'Last ned' },
         { action: 'delete', label: 'Slett figur' }
       ];
 
@@ -1066,17 +1068,36 @@
         dialog.removeAttribute('aria-describedby');
       }
 
+      const hasSvg = Boolean(entry.svgUrl);
+      const hasPng = Boolean(entry.pngUrl);
+      const targetConfig = resolveToolOpenTarget(entry.tool || '');
+      const hasExampleState = entry.exampleState != null;
+      const canEdit = Boolean(targetConfig && hasExampleState);
+      const canDownload = hasSvg || hasPng;
+
       for (const button of actionButtons) {
         const action = button.dataset.action;
-        const hasUrl = action === 'download-svg'
-          ? Boolean(entry.svgUrl)
-          : action === 'download-png'
-            ? Boolean(entry.pngUrl)
-            : action === 'open'
-              ? Boolean(entry.svgUrl || entry.pngUrl)
-              : true;
+        let isAvailable = true;
 
-        if (!hasUrl) {
+        switch (action) {
+          case 'open-svg':
+            isAvailable = hasSvg;
+            break;
+          case 'open-png':
+            isAvailable = hasPng;
+            break;
+          case 'edit':
+            isAvailable = canEdit;
+            break;
+          case 'download':
+            isAvailable = canDownload;
+            break;
+          default:
+            isAvailable = true;
+            break;
+        }
+
+        if (!isAvailable) {
           button.disabled = true;
           button.setAttribute('aria-hidden', 'true');
         } else {
@@ -1420,7 +1441,7 @@
           const resolvedPngUrl = normalizeAssetUrl(pngUrl, 'png') || resolvedSvgUrl;
           const resolvedThumbnailUrl = normalizeAssetUrl(thumbnailUrl, 'png') || resolvedPngUrl || resolvedSvgUrl;
 
-          return {
+          const normalizedEntry = {
             slug: normalizedSlug || slug,
             svgSlug,
             pngSlug,
@@ -1444,6 +1465,12 @@
             sequenceLabel,
             fileSizeLabel
           };
+
+          if (Object.prototype.hasOwnProperty.call(entry, 'exampleState')) {
+            normalizedEntry.exampleState = entry.exampleState;
+          }
+
+          return normalizedEntry;
         })
         .filter(entry => entry.slug && entry.svgUrl);
 
@@ -1505,34 +1532,35 @@
     }
 
     try {
-      if (action === 'download-svg' || action === 'download-png') {
-        const isSvg = action === 'download-svg';
-        const url = isSvg ? entry.svgUrl : entry.pngUrl;
-        if (!url) {
-          setStatus('Fant ikke nedlastingslenken for figuren.', 'error');
-          return;
-        }
+      switch (action) {
+        case 'open-svg':
+        case 'open-png': {
+          const isSvg = action === 'open-svg';
+          const url = isSvg ? entry.svgUrl : entry.pngUrl;
+          if (!url) {
+            setStatus(isSvg ? 'Fant ikke SVG-adressen for figuren.' : 'Fant ikke PNG-adressen for figuren.', 'error');
+            return;
+          }
 
-        const link = document.createElement('a');
-        link.href = url;
-        const fallbackName = `${entry.slug || 'figur'}${isSvg ? '.svg' : '.png'}`;
-        link.download = isSvg
-          ? (entry.svgSlug || `${entry.baseName || entry.slug || 'figur'}.svg`)
-          : (entry.pngSlug || `${entry.baseName || entry.slug || 'figur'}.png`);
-        if (!link.download) {
-          link.download = fallbackName;
+          const popup = window.open(url, '_blank', 'noopener');
+          if (popup) {
+            setStatus(isSvg ? 'Åpner SVG i ny fane.' : 'Åpner PNG i ny fane.', 'success');
+          } else {
+            setStatus('Klarte ikke å åpne figuren. Tillat sprettoppvinduer og prøv igjen.', 'error');
+          }
+          break;
         }
-        link.rel = 'noopener';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setStatus(isSvg ? 'Starter nedlasting av SVG.' : 'Starter nedlasting av PNG.', 'success');
-      } else if (action === 'open') {
-        const targetConfig = resolveToolOpenTarget(entry.tool || '');
-        const exampleState = entry.exampleState;
-        const hasExampleState = exampleState != null;
+        case 'edit': {
+          const targetConfig = resolveToolOpenTarget(entry.tool || '');
+          const exampleState = entry.exampleState;
+          const hasExampleState = exampleState != null;
+          const hasTarget = Boolean(targetConfig && targetConfig.url && targetConfig.storagePath);
 
-        if (hasExampleState && targetConfig && targetConfig.url && targetConfig.storagePath) {
+          if (!hasTarget || !hasExampleState) {
+            setStatus('Figuren kan ikke redigeres i dette verktøyet.', 'error');
+            return;
+          }
+
           const slug = entry.slug || entry.svgSlug || entry.baseName || '';
           const title = entry.displayTitle || entry.title || entry.baseName || slug || 'Figur';
           const toolLabel = (entry.tool && entry.tool.trim()) || targetConfig.displayName || 'verktøyet';
@@ -1567,35 +1595,51 @@
           } else {
             setStatus('Klarte ikke å åpne verktøyet. Tillat sprettoppvinduer og prøv igjen.', 'error');
           }
-        } else {
-          const url = entry.svgUrl || entry.pngUrl;
+          break;
+        }
+        case 'download': {
+          const preferSvg = Boolean(entry.svgUrl);
+          const url = preferSvg ? entry.svgUrl : entry.pngUrl;
           if (!url) {
-            setStatus('Fant ikke en URL å åpne for figuren.', 'error');
+            setStatus('Fant ikke nedlastingslenken for figuren.', 'error');
             return;
           }
-          const popup = window.open(url, '_blank', 'noopener');
-          if (popup) {
-            setStatus('Åpner figur i ny fane.', 'success');
-          } else {
-            setStatus('Klarte ikke å åpne figuren. Tillat sprettoppvinduer og prøv igjen.', 'error');
+
+          const link = document.createElement('a');
+          link.href = url;
+          const fallbackName = `${entry.slug || 'figur'}${preferSvg ? '.svg' : '.png'}`;
+          link.download = preferSvg
+            ? (entry.svgSlug || `${entry.baseName || entry.slug || 'figur'}.svg`)
+            : (entry.pngSlug || `${entry.baseName || entry.slug || 'figur'}.png`);
+          if (!link.download) {
+            link.download = fallbackName;
           }
+          link.rel = 'noopener';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setStatus(preferSvg ? 'Starter nedlasting av SVG.' : 'Starter nedlasting av PNG.', 'success');
+          break;
         }
-      } else if (action === 'delete') {
-        const confirmed = window.confirm(`Er du sikker på at du vil slette «${entry.displayTitle}»?`);
-        if (!confirmed) {
+        case 'delete': {
+          const confirmed = window.confirm(`Er du sikker på at du vil slette «${entry.displayTitle}»?`);
+          if (!confirmed) {
+            return;
+          }
+
+          const response = await fetch(`/api/svg?slug=${encodeURIComponent(entry.slug)}`, { method: 'DELETE' });
+          if (!response.ok) {
+            throw new Error(`Uventet svar: ${response.status}`);
+          }
+
+          allEntries = allEntries.filter(item => item.slug !== entry.slug);
+          render();
+          setStatus('Figur slettet.', 'success');
+          helpers.close?.({ returnFocus: false });
           return;
         }
-
-        const response = await fetch(`/api/svg?slug=${encodeURIComponent(entry.slug)}`, { method: 'DELETE' });
-        if (!response.ok) {
-          throw new Error(`Uventet svar: ${response.status}`);
-        }
-
-        allEntries = allEntries.filter(item => item.slug !== entry.slug);
-        render();
-        setStatus('Figur slettet.', 'success');
-        helpers.close?.({ returnFocus: false });
-        return;
+        default:
+          break;
       }
     } catch (error) {
       console.error('Kunne ikke utføre handlingen', error);
