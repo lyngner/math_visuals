@@ -360,6 +360,159 @@
     return map;
   })();
 
+  const OPEN_REQUEST_STORAGE_KEY = 'archive_open_request';
+
+  function getLocalStorage() {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    try {
+      return window.localStorage || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeArchiveOpenRequest(payload) {
+    const storage = getLocalStorage();
+    if (!storage) {
+      return false;
+    }
+    if (!payload || typeof payload !== 'object') {
+      try {
+        storage.removeItem(OPEN_REQUEST_STORAGE_KEY);
+      } catch (error) {}
+      return false;
+    }
+    try {
+      storage.setItem(OPEN_REQUEST_STORAGE_KEY, JSON.stringify(payload));
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function parseArchiveExample(value) {
+    if (!value) {
+      return null;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return null;
+      }
+      try {
+        return JSON.parse(trimmed);
+      } catch (error) {
+        return null;
+      }
+    }
+    if (typeof value === 'object') {
+      return value;
+    }
+    return null;
+  }
+
+  function normalizeArchivePath(value) {
+    if (typeof value !== 'string') {
+      return null;
+    }
+    let path = value.trim();
+    if (!path) {
+      return null;
+    }
+    try {
+      const url = new URL(path, window.location.origin);
+      if (url && typeof url.pathname === 'string') {
+        path = url.pathname;
+      }
+    } catch (error) {}
+    path = path.replace(/\\+/g, '/');
+    path = path.replace(/\/+/g, '/');
+    if (!path.startsWith('/')) {
+      path = `/${path}`;
+    }
+    path = path.replace(/\/index\.html?$/i, '/');
+    path = path.replace(/\.html?$/i, '');
+    path = path.replace(/\/+$/, '');
+    if (!path) {
+      return '/';
+    }
+    const examplePattern = /\/eksempel[-_]?\d+$/i;
+    while (path.length > 1 && examplePattern.test(path)) {
+      const next = path.replace(examplePattern, '');
+      if (!next || next === path) {
+        break;
+      }
+      path = next.replace(/\/+$/, '');
+    }
+    if (!path) {
+      return '/';
+    }
+    try {
+      return decodeURI(path).toLowerCase() || '/';
+    } catch (error) {
+      return path.toLowerCase();
+    }
+  }
+
+  function cloneArchiveExample(example) {
+    if (!example || typeof example !== 'object') {
+      return null;
+    }
+    if (typeof structuredClone === 'function') {
+      try {
+        return structuredClone(example);
+      } catch (error) {}
+    }
+    try {
+      return JSON.parse(JSON.stringify(example));
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function prepareArchiveOpenRequestFallback(rawRequest) {
+    const request = rawRequest && typeof rawRequest === 'object' ? { ...rawRequest } : {};
+    const exampleState =
+      parseArchiveExample(request.exampleState) ||
+      parseArchiveExample(request.example) ||
+      parseArchiveExample(request.exampleData) ||
+      parseArchiveExample(request.payload);
+    if (exampleState) {
+      const normalizedExample = cloneArchiveExample(exampleState);
+      if (normalizedExample) {
+        request.exampleState = normalizedExample;
+        request.example = normalizedExample;
+        request.exampleData = normalizedExample;
+        request.payload = normalizedExample;
+      }
+    }
+    const pathCandidates = [
+      request.canonicalPath,
+      request.storagePath,
+      request.path,
+      request.target,
+      request.href,
+      request.targetUrl
+    ];
+    for (const candidate of pathCandidates) {
+      const normalized = normalizeArchivePath(candidate);
+      if (normalized) {
+        request.canonicalPath = normalized;
+        if (!request.path) {
+          request.path = normalized;
+        }
+        if (!request.storagePath) {
+          request.storagePath = normalized;
+        }
+        break;
+      }
+    }
+    writeArchiveOpenRequest(request);
+    return request;
+  }
+
   function resolveToolOpenTarget(toolName) {
     if (typeof toolName !== 'string') {
       return null;
@@ -1674,10 +1827,22 @@
             source: 'svg-archive'
           };
 
+          let prepared = false;
           try {
-            window.MathVisExamples?.prepareOpenRequest?.(openRequest);
+            if (window.MathVisExamples && typeof window.MathVisExamples.prepareOpenRequest === 'function') {
+              window.MathVisExamples.prepareOpenRequest(openRequest);
+              prepared = true;
+            }
           } catch (error) {
-            console.error('Kunne ikke forberede åpning av eksempel', error);
+            console.error('Kunne ikke forberede åpning av eksempel via MathVisExamples', error);
+          }
+          if (!prepared) {
+            try {
+              const fallbackRequest = prepareArchiveOpenRequestFallback(openRequest);
+              prepared = !!fallbackRequest;
+            } catch (error) {
+              console.error('Kunne ikke lagre åpningstilstand for arkivet', error);
+            }
           }
 
           const popup = window.open(targetConfig.url, '_blank', 'noopener');
