@@ -4330,6 +4330,20 @@ function cloneBoardSvgRoot() {
   node.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   node.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
   sanitizeSvgForeignObjects(node);
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  if (helper && typeof helper.ensureSvgBackground === 'function') {
+    helper.ensureSvgBackground(node, {
+      bounds: { minX: 0, minY: 0, width, height }
+    });
+  } else if (typeof document !== 'undefined') {
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', '0');
+    rect.setAttribute('y', '0');
+    rect.setAttribute('width', String(width));
+    rect.setAttribute('height', String(height));
+    rect.setAttribute('fill', '#ffffff');
+    node.insertBefore(rect, node.firstChild);
+  }
   return { node, width, height };
 }
 function serializeBoardSvg(clone) {
