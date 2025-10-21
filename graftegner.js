@@ -82,7 +82,7 @@ function whenJXGReady(callback) {
   jxgReadyQueue.push(callback);
   scheduleJXGCheck();
 }
-const DEFAULT_CURVE_COLORS = ['#9333ea', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
+const DEFAULT_CURVE_COLORS = ['#1F4DE2', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
 const CAMPUS_CURVE_ORDER = [0, 1, 2, 3, 4, 5];
 const DEFAULT_FUNCTION_EXPRESSION = 'f(x)=x^2-2';
 
@@ -3236,7 +3236,7 @@ function buildCurveLabelContent(fun) {
 }
 function buildFunctions() {
   graphs = [];
-  const fallbackColor = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#9333ea';
+  const fallbackColor = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#1F4DE2';
   const palette = resolveCurvePalette(Math.max(DEFAULT_CURVE_COLORS.length, SIMPLE_PARSED.funcs.length || 1));
   SIMPLE_PARSED.funcs.forEach((f, i) => {
     const defaultColor = normalizeColorValue(palette[i % palette.length]) || fallbackColor;
@@ -3413,7 +3413,7 @@ function buildPointsLine() {
   A = null;
   B = null;
   moving = [];
-  const fallbackColor = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#9333ea';
+  const fallbackColor = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#1F4DE2';
   const paletteColor = normalizeColorValue(colorFor(0)) || fallbackColor;
   const first = (_SIMPLE_PARSED$funcs$ = SIMPLE_PARSED.funcs[0]) !== null && _SIMPLE_PARSED$funcs$ !== void 0 ? _SIMPLE_PARSED$funcs$ : {
     rhs: 'ax+b'
@@ -4312,7 +4312,7 @@ function setupSettingsForm() {
   let linePointsEdited = false;
   const pointMarkerControls = [];
   const functionColorControls = [];
-  const DEFAULT_COLOR_FALLBACK = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#9333ea';
+  const DEFAULT_COLOR_FALLBACK = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#1F4DE2';
   const getRowIndex = row => {
     if (!row || !row.dataset) return 1;
     const parsed = Number.parseInt(row.dataset.index, 10);
