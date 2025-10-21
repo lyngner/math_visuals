@@ -4241,16 +4241,6 @@ function getCurrentAppMode() {
   return 'default';
 }
 
-/* ====== Reset & SVG (robust eksport) ====== */
-const btnReset = document.getElementById('btnReset');
-if (btnReset) {
-  btnReset.addEventListener('click', () => {
-    const scr = initialScreen();
-    brd.setBoundingBox(toBB(scr), true);
-    updateAfterViewChange();
-  });
-}
-
 applyAppModeToTaskCheckHost(getCurrentAppMode() || 'task');
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
