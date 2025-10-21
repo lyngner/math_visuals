@@ -244,6 +244,7 @@ function paramNumber(id, def = null) {
 }
 const DEFAULT_POINT_MARKER = 'o';
 const DEFAULT_DOMAIN_VALUE = '-∞, ∞';
+const DEFAULT_UNBOUNDED_DOMAIN_SPAN = 10;
 function sanitizePointMarkerValue(value) {
   if (typeof value !== 'string') return '';
   return value.trim();
@@ -653,11 +654,71 @@ function normalizeDomainNumericString(str) {
   return out;
 }
 
+function splitDomainParts(str) {
+  if (typeof str !== 'string') return [];
+  const parts = [];
+  let current = '';
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (ch === ',') {
+      const prev = i > 0 ? str[i - 1] : '';
+      const next = i < str.length - 1 ? str[i + 1] : '';
+      if (/\d/.test(prev) && /\d/.test(next)) {
+        current += ch;
+      } else {
+        const trimmed = current.trim();
+        if (trimmed) parts.push(trimmed);
+        current = '';
+      }
+    } else {
+      current += ch;
+    }
+  }
+  const trimmed = current.trim();
+  if (trimmed) parts.push(trimmed);
+  return parts;
+}
+
+function stripDomainEndpointMarker(part, side) {
+  if (typeof part !== 'string') {
+    return { text: '', marker: null };
+  }
+  let trimmed = part.trim();
+  if (!trimmed) {
+    return { text: '', marker: null };
+  }
+  let marker = null;
+  if (side === 'left') {
+    const first = trimmed[0];
+    if (['[', '<', '('].includes(first)) {
+      marker = first;
+      trimmed = trimmed.slice(1).trim();
+    }
+  }
+  if (side === 'right') {
+    const last = trimmed[trimmed.length - 1];
+    if ([']', '>', ')'].includes(last)) {
+      marker = last;
+      trimmed = trimmed.slice(0, -1).trim();
+    }
+  }
+  return { text: trimmed, marker };
+}
+
 function parseDomainNumber(str) {
+  if (!str) return null;
   const normalized = normalizeDomainNumericString(str);
   if (!normalized) return null;
-  const num = Number.parseFloat(normalized);
-  return Number.isFinite(num) ? num : null;
+  const infinityMatch = normalized.match(/^([+-])?(?:inf(?:inity)?|∞)$/i);
+  if (infinityMatch) {
+    const sign = infinityMatch[1] === '-' ? -1 : 1;
+    return sign < 0 ? -Infinity : Infinity;
+  }
+  const num = Number.parseFloat(normalized.replace(/∞/gi, ''));
+  if (Number.isFinite(num)) {
+    return num;
+  }
+  return null;
 }
 
 function parseDomainString(dom) {
@@ -671,63 +732,81 @@ function parseDomainString(dom) {
     .replace(/≤/g, '<=')
     .replace(/≥/g, '>=')
     .replace(/−/g, '-');
+  const buildDomain = (leftPart, rightPart, opts = {}) => {
+    const leftInfo = stripDomainEndpointMarker(leftPart, 'left');
+    const rightInfo = stripDomainEndpointMarker(rightPart, 'right');
+    const leftMarker = opts.leftMarker != null ? opts.leftMarker : leftInfo.marker;
+    const rightMarker = opts.rightMarker != null ? opts.rightMarker : rightInfo.marker;
+    const a = parseDomainNumber(leftInfo.text);
+    const b = parseDomainNumber(rightInfo.text);
+    if (a == null || b == null) return null;
+    if (!(b >= a)) return null;
+    if (!Number.isFinite(a) && !Number.isFinite(b)) return null;
+    const hasExplicitLeft = leftMarker != null;
+    const hasExplicitRight = rightMarker != null;
+    let leftClosed = hasExplicitLeft ? leftMarker === '[' : false;
+    let rightClosed = hasExplicitRight ? rightMarker === ']' : false;
+    if (!Number.isFinite(a)) leftClosed = false;
+    if (!Number.isFinite(b)) rightClosed = false;
+    const hasMarkers =
+      opts.showMarkers === undefined ? leftMarker != null || rightMarker != null : !!opts.showMarkers;
+    return {
+      min: a,
+      max: b,
+      leftClosed,
+      rightClosed,
+      showMarkers: hasMarkers
+    };
+  };
   const start = normalized[0];
   const end = normalized[normalized.length - 1];
   const isBracketStart = ['[', '<', '('].includes(start);
   const isBracketEnd = [']', '>', ')'].includes(end);
   if (isBracketStart && isBracketEnd) {
     const inner = normalized.slice(1, -1);
-    const nums = inner.match(/[+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+)/g);
-    if (nums && nums.length === 2) {
-      const a = parseDomainNumber(nums[0]);
-      const b = parseDomainNumber(nums[1]);
-      if (a != null && b != null && b >= a) {
-        return {
-          min: a,
-          max: b,
-          leftClosed: start === '[',
-          rightClosed: end === ']',
-          showMarkers: true
-        };
+    const parts = splitDomainParts(inner);
+    if (parts.length === 2) {
+      const bracketDomain = buildDomain(parts[0], parts[1], {
+        leftMarker: start,
+        rightMarker: end,
+        showMarkers: true
+      });
+      if (bracketDomain) {
+        return bracketDomain;
       }
     }
     return null;
   }
-  const inequality = normalized.match(/^([+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+))\s*(<=|<)\s*[xX]\s*(<=|<)\s*([+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+))$/);
+  const inequality = normalized.match(
+    /^([+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+|∞|inf(?:inity)?))\s*(<=|<)\s*[xX]\s*(<=|<)\s*([+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+|∞|inf(?:inity)?))$/i
+  );
   if (inequality) {
     const a = parseDomainNumber(inequality[1]);
     const b = parseDomainNumber(inequality[4]);
     if (a != null && b != null && b >= a) {
+      if (!Number.isFinite(a) && !Number.isFinite(b)) return null;
       return {
         min: a,
         max: b,
-        leftClosed: inequality[2] === '<=',
-        rightClosed: inequality[3] === '<=',
+        leftClosed: inequality[2] === '<=' && Number.isFinite(a),
+        rightClosed: inequality[3] === '<=' && Number.isFinite(b),
         showMarkers: true
       };
     }
   }
-  const pairMatch = normalizeDomainNumericString(normalized);
-  if (pairMatch) {
-    const parts = pairMatch.split(',');
-    if (parts.length === 2) {
-      const a = parseDomainNumber(parts[0]);
-      const b = parseDomainNumber(parts[1]);
-      if (a != null && b != null && b >= a) {
-        return {
-          min: a,
-          max: b,
-          leftClosed: true,
-          rightClosed: true,
-          showMarkers: false
-        };
-      }
+  const parts = splitDomainParts(normalized);
+  if (parts.length === 2) {
+    const fallbackDomain = buildDomain(parts[0], parts[1]);
+    if (fallbackDomain) {
+      return fallbackDomain;
     }
   }
   return null;
 }
 
 function formatDomainNumber(value) {
+  if (value === Infinity) return '∞';
+  if (value === -Infinity) return '-∞';
   if (typeof value !== 'number' || !Number.isFinite(value)) return '';
   const normalized = Object.is(value, -0) ? 0 : value;
   if (Number.isInteger(normalized)) {
@@ -744,17 +823,24 @@ function formatDomainNumber(value) {
 }
 
 function formatDomainForInput(domain) {
-  if (!domain || !Number.isFinite(domain.min) || !Number.isFinite(domain.max)) {
+  if (!domain || typeof domain !== 'object') {
     return '';
   }
-  const min = formatDomainNumber(domain.min);
-  const max = formatDomainNumber(domain.max);
-  if (!min || !max) return '';
+  const hasMin = Number.isFinite(domain.min);
+  const hasMax = Number.isFinite(domain.max);
+  if (!hasMin && !hasMax) {
+    return '';
+  }
+  const min = hasMin ? formatDomainNumber(domain.min) : '-∞';
+  const max = hasMax ? formatDomainNumber(domain.max) : '∞';
+  if ((hasMin && !min) || (hasMax && !max)) {
+    return '';
+  }
   if (domain.showMarkers === false) {
     return `${min}, ${max}`;
   }
-  const left = domain.leftClosed ? '[' : '(';
-  const right = domain.rightClosed ? ']' : ')';
+  const left = hasMin && domain.leftClosed ? '[' : '<';
+  const right = hasMax && domain.rightClosed ? ']' : '>';
   return `${left}${min}, ${max}${right}`;
 }
 
@@ -764,6 +850,28 @@ function normalizeDomainInputValue(value) {
   const formatted = formatDomainForInput(parsed);
   if (!formatted) return null;
   return { parsed, formatted };
+}
+
+function resolveDomainSamplingBounds(domain) {
+  const span = DEFAULT_UNBOUNDED_DOMAIN_SPAN;
+  if (!domain || typeof domain !== 'object') {
+    return [-5, 5];
+  }
+  const hasMin = Number.isFinite(domain.min);
+  const hasMax = Number.isFinite(domain.max);
+  if (hasMin && hasMax) {
+    return [domain.min, domain.max];
+  }
+  if (hasMin && !hasMax) {
+    const start = domain.min;
+    return [start, start + span];
+  }
+  if (!hasMin && hasMax) {
+    const end = domain.max;
+    return [end - span, end];
+  }
+  const half = span / 2;
+  return [-half, half];
 }
 
 function parseSimple(txt) {
@@ -1361,16 +1469,19 @@ function computeAutoScreenFunctions() {
     const fn = parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
     if (f.domain) {
       anyDom = true;
-      domMin = Math.min(domMin, f.domain.min);
-      domMax = Math.max(domMax, f.domain.max);
+      const [sampleMin, sampleMax] = resolveDomainSamplingBounds(f.domain);
+      const rangeMin = Number.isFinite(f.domain.min) ? f.domain.min : sampleMin;
+      const rangeMax = Number.isFinite(f.domain.max) ? f.domain.max : sampleMax;
+      domMin = Math.min(domMin, rangeMin);
+      domMax = Math.max(domMax, rangeMax);
       feats.push({
         hasDom: true,
         fn,
-        a: f.domain.min,
-        b: f.domain.max,
-        ...sampleFeatures(fn, f.domain.min, f.domain.max, {
-          includeLeftEnd: !!f.domain.leftClosed,
-          includeRightEnd: !!f.domain.rightClosed
+        a: sampleMin,
+        b: sampleMax,
+        ...sampleFeatures(fn, sampleMin, sampleMax, {
+          includeLeftEnd: Number.isFinite(f.domain.min) && !!f.domain.leftClosed,
+          includeRightEnd: Number.isFinite(f.domain.max) && !!f.domain.rightClosed
         })
       });
     } else {
@@ -2316,9 +2427,13 @@ function rebuildFunctionSegmentsFor(g) {
   const bb = brd.getBoundingBox();
   let L = bb[0],
     R = bb[2];
-  if (g.domain && Number.isFinite(g.domain.min) && Number.isFinite(g.domain.max)) {
-    L = Math.max(L, g.domain.min);
-    R = Math.min(R, g.domain.max);
+  if (g.domain) {
+    if (Number.isFinite(g.domain.min)) {
+      L = Math.max(L, g.domain.min);
+    }
+    if (Number.isFinite(g.domain.max)) {
+      R = Math.min(R, g.domain.max);
+    }
   }
   if (!(R > L)) return;
   const vas = ADV.asymptote.detect && ADV.asymptote.showVertical ? detectVerticalAsymptotes(g.fn, L, R, 1000, ADV.asymptote.hugeY) : [];
@@ -2667,23 +2782,37 @@ function formatCoordinateForAlt(point) {
   return `(${fx}, ${fy})`;
 }
 function describeDomainForAlt(domain) {
-  if (!domain || !Number.isFinite(domain.min) || !Number.isFinite(domain.max)) return '';
-  const min = formatAltNumber(domain.min);
-  const max = formatAltNumber(domain.max);
-  if (!min || !max) return '';
-  if (domain.min === domain.max) {
-    return `for x lik ${min}`;
+  if (!domain) return '';
+  const hasMin = Number.isFinite(domain.min);
+  const hasMax = Number.isFinite(domain.max);
+  if (!hasMin && !hasMax) return '';
+  const min = hasMin ? formatAltNumber(domain.min) : '';
+  const max = hasMax ? formatAltNumber(domain.max) : '';
+  if (hasMin && hasMax) {
+    if (!min || !max) return '';
+    if (domain.min === domain.max) {
+      return `for x lik ${min}`;
+    }
+    if (domain.leftClosed && domain.rightClosed) {
+      return `for x fra ${min} til ${max}, inkludert begge endepunkter`;
+    }
+    if (domain.leftClosed && !domain.rightClosed) {
+      return `for x fra og med ${min} til ${max}, men ikke inkludert ${max}`;
+    }
+    if (!domain.leftClosed && domain.rightClosed) {
+      return `for x fra ${min} til og med ${max}, men ikke inkludert ${min}`;
+    }
+    return `for x mellom ${min} og ${max}, uten endepunktene`;
   }
-  if (domain.leftClosed && domain.rightClosed) {
-    return `for x fra ${min} til ${max}, inkludert begge endepunkter`;
+  if (!hasMin && hasMax) {
+    if (!max) return '';
+    return domain.rightClosed ? `for x mindre enn eller lik ${max}` : `for x mindre enn ${max}`;
   }
-  if (domain.leftClosed && !domain.rightClosed) {
-    return `for x fra og med ${min} til ${max}, men ikke inkludert ${max}`;
+  if (hasMin && !hasMax) {
+    if (!min) return '';
+    return domain.leftClosed ? `for x større enn eller lik ${min}` : `for x større enn ${min}`;
   }
-  if (!domain.leftClosed && domain.rightClosed) {
-    return `for x fra ${min} til og med ${max}, men ikke inkludert ${min}`;
-  }
-  return `for x mellom ${min} og ${max}, uten endepunktene`;
+  return '';
 }
 function appendExtraPointsAltText(parsed, sentences) {
   if (!Array.isArray(sentences)) return;
@@ -5099,9 +5228,15 @@ function setupSettingsForm() {
             if (!glider || !Array.isArray(target)) continue;
             const rawX = target[0];
             if (!Number.isFinite(rawX)) continue;
-            const clampedX = domain && Number.isFinite(domain.min) && Number.isFinite(domain.max)
-              ? Math.max(domain.min, Math.min(domain.max, rawX))
-              : rawX;
+            let clampedX = rawX;
+            if (domain) {
+              if (Number.isFinite(domain.min) && clampedX < domain.min) {
+                clampedX = domain.min;
+              }
+              if (Number.isFinite(domain.max) && clampedX > domain.max) {
+                clampedX = domain.max;
+              }
+            }
             const fnY = typeof primary.fn === 'function' ? primary.fn(clampedX) : NaN;
             if (!Number.isFinite(fnY) || typeof glider.moveTo !== 'function') {
               continue;
