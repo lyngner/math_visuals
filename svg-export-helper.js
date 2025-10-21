@@ -195,6 +195,29 @@
     }
   }
 
+  function blobToDataUrl(blob) {
+    if (!(blob instanceof Blob)) return null;
+    if (typeof global.FileReader !== 'function') {
+      return null;
+    }
+    return new Promise((resolve, reject) => {
+      try {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            resolve(reader.result);
+          } else {
+            resolve(null);
+          }
+        };
+        reader.onerror = () => reject(reader.error || new Error('Kunne ikke lese PNG-blob.'));
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        reject(error);
+      }
+    }).catch(() => null);
+  }
+
   function triggerDownload(doc, href, filename) {
     if (!href || !doc || !doc.body) return;
     const anchor = doc.createElement('a');
@@ -296,13 +319,40 @@
     });
     ctx.clearRect(0, 0, width, height);
     ctx.drawImage(img, 0, 0, width, height);
-    let dataUrl;
-    try {
-      dataUrl = canvas.toDataURL('image/png');
-    } catch (error) {
-      throw new Error('Kunne ikke generere PNG-data-URL');
+    const mimeType = 'image/png';
+    let blob = null;
+    if (typeof canvas.convertToBlob === 'function') {
+      try {
+        blob = await canvas.convertToBlob({ type: mimeType });
+      } catch (error) {
+        blob = null;
+      }
     }
-    const blob = dataUrlToBlob(dataUrl);
+    if (!blob && typeof canvas.toBlob === 'function') {
+      blob = await new Promise(resolve => {
+        try {
+          canvas.toBlob(result => {
+            resolve(result || null);
+          }, mimeType);
+        } catch (error) {
+          resolve(null);
+        }
+      });
+    }
+    let dataUrl = null;
+    if (blob) {
+      dataUrl = await blobToDataUrl(blob);
+    }
+    if (!dataUrl) {
+      try {
+        dataUrl = canvas.toDataURL(mimeType);
+      } catch (error) {
+        throw new Error('Kunne ikke generere PNG-data-URL');
+      }
+      if (!blob) {
+        blob = dataUrlToBlob(dataUrl);
+      }
+    }
     if (!blob) {
       throw new Error('Kunne ikke lage PNG-blob');
     }
