@@ -2151,13 +2151,53 @@ function draw() {
   }
   const legacySvgStaticBtn = document.getElementById("btnSvgStatic");
   const btnSvgDownload = legacySvgStaticBtn || document.getElementById("btnSvg");
-  if (btnSvgDownload) btnSvgDownload.onclick = () => {
+  if (btnSvgDownload) btnSvgDownload.onclick = async () => {
     var _ADV$export3;
-    const svgStr = buildBaseSvgMarkup(buildExportOptions({
+    const exportOptions = buildExportOptions({
       includeHandles: false,
       includeHandleHits: false,
       includeHotZones: false
-    }), true);
+    });
+    const svgStr = buildBaseSvgMarkup(exportOptions, true);
+    const helper = typeof window !== "undefined" ? window.MathVisSvgExport : null;
+    if (helper && typeof helper.exportGraphicWithArchive === "function" && typeof document !== "undefined") {
+      maybeRefreshAltText("export");
+      const meta = buildArealmodellExportMeta();
+      let exportSvgEl = null;
+      if (typeof DOMParser !== "undefined") {
+        try {
+          const parser = new DOMParser();
+          const parsed = parser.parseFromString(buildBaseSvgMarkup(exportOptions, false), "image/svg+xml");
+          if (parsed && parsed.documentElement && parsed.documentElement.tagName && parsed.documentElement.tagName.toLowerCase() === "svg") {
+            exportSvgEl = document.importNode ? document.importNode(parsed.documentElement, true) : parsed.documentElement;
+          }
+        } catch (error) {
+          console.error("Kunne ikke bygge eksport-SVG", error);
+        }
+      }
+      if (!exportSvgEl) {
+        const liveSvg = document.getElementById("area");
+        if (liveSvg) {
+          exportSvgEl = liveSvg.cloneNode(true);
+          const removable = exportSvgEl.querySelectorAll('.handleCorner, .handleOverlay, .handleHit, .hot');
+          removable.forEach(node => node.parentNode && node.parentNode.removeChild(node));
+        }
+      }
+      if (exportSvgEl) {
+        try {
+          await helper.exportGraphicWithArchive(exportSvgEl, ((_ADV$export3 = ADV.export) === null || _ADV$export3 === void 0 ? void 0 : _ADV$export3.filenameStatic) || "arealmodell.svg", "arealmodell", {
+            svgString: svgStr,
+            description: meta.description,
+            defaultBaseName: meta.defaultBaseName,
+            summary: meta.summary,
+            title: meta.title
+          });
+          return;
+        } catch (error) {
+          console.error("Kunne ikke eksportere via arkivet", error);
+        }
+      }
+    }
     downloadText(((_ADV$export3 = ADV.export) === null || _ADV$export3 === void 0 ? void 0 : _ADV$export3.filenameStatic) || "arealmodell.svg", svgStr, "image/svg+xml");
   };
   const btnPng = document.getElementById("btnPng");
