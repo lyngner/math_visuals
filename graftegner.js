@@ -4437,7 +4437,6 @@ function setupSettingsForm() {
   const g = id => document.getElementById(id);
   const showNamesInput = g('cfgShowNames');
   const showExprInput = g('cfgShowExpr');
-  const showBracketsInput = g('cfgShowBrackets');
   const showAxisNumbersInput = g('cfgShowAxisNumbers');
   const showGridInput = g('cfgShowGrid');
   const forceTicksInput = g('cfgForceTicks');
@@ -6056,9 +6055,6 @@ function setupSettingsForm() {
   if (showExprInput) {
     showExprInput.checked = !!ADV.curveName.showExpression;
   }
-  if (showBracketsInput) {
-    showBracketsInput.checked = !!ADV.domainMarkers.show;
-  }
   if (showAxisNumbersInput) {
     showAxisNumbersInput.checked = !!(ADV.axis && ADV.axis.ticks && ADV.axis.ticks.showNumbers);
   }
@@ -6131,7 +6127,7 @@ function setupSettingsForm() {
     }
     const showNamesChecked = showNamesInput ? !!showNamesInput.checked : !!(ADV.curveName && ADV.curveName.showName);
     const showExprChecked = showExprInput ? !!showExprInput.checked : !!(ADV.curveName && ADV.curveName.showExpression);
-    const showBracketsChecked = showBracketsInput ? !!showBracketsInput.checked : !!(ADV.domainMarkers && ADV.domainMarkers.show);
+    const showBracketsChecked = !!(ADV.domainMarkers && ADV.domainMarkers.show);
     const showAxisNumbersChecked = showAxisNumbersInput ? !!showAxisNumbersInput.checked : !!(ADV.axis && ADV.axis.ticks && ADV.axis.ticks.showNumbers);
     const showGridChecked = showGridInput ? !!showGridInput.checked : !!(ADV.axis && ADV.axis.grid && ADV.axis.grid.show);
     if (showNamesInput && ADV.curveName.showName !== showNamesChecked) {
@@ -6145,10 +6141,6 @@ function setupSettingsForm() {
     const showAny = showNamesChecked || showExprChecked;
     if (ADV.curveName.show !== showAny) {
       ADV.curveName.show = showAny;
-      needsRebuild = true;
-    }
-    if (showBracketsInput && ADV.domainMarkers.show !== showBracketsChecked) {
-      ADV.domainMarkers.show = showBracketsChecked;
       needsRebuild = true;
     }
     if (showAxisNumbersInput && ADV.axis.ticks.showNumbers !== showAxisNumbersChecked) {
@@ -6251,9 +6243,7 @@ function setupSettingsForm() {
     if (showExprInput) {
       p.set('showExpr', showExprChecked ? '1' : '0');
     }
-    if (showBracketsInput) {
-      p.set('brackets', showBracketsChecked ? '1' : '0');
-    }
+    p.set('brackets', showBracketsChecked ? '1' : '0');
     if (showAxisNumbersInput) {
       p.set('axisNumbers', showAxisNumbersChecked ? '1' : '0');
     }
