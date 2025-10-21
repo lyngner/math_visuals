@@ -230,21 +230,16 @@
       backgroundRect.setAttribute('fill', '#ffffff');
 
       const viewBoxAttribute = typeof clone.getAttribute === 'function' ? clone.getAttribute('viewBox') : null;
+      backgroundRect.setAttribute('width', '100%');
+      backgroundRect.setAttribute('height', '100%');
+
       if (viewBoxAttribute) {
         const parts = viewBoxAttribute.trim().split(/[\s,]+/).map((value) => Number(value));
         if (parts.length >= 4 && parts.every((value) => Number.isFinite(value))) {
-          const [minX, minY, vbWidth, vbHeight] = parts;
+          const [minX, minY] = parts;
           backgroundRect.setAttribute('x', String(minX));
           backgroundRect.setAttribute('y', String(minY));
-          backgroundRect.setAttribute('width', String(vbWidth));
-          backgroundRect.setAttribute('height', String(vbHeight));
-        } else {
-          backgroundRect.setAttribute('width', '100%');
-          backgroundRect.setAttribute('height', '100%');
         }
-      } else {
-        backgroundRect.setAttribute('width', '100%');
-        backgroundRect.setAttribute('height', '100%');
       }
 
       clone.insertBefore(backgroundRect, clone.firstChild);
