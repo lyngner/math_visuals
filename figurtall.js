@@ -254,9 +254,6 @@
       cell.classList.add('cell--circle');
       if (hasFill) {
         cell.classList.add('cell--filled');
-        cell.style.backgroundColor = color;
-      } else {
-        cell.style.backgroundColor = '#fff';
       }
     } else if (shape === 'circle-outline') {
       cell.classList.add('cell--circle-outline');
