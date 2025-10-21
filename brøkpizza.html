@@ -103,6 +103,34 @@
     }
     .stepper span { min-width:32px; text-align:center; font-variant-numeric:tabular-nums; font-size:16px; }
     .a11y:focus { outline:none; stroke:#1e88e5; stroke-width:3; }
+    .status {
+      display:none;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid transparent;
+      font-size:14px;
+      line-height:1.4;
+    }
+    .status[hidden] { display:none; }
+    .status strong { display:block; margin-bottom:4px; }
+    .status--success {
+      display:block;
+      background:#ecfdf5;
+      border-color:#a7f3d0;
+      color:#065f46;
+    }
+    .status--error {
+      display:block;
+      background:#fef2f2;
+      border-color:#fecaca;
+      color:#991b1b;
+    }
+    .status--info {
+      display:block;
+      background:#eff6ff;
+      border-color:#bfdbfe;
+      color:#1d4ed8;
+    }
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
@@ -181,6 +209,10 @@
         <div class="card card--examples">
           <div class="example-description">
             <textarea id="exampleDescription" aria-label="Oppgavetekst (valgfritt)" placeholder="Skriv oppgavetekst her"></textarea>
+            <div class="task-check-host" data-task-check-host hidden>
+              <button id="btnCheck" class="btn btn--task-check" type="button">Sjekk svar</button>
+              <div id="checkStatus" class="status" role="status" aria-live="polite" hidden></div>
+            </div>
           </div>
           <div class="toolbar">
             <button id="btnUpdateExample" class="btn" type="button">Oppdater</button>
@@ -307,6 +339,20 @@
               <div class="field">
                 <label for="p3MaxN">Maks n</label>
                 <input id="p3MaxN" type="number" value="24" min="1">
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Fasit</legend>
+            <div class="field-row">
+              <div class="field">
+                <label for="solutionNumerator">Teller</label>
+                <input id="solutionNumerator" type="number" min="0" step="1" value="">
+              </div>
+              <div class="field">
+                <label for="solutionDenominator">Nevner</label>
+                <input id="solutionDenominator" type="number" min="1" step="1" value="">
               </div>
             </div>
           </fieldset>
