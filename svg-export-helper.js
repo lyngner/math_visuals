@@ -169,6 +169,74 @@
     return { width: 1024, height: 768 };
   }
 
+  function ensureSvgNamespaces(svgElement) {
+    if (!svgElement || typeof svgElement.setAttribute !== 'function') {
+      return svgElement;
+    }
+    if (!svgElement.getAttribute('xmlns')) {
+      svgElement.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    }
+    if (!svgElement.getAttribute('xmlns:xlink')) {
+      svgElement.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    }
+    return svgElement;
+  }
+
+  function ensureSvgSizingAttributes(svgElement, sourceElement) {
+    if (!svgElement || typeof svgElement.setAttribute !== 'function') {
+      return svgElement;
+    }
+    const source = sourceElement && typeof sourceElement.getAttribute === 'function' ? sourceElement : svgElement;
+    const dimensions = getSvgDimensions(source);
+
+    if (!svgElement.getAttribute('viewBox')) {
+      const sourceViewBox = source.getAttribute('viewBox');
+      if (sourceViewBox) {
+        svgElement.setAttribute('viewBox', sourceViewBox);
+      } else if (Number.isFinite(dimensions.width) && Number.isFinite(dimensions.height) && dimensions.width > 0 && dimensions.height > 0) {
+        svgElement.setAttribute('viewBox', `0 0 ${dimensions.width} ${dimensions.height}`);
+      }
+    }
+
+    if (!svgElement.getAttribute('width')) {
+      const sourceWidth = source.getAttribute('width');
+      if (sourceWidth) {
+        svgElement.setAttribute('width', sourceWidth);
+      } else if (Number.isFinite(dimensions.width) && dimensions.width > 0) {
+        svgElement.setAttribute('width', String(dimensions.width));
+      }
+    }
+
+    if (!svgElement.getAttribute('height')) {
+      const sourceHeight = source.getAttribute('height');
+      if (sourceHeight) {
+        svgElement.setAttribute('height', sourceHeight);
+      } else if (Number.isFinite(dimensions.height) && dimensions.height > 0) {
+        svgElement.setAttribute('height', String(dimensions.height));
+      }
+    }
+
+    return svgElement;
+  }
+
+  function cloneSvgForExport(svgElement) {
+    if (!svgElement || typeof svgElement.cloneNode !== 'function') {
+      return null;
+    }
+    const clone = svgElement.cloneNode(true);
+    const ownerDocument = (clone && clone.ownerDocument) || (typeof document !== 'undefined' ? document : null);
+    if (clone && ownerDocument && typeof ownerDocument.createElementNS === 'function' && typeof clone.insertBefore === 'function') {
+      const backgroundRect = ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      backgroundRect.setAttribute('width', '100%');
+      backgroundRect.setAttribute('height', '100%');
+      backgroundRect.setAttribute('fill', '#ffffff');
+      clone.insertBefore(backgroundRect, clone.firstChild);
+    }
+    ensureSvgNamespaces(clone);
+    ensureSvgSizingAttributes(clone, svgElement);
+    return clone;
+  }
+
   function dataUrlToBlob(dataUrl) {
     if (typeof dataUrl !== 'string') return null;
     const parts = dataUrl.split(',');
@@ -620,6 +688,7 @@
   helper.exportSvgWithArchive = exportSvgWithArchive;
   helper.slugify = slugify;
   helper.showToast = showToast;
+  helper.cloneSvgForExport = cloneSvgForExport;
 
   global.MathVisSvgExport = helper;
 })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);

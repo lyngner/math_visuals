@@ -578,9 +578,16 @@
   const btnPng = document.getElementById('btnPng');
   const resetBtn = document.getElementById('resetBtn');
   function svgToString(svgEl) {
-    const clone = svgEl.cloneNode(true);
-    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    if (!svgEl) return '';
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const clone = helper && typeof helper.cloneSvgForExport === 'function' ? helper.cloneSvgForExport(svgEl) : svgEl.cloneNode(true);
+    if (!clone) return '';
+    if (!clone.getAttribute('xmlns')) {
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    }
+    if (!clone.getAttribute('xmlns:xlink')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    }
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
   }
   function buildFigurtallExportMeta() {

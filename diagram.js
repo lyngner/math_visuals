@@ -2237,7 +2237,10 @@ function isCorrect(vs, ans, tol) {
 }
 async function svgToString(svgEl) {
   var _titleEl$textContent;
-  const clone = svgEl.cloneNode(true);
+  if (!svgEl) return '';
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const clone = helper && typeof helper.cloneSvgForExport === 'function' ? helper.cloneSvgForExport(svgEl) : svgEl.cloneNode(true);
+  if (!clone) return '';
   const exportTitle = (CFG.title || '').trim() || 'Diagram';
   const currentContext = collectAltTextContext();
   const exportDesc = (CFG.altText || '').trim() || buildHeuristicAltText(currentContext);
@@ -2283,13 +2286,27 @@ async function svgToString(svgEl) {
     if (fs) t.setAttribute('font-size', fs);
     const fw = comp.getPropertyValue('font-weight');
     if (fw && fw !== 'normal') t.setAttribute('font-weight', fw);
-    clone.insertBefore(t, clone.firstChild);
+    const firstElement = clone.firstElementChild;
+    if (
+      firstElement &&
+      typeof firstElement.tagName === 'string' &&
+      firstElement.tagName.toLowerCase() === 'rect' &&
+      firstElement.getAttribute('fill') === '#ffffff'
+    ) {
+      clone.insertBefore(t, firstElement.nextSibling);
+    } else {
+      clone.insertBefore(t, clone.firstChild);
+    }
   }
 
   // fjern interaktive håndtak før eksport
   clone.querySelectorAll('.handle, .handleShadow').forEach(el => el.remove());
-  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  if (!clone.getAttribute('xmlns')) {
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  }
+  if (!clone.getAttribute('xmlns:xlink')) {
+    clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  }
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
 }
 function buildDiagramExportMeta() {

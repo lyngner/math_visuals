@@ -744,7 +744,10 @@ function pt(e) {
   return p.matrixTransform(svg.getScreenCTM().inverse());
 }
 function svgToString(svgEl) {
-  const clone = svgEl.cloneNode(true);
+  if (!svgEl) return '';
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  const clone = helper && typeof helper.cloneSvgForExport === 'function' ? helper.cloneSvgForExport(svgEl) : svgEl.cloneNode(true);
+  if (!clone) return '';
   const figureTitle = document.title || 'Perlesnor';
   const activeAltText = (typeof SIMPLE.altText === 'string' ? SIMPLE.altText : '').trim() || buildPerlesnorAltText();
   if (window.MathVisAltText) {
@@ -759,7 +762,19 @@ function svgToString(svgEl) {
   const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
   const style = document.createElement('style');
   style.textContent = css;
-  clone.insertBefore(style, clone.firstChild);
+  const firstElement = clone.firstElementChild;
+  if (
+    firstElement &&
+    typeof firstElement.tagName === 'string' &&
+    firstElement.tagName.toLowerCase() === 'rect' &&
+    firstElement.getAttribute('fill') === '#ffffff'
+  ) {
+    clone.insertBefore(style, firstElement.nextSibling);
+  } else if (clone.firstChild) {
+    clone.insertBefore(style, clone.firstChild);
+  } else {
+    clone.appendChild(style);
+  }
 
   clone.querySelectorAll('.beadFallback, .ropeFallback, .clipFallback').forEach(el => {
     el.removeAttribute('visibility');
@@ -794,8 +809,12 @@ function svgToString(svgEl) {
       clone.insertBefore(desc, style.nextSibling);
     }
   });
-  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  if (!clone.getAttribute('xmlns')) {
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  }
+  if (!clone.getAttribute('xmlns:xlink')) {
+    clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  }
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
 }
 function buildPerlesnorExportMeta() {

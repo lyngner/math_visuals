@@ -694,15 +694,34 @@
     render();
   });
   function svgToString(svgEl) {
-    const clone = svgEl.cloneNode(true);
+    if (!svgEl) return '';
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const clone = helper && typeof helper.cloneSvgForExport === 'function' ? helper.cloneSvgForExport(svgEl) : svgEl.cloneNode(true);
+    if (!clone) return '';
     const styles = Array.from(document.querySelectorAll('style')).map(style => style.textContent).join('\n');
     if (styles) {
       const styleEl = document.createElement('style');
       styleEl.textContent = styles;
-      clone.insertBefore(styleEl, clone.firstChild);
+      const firstElement = clone.firstElementChild;
+      if (
+        firstElement &&
+        typeof firstElement.tagName === 'string' &&
+        firstElement.tagName.toLowerCase() === 'rect' &&
+        firstElement.getAttribute('fill') === '#ffffff'
+      ) {
+        clone.insertBefore(styleEl, firstElement.nextSibling);
+      } else if (clone.firstChild) {
+        clone.insertBefore(styleEl, clone.firstChild);
+      } else {
+        clone.appendChild(styleEl);
+      }
     }
-    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    if (!clone.getAttribute('xmlns')) {
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    }
+    if (!clone.getAttribute('xmlns:xlink')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    }
     return `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(clone)}`;
   }
   function downloadSvg(svgEl, filename) {
