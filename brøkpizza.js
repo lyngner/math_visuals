@@ -863,18 +863,11 @@ function downloadSVG(svgEl, filename = "pizza.svg") {
   let [minX, minY, w, h] = (clone.getAttribute("viewBox") || "-210 -210 420 420").trim().split(/\s+/).map(Number);
   clone.setAttribute("width", w);
   clone.setAttribute("height", h);
-  const bg = mk("rect", {
-    x: minX,
-    y: minY,
-    width: w,
-    height: h,
-    fill: "#fff"
-  });
-  clone.insertBefore(bg, clone.firstChild);
   const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
   styleEl.setAttribute("type", "text/css");
   styleEl.appendChild(document.createTextNode(getExportSvgStyle()));
   clone.insertBefore(styleEl, clone.firstChild);
+  ensureSvgExportBackground(clone);
   const xml = new XMLSerializer().serializeToString(clone);
   const file = `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
   const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
@@ -924,21 +917,11 @@ function downloadInteractiveSVG(svgEl, filename = "pizza-interaktiv.svg") {
   clone.setAttribute("width", w);
   clone.setAttribute("height", h);
 
-  // Hvit bakgrunn
-  const bg = mk("rect", {
-    x: minX,
-    y: minY,
-    width: w,
-    height: h,
-    fill: "#fff"
-  });
-  clone.insertBefore(bg, clone.firstChild);
-
-  // Innebygd stil
-  const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
-  styleEl.setAttribute("type", "text/css");
-  styleEl.appendChild(document.createTextNode(getExportSvgStyle()));
-  clone.insertBefore(styleEl, clone.firstChild);
+    // Innebygd stil
+    const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
+    styleEl.setAttribute("type", "text/css");
+    styleEl.appendChild(document.createTextNode(getExportSvgStyle()));
+    clone.insertBefore(styleEl, clone.firstChild);
 
   // State fra levende instans
   const inst = REG.get(svgEl);
@@ -979,6 +962,7 @@ function downloadInteractiveSVG(svgEl, filename = "pizza-interaktiv.svg") {
   scriptEl.setAttribute("type", "application/ecmascript");
   scriptEl.appendChild(document.createTextNode(INTERACTIVE_SVG_SCRIPT));
   clone.appendChild(scriptEl);
+  ensureSvgExportBackground(clone);
   const xml = new XMLSerializer().serializeToString(clone);
   const file = `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
   const blob = new Blob([file], {
@@ -1020,14 +1004,7 @@ function buildAllPizzasSvgData() {
   titleEl.textContent = getBrokpizzaTitle();
   const descEl = mk('desc', { id: 'brokpizza-alt-desc' });
   descEl.textContent = getActiveAltText();
-  const bg = mk("rect", {
-    x: 0,
-    y: 0,
-    width: w,
-    height: h,
-    fill: "#fff"
-  });
-  root.append(titleEl, descEl, bg);
+  root.append(titleEl, descEl);
   root.setAttribute('role', 'img');
   root.setAttribute('aria-label', titleEl.textContent);
   root.setAttribute('aria-labelledby', titleEl.id);
@@ -1065,6 +1042,7 @@ function buildAllPizzasSvgData() {
       x += gap;
     }
   });
+  ensureSvgExportBackground(root);
   const xml = new XMLSerializer().serializeToString(root);
   return {
     svg: root,
@@ -1133,6 +1111,72 @@ function downloadAllPizzasPNG(filename = "broksirkler.png") {
     }, 'image/png');
   };
   img.src = url;
+}
+
+function ensureSvgExportBackground(svgEl) {
+  if (!svgEl) return { width: 0, height: 0 };
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  if (helper && typeof helper.ensureSvgBackground === 'function') {
+    return helper.ensureSvgBackground(svgEl, '#ffffff');
+  }
+  const doc = svgEl.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  if (!doc || typeof doc.createElementNS !== 'function') {
+    return { width: 0, height: 0 };
+  }
+  const parseLength = value => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return NaN;
+      const match = trimmed.match(/^([0-9]+(?:\.[0-9]+)?)/);
+      if (match) {
+        return Number.parseFloat(match[1]);
+      }
+    }
+    return NaN;
+  };
+  const viewBox = svgEl.viewBox && svgEl.viewBox.baseVal;
+  const originX = viewBox && Number.isFinite(viewBox.x) ? viewBox.x : 0;
+  const originY = viewBox && Number.isFinite(viewBox.y) ? viewBox.y : 0;
+  const widthAttr = parseLength(svgEl.getAttribute ? svgEl.getAttribute('width') : null);
+  const heightAttr = parseLength(svgEl.getAttribute ? svgEl.getAttribute('height') : null);
+  const width = Number.isFinite(widthAttr)
+    ? Math.max(0, widthAttr)
+    : viewBox && Number.isFinite(viewBox.width)
+      ? Math.max(0, viewBox.width)
+      : 0;
+  const height = Number.isFinite(heightAttr)
+    ? Math.max(0, heightAttr)
+    : viewBox && Number.isFinite(viewBox.height)
+      ? Math.max(0, viewBox.height)
+      : 0;
+  let rect = null;
+  const children = svgEl.childNodes || [];
+  for (let i = 0; i < children.length; i++) {
+    const node = children[i];
+    if (
+      node &&
+      node.nodeType === 1 &&
+      node.nodeName &&
+      node.nodeName.toLowerCase() === 'rect' &&
+      typeof node.getAttribute === 'function' &&
+      node.getAttribute('data-export-background') === 'true'
+    ) {
+      rect = node;
+      break;
+    }
+  }
+  if (!rect) {
+    rect = doc.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('data-export-background', 'true');
+    svgEl.insertBefore(rect, svgEl.firstChild || null);
+  }
+  rect.setAttribute('x', String(originX));
+  rect.setAttribute('y', String(originY));
+  rect.setAttribute('width', String(width));
+  rect.setAttribute('height', String(height));
+  rect.setAttribute('fill', '#ffffff');
+  return { width, height };
 }
 function downloadAllPizzasInteractiveSVG(filename = "broksirkler-interaktiv.svg") {
   const svgs = getVisiblePizzas();
@@ -1230,6 +1274,7 @@ function downloadAllPizzasInteractiveSVG(filename = "broksirkler-interaktiv.svg"
       x += gap;
     }
   });
+  ensureSvgExportBackground(root);
   const xml = new XMLSerializer().serializeToString(root);
   const file = `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
   const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;

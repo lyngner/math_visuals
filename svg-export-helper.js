@@ -169,6 +169,56 @@
     return { width: 1024, height: 768 };
   }
 
+  function ensureSvgBackground(svgElement, color = '#ffffff') {
+    if (!svgElement || typeof svgElement !== 'object') {
+      return { width: 0, height: 0 };
+    }
+    const doc = svgElement.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    if (!doc || typeof doc.createElementNS !== 'function') {
+      return getSvgDimensions(svgElement);
+    }
+    const ns = 'http://www.w3.org/2000/svg';
+    const dims = getSvgDimensions(svgElement);
+    const viewBox = svgElement.viewBox && svgElement.viewBox.baseVal;
+    const originX = viewBox && Number.isFinite(viewBox.x) ? viewBox.x : 0;
+    const originY = viewBox && Number.isFinite(viewBox.y) ? viewBox.y : 0;
+    const width = Number.isFinite(dims.width) ? Math.max(0, dims.width) : 0;
+    const height = Number.isFinite(dims.height) ? Math.max(0, dims.height) : 0;
+    const fill = typeof color === 'string' && color.trim() ? color.trim() : '#ffffff';
+
+    let backgroundRect = null;
+    const childNodes = svgElement.childNodes || [];
+    for (let i = 0; i < childNodes.length; i++) {
+      const node = childNodes[i];
+      if (
+        node &&
+        node.nodeType === 1 &&
+        node.nodeName &&
+        node.nodeName.toLowerCase() === 'rect' &&
+        typeof node.getAttribute === 'function' &&
+        node.getAttribute('data-export-background') === 'true'
+      ) {
+        backgroundRect = node;
+        break;
+      }
+    }
+
+    if (!backgroundRect) {
+      backgroundRect = doc.createElementNS(ns, 'rect');
+      backgroundRect.setAttribute('data-export-background', 'true');
+      const firstChild = svgElement.firstChild || null;
+      svgElement.insertBefore(backgroundRect, firstChild);
+    }
+
+    backgroundRect.setAttribute('x', String(originX));
+    backgroundRect.setAttribute('y', String(originY));
+    backgroundRect.setAttribute('width', String(width));
+    backgroundRect.setAttribute('height', String(height));
+    backgroundRect.setAttribute('fill', fill);
+
+    return { width, height };
+  }
+
   function dataUrlToBlob(dataUrl) {
     if (typeof dataUrl !== 'string') return null;
     const parts = dataUrl.split(',');
@@ -404,14 +454,17 @@
     const doc = svgElement.ownerDocument || (typeof document !== 'undefined' ? document : null);
     if (!doc) throw new Error('document mangler');
 
+    const exportSvg = svgElement.cloneNode(true);
+    ensureSvgBackground(exportSvg, '#ffffff');
+
     const serializer = options.serialize;
     let svgString;
     if (options.svgString != null) {
       svgString = await Promise.resolve(options.svgString);
     } else if (typeof serializer === 'function') {
-      svgString = await Promise.resolve(serializer(svgElement));
+      svgString = await Promise.resolve(serializer(exportSvg));
     } else {
-      svgString = new XMLSerializer().serializeToString(svgElement);
+      svgString = new XMLSerializer().serializeToString(exportSvg);
     }
 
     const tool = typeof toolId === 'string' && toolId.trim() ? toolId.trim() : 'ukjent';
@@ -419,7 +472,7 @@
     const summary = options.summary != null ? options.summary : null;
     const createdAt = new Date().toISOString();
 
-    const dimensions = getSvgDimensions(svgElement);
+    const dimensions = getSvgDimensions(exportSvg);
 
     const fallbackBase = sanitizeBaseName(options.defaultBaseName || suggestedName || tool || 'export', sanitizeBaseName(tool || 'export'));
     let baseNameSuggestion;
@@ -618,6 +671,7 @@
 
   helper.exportGraphicWithArchive = exportGraphicWithArchive;
   helper.exportSvgWithArchive = exportSvgWithArchive;
+  helper.ensureSvgBackground = ensureSvgBackground;
   helper.slugify = slugify;
   helper.showToast = showToast;
 

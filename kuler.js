@@ -906,6 +906,7 @@ async function buildExportSvg() {
     clone.setAttribute("id", `export-bowl-${index + 1}`);
     exportSvg.appendChild(clone);
   });
+  ensureExportBackground(exportSvg, layout.width, layout.height);
   annotateExportClones(clones);
   await inlineImages(exportSvg);
   return {
@@ -1296,4 +1297,39 @@ async function inlineImages(svgEl) {
     });
     img.setAttribute("href", dataUrl);
   }));
+}
+
+function ensureExportBackground(svgEl, width, height) {
+  if (!svgEl) return;
+  const helper = typeof window !== "undefined" ? window.MathVisSvgExport : null;
+  if (helper && typeof helper.ensureSvgBackground === "function") {
+    helper.ensureSvgBackground(svgEl, "#ffffff");
+    return;
+  }
+  const doc = svgEl.ownerDocument || (typeof document !== "undefined" ? document : null);
+  if (!doc || typeof doc.createElementNS !== "function") return;
+  const viewBox = svgEl.viewBox && svgEl.viewBox.baseVal;
+  const originX = viewBox && Number.isFinite(viewBox.x) ? viewBox.x : 0;
+  const originY = viewBox && Number.isFinite(viewBox.y) ? viewBox.y : 0;
+  let rect = null;
+  const children = svgEl.childNodes || [];
+  for (let i = 0; i < children.length; i++) {
+    const node = children[i];
+    if (node && node.nodeType === 1 && node.nodeName && node.nodeName.toLowerCase() === "rect" && typeof node.getAttribute === "function" && node.getAttribute("data-export-background") === "true") {
+      rect = node;
+      break;
+    }
+  }
+  if (!rect) {
+    rect = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("data-export-background", "true");
+    svgEl.insertBefore(rect, svgEl.firstChild || null);
+  }
+  const w = Number.isFinite(width) ? Math.max(0, width) : 0;
+  const h = Number.isFinite(height) ? Math.max(0, height) : 0;
+  rect.setAttribute("x", String(originX));
+  rect.setAttribute("y", String(originY));
+  rect.setAttribute("width", String(w));
+  rect.setAttribute("height", String(h));
+  rect.setAttribute("fill", "#ffffff");
 }

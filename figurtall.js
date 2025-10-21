@@ -581,6 +581,7 @@
     const clone = svgEl.cloneNode(true);
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    ensureSvgExportBackground(clone);
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
   }
   function buildFigurtallExportMeta() {
@@ -675,6 +676,72 @@
       }, 'image/png');
     };
     img.src = url;
+  }
+
+  function ensureSvgExportBackground(svgEl) {
+    if (!svgEl) return { width: 0, height: 0 };
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    if (helper && typeof helper.ensureSvgBackground === 'function') {
+      return helper.ensureSvgBackground(svgEl, '#ffffff');
+    }
+    const doc = svgEl.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    if (!doc || typeof doc.createElementNS !== 'function') {
+      return { width: 0, height: 0 };
+    }
+    const parseLength = value => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return NaN;
+        const match = trimmed.match(/^([0-9]+(?:\.[0-9]+)?)/);
+        if (match) {
+          return Number.parseFloat(match[1]);
+        }
+      }
+      return NaN;
+    };
+    const viewBox = svgEl.viewBox && svgEl.viewBox.baseVal;
+    const originX = viewBox && Number.isFinite(viewBox.x) ? viewBox.x : 0;
+    const originY = viewBox && Number.isFinite(viewBox.y) ? viewBox.y : 0;
+    const widthAttr = parseLength(svgEl.getAttribute ? svgEl.getAttribute('width') : null);
+    const heightAttr = parseLength(svgEl.getAttribute ? svgEl.getAttribute('height') : null);
+    const width = Number.isFinite(widthAttr)
+      ? Math.max(0, widthAttr)
+      : viewBox && Number.isFinite(viewBox.width)
+        ? Math.max(0, viewBox.width)
+        : 0;
+    const height = Number.isFinite(heightAttr)
+      ? Math.max(0, heightAttr)
+      : viewBox && Number.isFinite(viewBox.height)
+        ? Math.max(0, viewBox.height)
+        : 0;
+    let rect = null;
+    const children = svgEl.childNodes || [];
+    for (let i = 0; i < children.length; i++) {
+      const node = children[i];
+      if (
+        node &&
+        node.nodeType === 1 &&
+        node.nodeName &&
+        node.nodeName.toLowerCase() === 'rect' &&
+        typeof node.getAttribute === 'function' &&
+        node.getAttribute('data-export-background') === 'true'
+      ) {
+        rect = node;
+        break;
+      }
+    }
+    if (!rect) {
+      rect = doc.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('data-export-background', 'true');
+      svgEl.insertBefore(rect, svgEl.firstChild || null);
+    }
+    rect.setAttribute('x', String(originX));
+    rect.setAttribute('y', String(originY));
+    rect.setAttribute('width', String(width));
+    rect.setAttribute('height', String(height));
+    rect.setAttribute('fill', '#ffffff');
+    return { width, height };
   }
   function formatCount(value, singular, plural) {
     const num = Math.max(0, Math.round(Number(value) || 0));
