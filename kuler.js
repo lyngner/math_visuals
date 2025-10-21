@@ -920,6 +920,7 @@ async function buildExportSvg() {
     bg.setAttribute("width", String(layout.width));
     bg.setAttribute("height", String(layout.height));
     bg.setAttribute("fill", "#ffffff");
+    bg.setAttribute("data-export-background", "true");
     exportSvg.insertBefore(bg, exportSvg.firstChild);
   }
   return {
@@ -956,63 +957,77 @@ function buildKulerExportMeta(exportData) {
     }
   };
 }
-async function downloadSvgFigure(idx) {
-  if (idx >= getVisibleCount()) return;
-  const exportData = await buildExportSvg();
-  if (!exportData) return;
-  const data = new XMLSerializer().serializeToString(exportData.svg);
-  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
-  const meta = buildKulerExportMeta(exportData);
-  const filename = exportFileName(idx, exportData.count, "svg");
-  if (helper && typeof helper.exportSvgWithArchive === 'function') {
-    await helper.exportSvgWithArchive(exportData.svg, filename, 'kuler', {
-      svgString: data,
-      description: meta.description,
-      slug: meta.slug,
-      defaultBaseName: meta.defaultBaseName,
-      summary: meta.summary
-    });
-    return;
+  function getExportBackgroundFill(exportData) {
+    if (!exportData || !exportData.svg || typeof exportData.svg.querySelector !== "function") {
+      return "#fff";
+    }
+    const bgRect = exportData.svg.querySelector('[data-export-background="true"]');
+    if (!bgRect || typeof bgRect.getAttribute !== "function") {
+      return "#fff";
+    }
+    const fill = bgRect.getAttribute("fill");
+    return typeof fill === "string" && fill ? fill : "#fff";
   }
-  const blob = new Blob([data], {
-    type: "image/svg+xml"
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-async function downloadPngFigure(idx) {
-  if (idx >= getVisibleCount()) return;
-  const exportData = await buildExportSvg();
-  if (!exportData) return;
-  const data = new XMLSerializer().serializeToString(exportData.svg);
-  const svgBlob = new Blob([data], {
-    type: "image/svg+xml"
-  });
-  const url = URL.createObjectURL(svgBlob);
-  const img = new Image();
-  img.onload = () => {
-    const canvas = document.createElement("canvas");
-    canvas.width = exportData.layout.width;
-    canvas.height = exportData.layout.height;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0);
-    URL.revokeObjectURL(url);
-    canvas.toBlob(blob => {
-      if (!blob) return;
-      const pngUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = pngUrl;
-      a.download = exportFileName(idx, exportData.count, "png");
-      a.click();
-      URL.revokeObjectURL(pngUrl);
+  async function downloadSvgFigure(idx) {
+    if (idx >= getVisibleCount()) return;
+    const exportData = await buildExportSvg();
+    if (!exportData) return;
+    const data = new XMLSerializer().serializeToString(exportData.svg);
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const meta = buildKulerExportMeta(exportData);
+    const filename = exportFileName(idx, exportData.count, "svg");
+    if (helper && typeof helper.exportSvgWithArchive === 'function') {
+      await helper.exportSvgWithArchive(exportData.svg, filename, 'kuler', {
+        svgString: data,
+        description: meta.description,
+        slug: meta.slug,
+        defaultBaseName: meta.defaultBaseName,
+        summary: meta.summary
+      });
+      return;
+    }
+    const blob = new Blob([data], {
+      type: "image/svg+xml"
     });
-  };
-  img.src = url;
-}
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  async function downloadPngFigure(idx) {
+    if (idx >= getVisibleCount()) return;
+    const exportData = await buildExportSvg();
+    if (!exportData) return;
+    const backgroundFill = getExportBackgroundFill(exportData);
+    const data = new XMLSerializer().serializeToString(exportData.svg);
+    const svgBlob = new Blob([data], {
+      type: "image/svg+xml"
+    });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = exportData.layout.width;
+      canvas.height = exportData.layout.height;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = backgroundFill;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        const pngUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = pngUrl;
+        a.download = exportFileName(idx, exportData.count, "png");
+        a.click();
+        URL.revokeObjectURL(pngUrl);
+      });
+    };
+    img.src = url;
+  }
 
 /* ===== ALT-TEKST ===== */
 function getAltTextState() {
