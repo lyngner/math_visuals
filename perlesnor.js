@@ -169,8 +169,17 @@ const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
 const exportCard = document.getElementById('exportCard');
 let altTextManager = null;
-btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => downloadSVG(svg, 'perlesnor.svg'));
-btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => downloadPNG(svg, 'perlesnor.png', 2));
+const INLINE_IMAGE_CACHE = new Map();
+btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => {
+  downloadSVG(svg, 'perlesnor.svg').catch(error => {
+    console.error('Kunne ikke eksportere SVG:', error);
+  });
+});
+btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => {
+  downloadPNG(svg, 'perlesnor.png', 2).catch(error => {
+    console.error('Kunne ikke eksportere PNG:', error);
+  });
+});
 setupSettingsUI();
 applyConfig();
 initAltTextManager();
@@ -662,6 +671,166 @@ function imageWithFallback(href, x, y, w, h, cls = "", fallbackEl) {
   }
   return imageEl;
 }
+function getImageHref(imageEl) {
+  if (!imageEl) return "";
+  const direct = imageEl.getAttribute("href");
+  if (direct && direct.trim()) return direct.trim();
+  if (typeof imageEl.getAttributeNS === "function") {
+    const namespaced = imageEl.getAttributeNS("http://www.w3.org/1999/xlink", "href");
+    if (namespaced && namespaced.trim()) return namespaced.trim();
+  }
+  return "";
+}
+function setImageHref(imageEl, value) {
+  if (!imageEl || typeof value !== "string") return;
+  imageEl.setAttribute("href", value);
+  if (typeof imageEl.setAttributeNS === "function") {
+    try {
+      imageEl.setAttributeNS("http://www.w3.org/1999/xlink", "href", value);
+    } catch (_) {
+      // Ignorer hvis navnerom ikke støttes
+    }
+  }
+}
+function shouldInlineImageHref(href) {
+  if (typeof href !== "string") return false;
+  const trimmed = href.trim();
+  if (!trimmed) return false;
+  if (/^data:/i.test(trimmed)) return false;
+  if (/^blob:/i.test(trimmed)) return false;
+  if (/^#/i.test(trimmed)) return false;
+  return true;
+}
+function resolveImageUrl(href) {
+  if (typeof href !== "string" || !href.trim()) return null;
+  try {
+    return new URL(href, document.baseURI).href;
+  } catch (error) {
+    return null;
+  }
+}
+function bytesToBase64(bytes) {
+  if (!bytes || typeof bytes.length !== "number") return null;
+  if (typeof btoa !== "function") return null;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  try {
+    return btoa(binary);
+  } catch (error) {
+    return null;
+  }
+}
+async function blobToDataUrlCompat(blob) {
+  if (!(blob instanceof Blob)) return null;
+  if (typeof blob.arrayBuffer === "function") {
+    try {
+      const buffer = await blob.arrayBuffer();
+      const base64 = bytesToBase64(new Uint8Array(buffer));
+      if (base64) {
+        const type = typeof blob.type === "string" && blob.type ? blob.type : "application/octet-stream";
+        return `data:${type};base64,${base64}`;
+      }
+    } catch (error) {
+      // fall gjennom og prøv FileReader
+    }
+  }
+  if (typeof FileReader === "function") {
+    try {
+      const reader = new FileReader();
+      return await new Promise(resolve => {
+        reader.onloadend = () => {
+          const result = typeof reader.result === "string" ? reader.result : null;
+          resolve(result);
+        };
+        reader.onerror = () => resolve(null);
+        try {
+          reader.readAsDataURL(blob);
+        } catch (error) {
+          resolve(null);
+        }
+      });
+    } catch (error) {
+      return null;
+    }
+  }
+  return null;
+}
+async function fetchImageDataUrl(url) {
+  if (typeof fetch !== "function") return null;
+  if (INLINE_IMAGE_CACHE.has(url)) return INLINE_IMAGE_CACHE.get(url);
+  let dataUrl = null;
+  try {
+    const response = await fetch(url);
+    if (response && response.ok) {
+      const blob = await response.blob();
+      dataUrl = await blobToDataUrlCompat(blob);
+    }
+  } catch (error) {
+    dataUrl = null;
+  }
+  INLINE_IMAGE_CACHE.set(url, dataUrl);
+  return dataUrl;
+}
+function ensureFallbackVisible(imageEl) {
+  if (!imageEl) return;
+  const fallback = imageEl.previousElementSibling;
+  if (!fallback || !fallback.getAttribute) return;
+  const cls = fallback.getAttribute("class") || "";
+  if (!/(beadFallback|ropeFallback|clipFallback)/.test(cls)) return;
+  fallback.removeAttribute("visibility");
+  if (fallback.style) {
+    fallback.style.visibility = "";
+  }
+}
+async function inlineExternalImages(svgRoot) {
+  const result = {
+    inlined: new Set(),
+    failed: new Set()
+  };
+  if (!svgRoot || typeof svgRoot.querySelectorAll !== "function") return result;
+  const images = Array.from(svgRoot.querySelectorAll("image"));
+  if (!images.length) return result;
+  const entries = [];
+  const uniqueUrls = new Map();
+  images.forEach(imageEl => {
+    const href = getImageHref(imageEl);
+    if (!shouldInlineImageHref(href)) return;
+    const resolved = resolveImageUrl(href);
+    if (!resolved) {
+      result.failed.add(imageEl);
+      return;
+    }
+    entries.push({ imageEl, resolved });
+    if (!uniqueUrls.has(resolved)) {
+      uniqueUrls.set(resolved, fetchImageDataUrl(resolved));
+    }
+  });
+  if (!entries.length) return result;
+  const fetchResults = await Promise.all(
+    Array.from(uniqueUrls.entries()).map(async ([url, promise]) => {
+      let dataUrl = null;
+      try {
+        dataUrl = await promise;
+      } catch (error) {
+        dataUrl = null;
+      }
+      return [url, dataUrl];
+    })
+  );
+  const urlToData = new Map(fetchResults);
+  entries.forEach(({ imageEl, resolved }) => {
+    const dataUrl = urlToData.get(resolved);
+    if (typeof dataUrl === "string" && dataUrl.trim()) {
+      setImageHref(imageEl, dataUrl);
+      result.inlined.add(imageEl);
+    } else {
+      result.failed.add(imageEl);
+    }
+  });
+  return result;
+}
 function rect(x, y, w, h, attrs) {
   return mk("rect", {
     x,
@@ -743,7 +912,7 @@ function pt(e) {
   p.y = e.clientY;
   return p.matrixTransform(svg.getScreenCTM().inverse());
 }
-function svgToString(svgEl) {
+async function svgToString(svgEl) {
   if (!svgEl) return '';
   const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
   const clone = helper && typeof helper.cloneSvgForExport === 'function' ? helper.cloneSvgForExport(svgEl) : svgEl.cloneNode(true);
@@ -775,15 +944,12 @@ function svgToString(svgEl) {
   } else {
     clone.appendChild(style);
   }
-
-  clone.querySelectorAll('.beadFallback, .ropeFallback, .clipFallback').forEach(el => {
-    el.removeAttribute('visibility');
-    if (el.style) {
-      el.style.visibility = '';
-    }
+  const inlineResult = await inlineExternalImages(clone);
+  inlineResult.failed.forEach(imageEl => {
+    ensureFallbackVisible(imageEl);
   });
   clone.querySelectorAll('image').forEach(imageEl => {
-    const href = imageEl.getAttribute('href');
+    const href = getImageHref(imageEl);
     if (href && typeof imageEl.setAttributeNS === 'function') {
       try {
         imageEl.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
@@ -855,7 +1021,8 @@ function buildPerlesnorExportMeta() {
 async function downloadSVG(svgEl, filename) {
   const suggestedName = typeof filename === 'string' && filename ? filename : 'perlesnor.svg';
   refreshFallbackStyles();
-  const data = svgToString(svgEl);
+  const data = await svgToString(svgEl);
+  if (!data) throw new Error('SVG-data manglet.');
   const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
   const meta = buildPerlesnorExportMeta();
   if (helper && typeof helper.exportSvgWithArchive === 'function') {
@@ -880,12 +1047,13 @@ async function downloadSVG(svgEl, filename) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-function downloadPNG(svgEl, filename, scale = 2, bg = '#fff') {
+async function downloadPNG(svgEl, filename, scale = 2, bg = '#fff') {
   const vb = svgEl.viewBox.baseVal;
   const w = (vb === null || vb === void 0 ? void 0 : vb.width) || svgEl.clientWidth || VB_W;
   const h = (vb === null || vb === void 0 ? void 0 : vb.height) || svgEl.clientHeight || VB_H;
   refreshFallbackStyles();
-  const data = svgToString(svgEl);
+  const data = await svgToString(svgEl);
+  if (!data) throw new Error('SVG-data manglet.');
   const blob = new Blob([data], {
     type: 'image/svg+xml;charset=utf-8'
   });
@@ -893,25 +1061,44 @@ function downloadPNG(svgEl, filename, scale = 2, bg = '#fff') {
   const img = new Image();
   if ('decoding' in img) img.decoding = 'async';
   if ('crossOrigin' in img) img.crossOrigin = 'anonymous';
-  img.onload = () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(w * scale);
-    canvas.height = Math.round(h * scale);
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    URL.revokeObjectURL(url);
-    canvas.toBlob(blob => {
-      const urlPng = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = urlPng;
-      a.download = filename.endsWith('.png') ? filename : filename + '.png';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(urlPng), 1000);
-    }, 'image/png');
-  };
-  img.src = url;
+  await new Promise((resolve, reject) => {
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(w * scale);
+        canvas.height = Math.round(h * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas 2D-kontekst mangler.'));
+          return;
+        }
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(blobResult => {
+          if (!blobResult) {
+            reject(new Error('Kunne ikke lage PNG-blob.'));
+            return;
+          }
+          const urlPng = URL.createObjectURL(blobResult);
+          const a = document.createElement('a');
+          a.href = urlPng;
+          a.download = filename.endsWith('.png') ? filename : filename + '.png';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(urlPng), 1000);
+          resolve();
+        }, 'image/png');
+      } catch (error) {
+        reject(error);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Kunne ikke laste SVG for PNG-eksport.'));
+    };
+    img.src = url;
+  });
 }
