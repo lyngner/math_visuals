@@ -37,6 +37,39 @@ const TEST_ENTRIES = [
     summary: 'Testoppføring for graftegner'
   },
   {
+    slug: 'bildearkiv/kvikkbilder-monster/tiervenner',
+    svgSlug: 'bildearkiv/kvikkbilder-monster/tiervenner.svg',
+    pngSlug: 'bildearkiv/kvikkbilder-monster/tiervenner.png',
+    urls: {
+      svg: '/bildearkiv/kvikkbilder-monster/tiervenner.svg',
+      png: '/bildearkiv/kvikkbilder-monster/tiervenner.png'
+    },
+    exampleState: {
+      description: 'Numbervisuals eksempel',
+      exampleNumber: 'NV-arkiv',
+      config: {
+        layout: 'grid',
+        highlight: 'tiervenner'
+      }
+    },
+    files: {
+      svg: {
+        slug: 'bildearkiv/kvikkbilder-monster/tiervenner.svg',
+        url: '/bildearkiv/kvikkbilder-monster/tiervenner.svg',
+        filename: 'tiervenner.svg'
+      },
+      png: {
+        slug: 'bildearkiv/kvikkbilder-monster/tiervenner.png',
+        url: '/bildearkiv/kvikkbilder-monster/tiervenner.png',
+        filename: 'tiervenner.png'
+      }
+    },
+    title: 'Tiervenner',
+    tool: 'Numbervisuals',
+    createdAt: '2023-12-22T10:45:00.000Z',
+    summary: 'Eksempel fra numbervisuals'
+  },
+  {
     slug: 'bildearkiv/kuler/symmetri',
     svgSlug: 'bildearkiv/kuler/symmetri.svg',
     pngSlug: 'bildearkiv/kuler/symmetri.png',
@@ -149,11 +182,11 @@ test.describe('Arkiv', () => {
     await expect(dialog).toBeHidden();
     await expect(menuTrigger).toBeFocused();
 
-    const previewTrigger = page.locator('[data-preview-trigger="true"]').first();
-    await previewTrigger.click();
+    const graftegnerTrigger = page.locator('[data-svg-item="bildearkiv/graftegner/koordinater"] [data-preview-trigger="true"]');
+    await graftegnerTrigger.click();
 
     await expect(dialog).toBeVisible();
-    await expect(dialog.locator('.svg-archive__dialog-title')).toHaveText(TEST_ENTRIES[0].title);
+    await expect(dialog.locator('.svg-archive__dialog-title')).toHaveText('Koordinatfigur');
 
     const status = page.locator('[data-status]');
 
@@ -194,6 +227,42 @@ test.describe('Arkiv', () => {
     });
     expect(preparedRequests[0].example).toBeTruthy();
 
+    await dialog.locator('.svg-archive__dialog-close').click();
+    await expect(dialog).toBeHidden();
+
+    const numbervisualsTrigger = page.locator('[data-svg-item="bildearkiv/kvikkbilder-monster/tiervenner"] [data-preview-trigger="true"]');
+    await numbervisualsTrigger.click();
+
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('.svg-archive__dialog-title')).toHaveText('Tiervenner');
+    const editButton = dialog.locator('[data-action="edit"]');
+    await expect(editButton).toBeEnabled();
+
+    await page.evaluate(() => {
+      window.__openRequests = [];
+    });
+
+    const numbervisualEditPopupPromise = page.waitForEvent('popup');
+    await editButton.click();
+    const numbervisualEditPopup = await numbervisualEditPopupPromise;
+    await numbervisualEditPopup.close();
+    await expect(status).toHaveText('Figuren åpnes i Numbervisuals med et midlertidig eksempel.');
+
+    const numbervisualRequests = await page.evaluate(() => window.__openRequests || []);
+    expect(numbervisualRequests).toHaveLength(1);
+    expect(numbervisualRequests[0]).toMatchObject({
+      storagePath: '/kvikkbilder-monster',
+      canonicalPath: '/kvikkbilder-monster',
+      path: '/kvikkbilder-monster',
+      targetUrl: '/kvikkbilder-monster.html'
+    });
+
+    await dialog.locator('.svg-archive__dialog-close').click();
+    await expect(dialog).toBeHidden();
+
+    await graftegnerTrigger.click();
+
+    await expect(dialog).toBeVisible();
     const downloadPromise = page.waitForEvent('download');
     await dialog.locator('[data-action="download"]').click();
     const download = await downloadPromise;

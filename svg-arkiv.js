@@ -300,6 +300,12 @@
       { names: ['Perlesnor'], url: '/perlesnor.html', storagePath: '/perlesnor' },
       { names: ['Kuler'], url: '/kuler.html', storagePath: '/kuler' },
       { names: ['Kvikkbilder'], url: '/kvikkbilder.html', storagePath: '/kvikkbilder' },
+      {
+        names: ['Numbervisuals', 'Numbervisual'],
+        url: '/kvikkbilder-monster.html',
+        storagePath: '/kvikkbilder-monster',
+        displayName: 'Numbervisuals'
+      },
       { names: ['3D-figurer', 'Trefigurer'], url: '/trefigurer.html', storagePath: '/trefigurer' },
       { names: ['Brøkvegg'], url: '/brøkvegg.html', storagePath: '/brøkvegg' },
       {
