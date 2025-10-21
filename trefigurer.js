@@ -642,28 +642,49 @@
       return sprite;
     }
     addMeasurementLine(targetGroup, start, end, options = {}) {
-      var _options$thickness, _options$color;
+      var _options$color;
       if (!targetGroup || !start || !end) return;
       const direction = end.clone().sub(start);
       const length = direction.length();
       if (!(length > 1e-4)) return;
-      const radius = (_options$thickness = options.thickness) !== null && _options$thickness !== void 0 ? _options$thickness : 0.05;
-      const geometry = new THREE.CylinderGeometry(radius, radius, length, 24, 1, false);
-      const material = new THREE.MeshBasicMaterial({
-        color: (_options$color = options.color) !== null && _options$color !== void 0 ? _options$color : 0x111827
+      const color = (_options$color = options.color) !== null && _options$color !== void 0 ? _options$color : 0x111827;
+      const lineMaterial = new THREE.LineBasicMaterial({
+        color
       });
-      material.toneMapped = false;
-      const rod = new THREE.Mesh(geometry, material);
-      rod.userData.isMeasurement = true;
-      rod.position.copy(start).add(end).multiplyScalar(0.5);
-      const up = new THREE.Vector3(0, 1, 0);
-      const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction.normalize());
-      rod.setRotationFromQuaternion(quaternion);
-      targetGroup.add(rod);
+      lineMaterial.depthTest = false;
+      lineMaterial.depthWrite = false;
+      lineMaterial.toneMapped = false;
+      const measurementGroup = new THREE.Group();
+      measurementGroup.userData.isMeasurement = true;
+      const mainGeometry = new THREE.BufferGeometry().setFromPoints([start.clone(), end.clone()]);
+      const mainLine = new THREE.Line(mainGeometry, lineMaterial);
+      mainLine.userData.isMeasurement = true;
+      measurementGroup.add(mainLine);
+      const markerLength = options.markerLength && options.markerLength > 0 ? options.markerLength : Math.min(Math.max(length * 0.25, 0.16), 0.35);
+      const normalizedDirection = direction.clone().normalize();
+      const tempVector = new THREE.Vector3(0, 1, 0);
+      let markerDirection = new THREE.Vector3().crossVectors(normalizedDirection, tempVector);
+      if (markerDirection.lengthSq() < 1e-6) {
+        markerDirection.crossVectors(normalizedDirection, new THREE.Vector3(1, 0, 0));
+      }
+      if (markerDirection.lengthSq() < 1e-6) {
+        markerDirection.crossVectors(normalizedDirection, new THREE.Vector3(0, 0, 1));
+      }
+      if (markerDirection.lengthSq() < 1e-6) {
+        markerDirection = new THREE.Vector3(1, 0, 0);
+      }
+      markerDirection.normalize().multiplyScalar(markerLength / 2);
+      const markerPoints = [start.clone().add(markerDirection), start.clone().sub(markerDirection), end.clone().add(markerDirection), end.clone().sub(markerDirection)];
+      const markerGeometry = new THREE.BufferGeometry().setFromPoints(markerPoints);
+      const markerSegments = new THREE.LineSegments(markerGeometry, lineMaterial);
+      markerSegments.userData.isMeasurement = true;
+      measurementGroup.add(markerSegments);
+      targetGroup.add(measurementGroup);
       const labelText = typeof options.label === 'string' ? options.label.trim() : '';
       if (labelText.length) {
         const sprite = this.createLabelSprite(labelText);
         if (sprite) {
+          sprite.userData.isMeasurement = true;
           if (options.labelPosition) {
             sprite.position.copy(options.labelPosition.clone());
           } else {
@@ -673,7 +694,7 @@
             }
             sprite.position.copy(mid);
           }
-          targetGroup.add(sprite);
+          measurementGroup.add(sprite);
         }
       }
     }
