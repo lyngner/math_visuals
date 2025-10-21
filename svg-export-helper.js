@@ -227,9 +227,26 @@
     const ownerDocument = (clone && clone.ownerDocument) || (typeof document !== 'undefined' ? document : null);
     if (clone && ownerDocument && typeof ownerDocument.createElementNS === 'function' && typeof clone.insertBefore === 'function') {
       const backgroundRect = ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      backgroundRect.setAttribute('width', '100%');
-      backgroundRect.setAttribute('height', '100%');
       backgroundRect.setAttribute('fill', '#ffffff');
+
+      const viewBoxAttribute = typeof clone.getAttribute === 'function' ? clone.getAttribute('viewBox') : null;
+      if (viewBoxAttribute) {
+        const parts = viewBoxAttribute.trim().split(/[\s,]+/).map((value) => Number(value));
+        if (parts.length >= 4 && parts.every((value) => Number.isFinite(value))) {
+          const [minX, minY, vbWidth, vbHeight] = parts;
+          backgroundRect.setAttribute('x', String(minX));
+          backgroundRect.setAttribute('y', String(minY));
+          backgroundRect.setAttribute('width', String(vbWidth));
+          backgroundRect.setAttribute('height', String(vbHeight));
+        } else {
+          backgroundRect.setAttribute('width', '100%');
+          backgroundRect.setAttribute('height', '100%');
+        }
+      } else {
+        backgroundRect.setAttribute('width', '100%');
+        backgroundRect.setAttribute('height', '100%');
+      }
+
       clone.insertBefore(backgroundRect, clone.firstChild);
     }
     ensureSvgNamespaces(clone);
