@@ -143,7 +143,7 @@ test.describe('Arkiv', () => {
 
     const dialog = page.locator('dialog[data-archive-viewer]');
     await expect(dialog).toBeVisible();
-    await expect(dialog.locator('[data-action="download-svg"]')).toBeFocused();
+    await expect(dialog.locator('[data-action="open-svg"]')).toBeFocused();
 
     await dialog.locator('.svg-archive__dialog-close').click();
     await expect(dialog).toBeHidden();
@@ -155,10 +155,19 @@ test.describe('Arkiv', () => {
     await expect(dialog).toBeVisible();
     await expect(dialog.locator('.svg-archive__dialog-title')).toHaveText(TEST_ENTRIES[0].title);
 
-    const downloadPromise = page.waitForEvent('download');
-    await dialog.locator('[data-action="download-svg"]').click();
-    const download = await downloadPromise;
-    expect(download.suggestedFilename()).toMatch(/koordinat/);
+    const status = page.locator('[data-status]');
+
+    const svgPopupPromise = page.waitForEvent('popup');
+    await dialog.locator('[data-action="open-svg"]').click();
+    const svgPopup = await svgPopupPromise;
+    await svgPopup.close();
+    await expect(status).toHaveText('Åpner SVG i ny fane.');
+
+    const pngPopupPromise = page.waitForEvent('popup');
+    await dialog.locator('[data-action="open-png"]').click();
+    const pngPopup = await pngPopupPromise;
+    await pngPopup.close();
+    await expect(status).toHaveText('Åpner PNG i ny fane.');
 
     await page.evaluate(() => {
       window.__openRequests = [];
@@ -169,11 +178,11 @@ test.describe('Arkiv', () => {
       };
     });
 
-    const popupPromise = page.waitForEvent('popup');
-    await dialog.locator('[data-action="open"]').click();
-    const popup = await popupPromise;
-    await popup.close();
-    await expect(page.locator('[data-status]')).toHaveText('Figuren åpnes i Graftegner med et midlertidig eksempel.');
+    const editPopupPromise = page.waitForEvent('popup');
+    await dialog.locator('[data-action="edit"]').click();
+    const editPopup = await editPopupPromise;
+    await editPopup.close();
+    await expect(status).toHaveText('Figuren åpnes i Graftegner med et midlertidig eksempel.');
 
     const preparedRequests = await page.evaluate(() => window.__openRequests || []);
     expect(preparedRequests).toHaveLength(1);
@@ -185,6 +194,12 @@ test.describe('Arkiv', () => {
     });
     expect(preparedRequests[0].example).toBeTruthy();
 
+    const downloadPromise = page.waitForEvent('download');
+    await dialog.locator('[data-action="download"]').click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/koordinat/);
+    await expect(status).toHaveText('Starter nedlasting av SVG.');
+
     page.once('dialog', async confirmDialog => {
       expect(confirmDialog.message()).toContain('Koordinatfigur');
       await confirmDialog.accept();
@@ -192,7 +207,7 @@ test.describe('Arkiv', () => {
 
     await dialog.locator('[data-action="delete"]').click();
 
-    await expect(page.locator('[data-status]')).toHaveText('Figur slettet.');
+    await expect(status).toHaveText('Figur slettet.');
     await expect(dialog).toBeHidden();
     await expect(page.locator('[data-svg-grid] [data-svg-item]')).toHaveCount(TEST_ENTRIES.length - 1);
   });
