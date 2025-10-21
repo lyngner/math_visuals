@@ -527,11 +527,13 @@ function drawAxesAndGrid() {
   }
 
   // x-etiketter
+  const xTickLabelY = axisY + 18;
   CFG.labels.forEach((lab, i) => {
     addTo(gLabels, 'text', {
       x: xPos(i),
-      y: H - M.b + 28,
-      class: 'xLabel'
+      y: xTickLabelY,
+      class: 'xLabel',
+      'dominant-baseline': 'hanging'
     }).textContent = lab;
   });
 }
