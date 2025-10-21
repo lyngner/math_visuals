@@ -1,5 +1,7 @@
 (function () {
   const boxes = [];
+  let taskStudentCells = null;
+  let currentAppMode = getInitialAppMode();
   let altTextManager = null;
   let altTextRefreshTimer = null;
   let lastAltTextSignature = null;
@@ -137,6 +139,83 @@
     }
     return matrix;
   }
+  function getLastFigureIndex() {
+    if (!Array.isArray(STATE.figures)) return -1;
+    return STATE.figures.length - 1;
+  }
+  function isTaskModeActive() {
+    return currentAppMode === 'task';
+  }
+  function isStudentFigureIndex(index) {
+    return STATE.lastFigureIsAnswer && isTaskModeActive() && index === getLastFigureIndex();
+  }
+  function ensureTaskStudentCells(preserveExisting = true) {
+    if (!STATE.lastFigureIsAnswer) {
+      taskStudentCells = null;
+      return null;
+    }
+    const rowCount = rows;
+    const colCount = cols;
+    const prev = Array.isArray(taskStudentCells) ? taskStudentCells : null;
+    let needsReset = !prev || prev.length !== rowCount;
+    if (!needsReset && prev) {
+      for (let r = 0; r < rowCount; r++) {
+        if (!Array.isArray(prev[r]) || prev[r].length !== colCount) {
+          needsReset = true;
+          break;
+        }
+      }
+    }
+    if (needsReset) {
+      const next = Array.from({ length: rowCount }, () => Array(colCount).fill(0));
+      if (preserveExisting && prev) {
+        const minRows = Math.min(prev.length, rowCount);
+        for (let r = 0; r < minRows; r++) {
+          const srcRow = Array.isArray(prev[r]) ? prev[r] : [];
+          const minCols = Math.min(srcRow.length, colCount);
+          for (let c = 0; c < minCols; c++) {
+            const val = parseInt(srcRow[c], 10);
+            next[r][c] = Number.isFinite(val) && val > 0 ? val : 0;
+          }
+        }
+      }
+      taskStudentCells = next;
+    }
+    const matrix = taskStudentCells;
+    if (!Array.isArray(matrix)) return null;
+    const maxIndex = Math.max(0, Math.trunc(STATE.colorCount));
+    for (let r = 0; r < matrix.length; r++) {
+      const row = matrix[r];
+      if (!Array.isArray(row)) {
+        matrix[r] = Array(colCount).fill(0);
+        continue;
+      }
+      for (let c = 0; c < row.length; c++) {
+        const val = parseInt(row[c], 10);
+        row[c] = Number.isFinite(val) && val > 0 && val <= maxIndex ? val : 0;
+      }
+    }
+    return matrix;
+  }
+  function resetTaskStudentCells() {
+    taskStudentCells = null;
+  }
+  function getSolutionCellValue(figIndex, r, c) {
+    const fig = Array.isArray(STATE.figures) ? STATE.figures[figIndex] : null;
+    if (!fig || !Array.isArray(fig.cells)) return 0;
+    const row = Array.isArray(fig.cells[r]) ? fig.cells[r] : [];
+    const val = parseInt(row[c], 10);
+    return Number.isFinite(val) && val > 0 ? val : 0;
+  }
+  function getDisplayCellValue(figIndex, r, c) {
+    if (isStudentFigureIndex(figIndex)) {
+      const matrix = ensureTaskStudentCells(true);
+      const row = matrix && Array.isArray(matrix[r]) ? matrix[r] : null;
+      const val = row ? parseInt(row[c], 10) : 0;
+      return Number.isFinite(val) && val > 0 ? val : 0;
+    }
+    return getSolutionCellValue(figIndex, r, c);
+  }
   function ensureColors(count) {
     const required = Math.max(count, MAX_COLORS);
     const palette = getPaletteFromTheme(required);
@@ -195,6 +274,11 @@
     STATE.circleMode = isCircleFigureType(figureType);
     STATE.offset = STATE.offset !== false;
     STATE.showGrid = STATE.showGrid !== false;
+    STATE.gridOnlyOnLast = STATE.gridOnlyOnLast === true;
+    STATE.lastFigureIsAnswer = STATE.lastFigureIsAnswer === true;
+    if (!STATE.lastFigureIsAnswer) {
+      taskStudentCells = null;
+    }
     const inferredMode = typeof STATE.labelMode === 'string' ? STATE.labelMode : STATE.showFigureText === false ? 'hidden' : 'custom';
     STATE.labelMode = normalizeLabelMode(inferredMode);
     STATE.showFigureText = STATE.labelMode !== 'hidden';
@@ -213,6 +297,9 @@
           cells: normalizeCells(fig === null || fig === void 0 ? void 0 : fig.cells, rows, cols)
         };
       });
+    }
+    if (STATE.lastFigureIsAnswer) {
+      ensureTaskStudentCells(true);
     }
   }
   function getColors() {
@@ -277,18 +364,28 @@
   }
   function updateCellColors() {
     const colors = getColors();
+    const maxIndex = colors.length;
+    if (STATE.lastFigureIsAnswer) ensureTaskStudentCells(true);
     container === null || container === void 0 || container.querySelectorAll('.cell').forEach(cell => {
-      var _fig$cells;
       const figIndex = parseInt(cell.dataset.figIndex, 10);
       const r = parseInt(cell.dataset.row, 10);
       const c = parseInt(cell.dataset.col, 10);
-      const fig = STATE.figures[figIndex];
-      if (!fig || !Array.isArray(fig.cells)) return;
-      let idxVal = ((_fig$cells = fig.cells) === null || _fig$cells === void 0 || (_fig$cells = _fig$cells[r]) === null || _fig$cells === void 0 ? void 0 : _fig$cells[c]) || 0;
-      if (idxVal > colors.length) {
+      let idxVal = getDisplayCellValue(figIndex, r, c);
+      if (idxVal > maxIndex) {
         idxVal = 0;
-        if (fig.cells[r]) fig.cells[r][c] = 0;
+        if (isStudentFigureIndex(figIndex)) {
+          const matrix = ensureTaskStudentCells(true);
+          if (matrix && Array.isArray(matrix[r])) {
+            matrix[r][c] = 0;
+          }
+        } else {
+          const fig = Array.isArray(STATE.figures) ? STATE.figures[figIndex] : null;
+          if (fig && Array.isArray(fig.cells) && Array.isArray(fig.cells[r])) {
+            fig.cells[r][c] = 0;
+          }
+        }
       }
+      cell.dataset.color = String(idxVal);
       applyCellAppearance(cell, idxVal, colors);
     });
   }
@@ -318,10 +415,9 @@
       rowEl.className = 'row';
       if (STATE.offset && r % 2 === 1) rowEl.classList.add('offset');
       for (let c = 0; c < cols; c++) {
-        var _fig$cells2;
         const cell = document.createElement('div');
         cell.className = 'cell';
-        const idxVal = (fig === null || fig === void 0 || (_fig$cells2 = fig.cells) === null || _fig$cells2 === void 0 || (_fig$cells2 = _fig$cells2[r]) === null || _fig$cells2 === void 0 ? void 0 : _fig$cells2[c]) || 0;
+        const idxVal = getDisplayCellValue(index, r, c);
         cell.dataset.color = String(idxVal);
         cell.dataset.figIndex = String(index);
         cell.dataset.row = String(r);
@@ -409,7 +505,14 @@
   }
   window.addEventListener('resize', updateFigureLayout);
   function updateGridVisibility() {
-    boxes.forEach(box => box.classList.toggle('hide-grid', !STATE.showGrid));
+    const showGrid = !!STATE.showGrid;
+    const figures = Array.isArray(STATE.figures) ? STATE.figures : [];
+    const limitToLast = showGrid && STATE.gridOnlyOnLast && figures.length > 0;
+    const lastIndex = limitToLast ? figures.length - 1 : -1;
+    boxes.forEach((box, idx) => {
+      const shouldShow = showGrid && (!limitToLast || idx === lastIndex);
+      box.classList.toggle('hide-grid', !shouldShow);
+    });
   }
   function updateFigureLabelDisplay() {
     const mode = STATE.labelMode || 'custom';
@@ -439,23 +542,168 @@
     });
   }
   function cycleCell(figIndex, r, c, cell) {
-    var _fig$cells3;
     const colors = getColors();
+    if (isStudentFigureIndex(figIndex)) {
+      const matrix = ensureTaskStudentCells(true);
+      if (!matrix || !Array.isArray(matrix[r])) return;
+      const row = matrix[r];
+      const current = parseInt(row[c], 10) || 0;
+      const next = (current + 1) % (colors.length + 1);
+      row[c] = next;
+      cell.dataset.color = String(next);
+      applyCellAppearance(cell, next, colors);
+      updateFigureLabelDisplay();
+      updateTaskStatus('');
+      return;
+    }
     const fig = STATE.figures[figIndex];
-    if (!fig) return;
-    const current = ((_fig$cells3 = fig.cells) === null || _fig$cells3 === void 0 || (_fig$cells3 = _fig$cells3[r]) === null || _fig$cells3 === void 0 ? void 0 : _fig$cells3[c]) || 0;
+    if (!fig || !Array.isArray(fig.cells) || !Array.isArray(fig.cells[r])) return;
+    const current = parseInt(fig.cells[r][c], 10) || 0;
     const next = (current + 1) % (colors.length + 1);
     fig.cells[r][c] = next;
+    cell.dataset.color = String(next);
     applyCellAppearance(cell, next, colors);
     updateFigureLabelDisplay();
+    resetTaskStudentCells();
     scheduleAltTextRefresh('cells');
   }
   const rowsInput = document.getElementById('rowsInput');
   const colsInput = document.getElementById('colsInput');
   const figureTypeSelect = document.getElementById('figureTypeSelect');
   const showGridToggle = document.getElementById('showGridToggle');
+  const gridLastFigureToggle = document.getElementById('gridLastFigureToggle');
   const offsetToggle = document.getElementById('offsetRowsToggle');
+  const lastFigureAnswerToggle = document.getElementById('lastFigureAnswerToggle');
   const labelModeSelect = document.getElementById('labelModeSelect');
+  const btnCheck = document.getElementById('btnCheck');
+  const taskStatusEl = document.getElementById('taskStatus');
+  const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
+  const taskCheckControls = [btnCheck, taskStatusEl].filter(Boolean);
+  function ensureTaskControlsHost() {
+    if (!taskCheckHost) return;
+    taskCheckControls.forEach(control => {
+      if (control && control.parentElement !== taskCheckHost) {
+        taskCheckHost.appendChild(control);
+      }
+    });
+  }
+  function updateTaskStatus(message) {
+    if (!taskStatusEl) return;
+    const text = typeof message === 'string' ? message : '';
+    taskStatusEl.textContent = text;
+    taskStatusEl.hidden = !text;
+  }
+  function applyAppModeToTaskControls(mode) {
+    if (!taskCheckHost) return;
+    const normalized = typeof mode === 'string' ? mode.toLowerCase() : '';
+    const isTaskMode = normalized === 'task';
+    const shouldShow = isTaskMode && STATE.lastFigureIsAnswer;
+    if (shouldShow) {
+      ensureTaskControlsHost();
+      taskCheckHost.hidden = false;
+      taskCheckControls.forEach(control => {
+        if (!control) return;
+        if (control === btnCheck) {
+          control.hidden = false;
+          if (control.dataset) delete control.dataset.prevHidden;
+          return;
+        }
+        if (control.dataset && 'prevHidden' in control.dataset) {
+          const wasHidden = control.dataset.prevHidden === '1';
+          delete control.dataset.prevHidden;
+          control.hidden = wasHidden;
+        } else {
+          control.hidden = false;
+        }
+      });
+    } else {
+      taskCheckHost.hidden = true;
+      taskCheckControls.forEach(control => {
+        if (!control) return;
+        if (control.dataset) {
+          control.dataset.prevHidden = control.hidden ? '1' : '0';
+        }
+        control.hidden = true;
+      });
+      updateTaskStatus('');
+    }
+  }
+  function evaluateStudentAnswer() {
+    if (!STATE.lastFigureIsAnswer) return null;
+    const lastIndex = getLastFigureIndex();
+    if (lastIndex < 0) return null;
+    const solutionFig = Array.isArray(STATE.figures) ? STATE.figures[lastIndex] : null;
+    if (!solutionFig || !Array.isArray(solutionFig.cells)) return null;
+    const solution = normalizeCells(solutionFig.cells, rows, cols);
+    const student = ensureTaskStudentCells(true);
+    if (!student) return null;
+    for (let r = 0; r < rows; r++) {
+      const studentRow = Array.isArray(student[r]) ? student[r] : [];
+      const solutionRow = Array.isArray(solution[r]) ? solution[r] : [];
+      for (let c = 0; c < cols; c++) {
+        const studentVal = parseInt(studentRow[c], 10) || 0;
+        const solutionVal = parseInt(solutionRow[c], 10) || 0;
+        if (studentVal !== solutionVal) return false;
+      }
+    }
+    return true;
+  }
+  function applyAppModeChange(mode) {
+    const normalized = typeof mode === 'string' && mode.toLowerCase() === 'task' ? 'task' : 'default';
+    const changed = normalized !== currentAppMode;
+    currentAppMode = normalized;
+    if (STATE.lastFigureIsAnswer && currentAppMode === 'task') {
+      ensureTaskStudentCells(true);
+    }
+    if (changed) {
+      render();
+    } else if (currentAppMode === 'task') {
+      updateCellColors();
+      updateGridVisibility();
+    }
+    applyAppModeToTaskControls(currentAppMode);
+    if (currentAppMode !== 'task') {
+      updateTaskStatus('');
+    }
+  }
+  function handleAppModeChanged(event) {
+    if (!event || !event.detail || typeof event.detail.mode !== 'string') return;
+    applyAppModeChange(event.detail.mode);
+  }
+  function getInitialAppMode() {
+    if (typeof window === 'undefined') return 'default';
+    const normalize = value => {
+      if (typeof value !== 'string') return '';
+      return value.trim().toLowerCase();
+    };
+    const isTaskAlias = value => {
+      const normalized = normalize(value);
+      return ['task', 'tasks', 'oppgave', 'oppgaver', 'oppgavemodus', 'student', 'elev'].includes(normalized);
+    };
+    const mv = window.mathVisuals;
+    if (mv && typeof mv.getAppMode === 'function') {
+      try {
+        const mode = mv.getAppMode();
+        if (isTaskAlias(mode)) {
+          return 'task';
+        }
+      } catch (_) {}
+    }
+    if (typeof document !== 'undefined' && document.body && document.body.dataset) {
+      const bodyMode = document.body.dataset.appMode;
+      if (isTaskAlias(bodyMode)) {
+        return 'task';
+      }
+    }
+    try {
+      const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
+      const fromQuery = params.get('mode');
+      if (isTaskAlias(fromQuery)) {
+        return 'task';
+      }
+    } catch (_) {}
+    return 'default';
+  }
   function applyStateToControls() {
     if (rowsInput) rowsInput.value = String(rows);
     if (colsInput) colsInput.value = String(cols);
@@ -463,7 +711,9 @@
       figureTypeSelect.value = normalizeFigureType(STATE.figureType) || 'square';
     }
     if (showGridToggle) showGridToggle.checked = !!STATE.showGrid;
+    if (gridLastFigureToggle) gridLastFigureToggle.checked = !!STATE.gridOnlyOnLast;
     if (offsetToggle) offsetToggle.checked = !!STATE.offset;
+    if (lastFigureAnswerToggle) lastFigureAnswerToggle.checked = !!STATE.lastFigureIsAnswer;
     if (labelModeSelect) {
       labelModeSelect.value = normalizeLabelMode(STATE.labelMode);
     }
@@ -474,6 +724,7 @@
     const clamped = clampInt(next, 1, MAX_DIM);
     if (clamped === rows) return;
     const previousRows = rows;
+    resetTaskStudentCells();
     if (clamped > previousRows && Array.isArray(STATE.figures)) {
       const diff = clamped - previousRows;
       const columnCount = cols > 0 ? cols : 1;
@@ -491,6 +742,7 @@
   function setCols(next) {
     const clamped = clampInt(next, 1, MAX_DIM);
     if (clamped === cols) return;
+    resetTaskStudentCells();
     STATE.cols = clamped;
     render();
   }
@@ -540,6 +792,33 @@
       scheduleAltTextRefresh('grid');
     });
   }
+  if (gridLastFigureToggle) {
+    gridLastFigureToggle.addEventListener('change', () => {
+      STATE.gridOnlyOnLast = !!gridLastFigureToggle.checked;
+      updateGridVisibility();
+      scheduleAltTextRefresh('grid');
+    });
+  }
+  if (lastFigureAnswerToggle) {
+    lastFigureAnswerToggle.addEventListener('change', () => {
+      const enabled = !!lastFigureAnswerToggle.checked;
+      STATE.lastFigureIsAnswer = enabled;
+      resetTaskStudentCells();
+      if (enabled) {
+        ensureTaskStudentCells(false);
+      } else {
+        updateTaskStatus('');
+      }
+      if (isTaskModeActive()) {
+        render();
+      } else {
+        updateCellColors();
+        updateGridVisibility();
+      }
+      applyAppModeToTaskControls(currentAppMode);
+      scheduleAltTextRefresh('grid');
+    });
+  }
   if (labelModeSelect) {
     labelModeSelect.addEventListener('change', () => {
       STATE.labelMode = normalizeLabelMode(labelModeSelect.value);
@@ -550,6 +829,7 @@
   }
   colorCountInp === null || colorCountInp === void 0 || colorCountInp.addEventListener('input', () => {
     STATE.colorCount = clampInt(colorCountInp.value, 1, colorInputs.length || MAX_COLORS);
+    resetTaskStudentCells();
     render();
   });
   colorInputs.forEach((inp, idx) => {
@@ -562,13 +842,29 @@
       scheduleAltTextRefresh('colors');
     });
   });
+  if (btnCheck) {
+    btnCheck.addEventListener('click', () => {
+      if (!STATE.lastFigureIsAnswer) {
+        updateTaskStatus('Ingen fasit tilgjengelig.');
+        return;
+      }
+      const result = evaluateStudentAnswer();
+      if (result == null) {
+        updateTaskStatus('Ingen fasit tilgjengelig.');
+        return;
+      }
+      updateTaskStatus(result ? 'Riktig! 🎉' : 'Prøv igjen 🙂');
+    });
+  }
   addBtn === null || addBtn === void 0 || addBtn.addEventListener('click', () => {
     STATE.figures.push(createFigureState(`Figur ${STATE.figures.length + 1}`, rows, cols, []));
+    resetTaskStudentCells();
     render();
   });
   function removeFigure(index) {
     if (!Array.isArray(STATE.figures) || STATE.figures.length <= 1) return;
     STATE.figures.splice(index, 1);
+    resetTaskStudentCells();
     render();
   }
   const btnSvg = document.getElementById('btnSvg');
@@ -833,6 +1129,7 @@
       figureType,
       offset: !!STATE.offset,
       showGrid: !!STATE.showGrid,
+      gridOnlyOnLast: !!STATE.gridOnlyOnLast,
       figures
     };
   }
@@ -875,6 +1172,10 @@
       }
     } else {
       sentences.push('Ingen markeringer.');
+    }
+
+    if (data.gridOnlyOnLast && data.showGrid !== false) {
+      sentences.push('Rutenettet vises bare i siste figur.');
     }
 
     return sentences.filter(Boolean).join(' ');
@@ -1304,6 +1605,7 @@
       if (descEl && descEl.id) svg.setAttribute('aria-describedby', descEl.id);
     }
     let xOffset = 0;
+    const lastIndex = boxes.length - 1;
     boxes.forEach((box, idx) => {
       const label = getFigureLabel(idx);
       const showLabel = labelsVisible && !!label;
@@ -1320,7 +1622,8 @@
           base.setAttribute('width', cellSize);
           base.setAttribute('height', cellSize);
           base.setAttribute('fill', '#fff');
-          if (STATE.showGrid) {
+          const showGridForCell = STATE.showGrid && (!STATE.gridOnlyOnLast || idx === lastIndex);
+          if (showGridForCell) {
             base.setAttribute('stroke', '#d1d5db');
             base.setAttribute('stroke-width', '1');
           }
@@ -1415,6 +1718,8 @@
     STATE.circleMode = false;
     STATE.offset = true;
     STATE.showGrid = true;
+    STATE.gridOnlyOnLast = false;
+    STATE.lastFigureIsAnswer = false;
     STATE.labelMode = 'custom';
     STATE.showFigureText = true;
     STATE.colorCount = 1;
@@ -1425,6 +1730,8 @@
     STATE.figures = [];
     STATE.altText = '';
     STATE.altTextSource = 'auto';
+    resetTaskStudentCells();
+    updateTaskStatus('');
     lastAltTextSignature = null;
     if (figurtallAiAbortController) {
       figurtallAiAbortController.abort();
@@ -1437,6 +1744,11 @@
     sanitizeState();
     applyStateToControls();
     rebuildFigurePanels();
+    if (STATE.lastFigureIsAnswer && isTaskModeActive()) {
+      ensureTaskStudentCells(true);
+      updateCellColors();
+    }
+    applyAppModeToTaskControls(currentAppMode);
     scheduleAltTextRefresh('render');
   }
   resetBtn === null || resetBtn === void 0 || resetBtn.addEventListener('click', () => {
@@ -1456,5 +1768,6 @@
   }
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('message', handleThemeProfileChange);
+    window.addEventListener('math-visuals:app-mode-changed', handleAppModeChanged);
   }
 })();
