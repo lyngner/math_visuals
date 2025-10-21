@@ -818,40 +818,44 @@
   function buildFigurtallFallbackAltText(summary) {
     const data = summary || collectFigurtallAltSummary();
     if (!data) return 'Figurtall.';
-    const sentences = [];
+    if (data.figureCount <= 0) return 'Ingen figurer.';
+
     const fallbackShape = data.circleMode ? 'circle' : 'square';
     const shapeKey = figureTypeToShapeKey(data.figureType || fallbackShape);
     const shapeWords = getShapeWords(shapeKey);
-    if (data.figureCount <= 0) {
-      sentences.push('Ingen figurer.');
+
+    const introParts = [];
+    if (Number.isFinite(data.rows) && Number.isFinite(data.cols)) {
+      introParts.push(`${data.rows}×${data.cols} rutenett`);
     } else {
-      const figureIntro = data.figureCount === 1 ? 'Én figur' : `${data.figureCount} figurer`;
-      sentences.push(`${figureIntro} med ${shapeWords.plural}.`);
+      introParts.push('rutenett');
     }
+    if (data.offset && Number(data.rows) > 1) {
+      introParts.push('annenhver rad forskjøvet');
+    }
+    if (data.showGrid === false) {
+      introParts.push('uten synlig rutenett');
+    }
+
+    const figureIntro = data.figureCount === 1 ? 'Én figur' : `${data.figureCount} figurer`;
+    const introSentence = [`${figureIntro} med ${shapeWords.plural}`, introParts.length ? `i ${joinWithOg(introParts)}` : ''].join(' ').trim();
+
+    const sentences = [introSentence ? `${introSentence}.` : 'Figurtall.'];
+
     if (Array.isArray(data.figures) && data.figures.length) {
-      data.figures.forEach(fig => {
-        const totalShapes = fig.filled || 0;
+      const figureSummaries = data.figures.map(fig => {
+        const name = fig && typeof fig.name === 'string' && fig.name.trim() ? fig.name.trim() : '';
+        const totalShapes = fig && Number.isFinite(fig.filled) ? fig.filled : 0;
         const totalText = totalShapes > 0 ? formatCount(totalShapes, shapeWords.singular, shapeWords.plural) : `ingen ${shapeWords.plural}`;
-        let sentence = `${fig.name} har ${totalText}`;
-        const rowDistribution = buildRowDistributionText(fig, { totalRows: data.rows, shapeWords, shapeKey });
-        if (rowDistribution && rowDistribution.overview) {
-          sentence += ` fordelt på ${rowDistribution.overview}`;
-        }
-        sentence += '.';
-        sentences.push(sentence.trim());
-        const colorParts = Array.isArray(fig.colorUsage)
-          ? fig.colorUsage
-              .map((count, idx) => (count > 0 ? `${formatCount(count, shapeWords.singular, shapeWords.plural)} i farge ${idx + 1}` : ''))
-              .filter(Boolean)
-          : [];
-        if (colorParts.length) sentences.push(`Farger: ${joinWithOg(colorParts)}.`);
-        if (rowDistribution && rowDistribution.detail) {
-          sentences.push(`${rowDistribution.detail}.`);
-        }
+        return name ? `${name} har ${totalText}` : totalText;
       });
+      if (figureSummaries.length) {
+        sentences.push(`${joinWithOg(figureSummaries)}.`);
+      }
     } else {
       sentences.push('Ingen markeringer.');
     }
+
     return sentences.filter(Boolean).join(' ');
   }
   function buildFigurtallAltText(summary) {
