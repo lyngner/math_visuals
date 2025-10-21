@@ -729,7 +729,8 @@ let currentTextScale = 1;
 function pushTextScale(renderScale) {
   const previousScale = currentTextScale;
   if (Number.isFinite(renderScale) && renderScale > 0) {
-    currentTextScale = 1 / renderScale;
+    const computedScale = 1 / renderScale;
+    currentTextScale = computedScale < 1 ? 1 : computedScale;
   } else {
     currentTextScale = 1;
   }
