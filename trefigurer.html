@@ -94,6 +94,21 @@
     .settings-section--view .settings-section__content { gap: 8px; }
     .settings-section--view .settings-group { gap: 10px; }
     .settings-section--view .setting { gap: 6px; }
+    .settings-subsection {
+      display: grid;
+      gap: 12px;
+    }
+    .settings-subsection + .settings-subsection {
+      border-top: 1px solid #e5e7eb;
+      padding-top: 12px;
+      margin-top: 4px;
+    }
+    .settings-subsection__title {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+    }
     .setting--view {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -298,74 +313,73 @@
               </details>
             </div>
             <details class="settings-section settings-section--view">
-              <summary>Visning</summary>
+              <summary>Visning, utseende og oppførsel</summary>
               <div class="settings-section__content">
-                <div class="settings-group">
-                  <div class="setting setting--view">
-                    <label class="setting__label" for="rngViewRotation">Rotasjon</label>
-                    <div class="setting__controls setting__controls--view">
-                      <input id="rngViewRotation" class="range-input" type="range" min="0" max="360" step="1" value="0" />
-                      <span id="lblViewRotation" class="setting__value">0°</span>
+                <section class="settings-subsection">
+                  <h3 class="settings-subsection__title">Visning</h3>
+                  <div class="settings-group">
+                    <div class="setting setting--view">
+                      <label class="setting__label" for="rngViewRotation">Rotasjon</label>
+                      <div class="setting__controls setting__controls--view">
+                        <input id="rngViewRotation" class="range-input" type="range" min="0" max="360" step="1" value="0" />
+                        <span id="lblViewRotation" class="setting__value">0°</span>
+                      </div>
+                      <div class="setting__hint">Juster kameravinkelen horisontalt.</div>
                     </div>
-                    <div class="setting__hint">Juster kameravinkelen horisontalt.</div>
+                    <div class="setting setting--view">
+                      <label class="setting__label" for="rngViewElevation">Vinkel</label>
+                      <div class="setting__controls setting__controls--view">
+                        <input id="rngViewElevation" class="range-input" type="range" min="-80" max="80" step="1" value="0" />
+                        <span id="lblViewElevation" class="setting__value">0°</span>
+                      </div>
+                      <div class="setting__hint">Juster kameravinkelen vertikalt.</div>
+                    </div>
+                    <div class="setting setting--view">
+                      <label class="setting__label" for="rngViewZoom">Zoom</label>
+                      <div class="setting__controls setting__controls--view">
+                        <input id="rngViewZoom" class="range-input" type="range" min="40" max="250" step="1" value="100" />
+                        <span id="lblViewZoom" class="setting__value">100%</span>
+                      </div>
+                      <div class="setting__hint">100% tilsvarer standardavstanden.</div>
+                    </div>
                   </div>
-                  <div class="setting setting--view">
-                    <label class="setting__label" for="rngViewElevation">Vinkel</label>
-                    <div class="setting__controls setting__controls--view">
-                      <input id="rngViewElevation" class="range-input" type="range" min="-80" max="80" step="1" value="0" />
-                      <span id="lblViewElevation" class="setting__value">0°</span>
+                </section>
+                <section class="settings-subsection">
+                  <h3 class="settings-subsection__title">Utseende</h3>
+                  <div class="settings-group settings-group--columns">
+                    <div class="setting setting--color">
+                      <div class="setting__header">
+                        <label for="inpColor">Farge</label>
+                      </div>
+                      <div class="setting__controls setting__controls--color">
+                        <input id="inpColor" class="color-input" type="color" value="#3b82f6" aria-label="Velg farge" />
+                        <button id="btnResetColor" class="btn btn--small" type="button">Nullstill</button>
+                      </div>
+                      <div class="setting__hint">Gjelder alle figurer. Nullstill for å bruke standardfargen.</div>
                     </div>
-                    <div class="setting__hint">Juster kameravinkelen vertikalt.</div>
+                    <div class="setting setting--slider">
+                      <div class="setting__header">
+                        <label for="rngTransparency">Gjennomsiktighet</label>
+                        <span id="lblTransparency" class="setting__value">0%</span>
+                      </div>
+                      <input id="rngTransparency" class="range-input" type="range" min="0" max="90" step="5" value="0" />
+                      <div class="setting__hint">0% er helt tett, 90% er svært gjennomsiktig.</div>
+                    </div>
                   </div>
-                  <div class="setting setting--view">
-                    <label class="setting__label" for="rngViewZoom">Zoom</label>
-                    <div class="setting__controls setting__controls--view">
-                      <input id="rngViewZoom" class="range-input" type="range" min="40" max="250" step="1" value="100" />
-                      <span id="lblViewZoom" class="setting__value">100%</span>
-                    </div>
-                    <div class="setting__hint">100% tilsvarer standardavstanden.</div>
+                </section>
+                <section class="settings-subsection">
+                  <h3 class="settings-subsection__title">Oppførsel</h3>
+                  <div class="settings-checkboxes">
+                    <label class="checkbox">
+                      <input id="chkLockRotation" type="checkbox" />
+                      <span>Lås rotasjonen</span>
+                    </label>
+                    <label class="checkbox">
+                      <input id="chkFreeFigure" type="checkbox" />
+                      <span>Fri figuren</span>
+                    </label>
                   </div>
-                </div>
-              </div>
-            </details>
-            <details class="settings-section">
-              <summary>Utseende</summary>
-              <div class="settings-section__content">
-                <div class="settings-group settings-group--columns">
-                  <div class="setting setting--color">
-                    <div class="setting__header">
-                      <label for="inpColor">Farge</label>
-                    </div>
-                    <div class="setting__controls setting__controls--color">
-                      <input id="inpColor" class="color-input" type="color" value="#3b82f6" aria-label="Velg farge" />
-                      <button id="btnResetColor" class="btn btn--small" type="button">Nullstill</button>
-                    </div>
-                    <div class="setting__hint">Gjelder alle figurer. Nullstill for å bruke standardfargen.</div>
-                  </div>
-                  <div class="setting setting--slider">
-                    <div class="setting__header">
-                      <label for="rngTransparency">Gjennomsiktighet</label>
-                      <span id="lblTransparency" class="setting__value">0%</span>
-                    </div>
-                    <input id="rngTransparency" class="range-input" type="range" min="0" max="90" step="5" value="0" />
-                    <div class="setting__hint">0% er helt tett, 90% er svært gjennomsiktig.</div>
-                  </div>
-                </div>
-              </div>
-            </details>
-            <details class="settings-section">
-              <summary>Oppførsel</summary>
-              <div class="settings-section__content">
-                <div class="settings-checkboxes">
-                  <label class="checkbox">
-                    <input id="chkLockRotation" type="checkbox" />
-                    <span>Lås rotasjonen</span>
-                  </label>
-                  <label class="checkbox">
-                    <input id="chkFreeFigure" type="checkbox" />
-                    <span>Fri figuren</span>
-                  </label>
-                </div>
+                </section>
               </div>
             </details>
           </div>
