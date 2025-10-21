@@ -728,11 +728,13 @@ let currentTextScale = 1;
 
 function pushTextScale(renderScale) {
   const previousScale = currentTextScale;
+  let scale = 1;
   if (Number.isFinite(renderScale) && renderScale > 0) {
-    currentTextScale = 1 / renderScale;
-  } else {
-    currentTextScale = 1;
+    scale = 1 / renderScale;
   }
+  const MIN_TEXT_SCALE = 0.9;
+  const MAX_TEXT_SCALE = 1.6;
+  currentTextScale = clamp(scale, MIN_TEXT_SCALE, MAX_TEXT_SCALE);
   return () => {
     currentTextScale = previousScale;
   };
