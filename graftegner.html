@@ -110,20 +110,22 @@
     .func-row--color{
       display:flex;
       justify-content:flex-start;
-      align-items:flex-end;
+      align-items:flex-start;
     }
     .func-row--color .func-color{
       width:auto;
       max-width:220px;
-      display:flex;
-      flex-direction:column;
-      gap:6px;
+    }
+    .func-row--gliders .func-color{
+      flex:0 0 auto;
+      align-self:flex-end;
     }
     .func-color input[type="color"]{
-      width:100%;
-      min-height:42px;
+      width:40px;
+      height:40px;
+      min-height:40px;
       padding:0;
-      border-radius:10px;
+      border-radius:8px;
       border:1px solid #d1d5db;
       background:#fff;
       cursor:pointer;
