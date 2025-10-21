@@ -654,6 +654,12 @@
         restoreButton.type = 'button';
         restoreButton.className = 'svg-archive__trash-action';
         restoreButton.dataset.action = 'restore';
+        if (item.id) {
+          restoreButton.dataset.id = item.id;
+        }
+        if (group.path) {
+          restoreButton.dataset.path = group.path;
+        }
         restoreButton.textContent = 'Gjenopprett';
         actions.appendChild(restoreButton);
 
@@ -661,6 +667,12 @@
         openButton.type = 'button';
         openButton.className = 'svg-archive__trash-action';
         openButton.dataset.action = 'open';
+        if (item.id) {
+          openButton.dataset.id = item.id;
+        }
+        if (group.path) {
+          openButton.dataset.path = group.path;
+        }
         openButton.textContent = 'Åpne';
         actions.appendChild(openButton);
 
@@ -668,6 +680,12 @@
         deleteButton.type = 'button';
         deleteButton.className = 'svg-archive__trash-action svg-archive__trash-action--danger';
         deleteButton.dataset.action = 'delete';
+        if (item.id) {
+          deleteButton.dataset.id = item.id;
+        }
+        if (group.path) {
+          deleteButton.dataset.path = group.path;
+        }
         deleteButton.textContent = 'Slett permanent';
         actions.appendChild(deleteButton);
 
