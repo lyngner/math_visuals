@@ -544,19 +544,55 @@
       exportCanvas.height = height;
       const context = exportCanvas.getContext('2d');
       if (!context) return null;
-      const background = this.getBackgroundColorHex();
-      this.renderer.render(this.scene, this.camera);
-      context.save();
-      context.fillStyle = background;
-      context.fillRect(0, 0, width, height);
-      context.restore();
-      context.drawImage(sourceCanvas, 0, 0, width, height);
-      return {
-        canvas: exportCanvas,
-        width,
-        height,
-        background
-      };
+      const exportColorHex = '#ffffff';
+      const exportColorValue = 0xffffff;
+      const originalBackground = this.scene ? this.scene.background : null;
+      const hasSetClearColor = this.renderer && typeof this.renderer.setClearColor === 'function';
+      const originalClearColorValue = typeof this.renderer.getClearColor === 'function'
+        ? this.renderer.getClearColor(new THREE.Color()).getHex()
+        : null;
+      const originalClearAlpha = typeof this.renderer.getClearAlpha === 'function'
+        ? this.renderer.getClearAlpha()
+        : null;
+      if (this.scene) {
+        this.scene.background = new THREE.Color(exportColorValue);
+      }
+      if (hasSetClearColor) {
+        this.renderer.setClearColor(exportColorValue, 1);
+      }
+      let background = exportColorHex;
+      let result = null;
+      try {
+        const detectedBackground = this.getBackgroundColorHex();
+        if (typeof detectedBackground === 'string' && detectedBackground.trim()) {
+          background = detectedBackground.trim();
+        }
+        this.renderer.render(this.scene, this.camera);
+        context.save();
+        context.fillStyle = background;
+        context.fillRect(0, 0, width, height);
+        context.restore();
+        context.drawImage(sourceCanvas, 0, 0, width, height);
+        result = {
+          canvas: exportCanvas,
+          width,
+          height,
+          background
+        };
+      } finally {
+        if (this.scene) {
+          if (originalBackground === undefined) {
+            this.scene.background = null;
+          } else {
+            this.scene.background = originalBackground;
+          }
+        }
+        if (hasSetClearColor && originalClearColorValue !== null) {
+          const alpha = typeof originalClearAlpha === 'number' ? originalClearAlpha : 1;
+          this.renderer.setClearColor(originalClearColorValue, alpha);
+        }
+      }
+      return result;
     }
     createMaterial(color) {
       const override = this.materialColorOverride;
