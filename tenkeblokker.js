@@ -211,6 +211,7 @@ const BRACE_Y_RATIO = 78 / VBH;
 const BRACKET_TICK_RATIO = 16 / VBH;
 const LABEL_OFFSET_RATIO = 14 / VBH;
 const DEFAULT_SVG_HEIGHT = 260;
+const EXPORT_PADDING = 24;
 const BASE_INNER_RATIO = BOTTOM_RATIO - TOP_RATIO;
 const ROW_LABEL_GAP = 18;
 const DEFAULT_FRAME_INSET = 3;
@@ -2356,7 +2357,7 @@ function getExportSvg() {
   }, 0);
   const labelPadding = labelBaseWidth > 0 ? 12 : 0;
   const labelSpace = labelBaseWidth > 0 ? labelBaseWidth + labelPadding : 0;
-  const exportHeight = rowInfo.reduce((sum, row, index) => {
+  const contentHeight = rowInfo.reduce((sum, row, index) => {
     if (!row.blocks.length) return sum;
     const gap = index > 0 ? exportRowGap : 0;
     return sum + row.height + gap;
@@ -2366,7 +2367,10 @@ function getExportSvg() {
   const verticalGap = verticalActive ? Math.max(figureWidth * 0.04, 20) : 0;
   const verticalLabelSpace = verticalActive ? Math.max(figureWidth * 0.18, 60) : 0;
   const verticalExtra = verticalActive ? verticalGap + verticalLabelSpace : 0;
-  const exportWidth = labelSpace + figureWidth + verticalExtra;
+  const contentWidth = labelSpace + figureWidth + verticalExtra;
+  const padding = Math.max(0, EXPORT_PADDING);
+  const exportWidth = contentWidth + padding * 2;
+  const exportHeight = contentHeight + padding * 2;
   const exportSvg = document.createElementNS(ns, 'svg');
   exportSvg.setAttribute('viewBox', `0 0 ${exportWidth} ${exportHeight}`);
   exportSvg.setAttribute('width', exportWidth);
@@ -2384,13 +2388,16 @@ function getExportSvg() {
     if (titleEl && titleEl.id) exportSvg.setAttribute('aria-labelledby', titleEl.id);
     if (descEl && descEl.id) exportSvg.setAttribute('aria-describedby', descEl.id);
   }
+  const contentGroup = document.createElementNS(ns, 'g');
+  contentGroup.setAttribute('transform', `translate(${padding},${padding})`);
+  exportSvg.appendChild(contentGroup);
   let offsetY = 0;
   rowInfo.forEach((row, rowIndex) => {
     if (!row.blocks.length) return;
     if (rowIndex > 0) offsetY += exportRowGap;
     const rowContainer = document.createElementNS(ns, 'g');
     rowContainer.setAttribute('transform', `translate(0,${offsetY})`);
-    exportSvg.appendChild(rowContainer);
+    contentGroup.appendChild(rowContainer);
     const labelText = labelTexts[rowIndex];
     if (labelText) {
       const firstEntry = row.blocks[0];
@@ -2430,8 +2437,8 @@ function getExportSvg() {
   });
   const referenceHeight = ((_rowInfo$find = rowInfo.find(row => row.blocks.length)) === null || _rowInfo$find === void 0 ? void 0 : _rowInfo$find.height) || DEFAULT_SVG_HEIGHT;
   const totalValue = getCombinedTotal();
-  let exportTopInner = exportHeight * TOP_RATIO;
-  let exportBottomInner = exportHeight * BOTTOM_RATIO;
+  let exportTopInner = contentHeight * TOP_RATIO;
+  let exportBottomInner = contentHeight * BOTTOM_RATIO;
   if (verticalActive) {
     let minY = Infinity;
     let maxY = -Infinity;
@@ -2451,13 +2458,13 @@ function getExportSvg() {
       }
       offsetYForRows += row.height;
     });
-    if (Number.isFinite(minY)) exportTopInner = clamp(minY, 0, exportHeight);
-    if (Number.isFinite(maxY)) exportBottomInner = clamp(maxY, exportTopInner, exportHeight);
+    if (Number.isFinite(minY)) exportTopInner = clamp(minY, 0, contentHeight);
+    if (Number.isFinite(maxY)) exportBottomInner = clamp(maxY, exportTopInner, contentHeight);
   }
   if (CONFIG.showCombinedWhole && activeCount > 1) {
     const startX = labelSpace;
     const endX = labelSpace + figureWidth;
-    const braceGroup = createSvgElement(exportSvg, 'g', {
+    const braceGroup = createSvgElement(contentGroup, 'g', {
       class: 'tb-combined-brace'
     });
     const braceY = BRACE_Y_RATIO * referenceHeight;
@@ -2473,7 +2480,7 @@ function getExportSvg() {
     totalText.textContent = Number.isFinite(totalValue) ? fmt(totalValue) : '';
   }
   if (verticalActive && activeCount > 1) {
-    const braceGroup = createSvgElement(exportSvg, 'g', {
+    const braceGroup = createSvgElement(contentGroup, 'g', {
       class: 'tb-combined-brace'
     });
     const bracketX = labelSpace + figureWidth + verticalGap;
