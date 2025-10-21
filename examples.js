@@ -4116,6 +4116,90 @@
       storageSetItem(OPEN_REQUEST_STORAGE_KEY, JSON.stringify(payload));
     } catch (error) {}
   }
+  function prepareArchiveOpenRequest(rawRequest, options) {
+    const request = rawRequest && typeof rawRequest === 'object' ? { ...rawRequest } : {};
+    const opts = options && typeof options === 'object' ? options : {};
+    const parseExample = value => {
+      if (!value) return null;
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        try {
+          return JSON.parse(trimmed);
+        } catch (_) {
+          return null;
+        }
+      }
+      if (typeof value === 'object') {
+        return value;
+      }
+      return null;
+    };
+    let exampleState =
+      parseExample(opts.exampleState) ||
+      parseExample(opts.example) ||
+      parseExample(request.exampleState) ||
+      parseExample(request.example) ||
+      parseExample(request.exampleData) ||
+      parseExample(request.payload);
+    if (exampleState) {
+      const normalizedList = normalizeExamplesForStorage([exampleState]);
+      const normalizedExample = Array.isArray(normalizedList) && normalizedList.length > 0 ? normalizedList[0] : null;
+      if (normalizedExample) {
+        request.exampleState = normalizedExample;
+        request.example = normalizedExample;
+        request.exampleData = normalizedExample;
+        request.payload = normalizedExample;
+      }
+    }
+    const pathCandidates = [
+      opts.canonicalPath,
+      opts.targetPath,
+      opts.path,
+      request.canonicalPath,
+      request.storagePath,
+      request.path,
+      request.target,
+      request.href,
+      request.targetUrl
+    ];
+    for (const candidate of pathCandidates) {
+      if (typeof candidate !== 'string') continue;
+      const trimmed = candidate.trim();
+      if (!trimmed) continue;
+      try {
+        const normalized = normalizePathname(trimmed);
+        if (normalized) {
+          request.canonicalPath = normalized;
+          if (!request.path) {
+            request.path = normalized;
+          }
+          if (!request.storagePath) {
+            request.storagePath = normalized;
+          }
+          break;
+        }
+      } catch (_) {}
+    }
+    if (!request.canonicalPath) {
+      try {
+        const normalizedStorage = normalizePathname(storagePath);
+        if (normalizedStorage) {
+          request.canonicalPath = normalizedStorage;
+          if (!request.path) {
+            request.path = normalizedStorage;
+          }
+          if (!request.storagePath) {
+            request.storagePath = normalizedStorage;
+          }
+        }
+      } catch (_) {}
+    }
+    try {
+      writeArchiveOpenRequest(request);
+    } catch (_) {}
+    return request;
+  }
   function clearArchiveOpenRequest() {
     try {
       storageRemoveItem(OPEN_REQUEST_STORAGE_KEY);
@@ -5514,9 +5598,23 @@
     const api = {
       ...existingApi,
       collectConfig: () => collectCurrentConfig(),
+      collectCurrentState: () => {
+        try {
+          return collectCurrentExampleState();
+        } catch (error) {
+          return null;
+        }
+      },
       createTemporaryExample: (example, options) => createTemporaryExample(example, options),
       readOpenRequest: () => readArchiveOpenRequest(),
       writeOpenRequest: payload => writeArchiveOpenRequest(payload),
+      prepareOpenRequest: (request, options) => {
+        try {
+          return prepareArchiveOpenRequest(request, options);
+        } catch (error) {
+          return null;
+        }
+      },
       clearOpenRequest: () => clearArchiveOpenRequest(),
       consumeOpenRequest: options => consumeOpenRequest(options),
       getExamples: () => getExamples().slice()
