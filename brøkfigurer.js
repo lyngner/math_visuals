@@ -907,7 +907,11 @@
     const panel = document.getElementById(`panel${id}`);
     let board;
     const divisionSegmentIds = new Set();
+    const divisionSegmentNodes = new Set();
     let filled = new Map();
+    let suppressToggle = false;
+    let suppressToggleResetTimer = null;
+    let detachDivisionGuard = null;
     function updateDenominatorControls(override, figStateOverride) {
       const figState = figStateOverride || ensureFigureState(id);
       let enabled;
@@ -998,131 +1002,131 @@
         element.hasPoint = () => false;
       }
     }
+    const getEventPoint = evt => {
+      if (!evt) return null;
+      if (typeof evt.clientX === 'number' && typeof evt.clientY === 'number') {
+        return {
+          x: evt.clientX,
+          y: evt.clientY
+        };
+      }
+      const touch = evt.touches && evt.touches[0] || evt.changedTouches && evt.changedTouches[0];
+      if (touch && typeof touch.clientX === 'number' && typeof touch.clientY === 'number') {
+        return {
+          x: touch.clientX,
+          y: touch.clientY
+        };
+      }
+      if (evt.evt) return getEventPoint(evt.evt);
+      return null;
+    };
+    const isDivisionStrokeElement = el => {
+      if (!el) return false;
+      if (divisionSegmentNodes.has(el)) return true;
+      if (el.getAttribute && el.getAttribute('data-division-segment') === 'true') return true;
+      if (el.classList && el.classList.contains('brok-division-segment')) return true;
+      if (typeof el.getAttribute === 'function') {
+        const dashAttr = el.getAttribute('stroke-dasharray');
+        if (dashAttr && dashAttr !== 'none') return true;
+      }
+      if (el.style && typeof el.style.strokeDasharray === 'string' && el.style.strokeDasharray && el.style.strokeDasharray !== 'none') {
+        return true;
+      }
+      if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+        const computed = window.getComputedStyle(el);
+        if (computed && typeof computed.strokeDasharray === 'string' && computed.strokeDasharray && computed.strokeDasharray !== 'none') {
+          return true;
+        }
+      }
+      return false;
+    };
+    const findDivisionStroke = element => {
+      let current = element;
+      while (current) {
+        if (isDivisionStrokeElement(current)) return current;
+        current = current.parentNode;
+      }
+      return null;
+    };
+    const DIVISION_STROKE_HIT_PADDING = 2;
+    function getDivisionStrokeAtPoint(point) {
+      if (!point || !panel) return null;
+      const box = panel.querySelector('.box');
+      if (!box) return null;
+      const rect = box.getBoundingClientRect();
+      if (point.x < rect.left || point.x > rect.right || point.y < rect.top || point.y > rect.bottom) return null;
+      if (typeof document !== 'undefined') {
+        if (typeof document.elementsFromPoint === 'function') {
+          const elements = document.elementsFromPoint(point.x, point.y) || [];
+          for (const el of elements) {
+            const stroke = findDivisionStroke(el);
+            if (stroke) return stroke;
+          }
+        }
+        const target = document.elementFromPoint(point.x, point.y);
+        const stroke = findDivisionStroke(target);
+        if (stroke) return stroke;
+      }
+      for (const node of divisionSegmentNodes) {
+        if (!node) continue;
+        if (typeof node.isConnected === 'boolean' && !node.isConnected) continue;
+        if (typeof node.getBoundingClientRect !== 'function') continue;
+        const nodeRect = node.getBoundingClientRect();
+        const pad = DIVISION_STROKE_HIT_PADDING;
+        if (
+          point.x >= nodeRect.left - pad &&
+          point.x <= nodeRect.right + pad &&
+          point.y >= nodeRect.top - pad &&
+          point.y <= nodeRect.bottom + pad
+        ) {
+          return node;
+        }
+      }
+      return null;
+    }
     function preventDivisionClick(element) {
       if (!element) return;
       const nodes = [];
       if (element.rendNode) nodes.push(element.rendNode);
       if (element.rendNodeFront && element.rendNodeFront !== element.rendNode) nodes.push(element.rendNodeFront);
-      const handleDown = evt => {
-        if (!evt) return;
-        if (typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
-        if (typeof evt.stopPropagation === 'function') evt.stopPropagation();
-        if (typeof evt.preventDefault === 'function') evt.preventDefault();
-        if (suppressToggleResetTimer != null) {
-          clearTimeout(suppressToggleResetTimer);
-          suppressToggleResetTimer = null;
-        }
-        suppressToggle = true;
-      };
-      const handleUp = evt => {
-        if (!evt) return;
-        if (typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
-        if (typeof evt.stopPropagation === 'function') evt.stopPropagation();
-        if (typeof evt.preventDefault === 'function') evt.preventDefault();
-        if (suppressToggleResetTimer != null) clearTimeout(suppressToggleResetTimer);
-        suppressToggleResetTimer = setTimeout(() => {
-          suppressToggle = false;
-          suppressToggleResetTimer = null;
-        }, 0);
-      };
       for (const node of nodes) {
         if (!node) continue;
-        node.style.pointerEvents = 'all';
-        if (!node.style.cursor) node.style.cursor = 'default';
-        node.addEventListener('pointerdown', handleDown, true);
-        node.addEventListener('pointerup', handleUp, true);
-        node.addEventListener('mousedown', handleDown, true);
-        node.addEventListener('mouseup', handleUp, true);
-        node.addEventListener('click', handleUp, true);
-        try {
-          node.addEventListener('touchstart', handleDown, {
-            passive: false,
-            capture: true
-          });
-          node.addEventListener('touchend', handleUp, {
-            passive: false,
-            capture: true
-          });
-        } catch (error) {
-          node.addEventListener('touchstart', handleDown, true);
-          node.addEventListener('touchend', handleUp, true);
+        if (node.style) {
+          node.style.pointerEvents = 'none';
+          if (!node.style.cursor) node.style.cursor = 'default';
         }
       }
     }
-    let suppressToggle = false;
-    let suppressToggleResetTimer = null;
-  const clonePoint = point => {
-    if (Array.isArray(point)) return point.slice();
-    if (point && typeof point === 'object') {
-      if (typeof point.X === 'function' && typeof point.Y === 'function') {
-        const x = Number(point.X());
-        const y = Number(point.Y());
-        if (Number.isFinite(x) && Number.isFinite(y)) return [x, y];
-      }
-      const usrCoords = point.coords && point.coords.usrCoords;
-      if (usrCoords && usrCoords.length >= 3) {
-        const w = Number(usrCoords[0]);
-        const x = Number(usrCoords[1]);
-        const y = Number(usrCoords[2]);
-        if (Number.isFinite(x) && Number.isFinite(y)) {
-          if (Number.isFinite(w) && w !== 0) {
-            return [x / w, y / w];
+    const clonePoint = point => {
+      if (Array.isArray(point)) return point.slice();
+      if (point && typeof point === 'object') {
+        if (typeof point.X === 'function' && typeof point.Y === 'function') {
+          const x = Number(point.X());
+          const y = Number(point.Y());
+          if (Number.isFinite(x) && Number.isFinite(y)) return [x, y];
+        }
+        const usrCoords = point.coords && point.coords.usrCoords;
+        if (usrCoords && usrCoords.length >= 3) {
+          const w = Number(usrCoords[0]);
+          const x = Number(usrCoords[1]);
+          const y = Number(usrCoords[2]);
+          if (Number.isFinite(x) && Number.isFinite(y)) {
+            if (Number.isFinite(w) && w !== 0) {
+              return [x / w, y / w];
+            }
+            return [x, y];
           }
-          return [x, y];
         }
       }
-    }
-    return [Number(point == null ? void 0 : point[0]) || 0, Number(point == null ? void 0 : point[1]) || 0];
-  };
+      return [Number(point == null ? void 0 : point[0]) || 0, Number(point == null ? void 0 : point[1]) || 0];
+    };
     function ensureDivisionGuard() {
       if (detachDivisionGuard || !panel) return;
       const box = panel.querySelector('.box');
       if (!box) return;
       if (typeof window !== 'undefined') window.__guardInitCount = (window.__guardInitCount || 0) + 1;
-      const getPoint = evt => {
-        if (!evt) return null;
-        if (typeof evt.clientX === 'number' && typeof evt.clientY === 'number') return {
-          x: evt.clientX,
-          y: evt.clientY
-        };
-        const touch = evt.touches && evt.touches[0] || evt.changedTouches && evt.changedTouches[0];
-        if (touch && typeof touch.clientX === 'number' && typeof touch.clientY === 'number') return {
-          x: touch.clientX,
-          y: touch.clientY
-        };
-        return null;
-      };
-      const isDivisionStroke = el => {
-        if (!el) return false;
-        if (el.classList && el.classList.contains('brok-division-segment')) return true;
-        if (typeof el.getAttribute === 'function') {
-          const dashAttr = el.getAttribute('stroke-dasharray');
-          if (dashAttr && dashAttr !== 'none') return true;
-        }
-        if (el.style && typeof el.style.strokeDasharray === 'string' && el.style.strokeDasharray && el.style.strokeDasharray !== 'none') return true;
-        if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
-          const computed = window.getComputedStyle(el);
-          if (computed && typeof computed.strokeDasharray === 'string' && computed.strokeDasharray && computed.strokeDasharray !== 'none') return true;
-        }
-        return false;
-      };
-      const findDivisionStroke = element => {
-        let current = element;
-        while (current) {
-          if (isDivisionStroke(current)) return current;
-          current = current.parentNode;
-        }
-        return null;
-      };
-      const getDivisionStrokeAtPoint = point => {
-        if (!point) return null;
-        const rect = box.getBoundingClientRect();
-        if (point.x < rect.left || point.x > rect.right || point.y < rect.top || point.y > rect.bottom) return null;
-        const target = document.elementFromPoint(point.x, point.y);
-        return findDivisionStroke(target);
-      };
       const downHandler = evt => {
-        const point = getPoint(evt);
+        const point = getEventPoint(evt);
         if (!point) return;
         const strokeEl = getDivisionStrokeAtPoint(point);
         if (strokeEl) {
@@ -1142,7 +1146,7 @@
       };
       const docDownHandler = evt => {
         if (!evt) return;
-        const point = getPoint(evt);
+        const point = getEventPoint(evt);
         const strokeEl = getDivisionStrokeAtPoint(point);
         if (!strokeEl) return;
         if (typeof evt.stopImmediatePropagation === 'function') evt.stopImmediatePropagation();
@@ -1246,6 +1250,11 @@
       if (node.classList) node.classList.add('brok-division-segment');
       if (typeof node.setAttribute === 'function') node.setAttribute('data-division-segment', 'true');
       if (node.id) divisionSegmentIds.add(node.id);
+      divisionSegmentNodes.add(node);
+      if (node.style) {
+        node.style.pointerEvents = 'none';
+        if (!node.style.cursor) node.style.cursor = 'default';
+      }
     }
     function markPolygonBorders(polygon) {
       if (!polygon || !Array.isArray(polygon.borders)) return;
@@ -1292,16 +1301,10 @@
         suppressToggle = false;
         return;
       }
-      if (evt && typeof evt.clientX === 'number' && typeof evt.clientY === 'number') {
-        const el = document.elementFromPoint(evt.clientX, evt.clientY);
-        let current = el;
-        while (current) {
-          if (current.getAttribute && current.getAttribute('data-division-segment') === 'true') {
-            suppressToggle = false;
-            return;
-          }
-          current = current.parentNode;
-        }
+      const point = getEventPoint(evt);
+      if (point && getDivisionStrokeAtPoint(point)) {
+        suppressToggle = false;
+        return;
       }
       if (suppressToggle) {
         suppressToggle = false;
@@ -1350,6 +1353,9 @@
       updateDenominatorControls(figState.allowDenominatorChange, figState);
       setFilled(figState.filled);
       initBoard();
+      divisionSegmentIds.clear();
+      divisionSegmentNodes.clear();
+      ensureDivisionGuard();
       let n = clampInt((_ref = (_partsInp$value = partsInp === null || partsInp === void 0 ? void 0 : partsInp.value) !== null && _partsInp$value !== void 0 ? _partsInp$value : figState.parts) !== null && _ref !== void 0 ? _ref : 1, 1);
       const shape = (shapeSel === null || shapeSel === void 0 ? void 0 : shapeSel.value) || figState.shape || 'rectangle';
       let division = (divSel === null || divSel === void 0 ? void 0 : divSel.value) || figState.division || 'horizontal';
