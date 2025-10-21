@@ -1008,13 +1008,28 @@ function buildKulerExportMeta(exportData) {
     const url = URL.createObjectURL(svgBlob);
     const img = new Image();
     img.onload = () => {
+      const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+      const fallbackMin = helper && Number.isFinite(helper.MIN_PNG_EXPORT_SIZE) ? helper.MIN_PNG_EXPORT_SIZE : 100;
+      const dimensions = helper && typeof helper.ensurePngExportDimensions === 'function'
+        ? helper.ensurePngExportDimensions({ width: exportData.layout.width, height: exportData.layout.height }, 1, fallbackMin)
+        : (() => {
+            const w = Number.isFinite(exportData.layout.width) && exportData.layout.width > 0 ? exportData.layout.width : fallbackMin;
+            const h = Number.isFinite(exportData.layout.height) && exportData.layout.height > 0 ? exportData.layout.height : fallbackMin;
+            const minSide = Math.min(w, h);
+            const requiredScale = minSide > 0 ? fallbackMin / minSide : 1;
+            const effectiveScale = Math.max(1, requiredScale);
+            return {
+              width: Math.max(fallbackMin, Math.round(w * effectiveScale)),
+              height: Math.max(fallbackMin, Math.round(h * effectiveScale))
+            };
+          })();
       const canvas = document.createElement("canvas");
-      canvas.width = exportData.layout.width;
-      canvas.height = exportData.layout.height;
+      canvas.width = dimensions.width;
+      canvas.height = dimensions.height;
       const ctx = canvas.getContext("2d");
       ctx.fillStyle = backgroundFill;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
       canvas.toBlob(blob => {
         if (!blob) return;

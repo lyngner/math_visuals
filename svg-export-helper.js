@@ -2,6 +2,50 @@
   if (typeof global !== 'object' || !global) return;
 
   const helper = {};
+  const MIN_PNG_EXPORT_SIZE = 100;
+
+  function ensurePositiveNumber(value, fallback) {
+    const numeric = Number.parseFloat(value);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return numeric;
+    }
+    return fallback;
+  }
+
+  function ensurePngExportDimensions(dimensions, scale = 1, minSize = MIN_PNG_EXPORT_SIZE) {
+    const baseWidth = ensurePositiveNumber(dimensions && dimensions.width, 0);
+    const baseHeight = ensurePositiveNumber(dimensions && dimensions.height, 0);
+    const fallbackSize = ensurePositiveNumber(minSize, MIN_PNG_EXPORT_SIZE) || MIN_PNG_EXPORT_SIZE;
+    const safeScale = ensurePositiveNumber(scale, 1) || 1;
+
+    const widthSource = baseWidth || baseHeight || fallbackSize;
+    const heightSource = baseHeight || baseWidth || fallbackSize;
+
+    const minSide = Math.min(widthSource, heightSource);
+    let effectiveScale = safeScale;
+    if (minSide > 0) {
+      const requiredScale = fallbackSize / minSide;
+      if (requiredScale > effectiveScale) {
+        effectiveScale = requiredScale;
+      }
+    }
+
+    const exportWidth = Math.max(
+      fallbackSize,
+      Math.round(widthSource * effectiveScale)
+    );
+    const exportHeight = Math.max(
+      fallbackSize,
+      Math.round(heightSource * effectiveScale)
+    );
+
+    return {
+      width: exportWidth,
+      height: exportHeight,
+      scale: effectiveScale,
+      minSize: fallbackSize
+    };
+  }
   let toastStyleInjected = false;
   let toastContainer = null;
   let archiveEntriesPromise = null;
@@ -500,8 +544,9 @@
     if (!doc) throw new Error('document mangler');
     await waitForDocumentFonts(doc);
     const canvas = doc.createElement('canvas');
-    const width = Math.max(1, Math.round(Number.isFinite(dimensions.width) ? dimensions.width : 0));
-    const height = Math.max(1, Math.round(Number.isFinite(dimensions.height) ? dimensions.height : 0));
+    const resolvedDimensions = ensurePngExportDimensions(dimensions || {}, 1);
+    const width = Math.max(1, resolvedDimensions.width);
+    const height = Math.max(1, resolvedDimensions.height);
     canvas.width = width;
     canvas.height = height;
     const ctx = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null;
@@ -785,6 +830,8 @@
   helper.cloneSvgForExport = cloneSvgForExport;
   helper.ensureSvgBackground = ensureSvgBackground;
   helper.getSvgCanvasBounds = getSvgCanvasBounds;
+  helper.ensurePngExportDimensions = ensurePngExportDimensions;
+  helper.MIN_PNG_EXPORT_SIZE = MIN_PNG_EXPORT_SIZE;
 
   global.MathVisSvgExport = helper;
 })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);

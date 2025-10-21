@@ -738,6 +738,24 @@
     document.body.removeChild(link);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  function resolvePngDimensions(width, height, scale) {
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const fallbackMin = helper && Number.isFinite(helper.MIN_PNG_EXPORT_SIZE) ? helper.MIN_PNG_EXPORT_SIZE : 100;
+    if (helper && typeof helper.ensurePngExportDimensions === 'function') {
+      return helper.ensurePngExportDimensions({ width, height }, scale, fallbackMin);
+    }
+    const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+    const safeWidth = Number.isFinite(width) && width > 0 ? width : fallbackMin;
+    const safeHeight = Number.isFinite(height) && height > 0 ? height : fallbackMin;
+    const minSide = Math.min(safeWidth, safeHeight);
+    const requiredScale = minSide > 0 ? fallbackMin / minSide : safeScale;
+    const effectiveScale = Math.max(safeScale, requiredScale);
+    return {
+      width: Math.max(fallbackMin, Math.round(safeWidth * effectiveScale)),
+      height: Math.max(fallbackMin, Math.round(safeHeight * effectiveScale))
+    };
+  }
+
   function downloadPng(svgEl, filename, scale = 2) {
     const data = svgToString(svgEl);
     const blob = new Blob([data], {
@@ -751,8 +769,9 @@
       const viewBox = (_svgEl$viewBox = svgEl.viewBox) === null || _svgEl$viewBox === void 0 ? void 0 : _svgEl$viewBox.baseVal;
       const width = viewBox ? viewBox.width : svgEl.clientWidth;
       const height = viewBox ? viewBox.height : svgEl.clientHeight;
-      canvas.width = Math.round(width * scale);
-      canvas.height = Math.round(height * scale);
+      const dimensions = resolvePngDimensions(width, height, scale);
+      canvas.width = dimensions.width;
+      canvas.height = dimensions.height;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);

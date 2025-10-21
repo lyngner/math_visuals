@@ -1113,13 +1113,28 @@ function downloadAllPizzasPNG(filename = "broksirkler.png") {
   img.onload = () => {
     const w = img.width,
       h = img.height;
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const fallbackMin = helper && Number.isFinite(helper.MIN_PNG_EXPORT_SIZE) ? helper.MIN_PNG_EXPORT_SIZE : 100;
+    const dimensions = helper && typeof helper.ensurePngExportDimensions === 'function'
+      ? helper.ensurePngExportDimensions({ width: w, height: h }, 1, fallbackMin)
+      : (() => {
+          const safeWidth = Number.isFinite(w) && w > 0 ? w : fallbackMin;
+          const safeHeight = Number.isFinite(h) && h > 0 ? h : fallbackMin;
+          const minSide = Math.min(safeWidth, safeHeight);
+          const requiredScale = minSide > 0 ? fallbackMin / minSide : 1;
+          const effectiveScale = Math.max(1, requiredScale);
+          return {
+            width: Math.max(fallbackMin, Math.round(safeWidth * effectiveScale)),
+            height: Math.max(fallbackMin, Math.round(safeHeight * effectiveScale))
+          };
+        })();
     const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
+    canvas.width = dimensions.width;
+    canvas.height = dimensions.height;
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, w, h);
-    ctx.drawImage(img, 0, 0, w, h);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     URL.revokeObjectURL(url);
     canvas.toBlob(b => {
       const urlPng = URL.createObjectURL(b);

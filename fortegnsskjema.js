@@ -2687,9 +2687,25 @@
       const baseWidth = viewBox ? viewBox.width : svg.clientWidth || svg.getBoundingClientRect().width || 900;
       const baseHeight = viewBox ? viewBox.height : svg.clientHeight || svg.getBoundingClientRect().height || 500;
       const scale = Math.max(1, window.devicePixelRatio || 1) * 2;
+      const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+      const fallbackMin = helper && Number.isFinite(helper.MIN_PNG_EXPORT_SIZE) ? helper.MIN_PNG_EXPORT_SIZE : 100;
+      const dimensions = helper && typeof helper.ensurePngExportDimensions === 'function'
+        ? helper.ensurePngExportDimensions({ width: baseWidth, height: baseHeight }, scale, fallbackMin)
+        : (() => {
+            const safeScale = Math.max(1, Number.isFinite(scale) && scale > 0 ? scale : 1);
+            const safeWidth = Number.isFinite(baseWidth) && baseWidth > 0 ? baseWidth : fallbackMin;
+            const safeHeight = Number.isFinite(baseHeight) && baseHeight > 0 ? baseHeight : fallbackMin;
+            const minSide = Math.min(safeWidth, safeHeight);
+            const requiredScale = minSide > 0 ? fallbackMin / minSide : safeScale;
+            const effectiveScale = Math.max(safeScale, requiredScale);
+            return {
+              width: Math.max(fallbackMin, Math.round(safeWidth * effectiveScale)),
+              height: Math.max(fallbackMin, Math.round(safeHeight * effectiveScale))
+            };
+          })();
       const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(baseWidth * scale));
-      canvas.height = Math.max(1, Math.round(baseHeight * scale));
+      canvas.width = Math.max(1, dimensions.width);
+      canvas.height = Math.max(1, dimensions.height);
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
