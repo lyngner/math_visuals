@@ -211,7 +211,58 @@ const BRACE_Y_RATIO = 78 / VBH;
 const BRACKET_TICK_RATIO = 16 / VBH;
 const LABEL_OFFSET_RATIO = 14 / VBH;
 const DEFAULT_SVG_HEIGHT = 260;
-const EXPORT_PADDING = 24;
+const EXPORT_PADDING = 32;
+const EXPORT_STYLE_RULES = `
+  :root,
+  svg {
+    --tb-font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  }
+
+  .tb-row-label-text {
+    font-size: 32px;
+    font-weight: 600;
+    fill: #374151;
+    letter-spacing: 0.01em;
+  }
+
+  .tb-row-label-text,
+  .tb-total,
+  .tb-val,
+  .tb-frac text,
+  .tb-frac tspan {
+    font-family: var(--tb-font-family, "Inter", "Segoe UI", system-ui, sans-serif);
+  }
+
+  .tb-total {
+    font-size: 34px;
+    fill: #000;
+    text-anchor: middle;
+  }
+
+  .tb-val {
+    font-size: 34px;
+    fill: #111;
+    text-anchor: middle;
+    dominant-baseline: middle;
+  }
+
+  .tb-frac {
+    text-anchor: middle;
+  }
+
+  .tb-frac text {
+    font-size: 28px;
+    fill: #111;
+    text-anchor: middle;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tb-frac-line {
+    stroke: #111;
+    stroke-width: 2;
+    stroke-linecap: square;
+  }
+`;
 const BASE_INNER_RATIO = BOTTOM_RATIO - TOP_RATIO;
 const ROW_LABEL_GAP = 18;
 const DEFAULT_FRAME_INSET = 3;
@@ -2417,6 +2468,20 @@ function getExportSvg() {
   exportSvg.setAttribute('height', exportHeight);
   exportSvg.setAttribute('xmlns', ns);
   exportSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  if (typeof window !== 'undefined' && window.getComputedStyle) {
+    const root = document.documentElement;
+    if (root) {
+      const computed = window.getComputedStyle(root);
+      const fontFamily = computed.getPropertyValue('--tb-font-family');
+      if (fontFamily && fontFamily.trim()) {
+        exportSvg.style.setProperty('--tb-font-family', fontFamily.trim());
+      }
+    }
+  }
+  const styleEl = document.createElementNS(ns, 'style');
+  styleEl.setAttribute('type', 'text/css');
+  styleEl.textContent = EXPORT_STYLE_RULES;
+  exportSvg.appendChild(styleEl);
   if (window.MathVisAltText) {
     const { titleEl, descEl } = window.MathVisAltText.ensureSvgA11yNodes(exportSvg);
     const title = getTenkeblokkerTitle();
@@ -2428,6 +2493,13 @@ function getExportSvg() {
     if (titleEl && titleEl.id) exportSvg.setAttribute('aria-labelledby', titleEl.id);
     if (descEl && descEl.id) exportSvg.setAttribute('aria-describedby', descEl.id);
   }
+  createSvgElement(exportSvg, 'rect', {
+    x: 0,
+    y: 0,
+    width: exportWidth,
+    height: exportHeight,
+    fill: '#fff'
+  });
   const contentGroup = document.createElementNS(ns, 'g');
   contentGroup.setAttribute('transform', `translate(${padding},${padding})`);
   exportSvg.appendChild(contentGroup);
