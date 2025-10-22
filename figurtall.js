@@ -1070,10 +1070,20 @@
     const colors = getColors();
     const figures = [];
     if (Array.isArray(STATE.figures)) {
+      const lastFigureIndex = getLastFigureIndex();
+      const isTaskMode = STATE.lastFigureIsAnswer && currentAppMode === 'task';
       STATE.figures.forEach((fig, idx) => {
         const name = fig && typeof fig.name === 'string' && fig.name.trim() ? fig.name.trim() : `Figur ${idx + 1}`;
-        const cells = Array.isArray(fig === null || fig === void 0 ? void 0 : fig.cells) ? fig.cells : [];
-        const normalized = normalizeCells(cells, rows, cols);
+        let sourceCells = Array.isArray(fig === null || fig === void 0 ? void 0 : fig.cells) ? fig.cells : [];
+        if (isTaskMode && idx === lastFigureIndex) {
+          const studentMatrix = ensureTaskStudentCells(true);
+          if (Array.isArray(studentMatrix)) {
+            sourceCells = studentMatrix;
+          } else {
+            sourceCells = [];
+          }
+        }
+        const normalized = normalizeCells(sourceCells, rows, cols);
         const colorUsage = colors.map(() => 0);
         let filled = 0;
         const rowDetails = normalized.map((rowVals, rowIdx) => {
