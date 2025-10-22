@@ -93,6 +93,23 @@ test.describe('svg-store memory mode', () => {
     expect(fetched.exampleState).toEqual(statePayload);
     expect(getStoreMode()).toBe('memory');
   });
+
+  test('setSvg accepts exampleState objects without stringifying', async () => {
+    const directState = { foo: 'direct', nested: { count: 3 }, list: [true, false] };
+    const stored = await setSvg('Memory/ObjectExample.svg', {
+      title: 'Object state',
+      tool: 'editor',
+      svg: '<svg>object</svg>',
+      exampleState: directState
+    });
+
+    expect(stored).not.toBeNull();
+    expect(stored.exampleState).toEqual(directState);
+
+    const fetched = await getSvg('memory/objectexample.svg');
+    expect(fetched).not.toBeNull();
+    expect(fetched.exampleState).toEqual(directState);
+  });
 });
 
 test.describe('svg-store kv mode', () => {
