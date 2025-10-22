@@ -883,6 +883,8 @@ function parseSimple(txt) {
     extraPoints: [],
     linePoints: [],
     answer: null,
+    answers: [],
+    rows: [],
     pointMarker: '',
     pointMarkers: [],
     raw: txt
@@ -947,6 +949,10 @@ function parseSimple(txt) {
     const fun = parseFunctionLine(L);
     if (fun) {
       out.funcs.push(fun);
+      out.rows.push({
+        type: 'function',
+        funcIndex: out.funcs.length - 1
+      });
       continue;
     }
     const pm = L.match(/^points\s*=\s*(\d+)/i);
@@ -956,9 +962,18 @@ function parseSimple(txt) {
     }
     const cm = L.match(/^coords\s*=\s*(.+)$/i);
     if (cm) {
+      const startIndex = out.extraPoints.length;
       const pts = cm[1].split(';').map(s => s.trim().replace(/^\(|\)$/g, '')).filter(Boolean).map(p => p.split(',').map(t => +t.trim()).filter(Number.isFinite));
       for (const pt of pts) {
         if (pt.length === 2) out.extraPoints.push(pt);
+      }
+      const count = out.extraPoints.length - startIndex;
+      if (count > 0) {
+        out.rows.push({
+          type: 'coords',
+          pointStart: startIndex,
+          pointCount: count
+        });
       }
       continue;
     }
@@ -982,10 +997,20 @@ function parseSimple(txt) {
       out.startX = sm[1].split(',').map(s => +s.trim()).filter(Number.isFinite);
       continue;
     }
-    const am = L.match(/^riktig\s*:\s*(.+)$/i);
+    const am = L.match(/^(?:riktig|fasit)(\d*)\s*:\s*(.+)$/i);
     if (am) {
-      out.answer = am[1].trim();
+      const idx = am[1] ? Math.max(1, Number.parseInt(am[1], 10)) - 1 : 0;
+      const value = am[2].trim();
+      if (value) {
+        out.answers[idx] = value;
+      }
       continue;
+    }
+  }
+  if (!out.answer && Array.isArray(out.answers)) {
+    const firstAnswer = out.answers.find(ans => typeof ans === 'string' && ans.trim());
+    if (firstAnswer) {
+      out.answer = firstAnswer;
     }
   }
   if (out.pointMarkers.length > out.extraPoints.length) {
@@ -3804,41 +3829,6 @@ function buildPointsLine() {
   }
   emitLinePointUpdate({ sync: false, markEdited: false });
 
-  // Fasit-sjekk (hvis "Riktig:" finnes)
-  if (SIMPLE_PARSED.answer) {
-    const {
-      btn,
-      msg,
-      setStatus
-    } = ensureCheckControls();
-    if (btn) {
-      btn.style.display = '';
-    }
-    if (msg) {
-      msg.style.display = '';
-    }
-    setStatus('info', '');
-    if (btn) {
-      btn.onclick = () => {
-        const {
-          m,
-          b
-        } = currentMB();
-        const ans = parseAnswerToMB(SIMPLE_PARSED.answer);
-        if (!ans) {
-          setStatus('err', 'Kunne ikke tolke fasit.');
-          return;
-        }
-        const okM = Math.abs(m - ans.m) <= ADV.check.slopeTol;
-        const okB = Math.abs(b - ans.b) <= ADV.check.interTol;
-        if (okM && okB) {
-          setStatus('ok', `Riktig! ${linearStr(ans.m, ans.b)}`);
-        } else {
-          setStatus('err', `Ikke helt. Nå: ${linearStr(m, b)}`);
-        }
-      };
-    }
-  }
 }
 
 /* ====== MB fra punktene + tolke fasit-uttrykk robust ====== */
@@ -3865,6 +3855,300 @@ function parseAnswerToMB(answerLine) {
     };
   } catch (_) {
     return null;
+  }
+}
+
+function formatAnswerNumber(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return '';
+  }
+  return toFixedTrim(value, 6).replace('.', ',');
+}
+
+function parseNumericValue(str) {
+  if (typeof str !== 'string') return null;
+  const cleaned = str.trim();
+  if (!cleaned) return null;
+  const normalized = cleaned.replace(',', '.');
+  if (/^[+-]?\d+\s*\/\s*\d+$/.test(normalized)) {
+    const parts = normalized.split('/');
+    const numerator = Number.parseFloat(parts[0]);
+    const denominator = Number.parseFloat(parts[1]);
+    if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) {
+      return null;
+    }
+    return numerator / denominator;
+  }
+  const num = Number.parseFloat(normalized);
+  return Number.isFinite(num) ? num : null;
+}
+
+function parseAssignmentList(answerLine) {
+  if (typeof answerLine !== 'string') return null;
+  const normalized = answerLine
+    .replace(/&&/g, ',')
+    .replace(/\b(?:og|and)\b/gi, ',');
+  const parts = normalized.split(/[,;]+/).map(part => part.trim()).filter(Boolean);
+  if (!parts.length) return null;
+  const assignments = [];
+  for (const part of parts) {
+    const match = part.match(/^([a-zA-Z]\w*)\s*=\s*(.+)$/);
+    if (!match) continue;
+    const label = match[1];
+    const value = parseNumericValue(match[2]);
+    if (value == null) continue;
+    assignments.push({ label, value });
+  }
+  if (!assignments.length) return null;
+  const slope = assignments.find(item => /^(a|m)$/i.test(item.label)) || null;
+  const intercept = assignments.find(item => /^(b|c)$/i.test(item.label)) || null;
+  return {
+    assignments,
+    slope: slope ? { label: slope.label, value: slope.value } : null,
+    intercept: intercept ? { label: intercept.label, value: intercept.value } : null
+  };
+}
+
+function summarizeAssignments(assignments) {
+  if (!Array.isArray(assignments) || !assignments.length) {
+    return '';
+  }
+  return assignments
+    .map(item => `${item.label} = ${formatAnswerNumber(item.value)}`)
+    .join(', ');
+}
+
+function parseLineAnswerSpec(answerLine) {
+  const trimmed = typeof answerLine === 'string' ? answerLine.trim() : '';
+  if (!trimmed) return null;
+  const exprSpec = parseAnswerToMB(trimmed);
+  if (exprSpec) {
+    const summary = normalizeExpressionText(trimmed) || linearStr(exprSpec.m, exprSpec.b);
+    return {
+      source: 'expression',
+      summary,
+      slope: { required: true, value: exprSpec.m, label: 'm' },
+      intercept: { required: true, value: exprSpec.b, label: 'b' }
+    };
+  }
+  const assignments = parseAssignmentList(trimmed);
+  if (assignments) {
+    const summary = summarizeAssignments(assignments.assignments);
+    const spec = {
+      source: 'assignments',
+      summary,
+      slope: assignments.slope ? { required: true, value: assignments.slope.value, label: assignments.slope.label } : null,
+      intercept: assignments.intercept ? { required: true, value: assignments.intercept.value, label: assignments.intercept.label } : null
+    };
+    if (!spec.slope && !spec.intercept) {
+      return null;
+    }
+    return spec;
+  }
+  return null;
+}
+
+function formatPointList(points) {
+  if (!Array.isArray(points)) return '';
+  return points.map(pt => formatPointForInput(pt)).filter(Boolean).join('; ');
+}
+
+function evaluateLineAnswer(spec, index) {
+  if (typeof currentMB !== 'function') {
+    return {
+      ok: false,
+      type: 'err',
+      message: `Funksjon ${index + 1} kan ikke kontrolleres.`
+    };
+  }
+  const { m, b } = currentMB();
+  if (!Number.isFinite(m) || !Number.isFinite(b)) {
+    return {
+      ok: false,
+      type: 'err',
+      message: `Funksjon ${index + 1} kan ikke kontrolleres.`
+    };
+  }
+  let slopeOk = true;
+  if (spec.slope && spec.slope.required) {
+    slopeOk = Math.abs(m - spec.slope.value) <= ADV.check.slopeTol;
+  }
+  let interceptOk = true;
+  if (spec.intercept && spec.intercept.required) {
+    interceptOk = Math.abs(b - spec.intercept.value) <= ADV.check.interTol;
+  }
+  if (!slopeOk || !interceptOk) {
+    const expected = spec.summary || linearStr(spec.slope ? spec.slope.value : m, spec.intercept ? spec.intercept.value : b);
+    return {
+      ok: false,
+      type: 'err',
+      message: `Funksjon ${index + 1} stemmer ikke. Forventet ${expected}. Nå: ${linearStr(m, b)}.`
+    };
+  }
+  const detail = spec.summary ? `Funksjon ${index + 1}: ${spec.summary}.` : `Funksjon ${index + 1} er riktig.`;
+  return {
+    ok: true,
+    message: detail
+  };
+}
+
+function pointsRoughlyEqual(a, b, tolerance = 1e-3) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length < 2 || b.length < 2) {
+    return false;
+  }
+  return Math.abs(a[0] - b[0]) <= tolerance && Math.abs(a[1] - b[1]) <= tolerance;
+}
+
+function evaluateCoordinateAnswer(expectedPoints, rowSpec, index) {
+  if (!Array.isArray(expectedPoints) || !expectedPoints.length) {
+    return {
+      ok: false,
+      type: 'err',
+      message: `Punkt ${index + 1} har ingen fasit.`
+    };
+  }
+  const start = rowSpec && Number.isFinite(rowSpec.pointStart) ? rowSpec.pointStart : 0;
+  const count = rowSpec && Number.isFinite(rowSpec.pointCount) ? rowSpec.pointCount : expectedPoints.length;
+  const actualSource = Array.isArray(SIMPLE_PARSED.extraPoints) ? SIMPLE_PARSED.extraPoints : [];
+  const actualPoints = actualSource.slice(start, start + count);
+  const expectedStr = formatPointList(expectedPoints);
+  const actualStr = formatPointList(actualPoints);
+  if (actualPoints.length < expectedPoints.length) {
+    return {
+      ok: false,
+      type: 'err',
+      message: `Punkt ${index + 1} stemmer ikke. Forventet ${expectedStr}. Nå: ${actualStr}.`
+    };
+  }
+  for (let i = 0; i < expectedPoints.length; i++) {
+    if (!pointsRoughlyEqual(expectedPoints[i], actualPoints[i])) {
+      return {
+        ok: false,
+        type: 'err',
+        message: `Punkt ${index + 1} stemmer ikke. Forventet ${expectedStr}. Nå: ${actualStr}.`
+      };
+    }
+  }
+  return {
+    ok: true,
+    message: `Punkt ${index + 1}: ${expectedStr}.`
+  };
+}
+
+function evaluateAnswerForRow(answer, index) {
+  const trimmed = typeof answer === 'string' ? answer.trim() : '';
+  if (!trimmed) {
+    return { ok: true, message: '' };
+  }
+  const rows = Array.isArray(SIMPLE_PARSED.rows) ? SIMPLE_PARSED.rows : [];
+  const rowSpec = rows[index] || null;
+  if (rowSpec && rowSpec.type === 'function') {
+    if (MODE !== 'points') {
+      return {
+        ok: false,
+        type: 'info',
+        message: `Fasit for funksjon ${index + 1} støttes ikke i denne modusen.`
+      };
+    }
+    const spec = parseLineAnswerSpec(trimmed);
+    if (!spec) {
+      return {
+        ok: false,
+        type: 'err',
+        message: `Kunne ikke tolke fasit for funksjon ${index + 1}.`
+      };
+    }
+    return evaluateLineAnswer(spec, index);
+  }
+  if (rowSpec && rowSpec.type === 'coords') {
+    const expected = parsePointListString(trimmed);
+    if (!expected.length) {
+      return {
+        ok: false,
+        type: 'err',
+        message: `Kunne ikke tolke fasit for punkt ${index + 1}.`
+      };
+    }
+    return evaluateCoordinateAnswer(expected, rowSpec, index);
+  }
+  const fallbackPoints = parsePointListString(trimmed);
+  if (fallbackPoints.length) {
+    return evaluateCoordinateAnswer(fallbackPoints, rowSpec, index);
+  }
+  if (MODE === 'points') {
+    const spec = parseLineAnswerSpec(trimmed);
+    if (spec) {
+      return evaluateLineAnswer(spec, index);
+    }
+  }
+  return {
+    ok: false,
+    type: 'err',
+    message: `Fasit for rad ${index + 1} er ikke støttet.`
+  };
+}
+
+function evaluateAnswers() {
+  const answers = Array.isArray(SIMPLE_PARSED.answers) ? SIMPLE_PARSED.answers : [];
+  const messages = [];
+  for (let i = 0; i < answers.length; i++) {
+    const answer = answers[i];
+    if (!answer || !String(answer).trim()) {
+      continue;
+    }
+    const evaluation = evaluateAnswerForRow(answer, i);
+    if (!evaluation) {
+      return {
+        ok: false,
+        type: 'err',
+        message: 'Kunne ikke tolke fasit.'
+      };
+    }
+    if (!evaluation.ok) {
+      return evaluation;
+    }
+    if (evaluation.message) {
+      messages.push(evaluation.message.trim());
+    }
+  }
+  return {
+    ok: true,
+    details: messages.join(' ').trim()
+  };
+}
+
+function setupTaskCheck() {
+  const answers = Array.isArray(SIMPLE_PARSED.answers) ? SIMPLE_PARSED.answers : [];
+  const hasAnswers = answers.some(answer => typeof answer === 'string' && answer.trim());
+  if (!hasAnswers) {
+    hideCheckControls();
+    return;
+  }
+  const controls = ensureCheckControls();
+  if (!controls) return;
+  const { btn, msg, setStatus } = controls;
+  if (btn) {
+    btn.style.display = '';
+  }
+  if (msg) {
+    msg.style.display = '';
+  }
+  setStatus('info', '');
+  if (btn) {
+    btn.onclick = () => {
+      const result = evaluateAnswers();
+      if (!result) {
+        setStatus('err', 'Kunne ikke tolke fasit.');
+        return;
+      }
+      if (result.ok) {
+        const suffix = result.details ? ` ${result.details}` : '';
+        setStatus('ok', `Riktig!${suffix}`);
+      } else {
+        const statusType = result.type === 'info' ? 'info' : 'err';
+        setStatus(statusType, result.message || 'Ikke helt.');
+      }
+    };
   }
 }
 function formatPointCoordinateForInput(value, step) {
@@ -4091,6 +4375,7 @@ function rebuildAll() {
   addFixedPoints();
   brd.on('boundingbox', updateAfterViewChange);
   updateAfterViewChange();
+  setupTaskCheck();
   applyAltTextToBoard();
   refreshAltText('rebuild');
   LAST_RENDERED_SIMPLE = SIMPLE;
@@ -5466,9 +5751,16 @@ function setupSettingsForm() {
       ? resolveMarkerValue(formatPointMarkerList(SIMPLE_PARSED.pointMarkers))
       : '';
     const lines = [];
+    const answerLines = [];
     rows.forEach((row, idx) => {
       const funInput = row.querySelector('[data-fun]');
       const domInput = row.querySelector('input[data-dom]');
+      const answerInput = row.querySelector('input[data-answer]');
+      const rawAnswer = answerInput && typeof answerInput.value === 'string' ? answerInput.value.trim() : '';
+      if (rawAnswer) {
+        const key = idx === 0 ? 'riktig' : `riktig${idx + 1}`;
+        answerLines.push(`${key}: ${rawAnswer}`);
+      }
       if (!funInput) return;
       const fun = getFunctionInputValue(funInput);
       if (!fun) return;
@@ -5499,7 +5791,6 @@ function setupSettingsForm() {
     const hasPointsLine = lines.some(L => /^\s*points\s*=/i.test(L));
     const hasStartXLine = lines.some(L => /^\s*startx\s*=/i.test(L));
     const hasLinePtsLine = lines.some(L => /^\s*linepts\s*=/i.test(L));
-    const hasAnswerLine = lines.some(L => /^\s*riktig\s*:/i.test(L));
     const glidersActive = shouldEnableGliders();
     const gliderCount = glidersActive ? getGliderCount() : 0;
     if (glidersActive && !hasPointsLine && gliderCount > 0) {
@@ -5533,9 +5824,11 @@ function setupSettingsForm() {
         lines.push(`linepts=${formatLinePoints(exportPoints)}`);
       }
     }
-    if (!hasAnswerLine && SIMPLE_PARSED.answer) {
-      lines.push(`riktig: ${SIMPLE_PARSED.answer}`);
-    }
+    answerLines.forEach(line => {
+      if (line) {
+        lines.push(line);
+      }
+    });
     return lines.join('\n');
   };
   const syncSimpleFromForm = () => {
@@ -5656,7 +5949,7 @@ function setupSettingsForm() {
     updateGliderVisibility();
     updateLinePointControls({ silent: true });
   };
-  const createRow = (index, funVal = '', domVal = '', colorVal = '', colorManual = false) => {
+  const createRow = (index, funVal = '', domVal = '', colorVal = '', colorManual = false, answerVal = '') => {
     const row = document.createElement('div');
     row.className = 'func-group';
     row.dataset.index = String(index);
@@ -5727,6 +6020,12 @@ function setupSettingsForm() {
               <input type="text" data-dom placeholder="[start, stopp]">
             </label>
           </div>
+          <div class="func-row func-row--secondary">
+            <label class="func-answer">
+              <span>Fasit</span>
+              <input type="text" data-answer placeholder="Skriv fasit (valgfritt)" autocomplete="off" spellcheck="false">
+            </label>
+          </div>
           ${gliderMarkup}
           ${colorRowMarkup}
         </div>
@@ -5773,6 +6072,27 @@ function setupSettingsForm() {
       markerInput.addEventListener('change', handleMarkerInput);
     }
     let funInput = row.querySelector('[data-fun]');
+    const answerInput = row.querySelector('input[data-answer]');
+    if (answerInput) {
+      answerInput.value = answerVal || '';
+      const handleAnswerInput = () => {
+        syncSimpleFromForm();
+        scheduleSimpleRebuild();
+      };
+      const handleAnswerBlur = () => {
+        if (answerInput.value != null) {
+          const trimmed = answerInput.value.trim();
+          if (answerInput.value !== trimmed) {
+            answerInput.value = trimmed;
+          }
+        }
+        syncSimpleFromForm();
+        scheduleSimpleRebuild();
+      };
+      answerInput.addEventListener('input', handleAnswerInput);
+      answerInput.addEventListener('change', handleAnswerBlur);
+      answerInput.addEventListener('blur', handleAnswerBlur);
+    }
     funInput = ensureFunctionInputElement(funInput);
     const domInput = row.querySelector('input[data-dom]');
     if (funInput) {
@@ -5948,6 +6268,7 @@ function setupSettingsForm() {
       if (/^\s*startx\s*=/i.test(line)) return false;
       if (/^\s*linepts\s*=/i.test(line)) return false;
       if (/^\s*marker\s*=/i.test(line)) return false;
+      if (/^\s*(?:riktig|fasit)\d*\s*:/i.test(line)) return false;
       return true;
     });
     if (filteredLines.length === 0) {
@@ -5994,7 +6315,8 @@ function setupSettingsForm() {
         }
         funcIndex++;
       }
-      createRow(idx + 1, funVal, domVal, colorVal, colorManualFlag);
+      const answerVal = Array.isArray(SIMPLE_PARSED.answers) ? SIMPLE_PARSED.answers[idx] || '' : '';
+      createRow(idx + 1, funVal, domVal, colorVal, colorManualFlag, answerVal);
     });
     refreshFunctionColorDefaultsLocal();
     if (gliderCountInput) {
@@ -6028,7 +6350,7 @@ function setupSettingsForm() {
   if (addBtn) {
     addBtn.addEventListener('click', () => {
       const index = (funcRows ? funcRows.querySelectorAll('.func-group').length : 0) + 1;
-      createRow(index, '', '');
+      createRow(index, '', '', '', false, '');
       syncSimpleFromForm();
       scheduleSimpleRebuild();
     });
