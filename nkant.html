@@ -9,10 +9,18 @@
 
 <style>
     :root { --sidebar-width: 480px; }
-    .figure { border-radius: 10px; background: #fafbfc; overflow: hidden; border: 1px solid #eef0f3; }
+    .figure {
+      border-radius: 10px;
+      background: #fafbfc;
+      overflow: auto;
+      border: 1px solid #eef0f3;
+      resize: both;
+      min-width: 240px;
+      min-height: 200px;
+    }
     .figure svg {
       width: 100%;
-      height: auto;
+      height: 100%;
       display: block;
     }
     .specs-row { display:flex; gap:10px; align-items:flex-start; }
