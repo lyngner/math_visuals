@@ -6,10 +6,7 @@ const SIMPLE = {
   ops: [],
   altText: '',
   altTextSource: 'auto',
-  solution: {
-    numerator: null,
-    denominator: null
-  }
+  solution: normalizeSolution()
 };
 if (typeof window !== 'undefined') window.SIMPLE = SIMPLE;
 const PANEL_HTML = [];
@@ -46,7 +43,7 @@ const checkStatus = typeof document !== 'undefined' ? document.getElementById('c
 const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
 const taskCheckControls = [checkButton, checkStatus].filter(Boolean);
 
-function normalizeSolution(solution) {
+function normalizeSingleSolution(solution) {
   const data = solution && typeof solution === 'object' ? solution : {};
   const num = Number(data.numerator);
   const den = Number(data.denominator);
@@ -54,6 +51,24 @@ function normalizeSolution(solution) {
     numerator: Number.isFinite(num) ? num : null,
     denominator: Number.isFinite(den) && den > 0 ? den : null
   };
+}
+
+function normalizeSolution(solution) {
+  const normalized = Array.from({ length: 3 }, () => ({ numerator: null, denominator: null }));
+  const applyAtIndex = (idx, value) => {
+    if (idx < 0 || idx >= normalized.length) return;
+    normalized[idx] = normalizeSingleSolution(value);
+  };
+  if (Array.isArray(solution)) {
+    solution.forEach((value, idx) => applyAtIndex(idx, value));
+  } else if (solution && typeof solution === 'object') {
+    if (Array.isArray(solution.pizzas)) {
+      solution.pizzas.forEach((value, idx) => applyAtIndex(idx, value));
+    } else {
+      applyAtIndex(0, solution);
+    }
+  }
+  return normalized;
 }
 
 function ensureTaskCheckControlsAppended() {
@@ -205,16 +220,19 @@ function readConfigFromHtml() {
     }
     ops.push(op);
   }
-  const solNumInput = document.getElementById('solutionNumerator');
-  const solDenInput = document.getElementById('solutionDenominator');
-  const rawSolution = {
-    numerator: solNumInput ? parseInt(solNumInput.value, 10) : null,
-    denominator: solDenInput ? parseInt(solDenInput.value, 10) : null
-  };
+  const rawSolutions = [];
+  for (let i = 1; i <= 3; i++) {
+    const numInput = document.getElementById(`p${i}SolutionNumerator`);
+    const denInput = document.getElementById(`p${i}SolutionDenominator`);
+    rawSolutions.push({
+      numerator: numInput ? parseInt(numInput.value, 10) : null,
+      denominator: denInput ? parseInt(denInput.value, 10) : null
+    });
+  }
   return {
     pizzas,
     ops,
-    solution: normalizeSolution(rawSolution)
+    solution: normalizeSolution(rawSolutions)
   };
 }
 
@@ -1467,17 +1485,18 @@ function getVisiblePizzaInstances() {
 }
 
 function runTaskCheck() {
-  const solution = normalizeSolution(SIMPLE.solution);
-  if (solution.numerator == null || solution.denominator == null) {
-    setCheckStatus('info', 'Ingen fasit er definert ennå.');
-    return;
-  }
+  const solutions = normalizeSolution(SIMPLE.solution);
   const pizzas = getVisiblePizzaInstances();
   if (!pizzas.length || !pizzas[0] || !pizzas[0].inst) {
     setCheckStatus('info', 'Ingen brøkpizza er tilgjengelig for å sjekke.');
     return;
   }
   const target = pizzas[0];
+  const solution = solutions[target.index] || solutions[0];
+  if (!solution || solution.numerator == null || solution.denominator == null) {
+    setCheckStatus('info', 'Ingen fasit er definert ennå.');
+    return;
+  }
   const { inst } = target;
   const numerator = inst.k;
   const denominator = inst.n;
@@ -1805,14 +1824,16 @@ function applySimpleConfigToInputs() {
     }
   });
   const normalizedSolution = normalizeSolution(SIMPLE.solution);
-  const solutionNumInput = document.getElementById('solutionNumerator');
-  if (solutionNumInput) {
-    solutionNumInput.value = normalizedSolution.numerator != null ? String(normalizedSolution.numerator) : '';
-  }
-  const solutionDenInput = document.getElementById('solutionDenominator');
-  if (solutionDenInput) {
-    solutionDenInput.value = normalizedSolution.denominator != null ? String(normalizedSolution.denominator) : '';
-  }
+  normalizedSolution.forEach((solution, idx) => {
+    const numInput = document.getElementById(`p${idx + 1}SolutionNumerator`);
+    if (numInput) {
+      numInput.value = solution.numerator != null ? String(solution.numerator) : '';
+    }
+    const denInput = document.getElementById(`p${idx + 1}SolutionDenominator`);
+    if (denInput) {
+      denInput.value = solution.denominator != null ? String(solution.denominator) : '';
+    }
+  });
   SIMPLE.solution = normalizedSolution;
 }
 function applyExamplesConfig() {
