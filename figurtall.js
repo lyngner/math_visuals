@@ -334,6 +334,73 @@
       }, 0);
     }, 0);
   }
+  function countFilledCellsMatrix(matrix) {
+    if (!Array.isArray(matrix)) return 0;
+    let count = 0;
+    for (let r = 0; r < matrix.length; r++) {
+      const row = matrix[r];
+      if (!Array.isArray(row)) continue;
+      for (let c = 0; c < row.length; c++) {
+        const val = parseInt(row[c], 10);
+        if (Number.isFinite(val) && val > 0) count++;
+      }
+    }
+    return count;
+  }
+  function parseLocaleNumber(value) {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().replace(/\s+/g, '').replace(',', '.');
+    if (!normalized) return null;
+    const num = Number.parseFloat(normalized);
+    return Number.isFinite(num) ? num : null;
+  }
+  function getAnswerExpectation() {
+    const raw = typeof STATE.answerText === 'string' ? STATE.answerText.trim() : '';
+    if (!raw) return null;
+    const percentMatch = raw.match(/^(-?\d+(?:[.,]\d+)?)\s*%$/);
+    if (percentMatch) {
+      const value = parseLocaleNumber(percentMatch[1]);
+      if (!Number.isFinite(value)) return null;
+      const ratio = value / 100;
+      if (!Number.isFinite(ratio) || ratio < 0) return null;
+      return { type: 'ratio', value: ratio };
+    }
+    const fractionMatch = raw.match(/^(-?\d+(?:[.,]\d+)?)\s*\/\s*(-?\d+(?:[.,]\d+)?)$/);
+    if (fractionMatch) {
+      const numerator = parseLocaleNumber(fractionMatch[1]);
+      const denominator = parseLocaleNumber(fractionMatch[2]);
+      if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) return null;
+      const ratio = numerator / denominator;
+      if (!Number.isFinite(ratio) || ratio < 0) return null;
+      return { type: 'ratio', value: ratio };
+    }
+    const numberMatch = raw.match(/^(-?\d+(?:[.,]\d+)?)(?:\s*(?:stk|ruter|celler|kvadrater|brikker)?)?$/i);
+    if (numberMatch) {
+      const value = parseLocaleNumber(numberMatch[1]);
+      if (!Number.isFinite(value)) return null;
+      if (value >= 0 && value <= 1) {
+        return { type: 'ratio', value };
+      }
+      const rounded = Math.round(value);
+      if (Math.abs(value - rounded) <= 1e-4) {
+        return { type: 'count', value: rounded };
+      }
+    }
+    return null;
+  }
+  function evaluateStudentAnswerText(studentMatrix) {
+    const expectation = getAnswerExpectation();
+    if (!expectation) return null;
+    const studentFilled = countFilledCellsMatrix(studentMatrix);
+    if (expectation.type === 'count') {
+      return studentFilled === expectation.value;
+    }
+    const totalCells = rows * cols;
+    if (!Number.isFinite(totalCells) || totalCells <= 0) return null;
+    const expectedFilled = expectation.value * totalCells;
+    if (!Number.isFinite(expectedFilled)) return null;
+    return Math.abs(studentFilled - expectedFilled) <= 0.5;
+  }
   function lastFigureHasAuthorFill() {
     if (!STATE.lastFigureIsAnswer) return false;
     const lastIndex = getLastFigureIndex();
@@ -677,16 +744,24 @@
     const solution = normalizeCells(solutionFig.cells, rows, cols);
     const student = ensureTaskStudentCells(true);
     if (!student) return null;
+    let matchesSolution = true;
     for (let r = 0; r < rows; r++) {
       const studentRow = Array.isArray(student[r]) ? student[r] : [];
       const solutionRow = Array.isArray(solution[r]) ? solution[r] : [];
       for (let c = 0; c < cols; c++) {
         const studentVal = parseInt(studentRow[c], 10) || 0;
         const solutionVal = parseInt(solutionRow[c], 10) || 0;
-        if (studentVal !== solutionVal) return false;
+        if (studentVal !== solutionVal) {
+          matchesSolution = false;
+          break;
+        }
       }
+      if (!matchesSolution) break;
     }
-    return true;
+    if (matchesSolution) return true;
+    const textResult = evaluateStudentAnswerText(student);
+    if (textResult != null) return textResult;
+    return false;
   }
   function applyAppModeChange(mode) {
     const normalized = typeof mode === 'string' && mode.toLowerCase() === 'task' ? 'task' : 'default';
