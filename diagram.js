@@ -82,8 +82,17 @@ const altTextStatus = document.getElementById('altTextStatus');
 const regenerateAltTextBtn = document.getElementById('btnRegenerateAltText');
 const checkBtn = document.getElementById('btnCheck');
 const statusEl = document.getElementById('status');
-const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
-const taskCheckControls = [checkBtn, statusEl].filter(Boolean);
+  const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
+  const taskCheckControls = [checkBtn, statusEl].filter(Boolean);
+
+  function evaluateDescriptionInputs() {
+    if (typeof window === 'undefined') return;
+    const mv = window.mathVisuals;
+    if (!mv || typeof mv.evaluateTaskInputs !== 'function') return;
+    try {
+      mv.evaluateTaskInputs();
+    } catch (_) {}
+  }
 
 function ensureTaskControlsHost() {
   if (!taskCheckHost) return;
@@ -397,7 +406,7 @@ function initFromCfg() {
   } else if (CFG.type === 'pie') {
     statusMessage = 'Dra i sektorene – eller bruk tastaturet.';
   }
-  updateStatus(statusMessage);
+  updateStatus(statusMessage, 'info');
   scheduleAltTextUpdate('config');
 }
 
@@ -1513,7 +1522,7 @@ function setValue(idx, newVal, announce = false, series = 0) {
   if (announce) {
     const sName = seriesNames[series] || '';
     const label = sName ? `${CFG.labels[idx]} – ${sName}` : `${CFG.labels[idx]}`;
-    updateStatus(`${label}: ${fmt(v)}`);
+    updateStatus(`${label}: ${fmt(v)}`, 'info');
   }
 }
 function yToValue(py) {
@@ -2003,33 +2012,34 @@ function formatNumberForPrompt(value) {
 /* =========================================================
    KNAPPER
    ========================================================= */
-document.getElementById('btnReset').addEventListener('click', () => {
-  values = CFG.start.slice();
-  if (values2) values2 = CFG.start2 ? CFG.start2.slice() : null;
-  clearBadges();
-  lastFocusIndex = null;
-  drawData();
-  scheduleAltTextUpdate('reset');
-  updateStatus('Nullstilt.');
-});
-document.getElementById('btnShow').addEventListener('click', () => {
-  values = CFG.answer.slice();
-  if (values2) values2 = CFG.answer2 ? CFG.answer2.slice() : null;
-  lastFocusIndex = null;
-  drawData();
-  markCorrectness();
-  scheduleAltTextUpdate('show');
-  updateStatus('Dette er én fasit.');
-});
-if (checkBtn) {
-  checkBtn.addEventListener('click', () => {
-    markCorrectness();
-    const ok1 = isCorrect(values, CFG.answer, CFG.tolerance || 0);
-    const ok2 = values2 ? isCorrect(values2, CFG.answer2, CFG.tolerance || 0) : true;
-    const ok = ok1 && ok2;
-    updateStatus(ok ? 'Riktig! 🎉' : 'Prøv igjen 🙂');
+  document.getElementById('btnReset').addEventListener('click', () => {
+    values = CFG.start.slice();
+    if (values2) values2 = CFG.start2 ? CFG.start2.slice() : null;
+    clearBadges();
+    lastFocusIndex = null;
+    drawData();
+    scheduleAltTextUpdate('reset');
+    updateStatus('Nullstilt.', 'info');
   });
-}
+  document.getElementById('btnShow').addEventListener('click', () => {
+    values = CFG.answer.slice();
+    if (values2) values2 = CFG.answer2 ? CFG.answer2.slice() : null;
+    lastFocusIndex = null;
+    drawData();
+    markCorrectness();
+    scheduleAltTextUpdate('show');
+    updateStatus('Dette er én fasit.', 'info');
+  });
+  if (checkBtn) {
+    checkBtn.addEventListener('click', () => {
+      evaluateDescriptionInputs();
+      markCorrectness();
+      const ok1 = isCorrect(values, CFG.answer, CFG.tolerance || 0);
+      const ok2 = values2 ? isCorrect(values2, CFG.answer2, CFG.tolerance || 0) : true;
+      const ok = ok1 && ok2;
+      updateStatus(ok ? 'Riktig!' : 'Prøv igjen.', ok ? 'success' : 'error');
+    });
+  }
 document.querySelector('.settings').addEventListener('input', applyCfg);
 function applyCfg() {
   const lbls = parseList(document.getElementById('cfgLabels').value);
@@ -2210,10 +2220,13 @@ function niceStep(span) {
   }
   return 10 * pow;
 }
-function updateStatus(msg) {
+function updateStatus(msg, type = 'info') {
   if (!statusEl) return;
-  statusEl.textContent = msg || '';
-  statusEl.hidden = !msg;
+  const text = typeof msg === 'string' ? msg : '';
+  const normalizedType = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+  statusEl.textContent = text;
+  statusEl.className = `status status--${normalizedType}`;
+  statusEl.hidden = !text;
 }
 function clearBadges() {
   [...gBars.querySelectorAll('.bar, .pie-slice')].forEach(b => b.classList.remove('badge-ok', 'badge-no'));

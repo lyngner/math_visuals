@@ -2,10 +2,37 @@
 .figure { border-radius: 10px; background: #fafbfc; overflow: hidden; border: 1px solid #eef0f3; }
 .figure svg { width: 100%; height: auto; display: block; background: #fff; }
 .status {
-  position: absolute;
-  width: 1px; height: 1px; margin: -1px;
-  padding: 0; overflow: hidden; clip: rect(0,0,0,0);
-  white-space: nowrap; border: 0;
+  display: none;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.status[hidden] {
+  display: none;
+}
+.status strong {
+  display: block;
+  margin-bottom: 4px;
+}
+.status--success {
+  display: block;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+.status--error {
+  display: block;
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+.status--info {
+  display: block;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
 }
 .settings { display: flex; flex-direction: column; gap: 8px; }
 .settings input, .settings select { width: 100%; }

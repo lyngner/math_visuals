@@ -619,6 +619,15 @@
   const taskStatusEl = document.getElementById('taskStatus');
   const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
   const taskCheckControls = [btnCheck, taskStatusEl].filter(Boolean);
+
+  function evaluateDescriptionInputs() {
+    if (typeof window === 'undefined') return;
+    const mv = window.mathVisuals;
+    if (!mv || typeof mv.evaluateTaskInputs !== 'function') return;
+    try {
+      mv.evaluateTaskInputs();
+    } catch (_) {}
+  }
   function ensureTaskControlsHost() {
     if (!taskCheckHost) return;
     taskCheckControls.forEach(control => {
@@ -627,10 +636,12 @@
       }
     });
   }
-  function updateTaskStatus(message) {
+  function updateTaskStatus(message, type = 'info') {
     if (!taskStatusEl) return;
     const text = typeof message === 'string' ? message : '';
+    const normalizedType = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
     taskStatusEl.textContent = text;
+    taskStatusEl.className = `status status--${normalizedType}`;
     taskStatusEl.hidden = !text;
   }
   function applyAppModeToTaskControls(mode) {
@@ -895,18 +906,19 @@
   });
   if (btnCheck) {
     btnCheck.addEventListener('click', () => {
+      evaluateDescriptionInputs();
       if (!STATE.lastFigureIsAnswer) {
-        updateTaskStatus('Ingen fasit tilgjengelig.');
-        return;
-      }
-      const result = evaluateStudentAnswer();
-      if (result == null) {
-        updateTaskStatus('Ingen fasit tilgjengelig.');
-        return;
-      }
-      updateTaskStatus(result ? 'Riktig! 🎉' : 'Prøv igjen 🙂');
-    });
-  }
+      updateTaskStatus('Ingen fasit tilgjengelig.', 'info');
+      return;
+    }
+    const result = evaluateStudentAnswer();
+    if (result == null) {
+      updateTaskStatus('Ingen fasit tilgjengelig.', 'info');
+      return;
+    }
+    updateTaskStatus(result ? 'Riktig!' : 'Prøv igjen.', result ? 'success' : 'error');
+  });
+}
   addBtn === null || addBtn === void 0 || addBtn.addEventListener('click', () => {
     STATE.figures.push(createFigureState(`Figur ${STATE.figures.length + 1}`, rows, cols, []));
     resetTaskStudentCells();

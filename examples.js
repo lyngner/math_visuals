@@ -503,11 +503,13 @@
     }
   }
   if (globalScope) {
-    globalScope.mathVisuals = globalScope.mathVisuals && typeof globalScope.mathVisuals === 'object' ? globalScope.mathVisuals :
- {};
+    globalScope.mathVisuals =
+      globalScope.mathVisuals && typeof globalScope.mathVisuals === 'object' ? globalScope.mathVisuals : {};
     globalScope.mathVisuals.applyAppMode = applyAppMode;
     globalScope.mathVisuals.setAppMode = (mode, options) => setAppMode(mode, options);
     globalScope.mathVisuals.getAppMode = () => currentAppMode;
+    globalScope.mathVisuals.evaluateTaskInputs = () => evaluateTaskInputs();
+    globalScope.mathVisuals.resetTaskInputs = () => resetTaskInputs();
   }
   const STORAGE_GLOBAL_KEY = '__EXAMPLES_STORAGE__';
   function createMemoryStorage(initialData) {
@@ -3483,6 +3485,42 @@
     return preview;
   }
 
+  function updateTaskCheckAvailability(preview) {
+    if (!preview || typeof preview.querySelector !== 'function') return;
+    const container = preview.closest('.example-description');
+    if (!container) return;
+    const checkHost = container.querySelector('[data-task-check-host]');
+    if (!checkHost) return;
+    let hasInputs = false;
+    if (typeof window !== 'undefined' && window.MathVisDescriptionRenderer) {
+      const renderer = window.MathVisDescriptionRenderer;
+      if (renderer && typeof renderer.hasInputs === 'function') {
+        try {
+          hasInputs = renderer.hasInputs(preview) === true;
+        } catch (_) {}
+      }
+    }
+    if (!hasInputs) {
+      hasInputs = preview.querySelector('.math-vis-answerbox__input') != null;
+    }
+    if (hasInputs) {
+      checkHost.dataset.hasAnswerInputs = 'true';
+      container.dataset.hasAnswerInputs = 'true';
+    } else {
+      delete checkHost.dataset.hasAnswerInputs;
+      delete container.dataset.hasAnswerInputs;
+    }
+    if (typeof checkHost.dispatchEvent === 'function') {
+      try {
+        checkHost.dispatchEvent(
+          new CustomEvent('math-visuals:task-check-availability', {
+            detail: { hasAnswerInputs: hasInputs }
+          })
+        );
+      } catch (_) {}
+    }
+  }
+
   function clearChildren(node) {
     if (!node) return;
     while (node.firstChild) {
@@ -3733,6 +3771,7 @@
       } else {
         preview.textContent = stringValue;
       }
+      updateTaskCheckAvailability(preview);
       return hasFragmentContent || !!trimmedValue;
     };
     let placeholderRendered = false;
@@ -3749,6 +3788,7 @@
       const hasContent = renderPlainText();
       delete preview.dataset.placeholder;
       applyState(hasContent);
+      updateTaskCheckAvailability(preview);
       return markRendered(hasContent);
     };
     const token = ++lastDescriptionRenderToken;
@@ -3763,6 +3803,7 @@
         } else if (!preview.childNodes || preview.childNodes.length === 0) {
           renderPlainTextPlaceholder();
         }
+        updateTaskCheckAvailability(preview);
       } catch (error) {
         if (token === lastDescriptionRenderToken) {
           renderLegacy();
@@ -3795,6 +3836,30 @@
           renderLegacy();
         }
       });
+  }
+
+  function evaluateTaskInputs() {
+    const preview = getDescriptionPreviewElement();
+    if (!preview) return null;
+    if (typeof window === 'undefined') return null;
+    const renderer = window.MathVisDescriptionRenderer;
+    if (!renderer || typeof renderer.evaluateInputs !== 'function') return null;
+    try {
+      return renderer.evaluateInputs(preview);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function resetTaskInputs() {
+    const preview = getDescriptionPreviewElement();
+    if (!preview) return;
+    if (typeof window === 'undefined') return;
+    const renderer = window.MathVisDescriptionRenderer;
+    if (!renderer || typeof renderer.resetInputs !== 'function') return;
+    try {
+      renderer.resetInputs(preview);
+    } catch (_) {}
   }
 
   function updateDescriptionEditVisibilityForMode(mode) {

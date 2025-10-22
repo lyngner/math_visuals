@@ -3957,7 +3957,7 @@ function evaluateLineAnswer(spec, index) {
   if (typeof currentMB !== 'function') {
     return {
       ok: false,
-      type: 'err',
+      type: 'error',
       message: `Funksjon ${index + 1} kan ikke kontrolleres.`
     };
   }
@@ -3965,7 +3965,7 @@ function evaluateLineAnswer(spec, index) {
   if (!Number.isFinite(m) || !Number.isFinite(b)) {
     return {
       ok: false,
-      type: 'err',
+      type: 'error',
       message: `Funksjon ${index + 1} kan ikke kontrolleres.`
     };
   }
@@ -3981,7 +3981,7 @@ function evaluateLineAnswer(spec, index) {
     const expected = spec.summary || linearStr(spec.slope ? spec.slope.value : m, spec.intercept ? spec.intercept.value : b);
     return {
       ok: false,
-      type: 'err',
+      type: 'error',
       message: `Funksjon ${index + 1} stemmer ikke. Forventet ${expected}. Nå: ${linearStr(m, b)}.`
     };
   }
@@ -4003,7 +4003,7 @@ function evaluateCoordinateAnswer(expectedPoints, rowSpec, index) {
   if (!Array.isArray(expectedPoints) || !expectedPoints.length) {
     return {
       ok: false,
-      type: 'err',
+      type: 'error',
       message: `Punkt ${index + 1} har ingen fasit.`
     };
   }
@@ -4016,7 +4016,7 @@ function evaluateCoordinateAnswer(expectedPoints, rowSpec, index) {
   if (actualPoints.length < expectedPoints.length) {
     return {
       ok: false,
-      type: 'err',
+      type: 'error',
       message: `Punkt ${index + 1} stemmer ikke. Forventet ${expectedStr}. Nå: ${actualStr}.`
     };
   }
@@ -4024,7 +4024,7 @@ function evaluateCoordinateAnswer(expectedPoints, rowSpec, index) {
     if (!pointsRoughlyEqual(expectedPoints[i], actualPoints[i])) {
       return {
         ok: false,
-        type: 'err',
+        type: 'error',
         message: `Punkt ${index + 1} stemmer ikke. Forventet ${expectedStr}. Nå: ${actualStr}.`
       };
     }
@@ -4054,7 +4054,7 @@ function evaluateAnswerForRow(answer, index) {
     if (!spec) {
       return {
         ok: false,
-        type: 'err',
+        type: 'error',
         message: `Kunne ikke tolke fasit for funksjon ${index + 1}.`
       };
     }
@@ -4065,7 +4065,7 @@ function evaluateAnswerForRow(answer, index) {
     if (!expected.length) {
       return {
         ok: false,
-        type: 'err',
+        type: 'error',
         message: `Kunne ikke tolke fasit for punkt ${index + 1}.`
       };
     }
@@ -4083,7 +4083,7 @@ function evaluateAnswerForRow(answer, index) {
   }
   return {
     ok: false,
-    type: 'err',
+    type: 'error',
     message: `Fasit for rad ${index + 1} er ikke støttet.`
   };
 }
@@ -4100,7 +4100,7 @@ function evaluateAnswers() {
     if (!evaluation) {
       return {
         ok: false,
-        type: 'err',
+        type: 'error',
         message: 'Kunne ikke tolke fasit.'
       };
     }
@@ -4115,6 +4115,15 @@ function evaluateAnswers() {
     ok: true,
     details: messages.join(' ').trim()
   };
+}
+
+function evaluateDescriptionInputs() {
+  if (typeof window === 'undefined') return;
+  const mv = window.mathVisuals;
+  if (!mv || typeof mv.evaluateTaskInputs !== 'function') return;
+  try {
+    mv.evaluateTaskInputs();
+  } catch (_) {}
 }
 
 function setupTaskCheck() {
@@ -4136,16 +4145,17 @@ function setupTaskCheck() {
   setStatus('info', '');
   if (btn) {
     btn.onclick = () => {
+      evaluateDescriptionInputs();
       const result = evaluateAnswers();
       if (!result) {
-        setStatus('err', 'Kunne ikke tolke fasit.');
+        setStatus('error', 'Kunne ikke tolke fasit.');
         return;
       }
       if (result.ok) {
         const suffix = result.details ? ` ${result.details}` : '';
-        setStatus('ok', `Riktig!${suffix}`);
+        setStatus('success', `Riktig!${suffix}`);
       } else {
-        const statusType = result.type === 'info' ? 'info' : 'err';
+        const statusType = result.type === 'info' ? 'info' : 'error';
         setStatus(statusType, result.message || 'Ikke helt.');
       }
     };
@@ -4440,7 +4450,15 @@ function ensureCheckControls() {
   }
   applyAppModeToTaskCheckHost(getCurrentAppMode() || 'task');
   const setStatus = (type, text) => {
-    msg.className = 'status ' + (type === 'ok' ? 'status--ok' : type === 'err' ? 'status--err' : 'status--info');
+    let normalized = 'info';
+    if (type === 'success') {
+      normalized = 'success';
+    } else if (type === 'error') {
+      normalized = 'error';
+    } else if (type === 'info') {
+      normalized = 'info';
+    }
+    msg.className = `status status--${normalized}`;
     msg.textContent = text || '';
   };
   return {
