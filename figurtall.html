@@ -48,7 +48,9 @@
     .card--settings .settings .input-stack{gap:8px;}
     .card--settings .settings label{font-weight:500;font-size:13px;color:#4b5563;}
     .card--settings .settings select,
-    .card--settings .settings input[type="number"]{width:100%;}
+    .card--settings .settings input[type="number"],
+    .card--settings .settings input[type="text"]{width:100%;}
+    .card--settings .settings .input-stack.is-disabled label{color:#9ca3af;}
     .card--settings .global-settings{display:flex;flex-direction:column;gap:12px;}
     .card--settings .global-settings > .checkbox-row{gap:8px;}
     .card--settings .global-settings .settings-group{display:flex;flex-direction:column;gap:10px;padding-top:4px;border-top:1px solid #e5e7eb;}
@@ -183,6 +185,10 @@
                 <div class="checkbox-row">
                   <input id="lastFigureAnswerToggle" type="checkbox" name="lastFigureAnswer" />
                   <label for="lastFigureAnswerToggle">Siste figur som fasit</label>
+                </div>
+                <div class="input-stack" id="answerTextContainer" hidden>
+                  <label for="answerTextInput">Fasit</label>
+                  <input id="answerTextInput" type="text" inputmode="numeric" placeholder="Skriv fasit" autocomplete="off" spellcheck="false" />
                 </div>
                 <div class="input-stack">
                   <label for="labelModeSelect">Figurtekst</label>

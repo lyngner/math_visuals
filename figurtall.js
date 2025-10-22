@@ -286,6 +286,11 @@
     ensureColors(STATE.colorCount);
     if (typeof STATE.altText !== 'string') STATE.altText = '';
     STATE.altTextSource = STATE.altTextSource === 'manual' ? 'manual' : 'auto';
+    if (typeof STATE.answerText === 'number') {
+      STATE.answerText = Number.isFinite(STATE.answerText) ? String(STATE.answerText) : '';
+    } else if (typeof STATE.answerText !== 'string') {
+      STATE.answerText = '';
+    }
     if (!Array.isArray(STATE.figures)) STATE.figures = [];
     if (STATE.figures.length === 0) {
       STATE.figures = [createFigureState('Figur 1', rows, cols, [[0, 1]]), createFigureState('Figur 2', rows, cols, [[0, 1], [1, 0], [1, 1]]), createFigureState('Figur 3', rows, cols, [[0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [2, 2]])];
@@ -328,6 +333,36 @@
         return rowTotal + (Number.isFinite(num) && num > 0 ? 1 : 0);
       }, 0);
     }, 0);
+  }
+  function lastFigureHasAuthorFill() {
+    if (!STATE.lastFigureIsAnswer) return false;
+    const lastIndex = getLastFigureIndex();
+    if (lastIndex < 0) return false;
+    const figures = Array.isArray(STATE.figures) ? STATE.figures : [];
+    const fig = figures[lastIndex];
+    return getFilledCellCount(fig) > 0;
+  }
+  function updateAnswerFieldState() {
+    const shouldShow = !!STATE.lastFigureIsAnswer;
+    const hasAuthorFill = shouldShow && lastFigureHasAuthorFill();
+    if (answerTextContainer) {
+      answerTextContainer.hidden = !shouldShow;
+      answerTextContainer.classList.toggle('is-disabled', hasAuthorFill);
+    }
+    if (!shouldShow) return;
+    const disabled = hasAuthorFill;
+    if (answerTextInput) {
+      answerTextInput.disabled = disabled;
+      if (disabled) {
+        answerTextInput.setAttribute('title', 'Feltet er deaktivert fordi siste figur er fargelagt.');
+      } else {
+        answerTextInput.removeAttribute('title');
+      }
+      const desired = typeof STATE.answerText === 'string' ? STATE.answerText : '';
+      if (answerTextInput.value !== desired) {
+        answerTextInput.value = desired;
+      }
+    }
   }
   function applyCellAppearance(cell, idx, colors) {
     const shape = normalizeFigureType(STATE.figureType) || 'square';
@@ -388,6 +423,7 @@
       cell.dataset.color = String(idxVal);
       applyCellAppearance(cell, idxVal, colors);
     });
+    updateAnswerFieldState();
   }
   function updateColorVisibility() {
     const count = STATE.colorCount;
@@ -553,6 +589,7 @@
       cell.dataset.color = String(next);
       applyCellAppearance(cell, next, colors);
       updateFigureLabelDisplay();
+      updateAnswerFieldState();
       updateTaskStatus('');
       return;
     }
@@ -564,6 +601,7 @@
     cell.dataset.color = String(next);
     applyCellAppearance(cell, next, colors);
     updateFigureLabelDisplay();
+    updateAnswerFieldState();
     resetTaskStudentCells();
     scheduleAltTextRefresh('cells');
   }
@@ -574,6 +612,8 @@
   const gridLastFigureToggle = document.getElementById('gridLastFigureToggle');
   const offsetToggle = document.getElementById('offsetRowsToggle');
   const lastFigureAnswerToggle = document.getElementById('lastFigureAnswerToggle');
+  const answerTextContainer = document.getElementById('answerTextContainer');
+  const answerTextInput = document.getElementById('answerTextInput');
   const labelModeSelect = document.getElementById('labelModeSelect');
   const btnCheck = document.getElementById('btnCheck');
   const taskStatusEl = document.getElementById('taskStatus');
@@ -714,6 +754,7 @@
     if (gridLastFigureToggle) gridLastFigureToggle.checked = !!STATE.gridOnlyOnLast;
     if (offsetToggle) offsetToggle.checked = !!STATE.offset;
     if (lastFigureAnswerToggle) lastFigureAnswerToggle.checked = !!STATE.lastFigureIsAnswer;
+    updateAnswerFieldState();
     if (labelModeSelect) {
       labelModeSelect.value = normalizeLabelMode(STATE.labelMode);
     }
@@ -815,9 +856,19 @@
         updateCellColors();
         updateGridVisibility();
       }
+      updateAnswerFieldState();
       applyAppModeToTaskControls(currentAppMode);
       scheduleAltTextRefresh('grid');
     });
+  }
+  if (answerTextInput) {
+    const syncAnswerText = () => {
+      if (answerTextInput.disabled) return;
+      STATE.answerText = answerTextInput.value;
+    };
+    answerTextInput.addEventListener('input', syncAnswerText);
+    answerTextInput.addEventListener('change', syncAnswerText);
+    answerTextInput.addEventListener('blur', syncAnswerText);
   }
   if (labelModeSelect) {
     labelModeSelect.addEventListener('change', () => {
@@ -1730,6 +1781,7 @@
     STATE.figures = [];
     STATE.altText = '';
     STATE.altTextSource = 'auto';
+    STATE.answerText = '';
     resetTaskStudentCells();
     updateTaskStatus('');
     lastAltTextSignature = null;
