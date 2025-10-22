@@ -3453,7 +3453,12 @@
       preview.setAttribute('aria-hidden', 'true');
       preview.setAttribute('hidden', '');
       preview.dataset.empty = 'true';
-      container.appendChild(preview);
+      const checkHost = container.querySelector('[data-task-check-host]');
+      if (checkHost && typeof container.insertBefore === 'function') {
+        container.insertBefore(preview, checkHost);
+      } else {
+        container.appendChild(preview);
+      }
     }
     descriptionPreview = preview;
     return preview;
