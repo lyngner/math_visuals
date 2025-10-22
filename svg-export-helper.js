@@ -454,7 +454,27 @@
     const doc = svgElement.ownerDocument || (typeof document !== 'undefined' ? document : null);
     if (!doc) throw new Error('document mangler');
 
+    const measuredDimensions = getSvgDimensions(svgElement);
     const exportSvg = svgElement.cloneNode(true);
+
+    if (exportSvg && typeof exportSvg.setAttribute === 'function') {
+      const currentWidth =
+        typeof exportSvg.getAttribute === 'function' ? parseLength(exportSvg.getAttribute('width')) : null;
+      const currentHeight =
+        typeof exportSvg.getAttribute === 'function' ? parseLength(exportSvg.getAttribute('height')) : null;
+
+      if (Number.isFinite(measuredDimensions.width) && measuredDimensions.width > 0) {
+        if (!Number.isFinite(currentWidth) || currentWidth <= 0) {
+          exportSvg.setAttribute('width', String(measuredDimensions.width));
+        }
+      }
+      if (Number.isFinite(measuredDimensions.height) && measuredDimensions.height > 0) {
+        if (!Number.isFinite(currentHeight) || currentHeight <= 0) {
+          exportSvg.setAttribute('height', String(measuredDimensions.height));
+        }
+      }
+    }
+
     ensureSvgBackground(exportSvg, '#ffffff');
 
     const serializer = options.serialize;
@@ -472,7 +492,16 @@
     const summary = options.summary != null ? options.summary : null;
     const createdAt = new Date().toISOString();
 
-    const dimensions = getSvgDimensions(exportSvg);
+    let dimensions = measuredDimensions;
+    if (
+      !dimensions ||
+      !Number.isFinite(dimensions.width) ||
+      !Number.isFinite(dimensions.height) ||
+      dimensions.width <= 0 ||
+      dimensions.height <= 0
+    ) {
+      dimensions = getSvgDimensions(exportSvg);
+    }
 
     const fallbackBase = sanitizeBaseName(options.defaultBaseName || suggestedName || tool || 'export', sanitizeBaseName(tool || 'export'));
     let baseNameSuggestion;
