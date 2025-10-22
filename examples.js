@@ -3443,7 +3443,24 @@
   }
 
   function getDescriptionPreviewElement() {
-    if (descriptionPreview && descriptionPreview.isConnected) return descriptionPreview;
+    const ensurePreviewPosition = (previewElement, containerElement) => {
+      if (!previewElement || !containerElement) return;
+      if (typeof containerElement.querySelector !== 'function') return;
+      const checkHost = containerElement.querySelector('[data-task-check-host]');
+      if (checkHost && typeof containerElement.insertBefore === 'function') {
+        if (checkHost.previousElementSibling !== previewElement) {
+          containerElement.insertBefore(previewElement, checkHost);
+        }
+      } else if (previewElement.parentElement !== containerElement) {
+        containerElement.appendChild(previewElement);
+      }
+    };
+
+    if (descriptionPreview && descriptionPreview.isConnected) {
+      ensurePreviewPosition(descriptionPreview, descriptionPreview.parentElement);
+      return descriptionPreview;
+    }
+
     const container = getDescriptionContainer();
     if (!container) return null;
     let preview = container.querySelector('.example-description-preview');
@@ -3455,6 +3472,8 @@
       preview.dataset.empty = 'true';
       container.appendChild(preview);
     }
+
+    ensurePreviewPosition(preview, container);
     descriptionPreview = preview;
     return preview;
   }
