@@ -75,6 +75,7 @@
     incorrect: 'Prøv igjen.'
   };
   let inputFieldIdCounter = 0;
+  const inputFieldRegistry = new WeakMap();
 
   let katexPromise = null;
 
@@ -724,7 +725,11 @@
         container.classList.add(nextClass);
       }
     }
-    container.dataset.state = state;
+    if (state && typeof state === 'string') {
+      container.dataset.state = state;
+    } else {
+      delete container.dataset.state;
+    }
     if (!status || !input) return;
     if (state === 'correct') {
       status.textContent = descriptor.correctMessage || INPUT_STATUS_MESSAGES.correct;
@@ -739,13 +744,13 @@
   }
 
   function evaluateInputField(box) {
-    if (!box || !box.input) return;
+    if (!box || !box.input) return 'empty';
     const { input, descriptor } = box;
     const raw = typeof input.value === 'string' ? input.value : '';
     const trimmed = collapseWhitespace(raw);
     if (!trimmed) {
       setInputFieldState(box, 'empty');
-      return;
+      return 'empty';
     }
     const comparable = descriptor.caseSensitive ? trimmed : trimmed.toLowerCase();
     const numericValue = toNumericValue(raw);
@@ -763,17 +768,80 @@
       }
       return false;
     });
-    setInputFieldState(box, isCorrect ? 'correct' : 'incorrect');
+    const nextState = isCorrect ? 'correct' : 'incorrect';
+    setInputFieldState(box, nextState);
+    return nextState;
   }
 
-  function setupInputFields(inputFields) {
-    if (!Array.isArray(inputFields) || !inputFields.length) return;
-    inputFields.forEach(box => {
-      if (!box || !box.input) return;
-      const handler = () => evaluateInputField(box);
-      box.input.addEventListener('input', handler);
-      box.input.addEventListener('blur', handler);
-      evaluateInputField(box);
+  function registerInputFields(target, boxes) {
+    if (!target || typeof target !== 'object') return;
+    if (Array.isArray(boxes) && boxes.length) {
+      inputFieldRegistry.set(target, boxes);
+    } else {
+      inputFieldRegistry.delete(target);
+    }
+  }
+
+  function getRegisteredInputFields(target) {
+    if (!target || typeof target !== 'object') return [];
+    const registered = inputFieldRegistry.get(target);
+    if (!Array.isArray(registered)) return [];
+    return registered;
+  }
+
+  function setupInputFields(target, inputFields) {
+    if (!target || typeof target !== 'object') return;
+    if (!Array.isArray(inputFields) || !inputFields.length) {
+      registerInputFields(target, []);
+      return;
+    }
+    const boxes = inputFields.filter(box => box && box.input);
+    boxes.forEach(box => {
+      const handleChange = () => {
+        const value = typeof box.input.value === 'string' ? box.input.value : '';
+        const normalized = collapseWhitespace(value);
+        if (normalized) {
+          setInputFieldState(box, null);
+        } else {
+          setInputFieldState(box, 'empty');
+        }
+      };
+      box.input.addEventListener('input', handleChange);
+      box.input.addEventListener('change', handleChange);
+      handleChange();
+    });
+    registerInputFields(target, boxes);
+  }
+
+  function hasRegisteredInputFields(target) {
+    return getRegisteredInputFields(target).length > 0;
+  }
+
+  function evaluateRegisteredInputFields(target) {
+    const boxes = getRegisteredInputFields(target);
+    const summary = {
+      total: boxes.length,
+      correct: 0,
+      incorrect: 0,
+      empty: 0
+    };
+    boxes.forEach(box => {
+      const state = evaluateInputField(box);
+      if (state === 'correct') {
+        summary.correct += 1;
+      } else if (state === 'incorrect') {
+        summary.incorrect += 1;
+      } else {
+        summary.empty += 1;
+      }
+    });
+    return summary;
+  }
+
+  function resetRegisteredInputFields(target) {
+    const boxes = getRegisteredInputFields(target);
+    boxes.forEach(box => {
+      setInputFieldState(box, 'empty');
     });
   }
 
@@ -821,7 +889,9 @@
       }
     }
     if (inputFields.length) {
-      setupInputFields(inputFields);
+      setupInputFields(target, inputFields);
+    } else {
+      registerInputFields(target, []);
     }
     return hasContent;
   }
@@ -829,6 +899,9 @@
   global.MathVisDescriptionRenderer = {
     ensureKatexLoaded,
     parse,
-    renderInto
+    renderInto,
+    evaluateInputs: evaluateRegisteredInputFields,
+    hasInputs: hasRegisteredInputFields,
+    resetInputs: resetRegisteredInputFields
   };
 })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null);

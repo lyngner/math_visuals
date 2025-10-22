@@ -89,10 +89,19 @@
   }
 
   function handleAppModeChanged(event) {
-    if (!event) return;
-    const detail = event.detail;
-    if (!detail || typeof detail.mode !== 'string') return;
-    applyAppModeToTaskControls(detail.mode);
+  if (!event) return;
+  const detail = event.detail;
+  if (!detail || typeof detail.mode !== 'string') return;
+  applyAppModeToTaskControls(detail.mode);
+}
+
+  function evaluateDescriptionInputs() {
+    if (typeof window === 'undefined') return;
+    const mv = window.mathVisuals;
+    if (!mv || typeof mv.evaluateTaskInputs !== 'function') return;
+    try {
+      mv.evaluateTaskInputs();
+    } catch (_) {}
   }
 
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
@@ -2391,6 +2400,7 @@
 
   if (checkButton) {
     checkButton.addEventListener('click', () => {
+      evaluateDescriptionInputs();
       checkDraggablePlacements();
     });
   }

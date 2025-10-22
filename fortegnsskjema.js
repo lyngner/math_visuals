@@ -18,8 +18,17 @@
   const domainMaxInput = document.getElementById('domainMax');
   const decimalPlacesInput = document.getElementById('decimalPlaces');
   const checkStatus = document.getElementById('checkStatus');
-  const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
-  const taskCheckControls = [btnCheck, checkStatus].filter(Boolean);
+    const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
+    const taskCheckControls = [btnCheck, checkStatus].filter(Boolean);
+
+    function evaluateDescriptionInputs() {
+      if (typeof window === 'undefined') return;
+      const mv = window.mathVisuals;
+      if (!mv || typeof mv.evaluateTaskInputs !== 'function') return;
+      try {
+        mv.evaluateTaskInputs();
+      } catch (_) {}
+    }
   const downloadSvgButton = document.getElementById('btnDownloadSvg');
   const downloadPngButton = document.getElementById('btnDownloadPng');
   let altTextManager = null;
@@ -1864,40 +1873,40 @@
       return;
     }
     if (!state.signRows.length) {
-      setCheckMessage('Ingen fortegnslinjer definert.', 'err');
+      setCheckMessage('Ingen fortegnslinjer definert.', 'error');
       return;
     }
     const solutionPoints = state.solution.points;
     const tolerance = 1e-2;
     if (state.criticalPoints.length !== solutionPoints.length) {
-      setCheckMessage('Antall punkter stemmer ikke med fasit.', 'err');
+      setCheckMessage('Antall punkter stemmer ikke med fasit.', 'error');
       return;
     }
     for (let i = 0; i < solutionPoints.length; i += 1) {
       const sol = solutionPoints[i];
       const user = state.criticalPoints[i];
       if (sol.type !== user.type) {
-        setCheckMessage(`Punkt ${i + 1} har feil type.`, 'err');
+        setCheckMessage(`Punkt ${i + 1} har feil type.`, 'error');
         return;
       }
       if (Math.abs(sol.value - user.value) > tolerance) {
-        setCheckMessage(`Punkt ${i + 1} har feil plassering.`, 'err');
+        setCheckMessage(`Punkt ${i + 1} har feil plassering.`, 'error');
         return;
       }
     }
     const solutionSegments = state.solution.segments;
     const resultRow = state.signRows.find(r => r.role === 'result');
     if (!resultRow || resultRow.segments.length !== solutionSegments.length) {
-      setCheckMessage('Fortegnslinjen har feil antall intervaller.', 'err');
+      setCheckMessage('Fortegnslinjen har feil antall intervaller.', 'error');
       return;
     }
     for (let i = 0; i < solutionSegments.length; i += 1) {
       if (signValue(resultRow.segments[i]) !== signValue(solutionSegments[i])) {
-        setCheckMessage(`Segment ${i + 1} har feil fortegn.`, 'err');
+        setCheckMessage(`Segment ${i + 1} har feil fortegn.`, 'error');
         return;
       }
     }
-    setCheckMessage('Fortegnsskjemaet stemmer!', 'ok');
+    setCheckMessage('Fortegnsskjemaet stemmer!', 'success');
   }
   function renderPointsList() {
     pointsList.innerHTML = '';
@@ -2900,7 +2909,7 @@
       try {
         state.solution = generateSolutionFromExpression();
       } catch (err) {
-        setCheckMessage(err.message, 'err');
+        setCheckMessage(err.message, 'error');
         return false;
       }
     }
@@ -3110,14 +3119,15 @@
     decimalPlacesInput.addEventListener('change', handleDecimalPlacesChange);
     decimalPlacesInput.addEventListener('input', handleDecimalPlacesInput);
   }
-  if (btnCheck) {
-    btnCheck.addEventListener('click', () => {
-      if (!ensureSolution()) {
-        return;
-      }
-      runCheck();
-    });
-  }
+    if (btnCheck) {
+      btnCheck.addEventListener('click', () => {
+        evaluateDescriptionInputs();
+        if (!ensureSolution()) {
+          return;
+        }
+        runCheck();
+      });
+    }
   autoSyncInput.addEventListener('change', event => {
     state.autoSync = event.target.checked;
     updateLockStateUi();

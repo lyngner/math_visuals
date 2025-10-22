@@ -142,6 +142,15 @@ function handleAppModeChanged(event) {
   applyAppModeToTaskControls(detail.mode);
 }
 
+function evaluateDescriptionInputs() {
+  if (typeof window === 'undefined') return;
+  const mv = window.mathVisuals;
+  if (!mv || typeof mv.evaluateTaskInputs !== 'function') return;
+  try {
+    mv.evaluateTaskInputs();
+  } catch (_) {}
+}
+
 function setCheckStatus(type, heading, detailLines) {
   if (!checkStatus) return;
   if (!type) {
@@ -180,6 +189,7 @@ applyAppModeToTaskControls(getCurrentAppMode() || 'task');
 
 if (checkButton) {
   checkButton.addEventListener('click', () => {
+    evaluateDescriptionInputs();
     runTaskCheck();
   });
 }

@@ -123,6 +123,19 @@
       cursor:default;
       text-decoration:none;
     }
+    .status{
+      display:none;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid transparent;
+      font-size:14px;
+      line-height:1.4;
+    }
+    .status[hidden]{display:none;}
+    .status strong{display:block;margin-bottom:4px;}
+    .status--success{display:block;background:#ecfdf5;border-color:#a7f3d0;color:#065f46;}
+    .status--error{display:block;background:#fef2f2;border-color:#fecaca;color:#b91c1c;}
+    .status--info{display:block;background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;}
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>

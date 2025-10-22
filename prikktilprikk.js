@@ -177,6 +177,14 @@
   const predefCountEl = document.getElementById('predefCount');
   const predefToolEl = document.getElementById('predefTool');
   const predefToggleBtn = document.getElementById('btnTogglePredef');
+  function evaluateDescriptionInputs() {
+    if (typeof window === 'undefined') return;
+    const mv = window.mathVisuals;
+    if (!mv || typeof mv.evaluateTaskInputs !== 'function') return;
+    try {
+      mv.evaluateTaskInputs();
+    } catch (_) {}
+  }
   const predefHelperTextEl = document.getElementById('predefHelperText');
   const labelLayer = document.getElementById('boardLabelsLayer');
   const showGridToggle = document.getElementById('cfg-showGrid');
@@ -2553,14 +2561,7 @@
     statusBox.innerHTML = '';
     statusBox.hidden = false;
     const strong = document.createElement('strong');
-    if (type === 'success') {
-      const icon = document.createElement('span');
-      icon.setAttribute('aria-hidden', 'true');
-      icon.textContent = '🏆';
-      strong.append(icon, document.createTextNode(` ${heading}`));
-    } else {
-      strong.textContent = heading;
-    }
+    strong.textContent = heading;
     statusBox.appendChild(strong);
     if (Array.isArray(detailLines)) {
       detailLines.forEach(line => {
@@ -2726,6 +2727,7 @@
 
   if (checkBtn) {
     checkBtn.addEventListener('click', () => {
+      evaluateDescriptionInputs();
       checkSolution();
     });
   }
