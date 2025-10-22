@@ -5,7 +5,11 @@ const SIMPLE = {
   pizzas: [],
   ops: [],
   altText: '',
-  altTextSource: 'auto'
+  altTextSource: 'auto',
+  solution: {
+    numerator: null,
+    denominator: null
+  }
 };
 if (typeof window !== 'undefined') window.SIMPLE = SIMPLE;
 const PANEL_HTML = [];
@@ -36,6 +40,135 @@ function getThemeColor(token, fallback) {
   return fallback;
 }
 applyThemeToDocument();
+
+const checkButton = typeof document !== 'undefined' ? document.getElementById('btnCheck') : null;
+const checkStatus = typeof document !== 'undefined' ? document.getElementById('checkStatus') : null;
+const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
+const taskCheckControls = [checkButton, checkStatus].filter(Boolean);
+
+function normalizeSolution(solution) {
+  const data = solution && typeof solution === 'object' ? solution : {};
+  const num = Number(data.numerator);
+  const den = Number(data.denominator);
+  return {
+    numerator: Number.isFinite(num) ? num : null,
+    denominator: Number.isFinite(den) && den > 0 ? den : null
+  };
+}
+
+function ensureTaskCheckControlsAppended() {
+  if (!taskCheckHost) return;
+  taskCheckControls.forEach(control => {
+    if (control && control.parentElement !== taskCheckHost) {
+      taskCheckHost.appendChild(control);
+    }
+  });
+}
+
+function applyAppModeToTaskControls(mode) {
+  if (!taskCheckHost) return;
+  const normalized = typeof mode === 'string' ? mode.toLowerCase() : '';
+  const isTaskMode = normalized === 'task';
+  if (isTaskMode) {
+    ensureTaskCheckControlsAppended();
+    taskCheckHost.hidden = false;
+    taskCheckControls.forEach(control => {
+      if (!control) return;
+      if (control === checkButton) {
+        control.hidden = false;
+        if (control.dataset) delete control.dataset.prevHidden;
+        return;
+      }
+      if (control.dataset && 'prevHidden' in control.dataset) {
+        const wasHidden = control.dataset.prevHidden === '1';
+        delete control.dataset.prevHidden;
+        control.hidden = wasHidden;
+      }
+    });
+  } else {
+    taskCheckHost.hidden = true;
+    taskCheckControls.forEach(control => {
+      if (!control) return;
+      if (control.dataset) {
+        control.dataset.prevHidden = control.hidden ? '1' : '0';
+      }
+      control.hidden = true;
+    });
+  }
+}
+
+function getCurrentAppMode() {
+  if (typeof window === 'undefined') return 'default';
+  const mv = window.mathVisuals;
+  if (mv && typeof mv.getAppMode === 'function') {
+    try {
+      const mode = mv.getAppMode();
+      if (typeof mode === 'string' && mode) {
+        return mode;
+      }
+    } catch (_) {
+      // fall through
+    }
+  }
+  try {
+    const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
+    const fromQuery = params.get('mode');
+    if (typeof fromQuery === 'string' && fromQuery.trim()) {
+      return fromQuery.trim().toLowerCase() === 'task' ? 'task' : 'default';
+    }
+  } catch (_) {}
+  return 'default';
+}
+
+function handleAppModeChanged(event) {
+  if (!event) return;
+  const detail = event.detail;
+  if (!detail || typeof detail.mode !== 'string') return;
+  applyAppModeToTaskControls(detail.mode);
+}
+
+function setCheckStatus(type, heading, detailLines) {
+  if (!checkStatus) return;
+  if (!type) {
+    checkStatus.hidden = true;
+    checkStatus.className = 'status';
+    checkStatus.textContent = '';
+    return;
+  }
+  checkStatus.hidden = false;
+  checkStatus.className = `status status--${type}`;
+  checkStatus.textContent = '';
+  if (heading) {
+    const strong = document.createElement('strong');
+    strong.textContent = heading;
+    checkStatus.appendChild(strong);
+  }
+  if (Array.isArray(detailLines)) {
+    detailLines.forEach(line => {
+      if (!line) return;
+      const div = document.createElement('div');
+      div.textContent = line;
+      checkStatus.appendChild(div);
+    });
+  }
+}
+
+function clearCheckStatus() {
+  setCheckStatus(null);
+}
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('math-visuals:app-mode-changed', handleAppModeChanged);
+}
+
+applyAppModeToTaskControls(getCurrentAppMode() || 'task');
+
+if (checkButton) {
+  checkButton.addEventListener('click', () => {
+    runTaskCheck();
+  });
+}
+
 function readConfigFromHtml() {
   const pizzas = [];
   for (let i = 1; i <= 3; i++) {
@@ -72,9 +205,16 @@ function readConfigFromHtml() {
     }
     ops.push(op);
   }
+  const solNumInput = document.getElementById('solutionNumerator');
+  const solDenInput = document.getElementById('solutionDenominator');
+  const rawSolution = {
+    numerator: solNumInput ? parseInt(solNumInput.value, 10) : null,
+    denominator: solDenInput ? parseInt(solDenInput.value, 10) : null
+  };
   return {
     pizzas,
-    ops
+    ops,
+    solution: normalizeSolution(rawSolution)
   };
 }
 
@@ -1326,6 +1466,36 @@ function getVisiblePizzaInstances() {
   return instances;
 }
 
+function runTaskCheck() {
+  const solution = normalizeSolution(SIMPLE.solution);
+  if (solution.numerator == null || solution.denominator == null) {
+    setCheckStatus('info', 'Ingen fasit er definert ennå.');
+    return;
+  }
+  const pizzas = getVisiblePizzaInstances();
+  if (!pizzas.length || !pizzas[0] || !pizzas[0].inst) {
+    setCheckStatus('info', 'Ingen brøkpizza er tilgjengelig for å sjekke.');
+    return;
+  }
+  const target = pizzas[0];
+  const { inst } = target;
+  const numerator = inst.k;
+  const denominator = inst.n;
+  const pizzaLabel = pizzas.length > 1 || (target && target.index > 0) ? `Pizza ${target.index + 1}: ` : '';
+  const details = [];
+  if (numerator !== solution.numerator) {
+    details.push(`${pizzaLabel}Teller skal være ${solution.numerator}, men er ${numerator}.`);
+  }
+  if (denominator !== solution.denominator) {
+    details.push(`${pizzaLabel}Nevner skal være ${solution.denominator}, men er ${denominator}.`);
+  }
+  if (!details.length) {
+    setCheckStatus('success', 'Brøken er riktig!');
+    return;
+  }
+  setCheckStatus('error', 'Ikke helt riktig ennå.', details);
+}
+
 function buildBropizzaAltText() {
   const pizzas = getVisiblePizzaInstances();
   if (!pizzas.length) {
@@ -1460,6 +1630,8 @@ function initFromHtml() {
   const cfg = readConfigFromHtml();
   SIMPLE.pizzas = cfg.pizzas;
   SIMPLE.ops = cfg.ops;
+  SIMPLE.solution = normalizeSolution(cfg.solution);
+  clearCheckStatus();
   updateDenominatorValueToggles();
   let visibleCount = 0;
   REG.clear();
@@ -1632,6 +1804,16 @@ function applySimpleConfigToInputs() {
       select.value = "";
     }
   });
+  const normalizedSolution = normalizeSolution(SIMPLE.solution);
+  const solutionNumInput = document.getElementById('solutionNumerator');
+  if (solutionNumInput) {
+    solutionNumInput.value = normalizedSolution.numerator != null ? String(normalizedSolution.numerator) : '';
+  }
+  const solutionDenInput = document.getElementById('solutionDenominator');
+  if (solutionDenInput) {
+    solutionDenInput.value = normalizedSolution.denominator != null ? String(normalizedSolution.denominator) : '';
+  }
+  SIMPLE.solution = normalizedSolution;
 }
 function applyExamplesConfig() {
   if (document.readyState === 'loading') {
