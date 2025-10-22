@@ -795,9 +795,31 @@
     if (point && point.isFalse) wrapper.classList.add('board-label--false');
     const pointId = point && point.id ? point.id : null;
     if (pointId) wrapper.dataset.pointId = pointId;
+    wrapper.setAttribute('role', 'button');
+    wrapper.setAttribute('tabindex', '0');
+    wrapper.setAttribute('aria-pressed', 'false');
+    const accessibleLabel = getPointLabelText(point);
+    if (accessibleLabel) {
+      wrapper.setAttribute('aria-label', `Punkt ${accessibleLabel}`);
+    }
     wrapper.addEventListener('pointerdown', event => {
       if (!pointId) return;
+      if (typeof wrapper.focus === 'function') {
+        try {
+          wrapper.focus({ preventScroll: true });
+        } catch (_) {
+          wrapper.focus();
+        }
+      }
       handlePointPointerDown(wrapper, pointId, event);
+    });
+    wrapper.addEventListener('keydown', event => {
+      if (!pointId) return;
+      const key = event.key;
+      if (key === 'Enter' || key === ' ') {
+        event.preventDefault();
+        handlePointSelection(pointId);
+      }
     });
     if (!STATE.showLabels) wrapper.style.display = 'none';
     const content = document.createElement('span');
@@ -827,6 +849,11 @@
       },
       setFalse(isFalse) {
         wrapper.classList.toggle('board-label--false', !!isFalse);
+      },
+      setSelected(isSelected) {
+        const active = !!isSelected;
+        wrapper.classList.toggle('is-selected', active);
+        wrapper.setAttribute('aria-pressed', active ? 'true' : 'false');
       }
     };
   }
@@ -2150,6 +2177,10 @@
     });
     pointEditors.forEach((editor, id) => {
       if (editor.itemEl) editor.itemEl.classList.toggle('is-selected', id === selectedPointId);
+    });
+    labelElements.forEach((label, id) => {
+      if (!label || !label.setSelected) return;
+      label.setSelected(id === selectedPointId);
     });
   }
 
