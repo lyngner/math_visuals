@@ -230,17 +230,31 @@
       backgroundRect.setAttribute('fill', '#ffffff');
 
       const viewBoxAttribute = typeof clone.getAttribute === 'function' ? clone.getAttribute('viewBox') : null;
-      backgroundRect.setAttribute('width', '100%');
-      backgroundRect.setAttribute('height', '100%');
+      let rectWidth = '100%';
+      let rectHeight = '100%';
 
       if (viewBoxAttribute) {
-        const parts = viewBoxAttribute.trim().split(/[\s,]+/).map((value) => Number(value));
+        const parts = viewBoxAttribute
+          .trim()
+          .split(/[\s,]+/)
+          .map((value) => Number(value));
         if (parts.length >= 4 && parts.every((value) => Number.isFinite(value))) {
-          const [minX, minY] = parts;
-          backgroundRect.setAttribute('x', String(minX));
-          backgroundRect.setAttribute('y', String(minY));
+          const [minX, minY, vbWidth, vbHeight] = parts;
+          if (Number.isFinite(vbWidth) && Number.isFinite(vbHeight)) {
+            rectWidth = String(vbWidth);
+            rectHeight = String(vbHeight);
+          }
+          if (Number.isFinite(minX)) {
+            backgroundRect.setAttribute('x', String(minX));
+          }
+          if (Number.isFinite(minY)) {
+            backgroundRect.setAttribute('y', String(minY));
+          }
         }
       }
+
+      backgroundRect.setAttribute('width', rectWidth);
+      backgroundRect.setAttribute('height', rectHeight);
 
       clone.insertBefore(backgroundRect, clone.firstChild);
     }
