@@ -38,14 +38,33 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     let gridWidth = 0;
+    let pendingWidth = null;
+    let pendingFrame = null;
+    const commitWidth = width => {
+      grid.style.setProperty('--side-width', `${width}px`);
+      scheduleResize();
+    };
+    const flushPendingWidth = () => {
+      if (pendingWidth == null) return;
+      const widthToApply = pendingWidth;
+      pendingWidth = null;
+      commitWidth(widthToApply);
+    };
+    const requestWidthUpdate = width => {
+      pendingWidth = width;
+      if (pendingFrame !== null) return;
+      pendingFrame = requestAnimationFrame(() => {
+        pendingFrame = null;
+        flushPendingWidth();
+      });
+    };
     const onMove = e => {
       const dx = e.clientX - startX;
       let newWidth = startWidth + dx;
       const maxWidth = Math.max(minWidth, gridWidth - 100);
       if (newWidth < minWidth) newWidth = minWidth;
       if (newWidth > maxWidth) newWidth = maxWidth;
-      grid.style.setProperty('--side-width', `${newWidth}px`);
-      scheduleResize();
+      requestWidthUpdate(newWidth);
     };
     const stopDrag = e => {
       if (
@@ -56,9 +75,13 @@ document.addEventListener('DOMContentLoaded', () => {
       ) {
         splitter.releasePointerCapture(e.pointerId);
       }
+      if (pendingFrame !== null) {
+        cancelAnimationFrame(pendingFrame);
+        pendingFrame = null;
+      }
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', stopDrag);
-      scheduleResize();
+      flushPendingWidth();
     };
     const startDrag = e => {
       e.preventDefault();
