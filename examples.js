@@ -4163,12 +4163,32 @@
       request.href,
       request.targetUrl
     ];
+    const extractCandidatePath = value => {
+      if (typeof value !== 'string') return null;
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) {
+        try {
+          const url = new URL(trimmed);
+          if (url && typeof url.pathname === 'string') {
+            return url.pathname || '/';
+          }
+        } catch (_) {}
+      } else if (trimmed.startsWith('//')) {
+        try {
+          const url = new URL(`https:${trimmed}`);
+          if (url && typeof url.pathname === 'string') {
+            return url.pathname || '/';
+          }
+        } catch (_) {}
+      }
+      return trimmed;
+    };
     for (const candidate of pathCandidates) {
-      if (typeof candidate !== 'string') continue;
-      const trimmed = candidate.trim();
-      if (!trimmed) continue;
+      const candidatePath = extractCandidatePath(candidate);
+      if (!candidatePath) continue;
       try {
-        const normalized = normalizePathname(trimmed);
+        const normalized = normalizePathname(candidatePath);
         if (normalized) {
           request.canonicalPath = normalized;
           if (!request.path) {
