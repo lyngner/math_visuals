@@ -683,14 +683,18 @@
       showToast(`PNG ble ikke generert: ${message}.`, 'error');
     }
 
-    const slugSegment = slugify(baseName, sanitizeBaseName(tool, 'export'));
+    const slugOverride = typeof options.slug === 'string' ? options.slug.trim() : '';
+    const slugSegment = slugOverride
+      ? slugify(slugOverride, sanitizeBaseName(tool, 'export'))
+      : slugify(baseName, sanitizeBaseName(tool, 'export'));
     const slug = `bildearkiv/${slugSegment}`;
     const title = typeof options.title === 'string' && options.title.trim() ? options.title.trim() : baseName;
 
+    let exampleState;
     let serializedExampleState = null;
     if (global && typeof global === 'object') {
       try {
-        const exampleState = global.MathVisExamples?.collectCurrentState?.();
+        exampleState = global.MathVisExamples?.collectCurrentState?.();
         if (exampleState !== undefined) {
           const stringified = JSON.stringify(exampleState);
           if (typeof stringified === 'string') {
@@ -701,6 +705,23 @@
         // Ignorer feil fra eksempelinnhenting for å unngå å stoppe eksport.
       }
     }
+
+    const summaryAltText =
+      options && typeof options.summary === 'object' && options.summary !== null
+        ? options.summary.altText
+        : null;
+    const altFromSummary = typeof summaryAltText === 'string' ? summaryAltText.trim() : '';
+    const altOption = typeof options.alt === 'string' ? options.alt : options.altText;
+    const altFromOptions = typeof altOption === 'string' ? altOption.trim() : '';
+    const altText = altFromOptions || altFromSummary || description;
+
+    let metadata = {
+      slug,
+      tool,
+      alt: altText || null,
+      createdAt,
+      exampleState: exampleState !== undefined ? exampleState : null
+    };
 
     const payload = {
       title,
@@ -727,8 +748,27 @@
     if (description) {
       payload.description = description;
     }
+    if (altText) {
+      payload.altText = altText;
+    }
     if (serializedExampleState) {
       payload.exampleState = serializedExampleState;
+    }
+
+    let metadataString;
+    try {
+      metadataString = JSON.stringify(metadata, null, 2);
+    } catch (error) {
+      metadata = { ...metadata, exampleState: null };
+      metadataString = JSON.stringify(metadata, null, 2);
+    }
+
+    const metadataBlob = new Blob([metadataString], {
+      type: 'application/json;charset=utf-8'
+    });
+    let metadataUrl = null;
+    if (urlApi) {
+      metadataUrl = urlApi.createObjectURL(metadataBlob);
     }
 
     let uploadPromise = null;
@@ -761,6 +801,25 @@
       showToast(`Grafikk lastet ned, men PNG-forhåndsvisning manglet. Arkivopplasting ble hoppet over.`, 'warning');
     }
 
+    const metadataFilename = `${slugSegment || sanitizeBaseName(baseName, 'export')}.json`;
+    if (metadataUrl) {
+      triggerDownload(doc, metadataUrl, metadataFilename);
+    } else {
+      triggerDownload(
+        doc,
+        `data:application/json;charset=utf-8,${encodeURIComponent(metadataString)}`,
+        metadataFilename
+      );
+    }
+
+    if (urlApi && metadataUrl) {
+      setTimeout(() => {
+        try {
+          urlApi.revokeObjectURL(metadataUrl);
+        } catch (error) {}
+      }, 1000);
+    }
+
     return {
       baseName,
       slug,
@@ -791,7 +850,8 @@
           },
       pngError: pngError || null,
       payload,
-      uploadPromise
+      uploadPromise,
+      metadata
     };
   }
 
