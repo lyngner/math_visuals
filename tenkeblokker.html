@@ -134,8 +134,8 @@
     .tb-frac{text-anchor:middle;}
     .tb-frac text{font-size:28px;fill:#111;text-anchor:middle;font-variant-numeric:tabular-nums;}
     .tb-frac-line{stroke:#111;stroke-width:2;stroke-linecap:square}
-    .tb-handle-shadow{fill:#000;opacity:.12}
-    .tb-handle{fill:#f1f1f6;stroke:#555;stroke-width:2;cursor:pointer}
+    .tb-handle{cursor:grab;user-select:none;touch-action:none}
+    .tb-handle.is-grabbing{cursor:grabbing}
     .tb-combined-whole{
       position:absolute;
       pointer-events:none;

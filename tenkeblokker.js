@@ -28,6 +28,9 @@ const DEFAULT_BLOCKS = [{
 const DEFAULT_TENKEBLOKKER_EXAMPLES = [];
 const DISPLAY_OPTIONS = ['number', 'fraction', 'percent'];
 const UNION_BRACE_PATH = 'M716 0C722.627 0 728 5.37258 728 12V18C728 19.1046 727.105 20 726 20C724.895 20 724 19.1046 724 18V12C724 7.58173 720.418 4.00001 716 4H12C7.58172 4 4 7.58172 4 12V18C4 19.1046 3.10457 20 2 20C0.895431 20 0 19.1046 0 18V12C0 5.37258 5.37258 0 12 0H716Z';
+const DRAG_HANDLE_ICON = 'images/draggable.svg';
+const DRAG_HANDLE_SIZE = 36;
+const XLINK_NS = 'http://www.w3.org/1999/xlink';
 const UNION_BRACE_BOUNDS = Object.freeze({
   left: 12,
   right: 716,
@@ -1676,18 +1679,18 @@ function createBlock(row, col, cfg) {
     y: 0,
     class: 'tb-total'
   });
-  block.handleShadow = createSvgElement(block.gHandle, 'circle', {
-    cx: 0,
-    cy: 0,
-    r: 20,
-    class: 'tb-handle-shadow'
+  block.handle = createSvgElement(block.gHandle, 'image', {
+    href: DRAG_HANDLE_ICON,
+    width: DRAG_HANDLE_SIZE,
+    height: DRAG_HANDLE_SIZE,
+    class: 'tb-handle',
+    'data-handle-size': DRAG_HANDLE_SIZE,
+    draggable: 'false',
+    focusable: 'false',
+    preserveAspectRatio: 'xMidYMid meet',
+    tabindex: -1
   });
-  block.handle = createSvgElement(block.gHandle, 'circle', {
-    cx: 0,
-    cy: 0,
-    r: 18,
-    class: 'tb-handle'
-  });
+  setHandleIconPosition(block.handle, 0, 0);
   block.handle.addEventListener('pointerdown', event => onDragStart(block, event));
   const stepper = document.createElement('div');
   stepper.className = 'tb-stepper';
@@ -1957,7 +1960,7 @@ function updateBlockPanelLayout(block, rowTotal) {
   }
 }
 function drawBlock(block) {
-  var _block$rectEmpty, _block$rectEmpty2, _block$rectEmpty3, _block$rectEmpty4, _block$rectFrame, _block$rectFrame2, _block$rectFrame3, _block$rectFrame4, _block$handle, _block$handleShadow, _block$handle2, _block$handleShadow2;
+  var _block$rectEmpty, _block$rectEmpty2, _block$rectEmpty3, _block$rectEmpty4, _block$rectFrame, _block$rectFrame2, _block$rectFrame3, _block$rectFrame4, _block$handle;
   const cfg = block === null || block === void 0 ? void 0 : block.cfg;
   if (!block || !cfg) return;
   const blockHidden = !!cfg.hideBlock;
@@ -1990,9 +1993,12 @@ function drawBlock(block) {
   if (block.gSep) block.gSep.style.display = hiddenDisplay;
   if (block.gVals) block.gVals.style.display = hiddenDisplay;
   if (block.gFrame) block.gFrame.style.display = hiddenDisplay;
-  if (block.gHandle) block.gHandle.style.display = blockHidden ? 'none' : '';
-  if (block.handleShadow) block.handleShadow.style.display = blockHidden ? 'none' : '';
-  if (block.handle) block.handle.style.display = blockHidden ? 'none' : '';
+  if (block.handle) {
+    block.handle.style.display = blockHidden ? 'none' : '';
+    if (blockHidden || cfg.lockNumerator) {
+      block.handle.classList.remove('is-grabbing');
+    }
+  }
   (_block$rectEmpty = block.rectEmpty) === null || _block$rectEmpty === void 0 || _block$rectEmpty.setAttribute('x', left);
   (_block$rectEmpty2 = block.rectEmpty) === null || _block$rectEmpty2 === void 0 || _block$rectEmpty2.setAttribute('width', innerWidth);
   (_block$rectEmpty3 = block.rectEmpty) === null || _block$rectEmpty3 === void 0 || _block$rectEmpty3.setAttribute('y', top);
@@ -2153,12 +2159,11 @@ function drawBlock(block) {
   }
   const hx = cellW > 0 ? left + cfg.k * cellW : left;
   const hy = top + innerHeight / 2;
-  (_block$handle = block.handle) === null || _block$handle === void 0 || _block$handle.setAttribute('cx', hx);
-  (_block$handleShadow = block.handleShadow) === null || _block$handleShadow === void 0 || _block$handleShadow.setAttribute('cx', hx);
-  (_block$handle2 = block.handle) === null || _block$handle2 === void 0 || _block$handle2.setAttribute('cy', hy);
-  (_block$handleShadow2 = block.handleShadow) === null || _block$handleShadow2 === void 0 || _block$handleShadow2.setAttribute('cy', hy + 2);
+  if (block.handle) {
+    setHandleIconPosition(block.handle, hx, hy);
+    block.handle.style.cursor = blockHidden || cfg.lockNumerator ? 'default' : 'grab';
+  }
   if (block.gHandle) block.gHandle.style.display = blockHidden || cfg.lockNumerator ? 'none' : '';
-  if (block.handle) block.handle.style.cursor = blockHidden || cfg.lockNumerator ? 'default' : 'pointer';
   const showWholeAllowed = !multipleBlocksActive || blockHidden;
   if (block.gBrace) block.gBrace.style.display = showWholeAllowed && cfg.showWhole ? '' : 'none';
 }
@@ -2400,7 +2405,12 @@ function onDragStart(block, event) {
   if (!(block !== null && block !== void 0 && block.handle)) return;
   const cfg = block.cfg;
   if (cfg !== null && cfg !== void 0 && cfg.lockNumerator) return;
-  block.handle.setPointerCapture(event.pointerId);
+  block.handle.classList.add('is-grabbing');
+  if (typeof block.handle.setPointerCapture === 'function') {
+    try {
+      block.handle.setPointerCapture(event.pointerId);
+    } catch (error) {}
+  }
   const move = ev => {
     var _ref, _metrics$innerWidth, _metrics$left, _metrics$right;
     const currentCfg = block.cfg;
@@ -2418,12 +2428,19 @@ function onDragStart(block, event) {
     setK(block, snapK);
   };
   const up = () => {
-    block.handle.releasePointerCapture(event.pointerId);
+    if (typeof block.handle.releasePointerCapture === 'function') {
+      try {
+        block.handle.releasePointerCapture(event.pointerId);
+      } catch (error) {}
+    }
+    block.handle.classList.remove('is-grabbing');
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
   };
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
 }
 function getFrameInset(block) {
   let inset = DEFAULT_FRAME_INSET;
@@ -2473,9 +2490,30 @@ function syncLegacyConfig() {
 function createSvgElement(parent, name, attrs = {}) {
   const svgEl = parent.ownerSVGElement || parent;
   const el = document.createElementNS(svgEl.namespaceURI, name);
-  Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
+  applySvgAttributes(el, attrs);
   parent.appendChild(el);
   return el;
+}
+function applySvgAttributes(el, attrs = {}) {
+  if (!el || !attrs || typeof attrs !== 'object') return;
+  Object.entries(attrs).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    if (key === 'href' || key === 'xlink:href') {
+      el.setAttribute('href', value);
+      el.setAttributeNS(XLINK_NS, 'href', value);
+      return;
+    }
+    el.setAttribute(key, value);
+  });
+}
+function setHandleIconPosition(handle, cx, cy) {
+  if (!handle) return;
+  const sizeAttr = handle.getAttribute('data-handle-size');
+  const parsed = sizeAttr ? Number.parseFloat(sizeAttr) : NaN;
+  const size = Number.isFinite(parsed) ? parsed : DRAG_HANDLE_SIZE;
+  const half = size / 2;
+  handle.setAttribute('x', cx - half);
+  handle.setAttribute('y', cy - half);
 }
 function renderFractionLabel(parent, cx, cy, numerator, denominator) {
   if (!parent) return;
@@ -2870,7 +2908,7 @@ function getExportSvg() {
       const g = document.createElementNS(ns, 'g');
       g.setAttribute('transform', `translate(${offsetX},0)`);
       const blockClone = block.svg.cloneNode(true);
-      const exportHandleElements = blockClone.querySelectorAll('.tb-handle, .tb-handle-shadow');
+      const exportHandleElements = blockClone.querySelectorAll('.tb-handle');
       exportHandleElements.forEach(el => el.remove());
       g.innerHTML = blockClone.innerHTML;
       blocksGroup.appendChild(g);
