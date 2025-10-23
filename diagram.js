@@ -563,7 +563,7 @@ function drawData() {
   } else if (hasTwo && CFG.type === 'grouped') {
     drawGroupedBars(displayMode);
   } else if (hasTwo && CFG.type === 'stacked') {
-    drawStackedBars();
+    drawStackedBars(displayMode);
   } else {
     drawBars(displayMode);
   }
@@ -582,13 +582,14 @@ function drawLegend() {
   names.forEach((s, i) => {
     const x = M.l + i * 120;
     const y = M.t - 10;
-    addTo(gLegend, 'rect', {
+    const legendRect = addTo(gLegend, 'rect', {
       x: x,
       y: y - 10,
       width: 20,
       height: 10,
       class: 'legendbox ' + s.cls
     });
+    applyBarCornerRadius(legendRect, 20, 10);
     addTo(gLegend, 'text', {
       x: x + 26,
       y: y,
@@ -796,6 +797,7 @@ function drawGroupedBars(displayMode) {
       height: rect1H,
       class: 'bar series0' + (locked[i] ? ' locked' : '')
     });
+    applyBarCornerRadius(rect1, barSingle, rect1H);
     rect1.dataset.index = i;
     rect1.dataset.series = 0;
     rect1.dataset.base = 0;
@@ -863,6 +865,7 @@ function drawGroupedBars(displayMode) {
         height: rect2H,
         class: 'bar series1' + (locked[i] ? ' locked' : '')
       });
+      applyBarCornerRadius(rect2, barSingle, rect2H);
       rect2.dataset.index = i;
       rect2.dataset.series = 1;
       rect2.dataset.base = 0;
@@ -918,10 +921,12 @@ function drawGroupedBars(displayMode) {
     }
   }
 }
-function drawStackedBars() {
+function drawStackedBars(displayMode) {
   const barTotal = xBand * 0.6;
   const baseValue = getBaselineValue();
   const baseY = yPos(baseValue);
+  const total1 = computeSeriesTotal(values);
+  const total2 = values2 ? computeSeriesTotal(values2) : 0;
   for (let i = 0; i < N; i++) {
     const v1 = values[i];
     const v2 = values2 ? values2[i] : 0;
@@ -937,6 +942,7 @@ function drawStackedBars() {
       height: rect1H,
       class: 'bar series0' + (locked[i] ? ' locked' : '')
     });
+    applyBarCornerRadius(rect1, barTotal, rect1H);
     rect1.dataset.index = i;
     rect1.dataset.series = 0;
     rect1.dataset.base = 0;
@@ -981,7 +987,18 @@ function drawStackedBars() {
     a1.dataset.base = 0;
     a1.addEventListener('pointerdown', onDragStart);
     a1.addEventListener('keydown', onKeyAdjust);
-    // Verdietikettene fjernet
+    if (displayMode !== 'none') {
+      const share1 = computeValueShare(v1, total1);
+      const segmentMid = rect1Y + rect1H / 2;
+      placeValueLabel(cx, segmentMid, v1, displayMode, {
+        baseY,
+        series: 0,
+        share: share1,
+        offset: 0,
+        xOffset: -(barTotal / 2) - 18,
+        anchor: 'end'
+      });
+    }
 
     if (values2) {
       const y2 = yPos(v1 + v2);
@@ -995,6 +1012,7 @@ function drawStackedBars() {
         height: rect2H,
         class: 'bar series1' + (locked[i] ? ' locked' : '')
       });
+      applyBarCornerRadius(rect2, barTotal, rect2H);
       rect2.dataset.index = i;
       rect2.dataset.series = 1;
       rect2.dataset.base = v1;
@@ -1039,7 +1057,18 @@ function drawStackedBars() {
       a2.dataset.base = v1;
       a2.addEventListener('pointerdown', onDragStart);
       a2.addEventListener('keydown', onKeyAdjust);
-      // Verdietikettene fjernet
+      if (displayMode !== 'none') {
+        const share2 = computeValueShare(v2, total2);
+        const segment2Mid = rect2Y + rect2H / 2;
+        placeValueLabel(cx, segment2Mid, v2, displayMode, {
+          baseY: y1,
+          series: 1,
+          share: share2,
+          offset: 0,
+          xOffset: barTotal / 2 + 18,
+          anchor: 'start'
+        });
+      }
     }
   }
 }
@@ -1103,6 +1132,16 @@ function placeValueLabel(x, y, value, mode, options = {}) {
   }
   const label = addTo(gVals, 'text', attrs);
   label.textContent = display.text;
+}
+
+function applyBarCornerRadius(element, width, height) {
+  if (!element) return;
+  const safeWidth = Math.max(0, Number(width) || 0);
+  const safeHeight = Math.max(0, Number(height) || 0);
+  const radius = Math.min(14, Math.min(safeWidth, safeHeight) / 2);
+  if (radius <= 0) return;
+  element.setAttribute('rx', radius);
+  element.setAttribute('ry', radius);
 }
 function formatValueLabel(value, mode, share) {
   const normalized = sanitizeValueDisplay(mode);
@@ -1337,6 +1376,7 @@ function drawBars(displayMode) {
       height: rectHeight,
       class: 'bar series0' + (locked[i] ? ' locked' : '')
     });
+    applyBarCornerRadius(rect, barW, rectHeight);
     rect.dataset.index = i;
     rect.dataset.series = 0;
     rect.dataset.base = 0;
