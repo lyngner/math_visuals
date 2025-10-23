@@ -80,8 +80,8 @@
 .legendtext{fill:#333;font-size:16px}
 
 /* Håndtak */
-.handleShadow{fill:#000;opacity:.14}
-.handle{fill:#f1f1f7;stroke:#555;stroke-width:2;cursor:pointer}
+.handle{cursor:grab}
+.handle:active{cursor:grabbing}
 
 /* Sektordiagram */
 .pie-slice{stroke:#fff;stroke-width:2;cursor:pointer}

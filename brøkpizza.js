@@ -286,9 +286,23 @@ const TAU = Math.PI * 2;
 const norm = a => (a % TAU + TAU) % TAU;
 const mk = (n, a = {}) => {
   const e = document.createElementNS("http://www.w3.org/2000/svg", n);
-  for (const [k, v] of Object.entries(a)) e.setAttribute(k, v);
+  for (const [k, v] of Object.entries(a)) {
+    if (k === 'href') {
+      e.setAttribute(k, v);
+      e.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', v);
+      continue;
+    }
+    if (k === 'xlink:href') {
+      e.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', v);
+      continue;
+    }
+    e.setAttribute(k, v);
+  }
   return e;
 };
+const HANDLE_ICON = 'images/draggable.svg';
+const HANDLE_ICON_SIZE = 36;
+const HANDLE_ICON_OFFSET = HANDLE_ICON_SIZE / 2;
 const arcPath = (r, a0, a1) => {
   const raw = a1 - a0,
     span = (raw % TAU + TAU) % TAU,
@@ -542,10 +556,15 @@ class Pizza {
     this.gLinesBlack.setAttribute("clip-path", `url(#${this.clipEmptyId})`);
 
     // Handle + a11y
-    this.handle = mk("circle", {
-      r: 10,
+    this.handle = mk("image", {
+      href: HANDLE_ICON,
+      x: -HANDLE_ICON_OFFSET,
+      y: -HANDLE_ICON_OFFSET,
+      width: HANDLE_ICON_SIZE,
+      height: HANDLE_ICON_SIZE,
       class: "handle",
-      tabindex: -1
+      tabindex: -1,
+      'aria-hidden': 'true'
     });
     this.gHandle.appendChild(this.handle);
     this.slider = mk("circle", {
@@ -573,7 +592,7 @@ class Pizza {
       this.slider.setAttribute("aria-disabled", "true");
     } else {
       this.slider.setAttribute("aria-disabled", cfg.lockNumerator ? "true" : "false");
-      if (cfg.lockNumerator) this.handle.style.cursor = "default";
+      this.handle.style.cursor = cfg.lockNumerator ? "default" : "grab";
     }
 
     // Stepper synlighet
@@ -791,8 +810,8 @@ class Pizza {
       this.gHandle.style.display = "none";
     } else {
       this.gHandle.style.display = "";
-      this.handle.setAttribute("cx", this.R * Math.cos(this.theta));
-      this.handle.setAttribute("cy", this.R * Math.sin(this.theta));
+      this.handle.setAttribute("x", this.R * Math.cos(this.theta) - HANDLE_ICON_OFFSET);
+      this.handle.setAttribute("y", this.R * Math.sin(this.theta) - HANDLE_ICON_OFFSET);
     }
     this._updateAria();
     this._updateTextAbove();
@@ -807,15 +826,14 @@ function getExportSvgStyle() {
   const fill = getThemeColor('pizza.fill', LEGACY_PIZZA_COLORS.fill);
   const rim = getThemeColor('pizza.rim', LEGACY_PIZZA_COLORS.rim);
   const dash = getThemeColor('pizza.dash', LEGACY_PIZZA_COLORS.dash);
-  const handleFill = getThemeColor('pizza.handle', LEGACY_PIZZA_COLORS.handle);
-  const handleStroke = getThemeColor('pizza.handleStroke', LEGACY_PIZZA_COLORS.handleStroke || rim);
   return `
 .rim{fill:none;stroke:${rim};stroke-width:6}
 .sector{stroke:#fff;stroke-width:6}
 .sector-fill{fill:${fill}}
 .sector-empty{fill:#fff}
 .dash{stroke:${dash};stroke-dasharray:4 4;stroke-width:2}
-.handle{fill:${handleFill};stroke:${handleStroke};stroke-width:2;cursor:pointer}
+.handle{cursor:grab}
+.handle:active{cursor:grabbing}
 .a11y:focus{outline:none;stroke:#1e88e5;stroke-width:3}
 .btn{fill:#fff;stroke:#cfcfcf;stroke-width:1;cursor:pointer}
 .btnLabel{font-size:18px;dominant-baseline:middle;text-anchor:middle;pointer-events:none}
@@ -827,8 +845,8 @@ const INTERACTIVE_SVG_SCRIPT = `
 /*<![CDATA[*/
 (function(){
   "use strict";
-  var root=document.currentScript.parentNode, TAU=Math.PI*2;
-  function el(n,a){var e=document.createElementNS("http://www.w3.org/2000/svg",n); for(var k in a){e.setAttribute(k,a[k]);} return e;}
+  var root=document.currentScript.parentNode, TAU=Math.PI*2, HANDLE_SIZE=36, HANDLE_OFFSET=HANDLE_SIZE/2, HANDLE_ICON='images/draggable.svg';
+  function el(n,a){var e=document.createElementNS("http://www.w3.org/2000/svg",n); for(var k in a){if(k==="href"){e.setAttribute(k,a[k]);e.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href',a[k]);continue;}if(k==="xlink:href"){e.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href',a[k]);continue;}e.setAttribute(k,a[k]);} return e;}
   function arc(r,a0,a1){var raw=a1-a0,s=((raw%TAU)+TAU)%TAU,full=Math.abs(s)<1e-6&&Math.abs(raw)>1e-6;
     if(full) return "M "+r+" 0 A "+r+" "+r+" 0 1 1 "+(-r)+" 0 A "+r+" "+r+" 0 1 1 "+r+" 0 Z";
     var sw=1,lg=s>Math.PI?1:0,x0=r*Math.cos(a0),y0=r*Math.sin(a0),x1=r*Math.cos(a1),y1=r*Math.sin(a1);
@@ -850,8 +868,8 @@ const INTERACTIVE_SVG_SCRIPT = `
   var clipFilled=root.querySelector('clipPath[id$="clipFilled"]');
   var clipEmpty=root.querySelector('clipPath[id$="clipEmpty"]');
 
-  function setHandle(a){ if(!handle){ handle=el("circle",{r:10,"class":"handle"}); root.appendChild(handle); }
-    handle.setAttribute("cx",R*Math.cos(a)); handle.setAttribute("cy",R*Math.sin(a)); }
+  function setHandle(a){ if(!handle){ handle=el("image",{href:HANDLE_ICON,x:-HANDLE_OFFSET,y:-HANDLE_OFFSET,width:HANDLE_SIZE,height:HANDLE_SIZE,"class":"handle","aria-hidden":"true"}); root.appendChild(handle); }
+    handle.setAttribute("x",R*Math.cos(a)-HANDLE_OFFSET); handle.setAttribute("y",R*Math.sin(a)-HANDLE_OFFSET); }
 
   function rebuildLines(){
     while(linesB.firstChild) linesB.removeChild(linesB.firstChild);

@@ -27,6 +27,9 @@ const DEFAULT_BLOCKS = [{
 }];
 const DEFAULT_TENKEBLOKKER_EXAMPLES = [];
 const DISPLAY_OPTIONS = ['number', 'fraction', 'percent'];
+const DRAG_HANDLE_ICON = 'images/draggable.svg';
+const DRAG_HANDLE_SIZE = 36;
+const DRAG_HANDLE_OFFSET = DRAG_HANDLE_SIZE / 2;
 function sanitizeDisplayMode(value) {
   if (typeof value !== 'string') return null;
   const normalized = value.trim().toLowerCase();
@@ -1387,17 +1390,14 @@ function createBlock(row, col, cfg) {
     y: 0,
     class: 'tb-total'
   });
-  block.handleShadow = createSvgElement(block.gHandle, 'circle', {
-    cx: 0,
-    cy: 0,
-    r: 20,
-    class: 'tb-handle-shadow'
-  });
-  block.handle = createSvgElement(block.gHandle, 'circle', {
-    cx: 0,
-    cy: 0,
-    r: 18,
-    class: 'tb-handle'
+  block.handle = createSvgElement(block.gHandle, 'image', {
+    href: DRAG_HANDLE_ICON,
+    x: -DRAG_HANDLE_OFFSET,
+    y: -DRAG_HANDLE_OFFSET,
+    width: DRAG_HANDLE_SIZE,
+    height: DRAG_HANDLE_SIZE,
+    class: 'tb-handle',
+    'aria-hidden': 'true'
   });
   block.handle.addEventListener('pointerdown', event => onDragStart(block, event));
   const stepper = document.createElement('div');
@@ -1668,7 +1668,7 @@ function updateBlockPanelLayout(block, rowTotal) {
   }
 }
 function drawBlock(block) {
-  var _block$rectEmpty, _block$rectEmpty2, _block$rectEmpty3, _block$rectEmpty4, _block$rectFrame, _block$rectFrame2, _block$rectFrame3, _block$rectFrame4, _block$handle, _block$handleShadow, _block$handle2, _block$handleShadow2;
+  var _block$rectEmpty, _block$rectEmpty2, _block$rectEmpty3, _block$rectEmpty4, _block$rectFrame, _block$rectFrame2, _block$rectFrame3, _block$rectFrame4, _block$handle, _block$handle2;
   const cfg = block === null || block === void 0 ? void 0 : block.cfg;
   if (!block || !cfg) return;
   const blockHidden = !!cfg.hideBlock;
@@ -1702,7 +1702,6 @@ function drawBlock(block) {
   if (block.gVals) block.gVals.style.display = hiddenDisplay;
   if (block.gFrame) block.gFrame.style.display = hiddenDisplay;
   if (block.gHandle) block.gHandle.style.display = blockHidden ? 'none' : '';
-  if (block.handleShadow) block.handleShadow.style.display = blockHidden ? 'none' : '';
   if (block.handle) block.handle.style.display = blockHidden ? 'none' : '';
   (_block$rectEmpty = block.rectEmpty) === null || _block$rectEmpty === void 0 || _block$rectEmpty.setAttribute('x', left);
   (_block$rectEmpty2 = block.rectEmpty) === null || _block$rectEmpty2 === void 0 || _block$rectEmpty2.setAttribute('width', innerWidth);
@@ -1851,12 +1850,12 @@ function drawBlock(block) {
   }
   const hx = cellW > 0 ? left + cfg.k * cellW : left;
   const hy = top + innerHeight / 2;
-  (_block$handle = block.handle) === null || _block$handle === void 0 || _block$handle.setAttribute('cx', hx);
-  (_block$handleShadow = block.handleShadow) === null || _block$handleShadow === void 0 || _block$handleShadow.setAttribute('cx', hx);
-  (_block$handle2 = block.handle) === null || _block$handle2 === void 0 || _block$handle2.setAttribute('cy', hy);
-  (_block$handleShadow2 = block.handleShadow) === null || _block$handleShadow2 === void 0 || _block$handleShadow2.setAttribute('cy', hy + 2);
+  if (block.handle) {
+    block.handle.setAttribute('x', hx - DRAG_HANDLE_OFFSET);
+    block.handle.setAttribute('y', hy - DRAG_HANDLE_OFFSET);
+  }
   if (block.gHandle) block.gHandle.style.display = blockHidden || cfg.lockNumerator ? 'none' : '';
-  if (block.handle) block.handle.style.cursor = blockHidden || cfg.lockNumerator ? 'default' : 'pointer';
+  if (block.handle) block.handle.style.cursor = blockHidden || cfg.lockNumerator ? 'default' : 'grab';
   const showWholeAllowed = !multipleBlocksActive || blockHidden;
   if (block.gBrace) block.gBrace.style.display = showWholeAllowed && cfg.showWhole ? '' : 'none';
 }
@@ -2163,7 +2162,18 @@ function syncLegacyConfig() {
 function createSvgElement(parent, name, attrs = {}) {
   const svgEl = parent.ownerSVGElement || parent;
   const el = document.createElementNS(svgEl.namespaceURI, name);
-  Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
+  Object.entries(attrs).forEach(([key, value]) => {
+    if (key === 'href') {
+      el.setAttribute(key, value);
+      el.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', value);
+      return;
+    }
+    if (key === 'xlink:href') {
+      el.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', value);
+      return;
+    }
+    el.setAttribute(key, value);
+  });
   parent.appendChild(el);
   return el;
 }
@@ -2537,7 +2547,7 @@ function getExportSvg() {
       const g = document.createElementNS(ns, 'g');
       g.setAttribute('transform', `translate(${offsetX},0)`);
       const blockClone = block.svg.cloneNode(true);
-      const exportHandleElements = blockClone.querySelectorAll('.tb-handle, .tb-handle-shadow');
+      const exportHandleElements = blockClone.querySelectorAll('.tb-handle');
       exportHandleElements.forEach(el => el.remove());
       g.innerHTML = blockClone.innerHTML;
       blocksGroup.appendChild(g);

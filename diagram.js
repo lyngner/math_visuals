@@ -25,6 +25,9 @@ const CFG = {
 };
 const VALUE_DISPLAY_OPTIONS = ['none', 'number', 'fraction', 'percent'];
 const PIE_LABEL_POSITIONS = ['outside', 'inside'];
+const DRAG_HANDLE_ICON = 'images/draggable.svg';
+const DRAG_HANDLE_SIZE = 36;
+const DRAG_HANDLE_OFFSET = DRAG_HANDLE_SIZE / 2;
 function sanitizeValueDisplay(value) {
   if (typeof value !== 'string') return 'none';
   const normalized = value.trim().toLowerCase();
@@ -620,18 +623,7 @@ function drawLines(displayMode) {
         class: 'line-dot series' + idx
       });
       if (!locked[i]) {
-        addTo(gHands, 'circle', {
-          cx: cx,
-          cy: cy + 2,
-          r: 16,
-          class: 'handleShadow'
-        });
-        const h = addTo(gHands, 'circle', {
-          cx: cx,
-          cy: cy,
-          r: 14,
-          class: 'handle'
-        });
+        const h = createDragHandle(gHands, cx, cy);
         h.dataset.index = i;
         h.dataset.series = idx;
         h.dataset.base = 0;
@@ -801,18 +793,7 @@ function drawGroupedBars(displayMode) {
     rect1.dataset.base = 0;
     rect1.addEventListener('pointerdown', onDragStart);
     if (!locked[i]) {
-      addTo(gHands, 'circle', {
-        cx: x0 + barSingle / 2,
-        cy: y1,
-        r: 16,
-        class: 'handleShadow'
-      });
-      const h1 = addTo(gHands, 'circle', {
-        cx: x0 + barSingle / 2,
-        cy: y1 + handleDir1 * 2,
-        r: 14,
-        class: 'handle'
-      });
+      const h1 = createDragHandle(gHands, x0 + barSingle / 2, y1 + handleDir1 * 2);
       h1.dataset.index = i;
       h1.dataset.series = 0;
       h1.dataset.base = 0;
@@ -868,18 +849,7 @@ function drawGroupedBars(displayMode) {
       rect2.dataset.base = 0;
       rect2.addEventListener('pointerdown', onDragStart);
       if (!locked[i]) {
-        addTo(gHands, 'circle', {
-          cx: x1 + barSingle / 2,
-          cy: y2,
-          r: 16,
-          class: 'handleShadow'
-        });
-        const h2 = addTo(gHands, 'circle', {
-          cx: x1 + barSingle / 2,
-          cy: y2 + handleDir2 * 2,
-          r: 14,
-          class: 'handle'
-        });
+        const h2 = createDragHandle(gHands, x1 + barSingle / 2, y2 + handleDir2 * 2);
         h2.dataset.index = i;
         h2.dataset.series = 1;
         h2.dataset.base = 0;
@@ -942,18 +912,7 @@ function drawStackedBars() {
     rect1.dataset.base = 0;
     rect1.addEventListener('pointerdown', onDragStart);
     if (!locked[i]) {
-      addTo(gHands, 'circle', {
-        cx: cx,
-        cy: y1,
-        r: 16,
-        class: 'handleShadow'
-      });
-      const h1 = addTo(gHands, 'circle', {
-        cx: cx,
-        cy: y1 + handleDir1 * 2,
-        r: 14,
-        class: 'handle'
-      });
+      const h1 = createDragHandle(gHands, cx, y1 + handleDir1 * 2);
       h1.dataset.index = i;
       h1.dataset.series = 0;
       h1.dataset.base = 0;
@@ -1000,18 +959,7 @@ function drawStackedBars() {
       rect2.dataset.base = v1;
       rect2.addEventListener('pointerdown', onDragStart);
       if (!locked[i]) {
-        addTo(gHands, 'circle', {
-          cx: cx,
-          cy: y2,
-          r: 16,
-          class: 'handleShadow'
-        });
-        const h2 = addTo(gHands, 'circle', {
-          cx: cx,
-          cy: y2 + handleDir2 * 2,
-          r: 14,
-          class: 'handle'
-        });
+        const h2 = createDragHandle(gHands, cx, y2 + handleDir2 * 2);
         h2.dataset.index = i;
         h2.dataset.series = 1;
         h2.dataset.base = v1;
@@ -1344,18 +1292,7 @@ function drawBars(displayMode) {
 
     // 2) HÅNDTAK (draggbar)
     if (!locked[i]) {
-      addTo(gHands, 'circle', {
-        cx: cx,
-        cy: y,
-        r: 16,
-        class: 'handleShadow'
-      });
-      const h = addTo(gHands, 'circle', {
-        cx: cx,
-        cy: handleCenter,
-        r: 14,
-        class: 'handle'
-      });
+      const h = createDragHandle(gHands, cx, handleCenter);
       h.dataset.index = i;
       h.dataset.series = 0;
       h.dataset.base = 0;
@@ -2095,15 +2032,40 @@ function applyCfg() {
    ========================================================= */
 function add(name, attrs = {}) {
   const el = document.createElementNS('http://www.w3.org/2000/svg', name);
-  Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+  Object.entries(attrs).forEach(([k, v]) => setSvgAttribute(el, k, v));
   svg.appendChild(el);
   return el;
 }
 function addTo(group, name, attrs = {}) {
   const el = document.createElementNS(svg.namespaceURI, name);
-  Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+  Object.entries(attrs).forEach(([k, v]) => setSvgAttribute(el, k, v));
   group.appendChild(el);
   return el;
+}
+function createDragHandle(group, cx, cy) {
+  const handle = addTo(group, 'image', {
+    href: DRAG_HANDLE_ICON,
+    x: cx - DRAG_HANDLE_OFFSET,
+    y: cy - DRAG_HANDLE_OFFSET,
+    width: DRAG_HANDLE_SIZE,
+    height: DRAG_HANDLE_SIZE,
+    class: 'handle',
+    'aria-hidden': 'true'
+  });
+  handle.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', DRAG_HANDLE_ICON);
+  return handle;
+}
+function setSvgAttribute(el, key, value) {
+  if (key === 'href') {
+    el.setAttribute(key, value);
+    el.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', value);
+    return;
+  }
+  if (key === 'xlink:href') {
+    el.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', value);
+    return;
+  }
+  el.setAttribute(key, value);
 }
 function polarToCartesian(cx, cy, radius, angle) {
   return {
@@ -2315,7 +2277,7 @@ async function svgToString(svgEl) {
   }
 
   // fjern interaktive håndtak før eksport
-  clone.querySelectorAll('.handle, .handleShadow').forEach(el => el.remove());
+  clone.querySelectorAll('.handle').forEach(el => el.remove());
   if (!clone.getAttribute('xmlns')) {
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   }
