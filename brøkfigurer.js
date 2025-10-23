@@ -1309,10 +1309,24 @@
       return seg;
     }
     const DOM_TOGGLE_EVENTS = typeof window !== 'undefined' && 'PointerEvent' in window ? ['pointerdown'] : ['mousedown', 'touchstart'];
+    let lastTouchToggleTs = 0;
+    const TOUCH_MOUSE_SUPPRESSION_MS = 800;
     function attachToggleHandler(element, partIndex) {
       if (!element) return;
       const handler = evt => togglePart(partIndex, element, evt);
       const domHandler = evt => {
+        if (!evt) {
+          handler(evt);
+          return;
+        }
+        if (evt.type === 'touchstart') {
+          lastTouchToggleTs = Date.now();
+        } else if (evt.type === 'mousedown' && lastTouchToggleTs) {
+          const now = Date.now();
+          if (now - lastTouchToggleTs < TOUCH_MOUSE_SUPPRESSION_MS) {
+            return;
+          }
+        }
         handler(evt);
       };
       const nodes = [];
