@@ -47,8 +47,8 @@
       id: 'campus',
       label: 'Campus',
       palettes: {
-        fractions: ['#1F4DE2', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
-        figures: ['#1F4DE2', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9']
+        fractions: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
+        figures: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9']
       },
       colors: {
         ui: {
@@ -77,7 +77,7 @@
           }
         },
         pizza: {
-          fill: '#F6E5BC',
+          fill: '#DBE3FF',
           rim: '#2C395B',
           dash: '#2C395B',
           handle: '#C5E5E9',
