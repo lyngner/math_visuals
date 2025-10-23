@@ -3112,6 +3112,15 @@ function applyAltTextToBoard() {
     altTextManager.applyCurrent();
   }
 }
+
+function getCurrentAltText() {
+  const text = ALT_TEXT_STATE && typeof ALT_TEXT_STATE.text === 'string' ? ALT_TEXT_STATE.text.trim() : '';
+  if (text) {
+    return text;
+  }
+  const generated = buildGrafAltText();
+  return typeof generated === 'string' ? generated : '';
+}
 function initAltTextManager() {
   if (typeof window === 'undefined' || !window.MathVisAltText) return;
   const container = document.getElementById('exportCard');
@@ -4644,13 +4653,15 @@ function serializeBoardSvg(clone) {
   return new XMLSerializer().serializeToString(clone.node).replace(/\swidth="[^"]*"\s(?=.*width=")/, ' ').replace(/\sheight="[^"]*"\s(?=.*height=")/, ' ');
 }
 function buildBoardSvgExport() {
+  applyAltTextToBoard();
   const clone = cloneBoardSvgRoot();
   if (!clone) return null;
   return {
     markup: serializeBoardSvg(clone),
     width: clone.width,
     height: clone.height,
-    node: clone.node
+    node: clone.node,
+    altText: getCurrentAltText()
   };
 }
 const btnSvg = document.getElementById('btnSvg');
@@ -4662,7 +4673,9 @@ if (btnSvg) {
     const suggestedName = 'graf.svg';
     if (helper && typeof helper.exportSvgWithArchive === 'function') {
       helper.exportSvgWithArchive(svgExport.node, suggestedName, 'graftegner', {
-        svgString: svgExport.markup
+        svgString: svgExport.markup,
+        alt: svgExport.altText,
+        description: svgExport.altText
       });
       return;
     }
