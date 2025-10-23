@@ -63,6 +63,9 @@ const gA11y = add('g');
 const gVals = add('g');
 const gLabels = add('g');
 const gLegend = add('g');
+const HANDLE_ICON_URL = 'images/draggable.svg';
+const HANDLE_ICON_SIZE = 36;
+const XLINK_NS = 'http://www.w3.org/1999/xlink';
 const PIE_COLORS = ['#4f2c8c', '#6c3db5', '#8a4de0', '#a75cf1', '#c26ef0', '#d381ba', '#c46287', '#9f436d', '#723a82', '#503070'];
 let values = [];
 let values2 = null;
@@ -620,22 +623,11 @@ function drawLines(displayMode) {
         class: 'line-dot series' + idx
       });
       if (!locked[i]) {
-        addTo(gHands, 'circle', {
-          cx: cx,
-          cy: cy + 2,
-          r: 16,
-          class: 'handleShadow'
+        createHandle(gHands, cx, cy, {
+          index: i,
+          series: idx,
+          base: 0
         });
-        const h = addTo(gHands, 'circle', {
-          cx: cx,
-          cy: cy,
-          r: 14,
-          class: 'handle'
-        });
-        h.dataset.index = i;
-        h.dataset.series = idx;
-        h.dataset.base = 0;
-        h.addEventListener('pointerdown', onDragStart);
       }
       const a11y = addTo(gA11y, 'circle', {
         cx: cx,
@@ -801,22 +793,11 @@ function drawGroupedBars(displayMode) {
     rect1.dataset.base = 0;
     rect1.addEventListener('pointerdown', onDragStart);
     if (!locked[i]) {
-      addTo(gHands, 'circle', {
-        cx: x0 + barSingle / 2,
-        cy: y1,
-        r: 16,
-        class: 'handleShadow'
+      createHandle(gHands, x0 + barSingle / 2, y1 + handleDir1 * 2, {
+        index: i,
+        series: 0,
+        base: 0
       });
-      const h1 = addTo(gHands, 'circle', {
-        cx: x0 + barSingle / 2,
-        cy: y1 + handleDir1 * 2,
-        r: 14,
-        class: 'handle'
-      });
-      h1.dataset.index = i;
-      h1.dataset.series = 0;
-      h1.dataset.base = 0;
-      h1.addEventListener('pointerdown', onDragStart);
     }
     const a1 = addTo(gA11y, 'rect', {
       x: x0,
@@ -868,22 +849,11 @@ function drawGroupedBars(displayMode) {
       rect2.dataset.base = 0;
       rect2.addEventListener('pointerdown', onDragStart);
       if (!locked[i]) {
-        addTo(gHands, 'circle', {
-          cx: x1 + barSingle / 2,
-          cy: y2,
-          r: 16,
-          class: 'handleShadow'
+        createHandle(gHands, x1 + barSingle / 2, y2 + handleDir2 * 2, {
+          index: i,
+          series: 1,
+          base: 0
         });
-        const h2 = addTo(gHands, 'circle', {
-          cx: x1 + barSingle / 2,
-          cy: y2 + handleDir2 * 2,
-          r: 14,
-          class: 'handle'
-        });
-        h2.dataset.index = i;
-        h2.dataset.series = 1;
-        h2.dataset.base = 0;
-        h2.addEventListener('pointerdown', onDragStart);
       }
       const a2 = addTo(gA11y, 'rect', {
         x: x1,
@@ -942,22 +912,11 @@ function drawStackedBars() {
     rect1.dataset.base = 0;
     rect1.addEventListener('pointerdown', onDragStart);
     if (!locked[i]) {
-      addTo(gHands, 'circle', {
-        cx: cx,
-        cy: y1,
-        r: 16,
-        class: 'handleShadow'
+      createHandle(gHands, cx, y1 + handleDir1 * 2, {
+        index: i,
+        series: 0,
+        base: 0
       });
-      const h1 = addTo(gHands, 'circle', {
-        cx: cx,
-        cy: y1 + handleDir1 * 2,
-        r: 14,
-        class: 'handle'
-      });
-      h1.dataset.index = i;
-      h1.dataset.series = 0;
-      h1.dataset.base = 0;
-      h1.addEventListener('pointerdown', onDragStart);
     }
     const a1 = addTo(gA11y, 'rect', {
       x: cx - barTotal / 2,
@@ -1000,22 +959,11 @@ function drawStackedBars() {
       rect2.dataset.base = v1;
       rect2.addEventListener('pointerdown', onDragStart);
       if (!locked[i]) {
-        addTo(gHands, 'circle', {
-          cx: cx,
-          cy: y2,
-          r: 16,
-          class: 'handleShadow'
+        createHandle(gHands, cx, y2 + handleDir2 * 2, {
+          index: i,
+          series: 1,
+          base: v1
         });
-        const h2 = addTo(gHands, 'circle', {
-          cx: cx,
-          cy: y2 + handleDir2 * 2,
-          r: 14,
-          class: 'handle'
-        });
-        h2.dataset.index = i;
-        h2.dataset.series = 1;
-        h2.dataset.base = v1;
-        h2.addEventListener('pointerdown', onDragStart);
       }
       const a2 = addTo(gA11y, 'rect', {
         x: cx - barTotal / 2,
@@ -1344,22 +1292,11 @@ function drawBars(displayMode) {
 
     // 2) HÅNDTAK (draggbar)
     if (!locked[i]) {
-      addTo(gHands, 'circle', {
-        cx: cx,
-        cy: y,
-        r: 16,
-        class: 'handleShadow'
+      createHandle(gHands, cx, handleCenter, {
+        index: i,
+        series: 0,
+        base: 0
       });
-      const h = addTo(gHands, 'circle', {
-        cx: cx,
-        cy: handleCenter,
-        r: 14,
-        class: 'handle'
-      });
-      h.dataset.index = i;
-      h.dataset.series = 0;
-      h.dataset.base = 0;
-      h.addEventListener('pointerdown', onDragStart);
     }
 
     // 3) A11y‐overlay (fokus + tastatur + stor klikkflate)
@@ -1439,6 +1376,7 @@ function onDragStart(e) {
     ev.preventDefault();
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', up);
+    if (target.classList) target.classList.remove('is-grabbing');
     if (target.releasePointerCapture) {
       try {
         target.releasePointerCapture(ev.pointerId);
@@ -2099,11 +2037,77 @@ function add(name, attrs = {}) {
   svg.appendChild(el);
   return el;
 }
+function setSvgElementCenter(el, cx, cy) {
+  if (!el) return;
+  const tagName = (el.tagName || '').toLowerCase();
+  const resolvedCx = typeof cx === 'number' ? cx : Number.parseFloat(cx);
+  const resolvedCy = typeof cy === 'number' ? cy : Number.parseFloat(cy);
+  if (tagName === 'image') {
+    const width = Number.parseFloat(el.getAttribute('width'));
+    const height = Number.parseFloat(el.getAttribute('height'));
+    if (Number.isFinite(resolvedCx) && Number.isFinite(width)) {
+      el.setAttribute('x', resolvedCx - width / 2);
+    }
+    if (Number.isFinite(resolvedCy) && Number.isFinite(height)) {
+      el.setAttribute('y', resolvedCy - height / 2);
+    }
+    return;
+  }
+  if (Number.isFinite(resolvedCx)) el.setAttribute('cx', resolvedCx);
+  if (Number.isFinite(resolvedCy)) el.setAttribute('cy', resolvedCy);
+}
+function applySvgAttributes(el, attrs = {}) {
+  if (!el || !attrs) return;
+  const tagName = (el.tagName || '').toLowerCase();
+  let pendingCx = null;
+  let pendingCy = null;
+  Object.entries(attrs).forEach(([key, value]) => {
+    if (value == null) return;
+    if (tagName === 'image' && (key === 'cx' || key === 'cy')) {
+      if (key === 'cx') pendingCx = value;
+      else pendingCy = value;
+      return;
+    }
+    if (key === 'href' || key === 'xlink:href') {
+      el.setAttributeNS(XLINK_NS, 'href', value);
+      el.setAttribute('href', value);
+      return;
+    }
+    el.setAttribute(key, value);
+  });
+  if (pendingCx != null || pendingCy != null) {
+    const cx = pendingCx != null ? Number.parseFloat(pendingCx) : undefined;
+    const cy = pendingCy != null ? Number.parseFloat(pendingCy) : undefined;
+    setSvgElementCenter(el, cx, cy);
+  }
+}
 function addTo(group, name, attrs = {}) {
   const el = document.createElementNS(svg.namespaceURI, name);
-  Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+  applySvgAttributes(el, attrs);
   group.appendChild(el);
   return el;
+}
+function createHandle(parent, cx, cy, dataset = {}) {
+  const handle = addTo(parent, 'image', {
+    href: HANDLE_ICON_URL,
+    width: HANDLE_ICON_SIZE,
+    height: HANDLE_ICON_SIZE,
+    class: 'handle',
+    cx,
+    cy
+  });
+  if ('index' in dataset && dataset.index != null) handle.dataset.index = dataset.index;
+  if ('series' in dataset && dataset.series != null) handle.dataset.series = dataset.series;
+  if ('base' in dataset && dataset.base != null) handle.dataset.base = dataset.base;
+  handle.addEventListener('pointerdown', event => {
+    handle.classList.add('is-grabbing');
+    onDragStart(event);
+  });
+  const stopGrabbing = () => handle.classList.remove('is-grabbing');
+  handle.addEventListener('pointerup', stopGrabbing);
+  handle.addEventListener('pointercancel', stopGrabbing);
+  handle.addEventListener('lostpointercapture', stopGrabbing);
+  return handle;
 }
 function polarToCartesian(cx, cy, radius, angle) {
   return {

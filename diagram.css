@@ -80,8 +80,8 @@
 .legendtext{fill:#333;font-size:16px}
 
 /* Håndtak */
-.handleShadow{fill:#000;opacity:.14}
-.handle{fill:#f1f1f7;stroke:#555;stroke-width:2;cursor:pointer}
+.handle{cursor:grab;touch-action:none}
+.handle:active,.handle.is-grabbing{cursor:grabbing}
 
 /* Sektordiagram */
 .pie-slice{stroke:#fff;stroke-width:2;cursor:pointer}
@@ -108,7 +108,7 @@
 
 /* Låsing */
 .bar.locked{cursor:not-allowed}
-.handle.locked{fill:#e5e7eb;cursor:not-allowed}
+.handle.locked{cursor:not-allowed;opacity:.6}
 .pie-slice.locked{cursor:not-allowed}
 
 /* Fokus + tastatur (A11y-overlay) */

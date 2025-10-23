@@ -282,11 +282,58 @@ const PIZZA_DOM = [{
   valId: "nVal3",
   index: 2
 }];
+const XLINK_NS = "http://www.w3.org/1999/xlink";
+const HANDLE_ICON_URL = "images/draggable.svg";
+const HANDLE_ICON_SIZE = 36;
 const TAU = Math.PI * 2;
 const norm = a => (a % TAU + TAU) % TAU;
+function setSvgElementCenter(el, cx, cy) {
+  if (!el) return;
+  const tagName = (el.tagName || '').toLowerCase();
+  const resolvedCx = typeof cx === 'number' ? cx : Number.parseFloat(cx);
+  const resolvedCy = typeof cy === 'number' ? cy : Number.parseFloat(cy);
+  if (tagName === "image") {
+    const width = Number.parseFloat(el.getAttribute('width'));
+    const height = Number.parseFloat(el.getAttribute('height'));
+    if (Number.isFinite(resolvedCx) && Number.isFinite(width)) {
+      el.setAttribute('x', resolvedCx - width / 2);
+    }
+    if (Number.isFinite(resolvedCy) && Number.isFinite(height)) {
+      el.setAttribute('y', resolvedCy - height / 2);
+    }
+    return;
+  }
+  if (Number.isFinite(resolvedCx)) el.setAttribute('cx', resolvedCx);
+  if (Number.isFinite(resolvedCy)) el.setAttribute('cy', resolvedCy);
+}
+function applySvgAttributes(el, attrs = {}) {
+  if (!el || !attrs) return;
+  const tagName = (el.tagName || '').toLowerCase();
+  let pendingCx = null;
+  let pendingCy = null;
+  Object.entries(attrs).forEach(([key, value]) => {
+    if (value == null) return;
+    if (tagName === "image" && (key === "cx" || key === "cy")) {
+      if (key === 'cx') pendingCx = value;
+      else pendingCy = value;
+      return;
+    }
+    if (key === 'href' || key === 'xlink:href') {
+      el.setAttributeNS(XLINK_NS, 'href', value);
+      el.setAttribute('href', value);
+      return;
+    }
+    el.setAttribute(key, value);
+  });
+  if (pendingCx != null || pendingCy != null) {
+    const cx = pendingCx != null ? Number.parseFloat(pendingCx) : undefined;
+    const cy = pendingCy != null ? Number.parseFloat(pendingCy) : undefined;
+    setSvgElementCenter(el, cx, cy);
+  }
+}
 const mk = (n, a = {}) => {
-  const e = document.createElementNS("http://www.w3.org/2000/svg", n);
-  for (const [k, v] of Object.entries(a)) e.setAttribute(k, v);
+  const e = document.createElementNS('http://www.w3.org/2000/svg', n);
+  applySvgAttributes(e, a);
   return e;
 };
 const arcPath = (r, a0, a1) => {
@@ -542,10 +589,14 @@ class Pizza {
     this.gLinesBlack.setAttribute("clip-path", `url(#${this.clipEmptyId})`);
 
     // Handle + a11y
-    this.handle = mk("circle", {
-      r: 10,
-      class: "handle",
-      tabindex: -1
+    this.handle = mk("image", {
+      href: HANDLE_ICON_URL,
+      width: HANDLE_ICON_SIZE,
+      height: HANDLE_ICON_SIZE,
+      class: 'handle',
+      tabindex: -1,
+      cx: 0,
+      cy: 0
     });
     this.gHandle.appendChild(this.handle);
     this.slider = mk("circle", {
@@ -571,9 +622,21 @@ class Pizza {
       this.gHandle.style.display = "none";
       this.slider.setAttribute("tabindex", "-1");
       this.slider.setAttribute("aria-disabled", "true");
+      this.handle.classList.add("locked");
+      this.handle.style.cursor = "not-allowed";
+      this.handle.classList.remove("is-grabbing");
     } else {
+      this.gHandle.style.display = "";
+      this.slider.setAttribute("tabindex", "0");
       this.slider.setAttribute("aria-disabled", cfg.lockNumerator ? "true" : "false");
-      if (cfg.lockNumerator) this.handle.style.cursor = "default";
+      if (cfg.lockNumerator) {
+        this.handle.classList.add("locked");
+        this.handle.style.cursor = "not-allowed";
+        this.handle.classList.remove("is-grabbing");
+      } else {
+        this.handle.classList.remove("locked");
+        this.handle.style.cursor = "";
+      }
     }
 
     // Stepper synlighet
@@ -593,15 +656,26 @@ class Pizza {
     this.handle.addEventListener("pointerdown", e => {
       if (cfg.lockNumerator || this.fullyLocked) return;
       this._dragging = true;
+      this.handle.classList.add("is-grabbing");
       this.handle.setPointerCapture(e.pointerId);
     });
     this.handle.addEventListener("pointerup", e => {
       if (cfg.lockNumerator || this.fullyLocked) return;
       this._dragging = false;
+      this.handle.classList.remove("is-grabbing");
       this.handle.releasePointerCapture(e.pointerId);
+    });
+    this.handle.addEventListener("pointercancel", () => {
+      this._dragging = false;
+      this.handle.classList.remove("is-grabbing");
+    });
+    this.handle.addEventListener("lostpointercapture", () => {
+      this._dragging = false;
+      this.handle.classList.remove("is-grabbing");
     });
     this.svg.addEventListener("pointerleave", () => {
       this._dragging = false;
+      this.handle.classList.remove("is-grabbing");
     });
     this.svg.addEventListener("pointermove", e => {
       if (!this._dragging || cfg.lockNumerator || this.fullyLocked) return;
@@ -791,8 +865,7 @@ class Pizza {
       this.gHandle.style.display = "none";
     } else {
       this.gHandle.style.display = "";
-      this.handle.setAttribute("cx", this.R * Math.cos(this.theta));
-      this.handle.setAttribute("cy", this.R * Math.sin(this.theta));
+      setSvgElementCenter(this.handle, this.R * Math.cos(this.theta), this.R * Math.sin(this.theta));
     }
     this._updateAria();
     this._updateTextAbove();
@@ -807,15 +880,15 @@ function getExportSvgStyle() {
   const fill = getThemeColor('pizza.fill', LEGACY_PIZZA_COLORS.fill);
   const rim = getThemeColor('pizza.rim', LEGACY_PIZZA_COLORS.rim);
   const dash = getThemeColor('pizza.dash', LEGACY_PIZZA_COLORS.dash);
-  const handleFill = getThemeColor('pizza.handle', LEGACY_PIZZA_COLORS.handle);
-  const handleStroke = getThemeColor('pizza.handleStroke', LEGACY_PIZZA_COLORS.handleStroke || rim);
   return `
 .rim{fill:none;stroke:${rim};stroke-width:6}
 .sector{stroke:#fff;stroke-width:6}
 .sector-fill{fill:${fill}}
 .sector-empty{fill:#fff}
 .dash{stroke:${dash};stroke-dasharray:4 4;stroke-width:2}
-.handle{fill:${handleFill};stroke:${handleStroke};stroke-width:2;cursor:pointer}
+.handle{cursor:grab;touch-action:none}
+.handle:active,.handle.is-grabbing{cursor:grabbing}
+.handle.locked{cursor:not-allowed;opacity:.6}
 .a11y:focus{outline:none;stroke:#1e88e5;stroke-width:3}
 .btn{fill:#fff;stroke:#cfcfcf;stroke-width:1;cursor:pointer}
 .btnLabel{font-size:18px;dominant-baseline:middle;text-anchor:middle;pointer-events:none}
