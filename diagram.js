@@ -39,6 +39,147 @@ function getValueDisplayMode(type = CFG.type) {
   const mode = sanitizeValueDisplay(CFG.valueDisplay);
   return type === 'stacked' ? 'none' : mode;
 }
+const LEGACY_SERIES_COLORS = ['#574595', '#d081a1'];
+const LEGACY_PIE_PALETTE = ['#4f2c8c', '#6c3db5', '#8a4de0', '#a75cf1', '#c26ef0', '#d381ba', '#c46287', '#9f436d', '#723a82', '#503070'];
+const PIE_COLOR_CLASS_COUNT = LEGACY_PIE_PALETTE.length;
+const LEGACY_AXIS_COLOR = '#0f172a';
+const LEGACY_AXIS_LABEL_FILL = '#e2e8f0';
+const LEGACY_AXIS_LABEL_STROKE = '#cbd5f5';
+const LEGACY_GRID_COLOR = '#999999';
+const LEGACY_TEXT_COLOR = '#333333';
+const LEGACY_BAR_STROKE = '#000000';
+const LEGACY_HANDLE_FILL = '#f1f1f7';
+const LEGACY_HANDLE_STROKE = '#555555';
+const LEGACY_FOCUS_OUTLINE = '#1e88e5';
+const LEGACY_FIGURE_BACKGROUND = '#fafbfc';
+const LEGACY_FIGURE_BORDER = '#eef0f3';
+const LEGACY_CANVAS_BACKGROUND = '#ffffff';
+const LEGACY_VALUE_COLOR = '#111111';
+const LEGACY_PIE_LABEL_COLOR = '#333333';
+let themePaletteSize = Array.isArray(CFG.labels) ? CFG.labels.length : 0;
+function getThemeApi() {
+  const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
+  return theme && typeof theme === 'object' ? theme : null;
+}
+function getThemeColor(token, fallback) {
+  const theme = getThemeApi();
+  if (theme && typeof theme.getColor === 'function') {
+    try {
+      const value = theme.getColor(token, fallback);
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    } catch (_) {}
+  }
+  return typeof fallback === 'string' && fallback.trim() ? fallback.trim() : undefined;
+}
+function ensurePalette(base, count, fallback) {
+  const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : 0;
+  const source = Array.isArray(base) && base.length ? base : Array.isArray(fallback) && fallback.length ? fallback : LEGACY_PIE_PALETTE;
+  if (target <= 0) {
+    return source.slice();
+  }
+  const result = [];
+  for (let i = 0; i < target; i++) {
+    result.push(source[i % source.length]);
+  }
+  return result;
+}
+function withAlphaColor(color, alpha, fallback) {
+  const normalized = typeof color === 'string' ? color.trim() : '';
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(normalized)) {
+    const hex = normalized.slice(1);
+    const channels = hex.length === 3
+      ? hex.split('').map(c => parseInt(c + c, 16))
+      : [
+          parseInt(hex.slice(0, 2), 16),
+          parseInt(hex.slice(2, 4), 16),
+          parseInt(hex.slice(4, 6), 16)
+        ];
+    if (channels.every(v => Number.isFinite(v))) {
+      return `rgba(${channels[0]}, ${channels[1]}, ${channels[2]}, ${alpha})`;
+    }
+  }
+  if (/^rgb\s*\(/i.test(normalized)) {
+    const parts = normalized
+      .replace(/rgba?\(|\)|\s+/gi, '')
+      .split(',')
+      .slice(0, 3)
+      .map(Number);
+    if (parts.length === 3 && parts.every(v => Number.isFinite(v))) {
+      return `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`;
+    }
+  }
+  return fallback;
+}
+function setCssVariable(name, value, style) {
+  if (typeof document === 'undefined' || typeof name !== 'string' || !name) return;
+  const root = document.documentElement;
+  const targetStyle = style || (root ? root.style : null);
+  if (!targetStyle) return;
+  if (typeof value === 'string' && value.trim()) {
+    targetStyle.setProperty(name, value.trim());
+  } else {
+    targetStyle.removeProperty(name);
+  }
+}
+function applyDiagramTheme(options = {}) {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  if (!root) return;
+  const style = root.style;
+  const theme = getThemeApi();
+  if (theme && typeof theme.applyToDocument === 'function') {
+    try {
+      theme.applyToDocument(document);
+    } catch (_) {}
+  }
+  const requestedSeriesCount = Math.max(1, Number.isFinite(options.seriesCount) ? Math.trunc(options.seriesCount) : 1);
+  const requestedPaletteSize = Math.max(
+    requestedSeriesCount,
+    Number.isFinite(options.paletteSize) && options.paletteSize > 0 ? Math.trunc(options.paletteSize) : LEGACY_PIE_PALETTE.length
+  );
+  let palette = null;
+  if (theme && typeof theme.getPalette === 'function') {
+    try {
+      palette = theme.getPalette('fractions', requestedPaletteSize, { fallbackKinds: ['figures'] });
+    } catch (_) {
+      palette = null;
+    }
+  }
+  const basePalette = ensurePalette(palette, requestedPaletteSize, LEGACY_PIE_PALETTE);
+  const seriesPalette = ensurePalette(basePalette, requestedSeriesCount, LEGACY_SERIES_COLORS);
+  for (let i = 0; i < seriesPalette.length; i++) {
+    setCssVariable(`--diagram-series-${i}`, seriesPalette[i], style);
+    setCssVariable(`--diagram-line-series-${i}`, seriesPalette[i], style);
+  }
+  for (let i = seriesPalette.length; i < 4; i++) {
+    style.removeProperty(`--diagram-series-${i}`);
+    style.removeProperty(`--diagram-line-series-${i}`);
+  }
+  const piePalette = ensurePalette(basePalette, PIE_COLOR_CLASS_COUNT, LEGACY_PIE_PALETTE);
+  for (let i = 0; i < PIE_COLOR_CLASS_COUNT; i++) {
+    setCssVariable(`--diagram-pie-${i}`, piePalette[i], style);
+  }
+  setCssVariable('--diagram-axis-color', getThemeColor('graphs.axis', LEGACY_AXIS_COLOR), style);
+  setCssVariable('--diagram-axis-text-color', getThemeColor('graphs.axis', LEGACY_AXIS_COLOR), style);
+  setCssVariable('--diagram-axis-label-chip-fill', getThemeColor('ui.secondary', LEGACY_AXIS_LABEL_FILL), style);
+  setCssVariable('--diagram-axis-label-chip-stroke', getThemeColor('ui.primary', LEGACY_AXIS_LABEL_STROKE), style);
+  setCssVariable('--diagram-grid-color', getThemeColor('graphs.axis', LEGACY_GRID_COLOR), style);
+  const primaryColor = getThemeColor('ui.primary', null);
+  const resolvedTextColor = primaryColor || LEGACY_TEXT_COLOR;
+  setCssVariable('--diagram-text-color', resolvedTextColor, style);
+  setCssVariable('--diagram-pie-label-color', primaryColor || LEGACY_PIE_LABEL_COLOR, style);
+  setCssVariable('--diagram-value-color', primaryColor || LEGACY_VALUE_COLOR, style);
+  setCssVariable('--diagram-bar-stroke', primaryColor || LEGACY_BAR_STROKE, style);
+  setCssVariable('--diagram-handle-fill', getThemeColor('ui.secondary', LEGACY_HANDLE_FILL), style);
+  setCssVariable('--diagram-handle-stroke', primaryColor || LEGACY_HANDLE_STROKE, style);
+  setCssVariable('--diagram-focus-outline', getThemeColor('ui.hover', LEGACY_FOCUS_OUTLINE), style);
+  setCssVariable('--diagram-figure-background', getThemeColor('ui.secondary', LEGACY_FIGURE_BACKGROUND), style);
+  const figureBorder = primaryColor ? withAlphaColor(primaryColor, 0.35, LEGACY_FIGURE_BORDER) : LEGACY_FIGURE_BORDER;
+  setCssVariable('--diagram-figure-border', figureBorder, style);
+  setCssVariable('--diagram-canvas-background', getThemeColor('ui.surface', LEGACY_CANVAS_BACKGROUND), style);
+}
 /* =========================================================
    OPPSETT
    ========================================================= */
@@ -63,7 +204,6 @@ const gA11y = add('g');
 const gVals = add('g');
 const gLabels = add('g');
 const gLegend = add('g');
-const PIE_COLORS = ['#4f2c8c', '#6c3db5', '#8a4de0', '#a75cf1', '#c26ef0', '#d381ba', '#c46287', '#9f436d', '#723a82', '#503070'];
 let values = [];
 let values2 = null;
 let series2Enabled = false;
@@ -73,6 +213,13 @@ let N = 0;
 let yMin = 0;
 let yMax = 0;
 let yStep = 1;
+applyDiagramTheme({ paletteSize: themePaletteSize, seriesCount: 1 });
+if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
+  const themeObserver = new MutationObserver(() => {
+    applyDiagramTheme({ paletteSize: Math.max(1, themePaletteSize), seriesCount: series2Enabled ? 2 : 1 });
+  });
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme-profile'] });
+}
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
 btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => downloadSVG(svg, 'diagram.svg'));
@@ -288,6 +435,9 @@ function initFromCfg() {
   CFG.valueDisplay = sanitizeValueDisplay(CFG.valueDisplay);
   CFG.pieLabelPosition = sanitizePieLabelPosition(CFG.pieLabelPosition);
   N = CFG.labels.length;
+  const activeSeriesCount = series2Enabled && CFG.type !== 'pie' ? 2 : 1;
+  themePaletteSize = Math.max(1, N);
+  applyDiagramTheme({ paletteSize: themePaletteSize, seriesCount: activeSeriesCount });
   xBand = innerW / N;
   barW = xBand * 0.6;
   const allVals = [...CFG.start, ...(CFG.start2 || []), ...(CFG.answer || []), ...(CFG.answer2 || [])];
@@ -705,7 +855,7 @@ function drawPie(displayMode) {
       y2: cy + radius * Math.sin(startAngle),
       class: 'pie-divider'
     });
-    const colorClass = 'pie-slice-' + (i % PIE_COLORS.length);
+    const colorClass = 'pie-slice-' + (i % PIE_COLOR_CLASS_COUNT);
     const lockedCls = locked[i] ? ' locked' : '';
     const pathData = buildPieSlicePath(cx, cy, radius, startAngle, endAngle);
     const slice = addTo(gBars, 'path', {
