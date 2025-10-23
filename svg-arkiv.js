@@ -513,6 +513,42 @@
     return request;
   }
 
+  function generateArchiveRequestId(entry) {
+    const source =
+      entry && typeof entry === 'object'
+        ? entry.slug || entry.svgSlug || entry.pngSlug || entry.baseName || entry.displayTitle || 'figur'
+        : 'figur';
+    const baseSegment = String(source)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 32);
+    const safeBase = baseSegment || 'figur';
+    const timestampSegment = (() => {
+      try {
+        return Date.now ? Date.now().toString(36) : '';
+      } catch (_) {
+        return '';
+      }
+    })();
+    let randomSegment = '';
+    try {
+      const cryptoApi = typeof globalThis !== 'undefined' ? globalThis.crypto : null;
+      if (cryptoApi && typeof cryptoApi.getRandomValues === 'function') {
+        const buffer = new Uint32Array(2);
+        cryptoApi.getRandomValues(buffer);
+        randomSegment = Array.from(buffer)
+          .map(value => value.toString(36))
+          .join('')
+          .slice(0, 16);
+      }
+    } catch (_) {}
+    if (!randomSegment) {
+      randomSegment = Math.random().toString(36).slice(2, 10);
+    }
+    return [safeBase, timestampSegment, randomSegment].filter(Boolean).join('-');
+  }
+
   function resolveToolOpenTarget(toolName) {
     if (typeof toolName !== 'string') {
       return null;
@@ -1808,9 +1844,12 @@
           const slug = entry.slug || entry.svgSlug || entry.baseName || '';
           const title = entry.displayTitle || entry.title || entry.baseName || slug || 'Figur';
           const toolLabel = (entry.tool && entry.tool.trim()) || targetConfig.displayName || 'verktøyet';
+          const requestId = generateArchiveRequestId(entry);
 
           const openRequest = {
-            id: slug || entry.svgSlug || entry.pngSlug || undefined,
+            id: requestId,
+            requestId,
+            referenceId: requestId,
             slug,
             title,
             tool: entry.tool || targetConfig.displayName,
