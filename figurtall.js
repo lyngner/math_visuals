@@ -143,6 +143,14 @@
     if (!Array.isArray(STATE.figures)) return -1;
     return STATE.figures.length - 1;
   }
+  function hasGridSolution() {
+    if (!STATE.lastFigureIsAnswer) return false;
+    const lastIndex = getLastFigureIndex();
+    if (lastIndex < 0) return false;
+    const figures = Array.isArray(STATE.figures) ? STATE.figures : [];
+    const solutionFig = figures[lastIndex];
+    return getFilledCellCount(solutionFig) > 0;
+  }
   function isTaskModeActive() {
     return currentAppMode === 'task';
   }
@@ -150,7 +158,7 @@
     return STATE.lastFigureIsAnswer && isTaskModeActive() && index === getLastFigureIndex();
   }
   function ensureTaskStudentCells(preserveExisting = true) {
-    if (!STATE.lastFigureIsAnswer) {
+    if (!STATE.lastFigureIsAnswer || !hasGridSolution()) {
       taskStudentCells = null;
       return null;
     }
@@ -637,7 +645,7 @@
     if (!taskCheckHost) return;
     const normalized = typeof mode === 'string' ? mode.toLowerCase() : '';
     const isTaskMode = normalized === 'task';
-    const shouldShow = isTaskMode && STATE.lastFigureIsAnswer;
+    const shouldShow = isTaskMode && STATE.lastFigureIsAnswer && hasGridSolution();
     if (shouldShow) {
       ensureTaskControlsHost();
       taskCheckHost.hidden = false;
@@ -670,6 +678,7 @@
   }
   function evaluateStudentAnswer() {
     if (!STATE.lastFigureIsAnswer) return null;
+    if (!hasGridSolution()) return null;
     const lastIndex = getLastFigureIndex();
     if (lastIndex < 0) return null;
     const solutionFig = Array.isArray(STATE.figures) ? STATE.figures[lastIndex] : null;
