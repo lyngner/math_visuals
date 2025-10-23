@@ -205,9 +205,180 @@ const CONFIG = {
   showCombinedWholeVertical: false,
   rowLabels: [],
   rowGap: DEFAULT_ROW_GAP,
+  variable1: '',
+  variable2: '',
+  showSum: false,
   altText: '',
   altTextSource: 'auto'
 };
+const dimensionState = {
+  rowTotals: [],
+  columnTotals: [],
+  rowTokens: [],
+  columnTokens: []
+};
+function sanitizeVariableName(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return trimmed.replace(/\s+/g, '').replace(/[^0-9A-Za-zÆØÅæøå]/g, '');
+}
+
+function isNumericLabel(label) {
+  if (typeof label !== 'string') return false;
+  const normalized = label.trim();
+  if (!normalized) return false;
+  return /^[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(normalized);
+}
+
+function getVariableToken(label) {
+  if (typeof label !== 'string') return '';
+  const normalized = label.trim();
+  if (!normalized || isNumericLabel(normalized)) return '';
+  return normalized;
+}
+
+function getVariableName(index) {
+  const key = index === 1 ? 'variable1' : 'variable2';
+  const value = CONFIG[key];
+  if (typeof value !== 'string') return '';
+  const normalized = value.trim();
+  return normalized;
+}
+
+function createColumnToken(index, totalValue) {
+  const primary = getVariableName(1);
+  const secondary = getVariableName(2);
+  if (index === 0 && primary) return primary;
+  if (index === 1 && secondary) return secondary;
+  if (Number.isFinite(totalValue)) return fmt(totalValue);
+  return '';
+}
+
+function createRowToken(index, totalValue) {
+  const primary = getVariableName(1);
+  const secondary = getVariableName(2);
+  if (index === 0 && secondary) return secondary;
+  if (index === 1 && primary) return primary;
+  if (Number.isFinite(totalValue)) return fmt(totalValue);
+  return '';
+}
+
+function computeDimensionData() {
+  const rows = Math.max(0, Math.round(Number(CONFIG.rows) || 0));
+  const cols = Math.max(0, Math.round(Number(CONFIG.cols) || 0));
+  const rowTotals = Array.from({ length: rows }, () => 0);
+  const columnTotals = Array.from({ length: cols }, () => 0);
+  const columnSeen = Array.from({ length: cols }, () => false);
+  if (Array.isArray(CONFIG.blocks)) {
+    for (let r = 0; r < rows; r++) {
+      const row = Array.isArray(CONFIG.blocks[r]) ? CONFIG.blocks[r] : [];
+      for (let c = 0; c < cols; c++) {
+        const cfg = row[c];
+        if (!cfg) continue;
+        const total = Number(cfg.total);
+        if (!Number.isFinite(total)) continue;
+        rowTotals[r] += total;
+        if (!columnSeen[c]) {
+          columnTotals[c] = total;
+          columnSeen[c] = true;
+        }
+      }
+    }
+  }
+  const rowTokens = rowTotals.map((total, index) => createRowToken(index, total));
+  const columnTokens = columnTotals.map((total, index) => createColumnToken(index, total));
+  return {
+    rowTotals,
+    columnTotals,
+    rowTokens,
+    columnTokens
+  };
+}
+
+function updateDimensionState(data) {
+  dimensionState.rowTotals = Array.isArray(data === null || data === void 0 ? void 0 : data.rowTotals) ? data.rowTotals.slice() : [];
+  dimensionState.columnTotals = Array.isArray(data === null || data === void 0 ? void 0 : data.columnTotals) ? data.columnTotals.slice() : [];
+  dimensionState.rowTokens = Array.isArray(data === null || data === void 0 ? void 0 : data.rowTokens) ? data.rowTokens.slice() : [];
+  dimensionState.columnTokens = Array.isArray(data === null || data === void 0 ? void 0 : data.columnTokens) ? data.columnTokens.slice() : [];
+}
+
+function getColumnToken(index, data = dimensionState) {
+  if (!data || !Array.isArray(data.columnTokens)) return '';
+  const token = data.columnTokens[index];
+  return typeof token === 'string' ? token : '';
+}
+
+function getRowToken(index, data = dimensionState) {
+  if (!data || !Array.isArray(data.rowTokens)) return '';
+  const token = data.rowTokens[index];
+  return typeof token === 'string' ? token : '';
+}
+
+function formatProductLabel(rowToken, columnToken) {
+  const rowVar = getVariableToken(rowToken);
+  const colVar = getVariableToken(columnToken);
+  if (rowVar && colVar) {
+    if (rowVar === colVar) return `${rowVar}\u00B2`;
+    return `${rowVar}${colVar}`;
+  }
+  if (colVar) return colVar;
+  if (rowVar) return rowVar;
+  return '';
+}
+
+function orderVerticalSumTokens(tokens) {
+  if (!Array.isArray(tokens) || tokens.length <= 1) return tokens || [];
+  const primary = getVariableName(1);
+  const secondary = getVariableName(2);
+  const prioritized = [];
+  const remaining = [];
+  tokens.forEach((token, index) => {
+    const variable = getVariableToken(token);
+    if (primary && variable === primary) {
+      prioritized.push({ token, index, priority: 0 });
+    } else if (secondary && variable === secondary) {
+      prioritized.push({ token, index, priority: 1 });
+    } else {
+      remaining.push({ token, index, priority: 2 });
+    }
+  });
+  prioritized.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return a.index - b.index;
+  });
+  return [...prioritized, ...remaining].map(entry => entry.token);
+}
+
+function getSumTokens(orientation, data = dimensionState) {
+  if (!data) return [];
+  const source = orientation === 'vertical' ? data.rowTokens : data.columnTokens;
+  if (!Array.isArray(source)) return [];
+  const filtered = source
+    .map(token => (typeof token === 'string' ? token.trim() : ''))
+    .filter(Boolean);
+  if (!filtered.length) return [];
+  if (orientation === 'vertical') return orderVerticalSumTokens(filtered);
+  return filtered;
+}
+
+function getSumLabel(orientation, data = dimensionState) {
+  const tokens = getSumTokens(orientation, data);
+  if (tokens.length) {
+    return tokens.join(' + ');
+  }
+  const total = getCombinedTotal();
+  return Number.isFinite(total) ? fmt(total) : '';
+}
+
+function getBlockTotalLabel(block) {
+  const columnToken = getColumnToken(block === null || block === void 0 ? void 0 : block.col);
+  if (columnToken) return columnToken;
+  const cfg = block === null || block === void 0 ? void 0 : block.cfg;
+  const total = Number(cfg === null || cfg === void 0 ? void 0 : cfg.total);
+  return Number.isFinite(total) ? fmt(total) : '';
+}
+
 const VBW = 900;
 const VBH = 420;
 const SIDE_MARGIN_RATIO = 0;
@@ -335,7 +506,11 @@ const globalControls = {
   vertical: null,
   verticalRow: null,
   rowLabelInputs: [],
-  rowGapInput: null
+  rowGapInput: null,
+  variable1Input: null,
+  variable2Input: null,
+  showSumInput: null,
+  showSumRow: null
 };
 
 function sanitizeRowGap(value) {
@@ -380,6 +555,9 @@ function collectTenkeblokkerAltSummary() {
     const value = Array.isArray(CONFIG.rowLabels) && typeof CONFIG.rowLabels[idx] === 'string' ? CONFIG.rowLabels[idx].trim() : '';
     return value;
   });
+  const dimensionData = computeDimensionData();
+  const horizontalSum = CONFIG.showSum ? getSumLabel('horizontal', dimensionData) : '';
+  const verticalSum = CONFIG.showSum ? getSumLabel('vertical', dimensionData) : '';
   const blocks = [];
   if (Array.isArray(CONFIG.blocks)) {
     for (let r = 0; r < rows; r++) {
@@ -410,8 +588,13 @@ function collectTenkeblokkerAltSummary() {
     rows,
     cols,
     rowLabels,
+    showSum: !!CONFIG.showSum,
     showCombinedWhole: !!CONFIG.showCombinedWhole,
     showCombinedWholeVertical: !!CONFIG.showCombinedWholeVertical,
+    variable1: getVariableName(1),
+    variable2: getVariableName(2),
+    sumHorizontal: horizontalSum,
+    sumVertical: verticalSum,
     blocks
   };
 }
@@ -479,6 +662,20 @@ function buildTenkeblokkerAltText(summary) {
   if (blockCount > 1 && data.showCombinedWholeVertical) totalParts.push('en vertikal parentes som viser totalen');
   if (totalParts.length) {
     sentences.push(`Totalverdien vises med ${joinWithOg(totalParts)}.`);
+  }
+  if (data.showSum) {
+    const sumParts = [];
+    if (typeof data.sumHorizontal === 'string' && data.sumHorizontal.trim()) {
+      sumParts.push(`horisontal sum «${data.sumHorizontal.trim()}»`);
+    }
+    if (typeof data.sumVertical === 'string' && data.sumVertical.trim()) {
+      sumParts.push(`vertikal sum «${data.sumVertical.trim()}»`);
+    }
+    if (sumParts.length) {
+      sentences.push(`Summen vises som ${joinWithOg(sumParts)}.`);
+    } else {
+      sentences.push('Summen vises med en parentes.');
+    }
   }
   const blockParts = visibleBlocks.map(block => {
     const rowText = block.rowLabel ? `rad ${block.row + 1} («${block.rowLabel}») ` : `rad ${block.row + 1} `;
@@ -961,6 +1158,9 @@ function normalizeConfig(initial = false) {
   CONFIG.rowLabels = normalizedRowLabels;
   CONFIG.showCombinedWhole = toBoolean(CONFIG.showCombinedWhole, false);
   CONFIG.showCombinedWholeVertical = toBoolean(CONFIG.showCombinedWholeVertical, false);
+  CONFIG.showSum = toBoolean(CONFIG.showSum, false);
+  CONFIG.variable1 = sanitizeVariableName(CONFIG.variable1);
+  CONFIG.variable2 = sanitizeVariableName(CONFIG.variable2);
   CONFIG.rowGap = sanitizeRowGap(CONFIG.rowGap);
   const rowsChanged = Number.isFinite(previousRows) && previousRows !== rows;
   const colsChanged = Number.isFinite(previousCols) && previousCols !== cols;
@@ -1020,6 +1220,10 @@ function buildGlobalSettings(targetFragment) {
   globalControls.verticalRow = null;
   globalControls.rowLabelInputs = [];
   globalControls.rowGapInput = null;
+  globalControls.variable1Input = null;
+  globalControls.variable2Input = null;
+  globalControls.showSumInput = null;
+  globalControls.showSumRow = null;
   const fieldset = document.createElement('fieldset');
   fieldset.className = 'tb-settings-global';
   const legend = document.createElement('legend');
@@ -1048,6 +1252,39 @@ function buildGlobalSettings(targetFragment) {
     }
     fieldset.appendChild(labelWrapper);
   }
+  const variableWrapper = document.createElement('div');
+  variableWrapper.className = 'tb-row-label-inputs tb-variable-inputs';
+  const variable1Label = document.createElement('label');
+  variable1Label.textContent = 'Variabel 1';
+  const variable1Input = document.createElement('input');
+  variable1Input.type = 'text';
+  variable1Input.placeholder = 'f.eks. x';
+  variable1Input.value = typeof CONFIG.variable1 === 'string' ? CONFIG.variable1 : '';
+  variable1Input.addEventListener('input', () => {
+    const sanitized = sanitizeVariableName(variable1Input.value);
+    CONFIG.variable1 = sanitized;
+    if (variable1Input.value !== sanitized) variable1Input.value = sanitized;
+    draw(true);
+  });
+  variable1Label.appendChild(variable1Input);
+  variableWrapper.appendChild(variable1Label);
+  const variable2Label = document.createElement('label');
+  variable2Label.textContent = 'Variabel 2';
+  const variable2Input = document.createElement('input');
+  variable2Input.type = 'text';
+  variable2Input.placeholder = 'f.eks. y';
+  variable2Input.value = typeof CONFIG.variable2 === 'string' ? CONFIG.variable2 : '';
+  variable2Input.addEventListener('input', () => {
+    const sanitized = sanitizeVariableName(variable2Input.value);
+    CONFIG.variable2 = sanitized;
+    if (variable2Input.value !== sanitized) variable2Input.value = sanitized;
+    draw(true);
+  });
+  variable2Label.appendChild(variable2Input);
+  variableWrapper.appendChild(variable2Label);
+  fieldset.appendChild(variableWrapper);
+  globalControls.variable1Input = variable1Input;
+  globalControls.variable2Input = variable2Input;
   if (rowCount > 1) {
     const gapLabel = document.createElement('label');
     gapLabel.textContent = 'Mellomrom mellom blokker';
@@ -1076,6 +1313,22 @@ function buildGlobalSettings(targetFragment) {
     fieldset.appendChild(gapLabel);
     globalControls.rowGapInput = gapInput;
   }
+  const showSumRow = document.createElement('div');
+  showSumRow.className = 'checkbox-row';
+  const showSumInput = document.createElement('input');
+  showSumInput.type = 'checkbox';
+  showSumInput.id = 'tb-global-show-sum';
+  showSumInput.addEventListener('change', () => {
+    CONFIG.showSum = !!showSumInput.checked;
+    draw(true);
+  });
+  const showSumLabel = document.createElement('label');
+  showSumLabel.setAttribute('for', showSumInput.id);
+  showSumLabel.textContent = 'Vis sum';
+  showSumRow.append(showSumInput, showSumLabel);
+  fieldset.appendChild(showSumRow);
+  globalControls.showSumInput = showSumInput;
+  globalControls.showSumRow = showSumRow;
   const horizontalRow = document.createElement('div');
   horizontalRow.className = 'checkbox-row';
   const horizontalInput = document.createElement('input');
@@ -1120,6 +1373,8 @@ function draw(skipNormalization = false) {
       return;
     }
   }
+  const dimensionData = computeDimensionData();
+  updateDimensionState(dimensionData);
   if (grid) grid.setAttribute('data-cols', String(CONFIG.cols));
   if (settingsContainer) {
     const parsedColsForSettings = Number(CONFIG.cols);
@@ -1144,6 +1399,21 @@ function draw(skipNormalization = false) {
     if (globalControls.rowGapInput.value !== desiredGap) {
       globalControls.rowGapInput.value = desiredGap;
     }
+  }
+  if (globalControls.variable1Input) {
+    const desiredVar1 = typeof CONFIG.variable1 === 'string' ? CONFIG.variable1 : '';
+    if (globalControls.variable1Input.value !== desiredVar1) {
+      globalControls.variable1Input.value = desiredVar1;
+    }
+  }
+  if (globalControls.variable2Input) {
+    const desiredVar2 = typeof CONFIG.variable2 === 'string' ? CONFIG.variable2 : '';
+    if (globalControls.variable2Input.value !== desiredVar2) {
+      globalControls.variable2Input.value = desiredVar2;
+    }
+  }
+  if (globalControls.showSumInput) {
+    globalControls.showSumInput.checked = !!CONFIG.showSum;
   }
   let maxLabelWidth = 0;
   let needsFrontPadding = false;
@@ -1189,9 +1459,7 @@ function draw(skipNormalization = false) {
       grid.style.setProperty('--tb-grid-padding-left', `${paddingLeft}px`);
     }
   }
-  const rowTotals = Array.from({
-    length: CONFIG.rows
-  }, () => 0);
+  const rowTotals = Array.isArray(dimensionState.rowTotals) ? dimensionState.rowTotals : [];
   const visibleBlocks = [];
   let visibleBlockCount = 0;
   for (const block of BLOCKS) {
@@ -1202,10 +1470,6 @@ function draw(skipNormalization = false) {
     block.index = block.row * CONFIG.cols + block.col;
     visibleBlocks.push(block);
     if (!cfg.hideBlock) visibleBlockCount += 1;
-    const totalValue = Number(cfg.total);
-    if (Number.isFinite(totalValue) && totalValue > 0 && rowTotals[block.row] !== undefined) {
-      rowTotals[block.row] += totalValue;
-    }
   }
   CONFIG.visibleBlockCount = visibleBlockCount;
   const activeCount = getEffectiveActiveBlockCount();
@@ -1217,29 +1481,45 @@ function draw(skipNormalization = false) {
   const hasMultipleRows = Number.isFinite(parsedRows) && parsedRows > 1;
   const horizontalAvailable = multiple && hasMultipleCols;
   const verticalAvailable = multiple && hasMultipleRows;
+  const sumActive = CONFIG.showSum === true;
   if (globalControls.horizontal) {
-    globalControls.horizontal.disabled = !horizontalAvailable;
-    if (!horizontalAvailable) {
-      globalControls.horizontal.checked = false;
-      CONFIG.showCombinedWhole = false;
+    const disableHorizontal = !horizontalAvailable || sumActive;
+    globalControls.horizontal.disabled = disableHorizontal;
+    if (disableHorizontal) {
+      if (!horizontalAvailable) {
+        globalControls.horizontal.checked = false;
+        CONFIG.showCombinedWhole = false;
+      } else {
+        globalControls.horizontal.checked = true;
+      }
     } else {
       globalControls.horizontal.checked = !!CONFIG.showCombinedWhole;
     }
   }
   if (globalControls.horizontalRow) {
-    globalControls.horizontalRow.classList.toggle('is-disabled', !horizontalAvailable);
+    globalControls.horizontalRow.classList.toggle('is-disabled', !horizontalAvailable || sumActive);
   }
   if (globalControls.vertical) {
-    globalControls.vertical.disabled = !verticalAvailable;
-    if (!verticalAvailable) {
-      globalControls.vertical.checked = false;
-      CONFIG.showCombinedWholeVertical = false;
+    const disableVertical = !verticalAvailable || sumActive;
+    globalControls.vertical.disabled = disableVertical;
+    if (disableVertical) {
+      if (!verticalAvailable) {
+        globalControls.vertical.checked = false;
+        CONFIG.showCombinedWholeVertical = false;
+      } else {
+        globalControls.vertical.checked = true;
+      }
     } else {
       globalControls.vertical.checked = !!CONFIG.showCombinedWholeVertical;
     }
   }
   if (globalControls.verticalRow) {
-    globalControls.verticalRow.classList.toggle('is-disabled', !verticalAvailable);
+    globalControls.verticalRow.classList.toggle('is-disabled', !verticalAvailable || sumActive);
+  }
+  if (globalControls.showSumRow) {
+    const sumAvailable = horizontalAvailable || verticalAvailable || CONFIG.rows * CONFIG.cols > 0;
+    globalControls.showSumRow.classList.toggle('is-disabled', !sumAvailable);
+    if (globalControls.showSumInput) globalControls.showSumInput.disabled = !sumAvailable;
   }
   let uniformRowHeight = DEFAULT_SVG_HEIGHT;
   let maxRequiredHeight = DEFAULT_SVG_HEIGHT;
@@ -1725,7 +2005,7 @@ function drawBlock(block) {
   if (block.totalText) {
     block.totalText.setAttribute('x', centerX);
     block.totalText.setAttribute('y', braceY - labelOffsetY);
-    block.totalText.textContent = fmt(cfg.total);
+    block.totalText.textContent = getBlockTotalLabel(block);
   }
   if (block.legend) {
     block.legend.textContent = `Tenkeblokk ${block.index + 1}`;
@@ -1833,6 +2113,10 @@ function drawBlock(block) {
     const displayMode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
     const per = cfg.n ? cfg.total / cfg.n : 0;
     const percentValue = cfg.n ? 100 / cfg.n : 0;
+    const rowToken = getRowToken(block.row);
+    const columnToken = getColumnToken(block.col);
+    const segmentVariableLabel = formatProductLabel(rowToken, columnToken);
+    const useVariableLabel = displayMode === 'number' && !!segmentVariableLabel;
     for (let i = 0; i < cfg.n; i++) {
       const cx = left + (i + 0.5) * cellW;
       const cy = top + innerHeight / 2;
@@ -1843,6 +2127,15 @@ function drawBlock(block) {
           class: 'tb-val'
         });
         text.textContent = customLabel;
+        continue;
+      }
+      if (useVariableLabel) {
+        const text = createSvgElement(block.gVals, 'text', {
+          x: cx,
+          y: cy,
+          class: 'tb-val'
+        });
+        text.textContent = segmentVariableLabel;
         continue;
       }
       if (displayMode === 'fraction') {
@@ -1970,7 +2263,8 @@ function drawCombinedWholeOverlayHorizontal() {
   const overlay = combinedWholeOverlays.horizontal;
   if (!(overlay !== null && overlay !== void 0 && overlay.svg) || !board) return;
   const activeCount = getEffectiveActiveBlockCount();
-  const canShow = activeCount > 1 && CONFIG.showCombinedWhole;
+  const sumActive = CONFIG.showSum === true;
+  const canShow = sumActive ? activeCount > 0 : activeCount > 1 && CONFIG.showCombinedWhole;
   if (!canShow) {
     overlay.svg.style.display = 'none';
     if (grid) grid.style.removeProperty('--tb-grid-padding-top');
@@ -2023,8 +2317,11 @@ function drawCombinedWholeOverlayHorizontal() {
     overlay.text.setAttribute('y', braceStartY - labelOffsetY);
     overlay.text.setAttribute('text-anchor', 'middle');
     overlay.text.removeAttribute('dominant-baseline');
-    const total = getCombinedTotal();
-    overlay.text.textContent = Number.isFinite(total) ? fmt(total) : '';
+    const label = sumActive ? getSumLabel('horizontal') : (() => {
+      const total = getCombinedTotal();
+      return Number.isFinite(total) ? fmt(total) : '';
+    })();
+    overlay.text.textContent = label;
   }
 }
 
@@ -2032,7 +2329,8 @@ function drawCombinedWholeOverlayVertical() {
   const overlay = combinedWholeOverlays.vertical;
   if (!(overlay !== null && overlay !== void 0 && overlay.svg) || !board) return;
   const activeCount = getEffectiveActiveBlockCount();
-  const canShow = activeCount > 1 && CONFIG.showCombinedWholeVertical;
+  const sumActive = CONFIG.showSum === true;
+  const canShow = sumActive ? activeCount > 0 : activeCount > 1 && CONFIG.showCombinedWholeVertical;
   if (!canShow) {
     overlay.svg.style.display = 'none';
     return;
@@ -2091,8 +2389,11 @@ function drawCombinedWholeOverlayVertical() {
     overlay.text.setAttribute('y', (topInner + bottomInner) / 2);
     overlay.text.setAttribute('text-anchor', 'middle');
     overlay.text.setAttribute('dominant-baseline', 'middle');
-    const total = getCombinedTotal();
-    overlay.text.textContent = Number.isFinite(total) ? fmt(total) : '';
+    const label = sumActive ? getSumLabel('vertical') : (() => {
+      const total = getCombinedTotal();
+      return Number.isFinite(total) ? fmt(total) : '';
+    })();
+    overlay.text.textContent = label;
   }
 }
 function onDragStart(block, event) {
@@ -2481,7 +2782,12 @@ function getExportSvg() {
     return sum + row.height + gap;
   }, 0) || DEFAULT_SVG_HEIGHT;
   const activeCount = getEffectiveActiveBlockCount();
-  const verticalActive = CONFIG.showCombinedWholeVertical && activeCount > 1 && figureWidth > 0;
+  const sumActive = CONFIG.showSum === true;
+  const exportDimension = computeDimensionData();
+  const horizontalSumLabel = sumActive ? getSumLabel('horizontal', exportDimension) : '';
+  const verticalSumLabel = sumActive ? getSumLabel('vertical', exportDimension) : '';
+  const horizontalActive = CONFIG.showCombinedWhole && activeCount > 1 || sumActive && activeCount > 0;
+  const verticalActive = CONFIG.showCombinedWholeVertical && activeCount > 1 && figureWidth > 0 || sumActive && activeCount > 0 && figureWidth > 0;
   const verticalGap = verticalActive ? Math.max(figureWidth * 0.04, 20) : 0;
   const verticalLabelSpace = verticalActive ? Math.max(figureWidth * 0.18, 60) : 0;
   const verticalExtra = verticalActive ? verticalGap + verticalLabelSpace : 0;
@@ -2600,7 +2906,7 @@ function getExportSvg() {
     if (Number.isFinite(minY)) exportTopInner = clamp(minY, 0, contentHeight);
     if (Number.isFinite(maxY)) exportBottomInner = clamp(maxY, exportTopInner, contentHeight);
   }
-  if (CONFIG.showCombinedWhole && activeCount > 1) {
+  if (horizontalActive) {
     const startX = labelSpace;
     const endX = labelSpace + figureWidth;
     const braceGroup = createSvgElement(contentGroup, 'g', {
@@ -2616,9 +2922,10 @@ function getExportSvg() {
       class: 'tb-total',
       'text-anchor': 'middle'
     });
-    totalText.textContent = Number.isFinite(totalValue) ? fmt(totalValue) : '';
+    const label = sumActive ? (horizontalSumLabel || (Number.isFinite(totalValue) ? fmt(totalValue) : '')) : Number.isFinite(totalValue) ? fmt(totalValue) : '';
+    totalText.textContent = label;
   }
-  if (verticalActive && activeCount > 1) {
+  if (verticalActive) {
     const braceGroup = createSvgElement(contentGroup, 'g', {
       class: 'tb-combined-brace'
     });
@@ -2632,7 +2939,8 @@ function getExportSvg() {
       'text-anchor': 'middle'
     });
     verticalText.setAttribute('dominant-baseline', 'middle');
-    verticalText.textContent = Number.isFinite(totalValue) ? fmt(totalValue) : '';
+    const verticalLabel = sumActive ? (verticalSumLabel || (Number.isFinite(totalValue) ? fmt(totalValue) : '')) : Number.isFinite(totalValue) ? fmt(totalValue) : '';
+    verticalText.textContent = verticalLabel;
   }
   return exportSvg;
 }
