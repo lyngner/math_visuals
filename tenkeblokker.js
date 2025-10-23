@@ -27,6 +27,15 @@ const DEFAULT_BLOCKS = [{
 }];
 const DEFAULT_TENKEBLOKKER_EXAMPLES = [];
 const DISPLAY_OPTIONS = ['number', 'fraction', 'percent'];
+const UNION_BRACE_PATH = 'M716 0C722.627 0 728 5.37258 728 12V18C728 19.1046 727.105 20 726 20C724.895 20 724 19.1046 724 18V12C724 7.58173 720.418 4.00001 716 4H12C7.58172 4 4 7.58172 4 12V18C4 19.1046 3.10457 20 2 20C0.895431 20 0 19.1046 0 18V12C0 5.37258 5.37258 0 12 0H716Z';
+const UNION_BRACE_BOUNDS = Object.freeze({
+  left: 12,
+  right: 716,
+  top: 4,
+  bottom: 20
+});
+const UNION_BRACE_INNER_WIDTH = UNION_BRACE_BOUNDS.right - UNION_BRACE_BOUNDS.left;
+const UNION_BRACE_INNER_HEIGHT = UNION_BRACE_BOUNDS.bottom - UNION_BRACE_BOUNDS.top;
 function sanitizeDisplayMode(value) {
   if (typeof value !== 'string') return null;
   const normalized = value.trim().toLowerCase();
@@ -2250,14 +2259,32 @@ function clientToSvg(svgEl, clientX, clientY) {
 function drawBracketSquare(group, x0, x1, y, tick) {
   const path = getOrCreateBracePath(group);
   if (!path) return;
-  const d = [`M ${x0} ${y}`, `v ${tick}`, `M ${x0} ${y}`, `H ${x1}`, `M ${x1} ${y}`, `v ${tick}`].join(' ');
-  path.setAttribute('d', d);
+  const width = Number.isFinite(x1 - x0) ? x1 - x0 : 0;
+  const clampedWidth = Math.max(0, width);
+  const clampedTick = Math.max(0, Number.isFinite(tick) ? tick : 0);
+  if (!(clampedWidth > 0) || !(clampedTick > 0)) {
+    path.removeAttribute('d');
+    path.removeAttribute('transform');
+    if (path.classList) path.classList.remove('tb-brace--union');
+    return;
+  }
+  const innerWidth = UNION_BRACE_INNER_WIDTH || 1;
+  const innerHeight = UNION_BRACE_INNER_HEIGHT || 1;
+  const scaleX = clampedWidth / innerWidth;
+  const scaleY = clampedTick / innerHeight;
+  const translateX = x0 - UNION_BRACE_BOUNDS.left * scaleX;
+  const translateY = y - UNION_BRACE_BOUNDS.top * scaleY;
+  path.setAttribute('d', UNION_BRACE_PATH);
+  path.setAttribute('transform', `translate(${translateX} ${translateY}) scale(${scaleX} ${scaleY})`);
+  if (path.classList) path.classList.add('tb-brace--union');
 }
 function drawVerticalBracketSquare(group, y0, y1, x, tick) {
   const path = getOrCreateBracePath(group);
   if (!path) return;
   const clampedTick = Math.max(0, Math.min(tick, x));
   const d = [`M ${x} ${y0}`, `h ${-clampedTick}`, `M ${x} ${y0}`, `V ${y1}`, `M ${x} ${y1}`, `h ${-clampedTick}`].join(' ');
+  if (path.classList) path.classList.remove('tb-brace--union');
+  path.removeAttribute('transform');
   path.setAttribute('d', d);
 }
 function getOrCreateBracePath(group) {
