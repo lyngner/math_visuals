@@ -18,6 +18,9 @@ const LEGACY_PIZZA_COLORS = {
   handle: '#e9e6f7',
   handleStroke: '#333333'
 };
+const DRAG_HANDLE_ICON = 'images/draggable.svg';
+const DRAG_HANDLE_SIZE = 36;
+const XLINK_NS = 'http://www.w3.org/1999/xlink';
 function getThemeApi() {
   const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
   return theme && typeof theme === 'object' ? theme : null;
@@ -284,10 +287,31 @@ const PIZZA_DOM = [{
 }];
 const TAU = Math.PI * 2;
 const norm = a => (a % TAU + TAU) % TAU;
+const applySvgAttributes = (el, attrs = {}) => {
+  if (!el || !attrs || typeof attrs !== 'object') return;
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value === undefined || value === null) continue;
+    if (key === 'href' || key === 'xlink:href') {
+      el.setAttribute('href', value);
+      el.setAttributeNS(XLINK_NS, 'href', value);
+      continue;
+    }
+    el.setAttribute(key, value);
+  }
+};
 const mk = (n, a = {}) => {
-  const e = document.createElementNS("http://www.w3.org/2000/svg", n);
-  for (const [k, v] of Object.entries(a)) e.setAttribute(k, v);
+  const e = document.createElementNS('http://www.w3.org/2000/svg', n);
+  applySvgAttributes(e, a);
   return e;
+};
+const positionHandleIcon = (handle, cx, cy) => {
+  if (!handle) return;
+  const sizeAttr = handle.getAttribute('data-handle-size');
+  const parsed = sizeAttr ? Number.parseFloat(sizeAttr) : NaN;
+  const size = Number.isFinite(parsed) ? parsed : DRAG_HANDLE_SIZE;
+  const half = size / 2;
+  handle.setAttribute('x', cx - half);
+  handle.setAttribute('y', cy - half);
 };
 const arcPath = (r, a0, a1) => {
   const raw = a1 - a0,
@@ -542,11 +566,18 @@ class Pizza {
     this.gLinesBlack.setAttribute("clip-path", `url(#${this.clipEmptyId})`);
 
     // Handle + a11y
-    this.handle = mk("circle", {
-      r: 10,
-      class: "handle",
-      tabindex: -1
+    this.handle = mk('image', {
+      href: DRAG_HANDLE_ICON,
+      width: DRAG_HANDLE_SIZE,
+      height: DRAG_HANDLE_SIZE,
+      class: 'handle',
+      tabindex: -1,
+      'data-handle-size': DRAG_HANDLE_SIZE,
+      draggable: 'false',
+      focusable: 'false',
+      preserveAspectRatio: 'xMidYMid meet'
     });
+    positionHandleIcon(this.handle, 0, 0);
     this.gHandle.appendChild(this.handle);
     this.slider = mk("circle", {
       cx: 0,
@@ -573,7 +604,8 @@ class Pizza {
       this.slider.setAttribute("aria-disabled", "true");
     } else {
       this.slider.setAttribute("aria-disabled", cfg.lockNumerator ? "true" : "false");
-      if (cfg.lockNumerator) this.handle.style.cursor = "default";
+      this.handle.style.cursor = cfg.lockNumerator ? 'default' : 'grab';
+      if (cfg.lockNumerator) this.handle.classList.remove('is-grabbing');
     }
 
     // Stepper synlighet
@@ -590,18 +622,33 @@ class Pizza {
       if (cfg.lockDenominator) return;
       this.setN(this.n + this.cfg.stepN);
     });
-    this.handle.addEventListener("pointerdown", e => {
+    this.handle.addEventListener('pointerdown', e => {
       if (cfg.lockNumerator || this.fullyLocked) return;
       this._dragging = true;
-      this.handle.setPointerCapture(e.pointerId);
+      this.handle.classList.add('is-grabbing');
+      if (typeof this.handle.setPointerCapture === 'function') {
+        try {
+          this.handle.setPointerCapture(e.pointerId);
+        } catch (_) {}
+      }
     });
-    this.handle.addEventListener("pointerup", e => {
+    this.handle.addEventListener('pointerup', e => {
       if (cfg.lockNumerator || this.fullyLocked) return;
       this._dragging = false;
-      this.handle.releasePointerCapture(e.pointerId);
+      this.handle.classList.remove('is-grabbing');
+      if (typeof this.handle.releasePointerCapture === 'function') {
+        try {
+          this.handle.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+      }
+    });
+    this.handle.addEventListener('pointercancel', () => {
+      this._dragging = false;
+      this.handle.classList.remove('is-grabbing');
     });
     this.svg.addEventListener("pointerleave", () => {
       this._dragging = false;
+      this.handle.classList.remove('is-grabbing');
     });
     this.svg.addEventListener("pointermove", e => {
       if (!this._dragging || cfg.lockNumerator || this.fullyLocked) return;
@@ -791,8 +838,9 @@ class Pizza {
       this.gHandle.style.display = "none";
     } else {
       this.gHandle.style.display = "";
-      this.handle.setAttribute("cx", this.R * Math.cos(this.theta));
-      this.handle.setAttribute("cy", this.R * Math.sin(this.theta));
+      const hx = this.R * Math.cos(this.theta);
+      const hy = this.R * Math.sin(this.theta);
+      positionHandleIcon(this.handle, hx, hy);
     }
     this._updateAria();
     this._updateTextAbove();
@@ -807,15 +855,14 @@ function getExportSvgStyle() {
   const fill = getThemeColor('pizza.fill', LEGACY_PIZZA_COLORS.fill);
   const rim = getThemeColor('pizza.rim', LEGACY_PIZZA_COLORS.rim);
   const dash = getThemeColor('pizza.dash', LEGACY_PIZZA_COLORS.dash);
-  const handleFill = getThemeColor('pizza.handle', LEGACY_PIZZA_COLORS.handle);
-  const handleStroke = getThemeColor('pizza.handleStroke', LEGACY_PIZZA_COLORS.handleStroke || rim);
   return `
 .rim{fill:none;stroke:${rim};stroke-width:6}
 .sector{stroke:#fff;stroke-width:6}
 .sector-fill{fill:${fill}}
 .sector-empty{fill:#fff}
 .dash{stroke:${dash};stroke-dasharray:4 4;stroke-width:2}
-.handle{fill:${handleFill};stroke:${handleStroke};stroke-width:2;cursor:pointer}
+.handle{cursor:grab}
+.handle.is-grabbing{cursor:grabbing}
 .a11y:focus{outline:none;stroke:#1e88e5;stroke-width:3}
 .btn{fill:#fff;stroke:#cfcfcf;stroke-width:1;cursor:pointer}
 .btnLabel{font-size:18px;dominant-baseline:middle;text-anchor:middle;pointer-events:none}
@@ -828,7 +875,11 @@ const INTERACTIVE_SVG_SCRIPT = `
 (function(){
   "use strict";
   var root=document.currentScript.parentNode, TAU=Math.PI*2;
-  function el(n,a){var e=document.createElementNS("http://www.w3.org/2000/svg",n); for(var k in a){e.setAttribute(k,a[k]);} return e;}
+  function el(n,a){
+    var e=document.createElementNS("http://www.w3.org/2000/svg",n);
+    if(a) for(var k in a){var v=a[k]; if(v==null) continue; if(k==="href"||k==="xlink:href"){e.setAttributeNS("http://www.w3.org/1999/xlink","href",v); e.setAttribute("href",v);} else {e.setAttribute(k,v);} }
+    return e;
+  }
   function arc(r,a0,a1){var raw=a1-a0,s=((raw%TAU)+TAU)%TAU,full=Math.abs(s)<1e-6&&Math.abs(raw)>1e-6;
     if(full) return "M "+r+" 0 A "+r+" "+r+" 0 1 1 "+(-r)+" 0 A "+r+" "+r+" 0 1 1 "+r+" 0 Z";
     var sw=1,lg=s>Math.PI?1:0,x0=r*Math.cos(a0),y0=r*Math.sin(a0),x1=r*Math.cos(a1),y1=r*Math.sin(a1);
@@ -842,6 +893,7 @@ const INTERACTIVE_SVG_SCRIPT = `
   var n=+root.getAttribute("data-n")||10, k=+root.getAttribute("data-k")||0, R=+root.getAttribute("data-r")||180;
   var showNVal=root.getAttribute("data-show-nval")!=="0";
 
+  var HANDLE_SIZE=${DRAG_HANDLE_SIZE};
   var fill=root.querySelector('[data-role="fill"]')||root.querySelectorAll("g")[0];
   var linesB=root.querySelector('[data-role="linesB"]')||el("g",{}); if(!linesB.parentNode) root.appendChild(linesB);
   var linesW=root.querySelector('[data-role="linesW"]')||el("g",{}); if(!linesW.parentNode) root.appendChild(linesW);
@@ -850,8 +902,11 @@ const INTERACTIVE_SVG_SCRIPT = `
   var clipFilled=root.querySelector('clipPath[id$="clipFilled"]');
   var clipEmpty=root.querySelector('clipPath[id$="clipEmpty"]');
 
-  function setHandle(a){ if(!handle){ handle=el("circle",{r:10,"class":"handle"}); root.appendChild(handle); }
-    handle.setAttribute("cx",R*Math.cos(a)); handle.setAttribute("cy",R*Math.sin(a)); }
+  function setHandle(a){
+    if(!handle){ handle=el("image",{href:"${DRAG_HANDLE_ICON}",width:HANDLE_SIZE,height:HANDLE_SIZE,"class":"handle","data-handle-size":HANDLE_SIZE,draggable:"false",focusable:"false",preserveAspectRatio:"xMidYMid meet"}); root.appendChild(handle); }
+    var x=R*Math.cos(a), y=R*Math.sin(a), half=HANDLE_SIZE/2;
+    handle.setAttribute("x",x-half); handle.setAttribute("y",y-half);
+  }
 
   function rebuildLines(){
     while(linesB.firstChild) linesB.removeChild(linesB.firstChild);
@@ -939,9 +994,10 @@ const INTERACTIVE_SVG_SCRIPT = `
   var dragging=false;
   if(handle){
     handle.setAttribute("tabindex","0");
-    handle.addEventListener("pointerdown",function(e){dragging=true;try{handle.setPointerCapture(e.pointerId);}catch(_){}});
-    handle.addEventListener("pointerup",function(e){dragging=false;try{handle.releasePointerCapture(e.pointerId);}catch(_){}});
-    root.addEventListener("pointerleave",function(){dragging=false;});
+    handle.addEventListener("pointerdown",function(e){dragging=true;handle.classList.add("is-grabbing");try{handle.setPointerCapture(e.pointerId);}catch(_){}});
+    handle.addEventListener("pointerup",function(e){dragging=false;handle.classList.remove("is-grabbing");try{handle.releasePointerCapture(e.pointerId);}catch(_){}});
+    handle.addEventListener("pointercancel",function(){dragging=false;handle.classList.remove("is-grabbing");});
+    root.addEventListener("pointerleave",function(){dragging=false;handle.classList.remove("is-grabbing");});
     root.addEventListener("pointermove",function(e){
       if(!dragging) return;
       var pt=root.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;

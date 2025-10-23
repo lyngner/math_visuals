@@ -115,8 +115,8 @@
 .legendtext{fill:var(--diagram-text-color);font-size:16px}
 
 /* Håndtak */
-.handleShadow{fill:#000;opacity:.14}
-.handle{fill:var(--diagram-handle-fill);stroke:var(--diagram-handle-stroke);stroke-width:2;cursor:pointer}
+.handle{cursor:grab;user-select:none;touch-action:none}
+.handle.is-grabbing{cursor:grabbing}
 
 /* Sektordiagram */
 .pie-slice{stroke:var(--diagram-pie-stroke);stroke-width:2;cursor:pointer}
