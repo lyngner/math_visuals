@@ -269,7 +269,6 @@ function computeDimensionData() {
   const cols = Math.max(0, Math.round(Number(CONFIG.cols) || 0));
   const rowTotals = Array.from({ length: rows }, () => 0);
   const columnTotals = Array.from({ length: cols }, () => 0);
-  const columnSeen = Array.from({ length: cols }, () => false);
   if (Array.isArray(CONFIG.blocks)) {
     for (let r = 0; r < rows; r++) {
       const row = Array.isArray(CONFIG.blocks[r]) ? CONFIG.blocks[r] : [];
@@ -279,10 +278,7 @@ function computeDimensionData() {
         const total = Number(cfg.total);
         if (!Number.isFinite(total)) continue;
         rowTotals[r] += total;
-        if (!columnSeen[c]) {
-          columnTotals[c] = total;
-          columnSeen[c] = true;
-        }
+        columnTotals[c] += total;
       }
     }
   }
