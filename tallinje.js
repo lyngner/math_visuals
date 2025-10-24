@@ -870,7 +870,7 @@
     const items = Array.isArray(STATE.draggableItems) ? STATE.draggableItems : [];
     if (!items.length) return;
     const group = mk('g', { class: 'draggable-items-layer' });
-    items.forEach(item => {
+    items.forEach((item, index) => {
       const node = buildDraggableNode(item, index, geometry);
       if (node) {
         group.appendChild(node);
