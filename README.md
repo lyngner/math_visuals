@@ -2,7 +2,39 @@
 
 Dette repositoriet inneholder statiske verktøy og eksempler for Math Visuals-prosjektet. Verktøyene forventer nå at eksempeltjenesten på `/api/examples` er tilgjengelig i samme opprinnelse.
 
-## Kort forklart: Hvorfor forsvinner eksemplene?
+## Om prosjektet
+
+Math Visuals samler nettbaserte undervisningsressurser som lar elever og lærere utforske matematikk visuelt. Hver app er en statisk HTML/JS-side som kan kjøres direkte fra dette repositoriet, hostes på Vercel eller legges inn i andre læringsplattformer. Mange av verktøyene kan lagre delte eksempler via `api/examples`, mens andre fungerer helt uten backend.
+
+Koden er organisert per verktøy (én HTML-fil med tilhørende JavaScript/CSS), i tillegg til felles komponenter som `base.css`, `router.js` og støttebibliotek i `vendor/`. Dokumentasjon og driftsnotater ligger i `docs/`.
+
+## Verktøy og apper
+
+| Verktøy | Beskrivelse |
+| --- | --- |
+| [Graftegner](graftegner.html) | JSXGraph-basert graftegnebrett for funksjoner, punkter og konstruksjoner på koordinatsystemet. |
+| [nKant](nkant.html) | Generator for regulære polygoner, buer og målinger i én SVG som kan eksporteres til oppgavesett. |
+| [Diagram](diagram/index.html) | Lager stolpe-, linje-, sektor- og gruppediagram med støtte for fasit, oppgavetekst og UU-vennlige visninger. |
+| [Brøkpizza](brøkpizza.html) | Interaktive brøksirkler («pizzaer») der du justerer teller, nevner og sammensetning for å sammenligne brøker. |
+| [Brøkfigurer](brøkfigurer.html) | Bygg egne brøkrepresentasjoner med rutenett og sektorer, fargelag og alternative visninger. |
+| [Figurtall](figurtall.html) | Konfigurerer mønstre av ruter og rader for å illustrere figurtall og generelle mønstre. |
+| [Tenkeblokker](tenkeblokker.html) | Bar-modell-verktøy for å sette opp tenkeblokker med rader, kolonner, tallinjer og tilhørende oppgavetekster. |
+| [Arealmodell](arealmodell.html) | Dynamisk arealmodell for multiplikasjon og prosent, med varianter tilpasset ulike elevnivå. |
+| [Tallinje](tallinje.html) | Tilpassbar tallinje med piler, intervaller, brikker og dra-og-slipp-objekter. |
+| [Perlesnor](perlesnor.html) | Visualiserer en perlesnor med flyttbare klyper, markeringer og tekstbeskrivelser. |
+| [Kuler](kuler.html) | Skaper tellekuler i skål og på perlesnor for å illustrere grupper, tiere og enere. |
+| [Kvikkbilder](kvikkbilder.html) | Lager raske mønstre (ti-rammer, rektangler og «monster»-mønstre) for subitisering og hoderegning. |
+| [3D-figurer](trefigurer.html) | Tegner og beskriver tredimensjonale figurer som prismer, sylindre, kjegler, kuler og pyramider. |
+| [Brøkvegg](brøkvegg.html) | Bygger en brøkvegg med flere rader og alternative visninger for å sammenligne likeverdige brøker. |
+| [Prikk til prikk](prikktilprikk.html) | (Beta) Genererer prikk-til-prikk-oppgaver med tilpassbare rutenett, tall og fasit. |
+| [Fortegnsskjema](fortegnsskjema.html) | (Beta) Setter opp fortegnsskjema med intervaller, nullpunkter og symboler for funksjonsanalyse. |
+| [SVG-arkiv](svg-arkiv.html) | Viser lagrede, arkiverte og slettede figurer fra eksempeltjenesten, med snarvei tilbake til originalverktøyet. |
+
+Andre mapper rommer tilleggsmateriell (for eksempel `kvikkbilder-monster.html`, `arealmodell0.html`, `arealmodellen1.html`) og støtteverktøy som [trash-archive-viewer](trash-archive-viewer.js) og [alt-text-ui](alt-text-ui.js).
+
+## Eksempeltjenesten
+
+### Kort forklart: Hvorfor forsvinner eksemplene?
 
 * Når back-end mangler tilgang til Vercel KV (miljøvariablene `KV_REST_API_URL` og `KV_REST_API_TOKEN`), bruker den et **midlertidig minne**.
 * I minnemodus ser alt ut til å virke mens serveren kjører, men data slettes hver gang serveren starter på nytt.
@@ -20,13 +52,13 @@ Skriptet finnes i `scripts/check-examples-api.mjs` og kan også vise hvor mange 
 
 For en komplett «teskje»-guide til lokal kjøring på Mac (inkludert riktig Node-versjon, `npx vercel dev` og hvor du skal kjøre kommandoene), se [docs/local-development-mac.md](docs/local-development-mac.md).
 
-## Krav til eksempeltjenesten
+### Krav til eksempeltjenesten
 
 * Back-end må kjøre når du tester funksjonalitet som lagrer eller henter eksempler.
 * Dersom du kjører verktøyene lokalt uten proxy, sett `window.MATH_VISUALS_EXAMPLES_API_URL` til adressen til API-et (for eksempel i Playwright-tester eller i nettleserkonsollen).
 * Ved feil vil UI-et vise en statuslinje som forklarer hva som gikk galt. Se [docs/examples-storage.md](docs/examples-storage.md) for detaljer og feilsøking.
 
-## Feilsøking
+### Feilsøking
 
 1. Åpne `/api/examples` i nettleseren for å bekrefte at API-et svarer.
 2. Hvis Vercel returnerer `FUNCTION_NOT_FOUND`, er prosjektet distribuert som ren statisk hosting. Fjern eventuell manuelt satt «Output Directory»/override slik at `api/`-mappen tas med, og redeployer med serverless-funksjoner aktivert.
