@@ -1703,9 +1703,15 @@ function applyAxisStyles() {
       withLabel: false,
       strokeColor: ADV.axis.style.stroke,
       strokeWidth: ADV.axis.style.width,
+      highlight: false,
+      highlightStrokeColor: ADV.axis.style.stroke,
+      highlightStrokeWidth: ADV.axis.style.width,
       firstArrow: false,
       lastArrow: false
     });
+    if (typeof brd.defaultAxes[ax].setHighlight === 'function') {
+      brd.defaultAxes[ax].setHighlight(false);
+    }
   });
   updateAxisArrows();
 }
