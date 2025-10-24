@@ -2479,8 +2479,23 @@
     });
     return backendSyncPromise;
   }
-  function scheduleBackendSync() {
+  function shouldSkipBackendSyncForEmptyState() {
+    if (localChangesSinceLoad) return false;
+    if (pendingUserSaveReason) return false;
+    const examples = Array.isArray(cachedExamples) ? cachedExamples : [];
+    if (examples.length > 0) return false;
+    const storedRaw = typeof lastStoredRawValue === 'string' ? lastStoredRawValue.trim() : '';
+    if (storedRaw && storedRaw !== '[]') return false;
+    return true;
+  }
+  function scheduleBackendSync(options) {
     if (!examplesApiBase || applyingBackendUpdate) return;
+    const opts = options && typeof options === 'object' ? options : {};
+    const force = opts.force === true;
+    if (!force && shouldSkipBackendSyncForEmptyState()) {
+      backendSyncRequested = false;
+      return;
+    }
     backendSyncRequested = true;
     if (backendSyncPromise) return;
     if (backendSyncTimer) return;
@@ -2489,9 +2504,11 @@
       flushBackendSync();
     }, 200);
   }
-  function notifyBackendChange() {
+  function notifyBackendChange(options) {
     if (!examplesApiBase || applyingBackendUpdate) return;
-    scheduleBackendSync();
+    const opts = options && typeof options === 'object' ? options : {};
+    const force = opts.force === true;
+    scheduleBackendSync({ force });
   }
   async function applyBackendData(data) {
     applyingBackendUpdate = true;
@@ -4095,6 +4112,7 @@
   let saveStatusTextElement = null;
   let pendingUserSaveReason = null;
   let lastSuccessfulSaveIso = null;
+  let localChangesSinceLoad = false;
   function hydrateCachedExamples() {
     if (cachedExamplesInitialized) return;
     cachedExamplesInitialized = true;
@@ -4589,6 +4607,9 @@
     lastKnownActionButtonCount = Array.isArray(normalized) ? normalized.length : 0;
     const userInitiated = isUserInitiatedReason(reason);
     if (userInitiated) {
+      localChangesSinceLoad = true;
+    }
+    if (userInitiated) {
       lastLocalUpdateMs = Date.now();
       persistLocalUpdatedAt(lastLocalUpdateMs);
       beginUserSaveStatus(reason);
@@ -4603,7 +4624,7 @@
       return { ok: true, deferred: true, examples: getExamples(), updatedAt: null };
     }
     backendSyncDeferred = false;
-    notifyBackendChange();
+    notifyBackendChange({ force: userInitiated });
     const syncOptions = {
       initiatedBy: userInitiated ? reason : null,
       skipStatusUpdate: userInitiated
@@ -4722,7 +4743,10 @@
     try {
       storageSetItem(DELETED_PROVIDED_KEY, JSON.stringify(Array.from(deletedProvidedExamples)));
     } catch (error) {}
-    notifyBackendChange();
+    if (deletedProvidedExamples.size > 0) {
+      localChangesSinceLoad = true;
+    }
+    notifyBackendChange({ force: true });
   }
   function replaceDeletedProvidedExamples(list) {
     const next = new Set();
