@@ -167,6 +167,73 @@
   let activeDraggableSession = null;
   let draggableIdCounter = 1;
   let pendingDraggableFocus = null;
+  const draggableEditorDragState = {
+    activeId: null,
+    handleEl: null,
+    wrapperEl: null,
+    dropTargetEl: null
+  };
+
+  function clearDraggableEditorDragState() {
+    if (draggableEditorDragState.handleEl) {
+      draggableEditorDragState.handleEl.classList.remove('is-dragging');
+    }
+    if (draggableEditorDragState.wrapperEl) {
+      draggableEditorDragState.wrapperEl.classList.remove('is-drag-source');
+    }
+    if (draggableEditorDragState.dropTargetEl) {
+      draggableEditorDragState.dropTargetEl.classList.remove('is-drop-before', 'is-drop-after');
+      if (draggableEditorDragState.dropTargetEl.dataset) {
+        delete draggableEditorDragState.dropTargetEl.dataset.dropPosition;
+      }
+    }
+    if (draggableListContainer) {
+      draggableListContainer.classList.remove('is-dragging', 'is-drop-target');
+      const dropIndicators = draggableListContainer.querySelectorAll('.draggable-config-item');
+      dropIndicators.forEach(el => {
+        el.classList.remove('is-drop-before', 'is-drop-after');
+        if (el.dataset) delete el.dataset.dropPosition;
+      });
+    }
+    draggableEditorDragState.activeId = null;
+    draggableEditorDragState.handleEl = null;
+    draggableEditorDragState.wrapperEl = null;
+    draggableEditorDragState.dropTargetEl = null;
+  }
+
+  function ensureDraggableEditorContainerEvents() {
+    if (!draggableListContainer || draggableListContainer.dataset.reorderBound) return;
+    draggableListContainer.dataset.reorderBound = 'true';
+    draggableListContainer.addEventListener('dragover', event => {
+      if (!draggableEditorDragState.activeId) return;
+      if (event.target !== event.currentTarget) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      draggableListContainer.classList.add('is-drop-target');
+    });
+    draggableListContainer.addEventListener('dragenter', event => {
+      if (!draggableEditorDragState.activeId) return;
+      if (event.target !== event.currentTarget) return;
+      event.preventDefault();
+      draggableListContainer.classList.add('is-drop-target');
+    });
+    const handleContainerDragLeave = event => {
+      if (event.currentTarget !== event.target) return;
+      const related = event.relatedTarget;
+      if (related && draggableListContainer.contains(related)) return;
+      draggableListContainer.classList.remove('is-drop-target');
+    };
+    draggableListContainer.addEventListener('dragleave', handleContainerDragLeave);
+    draggableListContainer.addEventListener('drop', event => {
+      if (!draggableEditorDragState.activeId) return;
+      if (event.target !== event.currentTarget) return;
+      event.preventDefault();
+      const sourceId = draggableEditorDragState.activeId;
+      const changed = reorderDraggableItems(sourceId, null, false);
+      clearDraggableEditorDragState();
+      if (changed) render();
+    });
+  }
 
   function cloneState(source) {
     return JSON.parse(JSON.stringify(source));
@@ -803,13 +870,87 @@
     const items = Array.isArray(STATE.draggableItems) ? STATE.draggableItems : [];
     if (!items.length) return;
     const group = mk('g', { class: 'draggable-items-layer' });
-    items.forEach((item, index) => {
+    items.forEach(item => {
       const node = buildDraggableNode(item, index, geometry);
       if (node) {
         group.appendChild(node);
       }
     });
     root.appendChild(group);
+  }
+
+  function applyAutomaticStartPositions(geometry) {
+    if (!geometry) return;
+    const items = Array.isArray(STATE.draggableItems) ? STATE.draggableItems : [];
+    if (!items.length) return;
+    const axisStart = Number(geometry.axisStartValue);
+    const axisEnd = Number(geometry.axisEndValue);
+    const layoutItems = [];
+    items.forEach(item => {
+      if (!item || typeof item !== 'object') return;
+      if (item.lockPosition) return;
+      if (item.isPlaced) return;
+      layoutItems.push(item);
+    });
+    if (!layoutItems.length) return;
+    let minValue = Math.min(axisStart, axisEnd);
+    let maxValue = Math.max(axisStart, axisEnd);
+    if (!Number.isFinite(minValue)) minValue = 0;
+    if (!Number.isFinite(maxValue)) maxValue = minValue + 10;
+    let span = maxValue - minValue;
+    if (!(span > 0)) {
+      const base = Number.isFinite(axisStart) ? axisStart : 0;
+      minValue = base - 5;
+      maxValue = base + 5;
+      span = maxValue - minValue;
+    }
+    const effectiveSpan = span > 0 ? span * 0.6 : 0;
+    const clampedSpan = effectiveSpan > 0 ? effectiveSpan : Math.max(span, 10);
+    const padding = (span - clampedSpan) / 2;
+    const startValue = minValue + padding;
+    const spacing = clampedSpan / Math.max(layoutItems.length, 1);
+    layoutItems.forEach((item, index) => {
+      const center = startValue + spacing * (index + 0.5);
+      if (!item.startPosition || typeof item.startPosition !== 'object') {
+        item.startPosition = { value: center, offsetY: DEFAULT_DRAGGABLE_OFFSET_Y };
+      } else {
+        item.startPosition.value = center;
+        item.startPosition.offsetY = DEFAULT_DRAGGABLE_OFFSET_Y;
+      }
+      item.currentValue = center;
+      item.currentOffsetY = DEFAULT_DRAGGABLE_OFFSET_Y;
+    });
+  }
+
+  function findDraggableIndexById(id) {
+    if (!Array.isArray(STATE.draggableItems)) return -1;
+    return STATE.draggableItems.findIndex(item => item && item.id === id);
+  }
+
+  function reorderDraggableItems(sourceId, targetId, placeBefore) {
+    if (!Array.isArray(STATE.draggableItems)) return false;
+    const sourceIndex = findDraggableIndexById(sourceId);
+    if (sourceIndex < 0) return false;
+    let insertIndex;
+    if (targetId == null) {
+      insertIndex = STATE.draggableItems.length;
+    } else {
+      const targetIndex = findDraggableIndexById(targetId);
+      if (targetIndex < 0) return false;
+      insertIndex = placeBefore ? targetIndex : targetIndex + 1;
+    }
+    if (insertIndex > STATE.draggableItems.length) {
+      insertIndex = STATE.draggableItems.length;
+    }
+    if (insertIndex === sourceIndex || insertIndex === sourceIndex + 1) {
+      return false;
+    }
+    const [item] = STATE.draggableItems.splice(sourceIndex, 1);
+    if (insertIndex > sourceIndex) {
+      insertIndex -= 1;
+    }
+    STATE.draggableItems.splice(insertIndex, 0, item);
+    return true;
   }
 
   function scheduleDraggableEditorFocus(itemId, field, input) {
@@ -845,8 +986,86 @@
     }, 0);
   }
 
+  function handleDraggableEditorDragStart(event, itemId, wrapper) {
+    if (!event || !event.dataTransfer) return;
+    draggableEditorDragState.activeId = itemId;
+    draggableEditorDragState.handleEl = event.currentTarget || null;
+    draggableEditorDragState.wrapperEl = wrapper || null;
+    draggableEditorDragState.dropTargetEl = null;
+    event.dataTransfer.effectAllowed = 'move';
+    try {
+      event.dataTransfer.setData('text/plain', String(itemId));
+    } catch (err) {}
+    if (event.currentTarget && event.currentTarget.classList) {
+      event.currentTarget.classList.add('is-dragging');
+    }
+    if (wrapper && wrapper.classList) {
+      wrapper.classList.add('is-drag-source');
+    }
+    if (draggableListContainer) {
+      draggableListContainer.classList.add('is-dragging');
+    }
+  }
+
+  function handleDraggableEditorDragOver(event) {
+    if (!draggableEditorDragState.activeId) return;
+    const target = event.currentTarget;
+    if (!target || !target.classList) return;
+    if (target.dataset && target.dataset.itemId === draggableEditorDragState.activeId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    if (draggableListContainer) {
+      draggableListContainer.classList.remove('is-drop-target');
+    }
+    const rect = typeof target.getBoundingClientRect === 'function' ? target.getBoundingClientRect() : null;
+    const midpoint = rect ? rect.top + rect.height / 2 : event.clientY;
+    const before = event.clientY < midpoint;
+    if (draggableEditorDragState.dropTargetEl && draggableEditorDragState.dropTargetEl !== target) {
+      draggableEditorDragState.dropTargetEl.classList.remove('is-drop-before', 'is-drop-after');
+      if (draggableEditorDragState.dropTargetEl.dataset) {
+        delete draggableEditorDragState.dropTargetEl.dataset.dropPosition;
+      }
+    }
+    draggableEditorDragState.dropTargetEl = target;
+    target.classList.toggle('is-drop-before', before);
+    target.classList.toggle('is-drop-after', !before);
+    if (target.dataset) {
+      target.dataset.dropPosition = before ? 'before' : 'after';
+    }
+  }
+
+  function handleDraggableEditorDragLeave(event) {
+    const target = event.currentTarget;
+    if (!target || !target.classList) return;
+    const related = event.relatedTarget;
+    if (related && target.contains(related)) return;
+    target.classList.remove('is-drop-before', 'is-drop-after');
+    if (target.dataset) delete target.dataset.dropPosition;
+    if (draggableEditorDragState.dropTargetEl === target) {
+      draggableEditorDragState.dropTargetEl = null;
+    }
+  }
+
+  function handleDraggableEditorDrop(event, itemId) {
+    if (!draggableEditorDragState.activeId) return;
+    const target = event.currentTarget;
+    event.preventDefault();
+    event.stopPropagation();
+    const dropPosition = target && target.dataset ? target.dataset.dropPosition : '';
+    const placeBefore = dropPosition !== 'after';
+    const sourceId = draggableEditorDragState.activeId;
+    const changed = reorderDraggableItems(sourceId, itemId, placeBefore);
+    clearDraggableEditorDragState();
+    if (changed) render();
+  }
+
+  function handleDraggableEditorDragEnd() {
+    clearDraggableEditorDragState();
+  }
+
   function renderDraggableEditor() {
     if (!draggableListContainer) return;
+    ensureDraggableEditorContainerEvents();
     const items = Array.isArray(STATE.draggableItems) ? STATE.draggableItems : [];
     draggableListContainer.innerHTML = '';
 
@@ -856,7 +1075,7 @@
     if (!items.length) {
       const empty = document.createElement('p');
       empty.className = 'draggable-config-empty';
-      empty.textContent = 'Ingen elementer er lagt til.';
+      empty.textContent = 'Ingen markører er lagt til.';
       draggableListContainer.appendChild(empty);
       return;
     }
@@ -864,39 +1083,49 @@
     items.forEach((item, index) => {
       const wrapper = document.createElement('div');
       wrapper.className = 'draggable-config-item';
+      wrapper.dataset.itemId = item.id;
 
-      const title = document.createElement('div');
-      title.className = 'draggable-config-title';
-      title.textContent = `Element ${index + 1}`;
-      wrapper.appendChild(title);
-
-      const topGrid = document.createElement('div');
-      topGrid.className = 'draggable-config-grid draggable-config-grid--triple';
-
-      const bottomGrid = document.createElement('div');
-      bottomGrid.className = 'draggable-config-grid';
+      const mainRow = document.createElement('div');
+      mainRow.className = 'draggable-config-main';
 
       const isLocked = Boolean(item.lockPosition);
 
-      const labelField = document.createElement('label');
-      labelField.textContent = 'Tekst';
+      const handle = document.createElement('button');
+      handle.type = 'button';
+      handle.className = 'draggable-config-handle';
+      handle.setAttribute('aria-label', 'Flytt markør');
+      handle.setAttribute('title', 'Dra for å endre rekkefølge');
+      handle.draggable = true;
+      const handleIcon = document.createElement('span');
+      handleIcon.className = 'draggable-config-handle-icon';
+      handleIcon.setAttribute('aria-hidden', 'true');
+      handleIcon.textContent = '⠿';
+      handle.appendChild(handleIcon);
+      handle.addEventListener('dragstart', event => handleDraggableEditorDragStart(event, item.id, wrapper));
+      handle.addEventListener('dragend', handleDraggableEditorDragEnd);
+      handle.addEventListener('click', event => event.preventDefault());
+      mainRow.appendChild(handle);
+
       const labelInput = document.createElement('input');
       labelInput.type = 'text';
+      labelInput.className = 'draggable-config-input draggable-config-input--label';
+      labelInput.placeholder = 'Tekst';
+      labelInput.setAttribute('aria-label', 'Tekst');
       labelInput.value = item.label || '';
       labelInput.addEventListener('input', () => {
         item.label = labelInput.value;
         scheduleDraggableEditorFocus(item.id, 'label', labelInput);
         render();
       });
-      labelField.appendChild(labelInput);
-      topGrid.appendChild(labelField);
+      mainRow.appendChild(labelInput);
       applyDraggableEditorFocus(labelInput, item.id, 'label', focusRequest);
 
-      const valueField = document.createElement('label');
-      valueField.textContent = 'Fasit';
       const valueInput = document.createElement('input');
       valueInput.type = 'number';
       valueInput.step = 'any';
+      valueInput.className = 'draggable-config-input draggable-config-input--value';
+      valueInput.placeholder = 'Fasit';
+      valueInput.setAttribute('aria-label', 'Fasit');
       valueInput.value = formatNumberInputValue(item.value);
       valueInput.addEventListener('input', () => {
         const raw = valueInput.value;
@@ -909,58 +1138,39 @@
           item.currentOffsetY = NaN;
           item.isPlaced = true;
         } else {
-          const startVal = item.startPosition && Number.isFinite(item.startPosition.value)
-            ? item.startPosition.value
-            : numericValue;
-          const offsetVal = item.startPosition && Number.isFinite(item.startPosition.offsetY)
-            ? item.startPosition.offsetY
-            : DEFAULT_DRAGGABLE_OFFSET_Y;
-          item.currentValue = startVal;
-          item.currentOffsetY = offsetVal;
+          item.currentValue = numericValue;
+          item.currentOffsetY = DEFAULT_DRAGGABLE_OFFSET_Y;
           item.isPlaced = false;
         }
         scheduleDraggableEditorFocus(item.id, 'value', valueInput);
         render();
       });
-      valueField.appendChild(valueInput);
-      topGrid.appendChild(valueField);
+      mainRow.appendChild(valueInput);
       applyDraggableEditorFocus(valueInput, item.id, 'value', focusRequest);
 
-      const startValueField = document.createElement('label');
-      startValueField.textContent = 'Startverdi (x-posisjon)';
-      const startValueInput = document.createElement('input');
-      startValueInput.type = 'number';
-      startValueInput.step = 'any';
-      startValueInput.value = formatNumberInputValue(
-        item.startPosition && Number.isFinite(item.startPosition.value) ? item.startPosition.value : item.value
-      );
-      startValueInput.disabled = isLocked;
-      startValueInput.addEventListener('input', () => {
-        if (item.lockPosition) return;
-        const raw = startValueInput.value;
-        if (!raw.trim()) return;
-        const numericValue = Number(raw);
-        if (!Number.isFinite(numericValue)) return;
-        if (!item.startPosition || typeof item.startPosition !== 'object') {
-          item.startPosition = { value: numericValue, offsetY: DEFAULT_DRAGGABLE_OFFSET_Y };
+      const removeButton = document.createElement('button');
+      removeButton.type = 'button';
+      removeButton.className = 'btn btn--ghost btn--danger';
+      removeButton.textContent = 'Fjern';
+      removeButton.setAttribute('aria-label', 'Fjern markør');
+      removeButton.addEventListener('click', () => {
+        const removeIndex = findDraggableIndexById(item.id);
+        if (removeIndex >= 0) {
+          STATE.draggableItems.splice(removeIndex, 1);
         }
-        item.startPosition.value = numericValue;
-        item.currentValue = numericValue;
-        const offsetVal = item.startPosition && Number.isFinite(item.startPosition.offsetY)
-          ? item.startPosition.offsetY
-          : DEFAULT_DRAGGABLE_OFFSET_Y;
-        item.currentOffsetY = offsetVal;
-        item.isPlaced = false;
-        scheduleDraggableEditorFocus(item.id, 'startValue', startValueInput);
         render();
       });
-      startValueField.appendChild(startValueInput);
-      topGrid.appendChild(startValueField);
-      applyDraggableEditorFocus(startValueInput, item.id, 'startValue', focusRequest);
+      mainRow.appendChild(removeButton);
+
+      const footer = document.createElement('div');
+      footer.className = 'draggable-config-footer';
+
+      wrapper.addEventListener('dragover', handleDraggableEditorDragOver);
+      wrapper.addEventListener('dragleave', handleDraggableEditorDragLeave);
+      wrapper.addEventListener('drop', event => handleDraggableEditorDrop(event, item.id));
 
       const lockField = document.createElement('label');
       lockField.className = 'checkbox';
-      lockField.style.gridColumn = '1 / -1';
       const lockInput = document.createElement('input');
       lockInput.type = 'checkbox';
       lockInput.checked = isLocked;
@@ -975,14 +1185,8 @@
           item.currentOffsetY = NaN;
           item.isPlaced = true;
         } else {
-          const startVal = item.startPosition && Number.isFinite(item.startPosition.value)
-            ? item.startPosition.value
-            : item.value;
-          const offsetVal = item.startPosition && Number.isFinite(item.startPosition.offsetY)
-            ? item.startPosition.offsetY
-            : DEFAULT_DRAGGABLE_OFFSET_Y;
-          item.currentValue = Number.isFinite(startVal) ? startVal : item.currentValue;
-          item.currentOffsetY = offsetVal;
+          item.currentValue = Number(item.value);
+          item.currentOffsetY = DEFAULT_DRAGGABLE_OFFSET_Y;
           item.isPlaced = false;
         }
         scheduleDraggableEditorFocus(item.id, 'lockPosition', lockInput);
@@ -992,46 +1196,30 @@
       const lockLabel = document.createElement('span');
       lockLabel.textContent = 'Lås posisjon';
       lockField.appendChild(lockLabel);
-      bottomGrid.appendChild(lockField);
+      footer.appendChild(lockField);
       applyDraggableEditorFocus(lockInput, item.id, 'lockPosition', focusRequest);
 
-      wrapper.appendChild(topGrid);
-      wrapper.appendChild(bottomGrid);
-
       const actions = document.createElement('div');
-      actions.className = 'draggable-config-actions';
+      actions.className = 'draggable-config-footer-actions';
 
       const resetButton = document.createElement('button');
       resetButton.type = 'button';
-      resetButton.className = 'btn btn--ghost';
+      resetButton.className = 'btn btn--ghost btn--small';
       resetButton.textContent = 'Tilbakestill posisjon';
       resetButton.addEventListener('click', () => {
         if (item.lockPosition) return;
         item.isPlaced = false;
-        const startVal = item.startPosition && Number.isFinite(item.startPosition.value)
-          ? item.startPosition.value
-          : item.value;
-        const offsetVal = item.startPosition && Number.isFinite(item.startPosition.offsetY)
-          ? item.startPosition.offsetY
-          : DEFAULT_DRAGGABLE_OFFSET_Y;
-        item.currentValue = startVal;
-        item.currentOffsetY = offsetVal;
+        item.currentOffsetY = DEFAULT_DRAGGABLE_OFFSET_Y;
+        item.currentValue = Number(item.value);
         render();
       });
       resetButton.disabled = isLocked;
       actions.appendChild(resetButton);
 
-      const removeButton = document.createElement('button');
-      removeButton.type = 'button';
-      removeButton.className = 'btn btn--danger';
-      removeButton.textContent = 'Fjern';
-      removeButton.addEventListener('click', () => {
-        STATE.draggableItems.splice(index, 1);
-        render();
-      });
-      actions.appendChild(removeButton);
+      footer.appendChild(actions);
 
-      wrapper.appendChild(actions);
+      wrapper.appendChild(mainRow);
+      wrapper.appendChild(footer);
       draggableListContainer.appendChild(wrapper);
     });
   }
@@ -1055,7 +1243,7 @@
 
   function describeDraggableItem(item, index) {
     if (!item || typeof item !== 'object') {
-      return `Element ${index + 1}`;
+      return `Markør ${index + 1}`;
     }
     const label = typeof item.label === 'string' ? item.label.trim() : '';
     if (label) return label;
@@ -1063,7 +1251,7 @@
     if (Number.isFinite(value)) {
       return formatValueForStatus(value);
     }
-    return `Element ${index + 1}`;
+    return `Markør ${index + 1}`;
   }
 
   function setCheckStatus(type, heading, detailLines) {
@@ -1135,8 +1323,8 @@
 
     if (!missing.length && !incorrect.length) {
       const heading = placedCorrectly === 1
-        ? 'Elementet er riktig plassert!'
-        : 'Alle elementene er riktig plassert!';
+        ? 'Markøren er riktig plassert!'
+        : 'Alle markørene er riktig plassert!';
       setCheckStatus('success', heading);
       return;
     }
@@ -1147,7 +1335,7 @@
       if (missing.length === 1) {
         details.push(`${names[0]} er ikke plassert ennå.`);
       } else {
-        details.push(`${missing.length} elementer er ikke plassert: ${names.join(', ')}.`);
+        details.push(`${missing.length} markører er ikke plassert: ${names.join(', ')}.`);
       }
     }
     if (incorrect.length) {
@@ -1795,6 +1983,7 @@
       axisGroup.appendChild(foreignObject);
     });
 
+    applyAutomaticStartPositions(geometry);
     renderDraggableItemsLayer(svg, geometry);
 
     const visibleMajorValues = majorValues.filter(value => !hiddenMajorValues.has(value));

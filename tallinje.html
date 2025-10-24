@@ -81,24 +81,67 @@
       line-height: 1.35;
       pointer-events: none;
     }
-    .draggable-config-list { display: flex; flex-direction: column; gap: 10px; }
+    .draggable-config-list { display: flex; flex-direction: column; gap: 12px; position: relative; }
     .draggable-config-item {
+      position: relative;
       border: 1px solid #e5e7eb;
       border-radius: 12px;
-      padding: 10px;
+      padding: 12px;
       background: #fff;
       display: flex;
       flex-direction: column;
       gap: 8px;
+      transition: box-shadow 0.15s ease;
     }
-    .draggable-config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    @media (max-width: 600px) { .draggable-config-grid { grid-template-columns: 1fr; } }
-    .draggable-config-grid--triple { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    @media (max-width: 600px) { .draggable-config-grid--triple { grid-template-columns: 1fr; } }
+    .draggable-config-item.is-drag-source { opacity: 0.85; }
+    .draggable-config-item.is-drop-before::before,
+    .draggable-config-item.is-drop-after::after {
+      content: '';
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      border-top: 2px solid #6366f1;
+      border-radius: 999px;
+    }
+    .draggable-config-item.is-drop-before::before { top: -1px; }
+    .draggable-config-item.is-drop-after::after { bottom: -1px; }
+    .draggable-config-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .draggable-config-handle {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      background: #f9fafb;
+      color: #4b5563;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      flex: 0 0 auto;
+    }
+    .draggable-config-handle.is-dragging,
+    .draggable-config-handle:active { cursor: grabbing; }
+    .draggable-config-handle-icon { font-size: 16px; line-height: 1; }
+    .draggable-config-input {
+      flex: 1 1 140px;
+      min-width: 120px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 14px;
+      color: #1f2937;
+      width: auto;
+    }
+    .draggable-config-input--value {
+      flex: 0 0 120px;
+      max-width: 140px;
+    }
+    .draggable-config-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .draggable-config-footer .checkbox { font-size: 13px; color: #4b5563; margin-right: auto; }
+    .draggable-config-footer-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .draggable-config-actions { display: flex; flex-wrap: wrap; gap: 8px; }
     .card--draggables { padding: 12px; gap: 12px; }
     .card--draggables > .draggable-config-actions { margin-top: 8px; }
-    .draggable-config-grid .checkbox { grid-column: 1 / -1; }
     .checkbox {
       display: inline-flex;
       flex-direction: row;
@@ -116,11 +159,18 @@
       margin: 0;
     }
     .draggable-config-empty { font-size: 13px; color: #6b7280; margin: 0; }
-    .draggable-config-title { font-size: 14px; font-weight: 600; color: #1f2937; margin: 0; }
     .btn--ghost { background: transparent; }
     .btn--ghost:hover { background: #f3f4f6; }
+    .btn--small { padding: 6px 10px; font-size: 13px; }
     .btn--danger { border-color: #ef4444; color: #b91c1c; }
     .btn--danger:hover { background: #fee2e2; }
+    .draggable-config-list.is-drop-target::after {
+      content: '';
+      display: block;
+      border-top: 2px solid #6366f1;
+      border-radius: 999px;
+      margin: 0 12px;
+    }
     .status {
       display: none;
       padding: 10px 12px;
@@ -228,7 +278,7 @@
           </label>
         </div>
 
-        <div class="card card--draggables" aria-label="Draggable elementer">
+        <div class="card card--draggables" aria-label="Markører">
           <div id="draggableItems" class="draggable-config-list"></div>
           <div class="draggable-config-actions">
             <button id="btnAddDraggable" class="btn" type="button">Legg til</button>
