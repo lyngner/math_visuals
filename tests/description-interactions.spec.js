@@ -131,6 +131,7 @@ test.describe('Description renderer interactions', () => {
 
     await classicInput.fill('12');
     await expect(classicAnswer).toHaveClass(/math-vis-answerbox--correct/);
+    await expect(classicAnswer).not.toHaveClass(/math-vis-answerbox--incorrect/);
     await expect(classicStatus).toHaveText('Riktig!');
 
     await classicInput.fill('');
@@ -152,6 +153,7 @@ test.describe('Description renderer interactions', () => {
 
     await labelledInput.fill('12');
     await expect(labelledAnswer).toHaveClass(/math-vis-answerbox--correct/);
+    await expect(labelledAnswer).not.toHaveClass(/math-vis-answerbox--incorrect/);
     await expect(labelledStatus).toHaveText('Riktig!');
 
     await labelledInput.fill('');
@@ -172,6 +174,7 @@ test.describe('Description renderer interactions', () => {
 
     await inlineInput.fill('0');
     await expect(inlineAnswer).toHaveClass(/math-vis-answerbox--correct/);
+    await expect(inlineAnswer).not.toHaveClass(/math-vis-answerbox--incorrect/);
     await expect(inlineStatus).toHaveText('Riktig!');
 
     await inlineInput.fill('');
