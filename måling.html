@@ -109,9 +109,8 @@
       position: absolute;
       top: 0;
       left: 0;
-      width: var(--ruler-width);
-      max-width: calc(100% - 24px);
-      aspect-ratio: 20 / 3;
+      width: min(var(--ruler-width), calc(100% - 24px));
+      height: var(--ruler-height, 120px);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -133,6 +132,41 @@
 
     .ruler-shadow {
       filter: drop-shadow(0 12px 18px rgba(15, 23, 42, 0.25));
+    }
+
+    .ruler svg .ruler-svg__background {
+      fill: #ffffff;
+      fill-opacity: 0.5;
+      stroke: rgba(15, 23, 42, 0.28);
+      stroke-width: 2;
+    }
+
+    .ruler svg .ruler-svg__baseline {
+      stroke: rgba(15, 23, 42, 0.75);
+      stroke-width: 2;
+      stroke-linecap: round;
+    }
+
+    .ruler svg .ruler-svg__tick {
+      stroke-linecap: round;
+    }
+
+    .ruler svg .ruler-svg__tick--major {
+      stroke: rgba(15, 23, 42, 0.78);
+      stroke-width: 2.5;
+    }
+
+    .ruler svg .ruler-svg__tick--minor {
+      stroke: rgba(15, 23, 42, 0.55);
+      stroke-width: 1.4;
+    }
+
+    .ruler svg .ruler-svg__label {
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 24px;
+      font-weight: 600;
+      fill: #1f2937;
+      letter-spacing: -0.01em;
     }
 
     .status-note {
@@ -175,82 +209,11 @@
 
   <div class="board-wrapper">
     <div class="board" data-board>
-      <div class="ruler" data-ruler aria-label="Flyttbar linjal på 10 centimeter" role="img">
-        <svg viewBox="0 0 600 120" class="ruler-shadow" aria-hidden="true">
-          <defs>
-            <linearGradient id="rulerBody" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#f8fafc" stop-opacity="0.92" />
-              <stop offset="45%" stop-color="#ffffff" stop-opacity="0.88" />
-              <stop offset="100%" stop-color="#f1f5f9" stop-opacity="0.92" />
-            </linearGradient>
-            <linearGradient id="rulerEdge" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#e2e8f0" />
-              <stop offset="100%" stop-color="#cbd5f5" />
-            </linearGradient>
-          </defs>
-          <rect x="6" y="6" width="588" height="108" rx="18" fill="url(#rulerBody)" fill-opacity="0.92" stroke="rgba(15, 23, 42, 0.2)" stroke-width="3" />
-          <rect x="6" y="78" width="588" height="36" rx="14" fill="url(#rulerEdge)" fill-opacity="0.85" />
-
-          <g fill="none" stroke="#111827">
-            <line x1="30" y1="22" x2="30" y2="78" stroke-width="3" stroke-linecap="round" />
-            <line x1="570" y1="22" x2="570" y2="78" stroke-width="3" stroke-linecap="round" />
-          </g>
-
-          <g fill="none" stroke="#1f2937">
-            <g stroke-width="2">
-              <line x1="60" y1="34" x2="60" y2="78" />
-              <line x1="120" y1="34" x2="120" y2="78" />
-              <line x1="180" y1="34" x2="180" y2="78" />
-              <line x1="240" y1="34" x2="240" y2="78" />
-              <line x1="300" y1="34" x2="300" y2="78" />
-              <line x1="360" y1="34" x2="360" y2="78" />
-              <line x1="420" y1="34" x2="420" y2="78" />
-              <line x1="480" y1="34" x2="480" y2="78" />
-              <line x1="540" y1="34" x2="540" y2="78" />
-            </g>
-            <g stroke-width="1.3">
-              <line x1="15" y1="48" x2="15" y2="78" />
-              <line x1="45" y1="48" x2="45" y2="78" />
-              <line x1="75" y1="48" x2="75" y2="78" />
-              <line x1="105" y1="48" x2="105" y2="78" />
-              <line x1="135" y1="48" x2="135" y2="78" />
-              <line x1="165" y1="48" x2="165" y2="78" />
-              <line x1="195" y1="48" x2="195" y2="78" />
-              <line x1="225" y1="48" x2="225" y2="78" />
-              <line x1="255" y1="48" x2="255" y2="78" />
-              <line x1="285" y1="48" x2="285" y2="78" />
-              <line x1="315" y1="48" x2="315" y2="78" />
-              <line x1="345" y1="48" x2="345" y2="78" />
-              <line x1="375" y1="48" x2="375" y2="78" />
-              <line x1="405" y1="48" x2="405" y2="78" />
-              <line x1="435" y1="48" x2="435" y2="78" />
-              <line x1="465" y1="48" x2="465" y2="78" />
-              <line x1="495" y1="48" x2="495" y2="78" />
-              <line x1="525" y1="48" x2="525" y2="78" />
-              <line x1="555" y1="48" x2="555" y2="78" />
-            </g>
-          </g>
-
-          <g fill="#0f172a" font-family="'Inter', 'Segoe UI', sans-serif" font-size="32" font-weight="600" text-anchor="middle">
-            <text x="30" y="66">0</text>
-            <text x="90" y="66">1</text>
-            <text x="150" y="66">2</text>
-            <text x="210" y="66">3</text>
-            <text x="270" y="66">4</text>
-            <text x="330" y="66">5</text>
-            <text x="390" y="66">6</text>
-            <text x="450" y="66">7</text>
-            <text x="510" y="66">8</text>
-            <text x="570" y="66">9</text>
-          </g>
-
-          <g fill="#0f172a" font-family="'Inter', 'Segoe UI', sans-serif" font-size="28" font-weight="600" text-anchor="end">
-            <text x="570" y="108">10 cm</text>
-          </g>
-        </svg>
+      <div class="ruler" data-ruler aria-label="Flyttbar linjal" role="img">
+        <svg viewBox="0 0 600 120" class="ruler-shadow" data-ruler-svg aria-hidden="true" focusable="false"></svg>
       </div>
     </div>
-    <p class="status-note">Linjalens lengde er 10 cm. Bruk den til å finne høyden på kyllingen.</p>
+    <p class="status-note" data-status-note>Linjalens lengde er 10 cm. Bruk den til å finne høyden på kyllingen.</p>
   </div>
 
   <script src="måling.js"></script>
