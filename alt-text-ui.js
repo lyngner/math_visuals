@@ -35,6 +35,9 @@
     if (!container) return null;
     const existing = container.querySelector('.alt-text');
     if (existing) {
+      if (!existing.hasAttribute('data-edit-only')) {
+        existing.setAttribute('data-edit-only', '');
+      }
       const textarea = existing.querySelector('textarea');
       const button = existing.querySelector('button');
       const status = existing.querySelector('[role="status"]');
@@ -45,6 +48,7 @@
 
     const wrap = document.createElement('div');
     wrap.className = 'alt-text';
+    wrap.setAttribute('data-edit-only', '');
 
     const label = document.createElement('label');
     label.setAttribute('for', 'altText');
