@@ -1005,42 +1005,75 @@ function buildKulerExportMeta(exportData) {
     const svgBlob = new Blob([data], {
       type: "image/svg+xml"
     });
-    const url = URL.createObjectURL(svgBlob);
-    const img = new Image();
-    img.onload = () => {
+    const objectUrl = URL.createObjectURL(svgBlob);
+    try {
+      const img = await loadImageFromUrl(objectUrl);
       const canvas = document.createElement("canvas");
-      const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+      const helper = typeof window !== "undefined" ? window.MathVisSvgExport : null;
       const layoutWidth = exportData.layout.width;
       const layoutHeight = exportData.layout.height;
-      const sizing = helper && typeof helper.ensureMinimumPngDimensions === 'function'
-        ? helper.ensureMinimumPngDimensions({ width: layoutWidth, height: layoutHeight })
-        : (() => {
-            const minDimension = 100;
-            const safeWidth = Number.isFinite(layoutWidth) && layoutWidth > 0 ? layoutWidth : minDimension;
-            const safeHeight = Number.isFinite(layoutHeight) && layoutHeight > 0 ? layoutHeight : minDimension;
-            return {
-              width: Math.max(minDimension, Math.round(safeWidth)),
-              height: Math.max(minDimension, Math.round(safeHeight))
-            };
-          })();
+      const sizing = helper && typeof helper.ensureMinimumPngDimensions === "function" ? helper.ensureMinimumPngDimensions({
+        width: layoutWidth,
+        height: layoutHeight
+      }) : (() => {
+        const minDimension = 100;
+        const safeWidth = Number.isFinite(layoutWidth) && layoutWidth > 0 ? layoutWidth : minDimension;
+        const safeHeight = Number.isFinite(layoutHeight) && layoutHeight > 0 ? layoutHeight : minDimension;
+        return {
+          width: Math.max(minDimension, Math.round(safeWidth)),
+          height: Math.max(minDimension, Math.round(safeHeight))
+        };
+      })();
       canvas.width = sizing.width;
       canvas.height = sizing.height;
       const ctx = canvas.getContext("2d");
+      if (!ctx) return;
       ctx.fillStyle = backgroundFill;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      canvas.toBlob(blob => {
-        if (!blob) return;
+      const blob = await canvasToBlob(canvas);
+      const filename = exportFileName(idx, exportData.count, "png");
+      if (blob) {
         const pngUrl = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = pngUrl;
-        a.download = exportFileName(idx, exportData.count, "png");
-        a.click();
+        triggerDownload(pngUrl, filename);
         URL.revokeObjectURL(pngUrl);
-      });
-    };
-    img.src = url;
+      } else {
+        const dataUrl = canvas.toDataURL("image/png");
+        triggerDownload(dataUrl, filename);
+      }
+    } catch (err) {
+      console.error("Kunne ikke eksportere PNG", err);
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  function loadImageFromUrl(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Kunne ikke laste SVG for PNG-eksport."));
+      img.src = url;
+    });
+  }
+
+  function canvasToBlob(canvas) {
+    return new Promise(resolve => {
+      if (typeof canvas.toBlob === "function") {
+        canvas.toBlob(blob => resolve(blob));
+      } else {
+        resolve(null);
+      }
+    });
+  }
+
+  function triggerDownload(url, filename) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    a.click();
   }
 
 /* ===== ALT-TEKST ===== */
