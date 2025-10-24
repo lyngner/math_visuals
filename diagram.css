@@ -88,7 +88,7 @@
 .axis-label-text{fill:var(--diagram-axis-text-color);font-weight:600;letter-spacing:.02em;font-size:18px;dominant-baseline:middle}
 .gridline{stroke:var(--diagram-grid-color);stroke-width:1;opacity:.6}
 .yTickText{fill:var(--diagram-text-color);font-size:14px;text-anchor:end}
-.xLabel{fill:var(--diagram-text-color);font-size:18px;text-anchor:middle}
+.xLabel{fill:var(--diagram-text-color);font-size:14px;text-anchor:middle}
 
 /* Søyler + vurderingsrammer */
 .bar{stroke:var(--diagram-bar-stroke);stroke-width:4;opacity:1;fill-opacity:1}
