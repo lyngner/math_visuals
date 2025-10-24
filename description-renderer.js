@@ -801,7 +801,7 @@
         const value = typeof box.input.value === 'string' ? box.input.value : '';
         const normalized = collapseWhitespace(value);
         if (normalized) {
-          setInputFieldState(box, null);
+          evaluateInputField(box);
         } else {
           setInputFieldState(box, 'empty');
         }
