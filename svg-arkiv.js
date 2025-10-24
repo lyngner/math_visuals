@@ -509,7 +509,13 @@
         break;
       }
     }
-    writeArchiveOpenRequest(request);
+    const saved = writeArchiveOpenRequest(request);
+    if (!saved) {
+      try {
+        console.error('Kunne ikke lagre åpningstilstanden for arkivet i localStorage.');
+      } catch (_) {}
+      return null;
+    }
     return request;
   }
 
@@ -1879,9 +1885,19 @@
             try {
               const fallbackRequest = prepareArchiveOpenRequestFallback(openRequest);
               prepared = !!fallbackRequest;
+              if (!prepared) {
+                try {
+                  console.error('Kunne ikke lagre åpningstilstanden for figuren via reserve-løsningen.');
+                } catch (_) {}
+              }
             } catch (error) {
               console.error('Kunne ikke lagre åpningstilstand for arkivet', error);
             }
+          }
+
+          if (!prepared) {
+            setStatus('Kunne ikke lagre åpningstilstanden for figuren.', 'error');
+            return;
           }
 
           const popup = window.open(targetConfig.url, '_blank', 'noopener');
