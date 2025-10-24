@@ -132,11 +132,6 @@ function applyDiagramTheme(options = {}) {
   if (!root) return;
   const style = root.style;
   const theme = getThemeApi();
-  if (theme && typeof theme.applyToDocument === 'function') {
-    try {
-      theme.applyToDocument(document);
-    } catch (_) {}
-  }
   const requestedSeriesCount = Math.max(1, Number.isFinite(options.seriesCount) ? Math.trunc(options.seriesCount) : 1);
   const requestedPaletteSize = Math.max(
     requestedSeriesCount,
