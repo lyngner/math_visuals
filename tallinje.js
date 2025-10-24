@@ -879,7 +879,7 @@
       const isLocked = Boolean(item.lockPosition);
 
       const labelField = document.createElement('label');
-      labelField.textContent = 'Etikett (valgfritt)';
+      labelField.textContent = 'Tekst';
       const labelInput = document.createElement('input');
       labelInput.type = 'text';
       labelInput.value = item.label || '';
@@ -893,7 +893,7 @@
       applyDraggableEditorFocus(labelInput, item.id, 'label', focusRequest);
 
       const valueField = document.createElement('label');
-      valueField.textContent = 'Riktig verdi på tallinjen';
+      valueField.textContent = 'Fasit';
       const valueInput = document.createElement('input');
       valueInput.type = 'number';
       valueInput.step = 'any';
@@ -957,38 +957,6 @@
       startValueField.appendChild(startValueInput);
       topGrid.appendChild(startValueField);
       applyDraggableEditorFocus(startValueInput, item.id, 'startValue', focusRequest);
-
-      const offsetField = document.createElement('label');
-      offsetField.textContent = 'Vertikal forskyvning (i px)';
-      const offsetInput = document.createElement('input');
-      offsetInput.type = 'number';
-      offsetInput.step = 'any';
-      const currentOffset = item.startPosition && Number.isFinite(item.startPosition.offsetY)
-        ? item.startPosition.offsetY
-        : DEFAULT_DRAGGABLE_OFFSET_Y;
-      offsetInput.value = Number.isFinite(currentOffset) ? String(currentOffset) : '';
-      offsetInput.disabled = isLocked;
-      offsetInput.addEventListener('input', () => {
-        if (item.lockPosition) return;
-        const raw = offsetInput.value;
-        if (!raw.trim()) return;
-        const numericValue = Number(raw);
-        if (!Number.isFinite(numericValue)) return;
-        if (!item.startPosition || typeof item.startPosition !== 'object') {
-          item.startPosition = { value: item.value, offsetY: numericValue };
-        }
-        item.startPosition.offsetY = numericValue;
-        item.currentOffsetY = numericValue;
-        item.currentValue = item.startPosition && Number.isFinite(item.startPosition.value)
-          ? item.startPosition.value
-          : item.value;
-        item.isPlaced = false;
-        scheduleDraggableEditorFocus(item.id, 'offset', offsetInput);
-        render();
-      });
-      offsetField.appendChild(offsetInput);
-      bottomGrid.appendChild(offsetField);
-      applyDraggableEditorFocus(offsetInput, item.id, 'offset', focusRequest);
 
       const lockField = document.createElement('label');
       lockField.className = 'checkbox';
