@@ -5791,7 +5791,7 @@
     const totalExamples = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
     lastKnownActionButtonCount = totalExamples;
     const disableAll = actionButtonsBusy === true;
-    if (deleteBtn) deleteBtn.disabled = disableAll || totalExamples === 0;
+    if (deleteBtn) deleteBtn.disabled = disableAll || totalExamples <= 1;
     if (updateBtn) updateBtn.disabled = disableAll || totalExamples === 0;
     if (createBtn) createBtn.disabled = disableAll;
   };
