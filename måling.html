@@ -3,14 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Måling (beta)</title>
+  <title>Måling</title>
   <link rel="stylesheet" href="base.css" />
-
 
   <style>
     :root {
       --ruler-width: min(600px, 80vw);
-      --board-max-width: 960px;
       --board-aspect-ratio: 4 / 3;
       --surface: #ffffff;
       --surface-border: #e5e7eb;
@@ -24,43 +22,44 @@
       color: #0f172a;
       font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: clamp(16px, 5vw, 40px) 16px 48px;
-      gap: 24px;
     }
 
-    .app-header {
-      width: min(var(--board-max-width), 100%);
+    .page-intro {
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      text-align: center;
+      gap: 8px;
     }
 
-    .app-title {
+    .page-intro__title {
       margin: 0;
-      font-size: clamp(1.75rem, 3vw, 2.4rem);
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
       font-weight: 700;
       letter-spacing: -0.01em;
     }
 
-    .app-subtitle {
-      margin: 0 auto;
-      max-width: 60ch;
+    .page-intro__lead {
+      margin: 0;
       font-size: clamp(1rem, 2.4vw, 1.2rem);
       line-height: 1.6;
       color: #475569;
+      max-width: 60ch;
+    }
+
+    .measurement-card {
+      display: flex;
+      flex-direction: column;
+      gap: clamp(12px, 2vw, 20px);
     }
 
     .board-wrapper {
-      width: min(var(--board-max-width), 100%);
       background: var(--surface);
       border-radius: 20px;
       border: 1px solid var(--surface-border);
       box-shadow: var(--surface-shadow);
       padding: clamp(16px, 3vw, 28px);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
     }
 
     .board {
@@ -74,13 +73,14 @@
       justify-content: center;
       isolation: isolate;
       touch-action: pan-x pan-y;
+      --figure-image: url("images/measure/kylling%20(7cm_7cm)%201_1.svg");
     }
 
     .board::before {
       content: "";
       position: absolute;
       inset: 0;
-      background-image: url("images/measure/kylling%20(7cm_7cm)%201_1.svg");
+      background-image: var(--figure-image);
       background-repeat: no-repeat;
       background-size: contain;
       background-position: center;
@@ -90,7 +90,7 @@
     }
 
     .board::after {
-      content: "Kylling";
+      content: attr(data-figure-label);
       position: absolute;
       bottom: clamp(12px, 2.2vw, 20px);
       right: clamp(12px, 2.2vw, 20px);
@@ -103,6 +103,10 @@
       font-weight: 600;
       z-index: 1;
       pointer-events: none;
+    }
+
+    .board[data-figure-label=""]::after {
+      display: none;
     }
 
     .ruler {
@@ -171,18 +175,51 @@
 
     .status-note {
       margin: 0;
-      margin-top: clamp(12px, 3vw, 20px);
       font-size: 0.95rem;
       line-height: 1.6;
       color: #475569;
       text-align: center;
     }
 
-    @media (max-width: 720px) {
-      body {
-        padding-bottom: 32px;
-      }
+    .card--settings .field-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
 
+    .card--settings label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 14px;
+      color: #334155;
+    }
+
+    .card--settings input,
+    .card--settings select,
+    .card--settings textarea {
+      font: inherit;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      color: #0f172a;
+    }
+
+    .card--settings input:focus,
+    .card--settings select:focus,
+    .card--settings textarea:focus {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
+    }
+
+    @media (max-width: 900px) {
+      .grid.layout--sidebar {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 720px) {
       .board-wrapper {
         padding: clamp(12px, 4vw, 20px);
         border-radius: 16px;
@@ -199,23 +236,89 @@
   </style>
 </head>
 <body>
-  <header class="app-header">
-    <h1 class="app-title">Måling</h1>
-    <p class="app-subtitle">
-      Flytt og roter linjalen for å måle kyllingen. Bruk én finger (eller mus) for å flytte,
-      og to fingre for å rotere på berøringsskjermer.
-    </p>
-  </header>
+  <div class="wrap">
+    <div class="grid layout--sidebar">
+      <div class="card measurement-card">
+        <div class="page-intro">
+          <h1 class="page-intro__title">Måling</h1>
+          <p class="page-intro__lead">
+            Flytt og roter linjalen for å måle figuren. Bruk én finger (eller mus) for å flytte,
+            og to fingre for å rotere på berøringsskjermer.
+          </p>
+        </div>
 
-  <div class="board-wrapper">
-    <div class="board" data-board>
-      <div class="ruler" data-ruler aria-label="Flyttbar linjal" role="img">
-        <svg viewBox="0 0 600 120" class="ruler-shadow" data-ruler-svg aria-hidden="true" focusable="false"></svg>
+        <div class="board-wrapper">
+          <div class="board" data-board data-figure-label="Kylling">
+            <div class="ruler" data-ruler aria-label="Flyttbar linjal" role="img">
+              <svg viewBox="0 0 600 120" class="ruler-shadow" data-ruler-svg aria-hidden="true" focusable="false"></svg>
+            </div>
+          </div>
+          <p class="status-note" data-status-note>Linjalens lengde er 10 cm. Bruk den til å måle Kylling.</p>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="card card--examples">
+          <div class="example-description">
+            <textarea id="exampleDescription" aria-label="Oppgavetekst (valgfritt)" placeholder="Skriv oppgavetekst her"></textarea>
+            <div class="task-check-host" data-task-check-host hidden>
+              <button id="btnCheck" class="btn btn--task-check" type="button">Sjekk svar</button>
+              <div id="checkStatus" class="status" role="status" aria-live="polite" hidden></div>
+            </div>
+          </div>
+          <div class="toolbar">
+            <button id="btnUpdateExample" class="btn" type="button">Oppdater</button>
+            <button id="btnSaveExample" class="btn" type="button">Lag nytt</button>
+            <button id="btnDeleteExample" class="btn" type="button">Arkiver</button>
+          </div>
+        </div>
+
+        <div class="card card--settings">
+          <h2>Innstillinger</h2>
+          <div class="field-grid">
+            <label>Linjalens lengde
+              <input id="cfg-length" type="number" min="1" max="100" step="1" />
+            </label>
+            <label>Delmarkeringer per hovedenhet
+              <input id="cfg-subdivisions" type="number" min="0" max="20" step="1" />
+            </label>
+          </div>
+          <div class="field-grid">
+            <label>Enhet
+              <input id="cfg-unit" type="text" maxlength="12" />
+            </label>
+            <label>Navn på figur
+              <input id="cfg-figure-label" type="text" />
+            </label>
+          </div>
+          <div class="field-grid">
+            <label>Bilde (URL eller filsti)
+              <input id="cfg-figure-image" type="text" list="cfg-figure-options" />
+            </label>
+          </div>
+          <datalist id="cfg-figure-options">
+            <option value="images/measure/kylling%20(7cm_7cm)%201_1.svg">Kylling</option>
+            <option value="images/measure/gutt120.svg">Gutt 120 cm</option>
+            <option value="images/measure/jente155.svg">Jente 155 cm</option>
+            <option value="images/measure/corgi%20(50cm_35cm)%201_5.svg">Hund (corgi)</option>
+            <option value="images/measure/elefant%20(4m_3m)%201_40.svg">Elefant</option>
+            <option value="images/measure/venus%2012%20104%20km.svg">Planeten Venus</option>
+          </datalist>
+        </div>
+
+        <div class="card" id="exportCard">
+          <h2>Eksporter</h2>
+          <div class="toolbar">
+            <button id="btnSvg" class="btn" type="button">Eksporter</button>
+          </div>
+        </div>
       </div>
     </div>
-    <p class="status-note" data-status-note>Linjalens lengde er 10 cm. Bruk den til å finne høyden på kyllingen.</p>
   </div>
 
+  <script src="alt-text-ui.js"></script>
+  <script src="svg-export-helper.js"></script>
   <script src="måling.js"></script>
+  <script src="examples.js"></script>
 </body>
 </html>

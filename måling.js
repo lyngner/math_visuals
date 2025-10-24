@@ -7,6 +7,15 @@
 
   const rulerSvg = ruler.querySelector('[data-ruler-svg]');
   const statusNote = document.querySelector('[data-status-note]');
+  const descriptionField = document.getElementById('exampleDescription');
+  const btnSvg = document.getElementById('btnSvg');
+  const controls = {
+    length: document.getElementById('cfg-length'),
+    subdivisions: document.getElementById('cfg-subdivisions'),
+    unitLabel: document.getElementById('cfg-unit'),
+    figureLabel: document.getElementById('cfg-figure-label'),
+    figureImage: document.getElementById('cfg-figure-image')
+  };
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
   const state = {
@@ -14,6 +23,9 @@
     y: 0,
     rotation: 0
   };
+
+  let currentSettings = null;
+  let isUpdatingControls = false;
 
   const activePointers = new Map();
   let boardRect = board.getBoundingClientRect();
@@ -23,6 +35,8 @@
   };
 
   initializeRuler();
+  setupControls();
+  setupExport();
 
   function applyTransform() {
     ruler.style.transform = `translate3d(${state.x}px, ${state.y}px, 0) rotate(${state.rotation}rad)`;
@@ -165,15 +179,16 @@
 
   function initializeRuler() {
     const settings = normalizeSettings();
-    renderRuler(settings);
-    updateAccessibility(settings);
+    applySettings(settings);
   }
 
-  function normalizeSettings() {
+  function normalizeSettings(overrides = {}) {
     const defaults = {
       length: 10,
       subdivisions: 10,
-      unitLabel: 'cm'
+      unitLabel: 'cm',
+      figureLabel: 'Kylling',
+      figureImage: 'images/measure/kylling%20(7cm_7cm)%201_1.svg'
     };
 
     const globalScope = typeof window !== 'undefined' ? window : null;
@@ -181,11 +196,32 @@
     if (globalScope && (!globalScope.CFG || typeof globalScope.CFG !== 'object')) {
       globalScope.CFG = globalCfg;
     }
-    const cfgTarget = globalCfg && typeof globalCfg.measurement === 'object' && globalCfg.measurement ? globalCfg.measurement : globalCfg;
+    const cfgTarget =
+      globalCfg && typeof globalCfg.measurement === 'object' && globalCfg.measurement ? globalCfg.measurement : globalCfg;
 
-    const lengthRaw = Number.parseFloat(cfgTarget.length ?? cfgTarget.rulerLength ?? cfgTarget.maxValue);
-    const subdivisionsRaw = Number.parseFloat(cfgTarget.subdivisions ?? cfgTarget.marksBetween ?? cfgTarget.minorTicks);
-    const unitRaw = typeof cfgTarget.unitLabel === 'string' ? cfgTarget.unitLabel.trim() : '';
+    const resolveNumber = value => {
+      if (Number.isFinite(value)) {
+        return value;
+      }
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : NaN;
+    };
+
+    const lengthRaw = resolveNumber(
+      overrides.length ?? cfgTarget.length ?? cfgTarget.rulerLength ?? cfgTarget.maxValue
+    );
+    const subdivisionsRaw = resolveNumber(
+      overrides.subdivisions ?? cfgTarget.subdivisions ?? cfgTarget.marksBetween ?? cfgTarget.minorTicks
+    );
+    const unitRaw = typeof (overrides.unitLabel ?? cfgTarget.unitLabel) === 'string'
+      ? (overrides.unitLabel ?? cfgTarget.unitLabel).trim()
+      : '';
+    const figureLabelRaw = typeof (overrides.figureLabel ?? cfgTarget.figureLabel) === 'string'
+      ? (overrides.figureLabel ?? cfgTarget.figureLabel).trim()
+      : '';
+    const figureImageRaw = typeof (overrides.figureImage ?? cfgTarget.figureImage) === 'string'
+      ? (overrides.figureImage ?? cfgTarget.figureImage).trim()
+      : '';
 
     let length = Number.isFinite(lengthRaw) ? Math.round(lengthRaw) : defaults.length;
     if (!(length >= 1)) length = defaults.length;
@@ -196,13 +232,28 @@
     subdivisions = Math.min(20, Math.max(0, subdivisions));
 
     let unitLabel = unitRaw || defaults.unitLabel;
+    let figureLabel = figureLabelRaw || defaults.figureLabel;
+    let figureImage = figureImageRaw || defaults.figureImage;
+
     if (cfgTarget) {
       cfgTarget.length = length;
       cfgTarget.subdivisions = subdivisions;
       cfgTarget.unitLabel = unitLabel;
+      cfgTarget.figureLabel = figureLabel;
+      cfgTarget.figureImage = figureImage;
     }
 
-    return { length, subdivisions, unitLabel };
+    return { length, subdivisions, unitLabel, figureLabel, figureImage };
+  }
+
+  function applySettings(settings, options = {}) {
+    currentSettings = settings;
+    renderRuler(settings);
+    updateAccessibility(settings);
+    applyBoardAppearance(settings);
+    if (!options || options.skipControlUpdate !== true) {
+      updateControls(settings);
+    }
   }
 
   function renderRuler(settings) {
@@ -266,14 +317,25 @@
   }
 
   function updateAccessibility(settings) {
-    const { length, unitLabel } = settings;
+    const { length, unitLabel, figureLabel } = settings;
     const formattedLength = formatNumber(length);
     const unitText = unitLabel ? ` ${unitLabel}` : '';
-    ruler.setAttribute('aria-label', `Flyttbar linjal på ${formattedLength}${unitText}`);
+    const trimmedFigure = typeof figureLabel === 'string' ? figureLabel.trim() : '';
+    const figureText = trimmedFigure || 'figuren';
+    const figureSuffix = trimmedFigure ? ` for å måle ${trimmedFigure}` : '';
+    ruler.setAttribute('aria-label', `Flyttbar linjal på ${formattedLength}${unitText}${figureSuffix}`);
     if (statusNote) {
       const suffix = unitLabel ? ` ${unitLabel}` : '';
-      statusNote.textContent = `Linjalens lengde er ${formattedLength}${suffix}. Bruk den til å finne høyden på kyllingen.`;
+      statusNote.textContent = `Linjalens lengde er ${formattedLength}${suffix}. Bruk den til å måle ${figureText}.`;
     }
+  }
+
+  function applyBoardAppearance(settings) {
+    const figureLabel = typeof settings.figureLabel === 'string' ? settings.figureLabel.trim() : '';
+    board.dataset.figureLabel = figureLabel;
+    const figureImage = typeof settings.figureImage === 'string' ? settings.figureImage.trim() : '';
+    const url = figureImage ? `url("${escapeForCssUrl(figureImage)}")` : 'none';
+    board.style.setProperty('--figure-image', url);
   }
 
   function formatNumber(value) {
@@ -281,6 +343,122 @@
       return numberFormatter.format(value);
     }
     return String(value);
+  }
+
+  function escapeForCssUrl(value) {
+    return String(value)
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/'/g, "\\'")
+      .replace(/[\n\r\f]/g, ' ')
+      .replace(/\u0000/g, '');
+  }
+
+  function setupControls() {
+    const inputs = Object.values(controls).filter(Boolean);
+    if (!inputs.length) {
+      return;
+    }
+    inputs.forEach(input => {
+      input.addEventListener('change', handleControlInput);
+      input.addEventListener('input', handleControlInput);
+    });
+    if (currentSettings) {
+      updateControls(currentSettings);
+    }
+  }
+
+  function updateControls(settings) {
+    isUpdatingControls = true;
+    try {
+      if (controls.length) {
+        controls.length.value = settings.length;
+      }
+      if (controls.subdivisions) {
+        controls.subdivisions.value = settings.subdivisions;
+      }
+      if (controls.unitLabel) {
+        controls.unitLabel.value = settings.unitLabel;
+      }
+      if (controls.figureLabel) {
+        controls.figureLabel.value = settings.figureLabel;
+      }
+      if (controls.figureImage) {
+        controls.figureImage.value = settings.figureImage;
+      }
+    } finally {
+      isUpdatingControls = false;
+    }
+  }
+
+  function handleControlInput() {
+    if (isUpdatingControls) {
+      return;
+    }
+    const overrides = readControlValues();
+    const settings = normalizeSettings(overrides);
+    applySettings(settings);
+  }
+
+  function readControlValues() {
+    const lengthValue = controls.length ? controls.length.value : undefined;
+    const subdivisionsValue = controls.subdivisions ? controls.subdivisions.value : undefined;
+    const unitValue = controls.unitLabel ? controls.unitLabel.value : undefined;
+    const figureLabelValue = controls.figureLabel ? controls.figureLabel.value : undefined;
+    const figureImageValue = controls.figureImage ? controls.figureImage.value : undefined;
+    return {
+      length: lengthValue,
+      subdivisions: subdivisionsValue,
+      unitLabel: unitValue,
+      figureLabel: figureLabelValue,
+      figureImage: figureImageValue
+    };
+  }
+
+  function setupExport() {
+    if (!btnSvg || !rulerSvg) {
+      return;
+    }
+    btnSvg.addEventListener('click', () => {
+      downloadSvg(rulerSvg).catch(error => {
+        console.error('Kunne ikke eksportere SVG:', error);
+      });
+    });
+  }
+
+  async function downloadSvg(svgElement) {
+    if (!svgElement) return;
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const description = descriptionField && typeof descriptionField.value === 'string' ? descriptionField.value : '';
+    const figureLabel = currentSettings && currentSettings.figureLabel ? currentSettings.figureLabel : 'måling';
+    const summary = figureLabel ? `Linjal for ${figureLabel}` : 'Linjal';
+    if (helper && typeof helper.exportSvgWithArchive === 'function') {
+      const baseName = helper.slugify ? helper.slugify(figureLabel, 'måling') : figureLabel;
+      await helper.exportSvgWithArchive(svgElement, figureLabel, 'måling', {
+        description,
+        defaultBaseName: baseName || 'måling',
+        summary
+      });
+      return;
+    }
+    const serializer = new XMLSerializer();
+    const source = serializer.serializeToString(svgElement);
+    const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+    const urlApi = typeof URL !== 'undefined' ? URL : window.URL;
+    const url = urlApi.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    const fileBase = (figureLabel || 'måling').toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'måling';
+    anchor.download = `${fileBase}.svg`;
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => {
+      try {
+        urlApi.revokeObjectURL(url);
+      } catch (_) {}
+    }, 0);
   }
 
   ruler.addEventListener('pointerdown', handlePointerDown, { passive: false });
