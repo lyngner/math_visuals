@@ -5,8 +5,28 @@
       id: 'kikora',
       label: 'Kikora',
       palettes: {
-        fractions: LEGACY_FRACTION_PALETTE,
-        figures: LEGACY_FRACTION_PALETTE
+        fractions: {
+          byCount: {
+            1: ['#6C1BA2'],
+            2: ['#534477', '#BF4474'],
+            3: ['#BF4474', '#6C1BA2', '#B25FE3'],
+            4: ['#BF4474', '#873E79', '#534477', '#6C1BA2'],
+            5: ['#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
+            6: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3']
+          },
+          default: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3']
+        },
+        figures: {
+          byCount: {
+            1: ['#6C1BA2'],
+            2: ['#534477', '#BF4474'],
+            3: ['#BF4474', '#6C1BA2', '#B25FE3'],
+            4: ['#BF4474', '#873E79', '#534477', '#6C1BA2'],
+            5: ['#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
+            6: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3']
+          },
+          default: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3']
+        }
       },
       colors: {
         ui: {
@@ -109,6 +129,37 @@
     return DEFAULT_PROFILE;
   }
   function ensurePalette(base, count) {
+    if (base && typeof base === 'object' && !Array.isArray(base)) {
+      const byCount = base.byCount && typeof base.byCount === 'object' ? base.byCount : null;
+      if (Number.isFinite(count) && count > 0 && byCount) {
+        const direct = byCount[count];
+        if (Array.isArray(direct) && direct.length) {
+          return direct.slice(0, count);
+        }
+      }
+      const defaultPalette = Array.isArray(base.default) && base.default.length ? base.default : null;
+      if (defaultPalette) {
+        return ensurePalette(defaultPalette, count);
+      }
+      if (byCount) {
+        const sortedKeys = Object.keys(byCount)
+          .map((key) => parseInt(key, 10))
+          .filter((num) => Number.isFinite(num) && num > 0)
+          .sort((a, b) => a - b);
+        for (const key of sortedKeys) {
+          const paletteForKey = byCount[key];
+          if (Array.isArray(paletteForKey) && paletteForKey.length) {
+            if (!Number.isFinite(count) || count <= 0) {
+              return paletteForKey.slice();
+            }
+            if (count <= key) {
+              return paletteForKey.slice(0, count);
+            }
+          }
+        }
+      }
+      return ensurePalette(LEGACY_FRACTION_PALETTE, count);
+    }
     const palette = Array.isArray(base) && base.length ? base.slice() : LEGACY_FRACTION_PALETTE.slice();
     if (!Number.isFinite(count) || count <= 0) return palette.slice();
     if (palette.length >= count) return palette.slice(0, count);
