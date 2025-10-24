@@ -1711,13 +1711,13 @@ function draw() {
     const wR = layoutState.rightCols;
     const hB = layoutState.bottomRows;
     const hT = layoutState.topRows;
-    const labelCfg = o.labels || {};
+    const labelCfg = ADV.labels || {};
     const dot = typeof labelCfg.dot === 'string' ? labelCfg.dot : ' · ';
     const equals = typeof labelCfg.equals === 'string' ? labelCfg.equals : ' = ';
     const cellMode = typeof labelCfg.cellMode === 'string' ? labelCfg.cellMode : 'factors';
     const edgeMode = typeof labelCfg.edgeMode === 'string' ? labelCfg.edgeMode : 'counts';
-    const sumEnabled = !!o.showSum;
-    const variableSettings = o.variables || getVariableSettings();
+    const sumEnabled = showSum;
+    const variableSettings = variables;
     const axisParts = computeAxisParts(layoutState, variableSettings);
     const columnParts = axisParts.columns;
     const rowParts = axisParts.rows;
@@ -1863,13 +1863,6 @@ function draw() {
     }
 
     // cell-etiketter
-    const axisParts = computeAxisParts(layoutState, variables);
-    const columnParts = axisParts.columns;
-    const rowParts = axisParts.rows;
-    const leftPart = columnParts.left;
-    const rightPart = columnParts.right;
-    const bottomPart = rowParts.bottom;
-    const topPart = rowParts.top;
     const showTLText = layoutState.showTopLeft && wL > 0 && hT > 0;
     setDisplay(tTL, showTLText);
     if (showTLText) {
