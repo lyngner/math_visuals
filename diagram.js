@@ -43,8 +43,6 @@ const LEGACY_SERIES_COLORS = ['#574595', '#d081a1'];
 const LEGACY_PIE_PALETTE = ['#4f2c8c', '#6c3db5', '#8a4de0', '#a75cf1', '#c26ef0', '#d381ba', '#c46287', '#9f436d', '#723a82', '#503070'];
 const PIE_COLOR_CLASS_COUNT = LEGACY_PIE_PALETTE.length;
 const LEGACY_AXIS_COLOR = '#0f172a';
-const LEGACY_AXIS_LABEL_FILL = '#e2e8f0';
-const LEGACY_AXIS_LABEL_STROKE = '#cbd5f5';
 const LEGACY_GRID_COLOR = '#999999';
 const LEGACY_TEXT_COLOR = '#333333';
 const LEGACY_BAR_STROKE = '#000000';
@@ -183,8 +181,6 @@ function applyDiagramTheme(options = {}) {
   }
   setCssVariable('--diagram-axis-color', getThemeColor('graphs.axis', LEGACY_AXIS_COLOR), style);
   setCssVariable('--diagram-axis-text-color', getThemeColor('graphs.axis', LEGACY_AXIS_COLOR), style);
-  setCssVariable('--diagram-axis-label-chip-fill', getThemeColor('ui.secondary', LEGACY_AXIS_LABEL_FILL), style);
-  setCssVariable('--diagram-axis-label-chip-stroke', getThemeColor('ui.primary', LEGACY_AXIS_LABEL_STROKE), style);
   setCssVariable('--diagram-grid-color', getThemeColor('graphs.axis', LEGACY_GRID_COLOR), style);
   const primaryColor = getThemeColor('ui.primary', null);
   const resolvedTextColor = primaryColor || LEGACY_TEXT_COLOR;
@@ -650,7 +646,19 @@ function drawAxesAndGrid() {
   }
 
   const createAxisLabelGroup = (parent, textValue, options = {}) => {
-    const { anchor = 'middle', paddingX = 14, paddingY = 8 } = options;
+    const { anchor = 'middle' } = options;
+    const parseOffset = value => {
+      if (Number.isFinite(value)) return value;
+      if (typeof value === 'string') {
+        const parsed = Number.parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
+      return null;
+    };
+    const resolvedOffsetX =
+      parseOffset(options.offsetX) ?? parseOffset(options.paddingX) ?? 14;
+    const resolvedOffsetY =
+      parseOffset(options.offsetY) ?? parseOffset(options.paddingY) ?? 0;
     const group = addTo(parent, 'g', { class: 'axis-label-group' });
     group.setAttribute('pointer-events', 'none');
     const textEl = addTo(group, 'text', {
@@ -666,31 +674,18 @@ function drawAxesAndGrid() {
       group.setAttribute('display', 'none');
       return { group, text: textEl, rect: null, width: 0, height: 0 };
     }
-    const width = Math.max(bbox.width, 0) + paddingX * 2;
-    const height = Math.max(bbox.height, 0) + paddingY * 2;
-    const rect = addTo(group, 'rect', {
-      class: 'axis-label-chip',
-      width: width,
-      height: height
-    });
-    const cornerRadius = Math.min(height / 2, 10);
-    rect.setAttribute('rx', cornerRadius);
-    rect.setAttribute('ry', cornerRadius);
-    let rectX = -width / 2;
+    const width = Math.max(bbox.width, 0);
+    const height = Math.max(bbox.height, 0);
     let textX = 0;
     if (anchor === 'start') {
-      rectX = 0;
-      textX = paddingX;
+      textX = resolvedOffsetX;
     } else if (anchor === 'end') {
-      rectX = -width;
-      textX = -paddingX;
+      textX = -resolvedOffsetX;
     }
-    rect.setAttribute('x', rectX);
-    rect.setAttribute('y', -height / 2);
+    const textY = resolvedOffsetY;
     textEl.setAttribute('x', textX);
-    textEl.setAttribute('y', 0);
-    group.insertBefore(rect, textEl);
-    return { group, text: textEl, rect, width, height };
+    textEl.setAttribute('y', textY);
+    return { group, text: textEl, rect: null, width, height };
   };
 
   // y-akse
