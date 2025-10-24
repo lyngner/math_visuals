@@ -5,8 +5,6 @@
   --diagram-canvas-background: #fff;
   --diagram-axis-color: #0f172a;
   --diagram-axis-text-color: #0f172a;
-  --diagram-axis-label-chip-fill: #e2e8f0;
-  --diagram-axis-label-chip-stroke: #cbd5f5;
   --diagram-grid-color: #999999;
   --diagram-text-color: #333333;
   --diagram-bar-stroke: #000000;
@@ -87,7 +85,6 @@
 .axis{stroke:var(--diagram-axis-color);stroke-width:3.5;fill:none}
 .axis-group{pointer-events:none}
 .axis-arrow{fill:none;stroke:var(--diagram-axis-color);stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
-.axis-label-chip{fill:var(--diagram-axis-label-chip-fill);stroke:var(--diagram-axis-label-chip-stroke)}
 .axis-label-text{fill:var(--diagram-axis-text-color);font-weight:600;letter-spacing:.02em;font-size:18px;dominant-baseline:middle}
 .gridline{stroke:var(--diagram-grid-color);stroke-width:1;opacity:.6}
 .yTickText{fill:var(--diagram-text-color);font-size:14px;text-anchor:end}
