@@ -1020,9 +1020,23 @@
       if (evt.evt) return getEventPoint(evt.evt);
       return null;
     };
+    const hasPointerEvents = el => {
+      if (!el) return false;
+      const inline = el.style && typeof el.style.pointerEvents === 'string' ? el.style.pointerEvents.trim().toLowerCase() : '';
+      if (inline === 'none') return false;
+      if (inline) return true;
+      if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function' && el.nodeType === 1) {
+        const computed = window.getComputedStyle(el);
+        const computedValue = computed && typeof computed.pointerEvents === 'string' ? computed.pointerEvents.trim().toLowerCase() : '';
+        if (computedValue === 'none') return false;
+        if (computedValue) return true;
+      }
+      return true;
+    };
     const isDivisionStrokeElement = el => {
       if (!el) return false;
       if (typeof Element !== 'undefined' && !(el instanceof Element)) return false;
+      if (!hasPointerEvents(el)) return false;
       if (divisionSegmentNodes.has(el)) return true;
       if (el.getAttribute && el.getAttribute('data-division-segment') === 'true') return true;
       if (el.classList && el.classList.contains('brok-division-segment')) return true;
@@ -1072,6 +1086,7 @@
         if (!node) continue;
         if (typeof node.isConnected === 'boolean' && !node.isConnected) continue;
         if (typeof node.getBoundingClientRect !== 'function') continue;
+        if (!hasPointerEvents(node)) continue;
         const nodeRect = node.getBoundingClientRect();
         const pad = DIVISION_STROKE_HIT_PADDING;
         if (
