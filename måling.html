@@ -33,6 +33,7 @@
 
     .app-header {
       width: min(var(--board-max-width), 100%);
+      margin: 0 auto;
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -54,8 +55,18 @@
       color: #475569;
     }
 
+    .card--measurement {
+      background: none;
+      border: none;
+      box-shadow: none;
+      padding: 0;
+      gap: clamp(20px, 5vw, 32px);
+      align-items: center;
+    }
+
     .board-wrapper {
       width: min(var(--board-max-width), 100%);
+      margin: 0 auto;
       background: var(--surface);
       border-radius: 20px;
       border: 1px solid var(--surface-border);
@@ -199,21 +210,27 @@
   </style>
 </head>
 <body>
-  <header class="app-header">
-    <h1 class="app-title">Måling</h1>
-    <p class="app-subtitle">
-      Flytt og roter linjalen for å måle kyllingen. Bruk én finger (eller mus) for å flytte,
-      og to fingre for å rotere på berøringsskjermer.
-    </p>
-  </header>
+  <div class="wrap">
+    <div class="grid">
+      <div class="card card--measurement">
+        <header class="app-header">
+          <h1 class="app-title">Måling</h1>
+          <p class="app-subtitle">
+            Flytt og roter linjalen for å måle kyllingen. Bruk én finger (eller mus) for å flytte,
+            og to fingre for å rotere på berøringsskjermer.
+          </p>
+        </header>
 
-  <div class="board-wrapper">
-    <div class="board" data-board>
-      <div class="ruler" data-ruler aria-label="Flyttbar linjal" role="img">
-        <svg viewBox="0 0 600 120" class="ruler-shadow" data-ruler-svg aria-hidden="true" focusable="false"></svg>
+        <div class="board-wrapper">
+          <div class="board" data-board>
+            <div class="ruler" data-ruler aria-label="Flyttbar linjal" role="img">
+              <svg viewBox="0 0 600 120" class="ruler-shadow" data-ruler-svg aria-hidden="true" focusable="false"></svg>
+            </div>
+          </div>
+          <p class="status-note" data-status-note>Linjalens lengde er 10 cm. Bruk den til å finne høyden på kyllingen.</p>
+        </div>
       </div>
     </div>
-    <p class="status-note" data-status-note>Linjalens lengde er 10 cm. Bruk den til å finne høyden på kyllingen.</p>
   </div>
 
   <script src="måling.js"></script>
