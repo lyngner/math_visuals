@@ -155,7 +155,8 @@ const challengeRuntime = {
 };
 let altTextManager = null;
 const arealIntFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
-const SUM_BRACE_IMAGE = "images/Union.svg";
+const SUM_BRACE_TOP_IMAGE = "images/Union.svg";
+const SUM_BRACE_LEFT_IMAGE = "images/UnionVertical.svg";
 function sanitizeVariableName(value) {
   if (typeof value !== 'string') return '';
   const trimmed = value.trim();
@@ -257,7 +258,7 @@ function buildSumLabel(partA, partB) {
   if (partA && partA.display) terms.push(partA.display);
   if (partB && partB.display) terms.push(partB.display);
   if (!terms.length) return '';
-  return terms.join(' + ');
+  return terms.join('+');
 }
 function ensureCfgDefaults() {
   const fill = (target, defaults) => {
@@ -1170,9 +1171,12 @@ function draw() {
   const MR = (_ADV$margins$r = (_ADV$margins2 = ADV.margins) === null || _ADV$margins2 === void 0 ? void 0 : _ADV$margins2.r) !== null && _ADV$margins$r !== void 0 ? _ADV$margins$r : 40;
   const MTconf = (_ADV$margins$t = (_ADV$margins3 = ADV.margins) === null || _ADV$margins3 === void 0 ? void 0 : _ADV$margins3.t) !== null && _ADV$margins$t !== void 0 ? _ADV$margins$t : 40;
   const MBconf = (_ADV$margins$b = (_ADV$margins4 = ADV.margins) === null || _ADV$margins4 === void 0 ? void 0 : _ADV$margins4.b) !== null && _ADV$margins$b !== void 0 ? _ADV$margins$b : 120;
-  const ML = Math.max(MLconf, HANDLE_SIZE / 2 + 18);
+  const MIN_LEFT_MARGIN_FOR_SUM = 120;
+  const MIN_TOP_MARGIN_FOR_SUM = 96;
+  const ML = Math.max(MLconf, HANDLE_SIZE / 2 + 18, showSum ? MIN_LEFT_MARGIN_FOR_SUM : 0);
   const MB = Math.max(MBconf, HANDLE_SIZE / 2 + EDGE_GAP.y + 18);
-  let MT = MTconf;
+  const MTbase = showSum ? Math.max(MTconf, MIN_TOP_MARGIN_FOR_SUM) : MTconf;
+  let MT = MTbase;
   let W = 0,
     H = 0,
     VBW = 0,
@@ -1215,11 +1219,11 @@ function draw() {
     const widthForView = (hasMaxCols ? maxColsForView * UNIT : W);
     const maxHeightForView = hasMaxRows ? maxRowsForView * UNIT : H;
     if (hasMaxRows) {
-      const baseBottom = MTconf + maxHeightForView;
+      const baseBottom = MTbase + maxHeightForView;
       MT = baseBottom - H;
       VBH = baseBottom + MB;
     } else {
-      MT = MTconf;
+      MT = MTbase;
       VBH = MT + H + MB;
     }
     VBW = ML + widthForView + MR;
@@ -1575,7 +1579,7 @@ function draw() {
     set(sumTopGroup, 'class', 'sum-brace sum-brace--top');
     sumTopBrace = el('image');
     set(sumTopBrace, 'id', 'sumTopBrace');
-    set(sumTopBrace, 'href', SUM_BRACE_IMAGE);
+    set(sumTopBrace, 'href', SUM_BRACE_TOP_IMAGE);
     set(sumTopBrace, 'preserveAspectRatio', 'none');
     sumTopText = el('text');
     set(sumTopText, 'id', 'sumTopText');
@@ -1587,7 +1591,7 @@ function draw() {
     set(sumLeftGroup, 'class', 'sum-brace sum-brace--left');
     sumLeftBrace = el('image');
     set(sumLeftBrace, 'id', 'sumLeftBrace');
-    set(sumLeftBrace, 'href', SUM_BRACE_IMAGE);
+    set(sumLeftBrace, 'href', SUM_BRACE_LEFT_IMAGE);
     set(sumLeftBrace, 'preserveAspectRatio', 'none');
     sumLeftText = el('text');
     set(sumLeftText, 'id', 'sumLeftText');
@@ -1903,7 +1907,7 @@ function draw() {
     // kant-etiketter (utenfor, med luft)
     const leftXOutside = ML - HANDLE_SIZE / 2 - EDGE_GAP.x;
     const bottomYOutside = MT + H + HANDLE_SIZE / 2 + EDGE_GAP.y;
-    if (edgeOn && showHeightAxis) {
+    if (edgeOn && showHeightAxis && !showSum) {
       set(leftTop, "x", leftXOutside);
       set(leftTop, "y", MT + topHeight / 2 + 10);
       setText(leftTop, topPart.display || "");
@@ -1914,7 +1918,7 @@ function draw() {
       setText(leftTop, "");
       setText(leftBot, "");
     }
-    if (edgeOn && showLengthAxis) {
+    if (edgeOn && showLengthAxis && !showSum) {
       set(botLeft, "x", ML + leftWidth / 2);
       set(botLeft, "y", bottomYOutside);
       set(botRight, "x", ML + leftWidth + rightWidth / 2);
@@ -1941,16 +1945,16 @@ function draw() {
     }
     if (sumLeftGroup && sumLeftBrace && sumLeftText) {
       const verticalLabel = buildSumLabel(bottomPart, topPart);
-      const braceHeight = Math.max(16, Math.min(32, Math.round(H * 0.06)));
+      const braceThickness = Math.max(16, Math.min(32, Math.round(H * 0.06)));
       const braceGap = 24;
-      const braceX = ML - braceGap;
+      const braceX = ML - braceGap - braceThickness;
       const braceY = MT;
       set(sumLeftBrace, 'x', braceX);
       set(sumLeftBrace, 'y', braceY);
-      set(sumLeftBrace, 'width', H);
-      set(sumLeftBrace, 'height', braceHeight);
-      set(sumLeftBrace, 'transform', `rotate(90 ${braceX} ${braceY})`);
-      const textX = braceX - braceHeight - 12;
+      set(sumLeftBrace, 'width', braceThickness);
+      set(sumLeftBrace, 'height', H);
+      sumLeftBrace.removeAttribute('transform');
+      const textX = braceX - braceThickness / 2 - 12;
       const textY = MT + H / 2;
       set(sumLeftText, 'x', textX);
       set(sumLeftText, 'y', textY);
@@ -2711,13 +2715,13 @@ svg text { user-select: none; -webkit-user-select: none; }
     // kant-tekst Utenfor, med luft:
     const xL = ML - HS / 2 - gapX;
     const yB = MT + o.height + HS / 2 + gapY;
-    if (o.showHeightAxis) {
+    if (o.showHeightAxis && !sumEnabled) {
       const topEdgeText = edgeMode === 'counts' ? (topPart.display || '') : '';
       const bottomEdgeText = edgeMode === 'counts' ? (bottomPart.display || '') : '';
       parts.push('<text id="leftTop" class="labelEdge" x="' + xL + '" y="' + (MT + topHeight / 2 + 10) + '" text-anchor="end">' + topEdgeText + '</text>');
       parts.push('<text id="leftBot" class="labelEdge" x="' + xL + '" y="' + (MT + topHeight + bottomHeight / 2 + 10) + '" text-anchor="end">' + bottomEdgeText + '</text>');
     }
-    if (o.showLengthAxis) {
+    if (o.showLengthAxis && !sumEnabled) {
       const leftEdgeText = edgeMode === 'counts' ? (leftPart.display || '') : '';
       const rightEdgeText = edgeMode === 'counts' ? (rightPart.display || '') : '';
       parts.push('<text id="botLeft"  class="labelEdge" x="' + (ML + leftWidth / 2) + '" y="' + yB + '" text-anchor="middle">' + leftEdgeText + '</text>');
@@ -2727,16 +2731,16 @@ svg text { user-select: none; -webkit-user-select: none; }
       const braceHeight = Math.max(16, Math.min(32, Math.round(o.width * 0.06)));
       const braceGap = 24;
       const braceY = MT - braceGap - braceHeight;
-      parts.push('<g id="sumTopGroup" class="sum-brace sum-brace--top"><image id="sumTopBrace" href="' + SUM_BRACE_IMAGE + '" x="' + ML + '" y="' + braceY + '" width="' + o.width + '" height="' + braceHeight + '" preserveAspectRatio="none"></image><text id="sumTopText" class="sum-text" text-anchor="middle" x="' + (ML + o.width / 2) + '" y="' + (braceY - 8) + '">' + horizontalSumLabel + '</text></g>');
+      parts.push('<g id="sumTopGroup" class="sum-brace sum-brace--top"><image id="sumTopBrace" href="' + SUM_BRACE_TOP_IMAGE + '" x="' + ML + '" y="' + braceY + '" width="' + o.width + '" height="' + braceHeight + '" preserveAspectRatio="none"></image><text id="sumTopText" class="sum-text" text-anchor="middle" x="' + (ML + o.width / 2) + '" y="' + (braceY - 8) + '">' + horizontalSumLabel + '</text></g>');
     }
     if (sumEnabled && verticalSumLabel) {
-      const braceHeight = Math.max(16, Math.min(32, Math.round(o.height * 0.06)));
+      const braceThickness = Math.max(16, Math.min(32, Math.round(o.height * 0.06)));
       const braceGap = 24;
-      const braceX = ML - braceGap;
+      const braceX = ML - braceGap - braceThickness;
       const braceY = MT;
-      const textX = braceX - braceHeight - 12;
+      const textX = braceX - braceThickness / 2 - 12;
       const textY = MT + o.height / 2;
-      parts.push('<g id="sumLeftGroup" class="sum-brace sum-brace--left"><image id="sumLeftBrace" href="' + SUM_BRACE_IMAGE + '" x="' + braceX + '" y="' + braceY + '" width="' + o.height + '" height="' + braceHeight + '" preserveAspectRatio="none" transform="rotate(90 ' + braceX + ' ' + braceY + ')"></image><text id="sumLeftText" class="sum-text" text-anchor="middle" dominant-baseline="middle" x="' + textX + '" y="' + textY + '" transform="rotate(-90 ' + textX + ' ' + textY + ')">' + verticalSumLabel + '</text></g>');
+      parts.push('<g id="sumLeftGroup" class="sum-brace sum-brace--left"><image id="sumLeftBrace" href="' + SUM_BRACE_LEFT_IMAGE + '" x="' + braceX + '" y="' + braceY + '" width="' + braceThickness + '" height="' + o.height + '" preserveAspectRatio="none"></image><text id="sumLeftText" class="sum-text" text-anchor="middle" dominant-baseline="middle" x="' + textX + '" y="' + textY + '" transform="rotate(-90 ' + textX + ' ' + textY + ')">' + verticalSumLabel + '</text></g>');
     }
     parts.push("</svg>");
     return parts.join("\n");
@@ -2793,7 +2797,7 @@ svg text { user-select: none; -webkit-user-select: none; }
     lines.push("function fmtInt(value){ return Number.isFinite(value) ? (intFormatter ? intFormatter.format(value) : String(value)) : ''; }");
     lines.push("function makeAxisPart(value, variable){ var numeric = Number.isFinite(value) ? value : NaN; if(!Number.isFinite(value) || value <= 0){ return { value: numeric, token: '', display: '', isVariable: false }; } var cleaned = sanitizeVariable(variable); if(cleaned){ return { value: numeric, token: cleaned, display: cleaned, isVariable: true }; } var label = fmtInt(value); return { value: numeric, token: label, display: label, isVariable: false }; }");
     lines.push("function buildAlgebraProduct(rowPart, colPart){ if(!rowPart || !colPart) return ''; var rowVar=rowPart.isVariable?rowPart.token:''; var colVar=colPart.isVariable?colPart.token:''; var rowNum=!rowPart.isVariable && Number.isFinite(rowPart.value)?fmtInt(rowPart.value):''; var colNum=!colPart.isVariable && Number.isFinite(colPart.value)?fmtInt(colPart.value):''; if(!rowVar && !colVar) return ''; if(rowVar && colVar){ if(rowVar===colVar) return rowVar+'\\u00B2'; return rowVar+colVar; } if(rowVar && colNum) return colNum+rowVar; if(rowNum && colVar) return rowNum+colVar; if(rowVar) return rowVar; if(colVar) return colVar; return ''; }");
-    lines.push("function buildSumLabel(partA, partB){ var terms=[]; if(partA && partA.display) terms.push(partA.display); if(partB && partB.display) terms.push(partB.display); return terms.length ? terms.join(' + ') : ''; }");
+    lines.push("function buildSumLabel(partA, partB){ var terms=[]; if(partA && partA.display) terms.push(partA.display); if(partB && partB.display) terms.push(partB.display); return terms.length ? terms.join('+') : ''; }");
     lines.push("function formatCellLabel(colPart, rowPart){ if(!colPart || !rowPart || CELL_MODE==='none') return ''; var colLabel = colPart.isVariable ? colPart.token : fmtInt(colPart.value); var rowLabel = rowPart.isVariable ? rowPart.token : fmtInt(rowPart.value); var factorLabel = colLabel && rowLabel ? colLabel + DOT + rowLabel : (colLabel || rowLabel || ''); var numericProduct = Number.isFinite(colPart.value) && Number.isFinite(rowPart.value) ? fmtInt(colPart.value * rowPart.value) : ''; var algebraProduct = buildAlgebraProduct(rowPart, colPart); var hasVariables = algebraProduct !== ''; if (CELL_MODE==='factors'){ if(rowPart.isVariable && colPart.isVariable) return algebraProduct; if(rowPart.isVariable) return rowPart.token; if(colPart.isVariable) return colPart.token; return factorLabel; } if (CELL_MODE==='area'){ return hasVariables ? algebraProduct : numericProduct; } if (CELL_MODE==='both'){ var right = hasVariables ? algebraProduct : numericProduct; if(factorLabel && right) return factorLabel + EQUALS + right; return factorLabel || right || ''; } return factorLabel; }");
     lines.push(`var UNIT=${o.unit}, ROWS=${o.rows}, COLS=${o.cols}, TEN=${o.TEN};`);
     lines.push(`var ML=${ML}, MT=${MT}, W=${o.width}, H=${o.height};`);
@@ -2901,12 +2905,12 @@ svg text { user-select: none; -webkit-user-select: none; }
     lines.push("  if(tBL){ setDisplay(tBL, showBLText); if(showBLText){ set(tBL,'x',ML+leftWidth/2); set(tBL,'y',MT+topHeight+bottomHeight/2+8); tBL.textContent = formatCellLabel(colLeft, rowBottom); } else { tBL.textContent=''; } }");
     lines.push("  if(tBR){ setDisplay(tBR, showBRText); if(showBRText){ set(tBR,'x',ML+leftWidth+rightWidth/2); set(tBR,'y',MT+topHeight+bottomHeight/2+8); tBR.textContent = formatCellLabel(colRight, rowBottom); } else { tBR.textContent=''; } }");
     lines.push("  var edgeCounts = EDGE_MODE === 'counts';");
-    lines.push("  if(leftTop){ set(leftTop,'x',leftOutsideX); set(leftTop,'y',MT+topHeight/2+10); leftTop.textContent = edgeCounts ? (rowTop.display || '') : ''; }");
-    lines.push("  if(leftBot){ set(leftBot,'x',leftOutsideX); set(leftBot,'y',MT+topHeight+bottomHeight/2+10); leftBot.textContent = edgeCounts ? (rowBottom.display || '') : ''; }");
-    lines.push("  if(botLeft){ set(botLeft,'x',ML+leftWidth/2); set(botLeft,'y',bottomOutsideY); botLeft.textContent = edgeCounts ? (colLeft.display || '') : ''; }");
-    lines.push("  if(botRight){ set(botRight,'x',ML+leftWidth+rightWidth/2); set(botRight,'y',bottomOutsideY); botRight.textContent = edgeCounts ? (colRight.display || '') : ''; }");
+    lines.push("  if(leftTop){ set(leftTop,'x',leftOutsideX); set(leftTop,'y',MT+topHeight/2+10); leftTop.textContent = (!SHOW_SUM && edgeCounts) ? (rowTop.display || '') : ''; }");
+    lines.push("  if(leftBot){ set(leftBot,'x',leftOutsideX); set(leftBot,'y',MT+topHeight+bottomHeight/2+10); leftBot.textContent = (!SHOW_SUM && edgeCounts) ? (rowBottom.display || '') : ''; }");
+    lines.push("  if(botLeft){ set(botLeft,'x',ML+leftWidth/2); set(botLeft,'y',bottomOutsideY); botLeft.textContent = (!SHOW_SUM && edgeCounts) ? (colLeft.display || '') : ''; }");
+    lines.push("  if(botRight){ set(botRight,'x',ML+leftWidth+rightWidth/2); set(botRight,'y',bottomOutsideY); botRight.textContent = (!SHOW_SUM && edgeCounts) ? (colRight.display || '') : ''; }");
     lines.push("  if(sumTopGroup && sumTopBrace && sumTopText){ if(SHOW_SUM && horizontalSumLabel){ var braceHeight=Math.max(16, Math.min(32, Math.round(W*0.06))); var braceGap=24; var braceY=MT - braceGap - braceHeight; set(sumTopBrace,'x',ML); set(sumTopBrace,'y',braceY); set(sumTopBrace,'width',W); set(sumTopBrace,'height',braceHeight); set(sumTopText,'x',ML+W/2); set(sumTopText,'y',braceY-8); sumTopText.textContent = horizontalSumLabel; setDisplay(sumTopGroup,true); } else { if(sumTopText) sumTopText.textContent=''; setDisplay(sumTopGroup,false); }}");
-    lines.push("  if(sumLeftGroup && sumLeftBrace && sumLeftText){ if(SHOW_SUM && verticalSumLabel){ var braceHeight=Math.max(16, Math.min(32, Math.round(H*0.06))); var braceGap=24; var braceX=ML - braceGap; var braceY=MT; var textX=braceX - braceHeight - 12; var textY=MT + H/2; set(sumLeftBrace,'x',braceX); set(sumLeftBrace,'y',braceY); set(sumLeftBrace,'width',H); set(sumLeftBrace,'height',braceHeight); set(sumLeftBrace,'transform','rotate(90 ' + braceX + ' ' + braceY + ')'); set(sumLeftText,'x',textX); set(sumLeftText,'y',textY); set(sumLeftText,'transform','rotate(-90 ' + textX + ' ' + textY + ')'); sumLeftText.textContent = verticalSumLabel; setDisplay(sumLeftGroup,true); } else { if(sumLeftText) sumLeftText.textContent=''; setDisplay(sumLeftGroup,false); }}");
+    lines.push("  if(sumLeftGroup && sumLeftBrace && sumLeftText){ if(SHOW_SUM && verticalSumLabel){ var braceThickness=Math.max(16, Math.min(32, Math.round(H*0.06))); var braceGap=24; var braceX=ML - braceGap - braceThickness; var braceY=MT; var textX=braceX - braceThickness/2 - 12; var textY=MT + H/2; set(sumLeftBrace,'x',braceX); set(sumLeftBrace,'y',braceY); set(sumLeftBrace,'width',braceThickness); set(sumLeftBrace,'height',H); if(sumLeftBrace.removeAttribute) sumLeftBrace.removeAttribute('transform'); set(sumLeftText,'x',textX); set(sumLeftText,'y',textY); set(sumLeftText,'transform','rotate(-90 ' + textX + ' ' + textY + ')'); sumLeftText.textContent = verticalSumLabel; setDisplay(sumLeftGroup,true); } else { if(sumLeftText) sumLeftText.textContent=''; setDisplay(sumLeftGroup,false); }}");
     lines.push("  var okX = (wL === TEN || wR === TEN);");
     lines.push("  var okY = (hB === TEN || hT === TEN);");
     lines.push("  var on = okX && okY;");
