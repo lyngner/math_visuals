@@ -218,9 +218,10 @@
     const unitSpacing = 60;
     const totalHeight = 120;
     const baselineY = inset + 26;
-    const majorTickBottom = totalHeight - inset - 20;
-    const minorTickBottom = baselineY + (majorTickBottom - baselineY) * 0.58;
-    const labelY = baselineY - 12;
+    const majorTickLength = (totalHeight - inset - 20 - baselineY) / 2;
+    const majorTickBottom = baselineY + majorTickLength;
+    const minorTickBottom = baselineY + majorTickLength * 0.58;
+    const labelY = majorTickBottom + 24;
     const contentWidth = marginLeft + marginRight + unitSpacing * length;
 
     const baselineStartX = marginLeft;
