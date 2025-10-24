@@ -216,6 +216,121 @@
     }
   }
   applyThemeToDocument();
+  const checkButton = typeof document !== 'undefined' ? document.getElementById('btnCheck') : null;
+  const checkStatus = typeof document !== 'undefined' ? document.getElementById('checkStatus') : null;
+  const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
+  const taskCheckControls = [checkButton, checkStatus].filter(Boolean);
+  function ensureTaskCheckControlsAppended() {
+    if (!taskCheckHost) return;
+    taskCheckControls.forEach(control => {
+      if (control && control.parentElement !== taskCheckHost) {
+        taskCheckHost.appendChild(control);
+      }
+    });
+  }
+  function setCheckStatus(type, heading, detailLines) {
+    if (!checkStatus) return;
+    if (!type) {
+      checkStatus.hidden = true;
+      checkStatus.className = 'status';
+      checkStatus.textContent = '';
+      return;
+    }
+    checkStatus.hidden = false;
+    checkStatus.className = `status status--${type}`;
+    checkStatus.textContent = '';
+    if (heading) {
+      const strong = document.createElement('strong');
+      strong.textContent = heading;
+      checkStatus.appendChild(strong);
+    }
+    if (Array.isArray(detailLines)) {
+      detailLines.forEach(line => {
+        if (!line) return;
+        const div = document.createElement('div');
+        div.textContent = line;
+        checkStatus.appendChild(div);
+      });
+    }
+  }
+  function clearCheckStatus() {
+    setCheckStatus(null);
+  }
+  function applyAppModeToTaskControls(mode) {
+    if (!taskCheckHost) return;
+    const normalized = typeof mode === 'string' ? mode.toLowerCase() : '';
+    const isTaskMode = normalized === 'task';
+    if (isTaskMode) {
+      ensureTaskCheckControlsAppended();
+      taskCheckHost.hidden = false;
+      taskCheckControls.forEach(control => {
+        if (!control) return;
+        if (control === checkButton) {
+          control.hidden = false;
+          if (control.dataset) delete control.dataset.prevHidden;
+          return;
+        }
+        if (control.dataset && 'prevHidden' in control.dataset) {
+          const wasHidden = control.dataset.prevHidden === '1';
+          delete control.dataset.prevHidden;
+          control.hidden = wasHidden;
+        }
+      });
+    } else {
+      taskCheckHost.hidden = true;
+      taskCheckControls.forEach(control => {
+        if (!control) return;
+        if (control.dataset) {
+          control.dataset.prevHidden = control.hidden ? '1' : '0';
+        }
+        control.hidden = true;
+      });
+    }
+  }
+  function getCurrentAppMode() {
+    if (typeof window === 'undefined') return 'default';
+    const mv = window.mathVisuals;
+    if (mv && typeof mv.getAppMode === 'function') {
+      try {
+        const mode = mv.getAppMode();
+        if (typeof mode === 'string' && mode) {
+          return mode;
+        }
+      } catch (_) {}
+    }
+    try {
+      const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
+      const fromQuery = params.get('mode');
+      if (typeof fromQuery === 'string' && fromQuery.trim()) {
+        return fromQuery.trim().toLowerCase() === 'task' ? 'task' : 'default';
+      }
+    } catch (_) {}
+    return 'default';
+  }
+  function handleAppModeChanged(event) {
+    if (!event) return;
+    const detail = event.detail;
+    if (!detail || typeof detail.mode !== 'string') return;
+    applyAppModeToTaskControls(detail.mode);
+  }
+  function evaluateDescriptionInputs() {
+    if (typeof window === 'undefined') return;
+    const mv = window.mathVisuals;
+    if (!mv || typeof mv.evaluateTaskInputs !== 'function') return;
+    try {
+      mv.evaluateTaskInputs();
+    } catch (_) {}
+  }
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('math-visuals:app-mode-changed', handleAppModeChanged);
+  }
+  applyAppModeToTaskControls(getCurrentAppMode() || 'task');
+  if (checkButton) {
+    checkButton.addEventListener('click', () => {
+      evaluateDescriptionInputs();
+      runTaskCheck();
+    });
+  }
   function getPaletteFromTheme(count) {
     const theme = getThemeApi();
     let palette = null;
@@ -356,6 +471,13 @@
     } else if (typeof fig.allowDenominatorChange !== 'boolean') {
       fig.allowDenominatorChange = false;
     }
+    const solution = fig.solution && typeof fig.solution === 'object' ? fig.solution : {};
+    const rawNum = parseInt(solution.numerator, 10);
+    const rawDen = parseInt(solution.denominator, 10);
+    fig.solution = {
+      numerator: Number.isFinite(rawNum) ? rawNum : null,
+      denominator: Number.isFinite(rawDen) && rawDen > 0 ? rawDen : null
+    };
     fig.allowWrong = allowWrongGlobal;
     STATE.figures[id] = fig;
     return fig;
@@ -370,6 +492,7 @@
         figState.allowWrong = allowWrongGlobal;
       }
       renderAll();
+      clearCheckStatus();
     });
   }
   if (showDivisionLinesInp) {
@@ -377,6 +500,7 @@
       showDivisionLinesGlobal = !!showDivisionLinesInp.checked;
       STATE.showDivisionLines = showDivisionLinesGlobal;
       window.render();
+      clearCheckStatus();
     });
   }
   if (showOutlineInp) {
@@ -384,6 +508,7 @@
       showOutlineGlobal = !!showOutlineInp.checked;
       STATE.showOutline = showOutlineGlobal;
       window.render();
+      clearCheckStatus();
     });
   }
   function ensureColorDefaults(count) {
@@ -424,6 +549,7 @@
     colorCount = STATE.colorCount;
     ensureColorDefaults(colorCount);
     (_window$render = (_window = window).render) === null || _window$render === void 0 || _window$render.call(_window);
+    clearCheckStatus();
   });
   colorInputs.forEach((inp, idx) => inp.addEventListener('input', () => {
     var _window$render2, _window2;
@@ -433,6 +559,7 @@
     if (!Array.isArray(STATE.colors)) STATE.colors = [];
     STATE.colors[idx] = inp.value;
     (_window$render2 = (_window2 = window).render) === null || _window$render2 === void 0 || _window$render2.call(_window2);
+    clearCheckStatus();
   }));
   function applyStateToControls() {
     allowWrongGlobal = !!STATE.allowWrong;
@@ -500,6 +627,15 @@
       if (divSel && figState.division) {
         const options = Array.from(divSel.options || []);
         if (options.some(opt => opt.value === figState.division)) divSel.value = figState.division;
+      }
+      const solution = figState.solution && typeof figState.solution === 'object' ? figState.solution : {};
+      const solutionNumInp = document.getElementById(`solutionNumerator${id}`);
+      if (solutionNumInp) {
+        solutionNumInp.value = solution.numerator != null ? String(solution.numerator) : '';
+      }
+      const solutionDenInp = document.getElementById(`solutionDenominator${id}`);
+      if (solutionDenInp) {
+        solutionDenInp.value = solution.denominator != null ? String(solution.denominator) : '';
       }
     }
   }
@@ -573,6 +709,16 @@
           <option value="triangular">trekantsrutenett</option>
         </select>
       </label>
+      <div class="field-row">
+        <div class="field">
+          <label for="solutionNumerator${id}">Fasit teller</label>
+          <input id="solutionNumerator${id}" class="input--digit" type="number" min="0" step="1" />
+        </div>
+        <div class="field">
+          <label for="solutionDenominator${id}">Fasit nevner</label>
+          <input id="solutionDenominator${id}" class="input--digit" type="number" min="1" step="1" />
+        </div>
+      </div>
     `;
     return fieldset;
   }
@@ -905,6 +1051,8 @@
     const allowDenominatorInp = document.getElementById(`allowDenominator${id}`);
     const stepperEl = document.getElementById(`partsStepper${id}`);
     const panel = document.getElementById(`panel${id}`);
+    const solutionNumInp = document.getElementById(`solutionNumerator${id}`);
+    const solutionDenInp = document.getElementById(`solutionDenominator${id}`);
     let board;
     const divisionSegmentIds = new Set();
     const divisionSegmentNodes = new Set();
@@ -986,6 +1134,22 @@
         filled = new Map(entries);
       }
       figState.filled = entries;
+    }
+    function syncSolutionFromInputs() {
+      const figState = ensureFigureState(id);
+      let solution = figState.solution && typeof figState.solution === 'object' ? figState.solution : null;
+      if (!solution) {
+        solution = { numerator: null, denominator: null };
+        figState.solution = solution;
+      }
+      if (solutionNumInp) {
+        const num = parseInt(solutionNumInp.value, 10);
+        solution.numerator = Number.isFinite(num) ? num : null;
+      }
+      if (solutionDenInp) {
+        const den = parseInt(solutionDenInp.value, 10);
+        solution.denominator = Number.isFinite(den) && den > 0 ? den : null;
+      }
     }
     function initBoard() {
       if (board) JXG.JSXGraph.freeBoard(board);
@@ -1385,6 +1549,7 @@
       }
       board.update();
       syncFilledState();
+      clearCheckStatus();
       refreshAltText('fill-change');
     }
     function gridDims(n) {
@@ -1969,11 +2134,13 @@
       const enabled = !!allowDenominatorInp.checked;
       updateDenominatorControls(enabled);
       window.render();
+      clearCheckStatus();
     });
     shapeSel === null || shapeSel === void 0 || shapeSel.addEventListener('change', () => {
       const figState = ensureFigureState(id);
       figState.shape = shapeSel.value;
       window.render();
+      clearCheckStatus();
     });
     partsInp === null || partsInp === void 0 || partsInp.addEventListener('input', () => {
       const figState = ensureFigureState(id);
@@ -1985,11 +2152,21 @@
       }
       figState.parts = clampInt(partsInp.value, 1);
       window.render();
+      clearCheckStatus();
     });
     divSel === null || divSel === void 0 || divSel.addEventListener('change', () => {
       const figState = ensureFigureState(id);
       figState.division = divSel.value;
       window.render();
+      clearCheckStatus();
+    });
+    solutionNumInp === null || solutionNumInp === void 0 || solutionNumInp.addEventListener('input', () => {
+      syncSolutionFromInputs();
+      clearCheckStatus();
+    });
+    solutionDenInp === null || solutionDenInp === void 0 || solutionDenInp.addEventListener('input', () => {
+      syncSolutionFromInputs();
+      clearCheckStatus();
     });
     minusBtn === null || minusBtn === void 0 || minusBtn.addEventListener('click', () => {
       let n = parseInt(partsInp.value, 10);
@@ -2024,6 +2201,64 @@
       setFilled,
       updateDenominatorControls
     };
+  }
+  function computeFigureFraction(figState) {
+    const state = figState && typeof figState === 'object' ? figState : {};
+    const partsValue = Number(state.parts);
+    const denominator = Number.isFinite(partsValue) ? Math.max(0, Math.round(partsValue)) : 0;
+    const entries = Array.isArray(state.filled) ? state.filled : [];
+    const seen = new Set();
+    entries.forEach(entry => {
+      if (!entry) return;
+      const partIndex = Array.isArray(entry) ? entry[0] : entry.partIndex;
+      const colorIndex = Array.isArray(entry) ? entry[1] : entry.colorIndex;
+      const part = Number(partIndex);
+      const color = Number(colorIndex);
+      if (!Number.isFinite(part) || part < 0) return;
+      if (!Number.isFinite(color) || color <= 0) return;
+      seen.add(Math.trunc(part));
+    });
+    return {
+      numerator: seen.size,
+      denominator
+    };
+  }
+  function runTaskCheck() {
+    const ids = getActiveFigureIds();
+    const targets = [];
+    ids.forEach(id => {
+      const figState = ensureFigureState(id);
+      const solution = figState.solution && typeof figState.solution === 'object' ? figState.solution : null;
+      if (!solution || solution.numerator == null || solution.denominator == null) return;
+      const panel = document.getElementById(`panel${id}`);
+      if (panel && panel.style.display === 'none') return;
+      targets.push({ id, figState, solution });
+    });
+    if (targets.length === 0) {
+      setCheckStatus('info', 'Ingen fasit er definert ennå.');
+      return;
+    }
+    const details = [];
+    targets.forEach(({ id, figState, solution }) => {
+      const { numerator, denominator } = computeFigureFraction(figState);
+      const label = targets.length > 1 ? `Figur ${id}` : 'Figuren';
+      if (!Number.isFinite(denominator) || denominator <= 0) {
+        details.push(`${label}: Fant ingen deler å sammenligne med fasit.`);
+        return;
+      }
+      if (solution.denominator != null && solution.denominator !== denominator) {
+        details.push(`${label}: Nevner skal være ${solution.denominator}, men er ${denominator}.`);
+      }
+      if (solution.numerator != null && solution.numerator !== numerator) {
+        details.push(`${label}: Teller skal være ${solution.numerator}, men er ${numerator}.`);
+      }
+    });
+    if (details.length === 0) {
+      const heading = targets.length === 1 ? 'Brøken er riktig!' : 'Alle brøker er riktige!';
+      setCheckStatus('success', heading);
+    } else {
+      setCheckStatus('error', 'Ikke helt riktig ennå.', details);
+    }
   }
   const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
   async function downloadAllFigures(type) {
@@ -2065,6 +2300,7 @@
     STATE.rows = rows;
     rebuildLayout();
     window.render();
+    clearCheckStatus();
   });
   removeRowBtn === null || removeRowBtn === void 0 || removeRowBtn.addEventListener('click', () => {
     if (rows <= MIN_DIMENSION) return;
@@ -2072,6 +2308,7 @@
     STATE.rows = rows;
     rebuildLayout();
     window.render();
+    clearCheckStatus();
   });
   addColumnBtn === null || addColumnBtn === void 0 || addColumnBtn.addEventListener('click', () => {
     if (cols >= MAX_COLS) return;
@@ -2079,6 +2316,7 @@
     STATE.cols = cols;
     rebuildLayout();
     window.render();
+    clearCheckStatus();
   });
   removeColumnBtn === null || removeColumnBtn === void 0 || removeColumnBtn.addEventListener('click', () => {
     if (cols <= MIN_DIMENSION) return;
@@ -2086,6 +2324,7 @@
     STATE.cols = cols;
     rebuildLayout();
     window.render();
+    clearCheckStatus();
   });
   rebuildLayout();
   initAltTextManager();
