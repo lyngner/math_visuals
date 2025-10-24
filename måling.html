@@ -87,6 +87,34 @@
       touch-action: pan-x pan-y;
     }
 
+    .board-grid {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(
+          to right,
+          rgba(15, 23, 42, 0.15) 0,
+          rgba(15, 23, 42, 0.15) 1px,
+          transparent 1px,
+          transparent
+        ),
+        linear-gradient(
+          to bottom,
+          rgba(15, 23, 42, 0.15) 0,
+          rgba(15, 23, 42, 0.15) 1px,
+          transparent 1px,
+          transparent
+        );
+      background-size: 100px 100px, 100px 100px;
+      opacity: 0;
+      transition: opacity 180ms ease;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .board--show-grid .board-grid {
+      opacity: 0.75;
+    }
+
     .board::before {
       content: "";
       position: absolute;
@@ -189,6 +217,49 @@
       text-align: center;
     }
 
+    .card--settings {
+      background: var(--surface);
+      border-radius: 20px;
+      border: 1px solid var(--surface-border);
+      box-shadow: var(--surface-shadow);
+    }
+
+    .settings-section {
+      border: none;
+      margin: 0;
+      padding: clamp(12px, 3vw, 20px);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .settings-section legend {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #1f2937;
+      margin-bottom: 4px;
+    }
+
+    .settings-toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.95rem;
+      color: #475569;
+    }
+
+    .settings-toggle input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--accent);
+    }
+
+    .settings-hint {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #6b7280;
+    }
+
     @media (max-width: 720px) {
       body {
         padding-bottom: 32px;
@@ -223,12 +294,23 @@
 
         <div class="board-wrapper">
           <div class="board" data-board>
+            <div class="board-grid" data-board-grid aria-hidden="true"></div>
             <div class="ruler" data-ruler aria-label="Flyttbar linjal" role="img">
               <svg viewBox="0 0 600 120" class="ruler-shadow" data-ruler-svg aria-hidden="true" focusable="false"></svg>
             </div>
           </div>
           <p class="status-note" data-status-note>Linjalens lengde er 10 cm. Bruk den til å finne høyden på kyllingen.</p>
         </div>
+      </div>
+      <div class="card card--settings">
+        <fieldset class="settings-section">
+          <legend>Innstillinger</legend>
+          <label class="settings-toggle">
+            <input type="checkbox" data-grid-toggle />
+            Vis rutenett (100 × 100)
+          </label>
+          <p class="settings-hint">Når rutenettet er på, snappes linjalens nullpunkt til rutens kryss.</p>
+        </fieldset>
       </div>
     </div>
   </div>

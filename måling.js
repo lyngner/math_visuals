@@ -7,12 +7,25 @@
 
   const rulerSvg = ruler.querySelector('[data-ruler-svg]');
   const statusNote = document.querySelector('[data-status-note]');
+  const gridToggleInput = document.querySelector('[data-grid-toggle]');
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
   const state = {
     x: 0,
     y: 0,
     rotation: 0
+  };
+
+  const gridState = {
+    enabled: false,
+    spacing: 100
+  };
+
+  const rulerGeometry = {
+    contentWidth: 0,
+    totalHeight: 0,
+    marginLeft: 0,
+    baselineY: 0
   };
 
   const activePointers = new Map();
@@ -24,7 +37,10 @@
 
   initializeRuler();
 
-  function applyTransform() {
+  function applyTransform({ snap = true } = {}) {
+    if (snap && gridState.enabled) {
+      snapStateToGrid();
+    }
     ruler.style.transform = `translate3d(${state.x}px, ${state.y}px, 0) rotate(${state.rotation}rad)`;
   }
 
@@ -96,7 +112,7 @@
     state.x += nextCenter.x - prevCenter.x;
     state.y += nextCenter.y - prevCenter.y;
     state.rotation = normalizeAngle(state.rotation + normalizeAngle(nextAngle - prevAngle));
-    applyTransform();
+    applyTransform({ snap: false });
   }
 
   function handlePointerDown(event) {
@@ -141,6 +157,9 @@
     try {
       ruler.releasePointerCapture(event.pointerId);
     } catch (_) {}
+    if (gridState.enabled && activePointers.size === 0) {
+      applyTransform();
+    }
   }
 
   function handleResize() {
@@ -167,6 +186,7 @@
     const settings = normalizeSettings();
     renderRuler(settings);
     updateAccessibility(settings);
+    setupGridToggle();
   }
 
   function normalizeSettings() {
@@ -263,6 +283,11 @@
 
     ruler.style.setProperty('--ruler-width', `${contentWidth}px`);
     ruler.style.setProperty('--ruler-height', `${totalHeight}px`);
+
+    rulerGeometry.contentWidth = contentWidth;
+    rulerGeometry.totalHeight = totalHeight;
+    rulerGeometry.marginLeft = marginLeft;
+    rulerGeometry.baselineY = baselineY;
   }
 
   function updateAccessibility(settings) {
@@ -274,6 +299,100 @@
       const suffix = unitLabel ? ` ${unitLabel}` : '';
       statusNote.textContent = `Linjalens lengde er ${formattedLength}${suffix}. Bruk den til å finne høyden på kyllingen.`;
     }
+  }
+
+  function getZeroPointOffset() {
+    if (!Number.isFinite(rulerGeometry.contentWidth) || rulerGeometry.contentWidth <= 0) {
+      return { x: 0, y: 0 };
+    }
+    const scaleX = ruler.offsetWidth / rulerGeometry.contentWidth;
+    const scaleY = rulerGeometry.totalHeight > 0 ? ruler.offsetHeight / rulerGeometry.totalHeight : scaleX;
+    return {
+      x: rulerGeometry.marginLeft * scaleX,
+      y: rulerGeometry.baselineY * scaleY
+    };
+  }
+
+  function getZeroPointPosition() {
+    const zeroOffset = getZeroPointOffset();
+    const center = {
+      x: ruler.offsetWidth / 2,
+      y: ruler.offsetHeight / 2
+    };
+    const relative = {
+      x: zeroOffset.x - center.x,
+      y: zeroOffset.y - center.y
+    };
+    const cos = Math.cos(state.rotation);
+    const sin = Math.sin(state.rotation);
+    const rotated = {
+      x: relative.x * cos - relative.y * sin + center.x,
+      y: relative.x * sin + relative.y * cos + center.y
+    };
+    return {
+      x: state.x + rotated.x,
+      y: state.y + rotated.y
+    };
+  }
+
+  function snapStateToGrid() {
+    if (!gridState.enabled) {
+      return;
+    }
+    const zeroPosition = getZeroPointPosition();
+    const spacing = gridState.spacing;
+    if (!(spacing > 0)) {
+      return;
+    }
+    const snappedX = Math.round(zeroPosition.x / spacing) * spacing;
+    const snappedY = Math.round(zeroPosition.y / spacing) * spacing;
+    const deltaX = snappedX - zeroPosition.x;
+    const deltaY = snappedY - zeroPosition.y;
+    if (deltaX !== 0 || deltaY !== 0) {
+      state.x += deltaX;
+      state.y += deltaY;
+    }
+  }
+
+  function applyGridVisibility() {
+    const shouldShow = gridState.enabled;
+    board.classList.toggle('board--show-grid', shouldShow);
+    applyTransform({ snap: shouldShow });
+  }
+
+  function setupGridToggle() {
+    if (!gridToggleInput) {
+      return;
+    }
+    const cfg = getMeasurementConfig();
+    if (cfg && cfg.gridEnabled === true) {
+      gridState.enabled = true;
+      gridToggleInput.checked = true;
+      applyGridVisibility();
+    } else {
+      applyGridVisibility();
+    }
+    gridToggleInput.addEventListener('change', () => {
+      gridState.enabled = gridToggleInput.checked;
+      if (cfg) {
+        cfg.gridEnabled = gridState.enabled;
+      }
+      applyGridVisibility();
+    });
+  }
+
+  function getMeasurementConfig() {
+    const globalScope = typeof window !== 'undefined' ? window : null;
+    if (!globalScope) {
+      return null;
+    }
+    if (!globalScope.CFG || typeof globalScope.CFG !== 'object') {
+      globalScope.CFG = {};
+    }
+    if (!globalScope.CFG.measurement || typeof globalScope.CFG.measurement !== 'object') {
+      globalScope.CFG.measurement = {};
+    }
+    return globalScope.CFG.measurement;
   }
 
   function formatNumber(value) {
