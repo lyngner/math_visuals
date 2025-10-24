@@ -230,8 +230,6 @@ const CONFIG = {
   showCombinedWholeVertical: false,
   rowLabels: [],
   rowGap: DEFAULT_ROW_GAP,
-  variable1: '',
-  variable2: '',
   showSum: false,
   altText: '',
   altTextSource: 'auto'
@@ -242,13 +240,6 @@ const dimensionState = {
   rowTokens: [],
   columnTokens: []
 };
-function sanitizeVariableName(value) {
-  if (typeof value !== 'string') return '';
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  return trimmed.replace(/\s+/g, '').replace(/[^0-9A-Za-zÆØÅæøå]/g, '');
-}
-
 function isNumericLabel(label) {
   if (typeof label !== 'string') return false;
   const normalized = label.trim();
@@ -263,28 +254,12 @@ function getVariableToken(label) {
   return normalized;
 }
 
-function getVariableName(index) {
-  const key = index === 1 ? 'variable1' : 'variable2';
-  const value = CONFIG[key];
-  if (typeof value !== 'string') return '';
-  const normalized = value.trim();
-  return normalized;
-}
-
 function createColumnToken(index, totalValue) {
-  const primary = getVariableName(1);
-  const secondary = getVariableName(2);
-  if (index === 0 && primary) return primary;
-  if (index === 1 && secondary) return secondary;
   if (Number.isFinite(totalValue)) return fmt(totalValue);
   return '';
 }
 
 function createRowToken(index, totalValue) {
-  const primary = getVariableName(1);
-  const secondary = getVariableName(2);
-  if (index === 0 && secondary) return secondary;
-  if (index === 1 && primary) return primary;
   if (Number.isFinite(totalValue)) return fmt(totalValue);
   return '';
 }
@@ -354,25 +329,7 @@ function formatProductLabel(rowToken, columnToken) {
 
 function orderVerticalSumTokens(tokens) {
   if (!Array.isArray(tokens) || tokens.length <= 1) return tokens || [];
-  const primary = getVariableName(1);
-  const secondary = getVariableName(2);
-  const prioritized = [];
-  const remaining = [];
-  tokens.forEach((token, index) => {
-    const variable = getVariableToken(token);
-    if (primary && variable === primary) {
-      prioritized.push({ token, index, priority: 0 });
-    } else if (secondary && variable === secondary) {
-      prioritized.push({ token, index, priority: 1 });
-    } else {
-      remaining.push({ token, index, priority: 2 });
-    }
-  });
-  prioritized.sort((a, b) => {
-    if (a.priority !== b.priority) return a.priority - b.priority;
-    return a.index - b.index;
-  });
-  return [...prioritized, ...remaining].map(entry => entry.token);
+  return tokens.slice();
 }
 
 function getSumTokens(orientation, data = dimensionState) {
@@ -532,8 +489,6 @@ const globalControls = {
   verticalRow: null,
   rowLabelInputs: [],
   rowGapInput: null,
-  variable1Input: null,
-  variable2Input: null,
   showSumInput: null,
   showSumRow: null
 };
@@ -616,8 +571,6 @@ function collectTenkeblokkerAltSummary() {
     showSum: !!CONFIG.showSum,
     showCombinedWhole: !!CONFIG.showCombinedWhole,
     showCombinedWholeVertical: !!CONFIG.showCombinedWholeVertical,
-    variable1: getVariableName(1),
-    variable2: getVariableName(2),
     sumHorizontal: horizontalSum,
     sumVertical: verticalSum,
     blocks
@@ -1184,8 +1137,6 @@ function normalizeConfig(initial = false) {
   CONFIG.showCombinedWhole = toBoolean(CONFIG.showCombinedWhole, false);
   CONFIG.showCombinedWholeVertical = toBoolean(CONFIG.showCombinedWholeVertical, false);
   CONFIG.showSum = toBoolean(CONFIG.showSum, false);
-  CONFIG.variable1 = sanitizeVariableName(CONFIG.variable1);
-  CONFIG.variable2 = sanitizeVariableName(CONFIG.variable2);
   CONFIG.rowGap = sanitizeRowGap(CONFIG.rowGap);
   const rowsChanged = Number.isFinite(previousRows) && previousRows !== rows;
   const colsChanged = Number.isFinite(previousCols) && previousCols !== cols;
@@ -1245,8 +1196,6 @@ function buildGlobalSettings(targetFragment) {
   globalControls.verticalRow = null;
   globalControls.rowLabelInputs = [];
   globalControls.rowGapInput = null;
-  globalControls.variable1Input = null;
-  globalControls.variable2Input = null;
   globalControls.showSumInput = null;
   globalControls.showSumRow = null;
   const fieldset = document.createElement('fieldset');
@@ -1277,39 +1226,6 @@ function buildGlobalSettings(targetFragment) {
     }
     fieldset.appendChild(labelWrapper);
   }
-  const variableWrapper = document.createElement('div');
-  variableWrapper.className = 'tb-row-label-inputs tb-variable-inputs';
-  const variable1Label = document.createElement('label');
-  variable1Label.textContent = 'Variabel 1';
-  const variable1Input = document.createElement('input');
-  variable1Input.type = 'text';
-  variable1Input.placeholder = 'f.eks. x';
-  variable1Input.value = typeof CONFIG.variable1 === 'string' ? CONFIG.variable1 : '';
-  variable1Input.addEventListener('input', () => {
-    const sanitized = sanitizeVariableName(variable1Input.value);
-    CONFIG.variable1 = sanitized;
-    if (variable1Input.value !== sanitized) variable1Input.value = sanitized;
-    draw(true);
-  });
-  variable1Label.appendChild(variable1Input);
-  variableWrapper.appendChild(variable1Label);
-  const variable2Label = document.createElement('label');
-  variable2Label.textContent = 'Variabel 2';
-  const variable2Input = document.createElement('input');
-  variable2Input.type = 'text';
-  variable2Input.placeholder = 'f.eks. y';
-  variable2Input.value = typeof CONFIG.variable2 === 'string' ? CONFIG.variable2 : '';
-  variable2Input.addEventListener('input', () => {
-    const sanitized = sanitizeVariableName(variable2Input.value);
-    CONFIG.variable2 = sanitized;
-    if (variable2Input.value !== sanitized) variable2Input.value = sanitized;
-    draw(true);
-  });
-  variable2Label.appendChild(variable2Input);
-  variableWrapper.appendChild(variable2Label);
-  fieldset.appendChild(variableWrapper);
-  globalControls.variable1Input = variable1Input;
-  globalControls.variable2Input = variable2Input;
   if (rowCount > 1) {
     const gapLabel = document.createElement('label');
     gapLabel.textContent = 'Mellomrom mellom blokker';
@@ -1423,18 +1339,6 @@ function draw(skipNormalization = false) {
     const desiredGap = String(getConfiguredRowGap());
     if (globalControls.rowGapInput.value !== desiredGap) {
       globalControls.rowGapInput.value = desiredGap;
-    }
-  }
-  if (globalControls.variable1Input) {
-    const desiredVar1 = typeof CONFIG.variable1 === 'string' ? CONFIG.variable1 : '';
-    if (globalControls.variable1Input.value !== desiredVar1) {
-      globalControls.variable1Input.value = desiredVar1;
-    }
-  }
-  if (globalControls.variable2Input) {
-    const desiredVar2 = typeof CONFIG.variable2 === 'string' ? CONFIG.variable2 : '';
-    if (globalControls.variable2Input.value !== desiredVar2) {
-      globalControls.variable2Input.value = desiredVar2;
     }
   }
   if (globalControls.showSumInput) {
