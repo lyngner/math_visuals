@@ -109,6 +109,33 @@
       }
     }
 
+    static extractMetadata(payload) {
+      if (!payload || typeof payload !== 'object') return null;
+      const metadata = {};
+      const knownKeys = ['storage', 'mode', 'storageMode', 'persistent', 'ephemeral', 'limitation'];
+      knownKeys.forEach(key => {
+        if (Object.prototype.hasOwnProperty.call(payload, key)) {
+          metadata[key] = payload[key];
+        }
+      });
+      if (payload.fallback === true) {
+        metadata.fallback = true;
+      }
+      if (typeof payload.fallbackReason === 'string' && payload.fallbackReason) {
+        metadata.fallbackReason = payload.fallbackReason;
+      }
+      if (typeof payload.fallbackSource === 'string' && payload.fallbackSource) {
+        metadata.fallbackSource = payload.fallbackSource;
+      }
+      if (payload.fallbackDetails && typeof payload.fallbackDetails === 'object') {
+        metadata.fallbackDetails = payload.fallbackDetails;
+      }
+      if (typeof payload.storageResult === 'string' && payload.storageResult) {
+        metadata.storageResult = payload.storageResult;
+      }
+      return Object.keys(metadata).length ? metadata : null;
+    }
+
     static extractContentType(headers) {
       if (!headers) return null;
       let value = null;
@@ -242,6 +269,23 @@
       const groups = this.buildGroupsFromItems(items);
       this.updateGroups(groups);
       return groups;
+    }
+
+    applyEntriesResult(result = {}) {
+      const entries = Array.isArray(result.entries) ? result.entries : [];
+      const metadata = result && typeof result.metadata === 'object' ? result.metadata : null;
+      const groups = this.updateGroupsWithItems(entries);
+      let normalizedMetadata = null;
+      if (metadata && typeof metadata === 'object') {
+        try {
+          normalizedMetadata = JSON.parse(JSON.stringify(metadata));
+        } catch (error) {
+          normalizedMetadata = { ...metadata };
+        }
+      }
+      this.state.metadata = normalizedMetadata;
+      this.state.lastFetchUsedFallback = result && result.usedFallback === true;
+      return { groups, metadata: normalizedMetadata };
     }
 
     async deleteExample(id, options = {}) {

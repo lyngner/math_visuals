@@ -14,6 +14,15 @@ const TRASH_HEADERS = {
   'X-Examples-Store-Mode': 'memory'
 };
 
+const TRASH_METADATA = {
+  storage: 'memory',
+  mode: 'memory',
+  storageMode: 'memory',
+  persistent: false,
+  ephemeral: true,
+  limitation: 'Test-arkiv (midlertidig lagring).'
+};
+
 function clone(value) {
   try {
     return JSON.parse(JSON.stringify(value));
@@ -100,11 +109,7 @@ test.describe('Examples trash guidance', () => {
       const method = request.method();
       if (method === 'GET') {
         const body = {
-          storage: 'memory',
-          mode: 'memory',
-          storageMode: 'memory',
-          persistent: false,
-          ephemeral: true,
+          ...TRASH_METADATA,
           entries: trashEntries.map(entry => withDefaultSourceState(entry))
         };
         await route.fulfill({ status: 200, headers: TRASH_HEADERS, body: JSON.stringify(body) });
@@ -134,11 +139,7 @@ test.describe('Examples trash guidance', () => {
           trashEntries = trashEntries.slice(0, limit);
         }
         const body = {
-          storage: 'memory',
-          mode: 'memory',
-          storageMode: 'memory',
-          persistent: false,
-          ephemeral: true,
+          ...TRASH_METADATA,
           entries: trashEntries.map(entry => withDefaultSourceState(entry))
         };
         await route.fulfill({ status: 200, headers: TRASH_HEADERS, body: JSON.stringify(body) });
@@ -174,11 +175,7 @@ test.describe('Examples trash guidance', () => {
           });
         }
         const body = {
-          storage: 'memory',
-          mode: 'memory',
-          storageMode: 'memory',
-          persistent: false,
-          ephemeral: true,
+          ...TRASH_METADATA,
           removed,
           entryId: ids.length === 1 ? ids[0] : null,
           entries: trashEntries.map(entry => withDefaultSourceState(entry))

@@ -208,6 +208,130 @@
     return fallbackFlushQueuedTrashEntries();
   }
 
+  function clonePlainObject(value) {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+    if (typeof structuredClone === 'function') {
+      try {
+        return structuredClone(value);
+      } catch (error) {}
+    }
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (error) {
+      const copy = Array.isArray(value) ? [] : {};
+      Object.keys(value).forEach(key => {
+        copy[key] = value[key];
+      });
+      return copy;
+    }
+  }
+
+  function collectQueuedTrashRecords() {
+    const queued = readQueuedTrashEntries();
+    if (!Array.isArray(queued) || !queued.length) {
+      return [];
+    }
+    const records = [];
+    queued.forEach(entry => {
+      if (!entry || typeof entry !== 'object') {
+        return;
+      }
+      const record = clonePlainObject(entry.record);
+      if (!record || typeof record.id !== 'string' || !record.id.trim()) {
+        return;
+      }
+      if (typeof record.deletedAt !== 'string' || !record.deletedAt.trim()) {
+        let fallbackTimestamp = null;
+        if (typeof entry.queuedAt === 'string' && entry.queuedAt.trim()) {
+          fallbackTimestamp = entry.queuedAt.trim();
+        }
+        if (!fallbackTimestamp) {
+          try {
+            fallbackTimestamp = new Date().toISOString();
+          } catch (error) {
+            fallbackTimestamp = '';
+          }
+        }
+        record.deletedAt = fallbackTimestamp;
+      }
+      if (typeof record.reason !== 'string' || !record.reason) {
+        record.reason = 'delete';
+      }
+      record.fallback = true;
+      record.fallbackSource = 'queue';
+      record.queuedAt = typeof entry.queuedAt === 'string' ? entry.queuedAt : record.deletedAt;
+      records.push(record);
+    });
+    return dedupeTrashEntries(records);
+  }
+
+  function buildTrashFallbackMetadata({ entries, reason, status, error }) {
+    const hasEntries = Array.isArray(entries) && entries.length > 0;
+    const resolvedReason = typeof reason === 'string' && reason ? reason : 'unavailable';
+    const limitationBase =
+      resolvedReason === 'unconfigured'
+        ? 'Arkivtjenesten for slettede figurer er ikke konfigurert.'
+        : 'Arkivtjenesten for slettede figurer er utilgjengelig akkurat nå.';
+    const limitation = hasEntries
+      ? `${limitationBase} Viser slettede figurer lagret på denne enheten.`
+      : `${limitationBase} Ingen lokale slettede figurer er tilgjengelige.`;
+    const details = {};
+    if (typeof status === 'number') {
+      details.status = status;
+    }
+    if (error && typeof error.message === 'string' && error.message) {
+      details.errorMessage = error.message;
+    }
+    if (!details.queueSize) {
+      details.queueSize = Array.isArray(entries) ? entries.length : 0;
+    }
+    return {
+      storage: 'local',
+      storageMode: 'local',
+      mode: 'local',
+      persistent: false,
+      ephemeral: true,
+      limitation,
+      fallback: true,
+      fallbackReason: resolvedReason,
+      fallbackSource: hasEntries ? 'queue' : 'none',
+      fallbackDetails: details
+    };
+  }
+
+  function buildTrashFallbackResult(options = {}) {
+    if (!trashViewer || !TrashArchiveViewerClass) {
+      throw new Error('Visningen for slettede figurer er ikke tilgjengelig.');
+    }
+    const entries = collectQueuedTrashRecords();
+    const metadata = buildTrashFallbackMetadata({
+      entries,
+      reason: options.reason,
+      status: options.status,
+      error: options.error
+    });
+    const hasEntries = entries.length > 0;
+    const resolvedReason = metadata.fallbackReason;
+    const baseMessage =
+      resolvedReason === 'unconfigured'
+        ? 'Arkivtjenesten er ikke konfigurert.'
+        : 'Arkivtjenesten er utilgjengelig.';
+    const message = hasEntries
+      ? `${baseMessage} Viser slettede figurer som venter på opplasting fra denne enheten.`
+      : `${baseMessage} Ingen lokale slettede figurer ble funnet.`;
+    const actions = [buildTrashRetryAction()].filter(Boolean);
+    const state = hasEntries ? 'warning' : 'error';
+    trashViewer.applyEntriesResult({ entries, metadata, usedFallback: true });
+    if (message || actions.length) {
+      setTrashViewerStatus({ text: message, actions }, state);
+    } else {
+      setTrashViewerStatus('', null);
+    }
+    return { entries, metadata, usedFallback: true };
+  }
+
   function buildTrashRetryAction() {
     const hasPending = getPendingTrashQueueCount() > 0;
     if (!hasPending || manualTrashReplayInFlight) {
@@ -923,41 +1047,46 @@
       throw new Error('Fant ikke visningen for slettede figurer.');
     }
     if (!trashApiBase) {
-      throw new Error('Arkivtjenesten for slettede figurer er ikke konfigurert.');
+      return buildTrashFallbackResult({ reason: 'unconfigured' });
     }
 
     const url = TrashArchiveViewerClass.buildTrashApiUrl(trashApiBase);
     if (!url) {
-      throw new Error('Kunne ikke finne adressen til arkivtjenesten.');
+      return buildTrashFallbackResult({ reason: 'invalid-url' });
     }
 
     let response;
     try {
       response = await fetch(url, { headers: { Accept: 'application/json' } });
     } catch (error) {
-      throw new Error('Kunne ikke hente slettede figurer.');
+      return buildTrashFallbackResult({ reason: 'network-error', error });
+    }
+
+    if (response && response.status === 404) {
+      return buildTrashFallbackResult({ reason: 'not-found', status: 404 });
     }
 
     if (!TrashArchiveViewerClass.responseLooksLikeJson(response)) {
-      const status = response && response.status ? response.status : 'ukjent';
-      throw new Error(`Uventet svar fra arkivtjenesten (${status}).`);
+      const status = response && response.status ? response.status : undefined;
+      return buildTrashFallbackResult({ reason: 'invalid-response', status });
     }
 
     if (!response.ok) {
-      throw new Error(`Arkivtjenesten svarte med ${response.status}.`);
+      return buildTrashFallbackResult({ reason: 'error-status', status: response.status });
     }
 
     let payload;
     try {
       payload = await response.json();
     } catch (error) {
-      throw new Error('Kunne ikke tolke svaret fra arkivtjenesten.');
+      return buildTrashFallbackResult({ reason: 'parse-error', status: response.status, error });
     }
 
     const entries = dedupeTrashEntries(Array.isArray(payload && payload.entries) ? payload.entries : []);
-    const groups = trashViewer.buildGroupsFromItems(entries);
-    updateTrashViewerGroups(groups);
-    return { entries, usedFallback: false };
+    const metadata = TrashArchiveViewerClass.extractMetadata(payload);
+    trashViewer.applyEntriesResult({ entries, metadata, usedFallback: false });
+    setTrashViewerStatus('', null);
+    return { entries, metadata, usedFallback: false };
   }
 
   function openTrashExample(path, id) {
@@ -1038,7 +1167,12 @@
       setTrashViewerStatus('Laster slettede figurer …', 'info');
       await fetchTrashEntries();
       renderTrashViewer();
-      if (!trashViewerState.groups.length) {
+      if (trashViewerState.lastFetchUsedFallback) {
+        const hasGroups = Array.isArray(trashViewerState.groups) && trashViewerState.groups.length > 0;
+        if (!hasGroups && trashStatus && trashStatus.hidden) {
+          setTrashViewerStatus('Ingen slettede figurer tilgjengelige akkurat nå.', 'info');
+        }
+      } else if (!trashViewerState.groups.length) {
         setTrashViewerStatus('Ingen slettede figurer ennå.', 'info');
       } else {
         setTrashViewerStatus('Slettede figurer er klare.', 'success');
