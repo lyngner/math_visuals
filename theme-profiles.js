@@ -215,6 +215,15 @@
       if (Array.isArray(base) && base.length) {
         return ensurePalette(base, count);
       }
+      if (
+        base &&
+        typeof base === 'object' &&
+        !Array.isArray(base) &&
+        ((base.byCount && typeof base.byCount === 'object' && Object.keys(base.byCount).length) ||
+          (Array.isArray(base.default) && base.default.length))
+      ) {
+        return ensurePalette(base, count);
+      }
     }
     return ensurePalette(LEGACY_FRACTION_PALETTE, count);
   }
