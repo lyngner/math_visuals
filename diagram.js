@@ -56,7 +56,29 @@ const LEGACY_FIGURE_BORDER = '#eef0f3';
 const LEGACY_CANVAS_BACKGROUND = '#ffffff';
 const LEGACY_VALUE_COLOR = '#111111';
 const LEGACY_PIE_LABEL_COLOR = '#333333';
-const DRAG_HANDLE_ICON = 'images/draggable.svg';
+function resolveDragHandleIcon() {
+  if (typeof document === 'undefined') {
+    return 'images/draggable.svg';
+  }
+  const current = document.currentScript && document.currentScript.src ? document.currentScript.src : null;
+  if (current) {
+    try {
+      return new URL('images/draggable.svg', current).toString();
+    } catch (_) {}
+  }
+  if (document.baseURI) {
+    try {
+      return new URL('images/draggable.svg', document.baseURI).toString();
+    } catch (_) {}
+  }
+  if (typeof window !== 'undefined' && window.location && window.location.href) {
+    try {
+      return new URL('images/draggable.svg', window.location.href).toString();
+    } catch (_) {}
+  }
+  return 'images/draggable.svg';
+}
+const DRAG_HANDLE_ICON = resolveDragHandleIcon();
 const DRAG_HANDLE_SIZE = 36;
 const XLINK_NS = 'http://www.w3.org/1999/xlink';
 let themePaletteSize = Array.isArray(CFG.labels) ? CFG.labels.length : 0;

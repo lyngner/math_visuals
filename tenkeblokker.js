@@ -28,7 +28,29 @@ const DEFAULT_BLOCKS = [{
 const DEFAULT_TENKEBLOKKER_EXAMPLES = [];
 const DISPLAY_OPTIONS = ['number', 'fraction', 'percent'];
 const UNION_BRACE_PATH = 'M716 0C722.627 0 728 5.37258 728 12V18C728 19.1046 727.105 20 726 20C724.895 20 724 19.1046 724 18V12C724 7.58173 720.418 4.00001 716 4H12C7.58172 4 4 7.58172 4 12V18C4 19.1046 3.10457 20 2 20C0.895431 20 0 19.1046 0 18V12C0 5.37258 5.37258 0 12 0H716Z';
-const DRAG_HANDLE_ICON = 'images/draggable.svg';
+function resolveDragHandleIcon() {
+  if (typeof document === 'undefined') {
+    return 'images/draggable.svg';
+  }
+  const current = document.currentScript && document.currentScript.src ? document.currentScript.src : null;
+  if (current) {
+    try {
+      return new URL('images/draggable.svg', current).toString();
+    } catch (_) {}
+  }
+  if (document.baseURI) {
+    try {
+      return new URL('images/draggable.svg', document.baseURI).toString();
+    } catch (_) {}
+  }
+  if (typeof window !== 'undefined' && window.location && window.location.href) {
+    try {
+      return new URL('images/draggable.svg', window.location.href).toString();
+    } catch (_) {}
+  }
+  return 'images/draggable.svg';
+}
+const DRAG_HANDLE_ICON = resolveDragHandleIcon();
 const DRAG_HANDLE_SIZE = 36;
 const XLINK_NS = 'http://www.w3.org/1999/xlink';
 const UNION_BRACE_BOUNDS = Object.freeze({
