@@ -1291,6 +1291,9 @@
         strokeWidth: 2,
         dash: 2,
         highlight: false,
+        highlightStrokeColor: '#000',
+        highlightStrokeOpacity: 1,
+        highlightStrokeWidth: 2,
         fixed: true,
         linecap: 'butt',
         layer: 10
