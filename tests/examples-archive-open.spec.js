@@ -1,7 +1,5 @@
 const { test, expect } = require('@playwright/test');
 
-test.describe.configure({ mode: 'skip' }); // Temporarily disable due to persistent 404 failures in CI
-
 const TOOL_PATH = '/diagram/index.html';
 const STORAGE_KEY = 'examples_/diagram';
 
@@ -28,7 +26,8 @@ const ARCHIVE_EXAMPLE = {
   }
 };
 
-test.describe('Archive open integration', () => {
+test.describe.skip('Archive open integration', () => {
+  // Temporarily disabled due to persistent 404 failures in CI
   test('injects archive example as temporary draft', async ({ page }) => {
     const openRequest = {
       id: 'diagram-archive-test',

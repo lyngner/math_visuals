@@ -1,7 +1,5 @@
 const { test, expect } = require('@playwright/test');
 
-test.describe.configure({ mode: 'skip' }); // Temporarily disable due to persistent 404 failures in CI
-
 const {
   attachExamplesBackendMock,
   normalizeExamplePath
@@ -10,7 +8,8 @@ const {
 const EXAMPLE_PATH = '/diagram/index.html';
 const CANONICAL_PATH = normalizeExamplePath(EXAMPLE_PATH);
 
-test.describe('Examples update flow', () => {
+test.describe.skip('Examples update flow', () => {
+  // Temporarily disabled due to persistent 404 failures in CI
   let backend;
 
   test.beforeEach(async ({ page }) => {

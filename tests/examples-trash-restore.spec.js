@@ -1,7 +1,5 @@
 const { test, expect } = require('@playwright/test');
 
-test.describe.configure({ mode: 'skip' }); // Temporarily disable due to persistent 404 failures in CI
-
 const {
   attachExamplesBackendMock,
   normalizeExamplePath
@@ -95,7 +93,8 @@ async function openTrashArchivePage(context) {
   return archivePage;
 }
 
-test.describe('Examples trash guidance', () => {
+test.describe.skip('Examples trash guidance', () => {
+  // Temporarily disabled due to persistent 404 failures in CI
   let backend;
   let trashEntries;
   let trashRouteHandler;
