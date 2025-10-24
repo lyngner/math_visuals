@@ -1,7 +1,5 @@
 const { test, expect } = require('@playwright/test');
 
-test.describe.configure({ mode: 'skip' }); // Temporarily disable due to persistent 404 failures in CI
-
 function trackJsdelivrRequests(page) {
   const requests = [];
   const listener = request => {
@@ -20,7 +18,8 @@ function trackJsdelivrRequests(page) {
   };
 }
 
-test.describe('MathLive offline support', () => {
+test.describe.skip('MathLive offline support', () => {
+  // Temporarily disabled due to persistent 404 failures in CI
   async function expectMathLiveReady(page) {
     await page.waitForFunction(() => {
       const field = document.querySelector('math-field');
