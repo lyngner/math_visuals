@@ -639,7 +639,7 @@ function drawAxesAndGrid() {
       class: 'gridline'
     });
     addTo(gGrid, 'text', {
-      x: M.l - 6,
+      x: M.l - 10,
       y: yy + 4,
       class: 'yTickText'
     }).textContent = formatTickValue(value);
@@ -692,7 +692,7 @@ function drawAxesAndGrid() {
   const yAxisGroup = addTo(gAxis, 'g', { class: 'axis-group axis-group--y' });
   const yArrowLength = 16;
   const yArrowHalfWidth = 8;
-  const yLineStart = M.t - 8;
+  const yLineStart = M.t - 12;
   addTo(yAxisGroup, 'line', {
     x1: M.l,
     y1: yLineStart,
@@ -718,7 +718,7 @@ function drawAxesAndGrid() {
   const xAxisGroup = addTo(gAxis, 'g', { class: 'axis-group axis-group--x' });
   const xArrowLength = 18;
   const xArrowHalfHeight = 8;
-  const xLineEnd = W - M.r;
+  const xLineEnd = W - M.r + 4;
   addTo(xAxisGroup, 'line', {
     x1: M.l,
     y1: axisY,
