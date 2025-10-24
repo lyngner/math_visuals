@@ -628,6 +628,29 @@
       } catch (_) {}
     }
   };
+  const BACKEND_FETCH_TIMEOUT_MS = 8000;
+
+  function fetchWithTimeout(resource, options, timeoutMs) {
+    if (typeof fetch !== 'function') {
+      return Promise.reject(new Error('Fetch is not available'));
+    }
+    const opts = options && typeof options === 'object' ? { ...options } : {};
+    const timeout = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : BACKEND_FETCH_TIMEOUT_MS;
+    if (typeof AbortController !== 'function' || timeout <= 0 || opts.signal) {
+      return fetch(resource, opts);
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      try {
+        controller.abort();
+      } catch (_) {}
+    }, timeout);
+    opts.signal = controller.signal;
+    return fetch(resource, opts).finally(() => {
+      clearTimeout(timer);
+    });
+  }
+
   function resolveExamplesApiBase() {
     if (typeof window === 'undefined') return null;
     if (window.MATH_VISUALS_EXAMPLES_API_URL) {
@@ -2872,7 +2895,7 @@
       }
       let res;
       try {
-        res = await fetch(canonicalUrl, fetchOptions);
+        res = await fetchWithTimeout(canonicalUrl, fetchOptions, BACKEND_FETCH_TIMEOUT_MS);
       } catch (error) {
         markBackendUnavailable();
         return null;
@@ -2888,7 +2911,7 @@
           if (!legacyUrl) continue;
           let legacyRes;
           try {
-            legacyRes = await fetch(legacyUrl, fetchOptions);
+            legacyRes = await fetchWithTimeout(legacyUrl, fetchOptions, BACKEND_FETCH_TIMEOUT_MS);
           } catch (error) {
             markBackendUnavailable();
             return null;
@@ -4588,7 +4611,7 @@
     const serialized = serializeExamplesForStorage(normalized);
     const opts = options && typeof options === 'object' ? options : {};
     const reason = typeof opts.reason === 'string' ? opts.reason : '';
-    if (reason === 'delete' && (previousCount <= 0 || nextCount < 0)) {
+    if (reason === 'delete' && (previousCount <= 1 || nextCount <= 0)) {
       lastKnownActionButtonCount = previousCount;
       showMinimumExampleWarning();
       try {
@@ -6129,7 +6152,7 @@
   if (deleteBtn) {
     deleteBtn.addEventListener('click', async () => {
       const examples = getExamples();
-      if (examples.length === 0) {
+      if (examples.length <= 1) {
         showMinimumExampleWarning();
         try {
           updateActionButtonState(examples.length);

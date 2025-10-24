@@ -261,6 +261,24 @@ function computeExamplesStorageKey(path, options = {}) {
   return `examples_${normalized}`;
 }
 
+function normalizePathForComparison(value) {
+  if (typeof value !== 'string') return '';
+  let working = value.trim();
+  if (!working) return '';
+  try {
+    working = decodeURI(working);
+  } catch (_) {}
+  return working.toLowerCase();
+}
+
+function pathsMatchForPromotion(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const normalizedA = normalizePathForComparison(a);
+  const normalizedB = normalizePathForComparison(b);
+  return normalizedA && normalizedB && normalizedA === normalizedB;
+}
+
 async function attachExamplesBackendMock(context, initialState = {}, sharedStoreOrOptions, maybeOptions) {
   let sharedStore = sharedStoreOrOptions;
   let options = maybeOptions;
@@ -319,7 +337,10 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     }
     record.rawPaths = record.rawPaths || new Set();
     record.rawPaths.add(rawPath);
-    const promote = options.promote !== undefined ? options.promote : rawPath === canonicalKey;
+    let promote = options.promote;
+    if (promote === undefined) {
+      promote = pathsMatchForPromotion(rawPath, canonicalKey);
+    }
     if (promote) {
       record.promoted = true;
     }
@@ -568,7 +589,7 @@ async function attachExamplesBackendMock(context, initialState = {}, sharedStore
     Object.entries(initialState).forEach(([path, payload]) => {
       const rawPath = typeof path === 'string' && path.trim() ? path.trim() : '/';
       const normalized = normalizePath(rawPath);
-      const promote = rawPath === (normalized || rawPath);
+      const promote = pathsMatchForPromotion(rawPath, normalized || rawPath);
       setEntry(rawPath, payload, { promote });
     });
   }
