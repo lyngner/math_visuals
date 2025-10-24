@@ -138,6 +138,7 @@ const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = {
 
 const AXIS_ARROW_PIXEL_THICKNESS = 26;
 const AXIS_ARROW_ASPECT_RATIO = 17 / 30;
+const AXIS_LABEL_OFFSET_PX = 10;
 
 const X_AXIS_ARROW_SVG_TEMPLATE =
   '<svg width="17" height="30" viewBox="0 0 17 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16.1421 16.1421C16.9231 15.3611 16.9231 14.0948 16.1421 13.3137L3.41417 0.5858C2.63313 -0.195248 1.3668 -0.195248 0.585748 0.5858C-0.195301 1.36685 -0.195301 2.63318 0.585748 3.41423L11.8995 14.7279L0.585748 26.0416C-0.195301 26.8227 -0.195301 28.089 0.585748 28.8701C1.3668 29.6511 2.63313 29.6511 3.41417 28.8701L16.1421 16.1421ZM14.7278 14.7279V16.7279H14.7279V14.7279V12.7279H14.7278V14.7279Z" fill="{{COLOR}}"/></svg>';
@@ -284,7 +285,7 @@ const FONT_LIMITS = {
   min: 6,
   max: 72
 };
-const FONT_DEFAULT = 16;
+const FONT_DEFAULT = 15;
 const FONT_PARAM_KEYS = ['fontSize', 'font', 'axisFont', 'tickFont', 'curveFont'];
 const SHOW_CURVE_NAMES = params.has('showNames') ? paramBool('showNames') : true;
 const SHOW_CURVE_EXPRESSIONS = params.has('showExpr') ? paramBool('showExpr') : false;
@@ -2024,7 +2025,7 @@ function axisLabelChip(axisKey) {
   const text = raw && String(raw).trim() ? raw : fallback;
   const color = ADV.axis.style.stroke;
   const fontSizeRaw = Number.parseFloat(ADV.axis.labels.fontSize);
-  const fontSize = Number.isFinite(fontSizeRaw) ? fontSizeRaw : 16;
+  const fontSize = Number.isFinite(fontSizeRaw) ? fontSizeRaw : 15;
   const styleTokens = [
     `--graf-axis-label-text:${color}`,
     `--graf-axis-label-font-size:${fontSize}px`
@@ -2035,11 +2036,18 @@ function axisLabelChip(axisKey) {
 function placeAxisNames() {
   if (!brd) return;
   const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
-  const rx = xmax - xmin,
-    ry = ymax - ymin,
-    off = 0.04;
-  const xLabelPos = [xmax - off * rx, off * ry];
-  const yLabelPos = [off * rx, ymax - off * ry];
+  const rx = xmax - xmin;
+  const ry = ymax - ymin;
+  const canvasWidth = Math.max(1, brd.canvasWidth || 1);
+  const canvasHeight = Math.max(1, brd.canvasHeight || 1);
+  const offsetX = Number.isFinite(rx) ? (rx / canvasWidth) * AXIS_LABEL_OFFSET_PX : 0;
+  const offsetY = Number.isFinite(ry) ? (ry / canvasHeight) * AXIS_LABEL_OFFSET_PX : 0;
+  const arrowHalfWidth = axisArrowHalfWidth();
+  const arrowHalfHeight = axisArrowHalfHeight();
+  const xLabelY = (Number.isFinite(arrowHalfHeight) ? arrowHalfHeight : 0) + offsetY;
+  const yLabelX = (Number.isFinite(arrowHalfWidth) ? arrowHalfWidth : 0) + offsetX;
+  const xLabelPos = [Number.isFinite(xmax) ? xmax : 0, Number.isFinite(xLabelY) ? xLabelY : 0];
+  const yLabelPos = [Number.isFinite(yLabelX) ? yLabelX : 0, Number.isFinite(ymax) ? ymax : 0];
   const axisLabelCss = 'pointer-events:none;user-select:none;';
   if (!xName) {
     xName = brd.create('text', [...xLabelPos, () => axisLabelChip('x')], {
