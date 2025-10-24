@@ -6718,6 +6718,20 @@ function setupSettingsForm() {
   };
   bindAxisInput(axisXInputElement);
   bindAxisInput(axisYInputElement);
+  if (screenInput) {
+    const handleScreenCommit = () => {
+      apply();
+    };
+    ['change', 'blur'].forEach(eventName => {
+      screenInput.addEventListener(eventName, handleScreenCommit);
+    });
+    screenInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleScreenCommit();
+      }
+    });
+  }
   refreshFunctionColorDefaults = refreshFunctionColorDefaultsLocal;
   root.addEventListener('change', apply);
   root.addEventListener('keydown', e => {
