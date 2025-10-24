@@ -22,6 +22,9 @@ const CFG = {
       maxCols: 30,
       maxRows: 30
     },
+    variable1: "",
+    variable2: "",
+    showSum: false,
     challenge: {
       enabled: false,
       area: 12,
@@ -152,6 +155,110 @@ const challengeRuntime = {
 };
 let altTextManager = null;
 const arealIntFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
+const SUM_BRACE_IMAGE = "images/Union.svg";
+function sanitizeVariableName(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return trimmed.replace(/\s+/g, '').replace(/[^0-9A-Za-zÆØÅæøå]/g, '');
+}
+function getVariableSettings(simple = CFG.SIMPLE || {}) {
+  const v1 = sanitizeVariableName(simple.variable1);
+  const v2 = sanitizeVariableName(simple.variable2);
+  return {
+    variable1: v1,
+    variable2: v2,
+    hasVariables: !!(v1 || v2)
+  };
+}
+function createAxisPart(value, variableName) {
+  const numericValue = Number.isFinite(value) ? value : NaN;
+  if (!Number.isFinite(value) || value <= 0) {
+    return {
+      value: numericValue,
+      token: '',
+      display: '',
+      isVariable: false
+    };
+  }
+  const cleaned = sanitizeVariableName(variableName);
+  if (cleaned) {
+    return {
+      value: numericValue,
+      token: cleaned,
+      display: cleaned,
+      isVariable: true
+    };
+  }
+  const label = arealFormatInt(value);
+  return {
+    value: numericValue,
+    token: label,
+    display: label,
+    isVariable: false
+  };
+}
+function computeAxisParts(layoutState, variables) {
+  const v = variables || getVariableSettings();
+  return {
+    columns: {
+      left: createAxisPart(layoutState.leftCols, v.variable1),
+      right: createAxisPart(layoutState.rightCols, v.variable2)
+    },
+    rows: {
+      bottom: createAxisPart(layoutState.bottomRows, v.variable1),
+      top: createAxisPart(layoutState.topRows, v.variable2)
+    }
+  };
+}
+function buildAlgebraProduct(rowPart, colPart) {
+  if (!rowPart || !colPart) return '';
+  const rowVar = rowPart.isVariable ? rowPart.token : '';
+  const colVar = colPart.isVariable ? colPart.token : '';
+  const rowNum = !rowPart.isVariable && Number.isFinite(rowPart.value) ? arealFormatInt(rowPart.value) : '';
+  const colNum = !colPart.isVariable && Number.isFinite(colPart.value) ? arealFormatInt(colPart.value) : '';
+  if (!rowVar && !colVar) return '';
+  if (rowVar && colVar) {
+    if (rowVar === colVar) return `${rowVar}\u00B2`;
+    return `${rowVar}${colVar}`;
+  }
+  if (rowVar && colNum) return `${colNum}${rowVar}`;
+  if (rowNum && colVar) return `${rowNum}${colVar}`;
+  if (rowVar) return rowVar;
+  if (colVar) return colVar;
+  return '';
+}
+function formatCellLabelFromParts(colPart, rowPart, cellMode, dot, equals) {
+  if (!colPart || !rowPart || cellMode === 'none') return '';
+  const colLabel = colPart.isVariable ? colPart.token : (Number.isFinite(colPart.value) ? arealFormatInt(colPart.value) : '');
+  const rowLabel = rowPart.isVariable ? rowPart.token : (Number.isFinite(rowPart.value) ? arealFormatInt(rowPart.value) : '');
+  const factorLabel = colLabel && rowLabel ? `${colLabel}${dot}${rowLabel}` : (colLabel || rowLabel || '');
+  const numericProduct = Number.isFinite(colPart.value) && Number.isFinite(rowPart.value) ? arealFormatInt(colPart.value * rowPart.value) : '';
+  const algebraProduct = buildAlgebraProduct(rowPart, colPart);
+  const hasVariables = algebraProduct !== '';
+  if (cellMode === 'factors') {
+    if (rowPart.isVariable && colPart.isVariable) return algebraProduct;
+    if (rowPart.isVariable) return rowPart.token;
+    if (colPart.isVariable) return colPart.token;
+    return factorLabel;
+  }
+  if (cellMode === 'area') {
+    return hasVariables ? algebraProduct : numericProduct;
+  }
+  if (cellMode === 'both') {
+    const right = hasVariables ? algebraProduct : numericProduct;
+    if (factorLabel && right) return `${factorLabel}${equals}${right}`;
+    return factorLabel || right || '';
+  }
+  return factorLabel;
+}
+function buildSumLabel(partA, partB) {
+  const terms = [];
+  if (partA && partA.display) terms.push(partA.display);
+  if (partB && partB.display) terms.push(partB.display);
+  if (!terms.length) return '';
+  return terms.join(' + ');
+}
 function ensureCfgDefaults() {
   const fill = (target, defaults) => {
     if (!defaults || typeof defaults !== 'object') return;
@@ -175,6 +282,9 @@ function ensureCfgDefaults() {
   fill(CFG.SIMPLE, DEFAULT_SIMPLE_CFG);
   fill(CFG.ADV, DEFAULT_ADV_CFG);
   if (CFG.SIMPLE && typeof CFG.SIMPLE === 'object') {
+    CFG.SIMPLE.variable1 = sanitizeVariableName(CFG.SIMPLE.variable1);
+    CFG.SIMPLE.variable2 = sanitizeVariableName(CFG.SIMPLE.variable2);
+    CFG.SIMPLE.showSum = CFG.SIMPLE.showSum === true;
     const legacyLayout = (() => {
       if (CFG.SIMPLE.layout != null) return CFG.SIMPLE.layout;
       if (CFG.SIMPLE.layoutMode != null) return CFG.SIMPLE.layoutMode;
@@ -336,6 +446,7 @@ function getArealmodellAltSummary() {
   const simple = CFG.SIMPLE || {};
   const adv = CFG.ADV || {};
   const layout = normalizeLayout(simple.layout);
+  const variables = getVariableSettings(simple);
   const totalCols = Math.max(1, arealClampInt(simple.length && simple.length.cells, 1, Number.MAX_SAFE_INTEGER, 1));
   const totalRows = Math.max(1, arealClampInt(simple.height && simple.height.cells, 1, Number.MAX_SAFE_INTEGER, 1));
   const defaultLeft = Math.floor(totalCols / 2);
@@ -372,7 +483,10 @@ function getArealmodellAltSummary() {
     showLengthAxis,
     showHeightAxis,
     challengeActive: !!challengeRuntime.active,
-    challengeGoal: challengeRuntime.N != null ? Math.round(Number(challengeRuntime.N)) : null
+    challengeGoal: challengeRuntime.N != null ? Math.round(Number(challengeRuntime.N)) : null,
+    variable1: variables.variable1,
+    variable2: variables.variable2,
+    showSum: simple.showSum === true
   };
 }
 function buildArealmodellAltText(summary) {
@@ -405,6 +519,15 @@ function buildArealmodellAltText(summary) {
       if (data.rightCols > 0 && data.bottomRows > 0) quadParts.push(`nederst til høyre ${arealFormatCount(data.rightCols * data.bottomRows, 'rute')} (${arealFormatInt(data.rightCols)}×${arealFormatInt(data.bottomRows)})`);
       if (quadParts.length) sentences.push(`Dette gir fire delrektangler: ${arealJoinList(quadParts)}.`);
     }
+  }
+  if (data.variable1 || data.variable2) {
+    const varParts = [];
+    if (data.variable1) varParts.push(`variabel 1 = ${data.variable1}`);
+    if (data.variable2) varParts.push(`variabel 2 = ${data.variable2}`);
+    sentences.push(`Variabler i modellen: ${arealJoinList(varParts)}.`);
+  }
+  if (data.showSum) {
+    sentences.push('Klammeparenteser viser summene langs topp- og venstresiden.');
   }
   switch (data.cellMode) {
     case "none":
@@ -984,6 +1107,12 @@ function readConfigFromHtml() {
       CFG.ADV.labels.cellMode = "none";
     }
   }
+  const variable1Input = document.getElementById("variable1");
+  CFG.SIMPLE.variable1 = sanitizeVariableName(variable1Input ? variable1Input.value : CFG.SIMPLE.variable1);
+  const variable2Input = document.getElementById("variable2");
+  CFG.SIMPLE.variable2 = sanitizeVariableName(variable2Input ? variable2Input.value : CFG.SIMPLE.variable2);
+  const showSumInput = document.getElementById("showSum");
+  CFG.SIMPLE.showSum = !!(showSumInput && showSumInput.checked);
   CFG.SIMPLE.layout = currentLayoutMode;
   updateLayoutUi();
   syncChallengeState(currentLayoutMode);
@@ -1000,6 +1129,8 @@ function draw() {
   }
   const ADV = CFG.ADV,
     SV = CFG.SIMPLE;
+  const variables = getVariableSettings(SV);
+  const showSum = SV.showSum === true;
   const UNIT = +ADV.unit || 40;
   let rows = Math.max(1, Math.round((_SV$height$cells = (_SV$height = SV.height) === null || _SV$height === void 0 ? void 0 : _SV$height.cells) !== null && _SV$height$cells !== void 0 ? _SV$height$cells : 16));
   let cols = Math.max(1, Math.round((_SV$length$cells = (_SV$length = SV.length) === null || _SV$length === void 0 ? void 0 : _SV$length.cells) !== null && _SV$length$cells !== void 0 ? _SV$length$cells : 17));
@@ -1432,17 +1563,46 @@ function draw() {
   set(botLeft, 'text-anchor', "middle");
   set(botRight, 'class', classes.labelEdge);
   set(botRight, 'text-anchor', "middle");
+  let sumTopGroup = null,
+    sumTopBrace = null,
+    sumTopText = null,
+    sumLeftGroup = null,
+    sumLeftBrace = null,
+    sumLeftText = null;
+  if (showSum) {
+    sumTopGroup = el('g');
+    set(sumTopGroup, 'id', 'sumTopGroup');
+    set(sumTopGroup, 'class', 'sum-brace sum-brace--top');
+    sumTopBrace = el('image');
+    set(sumTopBrace, 'id', 'sumTopBrace');
+    set(sumTopBrace, 'href', SUM_BRACE_IMAGE);
+    set(sumTopBrace, 'preserveAspectRatio', 'none');
+    sumTopText = el('text');
+    set(sumTopText, 'id', 'sumTopText');
+    set(sumTopText, 'class', 'sum-text');
+    set(sumTopText, 'text-anchor', 'middle');
+    sumTopGroup.append(sumTopBrace, sumTopText);
+    sumLeftGroup = el('g');
+    set(sumLeftGroup, 'id', 'sumLeftGroup');
+    set(sumLeftGroup, 'class', 'sum-brace sum-brace--left');
+    sumLeftBrace = el('image');
+    set(sumLeftBrace, 'id', 'sumLeftBrace');
+    set(sumLeftBrace, 'href', SUM_BRACE_IMAGE);
+    set(sumLeftBrace, 'preserveAspectRatio', 'none');
+    sumLeftText = el('text');
+    set(sumLeftText, 'id', 'sumLeftText');
+    set(sumLeftText, 'class', 'sum-text');
+    set(sumLeftText, 'text-anchor', 'middle');
+    set(sumLeftText, 'dominant-baseline', 'middle');
+    sumLeftGroup.append(sumLeftBrace, sumLeftText);
+  }
   svg.append(tTL, tTR, tBL, tBR, leftTop, leftBot, botLeft, botRight);
+  if (sumTopGroup) svg.append(sumTopGroup);
+  if (sumLeftGroup) svg.append(sumLeftGroup);
   const dot = (_ADV$labels$dot = (_ADV$labels = ADV.labels) === null || _ADV$labels === void 0 ? void 0 : _ADV$labels.dot) !== null && _ADV$labels$dot !== void 0 ? _ADV$labels$dot : " · ";
   const equals = (_ADV$labels$equals = (_ADV$labels2 = ADV.labels) === null || _ADV$labels2 === void 0 ? void 0 : _ADV$labels2.equals) !== null && _ADV$labels$equals !== void 0 ? _ADV$labels$equals : " = ";
   const edgeOn = ((_ADV$labels$edgeMode = (_ADV$labels3 = ADV.labels) === null || _ADV$labels3 === void 0 ? void 0 : _ADV$labels3.edgeMode) !== null && _ADV$labels$edgeMode !== void 0 ? _ADV$labels$edgeMode : "counts") === "counts";
   const cellMode = (_ADV$labels$cellMode = (_ADV$labels4 = ADV.labels) === null || _ADV$labels4 === void 0 ? void 0 : _ADV$labels4.cellMode) !== null && _ADV$labels$cellMode !== void 0 ? _ADV$labels$cellMode : "factors";
-  function formatCellLabel(w, h) {
-    if (cellMode === "none") return "";
-    if (cellMode === "factors") return `${w}${dot}${h}`;
-    if (cellMode === "area") return `${w * h}`;
-    return `${w}${dot}${h}${equals}${w * h}`;
-  }
 
   // ------- Rask mapping: klient → viewBox -------
   let svgRect = svg.getBoundingClientRect();
@@ -1551,6 +1711,20 @@ function draw() {
     const wR = layoutState.rightCols;
     const hB = layoutState.bottomRows;
     const hT = layoutState.topRows;
+    const labelCfg = o.labels || {};
+    const dot = typeof labelCfg.dot === 'string' ? labelCfg.dot : ' · ';
+    const equals = typeof labelCfg.equals === 'string' ? labelCfg.equals : ' = ';
+    const cellMode = typeof labelCfg.cellMode === 'string' ? labelCfg.cellMode : 'factors';
+    const edgeMode = typeof labelCfg.edgeMode === 'string' ? labelCfg.edgeMode : 'counts';
+    const sumEnabled = !!o.showSum;
+    const variableSettings = o.variables || getVariableSettings();
+    const axisParts = computeAxisParts(layoutState, variableSettings);
+    const columnParts = axisParts.columns;
+    const rowParts = axisParts.rows;
+    const leftPart = columnParts.left;
+    const rightPart = columnParts.right;
+    const bottomPart = rowParts.bottom;
+    const topPart = rowParts.top;
     set(rTL, "x", ML);
     set(rTL, "y", MT);
     set(rTL, "width", leftWidth);
@@ -1689,12 +1863,19 @@ function draw() {
     }
 
     // cell-etiketter
+    const axisParts = computeAxisParts(layoutState, variables);
+    const columnParts = axisParts.columns;
+    const rowParts = axisParts.rows;
+    const leftPart = columnParts.left;
+    const rightPart = columnParts.right;
+    const bottomPart = rowParts.bottom;
+    const topPart = rowParts.top;
     const showTLText = layoutState.showTopLeft && wL > 0 && hT > 0;
     setDisplay(tTL, showTLText);
     if (showTLText) {
       set(tTL, "x", ML + leftWidth / 2);
       set(tTL, "y", MT + topHeight / 2 + 8);
-      setText(tTL, formatCellLabel(wL, hT));
+      setText(tTL, formatCellLabelFromParts(leftPart, topPart, cellMode, dot, equals));
     } else {
       setText(tTL, "");
     }
@@ -1703,7 +1884,7 @@ function draw() {
     if (showTRText) {
       set(tTR, "x", ML + leftWidth + rightWidth / 2);
       set(tTR, "y", MT + topHeight / 2 + 8);
-      setText(tTR, formatCellLabel(wR, hT));
+      setText(tTR, formatCellLabelFromParts(rightPart, topPart, cellMode, dot, equals));
     } else {
       setText(tTR, "");
     }
@@ -1712,7 +1893,7 @@ function draw() {
     if (showBLText) {
       set(tBL, "x", ML + leftWidth / 2);
       set(tBL, "y", MT + topHeight + bottomHeight / 2 + 8);
-      setText(tBL, formatCellLabel(wL, hB));
+      setText(tBL, formatCellLabelFromParts(leftPart, bottomPart, cellMode, dot, equals));
     } else {
       setText(tBL, "");
     }
@@ -1721,7 +1902,7 @@ function draw() {
     if (showBRText) {
       set(tBR, "x", ML + leftWidth + rightWidth / 2);
       set(tBR, "y", MT + topHeight + bottomHeight / 2 + 8);
-      setText(tBR, formatCellLabel(wR, hB));
+      setText(tBR, formatCellLabelFromParts(rightPart, bottomPart, cellMode, dot, equals));
     } else {
       setText(tBR, "");
     }
@@ -1732,10 +1913,10 @@ function draw() {
     if (edgeOn && showHeightAxis) {
       set(leftTop, "x", leftXOutside);
       set(leftTop, "y", MT + topHeight / 2 + 10);
-      setText(leftTop, hT > 0 ? `${hT}` : "");
+      setText(leftTop, topPart.display || "");
       set(leftBot, "x", leftXOutside);
       set(leftBot, "y", MT + topHeight + bottomHeight / 2 + 10);
-      setText(leftBot, hB > 0 ? `${hB}` : "");
+      setText(leftBot, bottomPart.display || "");
     } else {
       setText(leftTop, "");
       setText(leftBot, "");
@@ -1745,11 +1926,44 @@ function draw() {
       set(botLeft, "y", bottomYOutside);
       set(botRight, "x", ML + leftWidth + rightWidth / 2);
       set(botRight, "y", bottomYOutside);
-      setText(botLeft, wL > 0 ? `${wL}` : "");
-      setText(botRight, wR > 0 ? `${wR}` : "");
+      setText(botLeft, leftPart.display || "");
+      setText(botRight, rightPart.display || "");
     } else {
       setText(botLeft, "");
       setText(botRight, "");
+    }
+    if (sumTopGroup && sumTopBrace && sumTopText) {
+      const horizontalLabel = buildSumLabel(leftPart, rightPart);
+      const braceHeight = Math.max(16, Math.min(32, Math.round(W * 0.06)));
+      const braceGap = 24;
+      const braceY = MT - braceGap - braceHeight;
+      set(sumTopBrace, 'x', ML);
+      set(sumTopBrace, 'y', braceY);
+      set(sumTopBrace, 'width', W);
+      set(sumTopBrace, 'height', braceHeight);
+      set(sumTopText, 'x', ML + W / 2);
+      set(sumTopText, 'y', braceY - 8);
+      sumTopText.textContent = horizontalLabel;
+      setDisplay(sumTopGroup, !!horizontalLabel);
+    }
+    if (sumLeftGroup && sumLeftBrace && sumLeftText) {
+      const verticalLabel = buildSumLabel(bottomPart, topPart);
+      const braceHeight = Math.max(16, Math.min(32, Math.round(H * 0.06)));
+      const braceGap = 24;
+      const braceX = ML - braceGap;
+      const braceY = MT;
+      set(sumLeftBrace, 'x', braceX);
+      set(sumLeftBrace, 'y', braceY);
+      set(sumLeftBrace, 'width', H);
+      set(sumLeftBrace, 'height', braceHeight);
+      set(sumLeftBrace, 'transform', `rotate(90 ${braceX} ${braceY})`);
+      const textX = braceX - braceHeight - 12;
+      const textY = MT + H / 2;
+      set(sumLeftText, 'x', textX);
+      set(sumLeftText, 'y', textY);
+      set(sumLeftText, 'transform', `rotate(-90 ${textX} ${textY})`);
+      sumLeftText.textContent = verticalLabel;
+      setDisplay(sumLeftGroup, !!verticalLabel);
     }
 
     // “Riktig” – doble linjer når begge sider har en tier
@@ -2146,7 +2360,15 @@ function draw() {
         bottom: 64,
         left: 8
       },
-      showTotalHandle: !!(CFG.SIMPLE.totalHandle && CFG.SIMPLE.totalHandle.show)
+      showTotalHandle: !!(CFG.SIMPLE.totalHandle && CFG.SIMPLE.totalHandle.show),
+      showSum,
+      variables,
+      labels: {
+        dot: (ADV.labels && typeof ADV.labels.dot === 'string') ? ADV.labels.dot : ' · ',
+        equals: (ADV.labels && typeof ADV.labels.equals === 'string') ? ADV.labels.equals : ' = ',
+        cellMode: (ADV.labels && typeof ADV.labels.cellMode === 'string') ? ADV.labels.cellMode : 'factors',
+        edgeMode: (ADV.labels && typeof ADV.labels.edgeMode === 'string') ? ADV.labels.edgeMode : 'counts'
+      }
     };
   }
   const legacySvgStaticBtn = document.getElementById("btnSvgStatic");
@@ -2282,7 +2504,15 @@ function draw() {
         bottom: 64,
         left: 8
       },
-      showTotalHandle: !!(CFG.SIMPLE.totalHandle && CFG.SIMPLE.totalHandle.show)
+      showTotalHandle: !!(CFG.SIMPLE.totalHandle && CFG.SIMPLE.totalHandle.show),
+      showSum,
+      variables,
+      labels: {
+        dot: (ADV.labels && typeof ADV.labels.dot === 'string') ? ADV.labels.dot : ' · ',
+        equals: (ADV.labels && typeof ADV.labels.equals === 'string') ? ADV.labels.equals : ' = ',
+        cellMode: (ADV.labels && typeof ADV.labels.cellMode === 'string') ? ADV.labels.cellMode : 'factors',
+        edgeMode: (ADV.labels && typeof ADV.labels.edgeMode === 'string') ? ADV.labels.edgeMode : 'counts'
+      }
     });
     const fname = ((_ADV$export8 = ADV.export) === null || _ADV$export8 === void 0 ? void 0 : _ADV$export8.filenameHtml) || "arealmodell_interaktiv.html";
     downloadText(fname, htmlStr, "text/html;charset=utf-8");
@@ -2375,6 +2605,9 @@ function draw() {
 .labelCell { font: 600 22px system-ui, -apple-system, Segoe UI, Roboto, Arial; fill: #222; pointer-events: none; }
 .labelEdge { font: 600 26px system-ui, -apple-system, Segoe UI, Roboto, Arial; fill: #333; pointer-events: none; }
 svg text { user-select: none; -webkit-user-select: none; }
+.sum-brace { pointer-events: none; }
+.sum-brace image { pointer-events: none; opacity: 0.82; }
+.sum-text { font: 600 24px system-ui, -apple-system, Segoe UI, Roboto, Arial; fill: #111827; pointer-events: none; }
 
 .handleImg { pointer-events: none; }
 .handleCorner { fill: #ecebf6; stroke: #333; stroke-width: 2; cursor: grab; pointer-events: all; user-select: none; -webkit-user-select: none; }
@@ -2467,21 +2700,50 @@ svg text { user-select: none; -webkit-user-select: none; }
     parts.push(vLineStr, hLineStr, hotLeftStr, hotBottomStr, hLeftImg, hDownImg, hLeftHit, hDownHit);
 
     // cell-tekster
-    parts.push('<text id="tTL" class="labelCell" x="' + (ML + leftWidth / 2) + '" y="' + (MT + topHeight / 2 + 8) + '" text-anchor="middle">' + wL + ' · ' + hT + '</text>');
-    parts.push('<text id="tTR" class="labelCell" x="' + (ML + leftWidth + rightWidth / 2) + '" y="' + (MT + topHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(layoutState.showTopRight) + '>' + (layoutState.showTopRight ? wR + ' · ' + hT : '') + '</text>');
-    parts.push('<text id="tBL" class="labelCell" x="' + (ML + leftWidth / 2) + '" y="' + (MT + topHeight + bottomHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(layoutState.showBottomLeft) + '>' + (layoutState.showBottomLeft ? wL + ' · ' + hB : '') + '</text>');
-    parts.push('<text id="tBR" class="labelCell" x="' + (ML + leftWidth + rightWidth / 2) + '" y="' + (MT + topHeight + bottomHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(layoutState.showBottomRight) + '>' + (layoutState.showBottomRight ? wR + ' · ' + hB : '') + '</text>');
+    const showTL = layoutState.showTopLeft && wL > 0 && hT > 0;
+    const showTR = layoutState.showTopRight && wR > 0 && hT > 0;
+    const showBL = layoutState.showBottomLeft && wL > 0 && hB > 0;
+    const showBR = layoutState.showBottomRight && wR > 0 && hB > 0;
+    const labelTL = showTL ? formatCellLabelFromParts(leftPart, topPart, cellMode, dot, equals) : '';
+    const labelTR = showTR ? formatCellLabelFromParts(rightPart, topPart, cellMode, dot, equals) : '';
+    const labelBL = showBL ? formatCellLabelFromParts(leftPart, bottomPart, cellMode, dot, equals) : '';
+    const labelBR = showBR ? formatCellLabelFromParts(rightPart, bottomPart, cellMode, dot, equals) : '';
+    const horizontalSumLabel = sumEnabled ? buildSumLabel(leftPart, rightPart) : '';
+    const verticalSumLabel = sumEnabled ? buildSumLabel(bottomPart, topPart) : '';
+    parts.push('<text id="tTL" class="labelCell" x="' + (ML + leftWidth / 2) + '" y="' + (MT + topHeight / 2 + 8) + '" text-anchor="middle">' + labelTL + '</text>');
+    parts.push('<text id="tTR" class="labelCell" x="' + (ML + leftWidth + rightWidth / 2) + '" y="' + (MT + topHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(showTR) + '>' + (showTR ? labelTR : '') + '</text>');
+    parts.push('<text id="tBL" class="labelCell" x="' + (ML + leftWidth / 2) + '" y="' + (MT + topHeight + bottomHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(showBL) + '>' + (showBL ? labelBL : '') + '</text>');
+    parts.push('<text id="tBR" class="labelCell" x="' + (ML + leftWidth + rightWidth / 2) + '" y="' + (MT + topHeight + bottomHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(showBR) + '>' + (showBR ? labelBR : '') + '</text>');
 
     // kant-tekst Utenfor, med luft:
     const xL = ML - HS / 2 - gapX;
     const yB = MT + o.height + HS / 2 + gapY;
     if (o.showHeightAxis) {
-      parts.push('<text id="leftTop" class="labelEdge" x="' + xL + '" y="' + (MT + topHeight / 2 + 10) + '" text-anchor="end">' + hT + '</text>');
-      parts.push('<text id="leftBot" class="labelEdge" x="' + xL + '" y="' + (MT + topHeight + bottomHeight / 2 + 10) + '" text-anchor="end">' + hB + '</text>');
+      const topEdgeText = edgeMode === 'counts' ? (topPart.display || '') : '';
+      const bottomEdgeText = edgeMode === 'counts' ? (bottomPart.display || '') : '';
+      parts.push('<text id="leftTop" class="labelEdge" x="' + xL + '" y="' + (MT + topHeight / 2 + 10) + '" text-anchor="end">' + topEdgeText + '</text>');
+      parts.push('<text id="leftBot" class="labelEdge" x="' + xL + '" y="' + (MT + topHeight + bottomHeight / 2 + 10) + '" text-anchor="end">' + bottomEdgeText + '</text>');
     }
     if (o.showLengthAxis) {
-      parts.push('<text id="botLeft"  class="labelEdge" x="' + (ML + leftWidth / 2) + '" y="' + yB + '" text-anchor="middle">' + wL + '</text>');
-      parts.push('<text id="botRight" class="labelEdge" x="' + (ML + leftWidth + rightWidth / 2) + '" y="' + yB + '" text-anchor="middle">' + wR + '</text>');
+      const leftEdgeText = edgeMode === 'counts' ? (leftPart.display || '') : '';
+      const rightEdgeText = edgeMode === 'counts' ? (rightPart.display || '') : '';
+      parts.push('<text id="botLeft"  class="labelEdge" x="' + (ML + leftWidth / 2) + '" y="' + yB + '" text-anchor="middle">' + leftEdgeText + '</text>');
+      parts.push('<text id="botRight" class="labelEdge" x="' + (ML + leftWidth + rightWidth / 2) + '" y="' + yB + '" text-anchor="middle">' + rightEdgeText + '</text>');
+    }
+    if (sumEnabled && horizontalSumLabel) {
+      const braceHeight = Math.max(16, Math.min(32, Math.round(o.width * 0.06)));
+      const braceGap = 24;
+      const braceY = MT - braceGap - braceHeight;
+      parts.push('<g id="sumTopGroup" class="sum-brace sum-brace--top"><image id="sumTopBrace" href="' + SUM_BRACE_IMAGE + '" x="' + ML + '" y="' + braceY + '" width="' + o.width + '" height="' + braceHeight + '" preserveAspectRatio="none"></image><text id="sumTopText" class="sum-text" text-anchor="middle" x="' + (ML + o.width / 2) + '" y="' + (braceY - 8) + '">' + horizontalSumLabel + '</text></g>');
+    }
+    if (sumEnabled && verticalSumLabel) {
+      const braceHeight = Math.max(16, Math.min(32, Math.round(o.height * 0.06)));
+      const braceGap = 24;
+      const braceX = ML - braceGap;
+      const braceY = MT;
+      const textX = braceX - braceHeight - 12;
+      const textY = MT + o.height / 2;
+      parts.push('<g id="sumLeftGroup" class="sum-brace sum-brace--left"><image id="sumLeftBrace" href="' + SUM_BRACE_IMAGE + '" x="' + braceX + '" y="' + braceY + '" width="' + o.height + '" height="' + braceHeight + '" preserveAspectRatio="none" transform="rotate(90 ' + braceX + ' ' + braceY + ')"></image><text id="sumLeftText" class="sum-text" text-anchor="middle" dominant-baseline="middle" x="' + textX + '" y="' + textY + '" transform="rotate(-90 ' + textX + ' ' + textY + ')">' + verticalSumLabel + '</text></g>');
     }
     parts.push("</svg>");
     return parts.join("\n");
@@ -2497,6 +2759,13 @@ svg text { user-select: none; -webkit-user-select: none; }
     const showHeightAxis = !!o.showHeightAxis;
     const showLengthAxis = !!o.showLengthAxis;
     const includeClickToMove = ADV.clickToMove !== false && (showHeightAxis || showLengthAxis);
+    const sumEnabled = !!o.showSum;
+    const scriptVariables = o.variables || {};
+    const scriptLabels = o.labels || {};
+    const scriptDot = typeof scriptLabels.dot === 'string' ? scriptLabels.dot : ' · ';
+    const scriptEquals = typeof scriptLabels.equals === 'string' ? scriptLabels.equals : ' = ';
+    const scriptCellMode = typeof scriptLabels.cellMode === 'string' ? scriptLabels.cellMode : 'factors';
+    const scriptEdgeMode = typeof scriptLabels.edgeMode === 'string' ? scriptLabels.edgeMode : 'counts';
     const clickParts = [];
     if (includeClickToMove) {
       if (showHeightAxis) {
@@ -2519,6 +2788,20 @@ svg text { user-select: none; -webkit-user-select: none; }
     const splitClass = (o.classes === null || o.classes === void 0 ? void 0 : o.classes.split) || "";
     const lines = [];
     lines.push("(function(){");
+    lines.push("function sanitizeVariable(value){ if(typeof value !== 'string') return ''; var trimmed=value.trim(); if(!trimmed) return ''; return trimmed.replace(/\\s+/g,'').replace(/[^0-9A-Za-zÆØÅæøå]/g,''); }");
+    lines.push(`var VAR1=sanitizeVariable(${JSON.stringify(scriptVariables.variable1 || '')});`);
+    lines.push(`var VAR2=sanitizeVariable(${JSON.stringify(scriptVariables.variable2 || '')});`);
+    lines.push(`var SHOW_SUM=${sumEnabled ? 'true' : 'false'};`);
+    lines.push(`var DOT=${JSON.stringify(scriptDot)};`);
+    lines.push(`var EQUALS=${JSON.stringify(scriptEquals)};`);
+    lines.push(`var CELL_MODE=${JSON.stringify(scriptCellMode)};`);
+    lines.push(`var EDGE_MODE=${JSON.stringify(scriptEdgeMode)};`);
+    lines.push("var intFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;");
+    lines.push("function fmtInt(value){ return Number.isFinite(value) ? (intFormatter ? intFormatter.format(value) : String(value)) : ''; }");
+    lines.push("function makeAxisPart(value, variable){ var numeric = Number.isFinite(value) ? value : NaN; if(!Number.isFinite(value) || value <= 0){ return { value: numeric, token: '', display: '', isVariable: false }; } var cleaned = sanitizeVariable(variable); if(cleaned){ return { value: numeric, token: cleaned, display: cleaned, isVariable: true }; } var label = fmtInt(value); return { value: numeric, token: label, display: label, isVariable: false }; }");
+    lines.push("function buildAlgebraProduct(rowPart, colPart){ if(!rowPart || !colPart) return ''; var rowVar=rowPart.isVariable?rowPart.token:''; var colVar=colPart.isVariable?colPart.token:''; var rowNum=!rowPart.isVariable && Number.isFinite(rowPart.value)?fmtInt(rowPart.value):''; var colNum=!colPart.isVariable && Number.isFinite(colPart.value)?fmtInt(colPart.value):''; if(!rowVar && !colVar) return ''; if(rowVar && colVar){ if(rowVar===colVar) return rowVar+'\\u00B2'; return rowVar+colVar; } if(rowVar && colNum) return colNum+rowVar; if(rowNum && colVar) return rowNum+colVar; if(rowVar) return rowVar; if(colVar) return colVar; return ''; }");
+    lines.push("function buildSumLabel(partA, partB){ var terms=[]; if(partA && partA.display) terms.push(partA.display); if(partB && partB.display) terms.push(partB.display); return terms.length ? terms.join(' + ') : ''; }");
+    lines.push("function formatCellLabel(colPart, rowPart){ if(!colPart || !rowPart || CELL_MODE==='none') return ''; var colLabel = colPart.isVariable ? colPart.token : fmtInt(colPart.value); var rowLabel = rowPart.isVariable ? rowPart.token : fmtInt(rowPart.value); var factorLabel = colLabel && rowLabel ? colLabel + DOT + rowLabel : (colLabel || rowLabel || ''); var numericProduct = Number.isFinite(colPart.value) && Number.isFinite(rowPart.value) ? fmtInt(colPart.value * rowPart.value) : ''; var algebraProduct = buildAlgebraProduct(rowPart, colPart); var hasVariables = algebraProduct !== ''; if (CELL_MODE==='factors'){ if(rowPart.isVariable && colPart.isVariable) return algebraProduct; if(rowPart.isVariable) return rowPart.token; if(colPart.isVariable) return colPart.token; return factorLabel; } if (CELL_MODE==='area'){ return hasVariables ? algebraProduct : numericProduct; } if (CELL_MODE==='both'){ var right = hasVariables ? algebraProduct : numericProduct; if(factorLabel && right) return factorLabel + EQUALS + right; return factorLabel || right || ''; } return factorLabel; }");
     lines.push(`var UNIT=${o.unit}, ROWS=${o.rows}, COLS=${o.cols}, TEN=${o.TEN};`);
     lines.push(`var ML=${ML}, MT=${MT}, W=${o.width}, H=${o.height};`);
     lines.push(`var layoutMode=${JSON.stringify(layoutMode)};`);
@@ -2533,6 +2816,8 @@ svg text { user-select: none; -webkit-user-select: none; }
     lines.push("var vLine=document.getElementById('vLine'), hLine=document.getElementById('hLine');");
     lines.push("var tTL=document.getElementById('tTL'), tTR=document.getElementById('tTR'), tBL=document.getElementById('tBL'), tBR=document.getElementById('tBR');");
     lines.push("var leftTop=document.getElementById('leftTop'), leftBot=document.getElementById('leftBot'), botLeft=document.getElementById('botLeft'), botRight=document.getElementById('botRight');");
+    lines.push("var sumTopGroup=document.getElementById('sumTopGroup'), sumTopBrace=document.getElementById('sumTopBrace'), sumTopText=document.getElementById('sumTopText');");
+    lines.push("var sumLeftGroup=document.getElementById('sumLeftGroup'), sumLeftBrace=document.getElementById('sumLeftBrace'), sumLeftText=document.getElementById('sumLeftText');");
     lines.push("var hLeft=document.getElementById('hLeft'), hDown=document.getElementById('hDown');");
     lines.push("var hitLeft=document.getElementById('hLeftHit'), hitDown=document.getElementById('hDownHit');");
     lines.push("var hotLeft=document.getElementById('hotLeft'), hotBottom=document.getElementById('hotBottom');");
@@ -2608,18 +2893,27 @@ svg text { user-select: none; -webkit-user-select: none; }
     lines.push("  if(hotBottom){ set(hotBottom,'x',ML); set(hotBottom,'y',MT+H); set(hotBottom,'width',W); setDisplay(hotBottom, handleDownVisible); }");
     lines.push("  var leftOutsideX = ML-(HS/2)-GAPX;");
     lines.push("  var bottomOutsideY = MT+H+(HS/2)+GAPY;");
+    lines.push("  var colLeft = makeAxisPart(wL, VAR1);");
+    lines.push("  var colRight = makeAxisPart(wR, VAR2);");
+    lines.push("  var rowBottom = makeAxisPart(hB, VAR1);");
+    lines.push("  var rowTop = makeAxisPart(hT, VAR2);");
     lines.push("  var showTLText = state.showTopLeft && wL > 0 && hT > 0;");
     lines.push("  var showTRText = state.showTopRight && wR > 0 && hT > 0;");
     lines.push("  var showBLText = state.showBottomLeft && wL > 0 && hB > 0;");
     lines.push("  var showBRText = state.showBottomRight && wR > 0 && hB > 0;");
-    lines.push("  if(tTL){ setDisplay(tTL, showTLText); if(showTLText){ set(tTL,'x',ML+leftWidth/2); set(tTL,'y',MT+topHeight/2+8); tTL.textContent = wL + ' · ' + hT; } else { tTL.textContent=''; } }");
-    lines.push("  if(tTR){ setDisplay(tTR, showTRText); if(showTRText){ set(tTR,'x',ML+leftWidth+rightWidth/2); set(tTR,'y',MT+topHeight/2+8); tTR.textContent = wR + ' · ' + hT; } else { tTR.textContent=''; } }");
-    lines.push("  if(tBL){ setDisplay(tBL, showBLText); if(showBLText){ set(tBL,'x',ML+leftWidth/2); set(tBL,'y',MT+topHeight+bottomHeight/2+8); tBL.textContent = wL + ' · ' + hB; } else { tBL.textContent=''; } }");
-    lines.push("  if(tBR){ setDisplay(tBR, showBRText); if(showBRText){ set(tBR,'x',ML+leftWidth+rightWidth/2); set(tBR,'y',MT+topHeight+bottomHeight/2+8); tBR.textContent = wR + ' · ' + hB; } else { tBR.textContent=''; } }");
-    lines.push("  if(leftTop){ set(leftTop,'x',leftOutsideX); set(leftTop,'y',MT+topHeight/2+10); leftTop.textContent = String(hT); }");
-    lines.push("  if(leftBot){ set(leftBot,'x',leftOutsideX); set(leftBot,'y',MT+topHeight+bottomHeight/2+10); leftBot.textContent = String(hB); }");
-    lines.push("  if(botLeft){ set(botLeft,'x',ML+leftWidth/2); set(botLeft,'y',bottomOutsideY); botLeft.textContent = String(wL); }");
-    lines.push("  if(botRight){ set(botRight,'x',ML+leftWidth+rightWidth/2); set(botRight,'y',bottomOutsideY); botRight.textContent = String(wR); }");
+    lines.push("  var horizontalSumLabel = SHOW_SUM ? buildSumLabel(colLeft, colRight) : '';");
+    lines.push("  var verticalSumLabel = SHOW_SUM ? buildSumLabel(rowBottom, rowTop) : '';");
+    lines.push("  if(tTL){ setDisplay(tTL, showTLText); if(showTLText){ set(tTL,'x',ML+leftWidth/2); set(tTL,'y',MT+topHeight/2+8); tTL.textContent = formatCellLabel(colLeft, rowTop); } else { tTL.textContent=''; } }");
+    lines.push("  if(tTR){ setDisplay(tTR, showTRText); if(showTRText){ set(tTR,'x',ML+leftWidth+rightWidth/2); set(tTR,'y',MT+topHeight/2+8); tTR.textContent = formatCellLabel(colRight, rowTop); } else { tTR.textContent=''; } }");
+    lines.push("  if(tBL){ setDisplay(tBL, showBLText); if(showBLText){ set(tBL,'x',ML+leftWidth/2); set(tBL,'y',MT+topHeight+bottomHeight/2+8); tBL.textContent = formatCellLabel(colLeft, rowBottom); } else { tBL.textContent=''; } }");
+    lines.push("  if(tBR){ setDisplay(tBR, showBRText); if(showBRText){ set(tBR,'x',ML+leftWidth+rightWidth/2); set(tBR,'y',MT+topHeight+bottomHeight/2+8); tBR.textContent = formatCellLabel(colRight, rowBottom); } else { tBR.textContent=''; } }");
+    lines.push("  var edgeCounts = EDGE_MODE === 'counts';");
+    lines.push("  if(leftTop){ set(leftTop,'x',leftOutsideX); set(leftTop,'y',MT+topHeight/2+10); leftTop.textContent = edgeCounts ? (rowTop.display || '') : ''; }");
+    lines.push("  if(leftBot){ set(leftBot,'x',leftOutsideX); set(leftBot,'y',MT+topHeight+bottomHeight/2+10); leftBot.textContent = edgeCounts ? (rowBottom.display || '') : ''; }");
+    lines.push("  if(botLeft){ set(botLeft,'x',ML+leftWidth/2); set(botLeft,'y',bottomOutsideY); botLeft.textContent = edgeCounts ? (colLeft.display || '') : ''; }");
+    lines.push("  if(botRight){ set(botRight,'x',ML+leftWidth+rightWidth/2); set(botRight,'y',bottomOutsideY); botRight.textContent = edgeCounts ? (colRight.display || '') : ''; }");
+    lines.push("  if(sumTopGroup && sumTopBrace && sumTopText){ if(SHOW_SUM && horizontalSumLabel){ var braceHeight=Math.max(16, Math.min(32, Math.round(W*0.06))); var braceGap=24; var braceY=MT - braceGap - braceHeight; set(sumTopBrace,'x',ML); set(sumTopBrace,'y',braceY); set(sumTopBrace,'width',W); set(sumTopBrace,'height',braceHeight); set(sumTopText,'x',ML+W/2); set(sumTopText,'y',braceY-8); sumTopText.textContent = horizontalSumLabel; setDisplay(sumTopGroup,true); } else { if(sumTopText) sumTopText.textContent=''; setDisplay(sumTopGroup,false); }}");
+    lines.push("  if(sumLeftGroup && sumLeftBrace && sumLeftText){ if(SHOW_SUM && verticalSumLabel){ var braceHeight=Math.max(16, Math.min(32, Math.round(H*0.06))); var braceGap=24; var braceX=ML - braceGap; var braceY=MT; var textX=braceX - braceHeight - 12; var textY=MT + H/2; set(sumLeftBrace,'x',braceX); set(sumLeftBrace,'y',braceY); set(sumLeftBrace,'width',H); set(sumLeftBrace,'height',braceHeight); set(sumLeftBrace,'transform','rotate(90 ' + braceX + ' ' + braceY + ')'); set(sumLeftText,'x',textX); set(sumLeftText,'y',textY); set(sumLeftText,'transform','rotate(-90 ' + textX + ' ' + textY + ')'); sumLeftText.textContent = verticalSumLabel; setDisplay(sumLeftGroup,true); } else { if(sumLeftText) sumLeftText.textContent=''; setDisplay(sumLeftGroup,false); }}");
     lines.push("  var okX = (wL === TEN || wR === TEN);");
     lines.push("  var okY = (hB === TEN || hT === TEN);");
     lines.push("  var on = okX && okY;");
@@ -2717,6 +3011,9 @@ function setSimpleConfig(o = {}) {
     if (ch.dedupeOrderless != null) CFG.SIMPLE.challenge.dedupeOrderless = !!ch.dedupeOrderless;
     if (ch.autoExpandMax != null) CFG.SIMPLE.challenge.autoExpandMax = !!ch.autoExpandMax;
   }
+  if (o.variable1 != null) CFG.SIMPLE.variable1 = sanitizeVariableName(o.variable1);
+  if (o.variable2 != null) CFG.SIMPLE.variable2 = sanitizeVariableName(o.variable2);
+  if (o.showSum != null) CFG.SIMPLE.showSum = !!o.showSum;
   if (o.layout != null) CFG.SIMPLE.layout = normalizeLayout(o.layout);else if (o.layoutMode != null) CFG.SIMPLE.layout = normalizeLayout(o.layoutMode);
   enforceQuadLayoutFill(CFG.SIMPLE.layout);
   const setVal = (id, v) => {
@@ -2749,6 +3046,9 @@ function setSimpleConfig(o = {}) {
   setChk("showTotalHandle", !!(CFG.SIMPLE.totalHandle && CFG.SIMPLE.totalHandle.show));
   setChk("challengeEnabled", !!(CFG.SIMPLE.challenge && CFG.SIMPLE.challenge.enabled));
   setVal("challengeArea", CFG.SIMPLE.challenge && CFG.SIMPLE.challenge.area);
+  setVal("variable1", CFG.SIMPLE.variable1 || '');
+  setVal("variable2", CFG.SIMPLE.variable2 || '');
+  setChk("showSum", CFG.SIMPLE.showSum === true);
   setSelect("layoutMode", CFG.SIMPLE.layout);
   syncChallengeState(CFG.SIMPLE.layout);
   if (typeof o.altText === 'string') {
@@ -2820,6 +3120,9 @@ function applyConfigToInputs() {
   }
   setChk('splitLines', adv.splitLines !== false);
   setChk('showExpressions', ((advLabels.cellMode) || 'factors') !== 'none');
+  setVal('variable1', simple.variable1 || '');
+  setVal('variable2', simple.variable2 || '');
+  setChk('showSum', simple.showSum === true);
   setSelect('layoutMode', normalizedLayout);
   updateLayoutUi();
 }
