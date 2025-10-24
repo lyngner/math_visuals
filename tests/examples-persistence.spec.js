@@ -46,6 +46,28 @@ test.describe('Persisted example compatibility', () => {
     });
   });
 
+  test.afterEach(async () => {
+    if (backend) {
+      await backend.dispose();
+      backend = null;
+    }
+  });
+
+  test('does not trigger backend sync on initial load when no changes exist', async ({ page }) => {
+    if (backend) {
+      await backend.dispose();
+    }
+    backend = await attachExamplesBackendMock(page.context());
+    const unexpectedPut = backend.waitForPut(CANONICAL_PATH, {
+      timeout: 800,
+      timeoutMessage: 'Expected no automatic PUT for empty examples state'
+    });
+
+    await page.goto(EXAMPLE_PATH, { waitUntil: 'load' });
+
+    await expect(unexpectedPut).rejects.toThrow(/Expected no automatic PUT/i);
+  });
+
   test('loads user saved examples stored under the canonical key', async ({ page }) => {
     await page.goto(EXAMPLE_PATH, { waitUntil: 'load' });
 
@@ -68,6 +90,10 @@ test.describe('Persisted example compatibility', () => {
     const figurePath = '/brøkfigurer.html';
     const canonicalFigurePath = normalizeExamplePath(figurePath);
     await backend.client.put(canonicalFigurePath, { examples: [], deletedProvided: [] });
+    await backend.waitForPut(canonicalFigurePath, {
+      timeout: 500,
+      description: 'drain initial seed put'
+    });
 
     await page.goto(figurePath, { waitUntil: 'load' });
 
