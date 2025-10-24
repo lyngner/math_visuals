@@ -956,7 +956,7 @@ function enforceQuadLayoutFill(layout) {
       nextHandle = Math.max(minHandle, Math.min(maxHandle, Math.round(cells / 2)));
     }
     dim.handle = nextHandle;
-    if (dim.showHandle === false) dim.showHandle = true;
+    if (dim.showHandle == null) dim.showHandle = true;
   };
   const lengthCells = toPositiveInt(CFG.SIMPLE.length && CFG.SIMPLE.length.cells);
   if (lengthCells != null) {
