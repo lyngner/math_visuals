@@ -10,6 +10,15 @@ const EMPTY_DIAGRAM_ENTRY = {
   updatedAt: new Date(0).toISOString()
 };
 
+const TRASH_RESPONSE_BASE = {
+  storage: 'memory',
+  storageMode: 'memory',
+  mode: 'memory',
+  persistent: false,
+  ephemeral: true,
+  limitation: 'Test-arkiv (midlertidig lagring).'
+};
+
 async function setDescription(page, value) {
   const input = page.locator('#exampleDescription');
   await expect(input).toBeVisible();
@@ -33,12 +42,8 @@ test.describe('Description renderer interactions', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            entries: [],
-            storage: 'memory',
-            storageMode: 'memory',
-            mode: 'memory',
-            persistent: false,
-            ephemeral: true
+            ...TRASH_RESPONSE_BASE,
+            entries: []
           })
         });
         return;
