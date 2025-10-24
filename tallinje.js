@@ -1089,6 +1089,8 @@
       wrapper.addEventListener('dragleave', handleDraggableEditorDragLeave);
       wrapper.addEventListener('drop', event => handleDraggableEditorDrop(event, item.id));
 
+      const isLocked = Boolean(item.lockPosition);
+
       const handle = document.createElement('button');
       handle.type = 'button';
       handle.className = 'draggable-config-handle';
@@ -1147,6 +1149,53 @@
       wrapper.appendChild(labelInput);
       applyDraggableEditorFocus(labelInput, item.id, 'label', focusRequest);
 
+      const lockField = document.createElement('label');
+      lockField.className = 'checkbox';
+      const lockInput = document.createElement('input');
+      lockInput.type = 'checkbox';
+      lockInput.checked = isLocked;
+      lockInput.addEventListener('change', () => {
+        const checked = lockInput.checked;
+        item.lockPosition = checked;
+        if (checked) {
+          const numericValue = Number(item.value);
+          if (Number.isFinite(numericValue)) {
+            item.currentValue = numericValue;
+          }
+          item.currentOffsetY = NaN;
+          item.isPlaced = true;
+        } else {
+          item.currentValue = Number(item.value);
+          item.currentOffsetY = DEFAULT_DRAGGABLE_OFFSET_Y;
+          item.isPlaced = false;
+        }
+        scheduleDraggableEditorFocus(item.id, 'lockPosition', lockInput);
+        render();
+      });
+      lockField.appendChild(lockInput);
+      const lockLabel = document.createElement('span');
+      lockLabel.textContent = 'Lås posisjon';
+      lockField.appendChild(lockLabel);
+      wrapper.appendChild(lockField);
+      applyDraggableEditorFocus(lockInput, item.id, 'lockPosition', focusRequest);
+
+      const actions = document.createElement('div');
+      actions.className = 'draggable-config-actions';
+
+      const resetButton = document.createElement('button');
+      resetButton.type = 'button';
+      resetButton.className = 'btn btn--ghost btn--small';
+      resetButton.textContent = 'Tilbakestill posisjon';
+      resetButton.addEventListener('click', () => {
+        if (item.lockPosition) return;
+        item.isPlaced = false;
+        item.currentOffsetY = DEFAULT_DRAGGABLE_OFFSET_Y;
+        item.currentValue = Number(item.value);
+        render();
+      });
+      resetButton.disabled = isLocked;
+      actions.appendChild(resetButton);
+
       const removeButton = document.createElement('button');
       removeButton.type = 'button';
       removeButton.className = 'btn btn--ghost btn--danger';
@@ -1159,7 +1208,9 @@
         }
         render();
       });
-      wrapper.appendChild(removeButton);
+      actions.appendChild(removeButton);
+
+      wrapper.appendChild(actions);
 
       draggableListContainer.appendChild(wrapper);
     });
