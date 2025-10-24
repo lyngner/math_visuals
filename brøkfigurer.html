@@ -167,6 +167,10 @@
         <div class="card card--examples">
           <div class="example-description">
             <textarea id="exampleDescription" aria-label="Oppgavetekst (valgfritt)" placeholder="Skriv oppgavetekst her"></textarea>
+            <div class="task-check-host" data-task-check-host hidden>
+              <button id="btnCheck" class="btn btn--task-check" type="button">Sjekk svar</button>
+              <div id="checkStatus" class="status" role="status" aria-live="polite" hidden></div>
+            </div>
           </div>
           <div class="toolbar">
             <button id="btnUpdateExample" class="btn" type="button">Oppdater</button>
