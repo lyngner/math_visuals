@@ -1,6 +1,7 @@
 (function () {
   const boxes = [];
   let taskStudentCells = null;
+  let lastStudentCellsHadGridSolution = null;
   let currentAppMode = getInitialAppMode();
   let altTextManager = null;
   let altTextRefreshTimer = null;
@@ -158,13 +159,17 @@
     return STATE.lastFigureIsAnswer && isTaskModeActive() && index === getLastFigureIndex();
   }
   function ensureTaskStudentCells(preserveExisting = true) {
-    if (!STATE.lastFigureIsAnswer || !hasGridSolution()) {
+    if (!STATE.lastFigureIsAnswer) {
       taskStudentCells = null;
+      lastStudentCellsHadGridSolution = null;
       return null;
     }
     const rowCount = rows;
     const colCount = cols;
     const prev = Array.isArray(taskStudentCells) ? taskStudentCells : null;
+    const hasSolution = hasGridSolution();
+    const solutionStateChanged = lastStudentCellsHadGridSolution !== hasSolution;
+    lastStudentCellsHadGridSolution = hasSolution;
     let needsReset = !prev || prev.length !== rowCount;
     if (!needsReset && prev) {
       for (let r = 0; r < rowCount; r++) {
@@ -189,7 +194,16 @@
       }
       taskStudentCells = next;
     }
-    const matrix = taskStudentCells;
+    let matrix = taskStudentCells;
+    if (!Array.isArray(matrix)) {
+      matrix = Array.from({ length: rowCount }, () => Array(colCount).fill(0));
+      taskStudentCells = matrix;
+    }
+    if (solutionStateChanged && !hasSolution) {
+      for (let r = 0; r < matrix.length; r++) {
+        matrix[r] = Array(colCount).fill(0);
+      }
+    }
     if (!Array.isArray(matrix)) return null;
     const maxIndex = Math.max(0, Math.trunc(STATE.colorCount));
     for (let r = 0; r < matrix.length; r++) {
@@ -197,6 +211,9 @@
       if (!Array.isArray(row)) {
         matrix[r] = Array(colCount).fill(0);
         continue;
+      }
+      if (row.length !== colCount) {
+        row.length = colCount;
       }
       for (let c = 0; c < row.length; c++) {
         const val = parseInt(row[c], 10);
@@ -207,6 +224,7 @@
   }
   function resetTaskStudentCells() {
     taskStudentCells = null;
+    lastStudentCellsHadGridSolution = null;
   }
   function getSolutionCellValue(figIndex, r, c) {
     const fig = Array.isArray(STATE.figures) ? STATE.figures[figIndex] : null;
