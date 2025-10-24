@@ -18,7 +18,29 @@ const LEGACY_PIZZA_COLORS = {
   handle: '#e9e6f7',
   handleStroke: '#333333'
 };
-const DRAG_HANDLE_ICON = 'images/draggable.svg';
+function resolveDragHandleIcon() {
+  if (typeof document === 'undefined') {
+    return 'images/draggable.svg';
+  }
+  const current = document.currentScript && document.currentScript.src ? document.currentScript.src : null;
+  if (current) {
+    try {
+      return new URL('images/draggable.svg', current).toString();
+    } catch (_) {}
+  }
+  if (document.baseURI) {
+    try {
+      return new URL('images/draggable.svg', document.baseURI).toString();
+    } catch (_) {}
+  }
+  if (typeof window !== 'undefined' && window.location && window.location.href) {
+    try {
+      return new URL('images/draggable.svg', window.location.href).toString();
+    } catch (_) {}
+  }
+  return 'images/draggable.svg';
+}
+const DRAG_HANDLE_ICON = resolveDragHandleIcon();
 const DRAG_HANDLE_SIZE = 36;
 const XLINK_NS = 'http://www.w3.org/1999/xlink';
 function getThemeApi() {
