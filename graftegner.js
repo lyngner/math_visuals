@@ -2029,7 +2029,7 @@ function axisLabelChip(axisKey) {
     `--graf-axis-label-text:${color}`,
     `--graf-axis-label-font-size:${fontSize}px`
   ];
-  return `<span class="graf-axis-label" style="${styleTokens.join(';')};">${escapeHtml(text)}</span>`;
+  return `<span class="graf-axis-label graf-axis-label--${axisKey}" style="${styleTokens.join(';')};">${escapeHtml(text)}</span>`;
 }
 
 function placeAxisNames() {

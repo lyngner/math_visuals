@@ -25,23 +25,21 @@
     .graf-axis-label{
       --graf-axis-label-text:#0f172a;
       --graf-axis-label-font-size:16px;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      box-sizing:border-box;
-      padding:6px 12px;
-      min-height:32px;
-      min-width:32px;
-      border-radius:6px;
-      background:#dae0e9;
+      display:inline-block;
       color:var(--graf-axis-label-text);
       font-size:var(--graf-axis-label-font-size);
       font-weight:600;
       line-height:1.1;
       letter-spacing:.01em;
       white-space:nowrap;
-      border:none;
-      box-shadow:none;
+    }
+    .graf-axis-label--x{
+      display:inline-block;
+      transform:translate(-6px, -6px);
+    }
+    .graf-axis-label--y{
+      display:inline-block;
+      transform:translate(6px, 6px);
     }
     .toolbar{ gap:12px; justify-content:flex-start; }
     #toolbar{ justify-content:space-between; }
