@@ -731,6 +731,7 @@
       width,
       height,
       fitMultiplier,
+      scaleAdjustment,
       naturalWidth,
       naturalHeight
     };
@@ -748,7 +749,10 @@
 
     if (scaleResult) {
       boardFigure.style.backgroundSize = `${scaleResult.width}px ${scaleResult.height}px`;
-      const effectiveUnitSpacing = baseUnitSpacing * scaleResult.fitMultiplier;
+      const scaleAdjustment = Number.isFinite(scaleResult.scaleAdjustment) && scaleResult.scaleAdjustment > 0
+        ? scaleResult.scaleAdjustment
+        : 1;
+      const effectiveUnitSpacing = baseUnitSpacing * scaleAdjustment * scaleResult.fitMultiplier;
       applyBoardAspectRatio({ width: scaleResult.naturalWidth, height: scaleResult.naturalHeight });
       updateRuler(settings, effectiveUnitSpacing);
       return;
