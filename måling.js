@@ -14,6 +14,24 @@
     return;
   }
 
+  const UNIT_SPACING_PX = 60;
+  const UNIT_TO_CENTIMETERS = {
+    mm: 0.1,
+    cm: 1,
+    dm: 10,
+    m: 100,
+    km: 100000
+  };
+  const UNIT_ALIASES = {
+    millimeter: 'mm',
+    millimetre: 'mm',
+    centimeter: 'cm',
+    centimetre: 'cm',
+    meter: 'm',
+    metre: 'm',
+    kilometer: 'km',
+    kilometre: 'km'
+  };
   const statusNote = doc.querySelector('[data-status-note]');
   const exportButton = doc.getElementById('btnExportSvg');
   const inputs = {
@@ -22,6 +40,7 @@
     figureName: doc.getElementById('cfg-figure-name'),
     figureImage: doc.getElementById('cfg-figure-image'),
     figureSummary: doc.getElementById('cfg-figure-summary'),
+    figureScaleLabel: doc.getElementById('cfg-figure-scale'),
     length: doc.getElementById('cfg-length'),
     subdivisions: doc.getElementById('cfg-subdivisions'),
     unitLabel: doc.getElementById('cfg-unit'),
@@ -402,9 +421,180 @@
     return false;
   }
 
+  function parseScaleRatio(label) {
+    if (typeof label !== 'string') {
+      return null;
+    }
+    const normalized = label.replace(/[\s\u00A0]+/g, '').replace(',', '.');
+    const match = /^([0-9]+(?:\.[0-9]+)?)\:([0-9]+(?:\.[0-9]+)?)$/.exec(normalized);
+    if (!match) {
+      return null;
+    }
+    const drawingValue = Number.parseFloat(match[1]);
+    const actualValue = Number.parseFloat(match[2]);
+    if (!Number.isFinite(drawingValue) || drawingValue <= 0) {
+      return null;
+    }
+    if (!Number.isFinite(actualValue) || actualValue <= 0) {
+      return null;
+    }
+    return drawingValue / actualValue;
+  }
+
+  function normalizeUnitKey(value) {
+    if (!value) {
+      return '';
+    }
+    const trimmed = value.trim().toLowerCase();
+    if (UNIT_TO_CENTIMETERS[trimmed] != null) {
+      return trimmed;
+    }
+    if (UNIT_ALIASES[trimmed]) {
+      return UNIT_ALIASES[trimmed];
+    }
+    return trimmed;
+  }
+
+  function getUnitToCentimeterFactor(unitLabel) {
+    const normalized = normalizeUnitKey(unitLabel || '');
+    if (UNIT_TO_CENTIMETERS[normalized] != null) {
+      return UNIT_TO_CENTIMETERS[normalized];
+    }
+    return UNIT_TO_CENTIMETERS.cm;
+  }
+
+  function convertValueToCentimeters(rawValue, unitKey) {
+    if (!rawValue || !unitKey) {
+      return null;
+    }
+    const normalized = rawValue
+      .replace(/[\s\u00A0\u202F]+/g, '')
+      .replace(',', '.');
+    const parsed = Number.parseFloat(normalized);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return null;
+    }
+    const multiplier = UNIT_TO_CENTIMETERS[unitKey];
+    if (!multiplier) {
+      return null;
+    }
+    return parsed * multiplier;
+  }
+
+  function extractRealWorldSizeFromText(text) {
+    if (typeof text !== 'string') {
+      return null;
+    }
+    const cleaned = text
+      .replace(/[()_\[\]]/g, ' ')
+      .replace(/[×x]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!cleaned) {
+      return null;
+    }
+    const values = [];
+    const pattern = /([0-9]+(?:[ \u00A0\u202F]?[0-9]{3})*(?:[.,][0-9]+)?)(?:\s*[-–]\s*([0-9]+(?:[ \u00A0\u202F]?[0-9]{3})*(?:[.,][0-9]+)?))?\s*(mm|cm|dm|m|km)\b/gi;
+    let match;
+    while ((match = pattern.exec(cleaned))) {
+      const unitKey = normalizeUnitKey(match[3]);
+      const first = convertValueToCentimeters(match[1], unitKey);
+      if (first != null) {
+        values.push(first);
+      }
+      if (match[2]) {
+        const second = convertValueToCentimeters(match[2], unitKey);
+        if (second != null) {
+          values.push(second);
+        }
+      }
+    }
+    const filtered = values.filter(value => Number.isFinite(value) && value > 0);
+    if (filtered.length === 0) {
+      return null;
+    }
+    const primary = Math.max(...filtered);
+    if (!Number.isFinite(primary) || primary <= 0) {
+      return null;
+    }
+    return {
+      primaryCm: primary,
+      valuesCm: filtered
+    };
+  }
+
+  function decodeFigureImageFileName(imagePath) {
+    if (typeof imagePath !== 'string') {
+      return '';
+    }
+    const lastSlash = imagePath.lastIndexOf('/');
+    const fileName = lastSlash >= 0 ? imagePath.slice(lastSlash + 1) : imagePath;
+    try {
+      return decodeURI(fileName);
+    } catch (error) {
+      return fileName;
+    }
+  }
+
+  function resolveRealWorldSizeInfo(settings) {
+    if (!settings) {
+      return null;
+    }
+    const summaryInfo = extractRealWorldSizeFromText(settings.figureSummary || '');
+    if (summaryInfo) {
+      return summaryInfo;
+    }
+    const preset = resolvePresetFromSettings(settings);
+    if (preset && preset.realWorldSize && Number.isFinite(preset.realWorldSize.primaryCm)) {
+      return preset.realWorldSize;
+    }
+    const imageFileName = decodeFigureImageFileName(settings.figureImage || '');
+    if (imageFileName) {
+      const fromImage = extractRealWorldSizeFromText(imageFileName);
+      if (fromImage) {
+        return fromImage;
+      }
+    }
+    return null;
+  }
+
+  function applyFigureScale(settings) {
+    if (!boardFigure) {
+      return;
+    }
+    const ratio = parseScaleRatio(settings.figureScaleLabel || '');
+    const sizeInfo = resolveRealWorldSizeInfo(settings);
+    if (!ratio || !sizeInfo || !Number.isFinite(sizeInfo.primaryCm) || sizeInfo.primaryCm <= 0) {
+      boardFigure.style.backgroundSize = '';
+      return;
+    }
+    const unitFactor = getUnitToCentimeterFactor(settings.unitLabel || '');
+    if (!Number.isFinite(unitFactor) || unitFactor <= 0) {
+      boardFigure.style.backgroundSize = '';
+      return;
+    }
+    const actualSizeInUnits = sizeInfo.primaryCm / unitFactor;
+    if (!Number.isFinite(actualSizeInUnits) || actualSizeInUnits <= 0) {
+      boardFigure.style.backgroundSize = '';
+      return;
+    }
+    const drawingUnits = actualSizeInUnits * ratio;
+    if (!Number.isFinite(drawingUnits) || drawingUnits <= 0) {
+      boardFigure.style.backgroundSize = '';
+      return;
+    }
+    const widthPx = drawingUnits * UNIT_SPACING_PX;
+    if (!Number.isFinite(widthPx) || widthPx <= 0) {
+      boardFigure.style.backgroundSize = '';
+      return;
+    }
+    boardFigure.style.backgroundSize = `${widthPx}px auto`;
+  }
+
   function applySettings(settings) {
     renderRuler(settings);
     applyFigureAppearance(settings);
+    applyFigureScale(settings);
     applyGridAppearance(settings);
     applyScaleLabel(settings);
     updateAccessibility(settings);
@@ -479,7 +669,7 @@
     const inset = 8;
     const marginLeft = 44;
     const marginRight = 44;
-    const unitSpacing = 60;
+    const unitSpacing = UNIT_SPACING_PX;
     const totalHeight = 120;
     const baselineY = inset + 26;
     const majorTickLength = (totalHeight - inset - 20 - baselineY) / 2;
@@ -573,6 +763,7 @@
       if (inputs.figureName) inputs.figureName.value = settings.figureName || '';
       if (inputs.figureImage) inputs.figureImage.value = settings.figureImage || '';
       if (inputs.figureSummary) inputs.figureSummary.value = settings.figureSummary || '';
+      if (inputs.figureScaleLabel) inputs.figureScaleLabel.value = settings.figureScaleLabel || '';
       if (inputs.length) inputs.length.value = settings.length;
       if (inputs.subdivisions) inputs.subdivisions.value = settings.subdivisions;
       if (inputs.unitLabel) inputs.unitLabel.value = settings.unitLabel || '';
@@ -621,6 +812,12 @@
       inputs.figureSummary.addEventListener('input', event => {
         if (appState.syncingInputs) return;
         updateSettings({ figureSummary: event.target.value });
+      });
+    }
+    if (inputs.figureScaleLabel) {
+      inputs.figureScaleLabel.addEventListener('input', event => {
+        if (appState.syncingInputs) return;
+        updateSettings({ figureScaleLabel: event.target.value });
       });
     }
     if (inputs.length) {
@@ -1022,6 +1219,10 @@
       if (scaleLabel) {
         summaryParts.push(`målestokk ${scaleLabel}`);
       }
+      const realWorldSize =
+        extractRealWorldSizeFromText(dimensions || '') ||
+        extractRealWorldSizeFromText(summary || '') ||
+        extractRealWorldSizeFromText(fileName || '');
       return {
         id,
         name,
@@ -1029,7 +1230,8 @@
         fileName: fileName || null,
         dimensions: dimensions || '',
         scaleLabel: scaleLabel || '',
-        summary: summaryParts.join(' – ')
+        summary: summaryParts.join(' – '),
+        realWorldSize: realWorldSize || null
       };
     };
 
