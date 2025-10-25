@@ -8,7 +8,10 @@
   
 
 <style>
-    :root { --sidebar-width: 480px; }
+    :root {
+      --sidebar-width: 480px;
+      --figure-available-height: calc(100vh - 200px);
+    }
     .figure {
       border-radius: 10px;
       background: #fafbfc;
@@ -17,9 +20,19 @@
       resize: both;
       min-width: 240px;
       min-height: 200px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 8px;
     }
     .figure svg {
-      width: 100%;
+      width: min(
+        100%,
+        max(
+          240px,
+          calc(var(--figure-available-height, calc(100vh - 200px)) * (600 / 420))
+        )
+      );
       height: auto;
       display: block;
     }
