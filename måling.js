@@ -677,7 +677,9 @@
     return {
       width,
       height,
-      fitMultiplier
+      fitMultiplier,
+      naturalWidth,
+      naturalHeight
     };
   }
 
@@ -694,12 +696,33 @@
     if (scaleResult) {
       boardFigure.style.backgroundSize = `${scaleResult.width}px ${scaleResult.height}px`;
       const effectiveUnitSpacing = baseUnitSpacing * scaleResult.fitMultiplier;
+      applyBoardAspectRatio({ width: scaleResult.naturalWidth, height: scaleResult.naturalHeight });
       updateRuler(settings, effectiveUnitSpacing);
       return;
     }
 
     boardFigure.style.backgroundSize = '';
+    applyBoardAspectRatio(null);
     updateRuler(settings, baseUnitSpacing);
+  }
+
+  function applyBoardAspectRatio(dimensions) {
+    if (!board) {
+      return;
+    }
+    const hasValidDimensions =
+      dimensions &&
+      Number.isFinite(dimensions.width) &&
+      Number.isFinite(dimensions.height) &&
+      dimensions.width > 0 &&
+      dimensions.height > 0;
+
+    if (hasValidDimensions) {
+      board.style.setProperty('--board-aspect-ratio', `${dimensions.width} / ${dimensions.height}`);
+      return;
+    }
+
+    board.style.removeProperty('--board-aspect-ratio');
   }
 
   function updateRuler(settings, unitSpacing) {
