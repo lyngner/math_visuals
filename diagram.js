@@ -54,6 +54,9 @@ const LEGACY_FIGURE_BORDER = '#eef0f3';
 const LEGACY_CANVAS_BACKGROUND = '#ffffff';
 const LEGACY_VALUE_COLOR = '#111111';
 const LEGACY_PIE_LABEL_COLOR = '#333333';
+const LEGACY_LEGEND_BACKGROUND = '#ffffff';
+const LEGACY_LEGEND_TEXT_COLOR = '#000000';
+const LEGACY_LEGEND_BORDER = '#d1d5db';
 function resolveDragHandleIcon() {
   if (typeof document === 'undefined') {
     return 'images/draggable.svg';
@@ -222,6 +225,9 @@ function applyDiagramTheme(options = {}) {
   const figureBorder = primaryColor ? withAlphaColor(primaryColor, 0.35, LEGACY_FIGURE_BORDER) : LEGACY_FIGURE_BORDER;
   setCssVariable('--diagram-figure-border', figureBorder, style);
   setCssVariable('--diagram-canvas-background', getThemeColor('ui.surface', LEGACY_CANVAS_BACKGROUND), style);
+  setCssVariable('--diagram-legend-background', LEGACY_LEGEND_BACKGROUND, style);
+  setCssVariable('--diagram-legend-text-color', LEGACY_LEGEND_TEXT_COLOR, style);
+  setCssVariable('--diagram-legend-border', LEGACY_LEGEND_BORDER, style);
 }
 /* =========================================================
    OPPSETT
@@ -813,7 +819,7 @@ function drawLegend() {
   let legendY = M.t - 28;
   const legendRoot = addTo(gLegend, 'g', {
     class: 'legend-root',
-    transform: `translate(${M.l} ${legendY})`
+    transform: `translate(0 ${legendY})`
   });
   const frame = addTo(legendRoot, 'rect', {
     class: 'legend-frame'
@@ -822,10 +828,10 @@ function drawLegend() {
     class: 'legend-items'
   });
 
-  const swatchWidth = 20;
-  const swatchHeight = 12;
-  const textOffset = 8;
-  const verticalSpacing = swatchHeight + 6;
+  const swatchSize = 18;
+  const textOffset = 10;
+  const verticalGap = 8;
+  const verticalSpacing = swatchSize + verticalGap;
   const separatorSpacing = 32;
   let horizontalCursor = 0;
 
@@ -834,7 +840,7 @@ function drawLegend() {
       const separatorX = horizontalCursor + separatorSpacing / 2;
       addTo(itemsGroup, 'text', {
         x: separatorX,
-        y: swatchHeight / 2,
+        y: swatchSize / 2,
         class: 'legend-separator',
         'text-anchor': 'middle',
         'dominant-baseline': 'middle'
@@ -853,23 +859,23 @@ function drawLegend() {
 
     addTo(itemGroup, 'rect', {
       x: 0,
-      y: (swatchHeight - 10) / 2,
-      width: swatchWidth,
-      height: 10,
+      y: 0,
+      width: swatchSize,
+      height: swatchSize,
       class: 'legendbox ' + s.cls,
       rx: 2,
       ry: 2
     });
     const text = addTo(itemGroup, 'text', {
-      x: swatchWidth + textOffset,
-      y: swatchHeight / 2,
+      x: swatchSize + textOffset,
+      y: swatchSize / 2,
       class: 'legendtext',
       'dominant-baseline': 'middle'
     });
     text.textContent = s.name;
     const textWidth = typeof text.getComputedTextLength === 'function' ? text.getComputedTextLength() : s.name.length * 8;
     if (legendLayout === 'horizontal') {
-      horizontalCursor += swatchWidth + textOffset + textWidth;
+      horizontalCursor += swatchSize + textOffset + textWidth;
     }
   });
 
@@ -903,7 +909,8 @@ function drawLegend() {
     if (legendY < minAllowed) legendY = minAllowed;
     if (legendY > maxAllowed) legendY = maxAllowed;
   }
-  legendRoot.setAttribute('transform', `translate(${M.l} ${legendY})`);
+  const legendX = W - M.r - (frameX + frameWidth);
+  legendRoot.setAttribute('transform', `translate(${legendX} ${legendY})`);
 }
 function drawLines(displayMode) {
   const datasets = [values];

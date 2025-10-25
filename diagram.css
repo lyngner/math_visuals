@@ -21,6 +21,9 @@
   --diagram-pie-label-inside-color: #ffffff;
   --diagram-value-color: #111111;
   --diagram-value-stroke: #ffffff;
+  --diagram-legend-background: #ffffff;
+  --diagram-legend-text-color: #000000;
+  --diagram-legend-border: #d1d5db;
   --diagram-pie-0: #4f2c8c;
   --diagram-pie-1: #6c3db5;
   --diagram-pie-2: #8a4de0;
@@ -108,11 +111,11 @@
 
 /* Legend */
 .legend-root{font-size:16px}
-.legend-frame{fill:var(--diagram-figure-background);stroke:var(--diagram-figure-border);stroke-width:1.5}
+.legend-frame{fill:var(--diagram-legend-background,#ffffff);stroke:var(--diagram-legend-border,var(--diagram-legend-text-color,#000000));stroke-width:1.5}
 .legendbox.series0{fill:var(--diagram-series-0)}
 .legendbox.series1{fill:var(--diagram-series-1)}
-.legendtext{fill:var(--diagram-text-color);font-size:16px}
-.legend-separator{fill:var(--diagram-text-color);font-size:16px}
+.legendtext{fill:var(--diagram-legend-text-color,#000000);font-size:16px}
+.legend-separator{fill:var(--diagram-legend-text-color,#000000);font-size:16px}
 
 /* Håndtak */
 .handle{cursor:grab;user-select:none;touch-action:none}
