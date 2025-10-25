@@ -167,6 +167,17 @@ function applyDiagramTheme(options = {}) {
   }
   const basePalette = ensurePalette(palette, requestedPaletteSize, LEGACY_PIE_PALETTE);
   const seriesPalette = ensurePalette(basePalette, requestedSeriesCount, LEGACY_SERIES_COLORS);
+  const activeProfileName = theme && typeof theme.getActiveProfileName === 'function'
+    ? theme.getActiveProfileName()
+    : null;
+  if (activeProfileName === 'kikora') {
+    if (requestedSeriesCount >= 2) {
+      if (seriesPalette.length > 0) seriesPalette[0] = '#534477';
+      if (seriesPalette.length > 1) seriesPalette[1] = '#BF4474';
+    } else if (seriesPalette.length > 0) {
+      seriesPalette[0] = '#6C1BA2';
+    }
+  }
   for (let i = 0; i < seriesPalette.length; i++) {
     setCssVariable(`--diagram-series-${i}`, seriesPalette[i], style);
     setCssVariable(`--diagram-line-series-${i}`, seriesPalette[i], style);
@@ -187,7 +198,8 @@ function applyDiagramTheme(options = {}) {
   setCssVariable('--diagram-text-color', resolvedTextColor, style);
   setCssVariable('--diagram-pie-label-color', primaryColor || LEGACY_PIE_LABEL_COLOR, style);
   setCssVariable('--diagram-value-color', primaryColor || LEGACY_VALUE_COLOR, style);
-  setCssVariable('--diagram-bar-stroke', primaryColor || LEGACY_BAR_STROKE, style);
+  const barStrokeColor = activeProfileName === 'kikora' ? 'transparent' : (primaryColor || LEGACY_BAR_STROKE);
+  setCssVariable('--diagram-bar-stroke', barStrokeColor, style);
   setCssVariable('--diagram-handle-fill', getThemeColor('ui.secondary', LEGACY_HANDLE_FILL), style);
   setCssVariable('--diagram-handle-stroke', primaryColor || LEGACY_HANDLE_STROKE, style);
   setCssVariable('--diagram-focus-outline', getThemeColor('ui.hover', LEGACY_FOCUS_OUTLINE), style);
