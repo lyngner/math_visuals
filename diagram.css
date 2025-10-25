@@ -107,9 +107,12 @@
 .line-dot.series1{fill:var(--diagram-line-series-1)}
 
 /* Legend */
+.legend-root{font-size:16px}
+.legend-frame{fill:var(--diagram-figure-background);stroke:var(--diagram-figure-border);stroke-width:1.5}
 .legendbox.series0{fill:var(--diagram-series-0)}
 .legendbox.series1{fill:var(--diagram-series-1)}
 .legendtext{fill:var(--diagram-text-color);font-size:16px}
+.legend-separator{fill:var(--diagram-text-color);font-size:16px}
 
 /* Håndtak */
 .handle{cursor:grab;user-select:none;touch-action:none}
