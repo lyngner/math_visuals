@@ -786,15 +786,15 @@
     const { length, subdivisions, unitLabel } = settings;
 
     const inset = 8;
-    const marginLeft = 44;
-    const marginRight = 44;
+    const marginLeft = 0;
+    const marginRight = 0;
     const totalHeight = 120;
     const baselineY = inset + 26;
     const majorTickLength = (totalHeight - inset - 20 - baselineY) / 2;
     const majorTickBottom = baselineY + majorTickLength;
     const minorTickBottom = baselineY + majorTickLength * 0.58;
     const labelY = majorTickBottom + 24;
-    const contentWidth = marginLeft + marginRight + unitSpacing * length;
+    const contentWidth = unitSpacing * length;
 
     const baselineStartX = marginLeft;
     const baselineEndX = contentWidth - marginRight;
@@ -819,7 +819,7 @@
     const labelMarkup = Array.from({ length: length + 1 }, (_, index) => {
       const x = marginLeft + unitSpacing * index;
       const anchor = index === 0 ? 'start' : index === length ? 'end' : 'middle';
-      const dx = anchor === 'start' ? -6 : anchor === 'end' ? 6 : 0;
+      const dx = anchor === 'start' ? 6 : anchor === 'end' ? -6 : 0;
       const labelText = formatNumber(index);
       return `<text x="${x}" y="${labelY}" text-anchor="${anchor}"${dx !== 0 ? ` dx="${dx}"` : ''} class="ruler-svg__label">${labelText}</text>`;
     }).join('');
@@ -831,7 +831,7 @@
 
     rulerSvg.setAttribute('viewBox', `0 0 ${contentWidth} ${totalHeight}`);
     rulerSvg.innerHTML = `
-      <rect x="8" y="8" width="${contentWidth - 16}" height="${totalHeight - 16}" rx="18" ry="18" class="ruler-svg__background" data-export-background="true" />
+      <rect x="0" y="${inset}" width="${contentWidth}" height="${totalHeight - inset * 2}" rx="18" ry="18" class="ruler-svg__background" data-export-background="true" />
       <line x1="${baselineStartX}" y1="${baselineY}" x2="${baselineEndX}" y2="${baselineY}" class="ruler-svg__baseline" />
       ${minorTickMarkup}
       ${majorTickMarkup}
