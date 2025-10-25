@@ -685,39 +685,44 @@
     fieldset.id = `fieldset${id}`;
     fieldset.innerHTML = `
       <legend>Figur ${id}</legend>
-      <label>Form
-        <select id="shape${id}">
-          <option value="circle">sirkel</option>
-          <option value="rectangle" selected>rektangel</option>
-          <option value="square">kvadrat</option>
-          <option value="triangle">trekant</option>
-        </select>
-      </label>
-      <label>Antall deler
-        <input id="parts${id}" class="input--digit input--small" type="number" min="1" value="4" />
-      </label>
-      <div class="checkbox-row">
-        <input id="allowDenominator${id}" type="checkbox" />
-        <label for="allowDenominator${id}">Endre nevner</label>
-      </div>
-      <label>Delt
-        <select id="division${id}">
-          <option value="horizontal">horisontalt</option>
-          <option value="vertical">vertikalt</option>
-          <option value="diagonal">diagonalt</option>
-          <option value="grid">horisontalt og vertikalt</option>
-          <option value="triangular">trekantsrutenett</option>
-        </select>
-      </label>
       <div class="field-row">
         <div class="field">
-          <label for="solutionNumerator${id}">Fasit teller</label>
-          <input id="solutionNumerator${id}" class="input--digit" type="number" min="0" step="1" />
+          <label for="shape${id}">Form</label>
+          <select id="shape${id}">
+            <option value="circle">sirkel</option>
+            <option value="rectangle" selected>rektangel</option>
+            <option value="square">kvadrat</option>
+            <option value="triangle">trekant</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="division${id}">Delt</label>
+          <select id="division${id}">
+            <option value="horizontal">horisontalt</option>
+            <option value="vertical">vertikalt</option>
+            <option value="diagonal">diagonalt</option>
+            <option value="grid">horisontalt og vertikalt</option>
+            <option value="triangular">trekantsrutenett</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="parts${id}">Antall deler</label>
+          <input id="parts${id}" class="input--digit input--small" type="number" min="1" value="4" />
         </div>
         <div class="field">
           <label for="solutionDenominator${id}">Fasit nevner</label>
           <input id="solutionDenominator${id}" class="input--digit" type="number" min="1" step="1" />
         </div>
+        <div class="field">
+          <label for="solutionNumerator${id}">Fasit teller</label>
+          <input id="solutionNumerator${id}" class="input--digit" type="number" min="0" step="1" />
+        </div>
+      </div>
+      <div class="checkbox-row">
+        <input id="allowDenominator${id}" type="checkbox" />
+        <label for="allowDenominator${id}">Endre nevner</label>
       </div>
     `;
     return fieldset;
