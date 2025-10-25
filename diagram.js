@@ -733,8 +733,8 @@ function drawAxesAndGrid() {
 
   const xLabel = createAxisLabelGroup(xAxisGroup, CFG.axisXLabel || '', { anchor: 'end' });
   if (xLabel.group) {
-    const xLabelX = xLineEnd - 12;
-    const xLabelY = axisY - 32;
+    const xLabelX = W - M.r;
+    const xLabelY = axisY + 48;
     xLabel.group.setAttribute('transform', `translate(${xLabelX} ${xLabelY})`);
   }
 
