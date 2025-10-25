@@ -607,47 +607,118 @@
     img.src = imageUrl;
   }
 
-  function applyFigureScale(settings, scaleMetrics) {
-    if (!boardFigure) {
-      return;
+  function computeFigureScale(settings, scaleMetrics) {
+    if (!settings || !scaleMetrics || !boardFigure) {
+      return null;
     }
-    const ratio = scaleMetrics && Number.isFinite(scaleMetrics.ratio) ? scaleMetrics.ratio : parseScaleRatio(settings.figureScaleLabel || '');
+
+    const ratio = scaleMetrics && Number.isFinite(scaleMetrics.ratio)
+      ? scaleMetrics.ratio
+      : parseScaleRatio(settings.figureScaleLabel || '');
     const sizeInfo = resolveRealWorldSizeInfo(settings);
     if (!ratio || !sizeInfo || !Number.isFinite(sizeInfo.primaryCm) || sizeInfo.primaryCm <= 0) {
-      boardFigure.style.backgroundSize = '';
-      return;
+      return null;
     }
+
     const baseSpacing = scaleMetrics && Number.isFinite(scaleMetrics.baseSpacing)
       ? scaleMetrics.baseSpacing
       : DEFAULT_UNIT_SPACING_PX;
     const targetPx = sizeInfo.primaryCm * ratio * baseSpacing;
     if (!Number.isFinite(targetPx) || targetPx <= 0) {
-      boardFigure.style.backgroundSize = '';
-      return;
+      return null;
     }
+
     const imageUrl = settings.figureImage || '';
     if (!imageUrl) {
-      boardFigure.style.backgroundSize = '';
-      return;
+      return null;
     }
+
     const cachedDimensions = figureImageDimensions.get(imageUrl);
     if (cachedDimensions == null) {
       ensureFigureImageDimensions(imageUrl);
-      boardFigure.style.backgroundSize = '';
+      return null;
+    }
+    if (!cachedDimensions || !Number.isFinite(cachedDimensions.width) || !Number.isFinite(cachedDimensions.height)) {
+      return null;
+    }
+
+    const naturalWidth = cachedDimensions.width;
+    const naturalHeight = cachedDimensions.height;
+    if (naturalWidth <= 0 || naturalHeight <= 0) {
+      return null;
+    }
+
+    const largestSide = naturalWidth >= naturalHeight ? 'width' : 'height';
+    const baseWidth = largestSide === 'width' ? targetPx : targetPx * (naturalWidth / naturalHeight);
+    const baseHeight = largestSide === 'height' ? targetPx : targetPx * (naturalHeight / naturalWidth);
+    if (!Number.isFinite(baseWidth) || !Number.isFinite(baseHeight) || baseWidth <= 0 || baseHeight <= 0) {
+      return null;
+    }
+
+    if (!boardRect || boardRect.width <= 0 || boardRect.height <= 0) {
+      boardRect = board.getBoundingClientRect();
+    }
+
+    const containerWidth = boardRect && Number.isFinite(boardRect.width) && boardRect.width > 0
+      ? boardRect.width
+      : board.clientWidth;
+    const containerHeight = boardRect && Number.isFinite(boardRect.height) && boardRect.height > 0
+      ? boardRect.height
+      : board.clientHeight;
+
+    let fitMultiplier = 1;
+    if (containerWidth && containerHeight && containerWidth > 0 && containerHeight > 0) {
+      const widthRatio = containerWidth / baseWidth;
+      const heightRatio = containerHeight / baseHeight;
+      const candidate = Math.min(widthRatio, heightRatio);
+      if (Number.isFinite(candidate) && candidate > 0 && candidate < 1) {
+        fitMultiplier = candidate;
+      }
+    }
+
+    const width = baseWidth * fitMultiplier;
+    const height = baseHeight * fitMultiplier;
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return null;
+    }
+
+    return {
+      width,
+      height,
+      fitMultiplier
+    };
+  }
+
+  function applyFigureScale(settings, scaleMetrics) {
+    if (!boardFigure) {
       return;
     }
-    const largestSide = cachedDimensions.width >= cachedDimensions.height ? 'width' : 'height';
-    const sizeValue = `${targetPx}px`;
-    if (largestSide === 'width') {
-      boardFigure.style.backgroundSize = `${sizeValue} auto`;
-    } else {
-      boardFigure.style.backgroundSize = `auto ${sizeValue}`;
+
+    const baseUnitSpacing = scaleMetrics && Number.isFinite(scaleMetrics.unitSpacing)
+      ? scaleMetrics.unitSpacing
+      : DEFAULT_UNIT_SPACING_PX;
+    const scaleResult = computeFigureScale(settings, scaleMetrics);
+
+    if (scaleResult) {
+      boardFigure.style.backgroundSize = `${scaleResult.width}px ${scaleResult.height}px`;
+      const effectiveUnitSpacing = baseUnitSpacing * scaleResult.fitMultiplier;
+      updateRuler(settings, effectiveUnitSpacing);
+      return;
     }
+
+    boardFigure.style.backgroundSize = '';
+    updateRuler(settings, baseUnitSpacing);
+  }
+
+  function updateRuler(settings, unitSpacing) {
+    if (!Number.isFinite(unitSpacing) || unitSpacing <= 0) {
+      unitSpacing = DEFAULT_UNIT_SPACING_PX;
+    }
+    renderRuler(settings, unitSpacing);
   }
 
   function applySettings(settings) {
     const scaleMetrics = resolveScaleMetrics(settings);
-    renderRuler(settings, scaleMetrics.unitSpacing);
     applyFigureAppearance(settings);
     applyFigureScale(settings, scaleMetrics);
     applyGridAppearance(settings);
@@ -1081,6 +1152,9 @@
     boardRect = board.getBoundingClientRect();
     const widthChanged = !prevRect || Math.abs(boardRect.width - prevRect.width) > 1;
     const heightChanged = !prevRect || Math.abs(boardRect.height - prevRect.height) > 1;
+    if (appState.settings) {
+      applyFigureScale(appState.settings, resolveScaleMetrics(appState.settings));
+    }
     baseSize.width = ruler.offsetWidth;
     baseSize.height = ruler.offsetHeight;
 
