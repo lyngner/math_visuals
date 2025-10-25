@@ -4789,6 +4789,7 @@ function setupSettingsForm() {
   let linePointsEdited = false;
   const pointMarkerControls = [];
   const functionColorControls = [];
+  let answerControl = null;
   const DEFAULT_COLOR_FALLBACK = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#1F4DE2';
   const getRowIndex = row => {
     if (!row || !row.dataset) return 1;
@@ -5705,6 +5706,75 @@ function setupSettingsForm() {
       snapCheckbox.removeAttribute('title');
     }
   };
+  function placeAnswerField(position) {
+    if (!answerControl || !answerControl.label) return;
+    if (answerControl.currentPlacement === position) return;
+    const { label } = answerControl;
+    const group = label.closest('.func-group');
+    let { secondaryRow, mainRow } = answerControl;
+    if (!secondaryRow || !secondaryRow.isConnected) {
+      secondaryRow = group ? group.querySelector('.func-row--secondary') : null;
+      answerControl.secondaryRow = secondaryRow;
+    }
+    if (!mainRow || !mainRow.isConnected) {
+      mainRow = group ? group.querySelector('.func-row--main') : null;
+      answerControl.mainRow = mainRow;
+    }
+    let domainLabel = answerControl.domainLabel;
+    if (!domainLabel || !domainLabel.parentElement) {
+      domainLabel = mainRow ? mainRow.querySelector('label.domain') : null;
+      answerControl.domainLabel = domainLabel;
+    }
+    let gliderRow = answerControl.gliderRow;
+    if (!gliderRow || !gliderRow.parentElement) {
+      gliderRow = group ? group.querySelector('.glider-row') : null;
+      answerControl.gliderRow = gliderRow;
+    }
+    if (secondaryRow) {
+      secondaryRow.style.display = position === 'secondary' ? '' : 'none';
+    }
+    if (position === 'inline') {
+      label.classList.add('func-answer--inline');
+      label.classList.remove('func-answer--glider');
+      if (domainLabel) {
+        domainLabel.after(label);
+      } else if (mainRow) {
+        mainRow.appendChild(label);
+      }
+    } else if (position === 'glider') {
+      label.classList.add('func-answer--glider');
+      label.classList.remove('func-answer--inline');
+      if (gliderRow) {
+        const colorLabel = gliderRow.querySelector('.func-color');
+        if (colorLabel) {
+          colorLabel.before(label);
+        } else {
+          gliderRow.appendChild(label);
+        }
+      }
+    } else {
+      label.classList.remove('func-answer--inline', 'func-answer--glider');
+      if (secondaryRow) {
+        secondaryRow.appendChild(label);
+      }
+    }
+    answerControl.currentPlacement = position;
+  }
+  function updateAnswerPlacement() {
+    if (!answerControl || !answerControl.label) return;
+    const firstValue = getFirstFunctionValue();
+    const forced = determineForcedGliderCount(firstValue);
+    if (forced != null && forced > 0) {
+      placeAnswerField('inline');
+      return;
+    }
+    const glidersActive = shouldEnableGliders() && gliderSection && gliderSection.style.display !== 'none';
+    if (glidersActive) {
+      placeAnswerField('glider');
+    } else {
+      placeAnswerField('secondary');
+    }
+  }
   const updateLinePointControls = (options = {}) => {
     const { silent = false } = options;
     if (!linePointSection) {
@@ -5771,6 +5841,9 @@ function setupSettingsForm() {
       updateSnapAvailability();
       return;
     }
+    if (answerControl) {
+      answerControl.gliderRow = gliderSection;
+    }
     const show = shouldEnableGliders();
     const visibilityChanged = show !== glidersVisible;
     glidersVisible = show;
@@ -5781,6 +5854,7 @@ function setupSettingsForm() {
       syncSimpleFromForm();
       scheduleSimpleRebuild();
     }
+    updateAnswerPlacement();
   };
   const buildSimpleFromForm = () => {
     var _rows$;
@@ -5993,6 +6067,7 @@ function setupSettingsForm() {
     }
     updateGliderVisibility();
     updateLinePointControls({ silent: true });
+    updateAnswerPlacement();
   };
   const createRow = (index, funVal = '', domVal = '', colorVal = '', colorManual = false, answerVal = '') => {
     const row = document.createElement('div');
@@ -6257,6 +6332,20 @@ function setupSettingsForm() {
       gliderCountInput = row.querySelector('[data-points]');
       gliderStartInput = row.querySelector('input[data-startx]');
       gliderStartLabel = gliderStartInput ? gliderStartInput.closest('label') : null;
+      const secondaryRow = row.querySelector('.func-row--secondary');
+      const mainRow = row.querySelector('.func-row--main');
+      const domainLabel = mainRow ? mainRow.querySelector('label.domain') : null;
+      const answerLabel = secondaryRow ? secondaryRow.querySelector('label.func-answer') : null;
+      if (answerLabel) {
+        answerControl = {
+          label: answerLabel,
+          secondaryRow,
+          mainRow,
+          domainLabel,
+          gliderRow: gliderSection,
+          currentPlacement: null
+        };
+      }
       if (gliderCountInput) {
         gliderCountInput.addEventListener('input', handleGliderCountChange);
         gliderCountInput.addEventListener('change', handleGliderCountChange);
@@ -6296,6 +6385,9 @@ function setupSettingsForm() {
       toggleDomain(funInput);
       updatePointMarkerVisibility();
     }
+    if (index === 1) {
+      updateAnswerPlacement();
+    }
     return row;
   };
   const fillFormFromSimple = simple => {
@@ -6331,6 +6423,7 @@ function setupSettingsForm() {
       pointMarkerControls.length = 0;
       clearFunctionColorControls();
       pointMarkerValue = DEFAULT_POINT_MARKER;
+      answerControl = null;
       funcRows.innerHTML = '';
     }
     glidersVisible = false;

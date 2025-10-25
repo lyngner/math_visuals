@@ -115,8 +115,9 @@
       max-width:220px;
     }
     .func-row--gliders .func-color{
-      flex:0 0 auto;
-      align-self:flex-end;
+      grid-column:3;
+      justify-self:start;
+      align-self:end;
     }
     body[data-app-mode="task"][data-app="graftegner"] #exportCard{
       display:flex !important;
@@ -295,21 +296,26 @@
     .func-fields--first .func-row label{ width:100%; }
     .func-row--gliders label{ justify-self:start; }
     .func-row--gliders{
-      display:flex;
-      flex-wrap:wrap;
-      gap:12px;
-      align-items:flex-end;
+      display:grid;
+      column-gap:12px;
+      row-gap:12px;
+      align-items:end;
+      grid-template-columns:minmax(120px,1fr) minmax(70px,100px) minmax(140px,1fr);
+    }
+    .func-fields--first .func-row--gliders:not(.func-row--color){
+      grid-template-columns:minmax(120px,1fr) minmax(70px,100px) minmax(140px,1fr);
     }
     .func-row--gliders label.points{
-      flex:1 1 120px;
-      max-width:220px;
+      grid-column:1;
+      max-width:200px;
+      min-width:0;
     }
     .func-row--gliders .linepoints-row{
       display:flex;
-      flex:2 1 260px;
       gap:12px;
       flex-wrap:wrap;
       align-items:flex-end;
+      grid-column:1 / -1;
     }
     .func-row--gliders .linepoints-row label.linepoint{
       flex:1 1 120px;
@@ -319,8 +325,9 @@
       max-width:100%;
     }
     .func-row--gliders label.startx-label{
-      flex-basis:100%;
-      max-width:180px;
+      grid-column:2;
+      max-width:100px;
+      min-width:72px;
     }
     .func-row--gliders label.points select{
       width:100%;
@@ -331,8 +338,23 @@
       max-width:140px;
     }
     .func-row--gliders .startx-label{
-      grid-column:1 / -1;
-      max-width:180px;
+      max-width:100px;
+    }
+    .func-row--gliders label.startx-label input{
+      width:100%;
+      max-width:72px;
+    }
+    .func-row--gliders label.func-answer{
+      grid-column:3;
+      min-width:0;
+      max-width:220px;
+    }
+    .func-answer--inline{
+      width:100%;
+    }
+    .func-answer--glider{
+      min-width:0;
+      max-width:220px;
     }
     @media (max-width:900px), (any-pointer:coarse) {
       .mobile-nav{ display:flex; }
