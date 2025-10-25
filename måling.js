@@ -622,7 +622,7 @@
       return null;
     }
 
-    const unitSpacingPx = scaleMetrics && Number.isFinite(scaleMetrics.unitSpacing)
+    let unitSpacingPx = scaleMetrics && Number.isFinite(scaleMetrics.unitSpacing)
       ? scaleMetrics.unitSpacing
       : DEFAULT_UNIT_SPACING_PX;
     if (!Number.isFinite(unitSpacingPx) || unitSpacingPx <= 0) {
@@ -668,6 +668,21 @@
 
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
       return null;
+    }
+
+    const boardBounds = boardRect && Number.isFinite(boardRect.width) && Number.isFinite(boardRect.height)
+      ? { width: boardRect.width, height: boardRect.height }
+      : null;
+    if (boardBounds && boardBounds.width > 0 && boardBounds.height > 0) {
+      const fitMultiplier = Math.min(
+        boardBounds.width / width,
+        boardBounds.height / height
+      );
+      if (fitMultiplier < 1) {
+        width *= fitMultiplier;
+        height *= fitMultiplier;
+        unitSpacingPx *= fitMultiplier;
+      }
     }
 
     return {
