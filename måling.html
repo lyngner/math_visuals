@@ -276,6 +276,13 @@
       gap: 6px;
     }
 
+    .input-helper-text {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #64748b;
+      line-height: 1.4;
+    }
+
     .field-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -383,6 +390,21 @@
             <div class="input-stack">
               <label for="cfg-unit">Enhet</label>
               <input id="cfg-unit" type="text" value="cm" autocomplete="off" spellcheck="false" />
+            </div>
+            <div class="input-stack">
+              <label for="cfg-unit-spacing">Skjermkalibrering</label>
+              <input
+                id="cfg-unit-spacing"
+                type="range"
+                min="30"
+                max="150"
+                step="1"
+                value="60"
+                aria-describedby="unitSpacingHelp"
+              />
+              <p id="unitSpacingHelp" class="input-helper-text">
+                1 enhet ≈ <span data-unit-spacing-display>60</span> px. Juster slik at 1 cm på skjermen stemmer med linjalen.
+              </p>
             </div>
             <label class="settings__toggle">
               <input id="cfg-grid-enabled" type="checkbox" />
