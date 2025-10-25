@@ -694,9 +694,17 @@
     const scaleResult = computeFigureScale(settings, scaleMetrics);
 
     if (scaleResult) {
-      boardFigure.style.backgroundSize = `${scaleResult.width}px ${scaleResult.height}px`;
-      const effectiveUnitSpacing = baseUnitSpacing * scaleResult.fitMultiplier;
-      applyBoardAspectRatio({ width: scaleResult.naturalWidth, height: scaleResult.naturalHeight });
+      const figureDimensions = {
+        width: scaleResult.naturalWidth,
+        height: scaleResult.naturalHeight
+      };
+      applyBoardAspectRatio(figureDimensions);
+
+      const refreshedScaleResult = computeFigureScale(settings, scaleMetrics);
+      const effectiveScaleResult = refreshedScaleResult || scaleResult;
+
+      boardFigure.style.backgroundSize = `${effectiveScaleResult.width}px ${effectiveScaleResult.height}px`;
+      const effectiveUnitSpacing = baseUnitSpacing * effectiveScaleResult.fitMultiplier;
       updateRuler(settings, effectiveUnitSpacing);
       return;
     }
@@ -719,10 +727,11 @@
 
     if (hasValidDimensions) {
       board.style.setProperty('--board-aspect-ratio', `${dimensions.width} / ${dimensions.height}`);
-      return;
+    } else {
+      board.style.removeProperty('--board-aspect-ratio');
     }
 
-    board.style.removeProperty('--board-aspect-ratio');
+    boardRect = board.getBoundingClientRect();
   }
 
   function updateRuler(settings, unitSpacing) {
