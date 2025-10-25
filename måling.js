@@ -8,6 +8,7 @@
   const boardFigure = board ? board.querySelector('[data-figure-image]') : null;
   const ruler = board ? board.querySelector('[data-ruler]') : null;
   const rulerSvg = ruler ? ruler.querySelector('[data-ruler-svg]') : null;
+  const boardGridOverlay = board ? board.querySelector('[data-grid-overlay]') : null;
   if (!board || !ruler || !rulerSvg) {
     return;
   }
@@ -21,7 +22,8 @@
     measurementTarget: doc.getElementById('cfg-measurement-target'),
     length: doc.getElementById('cfg-length'),
     subdivisions: doc.getElementById('cfg-subdivisions'),
-    unitLabel: doc.getElementById('cfg-unit')
+    unitLabel: doc.getElementById('cfg-unit'),
+    gridEnabled: doc.getElementById('cfg-grid-enabled')
   };
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
@@ -29,6 +31,7 @@
   const activePointers = new Map();
   let boardRect = board.getBoundingClientRect();
   const baseSize = { width: ruler.offsetWidth, height: ruler.offsetHeight };
+  const zeroOffset = { x: 0, y: 0 };
   const appState = {
     settings: null,
     syncingInputs: false,
@@ -43,7 +46,8 @@
     figureName: 'Kylling',
     figureImage: 'images/measure/kylling%20(7cm_7cm)%201_1.svg',
     measurementTarget: 'høyden på kyllingen',
-    figureSummary: ''
+    figureSummary: '',
+    gridEnabled: false
   };
 
   appState.settings = normalizeSettings();
@@ -110,6 +114,7 @@
     if (typeof source.figureImage === 'string') target.figureImage = source.figureImage;
     if (typeof source.figureSummary === 'string') target.figureSummary = source.figureSummary;
     if (typeof source.measurementTarget === 'string') target.measurementTarget = source.measurementTarget;
+    if (Object.prototype.hasOwnProperty.call(source, 'gridEnabled')) target.gridEnabled = source.gridEnabled;
   }
 
   function applySettingsToContainer(container, settings) {
@@ -123,6 +128,7 @@
     container.figureImage = settings.figureImage;
     container.figureSummary = settings.figureSummary || '';
     container.measurementTarget = settings.measurementTarget;
+    container.gridEnabled = settings.gridEnabled;
   }
 
   function sanitizeLength(value, fallback) {
@@ -190,6 +196,31 @@
     return value.trim();
   }
 
+  function sanitizeGridEnabled(value, fallback) {
+    if (value === undefined) {
+      return fallback;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (!normalized) {
+        return false;
+      }
+      if (['true', '1', 'on', 'yes'].includes(normalized)) {
+        return true;
+      }
+      if (['false', '0', 'off', 'no'].includes(normalized)) {
+        return false;
+      }
+    }
+    return fallback;
+  }
+
   function buildDefaultMeasurementTarget(figureName) {
     const normalized = collapseWhitespace(figureName);
     if (!normalized) {
@@ -226,6 +257,7 @@
     const figureImage = sanitizeFigureImage(combined.figureImage, defaults.figureImage);
     const figureSummary = sanitizeOptionalText(combined.figureSummary);
     const measurementTarget = sanitizeMeasurementTarget(combined.measurementTarget, figureName, defaults.measurementTarget);
+    const gridEnabled = sanitizeGridEnabled(combined.gridEnabled, defaults.gridEnabled);
 
     const settings = {
       length,
@@ -234,7 +266,8 @@
       figureName,
       figureImage,
       figureSummary,
-      measurementTarget
+      measurementTarget,
+      gridEnabled
     };
 
     applySettingsToContainer(configContainers.measurement, settings);
@@ -259,7 +292,8 @@
       a.figureName === b.figureName &&
       a.figureImage === b.figureImage &&
       a.figureSummary === b.figureSummary &&
-      a.measurementTarget === b.measurementTarget
+      a.measurementTarget === b.measurementTarget &&
+      a.gridEnabled === b.gridEnabled
     );
   }
 
@@ -313,10 +347,12 @@
   function applySettings(settings) {
     renderRuler(settings);
     applyFigureAppearance(settings);
+    applyGridAppearance(settings);
     updateAccessibility(settings);
     appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(settings);
     baseSize.width = ruler.offsetWidth;
     baseSize.height = ruler.offsetHeight;
+    applyTransformWithSnap({ allowSnap: settings.gridEnabled });
   }
 
   function applyFigureAppearance(settings) {
@@ -332,6 +368,14 @@
       } else {
         boardFigure.style.backgroundImage = 'none';
       }
+    }
+  }
+
+  function applyGridAppearance(settings) {
+    const enabled = !!settings.gridEnabled;
+    board.classList.toggle('board--grid', enabled);
+    if (boardGridOverlay) {
+      boardGridOverlay.hidden = !enabled;
     }
   }
 
@@ -418,6 +462,10 @@
 
     ruler.style.setProperty('--ruler-width', `${contentWidth}px`);
     ruler.style.setProperty('--ruler-height', `${totalHeight}px`);
+    ruler.style.setProperty('--zero-offset-x', `${marginLeft}px`);
+    ruler.style.setProperty('--zero-offset-y', `${baselineY}px`);
+    zeroOffset.x = marginLeft;
+    zeroOffset.y = baselineY;
   }
 
   function updateAccessibility(settings) {
@@ -454,6 +502,7 @@
       if (inputs.length) inputs.length.value = settings.length;
       if (inputs.subdivisions) inputs.subdivisions.value = settings.subdivisions;
       if (inputs.unitLabel) inputs.unitLabel.value = settings.unitLabel || '';
+      if (inputs.gridEnabled) inputs.gridEnabled.checked = !!settings.gridEnabled;
     } finally {
       appState.syncingInputs = false;
     }
@@ -502,6 +551,12 @@
         updateSettings({ unitLabel: event.target.value });
       });
     }
+    if (inputs.gridEnabled) {
+      inputs.gridEnabled.addEventListener('change', event => {
+        if (appState.syncingInputs) return;
+        updateSettings({ gridEnabled: event.target.checked });
+      });
+    }
   }
 
   function handlePointerDown(event) {
@@ -546,10 +601,60 @@
     try {
       ruler.releasePointerCapture(event.pointerId);
     } catch (_) {}
+    if (activePointers.size === 0) {
+      applyTransformWithSnap();
+    }
   }
 
   function applyTransform() {
     ruler.style.transform = `translate3d(${transformState.x}px, ${transformState.y}px, 0) rotate(${transformState.rotation}rad)`;
+  }
+
+  function applyTransformWithSnap({ allowSnap = true } = {}) {
+    if (allowSnap && appState.settings && appState.settings.gridEnabled) {
+      snapTranslationToGrid();
+    }
+    applyTransform();
+  }
+
+  function snapTranslationToGrid() {
+    if (!boardRect) {
+      return;
+    }
+    const gridColumns = 100;
+    const gridRows = 100;
+    const cellWidth = boardRect.width / gridColumns;
+    const cellHeight = boardRect.height / gridRows;
+    if (!Number.isFinite(cellWidth) || !Number.isFinite(cellHeight) || cellWidth <= 0 || cellHeight <= 0) {
+      return;
+    }
+
+    const originX = baseSize.width / 2;
+    const originY = baseSize.height / 2;
+    if (!Number.isFinite(originX) || !Number.isFinite(originY)) {
+      return;
+    }
+
+    const offsetX = zeroOffset.x - originX;
+    const offsetY = zeroOffset.y - originY;
+
+    const sin = Math.sin(transformState.rotation);
+    const cos = Math.cos(transformState.rotation);
+    const rotatedOffsetX = offsetX * cos - offsetY * sin;
+    const rotatedOffsetY = offsetX * sin + offsetY * cos;
+
+    const zeroX = transformState.x + originX + rotatedOffsetX;
+    const zeroY = transformState.y + originY + rotatedOffsetY;
+
+    const snappedZeroX = Math.round(zeroX / cellWidth) * cellWidth;
+    const snappedZeroY = Math.round(zeroY / cellHeight) * cellHeight;
+
+    const dx = snappedZeroX - zeroX;
+    const dy = snappedZeroY - zeroY;
+    if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
+      transformState.x += dx;
+      transformState.y += dy;
+    }
   }
 
   function centerRuler() {
@@ -561,7 +666,7 @@
     transformState.x = offsetX;
     transformState.y = offsetY;
     transformState.rotation = 0;
-    applyTransform();
+    applyTransformWithSnap();
   }
 
   function normalizeAngle(angle) {
@@ -580,7 +685,7 @@
     }
     transformState.x += dx;
     transformState.y += dy;
-    applyTransform();
+    applyTransformWithSnap();
   }
 
   function updateFromGesture(currentEntry) {
@@ -618,7 +723,7 @@
     transformState.x += nextCenter.x - prevCenter.x;
     transformState.y += nextCenter.y - prevCenter.y;
     transformState.rotation = normalizeAngle(transformState.rotation + normalizeAngle(nextAngle - prevAngle));
-    applyTransform();
+    applyTransformWithSnap({ allowSnap: false });
   }
 
   function handleResize() {
@@ -638,7 +743,7 @@
     const maxY = boardRect.height;
     transformState.x = Math.min(Math.max(transformState.x, -maxX), maxX);
     transformState.y = Math.min(Math.max(transformState.y, -maxY), maxY);
-    applyTransform();
+    applyTransformWithSnap({ allowSnap: activePointers.size === 0 });
   }
 
   function svgToString(svgElement) {

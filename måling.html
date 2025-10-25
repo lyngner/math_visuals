@@ -99,13 +99,44 @@
       border-radius: 999px;
       letter-spacing: 0.03em;
       font-weight: 600;
-      z-index: 1;
+      z-index: 2;
       pointer-events: none;
     }
 
     .board:not([data-figure-label])::after,
     .board[data-figure-label=""]::after {
       content: none;
+    }
+
+    .board__grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(
+          to right,
+          rgba(15, 23, 42, 0.16) 0,
+          rgba(15, 23, 42, 0.16) 1px,
+          transparent 1px,
+          transparent 100%
+        ),
+        linear-gradient(
+          to bottom,
+          rgba(15, 23, 42, 0.16) 0,
+          rgba(15, 23, 42, 0.16) 1px,
+          transparent 1px,
+          transparent 100%
+        );
+      background-size: calc(100% / 100) 100%, 100% calc(100% / 100);
+      background-repeat: repeat, repeat;
+      mix-blend-mode: multiply;
+      opacity: 0;
+      transition: opacity 120ms ease;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .board--grid .board__grid {
+      opacity: 1;
     }
 
     .ruler {
@@ -131,6 +162,15 @@
       width: 100%;
       height: 100%;
       display: block;
+    }
+
+    .ruler__zero-anchor {
+      position: absolute;
+      left: var(--zero-offset-x, 0);
+      top: var(--zero-offset-y, 0);
+      width: 0;
+      height: 0;
+      pointer-events: none;
     }
 
     .ruler-shadow {
@@ -194,6 +234,20 @@
       gap: 14px;
     }
 
+    .settings__toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      color: #1e293b;
+    }
+
+    .settings__toggle input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--accent);
+    }
+
     .input-stack {
       display: flex;
       flex-direction: column;
@@ -254,8 +308,10 @@
         <div class="board-wrapper">
           <div class="board" data-board data-figure-label="Kylling">
             <div class="board__figure" data-figure-image style="background-image: url('images/measure/kylling%20(7cm_7cm)%201_1.svg');"></div>
+            <div class="board__grid" data-grid-overlay hidden aria-hidden="true"></div>
             <div class="ruler" data-ruler aria-label="Flyttbar linjal" role="img">
               <svg viewBox="0 0 600 120" class="ruler-shadow" data-ruler-svg aria-hidden="true" focusable="false"></svg>
+              <span class="ruler__zero-anchor" data-zero-anchor aria-hidden="true"></span>
             </div>
           </div>
           <p class="status-note" data-status-note>Linjalens lengde er 10 cm. Bruk den til å finne høyden på kyllingen.</p>
@@ -309,6 +365,10 @@
               <label for="cfg-unit">Enhet</label>
               <input id="cfg-unit" type="text" value="cm" autocomplete="off" spellcheck="false" />
             </div>
+            <label class="settings__toggle">
+              <input id="cfg-grid-enabled" type="checkbox" />
+              <span>Vis rutenett</span>
+            </label>
           </div>
         </div>
 
