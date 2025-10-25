@@ -622,90 +622,50 @@
       return null;
     }
 
-    const baseUnitSpacing = scaleMetrics && Number.isFinite(scaleMetrics.unitSpacing)
+    const unitSpacingPx = scaleMetrics && Number.isFinite(scaleMetrics.unitSpacing)
       ? scaleMetrics.unitSpacing
       : DEFAULT_UNIT_SPACING_PX;
-    if (!Number.isFinite(baseUnitSpacing) || baseUnitSpacing <= 0) {
+    if (!Number.isFinite(unitSpacingPx) || unitSpacingPx <= 0) {
       return null;
     }
-
-    const rulerLength = Number.isFinite(settings.length) && settings.length > 0
-      ? settings.length
-      : defaults.length;
-    if (!Number.isFinite(rulerLength) || rulerLength <= 0) {
-      return null;
-    }
-
-    const naturalWidth = figureDimensions.width;
-    const naturalHeight = figureDimensions.height;
 
     const baseSpacingPx = scaleMetrics && Number.isFinite(scaleMetrics.baseSpacing) && scaleMetrics.baseSpacing > 0
       ? scaleMetrics.baseSpacing
       : DEFAULT_UNIT_SPACING_PX;
-    const naturalWidthCm = naturalWidth / baseSpacingPx;
+
+    const naturalWidth = figureDimensions.width;
+    const naturalHeight = figureDimensions.height;
+    if (!Number.isFinite(naturalWidth) || !Number.isFinite(naturalHeight) || naturalWidth <= 0 || naturalHeight <= 0) {
+      return null;
+    }
+
     const realWorldInfo = resolveRealWorldSizeInfo(settings);
     const preset = resolvePresetFromSettings(settings);
-    const inferredBaseScaleDenominator = (() => {
-      if (realWorldInfo && Number.isFinite(realWorldInfo.primaryCm) && realWorldInfo.primaryCm > 0) {
-        if (Number.isFinite(naturalWidthCm) && naturalWidthCm > 0) {
-          return realWorldInfo.primaryCm / naturalWidthCm;
-        }
-      }
-      const presetScaleDenominator = parseScaleDenominator(preset && preset.scaleLabel ? preset.scaleLabel : '');
-      if (Number.isFinite(presetScaleDenominator) && presetScaleDenominator > 0) {
-        return presetScaleDenominator;
-      }
-      return null;
-    })();
+    const realWorldPrimaryCm = realWorldInfo && Number.isFinite(realWorldInfo.primaryCm) && realWorldInfo.primaryCm > 0
+      ? realWorldInfo.primaryCm
+      : null;
+    const presetScaleDenominator = parseScaleDenominator(preset && preset.scaleLabel ? preset.scaleLabel : '');
     const desiredScaleDenominatorRaw = parseScaleDenominator(settings.figureScaleLabel || '');
     const desiredScaleDenominator = Number.isFinite(desiredScaleDenominatorRaw) && desiredScaleDenominatorRaw > 0
       ? desiredScaleDenominatorRaw
-      : inferredBaseScaleDenominator;
-    const baseScaleDenominator = Number.isFinite(inferredBaseScaleDenominator) && inferredBaseScaleDenominator > 0
-      ? inferredBaseScaleDenominator
-      : desiredScaleDenominator;
-    let scaleAdjustment = 1;
-    if (
-      Number.isFinite(baseScaleDenominator) &&
-      Number.isFinite(desiredScaleDenominator) &&
-      baseScaleDenominator > 0 &&
-      desiredScaleDenominator > 0
-    ) {
-      scaleAdjustment = baseScaleDenominator / desiredScaleDenominator;
+      : (Number.isFinite(presetScaleDenominator) && presetScaleDenominator > 0 ? presetScaleDenominator : 1);
+
+    let width = null;
+    let height = null;
+
+    if (realWorldPrimaryCm != null) {
+      const drawingCentimeters = realWorldPrimaryCm / desiredScaleDenominator;
+      width = baseSpacingPx * drawingCentimeters;
+      height = width * (naturalHeight / naturalWidth);
+    } else {
+      const baseScaleDenominator = Number.isFinite(presetScaleDenominator) && presetScaleDenominator > 0
+        ? presetScaleDenominator
+        : 1;
+      const scaleAdjustment = baseScaleDenominator / desiredScaleDenominator;
+      width = naturalWidth * scaleAdjustment;
+      height = naturalHeight * scaleAdjustment;
     }
 
-    const baseWidth = baseUnitSpacing * rulerLength * scaleAdjustment;
-    // Tegningene er laget slik at 10 enheter dekker hele figurens bredde.
-    // Vi bruker linjalens enhetsavstand og lengde for å finne den rendrerte bredden
-    // og beholder høyden basert på originalens sideforhold.
-    const baseHeight = baseWidth * (naturalHeight / naturalWidth);
-    if (!Number.isFinite(baseWidth) || !Number.isFinite(baseHeight) || baseWidth <= 0 || baseHeight <= 0) {
-      return null;
-    }
-
-    if (!boardRect || boardRect.width <= 0 || boardRect.height <= 0) {
-      boardRect = board.getBoundingClientRect();
-    }
-
-    const containerWidth = boardRect && Number.isFinite(boardRect.width) && boardRect.width > 0
-      ? boardRect.width
-      : board.clientWidth;
-    const containerHeight = boardRect && Number.isFinite(boardRect.height) && boardRect.height > 0
-      ? boardRect.height
-      : board.clientHeight;
-
-    let fitMultiplier = 1;
-    if (containerWidth && containerHeight && containerWidth > 0 && containerHeight > 0) {
-      const widthRatio = containerWidth / baseWidth;
-      const heightRatio = containerHeight / baseHeight;
-      const candidate = Math.min(widthRatio, heightRatio);
-      if (Number.isFinite(candidate) && candidate > 0 && candidate < 1) {
-        fitMultiplier = candidate;
-      }
-    }
-
-    const width = baseWidth * fitMultiplier;
-    const height = baseHeight * fitMultiplier;
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
       return null;
     }
@@ -713,9 +673,7 @@
     return {
       width,
       height,
-      fitMultiplier,
-      naturalWidth,
-      naturalHeight
+      unitSpacingPx
     };
   }
 
@@ -754,38 +712,28 @@
     const figureDimensions = resolveFigureDimensions(imageUrl);
 
     if (figureDimensions) {
-      applyBoardAspectRatio(figureDimensions);
+      applyBoardAspectRatio();
       const scaleResult = computeFigureScale(settings, scaleMetrics, figureDimensions);
 
       if (scaleResult) {
         boardFigure.style.backgroundSize = `${scaleResult.width}px ${scaleResult.height}px`;
-        const effectiveUnitSpacing = baseUnitSpacing * scaleResult.fitMultiplier;
+        const effectiveUnitSpacing = Number.isFinite(scaleResult.unitSpacingPx) && scaleResult.unitSpacingPx > 0
+          ? scaleResult.unitSpacingPx
+          : baseUnitSpacing;
         updateRuler(settings, effectiveUnitSpacing);
         return;
       }
     } else {
-      applyBoardAspectRatio(null);
+      applyBoardAspectRatio();
     }
 
     boardFigure.style.backgroundSize = '';
     updateRuler(settings, baseUnitSpacing);
   }
 
-  function applyBoardAspectRatio(dimensions) {
+  function applyBoardAspectRatio() {
     if (!board) {
       return;
-    }
-    const hasValidDimensions =
-      dimensions &&
-      Number.isFinite(dimensions.width) &&
-      Number.isFinite(dimensions.height) &&
-      dimensions.width > 0 &&
-      dimensions.height > 0;
-
-    if (hasValidDimensions) {
-      board.style.setProperty('--board-aspect-ratio', `${dimensions.width} / ${dimensions.height}`);
-    } else {
-      board.style.removeProperty('--board-aspect-ratio');
     }
 
     boardRect = board.getBoundingClientRect();
