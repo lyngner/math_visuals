@@ -511,6 +511,13 @@
             <option value="task">Oppgave</option>
           </select>
         </div>
+        <div class="nav-control nav-control--beta">
+          <label for="beta-select">Beta</label>
+          <select id="beta-select" name="beta" data-beta-control>
+            <option value="true">På</option>
+            <option value="false">Av</option>
+          </select>
+        </div>
       </div>
       <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="nav-list">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true">
@@ -669,7 +676,7 @@
           <span class="sr-only">Tallinje</span>
         </a>
       </li>
-      <li>
+      <li data-beta-feature>
         <a
           href="perlesnor.html"
           target="content"
@@ -761,7 +768,7 @@
           <span class="sr-only">Brøkvegg</span>
         </a>
       </li>
-      <li>
+      <li data-beta-feature>
         <a
           href="måling.html"
           target="content"
@@ -777,7 +784,7 @@
           <span class="nav-badge" aria-hidden="true">Beta</span>
         </a>
       </li>
-      <li>
+      <li data-beta-feature>
         <a
           href="prikktilprikk.html"
           target="content"
@@ -797,7 +804,7 @@
           <span class="nav-badge" aria-hidden="true">Beta</span>
         </a>
       </li>
-      <li>
+      <li data-beta-feature>
         <a
           href="fortegnsskjema.html"
           target="content"
@@ -842,6 +849,8 @@
         const navElement = document.querySelector('nav');
         const navToggle = navElement ? navElement.querySelector('.nav-toggle') : null;
         const navLinks = navElement ? navElement.querySelectorAll('a[target="content"]') : null;
+        const betaControl = navElement ? navElement.querySelector('[data-beta-control]') : null;
+        const betaFeatureItems = navElement ? navElement.querySelectorAll('[data-beta-feature]') : [];
 
         if (!navElement || !navToggle) {
           return;
@@ -885,6 +894,54 @@
           smallScreenQuery.addEventListener('change', syncNavState);
         } else if (typeof smallScreenQuery.addListener === 'function') {
           smallScreenQuery.addListener(syncNavState);
+        }
+
+        const betaStorageKey = 'math-visuals-beta-enabled';
+        const setBetaState = (isEnabled) => {
+          if (!betaFeatureItems) {
+            return;
+          }
+          betaFeatureItems.forEach((item) => {
+            if (!(item instanceof HTMLElement)) {
+              return;
+            }
+            item.hidden = !isEnabled;
+          });
+          if (betaControl) {
+            betaControl.value = isEnabled ? 'true' : 'false';
+          }
+        };
+
+        if (betaControl) {
+          let initialState = true;
+          if (typeof window !== 'undefined' && 'localStorage' in window) {
+            try {
+              const storedValue = window.localStorage.getItem(betaStorageKey);
+              if (storedValue === 'true' || storedValue === 'false') {
+                initialState = storedValue === 'true';
+              }
+            } catch (error) {
+              // Ignore storage errors (e.g. disabled cookies)
+            }
+          }
+
+          setBetaState(initialState);
+
+          betaControl.addEventListener('change', (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLSelectElement)) {
+              return;
+            }
+            const isEnabled = target.value === 'true';
+            setBetaState(isEnabled);
+            if (typeof window !== 'undefined' && 'localStorage' in window) {
+              try {
+                window.localStorage.setItem(betaStorageKey, isEnabled ? 'true' : 'false');
+              } catch (error) {
+                // Ignore storage errors (e.g. disabled cookies)
+              }
+            }
+          });
         }
       })();
     </script>
