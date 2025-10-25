@@ -3976,6 +3976,152 @@ function formatPointList(points) {
   return points.map(pt => formatPointForInput(pt)).filter(Boolean).join('; ');
 }
 
+function clampValueToDomain(x, domain) {
+  if (typeof x !== 'number' || !Number.isFinite(x)) return NaN;
+  if (!domain || typeof domain !== 'object') {
+    return x;
+  }
+  let clamped = x;
+  if (Number.isFinite(domain.min) && clamped < domain.min) {
+    clamped = domain.min;
+  }
+  if (Number.isFinite(domain.max) && clamped > domain.max) {
+    clamped = domain.max;
+  }
+  return clamped;
+}
+
+function extractGliderAnswerXValues(text) {
+  if (typeof text !== 'string') return [];
+  const str = text.trim();
+  if (!str) return [];
+  const entries = [];
+  const pairRegex = /\(\s*[^()]*\)/g;
+  let match;
+  while ((match = pairRegex.exec(str)) !== null) {
+    const inner = match[0];
+    const numberRegex = /-?\d+(?:[.,]\d+)?/g;
+    const numberMatch = numberRegex.exec(inner);
+    if (!numberMatch) continue;
+    const value = Number.parseFloat(numberMatch[0].replace(',', '.'));
+    if (!Number.isFinite(value)) continue;
+    entries.push({ index: match.index + numberMatch.index, value });
+  }
+  const cleaned = str.replace(pairRegex, ' ');
+  const numRegex = /-?\d+(?:[.,]\d+)?/g;
+  while ((match = numRegex.exec(cleaned)) !== null) {
+    const value = Number.parseFloat(match[0].replace(',', '.'));
+    if (!Number.isFinite(value)) continue;
+    entries.push({ index: match.index, value });
+  }
+  entries.sort((a, b) => a.index - b.index);
+  return entries.map(entry => entry.value).filter(Number.isFinite);
+}
+
+function getFunctionGliderPoints(funcIndex) {
+  if (!Array.isArray(graphs) || !Number.isInteger(funcIndex) || funcIndex < 0) {
+    return [];
+  }
+  const graph = graphs[funcIndex];
+  if (!graph || !Array.isArray(graph.gliders)) {
+    return [];
+  }
+  const points = [];
+  for (const glider of graph.gliders) {
+    if (!glider) continue;
+    const x = typeof glider.X === 'function' ? glider.X() : Number.isFinite(glider.X) ? glider.X : NaN;
+    const y = typeof glider.Y === 'function' ? glider.Y() : Number.isFinite(glider.Y) ? glider.Y : NaN;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      continue;
+    }
+    points.push([x, y]);
+  }
+  return points;
+}
+
+function evaluateFunctionGliderAnswer(answerText, rowSpec, index) {
+  const funcIndex = rowSpec && Number.isFinite(rowSpec.funcIndex) ? rowSpec.funcIndex : index;
+  const funcs = Array.isArray(SIMPLE_PARSED.funcs) ? SIMPLE_PARSED.funcs : [];
+  const fun = funcs[funcIndex];
+  if (!fun || !fun.rhs) {
+    return {
+      ok: false,
+      type: 'error',
+      message: `Funksjon ${index + 1} kan ikke kontrolleres.`
+    };
+  }
+  const gliderPoints = getFunctionGliderPoints(funcIndex);
+  if (!gliderPoints.length) {
+    return {
+      ok: false,
+      type: 'error',
+      message: `Funksjon ${index + 1} kan ikke kontrolleres.`
+    };
+  }
+  const fnName = fun.name || 'f';
+  const evaluator = parseFunctionSpec(`${fnName}(x)=${fun.rhs}`);
+  if (typeof evaluator !== 'function') {
+    return {
+      ok: false,
+      type: 'error',
+      message: `Kunne ikke tolke fasit for funksjon ${index + 1}.`
+    };
+  }
+  let xs = extractGliderAnswerXValues(answerText);
+  if (!xs.length) {
+    const points = parsePointListString(answerText);
+    if (points.length) {
+      xs = points.map(pt => (Array.isArray(pt) && Number.isFinite(pt[0])) ? pt[0] : NaN).filter(Number.isFinite);
+    }
+  }
+  if (!xs.length) {
+    return {
+      ok: false,
+      type: 'error',
+      message: `Kunne ikke tolke fasit for funksjon ${index + 1}.`
+    };
+  }
+  const needed = gliderPoints.length;
+  if (xs.length < needed) {
+    return {
+      ok: false,
+      type: 'error',
+      message: `Kunne ikke tolke fasit for funksjon ${index + 1}.`
+    };
+  }
+  const expectedPoints = [];
+  for (let i = 0; i < needed; i++) {
+    const rawX = xs[i];
+    const x = clampValueToDomain(rawX, fun.domain);
+    const y = evaluator(x);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return {
+        ok: false,
+        type: 'error',
+        message: `Kunne ikke tolke fasit for funksjon ${index + 1}.`
+      };
+    }
+    expectedPoints.push([x, y]);
+  }
+  const actualPoints = gliderPoints.slice(0, needed);
+  const expectedStr = formatPointList(expectedPoints);
+  const actualStr = formatPointList(actualPoints);
+  for (let i = 0; i < needed; i++) {
+    if (!pointsRoughlyEqual(expectedPoints[i], actualPoints[i])) {
+      return {
+        ok: false,
+        type: 'error',
+        message: `Funksjon ${index + 1} stemmer ikke. Forventet ${expectedStr}. Nå: ${actualStr}.`
+      };
+    }
+  }
+  const detail = expectedStr ? `Funksjon ${index + 1}: ${expectedStr}.` : `Funksjon ${index + 1} er riktig.`;
+  return {
+    ok: true,
+    message: detail
+  };
+}
+
 function evaluateLineAnswer(spec, index) {
   if (typeof currentMB !== 'function') {
     return {
@@ -4066,22 +4212,18 @@ function evaluateAnswerForRow(answer, index) {
   const rows = Array.isArray(SIMPLE_PARSED.rows) ? SIMPLE_PARSED.rows : [];
   const rowSpec = rows[index] || null;
   if (rowSpec && rowSpec.type === 'function') {
-    if (MODE !== 'points') {
-      return {
-        ok: false,
-        type: 'info',
-        message: `Fasit for funksjon ${index + 1} støttes ikke i denne modusen.`
-      };
+    if (MODE === 'points') {
+      const spec = parseLineAnswerSpec(trimmed);
+      if (!spec) {
+        return {
+          ok: false,
+          type: 'error',
+          message: `Kunne ikke tolke fasit for funksjon ${index + 1}.`
+        };
+      }
+      return evaluateLineAnswer(spec, index);
     }
-    const spec = parseLineAnswerSpec(trimmed);
-    if (!spec) {
-      return {
-        ok: false,
-        type: 'error',
-        message: `Kunne ikke tolke fasit for funksjon ${index + 1}.`
-      };
-    }
-    return evaluateLineAnswer(spec, index);
+    return evaluateFunctionGliderAnswer(trimmed, rowSpec, index);
   }
   if (rowSpec && rowSpec.type === 'coords') {
     const expected = parsePointListString(trimmed);
