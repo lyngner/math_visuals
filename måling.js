@@ -31,6 +31,7 @@
   const activePointers = new Map();
   let boardRect = board.getBoundingClientRect();
   const baseSize = { width: ruler.offsetWidth, height: ruler.offsetHeight };
+  const intrinsicSize = { width: baseSize.width, height: baseSize.height };
   const zeroOffset = { x: 0, y: 0 };
   const appState = {
     settings: null,
@@ -464,6 +465,8 @@
     ruler.style.setProperty('--ruler-height', `${totalHeight}px`);
     ruler.style.setProperty('--zero-offset-x', `${marginLeft}px`);
     ruler.style.setProperty('--zero-offset-y', `${baselineY}px`);
+    intrinsicSize.width = contentWidth;
+    intrinsicSize.height = totalHeight;
     zeroOffset.x = marginLeft;
     zeroOffset.y = baselineY;
   }
@@ -635,8 +638,13 @@
       return;
     }
 
-    const offsetX = zeroOffset.x - originX;
-    const offsetY = zeroOffset.y - originY;
+    const scaleX = intrinsicSize.width > 0 ? baseSize.width / intrinsicSize.width : 1;
+    const scaleY = intrinsicSize.height > 0 ? baseSize.height / intrinsicSize.height : 1;
+    const scaledZeroX = zeroOffset.x * scaleX;
+    const scaledZeroY = zeroOffset.y * scaleY;
+
+    const offsetX = scaledZeroX - originX;
+    const offsetY = scaledZeroY - originY;
 
     const sin = Math.sin(transformState.rotation);
     const cos = Math.cos(transformState.rotation);
