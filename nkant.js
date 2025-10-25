@@ -3958,6 +3958,62 @@ function adjustSvgViewBoxToContent(svg, margin = TIGHT_VIEWBOX_MARGIN) {
   const finalY = minY - pad;
   svg.setAttribute('viewBox', `${finalX} ${finalY} ${finalWidth} ${finalHeight}`);
 }
+
+/* ---------- FIGURE RESIZE HELPERS ---------- */
+let pendingFigureSizeUpdate = false;
+function scheduleResponsiveFigureSizeUpdate() {
+  if (pendingFigureSizeUpdate || typeof window === "undefined") return;
+  pendingFigureSizeUpdate = true;
+  window.requestAnimationFrame(() => {
+    pendingFigureSizeUpdate = false;
+    updateResponsiveFigureSize();
+  });
+}
+function updateResponsiveFigureSize() {
+  if (typeof window === "undefined") return;
+  const root = document.documentElement;
+  const figure = document.querySelector(".card .figure");
+  if (!root || !figure) return;
+  const card = figure.closest(".card");
+  const figureRect = figure.getBoundingClientRect();
+  const bodyStyles = window.getComputedStyle(document.body);
+  const bodyPaddingBottom = parseFloat(bodyStyles.paddingBottom) || 0;
+  const cardStyles = card ? window.getComputedStyle(card) : null;
+  const cardPaddingBottom = cardStyles ? parseFloat(cardStyles.paddingBottom) || 0 : 0;
+  const extraSpacing = bodyPaddingBottom + cardPaddingBottom + 16;
+  const available = Math.max(0, window.innerHeight - figureRect.top - extraSpacing);
+  root.style.setProperty("--figure-available-height", `${available}px`);
+}
+function initResponsiveFigureSizing() {
+  if (typeof window === "undefined") return;
+  const figure = document.querySelector(".card .figure");
+  if (!figure) return;
+  if (!initResponsiveFigureSizing.boundResize) {
+    window.addEventListener("resize", scheduleResponsiveFigureSizeUpdate, {
+      passive: true
+    });
+    window.addEventListener("orientationchange", scheduleResponsiveFigureSizeUpdate, {
+      passive: true
+    });
+    initResponsiveFigureSizing.boundResize = true;
+  }
+  if (typeof ResizeObserver !== "undefined") {
+    if (initResponsiveFigureSizing.observer) {
+      initResponsiveFigureSizing.observer.disconnect();
+    }
+    const observer = new ResizeObserver(() => scheduleResponsiveFigureSizeUpdate());
+    observer.observe(figure);
+    const card = figure.closest(".card");
+    if (card) observer.observe(card);
+    const layout = figure.closest(".layout--sidebar");
+    if (layout) observer.observe(layout);
+    const side = document.querySelector(".layout--sidebar .side");
+    if (side) observer.observe(side);
+    if (document.body) observer.observe(document.body);
+    initResponsiveFigureSizing.observer = observer;
+  }
+  scheduleResponsiveFigureSizeUpdate();
+}
 function svgToString(svgEl) {
   if (!svgEl) return '';
   const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
@@ -4181,6 +4237,7 @@ async function renderCombined() {
       jobs: []
     };
     maybeRefreshAltText('config');
+    scheduleResponsiveFigureSizeUpdate();
     return;
   }
   const gapTotal = Math.max(0, n - 1) * GAP;
@@ -4240,6 +4297,7 @@ async function renderCombined() {
   maybeRefreshAltText('config');
   adjustSvgViewBoxToContent(svg);
   svg.setAttribute("aria-label", n === 1 ? "Én figur" : `${n} figurer i samme bilde`);
+  scheduleResponsiveFigureSizeUpdate();
 }
 
 function handleThemeProfileChange(event) {
@@ -4445,6 +4503,7 @@ function bindUI() {
 /* ---------- INIT ---------- */
 window.addEventListener("DOMContentLoaded", async () => {
   bindUI();
+  initResponsiveFigureSizing();
   initAltTextManager();
   await renderCombined();
 });
