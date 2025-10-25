@@ -92,7 +92,7 @@
   function resolveConfigContainers() {
     const globalScope = typeof window !== 'undefined' ? window : null;
     if (!globalScope) {
-      return { root: null, measurement: null };
+      return { root: null, measurement: null, measurementGlobal: null };
     }
     let root = globalScope.CFG;
     if (!root || typeof root !== 'object') {
@@ -104,7 +104,12 @@
       measurement = {};
       root.measurement = measurement;
     }
-    return { root, measurement };
+    let measurementGlobal = root.measurementGlobal;
+    if (!measurementGlobal || typeof measurementGlobal !== 'object') {
+      measurementGlobal = {};
+      root.measurementGlobal = measurementGlobal;
+    }
+    return { root, measurement, measurementGlobal };
   }
 
   function applySource(target, source) {
@@ -128,8 +133,22 @@
     if (Object.prototype.hasOwnProperty.call(source, 'showScaleLabel')) target.showScaleLabel = source.showScaleLabel;
   }
 
-  function applySettingsToContainer(container, settings) {
+  function applySettingsToContainer(container, settings, options) {
     if (!container || typeof container !== 'object') {
+      return;
+    }
+    const mode = options && options.mode;
+    if (mode === 'global') {
+      container.length = settings.length;
+      container.subdivisions = settings.subdivisions;
+      container.unitLabel = settings.unitLabel;
+      container.gridEnabled = settings.gridEnabled;
+      container.showScaleLabel = settings.showScaleLabel;
+      delete container.figureName;
+      delete container.figureImage;
+      delete container.figureSummary;
+      delete container.figureScaleLabel;
+      delete container.measurementTarget;
       return;
     }
     container.length = settings.length;
@@ -270,6 +289,9 @@
   function normalizeSettings(overrides) {
     const combined = { ...defaults };
     applySource(combined, configContainers.root);
+    if (configContainers.measurementGlobal && configContainers.measurementGlobal !== configContainers.root) {
+      applySource(combined, configContainers.measurementGlobal);
+    }
     if (configContainers.measurement !== configContainers.root) {
       applySource(combined, configContainers.measurement);
     }
@@ -302,7 +324,14 @@
     };
 
     applySettingsToContainer(configContainers.measurement, settings);
-    if (configContainers.root && configContainers.root !== configContainers.measurement) {
+    if (configContainers.measurementGlobal) {
+      applySettingsToContainer(configContainers.measurementGlobal, settings, { mode: 'global' });
+    }
+    if (
+      configContainers.root &&
+      configContainers.root !== configContainers.measurement &&
+      configContainers.root !== configContainers.measurementGlobal
+    ) {
       applySettingsToContainer(configContainers.root, settings);
     }
 
