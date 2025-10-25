@@ -19,7 +19,6 @@
     figureName: doc.getElementById('cfg-figure-name'),
     figureImage: doc.getElementById('cfg-figure-image'),
     figureSummary: doc.getElementById('cfg-figure-summary'),
-    measurementTarget: doc.getElementById('cfg-measurement-target'),
     length: doc.getElementById('cfg-length'),
     subdivisions: doc.getElementById('cfg-subdivisions'),
     unitLabel: doc.getElementById('cfg-unit'),
@@ -498,7 +497,6 @@
       if (inputs.figureName) inputs.figureName.value = settings.figureName || '';
       if (inputs.figureImage) inputs.figureImage.value = settings.figureImage || '';
       if (inputs.figureSummary) inputs.figureSummary.value = settings.figureSummary || '';
-      if (inputs.measurementTarget) inputs.measurementTarget.value = settings.measurementTarget || '';
       if (inputs.length) inputs.length.value = settings.length;
       if (inputs.subdivisions) inputs.subdivisions.value = settings.subdivisions;
       if (inputs.unitLabel) inputs.unitLabel.value = settings.unitLabel || '';
@@ -525,12 +523,6 @@
       inputs.figureSummary.addEventListener('input', event => {
         if (appState.syncingInputs) return;
         updateSettings({ figureSummary: event.target.value });
-      });
-    }
-    if (inputs.measurementTarget) {
-      inputs.measurementTarget.addEventListener('input', event => {
-        if (appState.syncingInputs) return;
-        updateSettings({ measurementTarget: event.target.value });
       });
     }
     if (inputs.length) {
