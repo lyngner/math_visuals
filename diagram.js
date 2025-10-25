@@ -801,30 +801,109 @@ function drawData() {
 }
 function drawLegend() {
   const names = [];
-  if (seriesNames[0]) names.push({
-    name: seriesNames[0],
-    cls: 'series0'
+  if (seriesNames[0]) {
+    names.push({ name: seriesNames[0], cls: 'series0' });
+  }
+  if (values2 && values2.length && seriesNames[1]) {
+    names.push({ name: seriesNames[1], cls: 'series1' });
+  }
+  if (!names.length) return;
+
+  const legendLayout = CFG.type === 'grouped' && names.length > 1 ? 'horizontal' : 'vertical';
+  let legendY = M.t - 28;
+  const legendRoot = addTo(gLegend, 'g', {
+    class: 'legend-root',
+    transform: `translate(${M.l} ${legendY})`
   });
-  if (values2 && values2.length && seriesNames[1]) names.push({
-    name: seriesNames[1],
-    cls: 'series1'
+  const frame = addTo(legendRoot, 'rect', {
+    class: 'legend-frame'
   });
-  names.forEach((s, i) => {
-    const x = M.l + i * 120;
-    const y = M.t - 10;
-    addTo(gLegend, 'rect', {
-      x: x,
-      y: y - 10,
-      width: 20,
-      height: 10,
-      class: 'legendbox ' + s.cls
+  const itemsGroup = addTo(legendRoot, 'g', {
+    class: 'legend-items'
+  });
+
+  const swatchWidth = 20;
+  const swatchHeight = 12;
+  const textOffset = 8;
+  const verticalSpacing = swatchHeight + 6;
+  const separatorSpacing = 32;
+  let horizontalCursor = 0;
+
+  names.forEach((s, index) => {
+    if (legendLayout === 'horizontal' && index > 0) {
+      const separatorX = horizontalCursor + separatorSpacing / 2;
+      addTo(itemsGroup, 'text', {
+        x: separatorX,
+        y: swatchHeight / 2,
+        class: 'legend-separator',
+        'text-anchor': 'middle',
+        'dominant-baseline': 'middle'
+      }).textContent = '|';
+      horizontalCursor += separatorSpacing;
+    }
+
+    const itemGroup = addTo(itemsGroup, 'g', {
+      class: 'legend-item'
     });
-    addTo(gLegend, 'text', {
-      x: x + 26,
-      y: y,
-      class: 'legendtext'
-    }).textContent = s.name;
+    if (legendLayout === 'horizontal') {
+      itemGroup.setAttribute('transform', `translate(${horizontalCursor} 0)`);
+    } else {
+      itemGroup.setAttribute('transform', `translate(0 ${index * verticalSpacing})`);
+    }
+
+    addTo(itemGroup, 'rect', {
+      x: 0,
+      y: (swatchHeight - 10) / 2,
+      width: swatchWidth,
+      height: 10,
+      class: 'legendbox ' + s.cls,
+      rx: 2,
+      ry: 2
+    });
+    const text = addTo(itemGroup, 'text', {
+      x: swatchWidth + textOffset,
+      y: swatchHeight / 2,
+      class: 'legendtext',
+      'dominant-baseline': 'middle'
+    });
+    text.textContent = s.name;
+    const textWidth = typeof text.getComputedTextLength === 'function' ? text.getComputedTextLength() : s.name.length * 8;
+    if (legendLayout === 'horizontal') {
+      horizontalCursor += swatchWidth + textOffset + textWidth;
+    }
   });
+
+  const itemsBox = itemsGroup.getBBox();
+  const paddingX = 14;
+  const paddingY = 8;
+  const frameX = itemsBox.x - paddingX;
+  const frameY = itemsBox.y - paddingY;
+  const frameWidth = itemsBox.width + paddingX * 2;
+  const frameHeight = itemsBox.height + paddingY * 2;
+  frame.setAttribute('x', frameX);
+  frame.setAttribute('y', frameY);
+  frame.setAttribute('width', frameWidth);
+  frame.setAttribute('height', frameHeight);
+  frame.setAttribute('rx', 8);
+  frame.setAttribute('ry', 8);
+
+  const minTop = 0;
+  const maxBottom = M.t - 6;
+  const topEdge = frameY;
+  const bottomEdge = frameY + frameHeight;
+  const minAllowed = minTop - topEdge;
+  const maxAllowed = maxBottom - bottomEdge;
+  if (minAllowed > maxAllowed) {
+    const topCandidate = minAllowed;
+    const bottomCandidate = maxAllowed;
+    const bottomOverflow = Math.max(0, bottomEdge + topCandidate - maxBottom);
+    const topOverflow = Math.max(0, minTop - (topEdge + bottomCandidate));
+    legendY = bottomOverflow <= topOverflow ? topCandidate : bottomCandidate;
+  } else {
+    if (legendY < minAllowed) legendY = minAllowed;
+    if (legendY > maxAllowed) legendY = maxAllowed;
+  }
+  legendRoot.setAttribute('transform', `translate(${M.l} ${legendY})`);
 }
 function drawLines(displayMode) {
   const datasets = [values];
