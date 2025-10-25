@@ -486,6 +486,24 @@
     return parsed * multiplier;
   }
 
+  function parseScaleDenominator(value) {
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const match = value.match(/([0-9]+(?:[.,][0-9]+)?)\s*[:\/]\s*([0-9]+(?:[.,][0-9]+)?)/);
+    if (!match) {
+      return null;
+    }
+    const leftRaw = match[1].replace(',', '.');
+    const rightRaw = match[2].replace(',', '.');
+    const left = Number.parseFloat(leftRaw);
+    const right = Number.parseFloat(rightRaw);
+    if (!Number.isFinite(left) || !Number.isFinite(right) || left <= 0 || right <= 0) {
+      return null;
+    }
+    return right / left;
+  }
+
   function extractRealWorldSizeFromText(text) {
     if (typeof text !== 'string') {
       return null;
@@ -638,7 +656,42 @@
       return null;
     }
 
-    const baseWidth = baseUnitSpacing * rulerLength;
+    const baseSpacingPx = scaleMetrics && Number.isFinite(scaleMetrics.baseSpacing) && scaleMetrics.baseSpacing > 0
+      ? scaleMetrics.baseSpacing
+      : DEFAULT_UNIT_SPACING_PX;
+    const naturalWidthCm = naturalWidth / baseSpacingPx;
+    const realWorldInfo = resolveRealWorldSizeInfo(settings);
+    const preset = resolvePresetFromSettings(settings);
+    const inferredBaseScaleDenominator = (() => {
+      if (realWorldInfo && Number.isFinite(realWorldInfo.primaryCm) && realWorldInfo.primaryCm > 0) {
+        if (Number.isFinite(naturalWidthCm) && naturalWidthCm > 0) {
+          return realWorldInfo.primaryCm / naturalWidthCm;
+        }
+      }
+      const presetScaleDenominator = parseScaleDenominator(preset && preset.scaleLabel ? preset.scaleLabel : '');
+      if (Number.isFinite(presetScaleDenominator) && presetScaleDenominator > 0) {
+        return presetScaleDenominator;
+      }
+      return null;
+    })();
+    const desiredScaleDenominatorRaw = parseScaleDenominator(settings.figureScaleLabel || '');
+    const desiredScaleDenominator = Number.isFinite(desiredScaleDenominatorRaw) && desiredScaleDenominatorRaw > 0
+      ? desiredScaleDenominatorRaw
+      : inferredBaseScaleDenominator;
+    const baseScaleDenominator = Number.isFinite(inferredBaseScaleDenominator) && inferredBaseScaleDenominator > 0
+      ? inferredBaseScaleDenominator
+      : desiredScaleDenominator;
+    let scaleAdjustment = 1;
+    if (
+      Number.isFinite(baseScaleDenominator) &&
+      Number.isFinite(desiredScaleDenominator) &&
+      baseScaleDenominator > 0 &&
+      desiredScaleDenominator > 0
+    ) {
+      scaleAdjustment = baseScaleDenominator / desiredScaleDenominator;
+    }
+
+    const baseWidth = baseUnitSpacing * rulerLength * scaleAdjustment;
     // Tegningene er laget slik at 10 enheter dekker hele figurens bredde.
     // Vi bruker linjalens enhetsavstand og lengde for å finne den rendrerte bredden
     // og beholder høyden basert på originalens sideforhold.
