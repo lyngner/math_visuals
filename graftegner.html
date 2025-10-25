@@ -119,9 +119,6 @@
       justify-self:start;
       align-self:end;
     }
-    body[data-app-mode="task"][data-app="graftegner"] #exportCard{
-      display:flex !important;
-    }
     .func-color input[type="color"]{
       width:40px;
       height:40px;
@@ -546,10 +543,18 @@
           </div>
         </div>
 
-        <div class="card" id="exportCard">
+        <div class="card card--export" id="exportCard" data-edit-only>
           <h2>Eksporter</h2>
           <div class="toolbar">
-            <button id="btnSvg" class="btn">Eksporter</button>
+            <button id="btnSvg" class="btn" type="button">Eksporter</button>
+          </div>
+          <div class="alt-text" data-edit-only>
+            <label for="altText">Alternativ tekst</label>
+            <textarea id="altText" rows="4" placeholder="Teksten genereres automatisk og kan endres ved behov."></textarea>
+            <div class="alt-text__footer">
+              <button id="btnRegenerateAltText" class="btn" type="button">Generer på nytt</button>
+              <span id="altTextStatus" class="alt-text__status" role="status" aria-live="polite"></span>
+            </div>
           </div>
         </div>
       </div>
