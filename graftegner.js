@@ -5572,6 +5572,66 @@ function setupSettingsForm() {
     if (!values.length) return;
     setGliderStartInputValues(values);
   };
+  const applyGliderStartValues = rawValues => {
+    const numbers = Array.isArray(rawValues) ? rawValues.filter(Number.isFinite) : [];
+    const primary = MODE === 'functions' && Array.isArray(graphs) && graphs.length > 0 ? graphs[0] : null;
+    const domain = primary && primary.domain ? primary.domain : null;
+    const clampValue = val => {
+      if (!Number.isFinite(val)) return val;
+      let next = val;
+      if (domain) {
+        if (Number.isFinite(domain.min) && next < domain.min) {
+          next = domain.min;
+        }
+        if (Number.isFinite(domain.max) && next > domain.max) {
+          next = domain.max;
+        }
+      }
+      return next;
+    };
+    const clampedNumbers = numbers.map(clampValue);
+    if (SIMPLE_PARSED && typeof SIMPLE_PARSED === 'object') {
+      SIMPLE_PARSED.startX = clampedNumbers.slice();
+    }
+    ADV.points.startX = clampedNumbers.slice();
+    if (primary && Array.isArray(primary.gliders) && primary.gliders.length > 0) {
+      const gliders = primary.gliders;
+      const fallback = clampedNumbers.length ? clampedNumbers[0] : null;
+      let moved = false;
+      for (let i = 0; i < gliders.length; i++) {
+        const glider = gliders[i];
+        if (!glider) continue;
+        const targetX = clampedNumbers[i] != null ? clampedNumbers[i] : fallback;
+        if (!Number.isFinite(targetX)) continue;
+        const fnY = typeof primary.fn === 'function' ? primary.fn(targetX) : NaN;
+        if (!Number.isFinite(fnY) || typeof glider.moveTo !== 'function') {
+          continue;
+        }
+        try {
+          let moveNeeded = true;
+          if (typeof glider.X === 'function' && typeof glider.Y === 'function') {
+            const currentX = glider.X();
+            const currentY = glider.Y();
+            if (Number.isFinite(currentX) && Number.isFinite(currentY)) {
+              const EPS = 1e-9;
+              moveNeeded = Math.abs(currentX - targetX) > EPS || Math.abs(currentY - fnY) > EPS;
+            }
+          }
+          if (moveNeeded) {
+            glider.moveTo([targetX, fnY]);
+            moved = true;
+            if (glider.label && typeof glider.label.setText === 'function') {
+              glider.label.setText(() => fmtCoordsStatic(glider));
+            }
+          }
+        } catch (_) {}
+      }
+      if (moved && brd && typeof brd.update === 'function') {
+        brd.update();
+      }
+    }
+    return clampedNumbers;
+  };
   const handleGliderStartInputChange = () => {
     syncSimpleFromForm();
     scheduleSimpleRebuild();
@@ -5583,8 +5643,9 @@ function setupSettingsForm() {
       return;
     }
     const values = parseStartXValues(gliderStartInput.value || '');
-    if (values.length) {
-      setGliderStartInputValues(values);
+    const applied = applyGliderStartValues(values);
+    if (applied.length) {
+      setGliderStartInputValues(applied);
     }
     syncSimpleFromForm();
     scheduleSimpleRebuild();
