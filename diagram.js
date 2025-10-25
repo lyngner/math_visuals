@@ -187,7 +187,11 @@ function applyDiagramTheme(options = {}) {
   setCssVariable('--diagram-text-color', resolvedTextColor, style);
   setCssVariable('--diagram-pie-label-color', primaryColor || LEGACY_PIE_LABEL_COLOR, style);
   setCssVariable('--diagram-value-color', primaryColor || LEGACY_VALUE_COLOR, style);
-  setCssVariable('--diagram-bar-stroke', primaryColor || LEGACY_BAR_STROKE, style);
+  const activeProfileName = theme && typeof theme.getActiveProfileName === 'function'
+    ? theme.getActiveProfileName()
+    : null;
+  const barStrokeColor = activeProfileName === 'kikora' ? 'transparent' : (primaryColor || LEGACY_BAR_STROKE);
+  setCssVariable('--diagram-bar-stroke', barStrokeColor, style);
   setCssVariable('--diagram-handle-fill', getThemeColor('ui.secondary', LEGACY_HANDLE_FILL), style);
   setCssVariable('--diagram-handle-stroke', primaryColor || LEGACY_HANDLE_STROKE, style);
   setCssVariable('--diagram-focus-outline', getThemeColor('ui.hover', LEGACY_FOCUS_OUTLINE), style);
