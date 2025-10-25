@@ -50,6 +50,7 @@
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
   const transformState = { x: 0, y: 0, rotation: 0 };
+  const BASE_BOARD_DIMENSIONS = { width: 1000, height: 700 };
   const figureImageDimensions = new Map();
   const figureImageDimensionsPending = new Set();
   const activePointers = new Map();
@@ -622,6 +623,8 @@
       return null;
     }
 
+    const boardScale = getBoardScale();
+
     const baseSpacingPx = scaleMetrics && Number.isFinite(scaleMetrics.baseSpacing) && scaleMetrics.baseSpacing > 0
       ? scaleMetrics.baseSpacing
       : DEFAULT_UNIT_SPACING_PX;
@@ -674,6 +677,13 @@
 
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
       return null;
+    }
+
+    const hasBoardScale = Number.isFinite(boardScale) && boardScale > 0 && boardScale < 1;
+    if (hasBoardScale) {
+      width *= boardScale;
+      height *= boardScale;
+      unitSpacingPx *= boardScale;
     }
 
     return {
@@ -734,7 +744,7 @@
     }
 
     boardFigure.style.backgroundSize = '';
-    updateRuler(settings, baseUnitSpacing);
+    updateRuler(settings, scaleValueForBoard(baseUnitSpacing));
   }
 
   function applyBoardAspectRatio() {
@@ -743,6 +753,45 @@
     }
 
     boardRect = board.getBoundingClientRect();
+  }
+
+  function getBoardScale() {
+    if (!board) {
+      return 1;
+    }
+
+    const rect = boardRect && Number.isFinite(boardRect.width) && Number.isFinite(boardRect.height)
+      ? boardRect
+      : board.getBoundingClientRect();
+
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      return 1;
+    }
+
+    boardRect = rect;
+
+    const widthRatio = rect.width / BASE_BOARD_DIMENSIONS.width;
+    const heightRatio = rect.height / BASE_BOARD_DIMENSIONS.height;
+    const candidates = [widthRatio, heightRatio].filter(value => Number.isFinite(value) && value > 0);
+    if (candidates.length === 0) {
+      return 1;
+    }
+
+    const ratio = Math.min(...candidates);
+    return ratio < 1 ? ratio : 1;
+  }
+
+  function scaleValueForBoard(value) {
+    if (!Number.isFinite(value) || value <= 0) {
+      return value;
+    }
+
+    const boardScale = getBoardScale();
+    if (!Number.isFinite(boardScale) || boardScale <= 0 || boardScale >= 1) {
+      return value;
+    }
+
+    return value * boardScale;
   }
 
   function updateRuler(settings, unitSpacing) {
