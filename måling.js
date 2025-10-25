@@ -50,9 +50,9 @@
     length: 10,
     subdivisions: 10,
     unitLabel: 'cm',
-    figureName: defaultPreset ? defaultPreset.name : 'Kylling',
+    figureName: '',
     figureImage: defaultPreset ? defaultPreset.image : 'images/measure/kylling%20(7cm_7cm)%201_1.svg',
-    measurementTarget: 'høyden på kyllingen',
+    measurementTarget: '',
     figureSummary: defaultPreset ? defaultPreset.summary : '',
     figureScaleLabel: defaultPreset ? defaultPreset.scaleLabel : '',
     gridEnabled: false,
@@ -267,12 +267,8 @@
     return fallback;
   }
 
-  function buildDefaultMeasurementTarget(figureName) {
-    const normalized = collapseWhitespace(figureName);
-    if (!normalized) {
-      return 'høyden på figuren';
-    }
-    return `høyden på ${normalized.toLowerCase()}`;
+  function buildDefaultMeasurementTarget() {
+    return '';
   }
 
   function sanitizeMeasurementTarget(value, figureName, fallback) {
@@ -419,10 +415,7 @@
   }
 
   function applyFigureAppearance(settings) {
-    const label = settings.figureName ? settings.figureName.trim() : '';
-    if (label) {
-      board.setAttribute('data-figure-label', label);
-    } else {
+    if (board.hasAttribute('data-figure-label')) {
       board.removeAttribute('data-figure-label');
     }
     if (boardFigure) {
@@ -559,7 +552,10 @@
   function buildStatusMessage(settings) {
     const formattedLength = formatNumber(settings.length);
     const unitSuffix = settings.unitLabel ? ` ${settings.unitLabel}` : '';
-    const target = settings.measurementTarget || buildDefaultMeasurementTarget(settings.figureName);
+    const target = collapseWhitespace(settings.measurementTarget || buildDefaultMeasurementTarget(settings.figureName));
+    if (!target) {
+      return '';
+    }
     return `Linjalens lengde er ${formattedLength}${unitSuffix}. Bruk den til å finne ${target}.`;
   }
 
