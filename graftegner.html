@@ -96,23 +96,28 @@
       align-items:stretch;
     }
     .func-row--main--with-marker{
-      grid-template-columns:minmax(0,1fr) minmax(140px, auto) minmax(160px, auto);
+      grid-template-columns:minmax(0,1fr) minmax(0,140px) minmax(0,140px) minmax(0,220px) minmax(0,140px);
       align-items:start;
     }
     .func-row--main--with-marker[data-has-domain="false"]{
-      grid-template-columns:minmax(0,1fr) minmax(140px, auto);
+      grid-template-columns:minmax(0,1fr) minmax(0,140px) minmax(0,140px) minmax(0,140px);
     }
     .func-row--main--with-marker .point-marker{
       width:auto;
     }
-    .func-row--color{
-      display:flex;
-      justify-content:flex-start;
-      align-items:flex-start;
-    }
-    .func-row--color .func-color{
-      width:auto;
+    .func-row--main--with-marker .domain{
+      min-width:160px;
       max-width:220px;
+    }
+    .func-row--main--with-marker .domain input{
+      width:100%;
+    }
+    .func-row--main--with-marker .func-color{
+      width:auto;
+      min-width:110px;
+      max-width:140px;
+      justify-self:start;
+      align-self:start;
     }
     .func-row--gliders .func-color{
       grid-column:3;
@@ -150,6 +155,11 @@
     @media (max-width:900px){
       .func-row--main--with-marker{
         grid-template-columns:minmax(0,1fr);
+      }
+      .func-row--main--with-marker .domain,
+      .func-row--main--with-marker .func-color{
+        min-width:0;
+        max-width:none;
       }
     }
     .func-main .func-input{
@@ -282,6 +292,12 @@
       gap:12px;
       grid-template-columns:repeat(2,minmax(0,1fr));
       align-items:start;
+    }
+    .func-fields--first .func-row--main.func-row--main--with-marker{
+      grid-template-columns:minmax(0,1fr) minmax(0,140px) minmax(0,140px) minmax(0,220px) minmax(0,140px);
+    }
+    .func-fields--first .func-row--main.func-row--main--with-marker[data-has-domain="false"]{
+      grid-template-columns:minmax(0,1fr) minmax(0,140px) minmax(0,140px) minmax(0,140px);
     }
     .func-fields--first .func-row label,
     .func-group .func-fields label{ min-width:0; }

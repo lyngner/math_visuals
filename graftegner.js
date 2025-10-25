@@ -6485,13 +6485,8 @@ function setupSettingsForm() {
                 <span>Start</span>
                 <input type="text" data-startx value="1" placeholder="1">
               </label>
-              ${colorControlMarkup}
             </div>
     ` : '';
-    const colorRowMarkup = index === 1 ? '' : `
-          <div class="func-row func-row--color">
-            ${colorControlMarkup}
-          </div>`;
     const fieldsClass = index === 1 ? 'func-fields func-fields--first' : 'func-fields';
     row.innerHTML = `
       <fieldset>
@@ -6519,6 +6514,7 @@ function setupSettingsForm() {
               <span>Avgrensning</span>
               <input type="text" data-dom placeholder="[start, stopp]">
             </label>
+            ${colorControlMarkup}
           </div>
           <div class="func-row func-row--secondary">
             <label class="func-answer">
@@ -6527,7 +6523,6 @@ function setupSettingsForm() {
             </label>
           </div>
           ${gliderMarkup}
-          ${colorRowMarkup}
         </div>
       </fieldset>
     `;
