@@ -366,6 +366,12 @@ function buildSimple() {
   if (!isDefaultPointMarker(marker)) {
     lines.push(`marker=${marker}`);
   }
+  if (params.has('lockpoint')) {
+    const lockRaw = paramStr('lockpoint', '').trim();
+    if (/^(?:0|false|nei|off|no)$/i.test(lockRaw)) {
+      lines.push('lockpoint=false');
+    }
+  }
   const linepts = paramStr('linepts', '').trim();
   if (linepts) {
     lines.push(`linepts=${linepts}`);
@@ -475,6 +481,7 @@ const ADV = {
     markerList: INITIAL_POINT_MARKER_LIST,
     decimals: 2,
     guideArrows: true,
+    lockExtraPoints: true,
     // bare i funksjons-modus
     snap: {
       enabled: params.has('snap') ? paramBool('snap') : true,
@@ -888,6 +895,7 @@ function parseSimple(txt) {
     rows: [],
     pointMarker: '',
     pointMarkers: [],
+    lockExtraPoints: true,
     raw: txt
   };
   const parseFunctionLine = line => {
@@ -983,6 +991,12 @@ function parseSimple(txt) {
       const normalizedMarker = normalizePointMarkerValue(mm[1]);
       out.pointMarkers = parsePointMarkerList(mm[1]);
       out.pointMarker = normalizedMarker || sanitizePointMarkerValue(mm[1]);
+      continue;
+    }
+    const lockMatch = L.match(/^lockpoint\s*=\s*(.+)$/i);
+    if (lockMatch) {
+      const value = lockMatch[1].trim().toLowerCase();
+      out.lockExtraPoints = !/^(?:0|false|nei|off|no)$/i.test(value);
       continue;
     }
     const lm = L.match(/^linepts\s*=\s*(.+)$/i);
@@ -2859,10 +2873,11 @@ function appendExtraPointsAltText(parsed, sentences) {
   if (!points.length) return;
   const coords = points.map(formatCoordinateForAlt).filter(Boolean);
   if (!coords.length) return;
+  const locked = !(parsed && parsed.lockExtraPoints === false);
   if (coords.length === 1) {
-    sentences.push(`Et fast punkt er markert i ${coords[0]}.`);
+    sentences.push(`${locked ? 'Et fast punkt' : 'Et punkt'} er markert i ${coords[0]}.`);
   } else {
-    sentences.push(`Faste punkter er markert i ${joinList(coords)}.`);
+    sentences.push(`${locked ? 'Faste punkter' : 'Punkter'} er markert i ${joinList(coords)}.`);
   }
 }
 function describeCoordinateSystemForAlt() {
@@ -4405,7 +4420,7 @@ function addFixedPoints() {
       fillColor: '#fff',
       strokeColor: '#111827',
       withLabel: true,
-      fixed: false,
+      fixed: !!ADV.points.lockExtraPoints,
       showInfobox: false
     };
     const markerCandidate = markerValueForIndex(markerList, idx);
@@ -4440,38 +4455,40 @@ function addFixedPoints() {
         visible: false
       }));
     }
-    const updatePointState = commit => {
-      if (!Array.isArray(SIMPLE_PARSED.extraPoints)) return;
-      const x = typeof P.X === 'function' ? P.X() : NaN;
-      const y = typeof P.Y === 'function' ? P.Y() : NaN;
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-      SIMPLE_PARSED.extraPoints[idx] = [x, y];
-      updateCoordsInputFromPoints(SIMPLE_PARSED.extraPoints, {
-        triggerInput: true,
-        triggerChange: !!commit
+    if (!ADV.points.lockExtraPoints) {
+      const updatePointState = commit => {
+        if (!Array.isArray(SIMPLE_PARSED.extraPoints)) return;
+        const x = typeof P.X === 'function' ? P.X() : NaN;
+        const y = typeof P.Y === 'function' ? P.Y() : NaN;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        SIMPLE_PARSED.extraPoints[idx] = [x, y];
+        updateCoordsInputFromPoints(SIMPLE_PARSED.extraPoints, {
+          triggerInput: true,
+          triggerChange: !!commit
+        });
+      };
+      const snapMode = ADV.points.snap.mode || 'up';
+      const snapEnabled = !!ADV.points.snap.enabled;
+      const shouldSnapOnDrag = snapEnabled && snapMode === 'drag';
+      const shouldSnapOnUp = snapEnabled && snapMode !== 'drag';
+      const applySnap = () => {
+        const x = nearestMultiple(P.X(), stepX());
+        const y = nearestMultiple(P.Y(), stepY());
+        P.moveTo([x, y]);
+      };
+      P.on('drag', () => {
+        if (shouldSnapOnDrag) {
+          applySnap();
+        }
+        updatePointState(false);
       });
-    };
-    const snapMode = ADV.points.snap.mode || 'up';
-    const snapEnabled = !!ADV.points.snap.enabled;
-    const shouldSnapOnDrag = snapEnabled && snapMode === 'drag';
-    const shouldSnapOnUp = snapEnabled && snapMode !== 'drag';
-    const applySnap = () => {
-      const x = nearestMultiple(P.X(), stepX());
-      const y = nearestMultiple(P.Y(), stepY());
-      P.moveTo([x, y]);
-    };
-    P.on('drag', () => {
-      if (shouldSnapOnDrag) {
-        applySnap();
-      }
-      updatePointState(false);
-    });
-    P.on('up', () => {
-      if (shouldSnapOnUp) {
-        applySnap();
-      }
-      updatePointState(true);
-    });
+      P.on('up', () => {
+        if (shouldSnapOnUp) {
+          applySnap();
+        }
+        updatePointState(true);
+      });
+    }
   });
 }
 
@@ -4526,6 +4543,7 @@ function rebuildAll() {
       ? DEFAULT_POINT_MARKER
       : normalizedMarker;
   }
+  ADV.points.lockExtraPoints = SIMPLE_PARSED && SIMPLE_PARSED.lockExtraPoints === false ? false : true;
   MODE = decideMode(SIMPLE_PARSED);
   hideCheckControls();
   destroyBoard();
@@ -4930,6 +4948,9 @@ function setupSettingsForm() {
   let linePointVisibleCount = 0;
   let linePointsEdited = false;
   const pointMarkerControls = [];
+  let pointLockControl = null;
+  let pointLockEnabled = !(SIMPLE_PARSED && SIMPLE_PARSED.lockExtraPoints === false);
+  ADV.points.lockExtraPoints = pointLockEnabled;
   const functionColorControls = [];
   let answerControl = null;
   const DEFAULT_COLOR_FALLBACK = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#1F4DE2';
@@ -5577,6 +5598,23 @@ function setupSettingsForm() {
     const normalized = normalizePointMarkerValue(pointMarkerValue);
     return normalized && !isDefaultPointMarker(normalized) ? normalized : '';
   };
+  const updatePointLockVisibility = () => {
+    if (!pointLockControl) return;
+    const { container, checkbox } = pointLockControl;
+    const firstGroup = funcRows ? funcRows.querySelector('.func-group[data-index="1"]') : null;
+    const funInput = firstGroup ? firstGroup.querySelector('[data-fun]') : null;
+    const value = funInput ? getFunctionInputValue(funInput) : '';
+    const show = !!value && isCoords(value);
+    if (container) {
+      container.style.display = show ? '' : 'none';
+    }
+    if (checkbox) {
+      checkbox.disabled = !show;
+      if (show) {
+        checkbox.checked = !!pointLockEnabled;
+      }
+    }
+  };
   const updatePointMarkerVisibility = () => {
     pointMarkerControls.forEach(control => {
       if (!control || !control.row) return;
@@ -5590,6 +5628,7 @@ function setupSettingsForm() {
         control.input.disabled = !show;
       }
     });
+    updatePointLockVisibility();
   };
   const determineForcedGliderCount = value => {
     if (!value) return null;
@@ -6036,6 +6075,26 @@ function setupSettingsForm() {
       gliderRow = group ? group.querySelector('.glider-row') : null;
       answerControl.gliderRow = gliderRow;
     }
+    const answerInput = label.querySelector('input[data-answer]');
+    if (position === 'hidden') {
+      if (answerInput) {
+        answerInput.disabled = true;
+      }
+      label.classList.remove('func-answer--inline', 'func-answer--glider');
+      label.style.display = 'none';
+      if (secondaryRow) {
+        secondaryRow.style.display = 'none';
+        secondaryRow.appendChild(label);
+      } else if (mainRow) {
+        mainRow.appendChild(label);
+      }
+      answerControl.currentPlacement = position;
+      return;
+    }
+    if (answerInput) {
+      answerInput.disabled = false;
+    }
+    label.style.display = '';
     if (secondaryRow) {
       secondaryRow.style.display = position === 'secondary' ? '' : 'none';
     }
@@ -6069,6 +6128,10 @@ function setupSettingsForm() {
   function updateAnswerPlacement() {
     if (!answerControl || !answerControl.label) return;
     const firstValue = getFirstFunctionValue();
+    if (firstValue && isCoords(firstValue) && pointLockEnabled) {
+      placeAnswerField('hidden');
+      return;
+    }
     const forced = determineForcedGliderCount(firstValue);
     if (forced != null && forced > 0) {
       placeAnswerField('inline');
@@ -6181,15 +6244,19 @@ function setupSettingsForm() {
       const funInput = row.querySelector('[data-fun]');
       const domInput = row.querySelector('input[data-dom]');
       const answerInput = row.querySelector('input[data-answer]');
-      const rawAnswer = answerInput && typeof answerInput.value === 'string' ? answerInput.value.trim() : '';
+      if (!funInput) return;
+      const fun = getFunctionInputValue(funInput);
+      if (!fun) return;
+      const isCoordsRow = isCoords(fun);
+      const allowAnswer = !(idx === 0 && isCoordsRow && pointLockEnabled);
+      const rawAnswer = allowAnswer && answerInput && !answerInput.disabled && typeof answerInput.value === 'string'
+        ? answerInput.value.trim()
+        : '';
       if (rawAnswer) {
         const key = idx === 0 ? 'riktig' : `riktig${idx + 1}`;
         answerLines.push(`${key}: ${rawAnswer}`);
       }
-      if (!funInput) return;
-      const fun = getFunctionInputValue(funInput);
-      if (!fun) return;
-      if (isCoords(fun)) {
+      if (isCoordsRow) {
         const parsedPoints = parsePointListString(fun)
           .filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite));
         if (parsedPoints.length) {
@@ -6247,6 +6314,14 @@ function setupSettingsForm() {
       const exportPoints = gatherLinePointsForExport(neededLinePoints);
       if (exportPoints.length === neededLinePoints) {
         lines.push(`linepts=${formatLinePoints(exportPoints)}`);
+      }
+    }
+    const hasLockLine = lines.some(L => /^\s*lockpoint\s*=/i.test(L));
+    if (hasCoordsLine) {
+      if (!pointLockEnabled) {
+        if (!hasLockLine) {
+          lines.push('lockpoint=false');
+        }
       }
     }
     answerLines.forEach(line => {
@@ -6436,6 +6511,10 @@ function setupSettingsForm() {
               <span>Punktmarkør</span>
               <input type="text" data-point-marker placeholder="${DEFAULT_POINT_MARKER}" value="${DEFAULT_POINT_MARKER}" autocomplete="off" spellcheck="false">
             </label>
+            <label class="checkbox-inline point-lock" data-point-lock-container>
+              <input type="checkbox" data-point-lock checked>
+              <span>Lås punkt</span>
+            </label>
             <label class="domain">
               <span>Avgrensning</span>
               <input type="text" data-dom placeholder="[start, stopp]">
@@ -6491,6 +6570,26 @@ function setupSettingsForm() {
       };
       markerInput.addEventListener('input', handleMarkerInput);
       markerInput.addEventListener('change', handleMarkerInput);
+    }
+    if (index === 1) {
+      const lockLabel = row.querySelector('[data-point-lock-container]');
+      const lockCheckbox = lockLabel ? lockLabel.querySelector('input[data-point-lock]') : null;
+      if (lockLabel && lockCheckbox) {
+        pointLockControl = { container: lockLabel, checkbox: lockCheckbox };
+        lockLabel.style.display = 'none';
+        lockCheckbox.checked = !!pointLockEnabled;
+        lockCheckbox.disabled = true;
+        const handlePointLockChange = () => {
+          pointLockEnabled = !!lockCheckbox.checked;
+          ADV.points.lockExtraPoints = pointLockEnabled;
+          updateAnswerPlacement();
+          syncSimpleFromForm();
+          scheduleSimpleRebuild();
+          updatePointLockVisibility();
+        };
+        lockCheckbox.addEventListener('change', handlePointLockChange);
+        lockCheckbox.addEventListener('input', handlePointLockChange);
+      }
     }
     let funInput = row.querySelector('[data-fun]');
     const answerInput = row.querySelector('input[data-answer]');
@@ -6702,6 +6801,7 @@ function setupSettingsForm() {
       if (/^\s*startx\s*=/i.test(line)) return false;
       if (/^\s*linepts\s*=/i.test(line)) return false;
       if (/^\s*marker\s*=/i.test(line)) return false;
+      if (/^\s*lockpoint\s*=/i.test(line)) return false;
       if (/^\s*(?:riktig|fasit)\d*\s*:/i.test(line)) return false;
       return true;
     });
@@ -6718,11 +6818,14 @@ function setupSettingsForm() {
       linePointLabels = [];
       linePointVisibleCount = 0;
       pointMarkerControls.length = 0;
+      pointLockControl = null;
       clearFunctionColorControls();
       pointMarkerValue = DEFAULT_POINT_MARKER;
       answerControl = null;
       funcRows.innerHTML = '';
     }
+    pointLockEnabled = SIMPLE_PARSED && SIMPLE_PARSED.lockExtraPoints === false ? false : true;
+    ADV.points.lockExtraPoints = pointLockEnabled;
     glidersVisible = false;
     forcedGliderCount = null;
     let funcIndex = 0;
@@ -6754,6 +6857,7 @@ function setupSettingsForm() {
       createRow(idx + 1, funVal, domVal, colorVal, colorManualFlag, answerVal);
     });
     refreshFunctionColorDefaultsLocal();
+    updatePointLockVisibility();
     if (gliderCountInput) {
       var _SIMPLE_PARSED;
       const count = Number.isFinite((_SIMPLE_PARSED = SIMPLE_PARSED) === null || _SIMPLE_PARSED === void 0 ? void 0 : _SIMPLE_PARSED.pointsCount) ? SIMPLE_PARSED.pointsCount : 0;
