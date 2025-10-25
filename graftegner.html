@@ -96,28 +96,37 @@
       align-items:stretch;
     }
     .func-row--main--with-marker{
-      grid-template-columns:minmax(0,1fr) minmax(0,140px) minmax(0,140px) minmax(0,220px) minmax(0,140px);
+      grid-template-columns:minmax(0,0.5fr) minmax(0,0.3fr) minmax(0,0.2fr);
       align-items:start;
     }
     .func-row--main--with-marker[data-has-domain="false"]{
-      grid-template-columns:minmax(0,1fr) minmax(0,140px) minmax(0,140px) minmax(0,140px);
+      grid-template-columns:minmax(0,0.8fr) minmax(0,0.2fr);
+    }
+    .func-row--main--with-marker .func-main{
+      grid-column:1;
     }
     .func-row--main--with-marker .point-marker{
+      grid-column:1 / span 3;
       width:auto;
     }
+    .func-row--main--with-marker .point-lock{
+      grid-column:1 / span 3;
+    }
     .func-row--main--with-marker .domain{
-      min-width:160px;
-      max-width:220px;
+      grid-column:2;
+      width:100%;
     }
     .func-row--main--with-marker .domain input{
       width:100%;
     }
     .func-row--main--with-marker .func-color{
-      width:auto;
-      min-width:110px;
-      max-width:140px;
-      justify-self:start;
+      grid-column:3;
+      width:100%;
+      justify-self:stretch;
       align-self:start;
+    }
+    .func-row--main--with-marker[data-has-domain="false"] .func-color{
+      grid-column:2;
     }
     .func-row--gliders .func-color{
       grid-column:3;
@@ -155,6 +164,13 @@
     @media (max-width:900px){
       .func-row--main--with-marker{
         grid-template-columns:minmax(0,1fr);
+      }
+      .func-row--main--with-marker .func-main,
+      .func-row--main--with-marker .domain,
+      .func-row--main--with-marker .func-color,
+      .func-row--main--with-marker .point-marker,
+      .func-row--main--with-marker .point-lock{
+        grid-column:1;
       }
       .func-row--main--with-marker .domain,
       .func-row--main--with-marker .func-color{
