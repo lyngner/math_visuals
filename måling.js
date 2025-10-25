@@ -565,23 +565,15 @@
 
   function resolveScaleMetrics(settings) {
     // Illustrasjonene er tegnet med 100 px per centimeter i tegningen. Ved å kombinere
-    // dette med figurens målestokk (forholdet mellom tegning og virkelighet) finner vi
-    // pikselavstanden som linjalen skal bruke per valgt enhet.
+    // dette med valgt måleenhet får vi pikselavstanden som linjalen skal bruke per enhet.
     const baseSpacing = DEFAULT_UNIT_SPACING_PX;
-    if (!settings) {
-      return { unitSpacing: baseSpacing, ratio: null };
-    }
-    const ratio = parseScaleRatio(settings.figureScaleLabel || '') || null;
-    const unitFactor = getUnitToCentimeterFactor(settings.unitLabel || '');
-    if (ratio && Number.isFinite(unitFactor) && unitFactor > 0) {
-      return {
-        unitSpacing: baseSpacing * unitFactor * ratio,
-        ratio,
-        baseSpacing,
-        unitFactor
-      };
-    }
-    return { unitSpacing: baseSpacing, ratio: null, baseSpacing, unitFactor };
+    const unitFactorRaw = settings ? getUnitToCentimeterFactor(settings.unitLabel || '') : null;
+    const unitFactor = Number.isFinite(unitFactorRaw) && unitFactorRaw > 0 ? unitFactorRaw : 1;
+    return {
+      unitSpacing: baseSpacing * unitFactor,
+      baseSpacing,
+      unitFactor
+    };
   }
 
   function ensureFigureImageDimensions(imageUrl) {
@@ -612,19 +604,17 @@
       return null;
     }
 
-    const ratio = scaleMetrics && Number.isFinite(scaleMetrics.ratio)
-      ? scaleMetrics.ratio
-      : parseScaleRatio(settings.figureScaleLabel || '');
-    const sizeInfo = resolveRealWorldSizeInfo(settings);
-    if (!ratio || !sizeInfo || !Number.isFinite(sizeInfo.primaryCm) || sizeInfo.primaryCm <= 0) {
+    const baseUnitSpacing = scaleMetrics && Number.isFinite(scaleMetrics.unitSpacing)
+      ? scaleMetrics.unitSpacing
+      : DEFAULT_UNIT_SPACING_PX;
+    if (!Number.isFinite(baseUnitSpacing) || baseUnitSpacing <= 0) {
       return null;
     }
 
-    const baseSpacing = scaleMetrics && Number.isFinite(scaleMetrics.baseSpacing)
-      ? scaleMetrics.baseSpacing
-      : DEFAULT_UNIT_SPACING_PX;
-    const targetPx = sizeInfo.primaryCm * ratio * baseSpacing;
-    if (!Number.isFinite(targetPx) || targetPx <= 0) {
+    const rulerLength = Number.isFinite(settings.length) && settings.length > 0
+      ? settings.length
+      : defaults.length;
+    if (!Number.isFinite(rulerLength) || rulerLength <= 0) {
       return null;
     }
 
@@ -648,9 +638,11 @@
       return null;
     }
 
-    const largestSide = naturalWidth >= naturalHeight ? 'width' : 'height';
-    const baseWidth = largestSide === 'width' ? targetPx : targetPx * (naturalWidth / naturalHeight);
-    const baseHeight = largestSide === 'height' ? targetPx : targetPx * (naturalHeight / naturalWidth);
+    const baseWidth = baseUnitSpacing * rulerLength;
+    // Tegningene er laget slik at 10 enheter dekker hele figurens bredde.
+    // Vi bruker linjalens enhetsavstand og lengde for å finne den rendrerte bredden
+    // og beholder høyden basert på originalens sideforhold.
+    const baseHeight = baseWidth * (naturalHeight / naturalWidth);
     if (!Number.isFinite(baseWidth) || !Number.isFinite(baseHeight) || baseWidth <= 0 || baseHeight <= 0) {
       return null;
     }
