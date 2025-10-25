@@ -87,8 +87,13 @@
     .func-row--secondary{
       display:grid;
       gap:12px;
-      grid-template-columns:repeat(2,minmax(0,1fr));
       align-items:start;
+    }
+    .func-row--main{
+      grid-template-columns:minmax(0,0.5fr) minmax(0,0.3fr) minmax(0,0.2fr);
+    }
+    .func-row--secondary{
+      grid-template-columns:repeat(2,minmax(0,1fr));
     }
     .func-main{
       display:flex;
@@ -99,21 +104,22 @@
       grid-template-columns:minmax(0,0.5fr) minmax(0,0.3fr) minmax(0,0.2fr);
       align-items:start;
     }
-    .func-row--main--with-marker[data-has-domain="false"]{
-      grid-template-columns:minmax(0,0.8fr) minmax(0,0.2fr);
-    }
     .func-row--main--with-marker .func-main{
       grid-column:1;
+      grid-row:1;
     }
     .func-row--main--with-marker .point-marker{
-      grid-column:1 / span 3;
+      grid-column:1 / span 2;
+      grid-row:2;
       width:auto;
     }
     .func-row--main--with-marker .point-lock{
-      grid-column:1 / span 3;
+      grid-column:3;
+      grid-row:2;
     }
     .func-row--main--with-marker .domain{
       grid-column:2;
+      grid-row:1;
       width:100%;
     }
     .func-row--main--with-marker .domain input{
@@ -121,12 +127,10 @@
     }
     .func-row--main--with-marker .func-color{
       grid-column:3;
+      grid-row:1;
       width:100%;
       justify-self:stretch;
       align-self:start;
-    }
-    .func-row--main--with-marker[data-has-domain="false"] .func-color{
-      grid-column:2;
     }
     .func-row--gliders .func-color{
       grid-column:3;
@@ -171,6 +175,7 @@
       .func-row--main--with-marker .point-marker,
       .func-row--main--with-marker .point-lock{
         grid-column:1;
+        grid-row:auto;
       }
       .func-row--main--with-marker .domain,
       .func-row--main--with-marker .func-color{
@@ -303,17 +308,11 @@
       grid-template-columns:1fr;
       gap:16px;
     }
-    .func-fields--first .func-row:not(.func-row--color){
+    .func-fields--first .func-row:not(.func-row--color):not(.func-row--main){
       display:grid;
       gap:12px;
       grid-template-columns:repeat(2,minmax(0,1fr));
       align-items:start;
-    }
-    .func-fields--first .func-row--main.func-row--main--with-marker{
-      grid-template-columns:minmax(0,1fr) minmax(0,140px) minmax(0,140px) minmax(0,220px) minmax(0,140px);
-    }
-    .func-fields--first .func-row--main.func-row--main--with-marker[data-has-domain="false"]{
-      grid-template-columns:minmax(0,1fr) minmax(0,140px) minmax(0,140px) minmax(0,140px);
     }
     .func-fields--first .func-row label,
     .func-group .func-fields label{ min-width:0; }
