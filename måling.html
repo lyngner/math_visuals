@@ -108,6 +108,28 @@
       content: none;
     }
 
+    .board__scale {
+      position: absolute;
+      bottom: clamp(12px, 2.2vw, 20px);
+      left: clamp(12px, 2.2vw, 20px);
+      padding: 6px 12px;
+      background: rgba(15, 23, 42, 0.6);
+      color: #fff;
+      font-size: 0.9rem;
+      border-radius: 999px;
+      letter-spacing: 0.03em;
+      font-weight: 600;
+      z-index: 2;
+      pointer-events: none;
+      display: none;
+    }
+
+    .board__scale[data-visible="true"] {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
     .board__grid {
       position: absolute;
       inset: 0;
@@ -309,6 +331,7 @@
           <div class="board" data-board data-figure-label="Kylling">
             <div class="board__figure" data-figure-image style="background-image: url('images/measure/kylling%20(7cm_7cm)%201_1.svg');"></div>
             <div class="board__grid" data-grid-overlay hidden aria-hidden="true"></div>
+            <div class="board__scale" data-scale-label></div>
             <div class="ruler" data-ruler aria-label="Flyttbar linjal" role="img">
               <svg viewBox="0 0 600 120" class="ruler-shadow" data-ruler-svg aria-hidden="true" focusable="false"></svg>
               <span class="ruler__zero-anchor" data-zero-anchor aria-hidden="true"></span>
@@ -338,6 +361,14 @@
           <h2>Innstillinger</h2>
           <div class="settings">
             <div class="input-stack">
+              <label for="cfg-figure-category">Kategori</label>
+              <select id="cfg-figure-category"></select>
+            </div>
+            <div class="input-stack">
+              <label for="cfg-figure-preset">Figur</label>
+              <select id="cfg-figure-preset"></select>
+            </div>
+            <div class="input-stack">
               <label for="cfg-figure-name">Figurnavn</label>
               <input id="cfg-figure-name" type="text" value="Kylling" autocomplete="off" spellcheck="false" />
             </div>
@@ -364,6 +395,10 @@
             <label class="settings__toggle">
               <input id="cfg-grid-enabled" type="checkbox" />
               <span>Vis rutenett</span>
+            </label>
+            <label class="settings__toggle">
+              <input id="cfg-show-scale" type="checkbox" />
+              <span>Vis målestokk</span>
             </label>
           </div>
         </div>
