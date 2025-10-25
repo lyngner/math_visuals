@@ -622,16 +622,20 @@
       return null;
     }
 
-    const unitSpacingPx = scaleMetrics && Number.isFinite(scaleMetrics.unitSpacing)
-      ? scaleMetrics.unitSpacing
-      : DEFAULT_UNIT_SPACING_PX;
-    if (!Number.isFinite(unitSpacingPx) || unitSpacingPx <= 0) {
-      return null;
-    }
-
     const baseSpacingPx = scaleMetrics && Number.isFinite(scaleMetrics.baseSpacing) && scaleMetrics.baseSpacing > 0
       ? scaleMetrics.baseSpacing
       : DEFAULT_UNIT_SPACING_PX;
+    if (!Number.isFinite(baseSpacingPx) || baseSpacingPx <= 0) {
+      return null;
+    }
+
+    const unitFactorRaw = scaleMetrics && Number.isFinite(scaleMetrics.unitFactor) && scaleMetrics.unitFactor > 0
+      ? scaleMetrics.unitFactor
+      : 1;
+    let unitSpacingPx = baseSpacingPx * unitFactorRaw;
+    if (!Number.isFinite(unitSpacingPx) || unitSpacingPx <= 0) {
+      return null;
+    }
 
     const naturalWidth = figureDimensions.width;
     const naturalHeight = figureDimensions.height;
@@ -649,18 +653,20 @@
     const desiredScaleDenominator = Number.isFinite(desiredScaleDenominatorRaw) && desiredScaleDenominatorRaw > 0
       ? desiredScaleDenominatorRaw
       : (Number.isFinite(presetScaleDenominator) && presetScaleDenominator > 0 ? presetScaleDenominator : 1);
+    const baseScaleDenominator = Number.isFinite(presetScaleDenominator) && presetScaleDenominator > 0
+      ? presetScaleDenominator
+      : 1;
 
     let width = null;
     let height = null;
 
     if (realWorldPrimaryCm != null) {
-      const drawingCentimeters = realWorldPrimaryCm / desiredScaleDenominator;
-      width = baseSpacingPx * drawingCentimeters;
-      height = width * (naturalHeight / naturalWidth);
+      const scaleRatioRaw = desiredScaleDenominator / baseScaleDenominator;
+      const scaleRatio = Number.isFinite(scaleRatioRaw) && scaleRatioRaw > 0 ? scaleRatioRaw : 1;
+      unitSpacingPx = baseSpacingPx * scaleRatio * unitFactorRaw;
+      width = naturalWidth;
+      height = naturalHeight;
     } else {
-      const baseScaleDenominator = Number.isFinite(presetScaleDenominator) && presetScaleDenominator > 0
-        ? presetScaleDenominator
-        : 1;
       const scaleAdjustment = baseScaleDenominator / desiredScaleDenominator;
       width = naturalWidth * scaleAdjustment;
       height = naturalHeight * scaleAdjustment;
