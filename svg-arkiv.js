@@ -47,6 +47,8 @@
     ? TrashArchiveViewerClass.buildTrashApiBase(examplesApiBase)
     : null;
   const TRASH_QUEUE_STORAGE_KEY = 'mathvis:examples:trashQueue:v1';
+  const ARCHIVE_CACHE_STORAGE_KEY = 'mathvis:svgArchive:cache:v1';
+  const ARCHIVE_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
   let manualTrashReplayInFlight = false;
 
   function getGlobalTrashQueue() {
@@ -124,6 +126,76 @@
     }
     try {
       storage.setItem(TRASH_QUEUE_STORAGE_KEY, JSON.stringify(list));
+    } catch (error) {}
+  }
+
+  function getArchiveCacheStorage() {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    const storage = window.localStorage;
+    if (!storage) {
+      return null;
+    }
+    try {
+      const probeKey = `${ARCHIVE_CACHE_STORAGE_KEY}__probe`;
+      storage.setItem(probeKey, '1');
+      storage.removeItem(probeKey);
+      return storage;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function readArchiveCache() {
+    const storage = getArchiveCacheStorage();
+    if (!storage) {
+      return null;
+    }
+    let raw = null;
+    try {
+      raw = storage.getItem(ARCHIVE_CACHE_STORAGE_KEY);
+    } catch (error) {
+      raw = null;
+    }
+    if (!raw) {
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') {
+        return null;
+      }
+      const timestamp = Number(parsed.timestamp) || 0;
+      if (!timestamp || Date.now() - timestamp > ARCHIVE_CACHE_MAX_AGE_MS) {
+        return null;
+      }
+      const entries = Array.isArray(parsed.entries) ? parsed.entries : [];
+      const metadata = parsed.metadata && typeof parsed.metadata === 'object' ? parsed.metadata : null;
+      return { entries, metadata, timestamp };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeArchiveCache(cache) {
+    const storage = getArchiveCacheStorage();
+    if (!storage) {
+      return;
+    }
+    if (!cache || typeof cache !== 'object') {
+      try {
+        storage.removeItem(ARCHIVE_CACHE_STORAGE_KEY);
+      } catch (error) {}
+      return;
+    }
+    const payload = {
+      timestamp: Number(cache.timestamp) || Date.now(),
+      entries: Array.isArray(cache.entries) ? cache.entries : [],
+      metadata: cache.metadata && typeof cache.metadata === 'object' ? cache.metadata : null
+    };
+    try {
+      storage.setItem(ARCHIVE_CACHE_STORAGE_KEY, JSON.stringify(payload));
     } catch (error) {}
   }
 
@@ -1758,9 +1830,175 @@
     storageNote.textContent = metadata.limitation;
   }
 
+  function extractArchiveMetadata(payload) {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+    const limitation = typeof payload.limitation === 'string' && payload.limitation.trim()
+      ? payload.limitation.trim()
+      : '';
+    if (payload.metadata && typeof payload.metadata === 'object') {
+      const metadata = { ...payload.metadata };
+      if (limitation && typeof metadata.limitation !== 'string') {
+        metadata.limitation = limitation;
+      }
+      return metadata;
+    }
+    if (limitation) {
+      return { limitation };
+    }
+    return null;
+  }
+
+  function normalizeArchiveEntries(entries) {
+    return (Array.isArray(entries) ? entries : [])
+      .map(entry => {
+        const slug = typeof entry.slug === 'string' ? entry.slug.trim() : '';
+        const files = entry && typeof entry === 'object' && entry.files ? entry.files : {};
+        const urls = entry && typeof entry === 'object' && entry.urls ? entry.urls : {};
+        const metadata = entry && typeof entry === 'object' && entry.metadata ? entry.metadata : {};
+        const svgFile = files && typeof files === 'object' ? files.svg : null;
+        const pngFile = files && typeof files === 'object' ? files.png : null;
+        const svgSlug = typeof entry.svgSlug === 'string' && entry.svgSlug.trim()
+          ? entry.svgSlug.trim()
+          : svgFile && typeof svgFile.slug === 'string' && svgFile.slug.trim()
+            ? svgFile.slug.trim()
+            : slug ? `${slug}.svg` : '';
+        const pngSlug = typeof entry.pngSlug === 'string' && entry.pngSlug.trim()
+          ? entry.pngSlug.trim()
+          : pngFile && typeof pngFile.slug === 'string' && pngFile.slug.trim()
+            ? pngFile.slug.trim()
+            : slug ? `${slug}.png` : '';
+        const svgUrl = typeof entry.svgUrl === 'string' && entry.svgUrl.trim()
+          ? entry.svgUrl.trim()
+          : typeof urls.svg === 'string' && urls.svg.trim()
+            ? urls.svg.trim()
+            : svgFile && typeof svgFile.url === 'string' && svgFile.url.trim()
+              ? svgFile.url.trim()
+              : svgSlug
+                ? (svgSlug.startsWith('/') ? svgSlug : `/${svgSlug}`)
+                : slug
+                  ? `/svg/${slug}`
+                  : '';
+        const pngUrl = typeof entry.pngUrl === 'string' && entry.pngUrl.trim()
+          ? entry.pngUrl.trim()
+          : typeof urls.png === 'string' && urls.png.trim()
+            ? urls.png.trim()
+            : pngFile && typeof pngFile.url === 'string' && pngFile.url.trim()
+              ? pngFile.url.trim()
+              : pngSlug
+                ? (pngSlug.startsWith('/') ? pngSlug : `/${pngSlug}`)
+                : svgUrl;
+
+        const baseName = typeof entry.baseName === 'string' && entry.baseName.trim()
+          ? entry.baseName.trim()
+          : typeof entry.fileName === 'string' && entry.fileName.trim()
+            ? entry.fileName.trim()
+            : slug;
+        const summary = typeof entry.summary === 'string' ? entry.summary.trim() : '';
+        const altText = typeof entry.altText === 'string' && entry.altText.trim()
+          ? entry.altText.trim()
+          : summary
+            ? summary
+            : baseName
+              ? `Grafikkfil for ${baseName}`
+              : 'SVG-fil';
+
+        const sequenceRaw = entry.sequence ?? entry.sequenceNumber ?? metadata.sequence ?? metadata.index;
+        let sequenceNumber = null;
+        if (typeof sequenceRaw === 'number' && Number.isFinite(sequenceRaw)) {
+          sequenceNumber = sequenceRaw;
+        } else if (typeof sequenceRaw === 'string' && sequenceRaw.trim()) {
+          const parsedSequence = Number(sequenceRaw.trim());
+          if (Number.isFinite(parsedSequence)) {
+            sequenceNumber = parsedSequence;
+          }
+        }
+        const sequenceLabel = sequenceNumber !== null ? `#${sequenceNumber}` : '';
+
+        const fileSizeValue = metadata.size ?? metadata.fileSize ?? (svgFile && svgFile.size);
+        let fileSizeLabel = '';
+        if (typeof fileSizeValue === 'number' && Number.isFinite(fileSizeValue)) {
+          const kiloBytes = fileSizeValue / 1024;
+          fileSizeLabel = kiloBytes >= 1024
+            ? `${(kiloBytes / 1024).toFixed(kiloBytes > 10 * 1024 ? 0 : 1)} MB`
+            : `${kiloBytes.toFixed(kiloBytes > 100 ? 0 : 1)} kB`;
+        } else if (typeof fileSizeValue === 'string' && fileSizeValue.trim()) {
+          fileSizeLabel = fileSizeValue.trim();
+        }
+
+        const thumbnailUrl = typeof entry.thumbnailUrl === 'string' && entry.thumbnailUrl.trim()
+          ? entry.thumbnailUrl.trim()
+          : pngUrl || svgUrl;
+
+        const normalizedSlug = (slug && slug.trim())
+          ? slug.trim()
+          : baseName
+            ? baseName.replace(/\.[^/.]+$/, '')
+            : svgSlug
+              ? svgSlug.replace(/\.svg$/i, '')
+              : '';
+
+        const resolvedSvgUrl = normalizeAssetUrl(svgUrl, 'svg') || (normalizedSlug ? normalizeAssetUrl(`/svg/${normalizedSlug}`, 'svg') : '');
+        const resolvedPngUrl = normalizeAssetUrl(pngUrl, 'png') || resolvedSvgUrl;
+        const resolvedThumbnailUrl = normalizeAssetUrl(thumbnailUrl, 'png') || resolvedPngUrl || resolvedSvgUrl;
+
+        const normalizedEntry = {
+          slug: normalizedSlug || slug,
+          svgSlug,
+          pngSlug,
+          svgUrl: resolvedSvgUrl,
+          pngUrl: resolvedPngUrl,
+          thumbnailUrl: resolvedThumbnailUrl,
+          title: typeof entry.title === 'string' ? entry.title.trim() : '',
+          displayTitle: (typeof entry.title === 'string' && entry.title.trim())
+            ? entry.title.trim()
+            : baseName || normalizedSlug || 'Uten tittel',
+          altText,
+          baseName,
+          tool: typeof entry.tool === 'string' ? entry.tool.trim() : '',
+          createdAt:
+            typeof entry.createdAt === 'string' && entry.createdAt.trim()
+              ? entry.createdAt.trim()
+              : typeof entry.updatedAt === 'string'
+                ? entry.updatedAt.trim()
+                : '',
+          summary,
+          sequenceLabel,
+          fileSizeLabel
+        };
+
+        if (Object.prototype.hasOwnProperty.call(entry, 'exampleState')) {
+          normalizedEntry.exampleState = entry.exampleState;
+        }
+
+        return normalizedEntry;
+      })
+      .filter(entry => entry.slug && entry.svgUrl);
+  }
+
+  function applyArchiveEntries(entries, metadata) {
+    allEntries = Array.isArray(entries) ? entries.slice() : [];
+    allEntries.sort((a, b) => {
+      const aTime = Date.parse(a.createdAt || '') || 0;
+      const bTime = Date.parse(b.createdAt || '') || 0;
+      return bTime - aTime;
+    });
+
+    updateFilterOptions();
+    applyStorageNote(metadata);
+    render();
+  }
+
   async function loadEntries() {
+    const cached = readArchiveCache();
+    const hasCachedEntries = Boolean(cached && Array.isArray(cached.entries));
+    if (hasCachedEntries) {
+      applyArchiveEntries(cached.entries, cached.metadata);
+    }
+
     setBusy(true);
-    setStatus('Laster arkivet …');
+    setStatus(hasCachedEntries ? 'Oppdaterer arkivet …' : 'Laster arkivet …');
 
     try {
       const response = await fetch('/api/svg', { headers: { Accept: 'application/json' } });
@@ -1768,148 +2006,21 @@
         throw new Error(`Uventet svar: ${response.status}`);
       }
       const payload = await response.json();
-      const entries = Array.isArray(payload.entries) ? payload.entries : [];
-      allEntries = entries
-        .map(entry => {
-          const slug = typeof entry.slug === 'string' ? entry.slug.trim() : '';
-          const files = entry && typeof entry === 'object' && entry.files ? entry.files : {};
-          const urls = entry && typeof entry === 'object' && entry.urls ? entry.urls : {};
-          const metadata = entry && typeof entry === 'object' && entry.metadata ? entry.metadata : {};
-          const svgFile = files && typeof files === 'object' ? files.svg : null;
-          const pngFile = files && typeof files === 'object' ? files.png : null;
-          const svgSlug = typeof entry.svgSlug === 'string' && entry.svgSlug.trim()
-            ? entry.svgSlug.trim()
-            : svgFile && typeof svgFile.slug === 'string' && svgFile.slug.trim()
-              ? svgFile.slug.trim()
-              : slug ? `${slug}.svg` : '';
-          const pngSlug = typeof entry.pngSlug === 'string' && entry.pngSlug.trim()
-            ? entry.pngSlug.trim()
-            : pngFile && typeof pngFile.slug === 'string' && pngFile.slug.trim()
-              ? pngFile.slug.trim()
-              : slug ? `${slug}.png` : '';
-          const svgUrl = typeof entry.svgUrl === 'string' && entry.svgUrl.trim()
-            ? entry.svgUrl.trim()
-            : typeof urls.svg === 'string' && urls.svg.trim()
-              ? urls.svg.trim()
-              : svgFile && typeof svgFile.url === 'string' && svgFile.url.trim()
-                ? svgFile.url.trim()
-                : svgSlug
-                  ? (svgSlug.startsWith('/') ? svgSlug : `/${svgSlug}`)
-                  : slug
-                    ? `/svg/${slug}`
-                    : '';
-          const pngUrl = typeof entry.pngUrl === 'string' && entry.pngUrl.trim()
-            ? entry.pngUrl.trim()
-            : typeof urls.png === 'string' && urls.png.trim()
-              ? urls.png.trim()
-              : pngFile && typeof pngFile.url === 'string' && pngFile.url.trim()
-                ? pngFile.url.trim()
-                : pngSlug
-                  ? (pngSlug.startsWith('/') ? pngSlug : `/${pngSlug}`)
-                  : svgUrl;
-
-          const baseName = typeof entry.baseName === 'string' && entry.baseName.trim()
-            ? entry.baseName.trim()
-            : typeof entry.fileName === 'string' && entry.fileName.trim()
-              ? entry.fileName.trim()
-              : slug;
-          const summary = typeof entry.summary === 'string' ? entry.summary.trim() : '';
-          const altText = typeof entry.altText === 'string' && entry.altText.trim()
-            ? entry.altText.trim()
-            : summary
-              ? summary
-              : baseName
-                ? `Grafikkfil for ${baseName}`
-                : 'SVG-fil';
-
-          const sequenceRaw = entry.sequence ?? entry.sequenceNumber ?? metadata.sequence ?? metadata.index;
-          let sequenceNumber = null;
-          if (typeof sequenceRaw === 'number' && Number.isFinite(sequenceRaw)) {
-            sequenceNumber = sequenceRaw;
-          } else if (typeof sequenceRaw === 'string' && sequenceRaw.trim()) {
-            const parsedSequence = Number(sequenceRaw.trim());
-            if (Number.isFinite(parsedSequence)) {
-              sequenceNumber = parsedSequence;
-            }
-          }
-          const sequenceLabel = sequenceNumber !== null ? `#${sequenceNumber}` : '';
-
-          const fileSizeValue = metadata.size ?? metadata.fileSize ?? (svgFile && svgFile.size);
-          let fileSizeLabel = '';
-          if (typeof fileSizeValue === 'number' && Number.isFinite(fileSizeValue)) {
-            const kiloBytes = fileSizeValue / 1024;
-            fileSizeLabel = kiloBytes >= 1024
-              ? `${(kiloBytes / 1024).toFixed(kiloBytes > 10 * 1024 ? 0 : 1)} MB`
-              : `${kiloBytes.toFixed(kiloBytes > 100 ? 0 : 1)} kB`;
-          } else if (typeof fileSizeValue === 'string' && fileSizeValue.trim()) {
-            fileSizeLabel = fileSizeValue.trim();
-          }
-
-          const thumbnailUrl = typeof entry.thumbnailUrl === 'string' && entry.thumbnailUrl.trim()
-            ? entry.thumbnailUrl.trim()
-            : pngUrl || svgUrl;
-
-          const normalizedSlug = (slug && slug.trim())
-            ? slug.trim()
-            : baseName
-              ? baseName.replace(/\.[^/.]+$/, '')
-              : svgSlug
-                ? svgSlug.replace(/\.svg$/i, '')
-                : '';
-
-          const resolvedSvgUrl = normalizeAssetUrl(svgUrl, 'svg') || (normalizedSlug ? normalizeAssetUrl(`/svg/${normalizedSlug}`, 'svg') : '');
-          const resolvedPngUrl = normalizeAssetUrl(pngUrl, 'png') || resolvedSvgUrl;
-          const resolvedThumbnailUrl = normalizeAssetUrl(thumbnailUrl, 'png') || resolvedPngUrl || resolvedSvgUrl;
-
-          const normalizedEntry = {
-            slug: normalizedSlug || slug,
-            svgSlug,
-            pngSlug,
-            svgUrl: resolvedSvgUrl,
-            pngUrl: resolvedPngUrl,
-            thumbnailUrl: resolvedThumbnailUrl,
-            title: typeof entry.title === 'string' ? entry.title.trim() : '',
-            displayTitle: (typeof entry.title === 'string' && entry.title.trim())
-              ? entry.title.trim()
-              : baseName || normalizedSlug || 'Uten tittel',
-            altText,
-            baseName,
-            tool: typeof entry.tool === 'string' ? entry.tool.trim() : '',
-            createdAt:
-              typeof entry.createdAt === 'string' && entry.createdAt.trim()
-                ? entry.createdAt.trim()
-                : typeof entry.updatedAt === 'string'
-                  ? entry.updatedAt.trim()
-                  : '',
-            summary,
-            sequenceLabel,
-            fileSizeLabel
-          };
-
-          if (Object.prototype.hasOwnProperty.call(entry, 'exampleState')) {
-            normalizedEntry.exampleState = entry.exampleState;
-          }
-
-          return normalizedEntry;
-        })
-        .filter(entry => entry.slug && entry.svgUrl);
-
-      allEntries.sort((a, b) => {
-        const aTime = Date.parse(a.createdAt || '') || 0;
-        const bTime = Date.parse(b.createdAt || '') || 0;
-        return bTime - aTime;
-      });
-
-      updateFilterOptions();
-      applyStorageNote(payload);
-      render();
+      const metadata = extractArchiveMetadata(payload);
+      const normalizedEntries = normalizeArchiveEntries(payload.entries);
+      applyArchiveEntries(normalizedEntries, metadata);
+      writeArchiveCache({ entries: allEntries, metadata, timestamp: Date.now() });
     } catch (error) {
       console.error('Kunne ikke laste arkivet', error);
-      setStatus('Klarte ikke å hente arkivet akkurat nå. Prøv igjen senere.', 'error');
-      grid.innerHTML = '';
-      if (storageNote) {
-        storageNote.hidden = true;
-        storageNote.textContent = '';
+      if (hasCachedEntries) {
+        setStatus('Viser hurtigbufret arkiv. Klarte ikke å oppdatere akkurat nå.', 'warning');
+      } else {
+        setStatus('Klarte ikke å hente arkivet akkurat nå. Prøv igjen senere.', 'error');
+        grid.innerHTML = '';
+        if (storageNote) {
+          storageNote.hidden = true;
+          storageNote.textContent = '';
+        }
       }
     } finally {
       setBusy(false);
