@@ -152,6 +152,10 @@ function applyDiagramTheme(options = {}) {
   if (!root) return;
   const style = root.style;
   const theme = getThemeApi();
+  const activeProfileName =
+    theme && typeof theme.getActiveProfileName === 'function'
+      ? theme.getActiveProfileName()
+      : null;
   const requestedSeriesCount = Math.max(1, Number.isFinite(options.seriesCount) ? Math.trunc(options.seriesCount) : 1);
   const requestedPaletteSize = Math.max(
     requestedSeriesCount,
@@ -167,6 +171,28 @@ function applyDiagramTheme(options = {}) {
   }
   const basePalette = ensurePalette(palette, requestedPaletteSize, LEGACY_PIE_PALETTE);
   const seriesPalette = ensurePalette(basePalette, requestedSeriesCount, LEGACY_SERIES_COLORS);
+  if (activeProfileName === 'kikora') {
+    const singleSeriesColor = '#6C1BA2';
+    const dualSeriesColors = ['#534477', '#BF4474'];
+    if (requestedSeriesCount <= 1) {
+      if (seriesPalette.length >= 1) {
+        seriesPalette[0] = singleSeriesColor;
+      } else {
+        seriesPalette.push(singleSeriesColor);
+      }
+    } else {
+      if (seriesPalette.length >= 1) {
+        seriesPalette[0] = dualSeriesColors[0];
+      } else {
+        seriesPalette.push(dualSeriesColors[0]);
+      }
+      if (seriesPalette.length >= 2) {
+        seriesPalette[1] = dualSeriesColors[1];
+      } else {
+        seriesPalette.push(dualSeriesColors[1]);
+      }
+    }
+  }
   for (let i = 0; i < seriesPalette.length; i++) {
     setCssVariable(`--diagram-series-${i}`, seriesPalette[i], style);
     setCssVariable(`--diagram-line-series-${i}`, seriesPalette[i], style);
@@ -187,9 +213,6 @@ function applyDiagramTheme(options = {}) {
   setCssVariable('--diagram-text-color', resolvedTextColor, style);
   setCssVariable('--diagram-pie-label-color', primaryColor || LEGACY_PIE_LABEL_COLOR, style);
   setCssVariable('--diagram-value-color', primaryColor || LEGACY_VALUE_COLOR, style);
-  const activeProfileName = theme && typeof theme.getActiveProfileName === 'function'
-    ? theme.getActiveProfileName()
-    : null;
   const barStrokeColor = activeProfileName === 'kikora' ? 'transparent' : (primaryColor || LEGACY_BAR_STROKE);
   setCssVariable('--diagram-bar-stroke', barStrokeColor, style);
   setCssVariable('--diagram-handle-fill', getThemeColor('ui.secondary', LEGACY_HANDLE_FILL), style);
