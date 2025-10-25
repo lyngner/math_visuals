@@ -5663,36 +5663,17 @@ function setupSettingsForm() {
   };
   const formatGliderStartDisplay = xValues => {
     if (!Array.isArray(xValues) || !xValues.length) return '';
-    const evaluator = getPrimaryFunctionEvaluator();
     const sx = stepX();
-    const sy = stepY();
     const parts = [];
-    let hasCoordinate = false;
     xValues.forEach(raw => {
       if (!Number.isFinite(raw)) return;
       const formattedX = formatNumber(raw, sx);
-      if (!formattedX) return;
-      let y = Number.NaN;
-      if (typeof evaluator === 'function') {
-        try {
-          y = evaluator(raw);
-        } catch (_) {
-          y = Number.NaN;
-        }
+      if (formattedX) {
+        parts.push(formattedX);
       }
-      if (Number.isFinite(y)) {
-        const formattedY = formatNumber(y, sy);
-        if (formattedY) {
-          parts.push(`(${formattedX}, ${formattedY})`);
-          hasCoordinate = true;
-          return;
-        }
-      }
-      parts.push(formattedX);
     });
     if (!parts.length) return '';
-    const separator = hasCoordinate ? '; ' : ', ';
-    return parts.join(separator);
+    return parts.join(', ');
   };
   const setGliderStartInputValues = values => {
     if (!gliderStartInput) return;
