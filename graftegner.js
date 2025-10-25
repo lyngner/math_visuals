@@ -6088,7 +6088,7 @@ function setupSettingsForm() {
     const gliderMarkup = index === 1 ? `
             <div class="func-row func-row--gliders glider-row">
               <label class="points">
-                <span>Punkter på grafen</span>
+                <span>Punkter</span>
                 <select data-points>
                   <option value="0">0</option>
                   <option value="1">1</option>
@@ -6106,7 +6106,7 @@ function setupSettingsForm() {
                 </label>
               </div>
               <label class="startx-label">
-                <span>Startposisjon, x</span>
+                <span>Start</span>
                 <input type="text" data-startx value="1" placeholder="1">
               </label>
               ${colorControlMarkup}
