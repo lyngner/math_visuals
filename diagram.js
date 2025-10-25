@@ -807,11 +807,11 @@ function drawData() {
 }
 function drawLegend() {
   const names = [];
-  if (seriesNames[0]) {
-    names.push({ name: seriesNames[0], cls: 'series0' });
-  }
   if (values2 && values2.length && seriesNames[1]) {
     names.push({ name: seriesNames[1], cls: 'series1' });
+  }
+  if (seriesNames[0]) {
+    names.push({ name: seriesNames[0], cls: 'series0' });
   }
   if (!names.length) return;
 
