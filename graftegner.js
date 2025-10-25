@@ -5471,9 +5471,214 @@ function setupSettingsForm() {
   };
   const parseStartXValues = value => {
     if (!value) return [];
-    const matches = String(value).match(/-?\d+(?:[.,]\d+)?/g);
-    if (!matches) return [];
-    return matches.map(str => Number.parseFloat(str.replace(',', '.'))).filter(Number.isFinite);
+    const text = String(value);
+    const entries = [];
+    const pairRegex = /\(\s*-?\d+(?:[.,]\d+)?(?:\s*,\s*-?\d+(?:[.,]\d+)?)?\s*\)/g;
+    let match;
+    while ((match = pairRegex.exec(text)) !== null) {
+      const inner = match[0];
+      const numberRegex = /-?\d+(?:[.,]\d+)?/g;
+      const numberMatch = numberRegex.exec(inner);
+      if (numberMatch) {
+        const num = Number.parseFloat(numberMatch[0].replace(',', '.'));
+        if (Number.isFinite(num)) {
+          entries.push({ index: match.index + numberMatch.index, value: num });
+        }
+      }
+    }
+    const cleaned = text.replace(pairRegex, ' ');
+    const numRegex = /-?\d+(?:[.,]\d+)?/g;
+    while ((match = numRegex.exec(cleaned)) !== null) {
+      const num = Number.parseFloat(match[0].replace(',', '.'));
+      if (Number.isFinite(num)) {
+        entries.push({ index: match.index, value: num });
+      }
+    }
+    entries.sort((a, b) => a.index - b.index);
+    return entries.map(entry => entry.value);
+  };
+  const getPrimaryFunctionEvaluator = () => {
+    const value = getFirstFunctionValue();
+    if (!value || !isExplicitFun(value)) {
+      return null;
+    }
+    let main = value;
+    const domMatch = main.match(/,?\s*x\s*(?:in|∈)\s*.+$/i);
+    if (domMatch) {
+      main = main.slice(0, domMatch.index).trim();
+    }
+    const fnMatch = main.match(/^([a-zA-Z]\w*)\s*\(\s*x\s*\)\s*=\s*(.+)$/);
+    let spec;
+    if (fnMatch) {
+      spec = `${fnMatch[1]}(x)=${fnMatch[2]}`;
+    } else {
+      const yMatch = main.match(/^y\s*=\s*(.+)$/i);
+      if (!yMatch) return null;
+      spec = `f(x)=${yMatch[1]}`;
+    }
+    const evaluator = parseFunctionSpec(spec);
+    return typeof evaluator === 'function' ? evaluator : null;
+  };
+  const formatGliderStartDisplay = xValues => {
+    if (!Array.isArray(xValues) || !xValues.length) return '';
+    const evaluator = getPrimaryFunctionEvaluator();
+    const sx = stepX();
+    const sy = stepY();
+    const parts = [];
+    let hasCoordinate = false;
+    xValues.forEach(raw => {
+      if (!Number.isFinite(raw)) return;
+      const formattedX = formatNumber(raw, sx);
+      if (!formattedX) return;
+      let y = Number.NaN;
+      if (typeof evaluator === 'function') {
+        try {
+          y = evaluator(raw);
+        } catch (_) {
+          y = Number.NaN;
+        }
+      }
+      if (Number.isFinite(y)) {
+        const formattedY = formatNumber(y, sy);
+        if (formattedY) {
+          parts.push(`(${formattedX}, ${formattedY})`);
+          hasCoordinate = true;
+          return;
+        }
+      }
+      parts.push(formattedX);
+    });
+    if (!parts.length) return '';
+    const separator = hasCoordinate ? '; ' : ', ';
+    return parts.join(separator);
+  };
+  const setGliderStartInputValues = values => {
+    if (!gliderStartInput) return;
+    const nums = Array.isArray(values) ? values.filter(Number.isFinite) : [];
+    if (nums.length) {
+      const display = formatGliderStartDisplay(nums);
+      if (display) {
+        gliderStartInput.value = display;
+        return;
+      }
+      gliderStartInput.value = nums.map(val => formatNumber(val, stepX())).join(', ');
+      return;
+    }
+    gliderStartInput.value = '1';
+  };
+  const applyGliderStartValuesToBoard = xValues => {
+    const values = Array.isArray(xValues) ? xValues.filter(Number.isFinite) : [];
+    if (!values.length) {
+      return false;
+    }
+    if (SIMPLE_PARSED && typeof SIMPLE_PARSED === 'object') {
+      SIMPLE_PARSED.startX = values.slice();
+    }
+    ADV.points.startX = values.slice();
+    if (MODE !== 'functions' || !Array.isArray(graphs) || graphs.length === 0) {
+      return false;
+    }
+    const primary = graphs[0];
+    if (!primary || !Array.isArray(primary.gliders) || primary.gliders.length === 0) {
+      return false;
+    }
+    const domain = primary.domain || null;
+    const clampToDomain = x => {
+      let clamped = x;
+      if (domain) {
+        if (Number.isFinite(domain.min) && clamped < domain.min) {
+          clamped = domain.min;
+        }
+        if (Number.isFinite(domain.max) && clamped > domain.max) {
+          clamped = domain.max;
+        }
+      }
+      return clamped;
+    };
+    const evaluator = typeof primary.fn === 'function' ? primary.fn : null;
+    const fallbackX = values[0];
+    if (!Number.isFinite(fallbackX) || typeof evaluator !== 'function') {
+      return false;
+    }
+    let moved = false;
+    const gliders = primary.gliders;
+    for (let i = 0; i < gliders.length; i++) {
+      const glider = gliders[i];
+      if (!glider || typeof glider.moveTo !== 'function') {
+        continue;
+      }
+      const rawX = i < values.length && Number.isFinite(values[i]) ? values[i] : fallbackX;
+      if (!Number.isFinite(rawX)) {
+        continue;
+      }
+      const targetX = clampToDomain(rawX);
+      let targetY = Number.NaN;
+      try {
+        targetY = evaluator(targetX);
+      } catch (_) {
+        targetY = Number.NaN;
+      }
+      if (!Number.isFinite(targetY)) {
+        continue;
+      }
+      let needsMove = true;
+      if (typeof glider.X === 'function' && typeof glider.Y === 'function') {
+        const currentX = glider.X();
+        const currentY = glider.Y();
+        if (Number.isFinite(currentX) && Number.isFinite(currentY)) {
+          const EPS = 1e-9;
+          needsMove = Math.abs(currentX - targetX) > EPS || Math.abs(currentY - targetY) > EPS;
+        }
+      }
+      if (!needsMove) {
+        continue;
+      }
+      try {
+        glider.moveTo([targetX, targetY]);
+        if (glider.label && typeof glider.label.setText === 'function') {
+          glider.label.setText(() => fmtCoordsStatic(glider));
+        }
+        moved = true;
+      } catch (_) {}
+    }
+    if (moved && brd && typeof brd.update === 'function') {
+      try {
+        brd.update();
+      } catch (_) {}
+    }
+    return moved;
+  };
+  const refreshGliderStartInputDisplay = () => {
+    if (!gliderStartInput) return;
+    const values = parseStartXValues(gliderStartInput.value || '');
+    if (!values.length) return;
+    setGliderStartInputValues(values);
+  };
+  const handleGliderStartInputChange = () => {
+    syncSimpleFromForm();
+    scheduleSimpleRebuild();
+  };
+  const handleGliderStartInputCommit = () => {
+    if (!gliderStartInput) {
+      syncSimpleFromForm();
+      scheduleSimpleRebuild();
+      return;
+    }
+    const values = parseStartXValues(gliderStartInput.value || '');
+    if (values.length) {
+      setGliderStartInputValues(values);
+      applyGliderStartValuesToBoard(values);
+    }
+    syncSimpleFromForm();
+    scheduleSimpleRebuild();
+  };
+  const attachGliderStartInputListeners = () => {
+    if (!gliderStartInput) return;
+    if (gliderStartInput.__grafStartListenersAttached) return;
+    gliderStartInput.addEventListener('input', handleGliderStartInputChange);
+    gliderStartInput.addEventListener('change', handleGliderStartInputCommit);
+    gliderStartInput.addEventListener('blur', handleGliderStartInputCommit);
+    gliderStartInput.__grafStartListenersAttached = true;
   };
   const parseLinePointInput = value => {
     if (!value) return null;
@@ -6036,12 +6241,7 @@ function setupSettingsForm() {
     gliderCountInput.addEventListener('change', onCountChange);
   }
   if (gliderStartInput) {
-    const onStartChange = () => {
-      syncSimpleFromForm();
-      scheduleSimpleRebuild();
-    };
-    gliderStartInput.addEventListener('input', onStartChange);
-    gliderStartInput.addEventListener('change', onStartChange);
+    attachGliderStartInputListeners();
   }
   const toggleDomain = input => {
     const row = input.closest('.func-group');
@@ -6279,6 +6479,7 @@ function setupSettingsForm() {
           return;
         }
         funInput.dataset.lastCommittedValue = currentValue;
+        refreshGliderStartInputDisplay();
         syncSimpleFromForm();
         scheduleSimpleRebuild();
       };
@@ -6351,12 +6552,7 @@ function setupSettingsForm() {
         gliderCountInput.addEventListener('change', handleGliderCountChange);
       }
       if (gliderStartInput) {
-        const onStartChange = () => {
-          syncSimpleFromForm();
-          scheduleSimpleRebuild();
-        };
-        gliderStartInput.addEventListener('input', onStartChange);
-        gliderStartInput.addEventListener('change', onStartChange);
+        attachGliderStartInputListeners();
       }
       linePointSection = row.querySelector('.linepoints-row');
       linePointInputs = linePointSection ? Array.from(linePointSection.querySelectorAll('input[data-linepoint]')) : [];
@@ -6465,8 +6661,11 @@ function setupSettingsForm() {
     }
     if (gliderStartInput) {
       var _SIMPLE_PARSED2;
-      const startVals = Array.isArray((_SIMPLE_PARSED2 = SIMPLE_PARSED) === null || _SIMPLE_PARSED2 === void 0 ? void 0 : _SIMPLE_PARSED2.startX) ? SIMPLE_PARSED.startX.filter(Number.isFinite) : [];
-      gliderStartInput.value = startVals.length ? startVals.map(val => formatNumber(val, stepX())).join(', ') : '1';
+      const startVals = Array.isArray((_SIMPLE_PARSED2 = SIMPLE_PARSED) === null || _SIMPLE_PARSED2 === void 0 ? void 0 : _SIMPLE_PARSED2.startX)
+        ? SIMPLE_PARSED.startX.filter(Number.isFinite)
+        : [];
+      setGliderStartInputValues(startVals);
+      refreshGliderStartInputDisplay();
     }
     if (linePointInputs.length && SIMPLE_PARSED) {
       const resolvedPoints = resolveLineStartPoints(SIMPLE_PARSED);
