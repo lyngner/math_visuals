@@ -6,6 +6,7 @@
 
   const board = doc.querySelector('[data-board]');
   const boardFigure = board ? board.querySelector('[data-figure-image]') : null;
+  const boardScaleLabel = board ? board.querySelector('[data-scale-label]') : null;
   const ruler = board ? board.querySelector('[data-ruler]') : null;
   const rulerSvg = ruler ? ruler.querySelector('[data-ruler-svg]') : null;
   const boardGridOverlay = board ? board.querySelector('[data-grid-overlay]') : null;
@@ -16,13 +17,16 @@
   const statusNote = doc.querySelector('[data-status-note]');
   const exportButton = doc.getElementById('btnExportSvg');
   const inputs = {
+    figureCategory: doc.getElementById('cfg-figure-category'),
+    figurePreset: doc.getElementById('cfg-figure-preset'),
     figureName: doc.getElementById('cfg-figure-name'),
     figureImage: doc.getElementById('cfg-figure-image'),
     figureSummary: doc.getElementById('cfg-figure-summary'),
     length: doc.getElementById('cfg-length'),
     subdivisions: doc.getElementById('cfg-subdivisions'),
     unitLabel: doc.getElementById('cfg-unit'),
-    gridEnabled: doc.getElementById('cfg-grid-enabled')
+    gridEnabled: doc.getElementById('cfg-grid-enabled'),
+    showScaleLabel: doc.getElementById('cfg-show-scale')
   };
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
@@ -31,6 +35,10 @@
   let boardRect = board.getBoundingClientRect();
   const baseSize = { width: ruler.offsetWidth, height: ruler.offsetHeight };
   const zeroOffset = { x: 0, y: 0 };
+  const CUSTOM_CATEGORY_ID = 'custom';
+  const CUSTOM_FIGURE_ID = 'custom';
+  const figureData = buildFigureData();
+  const defaultPreset = figureData.byId.get('kylling');
   const appState = {
     settings: null,
     syncingInputs: false,
@@ -42,11 +50,13 @@
     length: 10,
     subdivisions: 10,
     unitLabel: 'cm',
-    figureName: 'Kylling',
-    figureImage: 'images/measure/kylling%20(7cm_7cm)%201_1.svg',
+    figureName: defaultPreset ? defaultPreset.name : 'Kylling',
+    figureImage: defaultPreset ? defaultPreset.image : 'images/measure/kylling%20(7cm_7cm)%201_1.svg',
     measurementTarget: 'høyden på kyllingen',
-    figureSummary: '',
-    gridEnabled: false
+    figureSummary: defaultPreset ? defaultPreset.summary : '',
+    figureScaleLabel: defaultPreset ? defaultPreset.scaleLabel : '',
+    gridEnabled: false,
+    showScaleLabel: false
   };
 
   appState.settings = normalizeSettings();
@@ -112,8 +122,10 @@
     if (typeof source.figureLabel === 'string' && target.figureName == null) target.figureName = source.figureLabel;
     if (typeof source.figureImage === 'string') target.figureImage = source.figureImage;
     if (typeof source.figureSummary === 'string') target.figureSummary = source.figureSummary;
+    if (typeof source.figureScaleLabel === 'string') target.figureScaleLabel = source.figureScaleLabel;
     if (typeof source.measurementTarget === 'string') target.measurementTarget = source.measurementTarget;
     if (Object.prototype.hasOwnProperty.call(source, 'gridEnabled')) target.gridEnabled = source.gridEnabled;
+    if (Object.prototype.hasOwnProperty.call(source, 'showScaleLabel')) target.showScaleLabel = source.showScaleLabel;
   }
 
   function applySettingsToContainer(container, settings) {
@@ -126,8 +138,10 @@
     container.figureName = settings.figureName;
     container.figureImage = settings.figureImage;
     container.figureSummary = settings.figureSummary || '';
+    container.figureScaleLabel = settings.figureScaleLabel || '';
     container.measurementTarget = settings.measurementTarget;
     container.gridEnabled = settings.gridEnabled;
+    container.showScaleLabel = settings.showScaleLabel;
   }
 
   function sanitizeLength(value, fallback) {
@@ -195,6 +209,20 @@
     return value.trim();
   }
 
+  function sanitizeFigureScaleLabel(value, fallback) {
+    if (value === undefined) {
+      return fallback || '';
+    }
+    if (value === null) {
+      return '';
+    }
+    const normalized = collapseWhitespace(value);
+    if (!normalized) {
+      return '';
+    }
+    return normalized.slice(0, 80);
+  }
+
   function sanitizeGridEnabled(value, fallback) {
     if (value === undefined) {
       return fallback;
@@ -256,7 +284,9 @@
     const figureImage = sanitizeFigureImage(combined.figureImage, defaults.figureImage);
     const figureSummary = sanitizeOptionalText(combined.figureSummary);
     const measurementTarget = sanitizeMeasurementTarget(combined.measurementTarget, figureName, defaults.measurementTarget);
+    const figureScaleLabel = sanitizeFigureScaleLabel(combined.figureScaleLabel, defaults.figureScaleLabel);
     const gridEnabled = sanitizeGridEnabled(combined.gridEnabled, defaults.gridEnabled);
+    const showScaleLabel = sanitizeGridEnabled(combined.showScaleLabel, defaults.showScaleLabel);
 
     const settings = {
       length,
@@ -265,8 +295,10 @@
       figureName,
       figureImage,
       figureSummary,
+      figureScaleLabel,
       measurementTarget,
-      gridEnabled
+      gridEnabled,
+      showScaleLabel
     };
 
     applySettingsToContainer(configContainers.measurement, settings);
@@ -291,8 +323,10 @@
       a.figureName === b.figureName &&
       a.figureImage === b.figureImage &&
       a.figureSummary === b.figureSummary &&
+      a.figureScaleLabel === b.figureScaleLabel &&
       a.measurementTarget === b.measurementTarget &&
-      a.gridEnabled === b.gridEnabled
+      a.gridEnabled === b.gridEnabled &&
+      a.showScaleLabel === b.showScaleLabel
     );
   }
 
@@ -347,6 +381,7 @@
     renderRuler(settings);
     applyFigureAppearance(settings);
     applyGridAppearance(settings);
+    applyScaleLabel(settings);
     updateAccessibility(settings);
     appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(settings);
     baseSize.width = ruler.offsetWidth;
@@ -376,6 +411,21 @@
     if (boardGridOverlay) {
       boardGridOverlay.hidden = !enabled;
     }
+  }
+
+  function applyScaleLabel(settings) {
+    if (!boardScaleLabel) {
+      return;
+    }
+    if (!settings.showScaleLabel) {
+      boardScaleLabel.textContent = '';
+      boardScaleLabel.removeAttribute('data-visible');
+      return;
+    }
+    const label = collapseWhitespace(settings.figureScaleLabel);
+    const text = label ? `Målestokk ${label}` : 'Målestokk ikke angitt';
+    boardScaleLabel.textContent = text;
+    boardScaleLabel.setAttribute('data-visible', 'true');
   }
 
   function escapeHtml(value) {
@@ -494,6 +544,7 @@
   function syncInputs(settings) {
     appState.syncingInputs = true;
     try {
+      updateFigureSelectorsFromSettings(settings);
       if (inputs.figureName) inputs.figureName.value = settings.figureName || '';
       if (inputs.figureImage) inputs.figureImage.value = settings.figureImage || '';
       if (inputs.figureSummary) inputs.figureSummary.value = settings.figureSummary || '';
@@ -501,12 +552,34 @@
       if (inputs.subdivisions) inputs.subdivisions.value = settings.subdivisions;
       if (inputs.unitLabel) inputs.unitLabel.value = settings.unitLabel || '';
       if (inputs.gridEnabled) inputs.gridEnabled.checked = !!settings.gridEnabled;
+      if (inputs.showScaleLabel) inputs.showScaleLabel.checked = !!settings.showScaleLabel;
     } finally {
       appState.syncingInputs = false;
     }
   }
 
   function attachInputListeners() {
+    if (inputs.figureCategory) {
+      inputs.figureCategory.addEventListener('change', event => {
+        if (appState.syncingInputs) return;
+        const categoryId = event.target.value;
+        populateFigureOptions(categoryId);
+        const figures = getFiguresForCategory(categoryId);
+        const first = figures[0];
+        if (inputs.figurePreset) {
+          inputs.figurePreset.value = first ? first.id : '';
+        }
+        if (first && !first.custom) {
+          applyFigurePreset(first.id);
+        }
+      });
+    }
+    if (inputs.figurePreset) {
+      inputs.figurePreset.addEventListener('change', event => {
+        if (appState.syncingInputs) return;
+        applyFigurePreset(event.target.value);
+      });
+    }
     if (inputs.figureName) {
       inputs.figureName.addEventListener('input', event => {
         if (appState.syncingInputs) return;
@@ -547,6 +620,12 @@
       inputs.gridEnabled.addEventListener('change', event => {
         if (appState.syncingInputs) return;
         updateSettings({ gridEnabled: event.target.checked });
+      });
+    }
+    if (inputs.showScaleLabel) {
+      inputs.showScaleLabel.addEventListener('change', event => {
+        if (appState.syncingInputs) return;
+        updateSettings({ showScaleLabel: event.target.checked });
       });
     }
   }
@@ -743,6 +822,344 @@
     return serializer.serializeToString(svgElement);
   }
 
+  function updateFigureSelectorsFromSettings(settings) {
+    if (!inputs.figureCategory || !inputs.figurePreset) {
+      return;
+    }
+    const preset = resolvePresetFromSettings(settings);
+    const categoryId = preset ? preset.categoryId : CUSTOM_CATEGORY_ID;
+    populateCategoryOptions(categoryId);
+    populateFigureOptions(categoryId, preset ? preset.id : CUSTOM_FIGURE_ID);
+  }
+
+  function populateCategoryOptions(selectedId) {
+    if (!inputs.figureCategory) {
+      return;
+    }
+    const currentValue = selectedId || inputs.figureCategory.value || CUSTOM_CATEGORY_ID;
+    inputs.figureCategory.textContent = '';
+    const fragment = doc.createDocumentFragment();
+    for (const category of figureData.categories) {
+      const option = doc.createElement('option');
+      option.value = category.id;
+      option.textContent = category.label;
+      fragment.appendChild(option);
+    }
+    inputs.figureCategory.appendChild(fragment);
+    if (figureData.categories.some(category => category.id === currentValue)) {
+      inputs.figureCategory.value = currentValue;
+    } else {
+      inputs.figureCategory.value = CUSTOM_CATEGORY_ID;
+    }
+  }
+
+  function populateFigureOptions(categoryId, selectedFigureId) {
+    if (!inputs.figurePreset) {
+      return;
+    }
+    const figures = getFiguresForCategory(categoryId);
+    const currentValue = selectedFigureId || inputs.figurePreset.value || (figures[0] ? figures[0].id : '');
+    inputs.figurePreset.textContent = '';
+    const fragment = doc.createDocumentFragment();
+    for (const figure of figures) {
+      const option = doc.createElement('option');
+      option.value = figure.id;
+      option.textContent = buildFigureOptionLabel(figure);
+      fragment.appendChild(option);
+    }
+    inputs.figurePreset.appendChild(fragment);
+    if (figures.some(figure => figure.id === currentValue)) {
+      inputs.figurePreset.value = currentValue;
+    } else if (figures[0]) {
+      inputs.figurePreset.value = figures[0].id;
+    }
+  }
+
+  function buildFigureOptionLabel(figure) {
+    const parts = [figure.name];
+    if (figure.dimensions) {
+      parts.push(figure.dimensions);
+    }
+    if (figure.scaleLabel) {
+      parts.push(`målestokk ${figure.scaleLabel}`);
+    }
+    return parts.join(' – ');
+  }
+
+  function getFiguresForCategory(categoryId) {
+    const category = figureData.categories.find(entry => entry.id === categoryId);
+    if (category) {
+      return category.figures.slice();
+    }
+    const fallback = figureData.categories.find(entry => entry.id === CUSTOM_CATEGORY_ID);
+    return fallback ? fallback.figures.slice() : [];
+  }
+
+  function applyFigurePreset(presetId) {
+    if (!presetId) {
+      return;
+    }
+    const preset = figureData.byId.get(presetId);
+    if (!preset || preset.custom) {
+      return;
+    }
+    updateSettings({
+      figureName: preset.name,
+      figureImage: preset.image,
+      figureSummary: preset.summary || '',
+      figureScaleLabel: preset.scaleLabel || ''
+    });
+  }
+
+  function resolvePresetFromSettings(settings) {
+    if (!settings) {
+      return null;
+    }
+    if (settings.figureImage && figureData.byImage.has(settings.figureImage)) {
+      return figureData.byImage.get(settings.figureImage);
+    }
+    const normalizedName = normalizeComparisonText(settings.figureName);
+    if (!normalizedName) {
+      return null;
+    }
+    for (const figure of figureData.byId.values()) {
+      if (figure.custom) {
+        continue;
+      }
+      if (normalizeComparisonText(figure.name) === normalizedName) {
+        return figure;
+      }
+    }
+    return null;
+  }
+
+  function encodeMeasureImagePath(fileName) {
+    if (!fileName) {
+      return null;
+    }
+    const basePath = 'images/measure/';
+    return encodeURI(basePath + fileName);
+  }
+
+  function buildFigureData() {
+    const baseCategories = createFigureLibrary();
+    const categories = baseCategories.map(category => ({
+      id: category.id,
+      label: category.label,
+      figures: category.figures.map(figure => ({
+        ...figure,
+        categoryId: category.id,
+        custom: !!figure.custom
+      }))
+    }));
+    const customCategory = {
+      id: CUSTOM_CATEGORY_ID,
+      label: 'Egendefinert',
+      figures: [
+        {
+          id: CUSTOM_FIGURE_ID,
+          name: 'Egendefinert figur',
+          image: null,
+          fileName: null,
+          dimensions: '',
+          scaleLabel: '',
+          summary: '',
+          categoryId: CUSTOM_CATEGORY_ID,
+          custom: true
+        }
+      ]
+    };
+    categories.push(customCategory);
+
+    const byId = new Map();
+    const byImage = new Map();
+    for (const category of categories) {
+      for (const figure of category.figures) {
+        byId.set(figure.id, figure);
+        if (figure.image) {
+          byImage.set(figure.image, figure);
+        }
+      }
+    }
+
+    return { categories, byId, byImage };
+  }
+
+  function createFigureLibrary() {
+    const makeFigure = (id, name, fileName, dimensions, scaleLabel, summary) => {
+      const image = encodeMeasureImagePath(fileName);
+      const summaryParts = [];
+      if (summary) {
+        summaryParts.push(summary);
+      } else if (dimensions) {
+        summaryParts.push(dimensions);
+      }
+      if (scaleLabel) {
+        summaryParts.push(`målestokk ${scaleLabel}`);
+      }
+      return {
+        id,
+        name,
+        image,
+        fileName: fileName || null,
+        dimensions: dimensions || '',
+        scaleLabel: scaleLabel || '',
+        summary: summaryParts.join(' – ')
+      };
+    };
+
+    return [
+      {
+        id: 'prehistoric-animals',
+        label: 'Forhistoriske dyr',
+        figures: [
+          makeFigure('allosaurus', 'Allosaurus', 'Allosaurus 12m_4.32m  1 _ 120.svg', '12 m × 4,32 m', '1:120'),
+          makeFigure('ankylosaurus', 'Ankylosaurus', 'Ankylosaurus 7m_2,5.svg', '7 m × 2,5 m', ''),
+          makeFigure('brachiosaurus', 'Brachiosaurus', 'Brachiosaurus 30m_16m 1_300.svg', '30 m × 16 m', '1:300'),
+          makeFigure('coelophysis', 'Coelophysis', 'Coelohysis 3m_1,2m  1_30.svg', '3 m × 1,2 m', '1:30'),
+          makeFigure('elasmosaurus', 'Elasmosaurus', 'Elasmosaurus 10m_5,3m.svg', '10 m × 5,3 m', ''),
+          makeFigure('parasaurolophus', 'Parasaurolophus', 'Parasaurolophus 10m_5m 1_100.svg', '10 m × 5 m', '1:100'),
+          makeFigure('pteranodon', 'Pteranodon', 'Pteranodon 4,3m_3,5m 1_50.svg', '4,3 m × 3,5 m', '1:50'),
+          makeFigure('spinosaurus', 'Spinosaurus', 'Spinosaurus 12m_5,6m 1_120.svg', '12 m × 5,6 m', '1:120'),
+          makeFigure('stegosaurus', 'Stegosaurus', 'Stegosaurus 9m_4,5m 1_90.svg', '9 m × 4,5 m', '1:90'),
+          makeFigure('triceratops', 'Triceratops', 'Triceratops 8m_3m 1_80.svg', '8 m × 3 m', '1:80'),
+          makeFigure('tyrannosaurus', 'Tyrannosaurus rex', 'TyrannosaurusRex 13m_5,2m 1_130.svg', '13 m × 5,2 m', '1:130'),
+          makeFigure('velociraptor', 'Velociraptor', 'Velociraptor 2m_0,8m 1_20.svg', '2 m × 0,8 m', '1:20')
+        ]
+      },
+      {
+        id: 'modern-mammals',
+        label: 'Nålevende pattedyr',
+        figures: [
+          makeFigure('elefant', 'Elefant', 'elefant (4m_3m) 1_40.svg', '4 m × 3 m', '1:40'),
+          makeFigure('flodhest', 'Flodhest', 'flodhest (2m_1.5) 1_20.svg', '2 m × 1,5 m', '1:20'),
+          makeFigure('gris', 'Gris', 'gris (1m_0,55m) 1_10.svg', '1 m × 0,55 m', '1:10'),
+          makeFigure('hest', 'Hest', 'hest (2,4m_1,7m) 1_24.svg', '2,4 m × 1,7 m', '1:24'),
+          makeFigure('sjiraff', 'Sjiraff', 'sjiraff (4m_5,6m) 1_80.svg', '4 m × 5,6 m', '1:80'),
+          makeFigure('neshorn', 'Neshorn', 'neshorn 3m_2m (1_30).svg', '3 m × 2 m', '1:30'),
+          makeFigure('koala', 'Koala', 'koala  (50cm_ 70cm) 1_10.svg', '50 cm × 70 cm', '1:10'),
+          makeFigure('kanin', 'Kanin', 'kanin (40cm_28cm) 1_4.svg', '40 cm × 28 cm', '1:4'),
+          makeFigure('ku', 'Ku', 'ku (2m_1,4m) 1_20.svg', '2 m × 1,4 m', '1:20'),
+          makeFigure('corgi', 'Corgi', 'corgi (50cm_35cm) 1_5.svg', '50 cm × 35 cm', '1:5'),
+          makeFigure('katt', 'Katt', 'katt50.svg', 'Lengde ca. 50 cm', '')
+        ]
+      },
+      {
+        id: 'birds',
+        label: 'Fugler',
+        figures: [
+          makeFigure('hone', 'Høne', 'høne (22_28cm) 1_4.svg', '22–28 cm høy', '1:4'),
+          makeFigure('kylling', 'Kylling', 'kylling (7cm_7cm) 1_1.svg', '7 cm × 7 cm', '1:1')
+        ]
+      },
+      {
+        id: 'insects',
+        label: 'Småkryp og insekter',
+        figures: [
+          makeFigure('edderkopp', 'Edderkopp', 'edderkopp (5cm_3,5cm) 2_1.svg', '5 cm × 3,5 cm', '2:1'),
+          makeFigure('maur', 'Maur', 'maur (0,5cm_0,35cm) 20_1.svg', '0,5 cm × 0,35 cm', '20:1'),
+          makeFigure('bille', 'Bille', 'bille (1,25cm_0,875cm) 8_1.svg', '1,25 cm × 0,875 cm', '8:1'),
+          makeFigure('marihøne', 'Marihøne', 'marihøne (1cm _0,7cm) 10_1.svg', '1 cm × 0,7 cm', '10:1'),
+          makeFigure('skolopender', 'Skolopender', 'skolopender (3cm_2,1cm )10_3.svg', '3 cm × 2,1 cm', '10:3'),
+          makeFigure('skrukketroll', 'Skrukketroll', 'skrukketroll (2cm_1,4cm ) 5_1.svg', '2 cm × 1,4 cm', '5:1'),
+          makeFigure('tusenben', 'Tusenben', 'tusenben (4cm_1cm) 10_4.svg', '4 cm × 1 cm', '10:4'),
+          makeFigure('veps', 'Veps', 'veps (2,5cm_1,75cm) 4_1.svg', '2,5 cm × 1,75 cm', '4:1'),
+          makeFigure('sommerfugl', 'Sommerfugl', 'sommerfugl (10cm_7cm)  1_1.svg', '10 cm × 7 cm', '1:1')
+        ]
+      },
+      {
+        id: 'humans',
+        label: 'Mennesker',
+        figures: [
+          makeFigure('dame155', 'Dame 155', 'dame155.svg', 'Høyde 155 cm', ''),
+          makeFigure('dame180', 'Dame 180', 'dame180.svg', 'Høyde 180 cm', ''),
+          makeFigure('gutt120', 'Gutt 120', 'gutt120.svg', 'Høyde 120 cm', ''),
+          makeFigure('gutt125', 'Gutt 125', 'Gutt125.svg', 'Høyde 125 cm', ''),
+          makeFigure('gutt130', 'Gutt 130', 'gutt130 v2.svg', 'Høyde 130 cm', ''),
+          makeFigure('gutt140', 'Gutt 140', 'gutt140.svg', 'Høyde 140 cm', ''),
+          makeFigure('gutt150', 'Gutt 150', 'gutt150.svg', 'Høyde 150 cm', ''),
+          makeFigure('gutt180', 'Gutt 180', 'gutt180 2.svg', 'Høyde 180 cm', ''),
+          makeFigure('jente100', 'Jente 100', 'jente100.svg', 'Høyde 100 cm', ''),
+          makeFigure('jente120', 'Jente 120', 'jente120 v2.svg', 'Høyde 120 cm', ''),
+          makeFigure('jente155', 'Jente 155', 'jente155.svg', 'Høyde 155 cm', ''),
+          makeFigure('jente160', 'Jente 160', 'jente160.svg', 'Høyde 160 cm', ''),
+          makeFigure('mann140', 'Mann 140', 'mann140.svg', 'Høyde 140 cm', ''),
+          makeFigure('mann185', 'Mann 185', 'Mann185.svg', 'Høyde 185 cm', ''),
+          makeFigure('mann200', 'Mann 200', 'Mann200.svg', 'Høyde 200 cm', '')
+        ]
+      },
+      {
+        id: 'vehicles',
+        label: 'Kjøretøy',
+        figures: [
+          makeFigure('buss', 'Buss', 'buss (12m_3m) 1_120.svg', '12 m × 3 m', '1:120'),
+          makeFigure('campingbil', 'Campingbil', 'campingbil (6m_3m) 1_60.svg', '6 m × 3 m', '1:60'),
+          makeFigure('lastebil', 'Lastebil', 'Lastebil (8m_3,6m) 1_80.svg', '8 m × 3,6 m', '1:80'),
+          makeFigure('mini', 'Mini', 'mini (3,5m_1,75m) 1_35.svg', '3,5 m × 1,75 m', '1:35'),
+          makeFigure('sedan', 'Sedan', 'sedan (4,5m_1,6) 1_45.svg', '4,5 m × 1,6 m', '1:45'),
+          makeFigure('stasjonsvogn', 'Stasjonsvogn', 'stasjonsvogn(5m_2m) 1_50.svg', '5 m × 2 m', '1:50'),
+          makeFigure('sykkel', 'Sykkel', 'sykkel(2m_0,55m) 1_20.svg', '2 m × 0,55 m', '1:20'),
+          makeFigure('tankbil', 'Tankbil', 'tankbil (8m_3,2m) 1_80.svg', '8 m × 3,2 m', '1:80'),
+          makeFigure('trailer', 'Trailer', 'trailer(10m_3m) 1_100.svg', '10 m × 3 m', '1:100'),
+          makeFigure('trikk', 'Trikk', 'trikk(30m_1,5m) 1_200.svg', '30 m × 1,5 m', '1:200')
+        ]
+      },
+      {
+        id: 'astronomy',
+        label: 'Astronomiske legemer',
+        figures: [
+          makeFigure('asteroide', 'Asteroide', 'asteroide 500 km.svg', 'Diameter 500 km', ''),
+          makeFigure('manen', 'Månen', 'månen 3 474,8 km.svg', 'Diameter 3 474,8 km', ''),
+          makeFigure('merkur', 'Merkur', 'merkur 4 879,4 km.svg', 'Diameter 4 879,4 km', ''),
+          makeFigure('mars', 'Mars', 'mars 6779km.svg', 'Diameter 6 779 km', ''),
+          makeFigure('jupiter', 'Jupiter', 'jupiter 139 820 km.svg', 'Diameter 139 820 km', ''),
+          makeFigure('saturn', 'Saturn', 'saturn 116 460 km.svg', 'Diameter 116 460 km', ''),
+          makeFigure('uranus', 'Uranus', 'uranus 50 724 km.svg', 'Diameter 50 724 km', ''),
+          makeFigure('neptun', 'Neptun', 'neptun 49244km.svg', 'Diameter 49 244 km', ''),
+          makeFigure('venus', 'Venus', 'venus 12 104 km.svg', 'Diameter 12 104 km', ''),
+          makeFigure('pluto', 'Pluto', 'pluto 2 376,6 km.svg', 'Diameter 2 376,6 km', ''),
+          makeFigure('solen', 'Solen', 'solen 1 392 700 km.svg', 'Diameter 1 392 700 km', '')
+        ]
+      },
+      {
+        id: 'nature',
+        label: 'Natur og installasjoner',
+        figures: [
+          makeFigure('tre', 'Tre', 'Tre 2_3m 1_20.svg', 'Høyde 2–3 m', '1:20'),
+          makeFigure('lyktestolpe', 'Lyktestolpe', 'lyktestolpe (0,4m_2,8m) 1_40.svg', '0,4 m × 2,8 m', '1:40')
+        ]
+      },
+      {
+        id: 'sports',
+        label: 'Sport- og lekeutstyr',
+        figures: [
+          makeFigure('fotball', 'Fotball', 'fotball (21cm_21cm) 1_3.svg', 'Diameter 21 cm', '1:3'),
+          makeFigure('basketball', 'Basketball', 'basketball 24cm_24cm 1_4.svg', 'Diameter 24 cm', '1:4'),
+          makeFigure('tennisball', 'Tennisball', 'tennisball 6,5cm_6,5cm 1_1.svg', 'Diameter 6,5 cm', '1:1'),
+          makeFigure('badeball', 'Badeball', 'badeball (56cm_56cm) 1_8.svg', 'Diameter 56 cm', '1:8')
+        ]
+      },
+      {
+        id: 'school-supplies',
+        label: 'Skole-, kontor- og tegneutstyr',
+        figures: [
+          makeFigure('binders', 'Binders', 'Binders (4cm_1cm) 10_4.svg', '4 cm × 1 cm', '10:4'),
+          makeFigure('euro', 'Euro-mynt', 'euro (2,325cm _2,325cm) 2,325 _ 1.svg', 'Diameter 2,325 cm', '2,325:1'),
+          makeFigure('passer', 'Passer', 'passer (10cm _5cm) 1_1.svg', '10 cm × 5 cm', '1:1'),
+          makeFigure('pensel', 'Pensel', 'pensel (20cm_1cm) 1_2.svg', '20 cm × 1 cm', '1:2'),
+          makeFigure('linjal', 'Linjal', 'linjal 1_1 (10cm 1,5cm) 1_1.svg', '10 cm × 1,5 cm', '1:1'),
+          makeFigure('blyant', 'Blyant', 'blyant (10cm_0,75cm) 1_1.svg', '10 cm × 0,75 cm', '1:1'),
+          makeFigure('blyant-tykk', 'Blyant (tykk)', 'blyantTykk (10cm _ 1cm) 1_1.svg', '10 cm × 1 cm', '1:1'),
+          makeFigure('blyant-tynn', 'Blyant (tynn)', 'blyantTynn (10cm_0,5cm) 1_1.svg', '10 cm × 0,5 cm', '1:1'),
+          makeFigure('blyantspisser', 'Blyantspisser', 'blyantspisser (3cm_1,5)  10_3.svg', '3 cm × 1,5 cm', '10:3'),
+          makeFigure('maleskrin', 'Maleskrin', 'maleskrin (20cm_10cm) 1_2.svg', '20 cm × 10 cm', '1:2'),
+          makeFigure('saks', 'Saks', 'saks (7cm_5cm) 10_7.svg', '7 cm × 5 cm', '10:7'),
+          makeFigure('viskelar', 'Viskelær', 'viskelær (4cm_1,4cm ) 10_4.svg', '4 cm × 1,4 cm', '10:4')
+        ]
+      }
+    ];
+  }
+
   function buildExportMetadata(settings) {
     const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
     const figureName = settings.figureName || 'Figur';
@@ -780,6 +1197,10 @@
         subdivisions: settings.subdivisions
       }
     };
+    if (settings.figureScaleLabel) {
+      summary.figureScaleLabel = settings.figureScaleLabel;
+    }
+    summary.showScaleLabel = !!settings.showScaleLabel;
     return {
       slug,
       baseName,
