@@ -617,8 +617,8 @@
     img.src = imageUrl;
   }
 
-  function computeFigureScale(settings, scaleMetrics) {
-    if (!settings || !scaleMetrics || !boardFigure) {
+  function computeFigureScale(settings, scaleMetrics, figureDimensions) {
+    if (!settings || !scaleMetrics || !boardFigure || !figureDimensions) {
       return null;
     }
 
@@ -636,25 +636,8 @@
       return null;
     }
 
-    const imageUrl = settings.figureImage || '';
-    if (!imageUrl) {
-      return null;
-    }
-
-    const cachedDimensions = figureImageDimensions.get(imageUrl);
-    if (cachedDimensions == null) {
-      ensureFigureImageDimensions(imageUrl);
-      return null;
-    }
-    if (!cachedDimensions || !Number.isFinite(cachedDimensions.width) || !Number.isFinite(cachedDimensions.height)) {
-      return null;
-    }
-
-    const naturalWidth = cachedDimensions.width;
-    const naturalHeight = cachedDimensions.height;
-    if (naturalWidth <= 0 || naturalHeight <= 0) {
-      return null;
-    }
+    const naturalWidth = figureDimensions.width;
+    const naturalHeight = figureDimensions.height;
 
     const baseSpacingPx = scaleMetrics && Number.isFinite(scaleMetrics.baseSpacing) && scaleMetrics.baseSpacing > 0
       ? scaleMetrics.baseSpacing
@@ -736,6 +719,29 @@
     };
   }
 
+  function resolveFigureDimensions(imageUrl) {
+    if (!imageUrl) {
+      return null;
+    }
+
+    const cachedDimensions = figureImageDimensions.get(imageUrl);
+    if (cachedDimensions === undefined) {
+      ensureFigureImageDimensions(imageUrl);
+      return null;
+    }
+
+    if (!cachedDimensions) {
+      return null;
+    }
+
+    const { width, height } = cachedDimensions;
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return null;
+    }
+
+    return cachedDimensions;
+  }
+
   function applyFigureScale(settings, scaleMetrics) {
     if (!boardFigure) {
       return;
@@ -744,18 +750,24 @@
     const baseUnitSpacing = scaleMetrics && Number.isFinite(scaleMetrics.unitSpacing)
       ? scaleMetrics.unitSpacing
       : DEFAULT_UNIT_SPACING_PX;
-    const scaleResult = computeFigureScale(settings, scaleMetrics);
+    const imageUrl = settings && settings.figureImage ? settings.figureImage : '';
+    const figureDimensions = resolveFigureDimensions(imageUrl);
 
-    if (scaleResult) {
-      boardFigure.style.backgroundSize = `${scaleResult.width}px ${scaleResult.height}px`;
-      const effectiveUnitSpacing = baseUnitSpacing * scaleResult.fitMultiplier;
-      applyBoardAspectRatio({ width: scaleResult.naturalWidth, height: scaleResult.naturalHeight });
-      updateRuler(settings, effectiveUnitSpacing);
-      return;
+    if (figureDimensions) {
+      applyBoardAspectRatio(figureDimensions);
+      const scaleResult = computeFigureScale(settings, scaleMetrics, figureDimensions);
+
+      if (scaleResult) {
+        boardFigure.style.backgroundSize = `${scaleResult.width}px ${scaleResult.height}px`;
+        const effectiveUnitSpacing = baseUnitSpacing * scaleResult.fitMultiplier;
+        updateRuler(settings, effectiveUnitSpacing);
+        return;
+      }
+    } else {
+      applyBoardAspectRatio(null);
     }
 
     boardFigure.style.backgroundSize = '';
-    applyBoardAspectRatio(null);
     updateRuler(settings, baseUnitSpacing);
   }
 
@@ -772,10 +784,11 @@
 
     if (hasValidDimensions) {
       board.style.setProperty('--board-aspect-ratio', `${dimensions.width} / ${dimensions.height}`);
-      return;
+    } else {
+      board.style.removeProperty('--board-aspect-ratio');
     }
 
-    board.style.removeProperty('--board-aspect-ratio');
+    boardRect = board.getBoundingClientRect();
   }
 
   function updateRuler(settings, unitSpacing) {
