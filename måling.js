@@ -14,7 +14,7 @@
     return;
   }
 
-  const UNIT_SPACING_PX = 60;
+  const DEFAULT_UNIT_SPACING_PX = 60;
   const UNIT_TO_CENTIMETERS = {
     mm: 0.1,
     cm: 1,
@@ -45,7 +45,9 @@
     subdivisions: doc.getElementById('cfg-subdivisions'),
     unitLabel: doc.getElementById('cfg-unit'),
     gridEnabled: doc.getElementById('cfg-grid-enabled'),
-    showScaleLabel: doc.getElementById('cfg-show-scale')
+    showScaleLabel: doc.getElementById('cfg-show-scale'),
+    unitSpacing: doc.getElementById('cfg-unit-spacing'),
+    unitSpacingDisplay: doc.querySelector('[data-unit-spacing-display]')
   };
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
@@ -75,7 +77,8 @@
     figureSummary: defaultPreset ? defaultPreset.summary : '',
     figureScaleLabel: defaultPreset ? defaultPreset.scaleLabel : '',
     gridEnabled: false,
-    showScaleLabel: false
+    showScaleLabel: false,
+    unitSpacingOverride: null
   };
 
   appState.settings = normalizeSettings();
@@ -150,6 +153,9 @@
     if (typeof source.measurementTarget === 'string') target.measurementTarget = source.measurementTarget;
     if (Object.prototype.hasOwnProperty.call(source, 'gridEnabled')) target.gridEnabled = source.gridEnabled;
     if (Object.prototype.hasOwnProperty.call(source, 'showScaleLabel')) target.showScaleLabel = source.showScaleLabel;
+    if (Object.prototype.hasOwnProperty.call(source, 'unitSpacingOverride')) {
+      target.unitSpacingOverride = source.unitSpacingOverride;
+    }
   }
 
   function applySettingsToContainer(container, settings, options) {
@@ -163,6 +169,7 @@
       container.unitLabel = settings.unitLabel;
       container.gridEnabled = settings.gridEnabled;
       container.showScaleLabel = settings.showScaleLabel;
+      container.unitSpacingOverride = settings.unitSpacingOverride;
       delete container.figureName;
       delete container.figureImage;
       delete container.figureSummary;
@@ -180,6 +187,7 @@
     container.measurementTarget = settings.measurementTarget;
     container.gridEnabled = settings.gridEnabled;
     container.showScaleLabel = settings.showScaleLabel;
+    container.unitSpacingOverride = settings.unitSpacingOverride;
   }
 
   function sanitizeLength(value, fallback) {
@@ -301,6 +309,21 @@
     return normalized.slice(0, 120);
   }
 
+  function sanitizeUnitSpacingOverride(value, fallback) {
+    if (value === undefined) {
+      return fallback == null ? null : sanitizeUnitSpacingOverride(fallback, null);
+    }
+    if (value === null || value === '') {
+      return null;
+    }
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed)) {
+      return null;
+    }
+    const clamped = Math.min(Math.max(parsed, 30), 150);
+    return Number.isFinite(clamped) ? clamped : null;
+  }
+
   function normalizeSettings(overrides) {
     const combined = { ...defaults };
     applySource(combined, configContainers.root);
@@ -324,6 +347,10 @@
     const figureScaleLabel = sanitizeFigureScaleLabel(combined.figureScaleLabel, defaults.figureScaleLabel);
     const gridEnabled = sanitizeGridEnabled(combined.gridEnabled, defaults.gridEnabled);
     const showScaleLabel = sanitizeGridEnabled(combined.showScaleLabel, defaults.showScaleLabel);
+    const unitSpacingOverride = sanitizeUnitSpacingOverride(
+      combined.unitSpacingOverride,
+      defaults.unitSpacingOverride
+    );
 
     const settings = {
       length,
@@ -335,7 +362,8 @@
       figureScaleLabel,
       measurementTarget,
       gridEnabled,
-      showScaleLabel
+      showScaleLabel,
+      unitSpacingOverride
     };
 
     applySettingsToContainer(configContainers.measurement, settings);
@@ -370,7 +398,8 @@
       a.figureScaleLabel === b.figureScaleLabel &&
       a.measurementTarget === b.measurementTarget &&
       a.gridEnabled === b.gridEnabled &&
-      a.showScaleLabel === b.showScaleLabel
+      a.showScaleLabel === b.showScaleLabel &&
+      a.unitSpacingOverride === b.unitSpacingOverride
     );
   }
 
@@ -558,7 +587,18 @@
     return null;
   }
 
-  function applyFigureScale(settings) {
+  function resolveUnitSpacing(settings) {
+    if (!settings) {
+      return DEFAULT_UNIT_SPACING_PX;
+    }
+    const value = Number.parseFloat(settings.unitSpacingOverride);
+    if (Number.isFinite(value) && value > 0) {
+      return value;
+    }
+    return DEFAULT_UNIT_SPACING_PX;
+  }
+
+  function applyFigureScale(settings, unitSpacing) {
     if (!boardFigure) {
       return;
     }
@@ -583,7 +623,7 @@
       boardFigure.style.backgroundSize = '';
       return;
     }
-    const widthPx = drawingUnits * UNIT_SPACING_PX;
+    const widthPx = drawingUnits * unitSpacing;
     if (!Number.isFinite(widthPx) || widthPx <= 0) {
       boardFigure.style.backgroundSize = '';
       return;
@@ -592,9 +632,10 @@
   }
 
   function applySettings(settings) {
-    renderRuler(settings);
+    const unitSpacing = resolveUnitSpacing(settings);
+    renderRuler(settings, unitSpacing);
     applyFigureAppearance(settings);
-    applyFigureScale(settings);
+    applyFigureScale(settings, unitSpacing);
     applyGridAppearance(settings);
     applyScaleLabel(settings);
     updateAccessibility(settings);
@@ -659,7 +700,7 @@
     });
   }
 
-  function renderRuler(settings) {
+  function renderRuler(settings, unitSpacing) {
     if (!rulerSvg) {
       return;
     }
@@ -669,7 +710,6 @@
     const inset = 8;
     const marginLeft = 44;
     const marginRight = 44;
-    const unitSpacing = UNIT_SPACING_PX;
     const totalHeight = 120;
     const baselineY = inset + 26;
     const majorTickLength = (totalHeight - inset - 20 - baselineY) / 2;
@@ -769,6 +809,13 @@
       if (inputs.unitLabel) inputs.unitLabel.value = settings.unitLabel || '';
       if (inputs.gridEnabled) inputs.gridEnabled.checked = !!settings.gridEnabled;
       if (inputs.showScaleLabel) inputs.showScaleLabel.checked = !!settings.showScaleLabel;
+      if (inputs.unitSpacing) {
+        const spacingValue = resolveUnitSpacing(settings);
+        inputs.unitSpacing.value = String(spacingValue);
+        if (inputs.unitSpacingDisplay) {
+          inputs.unitSpacingDisplay.textContent = formatNumber(spacingValue);
+        }
+      }
     } finally {
       appState.syncingInputs = false;
     }
@@ -848,6 +895,20 @@
       inputs.showScaleLabel.addEventListener('change', event => {
         if (appState.syncingInputs) return;
         updateSettings({ showScaleLabel: event.target.checked });
+      });
+    }
+    if (inputs.unitSpacing) {
+      inputs.unitSpacing.addEventListener('input', event => {
+        if (appState.syncingInputs) return;
+        const rawValue = event.target.value;
+        const numeric = Number.parseFloat(rawValue);
+        if (inputs.unitSpacingDisplay) {
+          const displayValue = Number.isFinite(numeric)
+            ? formatNumber(numeric)
+            : formatNumber(resolveUnitSpacing(appState.settings));
+          inputs.unitSpacingDisplay.textContent = displayValue;
+        }
+        updateSettings({ unitSpacingOverride: rawValue });
       });
     }
   }
