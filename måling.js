@@ -677,7 +677,7 @@
     }
     transformState.x += dx;
     transformState.y += dy;
-    applyTransformWithSnap();
+    applyTransformWithSnap({ allowSnap: false });
   }
 
   function updateFromGesture(currentEntry) {
