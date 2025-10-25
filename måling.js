@@ -50,6 +50,8 @@
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
   const transformState = { x: 0, y: 0, rotation: 0 };
+  const figureImageDimensions = new Map();
+  const figureImageDimensionsPending = new Set();
   const activePointers = new Map();
   let boardRect = board.getBoundingClientRect();
   const baseSize = { width: ruler.offsetWidth, height: ruler.offsetHeight };
@@ -561,48 +563,93 @@
     return null;
   }
 
-  function resolveUnitSpacing() {
-    return DEFAULT_UNIT_SPACING_PX;
+  function resolveScaleMetrics(settings) {
+    // Illustrasjonene er tegnet med 100 px per centimeter i tegningen. Ved å kombinere
+    // dette med figurens målestokk (forholdet mellom tegning og virkelighet) finner vi
+    // pikselavstanden som linjalen skal bruke per valgt enhet.
+    const baseSpacing = DEFAULT_UNIT_SPACING_PX;
+    if (!settings) {
+      return { unitSpacing: baseSpacing, ratio: null };
+    }
+    const ratio = parseScaleRatio(settings.figureScaleLabel || '') || null;
+    const unitFactor = getUnitToCentimeterFactor(settings.unitLabel || '');
+    if (ratio && Number.isFinite(unitFactor) && unitFactor > 0) {
+      return {
+        unitSpacing: baseSpacing * unitFactor * ratio,
+        ratio,
+        baseSpacing,
+        unitFactor
+      };
+    }
+    return { unitSpacing: baseSpacing, ratio: null, baseSpacing, unitFactor };
   }
 
-  function applyFigureScale(settings, unitSpacing) {
+  function ensureFigureImageDimensions(imageUrl) {
+    if (!imageUrl || figureImageDimensions.has(imageUrl) || figureImageDimensionsPending.has(imageUrl)) {
+      return;
+    }
+    figureImageDimensionsPending.add(imageUrl);
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => {
+      figureImageDimensionsPending.delete(imageUrl);
+      const width = img.naturalWidth || img.width || 0;
+      const height = img.naturalHeight || img.height || 0;
+      figureImageDimensions.set(imageUrl, width > 0 && height > 0 ? { width, height } : null);
+      if (appState.settings && appState.settings.figureImage === imageUrl) {
+        applyFigureScale(appState.settings, resolveScaleMetrics(appState.settings));
+      }
+    };
+    img.onerror = () => {
+      figureImageDimensionsPending.delete(imageUrl);
+      figureImageDimensions.set(imageUrl, null);
+    };
+    img.src = imageUrl;
+  }
+
+  function applyFigureScale(settings, scaleMetrics) {
     if (!boardFigure) {
       return;
     }
-    const ratio = parseScaleRatio(settings.figureScaleLabel || '');
+    const ratio = scaleMetrics && Number.isFinite(scaleMetrics.ratio) ? scaleMetrics.ratio : parseScaleRatio(settings.figureScaleLabel || '');
     const sizeInfo = resolveRealWorldSizeInfo(settings);
     if (!ratio || !sizeInfo || !Number.isFinite(sizeInfo.primaryCm) || sizeInfo.primaryCm <= 0) {
       boardFigure.style.backgroundSize = '';
       return;
     }
-    const unitFactor = getUnitToCentimeterFactor(settings.unitLabel || '');
-    if (!Number.isFinite(unitFactor) || unitFactor <= 0) {
+    const baseSpacing = scaleMetrics && Number.isFinite(scaleMetrics.baseSpacing)
+      ? scaleMetrics.baseSpacing
+      : DEFAULT_UNIT_SPACING_PX;
+    const targetPx = sizeInfo.primaryCm * ratio * baseSpacing;
+    if (!Number.isFinite(targetPx) || targetPx <= 0) {
       boardFigure.style.backgroundSize = '';
       return;
     }
-    const actualSizeInUnits = sizeInfo.primaryCm / unitFactor;
-    if (!Number.isFinite(actualSizeInUnits) || actualSizeInUnits <= 0) {
+    const imageUrl = settings.figureImage || '';
+    if (!imageUrl) {
       boardFigure.style.backgroundSize = '';
       return;
     }
-    const drawingUnits = actualSizeInUnits * ratio;
-    if (!Number.isFinite(drawingUnits) || drawingUnits <= 0) {
+    const cachedDimensions = figureImageDimensions.get(imageUrl);
+    if (cachedDimensions == null) {
+      ensureFigureImageDimensions(imageUrl);
       boardFigure.style.backgroundSize = '';
       return;
     }
-    const widthPx = drawingUnits * unitSpacing;
-    if (!Number.isFinite(widthPx) || widthPx <= 0) {
-      boardFigure.style.backgroundSize = '';
-      return;
+    const largestSide = cachedDimensions.width >= cachedDimensions.height ? 'width' : 'height';
+    const sizeValue = `${targetPx}px`;
+    if (largestSide === 'width') {
+      boardFigure.style.backgroundSize = `${sizeValue} auto`;
+    } else {
+      boardFigure.style.backgroundSize = `auto ${sizeValue}`;
     }
-    boardFigure.style.backgroundSize = `${widthPx}px auto`;
   }
 
   function applySettings(settings) {
-    const unitSpacing = resolveUnitSpacing();
-    renderRuler(settings, unitSpacing);
+    const scaleMetrics = resolveScaleMetrics(settings);
+    renderRuler(settings, scaleMetrics.unitSpacing);
     applyFigureAppearance(settings);
-    applyFigureScale(settings, unitSpacing);
+    applyFigureScale(settings, scaleMetrics);
     applyGridAppearance(settings);
     applyScaleLabel(settings);
     updateAccessibility(settings);
@@ -619,6 +666,7 @@
     if (boardFigure) {
       if (settings.figureImage) {
         boardFigure.style.backgroundImage = `url(${JSON.stringify(settings.figureImage)})`;
+        ensureFigureImageDimensions(settings.figureImage);
       } else {
         boardFigure.style.backgroundImage = 'none';
       }
@@ -1250,10 +1298,10 @@
         label: 'Forhistoriske dyr',
         figures: [
           makeFigure('allosaurus', 'Allosaurus', 'Allosaurus 12m_4.32m  1 _ 120.svg', '12 m × 4,32 m', '1:120'),
-          makeFigure('ankylosaurus', 'Ankylosaurus', 'Ankylosaurus 7m_2,5.svg', '7 m × 2,5 m', ''),
+          makeFigure('ankylosaurus', 'Ankylosaurus', 'Ankylosaurus 7m_2,5.svg', '7 m × 2,5 m', '1:70'),
           makeFigure('brachiosaurus', 'Brachiosaurus', 'Brachiosaurus 30m_16m 1_300.svg', '30 m × 16 m', '1:300'),
           makeFigure('coelophysis', 'Coelophysis', 'Coelohysis 3m_1,2m  1_30.svg', '3 m × 1,2 m', '1:30'),
-          makeFigure('elasmosaurus', 'Elasmosaurus', 'Elasmosaurus 10m_5,3m.svg', '10 m × 5,3 m', ''),
+          makeFigure('elasmosaurus', 'Elasmosaurus', 'Elasmosaurus 10m_5,3m.svg', '10 m × 5,3 m', '1:100'),
           makeFigure('parasaurolophus', 'Parasaurolophus', 'Parasaurolophus 10m_5m 1_100.svg', '10 m × 5 m', '1:100'),
           makeFigure('pteranodon', 'Pteranodon', 'Pteranodon 4,3m_3,5m 1_50.svg', '4,3 m × 3,5 m', '1:50'),
           makeFigure('spinosaurus', 'Spinosaurus', 'Spinosaurus 12m_5,6m 1_120.svg', '12 m × 5,6 m', '1:120'),
@@ -1277,7 +1325,7 @@
           makeFigure('kanin', 'Kanin', 'kanin (40cm_28cm) 1_4.svg', '40 cm × 28 cm', '1:4'),
           makeFigure('ku', 'Ku', 'ku (2m_1,4m) 1_20.svg', '2 m × 1,4 m', '1:20'),
           makeFigure('corgi', 'Corgi', 'corgi (50cm_35cm) 1_5.svg', '50 cm × 35 cm', '1:5'),
-          makeFigure('katt', 'Katt', 'katt50.svg', 'Lengde ca. 50 cm', '')
+          makeFigure('katt', 'Katt', 'katt50.svg', 'Lengde ca. 50 cm', '1:25')
         ]
       },
       {
@@ -1307,21 +1355,21 @@
         id: 'humans',
         label: 'Mennesker',
         figures: [
-          makeFigure('dame155', 'Dame 155', 'dame155.svg', 'Høyde 155 cm', ''),
-          makeFigure('dame180', 'Dame 180', 'dame180.svg', 'Høyde 180 cm', ''),
-          makeFigure('gutt120', 'Gutt 120', 'gutt120.svg', 'Høyde 120 cm', ''),
-          makeFigure('gutt125', 'Gutt 125', 'Gutt125.svg', 'Høyde 125 cm', ''),
-          makeFigure('gutt130', 'Gutt 130', 'gutt130 v2.svg', 'Høyde 130 cm', ''),
-          makeFigure('gutt140', 'Gutt 140', 'gutt140.svg', 'Høyde 140 cm', ''),
-          makeFigure('gutt150', 'Gutt 150', 'gutt150.svg', 'Høyde 150 cm', ''),
-          makeFigure('gutt180', 'Gutt 180', 'gutt180 2.svg', 'Høyde 180 cm', ''),
-          makeFigure('jente100', 'Jente 100', 'jente100.svg', 'Høyde 100 cm', ''),
-          makeFigure('jente120', 'Jente 120', 'jente120 v2.svg', 'Høyde 120 cm', ''),
-          makeFigure('jente155', 'Jente 155', 'jente155.svg', 'Høyde 155 cm', ''),
-          makeFigure('jente160', 'Jente 160', 'jente160.svg', 'Høyde 160 cm', ''),
-          makeFigure('mann140', 'Mann 140', 'mann140.svg', 'Høyde 140 cm', ''),
-          makeFigure('mann185', 'Mann 185', 'Mann185.svg', 'Høyde 185 cm', ''),
-          makeFigure('mann200', 'Mann 200', 'Mann200.svg', 'Høyde 200 cm', '')
+          makeFigure('dame155', 'Dame 155', 'dame155.svg', 'Høyde 155 cm', '1:25'),
+          makeFigure('dame180', 'Dame 180', 'dame180.svg', 'Høyde 180 cm', '1:23,68'),
+          makeFigure('gutt120', 'Gutt 120', 'gutt120.svg', 'Høyde 120 cm', '1:25'),
+          makeFigure('gutt125', 'Gutt 125', 'Gutt125.svg', 'Høyde 125 cm', '1:25'),
+          makeFigure('gutt130', 'Gutt 130', 'gutt130 v2.svg', 'Høyde 130 cm', '1:25'),
+          makeFigure('gutt140', 'Gutt 140', 'gutt140.svg', 'Høyde 140 cm', '1:25'),
+          makeFigure('gutt150', 'Gutt 150', 'gutt150.svg', 'Høyde 150 cm', '1:25'),
+          makeFigure('gutt180', 'Gutt 180', 'gutt180 2.svg', 'Høyde 180 cm', '1:25'),
+          makeFigure('jente100', 'Jente 100', 'jente100.svg', 'Høyde 100 cm', '1:25'),
+          makeFigure('jente120', 'Jente 120', 'jente120 v2.svg', 'Høyde 120 cm', '1:25'),
+          makeFigure('jente155', 'Jente 155', 'jente155.svg', 'Høyde 155 cm', '1:25'),
+          makeFigure('jente160', 'Jente 160', 'jente160.svg', 'Høyde 160 cm', '1:25'),
+          makeFigure('mann140', 'Mann 140', 'mann140.svg', 'Høyde 140 cm', '1:25'),
+          makeFigure('mann185', 'Mann 185', 'Mann185.svg', 'Høyde 185 cm', '1:25'),
+          makeFigure('mann200', 'Mann 200', 'Mann200.svg', 'Høyde 200 cm', '1:25')
         ]
       },
       {
@@ -1344,17 +1392,17 @@
         id: 'astronomy',
         label: 'Astronomiske legemer',
         figures: [
-          makeFigure('asteroide', 'Asteroide', 'asteroide 500 km.svg', 'Diameter 500 km', ''),
-          makeFigure('manen', 'Månen', 'månen 3 474,8 km.svg', 'Diameter 3 474,8 km', ''),
-          makeFigure('merkur', 'Merkur', 'merkur 4 879,4 km.svg', 'Diameter 4 879,4 km', ''),
-          makeFigure('mars', 'Mars', 'mars 6779km.svg', 'Diameter 6 779 km', ''),
-          makeFigure('jupiter', 'Jupiter', 'jupiter 139 820 km.svg', 'Diameter 139 820 km', ''),
-          makeFigure('saturn', 'Saturn', 'saturn 116 460 km.svg', 'Diameter 116 460 km', ''),
-          makeFigure('uranus', 'Uranus', 'uranus 50 724 km.svg', 'Diameter 50 724 km', ''),
-          makeFigure('neptun', 'Neptun', 'neptun 49244km.svg', 'Diameter 49 244 km', ''),
-          makeFigure('venus', 'Venus', 'venus 12 104 km.svg', 'Diameter 12 104 km', ''),
-          makeFigure('pluto', 'Pluto', 'pluto 2 376,6 km.svg', 'Diameter 2 376,6 km', ''),
-          makeFigure('solen', 'Solen', 'solen 1 392 700 km.svg', 'Diameter 1 392 700 km', '')
+          makeFigure('asteroide', 'Asteroide', 'asteroide 500 km.svg', 'Diameter 500 km', '1:8 333 333'),
+          makeFigure('manen', 'Månen', 'månen 3 474,8 km.svg', 'Diameter 3 474,8 km', '1:57 913 333'),
+          makeFigure('merkur', 'Merkur', 'merkur 4 879,4 km.svg', 'Diameter 4 879,4 km', '1:81 323 333'),
+          makeFigure('mars', 'Mars', 'mars 6779km.svg', 'Diameter 6 779 km', '1:112 983 333'),
+          makeFigure('jupiter', 'Jupiter', 'jupiter 139 820 km.svg', 'Diameter 139 820 km', '1:2 330 333 333'),
+          makeFigure('saturn', 'Saturn', 'saturn 116 460 km.svg', 'Diameter 116 460 km', '1:1 164 600 000'),
+          makeFigure('uranus', 'Uranus', 'uranus 50 724 km.svg', 'Diameter 50 724 km', '1:845 400 000'),
+          makeFigure('neptun', 'Neptun', 'neptun 49244km.svg', 'Diameter 49 244 km', '1:820 733 333'),
+          makeFigure('venus', 'Venus', 'venus 12 104 km.svg', 'Diameter 12 104 km', '1:201 733 333'),
+          makeFigure('pluto', 'Pluto', 'pluto 2 376,6 km.svg', 'Diameter 2 376,6 km', '1:39 610 000'),
+          makeFigure('solen', 'Solen', 'solen 1 392 700 km.svg', 'Diameter 1 392 700 km', '1:23 211 666 667')
         ]
       },
       {
