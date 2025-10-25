@@ -238,7 +238,15 @@ function formatCellLabelFromParts(colPart, rowPart, cellMode, dot, equals) {
   const algebraProduct = buildAlgebraProduct(rowPart, colPart);
   const hasVariables = algebraProduct !== '';
   if (cellMode === 'factors') {
-    if (rowPart.isVariable && colPart.isVariable) return algebraProduct;
+    if (rowPart.isVariable && colPart.isVariable) {
+      return algebraProduct || factorLabel;
+    }
+    if (rowPart.isVariable && Number.isFinite(colPart.value)) {
+      return algebraProduct || rowPart.token;
+    }
+    if (colPart.isVariable && Number.isFinite(rowPart.value)) {
+      return algebraProduct || colPart.token;
+    }
     if (rowPart.isVariable) return rowPart.token;
     if (colPart.isVariable) return colPart.token;
     return factorLabel;
