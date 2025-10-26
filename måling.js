@@ -44,6 +44,7 @@
     length: doc.getElementById('cfg-length'),
     subdivisions: doc.getElementById('cfg-subdivisions'),
     unitLabel: doc.getElementById('cfg-unit'),
+    boardPadding: doc.getElementById('cfg-board-padding'),
     gridEnabled: doc.getElementById('cfg-grid-enabled'),
     showScaleLabel: doc.getElementById('cfg-show-scale')
   };
@@ -77,6 +78,7 @@
     measurementTarget: '',
     figureSummary: defaultPreset ? defaultPreset.summary : '',
     figureScaleLabel: defaultPreset ? defaultPreset.scaleLabel : '',
+    boardPadding: 0,
     gridEnabled: false,
     showScaleLabel: false
   };
@@ -151,6 +153,7 @@
     if (typeof source.figureSummary === 'string') target.figureSummary = source.figureSummary;
     if (typeof source.figureScaleLabel === 'string') target.figureScaleLabel = source.figureScaleLabel;
     if (typeof source.measurementTarget === 'string') target.measurementTarget = source.measurementTarget;
+    if (source.boardPadding != null) target.boardPadding = source.boardPadding;
     if (Object.prototype.hasOwnProperty.call(source, 'gridEnabled')) target.gridEnabled = source.gridEnabled;
     if (Object.prototype.hasOwnProperty.call(source, 'showScaleLabel')) target.showScaleLabel = source.showScaleLabel;
     // unit spacing is fixed and not configurable
@@ -183,6 +186,7 @@
     container.figureSummary = settings.figureSummary || '';
     container.figureScaleLabel = settings.figureScaleLabel || '';
     container.measurementTarget = settings.measurementTarget;
+    container.boardPadding = settings.boardPadding;
     container.gridEnabled = settings.gridEnabled;
     container.showScaleLabel = settings.showScaleLabel;
     delete container.unitSpacingOverride;
@@ -267,6 +271,18 @@
     return normalized.slice(0, 80);
   }
 
+  function sanitizeBoardPadding(value, fallback) {
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed)) {
+      return Math.max(0, fallback || 0);
+    }
+    const rounded = Math.round(parsed);
+    if (!Number.isFinite(rounded)) {
+      return Math.max(0, fallback || 0);
+    }
+    return Math.min(Math.max(rounded, 0), 200);
+  }
+
   function sanitizeGridEnabled(value, fallback) {
     if (value === undefined) {
       return fallback;
@@ -307,6 +323,17 @@
     return normalized.slice(0, 120);
   }
 
+  function resolveBoardPaddingValue(settings) {
+    if (!settings) {
+      return 0;
+    }
+    const value = settings.boardPadding;
+    if (!Number.isFinite(value)) {
+      return 0;
+    }
+    return Math.max(0, value);
+  }
+
   function normalizeSettings(overrides) {
     const combined = { ...defaults };
     applySource(combined, configContainers.root);
@@ -328,6 +355,7 @@
     const figureSummary = sanitizeOptionalText(combined.figureSummary);
     const measurementTarget = sanitizeMeasurementTarget(combined.measurementTarget, figureName, defaults.measurementTarget);
     const figureScaleLabel = sanitizeFigureScaleLabel(combined.figureScaleLabel, defaults.figureScaleLabel);
+    const boardPadding = sanitizeBoardPadding(combined.boardPadding, defaults.boardPadding);
     const gridEnabled = sanitizeGridEnabled(combined.gridEnabled, defaults.gridEnabled);
     const showScaleLabel = sanitizeGridEnabled(combined.showScaleLabel, defaults.showScaleLabel);
 
@@ -340,6 +368,7 @@
       figureSummary,
       figureScaleLabel,
       measurementTarget,
+      boardPadding,
       gridEnabled,
       showScaleLabel
     };
@@ -375,6 +404,7 @@
       a.figureSummary === b.figureSummary &&
       a.figureScaleLabel === b.figureScaleLabel &&
       a.measurementTarget === b.measurementTarget &&
+      a.boardPadding === b.boardPadding &&
       a.gridEnabled === b.gridEnabled &&
       a.showScaleLabel === b.showScaleLabel
     );
@@ -623,7 +653,7 @@
       return null;
     }
 
-    const boardScale = getBoardScale();
+    const boardScale = getBoardScale(resolveBoardPaddingValue(settings));
 
     const baseSpacingPx = scaleMetrics && Number.isFinite(scaleMetrics.baseSpacing) && scaleMetrics.baseSpacing > 0
       ? scaleMetrics.baseSpacing
@@ -733,7 +763,7 @@
     }
 
     boardFigure.style.backgroundSize = '';
-    updateRuler(settings, scaleValueForBoard(baseUnitSpacing));
+    updateRuler(settings, scaleValueForBoard(baseUnitSpacing, resolveBoardPaddingValue(settings)));
   }
 
   function applyBoardAspectRatio() {
@@ -744,7 +774,7 @@
     boardRect = board.getBoundingClientRect();
   }
 
-  function getBoardScale() {
+  function getBoardScale(padding = 0) {
     if (!board) {
       return 1;
     }
@@ -759,8 +789,12 @@
 
     boardRect = rect;
 
-    const widthRatio = rect.width / BASE_BOARD_DIMENSIONS.width;
-    const heightRatio = rect.height / BASE_BOARD_DIMENSIONS.height;
+    const safePadding = Number.isFinite(padding) ? Math.max(0, padding) : 0;
+    const widthAvailable = Math.max(rect.width - safePadding * 2, 1);
+    const heightAvailable = Math.max(rect.height - safePadding * 2, 1);
+
+    const widthRatio = widthAvailable / BASE_BOARD_DIMENSIONS.width;
+    const heightRatio = heightAvailable / BASE_BOARD_DIMENSIONS.height;
     const candidates = [widthRatio, heightRatio].filter(value => Number.isFinite(value) && value > 0);
     if (candidates.length === 0) {
       return 1;
@@ -770,12 +804,12 @@
     return ratio < 1 ? ratio : 1;
   }
 
-  function scaleValueForBoard(value) {
+  function scaleValueForBoard(value, padding = 0) {
     if (!Number.isFinite(value) || value <= 0) {
       return value;
     }
 
-    const boardScale = getBoardScale();
+    const boardScale = getBoardScale(padding);
     if (!Number.isFinite(boardScale) || boardScale <= 0 || boardScale >= 1) {
       return value;
     }
@@ -966,6 +1000,7 @@
       if (inputs.length) inputs.length.value = settings.length;
       if (inputs.subdivisions) inputs.subdivisions.value = settings.subdivisions;
       if (inputs.unitLabel) inputs.unitLabel.value = settings.unitLabel || '';
+      if (inputs.boardPadding) inputs.boardPadding.value = settings.boardPadding;
       if (inputs.gridEnabled) inputs.gridEnabled.checked = !!settings.gridEnabled;
       if (inputs.showScaleLabel) inputs.showScaleLabel.checked = !!settings.showScaleLabel;
       // unit spacing is fixed and no longer exposed to the UI
@@ -1036,6 +1071,12 @@
       inputs.unitLabel.addEventListener('input', event => {
         if (appState.syncingInputs) return;
         updateSettings({ unitLabel: event.target.value });
+      });
+    }
+    if (inputs.boardPadding) {
+      inputs.boardPadding.addEventListener('input', event => {
+        if (appState.syncingInputs) return;
+        updateSettings({ boardPadding: event.target.value });
       });
     }
     if (inputs.gridEnabled) {
