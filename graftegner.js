@@ -5708,7 +5708,7 @@ function setupSettingsForm() {
       if (!Number.isFinite(raw)) return;
       const formattedX = formatNumber(raw, sx);
       if (formattedX) {
-        parts.push(formattedX);
+        parts.push(`x=${formattedX}`);
       }
     });
     if (!parts.length) return '';
@@ -5726,7 +5726,7 @@ function setupSettingsForm() {
       gliderStartInput.value = nums.map(val => formatNumber(val, stepX())).join(', ');
       return;
     }
-    gliderStartInput.value = '1';
+    gliderStartInput.value = 'x=1';
   };
   const refreshGliderStartInputDisplay = () => {
     if (!gliderStartInput) return;
@@ -6012,7 +6012,10 @@ function setupSettingsForm() {
     if (!gliderStartInput) return false;
     if (!shouldEnableGliders()) return false;
     const spec = getLineTemplateSpec();
-    return getLinePointCount(spec) === 0;
+    if (getLinePointCount(spec) !== 0) {
+      return false;
+    }
+    return getGliderCount() > 0;
   };
   const hasConfiguredPoints = () => {
     const parsedMode = SIMPLE_PARSED ? decideMode(SIMPLE_PARSED) : 'functions';
@@ -6132,12 +6135,17 @@ function setupSettingsForm() {
       placeAnswerField('hidden');
       return;
     }
+    const gliderSectionVisible = gliderSection && gliderSection.style.display !== 'none';
+    if (gliderSectionVisible && getGliderCount() <= 0) {
+      placeAnswerField('hidden');
+      return;
+    }
     const forced = determineForcedGliderCount(firstValue);
     if (forced != null && forced > 0) {
       placeAnswerField('inline');
       return;
     }
-    const glidersActive = shouldEnableGliders() && gliderSection && gliderSection.style.display !== 'none';
+    const glidersActive = shouldEnableGliders() && gliderSectionVisible;
     if (glidersActive) {
       placeAnswerField('glider');
     } else {
@@ -6178,8 +6186,7 @@ function setupSettingsForm() {
   const updateStartInputState = () => {
     if (!gliderStartInput) return;
     const showInput = shouldShowStartInput();
-    const count = getGliderCount();
-    gliderStartInput.disabled = !showInput || count <= 0;
+    gliderStartInput.disabled = !showInput;
     if (gliderStartLabel) {
       gliderStartLabel.style.display = showInput ? '' : 'none';
     }
@@ -6404,14 +6411,13 @@ function setupSettingsForm() {
   }
   const handleGliderCountChange = () => {
     updateStartInputState();
+    updateAnswerPlacement();
     syncSimpleFromForm();
     scheduleSimpleRebuild();
   };
   if (gliderCountInput) {
     const onCountChange = () => {
-      updateStartInputState();
-      syncSimpleFromForm();
-      scheduleSimpleRebuild();
+      handleGliderCountChange();
     };
     gliderCountInput.addEventListener('input', onCountChange);
     gliderCountInput.addEventListener('change', onCountChange);
@@ -6483,7 +6489,7 @@ function setupSettingsForm() {
               </div>
               <label class="startx-label">
                 <span>Start</span>
-                <input type="text" data-startx value="1" placeholder="1">
+                <input type="text" data-startx value="x=1" placeholder="x=1">
               </label>
             </div>
     ` : '';
