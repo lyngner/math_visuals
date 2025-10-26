@@ -646,11 +646,7 @@
       return null;
     }
 
-    const realWorldInfo = resolveRealWorldSizeInfo(settings);
     const preset = resolvePresetFromSettings(settings);
-    const realWorldPrimaryCm = realWorldInfo && Number.isFinite(realWorldInfo.primaryCm) && realWorldInfo.primaryCm > 0
-      ? realWorldInfo.primaryCm
-      : null;
     const presetScaleDenominator = parseScaleDenominator(preset && preset.scaleLabel ? preset.scaleLabel : '');
     const desiredScaleDenominatorRaw = parseScaleDenominator(settings.figureScaleLabel || '');
     const desiredScaleDenominator = Number.isFinite(desiredScaleDenominatorRaw) && desiredScaleDenominatorRaw > 0
@@ -663,17 +659,10 @@
     let width = null;
     let height = null;
 
-    if (realWorldPrimaryCm != null) {
-      const scaleRatioRaw = desiredScaleDenominator / baseScaleDenominator;
-      const scaleRatio = Number.isFinite(scaleRatioRaw) && scaleRatioRaw > 0 ? scaleRatioRaw : 1;
-      unitSpacingPx = baseSpacingPx * scaleRatio * unitFactorRaw;
-      width = naturalWidth;
-      height = naturalHeight;
-    } else {
-      const scaleAdjustment = baseScaleDenominator / desiredScaleDenominator;
-      width = naturalWidth * scaleAdjustment;
-      height = naturalHeight * scaleAdjustment;
-    }
+    const scaleAdjustmentRaw = baseScaleDenominator / desiredScaleDenominator;
+    const scaleAdjustment = Number.isFinite(scaleAdjustmentRaw) && scaleAdjustmentRaw > 0 ? scaleAdjustmentRaw : 1;
+    width = naturalWidth * scaleAdjustment;
+    height = naturalHeight * scaleAdjustment;
 
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
       return null;
