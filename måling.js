@@ -52,6 +52,7 @@
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
   const transformState = { x: 0, y: 0, rotation: 0 };
+  let suspendTransformPersistence = true;
   const BASE_BOARD_DIMENSIONS = { width: 1000, height: 700 };
   const figureImageDimensions = new Map();
   const figureImageDimensionsPending = new Set();
@@ -82,7 +83,8 @@
     boardPadding: 0,
     rulerStartAtZero: true,
     gridEnabled: false,
-    showScaleLabel: false
+    showScaleLabel: false,
+    rulerTransform: null
   };
 
   const RULER_ZERO_OFFSET_PX = 40;
@@ -91,7 +93,15 @@
   appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(appState.settings);
   applySettings(appState.settings);
   syncInputs(appState.settings);
-  centerRuler();
+  const initialTransform = sanitizeRulerTransform(appState.settings && appState.settings.rulerTransform, null);
+  if (initialTransform) {
+    applyRulerTransform(initialTransform, { allowSnap: false, persist: false });
+    suspendTransformPersistence = false;
+    persistTransformState();
+  } else {
+    suspendTransformPersistence = false;
+    centerRuler();
+  }
 
   attachInputListeners();
   if (exportButton) {
@@ -158,6 +168,7 @@
     if (typeof source.figureScaleLabel === 'string') target.figureScaleLabel = source.figureScaleLabel;
     if (typeof source.measurementTarget === 'string') target.measurementTarget = source.measurementTarget;
     if (source.boardPadding != null) target.boardPadding = source.boardPadding;
+    if (source.rulerTransform != null) target.rulerTransform = source.rulerTransform;
     if (Object.prototype.hasOwnProperty.call(source, 'rulerStartAtZero')) {
       target.rulerStartAtZero = source.rulerStartAtZero;
     } else if (source.rulerPadding != null) {
@@ -191,6 +202,7 @@
       delete container.figureSummary;
       delete container.figureScaleLabel;
       delete container.measurementTarget;
+      delete container.rulerTransform;
       return;
     }
     container.length = settings.length;
@@ -207,6 +219,11 @@
     container.showScaleLabel = settings.showScaleLabel;
     delete container.unitSpacingOverride;
     delete container.rulerPadding;
+    if (settings.rulerTransform && typeof settings.rulerTransform === 'object') {
+      container.rulerTransform = { ...settings.rulerTransform };
+    } else {
+      delete container.rulerTransform;
+    }
   }
 
   function sanitizeLength(value, fallback) {
@@ -365,6 +382,24 @@
     return normalized.slice(0, 120);
   }
 
+  function sanitizeRulerTransform(value, fallback) {
+    const source = value && typeof value === 'object' ? value : fallback;
+    if (!source || typeof source !== 'object') {
+      return null;
+    }
+    const x = Number.parseFloat(source.x);
+    const y = Number.parseFloat(source.y);
+    const rotation = Number.parseFloat(source.rotation);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(rotation)) {
+      return null;
+    }
+    return {
+      x,
+      y,
+      rotation: normalizeAngle(rotation)
+    };
+  }
+
   function resolveBoardPaddingValue(settings) {
     if (!settings) {
       return 0;
@@ -401,6 +436,7 @@
     const rulerStartAtZero = sanitizeBoolean(combined.rulerStartAtZero, defaults.rulerStartAtZero);
     const gridEnabled = sanitizeGridEnabled(combined.gridEnabled, defaults.gridEnabled);
     const showScaleLabel = sanitizeGridEnabled(combined.showScaleLabel, defaults.showScaleLabel);
+    const rulerTransform = sanitizeRulerTransform(combined.rulerTransform, defaults.rulerTransform);
 
     const settings = {
       length,
@@ -414,7 +450,8 @@
       boardPadding,
       rulerStartAtZero,
       gridEnabled,
-      showScaleLabel
+      showScaleLabel,
+      rulerTransform
     };
 
     applySettingsToContainer(configContainers.measurement, settings);
@@ -451,7 +488,23 @@
       a.boardPadding === b.boardPadding &&
       a.rulerStartAtZero === b.rulerStartAtZero &&
       a.gridEnabled === b.gridEnabled &&
-      a.showScaleLabel === b.showScaleLabel
+      a.showScaleLabel === b.showScaleLabel &&
+      areRulerTransformsEqual(a.rulerTransform, b.rulerTransform)
+    );
+  }
+
+  function areRulerTransformsEqual(a, b) {
+    if (a === b) {
+      return true;
+    }
+    if (!a || !b) {
+      return false;
+    }
+    const epsilon = 0.001;
+    return (
+      Math.abs(a.x - b.x) <= epsilon &&
+      Math.abs(a.y - b.y) <= epsilon &&
+      Math.abs(normalizeAngle(a.rotation) - normalizeAngle(b.rotation)) <= epsilon
     );
   }
 
@@ -879,7 +932,7 @@
     appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(settings);
     baseSize.width = ruler.offsetWidth;
     baseSize.height = ruler.offsetHeight;
-    applyTransformWithSnap({ allowSnap: settings.gridEnabled });
+    applyTransformWithSnap({ allowSnap: settings.gridEnabled, persist: true });
   }
 
   function applyFigureAppearance(settings) {
@@ -1194,7 +1247,7 @@
       ruler.releasePointerCapture(event.pointerId);
     } catch (_) {}
     if (activePointers.size === 0) {
-      applyTransformWithSnap();
+      applyTransformWithSnap({ persist: true });
     }
   }
 
@@ -1202,11 +1255,52 @@
     ruler.style.transform = `translate3d(${transformState.x}px, ${transformState.y}px, 0) rotate(${transformState.rotation}rad)`;
   }
 
-  function applyTransformWithSnap({ allowSnap = true } = {}) {
+  function applyTransformWithSnap({ allowSnap = true, persist = false } = {}) {
     if (allowSnap && appState.settings && appState.settings.gridEnabled) {
       snapTranslationToGrid();
     }
     applyTransform();
+    if (persist && !suspendTransformPersistence) {
+      persistTransformState();
+    }
+  }
+
+  function persistTransformState() {
+    const snapshot = {
+      x: Number.isFinite(transformState.x) ? transformState.x : 0,
+      y: Number.isFinite(transformState.y) ? transformState.y : 0,
+      rotation: Number.isFinite(transformState.rotation) ? transformState.rotation : 0
+    };
+    const sanitized = sanitizeRulerTransform(snapshot, null);
+    if (!sanitized) {
+      return;
+    }
+    if (appState.settings) {
+      if (!areRulerTransformsEqual(appState.settings.rulerTransform, sanitized)) {
+        appState.settings = { ...appState.settings, rulerTransform: { ...sanitized } };
+      } else if (!appState.settings.rulerTransform) {
+        appState.settings.rulerTransform = { ...sanitized };
+      }
+    }
+    storeRulerTransform(sanitized);
+  }
+
+  function storeRulerTransform(transform) {
+    if (!transform || typeof transform !== 'object') {
+      return;
+    }
+    if (configContainers.measurement) {
+      configContainers.measurement.rulerTransform = { ...transform };
+    }
+    if (configContainers.root && configContainers.root !== configContainers.measurement) {
+      delete configContainers.root.rulerTransform;
+    }
+    if (
+      configContainers.measurementGlobal &&
+      configContainers.measurementGlobal !== configContainers.measurement
+    ) {
+      delete configContainers.measurementGlobal.rulerTransform;
+    }
   }
 
   function snapTranslationToGrid() {
@@ -1258,7 +1352,7 @@
     transformState.x = offsetX;
     transformState.y = offsetY;
     transformState.rotation = 0;
-    applyTransformWithSnap();
+    applyTransformWithSnap({ persist: true });
   }
 
   function normalizeAngle(angle) {
@@ -1277,7 +1371,7 @@
     }
     transformState.x += dx;
     transformState.y += dy;
-    applyTransformWithSnap({ allowSnap: false });
+    applyTransformWithSnap({ allowSnap: false, persist: false });
   }
 
   function updateFromGesture(currentEntry) {
@@ -1315,7 +1409,7 @@
     transformState.x += nextCenter.x - prevCenter.x;
     transformState.y += nextCenter.y - prevCenter.y;
     transformState.rotation = normalizeAngle(transformState.rotation + normalizeAngle(nextAngle - prevAngle));
-    applyTransformWithSnap({ allowSnap: false });
+    applyTransformWithSnap({ allowSnap: false, persist: false });
   }
 
   function handleResize() {
@@ -1338,7 +1432,20 @@
     const maxY = boardRect.height;
     transformState.x = Math.min(Math.max(transformState.x, -maxX), maxX);
     transformState.y = Math.min(Math.max(transformState.y, -maxY), maxY);
-    applyTransformWithSnap({ allowSnap: activePointers.size === 0 });
+    applyTransformWithSnap({ allowSnap: activePointers.size === 0, persist: activePointers.size === 0 });
+  }
+
+  function applyRulerTransform(transform, options = {}) {
+    const sanitized = sanitizeRulerTransform(transform, null);
+    if (!sanitized) {
+      return;
+    }
+    transformState.x = sanitized.x;
+    transformState.y = sanitized.y;
+    transformState.rotation = sanitized.rotation;
+    const allowSnap = Object.prototype.hasOwnProperty.call(options, 'allowSnap') ? options.allowSnap : false;
+    const persist = Object.prototype.hasOwnProperty.call(options, 'persist') ? options.persist : false;
+    applyTransformWithSnap({ allowSnap, persist });
   }
 
   function svgToString(svgElement) {
