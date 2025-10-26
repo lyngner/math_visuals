@@ -1,5 +1,45 @@
 (function () {
   const LEGACY_FRACTION_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D'];
+  const campusProfileBase = {
+    palettes: {
+      fractions: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
+      figures: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9']
+    },
+    colors: {
+      ui: {
+        primary: '#2C395B',
+        secondary: '#C5E5E9',
+        hover: '#E3B660',
+        playButton: '#E3B660',
+        playButtonHover: '#2C395B',
+        playButtonText: '#2C395B'
+      },
+      dots: {
+        default: '#2C395B',
+        highlight: '#E3B660'
+      },
+      graphs: {
+        axis: '#1F4DE2'
+      },
+      beads: {
+        primary: {
+          fill: '#E3B660',
+          stroke: '#C0902F'
+        },
+        secondary: {
+          fill: '#C5E5E9',
+          stroke: '#8CB0B4'
+        }
+      },
+      pizza: {
+        fill: '#DBE3FF',
+        rim: '#2C395B',
+        dash: '#2C395B',
+        handle: '#C5E5E9',
+        handleStroke: '#2C395B'
+      }
+    }
+  };
   const PROFILES = {
     kikora: {
       id: 'kikora',
@@ -66,44 +106,14 @@
     campus: {
       id: 'campus',
       label: 'Campus',
-      palettes: {
-        fractions: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
-        figures: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9']
-      },
-      colors: {
-        ui: {
-          primary: '#2C395B',
-          secondary: '#C5E5E9',
-          hover: '#E3B660',
-          playButton: '#E3B660',
-          playButtonHover: '#2C395B',
-          playButtonText: '#2C395B'
-        },
-        dots: {
-          default: '#2C395B',
-          highlight: '#E3B660'
-        },
-        graphs: {
-          axis: '#1F4DE2'
-        },
-        beads: {
-          primary: {
-            fill: '#E3B660',
-            stroke: '#C0902F'
-          },
-          secondary: {
-            fill: '#C5E5E9',
-            stroke: '#8CB0B4'
-          }
-        },
-        pizza: {
-          fill: '#DBE3FF',
-          rim: '#2C395B',
-          dash: '#2C395B',
-          handle: '#C5E5E9',
-          handleStroke: '#2C395B'
-        }
-      }
+      palettes: campusProfileBase.palettes,
+      colors: campusProfileBase.colors
+    },
+    annet: {
+      id: 'annet',
+      label: 'Annet',
+      palettes: campusProfileBase.palettes,
+      colors: campusProfileBase.colors
     }
   };
   const DEFAULT_PROFILE = 'campus';
