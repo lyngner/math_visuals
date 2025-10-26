@@ -26,6 +26,7 @@
 
     .card--measurement {
       gap: clamp(20px, 4vw, 28px);
+      padding: 0;
     }
 
     .app-header {
@@ -55,10 +56,10 @@
       width: var(--board-max-width);
       margin: 0 auto;
       background: var(--surface);
-      border-radius: 20px;
+      border-radius: 16px;
       border: 1px solid var(--surface-border);
       box-shadow: var(--surface-shadow);
-      padding: clamp(16px, 3vw, 28px);
+      padding: 0;
       display: flex;
       flex-direction: column;
       gap: clamp(12px, 2vw, 20px);
@@ -303,8 +304,8 @@
 
     @media (max-width: 720px) {
       .board-wrapper {
-        padding: clamp(12px, 4vw, 20px);
-        border-radius: 16px;
+        padding: 0;
+        border-radius: 14px;
       }
 
       .board {
