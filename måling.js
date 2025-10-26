@@ -45,7 +45,7 @@
     subdivisions: doc.getElementById('cfg-subdivisions'),
     unitLabel: doc.getElementById('cfg-unit'),
     boardPadding: doc.getElementById('cfg-board-padding'),
-    rulerPadding: doc.getElementById('cfg-ruler-padding'),
+    rulerStartAtZero: doc.getElementById('cfg-ruler-start-at-zero'),
     gridEnabled: doc.getElementById('cfg-grid-enabled'),
     showScaleLabel: doc.getElementById('cfg-show-scale')
   };
@@ -80,10 +80,12 @@
     figureSummary: defaultPreset ? defaultPreset.summary : '',
     figureScaleLabel: defaultPreset ? defaultPreset.scaleLabel : '',
     boardPadding: 0,
-    rulerPadding: 40,
+    rulerStartAtZero: true,
     gridEnabled: false,
     showScaleLabel: false
   };
+
+  const RULER_ZERO_OFFSET_PX = 40;
 
   appState.settings = normalizeSettings();
   appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(appState.settings);
@@ -156,7 +158,14 @@
     if (typeof source.figureScaleLabel === 'string') target.figureScaleLabel = source.figureScaleLabel;
     if (typeof source.measurementTarget === 'string') target.measurementTarget = source.measurementTarget;
     if (source.boardPadding != null) target.boardPadding = source.boardPadding;
-    if (source.rulerPadding != null) target.rulerPadding = source.rulerPadding;
+    if (Object.prototype.hasOwnProperty.call(source, 'rulerStartAtZero')) {
+      target.rulerStartAtZero = source.rulerStartAtZero;
+    } else if (source.rulerPadding != null) {
+      const parsed = Number.parseFloat(source.rulerPadding);
+      if (Number.isFinite(parsed)) {
+        target.rulerStartAtZero = parsed <= 0;
+      }
+    }
     if (Object.prototype.hasOwnProperty.call(source, 'gridEnabled')) target.gridEnabled = source.gridEnabled;
     if (Object.prototype.hasOwnProperty.call(source, 'showScaleLabel')) target.showScaleLabel = source.showScaleLabel;
     // unit spacing is fixed and not configurable
@@ -172,9 +181,10 @@
       container.subdivisions = settings.subdivisions;
       container.unitLabel = settings.unitLabel;
       container.boardPadding = settings.boardPadding;
-      container.rulerPadding = settings.rulerPadding;
+      container.rulerStartAtZero = settings.rulerStartAtZero;
       container.gridEnabled = settings.gridEnabled;
       container.showScaleLabel = settings.showScaleLabel;
+      delete container.rulerPadding;
       delete container.unitSpacingOverride;
       delete container.figureName;
       delete container.figureImage;
@@ -192,10 +202,11 @@
     container.figureScaleLabel = settings.figureScaleLabel || '';
     container.measurementTarget = settings.measurementTarget;
     container.boardPadding = settings.boardPadding;
-    container.rulerPadding = settings.rulerPadding;
+    container.rulerStartAtZero = settings.rulerStartAtZero;
     container.gridEnabled = settings.gridEnabled;
     container.showScaleLabel = settings.showScaleLabel;
     delete container.unitSpacingOverride;
+    delete container.rulerPadding;
   }
 
   function sanitizeLength(value, fallback) {
@@ -289,16 +300,29 @@
     return Math.min(Math.max(rounded, 0), 200);
   }
 
-  function sanitizeRulerPadding(value, fallback) {
-    const parsed = Number.parseFloat(value);
-    if (!Number.isFinite(parsed)) {
-      return Math.max(0, fallback || 0);
+  function sanitizeBoolean(value, fallback) {
+    if (value === undefined) {
+      return fallback;
     }
-    const rounded = Math.round(parsed);
-    if (!Number.isFinite(rounded)) {
-      return Math.max(0, fallback || 0);
+    if (typeof value === 'boolean') {
+      return value;
     }
-    return Math.min(Math.max(rounded, 0), 400);
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (!normalized) {
+        return false;
+      }
+      if (['true', '1', 'on', 'yes'].includes(normalized)) {
+        return true;
+      }
+      if (['false', '0', 'off', 'no'].includes(normalized)) {
+        return false;
+      }
+    }
+    return fallback;
   }
 
   function sanitizeGridEnabled(value, fallback) {
@@ -352,17 +376,6 @@
     return Math.max(0, value);
   }
 
-  function resolveRulerPaddingValue(settings) {
-    if (!settings) {
-      return 0;
-    }
-    const value = settings.rulerPadding;
-    if (!Number.isFinite(value)) {
-      return 0;
-    }
-    return Math.max(0, value);
-  }
-
   function normalizeSettings(overrides) {
     const combined = { ...defaults };
     applySource(combined, configContainers.root);
@@ -385,7 +398,7 @@
     const measurementTarget = sanitizeMeasurementTarget(combined.measurementTarget, figureName, defaults.measurementTarget);
     const figureScaleLabel = sanitizeFigureScaleLabel(combined.figureScaleLabel, defaults.figureScaleLabel);
     const boardPadding = sanitizeBoardPadding(combined.boardPadding, defaults.boardPadding);
-    const rulerPadding = sanitizeRulerPadding(combined.rulerPadding, defaults.rulerPadding);
+    const rulerStartAtZero = sanitizeBoolean(combined.rulerStartAtZero, defaults.rulerStartAtZero);
     const gridEnabled = sanitizeGridEnabled(combined.gridEnabled, defaults.gridEnabled);
     const showScaleLabel = sanitizeGridEnabled(combined.showScaleLabel, defaults.showScaleLabel);
 
@@ -399,7 +412,7 @@
       figureScaleLabel,
       measurementTarget,
       boardPadding,
-      rulerPadding,
+      rulerStartAtZero,
       gridEnabled,
       showScaleLabel
     };
@@ -436,7 +449,7 @@
       a.figureScaleLabel === b.figureScaleLabel &&
       a.measurementTarget === b.measurementTarget &&
       a.boardPadding === b.boardPadding &&
-      a.rulerPadding === b.rulerPadding &&
+      a.rulerStartAtZero === b.rulerStartAtZero &&
       a.gridEnabled === b.gridEnabled &&
       a.showScaleLabel === b.showScaleLabel
     );
@@ -931,11 +944,10 @@
     }
 
     const { length, subdivisions, unitLabel } = settings;
-    const padding = resolveRulerPaddingValue(settings);
-
     const inset = 8;
-    const marginLeft = padding;
-    const marginRight = padding;
+    const startAtZero = !!settings.rulerStartAtZero;
+    const marginLeft = startAtZero ? 0 : RULER_ZERO_OFFSET_PX;
+    const marginRight = startAtZero ? RULER_ZERO_OFFSET_PX : 0;
     const totalHeight = 120;
     const baselineY = inset + 26;
     const majorTickLength = (totalHeight - inset - 20 - baselineY) / 2;
@@ -991,6 +1003,11 @@
     ruler.style.setProperty('--ruler-height', `${totalHeight}px`);
     ruler.style.setProperty('--zero-offset-x', `${marginLeft}px`);
     ruler.style.setProperty('--zero-offset-y', `${baselineY}px`);
+    if (startAtZero) {
+      ruler.setAttribute('data-ruler-start', 'zero');
+    } else {
+      ruler.setAttribute('data-ruler-start', 'offset');
+    }
     zeroOffset.x = marginLeft;
     zeroOffset.y = baselineY;
   }
@@ -1034,7 +1051,7 @@
       if (inputs.subdivisions) inputs.subdivisions.value = settings.subdivisions;
       if (inputs.unitLabel) inputs.unitLabel.value = settings.unitLabel || '';
       if (inputs.boardPadding) inputs.boardPadding.value = settings.boardPadding;
-      if (inputs.rulerPadding) inputs.rulerPadding.value = settings.rulerPadding;
+      if (inputs.rulerStartAtZero) inputs.rulerStartAtZero.checked = !!settings.rulerStartAtZero;
       if (inputs.gridEnabled) inputs.gridEnabled.checked = !!settings.gridEnabled;
       if (inputs.showScaleLabel) inputs.showScaleLabel.checked = !!settings.showScaleLabel;
       // unit spacing is fixed and no longer exposed to the UI
@@ -1113,10 +1130,10 @@
         updateSettings({ boardPadding: event.target.value });
       });
     }
-    if (inputs.rulerPadding) {
-      inputs.rulerPadding.addEventListener('input', event => {
+    if (inputs.rulerStartAtZero) {
+      inputs.rulerStartAtZero.addEventListener('change', event => {
         if (appState.syncingInputs) return;
-        updateSettings({ rulerPadding: event.target.value });
+        updateSettings({ rulerStartAtZero: event.target.checked });
       });
     }
     if (inputs.gridEnabled) {
