@@ -6070,7 +6070,7 @@ function setupSettingsForm() {
     }
     let domainLabel = answerControl.domainLabel;
     if (!domainLabel || !domainLabel.parentElement) {
-      domainLabel = mainRow ? mainRow.querySelector('label.domain') : null;
+      domainLabel = group ? group.querySelector('label.domain') : null;
       answerControl.domainLabel = domainLabel;
     }
     let gliderRow = answerControl.gliderRow;
@@ -6098,8 +6098,10 @@ function setupSettingsForm() {
       answerInput.disabled = false;
     }
     label.style.display = '';
+    const startLabel = gliderStartLabel && gliderStartLabel.isConnected ? gliderStartLabel : null;
     if (secondaryRow) {
-      secondaryRow.style.display = position === 'secondary' ? '' : 'none';
+      const shouldShowSecondary = position === 'secondary' || (startLabel && startLabel.style.display !== 'none');
+      secondaryRow.style.display = shouldShowSecondary ? '' : 'none';
     }
     if (position === 'inline') {
       label.classList.add('func-answer--inline');
@@ -6224,6 +6226,12 @@ function setupSettingsForm() {
     const visibilityChanged = show !== glidersVisible;
     glidersVisible = show;
     gliderSection.style.display = show ? '' : 'none';
+    const domainRow = gliderSection.closest('.func-row--domain');
+    if (domainRow) {
+      const domainLabel = domainRow.querySelector('label.domain');
+      const domainVisible = domainLabel && domainLabel.style.display !== 'none';
+      domainRow.style.display = show || domainVisible ? '' : 'none';
+    }
     const forcedChanged = applyForcedGliderCount(show);
     updateStartInputState();
     if (visibilityChanged || forcedChanged) {
@@ -6443,9 +6451,9 @@ function setupSettingsForm() {
       domLabel.style.display = 'none';
       if (domInput) domInput.value = '';
     }
-    const mainRow = row.querySelector('.func-row--main--with-marker');
-    if (mainRow) {
-      mainRow.setAttribute('data-has-domain', showDomain ? 'true' : 'false');
+    const domainRow = domLabel ? domLabel.closest('.func-row--domain') : null;
+    if (domainRow && !domainRow.querySelector('.glider-row')) {
+      domainRow.style.display = showDomain ? '' : 'none';
     }
     updateGliderVisibility();
     updateLinePointControls({ silent: true });
@@ -6468,37 +6476,52 @@ function setupSettingsForm() {
               <input type="color" data-color value="${colorAttr}">
             </label>`;
     const gliderMarkup = index === 1 ? `
-            <div class="func-row func-row--gliders glider-row">
-              <label class="points">
-                <span>Punkter</span>
-                <select data-points>
-                  <option value="0">0</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                </select>
+            <div class="func-row func-row--domain">
+              <label class="domain">
+                <span>Avgrensning</span>
+                <input type="text" data-dom placeholder="[start, stopp]">
               </label>
-              <div class="linepoints-row">
-                <label class="linepoint" data-linepoint-label="0">
-                  <span>Punkt 1</span>
-                  <input type="text" data-linepoint="0" placeholder="(0, 0)">
+              <div class="func-row--gliders glider-row">
+                <label class="points">
+                  <span>Punkter</span>
+                  <select data-points>
+                    <option value="0">0</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                  </select>
                 </label>
-                <label class="linepoint" data-linepoint-label="1">
-                  <span>Punkt 2</span>
-                  <input type="text" data-linepoint="1" placeholder="(1, 1)">
-                </label>
+                <div class="linepoints-row">
+                  <label class="linepoint" data-linepoint-label="0">
+                    <span>Punkt 1</span>
+                    <input type="text" data-linepoint="0" placeholder="(0, 0)">
+                  </label>
+                  <label class="linepoint" data-linepoint-label="1">
+                    <span>Punkt 2</span>
+                    <input type="text" data-linepoint="1" placeholder="(1, 1)">
+                  </label>
+                </div>
               </div>
-              <label class="startx-label">
-                <span>Start</span>
-                <input type="text" data-startx value="x=1" placeholder="x=1">
+            </div>
+    ` : `
+            <div class="func-row func-row--domain">
+              <label class="domain">
+                <span>Avgrensning</span>
+                <input type="text" data-dom placeholder="[start, stopp]">
               </label>
             </div>
+    `;
+    const startMarkup = index === 1 ? `
+            <label class="startx-label">
+              <span>Start</span>
+              <input type="text" data-startx value="x=1" placeholder="x=1">
+            </label>
     ` : '';
     const fieldsClass = index === 1 ? 'func-fields func-fields--first' : 'func-fields';
     row.innerHTML = `
       <fieldset>
         <legend>Funksjon ${index}</legend>
         <div class="${fieldsClass}">
-          <div class="func-row func-row--main func-row--main--with-marker" data-has-domain="true">
+          <div class="func-row func-row--main">
             <div class="func-main">
               <label class="func-input">
                 <span>${titleLabel}</span>
@@ -6508,6 +6531,9 @@ function setupSettingsForm() {
                 </div>
               </label>
             </div>
+            ${colorControlMarkup}
+          </div>
+          <div class="func-row func-row--markers point-marker-row">
             <label class="point-marker" data-point-marker-container>
               <span>Punktmarkør</span>
               <input type="text" data-point-marker placeholder="${DEFAULT_POINT_MARKER}" value="${DEFAULT_POINT_MARKER}" autocomplete="off" spellcheck="false">
@@ -6516,19 +6542,15 @@ function setupSettingsForm() {
               <input type="checkbox" data-point-lock checked>
               <span>Lås punkt</span>
             </label>
-            <label class="domain">
-              <span>Avgrensning</span>
-              <input type="text" data-dom placeholder="[start, stopp]">
-            </label>
-            ${colorControlMarkup}
           </div>
+          ${gliderMarkup}
           <div class="func-row func-row--secondary">
+            ${startMarkup}
             <label class="func-answer">
               <span>Fasit</span>
               <input type="text" data-answer placeholder="Skriv fasit (valgfritt)" autocomplete="off" spellcheck="false">
             </label>
           </div>
-          ${gliderMarkup}
         </div>
       </fieldset>
     `;
@@ -6736,7 +6758,7 @@ function setupSettingsForm() {
       gliderStartLabel = gliderStartInput ? gliderStartInput.closest('label') : null;
       const secondaryRow = row.querySelector('.func-row--secondary');
       const mainRow = row.querySelector('.func-row--main');
-      const domainLabel = mainRow ? mainRow.querySelector('label.domain') : null;
+      const domainLabel = row.querySelector('.func-row--domain label.domain');
       const answerLabel = secondaryRow ? secondaryRow.querySelector('label.func-answer') : null;
       if (answerLabel) {
         answerControl = {
