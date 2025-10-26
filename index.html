@@ -498,10 +498,11 @@
       <span class="nav-title">Math Visuals</span>
       <div class="nav-controls">
         <div class="nav-control nav-control--profile">
-          <label for="profile-select">Profil</label>
+          <label for="profile-select">Prosjekt</label>
           <select id="profile-select" name="profile" data-profile-control>
             <option value="kikora">Kikora</option>
             <option value="campus">Campus</option>
+            <option value="annet">Annet</option>
           </select>
         </div>
         <div class="nav-control nav-control--mode">
@@ -509,13 +510,6 @@
           <select id="mode-select" name="mode" data-mode-control>
             <option value="edit">Rediger</option>
             <option value="task">Oppgave</option>
-          </select>
-        </div>
-        <div class="nav-control nav-control--beta">
-          <label for="beta-select">Beta</label>
-          <select id="beta-select" name="beta" data-beta-control>
-            <option value="true">På</option>
-            <option value="false">Av</option>
           </select>
         </div>
       </div>
@@ -849,8 +843,6 @@
         const navElement = document.querySelector('nav');
         const navToggle = navElement ? navElement.querySelector('.nav-toggle') : null;
         const navLinks = navElement ? navElement.querySelectorAll('a[target="content"]') : null;
-        const betaControl = navElement ? navElement.querySelector('[data-beta-control]') : null;
-        const betaFeatureItems = navElement ? navElement.querySelectorAll('[data-beta-feature]') : [];
 
         if (!navElement || !navToggle) {
           return;
@@ -896,53 +888,6 @@
           smallScreenQuery.addListener(syncNavState);
         }
 
-        const betaStorageKey = 'math-visuals-beta-enabled';
-        const setBetaState = (isEnabled) => {
-          if (!betaFeatureItems) {
-            return;
-          }
-          betaFeatureItems.forEach((item) => {
-            if (!(item instanceof HTMLElement)) {
-              return;
-            }
-            item.hidden = !isEnabled;
-          });
-          if (betaControl) {
-            betaControl.value = isEnabled ? 'true' : 'false';
-          }
-        };
-
-        if (betaControl) {
-          let initialState = true;
-          if (typeof window !== 'undefined' && 'localStorage' in window) {
-            try {
-              const storedValue = window.localStorage.getItem(betaStorageKey);
-              if (storedValue === 'true' || storedValue === 'false') {
-                initialState = storedValue === 'true';
-              }
-            } catch (error) {
-              // Ignore storage errors (e.g. disabled cookies)
-            }
-          }
-
-          setBetaState(initialState);
-
-          betaControl.addEventListener('change', (event) => {
-            const target = event.target;
-            if (!(target instanceof HTMLSelectElement)) {
-              return;
-            }
-            const isEnabled = target.value === 'true';
-            setBetaState(isEnabled);
-            if (typeof window !== 'undefined' && 'localStorage' in window) {
-              try {
-                window.localStorage.setItem(betaStorageKey, isEnabled ? 'true' : 'false');
-              } catch (error) {
-                // Ignore storage errors (e.g. disabled cookies)
-              }
-            }
-          });
-        }
       })();
     </script>
   </body>

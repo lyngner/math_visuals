@@ -212,6 +212,29 @@ const PROFILE_DEFAULT = 'kikora';
 const MODE_STORAGE_KEY = 'mode';
 const MODE_DEFAULT = 'edit';
 const MODE_VALUES = ['edit', 'task'];
+const campusProfileVariables = {
+  'profile-body-background': '#f5f6ff',
+  'profile-body-color': '#10143c',
+  'profile-surface-background': '#ffffffee',
+  'profile-surface-border': '#d8ddf0',
+  'profile-title-color': '#10143c',
+  'profile-accent-color': '#2f50c1',
+  'profile-accent-contrast': '#ffffff',
+  'profile-accent-hover': '#2540a4',
+  'profile-accent-border': 'rgba(47, 80, 193, 0.2)',
+  'profile-accent-border-strong': 'rgba(47, 80, 193, 0.4)',
+  'profile-accent-surface': '#e7edff',
+  'profile-accent-shadow-soft': 'rgba(47, 80, 193, 0.12)',
+  'profile-accent-shadow-medium': 'rgba(47, 80, 193, 0.18)',
+  'profile-accent-shadow-strong': 'rgba(47, 80, 193, 0.28)',
+  'profile-tooltip-background': 'rgba(37, 64, 164, 0.95)',
+  'profile-tooltip-color': '#ffffff',
+  'profile-focus-outline': 'rgba(47, 80, 193, 0.4)',
+  'profile-nav-badge-background': '#f59e0b',
+  'profile-nav-badge-color': '#1f2937',
+  'profile-iframe-background': '#ffffff'
+};
+
 const profileVariables = {
   kikora: {
     'profile-body-background': '#f7f8fb',
@@ -235,28 +258,8 @@ const profileVariables = {
     'profile-nav-badge-color': '#ffffff',
     'profile-iframe-background': '#ffffff'
   },
-  campus: {
-    'profile-body-background': '#f5f6ff',
-    'profile-body-color': '#10143c',
-    'profile-surface-background': '#ffffffee',
-    'profile-surface-border': '#d8ddf0',
-    'profile-title-color': '#10143c',
-    'profile-accent-color': '#2f50c1',
-    'profile-accent-contrast': '#ffffff',
-    'profile-accent-hover': '#2540a4',
-    'profile-accent-border': 'rgba(47, 80, 193, 0.2)',
-    'profile-accent-border-strong': 'rgba(47, 80, 193, 0.4)',
-    'profile-accent-surface': '#e7edff',
-    'profile-accent-shadow-soft': 'rgba(47, 80, 193, 0.12)',
-    'profile-accent-shadow-medium': 'rgba(47, 80, 193, 0.18)',
-    'profile-accent-shadow-strong': 'rgba(47, 80, 193, 0.28)',
-    'profile-tooltip-background': 'rgba(37, 64, 164, 0.95)',
-    'profile-tooltip-color': '#ffffff',
-    'profile-focus-outline': 'rgba(47, 80, 193, 0.4)',
-    'profile-nav-badge-background': '#f59e0b',
-    'profile-nav-badge-color': '#1f2937',
-    'profile-iframe-background': '#ffffff'
-  }
+  campus: campusProfileVariables,
+  annet: campusProfileVariables
 };
 
 function normalizeProfileName(profile) {
@@ -307,6 +310,14 @@ const profileControl = nav ? nav.querySelector('[data-profile-control]') : null;
 const modeControl = nav ? nav.querySelector('[data-mode-control]') : null;
 const navList = nav ? nav.querySelector('ul') : null;
 const taskStrip = nav ? nav.querySelector('[data-task-strip]') : null;
+const betaFeatureItems = nav ? Array.from(nav.querySelectorAll('[data-beta-feature]')) : [];
+function setBetaFeatureVisibility(isEnabled) {
+  betaFeatureItems.forEach(item => {
+    if (item instanceof HTMLElement) {
+      item.hidden = !isEnabled;
+    }
+  });
+}
 const examplesApiBase = resolveExamplesApiBase();
 
 function syncProfileControl(profile) {
@@ -317,6 +328,7 @@ function syncProfileControl(profile) {
 }
 
 syncProfileControl(currentProfile);
+setBetaFeatureVisibility(currentProfile === 'annet');
 
 function syncModeControl(mode) {
   if (!modeControl) return;
@@ -680,6 +692,7 @@ if (profileControl) {
     const applied = updateProfileStyles(normalized);
     safeSetItem(PROFILE_STORAGE_KEY, applied);
     syncProfileControl(applied);
+    setBetaFeatureVisibility(applied === 'annet');
     if (iframe && iframe.contentWindow && currentEntry) {
       try {
         iframe.contentWindow.postMessage(
