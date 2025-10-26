@@ -90,7 +90,7 @@
       align-items:start;
     }
     .func-row--main{
-      grid-template-columns:minmax(0,0.5fr) minmax(0,0.3fr) minmax(0,0.2fr);
+      grid-template-columns:minmax(0,1fr) auto auto;
     }
     .func-row--secondary{
       grid-template-columns:repeat(2,minmax(0,1fr));
@@ -101,7 +101,9 @@
       align-items:stretch;
     }
     .func-row--main--with-marker{
-      grid-template-columns:minmax(0,0.5fr) minmax(0,0.3fr) minmax(0,0.2fr);
+      --func-domain-width:12ch;
+      --func-color-width:56px;
+      grid-template-columns:minmax(0,1fr) var(--func-domain-width) var(--func-color-width);
       align-items:start;
     }
     .func-row--main--with-marker .func-main{
@@ -120,17 +122,27 @@
     .func-row--main--with-marker .domain{
       grid-column:2;
       grid-row:1;
-      width:100%;
+      min-width:var(--func-domain-width);
+      max-width:var(--func-domain-width);
+      align-items:flex-start;
     }
     .func-row--main--with-marker .domain input{
       width:100%;
+      min-width:0;
     }
     .func-row--main--with-marker .func-color{
       grid-column:3;
       grid-row:1;
-      width:100%;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      align-items:center;
+      justify-content:flex-start;
+      min-width:var(--func-color-width);
+      max-width:var(--func-color-width);
       justify-self:stretch;
       align-self:start;
+      text-align:center;
     }
     .func-row--gliders .func-color{
       grid-column:3;
@@ -181,6 +193,9 @@
       .func-row--main--with-marker .func-color{
         min-width:0;
         max-width:none;
+      }
+      .func-row--main--with-marker .domain{
+        width:100%;
       }
     }
     .func-main .func-input{
@@ -324,19 +339,22 @@
     .func-fields--first .func-row label{ width:100%; }
     .func-row--gliders label{ justify-self:start; }
     .func-row--gliders{
+      --func-domain-width:12ch;
+      --func-points-width:180px;
       display:grid;
       column-gap:12px;
       row-gap:12px;
       align-items:end;
-      grid-template-columns:minmax(120px,1fr) minmax(70px,100px) minmax(140px,1fr);
+      grid-template-columns:var(--func-points-width) var(--func-domain-width) minmax(0,1fr);
     }
     .func-fields--first .func-row--gliders:not(.func-row--color){
-      grid-template-columns:minmax(120px,1fr) minmax(70px,100px) minmax(140px,1fr);
+      grid-template-columns:var(--func-points-width) var(--func-domain-width) minmax(0,1fr);
     }
     .func-row--gliders label.points{
       grid-column:1;
-      max-width:200px;
-      min-width:0;
+      width:var(--func-points-width);
+      min-width:var(--func-points-width);
+      max-width:var(--func-points-width);
     }
     .func-row--gliders .linepoints-row{
       display:flex;
@@ -354,35 +372,35 @@
     }
     .func-row--gliders label.startx-label{
       grid-column:2;
-      max-width:100px;
-      min-width:72px;
+      width:var(--func-domain-width);
+      min-width:var(--func-domain-width);
+      max-width:var(--func-domain-width);
     }
     .func-row--gliders label.points select{
       width:100%;
-      max-width:72px;
     }
     .func-row--gliders label.linepoint input{
       width:100%;
       max-width:140px;
     }
     .func-row--gliders .startx-label{
-      max-width:100px;
+      max-width:12ch;
     }
     .func-row--gliders label.startx-label input{
       width:100%;
-      max-width:72px;
+      min-width:0;
     }
     .func-row--gliders label.func-answer{
       grid-column:3;
       min-width:0;
-      max-width:220px;
     }
     .func-answer--inline{
       width:100%;
     }
     .func-answer--glider{
       min-width:0;
-      max-width:220px;
+      width:100%;
+      max-width:none;
     }
     @media (max-width:900px), (any-pointer:coarse) {
       .mobile-nav{ display:flex; }
@@ -397,6 +415,15 @@
       .func-row--secondary{ grid-template-columns:1fr; }
       .func-main{ flex-direction:column; align-items:stretch; }
       .func-row--gliders{ grid-template-columns:1fr; }
+      .func-row--gliders label.points,
+      .func-row--gliders label.startx-label{
+        width:100%;
+        min-width:0;
+        max-width:none;
+      }
+      .func-row--gliders label.startx-label input{
+        width:100%;
+      }
     }
     .addFigureBtn{ width:clamp(36px,8vw,56px); aspect-ratio:1; border:2px dashed #cfcfcf; border-radius:10px; background:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; color:#6b7280; cursor:pointer; transition:box-shadow .2s, transform .02s; }
     .addFigureBtn:hover{ box-shadow:0 2px 8px rgba(0,0,0,.06); }
