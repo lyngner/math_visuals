@@ -304,21 +304,30 @@
       gap: 6px;
     }
 
-    .input-helper-text {
-      margin: 0;
-      font-size: 0.85rem;
-      color: #64748b;
-      line-height: 1.4;
-    }
-
     .field-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
     }
 
+    .field-grid--two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .field-grid--three {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .toggle-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 16px;
+    }
+
+    @media (max-width: 720px) {
+      .toggle-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
 
     .settings textarea {
@@ -412,34 +421,34 @@
                   <input id="cfg-unit" type="text" value="cm" autocomplete="off" spellcheck="false" />
                 </label>
               </div>
-              <div class="input-stack">
-                <label for="cfg-figure-scale">Målestokk</label>
-                <input id="cfg-figure-scale" type="text" placeholder="1:1" autocomplete="off" spellcheck="false" />
-                <p class="input-helper-text">
-                  I tegningene er 1 cm i målestokken alltid tegnet som 100&nbsp;piksler. En målestokk på 1:120 betyr dermed at 1 cm på skjermen
-                  tilsvarer 120 cm i virkeligheten, og linjalen skaleres automatisk etter dette.
-                </p>
+              <div class="field-grid field-grid--two">
+                <div class="input-stack">
+                  <label for="cfg-figure-scale">Målestokk</label>
+                  <input id="cfg-figure-scale" type="text" placeholder="1:1" autocomplete="off" spellcheck="false" />
+                </div>
+                <div class="input-stack">
+                  <label for="cfg-board-padding">Ramme rundt figur (px)</label>
+                  <input id="cfg-board-padding" type="number" min="0" max="200" value="0" />
+                </div>
               </div>
-              <div class="input-stack">
-                <label for="cfg-board-padding">Ramme rundt figur (px)</label>
-                <input id="cfg-board-padding" type="number" min="0" max="200" value="0" />
+              <div class="toggle-grid">
+                <label class="settings__toggle">
+                  <input id="cfg-ruler-start-at-zero" type="checkbox" checked />
+                  <span>Start linjalen på 0</span>
+                </label>
+                <label class="settings__toggle">
+                  <input id="cfg-grid-enabled" type="checkbox" />
+                  <span>Vis rutenett</span>
+                </label>
+                <label class="settings__toggle">
+                  <input id="cfg-show-scale" type="checkbox" />
+                  <span>Vis målestokk</span>
+                </label>
+                <label class="settings__toggle">
+                  <input id="cfg-pan-enabled" type="checkbox" />
+                  <span>Tillat panorering</span>
+                </label>
               </div>
-              <label class="settings__toggle">
-                <input id="cfg-ruler-start-at-zero" type="checkbox" checked />
-                <span>Start linjalen på 0</span>
-              </label>
-              <label class="settings__toggle">
-                <input id="cfg-grid-enabled" type="checkbox" />
-                <span>Vis rutenett</span>
-              </label>
-              <label class="settings__toggle">
-                <input id="cfg-show-scale" type="checkbox" />
-                <span>Vis målestokk</span>
-              </label>
-              <label class="settings__toggle">
-                <input id="cfg-pan-enabled" type="checkbox" />
-                <span>Tillat panorering</span>
-              </label>
             </div>
             <div class="settings__section" aria-labelledby="measurement-figure-settings">
               <h3 id="measurement-figure-settings" class="settings__section-title">Figurinnstillinger</h3>
