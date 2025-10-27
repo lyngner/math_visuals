@@ -7412,7 +7412,6 @@ function setupSettingsForm() {
       syncAxisLabelsFromInputs();
       apply();
     };
-    input.addEventListener('input', handle);
     input.addEventListener('change', handle);
     input.addEventListener('blur', handle);
     input.addEventListener('keydown', e => {
