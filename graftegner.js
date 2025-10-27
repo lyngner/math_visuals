@@ -1057,6 +1057,7 @@ let FORCE_TICKS_LOCKED_FALSE = false;
 let START_SCREEN = null;
 let LAST_COMPUTED_SCREEN = null;
 let LAST_SCREEN_SOURCE = 'auto';
+let SCREEN_INPUT_IS_EDITING = false;
 let brd = null;
 let axX = null;
 let axY = null;
@@ -1170,6 +1171,9 @@ function syncScreenInputFromState() {
   if (typeof document === 'undefined') return;
   const input = document.getElementById('cfgScreen');
   if (!input) return;
+  if (SCREEN_INPUT_IS_EDITING && typeof document !== 'undefined' && document.activeElement === input) {
+    return;
+  }
   if (Array.isArray(LAST_COMPUTED_SCREEN) && LAST_COMPUTED_SCREEN.length === 4) {
     const formatted = formatScreenForInput(LAST_COMPUTED_SCREEN);
     input.value = formatted;
@@ -1648,6 +1652,33 @@ function computeAutoScreenPoints() {
   return [cx - halfX, cx + halfX, cy - halfY, cy + halfY];
 }
 const toBB = scr => [scr[0], scr[3], scr[1], scr[2]];
+function fromBoundingBox(bb) {
+  if (!Array.isArray(bb) || bb.length !== 4) return null;
+  const [xmin, ymax, xmax, ymin] = bb;
+  if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) {
+    return null;
+  }
+  return [xmin, xmax, ymin, ymax];
+}
+function screenSupportsLockAspect(screen) {
+  if (!Array.isArray(screen) || screen.length !== 4) return false;
+  const [xmin, xmax, ymin, ymax] = screen;
+  if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) return false;
+  const width = xmax - xmin;
+  const height = ymax - ymin;
+  if (!(width > 0 && height > 0)) return false;
+  const diff = Math.abs(width - height);
+  const scale = Math.max(Math.abs(width), Math.abs(height), 1);
+  return diff <= 1e-6 * scale;
+}
+function screenSupportsFirstQuadrant(screen) {
+  if (!Array.isArray(screen) || screen.length !== 4) return false;
+  const xmin = screen[0];
+  const ymin = screen[2];
+  if (!(Number.isFinite(xmin) && Number.isFinite(ymin))) return false;
+  const EPS = 1e-9;
+  return xmin >= -EPS && ymin >= -EPS;
+}
 
 /* ===================== Init JSXGraph ===================== */
 function initialScreen() {
@@ -4521,6 +4552,14 @@ function updateAfterViewChange() {
     rebuildAllFunctionSegments();
     updateAllBrackets();
   }
+  if (brd && typeof brd.getBoundingBox === 'function') {
+    const bb = brd.getBoundingBox();
+    const screen = fromBoundingBox(bb);
+    if (screen) {
+      const manualActive = Array.isArray(ADV.screen) && ADV.screen.length === 4;
+      rememberScreenState(screen, manualActive ? 'manual' : 'auto');
+    }
+  }
 }
 function rebuildAll() {
   syncSimpleFromWindow();
@@ -6927,8 +6966,22 @@ function setupSettingsForm() {
   }
   if (screenInput) {
     screenInput.addEventListener('input', () => {
+      SCREEN_INPUT_IS_EDITING = true;
       if (screenInput.dataset) delete screenInput.dataset.autoscreen;
       screenInput.classList.remove('is-auto');
+    });
+    screenInput.addEventListener('focus', () => {
+      SCREEN_INPUT_IS_EDITING = true;
+      if (Array.isArray(LAST_COMPUTED_SCREEN) && LAST_COMPUTED_SCREEN.length === 4) {
+        screenInput.value = formatScreenForInput(LAST_COMPUTED_SCREEN);
+      }
+      screenInput.classList.remove('is-auto');
+    });
+    screenInput.addEventListener('blur', () => {
+      SCREEN_INPUT_IS_EDITING = false;
+      if (screenInput.dataset && screenInput.dataset.autoscreen === '1') {
+        screenInput.classList.add('is-auto');
+      }
     });
   }
   syncScreenInputFromState();
@@ -6974,11 +7027,20 @@ function setupSettingsForm() {
       screenRaw = '';
     }
     const nextScreen = screenInput ? parseScreen(screenRaw) : null;
+    const lockInput = g('cfgLock');
+    const q1Input = g('cfgQ1');
+    if (nextScreen) {
+      if (lockInput && lockInput.checked && !screenSupportsLockAspect(nextScreen)) {
+        lockInput.checked = false;
+      }
+      if (q1Input && q1Input.checked && !screenSupportsFirstQuadrant(nextScreen)) {
+        q1Input.checked = false;
+      }
+    }
     if (!screensEqual(nextScreen, ADV.screen)) {
       ADV.screen = nextScreen;
       needsRebuild = true;
     }
-    const lockInput = g('cfgLock');
     const lockChecked = !!(lockInput && lockInput.checked);
     if (ADV.lockAspect !== lockChecked) {
       ADV.lockAspect = lockChecked;
@@ -7008,7 +7070,6 @@ function setupSettingsForm() {
       ADV.interactions.pan.enabled = panChecked;
       needsRebuild = true;
     }
-    const q1Input = g('cfgQ1');
     const q1Checked = !!(q1Input && q1Input.checked);
     if (ADV.firstQuadrant !== q1Checked) {
       ADV.firstQuadrant = q1Checked;
@@ -7239,16 +7300,21 @@ function setupSettingsForm() {
   bindAxisInput(axisXInputElement);
   bindAxisInput(axisYInputElement);
   if (screenInput) {
-    const handleScreenCommit = () => {
+    screenInput.addEventListener('change', e => {
+      SCREEN_INPUT_IS_EDITING = false;
+      if (e && typeof e.stopPropagation === 'function') {
+        e.stopPropagation();
+      }
       apply();
-    };
-    ['change', 'blur'].forEach(eventName => {
-      screenInput.addEventListener(eventName, handleScreenCommit);
     });
     screenInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        handleScreenCommit();
+        SCREEN_INPUT_IS_EDITING = false;
+        if (typeof e.stopPropagation === 'function') {
+          e.stopPropagation();
+        }
+        apply();
       }
     });
   }
