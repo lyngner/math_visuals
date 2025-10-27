@@ -207,6 +207,259 @@
   });
 })();
 
+(function initGlobalSettings() {
+  const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+  if (!globalScope) return;
+
+  const SETTINGS_STORAGE_KEY = 'mathVisuals:settings';
+  const FALLBACK_COLORS = ['#1F4DE2', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
+  const DEFAULT_SETTINGS = {
+    defaultColors: FALLBACK_COLORS.slice(),
+    defaultLineThickness: 3
+  };
+
+  const listeners = new Set();
+
+  const clamp = (value, min, max) => {
+    if (!Number.isFinite(value)) return min;
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
+  };
+
+  function sanitizeColor(value) {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const match = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(trimmed);
+    if (!match) return null;
+    let hex = match[1].toLowerCase();
+    if (hex.length === 3) {
+      hex = hex.split('').map(ch => ch + ch).join('');
+    }
+    return `#${hex}`;
+  }
+
+  function sanitizeColorList(values) {
+    if (!Array.isArray(values)) return [];
+    const out = [];
+    for (const value of values) {
+      const sanitized = sanitizeColor(value);
+      if (sanitized) out.push(sanitized);
+    }
+    return out;
+  }
+
+  function clampLineThickness(value) {
+    const num = Number.parseFloat(value);
+    if (!Number.isFinite(num)) return DEFAULT_SETTINGS.defaultLineThickness;
+    return clamp(num, 1, 12);
+  }
+
+  function ensureColorCount(base, count) {
+    const palette = Array.isArray(base) && base.length ? base : FALLBACK_COLORS;
+    if (!Number.isFinite(count) || count <= 0) {
+      return palette.slice();
+    }
+    const result = [];
+    for (let i = 0; i < count; i += 1) {
+      result.push(palette[i % palette.length]);
+    }
+    return result;
+  }
+
+  function parseStoredSettings(raw) {
+    if (typeof raw !== 'string' || !raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return parsed;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function normalizeSettings(value) {
+    const base = {
+      defaultColors: DEFAULT_SETTINGS.defaultColors.slice(),
+      defaultLineThickness: DEFAULT_SETTINGS.defaultLineThickness
+    };
+    if (value && typeof value === 'object') {
+      if (Array.isArray(value.defaultColors)) {
+        const colors = sanitizeColorList(value.defaultColors);
+        if (colors.length) {
+          base.defaultColors = colors;
+        }
+      }
+      if (value.defaultLineThickness != null) {
+        base.defaultLineThickness = clampLineThickness(value.defaultLineThickness);
+      }
+    }
+    return base;
+  }
+
+  function readStoredSettings() {
+    if (!globalScope || !globalScope.localStorage) return null;
+    try {
+      const stored = globalScope.localStorage.getItem(SETTINGS_STORAGE_KEY);
+      return parseStoredSettings(stored);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function cloneSettings(source) {
+    const target = source || settings;
+    return {
+      defaultColors: Array.isArray(target.defaultColors) ? target.defaultColors.slice() : [],
+      defaultLineThickness: target.defaultLineThickness
+    };
+  }
+
+  let settings = normalizeSettings(readStoredSettings());
+
+  function applyToDocument(doc) {
+    const targetDoc = doc || (typeof document !== 'undefined' ? document : null);
+    if (!targetDoc || !targetDoc.documentElement) return;
+    const root = targetDoc.documentElement;
+    const style = root.style;
+    const palette = ensureColorCount(settings.defaultColors, Math.max(settings.defaultColors.length || 0, FALLBACK_COLORS.length));
+    const limit = Math.max(palette.length, FALLBACK_COLORS.length);
+    for (let i = 0; i < limit; i += 1) {
+      const color = palette[i % palette.length];
+      if (color) {
+        style.setProperty(`--mv-default-color-${i + 1}`, color);
+      } else {
+        style.removeProperty(`--mv-default-color-${i + 1}`);
+      }
+    }
+    style.setProperty('--mv-default-line-thickness', String(settings.defaultLineThickness));
+  }
+
+  function persistSettings(next) {
+    if (!globalScope || !globalScope.localStorage) return;
+    try {
+      globalScope.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
+    } catch (_) {}
+  }
+
+  function notifyChange(options) {
+    applyToDocument(typeof document !== 'undefined' ? document : null);
+    const snapshot = cloneSettings();
+    listeners.forEach(listener => {
+      try {
+        listener(snapshot);
+      } catch (_) {}
+    });
+    if (!options || options.emitEvent !== false) {
+      try {
+        if (globalScope && typeof globalScope.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+          globalScope.dispatchEvent(new CustomEvent('math-visuals:settings-changed', { detail: { settings: snapshot } }));
+        }
+      } catch (_) {}
+    }
+  }
+
+  function commitSettings(next, options) {
+    settings = normalizeSettings(next);
+    if (!options || options.persist !== false) {
+      persistSettings(settings);
+    }
+    if (!options || options.notify !== false) {
+      notifyChange({ emitEvent: !options || options.emitEvent !== false });
+    }
+    return cloneSettings();
+  }
+
+  function getDefaultColors(count) {
+    const size = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+    const palette = settings.defaultColors.length ? settings.defaultColors : FALLBACK_COLORS;
+    return ensureColorCount(palette, size || palette.length);
+  }
+
+  function getSettings() {
+    return cloneSettings();
+  }
+
+  function setSettings(next) {
+    return commitSettings(next, { persist: true, notify: true });
+  }
+
+  function updateSettings(patch) {
+    const merged = {
+      defaultColors: settings.defaultColors.slice(),
+      defaultLineThickness: settings.defaultLineThickness
+    };
+    if (patch && typeof patch === 'object') {
+      if (Array.isArray(patch.defaultColors)) {
+        const colors = sanitizeColorList(patch.defaultColors);
+        if (colors.length) {
+          merged.defaultColors = colors;
+        } else if (patch.defaultColors.length === 0) {
+          merged.defaultColors = [];
+        }
+      }
+      if (patch.defaultLineThickness != null) {
+        merged.defaultLineThickness = clampLineThickness(patch.defaultLineThickness);
+      }
+    }
+    return commitSettings(merged, { persist: true, notify: true });
+  }
+
+  function resetSettings() {
+    return commitSettings(DEFAULT_SETTINGS, { persist: true, notify: true });
+  }
+
+  function getDefaultLineThickness() {
+    return settings.defaultLineThickness;
+  }
+
+  function subscribe(callback) {
+    if (typeof callback !== 'function') {
+      return () => {};
+    }
+    listeners.add(callback);
+    return () => {
+      listeners.delete(callback);
+    };
+  }
+
+  function handleStorage(event) {
+    if (!event || event.key !== SETTINGS_STORAGE_KEY) return;
+    const parsed = normalizeSettings(parseStoredSettings(event.newValue));
+    settings = parsed;
+    notifyChange({ emitEvent: true });
+  }
+
+  const settingsApi =
+    globalScope.MathVisualsSettings && typeof globalScope.MathVisualsSettings === 'object'
+      ? globalScope.MathVisualsSettings
+      : {};
+
+  settingsApi.getSettings = () => getSettings();
+  settingsApi.setSettings = next => setSettings(next);
+  settingsApi.updateSettings = patch => updateSettings(patch);
+  settingsApi.resetSettings = () => resetSettings();
+  settingsApi.getDefaultColors = count => getDefaultColors(count);
+  settingsApi.getDefaultLineThickness = () => getDefaultLineThickness();
+  settingsApi.subscribe = callback => subscribe(callback);
+  settingsApi.applyToDocument = doc => applyToDocument(doc);
+  settingsApi.ensureColorCount = (base, count) => ensureColorCount(base, count);
+  settingsApi.sanitizeColor = value => sanitizeColor(value);
+  settingsApi.sanitizeColorList = values => sanitizeColorList(values);
+  settingsApi.defaults = () => cloneSettings(DEFAULT_SETTINGS);
+  settingsApi.fallbackColors = FALLBACK_COLORS.slice();
+  settingsApi.STORAGE_KEY = SETTINGS_STORAGE_KEY;
+
+  globalScope.MathVisualsSettings = settingsApi;
+
+  if (typeof globalScope.addEventListener === 'function') {
+    globalScope.addEventListener('storage', handleStorage);
+  }
+
+  notifyChange({ emitEvent: true });
+})();
+
 (function () {
   const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
   const DEFAULT_APP_MODE = 'default';
@@ -510,6 +763,9 @@
     globalScope.mathVisuals.getAppMode = () => currentAppMode;
     globalScope.mathVisuals.evaluateTaskInputs = () => evaluateTaskInputs();
     globalScope.mathVisuals.resetTaskInputs = () => resetTaskInputs();
+    if (!globalScope.mathVisuals.settings && globalScope.MathVisualsSettings) {
+      globalScope.mathVisuals.settings = globalScope.MathVisualsSettings;
+    }
   }
   const STORAGE_GLOBAL_KEY = '__EXAMPLES_STORAGE__';
   function createMemoryStorage(initialData) {
