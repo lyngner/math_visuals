@@ -1051,8 +1051,8 @@ function decideMode(parsed) {
   return anyPlaceholder ? 'points' : 'functions';
 }
 let MODE = decideMode(SIMPLE_PARSED);
-// Deaktiverer "Tving 1, 2, 3" når mer enn 20 tall får plass på en akse.
-const FORCE_TICKS_AUTO_DISABLE_LIMIT = 20;
+// Deaktiverer "Tving 1, 2, 3" når mer enn 40 tall får plass på en akse.
+const FORCE_TICKS_AUTO_DISABLE_LIMIT = 40;
 let FORCE_TICKS_LOCKED_FALSE = false;
 let START_SCREEN = null;
 let LAST_COMPUTED_SCREEN = null;
