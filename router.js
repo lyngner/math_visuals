@@ -311,6 +311,7 @@ const modeControl = nav ? nav.querySelector('[data-mode-control]') : null;
 const navList = nav ? nav.querySelector('ul') : null;
 const taskStrip = nav ? nav.querySelector('[data-task-strip]') : null;
 const betaFeatureItems = nav ? Array.from(nav.querySelectorAll('[data-beta-feature]')) : [];
+const SETTINGS_ENABLED_PROFILES = new Set(['annet', 'kikora', 'campus']);
 function setBetaFeatureVisibility(isEnabled) {
   betaFeatureItems.forEach(item => {
     if (item instanceof HTMLElement) {
@@ -328,7 +329,7 @@ function syncProfileControl(profile) {
 }
 
 syncProfileControl(currentProfile);
-setBetaFeatureVisibility(currentProfile === 'annet');
+setBetaFeatureVisibility(SETTINGS_ENABLED_PROFILES.has(currentProfile));
 
 function syncModeControl(mode) {
   if (!modeControl) return;
@@ -692,7 +693,7 @@ if (profileControl) {
     const applied = updateProfileStyles(normalized);
     safeSetItem(PROFILE_STORAGE_KEY, applied);
     syncProfileControl(applied);
-    setBetaFeatureVisibility(applied === 'annet');
+    setBetaFeatureVisibility(SETTINGS_ENABLED_PROFILES.has(applied));
     if (iframe && iframe.contentWindow && currentEntry) {
       try {
         iframe.contentWindow.postMessage(
