@@ -1,5 +1,34 @@
 (function () {
+  const SETTINGS_STORAGE_KEY = 'mathVisuals:settings';
   const LEGACY_FRACTION_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D'];
+  function getSettingsApi() {
+    if (typeof window === 'undefined') return null;
+    const api = window.MathVisualsSettings;
+    return api && typeof api === 'object' ? api : null;
+  }
+  function sanitizeUserColor(value) {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const match = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(trimmed);
+    if (!match) return null;
+    let hex = match[1].toLowerCase();
+    if (hex.length === 3) {
+      hex = hex.split('').map(ch => ch + ch).join('');
+    }
+    return `#${hex}`;
+  }
+  function readStoredSettings() {
+    if (typeof window === 'undefined' || !window.localStorage) return null;
+    try {
+      const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (typeof raw !== 'string' || !raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (_) {
+      return null;
+    }
+  }
   const campusProfileBase = {
     palettes: {
       fractions: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
@@ -179,6 +208,25 @@
     }
     return result;
   }
+  function resolveUserPalette(count) {
+    const api = getSettingsApi();
+    if (api && typeof api.getDefaultColors === 'function') {
+      try {
+        const palette = api.getDefaultColors(count);
+        if (Array.isArray(palette) && palette.length) {
+          return ensurePalette(palette, count);
+        }
+      } catch (_) {}
+    }
+    const stored = readStoredSettings();
+    if (stored && Array.isArray(stored.defaultColors)) {
+      const sanitized = stored.defaultColors.map(sanitizeUserColor).filter(Boolean);
+      if (sanitized.length) {
+        return ensurePalette(sanitized, count);
+      }
+    }
+    return null;
+  }
   function readColorToken(profile, token) {
     if (!profile || typeof profile !== 'object') return undefined;
     if (!token || typeof token !== 'string') return undefined;
@@ -211,6 +259,10 @@
     return Object.keys(PROFILES);
   }
   function buildPalette(kind, count, opts) {
+    const userPalette = resolveUserPalette(count);
+    if (userPalette && userPalette.length) {
+      return ensurePalette(userPalette, count);
+    }
     const profile = getActiveProfile();
     const requested = typeof kind === 'string' ? kind : 'fractions';
     const fallbackKinds = Array.isArray(opts && opts.fallbackKinds) ? opts.fallbackKinds : [];
@@ -238,6 +290,12 @@
   function applyToDocument(doc) {
     const targetDoc = doc || (typeof document !== 'undefined' ? document : null);
     if (!targetDoc || !targetDoc.documentElement) return;
+    const settingsApi = getSettingsApi();
+    if (settingsApi && typeof settingsApi.applyToDocument === 'function') {
+      try {
+        settingsApi.applyToDocument(targetDoc);
+      } catch (_) {}
+    }
     const profile = getActiveProfile();
     const root = targetDoc.documentElement;
     const style = root.style;
@@ -289,6 +347,9 @@
     window.MathVisualsTheme = api;
   }
   applyToDocument(typeof document !== 'undefined' ? document : null);
+  function handleSettingsChanged() {
+    applyToDocument(typeof document !== 'undefined' ? document : null);
+  }
   function handleProfileMessage(event) {
     const data = event && event.data;
     let type = undefined;
@@ -304,6 +365,7 @@
     applyToDocument(typeof document !== 'undefined' ? document : null);
   }
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('math-visuals:settings-changed', handleSettingsChanged);
     window.addEventListener('message', handleProfileMessage);
   }
 })();

@@ -82,9 +82,115 @@ function whenJXGReady(callback) {
   jxgReadyQueue.push(callback);
   scheduleJXGCheck();
 }
-const DEFAULT_CURVE_COLORS = ['#1F4DE2', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
+const SETTINGS_STORAGE_KEY = 'mathVisuals:settings';
+const FALLBACK_CURVE_COLORS = ['#1F4DE2', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
+const FALLBACK_LINE_THICKNESS = 3;
 const CAMPUS_CURVE_ORDER = [0, 1, 2, 3, 4, 5];
 const DEFAULT_FUNCTION_EXPRESSION = 'f(x)=x^2-2';
+
+function getSettingsApi() {
+  if (typeof window === 'undefined') return null;
+  const api = window.MathVisualsSettings;
+  return api && typeof api === 'object' ? api : null;
+}
+function sanitizeStoredColor(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const match = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(trimmed);
+  if (!match) return null;
+  let hex = match[1].toLowerCase();
+  if (hex.length === 3) {
+    hex = hex.split('').map(ch => ch + ch).join('');
+  }
+  return `#${hex}`;
+}
+function cycleColors(source, count) {
+  const base = Array.isArray(source) ? source.filter(color => typeof color === 'string' && color) : [];
+  if (!base.length) return [];
+  if (!Number.isFinite(count) || count <= 0) {
+    return base.slice();
+  }
+  const target = Math.trunc(count);
+  const result = [];
+  for (let i = 0; i < target; i += 1) {
+    result.push(base[i % base.length]);
+  }
+  return result;
+}
+function clampLineThicknessValue(value) {
+  const num = Number.parseFloat(value);
+  if (!Number.isFinite(num)) return FALLBACK_LINE_THICKNESS;
+  if (num < 1) return 1;
+  if (num > 12) return 12;
+  return num;
+}
+function readStoredSettings() {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (typeof raw !== 'string' || !raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+function resolveSettingsSnapshot() {
+  const api = getSettingsApi();
+  if (api && typeof api.getSettings === 'function') {
+    try {
+      const snapshot = api.getSettings();
+      if (snapshot && typeof snapshot === 'object') {
+        return snapshot;
+      }
+    } catch (_) {}
+  }
+  return readStoredSettings();
+}
+function getBaseCurveColors(count) {
+  const api = getSettingsApi();
+  const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+  if (api && typeof api.getDefaultColors === 'function') {
+    try {
+      const palette = api.getDefaultColors(targetCount);
+      if (Array.isArray(palette) && palette.length) {
+        return cycleColors(palette, targetCount || palette.length);
+      }
+    } catch (_) {}
+  }
+  const stored = resolveSettingsSnapshot();
+  if (stored && Array.isArray(stored.defaultColors)) {
+    const sanitized = stored.defaultColors.map(sanitizeStoredColor).filter(Boolean);
+    if (sanitized.length) {
+      return cycleColors(sanitized, targetCount || sanitized.length);
+    }
+  }
+  return cycleColors(FALLBACK_CURVE_COLORS, targetCount || FALLBACK_CURVE_COLORS.length);
+}
+function getDefaultCurveColor(index) {
+  const palette = getBaseCurveColors(index + 1);
+  if (!palette.length) {
+    return FALLBACK_CURVE_COLORS[index % FALLBACK_CURVE_COLORS.length];
+  }
+  return palette[index % palette.length];
+}
+function getDefaultLineThickness() {
+  const api = getSettingsApi();
+  if (api && typeof api.getDefaultLineThickness === 'function') {
+    try {
+      const value = api.getDefaultLineThickness();
+      if (Number.isFinite(value)) {
+        return clampLineThicknessValue(value);
+      }
+    } catch (_) {}
+  }
+  const stored = resolveSettingsSnapshot();
+  if (stored && stored.defaultLineThickness != null) {
+    return clampLineThicknessValue(stored.defaultLineThickness);
+  }
+  return FALLBACK_LINE_THICKNESS;
+}
 
 const DEFAULT_GRAFTEGNER_SIMPLE = {
   axes: {
@@ -190,13 +296,17 @@ function applyThemeToDocument() {
   }
 }
 function ensureColorCount(base, fallback, count) {
-  const safeFallback = Array.isArray(fallback) && fallback.length ? fallback : DEFAULT_CURVE_COLORS;
-  const out = [];
-  for (let i = 0; i < count; i++) {
-    const candidate = Array.isArray(base) && typeof base[i] === 'string' && base[i] ? base[i] : null;
-    out.push(candidate || safeFallback[i % safeFallback.length]);
+  const hasBase = Array.isArray(base) && base.length;
+  const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+  const fallbackPalette = Array.isArray(fallback) && fallback.length ? fallback : getBaseCurveColors(targetCount);
+  const effectiveCount = targetCount || (hasBase ? base.length : fallbackPalette.length);
+  const result = [];
+  for (let i = 0; i < effectiveCount; i += 1) {
+    const candidate = hasBase && typeof base[i] === 'string' && base[i] ? base[i] : null;
+    const fallbackColor = fallbackPalette[i % fallbackPalette.length] || getDefaultCurveColor(i);
+    result.push(candidate || fallbackColor);
   }
-  return out;
+  return result;
 }
 function normalizeColorValue(value) {
   if (typeof value !== 'string') return '';
@@ -210,14 +320,16 @@ function normalizeColorValue(value) {
   }
   return `#${hex}`;
 }
-function resolveCurvePalette(count = DEFAULT_CURVE_COLORS.length) {
+function resolveCurvePalette(count = undefined) {
+  const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+  const basePalette = getBaseCurveColors(targetCount);
   const theme = getThemeApi();
   if (theme && typeof theme.getPalette === 'function') {
     const active = typeof theme.getActiveProfileName === 'function' ? theme.getActiveProfileName() : null;
-    const palette = theme.getPalette('figures', count, { fallbackKinds: ['fractions'] });
+    const palette = theme.getPalette('figures', targetCount || basePalette.length, { fallbackKinds: ['fractions'] });
     if ((!active || active !== 'kikora') && Array.isArray(palette) && palette.length) {
       const reordered = active === 'campus' ? CAMPUS_CURVE_ORDER.map(idx => palette[idx % palette.length]) : palette;
-      const resolved = ensureColorCount(reordered, DEFAULT_CURVE_COLORS, count);
+      const resolved = ensureColorCount(reordered, basePalette, targetCount || reordered.length);
       if (active && active.toLowerCase() === 'campus') {
         const campusPrimary = resolveAxisStrokeColor();
         if (typeof campusPrimary === 'string' && campusPrimary.trim()) {
@@ -227,7 +339,7 @@ function resolveCurvePalette(count = DEFAULT_CURVE_COLORS.length) {
       return resolved;
     }
   }
-  return ensureColorCount(DEFAULT_CURVE_COLORS, DEFAULT_CURVE_COLORS, count);
+  return ensureColorCount(basePalette, basePalette, targetCount || basePalette.length);
 }
 applyThemeToDocument();
 function paramStr(id, def = '') {
@@ -440,7 +552,7 @@ const ADV = {
     },
     style: {
       stroke: resolveAxisStrokeColor(),
-      width: 3
+      width: getDefaultLineThickness()
     },
     ticks: {
       showNumbers: SHOW_AXIS_NUMBERS
@@ -516,7 +628,7 @@ const ADV = {
     barPx: 22,
     tipFrac: 0.20,
     color: '#6b7280',
-    width: 3,
+    width: getDefaultLineThickness(),
     layer: 8
   },
   // Asymptoter
@@ -2419,7 +2531,7 @@ function makeLabelDraggable(label, g, reposition) {
 
 /* =================== FARGEPALETT =================== */
 function colorFor(i) {
-  const palette = resolveCurvePalette(DEFAULT_CURVE_COLORS.length);
+  const palette = resolveCurvePalette();
   return palette[i % palette.length];
 }
 function updateCurveColorsFromTheme() {
@@ -3429,8 +3541,9 @@ function buildCurveLabelContent(fun) {
 }
 function buildFunctions() {
   graphs = [];
-  const fallbackColor = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#1F4DE2';
-  const palette = resolveCurvePalette(Math.max(DEFAULT_CURVE_COLORS.length, SIMPLE_PARSED.funcs.length || 1));
+  const basePalette = getBaseCurveColors();
+  const fallbackColor = normalizeColorValue(getDefaultCurveColor(0)) || '#1F4DE2';
+  const palette = resolveCurvePalette(Math.max(basePalette.length, SIMPLE_PARSED.funcs.length || 1));
   SIMPLE_PARSED.funcs.forEach((f, i) => {
     const defaultColor = normalizeColorValue(palette[i % palette.length]) || fallbackColor;
     const manualColor = f && f.colorSource === 'manual' ? normalizeColorValue(f.color) : '';
@@ -3606,7 +3719,7 @@ function buildPointsLine() {
   A = null;
   B = null;
   moving = [];
-  const fallbackColor = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#1F4DE2';
+  const fallbackColor = normalizeColorValue(getDefaultCurveColor(0)) || '#1F4DE2';
   const paletteColor = normalizeColorValue(colorFor(0)) || fallbackColor;
   const first = (_SIMPLE_PARSED$funcs$ = SIMPLE_PARSED.funcs[0]) !== null && _SIMPLE_PARSED$funcs$ !== void 0 ? _SIMPLE_PARSED$funcs$ : {
     rhs: 'ax+b'
@@ -4599,6 +4712,15 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     updateAxisThemeStyling();
     refreshFunctionColorDefaults();
   });
+  window.addEventListener('math-visuals:settings-changed', () => {
+    const thickness = getDefaultLineThickness();
+    ADV.axis.style.width = thickness;
+    ADV.domainMarkers.width = thickness;
+    applyThemeToDocument();
+    updateCurveColorsFromTheme();
+    refreshFunctionColorDefaults();
+    requestRebuild();
+  });
 }
 function requestRebuild() {
   cancelScheduledSimpleRebuild();
@@ -4953,7 +5075,7 @@ function setupSettingsForm() {
   ADV.points.lockExtraPoints = pointLockEnabled;
   const functionColorControls = [];
   let answerControl = null;
-  const DEFAULT_COLOR_FALLBACK = normalizeColorValue(DEFAULT_CURVE_COLORS[0]) || '#1F4DE2';
+  const DEFAULT_COLOR_FALLBACK = normalizeColorValue(getDefaultCurveColor(0)) || '#1F4DE2';
   const getRowIndex = row => {
     if (!row || !row.dataset) return 1;
     const parsed = Number.parseInt(row.dataset.index, 10);
