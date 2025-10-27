@@ -18,33 +18,33 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       display: flex;
       justify-content: center;
-      padding: 32px 16px;
+      padding: 16px 12px;
     }
     .settings-page {
-      width: min(720px, 100%);
+      width: min(660px, 100%);
       display: flex;
       flex-direction: column;
-      gap: 24px;
+      gap: 16px;
     }
     .settings-card {
       background: var(--profile-surface-background, #ffffffee);
       border: 1px solid var(--profile-surface-border, #e5e7eb);
-      border-radius: 16px;
-      padding: 28px 28px 32px;
-      box-shadow: 0 20px 40px rgba(15, 109, 143, 0.05);
-      backdrop-filter: blur(4px);
+      border-radius: 12px;
+      padding: 20px 20px 24px;
+      box-shadow: 0 12px 24px rgba(15, 109, 143, 0.05);
+      backdrop-filter: blur(3px);
     }
     .settings-card h1 {
       margin-top: 0;
-      margin-bottom: 8px;
-      font-size: 1.75rem;
+      margin-bottom: 4px;
+      font-size: 1.5rem;
       color: var(--profile-title-color, #0f172a);
     }
     .settings-card p {
       margin-top: 0;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
       color: var(--profile-body-color, #1f2937);
-      line-height: 1.5;
+      line-height: 1.4;
     }
     .project-heading {
       font-weight: 600;
@@ -54,7 +54,7 @@
     form {
       display: flex;
       flex-direction: column;
-      gap: 24px;
+      gap: 18px;
     }
     fieldset {
       margin: 0;
@@ -62,63 +62,58 @@
       border: none;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
     }
     legend {
       font-weight: 600;
       color: var(--profile-title-color, #0f172a);
-      font-size: 1.1rem;
-      margin-bottom: 4px;
-    }
-    .field-description {
-      margin: 0;
-      color: #4b5563;
-      font-size: 0.95rem;
+      font-size: 1.05rem;
+      margin-bottom: 2px;
     }
     .color-section {
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 14px;
     }
     .color-groups {
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 14px;
     }
     .color-group {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 8px;
     }
     .color-group__title {
       margin: 0;
-      font-size: 1.05rem;
+      font-size: 1rem;
       font-weight: 600;
       color: var(--profile-title-color, #0f172a);
     }
     .color-group__description {
       margin: 0;
       color: #4b5563;
-      font-size: 0.95rem;
+      font-size: 0.85rem;
     }
     .color-grid {
       display: grid;
-      gap: 12px;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     }
     .color-slot {
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      padding: 14px;
+      gap: 6px;
+      padding: 10px;
       border: 1px solid var(--profile-surface-border, #e5e7eb);
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.85);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.9);
     }
     .color-slot__header {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
     .color-slot__label {
       font-weight: 600;
@@ -127,14 +122,14 @@
     .color-slot__inputs {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
       flex-wrap: wrap;
     }
     .color-slot__hint {
       margin: 0;
       color: #4b5563;
-      font-size: 0.9rem;
-      line-height: 1.4;
+      font-size: 0.8rem;
+      line-height: 1.3;
     }
     .sr-only {
       position: absolute;
@@ -148,8 +143,8 @@
       border: 0;
     }
     .color-slot input[type="color"] {
-      width: 48px;
-      height: 48px;
+      width: 40px;
+      height: 40px;
       border: none;
       padding: 0;
       background: transparent;
@@ -169,27 +164,28 @@
     }
     .color-slot input[type="text"] {
       width: 100%;
-      padding: 10px 12px;
-      border-radius: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
       border: 1px solid var(--profile-surface-border, #e5e7eb);
       font: inherit;
       color: inherit;
-      background: rgba(249, 250, 251, 0.8);
+      background: rgba(249, 250, 251, 0.9);
     }
     .settings-actions {
       display: flex;
       justify-content: flex-start;
+      margin-top: -4px;
     }
     .settings-actions .btn {
-      padding-inline: 16px;
+      padding-inline: 12px;
     }
     .line-preview {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
     .line-preview__bar {
-      --preview-thickness: 4px;
+      --preview-thickness: 3px;
       width: 100%;
       height: var(--preview-thickness);
       background: linear-gradient(90deg, var(--profile-title-color, #0f172a), var(--profile-accent-color, #0f6d8f));
@@ -197,18 +193,18 @@
       transition: height 0.2s ease;
     }
     .line-preview__info {
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       color: #4b5563;
     }
     .form-actions {
       display: flex;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 8px;
       align-items: center;
     }
     .form-status {
       min-height: 1.4em;
-      font-size: 0.95rem;
+      font-size: 0.85rem;
       color: #047857;
     }
     .form-status[data-status="error"] {
@@ -219,11 +215,11 @@
     }
     .btn {
       font: inherit;
-      border-radius: 10px;
+      border-radius: 8px;
       border: 1px solid var(--profile-accent-border, rgba(15, 109, 143, 0.25));
       background: var(--profile-accent-color, #0f6d8f);
       color: var(--profile-accent-contrast, #ffffff);
-      padding: 10px 18px;
+      padding: 8px 14px;
       cursor: pointer;
       transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
     }
@@ -243,11 +239,11 @@
     }
     @media (max-width: 600px) {
       body {
-        padding: 24px 12px;
+        padding: 16px 10px;
       }
       .color-slot input[type="color"] {
-        width: 40px;
-        height: 40px;
+        width: 36px;
+        height: 36px;
       }
     }
   </style>
@@ -260,7 +256,6 @@
       <form data-settings-form>
         <fieldset>
           <legend data-project-legend>Standardfarger</legend>
-          <p class="field-description">Standardfargene er gruppert etter verktøy. Endringer oppdaterer alle steder som bruker den samme fargen.</p>
           <div class="color-section">
             <div class="color-groups" data-color-groups></div>
             <div class="settings-actions">
