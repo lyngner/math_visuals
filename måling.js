@@ -1154,6 +1154,9 @@
     const { length, subdivisions, unitLabel } = settings;
     const inset = 8;
     const startAtZero = !!settings.rulerStartAtZero;
+    const effectiveLength = length + (startAtZero ? 0 : 2);
+    const startIndex = startAtZero ? 0 : -1;
+    const totalTicks = effectiveLength + 1;
     const paddingLeft = startAtZero ? 0 : RULER_ZERO_OFFSET_PX;
     const paddingRight = startAtZero ? 0 : RULER_ZERO_OFFSET_PX;
     const marginLeft = startAtZero ? 0 : RULER_EDGE_MARGIN_PX;
@@ -1164,20 +1167,20 @@
     const majorTickBottom = baselineY + majorTickLength;
     const minorTickBottom = baselineY + majorTickLength * 0.58;
     const labelY = majorTickBottom + 24;
-    const contentWidth = unitSpacing * length + marginLeft + marginRight;
+    const contentWidth = unitSpacing * effectiveLength + marginLeft + marginRight;
 
     const baselineStartX = marginLeft;
-    const baselineEndX = contentWidth - marginRight;
+    const baselineEndX = baselineStartX + unitSpacing * effectiveLength;
 
-    const majorTickMarkup = Array.from({ length: length + 1 }, (_, index) => {
-      const x = marginLeft + unitSpacing * index;
+    const majorTickMarkup = Array.from({ length: totalTicks }, (_, tickIndex) => {
+      const x = marginLeft + unitSpacing * tickIndex;
       return `<line x1="${x}" y1="${baselineY}" x2="${x}" y2="${majorTickBottom}" class="ruler-svg__tick ruler-svg__tick--major" />`;
     }).join('');
 
     let minorTickMarkup = '';
     if (subdivisions > 1) {
       const step = unitSpacing / subdivisions;
-      for (let unitIndex = 0; unitIndex < length; unitIndex += 1) {
+      for (let unitIndex = 0; unitIndex < effectiveLength; unitIndex += 1) {
         const unitStart = marginLeft + unitSpacing * unitIndex;
         for (let subIndex = 1; subIndex < subdivisions; subIndex += 1) {
           const x = unitStart + step * subIndex;
@@ -1186,11 +1189,12 @@
       }
     }
 
-    const labelMarkup = Array.from({ length: length + 1 }, (_, index) => {
-      const x = marginLeft + unitSpacing * index;
-      const anchor = index === 0 ? 'start' : index === length ? 'end' : 'middle';
+    const labelMarkup = Array.from({ length: totalTicks }, (_, tickIndex) => {
+      const labelValue = startIndex + tickIndex;
+      const x = marginLeft + unitSpacing * tickIndex;
+      const anchor = tickIndex === 0 ? 'start' : tickIndex === totalTicks - 1 ? 'end' : 'middle';
       const dx = anchor === 'start' ? 6 : anchor === 'end' ? -6 : 0;
-      const labelText = formatNumber(index);
+      const labelText = formatNumber(labelValue);
       return `<text x="${x}" y="${labelY}" text-anchor="${anchor}"${dx !== 0 ? ` dx="${dx}"` : ''} class="ruler-svg__label">${labelText}</text>`;
     }).join('');
 
@@ -1209,7 +1213,7 @@
       ${unitLabelMarkup}
     `;
 
-    const zeroOffsetX = marginLeft + paddingLeft;
+    const zeroOffsetX = marginLeft + paddingLeft + unitSpacing * (0 - startIndex);
 
     ruler.style.setProperty('--ruler-width', `${contentWidth}px`);
     ruler.style.setProperty('--ruler-height', `${totalHeight}px`);
