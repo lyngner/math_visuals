@@ -1204,16 +1204,18 @@
       const firstUnit = Math.floor(visibleStart);
       const lastUnit = Math.ceil(visibleEnd);
       for (let unitValue = firstUnit; unitValue < lastUnit; unitValue += 1) {
-        const segmentStart = Math.max(unitValue, visibleStart);
-        const segmentEnd = Math.min(unitValue + 1, visibleEnd);
-        const segmentUnits = segmentEnd - segmentStart;
-        if (!(segmentUnits > 0)) {
-          continue;
-        }
-        const startX = valueToX(segmentStart);
-        const step = (segmentUnits * unitSpacing) / subdivisions;
         for (let subIndex = 1; subIndex < subdivisions; subIndex += 1) {
-          const x = startX + step * subIndex;
+          const tickValue = unitValue + subIndex / subdivisions;
+          if (approxEqual(tickValue, visibleStart) || approxEqual(tickValue, visibleEnd)) {
+            continue;
+          }
+          if (tickValue < visibleStart && !approxEqual(tickValue, visibleStart)) {
+            continue;
+          }
+          if (tickValue > visibleEnd && !approxEqual(tickValue, visibleEnd)) {
+            break;
+          }
+          const x = valueToX(tickValue);
           if (x <= 0 || x >= measuredWidth) {
             continue;
           }
