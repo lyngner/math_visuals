@@ -248,7 +248,10 @@
     const active = project ? normalizeProjectName(project) : ensureActiveProject();
     const headingText = resolveProjectHeading(active);
     if (projectHeadingElement) {
-      projectHeadingElement.textContent = headingText;
+      const fullHeading = headingText
+        ? `Default fargeinnstillinger ${headingText}`
+        : 'Default fargeinnstillinger';
+      projectHeadingElement.textContent = fullHeading;
     }
     if (projectLegendElement) {
       projectLegendElement.textContent = headingText;
