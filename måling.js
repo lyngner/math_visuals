@@ -110,9 +110,6 @@
     boardPanTransform: { x: 0, y: 0 }
   };
 
-  const RULER_ZERO_OFFSET_PX = 40;
-  const RULER_EDGE_MARGIN_PX = 50;
-
   appState.settings = normalizeSettings();
   appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(appState.settings);
   applySettings(appState.settings);
@@ -1157,10 +1154,10 @@
     const effectiveLength = length + (startAtZero ? 0 : 2);
     const startIndex = startAtZero ? 0 : -1;
     const totalTicks = effectiveLength + 1;
-    const paddingLeft = startAtZero ? 0 : RULER_ZERO_OFFSET_PX;
-    const paddingRight = startAtZero ? 0 : RULER_ZERO_OFFSET_PX;
-    const marginLeft = startAtZero ? 0 : RULER_EDGE_MARGIN_PX;
-    const marginRight = startAtZero ? 0 : RULER_EDGE_MARGIN_PX;
+    const paddingLeft = 0;
+    const paddingRight = 0;
+    const marginLeft = 0;
+    const marginRight = 0;
     const totalHeight = 120;
     const baselineY = inset + 26;
     const majorTickLength = (totalHeight - inset - 20 - baselineY) / 2;
