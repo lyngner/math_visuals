@@ -59,6 +59,7 @@
   const figureImageDimensionsPending = new Set();
   const activePointers = new Map();
   const boardPanState = { entry: null, enabled: false };
+  const boardPanTransform = { x: 0, y: 0 };
   let boardRect = board.getBoundingClientRect();
   const baseSize = { width: ruler.offsetWidth, height: ruler.offsetHeight };
   const zeroOffset = { x: 0, y: 0 };
@@ -993,9 +994,34 @@
     board.classList.toggle('board--pannable', enabled);
     if (enabled) {
       board.setAttribute('data-panning-enabled', 'true');
+      applyBoardPanTransform();
     } else {
       board.removeAttribute('data-panning-enabled');
+      resetBoardPanTransform();
       endBoardPanSession();
+    }
+  }
+
+  function resetBoardPanTransform() {
+    boardPanTransform.x = 0;
+    boardPanTransform.y = 0;
+    applyBoardPanTransform();
+  }
+
+  function applyBoardPanTransform() {
+    const x = Number.isFinite(boardPanTransform.x) ? boardPanTransform.x : 0;
+    const y = Number.isFinite(boardPanTransform.y) ? boardPanTransform.y : 0;
+    boardPanTransform.x = x;
+    boardPanTransform.y = y;
+    const translate = x === 0 && y === 0 ? '' : `translate3d(${x}px, ${y}px, 0)`;
+    if (boardFigure) {
+      boardFigure.style.transform = translate;
+    }
+    if (boardGridOverlay) {
+      boardGridOverlay.style.transform = translate;
+    }
+    if (boardScaleLabel) {
+      boardScaleLabel.style.transform = translate;
     }
   }
 
@@ -1317,7 +1343,7 @@
     entry.prevY = entry.clientY;
     entry.clientX = clientX;
     entry.clientY = clientY;
-    updateFromSinglePointer(entry);
+    updateBoardPanFromPointer(entry);
     event.preventDefault();
   }
 
@@ -1529,6 +1555,17 @@
     transformState.x += dx;
     transformState.y += dy;
     applyTransformWithSnap({ allowSnap: false, persist: false });
+  }
+
+  function updateBoardPanFromPointer(pointerEntry) {
+    const dx = pointerEntry.clientX - pointerEntry.prevX;
+    const dy = pointerEntry.clientY - pointerEntry.prevY;
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) {
+      return;
+    }
+    boardPanTransform.x += dx;
+    boardPanTransform.y += dy;
+    applyBoardPanTransform();
   }
 
   function updateFromGesture(currentEntry) {
