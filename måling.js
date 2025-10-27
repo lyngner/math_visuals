@@ -126,6 +126,7 @@
   });
 
   window.addEventListener('resize', handleResize);
+  window.addEventListener('examples:loaded', handleExamplesLoaded);
 
   function resolveConfigContainers() {
     const globalScope = typeof window !== 'undefined' ? window : null;
@@ -1433,6 +1434,38 @@
     transformState.x = Math.min(Math.max(transformState.x, -maxX), maxX);
     transformState.y = Math.min(Math.max(transformState.y, -maxY), maxY);
     applyTransformWithSnap({ allowSnap: activePointers.size === 0, persist: activePointers.size === 0 });
+  }
+
+  function handleExamplesLoaded() {
+    syncSettingsFromConfig();
+  }
+
+  function syncSettingsFromConfig() {
+    const previousSettings = appState.settings;
+    const nextSettings = normalizeSettings();
+    if (!nextSettings) {
+      return;
+    }
+    const nextTransform = sanitizeRulerTransform(nextSettings.rulerTransform, null);
+    const shouldUpdate = !previousSettings || !areSettingsEqual(nextSettings, previousSettings);
+    appState.settings = nextSettings;
+    appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(nextSettings);
+    if (!shouldUpdate) {
+      return;
+    }
+    suspendTransformPersistence = true;
+    try {
+      applySettings(nextSettings);
+      syncInputs(nextSettings);
+    } finally {
+      suspendTransformPersistence = false;
+    }
+    if (nextTransform) {
+      applyRulerTransform(nextTransform, { allowSnap: false, persist: false });
+      persistTransformState();
+    } else {
+      centerRuler();
+    }
   }
 
   function applyRulerTransform(transform, options = {}) {
