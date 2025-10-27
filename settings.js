@@ -150,7 +150,8 @@
     projectOrder: [],
     colorsByProject: new Map(),
     activeProject: null,
-    defaultLineThickness: DEFAULT_LINE_THICKNESS
+    defaultLineThickness: DEFAULT_LINE_THICKNESS,
+    preferredProject: null
   };
   let colors = [];
   const slotBindings = new Map();
@@ -314,8 +315,9 @@
       seen.add(normalized);
       candidates.push(normalized);
     };
-    addCandidate(getApiActiveProject());
+    addCandidate(state.preferredProject);
     addCandidate(state.activeProject);
+    addCandidate(getApiActiveProject());
     state.projectOrder.forEach(addCandidate);
     addCandidate('campus');
     addCandidate('kikora');
@@ -570,10 +572,16 @@
     updateExtraGroupVisibility();
   }
 
-  function renderColors() {
+  function renderColors(projectName) {
     if (!colorGroupsContainer) return;
     buildColorLayout();
-    const project = ensureActiveProject();
+    let project = typeof projectName === 'string' ? normalizeProjectName(projectName) : '';
+    if (project) {
+      ensureProjectColors(project);
+      state.activeProject = project;
+    } else {
+      project = ensureActiveProject();
+    }
     updateProjectHeading(project);
     const palette = getActiveColors(project);
     commitActiveColors(palette, project);
@@ -581,6 +589,52 @@
       ensureExtraSlot(index);
     }
     syncBindings();
+  }
+
+  function requestActiveProfileFromParent() {
+    if (typeof window === 'undefined') return;
+    const parentWindow = window.parent && window.parent !== window ? window.parent : null;
+    if (!parentWindow) return;
+    try {
+      parentWindow.postMessage({ type: 'math-visuals:request-profile' }, '*');
+    } catch (_) {}
+  }
+
+  function handleProfileMessage(event) {
+    const data = event && event.data;
+    let type;
+    let profileName;
+    if (typeof data === 'string') {
+      type = data;
+    } else if (data && typeof data === 'object') {
+      type = data.type;
+      profileName = data.profile || data.name || data.value;
+    }
+    if (type !== 'math-visuals:profile-change') return;
+    const normalized = normalizeProjectName(profileName);
+    if (normalized) {
+      state.preferredProject = normalized;
+      let current = null;
+      if (settingsApi && typeof settingsApi.getActiveProject === 'function') {
+        try {
+          current = normalizeProjectName(settingsApi.getActiveProject());
+        } catch (_) {}
+      }
+      if (
+        settingsApi &&
+        typeof settingsApi.setActiveProject === 'function' &&
+        current !== normalized
+      ) {
+        try {
+          settingsApi.setActiveProject(normalized, { notify: true });
+        } catch (_) {}
+      }
+      renderColors(normalized);
+    } else {
+      state.preferredProject = null;
+      renderColors();
+    }
+    clearStatus();
   }
 
   function applySettings(snapshot) {
@@ -617,15 +671,16 @@
         state.colorsByProject.set(name, expandPalette(name, getProjectFallbackPalette(name), MIN_COLOR_SLOTS));
       }
     });
-    state.activeProject = normalizeProjectName(data.activeProject);
-    ensureActiveProject();
-    updateProjectHeading(state.activeProject);
+    const incomingActiveProject = normalizeProjectName(data.activeProject);
+    state.activeProject = incomingActiveProject;
+    const active = ensureActiveProject();
+    state.activeProject = active;
     state.defaultLineThickness =
       data.defaultLineThickness != null ? clampLineThickness(data.defaultLineThickness) : DEFAULT_LINE_THICKNESS;
     if (lineInput) {
       lineInput.value = state.defaultLineThickness;
     }
-    renderColors();
+    renderColors(state.activeProject);
     updateLinePreview();
   }
 
@@ -781,6 +836,13 @@
     });
   }
 
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('message', handleProfileMessage);
+  }
+
   applySettings({});
+  if (typeof window !== 'undefined') {
+    setTimeout(requestActiveProfileFromParent, 0);
+  }
   loadSettings();
 })();
