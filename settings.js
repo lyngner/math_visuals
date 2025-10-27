@@ -704,12 +704,27 @@
     const payload = {
       activeProject: ensureActiveProject(),
       defaultLineThickness: clampLineThickness(lineInput && lineInput.value),
+      projectOrder: [],
       projects: {}
     };
-    state.projectOrder.forEach(name => {
-      const palette = state.colorsByProject.get(name) || getProjectFallbackPalette(name);
-      payload.projects[name] = { defaultColors: palette.slice(0, MAX_COLORS) };
-    });
+
+    const seenProjects = new Set();
+    const registerProject = projectName => {
+      const normalized = normalizeProjectName(projectName);
+      if (!normalized || seenProjects.has(normalized)) return;
+      const storedPalette = state.colorsByProject.get(normalized);
+      const palette = Array.isArray(storedPalette) && storedPalette.length
+        ? storedPalette
+        : getProjectFallbackPalette(normalized);
+      payload.projects[normalized] = { defaultColors: palette.slice(0, MAX_COLORS) };
+      payload.projectOrder.push(normalized);
+      seenProjects.add(normalized);
+    };
+
+    state.projectOrder.forEach(registerProject);
+    state.colorsByProject.forEach((_, name) => registerProject(name));
+    ['campus', 'kikora', 'annet'].forEach(registerProject);
+
     return payload;
   }
 
