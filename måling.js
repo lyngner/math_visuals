@@ -1153,8 +1153,10 @@
     const { length, subdivisions, unitLabel } = settings;
     const inset = 8;
     const startAtZero = !!settings.rulerStartAtZero;
-    const marginLeft = startAtZero ? 0 : RULER_ZERO_OFFSET_PX;
-    const marginRight = startAtZero ? 0 : RULER_ZERO_OFFSET_PX;
+    const paddingLeft = startAtZero ? 0 : RULER_ZERO_OFFSET_PX;
+    const paddingRight = startAtZero ? 0 : RULER_ZERO_OFFSET_PX;
+    const marginLeft = 0;
+    const marginRight = 0;
     const totalHeight = 120;
     const baselineY = inset + 26;
     const majorTickLength = (totalHeight - inset - 20 - baselineY) / 2;
@@ -1206,16 +1208,20 @@
       ${unitLabelMarkup}
     `;
 
+    const zeroOffsetX = marginLeft + paddingLeft;
+
     ruler.style.setProperty('--ruler-width', `${contentWidth}px`);
     ruler.style.setProperty('--ruler-height', `${totalHeight}px`);
-    ruler.style.setProperty('--zero-offset-x', `${marginLeft}px`);
+    ruler.style.setProperty('--ruler-padding-left', `${paddingLeft}px`);
+    ruler.style.setProperty('--ruler-padding-right', `${paddingRight}px`);
+    ruler.style.setProperty('--zero-offset-x', `${zeroOffsetX}px`);
     ruler.style.setProperty('--zero-offset-y', `${baselineY}px`);
     if (startAtZero) {
       ruler.setAttribute('data-ruler-start', 'zero');
     } else {
       ruler.setAttribute('data-ruler-start', 'offset');
     }
-    zeroOffset.x = marginLeft;
+    zeroOffset.x = zeroOffsetX;
     zeroOffset.y = baselineY;
   }
 
