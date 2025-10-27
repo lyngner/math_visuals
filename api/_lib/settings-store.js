@@ -1,0 +1,314 @@
+'use strict';
+
+const SETTINGS_KEY = 'settings:projects';
+const INJECTED_KV_CLIENT_KEY = '__MATH_VISUALS_SETTINGS_KV_CLIENT__';
+const DEFAULT_LINE_THICKNESS = 3;
+const MAX_COLORS = 12;
+const DEFAULT_PROJECT = 'campus';
+const PROJECT_FALLBACKS = {
+  campus: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
+  annet: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
+  kikora: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
+  default: ['#1F4DE2', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b']
+};
+
+const globalScope = typeof globalThis === 'object' && globalThis ? globalThis : global;
+const memoryState = globalScope.__MATH_VISUALS_SETTINGS_STATE__ || {
+  value: null,
+  updatedAt: null
+};
+
+globalScope.__MATH_VISUALS_SETTINGS_STATE__ = memoryState;
+
+let kvClientPromise = null;
+
+class KvOperationError extends Error {
+  constructor(message, options) {
+    super(message);
+    if (options && options.cause) {
+      this.cause = options.cause;
+    }
+    this.code = options && options.code ? options.code : 'KV_OPERATION_FAILED';
+  }
+}
+
+class KvConfigurationError extends Error {
+  constructor(message) {
+    super(message);
+    this.code = 'KV_NOT_CONFIGURED';
+  }
+}
+
+function isKvConfigured() {
+  return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+}
+
+function getStoreMode() {
+  return isKvConfigured() ? 'kv' : 'memory';
+}
+
+function getInjectedKvClient() {
+  return globalScope && globalScope[INJECTED_KV_CLIENT_KEY] ? globalScope[INJECTED_KV_CLIENT_KEY] : null;
+}
+
+async function loadKvClient() {
+  const injected = getInjectedKvClient();
+  if (injected) {
+    if (!kvClientPromise || !kvClientPromise.__mathVisualsInjected) {
+      const resolved = Promise.resolve(injected).then(client => {
+        if (!client) {
+          throw new KvOperationError('Injected KV client is not available');
+        }
+        return client;
+      });
+      resolved.__mathVisualsInjected = true;
+      kvClientPromise = resolved;
+    }
+    return kvClientPromise;
+  }
+  if (!isKvConfigured()) {
+    throw new KvConfigurationError(
+      'Settings storage KV is not configured. Set KV_REST_API_URL and KV_REST_API_TOKEN to enable persistent settings.'
+    );
+  }
+  if (!kvClientPromise) {
+    kvClientPromise = import('@vercel/kv')
+      .then(mod => {
+        if (mod && mod.kv) {
+          return mod.kv;
+        }
+        throw new KvOperationError('Failed to load @vercel/kv client module');
+      })
+      .catch(error => {
+        throw new KvOperationError('Unable to initialize Vercel KV client', { cause: error });
+      });
+  }
+  return kvClientPromise;
+}
+
+function sanitizeColor(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const match = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(trimmed);
+  if (!match) return null;
+  let hex = match[1].toLowerCase();
+  if (hex.length === 3) {
+    hex = hex.split('').map(ch => ch + ch).join('');
+  }
+  return `#${hex}`;
+}
+
+function sanitizeColorList(values) {
+  if (!Array.isArray(values)) return [];
+  const out = [];
+  for (const value of values) {
+    const sanitized = sanitizeColor(value);
+    if (sanitized) {
+      out.push(sanitized);
+      if (out.length >= MAX_COLORS) {
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+function clampLineThickness(value) {
+  const num = Number.parseFloat(value);
+  if (!Number.isFinite(num)) return DEFAULT_LINE_THICKNESS;
+  if (num < 1) return 1;
+  if (num > 12) return 12;
+  return Math.round(num);
+}
+
+function resolveProjectName(name, projects) {
+  const available = projects && typeof projects === 'object' ? projects : null;
+  if (typeof name === 'string' && name) {
+    const normalized = name.trim().toLowerCase();
+    if (normalized && available && available[normalized]) {
+      return normalized;
+    }
+  }
+  if (available && available[DEFAULT_PROJECT]) {
+    return DEFAULT_PROJECT;
+  }
+  if (available) {
+    const keys = Object.keys(available);
+    if (keys.length) {
+      return keys[0];
+    }
+  }
+  return DEFAULT_PROJECT;
+}
+
+function buildDefaultProjects() {
+  const projects = {};
+  Object.keys(PROJECT_FALLBACKS).forEach(name => {
+    if (name === 'default') return;
+    projects[name] = {
+      defaultColors: PROJECT_FALLBACKS[name].slice(0, MAX_COLORS)
+    };
+  });
+  return projects;
+}
+
+const DEFAULT_PROJECT_ORDER = ['campus', 'kikora', 'annet'];
+
+function normalizeSettings(value) {
+  const input = value && typeof value === 'object' ? value : {};
+  const inputProjects = input.projects && typeof input.projects === 'object' ? input.projects : null;
+  const projects = buildDefaultProjects();
+  const order = DEFAULT_PROJECT_ORDER.slice();
+
+  if (inputProjects) {
+    Object.keys(inputProjects).forEach(name => {
+      const normalized = typeof name === 'string' ? name.trim().toLowerCase() : '';
+      if (!normalized) return;
+      const source = inputProjects[name];
+      const sanitized = sanitizeColorList(source && source.defaultColors);
+      const target = projects[normalized] ? projects[normalized] : { defaultColors: [] };
+      if (!projects[normalized]) {
+        projects[normalized] = target;
+      }
+      if (sanitized.length) {
+        target.defaultColors = sanitized;
+      } else if (!target.defaultColors || !target.defaultColors.length) {
+        const fallback = PROJECT_FALLBACKS[normalized] || PROJECT_FALLBACKS.default;
+        target.defaultColors = fallback.slice(0, MAX_COLORS);
+      }
+      if (source && source.defaultLineThickness != null) {
+        target.defaultLineThickness = clampLineThickness(source.defaultLineThickness);
+      }
+      if (!order.includes(normalized)) {
+        order.push(normalized);
+      }
+    });
+  }
+
+  if (Array.isArray(input.defaultColors)) {
+    const legacyColors = sanitizeColorList(input.defaultColors);
+    if (legacyColors.length) {
+      const projectName = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
+      projects[projectName] = projects[projectName] || {};
+      projects[projectName].defaultColors = legacyColors;
+      if (!order.includes(projectName)) {
+        order.push(projectName);
+      }
+    }
+  }
+
+  const activeProject = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
+  const defaultLineThickness = input.defaultLineThickness != null
+    ? clampLineThickness(input.defaultLineThickness)
+    : DEFAULT_LINE_THICKNESS;
+
+  const normalized = {
+    version: 1,
+    projects,
+    activeProject,
+    defaultLineThickness,
+    projectOrder: order,
+    updatedAt: new Date().toISOString()
+  };
+
+  const active = projects[activeProject];
+  const palette = active && Array.isArray(active.defaultColors) && active.defaultColors.length
+    ? active.defaultColors.slice(0, MAX_COLORS)
+    : PROJECT_FALLBACKS.default.slice(0, MAX_COLORS);
+  normalized.defaultColors = palette;
+  return normalized;
+}
+
+const DEFAULT_SETTINGS = normalizeSettings({});
+
+function cloneSettings(settings) {
+  if (!settings || typeof settings !== 'object') {
+    return normalizeSettings({});
+  }
+  try {
+    return JSON.parse(JSON.stringify(settings));
+  } catch (_) {
+    return normalizeSettings(settings);
+  }
+}
+
+async function readStoredSettings() {
+  if (getStoreMode() === 'kv') {
+    try {
+      const kv = await loadKvClient();
+      const raw = await kv.get(SETTINGS_KEY);
+      if (!raw) return null;
+      if (typeof raw === 'string') {
+        return JSON.parse(raw);
+      }
+      if (typeof raw === 'object') {
+        return raw;
+      }
+      return null;
+    } catch (error) {
+      if (error instanceof KvConfigurationError) {
+        return null;
+      }
+      throw error;
+    }
+  }
+  return memoryState.value ? cloneSettings(memoryState.value) : null;
+}
+
+async function writeStoredSettings(next) {
+  const payload = cloneSettings(next);
+  if (getStoreMode() === 'kv') {
+    const kv = await loadKvClient();
+    await kv.set(SETTINGS_KEY, payload);
+    return;
+  }
+  memoryState.value = payload;
+  memoryState.updatedAt = payload && payload.updatedAt ? payload.updatedAt : new Date().toISOString();
+}
+
+async function getSettings() {
+  try {
+    const stored = await readStoredSettings();
+    if (stored) {
+      return normalizeSettings(stored);
+    }
+  } catch (error) {
+    if (!(error instanceof KvConfigurationError)) {
+      throw error;
+    }
+  }
+  return cloneSettings(DEFAULT_SETTINGS);
+}
+
+async function setSettings(next) {
+  const normalized = normalizeSettings(next);
+  normalized.updatedAt = new Date().toISOString();
+  await writeStoredSettings(normalized);
+  return normalized;
+}
+
+async function resetSettings() {
+  const normalized = cloneSettings(DEFAULT_SETTINGS);
+  normalized.updatedAt = new Date().toISOString();
+  await writeStoredSettings(normalized);
+  return normalized;
+}
+
+module.exports = {
+  DEFAULT_SETTINGS,
+  DEFAULT_LINE_THICKNESS,
+  MAX_COLORS,
+  PROJECT_FALLBACKS,
+  getSettings,
+  setSettings,
+  resetSettings,
+  getStoreMode,
+  sanitizeColor,
+  sanitizeColorList,
+  clampLineThickness,
+  normalizeSettings,
+  resolveProjectName,
+  KvOperationError,
+  KvConfigurationError
+};

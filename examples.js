@@ -211,21 +211,21 @@
   const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
   if (!globalScope) return;
 
-  const SETTINGS_STORAGE_KEY = 'mathVisuals:settings';
+  const DEFAULT_LINE_THICKNESS = 3;
+  const MAX_COLORS = 12;
   const FALLBACK_COLORS = ['#1F4DE2', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
-  const DEFAULT_SETTINGS = {
-    defaultColors: FALLBACK_COLORS.slice(),
-    defaultLineThickness: 3
+  const PROJECT_FALLBACKS = {
+    campus: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
+    annet: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
+    kikora: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
+    default: FALLBACK_COLORS.slice()
   };
+  const DEFAULT_PROJECT = 'campus';
+  const DEFAULT_PROJECT_ORDER = ['campus', 'kikora', 'annet'];
+  const SETTINGS_STORAGE_KEY = 'mathVisuals:settings';
 
   const listeners = new Set();
-
-  const clamp = (value, min, max) => {
-    if (!Number.isFinite(value)) return min;
-    if (value < min) return min;
-    if (value > max) return max;
-    return value;
-  };
+  let remoteLoadPromise = null;
 
   function sanitizeColor(value) {
     if (typeof value !== 'string') return null;
@@ -245,19 +245,24 @@
     const out = [];
     for (const value of values) {
       const sanitized = sanitizeColor(value);
-      if (sanitized) out.push(sanitized);
+      if (sanitized) {
+        out.push(sanitized);
+        if (out.length >= MAX_COLORS) break;
+      }
     }
     return out;
   }
 
   function clampLineThickness(value) {
     const num = Number.parseFloat(value);
-    if (!Number.isFinite(num)) return DEFAULT_SETTINGS.defaultLineThickness;
-    return clamp(num, 1, 12);
+    if (!Number.isFinite(num)) return DEFAULT_LINE_THICKNESS;
+    if (num < 1) return 1;
+    if (num > 12) return 12;
+    return Math.round(num);
   }
 
   function ensureColorCount(base, count) {
-    const palette = Array.isArray(base) && base.length ? base : FALLBACK_COLORS;
+    const palette = Array.isArray(base) && base.length ? base.slice() : FALLBACK_COLORS.slice();
     if (!Number.isFinite(count) || count <= 0) {
       return palette.slice();
     }
@@ -268,62 +273,155 @@
     return result;
   }
 
-  function parseStoredSettings(raw) {
-    if (typeof raw !== 'string' || !raw) return null;
-    try {
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object') return null;
-      return parsed;
-    } catch (_) {
-      return null;
+  function resolveProjectName(name, projects) {
+    const collection = projects && typeof projects === 'object' ? projects : null;
+    if (typeof name === 'string') {
+      const normalized = name.trim().toLowerCase();
+      if (normalized && collection && collection[normalized]) {
+        return normalized;
+      }
     }
+    if (collection && collection[DEFAULT_PROJECT]) {
+      return DEFAULT_PROJECT;
+    }
+    if (collection) {
+      const keys = Object.keys(collection);
+      if (keys.length) return keys[0];
+    }
+    return DEFAULT_PROJECT;
+  }
+
+  function buildDefaultProjects() {
+    const projects = {};
+    Object.keys(PROJECT_FALLBACKS).forEach(name => {
+      if (name === 'default') return;
+      projects[name] = {
+        defaultColors: PROJECT_FALLBACKS[name].slice(0, MAX_COLORS)
+      };
+    });
+    return projects;
+  }
+
+  function cloneProjects(projects) {
+    const out = {};
+    if (!projects || typeof projects !== 'object') return out;
+    Object.keys(projects).forEach(name => {
+      const entry = projects[name];
+      if (!entry || typeof entry !== 'object') return;
+      out[name] = {
+        defaultColors: Array.isArray(entry.defaultColors) ? entry.defaultColors.slice(0, MAX_COLORS) : [],
+        defaultLineThickness:
+          entry.defaultLineThickness != null ? clampLineThickness(entry.defaultLineThickness) : undefined
+      };
+      if (!out[name].defaultColors.length) {
+        const fallback = PROJECT_FALLBACKS[name] || PROJECT_FALLBACKS.default;
+        out[name].defaultColors = fallback.slice(0, MAX_COLORS);
+      }
+    });
+    return out;
   }
 
   function normalizeSettings(value) {
-    const base = {
-      defaultColors: DEFAULT_SETTINGS.defaultColors.slice(),
-      defaultLineThickness: DEFAULT_SETTINGS.defaultLineThickness
-    };
-    if (value && typeof value === 'object') {
-      if (Array.isArray(value.defaultColors)) {
-        const colors = sanitizeColorList(value.defaultColors);
-        if (colors.length) {
-          base.defaultColors = colors;
+    const input = value && typeof value === 'object' ? value : {};
+    const rawProjects = input.projects && typeof input.projects === 'object' ? input.projects : null;
+    const projects = buildDefaultProjects();
+    const order = DEFAULT_PROJECT_ORDER.slice();
+
+    if (rawProjects) {
+      Object.keys(rawProjects).forEach(name => {
+        const normalized = typeof name === 'string' ? name.trim().toLowerCase() : '';
+        if (!normalized) return;
+        const source = rawProjects[name];
+        const target = projects[normalized] ? projects[normalized] : { defaultColors: [] };
+        if (!projects[normalized]) {
+          projects[normalized] = target;
+        }
+        if (source && Array.isArray(source.defaultColors)) {
+          const colors = sanitizeColorList(source.defaultColors);
+          if (colors.length) {
+            target.defaultColors = colors;
+          } else if (!target.defaultColors || !target.defaultColors.length) {
+            const fallback = PROJECT_FALLBACKS[normalized] || PROJECT_FALLBACKS.default;
+            target.defaultColors = fallback.slice(0, MAX_COLORS);
+          }
+        }
+        if (source && source.defaultLineThickness != null) {
+          target.defaultLineThickness = clampLineThickness(source.defaultLineThickness);
+        }
+        if (!order.includes(normalized)) {
+          order.push(normalized);
+        }
+      });
+    }
+
+    if (Array.isArray(input.defaultColors)) {
+      const legacy = sanitizeColorList(input.defaultColors);
+      if (legacy.length) {
+        const projectName = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
+        projects[projectName] = projects[projectName] || { defaultColors: [] };
+        projects[projectName].defaultColors = legacy;
+        if (!order.includes(projectName)) {
+          order.push(projectName);
         }
       }
-      if (value.defaultLineThickness != null) {
-        base.defaultLineThickness = clampLineThickness(value.defaultLineThickness);
-      }
     }
-    return base;
+
+    const activeProject = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
+    const defaultLineThickness =
+      input.defaultLineThickness != null ? clampLineThickness(input.defaultLineThickness) : DEFAULT_LINE_THICKNESS;
+
+    const normalized = {
+      version: 1,
+      projects,
+      activeProject,
+      defaultLineThickness,
+      projectOrder: order,
+      updatedAt: new Date().toISOString()
+    };
+
+    const active = projects[activeProject];
+    const palette = active && Array.isArray(active.defaultColors) && active.defaultColors.length
+      ? active.defaultColors.slice(0, MAX_COLORS)
+      : PROJECT_FALLBACKS.default.slice(0, MAX_COLORS);
+    normalized.defaultColors = palette;
+    return normalized;
   }
 
-  function readStoredSettings() {
-    if (!globalScope || !globalScope.localStorage) return null;
-    try {
-      const stored = globalScope.localStorage.getItem(SETTINGS_STORAGE_KEY);
-      return parseStoredSettings(stored);
-    } catch (_) {
-      return null;
-    }
-  }
+  const DEFAULT_SETTINGS = normalizeSettings({
+    projects: buildDefaultProjects(),
+    activeProject: DEFAULT_PROJECT,
+    defaultLineThickness: DEFAULT_LINE_THICKNESS
+  });
 
   function cloneSettings(source) {
-    const target = source || settings;
-    return {
-      defaultColors: Array.isArray(target.defaultColors) ? target.defaultColors.slice() : [],
-      defaultLineThickness: target.defaultLineThickness
-    };
+    const target = source && typeof source === 'object' ? source : settings;
+    try {
+      return JSON.parse(JSON.stringify(target));
+    } catch (_) {
+      return normalizeSettings(target);
+    }
   }
 
-  let settings = normalizeSettings(readStoredSettings());
+  let settings = cloneSettings(DEFAULT_SETTINGS);
+  let activeProject = settings.activeProject;
+
+  function getProjectPalette(name) {
+    const resolved = resolveProjectName(name || activeProject, settings.projects);
+    const project = settings.projects[resolved];
+    if (project && Array.isArray(project.defaultColors) && project.defaultColors.length) {
+      return project.defaultColors.slice(0, MAX_COLORS);
+    }
+    const fallback = PROJECT_FALLBACKS[resolved] || PROJECT_FALLBACKS.default;
+    return fallback.slice(0, MAX_COLORS);
+  }
 
   function applyToDocument(doc) {
     const targetDoc = doc || (typeof document !== 'undefined' ? document : null);
     if (!targetDoc || !targetDoc.documentElement) return;
     const root = targetDoc.documentElement;
     const style = root.style;
-    const palette = ensureColorCount(settings.defaultColors, Math.max(settings.defaultColors.length || 0, FALLBACK_COLORS.length));
+    const basePalette = getProjectPalette(activeProject);
+    const palette = ensureColorCount(basePalette, Math.max(basePalette.length, FALLBACK_COLORS.length));
     const limit = Math.max(palette.length, FALLBACK_COLORS.length);
     for (let i = 0; i < limit; i += 1) {
       const color = palette[i % palette.length];
@@ -334,13 +432,9 @@
       }
     }
     style.setProperty('--mv-default-line-thickness', String(settings.defaultLineThickness));
-  }
-
-  function persistSettings(next) {
-    if (!globalScope || !globalScope.localStorage) return;
-    try {
-      globalScope.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
-    } catch (_) {}
+    if (typeof activeProject === 'string' && activeProject) {
+      root.setAttribute('data-mv-active-project', activeProject);
+    }
   }
 
   function notifyChange(options) {
@@ -360,8 +454,63 @@
     }
   }
 
+  function buildPersistPayload(next) {
+    return {
+      version: next && next.version ? next.version : 1,
+      activeProject: next && next.activeProject ? next.activeProject : activeProject,
+      defaultLineThickness: next && next.defaultLineThickness != null ? clampLineThickness(next.defaultLineThickness) : settings.defaultLineThickness,
+      projects: cloneProjects(next && next.projects ? next.projects : settings.projects)
+    };
+  }
+
+  function resolveApiUrl() {
+    if (!globalScope) return null;
+    if (globalScope.MATH_VISUALS_SETTINGS_API_URL) {
+      const hint = String(globalScope.MATH_VISUALS_SETTINGS_API_URL).trim();
+      if (hint) return hint;
+    }
+    const origin = globalScope.location && globalScope.location.origin;
+    if (typeof origin === 'string' && /^https?:/i.test(origin)) {
+      return '/api/settings';
+    }
+    return null;
+  }
+
+  function persistSettings(next) {
+    const url = resolveApiUrl();
+    if (!url || typeof globalScope.fetch !== 'function') {
+      return Promise.resolve();
+    }
+    const payload = buildPersistPayload(next);
+    return globalScope
+      .fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(response => {
+        if (!response || !response.ok) {
+          throw new Error('Failed to persist settings');
+        }
+        return response
+          .json()
+          .catch(() => null)
+          .then(data => (data && typeof data === 'object' && data.settings ? data.settings : data));
+      })
+      .then(remote => {
+        if (!remote || typeof remote !== 'object') return;
+        settings = normalizeSettings(remote);
+        activeProject = settings.activeProject;
+        notifyChange({ emitEvent: true });
+      })
+      .catch(error => {
+        console.error(error);
+      });
+  }
+
   function commitSettings(next, options) {
     settings = normalizeSettings(next);
+    activeProject = settings.activeProject;
     if (!options || options.persist !== false) {
       persistSettings(settings);
     }
@@ -371,9 +520,10 @@
     return cloneSettings();
   }
 
-  function getDefaultColors(count) {
+  function getDefaultColors(count, opts) {
     const size = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
-    const palette = settings.defaultColors.length ? settings.defaultColors : FALLBACK_COLORS;
+    const projectName = opts && opts.project ? resolveProjectName(opts.project, settings.projects) : activeProject;
+    const palette = getProjectPalette(projectName);
     return ensureColorCount(palette, size || palette.length);
   }
 
@@ -381,26 +531,54 @@
     return cloneSettings();
   }
 
+  function mergeProjectUpdates(base, updates) {
+    if (!updates || typeof updates !== 'object') return;
+    Object.keys(updates).forEach(name => {
+      const normalized = typeof name === 'string' ? name.trim().toLowerCase() : '';
+      if (!normalized) return;
+      const source = updates[name];
+      if (!base[normalized]) {
+        base[normalized] = { defaultColors: [] };
+      }
+      if (source && Array.isArray(source.defaultColors)) {
+        const colors = sanitizeColorList(source.defaultColors);
+        if (colors.length) {
+          base[normalized].defaultColors = colors;
+        } else if (source.defaultColors.length === 0) {
+          base[normalized].defaultColors = [];
+        }
+      }
+      if (source && source.defaultLineThickness != null) {
+        base[normalized].defaultLineThickness = clampLineThickness(source.defaultLineThickness);
+      }
+    });
+  }
+
   function setSettings(next) {
     return commitSettings(next, { persist: true, notify: true });
   }
 
   function updateSettings(patch) {
-    const merged = {
-      defaultColors: settings.defaultColors.slice(),
-      defaultLineThickness: settings.defaultLineThickness
-    };
+    const merged = cloneSettings(settings);
     if (patch && typeof patch === 'object') {
-      if (Array.isArray(patch.defaultColors)) {
-        const colors = sanitizeColorList(patch.defaultColors);
-        if (colors.length) {
-          merged.defaultColors = colors;
-        } else if (patch.defaultColors.length === 0) {
-          merged.defaultColors = [];
-        }
-      }
       if (patch.defaultLineThickness != null) {
         merged.defaultLineThickness = clampLineThickness(patch.defaultLineThickness);
+      }
+      if (Array.isArray(patch.defaultColors)) {
+        const colors = sanitizeColorList(patch.defaultColors);
+        const targetProject = resolveProjectName(patch.activeProject || activeProject, merged.projects);
+        merged.projects[targetProject] = merged.projects[targetProject] || {};
+        if (colors.length) {
+          merged.projects[targetProject].defaultColors = colors;
+        } else if (patch.defaultColors.length === 0) {
+          merged.projects[targetProject].defaultColors = [];
+        }
+      }
+      if (patch.projects) {
+        mergeProjectUpdates(merged.projects, patch.projects);
+      }
+      if (patch.activeProject) {
+        merged.activeProject = resolveProjectName(patch.activeProject, merged.projects);
       }
     }
     return commitSettings(merged, { persist: true, notify: true });
@@ -424,11 +602,89 @@
     };
   }
 
-  function handleStorage(event) {
-    if (!event || event.key !== SETTINGS_STORAGE_KEY) return;
-    const parsed = normalizeSettings(parseStoredSettings(event.newValue));
-    settings = parsed;
-    notifyChange({ emitEvent: true });
+  function setActiveProject(name, options) {
+    const resolved = resolveProjectName(name, settings.projects);
+    if (resolved === activeProject) {
+      if (!options || options.notify !== false) {
+        notifyChange({ emitEvent: !options || options.emitEvent !== false });
+      }
+      return resolved;
+    }
+    activeProject = resolved;
+    settings.activeProject = resolved;
+    settings.defaultColors = getProjectPalette(resolved);
+    if (!options || options.notify !== false) {
+      notifyChange({ emitEvent: !options || options.emitEvent !== false });
+    }
+    if (options && options.persist) {
+      persistSettings(settings);
+    }
+    return resolved;
+  }
+
+  function getActiveProject() {
+    return activeProject;
+  }
+
+  function listProjects() {
+    return Array.isArray(settings.projectOrder) ? settings.projectOrder.slice() : Object.keys(settings.projects);
+  }
+
+  function getProjectSettings(name) {
+    const resolved = resolveProjectName(name, settings.projects);
+    const project = settings.projects[resolved];
+    if (!project || typeof project !== 'object') {
+      return { defaultColors: [] };
+    }
+    try {
+      return JSON.parse(JSON.stringify(project));
+    } catch (_) {
+      return {
+        defaultColors: Array.isArray(project.defaultColors) ? project.defaultColors.slice() : [],
+        defaultLineThickness:
+          project.defaultLineThickness != null ? clampLineThickness(project.defaultLineThickness) : undefined
+      };
+    }
+  }
+
+  function loadFromRemote(options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    if (remoteLoadPromise && !opts.force) {
+      return remoteLoadPromise;
+    }
+    const url = resolveApiUrl();
+    if (!url || typeof globalScope.fetch !== 'function') {
+      remoteLoadPromise = Promise.resolve(cloneSettings());
+      return remoteLoadPromise;
+    }
+    remoteLoadPromise = globalScope
+      .fetch(url, { headers: { Accept: 'application/json' } })
+      .then(response => {
+        if (!response || !response.ok) {
+          throw new Error('Failed to load settings');
+        }
+        return response
+          .json()
+          .catch(() => null)
+          .then(data => (data && typeof data === 'object' && data.settings ? data.settings : data));
+      })
+      .then(remote => {
+        if (!remote || typeof remote !== 'object') return cloneSettings();
+        settings = normalizeSettings(remote);
+        activeProject = settings.activeProject;
+        if (opts.notify !== false) {
+          notifyChange({ emitEvent: opts.emitEvent !== false });
+        }
+        return cloneSettings();
+      })
+      .catch(error => {
+        console.error(error);
+        return cloneSettings();
+      })
+      .finally(() => {
+        remoteLoadPromise = null;
+      });
+    return remoteLoadPromise;
   }
 
   const settingsApi =
@@ -440,7 +696,7 @@
   settingsApi.setSettings = next => setSettings(next);
   settingsApi.updateSettings = patch => updateSettings(patch);
   settingsApi.resetSettings = () => resetSettings();
-  settingsApi.getDefaultColors = count => getDefaultColors(count);
+  settingsApi.getDefaultColors = (count, opts) => getDefaultColors(count, opts);
   settingsApi.getDefaultLineThickness = () => getDefaultLineThickness();
   settingsApi.subscribe = callback => subscribe(callback);
   settingsApi.applyToDocument = doc => applyToDocument(doc);
@@ -450,14 +706,17 @@
   settingsApi.defaults = () => cloneSettings(DEFAULT_SETTINGS);
   settingsApi.fallbackColors = FALLBACK_COLORS.slice();
   settingsApi.STORAGE_KEY = SETTINGS_STORAGE_KEY;
+  settingsApi.getActiveProject = () => getActiveProject();
+  settingsApi.setActiveProject = (name, options) => setActiveProject(name, options);
+  settingsApi.listProjects = () => listProjects();
+  settingsApi.getProjectSettings = name => getProjectSettings(name);
+  settingsApi.refresh = options => loadFromRemote(options);
+  settingsApi.getApiUrl = () => resolveApiUrl();
 
   globalScope.MathVisualsSettings = settingsApi;
 
-  if (typeof globalScope.addEventListener === 'function') {
-    globalScope.addEventListener('storage', handleStorage);
-  }
-
   notifyChange({ emitEvent: true });
+  loadFromRemote({ notify: true }).catch(() => {});
 })();
 
 (function () {

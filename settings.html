@@ -70,6 +70,19 @@
       color: #4b5563;
       font-size: 0.95rem;
     }
+    .project-select {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .project-select select {
+      font: inherit;
+      border-radius: 10px;
+      border: 1px solid var(--profile-surface-border, #e5e7eb);
+      background: rgba(249, 250, 251, 0.8);
+      padding: 10px 12px;
+      color: inherit;
+    }
     .color-list {
       list-style: none;
       padding: 0;
@@ -233,8 +246,16 @@
   <div class="settings-page">
     <section class="settings-card">
       <h1>Innstillinger</h1>
-      <p>Tilpass standardverdiene som brukes på tvers av Math Visuals-verktøyene. Endringene lagres lokalt i nettleseren.</p>
+      <p>Tilpass standardverdiene som brukes på tvers av Math Visuals-verktøyene. Endringene lagres i back-end og gjelder på tvers av nettlesere.</p>
       <form data-settings-form>
+        <fieldset>
+          <legend>Prosjekt</legend>
+          <p class="field-description">Velg prosjektet du vil tilpasse standardfargene for.</p>
+          <label class="project-select">
+            <span>Prosjekt</span>
+            <select data-project-select></select>
+          </label>
+        </fieldset>
         <fieldset>
           <legend>Standardfarger</legend>
           <p class="field-description">Rekkefølgen brukes når nye objekter får automatisk farge. Du kan legge til opptil 12 farger.</p>
