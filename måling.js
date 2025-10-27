@@ -1000,7 +1000,7 @@
     const inset = 8;
     const startAtZero = !!settings.rulerStartAtZero;
     const marginLeft = startAtZero ? 0 : RULER_ZERO_OFFSET_PX;
-    const marginRight = startAtZero ? RULER_ZERO_OFFSET_PX : 0;
+    const marginRight = startAtZero ? 0 : RULER_ZERO_OFFSET_PX;
     const totalHeight = 120;
     const baselineY = inset + 26;
     const majorTickLength = (totalHeight - inset - 20 - baselineY) / 2;
