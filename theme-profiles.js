@@ -253,6 +253,12 @@
     if (!force && resolved === activeProfileName) return activeProfileName;
     activeProfileName = resolved;
     storeProfileName(activeProfileName);
+    const settingsApi = getSettingsApi();
+    if (settingsApi && typeof settingsApi.setActiveProject === 'function') {
+      try {
+        settingsApi.setActiveProject(activeProfileName, { notify: true });
+      } catch (_) {}
+    }
     return activeProfileName;
   }
   function listProfiles() {
