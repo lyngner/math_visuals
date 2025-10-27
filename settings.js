@@ -52,15 +52,15 @@
       title: 'Diagram',
       description: 'Standardfarger for stolpe- og sektordiagram.',
       slots: [
-        { index: 4, label: 'Stolpediagram', description: 'Når et stolpediagram har én dataserie.' },
-        { index: 5, label: 'To stolper – første', description: 'Første dataserie i sammenlignende stolpediagram.' },
-        { index: 6, label: 'To stolper – andre', description: 'Andre dataserie i sammenlignende stolpediagram.' },
-        { index: 7, label: 'Sektordiagram 1', description: 'Første sektor i sektordiagram.' },
-        { index: 8, label: 'Sektordiagram 2', description: 'Andre sektor i sektordiagram.' },
-        { index: 9, label: 'Sektordiagram 3', description: 'Tredje sektor i sektordiagram.' },
-        { index: 10, label: 'Sektordiagram 4', description: 'Fjerde sektor i sektordiagram.' },
-        { index: 11, label: 'Sektordiagram 5', description: 'Femte sektor i sektordiagram.' },
-        { index: 12, label: 'Sektordiagram 6', description: 'Sjette sektor i sektordiagram.' }
+        { index: 4, label: 'En stolpe', description: 'Når et stolpediagram har én dataserie.' },
+        { index: 5, label: 'Stolpe1', description: 'Første dataserie i sammenlignende stolpediagram.' },
+        { index: 6, label: 'Stolpe2', description: 'Andre dataserie i sammenlignende stolpediagram.' },
+        { index: 7, label: 'Sektor1', description: 'Første sektor i sektordiagram.' },
+        { index: 8, label: 'Sektor2', description: 'Andre sektor i sektordiagram.' },
+        { index: 9, label: 'Sektor3', description: 'Tredje sektor i sektordiagram.' },
+        { index: 10, label: 'Sektor4', description: 'Fjerde sektor i sektordiagram.' },
+        { index: 11, label: 'Sektor5', description: 'Femte sektor i sektordiagram.' },
+        { index: 12, label: 'Sektor6', description: 'Sjette sektor i sektordiagram.' }
       ]
     },
     {
