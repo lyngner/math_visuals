@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('crypto');
 const {
   getSettings,
   setSettings,
@@ -55,10 +56,66 @@ function normalizePayload(body) {
   return body;
 }
 
+function resolveMutationToken() {
+  const token =
+    process.env.MATH_VISUALS_SETTINGS_MUTATION_TOKEN ||
+    process.env.SETTINGS_MUTATION_TOKEN ||
+    process.env.SETTINGS_API_TOKEN ||
+    '';
+  const trimmed = typeof token === 'string' ? token.trim() : '';
+  return trimmed ? trimmed : null;
+}
+
+function extractProvidedToken(req) {
+  if (!req || !req.headers) return null;
+  const header = req.headers.authorization;
+  if (typeof header === 'string') {
+    const match = /^Bearer\s+(.+)$/i.exec(header);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  const alternative = req.headers['x-math-visuals-settings-token'];
+  if (typeof alternative === 'string' && alternative.trim()) {
+    return alternative.trim();
+  }
+  return null;
+}
+
+function authorizeMutation(req, res) {
+  const expectedToken = resolveMutationToken();
+  if (!expectedToken) {
+    sendJson(res, 503, { error: 'Settings persistence is not configured' });
+    return false;
+  }
+  const providedToken = extractProvidedToken(req);
+  if (!providedToken) {
+    res.setHeader('WWW-Authenticate', 'Bearer realm="math-visuals-settings"');
+    sendJson(res, 401, { error: 'Unauthorized' });
+    return false;
+  }
+  try {
+    const expected = Buffer.from(expectedToken, 'utf8');
+    const provided = Buffer.from(providedToken, 'utf8');
+    if (expected.length !== provided.length) {
+      throw new Error('Length mismatch');
+    }
+    if (crypto.timingSafeEqual(expected, provided)) {
+      return true;
+    }
+  } catch (_) {}
+  res.setHeader('WWW-Authenticate', 'Bearer realm="math-visuals-settings"');
+  sendJson(res, 401, { error: 'Unauthorized' });
+  return false;
+}
+
 module.exports = async function handler(req, res) {
   const origin = req.headers.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin === 'null' ? '*' : origin);
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Math-Visuals-Settings-Token'
+  );
   res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
   res.setHeader('Vary', 'Origin');
 
@@ -77,6 +134,9 @@ module.exports = async function handler(req, res) {
       return;
     }
     if (req.method === 'PUT' || req.method === 'POST') {
+      if (!authorizeMutation(req, res)) {
+        return;
+      }
       const body = await readJsonBody(req);
       const payload = normalizePayload(body);
       const updated = await setSettings(payload);
@@ -86,6 +146,9 @@ module.exports = async function handler(req, res) {
       return;
     }
     if (req.method === 'DELETE') {
+      if (!authorizeMutation(req, res)) {
+        return;
+      }
       const reset = await resetSettings();
       const mode = getStoreMode();
       applyStoreHeaders(res, mode);

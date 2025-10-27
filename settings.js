@@ -64,6 +64,41 @@
     return null;
   }
 
+  function buildAuthHeaders(base) {
+    const headers = Object.assign({}, base || {});
+    if (settingsApi && typeof settingsApi.withApiAuthHeaders === 'function') {
+      try {
+        return settingsApi.withApiAuthHeaders(headers);
+      } catch (_) {}
+    }
+    let token = null;
+    if (settingsApi && typeof settingsApi.getApiAuthToken === 'function') {
+      try {
+        const hint = settingsApi.getApiAuthToken();
+        if (typeof hint === 'string' && hint.trim()) {
+          token = hint.trim();
+        }
+      } catch (_) {}
+    }
+    if (!token && typeof window !== 'undefined') {
+      const candidates = [window.MATH_VISUALS_SETTINGS_API_TOKEN, window.MATH_VISUALS_SETTINGS_AUTH_TOKEN];
+      for (const candidate of candidates) {
+        if (typeof candidate === 'string') {
+          const trimmed = candidate.trim();
+          if (trimmed) {
+            token = trimmed;
+            break;
+          }
+        }
+      }
+    }
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+      headers['X-Math-Visuals-Settings-Token'] = token;
+    }
+    return headers;
+  }
+
   function sanitizeColor(value) {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
@@ -329,7 +364,7 @@
     setStatus('Laster innstillinger...', 'info');
     setFormDisabled(true);
     try {
-      const response = await fetch(url, { headers: { Accept: 'application/json' } });
+      const response = await fetch(url, { headers: buildAuthHeaders({ Accept: 'application/json' }) });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -369,10 +404,10 @@
     }
     const response = await fetch(url, {
       method,
-      headers: {
+      headers: buildAuthHeaders({
         'Content-Type': 'application/json',
         Accept: 'application/json'
-      },
+      }),
       body: body ? JSON.stringify(body) : undefined
     });
     if (!response.ok) {

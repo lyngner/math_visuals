@@ -476,6 +476,33 @@
     return null;
   }
 
+  function resolveApiAuthToken() {
+    if (!globalScope) return null;
+    const candidates = [
+      globalScope.MATH_VISUALS_SETTINGS_API_TOKEN,
+      globalScope.MATH_VISUALS_SETTINGS_AUTH_TOKEN
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string') {
+        const trimmed = candidate.trim();
+        if (trimmed) {
+          return trimmed;
+        }
+      }
+    }
+    return null;
+  }
+
+  function withApiAuthHeaders(base) {
+    const headers = Object.assign({}, base || {});
+    const token = resolveApiAuthToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+      headers['X-Math-Visuals-Settings-Token'] = token;
+    }
+    return headers;
+  }
+
   function persistSettings(next) {
     const url = resolveApiUrl();
     if (!url || typeof globalScope.fetch !== 'function') {
@@ -485,7 +512,10 @@
     return globalScope
       .fetch(url, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        headers: withApiAuthHeaders({
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        }),
         body: JSON.stringify(payload)
       })
       .then(response => {
@@ -658,7 +688,7 @@
       return remoteLoadPromise;
     }
     remoteLoadPromise = globalScope
-      .fetch(url, { headers: { Accept: 'application/json' } })
+      .fetch(url, { headers: withApiAuthHeaders({ Accept: 'application/json' }) })
       .then(response => {
         if (!response || !response.ok) {
           throw new Error('Failed to load settings');
@@ -712,6 +742,8 @@
   settingsApi.getProjectSettings = name => getProjectSettings(name);
   settingsApi.refresh = options => loadFromRemote(options);
   settingsApi.getApiUrl = () => resolveApiUrl();
+  settingsApi.getApiAuthToken = () => resolveApiAuthToken();
+  settingsApi.withApiAuthHeaders = base => withApiAuthHeaders(base);
 
   globalScope.MathVisualsSettings = settingsApi;
 
