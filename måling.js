@@ -61,6 +61,8 @@
   const boardPanState = { entry: null, enabled: false };
   const boardPanTransform = { x: 0, y: 0 };
   let boardRect = board.getBoundingClientRect();
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const XLINK_NS = 'http://www.w3.org/1999/xlink';
   const baseSize = { width: ruler.offsetWidth, height: ruler.offsetHeight };
   const zeroOffset = { x: 0, y: 0 };
   const CUSTOM_CATEGORY_ID = 'custom';
@@ -73,6 +75,22 @@
     measurementTargetAuto: true
   };
   const configContainers = resolveConfigContainers();
+
+  function refreshConfigContainers() {
+    const latest = resolveConfigContainers();
+    if (!latest) {
+      return;
+    }
+    if (latest.root) {
+      configContainers.root = latest.root;
+    }
+    if (latest.measurement) {
+      configContainers.measurement = latest.measurement;
+    }
+    if (latest.measurementGlobal) {
+      configContainers.measurementGlobal = latest.measurementGlobal;
+    }
+  }
 
   const defaults = {
     length: 10,
@@ -88,7 +106,8 @@
     gridEnabled: false,
     showScaleLabel: false,
     panningEnabled: false,
-    rulerTransform: null
+    rulerTransform: null,
+    boardPanTransform: { x: 0, y: 0 }
   };
 
   const RULER_ZERO_OFFSET_PX = 40;
@@ -179,6 +198,8 @@
     if (typeof source.figureScaleLabel === 'string') target.figureScaleLabel = source.figureScaleLabel;
     if (typeof source.measurementTarget === 'string') target.measurementTarget = source.measurementTarget;
     if (source.boardPadding != null) target.boardPadding = source.boardPadding;
+    if (source.boardPanTransform != null) target.boardPanTransform = source.boardPanTransform;
+    else if (source.boardPan != null) target.boardPanTransform = source.boardPan;
     if (source.rulerTransform != null) target.rulerTransform = source.rulerTransform;
     if (Object.prototype.hasOwnProperty.call(source, 'rulerStartAtZero')) {
       target.rulerStartAtZero = source.rulerStartAtZero;
@@ -225,6 +246,8 @@
       delete container.figureScaleLabel;
       delete container.measurementTarget;
       delete container.rulerTransform;
+      delete container.boardPanTransform;
+      delete container.boardPan;
       return;
     }
     container.length = settings.length;
@@ -247,6 +270,11 @@
       container.rulerTransform = { ...settings.rulerTransform };
     } else {
       delete container.rulerTransform;
+    }
+    if (settings.boardPanTransform && typeof settings.boardPanTransform === 'object') {
+      container.boardPanTransform = { ...settings.boardPanTransform };
+    } else {
+      delete container.boardPanTransform;
     }
   }
 
@@ -424,6 +452,38 @@
     };
   }
 
+  function sanitizeBoardPanTransform(value, fallback) {
+    const source = value && typeof value === 'object' ? value : fallback;
+    if (!source || typeof source !== 'object') {
+      return { x: 0, y: 0 };
+    }
+    const xRaw = Number.parseFloat(source.x);
+    const yRaw = Number.parseFloat(source.y);
+    if (!Number.isFinite(xRaw) || !Number.isFinite(yRaw)) {
+      if (fallback && fallback !== source) {
+        return sanitizeBoardPanTransform(fallback, null);
+      }
+      return { x: 0, y: 0 };
+    }
+    const limits =
+      boardRect && Number.isFinite(boardRect.width) && Number.isFinite(boardRect.height)
+        ? boardRect
+        : board
+        ? board.getBoundingClientRect()
+        : null;
+    const maxX =
+      limits && Number.isFinite(limits.width)
+        ? Math.max(limits.width, BASE_BOARD_DIMENSIONS.width)
+        : BASE_BOARD_DIMENSIONS.width;
+    const maxY =
+      limits && Number.isFinite(limits.height)
+        ? Math.max(limits.height, BASE_BOARD_DIMENSIONS.height)
+        : BASE_BOARD_DIMENSIONS.height;
+    const clampedX = Math.min(Math.max(xRaw, -maxX), maxX);
+    const clampedY = Math.min(Math.max(yRaw, -maxY), maxY);
+    return { x: clampedX, y: clampedY };
+  }
+
   function resolveBoardPaddingValue(settings) {
     if (!settings) {
       return 0;
@@ -436,6 +496,7 @@
   }
 
   function normalizeSettings(overrides) {
+    refreshConfigContainers();
     const combined = { ...defaults };
     applySource(combined, configContainers.root);
     if (configContainers.measurementGlobal && configContainers.measurementGlobal !== configContainers.root) {
@@ -462,6 +523,7 @@
     const showScaleLabel = sanitizeGridEnabled(combined.showScaleLabel, defaults.showScaleLabel);
     const panningEnabled = sanitizeBoolean(combined.panningEnabled, defaults.panningEnabled);
     const rulerTransform = sanitizeRulerTransform(combined.rulerTransform, defaults.rulerTransform);
+    const boardPanTransform = sanitizeBoardPanTransform(combined.boardPanTransform, defaults.boardPanTransform);
 
     const settings = {
       length,
@@ -477,7 +539,8 @@
       gridEnabled,
       showScaleLabel,
       panningEnabled,
-      rulerTransform
+      rulerTransform,
+      boardPanTransform
     };
 
     applySettingsToContainer(configContainers.measurement, settings);
@@ -516,7 +579,8 @@
       a.gridEnabled === b.gridEnabled &&
       a.showScaleLabel === b.showScaleLabel &&
       a.panningEnabled === b.panningEnabled &&
-      areRulerTransformsEqual(a.rulerTransform, b.rulerTransform)
+      areRulerTransformsEqual(a.rulerTransform, b.rulerTransform) &&
+      areBoardPanTransformsEqual(a.boardPanTransform, b.boardPanTransform)
     );
   }
 
@@ -533,6 +597,19 @@
       Math.abs(a.y - b.y) <= epsilon &&
       Math.abs(normalizeAngle(a.rotation) - normalizeAngle(b.rotation)) <= epsilon
     );
+  }
+
+  function areBoardPanTransformsEqual(a, b) {
+    if (a === b) {
+      return true;
+    }
+    const first = sanitizeBoardPanTransform(a, defaults.boardPanTransform);
+    const second = sanitizeBoardPanTransform(b, defaults.boardPanTransform);
+    if (!first || !second) {
+      return false;
+    }
+    const epsilon = 0.001;
+    return Math.abs(first.x - second.x) <= epsilon && Math.abs(first.y - second.y) <= epsilon;
   }
 
   function updateSettings(partial) {
@@ -994,18 +1071,27 @@
     board.classList.toggle('board--pannable', enabled);
     if (enabled) {
       board.setAttribute('data-panning-enabled', 'true');
+      const storedPan = sanitizeBoardPanTransform(
+        settings && settings.boardPanTransform,
+        defaults.boardPanTransform
+      );
+      boardPanTransform.x = storedPan.x;
+      boardPanTransform.y = storedPan.y;
       applyBoardPanTransform();
     } else {
       board.removeAttribute('data-panning-enabled');
-      resetBoardPanTransform();
+      resetBoardPanTransform({ persist: true });
       endBoardPanSession();
     }
   }
 
-  function resetBoardPanTransform() {
+  function resetBoardPanTransform(options = {}) {
     boardPanTransform.x = 0;
     boardPanTransform.y = 0;
     applyBoardPanTransform();
+    if (options.persist) {
+      persistBoardPanState();
+    }
   }
 
   function applyBoardPanTransform() {
@@ -1383,6 +1469,7 @@
       }
     }
     if (entry && options.persist !== false) {
+      persistBoardPanState();
       applyTransformWithSnap({ persist: true });
     }
   }
@@ -1472,6 +1559,7 @@
     if (!transform || typeof transform !== 'object') {
       return;
     }
+    refreshConfigContainers();
     if (configContainers.measurement) {
       configContainers.measurement.rulerTransform = { ...transform };
     }
@@ -1483,6 +1571,45 @@
       configContainers.measurementGlobal !== configContainers.measurement
     ) {
       delete configContainers.measurementGlobal.rulerTransform;
+    }
+  }
+
+  function persistBoardPanState() {
+    if (suspendTransformPersistence) {
+      return;
+    }
+    const snapshot = sanitizeBoardPanTransform(boardPanTransform, defaults.boardPanTransform);
+    if (!snapshot) {
+      return;
+    }
+    if (appState.settings) {
+      if (!areBoardPanTransformsEqual(appState.settings.boardPanTransform, snapshot)) {
+        appState.settings = { ...appState.settings, boardPanTransform: { ...snapshot } };
+      } else if (!appState.settings.boardPanTransform) {
+        appState.settings.boardPanTransform = { ...snapshot };
+      }
+    }
+    storeBoardPanTransform(snapshot);
+  }
+
+  function storeBoardPanTransform(pan) {
+    if (!pan || typeof pan !== 'object') {
+      return;
+    }
+    refreshConfigContainers();
+    if (configContainers.measurement) {
+      configContainers.measurement.boardPanTransform = { ...pan };
+    }
+    if (configContainers.root && configContainers.root !== configContainers.measurement) {
+      delete configContainers.root.boardPanTransform;
+      delete configContainers.root.boardPan;
+    }
+    if (
+      configContainers.measurementGlobal &&
+      configContainers.measurementGlobal !== configContainers.measurement
+    ) {
+      delete configContainers.measurementGlobal.boardPanTransform;
+      delete configContainers.measurementGlobal.boardPan;
     }
   }
 
@@ -1630,10 +1757,12 @@
   }
 
   function handleExamplesLoaded() {
+    refreshConfigContainers();
     syncSettingsFromConfig();
   }
 
   function syncSettingsFromConfig() {
+    refreshConfigContainers();
     const previousSettings = appState.settings;
     const nextSettings = normalizeSettings();
     if (!nextSettings) {
@@ -2074,19 +2203,384 @@
     };
   }
 
+  function formatSvgNumber(value) {
+    if (!Number.isFinite(value)) {
+      return '0';
+    }
+    const rounded = Math.abs(value) < 0.000001 ? 0 : value;
+    return Number(rounded.toFixed(3)).toString();
+  }
+
+  function createSvgElement(name) {
+    return doc.createElementNS(SVG_NS, name);
+  }
+
+  function parseCssMatrix(transformValue) {
+    if (!transformValue || transformValue === 'none') {
+      return null;
+    }
+    const trimmed = transformValue.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (trimmed.startsWith('matrix3d(')) {
+      const values = trimmed
+        .slice('matrix3d('.length, -1)
+        .split(',')
+        .map(part => Number.parseFloat(part.trim()));
+      if (values.length === 16 && values.every(Number.isFinite)) {
+        return {
+          a: values[0],
+          b: values[1],
+          c: values[4],
+          d: values[5],
+          e: values[12],
+          f: values[13]
+        };
+      }
+      return null;
+    }
+    const match = trimmed.match(/matrix\(([^)]+)\)/);
+    if (!match) {
+      return null;
+    }
+    const parts = match[1]
+      .split(',')
+      .map(part => Number.parseFloat(part.trim()));
+    if (parts.length !== 6 || !parts.every(Number.isFinite)) {
+      return null;
+    }
+    return { a: parts[0], b: parts[1], c: parts[2], d: parts[3], e: parts[4], f: parts[5] };
+  }
+
+  function getComputedMatrix(element) {
+    if (!element || typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') {
+      return null;
+    }
+    const computed = window.getComputedStyle(element);
+    if (!computed) {
+      return null;
+    }
+    return parseCssMatrix(computed.transform || computed.webkitTransform || computed.mozTransform || '');
+  }
+
+  function matrixToString(matrix) {
+    if (!matrix) {
+      return '';
+    }
+    const { a, b, c, d, e, f } = matrix;
+    return `matrix(${formatSvgNumber(a)} ${formatSvgNumber(b)} ${formatSvgNumber(c)} ${formatSvgNumber(d)} ${formatSvgNumber(e)} ${formatSvgNumber(f)})`;
+  }
+
+  function buildExportStyle() {
+    return `
+      .mv-board-bg { fill: #f8fafc; }
+      .mv-board-border { fill: none; stroke: rgba(15, 23, 42, 0.12); stroke-width: 2; }
+      .mv-grid line { stroke: rgba(15, 23, 42, 0.16); stroke-width: 1; }
+      .mv-scale-label__bg { fill: rgba(15, 23, 42, 0.6); }
+      .mv-scale-label__text {
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+        font-size: 18px;
+        font-weight: 600;
+        fill: #ffffff;
+        letter-spacing: 0.03em;
+      }
+      .mv-figure { image-rendering: optimizeQuality; }
+      .mv-ruler .ruler-svg__background { fill: #ffffff; fill-opacity: 0.5; stroke: rgba(15, 23, 42, 0.28); stroke-width: 2; }
+      .mv-ruler .ruler-svg__baseline { stroke: rgba(15, 23, 42, 0.75); stroke-width: 2; stroke-linecap: round; }
+      .mv-ruler .ruler-svg__tick { stroke-linecap: round; }
+      .mv-ruler .ruler-svg__tick--major { stroke: rgba(15, 23, 42, 0.78); stroke-width: 2.5; }
+      .mv-ruler .ruler-svg__tick--minor { stroke: rgba(15, 23, 42, 0.55); stroke-width: 1.4; }
+      .mv-ruler .ruler-svg__label {
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 24px;
+        font-weight: 600;
+        fill: #1f2937;
+        letter-spacing: -0.01em;
+      }
+      .mv-ruler .ruler-svg__unit-label {
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 18px;
+        font-weight: 600;
+        fill: #1e293b;
+        letter-spacing: 0.02em;
+      }
+    `;
+  }
+
+  function appendGrid(svgRoot, width, height, pan) {
+    if (!svgRoot) {
+      return;
+    }
+    const group = createSvgElement('g');
+    group.setAttribute('class', 'mv-grid');
+    group.setAttribute('shape-rendering', 'crispEdges');
+    const offsetX = pan && Number.isFinite(pan.x) ? pan.x : 0;
+    const offsetY = pan && Number.isFinite(pan.y) ? pan.y : 0;
+    if (offsetX !== 0 || offsetY !== 0) {
+      group.setAttribute('transform', `translate(${formatSvgNumber(offsetX)} ${formatSvgNumber(offsetY)})`);
+    }
+    const columns = 100;
+    const rows = 100;
+    for (let column = 1; column < columns; column += 1) {
+      const x = (width / columns) * column;
+      const line = createSvgElement('line');
+      line.setAttribute('x1', formatSvgNumber(x));
+      line.setAttribute('y1', '0');
+      line.setAttribute('x2', formatSvgNumber(x));
+      line.setAttribute('y2', formatSvgNumber(height));
+      group.appendChild(line);
+    }
+    for (let row = 1; row < rows; row += 1) {
+      const y = (height / rows) * row;
+      const line = createSvgElement('line');
+      line.setAttribute('x1', '0');
+      line.setAttribute('y1', formatSvgNumber(y));
+      line.setAttribute('x2', formatSvgNumber(width));
+      line.setAttribute('y2', formatSvgNumber(y));
+      group.appendChild(line);
+    }
+    svgRoot.appendChild(group);
+  }
+
+  function appendScaleLabel(svgRoot, settings) {
+    if (!svgRoot || !settings || !settings.showScaleLabel || !boardScaleLabel || !board) {
+      return;
+    }
+    const text = collapseWhitespace(boardScaleLabel.textContent || '');
+    if (!text) {
+      return;
+    }
+    const labelRect = boardScaleLabel.getBoundingClientRect();
+    const baseRect =
+      boardRect && Number.isFinite(boardRect.width) && Number.isFinite(boardRect.height)
+        ? boardRect
+        : board.getBoundingClientRect();
+    if (!labelRect || !baseRect || labelRect.width <= 0 || labelRect.height <= 0) {
+      return;
+    }
+    const x = labelRect.left - baseRect.left;
+    const y = labelRect.top - baseRect.top;
+    const width = labelRect.width;
+    const height = labelRect.height;
+    const radius = Math.min(height / 2, 24);
+    const group = createSvgElement('g');
+    group.setAttribute('class', 'mv-scale-label');
+    const background = createSvgElement('rect');
+    background.setAttribute('class', 'mv-scale-label__bg');
+    background.setAttribute('x', formatSvgNumber(x));
+    background.setAttribute('y', formatSvgNumber(y));
+    background.setAttribute('width', formatSvgNumber(width));
+    background.setAttribute('height', formatSvgNumber(height));
+    background.setAttribute('rx', formatSvgNumber(radius));
+    background.setAttribute('ry', formatSvgNumber(radius));
+    group.appendChild(background);
+    const textElement = createSvgElement('text');
+    textElement.setAttribute('class', 'mv-scale-label__text');
+    textElement.setAttribute('x', formatSvgNumber(x + width / 2));
+    textElement.setAttribute('y', formatSvgNumber(y + height / 2));
+    textElement.setAttribute('text-anchor', 'middle');
+    textElement.setAttribute('dominant-baseline', 'middle');
+    textElement.textContent = text;
+    group.appendChild(textElement);
+    svgRoot.appendChild(group);
+  }
+
+  async function resolveImageHref(imageUrl) {
+    if (typeof imageUrl !== 'string' || !imageUrl) {
+      return null;
+    }
+    const trimmed = imageUrl.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (trimmed.startsWith('data:') || typeof fetch !== 'function' || typeof FileReader !== 'function') {
+      return trimmed;
+    }
+    try {
+      const absolute = new URL(trimmed, doc.baseURI).toString();
+      const response = await fetch(absolute, { mode: 'cors' });
+      if (!response.ok) {
+        throw new Error('failed');
+      }
+      const blob = await response.blob();
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : trimmed);
+        reader.onerror = () => reject(reader.error || new Error('read failed'));
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      return trimmed;
+    }
+  }
+
+  async function createFigureImageElement(settings, boardWidth, boardHeight, pan) {
+    if (!settings || !settings.figureImage || !boardFigure) {
+      return null;
+    }
+    const imageUrl = settings.figureImage;
+    ensureFigureImageDimensions(imageUrl);
+    const scaleMetrics = resolveScaleMetrics(settings);
+    const figureDimensions = resolveFigureDimensions(imageUrl);
+    let figureWidth = boardWidth;
+    let figureHeight = boardHeight;
+    if (figureDimensions) {
+      const scaleResult = computeFigureScale(settings, scaleMetrics, figureDimensions);
+      if (scaleResult) {
+        figureWidth = scaleResult.width;
+        figureHeight = scaleResult.height;
+      }
+    }
+    if (!(figureWidth > 0) || !(figureHeight > 0)) {
+      figureWidth = boardWidth;
+      figureHeight = boardHeight;
+    }
+    const href = await resolveImageHref(imageUrl);
+    if (!href) {
+      return null;
+    }
+    const image = createSvgElement('image');
+    image.setAttribute('class', 'mv-figure');
+    const offsetX = pan && Number.isFinite(pan.x) ? pan.x : 0;
+    const offsetY = pan && Number.isFinite(pan.y) ? pan.y : 0;
+    const x = (boardWidth - figureWidth) / 2 + offsetX;
+    const y = (boardHeight - figureHeight) / 2 + offsetY;
+    image.setAttribute('x', formatSvgNumber(x));
+    image.setAttribute('y', formatSvgNumber(y));
+    image.setAttribute('width', formatSvgNumber(figureWidth));
+    image.setAttribute('height', formatSvgNumber(figureHeight));
+    image.setAttributeNS(XLINK_NS, 'xlink:href', href);
+    image.setAttribute('href', href);
+    return image;
+  }
+
+  function createRulerGroupForExport(helper) {
+    if (!rulerSvg) {
+      return null;
+    }
+    const clone = helper && typeof helper.cloneSvgForExport === 'function'
+      ? helper.cloneSvgForExport(rulerSvg)
+      : rulerSvg.cloneNode(true);
+    if (!clone) {
+      return null;
+    }
+    clone.removeAttribute('aria-hidden');
+    clone.removeAttribute('focusable');
+    const group = createSvgElement('g');
+    group.setAttribute('class', 'mv-ruler');
+    const matrix = getComputedMatrix(ruler);
+    if (matrix) {
+      group.setAttribute('transform', matrixToString(matrix));
+    }
+    group.setAttribute('filter', 'url(#mv-ruler-shadow)');
+    group.appendChild(clone);
+    return group;
+  }
+
+  async function createMeasurementExportSvg(settings, helper) {
+    if (!doc || !board) {
+      return null;
+    }
+    const bounds = board.getBoundingClientRect();
+    if (bounds && Number.isFinite(bounds.width) && Number.isFinite(bounds.height)) {
+      boardRect = bounds;
+    }
+    const width = Math.max(
+      Math.round((boardRect && Number.isFinite(boardRect.width) ? boardRect.width : BASE_BOARD_DIMENSIONS.width) || 0),
+      1
+    );
+    const height = Math.max(
+      Math.round((boardRect && Number.isFinite(boardRect.height) ? boardRect.height : BASE_BOARD_DIMENSIONS.height) || 0),
+      1
+    );
+    const svg = createSvgElement('svg');
+    svg.setAttribute('xmlns', SVG_NS);
+    svg.setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:xlink', XLINK_NS);
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.setAttribute('width', String(width));
+    svg.setAttribute('height', String(height));
+
+    const defs = createSvgElement('defs');
+    const style = createSvgElement('style');
+    style.textContent = buildExportStyle();
+    defs.appendChild(style);
+    const shadow = createSvgElement('filter');
+    shadow.setAttribute('id', 'mv-ruler-shadow');
+    shadow.setAttribute('x', '-20%');
+    shadow.setAttribute('y', '-20%');
+    shadow.setAttribute('width', '140%');
+    shadow.setAttribute('height', '180%');
+    const dropShadow = createSvgElement('feDropShadow');
+    dropShadow.setAttribute('dx', '0');
+    dropShadow.setAttribute('dy', '12');
+    dropShadow.setAttribute('stdDeviation', '9');
+    dropShadow.setAttribute('flood-color', '#0f172a');
+    dropShadow.setAttribute('flood-opacity', '0.25');
+    shadow.appendChild(dropShadow);
+    defs.appendChild(shadow);
+    svg.appendChild(defs);
+
+    const background = createSvgElement('rect');
+    background.setAttribute('class', 'mv-board-bg');
+    background.setAttribute('x', '0');
+    background.setAttribute('y', '0');
+    background.setAttribute('width', formatSvgNumber(width));
+    background.setAttribute('height', formatSvgNumber(height));
+    svg.appendChild(background);
+
+    const border = createSvgElement('rect');
+    border.setAttribute('class', 'mv-board-border');
+    border.setAttribute('x', formatSvgNumber(1));
+    border.setAttribute('y', formatSvgNumber(1));
+    border.setAttribute('width', formatSvgNumber(Math.max(width - 2, 0)));
+    border.setAttribute('height', formatSvgNumber(Math.max(height - 2, 0)));
+    svg.appendChild(border);
+
+    const pan = settings && settings.panningEnabled
+      ? sanitizeBoardPanTransform(settings.boardPanTransform, defaults.boardPanTransform)
+      : { x: 0, y: 0 };
+
+    const figureImage = await createFigureImageElement(settings, width, height, pan);
+    if (figureImage) {
+      svg.appendChild(figureImage);
+    }
+
+    if (settings && settings.gridEnabled) {
+      appendGrid(svg, width, height, pan);
+    }
+
+    appendScaleLabel(svg, settings);
+
+    const rulerGroup = createRulerGroupForExport(helper);
+    if (rulerGroup) {
+      svg.appendChild(rulerGroup);
+    }
+
+    return svg;
+  }
+
   async function handleExport() {
     if (!appState.settings || !rulerSvg) {
       return;
     }
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    const exportSvgElement = await createMeasurementExportSvg(appState.settings, helper);
+    if (!exportSvgElement) {
+      return;
+    }
     const meta = buildExportMetadata(appState.settings);
-    const svgMarkup = svgToString(rulerSvg);
+    const svgMarkup = svgToString(exportSvgElement);
     const suggestedBase = meta.baseName || 'maling';
     const suggestedName = suggestedBase.toLowerCase().endsWith('.svg') ? suggestedBase : `${suggestedBase}.svg`;
-    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
 
     if (helper && typeof helper.exportSvgWithArchive === 'function') {
       try {
-        await helper.exportSvgWithArchive(rulerSvg, suggestedName, 'maling', {
+        const elementForHelper =
+          helper && typeof helper.cloneSvgForExport === 'function'
+            ? helper.cloneSvgForExport(exportSvgElement)
+            : exportSvgElement.cloneNode(true);
+        await helper.exportSvgWithArchive(elementForHelper, suggestedName, 'maling', {
           svgString: svgMarkup,
           slug: meta.slug,
           defaultBaseName: meta.baseName,
