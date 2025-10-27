@@ -453,23 +453,74 @@
     return expandPalette(resolved, fallback);
   }
 
+  function parseInlineStyle(element) {
+    const map = new Map();
+    if (!element || typeof element.getAttribute !== 'function') return map;
+    const raw = element.getAttribute('style');
+    if (!raw || typeof raw !== 'string') return map;
+    raw
+      .split(';')
+      .map(chunk => chunk.trim())
+      .filter(Boolean)
+      .forEach(chunk => {
+        const separatorIndex = chunk.indexOf(':');
+        if (separatorIndex === -1) return;
+        const prop = chunk.slice(0, separatorIndex).trim();
+        const value = chunk.slice(separatorIndex + 1).trim();
+        if (prop) {
+          map.set(prop, value);
+        }
+      });
+    return map;
+  }
+
+  function serializeInlineStyle(map) {
+    return Array.from(map.entries())
+      .map(([prop, value]) => `${prop}: ${value}`)
+      .join('; ');
+  }
+
   function applyToDocument(doc) {
     const targetDoc = doc || (typeof document !== 'undefined' ? document : null);
     if (!targetDoc || !targetDoc.documentElement) return;
     const root = targetDoc.documentElement;
     const style = root.style;
+    const canUseNativeStyle = style && typeof style.setProperty === 'function' && typeof style.removeProperty === 'function';
+    const inlineStyle = canUseNativeStyle ? null : parseInlineStyle(root);
+    const setStyleProperty = (name, value) => {
+      if (canUseNativeStyle) {
+        style.setProperty(name, value);
+      } else if (inlineStyle) {
+        inlineStyle.set(name, value);
+      }
+    };
+    const removeStyleProperty = name => {
+      if (canUseNativeStyle) {
+        style.removeProperty(name);
+      } else if (inlineStyle) {
+        inlineStyle.delete(name);
+      }
+    };
     const basePalette = getProjectPalette(activeProject);
     const palette = ensureColorCount(basePalette, Math.max(basePalette.length, FALLBACK_COLORS.length));
     const limit = Math.max(palette.length, FALLBACK_COLORS.length);
     for (let i = 0; i < limit; i += 1) {
       const color = palette[i % palette.length];
       if (color) {
-        style.setProperty(`--mv-default-color-${i + 1}`, color);
+        setStyleProperty(`--mv-default-color-${i + 1}`, color);
       } else {
-        style.removeProperty(`--mv-default-color-${i + 1}`);
+        removeStyleProperty(`--mv-default-color-${i + 1}`);
       }
     }
-    style.setProperty('--mv-default-line-thickness', String(settings.defaultLineThickness));
+    setStyleProperty('--mv-default-line-thickness', String(settings.defaultLineThickness));
+    if (!canUseNativeStyle && inlineStyle && typeof root.setAttribute === 'function') {
+      const serialized = serializeInlineStyle(inlineStyle);
+      if (serialized) {
+        root.setAttribute('style', serialized);
+      } else {
+        root.removeAttribute('style');
+      }
+    }
     if (typeof activeProject === 'string' && activeProject) {
       root.setAttribute('data-mv-active-project', activeProject);
     }
