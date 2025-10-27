@@ -672,6 +672,49 @@ const ADV = {
   }
 };
 
+const DOMAIN_MARKER_SHAPES = {
+  closed: {
+    points: [
+      [18.5, 47],
+      [3, 47],
+      [2.610756875, 46.9214171875],
+      [2.2928949999999997, 46.7071125],
+      [2.078585625, 46.3892515625],
+      [2, 46],
+      [2, 3],
+      [2.078585625, 2.610756875],
+      [2.2928949999999997, 2.2928949999999997],
+      [2.610756875, 2.078585625],
+      [3, 2],
+      [18.5, 2]
+    ]
+  },
+  open: {
+    points: [
+      [2, 47.5],
+      [37.6146, 25.6019],
+      [37.97173125, 25.225853125],
+      [38.090775, 24.75],
+      [37.97173125, 24.274146875],
+      [37.6146, 23.8981],
+      [2, 2]
+    ]
+  }
+};
+
+Object.values(DOMAIN_MARKER_SHAPES).forEach(shape => {
+  if (!shape || !Array.isArray(shape.points) || !shape.points.length) return;
+  const xs = shape.points.map(pt => pt[0]);
+  const ys = shape.points.map(pt => pt[1]);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  shape.centerX = (minX + maxX) / 2;
+  shape.centerY = (minY + maxY) / 2;
+  shape.height = Math.max(1e-6, maxY - minY);
+});
+
 const DEFAULT_LINE_POINTS = ADV.points.start.map(pt => pt.slice());
 
 function parsePointListString(str) {
@@ -2632,6 +2675,16 @@ function updateCurveColorsFromTheme() {
         node.style.color = appliedColor;
       }
     }
+    if (g._br && typeof g._br === 'object') {
+      Object.values(g._br).forEach(list => {
+        if (!Array.isArray(list)) return;
+        list.forEach(seg => {
+          if (seg && typeof seg.setAttribute === 'function') {
+            seg.setAttribute({ strokeColor: appliedColor });
+          }
+        });
+      });
+    }
   });
   if (updated && brd && typeof brd.update === 'function') {
     brd.update();
@@ -3523,31 +3576,38 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
   let nx = -ty,
     ny = tx;
   const px2world = (vx, vy, Lpx) => [vx * Lpx * rx, vy * Lpx * ry];
+  const shape = closed ? DOMAIN_MARKER_SHAPES.closed : DOMAIN_MARKER_SHAPES.open;
+  if (!shape || !Array.isArray(shape.points) || !shape.points.length) return;
   const LEN = ADV.domainMarkers.barPx;
-  const CAP = Math.max(4, LEN * (ADV.domainMarkers.tipFrac || 0.2));
-  const [wx, wy] = px2world(nx, ny, LEN / 2);
-  const A = [xS - wx, yS - wy];
-  const B = [xS + wx, yS + wy];
+  const heightPx = shape.height || 1;
+  const scale = LEN / heightPx;
+  const flip = closed ? -side : side;
+  const strokeColor = typeof g.color === 'string' && g.color ? g.color : ADV.domainMarkers.color;
   const style = {
-    strokeColor: ADV.domainMarkers.color,
+    strokeColor,
     strokeWidth: ADV.domainMarkers.width,
     fixed: true,
     highlight: false,
-    layer: ADV.domainMarkers.layer
+    layer: ADV.domainMarkers.layer,
+    lineCap: 'round',
+    lineJoin: 'round'
   };
-  const [ux, uy] = px2world(tx, ty, CAP);
   const segments = [];
-  if (closed) {
-    const dir = -side;
-    const back = brd.create('segment', [A, B], style);
-    const cap1 = brd.create('segment', [A, [A[0] + dir * ux, A[1] + dir * uy]], style);
-    const cap2 = brd.create('segment', [B, [B[0] + dir * ux, B[1] + dir * uy]], style);
-    segments.push(back, cap1, cap2);
-  } else {
-    const dir = side;
-    const tip = [xS + dir * ux, yS + dir * uy];
-    segments.push(brd.create('segment', [A, tip], style));
-    segments.push(brd.create('segment', [B, tip], style));
+  const mapped = shape.points.map(([px, py]) => {
+    const localX = (px - shape.centerX) * scale * flip;
+    const localY = (py - shape.centerY) * scale;
+    const [offTx, offTy] = px2world(tx, ty, localX);
+    const [offNx, offNy] = px2world(nx, ny, localY);
+    return [xS + offTx + offNx, yS + offTy + offNy];
+  });
+  for (let i = 0; i < mapped.length - 1; i += 1) {
+    const p = mapped[i];
+    const q = mapped[i + 1];
+    if (!p || !q) continue;
+    const dx = q[0] - p[0];
+    const dy = q[1] - p[1];
+    if (Math.hypot(dx, dy) < 1e-8) continue;
+    segments.push(brd.create('segment', [p, q], style));
   }
   g._br[side] = segments;
 }
