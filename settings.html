@@ -20,6 +20,13 @@
       justify-content: center;
       padding: 24px 20px;
     }
+    body > .wrap {
+      width: min(1080px, 100%);
+      --gap: 20px;
+    }
+    .settings-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
     .settings-page {
       width: min(1080px, 100%);
       display: flex;
@@ -233,36 +240,40 @@
   </style>
 </head>
 <body>
-  <div class="settings-page">
-    <section class="settings-card">
-      <h1 data-project-heading>Default fargeinnstillinger Kikora</h1>
-      <form data-settings-form>
-        <fieldset>
-          <legend data-project-legend></legend>
-          <div class="color-section">
-            <div class="color-groups" data-color-groups></div>
-            <div class="settings-actions">
-              <button type="button" class="btn btn--secondary" data-add-color>Legg til ekstra farge</button>
+  <div class="wrap">
+    <div class="grid settings-layout">
+      <div class="settings-page">
+        <section class="settings-card">
+          <h1 data-project-heading>Default fargeinnstillinger Kikora</h1>
+          <form data-settings-form>
+            <fieldset>
+              <legend data-project-legend></legend>
+              <div class="color-section">
+                <div class="color-groups" data-color-groups></div>
+                <div class="settings-actions">
+                  <button type="button" class="btn btn--secondary" data-add-color>Legg til ekstra farge</button>
+                </div>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Linjetykkelse</legend>
+              <label>
+                <span>1–12 px</span>
+                <input type="number" id="lineThickness" name="lineThickness" min="1" max="12" step="1" required />
+              </label>
+              <div class="line-preview" data-line-preview>
+                <div class="line-preview__bar" data-line-preview-bar></div>
+              </div>
+            </fieldset>
+            <div class="form-actions">
+              <button type="submit" class="btn">Lagre innstillinger</button>
+              <button type="button" class="btn btn--secondary" data-reset-settings>Tilbakestill</button>
             </div>
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend>Linjetykkelse</legend>
-          <label>
-            <span>1–12 px</span>
-            <input type="number" id="lineThickness" name="lineThickness" min="1" max="12" step="1" required />
-          </label>
-          <div class="line-preview" data-line-preview>
-            <div class="line-preview__bar" data-line-preview-bar></div>
-          </div>
-        </fieldset>
-        <div class="form-actions">
-          <button type="submit" class="btn">Lagre innstillinger</button>
-          <button type="button" class="btn btn--secondary" data-reset-settings>Tilbakestill</button>
-        </div>
-        <p class="form-status" data-status aria-live="polite"></p>
-      </form>
-    </section>
+            <p class="form-status" data-status aria-live="polite"></p>
+          </form>
+        </section>
+      </div>
+    </div>
   </div>
   <script defer src="theme-profiles.js"></script>
   <script defer src="examples.js"></script>
