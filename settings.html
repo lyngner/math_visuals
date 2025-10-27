@@ -87,29 +87,29 @@
       border: 1px solid var(--profile-surface-border, #e5e7eb);
       border-radius: 10px;
       overflow: hidden;
-      background: rgba(255, 255, 255, 0.9);
+      background: var(--profile-surface-border, #e5e7eb);
       display: flex;
       flex-direction: column;
     }
     .color-row {
       display: flex;
-      flex-wrap: nowrap;
+      flex-wrap: wrap;
+      gap: 1px;
       border-top: 1px solid var(--profile-surface-border, #e5e7eb);
+      background: var(--profile-surface-border, #e5e7eb);
     }
     .color-row:first-child {
       border-top: none;
     }
     .color-slot {
-      flex: 1;
-      min-width: 0;
+      flex: 1 1 372px;
+      min-width: min(100%, 372px);
       display: grid;
       grid-template-columns: minmax(110px, auto) minmax(150px, 1fr) 56px;
       align-items: center;
       gap: 12px;
       padding: 12px 16px;
-    }
-    .color-slot:not(:first-child) {
-      border-left: 1px solid var(--profile-surface-border, #e5e7eb);
+      background: rgba(255, 255, 255, 0.9);
     }
     .color-slot__label {
       font-weight: 600;
@@ -212,18 +212,11 @@
       .settings-card {
         padding: 20px;
       }
-      .color-row {
-        flex-wrap: wrap;
-      }
       .color-slot {
         width: 100%;
         grid-template-columns: minmax(90px, auto) minmax(120px, 1fr) 48px;
         gap: 8px;
         padding: 10px 12px;
-        border-left: none !important;
-      }
-      .color-slot + .color-slot {
-        border-top: 1px solid var(--profile-surface-border, #e5e7eb);
       }
       .color-slot input[type="color"] {
         width: 40px;
