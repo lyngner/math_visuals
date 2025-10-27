@@ -327,16 +327,11 @@ function resolveCurvePalette(count = undefined) {
   if (theme && typeof theme.getPalette === 'function') {
     const active = typeof theme.getActiveProfileName === 'function' ? theme.getActiveProfileName() : null;
     const palette = theme.getPalette('figures', targetCount || basePalette.length, { fallbackKinds: ['fractions'] });
-    if ((!active || active !== 'kikora') && Array.isArray(palette) && palette.length) {
-      const reordered = active === 'campus' ? CAMPUS_CURVE_ORDER.map(idx => palette[idx % palette.length]) : palette;
-      const resolved = ensureColorCount(reordered, basePalette, targetCount || reordered.length);
-      if (active && active.toLowerCase() === 'campus') {
-        const campusPrimary = resolveAxisStrokeColor();
-        if (typeof campusPrimary === 'string' && campusPrimary.trim()) {
-          resolved[0] = campusPrimary.trim();
-        }
-      }
-      return resolved;
+    if (Array.isArray(palette) && palette.length) {
+      const reordered = active && active.toLowerCase() === 'campus'
+        ? CAMPUS_CURVE_ORDER.map(idx => palette[idx % palette.length])
+        : palette;
+      return ensureColorCount(reordered, basePalette, targetCount || reordered.length);
     }
   }
   return ensureColorCount(basePalette, basePalette, targetCount || basePalette.length);
