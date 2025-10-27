@@ -3,7 +3,9 @@
   const form = document.querySelector('[data-settings-form]');
   if (!form) return;
 
-  const colorList = form.querySelector('[data-color-list]');
+  const groupsContainer = form.querySelector('[data-color-groups]');
+  const extrasSection = form.querySelector('[data-color-extras]');
+  const extrasList = form.querySelector('[data-extra-color-list]');
   const addColorButton = form.querySelector('[data-add-color]');
   const resetButton = form.querySelector('[data-reset-settings]');
   const statusElement = form.querySelector('[data-status]');
@@ -12,6 +14,7 @@
   const projectSelect = form.querySelector('[data-project-select]');
 
   const MAX_COLORS = 12;
+  const CORE_COLOR_COUNT = 6;
   const DEFAULT_LINE_THICKNESS = 3;
   const PROJECT_LABELS = {
     kikora: 'Kikora',
@@ -24,6 +27,140 @@
     annet: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
     default: ['#1F4DE2', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b']
   };
+  const COLOR_USAGE_LAYOUT = [
+    {
+      id: 'graftegner',
+      title: 'Graftegner',
+      rows: [
+        {
+          label: 'Graf',
+          colors: [{ index: 1, hint: 'Linje' }]
+        }
+      ]
+    },
+    {
+      id: 'nkant',
+      title: 'nKant',
+      rows: [
+        { label: 'Linje', colors: [{ index: 1 }] },
+        { label: 'Vinkel', colors: [{ index: 2 }] },
+        { label: 'Fyll', colors: [{ index: 0 }] }
+      ]
+    },
+    {
+      id: 'diagram',
+      title: 'Diagram',
+      rows: [
+        { label: 'Stolpefarge', colors: [{ index: 0 }] },
+        {
+          label: 'To stolper',
+          colors: [
+            { index: 0, hint: 'Serie 1' },
+            { index: 2, hint: 'Serie 2' }
+          ]
+        },
+        {
+          label: 'Sektordiagram',
+          colors: [
+            { index: 0, hint: 'Del 1' },
+            { index: 1, hint: 'Del 2' },
+            { index: 2, hint: 'Del 3' },
+            { index: 3, hint: 'Del 4' },
+            { index: 4, hint: 'Del 5' },
+            { index: 5, hint: 'Del 6' }
+          ]
+        }
+      ]
+    },
+    {
+      id: 'brok-tenkeblokker',
+      title: 'Brøk og tenkeblokker',
+      rows: [
+        { label: 'Linje', colors: [{ index: 1 }] },
+        { label: 'Fyll', colors: [{ index: 0 }] }
+      ]
+    },
+    {
+      id: 'figurtall',
+      title: 'Figurtall',
+      rows: [
+        {
+          label: 'Fyll',
+          colors: [
+            { index: 0, hint: '1' },
+            { index: 1, hint: '2' },
+            { index: 2, hint: '3' },
+            { index: 3, hint: '4' },
+            { index: 4, hint: '5' },
+            { index: 5, hint: '6' }
+          ]
+        }
+      ]
+    },
+    {
+      id: 'arealmodell',
+      title: 'Arealmodell',
+      rows: [
+        {
+          label: 'Farger',
+          colors: [
+            { index: 0, hint: '1' },
+            { index: 2, hint: '2' },
+            { index: 3, hint: '3' },
+            { index: 4, hint: '4' }
+          ]
+        }
+      ]
+    },
+    {
+      id: 'tallinje',
+      title: 'Tallinje',
+      rows: [
+        { label: 'Linje', colors: [{ index: 1 }] },
+        { label: 'Fyll', colors: [{ index: 0 }] }
+      ]
+    },
+    {
+      id: 'kvikkbilder',
+      title: 'Kvikkbilder',
+      rows: [
+        { label: 'Fyll', colors: [{ index: 0 }] }
+      ]
+    },
+    {
+      id: 'trefigurer',
+      title: '3D figurer',
+      rows: [
+        { label: 'Linje', colors: [{ index: 1 }] },
+        { label: 'Fyll', colors: [{ index: 0 }] }
+      ]
+    },
+    {
+      id: 'brokvegg',
+      title: 'Brøkvegg',
+      rows: [
+        {
+          label: 'Fyll',
+          colors: [
+            { index: 0, hint: '1' },
+            { index: 1, hint: '2' },
+            { index: 2, hint: '3' },
+            { index: 3, hint: '4' },
+            { index: 4, hint: '5' },
+            { index: 5, hint: '6' }
+          ]
+        }
+      ]
+    },
+    {
+      id: 'prikk-til-prikk',
+      title: 'Prikk til prikk',
+      rows: [
+        { label: 'Prikk', colors: [{ index: 1 }] },
+        { label: 'Linje', colors: [{ index: 2 }] }
+      ]
+    }
+  ];
 
   const settingsApi = resolveSettingsApi();
   const state = {
@@ -183,92 +320,188 @@
     return getProjectFallbackPalette(project);
   }
 
+  const colorBindings = new Map();
+
   function commitActiveColors(next) {
     const project = ensureActiveProject();
     const sanitized = [];
     next.forEach((value, index) => {
       const clean = sanitizeColor(value) || getFallbackColorForIndex(project, index);
-      if (clean) sanitized.push(clean);
+      if (clean) {
+        sanitized.push(clean);
+      }
     });
+    for (let i = sanitized.length; i < CORE_COLOR_COUNT; i += 1) {
+      sanitized.push(getFallbackColorForIndex(project, i));
+    }
     if (!sanitized.length) {
       sanitized.push(getFallbackColorForIndex(project, 0));
     }
-    state.colorsByProject.set(project, sanitized.slice(0, MAX_COLORS));
     colors = sanitized.slice(0, MAX_COLORS);
+    state.colorsByProject.set(project, colors.slice());
   }
 
-  function createColorItem(color, index) {
-    const item = document.createElement('li');
-    item.className = 'color-item';
+  function getColorValue(index) {
+    const project = ensureActiveProject();
+    if (!Number.isInteger(index) || index < 0) return getFallbackColorForIndex(project, 0);
+    if (!colors[index]) {
+      const fallback = getFallbackColorForIndex(project, index);
+      colors[index] = fallback;
+      state.colorsByProject.set(project, colors.slice());
+    }
+    return colors[index];
+  }
 
-    const colorLabel = document.createElement('label');
-    const srOnly = document.createElement('span');
-    srOnly.className = 'sr-only';
-    srOnly.textContent = `Farge ${index + 1}`;
+  function updateBoundInputs(index) {
+    const bindings = colorBindings.get(index);
+    if (!bindings) return;
+    const value = getColorValue(index);
+    bindings.forEach(binding => {
+      const { colorInput, hexInput } = binding;
+      if (colorInput && colorInput.value !== value) {
+        colorInput.value = value;
+      }
+      if (hexInput && hexInput.value !== value) {
+        hexInput.value = value;
+      }
+    });
+  }
+
+  function handleColorCommit(index, rawValue) {
+    const project = ensureActiveProject();
+    const next = sanitizeColor(rawValue) || getFallbackColorForIndex(project, index);
+    colors[index] = next;
+    state.colorsByProject.set(project, colors.slice());
+    updateBoundInputs(index);
+    clearStatus();
+  }
+
+  function createColorChip(index, options = {}) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'color-chip';
+
+    if (options.hint) {
+      const hint = document.createElement('div');
+      hint.className = 'color-chip__hint';
+      hint.textContent = options.hint;
+      wrapper.appendChild(hint);
+    }
+
     const colorInput = document.createElement('input');
     colorInput.type = 'color';
-    colorInput.value = color;
-    colorLabel.appendChild(srOnly);
-    colorLabel.appendChild(colorInput);
+    colorInput.value = getColorValue(index);
+    colorInput.setAttribute('aria-label', options.ariaLabel || `Velg farge ${index + 1}`);
 
     const hexInput = document.createElement('input');
     hexInput.type = 'text';
-    hexInput.value = color;
-    hexInput.setAttribute('aria-label', `Fargekode ${index + 1}`);
-
-    const removeButton = document.createElement('button');
-    removeButton.type = 'button';
-    removeButton.className = 'color-remove';
-    removeButton.textContent = 'Fjern';
-    removeButton.setAttribute('aria-label', `Fjern farge ${index + 1}`);
+    hexInput.value = getColorValue(index);
+    hexInput.setAttribute('aria-label', options.hexLabel || `Fargekode ${index + 1}`);
 
     colorInput.addEventListener('input', event => {
-      const next = sanitizeColor(event.target.value) || colors[index];
-      colors[index] = next;
-      state.colorsByProject.set(state.activeProject, colors.slice());
-      hexInput.value = next;
-      event.target.value = next;
-      clearStatus();
+      handleColorCommit(index, event.target.value);
     });
 
     hexInput.addEventListener('blur', event => {
       const next = sanitizeColor(event.target.value);
       if (next) {
-        colors[index] = next;
-        hexInput.value = next;
-        colorInput.value = next;
-        state.colorsByProject.set(state.activeProject, colors.slice());
+        handleColorCommit(index, next);
       } else {
-        hexInput.value = colors[index];
+        updateBoundInputs(index);
       }
-      clearStatus();
     });
 
-    removeButton.addEventListener('click', () => {
-      if (colors.length <= 1) {
-        setStatus('Det må være minst én farge.', 'error');
-        return;
-      }
-      colors.splice(index, 1);
-      state.colorsByProject.set(state.activeProject, colors.slice());
-      renderColors();
-      clearStatus();
-    });
+    wrapper.appendChild(colorInput);
+    wrapper.appendChild(hexInput);
 
-    item.appendChild(colorLabel);
-    item.appendChild(hexInput);
-    item.appendChild(removeButton);
-    return item;
+    if (!colorBindings.has(index)) {
+      colorBindings.set(index, []);
+    }
+    colorBindings.get(index).push({ colorInput, hexInput });
+
+    return wrapper;
   }
 
-  function renderColors() {
-    if (!colorList) return;
+  function renderColorGroups() {
+    if (!groupsContainer) return;
+    colorBindings.clear();
+    groupsContainer.innerHTML = '';
+    COLOR_USAGE_LAYOUT.forEach(group => {
+      const section = document.createElement('section');
+      section.className = 'color-group';
+      section.setAttribute('data-group-id', group.id);
+
+      const title = document.createElement('h3');
+      title.className = 'color-group__title';
+      title.textContent = group.title;
+      section.appendChild(title);
+
+      group.rows.forEach(row => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'color-row';
+
+        const label = document.createElement('div');
+        label.className = 'color-row__label';
+        label.textContent = row.label;
+        rowEl.appendChild(label);
+
+        const controls = document.createElement('div');
+        controls.className = 'color-row__controls';
+
+        row.colors.forEach((colorRef, idx) => {
+          const displayHint = colorRef.hint || (row.colors.length > 1 ? String(idx + 1) : '');
+          const ariaLabel = displayHint ? `${row.label} – ${displayHint}` : row.label;
+          const chip = createColorChip(colorRef.index, {
+            ariaLabel: `Velg farge for ${ariaLabel}`,
+            hexLabel: `Fargekode for ${ariaLabel}`,
+            hint: displayHint
+          });
+          controls.appendChild(chip);
+        });
+
+        rowEl.appendChild(controls);
+        section.appendChild(rowEl);
+      });
+
+      groupsContainer.appendChild(section);
+    });
+  }
+
+  function renderExtraColors() {
+    if (!extrasList || !extrasSection) return;
+    const extras = colors.slice(CORE_COLOR_COUNT);
+    extrasList.innerHTML = '';
+    if (!extras.length) {
+      extrasSection.hidden = true;
+      return;
+    }
+    extrasSection.hidden = false;
+    extras.forEach((color, offset) => {
+      const index = CORE_COLOR_COUNT + offset;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'color-row';
+
+      const label = document.createElement('div');
+      label.className = 'color-row__label';
+      label.textContent = `Farge ${index + 1}`;
+      wrapper.appendChild(label);
+
+      const controls = document.createElement('div');
+      controls.className = 'color-row__controls';
+      const chip = createColorChip(index, {
+        ariaLabel: `Velg ekstra farge ${index + 1}`,
+        hexLabel: `Fargekode for ekstra farge ${index + 1}`
+      });
+      controls.appendChild(chip);
+      wrapper.appendChild(controls);
+      extrasList.appendChild(wrapper);
+    });
+  }
+
+  function renderPalette() {
     const palette = getActiveColors();
     commitActiveColors(palette);
-    colorList.innerHTML = '';
-    colors.forEach((color, index) => {
-      colorList.appendChild(createColorItem(color, index));
-    });
+    renderColorGroups();
+    renderExtraColors();
   }
 
   function applySettings(snapshot) {
@@ -287,6 +520,9 @@
         .map((value, index) => sanitizeColor(value) || getFallbackColorForIndex(normalized, index))
         .filter(Boolean)
         .slice(0, MAX_COLORS);
+      while (sanitized.length < CORE_COLOR_COUNT) {
+        sanitized.push(getFallbackColorForIndex(normalized, sanitized.length));
+      }
       state.colorsByProject.set(
         normalized,
         sanitized.length ? sanitized : getProjectFallbackPalette(normalized)
@@ -315,7 +551,7 @@
     if (projectSelect && projectSelect.value !== active) {
       projectSelect.value = active;
     }
-    renderColors();
+    renderPalette();
     updateLinePreview();
   }
 
@@ -402,7 +638,7 @@
           settingsApi.setActiveProject(state.activeProject, { notify: true });
         } catch (_) {}
       }
-      renderColors();
+      renderPalette();
       updateLinePreview();
       clearStatus();
     });
@@ -419,7 +655,7 @@
         getFallbackColorForIndex(state.activeProject, colors.length) || colors[colors.length - 1] || '#1F4DE2';
       colors.push(nextColor);
       state.colorsByProject.set(state.activeProject, colors.slice());
-      renderColors();
+      renderPalette();
       clearStatus();
     });
   }
