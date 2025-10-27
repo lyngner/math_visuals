@@ -311,12 +311,31 @@ const modeControl = nav ? nav.querySelector('[data-mode-control]') : null;
 const navList = nav ? nav.querySelector('ul') : null;
 const taskStrip = nav ? nav.querySelector('[data-task-strip]') : null;
 const betaFeatureItems = nav ? Array.from(nav.querySelectorAll('[data-beta-feature]')) : [];
+const profileFilteredItems = nav ? Array.from(nav.querySelectorAll('[data-profile-filter]')) : [];
+const PROFILE_FILTER_ATTR = 'data-profile-filter';
 const SETTINGS_ENABLED_PROFILES = new Set(['annet', 'kikora', 'campus']);
 function setBetaFeatureVisibility(isEnabled) {
   betaFeatureItems.forEach(item => {
     if (item instanceof HTMLElement) {
       item.hidden = !isEnabled;
     }
+  });
+}
+
+function setProfileFilteredVisibility(profile) {
+  const normalized = normalizeProfileName(profile);
+  profileFilteredItems.forEach(item => {
+    if (!(item instanceof HTMLElement)) return;
+    const rawFilter = item.getAttribute(PROFILE_FILTER_ATTR) || '';
+    const allowedProfiles = rawFilter
+      .split(',')
+      .map(value => value.trim().toLowerCase())
+      .filter(Boolean);
+    if (!allowedProfiles.length) {
+      item.hidden = false;
+      return;
+    }
+    item.hidden = !allowedProfiles.includes(normalized);
   });
 }
 const examplesApiBase = resolveExamplesApiBase();
@@ -330,6 +349,7 @@ function syncProfileControl(profile) {
 
 syncProfileControl(currentProfile);
 setBetaFeatureVisibility(SETTINGS_ENABLED_PROFILES.has(currentProfile));
+setProfileFilteredVisibility(currentProfile);
 
 function syncModeControl(mode) {
   if (!modeControl) return;
@@ -694,6 +714,7 @@ if (profileControl) {
     safeSetItem(PROFILE_STORAGE_KEY, applied);
     syncProfileControl(applied);
     setBetaFeatureVisibility(SETTINGS_ENABLED_PROFILES.has(applied));
+    setProfileFilteredVisibility(applied);
     if (iframe && iframe.contentWindow && currentEntry) {
       try {
         iframe.contentWindow.postMessage(
