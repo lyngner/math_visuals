@@ -3541,21 +3541,27 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
   const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
   const rx = (xmax - xmin) / brd.canvasWidth;
   const ry = (ymax - ymin) / brd.canvasHeight;
-  const baseH = Math.max((xmax - xmin) / 200, 1e-4);
+  const baseH = Math.max((xmax - xmin) / 400, 5e-5);
 
   // Finn et punkt innover i domenet med finite y
-  let xS = x0,
-    yS = g.fn(xS),
-    tries = 0,
-    inward = side < 0 ? +1 : -1;
-  while (!Number.isFinite(yS) && tries < 12) {
-    xS = x0 + inward * (tries + 1) * baseH;
+  const inward = side < 0 ? +1 : -1;
+  const maxTries = 24;
+  let xS = x0;
+  let yS = NaN;
+  for (let tries = 0; tries < maxTries; tries += 1) {
+    const step = tries === 0 ? 0 : baseH * Math.pow(0.5, tries - 1);
+    const candidate = tries === 0 ? x0 : x0 + inward * step;
+    let value;
     try {
-      yS = g.fn(xS);
+      value = g.fn(candidate);
     } catch (_) {
-      yS = NaN;
+      value = NaN;
     }
-    tries++;
+    if (Number.isFinite(value)) {
+      xS = candidate;
+      yS = value;
+      break;
+    }
   }
   if (!Number.isFinite(yS)) return;
 
@@ -3592,14 +3598,55 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
     lineCap: 'round',
     lineJoin: 'round'
   };
+  const tangentUnit = px2world(tx, ty, 1);
+  const normalUnit = px2world(nx, ny, 1);
+  const localPoints = shape.points.map(([px, py]) => {
+    return {
+      localX: (px - shape.centerX) * scale * flip,
+      localY: (py - shape.centerY) * scale
+    };
+  });
+  let localShift = 0;
+  if (Math.abs(tangentUnit[0]) > 1e-9) {
+    const xValues = localPoints.map(pt => xS + pt.localX * tangentUnit[0] + pt.localY * normalUnit[0]);
+    let idx = 0;
+    for (let i = 1; i < xValues.length; i += 1) {
+      const better = side > 0 ? xValues[i] > xValues[idx] : xValues[i] < xValues[idx];
+      if (better) idx = i;
+    }
+    const desiredX = x0 - side * 1e-9;
+    const delta = desiredX - xValues[idx];
+    localShift = delta / tangentUnit[0];
+  }
   const segments = [];
-  const mapped = shape.points.map(([px, py]) => {
-    const localX = (px - shape.centerX) * scale * flip;
-    const localY = (py - shape.centerY) * scale;
-    const [offTx, offTy] = px2world(tx, ty, localX);
-    const [offNx, offNy] = px2world(nx, ny, localY);
+  const mapped = localPoints.map(({ localX, localY }) => {
+    const shiftedX = localX + localShift;
+    const offTx = shiftedX * tangentUnit[0];
+    const offTy = shiftedX * tangentUnit[1];
+    const offNx = localY * normalUnit[0];
+    const offNy = localY * normalUnit[1];
     return [xS + offTx + offNx, yS + offTy + offNy];
   });
+  const boundaryCheck = side > 0
+    ? mapped.every(pt => pt[0] <= x0 + 1e-8)
+    : mapped.every(pt => pt[0] >= x0 - 1e-8);
+  if (!boundaryCheck) {
+    const extreme = side > 0 ? Math.max(...mapped.map(pt => pt[0])) : Math.min(...mapped.map(pt => pt[0]));
+    if (Math.abs(tangentUnit[0]) > 1e-9) {
+      const corrLocal = (x0 - extreme) / tangentUnit[0];
+      for (let i = 0; i < mapped.length; i += 1) {
+        mapped[i] = [
+          mapped[i][0] + corrLocal * tangentUnit[0],
+          mapped[i][1] + corrLocal * tangentUnit[1]
+        ];
+      }
+    } else {
+      const adjust = x0 - extreme;
+      for (let i = 0; i < mapped.length; i += 1) {
+        mapped[i] = [mapped[i][0] + adjust, mapped[i][1]];
+      }
+    }
+  }
   for (let i = 0; i < mapped.length - 1; i += 1) {
     const p = mapped[i];
     const q = mapped[i + 1];
