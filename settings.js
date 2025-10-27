@@ -3,7 +3,7 @@
   const form = document.querySelector('[data-settings-form]');
   if (!form) return;
 
-  const colorList = form.querySelector('[data-color-list]');
+  const colorGroupsContainer = form.querySelector('[data-color-groups]');
   const addColorButton = form.querySelector('[data-add-color]');
   const resetButton = form.querySelector('[data-reset-settings]');
   const statusElement = form.querySelector('[data-status]');
@@ -12,7 +12,7 @@
   const projectHeadingElement = document.querySelector('[data-project-heading]');
   const projectLegendElement = form.querySelector('[data-project-legend]');
 
-  const MAX_COLORS = 12;
+  const MAX_COLORS = 48;
   const DEFAULT_LINE_THICKNESS = 3;
   const PROJECT_LABELS = {
     kikora: 'Kikora',
@@ -21,8 +21,8 @@
   };
   const PROJECT_HEADINGS = {
     kikora: 'Standardfarger for Kikora',
-    campus: 'Standardfarger for Camus',
-    annet: 'Standardfarger for Andre prosjekter'
+    campus: 'Standardfarger for Campus',
+    annet: 'Standardfarger for andre prosjekter'
   };
   const PROJECT_FALLBACKS = {
     kikora: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
@@ -30,6 +30,120 @@
     annet: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
     default: ['#1F4DE2', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b']
   };
+  const COLOR_SLOT_GROUPS = [
+    {
+      id: 'graftegner',
+      title: 'Graftegner',
+      description: 'Standardfarge for nye grafer og funksjoner.',
+      slots: [{ index: 0, label: 'Graf', description: 'Brukes for grafer og koordinatsystem.' }]
+    },
+    {
+      id: 'nkant',
+      title: 'nKant',
+      description: 'Farger for linjer, vinkler og fyll i nKant.',
+      slots: [
+        { index: 1, label: 'Linje', description: 'Kanter, diagonaler og hjelpelinjer.' },
+        { index: 2, label: 'Vinkel', description: 'Markeringer og vinkelflater.' },
+        { index: 3, label: 'Fyll', description: 'Utfylling av polygonflater.' }
+      ]
+    },
+    {
+      id: 'diagram',
+      title: 'Diagram',
+      description: 'Standardfarger for stolpe- og sektordiagram.',
+      slots: [
+        { index: 4, label: 'Stolpediagram', description: 'Når et stolpediagram har én dataserie.' },
+        { index: 5, label: 'To stolper – første', description: 'Første dataserie i sammenlignende stolpediagram.' },
+        { index: 6, label: 'To stolper – andre', description: 'Andre dataserie i sammenlignende stolpediagram.' },
+        { index: 7, label: 'Sektordiagram 1', description: 'Første sektor i sektordiagram.' },
+        { index: 8, label: 'Sektordiagram 2', description: 'Andre sektor i sektordiagram.' },
+        { index: 9, label: 'Sektordiagram 3', description: 'Tredje sektor i sektordiagram.' },
+        { index: 10, label: 'Sektordiagram 4', description: 'Fjerde sektor i sektordiagram.' },
+        { index: 11, label: 'Sektordiagram 5', description: 'Femte sektor i sektordiagram.' },
+        { index: 12, label: 'Sektordiagram 6', description: 'Sjette sektor i sektordiagram.' }
+      ]
+    },
+    {
+      id: 'fractions',
+      title: 'Brøk og tenkeblokker',
+      description: 'Farger for linjer og fyll i brøkmodeller og tenkeblokker.',
+      slots: [
+        { index: 13, label: 'Linje', description: 'Konturer i brøker og tenkeblokker.' },
+        { index: 14, label: 'Fyll', description: 'Fyllfarge for brøker og tenkeblokker.' }
+      ]
+    },
+    {
+      id: 'figurtall',
+      title: 'Figurtall',
+      description: 'Seks standardfarger for figurer i mønstre.',
+      slots: [
+        { index: 15, label: 'Fyll 1', description: 'Første farge i figurtall.' },
+        { index: 16, label: 'Fyll 2', description: 'Andre farge i figurtall.' },
+        { index: 17, label: 'Fyll 3', description: 'Tredje farge i figurtall.' },
+        { index: 18, label: 'Fyll 4', description: 'Fjerde farge i figurtall.' },
+        { index: 19, label: 'Fyll 5', description: 'Femte farge i figurtall.' },
+        { index: 20, label: 'Fyll 6', description: 'Sjette farge i figurtall.' }
+      ]
+    },
+    {
+      id: 'arealmodell',
+      title: 'Arealmodell',
+      description: 'Farger for rutene i arealmodellen.',
+      slots: [
+        { index: 21, label: 'Farge 1', description: 'Første rute i arealmodellen.' },
+        { index: 22, label: 'Farge 2', description: 'Andre rute i arealmodellen.' },
+        { index: 23, label: 'Farge 3', description: 'Tredje rute i arealmodellen.' },
+        { index: 24, label: 'Farge 4', description: 'Fjerde rute i arealmodellen.' }
+      ]
+    },
+    {
+      id: 'tallinje',
+      title: 'Tallinje',
+      description: 'Standardfarger for tallinjen.',
+      slots: [
+        { index: 25, label: 'Linje', description: 'Selve tallinjen og markeringer.' },
+        { index: 26, label: 'Fyll', description: 'Utfylling av områder på tallinjen.' }
+      ]
+    },
+    {
+      id: 'kvikkbilder',
+      title: 'Kvikkbilder',
+      description: 'Fyllfargen i kvikkbilder.',
+      slots: [{ index: 27, label: 'Fyll', description: 'Brukes på figurer i kvikkbilder.' }]
+    },
+    {
+      id: 'trefigurer',
+      title: '3D-figurer',
+      description: 'Standardfarger for romfigurer.',
+      slots: [
+        { index: 28, label: 'Linje', description: 'Kanter og hjelpelinjer i romfigurer.' },
+        { index: 29, label: 'Fyll', description: 'Fyllfarge for romfigurer.' }
+      ]
+    },
+    {
+      id: 'brokvegg',
+      title: 'Brøkvegg',
+      description: 'Farger for nivåene i brøkveggen.',
+      slots: [
+        { index: 30, label: 'Fyll 1', description: 'Øverste nivå i brøkveggen.' },
+        { index: 31, label: 'Fyll 2', description: 'Andre nivå i brøkveggen.' },
+        { index: 32, label: 'Fyll 3', description: 'Tredje nivå i brøkveggen.' },
+        { index: 33, label: 'Fyll 4', description: 'Fjerde nivå i brøkveggen.' },
+        { index: 34, label: 'Fyll 5', description: 'Femte nivå i brøkveggen.' },
+        { index: 35, label: 'Fyll 6', description: 'Sjette nivå i brøkveggen.' }
+      ]
+    },
+    {
+      id: 'prikktilprikk',
+      title: 'Prikk til prikk',
+      description: 'Farger for punkter og linjer i prikk til prikk.',
+      slots: [
+        { index: 36, label: 'Prikk', description: 'Standardfarge for punktene.' },
+        { index: 37, label: 'Linje', description: 'Linjen som binder punktene sammen.' }
+      ]
+    }
+  ];
+  const MIN_COLOR_SLOTS = COLOR_SLOT_GROUPS.reduce((total, group) => total + group.slots.length, 0);
 
   const settingsApi = resolveSettingsApi();
   const state = {
@@ -39,6 +153,9 @@
     defaultLineThickness: DEFAULT_LINE_THICKNESS
   };
   let colors = [];
+  const slotBindings = new Map();
+  let extraGroupSection = null;
+  let extraSlotsContainer = null;
 
   function resolveSettingsApi() {
     if (typeof window === 'undefined') return null;
@@ -181,7 +298,10 @@
     const normalized = normalizeProjectName(name);
     if (!normalized) return;
     if (!state.colorsByProject.has(normalized)) {
-      state.colorsByProject.set(normalized, getProjectFallbackPalette(normalized));
+      state.colorsByProject.set(
+        normalized,
+        expandPalette(normalized, getProjectFallbackPalette(normalized), MIN_COLOR_SLOTS)
+      );
     }
   }
 
@@ -222,94 +342,245 @@
     return getProjectFallbackPalette(project);
   }
 
-  function commitActiveColors(next, projectName) {
+  function expandPalette(projectName, basePalette, minimumLength = 0) {
     const project = projectName ? normalizeProjectName(projectName) : ensureActiveProject();
-    const sanitized = [];
-    next.forEach((value, index) => {
-      const clean = sanitizeColor(value) || getFallbackColorForIndex(project, index);
-      if (clean) sanitized.push(clean);
-    });
-    if (!sanitized.length) {
-      sanitized.push(getFallbackColorForIndex(project, 0));
+    const source = Array.isArray(basePalette) ? basePalette : [];
+    const min = Number.isInteger(minimumLength) && minimumLength > 0 ? minimumLength : 0;
+    const limit = Math.min(MAX_COLORS, Math.max(source.length, min));
+    const result = [];
+    for (let index = 0; index < limit; index += 1) {
+      const clean = sanitizeColor(source[index]) || getFallbackColorForIndex(project, index);
+      result.push(clean);
     }
-    state.colorsByProject.set(project, sanitized.slice(0, MAX_COLORS));
-    colors = sanitized.slice(0, MAX_COLORS);
+    if (!result.length) {
+      result.push(getFallbackColorForIndex(project, 0));
+    }
+    return result;
   }
 
-  function createColorItem(color, index) {
-    const item = document.createElement('li');
-    item.className = 'color-item';
+  function commitActiveColors(next, projectName) {
+    const project = projectName ? normalizeProjectName(projectName) : ensureActiveProject();
+    const expanded = expandPalette(project, Array.isArray(next) ? next : [], MIN_COLOR_SLOTS);
+    state.colorsByProject.set(project, expanded.slice());
+    colors = expanded.slice();
+  }
 
-    const colorLabel = document.createElement('label');
-    const srOnly = document.createElement('span');
-    srOnly.className = 'sr-only';
-    srOnly.textContent = `Farge ${index + 1}`;
+  function ensureColorCapacity(index, projectName) {
+    const project = projectName ? normalizeProjectName(projectName) : ensureActiveProject();
+    if (!Number.isInteger(index) || index < 0) return;
+    while (colors.length <= index && colors.length < MAX_COLORS) {
+      colors.push(getFallbackColorForIndex(project, colors.length));
+    }
+  }
+
+  function updateBindingsForIndex(index, value) {
+    const bindings = slotBindings.get(index);
+    if (!bindings) return;
+    bindings.forEach(binding => {
+      if (binding.colorInput.value !== value) {
+        binding.colorInput.value = value;
+      }
+      if (binding.hexInput.value !== value) {
+        binding.hexInput.value = value;
+      }
+    });
+  }
+
+  function setColorValue(index, value, projectName) {
+    const project = projectName ? normalizeProjectName(projectName) : ensureActiveProject();
+    ensureColorCapacity(index, project);
+    const fallback = getFallbackColorForIndex(project, index);
+    const clean = sanitizeColor(value) || fallback;
+    colors[index] = clean;
+    state.colorsByProject.set(project, colors.slice());
+    updateBindingsForIndex(index, clean);
+  }
+
+  function handleColorInput(index, event) {
+    if (!event || !event.target) return;
+    const project = ensureActiveProject();
+    ensureColorCapacity(index, project);
+    const next = sanitizeColor(event.target.value) || colors[index] || getFallbackColorForIndex(project, index);
+    setColorValue(index, next, project);
+    clearStatus();
+  }
+
+  function handleHexBlur(index, event) {
+    if (!event || !event.target) return;
+    const project = ensureActiveProject();
+    ensureColorCapacity(index, project);
+    const next = sanitizeColor(event.target.value);
+    if (next) {
+      setColorValue(index, next, project);
+    } else {
+      updateBindingsForIndex(index, colors[index] || getFallbackColorForIndex(project, index));
+    }
+    clearStatus();
+  }
+
+  function registerSlotBinding(index, binding) {
+    if (!binding || !binding.colorInput || !binding.hexInput) return;
+    const normalizedIndex = Number(index);
+    if (!Number.isInteger(normalizedIndex) || normalizedIndex < 0) return;
+    const list = slotBindings.get(normalizedIndex) || [];
+    list.push(binding);
+    slotBindings.set(normalizedIndex, list);
+    binding.colorInput.addEventListener('input', event => handleColorInput(normalizedIndex, event));
+    binding.hexInput.addEventListener('blur', event => handleHexBlur(normalizedIndex, event));
+    binding.hexInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        binding.hexInput.blur();
+      }
+    });
+    binding.hexInput.addEventListener('input', () => {
+      clearStatus();
+    });
+  }
+
+  function createColorSlotElement(slot, options) {
+    const item = document.createElement('div');
+    item.className = 'color-slot';
+    item.dataset.colorIndex = String(slot.index);
+
+    const header = document.createElement('div');
+    header.className = 'color-slot__header';
+
+    const label = document.createElement('span');
+    label.className = 'color-slot__label';
+    label.textContent = slot.label;
+
+    const inputs = document.createElement('div');
+    inputs.className = 'color-slot__inputs';
+
     const colorInput = document.createElement('input');
     colorInput.type = 'color';
-    colorInput.value = color;
-    colorLabel.appendChild(srOnly);
-    colorLabel.appendChild(colorInput);
+    colorInput.value = '#1f4de2';
+    colorInput.setAttribute('aria-label', `${slot.label} farge`);
+    colorInput.setAttribute('title', slot.label);
 
     const hexInput = document.createElement('input');
     hexInput.type = 'text';
-    hexInput.value = color;
-    hexInput.setAttribute('aria-label', `Fargekode ${index + 1}`);
+    hexInput.value = '#1f4de2';
+    hexInput.setAttribute('aria-label', `${slot.label} fargekode`);
+    hexInput.setAttribute('placeholder', '#000000');
+    hexInput.setAttribute('spellcheck', 'false');
+    hexInput.setAttribute('autocomplete', 'off');
+    hexInput.setAttribute('inputmode', 'text');
+    hexInput.setAttribute('pattern', '#?[0-9a-fA-F]{3,6}');
+    hexInput.maxLength = 7;
 
-    const removeButton = document.createElement('button');
-    removeButton.type = 'button';
-    removeButton.className = 'color-remove';
-    removeButton.textContent = 'Fjern';
-    removeButton.setAttribute('aria-label', `Fjern farge ${index + 1}`);
+    inputs.appendChild(colorInput);
+    inputs.appendChild(hexInput);
 
-    colorInput.addEventListener('input', event => {
-      const next = sanitizeColor(event.target.value) || colors[index];
-      colors[index] = next;
-      state.colorsByProject.set(state.activeProject, colors.slice());
-      hexInput.value = next;
-      event.target.value = next;
-      clearStatus();
-    });
+    header.appendChild(label);
+    header.appendChild(inputs);
+    item.appendChild(header);
 
-    hexInput.addEventListener('blur', event => {
-      const next = sanitizeColor(event.target.value);
-      if (next) {
-        colors[index] = next;
-        hexInput.value = next;
-        colorInput.value = next;
-        state.colorsByProject.set(state.activeProject, colors.slice());
-      } else {
-        hexInput.value = colors[index];
-      }
-      clearStatus();
-    });
+    const hintText = slot.description || (options && options.extraHint);
+    if (hintText) {
+      const hint = document.createElement('p');
+      hint.className = 'color-slot__hint';
+      hint.textContent = hintText;
+      item.appendChild(hint);
+    }
 
-    removeButton.addEventListener('click', () => {
-      if (colors.length <= 1) {
-        setStatus('Det må være minst én farge.', 'error');
-        return;
-      }
-      colors.splice(index, 1);
-      state.colorsByProject.set(state.activeProject, colors.slice());
-      renderColors();
-      clearStatus();
-    });
-
-    item.appendChild(colorLabel);
-    item.appendChild(hexInput);
-    item.appendChild(removeButton);
+    registerSlotBinding(slot.index, { colorInput, hexInput });
     return item;
   }
 
+  function ensureExtraGroup() {
+    if (!colorGroupsContainer) return;
+    if (extraGroupSection && extraSlotsContainer) return;
+
+    extraGroupSection = document.createElement('section');
+    extraGroupSection.className = 'color-group color-group--extra';
+    extraGroupSection.hidden = true;
+
+    const title = document.createElement('h3');
+    title.className = 'color-group__title';
+    title.textContent = 'Ekstra farger';
+    extraGroupSection.appendChild(title);
+
+    const description = document.createElement('p');
+    description.className = 'color-group__description';
+    description.textContent = 'Tilgjengelige standardfarger for nye verktøy eller egne oppsett.';
+    extraGroupSection.appendChild(description);
+
+    extraSlotsContainer = document.createElement('div');
+    extraSlotsContainer.className = 'color-grid';
+    extraGroupSection.appendChild(extraSlotsContainer);
+
+    colorGroupsContainer.appendChild(extraGroupSection);
+  }
+
+  function ensureExtraSlot(index) {
+    ensureExtraGroup();
+    if (!extraSlotsContainer) return;
+    if (slotBindings.has(index)) return;
+    const slot = {
+      index,
+      label: `Farge ${index + 1}`,
+      description: null
+    };
+    const element = createColorSlotElement(slot, { extraHint: 'Tilgjengelig som ekstra standardfarge.' });
+    extraSlotsContainer.appendChild(element);
+  }
+
+  function buildColorLayout() {
+    if (!colorGroupsContainer || slotBindings.size) return;
+
+    COLOR_SLOT_GROUPS.forEach(group => {
+      const section = document.createElement('section');
+      section.className = 'color-group';
+
+      const title = document.createElement('h3');
+      title.className = 'color-group__title';
+      title.textContent = group.title;
+      section.appendChild(title);
+
+      if (group.description) {
+        const description = document.createElement('p');
+        description.className = 'color-group__description';
+        description.textContent = group.description;
+        section.appendChild(description);
+      }
+
+      const grid = document.createElement('div');
+      grid.className = 'color-grid';
+      group.slots.forEach(slot => {
+        grid.appendChild(createColorSlotElement(slot));
+      });
+      section.appendChild(grid);
+      colorGroupsContainer.appendChild(section);
+    });
+
+    ensureExtraGroup();
+  }
+
+  function updateExtraGroupVisibility() {
+    if (!extraGroupSection) return;
+    extraGroupSection.hidden = colors.length <= MIN_COLOR_SLOTS;
+  }
+
+  function syncBindings() {
+    for (let index = 0; index < colors.length; index += 1) {
+      updateBindingsForIndex(index, colors[index]);
+    }
+    updateExtraGroupVisibility();
+  }
+
   function renderColors() {
-    if (!colorList) return;
+    if (!colorGroupsContainer) return;
+    buildColorLayout();
     const project = ensureActiveProject();
     updateProjectHeading(project);
     const palette = getActiveColors(project);
     commitActiveColors(palette, project);
-    colorList.innerHTML = '';
-    colors.forEach((color, index) => {
-      colorList.appendChild(createColorItem(color, index));
-    });
+    for (let index = MIN_COLOR_SLOTS; index < colors.length; index += 1) {
+      ensureExtraSlot(index);
+    }
+    syncBindings();
   }
 
   function applySettings(snapshot) {
@@ -328,10 +599,12 @@
         .map((value, index) => sanitizeColor(value) || getFallbackColorForIndex(normalized, index))
         .filter(Boolean)
         .slice(0, MAX_COLORS);
-      state.colorsByProject.set(
+      const expanded = expandPalette(
         normalized,
-        sanitized.length ? sanitized : getProjectFallbackPalette(normalized)
+        sanitized.length ? sanitized : getProjectFallbackPalette(normalized),
+        MIN_COLOR_SLOTS
       );
+      state.colorsByProject.set(normalized, expanded);
       if (!state.projectOrder.includes(normalized)) {
         state.projectOrder.push(normalized);
       }
@@ -341,7 +614,7 @@
         state.projectOrder.push(name);
       }
       if (!state.colorsByProject.has(name)) {
-        state.colorsByProject.set(name, getProjectFallbackPalette(name));
+        state.colorsByProject.set(name, expandPalette(name, getProjectFallbackPalette(name), MIN_COLOR_SLOTS));
       }
     });
     state.activeProject = normalizeProjectName(data.activeProject);
@@ -428,16 +701,19 @@
 
   if (addColorButton) {
     addColorButton.addEventListener('click', () => {
-      ensureActiveProject();
+      const project = ensureActiveProject();
       if (colors.length >= MAX_COLORS) {
-        setStatus('Du kan ikke ha flere enn 12 standardfarger.', 'error');
+        setStatus(`Du kan ikke ha flere enn ${MAX_COLORS} standardfarger.`, 'error');
         return;
       }
+      const nextIndex = colors.length;
       const nextColor =
-        getFallbackColorForIndex(state.activeProject, colors.length) || colors[colors.length - 1] || '#1F4DE2';
+        getFallbackColorForIndex(project, nextIndex) || colors[nextIndex - 1] || '#1f4de2';
       colors.push(nextColor);
-      state.colorsByProject.set(state.activeProject, colors.slice());
-      renderColors();
+      state.colorsByProject.set(project, colors.slice());
+      ensureExtraSlot(nextIndex);
+      updateBindingsForIndex(nextIndex, nextColor);
+      updateExtraGroupVisibility();
       clearStatus();
     });
   }

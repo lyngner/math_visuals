@@ -212,8 +212,28 @@
   if (!globalScope) return;
 
   const DEFAULT_LINE_THICKNESS = 3;
-  const MAX_COLORS = 12;
-  const FALLBACK_COLORS = ['#1F4DE2', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
+  const MAX_COLORS = 48;
+  const MIN_COLOR_SLOTS = 38;
+  const FALLBACK_COLORS = [
+    '#1F4DE2',
+    '#475569',
+    '#EF4444',
+    '#0EA5E9',
+    '#10B981',
+    '#F59E0B',
+    '#6366F1',
+    '#D946EF',
+    '#F97316',
+    '#14B8A6',
+    '#22C55E',
+    '#EAB308',
+    '#EC4899',
+    '#8B5CF6',
+    '#0EA5A5',
+    '#2563EB',
+    '#FACC15',
+    '#F87171'
+  ];
   const PROJECT_FALLBACKS = {
     campus: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
     annet: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
@@ -251,6 +271,23 @@
       }
     }
     return out;
+  }
+
+  function expandPalette(projectName, basePalette, minimumLength = MIN_COLOR_SLOTS) {
+    const normalized = typeof projectName === 'string' ? projectName.trim().toLowerCase() : '';
+    const sanitized = sanitizeColorList(basePalette);
+    const fallback = PROJECT_FALLBACKS[normalized] || PROJECT_FALLBACKS.default;
+    const min = Number.isInteger(minimumLength) && minimumLength > 0 ? minimumLength : 0;
+    const limit = Math.min(MAX_COLORS, Math.max(sanitized.length, min));
+    const result = [];
+    for (let index = 0; index < limit; index += 1) {
+      const color = sanitized[index] || fallback[index % fallback.length] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+      result.push(color);
+    }
+    if (!result.length) {
+      result.push(FALLBACK_COLORS[0]);
+    }
+    return result;
   }
 
   function clampLineThickness(value) {
@@ -296,7 +333,7 @@
     Object.keys(PROJECT_FALLBACKS).forEach(name => {
       if (name === 'default') return;
       projects[name] = {
-        defaultColors: PROJECT_FALLBACKS[name].slice(0, MAX_COLORS)
+        defaultColors: expandPalette(name, PROJECT_FALLBACKS[name])
       };
     });
     return projects;
@@ -309,14 +346,12 @@
       const entry = projects[name];
       if (!entry || typeof entry !== 'object') return;
       out[name] = {
-        defaultColors: Array.isArray(entry.defaultColors) ? entry.defaultColors.slice(0, MAX_COLORS) : [],
+        defaultColors: Array.isArray(entry.defaultColors)
+          ? expandPalette(name, entry.defaultColors)
+          : expandPalette(name, PROJECT_FALLBACKS[name] || PROJECT_FALLBACKS.default),
         defaultLineThickness:
           entry.defaultLineThickness != null ? clampLineThickness(entry.defaultLineThickness) : undefined
       };
-      if (!out[name].defaultColors.length) {
-        const fallback = PROJECT_FALLBACKS[name] || PROJECT_FALLBACKS.default;
-        out[name].defaultColors = fallback.slice(0, MAX_COLORS);
-      }
     });
     return out;
   }
@@ -339,10 +374,10 @@
         if (source && Array.isArray(source.defaultColors)) {
           const colors = sanitizeColorList(source.defaultColors);
           if (colors.length) {
-            target.defaultColors = colors;
+            target.defaultColors = expandPalette(normalized, colors);
           } else if (!target.defaultColors || !target.defaultColors.length) {
             const fallback = PROJECT_FALLBACKS[normalized] || PROJECT_FALLBACKS.default;
-            target.defaultColors = fallback.slice(0, MAX_COLORS);
+            target.defaultColors = expandPalette(normalized, fallback);
           }
         }
         if (source && source.defaultLineThickness != null) {
@@ -359,7 +394,7 @@
       if (legacy.length) {
         const projectName = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
         projects[projectName] = projects[projectName] || { defaultColors: [] };
-        projects[projectName].defaultColors = legacy;
+        projects[projectName].defaultColors = expandPalette(projectName, legacy);
         if (!order.includes(projectName)) {
           order.push(projectName);
         }
@@ -380,9 +415,12 @@
     };
 
     const active = projects[activeProject];
-    const palette = active && Array.isArray(active.defaultColors) && active.defaultColors.length
-      ? active.defaultColors.slice(0, MAX_COLORS)
-      : PROJECT_FALLBACKS.default.slice(0, MAX_COLORS);
+    const palette = expandPalette(
+      activeProject,
+      active && Array.isArray(active.defaultColors) && active.defaultColors.length
+        ? active.defaultColors
+        : PROJECT_FALLBACKS.default
+    );
     normalized.defaultColors = palette;
     return normalized;
   }
@@ -409,10 +447,10 @@
     const resolved = resolveProjectName(name || activeProject, settings.projects);
     const project = settings.projects[resolved];
     if (project && Array.isArray(project.defaultColors) && project.defaultColors.length) {
-      return project.defaultColors.slice(0, MAX_COLORS);
+      return expandPalette(resolved, project.defaultColors);
     }
     const fallback = PROJECT_FALLBACKS[resolved] || PROJECT_FALLBACKS.default;
-    return fallback.slice(0, MAX_COLORS);
+    return expandPalette(resolved, fallback);
   }
 
   function applyToDocument(doc) {
@@ -543,7 +581,7 @@
       if (source && Array.isArray(source.defaultColors)) {
         const colors = sanitizeColorList(source.defaultColors);
         if (colors.length) {
-          base[normalized].defaultColors = colors;
+          base[normalized].defaultColors = expandPalette(normalized, colors);
         } else if (source.defaultColors.length === 0) {
           base[normalized].defaultColors = [];
         }
@@ -569,7 +607,7 @@
         const targetProject = resolveProjectName(patch.activeProject || activeProject, merged.projects);
         merged.projects[targetProject] = merged.projects[targetProject] || {};
         if (colors.length) {
-          merged.projects[targetProject].defaultColors = colors;
+          merged.projects[targetProject].defaultColors = expandPalette(targetProject, colors);
         } else if (patch.defaultColors.length === 0) {
           merged.projects[targetProject].defaultColors = [];
         }
