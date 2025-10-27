@@ -1272,6 +1272,7 @@
     if (inputs.figureCategory) {
       inputs.figureCategory.addEventListener('change', event => {
         if (appState.syncingInputs) return;
+        if (event && event.isTrusted === false) return;
         const categoryId = event.target.value;
         populateFigureOptions(categoryId);
         const figures = getFiguresForCategory(categoryId);
@@ -1287,6 +1288,7 @@
     if (inputs.figurePreset) {
       inputs.figurePreset.addEventListener('change', event => {
         if (appState.syncingInputs) return;
+        if (event && event.isTrusted === false) return;
         applyFigurePreset(event.target.value);
       });
     }
