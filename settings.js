@@ -632,7 +632,9 @@
       renderColors(normalized);
     } else {
       state.preferredProject = null;
-      renderColors();
+      const apiActive = getApiActiveProject();
+      state.activeProject = apiActive;
+      renderColors(apiActive || undefined);
     }
     clearStatus();
   }
