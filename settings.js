@@ -20,9 +20,9 @@
     annet: 'Annet'
   };
   const PROJECT_HEADINGS = {
-    kikora: 'Standardfarger for Kikora',
-    campus: 'Standardfarger for Campus',
-    annet: 'Standardfarger for andre prosjekter'
+    kikora: 'Kikora',
+    campus: 'Campus',
+    annet: 'Annet'
   };
   const PROJECT_FALLBACKS = {
     kikora: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
@@ -144,6 +144,7 @@
     }
   ];
   const MIN_COLOR_SLOTS = COLOR_SLOT_GROUPS.reduce((total, group) => total + group.slots.length, 0);
+  const SLOTS_PER_ROW = 3;
 
   const settingsApi = resolveSettingsApi();
   const state = {
@@ -240,7 +241,7 @@
       return PROJECT_HEADINGS[normalized];
     }
     const label = formatProjectLabel(name);
-    return label ? `Standardfarger for ${label}` : 'Standardfarger';
+    return label || 'Farger';
   }
 
   function updateProjectHeading(project) {
@@ -440,31 +441,19 @@
     });
   }
 
-  function createColorSlotElement(slot, options) {
+  function createColorSlotElement(slot) {
     const item = document.createElement('div');
     item.className = 'color-slot';
     item.dataset.colorIndex = String(slot.index);
-
-    const header = document.createElement('div');
-    header.className = 'color-slot__header';
 
     const label = document.createElement('span');
     label.className = 'color-slot__label';
     label.textContent = slot.label;
 
-    const inputs = document.createElement('div');
-    inputs.className = 'color-slot__inputs';
-
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    colorInput.value = '#1f4de2';
-    colorInput.setAttribute('aria-label', `${slot.label} farge`);
-    colorInput.setAttribute('title', slot.label);
-
     const hexInput = document.createElement('input');
     hexInput.type = 'text';
     hexInput.value = '#1f4de2';
-    hexInput.setAttribute('aria-label', `${slot.label} fargekode`);
+    hexInput.setAttribute('aria-label', `${slot.label} kode`);
     hexInput.setAttribute('placeholder', '#000000');
     hexInput.setAttribute('spellcheck', 'false');
     hexInput.setAttribute('autocomplete', 'off');
@@ -472,23 +461,29 @@
     hexInput.setAttribute('pattern', '#?[0-9a-fA-F]{3,6}');
     hexInput.maxLength = 7;
 
-    inputs.appendChild(colorInput);
-    inputs.appendChild(hexInput);
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = '#1f4de2';
+    colorInput.setAttribute('aria-label', `${slot.label} farge`);
+    colorInput.setAttribute('title', slot.label);
 
-    header.appendChild(label);
-    header.appendChild(inputs);
-    item.appendChild(header);
-
-    const hintText = slot.description || (options && options.extraHint);
-    if (hintText) {
-      const hint = document.createElement('p');
-      hint.className = 'color-slot__hint';
-      hint.textContent = hintText;
-      item.appendChild(hint);
-    }
+    item.appendChild(label);
+    item.appendChild(hexInput);
+    item.appendChild(colorInput);
 
     registerSlotBinding(slot.index, { colorInput, hexInput });
     return item;
+  }
+
+  function appendSlotToTable(container, slotElement) {
+    if (!container || !slotElement) return;
+    let row = container.lastElementChild;
+    if (!row || !row.classList.contains('color-row') || row.children.length >= SLOTS_PER_ROW) {
+      row = document.createElement('div');
+      row.className = 'color-row';
+      container.appendChild(row);
+    }
+    row.appendChild(slotElement);
   }
 
   function ensureExtraGroup() {
@@ -504,13 +499,8 @@
     title.textContent = 'Ekstra farger';
     extraGroupSection.appendChild(title);
 
-    const description = document.createElement('p');
-    description.className = 'color-group__description';
-    description.textContent = 'Tilgjengelige standardfarger for nye verktøy eller egne oppsett.';
-    extraGroupSection.appendChild(description);
-
     extraSlotsContainer = document.createElement('div');
-    extraSlotsContainer.className = 'color-grid';
+    extraSlotsContainer.className = 'color-table';
     extraGroupSection.appendChild(extraSlotsContainer);
 
     colorGroupsContainer.appendChild(extraGroupSection);
@@ -525,8 +515,8 @@
       label: `Farge ${index + 1}`,
       description: null
     };
-    const element = createColorSlotElement(slot, { extraHint: 'Tilgjengelig som ekstra standardfarge.' });
-    extraSlotsContainer.appendChild(element);
+    const element = createColorSlotElement(slot);
+    appendSlotToTable(extraSlotsContainer, element);
   }
 
   function buildColorLayout() {
@@ -541,19 +531,12 @@
       title.textContent = group.title;
       section.appendChild(title);
 
-      if (group.description) {
-        const description = document.createElement('p');
-        description.className = 'color-group__description';
-        description.textContent = group.description;
-        section.appendChild(description);
-      }
-
-      const grid = document.createElement('div');
-      grid.className = 'color-grid';
+      const table = document.createElement('div');
+      table.className = 'color-table';
       group.slots.forEach(slot => {
-        grid.appendChild(createColorSlotElement(slot));
+        appendSlotToTable(table, createColorSlotElement(slot));
       });
-      section.appendChild(grid);
+      section.appendChild(table);
       colorGroupsContainer.appendChild(section);
     });
 
