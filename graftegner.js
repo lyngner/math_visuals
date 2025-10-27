@@ -3644,15 +3644,15 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
     };
   });
   let localShift = 0;
+  let contactIdx = 0;
   if (Math.abs(tangentUnit[0]) > 1e-9) {
     const xValues = localPoints.map(pt => xS + pt.localX * tangentUnit[0] + pt.localY * normalUnit[0]);
-    let idx = 0;
     for (let i = 1; i < xValues.length; i += 1) {
-      const better = side > 0 ? xValues[i] > xValues[idx] : xValues[i] < xValues[idx];
-      if (better) idx = i;
+      const better = side > 0 ? xValues[i] > xValues[contactIdx] : xValues[i] < xValues[contactIdx];
+      if (better) contactIdx = i;
     }
-    const desiredX = x0 - side * 1e-9;
-    const delta = desiredX - xValues[idx];
+    const desiredX = x0;
+    const delta = desiredX - xValues[contactIdx];
     localShift = delta / tangentUnit[0];
   }
   const segments = [];
@@ -3664,6 +3664,32 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
     const offNy = localY * normalUnit[1];
     return [xS + offTx + offNx, yS + offTy + offNy];
   });
+  if (mapped.length) {
+    let yTarget = yS;
+    if (Math.abs(xS - x0) > 1e-9) {
+      try {
+        const yExact = g.fn(x0);
+        if (Number.isFinite(yExact)) yTarget = yExact;
+      } catch (_) {}
+    }
+    if (!(Number.isFinite(contactIdx) && contactIdx >= 0 && contactIdx < mapped.length)) {
+      contactIdx = 0;
+    }
+    if (mapped.length > 1) {
+      for (let i = 1; i < mapped.length; i += 1) {
+        const better = side > 0 ? mapped[i][0] > mapped[contactIdx][0] : mapped[i][0] < mapped[contactIdx][0];
+        if (better) contactIdx = i;
+      }
+    }
+    const desiredPoint = [x0, yTarget];
+    const dx = desiredPoint[0] - mapped[contactIdx][0];
+    const dy = desiredPoint[1] - mapped[contactIdx][1];
+    if (Math.abs(dx) > 1e-12 || Math.abs(dy) > 1e-12) {
+      for (let i = 0; i < mapped.length; i += 1) {
+        mapped[i] = [mapped[i][0] + dx, mapped[i][1] + dy];
+      }
+    }
+  }
   const boundaryCheck = side > 0
     ? mapped.every(pt => pt[0] <= x0 + 1e-8)
     : mapped.every(pt => pt[0] >= x0 - 1e-8);
