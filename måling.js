@@ -1151,58 +1151,102 @@
     const { length, subdivisions, unitLabel } = settings;
     const inset = 8;
     const startAtZero = !!settings.rulerStartAtZero;
-    const effectiveLength = length + (startAtZero ? 0 : 2);
-    const startIndex = startAtZero ? 0 : -1;
-    const totalTicks = effectiveLength + 1;
-    const paddingLeft = 0;
-    const paddingRight = 0;
-    const marginLeft = 0;
-    const marginRight = 0;
+    const rawStart = startAtZero ? 0 : -0.5;
+    const rawEnd = startAtZero ? length : length + 0.5;
+    const visibleStart = Math.max(rawStart, 0);
+    const visibleEnd = Math.max(visibleStart, Math.min(rawEnd, length));
+    const hiddenLeadingUnits = visibleStart - rawStart;
+    const hiddenTrailingUnits = rawEnd - visibleEnd;
+    const marginLeft = -unitSpacing * hiddenLeadingUnits;
+    const marginRight = -unitSpacing * hiddenTrailingUnits;
+    const valueToX = value => marginLeft + unitSpacing * (value - rawStart);
+    const visibleRangeUnits = Math.max(visibleEnd - visibleStart, 0);
+    const measuredWidth = Math.max(unitSpacing * visibleRangeUnits, 0);
+    const totalRangeUnits = rawEnd - rawStart;
+    const rawWidth = unitSpacing * totalRangeUnits + marginLeft + marginRight;
+    const viewWidth = Math.max(rawWidth, 1);
     const totalHeight = 120;
     const baselineY = inset + 26;
     const majorTickLength = (totalHeight - inset - 20 - baselineY) / 2;
     const majorTickBottom = baselineY + majorTickLength;
     const minorTickBottom = baselineY + majorTickLength * 0.58;
     const labelY = majorTickBottom + 24;
-    const contentWidth = unitSpacing * effectiveLength + marginLeft + marginRight;
 
-    const baselineStartX = marginLeft;
-    const baselineEndX = baselineStartX + unitSpacing * effectiveLength;
+    const approxEqual = (a, b) => Math.abs(a - b) <= 1e-9;
 
-    const majorTickMarkup = Array.from({ length: totalTicks }, (_, tickIndex) => {
-      const x = marginLeft + unitSpacing * tickIndex;
-      return `<line x1="${x}" y1="${baselineY}" x2="${x}" y2="${majorTickBottom}" class="ruler-svg__tick ruler-svg__tick--major" />`;
-    }).join('');
+    const majorTickValues = [];
+    if (visibleRangeUnits <= 0) {
+      majorTickValues.push(visibleStart);
+    } else {
+      majorTickValues.push(visibleStart);
+      const firstInteger = Math.ceil(visibleStart);
+      const lastInteger = Math.floor(visibleEnd);
+      for (let value = firstInteger; value <= lastInteger; value += 1) {
+        if (value > visibleStart && value < visibleEnd) {
+          majorTickValues.push(value);
+        }
+      }
+      if (!approxEqual(visibleEnd, visibleStart)) {
+        majorTickValues.push(visibleEnd);
+      }
+    }
+    majorTickValues.sort((a, b) => a - b);
+
+    const majorTickMarkup = majorTickValues
+      .map(value => {
+        const x = valueToX(value);
+        return `<line x1="${x}" y1="${baselineY}" x2="${x}" y2="${majorTickBottom}" class="ruler-svg__tick ruler-svg__tick--major" />`;
+      })
+      .join('');
 
     let minorTickMarkup = '';
-    if (subdivisions > 1) {
-      const step = unitSpacing / subdivisions;
-      for (let unitIndex = 0; unitIndex < effectiveLength; unitIndex += 1) {
-        const unitStart = marginLeft + unitSpacing * unitIndex;
+    if (subdivisions > 1 && visibleRangeUnits > 0) {
+      const firstUnit = Math.floor(visibleStart);
+      const lastUnit = Math.ceil(visibleEnd);
+      for (let unitValue = firstUnit; unitValue < lastUnit; unitValue += 1) {
+        const segmentStart = Math.max(unitValue, visibleStart);
+        const segmentEnd = Math.min(unitValue + 1, visibleEnd);
+        const segmentUnits = segmentEnd - segmentStart;
+        if (!(segmentUnits > 0)) {
+          continue;
+        }
+        const startX = valueToX(segmentStart);
+        const step = (segmentUnits * unitSpacing) / subdivisions;
         for (let subIndex = 1; subIndex < subdivisions; subIndex += 1) {
-          const x = unitStart + step * subIndex;
+          const x = startX + step * subIndex;
+          if (x <= 0 || x >= measuredWidth) {
+            continue;
+          }
           minorTickMarkup += `<line x1="${x}" y1="${baselineY}" x2="${x}" y2="${minorTickBottom}" class="ruler-svg__tick ruler-svg__tick--minor" />`;
         }
       }
     }
 
-    const labelMarkup = Array.from({ length: totalTicks }, (_, tickIndex) => {
-      const labelValue = startIndex + tickIndex;
-      const x = marginLeft + unitSpacing * tickIndex;
-      const anchor = tickIndex === 0 ? 'start' : tickIndex === totalTicks - 1 ? 'end' : 'middle';
-      const dx = anchor === 'start' ? 6 : anchor === 'end' ? -6 : 0;
-      const labelText = formatNumber(labelValue);
-      return `<text x="${x}" y="${labelY}" text-anchor="${anchor}"${dx !== 0 ? ` dx="${dx}"` : ''} class="ruler-svg__label">${labelText}</text>`;
-    }).join('');
+    const labelMarkup = majorTickValues
+      .map(value => {
+        const x = valueToX(value);
+        const isStart = approxEqual(value, visibleStart);
+        const isEnd = approxEqual(value, visibleEnd);
+        const anchor = isStart ? 'start' : isEnd ? 'end' : 'middle';
+        const dx = anchor === 'start' ? 6 : anchor === 'end' ? -6 : 0;
+        const normalizedValue = Math.abs(value) < 1e-9 ? 0 : value;
+        const labelText = formatNumber(normalizedValue);
+        return `<text x="${x}" y="${labelY}" text-anchor="${anchor}"${dx !== 0 ? ` dx="${dx}"` : ''} class="ruler-svg__label">${labelText}</text>`;
+      })
+      .join('');
 
     const unitLabelTrimmed = unitLabel ? unitLabel.trim() : '';
+    const baselineStartX = valueToX(rawStart);
+    const baselineEndX = valueToX(rawEnd);
+    const visibleBaselineStartX = valueToX(visibleStart);
+    const visibleBaselineEndX = valueToX(visibleEnd);
     const unitLabelMarkup = unitLabelTrimmed
-      ? `<text x="${baselineEndX}" y="${baselineY - 16}" text-anchor="end" class="ruler-svg__unit-label">${escapeHtml(unitLabelTrimmed)}</text>`
+      ? `<text x="${visibleBaselineEndX}" y="${baselineY - 16}" text-anchor="end" class="ruler-svg__unit-label">${escapeHtml(unitLabelTrimmed)}</text>`
       : '';
 
-    rulerSvg.setAttribute('viewBox', `0 0 ${contentWidth} ${totalHeight}`);
+    rulerSvg.setAttribute('viewBox', `0 0 ${viewWidth} ${totalHeight}`);
     rulerSvg.innerHTML = `
-      <rect x="0" y="${inset}" width="${contentWidth}" height="${totalHeight - inset * 2}" rx="18" ry="18" class="ruler-svg__background" data-export-background="true" />
+      <rect x="0" y="${inset}" width="${viewWidth}" height="${totalHeight - inset * 2}" rx="18" ry="18" class="ruler-svg__background" data-export-background="true" />
       <line x1="${baselineStartX}" y1="${baselineY}" x2="${baselineEndX}" y2="${baselineY}" class="ruler-svg__baseline" />
       ${minorTickMarkup}
       ${majorTickMarkup}
@@ -1210,14 +1254,24 @@
       ${unitLabelMarkup}
     `;
 
-    const zeroOffsetX = marginLeft + paddingLeft + unitSpacing * (0 - startIndex);
+    const paddingLeft = 0;
+    const paddingRight = 0;
+    const zeroAnchorX = valueToX(0);
+    const clampedZeroX = Math.min(Math.max(zeroAnchorX, visibleBaselineStartX), visibleBaselineEndX);
+    const zeroOffsetX = paddingLeft + clampedZeroX;
 
-    ruler.style.setProperty('--ruler-width', `${contentWidth}px`);
+    ruler.style.setProperty('--ruler-width', `${measuredWidth}px`);
     ruler.style.setProperty('--ruler-height', `${totalHeight}px`);
     ruler.style.setProperty('--ruler-padding-left', `${paddingLeft}px`);
     ruler.style.setProperty('--ruler-padding-right', `${paddingRight}px`);
     ruler.style.setProperty('--zero-offset-x', `${zeroOffsetX}px`);
     ruler.style.setProperty('--zero-offset-y', `${baselineY}px`);
+    ruler.setAttribute('data-ruler-range-start', String(rawStart));
+    ruler.setAttribute('data-ruler-range-end', String(rawEnd));
+    ruler.setAttribute('data-ruler-visible-start', String(visibleStart));
+    ruler.setAttribute('data-ruler-visible-end', String(visibleEnd));
+    ruler.setAttribute('data-ruler-hidden-leading', String(hiddenLeadingUnits));
+    ruler.setAttribute('data-ruler-hidden-trailing', String(hiddenTrailingUnits));
     if (startAtZero) {
       ruler.setAttribute('data-ruler-start', 'zero');
     } else {
