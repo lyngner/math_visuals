@@ -515,6 +515,38 @@ function scheduleSimpleRebuild() {
     }
   }, 180);
 }
+
+function createSimpleFormChangeQueue(task, delay = 360) {
+  const safeTask = typeof task === 'function' ? task : null;
+  const safeDelay = Number.isFinite(delay) && delay >= 0 ? delay : 360;
+  let pending = null;
+  const invoke = () => {
+    pending = null;
+    if (safeTask) {
+      safeTask();
+    }
+  };
+  const schedule = () => {
+    if (!safeTask) return;
+    if (typeof setTimeout !== 'function' || safeDelay === 0) {
+      invoke();
+      return;
+    }
+    if (pending != null) {
+      clearTimeout(pending);
+    }
+    pending = setTimeout(invoke, safeDelay);
+  };
+  schedule.flush = () => {
+    if (!safeTask) return;
+    if (pending != null) {
+      clearTimeout(pending);
+      pending = null;
+    }
+    safeTask();
+  };
+  return schedule;
+}
 if (typeof window !== 'undefined') {
   window.SIMPLE = SIMPLE;
 }
@@ -5108,6 +5140,9 @@ function setupSettingsForm() {
   let linePointLabels = [];
   let linePointVisibleCount = 0;
   let linePointsEdited = false;
+  let queueSimpleFormUpdate = null;
+  let scheduleSimpleFormChange = () => {};
+  let flushSimpleFormChange = () => {};
   const pointMarkerControls = [];
   let pointLockControl = null;
   let pointLockEnabled = !(SIMPLE_PARSED && SIMPLE_PARSED.lockExtraPoints === false);
@@ -5159,7 +5194,7 @@ function setupSettingsForm() {
     }
     input.value = control.value;
     applyColorManualClass(row, control.manual);
-    const handleColorInput = () => {
+    const handleColorInput = event => {
       const normalized = normalizeColorValue(input.value);
       if (normalized) {
         input.value = normalized;
@@ -5178,8 +5213,11 @@ function setupSettingsForm() {
         input.value = control.value;
       }
       applyColorManualClass(row, control.manual);
-      syncSimpleFromForm();
-      scheduleSimpleRebuild();
+      if (event && event.type === 'change') {
+        flushSimpleFormChange();
+      } else {
+        scheduleSimpleFormChange();
+      }
     };
     input.addEventListener('input', handleColorInput);
     input.addEventListener('change', handleColorInput);
@@ -5956,13 +5994,11 @@ function setupSettingsForm() {
     return clampedNumbers;
   };
   const handleGliderStartInputChange = () => {
-    syncSimpleFromForm();
-    scheduleSimpleRebuild();
+    scheduleSimpleFormChange();
   };
   const handleGliderStartInputCommit = () => {
     if (!gliderStartInput) {
-      syncSimpleFromForm();
-      scheduleSimpleRebuild();
+      flushSimpleFormChange();
       return;
     }
     const values = parseStartXValues(gliderStartInput.value || '');
@@ -5970,8 +6006,7 @@ function setupSettingsForm() {
     if (applied.length) {
       setGliderStartInputValues(applied);
     }
-    syncSimpleFromForm();
-    scheduleSimpleRebuild();
+    flushSimpleFormChange();
   };
   const attachGliderStartInputListeners = () => {
     if (!gliderStartInput) return;
@@ -6518,6 +6553,30 @@ function setupSettingsForm() {
     }
     return simple;
   };
+  queueSimpleFormUpdate = createSimpleFormChangeQueue(() => {
+    syncSimpleFromForm();
+    scheduleSimpleRebuild();
+  }, 360);
+  scheduleSimpleFormChange = () => {
+    if (queueSimpleFormUpdate) {
+      queueSimpleFormUpdate();
+      return;
+    }
+    syncSimpleFromForm();
+    scheduleSimpleRebuild();
+  };
+  flushSimpleFormChange = () => {
+    if (queueSimpleFormUpdate && typeof queueSimpleFormUpdate.flush === 'function') {
+      queueSimpleFormUpdate.flush();
+      return;
+    }
+    if (queueSimpleFormUpdate) {
+      queueSimpleFormUpdate();
+      return;
+    }
+    syncSimpleFromForm();
+    scheduleSimpleRebuild();
+  };
   const handleExternalLinePointUpdate = event => {
     if (!linePointSection || !Array.isArray(linePointInputs) || linePointInputs.length === 0) {
       return;
@@ -6578,18 +6637,20 @@ function setupSettingsForm() {
       }
     });
   }
-  const handleGliderCountChange = () => {
+  const handleGliderCountInput = () => {
     updateStartInputState();
     updateAnswerPlacement();
-    syncSimpleFromForm();
-    scheduleSimpleRebuild();
+    scheduleSimpleFormChange();
+  };
+  const handleGliderCountCommit = () => {
+    updateStartInputState();
+    updateAnswerPlacement();
+    flushSimpleFormChange();
   };
   if (gliderCountInput) {
-    const onCountChange = () => {
-      handleGliderCountChange();
-    };
-    gliderCountInput.addEventListener('input', onCountChange);
-    gliderCountInput.addEventListener('change', onCountChange);
+    gliderCountInput.addEventListener('input', handleGliderCountInput);
+    gliderCountInput.addEventListener('change', handleGliderCountCommit);
+    gliderCountInput.addEventListener('blur', handleGliderCountCommit);
   }
   if (gliderStartInput) {
     attachGliderStartInputListeners();
@@ -6747,10 +6808,13 @@ function setupSettingsForm() {
       markerInput.dataset.defaultValue = DEFAULT_POINT_MARKER;
       markerInput.value = pointMarkerValue;
       pointMarkerControls.push({ row, input: markerInput, container: markerContainer });
-      const handleMarkerInput = () => {
+      const handleMarkerInput = event => {
         syncPointMarkerValueFromInput(markerInput);
-        syncSimpleFromForm();
-        scheduleSimpleRebuild();
+        if (event && event.type === 'change') {
+          flushSimpleFormChange();
+        } else {
+          scheduleSimpleFormChange();
+        }
       };
       markerInput.addEventListener('input', handleMarkerInput);
       markerInput.addEventListener('change', handleMarkerInput);
@@ -6780,8 +6844,7 @@ function setupSettingsForm() {
     if (answerInput) {
       answerInput.value = answerVal || '';
       const handleAnswerInput = () => {
-        syncSimpleFromForm();
-        scheduleSimpleRebuild();
+        scheduleSimpleFormChange();
       };
       const handleAnswerBlur = () => {
         if (answerInput.value != null) {
@@ -6790,8 +6853,7 @@ function setupSettingsForm() {
             answerInput.value = trimmed;
           }
         }
-        syncSimpleFromForm();
-        scheduleSimpleRebuild();
+        flushSimpleFormChange();
       };
       answerInput.addEventListener('input', handleAnswerInput);
       answerInput.addEventListener('change', handleAnswerBlur);
@@ -6864,8 +6926,7 @@ function setupSettingsForm() {
         }
         funInput.dataset.lastCommittedValue = currentValue;
         refreshGliderStartInputDisplay();
-        syncSimpleFromForm();
-        scheduleSimpleRebuild();
+        flushSimpleFormChange();
       };
       const scheduleRemember = typeof queueMicrotask === 'function'
         ? queueMicrotask
@@ -6902,8 +6963,11 @@ function setupSettingsForm() {
             domInput.value = normalized.formatted;
           }
         }
-        syncSimpleFromForm();
-        scheduleSimpleRebuild();
+        if (event && (event.type === 'change' || event.type === 'blur')) {
+          flushSimpleFormChange();
+        } else {
+          scheduleSimpleFormChange();
+        }
       };
       domInput.addEventListener('input', handleDomChange);
       domInput.addEventListener('change', handleDomChange);
@@ -6932,8 +6996,9 @@ function setupSettingsForm() {
         };
       }
       if (gliderCountInput) {
-        gliderCountInput.addEventListener('input', handleGliderCountChange);
-        gliderCountInput.addEventListener('change', handleGliderCountChange);
+        gliderCountInput.addEventListener('input', handleGliderCountInput);
+        gliderCountInput.addEventListener('change', handleGliderCountCommit);
+        gliderCountInput.addEventListener('blur', handleGliderCountCommit);
       }
       if (gliderStartInput) {
         attachGliderStartInputListeners();
@@ -6947,15 +7012,18 @@ function setupSettingsForm() {
       }
       linePointInputs.forEach(input => {
         if (!input) return;
-        const handleLinePointInputChange = () => {
+        const handleLinePointInputChange = event => {
           const parsed = parseLinePointInput(input.value);
           if (parsed) {
             input.value = formatPointInputValue(parsed);
           }
           linePointsEdited = true;
           syncLinePointsToBoardFromInputs();
-          syncSimpleFromForm();
-          scheduleSimpleRebuild();
+          if (event && event.type === 'change') {
+            flushSimpleFormChange();
+          } else {
+            scheduleSimpleFormChange();
+          }
         };
         input.addEventListener('input', handleLinePointInputChange);
         input.addEventListener('change', handleLinePointInputChange);
