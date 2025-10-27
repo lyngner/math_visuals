@@ -730,6 +730,31 @@ function getSettingsApi() {
   return api && typeof api === "object" ? api : null;
 }
 
+function resolveProjectNameHint() {
+  const doc = typeof document !== "undefined" ? document : null;
+  if (doc && doc.documentElement) {
+    const root = doc.documentElement;
+    const activeAttr = root.getAttribute("data-mv-active-project");
+    if (typeof activeAttr === "string" && activeAttr.trim()) {
+      return activeAttr.trim().toLowerCase();
+    }
+    const themeAttr = root.getAttribute("data-theme-profile");
+    if (typeof themeAttr === "string" && themeAttr.trim()) {
+      return themeAttr.trim().toLowerCase();
+    }
+  }
+  const api = getSettingsApi();
+  if (api && typeof api.getActiveProject === "function") {
+    try {
+      const value = api.getActiveProject();
+      if (typeof value === "string" && value.trim()) {
+        return value.trim().toLowerCase();
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
 function sanitizeSettingsColor(value) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -786,9 +811,10 @@ function readStoredSettings() {
 function resolveSettingsPalette(count) {
   const target = Number.isInteger(count) && count > 0 ? count : undefined;
   const api = getSettingsApi();
+  const project = resolveProjectNameHint();
   if (api && typeof api.getDefaultColors === "function") {
     try {
-      const palette = api.getDefaultColors(target);
+      const palette = api.getDefaultColors(target, project ? { project } : undefined);
       const resolved = cycleSettingsPalette(palette, target || (Array.isArray(palette) ? palette.length : 0));
       if (resolved.length) {
         return resolved;
@@ -796,10 +822,21 @@ function resolveSettingsPalette(count) {
     } catch (_) {}
   }
   const stored = readStoredSettings();
-  if (stored && Array.isArray(stored.defaultColors)) {
-    const resolved = cycleSettingsPalette(stored.defaultColors, target || stored.defaultColors.length);
-    if (resolved.length) {
-      return resolved;
+  if (stored && typeof stored === "object") {
+    if (project && stored.projects && typeof stored.projects === "object") {
+      const projectSettings = stored.projects[project];
+      if (projectSettings && Array.isArray(projectSettings.defaultColors)) {
+        const resolved = cycleSettingsPalette(projectSettings.defaultColors, target || projectSettings.defaultColors.length);
+        if (resolved.length) {
+          return resolved;
+        }
+      }
+    }
+    if (Array.isArray(stored.defaultColors)) {
+      const resolved = cycleSettingsPalette(stored.defaultColors, target || stored.defaultColors.length);
+      if (resolved.length) {
+        return resolved;
+      }
     }
   }
   return cycleSettingsPalette(SETTINGS_FALLBACK_PALETTE, target || SETTINGS_FALLBACK_PALETTE.length);

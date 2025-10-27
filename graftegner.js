@@ -93,6 +93,31 @@ function getSettingsApi() {
   const api = window.MathVisualsSettings;
   return api && typeof api === 'object' ? api : null;
 }
+
+function resolveProjectNameHint() {
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (doc && doc.documentElement) {
+    const root = doc.documentElement;
+    const activeAttr = root.getAttribute('data-mv-active-project');
+    if (typeof activeAttr === 'string' && activeAttr.trim()) {
+      return activeAttr.trim().toLowerCase();
+    }
+    const themeAttr = root.getAttribute('data-theme-profile');
+    if (typeof themeAttr === 'string' && themeAttr.trim()) {
+      return themeAttr.trim().toLowerCase();
+    }
+  }
+  const api = getSettingsApi();
+  if (api && typeof api.getActiveProject === 'function') {
+    try {
+      const value = api.getActiveProject();
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim().toLowerCase();
+      }
+    } catch (_) {}
+  }
+  return null;
+}
 function sanitizeStoredColor(value) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -151,19 +176,31 @@ function resolveSettingsSnapshot() {
 function getBaseCurveColors(count) {
   const api = getSettingsApi();
   const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+  const project = resolveProjectNameHint();
   if (api && typeof api.getDefaultColors === 'function') {
     try {
-      const palette = api.getDefaultColors(targetCount);
+      const palette = api.getDefaultColors(targetCount, project ? { project } : undefined);
       if (Array.isArray(palette) && palette.length) {
         return cycleColors(palette, targetCount || palette.length);
       }
     } catch (_) {}
   }
   const stored = resolveSettingsSnapshot();
-  if (stored && Array.isArray(stored.defaultColors)) {
-    const sanitized = stored.defaultColors.map(sanitizeStoredColor).filter(Boolean);
-    if (sanitized.length) {
-      return cycleColors(sanitized, targetCount || sanitized.length);
+  if (stored && typeof stored === 'object') {
+    if (project && stored.projects && typeof stored.projects === 'object') {
+      const projectSettings = stored.projects[project];
+      if (projectSettings && Array.isArray(projectSettings.defaultColors)) {
+        const projectPalette = projectSettings.defaultColors.map(sanitizeStoredColor).filter(Boolean);
+        if (projectPalette.length) {
+          return cycleColors(projectPalette, targetCount || projectPalette.length);
+        }
+      }
+    }
+    if (Array.isArray(stored.defaultColors)) {
+      const sanitized = stored.defaultColors.map(sanitizeStoredColor).filter(Boolean);
+      if (sanitized.length) {
+        return cycleColors(sanitized, targetCount || sanitized.length);
+      }
     }
   }
   return cycleColors(FALLBACK_CURVE_COLORS, targetCount || FALLBACK_CURVE_COLORS.length);

@@ -208,21 +208,35 @@
     }
     return result;
   }
-  function resolveUserPalette(count) {
+  function resolveUserPalette(count, projectName) {
     const api = getSettingsApi();
+    const project = typeof projectName === 'string' && projectName.trim()
+      ? projectName.trim().toLowerCase()
+      : null;
     if (api && typeof api.getDefaultColors === 'function') {
       try {
-        const palette = api.getDefaultColors(count);
+        const palette = api.getDefaultColors(count, project ? { project } : undefined);
         if (Array.isArray(palette) && palette.length) {
           return ensurePalette(palette, count);
         }
       } catch (_) {}
     }
     const stored = readStoredSettings();
-    if (stored && Array.isArray(stored.defaultColors)) {
-      const sanitized = stored.defaultColors.map(sanitizeUserColor).filter(Boolean);
-      if (sanitized.length) {
-        return ensurePalette(sanitized, count);
+    if (stored && typeof stored === 'object') {
+      if (project && stored.projects && typeof stored.projects === 'object') {
+        const projectSettings = stored.projects[project];
+        if (projectSettings && Array.isArray(projectSettings.defaultColors)) {
+          const sanitized = projectSettings.defaultColors.map(sanitizeUserColor).filter(Boolean);
+          if (sanitized.length) {
+            return ensurePalette(sanitized, count);
+          }
+        }
+      }
+      if (Array.isArray(stored.defaultColors)) {
+        const sanitized = stored.defaultColors.map(sanitizeUserColor).filter(Boolean);
+        if (sanitized.length) {
+          return ensurePalette(sanitized, count);
+        }
       }
     }
     return null;
@@ -265,7 +279,8 @@
     return Object.keys(PROFILES);
   }
   function buildPalette(kind, count, opts) {
-    const userPalette = resolveUserPalette(count);
+    const activeProfile = getActiveProfile();
+    const userPalette = resolveUserPalette(count, activeProfile && activeProfile.id ? activeProfile.id : activeProfileName);
     if (userPalette && userPalette.length) {
       return ensurePalette(userPalette, count);
     }
