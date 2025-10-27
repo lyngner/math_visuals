@@ -3,7 +3,8 @@
 const SETTINGS_KEY = 'settings:projects';
 const INJECTED_KV_CLIENT_KEY = '__MATH_VISUALS_SETTINGS_KV_CLIENT__';
 const DEFAULT_LINE_THICKNESS = 3;
-const MAX_COLORS = 12;
+const MAX_COLORS = 48;
+const MIN_COLOR_SLOTS = 38;
 const DEFAULT_PROJECT = 'campus';
 const PROJECT_FALLBACKS = {
   campus: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
@@ -114,6 +115,22 @@ function sanitizeColorList(values) {
   return out;
 }
 
+function expandPalette(projectName, palette) {
+  const normalized = typeof projectName === 'string' ? projectName.trim().toLowerCase() : '';
+  const sanitized = sanitizeColorList(palette);
+  const fallback = PROJECT_FALLBACKS[normalized] || PROJECT_FALLBACKS.default;
+  const limit = Math.min(MAX_COLORS, Math.max(sanitized.length, MIN_COLOR_SLOTS));
+  const result = [];
+  for (let index = 0; index < limit; index += 1) {
+    const color = sanitized[index] || fallback[index % fallback.length] || PROJECT_FALLBACKS.default[index % PROJECT_FALLBACKS.default.length];
+    result.push(color);
+  }
+  if (!result.length) {
+    result.push(PROJECT_FALLBACKS.default[0]);
+  }
+  return result;
+}
+
 function clampLineThickness(value) {
   const num = Number.parseFloat(value);
   if (!Number.isFinite(num)) return DEFAULT_LINE_THICKNESS;
@@ -147,7 +164,7 @@ function buildDefaultProjects() {
   Object.keys(PROJECT_FALLBACKS).forEach(name => {
     if (name === 'default') return;
     projects[name] = {
-      defaultColors: PROJECT_FALLBACKS[name].slice(0, MAX_COLORS)
+      defaultColors: expandPalette(name, PROJECT_FALLBACKS[name])
     };
   });
   return projects;
@@ -172,10 +189,10 @@ function normalizeSettings(value) {
         projects[normalized] = target;
       }
       if (sanitized.length) {
-        target.defaultColors = sanitized;
+        target.defaultColors = expandPalette(normalized, sanitized);
       } else if (!target.defaultColors || !target.defaultColors.length) {
         const fallback = PROJECT_FALLBACKS[normalized] || PROJECT_FALLBACKS.default;
-        target.defaultColors = fallback.slice(0, MAX_COLORS);
+        target.defaultColors = expandPalette(normalized, fallback);
       }
       if (source && source.defaultLineThickness != null) {
         target.defaultLineThickness = clampLineThickness(source.defaultLineThickness);
@@ -191,7 +208,7 @@ function normalizeSettings(value) {
     if (legacyColors.length) {
       const projectName = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
       projects[projectName] = projects[projectName] || {};
-      projects[projectName].defaultColors = legacyColors;
+      projects[projectName].defaultColors = expandPalette(projectName, legacyColors);
       if (!order.includes(projectName)) {
         order.push(projectName);
       }
@@ -213,9 +230,12 @@ function normalizeSettings(value) {
   };
 
   const active = projects[activeProject];
-  const palette = active && Array.isArray(active.defaultColors) && active.defaultColors.length
-    ? active.defaultColors.slice(0, MAX_COLORS)
-    : PROJECT_FALLBACKS.default.slice(0, MAX_COLORS);
+  const palette = expandPalette(
+    activeProject,
+    active && Array.isArray(active.defaultColors) && active.defaultColors.length
+      ? active.defaultColors
+      : PROJECT_FALLBACKS.default
+  );
   normalized.defaultColors = palette;
   return normalized;
 }
