@@ -78,6 +78,15 @@
       touch-action: pan-x pan-y;
     }
 
+    .board.board--pannable {
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .board.board--pannable.board--panning {
+      cursor: grabbing;
+    }
+
     .board__figure {
       position: absolute;
       inset: 0;
@@ -426,6 +435,10 @@
               <label class="settings__toggle">
                 <input id="cfg-show-scale" type="checkbox" />
                 <span>Vis målestokk</span>
+              </label>
+              <label class="settings__toggle">
+                <input id="cfg-pan-enabled" type="checkbox" />
+                <span>Tillat panorering</span>
               </label>
             </div>
             <div class="settings__section" aria-labelledby="measurement-figure-settings">
