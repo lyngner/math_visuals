@@ -672,49 +672,6 @@ const ADV = {
   }
 };
 
-const DOMAIN_MARKER_SHAPES = {
-  closed: {
-    points: [
-      [18.5, 47],
-      [3, 47],
-      [2.610756875, 46.9214171875],
-      [2.2928949999999997, 46.7071125],
-      [2.078585625, 46.3892515625],
-      [2, 46],
-      [2, 3],
-      [2.078585625, 2.610756875],
-      [2.2928949999999997, 2.2928949999999997],
-      [2.610756875, 2.078585625],
-      [3, 2],
-      [18.5, 2]
-    ]
-  },
-  open: {
-    points: [
-      [2, 47.5],
-      [37.6146, 25.6019],
-      [37.97173125, 25.225853125],
-      [38.090775, 24.75],
-      [37.97173125, 24.274146875],
-      [37.6146, 23.8981],
-      [2, 2]
-    ]
-  }
-};
-
-Object.values(DOMAIN_MARKER_SHAPES).forEach(shape => {
-  if (!shape || !Array.isArray(shape.points) || !shape.points.length) return;
-  const xs = shape.points.map(pt => pt[0]);
-  const ys = shape.points.map(pt => pt[1]);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  shape.centerX = (minX + maxX) / 2;
-  shape.centerY = (minY + maxY) / 2;
-  shape.height = Math.max(1e-6, maxY - minY);
-});
-
 const DEFAULT_LINE_POINTS = ADV.points.start.map(pt => pt.slice());
 
 function parsePointListString(str) {
@@ -3542,52 +3499,95 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
   const rx = (xmax - xmin) / brd.canvasWidth;
   const ry = (ymax - ymin) / brd.canvasHeight;
   const baseH = Math.max((xmax - xmin) / 400, 5e-5);
-
-  // Finn et punkt innover i domenet med finite y
-  const inward = side < 0 ? +1 : -1;
+  const inward = side < 0 ? 1 : -1;
   const maxTries = 24;
-  let xS = x0;
-  let yS = NaN;
-  for (let tries = 0; tries < maxTries; tries += 1) {
-    const step = tries === 0 ? 0 : baseH * Math.pow(0.5, tries - 1);
-    const candidate = tries === 0 ? x0 : x0 + inward * step;
+  const domain = g.domain || {};
+  const domainMin = Number.isFinite(domain.min) ? domain.min : -Infinity;
+  const domainMax = Number.isFinite(domain.max) ? domain.max : Infinity;
+  const insideDomain = x => {
+    if (!Number.isFinite(x)) return false;
+    if (x < domainMin - 1e-9) return false;
+    if (x > domainMax + 1e-9) return false;
+    return true;
+  };
+  const evalFn = x => {
     let value;
     try {
-      value = g.fn(candidate);
+      value = g.fn(x);
     } catch (_) {
       value = NaN;
     }
-    if (Number.isFinite(value)) {
-      xS = candidate;
-      yS = value;
-      break;
+    return Number.isFinite(value) ? value : NaN;
+  };
+
+  let anchorY = evalFn(x0);
+  let sampleX = x0;
+  let sampleY = anchorY;
+  if (!Number.isFinite(anchorY)) {
+    for (let tries = 1; tries <= maxTries; tries += 1) {
+      const step = baseH * Math.pow(0.5, tries - 1);
+      const candidate = x0 + inward * step;
+      if (!insideDomain(candidate)) continue;
+      const val = evalFn(candidate);
+      if (Number.isFinite(val)) {
+        sampleX = candidate;
+        sampleY = val;
+        anchorY = val;
+        break;
+      }
     }
   }
-  if (!Number.isFinite(yS)) return;
+  if (!Number.isFinite(anchorY)) return;
+  if (!Number.isFinite(sampleY)) sampleY = anchorY;
+  if (!Number.isFinite(sampleX)) sampleX = x0;
 
-  // tangent rundt xS
-  let m = 0;
-  try {
-    const y1 = g.fn(xS + baseH),
-      y2 = g.fn(xS - baseH);
-    if (Number.isFinite(y1) && Number.isFinite(y2)) m = (y1 - y2) / (2 * baseH);
-  } catch (_) {}
+  let slope = 0;
+  const baseX = Number.isFinite(sampleX) ? sampleX : x0;
+  const baseY = Number.isFinite(sampleY) ? sampleY : anchorY;
+  for (let tries = 1; tries <= maxTries; tries += 1) {
+    const step = baseH * Math.pow(0.5, tries - 1);
+    const candidate = baseX + inward * step;
+    if (!insideDomain(candidate)) continue;
+    if (Math.abs(candidate - baseX) < 1e-12) continue;
+    const val = evalFn(candidate);
+    if (!Number.isFinite(val)) continue;
+    slope = (val - baseY) / (candidate - baseX);
+    break;
+  }
 
-  // enhets-tangent/-normal i px-rom
-  let tx = 1 / rx,
-    ty = m / ry;
-  const tlen = Math.hypot(tx, ty) || 1;
+  let tx = 1 / rx;
+  let ty = slope / ry;
+  let tlen = Math.hypot(tx, ty);
+  if (!(tlen > 1e-9)) {
+    tx = 1 / rx;
+    ty = 0;
+    tlen = Math.hypot(tx, ty) || 1;
+  }
   tx /= tlen;
   ty /= tlen;
-  let nx = -ty,
-    ny = tx;
+  const nx = -ty;
+  const ny = tx;
   const px2world = (vx, vy, Lpx) => [vx * Lpx * rx, vy * Lpx * ry];
-  const shape = closed ? DOMAIN_MARKER_SHAPES.closed : DOMAIN_MARKER_SHAPES.open;
-  if (!shape || !Array.isArray(shape.points) || !shape.points.length) return;
-  const LEN = ADV.domainMarkers.barPx;
-  const heightPx = shape.height || 1;
-  const scale = LEN / heightPx;
-  const flip = closed ? -side : side;
+  const tangentUnit = px2world(tx, ty, 1);
+  const normalUnit = px2world(nx, ny, 1);
+
+  const heightPx = ADV.domainMarkers.barPx;
+  const half = heightPx / 2;
+  const tipPx = Math.max(heightPx * ADV.domainMarkers.tipFrac, 2);
+  const dir = side < 0 ? 1 : -1;
+  const localSegments = closed
+    ? [
+        [[0, 0], [0, half]],
+        [[0, half], [dir * tipPx, half]],
+        [[dir * tipPx, half], [dir * tipPx, -half]],
+        [[dir * tipPx, -half], [0, -half]],
+        [[0, -half], [0, 0]]
+      ]
+    : [
+        [[0, 0], [dir * tipPx, half]],
+        [[0, 0], [dir * tipPx, -half]]
+      ];
+
   const strokeColor = typeof g.color === 'string' && g.color ? g.color : ADV.domainMarkers.color;
   const style = {
     strokeColor,
@@ -3598,58 +3598,22 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
     lineCap: 'round',
     lineJoin: 'round'
   };
-  const tangentUnit = px2world(tx, ty, 1);
-  const normalUnit = px2world(nx, ny, 1);
-  const localPoints = shape.points.map(([px, py]) => {
-    return {
-      localX: (px - shape.centerX) * scale * flip,
-      localY: (py - shape.centerY) * scale
-    };
-  });
-  let localShift = 0;
-  if (Math.abs(tangentUnit[0]) > 1e-9) {
-    const xValues = localPoints.map(pt => xS + pt.localX * tangentUnit[0] + pt.localY * normalUnit[0]);
-    let idx = 0;
-    for (let i = 1; i < xValues.length; i += 1) {
-      const better = side > 0 ? xValues[i] > xValues[idx] : xValues[i] < xValues[idx];
-      if (better) idx = i;
-    }
-    const desiredX = x0 - side * 1e-9;
-    const delta = desiredX - xValues[idx];
-    localShift = delta / tangentUnit[0];
-  }
+
+  const anchorX = x0;
+  const anchorYFinal = anchorY;
   const segments = [];
-  const mapped = localPoints.map(({ localX, localY }) => {
-    const shiftedX = localX + localShift;
-    const offTx = shiftedX * tangentUnit[0];
-    const offTy = shiftedX * tangentUnit[1];
-    const offNx = localY * normalUnit[0];
-    const offNy = localY * normalUnit[1];
-    return [xS + offTx + offNx, yS + offTy + offNy];
-  });
-  const boundaryCheck = side > 0
-    ? mapped.every(pt => pt[0] <= x0 + 1e-8)
-    : mapped.every(pt => pt[0] >= x0 - 1e-8);
-  if (!boundaryCheck) {
-    const extreme = side > 0 ? Math.max(...mapped.map(pt => pt[0])) : Math.min(...mapped.map(pt => pt[0]));
-    if (Math.abs(tangentUnit[0]) > 1e-9) {
-      const corrLocal = (x0 - extreme) / tangentUnit[0];
-      for (let i = 0; i < mapped.length; i += 1) {
-        mapped[i] = [
-          mapped[i][0] + corrLocal * tangentUnit[0],
-          mapped[i][1] + corrLocal * tangentUnit[1]
-        ];
-      }
-    } else {
-      const adjust = x0 - extreme;
-      for (let i = 0; i < mapped.length; i += 1) {
-        mapped[i] = [mapped[i][0] + adjust, mapped[i][1]];
-      }
-    }
-  }
-  for (let i = 0; i < mapped.length - 1; i += 1) {
-    const p = mapped[i];
-    const q = mapped[i + 1];
+  const mapPoint = ([lx, ly]) => {
+    const offTx = lx * tangentUnit[0];
+    const offTy = lx * tangentUnit[1];
+    const offNx = ly * normalUnit[0];
+    const offNy = ly * normalUnit[1];
+    return [anchorX + offTx + offNx, anchorYFinal + offTy + offNy];
+  };
+  for (const segment of localSegments) {
+    const [pLocal, qLocal] = segment;
+    if (!Array.isArray(pLocal) || !Array.isArray(qLocal)) continue;
+    const p = mapPoint(pLocal);
+    const q = mapPoint(qLocal);
     if (!p || !q) continue;
     const dx = q[0] - p[0];
     const dy = q[1] - p[1];
