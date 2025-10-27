@@ -9,7 +9,8 @@
   const statusElement = form.querySelector('[data-status]');
   const lineInput = form.querySelector('#lineThickness');
   const linePreviewBar = form.querySelector('[data-line-preview-bar]');
-  const projectSelect = form.querySelector('[data-project-select]');
+  const projectHeadingElement = document.querySelector('[data-project-heading]');
+  const projectLegendElement = form.querySelector('[data-project-legend]');
 
   const MAX_COLORS = 12;
   const DEFAULT_LINE_THICKNESS = 3;
@@ -17,6 +18,11 @@
     kikora: 'Kikora',
     campus: 'Campus',
     annet: 'Annet'
+  };
+  const PROJECT_HEADINGS = {
+    kikora: 'Standardfarger for Kikora',
+    campus: 'Standardfarger for Camus',
+    annet: 'Standardfarger for Andre prosjekter'
   };
   const PROJECT_FALLBACKS = {
     kikora: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
@@ -86,7 +92,7 @@
   }
 
   function getProjectFallbackPalette(project) {
-    const key = typeof project === 'string' ? project.trim().toLowerCase() : '';
+    const key = normalizeProjectName(project);
     const fallback = PROJECT_FALLBACKS[key] || PROJECT_FALLBACKS.default;
     return fallback.slice(0, MAX_COLORS);
   }
@@ -98,11 +104,36 @@
     return palette[normalizedIndex % palette.length] || palette[0];
   }
 
+  function normalizeProjectName(name) {
+    if (typeof name !== 'string') return '';
+    return name.trim().toLowerCase();
+  }
+
   function formatProjectLabel(name) {
     if (!name) return '';
-    const key = name.trim().toLowerCase();
+    const key = normalizeProjectName(name);
     if (PROJECT_LABELS[key]) return PROJECT_LABELS[key];
     return key.charAt(0).toUpperCase() + key.slice(1);
+  }
+
+  function resolveProjectHeading(name) {
+    const normalized = normalizeProjectName(name);
+    if (PROJECT_HEADINGS[normalized]) {
+      return PROJECT_HEADINGS[normalized];
+    }
+    const label = formatProjectLabel(name);
+    return label ? `Standardfarger for ${label}` : 'Standardfarger';
+  }
+
+  function updateProjectHeading(project) {
+    const active = project ? normalizeProjectName(project) : ensureActiveProject();
+    const headingText = resolveProjectHeading(active);
+    if (projectHeadingElement) {
+      projectHeadingElement.textContent = headingText;
+    }
+    if (projectLegendElement) {
+      projectLegendElement.textContent = headingText;
+    }
   }
 
   function setStatus(message, tone) {
@@ -136,46 +167,54 @@
     linePreviewBar.style.setProperty('--preview-thickness', `${thickness}px`);
   }
 
-  function ensureActiveProject() {
-    if (state.activeProject && state.colorsByProject.has(state.activeProject)) {
-      return state.activeProject;
+  function getApiActiveProject() {
+    if (!settingsApi || typeof settingsApi.getActiveProject !== 'function') return null;
+    try {
+      const value = normalizeProjectName(settingsApi.getActiveProject());
+      return value || null;
+    } catch (_) {
+      return null;
     }
-    const candidate = state.projectOrder.find(name => state.colorsByProject.has(name));
-    if (candidate) {
+  }
+
+  function ensureProjectColors(name) {
+    const normalized = normalizeProjectName(name);
+    if (!normalized) return;
+    if (!state.colorsByProject.has(normalized)) {
+      state.colorsByProject.set(normalized, getProjectFallbackPalette(normalized));
+    }
+  }
+
+  function ensureActiveProject() {
+    const seen = new Set();
+    const candidates = [];
+    const addCandidate = value => {
+      const normalized = normalizeProjectName(value);
+      if (!normalized || seen.has(normalized)) return;
+      seen.add(normalized);
+      candidates.push(normalized);
+    };
+    addCandidate(getApiActiveProject());
+    addCandidate(state.activeProject);
+    state.projectOrder.forEach(addCandidate);
+    addCandidate('campus');
+    addCandidate('kikora');
+    addCandidate('annet');
+
+    for (const candidate of candidates) {
+      ensureProjectColors(candidate);
       state.activeProject = candidate;
       return candidate;
     }
+
     const fallback = 'campus';
+    ensureProjectColors(fallback);
     state.activeProject = fallback;
-    if (!state.colorsByProject.has(fallback)) {
-      state.colorsByProject.set(fallback, getProjectFallbackPalette(fallback));
-    }
-    return state.activeProject;
+    return fallback;
   }
 
-  function populateProjectOptions() {
-    if (!projectSelect) return;
-    const previous = projectSelect.value;
-    projectSelect.innerHTML = '';
-    state.projectOrder.forEach(name => {
-      const option = document.createElement('option');
-      option.value = name;
-      option.textContent = formatProjectLabel(name);
-      projectSelect.appendChild(option);
-    });
-    const active = ensureActiveProject();
-    if (state.projectOrder.includes(previous)) {
-      projectSelect.value = previous;
-    } else if (state.projectOrder.includes(active)) {
-      projectSelect.value = active;
-    } else if (projectSelect.options.length) {
-      projectSelect.selectedIndex = 0;
-      state.activeProject = projectSelect.value;
-    }
-  }
-
-  function getActiveColors() {
-    const project = ensureActiveProject();
+  function getActiveColors(projectName) {
+    const project = projectName ? normalizeProjectName(projectName) : ensureActiveProject();
     const palette = state.colorsByProject.get(project);
     if (Array.isArray(palette) && palette.length) {
       return palette.slice(0, MAX_COLORS);
@@ -183,8 +222,8 @@
     return getProjectFallbackPalette(project);
   }
 
-  function commitActiveColors(next) {
-    const project = ensureActiveProject();
+  function commitActiveColors(next, projectName) {
+    const project = projectName ? normalizeProjectName(projectName) : ensureActiveProject();
     const sanitized = [];
     next.forEach((value, index) => {
       const clean = sanitizeColor(value) || getFallbackColorForIndex(project, index);
@@ -263,8 +302,10 @@
 
   function renderColors() {
     if (!colorList) return;
-    const palette = getActiveColors();
-    commitActiveColors(palette);
+    const project = ensureActiveProject();
+    updateProjectHeading(project);
+    const palette = getActiveColors(project);
+    commitActiveColors(palette, project);
     colorList.innerHTML = '';
     colors.forEach((color, index) => {
       colorList.appendChild(createColorItem(color, index));
@@ -274,12 +315,12 @@
   function applySettings(snapshot) {
     const data = snapshot && typeof snapshot === 'object' ? snapshot : {};
     state.projectOrder = Array.isArray(data.projectOrder)
-      ? Array.from(new Set(data.projectOrder.map(name => (typeof name === 'string' ? name.trim().toLowerCase() : '')))).filter(Boolean)
+      ? Array.from(new Set(data.projectOrder.map(normalizeProjectName))).filter(Boolean)
       : [];
     state.colorsByProject = new Map();
     const projects = data.projects && typeof data.projects === 'object' ? data.projects : {};
     Object.keys(projects).forEach(name => {
-      const normalized = typeof name === 'string' ? name.trim().toLowerCase() : '';
+      const normalized = normalizeProjectName(name);
       if (!normalized) return;
       const entry = projects[name];
       const palette = Array.isArray(entry && entry.defaultColors) ? entry.defaultColors : [];
@@ -303,17 +344,13 @@
         state.colorsByProject.set(name, getProjectFallbackPalette(name));
       }
     });
-    state.activeProject = typeof data.activeProject === 'string' ? data.activeProject.trim().toLowerCase() : null;
+    state.activeProject = normalizeProjectName(data.activeProject);
     ensureActiveProject();
+    updateProjectHeading(state.activeProject);
     state.defaultLineThickness =
       data.defaultLineThickness != null ? clampLineThickness(data.defaultLineThickness) : DEFAULT_LINE_THICKNESS;
     if (lineInput) {
       lineInput.value = state.defaultLineThickness;
-    }
-    populateProjectOptions();
-    const active = ensureActiveProject();
-    if (projectSelect && projectSelect.value !== active) {
-      projectSelect.value = active;
     }
     renderColors();
     updateLinePreview();
@@ -384,25 +421,6 @@
 
   if (lineInput) {
     lineInput.addEventListener('input', () => {
-      updateLinePreview();
-      clearStatus();
-    });
-  }
-
-  if (projectSelect) {
-    projectSelect.addEventListener('change', () => {
-      const value = projectSelect.value;
-      if (!value) return;
-      state.activeProject = value.trim().toLowerCase();
-      if (!state.colorsByProject.has(state.activeProject)) {
-        state.colorsByProject.set(state.activeProject, getProjectFallbackPalette(state.activeProject));
-      }
-      if (settingsApi && typeof settingsApi.setActiveProject === 'function') {
-        try {
-          settingsApi.setActiveProject(state.activeProject, { notify: true });
-        } catch (_) {}
-      }
-      renderColors();
       updateLinePreview();
       clearStatus();
     });
