@@ -103,7 +103,7 @@
       flex: 1;
       min-width: 0;
       display: grid;
-      grid-template-columns: minmax(110px, auto) minmax(150px, 1fr) 56px;
+      grid-template-columns: minmax(110px, auto) max-content 56px;
       align-items: center;
       gap: 12px;
       padding: 12px 16px;
@@ -119,7 +119,7 @@
       text-overflow: ellipsis;
     }
     .color-slot input[type="text"] {
-      width: 100%;
+      width: 7ch;
       padding: 8px 10px;
       border-radius: 8px;
       border: 1px solid var(--profile-surface-border, #e5e7eb);
@@ -217,7 +217,7 @@
       }
       .color-slot {
         width: 100%;
-        grid-template-columns: minmax(90px, auto) minmax(120px, 1fr) 48px;
+        grid-template-columns: minmax(90px, auto) max-content 48px;
         gap: 8px;
         padding: 10px 12px;
         border-left: none !important;
