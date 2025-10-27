@@ -47,7 +47,8 @@
     boardPadding: doc.getElementById('cfg-board-padding'),
     rulerStartAtZero: doc.getElementById('cfg-ruler-start-at-zero'),
     gridEnabled: doc.getElementById('cfg-grid-enabled'),
-    showScaleLabel: doc.getElementById('cfg-show-scale')
+    showScaleLabel: doc.getElementById('cfg-show-scale'),
+    panningEnabled: doc.getElementById('cfg-pan-enabled')
   };
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
@@ -57,6 +58,7 @@
   const figureImageDimensions = new Map();
   const figureImageDimensionsPending = new Set();
   const activePointers = new Map();
+  const boardPanState = { entry: null, enabled: false };
   let boardRect = board.getBoundingClientRect();
   const baseSize = { width: ruler.offsetWidth, height: ruler.offsetHeight };
   const zeroOffset = { x: 0, y: 0 };
@@ -84,6 +86,7 @@
     rulerStartAtZero: true,
     gridEnabled: false,
     showScaleLabel: false,
+    panningEnabled: false,
     rulerTransform: null
   };
 
@@ -124,6 +127,12 @@
       centerRuler();
     }
   });
+
+  board.addEventListener('pointerdown', handleBoardPointerDown, { passive: false });
+  board.addEventListener('pointermove', handleBoardPointerMove, { passive: false });
+  board.addEventListener('pointerup', handleBoardPointerEnd);
+  board.addEventListener('pointercancel', handleBoardPointerCancel);
+  board.addEventListener('lostpointercapture', handleBoardLostPointerCapture);
 
   window.addEventListener('resize', handleResize);
 
@@ -179,6 +188,15 @@
     }
     if (Object.prototype.hasOwnProperty.call(source, 'gridEnabled')) target.gridEnabled = source.gridEnabled;
     if (Object.prototype.hasOwnProperty.call(source, 'showScaleLabel')) target.showScaleLabel = source.showScaleLabel;
+    if (Object.prototype.hasOwnProperty.call(source, 'panningEnabled')) {
+      target.panningEnabled = source.panningEnabled;
+    } else if (Object.prototype.hasOwnProperty.call(source, 'panorering')) {
+      target.panningEnabled = source.panorering;
+    } else if (Object.prototype.hasOwnProperty.call(source, 'panEnabled')) {
+      target.panningEnabled = source.panEnabled;
+    } else if (Object.prototype.hasOwnProperty.call(source, 'allowPan')) {
+      target.panningEnabled = source.allowPan;
+    }
     // unit spacing is fixed and not configurable
   }
 
@@ -195,6 +213,8 @@
       container.rulerStartAtZero = settings.rulerStartAtZero;
       container.gridEnabled = settings.gridEnabled;
       container.showScaleLabel = settings.showScaleLabel;
+      container.panningEnabled = !!settings.panningEnabled;
+      container.panorering = !!settings.panningEnabled;
       delete container.rulerPadding;
       delete container.unitSpacingOverride;
       delete container.figureName;
@@ -217,6 +237,8 @@
     container.rulerStartAtZero = settings.rulerStartAtZero;
     container.gridEnabled = settings.gridEnabled;
     container.showScaleLabel = settings.showScaleLabel;
+    container.panningEnabled = !!settings.panningEnabled;
+    container.panorering = !!settings.panningEnabled;
     delete container.unitSpacingOverride;
     delete container.rulerPadding;
     if (settings.rulerTransform && typeof settings.rulerTransform === 'object') {
@@ -436,6 +458,7 @@
     const rulerStartAtZero = sanitizeBoolean(combined.rulerStartAtZero, defaults.rulerStartAtZero);
     const gridEnabled = sanitizeGridEnabled(combined.gridEnabled, defaults.gridEnabled);
     const showScaleLabel = sanitizeGridEnabled(combined.showScaleLabel, defaults.showScaleLabel);
+    const panningEnabled = sanitizeBoolean(combined.panningEnabled, defaults.panningEnabled);
     const rulerTransform = sanitizeRulerTransform(combined.rulerTransform, defaults.rulerTransform);
 
     const settings = {
@@ -451,6 +474,7 @@
       rulerStartAtZero,
       gridEnabled,
       showScaleLabel,
+      panningEnabled,
       rulerTransform
     };
 
@@ -489,6 +513,7 @@
       a.rulerStartAtZero === b.rulerStartAtZero &&
       a.gridEnabled === b.gridEnabled &&
       a.showScaleLabel === b.showScaleLabel &&
+      a.panningEnabled === b.panningEnabled &&
       areRulerTransformsEqual(a.rulerTransform, b.rulerTransform)
     );
   }
@@ -927,6 +952,7 @@
     applyFigureAppearance(settings);
     applyFigureScale(settings, scaleMetrics);
     applyGridAppearance(settings);
+    applyBoardPanningState(settings);
     applyScaleLabel(settings);
     updateAccessibility(settings);
     appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(settings);
@@ -954,6 +980,21 @@
     board.classList.toggle('board--grid', enabled);
     if (boardGridOverlay) {
       boardGridOverlay.hidden = !enabled;
+    }
+  }
+
+  function applyBoardPanningState(settings) {
+    const enabled = !!(settings && settings.panningEnabled);
+    boardPanState.enabled = enabled;
+    if (!board) {
+      return;
+    }
+    board.classList.toggle('board--pannable', enabled);
+    if (enabled) {
+      board.setAttribute('data-panning-enabled', 'true');
+    } else {
+      board.removeAttribute('data-panning-enabled');
+      endBoardPanSession();
     }
   }
 
@@ -1107,6 +1148,7 @@
       if (inputs.rulerStartAtZero) inputs.rulerStartAtZero.checked = !!settings.rulerStartAtZero;
       if (inputs.gridEnabled) inputs.gridEnabled.checked = !!settings.gridEnabled;
       if (inputs.showScaleLabel) inputs.showScaleLabel.checked = !!settings.showScaleLabel;
+      if (inputs.panningEnabled) inputs.panningEnabled.checked = !!settings.panningEnabled;
       // unit spacing is fixed and no longer exposed to the UI
     } finally {
       appState.syncingInputs = false;
@@ -1201,7 +1243,121 @@
         updateSettings({ showScaleLabel: event.target.checked });
       });
     }
+    if (inputs.panningEnabled) {
+      inputs.panningEnabled.addEventListener('change', event => {
+        if (appState.syncingInputs) return;
+        updateSettings({ panningEnabled: event.target.checked });
+      });
+    }
     // unit spacing is fixed and no longer configurable
+  }
+
+  function isEventInsideRuler(event) {
+    if (!ruler) {
+      return false;
+    }
+    const target = event && event.target;
+    if (target && (target === ruler || (typeof ruler.contains === 'function' && ruler.contains(target)))) {
+      return true;
+    }
+    if (event && typeof event.composedPath === 'function') {
+      const path = event.composedPath();
+      if (Array.isArray(path) && path.includes(ruler)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function handleBoardPointerDown(event) {
+    if (!boardPanState.enabled || boardPanState.entry || !board) {
+      return;
+    }
+    if (event.button && event.button !== 0) {
+      return;
+    }
+    if (isEventInsideRuler(event) || activePointers.size > 0) {
+      return;
+    }
+    const clientX = event.clientX;
+    const clientY = event.clientY;
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+      return;
+    }
+    boardPanState.entry = {
+      pointerId: event.pointerId,
+      clientX,
+      clientY,
+      prevX: clientX,
+      prevY: clientY
+    };
+    board.classList.add('board--panning');
+    try {
+      board.setPointerCapture(event.pointerId);
+    } catch (_) {}
+    event.preventDefault();
+  }
+
+  function handleBoardPointerMove(event) {
+    const entry = boardPanState.entry;
+    if (!entry || entry.pointerId !== event.pointerId) {
+      return;
+    }
+    if (!boardPanState.enabled) {
+      endBoardPanSession();
+      return;
+    }
+    const clientX = event.clientX;
+    const clientY = event.clientY;
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+      return;
+    }
+    entry.prevX = entry.clientX;
+    entry.prevY = entry.clientY;
+    entry.clientX = clientX;
+    entry.clientY = clientY;
+    updateFromSinglePointer(entry);
+    event.preventDefault();
+  }
+
+  function handleBoardPointerEnd(event) {
+    const entry = boardPanState.entry;
+    if (!entry || entry.pointerId !== event.pointerId) {
+      return;
+    }
+    endBoardPanSession();
+  }
+
+  function handleBoardPointerCancel(event) {
+    const entry = boardPanState.entry;
+    if (!entry || entry.pointerId !== event.pointerId) {
+      return;
+    }
+    endBoardPanSession();
+  }
+
+  function handleBoardLostPointerCapture(event) {
+    const entry = boardPanState.entry;
+    if (!entry || entry.pointerId !== event.pointerId) {
+      return;
+    }
+    endBoardPanSession({ skipRelease: true });
+  }
+
+  function endBoardPanSession(options = {}) {
+    const entry = boardPanState.entry;
+    boardPanState.entry = null;
+    if (board) {
+      board.classList.remove('board--panning');
+      if (entry && !options.skipRelease) {
+        try {
+          board.releasePointerCapture(entry.pointerId);
+        } catch (_) {}
+      }
+    }
+    if (entry && options.persist !== false) {
+      applyTransformWithSnap({ persist: true });
+    }
   }
 
   function handlePointerDown(event) {
@@ -1837,6 +1993,7 @@
       summary.figureScaleLabel = settings.figureScaleLabel;
     }
     summary.showScaleLabel = !!settings.showScaleLabel;
+    summary.allowPanning = !!settings.panningEnabled;
     return {
       slug,
       baseName,
