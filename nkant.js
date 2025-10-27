@@ -720,6 +720,107 @@ const STYLE_PROFILE_OVERRIDES = {
     };
   }
 };
+
+const SETTINGS_STORAGE_KEY = "mathVisuals:settings";
+const SETTINGS_FALLBACK_PALETTE = ["#1F4DE2", "#475569", "#ef4444", "#0ea5e9", "#10b981", "#f59e0b"];
+
+function getSettingsApi() {
+  if (typeof window === "undefined") return null;
+  const api = window.MathVisualsSettings;
+  return api && typeof api === "object" ? api : null;
+}
+
+function sanitizeSettingsColor(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const match = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(trimmed);
+  if (!match) return null;
+  let hex = match[1].toLowerCase();
+  if (hex.length === 3) {
+    hex = hex.split("").map(ch => ch + ch).join("");
+  }
+  return `#${hex}`;
+}
+
+function normalizeSettingsPalette(values) {
+  if (!Array.isArray(values)) return [];
+  const normalized = [];
+  for (const value of values) {
+    const sanitized = sanitizeSettingsColor(value);
+    if (sanitized) {
+      normalized.push(sanitized);
+      if (normalized.length >= SETTINGS_FALLBACK_PALETTE.length) {
+        break;
+      }
+    }
+  }
+  return normalized;
+}
+
+function cycleSettingsPalette(values, count) {
+  const base = normalizeSettingsPalette(values);
+  if (!base.length) return [];
+  if (!Number.isInteger(count) || count <= 0) {
+    return base.slice();
+  }
+  const result = [];
+  for (let i = 0; i < count; i += 1) {
+    result.push(base[i % base.length]);
+  }
+  return result;
+}
+
+function readStoredSettings() {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (typeof raw !== "string" || !raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function resolveSettingsPalette(count) {
+  const target = Number.isInteger(count) && count > 0 ? count : undefined;
+  const api = getSettingsApi();
+  if (api && typeof api.getDefaultColors === "function") {
+    try {
+      const palette = api.getDefaultColors(target);
+      const resolved = cycleSettingsPalette(palette, target || (Array.isArray(palette) ? palette.length : 0));
+      if (resolved.length) {
+        return resolved;
+      }
+    } catch (_) {}
+  }
+  const stored = readStoredSettings();
+  if (stored && Array.isArray(stored.defaultColors)) {
+    const resolved = cycleSettingsPalette(stored.defaultColors, target || stored.defaultColors.length);
+    if (resolved.length) {
+      return resolved;
+    }
+  }
+  return cycleSettingsPalette(SETTINGS_FALLBACK_PALETTE, target || SETTINGS_FALLBACK_PALETTE.length);
+}
+
+function applySettingsPaletteToStyle() {
+  const palette = resolveSettingsPalette(4);
+  if (!palette.length) return;
+  const fallbackLine = STYLE_DEFAULTS.edgeStroke;
+  const fallbackAngle = STYLE_DEFAULTS.angStroke;
+  const fallbackFill = STYLE_DEFAULTS.faceFill;
+  const lineColor = sanitizeSettingsColor(palette[1]) || sanitizeSettingsColor(palette[0]) || fallbackLine;
+  const angleColor = sanitizeSettingsColor(palette[2]) || lineColor || fallbackAngle;
+  const fillColor = sanitizeSettingsColor(palette[3]) || fallbackFill;
+  STYLE.edgeStroke = lineColor || fallbackLine;
+  STYLE.angStroke = angleColor || fallbackAngle;
+  STYLE.faceFill = fillColor || fallbackFill;
+  STYLE.radiusStroke = angleColor || fallbackAngle;
+  STYLE.angFill = withAlphaColor(STYLE.angStroke, 0.25, withAlphaColor(fallbackAngle, 0.25, STYLE_DEFAULTS.angFill));
+}
+
 const STYLE = {
   ...STYLE_DEFAULTS
 };
@@ -789,6 +890,7 @@ function applyThemeStyles() {
   if (overrides) {
     Object.assign(STYLE, overrides);
   }
+  applySettingsPaletteToStyle();
 }
 
 applyThemeToDocument();
@@ -4300,20 +4402,55 @@ async function renderCombined() {
   scheduleResponsiveFigureSizeUpdate();
 }
 
-function handleThemeProfileChange(event) {
-  const data = event && event.data;
-  const type = typeof data === "string" ? data : data && data.type;
-  if (type !== "math-visuals:profile-change") return;
+function refreshThemeAndRender() {
   applyThemeToDocument();
   applyThemeStyles();
+  if (typeof document === "undefined") return;
+  const svg = document.getElementById("paper");
+  if (!svg) return;
   const result = renderCombined();
   if (result && typeof result.catch === "function") {
     result.catch(() => {});
   }
 }
 
+function scheduleThemeRefresh() {
+  if (scheduleThemeRefresh.pending) return;
+  const execute = () => {
+    scheduleThemeRefresh.pending = false;
+    refreshThemeAndRender();
+  };
+  scheduleThemeRefresh.pending = true;
+  if (typeof document !== "undefined" && document.readyState === "loading") {
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        Promise.resolve().then(execute);
+      },
+      { once: true }
+    );
+    return;
+  }
+  Promise.resolve().then(execute);
+}
+
+function handleThemeProfileChange(event) {
+  const data = event && event.data;
+  const type = typeof data === "string" ? data : data && data.type;
+  if (type !== "math-visuals:profile-change") return;
+  scheduleThemeRefresh();
+}
+
 if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
   window.addEventListener("message", handleThemeProfileChange);
+  window.addEventListener("math-visuals:settings-changed", () => scheduleThemeRefresh());
+}
+
+const settingsApi = getSettingsApi();
+if (settingsApi && typeof settingsApi.subscribe === "function") {
+  try {
+    settingsApi.subscribe(() => scheduleThemeRefresh());
+  } catch (_) {}
 }
 
 /* ---------- UI BIND ---------- */
