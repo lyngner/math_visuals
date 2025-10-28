@@ -3586,11 +3586,12 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
   const scale = LEN / heightPx;
   const flip = closed ? -side : side;
   const strokeColor = typeof g.color === 'string' && g.color ? g.color : ADV.domainMarkers.color;
-  const parallelOffsetPx = Number.isFinite(shape.offsetPx)
+  const offsetRaw = Number.isFinite(shape.offsetPx)
     ? shape.offsetPx
     : Number.isFinite(ADV.domainMarkers.offsetPx)
       ? ADV.domainMarkers.offsetPx
       : 0;
+  const parallelOffsetPx = Math.abs(offsetRaw) * (side < 0 ? 1 : -1);
   const style = {
     strokeColor,
     strokeWidth: ADV.domainMarkers.width,
