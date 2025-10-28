@@ -84,11 +84,23 @@
       flex-direction: column;
       gap: 8px;
     }
+    .color-group__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
     .color-group__title {
       margin: 0;
       font-size: 1rem;
       font-weight: 600;
       color: var(--profile-title-color, #0f172a);
+    }
+    .color-group__actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     .color-table {
       border: 1px solid var(--profile-surface-border, #e5e7eb);
@@ -180,6 +192,12 @@
       gap: 8px;
       align-items: center;
     }
+    .field-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
     .form-status {
       min-height: 1.4em;
       font-size: 0.85rem;
@@ -200,6 +218,10 @@
       padding: 8px 14px;
       cursor: pointer;
       transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    }
+    .btn--inline {
+      padding-inline: 12px;
+      font-size: 0.95rem;
     }
     .btn:hover,
     .btn:focus-visible {
@@ -264,9 +286,11 @@
               <div class="line-preview" data-line-preview>
                 <div class="line-preview__bar" data-line-preview-bar></div>
               </div>
+              <div class="field-actions">
+                <button type="button" class="btn" data-save-line>Lagre linjetykkelse</button>
+              </div>
             </fieldset>
             <div class="form-actions">
-              <button type="submit" class="btn">Lagre innstillinger</button>
               <button type="button" class="btn btn--secondary" data-reset-settings>Tilbakestill</button>
             </div>
             <p class="form-status" data-status aria-live="polite"></p>
