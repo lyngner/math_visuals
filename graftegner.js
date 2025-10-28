@@ -2355,9 +2355,7 @@ function updateAxisArrows() {
 }
 
 function axisLabelChip(axisKey) {
-  const fallback = axisKey;
-  const raw = axisKey === 'x' ? ADV.axis.labels.x : ADV.axis.labels.y;
-  const text = raw && String(raw).trim() ? raw : fallback;
+  const text = axisLabelText(axisKey);
   const color = ADV.axis.style.stroke;
   const fontSizeRaw = Number.parseFloat(ADV.axis.labels.fontSize);
   const fontSize = Number.isFinite(fontSizeRaw) ? fontSizeRaw : 15;
@@ -2366,6 +2364,96 @@ function axisLabelChip(axisKey) {
     `--graf-axis-label-font-size:${fontSize}px`
   ];
   return `<span class="graf-axis-label graf-axis-label--${axisKey}" style="${styleTokens.join(';')};">${escapeHtml(text)}</span>`;
+}
+
+function axisLabelText(axisKey) {
+  const fallback = axisKey === 'y' ? 'y' : 'x';
+  const raw = axisKey === 'x' ? ADV.axis.labels.x : ADV.axis.labels.y;
+  if (!raw) {
+    return fallback;
+  }
+  const trimmed = String(raw).trim();
+  return trimmed ? trimmed : fallback;
+}
+
+function computeAxisLabelWorldPosition(axisKey) {
+  if (!brd) return null;
+  const box = brd.getBoundingBox();
+  if (!Array.isArray(box) || box.length < 4) return null;
+  const [xmin, ymax, xmax, ymin] = box;
+  const rx = xmax - xmin;
+  const ry = ymax - ymin;
+  const canvasWidth = Math.max(1, brd.canvasWidth || 1);
+  const canvasHeight = Math.max(1, brd.canvasHeight || 1);
+  const offsetX = Number.isFinite(rx) ? (rx / canvasWidth) * AXIS_LABEL_OFFSET_PX : 0;
+  const offsetY = Number.isFinite(ry) ? (ry / canvasHeight) * AXIS_LABEL_OFFSET_PX : 0;
+  if (axisKey === 'x') {
+    const arrowHalfHeight = axisArrowHalfHeight();
+    const x = Number.isFinite(xmax) ? xmax : 0;
+    const y = ((Number.isFinite(arrowHalfHeight) ? arrowHalfHeight : 0) + offsetY);
+    return { x, y };
+  }
+  const arrowHalfWidth = axisArrowHalfWidth();
+  const x = ((Number.isFinite(arrowHalfWidth) ? arrowHalfWidth : 0) + offsetX);
+  const y = Number.isFinite(ymax) ? ymax : 0;
+  return { x, y };
+}
+
+function worldToScreenPoint(worldPoint) {
+  if (!worldPoint || !brd) return null;
+  const box = brd.getBoundingBox();
+  if (!Array.isArray(box) || box.length < 4) return null;
+  const [xmin, ymax, xmax, ymin] = box;
+  const rx = xmax - xmin;
+  const ry = ymax - ymin;
+  if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx === 0 || ry === 0) return null;
+  const width = Math.max(1, brd.canvasWidth || 1);
+  const height = Math.max(1, brd.canvasHeight || 1);
+  const sx = ((worldPoint.x - xmin) / rx) * width;
+  const sy = ((ymax - worldPoint.y) / ry) * height;
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return null;
+  return { x: sx, y: sy };
+}
+
+function appendAxisLabelsToSvgClone(node) {
+  if (!node || typeof node.ownerDocument === 'undefined') return;
+  const doc = node.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  if (!doc) return;
+  const fontSizeRaw = Number.parseFloat(ADV.axis.labels.fontSize);
+  const fontSize = Number.isFinite(fontSizeRaw) ? fontSizeRaw : 15;
+  const color = normalizeColorValue(ADV.axis.style && ADV.axis.style.stroke ? ADV.axis.style.stroke : '#111827') || '#111827';
+  const makeTextNode = (axisKey) => {
+    const label = axisLabelText(axisKey);
+    if (!label) return null;
+    const worldPos = computeAxisLabelWorldPosition(axisKey);
+    const screenPos = worldToScreenPoint(worldPos);
+    if (!screenPos) return null;
+    const textEl = doc.createElementNS('http://www.w3.org/2000/svg', 'text');
+    textEl.setAttribute('x', String(screenPos.x));
+    textEl.setAttribute('y', String(screenPos.y));
+    textEl.setAttribute('fill', color);
+    textEl.setAttribute('font-size', `${fontSize}`);
+    textEl.setAttribute('font-family', 'Inter, "Segoe UI", system-ui, sans-serif');
+    textEl.textContent = label;
+    if (axisKey === 'x') {
+      textEl.setAttribute('text-anchor', 'end');
+      textEl.setAttribute('dominant-baseline', 'text-after-edge');
+    } else {
+      textEl.setAttribute('text-anchor', 'start');
+      textEl.setAttribute('dominant-baseline', 'text-before-edge');
+    }
+    textEl.setAttribute('pointer-events', 'none');
+    return textEl;
+  };
+  const group = doc.createElementNS('http://www.w3.org/2000/svg', 'g');
+  group.setAttribute('data-export-axis-labels', '');
+  const xLabel = makeTextNode('x');
+  const yLabel = makeTextNode('y');
+  if (xLabel) group.appendChild(xLabel);
+  if (yLabel) group.appendChild(yLabel);
+  if (group.childNodes.length) {
+    node.appendChild(group);
+  }
 }
 
 function placeAxisNames() {
@@ -5195,6 +5283,7 @@ function cloneBoardSvgRoot() {
   node.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   node.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
   sanitizeSvgForeignObjects(node);
+  appendAxisLabelsToSvgClone(node);
   const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
   if (helper && typeof helper.ensureSvgBackground === 'function') {
     helper.ensureSvgBackground(node, {
