@@ -2579,7 +2579,7 @@
         letter-spacing: 0.03em;
       }
       .mv-figure { image-rendering: optimizeQuality; }
-      .mv-ruler .ruler-svg__background { fill: none; stroke: none; }
+      .mv-ruler .ruler-svg__background { fill: none; stroke: none; pointer-events: all; }
       .mv-ruler .ruler-svg__baseline { stroke: rgba(15, 23, 42, 0.75); stroke-width: 2; stroke-linecap: round; }
       .mv-ruler .ruler-svg__tick { stroke-linecap: round; }
       .mv-ruler .ruler-svg__tick--major { stroke: rgba(15, 23, 42, 0.78); stroke-width: 2.5; }
