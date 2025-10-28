@@ -414,14 +414,14 @@
             <div class="settings__section" aria-labelledby="measurement-global-settings">
               <h3 id="measurement-global-settings" class="settings__section-title">Globale innstillinger</h3>
               <div class="field-grid field-grid--three">
-                <label for="cfg-length">Antall hovedenheter
+                <label for="cfg-unit">Hovedenhet
+                  <input id="cfg-unit" type="text" value="1cm" autocomplete="off" spellcheck="false" />
+                </label>
+                <label for="cfg-length">Antall
                   <input id="cfg-length" type="number" min="1" max="100" value="10" />
                 </label>
-                <label for="cfg-subdivisions">Delstreker per enhet
+                <label for="cfg-subdivisions">Delstreker
                   <input id="cfg-subdivisions" type="number" min="0" max="20" value="10" />
-                </label>
-                <label for="cfg-unit">I enhet
-                  <input id="cfg-unit" type="text" value="1cm" autocomplete="off" spellcheck="false" />
                 </label>
               </div>
               <div class="field-grid field-grid--two">
