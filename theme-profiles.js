@@ -1,6 +1,25 @@
 (function () {
   const SETTINGS_STORAGE_KEY = 'mathVisuals:settings';
   const LEGACY_FRACTION_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D'];
+  function deepClone(value) {
+    if (typeof structuredClone === 'function') {
+      try {
+        return structuredClone(value);
+      } catch (err) {
+      }
+    }
+    if (typeof window !== 'undefined' && typeof window.structuredClone === 'function') {
+      try {
+        return window.structuredClone(value);
+      } catch (err) {
+      }
+    }
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (err) {
+      return value;
+    }
+  }
   function getSettingsApi() {
     if (typeof window === 'undefined') return null;
     const api = window.MathVisualsSettings;
@@ -69,6 +88,14 @@
       }
     }
   };
+  const campusProfile = {
+    palettes: deepClone(campusProfileBase.palettes),
+    colors: deepClone(campusProfileBase.colors)
+  };
+  const annetProfile = {
+    palettes: deepClone(campusProfileBase.palettes),
+    colors: deepClone(campusProfileBase.colors)
+  };
   const PROFILES = {
     kikora: {
       id: 'kikora',
@@ -135,14 +162,14 @@
     campus: {
       id: 'campus',
       label: 'Campus',
-      palettes: campusProfileBase.palettes,
-      colors: campusProfileBase.colors
+      palettes: campusProfile.palettes,
+      colors: campusProfile.colors
     },
     annet: {
       id: 'annet',
       label: 'Annet',
-      palettes: campusProfileBase.palettes,
-      colors: campusProfileBase.colors
+      palettes: annetProfile.palettes,
+      colors: annetProfile.colors
     }
   };
   const DEFAULT_PROFILE = 'campus';
