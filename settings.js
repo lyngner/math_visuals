@@ -416,11 +416,16 @@
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
     if (!trimmed) return null;
-    const match = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(trimmed);
+    const match = /^#?([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.exec(trimmed);
     if (!match) return null;
     let hex = match[1].toLowerCase();
     if (hex.length === 3) {
       hex = hex.split('').map(ch => ch + ch).join('');
+    } else if (hex.length === 4) {
+      const rgb = hex.slice(0, 3).split('');
+      hex = rgb.map(ch => ch + ch).join('');
+    } else if (hex.length === 8) {
+      hex = hex.slice(0, 6);
     }
     return `#${hex}`;
   }
@@ -493,6 +498,13 @@
 
   function clearStatus() {
     setStatus('', 'info');
+  }
+
+  function notifySettingsUpdated() {
+    if (statusElement && statusElement.dataset.status === 'success') {
+      return;
+    }
+    setStatus('Innstillingene er oppdatert.', 'info');
   }
 
   function setFormDisabled(disabled) {
@@ -1112,7 +1124,7 @@
       settingsApi.subscribe(snapshot => {
         if (!snapshot || typeof snapshot !== 'object') return;
         applySettings(snapshot, { forceActiveProject: state.activeProject });
-        setStatus('Innstillingene er oppdatert.', 'info');
+        notifySettingsUpdated();
       });
     } catch (_) {}
   } else if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
@@ -1120,7 +1132,7 @@
       const detail = event && event.detail && event.detail.settings;
       if (detail && typeof detail === 'object') {
         applySettings(detail, { forceActiveProject: state.activeProject });
-        setStatus('Innstillingene er oppdatert.', 'info');
+        notifySettingsUpdated();
       }
     });
   }
