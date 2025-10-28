@@ -32,6 +32,7 @@
     kilometer: 'km',
     kilometre: 'km'
   };
+  const DEFAULT_UNIT_KEY = 'cm';
   const statusNote = doc.querySelector('[data-status-note]');
   const exportButton = doc.getElementById('btnExportSvg');
   const inputs = {
@@ -96,7 +97,7 @@
   const defaults = {
     length: 10,
     subdivisions: 10,
-    unitLabel: 'cm',
+    unitLabel: '1cm',
     figureName: '',
     figureImage: defaultPreset ? defaultPreset.image : 'images/measure/kylling%20(7cm_7cm)%201_1.svg',
     measurementTarget: '',
@@ -704,12 +705,52 @@
     return trimmed;
   }
 
-  function getUnitToCentimeterFactor(unitLabel) {
-    const normalized = normalizeUnitKey(unitLabel || '');
-    if (UNIT_TO_CENTIMETERS[normalized] != null) {
-      return UNIT_TO_CENTIMETERS[normalized];
+  function resolveUnitLabelInfo(value) {
+    const collapsed = collapseWhitespace(value);
+    if (!collapsed) {
+      return {
+        label: '',
+        quantity: 1,
+        unitKey: '',
+        baseFactor: null
+      };
     }
-    return UNIT_TO_CENTIMETERS.cm;
+    const quantityPattern = /^([0-9]+(?:[.,][0-9]+)?)\s*([A-Za-zÆØÅæøå]+)$/;
+    const match = collapsed.match(quantityPattern);
+    let quantity = 1;
+    let unitToken = collapsed;
+    if (match) {
+      const parsed = Number.parseFloat(match[1].replace(',', '.'));
+      if (Number.isFinite(parsed) && parsed > 0) {
+        quantity = parsed;
+      }
+      unitToken = match[2];
+    }
+    const unitKey = normalizeUnitKey(unitToken);
+    const baseFactor = unitKey && UNIT_TO_CENTIMETERS[unitKey] != null ? UNIT_TO_CENTIMETERS[unitKey] : null;
+    return {
+      label: collapsed,
+      quantity,
+      unitKey,
+      baseFactor
+    };
+  }
+
+  function resolveUnitSuffix(unitLabel) {
+    const info = resolveUnitLabelInfo(unitLabel);
+    if (info.unitKey && UNIT_TO_CENTIMETERS[info.unitKey] != null) {
+      return info.unitKey;
+    }
+    return info.label;
+  }
+
+  function getUnitToCentimeterFactor(unitLabel) {
+    const info = resolveUnitLabelInfo(unitLabel);
+    if (info.baseFactor != null) {
+      const quantity = Number.isFinite(info.quantity) && info.quantity > 0 ? info.quantity : 1;
+      return info.baseFactor * quantity;
+    }
+    return UNIT_TO_CENTIMETERS[DEFAULT_UNIT_KEY];
   }
 
   function convertValueToCentimeters(rawValue, unitKey) {
@@ -769,11 +810,15 @@
   }
 
   function resolveRulerValueMultiplier(settings) {
+    const unitInfo = resolveUnitLabelInfo(settings ? settings.unitLabel : '');
+    const unitQuantity = Number.isFinite(unitInfo.quantity) && unitInfo.quantity > 0 ? unitInfo.quantity : 1;
     if (!settings || !settings.measurementWithoutScale) {
-      return 1;
+      return unitQuantity;
     }
     const { desiredDenominator } = resolveScaleInfo(settings);
-    return Number.isFinite(desiredDenominator) && desiredDenominator > 0 ? desiredDenominator : 1;
+    const scaleMultiplier =
+      Number.isFinite(desiredDenominator) && desiredDenominator > 0 ? desiredDenominator : 1;
+    return unitQuantity * scaleMultiplier;
   }
 
   function getEffectiveRulerLength(settings) {
@@ -1282,7 +1327,8 @@
     const { unitLabel } = settings;
     const effectiveLength = roundForDisplay(getEffectiveRulerLength(settings));
     const formattedLength = formatNumber(effectiveLength);
-    const unitSuffix = unitLabel ? ` ${unitLabel}` : '';
+    const unitSuffixValue = resolveUnitSuffix(unitLabel);
+    const unitSuffix = unitSuffixValue ? ` ${unitSuffixValue}` : '';
     ruler.setAttribute('aria-label', `Flyttbar linjal på ${formattedLength}${unitSuffix}`);
     if (statusNote) {
       statusNote.textContent = buildStatusMessage(settings);
@@ -1292,7 +1338,8 @@
   function buildStatusMessage(settings) {
     const effectiveLength = roundForDisplay(getEffectiveRulerLength(settings));
     const formattedLength = formatNumber(effectiveLength);
-    const unitSuffix = settings.unitLabel ? ` ${settings.unitLabel}` : '';
+    const unitSuffixValue = resolveUnitSuffix(settings.unitLabel);
+    const unitSuffix = unitSuffixValue ? ` ${unitSuffixValue}` : '';
     const target = collapseWhitespace(settings.measurementTarget || buildDefaultMeasurementTarget(settings.figureName));
     if (!target) {
       return '';
@@ -2259,7 +2306,8 @@
           .replace(/^-+|-+$/g, '') || 'maling';
     const baseName = slug || 'maling';
     const lengthText = formatNumber(effectiveLength);
-    const unitSuffix = unitLabel ? ` ${unitLabel}` : '';
+    const unitSuffixValue = resolveUnitSuffix(unitLabel);
+    const unitSuffix = unitSuffixValue ? ` ${unitSuffixValue}` : '';
     const target = settings.measurementTarget || buildDefaultMeasurementTarget(settings.figureName);
     const descriptionParts = [];
     const summaryText = settings.figureSummary ? settings.figureSummary.trim() : '';
