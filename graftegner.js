@@ -1594,7 +1594,10 @@ function sampleFeatures(fn, a, b, opts = {}) {
   const TRIM = (_ADV$asymptote$trimY2 = (_ADV$asymptote = ADV.asymptote) === null || _ADV$asymptote === void 0 ? void 0 : _ADV$asymptote.trimY) !== null && _ADV$asymptote$trimY2 !== void 0 ? _ADV$asymptote$trimY2 : 8;
   const xs = [],
     ysRaw = [],
-    ysTrim = [];
+    ysTrim = [],
+    xsFinite = [];
+  let finiteXMin = Infinity,
+    finiteXMax = -Infinity;
   for (let i = 0; i <= N; i++) {
     const x = a + i * (b - a) / N;
     let y;
@@ -1605,7 +1608,15 @@ function sampleFeatures(fn, a, b, opts = {}) {
     }
     xs.push(x);
     ysRaw.push(Number.isFinite(y) ? y : NaN);
-    if (Number.isFinite(y)) ysTrim.push(Math.max(-TRIM, Math.min(TRIM, y)));else ysTrim.push(NaN);
+    if (Number.isFinite(y)) {
+      const trimmed = Math.max(-TRIM, Math.min(TRIM, y));
+      ysTrim.push(trimmed);
+      finiteXMin = Math.min(finiteXMin, x);
+      finiteXMax = Math.max(finiteXMax, x);
+      xsFinite.push(x);
+    } else {
+      ysTrim.push(NaN);
+    }
   }
 
   // røtter
@@ -1697,6 +1708,17 @@ function sampleFeatures(fn, a, b, opts = {}) {
   // asymptoter
   const vas = detectAsymptotes && ADV.asymptote.detect && ADV.asymptote.showVertical ? detectVerticalAsymptotes(fn, a, b, 1000, ADV.asymptote.hugeY) : [];
   const haGuess = detectHorizontalAsymptoteInRange(fn, a, b);
+  let xQuantileLow = null;
+  let xQuantileHigh = null;
+  if (xsFinite.length) {
+    xsFinite.sort((u, v) => u - v);
+    const loIdx = Math.floor(0.02 * (xsFinite.length - 1));
+    const hiIdx = Math.floor(0.98 * (xsFinite.length - 1));
+    xQuantileLow = xsFinite[loIdx];
+    xQuantileHigh = xsFinite[hiIdx];
+  }
+  const xFiniteMin = finiteXMin < Infinity ? finiteXMin : null;
+  const xFiniteMax = finiteXMax > -Infinity ? finiteXMax : null;
   return {
     roots,
     extrema,
@@ -1705,7 +1727,11 @@ function sampleFeatures(fn, a, b, opts = {}) {
     ymin,
     ymax,
     vas,
-    ha: haGuess
+    ha: haGuess,
+    xFiniteMin,
+    xFiniteMax,
+    xQuantileLow,
+    xQuantileHigh
   };
 }
 
@@ -1717,43 +1743,71 @@ function computeAutoScreenFunctions() {
   const feats = [];
   let domMin = Infinity,
     domMax = -Infinity,
-    anyDom = false;
+    trimmedXMin = Infinity,
+    trimmedXMax = -Infinity;
   for (const f of SIMPLE_PARSED.funcs) {
     const fn = parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
     if (f.domain) {
-      anyDom = true;
       const [sampleMin, sampleMax] = resolveDomainSamplingBounds(f.domain);
       const rangeMin = Number.isFinite(f.domain.min) ? f.domain.min : sampleMin;
       const rangeMax = Number.isFinite(f.domain.max) ? f.domain.max : sampleMax;
       domMin = Math.min(domMin, rangeMin);
       domMax = Math.max(domMax, rangeMax);
+      const featureData = sampleFeatures(fn, sampleMin, sampleMax, {
+        includeLeftEnd: Number.isFinite(f.domain.min) && !!f.domain.leftClosed,
+        includeRightEnd: Number.isFinite(f.domain.max) && !!f.domain.rightClosed
+      });
+      if (Number.isFinite(featureData.xQuantileLow)) {
+        trimmedXMin = Math.min(trimmedXMin, featureData.xQuantileLow);
+      } else if (Number.isFinite(featureData.xFiniteMin)) {
+        trimmedXMin = Math.min(trimmedXMin, featureData.xFiniteMin);
+      }
+      if (Number.isFinite(featureData.xQuantileHigh)) {
+        trimmedXMax = Math.max(trimmedXMax, featureData.xQuantileHigh);
+      } else if (Number.isFinite(featureData.xFiniteMax)) {
+        trimmedXMax = Math.max(trimmedXMax, featureData.xFiniteMax);
+      }
       feats.push({
         hasDom: true,
         fn,
         a: sampleMin,
         b: sampleMax,
-        ...sampleFeatures(fn, sampleMin, sampleMax, {
-          includeLeftEnd: Number.isFinite(f.domain.min) && !!f.domain.leftClosed,
-          includeRightEnd: Number.isFinite(f.domain.max) && !!f.domain.rightClosed
-        })
+        ...featureData
       });
     } else {
+      const featureData = sampleFeatures(fn, -5, 5, {
+        includeEndVals: false
+      });
+      if (Number.isFinite(featureData.xQuantileLow)) {
+        trimmedXMin = Math.min(trimmedXMin, featureData.xQuantileLow);
+      } else if (Number.isFinite(featureData.xFiniteMin)) {
+        trimmedXMin = Math.min(trimmedXMin, featureData.xFiniteMin);
+      }
+      if (Number.isFinite(featureData.xQuantileHigh)) {
+        trimmedXMax = Math.max(trimmedXMax, featureData.xQuantileHigh);
+      } else if (Number.isFinite(featureData.xFiniteMax)) {
+        trimmedXMax = Math.max(trimmedXMax, featureData.xFiniteMax);
+      }
       feats.push({
         hasDom: false,
         fn,
         a: -5,
         b: 5,
-        ...sampleFeatures(fn, -5, 5, {
-          includeEndVals: false
-        })
+        ...featureData
       });
     }
   }
+  const hasTrimmedX = Number.isFinite(trimmedXMin) && Number.isFinite(trimmedXMax) && trimmedXMax - trimmedXMin > 1e-9;
   let xmin, xmax, ymin, ymax;
   if (allUnbounded) {
     // behold [-5,5] så lenge sentrale punkter ikke faller utenfor
-    xmin = -5;
-    xmax = 5;
+    if (hasTrimmedX) {
+      xmin = trimmedXMin;
+      xmax = trimmedXMax;
+    } else {
+      xmin = -5;
+      xmax = 5;
+    }
     ymin = -5;
     ymax = 5;
     for (const F of feats) {
@@ -1772,8 +1826,16 @@ function computeAutoScreenFunctions() {
     }
   } else {
     // minst én avgrenset → vis hele domenet + sentrale punkter
-    xmin = domMin;
-    xmax = domMax;
+    if (hasTrimmedX) {
+      xmin = trimmedXMin;
+      xmax = trimmedXMax;
+    } else if (Number.isFinite(domMin) && Number.isFinite(domMax)) {
+      xmin = domMin;
+      xmax = domMax;
+    } else {
+      xmin = -5;
+      xmax = 5;
+    }
     let ylo = [],
       yhi = [];
     feats.forEach(F => {
@@ -1894,6 +1956,19 @@ function initialScreen() {
   var _ADV$screen;
   const hasManualScreen = Array.isArray(ADV.screen) && ADV.screen.length === 4;
   let scr = (_ADV$screen = ADV.screen) !== null && _ADV$screen !== void 0 ? _ADV$screen : MODE === 'functions' ? computeAutoScreenFunctions() : computeAutoScreenPoints();
+  if (hasManualScreen && shouldLockAspect() && !screenSupportsLockAspect(scr)) {
+    const [xmin, xmax, ymin, ymax] = scr;
+    if ([xmin, xmax, ymin, ymax].every(Number.isFinite)) {
+      const width = xmax - xmin;
+      const height = ymax - ymin;
+      if (width > 0 && height > 0) {
+        const span = Math.max(width, height);
+        const cx = (xmin + xmax) / 2;
+        const cy = (ymin + ymax) / 2;
+        scr = [cx - span / 2, cx + span / 2, cy - span / 2, cy + span / 2];
+      }
+    }
+  }
   if (ADV.firstQuadrant) {
     if (scr[0] < 0) scr[0] = 0;
     if (scr[2] < 0) scr[2] = 0;
