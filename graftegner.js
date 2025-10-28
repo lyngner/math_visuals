@@ -942,13 +942,15 @@ function parseDomainString(dom) {
     if (!Number.isFinite(a)) leftClosed = false;
     if (!Number.isFinite(b)) rightClosed = false;
     const hasMarkers =
-      opts.showMarkers === undefined ? leftMarker != null || rightMarker != null : !!opts.showMarkers;
+      opts.showMarkers === undefined ? hasExplicitLeft || hasExplicitRight : !!opts.showMarkers;
     return {
       min: a,
       max: b,
       leftClosed,
       rightClosed,
-      showMarkers: hasMarkers
+      showMarkers: hasMarkers,
+      showLeftMarker: hasMarkers ? hasExplicitLeft : false,
+      showRightMarker: hasMarkers ? hasExplicitRight : false
     };
   };
   const start = normalized[0];
@@ -983,7 +985,9 @@ function parseDomainString(dom) {
         max: b,
         leftClosed: inequality[2] === '<=' && Number.isFinite(a),
         rightClosed: inequality[3] === '<=' && Number.isFinite(b),
-        showMarkers: true
+        showMarkers: true,
+        showLeftMarker: true,
+        showRightMarker: true
       };
     }
   }
@@ -1029,11 +1033,13 @@ function formatDomainForInput(domain) {
   if ((hasMin && !min) || (hasMax && !max)) {
     return '';
   }
-  if (domain.showMarkers === false) {
+  const showLeftMarker = domain.showLeftMarker != null ? !!domain.showLeftMarker : domain.showMarkers !== false;
+  const showRightMarker = domain.showRightMarker != null ? !!domain.showRightMarker : domain.showMarkers !== false;
+  if (!showLeftMarker && !showRightMarker) {
     return `${min}, ${max}`;
   }
-  const left = hasMin && domain.leftClosed ? '[' : '<';
-  const right = hasMax && domain.rightClosed ? ']' : '>';
+  const left = showLeftMarker && hasMin ? (domain.leftClosed ? '[' : '<') : '';
+  const right = showRightMarker && hasMax ? (domain.rightClosed ? ']' : '>') : '';
   return `${left}${min}, ${max}${right}`;
 }
 
@@ -3551,13 +3557,38 @@ function makeSmartCurveLabel(g, idx, content) {
   makeLabelDraggable(label, g, position);
   g._repositionLabel = position;
 }
+function removeBracketAt(g, side) {
+  if (!g || !g._br || !g._br[side]) return;
+  const items = g._br[side];
+  items.forEach(o => brd.removeObject(o));
+  g._br[side] = null;
+}
+
+function shouldShowDomainMarker(domain, side) {
+  if (!domain || domain.showMarkers === false) return false;
+  const hasMin = Number.isFinite(domain.min);
+  const hasMax = Number.isFinite(domain.max);
+  if (side === 'left' || side === -1) {
+    if (!hasMin) return false;
+    if (domain.showLeftMarker != null) {
+      return !!domain.showLeftMarker;
+    }
+    return true;
+  }
+  if (side === 'right' || side === 1) {
+    if (!hasMax) return false;
+    if (domain.showRightMarker != null) {
+      return !!domain.showRightMarker;
+    }
+    return true;
+  }
+  return false;
+}
+
 function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, closed) {
   g._br = g._br || {};
-  if (g._br[side]) {
-    g._br[side].forEach(o => brd.removeObject(o));
-    g._br[side] = null;
-  }
-  if (!g.domain || g.domain.showMarkers === false || !ADV.domainMarkers.show) return;
+  removeBracketAt(g, side);
+  if (!g.domain || !shouldShowDomainMarker(g.domain, side) || !ADV.domainMarkers.show) return;
   if (!Number.isFinite(x0)) return;
   const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
   const rx = (xmax - xmin) / brd.canvasWidth;
@@ -3640,12 +3671,20 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
 }
 function updateAllBrackets() {
   for (const g of graphs) {
-    if (!g.domain) continue;
-    if (Number.isFinite(g.domain.min)) {
-      makeBracketAt(g, g.domain.min, -1, !!g.domain.leftClosed);
+    if (!g.domain) {
+      removeBracketAt(g, -1);
+      removeBracketAt(g, +1);
+      continue;
     }
-    if (Number.isFinite(g.domain.max)) {
+    if (shouldShowDomainMarker(g.domain, -1)) {
+      makeBracketAt(g, g.domain.min, -1, !!g.domain.leftClosed);
+    } else {
+      removeBracketAt(g, -1);
+    }
+    if (shouldShowDomainMarker(g.domain, +1)) {
       makeBracketAt(g, g.domain.max, +1, !!g.domain.rightClosed);
+    } else {
+      removeBracketAt(g, +1);
     }
   }
 }
