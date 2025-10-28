@@ -5445,6 +5445,7 @@ function setupSettingsForm() {
   ADV.points.lockExtraPoints = pointLockEnabled;
   const functionColorControls = [];
   let answerControl = null;
+  const extraAnswerControls = [];
   const DEFAULT_COLOR_FALLBACK = normalizeColorValue(getDefaultCurveColor(0)) || '#1F4DE2';
   const getRowIndex = row => {
     if (!row || !row.dataset) return 1;
@@ -6546,6 +6547,44 @@ function setupSettingsForm() {
       snapCheckbox.removeAttribute('title');
     }
   };
+  const updateExtraAnswerControl = control => {
+    if (!control || !control.label || !control.funInput) return;
+    const value = getFunctionInputValue(control.funInput);
+    const allow = !!value && isCoords(value) && !pointLockEnabled;
+    if (control.currentAllowed === allow) return;
+    control.currentAllowed = allow;
+    const { label, input } = control;
+    if (!allow) {
+      if (input) {
+        input.disabled = true;
+      }
+      label.style.display = 'none';
+      return;
+    }
+    if (input) {
+      input.disabled = false;
+    }
+    label.style.display = '';
+  };
+  const updateAllExtraAnswerControls = () => {
+    extraAnswerControls.forEach(updateExtraAnswerControl);
+  };
+  const registerExtraAnswerControl = (row, index, funInput, answerInput) => {
+    if (!row || !answerInput || !funInput || index === 1) return null;
+    const label = answerInput.closest('label.func-answer');
+    if (!label) return null;
+    const control = {
+      row,
+      index,
+      label,
+      funInput,
+      input: answerInput,
+      currentAllowed: null
+    };
+    extraAnswerControls.push(control);
+    updateExtraAnswerControl(control);
+    return control;
+  };
   function placeAnswerField(position) {
     if (!answerControl || !answerControl.label) return;
     if (answerControl.currentPlacement === position) return;
@@ -6755,7 +6794,9 @@ function setupSettingsForm() {
       const fun = getFunctionInputValue(funInput);
       if (!fun) return;
       const isCoordsRow = isCoords(fun);
-      const allowAnswer = !(idx === 0 && isCoordsRow && pointLockEnabled);
+      const allowAnswer = idx === 0
+        ? !(isCoordsRow && pointLockEnabled)
+        : isCoordsRow && !pointLockEnabled;
       const rawAnswer = allowAnswer && answerInput && !answerInput.disabled && typeof answerInput.value === 'string'
         ? answerInput.value.trim()
         : '';
@@ -7127,6 +7168,7 @@ function setupSettingsForm() {
           pointLockEnabled = !!lockCheckbox.checked;
           ADV.points.lockExtraPoints = pointLockEnabled;
           updateAnswerPlacement();
+          updateAllExtraAnswerControls();
           syncSimpleFromForm();
           scheduleSimpleRebuild();
           updatePointLockVisibility();
@@ -7159,6 +7201,7 @@ function setupSettingsForm() {
     const domInput = row.querySelector('input[data-dom]');
     if (funInput) {
       setFunctionInputValue(funInput, funVal || '');
+      const extraAnswerControl = registerExtraAnswerControl(row, index, funInput, answerInput);
       const beginEditing = () => {
         setFunctionEditorMode(funInput, 'edit');
         const focusInput = () => {
@@ -7208,6 +7251,9 @@ function setupSettingsForm() {
         toggleDomain(funInput);
         updateLinePointControls();
         updatePointMarkerVisibility();
+        if (extraAnswerControl) {
+          updateExtraAnswerControl(extraAnswerControl);
+        }
       };
       const commitIfChanged = () => {
         runInputSideEffects();
@@ -7370,6 +7416,7 @@ function setupSettingsForm() {
       clearFunctionColorControls();
       pointMarkerValue = DEFAULT_POINT_MARKER;
       answerControl = null;
+      extraAnswerControls.length = 0;
       funcRows.innerHTML = '';
     }
     pointLockEnabled = SIMPLE_PARSED && SIMPLE_PARSED.lockExtraPoints === false ? false : true;
@@ -7435,6 +7482,7 @@ function setupSettingsForm() {
     const parsedMarker = normalizePointMarkerValue(parsedMarkerValueForInput);
     setPointMarkerInputValue(parsedMarker);
     updatePointMarkerVisibility();
+    updateAllExtraAnswerControls();
     syncSimpleFromForm();
     updateSnapAvailability();
     refreshAltText('form-fill');
