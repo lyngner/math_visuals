@@ -7337,16 +7337,20 @@ function setupSettingsForm() {
       needsRebuild = true;
     }
     const zoomInput = g('cfgZoom');
-    const zoomChecked = !!(zoomInput && zoomInput.checked);
-    if (ADV.interactions.zoom.enabled !== zoomChecked) {
-      ADV.interactions.zoom.enabled = zoomChecked;
-      needsRebuild = true;
+    if (zoomInput) {
+      const zoomChecked = !!zoomInput.checked;
+      if (ADV.interactions.zoom.enabled !== zoomChecked) {
+        ADV.interactions.zoom.enabled = zoomChecked;
+        needsRebuild = true;
+      }
     }
     const panInput = g('cfgPan');
-    const panChecked = !!(panInput && panInput.checked);
-    if (ADV.interactions.pan.enabled !== panChecked) {
-      ADV.interactions.pan.enabled = panChecked;
-      needsRebuild = true;
+    if (panInput) {
+      const panChecked = !!panInput.checked;
+      if (ADV.interactions.pan.enabled !== panChecked) {
+        ADV.interactions.pan.enabled = panChecked;
+        needsRebuild = true;
+      }
     }
     const q1Checked = !!(q1Input && q1Input.checked);
     if (ADV.firstQuadrant !== q1Checked) {
