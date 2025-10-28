@@ -956,10 +956,18 @@
     if (!settings || !settings.measurementWithoutScale) {
       return unitQuantity;
     }
-    const { desiredDenominator } = resolveScaleInfo(settings);
-    const scaleMultiplier =
-      Number.isFinite(desiredDenominator) && desiredDenominator > 0 ? desiredDenominator : 1;
-    return unitQuantity * scaleMultiplier;
+    const sanitizedCurrentLabel = sanitizeUnitLabel(settings.unitLabel, settings.unitLabel);
+    const cachedWithScaleLabel =
+      appState && appState.unitLabelCache && appState.unitLabelCache.withScale
+        ? sanitizeUnitLabel(appState.unitLabelCache.withScale, appState.unitLabelCache.withScale)
+        : '';
+    if (sanitizedCurrentLabel && cachedWithScaleLabel && sanitizedCurrentLabel === cachedWithScaleLabel) {
+      const { desiredDenominator } = resolveScaleInfo(settings);
+      const scaleMultiplier =
+        Number.isFinite(desiredDenominator) && desiredDenominator > 0 ? desiredDenominator : 1;
+      return unitQuantity * scaleMultiplier;
+    }
+    return unitQuantity;
   }
 
   function getEffectiveRulerLength(settings) {
