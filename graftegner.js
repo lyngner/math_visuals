@@ -7174,6 +7174,9 @@ function setupSettingsForm() {
         if (domMatch) {
           funVal = line.slice(0, domMatch.index).trim();
           domVal = domMatch[1].trim();
+          if (domVal) {
+            domVal = domVal.replace(/,\s*color\s*=\s*[^,]+$/i, '').trim();
+          }
         }
       }
       let colorVal = '';
