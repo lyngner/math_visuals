@@ -675,6 +675,7 @@ const ADV = {
 
 const DOMAIN_MARKER_SHAPES = {
   closed: {
+    offsetPx: -10,
     points: [
       [18.5, 47],
       [3, 47],
@@ -691,6 +692,7 @@ const DOMAIN_MARKER_SHAPES = {
     ]
   },
   open: {
+    offsetPx: -15,
     points: [
       [2, 47.5],
       [37.6146, 25.6019],
@@ -3584,9 +3586,11 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
   const scale = LEN / heightPx;
   const flip = closed ? -side : side;
   const strokeColor = typeof g.color === 'string' && g.color ? g.color : ADV.domainMarkers.color;
-  const parallelOffsetPx = Number.isFinite(ADV.domainMarkers.offsetPx)
-    ? ADV.domainMarkers.offsetPx
-    : 0;
+  const parallelOffsetPx = Number.isFinite(shape.offsetPx)
+    ? shape.offsetPx
+    : Number.isFinite(ADV.domainMarkers.offsetPx)
+      ? ADV.domainMarkers.offsetPx
+      : 0;
   const style = {
     strokeColor,
     strokeWidth: ADV.domainMarkers.width,
