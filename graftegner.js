@@ -3602,13 +3602,34 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
   }
   if (!Number.isFinite(yS)) return;
 
-  // tangent rundt xS
+  // tangent rundt xS (én-sidig differanse innenfor domenet)
   let m = 0;
-  try {
-    const y1 = g.fn(xS + baseH),
-      y2 = g.fn(xS - baseH);
-    if (Number.isFinite(y1) && Number.isFinite(y2)) m = (y1 - y2) / (2 * baseH);
-  } catch (_) {}
+  const domainMin = g.domain && Number.isFinite(g.domain.min) ? g.domain.min : -Infinity;
+  const domainMax = g.domain && Number.isFinite(g.domain.max) ? g.domain.max : Infinity;
+  const tangentTries = 24;
+  const anchorTol = Math.max(1e-9, baseH * 1e-4);
+  for (let tries = 0; tries < tangentTries; tries += 1) {
+    const step = baseH * Math.pow(0.5, tries);
+    if (!(step > 0)) continue;
+    let candidate = xS + inward * step;
+    if (candidate > domainMax) candidate = domainMax;
+    if (candidate < domainMin) candidate = domainMin;
+    if (side < 0) {
+      if (!(candidate > x0 + anchorTol)) continue;
+    } else if (!(candidate < x0 - anchorTol)) {
+      continue;
+    }
+    if (Math.abs(candidate - xS) < 1e-12) continue;
+    let value = NaN;
+    try {
+      value = g.fn(candidate);
+    } catch (_) {
+      value = NaN;
+    }
+    if (!Number.isFinite(value)) continue;
+    m = (value - yS) / (candidate - xS);
+    break;
+  }
 
   // enhets-tangent/-normal i px-rom
   let tx = 1 / rx,
@@ -3689,6 +3710,7 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
         mapped[i] = [mapped[i][0] + dx, mapped[i][1] + dy];
       }
     }
+    mapped[contactIdx] = [desiredPoint[0], desiredPoint[1]];
   }
   const boundaryCheck = side > 0
     ? mapped.every(pt => pt[0] <= x0 + 1e-8)
