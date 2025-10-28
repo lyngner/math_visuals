@@ -919,12 +919,16 @@ function parseDomainString(dom) {
   const cleaned = dom.trim();
   if (!cleaned) return null;
   if (/^r$/i.test(cleaned) || /^ℝ$/i.test(cleaned)) return null;
-  const normalized = cleaned
+  let normalized = cleaned
     .replace(/[⟨〈]/g, '<')
     .replace(/[⟩〉]/g, '>')
     .replace(/≤/g, '<=')
     .replace(/≥/g, '>=')
     .replace(/−/g, '-');
+  const colorSuffix = normalized.match(/^(.*?)(?:,?\s*color\s*=\s*[^,]+)$/i);
+  if (colorSuffix) {
+    normalized = colorSuffix[1].trim().replace(/,\s*$/, '');
+  }
   const buildDomain = (leftPart, rightPart, opts = {}) => {
     const leftInfo = stripDomainEndpointMarker(leftPart, 'left');
     const rightInfo = stripDomainEndpointMarker(rightPart, 'right');
