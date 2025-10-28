@@ -74,7 +74,11 @@
   const appState = {
     settings: null,
     syncingInputs: false,
-    measurementTargetAuto: true
+    measurementTargetAuto: true,
+    unitLabelCache: {
+      withScale: '',
+      withoutScale: ''
+    }
   };
   const configContainers = resolveConfigContainers();
 
@@ -114,6 +118,7 @@
   };
 
   appState.settings = normalizeSettings();
+  initializeUnitLabelCache(appState.settings);
   appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(appState.settings);
   applySettings(appState.settings);
   syncInputs(appState.settings);
@@ -624,11 +629,146 @@
     return Math.abs(first.x - second.x) <= epsilon && Math.abs(first.y - second.y) <= epsilon;
   }
 
+  function getScaleDenominatorFromSettings(settings) {
+    if (!settings) {
+      return 1;
+    }
+    const info = resolveScaleInfo(settings);
+    if (!info || !Number.isFinite(info.desiredDenominator) || info.desiredDenominator <= 0) {
+      return 1;
+    }
+    return info.desiredDenominator;
+  }
+
+  function computeUnitLabelForMode(sourceLabel, settings, mode) {
+    const sanitized = sanitizeUnitLabel(sourceLabel, sourceLabel);
+    if (!sanitized) {
+      return sanitized;
+    }
+    const unitInfo = resolveUnitLabelInfo(sanitized);
+    if (!unitInfo || !unitInfo.unitKey || unitInfo.baseFactor == null) {
+      return sanitized;
+    }
+    const denominator = getScaleDenominatorFromSettings(settings);
+    if (!Number.isFinite(denominator) || denominator <= 0 || Math.abs(denominator - 1) <= 0.000001) {
+      return sanitized;
+    }
+    const quantity = Number.isFinite(unitInfo.quantity) && unitInfo.quantity > 0 ? unitInfo.quantity : 1;
+    const factor = mode === 'withoutScale' ? denominator : 1 / denominator;
+    if (!Number.isFinite(factor) || factor <= 0) {
+      return sanitized;
+    }
+    const nextQuantity = roundForDisplay(quantity * factor);
+    if (!Number.isFinite(nextQuantity) || nextQuantity <= 0) {
+      return sanitized;
+    }
+    const formattedQuantity = formatNumber(nextQuantity);
+    if (!formattedQuantity) {
+      return sanitized;
+    }
+    const pattern = /^([0-9]+(?:[.,][0-9]+)?)(.*)$/;
+    const match = sanitized.match(pattern);
+    const suffix = match ? match[2] : sanitized.includes(' ') ? ` ${unitInfo.unitKey}` : unitInfo.unitKey;
+    const result = `${formattedQuantity}${suffix}`;
+    return sanitizeUnitLabel(result, result);
+  }
+
+  function rememberUnitLabel(mode, value) {
+    if (!appState.unitLabelCache) {
+      appState.unitLabelCache = { withScale: '', withoutScale: '' };
+    }
+    const sanitized = sanitizeUnitLabel(value, value);
+    if (typeof sanitized !== 'string') {
+      return;
+    }
+    if (mode === 'withoutScale') {
+      appState.unitLabelCache.withoutScale = sanitized;
+    } else if (mode === 'withScale') {
+      appState.unitLabelCache.withScale = sanitized;
+    }
+  }
+
+  function initializeUnitLabelCache(settings) {
+    if (!appState.unitLabelCache) {
+      appState.unitLabelCache = { withScale: '', withoutScale: '' };
+    }
+    appState.unitLabelCache.withScale = '';
+    appState.unitLabelCache.withoutScale = '';
+    if (!settings) {
+      return;
+    }
+    const activeLabel = sanitizeUnitLabel(settings.unitLabel, settings.unitLabel);
+    if (!activeLabel) {
+      return;
+    }
+    if (settings.measurementWithoutScale) {
+      rememberUnitLabel('withoutScale', activeLabel);
+      const withScaleLabel = computeUnitLabelForMode(activeLabel, settings, 'withScale');
+      rememberUnitLabel('withScale', withScaleLabel);
+    } else {
+      rememberUnitLabel('withScale', activeLabel);
+      const withoutScaleLabel = computeUnitLabelForMode(activeLabel, settings, 'withoutScale');
+      rememberUnitLabel('withoutScale', withoutScaleLabel);
+    }
+  }
+
+  function syncUnitLabelCache(settings) {
+    if (!settings) {
+      return;
+    }
+    const activeLabel = sanitizeUnitLabel(settings.unitLabel, settings.unitLabel);
+    if (settings.measurementWithoutScale) {
+      rememberUnitLabel('withoutScale', activeLabel);
+    } else {
+      rememberUnitLabel('withScale', activeLabel);
+    }
+  }
+
   function updateSettings(partial) {
     if (!appState.settings) {
       return;
     }
     const nextPartial = { ...partial };
+    if (Object.prototype.hasOwnProperty.call(partial, 'unitLabel')) {
+      const sanitizedLabel = sanitizeUnitLabel(partial.unitLabel, partial.unitLabel);
+      if (typeof sanitizedLabel === 'string') {
+        rememberUnitLabel(
+          appState.settings && appState.settings.measurementWithoutScale ? 'withoutScale' : 'withScale',
+          sanitizedLabel
+        );
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(partial, 'measurementWithoutScale')) {
+      const nextWithoutScale = !!partial.measurementWithoutScale;
+      const previousWithoutScale = !!appState.settings.measurementWithoutScale;
+      if (nextWithoutScale !== previousWithoutScale) {
+        const currentLabelSource =
+          Object.prototype.hasOwnProperty.call(nextPartial, 'unitLabel') && nextPartial.unitLabel != null
+            ? nextPartial.unitLabel
+            : appState.settings.unitLabel;
+        const sanitizedCurrentLabel = sanitizeUnitLabel(currentLabelSource, currentLabelSource);
+        if (previousWithoutScale) {
+          rememberUnitLabel('withoutScale', sanitizedCurrentLabel);
+        } else {
+          rememberUnitLabel('withScale', sanitizedCurrentLabel);
+        }
+        const scaleContext = { ...appState.settings, ...nextPartial, measurementWithoutScale: nextWithoutScale };
+        let updatedLabel = sanitizedCurrentLabel;
+        if (nextWithoutScale) {
+          const baseLabel = appState.unitLabelCache.withScale || sanitizedCurrentLabel;
+          updatedLabel = computeUnitLabelForMode(baseLabel, scaleContext, 'withoutScale');
+          rememberUnitLabel('withoutScale', updatedLabel);
+        } else {
+          let baseLabel = appState.unitLabelCache.withScale;
+          if (!baseLabel) {
+            baseLabel = computeUnitLabelForMode(sanitizedCurrentLabel, scaleContext, 'withScale');
+          }
+          updatedLabel = baseLabel || sanitizedCurrentLabel;
+          rememberUnitLabel('withScale', updatedLabel);
+        }
+        nextPartial.unitLabel = updatedLabel;
+      }
+    }
     if (
       Object.prototype.hasOwnProperty.call(partial, 'figureName') &&
       !Object.prototype.hasOwnProperty.call(partial, 'measurementTarget') &&
@@ -640,6 +780,7 @@
     const normalized = normalizeSettings(merged);
     if (!areSettingsEqual(normalized, appState.settings)) {
       appState.settings = normalized;
+      syncUnitLabelCache(appState.settings);
       applySettings(appState.settings);
       syncInputs(appState.settings);
     }
