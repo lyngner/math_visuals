@@ -2131,6 +2131,17 @@
         ]
       },
       {
+        id: 'maps',
+        label: 'Kart',
+        figures: [
+          makeFigure('map-city', 'Bykart', 'maps/bykart 1_5000.svg', '', '1:5 000', 'Kart over et byområde'),
+          makeFigure('map-orienteering', 'Orienteringskart', 'maps/orienteringskart 1_3000.svg', '', '1:3 000', 'Orienteringskart'),
+          makeFigure('map-fjord', 'Fjordkart', 'maps/fjordkart 1_1000000.svg', '', '1:1 000 000', 'Kart over en fjord'),
+          makeFigure('map-norden', 'Norden', 'maps/Norden 1_25000000.svg', '', '1:25 000 000', 'Kart over Norden'),
+          makeFigure('map-europe', 'Europa', 'maps/europa 1_50000000.svg', '', '1:50 000 000', 'Kart over Europa')
+        ]
+      },
+      {
         id: 'sports',
         label: 'Sport- og lekeutstyr',
         figures: [
