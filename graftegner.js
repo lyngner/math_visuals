@@ -7260,8 +7260,14 @@ function setupSettingsForm() {
   g('cfgLock').checked = params.has('lock') ? paramBool('lock') : true;
   g('cfgAxisX').value = paramStr('xName', 'x');
   g('cfgAxisY').value = paramStr('yName', 'y');
-  g('cfgZoom').checked = ADV.interactions.zoom.enabled;
-  g('cfgPan').checked = ADV.interactions.pan.enabled;
+  const zoomInputInit = g('cfgZoom');
+  if (zoomInputInit) {
+    zoomInputInit.checked = ADV.interactions.zoom.enabled;
+  }
+  const panInputInit = g('cfgPan');
+  if (panInputInit) {
+    panInputInit.checked = ADV.interactions.pan.enabled;
+  }
   g('cfgQ1').checked = paramBool('q1');
   if (showNamesInput) {
     showNamesInput.checked = !!ADV.curveName.showName;
