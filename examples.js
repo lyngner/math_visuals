@@ -421,6 +421,8 @@
         ? active.defaultColors
         : PROJECT_FALLBACKS.default
     );
+    // NOTE: normalized.defaultColors always mirrors the active project's palette.
+    // It should not be used as a generic fallback across projects.
     normalized.defaultColors = palette;
     return normalized;
   }

@@ -822,6 +822,8 @@ function resolveSettingsPalette(count) {
     } catch (_) {}
   }
   const stored = readStoredSettings();
+  const storedActiveProject =
+    stored && typeof stored.activeProject === "string" ? stored.activeProject.trim().toLowerCase() : null;
   if (stored && typeof stored === "object") {
     if (project && stored.projects && typeof stored.projects === "object") {
       const projectSettings = stored.projects[project];
@@ -832,12 +834,20 @@ function resolveSettingsPalette(count) {
         }
       }
     }
-    if (Array.isArray(stored.defaultColors)) {
+    const canUseStoredDefault = project && storedActiveProject && storedActiveProject === project;
+    if (canUseStoredDefault && Array.isArray(stored.defaultColors)) {
       const resolved = cycleSettingsPalette(stored.defaultColors, target || stored.defaultColors.length);
       if (resolved.length) {
         return resolved;
       }
     }
+  }
+  const fallbackFromApi =
+    api && Array.isArray(api.fallbackColors) && api.fallbackColors.length
+      ? cycleSettingsPalette(api.fallbackColors, target || api.fallbackColors.length)
+      : [];
+  if (fallbackFromApi.length) {
+    return fallbackFromApi;
   }
   return cycleSettingsPalette(SETTINGS_FALLBACK_PALETTE, target || SETTINGS_FALLBACK_PALETTE.length);
 }

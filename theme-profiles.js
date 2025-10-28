@@ -222,6 +222,8 @@
       } catch (_) {}
     }
     const stored = readStoredSettings();
+    const storedActiveProject =
+      stored && typeof stored.activeProject === 'string' ? stored.activeProject.trim().toLowerCase() : null;
     if (stored && typeof stored === 'object') {
       if (project && stored.projects && typeof stored.projects === 'object') {
         const projectSettings = stored.projects[project];
@@ -232,7 +234,8 @@
           }
         }
       }
-      if (Array.isArray(stored.defaultColors)) {
+      const canUseStoredDefault = project && storedActiveProject && storedActiveProject === project;
+      if (canUseStoredDefault && Array.isArray(stored.defaultColors)) {
         const sanitized = stored.defaultColors.map(sanitizeUserColor).filter(Boolean);
         if (sanitized.length) {
           return ensurePalette(sanitized, count);
