@@ -728,6 +728,7 @@
     if (!appState.settings) {
       return;
     }
+    const previousSettings = appState.settings;
     const nextPartial = { ...partial };
     if (Object.prototype.hasOwnProperty.call(partial, 'unitLabel')) {
       const sanitizedLabel = sanitizeUnitLabel(partial.unitLabel, partial.unitLabel);
@@ -779,6 +780,15 @@
     const merged = { ...appState.settings, ...nextPartial };
     const normalized = normalizeSettings(merged);
     if (!areSettingsEqual(normalized, appState.settings)) {
+      const scaleLabelChanged =
+        previousSettings && normalized.figureScaleLabel !== previousSettings.figureScaleLabel;
+      if (normalized.measurementWithoutScale && scaleLabelChanged) {
+        const activeLabel = sanitizeUnitLabel(normalized.unitLabel, normalized.unitLabel);
+        if (activeLabel) {
+          const updatedWithScaleLabel = computeUnitLabelForMode(activeLabel, normalized, 'withScale');
+          rememberUnitLabel('withScale', updatedWithScaleLabel);
+        }
+      }
       appState.settings = normalized;
       syncUnitLabelCache(appState.settings);
       applySettings(appState.settings);
@@ -2040,6 +2050,7 @@
     const shouldUpdate = !previousSettings || !areSettingsEqual(nextSettings, previousSettings);
     appState.settings = nextSettings;
     appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(nextSettings);
+    initializeUnitLabelCache(nextSettings);
     if (!shouldUpdate) {
       return;
     }
