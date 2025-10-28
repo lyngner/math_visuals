@@ -48,6 +48,7 @@
     rulerStartAtZero: doc.getElementById('cfg-ruler-start-at-zero'),
     gridEnabled: doc.getElementById('cfg-grid-enabled'),
     showScaleLabel: doc.getElementById('cfg-show-scale'),
+    measurementWithoutScale: doc.getElementById('cfg-measurement-without-scale'),
     panningEnabled: doc.getElementById('cfg-pan-enabled')
   };
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
@@ -105,6 +106,7 @@
     rulerStartAtZero: true,
     gridEnabled: false,
     showScaleLabel: false,
+    measurementWithoutScale: false,
     panningEnabled: false,
     rulerTransform: null,
     boardPanTransform: { x: 0, y: 0 }
@@ -209,6 +211,9 @@
     }
     if (Object.prototype.hasOwnProperty.call(source, 'gridEnabled')) target.gridEnabled = source.gridEnabled;
     if (Object.prototype.hasOwnProperty.call(source, 'showScaleLabel')) target.showScaleLabel = source.showScaleLabel;
+    if (Object.prototype.hasOwnProperty.call(source, 'measurementWithoutScale')) {
+      target.measurementWithoutScale = source.measurementWithoutScale;
+    }
     if (Object.prototype.hasOwnProperty.call(source, 'panningEnabled')) {
       target.panningEnabled = source.panningEnabled;
     } else if (Object.prototype.hasOwnProperty.call(source, 'panorering')) {
@@ -234,6 +239,7 @@
       container.rulerStartAtZero = settings.rulerStartAtZero;
       container.gridEnabled = settings.gridEnabled;
       container.showScaleLabel = settings.showScaleLabel;
+      container.measurementWithoutScale = !!settings.measurementWithoutScale;
       container.panningEnabled = !!settings.panningEnabled;
       container.panorering = !!settings.panningEnabled;
       delete container.rulerPadding;
@@ -260,6 +266,7 @@
     container.rulerStartAtZero = settings.rulerStartAtZero;
     container.gridEnabled = settings.gridEnabled;
     container.showScaleLabel = settings.showScaleLabel;
+    container.measurementWithoutScale = !!settings.measurementWithoutScale;
     container.panningEnabled = !!settings.panningEnabled;
     container.panorering = !!settings.panningEnabled;
     delete container.unitSpacingOverride;
@@ -519,6 +526,10 @@
     const rulerStartAtZero = sanitizeBoolean(combined.rulerStartAtZero, defaults.rulerStartAtZero);
     const gridEnabled = sanitizeGridEnabled(combined.gridEnabled, defaults.gridEnabled);
     const showScaleLabel = sanitizeGridEnabled(combined.showScaleLabel, defaults.showScaleLabel);
+    const measurementWithoutScale = sanitizeBoolean(
+      combined.measurementWithoutScale,
+      defaults.measurementWithoutScale
+    );
     const panningEnabled = sanitizeBoolean(combined.panningEnabled, defaults.panningEnabled);
     const rulerTransform = sanitizeRulerTransform(combined.rulerTransform, defaults.rulerTransform);
     const boardPanTransform = sanitizeBoardPanTransform(combined.boardPanTransform, defaults.boardPanTransform);
@@ -536,6 +547,7 @@
       rulerStartAtZero,
       gridEnabled,
       showScaleLabel,
+      measurementWithoutScale,
       panningEnabled,
       rulerTransform,
       boardPanTransform
@@ -576,6 +588,7 @@
       a.rulerStartAtZero === b.rulerStartAtZero &&
       a.gridEnabled === b.gridEnabled &&
       a.showScaleLabel === b.showScaleLabel &&
+      a.measurementWithoutScale === b.measurementWithoutScale &&
       a.panningEnabled === b.panningEnabled &&
       areRulerTransformsEqual(a.rulerTransform, b.rulerTransform) &&
       areBoardPanTransformsEqual(a.boardPanTransform, b.boardPanTransform)
@@ -735,6 +748,43 @@
     return right / left;
   }
 
+  function resolveScaleInfo(settings) {
+    const preset = resolvePresetFromSettings(settings);
+    const presetScaleDenominatorRaw = parseScaleDenominator(
+      preset && preset.scaleLabel ? preset.scaleLabel : ''
+    );
+    const presetDenominator =
+      Number.isFinite(presetScaleDenominatorRaw) && presetScaleDenominatorRaw > 0
+        ? presetScaleDenominatorRaw
+        : 1;
+    const desiredScaleDenominatorRaw = parseScaleDenominator(settings && settings.figureScaleLabel);
+    const desiredDenominator =
+      Number.isFinite(desiredScaleDenominatorRaw) && desiredScaleDenominatorRaw > 0
+        ? desiredScaleDenominatorRaw
+        : presetDenominator;
+    return {
+      presetDenominator,
+      desiredDenominator
+    };
+  }
+
+  function resolveRulerValueMultiplier(settings) {
+    if (!settings || !settings.measurementWithoutScale) {
+      return 1;
+    }
+    const { desiredDenominator } = resolveScaleInfo(settings);
+    return Number.isFinite(desiredDenominator) && desiredDenominator > 0 ? desiredDenominator : 1;
+  }
+
+  function getEffectiveRulerLength(settings) {
+    if (!settings) {
+      return 0;
+    }
+    const multiplier = resolveRulerValueMultiplier(settings);
+    const length = Number.isFinite(settings.length) ? settings.length : 0;
+    return length * multiplier;
+  }
+
   function extractRealWorldSizeFromText(text) {
     if (typeof text !== 'string') {
       return null;
@@ -876,15 +926,13 @@
       return null;
     }
 
-    const preset = resolvePresetFromSettings(settings);
-    const presetScaleDenominator = parseScaleDenominator(preset && preset.scaleLabel ? preset.scaleLabel : '');
-    const desiredScaleDenominatorRaw = parseScaleDenominator(settings.figureScaleLabel || '');
-    const desiredScaleDenominator = Number.isFinite(desiredScaleDenominatorRaw) && desiredScaleDenominatorRaw > 0
-      ? desiredScaleDenominatorRaw
-      : (Number.isFinite(presetScaleDenominator) && presetScaleDenominator > 0 ? presetScaleDenominator : 1);
-    const baseScaleDenominator = Number.isFinite(presetScaleDenominator) && presetScaleDenominator > 0
-      ? presetScaleDenominator
+    const { presetDenominator, desiredDenominator } = resolveScaleInfo(settings);
+    const baseScaleDenominator = Number.isFinite(presetDenominator) && presetDenominator > 0
+      ? presetDenominator
       : 1;
+    const desiredScaleDenominator = Number.isFinite(desiredDenominator) && desiredDenominator > 0
+      ? desiredDenominator
+      : baseScaleDenominator;
 
     let width = null;
     let height = null;
@@ -1149,6 +1197,7 @@
     }
 
     const { length, subdivisions, unitLabel } = settings;
+    const valueMultiplier = resolveRulerValueMultiplier(settings);
     const inset = 8;
     const startAtZero = !!settings.rulerStartAtZero;
     const effectiveLength = length + (startAtZero ? 0 : 2);
@@ -1187,7 +1236,8 @@
     }
 
     const labelMarkup = Array.from({ length: totalTicks }, (_, tickIndex) => {
-      const labelValue = startIndex + tickIndex;
+      const rawLabelValue = (startIndex + tickIndex) * valueMultiplier;
+      const labelValue = roundForDisplay(rawLabelValue);
       const x = marginLeft + unitSpacing * tickIndex;
       const anchor = tickIndex === 0 ? 'start' : tickIndex === totalTicks - 1 ? 'end' : 'middle';
       const dx = anchor === 'start' ? 6 : anchor === 'end' ? -6 : 0;
@@ -1223,13 +1273,15 @@
     } else {
       ruler.setAttribute('data-ruler-start', 'offset');
     }
+    ruler.setAttribute('data-ruler-value-multiplier', String(valueMultiplier));
     zeroOffset.x = zeroOffsetX;
     zeroOffset.y = baselineY;
   }
 
   function updateAccessibility(settings) {
-    const { length, unitLabel } = settings;
-    const formattedLength = formatNumber(length);
+    const { unitLabel } = settings;
+    const effectiveLength = roundForDisplay(getEffectiveRulerLength(settings));
+    const formattedLength = formatNumber(effectiveLength);
     const unitSuffix = unitLabel ? ` ${unitLabel}` : '';
     ruler.setAttribute('aria-label', `Flyttbar linjal på ${formattedLength}${unitSuffix}`);
     if (statusNote) {
@@ -1238,13 +1290,22 @@
   }
 
   function buildStatusMessage(settings) {
-    const formattedLength = formatNumber(settings.length);
+    const effectiveLength = roundForDisplay(getEffectiveRulerLength(settings));
+    const formattedLength = formatNumber(effectiveLength);
     const unitSuffix = settings.unitLabel ? ` ${settings.unitLabel}` : '';
     const target = collapseWhitespace(settings.measurementTarget || buildDefaultMeasurementTarget(settings.figureName));
     if (!target) {
       return '';
     }
     return `Linjalens lengde er ${formattedLength}${unitSuffix}. Bruk den til å finne ${target}.`;
+  }
+
+  function roundForDisplay(value, decimals = 6) {
+    if (!Number.isFinite(value)) {
+      return 0;
+    }
+    const factor = Math.pow(10, Math.max(0, decimals));
+    return Math.round(value * factor) / factor;
   }
 
   function formatNumber(value) {
@@ -1269,6 +1330,9 @@
       if (inputs.rulerStartAtZero) inputs.rulerStartAtZero.checked = !!settings.rulerStartAtZero;
       if (inputs.gridEnabled) inputs.gridEnabled.checked = !!settings.gridEnabled;
       if (inputs.showScaleLabel) inputs.showScaleLabel.checked = !!settings.showScaleLabel;
+      if (inputs.measurementWithoutScale) {
+        inputs.measurementWithoutScale.checked = !!settings.measurementWithoutScale;
+      }
       if (inputs.panningEnabled) inputs.panningEnabled.checked = !!settings.panningEnabled;
       // unit spacing is fixed and no longer exposed to the UI
     } finally {
@@ -1364,6 +1428,12 @@
       inputs.showScaleLabel.addEventListener('change', event => {
         if (appState.syncingInputs) return;
         updateSettings({ showScaleLabel: event.target.checked });
+      });
+    }
+    if (inputs.measurementWithoutScale) {
+      inputs.measurementWithoutScale.addEventListener('change', event => {
+        if (appState.syncingInputs) return;
+        updateSettings({ measurementWithoutScale: event.target.checked });
       });
     }
     if (inputs.panningEnabled) {
@@ -2176,7 +2246,10 @@
     const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
     const figureName = settings.figureName || 'Figur';
     const unitLabel = settings.unitLabel ? settings.unitLabel.trim() : '';
-    const slugBaseParts = ['måling', figureName, settings.length + (unitLabel ? unitLabel : '')];
+    const valueMultiplier = resolveRulerValueMultiplier(settings);
+    const effectiveLengthRaw = getEffectiveRulerLength(settings);
+    const effectiveLength = roundForDisplay(effectiveLengthRaw);
+    const slugBaseParts = ['måling', figureName, String(effectiveLength) + (unitLabel ? unitLabel : '')];
     const slugBase = slugBaseParts.join(' ').trim() || 'måling';
     const slug = helper && typeof helper.slugify === 'function'
       ? helper.slugify(slugBase, 'maling')
@@ -2185,7 +2258,7 @@
           .replace(/[^a-z0-9]+/gi, '-')
           .replace(/^-+|-+$/g, '') || 'maling';
     const baseName = slug || 'maling';
-    const lengthText = formatNumber(settings.length);
+    const lengthText = formatNumber(effectiveLength);
     const unitSuffix = unitLabel ? ` ${unitLabel}` : '';
     const target = settings.measurementTarget || buildDefaultMeasurementTarget(settings.figureName);
     const descriptionParts = [];
@@ -2204,9 +2277,10 @@
       figureSummary: summaryText || null,
       measurementTarget: target || null,
       ruler: {
-        length: settings.length,
+        length: effectiveLength,
         unit: unitLabel || null,
-        subdivisions: settings.subdivisions
+        subdivisions: settings.subdivisions,
+        valueMultiplier
       }
     };
     if (settings.figureScaleLabel) {
@@ -2214,6 +2288,7 @@
     }
     summary.showScaleLabel = !!settings.showScaleLabel;
     summary.allowPanning = !!settings.panningEnabled;
+    summary.measurementWithoutScale = !!settings.measurementWithoutScale;
     return {
       slug,
       baseName,
