@@ -3584,7 +3584,7 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
   const scale = LEN / heightPx;
   const flip = closed ? -side : side;
   const strokeColor = typeof g.color === 'string' && g.color ? g.color : ADV.domainMarkers.color;
-  const normalOffsetPx = Number.isFinite(ADV.domainMarkers.offsetPx)
+  const parallelOffsetPx = Number.isFinite(ADV.domainMarkers.offsetPx)
     ? ADV.domainMarkers.offsetPx
     : 0;
   const style = {
@@ -3600,8 +3600,8 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
   const mapped = shape.points.map(([px, py]) => {
     const localX = (px - shape.centerX) * scale * flip;
     const localY = (py - shape.centerY) * scale;
-    const [offTx, offTy] = px2world(tx, ty, localX);
-    const [offNx, offNy] = px2world(nx, ny, localY - normalOffsetPx);
+    const [offTx, offTy] = px2world(tx, ty, localX + parallelOffsetPx);
+    const [offNx, offNy] = px2world(nx, ny, localY);
     return [xS + offTx + offNx, yS + offTy + offNy];
   });
   for (let i = 0; i < mapped.length - 1; i += 1) {
