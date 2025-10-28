@@ -93,31 +93,6 @@ function getSettingsApi() {
   const api = window.MathVisualsSettings;
   return api && typeof api === 'object' ? api : null;
 }
-
-function resolveProjectNameHint() {
-  const doc = typeof document !== 'undefined' ? document : null;
-  if (doc && doc.documentElement) {
-    const root = doc.documentElement;
-    const activeAttr = root.getAttribute('data-mv-active-project');
-    if (typeof activeAttr === 'string' && activeAttr.trim()) {
-      return activeAttr.trim().toLowerCase();
-    }
-    const themeAttr = root.getAttribute('data-theme-profile');
-    if (typeof themeAttr === 'string' && themeAttr.trim()) {
-      return themeAttr.trim().toLowerCase();
-    }
-  }
-  const api = getSettingsApi();
-  if (api && typeof api.getActiveProject === 'function') {
-    try {
-      const value = api.getActiveProject();
-      if (typeof value === 'string' && value.trim()) {
-        return value.trim().toLowerCase();
-      }
-    } catch (_) {}
-  }
-  return null;
-}
 function sanitizeStoredColor(value) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -176,31 +151,19 @@ function resolveSettingsSnapshot() {
 function getBaseCurveColors(count) {
   const api = getSettingsApi();
   const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
-  const project = resolveProjectNameHint();
   if (api && typeof api.getDefaultColors === 'function') {
     try {
-      const palette = api.getDefaultColors(targetCount, project ? { project } : undefined);
+      const palette = api.getDefaultColors(targetCount);
       if (Array.isArray(palette) && palette.length) {
         return cycleColors(palette, targetCount || palette.length);
       }
     } catch (_) {}
   }
   const stored = resolveSettingsSnapshot();
-  if (stored && typeof stored === 'object') {
-    if (project && stored.projects && typeof stored.projects === 'object') {
-      const projectSettings = stored.projects[project];
-      if (projectSettings && Array.isArray(projectSettings.defaultColors)) {
-        const projectPalette = projectSettings.defaultColors.map(sanitizeStoredColor).filter(Boolean);
-        if (projectPalette.length) {
-          return cycleColors(projectPalette, targetCount || projectPalette.length);
-        }
-      }
-    }
-    if (Array.isArray(stored.defaultColors)) {
-      const sanitized = stored.defaultColors.map(sanitizeStoredColor).filter(Boolean);
-      if (sanitized.length) {
-        return cycleColors(sanitized, targetCount || sanitized.length);
-      }
+  if (stored && Array.isArray(stored.defaultColors)) {
+    const sanitized = stored.defaultColors.map(sanitizeStoredColor).filter(Boolean);
+    if (sanitized.length) {
+      return cycleColors(sanitized, targetCount || sanitized.length);
     }
   }
   return cycleColors(FALLBACK_CURVE_COLORS, targetCount || FALLBACK_CURVE_COLORS.length);
@@ -712,26 +675,29 @@ const ADV = {
 const DOMAIN_MARKER_SHAPES = {
   closed: {
     points: [
-      [40.5, 62],
-      [25, 62],
-      [24.4477, 62],
-      [24, 61.5523],
-      [24, 61],
-      [24, 18],
-      [24, 17.4477],
-      [24.4477, 17],
-      [25, 17],
-      [40.5, 17]
+      [18.5, 47],
+      [3, 47],
+      [2.610756875, 46.9214171875],
+      [2.2928949999999997, 46.7071125],
+      [2.078585625, 46.3892515625],
+      [2, 46],
+      [2, 3],
+      [2.078585625, 2.610756875],
+      [2.2928949999999997, 2.2928949999999997],
+      [2.610756875, 2.078585625],
+      [3, 2],
+      [18.5, 2]
     ]
   },
   open: {
     points: [
-      [3, 62.5],
-      [38.6146, 40.6019],
-      [39.2495, 40.2114],
-      [39.2495, 39.2886],
-      [38.6146, 38.8981],
-      [3, 17]
+      [2, 47.5],
+      [37.6146, 25.6019],
+      [37.97173125, 25.225853125],
+      [38.090775, 24.75],
+      [37.97173125, 24.274146875],
+      [37.6146, 23.8981],
+      [2, 2]
     ]
   }
 };
@@ -3575,58 +3541,31 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
   const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
   const rx = (xmax - xmin) / brd.canvasWidth;
   const ry = (ymax - ymin) / brd.canvasHeight;
-  const baseH = Math.max((xmax - xmin) / 400, 5e-5);
+  const baseH = Math.max((xmax - xmin) / 200, 1e-4);
 
   // Finn et punkt innover i domenet med finite y
-  const inward = side < 0 ? +1 : -1;
-  const maxTries = 24;
-  let xS = x0;
-  let yS = NaN;
-  for (let tries = 0; tries < maxTries; tries += 1) {
-    const step = tries === 0 ? 0 : baseH * Math.pow(0.5, tries - 1);
-    const candidate = tries === 0 ? x0 : x0 + inward * step;
-    let value;
+  let xS = x0,
+    yS = g.fn(xS),
+    tries = 0,
+    inward = side < 0 ? +1 : -1;
+  while (!Number.isFinite(yS) && tries < 12) {
+    xS = x0 + inward * (tries + 1) * baseH;
     try {
-      value = g.fn(candidate);
+      yS = g.fn(xS);
     } catch (_) {
-      value = NaN;
+      yS = NaN;
     }
-    if (Number.isFinite(value)) {
-      xS = candidate;
-      yS = value;
-      break;
-    }
+    tries++;
   }
   if (!Number.isFinite(yS)) return;
 
-  // tangent rundt xS (én-sidig differanse innenfor domenet)
+  // tangent rundt xS
   let m = 0;
-  const domainMin = g.domain && Number.isFinite(g.domain.min) ? g.domain.min : -Infinity;
-  const domainMax = g.domain && Number.isFinite(g.domain.max) ? g.domain.max : Infinity;
-  const tangentTries = 24;
-  const anchorTol = Math.max(1e-9, baseH * 1e-4);
-  for (let tries = 0; tries < tangentTries; tries += 1) {
-    const step = baseH * Math.pow(0.5, tries);
-    if (!(step > 0)) continue;
-    let candidate = xS + inward * step;
-    if (candidate > domainMax) candidate = domainMax;
-    if (candidate < domainMin) candidate = domainMin;
-    if (side < 0) {
-      if (!(candidate > x0 + anchorTol)) continue;
-    } else if (!(candidate < x0 - anchorTol)) {
-      continue;
-    }
-    if (Math.abs(candidate - xS) < 1e-12) continue;
-    let value = NaN;
-    try {
-      value = g.fn(candidate);
-    } catch (_) {
-      value = NaN;
-    }
-    if (!Number.isFinite(value)) continue;
-    m = (value - yS) / (candidate - xS);
-    break;
-  }
+  try {
+    const y1 = g.fn(xS + baseH),
+      y2 = g.fn(xS - baseH);
+    if (Number.isFinite(y1) && Number.isFinite(y2)) m = (y1 - y2) / (2 * baseH);
+  } catch (_) {}
 
   // enhets-tangent/-normal i px-rom
   let tx = 1 / rx,
@@ -3653,82 +3592,14 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
     lineCap: 'round',
     lineJoin: 'round'
   };
-  const tangentUnit = px2world(tx, ty, 1);
-  const normalUnit = px2world(nx, ny, 1);
-  const localPoints = shape.points.map(([px, py]) => {
-    return {
-      localX: (px - shape.centerX) * scale * flip,
-      localY: (py - shape.centerY) * scale
-    };
-  });
-  let localShift = 0;
-  let contactIdx = 0;
-  if (Math.abs(tangentUnit[0]) > 1e-9) {
-    const xValues = localPoints.map(pt => xS + pt.localX * tangentUnit[0] + pt.localY * normalUnit[0]);
-    for (let i = 1; i < xValues.length; i += 1) {
-      const better = side > 0 ? xValues[i] > xValues[contactIdx] : xValues[i] < xValues[contactIdx];
-      if (better) contactIdx = i;
-    }
-    const desiredX = x0;
-    const delta = desiredX - xValues[contactIdx];
-    localShift = delta / tangentUnit[0];
-  }
   const segments = [];
-  const mapped = localPoints.map(({ localX, localY }) => {
-    const shiftedX = localX + localShift;
-    const offTx = shiftedX * tangentUnit[0];
-    const offTy = shiftedX * tangentUnit[1];
-    const offNx = localY * normalUnit[0];
-    const offNy = localY * normalUnit[1];
+  const mapped = shape.points.map(([px, py]) => {
+    const localX = (px - shape.centerX) * scale * flip;
+    const localY = (py - shape.centerY) * scale;
+    const [offTx, offTy] = px2world(tx, ty, localX);
+    const [offNx, offNy] = px2world(nx, ny, localY);
     return [xS + offTx + offNx, yS + offTy + offNy];
   });
-  if (mapped.length) {
-    let yTarget = yS;
-    if (Math.abs(xS - x0) > 1e-9) {
-      try {
-        const yExact = g.fn(x0);
-        if (Number.isFinite(yExact)) yTarget = yExact;
-      } catch (_) {}
-    }
-    if (!(Number.isFinite(contactIdx) && contactIdx >= 0 && contactIdx < mapped.length)) {
-      contactIdx = 0;
-    }
-    if (mapped.length > 1) {
-      for (let i = 1; i < mapped.length; i += 1) {
-        const better = side > 0 ? mapped[i][0] > mapped[contactIdx][0] : mapped[i][0] < mapped[contactIdx][0];
-        if (better) contactIdx = i;
-      }
-    }
-    const desiredPoint = [x0, yTarget];
-    const dx = desiredPoint[0] - mapped[contactIdx][0];
-    const dy = desiredPoint[1] - mapped[contactIdx][1];
-    if (Math.abs(dx) > 1e-12 || Math.abs(dy) > 1e-12) {
-      for (let i = 0; i < mapped.length; i += 1) {
-        mapped[i] = [mapped[i][0] + dx, mapped[i][1] + dy];
-      }
-    }
-    mapped[contactIdx] = [desiredPoint[0], desiredPoint[1]];
-  }
-  const boundaryCheck = side > 0
-    ? mapped.every(pt => pt[0] <= x0 + 1e-8)
-    : mapped.every(pt => pt[0] >= x0 - 1e-8);
-  if (!boundaryCheck) {
-    const extreme = side > 0 ? Math.max(...mapped.map(pt => pt[0])) : Math.min(...mapped.map(pt => pt[0]));
-    if (Math.abs(tangentUnit[0]) > 1e-9) {
-      const corrLocal = (x0 - extreme) / tangentUnit[0];
-      for (let i = 0; i < mapped.length; i += 1) {
-        mapped[i] = [
-          mapped[i][0] + corrLocal * tangentUnit[0],
-          mapped[i][1] + corrLocal * tangentUnit[1]
-        ];
-      }
-    } else {
-      const adjust = x0 - extreme;
-      for (let i = 0; i < mapped.length; i += 1) {
-        mapped[i] = [mapped[i][0] + adjust, mapped[i][1]];
-      }
-    }
-  }
   for (let i = 0; i < mapped.length - 1; i += 1) {
     const p = mapped[i];
     const q = mapped[i + 1];
