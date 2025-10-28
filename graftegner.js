@@ -7699,12 +7699,20 @@ function setupSettingsForm() {
       if (e && typeof e.stopPropagation === 'function') {
         e.stopPropagation();
       }
+      if (!screenInput.value || !screenInput.value.trim()) {
+        if (screenInput.dataset) screenInput.dataset.autoscreen = '1';
+        screenInput.classList.add('is-auto');
+      }
       apply();
     });
     screenInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         e.preventDefault();
         SCREEN_INPUT_IS_EDITING = false;
+        if (!screenInput.value || !screenInput.value.trim()) {
+          if (screenInput.dataset) screenInput.dataset.autoscreen = '1';
+          screenInput.classList.add('is-auto');
+        }
         if (typeof e.stopPropagation === 'function') {
           e.stopPropagation();
         }
