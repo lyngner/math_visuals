@@ -426,6 +426,24 @@ function parseScreen(str) {
   const parts = cleaned.split(',').map(s => +s.trim());
   return parts.length === 4 && parts.every(Number.isFinite) ? parts : null;
 }
+
+function expandScreenToLockAspect(screen) {
+  if (!Array.isArray(screen) || screen.length !== 4) return screen;
+  const [xmin, xmax, ymin, ymax] = screen;
+  if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) return screen;
+  const width = xmax - xmin;
+  const height = ymax - ymin;
+  if (!(width > 0 && height > 0)) return screen;
+  const scale = Math.max(Math.abs(width), Math.abs(height), 1);
+  if (Math.abs(width - height) <= 1e-6 * scale) {
+    return screen.slice(0, 4);
+  }
+  const span = Math.max(width, height);
+  const cx = (xmin + xmax) / 2;
+  const cy = (ymin + ymax) / 2;
+  const half = span / 2;
+  return [cx - half, cx + half, cy - half, cy + half];
+}
 function screensEqual(a, b) {
   if (a === b) return true;
   if (!Array.isArray(a) || !Array.isArray(b)) return false;
@@ -1957,16 +1975,9 @@ function initialScreen() {
   const hasManualScreen = Array.isArray(ADV.screen) && ADV.screen.length === 4;
   let scr = (_ADV$screen = ADV.screen) !== null && _ADV$screen !== void 0 ? _ADV$screen : MODE === 'functions' ? computeAutoScreenFunctions() : computeAutoScreenPoints();
   if (hasManualScreen && shouldLockAspect() && !screenSupportsLockAspect(scr)) {
-    const [xmin, xmax, ymin, ymax] = scr;
-    if ([xmin, xmax, ymin, ymax].every(Number.isFinite)) {
-      const width = xmax - xmin;
-      const height = ymax - ymin;
-      if (width > 0 && height > 0) {
-        const span = Math.max(width, height);
-        const cx = (xmin + xmax) / 2;
-        const cy = (ymin + ymax) / 2;
-        scr = [cx - span / 2, cx + span / 2, cy - span / 2, cy + span / 2];
-      }
+    const expanded = expandScreenToLockAspect(scr);
+    if (Array.isArray(expanded) && expanded.length === 4) {
+      scr = expanded;
     }
   }
   if (ADV.firstQuadrant) {
@@ -7510,16 +7521,26 @@ function setupSettingsForm() {
     if (screenInput && screenInput.dataset && screenInput.dataset.autoscreen === '1') {
       screenRaw = '';
     }
-    const nextScreen = screenInput ? parseScreen(screenRaw) : null;
+    let nextScreen = screenInput ? parseScreen(screenRaw) : null;
     const lockInput = g('cfgLock');
     const q1Input = g('cfgQ1');
-    if (nextScreen) {
-      if (lockInput && lockInput.checked && !screenSupportsLockAspect(nextScreen)) {
+    if (nextScreen && lockInput && lockInput.checked) {
+      const expanded = expandScreenToLockAspect(nextScreen);
+      if (Array.isArray(expanded) && expanded.length === 4 && !screensEqual(expanded, nextScreen)) {
+        nextScreen = expanded;
+        screenRaw = formatScreenForInput(expanded);
+        if (screenInput) {
+          screenInput.value = screenRaw;
+          if (screenInput.dataset) delete screenInput.dataset.autoscreen;
+          screenInput.classList.remove('is-auto');
+        }
+      }
+      if (!screenSupportsLockAspect(nextScreen)) {
         lockInput.checked = false;
       }
-      if (q1Input && q1Input.checked && !screenSupportsFirstQuadrant(nextScreen)) {
-        q1Input.checked = false;
-      }
+    }
+    if (nextScreen && q1Input && q1Input.checked && !screenSupportsFirstQuadrant(nextScreen)) {
+      q1Input.checked = false;
     }
     if (!screensEqual(nextScreen, ADV.screen)) {
       ADV.screen = nextScreen;
