@@ -3141,6 +3141,9 @@
   async function applyBackendData(data) {
     applyingBackendUpdate = true;
     try {
+      const existingExamples = getExamples();
+      const preservedTemporaryExamples = collectTemporaryExamplesForPreservation(existingExamples);
+      const previousIndex = Number.isInteger(currentExampleIndex) ? currentExampleIndex : null;
       let examples = normalizeBackendExamples(data && data.examples);
       let backendUpdatedAtMs = 0;
       if (data && data.updatedAt != null) {
@@ -3156,15 +3159,35 @@
       const backendHasTimestamp = backendUpdatedAtMs > 0;
       const backendIsStale = backendHasTimestamp && backendUpdatedAtMs < lastLocalUpdateMs;
       if (!backendIsStale) {
-        const previousIndex = Number.isInteger(currentExampleIndex) ? currentExampleIndex : null;
         await store(examples, {
           reason: 'backend-sync'
         });
+        let restoreResult = null;
+        if (preservedTemporaryExamples.length > 0) {
+          try {
+            restoreResult = restoreTemporaryExamplesAfterSync(preservedTemporaryExamples);
+          } catch (_) {
+            restoreResult = null;
+          }
+        }
         if (initialLoadPerformed) {
           try {
-            const refreshed = getExamples();
+            const refreshed = (restoreResult && Array.isArray(restoreResult.examples))
+              ? restoreResult.examples
+              : getExamples();
             if (Array.isArray(refreshed) && refreshed.length > 0) {
               let indexToLoad = Number.isInteger(previousIndex) ? previousIndex : 0;
+              if (
+                restoreResult &&
+                restoreResult.indexMap &&
+                Number.isInteger(previousIndex) &&
+                restoreResult.indexMap.has(previousIndex)
+              ) {
+                const mapped = restoreResult.indexMap.get(previousIndex);
+                if (Number.isInteger(mapped)) {
+                  indexToLoad = mapped;
+                }
+              }
               if (indexToLoad < 0) {
                 indexToLoad = 0;
               } else if (indexToLoad >= refreshed.length) {
@@ -5154,10 +5177,80 @@
     }
     return null;
   }
+  function collectTemporaryExamplesForPreservation(examples) {
+    if (!Array.isArray(examples) || examples.length === 0) {
+      return [];
+    }
+    const preserved = [];
+    for (let index = 0; index < examples.length; index++) {
+      const example = examples[index];
+      if (!example || typeof example !== 'object') continue;
+      if (!example[TEMPORARY_EXAMPLE_FLAG]) continue;
+      let clone = null;
+      try {
+        clone = cloneValue(example);
+      } catch (_) {
+        clone = example && typeof example === 'object' ? { ...example } : null;
+      }
+      if (!clone || typeof clone !== 'object') continue;
+      clone[TEMPORARY_EXAMPLE_FLAG] = true;
+      if (clone.temporary !== true) {
+        clone.temporary = true;
+      }
+      preserved.push({ index, example: clone });
+    }
+    return preserved;
+  }
+  function restoreTemporaryExamplesAfterSync(temporaryEntries, baseExamples) {
+    if (!Array.isArray(temporaryEntries) || temporaryEntries.length === 0) {
+      return null;
+    }
+    const sourceList = Array.isArray(baseExamples) ? baseExamples : getExamples();
+    const baseList = Array.isArray(sourceList) ? sourceList.slice() : [];
+    const normalizedEntries = temporaryEntries
+      .map(entry => {
+        if (!entry || typeof entry !== 'object') return null;
+        const preservedExample = entry.example && typeof entry.example === 'object' ? entry.example : null;
+        if (!preservedExample) return null;
+        if (preservedExample[TEMPORARY_EXAMPLE_FLAG] !== true) {
+          preservedExample[TEMPORARY_EXAMPLE_FLAG] = true;
+        }
+        if (preservedExample.temporary !== true) {
+          preservedExample.temporary = true;
+        }
+        const originalIndex = Number.isInteger(entry.index) ? entry.index : baseList.length;
+        return { originalIndex, example: preservedExample };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.originalIndex - b.originalIndex);
+    if (normalizedEntries.length === 0) {
+      return { examples: baseList.slice(), indexMap: new Map() };
+    }
+    const nextExamples = baseList.slice();
+    const indexMap = new Map();
+    normalizedEntries.forEach(item => {
+      let targetIndex = item.originalIndex;
+      if (!Number.isInteger(targetIndex)) {
+        targetIndex = nextExamples.length;
+      }
+      if (targetIndex < 0) {
+        targetIndex = 0;
+      } else if (targetIndex > nextExamples.length) {
+        targetIndex = nextExamples.length;
+      }
+      nextExamples.splice(targetIndex, 0, item.example);
+      indexMap.set(item.originalIndex, targetIndex);
+    });
+    cachedExamples = nextExamples;
+    cachedExamplesInitialized = true;
+    return { examples: nextExamples, indexMap };
+  }
   function mergeBackendSyncPayload(payload) {
     if (!payload || typeof payload !== 'object') {
       return null;
     }
+    const existingExamples = getExamples();
+    const preservedTemporaryExamples = collectTemporaryExamplesForPreservation(existingExamples);
     const examplesFromServer = Array.isArray(payload.examples) ? payload.examples : [];
     const normalizedExamples = normalizeExamplesForStorage(examplesFromServer);
     const serialized = serializeExamplesForStorage(normalizedExamples);
@@ -5167,6 +5260,14 @@
         skipHistory: true,
         skipBackendSync: true
       });
+    }
+    let restoreResult = null;
+    if (preservedTemporaryExamples.length > 0) {
+      try {
+        restoreResult = restoreTemporaryExamplesAfterSync(preservedTemporaryExamples);
+      } catch (_) {
+        restoreResult = null;
+      }
     }
     const deletedProvidedList = Array.isArray(payload.deletedProvided) ? payload.deletedProvided : [];
     replaceDeletedProvidedExamples(deletedProvidedList);
@@ -5185,8 +5286,10 @@
       updatedAtMs != null
         ? new Date(updatedAtMs).toISOString()
         : normalizeUpdatedAtIso(payload) || null;
+    const finalExamples =
+      (restoreResult && Array.isArray(restoreResult.examples)) ? restoreResult.examples : getExamples();
     return {
-      examples: normalizedExamples,
+      examples: finalExamples,
       deletedProvided: deletedProvidedList.map(normalizeKey).filter(Boolean),
       updatedAt: updatedAtIso,
       updatedAtMs
