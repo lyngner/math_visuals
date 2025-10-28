@@ -675,7 +675,7 @@ const ADV = {
 
 const DOMAIN_MARKER_SHAPES = {
   closed: {
-    offsetPx: -5,
+    offsetPx: -3,
     points: [
       [18.5, 47],
       [3, 47],
@@ -692,7 +692,7 @@ const DOMAIN_MARKER_SHAPES = {
     ]
   },
   open: {
-    offsetPx: -10,
+    offsetPx: -8,
     points: [
       [2, 47.5],
       [37.6146, 25.6019],
