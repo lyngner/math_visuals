@@ -1496,7 +1496,7 @@ function detectVerticalAsymptotes(fn, A, B, N = 1000, huge = ADV.asymptote.hugeY
     xs.push(x);
     ys.push(y);
   }
-  const midBlow = (xL, xR) => {
+  const midState = (xL, xR) => {
     const m = 0.5 * (xL + xR);
     let y;
     try {
@@ -1504,7 +1504,8 @@ function detectVerticalAsymptotes(fn, A, B, N = 1000, huge = ADV.asymptote.hugeY
     } catch (_) {
       y = NaN;
     }
-    return !Number.isFinite(y) || Math.abs(y) > huge * 2;
+    const blow = !Number.isFinite(y) || Math.abs(y) > huge * 2;
+    return { blow, value: y };
   };
   const cand = [];
   for (let i = 1; i < ys.length; i++) {
@@ -1515,8 +1516,25 @@ function detectVerticalAsymptotes(fn, A, B, N = 1000, huge = ADV.asymptote.hugeY
     const b0 = !Number.isFinite(y0) || Math.abs(y0) > huge;
     const b1 = !Number.isFinite(y1) || Math.abs(y1) > huge;
     const opp = Number.isFinite(y0) && Number.isFinite(y1) ? Math.sign(y0) !== Math.sign(y1) : false;
-    const midBad = midBlow(xL, xR);
-    if (b0 && b1 && (opp || midBad) || (b0 ^ b1) && midBad) cand.push(0.5 * (xL + xR));
+    const { blow: midBad, value: midVal } = midState(xL, xR);
+    if (b0 && b1 && midBad) {
+      const abs0 = Math.abs(y0);
+      const abs1 = Math.abs(y1);
+      const diffRaw = Math.abs(y1 - y0);
+      const diff = Number.isFinite(diffRaw) ? diffRaw : Infinity;
+      const maxMag = Math.max(Number.isFinite(abs0) ? abs0 : huge * 10, Number.isFinite(abs1) ? abs1 : huge * 10);
+      const avgMagRaw = Number.isFinite(abs0) && Number.isFinite(abs1) ? (abs0 + abs1) / 2 : Infinity;
+      const relChange = avgMagRaw === 0 ? Infinity : diff / avgMagRaw;
+      const midAbs = Math.abs(midVal);
+      const midGrowth = !Number.isFinite(midVal) || !Number.isFinite(maxMag)
+        ? true
+        : midAbs > maxMag * 1.25 + huge * 0.1;
+      if (opp || diff > huge || relChange > 0.3 || midGrowth) {
+        cand.push(0.5 * (xL + xR));
+      }
+    } else if ((b0 ^ b1) && midBad) {
+      cand.push(0.5 * (xL + xR));
+    }
   }
   const merged = [],
     tol = (B - A) / N * 4;
