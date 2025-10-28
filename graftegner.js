@@ -656,7 +656,8 @@ const ADV = {
     tipFrac: 0.20,
     color: '#6b7280',
     width: getDefaultLineThickness(),
-    layer: 8
+    layer: 8,
+    offsetPx: 10
   },
   // Asymptoter
   asymptote: {
@@ -3583,6 +3584,9 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
   const scale = LEN / heightPx;
   const flip = closed ? -side : side;
   const strokeColor = typeof g.color === 'string' && g.color ? g.color : ADV.domainMarkers.color;
+  const normalOffsetPx = Number.isFinite(ADV.domainMarkers.offsetPx)
+    ? ADV.domainMarkers.offsetPx
+    : 0;
   const style = {
     strokeColor,
     strokeWidth: ADV.domainMarkers.width,
@@ -3597,7 +3601,7 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
     const localX = (px - shape.centerX) * scale * flip;
     const localY = (py - shape.centerY) * scale;
     const [offTx, offTy] = px2world(tx, ty, localX);
-    const [offNx, offNy] = px2world(nx, ny, localY);
+    const [offNx, offNy] = px2world(nx, ny, localY - normalOffsetPx);
     return [xS + offTx + offNx, yS + offTy + offNy];
   });
   for (let i = 0; i < mapped.length - 1; i += 1) {
