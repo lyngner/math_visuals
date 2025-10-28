@@ -9,6 +9,7 @@
   const statusElement = form.querySelector('[data-status]');
   const lineInput = form.querySelector('#lineThickness');
   const linePreviewBar = form.querySelector('[data-line-preview-bar]');
+  const lineSaveButton = form.querySelector('[data-save-line]');
   const projectHeadingElement = document.querySelector('[data-project-heading]');
   const projectLegendElement = form.querySelector('[data-project-legend]');
 
@@ -150,14 +151,17 @@
   const state = {
     projectOrder: [],
     colorsByProject: new Map(),
+    persistedColorsByProject: new Map(),
     activeProject: null,
     defaultLineThickness: DEFAULT_LINE_THICKNESS,
+    persistedLineThickness: DEFAULT_LINE_THICKNESS,
     preferredProject: null
   };
   let colors = [];
   const slotBindings = new Map();
   let extraGroupSection = null;
   let extraSlotsContainer = null;
+  let extraGroupSaveButton = null;
 
   function resolveSettingsApi() {
     if (typeof window === 'undefined') return null;
@@ -165,6 +169,225 @@
     if (api && typeof api === 'object') return api;
     const legacy = window.mathVisuals && window.mathVisuals.settings;
     return legacy && typeof legacy === 'object' ? legacy : null;
+  }
+
+  function clonePersistedColorMap() {
+    const map = new Map();
+    if (state.persistedColorsByProject && typeof state.persistedColorsByProject.forEach === 'function') {
+      state.persistedColorsByProject.forEach((palette, name) => {
+        map.set(name, Array.isArray(palette) ? palette.slice() : []);
+      });
+    }
+    state.colorsByProject.forEach((palette, name) => {
+      if (!map.has(name)) {
+        map.set(name, Array.isArray(palette) ? palette.slice() : []);
+      }
+    });
+    return map;
+  }
+
+  function collectGroupIndices(groupId, projectName) {
+    const indices = new Set();
+    const normalizedGroup = typeof groupId === 'string' ? groupId.trim() : '';
+    if (!normalizedGroup) return indices;
+    if (normalizedGroup === 'extra') {
+      const palette = state.colorsByProject.get(normalizeProjectName(projectName)) || [];
+      for (let index = MIN_COLOR_SLOTS; index < Math.min(palette.length, MAX_COLORS); index += 1) {
+        indices.add(index);
+      }
+      return indices;
+    }
+    const group = COLOR_SLOT_GROUPS.find(entry => entry.id === normalizedGroup);
+    if (!group) return indices;
+    group.slots.forEach(slot => {
+      if (!slot) return;
+      const idx = Number(slot.index);
+      if (Number.isInteger(idx) && idx >= 0 && idx < MAX_COLORS) {
+        indices.add(idx);
+      }
+    });
+    return indices;
+  }
+
+  function buildProjectColorsForSave(projectName, indices) {
+    const map = clonePersistedColorMap();
+    const normalizedProject = normalizeProjectName(projectName);
+    if (!normalizedProject) return map;
+    const targetIndices = indices instanceof Set ? indices : new Set(indices || []);
+    if (!targetIndices.size) return map;
+    const editingPalette = state.colorsByProject.get(normalizedProject) || [];
+    const base = map.get(normalizedProject) || [];
+    const next = Array.isArray(base) ? base.slice() : [];
+    targetIndices.forEach(index => {
+      if (!Number.isInteger(index) || index < 0 || index >= MAX_COLORS) return;
+      while (next.length <= index && next.length < MAX_COLORS) {
+        next.push(getFallbackColorForIndex(normalizedProject, next.length));
+      }
+      const current = editingPalette[index];
+      const sanitized =
+        typeof current === 'string' && current
+          ? sanitizeColor(current) || getFallbackColorForIndex(normalizedProject, index)
+          : getFallbackColorForIndex(normalizedProject, index);
+      next[index] = sanitized;
+    });
+    map.set(normalizedProject, next);
+    return map;
+  }
+
+  function captureUnsavedChanges(excludedProject, excludedIndices) {
+    const excludedName = normalizeProjectName(excludedProject);
+    const excludedSet = excludedIndices instanceof Set ? excludedIndices : new Set();
+    const changes = new Map();
+    state.colorsByProject.forEach((palette, project) => {
+      const normalizedProject = normalizeProjectName(project);
+      if (!normalizedProject || !Array.isArray(palette)) return;
+      const persisted = state.persistedColorsByProject.get(normalizedProject) || [];
+      const limit = Math.min(Math.max(palette.length, persisted.length), MAX_COLORS);
+      const entries = new Map();
+      for (let index = 0; index < limit; index += 1) {
+        if (normalizedProject === excludedName && excludedSet.has(index)) {
+          continue;
+        }
+        const current = palette[index];
+        const baseline = persisted[index];
+        if (typeof current === 'string' && current && current !== baseline) {
+          entries.set(index, current);
+        }
+      }
+      if (entries.size) {
+        changes.set(normalizedProject, entries);
+      }
+    });
+    return changes;
+  }
+
+  function restoreUnsavedChanges(changes) {
+    if (!changes || typeof changes.forEach !== 'function') return;
+    let shouldSyncActive = false;
+    changes.forEach((indices, project) => {
+      const normalizedProject = normalizeProjectName(project);
+      if (!normalizedProject || !indices || !indices.size) return;
+      const currentPalette = state.colorsByProject.get(normalizedProject) || [];
+      const next = Array.isArray(currentPalette) ? currentPalette.slice() : [];
+      indices.forEach((value, index) => {
+        if (!Number.isInteger(index) || index < 0 || index >= MAX_COLORS) return;
+        while (next.length <= index && next.length < MAX_COLORS) {
+          next.push(getFallbackColorForIndex(normalizedProject, next.length));
+        }
+        const sanitized = sanitizeColor(value) || getFallbackColorForIndex(normalizedProject, index);
+        next[index] = sanitized;
+      });
+      state.colorsByProject.set(normalizedProject, next.slice());
+      if (normalizedProject === state.activeProject) {
+        commitActiveColors(next, normalizedProject);
+        shouldSyncActive = true;
+      }
+    });
+    if (shouldSyncActive) {
+      syncBindings();
+    }
+  }
+
+  async function saveColorGroup(groupId, groupTitle) {
+    const normalizedId = typeof groupId === 'string' ? groupId.trim() : '';
+    if (!normalizedId) return;
+    const activeProject = ensureActiveProject();
+    const indices = collectGroupIndices(normalizedId, activeProject);
+    if (!indices.size) {
+      const emptyLabel = groupTitle && groupTitle.trim() ? groupTitle.trim() : 'gruppen';
+      setStatus(`Ingen endringer å lagre for ${emptyLabel}.`, 'info');
+      return;
+    }
+    const editingPalette = state.colorsByProject.get(activeProject) || [];
+    const persistedPalette = state.persistedColorsByProject.get(activeProject) || [];
+    let hasChanges = false;
+    indices.forEach(index => {
+      if (hasChanges) return;
+      const current = editingPalette[index];
+      const baseline = persistedPalette[index];
+      if (typeof current === 'string' && current && current !== baseline) {
+        hasChanges = true;
+      } else if (current && baseline == null) {
+        hasChanges = true;
+      }
+    });
+    if (!hasChanges) {
+      const unchangedLabel = groupTitle && groupTitle.trim() ? groupTitle.trim() : 'gruppen';
+      setStatus(`Ingen endringer å lagre for ${unchangedLabel}.`, 'info');
+      return;
+    }
+    const label = groupTitle && groupTitle.trim() ? groupTitle.trim() : 'gruppen';
+    const unsavedChanges = captureUnsavedChanges(activeProject, indices);
+    const colorsForSave = buildProjectColorsForSave(activeProject, indices);
+    const pendingLineThickness = state.defaultLineThickness;
+    const restoreLineThickness = pendingLineThickness !== state.persistedLineThickness;
+    setStatus(`Lagrer fargene for ${label}...`, 'info');
+    setFormDisabled(true);
+    try {
+      const payload = buildPayload({
+        projectColors: colorsForSave,
+        lineThickness: state.persistedLineThickness,
+        activeProject
+      });
+      const snapshot = await persistSettings('PUT', payload);
+      applySettings(snapshot || {}, { forceActiveProject: activeProject });
+      restoreUnsavedChanges(unsavedChanges);
+      if (restoreLineThickness && lineInput) {
+        state.defaultLineThickness = clampLineThickness(pendingLineThickness);
+        lineInput.value = String(state.defaultLineThickness);
+        updateLinePreview();
+      }
+      if (settingsApi && typeof settingsApi.refresh === 'function') {
+        try {
+          settingsApi.refresh({ force: true, notify: true });
+        } catch (_) {}
+      }
+      setStatus(`Fargene for ${label} er lagret.`, 'success');
+    } catch (error) {
+      console.error(error);
+      setStatus(`Kunne ikke lagre fargene for ${label}.`, 'error');
+    } finally {
+      setFormDisabled(false);
+    }
+  }
+
+  async function saveLineThickness() {
+    if (!lineInput) return;
+    const activeProject = ensureActiveProject();
+    const thickness = clampLineThickness(lineInput.value);
+    state.defaultLineThickness = thickness;
+    if (String(lineInput.value) !== String(thickness)) {
+      lineInput.value = String(thickness);
+    }
+    updateLinePreview();
+    if (thickness === state.persistedLineThickness) {
+      setStatus('Linjetykkelsen er allerede lagret.', 'info');
+      return;
+    }
+    const unsavedChanges = captureUnsavedChanges(null, null);
+    setStatus('Lagrer linjetykkelsen...', 'info');
+    setFormDisabled(true);
+    try {
+      const payload = buildPayload({
+        projectColors: clonePersistedColorMap(),
+        lineThickness: thickness,
+        activeProject
+      });
+      const snapshot = await persistSettings('PUT', payload);
+      applySettings(snapshot || {}, { forceActiveProject: activeProject });
+      restoreUnsavedChanges(unsavedChanges);
+      if (settingsApi && typeof settingsApi.refresh === 'function') {
+        try {
+          settingsApi.refresh({ force: true, notify: true });
+        } catch (_) {}
+      }
+      setStatus('Linjetykkelsen er lagret.', 'success');
+    } catch (error) {
+      console.error(error);
+      setStatus('Kunne ikke lagre linjetykkelsen.', 'error');
+    } finally {
+      setFormDisabled(false);
+    }
   }
 
   function resolveApiUrl() {
@@ -285,7 +508,7 @@
 
   function updateLinePreview() {
     if (!linePreviewBar) return;
-    const thickness = clampLineThickness(lineInput && lineInput.value);
+    const thickness = clampLineThickness(state.defaultLineThickness);
     linePreviewBar.style.setProperty('--preview-thickness', `${thickness}px`);
   }
 
@@ -303,9 +526,14 @@
     const normalized = normalizeProjectName(name);
     if (!normalized) return;
     if (!state.colorsByProject.has(normalized)) {
-      state.colorsByProject.set(
+      const palette = expandPalette(normalized, getProjectFallbackPalette(normalized), MIN_COLOR_SLOTS);
+      state.colorsByProject.set(normalized, palette.slice());
+    }
+    if (!state.persistedColorsByProject.has(normalized)) {
+      const palette = state.colorsByProject.get(normalized);
+      state.persistedColorsByProject.set(
         normalized,
-        expandPalette(normalized, getProjectFallbackPalette(normalized), MIN_COLOR_SLOTS)
+        Array.isArray(palette) ? palette.slice() : expandPalette(normalized, getProjectFallbackPalette(normalized), MIN_COLOR_SLOTS)
       );
     }
   }
@@ -497,10 +725,28 @@
     extraGroupSection.className = 'color-group color-group--extra';
     extraGroupSection.hidden = true;
 
+    const header = document.createElement('div');
+    header.className = 'color-group__header';
+
     const title = document.createElement('h3');
     title.className = 'color-group__title';
     title.textContent = 'Ekstra farger';
-    extraGroupSection.appendChild(title);
+    header.appendChild(title);
+
+    const actions = document.createElement('div');
+    actions.className = 'color-group__actions';
+
+    extraGroupSaveButton = document.createElement('button');
+    extraGroupSaveButton.type = 'button';
+    extraGroupSaveButton.className = 'btn btn--inline';
+    extraGroupSaveButton.textContent = 'Lagre';
+    extraGroupSaveButton.dataset.saveGroup = 'extra';
+    extraGroupSaveButton.dataset.groupTitle = 'Ekstra farger';
+    extraGroupSaveButton.setAttribute('aria-label', 'Lagre fargene for ekstra farger');
+    actions.appendChild(extraGroupSaveButton);
+
+    header.appendChild(actions);
+    extraGroupSection.appendChild(header);
 
     extraSlotsContainer = document.createElement('div');
     extraSlotsContainer.className = 'color-table';
@@ -529,10 +775,28 @@
       const section = document.createElement('section');
       section.className = 'color-group';
 
+      const header = document.createElement('div');
+      header.className = 'color-group__header';
+
       const title = document.createElement('h3');
       title.className = 'color-group__title';
       title.textContent = group.title;
-      section.appendChild(title);
+      header.appendChild(title);
+
+      const actions = document.createElement('div');
+      actions.className = 'color-group__actions';
+
+      const saveButton = document.createElement('button');
+      saveButton.type = 'button';
+      saveButton.className = 'btn btn--inline';
+      saveButton.textContent = 'Lagre';
+      saveButton.dataset.saveGroup = group.id;
+      saveButton.dataset.groupTitle = group.title;
+      saveButton.setAttribute('aria-label', `Lagre fargene for ${group.title}`);
+      actions.appendChild(saveButton);
+
+      header.appendChild(actions);
+      section.appendChild(header);
 
       const table = document.createElement('div');
       table.className = 'color-table';
@@ -548,7 +812,11 @@
 
   function updateExtraGroupVisibility() {
     if (!extraGroupSection) return;
-    extraGroupSection.hidden = colors.length <= MIN_COLOR_SLOTS;
+    const hasExtraColors = colors.length > MIN_COLOR_SLOTS;
+    extraGroupSection.hidden = !hasExtraColors;
+    if (extraGroupSaveButton) {
+      extraGroupSaveButton.disabled = !hasExtraColors;
+    }
   }
 
   function syncBindings() {
@@ -623,12 +891,13 @@
     clearStatus();
   }
 
-  function applySettings(snapshot) {
+  function applySettings(snapshot, options = {}) {
     const data = snapshot && typeof snapshot === 'object' ? snapshot : {};
     state.projectOrder = Array.isArray(data.projectOrder)
       ? Array.from(new Set(data.projectOrder.map(normalizeProjectName))).filter(Boolean)
       : [];
     state.colorsByProject = new Map();
+    state.persistedColorsByProject = new Map();
     const projects = data.projects && typeof data.projects === 'object' ? data.projects : {};
     Object.keys(projects).forEach(name => {
       const normalized = normalizeProjectName(name);
@@ -645,6 +914,7 @@
         MIN_COLOR_SLOTS
       );
       state.colorsByProject.set(normalized, expanded);
+      state.persistedColorsByProject.set(normalized, expanded.slice());
       if (!state.projectOrder.includes(normalized)) {
         state.projectOrder.push(normalized);
       }
@@ -654,15 +924,22 @@
         state.projectOrder.push(name);
       }
       if (!state.colorsByProject.has(name)) {
-        state.colorsByProject.set(name, expandPalette(name, getProjectFallbackPalette(name), MIN_COLOR_SLOTS));
+        const palette = expandPalette(name, getProjectFallbackPalette(name), MIN_COLOR_SLOTS);
+        state.colorsByProject.set(name, palette.slice());
+        state.persistedColorsByProject.set(name, palette.slice());
+      } else if (!state.persistedColorsByProject.has(name)) {
+        const palette = state.colorsByProject.get(name);
+        state.persistedColorsByProject.set(name, Array.isArray(palette) ? palette.slice() : []);
       }
     });
     const incomingActiveProject = normalizeProjectName(data.activeProject);
-    state.activeProject = incomingActiveProject;
+    const forcedActive = options.forceActiveProject ? normalizeProjectName(options.forceActiveProject) : '';
+    state.activeProject = forcedActive || incomingActiveProject;
     const active = ensureActiveProject();
     state.activeProject = active;
     state.defaultLineThickness =
       data.defaultLineThickness != null ? clampLineThickness(data.defaultLineThickness) : DEFAULT_LINE_THICKNESS;
+    state.persistedLineThickness = state.defaultLineThickness;
     if (lineInput) {
       lineInput.value = state.defaultLineThickness;
     }
@@ -686,7 +963,7 @@
       }
       const payload = await response.json().catch(() => ({}));
       const snapshot = payload && typeof payload === 'object' && payload.settings ? payload.settings : payload;
-      applySettings(snapshot || {});
+      applySettings(snapshot || {}, { forceActiveProject: state.activeProject });
       setStatus('Innstillingene er lastet.', 'info');
       if (settingsApi && typeof settingsApi.refresh === 'function') {
         try {
@@ -700,10 +977,18 @@
     setFormDisabled(false);
   }
 
-  function buildPayload() {
+  function buildPayload(options = {}) {
+    const colorsByProject =
+      options.projectColors instanceof Map ? options.projectColors : state.colorsByProject;
+    const activeProject = options.activeProject
+      ? normalizeProjectName(options.activeProject)
+      : ensureActiveProject();
     const payload = {
-      activeProject: ensureActiveProject(),
-      defaultLineThickness: clampLineThickness(lineInput && lineInput.value),
+      activeProject,
+      defaultLineThickness:
+        options.lineThickness != null
+          ? clampLineThickness(options.lineThickness)
+          : clampLineThickness(state.defaultLineThickness),
       projectOrder: [],
       projects: {}
     };
@@ -712,7 +997,7 @@
     const registerProject = projectName => {
       const normalized = normalizeProjectName(projectName);
       if (!normalized || seenProjects.has(normalized)) return;
-      const storedPalette = state.colorsByProject.get(normalized);
+      const storedPalette = colorsByProject.get(normalized);
       const palette = Array.isArray(storedPalette) && storedPalette.length
         ? storedPalette
         : getProjectFallbackPalette(normalized);
@@ -722,6 +1007,9 @@
     };
 
     state.projectOrder.forEach(registerProject);
+    if (colorsByProject && typeof colorsByProject.forEach === 'function') {
+      colorsByProject.forEach((_, name) => registerProject(name));
+    }
     state.colorsByProject.forEach((_, name) => registerProject(name));
     ['campus', 'kikora', 'annet'].forEach(registerProject);
 
@@ -750,6 +1038,7 @@
 
   if (lineInput) {
     lineInput.addEventListener('input', () => {
+      state.defaultLineThickness = clampLineThickness(lineInput.value);
       updateLinePreview();
       clearStatus();
     });
@@ -774,13 +1063,25 @@
     });
   }
 
+  if (colorGroupsContainer) {
+    colorGroupsContainer.addEventListener('click', event => {
+      const button = event && event.target && event.target.closest('[data-save-group]');
+      if (!button || !colorGroupsContainer.contains(button)) return;
+      event.preventDefault();
+      const groupId = button.getAttribute('data-save-group');
+      const groupTitle = button.getAttribute('data-group-title') || button.dataset.groupTitle || '';
+      void saveColorGroup(groupId, groupTitle);
+    });
+  }
+
   if (resetButton) {
     resetButton.addEventListener('click', async () => {
       setStatus('Tilbakestiller innstillinger...', 'info');
       setFormDisabled(true);
+      const activeProject = state.activeProject;
       try {
         const snapshot = await persistSettings('DELETE');
-        applySettings(snapshot || {});
+        applySettings(snapshot || {}, { forceActiveProject: activeProject });
         setStatus('Innstillingene ble tilbakestilt.', 'success');
         if (settingsApi && typeof settingsApi.refresh === 'function') {
           try {
@@ -796,34 +1097,21 @@
     });
   }
 
-  form.addEventListener('submit', async event => {
+  if (lineSaveButton) {
+    lineSaveButton.addEventListener('click', () => {
+      void saveLineThickness();
+    });
+  }
+
+  form.addEventListener('submit', event => {
     event.preventDefault();
-    ensureActiveProject();
-    setStatus('Lagrer innstillinger...', 'info');
-    setFormDisabled(true);
-    try {
-      const payload = buildPayload();
-      const snapshot = await persistSettings('PUT', payload);
-      applySettings(snapshot || {});
-      setStatus('Innstillingene er lagret.', 'success');
-      if (settingsApi && typeof settingsApi.refresh === 'function') {
-        try {
-          settingsApi.refresh({ force: true, notify: true });
-        } catch (_) {}
-      }
-      setFormDisabled(false);
-    } catch (error) {
-      console.error(error);
-      setStatus('Kunne ikke lagre innstillingene.', 'error');
-      setFormDisabled(false);
-    }
   });
 
   if (settingsApi && typeof settingsApi.subscribe === 'function') {
     try {
       settingsApi.subscribe(snapshot => {
         if (!snapshot || typeof snapshot !== 'object') return;
-        applySettings(snapshot);
+        applySettings(snapshot, { forceActiveProject: state.activeProject });
         setStatus('Innstillingene er oppdatert.', 'info');
       });
     } catch (_) {}
@@ -831,7 +1119,7 @@
     window.addEventListener('math-visuals:settings-changed', event => {
       const detail = event && event.detail && event.detail.settings;
       if (detail && typeof detail === 'object') {
-        applySettings(detail);
+        applySettings(detail, { forceActiveProject: state.activeProject });
         setStatus('Innstillingene er oppdatert.', 'info');
       }
     });
