@@ -1136,6 +1136,15 @@
     width = naturalWidth * scaleAdjustment;
     height = naturalHeight * scaleAdjustment;
 
+    if (settings && settings.measurementWithoutScale) {
+      const scaleMultiplier = Number.isFinite(desiredScaleDenominator) && desiredScaleDenominator > 0
+        ? desiredScaleDenominator
+        : 1;
+      width *= scaleMultiplier;
+      height *= scaleMultiplier;
+      unitSpacingPx *= scaleMultiplier;
+    }
+
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
       return null;
     }
