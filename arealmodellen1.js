@@ -203,10 +203,7 @@ function resolveRectColors(count = DEFAULT_RECT_COLORS.length) {
     } catch (_) {
       palette = null;
     }
-    if (
-      (!Array.isArray(palette) || (targetCount && palette.length < targetCount)) &&
-      theme.getGroupPalette.length >= 3
-    ) {
+    if (!Array.isArray(palette) || (targetCount && palette.length < targetCount)) {
       try {
         palette = theme.getGroupPalette(
           AREAL_GROUP_ID,
