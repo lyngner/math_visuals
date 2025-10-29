@@ -3,6 +3,7 @@
   const statusElement = document.querySelector('[data-status]');
   const filterWrapper = document.querySelector('[data-filter-wrapper]');
   const filterSelect = document.querySelector('[data-tool-filter]');
+  const sortSelect = document.querySelector('[data-sort-order]');
   const storageNote = document.querySelector('[data-storage-note]');
   const trashToggle = document.querySelector('[data-trash-toggle]');
   const trashArchive = document.querySelector('[data-trash-archive]');
@@ -28,6 +29,10 @@
     'textarea:not([disabled]):not([tabindex="-1"])',
     '[tabindex]:not([tabindex="-1"])'
   ].join(', ');
+
+  const nameCollator = typeof Intl !== 'undefined' && typeof Intl.Collator === 'function'
+    ? new Intl.Collator('nb', { sensitivity: 'base', numeric: true })
+    : null;
 
   const TrashArchiveViewerModule = window.MathVisualsTrashArchiveViewer || null;
   const TrashArchiveViewerClass = TrashArchiveViewerModule ? TrashArchiveViewerModule.TrashArchiveViewer : null;
@@ -1764,7 +1769,33 @@
     return item;
   }
 
-  function render() {
+  function sortEntries(entries, sortValue) {
+    const list = Array.isArray(entries) ? entries.slice() : [];
+    const value = typeof sortValue === 'string' && sortValue.trim() ? sortValue.trim() : 'newest';
+
+    const compareNames = (a, b) => {
+      const nameA = extractEntryName(a);
+      const nameB = extractEntryName(b);
+      if (nameCollator) {
+        return nameCollator.compare(nameA, nameB);
+      }
+      return nameA.localeCompare(nameB || '', 'nb');
+    };
+
+    switch (value) {
+      case 'oldest':
+        return list.sort((a, b) => resolveEntryTimestamp(a) - resolveEntryTimestamp(b));
+      case 'az':
+        return list.sort(compareNames);
+      case 'size':
+        return list.sort((a, b) => resolveEntryFileSize(b) - resolveEntryFileSize(a));
+      case 'newest':
+      default:
+        return list.sort((a, b) => resolveEntryTimestamp(b) - resolveEntryTimestamp(a));
+    }
+  }
+
+  function render({ announceSort = false } = {}) {
     const selectedTool = filterSelect && filterSelect.value !== 'all' ? filterSelect.value : null;
     const filteredEntries = selectedTool
       ? allEntries.filter(entry => entry.tool === selectedTool)
@@ -1783,10 +1814,25 @@
       return;
     }
 
-    setStatus('');
+    const sortValue = sortSelect ? sortSelect.value : 'newest';
+    const sortedEntries = sortEntries(filteredEntries, sortValue);
+
+    if (announceSort && sortSelect) {
+      const selectedOption = sortSelect.options && sortSelect.selectedIndex >= 0
+        ? sortSelect.options[sortSelect.selectedIndex]
+        : null;
+      const sortLabel = selectedOption && selectedOption.textContent
+        ? selectedOption.textContent.trim()
+        : '';
+      setStatus(sortLabel ? `Sortering oppdatert: ${sortLabel}.` : 'Sortering oppdatert.');
+    } else if (announceSort) {
+      setStatus('Sortering oppdatert.');
+    } else {
+      setStatus('');
+    }
 
     const fragment = document.createDocumentFragment();
-    for (const entry of filteredEntries) {
+    for (const entry of sortedEntries) {
       fragment.appendChild(createCard(entry));
     }
     grid.appendChild(fragment);
@@ -1854,6 +1900,108 @@
       return { limitation };
     }
     return null;
+  }
+
+  function parseFileSizeLabel(label) {
+    if (typeof label !== 'string') {
+      return null;
+    }
+    const normalized = label.trim();
+    if (!normalized) {
+      return null;
+    }
+    const withSpaces = normalized.replace(/\u00A0/g, ' ');
+    const match = withSpaces.match(/([0-9]+(?:[\s.,][0-9]+)*)\s*(bytes?|b|kb|kib|mb|mib|gb|gib)?/i);
+    if (!match) {
+      return null;
+    }
+    let numericText = match[1].replace(/\s+/g, '');
+    const commaCount = (numericText.match(/,/g) || []).length;
+    const dotCount = (numericText.match(/\./g) || []).length;
+    if (commaCount > 1 && dotCount === 0) {
+      numericText = numericText.replace(/,/g, '');
+    } else if (dotCount > 1 && commaCount === 0) {
+      numericText = numericText.replace(/\./g, '');
+    } else if (commaCount === 1 && dotCount === 1) {
+      numericText = numericText.replace(/\./g, '').replace(',', '.');
+    } else {
+      numericText = numericText.replace(/,/g, '.');
+    }
+    const numericValue = Number(numericText);
+    if (!Number.isFinite(numericValue)) {
+      return null;
+    }
+    const unit = match[2] ? match[2].toLowerCase() : '';
+    let multiplier = 1;
+    if (unit.startsWith('g')) {
+      multiplier = 1024 * 1024 * 1024;
+    } else if (unit.startsWith('m')) {
+      multiplier = 1024 * 1024;
+    } else if (unit.startsWith('k')) {
+      multiplier = 1024;
+    }
+    return numericValue * multiplier;
+  }
+
+  function extractEntryName(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return '';
+    }
+    const candidates = [entry.name, entry.displayTitle, entry.title, entry.baseName, entry.slug];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+    return '';
+  }
+
+  function resolveEntryTimestamp(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return 0;
+    }
+    const direct = Number(entry.createdAtTime);
+    if (Number.isFinite(direct)) {
+      return direct;
+    }
+    const createdAt = typeof entry.createdAt === 'string' ? entry.createdAt : '';
+    const parsed = Date.parse(createdAt);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function resolveEntryFileSize(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return Number.NEGATIVE_INFINITY;
+    }
+    const direct = Number(entry.fileSizeBytes);
+    if (Number.isFinite(direct)) {
+      return direct;
+    }
+    const legacy = Number(entry.fileSize);
+    if (Number.isFinite(legacy)) {
+      return legacy;
+    }
+    const metadata = entry.metadata && typeof entry.metadata === 'object' ? entry.metadata : null;
+    if (metadata) {
+      const metadataNumeric = Number(metadata.size ?? metadata.fileSize);
+      if (Number.isFinite(metadataNumeric)) {
+        return metadataNumeric;
+      }
+      const metadataLabel = typeof metadata.size === 'string'
+        ? metadata.size
+        : typeof metadata.fileSize === 'string'
+          ? metadata.fileSize
+          : '';
+      const metadataParsed = parseFileSizeLabel(metadataLabel);
+      if (metadataParsed !== null) {
+        return metadataParsed;
+      }
+    }
+    const parsedLabel = parseFileSizeLabel(entry.fileSizeLabel);
+    if (parsedLabel !== null) {
+      return parsedLabel;
+    }
+    return Number.NEGATIVE_INFINITY;
   }
 
   function normalizeArchiveEntries(entries) {
@@ -1949,6 +2097,14 @@
         const resolvedPngUrl = normalizeAssetUrl(pngUrl, 'png') || resolvedSvgUrl;
         const resolvedThumbnailUrl = normalizeAssetUrl(thumbnailUrl, 'png') || resolvedPngUrl || resolvedSvgUrl;
 
+        const entryName = typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : '';
+        const createdAtValue =
+          typeof entry.createdAt === 'string' && entry.createdAt.trim()
+            ? entry.createdAt.trim()
+            : typeof entry.updatedAt === 'string'
+              ? entry.updatedAt.trim()
+              : '';
+
         const normalizedEntry = {
           slug: normalizedSlug || slug,
           svgSlug,
@@ -1963,12 +2119,8 @@
           altText,
           baseName,
           tool: typeof entry.tool === 'string' ? entry.tool.trim() : '',
-          createdAt:
-            typeof entry.createdAt === 'string' && entry.createdAt.trim()
-              ? entry.createdAt.trim()
-              : typeof entry.updatedAt === 'string'
-                ? entry.updatedAt.trim()
-                : '',
+          createdAt: createdAtValue,
+          name: entryName,
           summary,
           sequenceLabel,
           fileSizeLabel
@@ -1978,6 +2130,20 @@
           normalizedEntry.exampleState = entry.exampleState;
         }
 
+        if (!normalizedEntry.name) {
+          normalizedEntry.name = normalizedEntry.displayTitle || normalizedEntry.title || normalizedEntry.baseName || normalizedEntry.slug || '';
+        }
+
+        const sizeBytes =
+          typeof fileSizeValue === 'number' && Number.isFinite(fileSizeValue)
+            ? fileSizeValue
+            : parseFileSizeLabel(fileSizeLabel);
+        if (Number.isFinite(sizeBytes)) {
+          normalizedEntry.fileSizeBytes = sizeBytes;
+        }
+
+        normalizedEntry.createdAtTime = Date.parse(createdAtValue) || 0;
+
         return normalizedEntry;
       })
       .filter(entry => entry.slug && entry.svgUrl);
@@ -1985,11 +2151,6 @@
 
   function applyArchiveEntries(entries, metadata) {
     allEntries = Array.isArray(entries) ? entries.slice() : [];
-    allEntries.sort((a, b) => {
-      const aTime = Date.parse(a.createdAt || '') || 0;
-      const bTime = Date.parse(b.createdAt || '') || 0;
-      return bTime - aTime;
-    });
 
     updateFilterOptions();
     applyStorageNote(metadata);
@@ -2036,6 +2197,12 @@
   if (filterSelect) {
     filterSelect.addEventListener('change', () => {
       render();
+    });
+  }
+
+  if (sortSelect) {
+    sortSelect.addEventListener('change', () => {
+      render({ announceSort: true });
     });
   }
 
