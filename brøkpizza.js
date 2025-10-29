@@ -18,6 +18,14 @@ const LEGACY_PIZZA_COLORS = {
   handle: '#e9e6f7',
   handleStroke: '#333333'
 };
+const FRACTION_GROUP_ID = 'fractions';
+const LEGACY_PIZZA_PALETTE = [
+  LEGACY_PIZZA_COLORS.fill,
+  LEGACY_PIZZA_COLORS.rim,
+  LEGACY_PIZZA_COLORS.dash,
+  LEGACY_PIZZA_COLORS.handle,
+  LEGACY_PIZZA_COLORS.handleStroke
+];
 function resolveDragHandleIcon() {
   if (typeof document === 'undefined') {
     return 'images/draggable.svg';
@@ -47,11 +55,256 @@ function getThemeApi() {
   const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
   return theme && typeof theme === 'object' ? theme : null;
 }
+function getPaletteApi() {
+  const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+  if (!scope || typeof scope !== 'object') return null;
+  const api = scope.MathVisualsPalette;
+  return api && typeof api.getGroupPalette === 'function' ? api : null;
+}
+
+function getGroupPaletteHelper() {
+  const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+  if (!scope || typeof scope !== 'object') return null;
+  const helper = scope.MathVisualsGroupPalette;
+  return helper && typeof helper.resolve === 'function' ? helper : null;
+}
+
+function getSettingsApi() {
+  if (typeof window === 'undefined') return null;
+  const api = window.MathVisualsSettings;
+  return api && typeof api === 'object' ? api : null;
+}
+
+function getActiveThemeProjectName(theme = getThemeApi()) {
+  if (!theme || typeof theme.getActiveProfileName !== 'function') return null;
+  try {
+    const value = theme.getActiveProfileName();
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim().toLowerCase();
+    }
+  } catch (_) {}
+  return null;
+}
+
+function resolvePaletteProjectName() {
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (doc && doc.documentElement) {
+    const root = doc.documentElement;
+    const activeAttr = root.getAttribute('data-mv-active-project');
+    if (typeof activeAttr === 'string' && activeAttr.trim()) {
+      return activeAttr.trim().toLowerCase();
+    }
+    const profileAttr = root.getAttribute('data-theme-profile');
+    if (typeof profileAttr === 'string' && profileAttr.trim()) {
+      return profileAttr.trim().toLowerCase();
+    }
+  }
+  const activeThemeProject = getActiveThemeProjectName();
+  if (activeThemeProject) return activeThemeProject;
+  const settings = getSettingsApi();
+  if (settings && typeof settings.getActiveProject === 'function') {
+    try {
+      const value = settings.getActiveProject();
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim().toLowerCase();
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+function sanitizePalette(values) {
+  if (!Array.isArray(values)) return [];
+  const sanitized = [];
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    sanitized.push(trimmed);
+  }
+  return sanitized;
+}
+
+function ensurePaletteSize(basePalette, fallbackPalette, count) {
+  const base = sanitizePalette(basePalette);
+  const fallback = sanitizePalette(fallbackPalette);
+  const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : base.length || fallback.length || 0;
+  if (target <= 0) {
+    return base.length ? base.slice() : fallback.slice();
+  }
+  const result = [];
+  for (let index = 0; index < target; index += 1) {
+    const primary = base[index];
+    if (typeof primary === 'string' && primary) {
+      result.push(primary);
+      continue;
+    }
+    if (fallback.length) {
+      const fallbackColor = fallback[index % fallback.length];
+      if (typeof fallbackColor === 'string' && fallbackColor) {
+        result.push(fallbackColor);
+        continue;
+      }
+    }
+    if (base.length) {
+      const cycled = base[index % base.length];
+      if (typeof cycled === 'string' && cycled) {
+        result.push(cycled);
+      }
+    }
+  }
+  if (!result.length && fallback.length) {
+    result.push(fallback[0]);
+  }
+  return result;
+}
+
+function tryResolvePalette(resolver) {
+  try {
+    const palette = resolver();
+    return Array.isArray(palette) ? sanitizePalette(palette) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function getFractionPalette(count) {
+  const paletteApi = getPaletteApi();
+  const settings = getSettingsApi();
+  const helper = getGroupPaletteHelper();
+  const theme = getThemeApi();
+  const project = resolvePaletteProjectName();
+  const fallback = LEGACY_PIZZA_PALETTE.slice();
+  const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : fallback.length;
+
+  if (paletteApi) {
+    const palette = tryResolvePalette(() =>
+      paletteApi.getGroupPalette(FRACTION_GROUP_ID, {
+        project: project || undefined,
+        count: target || undefined
+      })
+    );
+    if (palette && palette.length) {
+      return ensurePaletteSize(palette, fallback, target);
+    }
+  }
+
+  if (settings && typeof settings.getGroupPalette === 'function') {
+    let palette = tryResolvePalette(() =>
+      settings.getGroupPalette(FRACTION_GROUP_ID, {
+        project: project || undefined,
+        count: target || undefined
+      })
+    );
+    if ((!palette || palette.length < target) && settings.getGroupPalette.length >= 3) {
+      palette = tryResolvePalette(() =>
+        settings.getGroupPalette(
+          FRACTION_GROUP_ID,
+          target || undefined,
+          project ? { project } : undefined
+        )
+      );
+    }
+    if (palette && palette.length) {
+      return ensurePaletteSize(palette, fallback, target);
+    }
+  }
+
+  if (helper) {
+    const palette = tryResolvePalette(() =>
+      helper.resolve({
+        groupId: FRACTION_GROUP_ID,
+        count: target || undefined,
+        project: project || undefined,
+        fallback,
+        legacyPaletteId: 'fractions',
+        fallbackKinds: ['figures']
+      })
+    );
+    if (palette && palette.length) {
+      return ensurePaletteSize(palette, fallback, target);
+    }
+  }
+
+  if (theme && typeof theme.getGroupPalette === 'function') {
+    let palette = tryResolvePalette(() =>
+      theme.getGroupPalette(FRACTION_GROUP_ID, {
+        project: project || undefined,
+        count: target || undefined
+      })
+    );
+    if ((!palette || palette.length < target) && theme.getGroupPalette.length >= 3) {
+      palette = tryResolvePalette(() =>
+        theme.getGroupPalette(
+          FRACTION_GROUP_ID,
+          target || undefined,
+          project ? { project } : undefined
+        )
+      );
+    }
+    if (palette && palette.length) {
+      return ensurePaletteSize(palette, fallback, target);
+    }
+  }
+
+  if (theme && typeof theme.getPalette === 'function') {
+    const palette = tryResolvePalette(() =>
+      theme.getPalette('fractions', target || fallback.length, {
+        fallbackKinds: ['figures'],
+        project: project || undefined
+      })
+    );
+    if (palette && palette.length) {
+      return ensurePaletteSize(palette, fallback, target);
+    }
+  }
+
+  return ensurePaletteSize([], fallback, target);
+}
+
+function getPizzaColors() {
+  const palette = getFractionPalette(LEGACY_PIZZA_PALETTE.length);
+  const [fill, rim, dash, handle, handleStroke] = palette;
+  return {
+    fill: typeof fill === 'string' && fill ? fill : getThemeColor('pizza.fill', LEGACY_PIZZA_COLORS.fill),
+    rim: typeof rim === 'string' && rim ? rim : getThemeColor('pizza.rim', LEGACY_PIZZA_COLORS.rim),
+    dash: typeof dash === 'string' && dash ? dash : getThemeColor('pizza.dash', LEGACY_PIZZA_COLORS.dash),
+    handle: typeof handle === 'string' && handle ? handle : getThemeColor('pizza.handle', LEGACY_PIZZA_COLORS.handle),
+    handleStroke:
+      typeof handleStroke === 'string' && handleStroke
+        ? handleStroke
+        : getThemeColor('pizza.handleStroke', LEGACY_PIZZA_COLORS.handleStroke)
+  };
+}
+
+function applyPizzaColors() {
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (!doc || !doc.documentElement) return;
+  const root = doc.documentElement;
+  const style = root.style;
+  const colors = getPizzaColors();
+  const entries = [
+    ['--pizza-fill', colors.fill],
+    ['--pizza-rim', colors.rim],
+    ['--pizza-dash', colors.dash],
+    ['--pizza-handle', colors.handle],
+    ['--pizza-handle-stroke', colors.handleStroke]
+  ];
+  entries.forEach(([cssVar, value]) => {
+    if (typeof value === 'string' && value) {
+      style.setProperty(cssVar, value);
+    } else {
+      style.removeProperty(cssVar);
+    }
+  });
+}
+
 function applyThemeToDocument() {
   const theme = getThemeApi();
   if (theme && typeof theme.applyToDocument === 'function') {
     theme.applyToDocument(document);
   }
+  applyPizzaColors();
 }
 function getThemeColor(token, fallback) {
   const theme = getThemeApi();
@@ -874,22 +1127,20 @@ class Pizza {
    SVG-eksport – stil
    ======================= */
 function getExportSvgStyle() {
-  const fill = getThemeColor('pizza.fill', LEGACY_PIZZA_COLORS.fill);
-  const rim = getThemeColor('pizza.rim', LEGACY_PIZZA_COLORS.rim);
-  const dash = getThemeColor('pizza.dash', LEGACY_PIZZA_COLORS.dash);
+  const colors = getPizzaColors();
   return `
-.rim{fill:none;stroke:${rim};stroke-width:6}
+.rim{fill:none;stroke:${colors.rim};stroke-width:6}
 .sector{stroke:#fff;stroke-width:6}
-.sector-fill{fill:${fill}}
+.sector-fill{fill:${colors.fill}}
 .sector-empty{fill:#fff}
-.dash{stroke:${dash};stroke-dasharray:4 4;stroke-width:2}
+.dash{stroke:${colors.dash};stroke-dasharray:4 4;stroke-width:2}
 .handle{cursor:grab}
 .handle.is-grabbing{cursor:grabbing}
 .a11y:focus{outline:none;stroke:#1e88e5;stroke-width:3}
 .btn{fill:#fff;stroke:#cfcfcf;stroke-width:1;cursor:pointer}
 .btnLabel{font-size:18px;dominant-baseline:middle;text-anchor:middle;pointer-events:none}
 .meta, .fracNum, .fracDen{font-size:22px;text-anchor:middle}
-.fracLine{stroke:${dash};stroke-width:2}
+.fracLine{stroke:${colors.dash};stroke-width:2}
 `;
 }
 const INTERACTIVE_SVG_SCRIPT = `
@@ -1934,15 +2185,36 @@ function applyExamplesConfig() {
   applySimpleConfigToInputs();
   initFromHtml();
 }
+
+function handleThemePaletteChanged() {
+  applyThemeToDocument();
+  if (typeof window !== 'undefined' && typeof window.render === 'function') {
+    window.render();
+  }
+}
+
+function handleThemeProfileMessage(event) {
+  const data = event && event.data;
+  const type = typeof data === 'string' ? data : data && data.type;
+  if (type !== 'math-visuals:profile-change') return;
+  handleThemePaletteChanged();
+}
+
+function handleThemeProfileChangeEvent(event) {
+  if (!event || event.type !== 'math-visuals:profile-change') return;
+  handleThemePaletteChanged();
+}
+
+function handleThemeSettingsChanged(event) {
+  if (!event || event.type !== 'math-visuals:settings-changed') return;
+  handleThemePaletteChanged();
+}
 if (typeof window !== 'undefined') {
   window.applyConfig = applyExamplesConfig;
   window.render = applyExamplesConfig;
   if (typeof window.addEventListener === 'function') {
-    window.addEventListener('message', event => {
-      const data = event && event.data;
-      const type = typeof data === 'string' ? data : data && data.type;
-      if (type !== 'math-visuals:profile-change') return;
-      applyThemeToDocument();
-    });
+    window.addEventListener('message', handleThemeProfileMessage);
+    window.addEventListener('math-visuals:profile-change', handleThemeProfileChangeEvent);
+    window.addEventListener('math-visuals:settings-changed', handleThemeSettingsChanged);
   }
 }
