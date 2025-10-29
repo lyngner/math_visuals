@@ -5,7 +5,59 @@ const gridEl = document.querySelector('[data-grid]');
 const emptyEl = document.querySelector('[data-empty]');
 const filterInput = document.querySelector('[data-filter]');
 const countEl = document.querySelector('[data-count]');
+const categoryGrid = document.querySelector('[data-category-grid]');
 const copyFeedbackTimers = new WeakMap();
+
+const categories = [
+  {
+    id: 'tierbrett',
+    label: 'Tierbrett',
+    filter: 'tb',
+    sampleSlug: 'tb10',
+    sampleAlt: 'Eksempel på tierbrett',
+    description: 'Tierbrett med markører som representerer antall.',
+    matches: (slug) => slug.startsWith('tb'),
+  },
+  {
+    id: 'tallbrikker',
+    label: 'Tallbrikker',
+    filter: 'n',
+    sampleSlug: 'n53',
+    sampleAlt: 'Eksempel på tallbrikker',
+    description: 'Tallbrikker som viser grupperte mengder.',
+    matches: (slug) => slug.startsWith('n'),
+  },
+  {
+    id: 'penger',
+    label: 'Penger',
+    filter: 'v',
+    sampleSlug: 'v50',
+    sampleAlt: 'Eksempel på penger',
+    description: 'Sedler og mynter til arbeid med kroner og øre.',
+    matches: (slug) => slug.startsWith('v'),
+  },
+  {
+    id: 'terninger',
+    label: 'Terninger',
+    filter: 'd',
+    sampleSlug: 'd5',
+    sampleAlt: 'Eksempel på terninger',
+    description: 'Terninger for sannsynlighet og telling.',
+    matches: (slug) => slug.startsWith('d'),
+  },
+  {
+    id: 'hender',
+    label: 'Hender',
+    filter: 'h',
+    sampleSlug: 'h05G',
+    sampleAlt: 'Eksempel på tellehender',
+    description: 'Hender som viser fingre for tallrepresentasjon.',
+    matches: (slug) => slug.startsWith('h'),
+  },
+];
+
+const categoryButtons = new Map();
+let activeCategoryId = null;
 
 let figureItems = [];
 let allSlugs = [];
@@ -19,6 +71,7 @@ const observer = 'IntersectionObserver' in window
   : null;
 
 function init() {
+  renderCategories();
   loadManifest();
   filterInput?.addEventListener('input', handleFilterInput);
 }
@@ -42,12 +95,104 @@ async function loadManifest() {
     allSlugs = payload.slugs;
     buildGrid(allSlugs);
     applyFilter('');
+    activeCategoryId = null;
+    updateCategorySelection();
+    updateCategoryCounts();
     updateStatus(allSlugs.length, allSlugs.length, '');
     resultsContainer.hidden = false;
   } catch (error) {
     console.error('Kunne ikke laste manifestet', error);
     statusEl.textContent = 'Kunne ikke laste figurene. Prøv å laste siden på nytt.';
     statusEl.classList.add('error');
+  }
+}
+
+function renderCategories() {
+  if (!categoryGrid) return;
+  categoryGrid.innerHTML = '';
+  categoryButtons.clear();
+
+  const fragment = document.createDocumentFragment();
+  for (const category of categories) {
+    const item = document.createElement('li');
+    item.className = 'categoryItem';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'categoryButton';
+    button.dataset.categoryId = category.id;
+    button.setAttribute('aria-pressed', 'false');
+    button.addEventListener('click', () => handleCategoryClick(category));
+
+    const figure = document.createElement('figure');
+    figure.className = 'categoryFigure';
+
+    const img = document.createElement('img');
+    img.src = `images/amounts/${category.sampleSlug}.svg`;
+    img.alt = category.sampleAlt;
+    img.loading = 'lazy';
+    img.width = 320;
+    img.height = 240;
+    figure.appendChild(img);
+
+    const meta = document.createElement('div');
+    meta.className = 'categoryMeta';
+
+    const title = document.createElement('h3');
+    title.textContent = category.label;
+    meta.appendChild(title);
+
+    const description = document.createElement('p');
+    description.textContent = category.description;
+    meta.appendChild(description);
+
+    const count = document.createElement('span');
+    count.className = 'categoryCount';
+    count.dataset.categoryCount = '';
+    count.textContent = '–';
+    meta.appendChild(count);
+
+    button.appendChild(figure);
+    button.appendChild(meta);
+
+    item.appendChild(button);
+    fragment.appendChild(item);
+
+    categoryButtons.set(category.id, { button, countEl: count, category });
+  }
+
+  categoryGrid.appendChild(fragment);
+}
+
+function handleCategoryClick(category) {
+  if (!filterInput) return;
+  const isActive = activeCategoryId === category.id;
+  if (isActive) {
+    activeCategoryId = null;
+    filterInput.value = '';
+    applyFilter('');
+  } else {
+    activeCategoryId = category.id;
+    filterInput.value = category.filter;
+    applyFilter(category.filter);
+  }
+  updateCategorySelection();
+}
+
+function updateCategorySelection() {
+  for (const { button, category } of categoryButtons.values()) {
+    const isSelected = category.id === activeCategoryId;
+    button.dataset.selected = isSelected ? 'true' : 'false';
+    button.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+  }
+}
+
+function updateCategoryCounts() {
+  for (const { countEl, category } of categoryButtons.values()) {
+    const matchCount = allSlugs.filter(category.matches).length;
+    if (countEl) {
+      countEl.textContent = matchCount === 1 ? '1 figur' : `${matchCount} figurer`;
+    }
   }
 }
 
@@ -170,6 +315,8 @@ function handleIntersection(entries, obs) {
 
 function handleFilterInput(event) {
   const query = event.target.value || '';
+  activeCategoryId = null;
+  updateCategorySelection();
   applyFilter(query);
 }
 
