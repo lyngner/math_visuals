@@ -66,6 +66,7 @@
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const XLINK_NS = 'http://www.w3.org/1999/xlink';
   const baseSize = { width: ruler.offsetWidth, height: ruler.offsetHeight };
+  const RULER_SHADOW_FILTER_ID = 'rulerSvgDropShadow';
   const zeroOffset = { x: 0, y: 0 };
   const CUSTOM_CATEGORY_ID = 'custom';
   const CUSTOM_FIGURE_ID = 'custom';
@@ -1639,9 +1640,15 @@
       ? `<text x="${baselineEndX}" y="${baselineY - 16}" text-anchor="end" class="ruler-svg__unit-label">${escapeHtml(unitSuffix)}</text>`
       : '';
 
+    const shadowFilterId = RULER_SHADOW_FILTER_ID;
     rulerSvg.setAttribute('viewBox', `0 0 ${contentWidth} ${totalHeight}`);
     rulerSvg.innerHTML = `
-      <rect x="0" y="${inset}" width="${contentWidth}" height="${totalHeight - inset * 2}" rx="18" ry="18" class="ruler-svg__background" data-export-background="true" />
+      <defs>
+        <filter id="${shadowFilterId}" x="-20%" y="-20%" width="140%" height="180%">
+          <feDropShadow dx="0" dy="12" stdDeviation="9" flood-color="#0f172a" flood-opacity="0.25" />
+        </filter>
+      </defs>
+      <rect x="0" y="${inset}" width="${contentWidth}" height="${totalHeight - inset * 2}" rx="18" ry="18" filter="url(#${shadowFilterId})" class="ruler-svg__background" data-export-background="true" />
       <line x1="${baselineStartX}" y1="${baselineY}" x2="${baselineEndX}" y2="${baselineY}" class="ruler-svg__baseline" />
       ${minorTickMarkup}
       ${majorTickMarkup}
@@ -2958,7 +2965,6 @@
     if (matrix) {
       group.setAttribute('transform', matrixToString(matrix));
     }
-    group.setAttribute('filter', 'url(#mv-ruler-shadow)');
     group.appendChild(clone);
     return group;
   }
@@ -2990,20 +2996,6 @@
     const style = createSvgElement('style');
     style.textContent = buildExportStyle();
     defs.appendChild(style);
-    const shadow = createSvgElement('filter');
-    shadow.setAttribute('id', 'mv-ruler-shadow');
-    shadow.setAttribute('x', '-20%');
-    shadow.setAttribute('y', '-20%');
-    shadow.setAttribute('width', '140%');
-    shadow.setAttribute('height', '180%');
-    const dropShadow = createSvgElement('feDropShadow');
-    dropShadow.setAttribute('dx', '0');
-    dropShadow.setAttribute('dy', '12');
-    dropShadow.setAttribute('stdDeviation', '9');
-    dropShadow.setAttribute('flood-color', '#0f172a');
-    dropShadow.setAttribute('flood-opacity', '0.25');
-    shadow.appendChild(dropShadow);
-    defs.appendChild(shadow);
     svg.appendChild(defs);
 
     const background = createSvgElement('rect');
