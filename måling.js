@@ -1064,7 +1064,7 @@
     }
 
     const measurementWithoutScale = !!(settings && settings.measurementWithoutScale);
-    let displayMultiplier = spacingMultiplier;
+    let displayMultiplier = Number.isFinite(unitQuantity) && unitQuantity > 0 ? unitQuantity : 1;
 
     if (measurementWithoutScale) {
       let rawDisplayMultiplier = unitQuantity;
