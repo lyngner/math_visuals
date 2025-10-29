@@ -1067,22 +1067,36 @@
     let displayMultiplier = spacingMultiplier;
 
     if (measurementWithoutScale) {
-      let rawDisplayMultiplier = unitQuantity;
-      const sanitizedCurrentLabel = sanitizeUnitLabel(settings.unitLabel, settings.unitLabel);
       const cachedWithScaleLabel =
         appState && appState.unitLabelCache && appState.unitLabelCache.withScale
           ? sanitizeUnitLabel(appState.unitLabelCache.withScale, appState.unitLabelCache.withScale)
           : '';
-      if (sanitizedCurrentLabel && cachedWithScaleLabel && sanitizedCurrentLabel === cachedWithScaleLabel) {
-        const { desiredDenominator } = resolveScaleInfo(settings);
-        const scaleMultiplier =
-          Number.isFinite(desiredDenominator) && desiredDenominator > 0 ? desiredDenominator : 1;
-        if (Number.isFinite(scaleMultiplier) && scaleMultiplier > 0) {
-          rawDisplayMultiplier = unitQuantity / scaleMultiplier;
-        }
+      const referenceInfo = resolveUnitLabelInfo(cachedWithScaleLabel);
+      const referenceQuantity =
+        Number.isFinite(referenceInfo.quantity) && referenceInfo.quantity > 0 ? referenceInfo.quantity : 1;
+      const referenceBaseFactor =
+        referenceInfo.baseFactor != null && Number.isFinite(referenceInfo.baseFactor) && referenceInfo.baseFactor > 0
+          ? referenceInfo.baseFactor
+          : null;
+      const { desiredDenominator } = resolveScaleInfo(settings);
+      const scaleMultiplier =
+        Number.isFinite(desiredDenominator) && desiredDenominator > 0 ? desiredDenominator : 1;
+      let realWorldMultiplier =
+        referenceBaseFactor != null ? referenceQuantity * referenceBaseFactor : Number.NaN;
+      if (!Number.isFinite(realWorldMultiplier) || realWorldMultiplier <= 0) {
+        realWorldMultiplier = displayMultiplier * scaleMultiplier;
       }
-      if (Number.isFinite(rawDisplayMultiplier) && rawDisplayMultiplier > 0) {
-        displayMultiplier = rawDisplayMultiplier;
+      if (!Number.isFinite(realWorldMultiplier) || realWorldMultiplier <= 0) {
+        realWorldMultiplier = UNIT_TO_CENTIMETERS[DEFAULT_UNIT_KEY] * scaleMultiplier;
+      }
+      const spacingCandidate = realWorldMultiplier / scaleMultiplier;
+      if (Number.isFinite(realWorldMultiplier) && realWorldMultiplier > 0) {
+        displayMultiplier = realWorldMultiplier;
+      }
+      if (Number.isFinite(spacingCandidate) && spacingCandidate > 0) {
+        spacingMultiplier = spacingCandidate;
+      } else if (Number.isFinite(displayMultiplier) && displayMultiplier > 0) {
+        spacingMultiplier = displayMultiplier;
       }
     }
 
@@ -1161,21 +1175,6 @@
     const scaleAdjustment = Number.isFinite(scaleAdjustmentRaw) && scaleAdjustmentRaw > 0 ? scaleAdjustmentRaw : 1;
     width = naturalWidth * scaleAdjustment;
     height = naturalHeight * scaleAdjustment;
-
-    if (settings && settings.measurementWithoutScale) {
-      const cachedWithScaleLabel =
-        appState && appState.unitLabelCache ? appState.unitLabelCache.withScale : '';
-      const referenceLabel = sanitizeUnitLabel(cachedWithScaleLabel, cachedWithScaleLabel);
-      const currentLabel = sanitizeUnitLabel(settings.unitLabel, settings.unitLabel);
-      if (referenceLabel && currentLabel && referenceLabel === currentLabel) {
-        const scaleMultiplier = Number.isFinite(desiredScaleDenominator) && desiredScaleDenominator > 0
-          ? desiredScaleDenominator
-          : 1;
-        if (Number.isFinite(scaleMultiplier) && scaleMultiplier > 0 && scaleMultiplier !== 1) {
-          unitSpacingPx /= scaleMultiplier;
-        }
-      }
-    }
 
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
       return null;
