@@ -48,6 +48,23 @@
       return null;
     }
   }
+  function flattenStoredPalette(palette) {
+    if (Array.isArray(palette)) {
+      return palette.map(sanitizeUserColor).filter(Boolean);
+    }
+    if (!palette || typeof palette !== 'object') return [];
+    const colors = [];
+    DEFAULT_PALETTE_GROUPS.forEach(groupId => {
+      const values = Array.isArray(palette[groupId]) ? palette[groupId] : [];
+      values.forEach(color => {
+        const sanitized = sanitizeUserColor(color);
+        if (sanitized) {
+          colors.push(sanitized);
+        }
+      });
+    });
+    return colors;
+  }
   const GROUP_FALLBACKS = {
     graftegner: ['figures', 'fractions'],
     nkant: ['figures', 'fractions'],
@@ -62,6 +79,20 @@
     figurtall: ['figures', 'fractions'],
     default: ['fractions', 'figures']
   };
+  const DEFAULT_PALETTE_GROUPS = [
+    'graftegner',
+    'nkant',
+    'diagram',
+    'fractions',
+    'figurtall',
+    'arealmodell',
+    'tallinje',
+    'kvikkbilder',
+    'trefigurer',
+    'brokvegg',
+    'prikktilprikk',
+    'extra'
+  ];
   const campusProfileBase = {
     palettes: {
       fractions: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
@@ -266,15 +297,15 @@
     if (stored && typeof stored === 'object') {
       if (project && stored.projects && typeof stored.projects === 'object') {
         const projectSettings = stored.projects[project];
-        if (projectSettings && Array.isArray(projectSettings.defaultColors)) {
-          const sanitized = projectSettings.defaultColors.map(sanitizeUserColor).filter(Boolean);
+        if (projectSettings && projectSettings.defaultColors != null) {
+          const sanitized = flattenStoredPalette(projectSettings.defaultColors);
           if (sanitized.length) {
             return ensurePalette(sanitized, count);
           }
         }
       }
-      if (Array.isArray(stored.defaultColors)) {
-        const sanitized = stored.defaultColors.map(sanitizeUserColor).filter(Boolean);
+      if (stored.defaultColors != null) {
+        const sanitized = flattenStoredPalette(stored.defaultColors);
         if (sanitized.length) {
           return ensurePalette(sanitized, count);
         }

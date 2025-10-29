@@ -25,21 +25,22 @@
     campus: 'Campus',
     annet: 'Annet'
   };
-  const PROJECT_FALLBACKS = {
+  const EXTRA_GROUP_ID = 'extra';
+  const PROJECT_FALLBACK_BASE = {
     kikora: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
     campus: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
     annet: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
-    default: ['#1F4DE2', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b']
+    default: ['#1F4DE2', '#475569', '#EF4444', '#0EA5E9', '#10B981', '#F59E0B']
   };
   const COLOR_SLOT_GROUPS = [
     {
-      id: 'graftegner',
+      groupId: 'graftegner',
       title: 'Graftegner',
       description: 'Standardfarge for nye grafer og funksjoner.',
       slots: [{ index: 0, label: 'Graf', description: 'Brukes for grafer og koordinatsystem.' }]
     },
     {
-      id: 'nkant',
+      groupId: 'nkant',
       title: 'nKant',
       description: 'Farger for linjer, vinkler og fyll i nKant.',
       slots: [
@@ -49,7 +50,7 @@
       ]
     },
     {
-      id: 'diagram',
+      groupId: 'diagram',
       title: 'Diagram',
       description: 'Standardfarger for stolpe- og sektordiagram.',
       slots: [
@@ -65,7 +66,7 @@
       ]
     },
     {
-      id: 'fractions',
+      groupId: 'fractions',
       title: 'Brøk og tenkeblokker',
       description: 'Farger for linjer og fyll i brøkmodeller og tenkeblokker.',
       slots: [
@@ -74,7 +75,7 @@
       ]
     },
     {
-      id: 'figurtall',
+      groupId: 'figurtall',
       title: 'Figurtall',
       description: 'Seks standardfarger for figurer i mønstre.',
       slots: [
@@ -87,7 +88,7 @@
       ]
     },
     {
-      id: 'arealmodell',
+      groupId: 'arealmodell',
       title: 'Arealmodell',
       description: 'Farger for rutene i arealmodellen.',
       slots: [
@@ -98,7 +99,7 @@
       ]
     },
     {
-      id: 'tallinje',
+      groupId: 'tallinje',
       title: 'Tallinje',
       description: 'Standardfarger for tallinjen.',
       slots: [
@@ -107,13 +108,13 @@
       ]
     },
     {
-      id: 'kvikkbilder',
+      groupId: 'kvikkbilder',
       title: 'Kvikkbilder',
       description: 'Fyllfargen i kvikkbilder.',
       slots: [{ index: 27, label: 'Fyll', description: 'Brukes på figurer i kvikkbilder.' }]
     },
     {
-      id: 'trefigurer',
+      groupId: 'trefigurer',
       title: '3D-figurer',
       description: 'Standardfarger for romfigurer.',
       slots: [
@@ -122,7 +123,7 @@
       ]
     },
     {
-      id: 'brokvegg',
+      groupId: 'brokvegg',
       title: 'Brøkvegg',
       description: 'Farger for nivåene i brøkveggen.',
       slots: [
@@ -135,7 +136,7 @@
       ]
     },
     {
-      id: 'prikktilprikk',
+      groupId: 'prikktilprikk',
       title: 'Prikk til prikk',
       description: 'Farger for punkter og linjer i prikk til prikk.',
       slots: [
@@ -144,8 +145,41 @@
       ]
     }
   ];
+  COLOR_SLOT_GROUPS.forEach(group => {
+    const normalized = typeof group.groupId === 'string' ? group.groupId.trim().toLowerCase() : '';
+    group.groupId = normalized || 'gruppe';
+    group.slots = Array.isArray(group.slots)
+      ? group.slots.map((slot, slotIndex) => ({
+          index: Number.isInteger(slot && slot.index) ? Number(slot.index) : slotIndex,
+          label: slot && slot.label ? slot.label : `Farge ${slotIndex + 1}`,
+          description: slot ? slot.description : null,
+          groupId: group.groupId,
+          groupIndex: slotIndex
+        }))
+      : [];
+  });
+  const GROUP_IDS = COLOR_SLOT_GROUPS.map(group => group.groupId);
+  const SLOT_META_BY_INDEX = new Map();
+  COLOR_SLOT_GROUPS.forEach(group => {
+    group.slots.forEach(slot => {
+      if (!slot) return;
+      const index = Number(slot.index);
+      if (!Number.isInteger(index) || index < 0) return;
+      SLOT_META_BY_INDEX.set(index, {
+        groupId: group.groupId,
+        groupIndex: Number(slot.groupIndex) || 0
+      });
+    });
+  });
   const MIN_COLOR_SLOTS = COLOR_SLOT_GROUPS.reduce((total, group) => total + group.slots.length, 0);
+  const PROJECT_FALLBACK_BASE_CACHE = new Map();
+  const PROJECT_FALLBACK_GROUP_CACHE = new Map();
   const SLOTS_PER_ROW = 3;
+
+  function normalizeProjectName(name) {
+    if (typeof name !== 'string') return '';
+    return name.trim().toLowerCase();
+  }
 
   const settingsApi = resolveSettingsApi();
   const state = {
@@ -175,83 +209,99 @@
     const map = new Map();
     if (state.persistedColorsByProject && typeof state.persistedColorsByProject.forEach === 'function') {
       state.persistedColorsByProject.forEach((palette, name) => {
-        map.set(name, Array.isArray(palette) ? palette.slice() : []);
+        map.set(name, cloneProjectPalette(palette));
       });
     }
     state.colorsByProject.forEach((palette, name) => {
       if (!map.has(name)) {
-        map.set(name, Array.isArray(palette) ? palette.slice() : []);
+        map.set(name, cloneProjectPalette(palette));
       }
     });
     return map;
   }
 
-  function collectGroupIndices(groupId, projectName) {
-    const indices = new Set();
-    const normalizedGroup = typeof groupId === 'string' ? groupId.trim() : '';
-    if (!normalizedGroup) return indices;
-    if (normalizedGroup === 'extra') {
-      const palette = state.colorsByProject.get(normalizeProjectName(projectName)) || [];
-      for (let index = MIN_COLOR_SLOTS; index < Math.min(palette.length, MAX_COLORS); index += 1) {
-        indices.add(index);
-      }
-      return indices;
+  function collectGroupIndices(groupId) {
+    const groups = new Set();
+    const normalizedGroup = typeof groupId === 'string' ? groupId.trim().toLowerCase() : '';
+    if (!normalizedGroup) return groups;
+    if (normalizedGroup === EXTRA_GROUP_ID) {
+      groups.add(EXTRA_GROUP_ID);
+      return groups;
     }
-    const group = COLOR_SLOT_GROUPS.find(entry => entry.id === normalizedGroup);
-    if (!group) return indices;
-    group.slots.forEach(slot => {
-      if (!slot) return;
-      const idx = Number(slot.index);
-      if (Number.isInteger(idx) && idx >= 0 && idx < MAX_COLORS) {
-        indices.add(idx);
-      }
-    });
-    return indices;
+    const group = COLOR_SLOT_GROUPS.find(entry => entry.groupId === normalizedGroup);
+    if (!group) return groups;
+    groups.add(group.groupId);
+    return groups;
   }
 
   function buildProjectColorsForSave(projectName, indices) {
     const map = clonePersistedColorMap();
     const normalizedProject = normalizeProjectName(projectName);
     if (!normalizedProject) return map;
-    const targetIndices = indices instanceof Set ? indices : new Set(indices || []);
-    if (!targetIndices.size) return map;
-    const editingPalette = state.colorsByProject.get(normalizedProject) || [];
-    const base = map.get(normalizedProject) || [];
-    const next = Array.isArray(base) ? base.slice() : [];
-    targetIndices.forEach(index => {
-      if (!Number.isInteger(index) || index < 0 || index >= MAX_COLORS) return;
-      while (next.length <= index && next.length < MAX_COLORS) {
-        next.push(getFallbackColorForIndex(normalizedProject, next.length));
+    const targetGroups = indices instanceof Set ? indices : new Set(indices || []);
+    if (!targetGroups.size) return map;
+    const editingPalette = normalizeProjectPalette(
+      normalizedProject,
+      state.colorsByProject.get(normalizedProject) || getProjectFallbackPalette(normalizedProject)
+    );
+    const base = map.get(normalizedProject) || getProjectFallbackPalette(normalizedProject);
+    const next = cloneProjectPalette(base);
+    targetGroups.forEach(groupId => {
+      if (groupId === EXTRA_GROUP_ID) {
+        const extraSource = Array.isArray(editingPalette[EXTRA_GROUP_ID]) ? editingPalette[EXTRA_GROUP_ID] : [];
+        next[EXTRA_GROUP_ID] = extraSource.slice(0, Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS));
+        return;
       }
-      const current = editingPalette[index];
-      const sanitized =
-        typeof current === 'string' && current
-          ? sanitizeColor(current) || getFallbackColorForIndex(normalizedProject, index)
-          : getFallbackColorForIndex(normalizedProject, index);
-      next[index] = sanitized;
+      const group = COLOR_SLOT_GROUPS.find(entry => entry.groupId === groupId);
+      if (!group) return;
+      const source = Array.isArray(editingPalette[group.groupId]) ? editingPalette[group.groupId] : [];
+      next[group.groupId] = group.slots.map((slot, slotIndex) => {
+        const color = source[slotIndex];
+        const fallback = getFallbackColorForIndex(normalizedProject, slot.index);
+        return sanitizeColor(color) || fallback;
+      });
     });
     map.set(normalizedProject, next);
     return map;
   }
 
-  function captureUnsavedChanges(excludedProject, excludedIndices) {
+  function captureUnsavedChanges(excludedProject, excludedGroups) {
     const excludedName = normalizeProjectName(excludedProject);
-    const excludedSet = excludedIndices instanceof Set ? excludedIndices : new Set();
+    const excludedSet = excludedGroups instanceof Set ? excludedGroups : new Set();
     const changes = new Map();
     state.colorsByProject.forEach((palette, project) => {
       const normalizedProject = normalizeProjectName(project);
-      if (!normalizedProject || !Array.isArray(palette)) return;
-      const persisted = state.persistedColorsByProject.get(normalizedProject) || [];
-      const limit = Math.min(Math.max(palette.length, persisted.length), MAX_COLORS);
+      if (!normalizedProject) return;
+      const currentPalette = normalizeProjectPalette(normalizedProject, palette);
+      const persistedPalette = normalizeProjectPalette(
+        normalizedProject,
+        state.persistedColorsByProject.get(normalizedProject) || getProjectFallbackPalette(normalizedProject)
+      );
       const entries = new Map();
-      for (let index = 0; index < limit; index += 1) {
-        if (normalizedProject === excludedName && excludedSet.has(index)) {
-          continue;
+      GROUP_IDS.forEach(groupId => {
+        if (normalizedProject === excludedName && excludedSet.has(groupId)) return;
+        const currentGroup = Array.isArray(currentPalette[groupId]) ? currentPalette[groupId] : [];
+        const baselineGroup = Array.isArray(persistedPalette[groupId]) ? persistedPalette[groupId] : [];
+        const diff = [];
+        let hasDiff = false;
+        const limit = Math.max(currentGroup.length, baselineGroup.length);
+        for (let index = 0; index < limit; index += 1) {
+          const currentColor = currentGroup[index];
+          const baselineColor = baselineGroup[index];
+          if (typeof currentColor === 'string' && currentColor && currentColor !== baselineColor) {
+            diff[index] = currentColor;
+            hasDiff = true;
+          }
         }
-        const current = palette[index];
-        const baseline = persisted[index];
-        if (typeof current === 'string' && current && current !== baseline) {
-          entries.set(index, current);
+        if (hasDiff) {
+          entries.set(groupId, diff);
+        }
+      });
+      if (!(normalizedProject === excludedName && excludedSet.has(EXTRA_GROUP_ID))) {
+        const currentExtra = Array.isArray(currentPalette[EXTRA_GROUP_ID]) ? currentPalette[EXTRA_GROUP_ID] : [];
+        const baselineExtra = Array.isArray(persistedPalette[EXTRA_GROUP_ID]) ? persistedPalette[EXTRA_GROUP_ID] : [];
+        if (currentExtra.length !== baselineExtra.length || currentExtra.some((color, index) => color !== baselineExtra[index])) {
+          entries.set(EXTRA_GROUP_ID, currentExtra.slice());
         }
       }
       if (entries.size) {
@@ -264,22 +314,41 @@
   function restoreUnsavedChanges(changes) {
     if (!changes || typeof changes.forEach !== 'function') return;
     let shouldSyncActive = false;
-    changes.forEach((indices, project) => {
+    changes.forEach((groups, project) => {
       const normalizedProject = normalizeProjectName(project);
-      if (!normalizedProject || !indices || !indices.size) return;
-      const currentPalette = state.colorsByProject.get(normalizedProject) || [];
-      const next = Array.isArray(currentPalette) ? currentPalette.slice() : [];
-      indices.forEach((value, index) => {
-        if (!Number.isInteger(index) || index < 0 || index >= MAX_COLORS) return;
-        while (next.length <= index && next.length < MAX_COLORS) {
-          next.push(getFallbackColorForIndex(normalizedProject, next.length));
+      if (!normalizedProject || !groups || typeof groups.forEach !== 'function') return;
+      const currentPalette = normalizeProjectPalette(
+        normalizedProject,
+        state.colorsByProject.get(normalizedProject) || getProjectFallbackPalette(normalizedProject)
+      );
+      groups.forEach((values, groupId) => {
+        if (groupId === EXTRA_GROUP_ID) {
+          const extraValues = Array.isArray(values) ? values : [];
+          const sanitizedExtra = [];
+          for (let index = 0; index < extraValues.length && MIN_COLOR_SLOTS + sanitizedExtra.length < MAX_COLORS; index += 1) {
+            const clean = sanitizeColor(extraValues[index]);
+            if (clean) {
+              sanitizedExtra.push(clean);
+            }
+          }
+          currentPalette[EXTRA_GROUP_ID] = sanitizedExtra;
+          return;
         }
-        const sanitized = sanitizeColor(value) || getFallbackColorForIndex(normalizedProject, index);
-        next[index] = sanitized;
+        const group = COLOR_SLOT_GROUPS.find(entry => entry.groupId === groupId);
+        if (!group) return;
+        const incoming = Array.isArray(values) ? values : [];
+        const target = Array.isArray(currentPalette[groupId]) ? currentPalette[groupId].slice() : [];
+        group.slots.forEach((slot, slotIndex) => {
+          const nextColor = incoming[slotIndex];
+          if (typeof nextColor === 'string' && nextColor) {
+            target[slotIndex] = sanitizeColor(nextColor) || target[slotIndex] || getFallbackColorForIndex(normalizedProject, slot.index);
+          }
+        });
+        currentPalette[groupId] = target;
       });
-      state.colorsByProject.set(normalizedProject, next.slice());
+      state.colorsByProject.set(normalizedProject, cloneProjectPalette(currentPalette));
       if (normalizedProject === state.activeProject) {
-        commitActiveColors(next, normalizedProject);
+        commitActiveColors(currentPalette, normalizedProject);
         shouldSyncActive = true;
       }
     });
@@ -292,23 +361,44 @@
     const normalizedId = typeof groupId === 'string' ? groupId.trim() : '';
     if (!normalizedId) return;
     const activeProject = ensureActiveProject();
-    const indices = collectGroupIndices(normalizedId, activeProject);
-    if (!indices.size) {
+    const groups = collectGroupIndices(normalizedId);
+    if (!groups.size) {
       const emptyLabel = groupTitle && groupTitle.trim() ? groupTitle.trim() : 'gruppen';
       setStatus(`Ingen endringer å lagre for ${emptyLabel}.`, 'info');
       return;
     }
-    const editingPalette = state.colorsByProject.get(activeProject) || [];
-    const persistedPalette = state.persistedColorsByProject.get(activeProject) || [];
+    const editingPalette = normalizeProjectPalette(
+      activeProject,
+      state.colorsByProject.get(activeProject) || getProjectFallbackPalette(activeProject)
+    );
+    const persistedPalette = normalizeProjectPalette(
+      activeProject,
+      state.persistedColorsByProject.get(activeProject) || getProjectFallbackPalette(activeProject)
+    );
     let hasChanges = false;
-    indices.forEach(index => {
+    groups.forEach(groupKey => {
       if (hasChanges) return;
-      const current = editingPalette[index];
-      const baseline = persistedPalette[index];
-      if (typeof current === 'string' && current && current !== baseline) {
-        hasChanges = true;
-      } else if (current && baseline == null) {
-        hasChanges = true;
+      if (groupKey === EXTRA_GROUP_ID) {
+        const currentExtra = Array.isArray(editingPalette[EXTRA_GROUP_ID]) ? editingPalette[EXTRA_GROUP_ID] : [];
+        const persistedExtra = Array.isArray(persistedPalette[EXTRA_GROUP_ID]) ? persistedPalette[EXTRA_GROUP_ID] : [];
+        if (
+          currentExtra.length !== persistedExtra.length ||
+          currentExtra.some((color, index) => color !== persistedExtra[index])
+        ) {
+          hasChanges = true;
+        }
+        return;
+      }
+      const group = COLOR_SLOT_GROUPS.find(entry => entry.groupId === groupKey);
+      if (!group) return;
+      const currentGroup = Array.isArray(editingPalette[groupKey]) ? editingPalette[groupKey] : [];
+      const persistedGroup = Array.isArray(persistedPalette[groupKey]) ? persistedPalette[groupKey] : [];
+      const limit = Math.max(currentGroup.length, persistedGroup.length);
+      for (let index = 0; index < limit; index += 1) {
+        if ((currentGroup[index] || '') !== (persistedGroup[index] || '')) {
+          hasChanges = true;
+          break;
+        }
       }
     });
     if (!hasChanges) {
@@ -317,8 +407,8 @@
       return;
     }
     const label = groupTitle && groupTitle.trim() ? groupTitle.trim() : 'gruppen';
-    const unsavedChanges = captureUnsavedChanges(activeProject, indices);
-    const colorsForSave = buildProjectColorsForSave(activeProject, indices);
+    const unsavedChanges = captureUnsavedChanges(activeProject, groups);
+    const colorsForSave = buildProjectColorsForSave(activeProject, groups);
     const pendingLineThickness = state.defaultLineThickness;
     const restoreLineThickness = pendingLineThickness !== state.persistedLineThickness;
     setStatus(`Lagrer fargene for ${label}...`, 'info');
@@ -430,6 +520,179 @@
     return `#${hex}`;
   }
 
+  function sanitizeColorList(values, limit = MAX_COLORS) {
+    if (!Array.isArray(values) || !values.length) return [];
+    const result = [];
+    const max = Number.isInteger(limit) && limit > 0 ? limit : MAX_COLORS;
+    for (let index = 0; index < values.length && result.length < max; index += 1) {
+      const sanitized = sanitizeColor(values[index]);
+      if (sanitized) {
+        result.push(sanitized);
+      }
+    }
+    return result;
+  }
+
+  function getSanitizedFallbackBase(project) {
+    const key = normalizeProjectName(project) || 'default';
+    if (PROJECT_FALLBACK_BASE_CACHE.has(key)) {
+      return PROJECT_FALLBACK_BASE_CACHE.get(key).slice();
+    }
+    const base = PROJECT_FALLBACK_BASE[key] || PROJECT_FALLBACK_BASE.default || [];
+    const sanitized = sanitizeColorList(base, MAX_COLORS);
+    if (!sanitized.length) {
+      sanitized.push('#1F4DE2');
+    }
+    PROJECT_FALLBACK_BASE_CACHE.set(key, sanitized.slice());
+    return sanitized.slice();
+  }
+
+  function buildFallbackGroupsFromBase(baseColors) {
+    const sanitized = Array.isArray(baseColors) && baseColors.length ? baseColors : getSanitizedFallbackBase('default');
+    const groups = {};
+    COLOR_SLOT_GROUPS.forEach(group => {
+      groups[group.groupId] = group.slots.map(slot => {
+        const index = Number.isInteger(slot.index) && slot.index >= 0 ? slot.index : 0;
+        return sanitized[index % sanitized.length] || sanitized[0];
+      });
+    });
+    groups[EXTRA_GROUP_ID] = [];
+    return groups;
+  }
+
+  function ensureProjectPaletteShape(palette) {
+    const target = palette && typeof palette === 'object' ? palette : {};
+    GROUP_IDS.forEach(groupId => {
+      if (!Array.isArray(target[groupId])) {
+        target[groupId] = [];
+      }
+    });
+    if (!Array.isArray(target[EXTRA_GROUP_ID])) {
+      target[EXTRA_GROUP_ID] = [];
+    }
+    return target;
+  }
+
+  function cloneProjectPalette(palette) {
+    const shaped = ensureProjectPaletteShape(palette);
+    const copy = {};
+    GROUP_IDS.forEach(groupId => {
+      const source = Array.isArray(shaped[groupId]) ? shaped[groupId] : [];
+      copy[groupId] = source.slice(0, MAX_COLORS);
+    });
+    const extraLimit = Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS);
+    const extraSource = Array.isArray(shaped[EXTRA_GROUP_ID]) ? shaped[EXTRA_GROUP_ID] : [];
+    copy[EXTRA_GROUP_ID] = extraSource.slice(0, extraLimit);
+    return copy;
+  }
+
+  function convertLegacyPalette(project, palette) {
+    if (!Array.isArray(palette) || !palette.length) return {};
+    const sanitized = sanitizeColorList(palette, MAX_COLORS);
+    const converted = {};
+    COLOR_SLOT_GROUPS.forEach(group => {
+      converted[group.groupId] = group.slots.map(slot => {
+        const index = Number.isInteger(slot.index) && slot.index >= 0 ? slot.index : 0;
+        return sanitized[index] || null;
+      });
+    });
+    const extra = [];
+    for (let index = MIN_COLOR_SLOTS; index < sanitized.length && extra.length + MIN_COLOR_SLOTS < MAX_COLORS; index += 1) {
+      if (sanitized[index]) {
+        extra.push(sanitized[index]);
+      }
+    }
+    converted[EXTRA_GROUP_ID] = extra;
+    return converted;
+  }
+
+  function sanitizeProjectPalette(project, palette) {
+    const fallback = getProjectFallbackPalette(project);
+    const fallbackBase = getSanitizedFallbackBase(project);
+    const shaped = ensureProjectPaletteShape(palette);
+    const sanitized = {};
+    COLOR_SLOT_GROUPS.forEach(group => {
+      const fallbackColors = Array.isArray(fallback[group.groupId]) ? fallback[group.groupId] : [];
+      const incoming = Array.isArray(shaped[group.groupId]) ? shaped[group.groupId] : [];
+      sanitized[group.groupId] = group.slots.map((slot, slotIndex) => {
+        const clean = sanitizeColor(incoming[slotIndex]);
+        if (clean) return clean;
+        if (fallbackColors[slotIndex]) return fallbackColors[slotIndex];
+        if (fallbackColors[0]) return fallbackColors[0];
+        if (fallbackBase.length) {
+          const baseIndex = Number.isInteger(slot.index) && slot.index >= 0 ? slot.index : slotIndex;
+          return fallbackBase[baseIndex % fallbackBase.length] || fallbackBase[0];
+        }
+        return '#1F4DE2';
+      });
+    });
+    const extra = Array.isArray(shaped[EXTRA_GROUP_ID]) ? shaped[EXTRA_GROUP_ID] : [];
+    const sanitizedExtra = [];
+    const extraLimit = Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS);
+    for (let index = 0; index < extra.length && sanitizedExtra.length < extraLimit; index += 1) {
+      const clean = sanitizeColor(extra[index]);
+      if (clean) {
+        sanitizedExtra.push(clean);
+      }
+    }
+    sanitized[EXTRA_GROUP_ID] = sanitizedExtra;
+    return sanitized;
+  }
+
+  function normalizeProjectPalette(project, palette) {
+    if (Array.isArray(palette)) {
+      return sanitizeProjectPalette(project, convertLegacyPalette(project, palette));
+    }
+    if (palette && typeof palette === 'object') {
+      return sanitizeProjectPalette(project, palette);
+    }
+    return getProjectFallbackPalette(project);
+  }
+
+  function flattenProjectPalette(project, palette, minimumLength = MIN_COLOR_SLOTS) {
+    const normalized = normalizeProjectPalette(project, palette);
+    const flattened = [];
+    COLOR_SLOT_GROUPS.forEach(group => {
+      const colors = Array.isArray(normalized[group.groupId]) ? normalized[group.groupId] : [];
+      group.slots.forEach((slot, slotIndex) => {
+        const value = colors[slotIndex];
+        flattened.push(value || getFallbackColorForIndex(project, flattened.length));
+      });
+    });
+    const extra = Array.isArray(normalized[EXTRA_GROUP_ID]) ? normalized[EXTRA_GROUP_ID] : [];
+    extra.forEach(color => {
+      if (flattened.length < MAX_COLORS) {
+        const clean = sanitizeColor(color);
+        if (clean) {
+          flattened.push(clean);
+        }
+      }
+    });
+    const min = Number.isInteger(minimumLength) && minimumLength > 0 ? minimumLength : 0;
+    while (flattened.length < min && flattened.length < MAX_COLORS) {
+      flattened.push(getFallbackColorForIndex(project, flattened.length));
+    }
+    return flattened.slice(0, MAX_COLORS);
+  }
+
+  function assignColorToPalette(palette, index, color) {
+    const meta = SLOT_META_BY_INDEX.get(index);
+    if (meta) {
+      if (!Array.isArray(palette[meta.groupId])) {
+        palette[meta.groupId] = [];
+      }
+      palette[meta.groupId][meta.groupIndex] = color;
+      return;
+    }
+    const extraIndex = index - MIN_COLOR_SLOTS;
+    if (extraIndex >= 0) {
+      if (!Array.isArray(palette[EXTRA_GROUP_ID])) {
+        palette[EXTRA_GROUP_ID] = [];
+      }
+      palette[EXTRA_GROUP_ID][extraIndex] = color;
+    }
+  }
+
   function clampLineThickness(value) {
     const num = Number.parseFloat(value);
     if (!Number.isFinite(num)) return DEFAULT_LINE_THICKNESS;
@@ -439,21 +702,33 @@
   }
 
   function getProjectFallbackPalette(project) {
-    const key = normalizeProjectName(project);
-    const fallback = PROJECT_FALLBACKS[key] || PROJECT_FALLBACKS.default;
-    return fallback.slice(0, MAX_COLORS);
+    const key = normalizeProjectName(project) || 'default';
+    if (!PROJECT_FALLBACK_GROUP_CACHE.has(key)) {
+      const base = getSanitizedFallbackBase(key);
+      PROJECT_FALLBACK_GROUP_CACHE.set(key, buildFallbackGroupsFromBase(base));
+    }
+    return cloneProjectPalette(PROJECT_FALLBACK_GROUP_CACHE.get(key));
   }
 
   function getFallbackColorForIndex(project, index) {
-    const palette = getProjectFallbackPalette(project);
-    if (!palette.length) return PROJECT_FALLBACKS.default[0];
+    const key = normalizeProjectName(project) || 'default';
+    const baseColors = getSanitizedFallbackBase(key);
+    if (!baseColors.length) return '#1F4DE2';
     const normalizedIndex = Number.isInteger(index) && index >= 0 ? index : 0;
-    return palette[normalizedIndex % palette.length] || palette[0];
-  }
-
-  function normalizeProjectName(name) {
-    if (typeof name !== 'string') return '';
-    return name.trim().toLowerCase();
+    const meta = SLOT_META_BY_INDEX.get(normalizedIndex);
+    if (meta) {
+      if (!PROJECT_FALLBACK_GROUP_CACHE.has(key)) {
+        const base = getSanitizedFallbackBase(key);
+        PROJECT_FALLBACK_GROUP_CACHE.set(key, buildFallbackGroupsFromBase(base));
+      }
+      const groups = PROJECT_FALLBACK_GROUP_CACHE.get(key) || {};
+      const groupColors = groups[meta.groupId] || [];
+      const candidate = groupColors[meta.groupIndex];
+      if (candidate) {
+        return candidate;
+      }
+    }
+    return baseColors[normalizedIndex % baseColors.length] || baseColors[0];
   }
 
   function formatProjectLabel(name) {
@@ -538,15 +813,12 @@
     const normalized = normalizeProjectName(name);
     if (!normalized) return;
     if (!state.colorsByProject.has(normalized)) {
-      const palette = expandPalette(normalized, getProjectFallbackPalette(normalized), MIN_COLOR_SLOTS);
-      state.colorsByProject.set(normalized, palette.slice());
+      const palette = normalizeProjectPalette(normalized, getProjectFallbackPalette(normalized));
+      state.colorsByProject.set(normalized, cloneProjectPalette(palette));
     }
     if (!state.persistedColorsByProject.has(normalized)) {
       const palette = state.colorsByProject.get(normalized);
-      state.persistedColorsByProject.set(
-        normalized,
-        Array.isArray(palette) ? palette.slice() : expandPalette(normalized, getProjectFallbackPalette(normalized), MIN_COLOR_SLOTS)
-      );
+      state.persistedColorsByProject.set(normalized, cloneProjectPalette(palette));
     }
   }
 
@@ -582,41 +854,38 @@
   function getActiveColors(projectName) {
     const project = projectName ? normalizeProjectName(projectName) : ensureActiveProject();
     const palette = state.colorsByProject.get(project);
-    if (Array.isArray(palette) && palette.length) {
-      return palette.slice(0, MAX_COLORS);
+    if (palette) {
+      return cloneProjectPalette(palette);
     }
     return getProjectFallbackPalette(project);
   }
 
   function expandPalette(projectName, basePalette, minimumLength = 0) {
     const project = projectName ? normalizeProjectName(projectName) : ensureActiveProject();
-    const source = Array.isArray(basePalette) ? basePalette : [];
-    const min = Number.isInteger(minimumLength) && minimumLength > 0 ? minimumLength : 0;
-    const limit = Math.min(MAX_COLORS, Math.max(source.length, min));
-    const result = [];
-    for (let index = 0; index < limit; index += 1) {
-      const clean = sanitizeColor(source[index]) || getFallbackColorForIndex(project, index);
-      result.push(clean);
-    }
-    if (!result.length) {
-      result.push(getFallbackColorForIndex(project, 0));
-    }
-    return result;
+    const normalizedPalette = normalizeProjectPalette(project, basePalette);
+    return flattenProjectPalette(project, normalizedPalette, minimumLength);
   }
 
   function commitActiveColors(next, projectName) {
     const project = projectName ? normalizeProjectName(projectName) : ensureActiveProject();
-    const expanded = expandPalette(project, Array.isArray(next) ? next : [], MIN_COLOR_SLOTS);
-    state.colorsByProject.set(project, expanded.slice());
-    colors = expanded.slice();
+    const normalizedPalette = normalizeProjectPalette(project, next);
+    state.colorsByProject.set(project, cloneProjectPalette(normalizedPalette));
+    colors = flattenProjectPalette(project, normalizedPalette, MIN_COLOR_SLOTS);
   }
 
   function ensureColorCapacity(index, projectName) {
     const project = projectName ? normalizeProjectName(projectName) : ensureActiveProject();
     if (!Number.isInteger(index) || index < 0) return;
+    const palette = normalizeProjectPalette(
+      project,
+      state.colorsByProject.get(project) || getProjectFallbackPalette(project)
+    );
     while (colors.length <= index && colors.length < MAX_COLORS) {
-      colors.push(getFallbackColorForIndex(project, colors.length));
+      const fallback = getFallbackColorForIndex(project, colors.length);
+      colors.push(fallback);
+      assignColorToPalette(palette, colors.length - 1, fallback);
     }
+    state.colorsByProject.set(project, cloneProjectPalette(palette));
   }
 
   function updateBindingsForIndex(index, value) {
@@ -638,7 +907,12 @@
     const fallback = getFallbackColorForIndex(project, index);
     const clean = sanitizeColor(value) || fallback;
     colors[index] = clean;
-    state.colorsByProject.set(project, colors.slice());
+    const palette = normalizeProjectPalette(
+      project,
+      state.colorsByProject.get(project) || getProjectFallbackPalette(project)
+    );
+    assignColorToPalette(palette, index, clean);
+    state.colorsByProject.set(project, cloneProjectPalette(palette));
     updateBindingsForIndex(index, clean);
   }
 
@@ -752,7 +1026,7 @@
     extraGroupSaveButton.type = 'button';
     extraGroupSaveButton.className = 'btn btn--inline';
     extraGroupSaveButton.textContent = 'Lagre';
-    extraGroupSaveButton.dataset.saveGroup = 'extra';
+    extraGroupSaveButton.dataset.saveGroup = EXTRA_GROUP_ID;
     extraGroupSaveButton.dataset.groupTitle = 'Ekstra farger';
     extraGroupSaveButton.setAttribute('aria-label', 'Lagre fargene for ekstra farger');
     actions.appendChild(extraGroupSaveButton);
@@ -802,7 +1076,7 @@
       saveButton.type = 'button';
       saveButton.className = 'btn btn--inline';
       saveButton.textContent = 'Lagre';
-      saveButton.dataset.saveGroup = group.id;
+      saveButton.dataset.saveGroup = group.groupId;
       saveButton.dataset.groupTitle = group.title;
       saveButton.setAttribute('aria-label', `Lagre fargene for ${group.title}`);
       actions.appendChild(saveButton);
@@ -915,18 +1189,11 @@
       const normalized = normalizeProjectName(name);
       if (!normalized) return;
       const entry = projects[name];
-      const palette = Array.isArray(entry && entry.defaultColors) ? entry.defaultColors : [];
-      const sanitized = palette
-        .map((value, index) => sanitizeColor(value) || getFallbackColorForIndex(normalized, index))
-        .filter(Boolean)
-        .slice(0, MAX_COLORS);
-      const expanded = expandPalette(
-        normalized,
-        sanitized.length ? sanitized : getProjectFallbackPalette(normalized),
-        MIN_COLOR_SLOTS
-      );
-      state.colorsByProject.set(normalized, expanded);
-      state.persistedColorsByProject.set(normalized, expanded.slice());
+      const paletteData = entry && entry.defaultColors ? entry.defaultColors : getProjectFallbackPalette(normalized);
+      const normalizedPalette = normalizeProjectPalette(normalized, paletteData);
+      const cloned = cloneProjectPalette(normalizedPalette);
+      state.colorsByProject.set(normalized, cloned);
+      state.persistedColorsByProject.set(normalized, cloneProjectPalette(cloned));
       if (!state.projectOrder.includes(normalized)) {
         state.projectOrder.push(normalized);
       }
@@ -936,12 +1203,12 @@
         state.projectOrder.push(name);
       }
       if (!state.colorsByProject.has(name)) {
-        const palette = expandPalette(name, getProjectFallbackPalette(name), MIN_COLOR_SLOTS);
-        state.colorsByProject.set(name, palette.slice());
-        state.persistedColorsByProject.set(name, palette.slice());
+        const palette = getProjectFallbackPalette(name);
+        state.colorsByProject.set(name, cloneProjectPalette(palette));
+        state.persistedColorsByProject.set(name, cloneProjectPalette(palette));
       } else if (!state.persistedColorsByProject.has(name)) {
         const palette = state.colorsByProject.get(name);
-        state.persistedColorsByProject.set(name, Array.isArray(palette) ? palette.slice() : []);
+        state.persistedColorsByProject.set(name, cloneProjectPalette(palette));
       }
     });
     const incomingActiveProject = normalizeProjectName(data.activeProject);
@@ -1010,10 +1277,11 @@
       const normalized = normalizeProjectName(projectName);
       if (!normalized || seenProjects.has(normalized)) return;
       const storedPalette = colorsByProject.get(normalized);
-      const palette = Array.isArray(storedPalette) && storedPalette.length
-        ? storedPalette
-        : getProjectFallbackPalette(normalized);
-      payload.projects[normalized] = { defaultColors: palette.slice(0, MAX_COLORS) };
+      const normalizedPalette = normalizeProjectPalette(
+        normalized,
+        storedPalette || getProjectFallbackPalette(normalized)
+      );
+      payload.projects[normalized] = { defaultColors: cloneProjectPalette(normalizedPalette) };
       payload.projectOrder.push(normalized);
       seenProjects.add(normalized);
     };
@@ -1067,7 +1335,12 @@
       const nextColor =
         getFallbackColorForIndex(project, nextIndex) || colors[nextIndex - 1] || '#1f4de2';
       colors.push(nextColor);
-      state.colorsByProject.set(project, colors.slice());
+      const palette = normalizeProjectPalette(
+        project,
+        state.colorsByProject.get(project) || getProjectFallbackPalette(project)
+      );
+      assignColorToPalette(palette, nextIndex, nextColor);
+      state.colorsByProject.set(project, cloneProjectPalette(palette));
       ensureExtraSlot(nextIndex);
       updateBindingsForIndex(nextIndex, nextColor);
       updateExtraGroupVisibility();

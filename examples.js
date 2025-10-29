@@ -213,7 +213,6 @@
 
   const DEFAULT_LINE_THICKNESS = 3;
   const MAX_COLORS = 48;
-  const MIN_COLOR_SLOTS = 38;
   const FALLBACK_COLORS = [
     '#1F4DE2',
     '#475569',
@@ -234,12 +233,86 @@
     '#FACC15',
     '#F87171'
   ];
-  const PROJECT_FALLBACKS = {
+  const EXTRA_GROUP_ID = 'extra';
+  const PROJECT_FALLBACK_BASE = {
     campus: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
     annet: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
     kikora: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
     default: FALLBACK_COLORS.slice()
   };
+  const COLOR_SLOT_GROUPS = [
+    { groupId: 'graftegner', slots: [{ index: 0 }] },
+    { groupId: 'nkant', slots: [{ index: 1 }, { index: 2 }, { index: 3 }] },
+    {
+      groupId: 'diagram',
+      slots: [
+        { index: 4 },
+        { index: 5 },
+        { index: 6 },
+        { index: 7 },
+        { index: 8 },
+        { index: 9 },
+        { index: 10 },
+        { index: 11 },
+        { index: 12 }
+      ]
+    },
+    { groupId: 'fractions', slots: [{ index: 13 }, { index: 14 }] },
+    {
+      groupId: 'figurtall',
+      slots: [
+        { index: 15 },
+        { index: 16 },
+        { index: 17 },
+        { index: 18 },
+        { index: 19 },
+        { index: 20 }
+      ]
+    },
+    { groupId: 'arealmodell', slots: [{ index: 21 }, { index: 22 }, { index: 23 }, { index: 24 }] },
+    { groupId: 'tallinje', slots: [{ index: 25 }, { index: 26 }] },
+    { groupId: 'kvikkbilder', slots: [{ index: 27 }] },
+    { groupId: 'trefigurer', slots: [{ index: 28 }, { index: 29 }] },
+    {
+      groupId: 'brokvegg',
+      slots: [
+        { index: 30 },
+        { index: 31 },
+        { index: 32 },
+        { index: 33 },
+        { index: 34 },
+        { index: 35 }
+      ]
+    },
+    { groupId: 'prikktilprikk', slots: [{ index: 36 }, { index: 37 }] }
+  ];
+  COLOR_SLOT_GROUPS.forEach(group => {
+    const normalized = typeof group.groupId === 'string' ? group.groupId.trim().toLowerCase() : '';
+    group.groupId = normalized || 'gruppe';
+    group.slots = Array.isArray(group.slots)
+      ? group.slots.map((slot, slotIndex) => ({
+          index: Number.isInteger(slot && slot.index) ? Number(slot.index) : slotIndex,
+          groupId: group.groupId,
+          groupIndex: slotIndex
+        }))
+      : [];
+  });
+  const GROUP_IDS = COLOR_SLOT_GROUPS.map(group => group.groupId);
+  const SLOT_META_BY_INDEX = new Map();
+  COLOR_SLOT_GROUPS.forEach(group => {
+    group.slots.forEach(slot => {
+      if (!slot) return;
+      const index = Number(slot.index);
+      if (!Number.isInteger(index) || index < 0) return;
+      SLOT_META_BY_INDEX.set(index, {
+        groupId: group.groupId,
+        groupIndex: Number(slot.groupIndex) || 0
+      });
+    });
+  });
+  const MIN_COLOR_SLOTS = COLOR_SLOT_GROUPS.reduce((total, group) => total + group.slots.length, 0);
+  const PROJECT_FALLBACK_BASE_CACHE = new Map();
+  const PROJECT_FALLBACK_GROUP_CACHE = new Map();
   const DEFAULT_PROJECT = 'campus';
   const DEFAULT_PROJECT_ORDER = ['campus', 'kikora', 'annet'];
   const SETTINGS_STORAGE_KEY = 'mathVisuals:settings';
@@ -278,21 +351,174 @@
     return out;
   }
 
-  function expandPalette(projectName, basePalette, minimumLength = MIN_COLOR_SLOTS) {
-    const normalized = typeof projectName === 'string' ? projectName.trim().toLowerCase() : '';
-    const sanitized = sanitizeColorList(basePalette);
-    const fallback = PROJECT_FALLBACKS[normalized] || PROJECT_FALLBACKS.default;
+  function normalizeProjectName(name) {
+    if (typeof name !== 'string') return '';
+    return name.trim().toLowerCase();
+  }
+
+  function getSanitizedFallbackBase(project) {
+    const key = normalizeProjectName(project) || 'default';
+    if (PROJECT_FALLBACK_BASE_CACHE.has(key)) {
+      return PROJECT_FALLBACK_BASE_CACHE.get(key).slice();
+    }
+    const base = PROJECT_FALLBACK_BASE[key] || PROJECT_FALLBACK_BASE.default || FALLBACK_COLORS;
+    const sanitized = sanitizeColorList(base);
+    if (!sanitized.length) {
+      sanitized.push(FALLBACK_COLORS[0]);
+    }
+    PROJECT_FALLBACK_BASE_CACHE.set(key, sanitized.slice());
+    return sanitized.slice();
+  }
+
+  function buildFallbackGroupsFromBase(baseColors) {
+    const sanitized = Array.isArray(baseColors) && baseColors.length ? baseColors : getSanitizedFallbackBase('default');
+    const groups = {};
+    COLOR_SLOT_GROUPS.forEach(group => {
+      groups[group.groupId] = group.slots.map(slot => {
+        const index = Number.isInteger(slot.index) && slot.index >= 0 ? slot.index : 0;
+        return sanitized[index % sanitized.length] || sanitized[0];
+      });
+    });
+    groups[EXTRA_GROUP_ID] = [];
+    return groups;
+  }
+
+  function ensureProjectPaletteShape(palette) {
+    const target = palette && typeof palette === 'object' ? palette : {};
+    GROUP_IDS.forEach(groupId => {
+      if (!Array.isArray(target[groupId])) {
+        target[groupId] = [];
+      }
+    });
+    if (!Array.isArray(target[EXTRA_GROUP_ID])) {
+      target[EXTRA_GROUP_ID] = [];
+    }
+    return target;
+  }
+
+  function cloneProjectPalette(palette) {
+    const shaped = ensureProjectPaletteShape(palette);
+    const copy = {};
+    GROUP_IDS.forEach(groupId => {
+      const source = Array.isArray(shaped[groupId]) ? shaped[groupId] : [];
+      copy[groupId] = source.slice(0, MAX_COLORS);
+    });
+    const extraLimit = Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS);
+    const extraSource = Array.isArray(shaped[EXTRA_GROUP_ID]) ? shaped[EXTRA_GROUP_ID] : [];
+    copy[EXTRA_GROUP_ID] = extraSource.slice(0, extraLimit);
+    return copy;
+  }
+
+  function convertLegacyPalette(project, palette) {
+    if (!Array.isArray(palette) || !palette.length) return {};
+    const sanitized = sanitizeColorList(palette);
+    const converted = {};
+    COLOR_SLOT_GROUPS.forEach(group => {
+      converted[group.groupId] = group.slots.map(slot => {
+        const index = Number.isInteger(slot.index) && slot.index >= 0 ? slot.index : 0;
+        return sanitized[index] || null;
+      });
+    });
+    const extra = [];
+    for (let index = MIN_COLOR_SLOTS; index < sanitized.length && extra.length + MIN_COLOR_SLOTS < MAX_COLORS; index += 1) {
+      if (sanitized[index]) {
+        extra.push(sanitized[index]);
+      }
+    }
+    converted[EXTRA_GROUP_ID] = extra;
+    return converted;
+  }
+
+  function getProjectFallbackPalette(project) {
+    const key = normalizeProjectName(project) || 'default';
+    if (!PROJECT_FALLBACK_GROUP_CACHE.has(key)) {
+      const base = getSanitizedFallbackBase(key);
+      PROJECT_FALLBACK_GROUP_CACHE.set(key, buildFallbackGroupsFromBase(base));
+    }
+    return cloneProjectPalette(PROJECT_FALLBACK_GROUP_CACHE.get(key));
+  }
+
+  function sanitizeProjectPalette(project, palette) {
+    const fallback = getProjectFallbackPalette(project);
+    const fallbackBase = getSanitizedFallbackBase(project);
+    const shaped = ensureProjectPaletteShape(palette);
+    const sanitized = {};
+    COLOR_SLOT_GROUPS.forEach(group => {
+      const fallbackColors = Array.isArray(fallback[group.groupId]) ? fallback[group.groupId] : [];
+      const incoming = Array.isArray(shaped[group.groupId]) ? shaped[group.groupId] : [];
+      sanitized[group.groupId] = group.slots.map((slot, slotIndex) => {
+        const clean = sanitizeColor(incoming[slotIndex]);
+        if (clean) return clean;
+        if (fallbackColors[slotIndex]) return fallbackColors[slotIndex];
+        if (fallbackColors[0]) return fallbackColors[0];
+        if (fallbackBase.length) {
+          const baseIndex = Number.isInteger(slot.index) && slot.index >= 0 ? slot.index : slotIndex;
+          return fallbackBase[baseIndex % fallbackBase.length] || fallbackBase[0];
+        }
+        return FALLBACK_COLORS[0];
+      });
+    });
+    const extra = Array.isArray(shaped[EXTRA_GROUP_ID]) ? shaped[EXTRA_GROUP_ID] : [];
+    const sanitizedExtra = [];
+    const extraLimit = Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS);
+    for (let index = 0; index < extra.length && sanitizedExtra.length < extraLimit; index += 1) {
+      const clean = sanitizeColor(extra[index]);
+      if (clean) {
+        sanitizedExtra.push(clean);
+      }
+    }
+    sanitized[EXTRA_GROUP_ID] = sanitizedExtra;
+    return sanitized;
+  }
+
+  function normalizeProjectPalette(project, palette) {
+    const normalized = normalizeProjectName(project);
+    if (Array.isArray(palette)) {
+      return sanitizeProjectPalette(normalized, convertLegacyPalette(normalized, palette));
+    }
+    if (palette && typeof palette === 'object') {
+      return sanitizeProjectPalette(normalized, palette);
+    }
+    return getProjectFallbackPalette(normalized);
+  }
+
+  function flattenProjectPalette(project, palette, minimumLength = MIN_COLOR_SLOTS) {
+    const normalized = normalizeProjectName(project);
+    const normalizedPalette = normalizeProjectPalette(normalized, palette);
+    const flattened = [];
+    COLOR_SLOT_GROUPS.forEach(group => {
+      const colors = Array.isArray(normalizedPalette[group.groupId]) ? normalizedPalette[group.groupId] : [];
+      group.slots.forEach((slot, slotIndex) => {
+        const color = colors[slotIndex];
+        if (color) {
+          flattened.push(color);
+        } else {
+          const fallbackBase = getSanitizedFallbackBase(normalized);
+          const baseIndex = flattened.length;
+          flattened.push(fallbackBase[baseIndex % fallbackBase.length] || fallbackBase[0]);
+        }
+      });
+    });
+    const extra = Array.isArray(normalizedPalette[EXTRA_GROUP_ID]) ? normalizedPalette[EXTRA_GROUP_ID] : [];
+    extra.forEach(color => {
+      if (flattened.length < MAX_COLORS) {
+        const clean = sanitizeColor(color);
+        if (clean) {
+          flattened.push(clean);
+        }
+      }
+    });
     const min = Number.isInteger(minimumLength) && minimumLength > 0 ? minimumLength : 0;
-    const limit = Math.min(MAX_COLORS, Math.max(sanitized.length, min));
-    const result = [];
-    for (let index = 0; index < limit; index += 1) {
-      const color = sanitized[index] || fallback[index % fallback.length] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
-      result.push(color);
+    while (flattened.length < min && flattened.length < MAX_COLORS) {
+      const fallbackBase = getSanitizedFallbackBase(normalized);
+      flattened.push(fallbackBase[flattened.length % fallbackBase.length] || fallbackBase[0]);
     }
-    if (!result.length) {
-      result.push(FALLBACK_COLORS[0]);
-    }
-    return result;
+    return flattened.slice(0, MAX_COLORS);
+  }
+
+  function expandPalette(projectName, basePalette, minimumLength = MIN_COLOR_SLOTS) {
+    const project = projectName ? normalizeProjectName(projectName) : DEFAULT_PROJECT;
+    return flattenProjectPalette(project, basePalette, minimumLength);
   }
 
   function clampLineThickness(value) {
@@ -335,10 +561,10 @@
 
   function buildDefaultProjects() {
     const projects = {};
-    Object.keys(PROJECT_FALLBACKS).forEach(name => {
+    Object.keys(PROJECT_FALLBACK_BASE).forEach(name => {
       if (name === 'default') return;
       projects[name] = {
-        defaultColors: expandPalette(name, PROJECT_FALLBACKS[name])
+        defaultColors: cloneProjectPalette(getProjectFallbackPalette(name))
       };
     });
     return projects;
@@ -350,10 +576,9 @@
     Object.keys(projects).forEach(name => {
       const entry = projects[name];
       if (!entry || typeof entry !== 'object') return;
+      const palette = normalizeProjectPalette(name, entry.defaultColors);
       out[name] = {
-        defaultColors: Array.isArray(entry.defaultColors)
-          ? expandPalette(name, entry.defaultColors)
-          : expandPalette(name, PROJECT_FALLBACKS[name] || PROJECT_FALLBACKS.default),
+        defaultColors: cloneProjectPalette(palette),
         defaultLineThickness:
           entry.defaultLineThickness != null ? clampLineThickness(entry.defaultLineThickness) : undefined
       };
@@ -372,18 +597,17 @@
         const normalized = typeof name === 'string' ? name.trim().toLowerCase() : '';
         if (!normalized) return;
         const source = rawProjects[name];
-        const target = projects[normalized] ? projects[normalized] : { defaultColors: [] };
+        const target = projects[normalized]
+          ? projects[normalized]
+          : { defaultColors: cloneProjectPalette(getProjectFallbackPalette(normalized)) };
         if (!projects[normalized]) {
           projects[normalized] = target;
         }
-        if (source && Array.isArray(source.defaultColors)) {
-          const colors = sanitizeColorList(source.defaultColors);
-          if (colors.length) {
-            target.defaultColors = expandPalette(normalized, colors);
-          } else if (!target.defaultColors || !target.defaultColors.length) {
-            const fallback = PROJECT_FALLBACKS[normalized] || PROJECT_FALLBACKS.default;
-            target.defaultColors = expandPalette(normalized, fallback);
-          }
+        if (source && source.defaultColors != null) {
+          const normalizedPalette = normalizeProjectPalette(normalized, source.defaultColors);
+          target.defaultColors = cloneProjectPalette(normalizedPalette);
+        } else if (!target.defaultColors) {
+          target.defaultColors = cloneProjectPalette(getProjectFallbackPalette(normalized));
         }
         if (source && source.defaultLineThickness != null) {
           target.defaultLineThickness = clampLineThickness(source.defaultLineThickness);
@@ -394,15 +618,13 @@
       });
     }
 
-    if (Array.isArray(input.defaultColors)) {
-      const legacy = sanitizeColorList(input.defaultColors);
-      if (legacy.length) {
-        const projectName = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
-        projects[projectName] = projects[projectName] || { defaultColors: [] };
-        projects[projectName].defaultColors = expandPalette(projectName, legacy);
-        if (!order.includes(projectName)) {
-          order.push(projectName);
-        }
+    if (input.defaultColors != null) {
+      const projectName = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
+      const palette = normalizeProjectPalette(projectName, input.defaultColors);
+      projects[projectName] = projects[projectName] || { defaultColors: cloneProjectPalette(getProjectFallbackPalette(projectName)) };
+      projects[projectName].defaultColors = cloneProjectPalette(palette);
+      if (!order.includes(projectName)) {
+        order.push(projectName);
       }
     }
 
@@ -422,9 +644,9 @@
     const active = projects[activeProject];
     const palette = expandPalette(
       activeProject,
-      active && Array.isArray(active.defaultColors) && active.defaultColors.length
+      active && active.defaultColors
         ? active.defaultColors
-        : PROJECT_FALLBACKS.default
+        : getProjectFallbackPalette(activeProject)
     );
     normalized.defaultColors = palette;
     return normalized;
@@ -451,11 +673,10 @@
   function getProjectPalette(name) {
     const resolved = resolveProjectName(name || activeProject, settings.projects);
     const project = settings.projects[resolved];
-    if (project && Array.isArray(project.defaultColors) && project.defaultColors.length) {
+    if (project && project.defaultColors) {
       return expandPalette(resolved, project.defaultColors);
     }
-    const fallback = PROJECT_FALLBACKS[resolved] || PROJECT_FALLBACKS.default;
-    return expandPalette(resolved, fallback);
+    return expandPalette(resolved, getProjectFallbackPalette(resolved));
   }
 
   function parseInlineStyle(element) {
@@ -632,15 +853,11 @@
       if (!normalized) return;
       const source = updates[name];
       if (!base[normalized]) {
-        base[normalized] = { defaultColors: [] };
+        base[normalized] = { defaultColors: cloneProjectPalette(getProjectFallbackPalette(normalized)) };
       }
-      if (source && Array.isArray(source.defaultColors)) {
-        const colors = sanitizeColorList(source.defaultColors);
-        if (colors.length) {
-          base[normalized].defaultColors = expandPalette(normalized, colors);
-        } else if (source.defaultColors.length === 0) {
-          base[normalized].defaultColors = [];
-        }
+      if (source && source.defaultColors != null) {
+        const normalizedPalette = normalizeProjectPalette(normalized, source.defaultColors);
+        base[normalized].defaultColors = cloneProjectPalette(normalizedPalette);
       }
       if (source && source.defaultLineThickness != null) {
         base[normalized].defaultLineThickness = clampLineThickness(source.defaultLineThickness);
@@ -658,15 +875,11 @@
       if (patch.defaultLineThickness != null) {
         merged.defaultLineThickness = clampLineThickness(patch.defaultLineThickness);
       }
-      if (Array.isArray(patch.defaultColors)) {
-        const colors = sanitizeColorList(patch.defaultColors);
+      if (patch.defaultColors != null) {
         const targetProject = resolveProjectName(patch.activeProject || activeProject, merged.projects);
         merged.projects[targetProject] = merged.projects[targetProject] || {};
-        if (colors.length) {
-          merged.projects[targetProject].defaultColors = expandPalette(targetProject, colors);
-        } else if (patch.defaultColors.length === 0) {
-          merged.projects[targetProject].defaultColors = [];
-        }
+        const normalizedPalette = normalizeProjectPalette(targetProject, patch.defaultColors);
+        merged.projects[targetProject].defaultColors = cloneProjectPalette(normalizedPalette);
       }
       if (patch.projects) {
         mergeProjectUpdates(merged.projects, patch.projects);
@@ -734,7 +947,9 @@
       return JSON.parse(JSON.stringify(project));
     } catch (_) {
       return {
-        defaultColors: Array.isArray(project.defaultColors) ? project.defaultColors.slice() : [],
+        defaultColors: project.defaultColors
+          ? cloneProjectPalette(project.defaultColors)
+          : cloneProjectPalette(getProjectFallbackPalette(resolved)),
         defaultLineThickness:
           project.defaultLineThickness != null ? clampLineThickness(project.defaultLineThickness) : undefined
       };
