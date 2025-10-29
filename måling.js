@@ -70,7 +70,18 @@
   const BASE_BOARD_DIMENSIONS = { width: 1000, height: 700 };
   const figureImageDimensions = new Map();
   const figureImageDimensionsPending = new Set();
-  const activePointers = new Map();
+  const activePointers = {
+    ruler: new Map(),
+    tape: new Map(),
+    tapeExtension: new Map()
+  };
+  const tapeLengthState = {
+    visiblePx: 0,
+    unitSpacing: DEFAULT_UNIT_SPACING_PX,
+    minVisiblePx: 0,
+    maxVisiblePx: 0,
+    units: defaults.tapeMeasureLength
+  };
   const boardPanState = { entry: null, enabled: false };
   const boardPanTransform = { x: 0, y: 0 };
   let boardRect = board.getBoundingClientRect();
@@ -165,12 +176,13 @@
     exportButton.addEventListener('click', handleExport);
   }
 
-  attachInstrumentPointerHandlers(ruler);
-  attachInstrumentPointerHandlers(tapeMeasure);
+  attachInstrumentPointerHandlers(ruler, 'ruler');
+  attachInstrumentPointerHandlers(tapeHousing, 'tape');
+  attachTapeExtensionHandlers(tapeStrap);
 
   board.addEventListener('dblclick', event => {
     event.preventDefault();
-    if (activePointers.size === 0) {
+    if (!hasAnyActivePointers()) {
       centerRuler();
     }
   });
@@ -1481,9 +1493,16 @@
       : defaults.tapeMeasureLength;
     const visibleLength = Math.max(0, unitSpacing * lengthValue);
     const strapWidth = tapeStrap.offsetWidth || visibleLength;
-    const clampedVisible = Math.min(visibleLength, strapWidth);
-    tapeMeasure.style.setProperty('--tape-strap-visible', `${clampedVisible}px`);
-    tapeMeasure.setAttribute('data-visible-length', String(lengthValue));
+    tapeLengthState.unitSpacing = unitSpacing;
+    tapeLengthState.units = lengthValue;
+    tapeLengthState.minVisiblePx = Math.max(0, unitSpacing);
+    tapeLengthState.maxVisiblePx = strapWidth;
+    const clampedVisible = Math.min(
+      Math.max(visibleLength, tapeLengthState.minVisiblePx),
+      strapWidth
+    );
+    tapeLengthState.visiblePx = clampedVisible;
+    applyTapeMeasureTransform();
   }
 
   function applyActiveToolState(settings) {
@@ -1510,7 +1529,11 @@
       transformStates.tape.rotation = 0;
     }
 
-    const desiredTool = sanitizeActiveTool(settings && settings.activeTool, appState.activeTool);
+    const previousTool = appState.activeTool;
+    const desiredTool = sanitizeActiveTool(settings && settings.activeTool, previousTool);
+    if (previousTool && previousTool !== desiredTool) {
+      cancelAllPointerSessions();
+    }
     appState.activeTool = desiredTool;
     transformState = transformStates[desiredTool] || transformStates[defaultActiveTool];
 
@@ -2077,7 +2100,7 @@
     if (event.button && event.button !== 0) {
       return;
     }
-    if (isEventInsideRuler(event) || activePointers.size > 0) {
+    if (isEventInsideRuler(event) || hasAnyActivePointers()) {
       return;
     }
     const clientX = event.clientX;
@@ -2187,22 +2210,117 @@
     return { key: 'ruler', label: 'linjal', title: 'Linjal', possessive: 'Linjalens' };
   }
 
-  function attachInstrumentPointerHandlers(element) {
+  function getInstrumentPointerSession(toolKey = appState.activeTool) {
+    const key = toolKey === 'tape' ? 'tape' : 'ruler';
+    return activePointers[key];
+  }
+
+  function hasActiveInstrumentPointers() {
+    const session = getInstrumentPointerSession();
+    return session && session.size > 0;
+  }
+
+  function hasAnyActivePointers() {
+    return (
+      hasActiveInstrumentPointers() ||
+      (activePointers.tapeExtension && activePointers.tapeExtension.size > 0)
+    );
+  }
+
+  function cancelInstrumentPointerSessions(toolKey, { skipRelease = false } = {}) {
+    const session = getInstrumentPointerSession(toolKey);
+    if (!session) {
+      return;
+    }
+    const element = toolKey === 'tape' ? tapeHousing : ruler;
+    if (!skipRelease && element) {
+      for (const entry of session.values()) {
+        if (!entry || entry.pointerId == null) continue;
+        try {
+          element.releasePointerCapture(entry.pointerId);
+        } catch (_) {}
+      }
+    }
+    session.clear();
+  }
+
+  function cancelTapeExtensionSessions({ skipRelease = false } = {}) {
+    const session = activePointers.tapeExtension;
+    if (!session || session.size === 0) {
+      return;
+    }
+    const hadEntries = session.size > 0;
+    if (!skipRelease && tapeStrap) {
+      for (const entry of session.values()) {
+        if (!entry || entry.pointerId == null) continue;
+        try {
+          tapeStrap.releasePointerCapture(entry.pointerId);
+        } catch (_) {}
+      }
+    }
+    session.clear();
+    if (hadEntries && appState.activeTool === 'tape') {
+      persistTapeMeasureLength(tapeLengthState.units);
+    }
+  }
+
+  function cancelAllPointerSessions(options = {}) {
+    cancelInstrumentPointerSessions('ruler', options);
+    cancelInstrumentPointerSessions('tape', options);
+    cancelTapeExtensionSessions(options);
+  }
+
+  function attachInstrumentPointerHandlers(element, toolKey) {
     if (!element) {
       return;
     }
-    element.addEventListener('pointerdown', handlePointerDown, { passive: false });
-    element.addEventListener('pointermove', handlePointerMove);
-    element.addEventListener('pointerup', handlePointerEnd);
-    element.addEventListener('pointercancel', handlePointerEnd);
+    element.addEventListener(
+      'pointerdown',
+      event => handleInstrumentPointerDown(event, toolKey, element),
+      { passive: false }
+    );
+    element.addEventListener('pointermove', event => handleInstrumentPointerMove(event, toolKey));
+    element.addEventListener('pointerup', event => handleInstrumentPointerEnd(event, toolKey));
+    element.addEventListener('pointercancel', event => handleInstrumentPointerEnd(event, toolKey));
     element.addEventListener('lostpointercapture', event => {
       if (event.pointerId != null) {
-        activePointers.delete(event.pointerId);
+        const session = getInstrumentPointerSession(toolKey);
+        session.delete(event.pointerId);
+        if (session.size === 0 && appState.activeTool === toolKey) {
+          applyTransformWithSnap({ allowSnap: true, persist: true });
+        }
+      }
+    });
+  }
+
+  function attachTapeExtensionHandlers(element) {
+    if (!element) {
+      return;
+    }
+    element.addEventListener(
+      'pointerdown',
+      event => handleTapeExtensionPointerDown(event, element),
+      { passive: false }
+    );
+    element.addEventListener('pointermove', handleTapeExtensionPointerMove);
+    element.addEventListener('pointerup', handleTapeExtensionPointerEnd);
+    element.addEventListener('pointercancel', handleTapeExtensionPointerEnd);
+    element.addEventListener('lostpointercapture', event => {
+      if (event.pointerId != null) {
+        const session = activePointers.tapeExtension;
+        const wasTracked = session.delete(event.pointerId);
+        if (wasTracked && session.size === 0 && appState.activeTool === 'tape') {
+          persistTapeMeasureLength(tapeLengthState.units);
+        }
       }
     });
   }
 
   function applyToolTransform(toolKey) {
+    if (toolKey === 'tape') {
+      applyTapeMeasureTransform();
+      return;
+    }
     const element = getToolElement(toolKey);
     const state = transformStates[toolKey];
     if (!element || !state) {
@@ -2222,15 +2340,24 @@
     baseSize.height = element.offsetHeight;
   }
 
-  function handlePointerDown(event) {
+  function handleInstrumentPointerDown(event, toolKey, captureTarget) {
     if (event.button && event.button !== 0) {
       return;
     }
-    if (activePointers.size >= 2 && !activePointers.has(event.pointerId)) {
+    if (appState.activeTool !== toolKey) {
       return;
     }
-    const activeElement = getActiveToolElement();
-    if (!activeElement || event.currentTarget !== activeElement) {
+    const session = getInstrumentPointerSession(toolKey);
+    if (!session) {
+      return;
+    }
+    if (session.size >= 2 && !session.has(event.pointerId)) {
+      return;
+    }
+    if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
+      return;
+    }
+    if (toolKey === 'tape' && activePointers.tapeExtension && activePointers.tapeExtension.size > 0) {
       return;
     }
     event.preventDefault();
@@ -2241,14 +2368,20 @@
       prevX: event.clientX,
       prevY: event.clientY
     };
-    activePointers.set(event.pointerId, entry);
+    session.set(event.pointerId, entry);
     try {
-      activeElement.setPointerCapture(event.pointerId);
+      if (captureTarget) {
+        captureTarget.setPointerCapture(event.pointerId);
+      }
     } catch (_) {}
   }
 
-  function handlePointerMove(event) {
-    const entry = activePointers.get(event.pointerId);
+  function handleInstrumentPointerMove(event, toolKey) {
+    const session = getInstrumentPointerSession(toolKey);
+    if (!session) {
+      return;
+    }
+    const entry = session.get(event.pointerId);
     if (!entry) {
       return;
     }
@@ -2256,27 +2389,123 @@
     entry.prevY = entry.clientY;
     entry.clientX = event.clientX;
     entry.clientY = event.clientY;
-    updateFromGesture(entry);
+    updateFromGesture(entry, toolKey);
   }
 
-  function handlePointerEnd(event) {
-    const entry = activePointers.get(event.pointerId);
+  function handleInstrumentPointerEnd(event, toolKey) {
+    const session = getInstrumentPointerSession(toolKey);
+    if (!session) {
+      return;
+    }
+    const entry = session.get(event.pointerId);
     if (!entry) {
       return;
     }
-    activePointers.delete(event.pointerId);
-    const activeElement = getActiveToolElement();
+    session.delete(event.pointerId);
+    const element = toolKey === 'tape' ? tapeHousing : ruler;
     try {
-      if (activeElement) {
-        activeElement.releasePointerCapture(event.pointerId);
+      if (element) {
+        element.releasePointerCapture(event.pointerId);
       }
     } catch (_) {}
-    if (activePointers.size === 0) {
-      applyTransformWithSnap({ persist: true });
+    if (session.size === 0 && appState.activeTool === toolKey) {
+      applyTransformWithSnap({ allowSnap: true, persist: true });
+    }
+  }
+
+  function handleTapeExtensionPointerDown(event, captureTarget) {
+    if (!captureTarget || appState.activeTool !== 'tape') {
+      return;
+    }
+    if (event.button && event.button !== 0) {
+      return;
+    }
+    if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
+      return;
+    }
+    const moveSession = getInstrumentPointerSession('tape');
+    if (moveSession && moveSession.size > 0) {
+      return;
+    }
+    const session = activePointers.tapeExtension;
+    if (session.size >= 1 && !session.has(event.pointerId)) {
+      return;
+    }
+    const strapWidth = tapeStrap ? tapeStrap.offsetWidth : 0;
+    if (Number.isFinite(strapWidth) && strapWidth > 0) {
+      tapeLengthState.maxVisiblePx = strapWidth;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const entry = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      prevX: event.clientX,
+      prevY: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
+      startVisible: tapeLengthState.visiblePx
+    };
+    session.set(event.pointerId, entry);
+    try {
+      captureTarget.setPointerCapture(event.pointerId);
+    } catch (_) {}
+  }
+
+  function handleTapeExtensionPointerMove(event) {
+    const session = activePointers.tapeExtension;
+    const entry = session.get(event.pointerId);
+    if (!entry || appState.activeTool !== 'tape') {
+      return;
+    }
+    entry.prevX = entry.clientX;
+    entry.prevY = entry.clientY;
+    entry.clientX = event.clientX;
+    entry.clientY = event.clientY;
+
+    const deltaX = entry.clientX - entry.startX;
+    const deltaY = entry.clientY - entry.startY;
+    const rotation = transformStates.tape.rotation || 0;
+    const axisX = Math.cos(rotation);
+    const axisY = Math.sin(rotation);
+    const projectedDelta = deltaX * axisX + deltaY * axisY;
+    const minVisible = tapeLengthState.minVisiblePx;
+    const maxVisible = tapeLengthState.maxVisiblePx > 0 ? tapeLengthState.maxVisiblePx : Infinity;
+    let visible = entry.startVisible + projectedDelta;
+    if (appState.settings && appState.settings.gridEnabled && tapeLengthState.unitSpacing > 0) {
+      visible = Math.round(visible / tapeLengthState.unitSpacing) * tapeLengthState.unitSpacing;
+    }
+    visible = Math.min(Math.max(visible, minVisible), maxVisible);
+    tapeLengthState.visiblePx = Number.isFinite(visible) ? visible : minVisible;
+    tapeLengthState.units = tapeLengthState.unitSpacing > 0
+      ? Math.max(0, tapeLengthState.visiblePx / tapeLengthState.unitSpacing)
+      : 0;
+    applyTapeMeasureTransform();
+  }
+
+  function handleTapeExtensionPointerEnd(event) {
+    const session = activePointers.tapeExtension;
+    const entry = session.get(event.pointerId);
+    if (!entry) {
+      return;
+    }
+    session.delete(event.pointerId);
+    try {
+      if (tapeStrap) {
+        tapeStrap.releasePointerCapture(event.pointerId);
+      }
+    } catch (_) {}
+    if (session.size === 0 && appState.activeTool === 'tape') {
+      persistTapeMeasureLength(tapeLengthState.units);
     }
   }
 
   function applyTransform() {
+    if (appState.activeTool === 'tape') {
+      applyTapeMeasureTransform();
+      return;
+    }
     const element = getActiveToolElement();
     if (!element) {
       return;
@@ -2298,12 +2527,35 @@
     }
   }
 
+  function applyTapeMeasureTransform() {
+    if (!tapeMeasure) {
+      return;
+    }
+    const state = transformStates.tape;
+    if (state) {
+      tapeMeasure.style.transform = `translate3d(${state.x}px, ${state.y}px, 0) rotate(${state.rotation}rad)`;
+    }
+    const minVisible = Math.max(0, tapeLengthState.minVisiblePx);
+    const maxVisible = tapeLengthState.maxVisiblePx > 0 ? tapeLengthState.maxVisiblePx : Infinity;
+    const visible = Math.min(Math.max(tapeLengthState.visiblePx, minVisible), maxVisible);
+    tapeLengthState.visiblePx = visible;
+    tapeMeasure.style.setProperty('--tape-strap-visible', `${visible}px`);
+    const effectiveUnits = Number.isFinite(tapeLengthState.unitSpacing) && tapeLengthState.unitSpacing > 0
+      ? visible / tapeLengthState.unitSpacing
+      : 0;
+    tapeLengthState.units = effectiveUnits;
+    if (tapeMeasure) {
+      tapeMeasure.setAttribute('data-visible-length', String(roundForDisplay(effectiveUnits)));
+    }
+  }
+
   function persistActiveInstrumentState() {
     if (suspendTransformPersistence) {
       return;
     }
     if (appState.activeTool === 'tape') {
       persistTapeMeasureState();
+      persistTapeMeasureLength(tapeLengthState.units);
     } else {
       persistTransformState();
     }
@@ -2315,6 +2567,35 @@
 
   function persistTapeMeasureState() {
     persistTransformStateForTool('tape');
+  }
+
+  function persistTapeMeasureLength(lengthValue) {
+    if (suspendTransformPersistence) {
+      return;
+    }
+    const sanitized = sanitizeLength(lengthValue, defaults.tapeMeasureLength);
+    if (!Number.isFinite(sanitized)) {
+      return;
+    }
+    let settingsChanged = false;
+    if (appState.settings) {
+      if (appState.settings.tapeMeasureLength !== sanitized) {
+        appState.settings = { ...appState.settings, tapeMeasureLength: sanitized };
+        settingsChanged = true;
+      } else if (!Number.isFinite(appState.settings.tapeMeasureLength)) {
+        appState.settings.tapeMeasureLength = sanitized;
+        settingsChanged = true;
+      }
+    }
+    storeTapeMeasureLength(sanitized);
+    const metrics = resolveScaleMetrics(appState.settings);
+    tapeLengthState.units = sanitized;
+    tapeLengthState.visiblePx = tapeLengthState.unitSpacing > 0 ? sanitized * tapeLengthState.unitSpacing : 0;
+    applyTapeMeasureAppearance(appState.settings, metrics);
+    if (settingsChanged) {
+      updateAccessibility(appState.settings);
+      syncInputs(appState.settings);
+    }
   }
 
   function persistTransformStateForTool(toolKey) {
@@ -2381,6 +2662,25 @@
       configContainers.measurementGlobal !== configContainers.measurement
     ) {
       delete configContainers.measurementGlobal.tapeMeasureTransform;
+    }
+  }
+
+  function storeTapeMeasureLength(lengthValue) {
+    if (!Number.isFinite(lengthValue)) {
+      return;
+    }
+    refreshConfigContainers();
+    if (configContainers.measurement) {
+      configContainers.measurement.tapeMeasureLength = lengthValue;
+    }
+    if (configContainers.root && configContainers.root !== configContainers.measurement) {
+      delete configContainers.root.tapeMeasureLength;
+    }
+    if (
+      configContainers.measurementGlobal &&
+      configContainers.measurementGlobal !== configContainers.measurement
+    ) {
+      delete configContainers.measurementGlobal.tapeMeasureLength;
     }
   }
 
@@ -2509,8 +2809,12 @@
     applyBoardPanTransform();
   }
 
-  function updateFromGesture(currentEntry) {
-    const pointers = Array.from(activePointers.values());
+  function updateFromGesture(currentEntry, toolKey = appState.activeTool) {
+    const session = getInstrumentPointerSession(toolKey);
+    if (!session) {
+      return;
+    }
+    const pointers = Array.from(session.values());
     if (pointers.length === 0) {
       return;
     }
@@ -2559,7 +2863,7 @@
     }
     updateBaseSize();
 
-    if (activePointers.size === 0 && (widthChanged || heightChanged)) {
+    if (!hasAnyActivePointers() && (widthChanged || heightChanged)) {
       centerRuler();
       return;
     }
@@ -2568,7 +2872,8 @@
     const maxY = boardRect.height;
     transformState.x = Math.min(Math.max(transformState.x, -maxX), maxX);
     transformState.y = Math.min(Math.max(transformState.y, -maxY), maxY);
-    applyTransformWithSnap({ allowSnap: activePointers.size === 0, persist: activePointers.size === 0 });
+    const allowSnap = !hasAnyActivePointers();
+    applyTransformWithSnap({ allowSnap, persist: allowSnap });
   }
 
   function handleExamplesLoaded() {
