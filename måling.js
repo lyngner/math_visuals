@@ -1142,7 +1142,6 @@
         : 1;
       width *= scaleMultiplier;
       height *= scaleMultiplier;
-      unitSpacingPx *= scaleMultiplier;
     }
 
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
