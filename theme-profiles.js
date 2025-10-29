@@ -344,22 +344,28 @@
     }
     return ensurePalette(LEGACY_FRACTION_PALETTE, count);
   }
-  function buildGroupPalette(groupId, count, opts) {
+  function buildGroupPalette(groupId, options) {
     const normalizedId = typeof groupId === 'string' ? groupId.trim().toLowerCase() : '';
-    const projectOverride = opts && typeof opts.project === 'string' ? opts.project.trim().toLowerCase() : null;
+    const opts = options && typeof options === 'object' ? options : {};
+    const projectOverride = typeof opts.project === 'string' ? opts.project.trim().toLowerCase() : null;
+    const count = Number.isFinite(opts.count) && opts.count > 0 ? Math.trunc(opts.count) : undefined;
     const settingsApi = getSettingsApi();
     const activeProfile = getActiveProfile();
     const projectName = projectOverride || (activeProfile && activeProfile.id ? activeProfile.id : activeProfileName);
     if (settingsApi && typeof settingsApi.getGroupPalette === 'function') {
       try {
-        const palette = settingsApi.getGroupPalette(normalizedId || 'default', count, projectName ? { project: projectName } : undefined);
+        const palette = settingsApi.getGroupPalette(normalizedId || 'default', {
+          project: projectName,
+          count,
+          fallbackKinds: Array.isArray(opts.fallbackKinds) ? opts.fallbackKinds : undefined
+        });
         if (Array.isArray(palette) && palette.length) {
           return ensurePalette(palette, count);
         }
       } catch (_) {}
     }
     const fallbackList = GROUP_FALLBACKS[normalizedId] || GROUP_FALLBACKS.default;
-    const extraFallbacks = Array.isArray(opts && opts.fallbackKinds) ? opts.fallbackKinds : [];
+    const extraFallbacks = Array.isArray(opts.fallbackKinds) ? opts.fallbackKinds : [];
     const dedupedFallbacks = Array.from(
       new Set([
         ...extraFallbacks.filter(item => typeof item === 'string'),
@@ -428,9 +434,16 @@
       const size = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
       return buildPalette(kind, size, opts);
     },
-    getGroupPalette(groupId, count, opts) {
-      const size = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
-      return buildGroupPalette(groupId, size, opts);
+    getGroupPalette(groupId, countOrOptions, maybeOptions) {
+      let opts = {};
+      if (Number.isFinite(countOrOptions)) {
+        const legacyCount = Math.trunc(countOrOptions);
+        const extra = maybeOptions && typeof maybeOptions === 'object' ? maybeOptions : {};
+        opts = { ...extra, count: legacyCount };
+      } else if (countOrOptions && typeof countOrOptions === 'object') {
+        opts = { ...countOrOptions };
+      }
+      return buildGroupPalette(groupId, opts);
     },
     getColor,
     applyToDocument

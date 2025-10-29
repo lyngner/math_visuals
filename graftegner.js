@@ -151,6 +151,14 @@ function resolveSettingsSnapshot() {
 function getBaseCurveColors(count) {
   const api = getSettingsApi();
   const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+  if (api && typeof api.getGroupPalette === 'function') {
+    try {
+      const palette = api.getGroupPalette('graftegner', { count: targetCount });
+      if (Array.isArray(palette) && palette.length) {
+        return cycleColors(palette, targetCount || palette.length);
+      }
+    } catch (_) {}
+  }
   if (api && typeof api.getDefaultColors === 'function') {
     try {
       const palette = api.getDefaultColors(targetCount);
@@ -254,7 +262,10 @@ function applyGraftegnerDefaultsFromTheme() {
   );
   let palette = null;
   try {
-    palette = theme.getGroupPalette('graftegner', maxCount, project ? { project } : undefined);
+    palette = theme.getGroupPalette('graftegner', {
+      count: maxCount,
+      project: project || undefined
+    });
   } catch (_) {
     palette = null;
   }
@@ -380,11 +391,10 @@ function resolveCurvePalette(count = undefined) {
     const project = getActiveThemeProjectName(theme);
     if (typeof theme.getGroupPalette === 'function') {
       try {
-        const palette = theme.getGroupPalette(
-          'graftegner',
-          targetCount || basePalette.length,
-          project ? { project } : undefined
-        );
+        const palette = theme.getGroupPalette('graftegner', {
+          count: targetCount || basePalette.length,
+          project: project || undefined
+        });
         if (Array.isArray(palette) && palette.length) {
           const sanitized = palette.map(normalizeColorValue);
           const filtered = sanitized.some(Boolean) ? sanitized.map(color => color || '') : palette;

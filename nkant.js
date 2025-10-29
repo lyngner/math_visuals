@@ -829,7 +829,10 @@ function resolveSettingsPalette(count) {
   const groupTarget = target && target > 0 ? target : 3;
   if (theme && typeof theme.getGroupPalette === "function") {
     try {
-      const palette = theme.getGroupPalette("nkant", groupTarget, project ? { project } : undefined);
+      const palette = theme.getGroupPalette("nkant", {
+        count: groupTarget,
+        project: project || undefined
+      });
       const resolved = cycleSettingsPalette(palette, groupTarget);
       if (resolved.length) {
         return { colors: resolved, source: "group" };
@@ -846,6 +849,15 @@ function resolveSettingsPalette(count) {
     } catch (_) {}
   }
   const api = getSettingsApi();
+  if (api && typeof api.getGroupPalette === "function") {
+    try {
+      const palette = api.getGroupPalette("nkant", { count: target, project: project || undefined });
+      const resolved = cycleSettingsPalette(palette, target || (Array.isArray(palette) ? palette.length : 0));
+      if (resolved.length) {
+        return { colors: resolved, source: "group" };
+      }
+    } catch (_) {}
+  }
   if (api && typeof api.getDefaultColors === "function") {
     try {
       const palette = api.getDefaultColors(target, project ? { project } : undefined);

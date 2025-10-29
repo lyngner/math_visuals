@@ -32,10 +32,14 @@
   function getPaletteFromTheme(count) {
     const theme = getThemeApi();
     const project = getActiveThemeProjectName(theme);
+    const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : 0;
     let palette = null;
     if (theme && typeof theme.getGroupPalette === 'function') {
       try {
-        palette = theme.getGroupPalette('brokvegg', count, project ? { project } : undefined);
+        palette = theme.getGroupPalette('brokvegg', {
+          count: target || undefined,
+          project: project || undefined
+        });
       } catch (_) {
         palette = null;
       }
@@ -43,7 +47,6 @@
     if ((!Array.isArray(palette) || !palette.length) && theme && typeof theme.getPalette === 'function') {
       palette = theme.getPalette('fractions', count, { fallbackKinds: ['figures'], project });
     }
-    const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : 0;
     const base = Array.isArray(palette) && palette.length ? palette.slice() : LEGACY_COLOR_PALETTE.slice();
     if (target <= 0) return base.slice();
     if (base.length >= target) return base.slice(0, target);
@@ -656,6 +659,10 @@
   }
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('message', handleThemeProfileChange);
+    window.addEventListener('math-visuals:settings-changed', () => {
+      applyThemeToDocument();
+      render();
+    });
   }
   function setDenominatorsFromInput(raw) {
     const parsed = sanitizeDenominators(raw);

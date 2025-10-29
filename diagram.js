@@ -188,8 +188,10 @@ function applyDiagramTheme(options = {}) {
   let groupPalette = null;
   if (theme && typeof theme.getGroupPalette === 'function') {
     try {
-      groupPalette = theme.getGroupPalette('diagram', Math.max(requestedPaletteSize, DIAGRAM_GROUP_SLOT_COUNT),
-        normalizedProfileName ? { project: normalizedProfileName } : undefined);
+      groupPalette = theme.getGroupPalette('diagram', {
+        count: Math.max(requestedPaletteSize, DIAGRAM_GROUP_SLOT_COUNT),
+        project: normalizedProfileName || undefined
+      });
     } catch (_) {
       groupPalette = null;
     }
@@ -371,6 +373,20 @@ if (typeof MutationObserver === 'function' && typeof document !== 'undefined' &&
     applyDiagramTheme({ paletteSize: Math.max(1, themePaletteSize), seriesCount: series2Enabled ? 2 : 1 });
   });
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme-profile'] });
+}
+function refreshDiagramTheme() {
+  const activeSeriesCount = series2Enabled && CFG.type !== 'pie' ? 2 : 1;
+  applyDiagramTheme({ paletteSize: Math.max(1, themePaletteSize), seriesCount: activeSeriesCount });
+  drawData();
+}
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('math-visuals:settings-changed', refreshDiagramTheme);
+  window.addEventListener('message', event => {
+    const data = event && event.data;
+    const type = typeof data === 'string' ? data : data && data.type;
+    if (type !== 'math-visuals:profile-change') return;
+    refreshDiagramTheme();
+  });
 }
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');

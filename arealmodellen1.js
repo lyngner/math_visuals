@@ -136,25 +136,29 @@ function ensureColors(base, fallback, count) {
 function resolveRectColors(count = DEFAULT_RECT_COLORS.length) {
   const theme = getThemeApi();
   const project = getActiveThemeProjectName(theme);
+  const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : DEFAULT_RECT_COLORS.length;
   if (theme && typeof theme.getGroupPalette === "function") {
     try {
-      const palette = theme.getGroupPalette("arealmodell", count, project ? { project } : undefined);
+      const palette = theme.getGroupPalette("arealmodell", {
+        count: targetCount || undefined,
+        project: project || undefined
+      });
       if ((!project || project !== "kikora") && Array.isArray(palette) && palette.length) {
         const sanitized = palette.map(color => (typeof color === "string" && color.trim() ? color.trim() : ""));
         const filtered = sanitized.some(color => color) ? sanitized.map(color => color || "") : palette;
         const reordered = project === "campus" ? CAMPUS_RECT_ORDER.map(idx => filtered[idx % filtered.length] || filtered[0]) : filtered;
-        return ensureColors(reordered, DEFAULT_RECT_COLORS, count);
+        return ensureColors(reordered, DEFAULT_RECT_COLORS, targetCount);
       }
     } catch (_) {}
   }
   if (theme && typeof theme.getPalette === "function") {
-    const palette = theme.getPalette("figures", count, { fallbackKinds: ["fractions"], project });
+    const palette = theme.getPalette("figures", targetCount, { fallbackKinds: ["fractions"], project });
     if ((!project || project !== "kikora") && Array.isArray(palette) && palette.length) {
       const reordered = project === "campus" ? CAMPUS_RECT_ORDER.map(idx => palette[idx % palette.length]) : palette;
-      return ensureColors(reordered, DEFAULT_RECT_COLORS, count);
+      return ensureColors(reordered, DEFAULT_RECT_COLORS, targetCount);
     }
   }
-  return ensureColors(DEFAULT_RECT_COLORS, DEFAULT_RECT_COLORS, count);
+  return ensureColors(DEFAULT_RECT_COLORS, DEFAULT_RECT_COLORS, targetCount);
 }
 applyThemeToDocument();
 CFG.ADV.colors = resolveRectColors();
@@ -3179,6 +3183,11 @@ if (typeof window !== "undefined" && typeof window.addEventListener === "functio
     const data = event && event.data;
     const type = typeof data === 'string' ? data : data && data.type;
     if (type !== 'math-visuals:profile-change') return;
+    applyThemeToDocument();
+    CFG.ADV.colors = resolveRectColors();
+    render();
+  });
+  window.addEventListener('math-visuals:settings-changed', () => {
     applyThemeToDocument();
     CFG.ADV.colors = resolveRectColors();
     render();

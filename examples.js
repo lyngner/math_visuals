@@ -816,20 +816,31 @@
   settingsApi.setActiveProject = (name, options) => setActiveProject(name, options);
   settingsApi.listProjects = () => listProjects();
   settingsApi.getProjectSettings = name => getProjectSettings(name);
-  settingsApi.getGroupPalette = (groupId, count, opts) => {
-    const size = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
-    const projectName =
-      opts && opts.project ? resolveProjectName(opts.project, settings.projects) : activeProject;
+  settingsApi.getGroupPalette = (groupId, countOrOptions, maybeOptions) => {
+    let options = {};
+    if (Number.isFinite(countOrOptions)) {
+      const legacyCount = Math.trunc(countOrOptions);
+      const extra = maybeOptions && typeof maybeOptions === 'object' ? maybeOptions : {};
+      options = { ...extra, count: legacyCount };
+    } else if (countOrOptions && typeof countOrOptions === 'object') {
+      options = { ...countOrOptions };
+    }
+    const size = Number.isFinite(options.count) && options.count > 0 ? Math.trunc(options.count) : undefined;
+    const projectName = options.project
+      ? resolveProjectName(options.project, settings.projects)
+      : activeProject;
+    const fallbackKinds = Array.isArray(options.fallbackKinds) ? options.fallbackKinds : undefined;
     if (paletteHelper && typeof paletteHelper.getGroupPalette === 'function') {
       return paletteHelper.getGroupPalette(groupId, {
         project: projectName,
         count: size,
+        fallbackKinds,
         settings: {
           projects: settings.projects,
           activeProject,
           getActiveProject: () => activeProject,
           getProjectSettings: name => getProjectSettings(name),
-          getDefaultColors: (desiredCount, options) => getDefaultColors(desiredCount, options)
+          getDefaultColors: (desiredCount, opt) => getDefaultColors(desiredCount, opt)
         }
       });
     }
