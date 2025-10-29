@@ -933,6 +933,18 @@
     return UNIT_TO_CENTIMETERS[DEFAULT_UNIT_KEY];
   }
 
+  function convertValueToDisplayUnits(value, unitLabel) {
+    if (!Number.isFinite(value)) {
+      return 0;
+    }
+    const info = resolveUnitLabelInfo(unitLabel);
+    const baseFactor = info && typeof info.baseFactor === 'number' ? info.baseFactor : null;
+    if (Number.isFinite(baseFactor) && baseFactor > 0) {
+      return value / baseFactor;
+    }
+    return value;
+  }
+
   function convertValueToCentimeters(rawValue, unitKey) {
     if (!rawValue || !unitKey) {
       return null;
@@ -1005,9 +1017,11 @@
     if (!settings) {
       return 0;
     }
-    const multiplier = resolveRulerValueMultiplier(settings, scaleMetrics);
+    const metrics = scaleMetrics || resolveScaleMetrics(settings);
+    const multiplier = resolveRulerValueMultiplier(settings, metrics);
     const length = Number.isFinite(settings.length) ? settings.length : 0;
-    return length * multiplier;
+    const rawLength = length * multiplier;
+    return convertValueToDisplayUnits(rawLength, settings.unitLabel);
   }
 
   function extractRealWorldSizeFromText(text) {
@@ -1611,7 +1625,7 @@
 
     const labelMarkup = Array.from({ length: totalTicks }, (_, tickIndex) => {
       const rawLabelValue = (startIndex + tickIndex) * valueMultiplier;
-      const labelValue = roundForDisplay(rawLabelValue);
+      const labelValue = roundForDisplay(convertValueToDisplayUnits(rawLabelValue, unitLabel));
       const x = marginLeft + unitSpacing * tickIndex;
       const anchor = tickIndex === 0 ? 'start' : tickIndex === totalTicks - 1 ? 'end' : 'middle';
       const dx = anchor === 'start' ? 6 : anchor === 'end' ? -6 : 0;
