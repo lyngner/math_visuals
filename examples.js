@@ -1031,22 +1031,35 @@
   settingsApi.setActiveProject = (name, options) => setActiveProject(name, options);
   settingsApi.listProjects = () => listProjects();
   settingsApi.getProjectSettings = name => getProjectSettings(name);
-  settingsApi.getGroupPalette = (groupId, count, opts) => {
-    const size = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+  settingsApi.getGroupPalette = (groupId, countOrOptions, maybeOpts) => {
+    const usingOptionsObject =
+      countOrOptions && typeof countOrOptions === 'object' && !Array.isArray(countOrOptions);
+    const rawCount = usingOptionsObject ? countOrOptions.count : countOrOptions;
+    const size = Number.isFinite(rawCount) && rawCount > 0 ? Math.trunc(rawCount) : undefined;
+    const optionSource = usingOptionsObject ? countOrOptions : maybeOpts;
     const projectName =
-      opts && opts.project ? resolveProjectName(opts.project, settings.projects) : activeProject;
-    if (paletteHelper && typeof paletteHelper.getGroupPalette === 'function') {
-      return paletteHelper.getGroupPalette(groupId, {
-        project: projectName,
-        count: size,
-        settings: {
-          projects: settings.projects,
-          activeProject,
-          getActiveProject: () => activeProject,
-          getProjectSettings: name => getProjectSettings(name),
-          getDefaultColors: (desiredCount, options) => getDefaultColors(desiredCount, options)
-        }
+      optionSource && optionSource.project
+        ? resolveProjectName(optionSource.project, settings.projects)
+        : activeProject;
+    const helperOptions = {};
+    if (optionSource && typeof optionSource === 'object') {
+      Object.keys(optionSource).forEach(key => {
+        helperOptions[key] = optionSource[key];
       });
+    }
+    helperOptions.project = projectName;
+    helperOptions.count = size;
+    if (!helperOptions.settings || typeof helperOptions.settings !== 'object') {
+      helperOptions.settings = {
+        projects: settings.projects,
+        activeProject,
+        getActiveProject: () => activeProject,
+        getProjectSettings: name => getProjectSettings(name),
+        getDefaultColors: (desiredCount, options) => getDefaultColors(desiredCount, options)
+      };
+    }
+    if (paletteHelper && typeof paletteHelper.getGroupPalette === 'function') {
+      return paletteHelper.getGroupPalette(groupId, helperOptions);
     }
     const basePalette = getProjectPalette(projectName);
     return ensureColorCount(basePalette, size || basePalette.length);
