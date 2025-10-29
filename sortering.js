@@ -27,6 +27,13 @@
   let checkStatus = null;
   let taskCheckHost = null;
   let taskCheckControls = [];
+  let settingsForm = null;
+  let directionSelect = null;
+  let gapInput = null;
+  let randomizeInput = null;
+  let itemEditorList = null;
+  let addItemButton = null;
+  let itemEditorStatus = null;
 
   function ensureStringArray(list) {
     if (!Array.isArray(list)) return [];
@@ -136,6 +143,40 @@
       }
     }
     return sanitized;
+  }
+
+  function buildExampleConfigPayload() {
+    const defaults = {
+      items: [],
+      order: [],
+      config: {
+        direction: DEFAULT_STATE.retning,
+        gap: DEFAULT_STATE.gap,
+        randomize: DEFAULT_STATE.randomisering
+      }
+    };
+    if (!state) return defaults;
+    return {
+      items: state.items.map(cloneItem),
+      order: sanitizeOrder(state.items, state.order),
+      config: {
+        direction: normalizeDirection(state.retning),
+        gap: Number.isFinite(state.gap) ? state.gap : DEFAULT_STATE.gap,
+        randomize: !!state.randomisering
+      }
+    };
+  }
+
+  function syncExampleBindings() {
+    if (!globalObj) return;
+    if (!globalObj.STATE || typeof globalObj.STATE !== 'object') {
+      globalObj.STATE = {};
+    }
+    globalObj.STATE.sortering = state;
+    if (!globalObj.CONFIG || typeof globalObj.CONFIG !== 'object') {
+      globalObj.CONFIG = {};
+    }
+    globalObj.CONFIG.sortering = buildExampleConfigPayload();
   }
 
   function computeStatusSnapshot() {
@@ -365,6 +406,7 @@
 
   function notifyStatusChange(reason) {
     const snapshot = getStatusSnapshot(true);
+    syncExampleBindings();
     updateStatusUI(snapshot);
     updateFigureDataset(snapshot);
     updateTaskCheckState(snapshot);
@@ -669,6 +711,49 @@
 
   registerMathVisApi();
 
+  const ITEM_FORMATS = ['text', 'katex', 'asset'];
+
+  function detectItemFormat(source) {
+    if (!source || typeof source !== 'object') return 'text';
+    if (typeof source.format === 'string' && ITEM_FORMATS.includes(source.format)) {
+      return source.format;
+    }
+    if (typeof source.asset === 'string' && source.asset.trim()) {
+      return 'asset';
+    }
+    if (typeof source.description === 'string' && source.description.trim()) {
+      return 'katex';
+    }
+    return 'text';
+  }
+
+  function determineItemFormat(item) {
+    if (!item || typeof item !== 'object') return 'text';
+    if (typeof item.format === 'string' && ITEM_FORMATS.includes(item.format)) {
+      return item.format;
+    }
+    return detectItemFormat(item);
+  }
+
+  function ensureItemFormat(item) {
+    if (!item || typeof item !== 'object') return;
+    const format = determineItemFormat(item);
+    item.format = format;
+    if (typeof item.label !== 'string') item.label = '';
+    if (typeof item.alt !== 'string') item.alt = '';
+    if (format === 'asset') {
+      if (typeof item.asset !== 'string') item.asset = '';
+      item.description = '';
+    } else if (format === 'katex') {
+      if (typeof item.description !== 'string') item.description = '';
+      item.asset = '';
+    } else {
+      item.asset = '';
+      item.description = '';
+      if (typeof item.label !== 'string') item.label = '';
+    }
+  }
+
   function normalizeItem(raw, index) {
     const source = raw && typeof raw === 'object' ? raw : {};
     let id = typeof source.id === 'string' && source.id.trim() ? source.id.trim() : '';
@@ -712,12 +797,15 @@
       }
     }
 
+    const format = detectItemFormat(source);
+
     return {
       id,
       description,
       label,
       asset,
-      alt
+      alt,
+      format
     };
   }
 
@@ -743,6 +831,7 @@
       } else {
         seen.add(id);
       }
+      ensureItemFormat(normalized);
       return normalized;
     });
   }
@@ -754,7 +843,8 @@
       description: item.description,
       label: item.label,
       asset: item.asset,
-      alt: item.alt
+      alt: item.alt,
+      format: item.format
     };
   }
 
@@ -860,6 +950,39 @@
   let keyboardActiveId = null;
   const keyboardHandlers = new Map();
   let dragState = null;
+  const itemEditorDragState = {
+    activeId: null,
+    dropTargetEl: null,
+    originIndex: -1
+  };
+
+  function refreshItemsById() {
+    itemsById.clear();
+    if (!state || !Array.isArray(state.items)) return;
+    state.items.forEach(item => {
+      if (!item || typeof item !== 'object' || !item.id) return;
+      ensureItemFormat(item);
+      itemsById.set(item.id, item);
+    });
+  }
+
+  function generateItemId() {
+    const used = new Set();
+    if (state && Array.isArray(state.items)) {
+      state.items.forEach(item => {
+        if (item && typeof item.id === 'string') {
+          used.add(item.id);
+        }
+      });
+    }
+    let index = used.size + 1;
+    let candidate = `item-${index}`;
+    while (used.has(candidate)) {
+      index += 1;
+      candidate = `item-${index}`;
+    }
+    return candidate;
+  }
 
   function ensureItemNodes(item) {
     if (!item || !item.id) return null;
@@ -1325,101 +1448,483 @@
     const nextValue = normalizeGap(event.target.value, state ? state.gap : fallback);
     if (!state) return;
     state.gap = Number.isFinite(nextValue) ? nextValue : fallback;
-    event.target.value = String(state.gap);
+    if (gapInput && doc.activeElement !== gapInput) {
+      gapInput.value = String(state.gap);
+    } else {
+      event.target.value = String(state.gap);
+    }
     updateLayout();
+    syncSettingsFormFromState();
+    notifyStatusChange('settings-change');
+  }
+
+  function syncSettingsFormFromState() {
+    if (!state) return;
+    const direction = normalizeDirection(state.retning);
+    if (directionSelect) {
+      directionSelect.value = direction;
+    }
+    if (gapInput && doc.activeElement !== gapInput) {
+      gapInput.value = String(state.gap);
+    }
+    if (randomizeInput) {
+      randomizeInput.checked = !!state.randomisering;
+    }
+  }
+
+  function handleDirectionSelectChange(event) {
+    if (!state) return;
+    const next = event && event.target ? event.target.value : state.retning;
+    state.retning = normalizeDirection(next);
+    syncSettingsFormFromState();
+    updateLayout();
+    notifyStatusChange('settings-change');
+  }
+
+  function handleRandomizeToggle(event) {
+    if (!state) return;
+    const checked = !!(event && event.target && event.target.checked);
+    state.randomisering = checked;
+    const options = checked ? { randomize: true } : { resetToBase: true };
+    applyOrder(options);
+    syncSettingsFormFromState();
+  }
+
+  function setItemEditorStatus(messages) {
+    if (!itemEditorStatus) return;
+    if (!messages || !messages.length) {
+      itemEditorStatus.hidden = true;
+      itemEditorStatus.textContent = '';
+      return;
+    }
+    itemEditorStatus.hidden = false;
+    itemEditorStatus.textContent = messages.join(' ');
+  }
+
+  function getItemValueForFormat(item, format) {
+    const targetFormat = format && ITEM_FORMATS.includes(format) ? format : determineItemFormat(item);
+    if (!item || typeof item !== 'object') return '';
+    if (targetFormat === 'asset') {
+      return typeof item.asset === 'string' ? item.asset : '';
+    }
+    if (targetFormat === 'katex') {
+      return typeof item.description === 'string' ? item.description : '';
+    }
+    return typeof item.label === 'string' ? item.label : '';
+  }
+
+  function setItemValueForFormat(item, format, value) {
+    if (!item || typeof item !== 'object') return;
+    const targetFormat = format && ITEM_FORMATS.includes(format) ? format : determineItemFormat(item);
+    const raw = typeof value === 'string' ? value : '';
+    if (targetFormat === 'asset') {
+      const trimmed = raw.trim();
+      item.asset = trimmed;
+      item.description = '';
+      if (!item.label) item.label = trimmed;
+      if (!item.alt) item.alt = trimmed;
+    } else if (targetFormat === 'katex') {
+      const normalized = raw.trim();
+      item.description = normalized;
+      item.asset = '';
+      if (!item.label) item.label = normalized;
+      if (!item.alt) item.alt = normalized;
+    } else {
+      const trimmed = raw.trim();
+      item.label = trimmed;
+      item.asset = '';
+      item.description = '';
+      if (!item.alt) item.alt = trimmed;
+    }
+    ensureItemFormat(item);
+  }
+
+  function setValueInputPlaceholder(input, format) {
+    if (!input) return;
+    if (format === 'asset') {
+      input.placeholder = 'Asset-slug (f.eks. images/fil.svg)';
+    } else if (format === 'katex') {
+      input.placeholder = 'KaTeX (f.eks. \\frac{1}{2})';
+    } else {
+      input.placeholder = 'Tekst';
+    }
+  }
+
+  function validateItemEditor() {
+    const errors = [];
+    const items = state && Array.isArray(state.items) ? state.items : [];
+    if (items.length === 0) {
+      errors.push('Legg til minst ett element.');
+    }
+    items.forEach((item, index) => {
+      if (!item) return;
+      const format = determineItemFormat(item);
+      const value = getItemValueForFormat(item, format).trim();
+      if (!value) {
+        if (format === 'asset') {
+          errors.push(`Element ${index + 1} mangler asset-slug.`);
+        } else if (format === 'katex') {
+          errors.push(`Element ${index + 1} mangler KaTeX-innhold.`);
+        } else {
+          errors.push(`Element ${index + 1} mangler tekst.`);
+        }
+      }
+    });
+    return {
+      valid: errors.length === 0,
+      errors
+    };
+  }
+
+  function updateItemEditorValidation() {
+    const { valid, errors } = validateItemEditor();
+    setItemEditorStatus(valid ? null : errors);
+    return valid;
+  }
+
+  function removeItem(id) {
+    if (!state || !Array.isArray(state.items)) return;
+    const index = state.items.findIndex(item => item && item.id === id);
+    if (index < 0) return;
+    state.items.splice(index, 1);
+    refreshItemsById();
+    state.order = sanitizeOrder(state.items, state.order);
+    currentOrder = sanitizeOrder(state.items, currentOrder);
+    const options = state.randomisering ? { randomize: true } : { resetToBase: true };
+    applyOrder(options);
+    renderItemsEditor();
+  }
+
+  function clearItemEditorDragState() {
+    if (itemEditorDragState.dropTargetEl) {
+      itemEditorDragState.dropTargetEl.classList.remove('is-drop-before', 'is-drop-after');
+      itemEditorDragState.dropTargetEl = null;
+    }
+    if (itemEditorList) {
+      const dragSources = itemEditorList.querySelectorAll('.sortering-editor__item.is-drag-source');
+      dragSources.forEach(node => node.classList.remove('is-drag-source'));
+    }
+    itemEditorDragState.activeId = null;
+    itemEditorDragState.originIndex = -1;
+  }
+
+  function reorderConfigItems(sourceId, targetId, placeBefore) {
+    if (!state || !Array.isArray(state.items)) return false;
+    if (!sourceId || !targetId || sourceId === targetId) return false;
+    const sourceIndex = state.items.findIndex(item => item && item.id === sourceId);
+    const targetIndex = state.items.findIndex(item => item && item.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return false;
+    const [moved] = state.items.splice(sourceIndex, 1);
+    let insertIndex = targetIndex;
+    if (sourceIndex < targetIndex) {
+      insertIndex -= 1;
+    }
+    if (!placeBefore) {
+      insertIndex += 1;
+    }
+    if (insertIndex < 0) insertIndex = 0;
+    if (insertIndex > state.items.length) insertIndex = state.items.length;
+    state.items.splice(insertIndex, 0, moved);
+    refreshItemsById();
+    state.order = state.items.map(item => item.id);
+    currentOrder = state.randomisering ? sanitizeOrder(state.items, currentOrder) : state.order.slice();
+    const options = state.randomisering ? { randomize: true } : { resetToBase: true };
+    applyOrder(options);
+    renderItemsEditor({ focusId: sourceId, focusField: 'handle' });
+    return true;
+  }
+
+  function handleItemEditorDragStart(event, id, row) {
+    if (!row) return;
+    event.dataTransfer.effectAllowed = 'move';
+    itemEditorDragState.activeId = id;
+    itemEditorDragState.originIndex = state && Array.isArray(state.items) ? state.items.findIndex(item => item && item.id === id) : -1;
+    row.classList.add('is-drag-source');
+    if (event.dataTransfer.setData) {
+      event.dataTransfer.setData('text/plain', id);
+    }
+    event.dataTransfer.setDragImage(row, row.offsetWidth / 2, row.offsetHeight / 2);
+  }
+
+  function handleItemEditorDragOver(event) {
+    if (!itemEditorDragState.activeId) return;
+    const target = event.currentTarget;
+    if (!target || target.dataset.itemId === itemEditorDragState.activeId) return;
+    event.preventDefault();
+    const rect = typeof target.getBoundingClientRect === 'function' ? target.getBoundingClientRect() : null;
+    const midpoint = rect ? rect.top + rect.height / 2 : event.clientY;
+    const before = event.clientY < midpoint;
+    if (itemEditorDragState.dropTargetEl && itemEditorDragState.dropTargetEl !== target) {
+      itemEditorDragState.dropTargetEl.classList.remove('is-drop-before', 'is-drop-after');
+    }
+    itemEditorDragState.dropTargetEl = target;
+    target.classList.toggle('is-drop-before', before);
+    target.classList.toggle('is-drop-after', !before);
+  }
+
+  function handleItemEditorDragLeave(event) {
+    const target = event.currentTarget;
+    if (!target) return;
+    const related = event.relatedTarget;
+    if (related && target.contains(related)) return;
+    target.classList.remove('is-drop-before', 'is-drop-after');
+    if (itemEditorDragState.dropTargetEl === target) {
+      itemEditorDragState.dropTargetEl = null;
+    }
+  }
+
+  function handleItemEditorDrop(event, targetId) {
+    if (!itemEditorDragState.activeId) return;
+    event.preventDefault();
+    const target = event.currentTarget;
+    const before = target && target.classList.contains('is-drop-before');
+    reorderConfigItems(itemEditorDragState.activeId, targetId, before);
+    clearItemEditorDragState();
+  }
+
+  function handleItemEditorDragEnd() {
+    clearItemEditorDragState();
+    renderItemsEditor();
+  }
+
+  function renderItemsEditor(options = {}) {
+    if (!itemEditorList) return;
+    const opts = options && typeof options === 'object' ? options : {};
+    const focusId = typeof opts.focusId === 'string' ? opts.focusId : null;
+    const focusField = typeof opts.focusField === 'string' ? opts.focusField : null;
+    const activeElement = doc.activeElement;
+    const previousFocusedId = activeElement && activeElement.closest ? activeElement.closest('.sortering-editor__item') : null;
+    const previousId = previousFocusedId ? previousFocusedId.dataset.itemId : null;
+    while (itemEditorList.firstChild) {
+      itemEditorList.removeChild(itemEditorList.firstChild);
+    }
+
+    const items = state && Array.isArray(state.items) ? state.items : [];
+    if (items.length === 0) {
+      const empty = doc.createElement('li');
+      empty.className = 'sortering-editor__empty';
+      empty.textContent = 'Ingen elementer er lagt til.';
+      itemEditorList.appendChild(empty);
+      updateItemEditorValidation();
+      return;
+    }
+
+    const focusRequests = [];
+
+    items.forEach(item => {
+      ensureItemFormat(item);
+      const row = doc.createElement('li');
+      row.className = 'sortering-editor__item';
+      row.dataset.itemId = item.id;
+
+      row.addEventListener('dragover', handleItemEditorDragOver);
+      row.addEventListener('dragleave', handleItemEditorDragLeave);
+      row.addEventListener('drop', event => handleItemEditorDrop(event, item.id));
+
+      const handle = doc.createElement('button');
+      handle.type = 'button';
+      handle.className = 'sortering-editor__handle';
+      handle.setAttribute('aria-label', 'Flytt element');
+      handle.textContent = '⠿';
+      handle.draggable = true;
+      handle.addEventListener('dragstart', event => handleItemEditorDragStart(event, item.id, row));
+      handle.addEventListener('dragend', handleItemEditorDragEnd);
+      handle.addEventListener('click', event => event.preventDefault());
+      row.appendChild(handle);
+
+      const valueInput = doc.createElement('input');
+      valueInput.type = 'text';
+      valueInput.className = 'sortering-editor__input';
+      const select = doc.createElement('select');
+      select.className = 'sortering-editor__select';
+      select.setAttribute('aria-label', 'Innholdstype');
+      const optionsList = [
+        { value: 'text', label: 'Tekst' },
+        { value: 'katex', label: 'KaTeX' },
+        { value: 'asset', label: 'Ressurs' }
+      ];
+      optionsList.forEach(option => {
+        const opt = doc.createElement('option');
+        opt.value = option.value;
+        opt.textContent = option.label;
+        select.appendChild(opt);
+      });
+      select.value = determineItemFormat(item);
+      setValueInputPlaceholder(valueInput, select.value);
+      valueInput.value = getItemValueForFormat(item, select.value);
+      select.addEventListener('change', () => {
+        const nextFormat = ITEM_FORMATS.includes(select.value) ? select.value : 'text';
+        item.format = nextFormat;
+        setItemValueForFormat(item, nextFormat, valueInput.value);
+        refreshItemsById();
+        setValueInputPlaceholder(valueInput, nextFormat);
+        valueInput.value = getItemValueForFormat(item, nextFormat);
+        const optsNext = state.randomisering ? { randomize: true } : {};
+        applyOrder(optsNext);
+        renderItemsEditor({ focusId: item.id, focusField: 'value' });
+      });
+      row.appendChild(select);
+
+      valueInput.addEventListener('input', () => {
+        setItemValueForFormat(item, select.value, valueInput.value);
+        refreshItemsById();
+        applyOrder({});
+        updateItemEditorValidation();
+      });
+      row.appendChild(valueInput);
+
+      const labelInput = doc.createElement('input');
+      labelInput.type = 'text';
+      labelInput.className = 'sortering-editor__label';
+      labelInput.placeholder = 'Knappetekst (valgfritt)';
+      labelInput.value = typeof item.label === 'string' ? item.label : '';
+      labelInput.addEventListener('input', () => {
+        item.label = labelInput.value;
+        ensureItemFormat(item);
+        refreshItemsById();
+        applyOrder({});
+        updateItemEditorValidation();
+      });
+      row.appendChild(labelInput);
+
+      const altInput = doc.createElement('input');
+      altInput.type = 'text';
+      altInput.className = 'sortering-editor__alt';
+      altInput.placeholder = 'Alternativ tekst';
+      altInput.value = typeof item.alt === 'string' ? item.alt : '';
+      altInput.addEventListener('input', () => {
+        item.alt = altInput.value;
+        ensureItemFormat(item);
+        refreshItemsById();
+        applyOrder({});
+      });
+      row.appendChild(altInput);
+
+      const removeBtn = doc.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'sortering-editor__remove';
+      removeBtn.textContent = 'Fjern';
+      removeBtn.addEventListener('click', () => {
+        removeItem(item.id);
+        updateItemEditorValidation();
+      });
+      row.appendChild(removeBtn);
+
+      itemEditorList.appendChild(row);
+
+      if ((focusId && item.id === focusId) || (!focusId && previousId && item.id === previousId)) {
+        focusRequests.push({ element: null, row, field: focusField || 'value' });
+      }
+    });
+
+    updateItemEditorValidation();
+
+    if (focusRequests.length) {
+      const request = focusRequests[0];
+      if (request && request.row) {
+        let target = null;
+        if (request.field === 'handle') {
+          target = request.row.querySelector('.sortering-editor__handle');
+        } else if (request.field === 'label') {
+          target = request.row.querySelector('.sortering-editor__label');
+        } else if (request.field === 'alt') {
+          target = request.row.querySelector('.sortering-editor__alt');
+        } else {
+          target = request.row.querySelector('.sortering-editor__input');
+        }
+        if (target && typeof target.focus === 'function') {
+          target.focus();
+          if (typeof target.select === 'function') {
+            target.select();
+          }
+        }
+      }
+    }
+  }
+
+  function addNewItem() {
+    if (!state) return;
+    if (!Array.isArray(state.items)) {
+      state.items = [];
+    }
+    const id = generateItemId();
+    const newItem = {
+      id,
+      label: '',
+      description: '',
+      asset: '',
+      alt: '',
+      format: 'text'
+    };
+    ensureItemFormat(newItem);
+    state.items.push(newItem);
+    refreshItemsById();
+    state.order = state.items.map(item => item.id);
+    currentOrder = state.randomisering ? sanitizeOrder(state.items, currentOrder) : state.order.slice();
+    const options = state.randomisering ? { randomize: true } : { resetToBase: true };
+    applyOrder(options);
+    renderItemsEditor({ focusId: id, focusField: 'value' });
+  }
+
+  function attachExampleButtonGuards() {
+    const ids = ['btnSaveExample', 'btnUpdateExample'];
+    ids.forEach(id => {
+      const button = doc.getElementById(id);
+      if (!button) return;
+      button.addEventListener(
+        'click',
+        event => {
+          if (!updateItemEditorValidation()) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return;
+          }
+          syncExampleBindings();
+        },
+        true
+      );
+    });
+    const deleteButton = doc.getElementById('btnDeleteExample');
+    if (deleteButton) {
+      deleteButton.addEventListener(
+        'click',
+        () => {
+          syncExampleBindings();
+        },
+        true
+      );
+    }
   }
 
   function setupSettingsForm(host) {
-    if (!host) return;
-    while (host.firstChild) {
-      host.removeChild(host.firstChild);
+    settingsForm = doc.getElementById('sorteringSettings');
+    directionSelect = doc.getElementById('sortering-direction');
+    gapInput = doc.getElementById('sortering-gap');
+    randomizeInput = doc.getElementById('sortering-randomize');
+    itemEditorList = doc.getElementById('sorteringEditorList');
+    addItemButton = doc.getElementById('btnAddSorteringItem');
+    itemEditorStatus = doc.getElementById('sorteringEditorStatus');
+
+    if (directionSelect) {
+      directionSelect.addEventListener('change', handleDirectionSelectChange);
+    }
+    if (gapInput) {
+      gapInput.addEventListener('change', handleGapChange);
+      gapInput.addEventListener('blur', handleGapChange);
+    }
+    if (randomizeInput) {
+      randomizeInput.addEventListener('change', handleRandomizeToggle);
+    }
+    if (addItemButton) {
+      addItemButton.addEventListener('click', addNewItem);
     }
 
-    const form = doc.createElement('form');
-    form.className = 'sortering-settings';
-    form.setAttribute('autocomplete', 'off');
-    form.noValidate = true;
-
-    const directionField = doc.createElement('div');
-    directionField.className = 'sortering-settings__field';
-
-    const directionLabel = doc.createElement('label');
-    directionLabel.className = 'sortering-settings__label';
-    directionLabel.textContent = 'Retning';
-    directionLabel.setAttribute('for', 'sortering-direction');
-
-    const directionSelect = doc.createElement('select');
-    directionSelect.id = 'sortering-direction';
-    directionSelect.name = 'direction';
-
-    const optionHorizontal = doc.createElement('option');
-    optionHorizontal.value = 'horisontal';
-    optionHorizontal.textContent = 'Horisontal';
-
-    const optionVertical = doc.createElement('option');
-    optionVertical.value = 'vertikal';
-    optionVertical.textContent = 'Vertikal';
-
-    directionSelect.appendChild(optionHorizontal);
-    directionSelect.appendChild(optionVertical);
-    directionSelect.value = normalizeDirection(state && state.retning);
-    directionSelect.addEventListener('change', event => {
-      if (!state) return;
-      state.retning = normalizeDirection(event.target.value);
-      directionSelect.value = state.retning;
-      updateLayout();
-    });
-
-    directionField.appendChild(directionLabel);
-    directionField.appendChild(directionSelect);
-
-    const gapField = doc.createElement('div');
-    gapField.className = 'sortering-settings__field';
-
-    const gapLabel = doc.createElement('label');
-    gapLabel.className = 'sortering-settings__label';
-    gapLabel.textContent = 'Avstand (px)';
-    gapLabel.setAttribute('for', 'sortering-gap');
-
-    const gapInput = doc.createElement('input');
-    gapInput.id = 'sortering-gap';
-    gapInput.name = 'gap';
-    gapInput.type = 'number';
-    gapInput.min = '0';
-    gapInput.step = '1';
-    gapInput.value = state ? String(state.gap) : String(DEFAULT_STATE.gap);
-    gapInput.addEventListener('change', handleGapChange);
-    gapInput.addEventListener('input', handleGapChange);
-
-    gapField.appendChild(gapLabel);
-    gapField.appendChild(gapInput);
-
-    const randomField = doc.createElement('label');
-    randomField.className = 'sortering-settings__checkbox';
-
-    const randomInput = doc.createElement('input');
-    randomInput.type = 'checkbox';
-    randomInput.name = 'randomize';
-    randomInput.checked = !!(state && state.randomisering);
-    randomInput.addEventListener('change', event => {
-      if (!state) return;
-      state.randomisering = !!event.target.checked;
-      applyOrder({ randomize: state.randomisering, resetToBase: !state.randomisering });
-    });
-
-    const randomLabelText = doc.createElement('span');
-    randomLabelText.textContent = 'Randomiser startrekkefølge';
-
-    randomField.appendChild(randomInput);
-    randomField.appendChild(randomLabelText);
-
-    form.appendChild(directionField);
-    form.appendChild(gapField);
-    form.appendChild(randomField);
-
-    host.appendChild(form);
-    ensureStatusSection(host);
-    updateStatusUI(getStatusSnapshot());
+    if (host) {
+      ensureStatusSection(host);
+      updateStatusUI(getStatusSnapshot());
+    }
+    syncSettingsFormFromState();
+    renderItemsEditor();
   }
 
   function createState() {
@@ -1454,6 +1959,19 @@
     return nextState;
   }
 
+  function applyStateFromGlobal() {
+    state = createState();
+    refreshItemsById();
+    currentOrder = sanitizeOrder(state.items, state.order);
+    syncSettingsFormFromState();
+    if (itemEditorList) {
+      renderItemsEditor();
+    }
+    updateLayout();
+    const options = state.randomisering ? { randomize: true } : { resetToBase: true };
+    applyOrder(options);
+  }
+
   function init() {
     registerMathVisApi();
     exportCard = doc.getElementById('exportCard');
@@ -1478,10 +1996,7 @@
     }
 
     state = createState();
-    itemsById.clear();
-    state.items.forEach(item => {
-      itemsById.set(item.id, item);
-    });
+    refreshItemsById();
 
     currentOrder = sanitizeOrder(state.items, state.order);
 
@@ -1501,6 +2016,12 @@
     applyOrder({ randomize: !!state.randomisering, resetToBase: !state.randomisering });
     if (settingsHost) {
       setupSettingsForm(settingsHost);
+    }
+    attachExampleButtonGuards();
+    if (typeof globalObj.addEventListener === 'function') {
+      globalObj.addEventListener('examples:loaded', () => {
+        applyStateFromGlobal();
+      });
     }
   }
 
