@@ -315,4 +315,23 @@ test.describe('MathVisualsTheme.getPalette', () => {
 
     expect(palette).toEqual(['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9']);
   });
+
+  test('ignores global stored default colors when project override provided', () => {
+    const theme = loadThemeModule();
+
+    expect(theme).toBeTruthy();
+
+    const campusDefaults = ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'];
+    global.localStorage.setItem(
+      'mathVisuals:settings',
+      JSON.stringify({ defaultColors: campusDefaults })
+    );
+
+    theme.setProfile('campus', { force: true });
+    expect(theme.getActiveProfileName()).toBe('campus');
+
+    const palette = theme.getPalette('figures', 6, { project: 'kikora' });
+
+    expect(palette).toEqual(['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3']);
+  });
 });

@@ -328,7 +328,7 @@
           }
         }
       }
-      if (stored.defaultColors != null) {
+      if (!project && stored.defaultColors != null) {
         const sanitized = flattenStoredPalette(stored.defaultColors);
         if (sanitized.length) {
           return ensurePalette(sanitized, count);
