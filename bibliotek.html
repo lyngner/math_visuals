@@ -9,7 +9,13 @@
     :root {
       --beta-color: #2563eb;
     }
-    .wrap { max-width: 1400px; }
+    body {
+      background: var(--surface-bg);
+    }
+    .wrap {
+      max-width: none;
+      width: 100%;
+    }
     .betaBadge {
       display: inline-flex;
       align-items: center;
@@ -52,39 +58,40 @@
     .browserHeader p { max-width: 70ch; }
 
     .bibliotekGrid {
-      --figure-columns: 1;
+      list-style: none;
+      margin: 0;
+      padding: 0;
       display: grid;
-      gap: var(--gap, 16px);
-      grid-template-columns: repeat(var(--figure-columns), minmax(0, 1fr));
-      align-items: start;
-    }
-
-    @media (min-width: 640px) {
-      .bibliotekGrid { --figure-columns: 2; }
-    }
-
-    @media (min-width: 1024px) {
-      .bibliotekGrid { --figure-columns: 3; }
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: clamp(14px, 2.4vw, 24px);
+      align-items: stretch;
     }
 
     .bibliotekItem {
       list-style: none;
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 18px;
       background: #fff;
-      display: flex;
-      flex-direction: column;
+      display: grid;
       gap: 12px;
-      padding: 16px;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+      padding: clamp(12px, 1.2vw, 18px);
+      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+
+    .bibliotekItem:hover,
+    .bibliotekItem:focus-within {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+      border-color: rgba(59, 130, 246, 0.35);
     }
 
     .bibliotekFigure {
       position: relative;
-      aspect-ratio: 1 / 1;
-      border: 1px solid #e5e7eb;
-      border-radius: 10px;
-      background: #f9fafb;
+      aspect-ratio: 4 / 3;
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(226, 232, 240, 0.45), rgba(248, 250, 252, 0.9));
       overflow: hidden;
       display: flex;
       align-items: center;
@@ -114,50 +121,63 @@
       to { background-position: 40px 40px; }
     }
 
-    .bibliotekMeta {
+    .bibliotekMeta { display: grid; gap: 10px; }
+    .bibliotekHeader {
       display: flex;
-      flex-direction: column;
-      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
     }
     .bibliotekMeta h2 {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 600;
       margin: 0;
       word-break: break-word;
+      color: var(--heading-color);
     }
     .bibliotekPath {
       font-family: "JetBrains Mono", "Fira Code", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 13px;
-      border-radius: 6px;
-      background: #f3f4f6;
+      font-size: 12px;
+      border-radius: 8px;
+      background: rgba(148, 163, 184, 0.18);
       padding: 6px 8px;
-      color: #111827;
+      color: #1f2937;
       word-break: break-all;
     }
     .bibliotekActions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .bibliotekActions button,
-    .bibliotekActions a {
-      border: 1px solid #d1d5db;
-      background: #fff;
-      color: #111827;
-      border-radius: 8px;
-      padding: 6px 12px;
-      font-size: 14px;
-      text-decoration: none;
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      flex-wrap: nowrap;
+    }
+    .bibliotekActions button,
+    .bibliotekActions a {
+      border: 1px solid rgba(148, 163, 184, 0.55);
+      background: rgba(255, 255, 255, 0.95);
+      color: #1e3a8a;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
     }
     .bibliotekActions button:hover,
     .bibliotekActions a:hover,
     .bibliotekActions button:focus-visible,
     .bibliotekActions a:focus-visible {
-      border-color: var(--beta-color);
+      border-color: rgba(37, 99, 235, 0.5);
       color: var(--beta-color);
+      transform: translateY(-1px);
+      box-shadow: 0 10px 18px rgba(37, 99, 235, 0.18);
+    }
+    .bibliotekActions button:focus-visible,
+    .bibliotekActions a:focus-visible {
+      outline: 3px solid rgba(59, 130, 246, 0.4);
+      outline-offset: 2px;
     }
 
     .bibliotekStatus {
@@ -186,10 +206,7 @@
     }
     .filterHelper { font-size: 13px; color: #6b7280; }
 
-    .copyFeedback {
-      font-size: 12px;
-      color: #047857;
-    }
+    .copyFeedback { font-size: 12px; color: #047857; margin: 0; }
 
     .emptyState {
       border: 1px dashed #d1d5db;

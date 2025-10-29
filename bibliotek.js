@@ -99,15 +99,12 @@ function createFigureItem(slug) {
   const meta = document.createElement('div');
   meta.className = 'bibliotekMeta';
 
+  const header = document.createElement('div');
+  header.className = 'bibliotekHeader';
+
   const title = document.createElement('h2');
   title.textContent = slug;
-  meta.appendChild(title);
-
-  const pathEl = document.createElement('div');
-  pathEl.className = 'bibliotekPath';
-  pathEl.textContent = path;
-  pathEl.setAttribute('aria-label', `Filsti ${path}`);
-  meta.appendChild(pathEl);
+  header.appendChild(title);
 
   const actions = document.createElement('div');
   actions.className = 'bibliotekActions';
@@ -115,7 +112,9 @@ function createFigureItem(slug) {
   const copyButton = document.createElement('button');
   copyButton.type = 'button';
   copyButton.dataset.path = path;
-  copyButton.textContent = `Kopier "${path}"`;
+  copyButton.textContent = 'Kopier sti';
+  copyButton.setAttribute('aria-label', `Kopier ${path}`);
+  copyButton.title = `Kopier ${path}`;
   copyButton.addEventListener('click', handleCopyClick);
   actions.appendChild(copyButton);
 
@@ -123,10 +122,19 @@ function createFigureItem(slug) {
   openLink.href = path;
   openLink.target = '_blank';
   openLink.rel = 'noreferrer noopener';
-  openLink.textContent = `Vis ${path}`;
+  openLink.textContent = 'Vis SVG';
+  openLink.setAttribute('aria-label', `Vis ${path} i en ny fane`);
+  openLink.title = `Åpne ${path}`;
   actions.appendChild(openLink);
 
-  meta.appendChild(actions);
+  header.appendChild(actions);
+  meta.appendChild(header);
+
+  const pathEl = document.createElement('div');
+  pathEl.className = 'bibliotekPath';
+  pathEl.textContent = path;
+  pathEl.setAttribute('aria-label', `Filsti ${path}`);
+  meta.appendChild(pathEl);
 
   const feedback = document.createElement('p');
   feedback.className = 'copyFeedback';
