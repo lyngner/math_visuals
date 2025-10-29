@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sortering</title>
+  <link rel="stylesheet" href="base.css" />
+  <link rel="stylesheet" href="split.css" />
+  <style>
+    .sr-only {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+    .figure {
+      border-radius: 12px;
+      background: #fafbfc;
+      overflow: hidden;
+      border: 1px solid #eef0f3;
+      position: relative;
+    }
+    .figure__canvas {
+      width: 100%;
+      min-height: 320px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid layout--sidebar">
+      <div class="card">
+        <div class="figure">
+          <div id="sortFigure" class="figure__canvas" aria-hidden="true"></div>
+          <ol id="sortSkia" class="sr-only" tabindex="-1"></ol>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="card card--examples">
+          <div class="example-description">
+            <textarea id="exampleDescription" aria-label="Oppgavetekst (valgfritt)" placeholder="Skriv oppgavetekst her"></textarea>
+            <div class="task-check-host" data-task-check-host hidden>
+              <button id="btnCheck" class="btn btn--task-check" type="button">Sjekk svar</button>
+              <div id="checkStatus" class="status" role="status" aria-live="polite" hidden></div>
+            </div>
+          </div>
+          <div class="toolbar">
+            <button id="btnUpdateExample" class="btn" type="button">Oppdater</button>
+            <button id="btnSaveExample" class="btn" type="button">Lag nytt</button>
+            <button id="btnDeleteExample" class="btn" type="button">Arkiver</button>
+          </div>
+        </div>
+
+        <div class="card card--settings">
+          <h2>Innstillinger</h2>
+          <div id="settingsHost"></div>
+        </div>
+
+        <div class="card card--draggables" aria-label="Elementer">
+          <div id="draggableItems" class="draggable-config-list"></div>
+          <div class="draggable-config-actions">
+            <button id="btnAddDraggable" class="btn" type="button">Legg til</button>
+          </div>
+        </div>
+
+        <div class="card" id="exportCard">
+          <h2>Eksporter</h2>
+          <div class="toolbar">
+            <button id="btnSvg" class="btn" type="button">Eksporter</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="alt-text-ui.js"></script>
+  <script src="examples.js"></script>
+  <script src="split.js"></script>
+  <script type="module" src="sortering.js"></script>
+</body>
+</html>
