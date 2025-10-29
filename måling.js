@@ -109,6 +109,7 @@
     }
   };
   const configContainers = resolveConfigContainers();
+  let exportClipIdCounter = 0;
 
   function refreshConfigContainers() {
     const latest = resolveConfigContainers();
@@ -179,6 +180,8 @@
   attachInstrumentPointerHandlers(ruler, 'ruler');
   attachInstrumentPointerHandlers(tapeHousing, 'tape');
   attachTapeExtensionHandlers(tapeStrap);
+  attachInstrumentFocusHandlers(ruler, 'ruler');
+  attachInstrumentFocusHandlers(tapeMeasure, 'tape');
 
   board.addEventListener('dblclick', event => {
     event.preventDefault();
@@ -1872,16 +1875,30 @@
     const unitSuffix = unitSuffixValue ? ` ${unitSuffixValue}` : '';
     const targetElement = getToolElement(activeToolKey);
     if (targetElement) {
-      targetElement.setAttribute(
-        'aria-label',
-        `Flyttbart ${info.label} på ${formattedLength}${unitSuffix}`
-      );
+      const labelParts = [`Flyttbart ${info.label}`];
+      if (activeToolKey === 'tape') {
+        const visibleUnitsRaw = tapeMeasure
+          ? Number.parseFloat(tapeMeasure.getAttribute('data-visible-length'))
+          : NaN;
+        let strapPart = `Synlig rem: ${formattedLength}${unitSuffix}`;
+        if (Number.isFinite(visibleUnitsRaw)) {
+          const visibleUnits = roundForDisplay(visibleUnitsRaw);
+          const visibleUnitsLabel = formatNumber(visibleUnits);
+          strapPart += ` (${visibleUnitsLabel} enheter)`;
+        }
+        labelParts.push(strapPart);
+      } else {
+        labelParts.push(`Lengde: ${formattedLength}${unitSuffix}`);
+      }
+      targetElement.setAttribute('aria-label', labelParts.join('. '));
       targetElement.setAttribute('aria-hidden', 'false');
+      targetElement.setAttribute('tabindex', '0');
     }
     const inactiveKey = activeToolKey === 'tape' ? 'ruler' : 'tape';
     const inactiveElement = getToolElement(inactiveKey);
     if (inactiveElement) {
       inactiveElement.setAttribute('aria-hidden', 'true');
+      inactiveElement.setAttribute('tabindex', '-1');
     }
     if (statusNote) {
       statusNote.textContent = buildStatusMessage(settings);
@@ -1898,6 +1915,18 @@
     const target = collapseWhitespace(settings.measurementTarget || buildDefaultMeasurementTarget(settings.figureName));
     if (!target) {
       return '';
+    }
+    if (activeToolKey === 'tape') {
+      const visibleUnitsRaw = tapeMeasure
+        ? Number.parseFloat(tapeMeasure.getAttribute('data-visible-length'))
+        : NaN;
+      const parts = [`${info.possessive} synlige rem er ${formattedLength}${unitSuffix}`];
+      if (Number.isFinite(visibleUnitsRaw)) {
+        const visibleUnits = roundForDisplay(visibleUnitsRaw);
+        parts[0] += ` (${formatNumber(visibleUnits)} enheter)`;
+      }
+      parts.push(`Bruk den til å finne ${target}.`);
+      return parts.join('. ');
     }
     return `${info.possessive} lengde er ${formattedLength}${unitSuffix}. Bruk den til å finne ${target}.`;
   }
@@ -2316,6 +2345,20 @@
     });
   }
 
+  function attachInstrumentFocusHandlers(element, toolKey) {
+    if (!element) {
+      return;
+    }
+    element.setAttribute('tabindex', '-1');
+    element.addEventListener('focus', () => {
+      if (appState.activeTool === toolKey) {
+        return;
+      }
+      persistActiveInstrumentState();
+      updateSettings({ activeTool: toolKey });
+    });
+  }
+
   function applyToolTransform(toolKey) {
     if (toolKey === 'tape') {
       applyTapeMeasureTransform();
@@ -2546,6 +2589,9 @@
     tapeLengthState.units = effectiveUnits;
     if (tapeMeasure) {
       tapeMeasure.setAttribute('data-visible-length', String(roundForDisplay(effectiveUnits)));
+    }
+    if (appState.activeTool === 'tape' && appState.settings) {
+      updateAccessibility(appState.settings);
     }
   }
 
@@ -3354,14 +3400,7 @@
       figureName,
       figureImage: settings.figureImage || null,
       figureSummary: summaryText || null,
-      measurementTarget: target || null,
-      ruler: {
-        length: effectiveLength,
-        unit: unitLabel || null,
-        subdivisions: settings.subdivisions,
-        valueMultiplier,
-        backgroundMode: settings.rulerBackgroundMode
-      }
+      measurementTarget: target || null
     };
     summary.tool = {
       key: activeToolKey,
@@ -3371,6 +3410,34 @@
       unit: unitLabel || null,
       valueMultiplier
     };
+    if (activeToolKey === 'tape') {
+      const tapeUnits = Number.isFinite(settings.tapeMeasureLength)
+        ? roundForDisplay(settings.tapeMeasureLength)
+        : null;
+      summary.tool.visibleUnits = Number.isFinite(tapeUnits) ? tapeUnits : null;
+    }
+    if (hasRuler) {
+      const rulerLength = roundForDisplay(getEffectiveToolLength(settings, 'ruler'));
+      summary.ruler = {
+        length: rulerLength,
+        unit: unitLabel || null,
+        subdivisions: settings.subdivisions,
+        valueMultiplier,
+        backgroundMode: settings.rulerBackgroundMode
+      };
+    }
+    if (hasTapeMeasure) {
+      const tapeLengthDisplay = roundForDisplay(getEffectiveToolLength(settings, 'tape'));
+      const tapeUnits = Number.isFinite(settings.tapeMeasureLength)
+        ? roundForDisplay(settings.tapeMeasureLength)
+        : null;
+      summary.tape = {
+        length: tapeLengthDisplay,
+        unit: unitLabel || null,
+        visibleUnits: Number.isFinite(tapeUnits) ? tapeUnits : null,
+        valueMultiplier
+      };
+    }
     if (settings.figureScaleLabel) {
       summary.figureScaleLabel = settings.figureScaleLabel;
     }
@@ -3382,7 +3449,7 @@
       baseName,
       description,
       altText,
-      title: `${figureName} – linjal`,
+      title: `${figureName} – ${toolInfo.title}`,
       summary
     };
   }
@@ -3488,6 +3555,13 @@
         font-weight: 600;
         fill: #1e293b;
         letter-spacing: 0.02em;
+      }
+      .mv-tape image {
+        image-rendering: optimizeQuality;
+      }
+      .mv-tape__strap image,
+      .mv-tape__housing image {
+        image-rendering: optimizeQuality;
       }
     `;
   }
@@ -3643,6 +3717,9 @@
     if (!rulerSvg) {
       return null;
     }
+    if (ruler && (ruler.hidden || ruler.getAttribute('aria-hidden') === 'true')) {
+      return null;
+    }
     const clone = helper && typeof helper.cloneSvgForExport === 'function'
       ? helper.cloneSvgForExport(rulerSvg)
       : rulerSvg.cloneNode(true);
@@ -3658,6 +3735,104 @@
       group.setAttribute('transform', matrixToString(matrix));
     }
     group.appendChild(clone);
+    return group;
+  }
+
+  async function createTapeMeasureGroupForExport(defs, helper) {
+    if (!tapeMeasure || !tapeStrap || !tapeHousing) {
+      return null;
+    }
+    if (tapeMeasure.hidden || tapeMeasure.getAttribute('aria-hidden') === 'true') {
+      return null;
+    }
+    const strapImage = tapeStrap.querySelector('img');
+    const housingImage = tapeHousing.querySelector('img');
+    if (!strapImage || !housingImage) {
+      return null;
+    }
+    const strapHref = await resolveImageHref(strapImage.getAttribute('src'));
+    const housingHref = await resolveImageHref(housingImage.getAttribute('src'));
+    if (!strapHref || !housingHref) {
+      return null;
+    }
+    const group = createSvgElement('g');
+    group.setAttribute('class', 'mv-tape');
+    const matrix = getComputedMatrix(tapeMeasure);
+    if (matrix) {
+      group.setAttribute('transform', matrixToString(matrix));
+    }
+    const containerRect = tapeMeasure.getBoundingClientRect();
+    const strapRect = tapeStrap.getBoundingClientRect();
+    const housingRect = tapeHousing.getBoundingClientRect();
+    const strapGroup = createSvgElement('g');
+    strapGroup.setAttribute('class', 'mv-tape__strap');
+    const strapOffsetX = strapRect.left - containerRect.left;
+    const strapOffsetY = strapRect.top - containerRect.top;
+    strapGroup.setAttribute(
+      'transform',
+      `translate(${formatSvgNumber(strapOffsetX)} ${formatSvgNumber(strapOffsetY)})`
+    );
+    const strapImageElement = createSvgElement('image');
+    const strapTotalWidth = tapeStrap.offsetWidth || strapRect.width || 0;
+    const strapVisibleRaw = Number.parseFloat(
+      tapeMeasure.style.getPropertyValue('--tape-strap-visible')
+    );
+    const strapVisibleWidth = Number.isFinite(strapVisibleRaw)
+      ? Math.min(Math.max(strapVisibleRaw, 0), strapTotalWidth)
+      : strapTotalWidth;
+    strapImageElement.setAttribute('x', '0');
+    strapImageElement.setAttribute('y', '0');
+    strapImageElement.setAttribute('width', formatSvgNumber(strapTotalWidth));
+    strapImageElement.setAttribute('height', formatSvgNumber(strapRect.height));
+    strapImageElement.setAttributeNS(XLINK_NS, 'xlink:href', strapHref);
+    strapImageElement.setAttribute('href', strapHref);
+    strapGroup.appendChild(strapImageElement);
+    if (
+      defs &&
+      Number.isFinite(strapTotalWidth) &&
+      strapTotalWidth > 0 &&
+      Number.isFinite(strapVisibleWidth) &&
+      strapVisibleWidth >= 0 &&
+      strapVisibleWidth < strapTotalWidth
+    ) {
+      const clipId = `mvTapeClip${++exportClipIdCounter}`;
+      const clipPath = createSvgElement('clipPath');
+      clipPath.setAttribute('id', clipId);
+      clipPath.setAttribute('clipPathUnits', 'objectBoundingBox');
+      const clipRect = createSvgElement('rect');
+      clipRect.setAttribute('x', '0');
+      clipRect.setAttribute('y', '0');
+      const normalizedWidthRaw = strapVisibleWidth / strapTotalWidth;
+      const normalizedWidth = Math.max(Math.min(normalizedWidthRaw, 1), 0);
+      const normalizedWidthString =
+        normalizedWidth === 0 || normalizedWidth === 1
+          ? String(Math.round(normalizedWidth))
+          : normalizedWidth.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+      clipRect.setAttribute('width', normalizedWidthString);
+      clipRect.setAttribute('height', '1');
+      clipPath.appendChild(clipRect);
+      defs.appendChild(clipPath);
+      strapGroup.setAttribute('clip-path', `url(#${clipId})`);
+    }
+    group.appendChild(strapGroup);
+
+    const housingGroup = createSvgElement('g');
+    housingGroup.setAttribute('class', 'mv-tape__housing');
+    const housingOffsetX = housingRect.left - containerRect.left;
+    const housingOffsetY = housingRect.top - containerRect.top;
+    housingGroup.setAttribute(
+      'transform',
+      `translate(${formatSvgNumber(housingOffsetX)} ${formatSvgNumber(housingOffsetY)})`
+    );
+    const housingImageElement = createSvgElement('image');
+    housingImageElement.setAttribute('x', '0');
+    housingImageElement.setAttribute('y', '0');
+    housingImageElement.setAttribute('width', formatSvgNumber(housingRect.width));
+    housingImageElement.setAttribute('height', formatSvgNumber(housingRect.height));
+    housingImageElement.setAttributeNS(XLINK_NS, 'xlink:href', housingHref);
+    housingImageElement.setAttribute('href', housingHref);
+    housingGroup.appendChild(housingImageElement);
+    group.appendChild(housingGroup);
     return group;
   }
 
@@ -3726,11 +3901,16 @@
       svg.appendChild(rulerGroup);
     }
 
+    const tapeGroup = await createTapeMeasureGroupForExport(defs, helper);
+    if (tapeGroup) {
+      svg.appendChild(tapeGroup);
+    }
+
     return svg;
   }
 
   async function handleExport() {
-    if (!appState.settings || !rulerSvg) {
+    if (!appState.settings || (!rulerSvg && !hasTapeMeasure)) {
       return;
     }
     const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
