@@ -6,6 +6,20 @@ const DEFAULT_LINE_THICKNESS = 3;
 const MAX_COLORS = 48;
 const MIN_COLOR_SLOTS = 38;
 const DEFAULT_PROJECT = 'campus';
+const GROUPED_PALETTE_ORDER = [
+  'graftegner',
+  'nkant',
+  'diagram',
+  'fractions',
+  'figurtall',
+  'arealmodell',
+  'tallinje',
+  'kvikkbilder',
+  'trefigurer',
+  'brokvegg',
+  'prikktilprikk',
+  'extra'
+];
 const PROJECT_FALLBACKS = {
   campus: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
   annet: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
@@ -120,6 +134,36 @@ function sanitizeColorList(values) {
   return out;
 }
 
+function flattenProjectPalette(palette) {
+  if (!palette) return [];
+  if (Array.isArray(palette)) {
+    return sanitizeColorList(palette);
+  }
+  if (typeof palette !== 'object') {
+    return [];
+  }
+  const normalizedGroups = {};
+  Object.keys(palette).forEach(key => {
+    if (typeof key !== 'string') return;
+    const normalizedKey = key.trim().toLowerCase();
+    if (!normalizedKey) return;
+    normalizedGroups[normalizedKey] = palette[key];
+  });
+  const flattened = [];
+  for (const groupId of GROUPED_PALETTE_ORDER) {
+    if (flattened.length >= MAX_COLORS) break;
+    const values = Array.isArray(normalizedGroups[groupId]) ? normalizedGroups[groupId] : [];
+    for (const value of values) {
+      if (flattened.length >= MAX_COLORS) break;
+      const sanitized = sanitizeColor(value);
+      if (sanitized) {
+        flattened.push(sanitized);
+      }
+    }
+  }
+  return flattened;
+}
+
 function expandPalette(projectName, palette) {
   const normalized = typeof projectName === 'string' ? projectName.trim().toLowerCase() : '';
   const sanitized = sanitizeColorList(palette);
@@ -188,7 +232,7 @@ function normalizeSettings(value) {
       const normalized = typeof name === 'string' ? name.trim().toLowerCase() : '';
       if (!normalized) return;
       const source = inputProjects[name];
-      const sanitized = sanitizeColorList(source && source.defaultColors);
+      const sanitized = flattenProjectPalette(source && source.defaultColors);
       const target = projects[normalized] ? projects[normalized] : { defaultColors: [] };
       if (!projects[normalized]) {
         projects[normalized] = target;
@@ -208,8 +252,8 @@ function normalizeSettings(value) {
     });
   }
 
-  if (Array.isArray(input.defaultColors)) {
-    const legacyColors = sanitizeColorList(input.defaultColors);
+  if (input.defaultColors != null) {
+    const legacyColors = flattenProjectPalette(input.defaultColors);
     if (legacyColors.length) {
       const projectName = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
       projects[projectName] = projects[projectName] || {};
@@ -331,6 +375,7 @@ module.exports = {
   getStoreMode,
   sanitizeColor,
   sanitizeColorList,
+  flattenProjectPalette,
   clampLineThickness,
   normalizeSettings,
   resolveProjectName,
