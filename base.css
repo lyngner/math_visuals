@@ -863,8 +863,10 @@ input[type="radio"] {
 .sortering__item {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   padding: 18px;
   min-width: 120px;
   min-height: 120px;
@@ -875,6 +877,11 @@ input[type="radio"] {
   cursor: grab;
   user-select: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.sortering__item--editable {
+  align-items: stretch;
+  justify-content: flex-start;
 }
 
 .sortering__item--dragging {
@@ -948,55 +955,30 @@ input[type="radio"] {
 }
 
 .sortering__item-editor {
-  position: absolute;
-  top: 12px;
-  right: 12px;
   display: none;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  z-index: 4;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
 }
 
 .sortering__figure[data-editor-mode="edit"] .sortering__item-editor {
   display: flex;
 }
 
-.sortering__item-editor-toggle {
-  border-radius: 10px;
-  border: 1px solid #d1d5db;
-  background: rgba(255, 255, 255, 0.95);
-  color: #1f2937;
-  font-size: 13px;
-  font-weight: 500;
-  padding: 6px 10px;
-  cursor: pointer;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-
-.sortering__item-editor-toggle:hover,
-.sortering__item-editor-toggle:focus-visible {
-  border-color: #2563eb;
-  background: #2563eb;
-  color: #ffffff;
-}
-
 .sortering__item-editor-panel {
-  display: none;
+  display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   padding: 12px;
   border-radius: 12px;
   border: 1px solid #d1d5db;
-  background: #ffffff;
-  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.18);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
   min-width: 220px;
   max-width: 260px;
-}
-
-.sortering__item-editor[data-open="1"] .sortering__item-editor-panel {
-  display: flex;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .sortering__item-editor-field {
@@ -1012,7 +994,8 @@ input[type="radio"] {
 }
 
 .sortering__item-editor-panel input,
-.sortering__item-editor-panel select {
+.sortering__item-editor-panel select,
+.sortering__item-editor-panel textarea {
   width: 100%;
   border-radius: 8px;
   border: 1px solid #d1d5db;
@@ -1024,13 +1007,9 @@ input[type="radio"] {
 }
 
 .sortering__item-editor-panel input:focus,
-.sortering__item-editor-panel select:focus {
+.sortering__item-editor-panel select:focus,
+.sortering__item-editor-panel textarea:focus {
   outline: 2px solid #2563eb;
   outline-offset: 1px;
   border-color: #2563eb;
-}
-
-.sortering__item--editor-open {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18);
 }
