@@ -49,6 +49,40 @@
     return null;
   }
   const paletteHelper = resolvePaletteHelper();
+
+  function resolvePaletteConfig() {
+    const scopes = [
+      typeof window !== 'undefined' ? window : null,
+      typeof globalThis !== 'undefined' ? globalThis : null,
+      typeof global !== 'undefined' ? global : null
+    ];
+    for (const scope of scopes) {
+      if (!scope || typeof scope !== 'object') continue;
+      const config = scope.MathVisualsPaletteConfig;
+      if (config && typeof config === 'object') {
+        return config;
+      }
+    }
+    if (typeof require === 'function') {
+      try {
+        const mod = require('./palette/palette-config.js');
+        if (mod && typeof mod === 'object') {
+          return mod;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  const paletteConfig = resolvePaletteConfig();
+  if (!paletteConfig) {
+    if (typeof console !== 'undefined' && console && typeof console.error === 'function') {
+      console.error(
+        '[MathVisualsThemeProfiles] Mangler fargekonfigurasjon. Sørg for at palette/palette-config.js lastes før theme-profiles.js.'
+      );
+    }
+    return;
+  }
   function sanitizeUserColor(value) {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
@@ -103,24 +137,29 @@
     figurtall: ['figures', 'fractions'],
     default: ['fractions', 'figures']
   };
-  const DEFAULT_PALETTE_GROUPS = [
-    'graftegner',
-    'nkant',
-    'diagram',
-    'fractions',
-    'figurtall',
-    'arealmodell',
-    'tallinje',
-    'kvikkbilder',
-    'trefigurer',
-    'brokvegg',
-    'prikktilprikk',
-    'extra'
-  ];
+  const DEFAULT_PALETTE_GROUPS = Array.isArray(paletteConfig.DEFAULT_GROUP_ORDER)
+    ? paletteConfig.DEFAULT_GROUP_ORDER.slice()
+    : [
+        'graftegner',
+        'nkant',
+        'diagram',
+        'fractions',
+        'figurtall',
+        'arealmodell',
+        'tallinje',
+        'kvikkbilder',
+        'trefigurer',
+        'brokvegg',
+        'prikktilprikk',
+        'extra'
+      ];
+  const campusPaletteColors = Array.isArray(paletteConfig.PROJECT_FALLBACKS.campus)
+    ? paletteConfig.PROJECT_FALLBACKS.campus.slice()
+    : [];
   const campusProfileBase = {
     palettes: {
-      fractions: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
-      figures: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9']
+      fractions: campusPaletteColors.slice(),
+      figures: campusPaletteColors.slice()
     },
     colors: {
       ui: {

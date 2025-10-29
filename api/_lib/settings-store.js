@@ -1,31 +1,33 @@
 'use strict';
 
+const paletteConfig = require('../../palette/palette-config.js');
+
 const SETTINGS_KEY = 'settings:projects';
 const INJECTED_KV_CLIENT_KEY = '__MATH_VISUALS_SETTINGS_KV_CLIENT__';
 const DEFAULT_LINE_THICKNESS = 3;
-const MAX_COLORS = 48;
-const MIN_COLOR_SLOTS = 38;
-const DEFAULT_PROJECT = 'campus';
-const GROUPED_PALETTE_ORDER = [
-  'graftegner',
-  'nkant',
-  'diagram',
-  'fractions',
-  'figurtall',
-  'arealmodell',
-  'tallinje',
-  'kvikkbilder',
-  'trefigurer',
-  'brokvegg',
-  'prikktilprikk',
-  'extra'
-];
-const PROJECT_FALLBACKS = {
-  campus: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
-  annet: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
-  kikora: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
-  default: ['#1F4DE2', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b']
-};
+const MAX_COLORS = paletteConfig.MAX_COLORS;
+const MIN_COLOR_SLOTS = paletteConfig.MIN_COLOR_SLOTS;
+const DEFAULT_PROJECT = typeof paletteConfig.DEFAULT_PROJECT === 'string' ? paletteConfig.DEFAULT_PROJECT : 'campus';
+const GROUPED_PALETTE_ORDER = Array.isArray(paletteConfig.DEFAULT_GROUP_ORDER)
+  ? paletteConfig.DEFAULT_GROUP_ORDER.slice()
+  : [
+      'graftegner',
+      'nkant',
+      'diagram',
+      'fractions',
+      'figurtall',
+      'arealmodell',
+      'tallinje',
+      'kvikkbilder',
+      'trefigurer',
+      'brokvegg',
+      'prikktilprikk',
+      'extra'
+    ];
+const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
+const DEFAULT_PROJECT_ORDER = Array.isArray(paletteConfig.DEFAULT_PROJECT_ORDER)
+  ? paletteConfig.DEFAULT_PROJECT_ORDER.slice()
+  : ['campus', 'kikora', 'annet'];
 
 const globalScope = typeof globalThis === 'object' && globalThis ? globalThis : global;
 const memoryState = globalScope.__MATH_VISUALS_SETTINGS_STATE__ || {
@@ -218,8 +220,6 @@ function buildDefaultProjects() {
   });
   return projects;
 }
-
-const DEFAULT_PROJECT_ORDER = ['campus', 'kikora', 'annet'];
 
 function normalizeSettings(value) {
   const input = value && typeof value === 'object' ? value : {};

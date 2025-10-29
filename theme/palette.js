@@ -1,29 +1,48 @@
 (function (global) {
-  const MAX_COLORS = 48;
-  const DEFAULT_PROJECT = 'campus';
-  const PROJECT_FALLBACKS = {
-    campus: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
-    annet: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
-    kikora: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
-    default: ['#1F4DE2', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b']
-  };
-  const GROUP_SLOT_INDICES = {
-    graftegner: [0],
-    nkant: [1, 2, 3],
-    diagram: [4, 5, 6, 7, 8, 9, 10, 11, 12],
-    fractions: [13, 14],
-    figurtall: [15, 16, 17, 18, 19, 20],
-    arealmodell: [21, 22, 23, 24],
-    tallinje: [25, 26],
-    kvikkbilder: [27],
-    trefigurer: [28, 29],
-    brokvegg: [30, 31, 32, 33, 34, 35],
-    prikktilprikk: [36, 37]
-  };
-  const MIN_COLOR_SLOTS = Object.values(GROUP_SLOT_INDICES).reduce(
-    (total, indices) => total + indices.length,
-    0
-  );
+  function resolvePaletteConfig() {
+    const scopes = [
+      typeof global !== 'undefined' ? global : null,
+      typeof globalThis !== 'undefined' ? globalThis : null,
+      typeof window !== 'undefined' ? window : null
+    ];
+    for (const scope of scopes) {
+      if (!scope || typeof scope !== 'object') continue;
+      const config = scope.MathVisualsPaletteConfig;
+      if (config && typeof config === 'object') {
+        return config;
+      }
+    }
+    if (typeof require === 'function') {
+      try {
+        const mod = require('../palette/palette-config.js');
+        if (mod && typeof mod === 'object') {
+          return mod;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  const paletteConfig = resolvePaletteConfig();
+  if (!paletteConfig) {
+    if (typeof console !== 'undefined' && console && typeof console.error === 'function') {
+      console.error(
+        '[MathVisualsPalette] Mangler fargekonfigurasjon. Sørg for at palette/palette-config.js lastes før theme/palette.js.'
+      );
+    }
+    return;
+  }
+
+  const MAX_COLORS = paletteConfig.MAX_COLORS;
+  const DEFAULT_PROJECT = typeof paletteConfig.DEFAULT_PROJECT === 'string'
+    ? paletteConfig.DEFAULT_PROJECT
+    : 'campus';
+  const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
+  const GROUP_SLOT_INDICES = paletteConfig.GROUP_SLOT_INDICES;
+  const MIN_COLOR_SLOTS = Number.isInteger(paletteConfig.MIN_COLOR_SLOTS)
+    ? paletteConfig.MIN_COLOR_SLOTS
+    : Object.values(GROUP_SLOT_INDICES).reduce((total, indices) => total + indices.length, 0);
+  const EXTRA_GROUP_ID = paletteConfig.EXTRA_GROUP_ID;
   const missingGroupWarnings = new Set();
 
   function normalizeProjectName(name) {
@@ -297,7 +316,7 @@
   }
 
   function collectGroupIndices(groupId, projectName, availableLength) {
-    if (groupId === 'extra') {
+    if (groupId === EXTRA_GROUP_ID) {
       const limit = Math.min(Number.isInteger(availableLength) ? availableLength : MAX_COLORS, MAX_COLORS);
       const indices = [];
       for (let index = MIN_COLOR_SLOTS; index < limit; index += 1) {
@@ -365,7 +384,7 @@
       });
     }
 
-    if (groupKey === 'extra') {
+    if (groupKey === EXTRA_GROUP_ID) {
       let nextIndex = MIN_COLOR_SLOTS;
       const globalFallback = getGlobalFallbackPalette();
       while (colors.length < (count || colors.length) && nextIndex < projectPalette.length && nextIndex < MAX_COLORS) {

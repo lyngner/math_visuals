@@ -211,8 +211,38 @@
   const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
   if (!globalScope) return;
 
+  function resolvePaletteConfig() {
+    const scopes = [globalScope, typeof globalThis !== 'undefined' ? globalThis : null];
+    for (const scope of scopes) {
+      if (!scope || typeof scope !== 'object') continue;
+      const config = scope.MathVisualsPaletteConfig;
+      if (config && typeof config === 'object') {
+        return config;
+      }
+    }
+    if (typeof require === 'function') {
+      try {
+        const mod = require('./palette/palette-config.js');
+        if (mod && typeof mod === 'object') {
+          return mod;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  const paletteConfig = resolvePaletteConfig();
+  if (!paletteConfig) {
+    if (typeof console !== 'undefined' && console && typeof console.error === 'function') {
+      console.error(
+        '[MathVisualsExamples] Mangler fargekonfigurasjon. Sørg for at palette/palette-config.js lastes før examples.js.'
+      );
+    }
+    return;
+  }
+
   const DEFAULT_LINE_THICKNESS = 3;
-  const MAX_COLORS = 48;
+  const MAX_COLORS = paletteConfig.MAX_COLORS;
   const FALLBACK_COLORS = [
     '#1F4DE2',
     '#475569',
@@ -233,71 +263,19 @@
     '#FACC15',
     '#F87171'
   ];
-  const EXTRA_GROUP_ID = 'extra';
-  const PROJECT_FALLBACK_BASE = {
-    campus: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
-    annet: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
-    kikora: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
-    default: FALLBACK_COLORS.slice()
-  };
-  const COLOR_SLOT_GROUPS = [
-    { groupId: 'graftegner', slots: [{ index: 0 }] },
-    { groupId: 'nkant', slots: [{ index: 1 }, { index: 2 }, { index: 3 }] },
-    {
-      groupId: 'diagram',
-      slots: [
-        { index: 4 },
-        { index: 5 },
-        { index: 6 },
-        { index: 7 },
-        { index: 8 },
-        { index: 9 },
-        { index: 10 },
-        { index: 11 },
-        { index: 12 }
-      ]
-    },
-    { groupId: 'fractions', slots: [{ index: 13 }, { index: 14 }] },
-    {
-      groupId: 'figurtall',
-      slots: [
-        { index: 15 },
-        { index: 16 },
-        { index: 17 },
-        { index: 18 },
-        { index: 19 },
-        { index: 20 }
-      ]
-    },
-    { groupId: 'arealmodell', slots: [{ index: 21 }, { index: 22 }, { index: 23 }, { index: 24 }] },
-    { groupId: 'tallinje', slots: [{ index: 25 }, { index: 26 }] },
-    { groupId: 'kvikkbilder', slots: [{ index: 27 }] },
-    { groupId: 'trefigurer', slots: [{ index: 28 }, { index: 29 }] },
-    {
-      groupId: 'brokvegg',
-      slots: [
-        { index: 30 },
-        { index: 31 },
-        { index: 32 },
-        { index: 33 },
-        { index: 34 },
-        { index: 35 }
-      ]
-    },
-    { groupId: 'prikktilprikk', slots: [{ index: 36 }, { index: 37 }] }
-  ];
-  COLOR_SLOT_GROUPS.forEach(group => {
-    const normalized = typeof group.groupId === 'string' ? group.groupId.trim().toLowerCase() : '';
-    group.groupId = normalized || 'gruppe';
-    group.slots = Array.isArray(group.slots)
-      ? group.slots.map((slot, slotIndex) => ({
-          index: Number.isInteger(slot && slot.index) ? Number(slot.index) : slotIndex,
-          groupId: group.groupId,
-          groupIndex: slotIndex
-        }))
-      : [];
-  });
-  const GROUP_IDS = COLOR_SLOT_GROUPS.map(group => group.groupId);
+  const EXTRA_GROUP_ID = paletteConfig.EXTRA_GROUP_ID;
+  const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
+  const COLOR_SLOT_GROUPS = paletteConfig.COLOR_SLOT_GROUPS.map(group => ({
+    groupId: group.groupId,
+    slots: group.slots.map(slot => ({
+      index: slot.index,
+      groupId: slot.groupId,
+      groupIndex: slot.groupIndex
+    }))
+  }));
+  const GROUP_IDS = Array.isArray(paletteConfig.COLOR_GROUP_IDS)
+    ? paletteConfig.COLOR_GROUP_IDS.slice()
+    : COLOR_SLOT_GROUPS.map(group => group.groupId);
   const SLOT_META_BY_INDEX = new Map();
   COLOR_SLOT_GROUPS.forEach(group => {
     group.slots.forEach(slot => {
@@ -310,11 +288,17 @@
       });
     });
   });
-  const MIN_COLOR_SLOTS = COLOR_SLOT_GROUPS.reduce((total, group) => total + group.slots.length, 0);
-  const PROJECT_FALLBACK_BASE_CACHE = new Map();
+  const MIN_COLOR_SLOTS = Number.isInteger(paletteConfig.MIN_COLOR_SLOTS)
+    ? paletteConfig.MIN_COLOR_SLOTS
+    : COLOR_SLOT_GROUPS.reduce((total, group) => total + group.slots.length, 0);
+  const PROJECT_FALLBACK_CACHE = new Map();
   const PROJECT_FALLBACK_GROUP_CACHE = new Map();
-  const DEFAULT_PROJECT = 'campus';
-  const DEFAULT_PROJECT_ORDER = ['campus', 'kikora', 'annet'];
+  const DEFAULT_PROJECT = typeof paletteConfig.DEFAULT_PROJECT === 'string'
+    ? paletteConfig.DEFAULT_PROJECT
+    : 'campus';
+  const DEFAULT_PROJECT_ORDER = Array.isArray(paletteConfig.DEFAULT_PROJECT_ORDER)
+    ? paletteConfig.DEFAULT_PROJECT_ORDER.slice()
+    : ['campus', 'kikora', 'annet'];
   const SETTINGS_STORAGE_KEY = 'mathVisuals:settings';
 
   const listeners = new Set();
@@ -358,15 +342,15 @@
 
   function getSanitizedFallbackBase(project) {
     const key = normalizeProjectName(project) || 'default';
-    if (PROJECT_FALLBACK_BASE_CACHE.has(key)) {
-      return PROJECT_FALLBACK_BASE_CACHE.get(key).slice();
+    if (PROJECT_FALLBACK_CACHE.has(key)) {
+      return PROJECT_FALLBACK_CACHE.get(key).slice();
     }
-    const base = PROJECT_FALLBACK_BASE[key] || PROJECT_FALLBACK_BASE.default || FALLBACK_COLORS;
+    const base = PROJECT_FALLBACKS[key] || PROJECT_FALLBACKS.default || FALLBACK_COLORS;
     const sanitized = sanitizeColorList(base);
     if (!sanitized.length) {
       sanitized.push(FALLBACK_COLORS[0]);
     }
-    PROJECT_FALLBACK_BASE_CACHE.set(key, sanitized.slice());
+    PROJECT_FALLBACK_CACHE.set(key, sanitized.slice());
     return sanitized.slice();
   }
 
@@ -561,7 +545,7 @@
 
   function buildDefaultProjects() {
     const projects = {};
-    Object.keys(PROJECT_FALLBACK_BASE).forEach(name => {
+    Object.keys(PROJECT_FALLBACKS).forEach(name => {
       if (name === 'default') return;
       projects[name] = {
         defaultColors: cloneProjectPalette(getProjectFallbackPalette(name))
