@@ -1232,6 +1232,15 @@
     nodes.button.addEventListener('keydown', handler);
   }
 
+  function computeWrappedCoordinate(x, y) {
+    if (!visualList) return x;
+    const listRect = visualList.getBoundingClientRect();
+    const relativeX = x - listRect.left;
+    const relativeY = y - listRect.top;
+    const effectiveWidth = Math.max(listRect.width, 1);
+    return relativeX + relativeY * effectiveWidth;
+  }
+
   function collectSwapSlots(activeId, orientation) {
     if (!currentOrder.length) return [];
     const slots = [];
@@ -1240,8 +1249,10 @@
       const candidateNodes = itemNodes.get(candidateId);
       if (!candidateNodes || !candidateNodes.wrapper) return;
       const rect = candidateNodes.wrapper.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
       const size = orientation === 'vertikal' ? rect.height : rect.width;
-      const center = orientation === 'vertikal' ? rect.top + rect.height / 2 : rect.left + rect.width / 2;
+      const center = orientation === 'vertikal' ? centerY : computeWrappedCoordinate(centerX, centerY);
       slots.push({ id: candidateId, center, size });
     });
     return slots.sort((a, b) => a.center - b.center);
@@ -1327,7 +1338,9 @@
     const dy = desiredCenterY - baseCenterY;
     wrapper.style.transform = `translate(${dx}px, ${dy}px)`;
 
-    const pointerCoord = orientation === 'vertikal' ? desiredCenterY : desiredCenterX;
+    const pointerCoord = orientation === 'vertikal'
+      ? desiredCenterY
+      : computeWrappedCoordinate(desiredCenterX, desiredCenterY);
     if (!Number.isFinite(pointerCoord)) return;
 
     const targetIndex = determineDragTargetIndex(id, pointerCoord, orientation);
