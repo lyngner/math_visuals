@@ -1137,12 +1137,29 @@
     height = naturalHeight * scaleAdjustment;
 
     if (settings && settings.measurementWithoutScale) {
-      const scaleMultiplier = Number.isFinite(desiredScaleDenominator) && desiredScaleDenominator > 0
-        ? desiredScaleDenominator
-        : 1;
-      width *= scaleMultiplier;
-      height *= scaleMultiplier;
-      unitSpacingPx *= scaleMultiplier;
+      let unitSpacingAdjusted = false;
+      const cachedWithScaleLabel =
+        appState && appState.unitLabelCache ? appState.unitLabelCache.withScale : '';
+      const referenceLabel = sanitizeUnitLabel(
+        cachedWithScaleLabel,
+        cachedWithScaleLabel
+      );
+      if (referenceLabel) {
+        const referenceFactorRaw = getUnitToCentimeterFactor(referenceLabel);
+        if (Number.isFinite(referenceFactorRaw) && referenceFactorRaw > 0) {
+          unitSpacingPx = baseSpacingPx * referenceFactorRaw;
+          unitSpacingAdjusted = true;
+        }
+      }
+
+      if (!unitSpacingAdjusted) {
+        const scaleMultiplier = Number.isFinite(desiredScaleDenominator) && desiredScaleDenominator > 0
+          ? desiredScaleDenominator
+          : 1;
+        if (Number.isFinite(scaleMultiplier) && scaleMultiplier > 0 && scaleMultiplier !== 1) {
+          unitSpacingPx /= scaleMultiplier;
+        }
+      }
     }
 
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
