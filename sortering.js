@@ -758,6 +758,7 @@
 
   const ITEM_TYPES = ['text', 'figure'];
   const FIGURE_LIBRARY_BASE_PATH = 'images/amounts/';
+  const FIGURE_LIBRARY_MANIFEST_URL = `${FIGURE_LIBRARY_BASE_PATH}manifest.json`;
   const FIGURE_CATEGORIES = [
     { id: 'tierbrett', label: 'Tierbrett', prefix: 'tb' },
     { id: 'tallbrikker', label: 'Tallbrikker', prefix: 'n' },
@@ -766,6 +767,184 @@
     { id: 'hender', label: 'Hender', prefix: 'h' },
     { id: 'custom', label: 'Egendefinert', prefix: '' }
   ];
+
+  function createEmptyFigureLibraryCategoryMap() {
+    const map = new Map();
+    FIGURE_CATEGORIES.forEach(category => {
+      map.set(category.id, []);
+    });
+    return map;
+  }
+
+  const figureLibraryState = {
+    loaded: false,
+    loading: null,
+    error: false,
+    optionsByCategory: createEmptyFigureLibraryCategoryMap(),
+    optionsByValue: new Map()
+  };
+
+  function normalizeFigureLibraryValue(value) {
+    if (typeof value !== 'string') return '';
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith(FIGURE_LIBRARY_BASE_PATH)) {
+      return trimmed.slice(FIGURE_LIBRARY_BASE_PATH.length);
+    }
+    return trimmed;
+  }
+
+  function getFigureLibraryOptions(categoryId) {
+    if (!categoryId || typeof categoryId !== 'string') {
+      return [];
+    }
+    const normalized = categoryId.trim().toLowerCase();
+    const category = FIGURE_CATEGORIES.find(entry => entry.id === normalized);
+    if (!category) {
+      return [];
+    }
+    const list = figureLibraryState.optionsByCategory.get(category.id);
+    return Array.isArray(list) ? list.slice() : [];
+  }
+
+  function getFigureLibraryMatch(value) {
+    const normalized = normalizeFigureLibraryValue(value);
+    if (!normalized) return null;
+    const lowered = normalized.toLowerCase();
+    if (figureLibraryState.optionsByValue.has(lowered)) {
+      return figureLibraryState.optionsByValue.get(lowered);
+    }
+    if (lowered.endsWith('.svg')) {
+      const withoutExt = lowered.replace(/\.svg$/i, '');
+      if (figureLibraryState.optionsByValue.has(withoutExt)) {
+        return figureLibraryState.optionsByValue.get(withoutExt);
+      }
+    } else {
+      const withExt = `${lowered}.svg`;
+      if (figureLibraryState.optionsByValue.has(withExt)) {
+        return figureLibraryState.optionsByValue.get(withExt);
+      }
+    }
+    return null;
+  }
+
+  function extractFigureLibrarySlugs(payload) {
+    if (!payload || typeof payload !== 'object') {
+      return [];
+    }
+    if (Array.isArray(payload.slugs) && payload.slugs.length) {
+      return payload.slugs
+        .map(entry => (typeof entry === 'string' ? entry.trim() : ''))
+        .filter(entry => entry);
+    }
+    if (Array.isArray(payload.files) && payload.files.length) {
+      return payload.files
+        .map(entry => {
+          if (typeof entry !== 'string') return '';
+          return entry.replace(/\.svg$/i, '').trim();
+        })
+        .filter(entry => entry);
+    }
+    return [];
+  }
+
+  function buildFigureLibraryOptionsFromSlugs(slugs) {
+    const optionsByCategory = createEmptyFigureLibraryCategoryMap();
+    const optionsByValue = new Map();
+    if (!Array.isArray(slugs)) {
+      return { optionsByCategory, optionsByValue };
+    }
+    slugs.forEach(rawSlug => {
+      if (typeof rawSlug !== 'string') return;
+      const trimmed = rawSlug.trim();
+      if (!trimmed) return;
+      const baseSlug = trimmed.replace(/\.svg$/i, '');
+      const value = `${baseSlug}.svg`;
+      const label = baseSlug;
+      const lowerValue = value.toLowerCase();
+      if (optionsByValue.has(lowerValue)) {
+        return;
+      }
+      const lowerLabel = label.toLowerCase();
+      let categoryId = 'custom';
+      for (const category of FIGURE_CATEGORIES) {
+        if (!category.prefix) continue;
+        if (lowerLabel.startsWith(category.prefix)) {
+          categoryId = category.id;
+          break;
+        }
+      }
+      const option = { value, label, categoryId };
+      const list = optionsByCategory.get(categoryId);
+      if (Array.isArray(list)) {
+        list.push(option);
+      } else {
+        optionsByCategory.set(categoryId, [option]);
+      }
+      optionsByValue.set(lowerValue, option);
+      if (!optionsByValue.has(lowerLabel)) {
+        optionsByValue.set(lowerLabel, option);
+      }
+    });
+    optionsByCategory.forEach(list => {
+      if (!Array.isArray(list) || list.length < 2) return;
+      list.sort((a, b) => a.label.localeCompare(b.label, 'nb', { numeric: true, sensitivity: 'base' }));
+    });
+    return { optionsByCategory, optionsByValue };
+  }
+
+  function refreshFigureInlineEditors() {
+    if (!itemNodes || typeof itemNodes.forEach !== 'function') {
+      return;
+    }
+    itemNodes.forEach((nodes, id) => {
+      if (!nodes || !nodes.inlineEditor || !nodes.inlineEditor.figureList) return;
+      const item = itemsById.get(id);
+      if (!item || !isFigureItem(item)) return;
+      renderInlineEditorFigures(item, nodes.inlineEditor);
+    });
+  }
+
+  function loadFigureLibrary() {
+    if (!globalObj || typeof globalObj.fetch !== 'function') {
+      return null;
+    }
+    if (figureLibraryState.loaded) {
+      return Promise.resolve(null);
+    }
+    if (figureLibraryState.loading) {
+      return figureLibraryState.loading;
+    }
+    figureLibraryState.error = false;
+    const request = globalObj
+      .fetch(FIGURE_LIBRARY_MANIFEST_URL, { cache: 'no-store' })
+      .then(response => {
+        if (!response || !response.ok) {
+          throw new Error(`HTTP ${response ? response.status : 'error'}`);
+        }
+        return response.json();
+      })
+      .then(payload => {
+        const slugs = extractFigureLibrarySlugs(payload);
+        const { optionsByCategory, optionsByValue } = buildFigureLibraryOptionsFromSlugs(slugs);
+        figureLibraryState.optionsByCategory = optionsByCategory;
+        figureLibraryState.optionsByValue = optionsByValue;
+        figureLibraryState.loaded = true;
+        figureLibraryState.error = false;
+        refreshFigureInlineEditors();
+      })
+      .catch(error => {
+        figureLibraryState.error = true;
+        if (globalObj && globalObj.console && typeof globalObj.console.warn === 'function') {
+          globalObj.console.warn('mathVisSortering: failed to load figure library', error);
+        }
+      })
+      .finally(() => {
+        figureLibraryState.loading = null;
+      });
+    figureLibraryState.loading = request;
+    return request;
+  }
 
   function sanitizeItemType(value) {
     if (typeof value !== 'string') return 'text';
@@ -1356,6 +1535,7 @@
     if (!inlineEditor || !inlineEditor.figureList) return;
     const listEl = inlineEditor.figureList;
     listEl.textContent = '';
+    loadFigureLibrary();
     const figures = ensureFigureArray(item);
     if (!figures.length) {
       const empty = doc.createElement('p');
@@ -1377,11 +1557,42 @@
         option.textContent = category.label;
         categorySelect.appendChild(option);
       });
-      categorySelect.value = sanitizeFigureCategory(figure.categoryId, figure.value);
+      const match = getFigureLibraryMatch(figure.value);
+      const initialCategory = match
+        ? match.categoryId
+        : sanitizeFigureCategory(figure.categoryId, figure.value);
+      figure.categoryId = initialCategory;
+      categorySelect.value = initialCategory;
       categorySelect.addEventListener('change', () => {
         figure.categoryId = sanitizeFigureCategory(categorySelect.value, figure.value);
         refreshItemsById();
         updateInlineEditorView(item, inlineEditor);
+        applyOrder({});
+        updateValidationState();
+      });
+
+      const figureSelect = doc.createElement('select');
+      figureSelect.className = 'sortering__item-editor-figure-select';
+      figureSelect.setAttribute('aria-label', 'Figur');
+      populateFigureSelectOptions(figureSelect, initialCategory, figure.value);
+      figureSelect.addEventListener('change', () => {
+        const selectedValue = figureSelect.value;
+        if (!selectedValue) {
+          populateFigureSelectOptions(figureSelect, categorySelect.value, figure.value);
+          return;
+        }
+        const selectedMatch = getFigureLibraryMatch(selectedValue);
+        figure.value = selectedValue;
+        if (selectedMatch) {
+          figure.categoryId = selectedMatch.categoryId;
+          categorySelect.value = selectedMatch.categoryId;
+          populateFigureSelectOptions(figureSelect, selectedMatch.categoryId, selectedMatch.value);
+        } else {
+          figure.categoryId = sanitizeFigureCategory(categorySelect.value, selectedValue);
+          populateFigureSelectOptions(figureSelect, figure.categoryId, selectedValue);
+        }
+        valueInput.value = selectedValue;
+        refreshItemsById();
         applyOrder({});
         updateValidationState();
       });
@@ -1392,6 +1603,7 @@
       valueInput.placeholder = 'Filnavn eller sti';
       valueInput.addEventListener('input', () => {
         figure.value = valueInput.value;
+        syncFigureSelectionControls(figure, categorySelect, figureSelect);
         refreshItemsById();
         applyOrder({});
         updateValidationState();
@@ -1410,10 +1622,79 @@
       });
 
       row.appendChild(categorySelect);
+      row.appendChild(figureSelect);
       row.appendChild(valueInput);
       row.appendChild(removeBtn);
       listEl.appendChild(row);
     });
+  }
+
+  function populateFigureSelectOptions(selectEl, categoryId, figureValue) {
+    if (!selectEl) return;
+    const normalizedCategory = typeof categoryId === 'string' ? categoryId.trim().toLowerCase() : 'custom';
+    const options = getFigureLibraryOptions(normalizedCategory);
+    const match = getFigureLibraryMatch(figureValue);
+    const hasOptions = options.length > 0;
+    const isLoading = !!figureLibraryState.loading && !figureLibraryState.loaded;
+    const hasError = !!figureLibraryState.error;
+
+    selectEl.textContent = '';
+    const placeholder = doc.createElement('option');
+    placeholder.value = '';
+    if (hasError) {
+      placeholder.textContent = 'Kunne ikke laste figurer';
+    } else if (normalizedCategory === 'custom') {
+      placeholder.textContent = 'Egendefinert figur';
+    } else if (!figureLibraryState.loaded && isLoading) {
+      placeholder.textContent = 'Laster figurer …';
+    } else if (!hasOptions) {
+      placeholder.textContent = figureLibraryState.loaded ? 'Ingen figurer' : 'Laster figurer …';
+    } else {
+      placeholder.textContent = 'Velg figur';
+    }
+    placeholder.selected = true;
+    selectEl.appendChild(placeholder);
+
+    options.forEach(option => {
+      const optionEl = doc.createElement('option');
+      optionEl.value = option.value;
+      optionEl.textContent = option.label;
+      selectEl.appendChild(optionEl);
+    });
+
+    if (match && match.categoryId === normalizedCategory && hasOptions) {
+      selectEl.value = match.value;
+      placeholder.selected = false;
+    } else {
+      selectEl.value = '';
+    }
+
+    const shouldDisable = !hasOptions || isLoading || hasError || normalizedCategory === 'custom';
+    selectEl.disabled = shouldDisable;
+    selectEl.dataset.categoryId = normalizedCategory;
+  }
+
+  function syncFigureSelectionControls(figure, categorySelect, figureSelect) {
+    if (!figure || !categorySelect || !figureSelect) return;
+    const match = getFigureLibraryMatch(figure.value);
+    if (match) {
+      figure.categoryId = match.categoryId;
+      if (categorySelect.value !== match.categoryId) {
+        categorySelect.value = match.categoryId;
+      }
+      populateFigureSelectOptions(figureSelect, match.categoryId, match.value);
+      if (!figureSelect.disabled) {
+        figureSelect.value = match.value;
+      }
+      return;
+    }
+
+    const normalizedCategory = sanitizeFigureCategory(categorySelect.value, figure.value);
+    figure.categoryId = normalizedCategory;
+    populateFigureSelectOptions(figureSelect, normalizedCategory, figure.value);
+    if (!figureSelect.disabled) {
+      figureSelect.value = '';
+    }
   }
 
   function updateInlineEditorView(item, inlineEditor) {
@@ -2618,6 +2899,7 @@
       setupSettingsForm(settingsHost);
     }
     attachExampleButtonGuards();
+    loadFigureLibrary();
     if (typeof globalObj.addEventListener === 'function') {
       globalObj.addEventListener('examples:loaded', () => {
         applyStateFromGlobal();
