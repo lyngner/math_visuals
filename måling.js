@@ -1054,14 +1054,17 @@
     const baseSpacing = DEFAULT_UNIT_SPACING_PX;
     const unitInfo = resolveUnitLabelInfo(settings ? settings.unitLabel : '');
     const unitQuantity = Number.isFinite(unitInfo.quantity) && unitInfo.quantity > 0 ? unitInfo.quantity : 1;
-    const baseFactor =
+    const rawBaseFactor =
       unitInfo.baseFactor != null && Number.isFinite(unitInfo.baseFactor) && unitInfo.baseFactor > 0
         ? unitInfo.baseFactor
-        : UNIT_TO_CENTIMETERS[DEFAULT_UNIT_KEY];
-    const spacingMultiplier = unitQuantity * baseFactor;
+        : null;
+    let spacingMultiplier = rawBaseFactor != null ? unitQuantity * rawBaseFactor : Number.NaN;
+    if (!Number.isFinite(spacingMultiplier) || spacingMultiplier <= 0) {
+      spacingMultiplier = UNIT_TO_CENTIMETERS[DEFAULT_UNIT_KEY];
+    }
 
     const measurementWithoutScale = !!(settings && settings.measurementWithoutScale);
-    let displayMultiplier = UNIT_TO_CENTIMETERS[DEFAULT_UNIT_KEY];
+    let displayMultiplier = spacingMultiplier;
 
     if (measurementWithoutScale) {
       let rawDisplayMultiplier = unitQuantity;
