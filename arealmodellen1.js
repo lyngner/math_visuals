@@ -116,6 +116,17 @@ function getGroupPaletteHelper() {
   const helper = scope.MathVisualsGroupPalette;
   return helper && typeof helper.resolve === "function" ? helper : null;
 }
+
+function sanitizePaletteList(values) {
+  if (!Array.isArray(values)) return [];
+  const out = [];
+  values.forEach(value => {
+    if (typeof value !== "string") return;
+    const trimmed = value.trim();
+    if (trimmed) out.push(trimmed);
+  });
+  return out;
+}
 function getActiveThemeProjectName(theme = getThemeApi()) {
   if (!theme || typeof theme.getActiveProfileName !== "function") return null;
   try {
@@ -133,53 +144,98 @@ function applyThemeToDocument() {
   }
 }
 function ensureColors(base, fallback, count) {
-  const safeFallback = Array.isArray(fallback) && fallback.length ? fallback : DEFAULT_RECT_COLORS;
-  const out = [];
-  for (let i = 0; i < count; i++) {
-    const candidate = Array.isArray(base) && typeof base[i] === "string" && base[i] ? base[i] : null;
-    out.push(candidate || safeFallback[i % safeFallback.length]);
+  const baseColors = sanitizePaletteList(base);
+  const fallbackColors = sanitizePaletteList(fallback);
+  const safeFallback = fallbackColors.length ? fallbackColors : sanitizePaletteList(DEFAULT_RECT_COLORS);
+  if (!Number.isFinite(count) || count <= 0) {
+    if (baseColors.length) return baseColors.slice();
+    if (safeFallback.length) return safeFallback.slice();
+    return baseColors.slice();
   }
-  return out;
+  const size = Math.max(1, Math.trunc(count));
+  if (baseColors.length >= size) return baseColors.slice(0, size);
+  const result = baseColors.slice();
+  const fallbackSource = safeFallback.length ? safeFallback : baseColors;
+  while (result.length < size && fallbackSource.length) {
+    const next = fallbackSource[result.length % fallbackSource.length];
+    if (typeof next === "string" && next) {
+      result.push(next);
+    } else {
+      break;
+    }
+  }
+  if (!result.length && safeFallback.length) {
+    return safeFallback.slice(0, size);
+  }
+  return result;
+}
+function reorderPaletteForProject(palette, project) {
+  if (project !== "campus") return sanitizePaletteList(palette);
+  const source = sanitizePaletteList(palette);
+  if (!source.length) return source;
+  return CAMPUS_RECT_ORDER.map(idx => source[idx % source.length] || source[0]);
 }
 function resolveRectColors(count = DEFAULT_RECT_COLORS.length) {
   const theme = getThemeApi();
   const project = getActiveThemeProjectName(theme);
   const helper = getGroupPaletteHelper();
+  const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : DEFAULT_RECT_COLORS.length;
   if (helper) {
     const palette = helper.resolve({
       groupId: AREAL_GROUP_ID,
-      count,
+      count: targetCount,
       project,
       fallback: DEFAULT_RECT_COLORS,
       legacyPaletteId: "figures",
       fallbackKinds: ["fractions"]
     });
     if ((!project || project !== "kikora") && Array.isArray(palette) && palette.length) {
-      const sanitized = palette.map(color => (typeof color === "string" && color.trim() ? color.trim() : ""));
-      const filtered = sanitized.some(color => color) ? sanitized.map(color => color || "") : palette;
-      const reordered = project === "campus" ? CAMPUS_RECT_ORDER.map(idx => filtered[idx % filtered.length] || filtered[0]) : filtered;
-      return ensureColors(reordered, DEFAULT_RECT_COLORS, count);
+      const reordered = reorderPaletteForProject(palette, project);
+      if (reordered.length) {
+        return ensureColors(reordered, reordered, targetCount);
+      }
     }
   }
   if (theme && typeof theme.getGroupPalette === "function") {
+    let palette = null;
     try {
-      const palette = theme.getGroupPalette("arealmodell", count, project ? { project } : undefined);
+      palette = theme.getGroupPalette(AREAL_GROUP_ID, { project, count: targetCount });
+    } catch (_) {
+      palette = null;
+    }
+    if (
+      (!Array.isArray(palette) || (targetCount && palette.length < targetCount)) &&
+      theme.getGroupPalette.length >= 3
+    ) {
+      try {
+        palette = theme.getGroupPalette(
+          AREAL_GROUP_ID,
+          targetCount || undefined,
+          project ? { project } : undefined
+        );
+      } catch (_) {
+        palette = null;
+      }
+    }
+    if ((!project || project !== "kikora") && Array.isArray(palette) && palette.length) {
+      const reordered = reorderPaletteForProject(palette, project);
+      if (reordered.length) {
+        return ensureColors(reordered, DEFAULT_RECT_COLORS, targetCount);
+      }
+    }
+  }
+  if (theme && typeof theme.getPalette === "function") {
+    try {
+      const palette = theme.getPalette("figures", targetCount, { fallbackKinds: ["fractions"], project });
       if ((!project || project !== "kikora") && Array.isArray(palette) && palette.length) {
-        const sanitized = palette.map(color => (typeof color === "string" && color.trim() ? color.trim() : ""));
-        const filtered = sanitized.some(color => color) ? sanitized.map(color => color || "") : palette;
-        const reordered = project === "campus" ? CAMPUS_RECT_ORDER.map(idx => filtered[idx % filtered.length] || filtered[0]) : filtered;
-        return ensureColors(reordered, DEFAULT_RECT_COLORS, count);
+        const reordered = reorderPaletteForProject(palette, project);
+        if (reordered.length) {
+          return ensureColors(reordered, DEFAULT_RECT_COLORS, targetCount);
+        }
       }
     } catch (_) {}
   }
-  if (theme && typeof theme.getPalette === "function") {
-    const palette = theme.getPalette("figures", count, { fallbackKinds: ["fractions"], project });
-    if ((!project || project !== "kikora") && Array.isArray(palette) && palette.length) {
-      const reordered = project === "campus" ? CAMPUS_RECT_ORDER.map(idx => palette[idx % palette.length]) : palette;
-      return ensureColors(reordered, DEFAULT_RECT_COLORS, count);
-    }
-  }
-  return ensureColors(DEFAULT_RECT_COLORS, DEFAULT_RECT_COLORS, count);
+  return ensureColors(DEFAULT_RECT_COLORS, DEFAULT_RECT_COLORS, targetCount);
 }
 applyThemeToDocument();
 CFG.ADV.colors = resolveRectColors();

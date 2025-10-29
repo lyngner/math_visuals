@@ -3,6 +3,15 @@ var _CFG$SIMPLE$challenge, _CFG$SIMPLE$challenge2, _CFG$SIMPLE$challenge3, _CFG$
    AREALMODELL – rektangel m/ rutenett og håndtak
    ========================================================= */
 
+const DEFAULT_ADV_COLORS = {
+  fill: "#5d9bbf",
+  edge: "#2b3a42",
+  grid: "#4a4a4a",
+  text: "#222",
+  handleFill: "#fff",
+  handleEdge: "#666"
+};
+
 const CFG = {
   SIMPLE: {
     length: {
@@ -33,12 +42,7 @@ const CFG = {
   ADV: {
     containerId: "box",
     colors: {
-      fill: "#5d9bbf",
-      edge: "#2b3a42",
-      grid: "#4a4a4a",
-      text: "#222",
-      handleFill: "#fff",
-      handleEdge: "#666"
+      ...DEFAULT_ADV_COLORS
     },
     opacity: 0.55,
     stroke: 2,
@@ -83,6 +87,170 @@ const CFG = {
     }
   }
 };
+const AREAL_GROUP_ID = "arealmodell";
+const DEFAULT_RECT_COLORS = ["#e07c7c", "#f0c667", "#7fb2d6", "#8bb889"];
+const CAMPUS_RECT_ORDER = [0, 5, 2, 4];
+
+function getThemeApi() {
+  const theme = typeof window !== "undefined" ? window.MathVisualsTheme : null;
+  return theme && typeof theme === "object" ? theme : null;
+}
+
+function getGroupPaletteHelper() {
+  const scope = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null;
+  if (!scope) return null;
+  const helper = scope.MathVisualsGroupPalette;
+  return helper && typeof helper.resolve === "function" ? helper : null;
+}
+
+function getActiveThemeProjectName(theme = getThemeApi()) {
+  if (!theme || typeof theme.getActiveProfileName !== "function") return null;
+  try {
+    const value = theme.getActiveProfileName();
+    if (typeof value === "string" && value.trim()) {
+      return value.trim().toLowerCase();
+    }
+  } catch (_) {}
+  return null;
+}
+
+function applyThemeToDocument() {
+  const theme = getThemeApi();
+  if (theme && typeof theme.applyToDocument === "function") {
+    try {
+      theme.applyToDocument(document);
+    } catch (_) {}
+  }
+}
+
+function sanitizePaletteList(values) {
+  if (!Array.isArray(values)) return [];
+  const out = [];
+  values.forEach(value => {
+    if (typeof value !== "string") return;
+    const trimmed = value.trim();
+    if (trimmed) out.push(trimmed);
+  });
+  return out;
+}
+
+function ensurePaletteCount(primary, fallback, count) {
+  const base = sanitizePaletteList(primary);
+  const backup = sanitizePaletteList(fallback);
+  if (!Number.isFinite(count) || count <= 0) {
+    if (base.length) return base.slice();
+    if (backup.length) return backup.slice();
+    return base.length ? base.slice() : backup.slice();
+  }
+  const size = Math.max(1, Math.trunc(count));
+  if (base.length >= size) return base.slice(0, size);
+  const result = base.slice();
+  const fallbackSource = backup.length ? backup : base;
+  while (result.length < size && fallbackSource.length) {
+    const next = fallbackSource[result.length % fallbackSource.length];
+    if (typeof next === "string" && next) {
+      result.push(next);
+    } else {
+      break;
+    }
+  }
+  if (!result.length && backup.length) {
+    return backup.slice(0, size);
+  }
+  return result;
+}
+
+function reorderForProject(palette, project) {
+  if (project !== "campus") return sanitizePaletteList(palette);
+  const source = sanitizePaletteList(palette);
+  if (!source.length) return source;
+  return CAMPUS_RECT_ORDER.map(idx => source[idx % source.length] || source[0]);
+}
+
+function resolveArealPalette(count) {
+  const theme = getThemeApi();
+  const project = getActiveThemeProjectName(theme);
+  const helper = getGroupPaletteHelper();
+  const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+  if (helper && typeof helper.resolve === "function") {
+    const palette = helper.resolve({
+      groupId: AREAL_GROUP_ID,
+      count: targetCount,
+      project,
+      fallback: DEFAULT_RECT_COLORS,
+      legacyPaletteId: "figures",
+      fallbackKinds: ["fractions"]
+    });
+    if (Array.isArray(palette) && palette.length) {
+      const sanitized = sanitizePaletteList(palette);
+      if (sanitized.length) {
+        const reordered = reorderForProject(sanitized, project);
+        return ensurePaletteCount(reordered, reordered, targetCount);
+      }
+    }
+  }
+  let palette = null;
+  if (theme && typeof theme.getGroupPalette === "function") {
+    try {
+      palette = theme.getGroupPalette(AREAL_GROUP_ID, { project, count: targetCount });
+    } catch (_) {
+      palette = null;
+    }
+    if (
+      (!Array.isArray(palette) || (targetCount && palette.length < targetCount)) &&
+      theme.getGroupPalette.length >= 3
+    ) {
+      try {
+        palette = theme.getGroupPalette(
+          AREAL_GROUP_ID,
+          targetCount || undefined,
+          project ? { project } : undefined
+        );
+      } catch (_) {
+        palette = null;
+      }
+    }
+    if (Array.isArray(palette) && palette.length) {
+      const sanitized = sanitizePaletteList(palette);
+      if (sanitized.length) {
+        const reordered = reorderForProject(sanitized, project);
+        return ensurePaletteCount(reordered, DEFAULT_RECT_COLORS, targetCount);
+      }
+    }
+  }
+  if (theme && typeof theme.getPalette === "function") {
+    try {
+      palette = theme.getPalette("figures", targetCount, { fallbackKinds: ["fractions"], project });
+    } catch (_) {
+      palette = null;
+    }
+    if (Array.isArray(palette) && palette.length) {
+      const sanitized = sanitizePaletteList(palette);
+      if (sanitized.length) {
+        const reordered = reorderForProject(sanitized, project);
+        return ensurePaletteCount(reordered, DEFAULT_RECT_COLORS, targetCount);
+      }
+    }
+  }
+  return ensurePaletteCount(DEFAULT_RECT_COLORS, DEFAULT_RECT_COLORS, targetCount);
+}
+
+function resolveAdvColors() {
+  const palette = resolveArealPalette(4);
+  const ensured = ensurePaletteCount(palette, DEFAULT_RECT_COLORS, 4);
+  const [fill, edge, grid, text] = ensured;
+  return {
+    fill: fill || DEFAULT_ADV_COLORS.fill,
+    edge: edge || DEFAULT_ADV_COLORS.edge,
+    grid: grid || DEFAULT_ADV_COLORS.grid,
+    text: text || DEFAULT_ADV_COLORS.text,
+    handleFill: DEFAULT_ADV_COLORS.handleFill,
+    handleEdge: edge || DEFAULT_ADV_COLORS.handleEdge
+  };
+}
+
+applyThemeToDocument();
+CFG.ADV.colors = resolveAdvColors();
 const DEFAULT_SIMPLE_CFG = JSON.parse(JSON.stringify(CFG.SIMPLE));
 function ensureSimpleDefaults() {
   const fill = (target, defaults) => {
@@ -816,6 +984,24 @@ function downloadInteractiveHTML() {
 }
 
 /* ============================== Init ============================== */
+function refreshThemeAndRebuild() {
+  applyThemeToDocument();
+  CFG.ADV.colors = resolveAdvColors();
+  rebuildFromConfig();
+}
+function handleThemeProfileMessage(event) {
+  const data = event && event.data;
+  const type = typeof data === 'string' ? data : data && data.type;
+  if (type !== 'math-visuals:profile-change') return;
+  refreshThemeAndRebuild();
+}
+function handleThemeSettingsChanged() {
+  refreshThemeAndRebuild();
+}
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('message', handleThemeProfileMessage);
+  window.addEventListener('math-visuals:settings-changed', handleThemeSettingsChanged);
+}
 document.addEventListener("DOMContentLoaded", () => {
   initFromHtml();
   document.querySelectorAll('#settingsMenu input, #settingsMenu select').forEach(el => {
