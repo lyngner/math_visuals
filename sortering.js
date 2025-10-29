@@ -946,18 +946,56 @@
     return request;
   }
 
-  function sanitizeItemType(value) {
-    if (typeof value !== 'string') return 'text';
-    const lowered = value.trim().toLowerCase();
-    if (ITEM_TYPES.includes(lowered)) return lowered;
-    if (lowered === 'figur' || lowered === 'figure') return 'figure';
-    return 'text';
+  function figureEntryHasContent(entry) {
+    if (!entry) return false;
+    if (typeof entry === 'string') {
+      return !!entry.trim();
+    }
+    if (typeof entry === 'object') {
+      if (typeof entry.value === 'string' && entry.value.trim()) {
+        return true;
+      }
+      if (typeof entry.asset === 'string' && entry.asset.trim()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function itemHasFigureEntries(source) {
+    if (!source || typeof source !== 'object') return false;
+    if (Array.isArray(source.figures) && source.figures.some(figureEntryHasContent)) {
+      return true;
+    }
+    if (Array.isArray(source.images) && source.images.some(figureEntryHasContent)) {
+      return true;
+    }
+    if (typeof source.asset === 'string' && source.asset.trim()) {
+      return true;
+    }
+    return false;
+  }
+
+  function sanitizeItemType(value, source) {
+    let normalized = 'text';
+    if (typeof value === 'string') {
+      const lowered = value.trim().toLowerCase();
+      if (ITEM_TYPES.includes(lowered)) {
+        normalized = lowered;
+      } else if (lowered === 'figur' || lowered === 'figure') {
+        normalized = 'figure';
+      }
+    }
+    if (itemHasFigureEntries(source)) {
+      return 'figure';
+    }
+    return normalized;
   }
 
   function determineItemType(source) {
     if (!source || typeof source !== 'object') return 'text';
     if (typeof source.type === 'string') {
-      return sanitizeItemType(source.type);
+      return sanitizeItemType(source.type, source);
     }
     if (Array.isArray(source.figures) && source.figures.length) {
       return 'figure';
@@ -1115,7 +1153,10 @@
 
   function ensureItemShape(item, index) {
     if (!item || typeof item !== 'object') return null;
-    const type = sanitizeItemType(item.type || determineItemType(item));
+    let type = sanitizeItemType(item.type, item);
+    if (type !== 'figure') {
+      type = sanitizeItemType(determineItemType(item), item);
+    }
     const id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `item-${index + 1}`;
     const label = typeof item.label === 'string' ? item.label : '';
     const alt = typeof item.alt === 'string' ? item.alt : '';
@@ -1567,6 +1608,7 @@
       categorySelect.value = initialCategory;
       categorySelect.addEventListener('change', () => {
         figure.categoryId = sanitizeFigureCategory(categorySelect.value, figure.value);
+        item.type = 'figure';
         refreshItemsById();
         updateInlineEditorView(item, inlineEditor);
         applyOrder({});
@@ -1594,6 +1636,7 @@
           populateFigureSelectOptions(figureSelect, figure.categoryId, selectedValue);
         }
         valueInput.value = selectedValue;
+        item.type = 'figure';
         refreshItemsById();
         applyOrder({});
         updateValidationState();
@@ -1606,6 +1649,7 @@
       valueInput.addEventListener('input', () => {
         figure.value = valueInput.value;
         syncFigureSelectionControls(figure, categorySelect, figureSelect);
+        item.type = 'figure';
         refreshItemsById();
         applyOrder({});
         updateValidationState();
