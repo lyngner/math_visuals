@@ -1650,15 +1650,18 @@
       valueInput.placeholder = 'Filnavn eller sti';
       valueInput.addEventListener('input', () => {
         figure.value = valueInput.value;
-        syncFigureSelectionControls(figure, categorySelect, figureSelect);
+        syncFigureSelectionControls(figure, categorySelect, figureSelect, valueInput);
         item.type = 'figure';
         refreshItemsById();
         updateValidationState();
       });
       valueInput.addEventListener('blur', () => {
-        figure.value = typeof valueInput.value === 'string' ? valueInput.value.trim() : '';
-        valueInput.value = figure.value;
-        syncFigureSelectionControls(figure, categorySelect, figureSelect);
+        const trimmed = typeof valueInput.value === 'string' ? valueInput.value.trim() : '';
+        figure.value = trimmed;
+        if (valueInput.value !== trimmed) {
+          valueInput.value = trimmed;
+        }
+        syncFigureSelectionControls(figure, categorySelect, figureSelect, valueInput);
         item.type = 'figure';
         commitFigureChanges();
       });
@@ -1714,10 +1717,11 @@
     selectEl.dataset.categoryId = normalizedCategory;
   }
 
-  function syncFigureSelectionControls(figure, categorySelect, figureSelect) {
+  function syncFigureSelectionControls(figure, categorySelect, figureSelect, valueInput) {
     if (!figure || !categorySelect || !figureSelect) return;
     const match = getFigureLibraryMatch(figure.value);
     if (match) {
+      figure.value = match.value;
       figure.categoryId = match.categoryId;
       if (categorySelect.value !== match.categoryId) {
         categorySelect.value = match.categoryId;
@@ -1725,6 +1729,9 @@
       populateFigureSelectOptions(figureSelect, match.categoryId, match.value);
       if (!figureSelect.disabled) {
         figureSelect.value = match.value;
+      }
+      if (valueInput && valueInput.value !== match.value) {
+        valueInput.value = match.value;
       }
       return;
     }
