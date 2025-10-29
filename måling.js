@@ -56,7 +56,7 @@
     measurementWithoutScale: doc.getElementById('cfg-measurement-without-scale'),
     panningEnabled: doc.getElementById('cfg-pan-enabled'),
     rulerBackgroundMode: doc.getElementById('cfg-ruler-background-mode'),
-    measurementTool: Array.from(doc.querySelectorAll('input[name="measurement-tool"]'))
+    measurementTool: doc.getElementById('cfg-measurement-tool')
   };
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
@@ -1967,11 +1967,8 @@
         inputs.measurementWithoutScale.checked = !!settings.measurementWithoutScale;
       }
       if (inputs.panningEnabled) inputs.panningEnabled.checked = !!settings.panningEnabled;
-      if (Array.isArray(inputs.measurementTool)) {
-        for (const input of inputs.measurementTool) {
-          if (!input) continue;
-          input.checked = input.value === activeToolKey;
-        }
+      if (inputs.measurementTool) {
+        inputs.measurementTool.value = activeToolKey;
       }
       // unit spacing is fixed and no longer exposed to the UI
     } finally {
@@ -2086,16 +2083,12 @@
         updateSettings({ panningEnabled: event.target.checked });
       });
     }
-    if (Array.isArray(inputs.measurementTool)) {
-      for (const radio of inputs.measurementTool) {
-        if (!radio) continue;
-        radio.addEventListener('change', event => {
-          if (appState.syncingInputs) return;
-          if (!event.target.checked) return;
-          persistActiveInstrumentState();
-          updateSettings({ activeTool: event.target.value });
-        });
-      }
+    if (inputs.measurementTool) {
+      inputs.measurementTool.addEventListener('change', event => {
+        if (appState.syncingInputs) return;
+        persistActiveInstrumentState();
+        updateSettings({ activeTool: event.target.value });
+      });
     }
     // unit spacing is fixed and no longer configurable
   }
