@@ -829,29 +829,48 @@ function resolveSettingsPalette(count) {
   const groupTarget = target && target > 0 ? target : 3;
   const api = getSettingsApi();
   if (api && typeof api.getGroupPalette === "function") {
+    let palette = null;
     try {
-      const palette = api.getGroupPalette("nkant", groupTarget, project ? { project } : undefined);
-      const resolved = cycleSettingsPalette(palette, groupTarget);
-      if (resolved.length) {
-        return { colors: resolved, source: "group" };
+      palette = api.getGroupPalette("nkant", { project, count: groupTarget });
+    } catch (_) {
+      palette = null;
+    }
+    if (
+      (!Array.isArray(palette) || palette.length < groupTarget) &&
+      api.getGroupPalette.length >= 3
+    ) {
+      try {
+        palette = api.getGroupPalette("nkant", groupTarget, project ? { project } : undefined);
+      } catch (_) {
+        palette = null;
       }
-    } catch (_) {}
-    try {
-      const palette = api.getGroupPalette("nkant", { project, count: groupTarget });
-      const resolved = cycleSettingsPalette(palette, groupTarget);
-      if (resolved.length) {
-        return { colors: resolved, source: "group" };
-      }
-    } catch (_) {}
+    }
+    const resolved = cycleSettingsPalette(palette, groupTarget);
+    if (resolved.length) {
+      return { colors: resolved, source: "group" };
+    }
   }
   if (theme && typeof theme.getGroupPalette === "function") {
+    let palette = null;
     try {
-      const palette = theme.getGroupPalette("nkant", groupTarget, project ? { project } : undefined);
-      const resolved = cycleSettingsPalette(palette, groupTarget);
-      if (resolved.length) {
-        return { colors: resolved, source: "group" };
+      palette = theme.getGroupPalette("nkant", { project, count: groupTarget });
+    } catch (_) {
+      palette = null;
+    }
+    if (
+      (!Array.isArray(palette) || palette.length < groupTarget) &&
+      theme.getGroupPalette.length >= 3
+    ) {
+      try {
+        palette = theme.getGroupPalette("nkant", groupTarget, project ? { project } : undefined);
+      } catch (_) {
+        palette = null;
       }
-    } catch (_) {}
+    }
+    const resolved = cycleSettingsPalette(palette, groupTarget);
+    if (resolved.length) {
+      return { colors: resolved, source: "group" };
+    }
   }
   if (theme && typeof theme.getPalette === "function") {
     try {
@@ -4525,15 +4544,20 @@ function scheduleThemeRefresh() {
   Promise.resolve().then(execute);
 }
 
-function handleThemeProfileChange(event) {
+function handleThemeProfileChangeMessage(event) {
   const data = event && event.data;
   const type = typeof data === "string" ? data : data && data.type;
   if (type !== "math-visuals:profile-change") return;
   scheduleThemeRefresh();
 }
 
+function handleThemeProfileChangeEvent() {
+  scheduleThemeRefresh();
+}
+
 if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
-  window.addEventListener("message", handleThemeProfileChange);
+  window.addEventListener("message", handleThemeProfileChangeMessage);
+  window.addEventListener("math-visuals:profile-change", handleThemeProfileChangeEvent);
   window.addEventListener("math-visuals:settings-changed", () => scheduleThemeRefresh());
 }
 

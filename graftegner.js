@@ -395,13 +395,35 @@ function fetchGraftegnerPalette(count) {
   const theme = getThemeApi();
   const settings = getSettingsApi();
   if (settings && typeof settings.getGroupPalette === 'function') {
-    let palette = tryResolveGroupPalette(() => settings.getGroupPalette(GRAFTEGNER_GROUP_ID, targetCount, project ? { project } : undefined));
-    if (palette) return palette;
-    palette = tryResolveGroupPalette(() => settings.getGroupPalette(GRAFTEGNER_GROUP_ID, { project, count: targetCount }));
+    let palette = tryResolveGroupPalette(() => settings.getGroupPalette(GRAFTEGNER_GROUP_ID, { project, count: targetCount }));
+    if (
+      (!Array.isArray(palette) || (targetCount && palette.length < targetCount)) &&
+      settings.getGroupPalette.length >= 3
+    ) {
+      palette = tryResolveGroupPalette(() =>
+        settings.getGroupPalette(
+          GRAFTEGNER_GROUP_ID,
+          targetCount || undefined,
+          project ? { project } : undefined
+        )
+      );
+    }
     if (palette) return palette;
   }
   if (theme && typeof theme.getGroupPalette === 'function') {
-    const palette = tryResolveGroupPalette(() => theme.getGroupPalette(GRAFTEGNER_GROUP_ID, targetCount || undefined, project ? { project } : undefined));
+    let palette = tryResolveGroupPalette(() => theme.getGroupPalette(GRAFTEGNER_GROUP_ID, { project, count: targetCount }));
+    if (
+      (!Array.isArray(palette) || (targetCount && palette.length < targetCount)) &&
+      theme.getGroupPalette.length >= 3
+    ) {
+      palette = tryResolveGroupPalette(() =>
+        theme.getGroupPalette(
+          GRAFTEGNER_GROUP_ID,
+          targetCount || undefined,
+          project ? { project } : undefined
+        )
+      );
+    }
     if (palette) return palette;
   }
   const helper = getPaletteHelper();
@@ -5252,27 +5274,31 @@ window.addEventListener('resize', () => {
   }
   updateAfterViewChange();
 });
+function handleGraftegnerProfileChange() {
+  applyThemeToDocument();
+  applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
+  updateCurveColorsFromTheme();
+  updateAxisThemeStyling();
+  refreshFunctionColorDefaults();
+}
+
+function handleGraftegnerSettingsChange() {
+  const thickness = getDefaultLineThickness();
+  ADV.axis.style.width = thickness;
+  ADV.domainMarkers.width = thickness;
+  handleGraftegnerProfileChange();
+  requestRebuild();
+}
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('message', event => {
     const data = event && event.data;
     const type = typeof data === 'string' ? data : data && data.type;
     if (type !== 'math-visuals:profile-change') return;
-    applyThemeToDocument();
-    applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
-    updateCurveColorsFromTheme();
-    updateAxisThemeStyling();
-    refreshFunctionColorDefaults();
+    handleGraftegnerProfileChange();
   });
-  window.addEventListener('math-visuals:settings-changed', () => {
-    const thickness = getDefaultLineThickness();
-    ADV.axis.style.width = thickness;
-    ADV.domainMarkers.width = thickness;
-    applyThemeToDocument();
-    applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
-    updateCurveColorsFromTheme();
-    refreshFunctionColorDefaults();
-    requestRebuild();
-  });
+  window.addEventListener('math-visuals:profile-change', () => handleGraftegnerProfileChange());
+  window.addEventListener('math-visuals:settings-changed', () => handleGraftegnerSettingsChange());
 }
 function requestRebuild() {
   cancelScheduledSimpleRebuild();
