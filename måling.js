@@ -735,7 +735,11 @@
         const currentMode =
           appState.settings && appState.settings.measurementWithoutScale ? 'withoutScale' : 'withScale';
         rememberUnitLabel(currentMode, sanitizedLabel);
-        if (currentMode === 'withoutScale') {
+        const isSwitchingOffWithoutScale =
+          currentMode === 'withoutScale' &&
+          Object.prototype.hasOwnProperty.call(nextPartial, 'measurementWithoutScale') &&
+          !nextPartial.measurementWithoutScale;
+        if (currentMode === 'withoutScale' && !isSwitchingOffWithoutScale) {
           const scaleContext = {
             ...appState.settings,
             ...nextPartial,
