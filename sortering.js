@@ -1587,6 +1587,11 @@
       listEl.appendChild(empty);
       return;
     }
+    const commitFigureChanges = () => {
+      refreshItemsById();
+      applyOrder({});
+      updateValidationState();
+    };
     figures.forEach(figure => {
       if (!figure) return;
       const row = doc.createElement('div');
@@ -1608,10 +1613,9 @@
       categorySelect.value = initialCategory;
       categorySelect.addEventListener('change', () => {
         figure.categoryId = sanitizeFigureCategory(categorySelect.value, figure.value);
+        populateFigureSelectOptions(figureSelect, figure.categoryId, figure.value);
         item.type = 'figure';
         refreshItemsById();
-        updateInlineEditorView(item, inlineEditor);
-        applyOrder({});
         updateValidationState();
       });
 
@@ -1637,9 +1641,7 @@
         }
         valueInput.value = selectedValue;
         item.type = 'figure';
-        refreshItemsById();
-        applyOrder({});
-        updateValidationState();
+        commitFigureChanges();
       });
 
       const valueInput = doc.createElement('input');
@@ -1651,26 +1653,18 @@
         syncFigureSelectionControls(figure, categorySelect, figureSelect);
         item.type = 'figure';
         refreshItemsById();
-        applyOrder({});
         updateValidationState();
       });
-
-      const removeBtn = doc.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'sortering__item-editor-figure-remove';
-      removeBtn.textContent = 'Fjern';
-      removeBtn.addEventListener('click', () => {
-        removeFigureFromItem(item, figure.id);
-        refreshItemsById();
-        applyOrder({});
-        updateInlineEditorView(item, inlineEditor);
-        updateValidationState();
+      valueInput.addEventListener('blur', () => {
+        figure.value = typeof valueInput.value === 'string' ? valueInput.value.trim() : '';
+        valueInput.value = figure.value;
+        syncFigureSelectionControls(figure, categorySelect, figureSelect);
+        item.type = 'figure';
+        commitFigureChanges();
       });
-
       row.appendChild(categorySelect);
       row.appendChild(figureSelect);
       row.appendChild(valueInput);
-      row.appendChild(removeBtn);
       listEl.appendChild(row);
     });
   }
@@ -1760,7 +1754,6 @@
     inlineEditor.textWrapper = null;
     inlineEditor.preview = null;
     inlineEditor.figureList = null;
-    inlineEditor.addFigureButton = null;
 
     if (type === 'text') {
       const textWrapper = doc.createElement('div');
@@ -1835,26 +1828,16 @@
       return;
     }
 
+    const figures = ensureFigureArray(item);
+    if (!figures.length) {
+      addFigureToItem(item);
+    }
+
     const figureList = doc.createElement('div');
     figureList.className = 'sortering__item-editor-figure-list';
     inlineEditor.content.appendChild(figureList);
     inlineEditor.figureList = figureList;
     renderInlineEditorFigures(item, inlineEditor);
-
-    const addFigureButton = doc.createElement('button');
-    addFigureButton.type = 'button';
-    addFigureButton.className = 'btn btn--small sortering__item-editor-add-figure';
-    addFigureButton.textContent = 'Legg til figur';
-    addFigureButton.addEventListener('click', () => {
-      if (item.type !== 'figure') return;
-      addFigureToItem(item);
-      refreshItemsById();
-      applyOrder({});
-      updateInlineEditorView(item, inlineEditor);
-      updateValidationState();
-    });
-    inlineEditor.addFigureButton = addFigureButton;
-    inlineEditor.content.appendChild(addFigureButton);
   }
 
   function ensureInlineEditor(item, nodes) {
@@ -1915,8 +1898,7 @@
         textField: null,
         textWrapper: null,
         preview: null,
-        figureList: null,
-        addFigureButton: null
+        figureList: null
       };
 
       typeSelect.addEventListener('change', () => {
