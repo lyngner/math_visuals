@@ -191,6 +191,9 @@
   let visualList = null;
   let accessibleList = null;
   let figureHost = null;
+  let keyboardActiveId = null;
+  const keyboardHandlers = new Map();
+  let dragState = null;
 
   function ensureItemNodes(item) {
     if (!item || !item.id) return null;
@@ -217,6 +220,7 @@
 
     const nodes = { wrapper, contentEl, li, button };
     itemNodes.set(item.id, nodes);
+    attachItemListeners(item.id, nodes);
     return nodes;
   }
 
@@ -281,6 +285,296 @@
     return nodes;
   }
 
+  function syncVisualOrder() {
+    if (!visualList) return;
+    currentOrder.forEach((id, index) => {
+      const nodes = itemNodes.get(id);
+      if (!nodes || !nodes.wrapper) return;
+      const expectedNode = visualList.children[index];
+      if (expectedNode !== nodes.wrapper) {
+        visualList.insertBefore(nodes.wrapper, expectedNode || null);
+      }
+    });
+  }
+
+  function syncAccessibleOrder() {
+    if (!accessibleList) return;
+    const fragment = doc.createDocumentFragment();
+    currentOrder.forEach(id => {
+      const nodes = itemNodes.get(id);
+      if (!nodes || !nodes.li) return;
+      fragment.appendChild(nodes.li);
+    });
+    accessibleList.appendChild(fragment);
+  }
+
+  function updateItemPositions() {
+    const size = currentOrder.length;
+    currentOrder.forEach((id, index) => {
+      const nodes = itemNodes.get(id);
+      if (!nodes) return;
+      const pos = index + 1;
+      if (nodes.wrapper) {
+        nodes.wrapper.dataset.position = String(pos);
+      }
+      if (nodes.li) {
+        nodes.li.dataset.position = String(pos);
+        nodes.li.setAttribute('aria-posinset', String(pos));
+        nodes.li.setAttribute('aria-setsize', String(size));
+      }
+      if (nodes.button) {
+        nodes.button.dataset.position = String(pos);
+        nodes.button.setAttribute('aria-posinset', String(pos));
+        nodes.button.setAttribute('aria-setsize', String(size));
+      }
+    });
+
+    syncVisualOrder();
+    syncAccessibleOrder();
+  }
+
+  function snapToSlot(targetId) {
+    const ids = typeof targetId === 'string' ? [targetId] : currentOrder.slice();
+    ids.forEach(id => {
+      const nodes = itemNodes.get(id);
+      if (!nodes || !nodes.wrapper) return;
+      const { wrapper } = nodes;
+      wrapper.style.transition = '';
+      wrapper.style.transform = '';
+      wrapper.classList.remove('sortering__item--dragging');
+    });
+  }
+
+  function finalizeKeyboardMode(options = {}) {
+    const { restoreFocus = false } = options;
+    if (!keyboardActiveId) return;
+    const id = keyboardActiveId;
+    const nodes = itemNodes.get(id);
+    const handler = keyboardHandlers.get(id);
+    if (nodes && handler) {
+      nodes.button.removeEventListener('keydown', handler);
+    }
+    keyboardHandlers.delete(id);
+    keyboardActiveId = null;
+    if (nodes) {
+      nodes.wrapper.classList.remove('sortering__item--active');
+      nodes.button.classList.remove('sortering__skia-button--active');
+      nodes.button.removeAttribute('aria-pressed');
+      if (restoreFocus) {
+        nodes.button.focus();
+      }
+    }
+  }
+
+  function clearVisualMarkers() {
+    finalizeKeyboardMode();
+    itemNodes.forEach(nodes => {
+      if (nodes.wrapper) {
+        nodes.wrapper.classList.remove('sortering__item--dragging');
+        nodes.wrapper.classList.remove('sortering__item--active');
+      }
+      if (nodes.button) {
+        nodes.button.classList.remove('sortering__skia-button--active');
+        nodes.button.removeAttribute('aria-pressed');
+      }
+    });
+  }
+
+  function moveItemToIndex(id, targetIndex, options = {}) {
+    if (!state || !currentOrder.length) return false;
+    const { preserveTransform = false } = options;
+    const currentIndex = currentOrder.indexOf(id);
+    if (currentIndex < 0) return false;
+    const maxIndex = currentOrder.length - 1;
+    const boundedIndex = Math.max(0, Math.min(maxIndex, targetIndex));
+    if (boundedIndex === currentIndex) return false;
+    currentOrder.splice(currentIndex, 1);
+    currentOrder.splice(boundedIndex, 0, id);
+
+    updateItemPositions();
+    if (!preserveTransform) {
+      snapToSlot(id);
+    }
+    return true;
+  }
+
+  function swapWith(id, offset, options = {}) {
+    if (!Number.isFinite(offset) || !offset) return false;
+    const idx = currentOrder.indexOf(id);
+    if (idx < 0) return false;
+    return moveItemToIndex(id, idx + offset, options);
+  }
+
+  function handleKeyboardInteraction(event, id) {
+    if (!state || keyboardActiveId !== id) return;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const moved = swapWith(id, -1);
+      if (moved) {
+        snapToSlot();
+      }
+    } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      const moved = swapWith(id, 1);
+      if (moved) {
+        snapToSlot();
+      }
+    } else if (event.key === 'Enter' || event.key === 'Escape') {
+      event.preventDefault();
+      snapToSlot();
+      updateItemPositions();
+      finalizeKeyboardMode({ restoreFocus: event.key === 'Enter' });
+    }
+  }
+
+  function activateKeyboardMode(id) {
+    if (!id) return;
+    if (keyboardActiveId === id) return;
+    finalizeKeyboardMode();
+    const nodes = itemNodes.get(id);
+    if (!nodes) return;
+    keyboardActiveId = id;
+    nodes.wrapper.classList.add('sortering__item--active');
+    nodes.button.classList.add('sortering__skia-button--active');
+    nodes.button.setAttribute('aria-pressed', 'true');
+    const handler = event => handleKeyboardInteraction(event, id);
+    keyboardHandlers.set(id, handler);
+    nodes.button.addEventListener('keydown', handler);
+  }
+
+  function startPointerDrag(event, id) {
+    if (!visualList || dragState || !state) return;
+    if (typeof event.button === 'number' && event.button !== 0) return;
+    const nodes = itemNodes.get(id);
+    if (!nodes) return;
+    dragState = {
+      id,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY
+    };
+    nodes.wrapper.classList.add('sortering__item--dragging');
+    nodes.wrapper.style.transition = 'none';
+    if (typeof nodes.wrapper.setPointerCapture === 'function') {
+      nodes.wrapper.setPointerCapture(event.pointerId);
+    }
+    const selection = globalObj.getSelection ? globalObj.getSelection() : null;
+    if (selection && typeof selection.removeAllRanges === 'function') {
+      selection.removeAllRanges();
+    }
+    finalizeKeyboardMode();
+    event.preventDefault();
+  }
+
+  function handlePointerMove(event, id) {
+    if (!dragState || dragState.id !== id) return;
+    if (event.pointerId !== dragState.pointerId) return;
+    const nodes = itemNodes.get(id);
+    if (!nodes) return;
+    const dx = event.clientX - dragState.startX;
+    const dy = event.clientY - dragState.startY;
+    nodes.wrapper.style.transform = `translate(${dx}px, ${dy}px)`;
+
+    nodes.wrapper.style.pointerEvents = 'none';
+    const hovered = doc.elementFromPoint(event.clientX, event.clientY);
+    nodes.wrapper.style.pointerEvents = '';
+    const targetWrapper = hovered && hovered.closest ? hovered.closest('.sortering__item') : null;
+    const orientation = normalizeDirection(state.retning);
+    const pointerCoord = orientation === 'vertikal' ? event.clientY : event.clientX;
+
+    let targetIndex = -1;
+    if (targetWrapper && targetWrapper !== nodes.wrapper) {
+      const targetId = targetWrapper.dataset.itemId;
+      if (!targetId || targetId === id) return;
+      targetIndex = currentOrder.indexOf(targetId);
+      if (targetIndex < 0) return;
+      const targetRect = targetWrapper.getBoundingClientRect();
+      const targetCenter = orientation === 'vertikal' ? targetRect.top + targetRect.height / 2 : targetRect.left + targetRect.width / 2;
+      if (pointerCoord > targetCenter) {
+        targetIndex += 1;
+      }
+    } else if (visualList && currentOrder.length) {
+      const firstId = currentOrder[0];
+      const lastId = currentOrder[currentOrder.length - 1];
+      const firstNodes = itemNodes.get(firstId);
+      const lastNodes = itemNodes.get(lastId);
+      if (!firstNodes || !lastNodes) return;
+      const firstRect = firstNodes.wrapper.getBoundingClientRect();
+      const lastRect = lastNodes.wrapper.getBoundingClientRect();
+      const startBoundary = orientation === 'vertikal' ? firstRect.top : firstRect.left;
+      const endBoundary = orientation === 'vertikal' ? lastRect.bottom : lastRect.right;
+      if (pointerCoord < startBoundary) {
+        targetIndex = 0;
+      } else if (pointerCoord > endBoundary) {
+        targetIndex = currentOrder.length;
+      }
+    }
+
+    if (targetIndex < 0) return;
+    moveItemToIndex(id, targetIndex, { preserveTransform: true });
+  }
+
+  function finishPointerDrag(event, id) {
+    if (!dragState || dragState.id !== id) return;
+    if (event.pointerId !== dragState.pointerId) return;
+    const nodes = itemNodes.get(id);
+    dragState = null;
+    if (nodes) {
+      if (typeof nodes.wrapper.releasePointerCapture === 'function') {
+        nodes.wrapper.releasePointerCapture(event.pointerId);
+      }
+      nodes.wrapper.style.transition = '';
+    }
+    snapToSlot(id);
+    updateItemPositions();
+    clearVisualMarkers();
+  }
+
+  function attachItemListeners(id, nodes) {
+    if (!nodes || nodes.wrapper.dataset.listenersAttached === 'true') return;
+    nodes.wrapper.dataset.listenersAttached = 'true';
+    nodes.wrapper.style.touchAction = 'none';
+    nodes.wrapper.addEventListener('pointerdown', event => startPointerDrag(event, id));
+    nodes.wrapper.addEventListener('pointermove', event => handlePointerMove(event, id));
+    nodes.wrapper.addEventListener('pointerup', event => finishPointerDrag(event, id));
+    nodes.wrapper.addEventListener('pointercancel', event => finishPointerDrag(event, id));
+
+    nodes.button.addEventListener('click', () => {
+      if (keyboardActiveId === id) {
+        snapToSlot();
+        updateItemPositions();
+        finalizeKeyboardMode({ restoreFocus: true });
+      } else {
+        activateKeyboardMode(id);
+      }
+    });
+
+    nodes.button.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && keyboardActiveId !== id) {
+        event.preventDefault();
+        activateKeyboardMode(id);
+      } else if (event.key === 'Escape' && keyboardActiveId === id) {
+        event.preventDefault();
+        snapToSlot();
+        updateItemPositions();
+        finalizeKeyboardMode({ restoreFocus: true });
+      }
+    });
+
+    nodes.button.addEventListener('focus', () => {
+      nodes.wrapper.classList.add('sortering__item--focus');
+    });
+
+    nodes.button.addEventListener('blur', () => {
+      nodes.wrapper.classList.remove('sortering__item--focus');
+      if (keyboardActiveId === id) {
+        snapToSlot();
+        updateItemPositions();
+        finalizeKeyboardMode();
+      }
+    });
+  }
+
   function applyOrder(options = {}) {
     if (!state || !visualList || !accessibleList) return;
 
@@ -310,14 +604,14 @@
       const nodes = renderItem(item, index);
       if (!nodes) return;
       usedIds.add(id);
-      if (nodes.wrapper.parentNode !== visualList) {
+      if (visualList && nodes.wrapper.parentNode !== visualList) {
         visualList.appendChild(nodes.wrapper);
-      } else {
+      } else if (visualList) {
         visualList.appendChild(nodes.wrapper);
       }
-      if (nodes.li.parentNode !== accessibleList) {
+      if (accessibleList && nodes.li.parentNode !== accessibleList) {
         accessibleList.appendChild(nodes.li);
-      } else {
+      } else if (accessibleList) {
         accessibleList.appendChild(nodes.li);
       }
     });
@@ -331,6 +625,9 @@
         accessibleList.removeChild(nodes.li);
       }
     });
+    updateItemPositions();
+    snapToSlot();
+    clearVisualMarkers();
   }
 
   function updateLayout() {
