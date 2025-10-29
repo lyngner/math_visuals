@@ -743,6 +743,15 @@ function resolveProjectNameHint() {
       return themeAttr.trim().toLowerCase();
     }
   }
+  const themeApi = getThemeApi();
+  if (themeApi && typeof themeApi.getActiveProfileName === "function") {
+    try {
+      const profile = themeApi.getActiveProfileName();
+      if (typeof profile === "string" && profile.trim()) {
+        return profile.trim().toLowerCase();
+      }
+    } catch (_) {}
+  }
   const api = getSettingsApi();
   if (api && typeof api.getActiveProject === "function") {
     try {
