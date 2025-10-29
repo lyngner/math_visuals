@@ -75,13 +75,6 @@
     tape: new Map(),
     tapeExtension: new Map()
   };
-  const tapeLengthState = {
-    visiblePx: 0,
-    unitSpacing: DEFAULT_UNIT_SPACING_PX,
-    minVisiblePx: 0,
-    maxVisiblePx: 0,
-    units: defaults.tapeMeasureLength
-  };
   const boardPanState = { entry: null, enabled: false };
   const boardPanTransform = { x: 0, y: 0 };
   let boardRect = board.getBoundingClientRect();
@@ -147,6 +140,14 @@
     activeTool: defaultActiveTool,
     tapeMeasureLength: 10,
     tapeMeasureTransform: null
+  };
+
+  const tapeLengthState = {
+    visiblePx: 0,
+    unitSpacing: DEFAULT_UNIT_SPACING_PX,
+    minVisiblePx: 0,
+    maxVisiblePx: 0,
+    units: defaults.tapeMeasureLength
   };
 
   appState.settings = normalizeSettings();
