@@ -11,10 +11,11 @@
   const rulerSvg = ruler ? ruler.querySelector('[data-ruler-svg]') : null;
   const tapeMeasure = board ? board.querySelector('[data-tape-measure]') : null;
   const tapeStrap = tapeMeasure ? tapeMeasure.querySelector('[data-tape-strap]') : null;
-  const tapeStrapSvg = tapeStrap ? tapeStrap.querySelector('[data-tape-strap-svg]') : null;
+  const tapeStrapTrack = tapeStrap ? tapeStrap.querySelector('[data-tape-strap-track]') : null;
+  const tapeStrapSvg = tapeStrapTrack ? tapeStrapTrack.querySelector('[data-tape-strap-svg]') : null;
   const tapeHousing = tapeMeasure ? tapeMeasure.querySelector('[data-tape-housing]') : null;
   const hasRuler = !!(ruler && rulerSvg);
-  const hasTapeMeasure = !!(tapeMeasure && tapeStrap && tapeStrapSvg && tapeHousing);
+  const hasTapeMeasure = !!(tapeMeasure && tapeStrap && tapeStrapTrack && tapeStrapSvg && tapeHousing);
   const boardGridOverlay = board ? board.querySelector('[data-grid-overlay]') : null;
   if (!board || (!hasRuler && !hasTapeMeasure)) {
     return;
@@ -149,6 +150,7 @@
     unitSpacing: DEFAULT_UNIT_SPACING_PX,
     minVisiblePx: 0,
     maxVisiblePx: 0,
+    totalPx: 0,
     units: defaults.tapeMeasureLength
   };
 
@@ -1490,7 +1492,7 @@
   }
 
   function applyTapeMeasureAppearance(settings, scaleMetrics) {
-    if (!tapeMeasure || !tapeStrap) {
+    if (!tapeMeasure || !tapeStrap || !tapeStrapTrack) {
       return;
     }
     const metrics = scaleMetrics || resolveScaleMetrics(settings);
@@ -1500,7 +1502,21 @@
       ? settings.tapeMeasureLength
       : defaults.tapeMeasureLength;
     const visibleLength = Math.max(0, unitSpacing * lengthValue);
-    const strapWidth = tapeStrap.offsetWidth || visibleLength;
+    const strapTrackWidth = tapeStrapTrack ? tapeStrapTrack.offsetWidth : NaN;
+    const strapElementWidth = tapeStrap ? tapeStrap.offsetWidth : NaN;
+    const previousTotal = Number.isFinite(tapeLengthState.totalPx) ? tapeLengthState.totalPx : NaN;
+    const fallbackWidth = Math.max(visibleLength, unitSpacing);
+    let strapWidth = 0;
+    if (Number.isFinite(previousTotal) && previousTotal > 0) {
+      strapWidth = previousTotal;
+    } else if (Number.isFinite(strapTrackWidth) && strapTrackWidth > 0) {
+      strapWidth = strapTrackWidth;
+    } else if (Number.isFinite(strapElementWidth) && strapElementWidth > 0) {
+      strapWidth = strapElementWidth;
+    } else {
+      strapWidth = fallbackWidth;
+    }
+    tapeLengthState.totalPx = strapWidth;
     tapeLengthState.unitSpacing = unitSpacing;
     tapeLengthState.units = lengthValue;
     tapeLengthState.minVisiblePx = Math.max(0, unitSpacing);
@@ -1963,6 +1979,8 @@
     `;
 
     tapeMeasure.style.setProperty('--tape-strap-length', `${safeWidth}px`);
+    tapeLengthState.totalPx = safeWidth;
+    tapeLengthState.maxVisiblePx = safeWidth;
   }
 
   function updateAccessibility(settings) {
@@ -2567,9 +2585,19 @@
     if (session.size >= 1 && !session.has(event.pointerId)) {
       return;
     }
-    const strapWidth = tapeStrap ? tapeStrap.offsetWidth : 0;
-    if (Number.isFinite(strapWidth) && strapWidth > 0) {
-      tapeLengthState.maxVisiblePx = strapWidth;
+    const strapWidthCandidates = [
+      Number.isFinite(tapeLengthState.totalPx) && tapeLengthState.totalPx > 0
+        ? tapeLengthState.totalPx
+        : null,
+      tapeStrapTrack && Number.isFinite(tapeStrapTrack.offsetWidth) ? tapeStrapTrack.offsetWidth : null,
+      tapeStrap && Number.isFinite(tapeStrap.offsetWidth) ? tapeStrap.offsetWidth : null
+    ];
+    for (const candidate of strapWidthCandidates) {
+      if (Number.isFinite(candidate) && candidate > 0) {
+        tapeLengthState.maxVisiblePx = candidate;
+        tapeLengthState.totalPx = candidate;
+        break;
+      }
     }
     event.preventDefault();
     event.stopPropagation();
@@ -2676,6 +2704,9 @@
     const visible = Math.min(Math.max(tapeLengthState.visiblePx, minVisible), maxVisible);
     tapeLengthState.visiblePx = visible;
     tapeMeasure.style.setProperty('--tape-strap-visible', `${visible}px`);
+    const totalWidth = Number.isFinite(tapeLengthState.totalPx) ? tapeLengthState.totalPx : 0;
+    const strapOffset = totalWidth > 0 ? visible - totalWidth : 0;
+    tapeMeasure.style.setProperty('--tape-strap-offset', `${strapOffset}px`);
     const effectiveUnits = Number.isFinite(tapeLengthState.unitSpacing) && tapeLengthState.unitSpacing > 0
       ? visible / tapeLengthState.unitSpacing
       : 0;
@@ -3842,7 +3873,7 @@
   }
 
   async function createTapeMeasureGroupForExport(helper, settings) {
-    if (!tapeMeasure || !tapeStrap || !tapeHousing) {
+    if (!tapeMeasure || !tapeStrap || !tapeStrapTrack || !tapeHousing) {
       return null;
     }
     if (tapeMeasure.hidden || tapeMeasure.getAttribute('aria-hidden') === 'true') {
@@ -3886,14 +3917,33 @@
       return null;
     }
 
-    const strapTotalWidth = Math.max(
-      Number.isFinite(tapeStrap.offsetWidth) ? tapeStrap.offsetWidth : 0,
-      Number.isFinite(strapRect.width) ? strapRect.width : 0
-    );
-    const strapHeight = Math.max(
-      Number.isFinite(tapeStrap.offsetHeight) ? tapeStrap.offsetHeight : 0,
-      Number.isFinite(strapRect.height) ? strapRect.height : 0
-    );
+    const strapTrackWidth = tapeStrapTrack ? tapeStrapTrack.offsetWidth : NaN;
+    const strapTrackHeight = tapeStrapTrack ? tapeStrapTrack.offsetHeight : NaN;
+    const strapTotalWidthCandidates = [
+      Number.isFinite(tapeLengthState.totalPx) && tapeLengthState.totalPx > 0 ? tapeLengthState.totalPx : null,
+      Number.isFinite(strapTrackWidth) && strapTrackWidth > 0 ? strapTrackWidth : null,
+      Number.isFinite(tapeStrap.offsetWidth) && tapeStrap.offsetWidth > 0 ? tapeStrap.offsetWidth : null,
+      Number.isFinite(strapRect.width) && strapRect.width > 0 ? strapRect.width : null
+    ];
+    let strapTotalWidth = 0;
+    for (const candidate of strapTotalWidthCandidates) {
+      if (Number.isFinite(candidate) && candidate > 0) {
+        strapTotalWidth = candidate;
+        break;
+      }
+    }
+    const strapHeightCandidates = [
+      Number.isFinite(strapTrackHeight) && strapTrackHeight > 0 ? strapTrackHeight : null,
+      Number.isFinite(tapeStrap.offsetHeight) && tapeStrap.offsetHeight > 0 ? tapeStrap.offsetHeight : null,
+      Number.isFinite(strapRect.height) && strapRect.height > 0 ? strapRect.height : null
+    ];
+    let strapHeight = 0;
+    for (const candidate of strapHeightCandidates) {
+      if (Number.isFinite(candidate) && candidate > 0) {
+        strapHeight = candidate;
+        break;
+      }
+    }
 
     const housingWidth = Math.max(
       Number.isFinite(tapeHousing.offsetWidth) ? tapeHousing.offsetWidth : 0,
@@ -3933,7 +3983,20 @@
     strapSvgClone.removeAttribute('focusable');
     strapSvgClone.setAttribute('width', formatSvgNumber(strapTotalWidth));
     strapSvgClone.setAttribute('height', formatSvgNumber(strapHeight));
-    strapGroup.appendChild(strapSvgClone);
+
+    const inlineOffsetRaw = Number.parseFloat(
+      tapeMeasure.style.getPropertyValue('--tape-strap-offset')
+    );
+    const computedOffsetRaw = doc.defaultView && typeof doc.defaultView.getComputedStyle === 'function'
+      ? Number.parseFloat(
+          doc.defaultView.getComputedStyle(tapeMeasure).getPropertyValue('--tape-strap-offset')
+        )
+      : NaN;
+    const stateOffsetValue = Number.isFinite(tapeLengthState.visiblePx) && Number.isFinite(tapeLengthState.totalPx)
+      ? tapeLengthState.visiblePx - tapeLengthState.totalPx
+      : null;
+
+    const strapTrackGroup = createSvgElement('g');
 
     const persistedUnits = sanitizeLength(
       settings && settings.tapeMeasureLength,
@@ -3968,6 +4031,42 @@
       }
     }
     strapVisibleWidth = Math.min(Math.max(strapVisibleWidth, 0), strapTotalWidth);
+
+    const differenceOffset = Number.isFinite(strapVisibleWidth) && Number.isFinite(strapTotalWidth)
+      ? strapVisibleWidth - strapTotalWidth
+      : null;
+    let strapOffsetValue = Number.isFinite(differenceOffset) ? differenceOffset : NaN;
+    if (!Number.isFinite(strapOffsetValue)) {
+      const offsetCandidates = [
+        Number.isFinite(inlineOffsetRaw) ? inlineOffsetRaw : null,
+        Number.isFinite(computedOffsetRaw) ? computedOffsetRaw : null,
+        stateOffsetValue
+      ];
+      for (const candidate of offsetCandidates) {
+        if (Number.isFinite(candidate)) {
+          strapOffsetValue = candidate;
+          break;
+        }
+      }
+    }
+    if (!Number.isFinite(strapOffsetValue)) {
+      strapOffsetValue = 0;
+    }
+    if (Number.isFinite(differenceOffset)) {
+      strapOffsetValue = Math.max(Math.min(strapOffsetValue, 0), differenceOffset);
+    } else {
+      strapOffsetValue = Math.min(strapOffsetValue, 0);
+    }
+
+    const strapOffsetMagnitude = Number.isFinite(strapOffsetValue) ? strapOffsetValue : 0;
+    if (Math.abs(strapOffsetMagnitude) > 0.0001) {
+      strapTrackGroup.setAttribute(
+        'transform',
+        `translate(${formatSvgNumber(strapOffsetMagnitude)} 0)`
+      );
+    }
+    strapTrackGroup.appendChild(strapSvgClone);
+    strapGroup.appendChild(strapTrackGroup);
 
     let clipPath = null;
     if (strapVisibleWidth < strapTotalWidth) {
