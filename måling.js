@@ -1593,9 +1593,10 @@
       return `<text x="${x}" y="${labelY}" text-anchor="${anchor}"${dx !== 0 ? ` dx="${dx}"` : ''} class="ruler-svg__label">${labelText}</text>`;
     }).join('');
 
-    const unitLabelTrimmed = unitLabel ? unitLabel.trim() : '';
-    const unitLabelMarkup = unitLabelTrimmed
-      ? `<text x="${baselineEndX}" y="${baselineY - 16}" text-anchor="end" class="ruler-svg__unit-label">${escapeHtml(unitLabelTrimmed)}</text>`
+    const unitSuffixValue = resolveUnitSuffix(unitLabel);
+    const unitSuffix = unitSuffixValue ? String(unitSuffixValue).trim() : '';
+    const unitLabelMarkup = unitSuffix
+      ? `<text x="${baselineEndX}" y="${baselineY - 16}" text-anchor="end" class="ruler-svg__unit-label">${escapeHtml(unitSuffix)}</text>`
       : '';
 
     rulerSvg.setAttribute('viewBox', `0 0 ${contentWidth} ${totalHeight}`);
