@@ -2506,7 +2506,7 @@
     const rotation = transformStates.tape.rotation || 0;
     const axisX = Math.cos(rotation);
     const axisY = Math.sin(rotation);
-    const projectedDelta = deltaX * axisX + deltaY * axisY;
+    const projectedDelta = -(deltaX * axisX + deltaY * axisY);
     const minVisible = tapeLengthState.minVisiblePx;
     const maxVisible = tapeLengthState.maxVisiblePx > 0 ? tapeLengthState.maxVisiblePx : Infinity;
     let visible = entry.startVisible + projectedDelta;
