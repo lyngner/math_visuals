@@ -547,8 +547,10 @@
     const projects = {};
     Object.keys(PROJECT_FALLBACKS).forEach(name => {
       if (name === 'default') return;
+      const groupPalettes = getProjectFallbackPalette(name);
       projects[name] = {
-        defaultColors: cloneProjectPalette(getProjectFallbackPalette(name))
+        groupPalettes: cloneProjectPalette(groupPalettes),
+        defaultColors: expandPalette(name, groupPalettes)
       };
     });
     return projects;
@@ -560,9 +562,10 @@
     Object.keys(projects).forEach(name => {
       const entry = projects[name];
       if (!entry || typeof entry !== 'object') return;
-      const palette = normalizeProjectPalette(name, entry.defaultColors);
+      const palette = normalizeProjectPalette(name, entry.groupPalettes || entry.defaultColors);
       out[name] = {
-        defaultColors: cloneProjectPalette(palette),
+        groupPalettes: cloneProjectPalette(palette),
+        defaultColors: expandPalette(name, palette),
         defaultLineThickness:
           entry.defaultLineThickness != null ? clampLineThickness(entry.defaultLineThickness) : undefined
       };
@@ -581,18 +584,16 @@
         const normalized = typeof name === 'string' ? name.trim().toLowerCase() : '';
         if (!normalized) return;
         const source = rawProjects[name];
-        const target = projects[normalized]
-          ? projects[normalized]
-          : { defaultColors: cloneProjectPalette(getProjectFallbackPalette(normalized)) };
+        const target = projects[normalized] ? projects[normalized] : {};
         if (!projects[normalized]) {
           projects[normalized] = target;
         }
-        if (source && source.defaultColors != null) {
-          const normalizedPalette = normalizeProjectPalette(normalized, source.defaultColors);
-          target.defaultColors = cloneProjectPalette(normalizedPalette);
-        } else if (!target.defaultColors) {
-          target.defaultColors = cloneProjectPalette(getProjectFallbackPalette(normalized));
-        }
+        const normalizedPalette = normalizeProjectPalette(
+          normalized,
+          source && (source.groupPalettes || source.defaultColors)
+        );
+        target.groupPalettes = cloneProjectPalette(normalizedPalette);
+        target.defaultColors = expandPalette(normalized, normalizedPalette);
         if (source && source.defaultLineThickness != null) {
           target.defaultLineThickness = clampLineThickness(source.defaultLineThickness);
         }
@@ -605,8 +606,9 @@
     if (input.defaultColors != null) {
       const projectName = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
       const palette = normalizeProjectPalette(projectName, input.defaultColors);
-      projects[projectName] = projects[projectName] || { defaultColors: cloneProjectPalette(getProjectFallbackPalette(projectName)) };
-      projects[projectName].defaultColors = cloneProjectPalette(palette);
+      projects[projectName] = projects[projectName] || {};
+      projects[projectName].groupPalettes = cloneProjectPalette(palette);
+      projects[projectName].defaultColors = expandPalette(projectName, palette);
       if (!order.includes(projectName)) {
         order.push(projectName);
       }
@@ -628,9 +630,7 @@
     const active = projects[activeProject];
     const palette = expandPalette(
       activeProject,
-      active && active.defaultColors
-        ? active.defaultColors
-        : getProjectFallbackPalette(activeProject)
+      active && active.groupPalettes ? active.groupPalettes : getProjectFallbackPalette(activeProject)
     );
     normalized.defaultColors = palette;
     return normalized;
@@ -657,8 +657,8 @@
   function getProjectPalette(name) {
     const resolved = resolveProjectName(name || activeProject, settings.projects);
     const project = settings.projects[resolved];
-    if (project && project.defaultColors) {
-      return expandPalette(resolved, project.defaultColors);
+    if (project && project.groupPalettes) {
+      return expandPalette(resolved, project.groupPalettes);
     }
     return expandPalette(resolved, getProjectFallbackPalette(resolved));
   }
@@ -837,11 +837,19 @@
       if (!normalized) return;
       const source = updates[name];
       if (!base[normalized]) {
-        base[normalized] = { defaultColors: cloneProjectPalette(getProjectFallbackPalette(normalized)) };
+        const fallback = getProjectFallbackPalette(normalized);
+        base[normalized] = {
+          groupPalettes: cloneProjectPalette(fallback),
+          defaultColors: expandPalette(normalized, fallback)
+        };
       }
-      if (source && source.defaultColors != null) {
-        const normalizedPalette = normalizeProjectPalette(normalized, source.defaultColors);
-        base[normalized].defaultColors = cloneProjectPalette(normalizedPalette);
+      if (source && (source.groupPalettes != null || source.defaultColors != null)) {
+        const normalizedPalette = normalizeProjectPalette(
+          normalized,
+          source.groupPalettes != null ? source.groupPalettes : source.defaultColors
+        );
+        base[normalized].groupPalettes = cloneProjectPalette(normalizedPalette);
+        base[normalized].defaultColors = expandPalette(normalized, normalizedPalette);
       }
       if (source && source.defaultLineThickness != null) {
         base[normalized].defaultLineThickness = clampLineThickness(source.defaultLineThickness);
@@ -859,11 +867,17 @@
       if (patch.defaultLineThickness != null) {
         merged.defaultLineThickness = clampLineThickness(patch.defaultLineThickness);
       }
-      if (patch.defaultColors != null) {
+      if (patch.groupPalettes != null || patch.defaultColors != null) {
         const targetProject = resolveProjectName(patch.activeProject || activeProject, merged.projects);
         merged.projects[targetProject] = merged.projects[targetProject] || {};
-        const normalizedPalette = normalizeProjectPalette(targetProject, patch.defaultColors);
-        merged.projects[targetProject].defaultColors = cloneProjectPalette(normalizedPalette);
+        const normalizedPalette = normalizeProjectPalette(
+          targetProject,
+          patch.groupPalettes != null ? patch.groupPalettes : patch.defaultColors
+        );
+        const flattened = expandPalette(targetProject, normalizedPalette);
+        merged.projects[targetProject].groupPalettes = cloneProjectPalette(normalizedPalette);
+        merged.projects[targetProject].defaultColors = flattened;
+        merged.defaultColors = flattened;
       }
       if (patch.projects) {
         mergeProjectUpdates(merged.projects, patch.projects);
@@ -925,15 +939,23 @@
     const resolved = resolveProjectName(name, settings.projects);
     const project = settings.projects[resolved];
     if (!project || typeof project !== 'object') {
-      return { defaultColors: [] };
+      const fallbackPalettes = getProjectFallbackPalette(resolved);
+      return {
+        groupPalettes: cloneProjectPalette(fallbackPalettes),
+        defaultColors: expandPalette(resolved, fallbackPalettes)
+      };
     }
     try {
       return JSON.parse(JSON.stringify(project));
     } catch (_) {
+      const groupPalettes = project.groupPalettes
+        ? cloneProjectPalette(project.groupPalettes)
+        : cloneProjectPalette(getProjectFallbackPalette(resolved));
       return {
-        defaultColors: project.defaultColors
-          ? cloneProjectPalette(project.defaultColors)
-          : cloneProjectPalette(getProjectFallbackPalette(resolved)),
+        groupPalettes,
+        defaultColors: Array.isArray(project.defaultColors)
+          ? project.defaultColors.slice()
+          : expandPalette(resolved, groupPalettes),
         defaultLineThickness:
           project.defaultLineThickness != null ? clampLineThickness(project.defaultLineThickness) : undefined
       };

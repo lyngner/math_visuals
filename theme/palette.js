@@ -43,11 +43,29 @@
     ? paletteConfig.MIN_COLOR_SLOTS
     : Object.values(GROUP_SLOT_INDICES).reduce((total, indices) => total + indices.length, 0);
   const EXTRA_GROUP_ID = paletteConfig.EXTRA_GROUP_ID;
+  const COLOR_GROUP_IDS = Array.isArray(paletteConfig.COLOR_GROUP_IDS)
+    ? paletteConfig.COLOR_GROUP_IDS.map(value => (typeof value === 'string' ? value.trim().toLowerCase() : '')).filter(Boolean)
+    : Object.keys(GROUP_SLOT_INDICES).map(key => (typeof key === 'string' ? key.trim().toLowerCase() : '')).filter(Boolean);
+  const GROUP_SLOT_COUNTS = COLOR_GROUP_IDS.reduce((acc, groupId) => {
+    const indices = Array.isArray(GROUP_SLOT_INDICES[groupId]) ? GROUP_SLOT_INDICES[groupId] : [];
+    acc[groupId] = indices.length;
+    return acc;
+  }, {});
+  const GROUPED_PALETTE_ORDER = Array.isArray(paletteConfig.DEFAULT_GROUP_ORDER)
+    ? paletteConfig.DEFAULT_GROUP_ORDER.map(value => (typeof value === 'string' ? value.trim().toLowerCase() : '')).filter(Boolean)
+    : COLOR_GROUP_IDS.concat([EXTRA_GROUP_ID]);
+  const EXTRA_GROUP_LIMIT = Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS);
   const missingGroupWarnings = new Set();
 
   function normalizeProjectName(name) {
     if (typeof name !== 'string') return '';
     const trimmed = name.trim().toLowerCase();
+    return trimmed || '';
+  }
+
+  function normalizeGroupId(value) {
+    if (typeof value !== 'string') return '';
+    const trimmed = value.trim().toLowerCase();
     return trimmed || '';
   }
 
@@ -82,6 +100,205 @@
       }
     }
     return out;
+  }
+
+  function sanitizeGroupPalette(values, limit) {
+    if (!Array.isArray(values)) return [];
+    const maxSize = Number.isInteger(limit) && limit >= 0 ? limit : MAX_COLORS;
+    const sanitized = [];
+    for (const value of values) {
+      const clean = sanitizeColor(value);
+      if (clean) {
+        sanitized.push(clean);
+        if (sanitized.length >= maxSize) {
+          break;
+        }
+      }
+    }
+    return sanitized;
+  }
+
+  function cloneGroupPalettes(source) {
+    const result = {};
+    if (!source || typeof source !== 'object') {
+      return result;
+    }
+    Object.keys(source).forEach(key => {
+      const normalized = normalizeGroupId(key);
+      if (!normalized) return;
+      if (Array.isArray(source[key])) {
+        const limit = normalized === EXTRA_GROUP_ID ? EXTRA_GROUP_LIMIT : GROUP_SLOT_COUNTS[normalized] || MAX_COLORS;
+        result[normalized] = sanitizeGroupPalette(source[key], limit);
+      }
+    });
+    if (!Array.isArray(result[EXTRA_GROUP_ID])) {
+      result[EXTRA_GROUP_ID] = [];
+    }
+    return result;
+  }
+
+  const PROJECT_FALLBACK_GROUP_CACHE = new Map();
+
+  function getProjectFallbackGroupPalettes(projectName) {
+    const normalized = normalizeProjectName(projectName) || 'default';
+    if (PROJECT_FALLBACK_GROUP_CACHE.has(normalized)) {
+      return cloneGroupPalettes(PROJECT_FALLBACK_GROUP_CACHE.get(normalized));
+    }
+    const fallbackPalette = getProjectFallbackPalette(normalized);
+    const fallbackColors = fallbackPalette.length ? fallbackPalette : getGlobalFallbackPalette();
+    const groups = {};
+    let cursor = 0;
+    COLOR_GROUP_IDS.forEach(groupId => {
+      const limit = GROUP_SLOT_COUNTS[groupId] || 0;
+      const colors = [];
+      if (limit > 0) {
+        for (let index = 0; index < limit; index += 1) {
+          const color = fallbackColors[cursor] || fallbackColors[index % (fallbackColors.length || 1)] || fallbackColors[0];
+          if (color) {
+            colors.push(color);
+          }
+          if (cursor < fallbackColors.length) {
+            cursor += 1;
+          }
+        }
+        if (!colors.length && fallbackColors.length) {
+          for (let index = 0; index < limit; index += 1) {
+            colors.push(fallbackColors[index % fallbackColors.length]);
+          }
+        }
+      }
+      groups[groupId] = colors;
+    });
+    if (EXTRA_GROUP_LIMIT > 0) {
+      const extra = [];
+      while (cursor < fallbackColors.length && extra.length < EXTRA_GROUP_LIMIT) {
+        const color = fallbackColors[cursor];
+        if (color) {
+          extra.push(color);
+        }
+        cursor += 1;
+      }
+      groups[EXTRA_GROUP_ID] = extra;
+    } else {
+      groups[EXTRA_GROUP_ID] = [];
+    }
+    PROJECT_FALLBACK_GROUP_CACHE.set(normalized, cloneGroupPalettes(groups));
+    return cloneGroupPalettes(groups);
+  }
+
+  function applyGroupPaletteOverlay(target, source) {
+    if (!target || typeof target !== 'object' || !source || typeof source !== 'object') {
+      return;
+    }
+    const normalizedSource = cloneGroupPalettes(source);
+    COLOR_GROUP_IDS.forEach(groupId => {
+      const limit = GROUP_SLOT_COUNTS[groupId] || 0;
+      if (!limit) return;
+      const incoming = sanitizeGroupPalette(normalizedSource[groupId], limit);
+      if (!incoming.length) return;
+      const existing = Array.isArray(target[groupId]) ? target[groupId].slice() : [];
+      const merged = [];
+      for (let index = 0; index < limit; index += 1) {
+        const color = incoming[index] || existing[index];
+        if (color) {
+          merged.push(color);
+        }
+      }
+      while (merged.length < limit) {
+        const fallback = existing[merged.length] || existing[0] || null;
+        if (fallback) {
+          merged.push(fallback);
+        } else {
+          break;
+        }
+      }
+      target[groupId] = merged;
+    });
+    if (EXTRA_GROUP_LIMIT > 0) {
+      const incomingExtra = sanitizeGroupPalette(normalizedSource[EXTRA_GROUP_ID], EXTRA_GROUP_LIMIT);
+      if (incomingExtra.length) {
+        const existingExtra = Array.isArray(target[EXTRA_GROUP_ID]) ? target[EXTRA_GROUP_ID].slice() : [];
+        const mergedExtra = existingExtra.slice();
+        for (let index = 0; index < incomingExtra.length && index < EXTRA_GROUP_LIMIT; index += 1) {
+          if (incomingExtra[index]) {
+            mergedExtra[index] = incomingExtra[index];
+          }
+        }
+        target[EXTRA_GROUP_ID] = mergedExtra.filter(Boolean);
+      }
+    }
+  }
+
+  function distributeFlatPaletteToGroups(palette) {
+    const sanitized = sanitizeColorList(palette);
+    const groups = {};
+    let cursor = 0;
+    COLOR_GROUP_IDS.forEach(groupId => {
+      const limit = GROUP_SLOT_COUNTS[groupId] || 0;
+      const colors = [];
+      for (let index = 0; index < limit && cursor < sanitized.length; index += 1) {
+        colors.push(sanitized[cursor]);
+        cursor += 1;
+      }
+      groups[groupId] = colors;
+    });
+    if (EXTRA_GROUP_LIMIT > 0 && cursor < sanitized.length) {
+      groups[EXTRA_GROUP_ID] = sanitized.slice(cursor, cursor + EXTRA_GROUP_LIMIT);
+    }
+    return groups;
+  }
+
+  function normalizeProjectGroupPalettes(projectName, palette) {
+    const base = getProjectFallbackGroupPalettes(projectName);
+    if (Array.isArray(palette)) {
+      applyGroupPaletteOverlay(base, distributeFlatPaletteToGroups(palette));
+      return base;
+    }
+    if (palette && typeof palette === 'object') {
+      if (Array.isArray(palette.defaultColors)) {
+        applyGroupPaletteOverlay(base, distributeFlatPaletteToGroups(palette.defaultColors));
+      } else if (palette.defaultColors && typeof palette.defaultColors === 'object') {
+        applyGroupPaletteOverlay(base, palette.defaultColors);
+      }
+      if (palette.groupPalettes && typeof palette.groupPalettes === 'object') {
+        applyGroupPaletteOverlay(base, palette.groupPalettes);
+      } else {
+        applyGroupPaletteOverlay(base, palette);
+      }
+      return base;
+    }
+    return base;
+  }
+
+  function flattenGroupPalettes(groupPalettes) {
+    const source = groupPalettes && typeof groupPalettes === 'object' ? groupPalettes : {};
+    const flattened = [];
+    GROUPED_PALETTE_ORDER.forEach(groupId => {
+      const normalized = normalizeGroupId(groupId);
+      if (!normalized) return;
+      if (normalized === EXTRA_GROUP_ID) {
+        const extra = Array.isArray(source[normalized])
+          ? sanitizeGroupPalette(source[normalized], EXTRA_GROUP_LIMIT || MAX_COLORS)
+          : [];
+        extra.forEach(color => {
+          if (flattened.length < MAX_COLORS) {
+            flattened.push(color);
+          }
+        });
+        return;
+      }
+      const limit = GROUP_SLOT_COUNTS[normalized] || 0;
+      if (!limit) return;
+      const values = Array.isArray(source[normalized])
+        ? sanitizeGroupPalette(source[normalized], limit)
+        : [];
+      values.forEach(color => {
+        if (flattened.length < MAX_COLORS) {
+          flattened.push(color);
+        }
+      });
+    });
+    return flattened;
   }
 
   function getProjectFallbackPalette(projectName) {
@@ -134,21 +351,37 @@
     return DEFAULT_PROJECT;
   }
 
-  function readProjectPaletteFromApi(api, projectName) {
+  function readProjectGroupPalettesFromApi(api, projectName) {
     if (!api || typeof api !== 'object') return null;
-    if (typeof api.getProjectPalette === 'function') {
+    if (typeof api.getProjectGroupPalettes === 'function') {
       try {
-        const palette = api.getProjectPalette(projectName);
-        if (Array.isArray(palette) && palette.length) {
-          return palette.slice(0, MAX_COLORS);
+        const groups = api.getProjectGroupPalettes(projectName);
+        if (groups && typeof groups === 'object') {
+          return groups;
         }
       } catch (_) {}
     }
     if (typeof api.getProjectSettings === 'function') {
       try {
         const settings = api.getProjectSettings(projectName);
-        if (settings && Array.isArray(settings.defaultColors) && settings.defaultColors.length) {
-          return settings.defaultColors.slice(0, MAX_COLORS);
+        if (settings && typeof settings === 'object') {
+          if (settings.groupPalettes && typeof settings.groupPalettes === 'object') {
+            return settings.groupPalettes;
+          }
+          if (Array.isArray(settings.defaultColors) && settings.defaultColors.length) {
+            return distributeFlatPaletteToGroups(settings.defaultColors.slice(0, MAX_COLORS));
+          }
+        }
+      } catch (_) {}
+    }
+    if (typeof api.getProjectPalette === 'function') {
+      try {
+        const palette = api.getProjectPalette(projectName);
+        if (Array.isArray(palette) && palette.length) {
+          return distributeFlatPaletteToGroups(palette.slice(0, MAX_COLORS));
+        }
+        if (palette && typeof palette === 'object' && palette.groupPalettes) {
+          return palette.groupPalettes;
         }
       } catch (_) {}
     }
@@ -156,52 +389,61 @@
       try {
         const palette = api.getDefaultColors(MAX_COLORS, { project: projectName });
         if (Array.isArray(palette) && palette.length) {
-          return palette.slice(0, MAX_COLORS);
+          return distributeFlatPaletteToGroups(palette.slice(0, MAX_COLORS));
         }
       } catch (_) {}
     }
     if (Array.isArray(api.defaultColors) && api.defaultColors.length) {
-      return api.defaultColors.slice(0, MAX_COLORS);
+      return distributeFlatPaletteToGroups(api.defaultColors.slice(0, MAX_COLORS));
     }
     return null;
   }
 
-  function readProjectPaletteFromSettingsObject(settings, projectName) {
+  function readProjectGroupPalettesFromSettingsObject(settings, projectName) {
     if (!settings || typeof settings !== 'object') return null;
     const projects = settings.projects && typeof settings.projects === 'object' ? settings.projects : null;
     if (projects) {
       const resolved = normalizeProjectName(projectName);
-      if (projects[resolved] && Array.isArray(projects[resolved].defaultColors)) {
-        const palette = projects[resolved].defaultColors.slice(0, MAX_COLORS);
-        if (palette.length) {
-          return palette;
+      if (projects[resolved]) {
+        const entry = projects[resolved];
+        if (entry && typeof entry === 'object') {
+          if (entry.groupPalettes && typeof entry.groupPalettes === 'object') {
+            return entry.groupPalettes;
+          }
+          if (Array.isArray(entry.defaultColors) && entry.defaultColors.length) {
+            return distributeFlatPaletteToGroups(entry.defaultColors.slice(0, MAX_COLORS));
+          }
         }
       }
     }
     if (Array.isArray(settings.defaultColors) && settings.defaultColors.length) {
-      return settings.defaultColors.slice(0, MAX_COLORS);
+      return distributeFlatPaletteToGroups(settings.defaultColors.slice(0, MAX_COLORS));
     }
     return null;
   }
 
-  function resolveProjectPalette(source, projectName) {
-    if (!source) return null;
-    const paletteFromApi = readProjectPaletteFromApi(source, projectName);
-    if (paletteFromApi && paletteFromApi.length) {
-      return paletteFromApi;
+  function resolveProjectGroupPalettes(source, projectName) {
+    const resolvedProject = normalizeProjectName(projectName);
+    const paletteFromApi = readProjectGroupPalettesFromApi(source, resolvedProject);
+    if (paletteFromApi && typeof paletteFromApi === 'object') {
+      return normalizeProjectGroupPalettes(resolvedProject, { groupPalettes: paletteFromApi });
     }
-    const paletteFromSettings = readProjectPaletteFromSettingsObject(source, projectName);
-    if (paletteFromSettings && paletteFromSettings.length) {
-      return paletteFromSettings;
+    const paletteFromSettings = readProjectGroupPalettesFromSettingsObject(source, resolvedProject);
+    if (paletteFromSettings && typeof paletteFromSettings === 'object') {
+      return normalizeProjectGroupPalettes(resolvedProject, { groupPalettes: paletteFromSettings });
     }
-    return null;
+    return normalizeProjectGroupPalettes(resolvedProject, null);
   }
 
-  function buildProjectPalette(source, projectName) {
-    const projectPalette = resolveProjectPalette(source, projectName);
+  function buildProjectPalette(source, projectName, precomputedGroupPalettes) {
+    const groupPalettes =
+      precomputedGroupPalettes && typeof precomputedGroupPalettes === 'object'
+        ? precomputedGroupPalettes
+        : resolveProjectGroupPalettes(source, projectName);
     const fallback = getProjectFallbackPalette(projectName);
     const globalFallback = getGlobalFallbackPalette();
-    const sanitized = sanitizeColorList(projectPalette);
+    const flattened = flattenGroupPalettes(groupPalettes);
+    const sanitized = sanitizeColorList(flattened);
     const result = [];
     const limit = MAX_COLORS;
     for (let index = 0; index < limit; index += 1) {
@@ -368,7 +610,18 @@
       return ensurePaletteSize(overridePalette, count || overridePalette.length, fallbackPalette);
     }
 
-    const projectPalette = buildProjectPalette(source, project);
+    const projectGroupPalettes = resolveProjectGroupPalettes(source, project);
+    const baseGroupPalette = Array.isArray(projectGroupPalettes[groupKey])
+      ? sanitizeGroupPalette(
+          projectGroupPalettes[groupKey],
+          groupKey === EXTRA_GROUP_ID ? EXTRA_GROUP_LIMIT : GROUP_SLOT_COUNTS[groupKey] || MAX_COLORS
+        )
+      : [];
+    if (baseGroupPalette.length) {
+      return ensurePaletteSize(baseGroupPalette, count || baseGroupPalette.length, fallbackPalette);
+    }
+
+    const projectPalette = buildProjectPalette(source, project, projectGroupPalettes);
     const groupIndices = collectGroupIndices(groupKey, project, projectPalette.length);
     const colors = [];
     if (groupIndices.length) {
@@ -402,8 +655,26 @@
     return ensurePaletteSize(colors, targetCount, fallbackPalette);
   }
 
+  function getProjectGroupPalettes(projectName, options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const source = resolveSettingsSource(opts.settings);
+    const project = resolveProjectName(source, opts.project || projectName);
+    const groupPalettes = resolveProjectGroupPalettes(source, project);
+    return cloneGroupPalettes(groupPalettes);
+  }
+
+  function getProjectPalette(projectName, options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const source = resolveSettingsSource(opts.settings);
+    const project = resolveProjectName(source, opts.project || projectName);
+    const groupPalettes = resolveProjectGroupPalettes(source, project);
+    return buildProjectPalette(source, project, groupPalettes);
+  }
+
   const api = {
-    getGroupPalette
+    getGroupPalette,
+    getProjectGroupPalettes,
+    getProjectPalette
   };
 
   if (typeof global !== 'undefined' && global && typeof global === 'object') {

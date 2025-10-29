@@ -24,6 +24,19 @@ const GROUPED_PALETTE_ORDER = Array.isArray(paletteConfig.DEFAULT_GROUP_ORDER)
       'prikktilprikk',
       'extra'
     ];
+const COLOR_GROUP_IDS = Array.isArray(paletteConfig.COLOR_GROUP_IDS)
+  ? paletteConfig.COLOR_GROUP_IDS.map(value => (typeof value === 'string' ? value.trim().toLowerCase() : '')).filter(Boolean)
+  : GROUPED_PALETTE_ORDER.filter(groupId => groupId !== (paletteConfig.EXTRA_GROUP_ID || 'extra'));
+const EXTRA_GROUP_ID = typeof paletteConfig.EXTRA_GROUP_ID === 'string' ? paletteConfig.EXTRA_GROUP_ID : 'extra';
+const GROUP_SLOT_INDICES = paletteConfig.GROUP_SLOT_INDICES && typeof paletteConfig.GROUP_SLOT_INDICES === 'object'
+  ? paletteConfig.GROUP_SLOT_INDICES
+  : {};
+const GROUP_SLOT_COUNTS = COLOR_GROUP_IDS.reduce((acc, groupId) => {
+  const indices = Array.isArray(GROUP_SLOT_INDICES[groupId]) ? GROUP_SLOT_INDICES[groupId] : [];
+  acc[groupId] = indices.length;
+  return acc;
+}, {});
+const EXTRA_GROUP_LIMIT = Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS);
 const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
 const DEFAULT_PROJECT_ORDER = Array.isArray(paletteConfig.DEFAULT_PROJECT_ORDER)
   ? paletteConfig.DEFAULT_PROJECT_ORDER.slice()
@@ -136,6 +149,189 @@ function sanitizeColorList(values) {
   return out;
 }
 
+function normalizeProjectKey(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim().toLowerCase();
+  return trimmed || '';
+}
+
+function normalizeGroupId(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim().toLowerCase();
+  return trimmed || '';
+}
+
+function sanitizeGroupPaletteList(values, limit) {
+  if (!Array.isArray(values)) return [];
+  const maxSize = Number.isInteger(limit) && limit >= 0 ? limit : MAX_COLORS;
+  const sanitized = [];
+  for (const value of values) {
+    const clean = sanitizeColor(value);
+    if (clean) {
+      sanitized.push(clean);
+      if (sanitized.length >= maxSize) {
+        break;
+      }
+    }
+  }
+  return sanitized;
+}
+
+function cloneGroupPalettes(source) {
+  const result = {};
+  if (!source || typeof source !== 'object') {
+    return result;
+  }
+  Object.keys(source).forEach(key => {
+    const normalized = normalizeGroupId(key);
+    if (!normalized) return;
+    if (Array.isArray(source[key])) {
+      result[normalized] = source[key].slice();
+    }
+  });
+  return result;
+}
+
+const FALLBACK_GROUP_PALETTE_CACHE = new Map();
+
+function getFallbackGroupPalettes(projectName) {
+  const normalized = normalizeProjectKey(projectName);
+  const cacheKey = normalized || '__default__';
+  if (FALLBACK_GROUP_PALETTE_CACHE.has(cacheKey)) {
+    return cloneGroupPalettes(FALLBACK_GROUP_PALETTE_CACHE.get(cacheKey));
+  }
+  const fallbackBase = sanitizeColorList(
+    PROJECT_FALLBACKS[normalized] || PROJECT_FALLBACKS.default || []
+  );
+  const colors = fallbackBase.length ? fallbackBase : sanitizeColorList(PROJECT_FALLBACKS.default);
+  const groups = {};
+  let cursor = 0;
+  COLOR_GROUP_IDS.forEach(groupId => {
+    const limit = GROUP_SLOT_COUNTS[groupId] || 0;
+    const groupColors = [];
+    if (limit > 0) {
+      for (let index = 0; index < limit; index += 1) {
+        const color = colors[cursor] || colors[index % (colors.length || 1)] || null;
+        if (color) {
+          groupColors.push(color);
+        }
+        if (cursor < colors.length) {
+          cursor += 1;
+        }
+      }
+    }
+    groups[groupId] = groupColors;
+  });
+  if (EXTRA_GROUP_LIMIT > 0) {
+    const extra = [];
+    while (cursor < colors.length && extra.length < EXTRA_GROUP_LIMIT) {
+      const color = colors[cursor];
+      if (color) {
+        extra.push(color);
+      }
+      cursor += 1;
+    }
+    groups[EXTRA_GROUP_ID] = extra;
+  } else {
+    groups[EXTRA_GROUP_ID] = [];
+  }
+  FALLBACK_GROUP_PALETTE_CACHE.set(cacheKey, cloneGroupPalettes(groups));
+  return cloneGroupPalettes(groups);
+}
+
+function applyGroupPaletteOverlay(target, source) {
+  if (!target || typeof target !== 'object' || !source || typeof source !== 'object') {
+    return;
+  }
+  const normalizedSource = {};
+  Object.keys(source).forEach(key => {
+    const normalized = normalizeGroupId(key);
+    if (!normalized) return;
+    normalizedSource[normalized] = source[key];
+  });
+  COLOR_GROUP_IDS.forEach(groupId => {
+    const limit = GROUP_SLOT_COUNTS[groupId] || 0;
+    if (!limit) return;
+    const incoming = sanitizeGroupPaletteList(normalizedSource[groupId], limit);
+    if (!incoming.length) return;
+    const existing = Array.isArray(target[groupId]) ? target[groupId].slice() : [];
+    const merged = [];
+    for (let index = 0; index < limit; index += 1) {
+      const color = incoming[index] || existing[index];
+      if (color) {
+        merged.push(color);
+      }
+    }
+    while (merged.length < limit) {
+      const fallback = existing[merged.length] || existing[0] || null;
+      if (fallback) {
+        merged.push(fallback);
+      } else {
+        break;
+      }
+    }
+    target[groupId] = merged;
+  });
+  if (EXTRA_GROUP_LIMIT > 0) {
+    const extraIncoming = sanitizeGroupPaletteList(normalizedSource[EXTRA_GROUP_ID], EXTRA_GROUP_LIMIT);
+    if (extraIncoming.length) {
+      const existingExtra = Array.isArray(target[EXTRA_GROUP_ID]) ? target[EXTRA_GROUP_ID].slice() : [];
+      const mergedExtra = existingExtra.slice();
+      for (let index = 0; index < extraIncoming.length && index < EXTRA_GROUP_LIMIT; index += 1) {
+        if (extraIncoming[index]) {
+          mergedExtra[index] = extraIncoming[index];
+        }
+      }
+      target[EXTRA_GROUP_ID] = mergedExtra.filter(Boolean);
+    }
+  }
+}
+
+function distributeFlatPaletteToGroups(palette) {
+  const sanitized = sanitizeColorList(palette);
+  const result = {};
+  let cursor = 0;
+  COLOR_GROUP_IDS.forEach(groupId => {
+    const limit = GROUP_SLOT_COUNTS[groupId] || 0;
+    if (!limit) {
+      result[groupId] = [];
+      return;
+    }
+    const groupColors = [];
+    for (let index = 0; index < limit && cursor < sanitized.length; index += 1) {
+      groupColors.push(sanitized[cursor]);
+      cursor += 1;
+    }
+    result[groupId] = groupColors;
+  });
+  if (EXTRA_GROUP_LIMIT > 0 && cursor < sanitized.length) {
+    result[EXTRA_GROUP_ID] = sanitized.slice(cursor, cursor + EXTRA_GROUP_LIMIT);
+  }
+  return result;
+}
+
+function normalizeProjectGroupPalettes(projectName, palette) {
+  const base = getFallbackGroupPalettes(projectName);
+  if (Array.isArray(palette)) {
+    applyGroupPaletteOverlay(base, distributeFlatPaletteToGroups(palette));
+    return base;
+  }
+  if (palette && typeof palette === 'object') {
+    if (Array.isArray(palette.defaultColors)) {
+      applyGroupPaletteOverlay(base, distributeFlatPaletteToGroups(palette.defaultColors));
+    } else if (palette.defaultColors && typeof palette.defaultColors === 'object') {
+      applyGroupPaletteOverlay(base, palette.defaultColors);
+    }
+    if (palette.groupPalettes && typeof palette.groupPalettes === 'object') {
+      applyGroupPaletteOverlay(base, palette.groupPalettes);
+    } else {
+      applyGroupPaletteOverlay(base, palette);
+    }
+    return base;
+  }
+  return base;
+}
+
 function flattenProjectPalette(palette) {
   if (!palette) return [];
   if (Array.isArray(palette)) {
@@ -144,36 +340,44 @@ function flattenProjectPalette(palette) {
   if (typeof palette !== 'object') {
     return [];
   }
+  const source = palette.groupPalettes && typeof palette.groupPalettes === 'object' ? palette.groupPalettes : palette;
   const normalizedGroups = {};
-  Object.keys(palette).forEach(key => {
-    if (typeof key !== 'string') return;
-    const normalizedKey = key.trim().toLowerCase();
+  Object.keys(source).forEach(key => {
+    const normalizedKey = normalizeGroupId(key);
     if (!normalizedKey) return;
-    normalizedGroups[normalizedKey] = palette[key];
+    normalizedGroups[normalizedKey] = source[key];
   });
   const flattened = [];
   for (const groupId of GROUPED_PALETTE_ORDER) {
     if (flattened.length >= MAX_COLORS) break;
-    const values = Array.isArray(normalizedGroups[groupId]) ? normalizedGroups[groupId] : [];
+    const normalizedGroup = normalizeGroupId(groupId);
+    if (!normalizedGroup) continue;
+    const limit = normalizedGroup === EXTRA_GROUP_ID ? EXTRA_GROUP_LIMIT || MAX_COLORS : GROUP_SLOT_COUNTS[normalizedGroup] || MAX_COLORS;
+    const values = Array.isArray(normalizedGroups[normalizedGroup])
+      ? sanitizeGroupPaletteList(normalizedGroups[normalizedGroup], limit || MAX_COLORS)
+      : [];
     for (const value of values) {
       if (flattened.length >= MAX_COLORS) break;
-      const sanitized = sanitizeColor(value);
-      if (sanitized) {
-        flattened.push(sanitized);
-      }
+      flattened.push(value);
     }
   }
   return flattened;
 }
 
 function expandPalette(projectName, palette) {
-  const normalized = typeof projectName === 'string' ? projectName.trim().toLowerCase() : '';
-  const sanitized = sanitizeColorList(palette);
-  const fallback = PROJECT_FALLBACKS[normalized] || PROJECT_FALLBACKS.default;
-  const limit = Math.min(MAX_COLORS, Math.max(sanitized.length, MIN_COLOR_SLOTS));
+  const normalizedProject = normalizeProjectKey(projectName) || DEFAULT_PROJECT;
+  const groupPalettes = normalizeProjectGroupPalettes(normalizedProject, palette);
+  const flattened = flattenProjectPalette({ groupPalettes });
+  const sanitized = sanitizeColorList(flattened);
+  const fallbackBase = sanitizeColorList(
+    PROJECT_FALLBACKS[normalizedProject] || PROJECT_FALLBACKS.default || []
+  );
+  const fallback = fallbackBase.length ? fallbackBase : sanitizeColorList(PROJECT_FALLBACKS.default);
+  const limit = Math.min(MAX_COLORS, Math.max(MIN_COLOR_SLOTS, sanitized.length, fallback.length || 0));
   const result = [];
   for (let index = 0; index < limit; index += 1) {
-    const color = sanitized[index] || fallback[index % fallback.length] || PROJECT_FALLBACKS.default[index % PROJECT_FALLBACKS.default.length];
+    const fallbackColor = fallback[index % (fallback.length || 1)] || fallback[0] || null;
+    const color = sanitized[index] || fallbackColor || PROJECT_FALLBACKS.default[0];
     result.push(color);
   }
   if (!result.length) {
@@ -214,8 +418,10 @@ function buildDefaultProjects() {
   const projects = {};
   Object.keys(PROJECT_FALLBACKS).forEach(name => {
     if (name === 'default') return;
+    const groupPalettes = getFallbackGroupPalettes(name);
     projects[name] = {
-      defaultColors: expandPalette(name, PROJECT_FALLBACKS[name])
+      groupPalettes,
+      defaultColors: expandPalette(name, { groupPalettes })
     };
   });
   return projects;
@@ -232,17 +438,12 @@ function normalizeSettings(value) {
       const normalized = typeof name === 'string' ? name.trim().toLowerCase() : '';
       if (!normalized) return;
       const source = inputProjects[name];
-      const sanitized = flattenProjectPalette(source && source.defaultColors);
-      const target = projects[normalized] ? projects[normalized] : { defaultColors: [] };
-      if (!projects[normalized]) {
-        projects[normalized] = target;
-      }
-      if (sanitized.length) {
-        target.defaultColors = expandPalette(normalized, sanitized);
-      } else if (!target.defaultColors || !target.defaultColors.length) {
-        const fallback = PROJECT_FALLBACKS[normalized] || PROJECT_FALLBACKS.default;
-        target.defaultColors = expandPalette(normalized, fallback);
-      }
+      const normalizedGroupPalettes = normalizeProjectGroupPalettes(normalized, source);
+      const target = projects[normalized] ? projects[normalized] : {};
+      const groupPalettes = cloneGroupPalettes(normalizedGroupPalettes);
+      target.groupPalettes = groupPalettes;
+      target.defaultColors = expandPalette(normalized, { groupPalettes });
+      projects[normalized] = target;
       if (source && source.defaultLineThickness != null) {
         target.defaultLineThickness = clampLineThickness(source.defaultLineThickness);
       }
@@ -253,14 +454,14 @@ function normalizeSettings(value) {
   }
 
   if (input.defaultColors != null) {
-    const legacyColors = flattenProjectPalette(input.defaultColors);
-    if (legacyColors.length) {
-      const projectName = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
-      projects[projectName] = projects[projectName] || {};
-      projects[projectName].defaultColors = expandPalette(projectName, legacyColors);
-      if (!order.includes(projectName)) {
-        order.push(projectName);
-      }
+    const projectName = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
+    const normalizedGroupPalettes = normalizeProjectGroupPalettes(projectName, input.defaultColors);
+    projects[projectName] = projects[projectName] || {};
+    const groupPalettes = cloneGroupPalettes(normalizedGroupPalettes);
+    projects[projectName].groupPalettes = groupPalettes;
+    projects[projectName].defaultColors = expandPalette(projectName, { groupPalettes });
+    if (!order.includes(projectName)) {
+      order.push(projectName);
     }
   }
 
@@ -281,9 +482,7 @@ function normalizeSettings(value) {
   const active = projects[activeProject];
   const palette = expandPalette(
     activeProject,
-    active && Array.isArray(active.defaultColors) && active.defaultColors.length
-      ? active.defaultColors
-      : PROJECT_FALLBACKS.default
+    active && active.groupPalettes ? { groupPalettes: active.groupPalettes } : PROJECT_FALLBACKS.default
   );
   normalized.defaultColors = palette;
   return normalized;
