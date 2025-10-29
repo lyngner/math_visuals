@@ -656,9 +656,9 @@
   }
 
   function applyAppModeToTaskControls(mode) {
+    setCurrentAppMode(mode);
     if (!taskCheckHost) return;
-    const normalized = typeof mode === 'string' ? mode.toLowerCase() : '';
-    const isTaskMode = normalized === 'task';
+    const isTaskMode = currentAppMode === 'task';
     if (isTaskMode) {
       ensureTaskControlsAppended();
       taskCheckHost.hidden = false;
@@ -989,6 +989,8 @@
   let keyboardActiveId = null;
   const keyboardHandlers = new Map();
   let dragState = null;
+  let currentAppMode = 'default';
+  let openInlineEditorId = null;
   const itemEditorDragState = {
     activeId: null,
     dropTargetEl: null,
@@ -1023,6 +1025,115 @@
     return candidate;
   }
 
+  function normalizeAppMode(mode) {
+    if (typeof mode !== 'string') return 'default';
+    const normalized = mode.trim().toLowerCase();
+    return normalized || 'default';
+  }
+
+  function isEditorMode() {
+    return currentAppMode !== 'task';
+  }
+
+  function setInlineEditorOpen(id, open) {
+    if (!id) return;
+    const nodes = itemNodes.get(id);
+    if (!nodes || !nodes.inlineEditor) return;
+    const editor = nodes.inlineEditor;
+    const shouldOpen = !!open;
+    if (shouldOpen && !isEditorMode()) {
+      return;
+    }
+    if (shouldOpen && openInlineEditorId && openInlineEditorId !== id) {
+      setInlineEditorOpen(openInlineEditorId, false);
+    }
+    nodes.inlineEditorOpen = shouldOpen;
+    if (editor.host) {
+      editor.host.hidden = !isEditorMode();
+      editor.host.dataset.open = shouldOpen ? '1' : '0';
+    }
+    if (editor.panel) {
+      editor.panel.hidden = !shouldOpen;
+    }
+    if (editor.toggle) {
+      editor.toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    }
+    if (nodes.wrapper) {
+      nodes.wrapper.classList.toggle('sortering__item--editor-open', shouldOpen && isEditorMode());
+      nodes.wrapper.classList.toggle('sortering__item--editable', isEditorMode());
+    }
+    if (shouldOpen) {
+      openInlineEditorId = id;
+      if (editor.valueInput && typeof editor.valueInput.focus === 'function') {
+        editor.valueInput.focus();
+        if (typeof editor.valueInput.select === 'function') {
+          editor.valueInput.select();
+        }
+      }
+    } else if (openInlineEditorId === id) {
+      openInlineEditorId = null;
+    }
+  }
+
+  function closeInlineEditor(id) {
+    if (!id) return;
+    setInlineEditorOpen(id, false);
+  }
+
+  function closeAllInlineEditors() {
+    itemNodes.forEach((_, id) => {
+      setInlineEditorOpen(id, false);
+    });
+    openInlineEditorId = null;
+  }
+
+  function updateFigureEditorMode() {
+    const editable = isEditorMode();
+    if (figureHost) {
+      figureHost.dataset.editorMode = editable ? 'edit' : 'view';
+    }
+    if (!editable) {
+      closeAllInlineEditors();
+    }
+    itemNodes.forEach(nodes => {
+      if (!nodes || !nodes.inlineEditor) return;
+      const editor = nodes.inlineEditor;
+      if (editor.host) {
+        editor.host.hidden = !editable;
+        editor.host.dataset.open = editable && nodes.inlineEditorOpen ? '1' : '0';
+      }
+      if (editor.panel) {
+        editor.panel.hidden = !editable || !nodes.inlineEditorOpen;
+      }
+      if (editor.toggle) {
+        editor.toggle.setAttribute('aria-expanded', editable && nodes.inlineEditorOpen ? 'true' : 'false');
+      }
+      if (nodes.wrapper) {
+        nodes.wrapper.classList.toggle('sortering__item--editable', editable);
+        nodes.wrapper.classList.toggle('sortering__item--editor-open', editable && nodes.inlineEditorOpen);
+      }
+    });
+  }
+
+  function setCurrentAppMode(mode) {
+    currentAppMode = normalizeAppMode(mode);
+    updateFigureEditorMode();
+  }
+
+  function handleInlineEditorDocumentPointerDown(event) {
+    if (!openInlineEditorId) return;
+    const nodes = itemNodes.get(openInlineEditorId);
+    if (!nodes || !nodes.inlineEditor || !nodes.inlineEditor.host) return;
+    if (event && event.target && nodes.inlineEditor.host.contains(event.target)) {
+      return;
+    }
+    closeInlineEditor(openInlineEditorId);
+  }
+
+  if (doc && typeof doc.addEventListener === 'function') {
+    doc.addEventListener('pointerdown', handleInlineEditorDocumentPointerDown, true);
+  }
+
   function ensureItemNodes(item) {
     if (!item || !item.id) return null;
     if (itemNodes.has(item.id)) {
@@ -1046,10 +1157,206 @@
     button.dataset.itemId = item.id;
     li.appendChild(button);
 
-    const nodes = { wrapper, contentEl, li, button };
+    const nodes = { wrapper, contentEl, li, button, inlineEditor: null, inlineEditorOpen: false };
     itemNodes.set(item.id, nodes);
     attachItemListeners(item.id, nodes);
     return nodes;
+  }
+
+  function ensureInlineEditor(item, nodes) {
+    if (!item || !nodes) return;
+    if (!nodes.inlineEditor) {
+      const host = doc.createElement('div');
+      host.className = 'sortering__item-editor';
+      host.dataset.open = '0';
+      host.hidden = !isEditorMode();
+
+      const toggleBtn = doc.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = 'sortering__item-editor-toggle';
+      toggleBtn.textContent = 'Rediger';
+      toggleBtn.setAttribute('aria-label', 'Rediger element');
+      const panelId = `${item.id}-inline-editor-panel`;
+      toggleBtn.setAttribute('aria-controls', panelId);
+      toggleBtn.setAttribute('aria-expanded', 'false');
+      const stopPropagation = event => {
+        if (event) {
+          event.stopPropagation();
+        }
+      };
+      toggleBtn.addEventListener('click', event => {
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        const nextOpen = !nodes.inlineEditorOpen;
+        setInlineEditorOpen(item.id, nextOpen);
+      });
+      toggleBtn.addEventListener('pointerdown', stopPropagation);
+      toggleBtn.addEventListener('mousedown', stopPropagation);
+      toggleBtn.addEventListener('touchstart', stopPropagation);
+
+      const panel = doc.createElement('div');
+      panel.className = 'sortering__item-editor-panel';
+      panel.id = panelId;
+      panel.hidden = true;
+      panel.addEventListener('pointerdown', stopPropagation);
+      panel.addEventListener('mousedown', stopPropagation);
+      panel.addEventListener('touchstart', stopPropagation);
+      panel.addEventListener('keydown', event => {
+        if (event && event.key === 'Escape') {
+          event.stopPropagation();
+          closeInlineEditor(item.id);
+          if (toggleBtn && typeof toggleBtn.focus === 'function') {
+            toggleBtn.focus();
+          }
+        }
+      });
+
+      host.appendChild(toggleBtn);
+      host.appendChild(panel);
+
+      const createField = (labelText, inputEl) => {
+        const field = doc.createElement('div');
+        field.className = 'sortering__item-editor-field';
+        const label = doc.createElement('label');
+        label.className = 'sortering__item-editor-label';
+        label.textContent = labelText;
+        if (inputEl.id) {
+          label.setAttribute('for', inputEl.id);
+        }
+        field.appendChild(label);
+        field.appendChild(inputEl);
+        return field;
+      };
+
+      const formatSelect = doc.createElement('select');
+      formatSelect.className = 'sortering__item-editor-select';
+      const formatId = `${item.id}-inline-editor-format`;
+      formatSelect.id = formatId;
+      const formatOptions = [
+        { value: 'text', label: 'Tekst' },
+        { value: 'katex', label: 'KaTeX' },
+        { value: 'asset', label: 'Ressurs' }
+      ];
+      formatOptions.forEach(option => {
+        const opt = doc.createElement('option');
+        opt.value = option.value;
+        opt.textContent = option.label;
+        formatSelect.appendChild(opt);
+      });
+      panel.appendChild(createField('Innholdstype', formatSelect));
+
+      const valueInput = doc.createElement('input');
+      valueInput.type = 'text';
+      valueInput.className = 'sortering__item-editor-input';
+      valueInput.id = `${item.id}-inline-editor-value`;
+      valueInput.autocomplete = 'off';
+      valueInput.spellcheck = false;
+      panel.appendChild(createField('Innhold', valueInput));
+
+      const labelInput = doc.createElement('input');
+      labelInput.type = 'text';
+      labelInput.className = 'sortering__item-editor-input';
+      labelInput.id = `${item.id}-inline-editor-label`;
+      labelInput.placeholder = 'Knappetekst (valgfritt)';
+      panel.appendChild(createField('Knappetekst', labelInput));
+
+      const altInput = doc.createElement('input');
+      altInput.type = 'text';
+      altInput.className = 'sortering__item-editor-input';
+      altInput.id = `${item.id}-inline-editor-alt`;
+      altInput.placeholder = 'Alternativ tekst';
+      panel.appendChild(createField('Alternativ tekst', altInput));
+
+      nodes.wrapper.appendChild(host);
+
+      nodes.inlineEditor = {
+        host,
+        toggle: toggleBtn,
+        panel,
+        formatSelect,
+        valueInput,
+        labelInput,
+        altInput
+      };
+      nodes.inlineEditorOpen = false;
+
+      formatSelect.addEventListener('change', () => {
+        const nextFormat = ITEM_FORMATS.includes(formatSelect.value) ? formatSelect.value : 'text';
+        item.format = nextFormat;
+        setItemValueForFormat(item, nextFormat, valueInput.value);
+        refreshItemsById();
+        setValueInputPlaceholder(valueInput, nextFormat);
+        valueInput.value = getItemValueForFormat(item, nextFormat);
+        const optsNext = state && state.randomisering ? { randomize: true } : {};
+        applyOrder(optsNext);
+        if (itemEditorList) {
+          renderItemsEditor();
+        }
+        updateItemEditorValidation();
+        setInlineEditorOpen(item.id, true);
+      });
+
+      valueInput.addEventListener('input', () => {
+        const activeFormat = ITEM_FORMATS.includes(formatSelect.value)
+          ? formatSelect.value
+          : determineItemFormat(item);
+        setItemValueForFormat(item, activeFormat, valueInput.value);
+        refreshItemsById();
+        applyOrder({});
+        if (itemEditorList) {
+          renderItemsEditor();
+        }
+        updateItemEditorValidation();
+      });
+
+      labelInput.addEventListener('input', () => {
+        item.label = labelInput.value;
+        ensureItemFormat(item);
+        refreshItemsById();
+        applyOrder({});
+        if (itemEditorList) {
+          renderItemsEditor();
+        }
+        updateItemEditorValidation();
+      });
+
+      altInput.addEventListener('input', () => {
+        item.alt = altInput.value;
+        ensureItemFormat(item);
+        refreshItemsById();
+        applyOrder({});
+        if (itemEditorList) {
+          renderItemsEditor();
+        }
+      });
+    }
+
+    const inlineEditor = nodes.inlineEditor;
+    if (!inlineEditor) return;
+    const format = determineItemFormat(item);
+    inlineEditor.formatSelect.value = format;
+    setValueInputPlaceholder(inlineEditor.valueInput, format);
+    inlineEditor.valueInput.value = getItemValueForFormat(item, format);
+    inlineEditor.labelInput.value = typeof item.label === 'string' ? item.label : '';
+    inlineEditor.altInput.value = typeof item.alt === 'string' ? item.alt : '';
+
+    const editable = isEditorMode();
+    if (inlineEditor.host) {
+      inlineEditor.host.hidden = !editable;
+      inlineEditor.host.dataset.open = editable && nodes.inlineEditorOpen ? '1' : '0';
+    }
+    if (inlineEditor.panel) {
+      inlineEditor.panel.hidden = !editable || !nodes.inlineEditorOpen;
+    }
+    if (inlineEditor.toggle) {
+      inlineEditor.toggle.setAttribute('aria-expanded', editable && nodes.inlineEditorOpen ? 'true' : 'false');
+    }
+    if (nodes.wrapper) {
+      nodes.wrapper.classList.toggle('sortering__item--editable', editable);
+      nodes.wrapper.classList.toggle('sortering__item--editor-open', editable && nodes.inlineEditorOpen);
+    }
   }
 
   function renderItem(item, position) {
@@ -1109,6 +1416,8 @@
     } else {
       button.removeAttribute('title');
     }
+
+    ensureInlineEditor(item, nodes);
 
     return nodes;
   }
@@ -1307,6 +1616,7 @@
   function activateKeyboardMode(id) {
     if (!id) return;
     if (keyboardActiveId === id) return;
+    closeAllInlineEditors();
     finalizeKeyboardMode();
     const nodes = itemNodes.get(id);
     if (!nodes) return;
@@ -1462,6 +1772,9 @@
   function startPointerDrag(event, id) {
     if (!visualList || dragState || !state) return;
     if (typeof event.button === 'number' && event.button !== 0) return;
+    if (openInlineEditorId) {
+      closeAllInlineEditors();
+    }
     const nodes = itemNodes.get(id);
     if (!nodes || !nodes.wrapper) return;
     const orientation = normalizeDirection(state.retning);
@@ -1862,6 +2175,7 @@
   }
 
   function removeItem(id) {
+    closeInlineEditor(id);
     if (!state || !Array.isArray(state.items)) return;
     const index = state.items.findIndex(item => item && item.id === id);
     if (index < 0) return;
@@ -2276,6 +2590,8 @@
     if (!figureHost || !accessibleList) {
       return;
     }
+
+    updateFigureEditorMode();
 
     state = createState();
     refreshItemsById();
