@@ -4,6 +4,670 @@
   if (!globalObj || !doc) return;
 
   const DESCRIPTION_RENDERER = globalObj.MathVisDescriptionRenderer || null;
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const STATUS_SAMPLE_COUNT = 3;
+
+  const statusNodes = {
+    sorted: null,
+    almost: null,
+    first: null,
+    last: null,
+    order: null
+  };
+
+  let statusSection = null;
+  let statusSnapshot = null;
+  const statusListeners = new Set();
+
+  let exportCard = null;
+  let altTextManager = null;
+  let altTextSvg = null;
+
+  let checkButton = null;
+  let checkStatus = null;
+  let taskCheckHost = null;
+  let taskCheckControls = [];
+
+  function ensureStringArray(list) {
+    if (!Array.isArray(list)) return [];
+    return list
+      .map(entry => (typeof entry === 'string' ? entry.trim() : ''))
+      .filter(entry => entry);
+  }
+
+  function isSorted(order, reference) {
+    const a = ensureStringArray(order);
+    const b = ensureStringArray(reference);
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
+  function firstN(order, count = STATUS_SAMPLE_COUNT) {
+    const arr = ensureStringArray(order);
+    const size = Number.isFinite(count) ? Math.max(0, Math.trunc(count)) : STATUS_SAMPLE_COUNT;
+    const limit = Math.min(arr.length, size);
+    return arr.slice(0, limit);
+  }
+
+  function lastN(order, count = STATUS_SAMPLE_COUNT) {
+    const arr = ensureStringArray(order);
+    const size = Number.isFinite(count) ? Math.max(0, Math.trunc(count)) : STATUS_SAMPLE_COUNT;
+    if (size === 0) return [];
+    const limit = Math.min(arr.length, size);
+    return arr.slice(arr.length - limit);
+  }
+
+  function almost(order, reference) {
+    const current = ensureStringArray(order);
+    const expected = ensureStringArray(reference);
+    const total = expected.length;
+    const comparisons = Math.min(current.length, expected.length);
+    const mismatches = [];
+    let matches = 0;
+    for (let i = 0; i < comparisons; i += 1) {
+      const actualId = current[i];
+      const expectedId = expected[i];
+      if (actualId === expectedId) {
+        matches += 1;
+      } else {
+        mismatches.push({ index: i, actual: actualId || null, expected: expectedId || null });
+      }
+    }
+    for (let i = comparisons; i < expected.length; i += 1) {
+      mismatches.push({ index: i, actual: null, expected: expected[i] || null });
+    }
+    for (let i = expected.length; i < current.length; i += 1) {
+      mismatches.push({ index: i, actual: current[i] || null, expected: null });
+    }
+    const fraction = total > 0 ? matches / total : 1;
+    const percent = total > 0 ? Math.round(fraction * 100) : 100;
+    return {
+      matches,
+      total,
+      fraction,
+      percent,
+      mismatches
+    };
+  }
+
+  function cloneAlmostResult(result) {
+    if (!result || typeof result !== 'object') {
+      return { matches: 0, total: 0, fraction: 0, percent: 0, mismatches: [] };
+    }
+    const mismatches = Array.isArray(result.mismatches)
+      ? result.mismatches.map(entry => ({
+          index: Number.isFinite(entry.index) ? entry.index : -1,
+          actual: typeof entry.actual === 'string' ? entry.actual : entry.actual == null ? null : String(entry.actual),
+          expected:
+            typeof entry.expected === 'string' ? entry.expected : entry.expected == null ? null : String(entry.expected)
+        }))
+      : [];
+    return {
+      matches: Number.isFinite(result.matches) ? result.matches : 0,
+      total: Number.isFinite(result.total) ? result.total : 0,
+      fraction: Number.isFinite(result.fraction) ? result.fraction : 0,
+      percent: Number.isFinite(result.percent) ? result.percent : 0,
+      mismatches
+    };
+  }
+
+  function resetStatusNodes() {
+    statusNodes.sorted = null;
+    statusNodes.almost = null;
+    statusNodes.first = null;
+    statusNodes.last = null;
+    statusNodes.order = null;
+  }
+
+  function getCurrentOrder() {
+    return Array.isArray(currentOrder) ? currentOrder.slice() : [];
+  }
+
+  function getBaseOrder() {
+    if (!state) return [];
+    const sanitized = sanitizeOrder(state.items, state.order);
+    if (state && Array.isArray(state.order)) {
+      const differs = sanitized.length !== state.order.length || sanitized.some((id, index) => state.order[index] !== id);
+      if (differs) {
+        state.order = sanitized.slice();
+      }
+    }
+    return sanitized;
+  }
+
+  function computeStatusSnapshot() {
+    const order = getCurrentOrder();
+    const baseOrder = getBaseOrder();
+    const sorted = isSorted(order, baseOrder);
+    const almostResult = cloneAlmostResult(almost(order, baseOrder));
+    const firstSegment = firstN(order, STATUS_SAMPLE_COUNT);
+    const lastSegment = lastN(order, STATUS_SAMPLE_COUNT);
+    return {
+      timestamp: Date.now(),
+      order,
+      baseOrder,
+      sorted,
+      almost: almostResult,
+      firstN: firstSegment,
+      lastN: lastSegment
+    };
+  }
+
+  function cloneSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return null;
+    return {
+      timestamp: snapshot.timestamp,
+      order: Array.isArray(snapshot.order) ? snapshot.order.slice() : [],
+      baseOrder: Array.isArray(snapshot.baseOrder) ? snapshot.baseOrder.slice() : [],
+      sorted: !!snapshot.sorted,
+      almost: cloneAlmostResult(snapshot.almost),
+      firstN: Array.isArray(snapshot.firstN) ? snapshot.firstN.slice() : [],
+      lastN: Array.isArray(snapshot.lastN) ? snapshot.lastN.slice() : []
+    };
+  }
+
+  function getItemDisplayLabel(id) {
+    if (typeof id !== 'string' || !id) return '';
+    const item = itemsById.get(id);
+    if (!item) return id;
+    const candidates = [item.label, item.alt, item.description, item.id];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+    return id;
+  }
+
+  function formatIdList(ids) {
+    if (!Array.isArray(ids) || !ids.length) {
+      return 'Ingen';
+    }
+    const labels = ids
+      .map(id => getItemDisplayLabel(id))
+      .filter(label => typeof label === 'string' && label.trim());
+    if (!labels.length) {
+      return ids.join(', ');
+    }
+    return labels.join(', ');
+  }
+
+  function formatAlmost(result) {
+    if (!result || typeof result !== 'object') return '—';
+    const matches = Number.isFinite(result.matches) ? result.matches : 0;
+    const total = Number.isFinite(result.total) ? result.total : 0;
+    if (total <= 0) {
+      return matches > 0 ? `${matches}` : 'Ingen fasit';
+    }
+    const percent = Number.isFinite(result.percent) ? result.percent : Math.round((matches / total) * 100);
+    return `${matches} av ${total} (${percent}%)`;
+  }
+
+  function createStatusSection() {
+    const section = doc.createElement('section');
+    section.className = 'sortering-status';
+    const heading = doc.createElement('h3');
+    heading.textContent = 'Status';
+    section.appendChild(heading);
+    const list = doc.createElement('dl');
+    list.className = 'sortering-status__list';
+
+    const rows = [
+      { label: 'Sortert', key: 'sorted' },
+      { label: 'Nesten', key: 'almost' },
+      { label: 'Første', key: 'first' },
+      { label: 'Siste', key: 'last' },
+      { label: 'Rekkefølge', key: 'order' }
+    ];
+
+    rows.forEach(row => {
+      const dt = doc.createElement('dt');
+      dt.textContent = row.label;
+      dt.className = 'sortering-status__term';
+      const dd = doc.createElement('dd');
+      dd.className = 'sortering-status__value';
+      list.appendChild(dt);
+      list.appendChild(dd);
+      if (row.key && row.key in statusNodes) {
+        statusNodes[row.key] = dd;
+      }
+    });
+
+    section.appendChild(list);
+    return section;
+  }
+
+  function ensureStatusSection(host) {
+    if (!host) return;
+    resetStatusNodes();
+    statusSection = createStatusSection();
+    host.appendChild(statusSection);
+  }
+
+  function updateStatusUI(snapshot) {
+    if (!snapshot) return;
+    if (statusNodes.sorted) {
+      statusNodes.sorted.textContent = snapshot.sorted ? 'Ja' : 'Nei';
+    }
+    if (statusNodes.almost) {
+      statusNodes.almost.textContent = formatAlmost(snapshot.almost);
+    }
+    if (statusNodes.first) {
+      statusNodes.first.textContent = formatIdList(snapshot.firstN);
+    }
+    if (statusNodes.last) {
+      statusNodes.last.textContent = formatIdList(snapshot.lastN);
+    }
+    if (statusNodes.order) {
+      statusNodes.order.textContent = formatIdList(snapshot.order);
+    }
+    if (statusSection) {
+      statusSection.dataset.sorted = snapshot.sorted ? '1' : '0';
+      if (snapshot.almost && Number.isFinite(snapshot.almost.matches)) {
+        statusSection.dataset.matches = String(snapshot.almost.matches);
+        statusSection.dataset.total = String(snapshot.almost.total);
+        statusSection.dataset.percent = String(snapshot.almost.percent);
+      } else {
+        delete statusSection.dataset.matches;
+        delete statusSection.dataset.total;
+        delete statusSection.dataset.percent;
+      }
+    }
+  }
+
+  function updateFigureDataset(snapshot) {
+    if (!figureHost || !snapshot) return;
+    figureHost.dataset.sorted = snapshot.sorted ? '1' : '0';
+    figureHost.dataset.order = Array.isArray(snapshot.order) ? snapshot.order.join(',') : '';
+    if (snapshot.almost && Number.isFinite(snapshot.almost.matches)) {
+      figureHost.dataset.matches = String(snapshot.almost.matches);
+      figureHost.dataset.total = String(snapshot.almost.total);
+      figureHost.dataset.percent = String(snapshot.almost.percent);
+    } else {
+      delete figureHost.dataset.matches;
+      delete figureHost.dataset.total;
+      delete figureHost.dataset.percent;
+    }
+  }
+
+  function updateTaskCheckState(snapshot) {
+    if (!snapshot) return;
+    if (checkButton) {
+      checkButton.dataset.sorted = snapshot.sorted ? '1' : '0';
+      if (snapshot.almost && Number.isFinite(snapshot.almost.matches)) {
+        checkButton.dataset.matches = String(snapshot.almost.matches);
+        checkButton.dataset.total = String(snapshot.almost.total);
+      } else {
+        delete checkButton.dataset.matches;
+        delete checkButton.dataset.total;
+      }
+    }
+    if (checkStatus) {
+      checkStatus.dataset.sorted = snapshot.sorted ? '1' : '0';
+    }
+    if (taskCheckHost) {
+      taskCheckHost.dataset.sorted = snapshot.sorted ? '1' : '0';
+      taskCheckHost.dataset.order = Array.isArray(snapshot.order) ? snapshot.order.join(',') : '';
+      if (snapshot.almost && Number.isFinite(snapshot.almost.matches)) {
+        taskCheckHost.dataset.matches = String(snapshot.almost.matches);
+        taskCheckHost.dataset.total = String(snapshot.almost.total);
+        taskCheckHost.dataset.percent = String(snapshot.almost.percent);
+      } else {
+        delete taskCheckHost.dataset.matches;
+        delete taskCheckHost.dataset.total;
+        delete taskCheckHost.dataset.percent;
+      }
+    }
+  }
+
+  function dispatchStatusEvent(snapshot, reason) {
+    if (!globalObj || typeof globalObj.dispatchEvent !== 'function' || typeof globalObj.CustomEvent !== 'function') {
+      return;
+    }
+    const detail = cloneSnapshot(snapshot);
+    if (!detail) return;
+    detail.reason = reason || 'update';
+    try {
+      globalObj.dispatchEvent(new globalObj.CustomEvent('math-vis-sortering:update', { detail }));
+    } catch (_) {}
+  }
+
+  function emitStatusToListeners(snapshot, reason) {
+    if (!snapshot) return;
+    const payload = cloneSnapshot(snapshot);
+    if (!payload) return;
+    payload.reason = reason || 'update';
+    Array.from(statusListeners).forEach(listener => {
+      if (typeof listener !== 'function') return;
+      try {
+        listener(payload);
+      } catch (error) {
+        if (globalObj && typeof globalObj.console !== 'undefined' && typeof globalObj.console.error === 'function') {
+          globalObj.console.error('mathVisSortering listener error', error);
+        }
+      }
+    });
+  }
+
+  function getStatusSnapshot(forceRecompute = false) {
+    if (forceRecompute || !statusSnapshot) {
+      statusSnapshot = computeStatusSnapshot();
+    }
+    return statusSnapshot;
+  }
+
+  function getStatusSnapshotClone(forceRecompute = false) {
+    return cloneSnapshot(getStatusSnapshot(forceRecompute));
+  }
+
+  function notifyStatusChange(reason) {
+    const snapshot = getStatusSnapshot(true);
+    updateStatusUI(snapshot);
+    updateFigureDataset(snapshot);
+    updateTaskCheckState(snapshot);
+    clearCheckStatus();
+    emitStatusToListeners(snapshot, reason);
+    dispatchStatusEvent(snapshot, reason);
+    refreshAltText(reason, snapshot);
+  }
+
+  function registerMathVisApi() {
+    if (!globalObj) return null;
+    const existing = globalObj.mathVisSortering && typeof globalObj.mathVisSortering === 'object' ? globalObj.mathVisSortering : null;
+    const api = existing || {};
+    api.getState = () => getStatusSnapshotClone();
+    api.isSorted = (order, reference) => {
+      const current = Array.isArray(order) ? order : getCurrentOrder();
+      const base = Array.isArray(reference) ? reference : getBaseOrder();
+      return isSorted(current, base);
+    };
+    api.firstN = (order, count) => {
+      const current = Array.isArray(order) ? order : getCurrentOrder();
+      return firstN(current, count);
+    };
+    api.lastN = (order, count) => {
+      const current = Array.isArray(order) ? order : getCurrentOrder();
+      return lastN(current, count);
+    };
+    api.almost = (order, reference) => {
+      const current = Array.isArray(order) ? order : getCurrentOrder();
+      const base = Array.isArray(reference) ? reference : getBaseOrder();
+      return cloneAlmostResult(almost(current, base));
+    };
+    api.onChange = callback => {
+      if (typeof callback !== 'function') return () => {};
+      statusListeners.add(callback);
+      if (statusSnapshot) {
+        try {
+          const payload = cloneSnapshot(statusSnapshot);
+          if (payload) {
+            payload.reason = 'listener-init';
+            callback(payload);
+          }
+        } catch (error) {
+          if (globalObj && globalObj.console && typeof globalObj.console.error === 'function') {
+            globalObj.console.error('mathVisSortering onChange init error', error);
+          }
+        }
+      }
+      return () => {
+        statusListeners.delete(callback);
+      };
+    };
+    api.offChange = callback => {
+      if (typeof callback !== 'function') return;
+      statusListeners.delete(callback);
+    };
+    api.subscribe = api.onChange;
+    api.unsubscribe = api.offChange;
+    globalObj.mathVisSortering = api;
+    if (globalObj.mathVisuals && typeof globalObj.mathVisuals === 'object') {
+      globalObj.mathVisuals.sortering = api;
+    }
+    return api;
+  }
+
+  function ensureAltTextSvg() {
+    if (altTextSvg && altTextSvg.ownerDocument === doc) {
+      return altTextSvg;
+    }
+    if (!figureHost) return null;
+    const svg = doc.createElementNS(SVG_NS, 'svg');
+    svg.classList.add('sortering__alt-svg');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    svg.setAttribute('width', '0');
+    svg.setAttribute('height', '0');
+    svg.style.position = 'absolute';
+    svg.style.width = '0';
+    svg.style.height = '0';
+    svg.style.overflow = 'hidden';
+    figureHost.appendChild(svg);
+    altTextSvg = svg;
+    return svg;
+  }
+
+  function buildAltText(snapshot) {
+    const stateSnapshot = snapshot || getStatusSnapshot();
+    if (!stateSnapshot) return '';
+    const labels = Array.isArray(stateSnapshot.order)
+      ? stateSnapshot.order.map(id => getItemDisplayLabel(id)).filter(Boolean)
+      : [];
+    const parts = [];
+    if (labels.length === 0) {
+      parts.push('Ingen elementer er tilgjengelige.');
+    } else {
+      parts.push(stateSnapshot.sorted ? 'Elementene er sortert.' : 'Elementene er ikke sortert.');
+      parts.push(`Rekkefølgen er ${labels.join(', ')}.`);
+      if (stateSnapshot.almost && Number.isFinite(stateSnapshot.almost.total) && stateSnapshot.almost.total > 0) {
+        parts.push(`${stateSnapshot.almost.matches} av ${stateSnapshot.almost.total} elementer står på riktig plass.`);
+      }
+    }
+    return parts.join(' ');
+  }
+
+  function buildAltTextSignature(snapshot) {
+    const stateSnapshot = snapshot || getStatusSnapshot();
+    if (!stateSnapshot) return '';
+    try {
+      return JSON.stringify({
+        order: Array.isArray(stateSnapshot.order) ? stateSnapshot.order : [],
+        sorted: !!stateSnapshot.sorted,
+        matches: stateSnapshot.almost ? stateSnapshot.almost.matches : 0,
+        total: stateSnapshot.almost ? stateSnapshot.almost.total : 0
+      });
+    } catch (_) {
+      return `${stateSnapshot.sorted ? '1' : '0'}:${Array.isArray(stateSnapshot.order) ? stateSnapshot.order.join('|') : ''}`;
+    }
+  }
+
+  function ensureAltTextManager() {
+    if (altTextManager || !globalObj || !globalObj.MathVisAltText || !exportCard) return;
+    const svg = ensureAltTextSvg();
+    if (!svg) return;
+    altTextManager = globalObj.MathVisAltText.create({
+      svg,
+      container: exportCard,
+      getTitle: () => (doc && doc.title ? doc.title : 'Sortering'),
+      getState: () => ({
+        text: state && typeof state.altText === 'string' ? state.altText : '',
+        source: state && state.altTextSource === 'manual' ? 'manual' : 'auto'
+      }),
+      setState: (text, source) => {
+        if (!state) return;
+        state.altText = typeof text === 'string' ? text : '';
+        state.altTextSource = source === 'manual' ? 'manual' : 'auto';
+      },
+      generate: () => buildAltText(),
+      getSignature: () => buildAltTextSignature(),
+      getAutoMessage: reason =>
+        reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
+      getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
+    });
+    if (altTextManager && typeof altTextManager.applyCurrent === 'function') {
+      altTextManager.applyCurrent();
+    }
+  }
+
+  function refreshAltText(reason, snapshot) {
+    if (!globalObj || !globalObj.MathVisAltText) return;
+    ensureAltTextManager();
+    const signature = buildAltTextSignature(snapshot);
+    const description = buildAltText(snapshot);
+    if (altTextManager && typeof altTextManager.refresh === 'function') {
+      altTextManager.refresh(reason || 'auto', signature);
+    } else if (altTextManager && typeof altTextManager.notifyFigureChange === 'function') {
+      altTextManager.notifyFigureChange(signature);
+    } else {
+      const svg = ensureAltTextSvg();
+      if (!svg) return;
+      const nodes = globalObj.MathVisAltText.ensureSvgA11yNodes(svg);
+      if (nodes && nodes.descEl) {
+        nodes.descEl.textContent = description;
+      }
+      if (nodes && nodes.titleEl) {
+        nodes.titleEl.textContent = doc && doc.title ? doc.title : 'Sortering';
+      }
+    }
+  }
+
+  function setCheckStatus(type, heading, detailLines) {
+    if (!checkStatus) return;
+    if (!type) {
+      checkStatus.hidden = true;
+      checkStatus.className = 'status';
+      checkStatus.textContent = '';
+      return;
+    }
+    checkStatus.hidden = false;
+    checkStatus.className = `status status--${type}`;
+    checkStatus.textContent = '';
+    if (heading) {
+      const strong = doc.createElement('strong');
+      strong.textContent = heading;
+      checkStatus.appendChild(strong);
+    }
+    if (Array.isArray(detailLines) && detailLines.length) {
+      detailLines.forEach(line => {
+        if (!line) return;
+        const div = doc.createElement('div');
+        div.textContent = line;
+        checkStatus.appendChild(div);
+      });
+    }
+  }
+
+  function clearCheckStatus() {
+    if (!checkStatus || checkStatus.hidden) return;
+    setCheckStatus(null);
+  }
+
+  function ensureTaskControlsAppended() {
+    if (!taskCheckHost) return;
+    taskCheckControls.forEach(control => {
+      if (control && control.parentElement !== taskCheckHost) {
+        taskCheckHost.appendChild(control);
+      }
+    });
+  }
+
+  function applyAppModeToTaskControls(mode) {
+    if (!taskCheckHost) return;
+    const normalized = typeof mode === 'string' ? mode.toLowerCase() : '';
+    const isTaskMode = normalized === 'task';
+    if (isTaskMode) {
+      ensureTaskControlsAppended();
+      taskCheckHost.hidden = false;
+      taskCheckControls.forEach(control => {
+        if (!control) return;
+        if (control === checkButton) {
+          control.hidden = false;
+          if (control.dataset) delete control.dataset.prevHidden;
+          return;
+        }
+        if (control.dataset && 'prevHidden' in control.dataset) {
+          const wasHidden = control.dataset.prevHidden === '1';
+          delete control.dataset.prevHidden;
+          control.hidden = wasHidden;
+        }
+      });
+    } else {
+      taskCheckHost.hidden = true;
+      taskCheckControls.forEach(control => {
+        if (!control) return;
+        if (control.dataset) {
+          control.dataset.prevHidden = control.hidden ? '1' : '0';
+        }
+        control.hidden = true;
+      });
+    }
+  }
+
+  function getCurrentAppMode() {
+    if (typeof globalObj === 'undefined') return 'default';
+    const mv = globalObj.mathVisuals;
+    if (mv && typeof mv.getAppMode === 'function') {
+      try {
+        const mode = mv.getAppMode();
+        if (typeof mode === 'string' && mode.trim()) {
+          return mode;
+        }
+      } catch (_) {}
+    }
+    try {
+      const params = new URLSearchParams(globalObj.location && globalObj.location.search ? globalObj.location.search : '');
+      const fromQuery = params.get('mode');
+      if (typeof fromQuery === 'string' && fromQuery.trim()) {
+        return fromQuery.trim().toLowerCase() === 'task' ? 'task' : 'default';
+      }
+    } catch (_) {}
+    return 'default';
+  }
+
+  function handleAppModeChanged(event) {
+    if (!event || !event.detail || typeof event.detail.mode !== 'string') return;
+    applyAppModeToTaskControls(event.detail.mode);
+  }
+
+  function evaluateDescriptionInputs() {
+    if (!globalObj) return;
+    const mv = globalObj.mathVisuals;
+    if (!mv || typeof mv.evaluateTaskInputs !== 'function') return;
+    try {
+      mv.evaluateTaskInputs();
+    } catch (_) {}
+  }
+
+  function handleCheckButtonClick() {
+    evaluateDescriptionInputs();
+    runTaskCheck();
+  }
+
+  function runTaskCheck() {
+    const snapshot = getStatusSnapshot();
+    if (!snapshot) {
+      setCheckStatus('info', 'Ingen fasit er definert ennå.');
+      return;
+    }
+    if (!Array.isArray(snapshot.baseOrder) || snapshot.baseOrder.length === 0) {
+      setCheckStatus('info', 'Ingen fasit er definert ennå.');
+      return;
+    }
+    if (snapshot.sorted) {
+      setCheckStatus('success', 'Riktig rekkefølge!');
+      return;
+    }
+    const details = [];
+    if (snapshot.almost && Number.isFinite(snapshot.almost.total) && snapshot.almost.total > 0) {
+      details.push(`${snapshot.almost.matches} av ${snapshot.almost.total} elementer står riktig.`);
+    }
+    setCheckStatus('error', 'Ikke helt riktig ennå.', details);
+  }
+
+  registerMathVisApi();
 
   function normalizeItem(raw, index) {
     const source = raw && typeof raw === 'object' ? raw : {};
@@ -181,7 +845,9 @@
     order: DEFAULT_ITEMS.map(item => item.id),
     retning: 'horisontal',
     gap: 32,
-    randomisering: false
+    randomisering: false,
+    altText: '',
+    altTextSource: 'auto'
   };
 
   let state = null;
@@ -395,6 +1061,7 @@
     if (!preserveTransform) {
       snapToSlot(id);
     }
+    notifyStatusChange('move');
     return true;
   }
 
@@ -628,6 +1295,7 @@
     updateItemPositions();
     snapToSlot();
     clearVisualMarkers();
+    notifyStatusChange('applyOrder');
   }
 
   function updateLayout() {
@@ -750,6 +1418,8 @@
     form.appendChild(randomField);
 
     host.appendChild(form);
+    ensureStatusSection(host);
+    updateStatusUI(getStatusSnapshot());
   }
 
   function createState() {
@@ -766,13 +1436,17 @@
     const retning = normalizeDirection(existing && existing.retning ? existing.retning : DEFAULT_STATE.retning);
     const gap = normalizeGap(existing && 'gap' in existing ? existing.gap : Number.NaN, DEFAULT_STATE.gap);
     const randomisering = !!(existing && existing.randomisering);
+    const altText = existing && typeof existing.altText === 'string' ? existing.altText : DEFAULT_STATE.altText;
+    const altTextSource = existing && existing.altTextSource === 'manual' ? 'manual' : DEFAULT_STATE.altTextSource;
 
     const nextState = {
       items,
       order,
       retning,
       gap,
-      randomisering
+      randomisering,
+      altText,
+      altTextSource
     };
 
     rootState.sortering = nextState;
@@ -781,6 +1455,20 @@
   }
 
   function init() {
+    registerMathVisApi();
+    exportCard = doc.getElementById('exportCard');
+    checkButton = doc.getElementById('btnCheck');
+    checkStatus = doc.getElementById('checkStatus');
+    taskCheckHost = doc.querySelector('[data-task-check-host]');
+    taskCheckControls = [checkButton, checkStatus].filter(Boolean);
+    ensureTaskControlsAppended();
+    applyAppModeToTaskControls(getCurrentAppMode() || 'task');
+    if (typeof globalObj.addEventListener === 'function') {
+      globalObj.addEventListener('math-visuals:app-mode-changed', handleAppModeChanged);
+    }
+    if (checkButton) {
+      checkButton.addEventListener('click', handleCheckButtonClick);
+    }
     figureHost = doc.getElementById('sortFigure');
     accessibleList = doc.getElementById('sortSkia');
     const settingsHost = doc.getElementById('settingsHost');
