@@ -21,6 +21,7 @@
       --tape-strap-height: 48px;
       --tape-housing-width: 136px;
       --tape-housing-height: 72px;
+      --tape-strap-offset: 0px;
     }
 
     body[data-app="måling"] {
@@ -247,6 +248,14 @@
       height: var(--tape-strap-height);
       clip-path: inset(0 calc(100% - var(--tape-strap-visible)) 0 0);
       overflow: hidden;
+    }
+
+    .tape-measure__strap-track {
+      width: var(--tape-strap-length);
+      height: 100%;
+      transform: translateX(var(--tape-strap-offset));
+      pointer-events: none;
+      display: block;
     }
 
     .tape-measure__strap-svg {
@@ -503,14 +512,16 @@
               >
                 <div class="tape-measure__body">
                   <div class="tape-measure__strap" data-tape-strap>
-                    <svg
-                      class="tape-measure__strap-svg"
-                      viewBox="0 0 600 48"
-                      preserveAspectRatio="none"
-                      aria-hidden="true"
-                      focusable="false"
-                      data-tape-strap-svg
-                    ></svg>
+                    <div class="tape-measure__strap-track" data-tape-strap-track>
+                      <svg
+                        class="tape-measure__strap-svg"
+                        viewBox="0 0 600 48"
+                        preserveAspectRatio="none"
+                        aria-hidden="true"
+                        focusable="false"
+                        data-tape-strap-svg
+                      ></svg>
+                    </div>
                   </div>
                   <div class="tape-measure__housing" data-tape-housing>
                     <img
