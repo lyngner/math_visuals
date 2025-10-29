@@ -38,9 +38,8 @@
   let directionSelect = null;
   let gapInput = null;
   let randomizeInput = null;
-  let itemEditorList = null;
   let addItemButton = null;
-  let itemEditorStatus = null;
+  let validationStatusEl = null;
   let saveExampleButton = null;
   let updateExampleButton = null;
   let deleteExampleButton = null;
@@ -757,47 +756,115 @@
 
   registerMathVisApi();
 
-  const ITEM_FORMATS = ['text', 'katex', 'asset'];
+  const ITEM_TYPES = ['text', 'figure'];
+  const FIGURE_LIBRARY_BASE_PATH = 'images/amounts/';
+  const FIGURE_CATEGORIES = [
+    { id: 'tierbrett', label: 'Tierbrett', prefix: 'tb' },
+    { id: 'tallbrikker', label: 'Tallbrikker', prefix: 'n' },
+    { id: 'penger', label: 'Penger', prefix: 'v' },
+    { id: 'terninger', label: 'Terninger', prefix: 'd' },
+    { id: 'hender', label: 'Hender', prefix: 'h' },
+    { id: 'custom', label: 'Egendefinert', prefix: '' }
+  ];
 
-  function detectItemFormat(source) {
+  function sanitizeItemType(value) {
+    if (typeof value !== 'string') return 'text';
+    const lowered = value.trim().toLowerCase();
+    if (ITEM_TYPES.includes(lowered)) return lowered;
+    if (lowered === 'figur' || lowered === 'figure') return 'figure';
+    return 'text';
+  }
+
+  function determineItemType(source) {
     if (!source || typeof source !== 'object') return 'text';
-    if (typeof source.format === 'string' && ITEM_FORMATS.includes(source.format)) {
-      return source.format;
+    if (typeof source.type === 'string') {
+      return sanitizeItemType(source.type);
+    }
+    if (Array.isArray(source.figures) && source.figures.length) {
+      return 'figure';
+    }
+    if (Array.isArray(source.images) && source.images.length) {
+      return 'figure';
+    }
+    if (typeof source.format === 'string' && source.format.trim() === 'asset') {
+      return 'figure';
     }
     if (typeof source.asset === 'string' && source.asset.trim()) {
-      return 'asset';
-    }
-    if (typeof source.description === 'string' && source.description.trim()) {
-      return 'katex';
+      return 'figure';
     }
     return 'text';
   }
 
-  function determineItemFormat(item) {
-    if (!item || typeof item !== 'object') return 'text';
-    if (typeof item.format === 'string' && ITEM_FORMATS.includes(item.format)) {
-      return item.format;
+  function sanitizeFigureCategory(candidate, value) {
+    if (typeof candidate !== 'string') {
+      if (typeof value === 'string') {
+        const prefix = value.trim().slice(0, 1).toLowerCase();
+        const match = FIGURE_CATEGORIES.find(entry => entry.prefix && prefix === entry.prefix);
+        if (match) {
+          return match.id;
+        }
+      }
+      return 'custom';
     }
-    return detectItemFormat(item);
+    const trimmed = candidate.trim().toLowerCase();
+    const match = FIGURE_CATEGORIES.find(entry => entry.id === trimmed);
+    if (match) return match.id;
+    return 'custom';
   }
 
-  function ensureItemFormat(item) {
-    if (!item || typeof item !== 'object') return;
-    const format = determineItemFormat(item);
-    item.format = format;
-    if (typeof item.label !== 'string') item.label = '';
-    if (typeof item.alt !== 'string') item.alt = '';
-    if (format === 'asset') {
-      if (typeof item.asset !== 'string') item.asset = '';
-      item.description = '';
-    } else if (format === 'katex') {
-      if (typeof item.description !== 'string') item.description = '';
-      item.asset = '';
-    } else {
-      item.asset = '';
-      item.description = '';
-      if (typeof item.label !== 'string') item.label = '';
+  function normalizeFigureEntry(raw, index = 0) {
+    if (!raw) return null;
+    let value = '';
+    let categoryId = 'custom';
+    let id = '';
+    if (typeof raw === 'string') {
+      value = raw.trim();
+    } else if (typeof raw === 'object') {
+      if (typeof raw.value === 'string' && raw.value.trim()) {
+        value = raw.value.trim();
+      } else if (typeof raw.slug === 'string' && raw.slug.trim()) {
+        value = raw.slug.trim();
+      } else if (typeof raw.asset === 'string' && raw.asset.trim()) {
+        value = raw.asset.trim();
+      } else if (typeof raw.image === 'string' && raw.image.trim()) {
+        value = raw.image.trim();
+      }
+      if (typeof raw.categoryId === 'string') {
+        categoryId = raw.categoryId.trim();
+      } else if (typeof raw.category === 'string') {
+        categoryId = raw.category.trim();
+      } else if (typeof raw.type === 'string') {
+        categoryId = raw.type.trim();
+      }
+      if (typeof raw.id === 'string' && raw.id.trim()) {
+        id = raw.id.trim();
+      }
     }
+    if (!value) return null;
+    const normalizedCategory = sanitizeFigureCategory(categoryId, value);
+    const figureId = id || `figure-${index + 1}`;
+    return { id: figureId, categoryId: normalizedCategory, value };
+  }
+
+  function ensureFigureIds(figures, itemId) {
+    if (!Array.isArray(figures)) return [];
+    const seen = new Set();
+    return figures.map((entry, index) => {
+      const fallbackId = `${itemId || 'item'}-figure-${index + 1}`;
+      const normalizedId = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : fallbackId;
+      let uniqueId = normalizedId;
+      let attempt = 1;
+      while (seen.has(uniqueId)) {
+        attempt += 1;
+        uniqueId = `${normalizedId}-${attempt}`;
+      }
+      seen.add(uniqueId);
+      return {
+        id: uniqueId,
+        categoryId: sanitizeFigureCategory(entry.categoryId, entry.value),
+        value: typeof entry.value === 'string' ? entry.value.trim() : ''
+      };
+    }).filter(entry => entry.value);
   }
 
   function normalizeItem(raw, index) {
@@ -807,16 +874,7 @@
       id = `item-${index + 1}`;
     }
 
-    const descriptionCandidates = [source.description, source.text, source.content, source.label];
-    let description = '';
-    for (const candidate of descriptionCandidates) {
-      if (typeof candidate === 'string' && candidate.trim()) {
-        description = candidate.trim();
-        break;
-      }
-    }
-
-    const labelCandidates = [source.label, source.alt, description, source.id];
+    const labelCandidates = [source.label, source.alt, source.description, source.text, source.content, source.id];
     let label = '';
     for (const candidate of labelCandidates) {
       if (typeof candidate === 'string' && candidate.trim()) {
@@ -825,16 +883,7 @@
       }
     }
 
-    const assetCandidates = [source.asset, source.svg, source.image];
-    let asset = null;
-    for (const candidate of assetCandidates) {
-      if (typeof candidate === 'string' && candidate.trim()) {
-        asset = candidate.trim();
-        break;
-      }
-    }
-
-    const altCandidates = [source.alt, label, description];
+    const altCandidates = [source.alt, label, source.description, source.text];
     let alt = '';
     for (const candidate of altCandidates) {
       if (typeof candidate === 'string' && candidate.trim()) {
@@ -843,28 +892,70 @@
       }
     }
 
-    const format = detectItemFormat(source);
+    const type = determineItemType(source);
+    let text = '';
+    let figures = [];
+    if (type === 'figure') {
+      const figureSources = [];
+      if (Array.isArray(source.figures)) {
+        figureSources.push(...source.figures);
+      }
+      if (Array.isArray(source.images)) {
+        figureSources.push(...source.images);
+      }
+      if (typeof source.asset === 'string' && source.asset.trim()) {
+        figureSources.push({ value: source.asset.trim() });
+      }
+      if (typeof source.value === 'string' && source.value.trim()) {
+        figureSources.push({ value: source.value.trim(), categoryId: source.categoryId || source.category });
+      }
+      figures = figureSources
+        .map((entry, figureIndex) => normalizeFigureEntry(entry, figureIndex))
+        .filter(Boolean);
+    } else {
+      const textCandidates = [source.description, source.text, source.content, source.label];
+      for (const candidate of textCandidates) {
+        if (typeof candidate === 'string' && candidate.trim()) {
+          text = candidate.trim();
+          break;
+        }
+      }
+    }
 
     return {
       id,
-      description,
+      type,
+      text,
       label,
-      asset,
       alt,
-      format
+      figures: ensureFigureIds(figures, id)
     };
+  }
+
+  function ensureItemShape(item, index) {
+    if (!item || typeof item !== 'object') return null;
+    const type = sanitizeItemType(item.type || determineItemType(item));
+    const id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `item-${index + 1}`;
+    const label = typeof item.label === 'string' ? item.label : '';
+    const alt = typeof item.alt === 'string' ? item.alt : '';
+    const text = type === 'text' && typeof item.text === 'string' ? item.text : type === 'text' && typeof item.description === 'string' ? item.description : '';
+    const figures = type === 'figure' ? ensureFigureIds(Array.isArray(item.figures) ? item.figures : [], id) : [];
+    return { id, type, text, label, alt, figures };
   }
 
   function buildItems(rawItems) {
     const list = Array.isArray(rawItems) ? rawItems : [];
     const seen = new Set();
     return list.map((entry, index) => {
-      const normalized = normalizeItem(entry, index);
+      const normalized = ensureItemShape(normalizeItem(entry, index), index) || {
+        id: `item-${index + 1}`,
+        type: 'text',
+        text: '',
+        label: '',
+        alt: '',
+        figures: []
+      };
       let { id } = normalized;
-      if (!id) {
-        id = `item-${index + 1}`;
-        normalized.id = id;
-      }
       if (seen.has(id)) {
         let suffix = 2;
         let candidateId = `${id}-${suffix}`;
@@ -873,11 +964,10 @@
           candidateId = `${id}-${suffix}`;
         }
         normalized.id = candidateId;
-        seen.add(candidateId);
-      } else {
-        seen.add(id);
+        id = candidateId;
       }
-      ensureItemFormat(normalized);
+      seen.add(id);
+      normalized.figures = ensureFigureIds(normalized.figures, normalized.id);
       return normalized;
     });
   }
@@ -886,12 +976,92 @@
     if (!item || typeof item !== 'object') return item;
     return {
       id: item.id,
-      description: item.description,
+      type: item.type,
+      text: item.text,
       label: item.label,
-      asset: item.asset,
       alt: item.alt,
-      format: item.format
+      figures: Array.isArray(item.figures)
+        ? item.figures.map(figure => ({
+            id: figure.id,
+            categoryId: figure.categoryId,
+            value: figure.value
+          }))
+        : []
     };
+  }
+
+  function ensureItemInPlace(item, index) {
+    const normalized = ensureItemShape(item, index);
+    if (!normalized) return null;
+    item.id = normalized.id;
+    item.type = normalized.type;
+    item.text = normalized.text;
+    item.label = normalized.label;
+    item.alt = normalized.alt;
+    item.figures = normalized.figures;
+    return item;
+  }
+
+  function isFigureItem(item) {
+    return item && item.type === 'figure';
+  }
+
+  function isTextItem(item) {
+    return item && item.type === 'text';
+  }
+
+  function containsKatex(content) {
+    if (typeof content !== 'string') return false;
+    const text = content.trim();
+    if (!text) return false;
+    return /\\[a-zA-Z]+|\$\$?|\\\(|\\\[/.test(text);
+  }
+
+  function buildFigureAssetPath(value) {
+    if (typeof value !== 'string') return '';
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+    if (trimmed.startsWith('/')) {
+      return trimmed;
+    }
+    if (trimmed.includes('/')) {
+      return trimmed;
+    }
+    return `${FIGURE_LIBRARY_BASE_PATH}${trimmed}`;
+  }
+
+  function ensureFigureArray(item) {
+    if (!item) return [];
+    if (!Array.isArray(item.figures)) {
+      item.figures = [];
+    }
+    item.figures = ensureFigureIds(item.figures, item.id);
+    return item.figures;
+  }
+
+  function addFigureToItem(item, defaults = {}) {
+    if (!item) return null;
+    const figures = ensureFigureArray(item);
+    const nextIndex = figures.length;
+    const entry = {
+      id: `${item.id || 'item'}-figure-${nextIndex + 1}`,
+      categoryId: sanitizeFigureCategory(defaults.categoryId, defaults.value),
+      value: typeof defaults.value === 'string' ? defaults.value.trim() : ''
+    };
+    figures.push(entry);
+    item.figures = ensureFigureIds(figures, item.id);
+    return item.figures[item.figures.length - 1] || null;
+  }
+
+  function removeFigureFromItem(item, figureId) {
+    if (!item || !Array.isArray(item.figures)) return;
+    const index = item.figures.findIndex(entry => entry && entry.id === figureId);
+    if (index < 0) return;
+    item.figures.splice(index, 1);
+    item.figures = ensureFigureIds(item.figures, item.id);
   }
 
   function sanitizeOrder(items, order) {
@@ -958,21 +1128,27 @@
     if (item && typeof item.label === 'string' && item.label.trim()) {
       return item.label.trim();
     }
+    if (isTextItem(item) && typeof item.text === 'string' && item.text.trim()) {
+      return item.text.trim();
+    }
     if (item && typeof item.alt === 'string' && item.alt.trim()) {
       return item.alt.trim();
-    }
-    if (item && typeof item.description === 'string' && item.description.trim()) {
-      return item.description.trim();
     }
     const idx = Number.isFinite(position) ? position + 1 : 0;
     return idx > 0 ? `Element ${idx}` : 'Element';
   }
 
   const DEFAULT_RAW_ITEMS = [
-    { id: 'item-1', description: '\\frac{1}{2}', label: '1/2', alt: 'En halv' },
-    { id: 'item-2', description: '\\sqrt{16}', label: '√16', alt: 'Kvadratroten av seksten' },
-    { id: 'item-3', description: '7', label: '7', alt: 'Sju' },
-    { id: 'item-4', asset: 'images/greenStar.svg', label: 'Grønn stjerne', alt: 'Grønn stjerne' }
+    { id: 'item-1', type: 'text', text: '\\frac{1}{2}', label: '1/2', alt: 'En halv' },
+    { id: 'item-2', type: 'text', text: '\\sqrt{16}', label: '√16', alt: 'Kvadratroten av seksten' },
+    { id: 'item-3', type: 'text', text: '7', label: '7', alt: 'Sju' },
+    {
+      id: 'item-4',
+      type: 'figure',
+      label: 'Grønn stjerne',
+      alt: 'Grønn stjerne',
+      figures: [{ id: 'item-4-figure-1', categoryId: 'custom', value: 'images/greenStar.svg' }]
+    }
   ];
 
   const DEFAULT_ITEMS = buildItems(DEFAULT_RAW_ITEMS);
@@ -998,19 +1174,14 @@
   let dragState = null;
   let currentAppMode = 'default';
   let openInlineEditorId = null;
-  const itemEditorDragState = {
-    activeId: null,
-    dropTargetEl: null,
-    originIndex: -1
-  };
-
   function refreshItemsById() {
     itemsById.clear();
     if (!state || !Array.isArray(state.items)) return;
-    state.items.forEach(item => {
-      if (!item || typeof item !== 'object' || !item.id) return;
-      ensureItemFormat(item);
-      itemsById.set(item.id, item);
+    state.items.forEach((item, index) => {
+      if (!item || typeof item !== 'object') return;
+      const ensured = ensureItemInPlace(item, index);
+      if (!ensured || !ensured.id) return;
+      itemsById.set(ensured.id, ensured);
     });
   }
 
@@ -1170,6 +1341,99 @@
     return nodes;
   }
 
+  function renderInlineEditorFigures(item, inlineEditor) {
+    if (!inlineEditor || !inlineEditor.figureList) return;
+    const listEl = inlineEditor.figureList;
+    listEl.textContent = '';
+    const figures = ensureFigureArray(item);
+    if (!figures.length) {
+      const empty = doc.createElement('p');
+      empty.className = 'sortering__item-editor-empty';
+      empty.textContent = 'Ingen figurer er lagt til ennå.';
+      listEl.appendChild(empty);
+      return;
+    }
+    figures.forEach(figure => {
+      if (!figure) return;
+      const row = doc.createElement('div');
+      row.className = 'sortering__item-editor-figure-row';
+      row.dataset.figureId = figure.id;
+
+      const categorySelect = doc.createElement('select');
+      FIGURE_CATEGORIES.forEach(category => {
+        const option = doc.createElement('option');
+        option.value = category.id;
+        option.textContent = category.label;
+        categorySelect.appendChild(option);
+      });
+      categorySelect.value = sanitizeFigureCategory(figure.categoryId, figure.value);
+      categorySelect.addEventListener('change', () => {
+        figure.categoryId = sanitizeFigureCategory(categorySelect.value, figure.value);
+        refreshItemsById();
+        updateInlineEditorView(item, inlineEditor);
+        applyOrder({});
+        updateValidationState();
+      });
+
+      const valueInput = doc.createElement('input');
+      valueInput.type = 'text';
+      valueInput.value = typeof figure.value === 'string' ? figure.value : '';
+      valueInput.placeholder = 'Filnavn eller sti';
+      valueInput.addEventListener('input', () => {
+        figure.value = valueInput.value;
+        refreshItemsById();
+        applyOrder({});
+        updateValidationState();
+      });
+
+      const removeBtn = doc.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'sortering__item-editor-figure-remove';
+      removeBtn.textContent = 'Fjern';
+      removeBtn.addEventListener('click', () => {
+        removeFigureFromItem(item, figure.id);
+        refreshItemsById();
+        applyOrder({});
+        updateInlineEditorView(item, inlineEditor);
+        updateValidationState();
+        setInlineEditorOpen(item.id, true);
+      });
+
+      row.appendChild(categorySelect);
+      row.appendChild(valueInput);
+      row.appendChild(removeBtn);
+      listEl.appendChild(row);
+    });
+  }
+
+  function updateInlineEditorView(item, inlineEditor) {
+    if (!inlineEditor) return;
+    const type = isFigureItem(item) ? 'figure' : 'text';
+    if (inlineEditor.typeSelect) {
+      inlineEditor.typeSelect.value = type;
+    }
+    if (inlineEditor.textFieldWrapper) {
+      inlineEditor.textFieldWrapper.hidden = type !== 'text';
+    }
+    if (inlineEditor.figureField) {
+      inlineEditor.figureField.hidden = type !== 'figure';
+    }
+    if (inlineEditor.textField) {
+      inlineEditor.textField.value = typeof item.text === 'string' ? item.text : '';
+    }
+    if (inlineEditor.labelInput) {
+      inlineEditor.labelInput.value = typeof item.label === 'string' ? item.label : '';
+    }
+    if (inlineEditor.altInput) {
+      inlineEditor.altInput.value = typeof item.alt === 'string' ? item.alt : '';
+    }
+    if (type === 'figure') {
+      renderInlineEditorFigures(item, inlineEditor);
+    } else if (inlineEditor.figureList) {
+      inlineEditor.figureList.textContent = '';
+    }
+  }
+
   function ensureInlineEditor(item, nodes) {
     if (!item || !nodes) return;
     if (!nodes.inlineEditor) {
@@ -1237,30 +1501,46 @@
         return field;
       };
 
-      const formatSelect = doc.createElement('select');
-      formatSelect.className = 'sortering__item-editor-select';
-      const formatId = `${item.id}-inline-editor-format`;
-      formatSelect.id = formatId;
-      const formatOptions = [
+      const typeSelect = doc.createElement('select');
+      typeSelect.className = 'sortering__item-editor-select';
+      typeSelect.id = `${item.id}-inline-editor-type`;
+      const typeOptions = [
         { value: 'text', label: 'Tekst' },
-        { value: 'katex', label: 'KaTeX' },
-        { value: 'asset', label: 'Ressurs' }
+        { value: 'figure', label: 'Figur' }
       ];
-      formatOptions.forEach(option => {
+      typeOptions.forEach(option => {
         const opt = doc.createElement('option');
         opt.value = option.value;
         opt.textContent = option.label;
-        formatSelect.appendChild(opt);
+        typeSelect.appendChild(opt);
       });
-      panel.appendChild(createField('Innholdstype', formatSelect));
+      panel.appendChild(createField('Innholdstype', typeSelect));
 
-      const valueInput = doc.createElement('input');
-      valueInput.type = 'text';
-      valueInput.className = 'sortering__item-editor-input';
-      valueInput.id = `${item.id}-inline-editor-value`;
-      valueInput.autocomplete = 'off';
-      valueInput.spellcheck = false;
-      panel.appendChild(createField('Innhold', valueInput));
+      const textField = doc.createElement('textarea');
+      textField.className = 'sortering__item-editor-textarea';
+      textField.id = `${item.id}-inline-editor-text`;
+      textField.rows = 2;
+      const textFieldWrapper = createField('Tekst', textField);
+      panel.appendChild(textFieldWrapper);
+
+      const figureField = doc.createElement('div');
+      figureField.className = 'sortering__item-editor-field';
+      const figureLabel = doc.createElement('span');
+      figureLabel.className = 'sortering__item-editor-label';
+      figureLabel.textContent = 'Figurer';
+      figureField.appendChild(figureLabel);
+      const figureList = doc.createElement('div');
+      figureList.className = 'sortering__item-editor-figure-list';
+      figureField.appendChild(figureList);
+      const figureActions = doc.createElement('div');
+      figureActions.className = 'sortering__item-editor-figure-actions';
+      const addFigureButton = doc.createElement('button');
+      addFigureButton.type = 'button';
+      addFigureButton.className = 'btn btn--small';
+      addFigureButton.textContent = 'Legg til figur';
+      figureActions.appendChild(addFigureButton);
+      figureField.appendChild(figureActions);
+      panel.appendChild(figureField);
 
       const labelInput = doc.createElement('input');
       labelInput.type = 'text';
@@ -1276,78 +1556,83 @@
       altInput.placeholder = 'Alternativ tekst';
       panel.appendChild(createField('Alternativ tekst', altInput));
 
+      const removeButton = doc.createElement('button');
+      removeButton.type = 'button';
+      removeButton.className = 'sortering__item-editor-remove';
+      removeButton.textContent = 'Slett element';
+      panel.appendChild(removeButton);
+
       nodes.wrapper.appendChild(host);
 
       nodes.inlineEditor = {
         host,
         toggle: toggleBtn,
         panel,
-        formatSelect,
-        valueInput,
+        typeSelect,
+        textField,
+        textFieldWrapper,
+        figureField,
+        figureList,
+        addFigureButton,
         labelInput,
-        altInput
+        altInput,
+        removeButton
       };
       nodes.inlineEditorOpen = false;
 
-      formatSelect.addEventListener('change', () => {
-        const nextFormat = ITEM_FORMATS.includes(formatSelect.value) ? formatSelect.value : 'text';
-        item.format = nextFormat;
-        setItemValueForFormat(item, nextFormat, valueInput.value);
-        refreshItemsById();
-        setValueInputPlaceholder(valueInput, nextFormat);
-        valueInput.value = getItemValueForFormat(item, nextFormat);
-        const optsNext = state && state.randomisering ? { randomize: true } : {};
-        applyOrder(optsNext);
-        if (itemEditorList) {
-          renderItemsEditor();
+      typeSelect.addEventListener('change', () => {
+        const nextType = sanitizeItemType(typeSelect.value);
+        item.type = nextType;
+        if (nextType === 'text') {
+          item.figures = [];
+        } else if (nextType === 'figure' && (!Array.isArray(item.figures) || !item.figures.length)) {
+          addFigureToItem(item);
         }
-        updateItemEditorValidation();
+        refreshItemsById();
+        applyOrder({});
+        updateInlineEditorView(item, nodes.inlineEditor);
+        updateValidationState();
         setInlineEditorOpen(item.id, true);
       });
 
-      valueInput.addEventListener('input', () => {
-        const activeFormat = ITEM_FORMATS.includes(formatSelect.value)
-          ? formatSelect.value
-          : determineItemFormat(item);
-        setItemValueForFormat(item, activeFormat, valueInput.value);
+      textField.addEventListener('input', () => {
+        item.text = textField.value;
         refreshItemsById();
         applyOrder({});
-        if (itemEditorList) {
-          renderItemsEditor();
-        }
-        updateItemEditorValidation();
+        updateValidationState();
+      });
+
+      addFigureButton.addEventListener('click', () => {
+        addFigureToItem(item);
+        refreshItemsById();
+        applyOrder({});
+        updateInlineEditorView(item, nodes.inlineEditor);
+        updateValidationState();
+        setInlineEditorOpen(item.id, true);
       });
 
       labelInput.addEventListener('input', () => {
         item.label = labelInput.value;
-        ensureItemFormat(item);
         refreshItemsById();
         applyOrder({});
-        if (itemEditorList) {
-          renderItemsEditor();
-        }
-        updateItemEditorValidation();
+        updateValidationState();
       });
 
       altInput.addEventListener('input', () => {
         item.alt = altInput.value;
-        ensureItemFormat(item);
         refreshItemsById();
         applyOrder({});
-        if (itemEditorList) {
-          renderItemsEditor();
-        }
+        updateValidationState();
+      });
+
+      removeButton.addEventListener('click', () => {
+        removeItem(item.id);
       });
     }
 
     const inlineEditor = nodes.inlineEditor;
     if (!inlineEditor) return;
-    const format = determineItemFormat(item);
-    inlineEditor.formatSelect.value = format;
-    setValueInputPlaceholder(inlineEditor.valueInput, format);
-    inlineEditor.valueInput.value = getItemValueForFormat(item, format);
-    inlineEditor.labelInput.value = typeof item.label === 'string' ? item.label : '';
-    inlineEditor.altInput.value = typeof item.alt === 'string' ? item.alt : '';
+    updateInlineEditorView(item, inlineEditor);
 
     const editable = isEditorMode();
     if (inlineEditor.host) {
@@ -1382,29 +1667,46 @@
       contentEl.removeChild(contentEl.firstChild);
     }
 
-    if (item.asset) {
-      const img = doc.createElement('img');
-      img.src = item.asset;
-      img.alt = accessibleLabel || label || '';
-      img.loading = 'lazy';
-      img.decoding = 'async';
-      img.className = 'sortering__item-image';
-      contentEl.appendChild(img);
-    }
-
-    const descriptionRenderer = getDescriptionRenderer();
-
-    if (item.description) {
-      const descriptionEl = doc.createElement('div');
-      descriptionEl.className = 'sortering__item-description';
-      if (descriptionRenderer && typeof descriptionRenderer.renderInto === 'function') {
-        descriptionRenderer.renderInto(descriptionEl, item.description);
-      } else {
-        descriptionEl.textContent = item.description;
+    if (isFigureItem(item)) {
+      const figures = ensureFigureArray(item);
+      if (figures.length) {
+        const list = doc.createElement('div');
+        list.className = 'sortering__item-figure-list';
+        figures.forEach(figure => {
+          if (!figure || !figure.value) return;
+          const img = doc.createElement('img');
+          img.src = buildFigureAssetPath(figure.value);
+          img.alt = accessibleLabel || label || '';
+          img.loading = 'lazy';
+          img.decoding = 'async';
+          img.className = 'sortering__item-image';
+          list.appendChild(img);
+        });
+        if (list.children.length > 0) {
+          contentEl.appendChild(list);
+        }
       }
-      contentEl.appendChild(descriptionEl);
-    } else if (!item.asset && label) {
-      contentEl.textContent = label;
+      if (!contentEl.firstChild) {
+        const placeholder = doc.createElement('p');
+        placeholder.className = 'sortering__item-placeholder';
+        placeholder.textContent = 'Legg til figurer i redigeringsmenyen.';
+        contentEl.appendChild(placeholder);
+      }
+    } else {
+      const descriptionRenderer = getDescriptionRenderer();
+      const textContent = typeof item.text === 'string' ? item.text : '';
+      if (textContent) {
+        const descriptionEl = doc.createElement('div');
+        descriptionEl.className = 'sortering__item-description';
+        if (descriptionRenderer && typeof descriptionRenderer.renderInto === 'function') {
+          descriptionRenderer.renderInto(descriptionEl, textContent);
+        } else {
+          descriptionEl.textContent = textContent;
+        }
+        contentEl.appendChild(descriptionEl);
+      } else if (label) {
+        contentEl.textContent = label;
+      }
     }
 
     li.dataset.itemId = item.id;
@@ -2091,67 +2393,7 @@
     syncSettingsFormFromState();
   }
 
-  function setItemEditorStatus(messages) {
-    if (!itemEditorStatus) return;
-    if (!messages || !messages.length) {
-      itemEditorStatus.hidden = true;
-      itemEditorStatus.textContent = '';
-      return;
-    }
-    itemEditorStatus.hidden = false;
-    itemEditorStatus.textContent = messages.join(' ');
-  }
-
-  function getItemValueForFormat(item, format) {
-    const targetFormat = format && ITEM_FORMATS.includes(format) ? format : determineItemFormat(item);
-    if (!item || typeof item !== 'object') return '';
-    if (targetFormat === 'asset') {
-      return typeof item.asset === 'string' ? item.asset : '';
-    }
-    if (targetFormat === 'katex') {
-      return typeof item.description === 'string' ? item.description : '';
-    }
-    return typeof item.label === 'string' ? item.label : '';
-  }
-
-  function setItemValueForFormat(item, format, value) {
-    if (!item || typeof item !== 'object') return;
-    const targetFormat = format && ITEM_FORMATS.includes(format) ? format : determineItemFormat(item);
-    const raw = typeof value === 'string' ? value : '';
-    if (targetFormat === 'asset') {
-      const trimmed = raw.trim();
-      item.asset = trimmed;
-      item.description = '';
-      if (!item.label) item.label = trimmed;
-      if (!item.alt) item.alt = trimmed;
-    } else if (targetFormat === 'katex') {
-      const normalized = raw.trim();
-      item.description = normalized;
-      item.asset = '';
-      if (!item.label) item.label = normalized;
-      if (!item.alt) item.alt = normalized;
-    } else {
-      const trimmed = raw.trim();
-      item.label = trimmed;
-      item.asset = '';
-      item.description = '';
-      if (!item.alt) item.alt = trimmed;
-    }
-    ensureItemFormat(item);
-  }
-
-  function setValueInputPlaceholder(input, format) {
-    if (!input) return;
-    if (format === 'asset') {
-      input.placeholder = 'Asset-slug (f.eks. images/fil.svg)';
-    } else if (format === 'katex') {
-      input.placeholder = 'KaTeX (f.eks. \\frac{1}{2})';
-    } else {
-      input.placeholder = 'Tekst';
-    }
-  }
-
-  function validateItemEditor() {
+  function validateItems() {
     const errors = [];
     const items = state && Array.isArray(state.items) ? state.items : [];
     if (items.length === 0) {
@@ -2159,15 +2401,24 @@
     }
     items.forEach((item, index) => {
       if (!item) return;
-      const format = determineItemFormat(item);
-      const value = getItemValueForFormat(item, format).trim();
-      if (!value) {
-        if (format === 'asset') {
-          errors.push(`Element ${index + 1} mangler asset-slug.`);
-        } else if (format === 'katex') {
-          errors.push(`Element ${index + 1} mangler KaTeX-innhold.`);
-        } else {
+      if (isTextItem(item)) {
+        const textValue = typeof item.text === 'string' ? item.text.trim() : '';
+        if (!textValue) {
           errors.push(`Element ${index + 1} mangler tekst.`);
+        }
+      } else if (isFigureItem(item)) {
+        const figures = ensureFigureArray(item);
+        if (!figures.length) {
+          errors.push(`Element ${index + 1} mangler figurer.`);
+        }
+        figures.forEach((figure, figIndex) => {
+          if (!figure || !figure.value || !figure.value.trim()) {
+            errors.push(`Figur ${figIndex + 1} i element ${index + 1} mangler verdi.`);
+          }
+        });
+        const alt = typeof item.alt === 'string' ? item.alt.trim() : '';
+        if (!alt) {
+          errors.push(`Element ${index + 1} mangler alternativ tekst for figurene.`);
         }
       }
     });
@@ -2177,9 +2428,21 @@
     };
   }
 
-  function updateItemEditorValidation() {
-    const { valid, errors } = validateItemEditor();
-    setItemEditorStatus(valid ? null : errors);
+  function setValidationMessage(messages) {
+    if (!validationStatusEl) return;
+    if (!messages || (Array.isArray(messages) && messages.length === 0)) {
+      validationStatusEl.hidden = true;
+      validationStatusEl.textContent = '';
+      return;
+    }
+    const text = Array.isArray(messages) ? messages.join(' ') : String(messages);
+    validationStatusEl.hidden = false;
+    validationStatusEl.textContent = text;
+  }
+
+  function updateValidationState() {
+    const { valid, errors } = validateItems();
+    setValidationMessage(valid ? null : errors);
     return valid;
   }
 
@@ -2194,254 +2457,7 @@
     currentOrder = sanitizeOrder(state.items, currentOrder);
     const options = state.randomisering ? { randomize: true } : { resetToBase: true };
     applyOrder(options);
-    renderItemsEditor();
-  }
-
-  function clearItemEditorDragState() {
-    if (itemEditorDragState.dropTargetEl) {
-      itemEditorDragState.dropTargetEl.classList.remove('is-drop-before', 'is-drop-after');
-      itemEditorDragState.dropTargetEl = null;
-    }
-    if (itemEditorList) {
-      const dragSources = itemEditorList.querySelectorAll('.sortering-editor__item.is-drag-source');
-      dragSources.forEach(node => node.classList.remove('is-drag-source'));
-    }
-    itemEditorDragState.activeId = null;
-    itemEditorDragState.originIndex = -1;
-  }
-
-  function reorderConfigItems(sourceId, targetId, placeBefore) {
-    if (!state || !Array.isArray(state.items)) return false;
-    if (!sourceId || !targetId || sourceId === targetId) return false;
-    const sourceIndex = state.items.findIndex(item => item && item.id === sourceId);
-    const targetIndex = state.items.findIndex(item => item && item.id === targetId);
-    if (sourceIndex < 0 || targetIndex < 0) return false;
-    const [moved] = state.items.splice(sourceIndex, 1);
-    let insertIndex = targetIndex;
-    if (sourceIndex < targetIndex) {
-      insertIndex -= 1;
-    }
-    if (!placeBefore) {
-      insertIndex += 1;
-    }
-    if (insertIndex < 0) insertIndex = 0;
-    if (insertIndex > state.items.length) insertIndex = state.items.length;
-    state.items.splice(insertIndex, 0, moved);
-    refreshItemsById();
-    state.order = state.items.map(item => item.id);
-    currentOrder = state.randomisering ? sanitizeOrder(state.items, currentOrder) : state.order.slice();
-    const options = state.randomisering ? { randomize: true } : { resetToBase: true };
-    applyOrder(options);
-    renderItemsEditor({ focusId: sourceId, focusField: 'handle' });
-    return true;
-  }
-
-  function handleItemEditorDragStart(event, id, row) {
-    if (!row) return;
-    event.dataTransfer.effectAllowed = 'move';
-    itemEditorDragState.activeId = id;
-    itemEditorDragState.originIndex = state && Array.isArray(state.items) ? state.items.findIndex(item => item && item.id === id) : -1;
-    row.classList.add('is-drag-source');
-    if (event.dataTransfer.setData) {
-      event.dataTransfer.setData('text/plain', id);
-    }
-    event.dataTransfer.setDragImage(row, row.offsetWidth / 2, row.offsetHeight / 2);
-  }
-
-  function handleItemEditorDragOver(event) {
-    if (!itemEditorDragState.activeId) return;
-    const target = event.currentTarget;
-    if (!target || target.dataset.itemId === itemEditorDragState.activeId) return;
-    event.preventDefault();
-    const rect = typeof target.getBoundingClientRect === 'function' ? target.getBoundingClientRect() : null;
-    const midpoint = rect ? rect.top + rect.height / 2 : event.clientY;
-    const before = event.clientY < midpoint;
-    if (itemEditorDragState.dropTargetEl && itemEditorDragState.dropTargetEl !== target) {
-      itemEditorDragState.dropTargetEl.classList.remove('is-drop-before', 'is-drop-after');
-    }
-    itemEditorDragState.dropTargetEl = target;
-    target.classList.toggle('is-drop-before', before);
-    target.classList.toggle('is-drop-after', !before);
-  }
-
-  function handleItemEditorDragLeave(event) {
-    const target = event.currentTarget;
-    if (!target) return;
-    const related = event.relatedTarget;
-    if (related && target.contains(related)) return;
-    target.classList.remove('is-drop-before', 'is-drop-after');
-    if (itemEditorDragState.dropTargetEl === target) {
-      itemEditorDragState.dropTargetEl = null;
-    }
-  }
-
-  function handleItemEditorDrop(event, targetId) {
-    if (!itemEditorDragState.activeId) return;
-    event.preventDefault();
-    const target = event.currentTarget;
-    const before = target && target.classList.contains('is-drop-before');
-    reorderConfigItems(itemEditorDragState.activeId, targetId, before);
-    clearItemEditorDragState();
-  }
-
-  function handleItemEditorDragEnd() {
-    clearItemEditorDragState();
-    renderItemsEditor();
-  }
-
-  function renderItemsEditor(options = {}) {
-    if (!itemEditorList) return;
-    const opts = options && typeof options === 'object' ? options : {};
-    const focusId = typeof opts.focusId === 'string' ? opts.focusId : null;
-    const focusField = typeof opts.focusField === 'string' ? opts.focusField : null;
-    const activeElement = doc.activeElement;
-    const previousFocusedId = activeElement && activeElement.closest ? activeElement.closest('.sortering-editor__item') : null;
-    const previousId = previousFocusedId ? previousFocusedId.dataset.itemId : null;
-    while (itemEditorList.firstChild) {
-      itemEditorList.removeChild(itemEditorList.firstChild);
-    }
-
-    const items = state && Array.isArray(state.items) ? state.items : [];
-    if (items.length === 0) {
-      const empty = doc.createElement('li');
-      empty.className = 'sortering-editor__empty';
-      empty.textContent = 'Ingen elementer er lagt til.';
-      itemEditorList.appendChild(empty);
-      updateItemEditorValidation();
-      return;
-    }
-
-    const focusRequests = [];
-
-    items.forEach(item => {
-      ensureItemFormat(item);
-      const row = doc.createElement('li');
-      row.className = 'sortering-editor__item';
-      row.dataset.itemId = item.id;
-
-      row.addEventListener('dragover', handleItemEditorDragOver);
-      row.addEventListener('dragleave', handleItemEditorDragLeave);
-      row.addEventListener('drop', event => handleItemEditorDrop(event, item.id));
-
-      const handle = doc.createElement('button');
-      handle.type = 'button';
-      handle.className = 'sortering-editor__handle';
-      handle.setAttribute('aria-label', 'Flytt element');
-      handle.textContent = '⠿';
-      handle.draggable = true;
-      handle.addEventListener('dragstart', event => handleItemEditorDragStart(event, item.id, row));
-      handle.addEventListener('dragend', handleItemEditorDragEnd);
-      handle.addEventListener('click', event => event.preventDefault());
-      row.appendChild(handle);
-
-      const valueInput = doc.createElement('input');
-      valueInput.type = 'text';
-      valueInput.className = 'sortering-editor__input';
-      const select = doc.createElement('select');
-      select.className = 'sortering-editor__select';
-      select.setAttribute('aria-label', 'Innholdstype');
-      const optionsList = [
-        { value: 'text', label: 'Tekst' },
-        { value: 'katex', label: 'KaTeX' },
-        { value: 'asset', label: 'Ressurs' }
-      ];
-      optionsList.forEach(option => {
-        const opt = doc.createElement('option');
-        opt.value = option.value;
-        opt.textContent = option.label;
-        select.appendChild(opt);
-      });
-      select.value = determineItemFormat(item);
-      setValueInputPlaceholder(valueInput, select.value);
-      valueInput.value = getItemValueForFormat(item, select.value);
-      select.addEventListener('change', () => {
-        const nextFormat = ITEM_FORMATS.includes(select.value) ? select.value : 'text';
-        item.format = nextFormat;
-        setItemValueForFormat(item, nextFormat, valueInput.value);
-        refreshItemsById();
-        setValueInputPlaceholder(valueInput, nextFormat);
-        valueInput.value = getItemValueForFormat(item, nextFormat);
-        const optsNext = state.randomisering ? { randomize: true } : {};
-        applyOrder(optsNext);
-        renderItemsEditor({ focusId: item.id, focusField: 'value' });
-      });
-      row.appendChild(select);
-
-      valueInput.addEventListener('input', () => {
-        setItemValueForFormat(item, select.value, valueInput.value);
-        refreshItemsById();
-        applyOrder({});
-        updateItemEditorValidation();
-      });
-      row.appendChild(valueInput);
-
-      const labelInput = doc.createElement('input');
-      labelInput.type = 'text';
-      labelInput.className = 'sortering-editor__label';
-      labelInput.placeholder = 'Knappetekst (valgfritt)';
-      labelInput.value = typeof item.label === 'string' ? item.label : '';
-      labelInput.addEventListener('input', () => {
-        item.label = labelInput.value;
-        ensureItemFormat(item);
-        refreshItemsById();
-        applyOrder({});
-        updateItemEditorValidation();
-      });
-      row.appendChild(labelInput);
-
-      const altInput = doc.createElement('input');
-      altInput.type = 'text';
-      altInput.className = 'sortering-editor__alt';
-      altInput.placeholder = 'Alternativ tekst';
-      altInput.value = typeof item.alt === 'string' ? item.alt : '';
-      altInput.addEventListener('input', () => {
-        item.alt = altInput.value;
-        ensureItemFormat(item);
-        refreshItemsById();
-        applyOrder({});
-      });
-      row.appendChild(altInput);
-
-      const removeBtn = doc.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'sortering-editor__remove';
-      removeBtn.textContent = 'Fjern';
-      removeBtn.addEventListener('click', () => {
-        removeItem(item.id);
-        updateItemEditorValidation();
-      });
-      row.appendChild(removeBtn);
-
-      itemEditorList.appendChild(row);
-
-      if ((focusId && item.id === focusId) || (!focusId && previousId && item.id === previousId)) {
-        focusRequests.push({ element: null, row, field: focusField || 'value' });
-      }
-    });
-
-    updateItemEditorValidation();
-
-    if (focusRequests.length) {
-      const request = focusRequests[0];
-      if (request && request.row) {
-        let target = null;
-        if (request.field === 'handle') {
-          target = request.row.querySelector('.sortering-editor__handle');
-        } else if (request.field === 'label') {
-          target = request.row.querySelector('.sortering-editor__label');
-        } else if (request.field === 'alt') {
-          target = request.row.querySelector('.sortering-editor__alt');
-        } else {
-          target = request.row.querySelector('.sortering-editor__input');
-        }
-        if (target && typeof target.focus === 'function') {
-          target.focus();
-          if (typeof target.select === 'function') {
-            target.select();
-          }
-        }
-      }
-    }
+    updateValidationState();
   }
 
   function addNewItem() {
@@ -2450,22 +2466,16 @@
       state.items = [];
     }
     const id = generateItemId();
-    const newItem = {
-      id,
-      label: '',
-      description: '',
-      asset: '',
-      alt: '',
-      format: 'text'
-    };
-    ensureItemFormat(newItem);
+    const newItem = { id, type: 'text', text: '', label: '', alt: '', figures: [] };
+    ensureItemInPlace(newItem, state.items.length);
     state.items.push(newItem);
     refreshItemsById();
     state.order = state.items.map(item => item.id);
     currentOrder = state.randomisering ? sanitizeOrder(state.items, currentOrder) : state.order.slice();
     const options = state.randomisering ? { randomize: true } : { resetToBase: true };
     applyOrder(options);
-    renderItemsEditor({ focusId: id, focusField: 'value' });
+    updateValidationState();
+    setInlineEditorOpen(id, true);
   }
 
   function attachExampleButtonGuards() {
@@ -2478,7 +2488,7 @@
       button.addEventListener(
         'click',
         event => {
-          if (!updateItemEditorValidation()) {
+          if (!updateValidationState()) {
             event.preventDefault();
             event.stopImmediatePropagation();
             return;
@@ -2506,9 +2516,8 @@
     directionSelect = doc.getElementById('sortering-direction');
     gapInput = doc.getElementById('sortering-gap');
     randomizeInput = doc.getElementById('sortering-randomize');
-    itemEditorList = doc.getElementById('sorteringEditorList');
     addItemButton = doc.getElementById('btnAddSorteringItem');
-    itemEditorStatus = doc.getElementById('sorteringEditorStatus');
+    validationStatusEl = doc.getElementById('sorteringEditorStatus');
 
     if (directionSelect) {
       directionSelect.addEventListener('change', handleDirectionSelectChange);
@@ -2529,7 +2538,7 @@
       updateStatusUI(getStatusSnapshot());
     }
     syncSettingsFormFromState();
-    renderItemsEditor();
+    updateValidationState();
   }
 
   function createState() {
@@ -2569,9 +2578,7 @@
     refreshItemsById();
     currentOrder = sanitizeOrder(state.items, state.order);
     syncSettingsFormFromState();
-    if (itemEditorList) {
-      renderItemsEditor();
-    }
+    updateValidationState();
     updateLayout();
     const options = state.randomisering ? { randomize: true } : { resetToBase: true };
     applyOrder(options);
