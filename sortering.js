@@ -1173,7 +1173,20 @@
   const keyboardHandlers = new Map();
   let dragState = null;
   let currentAppMode = 'default';
-  let openInlineEditorId = null;
+  function updateInlineEditorVisibility(nodes) {
+    if (!nodes || !nodes.inlineEditor) return;
+    const editable = isEditorMode();
+    const { inlineEditor, wrapper } = nodes;
+    if (inlineEditor.host) {
+      inlineEditor.host.hidden = !editable;
+    }
+    if (inlineEditor.panel) {
+      inlineEditor.panel.hidden = !editable;
+    }
+    if (wrapper) {
+      wrapper.classList.toggle('sortering__item--editable', editable);
+    }
+  }
   function refreshItemsById() {
     itemsById.clear();
     if (!state || !Array.isArray(state.items)) return;
@@ -1213,103 +1226,20 @@
     return currentAppMode !== 'task';
   }
 
-  function setInlineEditorOpen(id, open) {
-    if (!id) return;
-    const nodes = itemNodes.get(id);
-    if (!nodes || !nodes.inlineEditor) return;
-    const editor = nodes.inlineEditor;
-    const shouldOpen = !!open;
-    if (shouldOpen && !isEditorMode()) {
-      return;
-    }
-    if (shouldOpen && openInlineEditorId && openInlineEditorId !== id) {
-      setInlineEditorOpen(openInlineEditorId, false);
-    }
-    nodes.inlineEditorOpen = shouldOpen;
-    if (editor.host) {
-      editor.host.hidden = !isEditorMode();
-      editor.host.dataset.open = shouldOpen ? '1' : '0';
-    }
-    if (editor.panel) {
-      editor.panel.hidden = !shouldOpen;
-    }
-    if (editor.toggle) {
-      editor.toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
-    }
-    if (nodes.wrapper) {
-      nodes.wrapper.classList.toggle('sortering__item--editor-open', shouldOpen && isEditorMode());
-      nodes.wrapper.classList.toggle('sortering__item--editable', isEditorMode());
-    }
-    if (shouldOpen) {
-      openInlineEditorId = id;
-      if (editor.valueInput && typeof editor.valueInput.focus === 'function') {
-        editor.valueInput.focus();
-        if (typeof editor.valueInput.select === 'function') {
-          editor.valueInput.select();
-        }
-      }
-    } else if (openInlineEditorId === id) {
-      openInlineEditorId = null;
-    }
-  }
-
-  function closeInlineEditor(id) {
-    if (!id) return;
-    setInlineEditorOpen(id, false);
-  }
-
-  function closeAllInlineEditors() {
-    itemNodes.forEach((_, id) => {
-      setInlineEditorOpen(id, false);
-    });
-    openInlineEditorId = null;
-  }
-
   function updateFigureEditorMode() {
     const editable = isEditorMode();
     if (figureHost) {
       figureHost.dataset.editorMode = editable ? 'edit' : 'view';
     }
-    if (!editable) {
-      closeAllInlineEditors();
-    }
     itemNodes.forEach(nodes => {
       if (!nodes || !nodes.inlineEditor) return;
-      const editor = nodes.inlineEditor;
-      if (editor.host) {
-        editor.host.hidden = !editable;
-        editor.host.dataset.open = editable && nodes.inlineEditorOpen ? '1' : '0';
-      }
-      if (editor.panel) {
-        editor.panel.hidden = !editable || !nodes.inlineEditorOpen;
-      }
-      if (editor.toggle) {
-        editor.toggle.setAttribute('aria-expanded', editable && nodes.inlineEditorOpen ? 'true' : 'false');
-      }
-      if (nodes.wrapper) {
-        nodes.wrapper.classList.toggle('sortering__item--editable', editable);
-        nodes.wrapper.classList.toggle('sortering__item--editor-open', editable && nodes.inlineEditorOpen);
-      }
+      updateInlineEditorVisibility(nodes);
     });
   }
 
   function setCurrentAppMode(mode) {
     currentAppMode = normalizeAppMode(mode);
     updateFigureEditorMode();
-  }
-
-  function handleInlineEditorDocumentPointerDown(event) {
-    if (!openInlineEditorId) return;
-    const nodes = itemNodes.get(openInlineEditorId);
-    if (!nodes || !nodes.inlineEditor || !nodes.inlineEditor.host) return;
-    if (event && event.target && nodes.inlineEditor.host.contains(event.target)) {
-      return;
-    }
-    closeInlineEditor(openInlineEditorId);
-  }
-
-  if (doc && typeof doc.addEventListener === 'function') {
-    doc.addEventListener('pointerdown', handleInlineEditorDocumentPointerDown, true);
   }
 
   function ensureItemNodes(item) {
@@ -1335,7 +1265,7 @@
     button.dataset.itemId = item.id;
     li.appendChild(button);
 
-    const nodes = { wrapper, contentEl, li, button, inlineEditor: null, inlineEditorOpen: false };
+    const nodes = { wrapper, contentEl, li, button, inlineEditor: null };
     itemNodes.set(item.id, nodes);
     attachItemListeners(item.id, nodes);
     return nodes;
@@ -1396,7 +1326,6 @@
         applyOrder({});
         updateInlineEditorView(item, inlineEditor);
         updateValidationState();
-        setInlineEditorOpen(item.id, true);
       });
 
       row.appendChild(categorySelect);
@@ -1439,52 +1368,13 @@
     if (!nodes.inlineEditor) {
       const host = doc.createElement('div');
       host.className = 'sortering__item-editor';
-      host.dataset.open = '0';
       host.hidden = !isEditorMode();
 
-      const toggleBtn = doc.createElement('button');
-      toggleBtn.type = 'button';
-      toggleBtn.className = 'sortering__item-editor-toggle';
-      toggleBtn.textContent = 'Rediger';
-      toggleBtn.setAttribute('aria-label', 'Rediger element');
       const panelId = `${item.id}-inline-editor-panel`;
-      toggleBtn.setAttribute('aria-controls', panelId);
-      toggleBtn.setAttribute('aria-expanded', 'false');
-      const stopPropagation = event => {
-        if (event) {
-          event.stopPropagation();
-        }
-      };
-      toggleBtn.addEventListener('click', event => {
-        if (event) {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-        const nextOpen = !nodes.inlineEditorOpen;
-        setInlineEditorOpen(item.id, nextOpen);
-      });
-      toggleBtn.addEventListener('pointerdown', stopPropagation);
-      toggleBtn.addEventListener('mousedown', stopPropagation);
-      toggleBtn.addEventListener('touchstart', stopPropagation);
-
       const panel = doc.createElement('div');
       panel.className = 'sortering__item-editor-panel';
       panel.id = panelId;
-      panel.hidden = true;
-      panel.addEventListener('pointerdown', stopPropagation);
-      panel.addEventListener('mousedown', stopPropagation);
-      panel.addEventListener('touchstart', stopPropagation);
-      panel.addEventListener('keydown', event => {
-        if (event && event.key === 'Escape') {
-          event.stopPropagation();
-          closeInlineEditor(item.id);
-          if (toggleBtn && typeof toggleBtn.focus === 'function') {
-            toggleBtn.focus();
-          }
-        }
-      });
-
-      host.appendChild(toggleBtn);
+      panel.hidden = !isEditorMode();
       host.appendChild(panel);
 
       const createField = (labelText, inputEl) => {
@@ -1566,7 +1456,6 @@
 
       nodes.inlineEditor = {
         host,
-        toggle: toggleBtn,
         panel,
         typeSelect,
         textField,
@@ -1578,7 +1467,6 @@
         altInput,
         removeButton
       };
-      nodes.inlineEditorOpen = false;
 
       typeSelect.addEventListener('change', () => {
         const nextType = sanitizeItemType(typeSelect.value);
@@ -1592,7 +1480,6 @@
         applyOrder({});
         updateInlineEditorView(item, nodes.inlineEditor);
         updateValidationState();
-        setInlineEditorOpen(item.id, true);
       });
 
       textField.addEventListener('input', () => {
@@ -1608,7 +1495,6 @@
         applyOrder({});
         updateInlineEditorView(item, nodes.inlineEditor);
         updateValidationState();
-        setInlineEditorOpen(item.id, true);
       });
 
       labelInput.addEventListener('input', () => {
@@ -1633,22 +1519,7 @@
     const inlineEditor = nodes.inlineEditor;
     if (!inlineEditor) return;
     updateInlineEditorView(item, inlineEditor);
-
-    const editable = isEditorMode();
-    if (inlineEditor.host) {
-      inlineEditor.host.hidden = !editable;
-      inlineEditor.host.dataset.open = editable && nodes.inlineEditorOpen ? '1' : '0';
-    }
-    if (inlineEditor.panel) {
-      inlineEditor.panel.hidden = !editable || !nodes.inlineEditorOpen;
-    }
-    if (inlineEditor.toggle) {
-      inlineEditor.toggle.setAttribute('aria-expanded', editable && nodes.inlineEditorOpen ? 'true' : 'false');
-    }
-    if (nodes.wrapper) {
-      nodes.wrapper.classList.toggle('sortering__item--editable', editable);
-      nodes.wrapper.classList.toggle('sortering__item--editor-open', editable && nodes.inlineEditorOpen);
-    }
+    updateInlineEditorVisibility(nodes);
   }
 
   function renderItem(item, position) {
@@ -1689,7 +1560,7 @@
       if (!contentEl.firstChild) {
         const placeholder = doc.createElement('p');
         placeholder.className = 'sortering__item-placeholder';
-        placeholder.textContent = 'Legg til figurer i redigeringsmenyen.';
+        placeholder.textContent = 'Legg til figurer i redigeringsfeltene.';
         contentEl.appendChild(placeholder);
       }
     } else {
@@ -1927,7 +1798,6 @@
   function activateKeyboardMode(id) {
     if (!id) return;
     if (keyboardActiveId === id) return;
-    closeAllInlineEditors();
     finalizeKeyboardMode();
     const nodes = itemNodes.get(id);
     if (!nodes) return;
@@ -2083,9 +1953,6 @@
   function startPointerDrag(event, id) {
     if (!visualList || dragState || !state) return;
     if (typeof event.button === 'number' && event.button !== 0) return;
-    if (openInlineEditorId) {
-      closeAllInlineEditors();
-    }
     const nodes = itemNodes.get(id);
     if (!nodes || !nodes.wrapper) return;
     const orientation = normalizeDirection(state.retning);
@@ -2447,7 +2314,6 @@
   }
 
   function removeItem(id) {
-    closeInlineEditor(id);
     if (!state || !Array.isArray(state.items)) return;
     const index = state.items.findIndex(item => item && item.id === id);
     if (index < 0) return;
@@ -2475,7 +2341,23 @@
     const options = state.randomisering ? { randomize: true } : { resetToBase: true };
     applyOrder(options);
     updateValidationState();
-    setInlineEditorOpen(id, true);
+    const nodes = itemNodes.get(id);
+    if (nodes) {
+      updateInlineEditorVisibility(nodes);
+      const editor = nodes.inlineEditor;
+      const focusTarget =
+        editor && isEditorMode()
+          ? editor.textField || editor.typeSelect || editor.labelInput || editor.altInput
+          : null;
+      if (focusTarget && typeof focusTarget.focus === 'function') {
+        setTimeout(() => {
+          focusTarget.focus();
+          if (focusTarget === editor.textField && typeof focusTarget.select === 'function') {
+            focusTarget.select();
+          }
+        }, 0);
+      }
+    }
   }
 
   function attachExampleButtonGuards() {
