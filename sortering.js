@@ -1028,22 +1028,24 @@
   function ensureFigureIds(figures, itemId) {
     if (!Array.isArray(figures)) return [];
     const seen = new Set();
-    return figures.map((entry, index) => {
-      const fallbackId = `${itemId || 'item'}-figure-${index + 1}`;
-      const normalizedId = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : fallbackId;
-      let uniqueId = normalizedId;
-      let attempt = 1;
-      while (seen.has(uniqueId)) {
-        attempt += 1;
-        uniqueId = `${normalizedId}-${attempt}`;
-      }
-      seen.add(uniqueId);
-      return {
-        id: uniqueId,
-        categoryId: sanitizeFigureCategory(entry.categoryId, entry.value),
-        value: typeof entry.value === 'string' ? entry.value.trim() : ''
-      };
-    }).filter(entry => entry.value);
+    return figures
+      .map((entry, index) => {
+        const fallbackId = `${itemId || 'item'}-figure-${index + 1}`;
+        const normalizedId = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : fallbackId;
+        let uniqueId = normalizedId;
+        let attempt = 1;
+        while (seen.has(uniqueId)) {
+          attempt += 1;
+          uniqueId = `${normalizedId}-${attempt}`;
+        }
+        seen.add(uniqueId);
+        return {
+          id: uniqueId,
+          categoryId: sanitizeFigureCategory(entry.categoryId, entry.value),
+          value: typeof entry.value === 'string' ? entry.value.trim() : ''
+        };
+      })
+      .filter(entry => entry && typeof entry.id === 'string' && entry.id);
   }
 
   function normalizeItem(raw, index) {
