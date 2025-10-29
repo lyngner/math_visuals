@@ -88,6 +88,7 @@
   };
   const RULER_SHADOW_FILTER_ID = 'rulerSvgDropShadow';
   const TAPE_STRAP_DEFAULT_HEIGHT = 48;
+  const TAPE_DIRECTION = -1;
   const zeroOffset = { x: 0, y: 0 };
   const CUSTOM_CATEGORY_ID = 'custom';
   const CUSTOM_FIGURE_ID = 'custom';
@@ -2606,9 +2607,10 @@
     const axisX = Math.cos(rotation);
     const axisY = Math.sin(rotation);
     const projectedDelta = deltaX * axisX + deltaY * axisY;
+    const effectiveDelta = projectedDelta * TAPE_DIRECTION;
     const minVisible = tapeLengthState.minVisiblePx;
     const maxVisible = tapeLengthState.maxVisiblePx > 0 ? tapeLengthState.maxVisiblePx : Infinity;
-    let visible = entry.startVisible + projectedDelta;
+    let visible = entry.startVisible + effectiveDelta;
     if (appState.settings && appState.settings.gridEnabled && tapeLengthState.unitSpacing > 0) {
       visible = Math.round(visible / tapeLengthState.unitSpacing) * tapeLengthState.unitSpacing;
     }

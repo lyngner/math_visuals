@@ -242,10 +242,11 @@
     }
 
     .tape-measure__strap {
-      left: var(--tape-housing-width);
+      right: var(--tape-housing-width);
+      left: auto;
       width: var(--tape-strap-length);
       height: var(--tape-strap-height);
-      clip-path: inset(0 calc(100% - var(--tape-strap-visible)) 0 0);
+      clip-path: inset(0 0 0 calc(100% - var(--tape-strap-visible)));
       overflow: hidden;
     }
 
@@ -299,7 +300,8 @@
     }
 
     .tape-measure__housing {
-      left: 0;
+      right: 0;
+      left: auto;
       width: var(--tape-housing-width);
       height: var(--tape-housing-height);
       z-index: 1;
