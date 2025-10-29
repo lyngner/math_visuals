@@ -785,6 +785,18 @@
     globalScope.MathVisualsSettings && typeof globalScope.MathVisualsSettings === 'object'
       ? globalScope.MathVisualsSettings
       : {};
+  const paletteHelper =
+    globalScope.MathVisualsPalette && typeof globalScope.MathVisualsPalette.getGroupPalette === 'function'
+      ? globalScope.MathVisualsPalette
+      : typeof require === 'function'
+      ? (() => {
+          try {
+            return require('./theme/palette.js');
+          } catch (_) {
+            return null;
+          }
+        })()
+      : null;
 
   settingsApi.getSettings = () => getSettings();
   settingsApi.setSettings = next => setSettings(next);
@@ -804,6 +816,26 @@
   settingsApi.setActiveProject = (name, options) => setActiveProject(name, options);
   settingsApi.listProjects = () => listProjects();
   settingsApi.getProjectSettings = name => getProjectSettings(name);
+  settingsApi.getGroupPalette = (groupId, count, opts) => {
+    const size = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+    const projectName =
+      opts && opts.project ? resolveProjectName(opts.project, settings.projects) : activeProject;
+    if (paletteHelper && typeof paletteHelper.getGroupPalette === 'function') {
+      return paletteHelper.getGroupPalette(groupId, {
+        project: projectName,
+        count: size,
+        settings: {
+          projects: settings.projects,
+          activeProject,
+          getActiveProject: () => activeProject,
+          getProjectSettings: name => getProjectSettings(name),
+          getDefaultColors: (desiredCount, options) => getDefaultColors(desiredCount, options)
+        }
+      });
+    }
+    const basePalette = getProjectPalette(projectName);
+    return ensureColorCount(basePalette, size || basePalette.length);
+  };
   settingsApi.refresh = options => loadFromRemote(options);
   settingsApi.getApiUrl = () => resolveApiUrl();
 
