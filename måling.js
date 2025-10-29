@@ -3773,7 +3773,8 @@
       `translate(${formatSvgNumber(strapOffsetX)} ${formatSvgNumber(strapOffsetY)})`
     );
     const strapImageElement = createSvgElement('image');
-    const strapTotalWidth = tapeStrap.offsetWidth || strapRect.width || 0;
+    const strapTotalWidth = tapeStrap.offsetWidth || strapImage.naturalWidth || strapRect.width || 0;
+    const strapHeight = tapeStrap.offsetHeight || strapImage.naturalHeight || strapRect.height || 0;
     const strapVisibleRaw = Number.parseFloat(
       tapeMeasure.style.getPropertyValue('--tape-strap-visible')
     );
@@ -3783,7 +3784,7 @@
     strapImageElement.setAttribute('x', '0');
     strapImageElement.setAttribute('y', '0');
     strapImageElement.setAttribute('width', formatSvgNumber(strapTotalWidth));
-    strapImageElement.setAttribute('height', formatSvgNumber(strapRect.height));
+    strapImageElement.setAttribute('height', formatSvgNumber(strapHeight));
     strapImageElement.setAttributeNS(XLINK_NS, 'xlink:href', strapHref);
     strapImageElement.setAttribute('href', strapHref);
     strapGroup.appendChild(strapImageElement);
@@ -3825,10 +3826,12 @@
       `translate(${formatSvgNumber(housingOffsetX)} ${formatSvgNumber(housingOffsetY)})`
     );
     const housingImageElement = createSvgElement('image');
+    const housingWidth = tapeHousing.offsetWidth || housingImage.naturalWidth || housingRect.width || 0;
+    const housingHeight = tapeHousing.offsetHeight || housingImage.naturalHeight || housingRect.height || 0;
     housingImageElement.setAttribute('x', '0');
     housingImageElement.setAttribute('y', '0');
-    housingImageElement.setAttribute('width', formatSvgNumber(housingRect.width));
-    housingImageElement.setAttribute('height', formatSvgNumber(housingRect.height));
+    housingImageElement.setAttribute('width', formatSvgNumber(housingWidth));
+    housingImageElement.setAttribute('height', formatSvgNumber(housingHeight));
     housingImageElement.setAttributeNS(XLINK_NS, 'xlink:href', housingHref);
     housingImageElement.setAttribute('href', housingHref);
     housingGroup.appendChild(housingImageElement);
