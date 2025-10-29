@@ -562,10 +562,14 @@
     Object.keys(projects).forEach(name => {
       const entry = projects[name];
       if (!entry || typeof entry !== 'object') return;
-      const palette = normalizeProjectPalette(name, entry.groupPalettes || entry.defaultColors);
+      const normalizedPalette = normalizeProjectPalette(
+        name,
+        entry.groupPalettes != null ? entry.groupPalettes : entry.defaultColors
+      );
+      const groupPalettes = cloneProjectPalette(normalizedPalette);
       out[name] = {
-        groupPalettes: cloneProjectPalette(palette),
-        defaultColors: expandPalette(name, palette),
+        groupPalettes,
+        defaultColors: expandPalette(name, groupPalettes),
         defaultLineThickness:
           entry.defaultLineThickness != null ? clampLineThickness(entry.defaultLineThickness) : undefined
       };
@@ -584,19 +588,21 @@
         const normalized = typeof name === 'string' ? name.trim().toLowerCase() : '';
         if (!normalized) return;
         const source = rawProjects[name];
-        const target = projects[normalized] ? projects[normalized] : {};
-        if (!projects[normalized]) {
-          projects[normalized] = target;
-        }
         const normalizedPalette = normalizeProjectPalette(
           normalized,
-          source && (source.groupPalettes || source.defaultColors)
+          source && (source.groupPalettes != null ? source.groupPalettes : source.defaultColors)
         );
-        target.groupPalettes = cloneProjectPalette(normalizedPalette);
-        target.defaultColors = expandPalette(normalized, normalizedPalette);
+        const groupPalettes = cloneProjectPalette(normalizedPalette);
+        const defaultColors = expandPalette(normalized, groupPalettes);
+        const updated = {
+          ...(projects[normalized] ? projects[normalized] : {}),
+          groupPalettes,
+          defaultColors
+        };
         if (source && source.defaultLineThickness != null) {
-          target.defaultLineThickness = clampLineThickness(source.defaultLineThickness);
+          updated.defaultLineThickness = clampLineThickness(source.defaultLineThickness);
         }
+        projects[normalized] = updated;
         if (!order.includes(normalized)) {
           order.push(normalized);
         }
@@ -606,9 +612,13 @@
     if (input.defaultColors != null) {
       const projectName = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
       const palette = normalizeProjectPalette(projectName, input.defaultColors);
-      projects[projectName] = projects[projectName] || {};
-      projects[projectName].groupPalettes = cloneProjectPalette(palette);
-      projects[projectName].defaultColors = expandPalette(projectName, palette);
+      const groupPalettes = cloneProjectPalette(palette);
+      const defaultColors = expandPalette(projectName, groupPalettes);
+      projects[projectName] = {
+        ...projects[projectName],
+        groupPalettes,
+        defaultColors
+      };
       if (!order.includes(projectName)) {
         order.push(projectName);
       }
@@ -754,12 +764,31 @@
   }
 
   function buildPersistPayload(next) {
-    return {
-      version: next && next.version ? next.version : 1,
-      activeProject: next && next.activeProject ? next.activeProject : activeProject,
-      defaultLineThickness: next && next.defaultLineThickness != null ? clampLineThickness(next.defaultLineThickness) : settings.defaultLineThickness,
-      projects: cloneProjects(next && next.projects ? next.projects : settings.projects)
+    const source = next && typeof next === 'object' ? next : {};
+    const projects = cloneProjects(source.projects ? source.projects : settings.projects);
+    const desiredActiveProject = source.activeProject ? source.activeProject : activeProject;
+    const resolvedActiveProject = resolveProjectName(desiredActiveProject, projects);
+    const payload = {
+      version: source.version ? source.version : 1,
+      activeProject: resolvedActiveProject,
+      defaultLineThickness:
+        source.defaultLineThickness != null
+          ? clampLineThickness(source.defaultLineThickness)
+          : settings.defaultLineThickness,
+      projectOrder: Array.isArray(source.projectOrder)
+        ? source.projectOrder.slice()
+        : Array.isArray(settings.projectOrder)
+        ? settings.projectOrder.slice()
+        : Object.keys(projects),
+      projects
     };
+    const activeEntry = projects[resolvedActiveProject];
+    const groupPalettes =
+      activeEntry && activeEntry.groupPalettes
+        ? cloneProjectPalette(activeEntry.groupPalettes)
+        : cloneProjectPalette(getProjectFallbackPalette(resolvedActiveProject));
+    payload.defaultColors = expandPalette(resolvedActiveProject, groupPalettes);
+    return payload;
   }
 
   function resolveApiUrl() {
@@ -848,8 +877,9 @@
           normalized,
           source.groupPalettes != null ? source.groupPalettes : source.defaultColors
         );
-        base[normalized].groupPalettes = cloneProjectPalette(normalizedPalette);
-        base[normalized].defaultColors = expandPalette(normalized, normalizedPalette);
+        const groupPalettes = cloneProjectPalette(normalizedPalette);
+        base[normalized].groupPalettes = groupPalettes;
+        base[normalized].defaultColors = expandPalette(normalized, groupPalettes);
       }
       if (source && source.defaultLineThickness != null) {
         base[normalized].defaultLineThickness = clampLineThickness(source.defaultLineThickness);
@@ -874,8 +904,9 @@
           targetProject,
           patch.groupPalettes != null ? patch.groupPalettes : patch.defaultColors
         );
-        const flattened = expandPalette(targetProject, normalizedPalette);
-        merged.projects[targetProject].groupPalettes = cloneProjectPalette(normalizedPalette);
+        const groupPalettes = cloneProjectPalette(normalizedPalette);
+        const flattened = expandPalette(targetProject, groupPalettes);
+        merged.projects[targetProject].groupPalettes = groupPalettes;
         merged.projects[targetProject].defaultColors = flattened;
         merged.defaultColors = flattened;
       }
