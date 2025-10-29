@@ -3659,7 +3659,6 @@
       .mv-tape__housing {
         pointer-events: none;
       }
-      .mv-tape__strap svg,
       .mv-tape__strap image,
       .mv-tape__housing image {
         display: block;
@@ -3668,6 +3667,8 @@
         image-rendering: optimizeQuality;
       }
       .mv-tape__strap svg {
+        display: block;
+        image-rendering: optimizeQuality;
         pointer-events: none;
       }
       .mv-tape__strap .tape-svg__background {
