@@ -50,6 +50,260 @@
   const ARCHIVE_CACHE_STORAGE_KEY = 'mathvis:svgArchive:cache:v1';
   const ARCHIVE_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
   let manualTrashReplayInFlight = false;
+  const entryDetailsCache = new Map();
+  const entryDetailsPending = new Map();
+
+  const ALT_TEXT_ENDPOINTS = new Map([
+    ['diagram', '/api/diagram-alt-text'],
+    ['figurtall', '/api/figurtall-alt-text']
+  ]);
+
+  function escapeAttributeValue(value) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+      return CSS.escape(value);
+    }
+    return value.replace(/"/g, '\\"');
+  }
+
+  function cloneDetails(details) {
+    if (!details) return null;
+    try {
+      return JSON.parse(JSON.stringify(details));
+    } catch (error) {
+      return details;
+    }
+  }
+
+  function cacheEntryDetails(slug, details) {
+    if (!slug) return;
+    entryDetailsCache.set(slug, details ? cloneDetails(details) : null);
+  }
+
+  function getCachedEntryDetails(slug) {
+    if (!slug) return null;
+    if (entryDetailsCache.has(slug)) {
+      return cloneDetails(entryDetailsCache.get(slug));
+    }
+    return null;
+  }
+
+  async function fetchEntryDetails(slug) {
+    const normalized = typeof slug === 'string' ? slug.trim() : '';
+    if (!normalized) return null;
+    const cached = getCachedEntryDetails(normalized);
+    if (cached) return cached;
+    if (entryDetailsPending.has(normalized)) {
+      return entryDetailsPending.get(normalized);
+    }
+    const request = fetch(`/api/svg?slug=${encodeURIComponent(normalized)}`, {
+      headers: { Accept: 'application/json' }
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        cacheEntryDetails(normalized, data || null);
+        entryDetailsPending.delete(normalized);
+        return cloneDetails(data || null);
+      })
+      .catch(error => {
+        entryDetailsPending.delete(normalized);
+        throw error;
+      });
+    entryDetailsPending.set(normalized, request);
+    return request;
+  }
+
+  function extractAltTextFromSummary(summary) {
+    if (!summary) return '';
+    if (typeof summary === 'string') {
+      return summary.trim();
+    }
+    if (Array.isArray(summary)) {
+      return summary
+        .map(item => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean)
+        .join(' ');
+    }
+    if (typeof summary === 'object') {
+      const candidateKeys = [
+        'altText',
+        'description',
+        'figureSummary',
+        'text',
+        'label'
+      ];
+      for (const key of candidateKeys) {
+        if (typeof summary[key] === 'string' && summary[key].trim()) {
+          return summary[key].trim();
+        }
+      }
+      if (Array.isArray(summary.sentences) && summary.sentences.length) {
+        return summary.sentences
+          .map(sentence => (typeof sentence === 'string' ? sentence.trim() : ''))
+          .filter(Boolean)
+          .join(' ');
+      }
+      if (Array.isArray(summary.lines) && summary.lines.length) {
+        return summary.lines
+          .map(line => (typeof line === 'string' ? line.trim() : ''))
+          .filter(Boolean)
+          .join(' ');
+      }
+      const collectedValues = [];
+      for (const value of Object.values(summary)) {
+        if (typeof value === 'string' && value.trim()) {
+          collectedValues.push(value.trim());
+        }
+      }
+      if (collectedValues.length) {
+        return collectedValues.join(' ');
+      }
+    }
+    return '';
+  }
+
+  function resolveAltTextEndpoint(tool) {
+    if (!tool) return null;
+    const normalized = tool.trim().toLowerCase();
+    if (!normalized) return null;
+    if (ALT_TEXT_ENDPOINTS.has(normalized)) {
+      return ALT_TEXT_ENDPOINTS.get(normalized);
+    }
+    return null;
+  }
+
+  async function requestAltTextFromEndpoint(endpoint, summary, signal) {
+    if (!endpoint || typeof fetch !== 'function') {
+      return '';
+    }
+    const payload = summary && typeof summary === 'object' ? { context: summary } : {};
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal
+    });
+    if (!response.ok) {
+      throw new Error(`Alt-tekst-endepunkt svarte med status ${response.status}`);
+    }
+    const data = await response.json();
+    const text = data && typeof data.text === 'string' ? data.text.trim() : '';
+    return text;
+  }
+
+  async function generateAltTextForEntry(entry, details, { signal } = {}) {
+    if (!entry) return '';
+    const summarySource =
+      (details && Object.prototype.hasOwnProperty.call(details, 'summary') ? details.summary : undefined) !== undefined
+        ? details.summary
+        : entry.summaryData !== undefined
+          ? entry.summaryData
+          : entry.summary;
+    const summary = summarySource;
+    const endpoint = resolveAltTextEndpoint(entry.tool);
+    if (endpoint && summary && typeof summary === 'object') {
+      try {
+        const text = await requestAltTextFromEndpoint(endpoint, summary, signal);
+        if (text) return text;
+      } catch (error) {
+        console.warn('Kunne ikke generere alt-tekst via tjeneste', error);
+      }
+    }
+    const fallback = extractAltTextFromSummary(summary);
+    if (fallback) {
+      return fallback;
+    }
+    const detailAlt = details && typeof details.altText === 'string' ? details.altText.trim() : '';
+    if (detailAlt) return detailAlt;
+    if (typeof entry.altText === 'string' && entry.altText.trim()) {
+      return entry.altText.trim();
+    }
+    if (typeof entry.description === 'string' && entry.description.trim()) {
+      return entry.description.trim();
+    }
+    if (details && typeof details.description === 'string' && details.description.trim()) {
+      return details.description.trim();
+    }
+    return entry.displayTitle || entry.title || entry.baseName || 'Figur';
+  }
+
+  async function persistAltTextForEntry(entry, details, altText) {
+    if (!entry || !entry.slug) {
+      throw new Error('Mangler referanse til figur.');
+    }
+    if (!details) {
+      throw new Error('Fant ikke lagrede detaljer for figuren.');
+    }
+    const payload = {
+      slug: entry.slug,
+      title: details.title || entry.title || entry.displayTitle || entry.baseName || 'Figur',
+      tool: details.tool || entry.tool || 'ukjent',
+      baseName: details.baseName || entry.baseName || entry.slug,
+      filename: details.filename || details.svgFilename,
+      svgFilename: details.svgFilename,
+      pngFilename: details.pngFilename,
+      svg: details.svg,
+      png: details.png,
+      pngWidth: details.pngWidth,
+      pngHeight: details.pngHeight,
+      description:
+        typeof details.description === 'string'
+          ? details.description
+          : typeof entry.description === 'string'
+            ? entry.description
+            : undefined,
+      summary: typeof details.summary === 'string' ? details.summary : entry.summary,
+      altText,
+      createdAt: details.createdAt || entry.createdAt,
+      exampleState: Object.prototype.hasOwnProperty.call(details, 'exampleState') ? details.exampleState : undefined
+    };
+
+    if (!payload.png || typeof payload.png !== 'string') {
+      throw new Error('Kunne ikke finne PNG-data for figuren.');
+    }
+
+    const response = await fetch(`/api/svg?slug=${encodeURIComponent(entry.slug)}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      throw new Error(`Lagring mislyktes (status ${response.status}).`);
+    }
+    const saved = await response.json().catch(() => ({}));
+    const nextDetails = { ...details, altText };
+    if (!Object.prototype.hasOwnProperty.call(nextDetails, 'description') && payload.description !== undefined) {
+      nextDetails.description = payload.description;
+    }
+    cacheEntryDetails(entry.slug, nextDetails);
+    return saved;
+  }
+
+  function updateEntryAltText(slug, altText) {
+    if (!slug) return;
+    const entry = allEntries.find(item => item.slug === slug);
+    if (entry) {
+      entry.altText = altText;
+    }
+    const selectorSlug = escapeAttributeValue(slug);
+    if (selectorSlug) {
+      const card = grid.querySelector(`.svg-archive__card[data-slug="${selectorSlug}"]`);
+      if (card) {
+        const img = card.querySelector('img');
+        if (img) {
+          img.alt = altText || `Forhåndsvisning av ${entry ? entry.displayTitle : 'figur'}`;
+        }
+      }
+    }
+  }
+
 
   function getGlobalTrashQueue() {
     const globalObject = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
@@ -1466,9 +1720,86 @@
         actions.appendChild(button);
       }
 
+      const sections = document.createElement('div');
+      sections.className = 'svg-archive__dialog-sections';
+
+      const descriptionSection = document.createElement('section');
+      descriptionSection.className = 'svg-archive__dialog-section svg-archive__dialog-section--description';
+      descriptionSection.dataset.descriptionSection = 'true';
+      descriptionSection.setAttribute('hidden', '');
+
+      const descriptionHeading = document.createElement('h3');
+      descriptionHeading.className = 'svg-archive__dialog-section-title';
+      descriptionHeading.textContent = 'Oppgavetekst';
+
+      const descriptionContent = document.createElement('div');
+      descriptionContent.className = 'svg-archive__dialog-description';
+      descriptionContent.dataset.descriptionContent = 'true';
+
+      descriptionSection.appendChild(descriptionHeading);
+      descriptionSection.appendChild(descriptionContent);
+
+      const altSection = document.createElement('section');
+      altSection.className = 'svg-archive__dialog-section svg-archive__dialog-section--alt';
+      altSection.dataset.altSection = 'true';
+
+      const altWrap = document.createElement('div');
+      altWrap.className = 'alt-text';
+      altWrap.setAttribute('data-edit-only', '');
+
+      const altLabel = document.createElement('label');
+      altLabel.setAttribute('for', 'svgArchiveAltText');
+      altLabel.textContent = 'Alternativ tekst';
+
+      const altTextarea = document.createElement('textarea');
+      altTextarea.id = 'svgArchiveAltText';
+      altTextarea.rows = 4;
+      altTextarea.placeholder = 'Teksten kan redigeres eller genereres på nytt her.';
+      altTextarea.dataset.altInput = 'true';
+
+      const altFooter = document.createElement('div');
+      altFooter.className = 'alt-text__footer';
+
+      const altButtons = document.createElement('div');
+      altButtons.className = 'svg-archive__alt-text-actions';
+
+      const altGenerateButton = document.createElement('button');
+      altGenerateButton.type = 'button';
+      altGenerateButton.className = 'btn svg-archive__alt-generate';
+      altGenerateButton.dataset.altGenerate = 'true';
+      altGenerateButton.textContent = 'Generer på nytt';
+
+      const altSaveButton = document.createElement('button');
+      altSaveButton.type = 'button';
+      altSaveButton.className = 'btn svg-archive__alt-save';
+      altSaveButton.dataset.altSave = 'true';
+      altSaveButton.textContent = 'Lagre';
+      altSaveButton.disabled = true;
+
+      altButtons.appendChild(altGenerateButton);
+      altButtons.appendChild(altSaveButton);
+
+      const altStatus = document.createElement('span');
+      altStatus.className = 'alt-text__status';
+      altStatus.setAttribute('role', 'status');
+      altStatus.setAttribute('aria-live', 'polite');
+      altStatus.dataset.altStatus = 'true';
+
+      altFooter.appendChild(altButtons);
+      altFooter.appendChild(altStatus);
+
+      altWrap.appendChild(altLabel);
+      altWrap.appendChild(altTextarea);
+      altWrap.appendChild(altFooter);
+      altSection.appendChild(altWrap);
+
+      sections.appendChild(descriptionSection);
+      sections.appendChild(altSection);
+
       body.appendChild(figure);
       body.appendChild(meta);
       body.appendChild(actions);
+      body.appendChild(sections);
 
       overlay.appendChild(header);
       overlay.appendChild(body);
@@ -1486,9 +1817,23 @@
     const metaElement = dialog.querySelector('.svg-archive__dialog-meta');
     const actionsContainer = dialog.querySelector('.svg-archive__dialog-actions');
     const actionButtons = Array.from(actionsContainer.querySelectorAll('[data-action]'));
+    const sectionsContainer = dialog.querySelector('.svg-archive__dialog-sections');
+    const descriptionSection = dialog.querySelector('[data-description-section]');
+    const descriptionContent = dialog.querySelector('[data-description-content]');
+    const altSection = dialog.querySelector('[data-alt-section]');
+    const altTextarea = dialog.querySelector('[data-alt-input]');
+    const altGenerateButton = dialog.querySelector('[data-alt-generate]');
+    const altSaveButton = dialog.querySelector('[data-alt-save]');
+    const altStatusElement = dialog.querySelector('[data-alt-status]');
 
     let activeEntry = null;
     let restoreFocusTo = null;
+    let activeEntryDetails = null;
+    let altTextOriginal = '';
+    let altTextDirty = false;
+    let altGenerating = false;
+    let altSaving = false;
+    let altGenerateController = null;
 
     function renderMeta(entry) {
       metaElement.innerHTML = '';
@@ -1520,8 +1865,184 @@
       }
     }
 
+    function renderDescription(text) {
+      if (!descriptionSection || !descriptionContent) {
+        return;
+      }
+      const normalized = typeof text === 'string' ? text.trim() : '';
+      descriptionContent.innerHTML = '';
+      if (!normalized) {
+        descriptionSection.setAttribute('hidden', '');
+        descriptionContent.textContent = '';
+        return;
+      }
+      descriptionSection.removeAttribute('hidden');
+      const paragraphs = normalized.split(/\n{2,}/).map(part => part.trim()).filter(Boolean);
+      if (!paragraphs.length) {
+        const p = document.createElement('p');
+        p.textContent = normalized;
+        descriptionContent.appendChild(p);
+        return;
+      }
+      for (const paragraphText of paragraphs) {
+        const p = document.createElement('p');
+        const lines = paragraphText.split(/\n/);
+        lines.forEach((line, index) => {
+          if (index > 0) {
+            p.appendChild(document.createElement('br'));
+          }
+          p.appendChild(document.createTextNode(line));
+        });
+        descriptionContent.appendChild(p);
+      }
+    }
+
+    function setAltStatus(message, isError = false) {
+      if (!altStatusElement) return;
+      altStatusElement.textContent = '';
+      if (isError) {
+        altStatusElement.classList.add('alt-text__status--error');
+      } else {
+        altStatusElement.classList.remove('alt-text__status--error');
+      }
+      if (message) {
+        altStatusElement.textContent = message;
+      }
+    }
+
+    function updateAltControlStates() {
+      const busy = altGenerating || altSaving;
+      if (altGenerateButton) {
+        altGenerateButton.disabled = busy;
+      }
+      if (altTextarea) {
+        altTextarea.disabled = altSaving;
+      }
+      if (altSaveButton) {
+        altSaveButton.disabled = altSaving || !altTextDirty;
+      }
+      if (altSection) {
+        if (busy) {
+          altSection.setAttribute('data-busy', 'true');
+        } else {
+          altSection.removeAttribute('data-busy');
+        }
+      }
+    }
+
+    function setAltTextValue(value, { markClean = false, force = false } = {}) {
+      if (!altTextarea) return;
+      const stringValue = typeof value === 'string' ? value : '';
+      const trimmed = stringValue.trim();
+      if (!force && altTextDirty && !markClean) {
+        return;
+      }
+      if (altTextarea.value !== trimmed) {
+        altTextarea.value = trimmed;
+      }
+      if (imageElement) {
+        const figureTitle = activeEntry
+          ? activeEntry.displayTitle || activeEntry.title || activeEntry.baseName || 'Forhåndsvisning'
+          : 'Forhåndsvisning';
+        imageElement.alt = trimmed || figureTitle;
+      }
+      if (captionElement && (!activeEntry || !activeEntry.summary)) {
+        const captionText = trimmed || '';
+        captionElement.textContent = captionText;
+        if (captionText) {
+          captionElement.removeAttribute('hidden');
+        } else {
+          captionElement.setAttribute('hidden', '');
+        }
+      }
+      if (markClean) {
+        altTextOriginal = trimmed;
+        altTextDirty = false;
+        if (activeEntry) {
+          activeEntry.altText = trimmed;
+        }
+      } else {
+        altTextDirty = trimmed !== altTextOriginal;
+      }
+      updateAltControlStates();
+    }
+
+    async function loadDetailsForEntry(entry, { updateUi = true } = {}) {
+      if (!entry || !entry.slug) {
+        return null;
+      }
+      try {
+        const details = await fetchEntryDetails(entry.slug);
+        if (!details) return null;
+        if (!activeEntry || activeEntry.slug !== entry.slug) {
+          return details;
+        }
+        activeEntryDetails = details;
+        if (updateUi) {
+          const detailDescription = typeof details.description === 'string' ? details.description.trim() : '';
+          if (detailDescription && detailDescription !== (entry.description || '').trim()) {
+            renderDescription(detailDescription);
+            entry.description = detailDescription;
+          }
+          if (Object.prototype.hasOwnProperty.call(details, 'summary')) {
+            entry.summaryData = details.summary;
+            if (typeof details.summary === 'string' && details.summary.trim()) {
+              entry.summary = details.summary.trim();
+              if (captionElement) {
+                const altValue = altTextarea ? altTextarea.value.trim() : '';
+                captionElement.textContent = entry.summary || altValue || '';
+                if (captionElement.textContent) {
+                  captionElement.removeAttribute('hidden');
+                } else {
+                  captionElement.setAttribute('hidden', '');
+                }
+              }
+            }
+          }
+          const detailAlt = typeof details.altText === 'string' ? details.altText.trim() : '';
+          if (detailAlt && !altTextDirty) {
+            setAltTextValue(detailAlt, { markClean: true, force: true });
+            updateEntryAltText(entry.slug, detailAlt);
+            if (imageElement) {
+              imageElement.alt = detailAlt || entry.displayTitle || 'Forhåndsvisning';
+            }
+            if (captionElement && !entry.summary) {
+              captionElement.textContent = entry.summary || detailAlt || '';
+              if (captionElement.textContent) {
+                captionElement.removeAttribute('hidden');
+              } else {
+                captionElement.setAttribute('hidden', '');
+              }
+            }
+          }
+        }
+        return details;
+      } catch (error) {
+        if (activeEntry && activeEntry.slug === entry.slug && !altTextDirty) {
+          setAltStatus('Klarte ikke å hente detaljer for figuren.', true);
+        }
+        throw error;
+      }
+    }
+
+    function resetAltTextState(entry) {
+      const initialAlt = entry && typeof entry.altText === 'string' ? entry.altText.trim() : '';
+      setAltTextValue(initialAlt, { markClean: true, force: true });
+      setAltStatus('', false);
+      altGenerating = false;
+      altSaving = false;
+      updateAltControlStates();
+    }
+
     function updateDialog(entry) {
+      if (altGenerateController && typeof altGenerateController.abort === 'function') {
+        altGenerateController.abort();
+      }
+      altGenerateController = null;
       activeEntry = entry;
+      activeEntryDetails = null;
+      resetAltTextState(entry);
+      renderDescription(entry.description || '');
       titleElement.textContent = entry.displayTitle || entry.title || entry.baseName || 'Detaljer';
       if (subtitleElement) {
         if (entry.createdAt) {
@@ -1536,7 +2057,8 @@
           subtitleElement.setAttribute('hidden', '');
         }
       }
-      captionElement.textContent = entry.summary || entry.altText || '';
+      const currentAltText = altTextarea ? altTextarea.value.trim() : (entry.altText || '');
+      captionElement.textContent = entry.summary || currentAltText || '';
       if (captionElement.textContent) {
         captionElement.removeAttribute('hidden');
       } else {
@@ -1549,7 +2071,7 @@
       } else {
         imageElement.removeAttribute('src');
       }
-      imageElement.alt = entry.altText || entry.displayTitle || 'Forhåndsvisning';
+      imageElement.alt = currentAltText || entry.displayTitle || 'Forhåndsvisning';
 
       renderMeta(entry);
 
@@ -1559,6 +2081,13 @@
       }
       if (!metaElement.hasAttribute('hidden')) {
         descriptionIds.push('svg-archive-dialog-meta');
+      }
+      if (descriptionSection && !descriptionSection.hasAttribute('hidden')) {
+        const descriptionId = descriptionSection.id || 'svg-archive-dialog-description';
+        if (!descriptionSection.id) {
+          descriptionSection.id = descriptionId;
+        }
+        descriptionIds.push(descriptionId);
       }
       if (descriptionIds.length) {
         dialog.setAttribute('aria-describedby', descriptionIds.join(' '));
@@ -1603,6 +2132,10 @@
           button.removeAttribute('aria-hidden');
         }
       }
+
+      if (entry.slug) {
+        loadDetailsForEntry(entry).catch(() => {});
+      }
     }
 
     function closeDialog(options = {}) {
@@ -1610,6 +2143,10 @@
       if (!dialog.open) {
         return;
       }
+      if (altGenerateController && typeof altGenerateController.abort === 'function') {
+        altGenerateController.abort();
+      }
+      altGenerateController = null;
       dialog.close();
       dialog.removeEventListener('keydown', trapFocus, true);
       dialog.removeEventListener('cancel', handleCancel, true);
@@ -1619,6 +2156,12 @@
       }
       restoreFocusTo = null;
       activeEntry = null;
+      activeEntryDetails = null;
+      altGenerating = false;
+      altSaving = false;
+      altTextDirty = false;
+      setAltStatus('', false);
+      updateAltControlStates();
     }
 
     function trapFocus(event) {
@@ -1685,6 +2228,131 @@
         close: closeDialog
       });
     });
+
+    if (altTextarea) {
+      altTextarea.addEventListener('input', () => {
+        const trimmed = altTextarea.value.trim();
+        altTextDirty = trimmed !== altTextOriginal;
+        if (imageElement) {
+          const figureTitle = activeEntry
+            ? activeEntry.displayTitle || activeEntry.title || activeEntry.baseName || 'Forhåndsvisning'
+            : 'Forhåndsvisning';
+          imageElement.alt = trimmed || figureTitle;
+        }
+        if (captionElement && (!activeEntry || !activeEntry.summary)) {
+          captionElement.textContent = trimmed || '';
+          if (captionElement.textContent) {
+            captionElement.removeAttribute('hidden');
+          } else {
+            captionElement.setAttribute('hidden', '');
+          }
+        }
+        if (!altSaving && !altGenerating) {
+          setAltStatus('', false);
+        }
+        updateAltControlStates();
+      });
+    }
+
+    if (altGenerateButton) {
+      altGenerateButton.addEventListener('click', async () => {
+        if (!activeEntry) return;
+        const currentEntry = activeEntry;
+        const slug = currentEntry.slug;
+        if (altGenerateController && typeof altGenerateController.abort === 'function') {
+          altGenerateController.abort();
+        }
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        altGenerateController = controller;
+        altGenerating = true;
+        updateAltControlStates();
+        setAltStatus('Genererer forslag …', false);
+        try {
+          let details = activeEntryDetails;
+          if (!details) {
+            details = await loadDetailsForEntry(currentEntry, { updateUi: false });
+            if (currentEntry === activeEntry && details) {
+              activeEntryDetails = details;
+            }
+          }
+          const generated = await generateAltTextForEntry(
+            currentEntry,
+            details || {},
+            { signal: controller ? controller.signal : undefined }
+          );
+          if (!activeEntry || activeEntry.slug !== slug) {
+            return;
+          }
+          setAltTextValue(generated, { markClean: false, force: true });
+          setAltStatus('Forslag generert. Lagre for å ta i bruk.', false);
+        } catch (error) {
+          if (controller && controller.signal && controller.signal.aborted) {
+            setAltStatus('Generering avbrutt.', false);
+          } else {
+            console.error('Kunne ikke generere alt-tekst', error);
+            setAltStatus('Kunne ikke generere alternativ tekst.', true);
+          }
+        } finally {
+          if (altGenerateController === controller) {
+            altGenerateController = null;
+          }
+          altGenerating = false;
+          updateAltControlStates();
+        }
+      });
+    }
+
+    if (altSaveButton) {
+      altSaveButton.addEventListener('click', async () => {
+        if (!activeEntry) return;
+        const currentEntry = activeEntry;
+        const slug = currentEntry.slug;
+        const nextAlt = altTextarea ? altTextarea.value.trim() : '';
+        altSaving = true;
+        updateAltControlStates();
+        setAltStatus('Lagrer …', false);
+        try {
+          let details = activeEntryDetails;
+          if (!details) {
+            details = await loadDetailsForEntry(currentEntry, { updateUi: false });
+            if (currentEntry === activeEntry && details) {
+              activeEntryDetails = details;
+            }
+          }
+          if (!details) {
+            throw new Error('Fant ikke detaljer for lagring.');
+          }
+          await persistAltTextForEntry(currentEntry, details, nextAlt);
+          if (!activeEntry || activeEntry.slug !== slug) {
+            return;
+          }
+          setAltTextValue(nextAlt, { markClean: true, force: true });
+          currentEntry.altText = nextAlt;
+          if (activeEntryDetails) {
+            activeEntryDetails.altText = nextAlt;
+          }
+          updateEntryAltText(slug, nextAlt);
+          if (imageElement) {
+            imageElement.alt = nextAlt || currentEntry.displayTitle || 'Forhåndsvisning';
+          }
+          if (!currentEntry.summary) {
+            captionElement.textContent = currentEntry.summary || nextAlt || '';
+            if (captionElement.textContent) {
+              captionElement.removeAttribute('hidden');
+            } else {
+              captionElement.setAttribute('hidden', '');
+            }
+          }
+          setAltStatus('Alternativ tekst lagret.', false);
+        } catch (error) {
+          console.error('Kunne ikke lagre alt-tekst', error);
+          setAltStatus('Kunne ikke lagre alternativ tekst.', true);
+        } finally {
+          altSaving = false;
+          updateAltControlStates();
+        }
+      });
+    }
 
     return {
       open(entry, { focusActions = false, trigger = null } = {}) {
@@ -1901,14 +2569,40 @@
           : typeof entry.fileName === 'string' && entry.fileName.trim()
             ? entry.fileName.trim()
             : slug;
-        const summary = typeof entry.summary === 'string' ? entry.summary.trim() : '';
+        const metadataSummary = Object.prototype.hasOwnProperty.call(metadata, 'summary') ? metadata.summary : undefined;
+        const summaryData = metadataSummary !== undefined ? metadataSummary : entry.summary;
+        let summaryText = '';
+        if (typeof summaryData === 'string' && summaryData.trim()) {
+          summaryText = summaryData.trim();
+        } else if (summaryData && typeof summaryData === 'object') {
+          const candidateKeys = ['description', 'figureSummary', 'altText'];
+          for (const key of candidateKeys) {
+            if (typeof summaryData[key] === 'string' && summaryData[key].trim()) {
+              summaryText = summaryData[key].trim();
+              break;
+            }
+          }
+          if (!summaryText && Array.isArray(summaryData.sentences)) {
+            summaryText = summaryData.sentences
+              .map(sentence => (typeof sentence === 'string' ? sentence.trim() : ''))
+              .filter(Boolean)
+              .join(' ');
+          }
+        }
+        const description = typeof entry.description === 'string' && entry.description.trim()
+          ? entry.description.trim()
+          : typeof metadata.description === 'string' && metadata.description.trim()
+            ? metadata.description.trim()
+            : '';
         const altText = typeof entry.altText === 'string' && entry.altText.trim()
           ? entry.altText.trim()
-          : summary
-            ? summary
-            : baseName
-              ? `Grafikkfil for ${baseName}`
-              : 'SVG-fil';
+          : summaryText
+            ? summaryText
+            : description
+              ? description
+              : baseName
+                ? `Grafikkfil for ${baseName}`
+                : 'SVG-fil';
 
         const sequenceRaw = entry.sequence ?? entry.sequenceNumber ?? metadata.sequence ?? metadata.index;
         let sequenceNumber = null;
@@ -1969,7 +2663,9 @@
               : typeof entry.updatedAt === 'string'
                 ? entry.updatedAt.trim()
                 : '',
-          summary,
+          summary: summaryText,
+          summaryData: summaryData !== undefined ? summaryData : null,
+          description,
           sequenceLabel,
           fileSizeLabel
         };

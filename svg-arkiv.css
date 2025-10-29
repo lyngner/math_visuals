@@ -487,6 +487,81 @@ dialog.svg-archive__dialog::backdrop {
   cursor: not-allowed;
 }
 
+.svg-archive__dialog-sections {
+  display: grid;
+  gap: 24px;
+}
+
+.svg-archive__dialog-section {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  padding: 18px 20px;
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.95), rgba(241, 245, 249, 0.82));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+.svg-archive__dialog-section[hidden] {
+  display: none !important;
+}
+
+.svg-archive__dialog-section-title {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.svg-archive__dialog-description {
+  display: grid;
+  gap: 10px;
+  color: #374151;
+  font-size: 0.97rem;
+  line-height: 1.6;
+}
+
+.svg-archive__dialog-description p {
+  margin: 0;
+}
+
+.svg-archive__alt-text-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.svg-archive__alt-text-actions .btn {
+  border-radius: 10px;
+  min-width: 120px;
+}
+
+.svg-archive__alt-save {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.svg-archive__alt-save:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.svg-archive__alt-save:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.45);
+  outline-offset: 2px;
+}
+
+.svg-archive__alt-save[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+[data-busy="true"] .svg-archive__alt-text-actions .btn {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 .svg-archive__item:focus-within .svg-archive__card,
 .svg-archive__item:hover .svg-archive__card {
   transform: translateY(-4px);
