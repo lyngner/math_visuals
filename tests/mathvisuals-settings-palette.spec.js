@@ -260,6 +260,20 @@ function loadSettingsWithPaletteSpy(spyImplementation) {
   return { api, paletteCalls };
 }
 
+function loadThemeModule() {
+  delete global.MathVisualsTheme;
+  if (global.window && typeof global.window === 'object') {
+    delete global.window.MathVisualsTheme;
+  }
+  delete require.cache[require.resolve('../theme-profiles.js')];
+
+  ensureDomStubs();
+
+  require('../theme-profiles.js');
+
+  return global.MathVisualsTheme || (global.window && global.window.MathVisualsTheme);
+}
+
 test.describe('MathVisualsSettings.getGroupPalette', () => {
   test('forwards project override with legacy signature', () => {
     const { api, paletteCalls } = loadSettingsWithPaletteSpy(() => ['#abcdef']);
@@ -285,5 +299,20 @@ test.describe('MathVisualsSettings.getGroupPalette', () => {
     expect(groupId).toBe('graftegner');
     expect(options.project).toBe('annet');
     expect(options.count).toBe(2);
+  });
+});
+
+test.describe('MathVisualsTheme.getPalette', () => {
+  test('uses project override profile even when active profile differs', () => {
+    const theme = loadThemeModule();
+
+    expect(theme).toBeTruthy();
+
+    theme.setProfile('kikora', { force: true });
+    expect(theme.getActiveProfileName()).toBe('kikora');
+
+    const palette = theme.getPalette('figures', 6, { project: 'campus' });
+
+    expect(palette).toEqual(['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9']);
   });
 });
