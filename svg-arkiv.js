@@ -1744,13 +1744,17 @@
     preview.setAttribute('aria-haspopup', 'dialog');
     preview.setAttribute('aria-label', `Vis detaljer for ${entry.displayTitle}`);
 
+    const previewClip = document.createElement('span');
+    previewClip.className = 'svg-archive__preview-clip';
+
     const img = document.createElement('img');
     img.src = normalizeAssetUrl(entry.thumbnailUrl, 'png') || entry.thumbnailUrl || '';
     img.alt = entry.altText || `Forhåndsvisning av ${entry.displayTitle}`;
     img.loading = 'lazy';
     img.decoding = 'async';
 
-    preview.appendChild(img);
+    previewClip.appendChild(img);
+    preview.appendChild(previewClip);
 
     const toolbar = document.createElement('div');
     toolbar.className = 'svg-archive__card-toolbar';
