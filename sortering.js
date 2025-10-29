@@ -34,6 +34,9 @@
   let itemEditorList = null;
   let addItemButton = null;
   let itemEditorStatus = null;
+  let saveExampleButton = null;
+  let updateExampleButton = null;
+  let deleteExampleButton = null;
 
   function ensureStringArray(list) {
     if (!Array.isArray(list)) return [];
@@ -167,6 +170,34 @@
     };
   }
 
+  function stringifyExamplePayload(payload) {
+    try {
+      return JSON.stringify(payload);
+    } catch (error) {
+      if (globalObj && globalObj.console && typeof globalObj.console.warn === 'function') {
+        globalObj.console.warn('mathVisSortering: failed to stringify example payload', error);
+      }
+      return '';
+    }
+  }
+
+  function updateExampleActionPayloads(payload) {
+    const targetPayload = payload || buildExampleConfigPayload();
+    const json = stringifyExamplePayload(targetPayload);
+    const buttons = [saveExampleButton, updateExampleButton, deleteExampleButton].filter(Boolean);
+    if (!buttons.length) return;
+    buttons.forEach(button => {
+      if (!button.dataset) return;
+      if (json) {
+        button.dataset.examplePayload = json;
+        button.dataset.examplePayloadType = 'sortering';
+      } else {
+        delete button.dataset.examplePayload;
+        delete button.dataset.examplePayloadType;
+      }
+    });
+  }
+
   function syncExampleBindings() {
     if (!globalObj) return;
     if (!globalObj.STATE || typeof globalObj.STATE !== 'object') {
@@ -176,7 +207,9 @@
     if (!globalObj.CONFIG || typeof globalObj.CONFIG !== 'object') {
       globalObj.CONFIG = {};
     }
-    globalObj.CONFIG.sortering = buildExampleConfigPayload();
+    const payload = buildExampleConfigPayload();
+    globalObj.CONFIG.sortering = payload;
+    updateExampleActionPayloads(payload);
   }
 
   function computeStatusSnapshot() {
@@ -1910,9 +1943,11 @@
   }
 
   function attachExampleButtonGuards() {
-    const ids = ['btnSaveExample', 'btnUpdateExample'];
-    ids.forEach(id => {
-      const button = doc.getElementById(id);
+    saveExampleButton = doc.getElementById('btnSaveExample');
+    updateExampleButton = doc.getElementById('btnUpdateExample');
+    const guardedButtons = [saveExampleButton, updateExampleButton];
+
+    guardedButtons.forEach(button => {
       if (!button) return;
       button.addEventListener(
         'click',
@@ -1927,9 +1962,9 @@
         true
       );
     });
-    const deleteButton = doc.getElementById('btnDeleteExample');
-    if (deleteButton) {
-      deleteButton.addEventListener(
+    deleteExampleButton = doc.getElementById('btnDeleteExample');
+    if (deleteExampleButton) {
+      deleteExampleButton.addEventListener(
         'click',
         () => {
           syncExampleBindings();
@@ -1937,6 +1972,7 @@
         true
       );
     }
+    updateExampleActionPayloads();
   }
 
   function setupSettingsForm(host) {
