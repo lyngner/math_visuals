@@ -3,7 +3,14 @@
   const doc = globalObj && globalObj.document ? globalObj.document : null;
   if (!globalObj || !doc) return;
 
-  const DESCRIPTION_RENDERER = globalObj.MathVisDescriptionRenderer || null;
+  function getDescriptionRenderer() {
+    if (!globalObj || typeof globalObj !== 'object') {
+      return null;
+    }
+    const renderer = globalObj.MathVisDescriptionRenderer;
+    return renderer && typeof renderer === 'object' ? renderer : null;
+  }
+
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const STATUS_SAMPLE_COUNT = 3;
 
@@ -1385,11 +1392,13 @@
       contentEl.appendChild(img);
     }
 
+    const descriptionRenderer = getDescriptionRenderer();
+
     if (item.description) {
       const descriptionEl = doc.createElement('div');
       descriptionEl.className = 'sortering__item-description';
-      if (DESCRIPTION_RENDERER && typeof DESCRIPTION_RENDERER.renderInto === 'function') {
-        DESCRIPTION_RENDERER.renderInto(descriptionEl, item.description);
+      if (descriptionRenderer && typeof descriptionRenderer.renderInto === 'function') {
+        descriptionRenderer.renderInto(descriptionEl, item.description);
       } else {
         descriptionEl.textContent = item.description;
       }
