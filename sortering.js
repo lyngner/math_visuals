@@ -1358,42 +1358,56 @@
     if (!inlineEditor) return;
     const type = isFigureItem(item) ? 'figure' : 'text';
     const isFigure = type === 'figure';
-    const isText = !isFigure;
     if (isFigure && typeof item.text === 'string' && item.text) {
       item.text = '';
     }
     if (inlineEditor.typeSelect) {
       inlineEditor.typeSelect.value = type;
     }
-    if (inlineEditor.textFieldWrapper) {
-      inlineEditor.textFieldWrapper.hidden = !isText;
+    if (!inlineEditor.content) return;
+
+    inlineEditor.content.textContent = '';
+    inlineEditor.textField = null;
+    inlineEditor.figureList = null;
+    inlineEditor.addFigureButton = null;
+
+    if (type === 'text') {
+      const textarea = doc.createElement('textarea');
+      textarea.className = 'sortering__item-editor-textarea';
+      textarea.id = `${item.id}-inline-editor-text`;
+      textarea.rows = 2;
+      textarea.value = typeof item.text === 'string' ? item.text : '';
+      textarea.addEventListener('input', () => {
+        item.text = textarea.value;
+        refreshItemsById();
+        applyOrder({});
+        updateValidationState();
+      });
+      inlineEditor.textField = textarea;
+      inlineEditor.content.appendChild(textarea);
+      return;
     }
-    if (inlineEditor.figureField) {
-      inlineEditor.figureField.hidden = !isFigure;
-    }
-    if (inlineEditor.textField) {
-      inlineEditor.textField.disabled = !isText;
-      inlineEditor.textField.value = isText && typeof item.text === 'string' ? item.text : '';
-    }
-    if (inlineEditor.addFigureButton) {
-      inlineEditor.addFigureButton.disabled = !isFigure;
-      if (isFigure) {
-        inlineEditor.addFigureButton.removeAttribute('aria-disabled');
-      } else {
-        inlineEditor.addFigureButton.setAttribute('aria-disabled', 'true');
-      }
-    }
-    if (inlineEditor.labelInput) {
-      inlineEditor.labelInput.value = typeof item.label === 'string' ? item.label : '';
-    }
-    if (inlineEditor.altInput) {
-      inlineEditor.altInput.value = typeof item.alt === 'string' ? item.alt : '';
-    }
-    if (isFigure) {
-      renderInlineEditorFigures(item, inlineEditor);
-    } else if (inlineEditor.figureList) {
-      inlineEditor.figureList.textContent = '';
-    }
+
+    const figureList = doc.createElement('div');
+    figureList.className = 'sortering__item-editor-figure-list';
+    inlineEditor.content.appendChild(figureList);
+    inlineEditor.figureList = figureList;
+    renderInlineEditorFigures(item, inlineEditor);
+
+    const addFigureButton = doc.createElement('button');
+    addFigureButton.type = 'button';
+    addFigureButton.className = 'btn btn--small sortering__item-editor-add-figure';
+    addFigureButton.textContent = 'Legg til figur';
+    addFigureButton.addEventListener('click', () => {
+      if (item.type !== 'figure') return;
+      addFigureToItem(item);
+      refreshItemsById();
+      applyOrder({});
+      updateInlineEditorView(item, inlineEditor);
+      updateValidationState();
+    });
+    inlineEditor.addFigureButton = addFigureButton;
+    inlineEditor.content.appendChild(addFigureButton);
   }
 
   function ensureInlineEditor(item, nodes) {
@@ -1410,23 +1424,15 @@
       panel.hidden = !isEditorMode();
       host.appendChild(panel);
 
-      const createField = (labelText, inputEl) => {
-        const field = doc.createElement('div');
-        field.className = 'sortering__item-editor-field';
-        const label = doc.createElement('label');
-        label.className = 'sortering__item-editor-label';
-        label.textContent = labelText;
-        if (inputEl.id) {
-          label.setAttribute('for', inputEl.id);
-        }
-        field.appendChild(label);
-        field.appendChild(inputEl);
-        return field;
-      };
-
+      const typeWrapper = doc.createElement('div');
+      typeWrapper.className = 'sortering__item-editor-type';
+      const typeLabel = doc.createElement('label');
+      typeLabel.className = 'sortering__item-editor-label';
+      typeLabel.textContent = 'Innholdstype';
       const typeSelect = doc.createElement('select');
       typeSelect.className = 'sortering__item-editor-select';
       typeSelect.id = `${item.id}-inline-editor-type`;
+      typeLabel.setAttribute('for', typeSelect.id);
       const typeOptions = [
         { value: 'text', label: 'Tekst' },
         { value: 'figure', label: 'Figur' }
@@ -1437,47 +1443,13 @@
         opt.textContent = option.label;
         typeSelect.appendChild(opt);
       });
-      panel.appendChild(createField('Innholdstype', typeSelect));
+      typeWrapper.appendChild(typeLabel);
+      typeWrapper.appendChild(typeSelect);
+      panel.appendChild(typeWrapper);
 
-      const textField = doc.createElement('textarea');
-      textField.className = 'sortering__item-editor-textarea';
-      textField.id = `${item.id}-inline-editor-text`;
-      textField.rows = 2;
-      const textFieldWrapper = createField('Tekst', textField);
-      panel.appendChild(textFieldWrapper);
-
-      const figureField = doc.createElement('div');
-      figureField.className = 'sortering__item-editor-field';
-      const figureLabel = doc.createElement('span');
-      figureLabel.className = 'sortering__item-editor-label';
-      figureLabel.textContent = 'Figurer';
-      figureField.appendChild(figureLabel);
-      const figureList = doc.createElement('div');
-      figureList.className = 'sortering__item-editor-figure-list';
-      figureField.appendChild(figureList);
-      const figureActions = doc.createElement('div');
-      figureActions.className = 'sortering__item-editor-figure-actions';
-      const addFigureButton = doc.createElement('button');
-      addFigureButton.type = 'button';
-      addFigureButton.className = 'btn btn--small';
-      addFigureButton.textContent = 'Legg til figur';
-      figureActions.appendChild(addFigureButton);
-      figureField.appendChild(figureActions);
-      panel.appendChild(figureField);
-
-      const labelInput = doc.createElement('input');
-      labelInput.type = 'text';
-      labelInput.className = 'sortering__item-editor-input';
-      labelInput.id = `${item.id}-inline-editor-label`;
-      labelInput.placeholder = 'Knappetekst (valgfritt)';
-      panel.appendChild(createField('Knappetekst', labelInput));
-
-      const altInput = doc.createElement('input');
-      altInput.type = 'text';
-      altInput.className = 'sortering__item-editor-input';
-      altInput.id = `${item.id}-inline-editor-alt`;
-      altInput.placeholder = 'Alternativ tekst';
-      panel.appendChild(createField('Alternativ tekst', altInput));
+      const content = doc.createElement('div');
+      content.className = 'sortering__item-editor-content';
+      panel.appendChild(content);
 
       const removeButton = doc.createElement('button');
       removeButton.type = 'button';
@@ -1491,14 +1463,11 @@
         host,
         panel,
         typeSelect,
-        textField,
-        textFieldWrapper,
-        figureField,
-        figureList,
-        addFigureButton,
-        labelInput,
-        altInput,
-        removeButton
+        content,
+        removeButton,
+        textField: null,
+        figureList: null,
+        addFigureButton: null
       };
 
       typeSelect.addEventListener('change', () => {
@@ -1515,36 +1484,6 @@
         refreshItemsById();
         applyOrder({});
         updateInlineEditorView(item, nodes.inlineEditor);
-        updateValidationState();
-      });
-
-      textField.addEventListener('input', () => {
-        item.text = textField.value;
-        refreshItemsById();
-        applyOrder({});
-        updateValidationState();
-      });
-
-      addFigureButton.addEventListener('click', () => {
-        if (item.type !== 'figure') return;
-        addFigureToItem(item);
-        refreshItemsById();
-        applyOrder({});
-        updateInlineEditorView(item, nodes.inlineEditor);
-        updateValidationState();
-      });
-
-      labelInput.addEventListener('input', () => {
-        item.label = labelInput.value;
-        refreshItemsById();
-        applyOrder({});
-        updateValidationState();
-      });
-
-      altInput.addEventListener('input', () => {
-        item.alt = altInput.value;
-        refreshItemsById();
-        applyOrder({});
         updateValidationState();
       });
 
@@ -2390,10 +2329,7 @@
     if (nodes) {
       updateInlineEditorVisibility(nodes);
       const editor = nodes.inlineEditor;
-      const focusTarget =
-        editor && isEditorMode()
-          ? editor.textField || editor.typeSelect || editor.labelInput || editor.altInput
-          : null;
+      const focusTarget = editor && isEditorMode() ? editor.textField || editor.typeSelect : null;
       if (focusTarget && typeof focusTarget.focus === 'function') {
         setTimeout(() => {
           focusTarget.focus();
