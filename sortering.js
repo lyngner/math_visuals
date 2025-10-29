@@ -1547,7 +1547,7 @@
       const typeWrapper = doc.createElement('div');
       typeWrapper.className = 'sortering__item-editor-type';
       const typeLabel = doc.createElement('label');
-      typeLabel.className = 'sortering__item-editor-label';
+      typeLabel.className = 'sortering__item-editor-label sr-only';
       typeLabel.textContent = 'Innholdstype';
       const typeSelect = doc.createElement('select');
       typeSelect.className = 'sortering__item-editor-select';
