@@ -103,10 +103,7 @@
       } catch (_) {
         palette = null;
       }
-      if (
-        (!Array.isArray(palette) || (targetCount && palette.length < targetCount)) &&
-        theme.getGroupPalette.length >= 3
-      ) {
+      if (!Array.isArray(palette) || (targetCount && palette.length < targetCount)) {
         try {
           palette = theme.getGroupPalette(
             FRACTION_GROUP_ID,
