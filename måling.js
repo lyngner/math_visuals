@@ -3353,17 +3353,19 @@
 
   function buildExportMetadata(settings) {
     const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
-    const figureName = settings.figureName || 'Figur';
+    const figureNameRaw = typeof settings.figureName === 'string' ? settings.figureName.trim() : '';
+    const figureName = figureNameRaw || 'Figur';
     const unitLabel = settings.unitLabel ? settings.unitLabel.trim() : '';
     const activeToolKey = sanitizeActiveTool(settings && settings.activeTool, appState.activeTool);
     const toolInfo = getToolDisplayInfo(activeToolKey);
+    const toolTitle = toolInfo.title;
     const valueMultiplier = resolveRulerValueMultiplier(settings);
     const effectiveLengthRaw = getEffectiveToolLength(settings, activeToolKey);
     const effectiveLength = roundForDisplay(effectiveLengthRaw);
     const slugBaseParts = [
       'måling',
       figureName,
-      toolInfo.title,
+      toolTitle,
       String(effectiveLength) + (unitLabel ? unitLabel : '')
     ];
     const slugBase = slugBaseParts.join(' ').trim() || 'måling';
@@ -3387,7 +3389,7 @@
       descriptionParts.push(`Oppgave: ${target}`);
     }
     const description =
-      descriptionParts.join(' – ') || `${toolInfo.title} er ${lengthText}${unitSuffix} lang.`;
+      descriptionParts.join(' – ') || `${toolTitle} er ${lengthText}${unitSuffix} lang.`;
     const altText = buildStatusMessage(settings);
     const summary = {
       figureName,
@@ -3397,7 +3399,7 @@
     };
     summary.tool = {
       key: activeToolKey,
-      title: toolInfo.title,
+      title: toolTitle,
       label: toolInfo.label,
       length: effectiveLength,
       unit: unitLabel || null,
@@ -3442,7 +3444,7 @@
       baseName,
       description,
       altText,
-      title: `${figureName} – ${toolInfo.title}`,
+      title: `${figureName} – ${toolTitle}`,
       summary
     };
   }
