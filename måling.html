@@ -378,28 +378,6 @@
       gap: 12px 16px;
     }
 
-    .tool-toggle {
-      display: inline-flex;
-      align-items: center;
-      gap: 12px;
-      padding: 6px;
-      border-radius: 999px;
-      background: rgba(15, 23, 42, 0.06);
-    }
-
-    .tool-toggle__option {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: 600;
-      color: #1e293b;
-    }
-
-    .tool-toggle__option input[type="radio"] {
-      accent-color: var(--accent);
-      cursor: pointer;
-    }
-
     @media (max-width: 720px) {
       .toggle-grid {
         grid-template-columns: minmax(0, 1fr);
@@ -530,17 +508,11 @@
                 </div>
               </div>
               <div class="input-stack">
-                <span>Verktøy</span>
-                <div class="tool-toggle" role="radiogroup" aria-label="Måleverktøy">
-                  <label class="tool-toggle__option">
-                    <input type="radio" name="measurement-tool" value="ruler" checked />
-                    <span>Linjal</span>
-                  </label>
-                  <label class="tool-toggle__option">
-                    <input type="radio" name="measurement-tool" value="tape" />
-                    <span>Målebånd</span>
-                  </label>
-                </div>
+                <label for="cfg-measurement-tool">Verktøy</label>
+                <select id="cfg-measurement-tool">
+                  <option value="ruler" selected>Linjal</option>
+                  <option value="tape">Målebånd</option>
+                </select>
               </div>
               <div class="toggle-grid">
                 <label class="settings__toggle">
