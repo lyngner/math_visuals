@@ -50,7 +50,8 @@
     gridEnabled: doc.getElementById('cfg-grid-enabled'),
     showScaleLabel: doc.getElementById('cfg-show-scale'),
     measurementWithoutScale: doc.getElementById('cfg-measurement-without-scale'),
-    panningEnabled: doc.getElementById('cfg-pan-enabled')
+    panningEnabled: doc.getElementById('cfg-pan-enabled'),
+    rulerBackgroundMode: doc.getElementById('cfg-ruler-background-mode')
   };
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
@@ -113,6 +114,7 @@
     showScaleLabel: false,
     measurementWithoutScale: false,
     panningEnabled: false,
+    rulerBackgroundMode: 'tight',
     rulerTransform: null,
     boardPanTransform: { x: 0, y: 0 }
   };
@@ -215,6 +217,9 @@
         target.rulerStartAtZero = parsed <= 0;
       }
     }
+    if (Object.prototype.hasOwnProperty.call(source, 'rulerBackgroundMode')) {
+      target.rulerBackgroundMode = source.rulerBackgroundMode;
+    }
     if (Object.prototype.hasOwnProperty.call(source, 'gridEnabled')) target.gridEnabled = source.gridEnabled;
     if (Object.prototype.hasOwnProperty.call(source, 'showScaleLabel')) target.showScaleLabel = source.showScaleLabel;
     if (Object.prototype.hasOwnProperty.call(source, 'measurementWithoutScale')) {
@@ -243,6 +248,7 @@
       container.unitLabel = settings.unitLabel;
       container.boardPadding = settings.boardPadding;
       container.rulerStartAtZero = settings.rulerStartAtZero;
+      container.rulerBackgroundMode = settings.rulerBackgroundMode;
       container.gridEnabled = settings.gridEnabled;
       container.showScaleLabel = settings.showScaleLabel;
       container.measurementWithoutScale = !!settings.measurementWithoutScale;
@@ -270,6 +276,7 @@
     container.measurementTarget = settings.measurementTarget;
     container.boardPadding = settings.boardPadding;
     container.rulerStartAtZero = settings.rulerStartAtZero;
+    container.rulerBackgroundMode = settings.rulerBackgroundMode;
     container.gridEnabled = settings.gridEnabled;
     container.showScaleLabel = settings.showScaleLabel;
     container.measurementWithoutScale = !!settings.measurementWithoutScale;
@@ -378,6 +385,26 @@
       return Math.max(0, fallback || 0);
     }
     return Math.min(Math.max(rounded, 0), 200);
+  }
+
+  function sanitizeRulerBackgroundMode(value, fallback) {
+    const defaultValue = fallback === 'padded' ? 'padded' : 'tight';
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'padded' || normalized === 'padding' || normalized === 'wide') {
+        return 'padded';
+      }
+      if (normalized === 'tight' || normalized === 'compact' || normalized === 'narrow') {
+        return 'tight';
+      }
+    }
+    if (value === 'padded') {
+      return 'padded';
+    }
+    if (value === 'tight') {
+      return 'tight';
+    }
+    return defaultValue;
   }
 
   function sanitizeBoolean(value, fallback) {
@@ -530,6 +557,10 @@
     const figureScaleLabel = sanitizeFigureScaleLabel(combined.figureScaleLabel, defaults.figureScaleLabel);
     const boardPadding = sanitizeBoardPadding(combined.boardPadding, defaults.boardPadding);
     const rulerStartAtZero = sanitizeBoolean(combined.rulerStartAtZero, defaults.rulerStartAtZero);
+    const rulerBackgroundMode = sanitizeRulerBackgroundMode(
+      combined.rulerBackgroundMode,
+      defaults.rulerBackgroundMode
+    );
     const gridEnabled = sanitizeGridEnabled(combined.gridEnabled, defaults.gridEnabled);
     const showScaleLabel = sanitizeGridEnabled(combined.showScaleLabel, defaults.showScaleLabel);
     const measurementWithoutScale = sanitizeBoolean(
@@ -551,6 +582,7 @@
       measurementTarget,
       boardPadding,
       rulerStartAtZero,
+      rulerBackgroundMode,
       gridEnabled,
       showScaleLabel,
       measurementWithoutScale,
@@ -592,6 +624,7 @@
       a.measurementTarget === b.measurementTarget &&
       a.boardPadding === b.boardPadding &&
       a.rulerStartAtZero === b.rulerStartAtZero &&
+      a.rulerBackgroundMode === b.rulerBackgroundMode &&
       a.gridEnabled === b.gridEnabled &&
       a.showScaleLabel === b.showScaleLabel &&
       a.measurementWithoutScale === b.measurementWithoutScale &&
@@ -1545,6 +1578,7 @@
     }
 
     const { length, subdivisions, unitLabel } = settings;
+    const backgroundMode = settings && settings.rulerBackgroundMode === 'padded' ? 'padded' : 'tight';
     const valueMultiplier = resolveRulerValueMultiplier(settings, scaleMetrics);
     const inset = 8;
     const startAtZero = !!settings.rulerStartAtZero;
@@ -1553,8 +1587,9 @@
     const totalTicks = effectiveLength + 1;
     const paddingLeft = 0;
     const paddingRight = 0;
-    const marginLeft = 0;
-    const marginRight = 0;
+    const marginValue = backgroundMode === 'padded' ? 20 : 0;
+    const marginLeft = marginValue;
+    const marginRight = marginValue;
     const totalHeight = 120;
     const baselineY = inset + 26;
     const majorTickLength = (totalHeight - inset - 20 - baselineY) / 2;
@@ -1617,6 +1652,7 @@
     ruler.style.setProperty('--ruler-padding-right', `${paddingRight}px`);
     ruler.style.setProperty('--zero-offset-x', `${zeroOffsetX}px`);
     ruler.style.setProperty('--zero-offset-y', `${baselineY}px`);
+    ruler.setAttribute('data-ruler-background-mode', backgroundMode);
     if (startAtZero) {
       ruler.setAttribute('data-ruler-start', 'zero');
     } else {
@@ -1679,6 +1715,7 @@
       if (inputs.unitLabel) inputs.unitLabel.value = settings.unitLabel || '';
       if (inputs.boardPadding) inputs.boardPadding.value = settings.boardPadding;
       if (inputs.rulerStartAtZero) inputs.rulerStartAtZero.checked = !!settings.rulerStartAtZero;
+      if (inputs.rulerBackgroundMode) inputs.rulerBackgroundMode.value = settings.rulerBackgroundMode || 'tight';
       if (inputs.gridEnabled) inputs.gridEnabled.checked = !!settings.gridEnabled;
       if (inputs.showScaleLabel) inputs.showScaleLabel.checked = !!settings.showScaleLabel;
       if (inputs.measurementWithoutScale) {
@@ -1767,6 +1804,12 @@
       inputs.rulerStartAtZero.addEventListener('change', event => {
         if (appState.syncingInputs) return;
         updateSettings({ rulerStartAtZero: event.target.checked });
+      });
+    }
+    if (inputs.rulerBackgroundMode) {
+      inputs.rulerBackgroundMode.addEventListener('change', event => {
+        if (appState.syncingInputs) return;
+        updateSettings({ rulerBackgroundMode: event.target.value });
       });
     }
     if (inputs.gridEnabled) {
@@ -2632,7 +2675,8 @@
         length: effectiveLength,
         unit: unitLabel || null,
         subdivisions: settings.subdivisions,
-        valueMultiplier
+        valueMultiplier,
+        backgroundMode: settings.rulerBackgroundMode
       }
     };
     if (settings.figureScaleLabel) {
@@ -2734,7 +2778,7 @@
         letter-spacing: 0.03em;
       }
       .mv-figure { image-rendering: optimizeQuality; }
-      .mv-ruler .ruler-svg__background { fill: none; stroke: none; }
+      .mv-ruler .ruler-svg__background { fill: rgba(255, 255, 255, 0.5); stroke: none; }
       .mv-ruler .ruler-svg__baseline { stroke: rgba(15, 23, 42, 0.75); stroke-width: 2; stroke-linecap: round; }
       .mv-ruler .ruler-svg__tick { stroke-linecap: round; }
       .mv-ruler .ruler-svg__tick--major { stroke: rgba(15, 23, 42, 0.78); stroke-width: 2.5; }
