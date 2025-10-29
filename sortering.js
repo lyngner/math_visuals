@@ -1286,8 +1286,8 @@
     return slots.sort((a, b) => a.center - b.center);
   }
 
-  function determineDragTargetIndex(activeId, pointerCoord, orientation) {
-    const slots = collectSwapSlots(activeId, orientation);
+  function determineDragTargetIndex(activeId, pointerCoord, orientation, slotsOverride) {
+    const slots = Array.isArray(slotsOverride) ? slotsOverride : collectSwapSlots(activeId, orientation);
     if (!slots.length || !Number.isFinite(pointerCoord)) {
       return 0;
     }
@@ -1314,6 +1314,103 @@
     return slots.length;
   }
 
+  function getOrderSignature() {
+    return currentOrder.join('|');
+  }
+
+  function refreshDragSlotCache(orientation) {
+    if (!dragState) {
+      return [];
+    }
+    const slots = collectSwapSlots(dragState.id, orientation);
+    dragState.slotCache = slots;
+    dragState.slotCacheOrientation = orientation;
+    dragState.slotCacheSignature = getOrderSignature();
+    dragState.slotCacheDirty = false;
+    return slots;
+  }
+
+  function ensureDragSlotCache(orientation) {
+    if (!dragState) {
+      return [];
+    }
+    const signature = getOrderSignature();
+    if (
+      !Array.isArray(dragState.slotCache) ||
+      dragState.slotCacheOrientation !== orientation ||
+      dragState.slotCacheSignature !== signature ||
+      dragState.slotCacheDirty
+    ) {
+      return refreshDragSlotCache(orientation);
+    }
+    return dragState.slotCache;
+  }
+
+  function cancelDragMeasurement(targetState) {
+    const stateToClear = targetState || dragState;
+    if (!stateToClear || stateToClear.measurementHandle == null) {
+      return;
+    }
+    if (stateToClear.measurementHandleType === 'raf' && typeof globalObj.cancelAnimationFrame === 'function') {
+      globalObj.cancelAnimationFrame(stateToClear.measurementHandle);
+    } else if (stateToClear.measurementHandleType === 'timeout' && typeof globalObj.clearTimeout === 'function') {
+      globalObj.clearTimeout(stateToClear.measurementHandle);
+    }
+    stateToClear.measurementHandle = null;
+    stateToClear.measurementHandleType = null;
+  }
+
+  function performDragMeasurement() {
+    if (!dragState) {
+      return;
+    }
+    const nodes = itemNodes.get(dragState.id);
+    if (!nodes || !nodes.wrapper) {
+      return;
+    }
+    const { wrapper } = nodes;
+    wrapper.style.transform = '';
+    const rect = wrapper.getBoundingClientRect();
+    const baseCenterX = rect.left + rect.width / 2;
+    const baseCenterY = rect.top + rect.height / 2;
+    dragState.baseCenterX = baseCenterX;
+    dragState.baseCenterY = baseCenterY;
+    const desiredCenterX = dragState.pointerX - dragState.offsetX;
+    const desiredCenterY = dragState.pointerY - dragState.offsetY;
+    if (!Number.isFinite(desiredCenterX) || !Number.isFinite(desiredCenterY)) {
+      wrapper.style.transform = '';
+      return;
+    }
+    const dx = desiredCenterX - baseCenterX;
+    const dy = desiredCenterY - baseCenterY;
+    dragState.translationX = dx;
+    dragState.translationY = dy;
+    wrapper.style.transform = `translate(${dx}px, ${dy}px)`;
+  }
+
+  function scheduleDragMeasurement() {
+    if (!dragState || dragState.measurementHandle != null) {
+      return;
+    }
+    const applyMeasurement = () => {
+      dragState.measurementHandle = null;
+      dragState.measurementHandleType = null;
+      if (!dragState) {
+        return;
+      }
+      performDragMeasurement();
+    };
+    if (typeof globalObj.requestAnimationFrame === 'function') {
+      dragState.measurementHandleType = 'raf';
+      dragState.measurementHandle = globalObj.requestAnimationFrame(applyMeasurement);
+    } else if (typeof globalObj.setTimeout === 'function') {
+      dragState.measurementHandleType = 'timeout';
+      dragState.measurementHandle = globalObj.setTimeout(applyMeasurement, 16);
+    } else {
+      applyMeasurement();
+    }
+  }
+
   function startPointerDrag(event, id) {
     if (!visualList || dragState || !state) return;
     if (typeof event.button === 'number' && event.button !== 0) return;
@@ -1327,14 +1424,29 @@
     wrapper.style.transform = previousTransform;
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
+    const pointerX = Number.isFinite(event.clientX) ? event.clientX : centerX;
+    const pointerY = Number.isFinite(event.clientY) ? event.clientY : centerY;
     dragState = {
       id,
       pointerId: event.pointerId,
       orientation,
-      offsetX: event.clientX - centerX,
-      offsetY: event.clientY - centerY,
-      lastKnownIndex: currentOrder.indexOf(id)
+      offsetX: pointerX - centerX,
+      offsetY: pointerY - centerY,
+      baseCenterX: centerX,
+      baseCenterY: centerY,
+      pointerX,
+      pointerY,
+      translationX: 0,
+      translationY: 0,
+      lastKnownIndex: currentOrder.indexOf(id),
+      measurementHandle: null,
+      measurementHandleType: null,
+      slotCache: null,
+      slotCacheOrientation: null,
+      slotCacheSignature: null,
+      slotCacheDirty: true
     };
+    refreshDragSlotCache(orientation);
     wrapper.classList.add('sortering__item--dragging');
     wrapper.style.transition = 'none';
     if (typeof wrapper.setPointerCapture === 'function') {
@@ -1356,27 +1468,42 @@
     const wrapper = nodes.wrapper;
     const orientation = dragState.orientation || normalizeDirection(state && state.retning ? state.retning : 'horisontal');
 
-    wrapper.style.transform = '';
-    const rect = wrapper.getBoundingClientRect();
-    const baseCenterX = rect.left + rect.width / 2;
-    const baseCenterY = rect.top + rect.height / 2;
-    const desiredCenterX = event.clientX - dragState.offsetX;
-    const desiredCenterY = event.clientY - dragState.offsetY;
+    const pointerX = Number.isFinite(event.clientX) ? event.clientX : dragState.pointerX;
+    const pointerY = Number.isFinite(event.clientY) ? event.clientY : dragState.pointerY;
+    dragState.pointerX = pointerX;
+    dragState.pointerY = pointerY;
+
+    const desiredCenterX = dragState.pointerX - dragState.offsetX;
+    const desiredCenterY = dragState.pointerY - dragState.offsetY;
+    if (!Number.isFinite(desiredCenterX) || !Number.isFinite(desiredCenterY)) {
+      return;
+    }
+
+    const baseCenterX = Number.isFinite(dragState.baseCenterX) ? dragState.baseCenterX : desiredCenterX;
+    const baseCenterY = Number.isFinite(dragState.baseCenterY) ? dragState.baseCenterY : desiredCenterY;
     const dx = desiredCenterX - baseCenterX;
     const dy = desiredCenterY - baseCenterY;
+    dragState.translationX = dx;
+    dragState.translationY = dy;
     wrapper.style.transform = `translate(${dx}px, ${dy}px)`;
 
     const pointerCoord = orientation === 'vertikal' ? desiredCenterY : desiredCenterX;
     if (!Number.isFinite(pointerCoord)) return;
 
-    const targetIndex = determineDragTargetIndex(id, pointerCoord, orientation);
-    const currentIndex = currentOrder.indexOf(id);
+    const slots = ensureDragSlotCache(orientation);
+    const targetIndex = determineDragTargetIndex(id, pointerCoord, orientation, slots);
+    const currentIndex = Number.isFinite(dragState.lastKnownIndex)
+      ? dragState.lastKnownIndex
+      : currentOrder.indexOf(id);
     if (targetIndex === currentIndex) {
       return;
     }
     const moved = moveItemToIndex(id, targetIndex, { preserveTransform: true });
     if (moved) {
       dragState.lastKnownIndex = currentOrder.indexOf(id);
+      dragState.slotCacheDirty = true;
+      dragState.slotCacheSignature = null;
+      scheduleDragMeasurement();
     }
   }
 
@@ -1384,6 +1511,7 @@
     if (!dragState || dragState.id !== id) return;
     if (event.pointerId !== dragState.pointerId) return;
     const nodes = itemNodes.get(id);
+    cancelDragMeasurement(dragState);
     dragState = null;
     if (nodes && nodes.wrapper) {
       if (typeof nodes.wrapper.releasePointerCapture === 'function') {
