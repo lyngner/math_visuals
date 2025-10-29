@@ -176,6 +176,11 @@
       opacity: 1;
     }
 
+    .board[data-active-tool='ruler'] [data-tape-measure],
+    .board[data-active-tool='tape'] [data-ruler] {
+      display: none !important;
+    }
+
     .ruler {
       position: absolute;
       top: 0;
