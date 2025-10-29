@@ -1174,17 +1174,29 @@
   let dragState = null;
   let currentAppMode = 'default';
   function updateInlineEditorVisibility(nodes) {
-    if (!nodes || !nodes.inlineEditor) return;
+    if (!nodes) return;
     const editable = isEditorMode();
-    const { inlineEditor, wrapper } = nodes;
-    if (inlineEditor.host) {
-      inlineEditor.host.hidden = !editable;
-    }
-    if (inlineEditor.panel) {
-      inlineEditor.panel.hidden = !editable;
+    const reorderable = canReorderItems();
+    const { inlineEditor, wrapper, button } = nodes;
+    if (inlineEditor) {
+      if (inlineEditor.host) {
+        inlineEditor.host.hidden = !editable;
+      }
+      if (inlineEditor.panel) {
+        inlineEditor.panel.hidden = !editable;
+      }
     }
     if (wrapper) {
       wrapper.classList.toggle('sortering__item--editable', editable);
+      wrapper.style.touchAction = reorderable ? 'none' : 'auto';
+    }
+    if (button) {
+      button.disabled = !reorderable;
+      if (reorderable) {
+        button.removeAttribute('aria-disabled');
+      } else {
+        button.setAttribute('aria-disabled', 'true');
+      }
     }
   }
   function refreshItemsById() {
@@ -1226,13 +1238,20 @@
     return currentAppMode !== 'task';
   }
 
+  function canReorderItems() {
+    return currentAppMode === 'task';
+  }
+
   function updateFigureEditorMode() {
     const editable = isEditorMode();
     if (figureHost) {
       figureHost.dataset.editorMode = editable ? 'edit' : 'view';
     }
+    if (!canReorderItems()) {
+      finalizeKeyboardMode();
+    }
     itemNodes.forEach(nodes => {
-      if (!nodes || !nodes.inlineEditor) return;
+      if (!nodes) return;
       updateInlineEditorVisibility(nodes);
     });
   }
@@ -1338,17 +1357,31 @@
   function updateInlineEditorView(item, inlineEditor) {
     if (!inlineEditor) return;
     const type = isFigureItem(item) ? 'figure' : 'text';
+    const isFigure = type === 'figure';
+    const isText = !isFigure;
+    if (isFigure && typeof item.text === 'string' && item.text) {
+      item.text = '';
+    }
     if (inlineEditor.typeSelect) {
       inlineEditor.typeSelect.value = type;
     }
     if (inlineEditor.textFieldWrapper) {
-      inlineEditor.textFieldWrapper.hidden = type !== 'text';
+      inlineEditor.textFieldWrapper.hidden = !isText;
     }
     if (inlineEditor.figureField) {
-      inlineEditor.figureField.hidden = type !== 'figure';
+      inlineEditor.figureField.hidden = !isFigure;
     }
     if (inlineEditor.textField) {
-      inlineEditor.textField.value = typeof item.text === 'string' ? item.text : '';
+      inlineEditor.textField.disabled = !isText;
+      inlineEditor.textField.value = isText && typeof item.text === 'string' ? item.text : '';
+    }
+    if (inlineEditor.addFigureButton) {
+      inlineEditor.addFigureButton.disabled = !isFigure;
+      if (isFigure) {
+        inlineEditor.addFigureButton.removeAttribute('aria-disabled');
+      } else {
+        inlineEditor.addFigureButton.setAttribute('aria-disabled', 'true');
+      }
     }
     if (inlineEditor.labelInput) {
       inlineEditor.labelInput.value = typeof item.label === 'string' ? item.label : '';
@@ -1356,7 +1389,7 @@
     if (inlineEditor.altInput) {
       inlineEditor.altInput.value = typeof item.alt === 'string' ? item.alt : '';
     }
-    if (type === 'figure') {
+    if (isFigure) {
       renderInlineEditorFigures(item, inlineEditor);
     } else if (inlineEditor.figureList) {
       inlineEditor.figureList.textContent = '';
@@ -1473,8 +1506,11 @@
         item.type = nextType;
         if (nextType === 'text') {
           item.figures = [];
-        } else if (nextType === 'figure' && (!Array.isArray(item.figures) || !item.figures.length)) {
-          addFigureToItem(item);
+        } else if (nextType === 'figure') {
+          item.text = '';
+          if (!Array.isArray(item.figures) || !item.figures.length) {
+            addFigureToItem(item);
+          }
         }
         refreshItemsById();
         applyOrder({});
@@ -1490,6 +1526,7 @@
       });
 
       addFigureButton.addEventListener('click', () => {
+        if (item.type !== 'figure') return;
         addFigureToItem(item);
         refreshItemsById();
         applyOrder({});
@@ -1774,7 +1811,7 @@
   }
 
   function handleKeyboardInteraction(event, id) {
-    if (!state || keyboardActiveId !== id) return;
+    if (!state || keyboardActiveId !== id || !canReorderItems()) return;
     if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
       event.preventDefault();
       const moved = swapWith(id, -1);
@@ -1796,7 +1833,7 @@
   }
 
   function activateKeyboardMode(id) {
-    if (!id) return;
+    if (!id || !canReorderItems()) return;
     if (keyboardActiveId === id) return;
     finalizeKeyboardMode();
     const nodes = itemNodes.get(id);
@@ -1951,6 +1988,7 @@
   }
 
   function startPointerDrag(event, id) {
+    if (!canReorderItems()) return;
     if (!visualList || dragState || !state) return;
     if (typeof event.button === 'number' && event.button !== 0) return;
     const nodes = itemNodes.get(id);
@@ -2094,12 +2132,16 @@
     if (!nodes || nodes.wrapper.dataset.listenersAttached === 'true') return;
     nodes.wrapper.dataset.listenersAttached = 'true';
     nodes.wrapper.style.touchAction = 'none';
-    nodes.wrapper.addEventListener('pointerdown', event => startPointerDrag(event, id));
+    nodes.wrapper.addEventListener('pointerdown', event => {
+      if (!canReorderItems()) return;
+      startPointerDrag(event, id);
+    });
     nodes.wrapper.addEventListener('pointermove', event => handlePointerMove(event, id));
     nodes.wrapper.addEventListener('pointerup', event => finishPointerDrag(event, id));
     nodes.wrapper.addEventListener('pointercancel', event => finishPointerDrag(event, id));
 
     nodes.button.addEventListener('click', () => {
+      if (!canReorderItems()) return;
       if (keyboardActiveId === id) {
         snapToSlot();
         updateItemPositions();
@@ -2110,6 +2152,7 @@
     });
 
     nodes.button.addEventListener('keydown', event => {
+      if (!canReorderItems()) return;
       if (event.key === 'Enter' && keyboardActiveId !== id) {
         event.preventDefault();
         activateKeyboardMode(id);
@@ -2122,10 +2165,12 @@
     });
 
     nodes.button.addEventListener('focus', () => {
+      if (!canReorderItems()) return;
       nodes.wrapper.classList.add('sortering__item--focus');
     });
 
     nodes.button.addEventListener('blur', () => {
+      if (!canReorderItems()) return;
       nodes.wrapper.classList.remove('sortering__item--focus');
       if (keyboardActiveId === id) {
         snapToSlot();
@@ -2197,7 +2242,7 @@
     state.retning = direction;
 
     visualList.style.display = 'flex';
-    visualList.style.flexWrap = direction === 'vertikal' ? 'nowrap' : 'wrap';
+    visualList.style.flexWrap = 'nowrap';
     visualList.style.flexDirection = direction === 'vertikal' ? 'column' : 'row';
     visualList.style.alignItems = direction === 'vertikal' ? 'flex-start' : 'stretch';
     visualList.style.gap = `${state.gap}px`;

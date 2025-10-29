@@ -850,10 +850,11 @@ input[type="radio"] {
   width: 100%;
   min-height: 280px;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: stretch;
   justify-content: center;
   gap: 24px;
+  overflow-x: auto;
 }
 
 .sortering__items[data-direction="vertikal"] {
@@ -882,6 +883,8 @@ input[type="radio"] {
 .sortering__item--editable {
   align-items: stretch;
   justify-content: flex-start;
+  cursor: default;
+  user-select: text;
 }
 
 .sortering__item--dragging {
