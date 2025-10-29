@@ -9,8 +9,13 @@
   const boardScaleLabel = board ? board.querySelector('[data-scale-label]') : null;
   const ruler = board ? board.querySelector('[data-ruler]') : null;
   const rulerSvg = ruler ? ruler.querySelector('[data-ruler-svg]') : null;
+  const tapeMeasure = board ? board.querySelector('[data-tape-measure]') : null;
+  const tapeStrap = tapeMeasure ? tapeMeasure.querySelector('[data-tape-strap]') : null;
+  const tapeHousing = tapeMeasure ? tapeMeasure.querySelector('[data-tape-housing]') : null;
+  const hasRuler = !!(ruler && rulerSvg);
+  const hasTapeMeasure = !!(tapeMeasure && tapeStrap && tapeHousing);
   const boardGridOverlay = board ? board.querySelector('[data-grid-overlay]') : null;
-  if (!board || !ruler || !rulerSvg) {
+  if (!board || (!hasRuler && !hasTapeMeasure)) {
     return;
   }
 
@@ -50,11 +55,17 @@
     showScaleLabel: doc.getElementById('cfg-show-scale'),
     measurementWithoutScale: doc.getElementById('cfg-measurement-without-scale'),
     panningEnabled: doc.getElementById('cfg-pan-enabled'),
-    rulerBackgroundMode: doc.getElementById('cfg-ruler-background-mode')
+    rulerBackgroundMode: doc.getElementById('cfg-ruler-background-mode'),
+    measurementTool: Array.from(doc.querySelectorAll('input[name="measurement-tool"]'))
   };
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
-  const transformState = { x: 0, y: 0, rotation: 0 };
+  const transformStates = {
+    ruler: { x: 0, y: 0, rotation: 0 },
+    tape: { x: 0, y: 0, rotation: 0 }
+  };
+  const defaultActiveTool = hasRuler ? 'ruler' : hasTapeMeasure ? 'tape' : 'ruler';
+  let transformState = transformStates[defaultActiveTool];
   let suspendTransformPersistence = true;
   const BASE_BOARD_DIMENSIONS = { width: 1000, height: 700 };
   const figureImageDimensions = new Map();
@@ -65,7 +76,11 @@
   let boardRect = board.getBoundingClientRect();
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const XLINK_NS = 'http://www.w3.org/1999/xlink';
-  const baseSize = { width: ruler.offsetWidth, height: ruler.offsetHeight };
+  const activeInstrumentForSize = hasRuler ? ruler : tapeMeasure;
+  const baseSize = {
+    width: activeInstrumentForSize ? activeInstrumentForSize.offsetWidth : 0,
+    height: activeInstrumentForSize ? activeInstrumentForSize.offsetHeight : 0
+  };
   const RULER_SHADOW_FILTER_ID = 'rulerSvgDropShadow';
   const zeroOffset = { x: 0, y: 0 };
   const CUSTOM_CATEGORY_ID = 'custom';
@@ -76,6 +91,7 @@
     settings: null,
     syncingInputs: false,
     measurementTargetAuto: true,
+    activeTool: defaultActiveTool,
     unitLabelCache: {
       withScale: '',
       withoutScale: ''
@@ -115,19 +131,30 @@
     panningEnabled: false,
     rulerBackgroundMode: 'tight',
     rulerTransform: null,
-    boardPanTransform: { x: 0, y: 0 }
+    boardPanTransform: { x: 0, y: 0 },
+    activeTool: defaultActiveTool,
+    tapeMeasureLength: 10,
+    tapeMeasureTransform: null
   };
 
   appState.settings = normalizeSettings();
+  appState.activeTool = sanitizeActiveTool(appState.settings && appState.settings.activeTool, defaultActiveTool);
   initializeUnitLabelCache(appState.settings);
   appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(appState.settings);
   applySettings(appState.settings);
   syncInputs(appState.settings);
-  const initialTransform = sanitizeRulerTransform(appState.settings && appState.settings.rulerTransform, null);
+  const initialToolKey = appState.activeTool;
+  const initialTransform = sanitizeRulerTransform(
+    appState.settings &&
+      (initialToolKey === 'tape'
+        ? appState.settings.tapeMeasureTransform
+        : appState.settings.rulerTransform),
+    null
+  );
   if (initialTransform) {
-    applyRulerTransform(initialTransform, { allowSnap: false, persist: false });
+    applyInstrumentTransform(initialTransform, { allowSnap: false, persist: false }, initialToolKey);
     suspendTransformPersistence = false;
-    persistTransformState();
+    persistActiveInstrumentState();
   } else {
     suspendTransformPersistence = false;
     centerRuler();
@@ -138,15 +165,8 @@
     exportButton.addEventListener('click', handleExport);
   }
 
-  ruler.addEventListener('pointerdown', handlePointerDown, { passive: false });
-  ruler.addEventListener('pointermove', handlePointerMove);
-  ruler.addEventListener('pointerup', handlePointerEnd);
-  ruler.addEventListener('pointercancel', handlePointerEnd);
-  ruler.addEventListener('lostpointercapture', event => {
-    if (event.pointerId != null) {
-      activePointers.delete(event.pointerId);
-    }
-  });
+  attachInstrumentPointerHandlers(ruler);
+  attachInstrumentPointerHandlers(tapeMeasure);
 
   board.addEventListener('dblclick', event => {
     event.preventDefault();
@@ -208,6 +228,8 @@
     if (source.boardPanTransform != null) target.boardPanTransform = source.boardPanTransform;
     else if (source.boardPan != null) target.boardPanTransform = source.boardPan;
     if (source.rulerTransform != null) target.rulerTransform = source.rulerTransform;
+    if (source.tapeMeasureTransform != null) target.tapeMeasureTransform = source.tapeMeasureTransform;
+    if (source.tapeMeasureLength != null) target.tapeMeasureLength = source.tapeMeasureLength;
     if (Object.prototype.hasOwnProperty.call(source, 'rulerStartAtZero')) {
       delete target.rulerStartAtZero;
     }
@@ -228,6 +250,9 @@
     } else if (Object.prototype.hasOwnProperty.call(source, 'allowPan')) {
       target.panningEnabled = source.allowPan;
     }
+    if (typeof source.activeTool === 'string') {
+      target.activeTool = source.activeTool;
+    }
     // unit spacing is fixed and not configurable
   }
 
@@ -247,6 +272,8 @@
       container.measurementWithoutScale = !!settings.measurementWithoutScale;
       container.panningEnabled = !!settings.panningEnabled;
       container.panorering = !!settings.panningEnabled;
+      container.activeTool = settings.activeTool;
+      container.tapeMeasureLength = settings.tapeMeasureLength;
       delete container.rulerStartAtZero;
       delete container.rulerPadding;
       delete container.unitSpacingOverride;
@@ -256,6 +283,7 @@
       delete container.figureScaleLabel;
       delete container.measurementTarget;
       delete container.rulerTransform;
+      delete container.tapeMeasureTransform;
       delete container.boardPanTransform;
       delete container.boardPan;
       return;
@@ -275,6 +303,8 @@
     container.measurementWithoutScale = !!settings.measurementWithoutScale;
     container.panningEnabled = !!settings.panningEnabled;
     container.panorering = !!settings.panningEnabled;
+    container.activeTool = settings.activeTool;
+    container.tapeMeasureLength = settings.tapeMeasureLength;
     delete container.unitSpacingOverride;
     delete container.rulerPadding;
     delete container.rulerStartAtZero;
@@ -282,6 +312,11 @@
       container.rulerTransform = { ...settings.rulerTransform };
     } else {
       delete container.rulerTransform;
+    }
+    if (settings.tapeMeasureTransform && typeof settings.tapeMeasureTransform === 'object') {
+      container.tapeMeasureTransform = { ...settings.tapeMeasureTransform };
+    } else {
+      delete container.tapeMeasureTransform;
     }
     if (settings.boardPanTransform && typeof settings.boardPanTransform === 'object') {
       container.boardPanTransform = { ...settings.boardPanTransform };
@@ -484,6 +519,30 @@
     };
   }
 
+  function sanitizeActiveTool(value, fallback) {
+    const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    if (normalized === 'tape' && hasTapeMeasure) {
+      return 'tape';
+    }
+    if (normalized === 'ruler' && hasRuler) {
+      return 'ruler';
+    }
+    const fallbackNormalized = typeof fallback === 'string' ? fallback.trim().toLowerCase() : '';
+    if (fallbackNormalized === 'tape' && hasTapeMeasure) {
+      return 'tape';
+    }
+    if (fallbackNormalized === 'ruler' && hasRuler) {
+      return 'ruler';
+    }
+    if (hasRuler) {
+      return 'ruler';
+    }
+    if (hasTapeMeasure) {
+      return 'tape';
+    }
+    return fallbackNormalized || 'ruler';
+  }
+
   function sanitizeBoardPanTransform(value, fallback) {
     const source = value && typeof value === 'object' ? value : fallback;
     if (!source || typeof source !== 'object') {
@@ -565,6 +624,15 @@
     const panningEnabled = sanitizeBoolean(combined.panningEnabled, defaults.panningEnabled);
     const rulerTransform = sanitizeRulerTransform(combined.rulerTransform, defaults.rulerTransform);
     const boardPanTransform = sanitizeBoardPanTransform(combined.boardPanTransform, defaults.boardPanTransform);
+    const tapeMeasureTransform = sanitizeRulerTransform(
+      combined.tapeMeasureTransform,
+      defaults.tapeMeasureTransform
+    );
+    const activeTool = sanitizeActiveTool(combined.activeTool, defaults.activeTool);
+    const tapeMeasureLength = sanitizeLength(
+      combined.tapeMeasureLength,
+      defaults.tapeMeasureLength
+    );
 
     const settings = {
       length,
@@ -582,7 +650,10 @@
       measurementWithoutScale,
       panningEnabled,
       rulerTransform,
-      boardPanTransform
+      boardPanTransform,
+      activeTool,
+      tapeMeasureLength,
+      tapeMeasureTransform
     };
 
     applySettingsToContainer(configContainers.measurement, settings);
@@ -622,7 +693,10 @@
       a.showScaleLabel === b.showScaleLabel &&
       a.measurementWithoutScale === b.measurementWithoutScale &&
       a.panningEnabled === b.panningEnabled &&
+      a.activeTool === b.activeTool &&
+      a.tapeMeasureLength === b.tapeMeasureLength &&
       areRulerTransformsEqual(a.rulerTransform, b.rulerTransform) &&
+      areRulerTransformsEqual(a.tapeMeasureTransform, b.tapeMeasureTransform) &&
       areBoardPanTransformsEqual(a.boardPanTransform, b.boardPanTransform)
     );
   }
@@ -1014,15 +1088,34 @@
     return displayMultiplier;
   }
 
-  function getEffectiveRulerLength(settings, scaleMetrics) {
+  function getEffectiveToolLength(settings, toolKey, scaleMetrics) {
     if (!settings) {
       return 0;
     }
     const metrics = scaleMetrics || resolveScaleMetrics(settings);
     const multiplier = resolveRulerValueMultiplier(settings, metrics);
-    const length = Number.isFinite(settings.length) ? settings.length : 0;
-    const rawLength = length * multiplier;
+    const lengthValue =
+      toolKey === 'tape'
+        ? Number.isFinite(settings.tapeMeasureLength)
+          ? settings.tapeMeasureLength
+          : 0
+        : Number.isFinite(settings.length)
+        ? settings.length
+        : 0;
+    const rawLength = lengthValue * multiplier;
     return convertValueToDisplayUnits(rawLength, settings.unitLabel);
+  }
+
+  function getEffectiveRulerLength(settings, scaleMetrics) {
+    return getEffectiveToolLength(settings, 'ruler', scaleMetrics);
+  }
+
+  function getEffectiveActiveToolLength(settings, scaleMetrics) {
+    const activeToolKey = sanitizeActiveTool(
+      settings && settings.activeTool,
+      appState.activeTool || defaultActiveTool
+    );
+    return getEffectiveToolLength(settings, activeToolKey, scaleMetrics);
   }
 
   function extractRealWorldSizeFromText(text) {
@@ -1377,6 +1470,81 @@
     renderRuler(settings, unitSpacing, metrics);
   }
 
+  function applyTapeMeasureAppearance(settings, scaleMetrics) {
+    if (!tapeMeasure || !tapeStrap) {
+      return;
+    }
+    const metrics = scaleMetrics || resolveScaleMetrics(settings);
+    const unitSpacing = metrics && Number.isFinite(metrics.unitSpacing) ? metrics.unitSpacing : DEFAULT_UNIT_SPACING_PX;
+    const lengthValue = Number.isFinite(settings && settings.tapeMeasureLength)
+      ? settings.tapeMeasureLength
+      : defaults.tapeMeasureLength;
+    const visibleLength = Math.max(0, unitSpacing * lengthValue);
+    const strapWidth = tapeStrap.offsetWidth || visibleLength;
+    const clampedVisible = Math.min(visibleLength, strapWidth);
+    tapeMeasure.style.setProperty('--tape-strap-visible', `${clampedVisible}px`);
+    tapeMeasure.setAttribute('data-visible-length', String(lengthValue));
+  }
+
+  function applyActiveToolState(settings) {
+    const sanitizedRulerTransform = sanitizeRulerTransform(
+      settings && settings.rulerTransform,
+      null
+    );
+    if (sanitizedRulerTransform) {
+      Object.assign(transformStates.ruler, sanitizedRulerTransform);
+    } else {
+      transformStates.ruler.x = 0;
+      transformStates.ruler.y = 0;
+      transformStates.ruler.rotation = 0;
+    }
+    const sanitizedTapeTransform = sanitizeRulerTransform(
+      settings && settings.tapeMeasureTransform,
+      null
+    );
+    if (sanitizedTapeTransform) {
+      Object.assign(transformStates.tape, sanitizedTapeTransform);
+    } else {
+      transformStates.tape.x = 0;
+      transformStates.tape.y = 0;
+      transformStates.tape.rotation = 0;
+    }
+
+    const desiredTool = sanitizeActiveTool(settings && settings.activeTool, appState.activeTool);
+    appState.activeTool = desiredTool;
+    transformState = transformStates[desiredTool] || transformStates[defaultActiveTool];
+
+    if (board) {
+      board.setAttribute('data-active-tool', desiredTool);
+    }
+    if (ruler) {
+      if (desiredTool === 'ruler') {
+        ruler.hidden = false;
+        ruler.removeAttribute('hidden');
+        ruler.setAttribute('aria-hidden', 'false');
+      } else {
+        ruler.hidden = true;
+        ruler.setAttribute('hidden', '');
+        ruler.setAttribute('aria-hidden', 'true');
+      }
+    }
+    if (tapeMeasure) {
+      if (desiredTool === 'tape') {
+        tapeMeasure.hidden = false;
+        tapeMeasure.removeAttribute('hidden');
+        tapeMeasure.setAttribute('aria-hidden', 'false');
+      } else {
+        tapeMeasure.hidden = true;
+        tapeMeasure.setAttribute('hidden', '');
+        tapeMeasure.setAttribute('aria-hidden', 'true');
+      }
+    }
+
+    applyToolTransform('ruler');
+    applyToolTransform('tape');
+    updateBaseSize();
+  }
+
   function applySettings(settings) {
     const scaleMetrics = resolveScaleMetrics(settings);
     applyFigureAppearance(settings);
@@ -1384,10 +1552,11 @@
     applyGridAppearance(settings);
     applyBoardPanningState(settings);
     applyScaleLabel(settings);
+    applyActiveToolState(settings);
+    applyTapeMeasureAppearance(settings, scaleMetrics);
     updateAccessibility(settings);
     appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(settings);
-    baseSize.width = ruler.offsetWidth;
-    baseSize.height = ruler.offsetHeight;
+    updateBaseSize();
     applyTransformWithSnap({ allowSnap: settings.gridEnabled, persist: true });
   }
 
@@ -1672,18 +1841,34 @@
 
   function updateAccessibility(settings) {
     const { unitLabel } = settings;
-    const effectiveLength = roundForDisplay(getEffectiveRulerLength(settings));
+    const activeToolKey = sanitizeActiveTool(settings && settings.activeTool, appState.activeTool);
+    const info = getToolDisplayInfo(activeToolKey);
+    const effectiveLength = roundForDisplay(getEffectiveToolLength(settings, activeToolKey));
     const formattedLength = formatNumber(effectiveLength);
     const unitSuffixValue = resolveUnitSuffix(unitLabel);
     const unitSuffix = unitSuffixValue ? ` ${unitSuffixValue}` : '';
-    ruler.setAttribute('aria-label', `Flyttbar linjal på ${formattedLength}${unitSuffix}`);
+    const targetElement = getToolElement(activeToolKey);
+    if (targetElement) {
+      targetElement.setAttribute(
+        'aria-label',
+        `Flyttbart ${info.label} på ${formattedLength}${unitSuffix}`
+      );
+      targetElement.setAttribute('aria-hidden', 'false');
+    }
+    const inactiveKey = activeToolKey === 'tape' ? 'ruler' : 'tape';
+    const inactiveElement = getToolElement(inactiveKey);
+    if (inactiveElement) {
+      inactiveElement.setAttribute('aria-hidden', 'true');
+    }
     if (statusNote) {
       statusNote.textContent = buildStatusMessage(settings);
     }
   }
 
   function buildStatusMessage(settings) {
-    const effectiveLength = roundForDisplay(getEffectiveRulerLength(settings));
+    const activeToolKey = sanitizeActiveTool(settings && settings.activeTool, appState.activeTool);
+    const info = getToolDisplayInfo(activeToolKey);
+    const effectiveLength = roundForDisplay(getEffectiveToolLength(settings, activeToolKey));
     const formattedLength = formatNumber(effectiveLength);
     const unitSuffixValue = resolveUnitSuffix(settings.unitLabel);
     const unitSuffix = unitSuffixValue ? ` ${unitSuffixValue}` : '';
@@ -1691,7 +1876,7 @@
     if (!target) {
       return '';
     }
-    return `Linjalens lengde er ${formattedLength}${unitSuffix}. Bruk den til å finne ${target}.`;
+    return `${info.possessive} lengde er ${formattedLength}${unitSuffix}. Bruk den til å finne ${target}.`;
   }
 
   function roundForDisplay(value, decimals = 6) {
@@ -1717,7 +1902,9 @@
       if (inputs.figureImage) inputs.figureImage.value = settings.figureImage || '';
       if (inputs.figureSummary) inputs.figureSummary.value = settings.figureSummary || '';
       if (inputs.figureScaleLabel) inputs.figureScaleLabel.value = settings.figureScaleLabel || '';
-      if (inputs.length) inputs.length.value = settings.length;
+      const activeToolKey = sanitizeActiveTool(settings && settings.activeTool, appState.activeTool);
+      const activeLength = activeToolKey === 'tape' ? settings.tapeMeasureLength : settings.length;
+      if (inputs.length) inputs.length.value = activeLength;
       if (inputs.subdivisions) inputs.subdivisions.value = settings.subdivisions;
       if (inputs.unitLabel) inputs.unitLabel.value = settings.unitLabel || '';
       if (inputs.boardPadding) inputs.boardPadding.value = settings.boardPadding;
@@ -1728,6 +1915,12 @@
         inputs.measurementWithoutScale.checked = !!settings.measurementWithoutScale;
       }
       if (inputs.panningEnabled) inputs.panningEnabled.checked = !!settings.panningEnabled;
+      if (Array.isArray(inputs.measurementTool)) {
+        for (const input of inputs.measurementTool) {
+          if (!input) continue;
+          input.checked = input.value === activeToolKey;
+        }
+      }
       // unit spacing is fixed and no longer exposed to the UI
     } finally {
       appState.syncingInputs = false;
@@ -1785,7 +1978,12 @@
     if (inputs.length) {
       inputs.length.addEventListener('input', event => {
         if (appState.syncingInputs) return;
-        updateSettings({ length: event.target.value });
+        const activeToolKey = sanitizeActiveTool(
+          appState.settings && appState.settings.activeTool,
+          appState.activeTool
+        );
+        const payloadKey = activeToolKey === 'tape' ? 'tapeMeasureLength' : 'length';
+        updateSettings({ [payloadKey]: event.target.value });
       });
     }
     if (inputs.subdivisions) {
@@ -1836,20 +2034,36 @@
         updateSettings({ panningEnabled: event.target.checked });
       });
     }
+    if (Array.isArray(inputs.measurementTool)) {
+      for (const radio of inputs.measurementTool) {
+        if (!radio) continue;
+        radio.addEventListener('change', event => {
+          if (appState.syncingInputs) return;
+          if (!event.target.checked) return;
+          persistActiveInstrumentState();
+          updateSettings({ activeTool: event.target.value });
+        });
+      }
+    }
     // unit spacing is fixed and no longer configurable
   }
 
   function isEventInsideRuler(event) {
-    if (!ruler) {
+    const activeElement = getActiveToolElement();
+    if (!activeElement) {
       return false;
     }
     const target = event && event.target;
-    if (target && (target === ruler || (typeof ruler.contains === 'function' && ruler.contains(target)))) {
+    if (
+      target &&
+      (target === activeElement ||
+        (typeof activeElement.contains === 'function' && activeElement.contains(target)))
+    ) {
       return true;
     }
     if (event && typeof event.composedPath === 'function') {
       const path = event.composedPath();
-      if (Array.isArray(path) && path.includes(ruler)) {
+      if (Array.isArray(path) && path.includes(activeElement)) {
         return true;
       }
     }
@@ -1948,11 +2162,75 @@
     }
   }
 
+  function getToolElement(toolKey) {
+    if (toolKey === 'tape') {
+      return tapeMeasure;
+    }
+    return ruler;
+  }
+
+  function getActiveToolElement() {
+    const element = getToolElement(appState.activeTool);
+    if (element) {
+      return element;
+    }
+    if (appState.activeTool !== defaultActiveTool) {
+      return getToolElement(defaultActiveTool);
+    }
+    return null;
+  }
+
+  function getToolDisplayInfo(toolKey) {
+    if (toolKey === 'tape') {
+      return { key: 'tape', label: 'målebånd', title: 'Målebånd', possessive: 'Målebåndets' };
+    }
+    return { key: 'ruler', label: 'linjal', title: 'Linjal', possessive: 'Linjalens' };
+  }
+
+  function attachInstrumentPointerHandlers(element) {
+    if (!element) {
+      return;
+    }
+    element.addEventListener('pointerdown', handlePointerDown, { passive: false });
+    element.addEventListener('pointermove', handlePointerMove);
+    element.addEventListener('pointerup', handlePointerEnd);
+    element.addEventListener('pointercancel', handlePointerEnd);
+    element.addEventListener('lostpointercapture', event => {
+      if (event.pointerId != null) {
+        activePointers.delete(event.pointerId);
+      }
+    });
+  }
+
+  function applyToolTransform(toolKey) {
+    const element = getToolElement(toolKey);
+    const state = transformStates[toolKey];
+    if (!element || !state) {
+      return;
+    }
+    element.style.transform = `translate3d(${state.x}px, ${state.y}px, 0) rotate(${state.rotation}rad)`;
+  }
+
+  function updateBaseSize() {
+    const element = getActiveToolElement();
+    if (!element) {
+      baseSize.width = 0;
+      baseSize.height = 0;
+      return;
+    }
+    baseSize.width = element.offsetWidth;
+    baseSize.height = element.offsetHeight;
+  }
+
   function handlePointerDown(event) {
     if (event.button && event.button !== 0) {
       return;
     }
     if (activePointers.size >= 2 && !activePointers.has(event.pointerId)) {
+      return;
+    }
+    const activeElement = getActiveToolElement();
+    if (!activeElement || event.currentTarget !== activeElement) {
       return;
     }
     event.preventDefault();
@@ -1965,7 +2243,7 @@
     };
     activePointers.set(event.pointerId, entry);
     try {
-      ruler.setPointerCapture(event.pointerId);
+      activeElement.setPointerCapture(event.pointerId);
     } catch (_) {}
   }
 
@@ -1987,8 +2265,11 @@
       return;
     }
     activePointers.delete(event.pointerId);
+    const activeElement = getActiveToolElement();
     try {
-      ruler.releasePointerCapture(event.pointerId);
+      if (activeElement) {
+        activeElement.releasePointerCapture(event.pointerId);
+      }
     } catch (_) {}
     if (activePointers.size === 0) {
       applyTransformWithSnap({ persist: true });
@@ -1996,7 +2277,11 @@
   }
 
   function applyTransform() {
-    ruler.style.transform = `translate3d(${transformState.x}px, ${transformState.y}px, 0) rotate(${transformState.rotation}rad)`;
+    const element = getActiveToolElement();
+    if (!element) {
+      return;
+    }
+    element.style.transform = `translate3d(${transformState.x}px, ${transformState.y}px, 0) rotate(${transformState.rotation}rad)`;
   }
 
   function applyTransformWithSnap({ allowSnap = true, persist = false } = {}) {
@@ -2005,28 +2290,60 @@
     }
     applyTransform();
     if (persist && !suspendTransformPersistence) {
+      if (appState.activeTool === 'tape') {
+        persistTapeMeasureState();
+      } else {
+        persistTransformState();
+      }
+    }
+  }
+
+  function persistActiveInstrumentState() {
+    if (suspendTransformPersistence) {
+      return;
+    }
+    if (appState.activeTool === 'tape') {
+      persistTapeMeasureState();
+    } else {
       persistTransformState();
     }
   }
 
   function persistTransformState() {
+    persistTransformStateForTool('ruler');
+  }
+
+  function persistTapeMeasureState() {
+    persistTransformStateForTool('tape');
+  }
+
+  function persistTransformStateForTool(toolKey) {
+    const state = transformStates[toolKey];
+    if (!state) {
+      return;
+    }
     const snapshot = {
-      x: Number.isFinite(transformState.x) ? transformState.x : 0,
-      y: Number.isFinite(transformState.y) ? transformState.y : 0,
-      rotation: Number.isFinite(transformState.rotation) ? transformState.rotation : 0
+      x: Number.isFinite(state.x) ? state.x : 0,
+      y: Number.isFinite(state.y) ? state.y : 0,
+      rotation: Number.isFinite(state.rotation) ? state.rotation : 0
     };
     const sanitized = sanitizeRulerTransform(snapshot, null);
     if (!sanitized) {
       return;
     }
     if (appState.settings) {
-      if (!areRulerTransformsEqual(appState.settings.rulerTransform, sanitized)) {
-        appState.settings = { ...appState.settings, rulerTransform: { ...sanitized } };
-      } else if (!appState.settings.rulerTransform) {
-        appState.settings.rulerTransform = { ...sanitized };
+      const key = toolKey === 'tape' ? 'tapeMeasureTransform' : 'rulerTransform';
+      if (!areRulerTransformsEqual(appState.settings[key], sanitized)) {
+        appState.settings = { ...appState.settings, [key]: { ...sanitized } };
+      } else if (!appState.settings[key]) {
+        appState.settings[key] = { ...sanitized };
       }
     }
-    storeRulerTransform(sanitized);
+    if (toolKey === 'tape') {
+      storeTapeMeasureState(sanitized);
+    } else {
+      storeRulerTransform(sanitized);
+    }
   }
 
   function storeRulerTransform(transform) {
@@ -2045,6 +2362,25 @@
       configContainers.measurementGlobal !== configContainers.measurement
     ) {
       delete configContainers.measurementGlobal.rulerTransform;
+    }
+  }
+
+  function storeTapeMeasureState(transform) {
+    if (!transform || typeof transform !== 'object') {
+      return;
+    }
+    refreshConfigContainers();
+    if (configContainers.measurement) {
+      configContainers.measurement.tapeMeasureTransform = { ...transform };
+    }
+    if (configContainers.root && configContainers.root !== configContainers.measurement) {
+      delete configContainers.root.tapeMeasureTransform;
+    }
+    if (
+      configContainers.measurementGlobal &&
+      configContainers.measurementGlobal !== configContainers.measurement
+    ) {
+      delete configContainers.measurementGlobal.tapeMeasureTransform;
     }
   }
 
@@ -2128,9 +2464,13 @@
   }
 
   function centerRuler() {
+    const element = getActiveToolElement();
+    if (!element) {
+      return;
+    }
     boardRect = board.getBoundingClientRect();
-    baseSize.width = ruler.offsetWidth;
-    baseSize.height = ruler.offsetHeight;
+    baseSize.width = element.offsetWidth;
+    baseSize.height = element.offsetHeight;
     const offsetX = (boardRect.width - baseSize.width) / 2;
     const offsetY = Math.max(boardRect.height - baseSize.height - 32, 16);
     transformState.x = offsetX;
@@ -2213,10 +2553,11 @@
     const widthChanged = !prevRect || Math.abs(boardRect.width - prevRect.width) > 1;
     const heightChanged = !prevRect || Math.abs(boardRect.height - prevRect.height) > 1;
     if (appState.settings) {
-      applyFigureScale(appState.settings, resolveScaleMetrics(appState.settings));
+      const metrics = resolveScaleMetrics(appState.settings);
+      applyFigureScale(appState.settings, metrics);
+      applyTapeMeasureAppearance(appState.settings, metrics);
     }
-    baseSize.width = ruler.offsetWidth;
-    baseSize.height = ruler.offsetHeight;
+    updateBaseSize();
 
     if (activePointers.size === 0 && (widthChanged || heightChanged)) {
       centerRuler();
@@ -2242,7 +2583,11 @@
     if (!nextSettings) {
       return;
     }
-    const nextTransform = sanitizeRulerTransform(nextSettings.rulerTransform, null);
+    const activeToolKey = sanitizeActiveTool(nextSettings && nextSettings.activeTool, appState.activeTool);
+    const nextTransform = sanitizeRulerTransform(
+      activeToolKey === 'tape' ? nextSettings.tapeMeasureTransform : nextSettings.rulerTransform,
+      null
+    );
     const shouldUpdate = !previousSettings || !areSettingsEqual(nextSettings, previousSettings);
     appState.settings = nextSettings;
     appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(nextSettings);
@@ -2257,24 +2602,50 @@
       suspendTransformPersistence = false;
     }
     if (nextTransform) {
-      applyRulerTransform(nextTransform, { allowSnap: false, persist: false });
-      persistTransformState();
+      applyInstrumentTransform(nextTransform, { allowSnap: false, persist: false }, activeToolKey);
+      persistActiveInstrumentState();
     } else {
       centerRuler();
     }
   }
 
-  function applyRulerTransform(transform, options = {}) {
+  function applyInstrumentTransform(transform, options = {}, toolKey = appState.activeTool) {
     const sanitized = sanitizeRulerTransform(transform, null);
     if (!sanitized) {
       return;
     }
-    transformState.x = sanitized.x;
-    transformState.y = sanitized.y;
-    transformState.rotation = sanitized.rotation;
-    const allowSnap = Object.prototype.hasOwnProperty.call(options, 'allowSnap') ? options.allowSnap : false;
-    const persist = Object.prototype.hasOwnProperty.call(options, 'persist') ? options.persist : false;
-    applyTransformWithSnap({ allowSnap, persist });
+    const targetState = transformStates[toolKey];
+    if (!targetState) {
+      return;
+    }
+    targetState.x = sanitized.x;
+    targetState.y = sanitized.y;
+    targetState.rotation = sanitized.rotation;
+    if (toolKey === appState.activeTool) {
+      transformState = targetState;
+      const allowSnap = Object.prototype.hasOwnProperty.call(options, 'allowSnap')
+        ? options.allowSnap
+        : false;
+      const persist = Object.prototype.hasOwnProperty.call(options, 'persist')
+        ? options.persist
+        : false;
+      applyTransformWithSnap({ allowSnap, persist });
+    } else {
+      applyToolTransform(toolKey);
+      const shouldPersist =
+        Object.prototype.hasOwnProperty.call(options, 'persist') ? options.persist : false;
+      if (shouldPersist && !suspendTransformPersistence) {
+        if (toolKey === 'tape') {
+          persistTapeMeasureState();
+        } else if (toolKey === 'ruler') {
+          persistTransformState();
+        }
+      }
+    }
+  }
+
+  function applyRulerTransform(transform, options = {}) {
+    applyInstrumentTransform(transform, options, 'ruler');
   }
 
   function svgToString(svgElement) {
@@ -2640,10 +3011,17 @@
     const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
     const figureName = settings.figureName || 'Figur';
     const unitLabel = settings.unitLabel ? settings.unitLabel.trim() : '';
+    const activeToolKey = sanitizeActiveTool(settings && settings.activeTool, appState.activeTool);
+    const toolInfo = getToolDisplayInfo(activeToolKey);
     const valueMultiplier = resolveRulerValueMultiplier(settings);
-    const effectiveLengthRaw = getEffectiveRulerLength(settings);
+    const effectiveLengthRaw = getEffectiveToolLength(settings, activeToolKey);
     const effectiveLength = roundForDisplay(effectiveLengthRaw);
-    const slugBaseParts = ['måling', figureName, String(effectiveLength) + (unitLabel ? unitLabel : '')];
+    const slugBaseParts = [
+      'måling',
+      figureName,
+      toolInfo.title,
+      String(effectiveLength) + (unitLabel ? unitLabel : '')
+    ];
     const slugBase = slugBaseParts.join(' ').trim() || 'måling';
     const slug = helper && typeof helper.slugify === 'function'
       ? helper.slugify(slugBase, 'maling')
@@ -2664,7 +3042,8 @@
     if (target) {
       descriptionParts.push(`Oppgave: ${target}`);
     }
-    const description = descriptionParts.join(' – ') || `Linjalen er ${lengthText}${unitSuffix} lang.`;
+    const description =
+      descriptionParts.join(' – ') || `${toolInfo.title} er ${lengthText}${unitSuffix} lang.`;
     const altText = buildStatusMessage(settings);
     const summary = {
       figureName,
@@ -2678,6 +3057,14 @@
         valueMultiplier,
         backgroundMode: settings.rulerBackgroundMode
       }
+    };
+    summary.tool = {
+      key: activeToolKey,
+      title: toolInfo.title,
+      label: toolInfo.label,
+      length: effectiveLength,
+      unit: unitLabel || null,
+      valueMultiplier
     };
     if (settings.figureScaleLabel) {
       summary.figureScaleLabel = settings.figureScaleLabel;
