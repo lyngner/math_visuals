@@ -226,8 +226,6 @@
       inset: 0;
       width: 100%;
       height: 100%;
-      transform: scaleX(-1);
-      transform-origin: center;
     }
 
     .tape-measure__strap,
@@ -246,16 +244,53 @@
       overflow: hidden;
     }
 
-    .tape-measure__body img {
-      transform: scaleX(-1);
-      transform-origin: center;
-    }
-
-    .tape-measure__strap img {
+    .tape-measure__strap-svg {
       width: 100%;
       height: 100%;
       display: block;
       pointer-events: none;
+    }
+
+    .tape-measure__strap-svg .tape-svg__background {
+      fill: #fee52e;
+      stroke: #d6b013;
+      stroke-width: 1.2;
+    }
+
+    .tape-measure__strap-svg .tape-svg__baseline {
+      stroke: rgba(15, 23, 42, 0.65);
+      stroke-width: 1.8;
+      stroke-linecap: round;
+    }
+
+    .tape-measure__strap-svg .tape-svg__tick {
+      stroke-linecap: round;
+    }
+
+    .tape-measure__strap-svg .tape-svg__tick--major {
+      stroke: rgba(15, 23, 42, 0.78);
+      stroke-width: 2.2;
+    }
+
+    .tape-measure__strap-svg .tape-svg__tick--minor {
+      stroke: rgba(15, 23, 42, 0.55);
+      stroke-width: 1.2;
+    }
+
+    .tape-measure__strap-svg .tape-svg__label {
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      fill: #46320a;
+      letter-spacing: -0.01em;
+    }
+
+    .tape-measure__strap-svg .tape-svg__unit-label {
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      fill: rgba(15, 23, 42, 0.78);
+      letter-spacing: -0.01em;
     }
 
     .tape-measure__housing {
@@ -463,11 +498,14 @@
               >
                 <div class="tape-measure__body">
                   <div class="tape-measure__strap" data-tape-strap>
-                    <img
-                      src="images/measure/måleredskaper/målebånd15.svg"
-                      alt=""
+                    <svg
+                      class="tape-measure__strap-svg"
+                      viewBox="0 0 600 48"
+                      preserveAspectRatio="none"
                       aria-hidden="true"
-                    />
+                      focusable="false"
+                      data-tape-strap-svg
+                    ></svg>
                   </div>
                   <div class="tape-measure__housing" data-tape-housing>
                     <img

@@ -11,9 +11,10 @@
   const rulerSvg = ruler ? ruler.querySelector('[data-ruler-svg]') : null;
   const tapeMeasure = board ? board.querySelector('[data-tape-measure]') : null;
   const tapeStrap = tapeMeasure ? tapeMeasure.querySelector('[data-tape-strap]') : null;
+  const tapeStrapSvg = tapeStrap ? tapeStrap.querySelector('[data-tape-strap-svg]') : null;
   const tapeHousing = tapeMeasure ? tapeMeasure.querySelector('[data-tape-housing]') : null;
   const hasRuler = !!(ruler && rulerSvg);
-  const hasTapeMeasure = !!(tapeMeasure && tapeStrap && tapeHousing);
+  const hasTapeMeasure = !!(tapeMeasure && tapeStrap && tapeStrapSvg && tapeHousing);
   const boardGridOverlay = board ? board.querySelector('[data-grid-overlay]') : null;
   if (!board || (!hasRuler && !hasTapeMeasure)) {
     return;
@@ -86,6 +87,7 @@
     height: activeInstrumentForSize ? activeInstrumentForSize.offsetHeight : 0
   };
   const RULER_SHADOW_FILTER_ID = 'rulerSvgDropShadow';
+  const TAPE_STRAP_DEFAULT_HEIGHT = 48;
   const zeroOffset = { x: 0, y: 0 };
   const CUSTOM_CATEGORY_ID = 'custom';
   const CUSTOM_FIGURE_ID = 'custom';
@@ -1484,6 +1486,7 @@
     }
     const metrics = scaleMetrics || resolveScaleMetrics(settings);
     renderRuler(settings, unitSpacing, metrics);
+    renderTapeMeasureStrap(settings, unitSpacing, metrics);
   }
 
   function applyTapeMeasureAppearance(settings, scaleMetrics) {
@@ -1492,6 +1495,7 @@
     }
     const metrics = scaleMetrics || resolveScaleMetrics(settings);
     const unitSpacing = metrics && Number.isFinite(metrics.unitSpacing) ? metrics.unitSpacing : DEFAULT_UNIT_SPACING_PX;
+    renderTapeMeasureStrap(settings, unitSpacing, metrics);
     const lengthValue = Number.isFinite(settings && settings.tapeMeasureLength)
       ? settings.tapeMeasureLength
       : defaults.tapeMeasureLength;
@@ -1864,6 +1868,101 @@
     ruler.setAttribute('data-ruler-value-multiplier', String(valueMultiplier));
     zeroOffset.x = zeroOffsetX;
     zeroOffset.y = baselineY;
+  }
+
+  function getTapeStrapHeight() {
+    if (!tapeStrap) {
+      return TAPE_STRAP_DEFAULT_HEIGHT;
+    }
+    const inlineHeight = Number.isFinite(tapeStrap.offsetHeight) ? tapeStrap.offsetHeight : NaN;
+    if (Number.isFinite(inlineHeight) && inlineHeight > 0) {
+      return inlineHeight;
+    }
+    if (!doc || !doc.defaultView || typeof doc.defaultView.getComputedStyle !== 'function') {
+      return TAPE_STRAP_DEFAULT_HEIGHT;
+    }
+    const computed = Number.parseFloat(doc.defaultView.getComputedStyle(tapeStrap).height);
+    if (Number.isFinite(computed) && computed > 0) {
+      return computed;
+    }
+    return TAPE_STRAP_DEFAULT_HEIGHT;
+  }
+
+  function renderTapeMeasureStrap(settings, unitSpacing, scaleMetrics) {
+    if (!tapeMeasure || !tapeStrapSvg) {
+      return;
+    }
+
+    if (!Number.isFinite(unitSpacing) || unitSpacing <= 0) {
+      unitSpacing = DEFAULT_UNIT_SPACING_PX;
+    }
+
+    const metrics = scaleMetrics || resolveScaleMetrics(settings);
+    const lengthValue = Number.isFinite(settings && settings.tapeMeasureLength)
+      ? settings.tapeMeasureLength
+      : defaults.tapeMeasureLength;
+    const subdivisions = Number.isFinite(settings && settings.subdivisions)
+      ? settings.subdivisions
+      : defaults.subdivisions;
+    const strapHeight = getTapeStrapHeight();
+    const strapWidth = unitSpacing * Math.max(lengthValue, 1);
+    const safeWidth = strapWidth > 0 ? strapWidth : unitSpacing;
+    const strapRadius = Math.min(6, strapHeight / 3);
+    const bandInset = Math.min(Math.max(strapHeight * 0.12, 3), strapHeight / 2);
+    const topBaselineY = bandInset;
+    const bottomBaselineY = strapHeight - bandInset;
+    const minorTickBottom = topBaselineY + (bottomBaselineY - topBaselineY) * 0.55;
+    const labelY = bottomBaselineY - Math.max(4, strapHeight * 0.12);
+    const unitLabelY = topBaselineY + Math.max(8, (bottomBaselineY - topBaselineY) * 0.35);
+    const valueMultiplier = resolveRulerValueMultiplier(settings, metrics);
+
+    const totalTicks = Math.max(Math.round(lengthValue), 0) + 1;
+    const majorTickMarkup = Array.from({ length: totalTicks }, (_, tickIndex) => {
+      const x = unitSpacing * tickIndex;
+      return `<line x1="${x}" y1="${topBaselineY}" x2="${x}" y2="${bottomBaselineY}" class="tape-svg__tick tape-svg__tick--major" />`;
+    }).join('');
+
+    let minorTickMarkup = '';
+    if (subdivisions > 1) {
+      const step = unitSpacing / subdivisions;
+      for (let unitIndex = 0; unitIndex < Math.max(lengthValue, 0); unitIndex += 1) {
+        const unitStart = unitSpacing * unitIndex;
+        for (let subIndex = 1; subIndex < subdivisions; subIndex += 1) {
+          const x = unitStart + step * subIndex;
+          minorTickMarkup += `<line x1="${x}" y1="${topBaselineY}" x2="${x}" y2="${minorTickBottom}" class="tape-svg__tick tape-svg__tick--minor" />`;
+        }
+      }
+    }
+
+    const labelMarkup = Array.from({ length: totalTicks }, (_, tickIndex) => {
+      const rawValue = tickIndex * valueMultiplier;
+      const labelValue = roundForDisplay(convertValueToDisplayUnits(rawValue, settings.unitLabel));
+      const anchor = tickIndex === 0 ? 'start' : tickIndex === totalTicks - 1 ? 'end' : 'middle';
+      const dx = anchor === 'start' ? 6 : anchor === 'end' ? -6 : 0;
+      const x = unitSpacing * tickIndex;
+      return `<text x="${x}" y="${labelY}" text-anchor="${anchor}"${dx !== 0 ? ` dx="${dx}"` : ''} class="tape-svg__label">${formatNumber(labelValue)}</text>`;
+    }).join('');
+
+    const unitSuffixValue = resolveUnitSuffix(settings.unitLabel);
+    const unitSuffix = unitSuffixValue ? String(unitSuffixValue).trim() : '';
+    const unitLabelMarkup = unitSuffix
+      ? `<text x="${safeWidth}" y="${unitLabelY}" text-anchor="end" class="tape-svg__unit-label">${escapeHtml(unitSuffix)}</text>`
+      : '';
+
+    tapeStrapSvg.setAttribute('viewBox', `0 0 ${safeWidth} ${strapHeight}`);
+    tapeStrapSvg.setAttribute('width', formatSvgNumber(safeWidth));
+    tapeStrapSvg.setAttribute('height', formatSvgNumber(strapHeight));
+    tapeStrapSvg.innerHTML = `
+      <rect x="0" y="0" width="${safeWidth}" height="${strapHeight}" rx="${strapRadius}" ry="${strapRadius}" class="tape-svg__background" />
+      <line x1="0" y1="${topBaselineY}" x2="${safeWidth}" y2="${topBaselineY}" class="tape-svg__baseline" />
+      <line x1="0" y1="${bottomBaselineY}" x2="${safeWidth}" y2="${bottomBaselineY}" class="tape-svg__baseline" />
+      ${minorTickMarkup}
+      ${majorTickMarkup}
+      ${labelMarkup}
+      ${unitLabelMarkup}
+    `;
+
+    tapeMeasure.style.setProperty('--tape-strap-length', `${safeWidth}px`);
   }
 
   function updateAccessibility(settings) {
@@ -3757,18 +3856,17 @@
     tapeClone.removeAttribute('hidden');
     tapeClone.removeAttribute('aria-hidden');
 
-    const strapImageSource =
-      (tapeClone.querySelector('[data-tape-strap] img') || tapeStrap.querySelector('img')) || null;
+    const strapSvgSource =
+      (tapeClone.querySelector('[data-tape-strap-svg]') || tapeStrapSvg) || null;
     const housingImageSource =
       (tapeClone.querySelector('[data-tape-housing] img') || tapeHousing.querySelector('img')) || null;
 
-    if (!strapImageSource || !housingImageSource) {
+    if (!strapSvgSource || !housingImageSource) {
       return null;
     }
 
-    const strapHref = await resolveImageHref(strapImageSource.getAttribute('src'));
     const housingHref = await resolveImageHref(housingImageSource.getAttribute('src'));
-    if (!strapHref || !housingHref) {
+    if (!housingHref) {
       return null;
     }
 
@@ -3825,14 +3923,17 @@
       `translate(${formatSvgNumber(strapOffsetX)} ${formatSvgNumber(strapOffsetY)})`
     );
 
-    const strapImageElement = createSvgElement('image');
-    strapImageElement.setAttribute('x', '0');
-    strapImageElement.setAttribute('y', '0');
-    strapImageElement.setAttribute('width', formatSvgNumber(strapTotalWidth));
-    strapImageElement.setAttribute('height', formatSvgNumber(strapHeight));
-    strapImageElement.setAttributeNS(XLINK_NS, 'xlink:href', strapHref);
-    strapImageElement.setAttribute('href', strapHref);
-    strapGroup.appendChild(strapImageElement);
+    const strapSvgClone = helper && typeof helper.cloneSvgForExport === 'function'
+      ? helper.cloneSvgForExport(strapSvgSource)
+      : strapSvgSource.cloneNode(true);
+    if (!strapSvgClone) {
+      return null;
+    }
+    strapSvgClone.removeAttribute('aria-hidden');
+    strapSvgClone.removeAttribute('focusable');
+    strapSvgClone.setAttribute('width', formatSvgNumber(strapTotalWidth));
+    strapSvgClone.setAttribute('height', formatSvgNumber(strapHeight));
+    strapGroup.appendChild(strapSvgClone);
 
     const persistedUnits = sanitizeLength(
       settings && settings.tapeMeasureLength,
