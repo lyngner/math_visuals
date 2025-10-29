@@ -654,7 +654,7 @@
       return sanitized;
     }
     const quantity = Number.isFinite(unitInfo.quantity) && unitInfo.quantity > 0 ? unitInfo.quantity : 1;
-    const factor = mode === 'withoutScale' ? denominator : 1 / denominator;
+    const factor = mode === 'withoutScale' ? 1 / denominator : denominator;
     if (!Number.isFinite(factor) || factor <= 0) {
       return sanitized;
     }
@@ -965,7 +965,10 @@
       const { desiredDenominator } = resolveScaleInfo(settings);
       const scaleMultiplier =
         Number.isFinite(desiredDenominator) && desiredDenominator > 0 ? desiredDenominator : 1;
-      return unitQuantity * scaleMultiplier;
+      if (!Number.isFinite(scaleMultiplier) || scaleMultiplier <= 0) {
+        return unitQuantity;
+      }
+      return unitQuantity / scaleMultiplier;
     }
     return unitQuantity;
   }
@@ -1137,22 +1140,11 @@
     height = naturalHeight * scaleAdjustment;
 
     if (settings && settings.measurementWithoutScale) {
-      let unitSpacingAdjusted = false;
       const cachedWithScaleLabel =
         appState && appState.unitLabelCache ? appState.unitLabelCache.withScale : '';
-      const referenceLabel = sanitizeUnitLabel(
-        cachedWithScaleLabel,
-        cachedWithScaleLabel
-      );
-      if (referenceLabel) {
-        const referenceFactorRaw = getUnitToCentimeterFactor(referenceLabel);
-        if (Number.isFinite(referenceFactorRaw) && referenceFactorRaw > 0) {
-          unitSpacingPx = baseSpacingPx * referenceFactorRaw;
-          unitSpacingAdjusted = true;
-        }
-      }
-
-      if (!unitSpacingAdjusted) {
+      const referenceLabel = sanitizeUnitLabel(cachedWithScaleLabel, cachedWithScaleLabel);
+      const currentLabel = sanitizeUnitLabel(settings.unitLabel, settings.unitLabel);
+      if (referenceLabel && currentLabel && referenceLabel === currentLabel) {
         const scaleMultiplier = Number.isFinite(desiredScaleDenominator) && desiredScaleDenominator > 0
           ? desiredScaleDenominator
           : 1;
