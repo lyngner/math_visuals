@@ -532,10 +532,16 @@
     const map = new Map();
     const storageMap = new Map();
     for (const definition of definitions) {
+      const normalizedUrl = definition.url;
+      const navHrefCandidate = typeof definition.navHref === 'string' ? definition.navHref : normalizedUrl;
+      const navHref = typeof navHrefCandidate === 'string'
+        ? navHrefCandidate.replace(/^\//, '').trim()
+        : '';
       const entry = {
-        url: definition.url,
+        url: normalizedUrl,
         storagePath: normalizeStoragePath(definition.storagePath),
-        displayName: definition.displayName || (definition.names && definition.names[0]) || ''
+        displayName: definition.displayName || (definition.names && definition.names[0]) || '',
+        navHref
       };
       const storageKey = entry.storagePath;
       if (storageKey && !storageMap.has(storageKey)) {
@@ -2056,6 +2062,46 @@
     archiveDialog.open(entry, { focusActions, trigger });
   }
 
+  function rememberMainMenuTarget(targetConfig) {
+    if (!targetConfig) {
+      return false;
+    }
+
+    const navHref = typeof targetConfig.navHref === 'string' ? targetConfig.navHref.trim() : '';
+    if (!navHref) {
+      return false;
+    }
+
+    const storage = getLocalStorage();
+    if (!storage) {
+      return false;
+    }
+
+    try {
+      storage.setItem('currentPage', navHref);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function resolveMainMenuUrl() {
+    try {
+      const url = new URL('index.html', window.location.href);
+      return `${url.pathname}${url.search}${url.hash}`;
+    } catch (error) {
+      return 'index.html';
+    }
+  }
+
+  function getMainMenuOpenUrl(targetConfig) {
+    const remembered = rememberMainMenuTarget(targetConfig);
+    if (!remembered) {
+      return null;
+    }
+    return resolveMainMenuUrl();
+  }
+
   async function performEntryAction(action, entry, helpers = {}) {
     if (!entry) {
       setStatus('Fant ikke figuren som hører til handlingen.', 'error');
@@ -2145,9 +2191,20 @@
             return;
           }
 
-          const popup = window.open(targetConfig.url, '_blank', 'noopener');
+          let targetUrl = targetConfig.url;
+          let launchedViaMainMenu = false;
+          const mainMenuUrl = getMainMenuOpenUrl(targetConfig);
+          if (mainMenuUrl) {
+            targetUrl = mainMenuUrl;
+            launchedViaMainMenu = true;
+          }
+
+          const popup = window.open(targetUrl, '_blank', 'noopener');
           if (popup) {
-            setStatus(`Figuren åpnes i ${toolLabel} med et midlertidig eksempel.`, 'success');
+            const successMessage = launchedViaMainMenu
+              ? `Figuren åpnes i ${toolLabel} via hovedmenyen med et midlertidig eksempel.`
+              : `Figuren åpnes i ${toolLabel} med et midlertidig eksempel.`;
+            setStatus(successMessage, 'success');
           } else {
             setStatus('Klarte ikke å åpne verktøyet. Tillat sprettoppvinduer og prøv igjen.', 'error');
           }
