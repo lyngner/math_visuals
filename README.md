@@ -26,11 +26,17 @@ Koden er organisert per verktøy (én HTML-fil med tilhørende JavaScript/CSS), 
 | [Kvikkbilder](kvikkbilder.html) | Lager raske mønstre (ti-rammer, rektangler og «monster»-mønstre) for subitisering og hoderegning. |
 | [3D-figurer](trefigurer.html) | Tegner og beskriver tredimensjonale figurer som prismer, sylindre, kjegler, kuler og pyramider. |
 | [Brøkvegg](brøkvegg.html) | Bygger en brøkvegg med flere rader og alternative visninger for å sammenligne likeverdige brøker. |
+| [Sortering](sortering.html) | (Beta) Lager dra-og-slipp-sorteringer der elever grupperer kort i kategorier med fasit og vurdering. |
+| [Bibliotek](bibliotek.html) | (Beta) Viser bildebibliotek for mengdeillustrasjoner («amounts») med søk, forhåndsvisning og snarveier. |
 | [Prikk til prikk](prikktilprikk.html) | (Beta) Genererer prikk-til-prikk-oppgaver med tilpassbare rutenett, tall og fasit. |
 | [Fortegnsskjema](fortegnsskjema.html) | (Beta) Setter opp fortegnsskjema med intervaller, nullpunkter og symboler for funksjonsanalyse. |
 | [SVG-arkiv](svg-arkiv.html) | Viser lagrede, arkiverte og slettede figurer fra eksempeltjenesten, med snarvei tilbake til originalverktøyet. |
 
 Andre mapper rommer tilleggsmateriell (for eksempel `kvikkbilder-monster.html`, `arealmodell0.html`, `arealmodellen1.html`) og støtteverktøy som [trash-archive-viewer](trash-archive-viewer.js) og [alt-text-ui](alt-text-ui.js).
+
+### Aktivere beta-verktøy
+
+Flere verktøy i listen er merket «Beta», blant annet Måling, Sortering, Bibliotek, Prikk til prikk og SVG-arkiv. Disse er skjult for standardprofilen. For å aktivere dem, åpner du profilvelgeren i toppmenyen og bytter profil til «Annet» (eller en annen profil som har beta-ressurser aktivert, som «Kikora» eller «Campus»). Navigasjonsmenyen viser da alle beta-elementene med tilhørende «Beta»-merke.
 
 ## Eksempeltjenesten
 
