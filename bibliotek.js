@@ -98,8 +98,6 @@ async function loadManifest() {
     activeCategoryId = null;
     updateCategorySelection();
     updateCategoryCounts();
-    updateStatus(allSlugs.length, allSlugs.length, '');
-    resultsContainer.hidden = false;
   } catch (error) {
     console.error('Kunne ikke laste manifestet', error);
     statusEl.textContent = 'Kunne ikke laste figurene. Prøv å laste siden på nytt.';
@@ -322,31 +320,54 @@ function handleFilterInput(event) {
 
 function applyFilter(rawQuery) {
   const query = rawQuery.trim().toLowerCase();
+  const hasActiveFilter = query.length > 0;
   let visibleCount = 0;
-  for (const item of figureItems) {
-    const matches = !query || item.searchText.includes(query);
-    item.element.hidden = !matches;
-    if (matches) {
-      visibleCount += 1;
+
+  if (hasActiveFilter) {
+    for (const item of figureItems) {
+      const matches = item.searchText.includes(query);
+      item.element.hidden = !matches;
+      if (matches) {
+        visibleCount += 1;
+      }
+    }
+  } else {
+    for (const item of figureItems) {
+      item.element.hidden = true;
     }
   }
 
   const total = figureItems.length;
-  updateCount(visibleCount, total, query);
-  updateEmptyState(visibleCount, query);
-  updateStatus(visibleCount, total, query);
+  if (resultsContainer) {
+    resultsContainer.hidden = !hasActiveFilter;
+  }
+
+  updateCount(visibleCount, total, query, hasActiveFilter);
+  updateEmptyState(visibleCount, query, hasActiveFilter);
+  updateStatus(visibleCount, total, query, hasActiveFilter);
 }
 
-function updateCount(visible, total, query) {
+function updateCount(visible, total, query, hasActiveFilter) {
   if (!countEl) return;
-  const message = query
-    ? `Viser ${visible} av ${total} figurer for søket «${query}».`
-    : `Viser alle ${total} figurer.`;
-  countEl.textContent = message;
+  if (!hasActiveFilter) {
+    const figureWord = total <= 0 ? null : total === 1 ? '1 figur' : `${total} figurer`;
+    countEl.textContent = figureWord
+      ? `Velg en kategori eller søk for å vise ${figureWord}.`
+      : 'Velg en kategori eller søk for å vise figurer når de er tilgjengelige.';
+    return;
+  }
+
+  countEl.textContent = `Viser ${visible} av ${total} figurer for søket «${query}».`;
 }
 
-function updateEmptyState(visible, query) {
+function updateEmptyState(visible, query, hasActiveFilter) {
   if (!emptyEl) return;
+  if (!hasActiveFilter) {
+    emptyEl.hidden = true;
+    emptyEl.textContent = '';
+    return;
+  }
+
   if (visible === 0) {
     emptyEl.hidden = false;
     emptyEl.textContent = query
@@ -357,13 +378,17 @@ function updateEmptyState(visible, query) {
   }
 }
 
-function updateStatus(visible, total, query) {
+function updateStatus(visible, total, query, hasActiveFilter) {
   if (!statusEl) return;
-  if (query) {
-    statusEl.textContent = `Viser ${visible} av ${total} figurer for søket «${query}».`;
-  } else {
-    statusEl.textContent = `Viser ${visible} figurer fra images/amounts.`;
+  if (!hasActiveFilter) {
+    const figureWord = total <= 0 ? null : total === 1 ? '1 figur' : `${total} figurer`;
+    statusEl.textContent = figureWord
+      ? `Velg en kategori eller søk for å vise ${figureWord}.`
+      : 'Velg en kategori eller søk for å vise figurer når de er tilgjengelige.';
+    return;
   }
+
+  statusEl.textContent = `Viser ${visible} av ${total} figurer for søket «${query}».`;
 }
 
 async function handleCopyClick(event) {
