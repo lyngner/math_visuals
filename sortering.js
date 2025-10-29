@@ -1173,11 +1173,18 @@
   const keyboardHandlers = new Map();
   let dragState = null;
   let currentAppMode = 'default';
+  function applyItemModeClasses(item, nodes) {
+    if (!nodes || !nodes.wrapper) return;
+    const isTaskMode = currentAppMode === 'task';
+    nodes.wrapper.classList.toggle('sortering__item--task', isTaskMode);
+    nodes.wrapper.classList.toggle('sortering__item--task-text', isTaskMode && isTextItem(item));
+  }
+
   function updateInlineEditorVisibility(nodes) {
     if (!nodes) return;
     const editable = isEditorMode();
     const reorderable = canReorderItems();
-    const { inlineEditor, wrapper, button } = nodes;
+    const { inlineEditor, wrapper, button, contentEl } = nodes;
     if (inlineEditor) {
       if (inlineEditor.host) {
         inlineEditor.host.hidden = !editable;
@@ -1189,6 +1196,13 @@
     if (wrapper) {
       wrapper.classList.toggle('sortering__item--editable', editable);
       wrapper.style.touchAction = reorderable ? 'none' : 'auto';
+      const itemId = wrapper.dataset ? wrapper.dataset.itemId : null;
+      if (itemId && itemsById.has(itemId)) {
+        applyItemModeClasses(itemsById.get(itemId), nodes);
+      }
+    }
+    if (contentEl) {
+      contentEl.hidden = editable;
     }
     if (button) {
       button.disabled = !reorderable;
@@ -1252,7 +1266,10 @@
     }
     itemNodes.forEach(nodes => {
       if (!nodes) return;
+      const itemId = nodes.wrapper && nodes.wrapper.dataset ? nodes.wrapper.dataset.itemId : null;
+      const item = itemId ? itemsById.get(itemId) : null;
       updateInlineEditorVisibility(nodes);
+      applyItemModeClasses(item, nodes);
     });
   }
 
@@ -1288,6 +1305,51 @@
     itemNodes.set(item.id, nodes);
     attachItemListeners(item.id, nodes);
     return nodes;
+  }
+
+  function focusInlineEditorTextField(inlineEditor) {
+    if (!inlineEditor || !inlineEditor.textField) return;
+    try {
+      inlineEditor.textField.focus({ preventScroll: true });
+    } catch (_) {
+      inlineEditor.textField.focus();
+    }
+  }
+
+  function setInlineEditorTextMode(inlineEditor, mode) {
+    if (!inlineEditor || !inlineEditor.textWrapper) return;
+    const normalized = mode === 'preview' ? 'preview' : 'edit';
+    inlineEditor.textWrapper.dataset.mode = normalized;
+    if (inlineEditor.preview) {
+      const isPreview = normalized === 'preview';
+      inlineEditor.preview.setAttribute('aria-hidden', isPreview ? 'false' : 'true');
+      inlineEditor.preview.tabIndex = isPreview ? 0 : -1;
+    }
+  }
+
+  function updateInlineEditorTextPreview(item, inlineEditor) {
+    if (!inlineEditor || !inlineEditor.preview) return;
+    const preview = inlineEditor.preview;
+    const text = typeof item.text === 'string' ? item.text.trim() : '';
+    preview.innerHTML = '';
+    preview.classList.toggle('sortering__item-editor-preview--empty', !text);
+    preview.setAttribute('aria-label', text ? 'Klikk for å redigere tekst' : 'Klikk for å skrive tekst');
+    if (!text) {
+      preview.textContent = 'Klikk for å skrive tekst';
+      return;
+    }
+    const renderer = getDescriptionRenderer();
+    if (renderer && typeof renderer.renderInto === 'function') {
+      renderer.renderInto(preview, text);
+    } else {
+      preview.textContent = text;
+    }
+  }
+
+  function refreshInlineEditorTextMode(item, inlineEditor) {
+    updateInlineEditorTextPreview(item, inlineEditor);
+    const text = typeof item.text === 'string' ? item.text.trim() : '';
+    setInlineEditorTextMode(inlineEditor, text ? 'preview' : 'edit');
   }
 
   function renderInlineEditorFigures(item, inlineEditor) {
@@ -1368,23 +1430,81 @@
 
     inlineEditor.content.textContent = '';
     inlineEditor.textField = null;
+    inlineEditor.textWrapper = null;
+    inlineEditor.preview = null;
     inlineEditor.figureList = null;
     inlineEditor.addFigureButton = null;
 
     if (type === 'text') {
+      const textWrapper = doc.createElement('div');
+      textWrapper.className = 'sortering__item-editor-text';
       const textarea = doc.createElement('textarea');
       textarea.className = 'sortering__item-editor-textarea';
       textarea.id = `${item.id}-inline-editor-text`;
       textarea.rows = 2;
       textarea.value = typeof item.text === 'string' ? item.text : '';
+      const preview = doc.createElement('div');
+      preview.className = 'sortering__item-editor-preview';
+      preview.setAttribute('role', 'button');
+      textWrapper.appendChild(textarea);
+      textWrapper.appendChild(preview);
+      inlineEditor.textWrapper = textWrapper;
+      inlineEditor.textField = textarea;
+      inlineEditor.preview = preview;
+      inlineEditor.content.appendChild(textWrapper);
+
+      const commitTextChange = options => {
+        const normalized = typeof textarea.value === 'string' ? textarea.value : '';
+        item.text = normalized;
+        refreshItemsById();
+        if (!options || options.rebuild !== false) {
+          applyOrder({});
+        }
+        refreshInlineEditorTextMode(item, inlineEditor);
+        updateValidationState();
+      };
+
+      textarea.addEventListener('focus', () => {
+        setInlineEditorTextMode(inlineEditor, 'edit');
+      });
+
       textarea.addEventListener('input', () => {
         item.text = textarea.value;
         refreshItemsById();
-        applyOrder({});
+        updateInlineEditorTextPreview(item, inlineEditor);
         updateValidationState();
       });
-      inlineEditor.textField = textarea;
-      inlineEditor.content.appendChild(textarea);
+
+      textarea.addEventListener('blur', () => {
+        const trimmed = typeof textarea.value === 'string' ? textarea.value.trim() : '';
+        if (textarea.value !== trimmed) {
+          textarea.value = trimmed;
+        }
+        commitTextChange();
+      });
+
+      textarea.addEventListener('keydown', event => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          textarea.blur();
+        }
+      });
+
+      preview.addEventListener('click', event => {
+        event.preventDefault();
+        setInlineEditorTextMode(inlineEditor, 'edit');
+        focusInlineEditorTextField(inlineEditor);
+      });
+
+      preview.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          setInlineEditorTextMode(inlineEditor, 'edit');
+          focusInlineEditorTextField(inlineEditor);
+        }
+      });
+
+      refreshInlineEditorTextMode(item, inlineEditor);
       return;
     }
 
@@ -1466,6 +1586,8 @@
         content,
         removeButton,
         textField: null,
+        textWrapper: null,
+        preview: null,
         figureList: null,
         addFigureButton: null
       };
@@ -1509,6 +1631,7 @@
 
     wrapper.dataset.itemId = item.id;
     wrapper.dataset.position = Number.isFinite(position) ? String(position + 1) : '';
+    applyItemModeClasses(item, nodes);
 
     while (contentEl.firstChild) {
       contentEl.removeChild(contentEl.firstChild);
