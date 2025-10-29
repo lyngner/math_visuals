@@ -55,6 +55,9 @@
   const ARCHIVE_CACHE_STORAGE_KEY = 'mathvis:svgArchive:cache:v1';
   const ARCHIVE_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
   let manualTrashReplayInFlight = false;
+  const entryDetailsCache = new Map();
+  const entryDetailsPending = new Map();
+  const entryAltTextCache = new Map();
 
   function getGlobalTrashQueue() {
     const globalObject = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
@@ -1445,6 +1448,46 @@
       figcaption.className = 'svg-archive__dialog-caption';
       figure.appendChild(figcaption);
 
+      const descriptionSection = document.createElement('section');
+      descriptionSection.className = 'svg-archive__dialog-section svg-archive__dialog-section--description';
+      descriptionSection.setAttribute('hidden', '');
+
+      const descriptionTitle = document.createElement('h3');
+      descriptionTitle.className = 'svg-archive__dialog-section-title';
+      descriptionTitle.textContent = 'Oppgavetekst';
+      descriptionSection.appendChild(descriptionTitle);
+
+      const descriptionBody = document.createElement('div');
+      descriptionBody.id = 'svg-archive-dialog-description';
+      descriptionBody.className = 'svg-archive__dialog-description';
+      descriptionBody.dataset.state = 'loading';
+      descriptionSection.appendChild(descriptionBody);
+
+      const altTextSection = document.createElement('section');
+      altTextSection.className = 'svg-archive__dialog-section svg-archive__dialog-section--alt-text';
+
+      const altTextTitle = document.createElement('h3');
+      altTextTitle.className = 'svg-archive__dialog-section-title';
+      altTextTitle.textContent = 'Alternativ tekst';
+      altTextSection.appendChild(altTextTitle);
+
+      const altTextNote = document.createElement('p');
+      altTextNote.className = 'svg-archive__dialog-alt-text-note';
+      altTextNote.textContent = 'Teksten beskriver figuren for skjermlesere og kan redigeres ved behov.';
+      altTextSection.appendChild(altTextNote);
+
+      const altTextEditor = document.createElement('div');
+      altTextEditor.dataset.altTextEditor = 'true';
+      altTextSection.appendChild(altTextEditor);
+
+      const altTextFigure = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      altTextFigure.classList.add('svg-archive__dialog-alt-text-figure');
+      altTextFigure.setAttribute('aria-hidden', 'true');
+      altTextFigure.setAttribute('focusable', 'false');
+      altTextFigure.setAttribute('width', '0');
+      altTextFigure.setAttribute('height', '0');
+      altTextSection.appendChild(altTextFigure);
+
       const meta = document.createElement('dl');
       meta.id = 'svg-archive-dialog-meta';
       meta.className = 'svg-archive__dialog-meta';
@@ -1472,6 +1515,8 @@
       }
 
       body.appendChild(figure);
+      body.appendChild(descriptionSection);
+      body.appendChild(altTextSection);
       body.appendChild(meta);
       body.appendChild(actions);
 
@@ -1488,12 +1533,29 @@
     const subtitleElement = dialog.querySelector('.svg-archive__dialog-subtitle');
     const captionElement = dialog.querySelector('.svg-archive__dialog-caption');
     const imageElement = dialog.querySelector('.svg-archive__dialog-image');
+    const descriptionSectionElement = dialog.querySelector('.svg-archive__dialog-section--description');
+    const descriptionContentElement = descriptionSectionElement
+      ? descriptionSectionElement.querySelector('.svg-archive__dialog-description')
+      : null;
+    const altTextSectionElement = dialog.querySelector('.svg-archive__dialog-section--alt-text');
+    const altTextEditorContainer = altTextSectionElement
+      ? altTextSectionElement.querySelector('[data-alt-text-editor]')
+      : null;
+    const altTextNoteElement = altTextSectionElement
+      ? altTextSectionElement.querySelector('.svg-archive__dialog-alt-text-note')
+      : null;
+    const altTextFigureElement = altTextSectionElement
+      ? altTextSectionElement.querySelector('.svg-archive__dialog-alt-text-figure')
+      : null;
     const metaElement = dialog.querySelector('.svg-archive__dialog-meta');
     const actionsContainer = dialog.querySelector('.svg-archive__dialog-actions');
     const actionButtons = Array.from(actionsContainer.querySelectorAll('[data-action]'));
 
     let activeEntry = null;
     let restoreFocusTo = null;
+    let currentDetails = null;
+    let altTextManager = null;
+    let pendingDetailsToken = 0;
 
     function renderMeta(entry) {
       metaElement.innerHTML = '';
@@ -1509,6 +1571,7 @@
 
       if (!metaPairs.length) {
         metaElement.setAttribute('hidden', '');
+        syncDialogDescriptionTargets();
         return;
       }
 
@@ -1523,10 +1586,196 @@
         dd.textContent = description;
         metaElement.appendChild(dd);
       }
+
+      syncDialogDescriptionTargets();
+    }
+
+    function syncDialogDescriptionTargets() {
+      const descriptionIds = [];
+      if (!captionElement.hasAttribute('hidden')) {
+        descriptionIds.push('svg-archive-dialog-caption');
+      }
+      if (descriptionSectionElement && !descriptionSectionElement.hasAttribute('hidden')) {
+        descriptionIds.push('svg-archive-dialog-description');
+      }
+      if (!metaElement.hasAttribute('hidden')) {
+        descriptionIds.push('svg-archive-dialog-meta');
+      }
+      if (descriptionIds.length) {
+        dialog.setAttribute('aria-describedby', descriptionIds.join(' '));
+      } else {
+        dialog.removeAttribute('aria-describedby');
+      }
+    }
+
+    function showDescriptionMessage(message, { state = 'info', hidden = false, empty = false } = {}) {
+      if (!descriptionSectionElement || !descriptionContentElement) {
+        return;
+      }
+      if (hidden) {
+        descriptionSectionElement.setAttribute('hidden', '');
+      } else {
+        descriptionSectionElement.removeAttribute('hidden');
+      }
+      descriptionContentElement.dataset.state = state;
+      if (empty) {
+        descriptionContentElement.dataset.empty = 'true';
+      } else {
+        delete descriptionContentElement.dataset.empty;
+      }
+      descriptionContentElement.textContent = message;
+      syncDialogDescriptionTargets();
+    }
+
+    function renderDescriptionContent(description) {
+      if (!descriptionSectionElement || !descriptionContentElement) {
+        return;
+      }
+      const text = typeof description === 'string' ? description.trim() : '';
+      if (!text) {
+        showDescriptionMessage('Ingen oppgavetekst er lagret for denne figuren.', {
+          state: 'empty',
+          hidden: false,
+          empty: true
+        });
+        return;
+      }
+      descriptionSectionElement.removeAttribute('hidden');
+      descriptionContentElement.dataset.state = 'ready';
+      delete descriptionContentElement.dataset.empty;
+      if (window.MathVisDescriptionRenderer && typeof window.MathVisDescriptionRenderer.renderInto === 'function') {
+        const success = window.MathVisDescriptionRenderer.renderInto(descriptionContentElement, text);
+        if (!success) {
+          descriptionContentElement.textContent = text;
+        }
+      } else {
+        descriptionContentElement.textContent = text;
+      }
+      syncDialogDescriptionTargets();
+    }
+
+    function ensureAltTextManager() {
+      if (!window.MathVisAltText || !altTextEditorContainer || !altTextFigureElement) {
+        return null;
+      }
+      if (altTextManager) {
+        altTextManager.ensureDom();
+        return altTextManager;
+      }
+      altTextManager = window.MathVisAltText.create({
+        svg: () => altTextFigureElement,
+        container: altTextEditorContainer,
+        getTitle: () => {
+          if (!activeEntry) {
+            return 'Figur';
+          }
+          return activeEntry.displayTitle || activeEntry.title || activeEntry.baseName || 'Figur';
+        },
+        getState: () => {
+          if (!activeEntry || !activeEntry.slug) {
+            return { text: '', source: 'auto' };
+          }
+          const record = entryAltTextCache.get(activeEntry.slug) || { text: '', source: 'auto' };
+          return {
+            text: record.text || '',
+            source: record.source === 'manual' ? 'manual' : 'auto'
+          };
+        },
+        setState: (text, source) => {
+          if (!activeEntry || !activeEntry.slug) {
+            return;
+          }
+          const normalizedText = typeof text === 'string' ? text.trim() : '';
+          const normalizedSource = source === 'manual' ? 'manual' : 'auto';
+          const record = updateAltTextRecord(activeEntry.slug, current => {
+            current.text = normalizedText;
+            current.source = normalizedSource;
+            return current;
+          });
+          activeEntry.altText = normalizedText;
+          if (currentDetails && currentDetails.slug === activeEntry.slug) {
+            currentDetails.altText = normalizedText;
+            if (currentDetails.summary && typeof currentDetails.summary === 'object') {
+              currentDetails.summary.altText = normalizedText;
+              currentDetails.summary.altTextSource = normalizedSource;
+            }
+          }
+          imageElement.alt = normalizedText || activeEntry.displayTitle || 'Forhåndsvisning';
+          const cardImage = findCardPreviewImage(activeEntry.slug);
+          if (cardImage) {
+            cardImage.alt = normalizedText || `Forhåndsvisning av ${activeEntry.displayTitle || 'figur'}`;
+          }
+          if (!activeEntry.summary) {
+            captionElement.textContent = normalizedText || '';
+            if (captionElement.textContent) {
+              captionElement.removeAttribute('hidden');
+            } else {
+              captionElement.setAttribute('hidden', '');
+            }
+            syncDialogDescriptionTargets();
+          }
+          return record;
+        },
+        generate: () => {
+          if (!activeEntry || !activeEntry.slug) {
+            return '';
+          }
+          const record = entryAltTextCache.get(activeEntry.slug);
+          return record && record.autoText ? record.autoText : '';
+        },
+        getAutoMessage: () => 'Alternativ tekst oppdatert automatisk.',
+        getManualMessage: () => 'Alternativ tekst oppdatert manuelt.',
+        getSignature: () => {
+          if (!activeEntry || !activeEntry.slug) {
+            return '';
+          }
+          const record = entryAltTextCache.get(activeEntry.slug);
+          return record && record.signature ? record.signature : '';
+        }
+      });
+      return altTextManager;
+    }
+
+    function applyAltTextState(entry, details, { reason = 'auto', signatureOverride = undefined } = {}) {
+      if (!entry || !entry.slug) {
+        return;
+      }
+      const record = ensureAltTextRecord(entry.slug, entry, details);
+      if (!record) {
+        return;
+      }
+      entry.altText = record.text;
+      const manager = ensureAltTextManager();
+      if (manager) {
+        manager.ensureDom();
+        const signatureValue = signatureOverride !== undefined ? signatureOverride : record.signature;
+        if (record.source === 'manual') {
+          manager.notifyFigureChange(signatureValue);
+          manager.applyCurrent();
+        } else {
+          manager.refresh(reason, signatureValue);
+        }
+      }
+      imageElement.alt = record.text || entry.displayTitle || 'Forhåndsvisning';
+      const cardImage = findCardPreviewImage(entry.slug);
+      if (cardImage) {
+        cardImage.alt = record.text || `Forhåndsvisning av ${entry.displayTitle || 'figur'}`;
+      }
+      if (!entry.summary) {
+        captionElement.textContent = record.text || '';
+        if (captionElement.textContent) {
+          captionElement.removeAttribute('hidden');
+        } else {
+          captionElement.setAttribute('hidden', '');
+        }
+      }
+      syncDialogDescriptionTargets();
     }
 
     function updateDialog(entry) {
       activeEntry = entry;
+      currentDetails = null;
+      const token = ++pendingDetailsToken;
       titleElement.textContent = entry.displayTitle || entry.title || entry.baseName || 'Detaljer';
       if (subtitleElement) {
         if (entry.createdAt) {
@@ -1541,12 +1790,14 @@
           subtitleElement.setAttribute('hidden', '');
         }
       }
+
       captionElement.textContent = entry.summary || entry.altText || '';
       if (captionElement.textContent) {
         captionElement.removeAttribute('hidden');
       } else {
         captionElement.setAttribute('hidden', '');
       }
+
       if (entry.pngUrl) {
         imageElement.src = entry.pngUrl;
       } else if (entry.svgUrl) {
@@ -1554,22 +1805,33 @@
       } else {
         imageElement.removeAttribute('src');
       }
-      imageElement.alt = entry.altText || entry.displayTitle || 'Forhåndsvisning';
 
       renderMeta(entry);
+      syncDialogDescriptionTargets();
 
-      const descriptionIds = [];
-      if (!captionElement.hasAttribute('hidden')) {
-        descriptionIds.push('svg-archive-dialog-caption');
+      if (altTextNoteElement) {
+        altTextNoteElement.textContent = 'Teksten beskriver figuren for skjermlesere og kan redigeres ved behov.';
       }
-      if (!metaElement.hasAttribute('hidden')) {
-        descriptionIds.push('svg-archive-dialog-meta');
+
+      let cachedDetails = null;
+      if (entry.slug && entryDetailsCache.has(entry.slug)) {
+        cachedDetails = entryDetailsCache.get(entry.slug);
+        currentDetails = cachedDetails;
       }
-      if (descriptionIds.length) {
-        dialog.setAttribute('aria-describedby', descriptionIds.join(' '));
+
+      if (cachedDetails && typeof cachedDetails.description === 'string') {
+        renderDescriptionContent(cachedDetails.description);
+      } else if (entry.slug) {
+        showDescriptionMessage('Laster oppgavetekst …', { state: 'loading', hidden: false });
       } else {
-        dialog.removeAttribute('aria-describedby');
+        showDescriptionMessage('Ingen oppgavetekst er tilgjengelig for denne figuren.', {
+          state: 'empty',
+          hidden: false,
+          empty: true
+        });
       }
+
+      applyAltTextState(entry, cachedDetails, { reason: 'init' });
 
       const hasSvg = Boolean(entry.svgUrl);
       const hasPng = Boolean(entry.pngUrl);
@@ -1608,6 +1870,50 @@
           button.removeAttribute('aria-hidden');
         }
       }
+
+      if (!entry.slug) {
+        return;
+      }
+
+      fetchEntryDetails(entry.slug, { fallback: entry })
+        .then(details => {
+          if (!details || !activeEntry || activeEntry.slug !== entry.slug || token !== pendingDetailsToken) {
+            return;
+          }
+          currentDetails = details;
+          if (typeof details.description === 'string' && details.description.trim()) {
+            renderDescriptionContent(details.description);
+          } else {
+            showDescriptionMessage('Ingen oppgavetekst er lagret for denne figuren.', {
+              state: 'empty',
+              hidden: false,
+              empty: true
+            });
+          }
+          applyAltTextState(entry, details, {
+            reason: 'details-update',
+            signatureOverride: computeAltTextSignature(entry, details)
+          });
+        })
+        .catch(() => {
+          if (!activeEntry || activeEntry.slug !== entry.slug || token !== pendingDetailsToken) {
+            return;
+          }
+          const existing = currentDetails && typeof currentDetails.description === 'string'
+            ? currentDetails.description.trim()
+            : cachedDetails && typeof cachedDetails.description === 'string'
+              ? cachedDetails.description.trim()
+              : '';
+          if (existing) {
+            renderDescriptionContent(existing);
+            return;
+          }
+          showDescriptionMessage('Kunne ikke hente oppgaveteksten.', {
+            state: 'error',
+            hidden: false,
+            empty: true
+          });
+        });
     }
 
     function closeDialog(options = {}) {
@@ -2004,6 +2310,276 @@
     return Number.NEGATIVE_INFINITY;
   }
 
+  function normalizeEntryDetails(payload, fallback = {}) {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const normalized = {};
+    const slugCandidates = [payload.slug, fallback.slug, payload.svgSlug, payload.baseName];
+    for (const candidate of slugCandidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        normalized.slug = candidate.trim();
+        break;
+      }
+    }
+
+    const fieldsToCopy = ['title', 'displayTitle', 'baseName', 'tool', 'createdAt', 'updatedAt', 'svgUrl', 'pngUrl'];
+    fieldsToCopy.forEach(key => {
+      if (typeof payload[key] === 'string' && payload[key].trim()) {
+        normalized[key] = payload[key].trim();
+      } else if (typeof fallback[key] === 'string' && fallback[key].trim()) {
+        normalized[key] = fallback[key].trim();
+      }
+    });
+
+    if (!normalized.tool && payload.metadata && typeof payload.metadata.tool === 'string') {
+      normalized.tool = payload.metadata.tool.trim();
+    }
+
+    const description = typeof payload.description === 'string' ? payload.description.trim() : '';
+    if (description) {
+      normalized.description = description;
+    }
+
+    const altText = typeof payload.altText === 'string' ? payload.altText.trim() : '';
+    if (altText) {
+      normalized.altText = altText;
+    }
+
+    const altTextSource = typeof payload.altTextSource === 'string' ? payload.altTextSource.trim() : '';
+    if (altTextSource) {
+      normalized.altTextSource = altTextSource;
+    }
+
+    if (payload.exampleState !== undefined) {
+      normalized.exampleState = payload.exampleState;
+    }
+
+    if (payload.metadata && typeof payload.metadata === 'object') {
+      normalized.metadata = { ...payload.metadata };
+    }
+
+    if (payload.summary !== undefined) {
+      if (typeof payload.summary === 'string') {
+        normalized.summary = payload.summary.trim();
+      } else if (payload.summary && typeof payload.summary === 'object') {
+        const summaryCopy = { ...payload.summary };
+        if (typeof summaryCopy.altText === 'string') {
+          summaryCopy.altText = summaryCopy.altText.trim();
+        }
+        if (typeof summaryCopy.description === 'string') {
+          summaryCopy.description = summaryCopy.description.trim();
+        }
+        if (typeof summaryCopy.text === 'string') {
+          summaryCopy.text = summaryCopy.text.trim();
+        }
+        if (typeof summaryCopy.altTextSource === 'string') {
+          summaryCopy.altTextSource = summaryCopy.altTextSource.trim();
+        }
+        normalized.summary = summaryCopy;
+      }
+    }
+
+    return normalized;
+  }
+
+  async function fetchEntryDetails(slug, { forceRefresh = false, fallback = {} } = {}) {
+    if (typeof slug !== 'string' || !slug.trim()) {
+      return null;
+    }
+
+    const normalizedSlug = slug.trim();
+
+    if (!forceRefresh && entryDetailsCache.has(normalizedSlug)) {
+      return entryDetailsCache.get(normalizedSlug);
+    }
+
+    if (!forceRefresh && entryDetailsPending.has(normalizedSlug)) {
+      return entryDetailsPending.get(normalizedSlug);
+    }
+
+    const pending = (async () => {
+      try {
+        const response = await fetch(`/api/svg?slug=${encodeURIComponent(normalizedSlug)}`, {
+          headers: { Accept: 'application/json' }
+        });
+        if (!response.ok) {
+          throw new Error(`Status ${response.status}`);
+        }
+        const payload = await response.json();
+        const details = normalizeEntryDetails(payload, fallback) || null;
+        if (details) {
+          entryDetailsCache.set(normalizedSlug, details);
+        }
+        return details;
+      } finally {
+        entryDetailsPending.delete(normalizedSlug);
+      }
+    })();
+
+    entryDetailsPending.set(normalizedSlug, pending);
+    return pending;
+  }
+
+  function determineAltTextSource(entry, details) {
+    const candidates = [];
+    if (details && typeof details.altTextSource === 'string') {
+      candidates.push(details.altTextSource);
+    }
+    if (details && details.summary && typeof details.summary === 'object' && typeof details.summary.altTextSource === 'string') {
+      candidates.push(details.summary.altTextSource);
+    }
+    if (details && details.metadata && typeof details.metadata.altTextSource === 'string') {
+      candidates.push(details.metadata.altTextSource);
+    }
+    if (entry && typeof entry.altTextSource === 'string') {
+      candidates.push(entry.altTextSource);
+    }
+    const resolved = candidates.find(value => typeof value === 'string' && value.trim());
+    return resolved && resolved.trim().toLowerCase() === 'manual' ? 'manual' : 'auto';
+  }
+
+  function determineAltTextCandidates(entry, details) {
+    const candidates = [];
+    const append = value => {
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed) {
+          candidates.push(trimmed);
+        }
+      }
+    };
+
+    if (details) {
+      append(details.altText);
+      append(details.autoAltText);
+      append(details.description);
+      if (typeof details.summary === 'string') {
+        append(details.summary);
+      }
+      if (details.summary && typeof details.summary === 'object') {
+        append(details.summary.altText);
+        append(details.summary.description);
+        append(details.summary.text);
+      }
+    }
+
+    if (entry) {
+      append(entry.altText);
+      append(entry.summary);
+      append(entry.description);
+      if (entry.displayTitle) {
+        append(`Figuren «${entry.displayTitle}».`);
+      }
+    }
+
+    append('SVG-figur.');
+    return candidates;
+  }
+
+  function determineAutoAltText(entry, details) {
+    const candidates = determineAltTextCandidates(entry, details);
+    return candidates.length ? candidates[0] : '';
+  }
+
+  function computeAltTextSignature(entry, details) {
+    const parts = [];
+    if (details && typeof details.updatedAt === 'string' && details.updatedAt.trim()) {
+      parts.push(details.updatedAt.trim());
+    } else if (entry && typeof entry.updatedAt === 'string' && entry.updatedAt.trim()) {
+      parts.push(entry.updatedAt.trim());
+    }
+    if (details && typeof details.summary === 'string') {
+      parts.push(details.summary.trim());
+    } else if (details && details.summary && typeof details.summary === 'object') {
+      try {
+        parts.push(JSON.stringify(details.summary));
+      } catch (error) {}
+    }
+    if (details && typeof details.description === 'string' && details.description.trim()) {
+      parts.push(details.description.trim());
+    }
+    if (!parts.length && entry && typeof entry.slug === 'string') {
+      parts.push(entry.slug);
+    }
+    return parts.join('::');
+  }
+
+  function ensureAltTextRecord(slug, entry, details) {
+    if (typeof slug !== 'string' || !slug.trim()) {
+      return null;
+    }
+    const normalizedSlug = slug.trim();
+    const existing = entryAltTextCache.get(normalizedSlug) || null;
+    const autoText = determineAutoAltText(entry, details);
+    const signature = computeAltTextSignature(entry, details);
+    const sourceHint = determineAltTextSource(entry, details);
+    const baseText = details && details.altText ? details.altText : entry && entry.altText ? entry.altText : autoText;
+
+    if (!existing) {
+      const record = {
+        text: typeof baseText === 'string' ? baseText.trim() : '',
+        source: sourceHint === 'manual' && baseText ? 'manual' : 'auto',
+        autoText,
+        signature
+      };
+      if (!record.text) {
+        record.text = autoText;
+        record.source = 'auto';
+      }
+      entryAltTextCache.set(normalizedSlug, record);
+      return record;
+    }
+
+    existing.autoText = autoText;
+    existing.signature = signature;
+    if ((existing.source !== 'manual' || !existing.text) && baseText) {
+      existing.text = typeof baseText === 'string' ? baseText.trim() : existing.text;
+      existing.source = sourceHint === 'manual' && existing.text ? 'manual' : existing.source;
+    }
+    if (!existing.text) {
+      existing.text = autoText;
+      existing.source = 'auto';
+    }
+    entryAltTextCache.set(normalizedSlug, existing);
+    return existing;
+  }
+
+  function updateAltTextRecord(slug, updater) {
+    if (typeof slug !== 'string' || !slug.trim() || typeof updater !== 'function') {
+      return null;
+    }
+    const normalizedSlug = slug.trim();
+    const current = entryAltTextCache.get(normalizedSlug) || { text: '', source: 'auto', autoText: '', signature: '' };
+    const next = updater({ ...current }) || current;
+    entryAltTextCache.set(normalizedSlug, next);
+    return next;
+  }
+
+  function escapeSelectorValue(value) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+    if (typeof CSS !== 'undefined' && CSS && typeof CSS.escape === 'function') {
+      return CSS.escape(value);
+    }
+    return value.replace(/(["\\])/g, '\\$1');
+  }
+
+  function findCardPreviewImage(slug) {
+    if (!grid || typeof slug !== 'string' || !slug.trim()) {
+      return null;
+    }
+    const escaped = escapeSelectorValue(slug.trim());
+    if (!escaped) {
+      return null;
+    }
+    const selector = `[data-svg-item="${escaped}"] img`;
+    const node = grid.querySelector(selector);
+    return node instanceof HTMLImageElement ? node : null;
+  }
+
   function normalizeArchiveEntries(entries) {
     return (Array.isArray(entries) ? entries : [])
       .map(entry => {
@@ -2151,6 +2727,14 @@
 
   function applyArchiveEntries(entries, metadata) {
     allEntries = Array.isArray(entries) ? entries.slice() : [];
+
+    allEntries.forEach(entry => {
+      if (!entry || !entry.slug) {
+        return;
+      }
+      const cachedDetails = entryDetailsCache.get(entry.slug) || null;
+      ensureAltTextRecord(entry.slug, entry, cachedDetails);
+    });
 
     updateFilterOptions();
     applyStorageNote(metadata);
@@ -2413,6 +2997,8 @@
           }
 
           allEntries = allEntries.filter(item => item.slug !== entry.slug);
+          entryDetailsCache.delete(entry.slug);
+          entryAltTextCache.delete(entry.slug);
           render();
           setStatus('Figur slettet.', 'success');
           helpers.close?.({ returnFocus: false });
