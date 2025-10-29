@@ -83,27 +83,32 @@ function whenJXGReady(callback) {
   scheduleJXGCheck();
 }
 const SETTINGS_STORAGE_KEY = 'mathVisuals:settings';
-const FALLBACK_CURVE_COLORS = ['#1F4DE2', '#475569', '#ef4444', '#0ea5e9', '#10b981', '#f59e0b'];
+const GRAFTEGNER_GROUP_ID = 'graftegner';
+const GRAFTEGNER_FALLBACK_PALETTE = ['#2563eb', '#f97316', '#0ea5e9', '#10b981', '#ef4444', '#f59e0b'];
 const FALLBACK_LINE_THICKNESS = 3;
-const CAMPUS_CURVE_ORDER = [0, 1, 2, 3, 4, 5];
+const DEFAULT_FUNCTION_COLORS = {
+  fallback: GRAFTEGNER_FALLBACK_PALETTE.slice(),
+  palette: GRAFTEGNER_FALLBACK_PALETTE.slice(),
+  simple: GRAFTEGNER_FALLBACK_PALETTE.slice(0, 2),
+  trig: GRAFTEGNER_FALLBACK_PALETTE.slice(2, 4)
+};
+const DEFAULT_POINT_COLORS = {
+  fallbackMarkerStroke: '#111827',
+  fallbackMarkerFill: '#ffffff',
+  fallbackDomain: '#6b7280',
+  fallbackGuide: '#64748b',
+  line: GRAFTEGNER_FALLBACK_PALETTE[0],
+  markerStroke: GRAFTEGNER_FALLBACK_PALETTE[0],
+  markerFill: '#ffffff',
+  domainMarker: '#6b7280',
+  guideStroke: '#64748b'
+};
 const DEFAULT_FUNCTION_EXPRESSION = 'f(x)=x^2-2';
 
 function getSettingsApi() {
   if (typeof window === 'undefined') return null;
   const api = window.MathVisualsSettings;
   return api && typeof api === 'object' ? api : null;
-}
-function sanitizeStoredColor(value) {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const match = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(trimmed);
-  if (!match) return null;
-  let hex = match[1].toLowerCase();
-  if (hex.length === 3) {
-    hex = hex.split('').map(ch => ch + ch).join('');
-  }
-  return `#${hex}`;
 }
 function cycleColors(source, count) {
   const base = Array.isArray(source) ? source.filter(color => typeof color === 'string' && color) : [];
@@ -149,29 +154,26 @@ function resolveSettingsSnapshot() {
   return readStoredSettings();
 }
 function getBaseCurveColors(count) {
-  const api = getSettingsApi();
   const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
-  if (api && typeof api.getDefaultColors === 'function') {
-    try {
-      const palette = api.getDefaultColors(targetCount);
-      if (Array.isArray(palette) && palette.length) {
-        return cycleColors(palette, targetCount || palette.length);
-      }
-    } catch (_) {}
+  const base = Array.isArray(DEFAULT_FUNCTION_COLORS.palette) && DEFAULT_FUNCTION_COLORS.palette.length
+    ? DEFAULT_FUNCTION_COLORS.palette
+    : DEFAULT_FUNCTION_COLORS.fallback;
+  if (!targetCount) {
+    return base.slice();
   }
-  const stored = resolveSettingsSnapshot();
-  if (stored && Array.isArray(stored.defaultColors)) {
-    const sanitized = stored.defaultColors.map(sanitizeStoredColor).filter(Boolean);
-    if (sanitized.length) {
-      return cycleColors(sanitized, targetCount || sanitized.length);
-    }
+  const fallback = DEFAULT_FUNCTION_COLORS.fallback.length ? DEFAULT_FUNCTION_COLORS.fallback : GRAFTEGNER_FALLBACK_PALETTE;
+  const result = [];
+  for (let i = 0; i < targetCount; i += 1) {
+    const color = base[i % base.length] || fallback[i % fallback.length] || fallback[0];
+    result.push(color);
   }
-  return cycleColors(FALLBACK_CURVE_COLORS, targetCount || FALLBACK_CURVE_COLORS.length);
+  return result;
 }
 function getDefaultCurveColor(index) {
   const palette = getBaseCurveColors(index + 1);
   if (!palette.length) {
-    return FALLBACK_CURVE_COLORS[index % FALLBACK_CURVE_COLORS.length];
+    const fallback = DEFAULT_FUNCTION_COLORS.fallback.length ? DEFAULT_FUNCTION_COLORS.fallback : GRAFTEGNER_FALLBACK_PALETTE;
+    return fallback[index % fallback.length];
   }
   return palette[index % palette.length];
 }
@@ -192,7 +194,6 @@ function getDefaultLineThickness() {
   return FALLBACK_LINE_THICKNESS;
 }
 
-const LEGACY_GRAFTEGNER_SIMPLE_COLORS = ['#2563eb', '#f97316'];
 const DEFAULT_GRAFTEGNER_SIMPLE = {
   axes: {
     xMin: -5,
@@ -204,21 +205,19 @@ const DEFAULT_GRAFTEGNER_SIMPLE = {
     {
       id: 'expr-1',
       latex: 'y=x^2-1',
-      color: LEGACY_GRAFTEGNER_SIMPLE_COLORS[0],
+      color: DEFAULT_FUNCTION_COLORS.simple[0] || DEFAULT_FUNCTION_COLORS.fallback[0],
       visible: true
     },
     {
       id: 'expr-2',
       latex: 'y=2x+3',
-      color: LEGACY_GRAFTEGNER_SIMPLE_COLORS[1],
+      color: DEFAULT_FUNCTION_COLORS.simple[1] || DEFAULT_FUNCTION_COLORS.fallback[1] || DEFAULT_FUNCTION_COLORS.simple[0],
       visible: true
     }
   ],
   altText: '',
   altTextSource: 'auto'
 };
-
-const LEGACY_GRAFTEGNER_TRIG_COLORS = ['#0ea5e9', '#10b981'];
 const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = {
   axes: {
     xMin: -7,
@@ -230,58 +229,19 @@ const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = {
     {
       id: 'expr-1',
       latex: 'y=\\sin(x)',
-      color: LEGACY_GRAFTEGNER_TRIG_COLORS[0],
+      color: DEFAULT_FUNCTION_COLORS.trig[0] || DEFAULT_FUNCTION_COLORS.fallback[0],
       visible: true
     },
     {
       id: 'expr-2',
       latex: 'y=\\cos(x)',
-      color: LEGACY_GRAFTEGNER_TRIG_COLORS[1],
+      color: DEFAULT_FUNCTION_COLORS.trig[1] || DEFAULT_FUNCTION_COLORS.fallback[1] || DEFAULT_FUNCTION_COLORS.trig[0],
       visible: true
     }
   ],
   altText: '',
   altTextSource: 'auto'
 };
-
-function applyGraftegnerDefaultsFromTheme() {
-  const theme = getThemeApi();
-  if (!theme || typeof theme.getGroupPalette !== 'function') return;
-  const project = getActiveThemeProjectName(theme);
-  const maxCount = Math.max(
-    DEFAULT_GRAFTEGNER_SIMPLE.expressions.length,
-    DEFAULT_GRAFTEGNER_TRIG_SIMPLE.expressions.length
-  );
-  let palette = null;
-  try {
-    palette = theme.getGroupPalette('graftegner', maxCount, project ? { project } : undefined);
-  } catch (_) {
-    palette = null;
-  }
-  if (!Array.isArray(palette) || !palette.length) return;
-  const sanitized = palette.map(normalizeColorValue);
-  const usable = sanitized.some(Boolean) ? sanitized.map(color => color || '') : palette;
-  const simplePalette = ensureColorCount(
-    usable,
-    LEGACY_GRAFTEGNER_SIMPLE_COLORS,
-    DEFAULT_GRAFTEGNER_SIMPLE.expressions.length
-  );
-  DEFAULT_GRAFTEGNER_SIMPLE.expressions.forEach((expr, idx) => {
-    if (!expr || typeof expr !== 'object') return;
-    expr.color = simplePalette[idx] || LEGACY_GRAFTEGNER_SIMPLE_COLORS[idx % LEGACY_GRAFTEGNER_SIMPLE_COLORS.length];
-  });
-  const trigPalette = ensureColorCount(
-    usable,
-    LEGACY_GRAFTEGNER_TRIG_COLORS,
-    DEFAULT_GRAFTEGNER_TRIG_SIMPLE.expressions.length
-  );
-  DEFAULT_GRAFTEGNER_TRIG_SIMPLE.expressions.forEach((expr, idx) => {
-    if (!expr || typeof expr !== 'object') return;
-    expr.color = trigPalette[idx] || LEGACY_GRAFTEGNER_TRIG_COLORS[idx % LEGACY_GRAFTEGNER_TRIG_COLORS.length];
-  });
-}
-
-applyGraftegnerDefaultsFromTheme();
 
 const AXIS_ARROW_PIXEL_THICKNESS = 26;
 const AXIS_ARROW_ASPECT_RATIO = 17 / 30;
@@ -372,47 +332,170 @@ function normalizeColorValue(value) {
   }
   return `#${hex}`;
 }
-function resolveCurvePalette(count = undefined) {
-  const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
-  const basePalette = getBaseCurveColors(targetCount);
-  const theme = getThemeApi();
-  if (theme) {
-    const project = getActiveThemeProjectName(theme);
-    if (typeof theme.getGroupPalette === 'function') {
-      try {
-        const palette = theme.getGroupPalette(
-          'graftegner',
-          targetCount || basePalette.length,
-          project ? { project } : undefined
-        );
-        if (Array.isArray(palette) && palette.length) {
-          const sanitized = palette.map(normalizeColorValue);
-          const filtered = sanitized.some(Boolean) ? sanitized.map(color => color || '') : palette;
-          const active = project;
-          const reordered = active === 'campus'
-            ? CAMPUS_CURVE_ORDER.map(idx => filtered[idx % filtered.length] || filtered[0])
-            : filtered;
-          return ensureColorCount(reordered, basePalette, targetCount || reordered.length);
-        }
-      } catch (_) {}
+
+function getPaletteHelper() {
+  const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+  if (scope && scope.MathVisualsPalette && typeof scope.MathVisualsPalette.getGroupPalette === 'function') {
+    return scope.MathVisualsPalette;
+  }
+  return null;
+}
+
+function sanitizePaletteList(values) {
+  if (!Array.isArray(values)) return [];
+  const sanitized = [];
+  values.forEach(value => {
+    const normalized = normalizeColorValue(value);
+    if (normalized) {
+      sanitized.push(normalized);
     }
-    if (typeof theme.getPalette === 'function') {
-      const palette = theme.getPalette('figures', targetCount || basePalette.length, {
-        fallbackKinds: ['fractions'],
-        project
-      });
-      if (Array.isArray(palette) && palette.length) {
-        const sanitized = palette.map(normalizeColorValue);
-        const filtered = sanitized.some(Boolean) ? sanitized.map(color => color || '') : palette;
-        const active = project;
-        const reordered = active === 'campus'
-          ? CAMPUS_CURVE_ORDER.map(idx => filtered[idx % filtered.length] || filtered[0])
-          : filtered;
-        return ensureColorCount(reordered, basePalette, targetCount || reordered.length);
+  });
+  return sanitized;
+}
+
+function resolvePaletteProjectName() {
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (doc && doc.documentElement) {
+    const root = doc.documentElement;
+    const activeAttr = root.getAttribute('data-mv-active-project');
+    if (typeof activeAttr === 'string' && activeAttr.trim()) {
+      return activeAttr.trim().toLowerCase();
+    }
+    const themeAttr = root.getAttribute('data-theme-profile');
+    if (typeof themeAttr === 'string' && themeAttr.trim()) {
+      return themeAttr.trim().toLowerCase();
+    }
+  }
+  const themeProject = getActiveThemeProjectName();
+  if (themeProject) return themeProject;
+  const api = getSettingsApi();
+  if (api && typeof api.getActiveProject === 'function') {
+    try {
+      const value = api.getActiveProject();
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim().toLowerCase();
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+function tryResolveGroupPalette(resolver) {
+  try {
+    const result = resolver();
+    return Array.isArray(result) && result.length ? result : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function fetchGraftegnerPalette(count) {
+  const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+  const project = resolvePaletteProjectName();
+  const theme = getThemeApi();
+  const settings = getSettingsApi();
+  if (settings && typeof settings.getGroupPalette === 'function') {
+    let palette = tryResolveGroupPalette(() => settings.getGroupPalette(GRAFTEGNER_GROUP_ID, targetCount, project ? { project } : undefined));
+    if (palette) return palette;
+    palette = tryResolveGroupPalette(() => settings.getGroupPalette(GRAFTEGNER_GROUP_ID, { project, count: targetCount }));
+    if (palette) return palette;
+  }
+  if (theme && typeof theme.getGroupPalette === 'function') {
+    const palette = tryResolveGroupPalette(() => theme.getGroupPalette(GRAFTEGNER_GROUP_ID, targetCount || undefined, project ? { project } : undefined));
+    if (palette) return palette;
+  }
+  const helper = getPaletteHelper();
+  if (helper && typeof helper.getGroupPalette === 'function') {
+    const palette = tryResolveGroupPalette(() => helper.getGroupPalette(GRAFTEGNER_GROUP_ID, { project, count: targetCount }));
+    if (palette) return palette;
+  }
+  if (theme && typeof theme.getPalette === 'function') {
+    const palette = tryResolveGroupPalette(() => theme.getPalette('figures', targetCount || DEFAULT_FUNCTION_COLORS.fallback.length, {
+      fallbackKinds: ['fractions'],
+      project
+    }));
+    if (palette) return palette;
+  }
+  const stored = resolveSettingsSnapshot();
+  if (stored && typeof stored === 'object') {
+    if (project && stored.projects && typeof stored.projects === 'object') {
+      const projectSettings = stored.projects[project];
+      if (projectSettings && Array.isArray(projectSettings.defaultColors)) {
+        const sanitized = sanitizePaletteList(projectSettings.defaultColors);
+        if (sanitized.length) {
+          return sanitized;
+        }
+      }
+    }
+    if (Array.isArray(stored.defaultColors)) {
+      const sanitized = sanitizePaletteList(stored.defaultColors);
+      if (sanitized.length) {
+        return sanitized;
       }
     }
   }
-  return ensureColorCount(basePalette, basePalette, targetCount || basePalette.length);
+  return DEFAULT_FUNCTION_COLORS.fallback.slice();
+}
+
+function applyGraftegnerPalette(palette, options = {}) {
+  const sanitized = sanitizePaletteList(palette);
+  const source = sanitized.length ? sanitized : DEFAULT_FUNCTION_COLORS.fallback;
+  const requestedCount = Number.isFinite(options.count) && options.count > 0
+    ? Math.trunc(options.count)
+    : Math.max(source.length, DEFAULT_FUNCTION_COLORS.fallback.length);
+  const resolved = ensureColorCount(source, DEFAULT_FUNCTION_COLORS.fallback, requestedCount);
+  DEFAULT_FUNCTION_COLORS.palette = resolved.slice();
+  const simpleCount = DEFAULT_GRAFTEGNER_SIMPLE.expressions.length;
+  const trigCount = DEFAULT_GRAFTEGNER_TRIG_SIMPLE.expressions.length;
+  const simplePalette = ensureColorCount(resolved, DEFAULT_FUNCTION_COLORS.fallback, simpleCount);
+  const trigPalette = ensureColorCount(resolved, DEFAULT_FUNCTION_COLORS.fallback, trigCount);
+  DEFAULT_FUNCTION_COLORS.simple = simplePalette.slice();
+  DEFAULT_FUNCTION_COLORS.trig = trigPalette.slice();
+  DEFAULT_GRAFTEGNER_SIMPLE.expressions.forEach((expr, idx) => {
+    if (!expr || typeof expr !== 'object') return;
+    expr.color = simplePalette[idx] || DEFAULT_FUNCTION_COLORS.fallback[idx % DEFAULT_FUNCTION_COLORS.fallback.length];
+  });
+  DEFAULT_GRAFTEGNER_TRIG_SIMPLE.expressions.forEach((expr, idx) => {
+    if (!expr || typeof expr !== 'object') return;
+    expr.color = trigPalette[idx] || DEFAULT_FUNCTION_COLORS.fallback[idx % DEFAULT_FUNCTION_COLORS.fallback.length];
+  });
+  const primary = resolved[0] || DEFAULT_FUNCTION_COLORS.fallback[0];
+  const secondary = resolved[1] || resolved[0] || DEFAULT_POINT_COLORS.fallbackDomain;
+  const tertiary = resolved[2] || secondary || DEFAULT_POINT_COLORS.fallbackGuide;
+  DEFAULT_POINT_COLORS.line = primary;
+  DEFAULT_POINT_COLORS.markerStroke = primary || DEFAULT_POINT_COLORS.fallbackMarkerStroke;
+  DEFAULT_POINT_COLORS.markerFill = DEFAULT_POINT_COLORS.fallbackMarkerFill;
+  DEFAULT_POINT_COLORS.domainMarker = secondary || DEFAULT_POINT_COLORS.fallbackDomain;
+  DEFAULT_POINT_COLORS.guideStroke = tertiary || DEFAULT_POINT_COLORS.fallbackGuide;
+  try {
+    if (ADV && typeof ADV === 'object' && ADV.domainMarkers && typeof ADV.domainMarkers === 'object') {
+      ADV.domainMarkers.color = DEFAULT_POINT_COLORS.domainMarker || DEFAULT_POINT_COLORS.fallbackDomain;
+    }
+  } catch (_) {}
+}
+
+function ensurePaletteCapacity(count) {
+  if (!Number.isFinite(count) || count <= 0) return;
+  if (Array.isArray(DEFAULT_FUNCTION_COLORS.palette) && DEFAULT_FUNCTION_COLORS.palette.length >= count) {
+    return;
+  }
+  applyGraftegnerDefaultsFromTheme({ count });
+}
+
+function applyGraftegnerDefaultsFromTheme(options = {}) {
+  const desiredCount = Number.isFinite(options.count) && options.count > 0
+    ? Math.trunc(options.count)
+    : DEFAULT_FUNCTION_COLORS.fallback.length;
+  const palette = fetchGraftegnerPalette(desiredCount);
+  applyGraftegnerPalette(palette, { count: desiredCount });
+}
+function resolveCurvePalette(count = undefined) {
+  const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+  if (targetCount) {
+    ensurePaletteCapacity(targetCount);
+  }
+  const basePalette = getBaseCurveColors(targetCount || DEFAULT_FUNCTION_COLORS.palette.length);
+  return ensureColorCount(basePalette, DEFAULT_FUNCTION_COLORS.fallback, targetCount || basePalette.length);
 }
 applyThemeToDocument();
 function paramStr(id, def = '') {
@@ -750,7 +833,7 @@ const ADV = {
     show: SHOW_DOMAIN_MARKERS,
     barPx: 22,
     tipFrac: 0.20,
-    color: '#6b7280',
+    color: DEFAULT_POINT_COLORS.domainMarker || DEFAULT_POINT_COLORS.fallbackDomain,
     width: getDefaultLineThickness(),
     layer: 8,
     offsetPx: 10
@@ -768,6 +851,8 @@ const ADV = {
     interTol: 1e-3
   }
 };
+
+applyGraftegnerDefaultsFromTheme();
 
 const DOMAIN_MARKER_SHAPES = {
   closed: {
@@ -1325,6 +1410,14 @@ function parseSimple(txt) {
 }
 let SIMPLE_PARSED = parseSimple(SIMPLE);
 applyLinePointStart(SIMPLE_PARSED);
+function computePaletteRequestCount() {
+  const simpleCount = DEFAULT_GRAFTEGNER_SIMPLE.expressions.length;
+  const trigCount = DEFAULT_GRAFTEGNER_TRIG_SIMPLE.expressions.length;
+  const parsedCount = Array.isArray(SIMPLE_PARSED && SIMPLE_PARSED.funcs) ? SIMPLE_PARSED.funcs.length : 0;
+  const manualCount = Array.isArray(SIMPLE_PARSED && SIMPLE_PARSED.extraPoints) ? SIMPLE_PARSED.extraPoints.length : 0;
+  return Math.max(simpleCount, trigCount, parsedCount, manualCount, DEFAULT_FUNCTION_COLORS.fallback.length, 1);
+}
+applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
 const ALLOWED_NAMES = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'log', 'ln', 'lg', 'sqrt', 'exp', 'abs', 'min', 'max', 'floor', 'ceil', 'round', 'pow'];
 function isExplicitRHS(rhs) {
   let s = rhs.toLowerCase();
@@ -2911,8 +3004,14 @@ function makeLabelDraggable(label, g, reposition) {
 
 /* =================== FARGEPALETT =================== */
 function colorFor(i) {
-  const palette = resolveCurvePalette();
-  return palette[i % palette.length];
+  const index = Number.isFinite(i) && i >= 0 ? Math.trunc(i) : 0;
+  ensurePaletteCapacity(index + 1);
+  const palette = getBaseCurveColors(index + 1);
+  const fallback = DEFAULT_FUNCTION_COLORS.fallback.length ? DEFAULT_FUNCTION_COLORS.fallback : GRAFTEGNER_FALLBACK_PALETTE;
+  if (!palette.length) {
+    return fallback[index % fallback.length];
+  }
+  return palette[index % palette.length];
 }
 function updateCurveColorsFromTheme() {
   if (!Array.isArray(graphs) || graphs.length === 0) return;
@@ -3977,9 +4076,12 @@ function buildCurveLabelContent(fun) {
 }
 function buildFunctions() {
   graphs = [];
-  const basePalette = getBaseCurveColors();
-  const fallbackColor = normalizeColorValue(getDefaultCurveColor(0)) || '#1F4DE2';
-  const palette = resolveCurvePalette(Math.max(basePalette.length, SIMPLE_PARSED.funcs.length || 1));
+  const requiredCount = Math.max(1, Array.isArray(SIMPLE_PARSED.funcs) ? SIMPLE_PARSED.funcs.length : 1);
+  ensurePaletteCapacity(requiredCount);
+  const fallbackColor = normalizeColorValue(getDefaultCurveColor(0))
+    || DEFAULT_FUNCTION_COLORS.fallback[0]
+    || GRAFTEGNER_FALLBACK_PALETTE[0];
+  const palette = resolveCurvePalette(requiredCount);
   SIMPLE_PARSED.funcs.forEach((f, i) => {
     const defaultColor = normalizeColorValue(palette[i % palette.length]) || fallbackColor;
     const manualColor = f && f.colorSource === 'manual' ? normalizeColorValue(f.color) : '';
@@ -4122,7 +4224,7 @@ function buildFunctions() {
       }
       if (MODE === 'functions' && ADV.points.guideArrows) {
         brd.create('arrow', [() => [P.X(), P.Y()], () => [0, P.Y()]], {
-          strokeColor: '#64748b',
+          strokeColor: DEFAULT_POINT_COLORS.guideStroke || DEFAULT_POINT_COLORS.fallbackGuide,
           strokeWidth: 2,
           dash: 2,
           lastArrow: true,
@@ -4132,7 +4234,7 @@ function buildFunctions() {
           highlight: false
         });
         brd.create('arrow', [() => [P.X(), P.Y()], () => [P.X(), 0]], {
-          strokeColor: '#64748b',
+          strokeColor: DEFAULT_POINT_COLORS.guideStroke || DEFAULT_POINT_COLORS.fallbackGuide,
           strokeWidth: 2,
           dash: 2,
           lastArrow: true,
@@ -4155,7 +4257,10 @@ function buildPointsLine() {
   A = null;
   B = null;
   moving = [];
-  const fallbackColor = normalizeColorValue(getDefaultCurveColor(0)) || '#1F4DE2';
+  const fallbackColor = normalizeColorValue(DEFAULT_POINT_COLORS.line)
+    || normalizeColorValue(getDefaultCurveColor(0))
+    || DEFAULT_FUNCTION_COLORS.fallback[0]
+    || GRAFTEGNER_FALLBACK_PALETTE[0];
   const paletteColor = normalizeColorValue(colorFor(0)) || fallbackColor;
   const first = (_SIMPLE_PARSED$funcs$ = SIMPLE_PARSED.funcs[0]) !== null && _SIMPLE_PARSED$funcs$ !== void 0 ? _SIMPLE_PARSED$funcs$ : {
     rhs: 'ax+b'
@@ -4174,7 +4279,7 @@ function buildPointsLine() {
       name: '',
       size: POINT_MARKER_SIZE,
       face: 'o',
-      fillColor: '#fff',
+      fillColor: DEFAULT_POINT_COLORS.markerFill || DEFAULT_POINT_COLORS.fallbackMarkerFill,
       strokeColor: lineColor,
       withLabel: true,
       showInfobox: false
@@ -4183,7 +4288,7 @@ function buildPointsLine() {
       name: '',
       size: POINT_MARKER_SIZE,
       face: 'o',
-      fillColor: '#fff',
+      fillColor: DEFAULT_POINT_COLORS.markerFill || DEFAULT_POINT_COLORS.fallbackMarkerFill,
       strokeColor: lineColor,
       withLabel: true,
       showInfobox: false
@@ -4201,7 +4306,7 @@ function buildPointsLine() {
       name: '',
       size: POINT_MARKER_SIZE,
       face: 'o',
-      fillColor: '#fff',
+      fillColor: DEFAULT_POINT_COLORS.markerFill || DEFAULT_POINT_COLORS.fallbackMarkerFill,
       strokeColor: lineColor,
       withLabel: true,
       showInfobox: false
@@ -4214,7 +4319,7 @@ function buildPointsLine() {
       name: '',
       size: POINT_MARKER_SIZE,
       face: 'o',
-      fillColor: '#fff',
+      fillColor: DEFAULT_POINT_COLORS.markerFill || DEFAULT_POINT_COLORS.fallbackMarkerFill,
       strokeColor: lineColor,
       withLabel: true,
       showInfobox: false
@@ -4966,8 +5071,8 @@ function addFixedPoints() {
       name: '',
       size: POINT_MARKER_SIZE,
       face: 'o',
-      fillColor: '#fff',
-      strokeColor: '#111827',
+      fillColor: DEFAULT_POINT_COLORS.markerFill || DEFAULT_POINT_COLORS.fallbackMarkerFill,
+      strokeColor: DEFAULT_POINT_COLORS.markerStroke || DEFAULT_POINT_COLORS.fallbackMarkerStroke,
       withLabel: true,
       fixed: !!ADV.points.lockExtraPoints,
       showInfobox: false
@@ -4985,7 +5090,7 @@ function addFixedPoints() {
         anchorX: 'middle',
         anchorY: 'middle',
         fontSize: 24,
-        strokeColor: '#111827',
+        strokeColor: DEFAULT_POINT_COLORS.markerStroke || DEFAULT_POINT_COLORS.fallbackMarkerStroke,
         fixed: true,
         layer: 9
       });
@@ -5089,6 +5194,7 @@ function rebuildAll() {
   }
   SIMPLE_PARSED = parseSimple(SIMPLE);
   applyLinePointStart(SIMPLE_PARSED);
+  applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
   {
     const markerList = Array.isArray(SIMPLE_PARSED.pointMarkers)
       ? SIMPLE_PARSED.pointMarkers.map(sanitizePointMarkerValue).filter(Boolean)
@@ -5152,6 +5258,7 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     const type = typeof data === 'string' ? data : data && data.type;
     if (type !== 'math-visuals:profile-change') return;
     applyThemeToDocument();
+    applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
     updateCurveColorsFromTheme();
     updateAxisThemeStyling();
     refreshFunctionColorDefaults();
@@ -5161,6 +5268,7 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     ADV.axis.style.width = thickness;
     ADV.domainMarkers.width = thickness;
     applyThemeToDocument();
+    applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
     updateCurveColorsFromTheme();
     refreshFunctionColorDefaults();
     requestRebuild();
@@ -5524,7 +5632,9 @@ function setupSettingsForm() {
   const functionColorControls = [];
   let answerControl = null;
   const extraAnswerControls = [];
-  const DEFAULT_COLOR_FALLBACK = normalizeColorValue(getDefaultCurveColor(0)) || '#1F4DE2';
+  const DEFAULT_COLOR_FALLBACK = normalizeColorValue(getDefaultCurveColor(0))
+    || DEFAULT_FUNCTION_COLORS.fallback[0]
+    || GRAFTEGNER_FALLBACK_PALETTE[0];
   const getRowIndex = row => {
     if (!row || !row.dataset) return 1;
     const parsed = Number.parseInt(row.dataset.index, 10);
@@ -5618,6 +5728,7 @@ function setupSettingsForm() {
     };
   };
   let refreshFunctionColorDefaultsLocal = () => {
+    applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
     functionColorControls.forEach(control => {
       if (!control || !control.row) return;
       const nextDefault = computeDefaultColorForIndex(getRowIndex(control.row));
@@ -7465,6 +7576,7 @@ function setupSettingsForm() {
       SIMPLE = source;
       SIMPLE_PARSED = parseSimple(SIMPLE);
       applyLinePointStart(SIMPLE_PARSED);
+      applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
     }
     linePointsEdited = Array.isArray(SIMPLE_PARSED.linePoints) && SIMPLE_PARSED.linePoints.length > 0;
     const lines = text.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
