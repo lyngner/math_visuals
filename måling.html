@@ -221,6 +221,15 @@
       cursor: grabbing;
     }
 
+    .tape-measure__body {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1);
+      transform-origin: center;
+    }
+
     .tape-measure__strap,
     .tape-measure__housing {
       position: absolute;
@@ -235,6 +244,11 @@
       height: var(--tape-strap-height);
       clip-path: inset(0 calc(100% - var(--tape-strap-visible)) 0 0);
       overflow: hidden;
+    }
+
+    .tape-measure__body img {
+      transform: scaleX(-1);
+      transform-origin: center;
     }
 
     .tape-measure__strap img {
@@ -447,19 +461,21 @@
                 role="img"
                 hidden
               >
-                <div class="tape-measure__strap" data-tape-strap>
-                  <img
-                    src="images/measure/måleredskaper/målebånd15 uten tall.svg"
-                    alt=""
-                    aria-hidden="true"
-                  />
-                </div>
-                <div class="tape-measure__housing" data-tape-housing>
-                  <img
-                    src="images/measure/måleredskaper/målebåndhus.svg"
-                    alt=""
-                    aria-hidden="true"
-                  />
+                <div class="tape-measure__body">
+                  <div class="tape-measure__strap" data-tape-strap>
+                    <img
+                      src="images/measure/måleredskaper/målebånd15.svg"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  </div>
+                  <div class="tape-measure__housing" data-tape-housing>
+                    <img
+                      src="images/measure/måleredskaper/målebåndhus.svg"
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -488,6 +504,13 @@
           <div class="settings">
             <div class="settings__section" aria-labelledby="measurement-global-settings">
               <h3 id="measurement-global-settings" class="settings__section-title">Globale innstillinger</h3>
+              <div class="input-stack">
+                <label for="cfg-measurement-tool">Verktøy</label>
+                <select id="cfg-measurement-tool">
+                  <option value="ruler" selected>Linjal</option>
+                  <option value="tape">Målebånd</option>
+                </select>
+              </div>
               <div class="field-grid field-grid--three">
                 <label for="cfg-unit">Hovedenhet
                   <input id="cfg-unit" type="text" value="1cm" autocomplete="off" spellcheck="false" />
@@ -508,13 +531,6 @@
                   <label for="cfg-board-padding">Ramme rundt figur (px)</label>
                   <input id="cfg-board-padding" type="number" min="0" max="200" value="0" />
                 </div>
-              </div>
-              <div class="input-stack">
-                <label for="cfg-measurement-tool">Verktøy</label>
-                <select id="cfg-measurement-tool">
-                  <option value="ruler" selected>Linjal</option>
-                  <option value="tape">Målebånd</option>
-                </select>
               </div>
               <div class="toggle-grid">
                 <label class="settings__toggle">
