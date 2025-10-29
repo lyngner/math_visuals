@@ -200,8 +200,12 @@
       opacity: 1;
       transform: translate(-50%, 14px);
     }
-    .nav-item--svg {
+    nav li[data-trailing] {
       margin-left: auto;
+    }
+
+    nav li[data-trailing] + li[data-trailing] {
+      margin-left: 0;
     }
     .nav-item--svg > a {
       color: var(--profile-svg-nav-color);
@@ -799,27 +803,6 @@
       </li>
       <li data-beta-feature data-profile-filter="annet">
         <a
-          href="bibliotek.html"
-          target="content"
-          data-label="Bibliotek (beta)"
-          aria-label="Bibliotek (beta)"
-          data-default-example="1"
-          data-include-example-in-path="true"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.3" aria-hidden="true">
-            <rect x="4.5" y="5" width="4" height="14" rx="1" fill="currentColor" fill-opacity=".18" stroke="none" />
-            <rect x="9.5" y="4" width="4" height="15" rx="1" fill="currentColor" fill-opacity=".32" stroke="none" />
-            <rect x="14.5" y="6" width="4" height="13" rx="1" fill="currentColor" fill-opacity=".48" stroke="none" />
-            <path stroke-linecap="round" d="M4.5 17.5h14" />
-            <path stroke-linecap="round" d="M9.5 7h4" />
-            <path stroke-linecap="round" d="M14.5 9h4" />
-          </svg>
-          <span class="sr-only">Bibliotek</span>
-          <span class="nav-badge" aria-hidden="true">Beta</span>
-        </a>
-      </li>
-      <li data-beta-feature data-profile-filter="annet">
-        <a
           href="prikktilprikk.html"
           target="content"
           data-label="Prikk til prikk (beta)"
@@ -835,7 +818,7 @@
             <circle cx="18" cy="18" r="1.9" fill="currentColor" stroke="none" />
           </svg>
           <span class="sr-only">Prikk til prikk</span>
-          <span class="nav-badge" aria-hidden="true">Beta</span>
+      <span class="nav-badge" aria-hidden="true">Beta</span>
         </a>
       </li>
       <li data-beta-feature data-profile-filter="annet">
@@ -857,7 +840,28 @@
           <span class="nav-badge" aria-hidden="true">Beta</span>
         </a>
       </li>
-      <li class="nav-item--svg">
+      <li data-beta-feature data-profile-filter="annet" data-trailing>
+        <a
+          href="bibliotek.html"
+          target="content"
+          data-label="Bibliotek (beta)"
+          aria-label="Bibliotek (beta)"
+          data-default-example="1"
+          data-include-example-in-path="true"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.3" aria-hidden="true">
+            <rect x="4.5" y="5" width="4" height="14" rx="1" fill="currentColor" fill-opacity=".18" stroke="none" />
+            <rect x="9.5" y="4" width="4" height="15" rx="1" fill="currentColor" fill-opacity=".32" stroke="none" />
+            <rect x="14.5" y="6" width="4" height="13" rx="1" fill="currentColor" fill-opacity=".48" stroke="none" />
+            <path stroke-linecap="round" d="M4.5 17.5h14" />
+            <path stroke-linecap="round" d="M9.5 7h4" />
+            <path stroke-linecap="round" d="M14.5 9h4" />
+          </svg>
+          <span class="sr-only">Bibliotek</span>
+          <span class="nav-badge" aria-hidden="true">Beta</span>
+        </a>
+      </li>
+      <li class="nav-item--svg" data-trailing>
         <a
           href="svg-arkiv.html"
           target="content"
@@ -873,7 +877,7 @@
           <span class="nav-badge" aria-hidden="true">Beta</span>
         </a>
       </li>
-      <li data-beta-feature>
+      <li data-beta-feature data-trailing>
         <a
           href="settings.html"
           target="content"
