@@ -270,6 +270,9 @@
       dt.className = 'sortering-status__term';
       const dd = doc.createElement('dd');
       dd.className = 'sortering-status__value';
+      if (row.key) {
+        dd.classList.add(`sortering-status__value--${row.key}`);
+      }
       list.appendChild(dt);
       list.appendChild(dd);
       if (row.key && row.key in statusNodes) {
@@ -284,6 +287,9 @@
   function ensureStatusSection(host) {
     if (!host) return;
     resetStatusNodes();
+    if (statusSection && statusSection.parentNode) {
+      statusSection.parentNode.removeChild(statusSection);
+    }
     statusSection = createStatusSection();
     host.appendChild(statusSection);
   }
