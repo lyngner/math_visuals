@@ -1261,6 +1261,10 @@
       item.figures = [];
     }
     item.figures = ensureFigureIds(item.figures, item.id);
+    if (item.figures.length > 1) {
+      const prioritized = item.figures.find(entry => entry && entry.value) || item.figures[0];
+      item.figures = prioritized ? ensureFigureIds([prioritized], item.id) : [];
+    }
     return item.figures;
   }
 
