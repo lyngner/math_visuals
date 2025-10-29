@@ -24,6 +24,7 @@
     (total, indices) => total + indices.length,
     0
   );
+  const missingGroupWarnings = new Set();
 
   function normalizeProjectName(name) {
     if (typeof name !== 'string') return '';
@@ -201,7 +202,101 @@
     return result;
   }
 
-  function collectGroupIndices(groupId, availableLength) {
+  function readGroupPaletteOverrides(settings, projectName, groupId) {
+    const settingsObject = settings && typeof settings === 'object' ? settings : null;
+    if (!settingsObject) return [];
+
+    function extractPalette(entry) {
+      if (!entry) return null;
+      if (Array.isArray(entry)) return entry;
+      if (entry && typeof entry === 'object') {
+        if (Array.isArray(entry.colors)) return entry.colors;
+        if (Array.isArray(entry.palette)) return entry.palette;
+        if (Array.isArray(entry.values)) return entry.values;
+        if (projectName) {
+          const projectKey = normalizeProjectName(projectName);
+          const projectEntries = entry.project || entry.projects || entry.byProject;
+          if (projectEntries && typeof projectEntries === 'object') {
+            const projectPalette = extractPalette(projectEntries[projectKey]);
+            if (projectPalette && projectPalette.length) {
+              return projectPalette;
+            }
+          }
+          if (entry[projectKey] != null) {
+            const projectPalette = extractPalette(entry[projectKey]);
+            if (projectPalette && projectPalette.length) {
+              return projectPalette;
+            }
+          }
+        }
+        if (entry.default != null) {
+          const defaultPalette = extractPalette(entry.default);
+          if (defaultPalette && defaultPalette.length) {
+            return defaultPalette;
+          }
+        }
+        if (entry.fallback != null) {
+          const fallbackPalette = extractPalette(entry.fallback);
+          if (fallbackPalette && fallbackPalette.length) {
+            return fallbackPalette;
+          }
+        }
+      }
+      return null;
+    }
+
+    const projectKey = normalizeProjectName(projectName);
+    const projects = settingsObject.projects && typeof settingsObject.projects === 'object' ? settingsObject.projects : null;
+    if (projectKey && projects && projects[projectKey]) {
+      const projectEntry = projects[projectKey];
+      const projectGroups =
+        projectEntry.groupPalettes || projectEntry.groups || projectEntry.palettes || projectEntry.group || null;
+      if (projectGroups && typeof projectGroups === 'object') {
+        const groupEntry = projectGroups[groupId] || projectGroups.default || null;
+        const palette = extractPalette(groupEntry);
+        if (palette && palette.length) {
+          return sanitizeColorList(palette);
+        }
+      }
+    }
+
+    const rootGroups =
+      settingsObject.groupPalettes ||
+      (settingsObject.palettes && settingsObject.palettes.groups) ||
+      settingsObject.groups ||
+      null;
+    if (rootGroups && typeof rootGroups === 'object') {
+      const groupEntry = rootGroups[groupId] || rootGroups.default || null;
+      const palette = extractPalette(groupEntry);
+      if (palette && palette.length) {
+        return sanitizeColorList(palette);
+      }
+    }
+
+    return [];
+  }
+
+  function warnMissingGroupConfiguration(groupId, projectName) {
+    const projectLabel = normalizeProjectName(projectName) || 'ukjent';
+    const normalizedGroup = typeof groupId === 'string' ? groupId.trim().toLowerCase() : '';
+    const cacheKey = `${projectLabel}::${normalizedGroup || '(none)'}`;
+    if (missingGroupWarnings.has(cacheKey)) {
+      return;
+    }
+    missingGroupWarnings.add(cacheKey);
+    if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
+      if (!normalizedGroup) {
+        console.warn('[MathVisualsPalette] Forespurt fargegruppe mangler identifikator. Bruker globale tilbakefallsfarger.');
+      } else {
+        console.warn(
+          `[MathVisualsPalette] Fant ingen fargekonfigurasjon for gruppen "${normalizedGroup}" i prosjekt "${projectLabel}". ` +
+            'Bruker tilbakefallsfarger.'
+        );
+      }
+    }
+  }
+
+  function collectGroupIndices(groupId, projectName, availableLength) {
     if (groupId === 'extra') {
       const limit = Math.min(Number.isInteger(availableLength) ? availableLength : MAX_COLORS, MAX_COLORS);
       const indices = [];
@@ -211,7 +306,11 @@
       return indices;
     }
     const base = GROUP_SLOT_INDICES[groupId];
-    return Array.isArray(base) ? base.slice() : [];
+    if (Array.isArray(base)) {
+      return base.slice();
+    }
+    warnMissingGroupConfiguration(groupId, projectName);
+    return [];
   }
 
   function ensurePaletteSize(colors, count, fallbackPalette) {
@@ -238,9 +337,20 @@
     const source = resolveSettingsSource(opts.settings);
     const project = resolveProjectName(source, opts.project);
     const count = Number.isFinite(opts.count) && opts.count > 0 ? Math.trunc(opts.count) : undefined;
-    const projectPalette = buildProjectPalette(source, project);
-    const groupIndices = collectGroupIndices(groupKey, projectPalette.length);
     const fallbackPalette = getProjectFallbackPalette(project);
+
+    if (!groupKey) {
+      warnMissingGroupConfiguration(groupKey, project);
+      return ensurePaletteSize([], count || 0, fallbackPalette);
+    }
+
+    const overridePalette = readGroupPaletteOverrides(source, project, groupKey);
+    if (overridePalette.length) {
+      return ensurePaletteSize(overridePalette, count || overridePalette.length, fallbackPalette);
+    }
+
+    const projectPalette = buildProjectPalette(source, project);
+    const groupIndices = collectGroupIndices(groupKey, project, projectPalette.length);
     const colors = [];
     if (groupIndices.length) {
       groupIndices.forEach(index => {
@@ -249,18 +359,26 @@
           colors.push(color);
         } else {
           const fallback = fallbackPalette[index % fallbackPalette.length];
-          colors.push(fallback || getGlobalFallbackPalette()[index % getGlobalFallbackPalette().length]);
+          const globalFallback = getGlobalFallbackPalette();
+          colors.push(fallback || globalFallback[index % globalFallback.length]);
         }
       });
     }
+
     if (groupKey === 'extra') {
       let nextIndex = MIN_COLOR_SLOTS;
+      const globalFallback = getGlobalFallbackPalette();
       while (colors.length < (count || colors.length) && nextIndex < projectPalette.length && nextIndex < MAX_COLORS) {
         const color = projectPalette[nextIndex] || fallbackPalette[nextIndex % fallbackPalette.length];
-        colors.push(color || getGlobalFallbackPalette()[nextIndex % getGlobalFallbackPalette().length]);
+        colors.push(color || globalFallback[nextIndex % globalFallback.length]);
         nextIndex += 1;
       }
     }
+
+    if (!colors.length) {
+      warnMissingGroupConfiguration(groupKey, project);
+    }
+
     const targetCount = count || (colors.length ? colors.length : groupIndices.length || 1);
     return ensurePaletteSize(colors, targetCount, fallbackPalette);
   }

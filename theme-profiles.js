@@ -25,6 +25,30 @@
     const api = window.MathVisualsSettings;
     return api && typeof api === 'object' ? api : null;
   }
+  function resolvePaletteHelper() {
+    const scopes = [
+      typeof window !== 'undefined' ? window : null,
+      typeof globalThis !== 'undefined' ? globalThis : null,
+      typeof global !== 'undefined' ? global : null
+    ];
+    for (const scope of scopes) {
+      if (!scope) continue;
+      const helper = scope.MathVisualsPalette;
+      if (helper && typeof helper.getGroupPalette === 'function') {
+        return helper;
+      }
+    }
+    if (typeof require === 'function') {
+      try {
+        const mod = require('./theme/palette.js');
+        if (mod && typeof mod.getGroupPalette === 'function') {
+          return mod;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+  const paletteHelper = resolvePaletteHelper();
   function sanitizeUserColor(value) {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
@@ -344,6 +368,38 @@
     }
     return ensurePalette(LEGACY_FRACTION_PALETTE, count);
   }
+  function normalizeGroupPaletteOptions(countOrOptions, maybeOpts) {
+    const result = {
+      count: undefined,
+      project: undefined,
+      fallbackKinds: []
+    };
+    if (countOrOptions && typeof countOrOptions === 'object' && !Array.isArray(countOrOptions)) {
+      if (Number.isFinite(countOrOptions.count) && countOrOptions.count > 0) {
+        result.count = Math.trunc(countOrOptions.count);
+      }
+      if (typeof countOrOptions.project === 'string' && countOrOptions.project) {
+        result.project = countOrOptions.project.trim().toLowerCase();
+      }
+      if (Array.isArray(countOrOptions.fallbackKinds)) {
+        result.fallbackKinds = countOrOptions.fallbackKinds.filter(item => typeof item === 'string');
+      }
+      return result;
+    }
+    if (Number.isFinite(countOrOptions) && countOrOptions > 0) {
+      result.count = Math.trunc(countOrOptions);
+    }
+    if (maybeOpts && typeof maybeOpts === 'object') {
+      if (typeof maybeOpts.project === 'string' && maybeOpts.project) {
+        result.project = maybeOpts.project.trim().toLowerCase();
+      }
+      if (Array.isArray(maybeOpts.fallbackKinds)) {
+        result.fallbackKinds = maybeOpts.fallbackKinds.filter(item => typeof item === 'string');
+      }
+    }
+    return result;
+  }
+
   function buildGroupPalette(groupId, count, opts) {
     const normalizedId = typeof groupId === 'string' ? groupId.trim().toLowerCase() : '';
     const projectOverride = opts && typeof opts.project === 'string' ? opts.project.trim().toLowerCase() : null;
@@ -352,9 +408,25 @@
     const projectName = projectOverride || (activeProfile && activeProfile.id ? activeProfile.id : activeProfileName);
     if (settingsApi && typeof settingsApi.getGroupPalette === 'function') {
       try {
-        const palette = settingsApi.getGroupPalette(normalizedId || 'default', count, projectName ? { project: projectName } : undefined);
-        if (Array.isArray(palette) && palette.length) {
-          return ensurePalette(palette, count);
+        if (settingsApi.getGroupPalette.length >= 3) {
+          const palette = settingsApi.getGroupPalette(
+            normalizedId || 'default',
+            count,
+            projectName ? { project: projectName } : undefined
+          );
+          if (Array.isArray(palette) && palette.length) {
+            return ensurePalette(palette, count);
+          }
+        }
+        const directPalette = settingsApi.getGroupPalette(
+          normalizedId || 'default',
+          {
+            count,
+            project: projectName || undefined
+          }
+        );
+        if (Array.isArray(directPalette) && directPalette.length) {
+          return ensurePalette(directPalette, count);
         }
       } catch (_) {}
     }
@@ -428,13 +500,32 @@
       const size = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
       return buildPalette(kind, size, opts);
     },
-    getGroupPalette(groupId, count, opts) {
-      const size = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
-      return buildGroupPalette(groupId, size, opts);
+    getGroupPalette(groupId, countOrOptions, maybeOpts) {
+      const { count, project, fallbackKinds } = normalizeGroupPaletteOptions(countOrOptions, maybeOpts);
+      if (paletteHelper && typeof paletteHelper.getGroupPalette === 'function') {
+        try {
+          const palette = paletteHelper.getGroupPalette(groupId, {
+            project,
+            count
+          });
+          if (Array.isArray(palette) && palette.length) {
+            return ensurePalette(palette, count);
+          }
+        } catch (error) {
+          if (typeof console !== 'undefined' && console && typeof console.error === 'function') {
+            console.error('[MathVisualsTheme] Klarte ikke hente gruppepalett fra MathVisualsPalette.', error);
+          }
+        }
+      }
+      return buildGroupPalette(groupId, count, { project, fallbackKinds });
     },
     getColor,
     applyToDocument
   };
+  if (paletteHelper) {
+    api.palette = paletteHelper;
+    api.groupPaletteHelper = paletteHelper;
+  }
   if (typeof window !== 'undefined') {
     window.MathVisualsTheme = api;
   }
