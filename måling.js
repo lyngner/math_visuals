@@ -3879,8 +3879,8 @@
       clipPath.setAttribute('id', clipId);
       clipPath.setAttribute('clipPathUnits', 'userSpaceOnUse');
       const clipRect = createSvgElement('rect');
-      clipRect.setAttribute('x', '0');
-      clipRect.setAttribute('y', '0');
+      clipRect.setAttribute('x', formatSvgNumber(strapOffsetX));
+      clipRect.setAttribute('y', formatSvgNumber(strapOffsetY));
       clipRect.setAttribute('width', formatSvgNumber(strapVisibleWidth));
       clipRect.setAttribute('height', formatSvgNumber(strapHeight));
       clipPath.appendChild(clipRect);
