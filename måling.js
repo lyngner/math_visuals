@@ -1290,7 +1290,10 @@
   }
 
   function applyFigureAppearance(settings) {
-    if (board.hasAttribute('data-figure-label')) {
+    const label = buildFigureLabel(settings);
+    if (label) {
+      board.setAttribute('data-figure-label', label);
+    } else if (board.hasAttribute('data-figure-label')) {
       board.removeAttribute('data-figure-label');
     }
     if (boardFigure) {
@@ -1301,6 +1304,86 @@
         boardFigure.style.backgroundImage = 'none';
       }
     }
+  }
+
+  function buildFigureLabel(settings) {
+    if (!settings) {
+      return '';
+    }
+    const figureName = collapseWhitespace(settings.figureName || '');
+    const measurementText = buildMeasurementLabel(settings);
+    const parts = [];
+    if (figureName) {
+      parts.push(figureName);
+    }
+    if (measurementText) {
+      parts.push(measurementText);
+    }
+    return parts.join(' – ');
+  }
+
+  function buildMeasurementLabel(settings) {
+    const preset = resolvePresetFromSettings(settings);
+    const sourceText = collapseWhitespace(
+      (preset && preset.dimensions) ||
+        (() => {
+          if (!settings.figureSummary) {
+            return '';
+          }
+          const splitMatch = settings.figureSummary.split(/\s–\s/);
+          return splitMatch[0] || settings.figureSummary;
+        })()
+    );
+    if (!sourceText) {
+      return '';
+    }
+    const factor = computeMeasurementScaleFactor(settings);
+    const transformed = transformMeasurementText(sourceText, factor);
+    if (!transformed) {
+      return '';
+    }
+    if (!settings.measurementWithoutScale) {
+      return `${transformed} (på tegningen)`;
+    }
+    return `${transformed} (i virkeligheten)`;
+  }
+
+  function computeMeasurementScaleFactor(settings) {
+    if (!settings) {
+      return 1;
+    }
+    if (settings.measurementWithoutScale) {
+      return 1;
+    }
+    const { desiredDenominator } = resolveScaleInfo(settings);
+    const denominator =
+      Number.isFinite(desiredDenominator) && desiredDenominator > 0 ? desiredDenominator : 1;
+    if (!Number.isFinite(denominator) || denominator <= 0) {
+      return 1;
+    }
+    return 1 / denominator;
+  }
+
+  function transformMeasurementText(text, factor) {
+    if (!text) {
+      return '';
+    }
+    if (!Number.isFinite(factor) || factor <= 0 || Math.abs(factor - 1) < 0.000001) {
+      return text;
+    }
+    const numberPattern = /([0-9]+(?:[ \u00A0\u202F]?[0-9]{3})*(?:[.,][0-9]+)?)/g;
+    return text.replace(numberPattern, match => {
+      const normalized = match.replace(/[ \u00A0\u202F]/g, '').replace(',', '.');
+      const parsed = Number.parseFloat(normalized);
+      if (!Number.isFinite(parsed)) {
+        return match;
+      }
+      const scaled = roundForDisplay(parsed * factor);
+      if (!Number.isFinite(scaled)) {
+        return match;
+      }
+      return formatNumber(scaled);
+    });
   }
 
   function applyGridAppearance(settings) {
