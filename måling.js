@@ -654,11 +654,14 @@
       return sanitized;
     }
     const quantity = Number.isFinite(unitInfo.quantity) && unitInfo.quantity > 0 ? unitInfo.quantity : 1;
-    const factor = mode === 'withoutScale' ? denominator : 1 / denominator;
-    if (!Number.isFinite(factor) || factor <= 0) {
-      return sanitized;
+    let nextQuantity;
+    if (mode === 'withoutScale') {
+      nextQuantity = roundForDisplay(quantity * denominator);
+    } else if (mode === 'withScale') {
+      nextQuantity = roundForDisplay(quantity / denominator);
+    } else {
+      nextQuantity = quantity;
     }
-    const nextQuantity = roundForDisplay(quantity * factor);
     if (!Number.isFinite(nextQuantity) || nextQuantity <= 0) {
       return sanitized;
     }
