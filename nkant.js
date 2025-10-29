@@ -824,14 +824,34 @@ function readStoredSettings() {
 
 function resolveSettingsPalette(count) {
   const target = Number.isInteger(count) && count > 0 ? count : undefined;
-  const api = getSettingsApi();
   const project = resolveProjectNameHint();
+  const theme = getThemeApi();
+  const groupTarget = target && target > 0 ? target : 3;
+  if (theme && typeof theme.getGroupPalette === "function") {
+    try {
+      const palette = theme.getGroupPalette("nkant", groupTarget, project ? { project } : undefined);
+      const resolved = cycleSettingsPalette(palette, groupTarget);
+      if (resolved.length) {
+        return { colors: resolved, source: "group" };
+      }
+    } catch (_) {}
+  }
+  if (theme && typeof theme.getPalette === "function") {
+    try {
+      const palette = theme.getPalette("figures", target || 4, { fallbackKinds: ["fractions"], project });
+      const resolved = cycleSettingsPalette(palette, target || (Array.isArray(palette) ? palette.length : 0));
+      if (resolved.length) {
+        return { colors: resolved, source: "general" };
+      }
+    } catch (_) {}
+  }
+  const api = getSettingsApi();
   if (api && typeof api.getDefaultColors === "function") {
     try {
       const palette = api.getDefaultColors(target, project ? { project } : undefined);
       const resolved = cycleSettingsPalette(palette, target || (Array.isArray(palette) ? palette.length : 0));
       if (resolved.length) {
-        return resolved;
+        return { colors: resolved, source: "general" };
       }
     } catch (_) {}
   }
@@ -840,31 +860,44 @@ function resolveSettingsPalette(count) {
     if (project && stored.projects && typeof stored.projects === "object") {
       const projectSettings = stored.projects[project];
       if (projectSettings && Array.isArray(projectSettings.defaultColors)) {
-        const resolved = cycleSettingsPalette(projectSettings.defaultColors, target || projectSettings.defaultColors.length);
+        const resolved = cycleSettingsPalette(
+          projectSettings.defaultColors,
+          target || projectSettings.defaultColors.length
+        );
         if (resolved.length) {
-          return resolved;
+          return { colors: resolved, source: "general" };
         }
       }
     }
     if (Array.isArray(stored.defaultColors)) {
       const resolved = cycleSettingsPalette(stored.defaultColors, target || stored.defaultColors.length);
       if (resolved.length) {
-        return resolved;
+        return { colors: resolved, source: "general" };
       }
     }
   }
-  return cycleSettingsPalette(SETTINGS_FALLBACK_PALETTE, target || SETTINGS_FALLBACK_PALETTE.length);
+  const fallback = cycleSettingsPalette(SETTINGS_FALLBACK_PALETTE, target || SETTINGS_FALLBACK_PALETTE.length);
+  return { colors: fallback, source: "fallback" };
 }
 
 function applySettingsPaletteToStyle() {
-  const palette = resolveSettingsPalette(4);
+  const paletteResult = resolveSettingsPalette(4);
+  const palette = paletteResult && Array.isArray(paletteResult.colors) ? paletteResult.colors : [];
   if (!palette.length) return;
   const fallbackLine = STYLE_DEFAULTS.edgeStroke;
   const fallbackAngle = STYLE_DEFAULTS.angStroke;
   const fallbackFill = STYLE_DEFAULTS.faceFill;
-  const lineColor = sanitizeSettingsColor(palette[1]) || sanitizeSettingsColor(palette[0]) || fallbackLine;
-  const angleColor = sanitizeSettingsColor(palette[2]) || lineColor || fallbackAngle;
-  const fillColor = sanitizeSettingsColor(palette[3]) || fallbackFill;
+  const sanitized = palette.map(value => sanitizeSettingsColor(value));
+  const useGroupOrder = paletteResult && paletteResult.source === "group";
+  const lineColor = useGroupOrder
+    ? sanitized[0] || fallbackLine
+    : sanitized[1] || sanitized[0] || fallbackLine;
+  const angleColor = useGroupOrder
+    ? sanitized[1] || lineColor || fallbackAngle
+    : sanitized[2] || lineColor || fallbackAngle;
+  const fillColor = useGroupOrder
+    ? sanitized[2] || fallbackFill
+    : sanitized[3] || fallbackFill;
   STYLE.edgeStroke = lineColor || fallbackLine;
   STYLE.angStroke = angleColor || fallbackAngle;
   STYLE.faceFill = fillColor || fallbackFill;

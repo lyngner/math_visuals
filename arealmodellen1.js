@@ -108,6 +108,16 @@ function getThemeApi() {
   const theme = typeof window !== "undefined" ? window.MathVisualsTheme : null;
   return theme && typeof theme === "object" ? theme : null;
 }
+function getActiveThemeProjectName(theme = getThemeApi()) {
+  if (!theme || typeof theme.getActiveProfileName !== "function") return null;
+  try {
+    const value = theme.getActiveProfileName();
+    if (typeof value === "string" && value.trim()) {
+      return value.trim().toLowerCase();
+    }
+  } catch (_) {}
+  return null;
+}
 function applyThemeToDocument() {
   const theme = getThemeApi();
   if (theme && typeof theme.applyToDocument === "function") {
@@ -125,11 +135,22 @@ function ensureColors(base, fallback, count) {
 }
 function resolveRectColors(count = DEFAULT_RECT_COLORS.length) {
   const theme = getThemeApi();
+  const project = getActiveThemeProjectName(theme);
+  if (theme && typeof theme.getGroupPalette === "function") {
+    try {
+      const palette = theme.getGroupPalette("arealmodell", count, project ? { project } : undefined);
+      if ((!project || project !== "kikora") && Array.isArray(palette) && palette.length) {
+        const sanitized = palette.map(color => (typeof color === "string" && color.trim() ? color.trim() : ""));
+        const filtered = sanitized.some(color => color) ? sanitized.map(color => color || "") : palette;
+        const reordered = project === "campus" ? CAMPUS_RECT_ORDER.map(idx => filtered[idx % filtered.length] || filtered[0]) : filtered;
+        return ensureColors(reordered, DEFAULT_RECT_COLORS, count);
+      }
+    } catch (_) {}
+  }
   if (theme && typeof theme.getPalette === "function") {
-    const active = typeof theme.getActiveProfileName === "function" ? theme.getActiveProfileName() : null;
-    const palette = theme.getPalette("figures", count, { fallbackKinds: ["fractions"] });
-    if ((!active || active !== "kikora") && Array.isArray(palette) && palette.length) {
-      const reordered = active === "campus" ? CAMPUS_RECT_ORDER.map(idx => palette[idx % palette.length]) : palette;
+    const palette = theme.getPalette("figures", count, { fallbackKinds: ["fractions"], project });
+    if ((!project || project !== "kikora") && Array.isArray(palette) && palette.length) {
+      const reordered = project === "campus" ? CAMPUS_RECT_ORDER.map(idx => palette[idx % palette.length]) : palette;
       return ensureColors(reordered, DEFAULT_RECT_COLORS, count);
     }
   }

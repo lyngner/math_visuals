@@ -192,6 +192,7 @@ function getDefaultLineThickness() {
   return FALLBACK_LINE_THICKNESS;
 }
 
+const LEGACY_GRAFTEGNER_SIMPLE_COLORS = ['#2563eb', '#f97316'];
 const DEFAULT_GRAFTEGNER_SIMPLE = {
   axes: {
     xMin: -5,
@@ -203,13 +204,13 @@ const DEFAULT_GRAFTEGNER_SIMPLE = {
     {
       id: 'expr-1',
       latex: 'y=x^2-1',
-      color: '#2563eb',
+      color: LEGACY_GRAFTEGNER_SIMPLE_COLORS[0],
       visible: true
     },
     {
       id: 'expr-2',
       latex: 'y=2x+3',
-      color: '#f97316',
+      color: LEGACY_GRAFTEGNER_SIMPLE_COLORS[1],
       visible: true
     }
   ],
@@ -217,6 +218,7 @@ const DEFAULT_GRAFTEGNER_SIMPLE = {
   altTextSource: 'auto'
 };
 
+const LEGACY_GRAFTEGNER_TRIG_COLORS = ['#0ea5e9', '#10b981'];
 const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = {
   axes: {
     xMin: -7,
@@ -228,19 +230,58 @@ const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = {
     {
       id: 'expr-1',
       latex: 'y=\\sin(x)',
-      color: '#0ea5e9',
+      color: LEGACY_GRAFTEGNER_TRIG_COLORS[0],
       visible: true
     },
     {
       id: 'expr-2',
       latex: 'y=\\cos(x)',
-      color: '#10b981',
+      color: LEGACY_GRAFTEGNER_TRIG_COLORS[1],
       visible: true
     }
   ],
   altText: '',
   altTextSource: 'auto'
 };
+
+function applyGraftegnerDefaultsFromTheme() {
+  const theme = getThemeApi();
+  if (!theme || typeof theme.getGroupPalette !== 'function') return;
+  const project = getActiveThemeProjectName(theme);
+  const maxCount = Math.max(
+    DEFAULT_GRAFTEGNER_SIMPLE.expressions.length,
+    DEFAULT_GRAFTEGNER_TRIG_SIMPLE.expressions.length
+  );
+  let palette = null;
+  try {
+    palette = theme.getGroupPalette('graftegner', maxCount, project ? { project } : undefined);
+  } catch (_) {
+    palette = null;
+  }
+  if (!Array.isArray(palette) || !palette.length) return;
+  const sanitized = palette.map(normalizeColorValue);
+  const usable = sanitized.some(Boolean) ? sanitized.map(color => color || '') : palette;
+  const simplePalette = ensureColorCount(
+    usable,
+    LEGACY_GRAFTEGNER_SIMPLE_COLORS,
+    DEFAULT_GRAFTEGNER_SIMPLE.expressions.length
+  );
+  DEFAULT_GRAFTEGNER_SIMPLE.expressions.forEach((expr, idx) => {
+    if (!expr || typeof expr !== 'object') return;
+    expr.color = simplePalette[idx] || LEGACY_GRAFTEGNER_SIMPLE_COLORS[idx % LEGACY_GRAFTEGNER_SIMPLE_COLORS.length];
+  });
+  const trigPalette = ensureColorCount(
+    usable,
+    LEGACY_GRAFTEGNER_TRIG_COLORS,
+    DEFAULT_GRAFTEGNER_TRIG_SIMPLE.expressions.length
+  );
+  DEFAULT_GRAFTEGNER_TRIG_SIMPLE.expressions.forEach((expr, idx) => {
+    if (!expr || typeof expr !== 'object') return;
+    expr.color = trigPalette[idx] || LEGACY_GRAFTEGNER_TRIG_COLORS[idx % LEGACY_GRAFTEGNER_TRIG_COLORS.length];
+  });
+}
+
+applyGraftegnerDefaultsFromTheme();
 
 const AXIS_ARROW_PIXEL_THICKNESS = 26;
 const AXIS_ARROW_ASPECT_RATIO = 17 / 30;
@@ -266,6 +307,17 @@ const POINT_MARKER_SIZE = 6;
 function getThemeApi() {
   const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
   return theme && typeof theme === 'object' ? theme : null;
+}
+
+function getActiveThemeProjectName(theme = getThemeApi()) {
+  if (!theme || typeof theme.getActiveProfileName !== 'function') return null;
+  try {
+    const value = theme.getActiveProfileName();
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim().toLowerCase();
+    }
+  } catch (_) {}
+  return null;
 }
 
 function resolveAxisStrokeColor() {
@@ -324,14 +376,40 @@ function resolveCurvePalette(count = undefined) {
   const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
   const basePalette = getBaseCurveColors(targetCount);
   const theme = getThemeApi();
-  if (theme && typeof theme.getPalette === 'function') {
-    const active = typeof theme.getActiveProfileName === 'function' ? theme.getActiveProfileName() : null;
-    const palette = theme.getPalette('figures', targetCount || basePalette.length, { fallbackKinds: ['fractions'] });
-    if (Array.isArray(palette) && palette.length) {
-      const reordered = active && active.toLowerCase() === 'campus'
-        ? CAMPUS_CURVE_ORDER.map(idx => palette[idx % palette.length])
-        : palette;
-      return ensureColorCount(reordered, basePalette, targetCount || reordered.length);
+  if (theme) {
+    const project = getActiveThemeProjectName(theme);
+    if (typeof theme.getGroupPalette === 'function') {
+      try {
+        const palette = theme.getGroupPalette(
+          'graftegner',
+          targetCount || basePalette.length,
+          project ? { project } : undefined
+        );
+        if (Array.isArray(palette) && palette.length) {
+          const sanitized = palette.map(normalizeColorValue);
+          const filtered = sanitized.some(Boolean) ? sanitized.map(color => color || '') : palette;
+          const active = project;
+          const reordered = active === 'campus'
+            ? CAMPUS_CURVE_ORDER.map(idx => filtered[idx % filtered.length] || filtered[0])
+            : filtered;
+          return ensureColorCount(reordered, basePalette, targetCount || reordered.length);
+        }
+      } catch (_) {}
+    }
+    if (typeof theme.getPalette === 'function') {
+      const palette = theme.getPalette('figures', targetCount || basePalette.length, {
+        fallbackKinds: ['fractions'],
+        project
+      });
+      if (Array.isArray(palette) && palette.length) {
+        const sanitized = palette.map(normalizeColorValue);
+        const filtered = sanitized.some(Boolean) ? sanitized.map(color => color || '') : palette;
+        const active = project;
+        const reordered = active === 'campus'
+          ? CAMPUS_CURVE_ORDER.map(idx => filtered[idx % filtered.length] || filtered[0])
+          : filtered;
+        return ensureColorCount(reordered, basePalette, targetCount || reordered.length);
+      }
     }
   }
   return ensureColorCount(basePalette, basePalette, targetCount || basePalette.length);
