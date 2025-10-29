@@ -1232,21 +1232,74 @@
     nodes.button.addEventListener('keydown', handler);
   }
 
+  function collectSwapSlots(activeId, orientation) {
+    if (!currentOrder.length) return [];
+    const slots = [];
+    currentOrder.forEach(candidateId => {
+      if (candidateId === activeId) return;
+      const candidateNodes = itemNodes.get(candidateId);
+      if (!candidateNodes || !candidateNodes.wrapper) return;
+      const rect = candidateNodes.wrapper.getBoundingClientRect();
+      const size = orientation === 'vertikal' ? rect.height : rect.width;
+      const center = orientation === 'vertikal' ? rect.top + rect.height / 2 : rect.left + rect.width / 2;
+      slots.push({ id: candidateId, center, size });
+    });
+    return slots.sort((a, b) => a.center - b.center);
+  }
+
+  function determineDragTargetIndex(activeId, pointerCoord, orientation) {
+    const slots = collectSwapSlots(activeId, orientation);
+    if (!slots.length || !Number.isFinite(pointerCoord)) {
+      return 0;
+    }
+    const gapValue = state && Number.isFinite(state.gap) ? Number(state.gap) : 0;
+    const halfGap = gapValue / 2;
+    const first = slots[0];
+    const last = slots[slots.length - 1];
+    const startEdge = first.center - first.size / 2 - halfGap;
+    if (pointerCoord <= startEdge) {
+      return 0;
+    }
+    for (let i = 1; i < slots.length; i += 1) {
+      const prev = slots[i - 1];
+      const current = slots[i];
+      const midpoint = (prev.center + current.center) / 2;
+      if (pointerCoord <= midpoint) {
+        return i;
+      }
+    }
+    const endEdge = last.center + last.size / 2 + halfGap;
+    if (pointerCoord >= endEdge) {
+      return slots.length;
+    }
+    return slots.length;
+  }
+
   function startPointerDrag(event, id) {
     if (!visualList || dragState || !state) return;
     if (typeof event.button === 'number' && event.button !== 0) return;
     const nodes = itemNodes.get(id);
-    if (!nodes) return;
+    if (!nodes || !nodes.wrapper) return;
+    const orientation = normalizeDirection(state.retning);
+    const wrapper = nodes.wrapper;
+    const previousTransform = wrapper.style.transform;
+    wrapper.style.transform = '';
+    const rect = wrapper.getBoundingClientRect();
+    wrapper.style.transform = previousTransform;
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
     dragState = {
       id,
       pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY
+      orientation,
+      offsetX: event.clientX - centerX,
+      offsetY: event.clientY - centerY,
+      lastKnownIndex: currentOrder.indexOf(id)
     };
-    nodes.wrapper.classList.add('sortering__item--dragging');
-    nodes.wrapper.style.transition = 'none';
-    if (typeof nodes.wrapper.setPointerCapture === 'function') {
-      nodes.wrapper.setPointerCapture(event.pointerId);
+    wrapper.classList.add('sortering__item--dragging');
+    wrapper.style.transition = 'none';
+    if (typeof wrapper.setPointerCapture === 'function') {
+      wrapper.setPointerCapture(event.pointerId);
     }
     const selection = globalObj.getSelection ? globalObj.getSelection() : null;
     if (selection && typeof selection.removeAllRanges === 'function') {
@@ -1260,48 +1313,32 @@
     if (!dragState || dragState.id !== id) return;
     if (event.pointerId !== dragState.pointerId) return;
     const nodes = itemNodes.get(id);
-    if (!nodes) return;
-    const dx = event.clientX - dragState.startX;
-    const dy = event.clientY - dragState.startY;
-    nodes.wrapper.style.transform = `translate(${dx}px, ${dy}px)`;
+    if (!nodes || !nodes.wrapper) return;
+    const wrapper = nodes.wrapper;
+    const orientation = dragState.orientation || normalizeDirection(state && state.retning ? state.retning : 'horisontal');
 
-    nodes.wrapper.style.pointerEvents = 'none';
-    const hovered = doc.elementFromPoint(event.clientX, event.clientY);
-    nodes.wrapper.style.pointerEvents = '';
-    const targetWrapper = hovered && hovered.closest ? hovered.closest('.sortering__item') : null;
-    const orientation = normalizeDirection(state.retning);
-    const pointerCoord = orientation === 'vertikal' ? event.clientY : event.clientX;
+    wrapper.style.transform = '';
+    const rect = wrapper.getBoundingClientRect();
+    const baseCenterX = rect.left + rect.width / 2;
+    const baseCenterY = rect.top + rect.height / 2;
+    const desiredCenterX = event.clientX - dragState.offsetX;
+    const desiredCenterY = event.clientY - dragState.offsetY;
+    const dx = desiredCenterX - baseCenterX;
+    const dy = desiredCenterY - baseCenterY;
+    wrapper.style.transform = `translate(${dx}px, ${dy}px)`;
 
-    let targetIndex = -1;
-    if (targetWrapper && targetWrapper !== nodes.wrapper) {
-      const targetId = targetWrapper.dataset.itemId;
-      if (!targetId || targetId === id) return;
-      targetIndex = currentOrder.indexOf(targetId);
-      if (targetIndex < 0) return;
-      const targetRect = targetWrapper.getBoundingClientRect();
-      const targetCenter = orientation === 'vertikal' ? targetRect.top + targetRect.height / 2 : targetRect.left + targetRect.width / 2;
-      if (pointerCoord > targetCenter) {
-        targetIndex += 1;
-      }
-    } else if (visualList && currentOrder.length) {
-      const firstId = currentOrder[0];
-      const lastId = currentOrder[currentOrder.length - 1];
-      const firstNodes = itemNodes.get(firstId);
-      const lastNodes = itemNodes.get(lastId);
-      if (!firstNodes || !lastNodes) return;
-      const firstRect = firstNodes.wrapper.getBoundingClientRect();
-      const lastRect = lastNodes.wrapper.getBoundingClientRect();
-      const startBoundary = orientation === 'vertikal' ? firstRect.top : firstRect.left;
-      const endBoundary = orientation === 'vertikal' ? lastRect.bottom : lastRect.right;
-      if (pointerCoord < startBoundary) {
-        targetIndex = 0;
-      } else if (pointerCoord > endBoundary) {
-        targetIndex = currentOrder.length;
-      }
+    const pointerCoord = orientation === 'vertikal' ? desiredCenterY : desiredCenterX;
+    if (!Number.isFinite(pointerCoord)) return;
+
+    const targetIndex = determineDragTargetIndex(id, pointerCoord, orientation);
+    const currentIndex = currentOrder.indexOf(id);
+    if (targetIndex === currentIndex) {
+      return;
     }
-
-    if (targetIndex < 0) return;
-    moveItemToIndex(id, targetIndex, { preserveTransform: true });
+    const moved = moveItemToIndex(id, targetIndex, { preserveTransform: true });
+    if (moved) {
+      dragState.lastKnownIndex = currentOrder.indexOf(id);
+    }
   }
 
   function finishPointerDrag(event, id) {
@@ -1309,13 +1346,13 @@
     if (event.pointerId !== dragState.pointerId) return;
     const nodes = itemNodes.get(id);
     dragState = null;
-    if (nodes) {
+    if (nodes && nodes.wrapper) {
       if (typeof nodes.wrapper.releasePointerCapture === 'function') {
         nodes.wrapper.releasePointerCapture(event.pointerId);
       }
       nodes.wrapper.style.transition = '';
     }
-    snapToSlot(id);
+    snapToSlot();
     updateItemPositions();
     clearVisualMarkers();
   }
