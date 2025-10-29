@@ -252,6 +252,7 @@
     }
 
     .tape-measure__strap-track {
+      position: relative;
       width: var(--tape-strap-length);
       height: 100%;
       transform: translateX(var(--tape-strap-offset));
@@ -259,7 +260,18 @@
       display: block;
     }
 
+    .tape-measure__strap-base {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      pointer-events: none;
+    }
+
     .tape-measure__strap-svg {
+      position: relative;
+      z-index: 1;
       width: 100%;
       height: 100%;
       display: block;
@@ -267,7 +279,7 @@
     }
 
     .tape-measure__strap-svg .tape-svg__background {
-      fill: #fee52e;
+      fill: transparent;
       stroke: #d6b013;
       stroke-width: 1.2;
     }
@@ -515,6 +527,12 @@
                 <div class="tape-measure__body">
                   <div class="tape-measure__strap" data-tape-strap>
                     <div class="tape-measure__strap-track" data-tape-strap-track>
+                      <img
+                        class="tape-measure__strap-base"
+                        src="images/measure/måleredskaper/målebånd15%20uten%20tall%20og%20streker.svg"
+                        alt=""
+                        aria-hidden="true"
+                      />
                       <svg
                         class="tape-measure__strap-svg"
                         viewBox="0 0 600 48"
