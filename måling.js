@@ -950,34 +950,23 @@
     };
   }
 
-  function resolveRulerValueMultiplier(settings) {
-    const unitInfo = resolveUnitLabelInfo(settings ? settings.unitLabel : '');
-    const unitQuantity = Number.isFinite(unitInfo.quantity) && unitInfo.quantity > 0 ? unitInfo.quantity : 1;
-    if (!settings || !settings.measurementWithoutScale) {
-      return unitQuantity;
+  function resolveRulerValueMultiplier(settings, scaleMetrics) {
+    const metrics = scaleMetrics || resolveScaleMetrics(settings);
+    if (!metrics) {
+      return UNIT_TO_CENTIMETERS[DEFAULT_UNIT_KEY];
     }
-    const sanitizedCurrentLabel = sanitizeUnitLabel(settings.unitLabel, settings.unitLabel);
-    const cachedWithScaleLabel =
-      appState && appState.unitLabelCache && appState.unitLabelCache.withScale
-        ? sanitizeUnitLabel(appState.unitLabelCache.withScale, appState.unitLabelCache.withScale)
-        : '';
-    if (sanitizedCurrentLabel && cachedWithScaleLabel && sanitizedCurrentLabel === cachedWithScaleLabel) {
-      const { desiredDenominator } = resolveScaleInfo(settings);
-      const scaleMultiplier =
-        Number.isFinite(desiredDenominator) && desiredDenominator > 0 ? desiredDenominator : 1;
-      if (!Number.isFinite(scaleMultiplier) || scaleMultiplier <= 0) {
-        return unitQuantity;
-      }
-      return unitQuantity / scaleMultiplier;
-    }
-    return unitQuantity;
+    const displayMultiplier =
+      Number.isFinite(metrics.displayMultiplier) && metrics.displayMultiplier > 0
+        ? metrics.displayMultiplier
+        : UNIT_TO_CENTIMETERS[DEFAULT_UNIT_KEY];
+    return displayMultiplier;
   }
 
-  function getEffectiveRulerLength(settings) {
+  function getEffectiveRulerLength(settings, scaleMetrics) {
     if (!settings) {
       return 0;
     }
-    const multiplier = resolveRulerValueMultiplier(settings);
+    const multiplier = resolveRulerValueMultiplier(settings, scaleMetrics);
     const length = Number.isFinite(settings.length) ? settings.length : 0;
     return length * multiplier;
   }
@@ -1063,12 +1052,42 @@
     // Illustrasjonene er tegnet med 100 px per centimeter i tegningen. Ved å kombinere
     // dette med valgt måleenhet får vi pikselavstanden som linjalen skal bruke per enhet.
     const baseSpacing = DEFAULT_UNIT_SPACING_PX;
-    const unitFactorRaw = settings ? getUnitToCentimeterFactor(settings.unitLabel || '') : null;
-    const unitFactor = Number.isFinite(unitFactorRaw) && unitFactorRaw > 0 ? unitFactorRaw : 1;
+    const unitInfo = resolveUnitLabelInfo(settings ? settings.unitLabel : '');
+    const unitQuantity = Number.isFinite(unitInfo.quantity) && unitInfo.quantity > 0 ? unitInfo.quantity : 1;
+    const baseFactor =
+      unitInfo.baseFactor != null && Number.isFinite(unitInfo.baseFactor) && unitInfo.baseFactor > 0
+        ? unitInfo.baseFactor
+        : UNIT_TO_CENTIMETERS[DEFAULT_UNIT_KEY];
+    const spacingMultiplier = unitQuantity * baseFactor;
+
+    const measurementWithoutScale = !!(settings && settings.measurementWithoutScale);
+    let displayMultiplier = UNIT_TO_CENTIMETERS[DEFAULT_UNIT_KEY];
+
+    if (measurementWithoutScale) {
+      let rawDisplayMultiplier = unitQuantity;
+      const sanitizedCurrentLabel = sanitizeUnitLabel(settings.unitLabel, settings.unitLabel);
+      const cachedWithScaleLabel =
+        appState && appState.unitLabelCache && appState.unitLabelCache.withScale
+          ? sanitizeUnitLabel(appState.unitLabelCache.withScale, appState.unitLabelCache.withScale)
+          : '';
+      if (sanitizedCurrentLabel && cachedWithScaleLabel && sanitizedCurrentLabel === cachedWithScaleLabel) {
+        const { desiredDenominator } = resolveScaleInfo(settings);
+        const scaleMultiplier =
+          Number.isFinite(desiredDenominator) && desiredDenominator > 0 ? desiredDenominator : 1;
+        if (Number.isFinite(scaleMultiplier) && scaleMultiplier > 0) {
+          rawDisplayMultiplier = unitQuantity / scaleMultiplier;
+        }
+      }
+      if (Number.isFinite(rawDisplayMultiplier) && rawDisplayMultiplier > 0) {
+        displayMultiplier = rawDisplayMultiplier;
+      }
+    }
+
     return {
-      unitSpacing: baseSpacing * unitFactor,
+      unitSpacing: baseSpacing * spacingMultiplier,
       baseSpacing,
-      unitFactor
+      spacingMultiplier,
+      displayMultiplier
     };
   }
 
@@ -1109,10 +1128,11 @@
       return null;
     }
 
-    const unitFactorRaw = scaleMetrics && Number.isFinite(scaleMetrics.unitFactor) && scaleMetrics.unitFactor > 0
-      ? scaleMetrics.unitFactor
-      : 1;
-    let unitSpacingPx = baseSpacingPx * unitFactorRaw;
+    const spacingMultiplierRaw =
+      scaleMetrics && Number.isFinite(scaleMetrics.spacingMultiplier) && scaleMetrics.spacingMultiplier > 0
+        ? scaleMetrics.spacingMultiplier
+        : 1;
+    let unitSpacingPx = baseSpacingPx * spacingMultiplierRaw;
     if (!Number.isFinite(unitSpacingPx) || unitSpacingPx <= 0) {
       return null;
     }
@@ -1215,7 +1235,7 @@
         const effectiveUnitSpacing = Number.isFinite(scaleResult.unitSpacingPx) && scaleResult.unitSpacingPx > 0
           ? scaleResult.unitSpacingPx
           : baseUnitSpacing;
-        updateRuler(settings, effectiveUnitSpacing);
+        updateRuler(settings, effectiveUnitSpacing, scaleMetrics);
         return;
       }
     } else {
@@ -1223,7 +1243,7 @@
     }
 
     boardFigure.style.backgroundSize = '';
-    updateRuler(settings, scaleValueForBoard(baseUnitSpacing, resolveBoardPaddingValue(settings)));
+    updateRuler(settings, scaleValueForBoard(baseUnitSpacing, resolveBoardPaddingValue(settings)), scaleMetrics);
   }
 
   function applyBoardAspectRatio() {
@@ -1277,11 +1297,12 @@
     return value * boardScale;
   }
 
-  function updateRuler(settings, unitSpacing) {
+  function updateRuler(settings, unitSpacing, scaleMetrics) {
     if (!Number.isFinite(unitSpacing) || unitSpacing <= 0) {
       unitSpacing = DEFAULT_UNIT_SPACING_PX;
     }
-    renderRuler(settings, unitSpacing);
+    const metrics = scaleMetrics || resolveScaleMetrics(settings);
+    renderRuler(settings, unitSpacing, metrics);
   }
 
   function applySettings(settings) {
@@ -1486,13 +1507,13 @@
     });
   }
 
-  function renderRuler(settings, unitSpacing) {
+  function renderRuler(settings, unitSpacing, scaleMetrics) {
     if (!rulerSvg) {
       return;
     }
 
     const { length, subdivisions, unitLabel } = settings;
-    const valueMultiplier = resolveRulerValueMultiplier(settings);
+    const valueMultiplier = resolveRulerValueMultiplier(settings, scaleMetrics);
     const inset = 8;
     const startAtZero = !!settings.rulerStartAtZero;
     const effectiveLength = length + (startAtZero ? 0 : 2);
