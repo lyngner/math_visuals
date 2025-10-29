@@ -654,7 +654,7 @@
       return sanitized;
     }
     const quantity = Number.isFinite(unitInfo.quantity) && unitInfo.quantity > 0 ? unitInfo.quantity : 1;
-    const factor = mode === 'withoutScale' ? 1 / denominator : denominator;
+    const factor = mode === 'withoutScale' ? denominator : 1 / denominator;
     if (!Number.isFinite(factor) || factor <= 0) {
       return sanitized;
     }
