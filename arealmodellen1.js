@@ -103,10 +103,18 @@ const CFG = {
   }
 };
 const DEFAULT_RECT_COLORS = ["#e07c7c", "#f0c667", "#7fb2d6", "#8bb889"];
+const AREAL_GROUP_ID = "arealmodell";
 const CAMPUS_RECT_ORDER = [0, 5, 2, 4];
 function getThemeApi() {
   const theme = typeof window !== "undefined" ? window.MathVisualsTheme : null;
   return theme && typeof theme === "object" ? theme : null;
+}
+
+function getGroupPaletteHelper() {
+  const scope = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null;
+  if (!scope) return null;
+  const helper = scope.MathVisualsGroupPalette;
+  return helper && typeof helper.resolve === "function" ? helper : null;
 }
 function getActiveThemeProjectName(theme = getThemeApi()) {
   if (!theme || typeof theme.getActiveProfileName !== "function") return null;
@@ -136,6 +144,23 @@ function ensureColors(base, fallback, count) {
 function resolveRectColors(count = DEFAULT_RECT_COLORS.length) {
   const theme = getThemeApi();
   const project = getActiveThemeProjectName(theme);
+  const helper = getGroupPaletteHelper();
+  if (helper) {
+    const palette = helper.resolve({
+      groupId: AREAL_GROUP_ID,
+      count,
+      project,
+      fallback: DEFAULT_RECT_COLORS,
+      legacyPaletteId: "figures",
+      fallbackKinds: ["fractions"]
+    });
+    if ((!project || project !== "kikora") && Array.isArray(palette) && palette.length) {
+      const sanitized = palette.map(color => (typeof color === "string" && color.trim() ? color.trim() : ""));
+      const filtered = sanitized.some(color => color) ? sanitized.map(color => color || "") : palette;
+      const reordered = project === "campus" ? CAMPUS_RECT_ORDER.map(idx => filtered[idx % filtered.length] || filtered[0]) : filtered;
+      return ensureColors(reordered, DEFAULT_RECT_COLORS, count);
+    }
+  }
   if (theme && typeof theme.getGroupPalette === "function") {
     try {
       const palette = theme.getGroupPalette("arealmodell", count, project ? { project } : undefined);
@@ -3179,6 +3204,11 @@ if (typeof window !== "undefined" && typeof window.addEventListener === "functio
     const data = event && event.data;
     const type = typeof data === 'string' ? data : data && data.type;
     if (type !== 'math-visuals:profile-change') return;
+    applyThemeToDocument();
+    CFG.ADV.colors = resolveRectColors();
+    render();
+  });
+  window.addEventListener('math-visuals:settings-changed', () => {
     applyThemeToDocument();
     CFG.ADV.colors = resolveRectColors();
     render();
