@@ -3556,11 +3556,19 @@
         fill: #1e293b;
         letter-spacing: 0.02em;
       }
-      .mv-tape image {
-        image-rendering: optimizeQuality;
+      .mv-tape {
+        display: block;
+        transform-origin: center;
+      }
+      .mv-tape__strap,
+      .mv-tape__housing {
+        pointer-events: none;
       }
       .mv-tape__strap image,
       .mv-tape__housing image {
+        display: block;
+        width: 100%;
+        height: 100%;
         image-rendering: optimizeQuality;
       }
     `;
@@ -3738,102 +3746,173 @@
     return group;
   }
 
-  async function createTapeMeasureGroupForExport(defs, helper) {
+  async function createTapeMeasureGroupForExport(helper, settings) {
     if (!tapeMeasure || !tapeStrap || !tapeHousing) {
       return null;
     }
     if (tapeMeasure.hidden || tapeMeasure.getAttribute('aria-hidden') === 'true') {
       return null;
     }
-    const strapImage = tapeStrap.querySelector('img');
-    const housingImage = tapeHousing.querySelector('img');
-    if (!strapImage || !housingImage) {
+
+    const tapeClone = tapeMeasure.cloneNode(true);
+    if (!tapeClone) {
       return null;
     }
-    const strapHref = await resolveImageHref(strapImage.getAttribute('src'));
-    const housingHref = await resolveImageHref(housingImage.getAttribute('src'));
+    tapeClone.removeAttribute('hidden');
+    tapeClone.removeAttribute('aria-hidden');
+
+    const strapImageSource =
+      (tapeClone.querySelector('[data-tape-strap] img') || tapeStrap.querySelector('img')) || null;
+    const housingImageSource =
+      (tapeClone.querySelector('[data-tape-housing] img') || tapeHousing.querySelector('img')) || null;
+
+    if (!strapImageSource || !housingImageSource) {
+      return null;
+    }
+
+    const strapHref = await resolveImageHref(strapImageSource.getAttribute('src'));
+    const housingHref = await resolveImageHref(housingImageSource.getAttribute('src'));
     if (!strapHref || !housingHref) {
       return null;
     }
+
     const group = createSvgElement('g');
     group.setAttribute('class', 'mv-tape');
+
     const matrix = getComputedMatrix(tapeMeasure);
     if (matrix) {
       group.setAttribute('transform', matrixToString(matrix));
     }
+
     const containerRect = tapeMeasure.getBoundingClientRect();
     const strapRect = tapeStrap.getBoundingClientRect();
     const housingRect = tapeHousing.getBoundingClientRect();
+
+    if (!strapRect || !housingRect) {
+      return null;
+    }
+
+    const strapTotalWidth = Math.max(
+      Number.isFinite(tapeStrap.offsetWidth) ? tapeStrap.offsetWidth : 0,
+      Number.isFinite(strapRect.width) ? strapRect.width : 0
+    );
+    const strapHeight = Math.max(
+      Number.isFinite(tapeStrap.offsetHeight) ? tapeStrap.offsetHeight : 0,
+      Number.isFinite(strapRect.height) ? strapRect.height : 0
+    );
+
+    const housingWidth = Math.max(
+      Number.isFinite(tapeHousing.offsetWidth) ? tapeHousing.offsetWidth : 0,
+      Number.isFinite(housingRect.width) ? housingRect.width : 0
+    );
+    const housingHeight = Math.max(
+      Number.isFinite(tapeHousing.offsetHeight) ? tapeHousing.offsetHeight : 0,
+      Number.isFinite(housingRect.height) ? housingRect.height : 0
+    );
+
+    if (
+      !(strapTotalWidth > 0) ||
+      !(strapHeight > 0) ||
+      !(housingWidth > 0) ||
+      !(housingHeight > 0)
+    ) {
+      return null;
+    }
+
     const strapGroup = createSvgElement('g');
     strapGroup.setAttribute('class', 'mv-tape__strap');
+
     const strapOffsetX = strapRect.left - containerRect.left;
     const strapOffsetY = strapRect.top - containerRect.top;
     strapGroup.setAttribute(
       'transform',
       `translate(${formatSvgNumber(strapOffsetX)} ${formatSvgNumber(strapOffsetY)})`
     );
+
     const strapImageElement = createSvgElement('image');
-    const strapTotalWidth = tapeStrap.offsetWidth || strapRect.width || 0;
-    const strapVisibleRaw = Number.parseFloat(
-      tapeMeasure.style.getPropertyValue('--tape-strap-visible')
-    );
-    const strapVisibleWidth = Number.isFinite(strapVisibleRaw)
-      ? Math.min(Math.max(strapVisibleRaw, 0), strapTotalWidth)
-      : strapTotalWidth;
     strapImageElement.setAttribute('x', '0');
     strapImageElement.setAttribute('y', '0');
     strapImageElement.setAttribute('width', formatSvgNumber(strapTotalWidth));
-    strapImageElement.setAttribute('height', formatSvgNumber(strapRect.height));
+    strapImageElement.setAttribute('height', formatSvgNumber(strapHeight));
     strapImageElement.setAttributeNS(XLINK_NS, 'xlink:href', strapHref);
     strapImageElement.setAttribute('href', strapHref);
     strapGroup.appendChild(strapImageElement);
-    if (
-      defs &&
-      Number.isFinite(strapTotalWidth) &&
-      strapTotalWidth > 0 &&
-      Number.isFinite(strapVisibleWidth) &&
-      strapVisibleWidth >= 0 &&
-      strapVisibleWidth < strapTotalWidth
-    ) {
+
+    const persistedUnits = sanitizeLength(
+      settings && settings.tapeMeasureLength,
+      defaults.tapeMeasureLength
+    );
+    const spacing =
+      Number.isFinite(tapeLengthState.unitSpacing) && tapeLengthState.unitSpacing > 0
+        ? tapeLengthState.unitSpacing
+        : null;
+    const persistedVisibleWidth =
+      spacing && Number.isFinite(persistedUnits) ? persistedUnits * spacing : null;
+    const inlineVisibleRaw = Number.parseFloat(
+      tapeMeasure.style.getPropertyValue('--tape-strap-visible')
+    );
+    const computedVisibleRaw = doc.defaultView && typeof doc.defaultView.getComputedStyle === 'function'
+      ? Number.parseFloat(
+          doc.defaultView.getComputedStyle(tapeMeasure).getPropertyValue('--tape-strap-visible')
+        )
+      : NaN;
+    const candidateVisibleWidths = [
+      persistedVisibleWidth,
+      Number.isFinite(inlineVisibleRaw) ? inlineVisibleRaw : null,
+      Number.isFinite(computedVisibleRaw) ? computedVisibleRaw : null,
+      Number.isFinite(tapeLengthState.visiblePx) ? tapeLengthState.visiblePx : null,
+      strapTotalWidth
+    ];
+    let strapVisibleWidth = strapTotalWidth;
+    for (const candidate of candidateVisibleWidths) {
+      if (Number.isFinite(candidate)) {
+        strapVisibleWidth = candidate;
+        break;
+      }
+    }
+    strapVisibleWidth = Math.min(Math.max(strapVisibleWidth, 0), strapTotalWidth);
+
+    let clipPath = null;
+    if (strapVisibleWidth < strapTotalWidth) {
       const clipId = `mvTapeClip${++exportClipIdCounter}`;
-      const clipPath = createSvgElement('clipPath');
+      clipPath = createSvgElement('clipPath');
       clipPath.setAttribute('id', clipId);
-      clipPath.setAttribute('clipPathUnits', 'objectBoundingBox');
+      clipPath.setAttribute('clipPathUnits', 'userSpaceOnUse');
       const clipRect = createSvgElement('rect');
       clipRect.setAttribute('x', '0');
       clipRect.setAttribute('y', '0');
-      const normalizedWidthRaw = strapVisibleWidth / strapTotalWidth;
-      const normalizedWidth = Math.max(Math.min(normalizedWidthRaw, 1), 0);
-      const normalizedWidthString =
-        normalizedWidth === 0 || normalizedWidth === 1
-          ? String(Math.round(normalizedWidth))
-          : normalizedWidth.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
-      clipRect.setAttribute('width', normalizedWidthString);
-      clipRect.setAttribute('height', '1');
+      clipRect.setAttribute('width', formatSvgNumber(strapVisibleWidth));
+      clipRect.setAttribute('height', formatSvgNumber(strapHeight));
       clipPath.appendChild(clipRect);
-      defs.appendChild(clipPath);
       strapGroup.setAttribute('clip-path', `url(#${clipId})`);
     }
+
     group.appendChild(strapGroup);
 
     const housingGroup = createSvgElement('g');
     housingGroup.setAttribute('class', 'mv-tape__housing');
+
     const housingOffsetX = housingRect.left - containerRect.left;
     const housingOffsetY = housingRect.top - containerRect.top;
     housingGroup.setAttribute(
       'transform',
       `translate(${formatSvgNumber(housingOffsetX)} ${formatSvgNumber(housingOffsetY)})`
     );
+
     const housingImageElement = createSvgElement('image');
     housingImageElement.setAttribute('x', '0');
     housingImageElement.setAttribute('y', '0');
-    housingImageElement.setAttribute('width', formatSvgNumber(housingRect.width));
-    housingImageElement.setAttribute('height', formatSvgNumber(housingRect.height));
+    housingImageElement.setAttribute('width', formatSvgNumber(housingWidth));
+    housingImageElement.setAttribute('height', formatSvgNumber(housingHeight));
     housingImageElement.setAttributeNS(XLINK_NS, 'xlink:href', housingHref);
     housingImageElement.setAttribute('href', housingHref);
     housingGroup.appendChild(housingImageElement);
     group.appendChild(housingGroup);
-    return group;
+
+    return {
+      group,
+      clipPath
+    };
   }
 
   async function createMeasurementExportSvg(settings, helper) {
@@ -3896,22 +3975,47 @@
 
     appendScaleLabel(svg, settings);
 
-    const rulerGroup = createRulerGroupForExport(helper);
-    if (rulerGroup) {
-      svg.appendChild(rulerGroup);
-    }
-
-    const tapeGroup = await createTapeMeasureGroupForExport(defs, helper);
-    if (tapeGroup) {
-      svg.appendChild(tapeGroup);
+    const sanitizedTool = sanitizeActiveTool(
+      settings && settings.activeTool,
+      defaultActiveTool
+    );
+    const instrumentOrder = sanitizedTool === 'tape' ? ['tape', 'ruler'] : ['ruler', 'tape'];
+    let instrumentAttached = false;
+    for (const tool of instrumentOrder) {
+      if (instrumentAttached) {
+        break;
+      }
+      if (tool === 'ruler') {
+        const rulerGroup = createRulerGroupForExport(helper);
+        if (rulerGroup) {
+          svg.appendChild(rulerGroup);
+          instrumentAttached = true;
+        }
+      } else if (tool === 'tape') {
+        const tapeResult = await createTapeMeasureGroupForExport(helper, settings);
+        if (tapeResult && tapeResult.group) {
+          if (tapeResult.clipPath) {
+            defs.appendChild(tapeResult.clipPath);
+          }
+          svg.appendChild(tapeResult.group);
+          instrumentAttached = true;
+        }
+      }
     }
 
     return svg;
   }
 
   async function handleExport() {
-    if (!appState.settings || (!rulerSvg && !hasTapeMeasure)) {
+    if (!appState.settings || (!hasRuler && !hasTapeMeasure)) {
       return;
+    }
+    const activeTool = sanitizeActiveTool(
+      appState.settings && appState.settings.activeTool,
+      defaultActiveTool
+    );
+    if (activeTool === 'tape' && hasTapeMeasure) {
+      persistTapeMeasureLength(tapeLengthState.units);
     }
     const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
     const exportSvgElement = await createMeasurementExportSvg(appState.settings, helper);
