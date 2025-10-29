@@ -46,7 +46,6 @@
     subdivisions: doc.getElementById('cfg-subdivisions'),
     unitLabel: doc.getElementById('cfg-unit'),
     boardPadding: doc.getElementById('cfg-board-padding'),
-    rulerStartAtZero: doc.getElementById('cfg-ruler-start-at-zero'),
     gridEnabled: doc.getElementById('cfg-grid-enabled'),
     showScaleLabel: doc.getElementById('cfg-show-scale'),
     measurementWithoutScale: doc.getElementById('cfg-measurement-without-scale'),
@@ -109,7 +108,6 @@
     figureSummary: defaultPreset ? defaultPreset.summary : '',
     figureScaleLabel: defaultPreset ? defaultPreset.scaleLabel : '',
     boardPadding: 0,
-    rulerStartAtZero: true,
     gridEnabled: false,
     showScaleLabel: false,
     measurementWithoutScale: false,
@@ -210,12 +208,7 @@
     else if (source.boardPan != null) target.boardPanTransform = source.boardPan;
     if (source.rulerTransform != null) target.rulerTransform = source.rulerTransform;
     if (Object.prototype.hasOwnProperty.call(source, 'rulerStartAtZero')) {
-      target.rulerStartAtZero = source.rulerStartAtZero;
-    } else if (source.rulerPadding != null) {
-      const parsed = Number.parseFloat(source.rulerPadding);
-      if (Number.isFinite(parsed)) {
-        target.rulerStartAtZero = parsed <= 0;
-      }
+      delete target.rulerStartAtZero;
     }
     if (Object.prototype.hasOwnProperty.call(source, 'rulerBackgroundMode')) {
       target.rulerBackgroundMode = source.rulerBackgroundMode;
@@ -247,13 +240,13 @@
       container.subdivisions = settings.subdivisions;
       container.unitLabel = settings.unitLabel;
       container.boardPadding = settings.boardPadding;
-      container.rulerStartAtZero = settings.rulerStartAtZero;
       container.rulerBackgroundMode = settings.rulerBackgroundMode;
       container.gridEnabled = settings.gridEnabled;
       container.showScaleLabel = settings.showScaleLabel;
       container.measurementWithoutScale = !!settings.measurementWithoutScale;
       container.panningEnabled = !!settings.panningEnabled;
       container.panorering = !!settings.panningEnabled;
+      delete container.rulerStartAtZero;
       delete container.rulerPadding;
       delete container.unitSpacingOverride;
       delete container.figureName;
@@ -275,7 +268,6 @@
     container.figureScaleLabel = settings.figureScaleLabel || '';
     container.measurementTarget = settings.measurementTarget;
     container.boardPadding = settings.boardPadding;
-    container.rulerStartAtZero = settings.rulerStartAtZero;
     container.rulerBackgroundMode = settings.rulerBackgroundMode;
     container.gridEnabled = settings.gridEnabled;
     container.showScaleLabel = settings.showScaleLabel;
@@ -284,6 +276,7 @@
     container.panorering = !!settings.panningEnabled;
     delete container.unitSpacingOverride;
     delete container.rulerPadding;
+    delete container.rulerStartAtZero;
     if (settings.rulerTransform && typeof settings.rulerTransform === 'object') {
       container.rulerTransform = { ...settings.rulerTransform };
     } else {
@@ -547,6 +540,8 @@
       Object.assign(combined, overrides);
     }
 
+    delete combined.rulerStartAtZero;
+
     const length = sanitizeLength(combined.length, defaults.length);
     const subdivisions = sanitizeSubdivisions(combined.subdivisions, defaults.subdivisions);
     const unitLabel = sanitizeUnitLabel(combined.unitLabel, defaults.unitLabel);
@@ -556,7 +551,6 @@
     const measurementTarget = sanitizeMeasurementTarget(combined.measurementTarget, figureName, defaults.measurementTarget);
     const figureScaleLabel = sanitizeFigureScaleLabel(combined.figureScaleLabel, defaults.figureScaleLabel);
     const boardPadding = sanitizeBoardPadding(combined.boardPadding, defaults.boardPadding);
-    const rulerStartAtZero = sanitizeBoolean(combined.rulerStartAtZero, defaults.rulerStartAtZero);
     const rulerBackgroundMode = sanitizeRulerBackgroundMode(
       combined.rulerBackgroundMode,
       defaults.rulerBackgroundMode
@@ -581,7 +575,6 @@
       figureScaleLabel,
       measurementTarget,
       boardPadding,
-      rulerStartAtZero,
       rulerBackgroundMode,
       gridEnabled,
       showScaleLabel,
@@ -623,7 +616,6 @@
       a.figureScaleLabel === b.figureScaleLabel &&
       a.measurementTarget === b.measurementTarget &&
       a.boardPadding === b.boardPadding &&
-      a.rulerStartAtZero === b.rulerStartAtZero &&
       a.rulerBackgroundMode === b.rulerBackgroundMode &&
       a.gridEnabled === b.gridEnabled &&
       a.showScaleLabel === b.showScaleLabel &&
@@ -1581,9 +1573,8 @@
     const backgroundMode = settings && settings.rulerBackgroundMode === 'padded' ? 'padded' : 'tight';
     const valueMultiplier = resolveRulerValueMultiplier(settings, scaleMetrics);
     const inset = 8;
-    const startAtZero = !!settings.rulerStartAtZero;
-    const effectiveLength = length + (startAtZero ? 0 : 2);
-    const startIndex = startAtZero ? 0 : -1;
+    const effectiveLength = length;
+    const startIndex = 0;
     const totalTicks = effectiveLength + 1;
     const paddingLeft = 0;
     const paddingRight = 0;
@@ -1653,11 +1644,6 @@
     ruler.style.setProperty('--zero-offset-x', `${zeroOffsetX}px`);
     ruler.style.setProperty('--zero-offset-y', `${baselineY}px`);
     ruler.setAttribute('data-ruler-background-mode', backgroundMode);
-    if (startAtZero) {
-      ruler.setAttribute('data-ruler-start', 'zero');
-    } else {
-      ruler.setAttribute('data-ruler-start', 'offset');
-    }
     ruler.setAttribute('data-ruler-value-multiplier', String(valueMultiplier));
     zeroOffset.x = zeroOffsetX;
     zeroOffset.y = baselineY;
@@ -1714,7 +1700,6 @@
       if (inputs.subdivisions) inputs.subdivisions.value = settings.subdivisions;
       if (inputs.unitLabel) inputs.unitLabel.value = settings.unitLabel || '';
       if (inputs.boardPadding) inputs.boardPadding.value = settings.boardPadding;
-      if (inputs.rulerStartAtZero) inputs.rulerStartAtZero.checked = !!settings.rulerStartAtZero;
       if (inputs.rulerBackgroundMode) inputs.rulerBackgroundMode.value = settings.rulerBackgroundMode || 'tight';
       if (inputs.gridEnabled) inputs.gridEnabled.checked = !!settings.gridEnabled;
       if (inputs.showScaleLabel) inputs.showScaleLabel.checked = !!settings.showScaleLabel;
@@ -1798,12 +1783,6 @@
       inputs.boardPadding.addEventListener('input', event => {
         if (appState.syncingInputs) return;
         updateSettings({ boardPadding: event.target.value });
-      });
-    }
-    if (inputs.rulerStartAtZero) {
-      inputs.rulerStartAtZero.addEventListener('change', event => {
-        if (appState.syncingInputs) return;
-        updateSettings({ rulerStartAtZero: event.target.checked });
       });
     }
     if (inputs.rulerBackgroundMode) {
