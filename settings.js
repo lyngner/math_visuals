@@ -1208,9 +1208,10 @@
         normalized,
         storedPalette || getProjectFallbackPalette(normalized)
       );
+      const groupPalettes = cloneProjectPalette(normalizedPalette);
       payload.projects[normalized] = {
-        groupPalettes: cloneProjectPalette(normalizedPalette),
-        defaultColors: expandPalette(normalized, normalizedPalette)
+        groupPalettes,
+        defaultColors: expandPalette(normalized, groupPalettes)
       };
       payload.projectOrder.push(normalized);
       seenProjects.add(normalized);

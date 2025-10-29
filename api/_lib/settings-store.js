@@ -439,14 +439,18 @@ function normalizeSettings(value) {
       if (!normalized) return;
       const source = inputProjects[name];
       const normalizedGroupPalettes = normalizeProjectGroupPalettes(normalized, source);
-      const target = projects[normalized] ? projects[normalized] : {};
+      const baseTarget = projects[normalized] ? projects[normalized] : {};
       const groupPalettes = cloneGroupPalettes(normalizedGroupPalettes);
-      target.groupPalettes = groupPalettes;
-      target.defaultColors = expandPalette(normalized, { groupPalettes });
-      projects[normalized] = target;
+      const defaultColors = expandPalette(normalized, { groupPalettes });
+      const updated = {
+        ...baseTarget,
+        groupPalettes,
+        defaultColors
+      };
       if (source && source.defaultLineThickness != null) {
-        target.defaultLineThickness = clampLineThickness(source.defaultLineThickness);
+        updated.defaultLineThickness = clampLineThickness(source.defaultLineThickness);
       }
+      projects[normalized] = updated;
       if (!order.includes(normalized)) {
         order.push(normalized);
       }
@@ -456,10 +460,13 @@ function normalizeSettings(value) {
   if (input.defaultColors != null) {
     const projectName = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
     const normalizedGroupPalettes = normalizeProjectGroupPalettes(projectName, input.defaultColors);
-    projects[projectName] = projects[projectName] || {};
     const groupPalettes = cloneGroupPalettes(normalizedGroupPalettes);
-    projects[projectName].groupPalettes = groupPalettes;
-    projects[projectName].defaultColors = expandPalette(projectName, { groupPalettes });
+    const defaultColors = expandPalette(projectName, { groupPalettes });
+    projects[projectName] = {
+      ...projects[projectName],
+      groupPalettes,
+      defaultColors
+    };
     if (!order.includes(projectName)) {
       order.push(projectName);
     }
