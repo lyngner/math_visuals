@@ -23,9 +23,16 @@
     colorInputs.push(inp);
   }
   const LEGACY_COLOR_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D'];
+  const FIGURE_GROUP_ID = 'figurtall';
   function getThemeApi() {
     const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
     return theme && typeof theme === 'object' ? theme : null;
+  }
+  function getGroupPaletteHelper() {
+    const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+    if (!scope) return null;
+    const helper = scope.MathVisualsGroupPalette;
+    return helper && typeof helper.resolve === 'function' ? helper : null;
   }
   function applyThemeToDocument() {
     const theme = getThemeApi();
@@ -36,8 +43,28 @@
   applyThemeToDocument();
   function getPaletteFromTheme(count) {
     const theme = getThemeApi();
+    const helper = getGroupPaletteHelper();
+    if (helper) {
+      const palette = helper.resolve({
+        groupId: FIGURE_GROUP_ID,
+        count,
+        fallback: LEGACY_COLOR_PALETTE,
+        legacyPaletteId: 'figures',
+        fallbackKinds: ['fractions']
+      });
+      if (Array.isArray(palette) && palette.length) {
+        return palette;
+      }
+    }
     let palette = null;
-    if (theme && typeof theme.getPalette === 'function') {
+    if (theme && typeof theme.getGroupPalette === 'function') {
+      try {
+        palette = theme.getGroupPalette(FIGURE_GROUP_ID, count);
+      } catch (_) {
+        palette = null;
+      }
+    }
+    if ((!Array.isArray(palette) || !palette.length) && theme && typeof theme.getPalette === 'function') {
       palette = theme.getPalette('figures', count, { fallbackKinds: ['fractions'] });
     }
     const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : 0;
@@ -1905,8 +1932,14 @@
     applyThemeToDocument();
     render();
   }
+  function handleThemeSettingsChanged(event) {
+    if (!event || event.type !== 'math-visuals:settings-changed') return;
+    applyThemeToDocument();
+    render();
+  }
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('message', handleThemeProfileChange);
+    window.addEventListener('math-visuals:settings-changed', handleThemeSettingsChanged);
     window.addEventListener('math-visuals:app-mode-changed', handleAppModeChanged);
   }
 })();
