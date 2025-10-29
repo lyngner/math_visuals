@@ -732,10 +732,21 @@
     if (Object.prototype.hasOwnProperty.call(partial, 'unitLabel')) {
       const sanitizedLabel = sanitizeUnitLabel(partial.unitLabel, partial.unitLabel);
       if (typeof sanitizedLabel === 'string') {
-        rememberUnitLabel(
-          appState.settings && appState.settings.measurementWithoutScale ? 'withoutScale' : 'withScale',
-          sanitizedLabel
-        );
+        const currentMode =
+          appState.settings && appState.settings.measurementWithoutScale ? 'withoutScale' : 'withScale';
+        rememberUnitLabel(currentMode, sanitizedLabel);
+        if (currentMode === 'withoutScale') {
+          const scaleContext = {
+            ...appState.settings,
+            ...nextPartial,
+            measurementWithoutScale: true,
+            unitLabel: sanitizedLabel
+          };
+          const derivedWithScale = computeUnitLabelForMode(sanitizedLabel, scaleContext, 'withScale');
+          if (typeof derivedWithScale === 'string') {
+            rememberUnitLabel('withScale', derivedWithScale);
+          }
+        }
       }
     }
     if (Object.prototype.hasOwnProperty.call(partial, 'measurementWithoutScale')) {
@@ -1067,22 +1078,38 @@
     let displayMultiplier = spacingMultiplier;
 
     if (measurementWithoutScale) {
-      const cachedWithScaleLabel =
-        appState && appState.unitLabelCache && appState.unitLabelCache.withScale
-          ? sanitizeUnitLabel(appState.unitLabelCache.withScale, appState.unitLabelCache.withScale)
-          : '';
-      const referenceInfo = resolveUnitLabelInfo(cachedWithScaleLabel);
-      const referenceQuantity =
-        Number.isFinite(referenceInfo.quantity) && referenceInfo.quantity > 0 ? referenceInfo.quantity : 1;
-      const referenceBaseFactor =
-        referenceInfo.baseFactor != null && Number.isFinite(referenceInfo.baseFactor) && referenceInfo.baseFactor > 0
-          ? referenceInfo.baseFactor
+      const sanitizedActiveLabel = sanitizeUnitLabel(
+        settings && settings.unitLabel,
+        settings && settings.unitLabel
+      );
+      const activeInfo = resolveUnitLabelInfo(sanitizedActiveLabel);
+      const activeQuantity =
+        Number.isFinite(activeInfo.quantity) && activeInfo.quantity > 0 ? activeInfo.quantity : 1;
+      const activeBaseFactor =
+        activeInfo.baseFactor != null && Number.isFinite(activeInfo.baseFactor) && activeInfo.baseFactor > 0
+          ? activeInfo.baseFactor
           : null;
       const { desiredDenominator } = resolveScaleInfo(settings);
       const scaleMultiplier =
         Number.isFinite(desiredDenominator) && desiredDenominator > 0 ? desiredDenominator : 1;
       let realWorldMultiplier =
-        referenceBaseFactor != null ? referenceQuantity * referenceBaseFactor : Number.NaN;
+        activeBaseFactor != null ? activeQuantity * activeBaseFactor : Number.NaN;
+      if (!Number.isFinite(realWorldMultiplier) || realWorldMultiplier <= 0) {
+        const cachedWithScaleLabel =
+          appState && appState.unitLabelCache && appState.unitLabelCache.withScale
+            ? sanitizeUnitLabel(appState.unitLabelCache.withScale, appState.unitLabelCache.withScale)
+            : '';
+        const referenceInfo = resolveUnitLabelInfo(cachedWithScaleLabel);
+        const referenceQuantity =
+          Number.isFinite(referenceInfo.quantity) && referenceInfo.quantity > 0 ? referenceInfo.quantity : 1;
+        const referenceBaseFactor =
+          referenceInfo.baseFactor != null && Number.isFinite(referenceInfo.baseFactor) && referenceInfo.baseFactor > 0
+            ? referenceInfo.baseFactor
+            : null;
+        if (referenceBaseFactor != null) {
+          realWorldMultiplier = referenceQuantity * referenceBaseFactor;
+        }
+      }
       if (!Number.isFinite(realWorldMultiplier) || realWorldMultiplier <= 0) {
         realWorldMultiplier = displayMultiplier * scaleMultiplier;
       }
