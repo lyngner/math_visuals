@@ -209,6 +209,16 @@
     const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
     return theme && typeof theme === 'object' ? theme : null;
   }
+  function getActiveThemeProjectName(theme = getThemeApi()) {
+    if (!theme || typeof theme.getActiveProfileName !== 'function') return null;
+    try {
+      const value = theme.getActiveProfileName();
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim().toLowerCase();
+      }
+    } catch (_) {}
+    return null;
+  }
   function applyThemeToDocument() {
     const theme = getThemeApi();
     if (theme && typeof theme.applyToDocument === 'function') {
@@ -333,9 +343,17 @@
   }
   function getPaletteFromTheme(count) {
     const theme = getThemeApi();
+    const project = getActiveThemeProjectName(theme);
     let palette = null;
-    if (theme && typeof theme.getPalette === 'function') {
-      palette = theme.getPalette('fractions', count, { fallbackKinds: ['figures'] });
+    if (theme && typeof theme.getGroupPalette === 'function') {
+      try {
+        palette = theme.getGroupPalette('fractions', count, project ? { project } : undefined);
+      } catch (_) {
+        palette = null;
+      }
+    }
+    if ((!Array.isArray(palette) || !palette.length) && theme && typeof theme.getPalette === 'function') {
+      palette = theme.getPalette('fractions', count, { fallbackKinds: ['figures'], project });
     }
     const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : 0;
     const base = Array.isArray(palette) && palette.length ? palette.slice() : LEGACY_COLOR_PALETTE.slice();

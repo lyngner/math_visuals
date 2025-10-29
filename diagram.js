@@ -42,6 +42,7 @@ function getValueDisplayMode(type = CFG.type) {
 const LEGACY_SERIES_COLORS = ['#574595', '#d081a1'];
 const LEGACY_PIE_PALETTE = ['#4f2c8c', '#6c3db5', '#8a4de0', '#a75cf1', '#c26ef0', '#d381ba', '#c46287', '#9f436d', '#723a82', '#503070'];
 const PIE_COLOR_CLASS_COUNT = LEGACY_PIE_PALETTE.length;
+const DIAGRAM_GROUP_SLOT_COUNT = 3 + PIE_COLOR_CLASS_COUNT;
 const LEGACY_AXIS_COLOR = '#0f172a';
 const LEGACY_GRID_COLOR = '#999999';
 const LEGACY_TEXT_COLOR = '#333333';
@@ -86,6 +87,23 @@ let themePaletteSize = Array.isArray(CFG.labels) ? CFG.labels.length : 0;
 function getThemeApi() {
   const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
   return theme && typeof theme === 'object' ? theme : null;
+}
+
+function getActiveThemeProjectName(theme = getThemeApi()) {
+  if (!theme || typeof theme.getActiveProfileName !== 'function') return null;
+  try {
+    const value = theme.getActiveProfileName();
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim().toLowerCase();
+    }
+  } catch (_) {}
+  return null;
+}
+
+function sanitizeThemePaletteValue(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  return trimmed || '';
 }
 function getThemeColor(token, fallback) {
   const theme = getThemeApi();
@@ -155,46 +173,94 @@ function applyDiagramTheme(options = {}) {
   if (!root) return;
   const style = root.style;
   const theme = getThemeApi();
-  const activeProfileName =
+  const activeProfileNameRaw =
     theme && typeof theme.getActiveProfileName === 'function'
       ? theme.getActiveProfileName()
       : null;
+  const normalizedProfileName = getActiveThemeProjectName(theme) || (typeof activeProfileNameRaw === 'string' ? activeProfileNameRaw.trim().toLowerCase() : '');
   const requestedSeriesCount = Math.max(1, Number.isFinite(options.seriesCount) ? Math.trunc(options.seriesCount) : 1);
   const requestedPaletteSize = Math.max(
     requestedSeriesCount,
     Number.isFinite(options.paletteSize) && options.paletteSize > 0 ? Math.trunc(options.paletteSize) : LEGACY_PIE_PALETTE.length
   );
-  let palette = null;
-  if (theme && typeof theme.getPalette === 'function') {
+  let seriesPalette = [];
+  let piePalette = [];
+  let groupPalette = null;
+  if (theme && typeof theme.getGroupPalette === 'function') {
     try {
-      palette = theme.getPalette('fractions', requestedPaletteSize, { fallbackKinds: ['figures'] });
+      groupPalette = theme.getGroupPalette('diagram', Math.max(requestedPaletteSize, DIAGRAM_GROUP_SLOT_COUNT),
+        normalizedProfileName ? { project: normalizedProfileName } : undefined);
     } catch (_) {
-      palette = null;
+      groupPalette = null;
     }
   }
-  const basePalette = ensurePalette(palette, requestedPaletteSize, LEGACY_PIE_PALETTE);
-  const seriesPalette = ensurePalette(basePalette, requestedSeriesCount, LEGACY_SERIES_COLORS);
-  if (activeProfileName === 'kikora') {
-    const singleSeriesColor = '#6C1BA2';
-    const dualSeriesColors = ['#534477', '#BF4474'];
+  const sanitizedGroupPalette = Array.isArray(groupPalette)
+    ? groupPalette.map(sanitizeThemePaletteValue)
+    : [];
+  const hasGroupPalette = sanitizedGroupPalette.some(color => color);
+  let basePalette = null;
+  if (!hasGroupPalette && theme && typeof theme.getPalette === 'function') {
+    try {
+      basePalette = theme.getPalette('fractions', requestedPaletteSize, {
+        fallbackKinds: ['figures'],
+        project: normalizedProfileName || undefined
+      });
+    } catch (_) {
+      basePalette = null;
+    }
+  }
+  const fallbackBasePalette = ensurePalette(basePalette, requestedPaletteSize, LEGACY_PIE_PALETTE);
+  if (hasGroupPalette) {
+    const singleSeriesColor = sanitizedGroupPalette[0]
+      || sanitizedGroupPalette[1]
+      || sanitizedGroupPalette[2]
+      || LEGACY_SERIES_COLORS[0];
     if (requestedSeriesCount <= 1) {
-      if (seriesPalette.length >= 1) {
-        seriesPalette[0] = singleSeriesColor;
-      } else {
-        seriesPalette.push(singleSeriesColor);
-      }
+      seriesPalette = ensurePalette([singleSeriesColor || LEGACY_SERIES_COLORS[0]], requestedSeriesCount, LEGACY_SERIES_COLORS);
     } else {
-      if (seriesPalette.length >= 1) {
-        seriesPalette[0] = dualSeriesColors[0];
+      const firstSeriesColor = sanitizedGroupPalette[1] || singleSeriesColor || LEGACY_SERIES_COLORS[0];
+      const secondSeriesColor = sanitizedGroupPalette[2]
+        || sanitizedGroupPalette[1]
+        || singleSeriesColor
+        || LEGACY_SERIES_COLORS[1];
+      seriesPalette = ensurePalette(
+        [firstSeriesColor || LEGACY_SERIES_COLORS[0], secondSeriesColor || LEGACY_SERIES_COLORS[1]],
+        requestedSeriesCount,
+        LEGACY_SERIES_COLORS
+      );
+    }
+    const sectorStart = 3;
+    const sectorBase = [];
+    for (let i = 0; i < PIE_COLOR_CLASS_COUNT; i++) {
+      const color = sanitizedGroupPalette[sectorStart + i];
+      sectorBase.push(color || LEGACY_PIE_PALETTE[i % LEGACY_PIE_PALETTE.length]);
+    }
+    piePalette = ensurePalette(sectorBase, PIE_COLOR_CLASS_COUNT, LEGACY_PIE_PALETTE);
+  } else {
+    seriesPalette = ensurePalette(fallbackBasePalette, requestedSeriesCount, LEGACY_SERIES_COLORS);
+    if (normalizedProfileName === 'kikora') {
+      const singleSeriesColor = '#6C1BA2';
+      const dualSeriesColors = ['#534477', '#BF4474'];
+      if (requestedSeriesCount <= 1) {
+        if (seriesPalette.length >= 1) {
+          seriesPalette[0] = singleSeriesColor;
+        } else {
+          seriesPalette.push(singleSeriesColor);
+        }
       } else {
-        seriesPalette.push(dualSeriesColors[0]);
-      }
-      if (seriesPalette.length >= 2) {
-        seriesPalette[1] = dualSeriesColors[1];
-      } else {
-        seriesPalette.push(dualSeriesColors[1]);
+        if (seriesPalette.length >= 1) {
+          seriesPalette[0] = dualSeriesColors[0];
+        } else {
+          seriesPalette.push(dualSeriesColors[0]);
+        }
+        if (seriesPalette.length >= 2) {
+          seriesPalette[1] = dualSeriesColors[1];
+        } else {
+          seriesPalette.push(dualSeriesColors[1]);
+        }
       }
     }
+    piePalette = ensurePalette(fallbackBasePalette, PIE_COLOR_CLASS_COUNT, LEGACY_PIE_PALETTE);
   }
   for (let i = 0; i < seriesPalette.length; i++) {
     setCssVariable(`--diagram-series-${i}`, seriesPalette[i], style);
@@ -204,7 +270,6 @@ function applyDiagramTheme(options = {}) {
     style.removeProperty(`--diagram-series-${i}`);
     style.removeProperty(`--diagram-line-series-${i}`);
   }
-  const piePalette = ensurePalette(basePalette, PIE_COLOR_CLASS_COUNT, LEGACY_PIE_PALETTE);
   for (let i = 0; i < PIE_COLOR_CLASS_COUNT; i++) {
     setCssVariable(`--diagram-pie-${i}`, piePalette[i], style);
   }
@@ -216,7 +281,7 @@ function applyDiagramTheme(options = {}) {
   setCssVariable('--diagram-text-color', resolvedTextColor, style);
   setCssVariable('--diagram-pie-label-color', primaryColor || LEGACY_PIE_LABEL_COLOR, style);
   setCssVariable('--diagram-value-color', primaryColor || LEGACY_VALUE_COLOR, style);
-  const barStrokeColor = activeProfileName === 'kikora' ? 'transparent' : (primaryColor || LEGACY_BAR_STROKE);
+  const barStrokeColor = normalizedProfileName === 'kikora' ? 'transparent' : (primaryColor || LEGACY_BAR_STROKE);
   setCssVariable('--diagram-bar-stroke', barStrokeColor, style);
   setCssVariable('--diagram-handle-fill', getThemeColor('ui.secondary', LEGACY_HANDLE_FILL), style);
   setCssVariable('--diagram-handle-stroke', primaryColor || LEGACY_HANDLE_STROKE, style);

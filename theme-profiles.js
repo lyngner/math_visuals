@@ -48,6 +48,20 @@
       return null;
     }
   }
+  const GROUP_FALLBACKS = {
+    graftegner: ['figures', 'fractions'],
+    nkant: ['figures', 'fractions'],
+    diagram: ['fractions', 'figures'],
+    fractions: ['fractions', 'figures'],
+    brokvegg: ['fractions', 'figures'],
+    arealmodell: ['fractions', 'figures'],
+    kvikkbilder: ['figures', 'fractions'],
+    trefigurer: ['figures', 'fractions'],
+    tallinje: ['figures', 'fractions'],
+    prikktilprikk: ['figures', 'fractions'],
+    figurtall: ['figures', 'fractions'],
+    default: ['fractions', 'figures']
+  };
   const campusProfileBase = {
     palettes: {
       fractions: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
@@ -307,7 +321,9 @@
   }
   function buildPalette(kind, count, opts) {
     const activeProfile = getActiveProfile();
-    const userPalette = resolveUserPalette(count, activeProfile && activeProfile.id ? activeProfile.id : activeProfileName);
+    const projectOverride = opts && typeof opts.project === 'string' ? opts.project.trim().toLowerCase() : null;
+    const projectName = projectOverride || (activeProfile && activeProfile.id ? activeProfile.id : activeProfileName);
+    const userPalette = resolveUserPalette(count, projectName);
     if (userPalette && userPalette.length) {
       return ensurePalette(userPalette, count);
     }
@@ -327,6 +343,30 @@
       }
     }
     return ensurePalette(LEGACY_FRACTION_PALETTE, count);
+  }
+  function buildGroupPalette(groupId, count, opts) {
+    const normalizedId = typeof groupId === 'string' ? groupId.trim().toLowerCase() : '';
+    const projectOverride = opts && typeof opts.project === 'string' ? opts.project.trim().toLowerCase() : null;
+    const settingsApi = getSettingsApi();
+    const activeProfile = getActiveProfile();
+    const projectName = projectOverride || (activeProfile && activeProfile.id ? activeProfile.id : activeProfileName);
+    if (settingsApi && typeof settingsApi.getGroupPalette === 'function') {
+      try {
+        const palette = settingsApi.getGroupPalette(normalizedId || 'default', count, projectName ? { project: projectName } : undefined);
+        if (Array.isArray(palette) && palette.length) {
+          return ensurePalette(palette, count);
+        }
+      } catch (_) {}
+    }
+    const fallbackList = GROUP_FALLBACKS[normalizedId] || GROUP_FALLBACKS.default;
+    const extraFallbacks = Array.isArray(opts && opts.fallbackKinds) ? opts.fallbackKinds : [];
+    const dedupedFallbacks = Array.from(
+      new Set([
+        ...extraFallbacks.filter(item => typeof item === 'string'),
+        ...fallbackList
+      ])
+    );
+    return buildPalette(normalizedId || 'fractions', count, { ...opts, fallbackKinds: dedupedFallbacks });
   }
   function getColor(token, fallback) {
     const profile = getActiveProfile();
@@ -387,6 +427,10 @@
     getPalette(kind, count, opts) {
       const size = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
       return buildPalette(kind, size, opts);
+    },
+    getGroupPalette(groupId, count, opts) {
+      const size = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+      return buildGroupPalette(groupId, size, opts);
     },
     getColor,
     applyToDocument
