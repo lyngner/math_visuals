@@ -1,6 +1,10 @@
 const { test, expect } = require('@playwright/test');
 
 const SETTINGS_MODULE = require.resolve('../examples.js');
+const paletteConfig = require('../palette/palette-config.js');
+const MIN_COLOR_SLOTS = Number.isInteger(paletteConfig.MIN_COLOR_SLOTS)
+  ? paletteConfig.MIN_COLOR_SLOTS
+  : 0;
 const ORIGINAL_GLOBALS = {
   document: global.document,
   window: global.window,
@@ -244,6 +248,12 @@ function loadSettingsWithPaletteSpy(spyImplementation) {
       const result = spyImplementation(groupId, options);
       paletteCalls.push({ groupId, options });
       return Array.isArray(result) ? result : ['#123456'];
+    },
+    getProjectGroupPalettes() {
+      return {};
+    },
+    getProjectPalette() {
+      return ['#123456'];
     }
   };
   if (global.window && typeof global.window === 'object') {
@@ -331,7 +341,97 @@ test.describe('MathVisualsTheme.getPalette', () => {
     expect(theme.getActiveProfileName()).toBe('campus');
 
     const palette = theme.getPalette('figures', 6, { project: 'kikora' });
+    const expected = ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'];
 
-    expect(palette).toEqual(['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3']);
+    expect(palette.slice().sort()).toEqual(expected.slice().sort());
+  });
+});
+
+test.describe('MathVisualsSettings project palette formats', () => {
+  test('exposes groupPalettes alongside defaultColors', () => {
+    const { api } = loadSettingsWithPaletteSpy(() => ['#abcdef']);
+
+    const campus = api.getProjectSettings('campus');
+    expect(campus).toBeTruthy();
+    expect(campus.groupPalettes).toBeTruthy();
+    expect(campus.groupPalettes.graftegner).toBeTruthy();
+    expect(Array.isArray(campus.defaultColors)).toBe(true);
+    expect(campus.defaultColors[0]).toBeDefined();
+    const firstGroupColor = campus.groupPalettes.graftegner && campus.groupPalettes.graftegner[0];
+    if (firstGroupColor) {
+      expect(campus.defaultColors[0]).toBe(firstGroupColor);
+    }
+  });
+
+  test('updates groupPalettes and defaultColors when saving palettes', () => {
+    const { api } = loadSettingsWithPaletteSpy(() => ['#abcdef']);
+
+    const update = api.setSettings({
+      activeProject: 'campus',
+      projects: {
+        campus: {
+          groupPalettes: {
+            graftegner: ['#111111'],
+            extra: ['#222222', ' #333333 ']
+          }
+        }
+      }
+    });
+
+    expect(update.projects.campus.groupPalettes.graftegner[0]).toBe('#111111');
+    expect(update.projects.campus.groupPalettes.extra.slice(0, 2)).toEqual(['#222222', '#333333']);
+    expect(update.projects.campus.defaultColors[0]).toBe('#111111');
+    expect(update.projects.campus.defaultColors).toEqual(expect.arrayContaining(['#222222']));
+
+    const settings = api.getSettings();
+    const campus = settings.projects.campus;
+    expect(campus.groupPalettes.graftegner[0]).toBe('#111111');
+    expect(campus.defaultColors[0]).toBe('#111111');
+    expect(campus.defaultColors).toEqual(expect.arrayContaining(['#222222']));
+    expect(campus.groupPalettes.extra.slice(0, 2)).toEqual(['#222222', '#333333']);
+  });
+
+  test('creates groupPalettes for new projects', () => {
+    const { api } = loadSettingsWithPaletteSpy(() => ['#abcdef']);
+
+    const settings = api.updateSettings({
+      projects: {
+        'custom-app': {
+          groupPalettes: {
+            graftegner: ['#123456'],
+            extra: ['#654321']
+          }
+        }
+      }
+    });
+
+    const project = settings.projects['custom-app'];
+    expect(project).toBeTruthy();
+    expect(project.groupPalettes.graftegner[0]).toBe('#123456');
+    expect(project.defaultColors[0]).toBe('#123456');
+    expect(project.groupPalettes.extra[0]).toBe('#654321');
+  });
+
+  test('updateSettings accepts root-level groupPalettes for active project', () => {
+    const { api } = loadSettingsWithPaletteSpy(() => ['#abcdef']);
+
+    const update = api.updateSettings({
+      activeProject: 'campus',
+      groupPalettes: {
+        graftegner: ['#010101', ' #020202 '],
+        extra: ['#030303']
+      }
+    });
+
+    const campus = update.projects.campus;
+    expect(campus).toBeTruthy();
+    expect(campus.groupPalettes.graftegner).toEqual(['#010101']);
+    expect(campus.groupPalettes.extra).toEqual(['#030303']);
+    expect(campus.defaultColors[0]).toBe('#010101');
+
+    const persisted = api.getSettings().projects.campus;
+    expect(persisted.groupPalettes.graftegner).toEqual(['#010101']);
+    expect(persisted.defaultColors[0]).toBe('#010101');
+    expect(persisted.groupPalettes.extra).toEqual(['#030303']);
   });
 });

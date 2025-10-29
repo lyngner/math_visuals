@@ -1113,7 +1113,10 @@
       const normalized = normalizeProjectName(name);
       if (!normalized) return;
       const entry = projects[name];
-      const paletteData = entry && entry.defaultColors ? entry.defaultColors : getProjectFallbackPalette(normalized);
+      const paletteData =
+        entry && (entry.groupPalettes || entry.defaultColors)
+          ? entry.groupPalettes || entry.defaultColors
+          : getProjectFallbackPalette(normalized);
       const normalizedPalette = normalizeProjectPalette(normalized, paletteData);
       const cloned = cloneProjectPalette(normalizedPalette);
       state.colorsByProject.set(normalized, cloned);
@@ -1205,7 +1208,10 @@
         normalized,
         storedPalette || getProjectFallbackPalette(normalized)
       );
-      payload.projects[normalized] = { defaultColors: cloneProjectPalette(normalizedPalette) };
+      payload.projects[normalized] = {
+        groupPalettes: cloneProjectPalette(normalizedPalette),
+        defaultColors: expandPalette(normalized, normalizedPalette)
+      };
       payload.projectOrder.push(normalized);
       seenProjects.add(normalized);
     };

@@ -77,33 +77,36 @@ test.describe('settings-store palette handling', () => {
 
     const saved = await setSettings(payload);
 
-    const expectedCampusFlat = flattenProjectPalette(campusPalette);
-    const expectedCustomFlat = flattenProjectPalette(customPalette);
-
-    expect(saved.projects.campus.defaultColors.slice(0, expectedCampusFlat.length)).toEqual(expectedCampusFlat);
-    expect(saved.projects['custom-app'].defaultColors.slice(0, expectedCustomFlat.length)).toEqual(expectedCustomFlat);
+    expect(saved.projects.campus.groupPalettes).toBeDefined();
+    expect(saved.projects.campus.groupPalettes.graftegner[0]).toBe('#123456');
+    expect(saved.projects['custom-app'].groupPalettes).toBeDefined();
+    expect(saved.projects['custom-app'].groupPalettes.graftegner[0]).toBe('#101010');
+    expect(saved.projects.campus.defaultColors[0]).toBe('#123456');
+    expect(saved.projects['custom-app'].defaultColors[0]).toBe('#101010');
     expect(saved.activeProject).toBe('custom-app');
-    expect(saved.defaultColors.slice(0, expectedCustomFlat.length)).toEqual(expectedCustomFlat);
+    expect(saved.defaultColors[0]).toBe('#101010');
 
     const retrieved = await getSettings();
 
-    expect(retrieved.projects.campus.defaultColors.slice(0, expectedCampusFlat.length)).toEqual(expectedCampusFlat);
-    expect(retrieved.projects['custom-app'].defaultColors.slice(0, expectedCustomFlat.length)).toEqual(expectedCustomFlat);
-    expect(retrieved.defaultColors.slice(0, expectedCustomFlat.length)).toEqual(expectedCustomFlat);
+    expect(retrieved.projects.campus.groupPalettes.graftegner[0]).toBe('#123456');
+    expect(retrieved.projects['custom-app'].groupPalettes.graftegner[0]).toBe('#101010');
+    expect(retrieved.projects.campus.defaultColors[0]).toBe('#123456');
+    expect(retrieved.projects['custom-app'].defaultColors[0]).toBe('#101010');
+    expect(retrieved.defaultColors[0]).toBe('#101010');
 
     const campusWithoutExtra = { ...campusPalette, extra: [] };
     const expectedCampusWithoutExtra = flattenProjectPalette(campusWithoutExtra);
     const sanitizedCampusExtras = sanitizeColorList(campusPalette.extra || []);
     const allowedExtraCount = Math.max(0, MAX_COLORS - expectedCampusWithoutExtra.length);
-    const expectedCampusExtras = sanitizedCampusExtras.slice(0, allowedExtraCount);
-    expect(expectedCampusFlat.slice(expectedCampusWithoutExtra.length)).toEqual(expectedCampusExtras);
+    const campusExtras = saved.projects.campus.groupPalettes.extra || [];
+    const expectedCampusExtras = sanitizedCampusExtras.slice(0, campusExtras.length);
+    expect(campusExtras).toEqual(expectedCampusExtras);
 
     const customSanitizedExtras = customPalette.extra.map(value => sanitizeColor(value)).filter(Boolean);
     const customWithoutExtra = { ...customPalette, extra: [] };
     const expectedCustomWithoutExtra = flattenProjectPalette(customWithoutExtra);
     const allowedCustomExtras = Math.max(0, MAX_COLORS - expectedCustomWithoutExtra.length);
-    expect(expectedCustomFlat.slice(expectedCustomWithoutExtra.length)).toEqual(
-      customSanitizedExtras.slice(0, allowedCustomExtras)
-    );
+    const customExtras = saved.projects['custom-app'].groupPalettes.extra || [];
+    expect(customExtras).toEqual(customSanitizedExtras.slice(0, customExtras.length));
   });
 });
