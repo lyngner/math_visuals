@@ -322,9 +322,12 @@ function handleFilterInput(event) {
 
 function applyFilter(rawQuery) {
   const query = rawQuery.trim().toLowerCase();
+  const activeCategory = getActiveCategory();
   let visibleCount = 0;
   for (const item of figureItems) {
-    const matches = !query || item.searchText.includes(query);
+    const matches = activeCategory
+      ? activeCategory.matches(item.slug)
+      : !query || item.searchText.includes(query);
     item.element.hidden = !matches;
     if (matches) {
       visibleCount += 1;
@@ -332,24 +335,28 @@ function applyFilter(rawQuery) {
   }
 
   const total = figureItems.length;
-  updateCount(visibleCount, total, query);
-  updateEmptyState(visibleCount, query);
-  updateStatus(visibleCount, total, query);
+  updateCount(visibleCount, total, query, activeCategory);
+  updateEmptyState(visibleCount, query, activeCategory);
+  updateStatus(visibleCount, total, query, activeCategory);
 }
 
-function updateCount(visible, total, query) {
+function updateCount(visible, total, query, category) {
   if (!countEl) return;
-  const message = query
+  const message = category
+    ? `Viser ${visible} av ${total} figurer i kategorien «${category.label}».`
+    : query
     ? `Viser ${visible} av ${total} figurer for søket «${query}».`
     : `Viser alle ${total} figurer.`;
   countEl.textContent = message;
 }
 
-function updateEmptyState(visible, query) {
+function updateEmptyState(visible, query, category) {
   if (!emptyEl) return;
   if (visible === 0) {
     emptyEl.hidden = false;
-    emptyEl.textContent = query
+    emptyEl.textContent = category
+      ? `Ingen figurer finnes i kategorien «${category.label}».`
+      : query
       ? `Ingen figurer matcher «${query}». Prøv et annet søkeord eller fjern filteret.`
       : 'Ingen figurer tilgjengelig ennå.';
   } else {
@@ -357,13 +364,21 @@ function updateEmptyState(visible, query) {
   }
 }
 
-function updateStatus(visible, total, query) {
+function updateStatus(visible, total, query, category) {
   if (!statusEl) return;
-  if (query) {
+  if (category) {
+    statusEl.textContent = `Viser ${visible} av ${total} figurer i kategorien «${category.label}».`;
+  } else if (query) {
     statusEl.textContent = `Viser ${visible} av ${total} figurer for søket «${query}».`;
   } else {
     statusEl.textContent = `Viser ${visible} figurer fra images/amounts.`;
   }
+}
+
+function getActiveCategory() {
+  if (!activeCategoryId) return null;
+  const entry = categoryButtons.get(activeCategoryId);
+  return entry ? entry.category : null;
 }
 
 async function handleCopyClick(event) {
