@@ -1136,6 +1136,46 @@
     accessibleList.appendChild(fragment);
   }
 
+  function updateDragPlaceholderPosition(id) {
+    if (!dragState || dragState.id !== id) return;
+    const { placeholder } = dragState;
+    if (!placeholder || !visualList) return;
+    const targetIndex = currentOrder.indexOf(id);
+    if (targetIndex < 0) return;
+
+    const activeNodes = itemNodes.get(id);
+    const activeWrapper = activeNodes && activeNodes.wrapper ? activeNodes.wrapper : null;
+
+    let referenceNode = null;
+    for (let i = 0; i < currentOrder.length; i += 1) {
+      const candidateId = currentOrder[i];
+      if (candidateId === id) continue;
+      if (i < targetIndex) continue;
+      const candidateNodes = itemNodes.get(candidateId);
+      if (!candidateNodes || !candidateNodes.wrapper) continue;
+      referenceNode = candidateNodes.wrapper;
+      break;
+    }
+
+    if (referenceNode) {
+      if (placeholder.parentNode !== visualList || placeholder.nextSibling !== referenceNode) {
+        visualList.insertBefore(placeholder, referenceNode);
+      }
+      return;
+    }
+
+    if (!activeWrapper) {
+      if (placeholder.parentNode !== visualList || placeholder !== visualList.lastElementChild) {
+        visualList.appendChild(placeholder);
+      }
+      return;
+    }
+
+    if (placeholder.parentNode !== visualList || placeholder.nextSibling !== activeWrapper) {
+      visualList.insertBefore(placeholder, activeWrapper);
+    }
+  }
+
   function updateItemPositions() {
     const size = currentOrder.length;
     currentOrder.forEach((id, index) => {
@@ -1169,6 +1209,12 @@
       const { wrapper } = nodes;
       wrapper.style.transition = '';
       wrapper.style.transform = '';
+      wrapper.style.width = '';
+      wrapper.style.height = '';
+      wrapper.style.left = '';
+      wrapper.style.top = '';
+      wrapper.style.position = '';
+      wrapper.style.zIndex = '';
       wrapper.classList.remove('sortering__item--dragging');
     });
   }
@@ -1219,8 +1265,10 @@
     currentOrder.splice(currentIndex, 1);
     currentOrder.splice(boundedIndex, 0, id);
 
-    updateItemPositions();
-    if (!preserveTransform) {
+    if (preserveTransform) {
+      updateDragPlaceholderPosition(id);
+    } else {
+      updateItemPositions();
       snapToSlot(id);
     }
     notifyStatusChange('move');
@@ -1421,11 +1469,33 @@
     const previousTransform = wrapper.style.transform;
     wrapper.style.transform = '';
     const rect = wrapper.getBoundingClientRect();
+    const listRect = visualList.getBoundingClientRect();
     wrapper.style.transform = previousTransform;
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     const pointerX = Number.isFinite(event.clientX) ? event.clientX : centerX;
     const pointerY = Number.isFinite(event.clientY) ? event.clientY : centerY;
+
+    let placeholder = null;
+    if (doc && typeof doc.createElement === 'function') {
+      placeholder = doc.createElement('div');
+      placeholder.className = 'sortering__item sortering__item--placeholder';
+      placeholder.setAttribute('aria-hidden', 'true');
+      placeholder.style.width = `${rect.width}px`;
+      placeholder.style.height = `${rect.height}px`;
+      if (visualList.contains(wrapper)) {
+        visualList.insertBefore(placeholder, wrapper);
+        visualList.appendChild(wrapper);
+      }
+    }
+
+    const relativeLeft = rect.left - listRect.left + (visualList.scrollLeft || 0);
+    const relativeTop = rect.top - listRect.top + (visualList.scrollTop || 0);
+    wrapper.style.width = `${rect.width}px`;
+    wrapper.style.height = `${rect.height}px`;
+    wrapper.style.left = `${relativeLeft}px`;
+    wrapper.style.top = `${relativeTop}px`;
+
     dragState = {
       id,
       pointerId: event.pointerId,
@@ -1444,7 +1514,8 @@
       slotCache: null,
       slotCacheOrientation: null,
       slotCacheSignature: null,
-      slotCacheDirty: true
+      slotCacheDirty: true,
+      placeholder
     };
     refreshDragSlotCache(orientation);
     wrapper.classList.add('sortering__item--dragging');
@@ -1510,6 +1581,7 @@
   function finishPointerDrag(event, id) {
     if (!dragState || dragState.id !== id) return;
     if (event.pointerId !== dragState.pointerId) return;
+    const activeDrag = dragState;
     const nodes = itemNodes.get(id);
     cancelDragMeasurement(dragState);
     dragState = null;
@@ -1519,7 +1591,10 @@
       }
       nodes.wrapper.style.transition = '';
     }
-    snapToSlot();
+    if (activeDrag && activeDrag.placeholder && activeDrag.placeholder.parentNode === visualList) {
+      visualList.removeChild(activeDrag.placeholder);
+    }
+    snapToSlot(id);
     updateItemPositions();
     clearVisualMarkers();
   }
