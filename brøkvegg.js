@@ -8,6 +8,52 @@
   };
   const DEFAULT_DENOMS = [1, 2, 3, 4, 5, 6, 8, 9, 10, 12];
   const LEGACY_COLOR_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D'];
+  const FRACTION_GROUP_ID = 'brokvegg';
+
+  function getGroupPaletteHelper() {
+    const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+    if (!scope) return null;
+    const helper = scope.MathVisualsGroupPalette;
+    return helper && typeof helper.resolve === 'function' ? helper : null;
+  }
+
+  function sanitizePaletteList(values) {
+    if (!Array.isArray(values)) return [];
+    const out = [];
+    values.forEach(value => {
+      if (typeof value !== 'string') return;
+      const trimmed = value.trim();
+      if (trimmed) out.push(trimmed);
+    });
+    return out;
+  }
+
+  function ensurePaletteCount(primary, fallback, count) {
+    const base = sanitizePaletteList(primary);
+    const backup = sanitizePaletteList(fallback);
+    if (!Number.isFinite(count) || count <= 0) {
+      if (base.length) return base.slice();
+      if (backup.length) return backup.slice();
+      return base.length ? base.slice() : backup.slice();
+    }
+    const size = Math.max(1, Math.trunc(count));
+    if (base.length >= size) return base.slice(0, size);
+    const result = base.slice();
+    const fallbackSource = backup.length ? backup : base;
+    while (result.length < size && fallbackSource.length) {
+      const next = fallbackSource[result.length % fallbackSource.length];
+      if (typeof next === 'string' && next) {
+        result.push(next);
+      } else {
+        break;
+      }
+    }
+    if (!result.length && backup.length) {
+      return backup.slice(0, size);
+    }
+    return result;
+  }
+
   function getThemeApi() {
     const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
     return theme && typeof theme === 'object' ? theme : null;
@@ -32,35 +78,76 @@
   function getPaletteFromTheme(count) {
     const theme = getThemeApi();
     const project = getActiveThemeProjectName(theme);
+    const helper = getGroupPaletteHelper();
+    const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+    if (helper && typeof helper.resolve === 'function') {
+      const palette = helper.resolve({
+        groupId: FRACTION_GROUP_ID,
+        count: targetCount,
+        project,
+        fallback: LEGACY_COLOR_PALETTE,
+        legacyPaletteId: 'fractions',
+        fallbackKinds: ['figures']
+      });
+      if (Array.isArray(palette) && palette.length) {
+        const sanitized = sanitizePaletteList(palette);
+        if (sanitized.length) {
+          return ensurePaletteCount(sanitized, sanitized, targetCount);
+        }
+      }
+    }
     let palette = null;
     if (theme && typeof theme.getGroupPalette === 'function') {
       try {
-        palette = theme.getGroupPalette('brokvegg', count, project ? { project } : undefined);
+        palette = theme.getGroupPalette(FRACTION_GROUP_ID, { project, count: targetCount });
       } catch (_) {
         palette = null;
       }
+      if (
+        (!Array.isArray(palette) || (targetCount && palette.length < targetCount)) &&
+        theme.getGroupPalette.length >= 3
+      ) {
+        try {
+          palette = theme.getGroupPalette(
+            FRACTION_GROUP_ID,
+            targetCount || undefined,
+            project ? { project } : undefined
+          );
+        } catch (_) {
+          palette = null;
+        }
+      }
+      if (Array.isArray(palette) && palette.length) {
+        const sanitized = sanitizePaletteList(palette);
+        if (sanitized.length) {
+          return ensurePaletteCount(sanitized, LEGACY_COLOR_PALETTE, targetCount);
+        }
+      }
     }
-    if ((!Array.isArray(palette) || !palette.length) && theme && typeof theme.getPalette === 'function') {
-      palette = theme.getPalette('fractions', count, { fallbackKinds: ['figures'], project });
+    if (theme && typeof theme.getPalette === 'function') {
+      try {
+        palette = theme.getPalette('fractions', targetCount, { fallbackKinds: ['figures'], project });
+      } catch (_) {
+        palette = null;
+      }
+      if (Array.isArray(palette) && palette.length) {
+        const sanitized = sanitizePaletteList(palette);
+        if (sanitized.length) {
+          return ensurePaletteCount(sanitized, LEGACY_COLOR_PALETTE, targetCount);
+        }
+      }
     }
-    const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : 0;
-    const base = Array.isArray(palette) && palette.length ? palette.slice() : LEGACY_COLOR_PALETTE.slice();
-    if (target <= 0) return base.slice();
-    if (base.length >= target) return base.slice(0, target);
-    const result = base.slice();
-    for (let i = base.length; i < target; i++) {
-      result.push(base[i % base.length]);
-    }
-    return result;
+    return ensurePaletteCount(LEGACY_COLOR_PALETTE, LEGACY_COLOR_PALETTE, targetCount);
   }
   function getRowPalette(length) {
     const target = Math.max(length, LEGACY_COLOR_PALETTE.length);
     return getPaletteFromTheme(target);
   }
   function getPaletteColor(palette, index) {
-    const colors = Array.isArray(palette) && palette.length ? palette : LEGACY_COLOR_PALETTE;
-    if (!colors.length) return '#B25FE3';
-    return colors[index % colors.length] || colors[0];
+    const colors = sanitizePaletteList(palette);
+    if (!colors.length) return LEGACY_COLOR_PALETTE[0];
+    const safeIndex = Number.isFinite(index) ? index : 0;
+    return colors[((safeIndex % colors.length) + colors.length) % colors.length] || colors[0];
   }
   const TEXT_COLOR_DARK = '#0f172a';
   const TEXT_COLOR_LIGHT = '#ffffff';
@@ -835,6 +922,23 @@
   downloadPngButton === null || downloadPngButton === void 0 || downloadPngButton.addEventListener('click', () => {
     downloadPng(svg, 'brokvegg');
   });
+  function refreshPaletteFromTheme() {
+    applyThemeToDocument();
+    render();
+  }
+  function handleThemeSettingsChanged() {
+    refreshPaletteFromTheme();
+  }
+  function handleThemeProfileMessage(event) {
+    const data = event && event.data;
+    const type = typeof data === 'string' ? data : data && data.type;
+    if (type !== 'math-visuals:profile-change') return;
+    refreshPaletteFromTheme();
+  }
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('math-visuals:settings-changed', handleThemeSettingsChanged);
+    window.addEventListener('message', handleThemeProfileMessage);
+  }
   initAltTextManager();
   window.addEventListener('examples:loaded', () => {
     if (altTextManager) {
