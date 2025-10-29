@@ -827,6 +827,23 @@ function resolveSettingsPalette(count) {
   const project = resolveProjectNameHint();
   const theme = getThemeApi();
   const groupTarget = target && target > 0 ? target : 3;
+  const api = getSettingsApi();
+  if (api && typeof api.getGroupPalette === "function") {
+    try {
+      const palette = api.getGroupPalette("nkant", groupTarget, project ? { project } : undefined);
+      const resolved = cycleSettingsPalette(palette, groupTarget);
+      if (resolved.length) {
+        return { colors: resolved, source: "group" };
+      }
+    } catch (_) {}
+    try {
+      const palette = api.getGroupPalette("nkant", { project, count: groupTarget });
+      const resolved = cycleSettingsPalette(palette, groupTarget);
+      if (resolved.length) {
+        return { colors: resolved, source: "group" };
+      }
+    } catch (_) {}
+  }
   if (theme && typeof theme.getGroupPalette === "function") {
     try {
       const palette = theme.getGroupPalette("nkant", groupTarget, project ? { project } : undefined);
@@ -839,16 +856,6 @@ function resolveSettingsPalette(count) {
   if (theme && typeof theme.getPalette === "function") {
     try {
       const palette = theme.getPalette("figures", target || 4, { fallbackKinds: ["fractions"], project });
-      const resolved = cycleSettingsPalette(palette, target || (Array.isArray(palette) ? palette.length : 0));
-      if (resolved.length) {
-        return { colors: resolved, source: "general" };
-      }
-    } catch (_) {}
-  }
-  const api = getSettingsApi();
-  if (api && typeof api.getDefaultColors === "function") {
-    try {
-      const palette = api.getDefaultColors(target, project ? { project } : undefined);
       const resolved = cycleSettingsPalette(palette, target || (Array.isArray(palette) ? palette.length : 0));
       if (resolved.length) {
         return { colors: resolved, source: "general" };
