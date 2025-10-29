@@ -3659,12 +3659,51 @@
       .mv-tape__housing {
         pointer-events: none;
       }
+      .mv-tape__strap svg,
       .mv-tape__strap image,
       .mv-tape__housing image {
         display: block;
         width: 100%;
         height: 100%;
         image-rendering: optimizeQuality;
+      }
+      .mv-tape__strap svg {
+        pointer-events: none;
+      }
+      .mv-tape__strap .tape-svg__background {
+        fill: #fee52e;
+        stroke: #d6b013;
+        stroke-width: 1.2;
+      }
+      .mv-tape__strap .tape-svg__baseline {
+        stroke: rgba(15, 23, 42, 0.65);
+        stroke-width: 1.8;
+        stroke-linecap: round;
+      }
+      .mv-tape__strap .tape-svg__tick {
+        stroke-linecap: round;
+      }
+      .mv-tape__strap .tape-svg__tick--major {
+        stroke: rgba(15, 23, 42, 0.78);
+        stroke-width: 2.2;
+      }
+      .mv-tape__strap .tape-svg__tick--minor {
+        stroke: rgba(15, 23, 42, 0.55);
+        stroke-width: 1.2;
+      }
+      .mv-tape__strap .tape-svg__label {
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 16px;
+        font-weight: 600;
+        fill: #46320a;
+        letter-spacing: -0.01em;
+      }
+      .mv-tape__strap .tape-svg__unit-label {
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        fill: rgba(15, 23, 42, 0.78);
+        letter-spacing: -0.01em;
       }
     `;
   }
