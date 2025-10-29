@@ -186,10 +186,23 @@ function applyDiagramTheme(options = {}) {
   let seriesPalette = [];
   let piePalette = [];
   let groupPalette = null;
+  const paletteRequest = {
+    count: Math.max(requestedPaletteSize, DIAGRAM_GROUP_SLOT_COUNT),
+    project: normalizedProfileName || undefined
+  };
   if (theme && typeof theme.getGroupPalette === 'function') {
     try {
-      groupPalette = theme.getGroupPalette('diagram', Math.max(requestedPaletteSize, DIAGRAM_GROUP_SLOT_COUNT),
-        normalizedProfileName ? { project: normalizedProfileName } : undefined);
+      groupPalette = theme.getGroupPalette('diagram', paletteRequest);
+      if (
+        (!Array.isArray(groupPalette) || groupPalette.length < paletteRequest.count) &&
+        theme.getGroupPalette.length >= 3
+      ) {
+        groupPalette = theme.getGroupPalette(
+          'diagram',
+          paletteRequest.count,
+          normalizedProfileName ? { project: normalizedProfileName } : undefined
+        );
+      }
     } catch (_) {
       groupPalette = null;
     }
@@ -198,6 +211,9 @@ function applyDiagramTheme(options = {}) {
     ? groupPalette.map(sanitizeThemePaletteValue)
     : [];
   const hasGroupPalette = sanitizedGroupPalette.some(color => color);
+  const paletteEntries = sanitizedGroupPalette.filter(color => !!color);
+  const fallbackSeriesColors = paletteEntries.length ? paletteEntries : LEGACY_SERIES_COLORS;
+  const fallbackPieColors = paletteEntries.length ? paletteEntries : LEGACY_PIE_PALETTE;
   let basePalette = null;
   if (!hasGroupPalette && theme && typeof theme.getPalette === 'function') {
     try {
@@ -211,31 +227,46 @@ function applyDiagramTheme(options = {}) {
   }
   const fallbackBasePalette = ensurePalette(basePalette, requestedPaletteSize, LEGACY_PIE_PALETTE);
   if (hasGroupPalette) {
-    const singleSeriesColor = sanitizedGroupPalette[0]
-      || sanitizedGroupPalette[1]
-      || sanitizedGroupPalette[2]
-      || LEGACY_SERIES_COLORS[0];
+    const fallbackColorForIndex = index => {
+      if (!fallbackSeriesColors.length) return undefined;
+      return fallbackSeriesColors[index % fallbackSeriesColors.length];
+    };
+    const pickColor = (indices, fallbackIndex = 0) => {
+      for (const index of indices) {
+        const paletteIndex = Number.isInteger(index) ? index : null;
+        if (paletteIndex == null) continue;
+        const value = sanitizedGroupPalette[paletteIndex];
+        if (value) return value;
+      }
+      return fallbackColorForIndex(fallbackIndex);
+    };
+    const singleSeriesColor = pickColor([0, 1, 2], 0) || fallbackColorForIndex(0);
     if (requestedSeriesCount <= 1) {
-      seriesPalette = ensurePalette([singleSeriesColor || LEGACY_SERIES_COLORS[0]], requestedSeriesCount, LEGACY_SERIES_COLORS);
+      const baseColor = singleSeriesColor || fallbackColorForIndex(0) || LEGACY_SERIES_COLORS[0];
+      seriesPalette = ensurePalette([baseColor], requestedSeriesCount, fallbackSeriesColors);
     } else {
-      const firstSeriesColor = sanitizedGroupPalette[1] || singleSeriesColor || LEGACY_SERIES_COLORS[0];
-      const secondSeriesColor = sanitizedGroupPalette[2]
-        || sanitizedGroupPalette[1]
-        || singleSeriesColor
-        || LEGACY_SERIES_COLORS[1];
+      const firstSeriesColor = pickColor([1, 0, 2], 0) || fallbackColorForIndex(0) || LEGACY_SERIES_COLORS[0];
+      const secondSeriesColor =
+        pickColor([2, 1, 0], 1) || fallbackColorForIndex(1) || fallbackColorForIndex(0) || LEGACY_SERIES_COLORS[1];
       seriesPalette = ensurePalette(
-        [firstSeriesColor || LEGACY_SERIES_COLORS[0], secondSeriesColor || LEGACY_SERIES_COLORS[1]],
+        [firstSeriesColor, secondSeriesColor],
         requestedSeriesCount,
-        LEGACY_SERIES_COLORS
+        fallbackSeriesColors
       );
     }
     const sectorStart = 3;
     const sectorBase = [];
+    const fallbackPieColorForIndex = index => {
+      if (!fallbackPieColors.length) return undefined;
+      return fallbackPieColors[index % fallbackPieColors.length];
+    };
     for (let i = 0; i < PIE_COLOR_CLASS_COUNT; i++) {
       const color = sanitizedGroupPalette[sectorStart + i];
-      sectorBase.push(color || LEGACY_PIE_PALETTE[i % LEGACY_PIE_PALETTE.length]);
+      const fallbackColor = fallbackPieColorForIndex(i) || LEGACY_PIE_PALETTE[i % LEGACY_PIE_PALETTE.length];
+      sectorBase.push(color || fallbackColor);
     }
-    piePalette = ensurePalette(sectorBase, PIE_COLOR_CLASS_COUNT, LEGACY_PIE_PALETTE);
+    const pieFallback = fallbackPieColors.length ? fallbackPieColors : LEGACY_PIE_PALETTE;
+    piePalette = ensurePalette(sectorBase, PIE_COLOR_CLASS_COUNT, pieFallback);
   } else {
     seriesPalette = ensurePalette(fallbackBasePalette, requestedSeriesCount, LEGACY_SERIES_COLORS);
     if (normalizedProfileName === 'kikora') {
@@ -293,6 +324,21 @@ function applyDiagramTheme(options = {}) {
   setCssVariable('--diagram-legend-background', LEGACY_LEGEND_BACKGROUND, style);
   setCssVariable('--diagram-legend-text-color', LEGACY_LEGEND_TEXT_COLOR, style);
   setCssVariable('--diagram-legend-border', LEGACY_LEGEND_BORDER, style);
+}
+
+function getEffectiveSeriesCount() {
+  return series2Enabled && CFG.type !== 'pie' ? 2 : 1;
+}
+
+function getEffectivePaletteSize() {
+  const explicit = Number.isFinite(themePaletteSize) && themePaletteSize > 0 ? Math.trunc(themePaletteSize) : 0;
+  const labelCount = Array.isArray(CFG.labels) ? CFG.labels.length : 0;
+  const fallback = labelCount > 0 ? labelCount : 1;
+  return Math.max(1, explicit || fallback);
+}
+
+function refreshDiagramTheme() {
+  applyDiagramTheme({ paletteSize: getEffectivePaletteSize(), seriesCount: getEffectiveSeriesCount() });
 }
 /* =========================================================
    OPPSETT
@@ -365,12 +411,23 @@ let N = 0;
 let yMin = 0;
 let yMax = 0;
 let yStep = 1;
-applyDiagramTheme({ paletteSize: themePaletteSize, seriesCount: 1 });
+refreshDiagramTheme();
 if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
   const themeObserver = new MutationObserver(() => {
-    applyDiagramTheme({ paletteSize: Math.max(1, themePaletteSize), seriesCount: series2Enabled ? 2 : 1 });
+    refreshDiagramTheme();
   });
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme-profile'] });
+}
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('math-visuals:settings-changed', () => {
+    refreshDiagramTheme();
+  });
+  window.addEventListener('message', event => {
+    const data = event && event.data;
+    const type = typeof data === 'string' ? data : data && data.type;
+    if (type !== 'math-visuals:profile-change') return;
+    refreshDiagramTheme();
+  });
 }
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
@@ -587,9 +644,8 @@ function initFromCfg() {
   CFG.valueDisplay = sanitizeValueDisplay(CFG.valueDisplay);
   CFG.pieLabelPosition = sanitizePieLabelPosition(CFG.pieLabelPosition);
   N = CFG.labels.length;
-  const activeSeriesCount = series2Enabled && CFG.type !== 'pie' ? 2 : 1;
   themePaletteSize = Math.max(1, N);
-  applyDiagramTheme({ paletteSize: themePaletteSize, seriesCount: activeSeriesCount });
+  refreshDiagramTheme();
   xBand = innerW / N;
   barW = xBand * 0.6;
   const allVals = [...CFG.start, ...(CFG.start2 || []), ...(CFG.answer || []), ...(CFG.answer2 || [])];
