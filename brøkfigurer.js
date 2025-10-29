@@ -205,9 +205,17 @@
     colorInputs.push(inp);
   }
   const LEGACY_COLOR_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D'];
+  const FRACTION_GROUP_ID = 'fractions';
   function getThemeApi() {
     const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
     return theme && typeof theme === 'object' ? theme : null;
+  }
+
+  function getGroupPaletteHelper() {
+    const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+    if (!scope) return null;
+    const helper = scope.MathVisualsGroupPalette;
+    return helper && typeof helper.resolve === 'function' ? helper : null;
   }
   function getActiveThemeProjectName(theme = getThemeApi()) {
     if (!theme || typeof theme.getActiveProfileName !== 'function') return null;
@@ -344,6 +352,20 @@
   function getPaletteFromTheme(count) {
     const theme = getThemeApi();
     const project = getActiveThemeProjectName(theme);
+    const helper = getGroupPaletteHelper();
+    if (helper) {
+      const palette = helper.resolve({
+        groupId: FRACTION_GROUP_ID,
+        count,
+        project,
+        fallback: LEGACY_COLOR_PALETTE,
+        legacyPaletteId: 'fractions',
+        fallbackKinds: ['figures']
+      });
+      if (Array.isArray(palette) && palette.length) {
+        return palette;
+      }
+    }
     let palette = null;
     if (theme && typeof theme.getGroupPalette === 'function') {
       try {
@@ -2392,8 +2414,14 @@
     applyThemeToDocument();
     if (typeof window.render === 'function') window.render();
   }
+  function handleThemeSettingsChanged(event) {
+    if (!event || event.type !== 'math-visuals:settings-changed') return;
+    applyThemeToDocument();
+    if (typeof window.render === 'function') window.render();
+  }
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('message', handleThemeProfileChange);
+    window.addEventListener('math-visuals:settings-changed', handleThemeSettingsChanged);
   }
   window.render();
 })();
