@@ -6298,6 +6298,40 @@
       sourcePath: typeof request.path === 'string' ? request.path : typeof request.sourcePath === 'string' ? request.sourcePath : null,
       createdAt: request.createdAt || request.created || null
     };
+    const normalizedRequestId =
+      metadata.requestId != null && metadata.requestId !== '' ? String(metadata.requestId) : null;
+    const normalizedSourcePath =
+      typeof metadata.sourcePath === 'string' && metadata.sourcePath.trim() ? metadata.sourcePath.trim() : null;
+    metadata.requestId = normalizedRequestId;
+    metadata.sourcePath = normalizedSourcePath;
+    if (normalizedRequestId || normalizedSourcePath) {
+      const examples = getExamples();
+      if (Array.isArray(examples) && examples.length > 0) {
+        for (let idx = examples.length - 1; idx >= 0; idx--) {
+          const candidate = examples[idx];
+          if (!candidate || typeof candidate !== 'object') {
+            continue;
+          }
+          const candidateRequestId =
+            typeof candidate[TEMPORARY_EXAMPLE_REQUEST_ID] === 'string'
+              ? candidate[TEMPORARY_EXAMPLE_REQUEST_ID]
+              : null;
+          const candidateSourcePath =
+            typeof candidate[TEMPORARY_EXAMPLE_SOURCE_PATH] === 'string'
+              ? candidate[TEMPORARY_EXAMPLE_SOURCE_PATH]
+              : null;
+          const requestMatches = normalizedRequestId && candidateRequestId === normalizedRequestId;
+          const sourceMatches = normalizedSourcePath && candidateSourcePath === normalizedSourcePath;
+          if (!requestMatches && !sourceMatches) {
+            continue;
+          }
+          examples.splice(idx, 1);
+          if (Number.isInteger(metadata.index) && idx <= metadata.index) {
+            metadata.index = Math.max(0, metadata.index - 1);
+          }
+        }
+      }
+    }
     if (exampleData) {
       const inserted = createTemporaryExample(exampleData, { ...metadata, skipNotice });
       if (!inserted) {
