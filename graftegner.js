@@ -3228,6 +3228,7 @@ function finalizeLatexFromPlain(input) {
   if (!collapsed) return '';
   let out = replaceUnicodeScripts(collapsed, SUPERSCRIPT_SEQUENCE_REGEX, SUPERSCRIPT_REVERSE_MAP, '^');
   out = replaceUnicodeScripts(out, SUBSCRIPT_SEQUENCE_REGEX, SUBSCRIPT_REVERSE_MAP, '_');
+  out = out.replace(/(^|[^\\])#/g, (_, prefix) => `${prefix}\\#`);
   return out.replace(/\n/g, '\\\\');
 }
 function convertExpressionToLatex(str) {
