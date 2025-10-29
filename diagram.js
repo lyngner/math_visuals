@@ -39,9 +39,9 @@ function getValueDisplayMode(type = CFG.type) {
   const mode = sanitizeValueDisplay(CFG.valueDisplay);
   return type === 'stacked' ? 'none' : mode;
 }
-const LEGACY_SERIES_COLORS = ['#574595', '#d081a1'];
-const LEGACY_PIE_PALETTE = ['#4f2c8c', '#6c3db5', '#8a4de0', '#a75cf1', '#c26ef0', '#d381ba', '#c46287', '#9f436d', '#723a82', '#503070'];
-const PIE_COLOR_CLASS_COUNT = LEGACY_PIE_PALETTE.length;
+const EMERGENCY_SERIES_COLORS = ['#574595', '#d081a1'];
+const EMERGENCY_PIE_PALETTE = ['#4f2c8c', '#6c3db5', '#8a4de0', '#a75cf1', '#c26ef0', '#d381ba', '#c46287', '#9f436d', '#723a82', '#503070'];
+const PIE_COLOR_CLASS_COUNT = 10;
 const DIAGRAM_GROUP_SLOT_COUNT = 3 + PIE_COLOR_CLASS_COUNT;
 const LEGACY_AXIS_COLOR = '#0f172a';
 const LEGACY_GRID_COLOR = '#999999';
@@ -89,6 +89,13 @@ function getThemeApi() {
   return theme && typeof theme === 'object' ? theme : null;
 }
 
+function getPaletteApi() {
+  const root = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+  if (!root || typeof root !== 'object') return null;
+  const palette = root.MathVisualsPalette;
+  return palette && typeof palette.getGroupPalette === 'function' ? palette : null;
+}
+
 function getActiveThemeProjectName(theme = getThemeApi()) {
   if (!theme || typeof theme.getActiveProfileName !== 'function') return null;
   try {
@@ -118,16 +125,39 @@ function getThemeColor(token, fallback) {
   return typeof fallback === 'string' && fallback.trim() ? fallback.trim() : undefined;
 }
 function ensurePalette(base, count, fallback) {
-  const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : 0;
-  const source = Array.isArray(base) && base.length ? base : Array.isArray(fallback) && fallback.length ? fallback : LEGACY_PIE_PALETTE;
-  if (target <= 0) {
+  const sanitizeList = values => {
+    if (!Array.isArray(values)) return [];
+    const result = [];
+    for (const value of values) {
+      const sanitized = sanitizeThemePaletteValue(value);
+      if (sanitized) {
+        result.push(sanitized);
+      }
+    }
+    return result;
+  };
+  const basePalette = sanitizeList(base);
+  const fallbackPalette = basePalette.length ? [] : sanitizeList(fallback);
+  const source = basePalette.length ? basePalette : fallbackPalette;
+  if (!source.length) {
+    return [];
+  }
+  if (!Number.isFinite(count) || count <= 0) {
     return source.slice();
   }
+  const size = Math.max(1, Math.trunc(count));
   const result = [];
-  for (let i = 0; i < target; i++) {
-    result.push(source[i % source.length]);
+  for (let index = 0; index < size; index += 1) {
+    result.push(source[index % source.length]);
   }
   return result;
+}
+
+function buildEmergencyGroupPalette() {
+  const base = EMERGENCY_SERIES_COLORS[0] || '#574595';
+  const first = EMERGENCY_SERIES_COLORS[0] || base;
+  const second = EMERGENCY_SERIES_COLORS[1] || first;
+  return [base, first, second, ...EMERGENCY_PIE_PALETTE];
 }
 function withAlphaColor(color, alpha, fallback) {
   const normalized = typeof color === 'string' ? color.trim() : '';
@@ -181,118 +211,48 @@ function applyDiagramTheme(options = {}) {
   const requestedSeriesCount = Math.max(1, Number.isFinite(options.seriesCount) ? Math.trunc(options.seriesCount) : 1);
   const requestedPaletteSize = Math.max(
     requestedSeriesCount,
-    Number.isFinite(options.paletteSize) && options.paletteSize > 0 ? Math.trunc(options.paletteSize) : LEGACY_PIE_PALETTE.length
+    Number.isFinite(options.paletteSize) && options.paletteSize > 0 ? Math.trunc(options.paletteSize) : PIE_COLOR_CLASS_COUNT
   );
   let seriesPalette = [];
   let piePalette = [];
-  let groupPalette = null;
+  const paletteApi = getPaletteApi();
   const paletteRequest = {
     count: Math.max(requestedPaletteSize, DIAGRAM_GROUP_SLOT_COUNT),
     project: normalizedProfileName || undefined
   };
-  if (theme && typeof theme.getGroupPalette === 'function') {
+  let groupPalette = [];
+  if (paletteApi) {
     try {
-      groupPalette = theme.getGroupPalette('diagram', paletteRequest);
-      if (
-        (!Array.isArray(groupPalette) || groupPalette.length < paletteRequest.count) &&
-        theme.getGroupPalette.length >= 3
-      ) {
-        groupPalette = theme.getGroupPalette(
-          'diagram',
-          paletteRequest.count,
-          normalizedProfileName ? { project: normalizedProfileName } : undefined
-        );
-      }
+      groupPalette = paletteApi.getGroupPalette('diagram', paletteRequest) || [];
     } catch (_) {
-      groupPalette = null;
+      groupPalette = [];
+    }
+  }
+  if ((!Array.isArray(groupPalette) || !groupPalette.length) && theme && typeof theme.getGroupPalette === 'function') {
+    try {
+      groupPalette = theme.getGroupPalette('diagram', paletteRequest) || [];
+    } catch (_) {
+      groupPalette = [];
     }
   }
   const sanitizedGroupPalette = Array.isArray(groupPalette)
-    ? groupPalette.map(sanitizeThemePaletteValue)
+    ? groupPalette.map(sanitizeThemePaletteValue).filter(color => !!color)
     : [];
-  const hasGroupPalette = sanitizedGroupPalette.some(color => color);
-  const paletteEntries = sanitizedGroupPalette.filter(color => !!color);
-  const fallbackSeriesColors = paletteEntries.length ? paletteEntries : LEGACY_SERIES_COLORS;
-  const fallbackPieColors = paletteEntries.length ? paletteEntries : LEGACY_PIE_PALETTE;
-  let basePalette = null;
-  if (!hasGroupPalette && theme && typeof theme.getPalette === 'function') {
-    try {
-      basePalette = theme.getPalette('fractions', requestedPaletteSize, {
-        fallbackKinds: ['figures'],
-        project: normalizedProfileName || undefined
-      });
-    } catch (_) {
-      basePalette = null;
-    }
-  }
-  const fallbackBasePalette = ensurePalette(basePalette, requestedPaletteSize, LEGACY_PIE_PALETTE);
-  if (hasGroupPalette) {
-    const fallbackColorForIndex = index => {
-      if (!fallbackSeriesColors.length) return undefined;
-      return fallbackSeriesColors[index % fallbackSeriesColors.length];
-    };
-    const pickColor = (indices, fallbackIndex = 0) => {
-      for (const index of indices) {
-        const paletteIndex = Number.isInteger(index) ? index : null;
-        if (paletteIndex == null) continue;
-        const value = sanitizedGroupPalette[paletteIndex];
-        if (value) return value;
-      }
-      return fallbackColorForIndex(fallbackIndex);
-    };
-    const singleSeriesColor = pickColor([0, 1, 2], 0) || fallbackColorForIndex(0);
-    if (requestedSeriesCount <= 1) {
-      const baseColor = singleSeriesColor || fallbackColorForIndex(0) || LEGACY_SERIES_COLORS[0];
-      seriesPalette = ensurePalette([baseColor], requestedSeriesCount, fallbackSeriesColors);
-    } else {
-      const firstSeriesColor = pickColor([1, 0, 2], 0) || fallbackColorForIndex(0) || LEGACY_SERIES_COLORS[0];
-      const secondSeriesColor =
-        pickColor([2, 1, 0], 1) || fallbackColorForIndex(1) || fallbackColorForIndex(0) || LEGACY_SERIES_COLORS[1];
-      seriesPalette = ensurePalette(
-        [firstSeriesColor, secondSeriesColor],
-        requestedSeriesCount,
-        fallbackSeriesColors
-      );
-    }
-    const sectorStart = 3;
-    const sectorBase = [];
-    const fallbackPieColorForIndex = index => {
-      if (!fallbackPieColors.length) return undefined;
-      return fallbackPieColors[index % fallbackPieColors.length];
-    };
-    for (let i = 0; i < PIE_COLOR_CLASS_COUNT; i++) {
-      const color = sanitizedGroupPalette[sectorStart + i];
-      const fallbackColor = fallbackPieColorForIndex(i) || LEGACY_PIE_PALETTE[i % LEGACY_PIE_PALETTE.length];
-      sectorBase.push(color || fallbackColor);
-    }
-    const pieFallback = fallbackPieColors.length ? fallbackPieColors : LEGACY_PIE_PALETTE;
-    piePalette = ensurePalette(sectorBase, PIE_COLOR_CLASS_COUNT, pieFallback);
-  } else {
-    seriesPalette = ensurePalette(fallbackBasePalette, requestedSeriesCount, LEGACY_SERIES_COLORS);
-    if (normalizedProfileName === 'kikora') {
-      const singleSeriesColor = '#6C1BA2';
-      const dualSeriesColors = ['#534477', '#BF4474'];
-      if (requestedSeriesCount <= 1) {
-        if (seriesPalette.length >= 1) {
-          seriesPalette[0] = singleSeriesColor;
-        } else {
-          seriesPalette.push(singleSeriesColor);
-        }
-      } else {
-        if (seriesPalette.length >= 1) {
-          seriesPalette[0] = dualSeriesColors[0];
-        } else {
-          seriesPalette.push(dualSeriesColors[0]);
-        }
-        if (seriesPalette.length >= 2) {
-          seriesPalette[1] = dualSeriesColors[1];
-        } else {
-          seriesPalette.push(dualSeriesColors[1]);
-        }
-      }
-    }
-    piePalette = ensurePalette(fallbackBasePalette, PIE_COLOR_CLASS_COUNT, LEGACY_PIE_PALETTE);
-  }
+  const hasGroupPalette = sanitizedGroupPalette.length > 0;
+  const emergencyGroupPalette = hasGroupPalette ? [] : buildEmergencyGroupPalette();
+  const paletteEntries = ensurePalette(sanitizedGroupPalette, DIAGRAM_GROUP_SLOT_COUNT, emergencyGroupPalette);
+  const singleSeriesColor =
+    paletteEntries[0] || paletteEntries[1] || paletteEntries[2] || emergencyGroupPalette[0] || EMERGENCY_SERIES_COLORS[0];
+  const multiSeriesColors = [
+    paletteEntries[1] || singleSeriesColor,
+    paletteEntries[2] || paletteEntries[1] || singleSeriesColor
+  ];
+  const seriesBase = requestedSeriesCount <= 1 ? [singleSeriesColor] : multiSeriesColors;
+  const seriesFallback = hasGroupPalette ? [] : EMERGENCY_SERIES_COLORS;
+  seriesPalette = ensurePalette(seriesBase, requestedSeriesCount, seriesFallback);
+  const pieBase = paletteEntries.slice(3, 3 + PIE_COLOR_CLASS_COUNT);
+  const pieFallback = hasGroupPalette ? [] : EMERGENCY_PIE_PALETTE;
+  piePalette = ensurePalette(pieBase, PIE_COLOR_CLASS_COUNT, pieFallback);
   for (let i = 0; i < seriesPalette.length; i++) {
     setCssVariable(`--diagram-series-${i}`, seriesPalette[i], style);
     setCssVariable(`--diagram-line-series-${i}`, seriesPalette[i], style);
@@ -420,6 +380,9 @@ if (typeof MutationObserver === 'function' && typeof document !== 'undefined' &&
 }
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('math-visuals:settings-changed', () => {
+    refreshDiagramTheme();
+  });
+  window.addEventListener('math-visuals:profile-change', () => {
     refreshDiagramTheme();
   });
   window.addEventListener('message', event => {
