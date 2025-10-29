@@ -374,15 +374,22 @@
   function listProfiles() {
     return Object.keys(PROFILES);
   }
-  function buildPalette(kind, count, opts) {
+  function resolveProjectContext(projectValue) {
+    const overrideCandidate = typeof projectValue === 'string' ? projectValue.trim().toLowerCase() : '';
+    const projectOverride = overrideCandidate || null;
     const activeProfile = getActiveProfile();
-    const projectOverride = opts && typeof opts.project === 'string' ? opts.project.trim().toLowerCase() : null;
-    const projectName = projectOverride || (activeProfile && activeProfile.id ? activeProfile.id : activeProfileName);
+    const fallbackName = activeProfile && activeProfile.id ? activeProfile.id : activeProfileName;
+    const projectName = projectOverride || fallbackName;
+    const profile = projectOverride ? getProfile(projectName) : activeProfile;
+    return { projectOverride, projectName, profile };
+  }
+
+  function buildPalette(kind, count, opts) {
+    const { projectName, profile } = resolveProjectContext(opts && opts.project);
     const userPalette = resolveUserPalette(count, projectName);
     if (userPalette && userPalette.length) {
       return ensurePalette(userPalette, count);
     }
-    const profile = getActiveProfile();
     const requested = typeof kind === 'string' ? kind : 'fractions';
     const fallbackKinds = Array.isArray(opts && opts.fallbackKinds) ? opts.fallbackKinds : [];
     const seen = new Set();
@@ -433,10 +440,8 @@
 
   function buildGroupPalette(groupId, count, opts) {
     const normalizedId = typeof groupId === 'string' ? groupId.trim().toLowerCase() : '';
-    const projectOverride = opts && typeof opts.project === 'string' ? opts.project.trim().toLowerCase() : null;
+    const { projectName } = resolveProjectContext(opts && opts.project);
     const settingsApi = getSettingsApi();
-    const activeProfile = getActiveProfile();
-    const projectName = projectOverride || (activeProfile && activeProfile.id ? activeProfile.id : activeProfileName);
     if (settingsApi && typeof settingsApi.getGroupPalette === 'function') {
       try {
         if (settingsApi.getGroupPalette.length >= 3) {
@@ -469,7 +474,7 @@
         ...fallbackList
       ])
     );
-    return buildPalette(normalizedId || 'fractions', count, { ...opts, fallbackKinds: dedupedFallbacks });
+    return buildPalette(normalizedId || 'fractions', count, { ...opts, project: projectName, fallbackKinds: dedupedFallbacks });
   }
   function getColor(token, fallback) {
     const profile = getActiveProfile();
