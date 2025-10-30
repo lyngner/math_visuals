@@ -1604,12 +1604,26 @@
     setInlineEditorTextMode(inlineEditor, text ? 'preview' : 'edit');
   }
 
-  function renderInlineEditorFigures(item, inlineEditor) {
+  async function renderInlineEditorFigures(item, inlineEditor) {
     if (!inlineEditor || !inlineEditor.figureList) return;
     const listEl = inlineEditor.figureList;
     listEl.textContent = '';
-    loadFigureLibrary();
+
+    try {
+      await loadFigureLibrary();
+    } catch (_) {
+      /* noop */
+    }
+
     const figures = ensureFigureArray(item);
+    const hasLibraryError = !!figureLibraryState.error;
+
+    if (hasLibraryError) {
+      const errorMessage = doc.createElement('p');
+      errorMessage.className = 'sortering__item-editor-message sortering__item-editor-message--error';
+      errorMessage.textContent = 'Kunne ikke laste figurbiblioteket. Du kan fortsatt skrive inn filnavn manuelt.';
+      listEl.appendChild(errorMessage);
+    }
     if (!figures.length) {
       const empty = doc.createElement('p');
       empty.className = 'sortering__item-editor-empty';
@@ -1649,36 +1663,41 @@
       categorySelect.value = initialCategory;
       categorySelect.addEventListener('change', () => {
         figure.categoryId = sanitizeFigureCategory(categorySelect.value, figure.value);
-        populateFigureSelectOptions(figureSelect, figure.categoryId, figure.value);
+        if (figureSelect) {
+          populateFigureSelectOptions(figureSelect, figure.categoryId, figure.value);
+        }
         item.type = 'figure';
         refreshItemsById();
         updateValidationState();
       });
 
-      const figureSelect = doc.createElement('select');
-      figureSelect.className = 'sortering__item-editor-figure-select';
-      figureSelect.setAttribute('aria-label', 'Figur');
-      populateFigureSelectOptions(figureSelect, initialCategory, figure.value);
-      figureSelect.addEventListener('change', () => {
-        const selectedValue = figureSelect.value;
-        if (!selectedValue) {
-          populateFigureSelectOptions(figureSelect, categorySelect.value, figure.value);
-          return;
-        }
-        const selectedMatch = getFigureLibraryMatch(selectedValue);
-        figure.value = selectedValue;
-        if (selectedMatch) {
-          figure.categoryId = selectedMatch.categoryId;
-          categorySelect.value = selectedMatch.categoryId;
-          populateFigureSelectOptions(figureSelect, selectedMatch.categoryId, selectedMatch.value);
-        } else {
-          figure.categoryId = sanitizeFigureCategory(categorySelect.value, selectedValue);
-          populateFigureSelectOptions(figureSelect, figure.categoryId, selectedValue);
-        }
-        valueInput.value = selectedValue;
-        item.type = 'figure';
-        commitFigureChanges();
-      });
+      let figureSelect = null;
+      if (!hasLibraryError) {
+        figureSelect = doc.createElement('select');
+        figureSelect.className = 'sortering__item-editor-figure-select';
+        figureSelect.setAttribute('aria-label', 'Figur');
+        populateFigureSelectOptions(figureSelect, initialCategory, figure.value);
+        figureSelect.addEventListener('change', () => {
+          const selectedValue = figureSelect.value;
+          if (!selectedValue) {
+            populateFigureSelectOptions(figureSelect, categorySelect.value, figure.value);
+            return;
+          }
+          const selectedMatch = getFigureLibraryMatch(selectedValue);
+          figure.value = selectedValue;
+          if (selectedMatch) {
+            figure.categoryId = selectedMatch.categoryId;
+            categorySelect.value = selectedMatch.categoryId;
+            populateFigureSelectOptions(figureSelect, selectedMatch.categoryId, selectedMatch.value);
+          } else {
+            figure.categoryId = sanitizeFigureCategory(categorySelect.value, selectedValue);
+            populateFigureSelectOptions(figureSelect, figure.categoryId, selectedValue);
+          }
+          valueInput.value = selectedValue;
+          item.type = 'figure';
+          commitFigureChanges();
+        });
+      }
 
       const valueInput = doc.createElement('input');
       valueInput.type = 'text';
@@ -1702,7 +1721,9 @@
         commitFigureChanges();
       });
       row.appendChild(categorySelect);
-      row.appendChild(figureSelect);
+      if (figureSelect) {
+        row.appendChild(figureSelect);
+      }
       row.appendChild(valueInput);
       listEl.appendChild(row);
     });
@@ -1757,7 +1778,7 @@
   }
 
   function syncFigureSelectionControls(figure, categorySelect, figureSelect, valueInput) {
-    if (!figure || !categorySelect || !figureSelect) return;
+    if (!figure || !categorySelect) return;
     const match = getFigureLibraryMatch(figure.value);
     if (match) {
       figure.value = match.value;
@@ -1765,9 +1786,11 @@
       if (categorySelect.value !== match.categoryId) {
         categorySelect.value = match.categoryId;
       }
-      populateFigureSelectOptions(figureSelect, match.categoryId, match.value);
-      if (!figureSelect.disabled) {
-        figureSelect.value = match.value;
+      if (figureSelect) {
+        populateFigureSelectOptions(figureSelect, match.categoryId, match.value);
+        if (!figureSelect.disabled) {
+          figureSelect.value = match.value;
+        }
       }
       if (valueInput && valueInput.value !== match.value) {
         valueInput.value = match.value;
@@ -1777,9 +1800,13 @@
 
     const normalizedCategory = sanitizeFigureCategory(categorySelect.value, figure.value);
     figure.categoryId = normalizedCategory;
-    populateFigureSelectOptions(figureSelect, normalizedCategory, figure.value);
-    if (!figureSelect.disabled) {
-      figureSelect.value = '';
+    if (figureSelect) {
+      populateFigureSelectOptions(figureSelect, normalizedCategory, figure.value);
+      if (!figureSelect.disabled) {
+        figureSelect.value = '';
+      }
+    } else if (categorySelect.value !== normalizedCategory) {
+      categorySelect.value = normalizedCategory;
     }
   }
 
