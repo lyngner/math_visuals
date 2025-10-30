@@ -59,18 +59,6 @@
       color: #111827;
       background: #fff;
     }
-    .sortering-settings__checkbox {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      color: #4b5563;
-      cursor: pointer;
-      user-select: none;
-    }
-    .sortering-settings__checkbox input {
-      margin: 0;
-    }
     .sortering__add-item {
       display: flex;
       justify-content: center;
@@ -365,10 +353,6 @@
               <label class="sortering-settings__label" for="sortering-gap">Avstand (px)</label>
               <input id="sortering-gap" name="gap" type="number" min="0" step="1" value="32" inputmode="numeric" />
             </div>
-            <label class="sortering-settings__checkbox" for="sortering-randomize">
-              <input id="sortering-randomize" name="randomize" type="checkbox" />
-              <span>Bland elementene ved start</span>
-            </label>
           </form>
           <div id="settingsHost" class="sortering-status-host"></div>
         </div>

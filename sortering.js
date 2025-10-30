@@ -37,7 +37,6 @@
   let settingsForm = null;
   let directionSelect = null;
   let gapInput = null;
-  let randomizeInput = null;
   let addItemButton = null;
   let validationStatusEl = null;
   let saveExampleButton = null;
@@ -154,6 +153,12 @@
     return sanitized;
   }
 
+  function commitCurrentOrderToState() {
+    if (!state) return;
+    if (!isEditorMode()) return;
+    state.order = sanitizeOrder(state.items, currentOrder);
+  }
+
   function buildExampleConfigPayload() {
     const defaults = {
       items: [],
@@ -161,7 +166,7 @@
       config: {
         direction: DEFAULT_STATE.retning,
         gap: DEFAULT_STATE.gap,
-        randomize: DEFAULT_STATE.randomisering
+        randomize: true
       }
     };
     if (!state) return defaults;
@@ -171,7 +176,7 @@
       config: {
         direction: normalizeDirection(state.retning),
         gap: Number.isFinite(state.gap) ? state.gap : DEFAULT_STATE.gap,
-        randomize: !!state.randomisering
+        randomize: true
       }
     };
   }
@@ -1379,7 +1384,7 @@
     order: DEFAULT_ITEMS.map(item => item.id),
     retning: 'horisontal',
     gap: 32,
-    randomisering: false,
+    randomisering: true,
     altText: '',
     altTextSource: 'auto'
   };
@@ -1442,7 +1447,7 @@
     }
     if (wrapper) {
       wrapper.classList.toggle('sortering__item--editable', !!isActive);
-      wrapper.style.touchAction = reorderable ? 'none' : 'auto';
+      wrapper.style.touchAction = currentAppMode === 'task' ? 'none' : 'auto';
       if (itemId && !itemsById.has(itemId) && activeInlineEditorId === itemId) {
         activeInlineEditorId = null;
       }
@@ -1600,7 +1605,38 @@
   }
 
   function canReorderItems() {
-    return currentAppMode === 'task';
+    return currentAppMode === 'task' || currentAppMode === 'default';
+  }
+
+  function shouldRandomizeInCurrentMode() {
+    return !!(state && state.randomisering) && currentAppMode === 'task';
+  }
+
+  function shouldAllowPointerDrag(event) {
+    if (!event) return false;
+    if (typeof event.button === 'number' && event.button !== 0) {
+      return false;
+    }
+    const target = event.target;
+    if (!target || typeof target.closest !== 'function') {
+      return true;
+    }
+    if (target.closest('.sortering__item-editor')) {
+      return false;
+    }
+    if (target.closest('[data-drag-ignore="true"]')) {
+      return false;
+    }
+    if (isEditorMode()) {
+      if (target.closest('button, input, textarea, select, label, a, [contenteditable="true"], [contenteditable=""]')) {
+        return false;
+      }
+      const roleBlock = target.closest('[role="button"], [role="textbox"], [role="combobox"], [role="listbox"]');
+      if (roleBlock) {
+        return false;
+      }
+    }
+    return true;
   }
 
   function updateFigureEditorMode() {
@@ -1618,11 +1654,16 @@
   }
 
   function setCurrentAppMode(mode) {
+    const previousMode = currentAppMode;
     currentAppMode = normalizeAppMode(mode);
     if (currentAppMode === 'task') {
       deactivateInlineEditor();
     }
     updateFigureEditorMode();
+    if (previousMode !== currentAppMode) {
+      const options = shouldRandomizeInCurrentMode() ? { randomize: true, resetToBase: true } : { resetToBase: true };
+      applyOrder(options);
+    }
   }
 
   function ensureItemNodes(item) {
@@ -2350,6 +2391,8 @@
     currentOrder.splice(currentIndex, 1);
     currentOrder.splice(boundedIndex, 0, id);
 
+    commitCurrentOrderToState();
+
     if (preserveTransform) {
       updateDragPlaceholderPosition(id);
     } else {
@@ -2710,16 +2753,17 @@
   function attachItemListeners(id, nodes) {
     if (!nodes || nodes.wrapper.dataset.listenersAttached === 'true') return;
     nodes.wrapper.dataset.listenersAttached = 'true';
-    nodes.wrapper.style.touchAction = canReorderItems() ? 'none' : 'auto';
+    nodes.wrapper.style.touchAction = currentAppMode === 'task' ? 'none' : 'auto';
     nodes.wrapper.addEventListener('pointerdown', event => {
       if (!canReorderItems()) return;
+      if (!shouldAllowPointerDrag(event)) return;
       startPointerDrag(event, id);
     });
     nodes.wrapper.addEventListener('pointermove', event => handlePointerMove(event, id));
     nodes.wrapper.addEventListener('pointerup', event => finishPointerDrag(event, id));
     nodes.wrapper.addEventListener('pointercancel', event => finishPointerDrag(event, id));
     nodes.wrapper.addEventListener('click', event => {
-      if (canReorderItems()) return;
+      if (!isEditorMode()) return;
       if (event.target && event.target.closest('.sortering__item-editor')) {
         return;
       }
@@ -2775,9 +2819,16 @@
     }
 
     let nextOrder = [];
-    if (options.randomize) {
+    const randomizeRequested = !!options.randomize;
+    const resetRequested = !!options.resetToBase;
+    const randomizeAllowed = shouldRandomizeInCurrentMode();
+    const shouldRandomize = randomizeRequested && randomizeAllowed;
+    const shouldResetToBase =
+      resetRequested || (!randomizeAllowed && randomizeRequested) || (!shouldRandomize && currentOrder.length === 0);
+
+    if (shouldRandomize) {
       nextOrder = shuffle(sanitizedBase);
-    } else if (options.resetToBase || currentOrder.length === 0) {
+    } else if (shouldResetToBase) {
       nextOrder = sanitizedBase.slice();
     } else {
       nextOrder = sanitizeOrder(state.items, currentOrder);
@@ -2787,6 +2838,7 @@
     }
 
     currentOrder = nextOrder;
+    commitCurrentOrderToState();
     const usedIds = new Set();
 
     currentOrder.forEach((id, index) => {
@@ -2868,9 +2920,6 @@
     if (gapInput && doc.activeElement !== gapInput) {
       gapInput.value = String(state.gap);
     }
-    if (randomizeInput) {
-      randomizeInput.checked = !!state.randomisering;
-    }
   }
 
   function handleDirectionSelectChange(event) {
@@ -2880,15 +2929,6 @@
     syncSettingsFormFromState();
     updateLayout();
     notifyStatusChange('settings-change');
-  }
-
-  function handleRandomizeToggle(event) {
-    if (!state) return;
-    const checked = !!(event && event.target && event.target.checked);
-    state.randomisering = checked;
-    const options = checked ? { randomize: true } : { resetToBase: true };
-    applyOrder(options);
-    syncSettingsFormFromState();
   }
 
   function validateItems() {
@@ -3017,7 +3057,6 @@
     settingsForm = doc.getElementById('sorteringSettings');
     directionSelect = doc.getElementById('sortering-direction');
     gapInput = doc.getElementById('sortering-gap');
-    randomizeInput = doc.getElementById('sortering-randomize');
     addItemButton = doc.getElementById('btnAddSorteringItem');
     validationStatusEl = doc.getElementById('sorteringEditorStatus');
 
@@ -3027,9 +3066,6 @@
     if (gapInput) {
       gapInput.addEventListener('change', handleGapChange);
       gapInput.addEventListener('blur', handleGapChange);
-    }
-    if (randomizeInput) {
-      randomizeInput.addEventListener('change', handleRandomizeToggle);
     }
     if (addItemButton) {
       addItemButton.addEventListener('click', addNewItem);
@@ -3056,7 +3092,7 @@
     const order = sanitizeOrder(items, orderSource);
     const retning = normalizeDirection(existing && existing.retning ? existing.retning : DEFAULT_STATE.retning);
     const gap = normalizeGap(existing && 'gap' in existing ? existing.gap : Number.NaN, DEFAULT_STATE.gap);
-    const randomisering = !!(existing && existing.randomisering);
+    const randomisering = true;
     const altText = existing && typeof existing.altText === 'string' ? existing.altText : DEFAULT_STATE.altText;
     const altTextSource = existing && existing.altTextSource === 'manual' ? 'manual' : DEFAULT_STATE.altTextSource;
 
