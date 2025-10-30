@@ -7742,6 +7742,14 @@ function setupSettingsForm() {
       SCREEN_INPUT_IS_EDITING = true;
       if (screenInput.dataset) delete screenInput.dataset.autoscreen;
       screenInput.classList.remove('is-auto');
+      const lockInput = g('cfgLock');
+      const hasManualValue = !!(screenInput.value && screenInput.value.trim());
+      if (lockInput && lockInput.checked && hasManualValue) {
+        lockInput.checked = false;
+        if (ADV.lockAspect !== false) {
+          ADV.lockAspect = false;
+        }
+      }
     });
     screenInput.addEventListener('focus', () => {
       SCREEN_INPUT_IS_EDITING = true;
@@ -7801,8 +7809,28 @@ function setupSettingsForm() {
     const currentSimple = syncSimpleFromForm();
     const simpleChanged = currentSimple !== prevSimple;
     let needsRebuild = simpleChanged;
-    let screenRaw = screenInput ? screenInput.value.trim() : '';
-    if (screenInput && screenInput.dataset && screenInput.dataset.autoscreen === '1') {
+    const screenTrimmed = screenInput ? screenInput.value.trim() : '';
+    const manualScreenActive = Array.isArray(ADV.screen) && ADV.screen.length === 4;
+    const screenAutoTagged = !!(screenInput && screenInput.dataset && screenInput.dataset.autoscreen === '1');
+    const autoScreenActive = !manualScreenActive && LAST_SCREEN_SOURCE === 'auto';
+    let shouldAutoScreen = false;
+    if (!screenTrimmed) {
+      shouldAutoScreen = true;
+      if (screenInput && screenInput.dataset) screenInput.dataset.autoscreen = '1';
+      if (screenInput) screenInput.classList.add('is-auto');
+    } else if (screenAutoTagged && autoScreenActive) {
+      shouldAutoScreen = true;
+    } else if (screenAutoTagged && !autoScreenActive) {
+      if (screenInput && screenInput.dataset) delete screenInput.dataset.autoscreen;
+      if (screenInput) screenInput.classList.remove('is-auto');
+    }
+    if (!shouldAutoScreen && simpleChanged && autoScreenActive) {
+      shouldAutoScreen = true;
+      if (screenInput && screenInput.dataset) screenInput.dataset.autoscreen = '1';
+      if (screenInput) screenInput.classList.add('is-auto');
+    }
+    let screenRaw = screenTrimmed;
+    if (shouldAutoScreen) {
       screenRaw = '';
     }
     let nextScreen = screenInput ? parseScreen(screenRaw) : null;
