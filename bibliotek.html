@@ -311,24 +311,12 @@
             Figurbibliotek
             <span class="betaBadge" role="status" aria-label="Beta">Beta</span>
           </h1>
-          <p>
-            Bla gjennom de ferdige mengdeillustrasjonene. Hver figur viser tydelig filstien slik at du kan lime den inn der du trenger den.
-          </p>
-          <div class="betaHelperText" role="note">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm0-3.75h-1.5v-6h1.5Z" />
-            </svg>
-            <p>
-              Dette er en betaversjon. Meld fra hvis noe mangler, eller hvis du trenger flere formater. Vi bygger videre basert på tilbakemeldingene.
-            </p>
-          </div>
           <p class="bibliotekStatus" data-status role="status" aria-live="polite">
             Laster figurer …
           </p>
           <section class="categorySection" aria-labelledby="category-heading">
             <div class="categoryIntro">
               <h2 id="category-heading">Kategorier</h2>
-              <p>Velg en kategori for å filtrere figurbiblioteket.</p>
             </div>
             <ul class="categoryGrid" data-category-grid></ul>
           </section>
@@ -336,25 +324,6 @@
         <div data-results hidden>
           <ul class="bibliotekGrid" data-grid aria-live="polite"></ul>
           <div class="emptyState" data-empty hidden></div>
-        </div>
-      </div>
-      <div class="side">
-        <div class="card sideCard">
-          <h2>Finn figurer</h2>
-          <div class="filterGroup">
-            <label for="bibliotek-filter">Filtrer etter navn eller filsti</label>
-            <input id="bibliotek-filter" type="search" placeholder="f.eks. d10 eller ti" autocomplete="off" spellcheck="false" data-filter />
-            <p class="filterHelper">
-              Treff oppdateres automatisk. Bruk kopiknappen for å hente banen «images/amounts/&lt;navn&gt;.svg».
-            </p>
-          </div>
-          <section aria-live="polite" data-count></section>
-        </div>
-        <div class="card sideCard">
-          <h2>Tips</h2>
-          <p>
-            Åpne lenken «Vis images/amounts/&lt;navn&gt;.svg» i en ny fane for å se SVG-en direkte. Lim inn filbanen i læringsressursene dine for å gjenbruke figurene.
-          </p>
         </div>
       </div>
     </div>

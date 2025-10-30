@@ -193,15 +193,18 @@ function renderCategories() {
 }
 
 function handleCategoryClick(category) {
-  if (!filterInput) return;
   const isActive = activeCategoryId === category.id;
   if (isActive) {
     activeCategoryId = null;
-    filterInput.value = '';
+    if (filterInput) {
+      filterInput.value = '';
+    }
     applyFilter('');
   } else {
     activeCategoryId = category.id;
-    filterInput.value = category.filter;
+    if (filterInput) {
+      filterInput.value = category.filter;
+    }
     applyFilter(category.filter);
   }
   updateCategorySelection();
@@ -409,10 +412,7 @@ function applyFilter(rawQuery) {
 function updateCount(visible, total, query, hasActiveFilter) {
   if (!countEl) return;
   if (!hasActiveFilter) {
-    const figureWord = total <= 0 ? null : total === 1 ? '1 figur' : `${total} figurer`;
-    countEl.textContent = figureWord
-      ? `Velg en kategori eller søk for å vise ${figureWord}.`
-      : 'Velg en kategori eller søk for å vise figurer når de er tilgjengelige.';
+    countEl.textContent = '';
     return;
   }
 
@@ -440,10 +440,7 @@ function updateEmptyState(visible, query, hasActiveFilter) {
 function updateStatus(visible, total, query, hasActiveFilter) {
   if (!statusEl) return;
   if (!hasActiveFilter) {
-    const figureWord = total <= 0 ? null : total === 1 ? '1 figur' : `${total} figurer`;
-    statusEl.textContent = figureWord
-      ? `Velg en kategori eller søk for å vise ${figureWord}.`
-      : 'Velg en kategori eller søk for å vise figurer når de er tilgjengelige.';
+    statusEl.textContent = '';
     return;
   }
 
