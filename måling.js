@@ -1544,6 +1544,9 @@
     const metrics = scaleMetrics || resolveScaleMetrics(settings);
     const unitSpacing = metrics && Number.isFinite(metrics.unitSpacing) ? metrics.unitSpacing : DEFAULT_UNIT_SPACING_PX;
     renderTapeMeasureStrap(settings, unitSpacing, metrics);
+    const previousConfiguredUnits = Number.isFinite(tapeLengthState.configuredUnits)
+      ? tapeLengthState.configuredUnits
+      : NaN;
     const lengthValue = Number.isFinite(settings && settings.tapeMeasureLength)
       ? settings.tapeMeasureLength
       : defaults.tapeMeasureLength;
@@ -1567,8 +1570,13 @@
     tapeLengthState.configuredUnits = lengthValue;
     tapeLengthState.minVisiblePx = Math.max(0, unitSpacing);
     tapeLengthState.maxVisiblePx = strapWidth;
+    const shouldSyncVisible =
+      !Number.isFinite(tapeLengthState.visiblePx) ||
+      !Number.isFinite(previousConfiguredUnits) ||
+      Math.abs(previousConfiguredUnits - lengthValue) > 1e-9;
+    const desiredVisible = shouldSyncVisible ? visibleLength : tapeLengthState.visiblePx;
     const clampedVisible = Math.min(
-      Math.max(visibleLength, tapeLengthState.minVisiblePx),
+      Math.max(desiredVisible, tapeLengthState.minVisiblePx),
       strapWidth
     );
     tapeLengthState.visiblePx = clampedVisible;
