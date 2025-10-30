@@ -1930,7 +1930,8 @@
       const removeButton = doc.createElement('button');
       removeButton.type = 'button';
       removeButton.className = 'sortering__item-editor-remove';
-      removeButton.textContent = 'Slett element';
+      removeButton.textContent = 'Fjern element';
+      removeButton.setAttribute('aria-label', 'Fjern element');
       panel.appendChild(removeButton);
 
       nodes.wrapper.appendChild(host);
