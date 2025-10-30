@@ -90,9 +90,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     height: activeInstrumentForSize ? activeInstrumentForSize.offsetHeight : 0
   };
   const RULER_SHADOW_FILTER_ID = 'rulerSvgDropShadow';
-  const TAPE_STRAP_DEFAULT_HEIGHT = 64;
+  const TAPE_STRAP_DEFAULT_HEIGHT = 54;
   const TAPE_STRAP_HANDLE_RATIO = 0.45;
-  const TAPE_STRAP_HANDLE_MIN_PX = 28;
+  const TAPE_STRAP_HANDLE_MIN_PX = 24;
   const TAPE_DIRECTION = -1;
   const zeroOffset = { x: 0, y: 0 };
   const figureData = buildFigureData({ extractRealWorldSizeFromText });
