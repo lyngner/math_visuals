@@ -93,6 +93,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
   const TAPE_STRAP_DEFAULT_HEIGHT = 64;
   const TAPE_STRAP_HANDLE_RATIO = 0.45;
   const TAPE_STRAP_HANDLE_MIN_PX = 28;
+  const TAPE_HOUSING_OVERLAP_PX = 48;
   const TAPE_DIRECTION = -1;
   const zeroOffset = { x: 0, y: 0 };
   const figureData = buildFigureData({ extractRealWorldSizeFromText });
@@ -155,7 +156,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     maxVisiblePx: 0,
     totalPx: 0,
     units: defaults.tapeMeasureLength,
-    configuredUnits: defaults.tapeMeasureLength
+    configuredUnits: defaults.tapeMeasureLength,
+    overlapPx: 0
   };
 
   let lastRenderedUnitSpacing = DEFAULT_UNIT_SPACING_PX;
@@ -1987,8 +1989,10 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       ? settings.subdivisions
       : defaults.subdivisions;
     const strapHeight = getTapeStrapHeight();
-    const strapWidth = unitSpacing * Math.max(lengthValue, 1);
-    const safeWidth = strapWidth > 0 ? strapWidth : unitSpacing;
+    const strapVisibleWidth = unitSpacing * Math.max(lengthValue, 1);
+    const safeVisibleWidth = strapVisibleWidth > 0 ? strapVisibleWidth : unitSpacing;
+    const strapOverlap = Math.max(TAPE_HOUSING_OVERLAP_PX, 0);
+    const strapTotalWidth = safeVisibleWidth + strapOverlap;
     const strapRadius = Math.min(10, strapHeight / 2.5);
     const bandInset = Math.min(Math.max(strapHeight * 0.12, 6), strapHeight / 2.2);
     const topBaselineY = bandInset;
@@ -2029,25 +2033,30 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     const unitSuffixValue = resolveUnitSuffix(settings.unitLabel);
     const unitSuffix = unitSuffixValue ? String(unitSuffixValue).trim() : '';
     const unitLabelMarkup = unitSuffix
-      ? `<text x="${safeWidth}" y="${unitLabelY}" text-anchor="end" class="tape-svg__unit-label">${escapeHtml(unitSuffix)}</text>`
+      ? `<text x="${safeVisibleWidth}" y="${unitLabelY}" text-anchor="end" class="tape-svg__unit-label">${escapeHtml(unitSuffix)}</text>`
       : '';
 
-    tapeStrapSvg.setAttribute('viewBox', `0 0 ${safeWidth} ${strapHeight}`);
-    tapeStrapSvg.setAttribute('width', formatSvgNumber(safeWidth));
+    tapeStrapSvg.setAttribute('viewBox', `0 0 ${formatSvgNumber(strapTotalWidth)} ${formatSvgNumber(strapHeight)}`);
+    tapeStrapSvg.setAttribute('width', formatSvgNumber(strapTotalWidth));
     tapeStrapSvg.setAttribute('height', formatSvgNumber(strapHeight));
     tapeStrapSvg.innerHTML = `
-      <rect x="0" y="0" width="${safeWidth}" height="${strapHeight}" rx="${strapRadius}" ry="${strapRadius}" class="tape-svg__background" />
-      <line x1="0" y1="${topBaselineY}" x2="${safeWidth}" y2="${topBaselineY}" class="tape-svg__baseline" />
-      <line x1="0" y1="${bottomBaselineY}" x2="${safeWidth}" y2="${bottomBaselineY}" class="tape-svg__baseline" />
+      <rect x="0" y="0" width="${strapTotalWidth}" height="${strapHeight}" rx="${strapRadius}" ry="${strapRadius}" class="tape-svg__background" />
+      <line x1="0" y1="${topBaselineY}" x2="${strapTotalWidth}" y2="${topBaselineY}" class="tape-svg__baseline" />
+      <line x1="0" y1="${bottomBaselineY}" x2="${strapTotalWidth}" y2="${bottomBaselineY}" class="tape-svg__baseline" />
       ${minorTickMarkup}
       ${majorTickMarkup}
       ${labelMarkup}
       ${unitLabelMarkup}
     `;
 
-    tapeMeasure.style.setProperty('--tape-strap-length', `${safeWidth}px`);
-    tapeLengthState.totalPx = safeWidth;
-    tapeLengthState.maxVisiblePx = safeWidth;
+    tapeMeasure.style.setProperty('--tape-strap-length', `${strapTotalWidth}px`);
+    tapeMeasure.style.setProperty('--tape-housing-overlap', `${strapOverlap}px`);
+    tapeLengthState.totalPx = strapTotalWidth;
+    tapeLengthState.maxVisiblePx = safeVisibleWidth;
+    tapeLengthState.overlapPx = strapOverlap;
+    if (tapeLengthState.visiblePx > tapeLengthState.maxVisiblePx) {
+      tapeLengthState.visiblePx = tapeLengthState.maxVisiblePx;
+    }
   }
 
   function updateAccessibility(settings) {
@@ -2781,7 +2790,10 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     tapeLengthState.visiblePx = visible;
     tapeMeasure.style.setProperty('--tape-strap-visible', `${visible}px`);
     const totalWidth = Number.isFinite(tapeLengthState.totalPx) ? tapeLengthState.totalPx : 0;
-    const strapOffset = totalWidth > 0 ? totalWidth - visible : 0;
+    const overlap = Number.isFinite(tapeLengthState.overlapPx) ? tapeLengthState.overlapPx : 0;
+    const strapOffset = totalWidth > 0
+      ? Math.min(Math.max(totalWidth - visible - overlap, 0), totalWidth)
+      : 0;
     tapeMeasure.style.setProperty('--tape-strap-offset', `${strapOffset}px`);
     const effectiveUnits = Number.isFinite(tapeLengthState.unitSpacing) && tapeLengthState.unitSpacing > 0
       ? visible / tapeLengthState.unitSpacing
