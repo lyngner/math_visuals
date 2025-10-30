@@ -144,13 +144,12 @@
       gap: 8px;
     }
     .sortering__item-editor-figure-row {
-      display: grid;
-      grid-template-columns: minmax(0, 140px) minmax(0, 170px) 1fr auto;
-      gap: 6px;
-      align-items: center;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
     }
     .sortering__item-editor-figure-row select,
-    .sortering__item-editor-figure-row input[type="text"],
     .sortering__item-editor-select {
       width: 100%;
       box-sizing: border-box;
