@@ -1661,13 +1661,20 @@
         : sanitizeFigureCategory(figure.categoryId, figure.value);
       figure.categoryId = initialCategory;
       categorySelect.value = initialCategory;
+      const figureInput = doc.createElement('input');
+      figureInput.type = 'text';
+      figureInput.className = 'sortering__item-editor-figure-input';
+      figureInput.setAttribute('aria-label', 'Filnavn');
+      figureInput.placeholder = 'Filnavn';
+      figureInput.value = typeof figure.value === 'string' ? figure.value : '';
+
       categorySelect.addEventListener('change', () => {
         const normalizedCategory = sanitizeFigureCategory(categorySelect.value, figure.value);
         if (normalizedCategory !== figure.categoryId) {
           figure.value = '';
         }
         figure.categoryId = normalizedCategory;
-        syncFigureSelectionControls(figure, categorySelect, figureSelect);
+        syncFigureSelectionControls(figure, categorySelect, figureSelect, figureInput);
         item.type = 'figure';
         commitFigureChanges();
       });
@@ -1682,7 +1689,7 @@
           const selectedValue = figureSelect.value;
           if (!selectedValue) {
             figure.value = '';
-            syncFigureSelectionControls(figure, categorySelect, figureSelect);
+            syncFigureSelectionControls(figure, categorySelect, figureSelect, figureInput);
             item.type = 'figure';
             commitFigureChanges();
             return;
@@ -1694,17 +1701,42 @@
           } else {
             figure.categoryId = sanitizeFigureCategory(categorySelect.value, selectedValue);
           }
-          syncFigureSelectionControls(figure, categorySelect, figureSelect);
+          syncFigureSelectionControls(figure, categorySelect, figureSelect, figureInput);
           item.type = 'figure';
           commitFigureChanges();
         });
       }
 
+      figureInput.addEventListener('input', () => {
+        figure.value = typeof figureInput.value === 'string' ? figureInput.value : '';
+        item.type = 'figure';
+        syncFigureSelectionControls(figure, categorySelect, figureSelect, figureInput);
+      });
+
+      figureInput.addEventListener('blur', () => {
+        const normalized = typeof figureInput.value === 'string' ? figureInput.value.trim() : '';
+        if (figureInput.value !== normalized) {
+          figureInput.value = normalized;
+        }
+        figure.value = normalized;
+        item.type = 'figure';
+        syncFigureSelectionControls(figure, categorySelect, figureSelect, figureInput);
+        commitFigureChanges();
+      });
+
+      figureInput.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          figureInput.blur();
+        }
+      });
+
       row.appendChild(categorySelect);
       if (figureSelect) {
         row.appendChild(figureSelect);
       }
-      syncFigureSelectionControls(figure, categorySelect, figureSelect);
+      row.appendChild(figureInput);
+      syncFigureSelectionControls(figure, categorySelect, figureSelect, figureInput);
       listEl.appendChild(row);
     });
     if (didNormalizeFigure) {
@@ -1757,14 +1789,15 @@
     selectEl.dataset.categoryId = normalizedCategory;
   }
 
-  function syncFigureSelectionControls(figure, categorySelect, figureSelect) {
+  function syncFigureSelectionControls(figure, categorySelect, figureSelect, figureInput) {
     if (!figure || !categorySelect) return;
-    const match = getFigureLibraryMatch(figure.value);
+    const normalizedValue = typeof figure.value === 'string' ? figure.value : '';
+    const match = getFigureLibraryMatch(normalizedValue);
     if (match) {
       figure.value = match.value;
       figure.categoryId = match.categoryId;
     } else {
-      figure.categoryId = sanitizeFigureCategory(categorySelect.value, figure.value);
+      figure.categoryId = sanitizeFigureCategory(categorySelect.value, normalizedValue);
     }
 
     if (categorySelect.value !== figure.categoryId) {
@@ -1772,16 +1805,25 @@
     }
 
     if (figureSelect) {
-      populateFigureSelectOptions(figureSelect, figure.categoryId, figure.value);
+      populateFigureSelectOptions(figureSelect, figure.categoryId, normalizedValue);
       if (!figureSelect.disabled) {
         if (match) {
           figureSelect.value = match.value;
-        } else if (figure.value) {
-          figureSelect.value = figure.value;
+        } else if (normalizedValue) {
+          figureSelect.value = normalizedValue;
         } else {
           figureSelect.value = '';
         }
       }
+    }
+
+    if (figureInput) {
+      const shouldDisableInput = !!(figureSelect && !figureSelect.disabled && figure.categoryId !== 'custom');
+      figureInput.disabled = shouldDisableInput;
+      if (figureInput.value !== normalizedValue) {
+        figureInput.value = normalizedValue;
+      }
+      figureInput.placeholder = figure.categoryId === 'custom' ? 'Skriv filnavn' : 'Filnavn';
     }
   }
 
