@@ -897,6 +897,8 @@ input[type="radio"] {
   justify-content: flex-start;
   cursor: default;
   user-select: text;
+  padding: 0;
+  overflow: hidden;
 }
 
 .sortering__item--editable .sortering__item-content {
@@ -1003,19 +1005,30 @@ input[type="radio"] {
   display: flex;
 }
 
+.sortering__item--editable .sortering__item-editor {
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+
 .sortering__item-editor-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 12px;
+  padding: 18px;
   border-radius: 12px;
   border: 1px solid #d1d5db;
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
-  min-width: 220px;
-  max-width: 260px;
   width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 100%;
   box-sizing: border-box;
+}
+
+.sortering__item--editable .sortering__item-editor-panel {
+  border-radius: inherit;
 }
 
 .sortering__item-editor-field {
