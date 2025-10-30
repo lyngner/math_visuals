@@ -158,6 +158,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     configuredUnits: defaults.tapeMeasureLength
   };
 
+  let lastRenderedUnitSpacing = DEFAULT_UNIT_SPACING_PX;
+
   appState.settings = normalizeSettings();
   appState.activeTool = sanitizeActiveTool(appState.settings && appState.settings.activeTool, defaultActiveTool);
   initializeUnitLabelCache(appState.settings);
@@ -1534,6 +1536,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (!Number.isFinite(unitSpacing) || unitSpacing <= 0) {
       unitSpacing = DEFAULT_UNIT_SPACING_PX;
     }
+    lastRenderedUnitSpacing = unitSpacing;
     const metrics = scaleMetrics || resolveScaleMetrics(settings);
     renderRuler(settings, unitSpacing, metrics);
     renderTapeMeasureStrap(settings, unitSpacing, metrics);
@@ -1544,7 +1547,16 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       return;
     }
     const metrics = scaleMetrics || resolveScaleMetrics(settings);
-    const unitSpacing = metrics && Number.isFinite(metrics.unitSpacing) ? metrics.unitSpacing : DEFAULT_UNIT_SPACING_PX;
+    let unitSpacing =
+      Number.isFinite(lastRenderedUnitSpacing) && lastRenderedUnitSpacing > 0
+        ? lastRenderedUnitSpacing
+        : Number.NaN;
+    if (!Number.isFinite(unitSpacing) || unitSpacing <= 0) {
+      unitSpacing =
+        metrics && Number.isFinite(metrics.unitSpacing) && metrics.unitSpacing > 0
+          ? metrics.unitSpacing
+          : DEFAULT_UNIT_SPACING_PX;
+    }
     renderTapeMeasureStrap(settings, unitSpacing, metrics);
     const lengthValue = Number.isFinite(settings && settings.tapeMeasureLength)
       ? settings.tapeMeasureLength
@@ -1965,6 +1977,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (!Number.isFinite(unitSpacing) || unitSpacing <= 0) {
       unitSpacing = DEFAULT_UNIT_SPACING_PX;
     }
+    lastRenderedUnitSpacing = unitSpacing;
 
     const metrics = scaleMetrics || resolveScaleMetrics(settings);
     const lengthValue = Number.isFinite(settings && settings.tapeMeasureLength)
