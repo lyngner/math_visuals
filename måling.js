@@ -152,7 +152,8 @@
     minVisiblePx: 0,
     maxVisiblePx: 0,
     totalPx: 0,
-    units: defaults.tapeMeasureLength
+    units: defaults.tapeMeasureLength,
+    configuredUnits: defaults.tapeMeasureLength
   };
 
   appState.settings = normalizeSettings();
@@ -852,6 +853,7 @@
     if (!appState.settings) {
       return;
     }
+    const previousSettings = appState.settings;
     const nextPartial = { ...partial };
     if (Object.prototype.hasOwnProperty.call(partial, 'unitLabel')) {
       const sanitizedLabel = sanitizeUnitLabel(partial.unitLabel, partial.unitLabel);
@@ -913,11 +915,26 @@
     }
     const merged = { ...appState.settings, ...nextPartial };
     const normalized = normalizeSettings(merged);
+    const lengthUpdated =
+      Object.prototype.hasOwnProperty.call(partial, 'tapeMeasureLength') &&
+      Number.isFinite(normalized.tapeMeasureLength) &&
+      (!previousSettings || normalized.tapeMeasureLength !== previousSettings.tapeMeasureLength);
     if (!areSettingsEqual(normalized, appState.settings)) {
       appState.settings = normalized;
       syncUnitLabelCache(appState.settings);
       applySettings(appState.settings);
       syncInputs(appState.settings);
+      if (lengthUpdated) {
+        persistTapeMeasureLength(normalized.tapeMeasureLength, {
+          updateSettingsState: false,
+          updateAppearance: false
+        });
+      }
+    } else if (lengthUpdated) {
+      persistTapeMeasureLength(normalized.tapeMeasureLength, {
+        updateSettingsState: false,
+        updateAppearance: false
+      });
     }
   }
 
@@ -1137,6 +1154,34 @@
       appState.activeTool || defaultActiveTool
     );
     return getEffectiveToolLength(settings, activeToolKey, scaleMetrics);
+  }
+
+  function getVisibleTapeMeasureUnits(settings) {
+    if (Number.isFinite(tapeLengthState.units)) {
+      return tapeLengthState.units;
+    }
+    if (
+      Number.isFinite(tapeLengthState.visiblePx) &&
+      Number.isFinite(tapeLengthState.unitSpacing) &&
+      tapeLengthState.unitSpacing > 0
+    ) {
+      return tapeLengthState.visiblePx / tapeLengthState.unitSpacing;
+    }
+    if (Number.isFinite(tapeLengthState.configuredUnits)) {
+      return tapeLengthState.configuredUnits;
+    }
+    if (Number.isFinite(settings && settings.tapeMeasureLength)) {
+      return settings.tapeMeasureLength;
+    }
+    return defaults.tapeMeasureLength;
+  }
+
+  function getVisibleTapeMeasureLength(settings, scaleMetrics) {
+    const metrics = scaleMetrics || resolveScaleMetrics(settings);
+    const multiplier = resolveRulerValueMultiplier(settings, metrics);
+    const visibleUnits = getVisibleTapeMeasureUnits(settings);
+    const rawLength = visibleUnits * multiplier;
+    return convertValueToDisplayUnits(rawLength, settings.unitLabel);
   }
 
   function extractRealWorldSizeFromText(text) {
@@ -1519,7 +1564,7 @@
     }
     tapeLengthState.totalPx = strapWidth;
     tapeLengthState.unitSpacing = unitSpacing;
-    tapeLengthState.units = lengthValue;
+    tapeLengthState.configuredUnits = lengthValue;
     tapeLengthState.minVisiblePx = Math.max(0, unitSpacing);
     tapeLengthState.maxVisiblePx = strapWidth;
     const clampedVisible = Math.min(
@@ -1988,7 +2033,11 @@
     const { unitLabel } = settings;
     const activeToolKey = sanitizeActiveTool(settings && settings.activeTool, appState.activeTool);
     const info = getToolDisplayInfo(activeToolKey);
-    const effectiveLength = roundForDisplay(getEffectiveToolLength(settings, activeToolKey));
+    const effectiveLengthRaw =
+      activeToolKey === 'tape'
+        ? getVisibleTapeMeasureLength(settings)
+        : getEffectiveToolLength(settings, activeToolKey);
+    const effectiveLength = roundForDisplay(effectiveLengthRaw);
     const formattedLength = formatNumber(effectiveLength);
     const unitSuffixValue = resolveUnitSuffix(unitLabel);
     const unitSuffix = unitSuffixValue ? ` ${unitSuffixValue}` : '';
@@ -2027,7 +2076,11 @@
   function buildStatusMessage(settings) {
     const activeToolKey = sanitizeActiveTool(settings && settings.activeTool, appState.activeTool);
     const info = getToolDisplayInfo(activeToolKey);
-    const effectiveLength = roundForDisplay(getEffectiveToolLength(settings, activeToolKey));
+    const effectiveLengthRaw =
+      activeToolKey === 'tape'
+        ? getVisibleTapeMeasureLength(settings)
+        : getEffectiveToolLength(settings, activeToolKey);
+    const effectiveLength = roundForDisplay(effectiveLengthRaw);
     const formattedLength = formatNumber(effectiveLength);
     const unitSuffixValue = resolveUnitSuffix(settings.unitLabel);
     const unitSuffix = unitSuffixValue ? ` ${unitSuffixValue}` : '';
@@ -2401,7 +2454,7 @@
     }
     session.clear();
     if (hadEntries && appState.activeTool === 'tape') {
-      persistTapeMeasureLength(tapeLengthState.units);
+      persistTapeMeasureState();
     }
   }
 
@@ -2451,7 +2504,7 @@
         const session = activePointers.tapeExtension;
         const wasTracked = session.delete(event.pointerId);
         if (wasTracked && session.size === 0 && appState.activeTool === 'tape') {
-          persistTapeMeasureLength(tapeLengthState.units);
+          persistTapeMeasureState();
         }
       }
     });
@@ -2663,7 +2716,7 @@
       }
     } catch (_) {}
     if (session.size === 0 && appState.activeTool === 'tape') {
-      persistTapeMeasureLength(tapeLengthState.units);
+      persistTapeMeasureState();
     }
   }
 
@@ -2727,7 +2780,6 @@
     }
     if (appState.activeTool === 'tape') {
       persistTapeMeasureState();
-      persistTapeMeasureLength(tapeLengthState.units);
     } else {
       persistTransformState();
     }
@@ -2741,7 +2793,7 @@
     persistTransformStateForTool('tape');
   }
 
-  function persistTapeMeasureLength(lengthValue) {
+  function persistTapeMeasureLength(lengthValue, { updateSettingsState = true, updateAppearance = true } = {}) {
     if (suspendTransformPersistence) {
       return;
     }
@@ -2749,24 +2801,36 @@
     if (!Number.isFinite(sanitized)) {
       return;
     }
-    let settingsChanged = false;
-    if (appState.settings) {
+    if (updateSettingsState && appState.settings) {
       if (appState.settings.tapeMeasureLength !== sanitized) {
         appState.settings = { ...appState.settings, tapeMeasureLength: sanitized };
-        settingsChanged = true;
       } else if (!Number.isFinite(appState.settings.tapeMeasureLength)) {
         appState.settings.tapeMeasureLength = sanitized;
-        settingsChanged = true;
       }
     }
     storeTapeMeasureLength(sanitized);
-    const metrics = resolveScaleMetrics(appState.settings);
-    tapeLengthState.units = sanitized;
-    tapeLengthState.visiblePx = tapeLengthState.unitSpacing > 0 ? sanitized * tapeLengthState.unitSpacing : 0;
-    applyTapeMeasureAppearance(appState.settings, metrics);
-    if (settingsChanged) {
-      updateAccessibility(appState.settings);
-      syncInputs(appState.settings);
+    tapeLengthState.configuredUnits = sanitized;
+    if (updateAppearance && appState.settings) {
+      const metrics = resolveScaleMetrics(appState.settings);
+      applyTapeMeasureAppearance(appState.settings, metrics);
+    } else if (!updateAppearance) {
+      const spacing = Number.isFinite(tapeLengthState.unitSpacing) && tapeLengthState.unitSpacing > 0
+        ? tapeLengthState.unitSpacing
+        : 0;
+      if (spacing > 0) {
+        const targetPx = sanitized * spacing;
+        const maxVisible = Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
+          ? tapeLengthState.maxVisiblePx
+          : Number.isFinite(tapeLengthState.totalPx) && tapeLengthState.totalPx > 0
+          ? tapeLengthState.totalPx
+          : targetPx;
+        const clamped = Math.min(
+          Math.max(targetPx, tapeLengthState.minVisiblePx),
+          maxVisible
+        );
+        tapeLengthState.visiblePx = clamped;
+        applyTapeMeasureTransform();
+      }
     }
   }
 
@@ -3493,7 +3557,10 @@
     const toolInfo = getToolDisplayInfo(activeToolKey);
     const toolTitle = toolInfo.title;
     const valueMultiplier = resolveRulerValueMultiplier(settings);
-    const effectiveLengthRaw = getEffectiveToolLength(settings, activeToolKey);
+    const effectiveLengthRaw =
+      activeToolKey === 'tape'
+        ? getVisibleTapeMeasureLength(settings)
+        : getEffectiveToolLength(settings, activeToolKey);
     const effectiveLength = roundForDisplay(effectiveLengthRaw);
     const slugBaseParts = [
       'måling',
@@ -3539,10 +3606,10 @@
       valueMultiplier
     };
     if (activeToolKey === 'tape') {
-      const tapeUnits = Number.isFinite(settings.tapeMeasureLength)
-        ? roundForDisplay(settings.tapeMeasureLength)
+      const tapeUnitsRaw = getVisibleTapeMeasureUnits(settings);
+      summary.tool.visibleUnits = Number.isFinite(tapeUnitsRaw)
+        ? roundForDisplay(tapeUnitsRaw)
         : null;
-      summary.tool.visibleUnits = Number.isFinite(tapeUnits) ? tapeUnits : null;
     }
     if (hasRuler) {
       const rulerLength = roundForDisplay(getEffectiveToolLength(settings, 'ruler'));
@@ -3555,14 +3622,12 @@
       };
     }
     if (hasTapeMeasure) {
-      const tapeLengthDisplay = roundForDisplay(getEffectiveToolLength(settings, 'tape'));
-      const tapeUnits = Number.isFinite(settings.tapeMeasureLength)
-        ? roundForDisplay(settings.tapeMeasureLength)
-        : null;
+      const tapeLengthDisplay = roundForDisplay(getVisibleTapeMeasureLength(settings));
+      const tapeUnitsRaw = getVisibleTapeMeasureUnits(settings);
       summary.tape = {
         length: tapeLengthDisplay,
         unit: unitLabel || null,
-        visibleUnits: Number.isFinite(tapeUnits) ? tapeUnits : null,
+        visibleUnits: Number.isFinite(tapeUnitsRaw) ? roundForDisplay(tapeUnitsRaw) : null,
         valueMultiplier
       };
     }
@@ -4212,9 +4277,6 @@
       appState.settings && appState.settings.activeTool,
       defaultActiveTool
     );
-    if (activeTool === 'tape' && hasTapeMeasure) {
-      persistTapeMeasureLength(tapeLengthState.units);
-    }
     const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
     const exportSvgElement = await createMeasurementExportSvg(appState.settings, helper);
     if (!exportSvgElement) {
