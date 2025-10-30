@@ -2781,7 +2781,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     tapeLengthState.visiblePx = visible;
     tapeMeasure.style.setProperty('--tape-strap-visible', `${visible}px`);
     const totalWidth = Number.isFinite(tapeLengthState.totalPx) ? tapeLengthState.totalPx : 0;
-    const strapOffset = totalWidth > 0 ? visible - totalWidth : 0;
+    const strapOffset = totalWidth > 0 ? totalWidth - visible : 0;
     tapeMeasure.style.setProperty('--tape-strap-offset', `${strapOffset}px`);
     const effectiveUnits = Number.isFinite(tapeLengthState.unitSpacing) && tapeLengthState.unitSpacing > 0
       ? visible / tapeLengthState.unitSpacing
@@ -3838,7 +3838,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         )
       : NaN;
     const stateOffsetValue = Number.isFinite(tapeLengthState.visiblePx) && Number.isFinite(tapeLengthState.totalPx)
-      ? tapeLengthState.visiblePx - tapeLengthState.totalPx
+      ? tapeLengthState.totalPx - tapeLengthState.visiblePx
       : null;
 
     const strapTrackGroup = createSvgElement('g');
@@ -3878,7 +3878,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     strapVisibleWidth = Math.min(Math.max(strapVisibleWidth, 0), strapTotalWidth);
 
     const differenceOffset = Number.isFinite(strapVisibleWidth) && Number.isFinite(strapTotalWidth)
-      ? strapVisibleWidth - strapTotalWidth
+      ? strapTotalWidth - strapVisibleWidth
       : null;
     let strapOffsetValue = Number.isFinite(differenceOffset) ? differenceOffset : NaN;
     if (!Number.isFinite(strapOffsetValue)) {
@@ -3898,9 +3898,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       strapOffsetValue = 0;
     }
     if (Number.isFinite(differenceOffset)) {
-      strapOffsetValue = Math.max(Math.min(strapOffsetValue, 0), differenceOffset);
+      strapOffsetValue = Math.min(Math.max(strapOffsetValue, 0), differenceOffset);
     } else {
-      strapOffsetValue = Math.min(strapOffsetValue, 0);
+      strapOffsetValue = Math.max(strapOffsetValue, 0);
     }
 
     const strapOffsetMagnitude = Number.isFinite(strapOffsetValue) ? strapOffsetValue : 0;
