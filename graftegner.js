@@ -6272,7 +6272,9 @@ function setupSettingsForm() {
   const isExplicitFun = str => {
     const m = str.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/) || str.match(/^y\s*=\s*(.+)$/i);
     const rhs = m ? m[1] : str;
-    if (!/x/.test(rhs)) return false;
+    if (!rhs || !rhs.trim()) {
+      return false;
+    }
     return isExplicitRHS(rhs);
   };
   const getFirstFunctionValue = () => {
