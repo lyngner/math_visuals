@@ -1549,6 +1549,36 @@
     }
   }
 
+  function prepareTextForRenderer(text) {
+    if (typeof text !== 'string') return '';
+    const trimmed = text.trim();
+    if (!trimmed) return '';
+    if (/@(?:math|input|table)\s*[{[]/i.test(trimmed)) {
+      return trimmed;
+    }
+    const hasLetter = /[A-Za-zÀ-ÖØ-öø-ÿ]/.test(trimmed);
+    const hasDigit = /\d/.test(trimmed);
+    const hasOperator = /[+\-*/^_=<>]/.test(trimmed);
+    const hasExplicitMath = /\\/.test(trimmed);
+    const looksFractionLike = /^[-+]?\d+\s*\/\s*[-+]?\d+$/.test(trimmed);
+    const onlyNumericExpression = /^[-+]?\d+(?:[\s+\-*/^_=(),.]*[-+]?\d+)*$/.test(trimmed);
+    const variableWithOperators = hasLetter && (hasOperator || hasDigit);
+    const simpleFunctionCall =
+      hasLetter &&
+      !/\s/.test(trimmed) &&
+      /^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ0-9]*\([^]*\)$/.test(trimmed);
+    const looksLikeMath =
+      hasExplicitMath ||
+      looksFractionLike ||
+      onlyNumericExpression ||
+      variableWithOperators ||
+      simpleFunctionCall;
+    if (looksLikeMath) {
+      return `@math{${trimmed}}`;
+    }
+    return text;
+  }
+
   function updateInlineEditorTextPreview(item, inlineEditor) {
     if (!inlineEditor || !inlineEditor.preview) return;
     const preview = inlineEditor.preview;
@@ -1562,7 +1592,7 @@
     }
     const renderer = getDescriptionRenderer();
     if (renderer && typeof renderer.renderInto === 'function') {
-      renderer.renderInto(preview, text);
+      renderer.renderInto(preview, prepareTextForRenderer(text));
     } else {
       preview.textContent = text;
     }
@@ -1985,7 +2015,7 @@
         const descriptionEl = doc.createElement('div');
         descriptionEl.className = 'sortering__item-description';
         if (descriptionRenderer && typeof descriptionRenderer.renderInto === 'function') {
-          descriptionRenderer.renderInto(descriptionEl, textContent);
+          descriptionRenderer.renderInto(descriptionEl, prepareTextForRenderer(textContent));
         } else {
           descriptionEl.textContent = textContent;
         }
