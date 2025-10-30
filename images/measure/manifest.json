@@ -1,0 +1,918 @@
+{
+  "categories": [
+    {
+      "id": "prehistoric-animals",
+      "name": "Forhistoriske dyr",
+      "description": "Forhistoriske dyr i målestokk med mål for lengde og høyde.",
+      "items": [
+        {
+          "id": "allosaurus",
+          "name": "Allosaurus",
+          "summary": "12 m × 4,32 m – målestokk 1:120",
+          "image": "images/measure/Allosaurus%2012m_4.32m%20%201%20_%20120.svg",
+          "fileName": "Allosaurus 12m_4.32m  1 _ 120.svg",
+          "dimensions": "12 m × 4,32 m",
+          "scaleLabel": "1:120"
+        },
+        {
+          "id": "ankylosaurus",
+          "name": "Ankylosaurus",
+          "summary": "7 m × 2,5 m – målestokk 1:70",
+          "image": "images/measure/Ankylosaurus%207m_2,5.svg",
+          "fileName": "Ankylosaurus 7m_2,5.svg",
+          "dimensions": "7 m × 2,5 m",
+          "scaleLabel": "1:70"
+        },
+        {
+          "id": "brachiosaurus",
+          "name": "Brachiosaurus",
+          "summary": "30 m × 16 m – målestokk 1:300",
+          "image": "images/measure/Brachiosaurus%2030m_16m%201_300.svg",
+          "fileName": "Brachiosaurus 30m_16m 1_300.svg",
+          "dimensions": "30 m × 16 m",
+          "scaleLabel": "1:300"
+        },
+        {
+          "id": "coelophysis",
+          "name": "Coelophysis",
+          "summary": "3 m × 1,2 m – målestokk 1:30",
+          "image": "images/measure/Coelohysis%203m_1,2m%20%201_30.svg",
+          "fileName": "Coelohysis 3m_1,2m  1_30.svg",
+          "dimensions": "3 m × 1,2 m",
+          "scaleLabel": "1:30"
+        },
+        {
+          "id": "elasmosaurus",
+          "name": "Elasmosaurus",
+          "summary": "10 m × 5,3 m – målestokk 1:100",
+          "image": "images/measure/Elasmosaurus%2010m_5,3m.svg",
+          "fileName": "Elasmosaurus 10m_5,3m.svg",
+          "dimensions": "10 m × 5,3 m",
+          "scaleLabel": "1:100"
+        },
+        {
+          "id": "parasaurolophus",
+          "name": "Parasaurolophus",
+          "summary": "10 m × 5 m – målestokk 1:100",
+          "image": "images/measure/Parasaurolophus%2010m_5m%201_100.svg",
+          "fileName": "Parasaurolophus 10m_5m 1_100.svg",
+          "dimensions": "10 m × 5 m",
+          "scaleLabel": "1:100"
+        },
+        {
+          "id": "pteranodon",
+          "name": "Pteranodon",
+          "summary": "4,3 m × 3,5 m – målestokk 1:50",
+          "image": "images/measure/Pteranodon%204,3m_3,5m%201_50.svg",
+          "fileName": "Pteranodon 4,3m_3,5m 1_50.svg",
+          "dimensions": "4,3 m × 3,5 m",
+          "scaleLabel": "1:50"
+        },
+        {
+          "id": "spinosaurus",
+          "name": "Spinosaurus",
+          "summary": "12 m × 5,6 m – målestokk 1:120",
+          "image": "images/measure/Spinosaurus%2012m_5,6m%201_120.svg",
+          "fileName": "Spinosaurus 12m_5,6m 1_120.svg",
+          "dimensions": "12 m × 5,6 m",
+          "scaleLabel": "1:120"
+        },
+        {
+          "id": "stegosaurus",
+          "name": "Stegosaurus",
+          "summary": "9 m × 4,5 m – målestokk 1:90",
+          "image": "images/measure/Stegosaurus%209m_4,5m%201_90.svg",
+          "fileName": "Stegosaurus 9m_4,5m 1_90.svg",
+          "dimensions": "9 m × 4,5 m",
+          "scaleLabel": "1:90"
+        },
+        {
+          "id": "triceratops",
+          "name": "Triceratops",
+          "summary": "8 m × 3 m – målestokk 1:80",
+          "image": "images/measure/Triceratops%208m_3m%201_80.svg",
+          "fileName": "Triceratops 8m_3m 1_80.svg",
+          "dimensions": "8 m × 3 m",
+          "scaleLabel": "1:80"
+        },
+        {
+          "id": "tyrannosaurus",
+          "name": "Tyrannosaurus rex",
+          "summary": "13 m × 5,2 m – målestokk 1:130",
+          "image": "images/measure/TyrannosaurusRex%2013m_5,2m%201_130.svg",
+          "fileName": "TyrannosaurusRex 13m_5,2m 1_130.svg",
+          "dimensions": "13 m × 5,2 m",
+          "scaleLabel": "1:130"
+        },
+        {
+          "id": "velociraptor",
+          "name": "Velociraptor",
+          "summary": "2 m × 0,8 m – målestokk 1:20",
+          "image": "images/measure/Velociraptor%202m_0,8m%201_20.svg",
+          "fileName": "Velociraptor 2m_0,8m 1_20.svg",
+          "dimensions": "2 m × 0,8 m",
+          "scaleLabel": "1:20"
+        }
+      ]
+    },
+    {
+      "id": "modern-mammals",
+      "name": "Nålevende pattedyr",
+      "description": "Pattedyr du møter i dagliglivet med realistiske mål.",
+      "items": [
+        {
+          "id": "elefant",
+          "name": "Elefant",
+          "summary": "4 m × 3 m – målestokk 1:40",
+          "image": "images/measure/elefant%20(4m_3m)%201_40.svg",
+          "fileName": "elefant (4m_3m) 1_40.svg",
+          "dimensions": "4 m × 3 m",
+          "scaleLabel": "1:40"
+        },
+        {
+          "id": "flodhest",
+          "name": "Flodhest",
+          "summary": "2 m × 1,5 m – målestokk 1:20",
+          "image": "images/measure/flodhest%20(2m_1.5)%201_20.svg",
+          "fileName": "flodhest (2m_1.5) 1_20.svg",
+          "dimensions": "2 m × 1,5 m",
+          "scaleLabel": "1:20"
+        },
+        {
+          "id": "gris",
+          "name": "Gris",
+          "summary": "1 m × 0,55 m – målestokk 1:10",
+          "image": "images/measure/gris%20(1m_0,55m)%201_10.svg",
+          "fileName": "gris (1m_0,55m) 1_10.svg",
+          "dimensions": "1 m × 0,55 m",
+          "scaleLabel": "1:10"
+        },
+        {
+          "id": "hest",
+          "name": "Hest",
+          "summary": "2,4 m × 1,7 m – målestokk 1:24",
+          "image": "images/measure/hest%20(2,4m_1,7m)%201_24.svg",
+          "fileName": "hest (2,4m_1,7m) 1_24.svg",
+          "dimensions": "2,4 m × 1,7 m",
+          "scaleLabel": "1:24"
+        },
+        {
+          "id": "sjiraff",
+          "name": "Sjiraff",
+          "summary": "4 m × 5,6 m – målestokk 1:80",
+          "image": "images/measure/sjiraff%20(4m_5,6m)%201_80.svg",
+          "fileName": "sjiraff (4m_5,6m) 1_80.svg",
+          "dimensions": "4 m × 5,6 m",
+          "scaleLabel": "1:80"
+        },
+        {
+          "id": "neshorn",
+          "name": "Neshorn",
+          "summary": "3 m × 2 m – målestokk 1:30",
+          "image": "images/measure/neshorn%203m_2m%20(1_30).svg",
+          "fileName": "neshorn 3m_2m (1_30).svg",
+          "dimensions": "3 m × 2 m",
+          "scaleLabel": "1:30"
+        },
+        {
+          "id": "koala",
+          "name": "Koala",
+          "summary": "50 cm × 70 cm – målestokk 1:10",
+          "image": "images/measure/koala%20%20(50cm_%2070cm)%201_10.svg",
+          "fileName": "koala  (50cm_ 70cm) 1_10.svg",
+          "dimensions": "50 cm × 70 cm",
+          "scaleLabel": "1:10"
+        },
+        {
+          "id": "kanin",
+          "name": "Kanin",
+          "summary": "40 cm × 28 cm – målestokk 1:4",
+          "image": "images/measure/kanin%20(40cm_28cm)%201_4.svg",
+          "fileName": "kanin (40cm_28cm) 1_4.svg",
+          "dimensions": "40 cm × 28 cm",
+          "scaleLabel": "1:4"
+        },
+        {
+          "id": "ku",
+          "name": "Ku",
+          "summary": "2 m × 1,4 m – målestokk 1:20",
+          "image": "images/measure/ku%20(2m_1,4m)%201_20.svg",
+          "fileName": "ku (2m_1,4m) 1_20.svg",
+          "dimensions": "2 m × 1,4 m",
+          "scaleLabel": "1:20"
+        },
+        {
+          "id": "corgi",
+          "name": "Corgi",
+          "summary": "50 cm × 35 cm – målestokk 1:5",
+          "image": "images/measure/corgi%20(50cm_35cm)%201_5.svg",
+          "fileName": "corgi (50cm_35cm) 1_5.svg",
+          "dimensions": "50 cm × 35 cm",
+          "scaleLabel": "1:5"
+        },
+        {
+          "id": "katt",
+          "name": "Katt",
+          "summary": "Lengde ca. 50 cm – målestokk 1:25",
+          "image": "images/measure/katt50.svg",
+          "fileName": "katt50.svg",
+          "dimensions": "Lengde ca. 50 cm",
+          "scaleLabel": "1:25"
+        }
+      ]
+    },
+    {
+      "id": "birds",
+      "name": "Fugler",
+      "description": "Fugler i naturlig størrelse for sammenligning og måling.",
+      "items": [
+        {
+          "id": "hone",
+          "name": "Høne",
+          "summary": "22–28 cm høy – målestokk 1:4",
+          "image": "images/measure/h%C3%B8ne%20(22_28cm)%201_4.svg",
+          "fileName": "høne (22_28cm) 1_4.svg",
+          "dimensions": "22–28 cm høy",
+          "scaleLabel": "1:4"
+        },
+        {
+          "id": "kylling",
+          "name": "Kylling",
+          "summary": "7 cm × 7 cm – målestokk 1:1",
+          "image": "images/measure/kylling%20(7cm_7cm)%201_1.svg",
+          "fileName": "kylling (7cm_7cm) 1_1.svg",
+          "dimensions": "7 cm × 7 cm",
+          "scaleLabel": "1:1"
+        }
+      ]
+    },
+    {
+      "id": "insects",
+      "name": "Småkryp og insekter",
+      "description": "Småkryp og insekter vist i ulike skalaforhold.",
+      "items": [
+        {
+          "id": "edderkopp",
+          "name": "Edderkopp",
+          "summary": "5 cm × 3,5 cm – målestokk 2:1",
+          "image": "images/measure/edderkopp%20(5cm_3,5cm)%202_1.svg",
+          "fileName": "edderkopp (5cm_3,5cm) 2_1.svg",
+          "dimensions": "5 cm × 3,5 cm",
+          "scaleLabel": "2:1"
+        },
+        {
+          "id": "maur",
+          "name": "Maur",
+          "summary": "0,5 cm × 0,35 cm – målestokk 20:1",
+          "image": "images/measure/maur%20(0,5cm_0,35cm)%2020_1.svg",
+          "fileName": "maur (0,5cm_0,35cm) 20_1.svg",
+          "dimensions": "0,5 cm × 0,35 cm",
+          "scaleLabel": "20:1"
+        },
+        {
+          "id": "bille",
+          "name": "Bille",
+          "summary": "1,25 cm × 0,875 cm – målestokk 8:1",
+          "image": "images/measure/bille%20(1,25cm_0,875cm)%208_1.svg",
+          "fileName": "bille (1,25cm_0,875cm) 8_1.svg",
+          "dimensions": "1,25 cm × 0,875 cm",
+          "scaleLabel": "8:1"
+        },
+        {
+          "id": "marihøne",
+          "name": "Marihøne",
+          "summary": "1 cm × 0,7 cm – målestokk 10:1",
+          "image": "images/measure/marih%C3%B8ne%20(1cm%20_0,7cm)%2010_1.svg",
+          "fileName": "marihøne (1cm _0,7cm) 10_1.svg",
+          "dimensions": "1 cm × 0,7 cm",
+          "scaleLabel": "10:1"
+        },
+        {
+          "id": "skolopender",
+          "name": "Skolopender",
+          "summary": "3 cm × 2,1 cm – målestokk 10:3",
+          "image": "images/measure/skolopender%20(3cm_2,1cm%20)10_3.svg",
+          "fileName": "skolopender (3cm_2,1cm )10_3.svg",
+          "dimensions": "3 cm × 2,1 cm",
+          "scaleLabel": "10:3"
+        },
+        {
+          "id": "skrukketroll",
+          "name": "Skrukketroll",
+          "summary": "2 cm × 1,4 cm – målestokk 5:1",
+          "image": "images/measure/skrukketroll%20(2cm_1,4cm%20)%205_1.svg",
+          "fileName": "skrukketroll (2cm_1,4cm ) 5_1.svg",
+          "dimensions": "2 cm × 1,4 cm",
+          "scaleLabel": "5:1"
+        },
+        {
+          "id": "tusenben",
+          "name": "Tusenben",
+          "summary": "4 cm × 1 cm – målestokk 10:4",
+          "image": "images/measure/tusenben%20(4cm_1cm)%2010_4.svg",
+          "fileName": "tusenben (4cm_1cm) 10_4.svg",
+          "dimensions": "4 cm × 1 cm",
+          "scaleLabel": "10:4"
+        },
+        {
+          "id": "veps",
+          "name": "Veps",
+          "summary": "2,5 cm × 1,75 cm – målestokk 4:1",
+          "image": "images/measure/veps%20(2,5cm_1,75cm)%204_1.svg",
+          "fileName": "veps (2,5cm_1,75cm) 4_1.svg",
+          "dimensions": "2,5 cm × 1,75 cm",
+          "scaleLabel": "4:1"
+        },
+        {
+          "id": "sommerfugl",
+          "name": "Sommerfugl",
+          "summary": "10 cm × 7 cm – målestokk 1:1",
+          "image": "images/measure/sommerfugl%20(10cm_7cm)%20%201_1.svg",
+          "fileName": "sommerfugl (10cm_7cm)  1_1.svg",
+          "dimensions": "10 cm × 7 cm",
+          "scaleLabel": "1:1"
+        }
+      ]
+    },
+    {
+      "id": "humans",
+      "name": "Mennesker",
+      "description": "Mennesker i ulike høyder for sammenligning.",
+      "items": [
+        {
+          "id": "dame155",
+          "name": "Dame 155",
+          "summary": "Høyde 155 cm – målestokk 1:25",
+          "image": "images/measure/dame155.svg",
+          "fileName": "dame155.svg",
+          "dimensions": "Høyde 155 cm",
+          "scaleLabel": "1:25"
+        },
+        {
+          "id": "dame180",
+          "name": "Dame 180",
+          "summary": "Høyde 180 cm – målestokk 1:23,68",
+          "image": "images/measure/dame180.svg",
+          "fileName": "dame180.svg",
+          "dimensions": "Høyde 180 cm",
+          "scaleLabel": "1:23,68"
+        },
+        {
+          "id": "gutt120",
+          "name": "Gutt 120",
+          "summary": "Høyde 120 cm – målestokk 1:25",
+          "image": "images/measure/gutt120.svg",
+          "fileName": "gutt120.svg",
+          "dimensions": "Høyde 120 cm",
+          "scaleLabel": "1:25"
+        },
+        {
+          "id": "gutt125",
+          "name": "Gutt 125",
+          "summary": "Høyde 125 cm – målestokk 1:25",
+          "image": "images/measure/Gutt125.svg",
+          "fileName": "Gutt125.svg",
+          "dimensions": "Høyde 125 cm",
+          "scaleLabel": "1:25"
+        },
+        {
+          "id": "gutt130",
+          "name": "Gutt 130",
+          "summary": "Høyde 130 cm – målestokk 1:25",
+          "image": "images/measure/gutt130%20v2.svg",
+          "fileName": "gutt130 v2.svg",
+          "dimensions": "Høyde 130 cm",
+          "scaleLabel": "1:25"
+        },
+        {
+          "id": "gutt140",
+          "name": "Gutt 140",
+          "summary": "Høyde 140 cm – målestokk 1:25",
+          "image": "images/measure/gutt140.svg",
+          "fileName": "gutt140.svg",
+          "dimensions": "Høyde 140 cm",
+          "scaleLabel": "1:25"
+        },
+        {
+          "id": "gutt150",
+          "name": "Gutt 150",
+          "summary": "Høyde 150 cm – målestokk 1:25",
+          "image": "images/measure/gutt150.svg",
+          "fileName": "gutt150.svg",
+          "dimensions": "Høyde 150 cm",
+          "scaleLabel": "1:25"
+        },
+        {
+          "id": "gutt180",
+          "name": "Gutt 180",
+          "summary": "Høyde 180 cm – målestokk 1:25",
+          "image": "images/measure/gutt180%202.svg",
+          "fileName": "gutt180 2.svg",
+          "dimensions": "Høyde 180 cm",
+          "scaleLabel": "1:25"
+        },
+        {
+          "id": "jente100",
+          "name": "Jente 100",
+          "summary": "Høyde 100 cm – målestokk 1:25",
+          "image": "images/measure/jente100.svg",
+          "fileName": "jente100.svg",
+          "dimensions": "Høyde 100 cm",
+          "scaleLabel": "1:25"
+        },
+        {
+          "id": "jente120",
+          "name": "Jente 120",
+          "summary": "Høyde 120 cm – målestokk 1:25",
+          "image": "images/measure/jente120%20v2.svg",
+          "fileName": "jente120 v2.svg",
+          "dimensions": "Høyde 120 cm",
+          "scaleLabel": "1:25"
+        },
+        {
+          "id": "jente155",
+          "name": "Jente 155",
+          "summary": "Høyde 155 cm – målestokk 1:25",
+          "image": "images/measure/jente155.svg",
+          "fileName": "jente155.svg",
+          "dimensions": "Høyde 155 cm",
+          "scaleLabel": "1:25"
+        },
+        {
+          "id": "jente160",
+          "name": "Jente 160",
+          "summary": "Høyde 160 cm – målestokk 1:25",
+          "image": "images/measure/jente160.svg",
+          "fileName": "jente160.svg",
+          "dimensions": "Høyde 160 cm",
+          "scaleLabel": "1:25"
+        },
+        {
+          "id": "mann140",
+          "name": "Mann 140",
+          "summary": "Høyde 140 cm – målestokk 1:25",
+          "image": "images/measure/mann140.svg",
+          "fileName": "mann140.svg",
+          "dimensions": "Høyde 140 cm",
+          "scaleLabel": "1:25"
+        },
+        {
+          "id": "mann185",
+          "name": "Mann 185",
+          "summary": "Høyde 185 cm – målestokk 1:25",
+          "image": "images/measure/Mann185.svg",
+          "fileName": "Mann185.svg",
+          "dimensions": "Høyde 185 cm",
+          "scaleLabel": "1:25"
+        },
+        {
+          "id": "mann200",
+          "name": "Mann 200",
+          "summary": "Høyde 200 cm – målestokk 1:25",
+          "image": "images/measure/Mann200.svg",
+          "fileName": "Mann200.svg",
+          "dimensions": "Høyde 200 cm",
+          "scaleLabel": "1:25"
+        }
+      ]
+    },
+    {
+      "id": "vehicles",
+      "name": "Kjøretøy",
+      "description": "Kjøretøy i ulike størrelser og målestokk.",
+      "items": [
+        {
+          "id": "buss",
+          "name": "Buss",
+          "summary": "12 m × 3 m – målestokk 1:120",
+          "image": "images/measure/buss%20(12m_3m)%201_120.svg",
+          "fileName": "buss (12m_3m) 1_120.svg",
+          "dimensions": "12 m × 3 m",
+          "scaleLabel": "1:120"
+        },
+        {
+          "id": "campingbil",
+          "name": "Campingbil",
+          "summary": "6 m × 3 m – målestokk 1:60",
+          "image": "images/measure/campingbil%20(6m_3m)%201_60.svg",
+          "fileName": "campingbil (6m_3m) 1_60.svg",
+          "dimensions": "6 m × 3 m",
+          "scaleLabel": "1:60"
+        },
+        {
+          "id": "lastebil",
+          "name": "Lastebil",
+          "summary": "8 m × 3,6 m – målestokk 1:80",
+          "image": "images/measure/Lastebil%20(8m_3,6m)%201_80.svg",
+          "fileName": "Lastebil (8m_3,6m) 1_80.svg",
+          "dimensions": "8 m × 3,6 m",
+          "scaleLabel": "1:80"
+        },
+        {
+          "id": "mini",
+          "name": "Mini",
+          "summary": "3,5 m × 1,75 m – målestokk 1:35",
+          "image": "images/measure/mini%20(3,5m_1,75m)%201_35.svg",
+          "fileName": "mini (3,5m_1,75m) 1_35.svg",
+          "dimensions": "3,5 m × 1,75 m",
+          "scaleLabel": "1:35"
+        },
+        {
+          "id": "sedan",
+          "name": "Sedan",
+          "summary": "4,5 m × 1,6 m – målestokk 1:45",
+          "image": "images/measure/sedan%20(4,5m_1,6)%201_45.svg",
+          "fileName": "sedan (4,5m_1,6) 1_45.svg",
+          "dimensions": "4,5 m × 1,6 m",
+          "scaleLabel": "1:45"
+        },
+        {
+          "id": "stasjonsvogn",
+          "name": "Stasjonsvogn",
+          "summary": "5 m × 2 m – målestokk 1:50",
+          "image": "images/measure/stasjonsvogn(5m_2m)%201_50.svg",
+          "fileName": "stasjonsvogn(5m_2m) 1_50.svg",
+          "dimensions": "5 m × 2 m",
+          "scaleLabel": "1:50"
+        },
+        {
+          "id": "sykkel",
+          "name": "Sykkel",
+          "summary": "2 m × 0,55 m – målestokk 1:20",
+          "image": "images/measure/sykkel(2m_0,55m)%201_20.svg",
+          "fileName": "sykkel(2m_0,55m) 1_20.svg",
+          "dimensions": "2 m × 0,55 m",
+          "scaleLabel": "1:20"
+        },
+        {
+          "id": "tankbil",
+          "name": "Tankbil",
+          "summary": "8 m × 3,2 m – målestokk 1:80",
+          "image": "images/measure/tankbil%20(8m_3,2m)%201_80.svg",
+          "fileName": "tankbil (8m_3,2m) 1_80.svg",
+          "dimensions": "8 m × 3,2 m",
+          "scaleLabel": "1:80"
+        },
+        {
+          "id": "trailer",
+          "name": "Trailer",
+          "summary": "10 m × 3 m – målestokk 1:100",
+          "image": "images/measure/trailer(10m_3m)%201_100.svg",
+          "fileName": "trailer(10m_3m) 1_100.svg",
+          "dimensions": "10 m × 3 m",
+          "scaleLabel": "1:100"
+        },
+        {
+          "id": "trikk",
+          "name": "Trikk",
+          "summary": "30 m × 1,5 m – målestokk 1:200",
+          "image": "images/measure/trikk(30m_1,5m)%201_200.svg",
+          "fileName": "trikk(30m_1,5m) 1_200.svg",
+          "dimensions": "30 m × 1,5 m",
+          "scaleLabel": "1:200"
+        }
+      ]
+    },
+    {
+      "id": "astronomy",
+      "name": "Astronomiske legemer",
+      "description": "Planeter og himmellegemer i sammenlignbar målestokk.",
+      "items": [
+        {
+          "id": "asteroide",
+          "name": "Asteroide",
+          "summary": "Diameter 500 km – målestokk 1:8 333 333",
+          "image": "images/measure/asteroide%20500%20km.svg",
+          "fileName": "asteroide 500 km.svg",
+          "dimensions": "Diameter 500 km",
+          "scaleLabel": "1:8 333 333"
+        },
+        {
+          "id": "manen",
+          "name": "Månen",
+          "summary": "Diameter 3 474,8 km – målestokk 1:57 913 333",
+          "image": "images/measure/ma%CC%8Anen%203%20474,8%20km.svg",
+          "fileName": "månen 3 474,8 km.svg",
+          "dimensions": "Diameter 3 474,8 km",
+          "scaleLabel": "1:57 913 333"
+        },
+        {
+          "id": "merkur",
+          "name": "Merkur",
+          "summary": "Diameter 4 879,4 km – målestokk 1:81 323 333",
+          "image": "images/measure/merkur%204%20879,4%20km.svg",
+          "fileName": "merkur 4 879,4 km.svg",
+          "dimensions": "Diameter 4 879,4 km",
+          "scaleLabel": "1:81 323 333"
+        },
+        {
+          "id": "mars",
+          "name": "Mars",
+          "summary": "Diameter 6 779 km – målestokk 1:112 983 333",
+          "image": "images/measure/mars%206779km.svg",
+          "fileName": "mars 6779km.svg",
+          "dimensions": "Diameter 6 779 km",
+          "scaleLabel": "1:112 983 333"
+        },
+        {
+          "id": "jupiter",
+          "name": "Jupiter",
+          "summary": "Diameter 139 820 km – målestokk 1:2 330 333 333",
+          "image": "images/measure/jupiter%20139%20820%20km.svg",
+          "fileName": "jupiter 139 820 km.svg",
+          "dimensions": "Diameter 139 820 km",
+          "scaleLabel": "1:2 330 333 333"
+        },
+        {
+          "id": "saturn",
+          "name": "Saturn",
+          "summary": "Diameter 116 460 km – målestokk 1:1 164 600 000",
+          "image": "images/measure/saturn%20116%20460%20km.svg",
+          "fileName": "saturn 116 460 km.svg",
+          "dimensions": "Diameter 116 460 km",
+          "scaleLabel": "1:1 164 600 000"
+        },
+        {
+          "id": "uranus",
+          "name": "Uranus",
+          "summary": "Diameter 50 724 km – målestokk 1:845 400 000",
+          "image": "images/measure/uranus%2050%20724%20km.svg",
+          "fileName": "uranus 50 724 km.svg",
+          "dimensions": "Diameter 50 724 km",
+          "scaleLabel": "1:845 400 000"
+        },
+        {
+          "id": "neptun",
+          "name": "Neptun",
+          "summary": "Diameter 49 244 km – målestokk 1:820 733 333",
+          "image": "images/measure/neptun%2049244km.svg",
+          "fileName": "neptun 49244km.svg",
+          "dimensions": "Diameter 49 244 km",
+          "scaleLabel": "1:820 733 333"
+        },
+        {
+          "id": "venus",
+          "name": "Venus",
+          "summary": "Diameter 12 104 km – målestokk 1:201 733 333",
+          "image": "images/measure/venus%2012%20104%20km.svg",
+          "fileName": "venus 12 104 km.svg",
+          "dimensions": "Diameter 12 104 km",
+          "scaleLabel": "1:201 733 333"
+        },
+        {
+          "id": "pluto",
+          "name": "Pluto",
+          "summary": "Diameter 2 376,6 km – målestokk 1:39 610 000",
+          "image": "images/measure/pluto%202%20376,6%20km.svg",
+          "fileName": "pluto 2 376,6 km.svg",
+          "dimensions": "Diameter 2 376,6 km",
+          "scaleLabel": "1:39 610 000"
+        },
+        {
+          "id": "solen",
+          "name": "Solen",
+          "summary": "Diameter 1 392 700 km – målestokk 1:23 211 666 667",
+          "image": "images/measure/solen%201%20392%20700%20km.svg",
+          "fileName": "solen 1 392 700 km.svg",
+          "dimensions": "Diameter 1 392 700 km",
+          "scaleLabel": "1:23 211 666 667"
+        }
+      ]
+    },
+    {
+      "id": "nature",
+      "name": "Natur og installasjoner",
+      "description": "Trær og installasjoner fra nærmiljøet.",
+      "items": [
+        {
+          "id": "tre",
+          "name": "Tre",
+          "summary": "Høyde 2–3 m – målestokk 1:20",
+          "image": "images/measure/Tre%202_3m%201_20.svg",
+          "fileName": "Tre 2_3m 1_20.svg",
+          "dimensions": "Høyde 2–3 m",
+          "scaleLabel": "1:20"
+        },
+        {
+          "id": "lyktestolpe",
+          "name": "Lyktestolpe",
+          "summary": "0,4 m × 2,8 m – målestokk 1:40",
+          "image": "images/measure/lyktestolpe%20(0,4m_2,8m)%201_40.svg",
+          "fileName": "lyktestolpe (0,4m_2,8m) 1_40.svg",
+          "dimensions": "0,4 m × 2,8 m",
+          "scaleLabel": "1:40"
+        }
+      ]
+    },
+    {
+      "id": "maps",
+      "name": "Kart",
+      "description": "Kartutsnitt med oppgitt målestokk.",
+      "items": [
+        {
+          "id": "map-city",
+          "name": "Bykart",
+          "summary": "Kart over et byområde – målestokk 1:5 000",
+          "image": "images/measure/maps/bykart%201_5000.svg",
+          "fileName": "maps/bykart 1_5000.svg",
+          "dimensions": "",
+          "scaleLabel": "1:5 000"
+        },
+        {
+          "id": "map-orienteering",
+          "name": "Orienteringskart",
+          "summary": "Orienteringskart – målestokk 1:3 000",
+          "image": "images/measure/maps/orienteringskart%201_3000.svg",
+          "fileName": "maps/orienteringskart 1_3000.svg",
+          "dimensions": "",
+          "scaleLabel": "1:3 000"
+        },
+        {
+          "id": "map-fjord",
+          "name": "Fjordkart",
+          "summary": "Kart over en fjord – målestokk 1:1 000 000",
+          "image": "images/measure/maps/fjordkart%201_1000000.svg",
+          "fileName": "maps/fjordkart 1_1000000.svg",
+          "dimensions": "",
+          "scaleLabel": "1:1 000 000"
+        },
+        {
+          "id": "map-norden",
+          "name": "Norden",
+          "summary": "Kart over Norden – målestokk 1:25 000 000",
+          "image": "images/measure/maps/Norden%201_25000000.svg",
+          "fileName": "maps/Norden 1_25000000.svg",
+          "dimensions": "",
+          "scaleLabel": "1:25 000 000"
+        },
+        {
+          "id": "map-europe",
+          "name": "Europa",
+          "summary": "Kart over Europa – målestokk 1:50 000 000",
+          "image": "images/measure/maps/europa%201_50000000.svg",
+          "fileName": "maps/europa 1_50000000.svg",
+          "dimensions": "",
+          "scaleLabel": "1:50 000 000"
+        }
+      ]
+    },
+    {
+      "id": "sports",
+      "name": "Sport- og lekeutstyr",
+      "description": "Utstyr fra sport og lek med mål.",
+      "items": [
+        {
+          "id": "fotball",
+          "name": "Fotball",
+          "summary": "Diameter 21 cm – målestokk 1:3",
+          "image": "images/measure/fotball%20(21cm_21cm)%201_3.svg",
+          "fileName": "fotball (21cm_21cm) 1_3.svg",
+          "dimensions": "Diameter 21 cm",
+          "scaleLabel": "1:3"
+        },
+        {
+          "id": "basketball",
+          "name": "Basketball",
+          "summary": "Diameter 24 cm – målestokk 1:4",
+          "image": "images/measure/basketball%2024cm_24cm%201_4.svg",
+          "fileName": "basketball 24cm_24cm 1_4.svg",
+          "dimensions": "Diameter 24 cm",
+          "scaleLabel": "1:4"
+        },
+        {
+          "id": "tennisball",
+          "name": "Tennisball",
+          "summary": "Diameter 6,5 cm – målestokk 1:1",
+          "image": "images/measure/tennisball%206,5cm_6,5cm%201_1.svg",
+          "fileName": "tennisball 6,5cm_6,5cm 1_1.svg",
+          "dimensions": "Diameter 6,5 cm",
+          "scaleLabel": "1:1"
+        },
+        {
+          "id": "badeball",
+          "name": "Badeball",
+          "summary": "Diameter 56 cm – målestokk 1:8",
+          "image": "images/measure/badeball%20(56cm_56cm)%201_8.svg",
+          "fileName": "badeball (56cm_56cm) 1_8.svg",
+          "dimensions": "Diameter 56 cm",
+          "scaleLabel": "1:8"
+        }
+      ]
+    },
+    {
+      "id": "school-supplies",
+      "name": "Skole-, kontor- og tegneutstyr",
+      "description": "Gjenstander fra skole og kontor med mål.",
+      "items": [
+        {
+          "id": "binders",
+          "name": "Binders",
+          "summary": "4 cm × 1 cm – målestokk 10:4",
+          "image": "images/measure/Binders%20(4cm_1cm)%2010_4.svg",
+          "fileName": "Binders (4cm_1cm) 10_4.svg",
+          "dimensions": "4 cm × 1 cm",
+          "scaleLabel": "10:4"
+        },
+        {
+          "id": "euro",
+          "name": "Euro-mynt",
+          "summary": "Diameter 2,325 cm – målestokk 2,325:1",
+          "image": "images/measure/euro%20(2,325cm%20_2,325cm)%202,325%20_%201.svg",
+          "fileName": "euro (2,325cm _2,325cm) 2,325 _ 1.svg",
+          "dimensions": "Diameter 2,325 cm",
+          "scaleLabel": "2,325:1"
+        },
+        {
+          "id": "passer",
+          "name": "Passer",
+          "summary": "10 cm × 5 cm – målestokk 1:1",
+          "image": "images/measure/passer%20(10cm%20_5cm)%201_1.svg",
+          "fileName": "passer (10cm _5cm) 1_1.svg",
+          "dimensions": "10 cm × 5 cm",
+          "scaleLabel": "1:1"
+        },
+        {
+          "id": "pensel",
+          "name": "Pensel",
+          "summary": "20 cm × 1 cm – målestokk 1:2",
+          "image": "images/measure/pensel%20(20cm_1cm)%201_2.svg",
+          "fileName": "pensel (20cm_1cm) 1_2.svg",
+          "dimensions": "20 cm × 1 cm",
+          "scaleLabel": "1:2"
+        },
+        {
+          "id": "linjal",
+          "name": "Linjal",
+          "summary": "10 cm × 1,5 cm – målestokk 1:1",
+          "image": "images/measure/linjal%201_1%20(10cm%201,5cm)%201_1.svg",
+          "fileName": "linjal 1_1 (10cm 1,5cm) 1_1.svg",
+          "dimensions": "10 cm × 1,5 cm",
+          "scaleLabel": "1:1"
+        },
+        {
+          "id": "blyant",
+          "name": "Blyant",
+          "summary": "10 cm × 0,75 cm – målestokk 1:1",
+          "image": "images/measure/blyant%20(10cm_0,75cm)%201_1.svg",
+          "fileName": "blyant (10cm_0,75cm) 1_1.svg",
+          "dimensions": "10 cm × 0,75 cm",
+          "scaleLabel": "1:1"
+        },
+        {
+          "id": "blyant-tykk",
+          "name": "Blyant (tykk)",
+          "summary": "10 cm × 1 cm – målestokk 1:1",
+          "image": "images/measure/blyantTykk%20(10cm%20_%201cm)%201_1.svg",
+          "fileName": "blyantTykk (10cm _ 1cm) 1_1.svg",
+          "dimensions": "10 cm × 1 cm",
+          "scaleLabel": "1:1"
+        },
+        {
+          "id": "blyant-tynn",
+          "name": "Blyant (tynn)",
+          "summary": "10 cm × 0,5 cm – målestokk 1:1",
+          "image": "images/measure/blyantTynn%20(10cm_0,5cm)%201_1.svg",
+          "fileName": "blyantTynn (10cm_0,5cm) 1_1.svg",
+          "dimensions": "10 cm × 0,5 cm",
+          "scaleLabel": "1:1"
+        },
+        {
+          "id": "blyantspisser",
+          "name": "Blyantspisser",
+          "summary": "3 cm × 1,5 cm – målestokk 10:3",
+          "image": "images/measure/blyantspisser%20(3cm_1,5)%20%2010_3.svg",
+          "fileName": "blyantspisser (3cm_1,5)  10_3.svg",
+          "dimensions": "3 cm × 1,5 cm",
+          "scaleLabel": "10:3"
+        },
+        {
+          "id": "maleskrin",
+          "name": "Maleskrin",
+          "summary": "20 cm × 10 cm – målestokk 1:2",
+          "image": "images/measure/maleskrin%20(20cm_10cm)%201_2.svg",
+          "fileName": "maleskrin (20cm_10cm) 1_2.svg",
+          "dimensions": "20 cm × 10 cm",
+          "scaleLabel": "1:2"
+        },
+        {
+          "id": "saks",
+          "name": "Saks",
+          "summary": "7 cm × 5 cm – målestokk 10:7",
+          "image": "images/measure/saks%20(7cm_5cm)%2010_7.svg",
+          "fileName": "saks (7cm_5cm) 10_7.svg",
+          "dimensions": "7 cm × 5 cm",
+          "scaleLabel": "10:7"
+        },
+        {
+          "id": "viskelar",
+          "name": "Viskelær",
+          "summary": "4 cm × 1,4 cm – målestokk 10:4",
+          "image": "images/measure/viskel%C3%A6r%20(4cm_1,4cm%20)%2010_4.svg",
+          "fileName": "viskelær (4cm_1,4cm ) 10_4.svg",
+          "dimensions": "4 cm × 1,4 cm",
+          "scaleLabel": "10:4"
+        }
+      ]
+    }
+  ]
+}

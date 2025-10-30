@@ -1,4 +1,5 @@
-const manifestUrl = 'images/amounts/manifest.json';
+const amountManifestUrl = 'images/amounts/manifest.json';
+const measureManifestUrl = 'images/measure/manifest.json';
 const statusEl = document.querySelector('[data-status]');
 const resultsContainer = document.querySelector('[data-results]');
 const gridEl = document.querySelector('[data-grid]');
@@ -8,11 +9,12 @@ const countEl = document.querySelector('[data-count]');
 const categoryGrid = document.querySelector('[data-category-grid]');
 const copyFeedbackTimers = new WeakMap();
 
-const categories = [
+const amountCategories = [
   {
     id: 'tierbrett',
-    label: 'Tierbrett',
-    filter: 'tb',
+    type: 'amount',
+    name: 'Tierbrett',
+    filter: 'Tierbrett',
     sampleSlug: 'tb10',
     sampleAlt: 'Eksempel på tierbrett',
     description: 'Tierbrett med markører som representerer antall.',
@@ -20,8 +22,9 @@ const categories = [
   },
   {
     id: 'tallbrikker',
-    label: 'Tallbrikker',
-    filter: 'n',
+    type: 'amount',
+    name: 'Tallbrikker',
+    filter: 'Tallbrikker',
     sampleSlug: 'n53',
     sampleAlt: 'Eksempel på tallbrikker',
     description: 'Tallbrikker som viser grupperte mengder.',
@@ -29,8 +32,9 @@ const categories = [
   },
   {
     id: 'penger',
-    label: 'Penger',
-    filter: 'v',
+    type: 'amount',
+    name: 'Penger',
+    filter: 'Penger',
     sampleSlug: 'v50',
     sampleAlt: 'Eksempel på penger',
     description: 'Sedler og mynter til arbeid med kroner og øre.',
@@ -38,8 +42,9 @@ const categories = [
   },
   {
     id: 'terninger',
-    label: 'Terninger',
-    filter: 'd',
+    type: 'amount',
+    name: 'Terninger',
+    filter: 'Terninger',
     sampleSlug: 'd5',
     sampleAlt: 'Eksempel på terninger',
     description: 'Terninger for sannsynlighet og telling.',
@@ -47,8 +52,9 @@ const categories = [
   },
   {
     id: 'hender',
-    label: 'Hender',
-    filter: 'h',
+    type: 'amount',
+    name: 'Hender',
+    filter: 'Hender',
     sampleSlug: 'h05G',
     sampleAlt: 'Eksempel på tellehender',
     description: 'Hender som viser fingre for tallrepresentasjon.',
@@ -56,11 +62,15 @@ const categories = [
   },
 ];
 
+let categories = amountCategories.slice();
+const categoryMetaById = new Map();
+
 const categoryButtons = new Map();
 let activeCategoryId = null;
 
 let figureItems = [];
-let allSlugs = [];
+let allAmountSlugs = [];
+let measurementItems = [];
 
 const observer = 'IntersectionObserver' in window
   ? new IntersectionObserver(handleIntersection, {
@@ -72,7 +82,7 @@ const observer = 'IntersectionObserver' in window
 
 function init() {
   renderCategories();
-  loadManifest();
+  loadLibraries();
   filterInput?.addEventListener('input', handleFilterInput);
 }
 
@@ -82,18 +92,35 @@ if (document.readyState === 'loading') {
   init();
 }
 
-async function loadManifest() {
+async function loadLibraries() {
   try {
-    const response = await fetch(manifestUrl, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    const [amountPayload, measurePayload] = await Promise.all([
+      fetchJson(amountManifestUrl),
+      fetchJson(measureManifestUrl).catch((error) => {
+        console.error('Kunne ikke laste målemanifestet', error);
+        return null;
+      }),
+    ]);
+
+    if (!amountPayload || !Array.isArray(amountPayload.slugs)) {
+      throw new Error('Ugyldig manifest for mengder');
     }
-    const payload = await response.json();
-    if (!payload || !Array.isArray(payload.slugs)) {
-      throw new Error('Ugyldig manifest');
-    }
-    allSlugs = payload.slugs;
-    buildGrid(allSlugs);
+
+    allAmountSlugs = amountPayload.slugs;
+
+    const measurementCatalog = Array.isArray(measurePayload?.categories)
+      ? measurePayload.categories
+      : [];
+
+    const { categoryList: measurementCategories, items: measurementData } =
+      buildMeasurementData(measurementCatalog);
+
+    measurementItems = measurementData;
+    const combinedCategories = amountCategories.concat(measurementCategories);
+    categories = combinedCategories;
+    renderCategories();
+
+    buildGrid(allAmountSlugs, measurementItems);
     applyFilter('');
     activeCategoryId = null;
     updateCategorySelection();
@@ -109,6 +136,7 @@ function renderCategories() {
   if (!categoryGrid) return;
   categoryGrid.innerHTML = '';
   categoryButtons.clear();
+  categoryMetaById.clear();
 
   const fragment = document.createDocumentFragment();
   for (const category of categories) {
@@ -126,8 +154,9 @@ function renderCategories() {
     figure.className = 'categoryFigure';
 
     const img = document.createElement('img');
-    img.src = `images/amounts/${category.sampleSlug}.svg`;
-    img.alt = category.sampleAlt;
+    const samplePath = resolveCategorySamplePath(category);
+    img.src = samplePath;
+    img.alt = category.sampleAlt || `Eksempel på ${category.name}`;
     img.loading = 'lazy';
     img.width = 320;
     img.height = 240;
@@ -137,7 +166,7 @@ function renderCategories() {
     meta.className = 'categoryMeta';
 
     const title = document.createElement('h3');
-    title.textContent = category.label;
+    title.textContent = category.name;
     meta.appendChild(title);
 
     const description = document.createElement('p');
@@ -157,6 +186,7 @@ function renderCategories() {
     fragment.appendChild(item);
 
     categoryButtons.set(category.id, { button, countEl: count, category });
+    categoryMetaById.set(category.id, category);
   }
 
   categoryGrid.appendChild(fragment);
@@ -187,16 +217,19 @@ function updateCategorySelection() {
 
 function updateCategoryCounts() {
   for (const { countEl, category } of categoryButtons.values()) {
-    const matchCount = allSlugs.filter(category.matches).length;
+    const matchCount = figureItems.filter((item) => item.data.categoryId === category.id).length;
     if (countEl) {
       countEl.textContent = matchCount === 1 ? '1 figur' : `${matchCount} figurer`;
     }
   }
 }
 
-function buildGrid(slugs) {
+function buildGrid(amountSlugs, measureEntries) {
   gridEl.innerHTML = '';
-  figureItems = slugs.map((slug) => createFigureItem(slug));
+  const amountEntries = amountSlugs.map((slug) => createAmountFigureData(slug));
+  const measurementEntries = Array.isArray(measureEntries) ? measureEntries : [];
+  const combinedEntries = amountEntries.concat(measurementEntries);
+  figureItems = combinedEntries.map((entry) => createFigureItem(entry));
   const fragment = document.createDocumentFragment();
   for (const item of figureItems) {
     fragment.appendChild(item.element);
@@ -204,13 +237,28 @@ function buildGrid(slugs) {
   gridEl.appendChild(fragment);
 }
 
-function createFigureItem(slug) {
-  const path = `images/amounts/${slug}.svg`;
-  const searchText = `${slug} ${path}`.toLowerCase();
+function createFigureItem(data) {
+  const { path, slug, id, name, summary, categoryId, categoryName, type } = data;
+  const searchTokens = [
+    slug,
+    id,
+    name,
+    summary,
+    path,
+    categoryName,
+    categoryId ? `category:${categoryId}` : null,
+    type ? `type:${type}` : null,
+  ];
+  const searchText = searchTokens
+    .filter((token) => typeof token === 'string' && token.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
 
   const li = document.createElement('li');
   li.className = 'bibliotekItem';
-  li.dataset.slug = slug;
+  li.dataset.slug = slug || id;
+  li.dataset.categoryId = categoryId || '';
+  li.dataset.type = type || '';
   li.dataset.search = searchText;
 
   const figure = document.createElement('figure');
@@ -218,7 +266,8 @@ function createFigureItem(slug) {
   figure.dataset.loading = 'true';
 
   const img = document.createElement('img');
-  img.alt = `Mengdeillustrasjon ${slug}`;
+  const altLabel = name || slug || id || 'Figur';
+  img.alt = altLabel;
   img.dataset.src = path;
   img.loading = 'lazy';
   img.decoding = 'async';
@@ -246,7 +295,7 @@ function createFigureItem(slug) {
   header.className = 'bibliotekHeader';
 
   const title = document.createElement('h2');
-  title.textContent = slug;
+  title.textContent = name || slug || path;
   header.appendChild(title);
 
   const actions = document.createElement('div');
@@ -273,6 +322,13 @@ function createFigureItem(slug) {
   header.appendChild(actions);
   meta.appendChild(header);
 
+  if (summary) {
+    const summaryEl = document.createElement('p');
+    summaryEl.className = 'bibliotekSummary';
+    summaryEl.textContent = summary;
+    meta.appendChild(summaryEl);
+  }
+
   const pathEl = document.createElement('div');
   pathEl.className = 'bibliotekPath';
   pathEl.textContent = path;
@@ -290,7 +346,10 @@ function createFigureItem(slug) {
   li.appendChild(meta);
 
   return {
-    slug,
+    data: {
+      ...data,
+      searchText,
+    },
     path,
     searchText,
     element: li,
@@ -440,6 +499,82 @@ async function copyToClipboard(text) {
     selection.addRange(selected);
   }
   return succeeded;
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response || !response.ok) {
+    throw new Error(`HTTP ${response ? response.status : 'error'}`);
+  }
+  return response.json();
+}
+
+function buildMeasurementData(catalog) {
+  const items = [];
+  const categoryList = [];
+  if (!Array.isArray(catalog)) {
+    return { items, categoryList };
+  }
+
+  for (const category of catalog) {
+    const itemList = Array.isArray(category?.items) ? category.items : [];
+    const firstItem = itemList[0] || null;
+    const normalizedCategory = {
+      id: category.id,
+      type: 'measure',
+      name: category.name || category.id || 'Måling',
+      filter: category.name || category.id || 'måling',
+      description: category.description || '',
+      sampleImage: firstItem ? firstItem.image : null,
+      sampleAlt: firstItem ? `Eksempel på ${category.name || firstItem.name || 'måling'}` : '',
+      matches: (slug) => Boolean(slug) && slug === category.id,
+    };
+    categoryList.push(normalizedCategory);
+
+    for (const entry of itemList) {
+      if (!entry || typeof entry !== 'object') continue;
+      const path = entry.image || '';
+      if (!path) continue;
+      const slug = entry.id || entry.fileName || path;
+      items.push({
+        id: entry.id || path,
+        slug,
+        type: 'measure',
+        name: entry.name || entry.id || path,
+        summary: entry.summary || entry.dimensions || '',
+        path,
+        categoryId: category.id || '',
+        categoryName: category.name || '',
+      });
+    }
+  }
+
+  return { categoryList, items };
+}
+
+function createAmountFigureData(slug) {
+  const category = amountCategories.find((entry) => entry.matches(slug)) || null;
+  const path = `images/amounts/${slug}.svg`;
+  return {
+    id: slug,
+    slug,
+    type: 'amount',
+    name: slug,
+    summary: '',
+    path,
+    categoryId: category ? category.id : '',
+    categoryName: category ? category.name : '',
+  };
+}
+
+function resolveCategorySamplePath(category) {
+  if (category.type === 'measure' && category.sampleImage) {
+    return category.sampleImage;
+  }
+  if (category.type === 'amount' && category.sampleSlug) {
+    return `images/amounts/${category.sampleSlug}.svg`;
+  }
+  return category.sampleImage || 'images/amounts/tb10.svg';
 }
 
 function showCopyFeedback(element, message) {
