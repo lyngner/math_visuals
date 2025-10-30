@@ -260,7 +260,6 @@ function axisArrowSvgData(axis, color) {
 }
 
 const DEFAULT_AXIS_COLOR = '#111827';
-const CAMPUS_AXIS_COLOR = '#1F4DE2';
 
 const POINT_MARKER_SIZE = 6;
 
@@ -282,21 +281,13 @@ function getActiveThemeProjectName(theme = getThemeApi()) {
 
 function resolveAxisStrokeColor() {
   const theme = getThemeApi();
-  const normalize = value => {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    return trimmed ? trimmed : null;
-  };
   if (theme && typeof theme.getColor === 'function') {
-    const tokenColor = normalize(theme.getColor('graphs.axis'));
-    if (tokenColor) {
-      return tokenColor;
-    }
-    const activeRaw = typeof theme.getActiveProfileName === 'function' ? normalize(theme.getActiveProfileName()) : null;
-    const active = activeRaw ? activeRaw.toLowerCase() : null;
-    if (active === 'campus') {
-      const campusPrimary = normalize(theme.getColor('ui.primary'));
-      return campusPrimary || CAMPUS_AXIS_COLOR;
+    const raw = theme.getColor('graphs.axis');
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      if (trimmed) {
+        return trimmed;
+      }
     }
   }
   return DEFAULT_AXIS_COLOR;
