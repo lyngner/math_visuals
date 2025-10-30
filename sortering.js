@@ -2085,6 +2085,13 @@
         item.type = nextType;
         if (nextType === 'text') {
           item.figures = [];
+          if (Array.isArray(item.images)) {
+            item.images = [];
+          }
+          if (item && typeof item === 'object') {
+            delete item.asset;
+            delete item.format;
+          }
         } else if (nextType === 'figure') {
           item.text = '';
           if (!Array.isArray(item.figures) || !item.figures.length) {
