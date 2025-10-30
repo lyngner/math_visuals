@@ -7,6 +7,7 @@ const emptyEl = document.querySelector('[data-empty]');
 const filterInput = document.querySelector('[data-filter]');
 const countEl = document.querySelector('[data-count]');
 const categoryGrid = document.querySelector('[data-category-grid]');
+const helperEl = document.querySelector('[data-helper]');
 const copyFeedbackTimers = new WeakMap();
 
 const amountCategories = [
@@ -407,6 +408,7 @@ function applyFilter(rawQuery) {
   updateCount(visibleCount, total, query, hasActiveFilter);
   updateEmptyState(visibleCount, query, hasActiveFilter);
   updateStatus(visibleCount, total, query, hasActiveFilter);
+  updateHelperState(hasActiveFilter);
 }
 
 function updateCount(visible, total, query, hasActiveFilter) {
@@ -440,11 +442,21 @@ function updateEmptyState(visible, query, hasActiveFilter) {
 function updateStatus(visible, total, query, hasActiveFilter) {
   if (!statusEl) return;
   if (!hasActiveFilter) {
-    statusEl.textContent = '';
+    statusEl.textContent = 'Velg en kategori for å vise tilhørende figurer.';
     return;
   }
 
   statusEl.textContent = `Viser ${visible} av ${total} figurer for søket «${query}».`;
+}
+
+function updateHelperState(hasActiveFilter) {
+  if (!helperEl) return;
+  if (!hasActiveFilter) {
+    helperEl.hidden = false;
+    return;
+  }
+
+  helperEl.hidden = true;
 }
 
 async function handleCopyClick(event) {
