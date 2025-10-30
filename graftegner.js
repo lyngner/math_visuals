@@ -4099,7 +4099,18 @@ function buildFunctions() {
   const palette = resolveCurvePalette(requiredCount);
   SIMPLE_PARSED.funcs.forEach((f, i) => {
     const defaultColor = normalizeColorValue(palette[i % palette.length]) || fallbackColor;
-    const manualColor = f && f.colorSource === 'manual' ? normalizeColorValue(f.color) : '';
+    let manualColor = '';
+    if (f) {
+      if (f.colorSource === 'manual') {
+        manualColor = normalizeColorValue(f.color) || '';
+        if (!manualColor) {
+          f.colorSource = 'auto';
+          f.color = '';
+        }
+      } else if (f.color) {
+        f.color = '';
+      }
+    }
     const color = manualColor || defaultColor;
     const fn = parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
     const labelContent = buildCurveLabelContent(f);
@@ -7659,6 +7670,20 @@ function setupSettingsForm() {
         if (parsedFunc) {
           colorVal = typeof parsedFunc.color === 'string' ? parsedFunc.color : '';
           colorManualFlag = parsedFunc.colorSource === 'manual' && !!colorVal;
+          if (colorVal) {
+            const normalizedManual = normalizeColorValue(colorVal);
+            const defaultColorForRow = normalizeColorValue(computeDefaultColorForIndex(idx + 1));
+            if (normalizedManual && defaultColorForRow && normalizedManual === defaultColorForRow) {
+              colorManualFlag = false;
+              colorVal = '';
+              parsedFunc.colorSource = 'auto';
+              parsedFunc.color = '';
+              const existingGraph = Array.isArray(graphs) ? graphs[funcIndex] || null : null;
+              if (existingGraph) {
+                existingGraph.manualColor = false;
+              }
+            }
+          }
         }
         funcIndex++;
       }
