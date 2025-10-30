@@ -88,7 +88,9 @@
     height: activeInstrumentForSize ? activeInstrumentForSize.offsetHeight : 0
   };
   const RULER_SHADOW_FILTER_ID = 'rulerSvgDropShadow';
-  const TAPE_STRAP_DEFAULT_HEIGHT = 48;
+  const TAPE_STRAP_DEFAULT_HEIGHT = 64;
+  const TAPE_STRAP_HANDLE_RATIO = 0.45;
+  const TAPE_STRAP_HANDLE_MIN_PX = 28;
   const TAPE_DIRECTION = -1;
   const zeroOffset = { x: 0, y: 0 };
   const CUSTOM_CATEGORY_ID = 'custom';
@@ -1548,6 +1550,7 @@
       ? settings.tapeMeasureLength
       : defaults.tapeMeasureLength;
     const visibleLength = Math.max(0, unitSpacing * lengthValue);
+    const strapHeight = getTapeStrapHeight();
     const strapTrackWidth = tapeStrapTrack ? tapeStrapTrack.offsetWidth : NaN;
     const strapElementWidth = tapeStrap ? tapeStrap.offsetWidth : NaN;
     const previousTotal = Number.isFinite(tapeLengthState.totalPx) ? tapeLengthState.totalPx : NaN;
@@ -1562,10 +1565,14 @@
     } else {
       strapWidth = fallbackWidth;
     }
+    const handleWidth = Math.max(
+      TAPE_STRAP_HANDLE_MIN_PX,
+      Number.isFinite(strapHeight) && strapHeight > 0 ? strapHeight * TAPE_STRAP_HANDLE_RATIO : 0
+    );
     tapeLengthState.totalPx = strapWidth;
     tapeLengthState.unitSpacing = unitSpacing;
     tapeLengthState.configuredUnits = lengthValue;
-    tapeLengthState.minVisiblePx = Math.max(0, unitSpacing);
+    tapeLengthState.minVisiblePx = Math.max(0, Math.min(handleWidth, strapWidth));
     tapeLengthState.maxVisiblePx = strapWidth;
     const clampedVisible = Math.min(
       Math.max(visibleLength, tapeLengthState.minVisiblePx),
@@ -1969,19 +1976,20 @@
     const strapHeight = getTapeStrapHeight();
     const strapWidth = unitSpacing * Math.max(lengthValue, 1);
     const safeWidth = strapWidth > 0 ? strapWidth : unitSpacing;
-    const strapRadius = Math.min(6, strapHeight / 3);
-    const bandInset = Math.min(Math.max(strapHeight * 0.12, 3), strapHeight / 2);
+    const strapRadius = Math.min(10, strapHeight / 2.5);
+    const bandInset = Math.min(Math.max(strapHeight * 0.12, 6), strapHeight / 2.2);
     const topBaselineY = bandInset;
     const bottomBaselineY = strapHeight - bandInset;
-    const minorTickBottom = topBaselineY + (bottomBaselineY - topBaselineY) * 0.55;
-    const labelY = bottomBaselineY - Math.max(4, strapHeight * 0.12);
-    const unitLabelY = topBaselineY + Math.max(8, (bottomBaselineY - topBaselineY) * 0.35);
+    const labelY = bottomBaselineY - Math.max(strapHeight * 0.18, 12);
+    const majorTickBottom = labelY - Math.max(strapHeight * 0.12, 8);
+    const minorTickBottom = topBaselineY + (majorTickBottom - topBaselineY) * 0.65;
+    const unitLabelY = topBaselineY + Math.max(10, (majorTickBottom - topBaselineY) * 0.5);
     const valueMultiplier = resolveRulerValueMultiplier(settings, metrics);
 
     const totalTicks = Math.max(Math.round(lengthValue), 0) + 1;
     const majorTickMarkup = Array.from({ length: totalTicks }, (_, tickIndex) => {
       const x = unitSpacing * tickIndex;
-      return `<line x1="${x}" y1="${topBaselineY}" x2="${x}" y2="${bottomBaselineY}" class="tape-svg__tick tape-svg__tick--major" />`;
+      return `<line x1="${x}" y1="${topBaselineY}" x2="${x}" y2="${majorTickBottom}" class="tape-svg__tick tape-svg__tick--major" />`;
     }).join('');
 
     let minorTickMarkup = '';

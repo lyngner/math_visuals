@@ -18,7 +18,7 @@
       --ruler-width: min(600px, 80vw);
       --tape-strap-length: min(600px, 80vw);
       --tape-strap-visible: 0px;
-      --tape-strap-height: 48px;
+      --tape-strap-height: 64px;
       --tape-housing-width: 136px;
       --tape-housing-height: 72px;
       --tape-strap-offset: 0px;
@@ -249,6 +249,8 @@
       height: var(--tape-strap-height);
       clip-path: inset(0 0 0 calc(100% - var(--tape-strap-visible)));
       overflow: hidden;
+      cursor: ew-resize;
+      touch-action: none;
     }
 
     .tape-measure__strap-track {
@@ -258,6 +260,7 @@
       transform: translateX(var(--tape-strap-offset));
       pointer-events: none;
       display: block;
+      clip-path: inset(0 0 0 calc(100% - var(--tape-strap-visible)));
     }
 
     .tape-measure__strap-base {
@@ -279,8 +282,8 @@
     }
 
     .tape-measure__strap-svg .tape-svg__background {
-      fill: transparent;
-      stroke: #d6b013;
+      fill: #f7d74b;
+      stroke: #c99d0c;
       stroke-width: 1.2;
     }
 
@@ -306,7 +309,7 @@
 
     .tape-measure__strap-svg .tape-svg__label {
       font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      font-size: 16px;
+      font-size: 18px;
       font-weight: 600;
       fill: #46320a;
       letter-spacing: -0.01em;
@@ -314,7 +317,7 @@
 
     .tape-measure__strap-svg .tape-svg__unit-label {
       font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 600;
       fill: rgba(15, 23, 42, 0.78);
       letter-spacing: -0.01em;
@@ -535,7 +538,7 @@
                       />
                       <svg
                         class="tape-measure__strap-svg"
-                        viewBox="0 0 600 48"
+                        viewBox="0 0 600 64"
                         preserveAspectRatio="none"
                         aria-hidden="true"
                         focusable="false"
