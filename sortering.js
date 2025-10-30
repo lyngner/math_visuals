@@ -1395,36 +1395,68 @@
   const keyboardHandlers = new Map();
   let dragState = null;
   let currentAppMode = 'default';
+  let activeInlineEditorId = null;
+
+  function normalizeActiveInlineEditorId() {
+    if (!activeInlineEditorId || !itemsById.has(activeInlineEditorId)) {
+      activeInlineEditorId = null;
+    }
+    return activeInlineEditorId;
+  }
+
+  function isInlineEditorActive(itemId) {
+    if (!isEditorMode()) return false;
+    const normalizedId = normalizeActiveInlineEditorId();
+    return !!normalizedId && normalizedId === itemId;
+  }
   function applyItemModeClasses(item, nodes) {
     if (!nodes || !nodes.wrapper) return;
     const isTaskMode = currentAppMode === 'task';
     nodes.wrapper.classList.toggle('sortering__item--task', isTaskMode);
     nodes.wrapper.classList.toggle('sortering__item--task-text', isTaskMode && isTextItem(item));
+    if (isTaskMode) {
+      nodes.wrapper.style.flex = '1 1 0';
+    } else {
+      nodes.wrapper.style.flex = '';
+    }
   }
 
-  function updateInlineEditorVisibility(nodes) {
+  function updateInlineEditorVisibility(nodes, item) {
     if (!nodes) return;
     const editable = isEditorMode();
     const reorderable = canReorderItems();
     const { inlineEditor, wrapper, button, contentEl } = nodes;
+    const itemId = wrapper && wrapper.dataset ? wrapper.dataset.itemId : null;
+    if (!item && itemId && itemsById.has(itemId)) {
+      item = itemsById.get(itemId);
+    }
+    const isActive = editable && itemId && isInlineEditorActive(itemId);
+
     if (inlineEditor) {
       if (inlineEditor.host) {
-        inlineEditor.host.hidden = !editable;
+        inlineEditor.host.hidden = !isActive;
       }
       if (inlineEditor.panel) {
-        inlineEditor.panel.hidden = !editable;
+        inlineEditor.panel.hidden = !isActive;
       }
     }
     if (wrapper) {
-      wrapper.classList.toggle('sortering__item--editable', editable);
+      wrapper.classList.toggle('sortering__item--editable', !!isActive);
       wrapper.style.touchAction = reorderable ? 'none' : 'auto';
-      const itemId = wrapper.dataset ? wrapper.dataset.itemId : null;
-      if (itemId && itemsById.has(itemId)) {
-        applyItemModeClasses(itemsById.get(itemId), nodes);
+      if (itemId && !itemsById.has(itemId) && activeInlineEditorId === itemId) {
+        activeInlineEditorId = null;
+      }
+      if (item) {
+        applyItemModeClasses(item, nodes);
       }
     }
     if (contentEl) {
-      contentEl.hidden = editable;
+      contentEl.hidden = false;
+      if (isActive) {
+        contentEl.setAttribute('aria-hidden', 'true');
+      } else {
+        contentEl.removeAttribute('aria-hidden');
+      }
     }
     if (button) {
       button.disabled = !reorderable;
@@ -1444,6 +1476,99 @@
       if (!ensured || !ensured.id) return;
       itemsById.set(ensured.id, ensured);
     });
+  }
+
+  function refreshAllInlineEditorVisibility() {
+    itemNodes.forEach((nodes, id) => {
+      const item = itemsById.get(id) || null;
+      updateInlineEditorVisibility(nodes, item);
+    });
+  }
+
+  function finalizeInlineEditor(id) {
+    if (!id) return;
+    const nodes = itemNodes.get(id);
+    if (!nodes || !nodes.inlineEditor) return;
+    const { inlineEditor } = nodes;
+    if (inlineEditor.textField && doc.activeElement === inlineEditor.textField) {
+      inlineEditor.textField.blur();
+    }
+    if (inlineEditor.textWrapper) {
+      setInlineEditorTextMode(inlineEditor, 'preview');
+    }
+  }
+
+  function deactivateInlineEditor(options = {}) {
+    const previousId = normalizeActiveInlineEditorId();
+    if (!previousId) return;
+    finalizeInlineEditor(previousId);
+    activeInlineEditorId = null;
+    if (options && options.rebuild) {
+      applyOrder({});
+    } else {
+      const nodes = itemNodes.get(previousId);
+      const item = itemsById.get(previousId) || null;
+      if (nodes) {
+        updateInlineEditorVisibility(nodes, item);
+      }
+    }
+  }
+
+  function activateInlineEditor(id, options = {}) {
+    if (!isEditorMode()) return;
+    if (!id || !itemsById.has(id)) return;
+    const targetId = id;
+    const previousId = normalizeActiveInlineEditorId();
+    if (previousId && previousId !== targetId) {
+      finalizeInlineEditor(previousId);
+    }
+    activeInlineEditorId = targetId;
+    const item = itemsById.get(targetId);
+    const nodes = itemNodes.get(targetId);
+    if (nodes) {
+      ensureInlineEditor(item, nodes);
+      updateInlineEditorView(item, nodes.inlineEditor);
+    }
+    if (previousId && previousId !== targetId) {
+      const prevNodes = itemNodes.get(previousId);
+      const prevItem = itemsById.get(previousId) || null;
+      if (prevNodes) {
+        updateInlineEditorVisibility(prevNodes, prevItem);
+      }
+    }
+    if (nodes) {
+      updateInlineEditorVisibility(nodes, item);
+      if (nodes.inlineEditor && options && options.focusText) {
+        if (isTextItem(item)) {
+          setInlineEditorTextMode(nodes.inlineEditor, 'edit');
+          focusInlineEditorTextField(nodes.inlineEditor);
+        } else if (nodes.inlineEditor.typeSelect) {
+          try {
+            nodes.inlineEditor.typeSelect.focus({ preventScroll: true });
+          } catch (_) {
+            nodes.inlineEditor.typeSelect.focus();
+          }
+        }
+      }
+    }
+  }
+
+  function handleGlobalEnterKey(event) {
+    if (!event || event.key !== 'Enter' || event.shiftKey) return;
+    const activeId = normalizeActiveInlineEditorId();
+    if (!activeId) return;
+    const target = event.target || null;
+    if (target && target.closest && target.closest('.sortering__item-editor')) {
+      const tagName = target.tagName ? target.tagName.toLowerCase() : '';
+      if (tagName === 'textarea') {
+        return;
+      }
+    }
+    setTimeout(() => {
+      if (isInlineEditorActive(activeId)) {
+        deactivateInlineEditor();
+      }
+    }, 0);
   }
 
   function generateItemId() {
@@ -1483,20 +1608,20 @@
     if (figureHost) {
       figureHost.dataset.editorMode = editable ? 'edit' : 'view';
     }
+    if (visualList) {
+      visualList.dataset.mode = currentAppMode;
+    }
     if (!canReorderItems()) {
       finalizeKeyboardMode();
     }
-    itemNodes.forEach(nodes => {
-      if (!nodes) return;
-      const itemId = nodes.wrapper && nodes.wrapper.dataset ? nodes.wrapper.dataset.itemId : null;
-      const item = itemId ? itemsById.get(itemId) : null;
-      updateInlineEditorVisibility(nodes);
-      applyItemModeClasses(item, nodes);
-    });
+    refreshAllInlineEditorVisibility();
   }
 
   function setCurrentAppMode(mode) {
     currentAppMode = normalizeAppMode(mode);
+    if (currentAppMode === 'task') {
+      deactivateInlineEditor();
+    }
     updateFigureEditorMode();
   }
 
@@ -1855,6 +1980,11 @@
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault();
           textarea.blur();
+          setTimeout(() => {
+            if (isInlineEditorActive(item.id)) {
+              deactivateInlineEditor();
+            }
+          }, 0);
         }
       });
 
@@ -1893,13 +2023,13 @@
     if (!nodes.inlineEditor) {
       const host = doc.createElement('div');
       host.className = 'sortering__item-editor';
-      host.hidden = !isEditorMode();
+      host.hidden = !isInlineEditorActive(item.id);
 
       const panelId = `${item.id}-inline-editor-panel`;
       const panel = doc.createElement('div');
       panel.className = 'sortering__item-editor-panel';
       panel.id = panelId;
-      panel.hidden = !isEditorMode();
+      panel.hidden = !isInlineEditorActive(item.id);
       host.appendChild(panel);
 
       const typeWrapper = doc.createElement('div');
@@ -1975,7 +2105,7 @@
     const inlineEditor = nodes.inlineEditor;
     if (!inlineEditor) return;
     updateInlineEditorView(item, inlineEditor);
-    updateInlineEditorVisibility(nodes);
+    updateInlineEditorVisibility(nodes, item);
   }
 
   function renderItem(item, position) {
@@ -2551,7 +2681,7 @@
   function attachItemListeners(id, nodes) {
     if (!nodes || nodes.wrapper.dataset.listenersAttached === 'true') return;
     nodes.wrapper.dataset.listenersAttached = 'true';
-    nodes.wrapper.style.touchAction = 'none';
+    nodes.wrapper.style.touchAction = canReorderItems() ? 'none' : 'auto';
     nodes.wrapper.addEventListener('pointerdown', event => {
       if (!canReorderItems()) return;
       startPointerDrag(event, id);
@@ -2559,6 +2689,13 @@
     nodes.wrapper.addEventListener('pointermove', event => handlePointerMove(event, id));
     nodes.wrapper.addEventListener('pointerup', event => finishPointerDrag(event, id));
     nodes.wrapper.addEventListener('pointercancel', event => finishPointerDrag(event, id));
+    nodes.wrapper.addEventListener('click', event => {
+      if (canReorderItems()) return;
+      if (event.target && event.target.closest('.sortering__item-editor')) {
+        return;
+      }
+      activateInlineEditor(id, { focusText: true });
+    });
 
     nodes.button.addEventListener('click', () => {
       if (!canReorderItems()) return;
@@ -2780,6 +2917,9 @@
 
   function removeItem(id) {
     if (!state || !Array.isArray(state.items)) return;
+    if (activeInlineEditorId === id) {
+      deactivateInlineEditor();
+    }
     const index = state.items.findIndex(item => item && item.id === id);
     if (index < 0) return;
     state.items.splice(index, 1);
@@ -2806,19 +2946,8 @@
     const options = state.randomisering ? { randomize: true } : { resetToBase: true };
     applyOrder(options);
     updateValidationState();
-    const nodes = itemNodes.get(id);
-    if (nodes) {
-      updateInlineEditorVisibility(nodes);
-      const editor = nodes.inlineEditor;
-      const focusTarget = editor && isEditorMode() ? editor.textField || editor.typeSelect : null;
-      if (focusTarget && typeof focusTarget.focus === 'function') {
-        setTimeout(() => {
-          focusTarget.focus();
-          if (focusTarget === editor.textField && typeof focusTarget.select === 'function') {
-            focusTarget.select();
-          }
-        }, 0);
-      }
+    if (isEditorMode()) {
+      activateInlineEditor(id, { focusText: true });
     }
   }
 
@@ -2920,6 +3049,7 @@
   function applyStateFromGlobal() {
     state = createState();
     refreshItemsById();
+    activeInlineEditorId = null;
     currentOrder = sanitizeOrder(state.items, state.order);
     syncSettingsFormFromState();
     updateValidationState();
@@ -2940,6 +3070,9 @@
     if (typeof globalObj.addEventListener === 'function') {
       globalObj.addEventListener('math-visuals:app-mode-changed', handleAppModeChanged);
     }
+    if (doc) {
+      doc.addEventListener('keydown', handleGlobalEnterKey);
+    }
     if (checkButton) {
       checkButton.addEventListener('click', handleCheckButtonClick);
     }
@@ -2955,12 +3088,14 @@
 
     state = createState();
     refreshItemsById();
+    activeInlineEditorId = null;
 
     currentOrder = sanitizeOrder(state.items, state.order);
 
     if (!visualList) {
       visualList = doc.createElement('div');
       visualList.className = 'sortering__items';
+      visualList.dataset.mode = currentAppMode;
       figureHost.appendChild(visualList);
     }
 
