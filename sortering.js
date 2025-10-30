@@ -2419,23 +2419,32 @@
     }
     const gapValue = state && Number.isFinite(state.gap) ? Number(state.gap) : 0;
     const halfGap = gapValue / 2;
-    const first = slots[0];
-    const last = slots[slots.length - 1];
-    const startEdge = first.center - first.size / 2 - halfGap;
-    if (pointerCoord <= startEdge) {
-      return 0;
-    }
-    for (let i = 1; i < slots.length; i += 1) {
-      const prev = slots[i - 1];
-      const current = slots[i];
-      const midpoint = (prev.center + current.center) / 2;
-      if (pointerCoord <= midpoint) {
+    const activeDrag = dragState && dragState.id === activeId ? dragState : null;
+    const dragDirection = activeDrag && Number.isFinite(activeDrag.primaryDirection) ? activeDrag.primaryDirection : 0;
+
+    for (let i = 0; i < slots.length; i += 1) {
+      const slot = slots[i];
+      const slotStart = slot.center - slot.size / 2;
+      const slotEnd = slot.center + slot.size / 2;
+      const baseLeft = slotStart + slot.size * 0.25;
+      const baseRight = slotEnd - slot.size * 0.25;
+      const leftBoundary = baseLeft - halfGap;
+      const rightBoundary = baseRight + halfGap;
+      const effectiveLeft = Math.min(leftBoundary, rightBoundary);
+      const effectiveRight = Math.max(leftBoundary, rightBoundary);
+
+      if (pointerCoord <= effectiveLeft) {
         return i;
       }
-    }
-    const endEdge = last.center + last.size / 2 + halfGap;
-    if (pointerCoord >= endEdge) {
-      return slots.length;
+      if (pointerCoord <= effectiveRight) {
+        if (dragDirection > 0) {
+          return i + 1;
+        }
+        if (dragDirection < 0) {
+          return i;
+        }
+        return pointerCoord >= slot.center ? i + 1 : i;
+      }
     }
     return slots.length;
   }
@@ -2587,6 +2596,8 @@
       pointerY,
       translationX: 0,
       translationY: 0,
+      primaryDirection: 0,
+      lastPointerCoord: orientation === 'vertikal' ? centerY : centerX,
       lastKnownIndex: currentOrder.indexOf(id),
       measurementHandle: null,
       measurementHandleType: null,
@@ -2639,6 +2650,17 @@
 
     const pointerCoord = orientation === 'vertikal' ? desiredCenterY : desiredCenterX;
     if (!Number.isFinite(pointerCoord)) return;
+
+    if (dragState) {
+      const previousCoord = Number.isFinite(dragState.lastPointerCoord)
+        ? dragState.lastPointerCoord
+        : pointerCoord;
+      const delta = pointerCoord - previousCoord;
+      if (Number.isFinite(delta) && Math.abs(delta) > 0.5) {
+        dragState.primaryDirection = delta > 0 ? 1 : -1;
+      }
+      dragState.lastPointerCoord = pointerCoord;
+    }
 
     const slots = ensureDragSlotCache(orientation);
     const targetIndex = determineDragTargetIndex(id, pointerCoord, orientation, slots);
