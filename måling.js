@@ -1989,12 +1989,13 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     const strapHeight = getTapeStrapHeight();
     const strapWidth = unitSpacing * Math.max(lengthValue, 1);
     const safeWidth = strapWidth > 0 ? strapWidth : unitSpacing;
-    const strapRadius = Math.min(10, strapHeight / 2.5);
     const bandInset = Math.min(Math.max(strapHeight * 0.12, 6), strapHeight / 2.2);
     const topBaselineY = bandInset;
     const bottomBaselineY = strapHeight - bandInset;
-    const labelY = bottomBaselineY - Math.max(strapHeight * 0.18, 12);
-    const majorTickBottom = labelY - Math.max(strapHeight * 0.12, 8);
+    const labelPadding = Math.max(strapHeight * 0.12, 10);
+    const tickLabelGap = Math.max(strapHeight * 0.18, 12);
+    const labelY = bottomBaselineY - labelPadding;
+    const majorTickBottom = labelY - tickLabelGap;
     const minorTickBottom = topBaselineY + (majorTickBottom - topBaselineY) * 0.65;
     const unitLabelY = topBaselineY + Math.max(10, (majorTickBottom - topBaselineY) * 0.5);
     const valueMultiplier = resolveRulerValueMultiplier(settings, metrics);
@@ -2018,10 +2019,13 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     }
 
     const labelMarkup = Array.from({ length: totalTicks }, (_, tickIndex) => {
+      if (tickIndex === 0) {
+        return '';
+      }
       const rawValue = tickIndex * valueMultiplier;
       const labelValue = roundForDisplay(convertValueToDisplayUnits(rawValue, settings.unitLabel));
-      const anchor = tickIndex === 0 ? 'start' : tickIndex === totalTicks - 1 ? 'end' : 'middle';
-      const dx = anchor === 'start' ? 6 : anchor === 'end' ? -6 : 0;
+      const anchor = tickIndex === totalTicks - 1 ? 'end' : 'middle';
+      const dx = anchor === 'end' ? -6 : 0;
       const x = unitSpacing * tickIndex;
       return `<text x="${x}" y="${labelY}" text-anchor="${anchor}"${dx !== 0 ? ` dx="${dx}"` : ''} class="tape-svg__label">${formatNumber(labelValue)}</text>`;
     }).join('');
@@ -2036,7 +2040,6 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     tapeStrapSvg.setAttribute('width', formatSvgNumber(safeWidth));
     tapeStrapSvg.setAttribute('height', formatSvgNumber(strapHeight));
     tapeStrapSvg.innerHTML = `
-      <rect x="0" y="0" width="${safeWidth}" height="${strapHeight}" rx="${strapRadius}" ry="${strapRadius}" class="tape-svg__background" />
       <line x1="0" y1="${topBaselineY}" x2="${safeWidth}" y2="${topBaselineY}" class="tape-svg__baseline" />
       <line x1="0" y1="${bottomBaselineY}" x2="${safeWidth}" y2="${bottomBaselineY}" class="tape-svg__baseline" />
       ${minorTickMarkup}
