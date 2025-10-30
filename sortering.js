@@ -1592,6 +1592,7 @@
       applyOrder({});
       updateValidationState();
     };
+    let didNormalizeFigure = false;
     figures.forEach(figure => {
       if (!figure) return;
       const row = doc.createElement('div');
@@ -1606,6 +1607,11 @@
         categorySelect.appendChild(option);
       });
       const match = getFigureLibraryMatch(figure.value);
+      if (match && figure.value !== match.value) {
+        figure.value = match.value;
+        figure.categoryId = match.categoryId;
+        didNormalizeFigure = true;
+      }
       const initialCategory = match
         ? match.categoryId
         : sanitizeFigureCategory(figure.categoryId, figure.value);
@@ -1670,6 +1676,9 @@
       row.appendChild(valueInput);
       listEl.appendChild(row);
     });
+    if (didNormalizeFigure) {
+      commitFigureChanges();
+    }
   }
 
   function populateFigureSelectOptions(selectEl, categoryId, figureValue) {
