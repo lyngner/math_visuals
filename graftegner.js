@@ -527,6 +527,7 @@ function paramNumber(id, def = null) {
 const DEFAULT_POINT_MARKER = 'o';
 const DEFAULT_DOMAIN_VALUE = '-∞, ∞';
 const DEFAULT_UNBOUNDED_DOMAIN_SPAN = 10;
+const MULTI_FUNCTION_UNBOUNDED_DOMAIN_SPAN = 5;
 function sanitizePointMarkerValue(value) {
   if (typeof value !== 'string') return '';
   return value.trim();
@@ -1245,8 +1246,7 @@ function normalizeDomainInputValue(value) {
   return { parsed, formatted };
 }
 
-function resolveDomainSamplingBounds(domain) {
-  const span = DEFAULT_UNBOUNDED_DOMAIN_SPAN;
+function resolveDomainSamplingBounds(domain, span = DEFAULT_UNBOUNDED_DOMAIN_SPAN) {
   if (!domain || typeof domain !== 'object') {
     return [-5, 5];
   }
@@ -1947,10 +1947,11 @@ function computeAutoScreenFunctions() {
     domMax = -Infinity,
     trimmedXMin = Infinity,
     trimmedXMax = -Infinity;
+  const domainSpan = SIMPLE_PARSED.funcs.length > 1 ? MULTI_FUNCTION_UNBOUNDED_DOMAIN_SPAN : DEFAULT_UNBOUNDED_DOMAIN_SPAN;
   for (const f of SIMPLE_PARSED.funcs) {
     const fn = parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
     if (f.domain) {
-      const [sampleMin, sampleMax] = resolveDomainSamplingBounds(f.domain);
+      const [sampleMin, sampleMax] = resolveDomainSamplingBounds(f.domain, domainSpan);
       const rangeMin = Number.isFinite(f.domain.min) ? f.domain.min : sampleMin;
       const rangeMax = Number.isFinite(f.domain.max) ? f.domain.max : sampleMax;
       domMin = Math.min(domMin, rangeMin);
