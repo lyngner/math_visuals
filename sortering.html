@@ -81,6 +81,12 @@
     .sortering__item--editable .sortering__item-content {
       display: none;
     }
+    .sortering__items[data-mode="task"] .sortering__item {
+      flex: 1 1 0;
+    }
+    .sortering__items[data-mode="task"][data-direction="vertikal"] .sortering__item {
+      width: 100%;
+    }
     .sortering__item--task {
       min-height: 0;
       padding: 12px 16px;
