@@ -2034,16 +2034,18 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
 
     const unitSuffixValue = resolveUnitSuffix(settings.unitLabel);
     const unitSuffix = unitSuffixValue ? String(unitSuffixValue).trim() : '';
+    const subdivisionStep = subdivisions > 0 ? unitSpacing / subdivisions : 0;
     const unitLabelMarkup = unitSuffix
       ? `<text x="${safeWidth}" y="${unitLabelY}" text-anchor="end" class="tape-svg__unit-label">${escapeHtml(unitSuffix)}</text>`
       : '';
 
-    tapeStrapSvg.setAttribute('viewBox', `0 0 ${safeWidth} ${strapHeight}`);
-    tapeStrapSvg.setAttribute('width', formatSvgNumber(safeWidth));
+    tapeStrapSvg.setAttribute('viewBox', `0 0 ${strapLengthWithOverlap} ${strapHeight}`);
+    tapeStrapSvg.setAttribute('width', formatSvgNumber(strapLengthWithOverlap));
     tapeStrapSvg.setAttribute('height', formatSvgNumber(strapHeight));
     tapeStrapSvg.innerHTML = `
-      <line x1="0" y1="${topBaselineY}" x2="${safeWidth}" y2="${topBaselineY}" class="tape-svg__baseline" />
-      <line x1="0" y1="${bottomBaselineY}" x2="${safeWidth}" y2="${bottomBaselineY}" class="tape-svg__baseline" />
+      <rect x="0" y="0" width="${strapLengthWithOverlap}" height="${strapHeight}" class="tape-svg__background" />
+      <line x1="0" y1="${topBaselineY}" x2="${strapLengthWithOverlap}" y2="${topBaselineY}" class="tape-svg__baseline" />
+      <line x1="0" y1="${bottomBaselineY}" x2="${strapLengthWithOverlap}" y2="${bottomBaselineY}" class="tape-svg__baseline" />
       ${minorTickMarkup}
       ${majorTickMarkup}
       ${labelMarkup}
@@ -2052,6 +2054,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
 
     tapeMeasure.style.setProperty('--tape-strap-length', `${strapLengthWithOverlap}px`);
     tapeMeasure.style.setProperty('--tape-strap-overlap', `${TAPE_HOUSING_OVERLAP_PX}px`);
+    tapeMeasure.style.setProperty('--tape-strap-start-offset', `${subdivisionStep}px`);
     tapeLengthState.totalPx = strapLengthWithOverlap;
     tapeLengthState.maxVisiblePx = safeWidth;
   }

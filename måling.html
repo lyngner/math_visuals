@@ -23,6 +23,7 @@
       --tape-housing-height: 72px;
       --tape-strap-offset: 0px;
       --tape-strap-overlap: 0px;
+      --tape-strap-start-offset: 0px;
     }
 
     body[data-app="måling"] {
@@ -262,6 +263,7 @@
       pointer-events: none;
       display: block;
       clip-path: inset(0 max(0px, calc(100% - var(--tape-strap-visible) - var(--tape-strap-overlap, 0px))) 0 0);
+      background: #f7d74b;
     }
 
     .tape-measure__strap-base {
@@ -271,11 +273,12 @@
       height: 100%;
       object-fit: fill;
       pointer-events: none;
+      transform: translateX(calc(-1 * var(--tape-strap-start-offset, 0px)));
     }
 
     .tape-measure__strap-svg {
       position: relative;
-      z-index: 1;
+      z-index: 2;
       width: 100%;
       height: 100%;
       display: block;
@@ -284,8 +287,7 @@
 
     .tape-measure__strap-svg .tape-svg__background {
       fill: #f7d74b;
-      stroke: #c99d0c;
-      stroke-width: 1.2;
+      stroke: none;
     }
 
     .tape-measure__strap-svg .tape-svg__baseline {
