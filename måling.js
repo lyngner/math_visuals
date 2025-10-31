@@ -30,6 +30,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
   }
 
   const DEFAULT_UNIT_SPACING_PX = 100;
+  const RULER_BACKGROUND_MODE = 'padded';
   const UNIT_TO_CENTIMETERS = {
     mm: 0.1,
     cm: 1,
@@ -66,7 +67,6 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     showUnitLabel: doc.getElementById('cfg-show-unit'),
     measurementWithoutScale: doc.getElementById('cfg-measurement-without-scale'),
     panningEnabled: doc.getElementById('cfg-pan-enabled'),
-    rulerBackgroundMode: doc.getElementById('cfg-ruler-background-mode'),
     measurementTool: doc.getElementById('cfg-measurement-tool')
   };
   const lengthFieldContainer = inputs.length ? inputs.length.closest('label') : null;
@@ -152,7 +152,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     showUnitLabel: true,
     measurementWithoutScale: false,
     panningEnabled: false,
-    rulerBackgroundMode: 'tight',
+    rulerBackgroundMode: RULER_BACKGROUND_MODE,
     rulerTransform: null,
     boardPanTransform: { x: 0, y: 0 },
     activeTool: defaultActiveTool,
@@ -270,9 +270,6 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (source.tapeMeasureLength != null) target.tapeMeasureLength = source.tapeMeasureLength;
     if (Object.prototype.hasOwnProperty.call(source, 'rulerStartAtZero')) {
       delete target.rulerStartAtZero;
-    }
-    if (Object.prototype.hasOwnProperty.call(source, 'rulerBackgroundMode')) {
-      target.rulerBackgroundMode = source.rulerBackgroundMode;
     }
     if (Object.prototype.hasOwnProperty.call(source, 'gridEnabled')) target.gridEnabled = source.gridEnabled;
     if (Object.prototype.hasOwnProperty.call(source, 'showScaleLabel')) target.showScaleLabel = source.showScaleLabel;
@@ -457,26 +454,6 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     return Math.min(Math.max(rounded, 0), 200);
   }
 
-  function sanitizeRulerBackgroundMode(value, fallback) {
-    const defaultValue = fallback === 'padded' ? 'padded' : 'tight';
-    if (typeof value === 'string') {
-      const normalized = value.trim().toLowerCase();
-      if (normalized === 'padded' || normalized === 'padding' || normalized === 'wide') {
-        return 'padded';
-      }
-      if (normalized === 'tight' || normalized === 'compact' || normalized === 'narrow') {
-        return 'tight';
-      }
-    }
-    if (value === 'padded') {
-      return 'padded';
-    }
-    if (value === 'tight') {
-      return 'tight';
-    }
-    return defaultValue;
-  }
-
   function sanitizeBoolean(value, fallback) {
     if (value === undefined) {
       return fallback;
@@ -652,10 +629,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     const measurementTarget = sanitizeMeasurementTarget(combined.measurementTarget, figureName, defaults.measurementTarget);
     const figureScaleLabel = sanitizeFigureScaleLabel(combined.figureScaleLabel, defaults.figureScaleLabel);
     const boardPadding = sanitizeBoardPadding(combined.boardPadding, defaults.boardPadding);
-    const rulerBackgroundMode = sanitizeRulerBackgroundMode(
-      combined.rulerBackgroundMode,
-      defaults.rulerBackgroundMode
-    );
+    const rulerBackgroundMode = RULER_BACKGROUND_MODE;
     const gridEnabled = sanitizeGridEnabled(combined.gridEnabled, defaults.gridEnabled);
     const showScaleLabel = sanitizeGridEnabled(combined.showScaleLabel, defaults.showScaleLabel);
     const showUnitLabel = sanitizeBoolean(combined.showUnitLabel, defaults.showUnitLabel);
@@ -1898,7 +1872,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     }
 
     const { length, subdivisions, unitLabel } = settings;
-    const backgroundMode = settings && settings.rulerBackgroundMode === 'padded' ? 'padded' : 'tight';
+    const backgroundMode = RULER_BACKGROUND_MODE;
     const valueMultiplier = resolveRulerValueMultiplier(settings, scaleMetrics);
     const inset = 8;
     const effectiveLength = length;
@@ -1945,13 +1919,11 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       const rawLabelValue = (startIndex + tickIndex) * valueMultiplier;
       const labelValue = roundForDisplay(convertValueToDisplayUnits(rawLabelValue, unitLabel));
       const x = marginLeft + unitSpacing * tickIndex;
-      const anchor = tickIndex === 0 ? 'start' : tickIndex === totalTicks - 1 ? 'end' : 'middle';
-      const dx = anchor === 'start' ? 6 : anchor === 'end' ? -6 : 0;
       const baseLabelText = formatNumber(labelValue);
       const includeUnit = showUnitLabel && unitSuffix && tickIndex === 1;
       const labelWithUnit = includeUnit ? `${baseLabelText} ${unitSuffix}` : baseLabelText;
       const safeLabelText = escapeHtml(labelWithUnit);
-      return `<text x="${x}" y="${labelY}" text-anchor="${anchor}"${dx !== 0 ? ` dx="${dx}"` : ''} class="ruler-svg__label">${safeLabelText}</text>`;
+      return `<text x="${x}" y="${labelY}" text-anchor="middle" class="ruler-svg__label">${safeLabelText}</text>`;
     }).join('');
 
     const unitLabelMarkup = unitSuffix && !showUnitLabel
@@ -2240,7 +2212,6 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       if (inputs.subdivisions) inputs.subdivisions.value = settings.subdivisions;
       if (inputs.unitLabel) inputs.unitLabel.value = settings.unitLabel || '';
       if (inputs.boardPadding) inputs.boardPadding.value = settings.boardPadding;
-      if (inputs.rulerBackgroundMode) inputs.rulerBackgroundMode.value = settings.rulerBackgroundMode || 'tight';
       if (inputs.gridEnabled) inputs.gridEnabled.checked = !!settings.gridEnabled;
       if (inputs.showScaleLabel) inputs.showScaleLabel.checked = !!settings.showScaleLabel;
       if (inputs.showUnitLabel) inputs.showUnitLabel.checked = !!settings.showUnitLabel;
@@ -2333,12 +2304,6 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       inputs.boardPadding.addEventListener('input', event => {
         if (appState.syncingInputs) return;
         updateSettings({ boardPadding: event.target.value });
-      });
-    }
-    if (inputs.rulerBackgroundMode) {
-      inputs.rulerBackgroundMode.addEventListener('change', event => {
-        if (appState.syncingInputs) return;
-        updateSettings({ rulerBackgroundMode: event.target.value });
       });
     }
     if (inputs.gridEnabled) {
