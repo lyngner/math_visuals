@@ -68,6 +68,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     rulerBackgroundMode: doc.getElementById('cfg-ruler-background-mode'),
     measurementTool: doc.getElementById('cfg-measurement-tool')
   };
+  const lengthFieldContainer = inputs.length ? inputs.length.closest('label') : null;
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
   const transformStates = {
@@ -1634,6 +1635,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     }
     appState.activeTool = desiredTool;
     transformState = transformStates[desiredTool] || transformStates[defaultActiveTool];
+    updateLengthFieldVisibility(desiredTool);
 
     if (board) {
       board.setAttribute('data-active-tool', desiredTool);
@@ -1664,6 +1666,19 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     applyToolTransform('ruler');
     applyToolTransform('tape');
     updateBaseSize();
+  }
+
+  function updateLengthFieldVisibility(toolKey) {
+    if (!lengthFieldContainer) {
+      return;
+    }
+    const sanitizedTool = sanitizeActiveTool(toolKey, appState.activeTool || defaultActiveTool);
+    const shouldHide = sanitizedTool === 'tape';
+    if (shouldHide) {
+      lengthFieldContainer.setAttribute('hidden', '');
+    } else {
+      lengthFieldContainer.removeAttribute('hidden');
+    }
   }
 
   function applySettings(settings) {
@@ -2216,6 +2231,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       if (inputs.measurementTool) {
         inputs.measurementTool.value = activeToolKey;
       }
+      updateLengthFieldVisibility(activeToolKey);
       // unit spacing is fixed and no longer exposed to the UI
     } finally {
       appState.syncingInputs = false;
@@ -2333,6 +2349,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       inputs.measurementTool.addEventListener('change', event => {
         if (appState.syncingInputs) return;
         persistActiveInstrumentState();
+        updateLengthFieldVisibility(event.target.value);
         updateSettings({ activeTool: event.target.value });
       });
     }
