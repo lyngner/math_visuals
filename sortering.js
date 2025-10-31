@@ -1402,6 +1402,36 @@
   let currentAppMode = 'default';
   let activeInlineEditorId = null;
 
+  function handleDocumentPointerDown(event) {
+    if (!event) return;
+    if (!isEditorMode()) return;
+    const activeId = normalizeActiveInlineEditorId();
+    if (!activeId) return;
+    const nodes = itemNodes.get(activeId) || null;
+    const target = event.target || null;
+    if (!nodes) {
+      deactivateInlineEditor();
+      return;
+    }
+    const { wrapper, inlineEditor } = nodes;
+    const nodeTarget = target && typeof target.nodeType === 'number' ? target : null;
+    if (nodeTarget) {
+      if (wrapper && typeof wrapper.contains === 'function' && wrapper.contains(nodeTarget)) {
+        return;
+      }
+      if (inlineEditor) {
+        const { host, panel } = inlineEditor;
+        if (host && typeof host.contains === 'function' && host.contains(nodeTarget)) {
+          return;
+        }
+        if (panel && typeof panel.contains === 'function' && panel.contains(nodeTarget)) {
+          return;
+        }
+      }
+    }
+    deactivateInlineEditor();
+  }
+
   function normalizeActiveInlineEditorId() {
     if (!activeInlineEditorId || !itemsById.has(activeInlineEditorId)) {
       activeInlineEditorId = null;
@@ -3137,6 +3167,7 @@
     }
     if (doc) {
       doc.addEventListener('keydown', handleGlobalEnterKey);
+      doc.addEventListener('pointerdown', handleDocumentPointerDown);
     }
     if (checkButton) {
       checkButton.addEventListener('click', handleCheckButtonClick);
