@@ -1548,14 +1548,17 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     }
     const metrics = scaleMetrics || resolveScaleMetrics(settings);
     let unitSpacing =
-      metrics && Number.isFinite(metrics.unitSpacing) && metrics.unitSpacing > 0
-        ? metrics.unitSpacing
+      Number.isFinite(lastRenderedUnitSpacing) && lastRenderedUnitSpacing > 0
+        ? lastRenderedUnitSpacing
         : Number.NaN;
     if (!Number.isFinite(unitSpacing) || unitSpacing <= 0) {
       unitSpacing =
-        Number.isFinite(lastRenderedUnitSpacing) && lastRenderedUnitSpacing > 0
-          ? lastRenderedUnitSpacing
-          : DEFAULT_UNIT_SPACING_PX;
+        metrics && Number.isFinite(metrics.unitSpacing) && metrics.unitSpacing > 0
+          ? metrics.unitSpacing
+          : Number.NaN;
+    }
+    if (!Number.isFinite(unitSpacing) || unitSpacing <= 0) {
+      unitSpacing = DEFAULT_UNIT_SPACING_PX;
     }
     renderTapeMeasureStrap(settings, unitSpacing, metrics);
     const lengthValue = Number.isFinite(settings && settings.tapeMeasureLength)
