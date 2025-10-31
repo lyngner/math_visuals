@@ -93,6 +93,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
   const TAPE_STRAP_DEFAULT_HEIGHT = 54;
   const TAPE_STRAP_HANDLE_RATIO = 0.45;
   const TAPE_STRAP_HANDLE_MIN_PX = 24;
+  const TAPE_HOUSING_OVERLAP_PX = 36;
   const TAPE_DIRECTION = -1;
   const zeroOffset = { x: 0, y: 0 };
   const figureData = buildFigureData({ extractRealWorldSizeFromText });
@@ -1989,6 +1990,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     const strapHeight = getTapeStrapHeight();
     const strapWidth = unitSpacing * Math.max(lengthValue, 1);
     const safeWidth = strapWidth > 0 ? strapWidth : unitSpacing;
+    const strapLengthWithOverlap = safeWidth + TAPE_HOUSING_OVERLAP_PX;
     const bandInset = Math.min(Math.max(strapHeight * 0.12, 6), strapHeight / 2.2);
     const topBaselineY = bandInset;
     const bottomBaselineY = strapHeight - bandInset;
@@ -2048,8 +2050,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       ${unitLabelMarkup}
     `;
 
-    tapeMeasure.style.setProperty('--tape-strap-length', `${safeWidth}px`);
-    tapeLengthState.totalPx = safeWidth;
+    tapeMeasure.style.setProperty('--tape-strap-length', `${strapLengthWithOverlap}px`);
+    tapeMeasure.style.setProperty('--tape-strap-overlap', `${TAPE_HOUSING_OVERLAP_PX}px`);
+    tapeLengthState.totalPx = strapLengthWithOverlap;
     tapeLengthState.maxVisiblePx = safeWidth;
   }
 
@@ -2784,7 +2787,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     tapeLengthState.visiblePx = visible;
     tapeMeasure.style.setProperty('--tape-strap-visible', `${visible}px`);
     const totalWidth = Number.isFinite(tapeLengthState.totalPx) ? tapeLengthState.totalPx : 0;
-    const strapOffset = totalWidth > 0 ? totalWidth - visible : 0;
+    const strapOffsetBase = totalWidth > 0 ? totalWidth - visible : 0;
+    const strapOffset = Math.max(0, strapOffsetBase - TAPE_HOUSING_OVERLAP_PX);
     tapeMeasure.style.setProperty('--tape-strap-offset', `${strapOffset}px`);
     const effectiveUnits = Number.isFinite(tapeLengthState.unitSpacing) && tapeLengthState.unitSpacing > 0
       ? visible / tapeLengthState.unitSpacing

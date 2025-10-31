@@ -22,6 +22,7 @@
       --tape-housing-width: 136px;
       --tape-housing-height: 72px;
       --tape-strap-offset: 0px;
+      --tape-strap-overlap: 0px;
     }
 
     body[data-app="måling"] {
@@ -247,7 +248,7 @@
       left: auto;
       width: var(--tape-strap-length);
       height: var(--tape-strap-height);
-      clip-path: inset(0 0 0 calc(100% - var(--tape-strap-visible)));
+      clip-path: inset(0 0 0 max(0px, calc(100% - var(--tape-strap-visible) - var(--tape-strap-overlap, 0px))));
       overflow: hidden;
       cursor: ew-resize;
       touch-action: none;
@@ -260,7 +261,7 @@
       transform: translateX(var(--tape-strap-offset));
       pointer-events: none;
       display: block;
-      clip-path: inset(0 calc(100% - var(--tape-strap-visible)) 0 0);
+      clip-path: inset(0 max(0px, calc(100% - var(--tape-strap-visible) - var(--tape-strap-overlap, 0px))) 0 0);
     }
 
     .tape-measure__strap-base {
