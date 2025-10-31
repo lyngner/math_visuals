@@ -200,9 +200,52 @@
     palettes: deepClone(campusProfileBase.palettes),
     colors: deepClone(campusProfileBase.colors)
   };
+  const annetPaletteColors = Array.isArray(paletteConfig.PROJECT_FALLBACKS.annet)
+    ? paletteConfig.PROJECT_FALLBACKS.annet.slice()
+    : [];
+  const annetProfileBase = {
+    palettes: {
+      fractions: annetPaletteColors.slice(),
+      figures: annetPaletteColors.slice()
+    },
+    colors: {
+      ui: {
+        primary: '#355070',
+        secondary: '#577590',
+        hover: '#F3722C',
+        playButton: '#43AA8B',
+        playButtonHover: '#2F7F71',
+        playButtonText: '#FFFFFF'
+      },
+      dots: {
+        default: '#355070',
+        highlight: '#F3722C'
+      },
+      graphs: {
+        axis: '#355070'
+      },
+      beads: {
+        primary: {
+          fill: '#F3722C',
+          stroke: '#C2591C'
+        },
+        secondary: {
+          fill: '#43AA8B',
+          stroke: '#2F7F71'
+        }
+      },
+      pizza: {
+        fill: '#FCEDE4',
+        rim: '#355070',
+        dash: '#577590',
+        handle: '#F9C74F',
+        handleStroke: '#C2971C'
+      }
+    }
+  };
   const annetProfile = {
-    palettes: deepClone(campusProfileBase.palettes),
-    colors: deepClone(campusProfileBase.colors)
+    palettes: deepClone(annetProfileBase.palettes),
+    colors: deepClone(annetProfileBase.colors)
   };
   const PROFILES = {
     kikora: {
@@ -211,59 +254,59 @@
       palettes: {
         fractions: {
           byCount: {
-            1: ['#6C1BA2'],
-            2: ['#534477', '#BF4474'],
-            3: ['#BF4474', '#6C1BA2', '#B25FE3'],
-            4: ['#BF4474', '#873E79', '#534477', '#6C1BA2'],
-            5: ['#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
-            6: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3']
+            1: ['#FF5C5C'],
+            2: ['#FF5C5C', '#3A86FF'],
+            3: ['#FF5C5C', '#FF9F1C', '#3A86FF'],
+            4: ['#FF5C5C', '#FF9F1C', '#2EC4B6', '#3A86FF'],
+            5: ['#FF5C5C', '#FF9F1C', '#2EC4B6', '#3A86FF', '#8338EC'],
+            6: ['#FF5C5C', '#FF9F1C', '#2EC4B6', '#3A86FF', '#8338EC', '#FFE066']
           },
-          default: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3']
+          default: ['#FF5C5C', '#FF9F1C', '#2EC4B6', '#3A86FF', '#8338EC', '#FFE066']
         },
         figures: {
           byCount: {
-            1: ['#6C1BA2'],
-            2: ['#534477', '#BF4474'],
-            3: ['#BF4474', '#6C1BA2', '#B25FE3'],
-            4: ['#BF4474', '#873E79', '#534477', '#6C1BA2'],
-            5: ['#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3'],
-            6: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3']
+            1: ['#FF5C5C'],
+            2: ['#FF5C5C', '#3A86FF'],
+            3: ['#FF5C5C', '#FF9F1C', '#3A86FF'],
+            4: ['#FF5C5C', '#FF9F1C', '#2EC4B6', '#3A86FF'],
+            5: ['#FF5C5C', '#FF9F1C', '#2EC4B6', '#3A86FF', '#8338EC'],
+            6: ['#FF5C5C', '#FF9F1C', '#2EC4B6', '#3A86FF', '#8338EC', '#FFE066']
           },
-          default: ['#E31C3D', '#BF4474', '#873E79', '#534477', '#6C1BA2', '#B25FE3']
+          default: ['#FF5C5C', '#FF9F1C', '#2EC4B6', '#3A86FF', '#8338EC', '#FFE066']
         }
       },
       colors: {
         ui: {
-          primary: '#6C1BA2',
-          secondary: '#534477',
-          hover: '#873E79',
-          playButton: '#10b981',
-          playButtonHover: '#059669',
-          playButtonText: '#ffffff'
+          primary: '#3A86FF',
+          secondary: '#8338EC',
+          hover: '#FF9F1C',
+          playButton: '#2EC4B6',
+          playButtonHover: '#23968A',
+          playButtonText: '#FFFFFF'
         },
         dots: {
-          default: '#534477',
-          highlight: '#BF4474'
+          default: '#8338EC',
+          highlight: '#FF5C5C'
         },
         graphs: {
-          axis: '#111827'
+          axis: '#3A86FF'
         },
         beads: {
           primary: {
-            fill: '#d24a2c',
-            stroke: '#b23d22'
+            fill: '#FF9F1C',
+            stroke: '#D77900'
           },
           secondary: {
-            fill: '#3f7dc0',
-            stroke: '#2a5e91'
+            fill: '#2EC4B6',
+            stroke: '#23968A'
           }
         },
         pizza: {
-          fill: '#5B2AA5',
-          rim: '#333333',
-          dash: '#000000',
-          handle: '#e9e6f7',
-          handleStroke: '#333333'
+          fill: '#FFE066',
+          rim: '#3A86FF',
+          dash: '#8338EC',
+          handle: '#FF5C5C',
+          handleStroke: '#C23F3F'
         }
       }
     },
