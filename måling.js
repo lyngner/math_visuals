@@ -99,7 +99,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
   const TAPE_STRAP_DEFAULT_HEIGHT = 47;
   const TAPE_STRAP_HANDLE_RATIO = 0.45;
   const TAPE_STRAP_HANDLE_MIN_PX = 24;
-  const TAPE_HOUSING_OVERLAP_PX = 36;
+  const TAPE_HOUSING_SHIFT_VARIABLE = '--tape-housing-shift';
+  const DEFAULT_TAPE_HOUSING_SHIFT_PX = 36;
   const TAPE_STRAP_END_WIDTH = 40;
   const TAPE_DIRECTION = -1;
   const zeroOffset = { x: 0, y: 0 };
@@ -1977,6 +1978,23 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     return TAPE_STRAP_DEFAULT_HEIGHT;
   }
 
+  function resolveTapeHousingShiftPx() {
+    if (!doc) {
+      return DEFAULT_TAPE_HOUSING_SHIFT_PX;
+    }
+    const view = doc.defaultView;
+    if (!view || typeof view.getComputedStyle !== 'function') {
+      return DEFAULT_TAPE_HOUSING_SHIFT_PX;
+    }
+    const target = tapeMeasure || doc.documentElement;
+    if (!target) {
+      return DEFAULT_TAPE_HOUSING_SHIFT_PX;
+    }
+    const rawValue = view.getComputedStyle(target).getPropertyValue(TAPE_HOUSING_SHIFT_VARIABLE);
+    const parsed = Number.parseFloat(rawValue);
+    return Number.isFinite(parsed) ? parsed : DEFAULT_TAPE_HOUSING_SHIFT_PX;
+  }
+
   function renderTapeMeasureStrap(settings, unitSpacing, scaleMetrics) {
     if (!tapeMeasure || !tapeStrapSvg) {
       return;
@@ -1997,7 +2015,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     const strapHeight = getTapeStrapHeight();
     const strapWidth = unitSpacing * Math.max(lengthValue, 1);
     const safeWidth = strapWidth > 0 ? strapWidth : unitSpacing;
-    const strapLengthWithOverlap = safeWidth + TAPE_HOUSING_OVERLAP_PX;
+    const tapeHousingShift = resolveTapeHousingShiftPx();
+    const strapLengthWithOverlap = safeWidth + tapeHousingShift;
     const strapEndScale = Number.isFinite(strapHeight) && strapHeight > 0 ? strapHeight / TAPE_STRAP_DEFAULT_HEIGHT : 1;
     const strapEndScaleValue = Number.isFinite(strapEndScale) && strapEndScale > 0 ? strapEndScale : 1;
     const strapEndWidth = TAPE_STRAP_END_WIDTH * strapEndScaleValue;
@@ -2078,7 +2097,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     `;
 
     tapeMeasure.style.setProperty('--tape-strap-length', `${strapLengthWithOverlap}px`);
-    tapeMeasure.style.setProperty('--tape-strap-overlap', `${TAPE_HOUSING_OVERLAP_PX}px`);
+    tapeMeasure.style.setProperty('--tape-strap-overlap', `${tapeHousingShift}px`);
     tapeMeasure.style.setProperty('--tape-strap-start-offset', `${subdivisionStep}px`);
     tapeLengthState.totalPx = strapLengthWithOverlap;
     tapeLengthState.maxVisiblePx = safeWidth;
@@ -2845,7 +2864,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     tapeMeasure.style.setProperty('--tape-strap-visible', `${visible}px`);
     const totalWidth = Number.isFinite(tapeLengthState.totalPx) ? tapeLengthState.totalPx : 0;
     const strapOffsetBase = totalWidth > 0 ? totalWidth - visible : 0;
-    const strapOffset = Math.max(0, strapOffsetBase - TAPE_HOUSING_OVERLAP_PX);
+    const tapeHousingShift = resolveTapeHousingShiftPx();
+    const strapOffset = Math.max(0, strapOffsetBase - tapeHousingShift);
     tapeMeasure.style.setProperty('--tape-strap-offset', `${strapOffset}px`);
     const effectiveUnits = Number.isFinite(tapeLengthState.unitSpacing) && tapeLengthState.unitSpacing > 0
       ? visible / tapeLengthState.unitSpacing
