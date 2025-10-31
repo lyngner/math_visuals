@@ -1401,6 +1401,8 @@
   let dragState = null;
   let currentAppMode = 'default';
   let activeInlineEditorId = null;
+  let lastInlineEditorDismissId = null;
+  let lastInlineEditorDismissAt = 0;
 
   function handleDocumentPointerDown(event) {
     if (!event) return;
@@ -1411,25 +1413,42 @@
     const target = event.target || null;
     if (!nodes) {
       deactivateInlineEditor();
+      lastInlineEditorDismissId = null;
+      lastInlineEditorDismissAt = 0;
       return;
     }
     const { wrapper, inlineEditor } = nodes;
     const nodeTarget = target && typeof target.nodeType === 'number' ? target : null;
-    if (nodeTarget) {
-      if (wrapper && typeof wrapper.contains === 'function' && wrapper.contains(nodeTarget)) {
-        return;
-      }
-      if (inlineEditor) {
-        const { host, panel } = inlineEditor;
-        if (host && typeof host.contains === 'function' && host.contains(nodeTarget)) {
-          return;
-        }
-        if (panel && typeof panel.contains === 'function' && panel.contains(nodeTarget)) {
-          return;
-        }
+    if (!nodeTarget) {
+      deactivateInlineEditor();
+      lastInlineEditorDismissId = null;
+      lastInlineEditorDismissAt = 0;
+      return;
+    }
+
+    let insideInlineEditor = false;
+    if (inlineEditor) {
+      const { host, panel } = inlineEditor;
+      if (host && typeof host.contains === 'function' && host.contains(nodeTarget)) {
+        insideInlineEditor = true;
+      } else if (panel && typeof panel.contains === 'function' && panel.contains(nodeTarget)) {
+        insideInlineEditor = true;
       }
     }
+    if (insideInlineEditor) {
+      return;
+    }
+
+    if (wrapper && typeof wrapper.contains === 'function' && wrapper.contains(nodeTarget)) {
+      lastInlineEditorDismissId = activeId;
+      lastInlineEditorDismissAt = typeof event.timeStamp === 'number' ? event.timeStamp : Date.now();
+      deactivateInlineEditor();
+      return;
+    }
+
     deactivateInlineEditor();
+    lastInlineEditorDismissId = null;
+    lastInlineEditorDismissAt = 0;
   }
 
   function normalizeActiveInlineEditorId() {
@@ -2797,6 +2816,18 @@
       if (event.target && event.target.closest('.sortering__item-editor')) {
         return;
       }
+      const now = typeof event.timeStamp === 'number' ? event.timeStamp : Date.now();
+      const dismissedRecently =
+        lastInlineEditorDismissId === id &&
+        Number.isFinite(lastInlineEditorDismissAt) &&
+        now - lastInlineEditorDismissAt <= 400;
+      if (dismissedRecently) {
+        lastInlineEditorDismissId = null;
+        lastInlineEditorDismissAt = 0;
+        return;
+      }
+      lastInlineEditorDismissId = null;
+      lastInlineEditorDismissAt = 0;
       activateInlineEditor(id, { focusText: true });
     });
 
