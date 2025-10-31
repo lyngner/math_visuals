@@ -263,7 +263,6 @@
     '#FACC15',
     '#F87171'
   ];
-  const EXTRA_GROUP_ID = paletteConfig.EXTRA_GROUP_ID;
   const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
   const COLOR_SLOT_GROUPS = paletteConfig.COLOR_SLOT_GROUPS.map(group => ({
     groupId: group.groupId,
@@ -363,21 +362,16 @@
         return sanitized[index % sanitized.length] || sanitized[0];
       });
     });
-    groups[EXTRA_GROUP_ID] = [];
     return groups;
   }
 
   function ensureProjectPaletteShape(palette) {
-    const target = palette && typeof palette === 'object' ? palette : {};
+    const shaped = {};
+    const source = palette && typeof palette === 'object' ? palette : {};
     GROUP_IDS.forEach(groupId => {
-      if (!Array.isArray(target[groupId])) {
-        target[groupId] = [];
-      }
+      shaped[groupId] = Array.isArray(source[groupId]) ? source[groupId] : [];
     });
-    if (!Array.isArray(target[EXTRA_GROUP_ID])) {
-      target[EXTRA_GROUP_ID] = [];
-    }
-    return target;
+    return shaped;
   }
 
   function cloneProjectPalette(palette) {
@@ -387,9 +381,6 @@
       const source = Array.isArray(shaped[groupId]) ? shaped[groupId] : [];
       copy[groupId] = source.slice(0, MAX_COLORS);
     });
-    const extraLimit = Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS);
-    const extraSource = Array.isArray(shaped[EXTRA_GROUP_ID]) ? shaped[EXTRA_GROUP_ID] : [];
-    copy[EXTRA_GROUP_ID] = extraSource.slice(0, extraLimit);
     return copy;
   }
 
@@ -403,13 +394,6 @@
         return sanitized[index] || null;
       });
     });
-    const extra = [];
-    for (let index = MIN_COLOR_SLOTS; index < sanitized.length && extra.length + MIN_COLOR_SLOTS < MAX_COLORS; index += 1) {
-      if (sanitized[index]) {
-        extra.push(sanitized[index]);
-      }
-    }
-    converted[EXTRA_GROUP_ID] = extra;
     return converted;
   }
 
@@ -442,16 +426,6 @@
         return FALLBACK_COLORS[0];
       });
     });
-    const extra = Array.isArray(shaped[EXTRA_GROUP_ID]) ? shaped[EXTRA_GROUP_ID] : [];
-    const sanitizedExtra = [];
-    const extraLimit = Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS);
-    for (let index = 0; index < extra.length && sanitizedExtra.length < extraLimit; index += 1) {
-      const clean = sanitizeColor(extra[index]);
-      if (clean) {
-        sanitizedExtra.push(clean);
-      }
-    }
-    sanitized[EXTRA_GROUP_ID] = sanitizedExtra;
     return sanitized;
   }
 
@@ -482,15 +456,6 @@
           flattened.push(fallbackBase[baseIndex % fallbackBase.length] || fallbackBase[0]);
         }
       });
-    });
-    const extra = Array.isArray(normalizedPalette[EXTRA_GROUP_ID]) ? normalizedPalette[EXTRA_GROUP_ID] : [];
-    extra.forEach(color => {
-      if (flattened.length < MAX_COLORS) {
-        const clean = sanitizeColor(color);
-        if (clean) {
-          flattened.push(clean);
-        }
-      }
     });
     const min = Number.isInteger(minimumLength) && minimumLength > 0 ? minimumLength : 0;
     while (flattened.length < min && flattened.length < MAX_COLORS) {

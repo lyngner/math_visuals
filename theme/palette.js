@@ -42,7 +42,6 @@
   const MIN_COLOR_SLOTS = Number.isInteger(paletteConfig.MIN_COLOR_SLOTS)
     ? paletteConfig.MIN_COLOR_SLOTS
     : Object.values(GROUP_SLOT_INDICES).reduce((total, indices) => total + indices.length, 0);
-  const EXTRA_GROUP_ID = paletteConfig.EXTRA_GROUP_ID;
   const COLOR_GROUP_IDS = Array.isArray(paletteConfig.COLOR_GROUP_IDS)
     ? paletteConfig.COLOR_GROUP_IDS.map(value => (typeof value === 'string' ? value.trim().toLowerCase() : '')).filter(Boolean)
     : Object.keys(GROUP_SLOT_INDICES).map(key => (typeof key === 'string' ? key.trim().toLowerCase() : '')).filter(Boolean);
@@ -53,8 +52,7 @@
   }, {});
   const GROUPED_PALETTE_ORDER = Array.isArray(paletteConfig.DEFAULT_GROUP_ORDER)
     ? paletteConfig.DEFAULT_GROUP_ORDER.map(value => (typeof value === 'string' ? value.trim().toLowerCase() : '')).filter(Boolean)
-    : COLOR_GROUP_IDS.concat([EXTRA_GROUP_ID]);
-  const EXTRA_GROUP_LIMIT = Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS);
+    : COLOR_GROUP_IDS.slice();
   const missingGroupWarnings = new Set();
 
   function normalizeProjectName(name) {
@@ -125,15 +123,12 @@
     }
     Object.keys(source).forEach(key => {
       const normalized = normalizeGroupId(key);
-      if (!normalized) return;
+      if (!normalized || !COLOR_GROUP_IDS.includes(normalized)) return;
       if (Array.isArray(source[key])) {
-        const limit = normalized === EXTRA_GROUP_ID ? EXTRA_GROUP_LIMIT : GROUP_SLOT_COUNTS[normalized] || MAX_COLORS;
+        const limit = GROUP_SLOT_COUNTS[normalized] || MAX_COLORS;
         result[normalized] = sanitizeGroupPalette(source[key], limit);
       }
     });
-    if (!Array.isArray(result[EXTRA_GROUP_ID])) {
-      result[EXTRA_GROUP_ID] = [];
-    }
     return result;
   }
 
@@ -169,19 +164,6 @@
       }
       groups[groupId] = colors;
     });
-    if (EXTRA_GROUP_LIMIT > 0) {
-      const extra = [];
-      while (cursor < fallbackColors.length && extra.length < EXTRA_GROUP_LIMIT) {
-        const color = fallbackColors[cursor];
-        if (color) {
-          extra.push(color);
-        }
-        cursor += 1;
-      }
-      groups[EXTRA_GROUP_ID] = extra;
-    } else {
-      groups[EXTRA_GROUP_ID] = [];
-    }
     PROJECT_FALLBACK_GROUP_CACHE.set(normalized, cloneGroupPalettes(groups));
     return cloneGroupPalettes(groups);
   }
@@ -204,29 +186,16 @@
           merged.push(color);
         }
       }
-      while (merged.length < limit) {
-        const fallback = existing[merged.length] || existing[0] || null;
-        if (fallback) {
-          merged.push(fallback);
-        } else {
-          break;
-        }
-      }
-      target[groupId] = merged;
-    });
-    if (EXTRA_GROUP_LIMIT > 0) {
-      const incomingExtra = sanitizeGroupPalette(normalizedSource[EXTRA_GROUP_ID], EXTRA_GROUP_LIMIT);
-      if (incomingExtra.length) {
-        const existingExtra = Array.isArray(target[EXTRA_GROUP_ID]) ? target[EXTRA_GROUP_ID].slice() : [];
-        const mergedExtra = existingExtra.slice();
-        for (let index = 0; index < incomingExtra.length && index < EXTRA_GROUP_LIMIT; index += 1) {
-          if (incomingExtra[index]) {
-            mergedExtra[index] = incomingExtra[index];
-          }
-        }
-        target[EXTRA_GROUP_ID] = mergedExtra.filter(Boolean);
+    while (merged.length < limit) {
+      const fallback = existing[merged.length] || existing[0] || null;
+      if (fallback) {
+        merged.push(fallback);
+      } else {
+        break;
       }
     }
+    target[groupId] = merged;
+  });
   }
 
   function distributeFlatPaletteToGroups(palette) {
@@ -242,9 +211,6 @@
       }
       groups[groupId] = colors;
     });
-    if (EXTRA_GROUP_LIMIT > 0 && cursor < sanitized.length) {
-      groups[EXTRA_GROUP_ID] = sanitized.slice(cursor, cursor + EXTRA_GROUP_LIMIT);
-    }
     return groups;
   }
 
@@ -274,19 +240,9 @@
     const source = groupPalettes && typeof groupPalettes === 'object' ? groupPalettes : {};
     const flattened = [];
     GROUPED_PALETTE_ORDER.forEach(groupId => {
+      if (flattened.length >= MAX_COLORS) return;
       const normalized = normalizeGroupId(groupId);
-      if (!normalized) return;
-      if (normalized === EXTRA_GROUP_ID) {
-        const extra = Array.isArray(source[normalized])
-          ? sanitizeGroupPalette(source[normalized], EXTRA_GROUP_LIMIT || MAX_COLORS)
-          : [];
-        extra.forEach(color => {
-          if (flattened.length < MAX_COLORS) {
-            flattened.push(color);
-          }
-        });
-        return;
-      }
+      if (!normalized || !COLOR_GROUP_IDS.includes(normalized)) return;
       const limit = GROUP_SLOT_COUNTS[normalized] || 0;
       if (!limit) return;
       const values = Array.isArray(source[normalized])
@@ -558,14 +514,6 @@
   }
 
   function collectGroupIndices(groupId, projectName, availableLength) {
-    if (groupId === EXTRA_GROUP_ID) {
-      const limit = Math.min(Number.isInteger(availableLength) ? availableLength : MAX_COLORS, MAX_COLORS);
-      const indices = [];
-      for (let index = MIN_COLOR_SLOTS; index < limit; index += 1) {
-        indices.push(index);
-      }
-      return indices;
-    }
     const base = GROUP_SLOT_INDICES[groupId];
     if (Array.isArray(base)) {
       return base.slice();
@@ -614,7 +562,7 @@
     const baseGroupPalette = Array.isArray(projectGroupPalettes[groupKey])
       ? sanitizeGroupPalette(
           projectGroupPalettes[groupKey],
-          groupKey === EXTRA_GROUP_ID ? EXTRA_GROUP_LIMIT : GROUP_SLOT_COUNTS[groupKey] || MAX_COLORS
+          GROUP_SLOT_COUNTS[groupKey] || MAX_COLORS
         )
       : [];
     if (baseGroupPalette.length) {
@@ -635,16 +583,6 @@
           colors.push(fallback || globalFallback[index % globalFallback.length]);
         }
       });
-    }
-
-    if (groupKey === EXTRA_GROUP_ID) {
-      let nextIndex = MIN_COLOR_SLOTS;
-      const globalFallback = getGlobalFallbackPalette();
-      while (colors.length < (count || colors.length) && nextIndex < projectPalette.length && nextIndex < MAX_COLORS) {
-        const color = projectPalette[nextIndex] || fallbackPalette[nextIndex % fallbackPalette.length];
-        colors.push(color || globalFallback[nextIndex % globalFallback.length]);
-        nextIndex += 1;
-      }
     }
 
     if (!colors.length) {

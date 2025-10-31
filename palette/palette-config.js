@@ -21,7 +21,6 @@
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this, function () {
   const MAX_COLORS = 48;
   const DEFAULT_PROJECT = 'campus';
-  const EXTRA_GROUP_ID = 'extra';
   const PROJECT_FALLBACKS = {
     campus: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
     annet: ['#FCEDE4', '#355070', '#F3722C', '#43AA8B', '#577590', '#F9C74F'],
@@ -192,13 +191,12 @@
   });
 
   const MIN_COLOR_SLOTS = COLOR_SLOT_GROUPS.reduce((total, group) => total + group.slots.length, 0);
-  const DEFAULT_GROUP_ORDER = COLOR_GROUP_IDS.concat([EXTRA_GROUP_ID]);
+  const DEFAULT_GROUP_ORDER = COLOR_GROUP_IDS.slice();
   const DEFAULT_PROJECT_ORDER = ['campus', 'kikora', 'annet'];
 
   const config = {
     MAX_COLORS,
     DEFAULT_PROJECT,
-    EXTRA_GROUP_ID,
     PROJECT_FALLBACKS: deepFreeze({
       campus: PROJECT_FALLBACKS.campus.slice(),
       annet: PROJECT_FALLBACKS.annet.slice(),
