@@ -3092,7 +3092,10 @@
     const order = sanitizeOrder(items, orderSource);
     const retning = normalizeDirection(existing && existing.retning ? existing.retning : DEFAULT_STATE.retning);
     const gap = normalizeGap(existing && 'gap' in existing ? existing.gap : Number.NaN, DEFAULT_STATE.gap);
-    const randomisering = true;
+    const randomisering =
+      existing && typeof existing.randomisering === 'boolean'
+        ? existing.randomisering
+        : DEFAULT_STATE.randomisering;
     const altText = existing && typeof existing.altText === 'string' ? existing.altText : DEFAULT_STATE.altText;
     const altTextSource = existing && existing.altTextSource === 'manual' ? 'manual' : DEFAULT_STATE.altTextSource;
 
