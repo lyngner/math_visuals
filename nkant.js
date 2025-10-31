@@ -721,7 +721,6 @@ const STYLE_PROFILE_OVERRIDES = {
   }
 };
 
-const SETTINGS_STORAGE_KEY = "mathVisuals:settings";
 const SETTINGS_FALLBACK_PALETTE = ["#1F4DE2", "#475569", "#ef4444", "#0ea5e9", "#10b981", "#f59e0b"];
 
 function getSettingsApi() {
@@ -730,11 +729,11 @@ function getSettingsApi() {
   return api && typeof api === "object" ? api : null;
 }
 
-function getGroupPaletteHelper() {
+function getPaletteApi() {
   const scope = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null;
-  if (!scope) return null;
-  const helper = scope.MathVisualsGroupPalette;
-  return helper && typeof helper.resolve === "function" ? helper : null;
+  if (!scope || typeof scope !== "object") return null;
+  const api = scope.MathVisualsPalette;
+  return api && typeof api.getGroupPalette === "function" ? api : null;
 }
 
 function resolveProjectNameHint() {
@@ -817,65 +816,24 @@ function cycleSettingsPalette(values, count) {
   return result;
 }
 
-function readStoredSettings() {
-  if (typeof window === "undefined" || !window.localStorage) return null;
-  try {
-    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (typeof raw !== "string" || !raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch (_) {
-    return null;
-  }
-}
-
 function resolveSettingsPalette(count) {
   const target = Number.isInteger(count) && count > 0 ? count : undefined;
   const project = resolveProjectNameHint();
-  const theme = getThemeApi();
   const groupTarget = target && target > 0 ? target : 3;
-  const helper = getGroupPaletteHelper();
-  if (helper) {
-    try {
-      const palette = helper.resolve({
-        groupId: "nkant",
-        count: groupTarget,
-        project,
-        fallback: SETTINGS_FALLBACK_PALETTE,
-        legacyPaletteId: "figures",
-        fallbackKinds: ["fractions"]
-      });
-      if (Array.isArray(palette) && palette.length) {
-        const resolved = cycleSettingsPalette(palette, groupTarget);
-        if (resolved.length) {
-          return { colors: resolved, source: "group" };
-        }
-      }
-    } catch (_) {}
-  }
-  const api = getSettingsApi();
-  if (api && typeof api.getGroupPalette === "function") {
+  const paletteApi = getPaletteApi();
+  if (paletteApi) {
     let palette = null;
     try {
-      palette = api.getGroupPalette("nkant", { project, count: groupTarget });
+      palette = paletteApi.getGroupPalette("nkant", { count: groupTarget, project });
     } catch (_) {
       palette = null;
-    }
-    if (
-      (!Array.isArray(palette) || palette.length < groupTarget) &&
-      api.getGroupPalette.length >= 3
-    ) {
-      try {
-        palette = api.getGroupPalette("nkant", groupTarget, project ? { project } : undefined);
-      } catch (_) {
-        palette = null;
-      }
     }
     const resolved = cycleSettingsPalette(palette, groupTarget);
     if (resolved.length) {
       return { colors: resolved, source: "group" };
     }
   }
+  const theme = getThemeApi();
   if (theme && typeof theme.getGroupPalette === "function") {
     let palette = null;
     try {
@@ -896,36 +854,6 @@ function resolveSettingsPalette(count) {
     const resolved = cycleSettingsPalette(palette, groupTarget);
     if (resolved.length) {
       return { colors: resolved, source: "group" };
-    }
-  }
-  if (theme && typeof theme.getPalette === "function") {
-    try {
-      const palette = theme.getPalette("figures", target || 4, { fallbackKinds: ["fractions"], project });
-      const resolved = cycleSettingsPalette(palette, target || (Array.isArray(palette) ? palette.length : 0));
-      if (resolved.length) {
-        return { colors: resolved, source: "general" };
-      }
-    } catch (_) {}
-  }
-  const stored = readStoredSettings();
-  if (stored && typeof stored === "object") {
-    if (project && stored.projects && typeof stored.projects === "object") {
-      const projectSettings = stored.projects[project];
-      if (projectSettings && Array.isArray(projectSettings.defaultColors)) {
-        const resolved = cycleSettingsPalette(
-          projectSettings.defaultColors,
-          target || projectSettings.defaultColors.length
-        );
-        if (resolved.length) {
-          return { colors: resolved, source: "general" };
-        }
-      }
-    }
-    if (Array.isArray(stored.defaultColors)) {
-      const resolved = cycleSettingsPalette(stored.defaultColors, target || stored.defaultColors.length);
-      if (resolved.length) {
-        return { colors: resolved, source: "general" };
-      }
     }
   }
   const fallback = cycleSettingsPalette(SETTINGS_FALLBACK_PALETTE, target || SETTINGS_FALLBACK_PALETTE.length);
