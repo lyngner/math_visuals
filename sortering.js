@@ -767,8 +767,51 @@
   registerMathVisApi();
 
   const ITEM_TYPES = ['text', 'figure'];
-  const FIGURE_LIBRARY_BASE_PATH = 'images/amounts/';
+  const FIGURE_LIBRARY_RELATIVE_BASE_PATH = 'images/amounts/';
+  const FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_LEADING_SLASH = `/${FIGURE_LIBRARY_RELATIVE_BASE_PATH}`;
+  const FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_DOT = `./${FIGURE_LIBRARY_RELATIVE_BASE_PATH}`;
+
+  function ensureTrailingSlash(path) {
+    if (typeof path !== 'string') {
+      return '';
+    }
+    return path.endsWith('/') ? path : `${path}/`;
+  }
+
+  function resolveFigureLibraryBasePath() {
+    const relativeWithDot = `./${FIGURE_LIBRARY_RELATIVE_BASE_PATH}`;
+    if (typeof import.meta !== 'undefined' && import.meta && import.meta.url) {
+      try {
+        return ensureTrailingSlash(new URL(relativeWithDot, import.meta.url).href);
+      } catch (_) {
+        /* noop */
+      }
+    }
+    if (doc && doc.currentScript && doc.currentScript.src) {
+      try {
+        return ensureTrailingSlash(new URL(relativeWithDot, doc.currentScript.src).href);
+      } catch (_) {
+        /* noop */
+      }
+    }
+    if (globalObj && globalObj.location && globalObj.location.href) {
+      try {
+        return ensureTrailingSlash(new URL(relativeWithDot, globalObj.location.href).href);
+      } catch (_) {
+        /* noop */
+      }
+    }
+    return ensureTrailingSlash(FIGURE_LIBRARY_RELATIVE_BASE_PATH);
+  }
+
+  const FIGURE_LIBRARY_BASE_PATH = resolveFigureLibraryBasePath();
   const FIGURE_LIBRARY_MANIFEST_URL = `${FIGURE_LIBRARY_BASE_PATH}manifest.json`;
+  const FIGURE_LIBRARY_BASE_PREFIXES = [
+    FIGURE_LIBRARY_BASE_PATH,
+    FIGURE_LIBRARY_RELATIVE_BASE_PATH,
+    FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_LEADING_SLASH,
+    FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_DOT
+  ].filter(prefix => typeof prefix === 'string' && prefix);
   const FIGURE_CATEGORIES = [
     { id: 'tierbrett', label: 'Tierbrett', prefix: 'tb' },
     { id: 'tallbrikker', label: 'Tallbrikker', prefix: 'n' },
@@ -798,8 +841,9 @@
     if (typeof value !== 'string') return '';
     const trimmed = value.trim();
     if (!trimmed) return '';
-    if (trimmed.startsWith(FIGURE_LIBRARY_BASE_PATH)) {
-      return trimmed.slice(FIGURE_LIBRARY_BASE_PATH.length);
+    const prefix = FIGURE_LIBRARY_BASE_PREFIXES.find(entry => trimmed.startsWith(entry));
+    if (prefix) {
+      return trimmed.slice(prefix.length);
     }
     return trimmed;
   }
@@ -1278,12 +1322,12 @@
     if (typeof value !== 'string') return '';
     let normalized = value.trim();
     if (!normalized) return '';
-    if (normalized.startsWith(FIGURE_LIBRARY_BASE_PATH)) {
-      normalized = normalized.slice(FIGURE_LIBRARY_BASE_PATH.length);
-    }
-    const slashIndex = normalized.lastIndexOf('/');
+    const stripped = normalizeFigureLibraryValue(normalized);
+    const slashIndex = stripped.lastIndexOf('/');
     if (slashIndex >= 0) {
-      normalized = normalized.slice(slashIndex + 1);
+      normalized = stripped.slice(slashIndex + 1);
+    } else {
+      normalized = stripped;
     }
     normalized = normalized.replace(/\.svg$/i, '');
     return normalized.trim();
