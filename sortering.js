@@ -1538,7 +1538,7 @@
       }
     }
     if (editToggle) {
-      const label = isActive ? 'slett element' : 'Rediger element';
+      const label = 'Rediger';
       editToggle.textContent = label;
       editToggle.hidden = !editable;
       editToggle.disabled = !editable;
@@ -1755,7 +1755,7 @@
     const editToggle = doc.createElement('button');
     editToggle.type = 'button';
     editToggle.className = 'sortering__item-edit-toggle';
-    editToggle.textContent = 'Rediger element';
+    editToggle.textContent = 'Rediger';
     wrapper.appendChild(editToggle);
 
     const li = doc.createElement('li');
