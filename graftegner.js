@@ -8115,6 +8115,18 @@ function setupSettingsForm() {
   };
   bindAxisInput(axisXInputElement);
   bindAxisInput(axisYInputElement);
+  const handleCurveNameToggle = event => {
+    if (event && typeof event.stopPropagation === 'function') {
+      event.stopPropagation();
+    }
+    apply();
+  };
+  if (showNamesInput) {
+    showNamesInput.addEventListener('change', handleCurveNameToggle);
+  }
+  if (showExprInput) {
+    showExprInput.addEventListener('change', handleCurveNameToggle);
+  }
   if (screenInput) {
     screenInput.addEventListener('change', e => {
       SCREEN_INPUT_IS_EDITING = false;
