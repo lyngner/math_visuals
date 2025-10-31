@@ -2645,6 +2645,8 @@
     }
   }
 
+  const DRAG_CLICK_THRESHOLD_PX = 4;
+
   function startPointerDrag(event, id) {
     if (!canReorderItems()) return;
     if (!visualList || dragState || !state) return;
@@ -2704,7 +2706,9 @@
       slotCacheOrientation: null,
       slotCacheSignature: null,
       slotCacheDirty: true,
-      placeholder
+      placeholder,
+      hasExceededDragThreshold: currentAppMode === 'task',
+      suppressClick: currentAppMode === 'task'
     };
     refreshDragSlotCache(orientation);
     wrapper.classList.add('sortering__item--dragging');
@@ -2717,7 +2721,9 @@
       selection.removeAllRanges();
     }
     finalizeKeyboardMode();
-    event.preventDefault();
+    if (currentAppMode === 'task') {
+      event.preventDefault();
+    }
   }
 
   function handlePointerMove(event, id) {
@@ -2745,6 +2751,14 @@
     const dy = desiredCenterY - baseCenterY;
     dragState.translationX = dx;
     dragState.translationY = dy;
+
+    if (!dragState.hasExceededDragThreshold) {
+      const distanceSq = dx * dx + dy * dy;
+      if (distanceSq >= DRAG_CLICK_THRESHOLD_PX * DRAG_CLICK_THRESHOLD_PX) {
+        dragState.hasExceededDragThreshold = true;
+        dragState.suppressClick = true;
+      }
+    }
     wrapper.style.transform = `translate(${dx}px, ${dy}px)`;
 
     const pointerCoord = orientation === 'vertikal' ? desiredCenterY : desiredCenterX;
@@ -2797,11 +2811,21 @@
     snapToSlot(id);
     updateItemPositions();
     clearVisualMarkers();
+    if (
+      activeDrag &&
+      activeDrag.suppressClick &&
+      nodes &&
+      nodes.wrapper &&
+      nodes.wrapper.dataset
+    ) {
+      nodes.wrapper.dataset.suppressNextClick = 'true';
+    }
   }
 
   function attachItemListeners(id, nodes) {
     if (!nodes || nodes.wrapper.dataset.listenersAttached === 'true') return;
     nodes.wrapper.dataset.listenersAttached = 'true';
+    nodes.wrapper.dataset.suppressNextClick = 'false';
     nodes.wrapper.style.touchAction = currentAppMode === 'task' ? 'none' : 'auto';
     nodes.wrapper.addEventListener('pointerdown', event => {
       if (!canReorderItems()) return;
@@ -2812,6 +2836,10 @@
     nodes.wrapper.addEventListener('pointerup', event => finishPointerDrag(event, id));
     nodes.wrapper.addEventListener('pointercancel', event => finishPointerDrag(event, id));
     nodes.wrapper.addEventListener('click', event => {
+      if (nodes.wrapper.dataset.suppressNextClick === 'true') {
+        nodes.wrapper.dataset.suppressNextClick = 'false';
+        return;
+      }
       if (!isEditorMode()) return;
       if (event.target && event.target.closest('.sortering__item-editor')) {
         return;
