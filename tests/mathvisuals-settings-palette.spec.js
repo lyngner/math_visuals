@@ -372,23 +372,23 @@ test.describe('MathVisualsSettings project palette formats', () => {
         campus: {
           groupPalettes: {
             graftegner: ['#111111'],
-            extra: ['#222222', ' #333333 ']
+            ukjent: ['#222222', ' #333333 ']
           }
         }
       }
     });
 
     expect(update.projects.campus.groupPalettes.graftegner[0]).toBe('#111111');
-    expect(update.projects.campus.groupPalettes.extra.slice(0, 2)).toEqual(['#222222', '#333333']);
     expect(update.projects.campus.defaultColors[0]).toBe('#111111');
-    expect(update.projects.campus.defaultColors).toEqual(expect.arrayContaining(['#222222']));
+    expect(update.projects.campus.groupPalettes.ukjent).toBeUndefined();
+    expect(update.projects.campus.defaultColors).not.toEqual(expect.arrayContaining(['#222222']));
 
     const settings = api.getSettings();
     const campus = settings.projects.campus;
     expect(campus.groupPalettes.graftegner[0]).toBe('#111111');
     expect(campus.defaultColors[0]).toBe('#111111');
-    expect(campus.defaultColors).toEqual(expect.arrayContaining(['#222222']));
-    expect(campus.groupPalettes.extra.slice(0, 2)).toEqual(['#222222', '#333333']);
+    expect(campus.groupPalettes.ukjent).toBeUndefined();
+    expect(campus.defaultColors).not.toEqual(expect.arrayContaining(['#222222']));
   });
 
   test('creates groupPalettes for new projects', () => {
@@ -399,7 +399,7 @@ test.describe('MathVisualsSettings project palette formats', () => {
         'custom-app': {
           groupPalettes: {
             graftegner: ['#123456'],
-            extra: ['#654321']
+            ukjent: ['#654321']
           }
         }
       }
@@ -409,7 +409,7 @@ test.describe('MathVisualsSettings project palette formats', () => {
     expect(project).toBeTruthy();
     expect(project.groupPalettes.graftegner[0]).toBe('#123456');
     expect(project.defaultColors[0]).toBe('#123456');
-    expect(project.groupPalettes.extra[0]).toBe('#654321');
+    expect(project.groupPalettes.ukjent).toBeUndefined();
   });
 
   test('updateSettings accepts root-level groupPalettes for active project', () => {
@@ -419,19 +419,19 @@ test.describe('MathVisualsSettings project palette formats', () => {
       activeProject: 'campus',
       groupPalettes: {
         graftegner: ['#010101', ' #020202 '],
-        extra: ['#030303']
+        ukjent: ['#030303']
       }
     });
 
     const campus = update.projects.campus;
     expect(campus).toBeTruthy();
     expect(campus.groupPalettes.graftegner).toEqual(['#010101']);
-    expect(campus.groupPalettes.extra).toEqual(['#030303']);
     expect(campus.defaultColors[0]).toBe('#010101');
+    expect(campus.groupPalettes.ukjent).toBeUndefined();
 
     const persisted = api.getSettings().projects.campus;
     expect(persisted.groupPalettes.graftegner).toEqual(['#010101']);
     expect(persisted.defaultColors[0]).toBe('#010101');
-    expect(persisted.groupPalettes.extra).toEqual(['#030303']);
+    expect(persisted.groupPalettes.ukjent).toBeUndefined();
   });
 });

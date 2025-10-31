@@ -4,7 +4,6 @@
   if (!form) return;
 
   const colorGroupsContainer = form.querySelector('[data-color-groups]');
-  const addColorButton = form.querySelector('[data-add-color]');
   const resetButton = form.querySelector('[data-reset-settings]');
   const statusElement = form.querySelector('[data-status]');
   const lineInput = form.querySelector('#lineThickness');
@@ -59,7 +58,6 @@
     campus: 'Campus',
     annet: 'Annet'
   };
-  const EXTRA_GROUP_ID = paletteConfig.EXTRA_GROUP_ID;
   const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
   const COLOR_SLOT_GROUPS = paletteConfig.COLOR_SLOT_GROUPS.map(group => ({
     groupId: group.groupId,
@@ -113,9 +111,6 @@
   };
   let colors = [];
   const slotBindings = new Map();
-  let extraGroupSection = null;
-  let extraSlotsContainer = null;
-  let extraGroupSaveButton = null;
   const groupStatusElements = new Map();
 
   function resolveSettingsApi() {
@@ -145,10 +140,6 @@
     const groups = new Set();
     const normalizedGroup = typeof groupId === 'string' ? groupId.trim().toLowerCase() : '';
     if (!normalizedGroup) return groups;
-    if (normalizedGroup === EXTRA_GROUP_ID) {
-      groups.add(EXTRA_GROUP_ID);
-      return groups;
-    }
     const group = COLOR_SLOT_GROUPS.find(entry => entry.groupId === normalizedGroup);
     if (!group) return groups;
     groups.add(group.groupId);
@@ -168,11 +159,6 @@
     const base = map.get(normalizedProject) || getProjectFallbackPalette(normalizedProject);
     const next = cloneProjectPalette(base);
     targetGroups.forEach(groupId => {
-      if (groupId === EXTRA_GROUP_ID) {
-        const extraSource = Array.isArray(editingPalette[EXTRA_GROUP_ID]) ? editingPalette[EXTRA_GROUP_ID] : [];
-        next[EXTRA_GROUP_ID] = extraSource.slice(0, Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS));
-        return;
-      }
       const group = COLOR_SLOT_GROUPS.find(entry => entry.groupId === groupId);
       if (!group) return;
       const source = Array.isArray(editingPalette[group.groupId]) ? editingPalette[group.groupId] : [];
@@ -218,13 +204,6 @@
           entries.set(groupId, diff);
         }
       });
-      if (!(normalizedProject === excludedName && excludedSet.has(EXTRA_GROUP_ID))) {
-        const currentExtra = Array.isArray(currentPalette[EXTRA_GROUP_ID]) ? currentPalette[EXTRA_GROUP_ID] : [];
-        const baselineExtra = Array.isArray(persistedPalette[EXTRA_GROUP_ID]) ? persistedPalette[EXTRA_GROUP_ID] : [];
-        if (currentExtra.length !== baselineExtra.length || currentExtra.some((color, index) => color !== baselineExtra[index])) {
-          entries.set(EXTRA_GROUP_ID, currentExtra.slice());
-        }
-      }
       if (entries.size) {
         changes.set(normalizedProject, entries);
       }
@@ -243,18 +222,6 @@
         state.colorsByProject.get(normalizedProject) || getProjectFallbackPalette(normalizedProject)
       );
       groups.forEach((values, groupId) => {
-        if (groupId === EXTRA_GROUP_ID) {
-          const extraValues = Array.isArray(values) ? values : [];
-          const sanitizedExtra = [];
-          for (let index = 0; index < extraValues.length && MIN_COLOR_SLOTS + sanitizedExtra.length < MAX_COLORS; index += 1) {
-            const clean = sanitizeColor(extraValues[index]);
-            if (clean) {
-              sanitizedExtra.push(clean);
-            }
-          }
-          currentPalette[EXTRA_GROUP_ID] = sanitizedExtra;
-          return;
-        }
         const group = COLOR_SLOT_GROUPS.find(entry => entry.groupId === groupId);
         if (!group) return;
         const incoming = Array.isArray(values) ? values : [];
@@ -343,17 +310,6 @@
     let hasChanges = false;
     groups.forEach(groupKey => {
       if (hasChanges) return;
-      if (groupKey === EXTRA_GROUP_ID) {
-        const currentExtra = Array.isArray(editingPalette[EXTRA_GROUP_ID]) ? editingPalette[EXTRA_GROUP_ID] : [];
-        const persistedExtra = Array.isArray(persistedPalette[EXTRA_GROUP_ID]) ? persistedPalette[EXTRA_GROUP_ID] : [];
-        if (
-          currentExtra.length !== persistedExtra.length ||
-          currentExtra.some((color, index) => color !== persistedExtra[index])
-        ) {
-          hasChanges = true;
-        }
-        return;
-      }
       const group = COLOR_SLOT_GROUPS.find(entry => entry.groupId === groupKey);
       if (!group) return;
       const currentGroup = Array.isArray(editingPalette[groupKey]) ? editingPalette[groupKey] : [];
@@ -525,21 +481,16 @@
         return sanitized[index % sanitized.length] || sanitized[0];
       });
     });
-    groups[EXTRA_GROUP_ID] = [];
     return groups;
   }
 
   function ensureProjectPaletteShape(palette) {
-    const target = palette && typeof palette === 'object' ? palette : {};
+    const shaped = {};
+    const source = palette && typeof palette === 'object' ? palette : {};
     GROUP_IDS.forEach(groupId => {
-      if (!Array.isArray(target[groupId])) {
-        target[groupId] = [];
-      }
+      shaped[groupId] = Array.isArray(source[groupId]) ? source[groupId] : [];
     });
-    if (!Array.isArray(target[EXTRA_GROUP_ID])) {
-      target[EXTRA_GROUP_ID] = [];
-    }
-    return target;
+    return shaped;
   }
 
   function cloneProjectPalette(palette) {
@@ -549,9 +500,6 @@
       const source = Array.isArray(shaped[groupId]) ? shaped[groupId] : [];
       copy[groupId] = source.slice(0, MAX_COLORS);
     });
-    const extraLimit = Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS);
-    const extraSource = Array.isArray(shaped[EXTRA_GROUP_ID]) ? shaped[EXTRA_GROUP_ID] : [];
-    copy[EXTRA_GROUP_ID] = extraSource.slice(0, extraLimit);
     return copy;
   }
 
@@ -565,13 +513,6 @@
         return sanitized[index] || null;
       });
     });
-    const extra = [];
-    for (let index = MIN_COLOR_SLOTS; index < sanitized.length && extra.length + MIN_COLOR_SLOTS < MAX_COLORS; index += 1) {
-      if (sanitized[index]) {
-        extra.push(sanitized[index]);
-      }
-    }
-    converted[EXTRA_GROUP_ID] = extra;
     return converted;
   }
 
@@ -595,16 +536,6 @@
         return '#1F4DE2';
       });
     });
-    const extra = Array.isArray(shaped[EXTRA_GROUP_ID]) ? shaped[EXTRA_GROUP_ID] : [];
-    const sanitizedExtra = [];
-    const extraLimit = Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS);
-    for (let index = 0; index < extra.length && sanitizedExtra.length < extraLimit; index += 1) {
-      const clean = sanitizeColor(extra[index]);
-      if (clean) {
-        sanitizedExtra.push(clean);
-      }
-    }
-    sanitized[EXTRA_GROUP_ID] = sanitizedExtra;
     return sanitized;
   }
 
@@ -628,15 +559,6 @@
         flattened.push(value || getFallbackColorForIndex(project, flattened.length));
       });
     });
-    const extra = Array.isArray(normalized[EXTRA_GROUP_ID]) ? normalized[EXTRA_GROUP_ID] : [];
-    extra.forEach(color => {
-      if (flattened.length < MAX_COLORS) {
-        const clean = sanitizeColor(color);
-        if (clean) {
-          flattened.push(clean);
-        }
-      }
-    });
     const min = Number.isInteger(minimumLength) && minimumLength > 0 ? minimumLength : 0;
     while (flattened.length < min && flattened.length < MAX_COLORS) {
       flattened.push(getFallbackColorForIndex(project, flattened.length));
@@ -651,14 +573,6 @@
         palette[meta.groupId] = [];
       }
       palette[meta.groupId][meta.groupIndex] = color;
-      return;
-    }
-    const extraIndex = index - MIN_COLOR_SLOTS;
-    if (extraIndex >= 0) {
-      if (!Array.isArray(palette[EXTRA_GROUP_ID])) {
-        palette[EXTRA_GROUP_ID] = [];
-      }
-      palette[EXTRA_GROUP_ID][extraIndex] = color;
     }
   }
 
@@ -851,7 +765,7 @@
       project,
       state.colorsByProject.get(project) || getProjectFallbackPalette(project)
     );
-    while (colors.length <= index && colors.length < MAX_COLORS) {
+    while (colors.length <= index && colors.length < MIN_COLOR_SLOTS) {
       const fallback = getFallbackColorForIndex(project, colors.length);
       colors.push(fallback);
       assignColorToPalette(palette, colors.length - 1, fallback);
@@ -974,69 +888,6 @@
     row.appendChild(slotElement);
   }
 
-  function ensureExtraGroup() {
-    if (!colorGroupsContainer) return;
-    if (extraGroupSection && extraSlotsContainer) return;
-
-    extraGroupSection = document.createElement('section');
-    extraGroupSection.className = 'color-group color-group--extra';
-    extraGroupSection.hidden = true;
-
-    const header = document.createElement('div');
-    header.className = 'color-group__header';
-
-    const title = document.createElement('h3');
-    title.className = 'color-group__title';
-    title.textContent = 'Ekstra farger';
-    header.appendChild(title);
-
-    const actions = document.createElement('div');
-    actions.className = 'color-group__actions';
-
-    extraGroupSaveButton = document.createElement('button');
-    extraGroupSaveButton.type = 'button';
-    extraGroupSaveButton.className = 'btn btn--inline';
-    extraGroupSaveButton.textContent = 'Lagre';
-    extraGroupSaveButton.dataset.saveGroup = EXTRA_GROUP_ID;
-    extraGroupSaveButton.dataset.groupTitle = 'Ekstra farger';
-    const normalizedExtraGroupId = normalizeGroupId(EXTRA_GROUP_ID);
-    if (normalizedExtraGroupId) {
-      extraGroupSaveButton.dataset.statusGroup = normalizedExtraGroupId;
-    }
-    extraGroupSaveButton.setAttribute('aria-label', 'Lagre fargene for ekstra farger');
-    actions.appendChild(extraGroupSaveButton);
-
-    const extraStatus = document.createElement('p');
-    extraStatus.className = 'color-group__status';
-    extraStatus.hidden = true;
-    actions.appendChild(extraStatus);
-    if (normalizedExtraGroupId) {
-      groupStatusElements.set(normalizedExtraGroupId, extraStatus);
-    }
-
-    header.appendChild(actions);
-    extraGroupSection.appendChild(header);
-
-    extraSlotsContainer = document.createElement('div');
-    extraSlotsContainer.className = 'color-table';
-    extraGroupSection.appendChild(extraSlotsContainer);
-
-    colorGroupsContainer.appendChild(extraGroupSection);
-  }
-
-  function ensureExtraSlot(index) {
-    ensureExtraGroup();
-    if (!extraSlotsContainer) return;
-    if (slotBindings.has(index)) return;
-    const slot = {
-      index,
-      label: `Farge ${index + 1}`,
-      description: null
-    };
-    const element = createColorSlotElement(slot);
-    appendSlotToTable(extraSlotsContainer, element);
-  }
-
   function buildColorLayout() {
     if (!colorGroupsContainer || slotBindings.size) return;
 
@@ -1087,24 +938,12 @@
       section.appendChild(table);
       colorGroupsContainer.appendChild(section);
     });
-
-    ensureExtraGroup();
-  }
-
-  function updateExtraGroupVisibility() {
-    if (!extraGroupSection) return;
-    const hasExtraColors = colors.length > MIN_COLOR_SLOTS;
-    extraGroupSection.hidden = !hasExtraColors;
-    if (extraGroupSaveButton) {
-      extraGroupSaveButton.disabled = !hasExtraColors;
-    }
   }
 
   function syncBindings() {
     for (let index = 0; index < colors.length; index += 1) {
       updateBindingsForIndex(index, colors[index]);
     }
-    updateExtraGroupVisibility();
   }
 
   function renderColors(projectName) {
@@ -1120,9 +959,6 @@
     updateProjectHeading(project);
     const palette = getActiveColors(project);
     commitActiveColors(palette, project);
-    for (let index = MIN_COLOR_SLOTS; index < colors.length; index += 1) {
-      ensureExtraSlot(index);
-    }
     syncBindings();
   }
 
@@ -1322,30 +1158,6 @@
     lineInput.addEventListener('input', () => {
       state.defaultLineThickness = clampLineThickness(lineInput.value);
       updateLinePreview();
-      clearStatus();
-    });
-  }
-
-  if (addColorButton) {
-    addColorButton.addEventListener('click', () => {
-      const project = ensureActiveProject();
-      if (colors.length >= MAX_COLORS) {
-        setStatus(`Du kan ikke ha flere enn ${MAX_COLORS} standardfarger.`, 'error');
-        return;
-      }
-      const nextIndex = colors.length;
-      const nextColor =
-        getFallbackColorForIndex(project, nextIndex) || colors[nextIndex - 1] || '#1f4de2';
-      colors.push(nextColor);
-      const palette = normalizeProjectPalette(
-        project,
-        state.colorsByProject.get(project) || getProjectFallbackPalette(project)
-      );
-      assignColorToPalette(palette, nextIndex, nextColor);
-      state.colorsByProject.set(project, cloneProjectPalette(palette));
-      ensureExtraSlot(nextIndex);
-      updateBindingsForIndex(nextIndex, nextColor);
-      updateExtraGroupVisibility();
       clearStatus();
     });
   }

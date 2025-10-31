@@ -8,8 +8,8 @@ const DEFAULT_LINE_THICKNESS = 3;
 const MAX_COLORS = paletteConfig.MAX_COLORS;
 const MIN_COLOR_SLOTS = paletteConfig.MIN_COLOR_SLOTS;
 const DEFAULT_PROJECT = typeof paletteConfig.DEFAULT_PROJECT === 'string' ? paletteConfig.DEFAULT_PROJECT : 'campus';
-const GROUPED_PALETTE_ORDER = Array.isArray(paletteConfig.DEFAULT_GROUP_ORDER)
-  ? paletteConfig.DEFAULT_GROUP_ORDER.slice()
+const GROUPED_PALETTE_ORDER = (Array.isArray(paletteConfig.DEFAULT_GROUP_ORDER)
+  ? paletteConfig.DEFAULT_GROUP_ORDER
   : [
       'graftegner',
       'nkant',
@@ -21,13 +21,13 @@ const GROUPED_PALETTE_ORDER = Array.isArray(paletteConfig.DEFAULT_GROUP_ORDER)
       'kvikkbilder',
       'trefigurer',
       'brokvegg',
-      'prikktilprikk',
-      'extra'
-    ];
+      'prikktilprikk'
+    ])
+  .map(value => (typeof value === 'string' ? value.trim().toLowerCase() : ''))
+  .filter(Boolean);
 const COLOR_GROUP_IDS = Array.isArray(paletteConfig.COLOR_GROUP_IDS)
   ? paletteConfig.COLOR_GROUP_IDS.map(value => (typeof value === 'string' ? value.trim().toLowerCase() : '')).filter(Boolean)
-  : GROUPED_PALETTE_ORDER.filter(groupId => groupId !== (paletteConfig.EXTRA_GROUP_ID || 'extra'));
-const EXTRA_GROUP_ID = typeof paletteConfig.EXTRA_GROUP_ID === 'string' ? paletteConfig.EXTRA_GROUP_ID : 'extra';
+  : GROUPED_PALETTE_ORDER.slice();
 const GROUP_SLOT_INDICES = paletteConfig.GROUP_SLOT_INDICES && typeof paletteConfig.GROUP_SLOT_INDICES === 'object'
   ? paletteConfig.GROUP_SLOT_INDICES
   : {};
@@ -36,7 +36,6 @@ const GROUP_SLOT_COUNTS = COLOR_GROUP_IDS.reduce((acc, groupId) => {
   acc[groupId] = indices.length;
   return acc;
 }, {});
-const EXTRA_GROUP_LIMIT = Math.max(0, MAX_COLORS - MIN_COLOR_SLOTS);
 const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
 const DEFAULT_PROJECT_ORDER = Array.isArray(paletteConfig.DEFAULT_PROJECT_ORDER)
   ? paletteConfig.DEFAULT_PROJECT_ORDER.slice()
@@ -184,7 +183,7 @@ function cloneGroupPalettes(source) {
   }
   Object.keys(source).forEach(key => {
     const normalized = normalizeGroupId(key);
-    if (!normalized) return;
+    if (!normalized || !COLOR_GROUP_IDS.includes(normalized)) return;
     if (Array.isArray(source[key])) {
       result[normalized] = source[key].slice();
     }
@@ -222,19 +221,6 @@ function getFallbackGroupPalettes(projectName) {
     }
     groups[groupId] = groupColors;
   });
-  if (EXTRA_GROUP_LIMIT > 0) {
-    const extra = [];
-    while (cursor < colors.length && extra.length < EXTRA_GROUP_LIMIT) {
-      const color = colors[cursor];
-      if (color) {
-        extra.push(color);
-      }
-      cursor += 1;
-    }
-    groups[EXTRA_GROUP_ID] = extra;
-  } else {
-    groups[EXTRA_GROUP_ID] = [];
-  }
   FALLBACK_GROUP_PALETTE_CACHE.set(cacheKey, cloneGroupPalettes(groups));
   return cloneGroupPalettes(groups);
 }
@@ -272,19 +258,6 @@ function applyGroupPaletteOverlay(target, source) {
     }
     target[groupId] = merged;
   });
-  if (EXTRA_GROUP_LIMIT > 0) {
-    const extraIncoming = sanitizeGroupPaletteList(normalizedSource[EXTRA_GROUP_ID], EXTRA_GROUP_LIMIT);
-    if (extraIncoming.length) {
-      const existingExtra = Array.isArray(target[EXTRA_GROUP_ID]) ? target[EXTRA_GROUP_ID].slice() : [];
-      const mergedExtra = existingExtra.slice();
-      for (let index = 0; index < extraIncoming.length && index < EXTRA_GROUP_LIMIT; index += 1) {
-        if (extraIncoming[index]) {
-          mergedExtra[index] = extraIncoming[index];
-        }
-      }
-      target[EXTRA_GROUP_ID] = mergedExtra.filter(Boolean);
-    }
-  }
 }
 
 function distributeFlatPaletteToGroups(palette) {
@@ -304,9 +277,6 @@ function distributeFlatPaletteToGroups(palette) {
     }
     result[groupId] = groupColors;
   });
-  if (EXTRA_GROUP_LIMIT > 0 && cursor < sanitized.length) {
-    result[EXTRA_GROUP_ID] = sanitized.slice(cursor, cursor + EXTRA_GROUP_LIMIT);
-  }
   return result;
 }
 
@@ -351,8 +321,9 @@ function flattenProjectPalette(palette) {
   for (const groupId of GROUPED_PALETTE_ORDER) {
     if (flattened.length >= MAX_COLORS) break;
     const normalizedGroup = normalizeGroupId(groupId);
-    if (!normalizedGroup) continue;
-    const limit = normalizedGroup === EXTRA_GROUP_ID ? EXTRA_GROUP_LIMIT || MAX_COLORS : GROUP_SLOT_COUNTS[normalizedGroup] || MAX_COLORS;
+    if (!normalizedGroup || !COLOR_GROUP_IDS.includes(normalizedGroup)) continue;
+    const limit = GROUP_SLOT_COUNTS[normalizedGroup] || 0;
+    if (!limit) continue;
     const values = Array.isArray(normalizedGroups[normalizedGroup])
       ? sanitizeGroupPaletteList(normalizedGroups[normalizedGroup], limit || MAX_COLORS)
       : [];

@@ -7,13 +7,9 @@ delete process.env.KV_REST_API_URL;
 delete process.env.KV_REST_API_TOKEN;
 
 const {
-  MAX_COLORS,
   setSettings,
   getSettings,
-  resetSettings,
-  flattenProjectPalette,
-  sanitizeColor,
-  sanitizeColorList
+  resetSettings
 } = require('../api/_lib/settings-store');
 
 test.afterAll(() => {
@@ -45,8 +41,7 @@ function buildGroupedPalette(overrides = {}) {
     kvikkbilder: ['#334455'],
     trefigurer: ['#445566', '#556677'],
     brokvegg: ['#667788', '#778899', '#8899aa', '#99aabb'],
-    prikktilprikk: ['#aabbcc', '#bbccdd'],
-    extra: ['#ccddee', '#ddee00', '#ee00ff', '#f0f0f0', '#0f0f0f', '#010101', '#abcdef', '#fedcba', '#112200', '#221100', '#332200']
+    prikktilprikk: ['#aabbcc', '#bbccdd']
   };
   Object.keys(overrides).forEach(key => {
     base[key] = overrides[key];
@@ -59,12 +54,12 @@ test.describe('settings-store palette handling', () => {
     const campusPalette = buildGroupedPalette();
     const customPalette = buildGroupedPalette({
       graftegner: ['#101010'],
-      extra: ['#222222', ' #333333 ', '#444444']
+      ukjent: ['#222222', ' #333333 ', '#444444']
     });
 
     // Apply overrides to ensure variation between palettes
     customPalette.graftegner = ['#101010'];
-    customPalette.extra = ['#222222', ' #333333 ', '#444444'];
+    customPalette.ukjent = ['#222222', ' #333333 ', '#444444'];
 
     const payload = {
       activeProject: 'custom-app',
@@ -94,19 +89,9 @@ test.describe('settings-store palette handling', () => {
     expect(retrieved.projects['custom-app'].defaultColors[0]).toBe('#101010');
     expect(retrieved.defaultColors[0]).toBe('#101010');
 
-    const campusWithoutExtra = { ...campusPalette, extra: [] };
-    const expectedCampusWithoutExtra = flattenProjectPalette(campusWithoutExtra);
-    const sanitizedCampusExtras = sanitizeColorList(campusPalette.extra || []);
-    const allowedExtraCount = Math.max(0, MAX_COLORS - expectedCampusWithoutExtra.length);
-    const campusExtras = saved.projects.campus.groupPalettes.extra || [];
-    const expectedCampusExtras = sanitizedCampusExtras.slice(0, campusExtras.length);
-    expect(campusExtras).toEqual(expectedCampusExtras);
-
-    const customSanitizedExtras = customPalette.extra.map(value => sanitizeColor(value)).filter(Boolean);
-    const customWithoutExtra = { ...customPalette, extra: [] };
-    const expectedCustomWithoutExtra = flattenProjectPalette(customWithoutExtra);
-    const allowedCustomExtras = Math.max(0, MAX_COLORS - expectedCustomWithoutExtra.length);
-    const customExtras = saved.projects['custom-app'].groupPalettes.extra || [];
-    expect(customExtras).toEqual(customSanitizedExtras.slice(0, customExtras.length));
+    expect(saved.projects.campus.groupPalettes.ukjent).toBeUndefined();
+    expect(saved.projects['custom-app'].groupPalettes.ukjent).toBeUndefined();
+    expect(retrieved.projects.campus.groupPalettes.ukjent).toBeUndefined();
+    expect(retrieved.projects['custom-app'].groupPalettes.ukjent).toBeUndefined();
   });
 });
