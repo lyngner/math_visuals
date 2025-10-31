@@ -14,13 +14,26 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
   const tapeMeasure = board ? board.querySelector('[data-tape-measure]') : null;
   const tapeStrap = tapeMeasure ? tapeMeasure.querySelector('[data-tape-strap]') : null;
   const tapeStrapTrack = tapeStrap ? tapeStrap.querySelector('[data-tape-strap-track]') : null;
+  const tapeStrapBase = tapeStrapTrack
+    ? tapeStrapTrack.querySelector('[data-tape-strap-base], .tape-measure__strap-base')
+    : null;
   const tapeStrapSvg = tapeStrapTrack ? tapeStrapTrack.querySelector('[data-tape-strap-svg]') : null;
   const tapeHousing = tapeMeasure ? tapeMeasure.querySelector('[data-tape-housing]') : null;
   const hasRuler = !!(ruler && rulerSvg);
-  const hasTapeMeasure = !!(tapeMeasure && tapeStrap && tapeStrapTrack && tapeStrapSvg && tapeHousing);
+  const hasTapeMeasure = !!(
+    tapeMeasure &&
+    tapeStrap &&
+    tapeStrapTrack &&
+    tapeStrapSvg &&
+    tapeHousing
+  );
   const boardGridOverlay = board ? board.querySelector('[data-grid-overlay]') : null;
   if (!board || (!hasRuler && !hasTapeMeasure)) {
     return;
+  }
+
+  if (tapeStrapBase) {
+    tapeStrapBase.setAttribute('src', 'images/measure/måleredskaper/målebåndSluttstykke.svg');
   }
 
   const DEFAULT_UNIT_SPACING_PX = 100;
@@ -90,7 +103,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     height: activeInstrumentForSize ? activeInstrumentForSize.offsetHeight : 0
   };
   const RULER_SHADOW_FILTER_ID = 'rulerSvgDropShadow';
-  const TAPE_STRAP_DEFAULT_HEIGHT = 54;
+  const TAPE_STRAP_DEFAULT_HEIGHT = 47;
   const TAPE_STRAP_HANDLE_RATIO = 0.45;
   const TAPE_STRAP_HANDLE_MIN_PX = 24;
   const TAPE_HOUSING_OVERLAP_PX = 36;
