@@ -382,48 +382,97 @@ function handleFilterInput(event) {
 }
 
 function applyFilter(rawQuery) {
-  const query = rawQuery.trim().toLowerCase();
-  const hasActiveFilter = query.length > 0;
+  const query = typeof rawQuery === 'string' ? rawQuery.trim().toLowerCase() : '';
+  const activeCategory = activeCategoryId
+    ? categoryMetaById.get(activeCategoryId) || null
+    : null;
+  const hasCategoryFilter = Boolean(activeCategory);
+  const hasQueryFilter = query.length > 0;
+  const hasActiveFilter = hasCategoryFilter || hasQueryFilter;
   let visibleCount = 0;
 
-  if (hasActiveFilter) {
-    for (const item of figureItems) {
-      const matches = item.searchText.includes(query);
-      item.element.hidden = !matches;
-      if (matches) {
-        visibleCount += 1;
-      }
-    }
-  } else {
-    for (const item of figureItems) {
-      item.element.hidden = true;
+  const totalScope = hasCategoryFilter
+    ? figureItems.filter((item) => item.data.categoryId === activeCategoryId).length
+    : figureItems.length;
+
+  for (const item of figureItems) {
+    const matchesCategory = hasCategoryFilter
+      ? item.data.categoryId === activeCategoryId
+      : true;
+    const matchesQuery = hasQueryFilter ? item.searchText.includes(query) : true;
+    const isVisible = hasActiveFilter ? matchesCategory && matchesQuery : false;
+    item.element.hidden = !isVisible;
+    if (isVisible) {
+      visibleCount += 1;
     }
   }
 
-  const total = figureItems.length;
   if (resultsContainer) {
     resultsContainer.hidden = !hasActiveFilter;
   }
 
-  updateCount(visibleCount, total, query, hasActiveFilter);
-  updateEmptyState(visibleCount, query, hasActiveFilter);
-  updateStatus(visibleCount, total, query, hasActiveFilter);
+  updateCount(
+    visibleCount,
+    totalScope,
+    query,
+    hasQueryFilter,
+    hasCategoryFilter,
+    activeCategory
+  );
+  updateEmptyState(
+    visibleCount,
+    query,
+    hasQueryFilter,
+    hasCategoryFilter,
+    activeCategory
+  );
+  updateStatus(
+    visibleCount,
+    totalScope,
+    query,
+    hasQueryFilter,
+    hasCategoryFilter,
+    activeCategory
+  );
   updateHelperState(hasActiveFilter);
 }
 
-function updateCount(visible, total, query, hasActiveFilter) {
+function updateCount(
+  visible,
+  total,
+  query,
+  hasQueryFilter,
+  hasCategoryFilter,
+  activeCategory
+) {
   if (!countEl) return;
-  if (!hasActiveFilter) {
+  if (!hasQueryFilter && !hasCategoryFilter) {
     countEl.textContent = '';
     return;
   }
 
-  countEl.textContent = `Viser ${visible} av ${total} figurer for søket «${query}».`;
+  let context = '';
+  if (hasQueryFilter && hasCategoryFilter && activeCategory) {
+    context = `for søket «${query}» i kategorien «${activeCategory.name}»`;
+  } else if (hasQueryFilter) {
+    context = `for søket «${query}»`;
+  } else if (hasCategoryFilter && activeCategory) {
+    context = `i kategorien «${activeCategory.name}»`;
+  }
+
+  const suffix = context ? ` ${context}.` : '.';
+  countEl.textContent = `Viser ${visible} av ${total} figurer${suffix}`;
 }
 
-function updateEmptyState(visible, query, hasActiveFilter) {
+function updateEmptyState(
+  visible,
+  query,
+  hasQueryFilter,
+  hasCategoryFilter,
+  activeCategory
+) {
   if (!emptyEl) return;
-  if (!hasActiveFilter) {
+  if (!hasQueryFilter && !hasCategoryFilter) {
     emptyEl.hidden = true;
     emptyEl.textContent = '';
     return;
@@ -431,22 +480,49 @@ function updateEmptyState(visible, query, hasActiveFilter) {
 
   if (visible === 0) {
     emptyEl.hidden = false;
-    emptyEl.textContent = query
-      ? `Ingen figurer matcher «${query}». Prøv et annet søkeord eller fjern filteret.`
-      : 'Ingen figurer tilgjengelig ennå.';
+    if (hasQueryFilter) {
+      const categoryContext = hasCategoryFilter && activeCategory
+        ? ` i kategorien «${activeCategory.name}»`
+        : '';
+      emptyEl.textContent = `Ingen figurer matcher «${query}»${categoryContext}. Prøv et annet søkeord eller fjern filteret.`;
+    } else if (hasCategoryFilter && activeCategory) {
+      emptyEl.textContent = `Ingen figurer tilgjengelig i kategorien «${activeCategory.name}» ennå.`;
+    } else {
+      emptyEl.textContent = 'Ingen figurer tilgjengelig ennå.';
+    }
   } else {
     emptyEl.hidden = true;
   }
 }
 
-function updateStatus(visible, total, query, hasActiveFilter) {
+function updateStatus(
+  visible,
+  total,
+  query,
+  hasQueryFilter,
+  hasCategoryFilter,
+  activeCategory
+) {
   if (!statusEl) return;
-  if (!hasActiveFilter) {
+  if (!hasQueryFilter && !hasCategoryFilter) {
     statusEl.textContent = 'Velg en kategori for å vise tilhørende figurer.';
     return;
   }
 
-  statusEl.textContent = `Viser ${visible} av ${total} figurer for søket «${query}».`;
+  if (hasQueryFilter && hasCategoryFilter && activeCategory) {
+    statusEl.textContent = `Viser ${visible} av ${total} figurer for søket «${query}» i kategorien «${activeCategory.name}».`;
+    return;
+  }
+
+  if (hasQueryFilter) {
+    statusEl.textContent = `Viser ${visible} av ${total} figurer for søket «${query}».`;
+    return;
+  }
+
+  if (hasCategoryFilter && activeCategory) {
+    statusEl.textContent = `Viser ${visible} av ${total} figurer i kategorien «${activeCategory.name}».`;
+    return;
+  }
 }
 
 function updateHelperState(hasActiveFilter) {
