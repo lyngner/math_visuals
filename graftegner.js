@@ -5284,6 +5284,7 @@ function handleGraftegnerProfileChange() {
   updateCurveColorsFromTheme();
   updateAxisThemeStyling();
   refreshFunctionColorDefaults();
+  requestRebuild();
 }
 
 function handleGraftegnerSettingsChange() {
@@ -5291,7 +5292,6 @@ function handleGraftegnerSettingsChange() {
   ADV.axis.style.width = thickness;
   ADV.domainMarkers.width = thickness;
   handleGraftegnerProfileChange();
-  requestRebuild();
 }
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
