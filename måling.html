@@ -21,8 +21,9 @@
       --tape-strap-height: 47px;
       --tape-housing-width: 136px;
       --tape-housing-height: 72px;
+      --tape-housing-shift: 36px;
       --tape-strap-offset: 0px;
-      --tape-strap-overlap: 0px;
+      --tape-strap-overlap: var(--tape-housing-shift, 0px);
       --tape-strap-start-offset: 0px;
     }
 
@@ -317,7 +318,7 @@
     }
 
     .tape-measure__housing {
-      right: 0;
+      right: var(--tape-housing-shift, 0px);
       left: auto;
       width: var(--tape-housing-width);
       height: var(--tape-housing-height);
