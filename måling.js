@@ -63,6 +63,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     boardPadding: doc.getElementById('cfg-board-padding'),
     gridEnabled: doc.getElementById('cfg-grid-enabled'),
     showScaleLabel: doc.getElementById('cfg-show-scale'),
+    showUnitLabel: doc.getElementById('cfg-show-unit'),
     measurementWithoutScale: doc.getElementById('cfg-measurement-without-scale'),
     panningEnabled: doc.getElementById('cfg-pan-enabled'),
     rulerBackgroundMode: doc.getElementById('cfg-ruler-background-mode'),
@@ -148,6 +149,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     boardPadding: 0,
     gridEnabled: false,
     showScaleLabel: false,
+    showUnitLabel: true,
     measurementWithoutScale: false,
     panningEnabled: false,
     rulerBackgroundMode: 'tight',
@@ -274,6 +276,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     }
     if (Object.prototype.hasOwnProperty.call(source, 'gridEnabled')) target.gridEnabled = source.gridEnabled;
     if (Object.prototype.hasOwnProperty.call(source, 'showScaleLabel')) target.showScaleLabel = source.showScaleLabel;
+    if (Object.prototype.hasOwnProperty.call(source, 'showUnitLabel')) target.showUnitLabel = source.showUnitLabel;
     if (Object.prototype.hasOwnProperty.call(source, 'measurementWithoutScale')) {
       target.measurementWithoutScale = source.measurementWithoutScale;
     }
@@ -305,6 +308,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       container.rulerBackgroundMode = settings.rulerBackgroundMode;
       container.gridEnabled = settings.gridEnabled;
       container.showScaleLabel = settings.showScaleLabel;
+      container.showUnitLabel = settings.showUnitLabel;
       container.measurementWithoutScale = !!settings.measurementWithoutScale;
       container.panningEnabled = !!settings.panningEnabled;
       container.panorering = !!settings.panningEnabled;
@@ -336,6 +340,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     container.rulerBackgroundMode = settings.rulerBackgroundMode;
     container.gridEnabled = settings.gridEnabled;
     container.showScaleLabel = settings.showScaleLabel;
+    container.showUnitLabel = settings.showUnitLabel;
     container.measurementWithoutScale = !!settings.measurementWithoutScale;
     container.panningEnabled = !!settings.panningEnabled;
     container.panorering = !!settings.panningEnabled;
@@ -653,6 +658,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     );
     const gridEnabled = sanitizeGridEnabled(combined.gridEnabled, defaults.gridEnabled);
     const showScaleLabel = sanitizeGridEnabled(combined.showScaleLabel, defaults.showScaleLabel);
+    const showUnitLabel = sanitizeBoolean(combined.showUnitLabel, defaults.showUnitLabel);
     const measurementWithoutScale = sanitizeBoolean(
       combined.measurementWithoutScale,
       defaults.measurementWithoutScale
@@ -683,6 +689,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       rulerBackgroundMode,
       gridEnabled,
       showScaleLabel,
+      showUnitLabel,
       measurementWithoutScale,
       panningEnabled,
       rulerTransform,
@@ -727,6 +734,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       a.rulerBackgroundMode === b.rulerBackgroundMode &&
       a.gridEnabled === b.gridEnabled &&
       a.showScaleLabel === b.showScaleLabel &&
+      a.showUnitLabel === b.showUnitLabel &&
       a.measurementWithoutScale === b.measurementWithoutScale &&
       a.panningEnabled === b.panningEnabled &&
       a.activeTool === b.activeTool &&
@@ -1929,19 +1937,24 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       }
     }
 
+    const unitSuffixValue = resolveUnitSuffix(unitLabel);
+    const unitSuffix = unitSuffixValue ? String(unitSuffixValue).trim() : '';
+    const showUnitLabel = !!(settings && settings.showUnitLabel);
+
     const labelMarkup = Array.from({ length: totalTicks }, (_, tickIndex) => {
       const rawLabelValue = (startIndex + tickIndex) * valueMultiplier;
       const labelValue = roundForDisplay(convertValueToDisplayUnits(rawLabelValue, unitLabel));
       const x = marginLeft + unitSpacing * tickIndex;
       const anchor = tickIndex === 0 ? 'start' : tickIndex === totalTicks - 1 ? 'end' : 'middle';
       const dx = anchor === 'start' ? 6 : anchor === 'end' ? -6 : 0;
-      const labelText = formatNumber(labelValue);
-      return `<text x="${x}" y="${labelY}" text-anchor="${anchor}"${dx !== 0 ? ` dx="${dx}"` : ''} class="ruler-svg__label">${labelText}</text>`;
+      const baseLabelText = formatNumber(labelValue);
+      const includeUnit = showUnitLabel && unitSuffix && tickIndex === 1;
+      const labelWithUnit = includeUnit ? `${baseLabelText} ${unitSuffix}` : baseLabelText;
+      const safeLabelText = escapeHtml(labelWithUnit);
+      return `<text x="${x}" y="${labelY}" text-anchor="${anchor}"${dx !== 0 ? ` dx="${dx}"` : ''} class="ruler-svg__label">${safeLabelText}</text>`;
     }).join('');
 
-    const unitSuffixValue = resolveUnitSuffix(unitLabel);
-    const unitSuffix = unitSuffixValue ? String(unitSuffixValue).trim() : '';
-    const unitLabelMarkup = unitSuffix
+    const unitLabelMarkup = unitSuffix && !showUnitLabel
       ? `<text x="${baselineEndX}" y="${baselineY - 16}" text-anchor="end" class="ruler-svg__unit-label">${escapeHtml(unitSuffix)}</text>`
       : '';
 
@@ -2065,6 +2078,10 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       }
     }
 
+    const unitSuffixValue = resolveUnitSuffix(settings.unitLabel);
+    const unitSuffix = unitSuffixValue ? String(unitSuffixValue).trim() : '';
+    const showUnitLabel = !!(settings && settings.showUnitLabel);
+
     const labelMarkup = Array.from({ length: totalTicks }, (_, tickIndex) => {
       if (tickIndex === 0) {
         return '';
@@ -2074,13 +2091,15 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       const anchor = tickIndex === totalTicks - 1 ? 'end' : 'middle';
       const dx = anchor === 'end' ? -6 : 0;
       const x = unitSpacing * tickIndex;
-      return `<text x="${x}" y="${labelY}" text-anchor="${anchor}"${dx !== 0 ? ` dx="${dx}"` : ''} class="tape-svg__label">${formatNumber(labelValue)}</text>`;
+      const baseLabelText = formatNumber(labelValue);
+      const includeUnit = showUnitLabel && unitSuffix && tickIndex === 1;
+      const labelWithUnit = includeUnit ? `${baseLabelText} ${unitSuffix}` : baseLabelText;
+      const safeLabelText = escapeHtml(labelWithUnit);
+      return `<text x="${x}" y="${labelY}" text-anchor="${anchor}"${dx !== 0 ? ` dx="${dx}"` : ''} class="tape-svg__label">${safeLabelText}</text>`;
     }).join('');
 
-    const unitSuffixValue = resolveUnitSuffix(settings.unitLabel);
-    const unitSuffix = unitSuffixValue ? String(unitSuffixValue).trim() : '';
     const subdivisionStep = subdivisions > 0 ? unitSpacing / subdivisions : 0;
-    const unitLabelMarkup = unitSuffix
+    const unitLabelMarkup = unitSuffix && !showUnitLabel
       ? `<text x="${safeWidth}" y="${unitLabelY}" text-anchor="end" class="tape-svg__unit-label">${escapeHtml(unitSuffix)}</text>`
       : '';
 
@@ -2224,6 +2243,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       if (inputs.rulerBackgroundMode) inputs.rulerBackgroundMode.value = settings.rulerBackgroundMode || 'tight';
       if (inputs.gridEnabled) inputs.gridEnabled.checked = !!settings.gridEnabled;
       if (inputs.showScaleLabel) inputs.showScaleLabel.checked = !!settings.showScaleLabel;
+      if (inputs.showUnitLabel) inputs.showUnitLabel.checked = !!settings.showUnitLabel;
       if (inputs.measurementWithoutScale) {
         inputs.measurementWithoutScale.checked = !!settings.measurementWithoutScale;
       }
@@ -2331,6 +2351,12 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       inputs.showScaleLabel.addEventListener('change', event => {
         if (appState.syncingInputs) return;
         updateSettings({ showScaleLabel: event.target.checked });
+      });
+    }
+    if (inputs.showUnitLabel) {
+      inputs.showUnitLabel.addEventListener('change', event => {
+        if (appState.syncingInputs) return;
+        updateSettings({ showUnitLabel: event.target.checked });
       });
     }
     if (inputs.measurementWithoutScale) {
