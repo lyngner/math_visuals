@@ -1585,7 +1585,15 @@ function syncScreenInputFromState() {
 }
 
 function rememberScreenState(screen, source) {
-  LAST_COMPUTED_SCREEN = Array.isArray(screen) ? screen.slice(0, 4) : null;
+  let next = Array.isArray(screen) ? screen.slice(0, 4) : null;
+  if (next && ADV && ADV.firstQuadrant) {
+    if (source === 'manual') {
+      next = clampScreenToFirstQuadrant(next);
+    } else {
+      next = normalizeAutoScreen(next);
+    }
+  }
+  LAST_COMPUTED_SCREEN = next;
   LAST_SCREEN_SOURCE = source === 'manual' ? 'manual' : 'auto';
   syncScreenInputFromState();
 }
@@ -2094,14 +2102,8 @@ function computeAutoScreenFunctions() {
   xmax += padX;
   ymin -= padY;
   ymax += padY;
-  if (shouldLockAspect()) {
-    const cx = (xmin + xmax) / 2,
-      cy = (ymin + ymax) / 2;
-    const span = Math.max(xmax - xmin, ymax - ymin);
-    const half = span / 2;
-    return [cx - half, cx + half, cy - half, cy + half];
-  }
-  return [xmin, xmax, ymin, ymax];
+  const screen = [xmin, xmax, ymin, ymax];
+  return normalizeAutoScreen(screen);
 }
 function computeAutoScreenPoints() {
   const pts = ADV.points.start.slice(0, 2);
@@ -2123,7 +2125,8 @@ function computeAutoScreenPoints() {
     const half = Math.max(halfX, halfY);
     halfX = halfY = half;
   }
-  return [cx - halfX, cx + halfX, cy - halfY, cy + halfY];
+  const screen = [cx - halfX, cx + halfX, cy - halfY, cy + halfY];
+  return normalizeAutoScreen(screen);
 }
 const toBB = scr => [scr[0], scr[3], scr[1], scr[2]];
 function fromBoundingBox(bb) {
@@ -2154,6 +2157,77 @@ function screenSupportsFirstQuadrant(screen) {
   return xmin >= -EPS && ymin >= -EPS;
 }
 
+function clampScreenToFirstQuadrant(screen) {
+  if (!Array.isArray(screen) || screen.length !== 4) {
+    return Array.isArray(screen) ? screen.slice(0, 4) : screen;
+  }
+  let [xmin, xmax, ymin, ymax] = screen;
+  if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) {
+    return screen.slice(0, 4);
+  }
+  if (!ADV || !ADV.firstQuadrant) {
+    return screen.slice(0, 4);
+  }
+  const EPS = 1e-9;
+  if (xmin < 0) {
+    const shift = -xmin;
+    xmin += shift;
+    xmax += shift;
+  }
+  if (xmin > 0 && xmin < EPS) {
+    xmax -= xmin;
+    xmin = 0;
+  }
+  if (ymin < 0) {
+    const shift = -ymin;
+    ymin += shift;
+    ymax += shift;
+  }
+  if (ymin > 0 && ymin < EPS) {
+    ymax -= ymin;
+    ymin = 0;
+  }
+  if (xmin < 0 && xmin > -EPS) {
+    const shift = -xmin;
+    xmin += shift;
+    xmax += shift;
+  }
+  if (ymin < 0 && ymin > -EPS) {
+    const shift = -ymin;
+    ymin += shift;
+    ymax += shift;
+  }
+  xmin = Math.max(0, xmin);
+  ymin = Math.max(0, ymin);
+  const MIN_SPAN = 1e-6;
+  if (!(xmax > xmin + MIN_SPAN)) {
+    const fallback = Math.max(Math.abs(xmax - xmin), 1);
+    xmax = xmin + fallback;
+  }
+  if (!(ymax > ymin + MIN_SPAN)) {
+    const fallback = Math.max(Math.abs(ymax - ymin), 1);
+    ymax = ymin + fallback;
+  }
+  return [xmin, xmax, ymin, ymax];
+}
+
+function normalizeAutoScreen(screen) {
+  if (!Array.isArray(screen) || screen.length !== 4) {
+    return screen;
+  }
+  let normalized = screen.slice(0, 4);
+  if (ADV && ADV.firstQuadrant) {
+    normalized = clampScreenToFirstQuadrant(normalized);
+  }
+  if (shouldLockAspect() && !screenSupportsLockAspect(normalized)) {
+    normalized = expandScreenToLockAspect(normalized);
+    if (ADV && ADV.firstQuadrant) {
+      normalized = clampScreenToFirstQuadrant(normalized);
+    }
+  }
+  return normalized;
+}
+
 /* ===================== Init JSXGraph ===================== */
 function initialScreen() {
   var _ADV$screen;
@@ -2166,8 +2240,7 @@ function initialScreen() {
     }
   }
   if (ADV.firstQuadrant) {
-    if (scr[0] < 0) scr[0] = 0;
-    if (scr[2] < 0) scr[2] = 0;
+    scr = clampScreenToFirstQuadrant(scr);
   }
   rememberScreenState(scr, hasManualScreen ? 'manual' : 'auto');
   return scr;
@@ -7836,6 +7909,8 @@ function setupSettingsForm() {
     let nextScreen = screenInput ? parseScreen(screenRaw) : null;
     const lockInput = g('cfgLock');
     const q1Input = g('cfgQ1');
+    let q1Checked = !!(q1Input && q1Input.checked);
+    let q1Changed = ADV.firstQuadrant !== q1Checked;
     if (nextScreen && lockInput && lockInput.checked) {
       const expanded = expandScreenToLockAspect(nextScreen);
       if (Array.isArray(expanded) && expanded.length === 4 && !screensEqual(expanded, nextScreen)) {
@@ -7851,8 +7926,20 @@ function setupSettingsForm() {
         lockInput.checked = false;
       }
     }
-    if (nextScreen && q1Input && q1Input.checked && !screenSupportsFirstQuadrant(nextScreen)) {
+    if (nextScreen && q1Input && q1Checked && !screenSupportsFirstQuadrant(nextScreen)) {
       q1Input.checked = false;
+      q1Checked = false;
+      q1Changed = ADV.firstQuadrant !== q1Checked;
+    }
+    if (q1Changed && q1Checked) {
+      shouldAutoScreen = true;
+      screenRaw = '';
+      nextScreen = null;
+      if (screenInput) {
+        screenInput.value = '';
+        if (screenInput.dataset) screenInput.dataset.autoscreen = '1';
+        screenInput.classList.add('is-auto');
+      }
     }
     if (!screensEqual(nextScreen, ADV.screen)) {
       ADV.screen = nextScreen;
@@ -7887,8 +7974,7 @@ function setupSettingsForm() {
       ADV.interactions.pan.enabled = panChecked;
       needsRebuild = true;
     }
-    const q1Checked = !!(q1Input && q1Input.checked);
-    if (ADV.firstQuadrant !== q1Checked) {
+    if (q1Changed) {
       ADV.firstQuadrant = q1Checked;
       needsRebuild = true;
     }
