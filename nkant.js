@@ -730,6 +730,13 @@ function getSettingsApi() {
   return api && typeof api === "object" ? api : null;
 }
 
+function getGroupPaletteHelper() {
+  const scope = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null;
+  if (!scope) return null;
+  const helper = scope.MathVisualsGroupPalette;
+  return helper && typeof helper.resolve === "function" ? helper : null;
+}
+
 function resolveProjectNameHint() {
   const doc = typeof document !== "undefined" ? document : null;
   if (doc && doc.documentElement) {
@@ -827,6 +834,25 @@ function resolveSettingsPalette(count) {
   const project = resolveProjectNameHint();
   const theme = getThemeApi();
   const groupTarget = target && target > 0 ? target : 3;
+  const helper = getGroupPaletteHelper();
+  if (helper) {
+    try {
+      const palette = helper.resolve({
+        groupId: "nkant",
+        count: groupTarget,
+        project,
+        fallback: SETTINGS_FALLBACK_PALETTE,
+        legacyPaletteId: "figures",
+        fallbackKinds: ["fractions"]
+      });
+      if (Array.isArray(palette) && palette.length) {
+        const resolved = cycleSettingsPalette(palette, groupTarget);
+        if (resolved.length) {
+          return { colors: resolved, source: "group" };
+        }
+      }
+    } catch (_) {}
+  }
   const api = getSettingsApi();
   if (api && typeof api.getGroupPalette === "function") {
     let palette = null;
