@@ -854,7 +854,7 @@ input[type="radio"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  background: #ffffff;
 }
 
 .sortering__items {
@@ -884,12 +884,23 @@ input[type="radio"] {
   min-width: 120px;
   min-height: 120px;
   border-radius: 16px;
-  border: 2px solid transparent;
+  border: 2px solid #0f172a;
   background: #ffffff;
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+  box-shadow: none;
   cursor: grab;
   user-select: none;
+  transform: scale(1);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.sortering__items[data-hide-outline="true"] .sortering__item {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.sortering__item:not(.sortering__item--editable):not(.sortering__item--dragging):hover,
+.sortering__item:not(.sortering__item--editable):not(.sortering__item--dragging):focus-visible {
+  transform: scale(0.96);
 }
 
 .sortering__item--editable {

@@ -48,6 +48,17 @@
       font-size: 14px;
       color: #1f2937;
     }
+    .sortering-settings__checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+      font-size: 14px;
+      color: #1f2937;
+    }
+    .sortering-settings__checkbox-label input {
+      margin: 0;
+    }
     .sortering-settings select,
     .sortering-settings input[type="number"] {
       width: 100%;
@@ -352,6 +363,12 @@
             <div class="sortering-settings__field">
               <label class="sortering-settings__label" for="sortering-gap">Avstand (px)</label>
               <input id="sortering-gap" name="gap" type="number" min="0" step="1" value="32" inputmode="numeric" />
+            </div>
+            <div class="sortering-settings__field">
+              <label class="sortering-settings__checkbox-label" for="sortering-hide-outline">
+                <input id="sortering-hide-outline" name="hideOutline" type="checkbox" />
+                Skjul ramme
+              </label>
             </div>
           </form>
           <div id="settingsHost" class="sortering-status-host"></div>

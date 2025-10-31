@@ -37,6 +37,7 @@
   let settingsForm = null;
   let directionSelect = null;
   let gapInput = null;
+  let hideOutlineInput = null;
   let addItemButton = null;
   let validationStatusEl = null;
   let saveExampleButton = null;
@@ -161,14 +162,15 @@
 
   function buildExampleConfigPayload() {
     const defaults = {
-      items: [],
-      order: [],
-      config: {
-        direction: DEFAULT_STATE.retning,
-        gap: DEFAULT_STATE.gap,
-        randomize: true
-      }
-    };
+    items: [],
+    order: [],
+    config: {
+      direction: DEFAULT_STATE.retning,
+      gap: DEFAULT_STATE.gap,
+      hideOutline: DEFAULT_STATE.hideOutline,
+      randomize: true
+    }
+  };
     if (!state) return defaults;
     return {
       items: state.items.map(cloneItem),
@@ -176,6 +178,7 @@
       config: {
         direction: normalizeDirection(state.retning),
         gap: Number.isFinite(state.gap) ? state.gap : DEFAULT_STATE.gap,
+        hideOutline: !!state.hideOutline,
         randomize: true
       }
     };
@@ -1351,6 +1354,19 @@
     return Math.max(0, parsed);
   }
 
+  function normalizeHideOutline(value) {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true' || normalized === '1' || normalized === 'ja' || normalized === 'yes' || normalized === 'on') {
+        return true;
+      }
+      if (normalized === 'false' || normalized === '0' || normalized === 'nei' || normalized === 'no' || normalized === 'off') {
+        return false;
+      }
+    }
+    return !!value;
+  }
+
   function buildButtonLabel(item, position) {
     if (item && typeof item.label === 'string' && item.label.trim()) {
       return item.label.trim();
@@ -1384,6 +1400,7 @@
     order: DEFAULT_ITEMS.map(item => item.id),
     retning: 'horisontal',
     gap: 32,
+    hideOutline: false,
     randomisering: true,
     altText: '',
     altTextSource: 'auto'
@@ -2946,9 +2963,13 @@
     visualList.style.alignItems = direction === 'vertikal' ? 'flex-start' : 'stretch';
     visualList.style.gap = `${state.gap}px`;
     visualList.dataset.direction = direction;
+    visualList.dataset.hideOutline = state.hideOutline ? 'true' : 'false';
 
     if (figureHost && !figureHost.classList.contains('sortering__figure')) {
       figureHost.classList.add('sortering__figure');
+    }
+    if (figureHost) {
+      figureHost.dataset.hideOutline = state.hideOutline ? 'true' : 'false';
     }
 
     if (accessibleList) {
@@ -2972,6 +2993,18 @@
     notifyStatusChange('settings-change');
   }
 
+  function handleHideOutlineChange(event) {
+    if (!state) return;
+    const nextValue = !!(event && event.target ? event.target.checked : state.hideOutline);
+    state.hideOutline = nextValue;
+    if (hideOutlineInput && hideOutlineInput.checked !== nextValue) {
+      hideOutlineInput.checked = nextValue;
+    }
+    updateLayout();
+    syncSettingsFormFromState();
+    notifyStatusChange('settings-change');
+  }
+
   function syncSettingsFormFromState() {
     if (!state) return;
     const direction = normalizeDirection(state.retning);
@@ -2980,6 +3013,9 @@
     }
     if (gapInput && doc.activeElement !== gapInput) {
       gapInput.value = String(state.gap);
+    }
+    if (hideOutlineInput && doc.activeElement !== hideOutlineInput) {
+      hideOutlineInput.checked = !!state.hideOutline;
     }
   }
 
@@ -3118,6 +3154,7 @@
     settingsForm = doc.getElementById('sorteringSettings');
     directionSelect = doc.getElementById('sortering-direction');
     gapInput = doc.getElementById('sortering-gap');
+    hideOutlineInput = doc.getElementById('sortering-hide-outline');
     addItemButton = doc.getElementById('btnAddSorteringItem');
     validationStatusEl = doc.getElementById('sorteringEditorStatus');
 
@@ -3127,6 +3164,9 @@
     if (gapInput) {
       gapInput.addEventListener('change', handleGapChange);
       gapInput.addEventListener('blur', handleGapChange);
+    }
+    if (hideOutlineInput) {
+      hideOutlineInput.addEventListener('change', handleHideOutlineChange);
     }
     if (addItemButton) {
       addItemButton.addEventListener('click', addNewItem);
@@ -3153,6 +3193,9 @@
     const order = sanitizeOrder(items, orderSource);
     const retning = normalizeDirection(existing && existing.retning ? existing.retning : DEFAULT_STATE.retning);
     const gap = normalizeGap(existing && 'gap' in existing ? existing.gap : Number.NaN, DEFAULT_STATE.gap);
+    const hideOutline = normalizeHideOutline(
+      existing && 'hideOutline' in existing ? existing.hideOutline : DEFAULT_STATE.hideOutline
+    );
     const randomisering = true;
     const altText = existing && typeof existing.altText === 'string' ? existing.altText : DEFAULT_STATE.altText;
     const altTextSource = existing && existing.altTextSource === 'manual' ? 'manual' : DEFAULT_STATE.altTextSource;
@@ -3162,6 +3205,7 @@
       order,
       retning,
       gap,
+      hideOutline,
       randomisering,
       altText,
       altTextSource
