@@ -360,7 +360,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (!Number.isFinite(rounded)) {
       return fallback;
     }
-    return Math.min(Math.max(rounded, 1), 100);
+    return Math.max(rounded, 1);
   }
 
   function sanitizeSubdivisions(value, fallback) {
@@ -2687,7 +2687,10 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       prevY: event.clientY,
       startX: event.clientX,
       startY: event.clientY,
-      startVisible: tapeLengthState.visiblePx
+      startVisible: tapeLengthState.visiblePx,
+      lastPersistedUnits: Number.isFinite(tapeLengthState.configuredUnits)
+        ? tapeLengthState.configuredUnits
+        : defaults.tapeMeasureLength
     };
     session.set(event.pointerId, entry);
     try {
@@ -2714,15 +2717,41 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     const projectedDelta = deltaX * axisX + deltaY * axisY;
     const effectiveDelta = projectedDelta * TAPE_DIRECTION;
     const minVisible = tapeLengthState.minVisiblePx;
-    const maxVisible = tapeLengthState.maxVisiblePx > 0 ? tapeLengthState.maxVisiblePx : Infinity;
-    let visible = entry.startVisible + effectiveDelta;
-    if (appState.settings && appState.settings.gridEnabled && tapeLengthState.unitSpacing > 0) {
-      visible = Math.round(visible / tapeLengthState.unitSpacing) * tapeLengthState.unitSpacing;
+    const unitSpacing = Number.isFinite(tapeLengthState.unitSpacing) && tapeLengthState.unitSpacing > 0
+      ? tapeLengthState.unitSpacing
+      : 0;
+    let proposedVisible = entry.startVisible + effectiveDelta;
+
+    const previousMaxVisible = Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
+      ? tapeLengthState.maxVisiblePx
+      : Infinity;
+    if (unitSpacing > 0 && Number.isFinite(previousMaxVisible) && proposedVisible > previousMaxVisible) {
+      const proposedUnits = Math.ceil(proposedVisible / unitSpacing);
+      const referenceUnits = Number.isFinite(tapeLengthState.configuredUnits)
+        ? tapeLengthState.configuredUnits
+        : defaults.tapeMeasureLength;
+      const lastPersistedUnits = Number.isFinite(entry.lastPersistedUnits)
+        ? entry.lastPersistedUnits
+        : referenceUnits;
+      if (Number.isFinite(proposedUnits) && proposedUnits > lastPersistedUnits) {
+        persistTapeMeasureLength(proposedUnits);
+        entry.lastPersistedUnits = Number.isFinite(tapeLengthState.configuredUnits)
+          ? tapeLengthState.configuredUnits
+          : proposedUnits;
+      }
+    }
+
+    const maxVisible = Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
+      ? tapeLengthState.maxVisiblePx
+      : Infinity;
+    let visible = proposedVisible;
+    if (appState.settings && appState.settings.gridEnabled && unitSpacing > 0) {
+      visible = Math.round(visible / unitSpacing) * unitSpacing;
     }
     visible = Math.min(Math.max(visible, minVisible), maxVisible);
     tapeLengthState.visiblePx = Number.isFinite(visible) ? visible : minVisible;
-    tapeLengthState.units = tapeLengthState.unitSpacing > 0
-      ? Math.max(0, tapeLengthState.visiblePx / tapeLengthState.unitSpacing)
+    tapeLengthState.units = unitSpacing > 0
+      ? Math.max(0, tapeLengthState.visiblePx / unitSpacing)
       : 0;
     applyTapeMeasureTransform();
   }
@@ -2825,6 +2854,10 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (!Number.isFinite(sanitized)) {
       return;
     }
+    const previousConfiguredUnits = Number.isFinite(tapeLengthState.configuredUnits)
+      ? tapeLengthState.configuredUnits
+      : Number.NaN;
+    const lengthChanged = !Number.isFinite(previousConfiguredUnits) || sanitized !== previousConfiguredUnits;
     if (updateSettingsState && appState.settings) {
       if (appState.settings.tapeMeasureLength !== sanitized) {
         appState.settings = { ...appState.settings, tapeMeasureLength: sanitized };
@@ -2843,6 +2876,19 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         : 0;
       if (spacing > 0) {
         const targetPx = sanitized * spacing;
+        if (Number.isFinite(targetPx) && targetPx > 0) {
+          const currentTotal = Number.isFinite(tapeLengthState.totalPx) && tapeLengthState.totalPx > 0
+            ? tapeLengthState.totalPx
+            : 0;
+          const nextTotal = Math.max(currentTotal, targetPx);
+          tapeLengthState.totalPx = nextTotal;
+          tapeLengthState.maxVisiblePx = Math.max(
+            Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
+              ? tapeLengthState.maxVisiblePx
+              : 0,
+            nextTotal
+          );
+        }
         const maxVisible = Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
           ? tapeLengthState.maxVisiblePx
           : Number.isFinite(tapeLengthState.totalPx) && tapeLengthState.totalPx > 0
@@ -2855,6 +2901,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         tapeLengthState.visiblePx = clamped;
         applyTapeMeasureTransform();
       }
+    }
+    if (updateSettingsState && lengthChanged && !appState.syncingInputs) {
+      syncInputs(appState.settings);
     }
   }
 
