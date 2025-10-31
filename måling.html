@@ -248,7 +248,7 @@
       left: auto;
       width: var(--tape-strap-length);
       height: var(--tape-strap-height);
-      clip-path: inset(0 0 0 max(0px, calc(100% - var(--tape-strap-visible) - var(--tape-strap-overlap, 0px))));
+      clip-path: inset(0 0 0 max(0px, calc(100% - var(--tape-strap-visible))));
       overflow: hidden;
       cursor: ew-resize;
       touch-action: none;
@@ -261,7 +261,7 @@
       transform: translateX(var(--tape-strap-offset));
       pointer-events: none;
       display: block;
-      clip-path: inset(0 max(0px, calc(100% - var(--tape-strap-visible) - var(--tape-strap-overlap, 0px))) 0 0);
+      clip-path: inset(0 max(0px, calc(100% - var(--tape-strap-visible))) 0 0);
     }
 
     .tape-measure__strap-base {
