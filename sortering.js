@@ -13,6 +13,8 @@
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const STATUS_SAMPLE_COUNT = 3;
+  const AUTO_LABEL_PROP = '__sorteringAutoFigureLabel';
+  const AUTO_ALT_PROP = '__sorteringAutoFigureAlt';
 
   const statusNodes = {
     sorted: null,
@@ -1272,6 +1274,84 @@
     return item.figures;
   }
 
+  function normalizeFigureSlug(value) {
+    if (typeof value !== 'string') return '';
+    let normalized = value.trim();
+    if (!normalized) return '';
+    if (normalized.startsWith(FIGURE_LIBRARY_BASE_PATH)) {
+      normalized = normalized.slice(FIGURE_LIBRARY_BASE_PATH.length);
+    }
+    const slashIndex = normalized.lastIndexOf('/');
+    if (slashIndex >= 0) {
+      normalized = normalized.slice(slashIndex + 1);
+    }
+    normalized = normalized.replace(/\.svg$/i, '');
+    return normalized.trim();
+  }
+
+  function buildFigureDisplayLabel(value, categoryId, match) {
+    const normalizedCategory = typeof categoryId === 'string' ? categoryId.trim().toLowerCase() : '';
+    const category = FIGURE_CATEGORIES.find(entry => entry.id === normalizedCategory) || null;
+    const slugSource = match && match.value ? match.value : value;
+    const slug = normalizeFigureSlug(slugSource);
+    const baseLabelSource = match && typeof match.label === 'string' && match.label.trim() ? match.label.trim() : slug;
+    const baseLabel = baseLabelSource.replace(/[_-]+/g, ' ').trim();
+    let friendly = '';
+    if (normalizedCategory === 'tallbrikker' && /^n\d+$/i.test(slug)) {
+      friendly = `Tallbrikke ${slug.replace(/^n/i, '')}`;
+    } else if (normalizedCategory === 'terninger' && /^d\d+$/i.test(slug)) {
+      friendly = `Terning ${slug.replace(/^d/i, '')}`;
+    } else if (normalizedCategory === 'tierbrett' && /^tb\d+$/i.test(slug)) {
+      friendly = `Tierbrett ${slug.replace(/^tb/i, '')}`;
+    } else if (normalizedCategory === 'penger' && /^v\d+(?:_nok)?$/i.test(slug)) {
+      const moneyMatch = slug.match(/^v(\d+)(?:_(nok))?$/i);
+      if (moneyMatch) {
+        const amount = moneyMatch[1].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+        const currency = moneyMatch[2] ? moneyMatch[2].toUpperCase() : '';
+        friendly = currency ? `Pengeverdi ${amount} ${currency}` : `Pengeverdi ${amount}`;
+      }
+    } else if (normalizedCategory === 'hender' && /^h\d+/i.test(slug)) {
+      const handMatch = slug.match(/^h0*(\d+)/i);
+      if (handMatch && handMatch[1]) {
+        friendly = `Hånd ${handMatch[1]}`;
+      }
+    }
+    if (!friendly && baseLabel) {
+      if (category && category.id !== 'custom' && category.label) {
+        friendly = `${category.label}: ${baseLabel}`;
+      } else {
+        friendly = baseLabel;
+      }
+    }
+    return friendly;
+  }
+
+  function autoUpdateItemFigureLabels(item, nextLabel, snapshot = {}) {
+    if (!item) return;
+    const { initialLabel = '', initialAlt = '' } = snapshot;
+    const targetLabel = typeof nextLabel === 'string' ? nextLabel.trim() : '';
+    const currentLabel = typeof item.label === 'string' ? item.label.trim() : '';
+    const currentAlt = typeof item.alt === 'string' ? item.alt.trim() : '';
+    const previousAutoLabel = typeof item[AUTO_LABEL_PROP] === 'string' ? item[AUTO_LABEL_PROP] : '';
+    const previousAutoAlt = typeof item[AUTO_ALT_PROP] === 'string' ? item[AUTO_ALT_PROP] : '';
+
+    const shouldUpdateLabel = targetLabel
+      ? !currentLabel || currentLabel === initialLabel || (previousAutoLabel && currentLabel === previousAutoLabel)
+      : currentLabel === initialLabel || (previousAutoLabel && currentLabel === previousAutoLabel);
+    const shouldUpdateAlt = targetLabel
+      ? !currentAlt || currentAlt === initialAlt || (previousAutoAlt && currentAlt === previousAutoAlt)
+      : currentAlt === initialAlt || (previousAutoAlt && currentAlt === previousAutoAlt);
+
+    if (shouldUpdateLabel) {
+      item.label = targetLabel;
+      item[AUTO_LABEL_PROP] = targetLabel;
+    }
+    if (shouldUpdateAlt) {
+      item.alt = targetLabel;
+      item[AUTO_ALT_PROP] = targetLabel;
+    }
+  }
+
   function addFigureToItem(item, defaults = {}) {
     if (!item) return null;
     const figures = ensureFigureArray(item);
@@ -1862,6 +1942,14 @@
 
     const figures = ensureFigureArray(item);
     const hasLibraryError = !!figureLibraryState.error;
+    const initialLabel = typeof item.label === 'string' ? item.label.trim() : '';
+    const initialAlt = typeof item.alt === 'string' ? item.alt.trim() : '';
+    if (typeof item[AUTO_LABEL_PROP] === 'string' && item[AUTO_LABEL_PROP] && initialLabel && initialLabel !== item[AUTO_LABEL_PROP]) {
+      item[AUTO_LABEL_PROP] = '';
+    }
+    if (typeof item[AUTO_ALT_PROP] === 'string' && item[AUTO_ALT_PROP] && initialAlt && initialAlt !== item[AUTO_ALT_PROP]) {
+      item[AUTO_ALT_PROP] = '';
+    }
 
     if (hasLibraryError) {
       const errorMessage = doc.createElement('p');
@@ -1914,6 +2002,7 @@
         figure.categoryId = normalizedCategory;
         syncFigureSelectionControls(figure, categorySelect, figureSelect);
         item.type = 'figure';
+        autoUpdateItemFigureLabels(item, '', { initialLabel, initialAlt });
         commitFigureChanges();
       });
 
@@ -1929,6 +2018,7 @@
             figure.value = '';
             syncFigureSelectionControls(figure, categorySelect, figureSelect);
             item.type = 'figure';
+            autoUpdateItemFigureLabels(item, '', { initialLabel, initialAlt });
             commitFigureChanges();
             return;
           }
@@ -1940,6 +2030,8 @@
             figure.categoryId = sanitizeFigureCategory(categorySelect.value, selectedValue);
           }
           syncFigureSelectionControls(figure, categorySelect, figureSelect);
+          const autoLabel = buildFigureDisplayLabel(figure.value, figure.categoryId, selectedMatch);
+          autoUpdateItemFigureLabels(item, autoLabel, { initialLabel, initialAlt });
           item.type = 'figure';
           commitFigureChanges();
         });
