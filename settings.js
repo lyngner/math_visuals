@@ -116,6 +116,7 @@
   let extraGroupSection = null;
   let extraSlotsContainer = null;
   let extraGroupSaveButton = null;
+  const groupStatusElements = new Map();
 
   function resolveSettingsApi() {
     if (typeof window === 'undefined') return null;
@@ -277,14 +278,58 @@
     }
   }
 
+  function normalizeGroupId(value) {
+    return typeof value === 'string' ? value.trim().toLowerCase() : '';
+  }
+
+  function formatProjectGroupLabel(projectName, groupTitle) {
+    const projectLabel = formatProjectLabel(projectName) || 'prosjektet';
+    const trimmedGroup = typeof groupTitle === 'string' ? groupTitle.trim() : '';
+    if (projectLabel && trimmedGroup) {
+      return `${projectLabel} – ${trimmedGroup}`;
+    }
+    if (trimmedGroup) {
+      return trimmedGroup;
+    }
+    return projectLabel;
+  }
+
+  function setGroupStatusMessage(groupId, message, tone) {
+    const normalizedId = normalizeGroupId(groupId);
+    if (!normalizedId || !groupStatusElements.size) return;
+    groupStatusElements.forEach((element, key) => {
+      if (!element) return;
+      if (key === normalizedId) {
+        const text = message || '';
+        element.textContent = text;
+        if (text) {
+          if (tone) {
+            element.dataset.status = tone;
+          } else {
+            element.removeAttribute('data-status');
+          }
+          element.hidden = false;
+        } else {
+          element.removeAttribute('data-status');
+          element.hidden = true;
+        }
+      } else if (message) {
+        element.textContent = '';
+        element.removeAttribute('data-status');
+        element.hidden = true;
+      }
+    });
+  }
+
   async function saveColorGroup(groupId, groupTitle) {
-    const normalizedId = typeof groupId === 'string' ? groupId.trim() : '';
+    const normalizedId = normalizeGroupId(groupId);
     if (!normalizedId) return;
     const activeProject = ensureActiveProject();
+    const label = groupTitle && groupTitle.trim() ? groupTitle.trim() : 'gruppen';
+    const combinedLabel = formatProjectGroupLabel(activeProject, label);
     const groups = collectGroupIndices(normalizedId);
     if (!groups.size) {
-      const emptyLabel = groupTitle && groupTitle.trim() ? groupTitle.trim() : 'gruppen';
-      setStatus(`Ingen endringer å lagre for ${emptyLabel}.`, 'info');
+      setStatus(`Ingen endringer å lagre for ${label}.`, 'info');
       return;
     }
     const editingPalette = normalizeProjectPalette(
@@ -322,16 +367,14 @@
       }
     });
     if (!hasChanges) {
-      const unchangedLabel = groupTitle && groupTitle.trim() ? groupTitle.trim() : 'gruppen';
-      setStatus(`Ingen endringer å lagre for ${unchangedLabel}.`, 'info');
+      setStatus(`Ingen endringer å lagre for ${label}.`, 'info');
       return;
     }
-    const label = groupTitle && groupTitle.trim() ? groupTitle.trim() : 'gruppen';
     const unsavedChanges = captureUnsavedChanges(activeProject, groups);
     const colorsForSave = buildProjectColorsForSave(activeProject, groups);
     const pendingLineThickness = state.defaultLineThickness;
     const restoreLineThickness = pendingLineThickness !== state.persistedLineThickness;
-    setStatus(`Lagrer fargene for ${label}...`, 'info');
+    setStatus(`Lagrer fargene for ${combinedLabel}...`, 'info');
     setFormDisabled(true);
     try {
       const payload = buildPayload({
@@ -352,10 +395,14 @@
           settingsApi.refresh({ force: true, notify: true });
         } catch (_) {}
       }
-      setStatus(`Fargene for ${label} er lagret.`, 'success');
+      const successMessage = `Fargene for ${combinedLabel} er lagret.`;
+      setStatus(successMessage, 'success');
+      setGroupStatusMessage(normalizedId, `${combinedLabel} er lagret.`, 'success');
     } catch (error) {
       console.error(error);
-      setStatus(`Kunne ikke lagre fargene for ${label}.`, 'error');
+      const errorMessage = `Kunne ikke lagre fargene for ${combinedLabel}.`;
+      setStatus(errorMessage, 'error');
+      setGroupStatusMessage(normalizedId, `Kunne ikke lagre ${combinedLabel}.`, 'error');
     } finally {
       setFormDisabled(false);
     }
@@ -952,8 +999,20 @@
     extraGroupSaveButton.textContent = 'Lagre';
     extraGroupSaveButton.dataset.saveGroup = EXTRA_GROUP_ID;
     extraGroupSaveButton.dataset.groupTitle = 'Ekstra farger';
+    const normalizedExtraGroupId = normalizeGroupId(EXTRA_GROUP_ID);
+    if (normalizedExtraGroupId) {
+      extraGroupSaveButton.dataset.statusGroup = normalizedExtraGroupId;
+    }
     extraGroupSaveButton.setAttribute('aria-label', 'Lagre fargene for ekstra farger');
     actions.appendChild(extraGroupSaveButton);
+
+    const extraStatus = document.createElement('p');
+    extraStatus.className = 'color-group__status';
+    extraStatus.hidden = true;
+    actions.appendChild(extraStatus);
+    if (normalizedExtraGroupId) {
+      groupStatusElements.set(normalizedExtraGroupId, extraStatus);
+    }
 
     header.appendChild(actions);
     extraGroupSection.appendChild(header);
@@ -982,6 +1041,7 @@
     if (!colorGroupsContainer || slotBindings.size) return;
 
     COLOR_SLOT_GROUPS.forEach(group => {
+      const normalizedGroupId = normalizeGroupId(group.groupId);
       const section = document.createElement('section');
       section.className = 'color-group';
 
@@ -1002,8 +1062,19 @@
       saveButton.textContent = 'Lagre';
       saveButton.dataset.saveGroup = group.groupId;
       saveButton.dataset.groupTitle = group.title;
+      if (normalizedGroupId) {
+        saveButton.dataset.statusGroup = normalizedGroupId;
+      }
       saveButton.setAttribute('aria-label', `Lagre fargene for ${group.title}`);
       actions.appendChild(saveButton);
+
+      const status = document.createElement('p');
+      status.className = 'color-group__status';
+      status.hidden = true;
+      actions.appendChild(status);
+      if (normalizedGroupId) {
+        groupStatusElements.set(normalizedGroupId, status);
+      }
 
       header.appendChild(actions);
       section.appendChild(header);
