@@ -3454,7 +3454,7 @@
       state.items.forEach(item => {
         if (!item || !item.id) return;
         if (dirtyItemIds.has(item.id)) {
-          preservedDirtyItems.set(item.id, cloneItem(item));
+          preservedDirtyItems.set(item.id, item);
         }
       });
     }
