@@ -36,6 +36,16 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     return;
   }
 
+  const settingsToggleButton = doc.querySelector('[data-settings-toggle]');
+  const settingsPanel = doc.querySelector('[data-settings-panel]');
+  const settingsOverlay = doc.querySelector('[data-settings-overlay]');
+  const mobileMediaQuery =
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(max-width: 640px)')
+      : null;
+  const settingsToggleLabels = { open: '', close: '' };
+  let isSettingsPanelOpen = false;
+
   const DEFAULT_UNIT_SPACING_PX = 100;
   const RULER_BACKGROUND_MODE = 'padded';
   const UNIT_TO_CENTIMETERS = {
@@ -151,6 +161,136 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     }
     if (latest.measurementGlobal) {
       configContainers.measurementGlobal = latest.measurementGlobal;
+    }
+  }
+
+  function initResponsiveSettingsPanel() {
+    if (!settingsToggleButton || !settingsPanel || !mobileMediaQuery) {
+      return;
+    }
+
+    const initialText = (settingsToggleButton.textContent || '').trim();
+    settingsToggleLabels.open =
+      (settingsToggleButton.getAttribute('data-open-label') || initialText || 'Åpne innstillinger').trim();
+    settingsToggleLabels.close = (
+      settingsToggleButton.getAttribute('data-close-label') || settingsToggleLabels.open
+    ).trim();
+
+    if (settingsToggleLabels.open) {
+      settingsToggleButton.textContent = settingsToggleLabels.open;
+    }
+
+    syncSettingsPanelForViewport(mobileMediaQuery.matches);
+
+    settingsToggleButton.addEventListener('click', event => {
+      event.preventDefault();
+      if (!mobileMediaQuery.matches) {
+        return;
+      }
+      if (isSettingsPanelOpen) {
+        closeSettingsPanel({ focusButton: true });
+      } else {
+        openSettingsPanel();
+      }
+    });
+
+    if (settingsOverlay) {
+      settingsOverlay.addEventListener('click', () => {
+        if (!mobileMediaQuery.matches) {
+          return;
+        }
+        closeSettingsPanel({ focusButton: true });
+      });
+    }
+
+    doc.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || event.defaultPrevented || !mobileMediaQuery.matches || !isSettingsPanelOpen) {
+        return;
+      }
+      event.preventDefault();
+      closeSettingsPanel({ focusButton: true });
+    });
+
+    const handleMediaChange = event => {
+      if (!event.matches) {
+        isSettingsPanelOpen = false;
+      }
+      syncSettingsPanelForViewport(event.matches);
+    };
+
+    if (typeof mobileMediaQuery.addEventListener === 'function') {
+      mobileMediaQuery.addEventListener('change', handleMediaChange);
+    } else if (typeof mobileMediaQuery.addListener === 'function') {
+      mobileMediaQuery.addListener(handleMediaChange);
+    }
+  }
+
+  function openSettingsPanel() {
+    if (!settingsPanel || !mobileMediaQuery || !mobileMediaQuery.matches) {
+      return;
+    }
+    isSettingsPanelOpen = true;
+    syncSettingsPanelForViewport(true);
+    if (typeof settingsPanel.focus === 'function') {
+      try {
+        settingsPanel.focus({ preventScroll: true });
+      } catch (error) {
+        settingsPanel.focus();
+      }
+    }
+  }
+
+  function closeSettingsPanel(options = {}) {
+    if (!settingsPanel) {
+      return;
+    }
+    const focusButton = Boolean(options.focusButton);
+    const wasOpen = isSettingsPanelOpen;
+    isSettingsPanelOpen = false;
+    syncSettingsPanelForViewport(mobileMediaQuery ? mobileMediaQuery.matches : false);
+    if (wasOpen && focusButton && settingsToggleButton) {
+      settingsToggleButton.focus();
+    }
+  }
+
+  function syncSettingsPanelForViewport(isMobile) {
+    if (!settingsPanel) {
+      return;
+    }
+    const body = doc.body;
+
+    if (!isMobile) {
+      settingsPanel.classList.remove('side--open');
+      settingsPanel.removeAttribute('aria-hidden');
+      if (settingsOverlay) {
+        settingsOverlay.classList.remove('mobile-settings-overlay--visible');
+      }
+      if (settingsToggleButton) {
+        settingsToggleButton.setAttribute('aria-expanded', 'false');
+        if (settingsToggleLabels.open) {
+          settingsToggleButton.textContent = settingsToggleLabels.open;
+        }
+      }
+      if (body) {
+        body.classList.remove('measurement-settings-open');
+      }
+      return;
+    }
+
+    settingsPanel.setAttribute('aria-hidden', isSettingsPanelOpen ? 'false' : 'true');
+    settingsPanel.classList.toggle('side--open', isSettingsPanelOpen);
+    if (settingsOverlay) {
+      settingsOverlay.classList.toggle('mobile-settings-overlay--visible', isSettingsPanelOpen);
+    }
+    if (settingsToggleButton) {
+      settingsToggleButton.setAttribute('aria-expanded', isSettingsPanelOpen ? 'true' : 'false');
+      const label = isSettingsPanelOpen ? settingsToggleLabels.close : settingsToggleLabels.open;
+      if (label) {
+        settingsToggleButton.textContent = label;
+      }
+    }
+    if (body) {
+      body.classList.toggle('measurement-settings-open', isSettingsPanelOpen);
     }
   }
 
@@ -287,6 +427,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
 
   window.addEventListener('resize', handleResize);
   window.addEventListener('examples:loaded', handleExamplesLoaded);
+
+  initResponsiveSettingsPanel();
 
   function resolveConfigContainers() {
     const globalScope = typeof window !== 'undefined' ? window : null;
