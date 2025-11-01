@@ -1534,6 +1534,26 @@
   let currentOrder = [];
   const itemNodes = new Map();
   const itemsById = new Map();
+  const dirtyItemIds = new Set();
+
+  function markItemDirty(itemOrId) {
+    if (!itemOrId) return;
+    let id = '';
+    if (typeof itemOrId === 'string') {
+      id = itemOrId.trim();
+    } else if (typeof itemOrId === 'object' && typeof itemOrId.id === 'string') {
+      id = itemOrId.id.trim();
+    }
+    if (!id) return;
+    dirtyItemIds.add(id);
+  }
+
+  function clearDirtyItem(id) {
+    if (typeof id !== 'string') return;
+    const trimmed = id.trim();
+    if (!trimmed) return;
+    dirtyItemIds.delete(trimmed);
+  }
   let visualList = null;
   let accessibleList = null;
   let figureHost = null;
@@ -1678,6 +1698,14 @@
       if (!ensured || !ensured.id) return;
       itemsById.set(ensured.id, ensured);
     });
+    if (dirtyItemIds.size) {
+      const validIds = new Set(itemsById.keys());
+      Array.from(dirtyItemIds).forEach(id => {
+        if (!validIds.has(id)) {
+          dirtyItemIds.delete(id);
+        }
+      });
+    }
   }
 
   function refreshAllInlineEditorVisibility() {
@@ -2047,6 +2075,7 @@
         syncFigureSelectionControls(figure, categorySelect, figureSelect);
         item.type = 'figure';
         autoUpdateItemFigureLabels(item, '', { initialLabel, initialAlt });
+        markItemDirty(item);
         commitFigureChanges();
       });
 
@@ -2063,6 +2092,7 @@
             syncFigureSelectionControls(figure, categorySelect, figureSelect);
             item.type = 'figure';
             autoUpdateItemFigureLabels(item, '', { initialLabel, initialAlt });
+            markItemDirty(item);
             commitFigureChanges();
             return;
           }
@@ -2077,6 +2107,7 @@
           const autoLabel = buildFigureDisplayLabel(figure.value, figure.categoryId, selectedMatch);
           autoUpdateItemFigureLabels(item, autoLabel, { initialLabel, initialAlt });
           item.type = 'figure';
+          markItemDirty(item);
           commitFigureChanges();
         });
       }
@@ -2205,6 +2236,7 @@
       const commitTextChange = options => {
         const normalized = typeof textarea.value === 'string' ? textarea.value : '';
         item.text = normalized;
+        markItemDirty(item);
         refreshItemsById();
         if (!options || options.rebuild !== false) {
           applyOrder({});
@@ -2219,6 +2251,7 @@
 
       textarea.addEventListener('input', () => {
         item.text = textarea.value;
+        markItemDirty(item);
         refreshItemsById();
         updateInlineEditorTextPreview(item, inlineEditor);
         updateValidationState();
@@ -2339,6 +2372,7 @@
       typeSelect.addEventListener('change', () => {
         const nextType = sanitizeItemType(typeSelect.value);
         item.type = nextType;
+        markItemDirty(item);
         if (nextType === 'text') {
           item.figures = [];
           if (Array.isArray(item.images)) {
@@ -3286,6 +3320,7 @@
     const index = state.items.findIndex(item => item && item.id === id);
     if (index < 0) return;
     state.items.splice(index, 1);
+    clearDirtyItem(id);
     refreshItemsById();
     state.order = sanitizeOrder(state.items, state.order);
     currentOrder = sanitizeOrder(state.items, currentOrder);
@@ -3414,7 +3449,27 @@
   }
 
   function applyStateFromGlobal() {
+    const preservedDirtyItems = new Map();
+    if (state && dirtyItemIds.size && Array.isArray(state.items)) {
+      state.items.forEach(item => {
+        if (!item || !item.id) return;
+        if (dirtyItemIds.has(item.id)) {
+          preservedDirtyItems.set(item.id, cloneItem(item));
+        }
+      });
+    }
     state = createState();
+    if (preservedDirtyItems.size && Array.isArray(state.items)) {
+      state.items = state.items.map((item, index) => {
+        if (!item || !item.id) return item;
+        if (!preservedDirtyItems.has(item.id)) {
+          return item;
+        }
+        const preserved = preservedDirtyItems.get(item.id);
+        const ensured = ensureItemInPlace(preserved, index);
+        return ensured || preserved;
+      });
+    }
     refreshItemsById();
     activeInlineEditorId = null;
     currentOrder = sanitizeOrder(state.items, state.order);
