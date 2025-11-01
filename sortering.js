@@ -1662,6 +1662,17 @@
     if (wrapper) {
       wrapper.classList.toggle('sortering__item--editable', !!isActive);
       wrapper.style.touchAction = currentAppMode === 'task' ? 'none' : 'auto';
+      const shouldBeFocusable = editable && !isActive;
+      wrapper.tabIndex = shouldBeFocusable ? 0 : -1;
+      if (shouldBeFocusable) {
+        wrapper.setAttribute('role', 'button');
+        wrapper.setAttribute('aria-label', 'Rediger element');
+        wrapper.setAttribute('aria-haspopup', 'dialog');
+      } else {
+        wrapper.removeAttribute('role');
+        wrapper.removeAttribute('aria-label');
+        wrapper.removeAttribute('aria-haspopup');
+      }
       if (itemId && !itemsById.has(itemId) && activeInlineEditorId === itemId) {
         activeInlineEditorId = null;
       }
@@ -1726,17 +1737,23 @@
   }
 
   function deactivateInlineEditor(options = {}) {
+    const { rebuild = false, restoreFocus = false } = options || {};
     const previousId = normalizeActiveInlineEditorId();
     if (!previousId) return;
+    const nodes = itemNodes.get(previousId);
     finalizeInlineEditor(previousId);
     activeInlineEditorId = null;
-    if (options && options.rebuild) {
+    if (rebuild) {
       applyOrder({});
-    } else {
-      const nodes = itemNodes.get(previousId);
+    } else if (nodes) {
       const item = itemsById.get(previousId) || null;
-      if (nodes) {
-        updateInlineEditorVisibility(nodes, item);
+      updateInlineEditorVisibility(nodes, item);
+    }
+    if (restoreFocus && nodes && nodes.wrapper) {
+      try {
+        nodes.wrapper.focus({ preventScroll: true });
+      } catch (_) {
+        nodes.wrapper.focus();
       }
     }
   }
@@ -1896,6 +1913,7 @@
     const wrapper = doc.createElement('div');
     wrapper.className = 'sortering__item';
     wrapper.dataset.itemId = item.id;
+    wrapper.tabIndex = -1;
 
     const contentEl = doc.createElement('div');
     contentEl.className = 'sortering__item-content';
@@ -3054,6 +3072,17 @@
     nodes.wrapper.addEventListener('pointermove', event => handlePointerMove(event, id));
     nodes.wrapper.addEventListener('pointerup', event => finishPointerDrag(event, id));
     nodes.wrapper.addEventListener('pointercancel', event => finishPointerDrag(event, id));
+    nodes.wrapper.addEventListener('keydown', event => {
+      if (!isEditorMode()) return;
+      if (event.target !== nodes.wrapper) return;
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        activateInlineEditor(id, { focusText: true });
+      } else if (event.key === 'Escape' && isInlineEditorActive(id)) {
+        event.preventDefault();
+        deactivateInlineEditor({ restoreFocus: true });
+      }
+    });
     nodes.wrapper.addEventListener('click', event => {
       if (nodes.wrapper.dataset.suppressNextClick === 'true') {
         nodes.wrapper.dataset.suppressNextClick = 'false';
