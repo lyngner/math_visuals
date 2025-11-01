@@ -1269,7 +1269,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (typeof value !== 'string') {
       return null;
     }
-    const match = value.match(/([0-9]+(?:[.,][0-9]+)?)\s*[:\/]\s*([0-9]+(?:[.,][0-9]+)?)/);
+    const normalized = value.replace(/[\s\u00A0\u202F]+/g, '');
+    const match = normalized.match(/([0-9]+(?:[.,][0-9]+)?)[:\/]([0-9]+(?:[.,][0-9]+)?)/);
     if (!match) {
       return null;
     }
