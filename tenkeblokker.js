@@ -67,6 +67,9 @@ let activeFractionColors = {
   fill: FRACTION_FALLBACK_COLORS[0],
   line: FRACTION_FALLBACK_COLORS[1]
 };
+const DEFAULT_FRACTION_SLOT_INDICES = Object.freeze([13, 14]);
+let cachedPaletteConfig = null;
+let paletteConfigResolved = false;
 
 function getPaletteApi(scope) {
   const root = scope || (typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null);
@@ -143,6 +146,112 @@ function sanitizePaletteList(values) {
   return sanitized;
 }
 
+function resolvePaletteConfigFromScopes() {
+  const scopes = [
+    typeof window !== 'undefined' ? window : null,
+    typeof globalThis !== 'undefined' ? globalThis : null,
+    typeof global !== 'undefined' ? global : null
+  ];
+  for (const scope of scopes) {
+    if (!scope || typeof scope !== 'object') continue;
+    const config = scope.MathVisualsPaletteConfig;
+    if (config && typeof config === 'object') {
+      return config;
+    }
+  }
+  if (typeof require === 'function') {
+    try {
+      const mod = require('./palette/palette-config.js');
+      if (mod && typeof mod === 'object') {
+        return mod;
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+function getPaletteConfig() {
+  if (!paletteConfigResolved) {
+    paletteConfigResolved = true;
+    cachedPaletteConfig = resolvePaletteConfigFromScopes();
+  }
+  return cachedPaletteConfig;
+}
+
+function getFractionSlotIndices(config) {
+  if (!config || typeof config !== 'object') {
+    return DEFAULT_FRACTION_SLOT_INDICES.slice();
+  }
+  const indices = [];
+  if (config.GROUP_SLOT_INDICES && typeof config.GROUP_SLOT_INDICES === 'object') {
+    const raw = config.GROUP_SLOT_INDICES[FRACTION_GROUP_ID];
+    if (Array.isArray(raw)) {
+      raw.forEach(index => {
+        if (Number.isInteger(index) && index >= 0) {
+          indices.push(index);
+        }
+      });
+    }
+  }
+  if (!indices.length && Array.isArray(config.COLOR_SLOT_GROUPS)) {
+    const match = config.COLOR_SLOT_GROUPS.find(group => {
+      if (!group || typeof group.groupId !== 'string') return false;
+      return group.groupId.trim().toLowerCase() === FRACTION_GROUP_ID;
+    });
+    if (match && Array.isArray(match.slots)) {
+      match.slots.forEach(slot => {
+        const index = Number(slot && slot.index);
+        if (Number.isInteger(index) && index >= 0) {
+          indices.push(index);
+        }
+      });
+    }
+  }
+  if (!indices.length) {
+    return DEFAULT_FRACTION_SLOT_INDICES.slice();
+  }
+  return indices;
+}
+
+function resolveProjectFractionFallback(projectName) {
+  const config = getPaletteConfig();
+  const fallbacks = config && typeof config.PROJECT_FALLBACKS === 'object' ? config.PROJECT_FALLBACKS : null;
+  if (!fallbacks) {
+    return FRACTION_FALLBACK_COLORS.slice();
+  }
+  const normalizedProject = typeof projectName === 'string' ? projectName.trim().toLowerCase() : '';
+  const projectPalette = Array.isArray(fallbacks[normalizedProject]) ? fallbacks[normalizedProject] : null;
+  const defaultPalette = Array.isArray(fallbacks.default) ? fallbacks.default : null;
+  const palette = projectPalette && projectPalette.length ? projectPalette : defaultPalette;
+  if (!palette || !palette.length) {
+    return FRACTION_FALLBACK_COLORS.slice();
+  }
+  const sanitizedPalette = sanitizePaletteList(palette);
+  if (!sanitizedPalette.length) {
+    return FRACTION_FALLBACK_COLORS.slice();
+  }
+  const slotIndices = getFractionSlotIndices(config);
+  const result = [];
+  for (let i = 0; i < 2; i += 1) {
+    const slotIndex = slotIndices[i];
+    let color = null;
+    if (Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < palette.length) {
+      const rawColor = palette[slotIndex];
+      if (typeof rawColor === 'string') {
+        const trimmedColor = rawColor.trim();
+        if (trimmedColor) {
+          color = trimmedColor;
+        }
+      }
+    }
+    if (!color) {
+      color = sanitizedPalette[i % sanitizedPalette.length];
+    }
+    result.push(color);
+  }
+  return result;
+}
+
 function ensurePaletteCount(basePalette, fallbackPalette, count) {
   const base = sanitizePaletteList(basePalette);
   const fallback = sanitizePaletteList(fallbackPalette);
@@ -187,9 +296,9 @@ function tryResolvePalette(resolver) {
 }
 
 function resolveFractionPalette(count = 2) {
-  const fallback = FRACTION_FALLBACK_COLORS;
   const target = Number.isFinite(count) && count > 0 ? Math.max(2, Math.trunc(count)) : 2;
   const project = resolvePaletteProjectName();
+  const fallback = resolveProjectFractionFallback(project);
   const helper = getGroupPaletteHelper();
   if (helper) {
     const palette = tryResolvePalette(() =>
@@ -286,10 +395,15 @@ function getPaletteTargets() {
 
 function applyFractionPalette(force = false) {
   if (typeof document === 'undefined') return;
+  const project = resolvePaletteProjectName();
   const palette = resolveFractionPalette(2);
-  const safe = ensurePaletteCount(palette, FRACTION_FALLBACK_COLORS, 2);
-  const fill = typeof safe[0] === 'string' && safe[0] ? safe[0] : FRACTION_FALLBACK_COLORS[0];
-  const line = typeof safe[1] === 'string' && safe[1] ? safe[1] : fill;
+  const fallbackPalette = resolveProjectFractionFallback(project);
+  const effectiveFallback =
+    Array.isArray(fallbackPalette) && fallbackPalette.length ? fallbackPalette : FRACTION_FALLBACK_COLORS;
+  const safe = ensurePaletteCount(palette, effectiveFallback, 2);
+  const fill =
+    typeof safe[0] === 'string' && safe[0] ? safe[0] : effectiveFallback[0] || FRACTION_FALLBACK_COLORS[0];
+  const line = typeof safe[1] === 'string' && safe[1] ? safe[1] : effectiveFallback[1] || fill;
   const changed =
     force ||
     fill.toLowerCase() !== activeFractionColors.fill.toLowerCase() ||
@@ -3266,4 +3380,11 @@ function getExportSvg() {
     verticalText.textContent = verticalLabel;
   }
   return exportSvg;
+}
+
+if (typeof module !== 'undefined' && module && module.exports) {
+  module.exports.resolveFractionPalette = resolveFractionPalette;
+  module.exports.__tenkeblokker = {
+    resolveProjectFractionFallback
+  };
 }
