@@ -69,6 +69,17 @@
       groupIndex: slot.groupIndex
     }))
   }));
+  const DEFAULT_GRAFTEGNER_GROUP_ID = 'graftegner';
+  const GRAFTEGNER_GROUP_ID = (() => {
+    for (const group of COLOR_SLOT_GROUPS) {
+      if (!group || typeof group.groupId !== 'string') continue;
+      const normalized = group.groupId.trim().toLowerCase();
+      if (normalized === DEFAULT_GRAFTEGNER_GROUP_ID) {
+        return group.groupId;
+      }
+    }
+    return DEFAULT_GRAFTEGNER_GROUP_ID;
+  })();
   const GROUP_IDS = Array.isArray(paletteConfig.COLOR_GROUP_IDS)
     ? paletteConfig.COLOR_GROUP_IDS.slice()
     : COLOR_SLOT_GROUPS.map(group => group.groupId);
