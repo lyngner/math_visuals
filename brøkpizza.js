@@ -62,6 +62,41 @@ function getPaletteApi() {
   return api && typeof api.getGroupPalette === 'function' ? api : null;
 }
 
+function resolvePaletteConfig() {
+  const scopes = [
+    typeof window !== 'undefined' ? window : null,
+    typeof globalThis !== 'undefined' ? globalThis : null,
+    typeof global !== 'undefined' ? global : null
+  ];
+  for (const scope of scopes) {
+    if (!scope || typeof scope !== 'object') continue;
+    const config = scope.MathVisualsPaletteConfig;
+    if (config && typeof config === 'object') {
+      return config;
+    }
+  }
+  if (typeof require === 'function') {
+    try {
+      const mod = require('./palette/palette-config.js');
+      if (mod && typeof mod === 'object') {
+        return mod;
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+let paletteConfigCache;
+let paletteConfigResolved = false;
+
+function getPaletteConfig() {
+  if (!paletteConfigResolved) {
+    paletteConfigResolved = true;
+    paletteConfigCache = resolvePaletteConfig();
+  }
+  return paletteConfigCache;
+}
+
 function getGroupPaletteHelper() {
   const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
   if (!scope || typeof scope !== 'object') return null;
@@ -111,6 +146,17 @@ function resolvePaletteProjectName() {
     } catch (_) {}
   }
   return null;
+}
+
+function getProjectFractionFallbackPalette(projectName) {
+  const config = getPaletteConfig();
+  if (!config || !config.PROJECT_FALLBACKS) {
+    return [];
+  }
+  const normalized = typeof projectName === 'string' ? projectName.trim().toLowerCase() : '';
+  const fallbacks = config.PROJECT_FALLBACKS;
+  const palette = (normalized && fallbacks[normalized]) || fallbacks.default || [];
+  return sanitizePalette(palette);
 }
 
 function sanitizePalette(values) {
@@ -174,8 +220,10 @@ function getFractionPalette(count) {
   const helper = getGroupPaletteHelper();
   const theme = getThemeApi();
   const project = resolvePaletteProjectName();
-  const fallback = LEGACY_PIZZA_PALETTE.slice();
-  const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : fallback.length;
+  const projectFallback = getProjectFractionFallbackPalette(project);
+  const legacyFallback = LEGACY_PIZZA_PALETTE.slice();
+  const fallback = projectFallback.length ? projectFallback : legacyFallback;
+  const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : fallback.length || legacyFallback.length;
 
   if (paletteApi) {
     const palette = tryResolvePalette(() =>
