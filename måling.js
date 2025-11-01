@@ -19,6 +19,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
   const tapeMoveHandle = tapeStrapTrack ? tapeStrapTrack.querySelector('[data-tape-move-handle]') : null;
   const tapeZeroAnchor = tapeStrapTrack ? tapeStrapTrack.querySelector('[data-tape-zero-anchor]') : null;
   const tapeHousing = tapeMeasure ? tapeMeasure.querySelector('[data-tape-housing]') : null;
+  const tapeHousingShiftHandle = tapeHousing
+    ? tapeHousing.querySelector('[data-tape-housing-shift-handle]')
+    : null;
   const hasRuler = !!(ruler && rulerSvg);
   const hasTapeMeasure = !!(
     tapeMeasure &&
@@ -266,6 +269,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
   }
   attachTapeExtensionHandlers(tapeZeroHandle || tapeStrap);
   attachTapeHousingHandlers(tapeHousing);
+  attachTapeHousingHandlers(tapeHousingShiftHandle);
   attachInstrumentFocusHandlers(ruler, 'ruler');
   attachInstrumentFocusHandlers(tapeMeasure, 'tape');
 
@@ -2266,6 +2270,13 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     const strapEndScale = Number.isFinite(strapHeight) && strapHeight > 0 ? strapHeight / TAPE_STRAP_DEFAULT_HEIGHT : 1;
     const strapEndScaleValue = Number.isFinite(strapEndScale) && strapEndScale > 0 ? strapEndScale : 1;
     const strapEndWidth = TAPE_STRAP_END_WIDTH * strapEndScaleValue;
+    if (tapeMeasure) {
+      if (Number.isFinite(strapEndWidth) && strapEndWidth > 0) {
+        tapeMeasure.style.setProperty('--tape-zero-handle-width', `${strapEndWidth}px`);
+      } else {
+        tapeMeasure.style.removeProperty('--tape-zero-handle-width');
+      }
+    }
     const strapBackgroundWidth = Math.max(strapLengthWithOverlap - strapEndWidth, 0);
     const bandInset = Math.min(Math.max(strapHeight * 0.12, 6), strapHeight / 2.2);
     const topBaselineY = bandInset;
@@ -3021,6 +3032,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       return;
     }
     event.preventDefault();
+    if (toolKey === 'tape') {
+      event.stopPropagation();
+    }
     const entry = {
       pointerId: event.pointerId,
       clientX: event.clientX,
