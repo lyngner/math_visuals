@@ -443,6 +443,42 @@
       text-align: center;
     }
 
+    .mobile-settings {
+      display: none;
+      width: var(--board-max-width);
+      margin: 0 auto;
+    }
+
+    .mobile-settings-toggle {
+      appearance: none;
+      border: 1px solid var(--surface-border);
+      background: var(--surface);
+      color: #0f172a;
+      font-weight: 600;
+      font-size: 1rem;
+      border-radius: 999px;
+      padding: 12px 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.2s ease;
+      box-shadow: var(--surface-shadow);
+    }
+
+    .mobile-settings-toggle:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .mobile-settings-toggle:active {
+      transform: translateY(1px);
+    }
+
+    .mobile-settings-overlay {
+      display: none;
+    }
+
     .settings {
       display: flex;
       flex-direction: column;
@@ -571,6 +607,31 @@
         --tape-strap-length: min(720px, 120vw);
       }
 
+      .mobile-settings {
+        display: flex;
+        justify-content: center;
+      }
+
+      .mobile-settings-toggle {
+        width: min(100%, 320px);
+      }
+
+      .mobile-settings-overlay {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.4);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+        z-index: 30;
+      }
+
+      .mobile-settings-overlay.mobile-settings-overlay--visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
       .board-wrapper {
         width: 100vw;
         margin: 0;
@@ -582,12 +643,60 @@
       .board {
         min-height: min(80vh, 600px);
       }
+
+      .layout--sidebar {
+        position: relative;
+      }
+
+      .layout--sidebar > .side {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100vw;
+        max-height: calc(90vh - env(safe-area-inset-top, 0px));
+        padding: clamp(16px, 4vw, 28px) clamp(16px, 5vw, 32px)
+          calc(env(safe-area-inset-bottom, 0px) + 28px);
+        background: var(--surface);
+        border-radius: 20px 20px 0 0;
+        box-shadow: 0 -12px 30px rgba(15, 23, 42, 0.15);
+        overflow-y: auto;
+        transform: translateY(100%);
+        opacity: 0;
+        pointer-events: none;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+        z-index: 40;
+      }
+
+      .layout--sidebar > .side.side--open {
+        transform: translateY(0);
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      body[data-app="måling"].measurement-settings-open {
+        overflow: hidden;
+      }
     }
   </style>
   <link rel="stylesheet" href="split.css" />
 </head>
 <body data-app="måling">
   <div class="wrap">
+      <div class="mobile-settings">
+        <button
+          type="button"
+          class="mobile-settings-toggle"
+          data-settings-toggle
+          aria-expanded="false"
+          aria-controls="measurementSidebar"
+          data-open-label="Åpne innstillinger"
+          data-close-label="Lukk innstillinger"
+        >
+          Åpne innstillinger
+        </button>
+      </div>
+      <div class="mobile-settings-overlay" data-settings-overlay aria-hidden="true"></div>
       <div class="grid layout--sidebar">
         <div class="card card--measurement">
           <div class="board-wrapper">
@@ -646,7 +755,7 @@
           </div>
         </div>
 
-      <div class="side">
+      <div class="side" id="measurementSidebar" data-settings-panel tabindex="-1">
         <div class="card card--examples">
           <div class="example-description">
             <textarea id="exampleDescription" aria-label="Oppgavetekst (valgfritt)" placeholder="Skriv oppgavetekst her"></textarea>
