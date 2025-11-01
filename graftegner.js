@@ -7742,6 +7742,12 @@ function setupSettingsForm() {
           }
         }
       }
+      if (typeof funVal === 'string') {
+        const colorSuffix = /,\s*color\s*=\s*[^,]+$/i.exec(funVal);
+        if (colorSuffix) {
+          funVal = funVal.slice(0, colorSuffix.index).trim();
+        }
+      }
       let colorVal = '';
       let colorManualFlag = false;
       const isFunctionLine = !coordsMatch && /=/.test(line);
