@@ -2663,12 +2663,13 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (!session) {
       return;
     }
-    const element = toolKey === 'tape' ? tapeHousing : ruler;
-    if (!skipRelease && element) {
+    if (!skipRelease) {
       for (const entry of session.values()) {
         if (!entry || entry.pointerId == null) continue;
+        const captureTarget = entry.captureTarget || (toolKey === 'tape' ? tapeHousing : ruler);
+        if (!captureTarget) continue;
         try {
-          element.releasePointerCapture(entry.pointerId);
+          captureTarget.releasePointerCapture(entry.pointerId);
         } catch (_) {}
       }
     }
@@ -2860,7 +2861,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       clientX: event.clientX,
       clientY: event.clientY,
       prevX: event.clientX,
-      prevY: event.clientY
+      prevY: event.clientY,
+      captureTarget: captureTarget || null
     };
     session.set(event.pointerId, entry);
     try {
@@ -2896,10 +2898,10 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       return;
     }
     session.delete(event.pointerId);
-    const element = toolKey === 'tape' ? tapeHousing : ruler;
+    const captureTarget = entry.captureTarget || (toolKey === 'tape' ? tapeHousing : ruler);
     try {
-      if (element) {
-        element.releasePointerCapture(event.pointerId);
+      if (captureTarget) {
+        captureTarget.releasePointerCapture(event.pointerId);
       }
     } catch (_) {}
     if (session.size === 0 && appState.activeTool === toolKey) {
