@@ -3077,9 +3077,11 @@
       if (event.target !== nodes.wrapper) return;
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
+        event.stopPropagation();
         activateInlineEditor(id, { focusText: true });
       } else if (event.key === 'Escape' && isInlineEditorActive(id)) {
         event.preventDefault();
+        event.stopPropagation();
         deactivateInlineEditor({ restoreFocus: true });
       }
     });
