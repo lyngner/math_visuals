@@ -70,6 +70,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     measurementTool: doc.getElementById('cfg-measurement-tool')
   };
   const lengthFieldContainer = inputs.length ? inputs.length.closest('label') : null;
+  const measurementFieldGrid = doc.querySelector('[data-measurement-field-grid]');
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
   const transformStates = {
@@ -1683,9 +1684,27 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     const sanitizedTool = sanitizeActiveTool(toolKey, appState.activeTool || defaultActiveTool);
     const shouldHide = sanitizedTool === 'tape';
     if (shouldHide) {
+      lengthFieldContainer.hidden = true;
       lengthFieldContainer.setAttribute('hidden', '');
+      lengthFieldContainer.setAttribute('aria-hidden', 'true');
+      if (inputs.length) {
+        inputs.length.disabled = true;
+      }
+      if (measurementFieldGrid) {
+        measurementFieldGrid.classList.remove('field-grid--three');
+        measurementFieldGrid.classList.add('field-grid--two');
+      }
     } else {
+      lengthFieldContainer.hidden = false;
       lengthFieldContainer.removeAttribute('hidden');
+      lengthFieldContainer.removeAttribute('aria-hidden');
+      if (inputs.length) {
+        inputs.length.disabled = false;
+      }
+      if (measurementFieldGrid) {
+        measurementFieldGrid.classList.remove('field-grid--two');
+        measurementFieldGrid.classList.add('field-grid--three');
+      }
     }
   }
 
