@@ -264,11 +264,10 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
   attachInstrumentPointerHandlers(ruler, 'ruler');
   if (tapeMoveHandle) {
     attachInstrumentPointerHandlers(tapeMoveHandle, 'tape');
-  } else {
-    attachInstrumentPointerHandlers(tapeStrap, 'tape');
   }
+  attachInstrumentPointerHandlers(tapeStrap, 'tape');
+  attachInstrumentPointerHandlers(tapeHousing, 'tape');
   attachTapeExtensionHandlers(tapeZeroHandle || tapeStrap);
-  attachTapeHousingHandlers(tapeHousing);
   attachTapeHousingHandlers(tapeHousingShiftHandle);
   attachInstrumentFocusHandlers(ruler, 'ruler');
   attachInstrumentFocusHandlers(tapeMeasure, 'tape');
