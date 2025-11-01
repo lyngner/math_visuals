@@ -383,10 +383,10 @@ function handleFilterInput(event) {
 
 function applyFilter(rawQuery) {
   const query = typeof rawQuery === 'string' ? rawQuery.trim().toLowerCase() : '';
-  const activeCategory = activeCategoryId
+  const hasCategoryFilter = Boolean(activeCategoryId);
+  const activeCategory = hasCategoryFilter
     ? categoryMetaById.get(activeCategoryId) || null
     : null;
-  const hasCategoryFilter = Boolean(activeCategory);
   const hasQueryFilter = query.length > 0;
   const hasActiveFilter = hasCategoryFilter || hasQueryFilter;
   let visibleCount = 0;
