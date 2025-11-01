@@ -2390,6 +2390,11 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     }
     lastRenderedUnitSpacing = unitSpacing;
 
+    const previousTotalLength =
+      Number.isFinite(tapeLengthState.totalPx) && tapeLengthState.totalPx > 0
+        ? tapeLengthState.totalPx
+        : Number.NaN;
+
     const metrics = scaleMetrics || resolveScaleMetrics(settings);
     const { infinite, units: configuredUnits } = resolveTapeMeasureLengthConfig(
       settings && settings.tapeMeasureLength
@@ -2412,6 +2417,13 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     const safeWidth = strapWidth > 0 ? strapWidth : unitSpacing;
     const tapeHousingShift = resolveTapeHousingShiftPx();
     const strapLengthWithOverlap = safeWidth + tapeHousingShift;
+    const strapLengthDelta =
+      Number.isFinite(previousTotalLength) && Number.isFinite(strapLengthWithOverlap)
+        ? strapLengthWithOverlap - previousTotalLength
+        : 0;
+    if (Math.abs(strapLengthDelta) >= 0.001) {
+      adjustTapeTransformForLengthChange(strapLengthDelta);
+    }
     const strapEndScale = Number.isFinite(strapHeight) && strapHeight > 0 ? strapHeight / TAPE_STRAP_DEFAULT_HEIGHT : 1;
     const strapEndScaleValue = Number.isFinite(strapEndScale) && strapEndScale > 0 ? strapEndScale : 1;
     const strapEndWidth = TAPE_STRAP_END_WIDTH * strapEndScaleValue;
@@ -3970,6 +3982,23 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         persistTransformState();
       }
     }
+  }
+
+  function adjustTapeTransformForLengthChange(deltaLength) {
+    if (!Number.isFinite(deltaLength) || Math.abs(deltaLength) < 0.001) {
+      return;
+    }
+    const state = transformStates.tape;
+    if (!state) {
+      return;
+    }
+    const rotation = Number.isFinite(state.rotation) ? state.rotation : 0;
+    const offsetX = Number.isFinite(state.x) ? state.x : 0;
+    const offsetY = Number.isFinite(state.y) ? state.y : 0;
+    const shiftX = deltaLength * Math.cos(rotation);
+    const shiftY = deltaLength * Math.sin(rotation);
+    state.x = offsetX - shiftX;
+    state.y = offsetY - shiftY;
   }
 
   function applyTapeMeasureTransform() {
