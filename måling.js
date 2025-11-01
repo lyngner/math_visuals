@@ -71,7 +71,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     showUnitLabel: doc.getElementById('cfg-show-unit'),
     measurementWithoutScale: doc.getElementById('cfg-measurement-without-scale'),
     panningEnabled: doc.getElementById('cfg-pan-enabled'),
-    measurementTool: doc.getElementById('cfg-measurement-tool')
+    measurementTool: doc.getElementById('cfg-measurement-tool'),
+    measurementDirectionLock: doc.getElementById('cfg-measurement-direction-lock'),
+    measurementDirectionAngleButton: doc.getElementById('cfg-measurement-direction-set-angle')
   };
   const lengthFieldContainer = inputs.length ? inputs.length.closest('label') : null;
   const measurementFieldGrid = doc.querySelector('[data-measurement-field-grid]');
@@ -122,7 +124,13 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     unitLabelCache: {
       withScale: '',
       withoutScale: ''
-    }
+    },
+    directionLockMemory: {
+      ruler: 0,
+      tape: 0
+    },
+    currentDirectionLockMode: 'none',
+    currentDirectionLockAngle: null
   };
   const configContainers = resolveConfigContainers();
   let exportClipIdCounter = 0;
@@ -166,7 +174,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     boardPanTransform: { x: 0, y: 0 },
     activeTool: defaultActiveTool,
     tapeMeasureLength: 10,
-    tapeMeasureTransform: null
+    tapeMeasureTransform: null,
+    measurementDirectionLock: 'none',
+    measurementDirectionAngle: 0
   };
 
   const tapeLengthState = {
@@ -342,6 +352,12 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (typeof source.activeTool === 'string') {
       target.activeTool = source.activeTool;
     }
+    if (typeof source.measurementDirectionLock === 'string') {
+      target.measurementDirectionLock = source.measurementDirectionLock;
+    }
+    if (Object.prototype.hasOwnProperty.call(source, 'measurementDirectionAngle')) {
+      target.measurementDirectionAngle = source.measurementDirectionAngle;
+    }
     // unit spacing is fixed and not configurable
   }
 
@@ -364,6 +380,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       container.panorering = !!settings.panningEnabled;
       container.activeTool = settings.activeTool;
       container.tapeMeasureLength = settings.tapeMeasureLength;
+      container.measurementDirectionLock = settings.measurementDirectionLock;
+      container.measurementDirectionAngle = settings.measurementDirectionAngle;
       delete container.rulerStartAtZero;
       delete container.rulerPadding;
       delete container.unitSpacingOverride;
@@ -396,6 +414,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     container.panorering = !!settings.panningEnabled;
     container.activeTool = settings.activeTool;
     container.tapeMeasureLength = settings.tapeMeasureLength;
+    container.measurementDirectionLock = settings.measurementDirectionLock;
+    container.measurementDirectionAngle = settings.measurementDirectionAngle;
     delete container.unitSpacingOverride;
     delete container.rulerPadding;
     delete container.rulerStartAtZero;
@@ -644,6 +664,71 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     return fallbackNormalized || 'ruler';
   }
 
+  function sanitizeMeasurementDirectionLock(value, fallback) {
+    const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    if (normalized === 'none' || normalized === 'nei' || normalized === 'no') {
+      return 'none';
+    }
+    if (normalized === 'horizontal' || normalized === 'horisontal') {
+      return 'horizontal';
+    }
+    if (normalized === 'vertical' || normalized === 'vertikal' || normalized === 'verikal') {
+      return 'vertical';
+    }
+    if (normalized === 'angle' || normalized === 'vinkel' || normalized === 'custom') {
+      return 'angle';
+    }
+    if (typeof fallback === 'string' && fallback.trim()) {
+      return sanitizeMeasurementDirectionLock(fallback, 'none');
+    }
+    return 'none';
+  }
+
+  function sanitizeMeasurementDirectionAngle(value, fallback) {
+    const parsed = parseAngle(value);
+    if (parsed != null) {
+      return parsed;
+    }
+    const fallbackParsed = parseAngle(fallback);
+    if (fallbackParsed != null) {
+      return fallbackParsed;
+    }
+    return 0;
+  }
+
+  function parseAngle(source) {
+    if (source == null) {
+      return null;
+    }
+    if (Number.isFinite(source)) {
+      return normalizeAngle(source);
+    }
+    if (typeof source === 'string') {
+      const trimmed = source.trim();
+      if (!trimmed) {
+        return null;
+      }
+      const lower = trimmed.toLowerCase();
+      let numericSource = trimmed;
+      let isDegree = false;
+      if (lower.endsWith('deg')) {
+        numericSource = trimmed.slice(0, -3);
+        isDegree = true;
+      } else if (lower.endsWith('°')) {
+        numericSource = trimmed.slice(0, -1);
+        isDegree = true;
+      }
+      const normalizedNumeric = numericSource.replace(',', '.');
+      const parsed = Number.parseFloat(normalizedNumeric);
+      if (!Number.isFinite(parsed)) {
+        return null;
+      }
+      const radians = isDegree ? (parsed * Math.PI) / 180 : parsed;
+      return normalizeAngle(radians);
+    }
+    return null;
+  }
+
   function sanitizeBoardPanTransform(value, fallback) {
     const source = value && typeof value === 'object' ? value : fallback;
     if (!source || typeof source !== 'object') {
@@ -733,6 +818,14 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       defaults.tapeMeasureLength,
       { allowInfinite: true }
     );
+    const measurementDirectionLock = sanitizeMeasurementDirectionLock(
+      combined.measurementDirectionLock,
+      defaults.measurementDirectionLock
+    );
+    const measurementDirectionAngle = sanitizeMeasurementDirectionAngle(
+      combined.measurementDirectionAngle,
+      defaults.measurementDirectionAngle
+    );
 
     const settings = {
       length,
@@ -754,7 +847,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       boardPanTransform,
       activeTool,
       tapeMeasureLength,
-      tapeMeasureTransform
+      tapeMeasureTransform,
+      measurementDirectionLock,
+      measurementDirectionAngle
     };
 
     applySettingsToContainer(configContainers.measurement, settings);
@@ -797,6 +892,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       a.panningEnabled === b.panningEnabled &&
       a.activeTool === b.activeTool &&
       a.tapeMeasureLength === b.tapeMeasureLength &&
+      a.measurementDirectionLock === b.measurementDirectionLock &&
+      areAnglesApproximatelyEqual(a.measurementDirectionAngle, b.measurementDirectionAngle) &&
       areRulerTransformsEqual(a.rulerTransform, b.rulerTransform) &&
       areRulerTransformsEqual(a.tapeMeasureTransform, b.tapeMeasureTransform) &&
       areBoardPanTransformsEqual(a.boardPanTransform, b.boardPanTransform)
@@ -816,6 +913,17 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       Math.abs(a.y - b.y) <= epsilon &&
       Math.abs(normalizeAngle(a.rotation) - normalizeAngle(b.rotation)) <= epsilon
     );
+  }
+
+  function areAnglesApproximatelyEqual(a, b) {
+    if (a === b) {
+      return true;
+    }
+    if (!Number.isFinite(a) || !Number.isFinite(b)) {
+      return false;
+    }
+    const epsilon = 0.001;
+    return Math.abs(normalizeAngle(a) - normalizeAngle(b)) <= epsilon;
   }
 
   function areBoardPanTransformsEqual(a, b) {
@@ -1695,6 +1803,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       transformStates.ruler.y = 0;
       transformStates.ruler.rotation = 0;
     }
+    updateFreeRotationMemoryForTool('ruler');
     const sanitizedTapeTransform = sanitizeRulerTransform(
       settings && settings.tapeMeasureTransform,
       null
@@ -1706,6 +1815,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       transformStates.tape.y = 0;
       transformStates.tape.rotation = 0;
     }
+    updateFreeRotationMemoryForTool('tape');
 
     const previousTool = appState.activeTool;
     const desiredTool = sanitizeActiveTool(settings && settings.activeTool, previousTool);
@@ -1795,6 +1905,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     applyBoardPanningState(settings);
     applyScaleLabel(settings);
     applyActiveToolState(settings);
+    applyDirectionLockFromSettings(settings);
     applyTapeMeasureAppearance(settings, scaleMetrics);
     updateAccessibility(settings);
     appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(settings);
@@ -2332,6 +2443,20 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     return String(value);
   }
 
+  function formatAngleForDisplay(angle) {
+    if (!Number.isFinite(angle)) {
+      return '';
+    }
+    let degrees = (normalizeAngle(angle) * 180) / Math.PI;
+    if (degrees < 0) {
+      degrees += 360;
+    }
+    const difference = Math.abs(Math.round(degrees) - degrees);
+    const decimals = difference <= 0.01 ? 0 : 1;
+    const rounded = roundForDisplay(degrees, decimals);
+    return `${formatNumber(rounded)}°`;
+  }
+
   function syncInputs(settings) {
     appState.syncingInputs = true;
     try {
@@ -2362,10 +2487,31 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       if (inputs.measurementTool) {
         inputs.measurementTool.value = activeToolKey;
       }
+      updateMeasurementDirectionInputs(settings);
       updateLengthFieldVisibility(activeToolKey);
       // unit spacing is fixed and no longer exposed to the UI
     } finally {
       appState.syncingInputs = false;
+    }
+  }
+
+  function updateMeasurementDirectionInputs(settings) {
+    const lockSelect = inputs.measurementDirectionLock;
+    const setAngleButton = inputs.measurementDirectionAngleButton;
+    const mode = resolveDirectionLockMode(settings);
+    if (lockSelect) {
+      lockSelect.value = mode;
+    }
+    if (setAngleButton) {
+      const angle = resolveDirectionLockAngle(settings, mode);
+      const hasAngle = mode === 'angle' && Number.isFinite(angle);
+      const baseLabel = 'Sett vinkel';
+      if (hasAngle) {
+        const formatted = formatAngleForDisplay(angle);
+        setAngleButton.textContent = formatted ? `${baseLabel} (${formatted})` : baseLabel;
+      } else {
+        setAngleButton.textContent = baseLabel;
+      }
     }
   }
 
@@ -2488,6 +2634,34 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         } else {
           updateSettings({ activeTool: nextTool });
         }
+      });
+    }
+    if (inputs.measurementDirectionLock) {
+      inputs.measurementDirectionLock.addEventListener('change', event => {
+        if (appState.syncingInputs) return;
+        const selected = sanitizeMeasurementDirectionLock(
+          event.target.value,
+          defaults.measurementDirectionLock
+        );
+        if (selected === 'angle') {
+          const rotation = getRotationForTool(appState.activeTool);
+          updateSettings({
+            measurementDirectionLock: selected,
+            measurementDirectionAngle: rotation
+          });
+        } else {
+          updateSettings({ measurementDirectionLock: selected });
+        }
+      });
+    }
+    if (inputs.measurementDirectionAngleButton) {
+      inputs.measurementDirectionAngleButton.addEventListener('click', () => {
+        if (appState.syncingInputs) return;
+        const rotation = getRotationForTool(appState.activeTool);
+        updateSettings({
+          measurementDirectionLock: 'angle',
+          measurementDirectionAngle: rotation
+        });
       });
     }
     // unit spacing is fixed and no longer configurable
@@ -3205,10 +3379,16 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
   }
 
   function applyTransformWithSnap({ allowSnap = true, persist = false } = {}) {
+    if (appState.settings) {
+      enforceDirectionLockForActiveTool();
+    }
     if (allowSnap && appState.settings && appState.settings.gridEnabled) {
       snapTranslationToGrid();
     }
     applyTransform();
+    if (appState.settings) {
+      updateFreeRotationMemoryForTool(appState.activeTool);
+    }
     if (persist && !suspendTransformPersistence) {
       if (appState.activeTool === 'tape') {
         persistTapeMeasureState();
@@ -3531,6 +3711,170 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     return value;
   }
 
+  function resolveDirectionLockMode(settings) {
+    if (!settings) {
+      return 'none';
+    }
+    return sanitizeMeasurementDirectionLock(
+      settings.measurementDirectionLock,
+      defaults.measurementDirectionLock
+    );
+  }
+
+  function resolveDirectionLockAngle(settings, mode = resolveDirectionLockMode(settings)) {
+    if (!settings) {
+      return null;
+    }
+    if (mode === 'horizontal') {
+      return 0;
+    }
+    if (mode === 'vertical') {
+      return Math.PI / 2;
+    }
+    if (mode === 'angle') {
+      return sanitizeMeasurementDirectionAngle(
+        settings.measurementDirectionAngle,
+        defaults.measurementDirectionAngle
+      );
+    }
+    return null;
+  }
+
+  function rememberFreeRotationForTools(toolKeys) {
+    for (const key of toolKeys) {
+      const state = transformStates[key];
+      if (!state) {
+        continue;
+      }
+      if (Number.isFinite(state.rotation)) {
+        appState.directionLockMemory[key] = state.rotation;
+      }
+    }
+  }
+
+  function restoreFreeRotationForTools(toolKeys) {
+    for (const key of toolKeys) {
+      const state = transformStates[key];
+      if (!state) {
+        continue;
+      }
+      const stored = appState.directionLockMemory[key];
+      if (Number.isFinite(stored)) {
+        state.rotation = stored;
+      }
+    }
+  }
+
+  function setLockedRotationForTools(toolKeys, angle) {
+    if (!Number.isFinite(angle)) {
+      return;
+    }
+    const normalized = normalizeAngle(angle);
+    for (const key of toolKeys) {
+      const state = transformStates[key];
+      if (!state) {
+        continue;
+      }
+      state.rotation = normalized;
+    }
+  }
+
+  function applyTransformsForTools(toolKeys) {
+    for (const key of toolKeys) {
+      if (!key) {
+        continue;
+      }
+      applyToolTransform(key);
+    }
+  }
+
+  function applyDirectionLockFromSettings(settings) {
+    const mode = resolveDirectionLockMode(settings);
+    const angle = resolveDirectionLockAngle(settings, mode);
+    const previousMode = appState.currentDirectionLockMode;
+    const previousAngle = appState.currentDirectionLockAngle;
+    const normalizedAngle = Number.isFinite(angle) ? normalizeAngle(angle) : null;
+    const normalizedPrevious = Number.isFinite(previousAngle) ? normalizeAngle(previousAngle) : null;
+    const tools = ['ruler', 'tape'];
+    if (mode === 'none') {
+      rememberFreeRotationForTools(tools);
+      if (previousMode !== 'none') {
+        restoreFreeRotationForTools(tools);
+        applyTransformsForTools(tools);
+      }
+      appState.currentDirectionLockMode = 'none';
+      appState.currentDirectionLockAngle = null;
+      if (board) {
+        board.setAttribute('data-direction-lock', 'none');
+      }
+      return;
+    }
+
+    if (previousMode === 'none') {
+      rememberFreeRotationForTools(tools);
+    }
+
+    const angleChanged =
+      normalizedAngle == null
+        ? normalizedPrevious != null
+        : normalizedPrevious == null || !areAnglesApproximatelyEqual(normalizedAngle, normalizedPrevious);
+    if (mode !== previousMode || angleChanged) {
+      if (normalizedAngle != null) {
+        setLockedRotationForTools(tools, normalizedAngle);
+      }
+      applyTransformsForTools(tools);
+    }
+
+    appState.currentDirectionLockMode = mode;
+    appState.currentDirectionLockAngle = normalizedAngle;
+    if (board) {
+      board.setAttribute('data-direction-lock', mode);
+    }
+  }
+
+  function enforceDirectionLockForActiveTool() {
+    if (!appState.settings) {
+      return;
+    }
+    const mode = resolveDirectionLockMode(appState.settings);
+    if (mode === 'none') {
+      return;
+    }
+    const angle = resolveDirectionLockAngle(appState.settings, mode);
+    if (!Number.isFinite(angle)) {
+      return;
+    }
+    const state = transformStates[appState.activeTool];
+    if (!state) {
+      return;
+    }
+    state.rotation = normalizeAngle(angle);
+  }
+
+  function updateFreeRotationMemoryForTool(toolKey) {
+    if (!toolKey || !appState.settings) {
+      return;
+    }
+    if (resolveDirectionLockMode(appState.settings) !== 'none') {
+      return;
+    }
+    const state = transformStates[toolKey];
+    if (!state) {
+      return;
+    }
+    if (Number.isFinite(state.rotation)) {
+      appState.directionLockMemory[toolKey] = state.rotation;
+    }
+  }
+
+  function getRotationForTool(toolKey) {
+    const state = transformStates[toolKey];
+    if (!state) {
+      return 0;
+    }
+    return Number.isFinite(state.rotation) ? state.rotation : 0;
+  }
+
   function updateFromSinglePointer(pointerEntry) {
     const dx = pointerEntry.clientX - pointerEntry.prevX;
     const dy = pointerEntry.clientY - pointerEntry.prevY;
@@ -3591,7 +3935,18 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
 
     transformState.x += nextCenter.x - prevCenter.x;
     transformState.y += nextCenter.y - prevCenter.y;
-    transformState.rotation = normalizeAngle(transformState.rotation + normalizeAngle(nextAngle - prevAngle));
+    const lockMode = resolveDirectionLockMode(appState.settings);
+    if (lockMode === 'none') {
+      transformState.rotation = normalizeAngle(
+        transformState.rotation + normalizeAngle(nextAngle - prevAngle)
+      );
+      updateFreeRotationMemoryForTool(toolKey);
+    } else {
+      const lockedAngle = resolveDirectionLockAngle(appState.settings, lockMode);
+      if (Number.isFinite(lockedAngle)) {
+        transformState.rotation = normalizeAngle(lockedAngle);
+      }
+    }
     applyTransformWithSnap({ allowSnap: false, persist: false });
   }
 
@@ -3670,6 +4025,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     targetState.x = sanitized.x;
     targetState.y = sanitized.y;
     targetState.rotation = sanitized.rotation;
+    updateFreeRotationMemoryForTool(toolKey);
     if (toolKey === appState.activeTool) {
       transformState = targetState;
       const allowSnap = Object.prototype.hasOwnProperty.call(options, 'allowSnap')
