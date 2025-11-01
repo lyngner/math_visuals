@@ -256,7 +256,17 @@ function getActiveThemeProjectName(theme = getThemeApi()) {
 }
 
 function resolveAxisStrokeColor() {
+  const project = getActiveThemeProjectName();
+  const helper = getPaletteHelper();
+  const helperAxisColor = fetchGraftegnerAxisColor(helper, project);
+  if (helperAxisColor) {
+    return helperAxisColor;
+  }
   const theme = getThemeApi();
+  const themeAxisPaletteColor = fetchGraftegnerAxisColor(theme, project);
+  if (themeAxisPaletteColor) {
+    return themeAxisPaletteColor;
+  }
   if (theme && typeof theme.getColor === 'function') {
     const raw = theme.getColor('graphs.axis');
     if (typeof raw === 'string') {
@@ -306,6 +316,27 @@ function getPaletteHelper() {
     return scope.MathVisualsPalette;
   }
   return null;
+}
+
+function fetchGraftegnerAxisColor(provider, project) {
+  if (!provider || typeof provider.getGroupPalette !== 'function') return '';
+  const options = project ? { project, count: 2 } : { count: 2 };
+  let palette = null;
+  try {
+    palette = provider.getGroupPalette(GRAFTEGNER_GROUP_ID, options);
+  } catch (_) {}
+  if ((!Array.isArray(palette) || palette.length < 2) && provider.getGroupPalette.length >= 3) {
+    try {
+      palette = provider.getGroupPalette(
+        GRAFTEGNER_GROUP_ID,
+        2,
+        project ? { project } : undefined
+      );
+    } catch (_) {}
+  }
+  if (!Array.isArray(palette) || palette.length < 2) return '';
+  const axisColor = normalizeColorValue(palette[1]);
+  return axisColor || '';
 }
 
 function sanitizePaletteList(values) {

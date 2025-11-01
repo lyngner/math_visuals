@@ -425,12 +425,12 @@ test.describe('MathVisualsSettings project palette formats', () => {
 
     const campus = update.projects.campus;
     expect(campus).toBeTruthy();
-    expect(campus.groupPalettes.graftegner).toEqual(['#010101']);
+    expect(campus.groupPalettes.graftegner).toEqual(['#010101', '#020202']);
     expect(campus.defaultColors[0]).toBe('#010101');
     expect(campus.groupPalettes.ukjent).toBeUndefined();
 
     const persisted = api.getSettings().projects.campus;
-    expect(persisted.groupPalettes.graftegner).toEqual(['#010101']);
+    expect(persisted.groupPalettes.graftegner).toEqual(['#010101', '#020202']);
     expect(persisted.defaultColors[0]).toBe('#010101');
     expect(persisted.groupPalettes.ukjent).toBeUndefined();
   });

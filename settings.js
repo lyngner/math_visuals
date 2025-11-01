@@ -55,6 +55,7 @@
     annet: 'Annet'
   };
   const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
+  const GRAFTEGNER_AXIS_DEFAULTS = paletteConfig.GRAFTEGNER_AXIS_DEFAULTS || {};
   const COLOR_SLOT_GROUPS = paletteConfig.COLOR_SLOT_GROUPS.map(group => ({
     groupId: group.groupId,
     title: group.title,
@@ -419,12 +420,25 @@
     return sanitized.slice();
   }
 
-  function buildFallbackGroupsFromBase(baseColors) {
+  function resolveGraftegnerAxisFallback(project) {
+    const key = normalizeProjectName(project) || 'default';
+    const value =
+      (GRAFTEGNER_AXIS_DEFAULTS && typeof GRAFTEGNER_AXIS_DEFAULTS[key] === 'string'
+        ? GRAFTEGNER_AXIS_DEFAULTS[key]
+        : null) || GRAFTEGNER_AXIS_DEFAULTS.default;
+    const sanitized = sanitizeColor(value);
+    return sanitized || '#1F4DE2';
+  }
+
+  function buildFallbackGroupsFromBase(baseColors, project) {
     const sanitized = Array.isArray(baseColors) && baseColors.length ? baseColors : getSanitizedFallbackBase('default');
     const groups = {};
     COLOR_SLOT_GROUPS.forEach(group => {
       groups[group.groupId] = group.slots.map(slot => {
         const index = Number.isInteger(slot.index) && slot.index >= 0 ? slot.index : 0;
+        if (group.groupId === GRAFTEGNER_GROUP_ID && slot.groupIndex === 1) {
+          return resolveGraftegnerAxisFallback(project);
+        }
         return sanitized[index % sanitized.length] || sanitized[0];
       });
     });
@@ -527,7 +541,7 @@
     const key = normalizeProjectName(project) || 'default';
     if (!PROJECT_FALLBACK_GROUP_CACHE.has(key)) {
       const base = getSanitizedFallbackBase(key);
-      PROJECT_FALLBACK_GROUP_CACHE.set(key, buildFallbackGroupsFromBase(base));
+      PROJECT_FALLBACK_GROUP_CACHE.set(key, buildFallbackGroupsFromBase(base, key));
     }
     return cloneProjectPalette(PROJECT_FALLBACK_GROUP_CACHE.get(key));
   }
@@ -543,7 +557,7 @@
     if (meta) {
       if (!PROJECT_FALLBACK_GROUP_CACHE.has(key)) {
         const base = getSanitizedFallbackBase(key);
-        PROJECT_FALLBACK_GROUP_CACHE.set(key, buildFallbackGroupsFromBase(base));
+        PROJECT_FALLBACK_GROUP_CACHE.set(key, buildFallbackGroupsFromBase(base, key));
       }
       const groups = PROJECT_FALLBACK_GROUP_CACHE.get(key) || {};
       const groupColors = groups[meta.groupId] || [];
