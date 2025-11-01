@@ -1704,12 +1704,24 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     }
     appState.activeTool = desiredTool;
     if (desiredTool === 'tape') {
-      resetTapeMeasureLengthState();
-      if (settings && !isTapeLengthInfinite(settings.tapeMeasureLength)) {
+      const switchingToTape = previousTool !== 'tape';
+      const settingsHasFiniteTapeLength =
+        settings && !isTapeLengthInfinite(settings.tapeMeasureLength);
+      if (switchingToTape || settingsHasFiniteTapeLength) {
+        resetTapeMeasureLengthState();
+      }
+      if (settingsHasFiniteTapeLength) {
         settings.tapeMeasureLength = TAPE_LENGTH_INFINITE;
       }
-      if (appState.settings && !isTapeLengthInfinite(appState.settings.tapeMeasureLength)) {
-        appState.settings = { ...appState.settings, tapeMeasureLength: TAPE_LENGTH_INFINITE };
+      if (
+        appState.settings &&
+        !isTapeLengthInfinite(appState.settings.tapeMeasureLength) &&
+        (switchingToTape || settingsHasFiniteTapeLength)
+      ) {
+        appState.settings = {
+          ...appState.settings,
+          tapeMeasureLength: TAPE_LENGTH_INFINITE
+        };
       }
     }
     transformState = transformStates[desiredTool] || transformStates[defaultActiveTool];
