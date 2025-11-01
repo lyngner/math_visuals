@@ -40,10 +40,19 @@ const ORIGINAL_GLOBALS = {
 test.afterEach(() => {
   delete global.MathVisualsSettings;
   delete global.MathVisualsPalette;
+  delete global.MathVisualsTheme;
+  delete global.MathVisualsGroupPalette;
+  delete global.MathVisualsPaletteConfig;
   if (global.window && typeof global.window === 'object') {
     delete global.window.MathVisualsPalette;
+    delete global.window.MathVisualsTheme;
+    delete global.window.MathVisualsGroupPalette;
+    delete global.window.MathVisualsPaletteConfig;
   }
   delete require.cache[SETTINGS_MODULE];
+  try {
+    delete require.cache[require.resolve('../brøkpizza.js')];
+  } catch (_) {}
   if (ORIGINAL_GLOBALS.document === undefined) {
     delete global.document;
   } else {
@@ -310,6 +319,7 @@ function createDocumentStub() {
       querySelectorAll: () => ({ forEach: () => {}, length: 0 }),
       querySelector: () => null,
       createElement: () => createNodeStub(),
+      createElementNS: () => createNodeStub(),
       createDocumentFragment: () => createNodeStub(),
       getElementById: () => createNodeStub(),
       getElementsByTagName: () => [],
@@ -331,6 +341,87 @@ function createDocumentStub() {
     }
   );
 }
+
+test.describe('brøkpizza palette fallback', () => {
+  test('uses project fallback colors when palette APIs return no colors', () => {
+    const appliedStyles = {};
+    const documentStub = createDocumentStub();
+    const root = documentStub.documentElement;
+    root.style = {
+      setProperty: (name, value) => {
+        appliedStyles[name] = value;
+      },
+      removeProperty: name => {
+        delete appliedStyles[name];
+      }
+    };
+    root.getAttribute = attr => {
+      if (attr === 'data-mv-active-project') {
+        return 'kikora';
+      }
+      return null;
+    };
+    root.setAttribute = () => {};
+
+    global.document = documentStub;
+    const windowStub = {
+      document: documentStub,
+      location: { href: 'https://example.com' },
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      matchMedia: () => ({ matches: false, addListener: () => {}, removeListener: () => {} })
+    };
+    global.window = windowStub;
+    global.MathVisualsPaletteConfig = paletteConfig;
+    windowStub.MathVisualsPaletteConfig = paletteConfig;
+
+    const emptyPalette = () => [];
+    const paletteApi = { getGroupPalette: emptyPalette };
+    const settingsApi = { getGroupPalette: emptyPalette };
+    const groupHelper = { resolve: emptyPalette };
+    const themeApi = {
+      getGroupPalette: emptyPalette,
+      getPalette: emptyPalette,
+      getColor: () => null,
+      applyToDocument: () => {}
+    };
+
+    global.MathVisualsPalette = paletteApi;
+    global.MathVisualsSettings = settingsApi;
+    global.MathVisualsGroupPalette = groupHelper;
+    global.MathVisualsTheme = themeApi;
+    windowStub.MathVisualsPalette = paletteApi;
+    windowStub.MathVisualsSettings = settingsApi;
+    windowStub.MathVisualsGroupPalette = groupHelper;
+    windowStub.MathVisualsTheme = themeApi;
+
+    const localStorageStub = {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {}
+    };
+    global.localStorage = localStorageStub;
+    windowStub.localStorage = localStorageStub;
+
+    const pizzaModulePath = require.resolve('../brøkpizza.js');
+    delete require.cache[pizzaModulePath];
+    require('../brøkpizza.js');
+
+    const expectedBase = paletteConfig.PROJECT_FALLBACKS.kikora.slice();
+    expect(expectedBase.length).toBeGreaterThan(0);
+    const expectedPalette = Array.from({ length: 5 }, (_, index) => {
+      const color = expectedBase[index % expectedBase.length];
+      expect(typeof color).toBe('string');
+      return color;
+    });
+
+    expect(appliedStyles['--pizza-fill']).toBe(expectedPalette[0]);
+    expect(appliedStyles['--pizza-rim']).toBe(expectedPalette[1]);
+    expect(appliedStyles['--pizza-dash']).toBe(expectedPalette[2]);
+    expect(appliedStyles['--pizza-handle']).toBe(expectedPalette[3]);
+    expect(appliedStyles['--pizza-handle-stroke']).toBe(expectedPalette[4]);
+  });
+});
 
 function ensureDomStubs() {
   const documentStub = createDocumentStub();
