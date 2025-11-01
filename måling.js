@@ -3501,12 +3501,18 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
       return;
     }
+    const consumeEvent = () => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
     const moveSession = getInstrumentPointerSession('tape');
     if (moveSession && moveSession.size > 0) {
+      consumeEvent();
       return;
     }
     const extensionSession = activePointers.tapeExtension;
     if (extensionSession && extensionSession.size > 0) {
+      consumeEvent();
       return;
     }
     const session = activePointers.tapeHousing;
@@ -3527,8 +3533,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         break;
       }
     }
-    event.preventDefault();
-    event.stopPropagation();
+    consumeEvent();
     const rotation = Number.isFinite(transformStates.tape.rotation)
       ? transformStates.tape.rotation
       : 0;
@@ -3793,12 +3798,23 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
       return;
     }
+    const consumeEvent = () => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    const isZeroHandle = captureTarget === tapeZeroHandle;
     const moveSession = getInstrumentPointerSession('tape');
     if (moveSession && moveSession.size > 0) {
+      if (isZeroHandle) {
+        consumeEvent();
+      }
       return;
     }
     const session = activePointers.tapeExtension;
     if (session.size >= 1 && !session.has(event.pointerId)) {
+      if (isZeroHandle) {
+        consumeEvent();
+      }
       return;
     }
     const strapWidthCandidates = [
@@ -3815,8 +3831,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         break;
       }
     }
-    event.preventDefault();
-    event.stopPropagation();
+    consumeEvent();
     const entry = {
       pointerId: event.pointerId,
       clientX: event.clientX,
