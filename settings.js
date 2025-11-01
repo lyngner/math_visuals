@@ -4,7 +4,6 @@
   if (!form) return;
 
   const colorGroupsContainer = form.querySelector('[data-color-groups]');
-  const resetButton = form.querySelector('[data-reset-settings]');
   const statusElement = form.querySelector('[data-status]');
   const projectHeadingElement = document.querySelector('[data-project-heading]');
   const projectLegendElement = form.querySelector('[data-project-legend]');
@@ -1141,29 +1140,6 @@
       const groupId = button.getAttribute('data-save-group');
       const groupTitle = button.getAttribute('data-group-title') || button.dataset.groupTitle || '';
       void saveColorGroup(groupId, groupTitle);
-    });
-  }
-
-  if (resetButton) {
-    resetButton.addEventListener('click', async () => {
-      setStatus('Tilbakestiller innstillinger...', 'info');
-      setFormDisabled(true);
-      const activeProject = state.activeProject;
-      try {
-        const snapshot = await persistSettings('DELETE');
-        applySettings(snapshot || {}, { forceActiveProject: activeProject });
-        setStatus('Innstillingene ble tilbakestilt.', 'success');
-        if (settingsApi && typeof settingsApi.refresh === 'function') {
-          try {
-            settingsApi.refresh({ force: true, notify: true });
-          } catch (_) {}
-        }
-        setFormDisabled(false);
-      } catch (error) {
-        console.error(error);
-        setStatus('Kunne ikke tilbakestille innstillingene.', 'error');
-        setFormDisabled(false);
-      }
     });
   }
 
