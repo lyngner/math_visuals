@@ -3167,7 +3167,7 @@
   }
 
   function applyOrder(options = {}) {
-    if (!state || !visualList || !accessibleList) return;
+    if (!state || !visualList) return;
 
     const sanitizedBase = sanitizeOrder(state.items, state.order);
     if (sanitizedBase.length !== state.order.length) {
@@ -3194,7 +3194,7 @@
     }
 
     currentOrder = nextOrder;
-    commitCurrentOrderToState();
+    const hasAccessibleList = !!accessibleList;
     const usedIds = new Set();
 
     currentOrder.forEach((id, index) => {
@@ -3208,9 +3208,9 @@
       } else if (visualList) {
         visualList.appendChild(nodes.wrapper);
       }
-      if (accessibleList && nodes.li.parentNode !== accessibleList) {
+      if (hasAccessibleList && nodes.li.parentNode !== accessibleList) {
         accessibleList.appendChild(nodes.li);
-      } else if (accessibleList) {
+      } else if (hasAccessibleList) {
         accessibleList.appendChild(nodes.li);
       }
     });
@@ -3220,13 +3220,14 @@
       if (nodes.wrapper.parentNode === visualList) {
         visualList.removeChild(nodes.wrapper);
       }
-      if (nodes.li.parentNode === accessibleList) {
+      if (hasAccessibleList && nodes.li.parentNode === accessibleList) {
         accessibleList.removeChild(nodes.li);
       }
     });
     updateItemPositions();
     snapToSlot();
     clearVisualMarkers();
+    commitCurrentOrderToState();
     notifyStatusChange('applyOrder');
   }
 
@@ -3551,7 +3552,7 @@
     accessibleList = doc.getElementById('sortSkia');
     const settingsHost = doc.getElementById('settingsHost');
 
-    if (!figureHost || !accessibleList) {
+    if (!figureHost) {
       return;
     }
 
