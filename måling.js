@@ -2469,6 +2469,43 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     return `${formatNumber(rounded)}°`;
   }
 
+  function rotatePoint(point, angle) {
+    const sin = Math.sin(angle);
+    const cos = Math.cos(angle);
+    return {
+      x: point.x * cos - point.y * sin,
+      y: point.x * sin + point.y * cos
+    };
+  }
+
+  function rotatePointInverse(point, angle) {
+    return rotatePoint(point, -angle);
+  }
+
+  function getRectCenter(rect) {
+    if (!rect) {
+      return { x: 0, y: 0 };
+    }
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+  }
+
+  function normalizeVector(vector) {
+    if (!vector) {
+      return { x: 0, y: 0 };
+    }
+    const length = Math.hypot(vector.x, vector.y);
+    if (!Number.isFinite(length) || length === 0) {
+      return { x: 0, y: 0 };
+    }
+    return {
+      x: vector.x / length,
+      y: vector.y / length
+    };
+  }
+
   function syncInputs(settings) {
     appState.syncingInputs = true;
     try {
@@ -2969,6 +3006,216 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     });
   }
 
+  function shouldUseFreeTapeMovement() {
+    if (!appState.settings) {
+      return false;
+    }
+    if (resolveDirectionLockMode(appState.settings) !== 'none') {
+      return false;
+    }
+    return !!(tapeMeasure && tapeZeroAnchor && tapeHousing);
+  }
+
+  function buildTapeFreeMovementData(handleType, captureTarget, event) {
+    if (!shouldUseFreeTapeMovement()) {
+      return null;
+    }
+    if (!captureTarget || !event) {
+      return null;
+    }
+    const measureRect = tapeMeasure.getBoundingClientRect();
+    const zeroRect = tapeZeroAnchor.getBoundingClientRect();
+    const housingRect = tapeHousing.getBoundingClientRect();
+    if (!measureRect || !zeroRect || !housingRect) {
+      return null;
+    }
+    const rotation = Number.isFinite(transformStates.tape.rotation)
+      ? transformStates.tape.rotation
+      : 0;
+    const center = getRectCenter(measureRect);
+    const zeroWorld = getRectCenter(zeroRect);
+    const housingWorld = getRectCenter(housingRect);
+    const zeroLocal = rotatePointInverse(
+      { x: zeroWorld.x - center.x, y: zeroWorld.y - center.y },
+      rotation
+    );
+    const housingLocal = rotatePointInverse(
+      { x: housingWorld.x - center.x, y: housingWorld.y - center.y },
+      rotation
+    );
+    const axisVectorLocal = {
+      x: zeroLocal.x - housingLocal.x,
+      y: zeroLocal.y - housingLocal.y
+    };
+    const axisUnitLocal = normalizeVector(axisVectorLocal);
+    if (axisUnitLocal.x === 0 && axisUnitLocal.y === 0) {
+      return null;
+    }
+    const pointerRect = typeof captureTarget.getBoundingClientRect === 'function'
+      ? captureTarget.getBoundingClientRect()
+      : null;
+    const pointerCenter = pointerRect ? getRectCenter(pointerRect) : (handleType === 'housing' ? housingWorld : zeroWorld);
+    const pointerOffset = {
+      x: event.clientX - pointerCenter.x,
+      y: event.clientY - pointerCenter.y
+    };
+    const anchorWorld = handleType === 'housing' ? housingWorld : zeroWorld;
+    const targetToAnchor = {
+      x: anchorWorld.x - pointerCenter.x,
+      y: anchorWorld.y - pointerCenter.y
+    };
+    const baseWidth = Number.isFinite(tapeMeasure.offsetWidth) && tapeMeasure.offsetWidth > 0
+      ? tapeMeasure.offsetWidth
+      : measureRect.width;
+    const baseHeight = Number.isFinite(tapeMeasure.offsetHeight) && tapeMeasure.offsetHeight > 0
+      ? tapeMeasure.offsetHeight
+      : measureRect.height;
+    return {
+      handleType,
+      pointerOffset,
+      targetToAnchor,
+      zeroWorldStart: zeroWorld,
+      housingWorldStart: housingWorld,
+      housingLocal,
+      axisUnitLocal,
+      axisAngle: Math.atan2(axisUnitLocal.y, axisUnitLocal.x),
+      baseSize: { width: baseWidth, height: baseHeight }
+    };
+  }
+
+  function resolveVisibleFromFreeMovement(entry, proposedVisible) {
+    const minVisible = tapeLengthState.minVisiblePx;
+    const unitSpacing =
+      Number.isFinite(tapeLengthState.unitSpacing) && tapeLengthState.unitSpacing > 0
+        ? tapeLengthState.unitSpacing
+        : 0;
+    let targetVisible = proposedVisible;
+    const previousMaxVisible =
+      Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
+        ? tapeLengthState.maxVisiblePx
+        : Infinity;
+    const tapeLengthIsInfinite =
+      isTapeLengthInfinite(appState.settings && appState.settings.tapeMeasureLength) ||
+      isTapeLengthInfinite(tapeLengthState.configuredUnits);
+    if (unitSpacing > 0 && targetVisible > previousMaxVisible) {
+      const proposedUnits = Math.ceil(targetVisible / unitSpacing);
+      if (tapeLengthIsInfinite) {
+        if (Number.isFinite(proposedUnits) && proposedUnits > 0) {
+          tapeLengthState.units = proposedUnits;
+          tapeLengthState.visiblePx = Math.max(targetVisible, tapeLengthState.minVisiblePx);
+          const metrics = resolveScaleMetrics(appState.settings);
+          applyTapeMeasureAppearance(appState.settings, metrics);
+          targetVisible = tapeLengthState.visiblePx;
+        }
+      } else if (Number.isFinite(previousMaxVisible)) {
+        const referenceUnits = Number.isFinite(tapeLengthState.configuredUnits)
+          ? tapeLengthState.configuredUnits
+          : defaults.tapeMeasureLength;
+        const lastPersistedUnits = Number.isFinite(entry.lastPersistedUnits)
+          ? entry.lastPersistedUnits
+          : referenceUnits;
+        if (Number.isFinite(proposedUnits) && proposedUnits > lastPersistedUnits) {
+          persistTapeMeasureLength(proposedUnits);
+          entry.lastPersistedUnits = Number.isFinite(tapeLengthState.configuredUnits)
+            ? tapeLengthState.configuredUnits
+            : proposedUnits;
+        }
+      }
+    }
+    const maxVisible =
+      Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
+        ? tapeLengthState.maxVisiblePx
+        : Infinity;
+    let visible = targetVisible;
+    if (appState.settings && appState.settings.gridEnabled && unitSpacing > 0) {
+      visible = Math.round(visible / unitSpacing) * unitSpacing;
+    }
+    visible = Math.min(Math.max(visible, minVisible), maxVisible);
+    tapeLengthState.visiblePx = Number.isFinite(visible) ? visible : minVisible;
+    tapeLengthState.units =
+      unitSpacing > 0 ? Math.max(0, tapeLengthState.visiblePx / unitSpacing) : 0;
+    return tapeLengthState.visiblePx;
+  }
+
+  function applyTapeTransformForEndpoints(housingWorld, zeroWorld, direction, data) {
+    if (!data) {
+      return;
+    }
+    const normalizedDirection = normalizeVector(direction);
+    const targetAngle = Math.atan2(normalizedDirection.y, normalizedDirection.x);
+    const rotation = normalizeAngle(targetAngle - data.axisAngle);
+    const rotatedHousingLocal = rotatePoint(data.housingLocal, rotation);
+    const center = {
+      x: housingWorld.x - rotatedHousingLocal.x,
+      y: housingWorld.y - rotatedHousingLocal.y
+    };
+    const baseWidth = data.baseSize && Number.isFinite(data.baseSize.width) ? data.baseSize.width : 0;
+    const baseHeight = data.baseSize && Number.isFinite(data.baseSize.height) ? data.baseSize.height : 0;
+    transformStates.tape.rotation = rotation;
+    transformStates.tape.x = center.x - baseWidth / 2;
+    transformStates.tape.y = center.y - baseHeight / 2;
+  }
+
+  function updateTapeFreeMovement(entry, desiredAnchorWorld) {
+    if (!entry || !entry.freeMovement) {
+      return false;
+    }
+    const data = entry.freeMovement;
+    if (!shouldUseFreeTapeMovement()) {
+      return false;
+    }
+    const rotation = Number.isFinite(transformStates.tape.rotation)
+      ? transformStates.tape.rotation
+      : 0;
+    const fallbackDirection = data.lastDirection
+      ? data.lastDirection
+      : rotatePoint(data.axisUnitLocal, rotation);
+    let zeroWorld;
+    let housingWorld;
+    let desiredVector;
+    if (data.handleType === 'zero') {
+      housingWorld = data.housingWorldStart;
+      desiredVector = {
+        x: desiredAnchorWorld.x - housingWorld.x,
+        y: desiredAnchorWorld.y - housingWorld.y
+      };
+    } else {
+      zeroWorld = data.zeroWorldStart;
+      desiredVector = {
+        x: zeroWorld.x - desiredAnchorWorld.x,
+        y: zeroWorld.y - desiredAnchorWorld.y
+      };
+    }
+    const desiredDistance = Math.hypot(desiredVector.x, desiredVector.y);
+    const proposedVisible = Number.isFinite(desiredDistance) ? desiredDistance : 0;
+    const visible = resolveVisibleFromFreeMovement(entry, proposedVisible);
+    let direction;
+    if (Number.isFinite(desiredDistance) && desiredDistance > 0.0001) {
+      direction = {
+        x: desiredVector.x / desiredDistance,
+        y: desiredVector.y / desiredDistance
+      };
+      data.lastDirection = { ...direction };
+    } else {
+      direction = normalizeVector(fallbackDirection);
+    }
+    if (data.handleType === 'zero') {
+      housingWorld = data.housingWorldStart;
+      zeroWorld = {
+        x: housingWorld.x + direction.x * visible,
+        y: housingWorld.y + direction.y * visible
+      };
+    } else {
+      zeroWorld = data.zeroWorldStart;
+      housingWorld = {
+        x: zeroWorld.x - direction.x * visible,
+        y: zeroWorld.y - direction.y * visible
+      };
+    }
+    applyTapeTransformForEndpoints(housingWorld, zeroWorld, direction, data);
+    return true;
+  }
+
   function attachInstrumentFocusHandlers(element, toolKey) {
     if (!element) {
       return;
@@ -3142,6 +3389,10 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         ? 1
         : defaults.tapeMeasureLength
     };
+    const freeMovement = buildTapeFreeMovementData('housing', captureTarget, event);
+    if (freeMovement) {
+      entry.freeMovement = freeMovement;
+    }
     session.set(event.pointerId, entry);
     try {
       captureTarget.setPointerCapture(event.pointerId);
@@ -3158,6 +3409,23 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     entry.prevY = entry.clientY;
     entry.clientX = event.clientX;
     entry.clientY = event.clientY;
+
+    if (entry.freeMovement) {
+      const data = entry.freeMovement;
+      const pointerCenter = {
+        x: event.clientX - data.pointerOffset.x,
+        y: event.clientY - data.pointerOffset.y
+      };
+      const anchorTarget = {
+        x: pointerCenter.x + data.targetToAnchor.x,
+        y: pointerCenter.y + data.targetToAnchor.y
+      };
+      const updated = updateTapeFreeMovement(entry, anchorTarget);
+      if (updated) {
+        applyTapeMeasureTransform();
+        return;
+      }
+    }
 
     const deltaX = entry.clientX - entry.startX;
     const deltaY = entry.clientY - entry.startY;
@@ -3289,6 +3557,13 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         ? 1
         : defaults.tapeMeasureLength
     };
+    const handleType = captureTarget === tapeZeroHandle ? 'zero' : null;
+    if (handleType) {
+      const freeMovement = buildTapeFreeMovementData(handleType, captureTarget, event);
+      if (freeMovement) {
+        entry.freeMovement = freeMovement;
+      }
+    }
     session.set(event.pointerId, entry);
     try {
       captureTarget.setPointerCapture(event.pointerId);
@@ -3305,6 +3580,23 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     entry.prevY = entry.clientY;
     entry.clientX = event.clientX;
     entry.clientY = event.clientY;
+
+    if (entry.freeMovement) {
+      const data = entry.freeMovement;
+      const pointerCenter = {
+        x: event.clientX - data.pointerOffset.x,
+        y: event.clientY - data.pointerOffset.y
+      };
+      const anchorTarget = {
+        x: pointerCenter.x + data.targetToAnchor.x,
+        y: pointerCenter.y + data.targetToAnchor.y
+      };
+      const updated = updateTapeFreeMovement(entry, anchorTarget);
+      if (updated) {
+        applyTapeMeasureTransform();
+        return;
+      }
+    }
 
     const deltaX = entry.clientX - entry.startX;
     const deltaY = entry.clientY - entry.startY;
