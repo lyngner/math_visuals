@@ -407,10 +407,48 @@ test.describe('brøkpizza palette fallback', () => {
     delete require.cache[pizzaModulePath];
     require('../brøkpizza.js');
 
-    const expectedBase = paletteConfig.PROJECT_FALLBACKS.kikora.slice();
-    expect(expectedBase.length).toBeGreaterThan(0);
+    const fallbackBase = paletteConfig.PROJECT_FALLBACKS.kikora.slice();
+    expect(fallbackBase.length).toBeGreaterThan(0);
+    const fractionSlotIndices = (() => {
+      const groupId = 'fractions';
+      const indices = [];
+      if (paletteConfig.GROUP_SLOT_INDICES && typeof paletteConfig.GROUP_SLOT_INDICES === 'object') {
+        const groupIndices = paletteConfig.GROUP_SLOT_INDICES[groupId];
+        if (Array.isArray(groupIndices)) {
+          groupIndices.forEach(value => {
+            if (Number.isInteger(value) && value >= 0) {
+              indices.push(Math.trunc(value));
+            }
+          });
+        }
+      }
+      if (!indices.length && Array.isArray(paletteConfig.COLOR_SLOT_GROUPS)) {
+        paletteConfig.COLOR_SLOT_GROUPS.forEach(group => {
+          const id = group && typeof group.groupId === 'string' ? group.groupId.trim().toLowerCase() : '';
+          if (id !== groupId) return;
+          if (!Array.isArray(group.slots)) return;
+          group.slots.forEach((slot, slotIndex) => {
+            const slotValue = Number.isInteger(slot && slot.index) ? Number(slot.index) : slotIndex;
+            if (Number.isInteger(slotValue) && slotValue >= 0) {
+              indices.push(slotValue);
+            }
+          });
+        });
+      }
+      return indices;
+    })();
+
+    const fractionsFallback = fractionSlotIndices.length
+      ? fractionSlotIndices.map((slotValue, slotIndex) => {
+          const index = Number.isInteger(slotValue) && slotValue >= 0 ? slotValue : slotIndex;
+          const color = fallbackBase[index % fallbackBase.length] || fallbackBase[slotIndex % fallbackBase.length];
+          expect(typeof color).toBe('string');
+          return color;
+        })
+      : fallbackBase.slice();
+
     const expectedPalette = Array.from({ length: 5 }, (_, index) => {
-      const color = expectedBase[index % expectedBase.length];
+      const color = fractionsFallback[index % fractionsFallback.length];
       expect(typeof color).toBe('string');
       return color;
     });

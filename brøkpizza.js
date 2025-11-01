@@ -148,7 +148,7 @@ function resolvePaletteProjectName() {
   return null;
 }
 
-function getProjectFractionFallbackPalette(projectName) {
+function getProjectFallbackPaletteBase(projectName) {
   const config = getPaletteConfig();
   if (!config || !config.PROJECT_FALLBACKS) {
     return [];
@@ -157,6 +157,74 @@ function getProjectFractionFallbackPalette(projectName) {
   const fallbacks = config.PROJECT_FALLBACKS;
   const palette = (normalized && fallbacks[normalized]) || fallbacks.default || [];
   return sanitizePalette(palette);
+}
+
+function getGroupSlotIndices(config, groupId) {
+  if (!config) return [];
+  const normalizedGroupId = typeof groupId === 'string' ? groupId.trim().toLowerCase() : '';
+  if (!normalizedGroupId) return [];
+  const indexMap = config.GROUP_SLOT_INDICES;
+  if (indexMap && typeof indexMap === 'object') {
+    const indices = indexMap[normalizedGroupId];
+    if (Array.isArray(indices) && indices.length) {
+      return indices
+        .map(value => (Number.isInteger(value) && value >= 0 ? Math.trunc(value) : null))
+        .filter(index => Number.isInteger(index) && index >= 0);
+    }
+  }
+  if (Array.isArray(config.COLOR_SLOT_GROUPS)) {
+    for (const group of config.COLOR_SLOT_GROUPS) {
+      if (!group || typeof group !== 'object') continue;
+      const groupKey = typeof group.groupId === 'string' ? group.groupId.trim().toLowerCase() : '';
+      if (groupKey !== normalizedGroupId) continue;
+      if (!Array.isArray(group.slots)) break;
+      return group.slots
+        .map((slot, slotIndex) => {
+          if (!slot || typeof slot !== 'object') return null;
+          const index = Number.isInteger(slot.index) ? Math.trunc(slot.index) : slotIndex;
+          return index >= 0 ? index : null;
+        })
+        .filter(index => Number.isInteger(index) && index >= 0);
+    }
+  }
+  return [];
+}
+
+function getProjectGroupFallbackPalette(projectName, groupId, basePalette) {
+  const baseCandidate = Array.isArray(basePalette) && basePalette.length ? basePalette : getProjectFallbackPaletteBase(projectName);
+  const sanitizedBase = sanitizePalette(baseCandidate);
+  if (!sanitizedBase.length) {
+    return [];
+  }
+  const config = getPaletteConfig();
+  if (!config) {
+    return sanitizedBase.slice();
+  }
+  const indices = getGroupSlotIndices(config, groupId);
+  if (!indices.length) {
+    return sanitizedBase.slice();
+  }
+  const result = [];
+  const baseLength = sanitizedBase.length;
+  indices.forEach((index, slotIndex) => {
+    if (!Number.isInteger(index) || index < 0) {
+      const fallbackColor = sanitizedBase[slotIndex % baseLength] || sanitizedBase[0];
+      if (typeof fallbackColor === 'string' && fallbackColor) {
+        result.push(fallbackColor);
+      }
+      return;
+    }
+    const color = sanitizedBase[index % baseLength];
+    if (typeof color === 'string' && color) {
+      result.push(color);
+      return;
+    }
+    const fallbackColor = sanitizedBase[slotIndex % baseLength] || sanitizedBase[0];
+    if (typeof fallbackColor === 'string' && fallbackColor) {
+      result.push(fallbackColor);
+    }
+  });
+  return sanitizePalette(result);
 }
 
 function sanitizePalette(values) {
@@ -220,9 +288,15 @@ function getFractionPalette(count) {
   const helper = getGroupPaletteHelper();
   const theme = getThemeApi();
   const project = resolvePaletteProjectName();
-  const projectFallback = getProjectFractionFallbackPalette(project);
+  const projectFallbackBase = getProjectFallbackPaletteBase(project);
+  const projectFallback = getProjectGroupFallbackPalette(project, FRACTION_GROUP_ID, projectFallbackBase);
   const legacyFallback = LEGACY_PIZZA_PALETTE.slice();
-  const fallback = projectFallback.length ? projectFallback : legacyFallback;
+  const fallbackCandidates = projectFallback.length
+    ? projectFallback
+    : projectFallbackBase.length
+    ? projectFallbackBase
+    : [];
+  const fallback = fallbackCandidates.length ? fallbackCandidates : legacyFallback;
   const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : fallback.length || legacyFallback.length;
 
   if (paletteApi) {
