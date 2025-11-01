@@ -241,7 +241,6 @@
     return;
   }
 
-  const DEFAULT_LINE_THICKNESS = 3;
   const MAX_COLORS = paletteConfig.MAX_COLORS;
   const FALLBACK_COLORS = [
     '#1F4DE2',
@@ -470,14 +469,6 @@
     return flattenProjectPalette(project, basePalette, minimumLength);
   }
 
-  function clampLineThickness(value) {
-    const num = Number.parseFloat(value);
-    if (!Number.isFinite(num)) return DEFAULT_LINE_THICKNESS;
-    if (num < 1) return 1;
-    if (num > 12) return 12;
-    return Math.round(num);
-  }
-
   function ensureColorCount(base, count) {
     const palette = Array.isArray(base) && base.length ? base.slice() : FALLBACK_COLORS.slice();
     if (!Number.isFinite(count) || count <= 0) {
@@ -534,9 +525,7 @@
       const groupPalettes = cloneProjectPalette(normalizedPalette);
       out[name] = {
         groupPalettes,
-        defaultColors: expandPalette(name, groupPalettes),
-        defaultLineThickness:
-          entry.defaultLineThickness != null ? clampLineThickness(entry.defaultLineThickness) : undefined
+        defaultColors: expandPalette(name, groupPalettes)
       };
     });
     return out;
@@ -564,9 +553,6 @@
           groupPalettes,
           defaultColors
         };
-        if (source && source.defaultLineThickness != null) {
-          updated.defaultLineThickness = clampLineThickness(source.defaultLineThickness);
-        }
         projects[normalized] = updated;
         if (!order.includes(normalized)) {
           order.push(normalized);
@@ -590,14 +576,10 @@
     }
 
     const activeProject = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
-    const defaultLineThickness =
-      input.defaultLineThickness != null ? clampLineThickness(input.defaultLineThickness) : DEFAULT_LINE_THICKNESS;
-
     const normalized = {
       version: 1,
       projects,
       activeProject,
-      defaultLineThickness,
       projectOrder: order,
       updatedAt: new Date().toISOString()
     };
@@ -613,8 +595,7 @@
 
   const DEFAULT_SETTINGS = normalizeSettings({
     projects: buildDefaultProjects(),
-    activeProject: DEFAULT_PROJECT,
-    defaultLineThickness: DEFAULT_LINE_THICKNESS
+    activeProject: DEFAULT_PROJECT
   });
 
   function cloneSettings(source) {
@@ -697,7 +678,7 @@
         removeStyleProperty(`--mv-default-color-${i + 1}`);
       }
     }
-    setStyleProperty('--mv-default-line-thickness', String(settings.defaultLineThickness));
+    removeStyleProperty('--mv-default-line-thickness');
     if (!canUseNativeStyle && inlineStyle && typeof root.setAttribute === 'function') {
       const serialized = serializeInlineStyle(inlineStyle);
       if (serialized) {
@@ -736,10 +717,6 @@
     const payload = {
       version: source.version ? source.version : 1,
       activeProject: resolvedActiveProject,
-      defaultLineThickness:
-        source.defaultLineThickness != null
-          ? clampLineThickness(source.defaultLineThickness)
-          : settings.defaultLineThickness,
       projectOrder: Array.isArray(source.projectOrder)
         ? source.projectOrder.slice()
         : Array.isArray(settings.projectOrder)
@@ -846,9 +823,6 @@
         base[normalized].groupPalettes = groupPalettes;
         base[normalized].defaultColors = expandPalette(normalized, groupPalettes);
       }
-      if (source && source.defaultLineThickness != null) {
-        base[normalized].defaultLineThickness = clampLineThickness(source.defaultLineThickness);
-      }
     });
   }
 
@@ -859,9 +833,6 @@
   function updateSettings(patch) {
     const merged = cloneSettings(settings);
     if (patch && typeof patch === 'object') {
-      if (patch.defaultLineThickness != null) {
-        merged.defaultLineThickness = clampLineThickness(patch.defaultLineThickness);
-      }
       if (patch.groupPalettes != null || patch.defaultColors != null) {
         const targetProject = resolveProjectName(patch.activeProject || activeProject, merged.projects);
         merged.projects[targetProject] = merged.projects[targetProject] || {};
@@ -887,10 +858,6 @@
 
   function resetSettings() {
     return commitSettings(DEFAULT_SETTINGS, { persist: true, notify: true });
-  }
-
-  function getDefaultLineThickness() {
-    return settings.defaultLineThickness;
   }
 
   function subscribe(callback) {
@@ -951,9 +918,7 @@
         groupPalettes,
         defaultColors: Array.isArray(project.defaultColors)
           ? project.defaultColors.slice()
-          : expandPalette(resolved, groupPalettes),
-        defaultLineThickness:
-          project.defaultLineThickness != null ? clampLineThickness(project.defaultLineThickness) : undefined
+          : expandPalette(resolved, groupPalettes)
       };
     }
   }
@@ -1020,7 +985,6 @@
   settingsApi.updateSettings = patch => updateSettings(patch);
   settingsApi.resetSettings = () => resetSettings();
   settingsApi.getDefaultColors = (count, opts) => getDefaultColors(count, opts);
-  settingsApi.getDefaultLineThickness = () => getDefaultLineThickness();
   settingsApi.subscribe = callback => subscribe(callback);
   settingsApi.applyToDocument = doc => applyToDocument(doc);
   settingsApi.ensureColorCount = (base, count) => ensureColorCount(base, count);

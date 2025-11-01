@@ -85,7 +85,7 @@ function whenJXGReady(callback) {
 const SETTINGS_STORAGE_KEY = 'mathVisuals:settings';
 const GRAFTEGNER_GROUP_ID = 'graftegner';
 const GRAFTEGNER_FALLBACK_PALETTE = ['#2563eb', '#f97316', '#0ea5e9', '#10b981', '#ef4444', '#f59e0b'];
-const FALLBACK_LINE_THICKNESS = 3;
+const DEFAULT_LINE_THICKNESS = 3;
 const DEFAULT_FUNCTION_COLORS = {
   fallback: GRAFTEGNER_FALLBACK_PALETTE.slice(),
   palette: GRAFTEGNER_FALLBACK_PALETTE.slice(),
@@ -122,13 +122,6 @@ function cycleColors(source, count) {
     result.push(base[i % base.length]);
   }
   return result;
-}
-function clampLineThicknessValue(value) {
-  const num = Number.parseFloat(value);
-  if (!Number.isFinite(num)) return FALLBACK_LINE_THICKNESS;
-  if (num < 1) return 1;
-  if (num > 12) return 12;
-  return num;
 }
 function readStoredSettings() {
   if (typeof window === 'undefined' || !window.localStorage) return null;
@@ -177,23 +170,6 @@ function getDefaultCurveColor(index) {
   }
   return palette[index % palette.length];
 }
-function getDefaultLineThickness() {
-  const api = getSettingsApi();
-  if (api && typeof api.getDefaultLineThickness === 'function') {
-    try {
-      const value = api.getDefaultLineThickness();
-      if (Number.isFinite(value)) {
-        return clampLineThicknessValue(value);
-      }
-    } catch (_) {}
-  }
-  const stored = resolveSettingsSnapshot();
-  if (stored && stored.defaultLineThickness != null) {
-    return clampLineThicknessValue(stored.defaultLineThickness);
-  }
-  return FALLBACK_LINE_THICKNESS;
-}
-
 const DEFAULT_GRAFTEGNER_SIMPLE = {
   axes: {
     xMin: -5,
@@ -772,7 +748,7 @@ const ADV = {
     },
     style: {
       stroke: resolveAxisStrokeColor(),
-      width: getDefaultLineThickness()
+      width: DEFAULT_LINE_THICKNESS
     },
     ticks: {
       showNumbers: SHOW_AXIS_NUMBERS
@@ -848,7 +824,7 @@ const ADV = {
     barPx: 22,
     tipFrac: 0.20,
     color: DEFAULT_POINT_COLORS.domainMarker || DEFAULT_POINT_COLORS.fallbackDomain,
-    width: getDefaultLineThickness(),
+    width: DEFAULT_LINE_THICKNESS,
     layer: 8,
     offsetPx: 10
   },
@@ -5361,7 +5337,7 @@ function handleGraftegnerProfileChange() {
 }
 
 function handleGraftegnerSettingsChange() {
-  const thickness = getDefaultLineThickness();
+  const thickness = DEFAULT_LINE_THICKNESS;
   ADV.axis.style.width = thickness;
   ADV.domainMarkers.width = thickness;
   handleGraftegnerProfileChange();

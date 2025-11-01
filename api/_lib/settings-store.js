@@ -4,7 +4,6 @@ const paletteConfig = require('../../palette/palette-config.js');
 
 const SETTINGS_KEY = 'settings:projects';
 const INJECTED_KV_CLIENT_KEY = '__MATH_VISUALS_SETTINGS_KV_CLIENT__';
-const DEFAULT_LINE_THICKNESS = 3;
 const MAX_COLORS = paletteConfig.MAX_COLORS;
 const MIN_COLOR_SLOTS = paletteConfig.MIN_COLOR_SLOTS;
 const DEFAULT_PROJECT = typeof paletteConfig.DEFAULT_PROJECT === 'string' ? paletteConfig.DEFAULT_PROJECT : 'campus';
@@ -357,14 +356,6 @@ function expandPalette(projectName, palette) {
   return result;
 }
 
-function clampLineThickness(value) {
-  const num = Number.parseFloat(value);
-  if (!Number.isFinite(num)) return DEFAULT_LINE_THICKNESS;
-  if (num < 1) return 1;
-  if (num > 12) return 12;
-  return Math.round(num);
-}
-
 function resolveProjectName(name, projects) {
   const available = projects && typeof projects === 'object' ? projects : null;
   if (typeof name === 'string' && name) {
@@ -418,9 +409,6 @@ function normalizeSettings(value) {
         groupPalettes,
         defaultColors
       };
-      if (source && source.defaultLineThickness != null) {
-        updated.defaultLineThickness = clampLineThickness(source.defaultLineThickness);
-      }
       projects[normalized] = updated;
       if (!order.includes(normalized)) {
         order.push(normalized);
@@ -444,15 +432,10 @@ function normalizeSettings(value) {
   }
 
   const activeProject = resolveProjectName(input.activeProject || input.project || input.defaultProject, projects);
-  const defaultLineThickness = input.defaultLineThickness != null
-    ? clampLineThickness(input.defaultLineThickness)
-    : DEFAULT_LINE_THICKNESS;
-
   const normalized = {
     version: 1,
     projects,
     activeProject,
-    defaultLineThickness,
     projectOrder: order,
     updatedAt: new Date().toISOString()
   };
@@ -543,7 +526,6 @@ async function resetSettings() {
 
 module.exports = {
   DEFAULT_SETTINGS,
-  DEFAULT_LINE_THICKNESS,
   MAX_COLORS,
   PROJECT_FALLBACKS,
   getSettings,
@@ -553,7 +535,6 @@ module.exports = {
   sanitizeColor,
   sanitizeColorList,
   flattenProjectPalette,
-  clampLineThickness,
   normalizeSettings,
   resolveProjectName,
   KvOperationError,

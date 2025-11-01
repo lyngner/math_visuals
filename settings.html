@@ -173,26 +173,7 @@
     .settings-actions .btn {
       padding-inline: 12px;
     }
-    .line-preview {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .line-preview__bar {
-      --preview-thickness: 3px;
-      flex: 1;
-      height: var(--preview-thickness);
-      background: linear-gradient(90deg, var(--profile-title-color, #0f172a), var(--profile-accent-color, #0f6d8f));
-      border-radius: 999px;
-      transition: height 0.2s ease;
-    }
     .form-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-    .field-actions {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
@@ -272,19 +253,6 @@
               <legend data-project-legend></legend>
               <div class="color-section">
                 <div class="color-groups" data-color-groups></div>
-              </div>
-            </fieldset>
-            <fieldset>
-              <legend>Linjetykkelse</legend>
-              <label>
-                <span>1–12 px</span>
-                <input type="number" id="lineThickness" name="lineThickness" min="1" max="12" step="1" required />
-              </label>
-              <div class="line-preview" data-line-preview>
-                <div class="line-preview__bar" data-line-preview-bar></div>
-              </div>
-              <div class="field-actions">
-                <button type="button" class="btn" data-save-line>Lagre linjetykkelse</button>
               </div>
             </fieldset>
             <div class="form-actions">
