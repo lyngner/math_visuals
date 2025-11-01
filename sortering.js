@@ -2727,9 +2727,6 @@
       selection.removeAllRanges();
     }
     finalizeKeyboardMode();
-    if (shouldPreventDefault && typeof event.preventDefault === 'function') {
-      event.preventDefault();
-    }
   }
 
   function handlePointerMove(event, id) {
