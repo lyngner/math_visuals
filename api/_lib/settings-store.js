@@ -27,6 +27,23 @@ const GROUPED_PALETTE_ORDER = (Array.isArray(paletteConfig.DEFAULT_GROUP_ORDER)
 const COLOR_GROUP_IDS = Array.isArray(paletteConfig.COLOR_GROUP_IDS)
   ? paletteConfig.COLOR_GROUP_IDS.map(value => (typeof value === 'string' ? value.trim().toLowerCase() : '')).filter(Boolean)
   : GROUPED_PALETTE_ORDER.slice();
+const COLOR_SLOT_GROUPS = Array.isArray(paletteConfig.COLOR_SLOT_GROUPS)
+  ? paletteConfig.COLOR_SLOT_GROUPS.map(group => ({
+      groupId: typeof group.groupId === 'string' ? group.groupId.trim().toLowerCase() : '',
+      slots: Array.isArray(group.slots)
+        ? group.slots.map((slot, slotIndex) => ({
+            index: Number.isInteger(slot && slot.index) ? Number(slot.index) : slotIndex,
+            groupId:
+              slot && typeof slot.groupId === 'string'
+                ? slot.groupId.trim().toLowerCase()
+                : typeof group.groupId === 'string'
+                ? group.groupId.trim().toLowerCase()
+                : '',
+            groupIndex: Number.isInteger(slot && slot.groupIndex) ? Number(slot.groupIndex) : slotIndex
+          }))
+        : []
+    }))
+  : COLOR_GROUP_IDS.map(groupId => ({ groupId, slots: [] }));
 const GROUP_SLOT_INDICES = paletteConfig.GROUP_SLOT_INDICES && typeof paletteConfig.GROUP_SLOT_INDICES === 'object'
   ? paletteConfig.GROUP_SLOT_INDICES
   : {};
@@ -36,9 +53,43 @@ const GROUP_SLOT_COUNTS = COLOR_GROUP_IDS.reduce((acc, groupId) => {
   return acc;
 }, {});
 const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
+const GRAFTEGNER_AXIS_DEFAULTS = paletteConfig.GRAFTEGNER_AXIS_DEFAULTS || {};
 const DEFAULT_PROJECT_ORDER = Array.isArray(paletteConfig.DEFAULT_PROJECT_ORDER)
   ? paletteConfig.DEFAULT_PROJECT_ORDER.slice()
   : ['campus', 'kikora', 'annet'];
+const PROJECT_FALLBACK_CACHE = new Map();
+const PROJECT_FALLBACK_GROUP_CACHE = new Map();
+
+const SLOT_META_BY_INDEX = new Map();
+COLOR_SLOT_GROUPS.forEach(group => {
+  if (!group || !group.groupId) return;
+  group.slots.forEach((slot, slotIndex) => {
+    if (!slot) return;
+    const index = Number.isInteger(slot.index) && slot.index >= 0 ? slot.index : slotIndex;
+    if (!Number.isInteger(index) || index < 0) return;
+    SLOT_META_BY_INDEX.set(index, {
+      groupId: group.groupId,
+      groupIndex: Number.isInteger(slot.groupIndex) ? slot.groupIndex : slotIndex
+    });
+  });
+});
+
+const DEFAULT_GRAFTEGNER_GROUP_ID = 'graftegner';
+const GRAFTEGNER_GROUP_ID = (() => {
+  for (const group of COLOR_SLOT_GROUPS) {
+    if (!group || !group.groupId) continue;
+    if (group.groupId === DEFAULT_GRAFTEGNER_GROUP_ID) {
+      return group.groupId;
+    }
+    const hasAxisSlot = Array.isArray(group.slots)
+      ? group.slots.some(slot => Number.isInteger(slot && slot.index) && slot.index === 19)
+      : false;
+    if (hasAxisSlot) {
+      return group.groupId;
+    }
+  }
+  return DEFAULT_GRAFTEGNER_GROUP_ID;
+})();
 
 const globalScope = typeof globalThis === 'object' && globalThis ? globalThis : global;
 const memoryState = globalScope.__MATH_VISUALS_SETTINGS_STATE__ || {
@@ -159,6 +210,75 @@ function normalizeGroupId(value) {
   return trimmed || '';
 }
 
+function getSanitizedFallbackBase(project) {
+  const key = normalizeProjectKey(project) || 'default';
+  if (PROJECT_FALLBACK_CACHE.has(key)) {
+    return PROJECT_FALLBACK_CACHE.get(key).slice();
+  }
+  const base = PROJECT_FALLBACKS[key] || PROJECT_FALLBACKS.default || [];
+  const sanitized = sanitizeColorList(base);
+  if (!sanitized.length) {
+    const fallbackDefault =
+      sanitizeColor((PROJECT_FALLBACKS.default && PROJECT_FALLBACKS.default[0]) || '#1F4DE2') || '#1F4DE2';
+    sanitized.push(fallbackDefault);
+  }
+  PROJECT_FALLBACK_CACHE.set(key, sanitized.slice());
+  return sanitized.slice();
+}
+
+function resolveGraftegnerAxisFallback(project) {
+  const key = normalizeProjectKey(project) || 'default';
+  const fallback =
+    (GRAFTEGNER_AXIS_DEFAULTS && typeof GRAFTEGNER_AXIS_DEFAULTS[key] === 'string'
+      ? GRAFTEGNER_AXIS_DEFAULTS[key]
+      : null) || GRAFTEGNER_AXIS_DEFAULTS.default;
+  const sanitized = sanitizeColor(fallback);
+  if (sanitized) {
+    return sanitized;
+  }
+  const base = getSanitizedFallbackBase(key);
+  return base[0] || '#1F4DE2';
+}
+
+function buildFallbackGroupsFromBase(baseColors, project) {
+  const sanitized = Array.isArray(baseColors) && baseColors.length ? baseColors : getSanitizedFallbackBase('default');
+  const groups = {};
+  COLOR_SLOT_GROUPS.forEach(group => {
+    if (!group || !group.groupId) return;
+    groups[group.groupId] = group.slots.map((slot, slotIndex) => {
+      const index = Number.isInteger(slot && slot.index) && slot.index >= 0 ? slot.index : slotIndex;
+      if (group.groupId === GRAFTEGNER_GROUP_ID && Number(slot && slot.groupIndex) === 1) {
+        return resolveGraftegnerAxisFallback(project);
+      }
+      return sanitized[index % sanitized.length] || sanitized[0];
+    });
+  });
+  return groups;
+}
+
+function getFallbackColorForIndex(project, index) {
+  const key = normalizeProjectKey(project) || 'default';
+  const baseColors = getSanitizedFallbackBase(key);
+  if (!baseColors.length) {
+    return '#1F4DE2';
+  }
+  const normalizedIndex = Number.isInteger(index) && index >= 0 ? index : 0;
+  const meta = SLOT_META_BY_INDEX.get(normalizedIndex);
+  if (meta) {
+    if (!PROJECT_FALLBACK_GROUP_CACHE.has(key)) {
+      const base = getSanitizedFallbackBase(key);
+      PROJECT_FALLBACK_GROUP_CACHE.set(key, buildFallbackGroupsFromBase(base, key));
+    }
+    const groups = PROJECT_FALLBACK_GROUP_CACHE.get(key) || {};
+    const groupColors = Array.isArray(groups[meta.groupId]) ? groups[meta.groupId] : [];
+    const candidate = sanitizeColor(groupColors[meta.groupIndex]);
+    if (candidate) {
+      return candidate;
+    }
+  }
+  return baseColors[normalizedIndex % baseColors.length] || baseColors[0];
+}
+
 function sanitizeGroupPaletteList(values, limit) {
   if (!Array.isArray(values)) return [];
   const maxSize = Number.isInteger(limit) && limit >= 0 ? limit : MAX_COLORS;
@@ -195,33 +315,20 @@ const FALLBACK_GROUP_PALETTE_CACHE = new Map();
 function getFallbackGroupPalettes(projectName) {
   const normalized = normalizeProjectKey(projectName);
   const cacheKey = normalized || '__default__';
-  if (FALLBACK_GROUP_PALETTE_CACHE.has(cacheKey)) {
-    return cloneGroupPalettes(FALLBACK_GROUP_PALETTE_CACHE.get(cacheKey));
+  if (PROJECT_FALLBACK_GROUP_CACHE.has(normalized)) {
+    return cloneGroupPalettes(PROJECT_FALLBACK_GROUP_CACHE.get(normalized));
   }
-  const fallbackBase = sanitizeColorList(
-    PROJECT_FALLBACKS[normalized] || PROJECT_FALLBACKS.default || []
-  );
-  const colors = fallbackBase.length ? fallbackBase : sanitizeColorList(PROJECT_FALLBACKS.default);
-  const groups = {};
-  let cursor = 0;
-  COLOR_GROUP_IDS.forEach(groupId => {
-    const limit = GROUP_SLOT_COUNTS[groupId] || 0;
-    const groupColors = [];
-    if (limit > 0) {
-      for (let index = 0; index < limit; index += 1) {
-        const color = colors[cursor] || colors[index % (colors.length || 1)] || null;
-        if (color) {
-          groupColors.push(color);
-        }
-        if (cursor < colors.length) {
-          cursor += 1;
-        }
-      }
-    }
-    groups[groupId] = groupColors;
-  });
-  FALLBACK_GROUP_PALETTE_CACHE.set(cacheKey, cloneGroupPalettes(groups));
-  return cloneGroupPalettes(groups);
+  if (FALLBACK_GROUP_PALETTE_CACHE.has(cacheKey)) {
+    const cached = FALLBACK_GROUP_PALETTE_CACHE.get(cacheKey);
+    PROJECT_FALLBACK_GROUP_CACHE.set(normalized, cached);
+    return cloneGroupPalettes(cached);
+  }
+  const base = getSanitizedFallbackBase(normalized);
+  const groups = buildFallbackGroupsFromBase(base, normalized);
+  const cached = cloneGroupPalettes(groups);
+  PROJECT_FALLBACK_GROUP_CACHE.set(normalized, cached);
+  FALLBACK_GROUP_PALETTE_CACHE.set(cacheKey, cached);
+  return cloneGroupPalettes(cached);
 }
 
 function applyGroupPaletteOverlay(target, source) {
@@ -259,35 +366,37 @@ function applyGroupPaletteOverlay(target, source) {
   });
 }
 
-function distributeFlatPaletteToGroups(palette) {
-  const sanitized = sanitizeColorList(palette);
+function distributeFlatPaletteToGroups(palette, projectName) {
+  const normalizedProject = normalizeProjectKey(projectName) || DEFAULT_PROJECT;
+  const source = Array.isArray(palette) ? palette : [];
   const result = {};
-  let cursor = 0;
-  COLOR_GROUP_IDS.forEach(groupId => {
-    const limit = GROUP_SLOT_COUNTS[groupId] || 0;
-    if (!limit) {
-      result[groupId] = [];
-      return;
-    }
+  COLOR_SLOT_GROUPS.forEach(group => {
+    if (!group || !group.groupId) return;
     const groupColors = [];
-    for (let index = 0; index < limit && cursor < sanitized.length; index += 1) {
-      groupColors.push(sanitized[cursor]);
-      cursor += 1;
-    }
-    result[groupId] = groupColors;
+    group.slots.forEach((slot, slotIndex) => {
+      const targetIndex = Number.isInteger(slot && slot.index) && slot.index >= 0 ? slot.index : slotIndex;
+      const color = sanitizeColor(source[targetIndex]);
+      const fallback = getFallbackColorForIndex(normalizedProject, targetIndex);
+      groupColors[slotIndex] = color || fallback;
+    });
+    result[group.groupId] = groupColors;
   });
   return result;
 }
 
 function normalizeProjectGroupPalettes(projectName, palette) {
-  const base = getFallbackGroupPalettes(projectName);
+  const normalizedProject = normalizeProjectKey(projectName) || DEFAULT_PROJECT;
+  const base = getFallbackGroupPalettes(normalizedProject);
   if (Array.isArray(palette)) {
-    applyGroupPaletteOverlay(base, distributeFlatPaletteToGroups(palette));
+    applyGroupPaletteOverlay(base, distributeFlatPaletteToGroups(palette, normalizedProject));
     return base;
   }
   if (palette && typeof palette === 'object') {
     if (Array.isArray(palette.defaultColors)) {
-      applyGroupPaletteOverlay(base, distributeFlatPaletteToGroups(palette.defaultColors));
+      applyGroupPaletteOverlay(
+        base,
+        distributeFlatPaletteToGroups(palette.defaultColors, normalizedProject)
+      );
     } else if (palette.defaultColors && typeof palette.defaultColors === 'object') {
       applyGroupPaletteOverlay(base, palette.defaultColors);
     }
@@ -301,57 +410,51 @@ function normalizeProjectGroupPalettes(projectName, palette) {
   return base;
 }
 
-function flattenProjectPalette(palette) {
-  if (!palette) return [];
-  if (Array.isArray(palette)) {
-    return sanitizeColorList(palette);
+function flattenProjectPalette(projectName, palette, minimumLength = MIN_COLOR_SLOTS) {
+  let resolvedProject = projectName;
+  let resolvedPalette = palette;
+  let resolvedMinimum = Number.isInteger(minimumLength) && minimumLength > 0 ? minimumLength : 0;
+  if (typeof resolvedProject !== 'string') {
+    resolvedMinimum = Number.isInteger(palette) && palette > 0 ? palette : resolvedMinimum;
+    resolvedPalette = resolvedProject;
+    resolvedProject = DEFAULT_PROJECT;
   }
-  if (typeof palette !== 'object') {
-    return [];
-  }
-  const source = palette.groupPalettes && typeof palette.groupPalettes === 'object' ? palette.groupPalettes : palette;
-  const normalizedGroups = {};
-  Object.keys(source).forEach(key => {
-    const normalizedKey = normalizeGroupId(key);
-    if (!normalizedKey) return;
-    normalizedGroups[normalizedKey] = source[key];
-  });
+  const project = normalizeProjectKey(resolvedProject) || DEFAULT_PROJECT;
+  const normalizedGroups = normalizeProjectGroupPalettes(project, resolvedPalette);
   const flattened = [];
-  for (const groupId of GROUPED_PALETTE_ORDER) {
-    if (flattened.length >= MAX_COLORS) break;
-    const normalizedGroup = normalizeGroupId(groupId);
-    if (!normalizedGroup || !COLOR_GROUP_IDS.includes(normalizedGroup)) continue;
-    const limit = GROUP_SLOT_COUNTS[normalizedGroup] || 0;
-    if (!limit) continue;
-    const values = Array.isArray(normalizedGroups[normalizedGroup])
-      ? sanitizeGroupPaletteList(normalizedGroups[normalizedGroup], limit || MAX_COLORS)
-      : [];
-    for (const value of values) {
-      if (flattened.length >= MAX_COLORS) break;
-      flattened.push(value);
+  let highestSlotIndex = -1;
+  COLOR_SLOT_GROUPS.forEach(group => {
+    if (!group || !group.groupId) return;
+    const groupColors = Array.isArray(normalizedGroups[group.groupId]) ? normalizedGroups[group.groupId] : [];
+    group.slots.forEach((slot, slotIndex) => {
+      const targetIndex = Number.isInteger(slot && slot.index) && slot.index >= 0 ? slot.index : slotIndex;
+      if (targetIndex > highestSlotIndex) {
+        highestSlotIndex = targetIndex;
+      }
+      const color = sanitizeColor(groupColors[slotIndex]);
+      const fallback = getFallbackColorForIndex(project, targetIndex);
+      flattened[targetIndex] = color || fallback;
+    });
+  });
+  const min = resolvedMinimum;
+  const targetLength = Math.min(MAX_COLORS, Math.max(min, highestSlotIndex + 1));
+  for (let index = 0; index < targetLength; index += 1) {
+    if (!sanitizeColor(flattened[index])) {
+      flattened[index] = getFallbackColorForIndex(project, index);
     }
   }
-  return flattened;
+  return flattened.slice(0, targetLength);
 }
 
 function expandPalette(projectName, palette) {
   const normalizedProject = normalizeProjectKey(projectName) || DEFAULT_PROJECT;
   const groupPalettes = normalizeProjectGroupPalettes(normalizedProject, palette);
-  const flattened = flattenProjectPalette({ groupPalettes });
-  const sanitized = sanitizeColorList(flattened);
-  const fallbackBase = sanitizeColorList(
-    PROJECT_FALLBACKS[normalizedProject] || PROJECT_FALLBACKS.default || []
-  );
-  const fallback = fallbackBase.length ? fallbackBase : sanitizeColorList(PROJECT_FALLBACKS.default);
-  const limit = Math.min(MAX_COLORS, Math.max(MIN_COLOR_SLOTS, sanitized.length, fallback.length || 0));
+  const flattened = flattenProjectPalette(normalizedProject, groupPalettes, MIN_COLOR_SLOTS);
+  const targetLength = Math.min(MAX_COLORS, Math.max(MIN_COLOR_SLOTS, flattened.length));
   const result = [];
-  for (let index = 0; index < limit; index += 1) {
-    const fallbackColor = fallback[index % (fallback.length || 1)] || fallback[0] || null;
-    const color = sanitized[index] || fallbackColor || PROJECT_FALLBACKS.default[0];
+  for (let index = 0; index < targetLength; index += 1) {
+    const color = sanitizeColor(flattened[index]) || getFallbackColorForIndex(normalizedProject, index);
     result.push(color);
-  }
-  if (!result.length) {
-    result.push(PROJECT_FALLBACKS.default[0]);
   }
   return result;
 }
@@ -534,6 +637,8 @@ module.exports = {
   getStoreMode,
   sanitizeColor,
   sanitizeColorList,
+  distributeFlatPaletteToGroups,
+  expandPalette,
   flattenProjectPalette,
   normalizeSettings,
   resolveProjectName,

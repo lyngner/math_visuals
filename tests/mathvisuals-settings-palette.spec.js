@@ -2,9 +2,30 @@ const { test, expect } = require('@playwright/test');
 
 const SETTINGS_MODULE = require.resolve('../examples.js');
 const paletteConfig = require('../palette/palette-config.js');
+const {
+  distributeFlatPaletteToGroups,
+  flattenProjectPalette: flattenStorePalette,
+  expandPalette: expandStorePalette
+} = require('../api/_lib/settings-store.js');
 const MIN_COLOR_SLOTS = Number.isInteger(paletteConfig.MIN_COLOR_SLOTS)
   ? paletteConfig.MIN_COLOR_SLOTS
   : 0;
+const AXIS_SLOT = (() => {
+  if (!Array.isArray(paletteConfig.COLOR_SLOT_GROUPS)) {
+    return null;
+  }
+  for (const group of paletteConfig.COLOR_SLOT_GROUPS) {
+    if (!group || !Array.isArray(group.slots)) continue;
+    for (const slot of group.slots) {
+      if (slot && Number.isInteger(slot.index) && slot.index === 19) {
+        const groupId = typeof group.groupId === 'string' ? group.groupId : String(group.groupId || '');
+        const groupIndex = Number.isInteger(slot.groupIndex) ? slot.groupIndex : group.slots.indexOf(slot);
+        return { groupId, groupIndex };
+      }
+    }
+  }
+  return null;
+})();
 const ORIGINAL_GLOBALS = {
   document: global.document,
   window: global.window,
@@ -309,6 +330,34 @@ test.describe('MathVisualsSettings.getGroupPalette', () => {
     expect(groupId).toBe('graftegner');
     expect(options.project).toBe('annet');
     expect(options.count).toBe(2);
+  });
+});
+
+test.describe('MathVisuals palette slot handling', () => {
+  test('preserves graftegner axis color across flatten → distribute → expand', () => {
+    expect(AXIS_SLOT).toBeTruthy();
+    const axisIndex = 19;
+    const projects = Array.isArray(paletteConfig.DEFAULT_PROJECT_ORDER)
+      ? paletteConfig.DEFAULT_PROJECT_ORDER.slice()
+      : ['campus', 'kikora', 'annet'];
+    if (!projects.includes('default')) {
+      projects.push('default');
+    }
+    projects.forEach(project => {
+      const fallbackFlat = expandStorePalette(project, null);
+      expect(fallbackFlat.length).toBeGreaterThan(axisIndex);
+      const flattened = fallbackFlat.slice();
+      flattened[axisIndex] = '#000000';
+      const grouped = distributeFlatPaletteToGroups(flattened, project);
+      if (AXIS_SLOT) {
+        const axisGroup = grouped[AXIS_SLOT.groupId] || [];
+        expect(axisGroup[AXIS_SLOT.groupIndex]).toBe('#000000');
+      }
+      const roundTrip = flattenStorePalette(project, { groupPalettes: grouped });
+      expect(roundTrip[axisIndex]).toBe('#000000');
+      const expanded = expandStorePalette(project, { groupPalettes: grouped });
+      expect(expanded[axisIndex]).toBe('#000000');
+    });
   });
 });
 
