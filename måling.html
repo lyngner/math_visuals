@@ -79,7 +79,8 @@
       background: #f8fafc;
       border-radius: 16px;
       overflow: hidden;
-      aspect-ratio: var(--board-aspect-ratio);
+      aspect-ratio: var(--board-aspect-ratio, auto);
+      min-height: min(80vh, 600px);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -559,6 +560,27 @@
 
       .field-grid--three {
         grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 640px) {
+      :root {
+        --board-max-width: 100vw;
+        --board-aspect-ratio: auto;
+        --ruler-width: min(720px, 120vw);
+        --tape-strap-length: min(720px, 120vw);
+      }
+
+      .board-wrapper {
+        width: 100vw;
+        margin: 0;
+        background: none;
+        border: none;
+        box-shadow: none;
+      }
+
+      .board {
+        min-height: min(80vh, 600px);
       }
     }
   </style>
