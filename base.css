@@ -1167,3 +1167,32 @@ input[type="radio"] {
   font-size: 20px;
   pointer-events: none;
 }
+
+@media (max-width: 640px) {
+  :root {
+    --gap: 12px;
+  }
+
+  body {
+    padding: 0 8px;
+    background: #fff !important;
+  }
+
+  .wrap {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+  }
+
+  .grid {
+    gap: var(--gap);
+  }
+
+  .card {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 12px;
+    gap: 10px;
+  }
+}
