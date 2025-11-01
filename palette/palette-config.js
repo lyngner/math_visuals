@@ -65,8 +65,8 @@
       title: 'Brøk og tenkeblokker',
       description: 'Farger for linjer og fyll i brøkmodeller og tenkeblokker.',
       slots: [
-        { index: 13, label: 'Linje', description: 'Konturer i brøker og tenkeblokker.' },
-        { index: 14, label: 'Fyll', description: 'Fyllfarge for brøker og tenkeblokker.' }
+        { index: 13, label: 'Fyll', description: 'Fyllfarge for brøker og tenkeblokker.' },
+        { index: 14, label: 'Linje', description: 'Konturer i brøker og tenkeblokker.' }
       ]
     },
     {

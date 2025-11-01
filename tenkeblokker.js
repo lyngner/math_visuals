@@ -61,6 +61,253 @@ const UNION_BRACE_BOUNDS = Object.freeze({
 });
 const UNION_BRACE_INNER_WIDTH = UNION_BRACE_BOUNDS.right - UNION_BRACE_BOUNDS.left;
 const UNION_BRACE_INNER_HEIGHT = UNION_BRACE_BOUNDS.bottom - UNION_BRACE_BOUNDS.top;
+const FRACTION_GROUP_ID = 'fractions';
+const FRACTION_FALLBACK_COLORS = Object.freeze(['#dbe7ff', '#333333']);
+let activeFractionColors = {
+  fill: FRACTION_FALLBACK_COLORS[0],
+  line: FRACTION_FALLBACK_COLORS[1]
+};
+
+function getPaletteApi(scope) {
+  const root = scope || (typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null);
+  if (!root || typeof root !== 'object') return null;
+  const api = root.MathVisualsPalette;
+  return api && typeof api.getGroupPalette === 'function' ? api : null;
+}
+
+function getGroupPaletteHelper() {
+  const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+  if (!scope || typeof scope !== 'object') return null;
+  const helper = scope.MathVisualsGroupPalette;
+  return helper && typeof helper.resolve === 'function' ? helper : null;
+}
+
+function getSettingsApi() {
+  if (typeof window === 'undefined') return null;
+  const api = window.MathVisualsSettings;
+  return api && typeof api === 'object' ? api : null;
+}
+
+function getThemeApi() {
+  if (typeof window === 'undefined') return null;
+  const theme = window.MathVisualsTheme;
+  return theme && typeof theme === 'object' ? theme : null;
+}
+
+function getActiveThemeProjectName(theme = getThemeApi()) {
+  if (!theme || typeof theme.getActiveProfileName !== 'function') return null;
+  try {
+    const value = theme.getActiveProfileName();
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim().toLowerCase();
+    }
+  } catch (_) {}
+  return null;
+}
+
+function resolvePaletteProjectName() {
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (doc && doc.documentElement) {
+    const root = doc.documentElement;
+    const activeAttr = root.getAttribute('data-mv-active-project');
+    if (typeof activeAttr === 'string' && activeAttr.trim()) {
+      return activeAttr.trim().toLowerCase();
+    }
+    const profileAttr = root.getAttribute('data-theme-profile');
+    if (typeof profileAttr === 'string' && profileAttr.trim()) {
+      return profileAttr.trim().toLowerCase();
+    }
+  }
+  const activeThemeProject = getActiveThemeProjectName();
+  if (activeThemeProject) return activeThemeProject;
+  const settings = getSettingsApi();
+  if (settings && typeof settings.getActiveProject === 'function') {
+    try {
+      const value = settings.getActiveProject();
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim().toLowerCase();
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+function sanitizePaletteList(values) {
+  if (!Array.isArray(values)) return [];
+  const sanitized = [];
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed) sanitized.push(trimmed);
+  }
+  return sanitized;
+}
+
+function ensurePaletteCount(basePalette, fallbackPalette, count) {
+  const base = sanitizePaletteList(basePalette);
+  const fallback = sanitizePaletteList(fallbackPalette);
+  const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : base.length || fallback.length || 0;
+  if (target <= 0) {
+    return base.length ? base.slice() : fallback.slice();
+  }
+  const result = [];
+  for (let index = 0; index < target; index += 1) {
+    const primary = base[index];
+    if (typeof primary === 'string' && primary) {
+      result.push(primary);
+      continue;
+    }
+    if (fallback.length) {
+      const fallbackColor = fallback[index % fallback.length];
+      if (typeof fallbackColor === 'string' && fallbackColor) {
+        result.push(fallbackColor);
+        continue;
+      }
+    }
+    if (base.length) {
+      const cycled = base[index % base.length];
+      if (typeof cycled === 'string' && cycled) {
+        result.push(cycled);
+      }
+    }
+  }
+  if (!result.length && fallback.length) {
+    result.push(fallback[0]);
+  }
+  return result;
+}
+
+function tryResolvePalette(resolver) {
+  try {
+    const palette = resolver();
+    return Array.isArray(palette) ? sanitizePaletteList(palette) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function resolveFractionPalette(count = 2) {
+  const fallback = FRACTION_FALLBACK_COLORS;
+  const target = Number.isFinite(count) && count > 0 ? Math.max(2, Math.trunc(count)) : 2;
+  const project = resolvePaletteProjectName();
+  const helper = getGroupPaletteHelper();
+  if (helper) {
+    const palette = tryResolvePalette(() =>
+      helper.resolve({
+        groupId: FRACTION_GROUP_ID,
+        count: target,
+        project: project || undefined,
+        fallback,
+        legacyPaletteId: 'fractions',
+        fallbackKinds: ['figures']
+      })
+    );
+    if (palette && palette.length) {
+      return ensurePaletteCount(palette, fallback, target);
+    }
+  }
+  const paletteApi = getPaletteApi();
+  if (paletteApi) {
+    const palette = tryResolvePalette(() =>
+      paletteApi.getGroupPalette(FRACTION_GROUP_ID, {
+        project: project || undefined,
+        count: target || undefined
+      })
+    );
+    if (palette && palette.length) {
+      return ensurePaletteCount(palette, fallback, target);
+    }
+  }
+  const settings = getSettingsApi();
+  if (settings && typeof settings.getGroupPalette === 'function') {
+    let palette = tryResolvePalette(() =>
+      settings.getGroupPalette(FRACTION_GROUP_ID, {
+        project: project || undefined,
+        count: target || undefined
+      })
+    );
+    if ((!palette || palette.length < target) && settings.getGroupPalette.length >= 3) {
+      palette = tryResolvePalette(() =>
+        settings.getGroupPalette(
+          FRACTION_GROUP_ID,
+          target || undefined,
+          project ? { project } : undefined
+        )
+      );
+    }
+    if (palette && palette.length) {
+      return ensurePaletteCount(palette, fallback, target);
+    }
+  }
+  const theme = getThemeApi();
+  if (theme && typeof theme.getGroupPalette === 'function') {
+    let palette = tryResolvePalette(() =>
+      theme.getGroupPalette(FRACTION_GROUP_ID, {
+        project: project || undefined,
+        count: target || undefined
+      })
+    );
+    if ((!palette || palette.length < target) && theme.getGroupPalette.length >= 3) {
+      palette = tryResolvePalette(() =>
+        theme.getGroupPalette(
+          FRACTION_GROUP_ID,
+          target || undefined,
+          project ? { project } : undefined
+        )
+      );
+    }
+    if (palette && palette.length) {
+      return ensurePaletteCount(palette, fallback, target);
+    }
+  }
+  if (theme && typeof theme.getPalette === 'function') {
+    const palette = tryResolvePalette(() =>
+      theme.getPalette('fractions', target || fallback.length, {
+        fallbackKinds: ['figures'],
+        project: project || undefined
+      })
+    );
+    if (palette && palette.length) {
+      return ensurePaletteCount(palette, fallback, target);
+    }
+  }
+  return ensurePaletteCount(fallback, fallback, target);
+}
+
+function getPaletteTargets() {
+  if (typeof document === 'undefined') return [];
+  const targets = [];
+  if (document.documentElement) targets.push(document.documentElement);
+  if (document.body) targets.push(document.body);
+  const boardEl = document.getElementById('tbBoard');
+  if (boardEl) targets.push(boardEl);
+  return targets.filter(target => target && target.style && typeof target.style.setProperty === 'function');
+}
+
+function applyFractionPalette(force = false) {
+  if (typeof document === 'undefined') return;
+  const palette = resolveFractionPalette(2);
+  const safe = ensurePaletteCount(palette, FRACTION_FALLBACK_COLORS, 2);
+  const fill = typeof safe[0] === 'string' && safe[0] ? safe[0] : FRACTION_FALLBACK_COLORS[0];
+  const line = typeof safe[1] === 'string' && safe[1] ? safe[1] : fill;
+  const changed =
+    force ||
+    fill.toLowerCase() !== activeFractionColors.fill.toLowerCase() ||
+    line.toLowerCase() !== activeFractionColors.line.toLowerCase();
+  if (!changed) {
+    if (force) refreshTenkeblokkerPaletteAttributes();
+    return;
+  }
+  activeFractionColors = { fill, line };
+  const targets = getPaletteTargets();
+  targets.forEach(target => {
+    try {
+      target.style.setProperty('--tb-fill', fill);
+      target.style.setProperty('--tb-line', line);
+    } catch (err) {}
+  });
+  refreshTenkeblokkerPaletteAttributes();
+}
 function sanitizeDisplayMode(value) {
   if (typeof value !== 'string') return null;
   const normalized = value.trim().toLowerCase();
@@ -378,6 +625,37 @@ const EXPORT_STYLE_RULES = `
   :root,
   svg {
     --tb-font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    --tb-fill: #dbe7ff;
+    --tb-line: #333333;
+  }
+
+  .tb-rect {
+    fill: var(--tb-fill, #dbe7ff);
+  }
+
+  .tb-frame {
+    fill: none;
+    stroke: var(--tb-line, #333333);
+    stroke-width: 6;
+  }
+
+  .tb-sep {
+    stroke: var(--tb-line, #333333);
+    stroke-width: 2;
+    stroke-dasharray: 8 8;
+    opacity: 0.6;
+  }
+
+  .tb-brace {
+    fill: none;
+    stroke: var(--tb-line, #333333);
+    stroke-width: 6;
+    stroke-linecap: round;
+  }
+
+  .tb-brace--union {
+    fill: var(--tb-line, #333333);
+    stroke: none;
   }
 
   .tb-row-label-text {
@@ -420,7 +698,7 @@ const EXPORT_STYLE_RULES = `
   }
 
   .tb-frac-line {
-    stroke: #111;
+    stroke: var(--tb-line, #111111);
     stroke-width: 2;
     stroke-linecap: square;
   }
@@ -797,9 +1075,37 @@ const combinedWholeOverlays = {
   horizontal: createCombinedWholeOverlay('horizontal'),
   vertical: createCombinedWholeOverlay('vertical')
 };
+function handleThemePaletteChanged() {
+  applyFractionPalette(true);
+}
+
+function handleThemeProfileMessage(event) {
+  const data = event && event.data;
+  const type = typeof data === 'string' ? data : data && data.type;
+  if (type === 'math-visuals:profile-change' || type === 'math-visuals:settings-changed') {
+    handleThemePaletteChanged();
+  }
+}
+
+function handleThemeProfileChangeEvent(event) {
+  if (!event || event.type !== 'math-visuals:profile-change') return;
+  handleThemePaletteChanged();
+}
+
+function handleThemeSettingsChanged(event) {
+  if (!event || event.type !== 'math-visuals:settings-changed') return;
+  handleThemePaletteChanged();
+}
+
 if (typeof window !== 'undefined') {
   window.addEventListener('resize', () => draw(true));
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('message', handleThemeProfileMessage);
+    window.addEventListener('math-visuals:profile-change', handleThemeProfileChangeEvent);
+    window.addEventListener('math-visuals:settings-changed', handleThemeSettingsChanged);
+  }
 }
+applyFractionPalette(true);
 addColumnBtn === null || addColumnBtn === void 0 || addColumnBtn.addEventListener('click', () => {
   const current = parseGridDimension(CONFIG.cols, 1);
   if (current >= 3) return;
@@ -1541,6 +1847,7 @@ function draw(skipNormalization = false) {
     drawBlock(block);
   }
   drawCombinedWholeOverlay();
+  refreshTenkeblokkerPaletteAttributes();
   syncLegacyConfig();
   scheduleAltTextRefresh('draw');
 }
@@ -2432,6 +2739,42 @@ function applySvgAttributes(el, attrs = {}) {
     el.setAttribute(key, value);
   });
 }
+
+function refreshTenkeblokkerPaletteAttributes(root) {
+  if (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') return;
+  const scope = root && typeof root.querySelectorAll === 'function' ? root : document;
+  if (!scope || typeof scope.querySelectorAll !== 'function') return;
+  const targets = [
+    { selector: '.tb-rect', property: 'fill', attribute: 'fill' },
+    { selector: '.tb-frame', property: 'stroke', attribute: 'stroke' },
+    { selector: '.tb-sep', property: 'stroke', attribute: 'stroke' },
+    { selector: '.tb-brace', property: 'stroke', attribute: 'stroke' },
+    { selector: '.tb-brace--union', property: 'fill', attribute: 'fill' },
+    { selector: '.tb-frac-line', property: 'stroke', attribute: 'stroke' }
+  ];
+  targets.forEach(meta => {
+    let elements;
+    try {
+      elements = scope.querySelectorAll(meta.selector);
+    } catch (_) {
+      elements = [];
+    }
+    elements.forEach(el => {
+      if (!el) return;
+      let value = '';
+      try {
+        value = window.getComputedStyle(el).getPropertyValue(meta.property);
+      } catch (_) {
+        value = '';
+      }
+      const normalized = typeof value === 'string' ? value.trim() : '';
+      if (!normalized || normalized === 'none') return;
+      try {
+        el.setAttribute(meta.attribute, normalized);
+      } catch (_) {}
+    });
+  });
+}
 function setHandleIconPosition(handle, cx, cy) {
   if (!handle) return;
   const sizeAttr = handle.getAttribute('data-handle-size');
@@ -2773,6 +3116,22 @@ function getExportSvg() {
       if (fontFamily && fontFamily.trim()) {
         exportSvg.style.setProperty('--tb-font-family', fontFamily.trim());
       }
+      const fillColor = computed.getPropertyValue('--tb-fill');
+      if (fillColor && fillColor.trim()) {
+        exportSvg.style.setProperty('--tb-fill', fillColor.trim());
+      }
+      const lineColor = computed.getPropertyValue('--tb-line');
+      if (lineColor && lineColor.trim()) {
+        exportSvg.style.setProperty('--tb-line', lineColor.trim());
+      }
+    }
+  }
+  if (exportSvg && exportSvg.style) {
+    if (activeFractionColors.fill) {
+      exportSvg.style.setProperty('--tb-fill', activeFractionColors.fill);
+    }
+    if (activeFractionColors.line) {
+      exportSvg.style.setProperty('--tb-line', activeFractionColors.line);
     }
   }
   const styleEl = document.createElementNS(ns, 'style');
