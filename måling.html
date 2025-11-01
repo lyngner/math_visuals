@@ -360,6 +360,23 @@
       z-index: 1;
     }
 
+    .tape-measure__housing-shift-handle {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 20%;
+      pointer-events: auto;
+      touch-action: none;
+      cursor: grab;
+      z-index: 2;
+      background: transparent;
+    }
+
+    .tape-measure__housing-shift-handle:active {
+      cursor: grabbing;
+    }
+
     .tape-measure__housing img {
       display: block;
       width: 100%;
@@ -586,14 +603,19 @@
                         focusable="false"
                         data-tape-strap-svg
                       ></svg>
-                    </div>
                   </div>
-                  <div class="tape-measure__housing" data-tape-housing>
-                    <img
-                      src="images/measure/måleredskaper/målebåndhus.svg"
-                      alt=""
-                      aria-hidden="true"
-                    />
+                </div>
+                <div class="tape-measure__housing" data-tape-housing>
+                  <div
+                    class="tape-measure__housing-shift-handle"
+                    data-tape-housing-shift-handle
+                    aria-hidden="true"
+                  ></div>
+                  <img
+                    src="images/measure/måleredskaper/målebåndhus.svg"
+                    alt=""
+                    aria-hidden="true"
+                  />
                   </div>
                 </div>
               </div>
