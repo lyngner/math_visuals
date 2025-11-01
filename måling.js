@@ -126,6 +126,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
   const DEFAULT_TAPE_HOUSING_SHIFT_PX = 36;
   const TAPE_STRAP_END_WIDTH = 40;
   const TAPE_DIRECTION = -1;
+  const TAPE_HOUSING_HANDOFF_TOLERANCE_PX = 6;
   const zeroOffset = { x: 0, y: 0 };
   const figureData = buildFigureData({ extractRealWorldSizeFromText });
   const defaultPreset = figureData.byId.get('kylling');
@@ -3516,6 +3517,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     }
     event.preventDefault();
     event.stopPropagation();
+    const rotation = Number.isFinite(transformStates.tape.rotation)
+      ? transformStates.tape.rotation
+      : 0;
     const entry = {
       pointerId: event.pointerId,
       clientX: event.clientX,
@@ -3531,16 +3535,122 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         ? tapeLengthState.configuredUnits
         : isTapeLengthInfinite(tapeLengthState.configuredUnits)
         ? 1
-        : defaults.tapeMeasureLength
+        : defaults.tapeMeasureLength,
+      startPoint: { x: event.clientX, y: event.clientY },
+      captureTarget,
+      allowHandoff: true
     };
     const freeMovement = buildTapeFreeMovementData('housing', captureTarget, event);
     if (freeMovement) {
       entry.freeMovement = freeMovement;
     }
+    let axisUnit = null;
+    if (entry.freeMovement && entry.freeMovement.axisUnitLocal) {
+      axisUnit = rotatePoint(entry.freeMovement.axisUnitLocal, rotation);
+    } else {
+      axisUnit = { x: Math.cos(rotation), y: Math.sin(rotation) };
+    }
+    const normalizedAxis = normalizeVector(axisUnit || { x: 0, y: 0 });
+    if (normalizedAxis && (normalizedAxis.x !== 0 || normalizedAxis.y !== 0)) {
+      entry.axisUnit = normalizedAxis;
+    }
     session.set(event.pointerId, entry);
     try {
       captureTarget.setPointerCapture(event.pointerId);
     } catch (_) {}
+  }
+
+  function getTapeHousingStartPoint(entry) {
+    if (!entry) {
+      return null;
+    }
+    if (
+      entry.startPoint &&
+      Number.isFinite(entry.startPoint.x) &&
+      Number.isFinite(entry.startPoint.y)
+    ) {
+      return entry.startPoint;
+    }
+    if (Number.isFinite(entry.startX) && Number.isFinite(entry.startY)) {
+      return { x: entry.startX, y: entry.startY };
+    }
+    return null;
+  }
+
+  function disableTapeHousingHandoff(entry) {
+    if (entry && entry.allowHandoff) {
+      entry.allowHandoff = false;
+    }
+  }
+
+  function performTapeHousingHandoff(event, entry) {
+    if (!entry) {
+      return;
+    }
+    disableTapeHousingHandoff(entry);
+    const session = activePointers.tapeHousing;
+    if (session && event.pointerId != null) {
+      session.delete(event.pointerId);
+    }
+    const captureTarget = entry.captureTarget || tapeHousing;
+    try {
+      if (captureTarget && event.pointerId != null) {
+        captureTarget.releasePointerCapture(event.pointerId);
+      }
+    } catch (_) {}
+    handleInstrumentPointerDown(event, 'tape', tapeHousing);
+    const moveSession = getInstrumentPointerSession('tape');
+    if (moveSession && event.pointerId != null) {
+      const moveEntry = moveSession.get(event.pointerId);
+      if (moveEntry) {
+        const start = getTapeHousingStartPoint(entry);
+        if (start) {
+          moveEntry.prevX = start.x;
+          moveEntry.prevY = start.y;
+          moveEntry.clientX = start.x;
+          moveEntry.clientY = start.y;
+        }
+      }
+    }
+    handleInstrumentPointerMove(event, 'tape');
+  }
+
+  function maybeHandoffTapeHousingPointer(event, entry) {
+    if (!entry || !entry.allowHandoff) {
+      return false;
+    }
+    const axis = entry.axisUnit;
+    if (
+      !axis ||
+      !Number.isFinite(axis.x) ||
+      !Number.isFinite(axis.y)
+    ) {
+      disableTapeHousingHandoff(entry);
+      return false;
+    }
+    const start = getTapeHousingStartPoint(entry);
+    if (!start) {
+      disableTapeHousingHandoff(entry);
+      return false;
+    }
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) {
+      return false;
+    }
+    const totalDistance = Math.hypot(deltaX, deltaY);
+    const axial = Math.abs(deltaX * axis.x + deltaY * axis.y);
+    const perpendicularSquared = Math.max(0, totalDistance * totalDistance - axial * axial);
+    const perpendicular = Math.sqrt(perpendicularSquared);
+    const dominanceThreshold = Math.max(axial, TAPE_HOUSING_HANDOFF_TOLERANCE_PX);
+    if (perpendicular > dominanceThreshold) {
+      performTapeHousingHandoff(event, entry);
+      return true;
+    }
+    if (axial > TAPE_HOUSING_HANDOFF_TOLERANCE_PX) {
+      disableTapeHousingHandoff(entry);
+    }
+    return false;
   }
 
   function handleTapeHousingPointerMove(event) {
@@ -3554,6 +3664,10 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     entry.clientX = event.clientX;
     entry.clientY = event.clientY;
 
+    if (maybeHandoffTapeHousingPointer(event, entry)) {
+      return;
+    }
+
     if (entry.freeMovement) {
       const data = entry.freeMovement;
       const pointerCenter = {
@@ -3566,6 +3680,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       };
       const updated = updateTapeFreeMovement(entry, anchorTarget);
       if (updated) {
+        disableTapeHousingHandoff(entry);
         applyTapeMeasureTransform();
         return;
       }
@@ -3635,6 +3750,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     transformStates.tape.x = entry.startTransformX + deltaVisible * axisX;
     transformStates.tape.y = entry.startTransformY + deltaVisible * axisY;
 
+    disableTapeHousingHandoff(entry);
     applyTapeMeasureTransform();
   }
 
