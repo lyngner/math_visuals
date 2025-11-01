@@ -1,4 +1,6 @@
 const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const vm = require('vm');
 
 const SETTINGS_MODULE = require.resolve('../examples.js');
 const paletteConfig = require('../palette/palette-config.js');
@@ -73,6 +75,125 @@ test.afterEach(() => {
     global.localStorage = ORIGINAL_GLOBALS.localStorage;
   }
 });
+
+function loadNkantResolveSettingsPalette(projectName, options = {}) {
+  const documentStub = createDocumentStub();
+  const storageData = new Map();
+  const localStorageStub = {
+    getItem: key => (storageData.has(String(key)) ? storageData.get(String(key)) : null),
+    setItem: (key, value) => {
+      storageData.set(String(key), String(value));
+    },
+    removeItem: key => {
+      storageData.delete(String(key));
+    },
+    clear: () => {
+      storageData.clear();
+    },
+    key: index => Array.from(storageData.keys())[index] || null,
+    get length() {
+      return storageData.size;
+    }
+  };
+
+  const windowStub = {
+    document: documentStub,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => {},
+    location: { origin: '', pathname: '/', search: '', hash: '' },
+    navigator: { userAgent: 'node' },
+    matchMedia: () => ({ matches: false, addListener: () => {}, removeListener: () => {} }),
+    setTimeout: (...args) => setTimeout(...args),
+    clearTimeout: handle => clearTimeout(handle),
+    setInterval: (...args) => setInterval(...args),
+    clearInterval: handle => clearInterval(handle),
+    requestAnimationFrame: callback => setTimeout(() => callback(Date.now()), 0),
+    cancelAnimationFrame: handle => clearTimeout(handle),
+    localStorage: localStorageStub,
+    CustomEvent: function CustomEvent() {}
+  };
+  windowStub.window = windowStub;
+  windowStub.self = windowStub;
+  documentStub.defaultView = windowStub;
+  const paletteHelper = options.groupPaletteHelper === null ? undefined : options.groupPaletteHelper;
+
+  windowStub.MathVisualsPaletteConfig = paletteConfig;
+  windowStub.MathVisualsSettings = {
+    getActiveProject: () => projectName
+  };
+  if (options.paletteApi === null) {
+    delete windowStub.MathVisualsPalette;
+  } else {
+    windowStub.MathVisualsPalette = {
+      getGroupPalette: () => []
+    };
+  }
+  const themeGroupPalette = function themeGroupPalette() {
+    return [];
+  };
+  if (options.themeApi === null) {
+    delete windowStub.MathVisualsTheme;
+  } else {
+    windowStub.MathVisualsTheme = {
+      getGroupPalette: themeGroupPalette,
+      getActiveProfileName: () => null,
+      getColor: () => '#000000'
+    };
+  }
+  if (paletteHelper) {
+    windowStub.MathVisualsGroupPalette = paletteHelper;
+  } else {
+    delete windowStub.MathVisualsGroupPalette;
+  }
+  windowStub.MathVisAltText = {
+    create: () => ({
+      destroy: () => {},
+      scheduleUpdate: () => {},
+      setOptions: () => {}
+    })
+  };
+  windowStub.MathVisSvgExport = {
+    saveSvg: () => Promise.resolve(),
+    savePng: () => Promise.resolve(),
+    copySvg: () => Promise.resolve(),
+    copyPng: () => Promise.resolve()
+  };
+
+  const sandbox = {
+    window: windowStub,
+    document: documentStub,
+    self: windowStub,
+    global: windowStub,
+    globalThis: windowStub,
+    console,
+    Math,
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+    requestAnimationFrame: windowStub.requestAnimationFrame,
+    cancelAnimationFrame: windowStub.cancelAnimationFrame,
+    URL,
+    module: { exports: {} },
+    exports: {}
+  };
+
+  sandbox.MathVisualsPaletteConfig = paletteConfig;
+
+  const nkantSource = fs.readFileSync(require.resolve('../nkant.js'), 'utf8');
+  vm.runInNewContext(
+    `${nkantSource}\nmodule.exports = typeof resolveSettingsPalette === 'function' ? { resolveSettingsPalette } : {};`,
+    sandbox,
+    { filename: require.resolve('../nkant.js') }
+  );
+
+  return {
+    resolveSettingsPalette:
+      sandbox.module && sandbox.module.exports ? sandbox.module.exports.resolveSettingsPalette : undefined,
+    context: sandbox
+  };
+}
 
 function createStyleStub() {
   return new Proxy(
@@ -330,6 +451,30 @@ test.describe('MathVisualsSettings.getGroupPalette', () => {
     expect(groupId).toBe('graftegner');
     expect(options.project).toBe('annet');
     expect(options.count).toBe(2);
+  });
+});
+
+test.describe('nkant settings palette fallback', () => {
+  test('uses project-specific fallbacks when palette APIs return no colors', () => {
+    const campus = loadNkantResolveSettingsPalette('campus');
+    expect(typeof campus.resolveSettingsPalette).toBe('function');
+    const campusResult = campus.resolveSettingsPalette.call(campus.context.window, 4);
+    expect(campusResult.source).toBe('project-fallback');
+    const campusExpected = paletteConfig.PROJECT_FALLBACKS.campus
+      .slice(0, 4)
+      .map(color => color.toLowerCase());
+    expect(campusResult.colors).toEqual(campusExpected);
+
+    const annet = loadNkantResolveSettingsPalette('annet');
+    expect(typeof annet.resolveSettingsPalette).toBe('function');
+    const annetResult = annet.resolveSettingsPalette.call(annet.context.window, 4);
+    expect(annetResult.source).toBe('project-fallback');
+    const annetExpected = paletteConfig.PROJECT_FALLBACKS.annet
+      .slice(0, 4)
+      .map(color => color.toLowerCase());
+    expect(annetResult.colors).toEqual(annetExpected);
+
+    expect(campusResult.colors).not.toEqual(annetResult.colors);
   });
 });
 

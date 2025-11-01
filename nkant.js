@@ -736,6 +736,47 @@ function getPaletteApi() {
   return api && typeof api.getGroupPalette === "function" ? api : null;
 }
 
+function getGroupPaletteHelper() {
+  const scope = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null;
+  if (!scope || typeof scope !== "object") return null;
+  const helper = scope.MathVisualsGroupPalette;
+  return helper && typeof helper.resolve === "function" ? helper : null;
+}
+
+function getPaletteConfig() {
+  const scopes = [
+    typeof window !== "undefined" ? window : null,
+    typeof globalThis !== "undefined" ? globalThis : null,
+    typeof global !== "undefined" ? global : null
+  ];
+  for (const scope of scopes) {
+    if (!scope || typeof scope !== "object") continue;
+    const config = scope.MathVisualsPaletteConfig;
+    if (config && typeof config === "object") {
+      return config;
+    }
+  }
+  if (typeof require === "function") {
+    try {
+      const mod = require("./palette/palette-config.js");
+      if (mod && typeof mod === "object") {
+        return mod;
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+function resolveProjectFallbackPalette(projectName) {
+  const config = getPaletteConfig();
+  if (!config || typeof config !== "object") return [];
+  const fallbacks = config.PROJECT_FALLBACKS;
+  if (!fallbacks || typeof fallbacks !== "object") return [];
+  const key = typeof projectName === "string" && projectName.trim() ? projectName.trim().toLowerCase() : null;
+  const base = (key && fallbacks[key]) || fallbacks.default || [];
+  return Array.isArray(base) ? base.slice() : [];
+}
+
 function resolveProjectNameHint() {
   const doc = typeof document !== "undefined" ? document : null;
   if (doc && doc.documentElement) {
@@ -820,6 +861,7 @@ function resolveSettingsPalette(count) {
   const target = Number.isInteger(count) && count > 0 ? count : undefined;
   const project = resolveProjectNameHint();
   const groupTarget = target && target > 0 ? target : 3;
+  const settingsApi = getSettingsApi();
   const paletteApi = getPaletteApi();
   if (paletteApi) {
     let palette = null;
@@ -854,6 +896,36 @@ function resolveSettingsPalette(count) {
     const resolved = cycleSettingsPalette(palette, groupTarget);
     if (resolved.length) {
       return { colors: resolved, source: "group" };
+    }
+  }
+  const projectFallbackPalette = resolveProjectFallbackPalette(project);
+  const helper = getGroupPaletteHelper();
+  const fallbackCount = target || (projectFallbackPalette.length || groupTarget);
+  if (helper) {
+    let helperPalette = null;
+    try {
+      helperPalette = helper.resolve({
+        groupId: "nkant",
+        project,
+        count: fallbackCount,
+        fallback: projectFallbackPalette,
+        settings: settingsApi || undefined
+      });
+    } catch (_) {
+      helperPalette = null;
+    }
+    const resolved = cycleSettingsPalette(helperPalette, fallbackCount);
+    if (resolved.length) {
+      return {
+        colors: resolved,
+        source: projectFallbackPalette.length ? "project-fallback" : "fallback"
+      };
+    }
+  }
+  if (projectFallbackPalette.length) {
+    const projectResolved = cycleSettingsPalette(projectFallbackPalette, target || projectFallbackPalette.length);
+    if (projectResolved.length) {
+      return { colors: projectResolved, source: "project-fallback" };
     }
   }
   const fallback = cycleSettingsPalette(SETTINGS_FALLBACK_PALETTE, target || SETTINGS_FALLBACK_PALETTE.length);
