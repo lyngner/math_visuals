@@ -1954,6 +1954,24 @@
       item[AUTO_ALT_PROP] = '';
     }
 
+    const firstFigureWithValue = figures.find(figure => figure && typeof figure.value === 'string' && figure.value.trim());
+    if (firstFigureWithValue) {
+      const figureValue = firstFigureWithValue.value.trim();
+      const figureMatch = getFigureLibraryMatch(figureValue);
+      const figureCategory = figureMatch
+        ? figureMatch.categoryId
+        : sanitizeFigureCategory(firstFigureWithValue.categoryId, figureValue);
+      const derivedLabel = buildFigureDisplayLabel(figureValue, figureCategory, figureMatch);
+      if (derivedLabel) {
+        if ((!item[AUTO_LABEL_PROP] || typeof item[AUTO_LABEL_PROP] !== 'string') && initialLabel && initialLabel === derivedLabel) {
+          item[AUTO_LABEL_PROP] = derivedLabel;
+        }
+        if ((!item[AUTO_ALT_PROP] || typeof item[AUTO_ALT_PROP] !== 'string') && initialAlt && initialAlt === derivedLabel) {
+          item[AUTO_ALT_PROP] = derivedLabel;
+        }
+      }
+    }
+
     if (hasLibraryError) {
       const errorMessage = doc.createElement('p');
       errorMessage.className = 'sortering__item-editor-message sortering__item-editor-message--error';
