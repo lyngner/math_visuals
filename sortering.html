@@ -96,24 +96,6 @@
       line-height: 1.25;
       font-weight: 700;
     }
-    .sortering__item-edit-toggle {
-      margin-top: 8px;
-      background: transparent;
-      border: none;
-      padding: 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #b91c1c;
-      cursor: pointer;
-    }
-    .sortering__item-edit-toggle:hover,
-    .sortering__item-edit-toggle:focus {
-      text-decoration: underline;
-    }
-    .sortering__item-edit-toggle:focus-visible {
-      outline: 2px solid #b91c1c;
-      outline-offset: 2px;
-    }
     .sortering__item-description {
       font-size: inherit;
     }
@@ -267,6 +249,32 @@
     .sortering__item-editor-add-figure {
       align-self: flex-start;
     }
+    .sortering__item-editor-update {
+      align-self: flex-end;
+      margin-top: 12px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: none;
+      background: #2563eb;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+    .sortering__item-editor-update:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+    }
+    .sortering__item-editor-update:focus {
+      outline: 2px solid #1d4ed8;
+      outline-offset: 2px;
+    }
+    .sortering__item-editor-update:disabled {
+      background: #93c5fd;
+      cursor: default;
+      transform: none;
+    }
     .sortering__item-editor-remove {
       align-self: flex-end;
       margin-top: 16px;
@@ -349,7 +357,14 @@
         <div class="sortering__add-item" data-edit-only>
           <button id="btnAddSorteringItem" class="addFigureBtn" type="button" aria-label="Legg til element">+</button>
         </div>
-        <p id="sorteringEditorStatus" class="sortering__validation" role="status" aria-live="polite" hidden></p>
+        <p
+          id="sorteringEditorStatus"
+          class="sortering__validation"
+          role="status"
+          aria-live="polite"
+          tabindex="-1"
+          hidden
+        ></p>
       </div>
 
       <div class="side">

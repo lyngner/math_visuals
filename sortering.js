@@ -1644,7 +1644,7 @@
     if (!nodes) return;
     const editable = isEditorMode();
     const reorderable = canReorderItems();
-    const { inlineEditor, wrapper, button, contentEl, editToggle } = nodes;
+    const { inlineEditor, wrapper, button, contentEl } = nodes;
     const itemId = wrapper && wrapper.dataset ? wrapper.dataset.itemId : null;
     if (!item && itemId && itemsById.has(itemId)) {
       item = itemsById.get(itemId);
@@ -1684,13 +1684,6 @@
       } else {
         button.setAttribute('aria-disabled', 'true');
       }
-    }
-    if (editToggle) {
-      const label = 'Rediger';
-      editToggle.textContent = label;
-      editToggle.hidden = !editable;
-      editToggle.disabled = !editable;
-      editToggle.dataset.mode = isActive ? 'delete' : 'edit';
     }
   }
   function refreshItemsById() {
@@ -1908,12 +1901,6 @@
     contentEl.className = 'sortering__item-content';
     wrapper.appendChild(contentEl);
 
-    const editToggle = doc.createElement('button');
-    editToggle.type = 'button';
-    editToggle.className = 'sortering__item-edit-toggle';
-    editToggle.textContent = 'Rediger';
-    wrapper.appendChild(editToggle);
-
     const li = doc.createElement('li');
     li.className = 'sortering__skia-item';
     li.dataset.itemId = item.id;
@@ -1924,7 +1911,7 @@
     button.dataset.itemId = item.id;
     li.appendChild(button);
 
-    const nodes = { wrapper, contentEl, editToggle, li, button, inlineEditor: null };
+    const nodes = { wrapper, contentEl, li, button, inlineEditor: null };
     itemNodes.set(item.id, nodes);
     attachItemListeners(item.id, nodes);
     return nodes;
@@ -2350,6 +2337,12 @@
       content.className = 'sortering__item-editor-content';
       panel.appendChild(content);
 
+      const updateButton = doc.createElement('button');
+      updateButton.type = 'button';
+      updateButton.className = 'sortering__item-editor-update';
+      updateButton.textContent = 'Oppdater element';
+      panel.appendChild(updateButton);
+
       const removeButton = doc.createElement('button');
       removeButton.type = 'button';
       removeButton.className = 'sortering__item-editor-remove';
@@ -2364,6 +2357,7 @@
         panel,
         typeSelect,
         content,
+        updateButton,
         removeButton,
         textField: null,
         textWrapper: null,
@@ -2396,6 +2390,26 @@
         updateValidationState();
       });
 
+      updateButton.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        markItemDirty(item);
+        refreshItemsById();
+        applyOrder({});
+        const valid = updateValidationState();
+        if (!valid) {
+          if (validationStatusEl && typeof validationStatusEl.focus === 'function') {
+            try {
+              validationStatusEl.focus({ preventScroll: true });
+            } catch (_) {
+              validationStatusEl.focus();
+            }
+          }
+          return;
+        }
+        deactivateInlineEditor();
+      });
+
       removeButton.addEventListener('click', () => {
         removeItem(item.id);
       });
@@ -2412,7 +2426,7 @@
     const nodes = ensureItemNodes(item);
     if (!nodes) return null;
 
-    const { wrapper, contentEl, editToggle, li, button } = nodes;
+    const { wrapper, contentEl, li, button } = nodes;
     const label = buildButtonLabel(item, position);
     const accessibleLabel = item && typeof item.alt === 'string' && item.alt.trim() ? item.alt.trim() : label;
 
@@ -2468,10 +2482,6 @@
 
     li.dataset.itemId = item.id;
     li.dataset.position = Number.isFinite(position) ? String(position + 1) : '';
-
-    if (editToggle) {
-      editToggle.dataset.itemId = item.id;
-    }
 
     button.dataset.itemId = item.id;
     button.dataset.position = Number.isFinite(position) ? String(position + 1) : '';
@@ -3107,18 +3117,6 @@
       }
     });
 
-    if (nodes.editToggle) {
-      nodes.editToggle.addEventListener('click', event => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!isEditorMode()) return;
-        if (isInlineEditorActive(id)) {
-          removeItem(id);
-        } else {
-          activateInlineEditor(id, { focusText: true });
-        }
-      });
-    }
   }
 
   function applyOrder(options = {}) {
@@ -3269,12 +3267,8 @@
     }
     items.forEach((item, index) => {
       if (!item) return;
-      if (isTextItem(item)) {
-        const textValue = typeof item.text === 'string' ? item.text.trim() : '';
-        if (!textValue) {
-          errors.push(`Element ${index + 1} mangler tekst.`);
-        }
-      } else if (isFigureItem(item)) {
+      const type = sanitizeItemType(item.type, item);
+      if (type === 'figure') {
         const figures = ensureFigureArray(item);
         if (!figures.length) {
           errors.push(`Element ${index + 1} mangler figurer.`);
@@ -3287,6 +3281,11 @@
         const alt = typeof item.alt === 'string' ? item.alt.trim() : '';
         if (!alt) {
           errors.push(`Element ${index + 1} mangler alternativ tekst for figurene.`);
+        }
+      } else {
+        const textValue = typeof item.text === 'string' ? item.text.trim() : '';
+        if (!textValue) {
+          errors.push(`Element ${index + 1} mangler tekst.`);
         }
       }
     });
