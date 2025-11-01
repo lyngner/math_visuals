@@ -19,6 +19,19 @@ test.describe('Graftegner examples', () => {
     backend = await attachExamplesBackendMock(page.context());
   });
 
+  test('renders manual color from query params without showing color suffix in function input', async ({ page }) => {
+    const url = `${PAGE_PATH}?fun1=${encodeURIComponent('y=x')}&color1=%23ff0000`;
+    await page.goto(url, { waitUntil: 'load' });
+
+    const functionField = page.locator('[data-fun]').first();
+    await expect(functionField).toBeVisible();
+    await expect(functionField).toHaveJSProperty('value', 'y=x');
+
+    const colorInput = page.locator('input[data-color]').first();
+    await expect(colorInput).toBeVisible();
+    await expect(colorInput).toHaveValue('#ff0000');
+  });
+
   test('saving creates a new example tab', async ({ page }) => {
     await backend.client.delete('/graftegner');
     await acceptNextAlert(page);
