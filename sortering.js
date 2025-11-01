@@ -1678,7 +1678,7 @@
       }
     }
     if (actions) {
-      actions.hidden = !editable;
+      actions.hidden = !editable || !!isActive;
     }
     if (editButton) {
       editButton.disabled = !editable;
@@ -1689,6 +1689,11 @@
       }
       editButton.setAttribute('aria-expanded', isActive ? 'true' : 'false');
       editButton.classList.toggle('sortering__item-edit-button--active', !!isActive);
+      if (editable) {
+        editButton.hidden = !!isActive;
+      } else {
+        editButton.hidden = false;
+      }
     }
     if (button) {
       button.disabled = !reorderable;
