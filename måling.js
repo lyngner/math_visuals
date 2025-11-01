@@ -3503,10 +3503,14 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     }
     const moveSession = getInstrumentPointerSession('tape');
     if (moveSession && moveSession.size > 0) {
+      event.preventDefault();
+      event.stopPropagation();
       return;
     }
     const extensionSession = activePointers.tapeExtension;
     if (extensionSession && extensionSession.size > 0) {
+      event.preventDefault();
+      event.stopPropagation();
       return;
     }
     const session = activePointers.tapeHousing;
@@ -3784,6 +3788,11 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
   }
 
   function handleTapeExtensionPointerDown(event, captureTarget) {
+    const isZeroHandle = captureTarget === tapeZeroHandle;
+    if (isZeroHandle) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     if (!captureTarget || appState.activeTool !== 'tape') {
       return;
     }
@@ -3815,8 +3824,10 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         break;
       }
     }
-    event.preventDefault();
-    event.stopPropagation();
+    if (!isZeroHandle) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     const entry = {
       pointerId: event.pointerId,
       clientX: event.clientX,
