@@ -263,6 +263,8 @@
     '#F87171'
   ];
   const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
+  const GRAFTEGNER_AXIS_DEFAULTS =
+    (paletteConfig && paletteConfig.GRAFTEGNER_AXIS_DEFAULTS) || {};
   const COLOR_SLOT_GROUPS = paletteConfig.COLOR_SLOT_GROUPS.map(group => ({
     groupId: group.groupId,
     slots: group.slots.map(slot => ({
@@ -271,6 +273,22 @@
       groupIndex: slot.groupIndex
     }))
   }));
+  const DEFAULT_GRAFTEGNER_GROUP_ID = 'graftegner';
+  const GRAFTEGNER_GROUP_ID = (() => {
+    for (const group of COLOR_SLOT_GROUPS) {
+      if (!group || !group.groupId) continue;
+      if (group.groupId === DEFAULT_GRAFTEGNER_GROUP_ID) {
+        return group.groupId;
+      }
+      const hasAxisSlot = Array.isArray(group.slots)
+        ? group.slots.some(slot => Number.isInteger(slot && slot.index) && slot.index === 19)
+        : false;
+      if (hasAxisSlot) {
+        return group.groupId;
+      }
+    }
+    return DEFAULT_GRAFTEGNER_GROUP_ID;
+  })();
   const GROUP_IDS = Array.isArray(paletteConfig.COLOR_GROUP_IDS)
     ? paletteConfig.COLOR_GROUP_IDS.slice()
     : COLOR_SLOT_GROUPS.map(group => group.groupId);
@@ -352,12 +370,24 @@
     return sanitized.slice();
   }
 
-  function buildFallbackGroupsFromBase(baseColors) {
+  function resolveGraftegnerAxisFallback(project) {
+    const key = normalizeProjectName(project) || 'default';
+    const fallback =
+      (GRAFTEGNER_AXIS_DEFAULTS && typeof GRAFTEGNER_AXIS_DEFAULTS[key] === 'string'
+        ? GRAFTEGNER_AXIS_DEFAULTS[key]
+        : null) || GRAFTEGNER_AXIS_DEFAULTS.default;
+    return sanitizeColor(fallback) || FALLBACK_COLORS[0];
+  }
+
+  function buildFallbackGroupsFromBase(baseColors, project) {
     const sanitized = Array.isArray(baseColors) && baseColors.length ? baseColors : getSanitizedFallbackBase('default');
     const groups = {};
     COLOR_SLOT_GROUPS.forEach(group => {
       groups[group.groupId] = group.slots.map(slot => {
         const index = Number.isInteger(slot.index) && slot.index >= 0 ? slot.index : 0;
+        if (group.groupId === GRAFTEGNER_GROUP_ID && Number(slot.groupIndex) === 1) {
+          return resolveGraftegnerAxisFallback(project);
+        }
         return sanitized[index % sanitized.length] || sanitized[0];
       });
     });
@@ -400,7 +430,7 @@
     const key = normalizeProjectName(project) || 'default';
     if (!PROJECT_FALLBACK_GROUP_CACHE.has(key)) {
       const base = getSanitizedFallbackBase(key);
-      PROJECT_FALLBACK_GROUP_CACHE.set(key, buildFallbackGroupsFromBase(base));
+      PROJECT_FALLBACK_GROUP_CACHE.set(key, buildFallbackGroupsFromBase(base, key));
     }
     return cloneProjectPalette(PROJECT_FALLBACK_GROUP_CACHE.get(key));
   }
@@ -439,29 +469,54 @@
     return getProjectFallbackPalette(normalized);
   }
 
+  function getFallbackColorForIndex(project, index) {
+    const key = normalizeProjectName(project) || 'default';
+    const baseColors = getSanitizedFallbackBase(key);
+    if (!baseColors.length) {
+      return FALLBACK_COLORS[0];
+    }
+    const normalizedIndex = Number.isInteger(index) && index >= 0 ? index : 0;
+    const meta = SLOT_META_BY_INDEX.get(normalizedIndex);
+    if (meta) {
+      if (!PROJECT_FALLBACK_GROUP_CACHE.has(key)) {
+        const base = getSanitizedFallbackBase(key);
+        PROJECT_FALLBACK_GROUP_CACHE.set(key, buildFallbackGroupsFromBase(base, key));
+      }
+      const groups = PROJECT_FALLBACK_GROUP_CACHE.get(key) || {};
+      const groupColors = Array.isArray(groups[meta.groupId]) ? groups[meta.groupId] : [];
+      const candidate = sanitizeColor(groupColors[meta.groupIndex]);
+      if (candidate) {
+        return candidate;
+      }
+    }
+    return baseColors[normalizedIndex % baseColors.length] || baseColors[0];
+  }
+
   function flattenProjectPalette(project, palette, minimumLength = MIN_COLOR_SLOTS) {
     const normalized = normalizeProjectName(project);
     const normalizedPalette = normalizeProjectPalette(normalized, palette);
     const flattened = [];
+    let highestSlotIndex = -1;
     COLOR_SLOT_GROUPS.forEach(group => {
       const colors = Array.isArray(normalizedPalette[group.groupId]) ? normalizedPalette[group.groupId] : [];
       group.slots.forEach((slot, slotIndex) => {
-        const color = colors[slotIndex];
-        if (color) {
-          flattened.push(color);
-        } else {
-          const fallbackBase = getSanitizedFallbackBase(normalized);
-          const baseIndex = flattened.length;
-          flattened.push(fallbackBase[baseIndex % fallbackBase.length] || fallbackBase[0]);
+        const targetIndex = Number.isInteger(slot.index) && slot.index >= 0 ? slot.index : slotIndex;
+        if (targetIndex > highestSlotIndex) {
+          highestSlotIndex = targetIndex;
         }
+        const color = sanitizeColor(colors[slotIndex]);
+        const fallback = getFallbackColorForIndex(normalized, targetIndex);
+        flattened[targetIndex] = color || fallback;
       });
     });
     const min = Number.isInteger(minimumLength) && minimumLength > 0 ? minimumLength : 0;
-    while (flattened.length < min && flattened.length < MAX_COLORS) {
-      const fallbackBase = getSanitizedFallbackBase(normalized);
-      flattened.push(fallbackBase[flattened.length % fallbackBase.length] || fallbackBase[0]);
+    const targetLength = Math.min(MAX_COLORS, Math.max(min, highestSlotIndex + 1));
+    for (let index = 0; index < targetLength; index += 1) {
+      if (!sanitizeColor(flattened[index])) {
+        flattened[index] = getFallbackColorForIndex(normalized, index);
+      }
     }
-    return flattened.slice(0, MAX_COLORS);
+    return flattened.slice(0, targetLength);
   }
 
   function expandPalette(projectName, basePalette, minimumLength = MIN_COLOR_SLOTS) {
