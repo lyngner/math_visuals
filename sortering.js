@@ -2664,6 +2664,10 @@
     const centerY = rect.top + rect.height / 2;
     const pointerX = Number.isFinite(event.clientX) ? event.clientX : centerX;
     const pointerY = Number.isFinite(event.clientY) ? event.clientY : centerY;
+    const pointerType = typeof event.pointerType === 'string' ? event.pointerType : '';
+    const normalizedPointerType = pointerType || 'mouse';
+    const shouldPreventDefault =
+      currentAppMode === 'task' || normalizedPointerType === 'touch' || normalizedPointerType === 'pen';
 
     let placeholder = null;
     if (doc && typeof doc.createElement === 'function') {
@@ -2708,7 +2712,9 @@
       slotCacheDirty: true,
       placeholder,
       hasExceededDragThreshold: currentAppMode === 'task',
-      suppressClick: currentAppMode === 'task'
+      suppressClick: currentAppMode === 'task',
+      pointerType: normalizedPointerType,
+      shouldPreventDefault
     };
     refreshDragSlotCache(orientation);
     wrapper.classList.add('sortering__item--dragging');
@@ -2721,7 +2727,7 @@
       selection.removeAllRanges();
     }
     finalizeKeyboardMode();
-    if (currentAppMode === 'task') {
+    if (shouldPreventDefault && typeof event.preventDefault === 'function') {
       event.preventDefault();
     }
   }
@@ -2758,6 +2764,14 @@
         dragState.hasExceededDragThreshold = true;
         dragState.suppressClick = true;
       }
+    }
+
+    if (
+      dragState.shouldPreventDefault &&
+      dragState.hasExceededDragThreshold &&
+      typeof event.preventDefault === 'function'
+    ) {
+      event.preventDefault();
     }
     wrapper.style.transform = `translate(${dx}px, ${dy}px)`;
 
