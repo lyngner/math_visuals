@@ -6,9 +6,6 @@
   const colorGroupsContainer = form.querySelector('[data-color-groups]');
   const resetButton = form.querySelector('[data-reset-settings]');
   const statusElement = form.querySelector('[data-status]');
-  const lineInput = form.querySelector('#lineThickness');
-  const linePreviewBar = form.querySelector('[data-line-preview-bar]');
-  const lineSaveButton = form.querySelector('[data-save-line]');
   const projectHeadingElement = document.querySelector('[data-project-heading]');
   const projectLegendElement = form.querySelector('[data-project-legend]');
 
@@ -47,7 +44,6 @@
   }
 
   const MAX_COLORS = paletteConfig.MAX_COLORS;
-  const DEFAULT_LINE_THICKNESS = 3;
   const PROJECT_LABELS = {
     kikora: 'Kikora',
     campus: 'Campus',
@@ -105,8 +101,6 @@
     colorsByProject: new Map(),
     persistedColorsByProject: new Map(),
     activeProject: null,
-    defaultLineThickness: DEFAULT_LINE_THICKNESS,
-    persistedLineThickness: DEFAULT_LINE_THICKNESS,
     preferredProject: null
   };
   let colors = [];
@@ -328,24 +322,16 @@
     }
     const unsavedChanges = captureUnsavedChanges(activeProject, groups);
     const colorsForSave = buildProjectColorsForSave(activeProject, groups);
-    const pendingLineThickness = state.defaultLineThickness;
-    const restoreLineThickness = pendingLineThickness !== state.persistedLineThickness;
     setStatus(`Lagrer fargene for ${combinedLabel}...`, 'info');
     setFormDisabled(true);
     try {
       const payload = buildPayload({
         projectColors: colorsForSave,
-        lineThickness: state.persistedLineThickness,
         activeProject
       });
       const snapshot = await persistSettings('PUT', payload);
       applySettings(snapshot || {}, { forceActiveProject: activeProject });
       restoreUnsavedChanges(unsavedChanges);
-      if (restoreLineThickness && lineInput) {
-        state.defaultLineThickness = clampLineThickness(pendingLineThickness);
-        lineInput.value = String(state.defaultLineThickness);
-        updateLinePreview();
-      }
       if (settingsApi && typeof settingsApi.refresh === 'function') {
         try {
           settingsApi.refresh({ force: true, notify: true });
@@ -359,45 +345,6 @@
       const errorMessage = `Kunne ikke lagre fargene for ${combinedLabel}.`;
       setStatus(errorMessage, 'error');
       setGroupStatusMessage(normalizedId, `Kunne ikke lagre ${combinedLabel}.`, 'error');
-    } finally {
-      setFormDisabled(false);
-    }
-  }
-
-  async function saveLineThickness() {
-    if (!lineInput) return;
-    const activeProject = ensureActiveProject();
-    const thickness = clampLineThickness(lineInput.value);
-    state.defaultLineThickness = thickness;
-    if (String(lineInput.value) !== String(thickness)) {
-      lineInput.value = String(thickness);
-    }
-    updateLinePreview();
-    if (thickness === state.persistedLineThickness) {
-      setStatus('Linjetykkelsen er allerede lagret.', 'info');
-      return;
-    }
-    const unsavedChanges = captureUnsavedChanges(null, null);
-    setStatus('Lagrer linjetykkelsen...', 'info');
-    setFormDisabled(true);
-    try {
-      const payload = buildPayload({
-        projectColors: clonePersistedColorMap(),
-        lineThickness: thickness,
-        activeProject
-      });
-      const snapshot = await persistSettings('PUT', payload);
-      applySettings(snapshot || {}, { forceActiveProject: activeProject });
-      restoreUnsavedChanges(unsavedChanges);
-      if (settingsApi && typeof settingsApi.refresh === 'function') {
-        try {
-          settingsApi.refresh({ force: true, notify: true });
-        } catch (_) {}
-      }
-      setStatus('Linjetykkelsen er lagret.', 'success');
-    } catch (error) {
-      console.error(error);
-      setStatus('Kunne ikke lagre linjetykkelsen.', 'error');
     } finally {
       setFormDisabled(false);
     }
@@ -576,14 +523,6 @@
     }
   }
 
-  function clampLineThickness(value) {
-    const num = Number.parseFloat(value);
-    if (!Number.isFinite(num)) return DEFAULT_LINE_THICKNESS;
-    if (num < 1) return 1;
-    if (num > 12) return 12;
-    return Math.round(num);
-  }
-
   function getProjectFallbackPalette(project) {
     const key = normalizeProjectName(project) || 'default';
     if (!PROJECT_FALLBACK_GROUP_CACHE.has(key)) {
@@ -676,12 +615,6 @@
         el.removeAttribute('disabled');
       }
     });
-  }
-
-  function updateLinePreview() {
-    if (!linePreviewBar) return;
-    const thickness = clampLineThickness(state.defaultLineThickness);
-    linePreviewBar.style.setProperty('--preview-thickness', `${thickness}px`);
   }
 
   function getApiActiveProject() {
@@ -1050,14 +983,7 @@
     state.activeProject = forcedActive || incomingActiveProject;
     const active = ensureActiveProject();
     state.activeProject = active;
-    state.defaultLineThickness =
-      data.defaultLineThickness != null ? clampLineThickness(data.defaultLineThickness) : DEFAULT_LINE_THICKNESS;
-    state.persistedLineThickness = state.defaultLineThickness;
-    if (lineInput) {
-      lineInput.value = state.defaultLineThickness;
-    }
     renderColors(state.activeProject);
-    updateLinePreview();
   }
 
   async function loadSettings() {
@@ -1098,10 +1024,6 @@
       : ensureActiveProject();
     const payload = {
       activeProject,
-      defaultLineThickness:
-        options.lineThickness != null
-          ? clampLineThickness(options.lineThickness)
-          : clampLineThickness(state.defaultLineThickness),
       projectOrder: [],
       projects: {}
     };
@@ -1154,14 +1076,6 @@
     return payload && typeof payload === 'object' && payload.settings ? payload.settings : payload;
   }
 
-  if (lineInput) {
-    lineInput.addEventListener('input', () => {
-      state.defaultLineThickness = clampLineThickness(lineInput.value);
-      updateLinePreview();
-      clearStatus();
-    });
-  }
-
   if (colorGroupsContainer) {
     colorGroupsContainer.addEventListener('click', event => {
       const button = event && event.target && event.target.closest('[data-save-group]');
@@ -1193,12 +1107,6 @@
         setStatus('Kunne ikke tilbakestille innstillingene.', 'error');
         setFormDisabled(false);
       }
-    });
-  }
-
-  if (lineSaveButton) {
-    lineSaveButton.addEventListener('click', () => {
-      void saveLineThickness();
     });
   }
 
