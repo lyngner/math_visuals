@@ -3411,6 +3411,35 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     baseSize.height = element.offsetHeight;
   }
 
+  function isEventFromTapeZeroHandle(event) {
+    if (!event || !tapeZeroHandle) {
+      return false;
+    }
+    const target = event.target;
+    if (
+      target &&
+      (target === tapeZeroHandle ||
+        (typeof tapeZeroHandle.contains === 'function' && tapeZeroHandle.contains(target)))
+    ) {
+      return true;
+    }
+    if (typeof event.composedPath === 'function') {
+      const path = event.composedPath();
+      if (Array.isArray(path) && path.includes(tapeZeroHandle)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function consumeTapeZeroHandleEvent(event) {
+    if (!event) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   function handleInstrumentPointerDown(event, toolKey, captureTarget) {
     if (event.button && event.button !== 0) {
       return;
@@ -3422,7 +3451,11 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (!session) {
       return;
     }
+    const isTapeZeroHandleEvent = toolKey === 'tape' && isEventFromTapeZeroHandle(event);
     if (session.size >= 2 && !session.has(event.pointerId)) {
+      if (isTapeZeroHandleEvent) {
+        consumeTapeZeroHandleEvent(event);
+      }
       return;
     }
     if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
@@ -3433,6 +3466,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       ((activePointers.tapeExtension && activePointers.tapeExtension.size > 0) ||
         (activePointers.tapeHousing && activePointers.tapeHousing.size > 0))
     ) {
+      if (isTapeZeroHandleEvent) {
+        consumeTapeZeroHandleEvent(event);
+      }
       return;
     }
     event.preventDefault();
@@ -3515,6 +3551,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     }
     const session = activePointers.tapeHousing;
     if (session.size >= 1 && !session.has(event.pointerId)) {
+      event.preventDefault();
+      event.stopPropagation();
       return;
     }
     const strapWidthCandidates = [
@@ -3788,10 +3826,10 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
   }
 
   function handleTapeExtensionPointerDown(event, captureTarget) {
-    const isZeroHandle = captureTarget === tapeZeroHandle;
-    if (isZeroHandle) {
-      event.preventDefault();
-      event.stopPropagation();
+    const isZeroHandleEvent =
+      captureTarget === tapeZeroHandle || isEventFromTapeZeroHandle(event);
+    if (isZeroHandleEvent) {
+      consumeTapeZeroHandleEvent(event);
     }
     if (!captureTarget || appState.activeTool !== 'tape') {
       return;
@@ -3804,10 +3842,16 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     }
     const moveSession = getInstrumentPointerSession('tape');
     if (moveSession && moveSession.size > 0) {
+      if (isZeroHandleEvent) {
+        consumeTapeZeroHandleEvent(event);
+      }
       return;
     }
     const session = activePointers.tapeExtension;
     if (session.size >= 1 && !session.has(event.pointerId)) {
+      if (isZeroHandleEvent) {
+        consumeTapeZeroHandleEvent(event);
+      }
       return;
     }
     const strapWidthCandidates = [
@@ -3824,7 +3868,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         break;
       }
     }
-    if (!isZeroHandle) {
+    if (!isZeroHandleEvent) {
       event.preventDefault();
       event.stopPropagation();
     }
