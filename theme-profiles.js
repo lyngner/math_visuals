@@ -466,6 +466,22 @@
     return { projectOverride, projectName, profile };
   }
 
+  function resolveGraftegnerAxisColor(projectName) {
+    if (!paletteHelper || typeof paletteHelper.getGroupPalette !== 'function') {
+      return null;
+    }
+    try {
+      const palette = paletteHelper.getGroupPalette('graftegner', { project: projectName, count: 2 });
+      if (Array.isArray(palette) && palette.length > 1) {
+        const color = sanitizeUserColor(palette[1]);
+        if (color) {
+          return color;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   function buildPalette(kind, count, opts) {
     const { projectName, profile } = resolveProjectContext(opts && opts.project);
     const userPalette = resolveUserPalette(count, projectName);
@@ -559,6 +575,13 @@
     return buildPalette(normalizedId || 'fractions', count, { ...opts, project: projectName, fallbackKinds: dedupedFallbacks });
   }
   function getColor(token, fallback) {
+    if (token === 'graphs.axis') {
+      const { projectName } = resolveProjectContext();
+      const axisOverride = resolveGraftegnerAxisColor(projectName);
+      if (axisOverride) {
+        return axisOverride;
+      }
+    }
     const profile = getActiveProfile();
     const value = readColorToken(profile, token);
     if (typeof value === 'string' && value) return value;

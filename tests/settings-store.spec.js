@@ -31,7 +31,7 @@ test.beforeEach(async () => {
 
 function buildGroupedPalette(overrides = {}) {
   const base = {
-    graftegner: ['#123456'],
+    graftegner: ['#123456', '#654321'],
     nkant: ['#234567', '#345678', '#456789'],
     diagram: ['#56789a', '#6789ab', '#789abc', '#89abcd'],
     fractions: ['#9abcde', '#abcdee'],
@@ -52,13 +52,13 @@ function buildGroupedPalette(overrides = {}) {
 test.describe('settings-store palette handling', () => {
   test('stores grouped project palettes and retrieves consistent hex colors', async () => {
     const campusPalette = buildGroupedPalette();
-    const customPalette = buildGroupedPalette({
-      graftegner: ['#101010'],
+  const customPalette = buildGroupedPalette({
+      graftegner: ['#101010', '#202020'],
       ukjent: ['#222222', ' #333333 ', '#444444']
     });
 
     // Apply overrides to ensure variation between palettes
-    customPalette.graftegner = ['#101010'];
+    customPalette.graftegner = ['#101010', '#202020'];
     customPalette.ukjent = ['#222222', ' #333333 ', '#444444'];
 
     const payload = {
@@ -74,8 +74,10 @@ test.describe('settings-store palette handling', () => {
 
     expect(saved.projects.campus.groupPalettes).toBeDefined();
     expect(saved.projects.campus.groupPalettes.graftegner[0]).toBe('#123456');
+    expect(saved.projects.campus.groupPalettes.graftegner[1]).toBe('#654321');
     expect(saved.projects['custom-app'].groupPalettes).toBeDefined();
     expect(saved.projects['custom-app'].groupPalettes.graftegner[0]).toBe('#101010');
+    expect(saved.projects['custom-app'].groupPalettes.graftegner[1]).toBe('#202020');
     expect(saved.projects.campus.defaultColors[0]).toBe('#123456');
     expect(saved.projects['custom-app'].defaultColors[0]).toBe('#101010');
     expect(saved.activeProject).toBe('custom-app');
@@ -84,7 +86,9 @@ test.describe('settings-store palette handling', () => {
     const retrieved = await getSettings();
 
     expect(retrieved.projects.campus.groupPalettes.graftegner[0]).toBe('#123456');
+    expect(retrieved.projects.campus.groupPalettes.graftegner[1]).toBe('#654321');
     expect(retrieved.projects['custom-app'].groupPalettes.graftegner[0]).toBe('#101010');
+    expect(retrieved.projects['custom-app'].groupPalettes.graftegner[1]).toBe('#202020');
     expect(retrieved.projects.campus.defaultColors[0]).toBe('#123456');
     expect(retrieved.projects['custom-app'].defaultColors[0]).toBe('#101010');
     expect(retrieved.defaultColors[0]).toBe('#101010');

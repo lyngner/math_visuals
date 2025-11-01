@@ -38,6 +38,7 @@
     ? paletteConfig.DEFAULT_PROJECT
     : 'campus';
   const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
+  const GRAFTEGNER_AXIS_DEFAULTS = paletteConfig.GRAFTEGNER_AXIS_DEFAULTS || {};
   const GROUP_SLOT_INDICES = paletteConfig.GROUP_SLOT_INDICES;
   const MIN_COLOR_SLOTS = Number.isInteger(paletteConfig.MIN_COLOR_SLOTS)
     ? paletteConfig.MIN_COLOR_SLOTS
@@ -134,6 +135,16 @@
 
   const PROJECT_FALLBACK_GROUP_CACHE = new Map();
 
+  function resolveGraftegnerAxisFallback(projectName) {
+    const normalized = normalizeProjectName(projectName) || 'default';
+    const direct =
+      (GRAFTEGNER_AXIS_DEFAULTS && typeof GRAFTEGNER_AXIS_DEFAULTS[normalized] === 'string'
+        ? GRAFTEGNER_AXIS_DEFAULTS[normalized]
+        : null) || GRAFTEGNER_AXIS_DEFAULTS.default;
+    const sanitized = sanitizeColor(direct);
+    return sanitized || '#1F4DE2';
+  }
+
   function getProjectFallbackGroupPalettes(projectName) {
     const normalized = normalizeProjectName(projectName) || 'default';
     if (PROJECT_FALLBACK_GROUP_CACHE.has(normalized)) {
@@ -160,6 +171,9 @@
           for (let index = 0; index < limit; index += 1) {
             colors.push(fallbackColors[index % fallbackColors.length]);
           }
+        }
+        if (groupId === 'graftegner' && colors.length > 1) {
+          colors[1] = resolveGraftegnerAxisFallback(normalized);
         }
       }
       groups[groupId] = colors;

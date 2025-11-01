@@ -27,12 +27,21 @@
     kikora: ['#FF5C5C', '#FF9F1C', '#2EC4B6', '#3A86FF', '#8338EC', '#FFE066'],
     default: ['#1F4DE2', '#475569', '#EF4444', '#0EA5E9', '#10B981', '#F59E0B']
   };
+  const GRAFTEGNER_AXIS_DEFAULTS = {
+    campus: '#1F4DE2',
+    annet: '#355070',
+    kikora: '#3A86FF',
+    default: '#1F4DE2'
+  };
   const RAW_COLOR_SLOT_GROUPS = [
     {
       groupId: 'graftegner',
       title: 'Graftegner',
-      description: 'Standardfarge for nye grafer og funksjoner.',
-      slots: [{ index: 0, label: 'Graf', description: 'Brukes for grafer og koordinatsystem.' }]
+      description: 'Standardfarger for nye grafer og koordinatsystem.',
+      slots: [
+        { index: 0, label: 'Graf', description: 'Brukes for grafer og funksjoner.' },
+        { index: 19, label: 'Akser', description: 'Farge for akser og rutenett.' }
+      ]
     },
     {
       groupId: 'nkant',
@@ -200,6 +209,12 @@
       annet: PROJECT_FALLBACKS.annet.slice(),
       kikora: PROJECT_FALLBACKS.kikora.slice(),
       default: PROJECT_FALLBACKS.default.slice()
+    }),
+    GRAFTEGNER_AXIS_DEFAULTS: deepFreeze({
+      campus: GRAFTEGNER_AXIS_DEFAULTS.campus,
+      annet: GRAFTEGNER_AXIS_DEFAULTS.annet,
+      kikora: GRAFTEGNER_AXIS_DEFAULTS.kikora,
+      default: GRAFTEGNER_AXIS_DEFAULTS.default
     }),
     COLOR_SLOT_GROUPS: deepFreeze(COLOR_SLOT_GROUPS.slice()),
     COLOR_GROUP_IDS: deepFreeze(COLOR_GROUP_IDS.slice()),
