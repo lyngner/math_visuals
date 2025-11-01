@@ -817,9 +817,9 @@
     { id: 'tallbrikker', label: 'Tallbrikker', prefix: 'n' },
     { id: 'penger', label: 'Penger', prefix: 'v' },
     { id: 'terninger', label: 'Terninger', prefix: 'd' },
-    { id: 'hender', label: 'Hender', prefix: 'h' },
-    { id: 'custom', label: 'Egendefinert', prefix: '' }
+    { id: 'hender', label: 'Hender', prefix: 'h' }
   ];
+  const DEFAULT_FIGURE_CATEGORY_ID = FIGURE_CATEGORIES.length ? FIGURE_CATEGORIES[0].id : '';
 
   function createEmptyFigureLibraryCategoryMap() {
     const map = new Map();
@@ -920,7 +920,7 @@
         return;
       }
       const lowerLabel = label.toLowerCase();
-      let categoryId = 'custom';
+      let categoryId = DEFAULT_FIGURE_CATEGORY_ID;
       for (const category of FIGURE_CATEGORIES) {
         if (!category.prefix) continue;
         if (lowerLabel.startsWith(category.prefix)) {
@@ -1067,7 +1067,7 @@
   }
 
   function sanitizeFigureCategory(candidate, value) {
-    if (typeof candidate !== 'string') {
+    const fallbackCategory = () => {
       if (typeof value === 'string') {
         const prefix = value.trim().slice(0, 1).toLowerCase();
         const match = FIGURE_CATEGORIES.find(entry => entry.prefix && prefix === entry.prefix);
@@ -1075,18 +1075,22 @@
           return match.id;
         }
       }
-      return 'custom';
+      return DEFAULT_FIGURE_CATEGORY_ID;
+    };
+
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim().toLowerCase();
+      const match = FIGURE_CATEGORIES.find(entry => entry.id === trimmed);
+      if (match) return match.id;
     }
-    const trimmed = candidate.trim().toLowerCase();
-    const match = FIGURE_CATEGORIES.find(entry => entry.id === trimmed);
-    if (match) return match.id;
-    return 'custom';
+
+    return fallbackCategory();
   }
 
   function normalizeFigureEntry(raw, index = 0) {
     if (!raw) return null;
     let value = '';
-    let categoryId = 'custom';
+    let categoryId = DEFAULT_FIGURE_CATEGORY_ID;
     let id = '';
     if (typeof raw === 'string') {
       value = raw.trim();
@@ -1361,7 +1365,7 @@
       }
     }
     if (!friendly && baseLabel) {
-      if (category && category.id !== 'custom' && category.label) {
+      if (category && category.label) {
         friendly = `${category.label}: ${baseLabel}`;
       } else {
         friendly = baseLabel;
@@ -1512,9 +1516,9 @@
     {
       id: 'item-4',
       type: 'figure',
-      label: 'Grønn stjerne',
-      alt: 'Grønn stjerne',
-      figures: [{ id: 'item-4-figure-1', categoryId: 'custom', value: 'images/greenStar.svg' }]
+      label: 'Terning 6',
+      alt: 'Terning som viser seks',
+      figures: [{ id: 'item-4-figure-1', categoryId: 'terninger', value: 'images/amounts/d6.svg' }]
     }
   ];
 
@@ -2126,7 +2130,7 @@
 
   function populateFigureSelectOptions(selectEl, categoryId, figureValue) {
     if (!selectEl) return;
-    const normalizedCategory = typeof categoryId === 'string' ? categoryId.trim().toLowerCase() : 'custom';
+    const normalizedCategory = sanitizeFigureCategory(categoryId, figureValue);
     const options = getFigureLibraryOptions(normalizedCategory);
     const match = getFigureLibraryMatch(figureValue);
     const hasOptions = options.length > 0;
@@ -2138,8 +2142,6 @@
     placeholder.value = '';
     if (hasError) {
       placeholder.textContent = 'Kunne ikke laste figurer';
-    } else if (normalizedCategory === 'custom') {
-      placeholder.textContent = 'Egendefinert figur';
     } else if (!figureLibraryState.loaded && isLoading) {
       placeholder.textContent = 'Laster figurer …';
     } else if (!hasOptions) {
@@ -2164,7 +2166,7 @@
       selectEl.value = '';
     }
 
-    const shouldDisable = !hasOptions || isLoading || hasError || normalizedCategory === 'custom';
+    const shouldDisable = !hasOptions || isLoading || hasError;
     selectEl.disabled = shouldDisable;
     selectEl.dataset.categoryId = normalizedCategory;
   }
