@@ -2714,7 +2714,9 @@
       hasExceededDragThreshold: currentAppMode === 'task',
       suppressClick: currentAppMode === 'task',
       pointerType: normalizedPointerType,
-      shouldPreventDefault
+      shouldPreventDefault,
+      previousTouchAction: wrapper.style.touchAction,
+      touchActionOverrideApplied: false
     };
     refreshDragSlotCache(orientation);
     wrapper.classList.add('sortering__item--dragging');
@@ -2760,6 +2762,15 @@
       if (distanceSq >= DRAG_CLICK_THRESHOLD_PX * DRAG_CLICK_THRESHOLD_PX) {
         dragState.hasExceededDragThreshold = true;
         dragState.suppressClick = true;
+        if (
+          dragState.shouldPreventDefault &&
+          !dragState.touchActionOverrideApplied &&
+          nodes &&
+          nodes.wrapper
+        ) {
+          nodes.wrapper.style.touchAction = 'none';
+          dragState.touchActionOverrideApplied = true;
+        }
       }
     }
 
@@ -2815,6 +2826,13 @@
         nodes.wrapper.releasePointerCapture(event.pointerId);
       }
       nodes.wrapper.style.transition = '';
+      if (activeDrag && activeDrag.touchActionOverrideApplied) {
+        if (typeof activeDrag.previousTouchAction === 'string' && activeDrag.previousTouchAction.length > 0) {
+          nodes.wrapper.style.touchAction = activeDrag.previousTouchAction;
+        } else {
+          nodes.wrapper.style.removeProperty('touch-action');
+        }
+      }
     }
     if (activeDrag && activeDrag.placeholder && activeDrag.placeholder.parentNode === visualList) {
       visualList.removeChild(activeDrag.placeholder);
