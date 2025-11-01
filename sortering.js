@@ -1542,7 +1542,7 @@
       editToggle.textContent = label;
       editToggle.hidden = !editable;
       editToggle.disabled = !editable;
-      editToggle.dataset.mode = isActive ? 'delete' : 'edit';
+      editToggle.dataset.mode = isActive ? 'close' : 'edit';
     }
   }
   function refreshItemsById() {
@@ -2941,7 +2941,7 @@
         event.stopPropagation();
         if (!isEditorMode()) return;
         if (isInlineEditorActive(id)) {
-          removeItem(id);
+          deactivateInlineEditor();
         } else {
           activateInlineEditor(id, { focusText: true });
         }
