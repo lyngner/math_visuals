@@ -434,4 +434,51 @@ test.describe('MathVisualsSettings project palette formats', () => {
     expect(persisted.defaultColors[0]).toBe('#010101');
     expect(persisted.groupPalettes.ukjent).toBeUndefined();
   });
+
+  test('retains graftegner graph and axis colors after switching projects', () => {
+    const { api } = loadSettingsWithPaletteSpy(() => ['#abcdef']);
+
+    const graphColor = '#ff00ff';
+    const axisColor = '#000000';
+    const kikoraGraph = '#00ff00';
+    const kikoraAxis = '#111111';
+
+    const campusUpdate = api.updateSettings({
+      activeProject: 'campus',
+      groupPalettes: {
+        graftegner: [graphColor, axisColor]
+      }
+    });
+
+    expect(campusUpdate.projects.campus.groupPalettes.graftegner).toEqual([
+      graphColor,
+      axisColor
+    ]);
+    expect(campusUpdate.projects.campus.defaultColors[0]).toBe(graphColor);
+    expect(campusUpdate.projects.campus.defaultColors[19]).toBe(axisColor);
+
+    api.updateSettings({
+      activeProject: 'kikora',
+      groupPalettes: {
+        graftegner: [kikoraGraph, kikoraAxis]
+      }
+    });
+
+    api.setActiveProject('kikora', { notify: false });
+    api.setActiveProject('campus', { notify: false });
+
+    const campusSettings = api.getProjectSettings('campus');
+    expect(campusSettings.groupPalettes.graftegner).toEqual([graphColor, axisColor]);
+    expect(campusSettings.defaultColors[0]).toBe(graphColor);
+    expect(campusSettings.defaultColors[19]).toBe(axisColor);
+
+    const graftegnerPalette = api.getGroupPalette('graftegner', 2, { project: 'campus' });
+    expect(graftegnerPalette[0]).toBe(graphColor);
+    expect(graftegnerPalette[1]).toBe(axisColor);
+
+    const kikoraSettings = api.getProjectSettings('kikora');
+    expect(kikoraSettings.groupPalettes.graftegner).toEqual([kikoraGraph, kikoraAxis]);
+    expect(kikoraSettings.defaultColors[0]).toBe(kikoraGraph);
+    expect(kikoraSettings.defaultColors[19]).toBe(kikoraAxis);
+  });
 });

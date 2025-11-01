@@ -524,18 +524,28 @@
   function flattenProjectPalette(project, palette, minimumLength = MIN_COLOR_SLOTS) {
     const normalized = normalizeProjectPalette(project, palette);
     const flattened = [];
+    let highestSlotIndex = -1;
     COLOR_SLOT_GROUPS.forEach(group => {
-      const colors = Array.isArray(normalized[group.groupId]) ? normalized[group.groupId] : [];
+      const groupColors = Array.isArray(normalized[group.groupId]) ? normalized[group.groupId] : [];
       group.slots.forEach((slot, slotIndex) => {
-        const value = colors[slotIndex];
-        flattened.push(value || getFallbackColorForIndex(project, flattened.length));
+        const targetIndex =
+          Number.isInteger(slot.index) && slot.index >= 0 ? slot.index : slotIndex;
+        if (targetIndex > highestSlotIndex) {
+          highestSlotIndex = targetIndex;
+        }
+        const color = sanitizeColor(groupColors[slotIndex]);
+        const fallback = getFallbackColorForIndex(project, targetIndex);
+        flattened[targetIndex] = color || fallback;
       });
     });
     const min = Number.isInteger(minimumLength) && minimumLength > 0 ? minimumLength : 0;
-    while (flattened.length < min && flattened.length < MAX_COLORS) {
-      flattened.push(getFallbackColorForIndex(project, flattened.length));
+    const targetLength = Math.min(MAX_COLORS, Math.max(min, highestSlotIndex + 1));
+    for (let index = 0; index < targetLength; index += 1) {
+      if (!sanitizeColor(flattened[index])) {
+        flattened[index] = getFallbackColorForIndex(project, index);
+      }
     }
-    return flattened.slice(0, MAX_COLORS);
+    return flattened.slice(0, targetLength);
   }
 
   function assignColorToPalette(palette, index, color) {
@@ -723,12 +733,32 @@
       project,
       state.colorsByProject.get(project) || getProjectFallbackPalette(project)
     );
-    while (colors.length <= index && colors.length < MIN_COLOR_SLOTS) {
-      const fallback = getFallbackColorForIndex(project, colors.length);
-      colors.push(fallback);
-      assignColorToPalette(palette, colors.length - 1, fallback);
+    const requiredLength = Math.min(
+      MAX_COLORS,
+      Math.max(MIN_COLOR_SLOTS, index + 1)
+    );
+    let updated = false;
+    for (let slotIndex = 0; slotIndex < requiredLength; slotIndex += 1) {
+      const existing = sanitizeColor(colors[slotIndex]);
+      if (existing) {
+        if (colors[slotIndex] !== existing) {
+          colors[slotIndex] = existing;
+          updated = true;
+        }
+        assignColorToPalette(palette, slotIndex, existing);
+        continue;
+      }
+      const fallback = getFallbackColorForIndex(project, slotIndex);
+      if (colors[slotIndex] !== fallback) {
+        colors[slotIndex] = fallback;
+        updated = true;
+      }
+      assignColorToPalette(palette, slotIndex, fallback);
     }
     state.colorsByProject.set(project, cloneProjectPalette(palette));
+    if (updated) {
+      syncBindings();
+    }
   }
 
   function updateBindingsForIndex(index, value) {
@@ -763,7 +793,8 @@
     if (!event || !event.target) return;
     const project = ensureActiveProject();
     ensureColorCapacity(index, project);
-    const next = sanitizeColor(event.target.value) || colors[index] || getFallbackColorForIndex(project, index);
+    const current = sanitizeColor(colors[index]) || getFallbackColorForIndex(project, index);
+    const next = sanitizeColor(event.target.value) || current;
     setColorValue(index, next, project);
     clearStatus();
   }
@@ -776,7 +807,8 @@
     if (next) {
       setColorValue(index, next, project);
     } else {
-      updateBindingsForIndex(index, colors[index] || getFallbackColorForIndex(project, index));
+      const fallback = sanitizeColor(colors[index]) || getFallbackColorForIndex(project, index);
+      updateBindingsForIndex(index, fallback);
     }
     clearStatus();
   }
