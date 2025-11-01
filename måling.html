@@ -252,7 +252,6 @@
       height: var(--tape-strap-height);
       clip-path: inset(0 0 0 max(0px, calc(100% - var(--tape-strap-visible) - var(--tape-strap-overlap, 0px))));
       overflow: hidden;
-      cursor: ew-resize;
       touch-action: none;
     }
 
@@ -265,6 +264,42 @@
       display: block;
       clip-path: inset(0 max(0px, calc(100% - var(--tape-strap-visible) - var(--tape-strap-overlap, 0px))) 0 0);
       background: #f7d74b;
+    }
+
+    .tape-measure__zero-handle,
+    .tape-measure__move-handle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      pointer-events: auto;
+      touch-action: none;
+      background: transparent;
+      z-index: 3;
+    }
+
+    .tape-measure__zero-handle {
+      left: 0;
+      width: min(var(--tape-zero-handle-width, 140px), var(--tape-strap-visible));
+      cursor: ew-resize;
+    }
+
+    .tape-measure__move-handle {
+      left: min(var(--tape-zero-handle-width, 140px), var(--tape-strap-visible));
+      right: 0;
+      cursor: grab;
+    }
+
+    .tape-measure__move-handle:active {
+      cursor: grabbing;
+    }
+
+    .tape-measure__zero-anchor {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 0;
+      pointer-events: none;
     }
 
     .tape-measure__strap-svg {
@@ -524,6 +559,10 @@
                 <div class="tape-measure__body">
                   <div class="tape-measure__strap" data-tape-strap>
                     <div class="tape-measure__strap-track" data-tape-strap-track>
+                      <div class="tape-measure__zero-handle" data-tape-zero-handle aria-hidden="true">
+                        <span class="tape-measure__zero-anchor" data-tape-zero-anchor></span>
+                      </div>
+                      <div class="tape-measure__move-handle" data-tape-move-handle aria-hidden="true"></div>
                       <svg
                         class="tape-measure__strap-svg"
                         viewBox="0 0 600 47"
