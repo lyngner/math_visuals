@@ -1736,10 +1736,11 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     renderTapeMeasureStrap(settings, unitSpacing, metrics);
   }
 
-  function applyTapeMeasureAppearance(settings, scaleMetrics) {
+  function applyTapeMeasureAppearance(settings, scaleMetrics, options = {}) {
     if (!tapeMeasure || !tapeStrap || !tapeStrapTrack) {
       return;
     }
+    const { suppressTransformUpdate = false } = options || {};
     const metrics = scaleMetrics || resolveScaleMetrics(settings);
     let unitSpacing =
       Number.isFinite(lastRenderedUnitSpacing) && lastRenderedUnitSpacing > 0
@@ -1793,7 +1794,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       strapWidth
     );
     tapeLengthState.visiblePx = clampedVisible;
-    applyTapeMeasureTransform();
+    if (!suppressTransformUpdate) {
+      applyTapeMeasureTransform();
+    }
   }
 
   function applyActiveToolState(settings) {
@@ -3184,8 +3187,14 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
           tapeLengthState.units = proposedUnits;
           tapeLengthState.visiblePx = Math.max(proposedVisible, tapeLengthState.minVisiblePx);
           const metrics = resolveScaleMetrics(appState.settings);
-          applyTapeMeasureAppearance(appState.settings, metrics);
-          proposedVisible = tapeLengthState.visiblePx;
+          applyTapeMeasureAppearance(appState.settings, metrics, { suppressTransformUpdate: true });
+          const expandedMaxVisible =
+            Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
+              ? tapeLengthState.maxVisiblePx
+              : Infinity;
+          if (Number.isFinite(expandedMaxVisible)) {
+            proposedVisible = Math.min(proposedVisible, expandedMaxVisible);
+          }
         }
       } else if (Number.isFinite(previousMaxVisible)) {
         const referenceUnits = Number.isFinite(tapeLengthState.configuredUnits)
@@ -3207,9 +3216,6 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       ? tapeLengthState.maxVisiblePx
       : Infinity;
     let visible = proposedVisible;
-    if (appState.settings && appState.settings.gridEnabled && unitSpacing > 0) {
-      visible = Math.round(visible / unitSpacing) * unitSpacing;
-    }
     visible = Math.min(Math.max(visible, minVisible), maxVisible);
     tapeLengthState.visiblePx = Number.isFinite(visible) ? visible : minVisible;
     tapeLengthState.units = unitSpacing > 0
@@ -3331,7 +3337,14 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
           tapeLengthState.units = proposedUnits;
           tapeLengthState.visiblePx = Math.max(proposedVisible, tapeLengthState.minVisiblePx);
           const metrics = resolveScaleMetrics(appState.settings);
-          applyTapeMeasureAppearance(appState.settings, metrics);
+          applyTapeMeasureAppearance(appState.settings, metrics, { suppressTransformUpdate: true });
+          const expandedMaxVisible =
+            Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
+              ? tapeLengthState.maxVisiblePx
+              : Infinity;
+          if (Number.isFinite(expandedMaxVisible)) {
+            proposedVisible = Math.min(proposedVisible, expandedMaxVisible);
+          }
         }
       } else if (Number.isFinite(previousMaxVisible)) {
         const referenceUnits = Number.isFinite(tapeLengthState.configuredUnits)
@@ -3353,9 +3366,6 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       ? tapeLengthState.maxVisiblePx
       : Infinity;
     let visible = proposedVisible;
-    if (appState.settings && appState.settings.gridEnabled && unitSpacing > 0) {
-      visible = Math.round(visible / unitSpacing) * unitSpacing;
-    }
     visible = Math.min(Math.max(visible, minVisible), maxVisible);
     tapeLengthState.visiblePx = Number.isFinite(visible) ? visible : minVisible;
     tapeLengthState.units = unitSpacing > 0
