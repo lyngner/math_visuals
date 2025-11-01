@@ -10,7 +10,7 @@
   let figurtallAiAppliedSignature = null;
   let pendingAltTextReason = 'auto';
   const MAX_DIM = 20;
-  const MAX_COLORS = 6;
+  const MAX_COLORS = 4;
   const LABEL_MODES = ['hidden', 'count', 'custom'];
   const FIGURE_TYPES = ['square', 'square-outline', 'circle', 'circle-outline', 'star'];
   let rows = 3;
@@ -22,7 +22,7 @@
     if (!inp) break;
     colorInputs.push(inp);
   }
-  const LEGACY_COLOR_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D'];
+  const LEGACY_COLOR_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79'];
   const FIGURE_GROUP_ID = 'figurtall';
   function getThemeApi() {
     const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;

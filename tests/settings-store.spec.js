@@ -35,7 +35,7 @@ function buildGroupedPalette(overrides = {}) {
     nkant: ['#234567', '#345678', '#456789'],
     diagram: ['#56789a', '#6789ab', '#789abc', '#89abcd'],
     fractions: ['#9abcde', '#abcdee'],
-    figurtall: ['#bcdef0', '#cdef01', '#def012'],
+    figurtall: ['#bcdef0', '#cdef01', '#def012', '#ef0123'],
     arealmodell: ['#ef0123', '#f01234', '#012345'],
     tallinje: ['#112233', '#223344'],
     kvikkbilder: ['#334455'],

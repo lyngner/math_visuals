@@ -72,14 +72,12 @@
     {
       groupId: 'figurtall',
       title: 'Figurtall',
-      description: 'Seks standardfarger for figurer i mønstre.',
+      description: 'Fire standardfarger for figurer i mønstre.',
       slots: [
         { index: 15, label: 'Fyll 1', description: 'Første farge i figurtall.' },
         { index: 16, label: 'Fyll 2', description: 'Andre farge i figurtall.' },
         { index: 17, label: 'Fyll 3', description: 'Tredje farge i figurtall.' },
-        { index: 18, label: 'Fyll 4', description: 'Fjerde farge i figurtall.' },
-        { index: 19, label: 'Fyll 5', description: 'Femte farge i figurtall.' },
-        { index: 20, label: 'Fyll 6', description: 'Sjette farge i figurtall.' }
+        { index: 18, label: 'Fyll 4', description: 'Fjerde farge i figurtall.' }
       ]
     },
     {
