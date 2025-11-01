@@ -469,6 +469,21 @@
       gap: 6px;
     }
 
+    .direction-lock-control {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .direction-lock-control select {
+      flex: 1 1 auto;
+    }
+
+    .direction-lock-control .btn {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
     .field-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -614,6 +629,18 @@
                   <option value="ruler" selected>Linjal</option>
                   <option value="tape">Målebånd</option>
                 </select>
+              </div>
+              <div class="input-stack">
+                <label for="cfg-measurement-direction-lock">Lås måleretning</label>
+                <div class="direction-lock-control">
+                  <select id="cfg-measurement-direction-lock">
+                    <option value="none" selected>Nei</option>
+                    <option value="horizontal">Horisontal</option>
+                    <option value="vertical">Vertikal</option>
+                    <option value="angle">Vinkel (sett vinkel)</option>
+                  </select>
+                  <button id="cfg-measurement-direction-set-angle" class="btn" type="button">Sett vinkel</button>
+                </div>
               </div>
               <div class="field-grid field-grid--three" data-measurement-field-grid>
                 <label for="cfg-unit">Hovedenhet
