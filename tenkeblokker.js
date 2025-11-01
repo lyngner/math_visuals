@@ -217,18 +217,18 @@ function resolveProjectFractionFallback(projectName) {
   const config = getPaletteConfig();
   const fallbacks = config && typeof config.PROJECT_FALLBACKS === 'object' ? config.PROJECT_FALLBACKS : null;
   if (!fallbacks) {
-    return FRACTION_FALLBACK_COLORS.slice();
+    return [];
   }
   const normalizedProject = typeof projectName === 'string' ? projectName.trim().toLowerCase() : '';
   const projectPalette = Array.isArray(fallbacks[normalizedProject]) ? fallbacks[normalizedProject] : null;
   const defaultPalette = Array.isArray(fallbacks.default) ? fallbacks.default : null;
   const palette = projectPalette && projectPalette.length ? projectPalette : defaultPalette;
   if (!palette || !palette.length) {
-    return FRACTION_FALLBACK_COLORS.slice();
+    return [];
   }
   const sanitizedPalette = sanitizePaletteList(palette);
   if (!sanitizedPalette.length) {
-    return FRACTION_FALLBACK_COLORS.slice();
+    return [];
   }
   const slotIndices = getFractionSlotIndices(config);
   const result = [];
@@ -247,7 +247,9 @@ function resolveProjectFractionFallback(projectName) {
     if (!color) {
       color = sanitizedPalette[i % sanitizedPalette.length];
     }
-    result.push(color);
+    if (typeof color === 'string' && color) {
+      result.push(color);
+    }
   }
   return result;
 }
@@ -298,7 +300,11 @@ function tryResolvePalette(resolver) {
 function resolveFractionPalette(count = 2) {
   const target = Number.isFinite(count) && count > 0 ? Math.max(2, Math.trunc(count)) : 2;
   const project = resolvePaletteProjectName();
-  const fallback = resolveProjectFractionFallback(project);
+  const projectFallback = sanitizePaletteList(resolveProjectFractionFallback(project));
+  const fallback =
+    projectFallback.length
+      ? ensurePaletteCount(projectFallback, projectFallback, target)
+      : ensurePaletteCount(FRACTION_FALLBACK_COLORS, FRACTION_FALLBACK_COLORS, target);
   const helper = getGroupPaletteHelper();
   if (helper) {
     const palette = tryResolvePalette(() =>
@@ -380,7 +386,7 @@ function resolveFractionPalette(count = 2) {
       return ensurePaletteCount(palette, fallback, target);
     }
   }
-  return ensurePaletteCount(fallback, fallback, target);
+  return fallback;
 }
 
 function getPaletteTargets() {

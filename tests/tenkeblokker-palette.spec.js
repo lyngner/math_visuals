@@ -134,17 +134,26 @@ test.describe('tenkeblokker fraction palette fallbacks', () => {
       const tenkeblokker = require('../tenkeblokker.js');
       currentProject = 'campus';
       const campusColors = tenkeblokker.resolveFractionPalette(2);
+      const campusExtended = tenkeblokker.resolveFractionPalette(4);
 
       currentProject = 'annet';
       const annetColors = tenkeblokker.resolveFractionPalette(2);
+      const annetExtended = tenkeblokker.resolveFractionPalette(4);
 
       expect(Array.isArray(campusColors)).toBe(true);
       expect(Array.isArray(annetColors)).toBe(true);
+      expect(Array.isArray(campusExtended)).toBe(true);
+      expect(Array.isArray(annetExtended)).toBe(true);
       expect(campusColors).toHaveLength(2);
       expect(annetColors).toHaveLength(2);
+      expect(campusExtended).toHaveLength(4);
+      expect(annetExtended).toHaveLength(4);
       expect(campusColors).toEqual(['#c0ffee', '#123456']);
       expect(annetColors).toEqual(['#ff7700', '#004477']);
       expect(campusColors).not.toEqual(annetColors);
+      expect(campusExtended).toEqual(['#c0ffee', '#123456', '#c0ffee', '#123456']);
+      expect(annetExtended).toEqual(['#ff7700', '#004477', '#ff7700', '#004477']);
+      expect(campusExtended).not.toEqual(annetExtended);
     } finally {
       delete require.cache[require.resolve('../tenkeblokker.js')];
       restoreGlobal('window', originalGlobals.window);
