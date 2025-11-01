@@ -1335,12 +1335,15 @@
     const previousAutoLabel = typeof item[AUTO_LABEL_PROP] === 'string' ? item[AUTO_LABEL_PROP] : '';
     const previousAutoAlt = typeof item[AUTO_ALT_PROP] === 'string' ? item[AUTO_ALT_PROP] : '';
 
+    const wasAutoLabel = !!previousAutoLabel && currentLabel === previousAutoLabel;
+    const wasAutoAlt = !!previousAutoAlt && currentAlt === previousAutoAlt;
+
     const shouldUpdateLabel = targetLabel
-      ? !currentLabel || currentLabel === initialLabel || (previousAutoLabel && currentLabel === previousAutoLabel)
-      : currentLabel === initialLabel || (previousAutoLabel && currentLabel === previousAutoLabel);
+      ? !currentLabel || wasAutoLabel
+      : wasAutoLabel || (!currentLabel && !initialLabel);
     const shouldUpdateAlt = targetLabel
-      ? !currentAlt || currentAlt === initialAlt || (previousAutoAlt && currentAlt === previousAutoAlt)
-      : currentAlt === initialAlt || (previousAutoAlt && currentAlt === previousAutoAlt);
+      ? !currentAlt || wasAutoAlt
+      : wasAutoAlt || (!currentAlt && !initialAlt);
 
     if (shouldUpdateLabel) {
       item.label = targetLabel;
