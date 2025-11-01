@@ -11,6 +11,71 @@ function getSorteringState(page) {
 }
 
 test.describe('sortering figure editor', () => {
+  test('blocks reordering while inline editor is active', async ({ page }) => {
+    await page.goto('/sortering.html', { waitUntil: 'load' });
+
+    const figureItem = page.locator('.sortering__item[data-item-id="item-4"]');
+    await expect(figureItem).toBeVisible();
+
+    const editButton = figureItem.locator('.sortering__item-edit-button');
+    await editButton.click();
+
+    const inlineEditor = figureItem.locator('.sortering__item-editor');
+    await expect(inlineEditor).toBeVisible();
+
+    const initialState = await getSorteringState(page);
+    expect(initialState).not.toBeNull();
+    expect(Array.isArray(initialState.order)).toBe(true);
+    const initialOrder = Array.isArray(initialState.order) ? [...initialState.order] : [];
+
+    const figureBox = await figureItem.boundingBox();
+    const firstItem = page.locator('.sortering__item').first();
+    const targetBox = await firstItem.boundingBox();
+    expect(figureBox).not.toBeNull();
+    expect(targetBox).not.toBeNull();
+
+    if (figureBox && targetBox) {
+      await page.mouse.move(figureBox.x + figureBox.width / 2, figureBox.y + figureBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, {
+        steps: 5
+      });
+      await page.mouse.up();
+    }
+
+    await expect(inlineEditor).toBeVisible();
+
+    const afterDragState = await getSorteringState(page);
+    expect(afterDragState).not.toBeNull();
+    expect(Array.isArray(afterDragState.order)).toBe(true);
+    const afterDragOrder = Array.isArray(afterDragState.order) ? [...afterDragState.order] : [];
+    expect(afterDragOrder).toEqual(initialOrder);
+
+    const typeSelect = figureItem.locator('.sortering__item-editor-select');
+    await expect(typeSelect).toHaveValue('figure');
+
+    const figureRow = figureItem.locator('.sortering__item-editor-figure-row').first();
+    const categorySelect = figureRow.locator('select').first();
+    await categorySelect.selectOption('tierbrett');
+
+    const figureSelect = figureRow.locator('.sortering__item-editor-figure-select');
+    await expect(figureSelect).toBeEnabled();
+    await figureSelect.selectOption('tb4.svg');
+
+    await figureItem.locator('.sortering__item-editor-update').click();
+
+    const cardImage = figureItem.locator('.sortering__item-image');
+    await expect(cardImage).toHaveAttribute('src', /tb4\.svg$/);
+
+    const finalState = await getSorteringState(page);
+    expect(finalState).not.toBeNull();
+    const figureState = finalState.items.find(item => item && item.id === 'item-4');
+    expect(figureState).toBeDefined();
+    expect(figureState.type).toBe('figure');
+    expect(Array.isArray(figureState.figures)).toBe(true);
+    expect(figureState.figures[0].value).toBe('tb4.svg');
+  });
+
   test('keeps figure mode after selecting library figure', async ({ page }) => {
     await page.goto('/sortering.html', { waitUntil: 'load' });
 

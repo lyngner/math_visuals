@@ -1696,11 +1696,12 @@
       }
     }
     if (button) {
-      button.disabled = !reorderable;
-      if (reorderable) {
-        button.removeAttribute('aria-disabled');
-      } else {
+      const disableReorder = !reorderable || !!isActive;
+      button.disabled = disableReorder;
+      if (disableReorder) {
         button.setAttribute('aria-disabled', 'true');
+      } else {
+        button.removeAttribute('aria-disabled');
       }
     }
   }
@@ -1845,6 +1846,10 @@
   }
 
   function canReorderItems() {
+    const activeId = normalizeActiveInlineEditorId();
+    if (activeId) {
+      return false;
+    }
     return currentAppMode === 'task' || currentAppMode === 'default';
   }
 
@@ -1854,6 +1859,9 @@
 
   function shouldAllowPointerDrag(event) {
     if (!event) return false;
+    if (!canReorderItems()) {
+      return false;
+    }
     if (typeof event.button === 'number' && event.button !== 0) {
       return false;
     }
@@ -2681,6 +2689,7 @@
 
   function moveItemToIndex(id, targetIndex, options = {}) {
     if (!state || !currentOrder.length) return false;
+    if (!canReorderItems()) return false;
     if (isEditorMode()) {
       deactivateInlineEditor();
     }
@@ -3026,6 +3035,10 @@
         dragState.primaryDirection = delta > 0 ? 1 : -1;
       }
       dragState.lastPointerCoord = pointerCoord;
+    }
+
+    if (!canReorderItems()) {
+      return;
     }
 
     const slots = ensureDragSlotCache(orientation);
