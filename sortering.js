@@ -1644,7 +1644,7 @@
     if (!nodes) return;
     const editable = isEditorMode();
     const reorderable = canReorderItems();
-    const { inlineEditor, wrapper, button, contentEl } = nodes;
+    const { inlineEditor, wrapper, button, contentEl, editButton, actions } = nodes;
     const itemId = wrapper && wrapper.dataset ? wrapper.dataset.itemId : null;
     if (!item && itemId && itemsById.has(itemId)) {
       item = itemsById.get(itemId);
@@ -1676,6 +1676,19 @@
       } else {
         contentEl.removeAttribute('aria-hidden');
       }
+    }
+    if (actions) {
+      actions.hidden = !editable;
+    }
+    if (editButton) {
+      editButton.disabled = !editable;
+      if (editable) {
+        editButton.removeAttribute('aria-disabled');
+      } else {
+        editButton.setAttribute('aria-disabled', 'true');
+      }
+      editButton.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+      editButton.classList.toggle('sortering__item-edit-button--active', !!isActive);
     }
     if (button) {
       button.disabled = !reorderable;
@@ -1901,6 +1914,18 @@
     contentEl.className = 'sortering__item-content';
     wrapper.appendChild(contentEl);
 
+    const actions = doc.createElement('div');
+    actions.className = 'sortering__item-actions';
+    actions.setAttribute('data-edit-only', '');
+    const editButton = doc.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'sortering__item-edit-button';
+    editButton.textContent = 'Rediger';
+    editButton.setAttribute('aria-label', 'Rediger element');
+    editButton.setAttribute('aria-expanded', 'false');
+    actions.appendChild(editButton);
+    wrapper.appendChild(actions);
+
     const li = doc.createElement('li');
     li.className = 'sortering__skia-item';
     li.dataset.itemId = item.id;
@@ -1911,7 +1936,7 @@
     button.dataset.itemId = item.id;
     li.appendChild(button);
 
-    const nodes = { wrapper, contentEl, li, button, inlineEditor: null };
+    const nodes = { wrapper, contentEl, actions, editButton, li, button, inlineEditor: null };
     itemNodes.set(item.id, nodes);
     attachItemListeners(item.id, nodes);
     return nodes;
@@ -2309,6 +2334,10 @@
       panel.id = panelId;
       panel.hidden = !isInlineEditorActive(item.id);
       host.appendChild(panel);
+
+      if (nodes.editButton) {
+        nodes.editButton.setAttribute('aria-controls', panelId);
+      }
 
       const typeWrapper = doc.createElement('div');
       typeWrapper.className = 'sortering__item-editor-type';
@@ -3077,6 +3106,19 @@
       lastInlineEditorDismissAt = 0;
       activateInlineEditor(id, { focusText: true });
     });
+
+    if (nodes.editButton) {
+      nodes.editButton.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isEditorMode()) return;
+        if (isInlineEditorActive(id)) {
+          deactivateInlineEditor();
+        } else {
+          activateInlineEditor(id, { focusText: true });
+        }
+      });
+    }
 
     nodes.button.addEventListener('click', () => {
       if (!canReorderItems()) return;
