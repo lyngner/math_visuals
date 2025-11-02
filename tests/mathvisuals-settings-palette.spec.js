@@ -343,7 +343,7 @@ function createDocumentStub() {
 }
 
 test.describe('brøkpizza palette fallback', () => {
-  test('uses project fallback colors when palette APIs return no colors', () => {
+  test('falls back to theme pizza tokens when palette APIs return no colors', () => {
     const appliedStyles = {};
     const documentStub = createDocumentStub();
     const root = documentStub.documentElement;
@@ -379,10 +379,17 @@ test.describe('brøkpizza palette fallback', () => {
     const paletteApi = { getGroupPalette: emptyPalette };
     const settingsApi = { getGroupPalette: emptyPalette };
     const groupHelper = { resolve: emptyPalette };
+    const themeColors = {
+      'pizza.fill': '#123456',
+      'pizza.rim': '#234567',
+      'pizza.dash': '#345678',
+      'pizza.handle': '#456789',
+      'pizza.handleStroke': '#56789a'
+    };
     const themeApi = {
       getGroupPalette: emptyPalette,
       getPalette: emptyPalette,
-      getColor: () => null,
+      getColor: token => themeColors[token] || null,
       applyToDocument: () => {}
     };
 
@@ -407,57 +414,11 @@ test.describe('brøkpizza palette fallback', () => {
     delete require.cache[pizzaModulePath];
     require('../brøkpizza.js');
 
-    const fallbackBase = paletteConfig.PROJECT_FALLBACKS.kikora.slice();
-    expect(fallbackBase.length).toBeGreaterThan(0);
-    const fractionSlotIndices = (() => {
-      const groupId = 'fractions';
-      const indices = [];
-      if (paletteConfig.GROUP_SLOT_INDICES && typeof paletteConfig.GROUP_SLOT_INDICES === 'object') {
-        const groupIndices = paletteConfig.GROUP_SLOT_INDICES[groupId];
-        if (Array.isArray(groupIndices)) {
-          groupIndices.forEach(value => {
-            if (Number.isInteger(value) && value >= 0) {
-              indices.push(Math.trunc(value));
-            }
-          });
-        }
-      }
-      if (!indices.length && Array.isArray(paletteConfig.COLOR_SLOT_GROUPS)) {
-        paletteConfig.COLOR_SLOT_GROUPS.forEach(group => {
-          const id = group && typeof group.groupId === 'string' ? group.groupId.trim().toLowerCase() : '';
-          if (id !== groupId) return;
-          if (!Array.isArray(group.slots)) return;
-          group.slots.forEach((slot, slotIndex) => {
-            const slotValue = Number.isInteger(slot && slot.index) ? Number(slot.index) : slotIndex;
-            if (Number.isInteger(slotValue) && slotValue >= 0) {
-              indices.push(slotValue);
-            }
-          });
-        });
-      }
-      return indices;
-    })();
-
-    const fractionsFallback = fractionSlotIndices.length
-      ? fractionSlotIndices.map((slotValue, slotIndex) => {
-          const index = Number.isInteger(slotValue) && slotValue >= 0 ? slotValue : slotIndex;
-          const color = fallbackBase[index % fallbackBase.length] || fallbackBase[slotIndex % fallbackBase.length];
-          expect(typeof color).toBe('string');
-          return color;
-        })
-      : fallbackBase.slice();
-
-    const expectedPalette = Array.from({ length: 5 }, (_, index) => {
-      const color = fractionsFallback[index % fractionsFallback.length];
-      expect(typeof color).toBe('string');
-      return color;
-    });
-
-    expect(appliedStyles['--pizza-fill']).toBe(expectedPalette[0]);
-    expect(appliedStyles['--pizza-rim']).toBe(expectedPalette[1]);
-    expect(appliedStyles['--pizza-dash']).toBe(expectedPalette[2]);
-    expect(appliedStyles['--pizza-handle']).toBe(expectedPalette[3]);
-    expect(appliedStyles['--pizza-handle-stroke']).toBe(expectedPalette[4]);
+    expect(appliedStyles['--pizza-fill']).toBe(themeColors['pizza.fill']);
+    expect(appliedStyles['--pizza-rim']).toBe(themeColors['pizza.rim']);
+    expect(appliedStyles['--pizza-dash']).toBe(themeColors['pizza.dash']);
+    expect(appliedStyles['--pizza-handle']).toBe(themeColors['pizza.handle']);
+    expect(appliedStyles['--pizza-handle-stroke']).toBe(themeColors['pizza.handleStroke']);
   });
 });
 
@@ -508,6 +469,25 @@ function ensureDomStubs() {
 function loadSettingsWithPaletteSpy(spyImplementation) {
   const paletteCalls = [];
   const previousFetch = global.fetch;
+  const overriddenGroups = new Set();
+
+  const markOverrides = (projectName, palettes) => {
+    const normalizedProject = typeof projectName === 'string' ? projectName.trim().toLowerCase() : '';
+    if (!normalizedProject || !palettes || typeof palettes !== 'object') {
+      return;
+    }
+    Object.keys(palettes).forEach(groupId => {
+      const normalizedGroup = typeof groupId === 'string' ? groupId.trim().toLowerCase() : '';
+      if (!normalizedGroup) return;
+      const key = `${normalizedProject}:${normalizedGroup}`;
+      const values = palettes[groupId];
+      if (Array.isArray(values) && values.some(value => typeof value === 'string' && value.trim())) {
+        overriddenGroups.add(key);
+      } else {
+        overriddenGroups.delete(key);
+      }
+    });
+  };
 
   delete global.MathVisualsSettings;
   delete require.cache[SETTINGS_MODULE];
@@ -518,6 +498,24 @@ function loadSettingsWithPaletteSpy(spyImplementation) {
     getGroupPalette(groupId, options) {
       const result = spyImplementation(groupId, options);
       paletteCalls.push({ groupId, options });
+      const settings = options && options.settings;
+      if (settings && settings.projects && typeof settings.projects === 'object') {
+        const projectKey =
+          typeof options?.project === 'string' && options.project
+            ? options.project.trim().toLowerCase()
+            : typeof settings.getActiveProject === 'function'
+            ? settings.getActiveProject()
+            : null;
+        const normalizedGroup = typeof groupId === 'string' ? groupId.trim().toLowerCase() : '';
+        const project = projectKey && settings.projects[projectKey];
+        const stored = project && project.groupPalettes && project.groupPalettes[normalizedGroup];
+        if (normalizedGroup && overriddenGroups.has(`${projectKey}:${normalizedGroup}`)) {
+          if (Array.isArray(stored) && stored.length) {
+            return stored.slice();
+          }
+          overriddenGroups.delete(`${projectKey}:${normalizedGroup}`);
+        }
+      }
       return Array.isArray(result) ? result : ['#123456'];
     },
     getProjectGroupPalettes() {
@@ -535,6 +533,41 @@ function loadSettingsWithPaletteSpy(spyImplementation) {
   require('../examples.js');
 
   const api = global.MathVisualsSettings || (global.window && global.window.MathVisualsSettings);
+
+  const originalUpdateSettings = api.updateSettings;
+  api.updateSettings = patch => {
+    if (patch && typeof patch === 'object') {
+      if (patch.groupPalettes && typeof patch.groupPalettes === 'object') {
+        const target =
+          typeof patch.activeProject === 'string' && patch.activeProject
+            ? patch.activeProject
+            : api.getActiveProject && api.getActiveProject();
+        markOverrides(target, patch.groupPalettes);
+      }
+      if (patch.projects && typeof patch.projects === 'object') {
+        Object.keys(patch.projects).forEach(projectName => {
+          const source = patch.projects[projectName];
+          if (source && typeof source === 'object' && source.groupPalettes) {
+            markOverrides(projectName, source.groupPalettes);
+          }
+        });
+      }
+    }
+    return originalUpdateSettings.call(api, patch);
+  };
+
+  const originalSetSettings = api.setSettings;
+  api.setSettings = next => {
+    if (next && typeof next === 'object' && next.projects && typeof next.projects === 'object') {
+      Object.keys(next.projects).forEach(projectName => {
+        const source = next.projects[projectName];
+        if (source && typeof source === 'object' && source.groupPalettes) {
+          markOverrides(projectName, source.groupPalettes);
+        }
+      });
+    }
+    return originalSetSettings.call(api, next);
+  };
 
   global.fetch = previousFetch;
 

@@ -299,6 +299,11 @@ function getFractionPalette(count) {
   const fallback = fallbackCandidates.length ? fallbackCandidates : legacyFallback;
   const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : fallback.length || legacyFallback.length;
 
+  const createResult = (palette, isCustom) => ({
+    palette: ensurePaletteSize(palette, fallback, target),
+    isCustom
+  });
+
   if (paletteApi) {
     const palette = tryResolvePalette(() =>
       paletteApi.getGroupPalette(FRACTION_GROUP_ID, {
@@ -307,7 +312,7 @@ function getFractionPalette(count) {
       })
     );
     if (palette && palette.length) {
-      return ensurePaletteSize(palette, fallback, target);
+      return createResult(palette, true);
     }
   }
 
@@ -328,7 +333,7 @@ function getFractionPalette(count) {
       );
     }
     if (palette && palette.length) {
-      return ensurePaletteSize(palette, fallback, target);
+      return createResult(palette, true);
     }
   }
 
@@ -344,7 +349,7 @@ function getFractionPalette(count) {
       })
     );
     if (palette && palette.length) {
-      return ensurePaletteSize(palette, fallback, target);
+      return createResult(palette, true);
     }
   }
 
@@ -365,7 +370,7 @@ function getFractionPalette(count) {
       );
     }
     if (palette && palette.length) {
-      return ensurePaletteSize(palette, fallback, target);
+      return createResult(palette, true);
     }
   }
 
@@ -377,25 +382,32 @@ function getFractionPalette(count) {
       })
     );
     if (palette && palette.length) {
-      return ensurePaletteSize(palette, fallback, target);
+      return createResult(palette, true);
     }
   }
 
-  return ensurePaletteSize([], fallback, target);
+  return createResult([], false);
 }
 
 function getPizzaColors() {
-  const palette = getFractionPalette(LEGACY_PIZZA_PALETTE.length);
+  const base = {
+    fill: getThemeColor('pizza.fill', LEGACY_PIZZA_COLORS.fill),
+    rim: getThemeColor('pizza.rim', LEGACY_PIZZA_COLORS.rim),
+    dash: getThemeColor('pizza.dash', LEGACY_PIZZA_COLORS.dash),
+    handle: getThemeColor('pizza.handle', LEGACY_PIZZA_COLORS.handle),
+    handleStroke: getThemeColor('pizza.handleStroke', LEGACY_PIZZA_COLORS.handleStroke)
+  };
+  const { palette, isCustom } = getFractionPalette(LEGACY_PIZZA_PALETTE.length);
+  if (!isCustom || !Array.isArray(palette) || !palette.length) {
+    return base;
+  }
   const [fill, rim, dash, handle, handleStroke] = palette;
   return {
-    fill: typeof fill === 'string' && fill ? fill : getThemeColor('pizza.fill', LEGACY_PIZZA_COLORS.fill),
-    rim: typeof rim === 'string' && rim ? rim : getThemeColor('pizza.rim', LEGACY_PIZZA_COLORS.rim),
-    dash: typeof dash === 'string' && dash ? dash : getThemeColor('pizza.dash', LEGACY_PIZZA_COLORS.dash),
-    handle: typeof handle === 'string' && handle ? handle : getThemeColor('pizza.handle', LEGACY_PIZZA_COLORS.handle),
-    handleStroke:
-      typeof handleStroke === 'string' && handleStroke
-        ? handleStroke
-        : getThemeColor('pizza.handleStroke', LEGACY_PIZZA_COLORS.handleStroke)
+    fill: typeof fill === 'string' && fill ? fill : base.fill,
+    rim: typeof rim === 'string' && rim ? rim : base.rim,
+    dash: typeof dash === 'string' && dash ? dash : base.dash,
+    handle: typeof handle === 'string' && handle ? handle : base.handle,
+    handleStroke: typeof handleStroke === 'string' && handleStroke ? handleStroke : base.handleStroke
   };
 }
 
