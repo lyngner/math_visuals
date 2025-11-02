@@ -1,4 +1,5 @@
 {
+  "outputDirectory": ".",
   "rewrites": [
     { "source": "/bildearkiv/(.*)", "destination": "/api/svg/raw?path=/$1" },
     { "source": "/svg/(.*)", "destination": "/api/svg/raw?path=/$1" }
