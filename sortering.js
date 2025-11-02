@@ -3191,7 +3191,7 @@
   }
 
   function applyOrder(options = {}) {
-    if (!state || !visualList) return;
+    if (!state) return;
 
     const sanitizedBase = sanitizeOrder(state.items, state.order);
     if (sanitizedBase.length !== state.order.length) {
@@ -3218,36 +3218,36 @@
     }
 
     currentOrder = nextOrder;
+    const hasVisualList = !!visualList;
     const hasAccessibleList = !!accessibleList;
     const usedIds = new Set();
 
-    currentOrder.forEach((id, index) => {
-      const item = itemsById.get(id);
-      if (!item) return;
-      const nodes = renderItem(item, index);
-      if (!nodes) return;
-      usedIds.add(id);
-      if (visualList && nodes.wrapper.parentNode !== visualList) {
-        visualList.appendChild(nodes.wrapper);
-      } else if (visualList) {
-        visualList.appendChild(nodes.wrapper);
-      }
-      if (hasAccessibleList && nodes.li.parentNode !== accessibleList) {
-        accessibleList.appendChild(nodes.li);
-      } else if (hasAccessibleList) {
-        accessibleList.appendChild(nodes.li);
-      }
-    });
+    if (hasVisualList || hasAccessibleList) {
+      currentOrder.forEach((id, index) => {
+        const item = itemsById.get(id);
+        if (!item) return;
+        const nodes = renderItem(item, index);
+        if (!nodes) return;
+        usedIds.add(id);
+        if (hasVisualList && nodes.wrapper) {
+          visualList.appendChild(nodes.wrapper);
+        }
+        if (hasAccessibleList && nodes.li) {
+          accessibleList.appendChild(nodes.li);
+        }
+      });
 
-    itemNodes.forEach((nodes, id) => {
-      if (usedIds.has(id)) return;
-      if (nodes.wrapper.parentNode === visualList) {
-        visualList.removeChild(nodes.wrapper);
-      }
-      if (hasAccessibleList && nodes.li.parentNode === accessibleList) {
-        accessibleList.removeChild(nodes.li);
-      }
-    });
+      itemNodes.forEach((nodes, id) => {
+        if (usedIds.has(id)) return;
+        if (hasVisualList && nodes.wrapper && nodes.wrapper.parentNode === visualList) {
+          visualList.removeChild(nodes.wrapper);
+        }
+        if (hasAccessibleList && nodes.li && nodes.li.parentNode === accessibleList) {
+          accessibleList.removeChild(nodes.li);
+        }
+      });
+    }
+
     updateItemPositions();
     snapToSlot();
     clearVisualMarkers();
