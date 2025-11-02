@@ -1,3 +1,9 @@
+import {
+  fetchFigureManifest,
+  extractFigureLibrarySlugs,
+  buildFigureLibraryOptions
+} from './packages/figures/src/index.js';
+
 (function () {
   const globalObj = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
   const doc = globalObj && globalObj.document ? globalObj.document : null;
@@ -882,71 +888,6 @@
     return null;
   }
 
-  function extractFigureLibrarySlugs(payload) {
-    if (!payload || typeof payload !== 'object') {
-      return [];
-    }
-    if (Array.isArray(payload.slugs) && payload.slugs.length) {
-      return payload.slugs
-        .map(entry => (typeof entry === 'string' ? entry.trim() : ''))
-        .filter(entry => entry);
-    }
-    if (Array.isArray(payload.files) && payload.files.length) {
-      return payload.files
-        .map(entry => {
-          if (typeof entry !== 'string') return '';
-          return entry.replace(/\.svg$/i, '').trim();
-        })
-        .filter(entry => entry);
-    }
-    return [];
-  }
-
-  function buildFigureLibraryOptionsFromSlugs(slugs) {
-    const optionsByCategory = createEmptyFigureLibraryCategoryMap();
-    const optionsByValue = new Map();
-    if (!Array.isArray(slugs)) {
-      return { optionsByCategory, optionsByValue };
-    }
-    slugs.forEach(rawSlug => {
-      if (typeof rawSlug !== 'string') return;
-      const trimmed = rawSlug.trim();
-      if (!trimmed) return;
-      const baseSlug = trimmed.replace(/\.svg$/i, '');
-      const value = `${baseSlug}.svg`;
-      const label = baseSlug;
-      const lowerValue = value.toLowerCase();
-      if (optionsByValue.has(lowerValue)) {
-        return;
-      }
-      const lowerLabel = label.toLowerCase();
-      let categoryId = DEFAULT_FIGURE_CATEGORY_ID;
-      for (const category of FIGURE_CATEGORIES) {
-        if (!category.prefix) continue;
-        if (lowerLabel.startsWith(category.prefix)) {
-          categoryId = category.id;
-          break;
-        }
-      }
-      const option = { value, label, categoryId };
-      const list = optionsByCategory.get(categoryId);
-      if (Array.isArray(list)) {
-        list.push(option);
-      } else {
-        optionsByCategory.set(categoryId, [option]);
-      }
-      optionsByValue.set(lowerValue, option);
-      if (!optionsByValue.has(lowerLabel)) {
-        optionsByValue.set(lowerLabel, option);
-      }
-    });
-    optionsByCategory.forEach(list => {
-      if (!Array.isArray(list) || list.length < 2) return;
-      list.sort((a, b) => a.label.localeCompare(b.label, 'nb', { numeric: true, sensitivity: 'base' }));
-    });
-    return { optionsByCategory, optionsByValue };
-  }
-
   function refreshFigureInlineEditors() {
     if (!itemNodes || typeof itemNodes.forEach !== 'function') {
       return;
@@ -960,7 +901,11 @@
   }
 
   function loadFigureLibrary() {
-    if (!globalObj || typeof globalObj.fetch !== 'function') {
+    if (!globalObj) {
+      return null;
+    }
+    const fetchImpl = typeof globalObj.fetch === 'function' ? globalObj.fetch.bind(globalObj) : null;
+    if (!fetchImpl) {
       return null;
     }
     if (figureLibraryState.loaded) {
@@ -970,17 +915,17 @@
       return figureLibraryState.loading;
     }
     figureLibraryState.error = false;
-    const request = globalObj
-      .fetch(FIGURE_LIBRARY_MANIFEST_URL, { cache: 'no-store' })
-      .then(response => {
-        if (!response || !response.ok) {
-          throw new Error(`HTTP ${response ? response.status : 'error'}`);
-        }
-        return response.json();
-      })
+    const request = fetchFigureManifest(FIGURE_LIBRARY_MANIFEST_URL, {
+      fetch: fetchImpl,
+      cache: 'no-store'
+    })
       .then(payload => {
         const slugs = extractFigureLibrarySlugs(payload);
-        const { optionsByCategory, optionsByValue } = buildFigureLibraryOptionsFromSlugs(slugs);
+        const { optionsByCategory, optionsByValue } = buildFigureLibraryOptions(slugs, {
+          categories: FIGURE_CATEGORIES,
+          defaultCategoryId: DEFAULT_FIGURE_CATEGORY_ID,
+          locale: 'nb'
+        });
         figureLibraryState.optionsByCategory = optionsByCategory;
         figureLibraryState.optionsByValue = optionsByValue;
         figureLibraryState.loaded = true;
