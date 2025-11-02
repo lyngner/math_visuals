@@ -4113,6 +4113,11 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (!Number.isFinite(deltaLength) || Math.abs(deltaLength) < 0.001) {
       return;
     }
+    const hasActiveExtension = activePointers.tapeExtension && activePointers.tapeExtension.size > 0;
+    const hasActiveHousing = activePointers.tapeHousing && activePointers.tapeHousing.size > 0;
+    if (hasActiveExtension || hasActiveHousing) {
+      return;
+    }
     const state = transformStates.tape;
     if (!state) {
       return;
