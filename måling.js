@@ -3240,6 +3240,70 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     };
   }
 
+  function refreshActiveTapePointerFreeMovement() {
+    if (!shouldUseFreeTapeMovement()) {
+      return;
+    }
+    const extensionSession = activePointers.tapeExtension;
+    const housingSession = activePointers.tapeHousing;
+    if (
+      (!extensionSession || extensionSession.size === 0) &&
+      (!housingSession || housingSession.size === 0)
+    ) {
+      return;
+    }
+    const rotation = Number.isFinite(transformStates.tape.rotation)
+      ? transformStates.tape.rotation
+      : 0;
+    const sessions = [extensionSession, housingSession];
+    for (const session of sessions) {
+      if (!session || session.size === 0) {
+        continue;
+      }
+      for (const entry of session.values()) {
+        if (!entry || !entry.captureTarget) {
+          continue;
+        }
+        const { handleType } = entry;
+        if (handleType !== 'zero' && handleType !== 'housing') {
+          continue;
+        }
+        const pointerX = Number.isFinite(entry.clientX)
+          ? entry.clientX
+          : Number.isFinite(entry.startX)
+          ? entry.startX
+          : null;
+        const pointerY = Number.isFinite(entry.clientY)
+          ? entry.clientY
+          : Number.isFinite(entry.startY)
+          ? entry.startY
+          : null;
+        if (!Number.isFinite(pointerX) || !Number.isFinite(pointerY)) {
+          continue;
+        }
+        const data = buildTapeFreeMovementData(handleType, entry.captureTarget, {
+          clientX: pointerX,
+          clientY: pointerY
+        });
+        if (data) {
+          entry.freeMovement = data;
+          if (handleType === 'housing') {
+            const axisUnitWorld = data.axisUnitLocal
+              ? rotatePoint(data.axisUnitLocal, rotation)
+              : null;
+            const normalizedAxis = normalizeVector(axisUnitWorld || { x: 0, y: 0 });
+            if (normalizedAxis && (normalizedAxis.x !== 0 || normalizedAxis.y !== 0)) {
+              entry.axisUnit = normalizedAxis;
+            }
+            entry.startPoint = { x: pointerX, y: pointerY };
+          }
+        } else if (entry.freeMovement) {
+          delete entry.freeMovement;
+        }
+      }
+    }
+  }
+
   function resolveVisibleFromFreeMovement(entry, proposedVisible) {
     const minVisible = tapeLengthState.minVisiblePx;
     const unitSpacing =
@@ -3262,6 +3326,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
           tapeLengthState.visiblePx = Math.max(targetVisible, tapeLengthState.minVisiblePx);
           const metrics = resolveScaleMetrics(appState.settings);
           applyTapeMeasureAppearance(appState.settings, metrics);
+          refreshActiveTapePointerFreeMovement();
           targetVisible = tapeLengthState.visiblePx;
         }
       } else if (Number.isFinite(previousMaxVisible)) {
@@ -3592,7 +3657,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         : defaults.tapeMeasureLength,
       startPoint: { x: event.clientX, y: event.clientY },
       captureTarget,
-      allowHandoff: true
+      allowHandoff: true,
+      handleType: 'housing'
     };
     const freeMovement = buildTapeFreeMovementData('housing', captureTarget, event);
     if (freeMovement) {
@@ -3766,6 +3832,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
           tapeLengthState.visiblePx = Math.max(proposedVisible, tapeLengthState.minVisiblePx);
           const metrics = resolveScaleMetrics(appState.settings);
           applyTapeMeasureAppearance(appState.settings, metrics, { suppressTransformUpdate: true });
+          refreshActiveTapePointerFreeMovement();
           const expandedMaxVisible =
             Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
               ? tapeLengthState.maxVisiblePx
@@ -3872,6 +3939,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       event.preventDefault();
       event.stopPropagation();
     }
+    const handleType = captureTarget === tapeZeroHandle ? 'zero' : 'extension';
     const entry = {
       pointerId: event.pointerId,
       clientX: event.clientX,
@@ -3885,10 +3953,11 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         ? tapeLengthState.configuredUnits
         : isTapeLengthInfinite(tapeLengthState.configuredUnits)
         ? 1
-        : defaults.tapeMeasureLength
+        : defaults.tapeMeasureLength,
+      captureTarget,
+      handleType
     };
-    const handleType = captureTarget === tapeZeroHandle ? 'zero' : null;
-    if (handleType) {
+    if (handleType === 'zero') {
       const freeMovement = buildTapeFreeMovementData(handleType, captureTarget, event);
       if (freeMovement) {
         entry.freeMovement = freeMovement;
@@ -3954,6 +4023,7 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
           tapeLengthState.visiblePx = Math.max(proposedVisible, tapeLengthState.minVisiblePx);
           const metrics = resolveScaleMetrics(appState.settings);
           applyTapeMeasureAppearance(appState.settings, metrics, { suppressTransformUpdate: true });
+          refreshActiveTapePointerFreeMovement();
           const expandedMaxVisible =
             Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
               ? tapeLengthState.maxVisiblePx
