@@ -23,6 +23,10 @@ test.describe('sortering figure editor', () => {
     const inlineEditor = figureItem.locator('.sortering__item-editor');
     await expect(inlineEditor).toBeVisible();
 
+    const reorderButton = figureItem.locator('.sortering__skia-button');
+    await expect(reorderButton).toBeDisabled();
+    await expect(reorderButton).toHaveAttribute('aria-disabled', 'true');
+
     const initialState = await getSorteringState(page);
     expect(initialState).not.toBeNull();
     expect(Array.isArray(initialState.order)).toBe(true);
@@ -63,6 +67,9 @@ test.describe('sortering figure editor', () => {
     await figureSelect.selectOption('tb4.svg');
 
     await figureItem.locator('.sortering__item-editor-update').click();
+
+    await expect(reorderButton).not.toBeDisabled();
+    await expect(reorderButton).not.toHaveAttribute('aria-disabled', 'true');
 
     const cardImage = figureItem.locator('.sortering__item-image');
     await expect(cardImage).toHaveAttribute('src', /tb4\.svg$/);
