@@ -8,6 +8,7 @@
     "verify-vendor": "node scripts/materialize-vendor.mjs --check",
     "prestart": "node scripts/materialize-vendor.mjs",
     "pretest": "node scripts/materialize-vendor.mjs && node scripts/ensure-playwright-deps.js",
+    "build": "node scripts/materialize-vendor.mjs && node scripts/create-public.js",
     "test": "node tests/check-shared-styles.js && node scripts/run-playwright.js test",
     "check-examples-api": "node scripts/check-examples-api.mjs",
     "seed-examples": "node scripts/seed-examples.mjs",
