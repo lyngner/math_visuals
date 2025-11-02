@@ -162,5 +162,22 @@ test.describe('sortering figure editor', () => {
     expect(targetItem.type).toBe('figure');
     expect(Array.isArray(targetItem.figures)).toBe(true);
     expect(targetItem.figures[0].value).toBe('tb4.svg');
+
+    await page.evaluate(() => {
+      const api = window.mathVisSortering;
+      if (api && typeof api.applyOrder === 'function') {
+        api.applyOrder({ resetToBase: true });
+      }
+    });
+
+    await expect(cardImage).toHaveAttribute('src', /tb4\.svg$/);
+
+    const afterApplyState = await getSorteringState(page);
+    expect(afterApplyState).not.toBeNull();
+    const afterApplyItem = afterApplyState.items.find(entry => entry && entry.id === itemId);
+    expect(afterApplyItem).toBeDefined();
+    expect(afterApplyItem.type).toBe('figure');
+    expect(Array.isArray(afterApplyItem.figures)).toBe(true);
+    expect(afterApplyItem.figures[0].value).toBe('tb4.svg');
   });
 });
