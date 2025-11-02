@@ -14,11 +14,94 @@
         ? window
         : this);
     const config = factory();
-    if (target && typeof target === 'object') {
+    if (target && typeof target === 'object' && config) {
       target.MathVisualsPaletteConfig = config;
     }
   }
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this, function () {
+  const paletteModule = loadPalettePackage();
+  if (paletteModule && paletteModule.PALETTE_CONFIG) {
+    return paletteModule.PALETTE_CONFIG;
+  }
+  if (paletteModule && paletteModule.default && paletteModule.default.PALETTE_CONFIG) {
+    return paletteModule.default.PALETTE_CONFIG;
+  }
+  if (typeof console !== 'undefined' && console && typeof console.error === 'function') {
+    console.error('[MathVisualsPaletteConfig] Klarte ikke laste palettpakken. Bruker innebygd reserve.');
+  }
+  return buildLegacyPaletteConfig();
+});
+
+let attemptedGlobalLoad = false;
+
+function resolveGlobalPackage() {
+  if (typeof MathVisualsPalettePackage !== 'undefined' && MathVisualsPalettePackage) {
+    return MathVisualsPalettePackage;
+  }
+  if (typeof globalThis !== 'undefined' && globalThis.MathVisualsPalettePackage) {
+    return globalThis.MathVisualsPalettePackage;
+  }
+  if (typeof window !== 'undefined' && window.MathVisualsPalettePackage) {
+    return window.MathVisualsPalettePackage;
+  }
+  if (typeof global !== 'undefined' && global.MathVisualsPalettePackage) {
+    return global.MathVisualsPalettePackage;
+  }
+  return null;
+}
+
+function tryLoadGlobalBundle(currentScript) {
+  if (attemptedGlobalLoad) return resolveGlobalPackage();
+  attemptedGlobalLoad = true;
+  if (typeof document === 'undefined' || typeof XMLHttpRequest === 'undefined') {
+    return resolveGlobalPackage();
+  }
+  const scriptUrl = currentScript && currentScript.src ? currentScript.src : document.currentScript && document.currentScript.src;
+  if (!scriptUrl) {
+    return resolveGlobalPackage();
+  }
+  let bundleUrl = null;
+  try {
+    bundleUrl = new URL('../packages/palette/dist/index.global.js', scriptUrl).toString();
+  } catch (_) {
+    return resolveGlobalPackage();
+  }
+  try {
+    const request = new XMLHttpRequest();
+    request.open('GET', bundleUrl, false);
+    request.send(null);
+    if (request.status >= 200 && request.status < 400) {
+      const source = request.responseText;
+      if (typeof source === 'string' && source) {
+        (0, eval)(source);
+      }
+    }
+  } catch (_) {}
+  return resolveGlobalPackage();
+}
+
+function loadPalettePackage() {
+  let palettePackage = resolveGlobalPackage();
+  if (!palettePackage) {
+    palettePackage = tryLoadGlobalBundle(null);
+  }
+  if (!palettePackage && typeof require === 'function') {
+    try {
+      palettePackage = require('../packages/palette/dist/index.cjs');
+    } catch (error) {
+      if (!error || error.code === 'MODULE_NOT_FOUND' || error.code === 'ERR_MODULE_NOT_FOUND') {
+        try {
+          palettePackage = require('../packages/palette/src/index.js');
+        } catch (_) {}
+      } else {
+        throw error;
+      }
+    }
+  }
+  return palettePackage || null;
+}
+
+function buildLegacyPaletteConfig() {
   const MAX_COLORS = 48;
   const DEFAULT_PROJECT = 'campus';
   const PROJECT_FALLBACKS = {
@@ -177,31 +260,32 @@
       .filter(slot => Number.isInteger(slot.index) && slot.index >= 0);
   }
 
-  const COLOR_SLOT_GROUPS = RAW_COLOR_SLOT_GROUPS.map((group, groupIndex) => {
-    const normalizedId =
-      group && typeof group.groupId === 'string' ? group.groupId.trim().toLowerCase() : `gruppe-${groupIndex + 1}`;
-    const groupId = normalizedId || `gruppe-${groupIndex + 1}`;
-    const slots = cloneSlots(group && group.slots, groupId);
-    return deepFreeze({
-      groupId,
-      title: group && group.title ? String(group.title) : '',
-      description: group && group.description ? String(group.description) : '',
-      slots,
-      groupIndex
-    });
-  });
+  const COLOR_SLOT_GROUPS = deepFreeze(
+    RAW_COLOR_SLOT_GROUPS.map((group, groupIndex) => {
+      const normalizedId =
+        group && typeof group.groupId === 'string' ? group.groupId.trim().toLowerCase() : `gruppe-${groupIndex + 1}`;
+      const groupId = normalizedId || `gruppe-${groupIndex + 1}`;
+      const slots = cloneSlots(group && group.slots, groupId);
+      return deepFreeze({
+        groupId,
+        title: group && group.title ? String(group.title) : '',
+        description: group && group.description ? String(group.description) : '',
+        slots,
+        groupIndex
+      });
+    })
+  );
 
   const COLOR_GROUP_IDS = COLOR_SLOT_GROUPS.map(group => group.groupId);
   const GROUP_SLOT_INDICES = {};
   COLOR_SLOT_GROUPS.forEach(group => {
     GROUP_SLOT_INDICES[group.groupId] = group.slots.map(slot => slot.index);
   });
-
   const MIN_COLOR_SLOTS = COLOR_SLOT_GROUPS.reduce((total, group) => total + group.slots.length, 0);
-  const DEFAULT_GROUP_ORDER = COLOR_GROUP_IDS.slice();
-  const DEFAULT_PROJECT_ORDER = ['campus', 'kikora', 'annet'];
+  const DEFAULT_GROUP_ORDER = deepFreeze(COLOR_GROUP_IDS.slice());
+  const DEFAULT_PROJECT_ORDER = deepFreeze(['campus', 'kikora', 'annet']);
 
-  const config = {
+  return deepFreeze({
     MAX_COLORS,
     DEFAULT_PROJECT,
     PROJECT_FALLBACKS: deepFreeze({
@@ -216,13 +300,11 @@
       kikora: GRAFTEGNER_AXIS_DEFAULTS.kikora,
       default: GRAFTEGNER_AXIS_DEFAULTS.default
     }),
-    COLOR_SLOT_GROUPS: deepFreeze(COLOR_SLOT_GROUPS.slice()),
-    COLOR_GROUP_IDS: deepFreeze(COLOR_GROUP_IDS.slice()),
-    GROUP_SLOT_INDICES: deepFreeze(Object.assign({}, GROUP_SLOT_INDICES)),
+    COLOR_SLOT_GROUPS,
+    COLOR_GROUP_IDS,
+    GROUP_SLOT_INDICES,
     MIN_COLOR_SLOTS,
-    DEFAULT_GROUP_ORDER: deepFreeze(DEFAULT_GROUP_ORDER.slice()),
-    DEFAULT_PROJECT_ORDER: deepFreeze(DEFAULT_PROJECT_ORDER.slice())
-  };
-
-  return deepFreeze(config);
-});
+    DEFAULT_GROUP_ORDER,
+    DEFAULT_PROJECT_ORDER
+  });
+}
