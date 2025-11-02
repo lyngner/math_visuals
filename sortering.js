@@ -1677,23 +1677,21 @@
         contentEl.removeAttribute('aria-hidden');
       }
     }
+    const hideActions = !editable || !!isActive;
     if (actions) {
-      actions.hidden = !editable || !!isActive;
+      actions.hidden = hideActions;
     }
     if (editButton) {
-      editButton.disabled = !editable;
-      if (editable) {
-        editButton.removeAttribute('aria-disabled');
-      } else {
+      const disableEdit = !editable || !!isActive;
+      editButton.disabled = disableEdit;
+      if (disableEdit) {
         editButton.setAttribute('aria-disabled', 'true');
+      } else {
+        editButton.removeAttribute('aria-disabled');
       }
       editButton.setAttribute('aria-expanded', isActive ? 'true' : 'false');
       editButton.classList.toggle('sortering__item-edit-button--active', !!isActive);
-      if (editable) {
-        editButton.hidden = !!isActive;
-      } else {
-        editButton.hidden = false;
-      }
+      editButton.hidden = hideActions;
     }
     const disableReorder = !reorderable || !!isActive;
     if (button) {
