@@ -8,6 +8,10 @@ Math Visuals samler nettbaserte undervisningsressurser som lar elever og lærere
 
 Koden er organisert per verktøy (én HTML-fil med tilhørende JavaScript/CSS), i tillegg til felles komponenter som `base.css`, `router.js` og støttebibliotek i `vendor/`. Dokumentasjon og driftsnotater ligger i `docs/`.
 
+### Delte pakker
+
+Prosjektet eksponerer i tillegg et npm-workspace i `packages/` for kode som skal kunne gjenbrukes mellom flere apper. Workspace-et bruker Rollup for å bygge pakkene til både ESM- og CommonJS-bunter. Du finner mer informasjon i [`docs/shared-packages.md`](docs/shared-packages.md).
+
 ## Verktøy og apper
 
 | Verktøy | Beskrivelse |
