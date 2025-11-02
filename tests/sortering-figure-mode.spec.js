@@ -17,8 +17,7 @@ test.describe('sortering figure editor', () => {
     const figureItem = page.locator('.sortering__item[data-item-id="item-4"]');
     await expect(figureItem).toBeVisible();
 
-    const editButton = figureItem.locator('.sortering__item-edit-button');
-    await editButton.click();
+    await figureItem.click();
 
     const inlineEditor = figureItem.locator('.sortering__item-editor');
     await expect(inlineEditor).toBeVisible();
@@ -138,8 +137,7 @@ test.describe('sortering figure editor', () => {
     await expect(firstItem).toBeVisible();
     const itemId = await firstItem.getAttribute('data-item-id');
 
-    const editButton = firstItem.locator('.sortering__item-edit-button');
-    await editButton.click();
+    await firstItem.click();
 
     const typeSelect = firstItem.locator('.sortering__item-editor-select');
     await expect(typeSelect).toBeVisible();
