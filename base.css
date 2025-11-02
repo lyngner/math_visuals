@@ -988,44 +988,6 @@ input[type="radio"] {
   font-weight: 500;
 }
 
-.sortering__item-actions {
-  margin-top: 12px;
-  display: flex;
-  justify-content: center;
-}
-
-.sortering__item-edit-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: 9999px;
-  border: 1px solid #2563eb;
-  background: #2563eb;
-  color: #ffffff;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.sortering__item-edit-button:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
-}
-
-.sortering__item-edit-button:focus {
-  outline: 2px solid #1d4ed8;
-  outline-offset: 2px;
-}
-
-.sortering__item-edit-button--active {
-  background: #1e3a8a;
-  border-color: #1e3a8a;
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
-}
-
 .sortering__skia-button {
   display: inline-flex;
   align-items: center;
