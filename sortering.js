@@ -3000,6 +3000,17 @@ import {
     updateItemPositions();
     clearVisualMarkers();
     if (
+      event.type === 'pointerup' &&
+      activeDrag &&
+      !activeDrag.hasExceededDragThreshold &&
+      !activeDrag.suppressClick &&
+      isEditorMode()
+    ) {
+      lastInlineEditorDismissId = null;
+      lastInlineEditorDismissAt = 0;
+      activateInlineEditor(id, { focusText: true });
+    }
+    if (
       activeDrag &&
       activeDrag.suppressClick &&
       nodes &&
