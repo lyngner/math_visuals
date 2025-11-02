@@ -1644,7 +1644,7 @@
     if (!nodes) return;
     const editable = isEditorMode();
     const reorderable = canReorderItems();
-    const { inlineEditor, wrapper, button, contentEl, editButton, actions } = nodes;
+    const { inlineEditor, wrapper, button, contentEl, editButton, actions, li } = nodes;
     const itemId = wrapper && wrapper.dataset ? wrapper.dataset.itemId : null;
     if (!item && itemId && itemsById.has(itemId)) {
       item = itemsById.get(itemId);
@@ -1695,13 +1695,24 @@
         editButton.hidden = false;
       }
     }
+    const disableReorder = !reorderable || !!isActive;
     if (button) {
-      const disableReorder = !reorderable || !!isActive;
       button.disabled = disableReorder;
       if (disableReorder) {
         button.setAttribute('aria-disabled', 'true');
+        button.setAttribute('data-reorder-disabled', 'true');
       } else {
         button.removeAttribute('aria-disabled');
+        button.removeAttribute('data-reorder-disabled');
+      }
+    }
+    if (li) {
+      if (disableReorder) {
+        li.setAttribute('aria-disabled', 'true');
+        li.setAttribute('data-reorder-disabled', 'true');
+      } else {
+        li.removeAttribute('aria-disabled');
+        li.removeAttribute('data-reorder-disabled');
       }
     }
   }
@@ -2690,15 +2701,15 @@
   function moveItemToIndex(id, targetIndex, options = {}) {
     if (!state || !currentOrder.length) return false;
     if (!canReorderItems()) return false;
-    if (isEditorMode()) {
-      deactivateInlineEditor();
-    }
     const { preserveTransform = false } = options;
     const currentIndex = currentOrder.indexOf(id);
     if (currentIndex < 0) return false;
     const maxIndex = currentOrder.length - 1;
     const boundedIndex = Math.max(0, Math.min(maxIndex, targetIndex));
     if (boundedIndex === currentIndex) return false;
+    if (isEditorMode()) {
+      deactivateInlineEditor();
+    }
     currentOrder.splice(currentIndex, 1);
     currentOrder.splice(boundedIndex, 0, id);
 
