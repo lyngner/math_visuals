@@ -1,13 +1,153 @@
 (function (global) {
+  const paletteModule = loadPalettePackage();
+  const moduleExports = unwrapPaletteModule(paletteModule);
+  const service = moduleExports && typeof moduleExports.createPaletteService === 'function'
+    ? moduleExports.createPaletteService()
+    : null;
+  const ensure = moduleExports && typeof moduleExports.ensurePalette === 'function'
+    ? moduleExports.ensurePalette
+    : null;
+  const resolver = moduleExports && typeof moduleExports.resolveGroupPalette === 'function'
+    ? moduleExports.resolveGroupPalette
+    : null;
+
+  const legacy = buildLegacyGroupPalette();
+  const ensureFn = ensure ? (palette, fallbackPalette, count) => ensure(palette, fallbackPalette, count) : legacy.ensure;
+  const resolveFn = service
+    ? options => service.resolveGroupPalette(options)
+    : typeof resolver === 'function'
+    ? resolver
+    : legacy.resolve;
+
+  const targetApi = {
+    ensure: ensureFn,
+    resolve: resolveFn,
+    resolveGroupPalette: resolveFn
+  };
+  if (service) {
+    targetApi.service = service;
+  }
+
+  if (typeof global !== 'undefined' && global && typeof global === 'object') {
+    global.MathVisualsGroupPalette = targetApi;
+  }
+  if (typeof window !== 'undefined' && window && typeof window === 'object') {
+    window.MathVisualsGroupPalette = targetApi;
+  }
+  if (typeof globalThis !== 'undefined' && globalThis && typeof globalThis === 'object') {
+    globalThis.MathVisualsGroupPalette = targetApi;
+  }
+  if (typeof module !== 'undefined' && module && module.exports) {
+    module.exports = targetApi;
+  }
+})(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);
+
+let attemptedGlobalLoad = false;
+
+function unwrapPaletteModule(value) {
+  if (!value) return null;
+  if (value.PALETTE_CONFIG || value.createPaletteService) {
+    return value;
+  }
+  if (value.default) {
+    return unwrapPaletteModule(value.default);
+  }
+  return value;
+}
+
+function resolveGlobalPackage() {
+  if (typeof MathVisualsPalettePackage !== 'undefined' && MathVisualsPalettePackage) {
+    return MathVisualsPalettePackage;
+  }
+  if (typeof globalThis !== 'undefined' && globalThis.MathVisualsPalettePackage) {
+    return globalThis.MathVisualsPalettePackage;
+  }
+  if (typeof window !== 'undefined' && window.MathVisualsPalettePackage) {
+    return window.MathVisualsPalettePackage;
+  }
+  if (typeof global !== 'undefined' && global.MathVisualsPalettePackage) {
+    return global.MathVisualsPalettePackage;
+  }
+  return null;
+}
+
+function tryLoadGlobalBundle(currentScript) {
+  if (attemptedGlobalLoad) return resolveGlobalPackage();
+  attemptedGlobalLoad = true;
+  if (typeof document === 'undefined' || typeof XMLHttpRequest === 'undefined') {
+    return resolveGlobalPackage();
+  }
+  const scriptUrl = currentScript && currentScript.src ? currentScript.src : document.currentScript && document.currentScript.src;
+  if (!scriptUrl) {
+    return resolveGlobalPackage();
+  }
+  let bundleUrl = null;
+  try {
+    bundleUrl = new URL('../packages/palette/dist/index.global.js', scriptUrl).toString();
+  } catch (_) {
+    return resolveGlobalPackage();
+  }
+  try {
+    const request = new XMLHttpRequest();
+    request.open('GET', bundleUrl, false);
+    request.send(null);
+    if (request.status >= 200 && request.status < 400) {
+      const source = request.responseText;
+      if (typeof source === 'string' && source) {
+        (0, eval)(source);
+      }
+    }
+  } catch (_) {}
+  return resolveGlobalPackage();
+}
+
+function loadPalettePackage() {
+  let palettePackage = resolveGlobalPackage();
+  if (!palettePackage) {
+    palettePackage = tryLoadGlobalBundle(null);
+  }
+  if (!palettePackage && typeof require === 'function') {
+    try {
+      palettePackage = require('../packages/palette/dist/index.cjs');
+    } catch (error) {
+      if (!error || error.code === 'MODULE_NOT_FOUND' || error.code === 'ERR_MODULE_NOT_FOUND') {
+        try {
+          palettePackage = require('../packages/palette/src/index.js');
+        } catch (_) {}
+      } else {
+        throw error;
+      }
+    }
+  }
+  return palettePackage || null;
+}
+
+function buildLegacyGroupPalette() {
   function getThemeApi(scope) {
-    const root = scope || (typeof global !== 'undefined' ? global : typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null);
+    const root =
+      scope ||
+      (typeof global !== 'undefined'
+        ? global
+        : typeof window !== 'undefined'
+        ? window
+        : typeof globalThis !== 'undefined'
+        ? globalThis
+        : null);
     if (!root) return null;
     const theme = root.MathVisualsTheme;
     return theme && typeof theme === 'object' ? theme : null;
   }
 
   function getPaletteApi(scope) {
-    const root = scope || (typeof global !== 'undefined' ? global : typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null);
+    const root =
+      scope ||
+      (typeof global !== 'undefined'
+        ? global
+        : typeof window !== 'undefined'
+        ? window
+        : typeof globalThis !== 'undefined'
+        ? globalThis
+        : null);
     if (!root) return null;
     const api = root.MathVisualsPalette;
     return api && typeof api.getGroupPalette === 'function' ? api : null;
@@ -130,21 +270,9 @@
     return ensurePalette(palette, fallback, count);
   }
 
-  const api = {
+  return {
+    ensure,
     resolve: resolveGroupPalette,
-    ensure: ensurePalette
+    resolveGroupPalette
   };
-
-  if (typeof global !== 'undefined' && global && typeof global === 'object') {
-    global.MathVisualsGroupPalette = api;
-  }
-  if (typeof window !== 'undefined' && window && typeof window === 'object') {
-    window.MathVisualsGroupPalette = api;
-  }
-  if (typeof globalThis !== 'undefined' && globalThis && typeof globalThis === 'object') {
-    globalThis.MathVisualsGroupPalette = api;
-  }
-  if (typeof module !== 'undefined' && module && module.exports) {
-    module.exports = api;
-  }
-})(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);
+}
