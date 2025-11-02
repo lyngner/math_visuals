@@ -3,12 +3,16 @@
   "version": "1.0.0",
   "description": "",
   "main": "arealmodell0.js",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "materialize-vendor": "node scripts/materialize-vendor.mjs",
     "verify-vendor": "node scripts/materialize-vendor.mjs --check",
     "prestart": "node scripts/materialize-vendor.mjs",
     "pretest": "node scripts/materialize-vendor.mjs && node scripts/ensure-playwright-deps.js",
     "build": "node scripts/materialize-vendor.mjs && node scripts/create-public.js",
+    "build:packages": "npm run build --workspaces --if-present",
     "test": "node tests/check-shared-styles.js && node scripts/run-playwright.js test",
     "check-examples-api": "node scripts/check-examples-api.mjs",
     "seed-examples": "node scripts/seed-examples.mjs",
@@ -26,11 +30,14 @@
     "@babel/plugin-transform-nullish-coalescing-operator": "^7.27.1",
     "@babel/plugin-transform-optional-chaining": "^7.27.1",
     "@playwright/test": "^1.42.0",
+    "@rollup/plugin-commonjs": "^25.0.8",
+    "@rollup/plugin-node-resolve": "^15.2.3",
     "http-server": "^14.1.1",
     "jsxgraph": "^1.12.0",
     "katex": "^0.16.23",
     "mathlive": "^0.107.1",
-    "pngjs": "^7.0.0"
+    "pngjs": "^7.0.0",
+    "rollup": "^4.17.2"
   },
   "dependencies": {
     "@vercel/kv": "^3.0.0"
