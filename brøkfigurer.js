@@ -225,6 +225,116 @@
     return helper && typeof helper.resolve === 'function' ? helper : null;
   }
 
+  function resolvePaletteConfig() {
+    const scopes = [
+      typeof window !== 'undefined' ? window : null,
+      typeof globalThis !== 'undefined' ? globalThis : null,
+      typeof global !== 'undefined' ? global : null
+    ];
+    for (const scope of scopes) {
+      if (!scope || typeof scope !== 'object') continue;
+      const config = scope.MathVisualsPaletteConfig;
+      if (config && typeof config === 'object') {
+        return config;
+      }
+    }
+    if (typeof require === 'function') {
+      try {
+        const mod = require('./palette/palette-config.js');
+        if (mod && typeof mod === 'object') {
+          return mod;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  let paletteConfigCache;
+  let paletteConfigResolved = false;
+
+  function getPaletteConfig() {
+    if (!paletteConfigResolved) {
+      paletteConfigResolved = true;
+      paletteConfigCache = resolvePaletteConfig();
+    }
+    return paletteConfigCache;
+  }
+
+  function getProjectFallbackPaletteBase(projectName, basePalette) {
+    const config = getPaletteConfig();
+    const sanitizedBase = sanitizePalette(basePalette);
+    if (!config || !config.PROJECT_FALLBACKS) {
+      return sanitizedBase;
+    }
+    const normalized = typeof projectName === 'string' ? projectName.trim().toLowerCase() : '';
+    const fallbacks = config.PROJECT_FALLBACKS;
+    const palette = (normalized && fallbacks[normalized]) || fallbacks.default || sanitizedBase;
+    const sanitized = sanitizePalette(palette);
+    return sanitized.length ? sanitized : sanitizedBase;
+  }
+
+  function getGroupSlotIndices(config, groupId) {
+    if (!config) return [];
+    const normalizedGroupId = typeof groupId === 'string' ? groupId.trim().toLowerCase() : '';
+    if (!normalizedGroupId) return [];
+    const indexMap = config.GROUP_SLOT_INDICES;
+    if (indexMap && typeof indexMap === 'object') {
+      const indices = indexMap[normalizedGroupId];
+      if (Array.isArray(indices) && indices.length) {
+        return indices
+          .map(value => (Number.isInteger(value) && value >= 0 ? Math.trunc(value) : null))
+          .filter(index => Number.isInteger(index) && index >= 0);
+      }
+    }
+    if (Array.isArray(config.COLOR_SLOT_GROUPS)) {
+      for (const group of config.COLOR_SLOT_GROUPS) {
+        if (!group || typeof group !== 'object') continue;
+        const groupKey = typeof group.groupId === 'string' ? group.groupId.trim().toLowerCase() : '';
+        if (groupKey !== normalizedGroupId) continue;
+        if (!Array.isArray(group.slots)) break;
+        return group.slots
+          .map((slot, slotIndex) => {
+            if (!slot || typeof slot !== 'object') return null;
+            const index = Number.isInteger(slot.index) ? Math.trunc(slot.index) : slotIndex;
+            return index >= 0 ? index : null;
+          })
+          .filter(index => Number.isInteger(index) && index >= 0);
+      }
+    }
+    return [];
+  }
+
+  function getProjectGroupFallbackPalette(projectName, groupId, basePalette) {
+    const baseCandidate = getProjectFallbackPaletteBase(projectName, basePalette);
+    if (!baseCandidate.length) {
+      return [];
+    }
+    const config = getPaletteConfig();
+    if (!config) {
+      return baseCandidate.slice();
+    }
+    const indices = getGroupSlotIndices(config, groupId);
+    if (!indices.length) {
+      return baseCandidate.slice();
+    }
+    const result = [];
+    const baseLength = baseCandidate.length;
+    indices.forEach((index, slotIndex) => {
+      if (Number.isInteger(index) && index >= 0) {
+        const color = baseCandidate[index % baseLength];
+        if (typeof color === 'string' && color) {
+          result.push(color);
+          return;
+        }
+      }
+      const fallbackColor = baseCandidate[slotIndex % baseLength] || baseCandidate[0];
+      if (typeof fallbackColor === 'string' && fallbackColor) {
+        result.push(fallbackColor);
+      }
+    });
+    return result.length ? result : baseCandidate.slice();
+  }
+
   function getSettingsApi() {
     if (typeof window === 'undefined') return null;
     const api = window.MathVisualsSettings;
@@ -451,8 +561,10 @@
     const helper = getGroupPaletteHelper();
     const theme = getThemeApi();
     const project = resolvePaletteProjectName();
-    const fallback = LEGACY_COLOR_PALETTE.slice();
-    const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : fallback.length;
+    const legacyFallback = sanitizePalette(LEGACY_COLOR_PALETTE);
+    const projectFallback = getProjectGroupFallbackPalette(project, FRACTION_GROUP_ID, LEGACY_COLOR_PALETTE);
+    const fallback = projectFallback.length ? projectFallback : legacyFallback;
+    const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : fallback.length || legacyFallback.length;
 
     if (paletteApi) {
       const palette = tryResolvePalette(() =>
