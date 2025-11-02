@@ -1,0 +1,19 @@
+{
+  "name": "@math-visuals/core",
+  "version": "0.1.0",
+  "description": "Shared application shell and utilities for Math Visuals",
+  "type": "module",
+  "source": "./src/index.js",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ]
+}

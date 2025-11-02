@@ -12,24 +12,32 @@
     "check-examples-api": "node scripts/check-examples-api.mjs",
     "seed-examples": "node scripts/seed-examples.mjs",
     "sync-svg-archive": "node scripts/sync-svg-archive.js",
-    "start": "npx http-server -c-1"
+    "start": "npx http-server -c-1",
+    "build": "rollup -c",
+    "build:watch": "rollup -c -w"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "devDependencies": {
     "@babel/cli": "^7.28.3",
     "@babel/core": "^7.28.4",
     "@babel/plugin-transform-nullish-coalescing-operator": "^7.27.1",
     "@babel/plugin-transform-optional-chaining": "^7.27.1",
     "@playwright/test": "^1.42.0",
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
     "http-server": "^14.1.1",
     "jsxgraph": "^1.12.0",
     "katex": "^0.16.23",
     "mathlive": "^0.107.1",
-    "pngjs": "^7.0.0"
+    "pngjs": "^7.0.0",
+    "rollup": "^4.13.0"
   },
   "dependencies": {
     "@vercel/kv": "^3.0.0"
