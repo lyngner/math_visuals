@@ -3997,8 +3997,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     const offsetY = Number.isFinite(state.y) ? state.y : 0;
     const shiftX = deltaLength * Math.cos(rotation);
     const shiftY = deltaLength * Math.sin(rotation);
-    state.x = offsetX - shiftX;
-    state.y = offsetY - shiftY;
+    state.x = offsetX + shiftX;
+    state.y = offsetY + shiftY;
   }
 
   function applyTapeMeasureTransform() {
