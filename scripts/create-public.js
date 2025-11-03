@@ -6,7 +6,6 @@ const projectRoot = path.resolve(__dirname, '..');
 const outputDir = path.join(projectRoot, 'public');
 
 const EXCLUDED_ENTRIES = new Set([
-  'api',
   'docs',
   'node_modules',
   'scripts',
