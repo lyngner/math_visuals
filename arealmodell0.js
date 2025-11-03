@@ -3,6 +3,8 @@ var _CFG$SIMPLE$challenge, _CFG$SIMPLE$challenge2, _CFG$SIMPLE$challenge3, _CFG$
    AREALMODELL – rektangel m/ rutenett og håndtak
    ========================================================= */
 
+const { paletteService } = require('./palette/palette-service.js');
+
 const DEFAULT_ADV_COLORS = {
   fill: "#5d9bbf",
   edge: "#2b3a42",
@@ -96,13 +98,6 @@ function getThemeApi() {
   return theme && typeof theme === "object" ? theme : null;
 }
 
-function getGroupPaletteHelper() {
-  const scope = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null;
-  if (!scope) return null;
-  const helper = scope.MathVisualsGroupPalette;
-  return helper && typeof helper.resolve === "function" ? helper : null;
-}
-
 function getActiveThemeProjectName(theme = getThemeApi()) {
   if (!theme || typeof theme.getActiveProfileName !== "function") return null;
   try {
@@ -170,23 +165,20 @@ function reorderForProject(palette, project) {
 function resolveArealPalette(count) {
   const theme = getThemeApi();
   const project = getActiveThemeProjectName(theme);
-  const helper = getGroupPaletteHelper();
   const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
-  if (helper && typeof helper.resolve === "function") {
-    const palette = helper.resolve({
-      groupId: AREAL_GROUP_ID,
-      count: targetCount,
-      project,
-      fallback: DEFAULT_RECT_COLORS,
-      legacyPaletteId: "figures",
-      fallbackKinds: ["fractions"]
-    });
-    if (Array.isArray(palette) && palette.length) {
-      const sanitized = sanitizePaletteList(palette);
-      if (sanitized.length) {
-        const reordered = reorderForProject(sanitized, project);
-        return ensurePaletteCount(reordered, reordered, targetCount);
-      }
+  const servicePalette = paletteService.resolveGroupPalette({
+    groupId: AREAL_GROUP_ID,
+    count: targetCount,
+    project: project || undefined,
+    fallback: DEFAULT_RECT_COLORS,
+    legacyPaletteId: "figures",
+    fallbackKinds: ["fractions"]
+  });
+  if (Array.isArray(servicePalette) && servicePalette.length) {
+    const sanitized = sanitizePaletteList(servicePalette);
+    if (sanitized.length) {
+      const reordered = reorderForProject(sanitized, project);
+      return ensurePaletteCount(reordered, reordered, targetCount);
     }
   }
   let palette = null;

@@ -1,6 +1,8 @@
 /* =======================
    KONFIG FRA HTML
    ======================= */
+const { paletteService } = require('./palette/palette-service.js');
+
 const SIMPLE = {
   pizzas: [],
   ops: [],
@@ -95,13 +97,6 @@ function getPaletteConfig() {
     paletteConfigCache = resolvePaletteConfig();
   }
   return paletteConfigCache;
-}
-
-function getGroupPaletteHelper() {
-  const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
-  if (!scope || typeof scope !== 'object') return null;
-  const helper = scope.MathVisualsGroupPalette;
-  return helper && typeof helper.resolve === 'function' ? helper : null;
 }
 
 function getSettingsApi() {
@@ -285,7 +280,6 @@ function tryResolvePalette(resolver) {
 function getFractionPalette(count) {
   const paletteApi = getPaletteApi();
   const settings = getSettingsApi();
-  const helper = getGroupPaletteHelper();
   const theme = getThemeApi();
   const project = resolvePaletteProjectName();
   const projectFallbackBase = getProjectFallbackPaletteBase(project);
@@ -337,20 +331,18 @@ function getFractionPalette(count) {
     }
   }
 
-  if (helper) {
-    const palette = tryResolvePalette(() =>
-      helper.resolve({
-        groupId: FRACTION_GROUP_ID,
-        count: target || undefined,
-        project: project || undefined,
-        fallback,
-        legacyPaletteId: 'fractions',
-        fallbackKinds: ['figures']
-      })
-    );
-    if (palette && palette.length) {
-      return createResult(palette, true);
-    }
+  const servicePalette = tryResolvePalette(() =>
+    paletteService.resolveGroupPalette({
+      groupId: FRACTION_GROUP_ID,
+      count: target || undefined,
+      project: project || undefined,
+      fallback,
+      legacyPaletteId: 'fractions',
+      fallbackKinds: ['figures']
+    })
+  );
+  if (servicePalette && servicePalette.length) {
+    return createResult(servicePalette, true);
   }
 
   if (theme && typeof theme.getGroupPalette === 'function') {

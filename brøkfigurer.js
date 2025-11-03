@@ -1,3 +1,5 @@
+const { paletteService } = require('./palette/palette-service.js');
+
 (function (_colorCountInp$value) {
   function svgToString(svgEl) {
     if (!svgEl) return '';
@@ -216,13 +218,6 @@
     if (!scope || typeof scope !== 'object') return null;
     const api = scope.MathVisualsPalette;
     return api && typeof api.getGroupPalette === 'function' ? api : null;
-  }
-
-  function getGroupPaletteHelper() {
-    const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
-    if (!scope) return null;
-    const helper = scope.MathVisualsGroupPalette;
-    return helper && typeof helper.resolve === 'function' ? helper : null;
   }
 
   function resolvePaletteConfig() {
@@ -558,7 +553,6 @@
   function getPaletteFromTheme(count) {
     const paletteApi = getPaletteApi();
     const settings = getSettingsApi();
-    const helper = getGroupPaletteHelper();
     const theme = getThemeApi();
     const project = resolvePaletteProjectName();
     const legacyFallback = sanitizePalette(LEGACY_COLOR_PALETTE);
@@ -599,20 +593,18 @@
       }
     }
 
-    if (helper) {
-      const palette = tryResolvePalette(() =>
-        helper.resolve({
-          groupId: FRACTION_GROUP_ID,
-          count: target || undefined,
-          project: project || undefined,
-          fallback,
-          legacyPaletteId: 'fractions',
-          fallbackKinds: ['figures']
-        })
-      );
-      if (palette && palette.length) {
-        return ensurePaletteSize(palette, fallback, target);
-      }
+    const servicePalette = tryResolvePalette(() =>
+      paletteService.resolveGroupPalette({
+        groupId: FRACTION_GROUP_ID,
+        count: target || undefined,
+        project: project || undefined,
+        fallback,
+        legacyPaletteId: 'fractions',
+        fallbackKinds: ['figures']
+      })
+    );
+    if (servicePalette && servicePalette.length) {
+      return ensurePaletteSize(servicePalette, fallback, target);
     }
 
     if (theme && typeof theme.getGroupPalette === 'function') {

@@ -8,6 +8,8 @@
 /* ---------- DEFAULT SPECS (leses fra HTML) ---------- */
 let DEFAULT_SPECS = "";
 
+const { paletteService } = require('./palette/palette-service.js');
+
 /* ---------- ADV (dine verdier) ---------- */
 const ADV_CONFIG = {
   angle: {
@@ -736,13 +738,6 @@ function getPaletteApi() {
   return api && typeof api.getGroupPalette === "function" ? api : null;
 }
 
-function getGroupPaletteHelper() {
-  const scope = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null;
-  if (!scope || typeof scope !== "object") return null;
-  const helper = scope.MathVisualsGroupPalette;
-  return helper && typeof helper.resolve === "function" ? helper : null;
-}
-
 function getPaletteConfig() {
   const scopes = [
     typeof window !== "undefined" ? window : null,
@@ -899,28 +894,20 @@ function resolveSettingsPalette(count) {
     }
   }
   const projectFallbackPalette = resolveProjectFallbackPalette(project);
-  const helper = getGroupPaletteHelper();
   const fallbackCount = target || (projectFallbackPalette.length || groupTarget);
-  if (helper) {
-    let helperPalette = null;
-    try {
-      helperPalette = helper.resolve({
-        groupId: "nkant",
-        project,
-        count: fallbackCount,
-        fallback: projectFallbackPalette,
-        settings: settingsApi || undefined
-      });
-    } catch (_) {
-      helperPalette = null;
-    }
-    const resolved = cycleSettingsPalette(helperPalette, fallbackCount);
-    if (resolved.length) {
-      return {
-        colors: resolved,
-        source: projectFallbackPalette.length ? "project-fallback" : "fallback"
-      };
-    }
+  const servicePalette = paletteService.resolveGroupPalette({
+    groupId: "nkant",
+    project: project || undefined,
+    count: fallbackCount,
+    fallback: projectFallbackPalette,
+    settings: settingsApi || undefined
+  });
+  const resolvedServicePalette = cycleSettingsPalette(servicePalette, fallbackCount);
+  if (resolvedServicePalette.length) {
+    return {
+      colors: resolvedServicePalette,
+      source: projectFallbackPalette.length ? "project-fallback" : "fallback"
+    };
   }
   if (projectFallbackPalette.length) {
     const projectResolved = cycleSettingsPalette(projectFallbackPalette, target || projectFallbackPalette.length);
