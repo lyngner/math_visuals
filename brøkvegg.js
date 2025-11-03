@@ -1,4 +1,4 @@
-const { paletteService } = require('./palette/palette-service.js');
+const { paletteService } = require('./palette/get-palette-service.js');
 
 (function (_luminanceFromHex, _luminanceFromHex2) {
   const SVG_NS = 'http://www.w3.org/2000/svg';
