@@ -4,6 +4,8 @@ const path = require('path');
 
 const projectRoot = path.resolve(__dirname, '..');
 const outputDir = path.join(projectRoot, 'public');
+const paletteDistSource = path.join(projectRoot, 'packages', 'palette', 'dist');
+const paletteDistDestination = path.join(outputDir, 'packages', 'palette', 'dist');
 
 const EXCLUDED_ENTRIES = new Set([
   'api',
@@ -76,4 +78,15 @@ function buildPublicDirectory() {
   log(`Copied ${copiedCount} entries to public/ (excluding build metadata).`);
 }
 
+function copyPalettePackageDist() {
+  if (!fs.existsSync(paletteDistSource)) {
+    log('Skipped copying packages/palette/dist (missing build output).');
+    return;
+  }
+  fs.mkdirSync(path.dirname(paletteDistDestination), { recursive: true });
+  fs.cpSync(paletteDistSource, paletteDistDestination, { recursive: true });
+  log('Copied packages/palette/dist into public/.');
+}
+
 buildPublicDirectory();
+copyPalettePackageDist();
