@@ -34,7 +34,8 @@ The module lives at `packages/figures/src/index.js`. It exposes the measurement 
 1. Update `measurementFigureManifest` in `packages/figures/src/index.js` by appending or editing entries in the relevant category. Provide the raw SVG file name, display name, and scale/dimension metadata.
 2. When adding a new category, ensure the entry contains a unique `id`, human-readable `label`, and a `figures` array following the same structure.
 3. If the measurement app requires custom parsing of real-world sizes, ensure the strings in `dimensions` or `summary` include the desired text – `extractRealWorldSize` checks these fields in order.
-4. For downstream selectors (e.g. Sortering), include the SVG in the CDN directory and make sure the remote manifest (served via `images/amounts/manifest.json`) references the new file. The shared helpers automatically categorise the slug.
+4. Run `npm run build:figures` to regenerate the static manifests. The script materialises the processed measurement catalog at `images/measure/manifest.json` and refreshes the amount slug list at `images/amounts/manifest.json`, keeping both Måling and Sortering in sync.
+5. After updating the JSON, call `clearFigureManifestCache()` (exported from the figures package) without arguments to invalidate cached responses created by `fetchFigureManifest`. This ensures subsequent fetches read the freshly generated manifest.
 
 ## Using the helpers in other apps
 
