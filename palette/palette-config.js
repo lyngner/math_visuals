@@ -32,7 +32,7 @@
   return buildLegacyPaletteConfig();
 });
 
-let attemptedGlobalLoad = false;
+var attemptedGlobalLoad = false;
 
 function resolveGlobalPackage() {
   if (typeof MathVisualsPalettePackage !== 'undefined' && MathVisualsPalettePackage) {
