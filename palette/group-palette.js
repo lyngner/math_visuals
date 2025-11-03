@@ -42,7 +42,7 @@
   }
 })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);
 
-let attemptedGlobalLoad = false;
+let groupPaletteAttemptedGlobalLoad = false;
 
 function unwrapPaletteModule(value) {
   if (!value) return null;
@@ -72,8 +72,8 @@ function resolveGlobalPackage() {
 }
 
 function tryLoadGlobalBundle(currentScript) {
-  if (attemptedGlobalLoad) return resolveGlobalPackage();
-  attemptedGlobalLoad = true;
+  if (groupPaletteAttemptedGlobalLoad) return resolveGlobalPackage();
+  groupPaletteAttemptedGlobalLoad = true;
   if (typeof document === 'undefined' || typeof XMLHttpRequest === 'undefined') {
     return resolveGlobalPackage();
   }
