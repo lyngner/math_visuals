@@ -1,0 +1,702 @@
+'use strict';
+
+Object.defineProperty(exports, '__esModule', { value: true });
+
+const MAX_COLORS = 48;
+const DEFAULT_PROJECT = 'campus';
+
+const PROJECT_FALLBACKS = deepFreeze({
+  campus: ['#DBE3FF', '#2C395B', '#E3B660', '#C5E5E9', '#F6E5BC', '#F1D0D9'],
+  annet: ['#FCEDE4', '#355070', '#F3722C', '#43AA8B', '#577590', '#F9C74F'],
+  kikora: ['#FF5C5C', '#FF9F1C', '#2EC4B6', '#3A86FF', '#8338EC', '#FFE066'],
+  default: ['#1F4DE2', '#475569', '#EF4444', '#0EA5E9', '#10B981', '#F59E0B']
+});
+
+const GRAFTEGNER_AXIS_DEFAULTS = deepFreeze({
+  campus: '#1F4DE2',
+  annet: '#355070',
+  kikora: '#3A86FF',
+  default: '#1F4DE2'
+});
+
+const RAW_COLOR_SLOT_GROUPS = [
+  {
+    groupId: 'graftegner',
+    title: 'Graftegner',
+    description: 'Standardfarger for nye grafer og koordinatsystem.',
+    slots: [
+      { index: 0, label: 'Graf', description: 'Brukes for grafer og funksjoner.' },
+      { index: 19, label: 'Akser', description: 'Farge for akser og rutenett.' }
+    ]
+  },
+  {
+    groupId: 'nkant',
+    title: 'nKant',
+    description: 'Farger for linjer, vinkler og fyll i nKant.',
+    slots: [
+      { index: 1, label: 'Linje', description: 'Kanter, diagonaler og hjelpelinjer.' },
+      { index: 2, label: 'Vinkel', description: 'Markeringer og vinkelflater.' },
+      { index: 3, label: 'Fyll', description: 'Utfylling av polygonflater.' }
+    ]
+  },
+  {
+    groupId: 'diagram',
+    title: 'Diagram',
+    description: 'Standardfarger for stolpe- og sektordiagram.',
+    slots: [
+      { index: 4, label: 'En stolpe', description: 'Når et stolpediagram har én dataserie.' },
+      { index: 5, label: 'Stolpe1', description: 'Første dataserie i sammenlignende stolpediagram.' },
+      { index: 6, label: 'Stolpe2', description: 'Andre dataserie i sammenlignende stolpediagram.' },
+      { index: 7, label: 'Sektor1', description: 'Første sektor i sektordiagram.' },
+      { index: 8, label: 'Sektor2', description: 'Andre sektor i sektordiagram.' },
+      { index: 9, label: 'Sektor3', description: 'Tredje sektor i sektordiagram.' },
+      { index: 10, label: 'Sektor4', description: 'Fjerde sektor i sektordiagram.' },
+      { index: 11, label: 'Sektor5', description: 'Femte sektor i sektordiagram.' },
+      { index: 12, label: 'Sektor6', description: 'Sjette sektor i sektordiagram.' }
+    ]
+  },
+  {
+    groupId: 'fractions',
+    title: 'Brøk og tenkeblokker',
+    description: 'Farger for linjer og fyll i brøkmodeller og tenkeblokker.',
+    slots: [
+      { index: 13, label: 'Fyll', description: 'Fyllfarge for brøker og tenkeblokker.' },
+      { index: 14, label: 'Linje', description: 'Konturer i brøker og tenkeblokker.' }
+    ]
+  },
+  {
+    groupId: 'figurtall',
+    title: 'Figurtall',
+    description: 'Fire standardfarger for figurer i mønstre.',
+    slots: [
+      { index: 15, label: 'Fyll 1', description: 'Første farge i figurtall.' },
+      { index: 16, label: 'Fyll 2', description: 'Andre farge i figurtall.' },
+      { index: 17, label: 'Fyll 3', description: 'Tredje farge i figurtall.' },
+      { index: 18, label: 'Fyll 4', description: 'Fjerde farge i figurtall.' }
+    ]
+  },
+  {
+    groupId: 'arealmodell',
+    title: 'Arealmodell',
+    description: 'Farger for rutene i arealmodellen.',
+    slots: [
+      { index: 21, label: 'Farge 1', description: 'Første rute i arealmodellen.' },
+      { index: 22, label: 'Farge 2', description: 'Andre rute i arealmodellen.' },
+      { index: 23, label: 'Farge 3', description: 'Tredje rute i arealmodellen.' },
+      { index: 24, label: 'Farge 4', description: 'Fjerde rute i arealmodellen.' }
+    ]
+  },
+  {
+    groupId: 'tallinje',
+    title: 'Tallinje',
+    description: 'Standardfarger for tallinjen.',
+    slots: [
+      { index: 25, label: 'Linje', description: 'Selve tallinjen og markeringer.' },
+      { index: 26, label: 'Fyll', description: 'Utfylling av områder på tallinjen.' }
+    ]
+  },
+  {
+    groupId: 'kvikkbilder',
+    title: 'Kvikkbilder',
+    description: 'Fyllfargen i kvikkbilder.',
+    slots: [{ index: 27, label: 'Fyll', description: 'Brukes på figurer i kvikkbilder.' }]
+  },
+  {
+    groupId: 'trefigurer',
+    title: '3D-figurer',
+    description: 'Standardfarger for romfigurer.',
+    slots: [
+      { index: 28, label: 'Linje', description: 'Kanter og hjelpelinjer i romfigurer.' },
+      { index: 29, label: 'Fyll', description: 'Fyllfarge for romfigurer.' }
+    ]
+  },
+  {
+    groupId: 'brokvegg',
+    title: 'Brøkvegg',
+    description: 'Farger for nivåene i brøkveggen.',
+    slots: [
+      { index: 30, label: 'Fyll 1', description: 'Øverste nivå i brøkveggen.' },
+      { index: 31, label: 'Fyll 2', description: 'Andre nivå i brøkveggen.' },
+      { index: 32, label: 'Fyll 3', description: 'Tredje nivå i brøkveggen.' },
+      { index: 33, label: 'Fyll 4', description: 'Fjerde nivå i brøkveggen.' },
+      { index: 34, label: 'Fyll 5', description: 'Femte nivå i brøkveggen.' },
+      { index: 35, label: 'Fyll 6', description: 'Sjette nivå i brøkveggen.' }
+    ]
+  },
+  {
+    groupId: 'prikktilprikk',
+    title: 'Prikk til prikk',
+    description: 'Farger for punkter og linjer i prikk til prikk.',
+    slots: [
+      { index: 36, label: 'Prikk', description: 'Standardfarge for punktene.' },
+      { index: 37, label: 'Linje', description: 'Linjen som binder punktene sammen.' }
+    ]
+  }
+];
+
+function deepFreeze(value) {
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+  Object.getOwnPropertyNames(value).forEach(key => {
+    const property = value[key];
+    if (property && typeof property === 'object' && !Object.isFrozen(property)) {
+      deepFreeze(property);
+    }
+  });
+  return Object.freeze(value);
+}
+
+function cloneSlots(slots, groupId) {
+  if (!Array.isArray(slots)) return [];
+  return slots
+    .map((slot, slotIndex) => {
+      const index = Number.isInteger(slot && slot.index) ? Number(slot.index) : slotIndex;
+      return {
+        index: index < 0 ? slotIndex : index,
+        label: slot && slot.label ? String(slot.label) : `Farge ${slotIndex + 1}`,
+        description: slot && slot.description ? String(slot.description) : null,
+        groupId,
+        groupIndex: slotIndex
+      };
+    })
+    .filter(slot => Number.isInteger(slot.index) && slot.index >= 0);
+}
+
+const COLOR_SLOT_GROUPS = deepFreeze(
+  RAW_COLOR_SLOT_GROUPS.map((group, groupIndex) => {
+    const normalizedId =
+      group && typeof group.groupId === 'string' ? group.groupId.trim().toLowerCase() : `gruppe-${groupIndex + 1}`;
+    const groupId = normalizedId || `gruppe-${groupIndex + 1}`;
+    const slots = cloneSlots(group && group.slots, groupId);
+    return deepFreeze({
+      groupId,
+      title: group && group.title ? String(group.title) : '',
+      description: group && group.description ? String(group.description) : '',
+      slots,
+      groupIndex
+    });
+  })
+);
+
+const COLOR_GROUP_IDS = COLOR_SLOT_GROUPS.map(group => group.groupId);
+const GROUP_SLOT_INDICES = {};
+COLOR_SLOT_GROUPS.forEach(group => {
+  GROUP_SLOT_INDICES[group.groupId] = group.slots.map(slot => slot.index);
+});
+const MIN_COLOR_SLOTS = COLOR_SLOT_GROUPS.reduce((total, group) => total + group.slots.length, 0);
+const DEFAULT_GROUP_ORDER = deepFreeze(COLOR_GROUP_IDS.slice());
+const DEFAULT_PROJECT_ORDER = deepFreeze(['campus', 'kikora', 'annet']);
+
+const PALETTE_CONFIG = deepFreeze({
+  MAX_COLORS,
+  DEFAULT_PROJECT,
+  PROJECT_FALLBACKS,
+  GRAFTEGNER_AXIS_DEFAULTS,
+  COLOR_SLOT_GROUPS,
+  COLOR_GROUP_IDS,
+  GROUP_SLOT_INDICES,
+  MIN_COLOR_SLOTS,
+  DEFAULT_GROUP_ORDER,
+  DEFAULT_PROJECT_ORDER
+});
+
+function normalizeIdentifier(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim().toLowerCase();
+  return trimmed || '';
+}
+
+function sanitizeColor(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const match = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.exec(trimmed);
+  if (!match) {
+    return trimmed.startsWith('var(') ? trimmed : null;
+  }
+  let hex = match[1];
+  if (hex.length === 3) {
+    hex = hex
+      .split('')
+      .map(ch => ch + ch)
+      .join('');
+  } else if (hex.length === 4) {
+    hex = hex
+      .split('')
+      .slice(0, 3)
+      .map(ch => ch + ch)
+      .join('');
+  } else if (hex.length === 8) {
+    hex = hex.slice(0, 6);
+  }
+  return `#${hex.toLowerCase()}`;
+}
+
+function sanitizePalette(values, limit) {
+  if (!Array.isArray(values)) return [];
+  const sanitized = [];
+  const maxSize = Number.isInteger(limit) && limit > 0 ? limit : undefined;
+  for (const value of values) {
+    const clean = sanitizeColor(value);
+    if (clean) {
+      sanitized.push(clean);
+      if (maxSize && sanitized.length >= maxSize) {
+        break;
+      }
+    }
+  }
+  return sanitized;
+}
+
+function ensurePalette(base, fallback, count) {
+  const basePalette = sanitizePalette(base);
+  const fallbackPalette = sanitizePalette(fallback);
+  if (!Number.isFinite(count) || count <= 0) {
+    if (basePalette.length) return basePalette.slice();
+    if (fallbackPalette.length) return fallbackPalette.slice();
+    return basePalette.length ? basePalette.slice() : fallbackPalette.slice();
+  }
+  const size = Math.max(1, Math.trunc(count));
+  const result = [];
+  for (let index = 0; index < size; index += 1) {
+    const primary = basePalette[index];
+    if (typeof primary === 'string' && primary) {
+      result.push(primary);
+      continue;
+    }
+    if (fallbackPalette.length) {
+      const fallbackColor = fallbackPalette[index % fallbackPalette.length];
+      if (typeof fallbackColor === 'string' && fallbackColor) {
+        result.push(fallbackColor);
+        continue;
+      }
+    }
+    if (basePalette.length) {
+      const cycled = basePalette[index % basePalette.length];
+      if (typeof cycled === 'string' && cycled) {
+        result.push(cycled);
+      }
+    }
+  }
+  if (!result.length && fallbackPalette.length) {
+    result.push(fallbackPalette[0]);
+  }
+  return result;
+}
+
+function getGlobalScopeCandidates(scope) {
+  const list = [];
+  if (scope && typeof scope === 'object') {
+    list.push(scope);
+  }
+  if (typeof globalThis !== 'undefined') {
+    list.push(globalThis);
+  }
+  if (typeof window !== 'undefined') {
+    list.push(window);
+  }
+  if (typeof global !== 'undefined') {
+    list.push(global);
+  }
+  return list;
+}
+
+function defaultGetPaletteApi(scope) {
+  const scopes = getGlobalScopeCandidates(scope);
+  for (const candidate of scopes) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const api = candidate.MathVisualsPalette;
+    if (api && typeof api.getGroupPalette === 'function') {
+      return api;
+    }
+  }
+  return null;
+}
+
+function defaultGetThemeApi(scope) {
+  const scopes = getGlobalScopeCandidates(scope);
+  for (const candidate of scopes) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const api = candidate.MathVisualsTheme;
+    if (api && typeof api === 'object') {
+      return api;
+    }
+  }
+  return null;
+}
+
+function getProjectFallbackPalette(projectName, config = PALETTE_CONFIG) {
+  const projectFallbacks = (config && config.PROJECT_FALLBACKS) || PROJECT_FALLBACKS;
+  const defaultProject = normalizeIdentifier((config && config.DEFAULT_PROJECT) || DEFAULT_PROJECT);
+  const normalized = normalizeIdentifier(projectName);
+  const direct = sanitizePalette(projectFallbacks[normalized]);
+  if (direct.length) return direct;
+  const defaultPalette = sanitizePalette(projectFallbacks[defaultProject]);
+  if (defaultPalette.length) return defaultPalette;
+  const globalDefault = sanitizePalette(projectFallbacks.default);
+  if (globalDefault.length) return globalDefault;
+  return sanitizePalette(PROJECT_FALLBACKS.default);
+}
+
+function createPaletteService(options = {}) {
+  const config = options && typeof options === 'object' && options.config ? options.config : PALETTE_CONFIG;
+  const groupIds = Array.isArray(config.COLOR_GROUP_IDS) && config.COLOR_GROUP_IDS.length
+    ? config.COLOR_GROUP_IDS.map(normalizeIdentifier).filter(Boolean)
+    : COLOR_GROUP_IDS.slice();
+  const groupSlotIndexMap = {};
+  const configGroupIndices = config.GROUP_SLOT_INDICES || GROUP_SLOT_INDICES;
+  groupIds.forEach(groupId => {
+    const indices = Array.isArray(configGroupIndices[groupId])
+      ? configGroupIndices[groupId].slice()
+      : Array.isArray(GROUP_SLOT_INDICES[groupId])
+      ? GROUP_SLOT_INDICES[groupId].slice()
+      : [];
+    groupSlotIndexMap[groupId] = indices;
+  });
+  const maxColors = Number.isInteger(config.MAX_COLORS) && config.MAX_COLORS > 0 ? config.MAX_COLORS : MAX_COLORS;
+
+  const normalizedProfiles = new Map();
+  if (options && typeof options.profiles === 'object' && options.profiles) {
+    Object.entries(options.profiles).forEach(([profileKey, profileValue]) => {
+      const normalizedProfileId = normalizeIdentifier(
+        profileValue && typeof profileValue === 'object' && profileValue.id ? profileValue.id : profileKey
+      );
+      if (!normalizedProfileId) return;
+      const groups = {};
+      const rawGroups =
+        profileValue && typeof profileValue === 'object'
+          ? profileValue.groups || profileValue.groupPalettes || {}
+          : {};
+      Object.entries(rawGroups).forEach(([groupKey, colors]) => {
+        const normalizedGroupId = normalizeIdentifier(groupKey);
+        if (!normalizedGroupId || !groupIds.includes(normalizedGroupId)) return;
+        const limit = (groupSlotIndexMap[normalizedGroupId] || []).length || maxColors;
+        const sanitized = sanitizePalette(colors, limit);
+        if (sanitized.length) {
+          groups[normalizedGroupId] = sanitized;
+        }
+      });
+      const palettes = {};
+      const rawPalettes =
+        profileValue && typeof profileValue === 'object'
+          ? profileValue.palettes || profileValue.palette || {}
+          : {};
+      Object.entries(rawPalettes).forEach(([kindKey, colors]) => {
+        const normalizedKind = normalizeIdentifier(kindKey);
+        if (!normalizedKind) return;
+        const sanitized = sanitizePalette(colors, maxColors);
+        if (sanitized.length) {
+          palettes[normalizedKind] = sanitized;
+        }
+      });
+      const fallbacks = {};
+      const rawFallbacks =
+        profileValue && typeof profileValue === 'object'
+          ? profileValue.fallbacks || profileValue.groupFallbacks || {}
+          : {};
+      Object.entries(rawFallbacks).forEach(([groupKey, kinds]) => {
+        const normalizedGroupId = normalizeIdentifier(groupKey) || groupKey;
+        if (!normalizedGroupId) return;
+        const normalizedKinds = Array.isArray(kinds)
+          ? kinds.map(normalizeIdentifier).filter(Boolean)
+          : [];
+        if (normalizedKinds.length) {
+          fallbacks[normalizedGroupId] = normalizedKinds;
+        }
+      });
+      normalizedProfiles.set(normalizedProfileId, {
+        id: profileValue && profileValue.id ? profileValue.id : normalizedProfileId,
+        groups,
+        palettes,
+        fallbacks
+      });
+    });
+  }
+
+  const defaultProfileId = normalizeIdentifier(options && options.defaultProfile ? options.defaultProfile : '');
+  const groupFallbacks = {};
+  if (options && typeof options.groupFallbacks === 'object' && options.groupFallbacks) {
+    Object.entries(options.groupFallbacks).forEach(([groupKey, kinds]) => {
+      const normalizedGroupId = normalizeIdentifier(groupKey) || groupKey;
+      if (!normalizedGroupId) return;
+      const normalizedKinds = Array.isArray(kinds)
+        ? kinds.map(normalizeIdentifier).filter(Boolean)
+        : [];
+      if (normalizedKinds.length) {
+        groupFallbacks[normalizedGroupId] = normalizedKinds;
+      }
+    });
+  }
+
+  const legacyPaletteMap = new Map();
+  let legacyPaletteHandler = null;
+  if (options && options.legacyPalettes) {
+    if (typeof options.legacyPalettes === 'function') {
+      legacyPaletteHandler = options.legacyPalettes;
+    } else if (typeof options.legacyPalettes === 'object') {
+      Object.entries(options.legacyPalettes).forEach(([legacyKey, value]) => {
+        const normalizedLegacyId = normalizeIdentifier(legacyKey);
+        if (!normalizedLegacyId) return;
+        if (typeof value === 'function') {
+          legacyPaletteMap.set(normalizedLegacyId, value);
+          return;
+        }
+        if (Array.isArray(value)) {
+          const sanitized = sanitizePalette(value, maxColors);
+          if (sanitized.length) {
+            legacyPaletteMap.set(normalizedLegacyId, sanitized);
+          }
+          return;
+        }
+        if (value && typeof value === 'object') {
+          const perProfile = {};
+          Object.entries(value).forEach(([profileKey, paletteValues]) => {
+            const normalizedProfileId = normalizeIdentifier(profileKey) || profileKey;
+            const sanitized = sanitizePalette(paletteValues, maxColors);
+            if (sanitized.length) {
+              perProfile[normalizedProfileId] = sanitized;
+            }
+          });
+          if (Object.keys(perProfile).length) {
+            legacyPaletteMap.set(normalizedLegacyId, perProfile);
+          }
+        }
+      });
+    }
+  }
+
+  const paletteApiGetter =
+    typeof options.getPaletteApi === 'function' ? options.getPaletteApi : defaultGetPaletteApi;
+  const themeApiGetter = typeof options.getThemeApi === 'function' ? options.getThemeApi : defaultGetThemeApi;
+
+  function resolveFallbackOrder(groupId, profile, explicitFallbackKinds) {
+    const order = [];
+    const append = list => {
+      if (!Array.isArray(list)) return;
+      list.forEach(kind => {
+        const normalizedKind = normalizeIdentifier(kind);
+        if (!normalizedKind) return;
+        if (!order.includes(normalizedKind)) {
+          order.push(normalizedKind);
+        }
+      });
+    };
+    append(explicitFallbackKinds);
+    if (profile && profile.fallbacks) {
+      append(profile.fallbacks[groupId]);
+      append(profile.fallbacks.default);
+    }
+    append(groupFallbacks[groupId]);
+    append(groupFallbacks.default);
+    return order;
+  }
+
+  function selectProfilePalette(profileId, groupId, fallbackKinds) {
+    const normalizedProfileId = normalizeIdentifier(profileId);
+    if (!normalizedProfileId) return null;
+    const profile = normalizedProfiles.get(normalizedProfileId);
+    if (!profile) return null;
+    const direct = profile.groups[groupId];
+    if (Array.isArray(direct) && direct.length) {
+      return direct.slice();
+    }
+    const fallbackOrder = resolveFallbackOrder(groupId, profile, fallbackKinds);
+    for (const kind of fallbackOrder) {
+      const palette = profile.palettes[kind];
+      if (Array.isArray(palette) && palette.length) {
+        return palette.slice();
+      }
+    }
+    return null;
+  }
+
+  function selectLegacyPalette(legacyId, profileId) {
+    const normalizedLegacyId = normalizeIdentifier(legacyId);
+    if (!normalizedLegacyId) return null;
+    const entry = legacyPaletteMap.get(normalizedLegacyId);
+    if (!entry) return null;
+    if (typeof entry === 'function') {
+      try {
+        const result = entry({ legacyId: normalizedLegacyId, profile: profileId });
+        const sanitized = sanitizePalette(result, maxColors);
+        if (sanitized.length) {
+          return sanitized;
+        }
+      } catch (_) {}
+      return null;
+    }
+    if (Array.isArray(entry)) {
+      return entry.slice();
+    }
+    if (entry && typeof entry === 'object') {
+      const normalizedProfileId = normalizeIdentifier(profileId);
+      if (normalizedProfileId && Array.isArray(entry[normalizedProfileId]) && entry[normalizedProfileId].length) {
+        return entry[normalizedProfileId].slice();
+      }
+      if (Array.isArray(entry.default) && entry.default.length) {
+        return entry.default.slice();
+      }
+      if (Array.isArray(entry['']) && entry[''].length) {
+        return entry[''].slice();
+      }
+    }
+    return null;
+  }
+
+  function resolveGroupPalette(options = {}) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const groupId = normalizeIdentifier(opts.groupId || opts.group);
+    const count = Number.isFinite(opts.count) && opts.count > 0 ? Math.trunc(opts.count) : undefined;
+    const project = typeof opts.project === 'string' && opts.project ? opts.project : undefined;
+    const explicitFallback = Array.isArray(opts.fallback) ? sanitizePalette(opts.fallback, count || maxColors) : [];
+    let fallbackPalette = explicitFallback;
+    if (!fallbackPalette.length) {
+      fallbackPalette = getProjectFallbackPalette(project, config);
+    }
+    if (!fallbackPalette.length) {
+      fallbackPalette = getProjectFallbackPalette(config.DEFAULT_PROJECT, config);
+    }
+    if (!fallbackPalette.length) {
+      fallbackPalette = sanitizePalette(PROJECT_FALLBACKS.default, maxColors);
+    }
+
+    if (!groupId) {
+      return ensurePalette([], fallbackPalette, count);
+    }
+
+    const scope = opts.scope;
+    const paletteApi = opts.paletteApi || paletteApiGetter(scope);
+    const themeApi = opts.themeApi || themeApiGetter(scope);
+    const requestedProfile = opts.profile === null ? '' : normalizeIdentifier(opts.profile);
+    const profileId = requestedProfile || defaultProfileId;
+    const fallbackKinds = Array.isArray(opts.fallbackKinds)
+      ? opts.fallbackKinds.map(normalizeIdentifier).filter(Boolean)
+      : undefined;
+
+    if (paletteApi && typeof paletteApi.getGroupPalette === 'function') {
+      try {
+        const palette = paletteApi.getGroupPalette(groupId, {
+          count,
+          project,
+          settings: opts.settings
+        });
+        if (Array.isArray(palette) && palette.length) {
+          return ensurePalette(palette, fallbackPalette, count);
+        }
+      } catch (_) {}
+    }
+
+    if (themeApi && typeof themeApi.getGroupPalette === 'function') {
+      try {
+        const palette = themeApi.getGroupPalette(groupId, count, project ? { project } : undefined);
+        if (Array.isArray(palette) && palette.length) {
+          return ensurePalette(palette, fallbackPalette, count);
+        }
+      } catch (_) {}
+    }
+
+    let profilePalette = null;
+    if (profileId) {
+      profilePalette = selectProfilePalette(profileId, groupId, fallbackKinds);
+    }
+    if (!profilePalette && requestedProfile && defaultProfileId && requestedProfile !== defaultProfileId) {
+      profilePalette = selectProfilePalette(defaultProfileId, groupId, fallbackKinds);
+    }
+    if (!profilePalette && !requestedProfile && defaultProfileId) {
+      profilePalette = selectProfilePalette(defaultProfileId, groupId, fallbackKinds);
+    }
+    if (profilePalette && profilePalette.length) {
+      return ensurePalette(profilePalette, fallbackPalette, count);
+    }
+
+    const legacyId = normalizeIdentifier(opts.legacyPaletteId);
+    if (legacyId) {
+      if (themeApi && typeof themeApi.getPalette === 'function') {
+        try {
+          const palette = themeApi.getPalette(legacyId, count, {
+            fallbackKinds,
+            project
+          });
+          if (Array.isArray(palette) && palette.length) {
+            return ensurePalette(palette, fallbackPalette, count);
+          }
+        } catch (_) {}
+      }
+      const legacyPalette = selectLegacyPalette(legacyId, profileId || defaultProfileId || '');
+      if (legacyPalette && legacyPalette.length) {
+        return ensurePalette(legacyPalette, fallbackPalette, count);
+      }
+      if (legacyPaletteHandler) {
+        try {
+          const result = legacyPaletteHandler(legacyId, {
+            profile: profileId || defaultProfileId || null,
+            count,
+            project,
+            fallbackKinds
+          });
+          const sanitized = sanitizePalette(result, count || maxColors);
+          if (sanitized.length) {
+            return ensurePalette(sanitized, fallbackPalette, count);
+          }
+        } catch (_) {}
+      }
+    }
+
+    return ensurePalette([], fallbackPalette, count);
+  }
+
+  return {
+    config,
+    ensurePalette: (base, fallback, count) => ensurePalette(base, fallback, count),
+    resolveGroupPalette,
+    getGroupPalette: (groupId, opts = {}) =>
+      resolveGroupPalette(Object.assign({}, opts, { groupId })),
+    getProjectFallbackPalette: projectName => getProjectFallbackPalette(projectName, config),
+    getProfilePalette(profileId, groupId, opts = {}) {
+      const fallbackKinds = Array.isArray(opts.fallbackKinds)
+        ? opts.fallbackKinds.map(normalizeIdentifier).filter(Boolean)
+        : undefined;
+      const palette = selectProfilePalette(profileId, normalizeIdentifier(groupId), fallbackKinds);
+      return Array.isArray(palette) ? palette.slice() : [];
+    }
+  };
+}
+
+const defaultPaletteService = createPaletteService();
+
+function resolveGroupPalette(options) {
+  return defaultPaletteService.resolveGroupPalette(options);
+}
+
+var index = {
+  PROJECT_FALLBACKS,
+  GRAFTEGNER_AXIS_DEFAULTS,
+  COLOR_SLOT_GROUPS,
+  COLOR_GROUP_IDS,
+  GROUP_SLOT_INDICES,
+  MIN_COLOR_SLOTS,
+  DEFAULT_GROUP_ORDER,
+  DEFAULT_PROJECT_ORDER,
+  PALETTE_CONFIG,
+  ensurePalette,
+  getProjectFallbackPalette,
+  createPaletteService,
+  resolveGroupPalette
+};
+
+exports.COLOR_GROUP_IDS = COLOR_GROUP_IDS;
+exports.COLOR_SLOT_GROUPS = COLOR_SLOT_GROUPS;
+exports.DEFAULT_GROUP_ORDER = DEFAULT_GROUP_ORDER;
+exports.DEFAULT_PROJECT_ORDER = DEFAULT_PROJECT_ORDER;
+exports.GRAFTEGNER_AXIS_DEFAULTS = GRAFTEGNER_AXIS_DEFAULTS;
+exports.GROUP_SLOT_INDICES = GROUP_SLOT_INDICES;
+exports.MIN_COLOR_SLOTS = MIN_COLOR_SLOTS;
+exports.PALETTE_CONFIG = PALETTE_CONFIG;
+exports.PROJECT_FALLBACKS = PROJECT_FALLBACKS;
+exports.createPaletteService = createPaletteService;
+exports.default = index;
+exports.ensurePalette = ensurePalette;
+exports.getProjectFallbackPalette = getProjectFallbackPalette;
+exports.resolveGroupPalette = resolveGroupPalette;
+//# sourceMappingURL=index.cjs.map
