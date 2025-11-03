@@ -8,7 +8,104 @@
 /* ---------- DEFAULT SPECS (leses fra HTML) ---------- */
 let DEFAULT_SPECS = "";
 
-const { paletteService } = require('./palette/palette-service.js');
+const paletteService = (function resolvePaletteService() {
+  if (typeof require === 'function') {
+    try {
+      const moduleExports = require('./palette/palette-service.js');
+      if (
+        moduleExports &&
+        moduleExports.paletteService &&
+        typeof moduleExports.paletteService.resolveGroupPalette === 'function'
+      ) {
+        return moduleExports.paletteService;
+      }
+    } catch (_) {}
+  }
+
+  const scope = typeof globalThis !== 'undefined'
+    ? globalThis
+    : typeof window !== 'undefined'
+    ? window
+    : typeof global !== 'undefined'
+    ? global
+    : {};
+
+  const groupPalette = scope && scope.MathVisualsGroupPalette;
+  if (groupPalette) {
+    if (
+      groupPalette.service &&
+      typeof groupPalette.service.resolveGroupPalette === 'function'
+    ) {
+      return groupPalette.service;
+    }
+    if (typeof groupPalette.resolveGroupPalette === 'function') {
+      return {
+        resolveGroupPalette(options = {}) {
+          const result = groupPalette.resolveGroupPalette(options);
+          if (Array.isArray(result)) {
+            return result.slice();
+          }
+          if (typeof groupPalette.ensure === 'function') {
+            const fallback = Array.isArray(options.fallback)
+              ? options.fallback
+              : [];
+            const count = Number.isFinite(options.count) && options.count > 0
+              ? Math.trunc(options.count)
+              : fallback.length;
+            return groupPalette.ensure([], fallback, count);
+          }
+          const fallback = Array.isArray(options.fallback) ? options.fallback : [];
+          return fallback.slice();
+        }
+      };
+    }
+  }
+
+  const paletteApi = scope && scope.MathVisualsPalette;
+  if (paletteApi && typeof paletteApi.getGroupPalette === 'function') {
+    return {
+      resolveGroupPalette(options = {}) {
+        const palette = paletteApi.getGroupPalette({
+          groupId: options.groupId,
+          count: options.count,
+          fallback: options.fallback
+        });
+        if (Array.isArray(palette)) {
+          return palette.slice();
+        }
+        const fallback = Array.isArray(options.fallback) ? options.fallback : [];
+        if (!fallback.length) {
+          return [];
+        }
+        const size = Number.isFinite(options.count) && options.count > 0
+          ? Math.max(1, Math.trunc(options.count))
+          : fallback.length;
+        const result = [];
+        for (let index = 0; index < size; index += 1) {
+          result.push(fallback[index % fallback.length]);
+        }
+        return result;
+      }
+    };
+  }
+
+  return {
+    resolveGroupPalette(options = {}) {
+      const fallback = Array.isArray(options.fallback) ? options.fallback : [];
+      if (!fallback.length) {
+        return [];
+      }
+      const size = Number.isFinite(options.count) && options.count > 0
+        ? Math.max(1, Math.trunc(options.count))
+        : fallback.length;
+      const result = [];
+      for (let index = 0; index < size; index += 1) {
+        result.push(fallback[index % fallback.length]);
+      }
+      return result;
+    }
+  };
+})();
 
 /* ---------- ADV (dine verdier) ---------- */
 const ADV_CONFIG = {
