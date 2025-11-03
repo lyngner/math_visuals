@@ -9,6 +9,7 @@ const EXCLUDED_ENTRIES = new Set([
   'docs',
   'node_modules',
   'scripts',
+  'api',
   'tests',
   'public',
   '.git',
