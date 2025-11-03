@@ -1,6 +1,8 @@
 /* =========================================================
    KONFIG – SIMPLE (viktigst) + ADV (alt annet)
    ========================================================= */
+const { paletteService } = require('./palette/palette-service.js');
+
 const CFG = {
   SIMPLE: {
     layout: "quad",
@@ -110,13 +112,6 @@ function getThemeApi() {
   return theme && typeof theme === "object" ? theme : null;
 }
 
-function getGroupPaletteHelper() {
-  const scope = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null;
-  if (!scope) return null;
-  const helper = scope.MathVisualsGroupPalette;
-  return helper && typeof helper.resolve === "function" ? helper : null;
-}
-
 function sanitizePaletteList(values) {
   if (!Array.isArray(values)) return [];
   const out = [];
@@ -178,22 +173,19 @@ function reorderPaletteForProject(palette, project) {
 function resolveRectColors(count = DEFAULT_RECT_COLORS.length) {
   const theme = getThemeApi();
   const project = getActiveThemeProjectName(theme);
-  const helper = getGroupPaletteHelper();
   const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : DEFAULT_RECT_COLORS.length;
-  if (helper) {
-    const palette = helper.resolve({
-      groupId: AREAL_GROUP_ID,
-      count: targetCount,
-      project,
-      fallback: DEFAULT_RECT_COLORS,
-      legacyPaletteId: "figures",
-      fallbackKinds: ["fractions"]
-    });
-    if ((!project || project !== "kikora") && Array.isArray(palette) && palette.length) {
-      const reordered = reorderPaletteForProject(palette, project);
-      if (reordered.length) {
-        return ensureColors(reordered, reordered, targetCount);
-      }
+  const servicePalette = paletteService.resolveGroupPalette({
+    groupId: AREAL_GROUP_ID,
+    count: targetCount,
+    project: project || undefined,
+    fallback: DEFAULT_RECT_COLORS,
+    legacyPaletteId: "figures",
+    fallbackKinds: ["fractions"]
+  });
+  if ((!project || project !== "kikora") && Array.isArray(servicePalette) && servicePalette.length) {
+    const reordered = reorderPaletteForProject(servicePalette, project);
+    if (reordered.length) {
+      return ensureColors(reordered, reordered, targetCount);
     }
   }
   if (theme && typeof theme.getGroupPalette === "function") {

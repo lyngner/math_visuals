@@ -1,5 +1,7 @@
 /* Tenkeblokker – grid layout */
 
+const { paletteService } = require('./palette/palette-service.js');
+
 const DEFAULT_BLOCKS = [{
   total: 1,
   n: 1,
@@ -76,13 +78,6 @@ function getPaletteApi(scope) {
   if (!root || typeof root !== 'object') return null;
   const api = root.MathVisualsPalette;
   return api && typeof api.getGroupPalette === 'function' ? api : null;
-}
-
-function getGroupPaletteHelper() {
-  const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
-  if (!scope || typeof scope !== 'object') return null;
-  const helper = scope.MathVisualsGroupPalette;
-  return helper && typeof helper.resolve === 'function' ? helper : null;
 }
 
 function getSettingsApi() {
@@ -305,21 +300,18 @@ function resolveFractionPalette(count = 2) {
     projectFallback.length
       ? ensurePaletteCount(projectFallback, projectFallback, target)
       : ensurePaletteCount(FRACTION_FALLBACK_COLORS, FRACTION_FALLBACK_COLORS, target);
-  const helper = getGroupPaletteHelper();
-  if (helper) {
-    const palette = tryResolvePalette(() =>
-      helper.resolve({
-        groupId: FRACTION_GROUP_ID,
-        count: target,
-        project: project || undefined,
-        fallback,
-        legacyPaletteId: 'fractions',
-        fallbackKinds: ['figures']
-      })
-    );
-    if (palette && palette.length) {
-      return ensurePaletteCount(palette, fallback, target);
-    }
+  const servicePalette = tryResolvePalette(() =>
+    paletteService.resolveGroupPalette({
+      groupId: FRACTION_GROUP_ID,
+      count: target || undefined,
+      project: project || undefined,
+      fallback,
+      legacyPaletteId: 'fractions',
+      fallbackKinds: ['figures']
+    })
+  );
+  if (servicePalette && servicePalette.length) {
+    return ensurePaletteCount(servicePalette, fallback, target);
   }
   const paletteApi = getPaletteApi();
   if (paletteApi) {

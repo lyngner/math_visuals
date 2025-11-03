@@ -1,3 +1,5 @@
+const { paletteService } = require('./palette/palette-service.js');
+
 (function () {
   const boxes = [];
   let taskStudentCells = null;
@@ -28,12 +30,6 @@
     const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
     return theme && typeof theme === 'object' ? theme : null;
   }
-  function getGroupPaletteHelper() {
-    const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
-    if (!scope) return null;
-    const helper = scope.MathVisualsGroupPalette;
-    return helper && typeof helper.resolve === 'function' ? helper : null;
-  }
   function applyThemeToDocument() {
     const theme = getThemeApi();
     if (theme && typeof theme.applyToDocument === 'function') {
@@ -43,18 +39,15 @@
   applyThemeToDocument();
   function getPaletteFromTheme(count) {
     const theme = getThemeApi();
-    const helper = getGroupPaletteHelper();
-    if (helper) {
-      const palette = helper.resolve({
-        groupId: FIGURE_GROUP_ID,
-        count,
-        fallback: LEGACY_COLOR_PALETTE,
-        legacyPaletteId: 'figures',
-        fallbackKinds: ['fractions']
-      });
-      if (Array.isArray(palette) && palette.length) {
-        return palette;
-      }
+    const servicePalette = paletteService.resolveGroupPalette({
+      groupId: FIGURE_GROUP_ID,
+      count: Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined,
+      fallback: LEGACY_COLOR_PALETTE,
+      legacyPaletteId: 'figures',
+      fallbackKinds: ['fractions']
+    });
+    if (Array.isArray(servicePalette) && servicePalette.length) {
+      return servicePalette.slice();
     }
     let palette = null;
     if (theme && typeof theme.getGroupPalette === 'function') {

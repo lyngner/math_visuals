@@ -46,7 +46,6 @@ test.describe('tenkeblokker fraction palette fallbacks', () => {
       document: global.document,
       MathVisualsPaletteConfig: global.MathVisualsPaletteConfig,
       MathVisualsPalette: global.MathVisualsPalette,
-      MathVisualsGroupPalette: global.MathVisualsGroupPalette,
       MathVisualsSettings: global.MathVisualsSettings,
       MathVisualsTheme: global.MathVisualsTheme
     };
@@ -92,7 +91,6 @@ test.describe('tenkeblokker fraction palette fallbacks', () => {
       addEventListener: () => {},
       removeEventListener: () => {},
       MathVisualsPalette: null,
-      MathVisualsGroupPalette: null,
       MathVisualsSettings: null,
       MathVisualsTheme: null,
       MathVisAltText: null,
@@ -105,7 +103,6 @@ test.describe('tenkeblokker fraction palette fallbacks', () => {
     global.window = windowStub;
     global.document = stubDocument;
     global.MathVisualsPalette = null;
-    global.MathVisualsGroupPalette = null;
     global.MathVisualsSettings = null;
     global.MathVisualsTheme = null;
 
@@ -160,7 +157,6 @@ test.describe('tenkeblokker fraction palette fallbacks', () => {
       restoreGlobal('document', originalGlobals.document);
       restoreGlobal('MathVisualsPaletteConfig', originalGlobals.MathVisualsPaletteConfig);
       restoreGlobal('MathVisualsPalette', originalGlobals.MathVisualsPalette);
-      restoreGlobal('MathVisualsGroupPalette', originalGlobals.MathVisualsGroupPalette);
       restoreGlobal('MathVisualsSettings', originalGlobals.MathVisualsSettings);
       restoreGlobal('MathVisualsTheme', originalGlobals.MathVisualsTheme);
     }

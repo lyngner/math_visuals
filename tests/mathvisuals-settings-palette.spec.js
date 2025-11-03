@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const vm = require('vm');
+const path = require('path');
 
 const SETTINGS_MODULE = require.resolve('../examples.js');
 const paletteConfig = require('../palette/palette-config.js');
@@ -41,12 +42,10 @@ test.afterEach(() => {
   delete global.MathVisualsSettings;
   delete global.MathVisualsPalette;
   delete global.MathVisualsTheme;
-  delete global.MathVisualsGroupPalette;
   delete global.MathVisualsPaletteConfig;
   if (global.window && typeof global.window === 'object') {
     delete global.window.MathVisualsPalette;
     delete global.window.MathVisualsTheme;
-    delete global.window.MathVisualsGroupPalette;
     delete global.window.MathVisualsPaletteConfig;
   }
   delete require.cache[SETTINGS_MODULE];
@@ -153,11 +152,6 @@ function loadNkantResolveSettingsPalette(projectName, options = {}) {
       getColor: () => '#000000'
     };
   }
-  if (paletteHelper) {
-    windowStub.MathVisualsGroupPalette = paletteHelper;
-  } else {
-    delete windowStub.MathVisualsGroupPalette;
-  }
   windowStub.MathVisAltText = {
     create: () => ({
       destroy: () => {},
@@ -170,6 +164,49 @@ function loadNkantResolveSettingsPalette(projectName, options = {}) {
     savePng: () => Promise.resolve(),
     copySvg: () => Promise.resolve(),
     copyPng: () => Promise.resolve()
+  };
+
+  const paletteServiceModule = (() => {
+    if (paletteHelper && typeof paletteHelper.resolve === 'function') {
+      const service = {
+        resolveGroupPalette: options => paletteHelper.resolve(options)
+      };
+      return {
+        paletteService: service,
+        ensurePalette: paletteHelper.ensure ? paletteHelper.ensure.bind(paletteHelper) : undefined
+      };
+    }
+    return {
+      paletteService: {
+        resolveGroupPalette: () => []
+      },
+      ensurePalette(base, fallback, count) {
+        const primary = Array.isArray(base) ? base.slice() : [];
+        const backup = Array.isArray(fallback) ? fallback.slice() : [];
+        if (!Number.isFinite(count) || count <= 0) {
+          return primary.length ? primary : backup;
+        }
+        const target = Math.max(1, Math.trunc(count));
+        const source = primary.length ? primary : backup;
+        const result = [];
+        for (let index = 0; index < target; index++) {
+          if (!source.length) break;
+          result.push(source[index % source.length]);
+        }
+        return result;
+      }
+    };
+  })();
+
+  const sandboxRequire = request => {
+    if (request === './palette/palette-service.js') {
+      return paletteServiceModule;
+    }
+    if (request === './palette/palette-config.js') {
+      return paletteConfig;
+    }
+    const resolved = require.resolve(request, { paths: [__dirname, path.join(__dirname, '..')] });
+    return require(resolved);
   };
 
   const sandbox = {
@@ -187,6 +224,7 @@ function loadNkantResolveSettingsPalette(projectName, options = {}) {
     requestAnimationFrame: windowStub.requestAnimationFrame,
     cancelAnimationFrame: windowStub.cancelAnimationFrame,
     URL,
+    require: sandboxRequire,
     module: { exports: {} },
     exports: {}
   };
@@ -379,6 +417,9 @@ test.describe('brøkpizza palette fallback', () => {
     windowStub.MathVisualsPaletteConfig = paletteConfig;
 
     const emptyPalette = () => [];
+    const paletteServiceModule = require('../palette/palette-service.js');
+    const originalResolveGroupPalette = paletteServiceModule.paletteService.resolveGroupPalette;
+    paletteServiceModule.paletteService.resolveGroupPalette = () => [];
     const paletteApi = { getGroupPalette: emptyPalette };
     const settingsApi = { getGroupPalette: emptyPalette };
     const groupHelper = { resolve: emptyPalette };
@@ -398,11 +439,9 @@ test.describe('brøkpizza palette fallback', () => {
 
     global.MathVisualsPalette = paletteApi;
     global.MathVisualsSettings = settingsApi;
-    global.MathVisualsGroupPalette = groupHelper;
     global.MathVisualsTheme = themeApi;
     windowStub.MathVisualsPalette = paletteApi;
     windowStub.MathVisualsSettings = settingsApi;
-    windowStub.MathVisualsGroupPalette = groupHelper;
     windowStub.MathVisualsTheme = themeApi;
 
     const localStorageStub = {
@@ -414,8 +453,13 @@ test.describe('brøkpizza palette fallback', () => {
     windowStub.localStorage = localStorageStub;
 
     const pizzaModulePath = require.resolve('../brøkpizza.js');
-    delete require.cache[pizzaModulePath];
-    require('../brøkpizza.js');
+    try {
+      delete require.cache[pizzaModulePath];
+      require('../brøkpizza.js');
+    } finally {
+      paletteServiceModule.paletteService.resolveGroupPalette = originalResolveGroupPalette;
+      delete require.cache[pizzaModulePath];
+    }
 
     expect(appliedStyles['--pizza-fill']).toBe(themeColors['pizza.fill']);
     expect(appliedStyles['--pizza-rim']).toBe(themeColors['pizza.rim']);
@@ -437,7 +481,6 @@ test.describe('brøkfigurer palette fallback', () => {
       localStorage: global.localStorage,
       MathVisualsPalette: global.MathVisualsPalette,
       MathVisualsSettings: global.MathVisualsSettings,
-      MathVisualsGroupPalette: global.MathVisualsGroupPalette,
       MathVisualsTheme: global.MathVisualsTheme,
       MathVisualsPaletteConfig: global.MathVisualsPaletteConfig,
       MathVisAltText: global.MathVisAltText,
@@ -678,9 +721,6 @@ test.describe('brøkfigurer palette fallback', () => {
       getColor: () => '#000000',
       applyToDocument: () => {}
     };
-    windowStub.MathVisualsGroupPalette = {
-      resolve: () => []
-    };
     windowStub.MathVisualsPaletteConfig = paletteConfig;
 
     global.window = windowStub;
@@ -694,7 +734,6 @@ test.describe('brøkfigurer palette fallback', () => {
     global.MathVisSvgExport = windowStub.MathVisSvgExport;
     global.MathVisualsPalette = windowStub.MathVisualsPalette;
     global.MathVisualsSettings = windowStub.MathVisualsSettings;
-    global.MathVisualsGroupPalette = windowStub.MathVisualsGroupPalette;
     global.MathVisualsTheme = windowStub.MathVisualsTheme;
     global.MathVisualsPaletteConfig = paletteConfig;
     global.JXG = windowStub.JXG;
@@ -709,6 +748,10 @@ test.describe('brøkfigurer palette fallback', () => {
       this.disconnect = () => {};
       if (typeof callback === 'function') callback();
     };
+
+    const paletteServiceModule = require('../palette/palette-service.js');
+    const originalResolveGroupPalette = paletteServiceModule.paletteService.resolveGroupPalette;
+    paletteServiceModule.paletteService.resolveGroupPalette = () => [];
 
     try {
       require('../brøkfigurer.js');
@@ -729,6 +772,7 @@ test.describe('brøkfigurer palette fallback', () => {
 
       expect(colors).toEqual(expected);
     } finally {
+      paletteServiceModule.paletteService.resolveGroupPalette = originalResolveGroupPalette;
       delete require.cache[modulePath];
       Object.entries(originalGlobals).forEach(([key, value]) => {
         if (value === undefined) {

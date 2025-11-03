@@ -1,3 +1,5 @@
+const { paletteService } = require('./palette/palette-service.js');
+
 (function (_luminanceFromHex, _luminanceFromHex2) {
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const TEXT_MODES = ['fraction', 'percent', 'decimal'];
@@ -9,13 +11,6 @@
   const DEFAULT_DENOMS = [1, 2, 3, 4, 5, 6, 8, 9, 10, 12];
   const LEGACY_COLOR_PALETTE = ['#B25FE3', '#6C1BA2', '#534477', '#873E79', '#BF4474', '#E31C3D'];
   const FRACTION_GROUP_ID = 'brokvegg';
-
-  function getGroupPaletteHelper() {
-    const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
-    if (!scope) return null;
-    const helper = scope.MathVisualsGroupPalette;
-    return helper && typeof helper.resolve === 'function' ? helper : null;
-  }
 
   function sanitizePaletteList(values) {
     if (!Array.isArray(values)) return [];
@@ -78,22 +73,19 @@
   function getPaletteFromTheme(count) {
     const theme = getThemeApi();
     const project = getActiveThemeProjectName(theme);
-    const helper = getGroupPaletteHelper();
     const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
-    if (helper && typeof helper.resolve === 'function') {
-      const palette = helper.resolve({
-        groupId: FRACTION_GROUP_ID,
-        count: targetCount,
-        project,
-        fallback: LEGACY_COLOR_PALETTE,
-        legacyPaletteId: 'fractions',
-        fallbackKinds: ['figures']
-      });
-      if (Array.isArray(palette) && palette.length) {
-        const sanitized = sanitizePaletteList(palette);
-        if (sanitized.length) {
-          return ensurePaletteCount(sanitized, sanitized, targetCount);
-        }
+    const servicePalette = paletteService.resolveGroupPalette({
+      groupId: FRACTION_GROUP_ID,
+      count: targetCount,
+      project: project || undefined,
+      fallback: LEGACY_COLOR_PALETTE,
+      legacyPaletteId: 'fractions',
+      fallbackKinds: ['figures']
+    });
+    if (Array.isArray(servicePalette) && servicePalette.length) {
+      const sanitized = sanitizePaletteList(servicePalette);
+      if (sanitized.length) {
+        return ensurePaletteCount(sanitized, sanitized, targetCount);
       }
     }
     let palette = null;
