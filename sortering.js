@@ -3119,6 +3119,9 @@
     nodes.wrapper.addEventListener('keydown', event => {
       if (event.defaultPrevented) return;
       if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+        if (event.target && event.target.closest('.sortering__item-editor')) {
+          return;
+        }
         event.preventDefault();
         activateEditorFromInteraction(event);
       }
