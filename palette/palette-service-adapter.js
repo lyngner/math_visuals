@@ -11,13 +11,21 @@
       paletteModule = {};
     }
 
-    const service = paletteModule.service && typeof paletteModule.service === 'object'
-      ? paletteModule.service
-      : null;
+    const service = (() => {
+      if (paletteModule.service && typeof paletteModule.service === 'object') {
+        return paletteModule.service;
+      }
+      if (paletteModule.paletteService && typeof paletteModule.paletteService === 'object') {
+        return paletteModule.paletteService;
+      }
+      return null;
+    })();
 
     const ensureFn = typeof paletteModule.ensure === 'function'
       ? paletteModule.ensure.bind(paletteModule)
-      : null;
+      : typeof paletteModule.ensurePalette === 'function'
+        ? paletteModule.ensurePalette
+        : null;
 
     function resolveWithEnsure(options = {}) {
       const fallback = sanitizePalette(options.fallback);
