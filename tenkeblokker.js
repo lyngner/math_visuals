@@ -1,6 +1,6 @@
 /* Tenkeblokker – grid layout */
 
-const MODULE_NOT_FOUND_CODES = new Set(['MODULE_NOT_FOUND', 'ERR_MODULE_NOT_FOUND', 'ERR_REQUIRE_ESM']);
+const PALETTE_CLIENT_ERROR_CODES = new Set(['MODULE_NOT_FOUND', 'ERR_MODULE_NOT_FOUND', 'ERR_REQUIRE_ESM']);
 
 const paletteModule = loadPaletteServiceClient();
 const { paletteService } = paletteModule;
@@ -31,7 +31,7 @@ function tryRequirePaletteClient() {
   try {
     return require('./palette/palette-service-client.js');
   } catch (error) {
-    if (!error || !MODULE_NOT_FOUND_CODES.has(error.code)) {
+    if (!error || !PALETTE_CLIENT_ERROR_CODES.has(error.code)) {
       throw error;
     }
   }
