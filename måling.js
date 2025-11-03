@@ -2417,11 +2417,20 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     const safeWidth = strapWidth > 0 ? strapWidth : unitSpacing;
     const tapeHousingShift = resolveTapeHousingShiftPx();
     const strapLengthWithOverlap = safeWidth + tapeHousingShift;
+    const wasInfinite = isTapeLengthInfinite(tapeLengthState.configuredUnits);
     const strapLengthDelta =
       Number.isFinite(previousTotalLength) && Number.isFinite(strapLengthWithOverlap)
         ? strapLengthWithOverlap - previousTotalLength
         : 0;
-    if (Math.abs(strapLengthDelta) >= 0.001) {
+    const skipAdjustForInfiniteTransition = infinite && !wasInfinite;
+    const drasticShrinkToSingleUnit =
+      strapUnits <= 1 &&
+      Number.isFinite(previousTotalLength) &&
+      Number.isFinite(strapLengthWithOverlap) &&
+      Number.isFinite(unitSpacing) &&
+      unitSpacing > 0 &&
+      previousTotalLength - strapLengthWithOverlap > unitSpacing * 1.5;
+    if (!skipAdjustForInfiniteTransition && !drasticShrinkToSingleUnit && Math.abs(strapLengthDelta) >= 0.001) {
       adjustTapeTransformForLengthChange(strapLengthDelta);
     }
     const strapEndScale = Number.isFinite(strapHeight) && strapHeight > 0 ? strapHeight / TAPE_STRAP_DEFAULT_HEIGHT : 1;
