@@ -1662,6 +1662,14 @@
     if (wrapper) {
       wrapper.classList.toggle('sortering__item--editable', !!isActive);
       wrapper.style.touchAction = currentAppMode === 'task' ? 'none' : 'auto';
+      if (editable) {
+        wrapper.tabIndex = 0;
+        wrapper.removeAttribute('aria-disabled');
+      } else {
+        wrapper.tabIndex = -1;
+        wrapper.setAttribute('aria-disabled', 'true');
+      }
+      wrapper.setAttribute('aria-expanded', isActive ? 'true' : 'false');
       if (itemId && !itemsById.has(itemId) && activeInlineEditorId === itemId) {
         activeInlineEditorId = null;
       }
@@ -1915,6 +1923,8 @@
     const wrapper = doc.createElement('div');
     wrapper.className = 'sortering__item';
     wrapper.dataset.itemId = item.id;
+    wrapper.tabIndex = -1;
+    wrapper.setAttribute('role', 'button');
 
     const contentEl = doc.createElement('div');
     contentEl.className = 'sortering__item-content';
@@ -3078,11 +3088,7 @@
     nodes.wrapper.addEventListener('pointermove', event => handlePointerMove(event, id));
     nodes.wrapper.addEventListener('pointerup', event => finishPointerDrag(event, id));
     nodes.wrapper.addEventListener('pointercancel', event => finishPointerDrag(event, id));
-    nodes.wrapper.addEventListener('click', event => {
-      if (nodes.wrapper.dataset.suppressNextClick === 'true') {
-        nodes.wrapper.dataset.suppressNextClick = 'false';
-        return;
-      }
+    const activateEditorFromInteraction = event => {
       if (!isEditorMode()) return;
       if (event.target && event.target.closest('.sortering__item-editor')) {
         return;
@@ -3100,6 +3106,31 @@
       lastInlineEditorDismissId = null;
       lastInlineEditorDismissAt = 0;
       activateInlineEditor(id, { focusText: true });
+    };
+
+    nodes.wrapper.addEventListener('click', event => {
+      if (nodes.wrapper.dataset.suppressNextClick === 'true') {
+        nodes.wrapper.dataset.suppressNextClick = 'false';
+        return;
+      }
+      activateEditorFromInteraction(event);
+    });
+
+    nodes.wrapper.addEventListener('keydown', event => {
+      if (event.defaultPrevented) return;
+      if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+        event.preventDefault();
+        activateEditorFromInteraction(event);
+      }
+    });
+
+    nodes.wrapper.addEventListener('focus', () => {
+      if (!isEditorMode()) return;
+      nodes.wrapper.classList.add('sortering__item--focus');
+    });
+
+    nodes.wrapper.addEventListener('blur', () => {
+      nodes.wrapper.classList.remove('sortering__item--focus');
     });
 
     nodes.button.addEventListener('click', () => {
