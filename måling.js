@@ -3295,7 +3295,13 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
             if (normalizedAxis && (normalizedAxis.x !== 0 || normalizedAxis.y !== 0)) {
               entry.axisUnit = normalizedAxis;
             }
-            entry.startPoint = { x: pointerX, y: pointerY };
+            if (
+              !entry.startPoint ||
+              !Number.isFinite(entry.startPoint.x) ||
+              !Number.isFinite(entry.startPoint.y)
+            ) {
+              entry.startPoint = { x: pointerX, y: pointerY };
+            }
           }
         } else if (entry.freeMovement) {
           delete entry.freeMovement;
