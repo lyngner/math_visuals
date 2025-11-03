@@ -1,3 +1,5 @@
+const MODULE_NOT_FOUND_CODES = new Set(['MODULE_NOT_FOUND', 'ERR_MODULE_NOT_FOUND', 'ERR_REQUIRE_ESM']);
+
 (function (rootScope) {
   const exports = loadPaletteServiceClient(rootScope);
   if (typeof module !== 'undefined' && module && module.exports) {
@@ -7,8 +9,6 @@
     rootScope.MathVisualsPaletteServiceClient = exports;
   }
 })(typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : this);
-
-const MODULE_NOT_FOUND_CODES = new Set(['MODULE_NOT_FOUND', 'ERR_MODULE_NOT_FOUND', 'ERR_REQUIRE_ESM']);
 
 function loadPaletteServiceClient(rootScope) {
   const moduleExports = tryRequirePaletteService();
