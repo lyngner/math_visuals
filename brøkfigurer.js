@@ -1,4 +1,9 @@
-const { paletteService } = require('./palette/get-palette-service.js');
+const paletteModule = typeof require === 'function'
+  ? require('./palette/resolve-palette-service.js')
+  : ((typeof window !== 'undefined' ? window.MathVisualsGroupPalette : undefined)
+    || (typeof globalThis !== 'undefined' ? globalThis.MathVisualsGroupPalette : undefined)
+    || {});
+const { paletteService } = paletteModule;
 
 (function (_colorCountInp$value) {
   function svgToString(svgEl) {

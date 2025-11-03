@@ -3,7 +3,12 @@ var _CFG$SIMPLE$challenge, _CFG$SIMPLE$challenge2, _CFG$SIMPLE$challenge3, _CFG$
    AREALMODELL – rektangel m/ rutenett og håndtak
    ========================================================= */
 
-const { paletteService } = require('./palette/get-palette-service.js');
+const paletteModule = typeof require === 'function'
+  ? require('./palette/resolve-palette-service.js')
+  : ((typeof window !== 'undefined' ? window.MathVisualsGroupPalette : undefined)
+    || (typeof globalThis !== 'undefined' ? globalThis.MathVisualsGroupPalette : undefined)
+    || {});
+const { paletteService } = paletteModule;
 
 const DEFAULT_ADV_COLORS = {
   fill: "#5d9bbf",
