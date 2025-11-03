@@ -1,12 +1,71 @@
 /* =========================================================
    KONFIG – SIMPLE (viktigst) + ADV (alt annet)
    ========================================================= */
-const paletteModule = typeof require === 'function'
-  ? require('./palette/resolve-palette-service.js')
-  : ((typeof window !== 'undefined' ? window.MathVisualsGroupPalette : undefined)
-    || (typeof globalThis !== 'undefined' ? globalThis.MathVisualsGroupPalette : undefined)
-    || {});
-const { paletteService } = paletteModule;
+const paletteService = typeof require === 'function'
+  ? require('./palette/palette-service-adapter.js')
+  : (() => {
+    const globalScope = typeof globalThis !== 'undefined'
+      ? globalThis
+      : typeof window !== 'undefined'
+        ? window
+        : typeof global !== 'undefined'
+          ? global
+          : this;
+    if (!globalScope || typeof globalScope !== 'object') {
+      return {
+        resolveGroupPalette(options = {}) {
+          const fallback = Array.isArray(options.fallback)
+            ? options.fallback.map(color => (typeof color === 'string' ? color.trim() : '')).filter(Boolean)
+            : [];
+          return fallback.slice();
+        }
+      };
+    }
+    const existingAdapter = globalScope.MathVisualsPaletteServiceAdapter;
+    if (existingAdapter && typeof existingAdapter.resolveGroupPalette === 'function') {
+      return existingAdapter;
+    }
+    const factory = globalScope.MathVisualsCreatePaletteServiceAdapter;
+    if (typeof factory === 'function') {
+      return factory(globalScope.MathVisualsGroupPalette || {});
+    }
+    const paletteModule = globalScope.MathVisualsGroupPalette || {};
+    if (paletteModule && paletteModule.service && typeof paletteModule.service.resolveGroupPalette === 'function') {
+      return {
+        resolveGroupPalette(options) {
+          return paletteModule.service.resolveGroupPalette(options);
+        }
+      };
+    }
+    if (paletteModule && typeof paletteModule.resolveGroupPalette === 'function') {
+      return {
+        resolveGroupPalette(options) {
+          return paletteModule.resolveGroupPalette(options);
+        }
+      };
+    }
+    if (paletteModule && typeof paletteModule.ensure === 'function') {
+      return {
+        resolveGroupPalette(options = {}) {
+          const fallback = Array.isArray(options.fallback)
+            ? options.fallback.map(color => (typeof color === 'string' ? color.trim() : '')).filter(Boolean)
+            : [];
+          const count = Number.isFinite(options.count) && options.count > 0
+            ? Math.trunc(options.count)
+            : fallback.length;
+          return paletteModule.ensure([], fallback, count);
+        }
+      };
+    }
+    return {
+      resolveGroupPalette(options = {}) {
+        const fallback = Array.isArray(options.fallback)
+          ? options.fallback.map(color => (typeof color === 'string' ? color.trim() : '')).filter(Boolean)
+          : [];
+        return fallback.slice();
+      }
+    };
+  })();
 
 const CFG = {
   SIMPLE: {
