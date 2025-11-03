@@ -32,7 +32,7 @@
   return buildLegacyPaletteConfig();
 });
 
-var attemptedGlobalLoad = false;
+var paletteConfigAttemptedGlobalLoad = false;
 
 function resolveGlobalPackage() {
   if (typeof MathVisualsPalettePackage !== 'undefined' && MathVisualsPalettePackage) {
@@ -51,8 +51,8 @@ function resolveGlobalPackage() {
 }
 
 function tryLoadGlobalBundle(currentScript) {
-  if (attemptedGlobalLoad) return resolveGlobalPackage();
-  attemptedGlobalLoad = true;
+  if (paletteConfigAttemptedGlobalLoad) return resolveGlobalPackage();
+  paletteConfigAttemptedGlobalLoad = true;
   if (typeof document === 'undefined' || typeof XMLHttpRequest === 'undefined') {
     return resolveGlobalPackage();
   }
