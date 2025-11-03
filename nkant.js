@@ -8,7 +8,7 @@
 /* ---------- DEFAULT SPECS (leses fra HTML) ---------- */
 let DEFAULT_SPECS = "";
 
-const { paletteService } = require('./palette/palette-service.js');
+const { paletteService } = require('./palette/get-palette-service.js');
 
 /* ---------- ADV (dine verdier) ---------- */
 const ADV_CONFIG = {

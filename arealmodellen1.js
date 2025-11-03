@@ -1,7 +1,7 @@
 /* =========================================================
    KONFIG – SIMPLE (viktigst) + ADV (alt annet)
    ========================================================= */
-const { paletteService } = require('./palette/palette-service.js');
+const { paletteService } = require('./palette/get-palette-service.js');
 
 const CFG = {
   SIMPLE: {

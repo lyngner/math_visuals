@@ -199,7 +199,7 @@ function loadNkantResolveSettingsPalette(projectName, options = {}) {
   })();
 
   const sandboxRequire = request => {
-    if (request === './palette/palette-service.js') {
+    if (request === './palette/get-palette-service.js' || request === './palette/palette-service.js') {
       return paletteServiceModule;
     }
     if (request === './palette/palette-config.js') {
@@ -417,7 +417,7 @@ test.describe('brøkpizza palette fallback', () => {
     windowStub.MathVisualsPaletteConfig = paletteConfig;
 
     const emptyPalette = () => [];
-    const paletteServiceModule = require('../palette/palette-service.js');
+    const paletteServiceModule = require('../palette/get-palette-service.js');
     const originalResolveGroupPalette = paletteServiceModule.paletteService.resolveGroupPalette;
     paletteServiceModule.paletteService.resolveGroupPalette = () => [];
     const paletteApi = { getGroupPalette: emptyPalette };
@@ -749,7 +749,7 @@ test.describe('brøkfigurer palette fallback', () => {
       if (typeof callback === 'function') callback();
     };
 
-    const paletteServiceModule = require('../palette/palette-service.js');
+    const paletteServiceModule = require('../palette/get-palette-service.js');
     const originalResolveGroupPalette = paletteServiceModule.paletteService.resolveGroupPalette;
     paletteServiceModule.paletteService.resolveGroupPalette = () => [];
 

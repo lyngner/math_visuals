@@ -1,6 +1,6 @@
 /* Tenkeblokker – grid layout */
 
-const { paletteService } = require('./palette/palette-service.js');
+const { paletteService } = require('./palette/get-palette-service.js');
 
 const DEFAULT_BLOCKS = [{
   total: 1,
