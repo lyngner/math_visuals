@@ -1,12 +1,95 @@
 /* =======================
    KONFIG FRA HTML
    ======================= */
-const paletteModule = typeof require === 'function'
-  ? require('./palette/resolve-palette-service.js')
-  : ((typeof window !== 'undefined' ? window.MathVisualsGroupPalette : undefined)
-    || (typeof globalThis !== 'undefined' ? globalThis.MathVisualsGroupPalette : undefined)
-    || {});
+const MODULE_NOT_FOUND_CODES = new Set(['MODULE_NOT_FOUND', 'ERR_MODULE_NOT_FOUND', 'ERR_REQUIRE_ESM']);
+
+const paletteModule = loadPaletteServiceClient();
 const { paletteService } = paletteModule;
+
+function loadPaletteServiceClient() {
+  const moduleExports = tryRequirePaletteClient();
+  if (moduleExports && moduleExports.paletteService && typeof moduleExports.paletteService.resolveGroupPalette === 'function') {
+    return moduleExports;
+  }
+  const scopes = [
+    typeof globalThis !== 'undefined' ? globalThis : null,
+    typeof window !== 'undefined' ? window : null,
+    typeof global !== 'undefined' ? global : null
+  ];
+  for (const scope of scopes) {
+    const client = resolvePaletteClientFromScope(scope);
+    if (client) {
+      return client;
+    }
+  }
+  return createFallbackPaletteClient();
+}
+
+function tryRequirePaletteClient() {
+  if (typeof require !== 'function') {
+    return null;
+  }
+  try {
+    return require('./palette/palette-service-client.js');
+  } catch (error) {
+    if (!error || !MODULE_NOT_FOUND_CODES.has(error.code)) {
+      throw error;
+    }
+  }
+  return null;
+}
+
+function resolvePaletteClientFromScope(scope) {
+  if (!scope || typeof scope !== 'object') {
+    return null;
+  }
+  const client = scope.MathVisualsPaletteServiceClient;
+  if (client && client.paletteService && typeof client.paletteService.resolveGroupPalette === 'function') {
+    return client;
+  }
+  const group = scope.MathVisualsGroupPalette;
+  if (!group || typeof group !== 'object') {
+    return null;
+  }
+  const service = group.service && typeof group.service === 'object' ? group.service : group;
+  const resolver = service.resolveGroupPalette || service.resolve || group.resolveGroupPalette || group.resolve;
+  if (typeof resolver !== 'function') {
+    return null;
+  }
+  return {
+    paletteService: {
+      resolveGroupPalette(options = {}) {
+        return resolver.call(service, options);
+      }
+    }
+  };
+}
+
+function createFallbackPaletteClient() {
+  return {
+    paletteService: {
+      resolveGroupPalette(options = {}) {
+        const base = Array.isArray(options.base) ? options.base.filter(isValidColor) : [];
+        const fallback = Array.isArray(options.fallback) ? options.fallback.filter(isValidColor) : [];
+        const source = base.length ? base : fallback;
+        if (!source.length) {
+          return [];
+        }
+        const count = Number.isFinite(options.count) && options.count > 0 ? Math.trunc(options.count) : source.length;
+        const size = Math.max(1, count);
+        const result = [];
+        for (let index = 0; index < size; index += 1) {
+          result.push(source[index % source.length]);
+        }
+        return result;
+      }
+    }
+  };
+}
+
+function isValidColor(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
 
 const SIMPLE = {
   pizzas: [],
