@@ -201,7 +201,7 @@
   <link rel="stylesheet" href="vendor/cdn/katex/katex.min.css" />
 </head>
 <body>
-  <div class="wrap">
+  <div class="wrap" data-math-visual-app-root="tallinje">
     <div class="grid layout--sidebar">
       <div class="card">
         <div class="figure">
@@ -298,7 +298,14 @@
   <script src="alt-text-ui.js"></script>
   <script src="svg-export-helper.js"></script>
   <script src="axis-arrow.js"></script>
-  <script src="tallinje.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "@math-visuals/core": "./packages/core/src/index.js"
+      }
+    }
+  </script>
+  <script type="module" src="tallinje.js"></script>
   <script src="examples.js"></script>
   <script src="split.js"></script>
 </body>
