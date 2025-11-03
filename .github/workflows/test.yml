@@ -29,6 +29,9 @@ jobs:
       - name: Validate vendor manifest
         run: npm run materialize-vendor -- --check
 
+      - name: Build figure manifests
+        run: npm run build:figures
+
       - name: Install Playwright browsers (Chromium, Firefox, WebKit)
         run: npx playwright install --with-deps
 
