@@ -49,6 +49,13 @@ async function dragLocator(page, locator, delta, options = {}) {
   return { startX, startY };
 }
 
+function getBoxCenter(box) {
+  return {
+    x: box.x + box.width / 2,
+    y: box.y + box.height / 2
+  };
+}
+
 test.describe('måling tape housing interactions', () => {
   test('housing drags hand off to instrument move without changing strap length', async ({ page }) => {
     await ensureTapeTool(page);
@@ -137,5 +144,69 @@ test.describe('måling tape housing interactions', () => {
     expect(afterMetrics.visible).toBeGreaterThan(beforeMetrics.visible + 40);
     expect(Math.abs(afterMetrics.translateX - beforeMetrics.translateX)).toBeLessThan(10);
     expect(Math.abs(afterMetrics.translateY - beforeMetrics.translateY)).toBeLessThan(10);
+  });
+
+  test('direction lock anchors the opposite endpoint during handle drags', async ({ page }) => {
+    await ensureTapeTool(page);
+    await page.selectOption('#cfg-measurement-direction-lock', 'horizontal');
+    await page.waitForTimeout(50);
+
+    const zeroHandle = page.locator('[data-tape-zero-handle]');
+    const zeroAnchor = page.locator('[data-tape-zero-anchor]');
+    const housing = page.locator('[data-tape-housing]');
+
+    const initialZeroBox = await zeroAnchor.boundingBox();
+    const initialHousingBox = await housing.boundingBox();
+    expect(initialZeroBox).not.toBeNull();
+    expect(initialHousingBox).not.toBeNull();
+
+    const initialZeroCenter = getBoxCenter(initialZeroBox);
+    const initialHousingCenter = getBoxCenter(initialHousingBox);
+    const initialMetrics = await getTapeMetrics(page);
+    expect(initialMetrics).not.toBeNull();
+
+    const zeroDrag = { x: 200, y: 120 };
+    await dragLocator(page, zeroHandle, zeroDrag);
+    await page.waitForTimeout(50);
+
+    const afterZeroZeroBox = await zeroAnchor.boundingBox();
+    const afterZeroHousingBox = await housing.boundingBox();
+    const afterZeroMetrics = await getTapeMetrics(page);
+    expect(afterZeroZeroBox).not.toBeNull();
+    expect(afterZeroHousingBox).not.toBeNull();
+    expect(afterZeroMetrics).not.toBeNull();
+
+    const afterZeroZeroCenter = getBoxCenter(afterZeroZeroBox);
+    const afterZeroHousingCenter = getBoxCenter(afterZeroHousingBox);
+
+    expect(Math.abs(afterZeroZeroCenter.x - initialZeroCenter.x)).toBeGreaterThan(120);
+    expect(Math.abs(afterZeroZeroCenter.y - initialZeroCenter.y)).toBeLessThan(20);
+    expect(Math.abs(afterZeroHousingCenter.x - initialHousingCenter.x)).toBeLessThan(8);
+    expect(Math.abs(afterZeroHousingCenter.y - initialHousingCenter.y)).toBeLessThan(8);
+    expect(afterZeroMetrics.visible).toBeGreaterThan(initialMetrics.visible + 40);
+
+    const housingDrag = { x: -180, y: 0 };
+    const zeroCenterBeforeHousing = afterZeroZeroCenter;
+    const housingCenterBeforeHousing = afterZeroHousingCenter;
+    const metricsBeforeHousing = afterZeroMetrics;
+
+    await dragLocator(page, housing, housingDrag);
+    await page.waitForTimeout(50);
+
+    const afterHousingZeroBox = await zeroAnchor.boundingBox();
+    const afterHousingHousingBox = await housing.boundingBox();
+    const afterHousingMetrics = await getTapeMetrics(page);
+    expect(afterHousingZeroBox).not.toBeNull();
+    expect(afterHousingHousingBox).not.toBeNull();
+    expect(afterHousingMetrics).not.toBeNull();
+
+    const afterHousingZeroCenter = getBoxCenter(afterHousingZeroBox);
+    const afterHousingHousingCenter = getBoxCenter(afterHousingHousingBox);
+
+    expect(Math.abs(afterHousingZeroCenter.x - zeroCenterBeforeHousing.x)).toBeLessThan(8);
+    expect(Math.abs(afterHousingZeroCenter.y - zeroCenterBeforeHousing.y)).toBeLessThan(8);
+    expect(Math.abs((afterHousingHousingCenter.x - housingCenterBeforeHousing.x) - housingDrag.x)).toBeLessThan(40);
+    expect(Math.abs(afterHousingHousingCenter.y - housingCenterBeforeHousing.y)).toBeLessThan(20);
+    expect(Math.abs((afterHousingMetrics.translateX - metricsBeforeHousing.translateX) - housingDrag.x)).toBeLessThan(60);
   });
 });
