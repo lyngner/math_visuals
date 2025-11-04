@@ -185,4 +185,46 @@ test.describe('sortering figure editor', () => {
     expect(Array.isArray(afterApplyItem.figures)).toBe(true);
     expect(afterApplyItem.figures[0].value).toBe('tb4.svg');
   });
+
+  test('keeps manual figure selection for new items without figures', async ({ page }) => {
+    await page.goto('/sortering.html', { waitUntil: 'load' });
+
+    const addButton = page.locator('#btnAddSorteringItem');
+    await expect(addButton).toBeVisible();
+    await addButton.click();
+
+    const newItem = page.locator('.sortering__item').last();
+    await expect(newItem).toBeVisible();
+    const itemId = await newItem.getAttribute('data-item-id');
+    expect(itemId).toBeTruthy();
+
+    await newItem.click();
+
+    const typeSelect = newItem.locator('.sortering__item-editor-select');
+    await expect(typeSelect).toBeVisible();
+    await expect(typeSelect).toHaveValue('text');
+
+    await typeSelect.selectOption('figure');
+    await expect(typeSelect).toHaveValue('figure');
+
+    const figureRow = newItem.locator('.sortering__item-editor-figure-row').first();
+    await expect(figureRow).toBeVisible();
+
+    await page.evaluate(() => {
+      const api = window.mathVisSortering;
+      if (api && typeof api.applyOrder === 'function') {
+        api.applyOrder({ resetToBase: true });
+      }
+    });
+
+    await expect(typeSelect).toHaveValue('figure');
+
+    const state = await getSorteringState(page);
+    expect(state).not.toBeNull();
+    const createdItem = state.items.find(entry => entry && entry.id === itemId);
+    expect(createdItem).toBeDefined();
+    expect(createdItem.type).toBe('figure');
+    expect(Array.isArray(createdItem.figures)).toBe(true);
+    expect(createdItem.figures.length).toBeGreaterThan(0);
+  });
 });

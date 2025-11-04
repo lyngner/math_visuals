@@ -1175,6 +1175,7 @@ import {
   }
 
   function sanitizeItemType(value, source) {
+    const override = getManualTypeOverride(source);
     let normalized = 'text';
     if (typeof value === 'string') {
       const lowered = value.trim().toLowerCase();
@@ -1184,8 +1185,14 @@ import {
         normalized = 'figure';
       }
     }
+    if (override === 'figure') {
+      return 'figure';
+    }
     if (itemHasFigureEntries(source)) {
       return 'figure';
+    }
+    if (override === 'text') {
+      return 'text';
     }
     return normalized;
   }
@@ -1683,6 +1690,48 @@ import {
   const itemNodes = new Map();
   const itemsById = new Map();
   const dirtyItemIds = new Set();
+  const manualTypeOverrides = new Map();
+
+  function getManualTypeOverride(source) {
+    if (!source) return null;
+    let id = '';
+    if (typeof source === 'string') {
+      id = source.trim();
+    } else if (typeof source === 'object' && typeof source.id === 'string') {
+      id = source.id.trim();
+    }
+    if (!id) return null;
+    const value = manualTypeOverrides.get(id) || null;
+    if (value === 'figure' || value === 'text') {
+      return value;
+    }
+    return null;
+  }
+
+  function setManualTypeOverride(source, value) {
+    if (value !== 'figure' && value !== 'text') return;
+    if (!source) return;
+    let id = '';
+    if (typeof source === 'string') {
+      id = source.trim();
+    } else if (typeof source === 'object' && typeof source.id === 'string') {
+      id = source.id.trim();
+    }
+    if (!id) return;
+    manualTypeOverrides.set(id, value);
+  }
+
+  function clearManualTypeOverride(source) {
+    if (!source) return;
+    let id = '';
+    if (typeof source === 'string') {
+      id = source.trim();
+    } else if (typeof source === 'object' && typeof source.id === 'string') {
+      id = source.id.trim();
+    }
+    if (!id) return;
+    manualTypeOverrides.delete(id);
+  }
 
   function markItemDirty(itemOrId) {
     if (!itemOrId) return;
@@ -1851,8 +1900,15 @@ import {
       if (!ensured || !ensured.id) return;
       itemsById.set(ensured.id, ensured);
     });
+    const validIds = new Set(itemsById.keys());
+    if (manualTypeOverrides.size) {
+      Array.from(manualTypeOverrides.keys()).forEach(id => {
+        if (!validIds.has(id)) {
+          manualTypeOverrides.delete(id);
+        }
+      });
+    }
     if (dirtyItemIds.size) {
-      const validIds = new Set(itemsById.keys());
       Array.from(dirtyItemIds).forEach(id => {
         if (!validIds.has(id)) {
           dirtyItemIds.delete(id);
@@ -2228,6 +2284,7 @@ import {
         figure.categoryId = normalizedCategory;
         syncFigureSelectionControls(figure, categorySelect, figureSelect);
         item.type = 'figure';
+        setManualTypeOverride(item, 'figure');
         autoUpdateItemFigureLabels(item, '', { initialLabel, initialAlt });
         markItemDirty(item);
         commitFigureChanges();
@@ -2245,6 +2302,7 @@ import {
             figure.value = '';
             syncFigureSelectionControls(figure, categorySelect, figureSelect);
             item.type = 'figure';
+            setManualTypeOverride(item, 'figure');
             autoUpdateItemFigureLabels(item, '', { initialLabel, initialAlt });
             markItemDirty(item);
             commitFigureChanges();
@@ -2261,6 +2319,7 @@ import {
           const autoLabel = buildFigureDisplayLabel(figure.value, figure.categoryId, selectedMatch);
           autoUpdateItemFigureLabels(item, autoLabel, { initialLabel, initialAlt });
           item.type = 'figure';
+          setManualTypeOverride(item, 'figure');
           markItemDirty(item);
           commitFigureChanges();
         });
@@ -2529,10 +2588,11 @@ import {
       };
 
       typeSelect.addEventListener('change', () => {
-        const nextType = sanitizeItemType(typeSelect.value);
+        const nextType = sanitizeItemType(typeSelect.value, item);
         item.type = nextType;
         markItemDirty(item);
         if (nextType === 'text') {
+          clearManualTypeOverride(item);
           item.figures = [];
           if (Array.isArray(item.images)) {
             item.images = [];
@@ -2542,10 +2602,13 @@ import {
             delete item.format;
           }
         } else if (nextType === 'figure') {
+          setManualTypeOverride(item, 'figure');
           item.text = '';
           if (!Array.isArray(item.figures) || !item.figures.length) {
             addFigureToItem(item);
           }
+        } else {
+          clearManualTypeOverride(item);
         }
         refreshItemsById();
         applyOrder({});
@@ -3501,6 +3564,7 @@ import {
     const index = state.items.findIndex(item => item && item.id === id);
     if (index < 0) return;
     state.items.splice(index, 1);
+    manualTypeOverrides.delete(id);
     clearDirtyItem(id);
     refreshItemsById();
     state.order = sanitizeOrder(state.items, state.order);
