@@ -96,6 +96,7 @@ test.describe('Description renderer interactions', () => {
     expect(pageErrors).toEqual([]);
     const rendererResponse = await rendererResponsePromise;
     expect(rendererResponse.ok()).toBe(true);
+    expect(rendererResponse.status()).toBe(200);
 
     await setDescription(page, 'Test @math{1 + 1} og @input[answer="2"|placeholder=Svar]');
     const preview = page.locator('.example-description-preview');

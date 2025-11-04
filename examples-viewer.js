@@ -63,6 +63,14 @@ function resolveDescriptionRendererUrl() {
   const currentScript = document.currentScript;
   const scripts = document.getElementsByTagName('script');
 
+  const resolveCandidateScriptElement = () => {
+    if (currentScript) return currentScript;
+    if (scripts && scripts.length) {
+      return scripts[scripts.length - 1];
+    }
+    return null;
+  };
+
   const shouldForceRelativeDescriptionRendererUrl = () => {
     if (!globalScope) return false;
     const { location } = globalScope;
@@ -70,14 +78,7 @@ function resolveDescriptionRendererUrl() {
     if (!protocol || protocol === 'file:') {
       return true;
     }
-    const resolveCandidateScript = () => {
-      if (currentScript) return currentScript;
-      if (scripts && scripts.length) {
-        return scripts[scripts.length - 1];
-      }
-      return null;
-    };
-    const scriptElement = resolveCandidateScript();
+    const scriptElement = resolveCandidateScriptElement();
     if (!scriptElement) {
       return false;
     }
@@ -109,6 +110,31 @@ function resolveDescriptionRendererUrl() {
   };
 
   if (shouldForceRelativeDescriptionRendererUrl()) {
+    const scriptElement = resolveCandidateScriptElement();
+    const absoluteSrc = scriptElement && typeof scriptElement.src === 'string' ? scriptElement.src : '';
+    if (absoluteSrc) {
+      try {
+        const resolvedFromScript = new URL(DESCRIPTION_RENDERER_FILENAME, absoluteSrc).toString();
+        logDescriptionRendererEvent(
+          'info',
+          'Viewer using script-derived description renderer URL for static context',
+          {
+            scriptSrc: absoluteSrc,
+            resolvedUrl: resolvedFromScript
+          }
+        );
+        descriptionRendererResolvedUrl = resolvedFromScript;
+        if (globalScope) {
+          globalScope[DESCRIPTION_RENDERER_URL_KEY] = descriptionRendererResolvedUrl;
+        }
+        return descriptionRendererResolvedUrl;
+      } catch (error) {
+        logDescriptionRendererEvent('warn', 'Viewer failed to resolve script-derived description renderer URL in static context', {
+          scriptSrc: absoluteSrc,
+          error: error && error.message ? error.message : String(error)
+        });
+      }
+    }
     logDescriptionRendererEvent('info', 'Viewer using relative description renderer URL for static context');
     descriptionRendererResolvedUrl = DESCRIPTION_RENDERER_FILENAME;
     if (globalScope) {
