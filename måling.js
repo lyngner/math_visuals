@@ -1975,11 +1975,16 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     appState.activeTool = desiredTool;
     if (desiredTool === 'tape') {
       resetTapeMeasureLengthState();
-      if (settings && !isTapeLengthInfinite(settings.tapeMeasureLength)) {
-        settings.tapeMeasureLength = TAPE_LENGTH_INFINITE;
-      }
-      if (appState.settings && !isTapeLengthInfinite(appState.settings.tapeMeasureLength)) {
-        appState.settings = { ...appState.settings, tapeMeasureLength: TAPE_LENGTH_INFINITE };
+      const configurationRequestsInfinity =
+        (settings && isTapeLengthInfinite(settings.tapeMeasureLength)) ||
+        (appState.settings && isTapeLengthInfinite(appState.settings.tapeMeasureLength));
+      if (configurationRequestsInfinity) {
+        if (settings && !isTapeLengthInfinite(settings.tapeMeasureLength)) {
+          settings.tapeMeasureLength = TAPE_LENGTH_INFINITE;
+        }
+        if (appState.settings && !isTapeLengthInfinite(appState.settings.tapeMeasureLength)) {
+          appState.settings = { ...appState.settings, tapeMeasureLength: TAPE_LENGTH_INFINITE };
+        }
       }
     }
     transformState = transformStates[desiredTool] || transformStates[defaultActiveTool];
@@ -2020,30 +2025,15 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (!lengthFieldContainer) {
       return;
     }
-    const sanitizedTool = sanitizeActiveTool(toolKey, appState.activeTool || defaultActiveTool);
-    const shouldHide = sanitizedTool === 'tape';
-    if (shouldHide) {
-      lengthFieldContainer.hidden = true;
-      lengthFieldContainer.setAttribute('hidden', '');
-      lengthFieldContainer.setAttribute('aria-hidden', 'true');
-      if (inputs.length) {
-        inputs.length.disabled = true;
-      }
-      if (measurementFieldGrid) {
-        measurementFieldGrid.classList.remove('field-grid--three');
-        measurementFieldGrid.classList.add('field-grid--two');
-      }
-    } else {
-      lengthFieldContainer.hidden = false;
-      lengthFieldContainer.removeAttribute('hidden');
-      lengthFieldContainer.removeAttribute('aria-hidden');
-      if (inputs.length) {
-        inputs.length.disabled = false;
-      }
-      if (measurementFieldGrid) {
-        measurementFieldGrid.classList.remove('field-grid--two');
-        measurementFieldGrid.classList.add('field-grid--three');
-      }
+    lengthFieldContainer.hidden = false;
+    lengthFieldContainer.removeAttribute('hidden');
+    lengthFieldContainer.removeAttribute('aria-hidden');
+    if (inputs.length) {
+      inputs.length.disabled = false;
+    }
+    if (measurementFieldGrid) {
+      measurementFieldGrid.classList.remove('field-grid--two');
+      measurementFieldGrid.classList.add('field-grid--three');
     }
   }
 
@@ -2845,7 +2835,11 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         updateLengthFieldVisibility(nextTool);
         if (nextTool === 'tape') {
           resetTapeMeasureLengthState();
-          updateSettings({ activeTool: nextTool, tapeMeasureLength: TAPE_LENGTH_INFINITE });
+          const updates = { activeTool: nextTool };
+          if (isTapeLengthInfinite(appState.settings && appState.settings.tapeMeasureLength)) {
+            updates.tapeMeasureLength = TAPE_LENGTH_INFINITE;
+          }
+          updateSettings(updates);
         } else {
           updateSettings({ activeTool: nextTool });
         }
