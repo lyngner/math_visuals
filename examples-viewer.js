@@ -61,10 +61,65 @@ function resolveDescriptionRendererUrl() {
     candidates.push({ base: trimmed, reason, priority, order: candidates.length });
   };
   const currentScript = document.currentScript;
+  const scripts = document.getElementsByTagName('script');
+
+  const shouldForceRelativeDescriptionRendererUrl = () => {
+    if (!globalScope) return false;
+    const { location } = globalScope;
+    const protocol = location && typeof location.protocol === 'string' ? location.protocol.toLowerCase() : '';
+    if (!protocol || protocol === 'file:') {
+      return true;
+    }
+    const resolveCandidateScript = () => {
+      if (currentScript) return currentScript;
+      if (scripts && scripts.length) {
+        return scripts[scripts.length - 1];
+      }
+      return null;
+    };
+    const scriptElement = resolveCandidateScript();
+    if (!scriptElement) {
+      return false;
+    }
+    const getAttribute = typeof scriptElement.getAttribute === 'function' ? scriptElement.getAttribute.bind(scriptElement) : null;
+    if (getAttribute) {
+      const rawSrc = getAttribute('src');
+      if (typeof rawSrc === 'string') {
+        const trimmedSrc = rawSrc.trim();
+        if (trimmedSrc && !/^[a-z][a-z\d+\-.]*:/i.test(trimmedSrc) && !trimmedSrc.startsWith('//')) {
+          return true;
+        }
+      }
+    }
+    const pageOrigin = location && typeof location.origin === 'string' ? location.origin : '';
+    if (!pageOrigin || pageOrigin === 'null') {
+      return true;
+    }
+    const absoluteSrc = typeof scriptElement.src === 'string' ? scriptElement.src : '';
+    if (!absoluteSrc) {
+      return false;
+    }
+    try {
+      const scriptOrigin = new URL(absoluteSrc).origin;
+      if (scriptOrigin && scriptOrigin !== 'null' && scriptOrigin !== pageOrigin) {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  };
+
+  if (shouldForceRelativeDescriptionRendererUrl()) {
+    logDescriptionRendererEvent('info', 'Viewer using relative description renderer URL for static context');
+    descriptionRendererResolvedUrl = DESCRIPTION_RENDERER_FILENAME;
+    if (globalScope) {
+      globalScope[DESCRIPTION_RENDERER_URL_KEY] = descriptionRendererResolvedUrl;
+    }
+    return descriptionRendererResolvedUrl;
+  }
+
   if (currentScript && currentScript.src) {
     addCandidate(currentScript.src, 'document.currentScript.src', 0);
   }
-  const scripts = document.getElementsByTagName('script');
   for (let i = scripts.length - 1; i >= 0; i--) {
     const script = scripts[i];
     if (!script) continue;
