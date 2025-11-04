@@ -271,7 +271,7 @@ function buildLegacyGroupPalette() {
   }
 
   return {
-    ensure,
+    ensure: ensurePalette,
     resolve: resolveGroupPalette,
     resolveGroupPalette
   };
