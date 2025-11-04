@@ -3952,6 +3952,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       startX: event.clientX,
       startY: event.clientY,
       startVisible: tapeLengthState.visiblePx,
+      startTransformX: transformStates.tape.x || 0,
+      startTransformY: transformStates.tape.y || 0,
       lastPersistedUnits: Number.isFinite(tapeLengthState.configuredUnits)
         ? tapeLengthState.configuredUnits
         : isTapeLengthInfinite(tapeLengthState.configuredUnits)
@@ -4060,6 +4062,13 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     tapeLengthState.units = unitSpacing > 0
       ? Math.max(0, tapeLengthState.visiblePx / unitSpacing)
       : 0;
+
+    if (!entry.freeMovement) {
+      const deltaVisible = tapeLengthState.visiblePx - entry.startVisible;
+      transformStates.tape.x = (entry.startTransformX || 0) - deltaVisible * axisX;
+      transformStates.tape.y = (entry.startTransformY || 0) - deltaVisible * axisY;
+    }
+
     applyTapeMeasureTransform();
   }
 
