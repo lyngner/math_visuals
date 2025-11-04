@@ -3998,6 +3998,14 @@
     const { currentScript } = document;
     const scripts = typeof document.getElementsByTagName === 'function' ? document.getElementsByTagName('script') : null;
 
+    const resolveCandidateScriptElement = () => {
+      if (currentScript) return currentScript;
+      if (scripts && scripts.length) {
+        return scripts[scripts.length - 1];
+      }
+      return null;
+    };
+
     const shouldForceRelativeDescriptionRendererUrl = () => {
       if (typeof window === 'undefined') return false;
       const { location } = window;
@@ -4005,14 +4013,7 @@
       if (!protocol || protocol === 'file:') {
         return true;
       }
-      const resolveCandidateScript = () => {
-        if (currentScript) return currentScript;
-        if (scripts && scripts.length) {
-          return scripts[scripts.length - 1];
-        }
-        return null;
-      };
-      const scriptElement = resolveCandidateScript();
+      const scriptElement = resolveCandidateScriptElement();
       if (!scriptElement) {
         return false;
       }
@@ -4044,6 +4045,29 @@
     };
 
     if (shouldForceRelativeDescriptionRendererUrl()) {
+      const scriptElement = resolveCandidateScriptElement();
+      const absoluteSrc = scriptElement && typeof scriptElement.src === 'string' ? scriptElement.src : '';
+      if (absoluteSrc) {
+        try {
+          const resolvedFromScript = new URL('description-renderer.js', absoluteSrc).toString();
+          logDescriptionRendererEvent('info', 'Using script-derived description renderer URL for static context', {
+            scriptSrc: absoluteSrc,
+            resolvedUrl: resolvedFromScript
+          });
+          return [
+            {
+              url: resolvedFromScript,
+              reason: 'static-context-script-src',
+              details: { scriptSrc: absoluteSrc }
+            }
+          ];
+        } catch (error) {
+          logDescriptionRendererEvent('warn', 'Failed to resolve script-derived description renderer URL for static context', {
+            scriptSrc: absoluteSrc,
+            error: error && error.message ? error.message : String(error)
+          });
+        }
+      }
       logDescriptionRendererEvent('info', 'Using relative description renderer URL for static context');
       return [
         {
@@ -4054,8 +4078,11 @@
     }
 
     let scriptElement = currentScript && currentScript.src ? currentScript : null;
-    if (!scriptElement && scripts && scripts.length) {
-      scriptElement = scripts[scripts.length - 1];
+    if (!scriptElement) {
+      const candidateScript = resolveCandidateScriptElement();
+      if (candidateScript && candidateScript.src) {
+        scriptElement = candidateScript;
+      }
     }
 
     if (scriptElement && scriptElement.src) {
