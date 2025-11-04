@@ -116,4 +116,26 @@ test.describe('måling tape housing interactions', () => {
     expect(Math.abs((afterAnchorBox.x - beforeAnchorBox.x) - dragDelta.x)).toBeLessThan(40);
     expect(Math.abs((afterAnchorBox.y - beforeAnchorBox.y) - dragDelta.y)).toBeLessThan(40);
   });
+
+  test('zero-handle drags respect horizontal lock without moving housing', async ({ page }) => {
+    await ensureTapeTool(page);
+    await page.selectOption('#cfg-measurement-direction-lock', 'horizontal');
+    await page.waitForTimeout(50);
+
+    const zeroHandle = page.locator('[data-tape-zero-handle]');
+
+    const beforeMetrics = await getTapeMetrics(page);
+    expect(beforeMetrics).not.toBeNull();
+
+    const dragDelta = { x: 220, y: 0 };
+    await dragLocator(page, zeroHandle, dragDelta);
+    await page.waitForTimeout(50);
+
+    const afterMetrics = await getTapeMetrics(page);
+    expect(afterMetrics).not.toBeNull();
+
+    expect(afterMetrics.visible).toBeGreaterThan(beforeMetrics.visible + 40);
+    expect(Math.abs(afterMetrics.translateX - beforeMetrics.translateX)).toBeLessThan(10);
+    expect(Math.abs(afterMetrics.translateY - beforeMetrics.translateY)).toBeLessThan(10);
+  });
 });
