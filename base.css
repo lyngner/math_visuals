@@ -458,6 +458,23 @@ textarea {
   color: #b91c1c;
 }
 
+.alt-text__save-button {
+  background: #4f46e5;
+  border-color: #4338ca;
+  color: #fff;
+}
+
+.alt-text__save-button:hover {
+  background: #4338ca;
+  color: #fff;
+}
+
+.alt-text__save-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .alt-text__status-action {
   display: inline-block;
   margin-left: 8px;

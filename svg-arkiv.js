@@ -1551,11 +1551,176 @@
     const actionsContainer = dialog.querySelector('.svg-archive__dialog-actions');
     const actionButtons = Array.from(actionsContainer.querySelectorAll('[data-action]'));
 
+    function resolveCaptionText(entry, details) {
+      const fallbackEntry = entry || {};
+      const detailsSummary = details && details.summary;
+      const fallbackSummary = fallbackEntry.summary;
+      const pickFromObject = value => {
+        if (value && typeof value === 'object') {
+          if (typeof value.text === 'string' && value.text.trim()) {
+            return value.text.trim();
+          }
+          if (typeof value.description === 'string' && value.description.trim()) {
+            return value.description.trim();
+          }
+        }
+        return '';
+      };
+      const detailsObjectText = pickFromObject(detailsSummary);
+      if (detailsObjectText) {
+        return detailsObjectText;
+      }
+      if (typeof detailsSummary === 'string' && detailsSummary.trim()) {
+        return detailsSummary.trim();
+      }
+      const fallbackObjectText = pickFromObject(fallbackSummary);
+      if (fallbackObjectText) {
+        return fallbackObjectText;
+      }
+      if (typeof fallbackSummary === 'string' && fallbackSummary.trim()) {
+        return fallbackSummary.trim();
+      }
+      return '';
+    }
+
+    function updateCaption(entry, details) {
+      if (!captionElement) {
+        return;
+      }
+      const text = resolveCaptionText(entry, details);
+      captionElement.textContent = text;
+      if (text) {
+        captionElement.removeAttribute('hidden');
+      } else {
+        captionElement.setAttribute('hidden', '');
+      }
+      syncDialogDescriptionTargets();
+    }
+
+    function updateAltTextNoteDisplay(source) {
+      if (!altTextNoteElement) {
+        return;
+      }
+      if (source === 'manual') {
+        altTextNoteElement.textContent = 'Teksten er lagret manuelt og brukes for skjermlesere.';
+      } else {
+        altTextNoteElement.textContent = 'Teksten er generert automatisk. Rediger og lagre ved behov.';
+      }
+    }
+
     let activeEntry = null;
     let restoreFocusTo = null;
     let currentDetails = null;
     let altTextManager = null;
     let pendingDetailsToken = 0;
+    let altTextSaveToken = 0;
+
+    async function persistAltTextForActiveEntry(text, source) {
+      if (!activeEntry || !activeEntry.slug) {
+        throw new Error('Fant ikke figuren som skulle lagres.');
+      }
+      const normalizedText = typeof text === 'string' ? text.trim() : '';
+      const normalizedSource = source === 'manual' && normalizedText ? 'manual' : 'auto';
+      const payload = {
+        slug: activeEntry.slug,
+        altText: normalizedText,
+        altTextSource: normalizedSource
+      };
+      const token = ++altTextSaveToken;
+
+      let response;
+      try {
+        response = await fetch('/api/svg', {
+          method: 'PATCH',
+          headers: {
+            'content-type': 'application/json',
+            Accept: 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+      } catch (error) {
+        throw Object.assign(new Error('Kunne ikke lagre teksten. Kontroller tilkoblingen og prøv igjen.'), { cause: error });
+      }
+
+      let responseBody = null;
+      try {
+        responseBody = await response.json();
+      } catch (error) {
+        responseBody = null;
+      }
+
+      if (!response.ok) {
+        const message = responseBody && typeof responseBody.error === 'string' && responseBody.error.trim()
+          ? responseBody.error.trim()
+          : `Kunne ikke lagre teksten (status ${response.status}).`;
+        throw new Error(message);
+      }
+
+      if (token !== altTextSaveToken) {
+        return {
+          text: normalizedText,
+          source: normalizedSource
+        };
+      }
+
+      const savedText = responseBody && typeof responseBody.altText === 'string'
+        ? responseBody.altText.trim()
+        : normalizedText;
+      const rawSource = responseBody && typeof responseBody.altTextSource === 'string'
+        ? responseBody.altTextSource.trim().toLowerCase()
+        : normalizedSource;
+      const savedSource = rawSource === 'manual' && savedText ? 'manual' : 'auto';
+
+      updateAltTextRecord(activeEntry.slug, current => {
+        current.text = savedText;
+        current.source = savedSource;
+        return current;
+      });
+
+      activeEntry.altText = savedText;
+      activeEntry.altTextSource = savedSource;
+      imageElement.alt = savedText || activeEntry.displayTitle || 'Forhåndsvisning';
+
+      const cardImage = findCardPreviewImage(activeEntry.slug);
+      if (cardImage) {
+        cardImage.alt = savedText || `Forhåndsvisning av ${activeEntry.displayTitle || 'figur'}`;
+      }
+
+      if (currentDetails && currentDetails.slug === activeEntry.slug) {
+        currentDetails.altText = savedText;
+        currentDetails.altTextSource = savedSource;
+        if (currentDetails.summary && typeof currentDetails.summary === 'object') {
+          currentDetails.summary.altText = savedText;
+          currentDetails.summary.altTextSource = savedSource;
+        }
+      }
+
+      if (entryDetailsCache.has(activeEntry.slug)) {
+        const cached = entryDetailsCache.get(activeEntry.slug);
+        if (cached && typeof cached === 'object') {
+          cached.altText = savedText;
+          cached.altTextSource = savedSource;
+          if (cached.summary && typeof cached.summary === 'object') {
+            cached.summary.altText = savedText;
+            cached.summary.altTextSource = savedSource;
+          }
+          entryDetailsCache.set(activeEntry.slug, cached);
+        }
+      }
+
+      const listEntry = allEntries.find(item => item.slug === activeEntry.slug);
+      if (listEntry && typeof listEntry === 'object') {
+        listEntry.altText = savedText;
+        listEntry.altTextSource = savedSource;
+      }
+
+      updateAltTextNoteDisplay(savedSource);
+
+      return {
+        text: savedText,
+        source: savedSource
+      };
+    }
 
     function renderMeta(entry) {
       metaElement.innerHTML = '';
@@ -1705,15 +1870,7 @@
           if (cardImage) {
             cardImage.alt = normalizedText || `Forhåndsvisning av ${activeEntry.displayTitle || 'figur'}`;
           }
-          if (!activeEntry.summary) {
-            captionElement.textContent = normalizedText || '';
-            if (captionElement.textContent) {
-              captionElement.removeAttribute('hidden');
-            } else {
-              captionElement.setAttribute('hidden', '');
-            }
-            syncDialogDescriptionTargets();
-          }
+          updateAltTextNoteDisplay(normalizedSource);
           return record;
         },
         generate: () => {
@@ -1731,6 +1888,14 @@
           }
           const record = entryAltTextCache.get(activeEntry.slug);
           return record && record.signature ? record.signature : '';
+        },
+        save: (text, context) => {
+          const source = context && typeof context.source === 'string' ? context.source : 'auto';
+          return persistAltTextForActiveEntry(text, source).then(result => ({
+            text: result.text,
+            source: result.source,
+            message: 'Alternativ tekst lagret.'
+          }));
         }
       });
       return altTextManager;
@@ -1748,6 +1913,9 @@
       const manager = ensureAltTextManager();
       if (manager) {
         manager.ensureDom();
+        if (typeof manager.markSaved === 'function') {
+          manager.markSaved({ text: record.text, source: record.source });
+        }
         const signatureValue = signatureOverride !== undefined ? signatureOverride : record.signature;
         if (record.source === 'manual') {
           manager.notifyFigureChange(signatureValue);
@@ -1761,14 +1929,8 @@
       if (cardImage) {
         cardImage.alt = record.text || `Forhåndsvisning av ${entry.displayTitle || 'figur'}`;
       }
-      if (!entry.summary) {
-        captionElement.textContent = record.text || '';
-        if (captionElement.textContent) {
-          captionElement.removeAttribute('hidden');
-        } else {
-          captionElement.setAttribute('hidden', '');
-        }
-      }
+      updateCaption(entry, details);
+      updateAltTextNoteDisplay(record.source === 'manual' ? 'manual' : 'auto');
       syncDialogDescriptionTargets();
     }
 
@@ -1791,12 +1953,7 @@
         }
       }
 
-      captionElement.textContent = entry.summary || entry.altText || '';
-      if (captionElement.textContent) {
-        captionElement.removeAttribute('hidden');
-      } else {
-        captionElement.setAttribute('hidden', '');
-      }
+      updateCaption(entry, null);
 
       if (entry.pngUrl) {
         imageElement.src = entry.pngUrl;
@@ -1809,9 +1966,7 @@
       renderMeta(entry);
       syncDialogDescriptionTargets();
 
-      if (altTextNoteElement) {
-        altTextNoteElement.textContent = 'Teksten beskriver figuren for skjermlesere og kan redigeres ved behov.';
-      }
+      updateAltTextNoteDisplay(entry.altTextSource === 'manual' ? 'manual' : 'auto');
 
       let cachedDetails = null;
       if (entry.slug && entryDetailsCache.has(entry.slug)) {
@@ -1830,6 +1985,8 @@
           empty: true
         });
       }
+
+      updateCaption(entry, cachedDetails);
 
       applyAltTextState(entry, cachedDetails, { reason: 'init' });
 
@@ -1890,6 +2047,7 @@
               empty: true
             });
           }
+          updateCaption(entry, details);
           applyAltTextState(entry, details, {
             reason: 'details-update',
             signatureOverride: computeAltTextSignature(entry, details)
@@ -1899,6 +2057,7 @@
           if (!activeEntry || activeEntry.slug !== entry.slug || token !== pendingDetailsToken) {
             return;
           }
+          const fallbackDetails = currentDetails || cachedDetails || null;
           const existing = currentDetails && typeof currentDetails.description === 'string'
             ? currentDetails.description.trim()
             : cachedDetails && typeof cachedDetails.description === 'string'
@@ -1906,6 +2065,7 @@
               : '';
           if (existing) {
             renderDescriptionContent(existing);
+            updateCaption(entry, fallbackDetails);
             return;
           }
           showDescriptionMessage('Kunne ikke hente oppgaveteksten.', {
@@ -1913,6 +2073,7 @@
             hidden: false,
             empty: true
           });
+          updateCaption(entry, fallbackDetails);
         });
     }
 
