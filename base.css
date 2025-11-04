@@ -884,8 +884,9 @@ input[type="radio"] {
   min-width: 120px;
   min-height: 120px;
   border-radius: 16px;
-  border: 2px solid #0f172a;
-  background: #ffffff;
+  border: 2px solid var(--sortering-item-outline, #0f172a);
+  background: var(--sortering-item-background, #ffffff);
+  color: var(--sortering-item-text, #111827);
   box-shadow: none;
   cursor: grab;
   user-select: none;
@@ -972,7 +973,7 @@ input[type="radio"] {
   text-align: center;
   font-size: 18px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--sortering-item-text, #0f172a);
 }
 
 .sortering__item-image {

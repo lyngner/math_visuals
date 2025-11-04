@@ -11,6 +11,7 @@ Hovedpunkter:
 - `palette/palette-config.js` og `palette/group-palette.js` er beholdt som tynne wrappers som laster pakken og eksponerer de gamle `window.MathVisualsPalette*`-feltene for bakoverkompatibilitet.
 - Pakken leverer CommonJS, ESM og global (IIFE) build slik at eksisterende `<script>`-referanser fortsatt virker.
 - Enhets-tester i `packages/palette/__tests__/` sikrer fallback- og profilvalg.
+- Nye slot-grupper legges til når appene får palettstøtte. Denne fasen inkluderer nå `fortegnsskjema` (akse, hjelpelinjer, positiv/negativ, tekst) og `sortering` (kortbakgrunn, ramme, tekst) slik at innstillingene eksponerer fargene brukerne kan tilpasse.
 
 ## Bruk av createPaletteService
 

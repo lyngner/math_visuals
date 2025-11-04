@@ -131,6 +131,36 @@ const RAW_COLOR_SLOT_GROUPS = [
       { index: 36, label: 'Prikk', description: 'Standardfarge for punktene.' },
       { index: 37, label: 'Linje', description: 'Linjen som binder punktene sammen.' }
     ]
+  },
+  {
+    groupId: 'fortegnsskjema',
+    title: 'Fortegnsskjema',
+    description: 'Farger for akse, segmenter og markører i fortegnsskjemaet.',
+    slots: [
+      { index: 38, label: 'Akse', description: 'Koordinataksen og pilen.' },
+      { index: 39, label: 'Hjelpelinjer', description: 'Vertikale hjelpelinjer og bakgrunnsmarkører.' },
+      {
+        index: 40,
+        label: 'Positiv',
+        description: 'Segmenter og markører som viser positivt fortegn.'
+      },
+      {
+        index: 41,
+        label: 'Negativ',
+        description: 'Segmenter og markører som viser negativt fortegn.'
+      },
+      { index: 42, label: 'Tekst', description: 'Etiketter og verdiindikatorer i diagrammet.' }
+    ]
+  },
+  {
+    groupId: 'sortering',
+    title: 'Sortering',
+    description: 'Standardfarger for kortene i sorteringsoppgaven.',
+    slots: [
+      { index: 43, label: 'Bakgrunn', description: 'Bakgrunnsfarge for sorteringskort.' },
+      { index: 44, label: 'Ramme', description: 'Kantlinjen rundt sorteringskort.' },
+      { index: 45, label: 'Tekst', description: 'Tekst og innhold på sorteringskort.' }
+    ]
   }
 ];
 
