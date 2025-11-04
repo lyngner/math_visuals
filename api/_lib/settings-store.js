@@ -59,6 +59,7 @@ const DEFAULT_PROJECT_ORDER = Array.isArray(paletteConfig.DEFAULT_PROJECT_ORDER)
   : ['campus', 'kikora', 'annet'];
 const PROJECT_FALLBACK_CACHE = new Map();
 const PROJECT_FALLBACK_GROUP_CACHE = new Map();
+const FALLBACK_GROUP_PALETTE_CACHE = new Map();
 
 const SLOT_META_BY_INDEX = new Map();
 COLOR_SLOT_GROUPS.forEach(group => {
@@ -228,8 +229,10 @@ function getSanitizedFallbackBase(project) {
     PROJECT_FALLBACK_CACHE.set(key, sanitized.slice());
     if (key === 'default') {
       PROJECT_FALLBACK_GROUP_CACHE.clear();
+      FALLBACK_GROUP_PALETTE_CACHE.clear();
     } else {
       PROJECT_FALLBACK_GROUP_CACHE.delete(key);
+      FALLBACK_GROUP_PALETTE_CACHE.delete(key);
     }
   }
   return sanitized.slice();
@@ -339,8 +342,6 @@ function cloneGroupPalettes(source) {
   });
   return result;
 }
-
-const FALLBACK_GROUP_PALETTE_CACHE = new Map();
 
 function getFallbackGroupPalettes(projectName) {
   const normalized = normalizeProjectKey(projectName);
