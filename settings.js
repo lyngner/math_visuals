@@ -416,17 +416,27 @@
 
   function getSanitizedFallbackBase(project) {
     const key = normalizeProjectName(project) || 'default';
-    if (PROJECT_FALLBACK_CACHE.has(key)) {
-      return PROJECT_FALLBACK_CACHE.get(key).slice();
-    }
     const base = PROJECT_FALLBACKS[key] || PROJECT_FALLBACKS.default || [];
     const sanitized = sanitizeColorList(base, MAX_COLORS);
     if (!sanitized.length) {
-      const fallbackDefault =
-        (PROJECT_FALLBACKS.default && PROJECT_FALLBACKS.default[0]) || '#1F4DE2';
-      sanitized.push(fallbackDefault);
+      const fallbackDefault = sanitizeColor(
+        (PROJECT_FALLBACKS.default && PROJECT_FALLBACKS.default[0]) || '#1F4DE2'
+      );
+      sanitized.push(fallbackDefault || '#1F4DE2');
     }
-    PROJECT_FALLBACK_CACHE.set(key, sanitized.slice());
+    const cached = PROJECT_FALLBACK_CACHE.get(key);
+    const hasChanged =
+      !cached ||
+      cached.length !== sanitized.length ||
+      cached.some((value, index) => value !== sanitized[index]);
+    if (hasChanged) {
+      PROJECT_FALLBACK_CACHE.set(key, sanitized.slice());
+      if (key === 'default') {
+        PROJECT_FALLBACK_GROUP_CACHE.clear();
+      } else {
+        PROJECT_FALLBACK_GROUP_CACHE.delete(key);
+      }
+    }
     return sanitized.slice();
   }
 
@@ -441,16 +451,39 @@
   }
 
   function buildFallbackGroupsFromBase(baseColors, project) {
-    const sanitized = Array.isArray(baseColors) && baseColors.length ? baseColors : getSanitizedFallbackBase('default');
+    const sanitizedBase = Array.isArray(baseColors)
+      ? sanitizeColorList(baseColors, MAX_COLORS)
+      : [];
+    const fallbackColors = sanitizedBase.length ? sanitizedBase : getSanitizedFallbackBase('default');
     const groups = {};
+    let cursor = 0;
     COLOR_SLOT_GROUPS.forEach(group => {
-      groups[group.groupId] = group.slots.map(slot => {
-        const index = Number.isInteger(slot.index) && slot.index >= 0 ? slot.index : 0;
-        if (group.groupId === GRAFTEGNER_GROUP_ID && slot.groupIndex === 1) {
-          return resolveGraftegnerAxisFallback(project);
+      const slots = Array.isArray(group.slots) ? group.slots : [];
+      const limit = slots.length;
+      const colors = [];
+      if (limit > 0) {
+        for (let index = 0; index < limit; index += 1) {
+          const color =
+            fallbackColors[cursor] ||
+            fallbackColors[index % (fallbackColors.length || 1)] ||
+            fallbackColors[0];
+          if (color) {
+            colors.push(color);
+          }
+          if (cursor < fallbackColors.length) {
+            cursor += 1;
+          }
         }
-        return sanitized[index % sanitized.length] || sanitized[0];
-      });
+        if (!colors.length && fallbackColors.length) {
+          for (let index = 0; index < limit; index += 1) {
+            colors.push(fallbackColors[index % fallbackColors.length]);
+          }
+        }
+        if (group.groupId === GRAFTEGNER_GROUP_ID && colors.length > 1) {
+          colors[1] = resolveGraftegnerAxisFallback(project);
+        }
+      }
+      groups[group.groupId] = colors;
     });
     return groups;
   }
