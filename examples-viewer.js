@@ -95,16 +95,6 @@ function resolveDescriptionRendererUrl() {
     if (!pageOrigin || pageOrigin === 'null') {
       return true;
     }
-    const absoluteSrc = typeof scriptElement.src === 'string' ? scriptElement.src : '';
-    if (!absoluteSrc) {
-      return false;
-    }
-    try {
-      const scriptOrigin = new URL(absoluteSrc).origin;
-      if (scriptOrigin && scriptOrigin !== 'null' && scriptOrigin !== pageOrigin) {
-        return true;
-      }
-    } catch (_) {}
     return false;
   };
 
