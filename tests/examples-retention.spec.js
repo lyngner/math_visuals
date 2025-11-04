@@ -100,6 +100,11 @@ test.describe('Examples retention across apps', () => {
           examples: currentExamples,
           deletedProvided: currentDeleted
         });
+        await backend.waitForPut(canonicalPath, {
+          timeout: 800,
+          description: 'drain reset put before measuring counts',
+          timeoutMessage: 'Expected reset PUT to resolve before measuring example counts'
+        });
 
         const initialCounts = await readExampleCounts(page, backend, canonicalPath);
         expect(initialCounts.domCount).toBeGreaterThan(0);
@@ -120,7 +125,9 @@ test.describe('Examples retention across apps', () => {
 
         expect(Array.isArray(putResult.payload.examples)).toBe(true);
         if (descriptionValue) {
-          expect(putResult.payload.examples.some(example => example.description === descriptionValue)).toBe(true);
+          const savedExample = putResult.payload.examples.find(example => example.description === descriptionValue);
+          expect(savedExample).toBeTruthy();
+          expect(savedExample.description).toBe(descriptionValue);
         }
 
         const afterSave = await readExampleCounts(page, backend, canonicalPath);
