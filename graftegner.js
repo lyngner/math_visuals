@@ -21,6 +21,7 @@ let JXG_INSTANCE = GLOBAL_SCOPE && typeof GLOBAL_SCOPE.JXG === 'object' ? GLOBAL
 let jxgConfigured = false;
 const jxgReadyQueue = [];
 let jxgCheckScheduled = false;
+let refreshFunctionColorDefaults = () => {};
 function getJXG() {
   if (JXG_INSTANCE && typeof JXG_INSTANCE === 'object') {
     return JXG_INSTANCE;
@@ -5713,7 +5714,6 @@ if (btnPng) {
 }
 setupSettingsForm();
 initAltTextManager();
-let refreshFunctionColorDefaults = () => {};
 function setupSettingsForm() {
   const root = document.querySelector('.settings');
   if (!root) return;
