@@ -1,4 +1,9 @@
-import { buildFigureData, CUSTOM_CATEGORY_ID, measurementFigureManifest } from './figure-library/measurement.js';
+import {
+  buildFigureData,
+  CUSTOM_CATEGORY_ID,
+  measurementFigureManifest,
+  createFigurePickerHelpers
+} from './figure-library/measurement.js';
 
 (function () {
   const globalObj = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
@@ -1027,158 +1032,23 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, measurementFigureManifest } from '
   ].filter(prefix => typeof prefix === 'string' && prefix);
 
   const figureData = buildFigureData();
-  const figureCategoryById = new Map();
-  figureData.categories.forEach(category => {
-    if (!category || typeof category.id !== 'string') {
-      return;
-    }
-    figureCategoryById.set(category.id, category);
-    figureCategoryById.set(category.id.toLowerCase(), category);
-  });
   const nonCustomFigureCategories = figureData.categories.filter(category => category.id !== CUSTOM_CATEGORY_ID);
   const DEFAULT_FIGURE_CATEGORY_ID = (
     (nonCustomFigureCategories[0] && nonCustomFigureCategories[0].id) ||
     (figureData.categories[0] && figureData.categories[0].id) ||
     ''
   );
-
-  function buildMeasurementFigureOptionLabel(figure) {
-    if (!figure || typeof figure !== 'object') {
-      return '';
-    }
-    const parts = [];
-    if (typeof figure.name === 'string' && figure.name.trim()) {
-      parts.push(figure.name.trim());
-    }
-    if (typeof figure.dimensions === 'string' && figure.dimensions.trim()) {
-      parts.push(figure.dimensions.trim());
-    }
-    if (typeof figure.scaleLabel === 'string' && figure.scaleLabel.trim()) {
-      parts.push(`målestokk ${figure.scaleLabel.trim()}`);
-    }
-    return parts.join(' – ');
-  }
-
-  function resolveFigureCategory(candidate) {
-    if (typeof candidate !== 'string') {
-      return null;
-    }
-    const trimmed = candidate.trim();
-    if (!trimmed) {
-      return null;
-    }
-    if (figureCategoryById.has(trimmed)) {
-      return figureCategoryById.get(trimmed);
-    }
-    const lowered = trimmed.toLowerCase();
-    if (figureCategoryById.has(lowered)) {
-      return figureCategoryById.get(lowered);
-    }
-    return null;
-  }
-
-  function createFigureLibraryState() {
-    const optionsByCategory = new Map();
-    const optionsByValue = new Map();
-
-    figureData.categories.forEach(category => {
-      const options = [];
-      if (category && Array.isArray(category.figures)) {
-        category.figures.forEach(figure => {
-          if (!figure) return;
-          const rawValue = typeof figure.image === 'string' && figure.image.trim() ? figure.image.trim() : '';
-          if (!rawValue) {
-            return;
-          }
-          const option = {
-            value: rawValue,
-            label: buildMeasurementFigureOptionLabel(figure) || figure.name || figure.id || rawValue,
-            categoryId: category.id,
-            figureId: figure.id,
-            figure
-          };
-          options.push(option);
-
-          const normalizedValue = rawValue.toLowerCase();
-          if (normalizedValue && !optionsByValue.has(normalizedValue)) {
-            optionsByValue.set(normalizedValue, option);
-          }
-          const normalizedWithoutPrefix = normalizeFigureLibraryValue(rawValue).toLowerCase();
-          if (normalizedWithoutPrefix && !optionsByValue.has(normalizedWithoutPrefix)) {
-            optionsByValue.set(normalizedWithoutPrefix, option);
-          }
-          if (typeof figure.fileName === 'string' && figure.fileName.trim()) {
-            const fileName = figure.fileName.trim().toLowerCase();
-            if (fileName && !optionsByValue.has(fileName)) {
-              optionsByValue.set(fileName, option);
-            }
-            const fileNameWithoutExt = fileName.replace(/\.svg$/i, '');
-            if (fileNameWithoutExt && !optionsByValue.has(fileNameWithoutExt)) {
-              optionsByValue.set(fileNameWithoutExt, option);
-            }
-          }
-          if (typeof figure.id === 'string' && figure.id.trim()) {
-            const figureId = figure.id.trim().toLowerCase();
-            if (figureId && !optionsByValue.has(figureId)) {
-              optionsByValue.set(figureId, option);
-            }
-          }
-        });
-      }
-      optionsByCategory.set(category.id, options);
-    });
-
-    return {
-      loaded: true,
-      loading: null,
-      error: false,
-      optionsByCategory,
-      optionsByValue
-    };
-  }
-
-  const figureLibraryState = createFigureLibraryState();
-
-  function normalizeFigureLibraryValue(value) {
-    if (typeof value !== 'string') return '';
-    const trimmed = value.trim();
-    if (!trimmed) return '';
-    const prefix = FIGURE_LIBRARY_BASE_PREFIXES.find(entry => trimmed.startsWith(entry));
-    if (prefix) {
-      return trimmed.slice(prefix.length);
-    }
-    return trimmed;
-  }
-
-  function getFigureLibraryOptions(categoryId) {
-    const category = resolveFigureCategory(categoryId);
-    if (!category) {
-      return [];
-    }
-    const list = figureLibraryState.optionsByCategory.get(category.id);
-    return Array.isArray(list) ? list.slice() : [];
-  }
-
-  function getFigureLibraryMatch(value) {
-    const normalized = normalizeFigureLibraryValue(value);
-    if (!normalized) return null;
-    const lowered = normalized.toLowerCase();
-    if (figureLibraryState.optionsByValue.has(lowered)) {
-      return figureLibraryState.optionsByValue.get(lowered);
-    }
-    if (lowered.endsWith('.svg')) {
-      const withoutExt = lowered.replace(/\.svg$/i, '');
-      if (figureLibraryState.optionsByValue.has(withoutExt)) {
-        return figureLibraryState.optionsByValue.get(withoutExt);
-      }
-    } else {
-      const withExt = `${lowered}.svg`;
-      if (figureLibraryState.optionsByValue.has(withExt)) {
-        return figureLibraryState.optionsByValue.get(withExt);
-      }
-    }
-    return null;
-  }
+  const figurePicker = createFigurePickerHelpers({
+    doc,
+    figureData,
+    fallbackCategoryId: DEFAULT_FIGURE_CATEGORY_ID,
+    getFigureValue: figure => (typeof figure.image === 'string' && figure.image.trim() ? figure.image.trim() : '')
+  });
+  const figureLibraryState = {
+    loaded: true,
+    loading: null,
+    error: false
+  };
 
   function refreshFigureInlineEditors() {
     if (!itemNodes || typeof itemNodes.forEach !== 'function') {
@@ -1277,15 +1147,8 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, measurementFigureManifest } from '
   }
 
   function sanitizeFigureCategory(candidate, value) {
-    const resolved = resolveFigureCategory(candidate);
-    if (resolved) {
-      return resolved.id;
-    }
-    const match = getFigureLibraryMatch(value);
-    if (match && match.categoryId) {
-      return match.categoryId;
-    }
-    return DEFAULT_FIGURE_CATEGORY_ID;
+    const resolved = figurePicker.resolveCategoryId(candidate, value);
+    return resolved || DEFAULT_FIGURE_CATEGORY_ID;
   }
 
   function normalizeFigureEntry(raw, index = 0) {
@@ -1524,14 +1387,14 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, measurementFigureManifest } from '
   }
 
   function buildFigureDisplayLabel(value, categoryId, match) {
-    const option = match || getFigureLibraryMatch(value);
+    const option = match || figurePicker.findOptionByValue(value);
     if (option && option.figure) {
-      return buildMeasurementFigureOptionLabel(option.figure);
+      return figurePicker.buildFigureOptionLabel(option.figure);
     }
     if (option && typeof option.label === 'string' && option.label.trim()) {
       return option.label.trim();
     }
-    const category = resolveFigureCategory(categoryId);
+    const category = figurePicker.getCategory(categoryId);
     const normalizedValue = typeof value === 'string' ? value.trim() : '';
     if (category && normalizedValue) {
       const categoryLabel = typeof category.label === 'string' && category.label ? category.label : category.id;
@@ -2273,34 +2136,69 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, measurementFigureManifest } from '
       row.className = 'sortering__item-editor-figure-row';
       row.dataset.figureId = figure.id;
 
-      const categorySelect = doc.createElement('select');
-      figureData.categories.forEach(category => {
-        if (!category || typeof category.id !== 'string') {
-          return;
-        }
-        const option = doc.createElement('option');
-        option.value = category.id;
-        option.textContent = typeof category.label === 'string' && category.label ? category.label : category.id;
-        categorySelect.appendChild(option);
-      });
-      const match = getFigureLibraryMatch(figure.value);
-      if (match && figure.value !== match.value) {
-        figure.value = match.value;
-        figure.categoryId = match.categoryId;
+      const initialMatch = figurePicker.findOptionByValue(figure.value);
+      if (initialMatch && figure.value !== initialMatch.value) {
+        figure.value = initialMatch.value;
+        figure.categoryId = initialMatch.categoryId;
         didNormalizeFigure = true;
       }
-      const initialCategory = match
-        ? match.categoryId
-        : sanitizeFigureCategory(figure.categoryId, figure.value);
-      figure.categoryId = initialCategory;
-      categorySelect.value = initialCategory;
+      figure.categoryId = figurePicker.resolveCategoryId(figure.categoryId, figure.value);
+
+      const categorySelect = doc.createElement('select');
+      const categoryRender = figurePicker.renderCategorySelect(categorySelect, figure.categoryId);
+      figure.categoryId = categoryRender.selectedId;
+
+      let figureSelect = null;
+      let lastRenderResult = null;
+
+      const renderFigureSelectForRow = () => {
+        if (!figureSelect) {
+          return null;
+        }
+        const options = figurePicker.buildFigureOptions(figure.categoryId);
+        const hasOptions = options.length > 0;
+        const isLoading = !!figureLibraryState.loading && !figureLibraryState.loaded;
+        const placeholderLabel = hasLibraryError
+          ? 'Kunne ikke laste figurer'
+          : !figureLibraryState.loaded && isLoading
+            ? 'Laster figurer …'
+            : hasOptions
+              ? 'Velg figur'
+              : figureLibraryState.loaded
+                ? 'Ingen figurer'
+                : 'Laster figurer …';
+        const shouldDisable = hasLibraryError || isLoading || !hasOptions;
+        const result = figurePicker.renderFigureSelect(figureSelect, figure.categoryId, figure.value, {
+          placeholderLabel,
+          disabled: shouldDisable,
+          disableWhenEmpty: false,
+          options
+        });
+        figure.categoryId = result.categoryId;
+        if (result.match) {
+          const normalizedValue = result.match.value;
+          if (figure.value !== normalizedValue) {
+            didNormalizeFigure = true;
+          }
+          figure.value = normalizedValue;
+          if (categorySelect.value !== figure.categoryId) {
+            categorySelect.value = figure.categoryId;
+          }
+        } else if (!figure.value) {
+          figure.value = '';
+        }
+        return result;
+      };
+
       categorySelect.addEventListener('change', () => {
-        const normalizedCategory = sanitizeFigureCategory(categorySelect.value, figure.value);
+        const normalizedCategory = figurePicker.resolveCategoryId(categorySelect.value, figure.value);
         if (normalizedCategory !== figure.categoryId) {
           figure.value = '';
         }
         figure.categoryId = normalizedCategory;
-        syncFigureSelectionControls(figure, categorySelect, figureSelect);
+        if (figureSelect) {
+          lastRenderResult = renderFigureSelectForRow();
+        }
         item.type = 'figure';
         setManualTypeOverride(item, 'figure');
         autoUpdateItemFigureLabels(item, '', { initialLabel, initialAlt });
@@ -2308,17 +2206,16 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, measurementFigureManifest } from '
         commitFigureChanges();
       });
 
-      let figureSelect = null;
       if (!hasLibraryError) {
         figureSelect = doc.createElement('select');
         figureSelect.className = 'sortering__item-editor-figure-select';
         figureSelect.setAttribute('aria-label', 'Figur');
-        populateFigureSelectOptions(figureSelect, initialCategory, figure.value);
+
         figureSelect.addEventListener('change', () => {
-          const selectedValue = figureSelect.value;
+          const selectedValue = figurePicker.normalizeValue(figureSelect.value);
           if (!selectedValue) {
             figure.value = '';
-            syncFigureSelectionControls(figure, categorySelect, figureSelect);
+            lastRenderResult = renderFigureSelectForRow();
             item.type = 'figure';
             setManualTypeOverride(item, 'figure');
             autoUpdateItemFigureLabels(item, '', { initialLabel, initialAlt });
@@ -2326,15 +2223,22 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, measurementFigureManifest } from '
             commitFigureChanges();
             return;
           }
-          const selectedMatch = getFigureLibraryMatch(selectedValue);
           figure.value = selectedValue;
+          const selectedMatch = figurePicker.findOptionByValue(selectedValue);
           if (selectedMatch) {
             figure.categoryId = selectedMatch.categoryId;
           } else {
-            figure.categoryId = sanitizeFigureCategory(categorySelect.value, selectedValue);
+            figure.categoryId = figurePicker.resolveCategoryId(categorySelect.value, selectedValue);
           }
-          syncFigureSelectionControls(figure, categorySelect, figureSelect);
-          const autoLabel = buildFigureDisplayLabel(figure.value, figure.categoryId, selectedMatch);
+          if (categorySelect.value !== figure.categoryId) {
+            categorySelect.value = figure.categoryId;
+          }
+          lastRenderResult = renderFigureSelectForRow();
+          const autoLabel = buildFigureDisplayLabel(
+            figure.value,
+            figure.categoryId,
+            lastRenderResult ? lastRenderResult.match : null
+          );
           autoUpdateItemFigureLabels(item, autoLabel, { initialLabel, initialAlt });
           item.type = 'figure';
           setManualTypeOverride(item, 'figure');
@@ -2346,83 +2250,12 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, measurementFigureManifest } from '
       row.appendChild(categorySelect);
       if (figureSelect) {
         row.appendChild(figureSelect);
+        lastRenderResult = renderFigureSelectForRow();
       }
-      syncFigureSelectionControls(figure, categorySelect, figureSelect);
       listEl.appendChild(row);
     });
     if (didNormalizeFigure) {
       commitFigureChanges();
-    }
-  }
-
-  function populateFigureSelectOptions(selectEl, categoryId, figureValue) {
-    if (!selectEl) return;
-    const normalizedCategory = sanitizeFigureCategory(categoryId, figureValue);
-    const options = getFigureLibraryOptions(normalizedCategory);
-    const match = getFigureLibraryMatch(figureValue);
-    const hasOptions = options.length > 0;
-    const isLoading = !!figureLibraryState.loading && !figureLibraryState.loaded;
-    const hasError = !!figureLibraryState.error;
-
-    selectEl.textContent = '';
-    const placeholder = doc.createElement('option');
-    placeholder.value = '';
-    if (hasError) {
-      placeholder.textContent = 'Kunne ikke laste figurer';
-    } else if (!figureLibraryState.loaded && isLoading) {
-      placeholder.textContent = 'Laster figurer …';
-    } else if (!hasOptions) {
-      placeholder.textContent = figureLibraryState.loaded ? 'Ingen figurer' : 'Laster figurer …';
-    } else {
-      placeholder.textContent = 'Velg figur';
-    }
-    placeholder.selected = true;
-    selectEl.appendChild(placeholder);
-
-    options.forEach(option => {
-      const optionEl = doc.createElement('option');
-      optionEl.value = option.value;
-      optionEl.textContent = option.label;
-      selectEl.appendChild(optionEl);
-    });
-
-    if (match && match.categoryId === normalizedCategory && hasOptions) {
-      selectEl.value = match.value;
-      placeholder.selected = false;
-    } else {
-      selectEl.value = '';
-    }
-
-    const shouldDisable = !hasOptions || isLoading || hasError;
-    selectEl.disabled = shouldDisable;
-    selectEl.dataset.categoryId = normalizedCategory;
-  }
-
-  function syncFigureSelectionControls(figure, categorySelect, figureSelect) {
-    if (!figure || !categorySelect) return;
-    const match = getFigureLibraryMatch(figure.value);
-    if (match) {
-      figure.value = match.value;
-      figure.categoryId = match.categoryId;
-    } else {
-      figure.categoryId = sanitizeFigureCategory(categorySelect.value, figure.value);
-    }
-
-    if (categorySelect.value !== figure.categoryId) {
-      categorySelect.value = figure.categoryId;
-    }
-
-    if (figureSelect) {
-      populateFigureSelectOptions(figureSelect, figure.categoryId, figure.value);
-      if (!figureSelect.disabled) {
-        if (match) {
-          figureSelect.value = match.value;
-        } else if (figure.value) {
-          figureSelect.value = figure.value;
-        } else {
-          figureSelect.value = '';
-        }
-      }
     }
   }
 

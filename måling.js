@@ -1,4 +1,9 @@
-import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-library/measurement.js';
+import {
+  buildFigureData,
+  CUSTOM_CATEGORY_ID,
+  CUSTOM_FIGURE_ID,
+  createFigurePickerHelpers
+} from './figure-library/measurement.js';
 
 (function initMeasurementApp() {
   const doc = typeof document !== 'undefined' ? document : null;
@@ -129,6 +134,12 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
   const TAPE_HOUSING_HANDOFF_TOLERANCE_PX = 6;
   const zeroOffset = { x: 0, y: 0 };
   const figureData = buildFigureData({ extractRealWorldSizeFromText });
+  const figurePicker = createFigurePickerHelpers({
+    doc,
+    figureData,
+    getFigureValue: figure => (figure && figure.id != null ? String(figure.id) : ''),
+    fallbackCategoryId: CUSTOM_CATEGORY_ID
+  });
   const defaultPreset = figureData.byId.get('kylling');
   const appState = {
     settings: null,
@@ -2726,14 +2737,15 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         if (appState.syncingInputs) return;
         if (event && event.isTrusted === false) return;
         const categoryId = event.target.value;
-        populateFigureOptions(categoryId);
-        const figures = getFiguresForCategory(categoryId);
-        const first = figures[0];
+        const { selectedId } = figurePicker.renderCategorySelect(inputs.figureCategory, categoryId);
         if (inputs.figurePreset) {
-          inputs.figurePreset.value = first ? first.id : '';
-        }
-        if (first && !first.custom) {
-          applyFigurePreset(first.id);
+          const { options } = figurePicker.renderFigureSelect(inputs.figurePreset, selectedId, null, {
+            disableWhenEmpty: false
+          });
+          const first = options[0];
+          if (first && first.figure && !first.figure.custom) {
+            applyFigurePreset(first.figure.id);
+          }
         }
       });
     }
@@ -4808,72 +4820,11 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       return;
     }
     const preset = resolvePresetFromSettings(settings);
-    const categoryId = preset ? preset.categoryId : CUSTOM_CATEGORY_ID;
-    populateCategoryOptions(categoryId);
-    populateFigureOptions(categoryId, preset ? preset.id : CUSTOM_FIGURE_ID);
-  }
-
-  function populateCategoryOptions(selectedId) {
-    if (!inputs.figureCategory) {
-      return;
-    }
-    const currentValue = selectedId || inputs.figureCategory.value || CUSTOM_CATEGORY_ID;
-    inputs.figureCategory.textContent = '';
-    const fragment = doc.createDocumentFragment();
-    for (const category of figureData.categories) {
-      const option = doc.createElement('option');
-      option.value = category.id;
-      option.textContent = category.label;
-      fragment.appendChild(option);
-    }
-    inputs.figureCategory.appendChild(fragment);
-    if (figureData.categories.some(category => category.id === currentValue)) {
-      inputs.figureCategory.value = currentValue;
-    } else {
-      inputs.figureCategory.value = CUSTOM_CATEGORY_ID;
-    }
-  }
-
-  function populateFigureOptions(categoryId, selectedFigureId) {
-    if (!inputs.figurePreset) {
-      return;
-    }
-    const figures = getFiguresForCategory(categoryId);
-    const currentValue = selectedFigureId || inputs.figurePreset.value || (figures[0] ? figures[0].id : '');
-    inputs.figurePreset.textContent = '';
-    const fragment = doc.createDocumentFragment();
-    for (const figure of figures) {
-      const option = doc.createElement('option');
-      option.value = figure.id;
-      option.textContent = buildFigureOptionLabel(figure);
-      fragment.appendChild(option);
-    }
-    inputs.figurePreset.appendChild(fragment);
-    if (figures.some(figure => figure.id === currentValue)) {
-      inputs.figurePreset.value = currentValue;
-    } else if (figures[0]) {
-      inputs.figurePreset.value = figures[0].id;
-    }
-  }
-
-  function buildFigureOptionLabel(figure) {
-    const parts = [figure.name];
-    if (figure.dimensions) {
-      parts.push(figure.dimensions);
-    }
-    if (figure.scaleLabel) {
-      parts.push(`målestokk ${figure.scaleLabel}`);
-    }
-    return parts.join(' – ');
-  }
-
-  function getFiguresForCategory(categoryId) {
-    const category = figureData.categories.find(entry => entry.id === categoryId);
-    if (category) {
-      return category.figures.slice();
-    }
-    const fallback = figureData.categories.find(entry => entry.id === CUSTOM_CATEGORY_ID);
-    return fallback ? fallback.figures.slice() : [];
+    const desiredCategoryId = preset ? preset.categoryId : CUSTOM_CATEGORY_ID;
+    const { selectedId } = figurePicker.renderCategorySelect(inputs.figureCategory, desiredCategoryId);
+    figurePicker.renderFigureSelect(inputs.figurePreset, selectedId, preset ? preset.id : CUSTOM_FIGURE_ID, {
+      disableWhenEmpty: false
+    });
   }
 
   function applyFigurePreset(presetId) {

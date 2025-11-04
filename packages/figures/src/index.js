@@ -307,6 +307,7 @@ export function getMeasurementFiguresGroupedByCategory(options = {}) {
 export const createFigureLibrary = createMeasurementFigureLibrary;
 export const buildFigureData = buildMeasurementFigureData;
 export const getFiguresGroupedByCategory = getMeasurementFiguresGroupedByCategory;
+export { createFigurePickerHelpers } from './figure-picker.js';
 
 const manifestCache = new Map();
 
