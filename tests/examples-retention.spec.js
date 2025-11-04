@@ -71,6 +71,11 @@ test.describe('Examples retention across apps', () => {
 
         const canonicalPath = normalizeExamplePath(routePath);
         await backend.client.put(canonicalPath, { examples: [], deletedProvided: [] });
+        await backend.waitForPut(canonicalPath, {
+          timeout: 800,
+          description: 'drain initial seed put',
+          timeoutMessage: 'Expected seed PUT to resolve before proceeding'
+        });
 
         await page.goto(routePath, { waitUntil: 'load' });
 
