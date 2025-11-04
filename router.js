@@ -829,41 +829,62 @@ function normalizeEntryPath(path) {
   }
 }
 
-function buildHistoryPath(entry, exampleNumber) {
-  if (!entry) return '/';
-  let basePath =
-    (typeof entry.normalizedPath === 'string' && entry.normalizedPath) ||
-    (typeof entry.path === 'string' && entry.path) ||
-    '/';
-  if (!basePath || basePath === '.') {
-    basePath = '/';
-  }
-  if (!basePath.startsWith('/')) {
-    basePath = `/${basePath}`;
-  }
-  if (basePath.endsWith('.html')) {
-    basePath = basePath.slice(0, -5) || '/';
-    if (!basePath.startsWith('/')) {
-      basePath = `/${basePath}`;
+  function buildHistoryPath(entry, exampleNumber) {
+    if (!entry) return '/';
+    const currentPath =
+      typeof window !== 'undefined' &&
+      window.location &&
+      typeof window.location.pathname === 'string'
+        ? window.location.pathname
+        : null;
+    const entryPath = typeof entry.path === 'string' ? entry.path : null;
+    const preferHtmlPath =
+      entryPath &&
+      /\.html?$/i.test(entryPath) &&
+      currentPath &&
+      currentPath.split(/[?#]/)[0] === entryPath;
+    let basePath;
+    if (preferHtmlPath) {
+      basePath = entryPath;
+    } else {
+      basePath =
+        (typeof entry.normalizedPath === 'string' && entry.normalizedPath) ||
+        (typeof entry.path === 'string' && entry.path) ||
+        '/';
+      if (!basePath || basePath === '.') {
+        basePath = '/';
+      }
+      if (!basePath.startsWith('/')) {
+        basePath = `/${basePath}`;
+      }
+      if (basePath.endsWith('.html')) {
+        basePath = basePath.slice(0, -5) || '/';
+        if (!basePath.startsWith('/')) {
+          basePath = `/${basePath}`;
+        }
+      }
+      while (basePath.length > 1 && basePath.endsWith('/')) {
+        basePath = basePath.slice(0, -1);
+      }
     }
+    const parsedExample = Number(exampleNumber);
+    if (!Number.isFinite(parsedExample) || parsedExample <= 0) {
+      return basePath;
+    }
+    const exampleInt = Math.trunc(parsedExample);
+    const includeExample = exampleInt > 1 || entry.includeExampleInPath === true;
+    if (!includeExample) {
+      return basePath;
+    }
+    if (preferHtmlPath) {
+      const separator = basePath.includes('?') ? '&' : '?';
+      return `${basePath}${separator}example=${exampleInt}`;
+    }
+    if (basePath === '/') {
+      return `/eksempel${exampleInt}`;
+    }
+    return `${basePath}/eksempel${exampleInt}`;
   }
-  while (basePath.length > 1 && basePath.endsWith('/')) {
-    basePath = basePath.slice(0, -1);
-  }
-  const parsedExample = Number(exampleNumber);
-  if (!Number.isFinite(parsedExample) || parsedExample <= 0) {
-    return basePath;
-  }
-  const exampleInt = Math.trunc(parsedExample);
-  const includeExample = exampleInt > 1 || entry.includeExampleInPath === true;
-  if (!includeExample) {
-    return basePath;
-  }
-  if (basePath === '/') {
-    return `/eksempel${exampleInt}`;
-  }
-  return `${basePath}/eksempel${exampleInt}`;
-}
 
 function resolveEntryFromSegment(segment) {
   const key = normalizeLookupKey(segment);
