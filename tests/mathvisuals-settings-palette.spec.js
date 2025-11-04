@@ -55,6 +55,9 @@ test.afterEach(() => {
   try {
     delete require.cache[require.resolve('../brøkfigurer.js')];
   } catch (_) {}
+  try {
+    delete require.cache[require.resolve('../theme/palette.js')];
+  } catch (_) {}
   if (ORIGINAL_GLOBALS.document === undefined) {
     delete global.document;
   } else {
@@ -1045,6 +1048,36 @@ test.describe('MathVisualsSettings.getGroupPalette', () => {
     expect(groupId).toBe('graftegner');
     expect(options.project).toBe('annet');
     expect(options.count).toBe(2);
+  });
+});
+
+test.describe('MathVisualsSettings fallback parity', () => {
+  test('settings sortering fallback matches theme fallback for core projects', () => {
+    global.MathVisualsPaletteConfig = paletteConfig;
+    const themePalette = require('../theme/palette.js');
+    expect(themePalette && typeof themePalette.getProjectGroupPalettes).toBe('function');
+
+    const { api } = loadSettingsWithPaletteSpy(() => []);
+    const projects = ['campus', 'kikora', 'annet'];
+
+    projects.forEach(project => {
+      const settingsProject = api.getProjectSettings(project);
+      expect(settingsProject).toBeTruthy();
+      const settingsSortering =
+        settingsProject &&
+        settingsProject.groupPalettes &&
+        Array.isArray(settingsProject.groupPalettes.sortering)
+          ? settingsProject.groupPalettes.sortering
+          : [];
+
+      const themeGroups =
+        themePalette.getProjectGroupPalettes(project, { settings: { projects: {} } }) || {};
+      const themeSortering = Array.isArray(themeGroups.sortering) ? themeGroups.sortering : [];
+
+      expect(settingsSortering.length).toBeGreaterThan(0);
+      expect(themeSortering.length).toBeGreaterThan(0);
+      expect(settingsSortering).toEqual(themeSortering);
+    });
   });
 });
 
