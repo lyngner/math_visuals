@@ -3176,11 +3176,11 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     return !!(tapeMeasure && tapeZeroAnchor && tapeHousing);
   }
 
-  function buildTapeFreeMovementData(handleType, captureTarget, event) {
-    if (!shouldUseFreeTapeMovement()) {
+  function buildTapeHandleAnchorData(handleType, captureTarget, event) {
+    if (!captureTarget || !event) {
       return null;
     }
-    if (!captureTarget || !event) {
+    if (!tapeMeasure || !tapeZeroAnchor || !tapeHousing) {
       return null;
     }
     const measureRect = tapeMeasure.getBoundingClientRect();
@@ -3211,10 +3211,16 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
     if (axisUnitLocal.x === 0 && axisUnitLocal.y === 0) {
       return null;
     }
-    const pointerRect = typeof captureTarget.getBoundingClientRect === 'function'
-      ? captureTarget.getBoundingClientRect()
-      : null;
-    const pointerCenter = pointerRect ? getRectCenter(pointerRect) : (handleType === 'housing' ? housingWorld : zeroWorld);
+    const axisUnitWorld = rotatePoint(axisUnitLocal, rotation);
+    const pointerRect =
+      typeof captureTarget.getBoundingClientRect === 'function'
+        ? captureTarget.getBoundingClientRect()
+        : null;
+    const pointerCenter = pointerRect
+      ? getRectCenter(pointerRect)
+      : handleType === 'housing'
+      ? housingWorld
+      : zeroWorld;
     const pointerOffset = {
       x: event.clientX - pointerCenter.x,
       y: event.clientY - pointerCenter.y
@@ -3224,22 +3230,50 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       x: anchorWorld.x - pointerCenter.x,
       y: anchorWorld.y - pointerCenter.y
     };
-    const baseWidth = Number.isFinite(tapeMeasure.offsetWidth) && tapeMeasure.offsetWidth > 0
-      ? tapeMeasure.offsetWidth
-      : measureRect.width;
-    const baseHeight = Number.isFinite(tapeMeasure.offsetHeight) && tapeMeasure.offsetHeight > 0
-      ? tapeMeasure.offsetHeight
-      : measureRect.height;
+    const baseWidth =
+      Number.isFinite(tapeMeasure.offsetWidth) && tapeMeasure.offsetWidth > 0
+        ? tapeMeasure.offsetWidth
+        : measureRect.width;
+    const baseHeight =
+      Number.isFinite(tapeMeasure.offsetHeight) && tapeMeasure.offsetHeight > 0
+        ? tapeMeasure.offsetHeight
+        : measureRect.height;
     return {
       handleType,
       pointerOffset,
       targetToAnchor,
-      zeroWorldStart: zeroWorld,
-      housingWorldStart: housingWorld,
+      zeroWorld,
+      housingWorld,
+      zeroLocal,
       housingLocal,
       axisUnitLocal,
+      axisUnitWorld,
       axisAngle: Math.atan2(axisUnitLocal.y, axisUnitLocal.x),
       baseSize: { width: baseWidth, height: baseHeight }
+    };
+  }
+
+  function buildTapeFreeMovementData(handleType, captureTarget, event, anchorOverride) {
+    if (!shouldUseFreeTapeMovement()) {
+      return null;
+    }
+    const anchor = anchorOverride || buildTapeHandleAnchorData(handleType, captureTarget, event);
+    if (!anchor) {
+      return null;
+    }
+    if (!captureTarget || !event) {
+      return null;
+    }
+    return {
+      handleType,
+      pointerOffset: anchor.pointerOffset,
+      targetToAnchor: anchor.targetToAnchor,
+      zeroWorldStart: anchor.zeroWorld,
+      housingWorldStart: anchor.housingWorld,
+      housingLocal: anchor.housingLocal,
+      axisUnitLocal: anchor.axisUnitLocal,
+      axisAngle: anchor.axisAngle,
+      baseSize: anchor.baseSize
     };
   }
 
@@ -3284,14 +3318,23 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         if (!Number.isFinite(pointerX) || !Number.isFinite(pointerY)) {
           continue;
         }
-        const data = buildTapeFreeMovementData(handleType, entry.captureTarget, {
+        const anchor = buildTapeHandleAnchorData(handleType, entry.captureTarget, {
           clientX: pointerX,
           clientY: pointerY
         });
+        if (anchor) {
+          entry.anchor = anchor;
+        }
+        const data = buildTapeFreeMovementData(handleType, entry.captureTarget, {
+          clientX: pointerX,
+          clientY: pointerY
+        }, anchor);
         if (data) {
           entry.freeMovement = data;
           if (handleType === 'housing') {
-            const axisUnitWorld = data.axisUnitLocal
+            const axisUnitWorld = anchor && anchor.axisUnitWorld
+              ? anchor.axisUnitWorld
+              : data.axisUnitLocal
               ? rotatePoint(data.axisUnitLocal, rotation)
               : null;
             const normalizedAxis = normalizeVector(axisUnitWorld || { x: 0, y: 0 });
@@ -3305,6 +3348,41 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
         }
       }
     }
+  }
+
+  function resolveTapeAxisZeroToHousing(entry) {
+    if (entry && entry.anchor && entry.anchor.axisUnitWorld) {
+      const anchorAxis = normalizeVector({
+        x: -entry.anchor.axisUnitWorld.x,
+        y: -entry.anchor.axisUnitWorld.y
+      });
+      if (anchorAxis.x !== 0 || anchorAxis.y !== 0) {
+        return anchorAxis;
+      }
+    }
+    const rotation = Number.isFinite(transformStates.tape.rotation)
+      ? transformStates.tape.rotation
+      : 0;
+    const fallback = normalizeVector({ x: Math.cos(rotation), y: Math.sin(rotation) });
+    if (fallback.x === 0 && fallback.y === 0) {
+      return { x: 1, y: 0 };
+    }
+    return fallback;
+  }
+
+  function resolveTapeDirectionHousingToZero(entry) {
+    const axisZeroToHousing = resolveTapeAxisZeroToHousing(entry);
+    if (!axisZeroToHousing) {
+      return null;
+    }
+    const direction = normalizeVector({
+      x: -axisZeroToHousing.x,
+      y: -axisZeroToHousing.y
+    });
+    if (!direction || (direction.x === 0 && direction.y === 0)) {
+      return null;
+    }
+    return direction;
   }
 
   function resolveVisibleFromFreeMovement(entry, proposedVisible) {
@@ -3663,13 +3741,17 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       allowHandoff: true,
       handleType: 'housing'
     };
-    const freeMovement = buildTapeFreeMovementData('housing', captureTarget, event);
+    const anchor = buildTapeHandleAnchorData('housing', captureTarget, event);
+    if (anchor) {
+      entry.anchor = anchor;
+    }
+    const freeMovement = buildTapeFreeMovementData('housing', captureTarget, event, anchor);
     if (freeMovement) {
       entry.freeMovement = freeMovement;
     }
     let axisUnit = null;
-    if (entry.freeMovement && entry.freeMovement.axisUnitLocal) {
-      axisUnit = rotatePoint(entry.freeMovement.axisUnitLocal, rotation);
+    if (anchor && anchor.axisUnitWorld) {
+      axisUnit = anchor.axisUnitWorld;
     } else {
       axisUnit = { x: Math.cos(rotation), y: Math.sin(rotation) };
     }
@@ -3811,9 +3893,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
 
     const deltaX = entry.clientX - entry.startX;
     const deltaY = entry.clientY - entry.startY;
-    const rotation = transformStates.tape.rotation || 0;
-    const axisX = Math.cos(rotation);
-    const axisY = Math.sin(rotation);
+    const axisZeroToHousing = resolveTapeAxisZeroToHousing(entry);
+    const axisX = Number.isFinite(axisZeroToHousing.x) ? axisZeroToHousing.x : 0;
+    const axisY = Number.isFinite(axisZeroToHousing.y) ? axisZeroToHousing.y : 0;
     const projectedDelta = deltaX * axisX + deltaY * axisY;
     const effectiveDelta = projectedDelta * -TAPE_DIRECTION;
     const minVisible = tapeLengthState.minVisiblePx;
@@ -3870,9 +3952,28 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       ? Math.max(0, tapeLengthState.visiblePx / unitSpacing)
       : 0;
 
-    const deltaVisible = tapeLengthState.visiblePx - entry.startVisible;
-    transformStates.tape.x = entry.startTransformX + deltaVisible * axisX;
-    transformStates.tape.y = entry.startTransformY + deltaVisible * axisY;
+    if (!entry.freeMovement) {
+      const direction = resolveTapeDirectionHousingToZero(entry);
+      const anchor = entry.anchor;
+      if (
+        anchor &&
+        direction &&
+        anchor.zeroWorld &&
+        Number.isFinite(anchor.zeroWorld.x) &&
+        Number.isFinite(anchor.zeroWorld.y)
+      ) {
+        const zeroWorld = anchor.zeroWorld;
+        const housingWorld = {
+          x: zeroWorld.x - direction.x * tapeLengthState.visiblePx,
+          y: zeroWorld.y - direction.y * tapeLengthState.visiblePx
+        };
+        applyTapeTransformForEndpoints(housingWorld, zeroWorld, direction, anchor);
+      } else {
+        const deltaVisible = tapeLengthState.visiblePx - entry.startVisible;
+        transformStates.tape.x = entry.startTransformX + deltaVisible * axisX;
+        transformStates.tape.y = entry.startTransformY + deltaVisible * axisY;
+      }
+    }
 
     disableTapeHousingHandoff(entry);
     applyTapeMeasureTransform();
@@ -3962,8 +4063,12 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       captureTarget,
       handleType
     };
+    const anchor = buildTapeHandleAnchorData(handleType, captureTarget, event);
+    if (anchor) {
+      entry.anchor = anchor;
+    }
     if (handleType === 'zero') {
-      const freeMovement = buildTapeFreeMovementData(handleType, captureTarget, event);
+      const freeMovement = buildTapeFreeMovementData(handleType, captureTarget, event, anchor);
       if (freeMovement) {
         entry.freeMovement = freeMovement;
       }
@@ -4004,9 +4109,9 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
 
     const deltaX = entry.clientX - entry.startX;
     const deltaY = entry.clientY - entry.startY;
-    const rotation = transformStates.tape.rotation || 0;
-    const axisX = Math.cos(rotation);
-    const axisY = Math.sin(rotation);
+    const axisZeroToHousing = resolveTapeAxisZeroToHousing(entry);
+    const axisX = Number.isFinite(axisZeroToHousing.x) ? axisZeroToHousing.x : 0;
+    const axisY = Number.isFinite(axisZeroToHousing.y) ? axisZeroToHousing.y : 0;
     const projectedDelta = deltaX * axisX + deltaY * axisY;
     const effectiveDelta = projectedDelta * TAPE_DIRECTION;
     const minVisible = tapeLengthState.minVisiblePx;
@@ -4064,9 +4169,26 @@ import { buildFigureData, CUSTOM_CATEGORY_ID, CUSTOM_FIGURE_ID } from './figure-
       : 0;
 
     if (!entry.freeMovement) {
-      const deltaVisible = tapeLengthState.visiblePx - entry.startVisible;
-      transformStates.tape.x = (entry.startTransformX || 0) - deltaVisible * axisX;
-      transformStates.tape.y = (entry.startTransformY || 0) - deltaVisible * axisY;
+      const direction = resolveTapeDirectionHousingToZero(entry);
+      const anchor = entry.anchor;
+      if (
+        anchor &&
+        direction &&
+        anchor.housingWorld &&
+        Number.isFinite(anchor.housingWorld.x) &&
+        Number.isFinite(anchor.housingWorld.y)
+      ) {
+        const housingWorld = anchor.housingWorld;
+        const zeroWorld = {
+          x: housingWorld.x + direction.x * tapeLengthState.visiblePx,
+          y: housingWorld.y + direction.y * tapeLengthState.visiblePx
+        };
+        applyTapeTransformForEndpoints(housingWorld, zeroWorld, direction, anchor);
+      } else {
+        const deltaVisible = tapeLengthState.visiblePx - entry.startVisible;
+        transformStates.tape.x = (entry.startTransformX || 0) - deltaVisible * axisX;
+        transformStates.tape.y = (entry.startTransformY || 0) - deltaVisible * axisY;
+      }
     }
 
     applyTapeMeasureTransform();
