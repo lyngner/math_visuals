@@ -1014,7 +1014,33 @@
     if (remoteLoadPromise && !opts.force) {
       return remoteLoadPromise;
     }
-    const isMissingEndpointStatus = status => typeof status === 'number' && (status === 404 || status === 410);
+    const parseStatusCode = status => {
+      if (typeof status === 'number') {
+        return Number.isFinite(status) ? status : null;
+      }
+      if (typeof status === 'string') {
+        const parsed = Number.parseInt(status, 10);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
+      return null;
+    };
+    const isMissingEndpointStatus = status => {
+      const parsed = parseStatusCode(status);
+      return parsed === 404 || parsed === 410;
+    };
+    const isExpectedMissingEndpointError = error => {
+      if (!error) return false;
+      if (isMissingEndpointStatus(error.status) || isMissingEndpointStatus(error.statusCode)) {
+        return true;
+      }
+      if (typeof error.message === 'string') {
+        const normalized = error.message.toLowerCase();
+        if (normalized.includes('not found') || normalized.includes('missing endpoint')) {
+          return true;
+        }
+      }
+      return false;
+    };
     const url = resolveApiUrl();
     if (!url || typeof globalScope.fetch !== 'function') {
       remoteLoadPromise = Promise.resolve(cloneSettings());
@@ -1049,7 +1075,7 @@
         return cloneSettings();
       })
       .catch(error => {
-        if (!error || !isMissingEndpointStatus(error.status)) {
+        if (!isExpectedMissingEndpointError(error)) {
           console.error(error);
         }
         return cloneSettings();
