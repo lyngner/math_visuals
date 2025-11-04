@@ -875,6 +875,29 @@ const ADV = {
 
 applyGraftegnerDefaultsFromTheme();
 
+const EXAMPLE_STATE = (() => {
+  const existing = typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object'
+    ? window.STATE
+    : {};
+  if (typeof window !== 'undefined') {
+    window.STATE = existing;
+  }
+  if (!Object.prototype.hasOwnProperty.call(existing, 'showNames')) {
+    existing.showNames = !!(ADV.curveName && ADV.curveName.showName);
+  }
+  if (!Object.prototype.hasOwnProperty.call(existing, 'showExpression')) {
+    existing.showExpression = !!(ADV.curveName && ADV.curveName.showExpression);
+  }
+  if (ADV.curveName) {
+    const resolvedShowNames = !!existing.showNames;
+    const resolvedShowExpression = !!existing.showExpression;
+    ADV.curveName.showName = resolvedShowNames;
+    ADV.curveName.showExpression = resolvedShowExpression;
+    ADV.curveName.show = resolvedShowNames || resolvedShowExpression;
+  }
+  return existing;
+})();
+
 const DOMAIN_MARKER_SHAPES = {
   closed: {
     offsetPx: -3,
@@ -5721,6 +5744,44 @@ function setupSettingsForm() {
   const axisXInputElement = g('cfgAxisX');
   const axisYInputElement = g('cfgAxisY');
   const snapCheckbox = g('cfgSnap');
+  const exampleState = EXAMPLE_STATE;
+  const resolveExampleStateFlag = (key, fallback) => (
+    Object.prototype.hasOwnProperty.call(exampleState, key)
+      ? !!exampleState[key]
+      : !!fallback
+  );
+  const applyExampleStateToControls = () => {
+    const resolvedShowNames = resolveExampleStateFlag('showNames', ADV.curveName && ADV.curveName.showName);
+    const resolvedShowExpr = resolveExampleStateFlag('showExpression', ADV.curveName && ADV.curveName.showExpression);
+    let changed = false;
+    if (showNamesInput && showNamesInput.checked !== resolvedShowNames) {
+      showNamesInput.checked = resolvedShowNames;
+    }
+    if (showExprInput && showExprInput.checked !== resolvedShowExpr) {
+      showExprInput.checked = resolvedShowExpr;
+    }
+    if (ADV.curveName.showName !== resolvedShowNames) {
+      ADV.curveName.showName = resolvedShowNames;
+      changed = true;
+    }
+    if (ADV.curveName.showExpression !== resolvedShowExpr) {
+      ADV.curveName.showExpression = resolvedShowExpr;
+      changed = true;
+    }
+    const showAny = resolvedShowNames || resolvedShowExpr;
+    if (ADV.curveName.show !== showAny) {
+      ADV.curveName.show = showAny;
+      changed = true;
+    }
+    return changed;
+  };
+  const syncExampleStateFromControls = () => {
+    const resolvedShowNames = showNamesInput ? !!showNamesInput.checked : !!(ADV.curveName && ADV.curveName.showName);
+    const resolvedShowExpr = showExprInput ? !!showExprInput.checked : !!(ADV.curveName && ADV.curveName.showExpression);
+    exampleState.showNames = resolvedShowNames;
+    exampleState.showExpression = resolvedShowExpr;
+  };
+  applyExampleStateToControls();
   let gliderSection = null;
   let gliderCountInput = null;
   let gliderStartInput = null;
@@ -7805,6 +7866,8 @@ function setupSettingsForm() {
     setPointMarkerInputValue(parsedMarker);
     updatePointMarkerVisibility();
     updateAllExtraAnswerControls();
+    applyExampleStateToControls();
+    syncExampleStateFromControls();
     syncSimpleFromForm();
     updateSnapAvailability();
     refreshAltText('form-fill');
@@ -7821,6 +7884,7 @@ function setupSettingsForm() {
   if (typeof window !== 'undefined') {
     window.addEventListener('examples:loaded', () => {
       fillFormFromSimple(window.SIMPLE);
+      apply();
     });
   }
   if (screenInput) {
@@ -8017,6 +8081,7 @@ function setupSettingsForm() {
       ADV.axis.grid.show = showGridChecked;
       needsRebuild = true;
     }
+    syncExampleStateFromControls();
     if (forceTicksInput) {
       const requested = !!forceTicksInput.checked;
       if (!(forceTicksInput.disabled && FORCE_TICKS_LOCKED_FALSE) && FORCE_TICKS_REQUESTED !== requested) {
