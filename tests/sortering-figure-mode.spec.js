@@ -59,11 +59,11 @@ test.describe('sortering figure editor', () => {
 
     const figureRow = figureItem.locator('.sortering__item-editor-figure-row').first();
     const categorySelect = figureRow.locator('select').first();
-    await categorySelect.selectOption('tierbrett');
+    await categorySelect.selectOption('humans');
 
     const figureSelect = figureRow.locator('.sortering__item-editor-figure-select');
     await expect(figureSelect).toBeEnabled();
-    await figureSelect.selectOption('tb4.svg');
+    await figureSelect.selectOption('images/measure/dame155.svg');
 
     await figureItem.locator('.sortering__item-editor-update').click();
 
@@ -71,7 +71,7 @@ test.describe('sortering figure editor', () => {
     await expect(reorderButton).not.toHaveAttribute('aria-disabled', 'true');
 
     const cardImage = figureItem.locator('.sortering__item-image');
-    await expect(cardImage).toHaveAttribute('src', /tb4\.svg$/);
+    await expect(cardImage).toHaveAttribute('src', /dame155\.svg$/);
 
     const finalState = await getSorteringState(page);
     expect(finalState).not.toBeNull();
@@ -79,7 +79,7 @@ test.describe('sortering figure editor', () => {
     expect(figureState).toBeDefined();
     expect(figureState.type).toBe('figure');
     expect(Array.isArray(figureState.figures)).toBe(true);
-    expect(figureState.figures[0].value).toBe('tb4.svg');
+    expect(figureState.figures[0].value).toBe('images/measure/dame155.svg');
   });
 
   test('keeps figure mode after selecting library figure', async ({ page }) => {
@@ -91,15 +91,15 @@ test.describe('sortering figure editor', () => {
 
     const figureRow = figureItem.locator('.sortering__item-editor-figure-row').first();
     const categorySelect = figureRow.locator('select').first();
-    await categorySelect.selectOption('terninger');
+    await categorySelect.selectOption('humans');
 
     const figureSelect = figureRow.locator('.sortering__item-editor-figure-select');
     await expect(figureSelect).toBeEnabled();
-    await expect(figureSelect.locator('option[value="d1.svg"]')).toHaveCount(1);
-    await figureSelect.selectOption('d1.svg');
+    await expect(figureSelect.locator('option[value="images/measure/gutt120.svg"]')).toHaveCount(1);
+    await figureSelect.selectOption('images/measure/gutt120.svg');
 
     const valueInput = figureRow.locator('input[type="text"]');
-    await expect(valueInput).toHaveValue('d1.svg');
+    await expect(valueInput).toHaveValue('images/measure/gutt120.svg');
     await expect(typeSelect).toHaveValue('figure');
 
     const state = await getSorteringState(page);
@@ -109,7 +109,7 @@ test.describe('sortering figure editor', () => {
     expect(figureState).toBeDefined();
     expect(figureState.type).toBe('figure');
     expect(Array.isArray(figureState.figures)).toBe(true);
-    expect(figureState.figures[0].value).toBe('d1.svg');
+    expect(figureState.figures[0].value).toBe('images/measure/gutt120.svg');
   });
 
   test('persists figure edits without accessibility list', async ({ page }) => {
@@ -147,18 +147,18 @@ test.describe('sortering figure editor', () => {
     await expect(figureRow).toBeVisible();
 
     const categorySelect = figureRow.locator('select').first();
-    await categorySelect.selectOption('tierbrett');
+    await categorySelect.selectOption('humans');
 
     const figureSelect = figureRow.locator('.sortering__item-editor-figure-select');
     await expect(figureSelect).toBeEnabled();
-    await expect(figureSelect.locator('option[value="tb4.svg"]')).toHaveCount(1);
-    await figureSelect.selectOption('tb4.svg');
-    await expect(figureSelect).toHaveValue('tb4.svg');
+    await expect(figureSelect.locator('option[value="images/measure/dame155.svg"]')).toHaveCount(1);
+    await figureSelect.selectOption('images/measure/dame155.svg');
+    await expect(figureSelect).toHaveValue('images/measure/dame155.svg');
 
     await firstItem.locator('.sortering__item-editor-update').click();
 
     const cardImage = firstItem.locator('.sortering__item-image');
-    await expect(cardImage).toHaveAttribute('src', /tb4\.svg$/);
+    await expect(cardImage).toHaveAttribute('src', /dame155\.svg$/);
 
     const state = await getSorteringState(page);
     expect(state).not.toBeNull();
@@ -166,7 +166,7 @@ test.describe('sortering figure editor', () => {
     expect(targetItem).toBeDefined();
     expect(targetItem.type).toBe('figure');
     expect(Array.isArray(targetItem.figures)).toBe(true);
-    expect(targetItem.figures[0].value).toBe('tb4.svg');
+    expect(targetItem.figures[0].value).toBe('images/measure/dame155.svg');
 
     await page.evaluate(() => {
       const api = window.mathVisSortering;
@@ -175,7 +175,7 @@ test.describe('sortering figure editor', () => {
       }
     });
 
-    await expect(cardImage).toHaveAttribute('src', /tb4\.svg$/);
+    await expect(cardImage).toHaveAttribute('src', /dame155\.svg$/);
 
     const afterApplyState = await getSorteringState(page);
     expect(afterApplyState).not.toBeNull();
@@ -183,7 +183,7 @@ test.describe('sortering figure editor', () => {
     expect(afterApplyItem).toBeDefined();
     expect(afterApplyItem.type).toBe('figure');
     expect(Array.isArray(afterApplyItem.figures)).toBe(true);
-    expect(afterApplyItem.figures[0].value).toBe('tb4.svg');
+    expect(afterApplyItem.figures[0].value).toBe('images/measure/dame155.svg');
   });
 
   test('keeps manual figure selection for new items without figures', async ({ page }) => {
