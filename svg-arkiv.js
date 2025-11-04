@@ -1901,10 +1901,43 @@
       return altTextManager;
     }
 
+    function resolvePersistedAltTextState(entry, details) {
+      const detailObject = details && typeof details === 'object' ? details : null;
+      const summaryObject = detailObject && typeof detailObject.summary === 'object' ? detailObject.summary : null;
+
+      const normalizeSource = (rawSource, text) => {
+        const normalized = typeof rawSource === 'string' ? rawSource.trim().toLowerCase() : '';
+        return normalized === 'manual' && text ? 'manual' : 'auto';
+      };
+
+      if (detailObject) {
+        const detailText = typeof detailObject.altText === 'string' ? detailObject.altText.trim() : '';
+        const detailSource = normalizeSource(detailObject.altTextSource, detailText);
+        if (detailText || detailSource === 'manual') {
+          return { text: detailText, source: detailSource, authoritative: true };
+        }
+
+        if (summaryObject) {
+          const summaryText = typeof summaryObject.altText === 'string' ? summaryObject.altText.trim() : '';
+          const summarySource = normalizeSource(summaryObject.altTextSource, summaryText);
+          if (summaryText || summarySource === 'manual') {
+            return { text: summaryText, source: summarySource, authoritative: true };
+          }
+        }
+
+        return { text: '', source: 'auto', authoritative: true };
+      }
+
+      const entryText = entry && typeof entry.altText === 'string' ? entry.altText.trim() : '';
+      const entrySource = normalizeSource(entry && entry.altTextSource, entryText);
+      return { text: entryText, source: entrySource, authoritative: false };
+    }
+
     function applyAltTextState(entry, details, { reason = 'auto', signatureOverride = undefined } = {}) {
       if (!entry || !entry.slug) {
         return;
       }
+      const persisted = resolvePersistedAltTextState(entry, details);
       const record = ensureAltTextRecord(entry.slug, entry, details);
       if (!record) {
         return;
@@ -1914,7 +1947,11 @@
       if (manager) {
         manager.ensureDom();
         if (typeof manager.markSaved === 'function') {
-          manager.markSaved({ text: record.text, source: record.source });
+          if (persisted && persisted.authoritative) {
+            manager.markSaved({ text: persisted.text, source: persisted.source });
+          } else if (reason === 'init') {
+            manager.markSaved({ text: record.text, source: record.source });
+          }
         }
         const signatureValue = signatureOverride !== undefined ? signatureOverride : record.signature;
         if (record.source === 'manual') {
