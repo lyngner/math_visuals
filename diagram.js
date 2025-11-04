@@ -1980,14 +1980,14 @@ function generateAltText(reason = 'auto') {
 }
 async function requestAltText(context, signal) {
   const prompt = buildAltTextPrompt(context);
-  return performAltTextRequest(prompt, signal);
+  return performAltTextRequest(prompt, signal, context);
 }
-async function performAltTextRequest(prompt, signal) {
+async function performAltTextRequest(prompt, signal, context) {
   if (!altTextServiceEnabled) return '';
   const endpoint = resolveAltTextEndpoint();
   if (endpoint) {
     try {
-      return await requestAltTextFromBackend(endpoint, prompt, signal);
+      return await requestAltTextFromBackend(endpoint, prompt, signal, context);
     } catch (error) {
       if (!altTextServiceEnabled) return '';
       throw error;
@@ -1996,7 +1996,7 @@ async function performAltTextRequest(prompt, signal) {
   if (!altTextServiceEnabled) return '';
   return requestAltTextDirect(prompt, signal);
 }
-async function requestAltTextFromBackend(endpoint, prompt, signal) {
+async function requestAltTextFromBackend(endpoint, prompt, signal, context) {
   if (!altTextServiceEnabled) {
     throw new Error('Alt-tekst-tjeneste deaktivert');
   }
@@ -2008,7 +2008,8 @@ async function requestAltTextFromBackend(endpoint, prompt, signal) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        prompt
+        prompt,
+        context
       }),
       signal
     });
@@ -2092,7 +2093,7 @@ async function generateAltTextFromSvg(context, signal) {
   if (!markup) return null;
   const prompt = buildSvgAltTextPrompt(markup, context);
   try {
-    return await performAltTextRequest(prompt, signal);
+    return await performAltTextRequest(prompt, signal, context);
   } catch (error) {
     if (!(signal && signal.aborted)) console.warn('Alt-tekst med SVG-data feilet', error);
     return null;

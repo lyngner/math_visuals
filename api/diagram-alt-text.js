@@ -84,6 +84,162 @@ Data:
 ${parts.join('\n')}`;
 }
 
+function toSentenceLower(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return trimmed.charAt(0).toLowerCase() + trimmed.slice(1);
+}
+
+function normalizeLabels(context, length) {
+  const rawLabels = Array.isArray(context.labels) ? context.labels : [];
+  const labels = [];
+  for (let index = 0; index < length; index += 1) {
+    const raw = rawLabels[index];
+    let label = typeof raw === 'string' ? raw.trim() : raw != null ? String(raw) : '';
+    if (!label) {
+      label = `Kategori ${index + 1}`;
+    }
+    labels.push(label);
+  }
+  return labels;
+}
+
+function normalizeSeriesValues(values, length) {
+  const list = Array.isArray(values) ? values : [];
+  const result = [];
+  for (let index = 0; index < length; index += 1) {
+    const numeric = Number(list[index]);
+    result.push(Number.isFinite(numeric) ? numeric : 0);
+  }
+  return result;
+}
+
+function getSeriesName(context, index, hasSecondSeries) {
+  if (!context) return index === 0 ? 'Dataserien' : `Serie ${index + 1}`;
+  const rawNames = Array.isArray(context.seriesNames) ? context.seriesNames : [];
+  const candidate = typeof rawNames[index] === 'string' ? rawNames[index].trim() : '';
+  if (candidate) return candidate;
+  if (index === 0) {
+    return hasSecondSeries ? 'Serie 1' : 'Dataserien';
+  }
+  return `Serie ${index + 1}`;
+}
+
+function describeSeriesPeak(name, values, labels) {
+  if (!values || !values.length) return '';
+  let maxIndex = -1;
+  let maxValue = -Infinity;
+  for (let index = 0; index < values.length; index += 1) {
+    const value = Number(values[index]);
+    if (!Number.isFinite(value)) continue;
+    if (maxIndex === -1 || value > maxValue) {
+      maxValue = value;
+      maxIndex = index;
+    }
+  }
+  if (maxIndex === -1) return '';
+  const label = labels[maxIndex] || `Kategori ${maxIndex + 1}`;
+  return `${name} er høyest for ${label} med ${formatNumber(maxValue)}`;
+}
+
+function buildFallbackAltText(context) {
+  if (!context || typeof context !== 'object') return '';
+  const type = context.type || 'bar';
+  const typeName = describeDiagramType(type);
+  const series1 = Array.isArray(context.values) ? context.values : [];
+  const series2 = Array.isArray(context.values2) ? context.values2 : [];
+  const labelCount = Math.max(
+    series1.length,
+    series2.length,
+    Array.isArray(context.labels) ? context.labels.length : 0,
+    0
+  );
+  const length = labelCount > 0 ? labelCount : 0;
+  const labels = normalizeLabels(context, length || 0);
+  const values = normalizeSeriesValues(series1, labels.length);
+  const values2 = normalizeSeriesValues(series2, labels.length);
+  const hasSecondSeries = Array.isArray(context.values2) && context.values2.length > 0;
+  const sentences = [];
+  const title = typeof context.title === 'string' ? context.title.trim() : '';
+  const axisX = typeof context.axisXLabel === 'string' ? context.axisXLabel.trim() : '';
+  const axisY = typeof context.axisYLabel === 'string' ? context.axisYLabel.trim() : '';
+
+  const axisParts = [];
+  if (axisX && type !== 'pie') {
+    axisParts.push(`x-aksen viser ${toSentenceLower(axisX)}`);
+  }
+  if (axisY && type !== 'pie') {
+    axisParts.push(`y-aksen viser ${toSentenceLower(axisY)}`);
+  }
+  const axisDescription = axisParts.length === 2 ? `${axisParts[0]} og ${axisParts[1]}` : axisParts[0] || '';
+
+  if (type === 'pie') {
+    const base = title ? `${title} er et ${typeName}` : `Figuren er et ${typeName}`;
+    const sectorInfo = labels.length ? ` med ${labels.length} sektorer` : '';
+    const axisInfo = axisY ? `, og ${axisDescription || `y-aksen viser ${toSentenceLower(axisY)}`}` : '';
+    const sentence = `${base}${sectorInfo}${axisInfo}`;
+    sentences.push(sentence.endsWith('.') ? sentence : `${sentence}.`);
+  } else if (title) {
+    if (axisDescription) {
+      sentences.push(`${title} er et ${typeName} der ${axisDescription}.`);
+    } else if (labels.length) {
+      sentences.push(`${title} er et ${typeName} med ${labels.length} kategorier.`);
+    } else {
+      sentences.push(`${title} er et ${typeName}.`);
+    }
+  } else {
+    const base = `Figuren er et ${typeName}`;
+    if (axisDescription) {
+      sentences.push(`${base} der ${axisDescription}.`);
+    } else if (labels.length) {
+      sentences.push(`${base} med ${labels.length} kategorier.`);
+    } else {
+      sentences.push(`${base}.`);
+    }
+  }
+
+  const highlightParts = [];
+  if (values.length) {
+    const series1Name = getSeriesName(context, 0, hasSecondSeries);
+    const description = describeSeriesPeak(series1Name, values, labels);
+    if (description) highlightParts.push(description);
+  }
+  if (hasSecondSeries && values2.length) {
+    const series2Name = getSeriesName(context, 1, hasSecondSeries);
+    const description = describeSeriesPeak(series2Name, values2, labels);
+    if (description) highlightParts.push(description);
+  }
+  if (hasSecondSeries && type === 'stacked' && values.length) {
+    const totals = values.map((value, index) => value + (Number.isFinite(values2[index]) ? values2[index] : 0));
+    const totalDescription = describeSeriesPeak('Totalt', totals, labels);
+    if (totalDescription) {
+      highlightParts.push(totalDescription.replace(/^Totalt/, 'Totalt er'));
+    }
+  }
+
+  if (highlightParts.length) {
+    const sentence = highlightParts.join('. ');
+    sentences.push(sentence.endsWith('.') ? sentence : `${sentence}.`);
+  } else if (labels.length) {
+    sentences.push('Verdiene fordeler seg jevnt mellom kategoriene.');
+  } else {
+    sentences.push('Ingen detaljerte verdier er tilgjengelige for diagrammet.');
+  }
+
+  return sentences.join(' ');
+}
+
+function respondWithFallback(res, context, warning) {
+  const fallback = buildFallbackAltText(context) || 'Diagrammet er vist, men alternativ tekst kan ikke genereres automatisk.';
+  const payload = { text: fallback, source: 'fallback' };
+  if (warning) {
+    payload.warning = warning;
+  }
+  sendJson(res, 200, payload);
+}
+
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -109,23 +265,26 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  const context = payload && typeof payload.context === 'object' ? payload.context : null;
+
   let prompt = '';
   if (typeof payload === 'string') {
     prompt = payload.trim();
   } else if (payload && typeof payload.prompt === 'string') {
     prompt = payload.prompt.trim();
-  } else if (payload && typeof payload.context === 'object') {
-    prompt = buildPromptFromContext(payload.context);
+  }
+  if (!prompt && context) {
+    prompt = buildPromptFromContext(context);
   }
 
-  if (!prompt) {
+  if (!prompt && !context) {
     sendJson(res, 400, { error: 'Missing prompt' });
     return;
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    sendJson(res, 500, { error: 'Server misconfigured: missing OpenAI API key' });
+    respondWithFallback(res, context, 'Server mangler OpenAI API-nøkkel');
     return;
   }
 
@@ -152,7 +311,7 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify(body)
     });
   } catch (error) {
-    sendJson(res, 502, { error: 'Failed to reach OpenAI', message: error.message });
+    respondWithFallback(res, context, 'Kunne ikke kontakte OpenAI');
     return;
   }
 
@@ -160,21 +319,18 @@ module.exports = async function handler(req, res) {
   try {
     data = await response.json();
   } catch (error) {
-    sendJson(res, 502, { error: 'Failed to read OpenAI response', message: error.message });
+    respondWithFallback(res, context, 'Ugyldig svar fra OpenAI');
     return;
   }
 
   if (!response.ok) {
-    sendJson(res, response.status || 502, {
-      error: 'OpenAI request failed',
-      details: data
-    });
+    respondWithFallback(res, context, 'OpenAI-returnerte en feil');
     return;
   }
 
   const text = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
   if (!text || !text.trim()) {
-    sendJson(res, 502, { error: 'OpenAI returned empty content' });
+    respondWithFallback(res, context, 'OpenAI returnerte tomt svar');
     return;
   }
 
