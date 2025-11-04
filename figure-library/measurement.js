@@ -6,7 +6,8 @@ import {
   buildMeasurementFigureData,
   getMeasurementFiguresGroupedByCategory,
   encodeMeasureImagePath,
-  extractRealWorldSize
+  extractRealWorldSize,
+  createFigurePickerHelpers
 } from '../packages/figures/src/index.js';
 
 const globalObj = typeof globalThis !== 'undefined'
@@ -26,7 +27,8 @@ export {
   CUSTOM_FIGURE_ID,
   measurementFigureManifest,
   encodeMeasureImagePath,
-  extractRealWorldSize
+  extractRealWorldSize,
+  createFigurePickerHelpers
 };
 
 export function createFigureLibrary(options = {}) {
