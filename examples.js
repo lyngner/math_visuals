@@ -3964,17 +3964,36 @@
 
   function resolveDescriptionRendererUrl() {
     if (typeof document === 'undefined') {
-      return 'description-renderer.js';
+      return [
+        {
+          url: 'description-renderer.js',
+          reason: 'no-document'
+        }
+      ];
     }
     const candidates = [];
-    const seenBases = new Set();
-    const addCandidate = (base, reason, priority = 1) => {
-      if (typeof base !== 'string') return;
-      const trimmed = base.trim();
+    const seenUrls = new Set();
+    const addCandidateUrl = (url, reason, priority = 1, details) => {
+      if (typeof url !== 'string') return;
+      const trimmed = url.trim();
       if (!trimmed) return;
-      if (seenBases.has(trimmed)) return;
-      seenBases.add(trimmed);
-      candidates.push({ base: trimmed, reason, priority, order: candidates.length });
+      const normalized = trimmed;
+      if (seenUrls.has(normalized)) return;
+      seenUrls.add(normalized);
+      candidates.push({ url: normalized, reason, priority, order: candidates.length, details: details || null });
+    };
+    const addCandidateFromBase = (base, reason, priority = 1) => {
+      if (typeof base !== 'string' || !base.trim()) return;
+      try {
+        const resolved = new URL('description-renderer.js', base).toString();
+        addCandidateUrl(resolved, reason, priority, { base });
+      } catch (error) {
+        logDescriptionRendererEvent('warn', 'Failed to resolve description renderer URL candidate', {
+          base,
+          reason,
+          error: error && error.message ? error.message : String(error)
+        });
+      }
     };
     const { currentScript } = document;
     const scripts = typeof document.getElementsByTagName === 'function' ? document.getElementsByTagName('script') : null;
@@ -4026,20 +4045,67 @@
 
     if (shouldForceRelativeDescriptionRendererUrl()) {
       logDescriptionRendererEvent('info', 'Using relative description renderer URL for static context');
-      return 'description-renderer.js';
+      return [
+        {
+          url: 'description-renderer.js',
+          reason: 'static-context'
+        }
+      ];
+    }
+
+    let scriptElement = currentScript && currentScript.src ? currentScript : null;
+    if (!scriptElement && scripts && scripts.length) {
+      scriptElement = scripts[scripts.length - 1];
+    }
+
+    if (scriptElement && scriptElement.src) {
+      try {
+        const scriptDirectoryUrl = new URL('./description-renderer.js', scriptElement.src).toString();
+        addCandidateUrl(scriptDirectoryUrl, 'script-directory', 0, { scriptSrc: scriptElement.src });
+      } catch (error) {
+        logDescriptionRendererEvent('warn', 'Failed to resolve script directory description renderer URL', {
+          scriptSrc: scriptElement.src,
+          error: error && error.message ? error.message : String(error)
+        });
+      }
+    }
+
+    if (typeof window !== 'undefined' && window.location) {
+      const { origin, href } = window.location;
+      if (typeof origin === 'string' && origin && origin !== 'null') {
+        try {
+          const rootRelative = new URL('/description-renderer.js', origin).toString();
+          addCandidateUrl(rootRelative, 'root-relative', 1, { origin });
+        } catch (error) {
+          logDescriptionRendererEvent('warn', 'Failed to resolve root-relative description renderer URL', {
+            origin,
+            error: error && error.message ? error.message : String(error)
+          });
+        }
+      } else if (typeof href === 'string' && href) {
+        try {
+          const rootRelativeFromHref = new URL('/description-renderer.js', href).toString();
+          addCandidateUrl(rootRelativeFromHref, 'root-relative', 1, { href });
+        } catch (error) {
+          logDescriptionRendererEvent('warn', 'Failed to resolve root-relative description renderer URL from href', {
+            href,
+            error: error && error.message ? error.message : String(error)
+          });
+        }
+      }
     }
 
     if (currentScript && currentScript.src) {
-      addCandidate(currentScript.src, 'document.currentScript.src', 0);
+      addCandidateFromBase(currentScript.src, 'document.currentScript.src', 2);
     }
     if (scripts && scripts.length) {
       for (let i = scripts.length - 1; i >= 0; i--) {
         const script = scripts[i];
         if (!script || !script.src) continue;
         const src = script.src;
-        addCandidate(src, 'script[src]', 0);
+        addCandidateFromBase(src, 'script[src]', 2);
         if (/\bexamples(?:\.min)?\.js(?:\?|#|$)/.test(src)) {
-          addCandidate(src, 'examples.js script[src]', 0);
+          addCandidateFromBase(src, 'examples.js script[src]', 2);
           break;
         }
       }
@@ -4047,43 +4113,42 @@
     if (typeof window !== 'undefined' && window.location) {
       const { origin, href } = window.location;
       if (typeof origin === 'string' && origin && origin !== 'null') {
-        addCandidate(origin.endsWith('/') ? origin : `${origin}/`, 'window.location.origin', 2);
+        addCandidateFromBase(origin.endsWith('/') ? origin : `${origin}/`, 'window.location.origin', 3);
       }
       if (typeof href === 'string' && href) {
-        addCandidate(href, 'window.location.href', 3);
+        addCandidateFromBase(href, 'window.location.href', 4);
       }
     }
     if (typeof document.baseURI === 'string' && document.baseURI) {
-      addCandidate(document.baseURI, 'document.baseURI', 3);
+      addCandidateFromBase(document.baseURI, 'document.baseURI', 4);
     }
+
+    addCandidateUrl('description-renderer.js', 'relative-fallback', 5);
+
     const orderedCandidates = candidates.slice().sort((a, b) => {
       if (a.priority === b.priority) {
         return a.order - b.order;
       }
       return a.priority - b.priority;
     });
+
     logDescriptionRendererEvent('debug', 'Evaluating description renderer URL candidates', orderedCandidates);
-    for (const candidate of orderedCandidates) {
-      const base = candidate && candidate.base;
-      if (typeof base !== 'string' || !base) continue;
-      try {
-        const resolved = new URL('description-renderer.js', base).toString();
-        logDescriptionRendererEvent('debug', 'Resolved description renderer URL candidate', {
-          base,
-          reason: candidate.reason,
-          resolved
-        });
-        return resolved;
-      } catch (error) {
-        logDescriptionRendererEvent('warn', 'Failed to resolve description renderer URL candidate', {
-          base,
-          reason: candidate.reason,
-          error: error && error.message ? error.message : String(error)
-        });
-      }
+
+    if (!orderedCandidates.length) {
+      logDescriptionRendererEvent('warn', 'No description renderer URL candidates resolved, using relative fallback');
+      return [
+        {
+          url: 'description-renderer.js',
+          reason: 'empty-candidates'
+        }
+      ];
     }
-    logDescriptionRendererEvent('warn', 'Falling back to relative description renderer URL');
-    return 'description-renderer.js';
+
+    return orderedCandidates.map(candidate => ({
+      url: candidate.url,
+      reason: candidate.reason,
+      details: candidate.details || null
+    }));
   }
 
   function loadDescriptionRenderer() {
@@ -4099,30 +4164,80 @@
       return descriptionRendererPromise;
     }
     descriptionRendererPromise = new Promise((resolve, reject) => {
-      const scriptUrl = resolveDescriptionRendererUrl();
-      logDescriptionRendererEvent('info', 'Loading description renderer script', { url: scriptUrl });
-      const script = document.createElement('script');
-      script.async = true;
-      script.src = scriptUrl;
-      script.setAttribute('data-mathvis-description-loader', 'true');
-      script.addEventListener('load', () => {
-        if (window.MathVisDescriptionRenderer) {
-          logDescriptionRendererEvent('info', 'Description renderer script loaded successfully', { url: scriptUrl });
-          resolve(window.MathVisDescriptionRenderer);
-        } else {
+      const candidates = resolveDescriptionRendererUrl();
+      const normalizedCandidates = Array.isArray(candidates) && candidates.length
+        ? candidates
+        : [
+            {
+              url: 'description-renderer.js',
+              reason: 'implicit-fallback'
+            }
+          ];
+
+      const attemptLoad = index => {
+        if (index >= normalizedCandidates.length) {
           descriptionRendererPromise = null;
-          logDescriptionRendererEvent('error', 'Description renderer script loaded without exposing global', {
-            url: scriptUrl
-          });
-          reject(new Error('Description renderer loaded without exposing the expected global.'));
+          logDescriptionRendererEvent('error', 'Failed to load description renderer script after all candidates');
+          reject(new Error('Failed to load description renderer from all candidate URLs.'));
+          return;
         }
-      }, { once: true });
-      script.addEventListener('error', () => {
-        descriptionRendererPromise = null;
-        logDescriptionRendererEvent('error', 'Failed to load description renderer script', { url: scriptUrl });
-        reject(new Error('Failed to load description renderer.'));
-      }, { once: true });
-      document.head.appendChild(script);
+
+        const candidate = normalizedCandidates[index] || {};
+        const scriptUrl = typeof candidate.url === 'string' ? candidate.url : 'description-renderer.js';
+        logDescriptionRendererEvent('info', 'Loading description renderer script', {
+          url: scriptUrl,
+          reason: candidate.reason
+        });
+
+        const script = document.createElement('script');
+        script.async = true;
+        script.src = scriptUrl;
+        script.setAttribute('data-mathvis-description-loader', 'true');
+
+        const cleanup = () => {
+          script.removeEventListener('load', onLoad);
+          script.removeEventListener('error', onError);
+          if (script.parentNode) {
+            try {
+              script.parentNode.removeChild(script);
+            } catch (_) {}
+          }
+        };
+
+        const onLoad = () => {
+          if (window.MathVisDescriptionRenderer) {
+            logDescriptionRendererEvent('info', 'Description renderer script loaded successfully', {
+              url: scriptUrl,
+              reason: candidate.reason
+            });
+            cleanup();
+            resolve(window.MathVisDescriptionRenderer);
+          } else {
+            descriptionRendererPromise = null;
+            cleanup();
+            logDescriptionRendererEvent('error', 'Description renderer script loaded without exposing global', {
+              url: scriptUrl,
+              reason: candidate.reason
+            });
+            reject(new Error('Description renderer loaded without exposing the expected global.'));
+          }
+        };
+
+        const onError = () => {
+          cleanup();
+          logDescriptionRendererEvent('warn', 'Failed to load description renderer script candidate', {
+            url: scriptUrl,
+            reason: candidate.reason
+          });
+          attemptLoad(index + 1);
+        };
+
+        script.addEventListener('load', onLoad, { once: true });
+        script.addEventListener('error', onError, { once: true });
+        document.head.appendChild(script);
+      };
+
+      attemptLoad(0);
     });
     return descriptionRendererPromise;
   }
