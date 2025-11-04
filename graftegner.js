@@ -236,6 +236,48 @@ function axisArrowSvgData(axis, color) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(template.replace(/{{COLOR}}/g, tint))}`;
 }
 
+function updateAxisArrowImage(image, dataUrl, width, height) {
+  if (!image) return;
+  if (typeof dataUrl === 'string' && dataUrl) {
+    image.url = dataUrl;
+  }
+  const widthValue = Number.isFinite(width) ? width : null;
+  const heightValue = Number.isFinite(height) ? height : null;
+  if (Array.isArray(image.size)) {
+    if (widthValue != null) image.size[0] = widthValue;
+    if (heightValue != null) image.size[1] = heightValue;
+  }
+  if (Array.isArray(image.usrSize)) {
+    if (widthValue != null) image.usrSize[0] = widthValue;
+    if (heightValue != null) image.usrSize[1] = heightValue;
+  }
+  const node = image.rendNodeImage || image.rendNode || null;
+  if (node && typeof node.setAttribute === 'function') {
+    if (typeof dataUrl === 'string' && dataUrl) {
+      try {
+        node.setAttributeNS('http://www.w3.org/1999/xlink', 'href', dataUrl);
+      } catch (_) {}
+      try {
+        node.setAttribute('href', dataUrl);
+        node.setAttribute('xlink:href', dataUrl);
+      } catch (_) {}
+    }
+    if (widthValue != null) {
+      try {
+        node.setAttribute('width', widthValue);
+      } catch (_) {}
+    }
+    if (heightValue != null) {
+      try {
+        node.setAttribute('height', heightValue);
+      } catch (_) {}
+    }
+  }
+  if (typeof image.update === 'function') {
+    image.update();
+  }
+}
+
 const DEFAULT_AXIS_COLOR = '#111827';
 
 const POINT_MARKER_SIZE = 6;
@@ -2635,22 +2677,10 @@ function updateAxisArrows() {
   ensureAxisArrowShapes();
   const axisColor = ADV.axis.style.stroke;
   if (axisArrowX) {
-    axisArrowX.setAttribute({
-      url: axisArrowSvgData('x', axisColor),
-      size: [axisArrowLengthX(), axisArrowHalfHeight() * 2]
-    });
-    if (typeof axisArrowX.update === 'function') {
-      axisArrowX.update();
-    }
+    updateAxisArrowImage(axisArrowX, axisArrowSvgData('x', axisColor), axisArrowLengthX(), axisArrowHalfHeight() * 2);
   }
   if (axisArrowY) {
-    axisArrowY.setAttribute({
-      url: axisArrowSvgData('y', axisColor),
-      size: [axisArrowHalfWidth() * 2, axisArrowLengthY()]
-    });
-    if (typeof axisArrowY.update === 'function') {
-      axisArrowY.update();
-    }
+    updateAxisArrowImage(axisArrowY, axisArrowSvgData('y', axisColor), axisArrowHalfWidth() * 2, axisArrowLengthY());
   }
 }
 

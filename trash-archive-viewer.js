@@ -178,8 +178,8 @@
       let path = value.trim();
       if (!path) return '';
       if (!path.startsWith('/')) path = '/' + path;
-      path = path.replace(/[\]+/g, '/');
-      path = path.replace(/\/+/g, '/');
+      path = path.split('\\').join('/');
+      path = path.replace(/\/{2,}/g, '/');
       path = path.replace(/\/index\.html?$/i, '/');
       if (/\.html?$/i.test(path)) {
         path = path.replace(/\.html?$/i, '');
