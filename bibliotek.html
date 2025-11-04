@@ -344,6 +344,10 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
+      padding: clamp(14px, 1.6vw, 18px);
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 16px;
+      background: #f8fafc;
     }
     .filterGroup {
       display: flex;
@@ -356,8 +360,134 @@
       border-radius: 8px;
       padding: 8px 12px;
       font-size: 15px;
+      background: #fff;
     }
-    .filterHelper { font-size: 13px; color: #6b7280; }
+    .filterHelper { font-size: 13px; color: #6b7280; margin: 0; }
+
+    .uploadCard {
+      background: #fff;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 16px;
+      padding: clamp(14px, 1.6vw, 18px);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+    }
+    .uploadIntro { display: grid; gap: 6px; }
+    .uploadIntro h2 { margin: 0; font-size: 16px; font-weight: 600; }
+    .uploadIntro p { margin: 0; font-size: 13px; color: #475569; }
+    .uploadForm { display: grid; gap: 12px; }
+    .uploadForm label { display: grid; gap: 6px; font-size: 14px; font-weight: 500; }
+    .uploadForm input[type="text"],
+    .uploadForm input[type="search"],
+    .uploadForm input[type="file"] {
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: #f8fafc;
+    }
+    .uploadForm input[type="file"] {
+      padding: 6px 8px;
+      background: #fff;
+    }
+    .uploadHelper { margin: 0; font-size: 12px; color: #6b7280; }
+    .uploadActions { display: flex; gap: 8px; align-items: center; }
+    .uploadButton {
+      border: none;
+      background: var(--beta-color);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 999px;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+    .uploadButton:hover,
+    .uploadButton:focus-visible {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
+      outline: none;
+    }
+    .uploadButton:focus-visible {
+      outline: 3px solid rgba(37, 99, 235, 0.4);
+      outline-offset: 2px;
+    }
+    .uploadStatus {
+      font-size: 13px;
+      margin: 0;
+      color: #1e3a8a;
+    }
+    .uploadStatus[data-state="success"] { color: #047857; }
+    .uploadStatus[data-state="error"] { color: #b91c1c; }
+    .uploadStatus[data-state="warning"] { color: #b45309; }
+
+    dialog[data-custom-editor] {
+      border: none;
+      border-radius: 18px;
+      padding: 0;
+      max-width: min(420px, 90vw);
+      box-shadow: 0 24px 48px rgba(15, 23, 42, 0.25);
+    }
+    .customEditor {
+      display: grid;
+      gap: 16px;
+      padding: 20px;
+    }
+    .customEditor h2 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .customEditor label { display: grid; gap: 6px; font-size: 14px; font-weight: 500; }
+    .customEditor input[type="text"] {
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+    .customEditorHelper { margin: 0; font-size: 13px; color: #6b7280; }
+    .customEditorActions { display: flex; justify-content: flex-end; gap: 8px; }
+    .customEditorActions button {
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .customEditorSave {
+      background: var(--beta-color);
+      color: #fff;
+      border-color: rgba(37, 99, 235, 0.8);
+    }
+    .customEditorSave:hover,
+    .customEditorSave:focus-visible {
+      background: #1d4ed8;
+      outline: none;
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
+    }
+    .customEditorCancel {
+      background: #fff;
+      color: #1e3a8a;
+      border-color: rgba(148, 163, 184, 0.6);
+    }
+    .customEditorCancel:hover,
+    .customEditorCancel:focus-visible {
+      outline: none;
+      border-color: rgba(37, 99, 235, 0.6);
+    }
+    .customEditorError {
+      margin: 0;
+      font-size: 13px;
+      color: #b91c1c;
+    }
+    dialog[data-custom-editor]::backdrop {
+      background: rgba(15, 23, 42, 0.35);
+    }
 
     .copyFeedback { font-size: 12px; color: #047857; margin: 0; }
 
@@ -387,9 +517,53 @@
         <section class="categorySection">
           <div class="categoryIntro">
             <h2 id="category-heading">Kategorier</h2>
-            <p>Velg en kategori for å bruke den som filter i figurbiblioteket.</p>
+            <p>Bruk kategoriene for å filtrere figurene i oversikten.</p>
           </div>
           <ul class="categoryGrid" data-category-grid></ul>
+        </section>
+        <section class="sideCard" aria-label="Søk i figurer">
+          <div class="filterGroup">
+            <label for="figure-filter">Søk i figurer</label>
+            <input
+              id="figure-filter"
+              type="search"
+              placeholder="Søk etter navn, kategori eller type"
+              data-filter
+              autocomplete="off"
+            />
+            <p class="filterHelper">Søk f.eks. «dyr», «category:tierbrett» eller «type:measure».</p>
+          </div>
+        </section>
+        <section class="uploadCard" aria-label="Egendefinerte figurer">
+          <div class="uploadIntro">
+            <h2>Egendefinerte figurer</h2>
+            <p>Last opp egne SVG-er og legg dem til i biblioteket. Du kan senere endre navn og kategori.</p>
+          </div>
+          <form class="uploadForm" data-upload-form>
+            <label>
+              <span>SVG-fil</span>
+              <input type="file" accept=".svg" data-upload-file required />
+            </label>
+            <label>
+              <span>Navn (valgfritt)</span>
+              <input type="text" data-upload-name placeholder="F.eks. Tilpasset figur" autocomplete="off" />
+            </label>
+            <label>
+              <span>Kategori</span>
+              <input
+                type="text"
+                list="figure-category-suggestions"
+                data-upload-category
+                placeholder="Velg eller skriv kategori"
+                autocomplete="off"
+              />
+            </label>
+            <p class="uploadHelper">Velg en eksisterende kategori eller skriv inn en ny.</p>
+            <div class="uploadActions">
+              <button type="submit" class="uploadButton">Legg til figur</button>
+              <p class="uploadStatus" data-upload-status hidden></p>
+            </div>
+          </form>
         </section>
       </aside>
       <main class="card resultsCard" aria-live="polite">
@@ -398,7 +572,7 @@
           <p data-count></p>
         </div>
         <div class="resultsHelper" data-helper hidden>
-          Velg en kategori til venstre for å vise tilhørende figurer. Du kan velge samme kategori igjen for å fjerne filteret.
+          Bruk kategorier eller søkefeltet for å finne figurene du trenger.
         </div>
         <div data-results hidden>
           <ul class="bibliotekGrid" data-grid aria-live="polite"></ul>
@@ -407,6 +581,32 @@
       </main>
     </div>
   </div>
+  <dialog data-custom-editor>
+    <form class="customEditor" data-editor-form method="dialog">
+      <h2>Rediger figur</h2>
+      <label for="editor-name">
+        Navn
+        <input id="editor-name" type="text" data-editor-name required autocomplete="off" />
+      </label>
+      <label for="editor-category">
+        Kategori
+        <input
+          id="editor-category"
+          type="text"
+          list="figure-category-suggestions"
+          data-editor-category
+          autocomplete="off"
+        />
+      </label>
+      <p class="customEditorHelper">Velg en eksisterende kategori eller skriv inn en ny.</p>
+      <p class="customEditorError" data-editor-error hidden></p>
+      <div class="customEditorActions">
+        <button type="button" class="customEditorCancel" data-editor-cancel>Avbryt</button>
+        <button type="submit" class="customEditorSave">Lagre endringer</button>
+      </div>
+    </form>
+  </dialog>
+  <datalist id="figure-category-suggestions" data-category-suggestions></datalist>
   <script src="bibliotek.js" type="module"></script>
 </body>
 </html>
