@@ -499,11 +499,80 @@
     return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
   }
 
+  function indicatorMatchesStoragePath(indicator, storagePath) {
+    if (!indicator || !storagePath) {
+      return false;
+    }
+
+    const normalizedIndicator = String(indicator).toLowerCase();
+    if (!normalizedIndicator) {
+      return false;
+    }
+
+    const indicatorVariants = new Set([normalizedIndicator]);
+    try {
+      const decoded = decodeURI(normalizedIndicator);
+      if (decoded && decoded.toLowerCase() !== normalizedIndicator) {
+        indicatorVariants.add(decoded.toLowerCase());
+      }
+    } catch (_) {}
+
+    const normalizedPath = storagePath.toLowerCase();
+    const pathVariants = new Set();
+    const addPathVariant = value => {
+      if (value) {
+        pathVariants.add(value);
+      }
+    };
+
+    addPathVariant(normalizedPath);
+    addPathVariant(normalizedPath.replace(/^\//, ''));
+
+    try {
+      const encoded = encodeURI(normalizedPath);
+      const encodedLower = typeof encoded === 'string' ? encoded.toLowerCase() : '';
+      addPathVariant(encodedLower);
+      addPathVariant(encodedLower.replace(/^\//, ''));
+    } catch (_) {}
+
+    try {
+      if (typeof normalizedPath.normalize === 'function') {
+        const ascii = normalizedPath
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+        addPathVariant(ascii);
+        addPathVariant(ascii.replace(/^\//, ''));
+      }
+    } catch (_) {}
+
+    const identifierVariant = normalizeToolIdentifier(normalizedPath);
+    if (identifierVariant) {
+      addPathVariant(identifierVariant);
+    }
+
+    const indicatorValues = Array.from(indicatorVariants);
+    const pathValues = Array.from(pathVariants);
+    for (const indicatorValue of indicatorValues) {
+      for (const pathValue of pathValues) {
+        if (pathValue && indicatorValue.includes(pathValue)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   const TOOL_OPEN_TARGETS = (() => {
     const definitions = [
       { names: ['Graftegner'], url: '/graftegner.html', storagePath: '/graftegner' },
       { names: ['nKant', 'N-kant'], url: '/nkant.html', storagePath: '/nkant' },
       { names: ['Diagram'], url: '/diagram/index.html', storagePath: '/diagram' },
+      {
+        names: ['Måling', 'Maling', 'Maaling', 'Measurement'],
+        url: '/måling.html',
+        storagePath: '/måling'
+      },
       { names: ['Brøkpizza'], url: '/brøkpizza.html', storagePath: '/brøkpizza' },
       { names: ['Brøkfigurer'], url: '/brøkfigurer.html', storagePath: '/brøkfigurer' },
       { names: ['Figurtall'], url: '/figurtall.html', storagePath: '/figurtall' },
@@ -775,7 +844,44 @@
       return null;
     }
 
-    return TOOL_OPEN_TARGETS.get(key) || null;
+    const direct = TOOL_OPEN_TARGETS.get(key);
+    if (direct) {
+      return direct;
+    }
+
+    const trimmedKey = key.replace(/\d+$/, '');
+    if (trimmedKey && trimmedKey !== key) {
+      const trimmedTarget = TOOL_OPEN_TARGETS.get(trimmedKey);
+      if (trimmedTarget) {
+        return trimmedTarget;
+      }
+    }
+
+    let suffixMatch = null;
+    let partialMatch = null;
+    for (const [candidateKey, candidateTarget] of TOOL_OPEN_TARGETS.entries()) {
+      if (!candidateKey || !candidateTarget) {
+        continue;
+      }
+      if (key.endsWith(candidateKey)) {
+        if (!suffixMatch || candidateKey.length > suffixMatch.key.length) {
+          suffixMatch = { key: candidateKey, target: candidateTarget };
+        }
+      } else if (key.includes(candidateKey)) {
+        if (!partialMatch || candidateKey.length > partialMatch.key.length) {
+          partialMatch = { key: candidateKey, target: candidateTarget };
+        }
+      }
+    }
+
+    if (suffixMatch) {
+      return suffixMatch.target;
+    }
+    if (partialMatch) {
+      return partialMatch.target;
+    }
+
+    return null;
   }
 
   function resolveTargetFromStorageIndicator(indicator) {
@@ -783,21 +889,11 @@
       return null;
     }
 
-    const normalizedIndicator = String(indicator).toLowerCase();
-    if (!normalizedIndicator) {
-      return null;
-    }
-
     for (const [storagePath, target] of TOOL_OPEN_TARGETS.byStoragePath.entries()) {
       if (!storagePath) {
         continue;
       }
-      const normalizedPath = storagePath.toLowerCase();
-      const pathWithoutLeadingSlash = normalizedPath.replace(/^\//, '');
-      if (
-        normalizedIndicator.includes(normalizedPath) ||
-        (pathWithoutLeadingSlash && normalizedIndicator.includes(pathWithoutLeadingSlash))
-      ) {
+      if (indicatorMatchesStoragePath(indicator, storagePath)) {
         return target;
       }
     }
