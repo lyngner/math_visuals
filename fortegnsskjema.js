@@ -1,24 +1,28 @@
 (() => {
-  const svg = document.getElementById('chart');
-  const overlay = document.getElementById('chartOverlay');
-  const expressionDisplay = document.getElementById('chartExpression');
-  const labelsLayer = document.getElementById('chartLabels');
-  const figureContainer = document.querySelector('.figure');
-  let exprInput = document.getElementById('exprInput');
-  const btnCheck = document.getElementById('btnCheck');
-  const btnAddPoint = document.getElementById('btnAddPoint');
-  const btnAddRow = document.getElementById('btnAddRow');
-  const overlayAddPoint = document.getElementById('overlayAddPoint');
-  const overlayAddRow = document.getElementById('overlayAddRow');
-  const pointsList = document.getElementById('pointsList');
-  const rowsList = document.getElementById('rowsList');
-  const autoSyncInput = document.getElementById('autoSync');
-  const useLinearFactorsInput = document.getElementById('useLinearFactors');
-  const domainMinInput = document.getElementById('domainMin');
-  const domainMaxInput = document.getElementById('domainMax');
-  const decimalPlacesInput = document.getElementById('decimalPlaces');
-  const checkStatus = document.getElementById('checkStatus');
-    const taskCheckHost = typeof document !== 'undefined' ? document.querySelector('[data-task-check-host]') : null;
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (!doc) return;
+  const globalObj = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
+  const root = doc.documentElement || null;
+  const svg = doc.getElementById('chart');
+  const overlay = doc.getElementById('chartOverlay');
+  const expressionDisplay = doc.getElementById('chartExpression');
+  const labelsLayer = doc.getElementById('chartLabels');
+  const figureContainer = doc.querySelector('.figure');
+  let exprInput = doc.getElementById('exprInput');
+  const btnCheck = doc.getElementById('btnCheck');
+  const btnAddPoint = doc.getElementById('btnAddPoint');
+  const btnAddRow = doc.getElementById('btnAddRow');
+  const overlayAddPoint = doc.getElementById('overlayAddPoint');
+  const overlayAddRow = doc.getElementById('overlayAddRow');
+  const pointsList = doc.getElementById('pointsList');
+  const rowsList = doc.getElementById('rowsList');
+  const autoSyncInput = doc.getElementById('autoSync');
+  const useLinearFactorsInput = doc.getElementById('useLinearFactors');
+  const domainMinInput = doc.getElementById('domainMin');
+  const domainMaxInput = doc.getElementById('domainMax');
+  const decimalPlacesInput = doc.getElementById('decimalPlaces');
+  const checkStatus = doc.getElementById('checkStatus');
+    const taskCheckHost = doc ? doc.querySelector('[data-task-check-host]') : null;
     const taskCheckControls = [btnCheck, checkStatus].filter(Boolean);
 
     function evaluateDescriptionInputs() {
@@ -41,7 +45,6 @@
   const LINEAR_VALIDATION_POINTS = [-1, 2, 0.5];
   const axisArrowUtils = typeof window !== 'undefined' ? window.MathVisualsAxisArrow : null;
   const AXIS_ARROW_THICKNESS = 22;
-  const AXIS_ARROW_COLOR = '#4b5563';
   const LEGACY_ARROW_WIDTH = 12;
   const XLINK_NS = 'http://www.w3.org/1999/xlink';
   exprInput = ensureExpressionInputElement(exprInput);
@@ -80,6 +83,236 @@
     ceil: 'ceil',
     round: 'round'
   };
+  const FORTEGNSSKJEMA_GROUP_ID = 'fortegnsskjema';
+  const FORTEGNSSKJEMA_SLOT_COUNT = 5;
+  const FORTEGNSSKJEMA_FALLBACK = {
+    axis: '#4b5563',
+    grid: '#d1d5db',
+    positive: '#111827',
+    negative: '#dc2626',
+    text: '#111827'
+  };
+  let chartPalette = {
+    axis: FORTEGNSSKJEMA_FALLBACK.axis,
+    grid: FORTEGNSSKJEMA_FALLBACK.grid,
+    positive: FORTEGNSSKJEMA_FALLBACK.positive,
+    negative: FORTEGNSSKJEMA_FALLBACK.negative,
+    text: FORTEGNSSKJEMA_FALLBACK.text
+  };
+
+  function getSettingsApi() {
+    const api = globalObj && typeof globalObj === 'object' ? globalObj.MathVisualsSettings : null;
+    return api && typeof api === 'object' ? api : null;
+  }
+
+  function getGroupPaletteApi() {
+    const api = globalObj && typeof globalObj === 'object' ? globalObj.MathVisualsGroupPalette : null;
+    if (!api || typeof api !== 'object') return null;
+    if (typeof api.resolveGroupPalette === 'function') {
+      return api;
+    }
+    if (api.service && typeof api.service.resolveGroupPalette === 'function') {
+      return api.service;
+    }
+    return null;
+  }
+
+  function getThemeApi() {
+    const api = globalObj && typeof globalObj === 'object' ? globalObj.MathVisualsTheme : null;
+    return api && typeof api === 'object' ? api : null;
+  }
+
+  function getActiveThemeProjectName(theme = getThemeApi()) {
+    if (!theme || typeof theme.getActiveProfileName !== 'function') return null;
+    try {
+      const value = theme.getActiveProfileName();
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim().toLowerCase();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function resolvePaletteProjectName() {
+    if (root && typeof root.getAttribute === 'function') {
+      const activeAttr = root.getAttribute('data-mv-active-project');
+      if (typeof activeAttr === 'string' && activeAttr.trim()) {
+        return activeAttr.trim().toLowerCase();
+      }
+      const profileAttr = root.getAttribute('data-theme-profile');
+      if (typeof profileAttr === 'string' && profileAttr.trim()) {
+        return profileAttr.trim().toLowerCase();
+      }
+    }
+    const activeThemeProject = getActiveThemeProjectName();
+    if (activeThemeProject) return activeThemeProject;
+    const settings = getSettingsApi();
+    if (settings && typeof settings.getActiveProject === 'function') {
+      try {
+        const value = settings.getActiveProject();
+        if (typeof value === 'string' && value.trim()) {
+          return value.trim().toLowerCase();
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  function sanitizeColor(value) {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    return trimmed;
+  }
+
+  function sanitizePalette(values) {
+    if (!Array.isArray(values)) return [];
+    const sanitized = [];
+    for (const value of values) {
+      const color = sanitizeColor(value);
+      if (color) {
+        sanitized.push(color);
+      }
+    }
+    return sanitized;
+  }
+
+  function ensurePaletteSize(basePalette, fallbackPalette, count) {
+    const base = sanitizePalette(basePalette);
+    const fallback = sanitizePalette(fallbackPalette);
+    const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : base.length || fallback.length;
+    if (!target) {
+      return base.length ? base.slice() : fallback.slice();
+    }
+    const result = [];
+    for (let index = 0; index < target; index += 1) {
+      const primary = base[index];
+      if (typeof primary === 'string' && primary) {
+        result.push(primary);
+        continue;
+      }
+      if (fallback.length) {
+        const fallbackColor = fallback[index % fallback.length];
+        if (typeof fallbackColor === 'string' && fallbackColor) {
+          result.push(fallbackColor);
+          continue;
+        }
+      }
+      if (base.length) {
+        const cycled = base[index % base.length];
+        if (typeof cycled === 'string' && cycled) {
+          result.push(cycled);
+        }
+      }
+    }
+    if (!result.length && fallback.length) {
+      result.push(fallback[0]);
+    }
+    return result;
+  }
+
+  function tryResolvePalette(resolver) {
+    try {
+      const palette = resolver();
+      return Array.isArray(palette) ? sanitizePalette(palette) : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function resolveGroupPaletteColors(groupId, fallbackPalette, desiredCount) {
+    const fallback = sanitizePalette(fallbackPalette);
+    const targetCount = Number.isFinite(desiredCount) && desiredCount > 0 ? Math.trunc(desiredCount) : fallback.length;
+    const project = resolvePaletteProjectName();
+    const settings = getSettingsApi();
+    let palette = [];
+    if (settings && typeof settings.getGroupPalette === 'function') {
+      palette = tryResolvePalette(() =>
+        settings.getGroupPalette(groupId, { project: project || undefined, count: targetCount || undefined })
+      );
+      if ((!palette || palette.length < targetCount) && settings.getGroupPalette.length >= 3) {
+        const altPalette = tryResolvePalette(() =>
+          settings.getGroupPalette(groupId, targetCount || undefined, project ? { project } : undefined)
+        );
+        if (altPalette.length) {
+          palette = altPalette;
+        }
+      }
+    }
+    if (!Array.isArray(palette) || palette.length < targetCount) {
+      const groupPaletteApi = getGroupPaletteApi();
+      if (groupPaletteApi && typeof groupPaletteApi.resolveGroupPalette === 'function') {
+        const resolved = tryResolvePalette(() =>
+          groupPaletteApi.resolveGroupPalette({
+            groupId,
+            count: targetCount || undefined,
+            project: project || undefined,
+            fallback
+          })
+        );
+        if (resolved.length) {
+          palette = resolved;
+        }
+      }
+    }
+    if (!Array.isArray(palette) || palette.length < targetCount) {
+      const theme = getThemeApi();
+      if (theme && typeof theme.getGroupPalette === 'function') {
+        const themePalette = tryResolvePalette(() =>
+          theme.getGroupPalette(groupId, { project: project || undefined, count: targetCount || undefined })
+        );
+        if (themePalette.length) {
+          palette = themePalette;
+        } else if (theme.getGroupPalette.length >= 3) {
+          const legacyPalette = tryResolvePalette(() =>
+            theme.getGroupPalette(groupId, targetCount || undefined, project ? { project } : undefined)
+          );
+          if (legacyPalette.length) {
+            palette = legacyPalette;
+          }
+        }
+      }
+    }
+    return ensurePaletteSize(palette, fallback.length ? fallback : fallbackPalette, targetCount || fallback.length);
+  }
+
+  function applyFortegnsskjemaPalette(options = {}) {
+    const palette = resolveGroupPaletteColors(
+      FORTEGNSSKJEMA_GROUP_ID,
+      [
+        FORTEGNSSKJEMA_FALLBACK.axis,
+        FORTEGNSSKJEMA_FALLBACK.grid,
+        FORTEGNSSKJEMA_FALLBACK.positive,
+        FORTEGNSSKJEMA_FALLBACK.negative,
+        FORTEGNSSKJEMA_FALLBACK.text
+      ],
+      FORTEGNSSKJEMA_SLOT_COUNT
+    );
+    chartPalette = {
+      axis: palette[0] || FORTEGNSSKJEMA_FALLBACK.axis,
+      grid: palette[1] || FORTEGNSSKJEMA_FALLBACK.grid,
+      positive: palette[2] || FORTEGNSSKJEMA_FALLBACK.positive,
+      negative: palette[3] || FORTEGNSSKJEMA_FALLBACK.negative,
+      text: palette[4] || FORTEGNSSKJEMA_FALLBACK.text
+    };
+    if (root && root.style) {
+      root.style.setProperty('--fortegnsskjema-axis-color', chartPalette.axis);
+      root.style.setProperty('--fortegnsskjema-grid-color', chartPalette.grid);
+      root.style.setProperty('--fortegnsskjema-positive-color', chartPalette.positive);
+      root.style.setProperty('--fortegnsskjema-negative-color', chartPalette.negative);
+      root.style.setProperty('--fortegnsskjema-text-color', chartPalette.text);
+    }
+    if (options && options.reRender) {
+      renderChart();
+    }
+  }
+
+  applyFortegnsskjemaPalette();
+  if (globalObj && typeof globalObj.addEventListener === 'function') {
+    const handlePaletteEvent = () => applyFortegnsskjemaPalette({ reRender: true });
+    globalObj.addEventListener('math-visuals:settings-changed', handlePaletteEvent);
+    globalObj.addEventListener('math-visuals:profile-change', handlePaletteEvent);
+  }
   function getMathFieldConstructor() {
     if (typeof window === 'undefined') {
       return null;
@@ -2373,7 +2606,7 @@
       y1: arrowY,
       x2: axisEnd,
       y2: arrowY,
-      stroke: '#4b5563',
+      stroke: chartPalette.axis,
       'stroke-width': 2
     });
     svg.append(axisLine);
@@ -2383,7 +2616,7 @@
     if (axisArrowUtils && typeof axisArrowUtils.getSvgData === 'function' && arrowSize) {
       svg.append(createSvgElement('image', {
         class: 'chart-axis-arrow',
-        href: axisArrowUtils.getSvgData('x', AXIS_ARROW_COLOR, AXIS_ARROW_COLOR),
+        href: axisArrowUtils.getSvgData('x', chartPalette.axis, chartPalette.axis),
         x: axisEnd - arrowWidth,
         y: arrowY - arrowHeight / 2,
         width: arrowWidth,
@@ -2393,7 +2626,7 @@
     } else {
       svg.append(createSvgElement('path', {
         d: `M ${axisEnd} ${arrowY} l -${LEGACY_ARROW_WIDTH} -${LEGACY_ARROW_WIDTH / 2} v ${LEGACY_ARROW_WIDTH} z`,
-        fill: AXIS_ARROW_COLOR,
+        fill: chartPalette.axis,
         class: 'chart-axis-arrow'
       }));
     }
@@ -2402,7 +2635,7 @@
       y: arrowY + 4,
       'font-size': 14,
       'font-weight': 600,
-      fill: '#111827'
+      fill: chartPalette.text
     });
     axisLabel.textContent = 'x';
     svg.append(axisLabel);
@@ -2420,7 +2653,7 @@
         y1: arrowY + 8,
         x2: px,
         y2: lastRowY + 20,
-        stroke: '#d1d5db',
+        stroke: chartPalette.grid,
         'stroke-width': 1.2,
         'data-point-id': point.id,
         'pointer-events': chartLocked ? 'none' : 'stroke',
@@ -2512,7 +2745,7 @@
         y1: y,
         x2: axisEnd,
         y2: y,
-        stroke: '#d1d5db',
+        stroke: chartPalette.grid,
         'stroke-width': 1
       });
       svg.append(baseline);
@@ -2573,7 +2806,7 @@
           y1: y,
           x2: segmentEndX,
           y2: y,
-          stroke: sign > 0 ? '#111827' : '#dc2626',
+          stroke: sign > 0 ? chartPalette.positive : chartPalette.negative,
           'stroke-width': 3,
           'stroke-linecap': 'round',
           'data-row-id': row.id,
@@ -2607,7 +2840,7 @@
           'alignment-baseline': 'middle',
           'font-size': isPole ? 22 : 20,
           'font-weight': 700,
-          fill: '#111827',
+          fill: chartPalette.text,
           cursor: chartLocked ? 'default' : 'pointer'
         });
         marker.textContent = isPole ? '><' : '0';
