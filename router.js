@@ -831,8 +831,25 @@ function normalizeEntryPath(path) {
 
 function buildHistoryPath(entry, exampleNumber) {
   if (!entry) return '/';
-  const segment = typeof entry.routeSegment === 'string' ? entry.routeSegment.replace(/^\/+|\/+$/g, '') : '';
-  const basePath = segment ? `/${segment}` : '/';
+  let basePath =
+    (typeof entry.normalizedPath === 'string' && entry.normalizedPath) ||
+    (typeof entry.path === 'string' && entry.path) ||
+    '/';
+  if (!basePath || basePath === '.') {
+    basePath = '/';
+  }
+  if (!basePath.startsWith('/')) {
+    basePath = `/${basePath}`;
+  }
+  if (basePath.endsWith('.html')) {
+    basePath = basePath.slice(0, -5) || '/';
+    if (!basePath.startsWith('/')) {
+      basePath = `/${basePath}`;
+    }
+  }
+  while (basePath.length > 1 && basePath.endsWith('/')) {
+    basePath = basePath.slice(0, -1);
+  }
   const parsedExample = Number(exampleNumber);
   if (!Number.isFinite(parsedExample) || parsedExample <= 0) {
     return basePath;
