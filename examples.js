@@ -1014,6 +1014,7 @@
     if (remoteLoadPromise && !opts.force) {
       return remoteLoadPromise;
     }
+    const isMissingEndpointStatus = status => typeof status === 'number' && (status === 404 || status === 410);
     const url = resolveApiUrl();
     if (!url || typeof globalScope.fetch !== 'function') {
       remoteLoadPromise = Promise.resolve(cloneSettings());
@@ -1022,8 +1023,16 @@
     remoteLoadPromise = globalScope
       .fetch(url, { headers: { Accept: 'application/json' } })
       .then(response => {
-        if (!response || !response.ok) {
+        if (!response) {
           throw new Error('Failed to load settings');
+        }
+        if (isMissingEndpointStatus(response.status)) {
+          return null;
+        }
+        if (!response.ok) {
+          const error = new Error('Failed to load settings');
+          error.status = response.status;
+          throw error;
         }
         return response
           .json()
@@ -1040,7 +1049,9 @@
         return cloneSettings();
       })
       .catch(error => {
-        console.error(error);
+        if (!error || !isMissingEndpointStatus(error.status)) {
+          console.error(error);
+        }
         return cloneSettings();
       })
       .finally(() => {
