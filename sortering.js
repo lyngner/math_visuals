@@ -1,8 +1,4 @@
-import {
-  fetchFigureManifest,
-  extractFigureLibrarySlugs,
-  buildFigureLibraryOptions
-} from './packages/figures/src/index.js';
+import { buildFigureData, CUSTOM_CATEGORY_ID, measurementFigureManifest } from './figure-library/measurement.js';
 
 (function () {
   const globalObj = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
@@ -972,9 +968,6 @@ import {
   registerMathVisApi();
 
   const ITEM_TYPES = ['text', 'figure'];
-  const FIGURE_LIBRARY_RELATIVE_BASE_PATH = 'images/amounts/';
-  const FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_LEADING_SLASH = `/${FIGURE_LIBRARY_RELATIVE_BASE_PATH}`;
-  const FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_DOT = `./${FIGURE_LIBRARY_RELATIVE_BASE_PATH}`;
 
   function ensureTrailingSlash(path) {
     if (typeof path !== 'string') {
@@ -982,6 +975,22 @@ import {
     }
     return path.endsWith('/') ? path : `${path}/`;
   }
+
+  const FIGURE_LIBRARY_RELATIVE_BASE_PATH = ensureTrailingSlash(
+    measurementFigureManifest && typeof measurementFigureManifest.basePath === 'string'
+      ? measurementFigureManifest.basePath
+      : 'images/measure/'
+  );
+  const FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_LEADING_SLASH = ensureTrailingSlash(
+    FIGURE_LIBRARY_RELATIVE_BASE_PATH.startsWith('/')
+      ? FIGURE_LIBRARY_RELATIVE_BASE_PATH
+      : `/${FIGURE_LIBRARY_RELATIVE_BASE_PATH}`
+  );
+  const FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_DOT = ensureTrailingSlash(
+    FIGURE_LIBRARY_RELATIVE_BASE_PATH.startsWith('./')
+      ? FIGURE_LIBRARY_RELATIVE_BASE_PATH
+      : `./${FIGURE_LIBRARY_RELATIVE_BASE_PATH}`
+  );
 
   function resolveFigureLibraryBasePath() {
     const relativeWithDot = `./${FIGURE_LIBRARY_RELATIVE_BASE_PATH}`;
@@ -1010,37 +1019,125 @@ import {
   }
 
   const FIGURE_LIBRARY_BASE_PATH = resolveFigureLibraryBasePath();
-  const FIGURE_LIBRARY_MANIFEST_URL = `${FIGURE_LIBRARY_BASE_PATH}manifest.json`;
   const FIGURE_LIBRARY_BASE_PREFIXES = [
     FIGURE_LIBRARY_BASE_PATH,
     FIGURE_LIBRARY_RELATIVE_BASE_PATH,
     FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_LEADING_SLASH,
     FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_DOT
   ].filter(prefix => typeof prefix === 'string' && prefix);
-  const FIGURE_CATEGORIES = [
-    { id: 'tierbrett', label: 'Tierbrett', prefix: 'tb' },
-    { id: 'tallbrikker', label: 'Tallbrikker', prefix: 'n' },
-    { id: 'penger', label: 'Penger', prefix: 'v' },
-    { id: 'terninger', label: 'Terninger', prefix: 'd' },
-    { id: 'hender', label: 'Hender', prefix: 'h' }
-  ];
-  const DEFAULT_FIGURE_CATEGORY_ID = FIGURE_CATEGORIES.length ? FIGURE_CATEGORIES[0].id : '';
 
-  function createEmptyFigureLibraryCategoryMap() {
-    const map = new Map();
-    FIGURE_CATEGORIES.forEach(category => {
-      map.set(category.id, []);
-    });
-    return map;
+  const figureData = buildFigureData();
+  const figureCategoryById = new Map();
+  figureData.categories.forEach(category => {
+    if (!category || typeof category.id !== 'string') {
+      return;
+    }
+    figureCategoryById.set(category.id, category);
+    figureCategoryById.set(category.id.toLowerCase(), category);
+  });
+  const nonCustomFigureCategories = figureData.categories.filter(category => category.id !== CUSTOM_CATEGORY_ID);
+  const DEFAULT_FIGURE_CATEGORY_ID = (
+    (nonCustomFigureCategories[0] && nonCustomFigureCategories[0].id) ||
+    (figureData.categories[0] && figureData.categories[0].id) ||
+    ''
+  );
+
+  function buildMeasurementFigureOptionLabel(figure) {
+    if (!figure || typeof figure !== 'object') {
+      return '';
+    }
+    const parts = [];
+    if (typeof figure.name === 'string' && figure.name.trim()) {
+      parts.push(figure.name.trim());
+    }
+    if (typeof figure.dimensions === 'string' && figure.dimensions.trim()) {
+      parts.push(figure.dimensions.trim());
+    }
+    if (typeof figure.scaleLabel === 'string' && figure.scaleLabel.trim()) {
+      parts.push(`målestokk ${figure.scaleLabel.trim()}`);
+    }
+    return parts.join(' – ');
   }
 
-  const figureLibraryState = {
-    loaded: false,
-    loading: null,
-    error: false,
-    optionsByCategory: createEmptyFigureLibraryCategoryMap(),
-    optionsByValue: new Map()
-  };
+  function resolveFigureCategory(candidate) {
+    if (typeof candidate !== 'string') {
+      return null;
+    }
+    const trimmed = candidate.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (figureCategoryById.has(trimmed)) {
+      return figureCategoryById.get(trimmed);
+    }
+    const lowered = trimmed.toLowerCase();
+    if (figureCategoryById.has(lowered)) {
+      return figureCategoryById.get(lowered);
+    }
+    return null;
+  }
+
+  function createFigureLibraryState() {
+    const optionsByCategory = new Map();
+    const optionsByValue = new Map();
+
+    figureData.categories.forEach(category => {
+      const options = [];
+      if (category && Array.isArray(category.figures)) {
+        category.figures.forEach(figure => {
+          if (!figure) return;
+          const rawValue = typeof figure.image === 'string' && figure.image.trim() ? figure.image.trim() : '';
+          if (!rawValue) {
+            return;
+          }
+          const option = {
+            value: rawValue,
+            label: buildMeasurementFigureOptionLabel(figure) || figure.name || figure.id || rawValue,
+            categoryId: category.id,
+            figureId: figure.id,
+            figure
+          };
+          options.push(option);
+
+          const normalizedValue = rawValue.toLowerCase();
+          if (normalizedValue && !optionsByValue.has(normalizedValue)) {
+            optionsByValue.set(normalizedValue, option);
+          }
+          const normalizedWithoutPrefix = normalizeFigureLibraryValue(rawValue).toLowerCase();
+          if (normalizedWithoutPrefix && !optionsByValue.has(normalizedWithoutPrefix)) {
+            optionsByValue.set(normalizedWithoutPrefix, option);
+          }
+          if (typeof figure.fileName === 'string' && figure.fileName.trim()) {
+            const fileName = figure.fileName.trim().toLowerCase();
+            if (fileName && !optionsByValue.has(fileName)) {
+              optionsByValue.set(fileName, option);
+            }
+            const fileNameWithoutExt = fileName.replace(/\.svg$/i, '');
+            if (fileNameWithoutExt && !optionsByValue.has(fileNameWithoutExt)) {
+              optionsByValue.set(fileNameWithoutExt, option);
+            }
+          }
+          if (typeof figure.id === 'string' && figure.id.trim()) {
+            const figureId = figure.id.trim().toLowerCase();
+            if (figureId && !optionsByValue.has(figureId)) {
+              optionsByValue.set(figureId, option);
+            }
+          }
+        });
+      }
+      optionsByCategory.set(category.id, options);
+    });
+
+    return {
+      loaded: true,
+      loading: null,
+      error: false,
+      optionsByCategory,
+      optionsByValue
+    };
+  }
+
+  const figureLibraryState = createFigureLibraryState();
 
   function normalizeFigureLibraryValue(value) {
     if (typeof value !== 'string') return '';
@@ -1054,11 +1151,7 @@ import {
   }
 
   function getFigureLibraryOptions(categoryId) {
-    if (!categoryId || typeof categoryId !== 'string') {
-      return [];
-    }
-    const normalized = categoryId.trim().toLowerCase();
-    const category = FIGURE_CATEGORIES.find(entry => entry.id === normalized);
+    const category = resolveFigureCategory(categoryId);
     if (!category) {
       return [];
     }
@@ -1100,48 +1193,14 @@ import {
   }
 
   function loadFigureLibrary() {
-    if (!globalObj) {
-      return null;
-    }
-    const fetchImpl = typeof globalObj.fetch === 'function' ? globalObj.fetch.bind(globalObj) : null;
-    if (!fetchImpl) {
-      return null;
-    }
     if (figureLibraryState.loaded) {
       return Promise.resolve(null);
     }
-    if (figureLibraryState.loading) {
-      return figureLibraryState.loading;
-    }
+    figureLibraryState.loaded = true;
+    figureLibraryState.loading = null;
     figureLibraryState.error = false;
-    const request = fetchFigureManifest(FIGURE_LIBRARY_MANIFEST_URL, {
-      fetch: fetchImpl,
-      cache: 'no-store'
-    })
-      .then(payload => {
-        const slugs = extractFigureLibrarySlugs(payload);
-        const { optionsByCategory, optionsByValue } = buildFigureLibraryOptions(slugs, {
-          categories: FIGURE_CATEGORIES,
-          defaultCategoryId: DEFAULT_FIGURE_CATEGORY_ID,
-          locale: 'nb'
-        });
-        figureLibraryState.optionsByCategory = optionsByCategory;
-        figureLibraryState.optionsByValue = optionsByValue;
-        figureLibraryState.loaded = true;
-        figureLibraryState.error = false;
-        refreshFigureInlineEditors();
-      })
-      .catch(error => {
-        figureLibraryState.error = true;
-        if (globalObj && globalObj.console && typeof globalObj.console.warn === 'function') {
-          globalObj.console.warn('mathVisSortering: failed to load figure library', error);
-        }
-      })
-      .finally(() => {
-        figureLibraryState.loading = null;
-      });
-    figureLibraryState.loading = request;
-    return request;
+    refreshFigureInlineEditors();
+    return Promise.resolve(null);
   }
 
   function figureEntryHasContent(entry) {
@@ -1218,24 +1277,15 @@ import {
   }
 
   function sanitizeFigureCategory(candidate, value) {
-    const fallbackCategory = () => {
-      if (typeof value === 'string') {
-        const prefix = value.trim().slice(0, 1).toLowerCase();
-        const match = FIGURE_CATEGORIES.find(entry => entry.prefix && prefix === entry.prefix);
-        if (match) {
-          return match.id;
-        }
-      }
-      return DEFAULT_FIGURE_CATEGORY_ID;
-    };
-
-    if (typeof candidate === 'string') {
-      const trimmed = candidate.trim().toLowerCase();
-      const match = FIGURE_CATEGORIES.find(entry => entry.id === trimmed);
-      if (match) return match.id;
+    const resolved = resolveFigureCategory(candidate);
+    if (resolved) {
+      return resolved.id;
     }
-
-    return fallbackCategory();
+    const match = getFigureLibraryMatch(value);
+    if (match && match.categoryId) {
+      return match.categoryId;
+    }
+    return DEFAULT_FIGURE_CATEGORY_ID;
   }
 
   function normalizeFigureEntry(raw, index = 0) {
@@ -1473,56 +1523,21 @@ import {
     return item.figures;
   }
 
-  function normalizeFigureSlug(value) {
-    if (typeof value !== 'string') return '';
-    let normalized = value.trim();
-    if (!normalized) return '';
-    const stripped = normalizeFigureLibraryValue(normalized);
-    const slashIndex = stripped.lastIndexOf('/');
-    if (slashIndex >= 0) {
-      normalized = stripped.slice(slashIndex + 1);
-    } else {
-      normalized = stripped;
-    }
-    normalized = normalized.replace(/\.svg$/i, '');
-    return normalized.trim();
-  }
-
   function buildFigureDisplayLabel(value, categoryId, match) {
-    const normalizedCategory = typeof categoryId === 'string' ? categoryId.trim().toLowerCase() : '';
-    const category = FIGURE_CATEGORIES.find(entry => entry.id === normalizedCategory) || null;
-    const slugSource = match && match.value ? match.value : value;
-    const slug = normalizeFigureSlug(slugSource);
-    const baseLabelSource = match && typeof match.label === 'string' && match.label.trim() ? match.label.trim() : slug;
-    const baseLabel = baseLabelSource.replace(/[_-]+/g, ' ').trim();
-    let friendly = '';
-    if (normalizedCategory === 'tallbrikker' && /^n\d+$/i.test(slug)) {
-      friendly = `Tallbrikke ${slug.replace(/^n/i, '')}`;
-    } else if (normalizedCategory === 'terninger' && /^d\d+$/i.test(slug)) {
-      friendly = `Terning ${slug.replace(/^d/i, '')}`;
-    } else if (normalizedCategory === 'tierbrett' && /^tb\d+$/i.test(slug)) {
-      friendly = `Tierbrett ${slug.replace(/^tb/i, '')}`;
-    } else if (normalizedCategory === 'penger' && /^v\d+(?:_nok)?$/i.test(slug)) {
-      const moneyMatch = slug.match(/^v(\d+)(?:_(nok))?$/i);
-      if (moneyMatch) {
-        const amount = moneyMatch[1].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-        const currency = moneyMatch[2] ? moneyMatch[2].toUpperCase() : '';
-        friendly = currency ? `Pengeverdi ${amount} ${currency}` : `Pengeverdi ${amount}`;
-      }
-    } else if (normalizedCategory === 'hender' && /^h\d+/i.test(slug)) {
-      const handMatch = slug.match(/^h0*(\d+)/i);
-      if (handMatch && handMatch[1]) {
-        friendly = `Hånd ${handMatch[1]}`;
-      }
+    const option = match || getFigureLibraryMatch(value);
+    if (option && option.figure) {
+      return buildMeasurementFigureOptionLabel(option.figure);
     }
-    if (!friendly && baseLabel) {
-      if (category && category.label) {
-        friendly = `${category.label}: ${baseLabel}`;
-      } else {
-        friendly = baseLabel;
-      }
+    if (option && typeof option.label === 'string' && option.label.trim()) {
+      return option.label.trim();
     }
-    return friendly;
+    const category = resolveFigureCategory(categoryId);
+    const normalizedValue = typeof value === 'string' ? value.trim() : '';
+    if (category && normalizedValue) {
+      const categoryLabel = typeof category.label === 'string' && category.label ? category.label : category.id;
+      return `${categoryLabel}: ${normalizedValue}`;
+    }
+    return normalizedValue;
   }
 
   function autoUpdateItemFigureLabels(item, nextLabel, snapshot = {}) {
@@ -2259,10 +2274,13 @@ import {
       row.dataset.figureId = figure.id;
 
       const categorySelect = doc.createElement('select');
-      FIGURE_CATEGORIES.forEach(category => {
+      figureData.categories.forEach(category => {
+        if (!category || typeof category.id !== 'string') {
+          return;
+        }
         const option = doc.createElement('option');
         option.value = category.id;
-        option.textContent = category.label;
+        option.textContent = typeof category.label === 'string' && category.label ? category.label : category.id;
         categorySelect.appendChild(option);
       });
       const match = getFigureLibraryMatch(figure.value);
