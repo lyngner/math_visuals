@@ -180,6 +180,15 @@ function sanitizeRequiredText(value) {
   return value.trim();
 }
 
+function normalizeAltTextSource(value) {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized === 'manual') return 'manual';
+  if (normalized === 'auto') return 'auto';
+  return undefined;
+}
+
 function parseExampleStateValue(raw) {
   if (raw == null) return undefined;
   let value = raw;
@@ -395,6 +404,45 @@ function ensureEntryShape(slug, payload, existing) {
   }
   if (description) {
     entry.description = description;
+  }
+  const hasAltTextField = payload && Object.prototype.hasOwnProperty.call(payload, 'altText');
+  const hasAltTextSourceField = payload && Object.prototype.hasOwnProperty.call(payload, 'altTextSource');
+  const altTextValue = hasAltTextField ? sanitizeOptionalText(payload.altText) : undefined;
+  const existingAltText = existing && typeof existing.altText === 'string' ? sanitizeRequiredText(existing.altText) : undefined;
+  if (hasAltTextField) {
+    if (altTextValue !== undefined) {
+      entry.altText = altTextValue;
+    } else {
+      delete entry.altText;
+    }
+  } else if (existingAltText !== undefined) {
+    entry.altText = existingAltText;
+  }
+
+  const existingAltTextSource = existing && typeof existing.altTextSource === 'string'
+    ? normalizeAltTextSource(existing.altTextSource)
+    : undefined;
+  let resolvedAltTextSource = existingAltTextSource;
+
+  if (hasAltTextField) {
+    resolvedAltTextSource = altTextValue !== undefined ? 'manual' : 'auto';
+  }
+
+  if (hasAltTextSourceField) {
+    const overrideSource = normalizeAltTextSource(payload.altTextSource);
+    if (overrideSource) {
+      resolvedAltTextSource = overrideSource;
+    } else if (hasAltTextField && altTextValue === undefined) {
+      resolvedAltTextSource = 'auto';
+    }
+  }
+
+  if (resolvedAltTextSource) {
+    entry.altTextSource = resolvedAltTextSource;
+  } else if (hasAltTextField || hasAltTextSourceField) {
+    entry.altTextSource = entry.altText ? 'manual' : 'auto';
+  } else if (entry.altText && !existingAltTextSource) {
+    entry.altTextSource = 'manual';
   }
   if (pngWidth != null) {
     entry.pngWidth = pngWidth;
@@ -622,12 +670,92 @@ async function listSvgs() {
   return entries;
 }
 
+async function updateSvgMetadata(slug, updates) {
+  const normalized = normalizeEntrySlug(slug);
+  if (!normalized) return null;
+
+  let existing = readFromMemory(normalized);
+  if (!existing) {
+    existing = await getSvg(normalized);
+  }
+  if (!existing) {
+    return null;
+  }
+
+  const entry = clone(existing);
+  let changed = false;
+
+  const hasAltTextField = updates && Object.prototype.hasOwnProperty.call(updates, 'altText');
+  const hasAltTextSourceField = updates && Object.prototype.hasOwnProperty.call(updates, 'altTextSource');
+
+  let sanitizedAltText;
+  if (hasAltTextField) {
+    sanitizedAltText = sanitizeOptionalText(updates.altText);
+    if (sanitizedAltText !== undefined) {
+      if (entry.altText !== sanitizedAltText) {
+        changed = true;
+      }
+      entry.altText = sanitizedAltText;
+    } else if (entry.altText) {
+      changed = true;
+      delete entry.altText;
+    } else if (Object.prototype.hasOwnProperty.call(entry, 'altText')) {
+      delete entry.altText;
+    }
+  }
+
+  if (hasAltTextSourceField) {
+    const normalizedSource = normalizeAltTextSource(updates.altTextSource);
+    if (normalizedSource) {
+      if (entry.altTextSource !== normalizedSource) {
+        changed = true;
+      }
+      entry.altTextSource = normalizedSource;
+    } else if (entry.altTextSource) {
+      changed = true;
+      delete entry.altTextSource;
+    }
+  }
+
+  if (hasAltTextField && !hasAltTextSourceField) {
+    const nextSource = sanitizedAltText ? 'manual' : 'auto';
+    if (entry.altTextSource !== nextSource) {
+      changed = true;
+    }
+    entry.altTextSource = nextSource;
+  } else if (!entry.altTextSource && entry.altText) {
+    entry.altTextSource = 'manual';
+  }
+
+  if (!changed) {
+    return clone(entry);
+  }
+
+  const now = new Date().toISOString();
+  entry.updatedAt = now;
+  if (!entry.createdAt) {
+    entry.createdAt = now;
+  }
+
+  const storeMode = getStoreMode();
+  if (storeMode === 'kv') {
+    await writeToKv(normalized, entry);
+    const annotated = applyStorageMetadata({ ...entry }, 'kv');
+    writeToMemory(normalized, annotated);
+    return clone(annotated);
+  }
+  const annotated = applyStorageMetadata(entry, storeMode);
+  writeToMemory(normalized, annotated);
+  return clone(annotated);
+}
+
 module.exports = {
   normalizeSlug,
   getSvg,
   setSvg,
   deleteSvg,
   listSvgs,
+  updateSvgMetadata,
   KvOperationError,
   KvConfigurationError,
   isKvConfigured,

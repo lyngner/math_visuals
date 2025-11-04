@@ -39,10 +39,11 @@
         existing.setAttribute('data-edit-only', '');
       }
       const textarea = existing.querySelector('textarea');
-      const button = existing.querySelector('button');
+      const regenerateButton = existing.querySelector('[data-action="regenerate"]');
+      const saveButton = existing.querySelector('[data-action="save"]');
       const status = existing.querySelector('[role="status"]');
-      if (textarea && button && status) {
-        return { wrap: existing, textarea, button, status };
+      if (textarea && regenerateButton && status) {
+        return { wrap: existing, textarea, regenerateButton, saveButton, status };
       }
     }
 
@@ -62,11 +63,19 @@
     const footer = document.createElement('div');
     footer.className = 'alt-text__footer';
 
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'btn';
-    button.id = 'btnRegenerateAltText';
-    button.textContent = 'Generer på nytt';
+    const saveButton = document.createElement('button');
+    saveButton.type = 'button';
+    saveButton.className = 'btn alt-text__save-button';
+    saveButton.id = 'btnSaveAltText';
+    saveButton.dataset.action = 'save';
+    saveButton.textContent = 'Lagre';
+
+    const regenerateButton = document.createElement('button');
+    regenerateButton.type = 'button';
+    regenerateButton.className = 'btn';
+    regenerateButton.id = 'btnRegenerateAltText';
+    regenerateButton.dataset.action = 'regenerate';
+    regenerateButton.textContent = 'Generer på nytt';
 
     const status = document.createElement('span');
     status.id = 'altTextStatus';
@@ -74,11 +83,11 @@
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
 
-    footer.append(button, status);
+    footer.append(saveButton, regenerateButton, status);
     wrap.append(label, textarea, footer);
     container.appendChild(wrap);
 
-    return { wrap, textarea, button, status };
+    return { wrap, textarea, regenerateButton, saveButton, status };
   }
 
   function normalizeState(state) {
@@ -100,7 +109,8 @@
       generate,
       getAutoMessage,
       getManualMessage,
-      getSignature
+      getSignature,
+      save
     } = options || {};
 
     if (!svg || !container || typeof getState !== 'function' || typeof setState !== 'function' || typeof generate !== 'function') {
@@ -110,13 +120,25 @@
     const svgSource = typeof svg === 'function' ? svg : () => svg;
     const els = createAltTextElements(container);
     if (!els) return null;
-    const { textarea, button, status } = els;
+    const { textarea, regenerateButton, saveButton, status } = els;
 
     let generationTimer = null;
     let currentSignature = null;
     let savedSignature = null;
     let manualStale = false;
     let pendingAutoFromStale = false;
+    let lastSavedText = '';
+    let lastSavedSource = 'auto';
+    let saving = false;
+
+    const hasSave = typeof save === 'function';
+    if (saveButton) {
+      if (!hasSave) {
+        saveButton.setAttribute('hidden', '');
+      } else {
+        saveButton.removeAttribute('hidden');
+      }
+    }
 
     function normalizeSignature(value) {
       if (value == null) return '';
@@ -206,6 +228,7 @@
       if (textarea.textContent !== text) {
         textarea.textContent = text;
       }
+      updateSaveButtonState();
     }
 
     function setStateAndApply(text, source) {
@@ -213,6 +236,7 @@
       syncTextarea(text);
       applyToSvg(text);
       setSavedSignature();
+      updateSaveButtonState();
     }
 
     function autoGenerate(reason) {
@@ -221,6 +245,7 @@
       const message = typeof getAutoMessage === 'function' ? getAutoMessage(reason) : 'Alternativ tekst oppdatert automatisk.';
       setStatus(message, false);
       pendingAutoFromStale = false;
+      updateSaveButtonState();
     }
 
     function scheduleAuto(reason = 'auto', delay = 600) {
@@ -244,13 +269,14 @@
       const trimmed = raw.trim();
       if (trimmed) {
         setStateAndApply(trimmed, 'manual');
-        const msg = typeof getManualMessage === 'function' ? getManualMessage() : 'Alternativ tekst oppdatert manuelt.';
-        setStatus(msg, false);
-      } else {
-        setStateAndApply('', 'auto');
-        setStatus('Feltet er tomt. Genererer forslag …', false);
-        scheduleAuto('manual-clear', 0);
-      }
+      const msg = typeof getManualMessage === 'function' ? getManualMessage() : 'Alternativ tekst oppdatert manuelt.';
+      setStatus(msg, false);
+      updateSaveButtonState();
+    } else {
+      setStateAndApply('', 'auto');
+      setStatus('Feltet er tomt. Genererer forslag …', false);
+      scheduleAuto('manual-clear', 0);
+    }
     }
 
     function showManualStaleStatus() {
@@ -294,11 +320,63 @@
       return currentSignature;
     }
 
+    function normalizeSavedState(text, source) {
+      const normalized = normalizeState({ text, source });
+      lastSavedText = normalized.text;
+      lastSavedSource = normalized.source;
+      updateSaveButtonState();
+    }
+
+    function updateSaveButtonState() {
+      if (!saveButton || !hasSave) {
+        return;
+      }
+      const current = normalizeState(getState());
+      const currentText = current.text;
+      const savedText = lastSavedText || '';
+      const isDirty = currentText.trim() !== savedText.trim() || current.source !== lastSavedSource;
+      saveButton.disabled = saving || !isDirty;
+    }
+
+    async function handleSaveClick() {
+      if (!saveButton || !hasSave || saving) {
+        return;
+      }
+      const current = normalizeState(getState());
+      const trimmed = current.text.trim();
+      const savePayload = { text: trimmed, source: current.source };
+      try {
+        saving = true;
+        updateSaveButtonState();
+        setStatus('Lagrer …', false);
+        const result = await Promise.resolve(save(trimmed, savePayload));
+        const resolvedText = result && typeof result.text === 'string' ? result.text : trimmed;
+        const resolvedSource = result && typeof result.source === 'string' ? result.source : current.source;
+        normalizeSavedState(resolvedText, resolvedSource);
+        const message = result && typeof result.message === 'string' && result.message.trim()
+          ? result.message.trim()
+          : 'Alternativ tekst lagret.';
+        setStatus(message, false);
+      } catch (error) {
+        const message = error && error.message ? error.message : 'Kunne ikke lagre den alternative teksten.';
+        setStatus(message, true);
+      } finally {
+        saving = false;
+        updateSaveButtonState();
+      }
+    }
+
     textarea.addEventListener('input', handleManualInput);
-    button.addEventListener('click', () => {
-      setStatus('Genererer forslag …', false);
-      scheduleAuto('manual-regenerate', 0);
-    });
+    if (regenerateButton) {
+      regenerateButton.addEventListener('click', () => {
+        setStatus('Genererer forslag …', false);
+        scheduleAuto('manual-regenerate', 0);
+      });
+    }
+    if (saveButton && hasSave) {
+      saveButton.addEventListener('click', handleSaveClick);
+      updateSaveButtonState();
+    }
 
     const initialSignature = fetchSignature();
     currentSignature = initialSignature;
@@ -306,6 +384,7 @@
     const initial = normalizeState(getState());
     syncTextarea(initial.text);
     applyToSvg(initial.text);
+    normalizeSavedState(initial.text, initial.source);
     if (initial.text) {
       setStatus('', false);
     } else {
@@ -322,18 +401,25 @@
           if (!manualStale) {
             setStatus('', false);
           }
+          updateSaveButtonState();
           return;
         }
         setStatus('Oppdaterer alternativ tekst …', false);
         scheduleAuto(reason || 'auto');
+        updateSaveButtonState();
       },
       applyCurrent() {
         const current = normalizeState(getState());
         syncTextarea(current.text);
         applyToSvg(current.text);
+        updateSaveButtonState();
       },
       notifyFigureChange(signatureOverride) {
         return notifyFigureChange(signatureOverride);
+      },
+      markSaved(state) {
+        const normalized = normalizeState(state);
+        normalizeSavedState(normalized.text, normalized.source);
       },
       ensureDom() {
         return els.wrap;

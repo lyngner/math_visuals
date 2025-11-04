@@ -7,6 +7,7 @@ const {
   setSvg,
   deleteSvg,
   listSvgs,
+  updateSvgMetadata,
   KvOperationError,
   KvConfigurationError,
   getStoreMode
@@ -256,6 +257,41 @@ module.exports = async function handler(req, res) {
       }
       applyModeHeaders(res, stored.mode);
       sendJson(res, 200, stored);
+      return;
+    }
+
+    if (req.method === 'PATCH') {
+      let body;
+      try {
+        body = await readJsonBody(req);
+      } catch (error) {
+        sendJson(res, 400, { error: error.message || 'Invalid request body' });
+        return;
+      }
+      const slugFromBody = extractSlugFromBody(body, querySlug);
+      if (!slugFromBody) {
+        sendJson(res, 400, { error: 'Slug is required' });
+        return;
+      }
+      const updates = {};
+      if (body && Object.prototype.hasOwnProperty.call(body, 'altText')) {
+        updates.altText = body.altText;
+      }
+      if (body && Object.prototype.hasOwnProperty.call(body, 'altTextSource')) {
+        updates.altTextSource = body.altTextSource;
+      }
+      if (!Object.keys(updates).length) {
+        sendJson(res, 400, { error: 'No updatable fields provided' });
+        return;
+      }
+      const updated = await updateSvgMetadata(slugFromBody, updates);
+      if (!updated) {
+        const metadata = applyModeHeaders(res, currentMode);
+        sendJson(res, 404, { error: 'Not Found', ...metadata });
+        return;
+      }
+      applyModeHeaders(res, updated.mode || updated.storageMode || currentMode);
+      sendJson(res, 200, updated);
       return;
     }
 
