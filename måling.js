@@ -3289,10 +3289,7 @@ import {
     };
   }
 
-  function refreshActiveTapePointerFreeMovement() {
-    if (!shouldUseFreeTapeMovement()) {
-      return;
-    }
+  function refreshActiveTapePointerAnchors() {
     const extensionSession = activePointers.tapeExtension;
     const housingSession = activePointers.tapeHousing;
     if (
@@ -3301,6 +3298,7 @@ import {
     ) {
       return;
     }
+    const allowFreeMovement = shouldUseFreeTapeMovement();
     const rotation = Number.isFinite(transformStates.tape.rotation)
       ? transformStates.tape.rotation
       : 0;
@@ -3336,24 +3334,35 @@ import {
         });
         if (anchor) {
           entry.anchor = anchor;
+        } else if (entry.anchor) {
+          delete entry.anchor;
         }
-        const data = buildTapeFreeMovementData(handleType, entry.captureTarget, {
-          clientX: pointerX,
-          clientY: pointerY
-        }, anchor);
-        if (data) {
-          entry.freeMovement = data;
-          if (handleType === 'housing') {
-            const axisUnitWorld = anchor && anchor.axisUnitWorld
-              ? anchor.axisUnitWorld
-              : data.axisUnitLocal
-              ? rotatePoint(data.axisUnitLocal, rotation)
-              : null;
-            const normalizedAxis = normalizeVector(axisUnitWorld || { x: 0, y: 0 });
-            if (normalizedAxis && (normalizedAxis.x !== 0 || normalizedAxis.y !== 0)) {
-              entry.axisUnit = normalizedAxis;
+        if (allowFreeMovement) {
+          const data = buildTapeFreeMovementData(
+            handleType,
+            entry.captureTarget,
+            {
+              clientX: pointerX,
+              clientY: pointerY
+            },
+            anchor
+          );
+          if (data) {
+            entry.freeMovement = data;
+            if (handleType === 'housing') {
+              const axisUnitWorld = anchor && anchor.axisUnitWorld
+                ? anchor.axisUnitWorld
+                : data.axisUnitLocal
+                ? rotatePoint(data.axisUnitLocal, rotation)
+                : null;
+              const normalizedAxis = normalizeVector(axisUnitWorld || { x: 0, y: 0 });
+              if (normalizedAxis && (normalizedAxis.x !== 0 || normalizedAxis.y !== 0)) {
+                entry.axisUnit = normalizedAxis;
+              }
+              entry.startPoint = { x: pointerX, y: pointerY };
             }
-            entry.startPoint = { x: pointerX, y: pointerY };
+          } else if (entry.freeMovement) {
+            delete entry.freeMovement;
           }
         } else if (entry.freeMovement) {
           delete entry.freeMovement;
@@ -3419,7 +3428,7 @@ import {
           tapeLengthState.visiblePx = Math.max(targetVisible, tapeLengthState.minVisiblePx);
           const metrics = resolveScaleMetrics(appState.settings);
           applyTapeMeasureAppearance(appState.settings, metrics);
-          refreshActiveTapePointerFreeMovement();
+          refreshActiveTapePointerAnchors();
           targetVisible = tapeLengthState.visiblePx;
         }
       } else if (Number.isFinite(previousMaxVisible)) {
@@ -3929,7 +3938,7 @@ import {
           tapeLengthState.visiblePx = Math.max(proposedVisible, tapeLengthState.minVisiblePx);
           const metrics = resolveScaleMetrics(appState.settings);
           applyTapeMeasureAppearance(appState.settings, metrics, { suppressTransformUpdate: true });
-          refreshActiveTapePointerFreeMovement();
+          refreshActiveTapePointerAnchors();
           const expandedMaxVisible =
             Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
               ? tapeLengthState.maxVisiblePx
@@ -4145,7 +4154,7 @@ import {
           tapeLengthState.visiblePx = Math.max(proposedVisible, tapeLengthState.minVisiblePx);
           const metrics = resolveScaleMetrics(appState.settings);
           applyTapeMeasureAppearance(appState.settings, metrics, { suppressTransformUpdate: true });
-          refreshActiveTapePointerFreeMovement();
+          refreshActiveTapePointerAnchors();
           const expandedMaxVisible =
             Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
               ? tapeLengthState.maxVisiblePx
