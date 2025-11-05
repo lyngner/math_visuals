@@ -10,7 +10,7 @@ body {
 }
 
 .svg-archive-page {
-  padding: clamp(12px, 1.6vw, 24px);
+  padding: 20px;
 }
 
 .svg-archive-page .wrap {
