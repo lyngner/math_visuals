@@ -572,8 +572,12 @@ function applyThemeToDocument() {
 function getThemeColor(token, fallback) {
   const theme = getThemeApi();
   if (theme && typeof theme.getColor === 'function') {
-    const color = theme.getColor(token, fallback);
-    if (typeof color === 'string' && color) return color;
+    try {
+      const color = theme.getColor(token);
+      if (typeof color === 'string' && color) {
+        return color;
+      }
+    } catch (_) {}
   }
   return fallback;
 }
