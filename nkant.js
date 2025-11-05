@@ -850,6 +850,30 @@ function getPaletteConfig() {
   return null;
 }
 
+function getPaletteProjectResolver() {
+  const scopes = [
+    typeof window !== "undefined" ? window : null,
+    typeof globalThis !== "undefined" ? globalThis : null,
+    typeof global !== "undefined" ? global : null
+  ];
+  for (const scope of scopes) {
+    if (!scope || typeof scope !== "object") continue;
+    const resolver = scope.MathVisualsPaletteProjectResolver;
+    if (resolver && typeof resolver.resolvePaletteProject === "function") {
+      return resolver;
+    }
+  }
+  if (typeof require === "function") {
+    try {
+      const mod = require("./palette/resolve-palette-project.js");
+      if (mod && typeof mod.resolvePaletteProject === "function") {
+        return mod;
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
 function resolveProjectFallbackPalette(projectName) {
   const config = getPaletteConfig();
   if (!config || typeof config !== "object") return [];
@@ -861,35 +885,59 @@ function resolveProjectFallbackPalette(projectName) {
 }
 
 function resolveProjectNameHint() {
+  const resolver = getPaletteProjectResolver();
   const doc = typeof document !== "undefined" ? document : null;
+  const theme = getThemeApi();
+  const settings = getSettingsApi();
+  if (resolver && typeof resolver.resolvePaletteProject === "function") {
+    try {
+      const resolved = resolver.resolvePaletteProject({
+        document: doc || undefined,
+        root: doc && doc.documentElement ? doc.documentElement : undefined,
+        theme: theme || undefined,
+        settings: settings || undefined,
+        location: typeof window !== "undefined" ? window.location : undefined
+      });
+      if (typeof resolved === "string" && resolved) {
+        return resolved;
+      }
+    } catch (_) {}
+  }
   if (doc && doc.documentElement) {
     const root = doc.documentElement;
-    const activeAttr = root.getAttribute("data-mv-active-project");
+    const direct =
+      (typeof root.getAttribute === "function" && root.getAttribute("data-project")) ||
+      (root.dataset && root.dataset.project);
+    if (typeof direct === "string" && direct.trim()) {
+      return direct.trim().toLowerCase();
+    }
+    const activeAttr = root.getAttribute && root.getAttribute("data-mv-active-project");
     if (typeof activeAttr === "string" && activeAttr.trim()) {
       return activeAttr.trim().toLowerCase();
     }
-    const themeAttr = root.getAttribute("data-theme-profile");
+    const themeAttr = root.getAttribute && root.getAttribute("data-theme-profile");
     if (typeof themeAttr === "string" && themeAttr.trim()) {
       return themeAttr.trim().toLowerCase();
     }
   }
-  const themeApi = getThemeApi();
-  if (themeApi && typeof themeApi.getActiveProfileName === "function") {
+  if (theme && typeof theme.getActiveProfileName === "function") {
     try {
-      const profile = themeApi.getActiveProfileName();
+      const profile = theme.getActiveProfileName();
       if (typeof profile === "string" && profile.trim()) {
         return profile.trim().toLowerCase();
       }
     } catch (_) {}
   }
-  const api = getSettingsApi();
-  if (api && typeof api.getActiveProject === "function") {
+  if (settings && typeof settings.getActiveProject === "function") {
     try {
-      const value = api.getActiveProject();
+      const value = settings.getActiveProject();
       if (typeof value === "string" && value.trim()) {
         return value.trim().toLowerCase();
       }
     } catch (_) {}
+  }
+  if (settings && typeof settings.activeProject === "string" && settings.activeProject.trim()) {
+    return settings.activeProject.trim().toLowerCase();
   }
   return null;
 }
