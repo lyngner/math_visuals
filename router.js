@@ -1124,7 +1124,25 @@ window.addEventListener('message', event => {
   if (data.type !== 'math-visuals:example-change') return;
   if (!currentEntry) return;
   const normalizedPath = normalizeEntryPath(data.path || data.href || '');
-  if (normalizedPath && currentEntry && normalizedPath !== currentEntry.path) {
+  const canonicalMessagePath = normalizedPath ? normalizeExamplePath(normalizedPath) : '';
+  let canonicalEntryPath = '';
+  if (currentEntry) {
+    if (typeof currentEntry.normalizedPath === 'string' && currentEntry.normalizedPath) {
+      canonicalEntryPath = normalizeExamplePath(currentEntry.normalizedPath);
+    } else if (typeof currentEntry.path === 'string' && currentEntry.path) {
+      canonicalEntryPath = normalizeExamplePath(currentEntry.path);
+    }
+  }
+  if (canonicalMessagePath && canonicalEntryPath && canonicalMessagePath !== canonicalEntryPath) {
+    return;
+  }
+  if (
+    !canonicalMessagePath &&
+    normalizedPath &&
+    currentEntry &&
+    typeof currentEntry.path === 'string' &&
+    normalizedPath !== currentEntry.path
+  ) {
     return;
   }
   const parsedNumber = Number(data.exampleNumber);
