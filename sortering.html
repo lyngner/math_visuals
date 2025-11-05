@@ -310,41 +310,6 @@
     .sortering__validation[hidden] {
       display: none;
     }
-    .sortering-status-host {
-      margin-top: 20px;
-    }
-    .sortering-status {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      border-top: 1px solid #e5e7eb;
-      padding-top: 16px;
-    }
-    .sortering-status__list {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 6px 12px;
-      margin: 0;
-      padding: 0;
-    }
-    .sortering-status__term {
-      font-size: 13px;
-      color: #4b5563;
-      font-weight: 500;
-    }
-    .sortering-status__value {
-      font-size: 13px;
-      color: #1f2937;
-      margin: 0;
-    }
-    .sortering-status[data-sorted='1'] .sortering-status__value--sorted {
-      color: #047857;
-      font-weight: 600;
-    }
-    .sortering-status[data-sorted='0'] .sortering-status__value--sorted {
-      color: #b91c1c;
-      font-weight: 600;
-    }
   </style>
 </head>
 <body>
@@ -405,7 +370,6 @@
               </label>
             </div>
           </form>
-          <div id="settingsHost" class="sortering-status-host"></div>
         </div>
 
         <div class="card" id="exportCard">
