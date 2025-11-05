@@ -4090,7 +4090,12 @@
         const rawSrc = getAttribute('src');
         if (typeof rawSrc === 'string') {
           const trimmedSrc = rawSrc.trim();
-          if (trimmedSrc && !/^[a-z][a-z\d+\-.]*:/i.test(trimmedSrc) && !trimmedSrc.startsWith('//')) {
+          if (
+            trimmedSrc &&
+            !/^[a-z][a-z\d+\-.]*:/i.test(trimmedSrc) &&
+            !trimmedSrc.startsWith('//') &&
+            !trimmedSrc.startsWith('/')
+          ) {
             return true;
           }
         }
