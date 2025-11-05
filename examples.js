@@ -6760,37 +6760,58 @@
       return path || '/';
     };
     const basePathname = computeNormalizedBasePathname();
+    const canonicalPath = (() => {
+      if (exampleNumber == null) {
+        return basePathname;
+      }
+      const base = basePathname === '/' ? '' : basePathname;
+      const composed = `${base}/eksempel${exampleNumber}`;
+      if (!composed.startsWith('/')) {
+        return `/${composed}`;
+      }
+      return composed.replace(/\/+$/, '') || '/';
+    })();
     try {
       if (typeof history !== 'undefined' && typeof history.replaceState === 'function') {
         const url = new URL(window.location.href);
-        if (exampleNumber != null) {
-          url.searchParams.set('example', String(exampleNumber));
-        } else {
+        const currentPathname =
+          typeof window.location.pathname === 'string' && window.location.pathname
+            ? window.location.pathname
+            : '/';
+        const isHtmlEntry = /\.html?$/i.test(currentPathname);
+        const isCanonicalExamplePath =
+          exampleNumber != null &&
+          new RegExp(`/eksempel${exampleNumber}(?:/)?$`, 'i').test(currentPathname);
+        if (isHtmlEntry) {
+          if (exampleNumber != null) {
+            url.searchParams.set('example', String(exampleNumber));
+          } else {
+            url.searchParams.delete('example');
+          }
+        } else if (exampleNumber == null || isCanonicalExamplePath) {
           url.searchParams.delete('example');
         }
-        const nextPathname = (() => {
-          if (exampleNumber == null) {
-            return basePathname;
-          }
-          const base = basePathname === '/' ? '' : basePathname;
-          const composed = `${base}/eksempel${exampleNumber}`;
-          if (!composed.startsWith('/')) {
-            return `/${composed}`;
-          }
-          return composed.replace(/\/+$/, '') || '/';
-        })();
-        url.pathname = nextPathname;
         history.replaceState(history.state, document.title, `${url.pathname}${url.search}${url.hash}`);
       }
     } catch (_) {}
     if (!targetWindow || targetWindow === window || typeof targetWindow.postMessage !== 'function') return;
     try {
+      const canonicalHref = (() => {
+        if (!canonicalPath) return null;
+        try {
+          return new URL(canonicalPath, window.location.href).toString();
+        } catch (_) {
+          return canonicalPath;
+        }
+      })();
       targetWindow.postMessage({
         type: 'math-visuals:example-change',
         exampleIndex: normalizedIndex,
         exampleNumber,
         path: window.location.pathname,
-        href: window.location.href
+        href: window.location.href,
+        canonicalPath,
+        canonicalHref
       }, '*');
     } catch (_) {}
   }
