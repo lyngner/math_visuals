@@ -3526,9 +3526,10 @@ import {
     const rotation = Number.isFinite(transformStates.tape.rotation)
       ? transformStates.tape.rotation
       : 0;
-    const fallbackDirection = data.lastDirection
+    const fallbackDirectionBase = data.lastDirection
       ? data.lastDirection
       : rotatePoint(data.axisUnitLocal, rotation);
+    const fallbackDirection = normalizeVector(fallbackDirectionBase);
     let zeroWorld;
     let housingWorld;
     let desiredVector;
@@ -3545,18 +3546,27 @@ import {
         y: zeroWorld.y - desiredAnchorWorld.y
       };
     }
-    const desiredDistance = Math.hypot(desiredVector.x, desiredVector.y);
+    let desiredDistance = Math.hypot(desiredVector.x, desiredVector.y);
+    let direction = fallbackDirection;
+    let shouldPersistDirection = false;
+    if (Number.isFinite(desiredDistance) && desiredDistance > 0.0001) {
+      const dot = fallbackDirection.x * desiredVector.x + fallbackDirection.y * desiredVector.y;
+      if (dot >= 0) {
+        direction = {
+          x: desiredVector.x / desiredDistance,
+          y: desiredVector.y / desiredDistance
+        };
+        shouldPersistDirection = true;
+      } else {
+        desiredDistance = 0;
+      }
+    } else {
+      desiredDistance = 0;
+    }
     const proposedVisible = Number.isFinite(desiredDistance) ? desiredDistance : 0;
     const visible = resolveVisibleFromFreeMovement(entry, proposedVisible);
-    let direction;
-    if (Number.isFinite(desiredDistance) && desiredDistance > 0.0001) {
-      direction = {
-        x: desiredVector.x / desiredDistance,
-        y: desiredVector.y / desiredDistance
-      };
+    if (shouldPersistDirection) {
       data.lastDirection = { ...direction };
-    } else {
-      direction = normalizeVector(fallbackDirection);
     }
     if (data.handleType === 'zero') {
       housingWorld = data.housingWorldStart;
