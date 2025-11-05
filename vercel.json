@@ -4,6 +4,7 @@
     { "source": "/bildearkiv/(.*)", "destination": "/api/svg/raw?path=/$1" },
     { "source": "/svg/(.*)", "destination": "/api/svg/raw?path=/$1" },
     { "source": "/sortering", "destination": "/sortering.html" },
+    { "source": "/sortering/eksempel(\\d+)(?:/)?", "destination": "/index.html" },
     { "source": "/sortering/(.*)", "destination": "/sortering.html" }
   ]
 }
