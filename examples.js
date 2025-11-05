@@ -6709,6 +6709,52 @@
     })();
     const normalizedIndex = Number.isInteger(index) && index >= 0 ? index : null;
     const exampleNumber = normalizedIndex != null ? normalizedIndex + 1 : null;
+    const removeTrailingBareExample = path => {
+      if (typeof path !== 'string') return path;
+      let working = path;
+      while (working.length > 1 && working.endsWith('/')) {
+        working = working.slice(0, -1);
+      }
+      if (!working || working === '/') {
+        return working || '/';
+      }
+      const lastSlash = working.lastIndexOf('/');
+      const segment = working.slice(lastSlash + 1);
+      if (/^eksempel$/i.test(segment)) {
+        return lastSlash <= 0 ? '/' : working.slice(0, lastSlash);
+      }
+      return working;
+    };
+    const computeNormalizedBasePathname = () => {
+      const currentPathname =
+        typeof window.location.pathname === 'string' && window.location.pathname
+          ? window.location.pathname
+          : '/';
+      let path = '/';
+      try {
+        path = normalizePathname(currentPathname, { preserveCase: true });
+      } catch (_) {
+        path = currentPathname || '/';
+        if (typeof path === 'string' && !path.startsWith('/')) {
+          path = `/${path}`;
+        }
+      }
+      try {
+        path = stripTrailingExampleSegment(path);
+      } catch (_) {}
+      path = removeTrailingBareExample(path);
+      if (!path || typeof path !== 'string') {
+        return '/';
+      }
+      if (!path.startsWith('/')) {
+        path = `/${path}`;
+      }
+      if (path.length > 1 && path.endsWith('/')) {
+        path = path.slice(0, -1);
+      }
+      return path || '/';
+    };
+    const basePathname = computeNormalizedBasePathname();
     try {
       if (typeof history !== 'undefined' && typeof history.replaceState === 'function') {
         const url = new URL(window.location.href);
@@ -6717,6 +6763,18 @@
         } else {
           url.searchParams.delete('example');
         }
+        const nextPathname = (() => {
+          if (exampleNumber == null) {
+            return basePathname;
+          }
+          const base = basePathname === '/' ? '' : basePathname;
+          const composed = `${base}/eksempel${exampleNumber}`;
+          if (!composed.startsWith('/')) {
+            return `/${composed}`;
+          }
+          return composed.replace(/\/+$/, '') || '/';
+        })();
+        url.pathname = nextPathname;
         history.replaceState(history.state, document.title, `${url.pathname}${url.search}${url.hash}`);
       }
     } catch (_) {}
