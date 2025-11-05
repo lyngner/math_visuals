@@ -624,7 +624,7 @@ function renderFigure(fig) {
   const rimY = rimSvgY * bowlScale;
   const bowlDepth = VB_H - rimY;
   const bowlImg = mk("image", {
-    href: "images/bowl.svg",
+    href: "/images/bowl.svg",
     x: 0,
     y: 0,
     width: VB_W,
