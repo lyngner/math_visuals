@@ -1123,7 +1123,13 @@ window.addEventListener('message', event => {
   }
   if (data.type !== 'math-visuals:example-change') return;
   if (!currentEntry) return;
-  const normalizedPath = normalizeEntryPath(data.path || data.href || '');
+  const normalizedPath = normalizeEntryPath(
+    (typeof data.canonicalPath === 'string' && data.canonicalPath) ||
+      (typeof data.canonicalHref === 'string' && data.canonicalHref) ||
+      data.path ||
+      data.href ||
+      ''
+  );
   const canonicalMessagePath = normalizedPath ? normalizeExamplePath(normalizedPath) : '';
   let canonicalEntryPath = '';
   if (currentEntry) {
