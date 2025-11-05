@@ -651,11 +651,27 @@ function img(href, x, y, w, h, cls = "") {
   }
   return imageEl;
 }
+function setVisibilityHidden(el, hidden) {
+  if (!el) return;
+  if (hidden) {
+    el.setAttribute("visibility", "hidden");
+    if (el.style) el.style.visibility = "hidden";
+  } else {
+    el.removeAttribute("visibility");
+    if (el.style) el.style.visibility = "";
+  }
+}
 function imageWithFallback(href, x, y, w, h, cls = "", fallbackEl) {
   const imageEl = img(href, x, y, w, h, cls);
   if (fallbackEl) {
-    const showFallback = () => fallbackEl.removeAttribute("visibility");
-    const hideFallback = () => fallbackEl.setAttribute("visibility", "hidden");
+    const showFallback = () => {
+      setVisibilityHidden(imageEl, true);
+      setVisibilityHidden(fallbackEl, false);
+    };
+    const hideFallback = () => {
+      setVisibilityHidden(fallbackEl, true);
+      setVisibilityHidden(imageEl, false);
+    };
     showFallback();
     imageEl.addEventListener("load", hideFallback, {
       once: true
@@ -779,10 +795,8 @@ function ensureFallbackVisible(imageEl) {
   if (!fallback || !fallback.getAttribute) return;
   const cls = fallback.getAttribute("class") || "";
   if (!/(beadFallback|ropeFallback|clipFallback)/.test(cls)) return;
-  fallback.removeAttribute("visibility");
-  if (fallback.style) {
-    fallback.style.visibility = "";
-  }
+  setVisibilityHidden(imageEl, true);
+  setVisibilityHidden(fallback, false);
 }
 async function inlineExternalImages(svgRoot) {
   const result = {
