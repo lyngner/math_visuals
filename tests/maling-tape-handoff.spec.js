@@ -66,6 +66,27 @@ function getUnitVector(from, to) {
   return { x: dx / length, y: dy / length };
 }
 
+async function resolveHousingToZeroDirection(page) {
+  const zeroAnchor = page.locator('[data-tape-zero-anchor]');
+  const housing = page.locator('[data-tape-housing]');
+  const zeroBox = await zeroAnchor.boundingBox();
+  const housingBox = await housing.boundingBox();
+  if (zeroBox && housingBox) {
+    return getUnitVector(getBoxCenter(housingBox), getBoxCenter(zeroBox));
+  }
+  return page.evaluate(() => {
+    const tape = document.querySelector('[data-tape-measure]');
+    if (!tape) {
+      return { x: 1, y: 0 };
+    }
+    const computed = window.getComputedStyle(tape);
+    const transform = computed.transform && computed.transform !== 'none' ? computed.transform : undefined;
+    const matrix = new DOMMatrixReadOnly(transform);
+    const angle = Math.atan2(matrix.m21, matrix.m11);
+    return { x: Math.cos(angle), y: Math.sin(angle) };
+  });
+}
+
 test.describe('måling tape housing interactions', () => {
   test('zero-handle drags stretch the strap while housing stays fixed without lock', async ({ page }) => {
     await ensureTapeTool(page);
@@ -353,5 +374,78 @@ test.describe('måling tape housing interactions', () => {
     expect(Math.abs((afterHousingHousingCenter.x - housingCenterBeforeHousing.x) - housingDrag.x)).toBeLessThan(40);
     expect(Math.abs(afterHousingHousingCenter.y - housingCenterBeforeHousing.y)).toBeLessThan(20);
     expect(Math.abs((afterHousingMetrics.translateX - metricsBeforeHousing.translateX) - housingDrag.x)).toBeLessThan(60);
+  });
+
+  test('first drag from a fully retracted strap via zero handle only reveals the strap', async ({ page }) => {
+    await ensureTapeTool(page);
+    await page.selectOption('#cfg-measurement-direction-lock', 'none');
+    await page.waitForTimeout(20);
+
+    const zeroHandle = page.locator('[data-tape-zero-handle]');
+    const retractDirection = await resolveHousingToZeroDirection(page);
+    await dragLocator(page, zeroHandle, {
+      x: -retractDirection.x * 320,
+      y: -retractDirection.y * 320
+    });
+    await page.waitForTimeout(40);
+
+    const extensionDirection = await resolveHousingToZeroDirection(page);
+    const baselineMetrics = await getTapeMetrics(page);
+    expect(baselineMetrics).not.toBeNull();
+    const baselineVisible = baselineMetrics.visible;
+    expect(baselineVisible).toBeLessThan(80);
+    const baselineTranslate = {
+      x: baselineMetrics.translateX,
+      y: baselineMetrics.translateY
+    };
+
+    await dragLocator(page, zeroHandle, {
+      x: extensionDirection.x * 220,
+      y: extensionDirection.y * 220
+    });
+    await page.waitForTimeout(40);
+
+    const afterMetrics = await getTapeMetrics(page);
+    expect(afterMetrics).not.toBeNull();
+    expect(afterMetrics.visible).toBeGreaterThan(baselineVisible + 40);
+    expect(Math.abs(afterMetrics.translateX - baselineTranslate.x)).toBeLessThan(5);
+    expect(Math.abs(afterMetrics.translateY - baselineTranslate.y)).toBeLessThan(5);
+  });
+
+  test('first drag from a fully retracted strap via housing shift only reveals the strap', async ({ page }) => {
+    await ensureTapeTool(page);
+    await page.selectOption('#cfg-measurement-direction-lock', 'none');
+    await page.waitForTimeout(20);
+
+    const zeroHandle = page.locator('[data-tape-zero-handle]');
+    const housingShiftHandle = page.locator('[data-tape-housing-shift-handle]');
+    const retractDirection = await resolveHousingToZeroDirection(page);
+    await dragLocator(page, zeroHandle, {
+      x: -retractDirection.x * 320,
+      y: -retractDirection.y * 320
+    });
+    await page.waitForTimeout(40);
+
+    const extensionDirection = await resolveHousingToZeroDirection(page);
+    const baselineMetrics = await getTapeMetrics(page);
+    expect(baselineMetrics).not.toBeNull();
+    const baselineVisible = baselineMetrics.visible;
+    expect(baselineVisible).toBeLessThan(80);
+    const baselineTranslate = {
+      x: baselineMetrics.translateX,
+      y: baselineMetrics.translateY
+    };
+
+    await dragLocator(page, housingShiftHandle, {
+      x: -extensionDirection.x * 220,
+      y: -extensionDirection.y * 220
+    });
+    await page.waitForTimeout(40);
+
+    const afterMetrics = await getTapeMetrics(page);
+    expect(afterMetrics).not.toBeNull();
+    expect(afterMetrics.visible).toBeGreaterThan(baselineVisible + 40);
+    expect(Math.abs(afterMetrics.translateX - baselineTranslate.x)).toBeLessThan(5);
+    expect(Math.abs(afterMetrics.translateY - baselineTranslate.y)).toBeLessThan(5);
   });
 });

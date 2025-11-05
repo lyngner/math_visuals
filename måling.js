@@ -101,6 +101,7 @@ import {
     ruler: { x: 0, y: 0, rotation: 0 },
     tape: { x: 0, y: 0, rotation: 0 }
   };
+  let tapeAxisFallbackHousingToZero = null;
   const defaultActiveTool = hasRuler ? 'ruler' : hasTapeMeasure ? 'tape' : 'ruler';
   let transformState = transformStates[defaultActiveTool];
   let suspendTransformPersistence = true;
@@ -3188,6 +3189,31 @@ import {
     return !!(tapeMeasure && tapeZeroAnchor && tapeHousing);
   }
 
+  function rememberTapeAxisFallback(axisUnitWorld) {
+    if (!axisUnitWorld) {
+      return;
+    }
+    const normalized = normalizeVector(axisUnitWorld);
+    if (normalized.x === 0 && normalized.y === 0) {
+      return;
+    }
+    tapeAxisFallbackHousingToZero = { x: normalized.x, y: normalized.y };
+  }
+
+  function getTapeAxisFallbackHousingToZero(rotation) {
+    if (
+      tapeAxisFallbackHousingToZero &&
+      (tapeAxisFallbackHousingToZero.x !== 0 || tapeAxisFallbackHousingToZero.y !== 0)
+    ) {
+      return { ...tapeAxisFallbackHousingToZero };
+    }
+    const rotationVector = normalizeVector({ x: Math.cos(rotation), y: Math.sin(rotation) });
+    if (rotationVector.x === 0 && rotationVector.y === 0) {
+      return { x: 1, y: 0 };
+    }
+    return rotationVector;
+  }
+
   function buildTapeHandleAnchorData(handleType, captureTarget, event) {
     if (!captureTarget || !event) {
       return null;
@@ -3219,11 +3245,15 @@ import {
       x: zeroLocal.x - housingLocal.x,
       y: zeroLocal.y - housingLocal.y
     };
-    const axisUnitLocal = normalizeVector(axisVectorLocal);
+    let axisUnitLocal = normalizeVector(axisVectorLocal);
+    let axisUnitWorld;
     if (axisUnitLocal.x === 0 && axisUnitLocal.y === 0) {
-      return null;
+      axisUnitWorld = getTapeAxisFallbackHousingToZero(rotation);
+      axisUnitLocal = normalizeVector(rotatePointInverse(axisUnitWorld, rotation));
+    } else {
+      axisUnitWorld = rotatePoint(axisUnitLocal, rotation);
     }
-    const axisUnitWorld = rotatePoint(axisUnitLocal, rotation);
+    rememberTapeAxisFallback(axisUnitWorld);
     const pointerRect =
       typeof captureTarget.getBoundingClientRect === 'function'
         ? captureTarget.getBoundingClientRect()
@@ -3384,7 +3414,11 @@ import {
     const rotation = Number.isFinite(transformStates.tape.rotation)
       ? transformStates.tape.rotation
       : 0;
-    const fallback = normalizeVector({ x: Math.cos(rotation), y: Math.sin(rotation) });
+    const housingToZero = getTapeAxisFallbackHousingToZero(rotation);
+    const fallback = normalizeVector({
+      x: -housingToZero.x,
+      y: -housingToZero.y
+    });
     if (fallback.x === 0 && fallback.y === 0) {
       return { x: 1, y: 0 };
     }
@@ -3466,6 +3500,7 @@ import {
       return;
     }
     const normalizedDirection = normalizeVector(direction);
+    rememberTapeAxisFallback(normalizedDirection);
     const targetAngle = Math.atan2(normalizedDirection.y, normalizedDirection.x);
     const rotation = normalizeAngle(targetAngle - data.axisAngle);
     const rotatedHousingLocal = rotatePoint(data.housingLocal, rotation);
