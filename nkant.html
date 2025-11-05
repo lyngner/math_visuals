@@ -12,18 +12,21 @@
       --sidebar-width: 480px;
       --figure-available-height: calc(100vh - 200px);
     }
-    .figure {
-      border-radius: 10px;
-      background: #fafbfc;
+    .card--figure {
+      padding: 0;
+    }
+    .card--figure .figure {
+      border-radius: 0;
+      background: transparent;
       overflow: auto;
-      border: 1px solid #eef0f3;
+      border: none;
       resize: both;
       min-width: 240px;
       min-height: 200px;
       display: flex;
       justify-content: center;
       align-items: center;
-      padding: 8px;
+      padding: 0;
     }
     .figure svg {
       width: min(
@@ -111,7 +114,7 @@
 <body>
   <div class="wrap">
     <div class="grid layout--sidebar">
-      <div class="card">
+      <div class="card card--figure">
         <div class="figure">
           <svg id="paper" viewBox="0 0 600 420" preserveAspectRatio="xMidYMid meet" aria-label=""></svg>
         </div>
