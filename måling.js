@@ -102,6 +102,10 @@ import {
     tape: { x: 0, y: 0, rotation: 0 }
   };
   let tapeAxisFallbackHousingToZero = null;
+  const tapeEndpoints = {
+    housing: null,
+    zero: null
+  };
   const defaultActiveTool = hasRuler ? 'ruler' : hasTapeMeasure ? 'tape' : 'ruler';
   let transformState = transformStates[defaultActiveTool];
   let suspendTransformPersistence = true;
@@ -2030,6 +2034,9 @@ import {
 
     applyToolTransform('ruler');
     applyToolTransform('tape');
+    if (desiredTool === 'tape') {
+      initializeTapeEndpointsFromDom();
+    }
     updateBaseSize();
   }
 
@@ -3214,6 +3221,68 @@ import {
     return rotationVector;
   }
 
+  function setTapeEndpointsState(housingWorld, zeroWorld) {
+    if (
+      housingWorld &&
+      Number.isFinite(housingWorld.x) &&
+      Number.isFinite(housingWorld.y)
+    ) {
+      tapeEndpoints.housing = { x: housingWorld.x, y: housingWorld.y };
+    }
+    if (zeroWorld && Number.isFinite(zeroWorld.x) && Number.isFinite(zeroWorld.y)) {
+      tapeEndpoints.zero = { x: zeroWorld.x, y: zeroWorld.y };
+    }
+  }
+
+  function getTapeEndpointState(key, fallback) {
+    const value = tapeEndpoints[key];
+    if (value && Number.isFinite(value.x) && Number.isFinite(value.y)) {
+      return { x: value.x, y: value.y };
+    }
+    if (fallback && Number.isFinite(fallback.x) && Number.isFinite(fallback.y)) {
+      return { x: fallback.x, y: fallback.y };
+    }
+    return null;
+  }
+
+  function getTapeEndpointsVector() {
+    if (!tapeEndpoints.housing || !tapeEndpoints.zero) {
+      return null;
+    }
+    if (
+      !Number.isFinite(tapeEndpoints.housing.x) ||
+      !Number.isFinite(tapeEndpoints.housing.y) ||
+      !Number.isFinite(tapeEndpoints.zero.x) ||
+      !Number.isFinite(tapeEndpoints.zero.y)
+    ) {
+      return null;
+    }
+    return {
+      x: tapeEndpoints.zero.x - tapeEndpoints.housing.x,
+      y: tapeEndpoints.zero.y - tapeEndpoints.housing.y
+    };
+  }
+
+  function getTapeDirectionFromEndpoints() {
+    const vector = getTapeEndpointsVector();
+    if (!vector) {
+      return null;
+    }
+    return normalizeVector(vector);
+  }
+
+  function initializeTapeEndpointsFromDom() {
+    if (!tapeZeroAnchor || !tapeHousing) {
+      return;
+    }
+    const zeroRect = tapeZeroAnchor.getBoundingClientRect();
+    const housingRect = tapeHousing.getBoundingClientRect();
+    if (!zeroRect || !housingRect) {
+      return;
+    }
+    setTapeEndpointsState(getRectCenter(housingRect), getRectCenter(zeroRect));
+  }
+
   function buildTapeHandleAnchorData(handleType, captureTarget, event) {
     if (!captureTarget || !event) {
       return null;
@@ -3241,18 +3310,21 @@ import {
       { x: housingWorld.x - center.x, y: housingWorld.y - center.y },
       rotation
     );
-    const axisVectorLocal = {
+    let axisUnitWorld = getTapeDirectionFromEndpoints();
+    const localAxisVector = {
       x: zeroLocal.x - housingLocal.x,
       y: zeroLocal.y - housingLocal.y
     };
-    let axisUnitLocal = normalizeVector(axisVectorLocal);
-    let axisUnitWorld;
-    if (axisUnitLocal.x === 0 && axisUnitLocal.y === 0) {
-      axisUnitWorld = getTapeAxisFallbackHousingToZero(rotation);
-      axisUnitLocal = normalizeVector(rotatePointInverse(axisUnitWorld, rotation));
-    } else {
-      axisUnitWorld = rotatePoint(axisUnitLocal, rotation);
+    if (!axisUnitWorld || (axisUnitWorld.x === 0 && axisUnitWorld.y === 0)) {
+      const normalizedLocal = normalizeVector(localAxisVector);
+      axisUnitWorld =
+        normalizedLocal.x === 0 && normalizedLocal.y === 0
+          ? getTapeAxisFallbackHousingToZero(rotation)
+          : rotatePoint(normalizedLocal, rotation);
     }
+    let axisUnitLocal = axisUnitWorld
+      ? normalizeVector(rotatePointInverse(axisUnitWorld, rotation))
+      : normalizeVector(localAxisVector);
     rememberTapeAxisFallback(axisUnitWorld);
     const pointerRect =
       typeof captureTarget.getBoundingClientRect === 'function'
@@ -3272,6 +3344,7 @@ import {
       x: anchorWorld.x - pointerCenter.x,
       y: anchorWorld.y - pointerCenter.y
     };
+    setTapeEndpointsState(housingWorld, zeroWorld);
     const baseWidth =
       Number.isFinite(tapeMeasure.offsetWidth) && tapeMeasure.offsetWidth > 0
         ? tapeMeasure.offsetWidth
@@ -3380,11 +3453,10 @@ import {
           if (data) {
             entry.freeMovement = data;
             if (handleType === 'housing') {
-              const axisUnitWorld = anchor && anchor.axisUnitWorld
-                ? anchor.axisUnitWorld
-                : data.axisUnitLocal
-                ? rotatePoint(data.axisUnitLocal, rotation)
-                : null;
+              const axisUnitWorld =
+                getTapeDirectionFromEndpoints() ||
+                (anchor && anchor.axisUnitWorld) ||
+                (data.axisUnitLocal ? rotatePoint(data.axisUnitLocal, rotation) : null);
               const normalizedAxis = normalizeVector(axisUnitWorld || { x: 0, y: 0 });
               if (normalizedAxis && (normalizedAxis.x !== 0 || normalizedAxis.y !== 0)) {
                 entry.axisUnit = normalizedAxis;
@@ -3399,45 +3471,6 @@ import {
         }
       }
     }
-  }
-
-  function resolveTapeAxisZeroToHousing(entry) {
-    if (entry && entry.anchor && entry.anchor.axisUnitWorld) {
-      const anchorAxis = normalizeVector({
-        x: -entry.anchor.axisUnitWorld.x,
-        y: -entry.anchor.axisUnitWorld.y
-      });
-      if (anchorAxis.x !== 0 || anchorAxis.y !== 0) {
-        return anchorAxis;
-      }
-    }
-    const rotation = Number.isFinite(transformStates.tape.rotation)
-      ? transformStates.tape.rotation
-      : 0;
-    const housingToZero = getTapeAxisFallbackHousingToZero(rotation);
-    const fallback = normalizeVector({
-      x: -housingToZero.x,
-      y: -housingToZero.y
-    });
-    if (fallback.x === 0 && fallback.y === 0) {
-      return { x: 1, y: 0 };
-    }
-    return fallback;
-  }
-
-  function resolveTapeDirectionHousingToZero(entry) {
-    const axisZeroToHousing = resolveTapeAxisZeroToHousing(entry);
-    if (!axisZeroToHousing) {
-      return null;
-    }
-    const direction = normalizeVector({
-      x: -axisZeroToHousing.x,
-      y: -axisZeroToHousing.y
-    });
-    if (!direction || (direction.x === 0 && direction.y === 0)) {
-      return null;
-    }
-    return direction;
   }
 
   function resolveVisibleFromFreeMovement(entry, proposedVisible) {
@@ -3496,23 +3529,47 @@ import {
   }
 
   function applyTapeTransformForEndpoints(housingWorld, zeroWorld, direction, data) {
-    if (!data) {
+    if (!data || !housingWorld || !zeroWorld) {
       return;
     }
-    const normalizedDirection = normalizeVector(direction);
+    const vector = {
+      x: zeroWorld.x - housingWorld.x,
+      y: zeroWorld.y - housingWorld.y
+    };
+    let normalizedDirection = normalizeVector(direction);
+    if (!normalizedDirection || (normalizedDirection.x === 0 && normalizedDirection.y === 0)) {
+      normalizedDirection = normalizeVector(vector);
+    }
+    if (!normalizedDirection || (normalizedDirection.x === 0 && normalizedDirection.y === 0)) {
+      const rotationFallback = Number.isFinite(transformStates.tape.rotation)
+        ? transformStates.tape.rotation
+        : 0;
+      normalizedDirection = { x: Math.cos(rotationFallback), y: Math.sin(rotationFallback) };
+    }
     rememberTapeAxisFallback(normalizedDirection);
     const targetAngle = Math.atan2(normalizedDirection.y, normalizedDirection.x);
     const rotation = normalizeAngle(targetAngle - data.axisAngle);
-    const rotatedHousingLocal = rotatePoint(data.housingLocal, rotation);
-    const center = {
-      x: housingWorld.x - rotatedHousingLocal.x,
-      y: housingWorld.y - rotatedHousingLocal.y
-    };
     const baseWidth = data.baseSize && Number.isFinite(data.baseSize.width) ? data.baseSize.width : 0;
     const baseHeight = data.baseSize && Number.isFinite(data.baseSize.height) ? data.baseSize.height : 0;
+    const housingLocal = data.housingLocal || { x: 0, y: 0 };
+    const zeroLocal = data.zeroLocal || { x: 0, y: 0 };
+    const localMidpoint = {
+      x: (housingLocal.x + zeroLocal.x) / 2,
+      y: (housingLocal.y + zeroLocal.y) / 2
+    };
+    const rotatedMidpoint = rotatePoint(localMidpoint, rotation);
+    const worldMidpoint = {
+      x: (housingWorld.x + zeroWorld.x) / 2,
+      y: (housingWorld.y + zeroWorld.y) / 2
+    };
+    const center = {
+      x: worldMidpoint.x - rotatedMidpoint.x,
+      y: worldMidpoint.y - rotatedMidpoint.y
+    };
     transformStates.tape.rotation = rotation;
     transformStates.tape.x = center.x - baseWidth / 2;
     transformStates.tape.y = center.y - baseHeight / 2;
+    setTapeEndpointsState(housingWorld, zeroWorld);
   }
 
   function updateTapeFreeMovement(entry, desiredAnchorWorld) {
@@ -3523,60 +3580,57 @@ import {
     if (!shouldUseFreeTapeMovement()) {
       return false;
     }
+    if (!desiredAnchorWorld) {
+      return false;
+    }
     const rotation = Number.isFinite(transformStates.tape.rotation)
       ? transformStates.tape.rotation
       : 0;
-    let fallbackDirectionBase = rotatePoint(data.axisUnitLocal, rotation);
-    if (!fallbackDirectionBase || (fallbackDirectionBase.x === 0 && fallbackDirectionBase.y === 0)) {
-      fallbackDirectionBase = getTapeAxisFallbackHousingToZero(rotation);
+    const housingStart = getTapeEndpointState('housing', data.housingWorldStart);
+    const zeroStart = getTapeEndpointState('zero', data.zeroWorldStart);
+    if (!housingStart || !zeroStart) {
+      return false;
     }
-    const fallbackDirection = normalizeVector(fallbackDirectionBase);
-    let zeroWorld;
-    let housingWorld;
-    let desiredVector;
+    let housingWorld = { ...housingStart };
+    let zeroWorld = { ...zeroStart };
     if (data.handleType === 'zero') {
-      housingWorld = data.housingWorldStart;
-      desiredVector = {
-        x: desiredAnchorWorld.x - housingWorld.x,
-        y: desiredAnchorWorld.y - housingWorld.y
-      };
+      zeroWorld = { x: desiredAnchorWorld.x, y: desiredAnchorWorld.y };
+    } else if (data.handleType === 'housing') {
+      housingWorld = { x: desiredAnchorWorld.x, y: desiredAnchorWorld.y };
     } else {
-      zeroWorld = data.zeroWorldStart;
-      desiredVector = {
-        x: zeroWorld.x - desiredAnchorWorld.x,
-        y: zeroWorld.y - desiredAnchorWorld.y
-      };
+      return false;
     }
-    let desiredDistance = Math.hypot(desiredVector.x, desiredVector.y);
-    let direction = fallbackDirection;
-    if (Number.isFinite(desiredDistance) && desiredDistance > 0.0001) {
-      const dot = fallbackDirection.x * desiredVector.x + fallbackDirection.y * desiredVector.y;
-      if (dot >= 0) {
-        direction = {
-          x: desiredVector.x / desiredDistance,
-          y: desiredVector.y / desiredDistance
-        };
-      } else {
-        desiredDistance = 0;
-      }
-    } else {
-      desiredDistance = 0;
+    const vector = {
+      x: zeroWorld.x - housingWorld.x,
+      y: zeroWorld.y - housingWorld.y
+    };
+    let direction = normalizeVector(vector);
+    if (!direction || (direction.x === 0 && direction.y === 0)) {
+      direction = normalizeVector(rotatePoint(data.axisUnitLocal, rotation));
     }
-    const proposedVisible = Number.isFinite(desiredDistance) ? desiredDistance : 0;
-    const visible = resolveVisibleFromFreeMovement(entry, proposedVisible);
+    const distance = Math.hypot(vector.x, vector.y);
+    const visible = resolveVisibleFromFreeMovement(entry, Number.isFinite(distance) ? distance : 0);
+    if (!direction || (direction.x === 0 && direction.y === 0)) {
+      direction = getTapeDirectionFromEndpoints();
+    }
+    if (!direction || (direction.x === 0 && direction.y === 0)) {
+      direction = rotatePoint({ x: 1, y: 0 }, rotation);
+    }
+    if (data.handleType === 'housing' && direction) {
+      entry.axisUnit = direction;
+    }
     if (data.handleType === 'zero') {
-      housingWorld = data.housingWorldStart;
       zeroWorld = {
         x: housingWorld.x + direction.x * visible,
         y: housingWorld.y + direction.y * visible
       };
     } else {
-      zeroWorld = data.zeroWorldStart;
       housingWorld = {
         x: zeroWorld.x - direction.x * visible,
         y: zeroWorld.y - direction.y * visible
       };
     }
+    setTapeEndpointsState(housingWorld, zeroWorld);
     applyTapeTransformForEndpoints(housingWorld, zeroWorld, direction, data);
     return true;
   }
@@ -3811,10 +3865,11 @@ import {
     if (freeMovement) {
       entry.freeMovement = freeMovement;
     }
-    let axisUnit = null;
-    if (anchor && anchor.axisUnitWorld) {
+    let axisUnit = getTapeDirectionFromEndpoints();
+    if (!axisUnit && anchor && anchor.axisUnitWorld) {
       axisUnit = anchor.axisUnitWorld;
-    } else {
+    }
+    if (!axisUnit) {
       axisUnit = { x: Math.cos(rotation), y: Math.sin(rotation) };
     }
     const normalizedAxis = normalizeVector(axisUnit || { x: 0, y: 0 });
@@ -3961,84 +4016,40 @@ import {
 
     const deltaX = entry.clientX - entry.startX;
     const deltaY = entry.clientY - entry.startY;
-    const axisZeroToHousing = resolveTapeAxisZeroToHousing(entry);
-    const axisX = Number.isFinite(axisZeroToHousing.x) ? axisZeroToHousing.x : 0;
-    const axisY = Number.isFinite(axisZeroToHousing.y) ? axisZeroToHousing.y : 0;
-    const projectedDelta = deltaX * axisX + deltaY * axisY;
-    const effectiveDelta = projectedDelta * -TAPE_DIRECTION;
-    const minVisible = tapeLengthState.minVisiblePx;
-    const unitSpacing = Number.isFinite(tapeLengthState.unitSpacing) && tapeLengthState.unitSpacing > 0
-      ? tapeLengthState.unitSpacing
-      : 0;
-    let proposedVisible = entry.startVisible + effectiveDelta;
-
-    const previousMaxVisible = Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
-      ? tapeLengthState.maxVisiblePx
-      : Infinity;
-    const tapeLengthIsInfinite = isTapeLengthInfinite(appState.settings && appState.settings.tapeMeasureLength) ||
-      isTapeLengthInfinite(tapeLengthState.configuredUnits);
-    if (unitSpacing > 0 && proposedVisible > previousMaxVisible) {
-      const proposedUnits = Math.ceil(proposedVisible / unitSpacing);
-      if (tapeLengthIsInfinite) {
-        if (Number.isFinite(proposedUnits) && proposedUnits > 0) {
-          tapeLengthState.units = proposedUnits;
-          tapeLengthState.visiblePx = Math.max(proposedVisible, tapeLengthState.minVisiblePx);
-          const metrics = resolveScaleMetrics(appState.settings);
-          applyTapeMeasureAppearance(appState.settings, metrics, { suppressTransformUpdate: true });
-          refreshActiveTapePointerAnchors();
-          const expandedMaxVisible =
-            Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
-              ? tapeLengthState.maxVisiblePx
-              : Infinity;
-          if (Number.isFinite(expandedMaxVisible)) {
-            proposedVisible = Math.min(proposedVisible, expandedMaxVisible);
-          }
-        }
-      } else if (Number.isFinite(previousMaxVisible)) {
-        const referenceUnits = Number.isFinite(tapeLengthState.configuredUnits)
-          ? tapeLengthState.configuredUnits
-          : defaults.tapeMeasureLength;
-        const lastPersistedUnits = Number.isFinite(entry.lastPersistedUnits)
-          ? entry.lastPersistedUnits
-          : referenceUnits;
-        if (Number.isFinite(proposedUnits) && proposedUnits > lastPersistedUnits) {
-          persistTapeMeasureLength(proposedUnits);
-          entry.lastPersistedUnits = Number.isFinite(tapeLengthState.configuredUnits)
-            ? tapeLengthState.configuredUnits
-            : proposedUnits;
-        }
-      }
-    }
-
-    const maxVisible = Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
-      ? tapeLengthState.maxVisiblePx
-      : Infinity;
-    let visible = proposedVisible;
-    visible = Math.min(Math.max(visible, minVisible), maxVisible);
-    tapeLengthState.visiblePx = Number.isFinite(visible) ? visible : minVisible;
-    tapeLengthState.units = unitSpacing > 0
-      ? Math.max(0, tapeLengthState.visiblePx / unitSpacing)
-      : 0;
-
-    const direction = resolveTapeDirectionHousingToZero(entry);
-    if (
-      !direction ||
-      !Number.isFinite(direction.x) ||
-      !Number.isFinite(direction.y) ||
-      !anchor.zeroWorld ||
-      !Number.isFinite(anchor.zeroWorld.x) ||
-      !Number.isFinite(anchor.zeroWorld.y)
-    ) {
+    const zeroStart = getTapeEndpointState('zero', anchor.zeroWorld);
+    const housingStart = getTapeEndpointState('housing', anchor.housingWorld);
+    if (!zeroStart || !housingStart) {
       disableTapeHousingHandoff(entry);
       applyTapeMeasureTransform();
       return;
     }
-
-    const zeroWorld = anchor.zeroWorld;
-    const housingWorld = {
-      x: zeroWorld.x - direction.x * tapeLengthState.visiblePx,
-      y: zeroWorld.y - direction.y * tapeLengthState.visiblePx
+    let zeroWorld = { ...zeroStart };
+    let housingWorld = {
+      x: anchor.housingWorld.x + deltaX,
+      y: anchor.housingWorld.y + deltaY
     };
+    const vector = {
+      x: zeroWorld.x - housingWorld.x,
+      y: zeroWorld.y - housingWorld.y
+    };
+    let direction = normalizeVector(vector);
+    if (!direction || (direction.x === 0 && direction.y === 0)) {
+      direction = anchor.axisUnitWorld || getTapeDirectionFromEndpoints();
+    }
+    if (!direction || (direction.x === 0 && direction.y === 0)) {
+      const rotation = Number.isFinite(transformStates.tape.rotation)
+        ? transformStates.tape.rotation
+        : 0;
+      direction = { x: Math.cos(rotation), y: Math.sin(rotation) };
+    }
+    const distance = Math.hypot(vector.x, vector.y);
+    const visible = resolveVisibleFromFreeMovement(entry, Number.isFinite(distance) ? distance : 0);
+    housingWorld = {
+      x: zeroWorld.x - direction.x * visible,
+      y: zeroWorld.y - direction.y * visible
+    };
+    entry.axisUnit = direction;
+    setTapeEndpointsState(housingWorld, zeroWorld);
     applyTapeTransformForEndpoints(housingWorld, zeroWorld, direction, anchor);
 
     disableTapeHousingHandoff(entry);
@@ -4180,83 +4191,38 @@ import {
 
     const deltaX = entry.clientX - entry.startX;
     const deltaY = entry.clientY - entry.startY;
-    const axisZeroToHousing = resolveTapeAxisZeroToHousing(entry);
-    const axisX = Number.isFinite(axisZeroToHousing.x) ? axisZeroToHousing.x : 0;
-    const axisY = Number.isFinite(axisZeroToHousing.y) ? axisZeroToHousing.y : 0;
-    const projectedDelta = deltaX * axisX + deltaY * axisY;
-    const effectiveDelta = projectedDelta * TAPE_DIRECTION;
-    const minVisible = tapeLengthState.minVisiblePx;
-    const unitSpacing = Number.isFinite(tapeLengthState.unitSpacing) && tapeLengthState.unitSpacing > 0
-      ? tapeLengthState.unitSpacing
-      : 0;
-    let proposedVisible = entry.startVisible + effectiveDelta;
-
-    const previousMaxVisible = Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
-      ? tapeLengthState.maxVisiblePx
-      : Infinity;
-    const tapeLengthIsInfinite = isTapeLengthInfinite(appState.settings && appState.settings.tapeMeasureLength) ||
-      isTapeLengthInfinite(tapeLengthState.configuredUnits);
-    if (unitSpacing > 0 && proposedVisible > previousMaxVisible) {
-      const proposedUnits = Math.ceil(proposedVisible / unitSpacing);
-      if (tapeLengthIsInfinite) {
-        if (Number.isFinite(proposedUnits) && proposedUnits > 0) {
-          tapeLengthState.units = proposedUnits;
-          tapeLengthState.visiblePx = Math.max(proposedVisible, tapeLengthState.minVisiblePx);
-          const metrics = resolveScaleMetrics(appState.settings);
-          applyTapeMeasureAppearance(appState.settings, metrics, { suppressTransformUpdate: true });
-          refreshActiveTapePointerAnchors();
-          const expandedMaxVisible =
-            Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
-              ? tapeLengthState.maxVisiblePx
-              : Infinity;
-          if (Number.isFinite(expandedMaxVisible)) {
-            proposedVisible = Math.min(proposedVisible, expandedMaxVisible);
-          }
-        }
-      } else if (Number.isFinite(previousMaxVisible)) {
-        const referenceUnits = Number.isFinite(tapeLengthState.configuredUnits)
-          ? tapeLengthState.configuredUnits
-          : defaults.tapeMeasureLength;
-        const lastPersistedUnits = Number.isFinite(entry.lastPersistedUnits)
-          ? entry.lastPersistedUnits
-          : referenceUnits;
-        if (Number.isFinite(proposedUnits) && proposedUnits > lastPersistedUnits) {
-          persistTapeMeasureLength(proposedUnits);
-          entry.lastPersistedUnits = Number.isFinite(tapeLengthState.configuredUnits)
-            ? tapeLengthState.configuredUnits
-            : proposedUnits;
-        }
-      }
-    }
-
-    const maxVisible = Number.isFinite(tapeLengthState.maxVisiblePx) && tapeLengthState.maxVisiblePx > 0
-      ? tapeLengthState.maxVisiblePx
-      : Infinity;
-    let visible = proposedVisible;
-    visible = Math.min(Math.max(visible, minVisible), maxVisible);
-    tapeLengthState.visiblePx = Number.isFinite(visible) ? visible : minVisible;
-    tapeLengthState.units = unitSpacing > 0
-      ? Math.max(0, tapeLengthState.visiblePx / unitSpacing)
-      : 0;
-
-    const direction = resolveTapeDirectionHousingToZero(entry);
-    if (
-      !direction ||
-      !Number.isFinite(direction.x) ||
-      !Number.isFinite(direction.y) ||
-      !anchor.housingWorld ||
-      !Number.isFinite(anchor.housingWorld.x) ||
-      !Number.isFinite(anchor.housingWorld.y)
-    ) {
+    const housingStart = getTapeEndpointState('housing', anchor.housingWorld);
+    const zeroStart = getTapeEndpointState('zero', anchor.zeroWorld);
+    if (!housingStart || !zeroStart) {
       applyTapeMeasureTransform();
       return;
     }
-
-    const housingWorld = anchor.housingWorld;
-    const zeroWorld = {
-      x: housingWorld.x + direction.x * tapeLengthState.visiblePx,
-      y: housingWorld.y + direction.y * tapeLengthState.visiblePx
+    let housingWorld = { ...housingStart };
+    let zeroWorld = {
+      x: anchor.zeroWorld.x + deltaX,
+      y: anchor.zeroWorld.y + deltaY
     };
+    const vector = {
+      x: zeroWorld.x - housingWorld.x,
+      y: zeroWorld.y - housingWorld.y
+    };
+    let direction = normalizeVector(vector);
+    if (!direction || (direction.x === 0 && direction.y === 0)) {
+      direction = anchor.axisUnitWorld || getTapeDirectionFromEndpoints();
+    }
+    if (!direction || (direction.x === 0 && direction.y === 0)) {
+      const rotation = Number.isFinite(transformStates.tape.rotation)
+        ? transformStates.tape.rotation
+        : 0;
+      direction = { x: Math.cos(rotation), y: Math.sin(rotation) };
+    }
+    const distance = Math.hypot(vector.x, vector.y);
+    const visible = resolveVisibleFromFreeMovement(entry, Number.isFinite(distance) ? distance : 0);
+    zeroWorld = {
+      x: housingWorld.x + direction.x * visible,
+      y: housingWorld.y + direction.y * visible
+    };
+    setTapeEndpointsState(housingWorld, zeroWorld);
     applyTapeTransformForEndpoints(housingWorld, zeroWorld, direction, anchor);
 
     applyTapeMeasureTransform();
