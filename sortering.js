@@ -974,6 +974,49 @@ import {
 
   const ITEM_TYPES = ['text', 'figure'];
 
+  const manualTypeOverrides = new Map();
+
+  function getManualTypeOverride(source) {
+    if (!source) return null;
+    let id = '';
+    if (typeof source === 'string') {
+      id = source.trim();
+    } else if (typeof source === 'object' && typeof source.id === 'string') {
+      id = source.id.trim();
+    }
+    if (!id) return null;
+    const value = manualTypeOverrides.get(id) || null;
+    if (value === 'figure' || value === 'text') {
+      return value;
+    }
+    return null;
+  }
+
+  function setManualTypeOverride(source, value) {
+    if (value !== 'figure' && value !== 'text') return;
+    if (!source) return;
+    let id = '';
+    if (typeof source === 'string') {
+      id = source.trim();
+    } else if (typeof source === 'object' && typeof source.id === 'string') {
+      id = source.id.trim();
+    }
+    if (!id) return;
+    manualTypeOverrides.set(id, value);
+  }
+
+  function clearManualTypeOverride(source) {
+    if (!source) return;
+    let id = '';
+    if (typeof source === 'string') {
+      id = source.trim();
+    } else if (typeof source === 'object' && typeof source.id === 'string') {
+      id = source.id.trim();
+    }
+    if (!id) return;
+    manualTypeOverrides.delete(id);
+  }
+
   function ensureTrailingSlash(path) {
     if (typeof path !== 'string') {
       return '';
@@ -1568,48 +1611,6 @@ import {
   const itemNodes = new Map();
   const itemsById = new Map();
   const dirtyItemIds = new Set();
-  const manualTypeOverrides = new Map();
-
-  function getManualTypeOverride(source) {
-    if (!source) return null;
-    let id = '';
-    if (typeof source === 'string') {
-      id = source.trim();
-    } else if (typeof source === 'object' && typeof source.id === 'string') {
-      id = source.id.trim();
-    }
-    if (!id) return null;
-    const value = manualTypeOverrides.get(id) || null;
-    if (value === 'figure' || value === 'text') {
-      return value;
-    }
-    return null;
-  }
-
-  function setManualTypeOverride(source, value) {
-    if (value !== 'figure' && value !== 'text') return;
-    if (!source) return;
-    let id = '';
-    if (typeof source === 'string') {
-      id = source.trim();
-    } else if (typeof source === 'object' && typeof source.id === 'string') {
-      id = source.id.trim();
-    }
-    if (!id) return;
-    manualTypeOverrides.set(id, value);
-  }
-
-  function clearManualTypeOverride(source) {
-    if (!source) return;
-    let id = '';
-    if (typeof source === 'string') {
-      id = source.trim();
-    } else if (typeof source === 'object' && typeof source.id === 'string') {
-      id = source.id.trim();
-    }
-    if (!id) return;
-    manualTypeOverrides.delete(id);
-  }
 
   function markItemDirty(itemOrId) {
     if (!itemOrId) return;
