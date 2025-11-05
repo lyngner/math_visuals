@@ -3947,6 +3947,12 @@ import {
       }
     }
 
+    const anchor = entry.anchor;
+    if (!anchor) {
+      disableTapeHousingHandoff(entry);
+      return;
+    }
+
     const deltaX = entry.clientX - entry.startX;
     const deltaY = entry.clientY - entry.startY;
     const axisZeroToHousing = resolveTapeAxisZeroToHousing(entry);
@@ -4008,28 +4014,26 @@ import {
       ? Math.max(0, tapeLengthState.visiblePx / unitSpacing)
       : 0;
 
-    if (!entry.freeMovement) {
-      const direction = resolveTapeDirectionHousingToZero(entry);
-      const anchor = entry.anchor;
-      if (
-        anchor &&
-        direction &&
-        anchor.zeroWorld &&
-        Number.isFinite(anchor.zeroWorld.x) &&
-        Number.isFinite(anchor.zeroWorld.y)
-      ) {
-        const zeroWorld = anchor.zeroWorld;
-        const housingWorld = {
-          x: zeroWorld.x - direction.x * tapeLengthState.visiblePx,
-          y: zeroWorld.y - direction.y * tapeLengthState.visiblePx
-        };
-        applyTapeTransformForEndpoints(housingWorld, zeroWorld, direction, anchor);
-      } else {
-        const deltaVisible = tapeLengthState.visiblePx - entry.startVisible;
-        transformStates.tape.x = entry.startTransformX + deltaVisible * axisX;
-        transformStates.tape.y = entry.startTransformY + deltaVisible * axisY;
-      }
+    const direction = resolveTapeDirectionHousingToZero(entry);
+    if (
+      !direction ||
+      !Number.isFinite(direction.x) ||
+      !Number.isFinite(direction.y) ||
+      !anchor.zeroWorld ||
+      !Number.isFinite(anchor.zeroWorld.x) ||
+      !Number.isFinite(anchor.zeroWorld.y)
+    ) {
+      disableTapeHousingHandoff(entry);
+      applyTapeMeasureTransform();
+      return;
     }
+
+    const zeroWorld = anchor.zeroWorld;
+    const housingWorld = {
+      x: zeroWorld.x - direction.x * tapeLengthState.visiblePx,
+      y: zeroWorld.y - direction.y * tapeLengthState.visiblePx
+    };
+    applyTapeTransformForEndpoints(housingWorld, zeroWorld, direction, anchor);
 
     disableTapeHousingHandoff(entry);
     applyTapeMeasureTransform();
@@ -4163,6 +4167,11 @@ import {
       }
     }
 
+    const anchor = entry.anchor;
+    if (!anchor) {
+      return;
+    }
+
     const deltaX = entry.clientX - entry.startX;
     const deltaY = entry.clientY - entry.startY;
     const axisZeroToHousing = resolveTapeAxisZeroToHousing(entry);
@@ -4224,28 +4233,25 @@ import {
       ? Math.max(0, tapeLengthState.visiblePx / unitSpacing)
       : 0;
 
-    if (!entry.freeMovement) {
-      const direction = resolveTapeDirectionHousingToZero(entry);
-      const anchor = entry.anchor;
-      if (
-        anchor &&
-        direction &&
-        anchor.housingWorld &&
-        Number.isFinite(anchor.housingWorld.x) &&
-        Number.isFinite(anchor.housingWorld.y)
-      ) {
-        const housingWorld = anchor.housingWorld;
-        const zeroWorld = {
-          x: housingWorld.x + direction.x * tapeLengthState.visiblePx,
-          y: housingWorld.y + direction.y * tapeLengthState.visiblePx
-        };
-        applyTapeTransformForEndpoints(housingWorld, zeroWorld, direction, anchor);
-      } else {
-        const deltaVisible = tapeLengthState.visiblePx - entry.startVisible;
-        transformStates.tape.x = (entry.startTransformX || 0) - deltaVisible * axisX;
-        transformStates.tape.y = (entry.startTransformY || 0) - deltaVisible * axisY;
-      }
+    const direction = resolveTapeDirectionHousingToZero(entry);
+    if (
+      !direction ||
+      !Number.isFinite(direction.x) ||
+      !Number.isFinite(direction.y) ||
+      !anchor.housingWorld ||
+      !Number.isFinite(anchor.housingWorld.x) ||
+      !Number.isFinite(anchor.housingWorld.y)
+    ) {
+      applyTapeMeasureTransform();
+      return;
     }
+
+    const housingWorld = anchor.housingWorld;
+    const zeroWorld = {
+      x: housingWorld.x + direction.x * tapeLengthState.visiblePx,
+      y: housingWorld.y + direction.y * tapeLengthState.visiblePx
+    };
+    applyTapeTransformForEndpoints(housingWorld, zeroWorld, direction, anchor);
 
     applyTapeMeasureTransform();
   }

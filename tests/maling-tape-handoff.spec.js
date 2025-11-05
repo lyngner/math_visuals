@@ -131,6 +131,71 @@ test.describe('måling tape housing interactions', () => {
     expect(Math.abs(zeroCenterAfter.x - zeroCenterBefore.x)).toBeGreaterThan(120);
   });
 
+  test('housing stays fixed when extending from a fully retracted strap', async ({ page }) => {
+    await ensureTapeTool(page);
+    await page.selectOption('#cfg-measurement-direction-lock', 'none');
+    await page.waitForTimeout(20);
+
+    const zeroHandle = page.locator('[data-tape-zero-handle]');
+    const zeroAnchor = page.locator('[data-tape-zero-anchor]');
+    const housing = page.locator('[data-tape-housing]');
+
+    const initialZeroBox = await zeroAnchor.boundingBox();
+    const initialHousingBox = await housing.boundingBox();
+    expect(initialZeroBox).not.toBeNull();
+    expect(initialHousingBox).not.toBeNull();
+
+    const initialZeroCenter = getBoxCenter(initialZeroBox);
+    const initialHousingCenter = getBoxCenter(initialHousingBox);
+    const directionHousingToZero = getUnitVector(initialHousingCenter, initialZeroCenter);
+
+    const retractDelta = {
+      x: -directionHousingToZero.x * 260,
+      y: -directionHousingToZero.y * 260
+    };
+    await dragLocator(page, zeroHandle, retractDelta);
+    await page.waitForTimeout(50);
+
+    const retractedZeroBox = await zeroAnchor.boundingBox();
+    const retractedHousingBox = await housing.boundingBox();
+    expect(retractedZeroBox).not.toBeNull();
+    expect(retractedHousingBox).not.toBeNull();
+
+    const retractedZeroCenter = getBoxCenter(retractedZeroBox);
+    const retractedHousingCenter = getBoxCenter(retractedHousingBox);
+    const retractedDistance = Math.hypot(
+      retractedZeroCenter.x - retractedHousingCenter.x,
+      retractedZeroCenter.y - retractedHousingCenter.y
+    );
+    expect(retractedDistance).toBeLessThan(24);
+
+    const retractedMetrics = await getTapeMetrics(page);
+    expect(retractedMetrics).not.toBeNull();
+
+    const extendDelta = {
+      x: directionHousingToZero.x * 220,
+      y: directionHousingToZero.y * 220
+    };
+    await dragLocator(page, zeroHandle, extendDelta);
+    await page.waitForTimeout(50);
+
+    const afterZeroBox = await zeroAnchor.boundingBox();
+    const afterHousingBox = await housing.boundingBox();
+    const afterMetrics = await getTapeMetrics(page);
+    expect(afterZeroBox).not.toBeNull();
+    expect(afterHousingBox).not.toBeNull();
+    expect(afterMetrics).not.toBeNull();
+
+    const afterZeroCenter = getBoxCenter(afterZeroBox);
+    const afterHousingCenter = getBoxCenter(afterHousingBox);
+
+    expect(afterMetrics.visible).toBeGreaterThan(retractedMetrics.visible + 40);
+    expect(Math.abs(afterZeroCenter.x - retractedZeroCenter.x)).toBeGreaterThan(120);
+    expect(Math.abs(afterZeroCenter.y - retractedZeroCenter.y)).toBeLessThan(40);
+    expect(Math.abs(afterHousingCenter.x - retractedHousingCenter.x)).toBeLessThan(6);
+    expect(Math.abs(afterHousingCenter.y - retractedHousingCenter.y)).toBeLessThan(6);
+  });
+
   test('housing drags stretch the strap while zero stays fixed without lock', async ({ page }) => {
     await ensureTapeTool(page);
     await page.selectOption('#cfg-measurement-direction-lock', 'none');
