@@ -301,6 +301,30 @@ function isValidColor(value) {
     return theme && typeof theme === 'object' ? theme : null;
   }
 
+  function getPaletteProjectResolver() {
+    const scopes = [
+      typeof window !== 'undefined' ? window : null,
+      typeof globalThis !== 'undefined' ? globalThis : null,
+      typeof global !== 'undefined' ? global : null
+    ];
+    for (const scope of scopes) {
+      if (!scope || typeof scope !== 'object') continue;
+      const resolver = scope.MathVisualsPaletteProjectResolver;
+      if (resolver && typeof resolver.resolvePaletteProject === 'function') {
+        return resolver;
+      }
+    }
+    if (typeof require === 'function') {
+      try {
+        const mod = require('./palette/resolve-palette-project.js');
+        if (mod && typeof mod.resolvePaletteProject === 'function') {
+          return mod;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
   function getPaletteApi() {
     const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
     if (!scope || typeof scope !== 'object') return null;
@@ -435,21 +459,43 @@ function isValidColor(value) {
   }
 
   function resolvePaletteProjectName() {
+    const resolver = getPaletteProjectResolver();
     const doc = typeof document !== 'undefined' ? document : null;
+    const theme = getThemeApi();
+    const settings = getSettingsApi();
+    if (resolver && typeof resolver.resolvePaletteProject === 'function') {
+      try {
+        const resolved = resolver.resolvePaletteProject({
+          document: doc || undefined,
+          root: doc && doc.documentElement ? doc.documentElement : undefined,
+          theme: theme || undefined,
+          settings: settings || undefined,
+          location: typeof window !== 'undefined' ? window.location : undefined
+        });
+        if (typeof resolved === 'string' && resolved) {
+          return resolved;
+        }
+      } catch (_) {}
+    }
     if (doc && doc.documentElement) {
       const root = doc.documentElement;
-      const activeAttr = root.getAttribute('data-mv-active-project');
+      const direct =
+        (typeof root.getAttribute === 'function' && root.getAttribute('data-project')) ||
+        (root.dataset && root.dataset.project);
+      if (typeof direct === 'string' && direct.trim()) {
+        return direct.trim().toLowerCase();
+      }
+      const activeAttr = root.getAttribute && root.getAttribute('data-mv-active-project');
       if (typeof activeAttr === 'string' && activeAttr.trim()) {
         return activeAttr.trim().toLowerCase();
       }
-      const profileAttr = root.getAttribute('data-theme-profile');
+      const profileAttr = root.getAttribute && root.getAttribute('data-theme-profile');
       if (typeof profileAttr === 'string' && profileAttr.trim()) {
         return profileAttr.trim().toLowerCase();
       }
     }
-    const activeThemeProject = getActiveThemeProjectName();
+    const activeThemeProject = getActiveThemeProjectName(theme);
     if (activeThemeProject) return activeThemeProject;
-    const settings = getSettingsApi();
     if (settings && typeof settings.getActiveProject === 'function') {
       try {
         const value = settings.getActiveProject();
@@ -457,6 +503,9 @@ function isValidColor(value) {
           return value.trim().toLowerCase();
         }
       } catch (_) {}
+    }
+    if (settings && typeof settings.activeProject === 'string' && settings.activeProject.trim()) {
+      return settings.activeProject.trim().toLowerCase();
     }
     return null;
   }
