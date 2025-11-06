@@ -523,7 +523,7 @@ function handleDocumentPointerDown(event) {
   if (!isCategoryMenuOpen()) return;
   const target = event.target;
   if (target instanceof HTMLElement) {
-    if (categoryMenu?.contains(target)) {
+    if (categoryMenuSurface?.contains(target)) {
       return;
     }
     if (categoryMenuTrigger && categoryMenuTrigger.contains(target)) {
