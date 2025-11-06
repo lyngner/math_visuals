@@ -5853,7 +5853,7 @@
   function showTrashRestoreHelp() {
     try {
       setSaveStatusState('success', {
-        message: 'Slettede eksempler ligger i arkivet. Åpne svg-arkiv.html og trykk «Vis slettede figurer».'
+        message: 'Slettede eksempler ligger i eksempelarkivet. Åpne svg-arkiv.html og trykk «Vis slettede figurer».'
       });
     } catch (_) {}
   }

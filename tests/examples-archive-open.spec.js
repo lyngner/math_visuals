@@ -6,12 +6,12 @@ const TOOL_PATH = '/diagram/index.html';
 const STORAGE_KEY = 'examples_/diagram';
 
 const ARCHIVE_EXAMPLE = {
-  description: 'Arkivbeskrivelse',
-  exampleNumber: 'Arkiv',
+  description: 'Eksempelarkivbeskrivelse',
+  exampleNumber: 'Eksempelarkiv',
   config: {
     CFG: {
       type: 'bar',
-      title: 'Fra arkivet',
+      title: 'Fra eksempelarkivet',
       labels: ['A', 'B'],
       series1: '',
       start: [1, 2],
@@ -94,7 +94,7 @@ test.describe('Archive open integration', () => {
     await expect(description).toHaveValue(ARCHIVE_EXAMPLE.description);
 
     const statusText = page.locator('.example-save-status__text');
-    await expect(statusText).toContainText('arkivet');
+    await expect(statusText).toContainText('eksempelarkivet');
 
     await page.waitForFunction(
       expectedTitle => window.CFG && window.CFG.title === expectedTitle,
@@ -122,8 +122,8 @@ test.describe('Archive open integration', () => {
     expect(flags.title).toBe(ARCHIVE_EXAMPLE.config.CFG.title);
     expect(flags.description).toBe(ARCHIVE_EXAMPLE.description);
 
-    await description.fill('Arkivoppgave oppdatert');
-    await expect(description).toHaveValue('Arkivoppgave oppdatert');
+    await description.fill('Eksempelarkivoppgave oppdatert');
+    await expect(description).toHaveValue('Eksempelarkivoppgave oppdatert');
 
     const storedValue = await page.evaluate(key => window.localStorage.getItem(key), STORAGE_KEY);
     expect(storedValue).toBeNull();
