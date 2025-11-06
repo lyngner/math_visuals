@@ -38,6 +38,7 @@ const copyFeedbackTimers = new WeakMap();
 const CUSTOM_STORAGE_KEY = 'mathvis:figureLibrary:customEntries:v1';
 const CUSTOM_CATEGORY_STORAGE_KEY = 'mathvis:figureLibrary:customCategories:v1';
 const DEFAULT_CATEGORY_THUMBNAIL = 'images/amounts/tb10.svg';
+const CATEGORY_PREVIEW_COUNT = 4;
 
 const amountCategories = [
   {
@@ -235,9 +236,7 @@ function renderCategories() {
     const titleText = getCategoryDisplayName(category) || categoryId;
     const descriptionText = typeof category.description === 'string' && category.description.trim()
       ? category.description.trim()
-      : category.type === 'custom'
-        ? 'Egendefinerte figurer du har lagt til.'
-        : '';
+      : '';
 
     const type = typeof category.type === 'string' ? category.type : 'custom';
     const normalizedMeta = { ...category, id: categoryId, type, name: titleText, description: descriptionText };
@@ -271,31 +270,27 @@ function renderCategories() {
     button.title = titleText;
     button.addEventListener('click', (event) => handleCategoryClick(category, event.currentTarget));
 
-    const figure = document.createElement('figure');
-    figure.className = 'categoryFigure';
-
-    const img = document.createElement('img');
-    const samplePath = resolveCategorySamplePath(category);
-    img.src = samplePath;
-    img.alt = category.sampleAlt || `Eksempel på ${titleText}`;
-    img.loading = 'lazy';
-    img.width = 320;
-    img.height = 240;
-    figure.appendChild(img);
+    const figure = createCategoryPreviewElement(category, titleText);
 
     const meta = document.createElement('div');
-    meta.className = 'categoryMeta visuallyHidden';
+    meta.className = 'categoryMeta';
 
     const title = document.createElement('h3');
     title.textContent = titleText;
     meta.appendChild(title);
 
     const description = document.createElement('p');
-    description.textContent = descriptionText;
+    if (descriptionText) {
+      description.textContent = descriptionText;
+      description.hidden = false;
+    } else {
+      description.textContent = '';
+      description.hidden = true;
+    }
     meta.appendChild(description);
 
     const count = document.createElement('span');
-    count.className = 'categoryCount visuallyHidden';
+    count.className = 'categoryCount';
     count.dataset.categoryCount = '';
     count.textContent = '–';
     meta.appendChild(count);
@@ -656,9 +651,7 @@ function normalizeCategoryMeta(category) {
   const name = getCategoryDisplayName(category) || id;
   const description = typeof category.description === 'string' && category.description.trim()
     ? category.description.trim()
-    : type === 'custom'
-      ? 'Egendefinerte figurer du har lagt til.'
-      : '';
+    : '';
   const sampleImage = typeof category.sampleImage === 'string' && category.sampleImage.trim()
     ? category.sampleImage.trim()
     : category.sampleSlug
@@ -747,7 +740,7 @@ function buildCustomCategories(baseCategories, entries) {
         type: 'custom',
         name: categoryName,
         filter: categoryName,
-        description: 'Egendefinerte figurer du har lagt til.',
+        description: '',
         sampleImage,
         sampleAlt,
       });
@@ -1358,6 +1351,10 @@ function setupAddCategoryForm() {
       }
     });
   }
+
+  if (addCategoryForm && !addCategoryForm.hasAttribute('hidden')) {
+    hideAddCategoryForm({ resetInput: false, clearFeedback: true });
+  }
 }
 
 function showAddCategoryForm() {
@@ -1666,7 +1663,7 @@ function normalizeCustomCategory(category) {
 
   const description = typeof category.description === 'string' && category.description.trim()
     ? category.description.trim()
-    : 'Egendefinerte figurer du har lagt til.';
+    : '';
   const sampleImage = typeof category.sampleImage === 'string' && category.sampleImage.trim()
     ? category.sampleImage.trim()
     : DEFAULT_CATEGORY_THUMBNAIL;
@@ -1808,6 +1805,73 @@ function createCustomFigureData(entry) {
     custom: true,
     entryId: entry.id || id,
   };
+}
+
+function createCategoryPreviewElement(category, titleText) {
+  const container = document.createElement('div');
+  container.className = 'categoryFigure';
+  container.setAttribute('aria-hidden', 'true');
+
+  const previewItems = getCategoryPreviewItems(category, CATEGORY_PREVIEW_COUNT, titleText);
+  for (const item of previewItems) {
+    if (!item || typeof item.src !== 'string' || !item.src) continue;
+    const img = document.createElement('img');
+    img.src = item.src;
+    img.alt = '';
+    img.setAttribute('aria-hidden', 'true');
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    container.appendChild(img);
+  }
+
+  return container;
+}
+
+function getCategoryPreviewItems(category, count = CATEGORY_PREVIEW_COUNT, titleText = '') {
+  const total = typeof count === 'number' && count > 0 ? Math.min(Math.floor(count), 12) : CATEGORY_PREVIEW_COUNT;
+  const fallbackPath = resolveCategorySamplePath(category);
+  const fallbackAlt = category.sampleAlt || `Eksempel på ${titleText || getCategoryDisplayName(category) || 'kategori'}`;
+
+  const figures = getFiguresForCategory(category.id);
+  const uniqueFigures = [];
+  const seenPaths = new Set();
+  for (const item of figures) {
+    const src = item?.data?.path || item?.path || '';
+    if (!src || seenPaths.has(src)) continue;
+    seenPaths.add(src);
+    uniqueFigures.push({
+      src,
+      alt: item?.data?.name || item?.data?.slug || fallbackAlt,
+    });
+  }
+
+  if (!uniqueFigures.length) {
+    if (!fallbackPath) {
+      return [];
+    }
+    return Array.from({ length: total }, () => ({ src: fallbackPath, alt: fallbackAlt }));
+  }
+
+  const shuffled = shuffleArray(uniqueFigures);
+  const selection = [];
+  for (let index = 0; index < total; index += 1) {
+    const source = shuffled[index] || shuffled[index % shuffled.length];
+    if (!source) break;
+    selection.push({ src: source.src, alt: source.alt });
+  }
+
+  return selection;
+}
+
+function shuffleArray(list) {
+  const array = Array.isArray(list) ? list.slice() : [];
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = array[i];
+    array[i] = array[j];
+    array[j] = temp;
+  }
+  return array;
 }
 
 function handleCategoryUploadClick() {

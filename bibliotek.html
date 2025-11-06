@@ -257,34 +257,37 @@
     .categoryItem {
       list-style: none;
       position: relative;
+      display: flex;
     }
     .categoryMenuToggle {
       position: absolute;
-      top: 10px;
-      right: 10px;
+      top: clamp(12px, 1.2vw, 16px);
+      right: clamp(12px, 1.2vw, 16px);
       z-index: 2;
-      width: 32px;
-      height: 32px;
-      border: none;
+      width: 34px;
+      height: 34px;
       border-radius: 999px;
-      background: rgba(15, 23, 42, 0.04);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: rgba(255, 255, 255, 0.92);
       color: #475569;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+      transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
     }
     .categoryMenuToggle:hover,
     .categoryMenuToggle:focus-visible {
       background: rgba(59, 130, 246, 0.12);
       color: #1d4ed8;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.28);
+      border-color: rgba(59, 130, 246, 0.42);
+      box-shadow: 0 12px 28px rgba(37, 99, 235, 0.22);
       transform: translateY(-1px);
       outline: none;
     }
     .categoryMenuToggle:focus-visible {
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.32);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.28);
     }
     .categoryMenuToggle svg {
       width: 18px;
@@ -344,36 +347,76 @@
       border: none;
       background: transparent;
       padding: 0;
-      display: block;
+      display: flex;
+      flex-direction: column;
+      gap: clamp(10px, 1vw, 14px);
+      align-items: stretch;
       cursor: pointer;
+      text-align: left;
+      border-radius: 22px;
+      background: #fff;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+      padding: clamp(12px, 1.2vw, 18px);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
     }
     .categoryButton:focus-visible {
-      outline: none;
+      outline: 3px solid rgba(59, 130, 246, 0.35);
+      outline-offset: 3px;
     }
-    .categoryButton:focus-visible .categoryFigure,
-    .categoryButton:hover .categoryFigure,
-    .categoryButton[data-selected="true"] .categoryFigure {
-      border-color: rgba(37, 99, 235, 0.45);
-      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.18);
-      transform: translateY(-1px);
+    .categoryButton:hover,
+    .categoryButton:focus-visible,
+    .categoryButton[data-selected="true"] {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+      border-color: rgba(59, 130, 246, 0.35);
     }
     .categoryFigure {
-      position: relative;
       aspect-ratio: 4 / 3;
-      border: 1px solid rgba(226, 232, 240, 0.8);
-      border-radius: 14px;
-      background: linear-gradient(135deg, rgba(226, 232, 240, 0.35), rgba(248, 250, 252, 0.85));
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+      gap: clamp(6px, 1vw, 10px);
+      padding: clamp(10px, 1.2vw, 14px);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: clamp(16px, 1.8vw, 20px);
+      background: linear-gradient(135deg, rgba(226, 232, 240, 0.45), rgba(248, 250, 252, 0.92));
       overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
     }
     .categoryFigure img {
       width: 100%;
       height: 100%;
       object-fit: contain;
       display: block;
+      background: #fff;
+      border-radius: clamp(10px, 1.2vw, 14px);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
+    }
+    .categoryMeta {
+      display: grid;
+      gap: 6px;
+      align-content: start;
+    }
+    .categoryMeta h3 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--heading-color);
+    }
+    .categoryMeta p {
+      margin: 0;
+      font-size: 13px;
+      color: #64748b;
+    }
+    .categoryMeta p[hidden] {
+      display: none !important;
+    }
+    .categoryCount {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #475569;
     }
     .bibliotekItem {
       list-style: none;
@@ -820,9 +863,9 @@
         <p class="categoryAddMessage" data-add-category-feedback hidden aria-live="polite"></p>
         <ul class="categoryGrid" data-category-grid></ul>
       </section>
-      <section class="uploadCard" aria-label="Egendefinerte figurer">
+      <section class="uploadCard" aria-label="Last opp figurer">
         <div class="uploadIntro">
-          <h2>Egendefinerte figurer</h2>
+          <h2>Last opp figurer</h2>
           <p>Last opp egne SVG-er og legg dem til i biblioteket. Du kan senere endre navn og kategori.</p>
         </div>
         <form class="uploadForm" data-upload-form>
