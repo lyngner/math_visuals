@@ -2,7 +2,7 @@ const DEFAULT_LOCALE = 'nb';
 
 export const CUSTOM_CATEGORY_ID = 'custom';
 export const CUSTOM_FIGURE_ID = 'custom';
-export const MEASURE_IMAGE_BASE_PATH = 'images/measure/';
+export const MEASURE_IMAGE_BASE_PATH = '/images/measure/';
 
 export function encodeMeasureImagePath(fileName, options = {}) {
   if (!fileName) {

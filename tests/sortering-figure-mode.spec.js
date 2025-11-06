@@ -63,7 +63,7 @@ test.describe('sortering figure editor', () => {
 
     const figureSelect = figureRow.locator('.sortering__item-editor-figure-select');
     await expect(figureSelect).toBeEnabled();
-    await figureSelect.selectOption('images/measure/dame155.svg');
+    await figureSelect.selectOption('/images/measure/dame155.svg');
 
     await figureItem.locator('.sortering__item-editor-update').click();
 
@@ -79,7 +79,7 @@ test.describe('sortering figure editor', () => {
     expect(figureState).toBeDefined();
     expect(figureState.type).toBe('figure');
     expect(Array.isArray(figureState.figures)).toBe(true);
-    expect(figureState.figures[0].value).toBe('images/measure/dame155.svg');
+    expect(figureState.figures[0].value).toBe('/images/measure/dame155.svg');
   });
 
   test('keeps figure mode after selecting library figure', async ({ page }) => {
@@ -95,11 +95,11 @@ test.describe('sortering figure editor', () => {
 
     const figureSelect = figureRow.locator('.sortering__item-editor-figure-select');
     await expect(figureSelect).toBeEnabled();
-    await expect(figureSelect.locator('option[value="images/measure/gutt120.svg"]')).toHaveCount(1);
-    await figureSelect.selectOption('images/measure/gutt120.svg');
+    await expect(figureSelect.locator('option[value="/images/measure/gutt120.svg"]')).toHaveCount(1);
+    await figureSelect.selectOption('/images/measure/gutt120.svg');
 
     const valueInput = figureRow.locator('input[type="text"]');
-    await expect(valueInput).toHaveValue('images/measure/gutt120.svg');
+    await expect(valueInput).toHaveValue('/images/measure/gutt120.svg');
     await expect(typeSelect).toHaveValue('figure');
 
     const state = await getSorteringState(page);
@@ -109,7 +109,7 @@ test.describe('sortering figure editor', () => {
     expect(figureState).toBeDefined();
     expect(figureState.type).toBe('figure');
     expect(Array.isArray(figureState.figures)).toBe(true);
-    expect(figureState.figures[0].value).toBe('images/measure/gutt120.svg');
+    expect(figureState.figures[0].value).toBe('/images/measure/gutt120.svg');
   });
 
   test('persists figure edits without accessibility list', async ({ page }) => {
@@ -151,9 +151,9 @@ test.describe('sortering figure editor', () => {
 
     const figureSelect = figureRow.locator('.sortering__item-editor-figure-select');
     await expect(figureSelect).toBeEnabled();
-    await expect(figureSelect.locator('option[value="images/measure/dame155.svg"]')).toHaveCount(1);
-    await figureSelect.selectOption('images/measure/dame155.svg');
-    await expect(figureSelect).toHaveValue('images/measure/dame155.svg');
+    await expect(figureSelect.locator('option[value="/images/measure/dame155.svg"]')).toHaveCount(1);
+    await figureSelect.selectOption('/images/measure/dame155.svg');
+    await expect(figureSelect).toHaveValue('/images/measure/dame155.svg');
 
     await firstItem.locator('.sortering__item-editor-update').click();
 
@@ -166,7 +166,7 @@ test.describe('sortering figure editor', () => {
     expect(targetItem).toBeDefined();
     expect(targetItem.type).toBe('figure');
     expect(Array.isArray(targetItem.figures)).toBe(true);
-    expect(targetItem.figures[0].value).toBe('images/measure/dame155.svg');
+    expect(targetItem.figures[0].value).toBe('/images/measure/dame155.svg');
 
     await page.evaluate(() => {
       const api = window.mathVisSortering;
@@ -183,7 +183,7 @@ test.describe('sortering figure editor', () => {
     expect(afterApplyItem).toBeDefined();
     expect(afterApplyItem.type).toBe('figure');
     expect(Array.isArray(afterApplyItem.figures)).toBe(true);
-    expect(afterApplyItem.figures[0].value).toBe('images/measure/dame155.svg');
+    expect(afterApplyItem.figures[0].value).toBe('/images/measure/dame155.svg');
   });
 
   test('keeps manual figure selection for new items without figures', async ({ page }) => {

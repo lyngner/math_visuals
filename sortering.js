@@ -907,7 +907,7 @@ import {
   const FIGURE_LIBRARY_RELATIVE_BASE_PATH = ensureTrailingSlash(
     measurementFigureManifest && typeof measurementFigureManifest.basePath === 'string'
       ? measurementFigureManifest.basePath
-      : 'images/measure/'
+      : '/images/measure/'
   );
   const FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_LEADING_SLASH = ensureTrailingSlash(
     FIGURE_LIBRARY_RELATIVE_BASE_PATH.startsWith('/')
