@@ -39,6 +39,8 @@ const CUSTOM_STORAGE_KEY = 'mathvis:figureLibrary:customEntries:v1';
 const CUSTOM_CATEGORY_STORAGE_KEY = 'mathvis:figureLibrary:customCategories:v1';
 const DEFAULT_CATEGORY_THUMBNAIL = '/images/amounts/tb10.svg';
 const CATEGORY_PREVIEW_COUNT = 4;
+const FIGURE_LIBRARY_ENDPOINT = '/api/figure-library';
+const FIGURE_LIBRARY_TOOL = 'bibliotek-upload';
 
 const amountCategories = [
   {
@@ -123,6 +125,8 @@ let categoryDialogReturnFocus = null;
 let categoryMenuTrigger = null;
 let categoryMenuCategory = null;
 
+let figureLibraryMetadata = { storageMode: 'memory', persistent: false, limitation: '' };
+
 const observer = 'IntersectionObserver' in window
   ? new IntersectionObserver(handleIntersection, {
       root: null,
@@ -131,9 +135,14 @@ const observer = 'IntersectionObserver' in window
     })
   : null;
 
-function init() {
+async function init() {
+  setStatusMessage('Laster figurer …', 'info', { storeBase: true });
   loadCustomCategories();
-  loadCustomEntries();
+  try {
+    await loadCustomEntries();
+  } catch (error) {
+    console.error('Kunne ikke laste egendefinerte figurer', error);
+  }
   refreshLibrary({ maintainFilter: false });
   loadLibraries();
   filterInput?.addEventListener('input', handleFilterInput);
@@ -180,8 +189,9 @@ async function loadLibraries() {
     refreshLibrary();
   } catch (error) {
     console.error('Kunne ikke laste manifestet', error);
-    statusEl.textContent = 'Kunne ikke laste figurene. Prøv å laste siden på nytt.';
-    statusEl.classList.add('error');
+    setStatusMessage('Kunne ikke laste figurene. Prøv å laste siden på nytt.', 'error', {
+      includeStorageWarning: false,
+    });
   }
 }
 
@@ -623,10 +633,75 @@ async function copyCategoryIdentifier(category) {
   }
 }
 
+function getStorageWarningMessage() {
+  if (!figureLibraryMetadata || typeof figureLibraryMetadata !== 'object') {
+    return '';
+  }
+  const limitation = typeof figureLibraryMetadata.limitation === 'string'
+    ? figureLibraryMetadata.limitation.trim()
+    : '';
+  return limitation;
+}
+
+function composeStatusMessage(message, includeStorageWarning = true) {
+  const baseMessage = typeof message === 'string' ? message.trim() : '';
+  const storageMessage = includeStorageWarning ? getStorageWarningMessage() : '';
+  if (baseMessage && storageMessage) {
+    return `${baseMessage}\n${storageMessage}`;
+  }
+  if (storageMessage) {
+    return storageMessage;
+  }
+  return baseMessage;
+}
+
+function setStatusMessage(message, state = 'info', options = {}) {
+  if (!statusEl) return;
+  const shouldStoreBase = options.storeBase !== false;
+  const includeStorageWarning = options.includeStorageWarning !== false;
+  const baseMessage = shouldStoreBase
+    ? (typeof message === 'string' ? message : '')
+    : statusEl.dataset.baseMessage || '';
+  if (shouldStoreBase) {
+    statusEl.dataset.baseMessage = baseMessage;
+  }
+  statusEl.dataset.includeStorageWarning = includeStorageWarning ? 'true' : 'false';
+  const finalMessage = composeStatusMessage(baseMessage, includeStorageWarning);
+  statusEl.textContent = finalMessage || '';
+  statusEl.dataset.state = state;
+  if (state === 'error') {
+    statusEl.classList.add('error');
+    statusEl.classList.remove('warning');
+  } else if (state === 'warning' || (includeStorageWarning && getStorageWarningMessage())) {
+    statusEl.classList.remove('error');
+    statusEl.classList.add('warning');
+  } else {
+    statusEl.classList.remove('error');
+    statusEl.classList.remove('warning');
+  }
+}
+
+function refreshStatusWithStorageWarning() {
+  if (!statusEl) return;
+  const currentState = statusEl.dataset.state || 'info';
+  if (currentState === 'error') {
+    return;
+  }
+  const baseMessage = statusEl.dataset.baseMessage || '';
+  const includeStorageWarning = statusEl.dataset.includeStorageWarning !== 'false';
+  const finalMessage = composeStatusMessage(baseMessage, includeStorageWarning);
+  statusEl.textContent = finalMessage || '';
+  if (includeStorageWarning && getStorageWarningMessage()) {
+    statusEl.classList.add('warning');
+    statusEl.classList.remove('error');
+  } else if (currentState !== 'warning') {
+    statusEl.classList.remove('warning');
+  }
+}
+
 function announceStatus(message) {
-  if (!statusEl || typeof message !== 'string') return;
-  statusEl.textContent = message;
-  statusEl.classList.remove('error');
+  if (typeof message !== 'string') return;
+  setStatusMessage(message, 'info', { includeStorageWarning: false, storeBase: false });
 }
 
 function getCategoryDisplayName(category) {
@@ -821,7 +896,7 @@ function alignCustomEntriesWithBaseCategories(baseCategories) {
   }
 
   if (updated) {
-    saveCustomEntries();
+    persistLocalEntriesIfNeeded();
   }
 }
 
@@ -1284,17 +1359,20 @@ function updateCount(visible, total, query, hasQueryFilter) {
 
 function updateStatus(visible, total, query, hasQueryFilter) {
   if (!statusEl) return;
+  if (statusEl.dataset.state === 'error') {
+    return;
+  }
   if (total === 0) {
-    statusEl.textContent = 'Ingen figurer tilgjengelig ennå.';
+    setStatusMessage('Ingen figurer tilgjengelig ennå.', 'info');
     return;
   }
 
   if (hasQueryFilter) {
-    statusEl.textContent = `Fant ${visible} av ${total} figurer for søket «${query}». Velg en kategori for å se resultatene.`;
+    setStatusMessage(`Fant ${visible} av ${total} figurer for søket «${query}». Velg en kategori for å se resultatene.`, 'info');
     return;
   }
 
-  statusEl.textContent = `Totalt ${total} figurer tilgjengelig. Velg en kategori for å se detaljene.`;
+  setStatusMessage(`Totalt ${total} figurer tilgjengelig. Velg en kategori for å se detaljene.`, 'info');
 }
 
 function updateHelperState(hasItems) {
@@ -1484,6 +1562,9 @@ function isCategoryNameTaken(name) {
 
 function setupUploadForm() {
   if (!uploadForm) return;
+  if (uploadFileInput) {
+    uploadFileInput.multiple = true;
+  }
   uploadForm.addEventListener('submit', handleUploadSubmit);
   uploadFileInput?.addEventListener('change', handleUploadFileChange);
 }
@@ -1685,13 +1766,47 @@ function normalizeCustomCategory(category) {
   };
 }
 
-function loadCustomEntries() {
+async function loadCustomEntries() {
   customEntries.length = 0;
   customEntryMap.clear();
+
+  const localFallbackEntries = readLocalCustomEntries();
+  let requestSucceeded = false;
+
+  try {
+    const result = await fetchFigureLibraryEntries();
+    requestSucceeded = true;
+    const entries = Array.isArray(result.entries) ? result.entries : [];
+    entries.forEach((entry) => {
+      upsertCustomEntryLocal(entry);
+    });
+    if (figureLibraryMetadata.storageMode === 'memory' && localFallbackEntries.length) {
+      for (const entry of localFallbackEntries) {
+        if (!entry || !entry.id || customEntryMap.has(entry.id)) {
+          continue;
+        }
+        upsertCustomEntryLocal(entry);
+      }
+    }
+  } catch (error) {
+    console.error('Kunne ikke hente figurer fra API-et', error);
+  }
+
+  if (!requestSucceeded && localFallbackEntries.length) {
+    localFallbackEntries.forEach((entry) => {
+      upsertCustomEntryLocal(entry);
+    });
+  }
+
+  persistLocalEntriesIfNeeded();
+  refreshStatusWithStorageWarning();
+}
+
+function readLocalCustomEntries() {
   const storage = getLocalStorage();
   if (!storage) {
     customStorageAvailable = false;
-    return;
+    return [];
   }
   customStorageAvailable = true;
   let raw = null;
@@ -1700,32 +1815,39 @@ function loadCustomEntries() {
   } catch (error) {
     console.error('Kunne ikke lese egendefinerte figurer', error);
     customStorageAvailable = false;
-    return;
+    return [];
   }
-  if (!raw) return;
+  if (!raw) {
+    return [];
+  }
   try {
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      parsed.forEach((entry) => {
-        const normalized = normalizeCustomEntry(entry);
-        if (normalized) {
-          customEntries.push(normalized);
-          customEntryMap.set(normalized.id, normalized);
-        }
-      });
+    if (!Array.isArray(parsed)) {
+      return [];
     }
+    const restored = [];
+    parsed.forEach((entry) => {
+      const normalized = normalizeCustomEntry(entry);
+      if (normalized) {
+        restored.push(normalized);
+      }
+    });
+    return restored;
   } catch (error) {
     console.error('Kunne ikke tolke lagrede egendefinerte figurer', error);
+    return [];
   }
 }
 
-function saveCustomEntries() {
+function persistLocalEntries() {
   const storage = getLocalStorage();
   if (!storage) {
     customStorageAvailable = false;
     return false;
   }
-  const payload = customEntries.map(serializeCustomEntry);
+  const payload = customEntries
+    .map(serializeCustomEntry)
+    .filter((entry) => entry !== null);
   try {
     storage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(payload));
     customStorageAvailable = true;
@@ -1737,9 +1859,18 @@ function saveCustomEntries() {
   }
 }
 
+function persistLocalEntriesIfNeeded() {
+  const mode = normalizeStorageMode(figureLibraryMetadata?.storageMode);
+  if (!mode || mode === 'memory') {
+    persistLocalEntries();
+  } else {
+    clearLocalEntries();
+  }
+}
+
 function serializeCustomEntry(entry) {
   if (!entry || typeof entry !== 'object') return null;
-  return {
+  const result = {
     id: entry.id,
     slug: entry.slug,
     name: entry.name,
@@ -1749,43 +1880,430 @@ function serializeCustomEntry(entry) {
     summary: entry.summary,
     createdAt: entry.createdAt,
   };
+  if (typeof entry.tool === 'string' && entry.tool.trim()) {
+    result.tool = entry.tool.trim();
+  }
+  if (typeof entry.svg === 'string') {
+    result.svg = entry.svg;
+  }
+  if (typeof entry.png === 'string') {
+    result.png = entry.png;
+  }
+  if (Number.isFinite(entry.pngWidth)) {
+    result.pngWidth = Number(entry.pngWidth);
+  }
+  if (Number.isFinite(entry.pngHeight)) {
+    result.pngHeight = Number(entry.pngHeight);
+  }
+  return result;
+}
+
+function clearLocalEntries() {
+  const storage = getLocalStorage();
+  if (!storage) {
+    return;
+  }
+  try {
+    storage.removeItem(CUSTOM_STORAGE_KEY);
+  } catch (error) {
+    // ignore clearing errors
+  }
 }
 
 function normalizeCustomEntry(entry) {
   if (!entry || typeof entry !== 'object') return null;
   let id = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : '';
+  const slug = typeof entry.slug === 'string' && entry.slug.trim() ? entry.slug.trim() : id;
+  const name = typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : 'Egendefinert figur';
+  let categoryName = typeof entry.categoryName === 'string' && entry.categoryName.trim()
+    ? entry.categoryName.trim()
+    : 'Egendefinert';
+  let categoryId = typeof entry.categoryId === 'string' && entry.categoryId.trim() ? entry.categoryId.trim() : '';
+  let svgMarkup = typeof entry.svg === 'string' ? entry.svg : null;
   let dataUrl = typeof entry.dataUrl === 'string' && entry.dataUrl.trim() ? entry.dataUrl.trim() : '';
-  const rawSvg = typeof entry.svg === 'string' ? entry.svg : null;
-  if (!dataUrl && rawSvg) {
-    dataUrl = encodeSvgToDataUrl(rawSvg);
+  if (!svgMarkup && dataUrl && dataUrl.startsWith('data:image/svg+xml')) {
+    svgMarkup = decodeSvgDataUrl(dataUrl);
+  }
+  if (!dataUrl && svgMarkup) {
+    dataUrl = encodeSvgToDataUrl(svgMarkup);
   }
   if (!dataUrl) {
     return null;
   }
-  const name = typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : 'Egendefinert figur';
-  const categoryName = typeof entry.categoryName === 'string' && entry.categoryName.trim()
-    ? entry.categoryName.trim()
-    : 'Egendefinert';
-  let categoryId = typeof entry.categoryId === 'string' && entry.categoryId.trim() ? entry.categoryId.trim() : '';
   if (!categoryId) {
     const baseSlug = slugifyString(categoryName) || 'custom';
     categoryId = baseSlug.startsWith('custom') ? baseSlug : `custom-${baseSlug}`;
   }
-  const createdAt = typeof entry.createdAt === 'string' ? entry.createdAt : new Date().toISOString();
   if (!id) {
-    id = createCustomEntryId(name);
+    id = slug || createCustomEntryId(name);
   }
-  const slug = typeof entry.slug === 'string' && entry.slug.trim() ? entry.slug.trim() : id;
-  return {
+  const normalized = {
     id,
-    slug,
+    slug: slug || id,
     name,
     categoryId,
     categoryName,
     dataUrl,
     summary: typeof entry.summary === 'string' ? entry.summary.trim() : '',
-    createdAt,
+    createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : new Date().toISOString(),
+    svg: svgMarkup,
+    png: typeof entry.png === 'string' ? entry.png : null,
   };
+  if (typeof entry.tool === 'string' && entry.tool.trim()) {
+    normalized.tool = entry.tool.trim();
+  }
+  if (Number.isFinite(entry.pngWidth)) {
+    normalized.pngWidth = Number(entry.pngWidth);
+  }
+  if (Number.isFinite(entry.pngHeight)) {
+    normalized.pngHeight = Number(entry.pngHeight);
+  }
+  return normalized;
+}
+
+function normalizeServerEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const slug = typeof entry.slug === 'string' && entry.slug.trim() ? entry.slug.trim() : '';
+  const id = slug || (typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : '');
+  if (!id) {
+    return null;
+  }
+  const nameCandidates = [entry.title, entry.name, slug, id];
+  let name = '';
+  for (const candidate of nameCandidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      name = candidate.trim();
+      break;
+    }
+  }
+  if (!name) {
+    name = id;
+  }
+  const categoryObject = entry.category && typeof entry.category === 'object' ? entry.category : {};
+  let categoryId = typeof entry.categoryId === 'string' && entry.categoryId.trim() ? entry.categoryId.trim() : '';
+  if (!categoryId && typeof categoryObject.id === 'string' && categoryObject.id.trim()) {
+    categoryId = categoryObject.id.trim();
+  }
+  let categoryName = typeof entry.categoryName === 'string' && entry.categoryName.trim()
+    ? entry.categoryName.trim()
+    : '';
+  if (!categoryName && typeof categoryObject.label === 'string' && categoryObject.label.trim()) {
+    categoryName = categoryObject.label.trim();
+  }
+  if (!categoryName) {
+    categoryName = categoryId || 'Egendefinert';
+  }
+  let dataUrl = typeof entry.dataUrl === 'string' && entry.dataUrl.trim() ? entry.dataUrl.trim() : '';
+  const svgMarkup = typeof entry.svg === 'string' ? entry.svg : null;
+  if (!dataUrl) {
+    if (svgMarkup) {
+      dataUrl = encodeSvgToDataUrl(svgMarkup);
+    } else if (entry.urls && typeof entry.urls.svg === 'string') {
+      dataUrl = entry.urls.svg;
+    } else if (entry.files && entry.files.svg && typeof entry.files.svg.url === 'string') {
+      dataUrl = entry.files.svg.url;
+    }
+  }
+  if (!dataUrl) {
+    return null;
+  }
+  const normalized = {
+    id,
+    slug: slug || id,
+    name,
+    categoryId: categoryId || 'custom',
+    categoryName,
+    dataUrl,
+    summary: typeof entry.summary === 'string' ? entry.summary.trim() : '',
+    createdAt: typeof entry.createdAt === 'string' && entry.createdAt ? entry.createdAt : new Date().toISOString(),
+    svg: svgMarkup || (dataUrl.startsWith('data:image/svg+xml') ? decodeSvgDataUrl(dataUrl) : null),
+    png: typeof entry.png === 'string' ? entry.png : null,
+  };
+  if (typeof entry.tool === 'string' && entry.tool.trim()) {
+    normalized.tool = entry.tool.trim();
+  }
+  if (Number.isFinite(entry.pngWidth)) {
+    normalized.pngWidth = Number(entry.pngWidth);
+  }
+  if (Number.isFinite(entry.pngHeight)) {
+    normalized.pngHeight = Number(entry.pngHeight);
+  }
+  return normalized;
+}
+
+function upsertCustomEntryLocal(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const id = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : entry.slug;
+  if (!id) return null;
+  const normalized = {
+    ...entry,
+    id,
+    slug: typeof entry.slug === 'string' && entry.slug.trim() ? entry.slug.trim() : id,
+  };
+  const existingIndex = customEntries.findIndex((item) => item && item.id === id);
+  if (existingIndex >= 0) {
+    customEntries[existingIndex] = normalized;
+  } else {
+    customEntries.push(normalized);
+  }
+  customEntryMap.set(id, normalized);
+  ensureCategoryFromEntry(normalized);
+  return normalized;
+}
+
+function ensureCategoryFromEntry(entry) {
+  if (!entry || typeof entry !== 'object') return;
+  const categoryId = typeof entry.categoryId === 'string' && entry.categoryId.trim() ? entry.categoryId.trim() : '';
+  const categoryName = typeof entry.categoryName === 'string' && entry.categoryName.trim()
+    ? entry.categoryName.trim()
+    : '';
+  if (!categoryId && !categoryName) {
+    return;
+  }
+  if (categoryId && customCategoryMap.has(categoryId)) {
+    return;
+  }
+  const normalized = categoryId
+    ? normalizeServerCategory({ id: categoryId, label: categoryName || categoryId })
+    : normalizeCustomCategory({ name: categoryName || 'Egendefinert' });
+  if (!normalized) {
+    return;
+  }
+  if (!customCategoryMap.has(normalized.id)) {
+    customCategoryMap.set(normalized.id, normalized);
+    if (!customCategories.some((category) => category && category.id === normalized.id)) {
+      customCategories.push(normalized);
+    }
+  }
+}
+
+function normalizeServerCategory(category) {
+  if (!category || typeof category !== 'object') return null;
+  const id = typeof category.id === 'string' && category.id.trim() ? category.id.trim() : '';
+  if (!id) {
+    return null;
+  }
+  const nameCandidates = [category.label, category.name, category.filter, id];
+  let name = '';
+  for (const candidate of nameCandidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      name = candidate.trim();
+      break;
+    }
+  }
+  if (!name) {
+    name = id;
+  }
+  const description = typeof category.description === 'string' ? category.description.trim() : '';
+  const sampleImage = typeof category.sampleImage === 'string' && category.sampleImage.trim()
+    ? category.sampleImage.trim()
+    : typeof category.sampleSlug === 'string' && category.sampleSlug.trim()
+    ? `/images/amounts/${category.sampleSlug.trim()}.svg`
+    : DEFAULT_CATEGORY_THUMBNAIL;
+  const sampleAlt = typeof category.sampleAlt === 'string' && category.sampleAlt.trim()
+    ? category.sampleAlt.trim()
+    : `Eksempel på ${name}`;
+  return {
+    id,
+    type: 'custom',
+    name,
+    filter: typeof category.filter === 'string' && category.filter.trim() ? category.filter.trim() : name,
+    description,
+    sampleImage,
+    sampleAlt,
+  };
+}
+
+function applyServerCategories(categoryList) {
+  if (!Array.isArray(categoryList)) return;
+  for (const category of categoryList) {
+    const normalized = normalizeServerCategory(category);
+    if (!normalized) continue;
+    if (customCategoryMap.has(normalized.id)) {
+      const existing = customCategoryMap.get(normalized.id);
+      const merged = { ...existing, ...normalized };
+      customCategoryMap.set(normalized.id, merged);
+      const index = customCategories.findIndex((entry) => entry && entry.id === normalized.id);
+      if (index >= 0) {
+        customCategories[index] = merged;
+      }
+      continue;
+    }
+    customCategoryMap.set(normalized.id, normalized);
+    customCategories.push(normalized);
+  }
+}
+
+function normalizeStorageMode(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === 'kv' || normalized === 'vercel-kv') return 'kv';
+  if (normalized === 'memory' || normalized === 'mem' || normalized === 'unconfigured') return 'memory';
+  return normalized;
+}
+
+function applyFigureLibraryMetadata(metadata, response) {
+  if (!metadata || typeof metadata !== 'object') {
+    refreshStatusWithStorageWarning();
+    return figureLibraryMetadata;
+  }
+  const headerMode = response && typeof response.headers?.get === 'function'
+    ? response.headers.get('X-Figure-Library-Store-Mode')
+    : null;
+  const modeHint = metadata.storageMode || metadata.mode || headerMode;
+  const normalizedMode = normalizeStorageMode(modeHint) || figureLibraryMetadata.storageMode || 'memory';
+  figureLibraryMetadata.storageMode = normalizedMode;
+  if (Object.prototype.hasOwnProperty.call(metadata, 'persistent')) {
+    figureLibraryMetadata.persistent = Boolean(metadata.persistent);
+  } else if (normalizedMode === 'kv') {
+    figureLibraryMetadata.persistent = true;
+  }
+  const limitation = typeof metadata.limitation === 'string' ? metadata.limitation.trim() : '';
+  if (limitation || normalizedMode !== 'memory') {
+    figureLibraryMetadata.limitation = limitation;
+  }
+  refreshStatusWithStorageWarning();
+  return figureLibraryMetadata;
+}
+
+async function fetchFigureLibraryEntries() {
+  const { data, response } = await fetchFigureLibrary('GET');
+  applyFigureLibraryMetadata(data, response);
+  if (Array.isArray(data.categories)) {
+    applyServerCategories(data.categories);
+  }
+  const entries = Array.isArray(data.entries)
+    ? data.entries.map((entry) => normalizeServerEntry(entry)).filter(Boolean)
+    : [];
+  return { entries };
+}
+
+async function fetchFigureLibrary(method = 'GET', payload) {
+  const options = {
+    method,
+    headers: {
+      Accept: 'application/json',
+    },
+    cache: 'no-store',
+  };
+  if (payload !== undefined) {
+    options.headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify(payload);
+  }
+  const response = await fetch(FIGURE_LIBRARY_ENDPOINT, options);
+  let data = {};
+  let text = '';
+  try {
+    text = await response.text();
+  } catch (error) {
+    text = '';
+  }
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (error) {
+      if (response.ok) {
+        const parsingError = new Error('Ugyldig JSON-respons fra figurbiblioteket');
+        parsingError.response = response;
+        throw parsingError;
+      }
+      data = {};
+    }
+  }
+  if (!response.ok) {
+    const message = typeof data.error === 'string' && data.error.trim()
+      ? data.error.trim()
+      : `HTTP ${response.status}`;
+    const error = new Error(message);
+    error.response = response;
+    error.payload = data;
+    throw error;
+  }
+  return { data, response };
+}
+
+function buildFigureEntryPayload(entry, options = {}) {
+  if (!entry || typeof entry !== 'object') return null;
+  const slug = typeof entry.slug === 'string' && entry.slug.trim() ? entry.slug.trim() : entry.id;
+  if (!slug) return null;
+  const toolValue = typeof entry.tool === 'string' && entry.tool.trim() ? entry.tool.trim() : FIGURE_LIBRARY_TOOL;
+  const payload = {
+    slug,
+    title: entry.name || slug,
+    tool: toolValue,
+    summary: entry.summary || '',
+  };
+  if (entry.createdAt) {
+    payload.createdAt = entry.createdAt;
+  }
+  if (entry.categoryId) {
+    payload.categoryId = entry.categoryId;
+  }
+  if (entry.categoryName) {
+    payload.categoryName = entry.categoryName;
+  }
+  const categoryPayload = {};
+  if (entry.categoryId) {
+    categoryPayload.id = entry.categoryId;
+  }
+  if (entry.categoryName) {
+    categoryPayload.label = entry.categoryName;
+  }
+  if (Object.keys(categoryPayload).length) {
+    payload.category = categoryPayload;
+  }
+  if (options.includeMedia) {
+    if (typeof entry.svg === 'string') {
+      payload.svg = entry.svg;
+    }
+    if (typeof entry.png === 'string') {
+      payload.png = entry.png;
+    }
+    if (Number.isFinite(entry.pngWidth)) {
+      payload.pngWidth = Number(entry.pngWidth);
+    }
+    if (Number.isFinite(entry.pngHeight)) {
+      payload.pngHeight = Number(entry.pngHeight);
+    }
+  }
+  if (entry.description) {
+    payload.description = entry.description;
+  }
+  if (Array.isArray(entry.tags)) {
+    payload.tags = entry.tags;
+  }
+  return payload;
+}
+
+async function submitFigureEntry(entry, options = {}) {
+  if (!entry || typeof entry !== 'object') return null;
+  const includeMedia = options.includeMedia === true;
+  const method = options.method || 'POST';
+  const payload = buildFigureEntryPayload(entry, { includeMedia });
+  if (!payload) {
+    throw new Error('Ugyldig figurdata for opplasting.');
+  }
+  const { data, response } = await fetchFigureLibrary(method, payload);
+  applyFigureLibraryMetadata(data, response);
+  if (Array.isArray(data.categories)) {
+    applyServerCategories(data.categories);
+  }
+  let normalized = null;
+  if (data.entry) {
+    normalized = normalizeServerEntry(data.entry);
+  } else if (Array.isArray(data.entries)) {
+    const normalizedEntries = data.entries.map((item) => normalizeServerEntry(item)).filter(Boolean);
+    normalizedEntries.forEach((item) => upsertCustomEntryLocal(item));
+    normalized = normalizedEntries[normalizedEntries.length - 1] || null;
+  }
+  if (normalized) {
+    upsertCustomEntryLocal(normalized);
+  } else {
+    upsertCustomEntryLocal(entry);
+  }
+  persistLocalEntriesIfNeeded();
+  return normalized || entry;
 }
 
 function createCustomFigureData(entry) {
@@ -1903,81 +2421,190 @@ function handleUploadFileChange() {
   if (!uploadFileInput || !uploadFileInput.files || uploadFileInput.files.length === 0) {
     return;
   }
-  const file = uploadFileInput.files[0];
-  if (!file) return;
-  if (uploadNameInput && !uploadNameInput.value) {
-    uploadNameInput.value = deriveNameFromFile(file.name) || '';
+  if (uploadFileInput.files.length === 1) {
+    const file = uploadFileInput.files[0];
+    if (!file) return;
+    if (uploadNameInput && !uploadNameInput.value) {
+      uploadNameInput.value = deriveNameFromFile(file.name) || '';
+    }
+    return;
+  }
+  if (uploadNameInput) {
+    uploadNameInput.value = '';
   }
 }
 
 async function handleUploadSubmit(event) {
   event.preventDefault();
   if (!uploadFileInput || !uploadFileInput.files || uploadFileInput.files.length === 0) {
-    showUploadStatus('Velg en SVG-fil først.', 'error');
-    return;
-  }
-  const file = uploadFileInput.files[0];
-  if (!file) {
-    showUploadStatus('Fant ikke filen som skulle lastes opp.', 'error');
-    return;
-  }
-  let svgText = '';
-  try {
-    svgText = await file.text();
-  } catch (error) {
-    console.error('Kunne ikke lese SVG-filen', error);
-    showUploadStatus('Kunne ikke lese SVG-filen. Prøv igjen.', 'error');
-    return;
-  }
-  if (typeof svgText !== 'string' || !svgText.includes('<svg')) {
-    showUploadStatus('Filen ser ikke ut til å være en gyldig SVG.', 'error');
+    showUploadStatus('Velg minst én SVG-fil først.', 'error', { duration: 6000 });
     return;
   }
 
-  const desiredName = uploadNameInput && uploadNameInput.value.trim() ? uploadNameInput.value.trim() : '';
-  const name = desiredName || deriveNameFromFile(file.name) || 'Egendefinert figur';
+  const files = Array.from(uploadFileInput.files).filter(Boolean);
+  if (!files.length) {
+    showUploadStatus('Fant ingen gyldige filer i utvalget.', 'error', { duration: 6000 });
+    return;
+  }
+
+  const desiredName = uploadNameInput && uploadNameInput.value ? uploadNameInput.value.trim() : '';
   const categoryInputValue = uploadCategoryInput && uploadCategoryInput.value ? uploadCategoryInput.value : '';
-  const categoryDetails = resolveCategoryDetails(categoryInputValue, null, name);
-  const dataUrl = encodeSvgToDataUrl(svgText);
-  const id = createCustomEntryId(name);
-  const entry = {
-    id,
-    slug: id,
-    name,
-    categoryId: categoryDetails.id,
-    categoryName: categoryDetails.name,
-    dataUrl,
-    summary: '',
-    createdAt: new Date().toISOString(),
-  };
+  const results = [];
+  let successfulUploads = 0;
+  let encounteredError = false;
+  const reservedUploadIds = new Set();
 
-  customEntries.push(entry);
-  customEntryMap.set(entry.id, entry);
-  const saved = saveCustomEntries();
-  refreshLibrary();
-  if (statusEl) {
-    statusEl.classList.remove('error');
-    statusEl.textContent = 'Egendefinert figur lagt til i biblioteket.';
+  if (uploadForm) {
+    uploadForm.dataset.state = 'busy';
+    uploadForm.setAttribute('aria-busy', 'true');
   }
-  if (!saved) {
-    showUploadStatus('Figuren ble lagt til, men kunne ikke lagres permanent. Den beholdes til siden lastes på nytt.', 'warning');
-  } else {
-    showUploadStatus('Figuren ble lagt til i biblioteket.', 'success');
+
+  for (let index = 0; index < files.length; index += 1) {
+    const file = files[index];
+    if (!file) continue;
+    const label = file.name || `Fil ${index + 1}`;
+    try {
+      const svgText = await file.text();
+      if (typeof svgText !== 'string' || !svgText.includes('<svg')) {
+        throw new Error('Filen er ikke en gyldig SVG.');
+      }
+      const name = determineUploadName(desiredName, files.length, index, file.name);
+      const categoryDetails = resolveCategoryDetails(categoryInputValue, null, name);
+      const pngResult = await convertSvgMarkupToPng(svgText);
+      const id = createCustomEntryId(name, reservedUploadIds);
+      const entry = {
+        id,
+        slug: id,
+        name,
+        categoryId: categoryDetails.id,
+        categoryName: categoryDetails.name,
+        summary: '',
+        createdAt: new Date().toISOString(),
+        dataUrl: encodeSvgToDataUrl(svgText),
+        svg: svgText,
+        png: pngResult?.dataUrl || null,
+        pngWidth: pngResult?.width,
+        pngHeight: pngResult?.height,
+        tool: FIGURE_LIBRARY_TOOL,
+      };
+      const savedEntry = await submitFigureEntry(entry, { method: 'POST', includeMedia: true });
+      const finalEntry = savedEntry || entry;
+      results.push({ state: 'success', message: `${label}: Lastet opp som «${finalEntry.name}».` });
+      successfulUploads += 1;
+    } catch (error) {
+      encounteredError = true;
+      console.error('Opplasting av SVG mislyktes', error);
+      const message = extractApiErrorMessage(error, 'Opplasting mislyktes.');
+      results.push({ state: 'error', message: `${label}: ${message}` });
+    }
   }
-  uploadForm.reset();
+
+  if (uploadForm) {
+    delete uploadForm.dataset.state;
+    uploadForm.removeAttribute('aria-busy');
+  }
+
+  if (successfulUploads) {
+    refreshLibrary();
+    const statusState = encounteredError ? 'warning' : 'info';
+    const statusMessage = encounteredError
+      ? `Fullførte ${successfulUploads} av ${files.length} opplastinger.`
+      : successfulUploads === 1
+        ? 'Egendefinert figur lagt til i biblioteket.'
+        : 'Egendefinerte figurer lagt til i biblioteket.';
+    setStatusMessage(statusMessage, statusState);
+    uploadForm?.reset();
+  } else if (encounteredError) {
+    setStatusMessage('Ingen filer ble lastet opp.', 'error', { includeStorageWarning: false });
+  }
+
+  const summaryState = determineUploadState(results);
+  const summaryMessage = formatUploadStatusSummary(results, files.length);
+  showUploadStatus(summaryMessage, summaryState, { duration: summaryState === 'error' ? 8000 : 6000 });
 }
 
-function showUploadStatus(message, state = 'info') {
+function determineUploadName(desiredName, totalFiles, index, originalFileName) {
+  const trimmedDesired = typeof desiredName === 'string' ? desiredName.trim() : '';
+  const derived = deriveNameFromFile(originalFileName || '') || '';
+  if (totalFiles <= 1) {
+    return trimmedDesired || derived || 'Egendefinert figur';
+  }
+  if (trimmedDesired) {
+    return `${trimmedDesired} ${index + 1}`;
+  }
+  return derived || `Egendefinert figur ${index + 1}`;
+}
+
+function showUploadStatus(message, state = 'info', options = {}) {
   if (!uploadStatusEl) return;
   uploadStatusEl.textContent = message;
   uploadStatusEl.dataset.state = state;
   uploadStatusEl.hidden = false;
   if (uploadStatusTimer) {
     clearTimeout(uploadStatusTimer);
+    uploadStatusTimer = null;
   }
-  uploadStatusTimer = setTimeout(() => {
-    uploadStatusEl.hidden = true;
-  }, 4000);
+  const duration = Number.isFinite(options.duration) ? Number(options.duration) : state === 'error' ? 8000 : 5000;
+  if (duration > 0) {
+    uploadStatusTimer = setTimeout(() => {
+      uploadStatusEl.hidden = true;
+    }, duration);
+  }
+}
+
+function determineUploadState(results) {
+  if (!Array.isArray(results) || !results.length) {
+    return 'info';
+  }
+  const hasError = results.some((result) => result.state === 'error');
+  const hasWarning = results.some((result) => result.state === 'warning');
+  const hasSuccess = results.some((result) => result.state === 'success');
+  if (hasError && !hasSuccess && !hasWarning) {
+    return 'error';
+  }
+  if (hasError || hasWarning) {
+    return 'warning';
+  }
+  if (hasSuccess) {
+    return 'success';
+  }
+  return 'info';
+}
+
+function formatUploadStatusSummary(results, totalFiles) {
+  if (!Array.isArray(results) || !results.length) {
+    return 'Ingen filer ble behandlet.';
+  }
+  const successCount = results.filter((result) => result.state === 'success').length;
+  const errorCount = results.filter((result) => result.state === 'error').length;
+  const warningCount = results.filter((result) => result.state === 'warning').length;
+  let header = '';
+  if (successCount && !errorCount && !warningCount) {
+    header = successCount === 1
+      ? 'Figuren ble lagt til i biblioteket.'
+      : `${successCount} filer ble lagt til i biblioteket.`;
+  } else if (successCount && errorCount) {
+    header = `Fullførte ${successCount} av ${totalFiles} opplastinger.`;
+  } else if (!successCount && errorCount) {
+    header = errorCount === 1 ? 'Opplastingen mislyktes.' : 'Alle opplastingene mislyktes.';
+  } else if (warningCount) {
+    header = warningCount === 1 ? 'Opplastingen fullførte med en advarsel.' : 'Opplastingene fullførte med advarsler.';
+  } else {
+    header = 'Ingen filer ble behandlet.';
+  }
+  const details = results.map((result) => `• ${result.message}`);
+  return [header, ...details].join('\n');
+}
+
+function extractApiErrorMessage(error, fallbackMessage) {
+  if (!error) return fallbackMessage;
+  if (error.payload && typeof error.payload.error === 'string' && error.payload.error.trim()) {
+    return error.payload.error.trim();
+  }
+  if (typeof error.message === 'string' && error.message.trim()) {
+    return error.message.trim();
+  }
+  return fallbackMessage;
 }
 
 function openCustomEditor(entryId, trigger) {
@@ -2035,7 +2662,7 @@ function closeCustomEditor() {
   }
 }
 
-function handleEditorSubmit(event) {
+async function handleEditorSubmit(event) {
   event.preventDefault();
   if (!editingEntryId) {
     closeCustomEditor();
@@ -2062,22 +2689,27 @@ function handleEditorSubmit(event) {
   entry.categoryId = categoryDetails.id;
   entry.categoryName = categoryDetails.name;
   customEntryMap.set(entry.id, entry);
-  const saved = saveCustomEntries();
-  const shouldRestoreCategory = activeCategoryId === previousCategoryId;
-  refreshLibrary();
-  if (shouldRestoreCategory) {
-    activeCategoryId = entry.categoryId;
-    updateCategorySelection();
-    applyFilter();
+  try {
+    const updatedEntry = await submitFigureEntry(entry, { method: 'PATCH' });
+    const finalEntry = updatedEntry || entry;
+    const shouldRestoreCategory = activeCategoryId === previousCategoryId && finalEntry.categoryId !== previousCategoryId;
+    refreshLibrary();
+    if (shouldRestoreCategory) {
+      activeCategoryId = finalEntry.categoryId;
+      updateCategorySelection();
+      applyFilter();
+    }
+    setStatusMessage('Egendefinert figur oppdatert.', 'info');
+    showUploadStatus('Figuren ble oppdatert.', 'success', { duration: 5000 });
+    closeCustomEditor();
+  } catch (error) {
+    console.error('Kunne ikke oppdatere figur', error);
+    const message = extractApiErrorMessage(error, 'Kunne ikke oppdatere figuren. Prøv igjen.');
+    if (editorErrorEl) {
+      editorErrorEl.textContent = message;
+      editorErrorEl.hidden = false;
+    }
   }
-  if (statusEl) {
-    statusEl.classList.remove('error');
-    statusEl.textContent = 'Egendefinert figur oppdatert.';
-  }
-  if (!saved && uploadStatusEl) {
-    showUploadStatus('Oppdatert, men kunne ikke lagres permanent. Endringen gjelder til siden lastes på nytt.', 'warning');
-  }
-  closeCustomEditor();
 }
 
 function resolveCategoryDetails(rawValue, fallbackId = null, fallbackName = '') {
@@ -2146,12 +2778,97 @@ function getKnownCategories() {
   return combined;
 }
 
+async function convertSvgMarkupToPng(svgText) {
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  if (!helper || typeof helper.renderSvgToPng !== 'function') {
+    throw new Error('PNG-konvertering er ikke tilgjengelig i denne nettleseren.');
+  }
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (!doc || !doc.body) {
+    throw new Error('PNG-konvertering er ikke tilgjengelig i dette dokumentet.');
+  }
+  const parser = new DOMParser();
+  let parsed;
+  try {
+    parsed = parser.parseFromString(svgText, 'image/svg+xml');
+  } catch (error) {
+    throw new Error('Kunne ikke tolke SVG-filen.');
+  }
+  if (!parsed || !parsed.documentElement) {
+    throw new Error('Kunne ikke tolke SVG-filen.');
+  }
+  if (parsed.documentElement.nodeName === 'parsererror' || parsed.getElementsByTagName('parsererror').length) {
+    throw new Error('Kunne ikke tolke SVG-filen.');
+  }
+  let workingSvg;
+  try {
+    workingSvg = typeof doc.importNode === 'function' ? doc.importNode(parsed.documentElement, true) : parsed.documentElement.cloneNode(true);
+  } catch (error) {
+    workingSvg = parsed.documentElement.cloneNode(true);
+  }
+  if (typeof helper.ensureSvgNamespaces === 'function') {
+    helper.ensureSvgNamespaces(workingSvg);
+  }
+  const staging = doc.createElement('div');
+  staging.style.position = 'absolute';
+  staging.style.width = '0';
+  staging.style.height = '0';
+  staging.style.overflow = 'hidden';
+  staging.style.opacity = '0';
+  staging.style.pointerEvents = 'none';
+  staging.appendChild(workingSvg);
+  doc.body.appendChild(staging);
+  let bounds = null;
+  try {
+    if (typeof helper.getSvgCanvasBounds === 'function') {
+      bounds = helper.getSvgCanvasBounds(workingSvg) || null;
+    }
+  } finally {
+    staging.remove();
+  }
+  const pngResult = await helper.renderSvgToPng(doc, null, svgText, bounds || undefined);
+  if (!pngResult || typeof pngResult.dataUrl !== 'string') {
+    throw new Error('Kunne ikke generere PNG for filen.');
+  }
+  return pngResult;
+}
+
 function encodeSvgToDataUrl(svgText) {
   if (typeof svgText !== 'string') return null;
   const encoded = encodeURIComponent(svgText)
     .replace(/'/g, '%27')
     .replace(/"/g, '%22');
   return `data:image/svg+xml;charset=utf-8,${encoded}`;
+}
+
+function decodeSvgDataUrl(dataUrl) {
+  if (typeof dataUrl !== 'string') return null;
+  const trimmed = dataUrl.trim();
+  const base64Match = trimmed.match(/^data:image\/svg\+xml;base64,/i);
+  if (base64Match) {
+    const base64Payload = trimmed.slice(base64Match[0].length);
+    try {
+      if (typeof atob === 'function') {
+        return atob(base64Payload);
+      }
+      if (typeof globalThis !== 'undefined' && typeof globalThis.Buffer === 'function') {
+        return globalThis.Buffer.from(base64Payload, 'base64').toString('utf-8');
+      }
+    } catch (error) {
+      return null;
+    }
+    return null;
+  }
+  const prefixMatch = trimmed.match(/^data:image\/svg\+xml(?:;charset=utf-8)?,/i);
+  if (!prefixMatch) {
+    return null;
+  }
+  const encoded = trimmed.slice(prefixMatch[0].length);
+  try {
+    return decodeURIComponent(encoded);
+  } catch (error) {
+    return encoded;
+  }
 }
 
 function deriveNameFromFile(fileName) {
@@ -2161,12 +2878,20 @@ function deriveNameFromFile(fileName) {
   return spaced.trim();
 }
 
-function createCustomEntryId(baseName) {
+function createCustomEntryId(baseName, reservedIds = null) {
   const baseSlug = slugifyString(baseName) || 'figur';
   let candidate = `custom-${baseSlug}`;
   let suffix = 1;
-  while (customEntryMap.has(candidate) || customEntries.some((entry) => entry.id === candidate)) {
+  const reservationSet = reservedIds && typeof reservedIds.has === 'function' ? reservedIds : null;
+  while (
+    customEntryMap.has(candidate) ||
+    customEntries.some((entry) => entry.id === candidate) ||
+    (reservationSet && reservationSet.has(candidate))
+  ) {
     candidate = `custom-${baseSlug}-${suffix++}`;
+  }
+  if (reservationSet) {
+    reservationSet.add(candidate);
   }
   return candidate;
 }
