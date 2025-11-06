@@ -347,6 +347,483 @@
     return dedupeTrashEntries(records);
   }
 
+  function generateTrashEntryId(prefix) {
+    const base = typeof prefix === 'string' && prefix.trim() ? prefix.trim() : '';
+    let timestampSegment = '';
+    try {
+      timestampSegment = Date.now().toString(36);
+    } catch (error) {
+      timestampSegment = '';
+    }
+    let randomSegment = '';
+    try {
+      const random = Math.random().toString(36);
+      randomSegment = random.slice(2, 10);
+    } catch (error) {
+      randomSegment = '';
+    }
+    const fallbackRandom = () => {
+      try {
+        return Math.random().toString(36).slice(2, 10);
+      } catch (error) {
+        return 'trash';
+      }
+    };
+    if (!randomSegment) {
+      randomSegment = fallbackRandom();
+    }
+    const segments = [timestampSegment || null, randomSegment || fallbackRandom()];
+    const suffix = segments.filter(Boolean).join('-');
+    if (!base) {
+      return suffix || fallbackRandom();
+    }
+    return `${base}-${suffix || fallbackRandom()}`;
+  }
+
+  function resolveTrashSourcePath(entry, details, targetConfig) {
+    const candidates = [];
+    const push = value => {
+      if (typeof value === 'string' && value.trim()) {
+        candidates.push(value.trim());
+      }
+    };
+    if (details && typeof details === 'object') {
+      push(details.storagePath);
+      if (details.metadata && typeof details.metadata === 'object') {
+        push(details.metadata.storagePath);
+        push(details.metadata.path);
+        push(details.metadata.canonicalPath);
+        push(details.metadata.sourcePath);
+      }
+    }
+    if (entry && typeof entry === 'object') {
+      push(entry.storagePath);
+      if (entry.metadata && typeof entry.metadata === 'object') {
+        push(entry.metadata.storagePath);
+        push(entry.metadata.path);
+        push(entry.metadata.canonicalPath);
+        push(entry.metadata.sourcePath);
+      }
+    }
+    if (targetConfig && typeof targetConfig.storagePath === 'string') {
+      push(targetConfig.storagePath);
+    }
+    for (const candidate of candidates) {
+      const normalized = normalizeArchivePath(candidate);
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return '';
+  }
+
+  function resolveTrashSourceHref(entry, details, targetConfig, sourcePath) {
+    const candidates = [];
+    const push = value => {
+      if (typeof value === 'string' && value.trim()) {
+        candidates.push(value.trim());
+      }
+    };
+    if (details && typeof details === 'object') {
+      push(details.sourceHref);
+      if (details.metadata && typeof details.metadata === 'object') {
+        push(details.metadata.sourceHref);
+        push(details.metadata.href);
+        push(details.metadata.url);
+      }
+    }
+    if (entry && typeof entry === 'object') {
+      push(entry.sourceHref);
+      if (entry.metadata && typeof entry.metadata === 'object') {
+        push(entry.metadata.sourceHref);
+        push(entry.metadata.href);
+        push(entry.metadata.url);
+      }
+    }
+    if (targetConfig && typeof targetConfig.url === 'string') {
+      push(targetConfig.url);
+    }
+    if (targetConfig && typeof targetConfig.targetUrl === 'string') {
+      push(targetConfig.targetUrl);
+    }
+    if (sourcePath) {
+      push(`${sourcePath}.html`);
+      push(sourcePath);
+    }
+    for (const candidate of candidates) {
+      if (/^https?:\/\//i.test(candidate)) {
+        return candidate;
+      }
+      if (candidate.startsWith('/')) {
+        return candidate;
+      }
+      const built = buildToolUrl(candidate, { entry });
+      if (built) {
+        return built;
+      }
+    }
+    return '';
+  }
+
+  function resolveTrashSourceTitle(entry, details, metadata, fallback) {
+    const candidates = [];
+    const push = value => {
+      if (typeof value === 'string' && value.trim()) {
+        candidates.push(value.trim());
+      }
+    };
+    if (details && typeof details === 'object') {
+      push(details.sourceTitle);
+      push(details.displayTitle);
+      push(details.title);
+      if (details.metadata && typeof details.metadata === 'object') {
+        push(details.metadata.sourceTitle);
+        push(details.metadata.pageTitle);
+        push(details.metadata.title);
+      }
+    }
+    if (entry && typeof entry === 'object') {
+      push(entry.sourceTitle);
+      push(entry.displayTitle);
+      push(entry.title);
+      if (entry.metadata && typeof entry.metadata === 'object') {
+        push(entry.metadata.sourceTitle);
+        push(entry.metadata.pageTitle);
+        push(entry.metadata.title);
+      }
+    }
+    if (metadata && typeof metadata === 'object') {
+      push(metadata.sourceTitle);
+      push(metadata.pageTitle);
+      push(metadata.title);
+    }
+    push(fallback);
+    return candidates.find(Boolean) || '';
+  }
+
+  function mergeTrashMetadata(entry, details) {
+    const metadata = {};
+    const assign = (key, value) => {
+      if (value == null) {
+        return;
+      }
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) {
+          return;
+        }
+        metadata[key] = trimmed;
+        return;
+      }
+      metadata[key] = value;
+    };
+
+    const mergeObject = source => {
+      if (!source || typeof source !== 'object') {
+        return;
+      }
+      Object.keys(source).forEach(key => {
+        if (source[key] == null) {
+          return;
+        }
+        if (typeof source[key] === 'object' && !Array.isArray(source[key])) {
+          const clone = clonePlainObject(source[key]);
+          if (clone) {
+            if (!metadata[key]) {
+              metadata[key] = clone;
+            }
+          }
+        } else if (!Object.prototype.hasOwnProperty.call(metadata, key)) {
+          assign(key, source[key]);
+        }
+      });
+    };
+
+    mergeObject(entry && entry.metadata);
+    mergeObject(details && details.metadata);
+
+    const summary =
+      (details && typeof details.summary === 'object' && details.summary) ||
+      (entry && typeof entry.summary === 'object' && entry.summary) ||
+      null;
+    if (summary && !metadata.summary) {
+      const summaryClone = clonePlainObject(summary);
+      if (summaryClone) {
+        metadata.summary = summaryClone;
+      }
+    }
+    if (!metadata.summary) {
+      const summaryText =
+        (details && typeof details.summary === 'string' && details.summary.trim()) ||
+        (entry && typeof entry.summary === 'string' && entry.summary.trim()) ||
+        '';
+      if (summaryText) {
+        metadata.summary = summaryText;
+      }
+    }
+
+    const altTextCandidate =
+      (details && typeof details.altText === 'string' && details.altText.trim()) ||
+      (entry && typeof entry.altText === 'string' && entry.altText.trim()) ||
+      '';
+    if (altTextCandidate && !metadata.altText) {
+      metadata.altText = altTextCandidate;
+    }
+    const altTextSource = determineAltTextSource(entry, details);
+    if (altTextSource && !metadata.altTextSource) {
+      metadata.altTextSource = altTextSource;
+    }
+
+    const assignIfMissing = (key, value) => {
+      if (!Object.prototype.hasOwnProperty.call(metadata, key)) {
+        assign(key, value);
+      }
+    };
+
+    assignIfMissing('slug', (details && details.slug) || (entry && entry.slug));
+    assignIfMissing('displayTitle', (details && details.displayTitle) || (entry && entry.displayTitle));
+    assignIfMissing('title', (details && details.title) || (entry && entry.title));
+    assignIfMissing('tool', (details && details.tool) || (entry && entry.tool));
+    assignIfMissing('createdAt', (details && details.createdAt) || (entry && entry.createdAt));
+    assignIfMissing('updatedAt', (details && details.updatedAt) || (entry && entry.updatedAt));
+    assignIfMissing('svgUrl', (details && details.svgUrl) || (entry && entry.svgUrl));
+    assignIfMissing('pngUrl', (details && details.pngUrl) || (entry && entry.pngUrl));
+    assignIfMissing('thumbnailUrl', (details && details.thumbnailUrl) || (entry && entry.thumbnailUrl));
+    assignIfMissing('fileSizeLabel', (details && details.fileSizeLabel) || (entry && entry.fileSizeLabel));
+    assignIfMissing('sequenceLabel', (details && details.sequenceLabel) || (entry && entry.sequenceLabel));
+
+    metadata.archiveSource = 'svg-archive';
+
+    return Object.keys(metadata).length ? metadata : null;
+  }
+
+  function extractExampleForTrash(entry, details) {
+    const candidates = [];
+    const add = value => {
+      const parsed = parseArchiveExample(value);
+      if (parsed && typeof parsed === 'object') {
+        const clone = cloneArchiveExample(parsed);
+        if (clone) {
+          candidates.push(clone);
+        }
+      }
+    };
+    if (details && typeof details === 'object') {
+      if (Object.prototype.hasOwnProperty.call(details, 'exampleState')) {
+        add(details.exampleState);
+      }
+      if (Object.prototype.hasOwnProperty.call(details, 'example')) {
+        add(details.example);
+      }
+      if (Object.prototype.hasOwnProperty.call(details, 'exampleData')) {
+        add(details.exampleData);
+      }
+      if (details.metadata && typeof details.metadata === 'object') {
+        if (Object.prototype.hasOwnProperty.call(details.metadata, 'exampleState')) {
+          add(details.metadata.exampleState);
+        }
+        if (Object.prototype.hasOwnProperty.call(details.metadata, 'example')) {
+          add(details.metadata.example);
+        }
+      }
+    }
+    if (entry && typeof entry === 'object') {
+      if (Object.prototype.hasOwnProperty.call(entry, 'exampleState')) {
+        add(entry.exampleState);
+      }
+      if (Object.prototype.hasOwnProperty.call(entry, 'example')) {
+        add(entry.example);
+      }
+      if (entry.metadata && typeof entry.metadata === 'object') {
+        if (Object.prototype.hasOwnProperty.call(entry.metadata, 'exampleState')) {
+          add(entry.metadata.exampleState);
+        }
+        if (Object.prototype.hasOwnProperty.call(entry.metadata, 'example')) {
+          add(entry.metadata.example);
+        }
+      }
+    }
+    if (entry && typeof entry.slug === 'string' && entry.slug.trim()) {
+      const cached = entryDetailsCache.get(entry.slug.trim());
+      if (cached && typeof cached === 'object') {
+        if (Object.prototype.hasOwnProperty.call(cached, 'exampleState')) {
+          add(cached.exampleState);
+        }
+        if (Object.prototype.hasOwnProperty.call(cached, 'example')) {
+          add(cached.example);
+        }
+      }
+    }
+    return candidates.find(example => example && typeof example === 'object') || null;
+  }
+
+  function buildTrashRecordFromEntry(entry, details) {
+    const example = extractExampleForTrash(entry, details);
+    const baseEntry = entry && typeof entry === 'object' ? entry : {};
+    const detailEntry = details && typeof details === 'object' ? details : {};
+    const metadata = mergeTrashMetadata(baseEntry, detailEntry);
+    if (!example && !metadata) {
+      return null;
+    }
+    const labelCandidates = [
+      detailEntry.displayTitle,
+      detailEntry.title,
+      baseEntry.displayTitle,
+      baseEntry.title,
+      metadata && metadata.displayTitle,
+      metadata && metadata.title,
+      (example && typeof example.title === 'string' && example.title.trim()) || '',
+      (baseEntry.slug && baseEntry.slug.trim()) || '',
+      (detailEntry.slug && detailEntry.slug.trim()) || ''
+    ];
+    const resolvedLabel = labelCandidates.find(value => typeof value === 'string' && value.trim());
+    const label = resolvedLabel ? resolvedLabel.trim() : 'Figur';
+
+    const slugCandidates = [
+      detailEntry.slug,
+      baseEntry.slug,
+      detailEntry.svgSlug,
+      baseEntry.svgSlug,
+      detailEntry.baseName,
+      baseEntry.baseName
+    ];
+    const slugCandidate = slugCandidates.find(value => typeof value === 'string' && value.trim());
+    const normalizedSlug = slugCandidate ? slugCandidate.trim() : '';
+    const idPrefix = normalizedSlug ? `svg-archive:${normalizedSlug}` : 'svg-archive';
+    const recordId = generateTrashEntryId(idPrefix);
+
+    let deletedAt = '';
+    try {
+      deletedAt = new Date().toISOString();
+    } catch (error) {
+      deletedAt = '';
+    }
+
+    const targetConfig = resolveEntryOpenTarget({
+      ...baseEntry,
+      tool: detailEntry.tool || baseEntry.tool,
+      storagePath:
+        detailEntry.storagePath ||
+        baseEntry.storagePath ||
+        (detailEntry.metadata && detailEntry.metadata.storagePath) ||
+        (baseEntry.metadata && baseEntry.metadata.storagePath) ||
+        undefined
+    });
+    const sourcePath = resolveTrashSourcePath(baseEntry, detailEntry, targetConfig);
+    const sourceHref = resolveTrashSourceHref(baseEntry, detailEntry, targetConfig, sourcePath);
+    if (metadata && sourcePath && !metadata.sourcePath) {
+      metadata.sourcePath = sourcePath;
+    }
+    if (metadata && sourceHref && !metadata.sourceHref) {
+      metadata.sourceHref = sourceHref;
+    }
+    const sourceTitle = resolveTrashSourceTitle(baseEntry, detailEntry, metadata, label);
+
+    const fallbackExample = { title: label };
+    if (normalizedSlug) {
+      fallbackExample.slug = normalizedSlug;
+    }
+    if (metadata && metadata.tool) {
+      fallbackExample.tool = metadata.tool;
+    }
+    if (metadata) {
+      const metadataClone = clonePlainObject(metadata);
+      fallbackExample.metadata = metadataClone || metadata;
+    }
+
+    const record = {
+      id: recordId,
+      example: example || fallbackExample,
+      deletedAt: deletedAt || undefined,
+      reason: 'delete',
+      label
+    };
+    if (sourcePath) {
+      record.sourcePath = sourcePath;
+    }
+    if (sourceHref) {
+      record.sourceHref = sourceHref;
+    }
+    if (sourceTitle) {
+      record.sourceTitle = sourceTitle;
+    }
+    if (metadata) {
+      record.metadata = metadata;
+    }
+    return record;
+  }
+
+  function queueTrashRecord(record, options = {}) {
+    if (!record || typeof record !== 'object') {
+      return false;
+    }
+    const normalizedRecord = clonePlainObject(record) || record;
+    const entry = {
+      record: normalizedRecord,
+      mode: options.mode === 'append' ? 'append' : 'prepend'
+    };
+    try {
+      entry.queuedAt = new Date().toISOString();
+    } catch (error) {
+      entry.queuedAt = '';
+    }
+    if (Number.isInteger(options.limit) && options.limit > 0) {
+      entry.limit = options.limit;
+    }
+    const globalQueue = getGlobalTrashQueue();
+    if (globalQueue && typeof globalQueue.enqueue === 'function') {
+      try {
+        const enqueued = globalQueue.enqueue(entry);
+        if (enqueued) {
+          return true;
+        }
+      } catch (error) {
+        console.error('Kunne ikke legge slettet figur i den globale køen.', error);
+      }
+    }
+    const queue = readQueuedTrashEntries();
+    queue.push(entry);
+    writeQueuedTrashEntries(queue);
+    return true;
+  }
+
+  async function sendTrashRecord(record, options = {}) {
+    if (!record || typeof record !== 'object') {
+      return { posted: false, queued: false };
+    }
+    const payload = {
+      entries: [record],
+      mode: options.mode === 'append' ? 'append' : 'prepend'
+    };
+    if (Number.isInteger(options.limit) && options.limit > 0) {
+      payload.limit = options.limit;
+    }
+    if (!trashApiBase || !TrashArchiveViewerClass) {
+      queueTrashRecord(record, options);
+      return { posted: false, queued: true, reason: 'unconfigured' };
+    }
+    const url = TrashArchiveViewerClass.buildTrashApiUrl(trashApiBase);
+    if (!url) {
+      queueTrashRecord(record, options);
+      return { posted: false, queued: true, reason: 'invalid-url' };
+    }
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response || !response.ok) {
+        throw new Error(`Status ${response ? response.status : 'ukjent'}`);
+      }
+      return { posted: true, queued: false };
+    } catch (error) {
+      console.error('Kunne ikke sende slettet figur til arkivet.', error);
+      queueTrashRecord(record, options);
+      return { posted: false, queued: true, error };
+    }
+  }
+
   function buildTrashFallbackMetadata({ entries, reason, status, error }) {
     const hasEntries = Array.isArray(entries) && entries.length > 0;
     const resolvedReason = typeof reason === 'string' && reason ? reason : 'unavailable';
@@ -3336,6 +3813,28 @@
             return;
           }
 
+          let trashDetails = null;
+          let trashRecord = null;
+          try {
+            if (entry.slug) {
+              trashDetails = await fetchEntryDetails(entry.slug, { fallback: entry });
+            }
+          } catch (error) {
+            console.warn('Kunne ikke hente detaljer for figuren før sletting.', error);
+          }
+          try {
+            trashRecord = buildTrashRecordFromEntry(entry, trashDetails);
+            if (!trashRecord && trashDetails && typeof trashDetails === 'object') {
+              trashRecord = buildTrashRecordFromEntry(trashDetails, trashDetails);
+            }
+            if (!trashRecord) {
+              trashRecord = buildTrashRecordFromEntry(entry, null);
+            }
+          } catch (error) {
+            console.error('Kunne ikke forberede arkivering av slettet figur.', error);
+            trashRecord = null;
+          }
+
           const response = await fetch(`/api/svg?slug=${encodeURIComponent(entry.slug)}`, { method: 'DELETE' });
           if (!response.ok) {
             throw new Error(`Uventet svar: ${response.status}`);
@@ -3346,6 +3845,23 @@
           entryAltTextCache.delete(entry.slug);
           render();
           setStatus('Figur slettet.', 'success');
+
+          if (trashRecord) {
+            await sendTrashRecord(trashRecord, { mode: 'prepend' });
+            if (trashViewerInitialized) {
+              try {
+                await fetchTrashEntries();
+              } catch (error) {
+                showTrashArchiveWarning(error);
+              }
+              try {
+                renderTrashViewer();
+              } catch (error) {
+                console.error('Kunne ikke oppdatere visningen for slettede figurer.', error);
+              }
+            }
+          }
+
           helpers.close?.({ returnFocus: false });
           return;
         }
