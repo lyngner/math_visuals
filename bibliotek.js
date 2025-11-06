@@ -7,6 +7,11 @@ const categoryGrid = document.querySelector('[data-category-grid]');
 const helperEl = document.querySelector('[data-helper]');
 const categorySuggestionsList = document.querySelector('[data-category-suggestions]');
 const uploadForm = document.querySelector('[data-upload-form]');
+const addCategoryToggleButton = document.querySelector('[data-add-category-toggle]');
+const addCategoryForm = document.querySelector('[data-add-category-form]');
+const addCategoryInput = addCategoryForm?.querySelector('[data-add-category-input]') || null;
+const addCategoryCancelButton = addCategoryForm?.querySelector('[data-add-category-cancel]') || null;
+const addCategoryFeedback = document.querySelector('[data-add-category-feedback]');
 const uploadFileInput = uploadForm?.querySelector('[data-upload-file]') || null;
 const uploadNameInput = uploadForm?.querySelector('[data-upload-name]') || null;
 const uploadCategoryInput = uploadForm?.querySelector('[data-upload-category]') || null;
@@ -28,6 +33,8 @@ const categoryDialogUploadButton = categoryDialog?.querySelector('[data-category
 const copyFeedbackTimers = new WeakMap();
 
 const CUSTOM_STORAGE_KEY = 'mathvis:figureLibrary:customEntries:v1';
+const CUSTOM_CATEGORY_STORAGE_KEY = 'mathvis:figureLibrary:customCategories:v1';
+const DEFAULT_CATEGORY_THUMBNAIL = 'images/amounts/tb10.svg';
 
 const amountCategories = [
   {
@@ -96,6 +103,10 @@ let allAmountSlugs = [];
 let measurementItems = [];
 let measurementCategoryList = [];
 
+const customCategories = [];
+const customCategoryMap = new Map();
+let addCategoryFeedbackTimer = null;
+
 const customEntries = [];
 const customEntryMap = new Map();
 let customStorageAvailable = true;
@@ -113,10 +124,12 @@ const observer = 'IntersectionObserver' in window
   : null;
 
 function init() {
+  loadCustomCategories();
   loadCustomEntries();
   refreshLibrary({ maintainFilter: false });
   loadLibraries();
   filterInput?.addEventListener('input', handleFilterInput);
+  setupAddCategoryForm();
   setupUploadForm();
   setupEditorDialog();
   setupCategoryDialog();
@@ -165,11 +178,12 @@ async function loadLibraries() {
 function refreshLibrary(options = {}) {
   const { maintainFilter = true } = options;
   const baseCategories = amountCategories.concat(Array.isArray(measurementCategoryList) ? measurementCategoryList : []);
+  const augmentedBase = baseCategories.concat(customCategories);
 
-  alignCustomEntriesWithBaseCategories(baseCategories);
+  alignCustomEntriesWithBaseCategories(augmentedBase);
 
   prepareFigureItems(allAmountSlugs, measurementItems, customEntries);
-  recomputeCategories(baseCategories);
+  recomputeCategories(augmentedBase);
 
   let shouldCloseCategoryDialog = false;
   if (!maintainFilter) {
@@ -292,7 +306,11 @@ function normalizeCategoryMeta(category) {
     : type === 'custom'
       ? 'Egendefinerte figurer du har lagt til.'
       : '';
-  const sampleImage = category.sampleImage || (category.sampleSlug ? `images/amounts/${category.sampleSlug}.svg` : null);
+  const sampleImage = typeof category.sampleImage === 'string' && category.sampleImage.trim()
+    ? category.sampleImage.trim()
+    : category.sampleSlug
+      ? `images/amounts/${category.sampleSlug}.svg`
+      : DEFAULT_CATEGORY_THUMBNAIL;
   const sampleAlt = category.sampleAlt || `Eksempel på ${name}`;
   return {
     ...category,
@@ -310,10 +328,35 @@ function recomputeCategories(baseCategories) {
   const normalizedBase = baseList
     .map(normalizeCategoryMeta)
     .filter(Boolean);
-  const customList = buildCustomCategories(normalizedBase, customEntries)
+
+  const uniqueBase = [];
+  const seenIds = new Set();
+  for (const category of normalizedBase) {
+    if (!category || typeof category.id !== 'string') {
+      continue;
+    }
+    if (seenIds.has(category.id)) {
+      continue;
+    }
+    seenIds.add(category.id);
+    uniqueBase.push(category);
+  }
+
+  const customList = buildCustomCategories(uniqueBase, customEntries)
     .map(normalizeCategoryMeta)
-    .filter(Boolean);
-  categories = normalizedBase.concat(customList);
+    .filter(Boolean)
+    .filter((category) => {
+      if (!category || typeof category.id !== 'string') {
+        return false;
+      }
+      if (seenIds.has(category.id)) {
+        return false;
+      }
+      seenIds.add(category.id);
+      return true;
+    });
+
+  categories = uniqueBase.concat(customList);
   renderCategories();
   updateCategorySuggestions();
   if (activeCategoryId && !categoryMetaById.has(activeCategoryId)) {
@@ -910,6 +953,177 @@ function updateHelperState(hasItems) {
   }
 }
 
+function setupAddCategoryForm() {
+  if (!addCategoryToggleButton) return;
+
+  if (addCategoryForm) {
+    const formId = addCategoryForm.id || 'category-add-form';
+    addCategoryForm.id = formId;
+    addCategoryToggleButton.setAttribute('aria-controls', formId);
+    addCategoryToggleButton.setAttribute('aria-expanded', addCategoryForm.hasAttribute('hidden') ? 'false' : 'true');
+    addCategoryForm.addEventListener('submit', handleAddCategorySubmit);
+    addCategoryForm.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        hideAddCategoryForm({ resetInput: true });
+        addCategoryToggleButton.focus();
+      }
+    });
+  } else {
+    addCategoryToggleButton.setAttribute('aria-expanded', 'false');
+  }
+
+  addCategoryToggleButton.addEventListener('click', () => {
+    if (!addCategoryForm) return;
+    const isHidden = addCategoryForm.hasAttribute('hidden');
+    if (isHidden) {
+      showAddCategoryForm();
+    } else {
+      hideAddCategoryForm({ resetInput: true });
+    }
+  });
+
+  if (addCategoryCancelButton) {
+    addCategoryCancelButton.addEventListener('click', () => {
+      hideAddCategoryForm({ resetInput: true });
+      addCategoryToggleButton.focus();
+    });
+  }
+
+  if (addCategoryInput) {
+    addCategoryInput.addEventListener('input', () => {
+      if (addCategoryFeedback?.dataset.state === 'error') {
+        clearAddCategoryFeedback();
+      }
+    });
+  }
+}
+
+function showAddCategoryForm() {
+  if (!addCategoryForm) return;
+  addCategoryForm.removeAttribute('hidden');
+  addCategoryToggleButton?.setAttribute('aria-expanded', 'true');
+  requestAnimationFrame(() => {
+    if (addCategoryInput) {
+      addCategoryInput.focus();
+      addCategoryInput.select();
+    }
+  });
+}
+
+function hideAddCategoryForm(options = {}) {
+  if (!addCategoryForm) return;
+  const { resetInput = false, clearFeedback = true } = options;
+  addCategoryForm.setAttribute('hidden', '');
+  addCategoryToggleButton?.setAttribute('aria-expanded', 'false');
+  if (resetInput && addCategoryInput) {
+    addCategoryInput.value = '';
+  }
+  if (clearFeedback) {
+    clearAddCategoryFeedback();
+  }
+}
+
+function handleAddCategorySubmit(event) {
+  event.preventDefault();
+  if (!addCategoryInput) {
+    return;
+  }
+
+  clearAddCategoryFeedback();
+
+  const rawName = addCategoryInput.value || '';
+  const trimmedName = rawName.trim();
+  if (!trimmedName) {
+    showAddCategoryFeedback('Skriv inn et kategorinavn.', { isError: true });
+    addCategoryInput.focus();
+    return;
+  }
+
+  if (trimmedName.length < 2) {
+    showAddCategoryFeedback('Kategorinavnet må bestå av minst to tegn.', { isError: true });
+    addCategoryInput.focus();
+    return;
+  }
+
+  if (isCategoryNameTaken(trimmedName)) {
+    showAddCategoryFeedback('Denne kategorien finnes allerede.', { isError: true });
+    addCategoryInput.select();
+    return;
+  }
+
+  const newCategory = createCustomCategoryFromName(trimmedName);
+  if (!newCategory) {
+    showAddCategoryFeedback('Kunne ikke legge til kategorien. Prøv igjen.', { isError: true });
+    return;
+  }
+
+  customCategories.push(newCategory);
+  customCategoryMap.set(newCategory.id, newCategory);
+  saveCustomCategories();
+
+  refreshLibrary();
+
+  showAddCategoryFeedback(`La til kategorien «${newCategory.name}».`);
+  hideAddCategoryForm({ resetInput: true, clearFeedback: false });
+
+  requestAnimationFrame(() => {
+    const entry = categoryButtons.get(newCategory.id);
+    if (entry?.button) {
+      entry.button.focus();
+      entry.button.scrollIntoView({ block: 'nearest' });
+    }
+  });
+}
+
+function showAddCategoryFeedback(message, options = {}) {
+  if (!addCategoryFeedback) return;
+  const { isError = false } = options;
+  if (addCategoryFeedbackTimer) {
+    clearTimeout(addCategoryFeedbackTimer);
+    addCategoryFeedbackTimer = null;
+  }
+  addCategoryFeedback.textContent = message;
+  addCategoryFeedback.hidden = false;
+  addCategoryFeedback.dataset.state = isError ? 'error' : 'success';
+  if (!isError) {
+    addCategoryFeedbackTimer = setTimeout(() => {
+      clearAddCategoryFeedback();
+    }, 4000);
+  }
+}
+
+function clearAddCategoryFeedback() {
+  if (addCategoryFeedbackTimer) {
+    clearTimeout(addCategoryFeedbackTimer);
+    addCategoryFeedbackTimer = null;
+  }
+  if (!addCategoryFeedback) return;
+  addCategoryFeedback.hidden = true;
+  addCategoryFeedback.textContent = '';
+  delete addCategoryFeedback.dataset.state;
+}
+
+function createCustomCategoryFromName(name) {
+  return normalizeCustomCategory({ name });
+}
+
+function isCategoryNameTaken(name) {
+  const normalized = typeof name === 'string' ? name.trim().toLowerCase() : '';
+  if (!normalized) {
+    return false;
+  }
+
+  const known = getKnownCategories();
+  for (const category of known) {
+    const displayName = getCategoryDisplayName(category);
+    if (displayName && displayName.trim().toLowerCase() === normalized) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function setupUploadForm() {
   if (!uploadForm) return;
   uploadForm.addEventListener('submit', handleUploadSubmit);
@@ -955,6 +1169,162 @@ function setupCategoryDialog() {
   if (categoryDialogUploadButton) {
     categoryDialogUploadButton.addEventListener('click', handleCategoryUploadClick);
   }
+}
+
+function loadCustomCategories() {
+  customCategories.length = 0;
+  customCategoryMap.clear();
+
+  const storage = getLocalStorage();
+  if (!storage) {
+    return;
+  }
+
+  let raw = null;
+  try {
+    raw = storage.getItem(CUSTOM_CATEGORY_STORAGE_KEY);
+  } catch (error) {
+    console.error('Kunne ikke lese egendefinerte kategorier', error);
+    return;
+  }
+
+  if (!raw) {
+    return;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      parsed.forEach((entry) => {
+        const normalized = normalizeCustomCategory(entry);
+        if (normalized && !customCategoryMap.has(normalized.id)) {
+          customCategories.push(normalized);
+          customCategoryMap.set(normalized.id, normalized);
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Kunne ikke tolke lagrede egendefinerte kategorier', error);
+  }
+}
+
+function saveCustomCategories() {
+  const storage = getLocalStorage();
+  if (!storage) {
+    return false;
+  }
+
+  const payload = customCategories.map(serializeCustomCategory).filter(Boolean);
+  try {
+    storage.setItem(CUSTOM_CATEGORY_STORAGE_KEY, JSON.stringify(payload));
+    return true;
+  } catch (error) {
+    console.error('Kunne ikke lagre egendefinerte kategorier', error);
+    return false;
+  }
+}
+
+function serializeCustomCategory(category) {
+  if (!category || typeof category !== 'object') return null;
+  return {
+    id: category.id,
+    name: category.name,
+    filter: category.filter,
+    description: category.description,
+    sampleImage: category.sampleImage,
+    sampleAlt: category.sampleAlt,
+  };
+}
+
+function isCategoryIdTaken(candidateId) {
+  const id = typeof candidateId === 'string' ? candidateId.trim() : '';
+  if (!id) {
+    return false;
+  }
+
+  const known = getKnownCategories();
+  for (const category of known) {
+    if (category && typeof category.id === 'string' && category.id === id) {
+      return true;
+    }
+  }
+
+  if (customCategoryMap.has(id)) {
+    return true;
+  }
+
+  return customCategories.some((category) => category && category.id === id);
+}
+
+function createCustomCategoryId(baseName) {
+  const baseSlug = slugifyString(baseName) || 'kategori';
+  let baseCandidate = baseSlug.startsWith('custom') ? baseSlug : `custom-${baseSlug}`;
+  if (!baseCandidate.startsWith('custom-')) {
+    baseCandidate = `custom-${baseSlug}`;
+  }
+  const initialCandidate = baseCandidate && baseCandidate !== 'custom-' ? baseCandidate : 'custom-kategori';
+
+  const existingIds = new Set();
+  const known = getKnownCategories();
+  known.forEach((category) => {
+    if (category && typeof category.id === 'string') {
+      existingIds.add(category.id);
+    }
+  });
+  customCategories.forEach((category) => {
+    if (category && typeof category.id === 'string') {
+      existingIds.add(category.id);
+    }
+  });
+  for (const key of customCategoryMap.keys()) {
+    existingIds.add(key);
+  }
+
+  let candidate = initialCandidate;
+  let suffix = 2;
+  while (existingIds.has(candidate)) {
+    candidate = `${initialCandidate}-${suffix++}`;
+  }
+  return candidate;
+}
+
+function normalizeCustomCategory(category) {
+  if (!category || typeof category !== 'object') return null;
+  const rawName = typeof category.name === 'string' ? category.name.trim() : '';
+  if (!rawName) {
+    return null;
+  }
+
+  let id = typeof category.id === 'string' ? category.id.trim() : '';
+  if (id && isCategoryIdTaken(id)) {
+    id = '';
+  }
+  if (!id) {
+    id = createCustomCategoryId(rawName);
+  }
+
+  const description = typeof category.description === 'string' && category.description.trim()
+    ? category.description.trim()
+    : 'Egendefinerte figurer du har lagt til.';
+  const sampleImage = typeof category.sampleImage === 'string' && category.sampleImage.trim()
+    ? category.sampleImage.trim()
+    : DEFAULT_CATEGORY_THUMBNAIL;
+  const sampleAlt = typeof category.sampleAlt === 'string' && category.sampleAlt.trim()
+    ? category.sampleAlt.trim()
+    : `Eksempel på ${rawName}`;
+  const filter = typeof category.filter === 'string' && category.filter.trim()
+    ? category.filter.trim()
+    : rawName;
+
+  return {
+    id,
+    type: 'custom',
+    name: rawName,
+    filter,
+    description,
+    sampleImage,
+    sampleAlt,
+  };
 }
 
 function loadCustomEntries() {
@@ -1316,10 +1686,33 @@ function resolveCategoryDetails(rawValue, fallbackId = null, fallbackName = '') 
 }
 
 function getKnownCategories() {
-  if (Array.isArray(categories) && categories.length) {
-    return categories;
+  const base = Array.isArray(categories) && categories.length
+    ? categories.slice()
+    : amountCategories.concat(Array.isArray(measurementCategoryList) ? measurementCategoryList : []);
+
+  if (!customCategories.length) {
+    return base;
   }
-  return amountCategories.concat(Array.isArray(measurementCategoryList) ? measurementCategoryList : []);
+
+  const combined = Array.isArray(base) ? base.slice() : [];
+  const seenIds = new Set();
+  combined.forEach((category) => {
+    if (category && typeof category.id === 'string') {
+      seenIds.add(category.id);
+    }
+  });
+
+  customCategories.forEach((category) => {
+    if (!category || typeof category.id !== 'string') {
+      return;
+    }
+    if (!seenIds.has(category.id)) {
+      combined.push(category);
+      seenIds.add(category.id);
+    }
+  });
+
+  return combined;
 }
 
 function encodeSvgToDataUrl(svgText) {
@@ -1488,7 +1881,10 @@ function resolveCategorySamplePath(category) {
   if (category.type === 'amount' && category.sampleSlug) {
     return `images/amounts/${category.sampleSlug}.svg`;
   }
-  return category.sampleImage || 'images/amounts/tb10.svg';
+  if (category.sampleImage) {
+    return category.sampleImage;
+  }
+  return DEFAULT_CATEGORY_THUMBNAIL;
 }
 
 function showCopyFeedback(element, message) {

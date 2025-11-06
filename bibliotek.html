@@ -96,6 +96,115 @@
       flex-direction: column;
       gap: 12px;
     }
+    .categoryActions {
+      display: grid;
+      gap: 10px;
+    }
+    .categoryAddButton {
+      border: 1px dashed rgba(148, 163, 184, 0.6);
+      border-radius: 999px;
+      background: rgba(248, 250, 252, 0.85);
+      color: #1d4ed8;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 8px 16px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      justify-self: start;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+    .categoryAddButton::before {
+      content: '+';
+      font-weight: 700;
+    }
+    .categoryAddButton:hover,
+    .categoryAddButton:focus-visible {
+      border-color: rgba(37, 99, 235, 0.5);
+      box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
+      transform: translateY(-1px);
+      outline: none;
+    }
+    .categoryAddButton:focus-visible {
+      outline: 3px solid rgba(37, 99, 235, 0.45);
+      outline-offset: 2px;
+    }
+    .categoryAddForm {
+      border: 1px dashed rgba(148, 163, 184, 0.6);
+      border-radius: 12px;
+      background: rgba(248, 250, 252, 0.9);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+    .categoryAddForm label {
+      display: grid;
+      gap: 6px;
+      font-size: 14px;
+      color: #1f2937;
+    }
+    .categoryAddInput {
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: #fff;
+      color: #111827;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .categoryAddInput:focus {
+      border-color: rgba(37, 99, 235, 0.5);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+      outline: none;
+    }
+    .categoryAddControls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .categoryAddSubmit,
+    .categoryAddCancel {
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+    .categoryAddSubmit {
+      border: 1px solid rgba(37, 99, 235, 0.5);
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.16), rgba(59, 130, 246, 0.28));
+      color: #1d4ed8;
+    }
+    .categoryAddSubmit:hover,
+    .categoryAddSubmit:focus-visible {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.18);
+      outline: none;
+    }
+    .categoryAddCancel {
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      background: #fff;
+      color: #475569;
+    }
+    .categoryAddCancel:hover,
+    .categoryAddCancel:focus-visible {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(148, 163, 184, 0.25);
+      outline: none;
+    }
+    .categoryAddMessage {
+      margin: 0;
+      font-size: 13px;
+      color: #0f766e;
+    }
+    .categoryAddMessage[data-state="error"] {
+      color: #b91c1c;
+    }
+    .categoryAddMessage[hidden] {
+      display: none !important;
+    }
     .categoryIntro { display: grid; gap: 6px; }
     .categoryIntro h2 {
       margin: 0;
@@ -626,6 +735,31 @@
           <div class="categoryIntro">
             <h2 id="category-heading">Kategorier</h2>
             <p>Bruk kategoriene for å filtrere figurene i oversikten.</p>
+          </div>
+          <div class="categoryActions">
+            <button type="button" class="categoryAddButton" data-add-category-toggle aria-expanded="false">
+              Legg til kategori
+            </button>
+            <form class="categoryAddForm" data-add-category-form hidden>
+              <label for="category-add-input">
+                Navn på ny kategori
+                <input
+                  id="category-add-input"
+                  type="text"
+                  class="categoryAddInput"
+                  name="category-name"
+                  placeholder="F.eks. Dyr"
+                  autocomplete="off"
+                  data-add-category-input
+                  required
+                />
+              </label>
+              <div class="categoryAddControls">
+                <button type="submit" class="categoryAddSubmit" data-add-category-submit>Legg til</button>
+                <button type="button" class="categoryAddCancel" data-add-category-cancel>Avbryt</button>
+              </div>
+            </form>
+            <p class="categoryAddMessage" data-add-category-feedback hidden aria-live="polite"></p>
           </div>
           <ul class="categoryGrid" data-category-grid></ul>
         </section>
