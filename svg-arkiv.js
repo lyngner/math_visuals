@@ -499,6 +499,83 @@
     return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
   }
 
+  function resolveToolOrigin(entry) {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+
+    const candidates = [];
+
+    try {
+      const configuredOrigin = window.MATH_VISUALS_TOOL_ORIGIN;
+      if (typeof configuredOrigin === 'string' && configuredOrigin.trim()) {
+        candidates.push(configuredOrigin.trim());
+      }
+    } catch (_) {}
+
+    if (entry && typeof entry.svgUrl === 'string' && entry.svgUrl.trim()) {
+      candidates.push(entry.svgUrl.trim());
+    }
+
+    if (window.location && typeof window.location.origin === 'string' && window.location.origin) {
+      candidates.push(window.location.origin);
+    }
+
+    const baseHref = window.location && typeof window.location.href === 'string'
+      ? window.location.href
+      : undefined;
+
+    for (const candidate of candidates) {
+      if (!candidate) {
+        continue;
+      }
+      try {
+        const parsed = baseHref ? new URL(candidate, baseHref) : new URL(candidate);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          return parsed.origin;
+        }
+      } catch (_) {}
+    }
+
+    return '';
+  }
+
+  function buildToolUrl(pathOrUrl, { entry } = {}) {
+    const raw = typeof pathOrUrl === 'string' ? pathOrUrl.trim() : '';
+    if (!raw) {
+      return '';
+    }
+
+    try {
+      const parsed = new URL(raw);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        return parsed.toString();
+      }
+    } catch (_) {}
+
+    if (typeof window === 'undefined') {
+      return raw;
+    }
+
+    const origin = resolveToolOrigin(entry);
+    if (origin) {
+      try {
+        return new URL(raw, origin).toString();
+      } catch (_) {}
+    }
+
+    try {
+      const fallbackBase = window.location && typeof window.location.href === 'string'
+        ? window.location.href
+        : undefined;
+      if (fallbackBase) {
+        return new URL(raw, fallbackBase).toString();
+      }
+    } catch (_) {}
+
+    return raw;
+  }
+
   function indicatorMatchesStoragePath(indicator, storagePath) {
     if (!indicator || !storagePath) {
       return false;
@@ -614,8 +691,9 @@
       const navHref = typeof navHrefCandidate === 'string'
         ? navHrefCandidate.replace(/^\//, '').trim()
         : '';
+      const absoluteUrl = buildToolUrl(normalizedUrl);
       const entry = {
-        url: normalizedUrl,
+        url: absoluteUrl || normalizedUrl,
         storagePath: normalizeStoragePath(definition.storagePath),
         displayName: definition.displayName || (definition.names && definition.names[0]) || '',
         navHref
@@ -3094,9 +3172,17 @@
   }
 
   function resolveMainMenuUrl() {
+    const absolute = buildToolUrl('index.html');
+    if (absolute) {
+      return absolute;
+    }
+
+    if (typeof window === 'undefined') {
+      return 'index.html';
+    }
+
     try {
-      const url = new URL('index.html', window.location.href);
-      return `${url.pathname}${url.search}${url.hash}`;
+      return new URL('index.html', window.location.href).toString();
     } catch (error) {
       return 'index.html';
     }
@@ -3151,6 +3237,8 @@
           const toolLabel = (entry.tool && entry.tool.trim()) || targetConfig.displayName || 'verktøyet';
           const requestId = generateArchiveRequestId(entry);
 
+          const absoluteTargetUrl = buildToolUrl(targetConfig.url, { entry });
+
           const openRequest = {
             id: requestId,
             requestId,
@@ -3161,7 +3249,7 @@
             storagePath: targetConfig.storagePath,
             canonicalPath: targetConfig.storagePath,
             path: targetConfig.storagePath,
-            targetUrl: targetConfig.url,
+            targetUrl: absoluteTargetUrl || targetConfig.url,
             example: exampleState,
             exampleState,
             summary: entry.summary,
@@ -3199,7 +3287,7 @@
             return;
           }
 
-          let targetUrl = targetConfig.url;
+          let targetUrl = absoluteTargetUrl || targetConfig.url;
           let launchedViaMainMenu = false;
           const mainMenuUrl = getMainMenuOpenUrl(targetConfig);
           if (mainMenuUrl) {

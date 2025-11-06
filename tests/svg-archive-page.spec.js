@@ -226,9 +226,9 @@ test.describe('Arkiv', () => {
     expect(preparedRequests[0]).toMatchObject({
       storagePath: '/graftegner',
       canonicalPath: '/graftegner',
-      path: '/graftegner',
-      targetUrl: '/graftegner.html'
+      path: '/graftegner'
     });
+    expect(preparedRequests[0].targetUrl).toMatch(/\/graftegner\.html$/);
     expect(preparedRequests[0].example).toBeTruthy();
 
     await dialog.locator('.svg-archive__dialog-close').click();
@@ -257,9 +257,9 @@ test.describe('Arkiv', () => {
     expect(numbervisualRequests[0]).toMatchObject({
       storagePath: '/kvikkbilder-monster',
       canonicalPath: '/kvikkbilder-monster',
-      path: '/kvikkbilder-monster',
-      targetUrl: '/kvikkbilder-monster.html'
+      path: '/kvikkbilder-monster'
     });
+    expect(numbervisualRequests[0].targetUrl).toMatch(/\/kvikkbilder-monster\.html$/);
 
     await dialog.locator('.svg-archive__dialog-close').click();
     await expect(dialog).toBeHidden();
