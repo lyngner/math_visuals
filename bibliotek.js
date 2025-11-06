@@ -1813,6 +1813,9 @@ function createCategoryPreviewElement(category, titleText) {
   container.setAttribute('aria-hidden', 'true');
 
   const previewItems = getCategoryPreviewItems(category, CATEGORY_PREVIEW_COUNT, titleText);
+  if (!previewItems.length) {
+    container.dataset.empty = 'true';
+  }
   for (const item of previewItems) {
     if (!item || typeof item.src !== 'string' || !item.src) continue;
     const img = document.createElement('img');
@@ -1846,6 +1849,9 @@ function getCategoryPreviewItems(category, count = CATEGORY_PREVIEW_COUNT, title
   }
 
   if (!uniqueFigures.length) {
+    if (category?.type === 'custom') {
+      return [];
+    }
     if (!fallbackPath) {
       return [];
     }
