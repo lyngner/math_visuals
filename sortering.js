@@ -2,10 +2,11 @@ import {
   buildFigureData,
   CUSTOM_CATEGORY_ID,
   measurementFigureManifest,
-  createFigurePickerHelpers
+  createFigurePickerHelpers,
+  loadFigureLibrary as loadMeasurementFigureLibrary
 } from './figure-library/measurement.js';
 
-(function () {
+(async function () {
   const globalObj = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
   const doc = globalObj && globalObj.document ? globalObj.document : null;
   if (!globalObj || !doc) return;
@@ -14,6 +15,19 @@ import {
   const SORTERING_GROUP_ID = 'sortering';
   const SORTERING_SLOT_COUNT = 3;
   const SORTERING_FALLBACK_PALETTE = ['#ffffff', '#0f172a', '#111827'];
+
+  let storageWarningMessage = '';
+  let storageWarningEl = null;
+  try {
+    const result = await loadMeasurementFigureLibrary();
+    if (result && result.metadata) {
+      storageWarningMessage = resolveStorageWarningMessage(result.metadata);
+    }
+  } catch (error) {
+    if (globalObj && globalObj.console && typeof globalObj.console.warn === 'function') {
+      globalObj.console.warn('mathVisSortering: kunne ikke laste figurbiblioteket', error);
+    }
+  }
 
   function getSettingsApi() {
     const api = globalObj && typeof globalObj === 'object' ? globalObj.MathVisualsSettings : null;
@@ -71,6 +85,41 @@ import {
       } catch (_) {}
     }
     return null;
+  }
+
+  function normalizeStorageModeValue(value) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return '';
+    }
+    if (normalized === 'kv' || normalized === 'vercel-kv') {
+      return 'kv';
+    }
+    if (normalized === 'memory' || normalized === 'mem' || normalized === 'unconfigured') {
+      return 'memory';
+    }
+    return normalized;
+  }
+
+  function resolveStorageWarningMessage(metadata) {
+    const source = metadata && typeof metadata === 'object' ? metadata : {};
+    const mode = normalizeStorageModeValue(source.storageMode || source.mode || source.storage);
+    const limitation = typeof source.limitation === 'string' ? source.limitation.trim() : '';
+    if (limitation) {
+      return limitation;
+    }
+    const persistent = source.persistent === true;
+    const ephemeral = source.ephemeral === true;
+    if (persistent || mode === 'kv') {
+      return '';
+    }
+    if (ephemeral || mode === 'memory' || !mode) {
+      return 'Figurbiblioteket bruker midlertidig lagring. Endringer kan gå tapt ved omstart.';
+    }
+    return '';
   }
 
   function sanitizeColor(value) {
@@ -955,6 +1004,9 @@ import {
   ].filter(prefix => typeof prefix === 'string' && prefix);
 
   const figureData = buildFigureData();
+  if (!storageWarningMessage) {
+    storageWarningMessage = resolveStorageWarningMessage(figureData.metadata);
+  }
   const nonCustomFigureCategories = figureData.categories.filter(category => category.id !== CUSTOM_CATEGORY_ID);
   const DEFAULT_FIGURE_CATEGORY_ID = (
     (nonCustomFigureCategories[0] && nonCustomFigureCategories[0].id) ||
@@ -3359,6 +3411,51 @@ import {
     updateExampleActionPayloads();
   }
 
+  function ensureStorageWarningElement() {
+    if (storageWarningEl && storageWarningEl.ownerDocument === doc) {
+      return storageWarningEl;
+    }
+    const form = doc.getElementById('sorteringSettings');
+    if (!form) {
+      return null;
+    }
+    const el = doc.createElement('p');
+    el.className = 'sortering__storage-warning';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.hidden = true;
+    el.style.margin = '0 0 12px 0';
+    el.style.padding = '8px 12px';
+    el.style.borderRadius = '10px';
+    el.style.border = '1px solid #fcd34d';
+    el.style.background = '#fef3c7';
+    el.style.color = '#92400e';
+    el.style.fontSize = '13px';
+    el.style.lineHeight = '1.4';
+    if (form.firstChild) {
+      form.insertBefore(el, form.firstChild);
+    } else {
+      form.appendChild(el);
+    }
+    storageWarningEl = el;
+    return el;
+  }
+
+  function updateStorageWarningDisplay(message) {
+    const el = ensureStorageWarningElement();
+    if (!el) {
+      return;
+    }
+    const text = typeof message === 'string' ? message.trim() : '';
+    if (text) {
+      el.textContent = text;
+      el.hidden = false;
+    } else {
+      el.textContent = '';
+      el.hidden = true;
+    }
+  }
+
   function setupSettingsForm() {
     settingsForm = doc.getElementById('sorteringSettings');
     directionSelect = doc.getElementById('sortering-direction');
@@ -3382,6 +3479,7 @@ import {
     }
     syncSettingsFormFromState();
     updateValidationState();
+    updateStorageWarningDisplay(storageWarningMessage);
   }
 
   function createState() {
@@ -3515,4 +3613,8 @@ import {
   } else {
     init();
   }
-})();
+})().catch(error => {
+  if (typeof console !== 'undefined' && typeof console.error === 'function') {
+    console.error('mathVisSortering: init failed', error);
+  }
+});
