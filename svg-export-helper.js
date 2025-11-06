@@ -872,8 +872,11 @@
   helper.cloneSvgForExport = cloneSvgForExport;
   helper.ensureSvgBackground = ensureSvgBackground;
   helper.getSvgCanvasBounds = getSvgCanvasBounds;
+  helper.getSvgDimensions = getSvgDimensions;
   helper.ensureMinimumPngDimensions = ensureMinimumPngDimensions;
   helper.MINIMUM_PNG_DIMENSION = MINIMUM_PNG_DIMENSION;
+  helper.renderSvgToPng = renderSvgToPng;
+  helper.ensureSvgNamespaces = ensureSvgNamespaces;
 
   global.MathVisSvgExport = helper;
 })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);
