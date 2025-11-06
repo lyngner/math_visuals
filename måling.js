@@ -161,6 +161,36 @@ import {
     fallbackCategoryId: CUSTOM_CATEGORY_ID
   });
   const defaultPreset = figureData.byId.get('kylling');
+  const defaults = {
+    length: 10,
+    subdivisions: 10,
+    unitLabel: '1cm',
+    figureName: '',
+    figureImage: defaultPreset
+      ? defaultPreset.image
+      : '/images/measure/kylling%20(7cm_7cm)%201_1.svg',
+    measurementTarget: '',
+    figureSummary: defaultPreset ? defaultPreset.summary : '',
+    figureScaleLabel: defaultPreset ? defaultPreset.scaleLabel : '',
+    boardPadding: 0,
+    gridEnabled: false,
+    showScaleLabel: false,
+    showUnitLabel: true,
+    measurementWithoutScale: false,
+    panningEnabled: false,
+    rulerBackgroundMode: RULER_BACKGROUND_MODE,
+    rulerTransform: null,
+    boardPanTransform: { x: 0, y: 0 },
+    activeTool: defaultActiveTool,
+    tapeMeasureLength: 10,
+    tapeMeasureTransform: null,
+    measurementDirectionLock: 'none',
+    measurementDirectionAngle: 0,
+    segmentPoints: {
+      a: { x: 0.25, y: 0.5 },
+      b: { x: 0.75, y: 0.5 }
+    }
+  };
   const segmentState = {
     a: { x: defaults.segmentPoints.a.x, y: defaults.segmentPoints.a.y },
     b: { x: defaults.segmentPoints.b.x, y: defaults.segmentPoints.b.y }
@@ -342,35 +372,6 @@ import {
 
   const TAPE_LENGTH_INFINITE = 'infinite';
   const TAPE_LENGTH_INFINITY_SYMBOL = '∞';
-
-  const defaults = {
-    length: 10,
-    subdivisions: 10,
-    unitLabel: '1cm',
-    figureName: '',
-    figureImage: defaultPreset ? defaultPreset.image : 'images/measure/kylling%20(7cm_7cm)%201_1.svg',
-    measurementTarget: '',
-    figureSummary: defaultPreset ? defaultPreset.summary : '',
-    figureScaleLabel: defaultPreset ? defaultPreset.scaleLabel : '',
-    boardPadding: 0,
-    gridEnabled: false,
-    showScaleLabel: false,
-    showUnitLabel: true,
-    measurementWithoutScale: false,
-    panningEnabled: false,
-    rulerBackgroundMode: RULER_BACKGROUND_MODE,
-    rulerTransform: null,
-    boardPanTransform: { x: 0, y: 0 },
-    activeTool: defaultActiveTool,
-    tapeMeasureLength: 10,
-    tapeMeasureTransform: null,
-    measurementDirectionLock: 'none',
-    measurementDirectionAngle: 0,
-    segmentPoints: {
-      a: { x: 0.25, y: 0.5 },
-      b: { x: 0.75, y: 0.5 }
-    }
-  };
 
   const tapeLengthState = {
     visiblePx: 0,

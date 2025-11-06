@@ -1,5 +1,5 @@
-const amountManifestUrl = 'images/amounts/manifest.json';
-const measureManifestUrl = 'images/measure/manifest.json';
+const amountManifestUrl = '/images/amounts/manifest.json';
+const measureManifestUrl = '/images/measure/manifest.json';
 const statusEl = document.querySelector('[data-status]');
 const filterInput = document.querySelector('[data-filter]');
 const countEl = document.querySelector('[data-count]');
@@ -37,7 +37,7 @@ const copyFeedbackTimers = new WeakMap();
 
 const CUSTOM_STORAGE_KEY = 'mathvis:figureLibrary:customEntries:v1';
 const CUSTOM_CATEGORY_STORAGE_KEY = 'mathvis:figureLibrary:customCategories:v1';
-const DEFAULT_CATEGORY_THUMBNAIL = 'images/amounts/tb10.svg';
+const DEFAULT_CATEGORY_THUMBNAIL = '/images/amounts/tb10.svg';
 const CATEGORY_PREVIEW_COUNT = 4;
 
 const amountCategories = [
@@ -655,7 +655,7 @@ function normalizeCategoryMeta(category) {
   const sampleImage = typeof category.sampleImage === 'string' && category.sampleImage.trim()
     ? category.sampleImage.trim()
     : category.sampleSlug
-      ? `images/amounts/${category.sampleSlug}.svg`
+      ? `/images/amounts/${category.sampleSlug}.svg`
       : DEFAULT_CATEGORY_THUMBNAIL;
   const sampleAlt = category.sampleAlt || `Eksempel på ${name}`;
   return {
@@ -2292,7 +2292,7 @@ function buildMeasurementData(catalog) {
 
 function createAmountFigureData(slug) {
   const category = amountCategories.find((entry) => entry.matches(slug)) || null;
-  const path = `images/amounts/${slug}.svg`;
+  const path = `/images/amounts/${slug}.svg`;
   return {
     id: slug,
     slug,
@@ -2310,7 +2310,7 @@ function resolveCategorySamplePath(category) {
     return category.sampleImage;
   }
   if (category.type === 'amount' && category.sampleSlug) {
-    return `images/amounts/${category.sampleSlug}.svg`;
+    return `/images/amounts/${category.sampleSlug}.svg`;
   }
   if (category.sampleImage) {
     return category.sampleImage;
