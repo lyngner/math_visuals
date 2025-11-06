@@ -186,6 +186,15 @@
       display: none !important;
     }
 
+    .board[data-active-tool='segment'] [data-ruler],
+    .board[data-active-tool='segment'] [data-tape-measure] {
+      display: none !important;
+    }
+
+    .board:not([data-active-tool='segment']) [data-segment] {
+      display: none !important;
+    }
+
     .ruler {
       position: absolute;
       top: 0;
@@ -288,6 +297,69 @@
       left: min(var(--tape-zero-handle-width, 140px), var(--tape-strap-visible));
       right: 0;
       cursor: grab;
+    }
+
+    .segment {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    .segment__svg {
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .segment__line {
+      stroke: #0f6d8f;
+      stroke-width: 6;
+      stroke-linecap: round;
+    }
+
+    .segment__handle {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 3px solid #0f6d8f;
+      background: #ffffff;
+      color: #0f6d8f;
+      font-weight: 700;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform: translate(-50%, -50%);
+      cursor: grab;
+      pointer-events: auto;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+      user-select: none;
+      touch-action: none;
+    }
+
+    .segment__handle:active {
+      cursor: grabbing;
+    }
+
+    .segment__label {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform: translate(-50%, -110%);
+      background: rgba(15, 109, 143, 0.9);
+      color: #ffffff;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      letter-spacing: 0.02em;
+      pointer-events: none;
+      white-space: nowrap;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
     }
 
     .tape-measure__move-handle:active {
@@ -750,6 +822,41 @@
                   </div>
                 </div>
               </div>
+              <div
+                class="segment"
+                data-segment
+                role="img"
+                aria-label="Flyttbart linjestykke"
+                hidden
+              >
+                <svg
+                  class="segment__svg"
+                  data-segment-svg
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <line class="segment__line" data-segment-line x1="0" y1="0" x2="0" y2="0"></line>
+                </svg>
+                <div class="segment__label" data-segment-label></div>
+                <button
+                  type="button"
+                  class="segment__handle segment__handle--a"
+                  data-segment-handle="a"
+                  aria-label="Punkt A"
+                >
+                  A
+                </button>
+                <button
+                  type="button"
+                  class="segment__handle segment__handle--b"
+                  data-segment-handle="b"
+                  aria-label="Punkt B"
+                >
+                  B
+                </button>
+              </div>
             </div>
             <p class="status-note" data-status-note></p>
           </div>
@@ -781,6 +888,7 @@
                 <select id="cfg-measurement-tool">
                   <option value="ruler" selected>Linjal</option>
                   <option value="tape">Målebånd</option>
+                  <option value="segment">Linjestykke</option>
                 </select>
               </div>
               <div class="input-stack">

@@ -27,6 +27,11 @@ import {
   const tapeHousingShiftHandle = tapeHousing
     ? tapeHousing.querySelector('[data-tape-housing-shift-handle]')
     : null;
+  const segment = board ? board.querySelector('[data-segment]') : null;
+  const segmentSvg = segment ? segment.querySelector('[data-segment-svg]') : null;
+  const segmentLine = segmentSvg ? segmentSvg.querySelector('[data-segment-line]') : null;
+  const segmentLabel = segment ? segment.querySelector('[data-segment-label]') : null;
+  const segmentHandles = segment ? segment.querySelectorAll('[data-segment-handle]') : null;
   const hasRuler = !!(ruler && rulerSvg);
   const hasTapeMeasure = !!(
     tapeMeasure &&
@@ -36,8 +41,15 @@ import {
     tapeZeroAnchor &&
     tapeHousing
   );
+  const hasSegment = !!(
+    segment &&
+    segmentSvg &&
+    segmentLine &&
+    segmentHandles &&
+    segmentHandles.length >= 2
+  );
   const boardGridOverlay = board ? board.querySelector('[data-grid-overlay]') : null;
-  if (!board || (!hasRuler && !hasTapeMeasure)) {
+  if (!board || (!hasRuler && !hasTapeMeasure && !hasSegment)) {
     return;
   }
 
@@ -99,14 +111,15 @@ import {
 
   const transformStates = {
     ruler: { x: 0, y: 0, rotation: 0 },
-    tape: { x: 0, y: 0, rotation: 0 }
+    tape: { x: 0, y: 0, rotation: 0 },
+    segment: { x: 0, y: 0, rotation: 0 }
   };
   let tapeAxisFallbackHousingToZero = null;
   const tapeEndpoints = {
     housing: null,
     zero: null
   };
-  const defaultActiveTool = hasRuler ? 'ruler' : hasTapeMeasure ? 'tape' : 'ruler';
+  const defaultActiveTool = hasRuler ? 'ruler' : hasTapeMeasure ? 'tape' : hasSegment ? 'segment' : 'ruler';
   let transformState = transformStates[defaultActiveTool];
   let suspendTransformPersistence = true;
   const BASE_BOARD_DIMENSIONS = { width: 1000, height: 700 };
@@ -115,6 +128,7 @@ import {
   const activePointers = {
     ruler: new Map(),
     tape: new Map(),
+    segment: new Map(),
     tapeExtension: new Map(),
     tapeHousing: new Map()
   };
@@ -138,6 +152,7 @@ import {
   const TAPE_DIRECTION = -1;
   const TAPE_HOUSING_HANDOFF_TOLERANCE_PX = 6;
   const zeroOffset = { x: 0, y: 0 };
+  const SEGMENT_LABEL_OFFSET_PX = 32;
   const figureData = buildFigureData({ extractRealWorldSizeFromText });
   const figurePicker = createFigurePickerHelpers({
     doc,
@@ -146,6 +161,19 @@ import {
     fallbackCategoryId: CUSTOM_CATEGORY_ID
   });
   const defaultPreset = figureData.byId.get('kylling');
+  const segmentState = {
+    a: { x: defaults.segmentPoints.a.x, y: defaults.segmentPoints.a.y },
+    b: { x: defaults.segmentPoints.b.x, y: defaults.segmentPoints.b.y }
+  };
+  const segmentHandlesByKey = new Map();
+  if (segmentHandles) {
+    segmentHandles.forEach(handle => {
+      const key = handle.getAttribute('data-segment-handle');
+      if (key) {
+        segmentHandlesByKey.set(key, handle);
+      }
+    });
+  }
   const appState = {
     settings: null,
     syncingInputs: false,
@@ -157,7 +185,8 @@ import {
     },
     directionLockMemory: {
       ruler: 0,
-      tape: 0
+      tape: 0,
+      segment: 0
     },
     currentDirectionLockMode: 'none',
     currentDirectionLockAngle: null
@@ -336,7 +365,11 @@ import {
     tapeMeasureLength: 10,
     tapeMeasureTransform: null,
     measurementDirectionLock: 'none',
-    measurementDirectionAngle: 0
+    measurementDirectionAngle: 0,
+    segmentPoints: {
+      a: { x: 0.25, y: 0.5 },
+      b: { x: 0.75, y: 0.5 }
+    }
   };
 
   const tapeLengthState = {
@@ -428,6 +461,23 @@ import {
   attachTapeHousingHandlers(tapeHousingShiftHandle);
   attachInstrumentFocusHandlers(ruler, 'ruler');
   attachInstrumentFocusHandlers(tapeMeasure, 'tape');
+  if (segmentHandlesByKey.size > 0) {
+    for (const handle of segmentHandlesByKey.values()) {
+      handle.addEventListener('pointerdown', handleSegmentPointerDown, { passive: false });
+      handle.addEventListener('pointermove', handleSegmentPointerMove);
+      handle.addEventListener('pointerup', handleSegmentPointerEnd);
+      handle.addEventListener('pointercancel', handleSegmentPointerEnd);
+      handle.addEventListener('lostpointercapture', event => {
+        if (event.pointerId == null) {
+          return;
+        }
+        if (activePointers.segment.delete(event.pointerId) && activePointers.segment.size === 0 && appState.activeTool === 'segment') {
+          persistSegmentState();
+        }
+      });
+    }
+  }
+  attachInstrumentFocusHandlers(segment, 'segment');
 
   board.addEventListener('dblclick', event => {
     event.preventDefault();
@@ -520,6 +570,9 @@ import {
     if (Object.prototype.hasOwnProperty.call(source, 'measurementDirectionAngle')) {
       target.measurementDirectionAngle = source.measurementDirectionAngle;
     }
+    if (source.segmentPoints != null) {
+      target.segmentPoints = source.segmentPoints;
+    }
     // unit spacing is fixed and not configurable
   }
 
@@ -544,6 +597,7 @@ import {
       container.tapeMeasureLength = settings.tapeMeasureLength;
       container.measurementDirectionLock = settings.measurementDirectionLock;
       container.measurementDirectionAngle = settings.measurementDirectionAngle;
+      container.segmentPoints = cloneSegmentPoints(settings.segmentPoints);
       delete container.rulerStartAtZero;
       delete container.rulerPadding;
       delete container.unitSpacingOverride;
@@ -572,17 +626,18 @@ import {
     container.showScaleLabel = settings.showScaleLabel;
     container.showUnitLabel = settings.showUnitLabel;
     container.measurementWithoutScale = !!settings.measurementWithoutScale;
-    container.panningEnabled = !!settings.panningEnabled;
-    container.panorering = !!settings.panningEnabled;
-    container.activeTool = settings.activeTool;
-    container.tapeMeasureLength = settings.tapeMeasureLength;
-    container.measurementDirectionLock = settings.measurementDirectionLock;
-    container.measurementDirectionAngle = settings.measurementDirectionAngle;
-    delete container.unitSpacingOverride;
-    delete container.rulerPadding;
-    delete container.rulerStartAtZero;
-    if (settings.rulerTransform && typeof settings.rulerTransform === 'object') {
-      container.rulerTransform = { ...settings.rulerTransform };
+      container.panningEnabled = !!settings.panningEnabled;
+      container.panorering = !!settings.panningEnabled;
+      container.activeTool = settings.activeTool;
+      container.tapeMeasureLength = settings.tapeMeasureLength;
+      container.measurementDirectionLock = settings.measurementDirectionLock;
+      container.measurementDirectionAngle = settings.measurementDirectionAngle;
+      container.segmentPoints = cloneSegmentPoints(settings.segmentPoints);
+      delete container.unitSpacingOverride;
+      delete container.rulerPadding;
+      delete container.rulerStartAtZero;
+      if (settings.rulerTransform && typeof settings.rulerTransform === 'object') {
+        container.rulerTransform = { ...settings.rulerTransform };
     } else {
       delete container.rulerTransform;
     }
@@ -802,6 +857,65 @@ import {
     };
   }
 
+  function sanitizeSegmentPoints(value, fallback) {
+    const source = value && typeof value === 'object' ? value : null;
+    const reference = fallback && typeof fallback === 'object' ? fallback : defaults.segmentPoints;
+    const sanitizePoint = (point, referencePoint) => {
+      const px = point && typeof point === 'object' ? Number.parseFloat(point.x) : NaN;
+      const py = point && typeof point === 'object' ? Number.parseFloat(point.y) : NaN;
+      const fallbackPoint = referencePoint && typeof referencePoint === 'object' ? referencePoint : null;
+      if (!Number.isFinite(px) || !Number.isFinite(py)) {
+        if (fallbackPoint) {
+          return { x: Number(fallbackPoint.x) || 0, y: Number(fallbackPoint.y) || 0 };
+        }
+        return null;
+      }
+      const clampedX = Math.min(Math.max(px, 0), 1);
+      const clampedY = Math.min(Math.max(py, 0), 1);
+      return { x: clampedX, y: clampedY };
+    };
+    const fallbackA = reference ? reference.a : null;
+    const fallbackB = reference ? reference.b : null;
+    const pointA = sanitizePoint(source ? source.a : null, fallbackA);
+    const pointB = sanitizePoint(source ? source.b : null, fallbackB);
+    if (!pointA || !pointB) {
+      return null;
+    }
+    return { a: pointA, b: pointB };
+  }
+
+  function cloneSegmentPoints(value) {
+    const sanitized = sanitizeSegmentPoints(value, defaults.segmentPoints);
+    const reference = sanitized || defaults.segmentPoints;
+    return {
+      a: { x: reference.a.x, y: reference.a.y },
+      b: { x: reference.b.x, y: reference.b.y }
+    };
+  }
+
+  function areSegmentPointsEqual(a, b) {
+    if (a === b) {
+      return true;
+    }
+    if (!a || !b) {
+      return false;
+    }
+    const ax = Number(a.a && a.a.x);
+    const ay = Number(a.a && a.a.y);
+    const bx = Number(b.a && b.a.x);
+    const by = Number(b.a && b.a.y);
+    const cx = Number(a.b && a.b.x);
+    const cy = Number(a.b && a.b.y);
+    const dx = Number(b.b && b.b.x);
+    const dy = Number(b.b && b.b.y);
+    return (
+      Math.abs(ax - bx) < 0.0001 &&
+      Math.abs(ay - by) < 0.0001 &&
+      Math.abs(cx - dx) < 0.0001 &&
+      Math.abs(cy - dy) < 0.0001
+    );
+  }
+
   function sanitizeActiveTool(value, fallback) {
     const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
     if (normalized === 'tape' && hasTapeMeasure) {
@@ -988,6 +1102,7 @@ import {
       combined.measurementDirectionAngle,
       defaults.measurementDirectionAngle
     );
+    const segmentPoints = sanitizeSegmentPoints(combined.segmentPoints, defaults.segmentPoints);
 
     const settings = {
       length,
@@ -1011,7 +1126,8 @@ import {
       tapeMeasureLength,
       tapeMeasureTransform,
       measurementDirectionLock,
-      measurementDirectionAngle
+      measurementDirectionAngle,
+      segmentPoints: segmentPoints || cloneSegmentPoints(defaults.segmentPoints)
     };
 
     applySettingsToContainer(configContainers.measurement, settings);
@@ -1056,6 +1172,7 @@ import {
       a.tapeMeasureLength === b.tapeMeasureLength &&
       a.measurementDirectionLock === b.measurementDirectionLock &&
       areAnglesApproximatelyEqual(a.measurementDirectionAngle, b.measurementDirectionAngle) &&
+      areSegmentPointsEqual(a.segmentPoints, b.segmentPoints) &&
       areRulerTransformsEqual(a.rulerTransform, b.rulerTransform) &&
       areRulerTransformsEqual(a.tapeMeasureTransform, b.tapeMeasureTransform) &&
       areBoardPanTransformsEqual(a.boardPanTransform, b.boardPanTransform)
@@ -1223,6 +1340,15 @@ import {
             rememberUnitLabel('withScale', derivedWithScale);
           }
         }
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(partial, 'segmentPoints')) {
+      const sanitizedSegment = sanitizeSegmentPoints(
+        partial.segmentPoints,
+        appState.settings && appState.settings.segmentPoints
+      );
+      if (sanitizedSegment) {
+        nextPartial.segmentPoints = sanitizedSegment;
       }
     }
     if (Object.prototype.hasOwnProperty.call(partial, 'measurementWithoutScale')) {
@@ -1483,6 +1609,9 @@ import {
       return 0;
     }
     const metrics = scaleMetrics || resolveScaleMetrics(settings);
+    if (toolKey === 'segment') {
+      return getSegmentLengthInDisplayUnits(settings, metrics);
+    }
     const multiplier = resolveRulerValueMultiplier(settings, metrics);
     const lengthValue =
       toolKey === 'tape'
@@ -1691,6 +1820,224 @@ import {
       spacingMultiplier,
       displayMultiplier
     };
+  }
+
+  function getSegmentPointsInPx() {
+    if (!hasSegment) {
+      return null;
+    }
+    if (!boardRect || !Number.isFinite(boardRect.width) || !Number.isFinite(boardRect.height)) {
+      boardRect = board.getBoundingClientRect();
+    }
+    const width =
+      boardRect && Number.isFinite(boardRect.width) && boardRect.width > 0
+        ? boardRect.width
+        : BASE_BOARD_DIMENSIONS.width;
+    const height =
+      boardRect && Number.isFinite(boardRect.height) && boardRect.height > 0
+        ? boardRect.height
+        : BASE_BOARD_DIMENSIONS.height;
+    return {
+      width,
+      height,
+      a: { x: segmentState.a.x * width, y: segmentState.a.y * height },
+      b: { x: segmentState.b.x * width, y: segmentState.b.y * height }
+    };
+  }
+
+  function setSegmentPointNormalized(key, x, y) {
+    if (!segmentState[key]) {
+      return;
+    }
+    const nextX = Number.isFinite(x) ? x : segmentState[key].x;
+    const nextY = Number.isFinite(y) ? y : segmentState[key].y;
+    segmentState[key].x = Math.min(Math.max(nextX, 0), 1);
+    segmentState[key].y = Math.min(Math.max(nextY, 0), 1);
+  }
+
+  function setSegmentPointFromPx(key, px, py) {
+    if (!hasSegment) {
+      return;
+    }
+    if (!boardRect || !Number.isFinite(boardRect.width) || !Number.isFinite(boardRect.height)) {
+      boardRect = board.getBoundingClientRect();
+    }
+    const width =
+      boardRect && Number.isFinite(boardRect.width) && boardRect.width > 0
+        ? boardRect.width
+        : BASE_BOARD_DIMENSIONS.width;
+    const height =
+      boardRect && Number.isFinite(boardRect.height) && boardRect.height > 0
+        ? boardRect.height
+        : BASE_BOARD_DIMENSIONS.height;
+    if (!(width > 0) || !(height > 0)) {
+      return;
+    }
+    const normalizedX = Math.min(Math.max(px / width, 0), 1);
+    const normalizedY = Math.min(Math.max(py / height, 0), 1);
+    setSegmentPointNormalized(key, normalizedX, normalizedY);
+  }
+
+  function getSegmentLengthInDisplayUnits(settings, metrics, distancePxOverride) {
+    if (!hasSegment) {
+      return 0;
+    }
+    const activeSettings = settings || appState.settings;
+    if (!activeSettings) {
+      return 0;
+    }
+    const scaleMetrics = metrics || resolveScaleMetrics(activeSettings);
+    if (!scaleMetrics || !Number.isFinite(scaleMetrics.unitSpacing) || scaleMetrics.unitSpacing <= 0) {
+      return 0;
+    }
+    let distancePx = Number.isFinite(distancePxOverride) ? distancePxOverride : null;
+    if (!Number.isFinite(distancePx)) {
+      const points = getSegmentPointsInPx();
+      if (!points) {
+        return 0;
+      }
+      distancePx = Math.hypot(points.b.x - points.a.x, points.b.y - points.a.y);
+    }
+    if (!Number.isFinite(distancePx)) {
+      return 0;
+    }
+    const units = distancePx / scaleMetrics.unitSpacing;
+    const multiplier = resolveRulerValueMultiplier(activeSettings, scaleMetrics);
+    const rawLength = units * multiplier;
+    return convertValueToDisplayUnits(rawLength, activeSettings.unitLabel);
+  }
+
+  function updateSegmentLabel(pointA, pointB, settings, metrics) {
+    if (!segmentLabel) {
+      return;
+    }
+    const activeSettings = settings || appState.settings || defaults;
+    const scaleMetrics = metrics || resolveScaleMetrics(activeSettings);
+    const distance = Math.hypot(pointB.x - pointA.x, pointB.y - pointA.y);
+    const lengthValue = getSegmentLengthInDisplayUnits(activeSettings, scaleMetrics, distance);
+    const roundedLength = roundForDisplay(lengthValue, 4);
+    const formatted = formatNumber(roundedLength);
+    const unitSuffixValue = resolveUnitSuffix(activeSettings.unitLabel);
+    const unitSuffix = unitSuffixValue ? ` ${unitSuffixValue}` : '';
+    segmentLabel.textContent = `AB = ${formatted}${unitSuffix}`;
+    const midX = (pointA.x + pointB.x) / 2;
+    const midY = (pointA.y + pointB.y) / 2;
+    const dx = pointB.x - pointA.x;
+    const dy = pointB.y - pointA.y;
+    const length = Math.hypot(dx, dy);
+    let offsetX = 0;
+    let offsetY = -SEGMENT_LABEL_OFFSET_PX;
+    if (length > 0.0001) {
+      const nx = dx / length;
+      const ny = dy / length;
+      offsetX = -ny * SEGMENT_LABEL_OFFSET_PX;
+      offsetY = nx * SEGMENT_LABEL_OFFSET_PX;
+    }
+    let labelX = midX + offsetX;
+    let labelY = midY + offsetY;
+    if (boardRect && Number.isFinite(boardRect.width) && Number.isFinite(boardRect.height)) {
+      labelX = Math.min(Math.max(labelX, 0), boardRect.width);
+      labelY = Math.min(Math.max(labelY, 0), boardRect.height);
+    }
+    segmentLabel.style.left = `${labelX}px`;
+    segmentLabel.style.top = `${labelY}px`;
+  }
+
+  function renderSegment(settings = appState.settings, metrics) {
+    if (!hasSegment) {
+      return;
+    }
+    const points = getSegmentPointsInPx();
+    if (!points) {
+      return;
+    }
+    const { width, height, a, b } = points;
+    if (segmentSvg) {
+      const safeWidth = Math.max(width, 1);
+      const safeHeight = Math.max(height, 1);
+      segmentSvg.setAttribute('viewBox', `0 0 ${safeWidth} ${safeHeight}`);
+      segmentSvg.setAttribute('width', formatSvgNumber(safeWidth));
+      segmentSvg.setAttribute('height', formatSvgNumber(safeHeight));
+    }
+    if (segmentLine) {
+      segmentLine.setAttribute('x1', formatSvgNumber(a.x));
+      segmentLine.setAttribute('y1', formatSvgNumber(a.y));
+      segmentLine.setAttribute('x2', formatSvgNumber(b.x));
+      segmentLine.setAttribute('y2', formatSvgNumber(b.y));
+    }
+    const handleA = segmentHandlesByKey.get('a');
+    if (handleA) {
+      handleA.style.left = `${a.x}px`;
+      handleA.style.top = `${a.y}px`;
+    }
+    const handleB = segmentHandlesByKey.get('b');
+    if (handleB) {
+      handleB.style.left = `${b.x}px`;
+      handleB.style.top = `${b.y}px`;
+    }
+    updateSegmentLabel(a, b, settings, metrics);
+  }
+
+  function enforceSegmentDirectionLockForSettings(settings) {
+    if (!hasSegment || !settings) {
+      return;
+    }
+    const mode = resolveDirectionLockMode(settings);
+    if (mode === 'none') {
+      return;
+    }
+    const angle = resolveDirectionLockAngle(settings, mode);
+    if (!Number.isFinite(angle)) {
+      return;
+    }
+    applySegmentDirectionLock(angle);
+  }
+
+  function applySegmentDirectionLock(angle) {
+    if (!hasSegment || !Number.isFinite(angle)) {
+      return;
+    }
+    const points = getSegmentPointsInPx();
+    if (!points) {
+      return;
+    }
+    const dx = points.b.x - points.a.x;
+    const dy = points.b.y - points.a.y;
+    const length = Math.hypot(dx, dy);
+    if (!(length > 0.0001)) {
+      return;
+    }
+    const centerX = (points.a.x + points.b.x) / 2;
+    const centerY = (points.a.y + points.b.y) / 2;
+    const dirX = Math.cos(angle);
+    const dirY = Math.sin(angle);
+    if (!Number.isFinite(dirX) || !Number.isFinite(dirY)) {
+      return;
+    }
+    const halfLength = length / 2;
+    const newAx = centerX - dirX * halfLength;
+    const newAy = centerY - dirY * halfLength;
+    const newBx = centerX + dirX * halfLength;
+    const newBy = centerY + dirY * halfLength;
+    setSegmentPointFromPx('a', newAx, newAy);
+    setSegmentPointFromPx('b', newBx, newBy);
+    renderSegment(appState.settings, null);
+  }
+
+  function applySegmentAppearance(settings, scaleMetrics) {
+    if (!hasSegment) {
+      return;
+    }
+    const sanitized =
+      sanitizeSegmentPoints(settings && settings.segmentPoints, defaults.segmentPoints) ||
+      cloneSegmentPoints(defaults.segmentPoints);
+    setSegmentPointNormalized('a', sanitized.a.x, sanitized.a.y);
+    setSegmentPointNormalized('b', sanitized.b.x, sanitized.b.y);
+    if (settings && (!settings.segmentPoints || !areSegmentPointsEqual(settings.segmentPoints, sanitized))) {
+      settings.segmentPoints = cloneSegmentPoints(sanitized);
+    }
+    enforceSegmentDirectionLockForSettings(settings || appState.settings);
+    renderSegment(settings, scaleMetrics);
   }
 
   function ensureFigureImageDimensions(imageUrl) {
@@ -2032,8 +2379,21 @@ import {
       }
     }
 
+    if (segment) {
+      if (desiredTool === 'segment') {
+        segment.hidden = false;
+        segment.removeAttribute('hidden');
+        segment.setAttribute('aria-hidden', 'false');
+      } else {
+        segment.hidden = true;
+        segment.setAttribute('hidden', '');
+        segment.setAttribute('aria-hidden', 'true');
+      }
+    }
+
     applyToolTransform('ruler');
     applyToolTransform('tape');
+    applyToolTransform('segment');
     if (desiredTool === 'tape') {
       initializeTapeEndpointsFromDom();
     }
@@ -2042,6 +2402,19 @@ import {
 
   function updateLengthFieldVisibility(toolKey) {
     if (!lengthFieldContainer) {
+      return;
+    }
+    if (toolKey === 'segment') {
+      lengthFieldContainer.hidden = true;
+      lengthFieldContainer.setAttribute('hidden', '');
+      lengthFieldContainer.setAttribute('aria-hidden', 'true');
+      if (inputs.length) {
+        inputs.length.disabled = true;
+      }
+      if (measurementFieldGrid) {
+        measurementFieldGrid.classList.remove('field-grid--three');
+        measurementFieldGrid.classList.add('field-grid--two');
+      }
       return;
     }
     lengthFieldContainer.hidden = false;
@@ -2066,6 +2439,7 @@ import {
     applyActiveToolState(settings);
     applyDirectionLockFromSettings(settings);
     applyTapeMeasureAppearance(settings, scaleMetrics);
+    applySegmentAppearance(settings, scaleMetrics);
     updateAccessibility(settings);
     appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(settings);
     updateBaseSize();
@@ -2553,32 +2927,39 @@ import {
     const formattedLength = formatNumber(effectiveLength);
     const unitSuffixValue = resolveUnitSuffix(unitLabel);
     const unitSuffix = unitSuffixValue ? ` ${unitSuffixValue}` : '';
-    const targetElement = getToolElement(activeToolKey);
-    if (targetElement) {
-      const labelParts = [`Flyttbart ${info.label}`];
-      if (activeToolKey === 'tape') {
-        const visibleUnitsRaw = tapeMeasure
-          ? Number.parseFloat(tapeMeasure.getAttribute('data-visible-length'))
-          : NaN;
-        let strapPart = `Synlig rem: ${formattedLength}${unitSuffix}`;
-        if (Number.isFinite(visibleUnitsRaw)) {
-          const visibleUnits = roundForDisplay(visibleUnitsRaw);
-          const visibleUnitsLabel = formatNumber(visibleUnits);
-          strapPart += ` (${visibleUnitsLabel} enheter)`;
-        }
-        labelParts.push(strapPart);
-      } else {
-        labelParts.push(`Lengde: ${formattedLength}${unitSuffix}`);
+    const toolElements = [
+      { key: 'ruler', element: hasRuler ? ruler : null },
+      { key: 'tape', element: hasTapeMeasure ? tapeMeasure : null },
+      { key: 'segment', element: hasSegment ? segment : null }
+    ];
+    for (const entry of toolElements) {
+      if (!entry.element) {
+        continue;
       }
-      targetElement.setAttribute('aria-label', labelParts.join('. '));
-      targetElement.setAttribute('aria-hidden', 'false');
-      targetElement.setAttribute('tabindex', '0');
-    }
-    const inactiveKey = activeToolKey === 'tape' ? 'ruler' : 'tape';
-    const inactiveElement = getToolElement(inactiveKey);
-    if (inactiveElement) {
-      inactiveElement.setAttribute('aria-hidden', 'true');
-      inactiveElement.setAttribute('tabindex', '-1');
+      const isActive = entry.key === activeToolKey;
+      if (isActive) {
+        const labelParts = [`Flyttbart ${info.label}`];
+        if (entry.key === 'tape') {
+          const visibleUnitsRaw = tapeMeasure
+            ? Number.parseFloat(tapeMeasure.getAttribute('data-visible-length'))
+            : NaN;
+          let strapPart = `Synlig rem: ${formattedLength}${unitSuffix}`;
+          if (Number.isFinite(visibleUnitsRaw)) {
+            const visibleUnits = roundForDisplay(visibleUnitsRaw);
+            const visibleUnitsLabel = formatNumber(visibleUnits);
+            strapPart += ` (${visibleUnitsLabel} enheter)`;
+          }
+          labelParts.push(strapPart);
+        } else {
+          labelParts.push(`Lengde: ${formattedLength}${unitSuffix}`);
+        }
+        entry.element.setAttribute('aria-label', labelParts.join('. '));
+        entry.element.setAttribute('aria-hidden', 'false');
+        entry.element.setAttribute('tabindex', '0');
+      } else {
+        entry.element.setAttribute('aria-hidden', 'true');
+        entry.element.setAttribute('tabindex', '-1');
+      }
     }
     if (statusNote) {
       statusNote.textContent = buildStatusMessage(settings);
@@ -3014,6 +3395,9 @@ import {
     if (toolKey === 'tape') {
       return tapeMeasure;
     }
+    if (toolKey === 'segment') {
+      return segment;
+    }
     return ruler;
   }
 
@@ -3032,12 +3416,20 @@ import {
     if (toolKey === 'tape') {
       return { key: 'tape', label: 'målebånd', title: 'Målebånd', possessive: 'Målebåndets' };
     }
+    if (toolKey === 'segment') {
+      return { key: 'segment', label: 'linjestykke', title: 'Linjestykke', possessive: 'Linjestykkets' };
+    }
     return { key: 'ruler', label: 'linjal', title: 'Linjal', possessive: 'Linjalens' };
   }
 
   function getInstrumentPointerSession(toolKey = appState.activeTool) {
-    const key = toolKey === 'tape' ? 'tape' : 'ruler';
-    return activePointers[key];
+    if (toolKey === 'tape') {
+      return activePointers.tape;
+    }
+    if (toolKey === 'segment') {
+      return activePointers.segment;
+    }
+    return activePointers.ruler;
   }
 
   function hasActiveInstrumentPointers() {
@@ -3049,7 +3441,8 @@ import {
     return (
       hasActiveInstrumentPointers() ||
       (activePointers.tapeExtension && activePointers.tapeExtension.size > 0) ||
-      (activePointers.tapeHousing && activePointers.tapeHousing.size > 0)
+      (activePointers.tapeHousing && activePointers.tapeHousing.size > 0) ||
+      (activePointers.segment && activePointers.segment.size > 0)
     );
   }
 
@@ -3113,6 +3506,7 @@ import {
   function cancelAllPointerSessions(options = {}) {
     cancelInstrumentPointerSessions('ruler', options);
     cancelInstrumentPointerSessions('tape', options);
+    cancelSegmentPointerSessions(options);
     cancelTapeExtensionSessions(options);
     cancelTapeHousingSessions(options);
   }
@@ -3184,6 +3578,135 @@ import {
         }
       }
     });
+  }
+
+  function cancelSegmentPointerSessions({ skipRelease = false } = {}) {
+    const session = activePointers.segment;
+    if (!session || session.size === 0) {
+      return;
+    }
+    const hadEntries = session.size > 0;
+    if (!skipRelease) {
+      for (const entry of session.values()) {
+        if (!entry || entry.pointerId == null || !entry.captureTarget) continue;
+        try {
+          entry.captureTarget.releasePointerCapture(entry.pointerId);
+        } catch (error) {}
+      }
+    }
+    session.clear();
+    if (hadEntries && appState.activeTool === 'segment') {
+      persistSegmentState();
+    }
+  }
+
+  function handleSegmentPointerDown(event) {
+    if (!hasSegment || event.button > 0) {
+      return;
+    }
+    if (appState.activeTool !== 'segment') {
+      return;
+    }
+    const handle = event.currentTarget;
+    if (!handle) {
+      return;
+    }
+    const key = handle.getAttribute('data-segment-handle');
+    if (!key) {
+      return;
+    }
+    if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
+      return;
+    }
+    boardRect = board.getBoundingClientRect();
+    const rect = handle.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const pointerOffset = {
+      x: event.clientX - centerX,
+      y: event.clientY - centerY
+    };
+    const session = activePointers.segment;
+    const entry = {
+      pointerId: event.pointerId,
+      handleKey: key,
+      pointerOffset,
+      captureTarget: handle
+    };
+    session.set(event.pointerId, entry);
+    try {
+      handle.setPointerCapture(event.pointerId);
+    } catch (error) {}
+    event.preventDefault();
+  }
+
+  function handleSegmentPointerMove(event) {
+    const session = activePointers.segment;
+    if (!session || session.size === 0) {
+      return;
+    }
+    const entry = session.get(event.pointerId);
+    if (!entry) {
+      return;
+    }
+    if (appState.activeTool !== 'segment') {
+      return;
+    }
+    if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
+      return;
+    }
+    boardRect = board.getBoundingClientRect();
+    const pointerOffset = entry.pointerOffset || { x: 0, y: 0 };
+    let targetX = event.clientX - pointerOffset.x - (boardRect ? boardRect.left : 0);
+    let targetY = event.clientY - pointerOffset.y - (boardRect ? boardRect.top : 0);
+    const width = boardRect && Number.isFinite(boardRect.width) ? boardRect.width : BASE_BOARD_DIMENSIONS.width;
+    const height = boardRect && Number.isFinite(boardRect.height) ? boardRect.height : BASE_BOARD_DIMENSIONS.height;
+    const mode = resolveDirectionLockMode(appState.settings);
+    if (mode && mode !== 'none') {
+      const angle = resolveDirectionLockAngle(appState.settings, mode);
+      if (Number.isFinite(angle)) {
+        const points = getSegmentPointsInPx();
+        if (points) {
+          const otherKey = entry.handleKey === 'a' ? 'b' : 'a';
+          const anchor = otherKey === 'a' ? points.a : points.b;
+          const dirX = Math.cos(angle);
+          const dirY = Math.sin(angle);
+          if (Number.isFinite(dirX) && Number.isFinite(dirY)) {
+            const deltaX = targetX - anchor.x;
+            const deltaY = targetY - anchor.y;
+            const projection = deltaX * dirX + deltaY * dirY;
+            targetX = anchor.x + dirX * projection;
+            targetY = anchor.y + dirY * projection;
+          }
+        }
+      }
+    }
+    const clampedX = Math.min(Math.max(targetX, 0), Math.max(width, 0));
+    const clampedY = Math.min(Math.max(targetY, 0), Math.max(height, 0));
+    setSegmentPointFromPx(entry.handleKey, clampedX, clampedY);
+    renderSegment(appState.settings);
+    event.preventDefault();
+  }
+
+  function handleSegmentPointerEnd(event) {
+    const session = activePointers.segment;
+    if (!session) {
+      return;
+    }
+    const entry = session.get(event.pointerId);
+    if (!entry) {
+      return;
+    }
+    session.delete(event.pointerId);
+    if (entry.captureTarget && entry.pointerId != null) {
+      try {
+        entry.captureTarget.releasePointerCapture(entry.pointerId);
+      } catch (error) {}
+    }
+    if (session.size === 0 && appState.activeTool === 'segment') {
+      persistSegmentState();
+    }
+    event.preventDefault();
   }
 
   function shouldUseFreeTapeMovement() {
@@ -3652,6 +4175,10 @@ import {
   function applyToolTransform(toolKey) {
     if (toolKey === 'tape') {
       applyTapeMeasureTransform();
+      return;
+    }
+    if (toolKey === 'segment') {
+      applySegmentTransform();
       return;
     }
     const element = getToolElement(toolKey);
@@ -4250,6 +4777,10 @@ import {
       applyTapeMeasureTransform();
       return;
     }
+    if (appState.activeTool === 'segment') {
+      applySegmentTransform();
+      return;
+    }
     const element = getActiveToolElement();
     if (!element) {
       return;
@@ -4259,13 +4790,24 @@ import {
 
   function applyTransformWithSnap({ allowSnap = true, persist = false } = {}) {
     if (appState.settings) {
-      enforceDirectionLockForActiveTool();
+      if (appState.activeTool === 'segment') {
+        enforceSegmentDirectionLockForSettings(appState.settings);
+      } else {
+        enforceDirectionLockForActiveTool();
+      }
+    }
+    if (appState.activeTool === 'segment') {
+      applySegmentTransform();
+      if (persist && !suspendTransformPersistence) {
+        persistSegmentState();
+      }
+      return;
     }
     if (allowSnap && appState.settings && appState.settings.gridEnabled) {
       snapTranslationToGrid();
     }
     applyTransform();
-    if (appState.settings) {
+    if (appState.settings && appState.activeTool !== 'segment') {
       updateFreeRotationMemoryForTool(appState.activeTool);
     }
     if (persist && !suspendTransformPersistence) {
@@ -4329,12 +4871,18 @@ import {
     }
   }
 
+  function applySegmentTransform(settings = appState.settings) {
+    renderSegment(settings);
+  }
+
   function persistActiveInstrumentState() {
     if (suspendTransformPersistence) {
       return;
     }
     if (appState.activeTool === 'tape') {
       persistTapeMeasureState();
+    } else if (appState.activeTool === 'segment') {
+      persistSegmentState();
     } else {
       persistTransformState();
     }
@@ -4653,6 +5201,41 @@ import {
     }
   }
 
+  function persistSegmentState() {
+    if (suspendTransformPersistence || !hasSegment) {
+      return;
+    }
+    const snapshot = cloneSegmentPoints(segmentState);
+    if (appState.settings) {
+      if (!areSegmentPointsEqual(appState.settings.segmentPoints, snapshot)) {
+        appState.settings = { ...appState.settings, segmentPoints: cloneSegmentPoints(snapshot) };
+      } else if (!appState.settings.segmentPoints) {
+        appState.settings.segmentPoints = cloneSegmentPoints(snapshot);
+      }
+    }
+    storeSegmentState(snapshot);
+  }
+
+  function storeSegmentState(points) {
+    if (!points || typeof points !== 'object') {
+      return;
+    }
+    refreshConfigContainers();
+    const snapshot = cloneSegmentPoints(points);
+    if (configContainers.measurement) {
+      configContainers.measurement.segmentPoints = cloneSegmentPoints(snapshot);
+    }
+    if (configContainers.root && configContainers.root !== configContainers.measurement) {
+      delete configContainers.root.segmentPoints;
+    }
+    if (
+      configContainers.measurementGlobal &&
+      configContainers.measurementGlobal !== configContainers.measurement
+    ) {
+      delete configContainers.measurementGlobal.segmentPoints;
+    }
+  }
+
   function restoreFreeRotationForTools(toolKeys) {
     for (const key of toolKeys) {
       const state = transformStates[key];
@@ -4702,6 +5285,9 @@ import {
       if (previousMode !== 'none') {
         restoreFreeRotationForTools(tools);
         applyTransformsForTools(tools);
+        if (hasSegment) {
+          renderSegment(appState.settings);
+        }
       }
       appState.currentDirectionLockMode = 'none';
       appState.currentDirectionLockAngle = null;
@@ -4724,6 +5310,13 @@ import {
         setLockedRotationForTools(tools, normalizedAngle);
       }
       applyTransformsForTools(tools);
+      if (hasSegment) {
+        if (normalizedAngle != null) {
+          applySegmentDirectionLock(normalizedAngle);
+        } else {
+          renderSegment(appState.settings);
+        }
+      }
     }
 
     appState.currentDirectionLockMode = mode;
@@ -4743,6 +5336,10 @@ import {
     }
     const angle = resolveDirectionLockAngle(appState.settings, mode);
     if (!Number.isFinite(angle)) {
+      return;
+    }
+    if (appState.activeTool === 'segment') {
+      applySegmentDirectionLock(angle);
       return;
     }
     const state = transformStates[appState.activeTool];
@@ -4864,7 +5461,11 @@ import {
     updateBaseSize();
 
     if (!hasAnyActivePointers() && (widthChanged || heightChanged)) {
-      centerRuler();
+      if (appState.activeTool === 'segment') {
+        renderSegment(appState.settings);
+      } else {
+        centerRuler();
+      }
       return;
     }
 
@@ -4874,6 +5475,9 @@ import {
     transformState.y = Math.min(Math.max(transformState.y, -maxY), maxY);
     const allowSnap = !hasAnyActivePointers();
     applyTransformWithSnap({ allowSnap, persist: allowSnap });
+    if (hasSegment) {
+      renderSegment(appState.settings);
+    }
   }
 
   function handleExamplesLoaded() {
@@ -5092,6 +5696,18 @@ import {
         valueMultiplier
       };
     }
+    if (hasSegment) {
+      const segmentLength = roundForDisplay(getSegmentLengthInDisplayUnits(settings));
+      const segmentPoints = cloneSegmentPoints(
+        sanitizeSegmentPoints(settings.segmentPoints, defaults.segmentPoints) || defaults.segmentPoints
+      );
+      summary.segment = {
+        length: segmentLength,
+        unit: unitLabel || null,
+        valueMultiplier,
+        points: segmentPoints
+      };
+    }
     if (settings.figureScaleLabel) {
       summary.figureScaleLabel = settings.figureScaleLabel;
     }
@@ -5224,6 +5840,33 @@ import {
         width: 100%;
         height: 100%;
         image-rendering: optimizeQuality;
+      }
+      .mv-segment__line {
+        stroke: #0f6d8f;
+        stroke-width: 6;
+        stroke-linecap: round;
+      }
+      .mv-segment__handle-circle {
+        fill: #ffffff;
+        stroke: #0f6d8f;
+        stroke-width: 3;
+      }
+      .mv-segment__handle-text {
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 16px;
+        font-weight: 700;
+        fill: #0f6d8f;
+        letter-spacing: 0.02em;
+      }
+      .mv-segment__label-bg {
+        fill: rgba(15, 109, 143, 0.9);
+      }
+      .mv-segment__label-text {
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 16px;
+        font-weight: 600;
+        fill: #ffffff;
+        letter-spacing: 0.02em;
       }
     `;
   }
@@ -5373,6 +6016,94 @@ import {
     image.setAttributeNS(XLINK_NS, 'xlink:href', href);
     image.setAttribute('href', href);
     return image;
+  }
+
+  function createSegmentGroupForExport() {
+    if (!hasSegment || !segment || segment.hidden || segment.getAttribute('aria-hidden') === 'true') {
+      return null;
+    }
+    const points = getSegmentPointsInPx();
+    if (!points) {
+      return null;
+    }
+    const group = createSvgElement('g');
+    group.setAttribute('class', 'mv-segment');
+
+    const line = createSvgElement('line');
+    line.setAttribute('class', 'mv-segment__line');
+    line.setAttribute('x1', formatSvgNumber(points.a.x));
+    line.setAttribute('y1', formatSvgNumber(points.a.y));
+    line.setAttribute('x2', formatSvgNumber(points.b.x));
+    line.setAttribute('y2', formatSvgNumber(points.b.y));
+    group.appendChild(line);
+
+    const handleKeys = ['a', 'b'];
+    for (const key of handleKeys) {
+      const point = points[key];
+      if (!point) {
+        continue;
+      }
+      const handleGroup = createSvgElement('g');
+      handleGroup.setAttribute('class', `mv-segment__handle mv-segment__handle--${key}`);
+
+      const circle = createSvgElement('circle');
+      circle.setAttribute('class', 'mv-segment__handle-circle');
+      circle.setAttribute('cx', formatSvgNumber(point.x));
+      circle.setAttribute('cy', formatSvgNumber(point.y));
+      circle.setAttribute('r', formatSvgNumber(18));
+      handleGroup.appendChild(circle);
+
+      const textElement = createSvgElement('text');
+      textElement.setAttribute('class', 'mv-segment__handle-text');
+      textElement.setAttribute('x', formatSvgNumber(point.x));
+      textElement.setAttribute('y', formatSvgNumber(point.y));
+      textElement.setAttribute('text-anchor', 'middle');
+      textElement.setAttribute('dominant-baseline', 'middle');
+      textElement.textContent = key.toUpperCase();
+      handleGroup.appendChild(textElement);
+
+      group.appendChild(handleGroup);
+    }
+
+    if (segmentLabel && board) {
+      const labelText = collapseWhitespace(segmentLabel.textContent);
+      const labelRect = segmentLabel.getBoundingClientRect();
+      const boardBounds = board.getBoundingClientRect();
+      if (labelText && labelRect && boardBounds && labelRect.width > 0 && labelRect.height > 0) {
+        const labelGroup = createSvgElement('g');
+        labelGroup.setAttribute('class', 'mv-segment__label');
+        const offsetX = labelRect.left - boardBounds.left;
+        const offsetY = labelRect.top - boardBounds.top;
+        labelGroup.setAttribute(
+          'transform',
+          `translate(${formatSvgNumber(offsetX)} ${formatSvgNumber(offsetY)})`
+        );
+
+        const background = createSvgElement('rect');
+        background.setAttribute('class', 'mv-segment__label-bg');
+        background.setAttribute('x', '0');
+        background.setAttribute('y', '0');
+        background.setAttribute('width', formatSvgNumber(labelRect.width));
+        background.setAttribute('height', formatSvgNumber(labelRect.height));
+        const radius = labelRect.height / 2;
+        background.setAttribute('rx', formatSvgNumber(radius));
+        background.setAttribute('ry', formatSvgNumber(radius));
+        labelGroup.appendChild(background);
+
+        const textElement = createSvgElement('text');
+        textElement.setAttribute('class', 'mv-segment__label-text');
+        textElement.setAttribute('x', formatSvgNumber(labelRect.width / 2));
+        textElement.setAttribute('y', formatSvgNumber(labelRect.height / 2));
+        textElement.setAttribute('text-anchor', 'middle');
+        textElement.setAttribute('dominant-baseline', 'middle');
+        textElement.textContent = labelText;
+        labelGroup.appendChild(textElement);
+
+        group.appendChild(labelGroup);
+      }
+    }
+
+    return group;
   }
 
   function createRulerGroupForExport(helper) {
@@ -5708,7 +6439,12 @@ import {
       settings && settings.activeTool,
       defaultActiveTool
     );
-    const instrumentOrder = sanitizedTool === 'tape' ? ['tape', 'ruler'] : ['ruler', 'tape'];
+    if (sanitizedTool === 'segment') {
+      renderSegment(settings, resolveScaleMetrics(settings));
+    }
+    const instrumentOrder = [sanitizedTool, 'ruler', 'tape', 'segment'].filter(
+      (value, index, array) => value && array.indexOf(value) === index
+    );
     let instrumentAttached = false;
     for (const tool of instrumentOrder) {
       if (instrumentAttached) {
@@ -5729,6 +6465,12 @@ import {
           svg.appendChild(tapeResult.group);
           instrumentAttached = true;
         }
+      } else if (tool === 'segment') {
+        const segmentGroup = createSegmentGroupForExport();
+        if (segmentGroup) {
+          svg.appendChild(segmentGroup);
+          instrumentAttached = true;
+        }
       }
     }
 
@@ -5736,7 +6478,7 @@ import {
   }
 
   async function handleExport() {
-    if (!appState.settings || (!hasRuler && !hasTapeMeasure)) {
+    if (!appState.settings || (!hasRuler && !hasTapeMeasure && !hasSegment)) {
       return;
     }
     const activeTool = sanitizeActiveTool(
