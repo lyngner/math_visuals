@@ -222,15 +222,6 @@ import {
   const AUTO_LABEL_PROP = '__sorteringAutoFigureLabel';
   const AUTO_ALT_PROP = '__sorteringAutoFigureAlt';
 
-  const statusNodes = {
-    sorted: null,
-    almost: null,
-    first: null,
-    last: null,
-    order: null
-  };
-
-  let statusSection = null;
   let statusSnapshot = null;
   const statusListeners = new Set();
 
@@ -336,14 +327,6 @@ import {
       percent: Number.isFinite(result.percent) ? result.percent : 0,
       mismatches
     };
-  }
-
-  function resetStatusNodes() {
-    statusNodes.sorted = null;
-    statusNodes.almost = null;
-    statusNodes.first = null;
-    statusNodes.last = null;
-    statusNodes.order = null;
   }
 
   function getCurrentOrder() {
@@ -478,108 +461,6 @@ import {
     return id;
   }
 
-  function formatIdList(ids) {
-    if (!Array.isArray(ids) || !ids.length) {
-      return 'Ingen';
-    }
-    const labels = ids
-      .map(id => getItemDisplayLabel(id))
-      .filter(label => typeof label === 'string' && label.trim());
-    if (!labels.length) {
-      return ids.join(', ');
-    }
-    return labels.join(', ');
-  }
-
-  function formatAlmost(result) {
-    if (!result || typeof result !== 'object') return '—';
-    const matches = Number.isFinite(result.matches) ? result.matches : 0;
-    const total = Number.isFinite(result.total) ? result.total : 0;
-    if (total <= 0) {
-      return matches > 0 ? `${matches}` : 'Ingen fasit';
-    }
-    const percent = Number.isFinite(result.percent) ? result.percent : Math.round((matches / total) * 100);
-    return `${matches} av ${total} (${percent}%)`;
-  }
-
-  function createStatusSection() {
-    const section = doc.createElement('section');
-    section.className = 'sortering-status';
-    const heading = doc.createElement('h3');
-    heading.textContent = 'Status';
-    section.appendChild(heading);
-    const list = doc.createElement('dl');
-    list.className = 'sortering-status__list';
-
-    const rows = [
-      { label: 'Sortert', key: 'sorted' },
-      { label: 'Nesten', key: 'almost' },
-      { label: 'Første', key: 'first' },
-      { label: 'Siste', key: 'last' },
-      { label: 'Rekkefølge', key: 'order' }
-    ];
-
-    rows.forEach(row => {
-      const dt = doc.createElement('dt');
-      dt.textContent = row.label;
-      dt.className = 'sortering-status__term';
-      const dd = doc.createElement('dd');
-      dd.className = 'sortering-status__value';
-      if (row.key) {
-        dd.classList.add(`sortering-status__value--${row.key}`);
-      }
-      list.appendChild(dt);
-      list.appendChild(dd);
-      if (row.key && row.key in statusNodes) {
-        statusNodes[row.key] = dd;
-      }
-    });
-
-    section.appendChild(list);
-    return section;
-  }
-
-  function ensureStatusSection(host) {
-    if (!host) return;
-    resetStatusNodes();
-    if (statusSection && statusSection.parentNode) {
-      statusSection.parentNode.removeChild(statusSection);
-    }
-    statusSection = createStatusSection();
-    host.appendChild(statusSection);
-  }
-
-  function updateStatusUI(snapshot) {
-    if (!snapshot) return;
-    if (statusNodes.sorted) {
-      statusNodes.sorted.textContent = snapshot.sorted ? 'Ja' : 'Nei';
-    }
-    if (statusNodes.almost) {
-      statusNodes.almost.textContent = formatAlmost(snapshot.almost);
-    }
-    if (statusNodes.first) {
-      statusNodes.first.textContent = formatIdList(snapshot.firstN);
-    }
-    if (statusNodes.last) {
-      statusNodes.last.textContent = formatIdList(snapshot.lastN);
-    }
-    if (statusNodes.order) {
-      statusNodes.order.textContent = formatIdList(snapshot.order);
-    }
-    if (statusSection) {
-      statusSection.dataset.sorted = snapshot.sorted ? '1' : '0';
-      if (snapshot.almost && Number.isFinite(snapshot.almost.matches)) {
-        statusSection.dataset.matches = String(snapshot.almost.matches);
-        statusSection.dataset.total = String(snapshot.almost.total);
-        statusSection.dataset.percent = String(snapshot.almost.percent);
-      } else {
-        delete statusSection.dataset.matches;
-        delete statusSection.dataset.total;
-        delete statusSection.dataset.percent;
-      }
-    }
-  }
-
   function updateFigureDataset(snapshot) {
     if (!figureHost || !snapshot) return;
     figureHost.dataset.sorted = snapshot.sorted ? '1' : '0';
@@ -668,7 +549,6 @@ import {
   function notifyStatusChange(reason) {
     const snapshot = getStatusSnapshot(true);
     syncExampleBindings();
-    updateStatusUI(snapshot);
     updateFigureDataset(snapshot);
     updateTaskCheckState(snapshot);
     clearCheckStatus();
@@ -3479,7 +3359,7 @@ import {
     updateExampleActionPayloads();
   }
 
-  function setupSettingsForm(host) {
+  function setupSettingsForm() {
     settingsForm = doc.getElementById('sorteringSettings');
     directionSelect = doc.getElementById('sortering-direction');
     gapInput = doc.getElementById('sortering-gap');
@@ -3499,11 +3379,6 @@ import {
     }
     if (addItemButton) {
       addItemButton.addEventListener('click', addNewItem);
-    }
-
-    if (host) {
-      ensureStatusSection(host);
-      updateStatusUI(getStatusSnapshot());
     }
     syncSettingsFormFromState();
     updateValidationState();
@@ -3598,8 +3473,6 @@ import {
     }
     figureHost = doc.getElementById('sortFigure');
     accessibleList = doc.getElementById('sortSkia');
-    const settingsHost = doc.getElementById('settingsHost');
-
     if (!figureHost) {
       return;
     }
@@ -3627,9 +3500,7 @@ import {
 
     updateLayout();
     applyOrder({ randomize: !!state.randomisering, resetToBase: !state.randomisering });
-    if (settingsHost) {
-      setupSettingsForm(settingsHost);
-    }
+    setupSettingsForm();
     attachExampleButtonGuards();
     loadFigureLibrary();
     if (typeof globalObj.addEventListener === 'function') {
