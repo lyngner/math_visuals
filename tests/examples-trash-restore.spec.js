@@ -22,7 +22,7 @@ const TRASH_METADATA = {
   storageMode: 'memory',
   persistent: false,
   ephemeral: true,
-  limitation: 'Test-arkiv (midlertidig lagring).'
+  limitation: 'Test-eksempelarkiv (midlertidig lagring).'
 };
 
 function clone(value) {
@@ -82,7 +82,7 @@ async function archiveExample(page, descriptionText = 'Eksempel for gjenoppretti
 async function openTrashArchivePage(context) {
   const archivePage = await context.newPage();
   await archivePage.goto(SVG_ARCHIVE_PATH, { waitUntil: 'domcontentloaded' });
-  await expect(archivePage.getByRole('heading', { name: 'Arkiv' })).toBeVisible();
+  await expect(archivePage.getByRole('heading', { name: 'Eksempelarkiv' })).toBeVisible();
   const toggle = archivePage.getByRole('button', { name: /Vis slettede figurer/i });
   await expect(toggle).toBeVisible();
   const trashRequest = archivePage.waitForRequest(
@@ -212,7 +212,7 @@ test.describe('Examples trash guidance', () => {
     await archiveExample(page);
 
     await expect(page.locator('.example-save-status__text')).toContainText(
-      'Slettede eksempler ligger i arkivet. Åpne svg-arkiv.html og trykk «Vis slettede figurer».'
+      'Slettede eksempler ligger i eksempelarkivet. Åpne svg-arkiv.html og trykk «Vis slettede figurer».'
     );
 
     expect(trashEntries.length).toBe(1);
@@ -224,7 +224,7 @@ test.describe('Examples trash guidance', () => {
   });
 
   test('archived examples capture thumbnails and render them in the trash archive', async ({ page }) => {
-    const description = 'Arkivtest – miniatyr';
+    const description = 'Eksempelarkivtest – miniatyr';
     await archiveExample(page, description);
 
     expect(trashEntries.length).toBeGreaterThan(0);
@@ -247,7 +247,7 @@ test.describe('Examples trash guidance', () => {
   });
 
   test('restoring an archived example reinserts it via the backend', async ({ page }) => {
-    const description = 'Arkivtest – gjenoppretting';
+    const description = 'Eksempelarkivtest – gjenoppretting';
     await archiveExample(page, description);
 
     await drainPendingPutEvents(backend, CANONICAL_PATH);
@@ -289,7 +289,7 @@ test.describe('Examples trash guidance', () => {
   });
 
   test('permanently deleting an archived example removes it from the archive', async ({ page }) => {
-    const description = 'Arkivtest – sletting';
+    const description = 'Eksempelarkivtest – sletting';
     await archiveExample(page, description);
 
     await backend.waitForPut(CANONICAL_PATH);
@@ -325,7 +325,7 @@ test.describe('Examples trash guidance', () => {
   });
 
   test('archived examples remain visible even if the source path still has active examples', async ({ page }) => {
-    const description = 'Arkivtest – aktiv kilde';
+    const description = 'Eksempelarkivtest – aktiv kilde';
     await archiveExample(page, description);
 
     await backend.waitForPut(CANONICAL_PATH);

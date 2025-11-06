@@ -34,7 +34,7 @@ const TEST_ENTRY = {
   summary: 'Testfigur for absolutt URL',
   exampleState: {
     description: 'Absolutt testfigur',
-    exampleNumber: 'Arkiv',
+    exampleNumber: 'Eksempelarkiv',
     config: {
       CFG: {
         type: 'line',

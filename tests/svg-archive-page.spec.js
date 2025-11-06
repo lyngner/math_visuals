@@ -14,12 +14,12 @@ const TEST_ENTRIES = [
       png: '/bildearkiv/graftegner/koordinater.png'
     },
     exampleState: {
-      description: 'Eksempel fra arkiv',
-      exampleNumber: 'Arkiv',
+      description: 'Eksempel fra eksempelarkivet',
+      exampleNumber: 'Eksempelarkiv',
       config: {
         CFG: {
           type: 'bar',
-          title: 'Arkivfigur'
+          title: 'Eksempelarkivfigur'
         }
       }
     },
@@ -100,7 +100,7 @@ const TEST_ENTRIES = [
   }
 ];
 
-test.describe('Arkiv', () => {
+test.describe('Eksempelarkiv', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/svg', async route => {
       if (route.request().method() !== 'GET') {
@@ -286,7 +286,7 @@ test.describe('Arkiv', () => {
   });
 });
 
-test.describe('Arkiv eksport-import flyt', () => {
+test.describe('Eksempelarkiv eksport-import flyt', () => {
   test('eksporterte filer kan importeres og gir redigerbar oppføring', async ({ page }, testInfo) => {
     const storedEntries = [];
     const uploadedViaPost = [];
@@ -340,15 +340,15 @@ test.describe('Arkiv eksport-import flyt', () => {
     await page.goto('/graftegner.html', { waitUntil: 'networkidle' });
     await page.waitForSelector('#btnSvg');
 
-    await page.fill('#exampleDescription', 'Arkivtest-eksempel');
+    await page.fill('#exampleDescription', 'Eksempelarkivtest-eksempel');
 
     await page.evaluate(() => {
       const fallbackState = {
-        description: 'Arkivtest-eksempel',
-        exampleNumber: 'Arkiv',
+        description: 'Eksempelarkivtest-eksempel',
+        exampleNumber: 'Eksempelarkiv',
         config: {
           CFG: {
-            title: 'Arkivtest',
+            title: 'Eksempelarkivtest',
             type: 'bar'
           }
         }
@@ -435,11 +435,11 @@ test.describe('Arkiv eksport-import flyt', () => {
 
       if (exampleState == null) {
         exampleState = {
-          description: 'Arkivtest-eksempel',
-          exampleNumber: 'Arkiv',
+          description: 'Eksempelarkivtest-eksempel',
+          exampleNumber: 'Eksempelarkiv',
           config: {
             CFG: {
-              title: 'Arkivtest',
+              title: 'Eksempelarkivtest',
               type: 'bar'
             }
           }
