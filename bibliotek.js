@@ -30,6 +30,8 @@ const categoryDialogFigures = categoryDialog?.querySelector('[data-category-figu
 const categoryDialogEmpty = categoryDialog?.querySelector('[data-category-empty]') || null;
 const categoryDialogCloseButton = categoryDialog?.querySelector('[data-category-close]') || null;
 const categoryDialogUploadButton = categoryDialog?.querySelector('[data-category-upload]') || null;
+const categoryMenu = document.querySelector('[data-category-menu]');
+const categoryMenuSurface = categoryMenu?.querySelector('[data-category-menu-surface]') || null;
 const copyFeedbackTimers = new WeakMap();
 
 const CUSTOM_STORAGE_KEY = 'mathvis:figureLibrary:customEntries:v1';
@@ -114,6 +116,8 @@ let uploadStatusTimer = null;
 let editorReturnFocus = null;
 let editingEntryId = null;
 let categoryDialogReturnFocus = null;
+let categoryMenuTrigger = null;
+let categoryMenuCategory = null;
 
 const observer = 'IntersectionObserver' in window
   ? new IntersectionObserver(handleIntersection, {
@@ -133,6 +137,7 @@ function init() {
   setupUploadForm();
   setupEditorDialog();
   setupCategoryDialog();
+  setupCategoryMenu();
 }
 
 if (document.readyState === 'loading') {
@@ -210,6 +215,7 @@ function refreshLibrary(options = {}) {
 
 function renderCategories() {
   if (!categoryGrid) return;
+  closeCategoryMenu({ returnFocus: false });
   categoryGrid.innerHTML = '';
   categoryButtons.clear();
   categoryMetaById.clear();
@@ -228,8 +234,28 @@ function renderCategories() {
         ? 'Egendefinerte figurer du har lagt til.'
         : '';
 
+    const type = typeof category.type === 'string' ? category.type : 'custom';
+    const normalizedMeta = { ...category, id: categoryId, type, name: titleText, description: descriptionText };
+
     const item = document.createElement('li');
     item.className = 'categoryItem';
+
+    const menuButton = document.createElement('button');
+    menuButton.type = 'button';
+    menuButton.className = 'categoryMenuToggle';
+    menuButton.dataset.categoryId = categoryId;
+    menuButton.setAttribute('aria-haspopup', 'menu');
+    menuButton.setAttribute('aria-expanded', 'false');
+    menuButton.setAttribute('aria-label', `Flere handlinger for ${titleText}`);
+    menuButton.innerHTML = `
+      <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+        <circle cx="8" cy="3" r="1.5" fill="currentColor"></circle>
+        <circle cx="8" cy="8" r="1.5" fill="currentColor"></circle>
+        <circle cx="8" cy="13" r="1.5" fill="currentColor"></circle>
+      </svg>
+    `;
+    menuButton.addEventListener('click', (event) => handleCategoryMenuToggle(event, normalizedMeta));
+    menuButton.addEventListener('keydown', (event) => handleCategoryMenuButtonKeydown(event, normalizedMeta));
 
     const button = document.createElement('button');
     button.type = 'button';
@@ -271,14 +297,319 @@ function renderCategories() {
     button.appendChild(meta);
 
     item.appendChild(button);
+    item.appendChild(menuButton);
     fragment.appendChild(item);
 
-    const normalizedMeta = { ...category, id: categoryId, name: titleText, description: descriptionText };
-    categoryButtons.set(categoryId, { button, countEl: count, category: normalizedMeta, listItem: item });
+    categoryButtons.set(categoryId, { button, countEl: count, category: normalizedMeta, listItem: item, menuButton });
     categoryMetaById.set(categoryId, normalizedMeta);
   }
 
   categoryGrid.appendChild(fragment);
+}
+
+function setupCategoryMenu() {
+  if (!categoryMenu || !categoryMenuSurface) return;
+  categoryMenuSurface.addEventListener('click', handleCategoryMenuClick);
+  categoryMenuSurface.addEventListener('keydown', handleCategoryMenuSurfaceKeydown);
+  categoryMenu.addEventListener('focusout', handleCategoryMenuFocusOut);
+  document.addEventListener('pointerdown', handleDocumentPointerDown);
+  document.addEventListener('keydown', handleDocumentKeydown);
+  window.addEventListener('resize', handleWindowResizeForMenu);
+  window.addEventListener('scroll', handleWindowScrollForMenu, true);
+}
+
+function isCategoryMenuOpen() {
+  return Boolean(categoryMenu && categoryMenu.dataset.open === 'true');
+}
+
+function getCategoryMenuItems() {
+  if (!categoryMenuSurface) return [];
+  return Array.from(categoryMenuSurface.querySelectorAll('[data-category-action]'));
+}
+
+function handleCategoryMenuToggle(event, category) {
+  const button = event.currentTarget;
+  if (!(button instanceof HTMLElement)) return;
+  if (!category || typeof category.id !== 'string') return;
+
+  if (isCategoryMenuOpen() && categoryMenuTrigger === button) {
+    closeCategoryMenu({ returnFocus: false });
+    return;
+  }
+
+  closeCategoryMenu({ returnFocus: false });
+  openCategoryMenu(button, category);
+}
+
+function handleCategoryMenuButtonKeydown(event, category) {
+  const button = event.currentTarget;
+  if (!(button instanceof HTMLElement)) return;
+  if (!category || typeof category.id !== 'string') return;
+
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    const focusLast = event.key === 'ArrowUp';
+    closeCategoryMenu({ returnFocus: false });
+    openCategoryMenu(button, category, { focusLast });
+  }
+}
+
+function openCategoryMenu(button, category, options = {}) {
+  if (!categoryMenu || !categoryMenuSurface) return;
+  if (!(button instanceof HTMLElement)) return;
+  if (!category || typeof category.id !== 'string') return;
+
+  const { focusLast = false } = options;
+  categoryMenuTrigger = button;
+  categoryMenuCategory = category;
+
+  categoryMenu.hidden = false;
+  categoryMenu.dataset.open = 'true';
+  button.setAttribute('aria-expanded', 'true');
+
+  positionCategoryMenu(button);
+
+  const items = getCategoryMenuItems();
+  if (items.length > 0) {
+    const targetItem = focusLast ? items[items.length - 1] : items[0];
+    requestAnimationFrame(() => {
+      targetItem.focus();
+    });
+  }
+}
+
+function positionCategoryMenu(button) {
+  if (!categoryMenuSurface) return;
+  categoryMenuSurface.style.top = '0px';
+  categoryMenuSurface.style.left = '0px';
+
+  const triggerRect = button.getBoundingClientRect();
+  const surfaceRect = categoryMenuSurface.getBoundingClientRect();
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+
+  let top = triggerRect.bottom + 8;
+  const surfaceHeight = surfaceRect.height || 0;
+  if (top + surfaceHeight > viewportHeight - 12) {
+    top = Math.max(12, triggerRect.top - surfaceHeight - 8);
+  }
+
+  let left = triggerRect.right - surfaceRect.width;
+  const surfaceWidth = surfaceRect.width || 0;
+  if (left < 12) {
+    left = 12;
+  }
+  const maxLeft = viewportWidth - surfaceWidth - 12;
+  if (left > maxLeft) {
+    left = maxLeft;
+  }
+
+  categoryMenuSurface.style.top = `${Math.round(top)}px`;
+  categoryMenuSurface.style.left = `${Math.round(left)}px`;
+}
+
+function closeCategoryMenu(options = {}) {
+  if (!categoryMenu) return;
+  const { returnFocus = true } = options;
+  const trigger = categoryMenuTrigger;
+
+  categoryMenu.dataset.open = 'false';
+  categoryMenu.hidden = true;
+
+  if (categoryMenuSurface) {
+    categoryMenuSurface.style.top = '';
+    categoryMenuSurface.style.left = '';
+  }
+
+  if (trigger) {
+    trigger.setAttribute('aria-expanded', 'false');
+  }
+
+  categoryMenuTrigger = null;
+  categoryMenuCategory = null;
+
+  if (returnFocus && trigger) {
+    requestAnimationFrame(() => {
+      trigger.focus();
+    });
+  }
+}
+
+function handleCategoryMenuClick(event) {
+  if (!categoryMenuSurface) return;
+  const target = event.target instanceof HTMLElement
+    ? event.target.closest('[data-category-action]')
+    : null;
+  if (!target || !categoryMenuSurface.contains(target)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const action = target.dataset.categoryAction || '';
+  handleCategoryMenuAction(action);
+}
+
+function handleCategoryMenuSurfaceKeydown(event) {
+  if (!isCategoryMenuOpen()) return;
+  const items = getCategoryMenuItems();
+  if (items.length === 0) return;
+
+  const activeElement = document.activeElement;
+  const currentIndex = items.indexOf(activeElement);
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % items.length : 0;
+    items[nextIndex].focus();
+    return;
+  }
+
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    const prevIndex = currentIndex >= 0 ? (currentIndex - 1 + items.length) % items.length : items.length - 1;
+    items[prevIndex].focus();
+    return;
+  }
+
+  if (event.key === 'Home') {
+    event.preventDefault();
+    items[0].focus();
+    return;
+  }
+
+  if (event.key === 'End') {
+    event.preventDefault();
+    items[items.length - 1].focus();
+    return;
+  }
+
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeCategoryMenu();
+    return;
+  }
+
+  if (event.key === 'Tab') {
+    closeCategoryMenu({ returnFocus: false });
+  }
+}
+
+function handleCategoryMenuFocusOut(event) {
+  if (!isCategoryMenuOpen()) return;
+  const nextTarget = event.relatedTarget;
+  if (nextTarget instanceof HTMLElement) {
+    if (categoryMenu?.contains(nextTarget)) {
+      return;
+    }
+    if (categoryMenuTrigger && categoryMenuTrigger.contains(nextTarget)) {
+      return;
+    }
+  }
+
+  requestAnimationFrame(() => {
+    if (!isCategoryMenuOpen()) return;
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement) {
+      if (categoryMenu?.contains(focused)) {
+        return;
+      }
+      if (categoryMenuTrigger && categoryMenuTrigger.contains(focused)) {
+        return;
+      }
+    }
+    closeCategoryMenu({ returnFocus: false });
+  });
+}
+
+function handleDocumentPointerDown(event) {
+  if (!isCategoryMenuOpen()) return;
+  const target = event.target;
+  if (target instanceof HTMLElement) {
+    if (categoryMenu?.contains(target)) {
+      return;
+    }
+    if (categoryMenuTrigger && categoryMenuTrigger.contains(target)) {
+      return;
+    }
+  }
+  closeCategoryMenu({ returnFocus: false });
+}
+
+function handleDocumentKeydown(event) {
+  if (!isCategoryMenuOpen()) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeCategoryMenu();
+  }
+}
+
+function handleWindowResizeForMenu() {
+  if (isCategoryMenuOpen()) {
+    closeCategoryMenu({ returnFocus: false });
+  }
+}
+
+function handleWindowScrollForMenu() {
+  if (isCategoryMenuOpen()) {
+    closeCategoryMenu({ returnFocus: false });
+  }
+}
+
+async function handleCategoryMenuAction(action) {
+  if (!categoryMenuCategory || typeof categoryMenuCategory.id !== 'string') {
+    closeCategoryMenu({ returnFocus: false });
+    return;
+  }
+
+  const category = categoryMenuCategory;
+
+  if (action === 'open') {
+    closeCategoryMenu({ returnFocus: false });
+    const entry = categoryButtons.get(category.id);
+    const trigger = entry?.button || categoryMenuTrigger;
+    handleCategoryClick(category, trigger);
+    return;
+  }
+
+  if (action === 'filter') {
+    closeCategoryMenu({ returnFocus: false });
+    if (filterInput) {
+      const query = `category:${category.id}`;
+      filterInput.value = query;
+      filterInput.dispatchEvent(new Event('input', { bubbles: true }));
+      filterInput.focus();
+    }
+    return;
+  }
+
+  if (action === 'copy-id') {
+    closeCategoryMenu();
+    await copyCategoryIdentifier(category);
+    return;
+  }
+
+  closeCategoryMenu({ returnFocus: false });
+}
+
+async function copyCategoryIdentifier(category) {
+  if (!category || typeof category.id !== 'string' || !category.id) {
+    return;
+  }
+  try {
+    const success = await copyToClipboard(category.id);
+    if (success) {
+      announceStatus(`Kopierte kategori-ID «${category.id}».`);
+    } else {
+      announceStatus(`Kunne ikke kopiere kategori-ID «${category.id}». Kopier teksten manuelt.`);
+    }
+  } catch (error) {
+    console.error('Kunne ikke kopiere kategori-ID', error);
+    announceStatus(`Kunne ikke kopiere kategori-ID «${category.id}». Prøv igjen.`);
+  }
+}
+
+function announceStatus(message) {
+  if (!statusEl || typeof message !== 'string') return;
+  statusEl.textContent = message;
+  statusEl.classList.remove('error');
 }
 
 function getCategoryDisplayName(category) {

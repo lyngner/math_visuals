@@ -225,7 +225,91 @@
       flex-direction: column;
       gap: clamp(10px, 1.6vw, 18px);
     }
-    .categoryItem { list-style: none; }
+    .categoryItem {
+      list-style: none;
+      position: relative;
+    }
+    .categoryMenuToggle {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 2;
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.04);
+      color: #475569;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+    .categoryMenuToggle:hover,
+    .categoryMenuToggle:focus-visible {
+      background: rgba(59, 130, 246, 0.12);
+      color: #1d4ed8;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.28);
+      transform: translateY(-1px);
+      outline: none;
+    }
+    .categoryMenuToggle:focus-visible {
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.32);
+    }
+    .categoryMenuToggle svg {
+      width: 18px;
+      height: 18px;
+      pointer-events: none;
+    }
+    .categoryMenu {
+      position: fixed;
+      inset: 0;
+      display: block;
+      pointer-events: none;
+      z-index: 40;
+    }
+    .categoryMenu[hidden] {
+      display: none !important;
+    }
+    .categoryMenu[data-open="true"] {
+      pointer-events: auto;
+    }
+    .categoryMenu__surface {
+      position: absolute;
+      min-width: 200px;
+      max-width: min(240px, calc(100vw - 24px));
+      background: #fff;
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      border-radius: 12px;
+      box-shadow: 0 18px 38px rgba(15, 23, 42, 0.18);
+      padding: 6px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .categoryMenu__item {
+      border: none;
+      background: transparent;
+      padding: 10px 16px;
+      font-size: 14px;
+      color: #1f2937;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: background 0.18s ease, color 0.18s ease;
+    }
+    .categoryMenu__item:hover,
+    .categoryMenu__item:focus-visible {
+      background: rgba(59, 130, 246, 0.12);
+      color: #1d4ed8;
+      outline: none;
+    }
+    .categoryMenu__item + .categoryMenu__item {
+      border-top: 1px solid rgba(226, 232, 240, 0.7);
+    }
     .categoryButton {
       width: 100%;
       border: 1px solid rgba(148, 163, 184, 0.36);
@@ -817,6 +901,24 @@
           Velg en kategori for å åpne detaljvisningen med figurene i biblioteket.
         </div>
       </main>
+    </div>
+  </div>
+  <div class="categoryMenu" data-category-menu hidden>
+    <div
+      class="categoryMenu__surface"
+      data-category-menu-surface
+      role="menu"
+      aria-label="Kategori handlinger"
+    >
+      <button type="button" class="categoryMenu__item" data-category-action="open" role="menuitem">
+        Åpne kategori
+      </button>
+      <button type="button" class="categoryMenu__item" data-category-action="filter" role="menuitem">
+        Filtrer på kategori
+      </button>
+      <button type="button" class="categoryMenu__item" data-category-action="copy-id" role="menuitem">
+        Kopier kategori-ID
+      </button>
     </div>
   </div>
   <dialog class="categoryDialog" data-category-dialog>
