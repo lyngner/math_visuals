@@ -162,8 +162,8 @@ import {
   });
   const defaultPreset = figureData.byId.get('kylling');
   const segmentState = {
-    a: { x: defaults.segmentPoints.a.x, y: defaults.segmentPoints.a.y },
-    b: { x: defaults.segmentPoints.b.x, y: defaults.segmentPoints.b.y }
+    a: { x: 0, y: 0 },
+    b: { x: 0, y: 0 }
   };
   const segmentHandlesByKey = new Map();
   if (segmentHandles) {
@@ -371,6 +371,11 @@ import {
       b: { x: 0.75, y: 0.5 }
     }
   };
+
+  segmentState.a.x = defaults.segmentPoints.a.x;
+  segmentState.a.y = defaults.segmentPoints.a.y;
+  segmentState.b.x = defaults.segmentPoints.b.x;
+  segmentState.b.y = defaults.segmentPoints.b.y;
 
   const tapeLengthState = {
     visiblePx: 0,
