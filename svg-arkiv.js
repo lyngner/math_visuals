@@ -513,12 +513,12 @@
       }
     } catch (_) {}
 
-    if (entry && typeof entry.svgUrl === 'string' && entry.svgUrl.trim()) {
-      candidates.push(entry.svgUrl.trim());
-    }
-
     if (window.location && typeof window.location.origin === 'string' && window.location.origin) {
       candidates.push(window.location.origin);
+    }
+
+    if (entry && typeof entry.svgUrl === 'string' && entry.svgUrl.trim()) {
+      candidates.push(entry.svgUrl.trim());
     }
 
     const baseHref = window.location && typeof window.location.href === 'string'
