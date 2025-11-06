@@ -1,9 +1,6 @@
 const amountManifestUrl = 'images/amounts/manifest.json';
 const measureManifestUrl = 'images/measure/manifest.json';
 const statusEl = document.querySelector('[data-status]');
-const resultsContainer = document.querySelector('[data-results]');
-const gridEl = document.querySelector('[data-grid]');
-const emptyEl = document.querySelector('[data-empty]');
 const filterInput = document.querySelector('[data-filter]');
 const countEl = document.querySelector('[data-count]');
 const categoryGrid = document.querySelector('[data-category-grid]');
@@ -20,6 +17,14 @@ const editorNameInput = editorDialog?.querySelector('[data-editor-name]') || nul
 const editorCategoryInput = editorDialog?.querySelector('[data-editor-category]') || null;
 const editorErrorEl = editorDialog?.querySelector('[data-editor-error]') || null;
 const editorCancelButton = editorDialog?.querySelector('[data-editor-cancel]') || null;
+const categoryDialog = document.querySelector('[data-category-dialog]');
+const categoryDialogTitle = categoryDialog?.querySelector('[data-category-title]') || null;
+const categoryDialogDescription = categoryDialog?.querySelector('[data-category-description]') || null;
+const categoryDialogCount = categoryDialog?.querySelector('[data-category-count]') || null;
+const categoryDialogFigures = categoryDialog?.querySelector('[data-category-figures]') || null;
+const categoryDialogEmpty = categoryDialog?.querySelector('[data-category-empty]') || null;
+const categoryDialogCloseButton = categoryDialog?.querySelector('[data-category-close]') || null;
+const categoryDialogUploadButton = categoryDialog?.querySelector('[data-category-upload]') || null;
 const copyFeedbackTimers = new WeakMap();
 
 const CUSTOM_STORAGE_KEY = 'mathvis:figureLibrary:customEntries:v1';
@@ -83,6 +88,9 @@ const categoryMetaById = new Map();
 const categoryButtons = new Map();
 let activeCategoryId = null;
 
+const figuresByCategory = new Map();
+const UNCATEGORIZED_KEY = '__uncategorized__';
+
 let figureItems = [];
 let allAmountSlugs = [];
 let measurementItems = [];
@@ -94,6 +102,7 @@ let customStorageAvailable = true;
 let uploadStatusTimer = null;
 let editorReturnFocus = null;
 let editingEntryId = null;
+let categoryDialogReturnFocus = null;
 
 const observer = 'IntersectionObserver' in window
   ? new IntersectionObserver(handleIntersection, {
@@ -110,6 +119,7 @@ function init() {
   filterInput?.addEventListener('input', handleFilterInput);
   setupUploadForm();
   setupEditorDialog();
+  setupCategoryDialog();
 }
 
 if (document.readyState === 'loading') {
@@ -158,21 +168,30 @@ function refreshLibrary(options = {}) {
 
   alignCustomEntriesWithBaseCategories(baseCategories);
 
-  buildGrid(allAmountSlugs, measurementItems, customEntries);
+  prepareFigureItems(allAmountSlugs, measurementItems, customEntries);
   recomputeCategories(baseCategories);
 
+  let shouldCloseCategoryDialog = false;
   if (!maintainFilter) {
+    if (activeCategoryId) {
+      shouldCloseCategoryDialog = true;
+    }
     activeCategoryId = null;
     if (filterInput) {
       filterInput.value = '';
     }
   } else if (activeCategoryId && !categoryMetaById.has(activeCategoryId)) {
     activeCategoryId = null;
+    shouldCloseCategoryDialog = true;
   }
 
   updateCategorySelection();
   updateCategoryCounts();
   applyFilter();
+
+  if (shouldCloseCategoryDialog && isCategoryDialogOpen()) {
+    closeCategoryDialog({ restoreFocus: false });
+  }
 }
 
 function renderCategories() {
@@ -203,7 +222,7 @@ function renderCategories() {
     button.className = 'categoryButton';
     button.dataset.categoryId = categoryId;
     button.setAttribute('aria-pressed', 'false');
-    button.addEventListener('click', () => handleCategoryClick(category));
+    button.addEventListener('click', (event) => handleCategoryClick(category, event.currentTarget));
 
     const figure = document.createElement('figure');
     figure.className = 'categoryFigure';
@@ -241,7 +260,7 @@ function renderCategories() {
     fragment.appendChild(item);
 
     const normalizedMeta = { ...category, id: categoryId, name: titleText, description: descriptionText };
-    categoryButtons.set(categoryId, { button, countEl: count, category: normalizedMeta });
+    categoryButtons.set(categoryId, { button, countEl: count, category: normalizedMeta, listItem: item });
     categoryMetaById.set(categoryId, normalizedMeta);
   }
 
@@ -417,14 +436,152 @@ function alignCustomEntriesWithBaseCategories(baseCategories) {
   }
 }
 
-function handleCategoryClick(category) {
+function handleCategoryClick(category, trigger) {
   if (!category || typeof category.id !== 'string') {
     return;
   }
-  const isActive = activeCategoryId === category.id;
-  activeCategoryId = isActive ? null : category.id;
-  applyFilter();
+  activeCategoryId = category.id;
   updateCategorySelection();
+  openCategoryDialog(category.id, trigger);
+}
+
+function isCategoryDialogOpen() {
+  if (!categoryDialog) return false;
+  if (typeof categoryDialog.open === 'boolean') {
+    return categoryDialog.open;
+  }
+  return categoryDialog.hasAttribute('open');
+}
+
+function openCategoryDialog(categoryId, trigger) {
+  if (!categoryDialog) return;
+  const alreadyOpen = isCategoryDialogOpen();
+  const opened = renderCategoryDialog(categoryId);
+  if (!opened) {
+    return;
+  }
+
+  categoryDialogReturnFocus = trigger instanceof HTMLElement ? trigger : null;
+
+  if (!alreadyOpen) {
+    try {
+      if (typeof categoryDialog.showModal === 'function') {
+        categoryDialog.showModal();
+      } else {
+        categoryDialog.setAttribute('open', 'true');
+      }
+    } catch (error) {
+      categoryDialog.setAttribute('open', 'true');
+    }
+
+    requestAnimationFrame(() => {
+      if (categoryDialogCloseButton) {
+        categoryDialogCloseButton.focus();
+      }
+    });
+  }
+}
+
+function closeCategoryDialog(options = {}) {
+  if (!categoryDialog) return;
+  const { restoreFocus = true } = options;
+
+  try {
+    if (typeof categoryDialog.close === 'function') {
+      categoryDialog.close();
+    } else {
+      categoryDialog.removeAttribute('open');
+    }
+  } catch (error) {
+    categoryDialog.removeAttribute('open');
+  }
+
+  if (categoryDialogFigures) {
+    categoryDialogFigures.innerHTML = '';
+  }
+
+  if (restoreFocus && categoryDialogReturnFocus && typeof categoryDialogReturnFocus.focus === 'function') {
+    categoryDialogReturnFocus.focus();
+  }
+  categoryDialogReturnFocus = null;
+}
+
+function renderCategoryDialog(categoryId) {
+  if (!categoryDialog) return false;
+  const category = categoryMetaById.get(categoryId) || null;
+  if (!category) {
+    return false;
+  }
+
+  const displayName = getCategoryDisplayName(category) || category.id || '';
+
+  const queryValue = filterInput?.value ? filterInput.value.trim() : '';
+  const normalizedQuery = queryValue.toLowerCase();
+  const hasQueryFilter = normalizedQuery.length > 0;
+
+  const allFigures = getFiguresForCategory(category.id);
+  const visibleFigures = hasQueryFilter
+    ? allFigures.filter((item) => item.searchText.includes(normalizedQuery))
+    : allFigures;
+
+  if (categoryDialogTitle) {
+    categoryDialogTitle.textContent = displayName;
+  }
+
+  if (categoryDialogDescription) {
+    const descriptionText = typeof category.description === 'string' && category.description.trim()
+      ? category.description.trim()
+      : '';
+    if (descriptionText) {
+      categoryDialogDescription.textContent = descriptionText;
+      categoryDialogDescription.hidden = false;
+    } else {
+      categoryDialogDescription.textContent = '';
+      categoryDialogDescription.hidden = true;
+    }
+  }
+
+  if (categoryDialogCount) {
+    categoryDialogCount.textContent = buildCategoryDialogCountMessage(
+      visibleFigures.length,
+      allFigures.length,
+      displayName,
+      queryValue,
+      hasQueryFilter
+    );
+  }
+
+  if (categoryDialogUploadButton) {
+    categoryDialogUploadButton.dataset.categoryId = category.id;
+    categoryDialogUploadButton.dataset.categoryName = displayName;
+  }
+
+  if (categoryDialogFigures) {
+    categoryDialogFigures.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+    for (const item of visibleFigures) {
+      fragment.appendChild(item.element);
+    }
+    categoryDialogFigures.appendChild(fragment);
+  }
+
+  if (categoryDialogEmpty) {
+    if (visibleFigures.length > 0) {
+      categoryDialogEmpty.hidden = true;
+      categoryDialogEmpty.textContent = '';
+    } else {
+      categoryDialogEmpty.hidden = false;
+      if (allFigures.length === 0) {
+        categoryDialogEmpty.textContent = `Ingen figurer er tilgjengelige i kategorien «${displayName}» ennå.`;
+      } else if (hasQueryFilter) {
+        categoryDialogEmpty.textContent = `Ingen figurer matcher «${queryValue}» i kategorien «${displayName}».`;
+      } else {
+        categoryDialogEmpty.textContent = `Ingen figurer er tilgjengelige i kategorien «${displayName}» ennå.`;
+      }
+    }
+  }
+
+  return true;
 }
 
 function updateCategorySelection() {
@@ -435,18 +592,50 @@ function updateCategorySelection() {
   }
 }
 
-function updateCategoryCounts() {
+function updateCategoryCounts(options = {}) {
+  const normalizedQuery = typeof options.query === 'string' ? options.query.trim().toLowerCase() : '';
+  const hasQueryFilter = Boolean(normalizedQuery);
+
   for (const { countEl, category } of categoryButtons.values()) {
-    const matchCount = figureItems.filter((item) => item.data.categoryId === category.id).length;
+    const figures = getFiguresForCategory(category.id);
+    const matchCount = hasQueryFilter
+      ? figures.filter((item) => item.searchText.includes(normalizedQuery)).length
+      : figures.length;
     if (countEl) {
-      countEl.textContent = matchCount === 1 ? '1 figur' : `${matchCount} figurer`;
+      countEl.textContent = formatFigureCount(matchCount);
     }
   }
 }
 
-function buildGrid(amountSlugs, measureEntries, customFigures = []) {
-  if (!gridEl) return;
-  gridEl.innerHTML = '';
+function updateCategoryVisibility(normalizedQuery, hasQueryFilter) {
+  const query = typeof normalizedQuery === 'string' ? normalizedQuery : '';
+  for (const { category, listItem } of categoryButtons.values()) {
+    if (!listItem) continue;
+    let shouldShow = true;
+    if (hasQueryFilter) {
+      const name = getCategoryDisplayName(category).toLowerCase();
+      const description = typeof category.description === 'string' ? category.description.toLowerCase() : '';
+      const figures = getFiguresForCategory(category.id);
+      const matchesFigures = figures.some((item) => item.searchText.includes(query));
+      shouldShow = Boolean(name.includes(query) || description.includes(query) || matchesFigures);
+    }
+    listItem.hidden = !shouldShow;
+  }
+}
+
+function prepareFigureItems(amountSlugs, measureEntries, customFigures = []) {
+  if (observer && Array.isArray(figureItems) && figureItems.length) {
+    for (const item of figureItems) {
+      if (item?.image) {
+        try {
+          observer.unobserve(item.image);
+        } catch (error) {}
+      }
+    }
+  }
+
+  figuresByCategory.clear();
+
   const amountEntries = Array.isArray(amountSlugs)
     ? amountSlugs.map((slug) => createAmountFigureData(slug)).filter(Boolean)
     : [];
@@ -456,13 +645,13 @@ function buildGrid(amountSlugs, measureEntries, customFigures = []) {
     : [];
   const combinedEntries = amountEntries.concat(measurementEntries, customEntriesData);
   figureItems = combinedEntries.map((entry) => createFigureItem(entry));
-  const fragment = document.createDocumentFragment();
+
   for (const item of figureItems) {
-    fragment.appendChild(item.element);
-  }
-  gridEl.appendChild(fragment);
-  if (resultsContainer) {
-    resultsContainer.hidden = false;
+    const key = getCategoryKey(item.data.categoryId);
+    if (!figuresByCategory.has(key)) {
+      figuresByCategory.set(key, []);
+    }
+    figuresByCategory.get(key).push(item);
   }
 }
 
@@ -607,6 +796,33 @@ function createFigureItem(data) {
   };
 }
 
+function getCategoryKey(categoryId) {
+  const value = typeof categoryId === 'string' ? categoryId.trim() : '';
+  return value || UNCATEGORIZED_KEY;
+}
+
+function getFiguresForCategory(categoryId) {
+  const key = getCategoryKey(categoryId);
+  return figuresByCategory.get(key) || [];
+}
+
+function formatFigureCount(count) {
+  return count === 1 ? '1 figur' : `${count} figurer`;
+}
+
+function buildCategoryDialogCountMessage(visible, total, categoryName, query, hasQueryFilter) {
+  const name = categoryName || '';
+  if (total === 0) {
+    return `Ingen figurer i kategorien «${name}» ennå.`;
+  }
+  if (hasQueryFilter) {
+    const visibleLabel = formatFigureCount(visible);
+    return `Viser ${visibleLabel} av ${total} i kategorien «${name}» for søket «${query}».`;
+  }
+  const totalLabel = formatFigureCount(total);
+  return `Viser ${totalLabel} i kategorien «${name}».`;
+}
+
 function handleIntersection(entries, obs) {
   for (const entry of entries) {
     if (!entry.isIntersecting) continue;
@@ -622,167 +838,76 @@ function handleIntersection(entries, obs) {
 
 function handleFilterInput(event) {
   const query = event.target.value || '';
-  activeCategoryId = null;
-  updateCategorySelection();
+  if (!isCategoryDialogOpen()) {
+    activeCategoryId = null;
+    updateCategorySelection();
+  }
   applyFilter(query);
 }
 
 function applyFilter(rawQuery) {
   const querySource = typeof rawQuery === 'string' ? rawQuery : filterInput?.value || '';
-  const query = querySource.trim().toLowerCase();
-  const hasCategoryFilter = Boolean(activeCategoryId);
-  const activeCategory = hasCategoryFilter ? categoryMetaById.get(activeCategoryId) || null : null;
-  const hasQueryFilter = query.length > 0;
-  let visibleCount = 0;
+  const trimmedQuery = querySource.trim();
+  const normalizedQuery = trimmedQuery.toLowerCase();
+  const hasQueryFilter = normalizedQuery.length > 0;
 
-  const totalScope = hasCategoryFilter
-    ? figureItems.filter((item) => item.data.categoryId === activeCategoryId).length
-    : figureItems.length;
+  const visibleItems = hasQueryFilter
+    ? figureItems.filter((item) => item.searchText.includes(normalizedQuery))
+    : figureItems.slice();
 
-  for (const item of figureItems) {
-    const matchesCategory = !hasCategoryFilter || item.data.categoryId === activeCategoryId;
-    const matchesQuery = !hasQueryFilter || item.searchText.includes(query);
-    const isVisible = matchesCategory && matchesQuery;
-    item.element.hidden = !isVisible;
-    if (isVisible) {
-      visibleCount += 1;
-    }
+  const total = figureItems.length;
+  const visible = visibleItems.length;
+
+  updateCount(visible, total, trimmedQuery, hasQueryFilter);
+  updateStatus(visible, total, trimmedQuery, hasQueryFilter);
+  updateCategoryCounts({ query: normalizedQuery });
+  updateCategoryVisibility(normalizedQuery, hasQueryFilter);
+  updateHelperState(total > 0);
+
+  if (isCategoryDialogOpen() && activeCategoryId) {
+    renderCategoryDialog(activeCategoryId);
   }
-
-  if (resultsContainer) {
-    resultsContainer.hidden = false;
-  }
-
-  updateCount(
-    visibleCount,
-    totalScope,
-    query,
-    hasQueryFilter,
-    hasCategoryFilter,
-    activeCategory
-  );
-  updateEmptyState(
-    visibleCount,
-    totalScope,
-    query,
-    hasQueryFilter,
-    hasCategoryFilter,
-    activeCategory
-  );
-  updateStatus(
-    visibleCount,
-    totalScope,
-    query,
-    hasQueryFilter,
-    hasCategoryFilter,
-    activeCategory
-  );
-  updateHelperState(figureItems.length > 0);
 }
 
-function updateCount(
-  visible,
-  total,
-  query,
-  hasQueryFilter,
-  hasCategoryFilter,
-  activeCategory
-) {
+function updateCount(visible, total, query, hasQueryFilter) {
   if (!countEl) return;
   if (total === 0) {
     countEl.textContent = 'Ingen figurer tilgjengelig ennå.';
     return;
   }
 
-  if (!hasQueryFilter && !hasCategoryFilter) {
-    countEl.textContent = `Viser ${visible} figurer.`;
+  if (!hasQueryFilter) {
+    countEl.textContent = total === 1 ? '1 figur tilgjengelig.' : `${total} figurer tilgjengelig.`;
     return;
   }
 
-  let context = '';
-  if (hasQueryFilter && hasCategoryFilter && activeCategory) {
-    context = ` for søket «${query}» i kategorien «${activeCategory.name}»`;
-  } else if (hasQueryFilter) {
-    context = ` for søket «${query}»`;
-  } else if (hasCategoryFilter && activeCategory) {
-    context = ` i kategorien «${activeCategory.name}»`;
-  }
-
-  countEl.textContent = `Viser ${visible} av ${total} figurer${context}.`;
+  const visibleLabel = formatFigureCount(visible);
+  countEl.textContent = `Fant ${visibleLabel} av totalt ${total} for søket «${query}».`;
 }
 
-function updateEmptyState(
-  visible,
-  total,
-  query,
-  hasQueryFilter,
-  hasCategoryFilter,
-  activeCategory
-) {
-  if (!emptyEl) return;
-  if (visible > 0) {
-    emptyEl.hidden = true;
-    emptyEl.textContent = '';
-    return;
-  }
-
-  emptyEl.hidden = false;
-  if (total === 0) {
-    emptyEl.textContent = 'Ingen figurer tilgjengelig ennå.';
-    return;
-  }
-
-  if (hasQueryFilter) {
-    const categoryContext = hasCategoryFilter && activeCategory
-      ? ` i kategorien «${activeCategory.name}»`
-      : '';
-    emptyEl.textContent = `Ingen figurer matcher «${query}»${categoryContext}. Prøv et annet søkeord eller juster filtrene.`;
-    return;
-  }
-
-  if (hasCategoryFilter && activeCategory) {
-    emptyEl.textContent = `Ingen figurer tilgjengelig i kategorien «${activeCategory.name}» ennå.`;
-    return;
-  }
-
-  emptyEl.textContent = 'Ingen figurer tilgjengelig ennå.';
-}
-
-function updateStatus(
-  visible,
-  total,
-  query,
-  hasQueryFilter,
-  hasCategoryFilter,
-  activeCategory
-) {
+function updateStatus(visible, total, query, hasQueryFilter) {
   if (!statusEl) return;
   if (total === 0) {
     statusEl.textContent = 'Ingen figurer tilgjengelig ennå.';
     return;
   }
 
-  if (hasQueryFilter && hasCategoryFilter && activeCategory) {
-    statusEl.textContent = `Viser ${visible} av ${total} figurer for søket «${query}» i kategorien «${activeCategory.name}».`;
-    return;
-  }
-
   if (hasQueryFilter) {
-    statusEl.textContent = `Viser ${visible} av ${total} figurer for søket «${query}».`;
+    statusEl.textContent = `Fant ${visible} av ${total} figurer for søket «${query}». Velg en kategori for å se resultatene.`;
     return;
   }
 
-  if (hasCategoryFilter && activeCategory) {
-    statusEl.textContent = `Viser ${visible} av ${total} figurer i kategorien «${activeCategory.name}».`;
-    return;
-  }
-
-  statusEl.textContent = `Viser ${visible} av ${total} figurer.`;
+  statusEl.textContent = `Totalt ${total} figurer tilgjengelig. Velg en kategori for å se detaljene.`;
 }
 
 function updateHelperState(hasItems) {
   if (!helperEl) return;
-  helperEl.hidden = Boolean(hasItems);
+  helperEl.hidden = false;
+  if (hasItems) {
+    helperEl.textContent = 'Velg en kategori for å åpne detaljvisningen med figurene i biblioteket.';
+  } else {
+    helperEl.textContent = 'Ingen figurer tilgjengelig ennå.';
+  }
 }
 
 function setupUploadForm() {
@@ -804,6 +929,31 @@ function setupEditorDialog() {
       event.preventDefault();
       closeCustomEditor();
     });
+  }
+}
+
+function setupCategoryDialog() {
+  if (!categoryDialog) return;
+
+  if (categoryDialogCloseButton) {
+    categoryDialogCloseButton.addEventListener('click', () => closeCategoryDialog());
+  }
+
+  if (typeof categoryDialog.addEventListener === 'function') {
+    categoryDialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      closeCategoryDialog();
+    });
+
+    categoryDialog.addEventListener('click', (event) => {
+      if (event.target === categoryDialog) {
+        closeCategoryDialog();
+      }
+    });
+  }
+
+  if (categoryDialogUploadButton) {
+    categoryDialogUploadButton.addEventListener('click', handleCategoryUploadClick);
   }
 }
 
@@ -927,6 +1077,25 @@ function createCustomFigureData(entry) {
     custom: true,
     entryId: entry.id || id,
   };
+}
+
+function handleCategoryUploadClick() {
+  const category = activeCategoryId ? categoryMetaById.get(activeCategoryId) || null : null;
+  if (category && uploadCategoryInput) {
+    const displayName = getCategoryDisplayName(category) || category.id || '';
+    uploadCategoryInput.value = displayName;
+    uploadCategoryInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  closeCategoryDialog({ restoreFocus: false });
+
+  requestAnimationFrame(() => {
+    if (uploadFileInput) {
+      uploadFileInput.click();
+    } else if (uploadCategoryInput) {
+      uploadCategoryInput.focus();
+    }
+  });
 }
 
 function handleUploadFileChange() {
