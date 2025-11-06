@@ -7,7 +7,9 @@ import {
   getMeasurementFiguresGroupedByCategory,
   encodeMeasureImagePath,
   extractRealWorldSize,
-  createFigurePickerHelpers
+  createFigurePickerHelpers,
+  loadMeasurementFigureLibrary as loadMeasurementFigureLibraryInternal,
+  getMeasurementFigureLibraryMetadata
 } from '../packages/figures/src/index.js';
 
 const globalObj = typeof globalThis !== 'undefined'
@@ -28,7 +30,9 @@ export {
   measurementFigureManifest,
   encodeMeasureImagePath,
   extractRealWorldSize,
-  createFigurePickerHelpers
+  createFigurePickerHelpers,
+  loadMeasurementFigureLibraryInternal as loadMeasurementFigureLibrary,
+  getMeasurementFigureLibraryMetadata
 };
 
 export function createFigureLibrary(options = {}) {
@@ -41,5 +45,13 @@ export function buildFigureData(options = {}) {
 
 export function getFiguresGroupedByCategory(options = {}) {
   return getMeasurementFiguresGroupedByCategory(options);
+}
+
+export function loadFigureLibrary(options = {}) {
+  return loadMeasurementFigureLibraryInternal(options);
+}
+
+export function getFigureLibraryMetadata() {
+  return getMeasurementFigureLibraryMetadata();
 }
 

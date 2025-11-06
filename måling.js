@@ -2,10 +2,11 @@ import {
   buildFigureData,
   CUSTOM_CATEGORY_ID,
   CUSTOM_FIGURE_ID,
-  createFigurePickerHelpers
+  createFigurePickerHelpers,
+  loadFigureLibrary
 } from './figure-library/measurement.js';
 
-(function initMeasurementApp() {
+(async function initMeasurementApp() {
   const doc = typeof document !== 'undefined' ? document : null;
   if (!doc) {
     return;
@@ -51,6 +52,18 @@ import {
   const boardGridOverlay = board ? board.querySelector('[data-grid-overlay]') : null;
   if (!board || (!hasRuler && !hasTapeMeasure && !hasSegment)) {
     return;
+  }
+
+  let storageWarningMessage = '';
+  try {
+    const result = await loadFigureLibrary();
+    if (result && result.metadata) {
+      storageWarningMessage = resolveStorageWarningMessage(result.metadata);
+    }
+  } catch (error) {
+    if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+      console.warn('Kunne ikke laste figurbibliotek fra API-et', error);
+    }
   }
 
   const settingsToggleButton = doc.querySelector('[data-settings-toggle]');
@@ -154,6 +167,9 @@ import {
   const zeroOffset = { x: 0, y: 0 };
   const SEGMENT_LABEL_OFFSET_PX = 32;
   const figureData = buildFigureData({ extractRealWorldSizeFromText });
+  if (!storageWarningMessage) {
+    storageWarningMessage = resolveStorageWarningMessage(figureData.metadata);
+  }
   const figurePicker = createFigurePickerHelpers({
     doc,
     figureData,
@@ -2963,8 +2979,51 @@ import {
       }
     }
     if (statusNote) {
-      statusNote.textContent = buildStatusMessage(settings);
+      const noteParts = [];
+      if (storageWarningMessage) {
+        noteParts.push(storageWarningMessage);
+      }
+      const statusMessage = buildStatusMessage(settings);
+      if (statusMessage) {
+        noteParts.push(statusMessage);
+      }
+      statusNote.textContent = noteParts.join(noteParts.length > 1 ? '\n\n' : '');
     }
+  }
+
+  function normalizeStorageModeValue(value) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return '';
+    }
+    if (normalized === 'kv' || normalized === 'vercel-kv') {
+      return 'kv';
+    }
+    if (normalized === 'memory' || normalized === 'mem' || normalized === 'unconfigured') {
+      return 'memory';
+    }
+    return normalized;
+  }
+
+  function resolveStorageWarningMessage(metadata) {
+    const source = metadata && typeof metadata === 'object' ? metadata : {};
+    const mode = normalizeStorageModeValue(source.storageMode || source.mode || source.storage);
+    const limitation = typeof source.limitation === 'string' ? source.limitation.trim() : '';
+    if (limitation) {
+      return limitation;
+    }
+    const persistent = source.persistent === true;
+    const ephemeral = source.ephemeral === true;
+    if (persistent || mode === 'kv') {
+      return '';
+    }
+    if (ephemeral || mode === 'memory' || !mode) {
+      return 'Figurbiblioteket bruker midlertidig lagring. Endringer kan gå tapt ved omstart.';
+    }
+    return '';
   }
 
   function buildStatusMessage(settings) {
@@ -6547,4 +6606,8 @@ import {
       anchor.remove();
     }
   }
-})();
+})().catch(error => {
+  if (typeof console !== 'undefined' && typeof console.error === 'function') {
+    console.error('mathVisMåling: init failed', error);
+  }
+});
