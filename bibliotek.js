@@ -4,6 +4,7 @@ const statusEl = document.querySelector('[data-status]');
 const filterInput = document.querySelector('[data-filter]');
 const countEl = document.querySelector('[data-count]');
 const categoryGrid = document.querySelector('[data-category-grid]');
+const categorySortSelect = document.querySelector('[data-category-sort]');
 const helperEl = document.querySelector('[data-helper]');
 const categorySuggestionsList = document.querySelector('[data-category-suggestions]');
 const uploadForm = document.querySelector('[data-upload-form]');
@@ -97,6 +98,8 @@ const categoryMetaById = new Map();
 const categoryButtons = new Map();
 let activeCategoryId = null;
 
+let categorySortOrder = 'default';
+
 const figuresByCategory = new Map();
 const UNCATEGORIZED_KEY = '__uncategorized__';
 
@@ -133,6 +136,7 @@ function init() {
   refreshLibrary({ maintainFilter: false });
   loadLibraries();
   filterInput?.addEventListener('input', handleFilterInput);
+  categorySortSelect?.addEventListener('change', handleCategorySortChange);
   setupAddCategoryForm();
   setupUploadForm();
   setupEditorDialog();
@@ -221,7 +225,8 @@ function renderCategories() {
   categoryMetaById.clear();
 
   const fragment = document.createDocumentFragment();
-  for (const category of categories) {
+  const orderedCategories = getSortedCategories(categories);
+  for (const category of orderedCategories) {
     if (!category || typeof category !== 'object') {
       continue;
     }
@@ -262,6 +267,8 @@ function renderCategories() {
     button.className = 'categoryButton';
     button.dataset.categoryId = categoryId;
     button.setAttribute('aria-pressed', 'false');
+    button.setAttribute('aria-label', titleText);
+    button.title = titleText;
     button.addEventListener('click', (event) => handleCategoryClick(category, event.currentTarget));
 
     const figure = document.createElement('figure');
@@ -277,7 +284,7 @@ function renderCategories() {
     figure.appendChild(img);
 
     const meta = document.createElement('div');
-    meta.className = 'categoryMeta';
+    meta.className = 'categoryMeta visuallyHidden';
 
     const title = document.createElement('h3');
     title.textContent = titleText;
@@ -288,7 +295,7 @@ function renderCategories() {
     meta.appendChild(description);
 
     const count = document.createElement('span');
-    count.className = 'categoryCount';
+    count.className = 'categoryCount visuallyHidden';
     count.dataset.categoryCount = '';
     count.textContent = '–';
     meta.appendChild(count);
@@ -305,6 +312,21 @@ function renderCategories() {
   }
 
   categoryGrid.appendChild(fragment);
+}
+
+function getSortedCategories(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  const items = list.slice();
+  if (categorySortOrder === 'alphabetical') {
+    return items.sort((a, b) => {
+      const nameA = (getCategoryDisplayName(a) || '').toLowerCase();
+      const nameB = (getCategoryDisplayName(b) || '').toLowerCase();
+      return nameA.localeCompare(nameB, 'nb', { sensitivity: 'base' });
+    });
+  }
+  return items;
 }
 
 function setupCategoryMenu() {
@@ -1208,6 +1230,14 @@ function handleIntersection(entries, obs) {
     }
     obs.unobserve(img);
   }
+}
+
+function handleCategorySortChange(event) {
+  const value = typeof event?.target?.value === 'string' ? event.target.value : 'default';
+  categorySortOrder = value === 'alphabetical' ? 'alphabetical' : 'default';
+  renderCategories();
+  updateCategorySelection();
+  applyFilter();
 }
 
 function handleFilterInput(event) {
