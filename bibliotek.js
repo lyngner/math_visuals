@@ -17,6 +17,7 @@ const uploadFileInput = uploadForm?.querySelector('[data-upload-file]') || null;
 const uploadNameInput = uploadForm?.querySelector('[data-upload-name]') || null;
 const uploadCategoryInput = uploadForm?.querySelector('[data-upload-category]') || null;
 const uploadStatusEl = uploadForm?.querySelector('[data-upload-status]') || null;
+const uploadStatusMessageEl = uploadStatusEl?.querySelector('[data-upload-status-message]') || null;
 const editorDialog = document.querySelector('[data-custom-editor]');
 const editorForm = editorDialog?.querySelector('[data-editor-form]') || null;
 const editorNameInput = editorDialog?.querySelector('[data-editor-name]') || null;
@@ -2448,6 +2449,7 @@ async function handleUploadSubmit(event) {
   const desiredName = uploadNameInput && uploadNameInput.value ? uploadNameInput.value.trim() : '';
   const categoryInputValue = uploadCategoryInput && uploadCategoryInput.value ? uploadCategoryInput.value : '';
   const results = [];
+  const progressDetails = [];
   let successfulUploads = 0;
   let encounteredError = false;
   const reservedUploadIds = new Set();
@@ -2456,6 +2458,19 @@ async function handleUploadSubmit(event) {
     uploadForm.dataset.state = 'busy';
     uploadForm.setAttribute('aria-busy', 'true');
   }
+
+  const updateProgressStatus = () => {
+    const completed = results.length;
+    const header = files.length > 1 && completed
+      ? `Laster opp … (${completed}/${files.length})`
+      : 'Laster opp …';
+    const detailLines = progressDetails.length
+      ? `\n${progressDetails.map((detail) => `• ${detail}`).join('\n')}`
+      : '';
+    showUploadStatus(`${header}${detailLines}`, 'pending');
+  };
+
+  showUploadStatus('Laster opp …', 'pending');
 
   for (let index = 0; index < files.length; index += 1) {
     const file = files[index];
@@ -2484,13 +2499,17 @@ async function handleUploadSubmit(event) {
       const savedEntry = await submitFigureEntry(entry, { method: 'POST' });
       const finalEntry = savedEntry || entry;
       results.push({ state: 'success', message: `${label}: Lastet opp som «${finalEntry.name}».` });
+      progressDetails.push(`${label}: Lastet opp som «${finalEntry.name}».`);
       successfulUploads += 1;
     } catch (error) {
       encounteredError = true;
       console.error('Opplasting av SVG mislyktes', error);
       const message = extractApiErrorMessage(error, 'Opplasting mislyktes.');
       results.push({ state: 'error', message: `${label}: ${message}` });
+      progressDetails.push(`${label}: ${message}`);
     }
+
+    updateProgressStatus();
   }
 
   if (uploadForm) {
@@ -2531,14 +2550,28 @@ function determineUploadName(desiredName, totalFiles, index, originalFileName) {
 
 function showUploadStatus(message, state = 'info', options = {}) {
   if (!uploadStatusEl) return;
-  uploadStatusEl.textContent = message;
-  uploadStatusEl.dataset.state = state;
+  const resolvedState = typeof state === 'string' && state.trim() ? state.trim() : 'info';
+  const resolvedMessage = typeof message === 'string' ? message : message == null ? '' : String(message);
+  if (uploadStatusMessageEl) {
+    uploadStatusMessageEl.textContent = resolvedMessage;
+  } else {
+    uploadStatusEl.textContent = resolvedMessage;
+  }
+  uploadStatusEl.dataset.state = resolvedState;
   uploadStatusEl.hidden = false;
   if (uploadStatusTimer) {
     clearTimeout(uploadStatusTimer);
     uploadStatusTimer = null;
   }
-  const duration = Number.isFinite(options.duration) ? Number(options.duration) : state === 'error' ? 8000 : 5000;
+  const pending = resolvedState === 'pending';
+  const explicitDuration = Number.isFinite(options.duration) ? Number(options.duration) : null;
+  const duration = explicitDuration !== null
+    ? explicitDuration
+    : pending
+      ? 0
+      : resolvedState === 'error'
+        ? 8000
+        : 5000;
   if (duration > 0) {
     uploadStatusTimer = setTimeout(() => {
       uploadStatusEl.hidden = true;

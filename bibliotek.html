@@ -600,10 +600,50 @@
       font-size: 13px;
       margin: 0;
       color: #1e3a8a;
+      background: rgba(37, 99, 235, 0.12);
+      border: 1px solid rgba(37, 99, 235, 0.24);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: inline-flex;
+      gap: 10px;
+      align-items: flex-start;
+      white-space: pre-line;
     }
-    .uploadStatus[data-state="success"] { color: #047857; }
-    .uploadStatus[data-state="error"] { color: #b91c1c; }
-    .uploadStatus[data-state="warning"] { color: #b45309; }
+    .uploadStatus__spinner {
+      display: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      animation: uploadStatusSpin 0.8s linear infinite;
+      margin-top: 2px;
+    }
+    .uploadStatus[data-state="pending"] {
+      color: #1d4ed8;
+    }
+    .uploadStatus[data-state="success"] {
+      color: #047857;
+      background: rgba(16, 185, 129, 0.14);
+      border-color: rgba(5, 150, 105, 0.3);
+    }
+    .uploadStatus[data-state="error"] {
+      color: #b91c1c;
+      background: rgba(248, 113, 113, 0.16);
+      border-color: rgba(185, 28, 28, 0.35);
+    }
+    .uploadStatus[data-state="warning"] {
+      color: #92400e;
+      background: rgba(251, 191, 36, 0.2);
+      border-color: rgba(180, 83, 9, 0.35);
+    }
+    .uploadStatus[data-state="pending"] .uploadStatus__spinner {
+      display: inline-flex;
+    }
+    @keyframes uploadStatusSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
 
     dialog[data-custom-editor] {
       border: none;
@@ -890,7 +930,10 @@
           <p class="uploadHelper">Velg en eksisterende kategori eller skriv inn en ny.</p>
           <div class="uploadActions">
             <button type="submit" class="uploadButton">Legg til figur</button>
-            <p class="uploadStatus" data-upload-status hidden></p>
+            <p class="uploadStatus" data-upload-status aria-live="polite" hidden>
+              <span class="uploadStatus__spinner" data-upload-status-spinner aria-hidden="true"></span>
+              <span data-upload-status-message></span>
+            </p>
           </div>
         </form>
       </section>
