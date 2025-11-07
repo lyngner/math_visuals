@@ -1,4 +1,4 @@
-import amountManifest from '../images/amounts/manifest.json' assert { type: 'json' };
+import amountManifest from '../images/amounts/manifest-data.js';
 import {
   CUSTOM_CATEGORY_ID,
   CUSTOM_FIGURE_ID,
