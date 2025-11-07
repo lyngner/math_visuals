@@ -1,46 +1,74 @@
 # Math Visuals
 
-Dette repositoriet inneholder statiske verktøy og eksempler for Math Visuals-prosjektet. Verktøyene forventer nå at eksempeltjenesten på `/api/examples` er tilgjengelig i samme opprinnelse.
+Math Visuals er en samling nettbaserte matematikklabbar laget for norske klasserom. Repositoriet inneholder både de statiske appene som lever på `math-visuals.vercel.app` og serverløse funksjoner for datahåndtering, alternativ tekst og gjenbrukbare bibliotek. Alt kan kjøres lokalt, hostes på Vercel eller integreres i andre læringsplattformer.
 
-## Om prosjektet
+## Arkitektur i korte trekk
 
-Math Visuals samler nettbaserte undervisningsressurser som lar elever og lærere utforske matematikk visuelt. Hver app er en statisk HTML/JS-side som kan kjøres direkte fra dette repositoriet, hostes på Vercel eller legges inn i andre læringsplattformer. Mange av verktøyene kan lagre delte eksempler via `api/examples`, mens andre fungerer helt uten backend.
+* **Statiske apper** ligger som HTML/JS/CSS-filer i rotmappen. Hver app kan åpnes direkte i nettleseren, embeddes i LMS eller bygges inn i andre løsninger. Felles komponenter som `base.css`, `router.js`, `description-renderer.js` og tilhørende bibliotek i `vendor/` sørger for delte knapper, tema og beskrivelser.
+* **Delte pakker** i `packages/` gjør det mulig å gjenbruke kode mellom apper. Workspacet bygges med Rollup til både ESM og CommonJS, og er dokumentert i [`docs/shared-packages.md`](docs/shared-packages.md).
+* **Back-end**-funksjoner ligger i `api/` og deployes som Vercel Functions. Viktigste tjeneste er `api/examples`, som lagrer og henter lagrede «eksempler». Andre endepunkter leverer dynamiske SVG-er, alternativ tekst og tilpassede data for utvalgte apper. Dokumentasjonen for eksempellagringen finnes i [`docs/examples-storage.md`](docs/examples-storage.md), mens `docs/`-mappen ellers dekker lokal kjøring, drift og feilsøking.
 
-Koden er organisert per verktøy (én HTML-fil med tilhørende JavaScript/CSS), i tillegg til felles komponenter som `base.css`, `router.js` og støttebibliotek i `vendor/`. Dokumentasjon og driftsnotater ligger i `docs/`.
+## Apper og verktøy
 
-### Delte pakker
+Tabellene under beskriver hele app-katalogen. Alle filer kan åpnes direkte fra repoet (for eksempel `npm install && npx http-server .`), og de fleste eksporterer data gjennom `/api/examples` hvis back-enden kjører.
 
-Prosjektet eksponerer i tillegg et npm-workspace i `packages/` for kode som skal kunne gjenbrukes mellom flere apper. Workspace-et bruker Rollup for å bygge pakkene til både ESM- og CommonJS-bunter. Du finner mer informasjon i [`docs/shared-packages.md`](docs/shared-packages.md).
+### Tallforståelse og aritmetikk
 
-## Verktøy og apper
+| App | Beskrivelse |
+| --- | --- |
+| [Brøkpizza](brøkpizza.html) | Interaktive brøksirkler («pizzaer») der du justerer teller, nevner og sammensetning for å sammenligne brøker. |
+| [Brøkfigurer](brøkfigurer.html) | Bygg egne brøkrepresentasjoner med rutenett og sektorer, fargelag og alternative visninger. |
+| [Brøkvegg](brøkvegg.html) | Konstruer en brøkvegg med flere rader og alternative visninger for å sammenligne likeverdige brøker. |
+| [Figurtall](figurtall.html) | Konfigurerer mønstre av ruter og rader for å illustrere figurtall og generelle mønstre. |
+| [Kvikkbilder](kvikkbilder.html) | Lager raske mønstre (ti-rammer, rektangler og «monster»-mønstre) for subitisering og hoderegning. |
+| [Kvikkbilder monster](kvikkbilder-monster.html) | Variant av Kvikkbilder med fokus på asynkrone «monster»-mønstre for ekstra variasjon. |
+| [Tenkeblokker](tenkeblokker.html) | Bar-modell-verktøy for å sette opp tenkeblokker med rader, kolonner, tallinjer og tilhørende oppgavetekster. |
+| [Tenkeblokker steg-for-steg](tenkeblokker-stepper.html) | Veileder elever gjennom bar-modellene steg for steg med fokus på resonnering. |
+| [Tallinje](tallinje.html) | Tilpassbar tallinje med piler, intervaller, brikker og dra-og-slipp-objekter. |
+| [Perlesnor](perlesnor.html) | Visualiserer en perlesnor med flyttbare klyper, markeringer og tekstbeskrivelser. |
+| [Kuler](kuler.html) | Skaper tellekuler i skål og på perlesnor for å illustrere grupper, tiere og enere. |
+| [Prikk til prikk](prikktilprikk.html) *(Beta)* | Genererer prikk-til-prikk-oppgaver med tilpassbare rutenett, tall og fasit. |
+| [Sortering](sortering.html) *(Beta)* | Lager dra-og-slipp-sorteringer der elever grupperer kort i kategorier med fasit og vurdering. |
 
-| Verktøy | Beskrivelse |
+### Geometri, måling og visualisering
+
+| App | Beskrivelse |
 | --- | --- |
 | [Graftegner](graftegner.html) | JSXGraph-basert graftegnebrett for funksjoner, punkter og konstruksjoner på koordinatsystemet. |
 | [nKant](nkant.html) | Generator for regulære polygoner, buer og målinger i én SVG som kan eksporteres til oppgavesett. |
 | [Diagram](diagram/index.html) | Lager stolpe-, linje-, sektor- og gruppediagram med støtte for fasit, oppgavetekst og UU-vennlige visninger. |
-| [Brøkpizza](brøkpizza.html) | Interaktive brøksirkler («pizzaer») der du justerer teller, nevner og sammensetning for å sammenligne brøker. |
-| [Brøkfigurer](brøkfigurer.html) | Bygg egne brøkrepresentasjoner med rutenett og sektorer, fargelag og alternative visninger. |
-| [Figurtall](figurtall.html) | Konfigurerer mønstre av ruter og rader for å illustrere figurtall og generelle mønstre. |
-| [Tenkeblokker](tenkeblokker.html) | Bar-modell-verktøy for å sette opp tenkeblokker med rader, kolonner, tallinjer og tilhørende oppgavetekster. |
 | [Arealmodell](arealmodell.html) | Dynamisk arealmodell for multiplikasjon og prosent, med varianter tilpasset ulike elevnivå. |
-| [Tallinje](tallinje.html) | Tilpassbar tallinje med piler, intervaller, brikker og dra-og-slipp-objekter. |
-| [Perlesnor](perlesnor.html) | Visualiserer en perlesnor med flyttbare klyper, markeringer og tekstbeskrivelser. |
-| [Kuler](kuler.html) | Skaper tellekuler i skål og på perlesnor for å illustrere grupper, tiere og enere. |
-| [Kvikkbilder](kvikkbilder.html) | Lager raske mønstre (ti-rammer, rektangler og «monster»-mønstre) for subitisering og hoderegning. |
-| [3D-figurer](trefigurer.html) | Tegner og beskriver tredimensjonale figurer som prismer, sylindre, kjegler, kuler og pyramider. |
-| [Brøkvegg](brøkvegg.html) | Bygger en brøkvegg med flere rader og alternative visninger for å sammenligne likeverdige brøker. |
-| [Sortering](sortering.html) | (Beta) Lager dra-og-slipp-sorteringer der elever grupperer kort i kategorier med fasit og vurdering. |
-| [Bibliotek](bibliotek.html) | (Beta) Viser bildebibliotek for mengdeillustrasjoner («amounts») med søk, forhåndsvisning og snarveier. |
-| [Prikk til prikk](prikktilprikk.html) | (Beta) Genererer prikk-til-prikk-oppgaver med tilpassbare rutenett, tall og fasit. |
-| [Fortegnsskjema](fortegnsskjema.html) | (Beta) Setter opp fortegnsskjema med intervaller, nullpunkter og symboler for funksjonsanalyse. |
-| [SVG-arkiv](svg-arkiv.html) | Viser lagrede, arkiverte og slettede figurer fra eksempeltjenesten, med snarvei tilbake til originalverktøyet. |
+| [Arealmodell (tidlige prototyper)](arealmodell0.html) | Første versjon av arealmodellen, bevart for historikk og undervisningsopplegg. |
+| [Arealmodellen 1](arealmodellen1.html) | Alternativ utgave av arealmodellen med andre oppsett og tilpasninger. |
+| [Trefigurer](trefigurer.html) | Tegner og beskriver tredimensjonale figurer som prismer, sylindre, kjegler, kuler og pyramider. |
+| [Fortegnsskjema](fortegnsskjema.html) *(Beta)* | Setter opp fortegnsskjema med intervaller, nullpunkter og symboler for funksjonsanalyse. |
+| [Måling](måling.html) *(Beta)* | Utforsker måling og enheter med fleksible visuelle representasjoner. |
+| [SVG-arkiv](svg-arkiv.html) *(Beta)* | Viser lagrede, arkiverte og slettede figurer fra eksempeltjenesten, med snarvei tilbake til originalverktøyet. |
 
-Andre mapper rommer tilleggsmateriell (for eksempel `kvikkbilder-monster.html`, `arealmodell0.html`, `arealmodellen1.html`) og støtteverktøy som [trash-archive-viewer](trash-archive-viewer.js) og [alt-text-ui](alt-text-ui.js).
+### Støtteverktøy og administrasjon
+
+| Fil | Beskrivelse |
+| --- | --- |
+| [Bibliotek](bibliotek.html) *(Beta)* | Viser bildebibliotek for mengdeillustrasjoner («amounts») med søk, forhåndsvisning og snarveier. |
+| [Settings](settings.html) | Konfigurasjonspanel for å endre profil, tema og tilgjengelighetsinnstillinger i brukergrensesnittet. |
+| [Alt-tekst UI](alt-text-ui.js) | Hjelpeverktøy for å redigere automatisk generert alternativ tekst og eksempelbeskrivelser. |
+| [Trash archive viewer](trash-archive-viewer.js) | Admin-grensesnitt for å hente tilbake eksempler som ligger i «søppelbøtte»-arkivet. |
+| [Examples viewer](examples-trash.html) | Viser og rydder opp i lagrede eksempeldata. |
+
+## Back-end-funksjoner
+
+Alle serverløse funksjoner bor i `api/` og eksponeres automatisk når prosjektet hostes på Vercel. De viktigste modulene er:
+
+* `api/examples`: REST-endepunkt for å opprette, liste, oppdatere og slette lagrede eksempler. Tjenesten bruker Vercel KV når `KV_REST_API_URL` og `KV_REST_API_TOKEN` er satt, ellers faller den tilbake til midlertidig minne.
+* `api/figure-library` og `api/svg`: Lager dynamiske SVG-er og figurer til apper som Diagram og nKant.
+* `api/diagram-alt-text.js`, `api/figurtall-alt-text.js` og `api/nkant-parse.js`: Genererer alternativ tekst og parser for tilgjengelighetsfunksjoner.
+* `api/settings`: Tilpasset konfigurasjon for profilvelger og navstruktur.
+
+Eksempeltjenesten har egne CLI-skript i `scripts/`, blant annet `npm run check-examples-api` for å sjekke lagringsstatus på distribuerte miljøer. Se avsnittet under for detaljer om feilsøking og drift.
 
 ### Aktivere beta-verktøy
 
-Flere verktøy i listen er merket «Beta», blant annet Måling, Sortering, Bibliotek, Prikk til prikk og SVG-arkiv. Disse er skjult for standardprofilen. For å aktivere dem, åpner du profilvelgeren i toppmenyen og bytter profil til «Annet» (eller en annen profil som har beta-ressurser aktivert, som «Kikora» eller «Campus»). Navigasjonsmenyen viser da alle beta-elementene med tilhørende «Beta»-merke.
+Flere verktøy er merket «Beta», blant annet Måling, Sortering, Bibliotek, Prikk til prikk og SVG-arkiv. Disse er skjult for standardprofilen. For å aktivere dem åpner du profilvelgeren i toppmenyen (knapp med brukernavn/ikon) og bytter til «Annet» eller en profil som har beta-ressurser aktivert, for eksempel «Kikora» eller «Campus». Navigasjonsmenyen viser da alle beta-elementene med tilhørende «Beta»-merke.
 
 ## Eksempeltjenesten
 
