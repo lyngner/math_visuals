@@ -2221,9 +2221,24 @@ async function loadCustomEntries() {
   try {
     const result = await fetchFigureLibraryEntries();
     const entries = Array.isArray(result.entries) ? result.entries : [];
+    const serverIds = new Set();
     entries.forEach((entry) => {
+      if (!entry || !entry.id) {
+        return;
+      }
+      serverIds.add(entry.id);
       upsertCustomEntryLocal(entry);
     });
+    if (figureLibraryMetadata.storageMode !== 'memory') {
+      for (let index = customEntries.length - 1; index >= 0; index -= 1) {
+        const entry = customEntries[index];
+        if (!entry || serverIds.has(entry.id)) {
+          continue;
+        }
+        customEntries.splice(index, 1);
+        customEntryMap.delete(entry.id);
+      }
+    }
     if (figureLibraryMetadata.storageMode === 'memory' && localFallbackEntries.length) {
       for (const entry of localFallbackEntries) {
         if (!entry || !entry.id || customEntryMap.has(entry.id)) {
