@@ -4,7 +4,7 @@ import {
   measurementFigureManifest,
   createFigurePickerHelpers,
   loadFigureLibrary as loadMeasurementFigureLibrary
-} from './figure-library/measurement.js';
+} from './figure-library/all.js';
 
 (async function () {
   const globalObj = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
@@ -1017,7 +1017,28 @@ import {
     doc,
     figureData,
     fallbackCategoryId: DEFAULT_FIGURE_CATEGORY_ID,
-    getFigureValue: figure => (typeof figure.image === 'string' && figure.image.trim() ? figure.image.trim() : '')
+    getFigureValue: figure => {
+      if (!figure || typeof figure !== 'object') {
+        return '';
+      }
+      const imagePath = typeof figure.image === 'string' ? figure.image.trim() : '';
+      if (imagePath) {
+        return imagePath;
+      }
+      const assetPath = typeof figure.asset === 'string' ? figure.asset.trim() : '';
+      if (assetPath) {
+        return assetPath;
+      }
+      const slug = typeof figure.slug === 'string' ? figure.slug.trim() : '';
+      if (slug) {
+        return slug;
+      }
+      const id = typeof figure.id === 'string' ? figure.id.trim() : '';
+      if (id) {
+        return id;
+      }
+      return '';
+    }
   });
   const figureLibraryState = {
     loaded: true,
