@@ -103,6 +103,11 @@ if (typeof SIMPLE.altText !== "string") SIMPLE.altText = "";
 if (SIMPLE.altTextSource !== "manual") SIMPLE.altTextSource = "auto";
 const controlsWrap = document.getElementById("controls");
 const figureGridEl = document.querySelector(".figureGrid");
+const BEAD_KEYBOARD_HINT_ID = "kulerKeyboardHint";
+const beadKeyboardHintEl = ensureHiddenHint(BEAD_KEYBOARD_HINT_ID, "Fokuser en kule og bruk piltastene for å flytte den. Trykk mellomrom eller enter for å plukke opp eller slippe.", figureGridEl ? figureGridEl.parentElement : null);
+if (beadKeyboardHintEl && figureGridEl) {
+  figureGridEl.setAttribute("aria-describedby", BEAD_KEYBOARD_HINT_ID);
+}
 const addBtn = document.getElementById("addBowl");
 const panelEls = SVG_IDS.map((_, idx) => document.getElementById(`panel${idx + 1}`));
 const removeBtns = SVG_IDS.map((_, idx) => document.getElementById(`removeBowl${idx + 1}`));
@@ -130,6 +135,9 @@ initializeVisibleCount();
 SVG_IDS.forEach((id, idx) => {
   const svg = document.getElementById(id);
   if (!svg) return;
+  if (beadKeyboardHintEl) {
+    svg.setAttribute("aria-describedby", BEAD_KEYBOARD_HINT_ID);
+  }
   svg.setAttribute("viewBox", `0 0 ${VB_W} ${VB_H}`);
   svg.innerHTML = "";
   const gBowls = mk("g", {
@@ -558,9 +566,11 @@ function removeBowl(idx) {
   if (dragState && ((_dragState$fig = dragState.fig) === null || _dragState$fig === void 0 ? void 0 : _dragState$fig.idx) === idx) {
     const {
       fig,
-      pointerId
+      pointerId,
+      bead,
+      mode
     } = dragState;
-    if (fig !== null && fig !== void 0 && fig.svg) {
+    if (mode === "pointer" && fig !== null && fig !== void 0 && fig.svg) {
       fig.svg.removeEventListener("pointermove", onDrag);
       fig.svg.removeEventListener("pointerup", endDrag);
       fig.svg.removeEventListener("pointercancel", endDrag);
@@ -568,6 +578,7 @@ function removeBowl(idx) {
         fig.svg.releasePointerCapture(pointerId);
       } catch (_) {}
     }
+    if (bead) updateBeadGrabbedState(bead, false);
     dragState = null;
   }
   if (Array.isArray(SIMPLE.bowls) && SIMPLE.bowls.length === 0) {
@@ -693,6 +704,12 @@ function renderFigure(fig) {
     bead.dataset.bowl = String(idx);
     bead.dataset.type = typeKey;
     bead.dataset.typeIndex = String(useIdx);
+    bead.setAttribute("tabindex", "0");
+    bead.setAttribute("role", "button");
+    bead.setAttribute("aria-grabbed", "false");
+    bead.setAttribute("aria-keyshortcuts", "ArrowUp ArrowDown ArrowLeft ArrowRight Space Enter");
+    bead.addEventListener("keydown", handleBeadKeydown);
+    bead.addEventListener("blur", handleBeadBlur);
     bead.addEventListener("pointerdown", startDrag);
     gBeads.appendChild(bead);
   }
@@ -773,21 +790,22 @@ function getBowlState(idx) {
   if (bowlState.byColor) delete bowlState.byColor;
   return bowlState;
 }
+const KEYBOARD_MOVE_MIN = 4;
+const KEYBOARD_MOVE_FACTOR = 0.45;
 let dragState = null;
 function startDrag(e) {
-  const bead = e.target;
-  if (!bead || typeof bead.getAttribute !== "function") return;
-  const figIdx = Number.parseInt(bead.dataset.figure, 10);
-  const fig = figureViews[figIdx];
-  if (!fig || !fig.svg) return;
-  const bowlIdx = Number.parseInt(bead.dataset.bowl, 10);
-  const typeIdx = Number.parseInt(bead.dataset.typeIndex, 10);
-  const typeKey = bead.dataset.type;
-  const info = {
-    bowlIdx: Number.isNaN(bowlIdx) ? null : bowlIdx,
-    typeKey: typeof typeKey === "string" && typeKey ? typeKey : null,
-    typeIndex: Number.isNaN(typeIdx) ? null : typeIdx
-  };
+  const context = getBeadContext(e.target);
+  if (!context) return;
+  const {
+    bead,
+    fig,
+    info
+  } = context;
+  if (dragState && dragState.mode === "keyboard") {
+    endKeyboardDrag({
+      commit: true
+    });
+  }
   const pt = svgPoint(fig.svg, e);
   const x = parseFloat(bead.getAttribute("x"));
   const y = parseFloat(bead.getAttribute("y"));
@@ -799,7 +817,8 @@ function startDrag(e) {
     info,
     offsetX,
     offsetY,
-    pointerId: e.pointerId
+    pointerId: e.pointerId,
+    mode: "pointer"
   };
   fig.svg.addEventListener("pointermove", onDrag);
   fig.svg.addEventListener("pointerup", endDrag);
@@ -807,9 +826,10 @@ function startDrag(e) {
   try {
     fig.svg.setPointerCapture(e.pointerId);
   } catch (_) {}
+  updateBeadGrabbedState(bead, true);
 }
 function onDrag(e) {
-  if (!dragState) return;
+  if (!dragState || dragState.mode !== "pointer") return;
   const {
     bead,
     fig,
@@ -822,10 +842,11 @@ function onDrag(e) {
   storeDragPosition();
 }
 function endDrag(e) {
-  if (!dragState) return;
+  if (!dragState || dragState.mode !== "pointer") return;
   const {
     fig,
-    pointerId
+    pointerId,
+    bead
   } = dragState;
   fig.svg.removeEventListener("pointermove", onDrag);
   fig.svg.removeEventListener("pointerup", endDrag);
@@ -834,6 +855,7 @@ function endDrag(e) {
     fig.svg.releasePointerCapture(pointerId);
   } catch (_) {}
   storeDragPosition();
+  if (bead) updateBeadGrabbedState(bead, false);
   dragState = null;
 }
 function storeDragPosition() {
@@ -858,6 +880,153 @@ function storeDragPosition() {
     x,
     y
   };
+}
+function getBeadContext(target) {
+  if (!target || typeof target.getAttribute !== "function") return null;
+  const bead = target;
+  const figIdx = Number.parseInt(bead.dataset.figure, 10);
+  if (Number.isNaN(figIdx)) return null;
+  const fig = figureViews[figIdx];
+  if (!fig || !fig.svg) return null;
+  const bowlIdx = Number.parseInt(bead.dataset.bowl, 10);
+  const typeIdx = Number.parseInt(bead.dataset.typeIndex, 10);
+  const typeKey = bead.dataset.type;
+  return {
+    bead,
+    fig,
+    info: {
+      bowlIdx: Number.isNaN(bowlIdx) ? null : bowlIdx,
+      typeKey: typeof typeKey === "string" && typeKey ? typeKey : null,
+      typeIndex: Number.isNaN(typeIdx) ? null : typeIdx
+    }
+  };
+}
+function getKeyboardStep(fig) {
+  const radius = fig && Number.isFinite(fig.renderRadius) ? fig.renderRadius : ADV.beadRadius;
+  const scaled = radius * KEYBOARD_MOVE_FACTOR;
+  const rounded = Math.round(scaled);
+  return Math.max(KEYBOARD_MOVE_MIN, Number.isFinite(rounded) && rounded > 0 ? rounded : KEYBOARD_MOVE_MIN);
+}
+function startKeyboardDrag(bead) {
+  const context = getBeadContext(bead);
+  if (!context) return false;
+  if (dragState && dragState.mode === "pointer") {
+    return false;
+  }
+  if (dragState && dragState.mode === "keyboard") {
+    if (dragState.bead === bead) return true;
+    endKeyboardDrag({
+      commit: true
+    });
+  }
+  dragState = {
+    bead: context.bead,
+    fig: context.fig,
+    info: context.info,
+    offsetX: 0,
+    offsetY: 0,
+    pointerId: null,
+    mode: "keyboard"
+  };
+  updateBeadGrabbedState(bead, true);
+  return true;
+}
+function endKeyboardDrag(options = {}) {
+  if (!dragState || dragState.mode !== "keyboard") return;
+  const {
+    bead
+  } = dragState;
+  const commit = options && options.commit !== false;
+  if (commit) {
+    storeDragPosition();
+  }
+  if (bead) updateBeadGrabbedState(bead, false);
+  dragState = null;
+}
+function moveBeadWithKeyboard(bead, fig, key) {
+  if (!bead || !fig) return false;
+  const step = getKeyboardStep(fig);
+  const x = Number.parseFloat(bead.getAttribute("x"));
+  const y = Number.parseFloat(bead.getAttribute("y"));
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+  let nextX = x;
+  let nextY = y;
+  switch (key) {
+    case "ArrowUp":
+      nextY -= step;
+      break;
+    case "ArrowDown":
+      nextY += step;
+      break;
+    case "ArrowLeft":
+      nextX -= step;
+      break;
+    case "ArrowRight":
+      nextX += step;
+      break;
+    default:
+      return false;
+  }
+  if (nextX === x && nextY === y) return false;
+  bead.setAttribute("x", String(nextX));
+  bead.setAttribute("y", String(nextY));
+  storeDragPosition();
+  return true;
+}
+function handleBeadKeydown(e) {
+  const bead = e.currentTarget;
+  const context = getBeadContext(bead);
+  if (!context) return;
+  const key = e.key;
+  if (key === " " || key === "Spacebar" || key === "Enter") {
+    e.preventDefault();
+    if (dragState && dragState.mode === "keyboard" && dragState.bead === bead) {
+      endKeyboardDrag({
+        commit: true
+      });
+    } else {
+      startKeyboardDrag(bead);
+    }
+    return;
+  }
+  if (!dragState || dragState.mode !== "keyboard" || dragState.bead !== bead) {
+    if (key === "Escape") {
+      if (dragState && dragState.mode === "keyboard") {
+        e.preventDefault();
+        endKeyboardDrag({
+          commit: true
+        });
+      }
+    }
+    return;
+  }
+  if (key === "Escape") {
+    e.preventDefault();
+    endKeyboardDrag({
+      commit: true
+    });
+    return;
+  }
+  if (key === "ArrowUp" || key === "ArrowDown" || key === "ArrowLeft" || key === "ArrowRight") {
+    if (moveBeadWithKeyboard(bead, context.fig, key)) {
+      e.preventDefault();
+    }
+  }
+}
+function handleBeadBlur(e) {
+  const bead = e.currentTarget;
+  if (dragState && dragState.mode === "keyboard" && dragState.bead === bead) {
+    endKeyboardDrag({
+      commit: true
+    });
+  }
+}
+function updateBeadGrabbedState(bead, grabbed) {
+  if (!bead || typeof bead.setAttribute !== "function") return;
+  bead.setAttribute("aria-grabbed", grabbed ? "true" : "false");
+  if (typeof bead.classList !== "undefined") {
+    bead.classList.toggle("bead--grabbed", Boolean(grabbed));
+  }
 }
 function svgPoint(svgEl, evt) {
   const p = svgEl.createSVGPoint();
@@ -1300,6 +1469,20 @@ function annotateExportClones(clones) {
 }
 
 /* ===== helpers ===== */
+function ensureHiddenHint(id, text, container) {
+  if (typeof document === "undefined") return null;
+  if (typeof id !== "string" || !id) return null;
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement("p");
+    el.id = id;
+    el.className = "sr-only";
+    el.textContent = text;
+    const parent = container && typeof container.appendChild === "function" ? container : document.body;
+    parent.appendChild(el);
+  }
+  return el;
+}
 function mk(n, attrs = {}) {
   const e = document.createElementNS("http://www.w3.org/2000/svg", n);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);

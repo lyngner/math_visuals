@@ -100,6 +100,21 @@
     return orbitControlsPromise;
   }
   const controlsPromise = loadOrbitControls();
+  function ensureHiddenHint(id, text, container) {
+    if (typeof document === 'undefined') return null;
+    if (typeof id !== 'string' || !id) return null;
+    let el = document.getElementById(id);
+    if (!el) {
+      el = document.createElement('p');
+      el.id = id;
+      el.className = 'sr-only';
+      el.textContent = text;
+      const parent = container && typeof container.appendChild === 'function' ? container : document.body;
+      parent.appendChild(el);
+    }
+    return el;
+  }
+  const SHAPE_KEYBOARD_HINT_ID = 'trefigurerKeyboardHint';
   function normalizeVectorArray(value) {
     if (!Array.isArray(value) || value.length !== 3) return null;
     const normalized = value.map(num => Number(num));
@@ -120,8 +135,26 @@
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       this.renderer.shadowMap.enabled = false;
       this.container.appendChild(this.renderer.domElement);
-      if (this.renderer.domElement && this.renderer.domElement.style) {
-        this.renderer.domElement.style.touchAction = 'none';
+      this.canvas = this.renderer.domElement;
+      if (this.canvas && this.canvas.style) {
+        this.canvas.style.touchAction = 'none';
+      }
+      if (this.canvas) {
+        this.canvas.tabIndex = 0;
+        if (typeof this.canvas.setAttribute === 'function') {
+          const figureIndex = this._getFigureIndex();
+          const label = Number.isInteger(figureIndex) ? `3D-figur ${figureIndex + 1}` : '3D-figur';
+          this.canvas.setAttribute('role', 'application');
+          this.canvas.setAttribute('aria-label', label);
+          if (SHAPE_KEYBOARD_HINT_ID) {
+            this.canvas.setAttribute('aria-describedby', SHAPE_KEYBOARD_HINT_ID);
+          }
+          this.canvas.setAttribute('aria-keyshortcuts', 'ArrowLeft ArrowRight ArrowUp ArrowDown PageUp PageDown + - Home');
+        }
+        this._boundCanvasFocus = () => this._handleCanvasFocus();
+        this._boundCanvasKeydown = event => this._handleCanvasKeydown(event);
+        this.canvas.addEventListener('focus', this._boundCanvasFocus);
+        this.canvas.addEventListener('keydown', this._boundCanvasKeydown);
       }
       this.controls = null;
       this.materialColorOverride = null;
@@ -167,6 +200,64 @@
       }
       this._handleResize();
       this.renderer.setAnimationLoop(this._animate);
+    }
+    _getFigureIndex() {
+      if (!this.container || typeof this.container.closest !== 'function') return null;
+      const wrapper = this.container.closest('.figure[data-figure-index]');
+      if (!wrapper) return null;
+      const value = Number.parseInt(wrapper.dataset.figureIndex, 10);
+      return Number.isInteger(value) ? value : null;
+    }
+    _handleCanvasFocus() {
+      const index = this._getFigureIndex();
+      if (Number.isInteger(index)) {
+        setActiveViewIndex(index, { force: true });
+      }
+    }
+    _handleCanvasKeydown(evt) {
+      if (!evt || typeof evt.key !== 'string') return;
+      const index = this._getFigureIndex();
+      if (!Number.isInteger(index)) return;
+      if (!hasFigureAtIndex(index)) return;
+      setActiveViewIndex(index);
+      const view = getEffectiveView(index);
+      if (!view) return;
+      const rotationStep = evt.shiftKey ? 4 : 12;
+      const elevationStep = evt.shiftKey ? 3 : 8;
+      const zoomStep = evt.shiftKey ? 6 : 12;
+      let handled = false;
+      const key = evt.key;
+      if (key === 'ArrowLeft' || key === 'ArrowRight') {
+        const currentRotation = computeRotationDegreesFromView(view);
+        const baseRotation = Number.isFinite(currentRotation) ? currentRotation : 0;
+        const delta = key === 'ArrowLeft' ? -rotationStep : rotationStep;
+        applyViewControlChanges({ rotationDeg: baseRotation + delta });
+        handled = true;
+      } else if (key === 'ArrowUp' || key === 'ArrowDown') {
+        const currentElevation = computeElevationDegreesFromView(view);
+        const baseElevation = Number.isFinite(currentElevation) ? currentElevation : 0;
+        const delta = key === 'ArrowUp' ? elevationStep : -elevationStep;
+        applyViewControlChanges({ elevationDeg: baseElevation + delta });
+        handled = true;
+      } else if (key === 'PageUp' || key === 'PageDown' || key === '+' || key === '=' || key === '-' || key === '_') {
+        const currentZoom = computeZoomPercentFromView(view, this);
+        const baseZoom = Number.isFinite(currentZoom) ? currentZoom : 100;
+        let nextZoom = baseZoom;
+        if (key === 'PageUp' || key === '+' || key === '=') {
+          nextZoom = baseZoom - zoomStep;
+        } else if (key === 'PageDown' || key === '-' || key === '_') {
+          nextZoom = baseZoom + zoomStep;
+        }
+        applyViewControlChanges({ zoomPercent: nextZoom });
+        handled = true;
+      } else if (key === 'Home') {
+        this.frameCurrentShape();
+        handled = true;
+      }
+      if (handled) {
+        evt.preventDefault();
+        updateViewControlsUI(index);
+      }
     }
     _attachControls(ControlsClass) {
       if (!ControlsClass || this.controls) return;
@@ -1014,8 +1105,12 @@
     }
   }
   const grid = document.getElementById('figureGrid');
+  const shapeKeyboardHintEl = ensureHiddenHint(SHAPE_KEYBOARD_HINT_ID, 'Fokuser figuren og bruk piltastene for å rotere. Bruk Page Up eller + for å zoome inn, Page Down eller - for å zoome ut. Trykk Home for å tilbakestille visningen.', grid ? grid.parentElement : null);
   const figureWrappers = Array.from(document.querySelectorAll('#figureGrid > .figure[data-figure-index]'));
   const rendererCount = figureWrappers.length;
+  if (shapeKeyboardHintEl && grid) {
+    grid.setAttribute('aria-describedby', SHAPE_KEYBOARD_HINT_ID);
+  }
   let activeViewIndex = 0;
   function ensureViewStateCapacity() {
     if (!window.STATE || typeof window.STATE !== 'object') {
