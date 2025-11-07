@@ -31,7 +31,6 @@ export {
   CUSTOM_FIGURE_ID,
   measurementFigureManifest,
   buildMeasurementFigureDataInternal as buildMeasurementFigureData,
-  getMeasurementFiguresGroupedByCategoryInternal as getMeasurementFiguresGroupedByCategory,
   encodeMeasureImagePath,
   extractRealWorldSize,
   createFigurePickerHelpers,
@@ -45,6 +44,10 @@ export function createFigureLibrary(options = {}) {
 
 export function buildFigureData(options = {}) {
   return buildMeasurementFigureDataInternal(options);
+}
+
+export function getMeasurementFiguresGroupedByCategory(options = {}) {
+  return getMeasurementFiguresGroupedByCategoryInternal(options);
 }
 
 export function getFiguresGroupedByCategory(options = {}) {
