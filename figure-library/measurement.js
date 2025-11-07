@@ -1,16 +1,4 @@
-import {
-  CUSTOM_CATEGORY_ID,
-  CUSTOM_FIGURE_ID,
-  measurementFigureManifest,
-  createMeasurementFigureLibrary,
-  buildMeasurementFigureData,
-  getMeasurementFiguresGroupedByCategory,
-  encodeMeasureImagePath,
-  extractRealWorldSize,
-  createFigurePickerHelpers,
-  loadMeasurementFigureLibrary as loadMeasurementFigureLibraryInternal,
-  getMeasurementFigureLibraryMetadata
-} from '../packages/figures/src/index.js';
+import * as measurementLibrary from '../packages/figures/src/index.js';
 
 const globalObj = typeof globalThis !== 'undefined'
   ? globalThis
@@ -20,6 +8,20 @@ const globalObj = typeof globalThis !== 'undefined'
       ? global
       : null;
 
+const {
+  CUSTOM_CATEGORY_ID,
+  CUSTOM_FIGURE_ID,
+  measurementFigureManifest,
+  createMeasurementFigureLibrary,
+  buildMeasurementFigureData: buildMeasurementFigureDataInternal,
+  getMeasurementFiguresGroupedByCategory: getMeasurementFiguresGroupedByCategoryInternal,
+  encodeMeasureImagePath,
+  extractRealWorldSize,
+  createFigurePickerHelpers,
+  loadFigureLibrary: loadMeasurementFigureLibraryInternal,
+  getFigureLibraryMetadata: getMeasurementFigureLibraryMetadata
+} = measurementLibrary;
+
 if (globalObj && !globalObj.mathVisMeasurementFigures) {
   globalObj.mathVisMeasurementFigures = measurementFigureManifest;
 }
@@ -28,7 +30,7 @@ export {
   CUSTOM_CATEGORY_ID,
   CUSTOM_FIGURE_ID,
   measurementFigureManifest,
-  buildMeasurementFigureData,
+  buildMeasurementFigureDataInternal as buildMeasurementFigureData,
   encodeMeasureImagePath,
   extractRealWorldSize,
   createFigurePickerHelpers,
@@ -41,11 +43,11 @@ export function createFigureLibrary(options = {}) {
 }
 
 export function buildFigureData(options = {}) {
-  return buildMeasurementFigureData(options);
+  return buildMeasurementFigureDataInternal(options);
 }
 
 export function getFiguresGroupedByCategory(options = {}) {
-  return getMeasurementFiguresGroupedByCategory(options);
+  return getMeasurementFiguresGroupedByCategoryInternal(options);
 }
 
 export function loadFigureLibrary(options = {}) {
