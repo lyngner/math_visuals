@@ -31,6 +31,7 @@ export {
   CUSTOM_FIGURE_ID,
   measurementFigureManifest,
   buildMeasurementFigureDataInternal as buildMeasurementFigureData,
+  getMeasurementFiguresGroupedByCategoryInternal as getMeasurementFiguresGroupedByCategory,
   encodeMeasureImagePath,
   extractRealWorldSize,
   createFigurePickerHelpers,
