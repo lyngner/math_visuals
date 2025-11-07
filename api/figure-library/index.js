@@ -7,7 +7,9 @@ const {
   listFigures,
   setFigure,
   deleteFigure,
+  getCategory,
   listCategories,
+  deleteCategory,
   getStoreMode,
   KvOperationError,
   KvConfigurationError
@@ -127,6 +129,22 @@ function extractSlugFromBody(body, fallback) {
   return fallback || null;
 }
 
+function extractCategoryIdFromBody(body, fallback) {
+  if (body && typeof body.categoryId === 'string') {
+    const trimmed = body.categoryId.trim();
+    if (trimmed) return trimmed;
+  }
+  if (body && body.category && typeof body.category === 'object' && typeof body.category.id === 'string') {
+    const trimmed = body.category.id.trim();
+    if (trimmed) return trimmed;
+  }
+  if (typeof fallback === 'string') {
+    const trimmed = fallback.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+
 function normalizePngPayload(body) {
   if (!body || typeof body !== 'object') {
     return { dataUrl: null, width: null, height: null };
@@ -211,6 +229,12 @@ module.exports = async function handler(req, res) {
   }
 
   const querySlug = normalizeFigureSlug(url.searchParams.get('slug'));
+  const queryCategoryId = (() => {
+    const raw = url.searchParams.get('categoryId');
+    if (typeof raw !== 'string') return null;
+    const trimmed = raw.trim();
+    return trimmed || null;
+  })();
 
   try {
     if (req.method === 'GET') {
@@ -354,7 +378,7 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       let body = null;
-      if (!querySlug) {
+      if (!querySlug && !queryCategoryId) {
         try {
           body = await readJsonBody(req);
         } catch (error) {
@@ -363,19 +387,52 @@ module.exports = async function handler(req, res) {
         }
       }
       const targetSlug = querySlug || extractSlugFromBody(body);
-      if (!targetSlug) {
-        sendJson(res, 400, { error: 'Slug is required' });
+      const targetCategoryId = queryCategoryId || extractCategoryIdFromBody(body);
+      if (targetSlug) {
+        const deleted = await deleteFigure(targetSlug);
+        if (!deleted) {
+          const metadata = applyModeHeaders(res, currentMode);
+          sendJson(res, 404, { error: 'Not Found', ...metadata });
+          return;
+        }
+        const categories = await buildCategoriesPayload();
+        const metadata = applyModeHeaders(res, currentMode) || buildModeMetadata(currentMode);
+        sendJson(res, 200, { ...metadata, deleted: { slug: targetSlug }, categories });
         return;
       }
-      const deleted = await deleteFigure(targetSlug);
-      if (!deleted) {
-        const metadata = applyModeHeaders(res, currentMode);
-        sendJson(res, 404, { error: 'Not Found', ...metadata });
+
+      if (targetCategoryId) {
+        const category = await getCategory(targetCategoryId);
+        if (!category) {
+          const metadata = applyModeHeaders(res, currentMode);
+          sendJson(res, 404, { error: 'Not Found', ...metadata });
+          return;
+        }
+        const figureSlugs = Array.isArray(category.figureSlugs)
+          ? category.figureSlugs.filter(slug => typeof slug === 'string' && slug.trim())
+          : [];
+        if (figureSlugs.length > 0) {
+          const metadata = applyModeHeaders(res, category.mode || currentMode) || buildModeMetadata(category.mode || currentMode);
+          sendJson(res, 409, { error: 'Category is not empty', ...metadata, category: { id: category.id, figureSlugs } });
+          return;
+        }
+        const deleted = await deleteCategory(category.id);
+        if (!deleted) {
+          const metadata = applyModeHeaders(res, currentMode);
+          sendJson(res, 404, { error: 'Not Found', ...metadata });
+          return;
+        }
+        const categories = await buildCategoriesPayload();
+        const metadata = applyModeHeaders(res, category.mode || currentMode) || buildModeMetadata(category.mode || currentMode);
+        sendJson(res, 200, {
+          ...metadata,
+          deletedCategory: { id: category.id },
+          categories
+        });
         return;
       }
-      const categories = await buildCategoriesPayload();
-      const metadata = applyModeHeaders(res, currentMode) || buildModeMetadata(currentMode);
-      sendJson(res, 200, { ...metadata, deleted: { slug: targetSlug }, categories });
+
+      sendJson(res, 400, { error: 'Slug or categoryId is required' });
       return;
     }
 

@@ -472,7 +472,7 @@ function handleCategoryMenuClick(event) {
   event.preventDefault();
   event.stopPropagation();
   const action = target.dataset.categoryAction || '';
-  handleCategoryMenuAction(action);
+  handleCategoryMenuAction(action, target);
 }
 
 function handleCategoryMenuSurfaceKeydown(event) {
@@ -581,7 +581,7 @@ function handleWindowScrollForMenu() {
   }
 }
 
-async function handleCategoryMenuAction(action) {
+async function handleCategoryMenuAction(action, sourceElement) {
   if (!categoryMenuCategory || typeof categoryMenuCategory.id !== 'string') {
     closeCategoryMenu({ returnFocus: false });
     return;
@@ -597,41 +597,94 @@ async function handleCategoryMenuAction(action) {
     return;
   }
 
-  if (action === 'filter') {
+  if (action === 'upload') {
     closeCategoryMenu({ returnFocus: false });
-    if (filterInput) {
-      const query = `category:${category.id}`;
-      filterInput.value = query;
-      filterInput.dispatchEvent(new Event('input', { bubbles: true }));
-      filterInput.focus();
+    const displayName = getCategoryDisplayName(category) || category.id || '';
+    if (uploadCategoryInput && displayName) {
+      uploadCategoryInput.value = displayName;
+      uploadCategoryInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
+    requestAnimationFrame(() => {
+      if (uploadFileInput) {
+        uploadFileInput.click();
+      } else if (uploadCategoryInput) {
+        uploadCategoryInput.focus();
+      }
+    });
     return;
   }
 
-  if (action === 'copy-id') {
-    closeCategoryMenu();
-    await copyCategoryIdentifier(category);
+  if (action === 'delete') {
+    closeCategoryMenu({ returnFocus: false });
+    const displayName = getCategoryDisplayName(category) || category.id || '';
+    const figures = getFiguresForCategory(category.id);
+    const figureCount = Array.isArray(figures) ? figures.length : 0;
+    if (figureCount > 0) {
+      const figureLabel = formatFigureCount(figureCount);
+      setStatusMessage(
+        `Kan ikke slette kategorien «${displayName}» fordi den inneholder ${figureLabel}. Fjern figurene først.`,
+        'warning',
+        { includeStorageWarning: false }
+      );
+      return;
+    }
+
+    const rawConfirmMessage = sourceElement instanceof HTMLElement && typeof sourceElement.dataset.confirmMessage === 'string'
+      ? sourceElement.dataset.confirmMessage.trim()
+      : '';
+    let confirmMessage = rawConfirmMessage || 'Vil du slette denne kategorien?';
+    if (displayName) {
+      const base = confirmMessage.replace(/\?+$/, '').trim();
+      confirmMessage = base ? `${base} «${displayName}»?` : `Vil du slette kategorien «${displayName}»?`;
+    }
+
+    let confirmed = true;
+    if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+      confirmed = window.confirm(confirmMessage);
+    }
+    if (!confirmed) {
+      return;
+    }
+
+    setStatusMessage(`Sletter kategorien «${displayName}» …`, 'info', { includeStorageWarning: false });
+
+    try {
+      const { data, response } = await fetchFigureLibrary('DELETE', { categoryId: category.id });
+      applyFigureLibraryMetadata(data, response);
+      removeCustomCategoryById(category.id);
+      if (Array.isArray(data?.categories)) {
+        applyServerCategories(data.categories);
+      }
+      saveCustomCategories();
+      categoryMetaById.delete(category.id);
+      const wasActive = activeCategoryId === category.id;
+      if (wasActive) {
+        activeCategoryId = null;
+      }
+      if (wasActive && isCategoryDialogOpen()) {
+        closeCategoryDialog({ restoreFocus: false });
+      }
+      const filterValue = filterInput && typeof filterInput.value === 'string' ? filterInput.value.trim() : '';
+      const normalizedFilter = filterValue.toLowerCase();
+      const normalizedCategoryId = (category.id || '').toLowerCase();
+      const filterMatchesCategory = normalizedFilter === `category:${normalizedCategoryId}`;
+      const maintainFilter = !(filterMatchesCategory || wasActive);
+      refreshLibrary({ maintainFilter });
+      setStatusMessage(`Slettet kategorien «${displayName}».`, 'info');
+    } catch (error) {
+      console.error('Kunne ikke slette kategori', error);
+      const message = extractApiErrorMessage(
+        error,
+        displayName
+          ? `Kunne ikke slette kategorien «${displayName}». Prøv igjen.`
+          : 'Kunne ikke slette kategorien. Prøv igjen.'
+      );
+      setStatusMessage(message, 'error', { includeStorageWarning: false });
+    }
     return;
   }
 
   closeCategoryMenu({ returnFocus: false });
-}
-
-async function copyCategoryIdentifier(category) {
-  if (!category || typeof category.id !== 'string' || !category.id) {
-    return;
-  }
-  try {
-    const success = await copyToClipboard(category.id);
-    if (success) {
-      announceStatus(`Kopierte kategori-ID «${category.id}».`);
-    } else {
-      announceStatus(`Kunne ikke kopiere kategori-ID «${category.id}». Kopier teksten manuelt.`);
-    }
-  } catch (error) {
-    console.error('Kunne ikke kopiere kategori-ID', error);
-    announceStatus(`Kunne ikke kopiere kategori-ID «${category.id}». Prøv igjen.`);
-  }
 }
 
 function getStorageWarningMessage() {
@@ -698,11 +751,6 @@ function refreshStatusWithStorageWarning() {
   } else if (currentState !== 'warning') {
     statusEl.classList.remove('warning');
   }
-}
-
-function announceStatus(message) {
-  if (typeof message !== 'string') return;
-  setStatusMessage(message, 'info', { includeStorageWarning: false, storeBase: false });
 }
 
 function getCategoryDisplayName(category) {
@@ -1674,6 +1722,26 @@ function serializeCustomCategory(category) {
     sampleImage: category.sampleImage,
     sampleAlt: category.sampleAlt,
   };
+}
+
+function removeCustomCategoryById(categoryId) {
+  const id = typeof categoryId === 'string' ? categoryId.trim() : '';
+  if (!id) {
+    return false;
+  }
+  let removed = false;
+  for (let index = customCategories.length - 1; index >= 0; index -= 1) {
+    const entry = customCategories[index];
+    if (entry && entry.id === id) {
+      customCategories.splice(index, 1);
+      removed = true;
+    }
+  }
+  if (customCategoryMap.has(id)) {
+    customCategoryMap.delete(id);
+    removed = true;
+  }
+  return removed;
 }
 
 function isCategoryIdTaken(candidateId) {
