@@ -48,6 +48,8 @@
     .bead{cursor:grab;}
     .bead:active{cursor:grabbing;}
     .beadShadow{filter:drop-shadow(0 1px 1px rgba(0,0,0,.25));}
+    .bead:focus-visible{outline:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25)) drop-shadow(0 0 0 4px rgba(37,99,235,.5));}
+    .bead--grabbed{filter:drop-shadow(0 1px 1px rgba(0,0,0,.25)) drop-shadow(0 0 0 4px rgba(16,185,129,.45));}
     .toolbar select{border:1px solid #d1d5db;border-radius:10px;padding:6px 10px;font-size:14px;background:#fff;}
     .controlsWrap{display:grid;gap:var(--gap);grid-template-columns:minmax(0,1fr);}
     .controlsWrap.controlsWrap--split{grid-template-columns:repeat(2,minmax(0,1fr));}
