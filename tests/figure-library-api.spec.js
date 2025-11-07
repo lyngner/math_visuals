@@ -70,7 +70,7 @@ test.describe('figure library API memory mode', () => {
           height: 90
         },
         tags: ['shapes', 'shapes', 'geometri'],
-        category: { label: 'Testkategori' }
+        category: { label: 'Testkategori', apps: ['bibliotek', 'bibliotek', ' viewer '] }
       })
     });
 
@@ -83,6 +83,8 @@ test.describe('figure library API memory mode', () => {
     expect(createResponse.json?.limitation).toContain('midlertidig minnelagring');
     expect(createResponse.json?.entry?.tags).toEqual(['shapes', 'geometri']);
     expect(createResponse.json?.categories?.[0]?.id).toBe('testkategori');
+    expect(createResponse.json?.entry?.category?.apps).toEqual(['bibliotek', 'viewer']);
+    expect(createResponse.json?.categories?.[0]?.apps).toEqual(['bibliotek', 'viewer']);
 
     const listResponse = await invokeFigureLibraryApi();
     expect(listResponse.statusCode).toBe(200);
@@ -90,7 +92,9 @@ test.describe('figure library API memory mode', () => {
     expect(Array.isArray(listResponse.json?.entries)).toBe(true);
     expect(listResponse.json.entries).toHaveLength(1);
     expect(listResponse.json.entries[0].category?.label).toBe('Testkategori');
+    expect(listResponse.json.entries[0].category?.apps).toEqual(['bibliotek', 'viewer']);
     expect(listResponse.json.categories?.[0]?.figureSlugs).toContain('memory/test-figur');
+    expect(listResponse.json.categories?.[0]?.apps).toEqual(['bibliotek', 'viewer']);
 
     const updateResponse = await invokeFigureLibraryApi({
       method: 'PATCH',
@@ -100,7 +104,7 @@ test.describe('figure library API memory mode', () => {
         title: 'Oppdatert figur',
         summary: 'Oppdatert i test',
         tags: ['oppdatert', 'shapes'],
-        category: { label: 'Oppdatert kategori' }
+        category: { label: 'Oppdatert kategori', apps: ['viewer', 'bibliotek', 'bibliotek'] }
       })
     });
 
@@ -110,6 +114,9 @@ test.describe('figure library API memory mode', () => {
     expect(updateResponse.json?.entry?.category?.id).toBe('oppdatert-kategori');
     expect(updateResponse.json?.entry?.tags).toEqual(['oppdatert', 'shapes']);
     expect(updateResponse.json?.categories?.some(cat => cat.id === 'oppdatert-kategori')).toBe(true);
+    const updatedCategory = updateResponse.json?.categories?.find(cat => cat.id === 'oppdatert-kategori');
+    expect(updatedCategory?.apps).toEqual(['viewer', 'bibliotek']);
+    expect(updateResponse.json?.entry?.category?.apps).toEqual(['viewer', 'bibliotek']);
 
     const deleteResponse = await invokeFigureLibraryApi({
       method: 'DELETE',
@@ -211,7 +218,7 @@ test.describe('figure library API kv mode', () => {
           height: 90
         },
         tags: ['kv', 'lagring'],
-        category: { label: 'KV-kategori' }
+        category: { label: 'KV-kategori', apps: ['bibliotek', 'kv-app'] }
       })
     });
 
@@ -220,6 +227,8 @@ test.describe('figure library API kv mode', () => {
     expect(createResponse.json?.persistent).toBe(true);
     expect(createResponse.json?.limitation).toBeUndefined();
     expect(createResponse.json?.entry?.storage).toBe('kv');
+    expect(createResponse.json?.entry?.category?.apps).toEqual(['bibliotek', 'kv-app']);
+    expect(createResponse.json?.categories?.[0]?.apps).toEqual(['bibliotek', 'kv-app']);
 
     const storedFigure = await mockKv.api.get('figure:kv/test-figur');
     expect(storedFigure?.mode).toBe('kv');
@@ -227,6 +236,7 @@ test.describe('figure library API kv mode', () => {
     const initialList = await invokeFigureLibraryApi();
     expect(initialList.statusCode).toBe(200);
     expect(initialList.json?.entries?.[0]?.category?.label).toBe('KV-kategori');
+    expect(initialList.json?.entries?.[0]?.category?.apps).toEqual(['bibliotek', 'kv-app']);
 
     clearFigureLibraryMemoryStores();
 
@@ -234,6 +244,7 @@ test.describe('figure library API kv mode', () => {
     expect(listAfterReset.statusCode).toBe(200);
     expect(listAfterReset.json?.entries).toHaveLength(1);
     expect(listAfterReset.json?.entries?.[0]?.storage).toBe('kv');
+    expect(listAfterReset.json?.entries?.[0]?.category?.apps).toEqual(['bibliotek', 'kv-app']);
 
     const updateResponse = await invokeFigureLibraryApi({
       method: 'PATCH',
@@ -241,7 +252,7 @@ test.describe('figure library API kv mode', () => {
       body: JSON.stringify({
         slug: 'kv/test-figur',
         title: 'KV Figur Oppdatert',
-        category: { label: 'Oppdatert KV' },
+        category: { label: 'Oppdatert KV', apps: ['kv-app', 'bibliotek', 'bibliotek'] },
         tags: ['oppdatert']
       })
     });
@@ -249,10 +260,14 @@ test.describe('figure library API kv mode', () => {
     expect(updateResponse.statusCode).toBe(200);
     expect(updateResponse.json?.entry?.category?.id).toBe('oppdatert-kv');
     expect(updateResponse.json?.entry?.tags).toEqual(['oppdatert']);
+    expect(updateResponse.json?.entry?.category?.apps).toEqual(['kv-app', 'bibliotek']);
+    const kvUpdatedCategory = updateResponse.json?.categories?.find(cat => cat.id === 'oppdatert-kv');
+    expect(kvUpdatedCategory?.apps).toEqual(['kv-app', 'bibliotek']);
 
     const kvCategory = await mockKv.api.get('figure:category:oppdatert-kv');
     expect(Array.isArray(kvCategory?.figureSlugs)).toBe(true);
     expect(kvCategory?.figureSlugs).toContain('kv/test-figur');
+    expect(kvCategory?.apps).toEqual(['kv-app', 'bibliotek']);
 
     const deleteResponse = await invokeFigureLibraryApi({
       method: 'DELETE',
