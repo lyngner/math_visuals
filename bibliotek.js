@@ -2205,11 +2205,21 @@ async function loadCustomEntries() {
   customEntryMap.clear();
 
   const localFallbackEntries = readLocalCustomEntries();
-  let requestSucceeded = false;
+  let insertedLocalEntries = false;
+
+  for (const entry of localFallbackEntries) {
+    const normalized = upsertCustomEntryLocal(entry);
+    if (normalized) {
+      insertedLocalEntries = true;
+    }
+  }
+
+  if (insertedLocalEntries) {
+    refreshLibrary({ maintainFilter: true });
+  }
 
   try {
     const result = await fetchFigureLibraryEntries();
-    requestSucceeded = true;
     const entries = Array.isArray(result.entries) ? result.entries : [];
     entries.forEach((entry) => {
       upsertCustomEntryLocal(entry);
@@ -2222,14 +2232,12 @@ async function loadCustomEntries() {
         upsertCustomEntryLocal(entry);
       }
     }
+    refreshLibrary({ maintainFilter: true });
   } catch (error) {
     console.error('Kunne ikke hente figurer fra API-et', error);
-  }
-
-  if (!requestSucceeded && localFallbackEntries.length) {
-    localFallbackEntries.forEach((entry) => {
-      upsertCustomEntryLocal(entry);
-    });
+    if (!insertedLocalEntries && localFallbackEntries.length) {
+      refreshLibrary({ maintainFilter: true });
+    }
   }
 
   persistLocalEntriesIfNeeded();
