@@ -1913,7 +1913,13 @@ import {
       return 0;
     }
     const scaleMetrics = metrics || resolveScaleMetrics(activeSettings);
-    if (!scaleMetrics || !Number.isFinite(scaleMetrics.unitSpacing) || scaleMetrics.unitSpacing <= 0) {
+    if (!scaleMetrics) {
+      return 0;
+    }
+    const effectiveUnitSpacing = Number.isFinite(lastRenderedUnitSpacing) && lastRenderedUnitSpacing > 0
+      ? lastRenderedUnitSpacing
+      : scaleMetrics.unitSpacing;
+    if (!Number.isFinite(effectiveUnitSpacing) || effectiveUnitSpacing <= 0) {
       return 0;
     }
     let distancePx = Number.isFinite(distancePxOverride) ? distancePxOverride : null;
@@ -1927,7 +1933,7 @@ import {
     if (!Number.isFinite(distancePx)) {
       return 0;
     }
-    const units = distancePx / scaleMetrics.unitSpacing;
+    const units = distancePx / effectiveUnitSpacing;
     const multiplier = resolveRulerValueMultiplier(activeSettings, scaleMetrics);
     const rawLength = units * multiplier;
     return convertValueToDisplayUnits(rawLength, activeSettings.unitLabel);
