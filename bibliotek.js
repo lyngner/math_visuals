@@ -8,6 +8,8 @@ const categorySortSelect = document.querySelector('[data-category-sort]');
 const helperEl = document.querySelector('[data-helper]');
 const categorySuggestionsList = document.querySelector('[data-category-suggestions]');
 const uploadForm = document.querySelector('[data-upload-form]');
+const uploadDialog = document.querySelector('[data-upload-dialog]');
+const uploadDialogCloseButton = uploadDialog?.querySelector('[data-upload-close]') || null;
 const addCategoryToggleButton = document.querySelector('[data-add-category-toggle]');
 const addCategoryForm = document.querySelector('[data-add-category-form]');
 const addCategoryInput = addCategoryForm?.querySelector('[data-add-category-input]') || null;
@@ -120,6 +122,7 @@ const customEntries = [];
 const customEntryMap = new Map();
 let customStorageAvailable = true;
 let uploadStatusTimer = null;
+let uploadDialogReturnFocus = null;
 let editorReturnFocus = null;
 let editingEntryId = null;
 let categoryDialogReturnFocus = null;
@@ -605,6 +608,13 @@ async function handleCategoryMenuAction(action) {
       filterInput.dispatchEvent(new Event('input', { bubbles: true }));
       filterInput.focus();
     }
+    return;
+  }
+
+  if (action === 'upload') {
+    const trigger = categoryMenuTrigger;
+    closeCategoryMenu({ returnFocus: false });
+    openUploadDialog({ category, trigger });
     return;
   }
 
@@ -1561,6 +1571,86 @@ function isCategoryNameTaken(name) {
   return false;
 }
 
+function openUploadDialog(options = {}) {
+  if (!uploadDialog) return;
+  const { category = null, trigger = null } = options;
+
+  const focusSource = trigger instanceof HTMLElement
+    ? trigger
+    : document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+  uploadDialogReturnFocus = focusSource;
+
+  if (uploadForm && uploadForm.dataset.state !== 'busy') {
+    uploadForm.reset();
+  }
+
+  if (uploadFileInput) {
+    uploadFileInput.value = '';
+  }
+
+  if (category && uploadCategoryInput) {
+    const displayName = getCategoryDisplayName(category) || category.id || '';
+    if (displayName) {
+      uploadCategoryInput.value = displayName;
+      uploadCategoryInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
+
+  if (typeof uploadDialog.showModal === 'function') {
+    if (!uploadDialog.open) {
+      uploadDialog.showModal();
+    }
+  } else {
+    uploadDialog.setAttribute('open', '');
+  }
+
+  requestAnimationFrame(() => {
+    if (uploadFileInput) {
+      uploadFileInput.focus();
+      return;
+    }
+    if (uploadNameInput) {
+      uploadNameInput.focus();
+      return;
+    }
+    const fallback = uploadDialog.querySelector(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (fallback instanceof HTMLElement) {
+      fallback.focus();
+    }
+  });
+}
+
+function closeUploadDialog(options = {}) {
+  if (!uploadDialog) return;
+  const { restoreFocus = true, focusTarget = null } = options;
+
+  if (typeof uploadDialog.close === 'function') {
+    if (uploadDialog.open) {
+      uploadDialog.close();
+    }
+  } else {
+    uploadDialog.removeAttribute('open');
+  }
+
+  const target = focusTarget instanceof HTMLElement
+    ? focusTarget
+    : uploadDialogReturnFocus instanceof HTMLElement
+      ? uploadDialogReturnFocus
+      : null;
+
+  uploadDialogReturnFocus = null;
+
+  if (restoreFocus && target) {
+    requestAnimationFrame(() => {
+      target.focus();
+    });
+  }
+}
+
 function setupUploadForm() {
   if (!uploadForm) return;
   if (uploadFileInput) {
@@ -1568,6 +1658,20 @@ function setupUploadForm() {
   }
   uploadForm.addEventListener('submit', handleUploadSubmit);
   uploadFileInput?.addEventListener('change', handleUploadFileChange);
+  if (uploadDialogCloseButton) {
+    uploadDialogCloseButton.addEventListener('click', () => closeUploadDialog());
+  }
+  if (uploadDialog) {
+    uploadDialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      closeUploadDialog();
+    });
+    uploadDialog.addEventListener('click', (event) => {
+      if (event.target === uploadDialog) {
+        closeUploadDialog();
+      }
+    });
+  }
 }
 
 function setupEditorDialog() {
@@ -2399,21 +2503,9 @@ function shuffleArray(list) {
 
 function handleCategoryUploadClick() {
   const category = activeCategoryId ? categoryMetaById.get(activeCategoryId) || null : null;
-  if (category && uploadCategoryInput) {
-    const displayName = getCategoryDisplayName(category) || category.id || '';
-    uploadCategoryInput.value = displayName;
-    uploadCategoryInput.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-
+  const trigger = categoryDialogUploadButton || document.activeElement;
   closeCategoryDialog({ restoreFocus: false });
-
-  requestAnimationFrame(() => {
-    if (uploadFileInput) {
-      uploadFileInput.click();
-    } else if (uploadCategoryInput) {
-      uploadCategoryInput.focus();
-    }
-  });
+  openUploadDialog({ category, trigger });
 }
 
 function handleUploadFileChange() {
