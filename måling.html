@@ -322,23 +322,21 @@
       position: absolute;
       left: 0;
       top: 0;
-      width: 36px;
-      height: 36px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
-      border: 3px solid #0f6d8f;
-      background: #ffffff;
-      color: #0f6d8f;
-      font-weight: 700;
-      font-size: 0.95rem;
+      border: 2px solid rgba(15, 109, 143, 0.7);
+      background: rgba(255, 255, 255, 0.7);
       display: flex;
       align-items: center;
       justify-content: center;
       transform: translate(-50%, -50%);
       cursor: grab;
       pointer-events: auto;
-      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.16);
       user-select: none;
       touch-action: none;
+      backdrop-filter: saturate(160%) blur(0.5px);
     }
 
     .segment__handle:active {
@@ -845,17 +843,13 @@
                   class="segment__handle segment__handle--a"
                   data-segment-handle="a"
                   aria-label="Punkt A"
-                >
-                  A
-                </button>
+                ></button>
                 <button
                   type="button"
                   class="segment__handle segment__handle--b"
                   data-segment-handle="b"
                   aria-label="Punkt B"
-                >
-                  B
-                </button>
+                ></button>
               </div>
             </div>
             <p class="status-note" data-status-note></p>
@@ -912,6 +906,16 @@
                 </label>
                 <label for="cfg-subdivisions">Delstreker
                   <input id="cfg-subdivisions" type="number" min="0" max="20" value="10" />
+                </label>
+                <label for="cfg-segment-decimals" data-segment-decimals-field hidden>
+                  Antall desimaler
+                  <input
+                    id="cfg-segment-decimals"
+                    type="number"
+                    min="0"
+                    max="6"
+                    value="2"
+                  />
                 </label>
               </div>
               <div class="field-grid field-grid--two">

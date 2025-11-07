@@ -116,9 +116,13 @@ import {
     panningEnabled: doc.getElementById('cfg-pan-enabled'),
     measurementTool: doc.getElementById('cfg-measurement-tool'),
     measurementDirectionLock: doc.getElementById('cfg-measurement-direction-lock'),
-    measurementDirectionAngleButton: doc.getElementById('cfg-measurement-direction-set-angle')
+    measurementDirectionAngleButton: doc.getElementById('cfg-measurement-direction-set-angle'),
+    segmentDecimals: doc.getElementById('cfg-segment-decimals')
   };
   const lengthFieldContainer = inputs.length ? inputs.length.closest('label') : null;
+  const segmentDecimalsField = inputs.segmentDecimals
+    ? inputs.segmentDecimals.closest('label')
+    : null;
   const measurementFieldGrid = doc.querySelector('[data-measurement-field-grid]');
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
@@ -205,7 +209,8 @@ import {
     segmentPoints: {
       a: { x: 0.25, y: 0.5 },
       b: { x: 0.75, y: 0.5 }
-    }
+    },
+    segmentDecimals: 2
   };
   const segmentState = {
     a: { x: defaults.segmentPoints.a.x, y: defaults.segmentPoints.a.y },
@@ -590,6 +595,9 @@ import {
     if (source.segmentPoints != null) {
       target.segmentPoints = source.segmentPoints;
     }
+    if (Object.prototype.hasOwnProperty.call(source, 'segmentDecimals')) {
+      target.segmentDecimals = source.segmentDecimals;
+    }
     // unit spacing is fixed and not configurable
   }
 
@@ -615,6 +623,7 @@ import {
       container.measurementDirectionLock = settings.measurementDirectionLock;
       container.measurementDirectionAngle = settings.measurementDirectionAngle;
       container.segmentPoints = cloneSegmentPoints(settings.segmentPoints);
+      container.segmentDecimals = settings.segmentDecimals;
       delete container.rulerStartAtZero;
       delete container.rulerPadding;
       delete container.unitSpacingOverride;
@@ -643,18 +652,19 @@ import {
     container.showScaleLabel = settings.showScaleLabel;
     container.showUnitLabel = settings.showUnitLabel;
     container.measurementWithoutScale = !!settings.measurementWithoutScale;
-      container.panningEnabled = !!settings.panningEnabled;
-      container.panorering = !!settings.panningEnabled;
-      container.activeTool = settings.activeTool;
-      container.tapeMeasureLength = settings.tapeMeasureLength;
-      container.measurementDirectionLock = settings.measurementDirectionLock;
-      container.measurementDirectionAngle = settings.measurementDirectionAngle;
-      container.segmentPoints = cloneSegmentPoints(settings.segmentPoints);
-      delete container.unitSpacingOverride;
-      delete container.rulerPadding;
-      delete container.rulerStartAtZero;
-      if (settings.rulerTransform && typeof settings.rulerTransform === 'object') {
-        container.rulerTransform = { ...settings.rulerTransform };
+    container.panningEnabled = !!settings.panningEnabled;
+    container.panorering = !!settings.panningEnabled;
+    container.activeTool = settings.activeTool;
+    container.tapeMeasureLength = settings.tapeMeasureLength;
+    container.measurementDirectionLock = settings.measurementDirectionLock;
+    container.measurementDirectionAngle = settings.measurementDirectionAngle;
+    container.segmentPoints = cloneSegmentPoints(settings.segmentPoints);
+    container.segmentDecimals = settings.segmentDecimals;
+    delete container.unitSpacingOverride;
+    delete container.rulerPadding;
+    delete container.rulerStartAtZero;
+    if (settings.rulerTransform && typeof settings.rulerTransform === 'object') {
+      container.rulerTransform = { ...settings.rulerTransform };
     } else {
       delete container.rulerTransform;
     }
@@ -901,6 +911,29 @@ import {
     return { a: pointA, b: pointB };
   }
 
+  function sanitizeSegmentDecimals(value, fallback) {
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed)) {
+      const fallbackNumber = Number.isFinite(fallback)
+        ? fallback
+        : Number.parseFloat(fallback);
+      const safeFallback = Number.isFinite(fallbackNumber) ? fallbackNumber : defaults.segmentDecimals;
+      return Math.min(Math.max(Math.round(safeFallback), 0), 6);
+    }
+    const rounded = Math.round(parsed);
+    if (!Number.isFinite(rounded)) {
+      return Math.min(Math.max(defaults.segmentDecimals, 0), 6);
+    }
+    return Math.min(Math.max(rounded, 0), 6);
+  }
+
+  function resolveSegmentDecimals(settings) {
+    if (!settings) {
+      return defaults.segmentDecimals;
+    }
+    return sanitizeSegmentDecimals(settings.segmentDecimals, defaults.segmentDecimals);
+  }
+
   function cloneSegmentPoints(value) {
     const sanitized = sanitizeSegmentPoints(value, defaults.segmentPoints);
     const reference = sanitized || defaults.segmentPoints;
@@ -1129,6 +1162,10 @@ import {
       defaults.measurementDirectionAngle
     );
     const segmentPoints = sanitizeSegmentPoints(combined.segmentPoints, defaults.segmentPoints);
+    const segmentDecimals = sanitizeSegmentDecimals(
+      combined.segmentDecimals,
+      defaults.segmentDecimals
+    );
 
     const settings = {
       length,
@@ -1153,7 +1190,8 @@ import {
       tapeMeasureTransform,
       measurementDirectionLock,
       measurementDirectionAngle,
-      segmentPoints: segmentPoints || cloneSegmentPoints(defaults.segmentPoints)
+      segmentPoints: segmentPoints || cloneSegmentPoints(defaults.segmentPoints),
+      segmentDecimals
     };
 
     applySettingsToContainer(configContainers.measurement, settings);
@@ -1198,6 +1236,7 @@ import {
       a.tapeMeasureLength === b.tapeMeasureLength &&
       a.measurementDirectionLock === b.measurementDirectionLock &&
       areAnglesApproximatelyEqual(a.measurementDirectionAngle, b.measurementDirectionAngle) &&
+      a.segmentDecimals === b.segmentDecimals &&
       areSegmentPointsEqual(a.segmentPoints, b.segmentPoints) &&
       areRulerTransformsEqual(a.rulerTransform, b.rulerTransform) &&
       areRulerTransformsEqual(a.tapeMeasureTransform, b.tapeMeasureTransform) &&
@@ -1376,6 +1415,15 @@ import {
       if (sanitizedSegment) {
         nextPartial.segmentPoints = sanitizedSegment;
       }
+    }
+    if (Object.prototype.hasOwnProperty.call(partial, 'segmentDecimals')) {
+      const currentDecimals = appState.settings
+        ? appState.settings.segmentDecimals
+        : defaults.segmentDecimals;
+      nextPartial.segmentDecimals = sanitizeSegmentDecimals(
+        partial.segmentDecimals,
+        currentDecimals
+      );
     }
     if (Object.prototype.hasOwnProperty.call(partial, 'measurementWithoutScale')) {
       const nextWithoutScale = !!partial.measurementWithoutScale;
@@ -1947,11 +1995,12 @@ import {
     const scaleMetrics = metrics || resolveScaleMetrics(activeSettings);
     const distance = Math.hypot(pointB.x - pointA.x, pointB.y - pointA.y);
     const lengthValue = getSegmentLengthInDisplayUnits(activeSettings, scaleMetrics, distance);
-    const roundedLength = roundForDisplay(lengthValue, 4);
+    const decimals = resolveSegmentDecimals(activeSettings);
+    const roundedLength = roundForDisplay(lengthValue, decimals);
     const formatted = formatNumber(roundedLength);
     const unitSuffixValue = resolveUnitSuffix(activeSettings.unitLabel);
     const unitSuffix = unitSuffixValue ? ` ${unitSuffixValue}` : '';
-    segmentLabel.textContent = `AB = ${formatted}${unitSuffix}`;
+    segmentLabel.textContent = `${formatted}${unitSuffix}`;
     const midX = (pointA.x + pointB.x) / 2;
     const midY = (pointA.y + pointB.y) / 2;
     const dx = pointB.x - pointA.x;
@@ -2433,31 +2482,47 @@ import {
   }
 
   function updateLengthFieldVisibility(toolKey) {
-    if (!lengthFieldContainer) {
-      return;
-    }
-    if (toolKey === 'segment') {
-      lengthFieldContainer.hidden = true;
-      lengthFieldContainer.setAttribute('hidden', '');
-      lengthFieldContainer.setAttribute('aria-hidden', 'true');
-      if (inputs.length) {
-        inputs.length.disabled = true;
+    const showLength = toolKey !== 'segment';
+    if (lengthFieldContainer) {
+      if (showLength) {
+        lengthFieldContainer.hidden = false;
+        lengthFieldContainer.removeAttribute('hidden');
+        lengthFieldContainer.removeAttribute('aria-hidden');
+        if (inputs.length) {
+          inputs.length.disabled = false;
+        }
+      } else {
+        lengthFieldContainer.hidden = true;
+        lengthFieldContainer.setAttribute('hidden', '');
+        lengthFieldContainer.setAttribute('aria-hidden', 'true');
+        if (inputs.length) {
+          inputs.length.disabled = true;
+        }
       }
-      if (measurementFieldGrid) {
-        measurementFieldGrid.classList.remove('field-grid--three');
-        measurementFieldGrid.classList.add('field-grid--two');
-      }
-      return;
     }
-    lengthFieldContainer.hidden = false;
-    lengthFieldContainer.removeAttribute('hidden');
-    lengthFieldContainer.removeAttribute('aria-hidden');
-    if (inputs.length) {
-      inputs.length.disabled = false;
+    const showSegmentDecimals = toolKey === 'segment';
+    if (segmentDecimalsField) {
+      if (showSegmentDecimals) {
+        segmentDecimalsField.hidden = false;
+        segmentDecimalsField.removeAttribute('hidden');
+        segmentDecimalsField.removeAttribute('aria-hidden');
+        if (inputs.segmentDecimals) {
+          inputs.segmentDecimals.disabled = false;
+        }
+      } else {
+        segmentDecimalsField.hidden = true;
+        segmentDecimalsField.setAttribute('hidden', '');
+        segmentDecimalsField.setAttribute('aria-hidden', 'true');
+        if (inputs.segmentDecimals) {
+          inputs.segmentDecimals.disabled = true;
+        }
+      }
     }
     if (measurementFieldGrid) {
-      measurementFieldGrid.classList.remove('field-grid--two');
-      measurementFieldGrid.classList.add('field-grid--three');
+      const visibleExtraFields = (showLength ? 1 : 0) + (showSegmentDecimals ? 1 : 0);
+      const useThreeColumns = visibleExtraFields >= 1;
+      measurementFieldGrid.classList.toggle('field-grid--three', useThreeColumns);
+      measurementFieldGrid.classList.toggle('field-grid--two', !useThreeColumns);
     }
   }
 
@@ -3155,6 +3220,9 @@ import {
         }
       }
       if (inputs.subdivisions) inputs.subdivisions.value = settings.subdivisions;
+      if (inputs.segmentDecimals) {
+        inputs.segmentDecimals.value = resolveSegmentDecimals(settings);
+      }
       if (inputs.unitLabel) inputs.unitLabel.value = settings.unitLabel || '';
       if (inputs.boardPadding) inputs.boardPadding.value = settings.boardPadding;
       if (inputs.gridEnabled) inputs.gridEnabled.checked = !!settings.gridEnabled;
@@ -3259,6 +3327,12 @@ import {
       inputs.subdivisions.addEventListener('input', event => {
         if (appState.syncingInputs) return;
         updateSettings({ subdivisions: event.target.value });
+      });
+    }
+    if (inputs.segmentDecimals) {
+      inputs.segmentDecimals.addEventListener('input', event => {
+        if (appState.syncingInputs) return;
+        updateSettings({ segmentDecimals: event.target.value });
       });
     }
     if (inputs.unitLabel) {
@@ -3756,11 +3830,52 @@ import {
         }
       }
     }
+    if (shouldSnapSegmentHandles()) {
+      const snapped = snapSegmentPointToGrid(targetX, targetY, mode);
+      if (snapped) {
+        targetX = snapped.x;
+        targetY = snapped.y;
+      }
+    }
     const clampedX = Math.min(Math.max(targetX, 0), Math.max(width, 0));
     const clampedY = Math.min(Math.max(targetY, 0), Math.max(height, 0));
     setSegmentPointFromPx(entry.handleKey, clampedX, clampedY);
     renderSegment(appState.settings);
     event.preventDefault();
+  }
+
+  function shouldSnapSegmentHandles() {
+    return !!(appState.settings && appState.settings.gridEnabled);
+  }
+
+  function snapSegmentPointToGrid(x, y, mode) {
+    const rect = boardRect;
+    const width = rect && Number.isFinite(rect.width) ? rect.width : BASE_BOARD_DIMENSIONS.width;
+    const height = rect && Number.isFinite(rect.height) ? rect.height : BASE_BOARD_DIMENSIONS.height;
+    if (!(width > 0) || !(height > 0)) {
+      return { x, y };
+    }
+    const stepX = width / 100;
+    const stepY = height / 100;
+    if (!(stepX > 0) || !(stepY > 0)) {
+      return { x, y };
+    }
+    const snapValue = (value, step) => {
+      if (!Number.isFinite(value)) {
+        return value;
+      }
+      return Math.round(value / step) * step;
+    };
+    if (mode === 'horizontal') {
+      return { x: snapValue(x, stepX), y };
+    }
+    if (mode === 'vertical') {
+      return { x, y: snapValue(y, stepY) };
+    }
+    if (!mode || mode === 'none') {
+      return { x: snapValue(x, stepX), y: snapValue(y, stepY) };
+    }
+    return { x, y };
   }
 
   function handleSegmentPointerEnd(event) {
@@ -5772,7 +5887,11 @@ import {
       };
     }
     if (hasSegment) {
-      const segmentLength = roundForDisplay(getSegmentLengthInDisplayUnits(settings));
+      const segmentDecimals = resolveSegmentDecimals(settings);
+      const segmentLength = roundForDisplay(
+        getSegmentLengthInDisplayUnits(settings),
+        segmentDecimals
+      );
       const segmentPoints = cloneSegmentPoints(
         sanitizeSegmentPoints(settings.segmentPoints, defaults.segmentPoints) || defaults.segmentPoints
       );
@@ -5780,7 +5899,8 @@ import {
         length: segmentLength,
         unit: unitLabel || null,
         valueMultiplier,
-        points: segmentPoints
+        points: segmentPoints,
+        decimals: segmentDecimals
       };
     }
     if (settings.figureScaleLabel) {
@@ -5922,16 +6042,9 @@ import {
         stroke-linecap: round;
       }
       .mv-segment__handle-circle {
-        fill: #ffffff;
-        stroke: #0f6d8f;
-        stroke-width: 3;
-      }
-      .mv-segment__handle-text {
-        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        font-size: 16px;
-        font-weight: 700;
-        fill: #0f6d8f;
-        letter-spacing: 0.02em;
+        fill: rgba(255, 255, 255, 0.7);
+        stroke: rgba(15, 109, 143, 0.7);
+        stroke-width: 2;
       }
       .mv-segment__label-bg {
         fill: rgba(15, 109, 143, 0.9);
@@ -6125,17 +6238,8 @@ import {
       circle.setAttribute('class', 'mv-segment__handle-circle');
       circle.setAttribute('cx', formatSvgNumber(point.x));
       circle.setAttribute('cy', formatSvgNumber(point.y));
-      circle.setAttribute('r', formatSvgNumber(18));
+      circle.setAttribute('r', formatSvgNumber(14));
       handleGroup.appendChild(circle);
-
-      const textElement = createSvgElement('text');
-      textElement.setAttribute('class', 'mv-segment__handle-text');
-      textElement.setAttribute('x', formatSvgNumber(point.x));
-      textElement.setAttribute('y', formatSvgNumber(point.y));
-      textElement.setAttribute('text-anchor', 'middle');
-      textElement.setAttribute('dominant-baseline', 'middle');
-      textElement.textContent = key.toUpperCase();
-      handleGroup.appendChild(textElement);
 
       group.appendChild(handleGroup);
     }
