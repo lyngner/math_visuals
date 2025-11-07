@@ -245,6 +245,7 @@ body[data-app-mode="task"] .card {
   padding: 0;
 }
 
+.card h1,
 .card h2 {
   margin: 0 0 6px 2px;
   font-size: 16px;
