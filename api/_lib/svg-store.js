@@ -288,7 +288,10 @@ function parseDimension(value) {
 }
 
 function extractPngInfo(payload, existing) {
-  const pngValue = payload ? payload.png : undefined;
+  const hasPngField = payload && Object.prototype.hasOwnProperty.call(payload, 'png');
+  const hasPngWidthField = payload && Object.prototype.hasOwnProperty.call(payload, 'pngWidth');
+  const hasPngHeightField = payload && Object.prototype.hasOwnProperty.call(payload, 'pngHeight');
+  const pngValue = hasPngField ? payload.png : undefined;
   let dataUrl = '';
   let width = null;
   let height = null;
@@ -307,7 +310,7 @@ function extractPngInfo(payload, existing) {
     }
   }
 
-  if (!dataUrl && existing && typeof existing === 'object') {
+  if (!dataUrl && !hasPngField && existing && typeof existing === 'object') {
     const existingPng = existing.png && typeof existing.png === 'string' ? existing.png.trim() : '';
     if (existingPng) {
       dataUrl = existingPng;
@@ -315,20 +318,24 @@ function extractPngInfo(payload, existing) {
   }
 
   if (width == null) {
-    const fromPayload = parseDimension(payload && payload.pngWidth);
-    if (fromPayload != null) {
-      width = fromPayload;
-    } else if (existing && existing.files && existing.files.png && existing.files.png.width) {
+    if (hasPngWidthField) {
+      const fromPayload = parseDimension(payload && payload.pngWidth);
+      if (fromPayload != null) {
+        width = fromPayload;
+      }
+    } else if ((!hasPngField || dataUrl) && existing && existing.files && existing.files.png && existing.files.png.width) {
       const existingWidth = parseDimension(existing.files.png.width);
       if (existingWidth != null) width = existingWidth;
     }
   }
 
   if (height == null) {
-    const fromPayload = parseDimension(payload && payload.pngHeight);
-    if (fromPayload != null) {
-      height = fromPayload;
-    } else if (existing && existing.files && existing.files.png && existing.files.png.height) {
+    if (hasPngHeightField) {
+      const fromPayload = parseDimension(payload && payload.pngHeight);
+      if (fromPayload != null) {
+        height = fromPayload;
+      }
+    } else if ((!hasPngField || dataUrl) && existing && existing.files && existing.files.png && existing.files.png.height) {
       const existingHeight = parseDimension(existing.files.png.height);
       if (existingHeight != null) height = existingHeight;
     }
@@ -370,10 +377,6 @@ function ensureEntryShape(slug, payload, existing) {
   const svgMarkup = typeof payload.svg === 'string' ? payload.svg : existing && typeof existing.svg === 'string' ? existing.svg : '';
 
   const svgFile = buildFileMetadata(slug, baseName, 'svg', existing && existing.files && existing.files.svg);
-  const pngFileOverrides = existing && existing.files && existing.files.png ? existing.files.png : {};
-  if (pngWidth != null) pngFileOverrides.width = pngWidth;
-  if (pngHeight != null) pngFileOverrides.height = pngHeight;
-  const pngFile = buildFileMetadata(slug, baseName, 'png', pngFileOverrides);
 
   const entry = {
     slug,
@@ -381,23 +384,41 @@ function ensureEntryShape(slug, payload, existing) {
     title: sanitizeRequiredText(payload.title || (existing && existing.title)),
     tool: sanitizeRequiredText(payload.tool || (existing && existing.tool)),
     svg: svgMarkup,
-    png: pngDataUrl,
     createdAt,
     updatedAt,
     filename: svgFile.filename,
     svgFilename: svgFile.filename,
-    pngFilename: pngFile.filename,
     svgSlug: svgFile.slug,
-    pngSlug: pngFile.slug,
     files: {
-      svg: svgFile,
-      png: pngFile
+      svg: svgFile
     },
     urls: {
-      svg: svgFile.url,
-      png: pngFile.url
+      svg: svgFile.url
     }
   };
+
+  const hasPngData = typeof pngDataUrl === 'string' && pngDataUrl.trim();
+  if (hasPngData) {
+    const pngFileOverrides = existing && existing.files && existing.files.png ? { ...existing.files.png } : {};
+    if (pngWidth != null) pngFileOverrides.width = pngWidth;
+    if (pngHeight != null) pngFileOverrides.height = pngHeight;
+    const pngFile = buildFileMetadata(slug, baseName, 'png', pngFileOverrides);
+    entry.png = pngDataUrl;
+    entry.pngFilename = pngFile.filename;
+    entry.pngSlug = pngFile.slug;
+    entry.files.png = pngFile;
+    entry.urls.png = pngFile.url;
+    if (pngFile.width != null) {
+      entry.pngWidth = pngFile.width;
+    } else if (pngWidth != null) {
+      entry.pngWidth = pngWidth;
+    }
+    if (pngFile.height != null) {
+      entry.pngHeight = pngFile.height;
+    } else if (pngHeight != null) {
+      entry.pngHeight = pngHeight;
+    }
+  }
 
   if (summary) {
     entry.summary = summary;
@@ -444,13 +465,6 @@ function ensureEntryShape(slug, payload, existing) {
   } else if (entry.altText && !existingAltTextSource) {
     entry.altTextSource = 'manual';
   }
-  if (pngWidth != null) {
-    entry.pngWidth = pngWidth;
-  }
-  if (pngHeight != null) {
-    entry.pngHeight = pngHeight;
-  }
-
   const exampleState = extractExampleState(payload || {}, existing || {});
   if (exampleState !== undefined) {
     entry.exampleState = exampleState;
@@ -590,7 +604,7 @@ async function getSvg(slug) {
   const memoryValue = readFromMemory(normalized);
   if (memoryValue) {
     const shaped =
-      memoryValue && memoryValue.files && memoryValue.files.svg && memoryValue.files.png && typeof memoryValue.png === 'string'
+      memoryValue && memoryValue.files && memoryValue.files.svg
         ? memoryValue
         : buildSvgEntry(normalized, memoryValue, memoryValue);
     const entryMode = storeMode === 'memory'
@@ -661,7 +675,7 @@ async function listSvgs() {
     const stored = readFromMemory(normalized);
     if (!stored) return;
     const shaped =
-      stored && stored.files && stored.files.svg && stored.files.png && typeof stored.png === 'string'
+      stored && stored.files && stored.files.svg
         ? stored
         : buildSvgEntry(normalized, stored, stored);
     const annotated = applyStorageMetadata(shaped, storeMode);

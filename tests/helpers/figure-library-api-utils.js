@@ -120,7 +120,13 @@ async function invokeFigureLibraryApi(options = {}) {
       json = null;
     }
   }
-  return { ...result, text, json };
+  const headers = {};
+  Object.entries(result.headers || {}).forEach(([name, value]) => {
+    if (!name) return;
+    headers[name] = value;
+    headers[name.toLowerCase()] = value;
+  });
+  return { ...result, headers, text, json };
 }
 
 function normalizeHeaderValue(value) {
