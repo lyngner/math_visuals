@@ -110,6 +110,9 @@ import {
     unitLabel: doc.getElementById('cfg-unit'),
     boardPadding: doc.getElementById('cfg-board-padding'),
     gridEnabled: doc.getElementById('cfg-grid-enabled'),
+    gridSnapEnabled: doc.getElementById('cfg-grid-snap'),
+    gridColumns: doc.getElementById('cfg-grid-columns'),
+    gridRows: doc.getElementById('cfg-grid-rows'),
     showScaleLabel: doc.getElementById('cfg-show-scale'),
     showUnitLabel: doc.getElementById('cfg-show-unit'),
     measurementWithoutScale: doc.getElementById('cfg-measurement-without-scale'),
@@ -194,6 +197,9 @@ import {
     figureScaleLabel: defaultPreset ? defaultPreset.scaleLabel : '',
     boardPadding: 0,
     gridEnabled: false,
+    gridSnapEnabled: false,
+    gridColumns: 100,
+    gridRows: 100,
     showScaleLabel: false,
     showUnitLabel: true,
     measurementWithoutScale: false,
@@ -569,6 +575,15 @@ import {
       delete target.rulerStartAtZero;
     }
     if (Object.prototype.hasOwnProperty.call(source, 'gridEnabled')) target.gridEnabled = source.gridEnabled;
+    if (Object.prototype.hasOwnProperty.call(source, 'gridSnapEnabled')) {
+      target.gridSnapEnabled = source.gridSnapEnabled;
+    }
+    if (Object.prototype.hasOwnProperty.call(source, 'gridColumns')) {
+      target.gridColumns = source.gridColumns;
+    }
+    if (Object.prototype.hasOwnProperty.call(source, 'gridRows')) {
+      target.gridRows = source.gridRows;
+    }
     if (Object.prototype.hasOwnProperty.call(source, 'showScaleLabel')) target.showScaleLabel = source.showScaleLabel;
     if (Object.prototype.hasOwnProperty.call(source, 'showUnitLabel')) target.showUnitLabel = source.showUnitLabel;
     if (Object.prototype.hasOwnProperty.call(source, 'measurementWithoutScale')) {
@@ -613,6 +628,9 @@ import {
       container.boardPadding = settings.boardPadding;
       container.rulerBackgroundMode = settings.rulerBackgroundMode;
       container.gridEnabled = settings.gridEnabled;
+      container.gridSnapEnabled = settings.gridSnapEnabled;
+      container.gridColumns = settings.gridColumns;
+      container.gridRows = settings.gridRows;
       container.showScaleLabel = settings.showScaleLabel;
       container.showUnitLabel = settings.showUnitLabel;
       container.measurementWithoutScale = !!settings.measurementWithoutScale;
@@ -649,6 +667,9 @@ import {
     container.boardPadding = settings.boardPadding;
     container.rulerBackgroundMode = settings.rulerBackgroundMode;
     container.gridEnabled = settings.gridEnabled;
+    container.gridSnapEnabled = settings.gridSnapEnabled;
+    container.gridColumns = settings.gridColumns;
+    container.gridRows = settings.gridRows;
     container.showScaleLabel = settings.showScaleLabel;
     container.showUnitLabel = settings.showUnitLabel;
     container.measurementWithoutScale = !!settings.measurementWithoutScale;
@@ -849,6 +870,21 @@ import {
       }
     }
     return fallback;
+  }
+
+  function sanitizeGridCount(value, fallback) {
+    const minimum = 1;
+    const maximum = 200;
+    const baseFallback = Number.isFinite(fallback) ? fallback : 100;
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed)) {
+      return Math.min(Math.max(baseFallback, minimum), maximum);
+    }
+    const rounded = Math.round(parsed);
+    if (!Number.isFinite(rounded)) {
+      return Math.min(Math.max(baseFallback, minimum), maximum);
+    }
+    return Math.min(Math.max(rounded, minimum), maximum);
   }
 
   function buildDefaultMeasurementTarget() {
@@ -1134,6 +1170,9 @@ import {
     const boardPadding = sanitizeBoardPadding(combined.boardPadding, defaults.boardPadding);
     const rulerBackgroundMode = RULER_BACKGROUND_MODE;
     const gridEnabled = sanitizeGridEnabled(combined.gridEnabled, defaults.gridEnabled);
+    const gridSnapEnabled = sanitizeBoolean(combined.gridSnapEnabled, gridEnabled);
+    const gridColumns = sanitizeGridCount(combined.gridColumns, defaults.gridColumns);
+    const gridRows = sanitizeGridCount(combined.gridRows, defaults.gridRows);
     const showScaleLabel = sanitizeGridEnabled(combined.showScaleLabel, defaults.showScaleLabel);
     const showUnitLabel = sanitizeBoolean(combined.showUnitLabel, defaults.showUnitLabel);
     const measurementWithoutScale = sanitizeBoolean(
@@ -1179,6 +1218,9 @@ import {
       boardPadding,
       rulerBackgroundMode,
       gridEnabled,
+      gridSnapEnabled,
+      gridColumns,
+      gridRows,
       showScaleLabel,
       showUnitLabel,
       measurementWithoutScale,
@@ -1228,6 +1270,9 @@ import {
       a.boardPadding === b.boardPadding &&
       a.rulerBackgroundMode === b.rulerBackgroundMode &&
       a.gridEnabled === b.gridEnabled &&
+      a.gridSnapEnabled === b.gridSnapEnabled &&
+      a.gridColumns === b.gridColumns &&
+      a.gridRows === b.gridRows &&
       a.showScaleLabel === b.showScaleLabel &&
       a.showUnitLabel === b.showUnitLabel &&
       a.measurementWithoutScale === b.measurementWithoutScale &&
@@ -2540,7 +2585,7 @@ import {
     updateAccessibility(settings);
     appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(settings);
     updateBaseSize();
-    applyTransformWithSnap({ allowSnap: settings.gridEnabled, persist: true });
+    applyTransformWithSnap({ allowSnap: settings.gridSnapEnabled, persist: true });
   }
 
   function applyFigureAppearance(settings) {
@@ -2641,10 +2686,16 @@ import {
   }
 
   function applyGridAppearance(settings) {
-    const enabled = !!settings.gridEnabled;
-    board.classList.toggle('board--grid', enabled);
+    const enabled = !!(settings && settings.gridEnabled);
+    const columns = sanitizeGridCount(settings && settings.gridColumns, defaults.gridColumns);
+    const rows = sanitizeGridCount(settings && settings.gridRows, defaults.gridRows);
+    if (board) {
+      board.classList.toggle('board--grid', enabled);
+    }
     if (boardGridOverlay) {
       boardGridOverlay.hidden = !enabled;
+      boardGridOverlay.style.setProperty('--grid-columns', String(columns));
+      boardGridOverlay.style.setProperty('--grid-rows', String(rows));
     }
   }
 
@@ -3226,6 +3277,9 @@ import {
       if (inputs.unitLabel) inputs.unitLabel.value = settings.unitLabel || '';
       if (inputs.boardPadding) inputs.boardPadding.value = settings.boardPadding;
       if (inputs.gridEnabled) inputs.gridEnabled.checked = !!settings.gridEnabled;
+      if (inputs.gridSnapEnabled) inputs.gridSnapEnabled.checked = !!settings.gridSnapEnabled;
+      if (inputs.gridColumns) inputs.gridColumns.value = settings.gridColumns;
+      if (inputs.gridRows) inputs.gridRows.value = settings.gridRows;
       if (inputs.showScaleLabel) inputs.showScaleLabel.checked = !!settings.showScaleLabel;
       if (inputs.showUnitLabel) inputs.showUnitLabel.checked = !!settings.showUnitLabel;
       if (inputs.measurementWithoutScale) {
@@ -3351,6 +3405,24 @@ import {
       inputs.gridEnabled.addEventListener('change', event => {
         if (appState.syncingInputs) return;
         updateSettings({ gridEnabled: event.target.checked });
+      });
+    }
+    if (inputs.gridSnapEnabled) {
+      inputs.gridSnapEnabled.addEventListener('change', event => {
+        if (appState.syncingInputs) return;
+        updateSettings({ gridSnapEnabled: event.target.checked });
+      });
+    }
+    if (inputs.gridColumns) {
+      inputs.gridColumns.addEventListener('input', event => {
+        if (appState.syncingInputs) return;
+        updateSettings({ gridColumns: event.target.value });
+      });
+    }
+    if (inputs.gridRows) {
+      inputs.gridRows.addEventListener('input', event => {
+        if (appState.syncingInputs) return;
+        updateSettings({ gridRows: event.target.value });
       });
     }
     if (inputs.showScaleLabel) {
@@ -3845,7 +3917,7 @@ import {
   }
 
   function shouldSnapSegmentHandles() {
-    return !!(appState.settings && appState.settings.gridEnabled);
+    return !!(appState.settings && appState.settings.gridSnapEnabled);
   }
 
   function snapSegmentPointToGrid(x, y, mode) {
@@ -3855,8 +3927,13 @@ import {
     if (!(width > 0) || !(height > 0)) {
       return { x, y };
     }
-    const stepX = width / 100;
-    const stepY = height / 100;
+    const columns = sanitizeGridCount(
+      appState.settings && appState.settings.gridColumns,
+      defaults.gridColumns
+    );
+    const rows = sanitizeGridCount(appState.settings && appState.settings.gridRows, defaults.gridRows);
+    const stepX = width / columns;
+    const stepY = height / rows;
     if (!(stepX > 0) || !(stepY > 0)) {
       return { x, y };
     }
@@ -4231,7 +4308,7 @@ import {
         ? tapeLengthState.maxVisiblePx
         : Infinity;
     let visible = targetVisible;
-    if (appState.settings && appState.settings.gridEnabled && unitSpacing > 0) {
+    if (appState.settings && appState.settings.gridSnapEnabled && unitSpacing > 0) {
       visible = Math.round(visible / unitSpacing) * unitSpacing;
     }
     visible = Math.min(Math.max(visible, minVisible), maxVisible);
@@ -4993,7 +5070,7 @@ import {
       }
       return;
     }
-    if (allowSnap && appState.settings && appState.settings.gridEnabled) {
+    if (allowSnap && appState.settings && appState.settings.gridSnapEnabled) {
       snapTranslationToGrid();
     }
     applyTransform();
@@ -5290,8 +5367,14 @@ import {
     if (!boardRect) {
       return;
     }
-    const gridColumns = 100;
-    const gridRows = 100;
+    const gridColumns = sanitizeGridCount(
+      appState.settings && appState.settings.gridColumns,
+      defaults.gridColumns
+    );
+    const gridRows = sanitizeGridCount(
+      appState.settings && appState.settings.gridRows,
+      defaults.gridRows
+    );
     const cellWidth = boardRect.width / gridColumns;
     const cellHeight = boardRect.height / gridRows;
     if (!Number.isFinite(cellWidth) || !Number.isFinite(cellHeight) || cellWidth <= 0 || cellHeight <= 0) {
@@ -6059,7 +6142,7 @@ import {
     `;
   }
 
-  function appendGrid(svgRoot, width, height, pan) {
+  function appendGrid(svgRoot, width, height, pan, settings) {
     if (!svgRoot) {
       return;
     }
@@ -6071,8 +6154,8 @@ import {
     if (offsetX !== 0 || offsetY !== 0) {
       group.setAttribute('transform', `translate(${formatSvgNumber(offsetX)} ${formatSvgNumber(offsetY)})`);
     }
-    const columns = 100;
-    const rows = 100;
+    const columns = sanitizeGridCount(settings && settings.gridColumns, defaults.gridColumns);
+    const rows = sanitizeGridCount(settings && settings.gridRows, defaults.gridRows);
     for (let column = 1; column < columns; column += 1) {
       const x = (width / columns) * column;
       const line = createSvgElement('line');
@@ -6609,7 +6692,7 @@ import {
     }
 
     if (settings && settings.gridEnabled) {
-      appendGrid(svg, width, height, pan);
+      appendGrid(svg, width, height, pan, settings);
     }
 
     appendScaleLabel(svg, settings);

@@ -168,7 +168,8 @@
           transparent 1px,
           transparent 100%
         );
-      background-size: calc(100% / 100) 100%, 100% calc(100% / 100);
+      background-size: calc(100% / var(--grid-columns, 100)) 100%,
+        100% calc(100% / var(--grid-rows, 100));
       background-repeat: repeat, repeat;
       mix-blend-mode: multiply;
       opacity: 0;
@@ -934,6 +935,10 @@
                   <span>Vis rutenett</span>
                 </label>
                 <label class="settings__toggle">
+                  <input id="cfg-grid-snap" type="checkbox" />
+                  <span>Snapp til rutenett</span>
+                </label>
+                <label class="settings__toggle">
                   <input id="cfg-show-scale" type="checkbox" />
                   <span>Vis målestokk</span>
                 </label>
@@ -948,6 +953,14 @@
                 <label class="settings__toggle">
                   <input id="cfg-pan-enabled" type="checkbox" />
                   <span>Tillat panorering</span>
+                </label>
+              </div>
+              <div class="field-grid field-grid--two">
+                <label for="cfg-grid-columns">Ruter i x-retning
+                  <input id="cfg-grid-columns" type="number" min="1" max="200" value="100" />
+                </label>
+                <label for="cfg-grid-rows">Ruter i y-retning
+                  <input id="cfg-grid-rows" type="number" min="1" max="200" value="100" />
                 </label>
               </div>
             </div>
