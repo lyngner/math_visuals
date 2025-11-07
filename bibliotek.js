@@ -2481,7 +2481,19 @@ async function handleUploadSubmit(event) {
         svg: svgText,
         tool: FIGURE_LIBRARY_TOOL,
       };
-      const savedEntry = await submitFigureEntry(entry, { method: 'POST' });
+      const media = await convertSvgMarkupToPng(svgText);
+      if (media && typeof media.dataUrl === 'string' && media.dataUrl) {
+        entry.png = media.dataUrl;
+        if (Number.isFinite(media.width)) {
+          entry.pngWidth = Number(media.width);
+        }
+        if (Number.isFinite(media.height)) {
+          entry.pngHeight = Number(media.height);
+        }
+      } else {
+        throw new Error('Kunne ikke generere PNG fra SVG.');
+      }
+      const savedEntry = await submitFigureEntry(entry, { method: 'POST', includeMedia: true });
       const finalEntry = savedEntry || entry;
       results.push({ state: 'success', message: `${label}: Lastet opp som «${finalEntry.name}».` });
       successfulUploads += 1;
@@ -2778,6 +2790,110 @@ function encodeSvgToDataUrl(svgText) {
     .replace(/'/g, '%27')
     .replace(/"/g, '%22');
   return `data:image/svg+xml;charset=utf-8,${encoded}`;
+}
+
+async function convertSvgMarkupToPng(svgMarkup) {
+  if (typeof svgMarkup !== 'string' || !svgMarkup.trim()) {
+    throw new Error('Ugyldig SVG-data.');
+  }
+
+  if (typeof Blob !== 'function' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    throw new Error('SVG-til-PNG-konvertering støttes ikke i denne nettleseren.');
+  }
+
+  const blob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
+  const objectUrl = URL.createObjectURL(blob);
+  const svgDimensions = extractSvgDimensions(svgMarkup);
+
+  try {
+    const image = await loadImageFromUrl(objectUrl, svgDimensions);
+    const width = Math.max(1, Math.round(image.naturalWidth || image.width || svgDimensions.width || 0));
+    const height = Math.max(1, Math.round(image.naturalHeight || image.height || svgDimensions.height || 0));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Mangler tegnekontekst for lerret.');
+    }
+    context.clearRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+    const dataUrl = canvas.toDataURL('image/png');
+    if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/png')) {
+      throw new Error('Kunne ikke konvertere SVG til PNG.');
+    }
+    return { dataUrl, width, height };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function loadImageFromUrl(url, dimensions = {}) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    if (Number.isFinite(dimensions.width) && dimensions.width > 0) {
+      img.width = Math.round(dimensions.width);
+    }
+    if (Number.isFinite(dimensions.height) && dimensions.height > 0) {
+      img.height = Math.round(dimensions.height);
+    }
+    img.decoding = 'async';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Kunne ikke laste SVG for konvertering.'));
+    img.src = url;
+  });
+}
+
+function extractSvgDimensions(svgMarkup) {
+  if (typeof DOMParser !== 'function') {
+    return {};
+  }
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgMarkup, 'image/svg+xml');
+    const svgElement = doc && doc.documentElement && doc.documentElement.nodeName === 'svg'
+      ? doc.documentElement
+      : doc.querySelector('svg');
+    if (!svgElement) {
+      return {};
+    }
+    let width = parseSvgLength(svgElement.getAttribute('width'));
+    let height = parseSvgLength(svgElement.getAttribute('height'));
+    if ((!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) && svgElement.hasAttribute('viewBox')) {
+      const viewBox = svgElement.getAttribute('viewBox');
+      if (typeof viewBox === 'string') {
+        const parts = viewBox.trim().split(/[\s,]+/).map((value) => parseFloat(value));
+        if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
+          const [, , vbWidth, vbHeight] = parts;
+          if (!Number.isFinite(width) || width <= 0) {
+            width = vbWidth;
+          }
+          if (!Number.isFinite(height) || height <= 0) {
+            height = vbHeight;
+          }
+        }
+      }
+    }
+    return {
+      width: Number.isFinite(width) && width > 0 ? width : undefined,
+      height: Number.isFinite(height) && height > 0 ? height : undefined,
+    };
+  } catch (error) {
+    return {};
+  }
+}
+
+function parseSvgLength(value) {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const parsed = parseFloat(trimmed.replace(/[^0-9.+-]/g, ''));
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function decodeSvgDataUrl(dataUrl) {
