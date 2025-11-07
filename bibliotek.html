@@ -1007,17 +1007,6 @@
             <button type="button" class="categoryAddButton" data-add-category-toggle aria-expanded="false">
               Ny kategori
             </button>
-            <div class="libraryControls__group libraryControls__group--search">
-              <label class="visuallyHidden" for="figure-filter">Søk i figurer</label>
-              <input
-                id="figure-filter"
-                type="search"
-                placeholder="Søk etter navn, kategori eller type"
-                data-filter
-                autocomplete="off"
-              />
-              <p class="filterHelper">Søk f.eks. «dyr», «category:tierbrett» eller «type:measure».</p>
-            </div>
             <label class="libraryControls__group libraryControls__group--sort">
               <span>Sorter</span>
               <select data-category-sort>
@@ -1027,26 +1016,6 @@
             </label>
           </div>
         </header>
-        <form class="categoryAddForm" data-add-category-form hidden>
-          <label for="category-add-input">
-            Navn på ny kategori
-            <input
-              id="category-add-input"
-              type="text"
-              class="categoryAddInput"
-              name="category-name"
-              placeholder="F.eks. Dyr"
-              autocomplete="off"
-              data-add-category-input
-              required
-            />
-          </label>
-          <div class="categoryAddControls">
-            <button type="submit" class="categoryAddSubmit" data-add-category-submit>Legg til</button>
-            <button type="button" class="categoryAddCancel" data-add-category-cancel>Avbryt</button>
-          </div>
-        </form>
-        <p class="categoryAddMessage" data-add-category-feedback hidden aria-live="polite"></p>
         <ul class="categoryGrid" data-category-grid></ul>
       </section>
     </div>
