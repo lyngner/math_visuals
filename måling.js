@@ -935,6 +935,9 @@ import {
 
   function sanitizeActiveTool(value, fallback) {
     const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    if (normalized === 'segment' && hasSegment) {
+      return 'segment';
+    }
     if (normalized === 'tape' && hasTapeMeasure) {
       return 'tape';
     }
@@ -942,11 +945,17 @@ import {
       return 'ruler';
     }
     const fallbackNormalized = typeof fallback === 'string' ? fallback.trim().toLowerCase() : '';
+    if (fallbackNormalized === 'segment' && hasSegment) {
+      return 'segment';
+    }
     if (fallbackNormalized === 'tape' && hasTapeMeasure) {
       return 'tape';
     }
     if (fallbackNormalized === 'ruler' && hasRuler) {
       return 'ruler';
+    }
+    if (hasSegment) {
+      return 'segment';
     }
     if (hasRuler) {
       return 'ruler';
