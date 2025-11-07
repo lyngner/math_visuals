@@ -344,6 +344,49 @@
       cursor: grabbing;
     }
 
+    .segment.segment--tape-beta .segment__handle {
+      border: none;
+      box-shadow: none;
+      background: transparent;
+      transform: translate(0, -100%);
+      cursor: grab;
+    }
+
+    .segment.segment--tape-beta .segment__handle::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+      height: 100%;
+      background-position: left bottom;
+      background-repeat: no-repeat;
+      background-size: contain;
+      pointer-events: none;
+    }
+
+    .segment.segment--tape-beta .segment__handle--a {
+      width: 40px;
+      height: 47px;
+    }
+
+    .segment.segment--tape-beta .segment__handle--a::after {
+      background-image: url('/images/measure/måleredskaper/målebåndSluttstykke.svg');
+    }
+
+    .segment.segment--tape-beta .segment__handle--b {
+      width: 136px;
+      height: 72px;
+    }
+
+    .segment.segment--tape-beta .segment__handle--b::after {
+      background-image: url('/images/measure/måleredskaper/målebåndhus.svg');
+    }
+
+    .segment.segment--tape-beta .segment__handle:active {
+      cursor: grabbing;
+    }
+
     .segment__label {
       position: absolute;
       left: 0;
@@ -883,6 +926,7 @@
                 <select id="cfg-measurement-tool">
                   <option value="ruler" selected>Linjal</option>
                   <option value="tape">Målebånd</option>
+                  <option value="tape-beta">Målebånd (beta)</option>
                   <option value="segment">Linjestykke</option>
                 </select>
               </div>
