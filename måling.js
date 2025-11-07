@@ -129,10 +129,16 @@ import {
   const measurementFieldGrid = doc.querySelector('[data-measurement-field-grid]');
   const numberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO') : null;
 
+  const TAPE_BETA_TOOL_KEY = 'tape-beta';
+  const TAPE_BETA_HANDLE_SPECS = {
+    a: { width: 40, height: 47, href: '/images/measure/måleredskaper/målebåndSluttstykke.svg' },
+    b: { width: 136, height: 72, href: '/images/measure/måleredskaper/målebåndhus.svg' }
+  };
   const transformStates = {
     ruler: { x: 0, y: 0, rotation: 0 },
     tape: { x: 0, y: 0, rotation: 0 },
-    segment: { x: 0, y: 0, rotation: 0 }
+    segment: { x: 0, y: 0, rotation: 0 },
+    [TAPE_BETA_TOOL_KEY]: { x: 0, y: 0, rotation: 0 }
   };
   let tapeAxisFallbackHousingToZero = null;
   const tapeEndpoints = {
@@ -243,13 +249,26 @@ import {
     directionLockMemory: {
       ruler: 0,
       tape: 0,
-      segment: 0
+      segment: 0,
+      [TAPE_BETA_TOOL_KEY]: 0
     },
     currentDirectionLockMode: 'none',
     currentDirectionLockAngle: null
   };
+
+  function isTapeBetaActive() {
+    return appState.activeTool === TAPE_BETA_TOOL_KEY;
+  }
   const configContainers = resolveConfigContainers();
   let exportClipIdCounter = 0;
+
+  function isTapeToolKey(value) {
+    return value === 'tape';
+  }
+
+  function isSegmentToolKey(value) {
+    return value === 'segment' || value === TAPE_BETA_TOOL_KEY;
+  }
 
   function refreshConfigContainers() {
     const latest = resolveConfigContainers();
@@ -499,7 +518,11 @@ import {
         if (event.pointerId == null) {
           return;
         }
-        if (activePointers.segment.delete(event.pointerId) && activePointers.segment.size === 0 && appState.activeTool === 'segment') {
+        if (
+          activePointers.segment.delete(event.pointerId) &&
+          activePointers.segment.size === 0 &&
+          isSegmentToolKey(appState.activeTool)
+        ) {
           persistSegmentState();
         }
       });
@@ -1004,6 +1027,9 @@ import {
 
   function sanitizeActiveTool(value, fallback) {
     const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    if (normalized === TAPE_BETA_TOOL_KEY && hasSegment) {
+      return TAPE_BETA_TOOL_KEY;
+    }
     if (normalized === 'segment' && hasSegment) {
       return 'segment';
     }
@@ -1014,6 +1040,9 @@ import {
       return 'ruler';
     }
     const fallbackNormalized = typeof fallback === 'string' ? fallback.trim().toLowerCase() : '';
+    if (fallbackNormalized === TAPE_BETA_TOOL_KEY && hasSegment) {
+      return TAPE_BETA_TOOL_KEY;
+    }
     if (fallbackNormalized === 'segment' && hasSegment) {
       return 'segment';
     }
@@ -1728,7 +1757,7 @@ import {
       return 0;
     }
     const metrics = scaleMetrics || resolveScaleMetrics(settings);
-    if (toolKey === 'segment') {
+    if (isSegmentToolKey(toolKey)) {
       return getSegmentLengthInDisplayUnits(settings, metrics);
     }
     const multiplier = resolveRulerValueMultiplier(settings, metrics);
@@ -2506,7 +2535,8 @@ import {
     }
 
     if (segment) {
-      if (desiredTool === 'segment') {
+      const showSegment = isSegmentToolKey(desiredTool);
+      if (showSegment) {
         segment.hidden = false;
         segment.removeAttribute('hidden');
         segment.setAttribute('aria-hidden', 'false');
@@ -2515,11 +2545,13 @@ import {
         segment.setAttribute('hidden', '');
         segment.setAttribute('aria-hidden', 'true');
       }
+      segment.classList.toggle('segment--tape-beta', desiredTool === TAPE_BETA_TOOL_KEY);
     }
 
     applyToolTransform('ruler');
     applyToolTransform('tape');
     applyToolTransform('segment');
+    applyToolTransform(TAPE_BETA_TOOL_KEY);
     if (desiredTool === 'tape') {
       initializeTapeEndpointsFromDom();
     }
@@ -2527,7 +2559,7 @@ import {
   }
 
   function updateLengthFieldVisibility(toolKey) {
-    const showLength = toolKey !== 'segment';
+    const showLength = !isSegmentToolKey(toolKey);
     if (lengthFieldContainer) {
       if (showLength) {
         lengthFieldContainer.hidden = false;
@@ -2545,7 +2577,7 @@ import {
         }
       }
     }
-    const showSegmentDecimals = toolKey === 'segment';
+    const showSegmentDecimals = isSegmentToolKey(toolKey);
     if (segmentDecimalsField) {
       if (showSegmentDecimals) {
         segmentDecimalsField.hidden = false;
@@ -3076,18 +3108,18 @@ import {
     const unitSuffixValue = resolveUnitSuffix(unitLabel);
     const unitSuffix = unitSuffixValue ? ` ${unitSuffixValue}` : '';
     const toolElements = [
-      { key: 'ruler', element: hasRuler ? ruler : null },
-      { key: 'tape', element: hasTapeMeasure ? tapeMeasure : null },
-      { key: 'segment', element: hasSegment ? segment : null }
+      { keys: ['ruler'], element: hasRuler ? ruler : null },
+      { keys: ['tape'], element: hasTapeMeasure ? tapeMeasure : null },
+      { keys: ['segment', TAPE_BETA_TOOL_KEY], element: hasSegment ? segment : null }
     ];
     for (const entry of toolElements) {
       if (!entry.element) {
         continue;
       }
-      const isActive = entry.key === activeToolKey;
+      const isActive = entry.keys.includes(activeToolKey);
       if (isActive) {
         const labelParts = [`Flyttbart ${info.label}`];
-        if (entry.key === 'tape') {
+        if (entry.keys.includes('tape')) {
           const visibleUnitsRaw = tapeMeasure
             ? Number.parseFloat(tapeMeasure.getAttribute('data-visible-length'))
             : NaN;
@@ -3613,10 +3645,10 @@ import {
   }
 
   function getToolElement(toolKey) {
-    if (toolKey === 'tape') {
+    if (isTapeToolKey(toolKey)) {
       return tapeMeasure;
     }
-    if (toolKey === 'segment') {
+    if (isSegmentToolKey(toolKey)) {
       return segment;
     }
     return ruler;
@@ -3637,6 +3669,14 @@ import {
     if (toolKey === 'tape') {
       return { key: 'tape', label: 'målebånd', title: 'Målebånd', possessive: 'Målebåndets' };
     }
+    if (toolKey === TAPE_BETA_TOOL_KEY) {
+      return {
+        key: TAPE_BETA_TOOL_KEY,
+        label: 'målebånd (beta)',
+        title: 'Målebånd (beta)',
+        possessive: 'Målebåndets'
+      };
+    }
     if (toolKey === 'segment') {
       return { key: 'segment', label: 'linjestykke', title: 'Linjestykke', possessive: 'Linjestykkets' };
     }
@@ -3647,7 +3687,7 @@ import {
     if (toolKey === 'tape') {
       return activePointers.tape;
     }
-    if (toolKey === 'segment') {
+    if (isSegmentToolKey(toolKey)) {
       return activePointers.segment;
     }
     return activePointers.ruler;
@@ -3816,16 +3856,33 @@ import {
       }
     }
     session.clear();
-    if (hadEntries && appState.activeTool === 'segment') {
+    if (hadEntries && isSegmentToolKey(appState.activeTool)) {
       persistSegmentState();
     }
+  }
+
+  function getSegmentHandleAnchor(handle) {
+    if (!handle) {
+      return null;
+    }
+    const rect = handle.getBoundingClientRect();
+    if (!rect) {
+      return null;
+    }
+    if (isTapeBetaActive()) {
+      return { x: rect.left, y: rect.bottom };
+    }
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
   }
 
   function handleSegmentPointerDown(event) {
     if (!hasSegment || event.button > 0) {
       return;
     }
-    if (appState.activeTool !== 'segment') {
+    if (!isSegmentToolKey(appState.activeTool)) {
       return;
     }
     const handle = event.currentTarget;
@@ -3840,12 +3897,13 @@ import {
       return;
     }
     boardRect = board.getBoundingClientRect();
-    const rect = handle.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
+    const anchor = getSegmentHandleAnchor(handle);
+    if (!anchor) {
+      return;
+    }
     const pointerOffset = {
-      x: event.clientX - centerX,
-      y: event.clientY - centerY
+      x: event.clientX - anchor.x,
+      y: event.clientY - anchor.y
     };
     const session = activePointers.segment;
     const entry = {
@@ -3870,7 +3928,7 @@ import {
     if (!entry) {
       return;
     }
-    if (appState.activeTool !== 'segment') {
+    if (!isSegmentToolKey(appState.activeTool)) {
       return;
     }
     if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
@@ -3970,7 +4028,7 @@ import {
         entry.captureTarget.releasePointerCapture(entry.pointerId);
       } catch (error) {}
     }
-    if (session.size === 0 && appState.activeTool === 'segment') {
+    if (session.size === 0 && isSegmentToolKey(appState.activeTool)) {
       persistSegmentState();
     }
     event.preventDefault();
@@ -4431,7 +4489,10 @@ import {
     }
     element.setAttribute('tabindex', '-1');
     element.addEventListener('focus', () => {
-      if (appState.activeTool === toolKey) {
+      if (
+        appState.activeTool === toolKey ||
+        (isSegmentToolKey(toolKey) && isSegmentToolKey(appState.activeTool))
+      ) {
         return;
       }
       persistActiveInstrumentState();
@@ -4444,7 +4505,7 @@ import {
       applyTapeMeasureTransform();
       return;
     }
-    if (toolKey === 'segment') {
+    if (toolKey === 'segment' || toolKey === TAPE_BETA_TOOL_KEY) {
       applySegmentTransform();
       return;
     }
@@ -5044,7 +5105,7 @@ import {
       applyTapeMeasureTransform();
       return;
     }
-    if (appState.activeTool === 'segment') {
+    if (isSegmentToolKey(appState.activeTool)) {
       applySegmentTransform();
       return;
     }
@@ -5057,13 +5118,13 @@ import {
 
   function applyTransformWithSnap({ allowSnap = true, persist = false } = {}) {
     if (appState.settings) {
-      if (appState.activeTool === 'segment') {
+      if (isSegmentToolKey(appState.activeTool)) {
         enforceSegmentDirectionLockForSettings(appState.settings);
       } else {
         enforceDirectionLockForActiveTool();
       }
     }
-    if (appState.activeTool === 'segment') {
+    if (isSegmentToolKey(appState.activeTool)) {
       applySegmentTransform();
       if (persist && !suspendTransformPersistence) {
         persistSegmentState();
@@ -5074,7 +5135,7 @@ import {
       snapTranslationToGrid();
     }
     applyTransform();
-    if (appState.settings && appState.activeTool !== 'segment') {
+    if (appState.settings && !isSegmentToolKey(appState.activeTool)) {
       updateFreeRotationMemoryForTool(appState.activeTool);
     }
     if (persist && !suspendTransformPersistence) {
@@ -5148,7 +5209,7 @@ import {
     }
     if (appState.activeTool === 'tape') {
       persistTapeMeasureState();
-    } else if (appState.activeTool === 'segment') {
+    } else if (isSegmentToolKey(appState.activeTool)) {
       persistSegmentState();
     } else {
       persistTransformState();
@@ -5611,7 +5672,7 @@ import {
     if (!Number.isFinite(angle)) {
       return;
     }
-    if (appState.activeTool === 'segment') {
+    if (isSegmentToolKey(appState.activeTool)) {
       applySegmentDirectionLock(angle);
       return;
     }
@@ -5627,6 +5688,9 @@ import {
       return;
     }
     if (resolveDirectionLockMode(appState.settings) !== 'none') {
+      return;
+    }
+    if (isSegmentToolKey(toolKey)) {
       return;
     }
     const state = transformStates[toolKey];
@@ -5734,7 +5798,7 @@ import {
     updateBaseSize();
 
     if (!hasAnyActivePointers() && (widthChanged || heightChanged)) {
-      if (appState.activeTool === 'segment') {
+      if (isSegmentToolKey(appState.activeTool)) {
         renderSegment(appState.settings);
       } else {
         centerRuler();
@@ -6129,6 +6193,9 @@ import {
         stroke: rgba(15, 109, 143, 0.7);
         stroke-width: 2;
       }
+      .mv-segment--tape-beta .mv-segment__handle-image {
+        image-rendering: optimizeQuality;
+      }
       .mv-segment__label-bg {
         fill: rgba(15, 109, 143, 0.9);
       }
@@ -6297,8 +6364,9 @@ import {
     if (!points) {
       return null;
     }
+    const isTapeBeta = board && board.getAttribute('data-active-tool') === TAPE_BETA_TOOL_KEY;
     const group = createSvgElement('g');
-    group.setAttribute('class', 'mv-segment');
+    group.setAttribute('class', isTapeBeta ? 'mv-segment mv-segment--tape-beta' : 'mv-segment');
 
     const line = createSvgElement('line');
     line.setAttribute('class', 'mv-segment__line');
@@ -6317,12 +6385,27 @@ import {
       const handleGroup = createSvgElement('g');
       handleGroup.setAttribute('class', `mv-segment__handle mv-segment__handle--${key}`);
 
-      const circle = createSvgElement('circle');
-      circle.setAttribute('class', 'mv-segment__handle-circle');
-      circle.setAttribute('cx', formatSvgNumber(point.x));
-      circle.setAttribute('cy', formatSvgNumber(point.y));
-      circle.setAttribute('r', formatSvgNumber(14));
-      handleGroup.appendChild(circle);
+      if (isTapeBeta) {
+        const spec = TAPE_BETA_HANDLE_SPECS[key];
+        if (spec) {
+          const image = createSvgElement('image');
+          image.setAttribute('class', `mv-segment__handle-image mv-segment__handle-image--${key}`);
+          image.setAttribute('width', formatSvgNumber(spec.width));
+          image.setAttribute('height', formatSvgNumber(spec.height));
+          image.setAttribute('x', formatSvgNumber(point.x));
+          image.setAttribute('y', formatSvgNumber(point.y - spec.height));
+          image.setAttributeNS(XLINK_NS, 'xlink:href', spec.href);
+          image.setAttribute('href', spec.href);
+          handleGroup.appendChild(image);
+        }
+      } else {
+        const circle = createSvgElement('circle');
+        circle.setAttribute('class', 'mv-segment__handle-circle');
+        circle.setAttribute('cx', formatSvgNumber(point.x));
+        circle.setAttribute('cy', formatSvgNumber(point.y));
+        circle.setAttribute('r', formatSvgNumber(14));
+        handleGroup.appendChild(circle);
+      }
 
       group.appendChild(handleGroup);
     }
@@ -6701,10 +6784,16 @@ import {
       settings && settings.activeTool,
       defaultActiveTool
     );
-    if (sanitizedTool === 'segment') {
+    if (isSegmentToolKey(sanitizedTool)) {
       renderSegment(settings, resolveScaleMetrics(settings));
     }
-    const instrumentOrder = [sanitizedTool, 'ruler', 'tape', 'segment'].filter(
+    const instrumentOrder = [
+      sanitizedTool,
+      'ruler',
+      'tape',
+      'segment',
+      TAPE_BETA_TOOL_KEY
+    ].filter(
       (value, index, array) => value && array.indexOf(value) === index
     );
     let instrumentAttached = false;
@@ -6727,7 +6816,7 @@ import {
           svg.appendChild(tapeResult.group);
           instrumentAttached = true;
         }
-      } else if (tool === 'segment') {
+      } else if (isSegmentToolKey(tool)) {
         const segmentGroup = createSegmentGroupForExport();
         if (segmentGroup) {
           svg.appendChild(segmentGroup);
