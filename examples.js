@@ -4659,6 +4659,74 @@
     return null;
   }
 
+  const DESCRIPTION_PREVIEW_LABEL_BASE_ID = 'example-description-label';
+  let descriptionPreviewLabelIdCounter = 0;
+
+  function findDescriptionLabelElement(input) {
+    if (!input || !input.id) return null;
+    if (typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') return null;
+    const labels = document.querySelectorAll('label');
+    for (let index = 0; index < labels.length; index++) {
+      const label = labels[index];
+      if (!label) continue;
+      const labelFor = typeof label.getAttribute === 'function' ? label.getAttribute('for') : null;
+      if (labelFor === input.id) {
+        return label;
+      }
+    }
+    return null;
+  }
+
+  function ensureDescriptionLabelId(label) {
+    if (!label) return null;
+    if (label.id) return label.id;
+    let candidate = DESCRIPTION_PREVIEW_LABEL_BASE_ID;
+    if (typeof document !== 'undefined' && typeof document.getElementById === 'function') {
+      if (document.getElementById(candidate)) {
+        do {
+          candidate = `${DESCRIPTION_PREVIEW_LABEL_BASE_ID}-${++descriptionPreviewLabelIdCounter}`;
+        } while (document.getElementById(candidate));
+      }
+    }
+    label.id = candidate;
+    return label.id;
+  }
+
+  function syncDescriptionPreviewAccessibility(preview) {
+    if (!preview) return;
+    preview.setAttribute('role', 'region');
+    const input = getDescriptionInput();
+    if (!input) {
+      preview.removeAttribute('aria-label');
+      preview.removeAttribute('aria-labelledby');
+      preview.removeAttribute('aria-describedby');
+      return;
+    }
+    const ariaLabel = input.getAttribute('aria-label');
+    const ariaLabelledBy = input.getAttribute('aria-labelledby');
+    const ariaDescribedBy = input.getAttribute('aria-describedby');
+    if (ariaLabel && ariaLabel.trim()) {
+      preview.setAttribute('aria-label', ariaLabel);
+    } else {
+      preview.removeAttribute('aria-label');
+    }
+    if (ariaLabelledBy && ariaLabelledBy.trim()) {
+      preview.setAttribute('aria-labelledby', ariaLabelledBy);
+    } else {
+      preview.removeAttribute('aria-labelledby');
+      const labelElement = findDescriptionLabelElement(input);
+      const labelId = ensureDescriptionLabelId(labelElement);
+      if (labelId) {
+        preview.setAttribute('aria-labelledby', labelId);
+      }
+    }
+    if (ariaDescribedBy && ariaDescribedBy.trim()) {
+      preview.setAttribute('aria-describedby', ariaDescribedBy);
+    } else {
+      preview.removeAttribute('aria-describedby');
+    }
+  }
+
   function getDescriptionPreviewElement() {
     const ensurePreviewPosition = (previewElement, containerElement) => {
       if (!previewElement || !containerElement) return;
@@ -4675,6 +4743,7 @@
 
     if (descriptionPreview && descriptionPreview.isConnected) {
       ensurePreviewPosition(descriptionPreview, descriptionPreview.parentElement);
+      syncDescriptionPreviewAccessibility(descriptionPreview);
       return descriptionPreview;
     }
 
@@ -4696,6 +4765,7 @@
     }
 
     ensurePreviewPosition(preview, container);
+    syncDescriptionPreviewAccessibility(preview);
     descriptionPreview = preview;
     return preview;
   }
