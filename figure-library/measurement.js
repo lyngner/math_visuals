@@ -28,6 +28,7 @@ export {
   CUSTOM_CATEGORY_ID,
   CUSTOM_FIGURE_ID,
   measurementFigureManifest,
+  buildMeasurementFigureData,
   encodeMeasureImagePath,
   extractRealWorldSize,
   createFigurePickerHelpers,
