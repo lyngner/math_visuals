@@ -32,6 +32,7 @@ const categoryDialogFigures = categoryDialog?.querySelector('[data-category-figu
 const categoryDialogEmpty = categoryDialog?.querySelector('[data-category-empty]') || null;
 const categoryDialogCloseButton = categoryDialog?.querySelector('[data-category-close]') || null;
 const categoryDialogUploadButton = categoryDialog?.querySelector('[data-category-upload]') || null;
+const categoryDialogDeleteButton = categoryDialog?.querySelector('[data-category-delete]') || null;
 const categoryMenu = document.querySelector('[data-category-menu]');
 const categoryMenuSurface = categoryMenu?.querySelector('[data-category-menu-surface]') || null;
 const copyFeedbackTimers = new WeakMap();
@@ -125,6 +126,11 @@ let editingEntryId = null;
 let categoryDialogReturnFocus = null;
 let categoryMenuTrigger = null;
 let categoryMenuCategory = null;
+
+const categoryDialogState = {
+  categoryId: null,
+  selectedSlugs: new Set(),
+};
 
 let figureLibraryMetadata = { storageMode: 'memory', persistent: false, limitation: '' };
 
@@ -965,10 +971,18 @@ function closeCategoryDialog(options = {}) {
     categoryDialogFigures.innerHTML = '';
   }
 
+  resetCategoryDialogState();
+  updateCategoryDialogDeleteButtonState();
+
   if (restoreFocus && categoryDialogReturnFocus && typeof categoryDialogReturnFocus.focus === 'function') {
     categoryDialogReturnFocus.focus();
   }
   categoryDialogReturnFocus = null;
+}
+
+function resetCategoryDialogState() {
+  categoryDialogState.categoryId = null;
+  categoryDialogState.selectedSlugs.clear();
 }
 
 function renderCategoryDialog(categoryId) {
@@ -977,6 +991,11 @@ function renderCategoryDialog(categoryId) {
   if (!category) {
     return false;
   }
+
+  if (categoryDialogState.categoryId !== category.id) {
+    categoryDialogState.selectedSlugs.clear();
+  }
+  categoryDialogState.categoryId = category.id;
 
   const displayName = getCategoryDisplayName(category) || category.id || '';
 
@@ -988,6 +1007,13 @@ function renderCategoryDialog(categoryId) {
   const visibleFigures = hasQueryFilter
     ? allFigures.filter((item) => item.searchText.includes(normalizedQuery))
     : allFigures;
+
+  const availableSlugs = new Set(allFigures.map((item) => getFigureSlug(item)).filter(Boolean));
+  for (const slug of Array.from(categoryDialogState.selectedSlugs)) {
+    if (!availableSlugs.has(slug)) {
+      categoryDialogState.selectedSlugs.delete(slug);
+    }
+  }
 
   if (categoryDialogTitle) {
     categoryDialogTitle.textContent = displayName;
@@ -1025,7 +1051,10 @@ function renderCategoryDialog(categoryId) {
     categoryDialogFigures.innerHTML = '';
     const fragment = document.createDocumentFragment();
     for (const item of visibleFigures) {
-      fragment.appendChild(item.element);
+      const listItem = createCategoryDialogListItem(item);
+      if (listItem) {
+        fragment.appendChild(listItem);
+      }
     }
     categoryDialogFigures.appendChild(fragment);
   }
@@ -1046,7 +1075,172 @@ function renderCategoryDialog(categoryId) {
     }
   }
 
+  updateCategoryDialogSelectionIndicators();
+  updateCategoryDialogDeleteButtonState();
+
   return true;
+}
+
+function createCategoryDialogListItem(item) {
+  if (!item || typeof item !== 'object') return null;
+  const slug = getFigureSlug(item);
+  if (!slug) return null;
+  const name = typeof item.data?.name === 'string' && item.data.name.trim() ? item.data.name.trim() : slug;
+
+  const li = document.createElement('li');
+  li.className = 'categoryDialog__item';
+  li.dataset.categoryItem = 'true';
+  li.dataset.slug = slug;
+  li.dataset.name = name;
+  if (item.data?.custom) {
+    li.dataset.custom = 'true';
+  }
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'categoryDialog__toggle';
+  toggle.dataset.categoryToggle = 'true';
+
+  const isSelected = categoryDialogState.selectedSlugs.has(slug);
+  toggle.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+
+  const label = document.createElement('span');
+  label.className = 'visuallyHidden';
+  label.dataset.categoryToggleLabel = 'true';
+  label.textContent = buildCategoryToggleLabel(name, isSelected);
+  toggle.appendChild(label);
+
+  const preview = document.createElement('span');
+  preview.className = 'categoryDialog__preview';
+  const img = document.createElement('img');
+  const path = typeof item.path === 'string' && item.path ? item.path : item.data?.path || '';
+  if (path) {
+    img.src = path;
+  }
+  img.alt = '';
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  preview.appendChild(img);
+  toggle.appendChild(preview);
+
+  const indicator = document.createElement('span');
+  indicator.className = 'categoryDialog__indicator';
+  indicator.setAttribute('aria-hidden', 'true');
+  indicator.textContent = '✓';
+  toggle.appendChild(indicator);
+
+  li.appendChild(toggle);
+  return li;
+}
+
+function buildCategoryToggleLabel(name, selected) {
+  const resolvedName = name || 'figuren';
+  return selected
+    ? `Fjern «${resolvedName}» fra utvalget`
+    : `Velg «${resolvedName}»`;
+}
+
+function updateCategoryDialogSelectionIndicators(target) {
+  if (!categoryDialogFigures) return;
+  const items = target
+    ? [target]
+    : Array.from(categoryDialogFigures.querySelectorAll('[data-category-item]'));
+  for (const item of items) {
+    if (!item) continue;
+    const slug = item.dataset.slug || '';
+    const selected = slug && categoryDialogState.selectedSlugs.has(slug);
+    item.dataset.selected = selected ? 'true' : 'false';
+    const toggle = item.querySelector('[data-category-toggle]');
+    if (toggle) {
+      toggle.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      const label = toggle.querySelector('[data-category-toggle-label]');
+      if (label) {
+        const figureName = item.dataset.name || '';
+        label.textContent = buildCategoryToggleLabel(figureName, selected);
+      }
+    }
+  }
+}
+
+function updateCategoryDialogDeleteButtonState() {
+  if (!categoryDialogDeleteButton) return;
+  const isBusy = categoryDialogDeleteButton.dataset.loading === 'true';
+  const selectionCount = categoryDialogState.selectedSlugs.size;
+  const disabled = selectionCount === 0 || isBusy;
+  categoryDialogDeleteButton.disabled = disabled;
+  categoryDialogDeleteButton.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+  const label = selectionCount === 0
+    ? 'Slett figur(er)'
+    : selectionCount === 1
+      ? 'Slett figur'
+      : 'Slett figurer';
+  categoryDialogDeleteButton.textContent = label;
+}
+
+function toggleCategoryFigureSelection(slug, itemElement) {
+  if (categoryDialogDeleteButton?.dataset.loading === 'true') {
+    return;
+  }
+  const normalizedSlug = typeof slug === 'string' ? slug.trim() : '';
+  if (!normalizedSlug) {
+    return;
+  }
+
+  if (categoryDialogState.selectedSlugs.has(normalizedSlug)) {
+    categoryDialogState.selectedSlugs.delete(normalizedSlug);
+  } else {
+    categoryDialogState.selectedSlugs.add(normalizedSlug);
+  }
+
+  const target = itemElement || null;
+  if (target) {
+    updateCategoryDialogSelectionIndicators(target);
+  } else {
+    updateCategoryDialogSelectionIndicators();
+  }
+  updateCategoryDialogDeleteButtonState();
+}
+
+function handleCategoryDialogFigureClick(event) {
+  if (!categoryDialogFigures) return;
+  const toggle = event.target?.closest?.('[data-category-toggle]');
+  if (!toggle || !categoryDialogFigures.contains(toggle)) {
+    return;
+  }
+  event.preventDefault();
+  const item = toggle.closest('[data-category-item]');
+  if (!item) return;
+  const slug = item.dataset.slug || '';
+  toggleCategoryFigureSelection(slug, item);
+}
+
+async function handleCategoryDeleteClick(event) {
+  event.preventDefault();
+  if (!categoryDialogDeleteButton) return;
+  const slugs = Array.from(categoryDialogState.selectedSlugs);
+  if (!slugs.length) {
+    showUploadStatus('Velg minst én figur å slette.', 'error', { duration: 5000 });
+    return;
+  }
+
+  categoryDialogDeleteButton.dataset.loading = 'true';
+  updateCategoryDialogDeleteButtonState();
+
+  try {
+    const { deleted = [], failed = [] } = await deleteFigureEntries(slugs);
+    for (const slug of deleted) {
+      if (typeof slug === 'string') {
+        categoryDialogState.selectedSlugs.delete(slug.trim());
+      }
+    }
+    if (!failed.length) {
+      categoryDialogState.selectedSlugs.clear();
+    }
+  } finally {
+    categoryDialogDeleteButton.dataset.loading = 'false';
+    updateCategoryDialogSelectionIndicators();
+    updateCategoryDialogDeleteButtonState();
+  }
 }
 
 function updateCategorySelection() {
@@ -1100,7 +1294,6 @@ function prepareFigureItems(amountSlugs, measureEntries, customFigures = []) {
   }
 
   figuresByCategory.clear();
-
   const amountEntries = Array.isArray(amountSlugs)
     ? amountSlugs.map((slug) => createAmountFigureData(slug)).filter(Boolean)
     : [];
@@ -1259,6 +1452,21 @@ function createFigureItem(data) {
     element: li,
     image: img,
   };
+}
+
+function getFigureSlug(item) {
+  if (!item || typeof item !== 'object') return '';
+  const data = item.data || {};
+  if (typeof data.slug === 'string' && data.slug.trim()) {
+    return data.slug.trim();
+  }
+  if (typeof data.id === 'string' && data.id.trim()) {
+    return data.id.trim();
+  }
+  if (typeof item.path === 'string' && item.path.trim()) {
+    return item.path.trim();
+  }
+  return '';
 }
 
 function getCategoryKey(categoryId) {
@@ -1608,6 +1816,14 @@ function setupCategoryDialog() {
 
   if (categoryDialogUploadButton) {
     categoryDialogUploadButton.addEventListener('click', handleCategoryUploadClick);
+  }
+
+  if (categoryDialogFigures) {
+    categoryDialogFigures.addEventListener('click', handleCategoryDialogFigureClick);
+  }
+
+  if (categoryDialogDeleteButton) {
+    categoryDialogDeleteButton.addEventListener('click', handleCategoryDeleteClick);
   }
 }
 
@@ -2052,6 +2268,30 @@ function upsertCustomEntryLocal(entry) {
   return normalized;
 }
 
+function removeCustomEntryLocal(identifier) {
+  const key = typeof identifier === 'string' ? identifier.trim() : '';
+  if (!key) return false;
+  let removed = false;
+  for (let index = customEntries.length - 1; index >= 0; index -= 1) {
+    const entry = customEntries[index];
+    if (!entry) continue;
+    const entryId = typeof entry.id === 'string' ? entry.id : '';
+    const entrySlug = typeof entry.slug === 'string' ? entry.slug : '';
+    if (entryId === key || entrySlug === key) {
+      customEntries.splice(index, 1);
+      if (entryId) {
+        customEntryMap.delete(entryId);
+      }
+      removed = true;
+    }
+  }
+  if (!removed && customEntryMap.has(key)) {
+    customEntryMap.delete(key);
+    removed = true;
+  }
+  return removed;
+}
+
 function ensureCategoryFromEntry(entry) {
   if (!entry || typeof entry !== 'object') return;
   const categoryId = typeof entry.categoryId === 'string' && entry.categoryId.trim() ? entry.categoryId.trim() : '';
@@ -2178,6 +2418,74 @@ async function fetchFigureLibraryEntries() {
     ? data.entries.map((entry) => normalizeServerEntry(entry)).filter(Boolean)
     : [];
   return { entries };
+}
+
+async function deleteFigureEntries(slugs = []) {
+  const uniqueSlugs = Array.from(
+    new Set(
+      Array.isArray(slugs)
+        ? slugs.map((slug) => (typeof slug === 'string' ? slug.trim() : '')).filter(Boolean)
+        : []
+    )
+  );
+
+  if (!uniqueSlugs.length) {
+    showUploadStatus('Velg minst én figur å slette.', 'error', { duration: 5000 });
+    return { deleted: [], failed: [] };
+  }
+
+  const pendingMessage = uniqueSlugs.length === 1 ? 'Sletter figuren …' : `Sletter ${uniqueSlugs.length} figurer …`;
+  showUploadStatus(pendingMessage, 'pending');
+
+  const deleted = [];
+  const failed = [];
+
+  for (const slug of uniqueSlugs) {
+    try {
+      const { data, response } = await fetchFigureLibrary('DELETE', { slug });
+      applyFigureLibraryMetadata(data, response);
+      if (Array.isArray(data.categories)) {
+        applyServerCategories(data.categories);
+      }
+      removeCustomEntryLocal(slug);
+      deleted.push(slug);
+    } catch (error) {
+      console.error(`Kunne ikke slette figuren ${slug}`, error);
+      failed.push({ slug, message: extractApiErrorMessage(error, `Kunne ikke slette «${slug}».`) });
+    }
+  }
+
+  if (deleted.length) {
+    persistLocalEntriesIfNeeded();
+    refreshLibrary({ maintainFilter: true });
+  }
+
+  let summaryState = 'info';
+  let summaryMessage = '';
+
+  if (deleted.length && !failed.length) {
+    summaryState = 'success';
+    summaryMessage = deleted.length === 1 ? 'Figuren ble slettet.' : `${deleted.length} figurer ble slettet.`;
+    setStatusMessage(summaryMessage, 'info', { includeStorageWarning: false });
+  } else if (deleted.length && failed.length) {
+    summaryState = 'warning';
+    const header = `Slettet ${deleted.length} av ${uniqueSlugs.length} figurer.`;
+    const details = failed.map((entry) => `• ${entry.slug}: ${entry.message}`);
+    summaryMessage = [header, ...details].join('\n');
+    setStatusMessage(header, 'warning', { includeStorageWarning: false });
+  } else if (!deleted.length) {
+    summaryState = 'error';
+    const details = failed.map((entry) => `• ${entry.slug}: ${entry.message}`);
+    summaryMessage = details.length ? details.join('\n') : 'Kunne ikke slette figurene. Prøv igjen.';
+    setStatusMessage('Kunne ikke slette figurene. Prøv igjen.', 'error', { includeStorageWarning: false });
+  }
+
+  if (summaryMessage) {
+    const duration = summaryState === 'error' ? 8000 : 6000;
+    showUploadStatus(summaryMessage, summaryState, { duration });
+  }
+
+  return { deleted, failed };
 }
 
 async function fetchFigureLibrary(method = 'GET', payload) {
