@@ -6,6 +6,8 @@ import {
   loadFigureLibrary as loadMeasurementFigureLibrary
 } from './figure-library/all.js';
 
+const FIGURE_LIBRARY_APP_KEY = 'sortering';
+
 (async function () {
   const globalObj = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
   const doc = globalObj && globalObj.document ? globalObj.document : null;
@@ -19,7 +21,7 @@ import {
   let storageWarningMessage = '';
   let storageWarningEl = null;
   try {
-    const result = await loadMeasurementFigureLibrary();
+    const result = await loadMeasurementFigureLibrary({ app: FIGURE_LIBRARY_APP_KEY });
     if (result && result.metadata) {
       storageWarningMessage = resolveStorageWarningMessage(result.metadata);
     }
@@ -1153,7 +1155,7 @@ import {
     return aliases;
   }
 
-  const figureData = buildFigureData();
+  const figureData = buildFigureData({ app: FIGURE_LIBRARY_APP_KEY });
   if (!storageWarningMessage) {
     storageWarningMessage = resolveStorageWarningMessage(figureData.metadata);
   }
