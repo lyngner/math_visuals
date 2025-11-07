@@ -1,6 +1,6 @@
 # Math Visuals
 
-Math Visuals er en samling digitale matematikklaboratorier utviklet for norske klasserom. Prosjektet springer ut av behovet for fleksible, visuelt rike representasjoner som kan tilpasses ulike undervisningssituasjoner uten å være bundet til én bestemt plattform. Repositoriet samler både selve appene og støttebibliotekene som trengs for å bygge, dele og videreutvikle disse ressursene.
+Math Visuals er en samling digitale matematikklaboratorier utviklet for klasserom. Prosjektet springer ut av behovet for fleksible, visuelt rike representasjoner som kan tilpasses ulike undervisningssituasjoner uten å være bundet til én bestemt plattform. Repositoriet samler både selve appene og støttebibliotekene som trengs for å bygge, dele og videreutvikle disse ressursene.
 
 ## Visjon og designprinsipper
 
@@ -41,11 +41,6 @@ Eksempeltjenesten er navet som binder appene sammen. Den gjør det mulig å lagr
 * **Frontend:** Vanilla HTML, CSS og JavaScript supplert med JSXGraph, MathLive og skreddersydde UI-komponenter.
 * **Bygg og deling:** Rollup for pakkene i `packages/`, `npm`-skript for utvikleropplevelsen og Vercel for distribusjon av både statiske filer og serverløse funksjoner.
 * **Testing og kvalitet:** Playwright-scenarier og interne verktøy i `scripts/` sikrer at appene leverer konsistent oppførsel og at API-kontraktene opprettholdes.
-
-## Distribusjon og integrasjon
-
-Prosjektet er bygget for å kunne ligge som et selvstendig nettsted (slik det gjør på `math-visuals.vercel.app`), men struktur og teknologivalg gjør det like enkelt å integrere enkeltsider i større løsninger. Navigasjonen styres av `router.js`, temaer og fargepaletter ligger i `theme/`, og profilkonfigurasjon distribueres via `api/settings`. Arkivet i `figure-library/` og `svg-arkiv` demonstrerer hvordan gjenbrukbare figurer og oppsett kan deles mellom apper og med eksterne partnere.
-
 ## Videre arbeid
 
 Math Visuals videreutvikles i tett dialog med lærere, elever og spesialpedagoger. Nye konsepter prototypers ofte i dedikerte mapper (`old_projects/`, `kvikkbilder`, `tallinje` m.fl.) før de flyttes inn i hovedkatalogen. Prosjektet søker å balansere eksperimentell utforskning med robuste, dokumenterte verktøy, og inviterer til samskaping gjennom issues, pull requests og deling av undervisningsopplegg.
