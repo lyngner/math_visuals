@@ -359,9 +359,22 @@ function isCategoryMenuOpen() {
   return Boolean(categoryMenu && categoryMenu.dataset.open === 'true');
 }
 
+function getCategoryMenuButton(action) {
+  if (!categoryMenuSurface) return null;
+  return categoryMenuSurface.querySelector(`[data-category-action="${action}"]`);
+}
+
 function getCategoryMenuItems() {
   if (!categoryMenuSurface) return [];
-  return Array.from(categoryMenuSurface.querySelectorAll('[data-category-action]'));
+  return Array.from(categoryMenuSurface.querySelectorAll('[data-category-action]')).filter(element => {
+    if (!(element instanceof HTMLElement)) {
+      return false;
+    }
+    if (element.matches('[disabled]')) {
+      return false;
+    }
+    return true;
+  });
 }
 
 function handleCategoryMenuToggle(event, category) {
@@ -404,6 +417,8 @@ function openCategoryMenu(button, category, options = {}) {
   categoryMenu.dataset.open = 'true';
   button.setAttribute('aria-expanded', 'true');
 
+  updateCategoryMenuDeleteState(category);
+
   positionCategoryMenu(button);
 
   const items = getCategoryMenuItems();
@@ -412,6 +427,36 @@ function openCategoryMenu(button, category, options = {}) {
     requestAnimationFrame(() => {
       targetItem.focus();
     });
+  }
+}
+
+function isCategoryDeletable(category) {
+  if (!category || typeof category !== 'object') {
+    return false;
+  }
+  const type = typeof category.type === 'string' ? category.type.trim().toLowerCase() : '';
+  if (type === 'custom') {
+    return true;
+  }
+  const origin = typeof category.origin === 'string' ? category.origin.trim().toLowerCase() : '';
+  if (origin === 'server') {
+    return true;
+  }
+  return false;
+}
+
+function updateCategoryMenuDeleteState(category) {
+  const deleteButton = getCategoryMenuButton('delete');
+  if (!(deleteButton instanceof HTMLButtonElement)) {
+    return;
+  }
+  const canDelete = isCategoryDeletable(category);
+  deleteButton.disabled = !canDelete;
+  deleteButton.setAttribute('aria-disabled', canDelete ? 'false' : 'true');
+  if (!canDelete) {
+    deleteButton.title = 'Bare egendefinerte kategorier kan slettes';
+  } else {
+    deleteButton.removeAttribute('title');
   }
 }
 
@@ -598,25 +643,6 @@ async function handleCategoryMenuAction(action) {
 
   const category = categoryMenuCategory;
 
-  if (action === 'open') {
-    closeCategoryMenu({ returnFocus: false });
-    const entry = categoryButtons.get(category.id);
-    const trigger = entry?.button || categoryMenuTrigger;
-    handleCategoryClick(category, trigger);
-    return;
-  }
-
-  if (action === 'filter') {
-    closeCategoryMenu({ returnFocus: false });
-    if (filterInput) {
-      const query = `category:${category.id}`;
-      filterInput.value = query;
-      filterInput.dispatchEvent(new Event('input', { bubbles: true }));
-      filterInput.focus();
-    }
-    return;
-  }
-
   if (action === 'upload') {
     const trigger = categoryMenuTrigger;
     closeCategoryMenu({ returnFocus: false });
@@ -624,30 +650,14 @@ async function handleCategoryMenuAction(action) {
     return;
   }
 
-  if (action === 'copy-id') {
-    closeCategoryMenu();
-    await copyCategoryIdentifier(category);
+  if (action === 'delete') {
+    const trigger = categoryMenuTrigger;
+    closeCategoryMenu({ returnFocus: false });
+    await handleCategoryDeleteAction(category, trigger);
     return;
   }
 
   closeCategoryMenu({ returnFocus: false });
-}
-
-async function copyCategoryIdentifier(category) {
-  if (!category || typeof category.id !== 'string' || !category.id) {
-    return;
-  }
-  try {
-    const success = await copyToClipboard(category.id);
-    if (success) {
-      announceStatus(`Kopierte kategori-ID «${category.id}».`);
-    } else {
-      announceStatus(`Kunne ikke kopiere kategori-ID «${category.id}». Kopier teksten manuelt.`);
-    }
-  } catch (error) {
-    console.error('Kunne ikke kopiere kategori-ID', error);
-    announceStatus(`Kunne ikke kopiere kategori-ID «${category.id}». Prøv igjen.`);
-  }
 }
 
 function getStorageWarningMessage() {
@@ -1250,6 +1260,87 @@ async function handleCategoryDeleteClick(event) {
     categoryDialogDeleteButton.dataset.loading = 'false';
     updateCategoryDialogSelectionIndicators();
     updateCategoryDialogDeleteButtonState();
+  }
+}
+
+async function handleCategoryDeleteAction(category, trigger) {
+  if (!category || typeof category.id !== 'string') {
+    return;
+  }
+  const categoryId = category.id.trim();
+  if (!categoryId) {
+    return;
+  }
+
+  if (!isCategoryDeletable(category)) {
+    const message = `Kategorien «${getCategoryDisplayName(category) || categoryId}» kan ikke slettes.`;
+    setStatusMessage(message, 'error', { includeStorageWarning: false });
+    announceStatus(message);
+    return;
+  }
+
+  const figures = getFiguresForCategory(categoryId);
+  const figureCount = Array.isArray(figures) ? figures.length : 0;
+  if (figureCount > 0) {
+    const countLabel = formatFigureCount(figureCount);
+    const displayName = getCategoryDisplayName(category) || categoryId;
+    const message = figureCount === 1
+      ? `Kan ikke slette kategorien «${displayName}». Fjern figuren først.`
+      : `Kan ikke slette kategorien «${displayName}». Fjern ${countLabel} først.`;
+    setStatusMessage(message, 'error', { includeStorageWarning: false });
+    showUploadStatus(message, 'error', { duration: 6000 });
+    announceStatus(message);
+    return;
+  }
+
+  const displayName = getCategoryDisplayName(category) || categoryId;
+  const confirmationMessage = `Vil du slette kategorien «${displayName}»? Dette kan ikke angres.`;
+  let confirmed = true;
+  if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+    confirmed = window.confirm(confirmationMessage);
+  }
+  if (!confirmed) {
+    announceStatus(`Avbrøt sletting av kategorien «${displayName}».`);
+    return;
+  }
+
+  let focusTarget = trigger instanceof HTMLElement ? trigger : null;
+  try {
+    showUploadStatus('Sletter kategori …', 'pending');
+    await deleteCategoryFromLibrary(category);
+    refreshLibrary({ maintainFilter: true });
+    const successMessage = `Kategorien «${displayName}» ble slettet.`;
+    setStatusMessage(successMessage, 'info', { includeStorageWarning: false });
+    showUploadStatus(successMessage, 'success', { duration: 5000 });
+    announceStatus(successMessage);
+
+    if (!focusTarget || !document.contains(focusTarget)) {
+      focusTarget = null;
+      for (const entry of categoryButtons.values()) {
+        if (entry?.button) {
+          focusTarget = entry.button;
+          break;
+        }
+      }
+      if (!focusTarget && addCategoryToggleButton instanceof HTMLElement) {
+        focusTarget = addCategoryToggleButton;
+      }
+    }
+
+    if (focusTarget) {
+      const target = focusTarget;
+      requestAnimationFrame(() => {
+        if (target && typeof target.focus === 'function') {
+          target.focus();
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Kunne ikke slette kategori', error);
+    const message = extractApiErrorMessage(error, `Kunne ikke slette kategorien «${displayName}».`);
+    setStatusMessage(message, 'error', { includeStorageWarning: false });
+    showUploadStatus(message, 'error', { duration: 6000 });
+    announceStatus(message);
   }
 }
 
@@ -1984,6 +2075,26 @@ function saveCustomCategories() {
   }
 }
 
+function removeCustomCategoryLocal(categoryId) {
+  const id = typeof categoryId === 'string' ? categoryId.trim() : '';
+  if (!id) {
+    return false;
+  }
+  let removed = false;
+  for (let index = customCategories.length - 1; index >= 0; index -= 1) {
+    const entry = customCategories[index];
+    if (entry && entry.id === id) {
+      customCategories.splice(index, 1);
+      removed = true;
+    }
+  }
+  if (customCategoryMap.has(id)) {
+    customCategoryMap.delete(id);
+    removed = true;
+  }
+  return removed;
+}
+
 function serializeCustomCategory(category) {
   if (!category || typeof category !== 'object') return null;
   return {
@@ -2075,6 +2186,7 @@ function normalizeCustomCategory(category) {
   const filter = typeof category.filter === 'string' && category.filter.trim()
     ? category.filter.trim()
     : rawName;
+  const origin = category.origin === 'server' ? 'server' : 'local';
 
   return {
     id,
@@ -2084,6 +2196,7 @@ function normalizeCustomCategory(category) {
     description,
     sampleImage,
     sampleAlt,
+    origin,
   };
 }
 
@@ -2456,14 +2569,17 @@ function normalizeServerCategory(category) {
     description,
     sampleImage,
     sampleAlt,
+    origin: 'server',
   };
 }
 
 function applyServerCategories(categoryList) {
   if (!Array.isArray(categoryList)) return;
+  const incomingIds = new Set();
   for (const category of categoryList) {
     const normalized = normalizeServerCategory(category);
     if (!normalized) continue;
+     incomingIds.add(normalized.id);
     if (customCategoryMap.has(normalized.id)) {
       const existing = customCategoryMap.get(normalized.id);
       const merged = { ...existing, ...normalized };
@@ -2477,6 +2593,29 @@ function applyServerCategories(categoryList) {
     customCategoryMap.set(normalized.id, normalized);
     customCategories.push(normalized);
   }
+
+  const idsToRemove = new Set();
+  for (const category of customCategories) {
+    if (!category || typeof category.id !== 'string') {
+      continue;
+    }
+    const id = category.id;
+    const origin = typeof category.origin === 'string' ? category.origin : '';
+    if ((origin === 'server' || origin === 'kv') && !incomingIds.has(id)) {
+      idsToRemove.add(id);
+    }
+  }
+  customCategoryMap.forEach((value, key) => {
+    if (!value || typeof key !== 'string') {
+      return;
+    }
+    const origin = typeof value.origin === 'string' ? value.origin : '';
+    if ((origin === 'server' || origin === 'kv') && !incomingIds.has(key)) {
+      idsToRemove.add(key);
+    }
+  });
+
+  idsToRemove.forEach(id => removeCustomCategoryLocal(id));
 }
 
 function normalizeStorageMode(value) {
@@ -2522,6 +2661,36 @@ async function fetchFigureLibraryEntries() {
     ? data.entries.map((entry) => normalizeServerEntry(entry)).filter(Boolean)
     : [];
   return { entries };
+}
+
+async function deleteCategoryFromLibrary(category) {
+  if (!category || typeof category.id !== 'string') {
+    throw new Error('Ugyldig kategori for sletting.');
+  }
+  const id = category.id.trim();
+  if (!id) {
+    throw new Error('Ugyldig kategori for sletting.');
+  }
+
+  let payload = { deleted: { categoryId: id }, categories: [] };
+  try {
+    const { data, response } = await fetchFigureLibrary('DELETE', { categoryId: id });
+    applyFigureLibraryMetadata(data, response);
+    if (Array.isArray(data.categories)) {
+      applyServerCategories(data.categories);
+    }
+    payload = data;
+  } catch (error) {
+    if (!error || !error.response || error.response.status !== 404) {
+      throw error;
+    }
+  }
+
+  if (removeCustomCategoryLocal(id)) {
+    saveCustomCategories();
+  }
+
+  return payload;
 }
 
 async function deleteFigureEntries(slugs = []) {

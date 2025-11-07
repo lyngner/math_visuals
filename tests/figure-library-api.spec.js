@@ -269,4 +269,52 @@ test.describe('figure library API kv mode', () => {
     const finalList = await invokeFigureLibraryApi();
     expect(finalList.json?.entries ?? []).toHaveLength(0);
   });
+
+  test('prevents deleting populated categories and removes empty ones', async () => {
+    const createResponse = await invokeFigureLibraryApi({
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slug: 'category-delete-figure',
+        title: 'Figur for kategorisletting',
+        tool: 'playwright-test',
+        svg: TEST_SVG_MARKUP,
+        category: { label: 'Slettekategori' }
+      })
+    });
+
+    expect(createResponse.statusCode).toBe(200);
+
+    const conflictResponse = await invokeFigureLibraryApi({
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ categoryId: 'slettekategori' })
+    });
+
+    expect(conflictResponse.statusCode).toBe(409);
+    expect(conflictResponse.json?.error).toBe('Category contains figures');
+    expect(conflictResponse.json?.category?.id).toBe('slettekategori');
+    expect(conflictResponse.json?.category?.figureCount).toBe(1);
+
+    const figureDeleteResponse = await invokeFigureLibraryApi({
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ slug: 'category-delete-figure' })
+    });
+
+    expect(figureDeleteResponse.statusCode).toBe(200);
+
+    const successResponse = await invokeFigureLibraryApi({
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ categoryId: 'slettekategori' })
+    });
+
+    expect(successResponse.statusCode).toBe(200);
+    expect(successResponse.json?.deleted?.categoryId).toBe('slettekategori');
+
+    const finalState = await invokeFigureLibraryApi();
+    const categories = Array.isArray(finalState.json?.categories) ? finalState.json.categories : [];
+    expect(categories.some((category) => category?.id === 'slettekategori')).toBe(false);
+  });
 });

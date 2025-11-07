@@ -137,4 +137,47 @@ test.describe('Figurbibliotek opplastinger', () => {
       .filter({ has: page.locator('h3', { hasText: 'Testkategori' }) });
     await expect(remainingCategory.locator('.categoryCount')).toHaveText('1 figur');
   });
+
+  test('lar brukere slette tomme egendefinerte kategorier', async ({ page }) => {
+    const fixturesDir = path.join(__dirname, 'fixtures', 'figure-library');
+    const file = path.join(fixturesDir, 'grid-figure.svg');
+
+    await page.locator('[data-upload-file]').setInputFiles(file);
+    await page.locator('[data-upload-name]').fill('Slettefigur');
+    await page.locator('[data-upload-category]').fill('Slettekategori');
+    await page.getByRole('button', { name: 'Legg til figur' }).click();
+
+    const status = page.locator('[data-status]');
+    const deleteCategoryTile = page
+      .locator('[data-category-grid] .categoryItem')
+      .filter({ has: page.locator('h3', { hasText: 'Slettekategori' }) });
+
+    await expect(deleteCategoryTile.locator('.categoryCount')).toHaveText('1 figur');
+
+    const menuButton = deleteCategoryTile.locator('button.categoryMenuToggle');
+    await menuButton.click();
+    await page.getByRole('menuitem', { name: 'Slett kategori' }).click();
+
+    await expect(status).toHaveText('Kan ikke slette kategorien «Slettekategori». Fjern figuren først.');
+
+    await deleteCategoryTile.locator('button.categoryButton').click();
+    const categoryDialog = page.locator('[data-category-dialog]');
+    await expect(categoryDialog).toBeVisible();
+
+    const figureToggle = categoryDialog.locator('[data-category-figures] [data-category-item]').first().locator('[data-category-toggle]');
+    await figureToggle.click();
+    await categoryDialog.locator('[data-category-delete]').click();
+    await expect(categoryDialog.locator('[data-category-empty]')).toBeVisible();
+    await categoryDialog.locator('[data-category-close]').click();
+    await expect(categoryDialog).toBeHidden();
+
+    await expect(deleteCategoryTile.locator('.categoryCount')).toHaveText('0 figurer');
+
+    await menuButton.click();
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByRole('menuitem', { name: 'Slett kategori' }).click();
+
+    await expect(deleteCategoryTile).toHaveCount(0);
+    await expect(status).toHaveText('Kategorien «Slettekategori» ble slettet.');
+  });
 });
