@@ -1,5 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
+const TEST_PNG_DATA_URL = 'data:image/png;base64,' + Buffer.from('svg-store-png').toString('base64');
+
 const TEST_KV_URL = 'https://kv.test.local';
 const TEST_KV_TOKEN = 'test-token';
 
@@ -109,6 +111,64 @@ test.describe('svg-store memory mode', () => {
     const fetched = await getSvg('memory/objectexample.svg');
     expect(fetched).not.toBeNull();
     expect(fetched.exampleState).toEqual(directState);
+  });
+
+  test('setSvg skips PNG metadata when no data URL is provided', async () => {
+    const slug = 'Memory/SvgOnly.svg';
+    const stored = await setSvg(slug, {
+      title: 'SVG only',
+      tool: 'editor',
+      svg: '<svg>only</svg>'
+    });
+
+    expect(stored).not.toBeNull();
+    expect(stored.png).toBeUndefined();
+    expect(stored.pngSlug).toBeUndefined();
+    expect(stored.pngFilename).toBeUndefined();
+    expect(stored.files.png).toBeUndefined();
+    expect(stored.urls.png).toBeUndefined();
+
+    const fetched = await getSvg('memory/svgonly.svg');
+    expect(fetched).not.toBeNull();
+    expect(fetched.png).toBeUndefined();
+    expect(fetched.files.png).toBeUndefined();
+
+    const withPng = await setSvg(slug, {
+      title: 'SVG only',
+      tool: 'editor',
+      svg: '<svg>only</svg>',
+      png: {
+        dataUrl: TEST_PNG_DATA_URL,
+        width: 37,
+        height: 21
+      }
+    });
+
+    expect(withPng.png).toBe(TEST_PNG_DATA_URL);
+    expect(withPng.pngSlug).toMatch(/\.png$/);
+    expect(withPng.pngFilename).toMatch(/\.png$/);
+    expect(withPng.files.png).toBeDefined();
+    expect(withPng.urls.png).toMatch(/\.png$/);
+    expect(withPng.pngWidth).toBe(37);
+    expect(withPng.pngHeight).toBe(21);
+
+    const removedPng = await setSvg(slug, {
+      title: 'SVG only',
+      tool: 'editor',
+      svg: '<svg>only</svg>',
+      png: null
+    });
+
+    expect(removedPng.png).toBeUndefined();
+    expect(removedPng.files.png).toBeUndefined();
+    expect(removedPng.urls.png).toBeUndefined();
+    expect(removedPng.pngSlug).toBeUndefined();
+    expect(removedPng.pngFilename).toBeUndefined();
+
+    const fetchedAfterRemoval = await getSvg('memory/svgonly.svg');
+    expect(fetchedAfterRemoval).not.toBeNull();
+    expect(fetchedAfterRemoval.png).toBeUndefined();
+    expect(fetchedAfterRemoval.files.png).toBeUndefined();
   });
 });
 

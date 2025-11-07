@@ -126,6 +126,61 @@ test.describe('figure library API memory mode', () => {
     expect(afterDelete.statusCode).toBe(200);
     expect(afterDelete.json?.entries ?? []).toHaveLength(0);
   });
+
+  test('accepts SVG-only payloads without PNG metadata', async () => {
+    const createResponse = await invokeFigureLibraryApi({
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slug: 'Memory/SVG-Only',
+        title: 'SVG uten PNG',
+        tool: 'playwright-test',
+        svg: TEST_SVG_MARKUP,
+        summary: 'Kun SVG'
+      })
+    });
+
+    expect(createResponse.statusCode).toBe(200);
+    expectStorageHeaders(createResponse, 'memory');
+    expect(createResponse.json?.entry?.slug).toBe('memory/svg-only');
+    expect(createResponse.json?.entry?.png).toBeUndefined();
+    expect(createResponse.json?.entry?.pngSlug).toBeUndefined();
+    expect(createResponse.json?.entry?.files?.png).toBeUndefined();
+    expect(createResponse.json?.entry?.urls?.png).toBeUndefined();
+
+    const fetchResponse = await invokeFigureLibraryApi({
+      url: '/api/figure-library?slug=memory/svg-only'
+    });
+
+    expect(fetchResponse.statusCode).toBe(200);
+    expect(fetchResponse.json?.entry?.svg).toBe(TEST_SVG_MARKUP);
+    expect(fetchResponse.json?.entry?.png).toBeUndefined();
+    expect(fetchResponse.json?.entry?.files?.png).toBeUndefined();
+
+    const updateResponse = await invokeFigureLibraryApi({
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slug: 'memory/svg-only',
+        title: 'Oppdatert SVG uten PNG',
+        png: null
+      })
+    });
+
+    expect(updateResponse.statusCode).toBe(200);
+    expect(updateResponse.json?.entry?.title).toBe('Oppdatert SVG uten PNG');
+    expect(updateResponse.json?.entry?.png).toBeUndefined();
+    expect(updateResponse.json?.entry?.files?.png).toBeUndefined();
+
+    const refetched = await invokeFigureLibraryApi({
+      url: '/api/figure-library?slug=memory/svg-only'
+    });
+
+    expect(refetched.statusCode).toBe(200);
+    expect(refetched.json?.entry?.title).toBe('Oppdatert SVG uten PNG');
+    expect(refetched.json?.entry?.pngSlug).toBeUndefined();
+    expect(refetched.json?.entry?.urls?.png).toBeUndefined();
+  });
 });
 
 test.describe('figure library API kv mode', () => {

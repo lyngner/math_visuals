@@ -252,16 +252,33 @@ module.exports = async function handler(req, res) {
       }
       const pngPayload = normalizePngPayload(body);
       const pngDataUrl = pngPayload.dataUrl;
-      if (!pngDataUrl || !/^data:image\/png;base64,/i.test(pngDataUrl)) {
-        sendJson(res, 400, { error: 'PNG data is required' });
-        return;
-      }
-      body.png = pngDataUrl;
-      if (Number.isFinite(pngPayload.width)) {
-        body.pngWidth = Number(pngPayload.width);
-      }
-      if (Number.isFinite(pngPayload.height)) {
-        body.pngHeight = Number(pngPayload.height);
+      const hasPngField = body && Object.prototype.hasOwnProperty.call(body, 'png');
+      const hasPngWidthField = body && Object.prototype.hasOwnProperty.call(body, 'pngWidth');
+      const hasPngHeightField = body && Object.prototype.hasOwnProperty.call(body, 'pngHeight');
+      if (pngDataUrl) {
+        if (!/^data:image\/png;base64,/i.test(pngDataUrl)) {
+          sendJson(res, 400, { error: 'PNG data must be a base64-encoded data URL' });
+          return;
+        }
+        body.png = pngDataUrl;
+        if (Number.isFinite(pngPayload.width)) {
+          body.pngWidth = Number(pngPayload.width);
+        } else if (hasPngWidthField) {
+          delete body.pngWidth;
+        }
+        if (Number.isFinite(pngPayload.height)) {
+          body.pngHeight = Number(pngPayload.height);
+        } else if (hasPngHeightField) {
+          delete body.pngHeight;
+        }
+      } else {
+        if (hasPngField) {
+          body.png = null;
+        } else {
+          delete body.png;
+        }
+        if (hasPngWidthField) delete body.pngWidth;
+        if (hasPngHeightField) delete body.pngHeight;
       }
       const stored = await setFigure(slugFromBody, body);
       if (!stored) {
@@ -288,23 +305,40 @@ module.exports = async function handler(req, res) {
         return;
       }
       const pngPayload = normalizePngPayload(body);
-      const hasPngField =
-        body && (Object.prototype.hasOwnProperty.call(body, 'png') ||
-          Object.prototype.hasOwnProperty.call(body, 'pngWidth') ||
-          Object.prototype.hasOwnProperty.call(body, 'pngHeight'));
+      const hasPngField = body && Object.prototype.hasOwnProperty.call(body, 'png');
+      const hasPngWidthField = body && Object.prototype.hasOwnProperty.call(body, 'pngWidth');
+      const hasPngHeightField = body && Object.prototype.hasOwnProperty.call(body, 'pngHeight');
+      const pngDataUrl = pngPayload.dataUrl;
       if (hasPngField) {
-        const pngDataUrl = pngPayload.dataUrl;
-        if (!pngDataUrl || !/^data:image\/png;base64,/i.test(pngDataUrl)) {
-          sendJson(res, 400, { error: 'PNG data must be a base64-encoded data URL' });
-          return;
+        if (pngDataUrl) {
+          if (!/^data:image\/png;base64,/i.test(pngDataUrl)) {
+            sendJson(res, 400, { error: 'PNG data must be a base64-encoded data URL' });
+            return;
+          }
+          body.png = pngDataUrl;
+        } else {
+          body.png = null;
         }
-        body.png = pngDataUrl;
+      } else {
+        delete body.png;
       }
-      if (Number.isFinite(pngPayload.width)) {
-        body.pngWidth = Number(pngPayload.width);
+      if (hasPngWidthField) {
+        if (Number.isFinite(pngPayload.width)) {
+          body.pngWidth = Number(pngPayload.width);
+        } else {
+          body.pngWidth = null;
+        }
+      } else {
+        delete body.pngWidth;
       }
-      if (Number.isFinite(pngPayload.height)) {
-        body.pngHeight = Number(pngPayload.height);
+      if (hasPngHeightField) {
+        if (Number.isFinite(pngPayload.height)) {
+          body.pngHeight = Number(pngPayload.height);
+        } else {
+          body.pngHeight = null;
+        }
+      } else {
+        delete body.pngHeight;
       }
       const stored = await setFigure(slugFromBody, body);
       if (!stored) {
