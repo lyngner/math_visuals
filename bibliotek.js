@@ -2253,19 +2253,17 @@ function buildFigureEntryPayload(entry, options = {}) {
   if (Object.keys(categoryPayload).length) {
     payload.category = categoryPayload;
   }
-  if (options.includeMedia) {
-    if (typeof entry.svg === 'string') {
-      payload.svg = entry.svg;
-    }
-    if (typeof entry.png === 'string') {
-      payload.png = entry.png;
-    }
-    if (Number.isFinite(entry.pngWidth)) {
-      payload.pngWidth = Number(entry.pngWidth);
-    }
-    if (Number.isFinite(entry.pngHeight)) {
-      payload.pngHeight = Number(entry.pngHeight);
-    }
+  if (typeof entry.svg === 'string') {
+    payload.svg = entry.svg;
+  }
+  if (options.includeMedia && typeof entry.png === 'string' && entry.png) {
+    payload.png = entry.png;
+  }
+  if (options.includeMedia && Number.isFinite(entry.pngWidth)) {
+    payload.pngWidth = Number(entry.pngWidth);
+  }
+  if (options.includeMedia && Number.isFinite(entry.pngHeight)) {
+    payload.pngHeight = Number(entry.pngHeight);
   }
   if (entry.description) {
     payload.description = entry.description;
@@ -2470,7 +2468,6 @@ async function handleUploadSubmit(event) {
       }
       const name = determineUploadName(desiredName, files.length, index, file.name);
       const categoryDetails = resolveCategoryDetails(categoryInputValue, null, name);
-      const pngResult = await convertSvgMarkupToPng(svgText);
       const id = createCustomEntryId(name, reservedUploadIds);
       const entry = {
         id,
@@ -2482,12 +2479,9 @@ async function handleUploadSubmit(event) {
         createdAt: new Date().toISOString(),
         dataUrl: encodeSvgToDataUrl(svgText),
         svg: svgText,
-        png: pngResult?.dataUrl || null,
-        pngWidth: pngResult?.width,
-        pngHeight: pngResult?.height,
         tool: FIGURE_LIBRARY_TOOL,
       };
-      const savedEntry = await submitFigureEntry(entry, { method: 'POST', includeMedia: true });
+      const savedEntry = await submitFigureEntry(entry, { method: 'POST' });
       const finalEntry = savedEntry || entry;
       results.push({ state: 'success', message: `${label}: Lastet opp som «${finalEntry.name}».` });
       successfulUploads += 1;
@@ -2776,61 +2770,6 @@ function getKnownCategories() {
   });
 
   return combined;
-}
-
-async function convertSvgMarkupToPng(svgText) {
-  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
-  if (!helper || typeof helper.renderSvgToPng !== 'function') {
-    throw new Error('PNG-konvertering er ikke tilgjengelig i denne nettleseren.');
-  }
-  const doc = typeof document !== 'undefined' ? document : null;
-  if (!doc || !doc.body) {
-    throw new Error('PNG-konvertering er ikke tilgjengelig i dette dokumentet.');
-  }
-  const parser = new DOMParser();
-  let parsed;
-  try {
-    parsed = parser.parseFromString(svgText, 'image/svg+xml');
-  } catch (error) {
-    throw new Error('Kunne ikke tolke SVG-filen.');
-  }
-  if (!parsed || !parsed.documentElement) {
-    throw new Error('Kunne ikke tolke SVG-filen.');
-  }
-  if (parsed.documentElement.nodeName === 'parsererror' || parsed.getElementsByTagName('parsererror').length) {
-    throw new Error('Kunne ikke tolke SVG-filen.');
-  }
-  let workingSvg;
-  try {
-    workingSvg = typeof doc.importNode === 'function' ? doc.importNode(parsed.documentElement, true) : parsed.documentElement.cloneNode(true);
-  } catch (error) {
-    workingSvg = parsed.documentElement.cloneNode(true);
-  }
-  if (typeof helper.ensureSvgNamespaces === 'function') {
-    helper.ensureSvgNamespaces(workingSvg);
-  }
-  const staging = doc.createElement('div');
-  staging.style.position = 'absolute';
-  staging.style.width = '0';
-  staging.style.height = '0';
-  staging.style.overflow = 'hidden';
-  staging.style.opacity = '0';
-  staging.style.pointerEvents = 'none';
-  staging.appendChild(workingSvg);
-  doc.body.appendChild(staging);
-  let bounds = null;
-  try {
-    if (typeof helper.getSvgCanvasBounds === 'function') {
-      bounds = helper.getSvgCanvasBounds(workingSvg) || null;
-    }
-  } finally {
-    staging.remove();
-  }
-  const pngResult = await helper.renderSvgToPng(doc, null, svgText, bounds || undefined);
-  if (!pngResult || typeof pngResult.dataUrl !== 'string') {
-    throw new Error('Kunne ikke generere PNG for filen.');
-  }
-  return pngResult;
 }
 
 function encodeSvgToDataUrl(svgText) {
