@@ -367,6 +367,40 @@ function resolveLibraryFigureImage(entry) {
   return '';
 }
 
+function normalizeAppIdentifier(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed;
+}
+
+function normalizeAppList(value) {
+  const source = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',')
+      : [];
+  const seen = new Set();
+  const apps = [];
+  source.forEach(entry => {
+    const normalized = normalizeAppIdentifier(entry);
+    if (!normalized) {
+      return;
+    }
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    apps.push(normalized);
+  });
+  return apps;
+}
+
 function normalizeLibraryCategory(entry) {
   if (!entry || typeof entry !== 'object') {
     return null;
@@ -377,7 +411,8 @@ function normalizeLibraryCategory(entry) {
   }
   const label = normalizeOptionalText(entry.label || entry.name || entry.title) || id;
   const description = normalizeOptionalText(entry.description);
-  return { id, label, description };
+  const apps = normalizeAppList(entry.apps);
+  return { id, label, description, apps };
 }
 
 function normalizeLibraryFigure(entry, categoryLabels = new Map()) {
@@ -441,6 +476,7 @@ function normalizeLibraryFigure(entry, categoryLabels = new Map()) {
     : image.startsWith('data:')
       ? image
       : '';
+  const categoryApps = normalizeAppList(entry.category && entry.category.apps);
   return {
     id: `remote:${idSource}`,
     slug: idSource,
@@ -457,6 +493,7 @@ function normalizeLibraryFigure(entry, categoryLabels = new Map()) {
     tags,
     createdAt,
     updatedAt,
+    categoryApps,
     storageMode: normalizeStorageMode(entry.storageMode || entry.mode || entry.storage)
   };
 }
@@ -479,6 +516,7 @@ function normalizeMeasurementFigureLibraryPayload(payload, response) {
   const categories = [];
   const figures = [];
   const categoryLabels = new Map();
+  const categoryApps = new Map();
   if (payload && Array.isArray(payload.categories)) {
     payload.categories.forEach(entry => {
       const normalized = normalizeLibraryCategory(entry);
@@ -487,6 +525,9 @@ function normalizeMeasurementFigureLibraryPayload(payload, response) {
       }
       categories.push(normalized);
       categoryLabels.set(normalized.id, normalized.label);
+      if (Array.isArray(normalized.apps)) {
+        categoryApps.set(normalized.id, normalized.apps.slice());
+      }
     });
   }
   const entries = Array.isArray(payload && payload.entries)
@@ -502,10 +543,29 @@ function normalizeMeasurementFigureLibraryPayload(payload, response) {
     if (normalized.categoryId && !categoryLabels.has(normalized.categoryId)) {
       categoryLabels.set(normalized.categoryId, normalized.categoryLabel || normalized.categoryId);
     }
+    if (normalized.categoryId && Array.isArray(normalized.categoryApps) && normalized.categoryApps.length) {
+      if (!categoryApps.has(normalized.categoryId)) {
+        categoryApps.set(normalized.categoryId, normalized.categoryApps.slice());
+      }
+    }
     figures.push(normalized);
   });
   const metadata = normalizeLibraryMetadata(payload, response);
-  return { categories, figures, metadata };
+  return {
+    categories: categories.map(category => ({
+      ...category,
+      apps: Array.isArray(category.apps) ? category.apps.slice() : []
+    })),
+    figures: figures.map(figure => ({
+      ...figure,
+      categoryApps: Array.isArray(figure.categoryApps)
+        ? figure.categoryApps.slice()
+        : (figure.categoryId && categoryApps.get(figure.categoryId))
+          ? categoryApps.get(figure.categoryId).slice()
+          : []
+    })),
+    metadata
+  };
 }
 
 function parseJsonResponse(response) {
@@ -566,6 +626,11 @@ function shapeRemoteMeasurementFigure(remoteFigure, options = {}) {
     description
   );
   const tags = Array.isArray(remoteFigure.tags) ? remoteFigure.tags.slice() : [];
+  const categoryApps = Array.isArray(remoteFigure.categoryApps)
+    ? normalizeAppList(remoteFigure.categoryApps)
+    : Array.isArray(remoteFigure.apps)
+      ? normalizeAppList(remoteFigure.apps)
+      : [];
   return {
     id: remoteFigure.id,
     slug: remoteFigure.slug,
@@ -585,7 +650,8 @@ function shapeRemoteMeasurementFigure(remoteFigure, options = {}) {
     storageMode: remoteFigure.storageMode || null,
     source: 'api',
     custom: true,
-    remote: true
+    remote: true,
+    apps: categoryApps
   };
 }
 
@@ -624,7 +690,40 @@ export function createMeasurementFigureLibrary(options = {}) {
   }));
 }
 
+function buildAllowedApps(options = {}) {
+  const allowed = new Set();
+  function add(value) {
+    const normalized = normalizeAppIdentifier(value);
+    if (!normalized) {
+      return;
+    }
+    allowed.add(normalized.toLowerCase());
+  }
+  if (options && typeof options.app === 'string') {
+    add(options.app);
+  }
+  const lists = [options.apps, options.allowedApps];
+  lists.forEach(list => {
+    if (Array.isArray(list)) {
+      list.forEach(add);
+    }
+  });
+  return allowed;
+}
+
+function isCategoryAllowed(apps, allowedSet) {
+  if (!allowedSet || !allowedSet.size) {
+    return true;
+  }
+  const normalized = normalizeAppList(apps);
+  if (!normalized.length) {
+    return true;
+  }
+  return normalized.some(entry => allowedSet.has(entry.toLowerCase()));
+}
+
 export function buildMeasurementFigureData(options = {}) {
+  const allowedApps = buildAllowedApps(options);
   const categories = createMeasurementFigureLibrary(options).map(category => ({
     id: category.id,
     label: category.label,
@@ -645,6 +744,7 @@ export function buildMeasurementFigureData(options = {}) {
     : [];
   if (remoteFigures.length) {
     const remoteCategoryLabels = new Map();
+    const remoteCategoryApps = new Map();
     if (Array.isArray(measurementFigureLibraryState.categories)) {
       measurementFigureLibraryState.categories.forEach(entry => {
         const normalizedId = normalizeLibraryIdentifier(entry && entry.id);
@@ -655,6 +755,9 @@ export function buildMeasurementFigureData(options = {}) {
           ? entry.label.trim()
           : normalizedId;
         remoteCategoryLabels.set(normalizedId, label);
+        if (Array.isArray(entry.apps)) {
+          remoteCategoryApps.set(normalizedId, normalizeAppList(entry.apps));
+        }
       });
     }
     remoteFigures.forEach(remoteFigure => {
@@ -666,6 +769,10 @@ export function buildMeasurementFigureData(options = {}) {
       if (!targetCategoryId) {
         targetCategoryId = REMOTE_LIBRARY_FALLBACK_CATEGORY_ID;
       }
+      const categoryApps = remoteCategoryApps.get(targetCategoryId) || shaped.apps;
+      if (!isCategoryAllowed(categoryApps, allowedApps)) {
+        return;
+      }
       let category = categoriesById.get(targetCategoryId);
       if (!category) {
         const resolvedLabel = targetCategoryId === REMOTE_LIBRARY_FALLBACK_CATEGORY_ID
@@ -674,10 +781,14 @@ export function buildMeasurementFigureData(options = {}) {
         category = {
           id: targetCategoryId,
           label: resolvedLabel,
-          figures: []
+          figures: [],
+          apps: normalizeAppList(categoryApps)
         };
         categories.push(category);
         categoriesById.set(category.id, category);
+      }
+      if (category.apps == null && Array.isArray(categoryApps) && categoryApps.length) {
+        category.apps = normalizeAppList(categoryApps);
       }
       const figure = {
         ...shaped,

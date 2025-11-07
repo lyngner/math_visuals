@@ -6,6 +6,8 @@ import {
   loadFigureLibrary
 } from './figure-library/measurement.js';
 
+const FIGURE_LIBRARY_APP_KEY = 'maling';
+
 (async function initMeasurementApp() {
   const doc = typeof document !== 'undefined' ? document : null;
   if (!doc) {
@@ -56,7 +58,7 @@ import {
 
   let storageWarningMessage = '';
   try {
-    const result = await loadFigureLibrary();
+    const result = await loadFigureLibrary({ app: FIGURE_LIBRARY_APP_KEY });
     if (result && result.metadata) {
       storageWarningMessage = resolveStorageWarningMessage(result.metadata);
     }
@@ -173,7 +175,10 @@ import {
   const TAPE_HOUSING_HANDOFF_TOLERANCE_PX = 6;
   const zeroOffset = { x: 0, y: 0 };
   const SEGMENT_LABEL_OFFSET_PX = 32;
-  const figureData = buildFigureData({ extractRealWorldSizeFromText });
+  const figureData = buildFigureData({
+    app: FIGURE_LIBRARY_APP_KEY,
+    extractRealWorldSizeFromText
+  });
   if (!storageWarningMessage) {
     storageWarningMessage = resolveStorageWarningMessage(figureData.metadata);
   }
