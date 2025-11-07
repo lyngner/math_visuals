@@ -39,11 +39,13 @@ function createMockResponse(resolve, reject) {
     },
     setHeader(name, value) {
       if (!name) return;
-      headers[name] = value;
+      const key = String(name).toLowerCase();
+      headers[key] = value;
     },
     getHeader(name) {
       if (!name) return undefined;
-      return headers[name];
+      const key = String(name).toLowerCase();
+      return headers[key];
     },
     write(chunk) {
       if (ended) return;
