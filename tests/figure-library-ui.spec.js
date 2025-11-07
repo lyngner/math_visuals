@@ -73,9 +73,24 @@ test.describe('Figurbibliotek opplastinger', () => {
       path.join(fixturesDir, 'triangle-figure.svg')
     ];
 
+    const figureLibraryRequests = [];
+    page.on('request', (request) => {
+      if (
+        request.url().includes('/api/figure-library') &&
+        (request.method() === 'POST' || request.method() === 'PATCH')
+      ) {
+        figureLibraryRequests.push(request);
+      }
+    });
+
     await page.locator('[data-upload-file]').setInputFiles(files);
     await page.locator('[data-upload-name]').fill('Tilpasset figur');
     await page.locator('[data-upload-category]').fill('Testkategori');
+    const uploadAppsFieldset = page.locator('[data-category-apps="upload"]');
+    await expect(uploadAppsFieldset).toBeVisible();
+    await expect(uploadAppsFieldset.getByRole('checkbox', { name: 'Måling' })).toBeChecked();
+    await uploadAppsFieldset.getByRole('checkbox', { name: 'Sortering' }).uncheck();
+
     await page.getByRole('button', { name: 'Legg til figur' }).click();
 
     const testCategory = page
@@ -98,8 +113,13 @@ test.describe('Figurbibliotek opplastinger', () => {
 
     const editorDialog = page.locator('dialog[data-custom-editor]');
     await expect(editorDialog).toBeVisible();
+    const editorAppsFieldset = editorDialog.locator('[data-category-apps="editor"]');
+    await expect(editorAppsFieldset.getByRole('checkbox', { name: 'Måling' })).toBeChecked();
+    await expect(editorAppsFieldset.getByRole('checkbox', { name: 'Sortering' })).not.toBeChecked();
     await editorDialog.locator('[data-editor-name]').fill('Oppdatert figur');
     await editorDialog.locator('[data-editor-category]').fill('Oppdatert kategori');
+    await editorAppsFieldset.getByRole('checkbox', { name: 'Sortering' }).check();
+    await editorAppsFieldset.getByRole('checkbox', { name: 'Måling' }).uncheck();
     await editorDialog.getByRole('button', { name: 'Lagre endringer' }).click();
     await expect(editorDialog).toBeHidden();
 
@@ -129,6 +149,16 @@ test.describe('Figurbibliotek opplastinger', () => {
         .locator('[data-category-dialog] [data-category-figures] .bibliotekItem h2')
         .first()
     ).toHaveText('Oppdatert figur');
+    const reloadedItem = page
+      .locator('[data-category-dialog] [data-category-figures] .bibliotekItem')
+      .first();
+    await reloadedItem.getByRole('button', { name: 'Rediger' }).click();
+    await expect(editorDialog).toBeVisible();
+    const reloadedEditorApps = editorDialog.locator('[data-category-apps="editor"]');
+    await expect(reloadedEditorApps.getByRole('checkbox', { name: 'Måling' })).not.toBeChecked();
+    await expect(reloadedEditorApps.getByRole('checkbox', { name: 'Sortering' })).toBeChecked();
+    await editorDialog.getByRole('button', { name: 'Avbryt' }).click();
+    await expect(editorDialog).toBeHidden();
 
     await page.locator('[data-category-dialog] [data-category-close]').click();
 
@@ -136,6 +166,18 @@ test.describe('Figurbibliotek opplastinger', () => {
       .locator('[data-category-grid] .categoryItem')
       .filter({ has: page.locator('h3', { hasText: 'Testkategori' }) });
     await expect(remainingCategory.locator('.categoryCount')).toHaveText('1 figur');
+
+    const postRequests = figureLibraryRequests.filter((request) => request.method() === 'POST');
+    expect(postRequests).toHaveLength(2);
+    const postPayload = postRequests[0].postDataJSON();
+    expect(postPayload.category?.apps).toEqual(['bibliotek', 'måling']);
+    expect(postPayload.categoryApps).toEqual(['bibliotek', 'måling']);
+
+    const patchRequests = figureLibraryRequests.filter((request) => request.method() === 'PATCH');
+    expect(patchRequests).toHaveLength(1);
+    const patchPayload = patchRequests[0].postDataJSON();
+    expect(patchPayload.category?.apps).toEqual(['bibliotek', 'sortering']);
+    expect(patchPayload.categoryApps).toEqual(['bibliotek', 'sortering']);
   });
 
   test('lar brukere slette tomme egendefinerte kategorier', async ({ page }) => {
