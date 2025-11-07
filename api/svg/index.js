@@ -12,6 +12,7 @@ const {
   KvConfigurationError,
   getStoreMode
 } = require('../_lib/svg-store');
+const { FIGURE_LIBRARY_UPLOAD_TOOL_ID } = require('../_lib/figure-library-store');
 
 const MEMORY_LIMITATION_NOTE = 'Denne instansen bruker midlertidig minnelagring. SVG-er tilbakestilles når serveren starter på nytt.';
 
@@ -217,10 +218,17 @@ module.exports = async function handler(req, res) {
       if (!Array.isArray(entries)) {
         entries = [];
       }
-      const effectiveMode = entries.length ? entries[0].mode : currentMode;
-      const listMetadata = buildModeMetadata(effectiveMode);
+      const filteredEntries = entries.filter(
+        entry => entry && entry.tool !== FIGURE_LIBRARY_UPLOAD_TOOL_ID
+      );
+      const modeSource = filteredEntries.length ? filteredEntries : entries;
+      const firstEntry = modeSource.length ? modeSource[0] : null;
+      const modeHint = firstEntry
+        ? firstEntry.mode || firstEntry.storageMode || firstEntry.storage || currentMode
+        : currentMode;
+      const listMetadata = buildModeMetadata(modeHint);
       applyModeHeaders(res, listMetadata.mode);
-      sendJson(res, 200, { ...listMetadata, entries });
+      sendJson(res, 200, { ...listMetadata, entries: filteredEntries });
       return;
     }
 

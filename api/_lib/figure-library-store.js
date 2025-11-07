@@ -11,6 +11,8 @@ const {
   isKvConfigured
 } = require('./svg-store');
 
+const FIGURE_LIBRARY_UPLOAD_TOOL_ID = 'bibliotek-upload';
+
 const FIGURE_KEY_PREFIX = 'figure:';
 const FIGURE_INDEX_KEY = 'figure:__slugs__';
 const CATEGORY_KEY_PREFIX = 'figure:category:';
@@ -801,6 +803,7 @@ async function getFigureAssets(slug) {
 }
 
 module.exports = {
+  FIGURE_LIBRARY_UPLOAD_TOOL_ID,
   normalizeFigureSlug,
   getFigure,
   listFigures,
