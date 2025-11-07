@@ -1002,6 +1002,156 @@ import {
     FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_LEADING_SLASH,
     FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_DOT
   ].filter(prefix => typeof prefix === 'string' && prefix);
+  const FIGURE_LIBRARY_BASE_PREFIX_ENTRIES = FIGURE_LIBRARY_BASE_PREFIXES
+    .map(prefix => (typeof prefix === 'string' ? prefix.trim() : ''))
+    .filter(Boolean)
+    .map(prefix => ({ raw: prefix, lower: prefix.toLowerCase() }));
+
+  function buildFigureValueAliases(figure) {
+    if (!figure || typeof figure !== 'object') {
+      return [];
+    }
+    const seen = new Set();
+    const aliases = [];
+
+    function add(value) {
+      if (typeof value !== 'string') {
+        return;
+      }
+      const trimmed = value.trim();
+      if (!trimmed || seen.has(trimmed)) {
+        return;
+      }
+      seen.add(trimmed);
+      aliases.push(trimmed);
+    }
+
+    function addPathVariants(path) {
+      if (typeof path !== 'string') {
+        return;
+      }
+      const trimmed = path.trim();
+      if (!trimmed) {
+        return;
+      }
+      const normalized = trimmed.replace(/\\/g, '/');
+      const variants = [normalized];
+
+      if (!normalized.startsWith('../')) {
+        if (normalized.startsWith('./')) {
+          const withoutDot = normalized.slice(2);
+          if (withoutDot) {
+            variants.push(withoutDot);
+          }
+        } else {
+          variants.push(`./${normalized}`);
+        }
+      }
+
+      if (normalized.startsWith('/')) {
+        const withoutLeadingSlash = normalized.slice(1);
+        if (withoutLeadingSlash) {
+          variants.push(withoutLeadingSlash);
+          variants.push(`./${withoutLeadingSlash}`);
+        }
+      } else {
+        variants.push(`/${normalized}`);
+      }
+
+      const normalizedLower = normalized.toLowerCase();
+      FIGURE_LIBRARY_BASE_PREFIX_ENTRIES.forEach(entry => {
+        if (!entry.lower) {
+          return;
+        }
+        if (normalizedLower.startsWith(entry.lower)) {
+          const remainder = normalized.slice(entry.raw.length);
+          if (remainder) {
+            variants.push(remainder);
+            if (remainder.startsWith('/')) {
+              const withoutLeading = remainder.slice(1);
+              if (withoutLeading) {
+                variants.push(withoutLeading);
+                variants.push(`./${withoutLeading}`);
+              }
+            } else {
+              variants.push(`/${remainder}`);
+              variants.push(`./${remainder}`);
+            }
+          }
+        }
+      });
+
+      const variantSnapshot = variants.slice();
+      variantSnapshot.forEach(candidate => {
+        const withoutLeading = candidate.startsWith('/') ? candidate.slice(1) : candidate;
+        if (withoutLeading.startsWith('images/')) {
+          const afterImages = withoutLeading.slice('images/'.length);
+          if (afterImages) {
+            variants.push(afterImages);
+            variants.push(`./${afterImages}`);
+            variants.push(`/${afterImages}`);
+          }
+        }
+      });
+
+      if (/^https?:\/\//i.test(normalized)) {
+        try {
+          const parsed = new URL(normalized, globalObj && globalObj.location ? globalObj.location.href : undefined);
+          const pathname = parsed && typeof parsed.pathname === 'string' ? parsed.pathname : '';
+          if (pathname) {
+            variants.push(pathname);
+            if (pathname.startsWith('/')) {
+              const withoutLeading = pathname.slice(1);
+              if (withoutLeading) {
+                variants.push(withoutLeading);
+                variants.push(`./${withoutLeading}`);
+              }
+            } else {
+              variants.push(`/${pathname}`);
+              variants.push(`./${pathname}`);
+            }
+          }
+        } catch (_) {
+          /* noop */
+        }
+      }
+
+      variants.forEach(add);
+    }
+
+    const slug = typeof figure.slug === 'string' ? figure.slug.trim() : '';
+    if (slug) {
+      add(slug);
+      if (!slug.toLowerCase().endsWith('.svg')) {
+        add(`${slug}.svg`);
+      }
+    }
+
+    const id = typeof figure.id === 'string' ? figure.id.trim() : '';
+    if (id && id !== slug) {
+      add(id);
+      if (!id.toLowerCase().endsWith('.svg')) {
+        add(`${id}.svg`);
+      }
+    }
+
+    const fileName = typeof figure.fileName === 'string' ? figure.fileName.trim() : '';
+    if (fileName) {
+      add(fileName);
+    }
+
+    const imagePath = typeof figure.image === 'string' ? figure.image.trim() : '';
+    if (imagePath) {
+      addPathVariants(imagePath);
+    }
+
+    const assetPath = typeof figure.asset === 'string' ? figure.asset.trim() : '';
+    if (assetPath) {
+      addPathVariants(assetPath);
+    }
+
+    return aliases;
+  }
 
   const figureData = buildFigureData();
   if (!storageWarningMessage) {
@@ -1021,14 +1171,6 @@ import {
       if (!figure || typeof figure !== 'object') {
         return '';
       }
-      const imagePath = typeof figure.image === 'string' ? figure.image.trim() : '';
-      if (imagePath) {
-        return imagePath;
-      }
-      const assetPath = typeof figure.asset === 'string' ? figure.asset.trim() : '';
-      if (assetPath) {
-        return assetPath;
-      }
       const slug = typeof figure.slug === 'string' ? figure.slug.trim() : '';
       if (slug) {
         return slug;
@@ -1037,8 +1179,21 @@ import {
       if (id) {
         return id;
       }
+      const fileName = typeof figure.fileName === 'string' ? figure.fileName.trim() : '';
+      if (fileName) {
+        return fileName;
+      }
+      const imagePath = typeof figure.image === 'string' ? figure.image.trim() : '';
+      if (imagePath) {
+        return imagePath;
+      }
+      const assetPath = typeof figure.asset === 'string' ? figure.asset.trim() : '';
+      if (assetPath) {
+        return assetPath;
+      }
       return '';
-    }
+    },
+    getFigureAliases: buildFigureValueAliases
   });
   const figureLibraryState = {
     loaded: true,

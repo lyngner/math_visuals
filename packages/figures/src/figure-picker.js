@@ -30,6 +30,7 @@ export function createFigurePickerHelpers(options = {}) {
     figureData,
     doc = defaultDoc,
     getFigureValue = figure => (figure && figure.id != null ? String(figure.id) : ''),
+    getFigureAliases = () => [],
     fallbackCategoryId
   } = options;
 
@@ -41,6 +42,73 @@ export function createFigurePickerHelpers(options = {}) {
   const categoryLookup = new Map();
   const valueLookup = new Map();
   const categoryOrder = [];
+
+  function toArray(value) {
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (value == null) {
+      return [];
+    }
+    return [value];
+  }
+
+  function computeFigureValues(figure) {
+    const seen = new Set();
+    const values = [];
+
+    function addValue(candidate) {
+      if (typeof candidate !== 'string') {
+        return;
+      }
+      const normalized = normalizeValue(candidate);
+      if (!normalized || seen.has(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      values.push(normalized);
+    }
+
+    let primary = '';
+    try {
+      primary = normalizeValue(getFigureValue(figure));
+    } catch (_) {
+      primary = '';
+    }
+    if (primary) {
+      addValue(primary);
+    }
+
+    let aliases = [];
+    if (typeof getFigureAliases === 'function') {
+      try {
+        aliases = toArray(getFigureAliases(figure));
+      } catch (_) {
+        aliases = [];
+      }
+    }
+    aliases.forEach(addValue);
+
+    if (!primary) {
+      primary = values[0] || '';
+    }
+
+    return { primary, values };
+  }
+
+  function registerLookupValue(value, payload) {
+    const normalized = normalizeValue(value);
+    if (!normalized) {
+      return;
+    }
+    if (!valueLookup.has(normalized)) {
+      valueLookup.set(normalized, payload);
+    }
+    const lowered = normalized.toLowerCase();
+    if (!valueLookup.has(lowered)) {
+      valueLookup.set(lowered, payload);
+    }
+  }
 
   categories.forEach(category => {
     const normalizedId = normalizeValue(category.id);
@@ -63,23 +131,23 @@ export function createFigurePickerHelpers(options = {}) {
         categoryLookup.set(lowered, entry);
       }
       figures.forEach(figure => {
-        const optionValue = normalizeValue(getFigureValue(figure));
-        if (!optionValue) {
+        const { primary, values } = computeFigureValues(figure);
+        if (!primary) {
           return;
         }
         const payload = {
-          value: optionValue,
+          value: primary,
           categoryId: category.id,
           figure,
           label: buildLabelFromFigure(figure)
         };
-        if (!valueLookup.has(optionValue)) {
-          valueLookup.set(optionValue, payload);
+        if (!values.length) {
+          registerLookupValue(primary, payload);
+          return;
         }
-        const loweredValue = optionValue.toLowerCase();
-        if (!valueLookup.has(loweredValue)) {
-          valueLookup.set(loweredValue, payload);
-        }
+        values.forEach(candidate => {
+          registerLookupValue(candidate, payload);
+        });
       });
     }
   });
@@ -135,13 +203,13 @@ export function createFigurePickerHelpers(options = {}) {
     }
     return entry.figures
       .map(figure => {
-        const value = normalizeValue(getFigureValue(figure));
-        if (!value) {
+        const { primary } = computeFigureValues(figure);
+        if (!primary) {
           return null;
         }
         return {
-          value,
-          label: buildLabelFromFigure(figure) || figure.name || value,
+          value: primary,
+          label: buildLabelFromFigure(figure) || figure.name || primary,
           categoryId: entry.category.id,
           figure
         };
