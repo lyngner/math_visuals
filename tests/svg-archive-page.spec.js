@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { FIGURE_LIBRARY_UPLOAD_TOOL_ID } = require('../api/_lib/figure-library-store');
 
 test.describe.configure({ mode: 'skip' }); // Temporarily disable due to persistent 404 failures in CI
 const fs = require('node:fs/promises');
@@ -14,6 +15,47 @@ function sanitizeBaseName(value) {
   }
   return trimmed.replace(/\.[^/.]+$/g, '').replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '');
 }
+
+function isLibraryUpload(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return false;
+  }
+  const tool = typeof entry.tool === 'string' ? entry.tool.trim() : '';
+  const toolId = typeof entry.toolId === 'string' ? entry.toolId.trim() : '';
+  return tool === FIGURE_LIBRARY_UPLOAD_TOOL_ID || toolId === FIGURE_LIBRARY_UPLOAD_TOOL_ID;
+}
+
+const LIBRARY_ENTRY = {
+  slug: 'bildearkiv/bibliotek/egen-opplasting',
+  svgSlug: 'bildearkiv/bibliotek/egen-opplasting.svg',
+  pngSlug: 'bildearkiv/bibliotek/egen-opplasting.png',
+  urls: {
+    svg: '/bildearkiv/bibliotek/egen-opplasting.svg',
+    png: '/bildearkiv/bibliotek/egen-opplasting.png'
+  },
+  exampleState: {
+    description: 'Opplasting fra figur-biblioteket',
+    exampleNumber: 'Bibliotek',
+    config: { type: 'library', title: 'Bibliotek' }
+  },
+  files: {
+    svg: {
+      slug: 'bildearkiv/bibliotek/egen-opplasting.svg',
+      url: '/bildearkiv/bibliotek/egen-opplasting.svg',
+      filename: 'egen-opplasting.svg'
+    },
+    png: {
+      slug: 'bildearkiv/bibliotek/egen-opplasting.png',
+      url: '/bildearkiv/bibliotek/egen-opplasting.png',
+      filename: 'egen-opplasting.png'
+    }
+  },
+  title: 'Bibliotekopplasting',
+  tool: FIGURE_LIBRARY_UPLOAD_TOOL_ID,
+  toolId: `  ${FIGURE_LIBRARY_UPLOAD_TOOL_ID}  `,
+  createdAt: '2024-01-04T08:30:00.000Z',
+  summary: 'Skal filtreres bort av API-et'
+};
 
 const TEST_ENTRIES = [
   {
@@ -108,8 +150,11 @@ const TEST_ENTRIES = [
     tool: 'Kuler',
     createdAt: '2023-12-18T09:15:00.000Z',
     summary: 'Eksempel fra kuler'
-  }
+  },
+  LIBRARY_ENTRY
 ];
+
+const ARCHIVE_ENTRIES = TEST_ENTRIES.filter(entry => !isLibraryUpload(entry));
 
 test.describe('Eksempelarkiv', () => {
   test.beforeEach(async ({ page }) => {
@@ -122,7 +167,7 @@ test.describe('Eksempelarkiv', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          entries: TEST_ENTRIES,
+          entries: ARCHIVE_ENTRIES,
           limitation: 'Denne testen bruker midlertidige data.'
         })
       });
@@ -134,9 +179,9 @@ test.describe('Eksempelarkiv', () => {
 
   test('viser SVG-liste fra API og filtrering', async ({ page }) => {
     const items = page.locator('[data-svg-grid] [data-svg-item]');
-    await expect(items).toHaveCount(TEST_ENTRIES.length);
+    await expect(items).toHaveCount(ARCHIVE_ENTRIES.length);
 
-    const expectedOrder = TEST_ENTRIES.slice().sort(
+    const expectedOrder = ARCHIVE_ENTRIES.slice().sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
 
@@ -144,6 +189,7 @@ test.describe('Eksempelarkiv', () => {
       elements.map(element => element.getAttribute('data-svg-item'))
     );
     expect(itemSlugs).toEqual(expectedOrder.map(entry => entry.slug));
+    await expect(page.locator(`[data-svg-item="${LIBRARY_ENTRY.slug}"]`)).toHaveCount(0);
 
     const imageSources = await page.$$eval('[data-svg-grid] img', images =>
       images.map(img => img.getAttribute('src') || '')
@@ -159,7 +205,7 @@ test.describe('Eksempelarkiv', () => {
 
     await expect(items).toHaveCount(1);
     const remainingSlug = await items.first().getAttribute('data-svg-item');
-    expect(remainingSlug).toBe(TEST_ENTRIES.find(entry => entry.tool === 'Kuler').slug);
+    expect(remainingSlug).toBe(ARCHIVE_ENTRIES.find(entry => entry.tool === 'Kuler').slug);
 
     await expect(page.locator('[data-status]')).toBeHidden();
   });
@@ -293,7 +339,7 @@ test.describe('Eksempelarkiv', () => {
 
     await expect(status).toHaveText('Figur slettet.');
     await expect(dialog).toBeHidden();
-    await expect(page.locator('[data-svg-grid] [data-svg-item]')).toHaveCount(TEST_ENTRIES.length - 1);
+    await expect(page.locator('[data-svg-grid] [data-svg-item]')).toHaveCount(ARCHIVE_ENTRIES.length - 1);
   });
 
   test('kan velge figurer, markere alle og gi nytt navn', async ({ page }) => {
@@ -365,8 +411,8 @@ test.describe('Eksempelarkiv', () => {
     await expect(selectAll).toHaveJSProperty('indeterminate', true);
 
     await selectAll.check();
-    await expect(page.locator('.svg-archive__card--selected')).toHaveCount(TEST_ENTRIES.length);
-    await expect(selectionCount).toHaveText(`${TEST_ENTRIES.length} figurer valgt`);
+    await expect(page.locator('.svg-archive__card--selected')).toHaveCount(ARCHIVE_ENTRIES.length);
+    await expect(selectionCount).toHaveText(`${ARCHIVE_ENTRIES.length} figurer valgt`);
     await expect(selectAll).toBeChecked();
     await expect(selectAll).toHaveJSProperty('indeterminate', false);
 
