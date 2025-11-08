@@ -14,6 +14,10 @@ const {
   setSvg
 } = require('../api/_lib/svg-store');
 const {
+  setFigureAsset,
+  deleteFigureAsset
+} = require('../api/_lib/figure-asset-store');
+const {
   FIGURE_LIBRARY_UPLOAD_TOOL_ID
 } = require('../api/_lib/figure-library-store');
 
@@ -41,8 +45,9 @@ test.describe('SVG API archive filtering', () => {
     clearSvgMemoryStore();
   });
 
-  test.afterEach(() => {
+  test.afterEach(async () => {
     clearSvgMemoryStore();
+    await deleteFigureAsset('archive/library');
   });
 
   test.afterAll(() => {
@@ -57,7 +62,7 @@ test.describe('SVG API archive filtering', () => {
       summary: 'Vanlig eksport fra verktøy',
       svg: TEST_SVG_MARKUP
     });
-    const library = await setSvg('Archive/Library.svg', {
+    const library = await setFigureAsset('Archive/Library.svg', {
       title: 'Bibliotekopplasting',
       tool: FIGURE_LIBRARY_UPLOAD_TOOL_ID,
       summary: 'Skal ikke dukke opp i arkivet',
@@ -81,8 +86,8 @@ test.describe('SVG API archive filtering', () => {
     expect(entries.every(entry => entry.tool !== FIGURE_LIBRARY_UPLOAD_TOOL_ID)).toBe(true);
   });
 
-  test('returns library uploads when fetched by slug', async () => {
-    const stored = await setSvg('Archive/Library.svg', {
+  test('does not expose library uploads via svg API slug lookup', async () => {
+    const stored = await setFigureAsset('Archive/Library.svg', {
       title: 'Bibliotekopplasting',
       tool: FIGURE_LIBRARY_UPLOAD_TOOL_ID,
       summary: 'Tilgjengelig via slug',
@@ -93,9 +98,6 @@ test.describe('SVG API archive filtering', () => {
 
     const response = await invokeSvgApi({ url: '/api/svg?slug=archive/library.svg' });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json).toBeTruthy();
-    expect(response.json.slug).toBe(stored.slug);
-    expect(response.json.tool).toBe(FIGURE_LIBRARY_UPLOAD_TOOL_ID);
+    expect(response.statusCode).toBe(404);
   });
 });

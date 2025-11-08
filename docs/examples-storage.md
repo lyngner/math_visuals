@@ -15,6 +15,13 @@ Denne siden dokumenterer hvordan `examples.js` samhandler med API-et på `/api/e
 * Hvis Vercel KV ikke er tilgjengelig eller mangler konfigurasjon, går API-et over til et minnebasert lager. Responsene merkes med `storage: "memory"`/`mode: "memory"` og klientene viser et varsel om begrenset persistens.
 * Når API-et svarer med en feil (f.eks. ekte backend-nedetid), beholder UI-et gjeldende visning og viser en statusmelding. I minnemodus kan UI-et fortsatt lagre midlertidige endringer.
 
+## Figurbibliotek vs. SVG-arkiv
+
+* Eksporter fra verktøyene havner i SVG-arkivet (`/api/svg`). Endepunktet har et rå-visningsgrensesnitt på `/api/svg/raw` og statiske omskrivninger for `/bildearkiv/*`.
+* Figurbiblioteket bruker nå en egen lagring (`figureAsset:`-nøkler i KV/minne) og et dedikert rå-endepunkt på `/api/figure-library/raw`. Klienter genererer forhåndsvisninger via denne URL-en i stedet for `bildearkiv`.
+* Eksempelarkivet forholder seg kun til `/api/svg`. Figurbibliotekets metadata (`/api/figure-library`) og media (`/api/figure-library/raw`) påvirker ikke arkivsiden.
+* Skriptet `scripts/migrate-figure-library-assets.js` flytter historiske `bibliotek-upload`-oppføringer fra `/api/svg` til den nye lagringen og rydder dem bort fra arkivet. Kjør skriptet med `--dry-run` først for å se hvilke slugs som berøres.
+
 ## Tilgjengelighet for eksempeltjenesten
 
 Eksempeltjenesten er en del av back-end-distribusjonen og eksponeres som `/api/examples`. Forventninger i den nye modellen:

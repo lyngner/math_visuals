@@ -48,6 +48,7 @@ const CUSTOM_CATEGORY_STORAGE_KEY = 'mathvis:figureLibrary:customCategories:v1';
 const DEFAULT_CATEGORY_THUMBNAIL = '/images/amounts/tb10.svg';
 const CATEGORY_PREVIEW_COUNT = 4;
 const FIGURE_LIBRARY_ENDPOINT = '/api/figure-library';
+const FIGURE_LIBRARY_RAW_ENDPOINT = '/api/figure-library/raw';
 const FIGURE_LIBRARY_TOOL = 'bibliotek-upload';
 
 const amountCategories = [
@@ -2696,6 +2697,22 @@ function normalizeCustomEntry(entry) {
   return normalized;
 }
 
+function buildFigureLibraryRawUrl(slugOrPath, format = 'svg') {
+  const normalizedFormat = format === 'png' ? 'png' : 'svg';
+  if (typeof slugOrPath !== 'string') {
+    return null;
+  }
+  const trimmed = slugOrPath.trim().replace(/^\/+/, '');
+  if (!trimmed) {
+    return null;
+  }
+  const hasExtension = /\.(svg|png)$/i.test(trimmed);
+  const slug = hasExtension ? trimmed : `${trimmed}.${normalizedFormat}`;
+  const params = new URLSearchParams();
+  params.set('slug', slug);
+  return `${FIGURE_LIBRARY_RAW_ENDPOINT}?${params.toString()}`;
+}
+
 function normalizeServerEntry(entry) {
   if (!entry || typeof entry !== 'object') return null;
   const slug = typeof entry.slug === 'string' && entry.slug.trim() ? entry.slug.trim() : '';
@@ -2728,16 +2745,34 @@ function normalizeServerEntry(entry) {
   if (!categoryName) {
     categoryName = categoryId || 'Egendefinert';
   }
+  const svgSlugCandidate =
+    (entry.files && entry.files.svg && typeof entry.files.svg.slug === 'string' && entry.files.svg.slug.trim())
+      ? entry.files.svg.slug.trim()
+      : typeof entry.svgSlug === 'string' && entry.svgSlug.trim()
+        ? entry.svgSlug.trim()
+        : slug || id;
+  const pngSlugCandidate =
+    (entry.files && entry.files.png && typeof entry.files.png.slug === 'string' && entry.files.png.slug.trim())
+      ? entry.files.png.slug.trim()
+      : typeof entry.pngSlug === 'string' && entry.pngSlug.trim()
+        ? entry.pngSlug.trim()
+        : slug || id;
+  const rawSvgUrl = buildFigureLibraryRawUrl(svgSlugCandidate, 'svg');
+  const rawPngUrl = entry.png || (entry.files && entry.files.png) ? buildFigureLibraryRawUrl(pngSlugCandidate, 'png') : null;
+
   let dataUrl = typeof entry.dataUrl === 'string' && entry.dataUrl.trim() ? entry.dataUrl.trim() : '';
   const svgMarkup = typeof entry.svg === 'string' ? entry.svg : null;
-  if (!dataUrl) {
-    if (svgMarkup) {
-      dataUrl = encodeSvgToDataUrl(svgMarkup);
-    } else if (entry.urls && typeof entry.urls.svg === 'string') {
-      dataUrl = entry.urls.svg;
-    } else if (entry.files && entry.files.svg && typeof entry.files.svg.url === 'string') {
-      dataUrl = entry.files.svg.url;
-    }
+  if (!dataUrl && svgMarkup) {
+    dataUrl = encodeSvgToDataUrl(svgMarkup);
+  }
+  if (!dataUrl && entry.urls && typeof entry.urls.svg === 'string') {
+    dataUrl = entry.urls.svg;
+  }
+  if (!dataUrl && entry.files && entry.files.svg && typeof entry.files.svg.url === 'string') {
+    dataUrl = entry.files.svg.url;
+  }
+  if (!dataUrl && rawSvgUrl) {
+    dataUrl = rawSvgUrl;
   }
   if (!dataUrl) {
     return null;
@@ -2760,6 +2795,12 @@ function normalizeServerEntry(entry) {
     svg: svgMarkup || (dataUrl.startsWith('data:image/svg+xml') ? decodeSvgDataUrl(dataUrl) : null),
     png: typeof entry.png === 'string' ? entry.png : null,
   };
+  if (rawSvgUrl) {
+    normalized.assetUrl = rawSvgUrl;
+  }
+  if (rawPngUrl) {
+    normalized.pngUrl = rawPngUrl;
+  }
   if (typeof entry.tool === 'string' && entry.tool.trim()) {
     normalized.tool = entry.tool.trim();
   }

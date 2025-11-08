@@ -2,14 +2,15 @@
 
 const {
   normalizeSlug,
-  setSvg,
-  getSvg,
-  deleteSvg,
-  getStoreMode: getSvgStoreMode,
+  setFigureAsset,
+  getFigureAsset,
+  deleteFigureAsset,
+  getStoreMode: getFigureAssetStoreMode,
+  applyFigureAssetUrls,
   KvOperationError,
   KvConfigurationError,
   isKvConfigured
-} = require('./svg-store');
+} = require('./figure-asset-store');
 
 const FIGURE_LIBRARY_UPLOAD_TOOL_ID = 'bibliotek-upload';
 
@@ -252,6 +253,7 @@ function ensureFigureEntryShape(slug, payload) {
   } else {
     entry.tags = sanitizeTags(entry.tags);
   }
+  applyFigureAssetUrls(entry);
   return entry;
 }
 
@@ -335,7 +337,7 @@ async function loadKvClient() {
 }
 
 function getStoreMode() {
-  return getSvgStoreMode();
+  return getFigureAssetStoreMode();
 }
 
 function writeFigureToMemory(slug, entry) {
@@ -727,25 +729,26 @@ async function setFigure(slug, payload = {}) {
   const tagsProvided = payload && Object.prototype.hasOwnProperty.call(payload, 'tags');
   const resolvedTags = tagsProvided ? sanitizeTags(payload.tags) : sanitizeTags(existing && existing.tags);
 
-  const svgPayload = { ...payload, slug: normalized };
-  if (!svgPayload.tool && existing && existing.tool) {
-    svgPayload.tool = existing.tool;
+  const assetPayload = { ...payload, slug: normalized };
+  if (!assetPayload.tool && existing && existing.tool) {
+    assetPayload.tool = existing.tool;
   }
-  if (!svgPayload.title && existing && existing.title) {
-    svgPayload.title = existing.title;
+  if (!assetPayload.title && existing && existing.title) {
+    assetPayload.title = existing.title;
   }
-  const svgEntry = await setSvg(normalized, svgPayload);
-  if (!svgEntry) {
+  const assetEntry = await setFigureAsset(normalized, assetPayload);
+  if (!assetEntry) {
     return null;
   }
 
   const figureEntry = {
-    ...svgEntry,
+    ...assetEntry,
     slug: normalized,
     categoryId: nextCategoryId || null,
     tags: resolvedTags
   };
-  applyStorageMetadata(figureEntry, svgEntry.mode || getStoreMode());
+  applyFigureAssetUrls(figureEntry);
+  applyStorageMetadata(figureEntry, assetEntry.mode || getStoreMode());
 
   const previousCategoryId = existing ? existing.categoryId : null;
   const storeMode = getStoreMode();
@@ -822,7 +825,7 @@ async function deleteFigure(slug) {
   if (existing.categoryId) {
     await unlinkFigureFromCategory(existing.categoryId, normalized);
   }
-  await deleteSvg(normalized);
+  await deleteFigureAsset(normalized);
   return existing;
 }
 
@@ -840,7 +843,7 @@ async function refreshCategory(payload) {
 }
 
 async function getFigureAssets(slug) {
-  return getSvg(slug);
+  return getFigureAsset(slug);
 }
 
 module.exports = {

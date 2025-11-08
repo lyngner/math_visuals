@@ -173,12 +173,14 @@ function clearFigureLibraryMemoryStores() {
   const maps = [
     '__FIGURE_LIBRARY_MEMORY_STORE__',
     '__FIGURE_LIBRARY_CATEGORY_STORE__',
-    '__SVG_MEMORY_STORE__'
+    '__SVG_MEMORY_STORE__',
+    '__FIGURE_ASSET_MEMORY_STORE__'
   ];
   const sets = [
     '__FIGURE_LIBRARY_MEMORY_INDEX__',
     '__FIGURE_LIBRARY_CATEGORY_INDEX__',
-    '__SVG_MEMORY_INDEX__'
+    '__SVG_MEMORY_INDEX__',
+    '__FIGURE_ASSET_MEMORY_INDEX__'
   ];
 
   maps.forEach(key => {
