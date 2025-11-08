@@ -188,11 +188,13 @@
     }
 
     .board[data-active-tool='segment'] [data-ruler],
-    .board[data-active-tool='segment'] [data-tape-measure] {
+    .board[data-active-tool='segment'] [data-tape-measure],
+    .board[data-active-tool='tape-beta'] [data-ruler],
+    .board[data-active-tool='tape-beta'] [data-tape-measure] {
       display: none !important;
     }
 
-    .board:not([data-active-tool='segment']) [data-segment] {
+    .board:not([data-active-tool='segment']):not([data-active-tool='tape-beta']) [data-segment] {
       display: none !important;
     }
 
