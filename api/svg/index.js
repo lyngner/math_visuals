@@ -236,6 +236,7 @@ module.exports = async function handler(req, res) {
         if (!entry) return false;
         const normalizedTool = typeof entry.tool === 'string' ? entry.tool.trim() : '';
         const normalizedToolId = typeof entry.toolId === 'string' ? entry.toolId.trim() : '';
+        if (!normalizedTool && !normalizedToolId) return true;
         return (
           normalizedTool !== FIGURE_LIBRARY_UPLOAD_TOOL_ID &&
           normalizedToolId !== FIGURE_LIBRARY_UPLOAD_TOOL_ID
