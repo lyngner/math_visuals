@@ -142,6 +142,8 @@ test.describe('Figurbibliotek hurtig cache', () => {
     const figureTitles = categoryDialog.locator('[data-category-figures] .bibliotekItem h2');
     await expect(figureTitles).toHaveCount(1);
     await expect(figureTitles.first()).toHaveText('Lokal figur');
+    await expect(figureTitles.filter({ hasText: 'Oppdatert figur' })).toHaveCount(0);
+    await expect(figureTitles.filter({ hasText: 'Remote figur' })).toHaveCount(0);
 
     const apiResponsePromise = page.waitForResponse('**/api/figure-library**');
     releaseResponse();
