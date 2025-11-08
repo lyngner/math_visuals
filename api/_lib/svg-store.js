@@ -701,6 +701,9 @@ async function updateSvgMetadata(slug, updates) {
 
   const hasAltTextField = updates && Object.prototype.hasOwnProperty.call(updates, 'altText');
   const hasAltTextSourceField = updates && Object.prototype.hasOwnProperty.call(updates, 'altTextSource');
+  const hasTitleField = updates && Object.prototype.hasOwnProperty.call(updates, 'title');
+  const hasDisplayTitleField = updates && Object.prototype.hasOwnProperty.call(updates, 'displayTitle');
+  const hasBaseNameField = updates && Object.prototype.hasOwnProperty.call(updates, 'baseName');
 
   let sanitizedAltText;
   if (hasAltTextField) {
@@ -739,6 +742,94 @@ async function updateSvgMetadata(slug, updates) {
     entry.altTextSource = nextSource;
   } else if (!entry.altTextSource && entry.altText) {
     entry.altTextSource = 'manual';
+  }
+
+  if (hasTitleField) {
+    const sanitizedTitle = sanitizeOptionalText(updates.title);
+    if (sanitizedTitle !== undefined) {
+      if (entry.title !== sanitizedTitle) {
+        changed = true;
+      }
+      entry.title = sanitizedTitle;
+    } else if (entry.title) {
+      changed = true;
+      delete entry.title;
+    } else if (Object.prototype.hasOwnProperty.call(entry, 'title')) {
+      delete entry.title;
+    }
+  }
+
+  if (hasDisplayTitleField) {
+    const sanitizedDisplayTitle = sanitizeOptionalText(updates.displayTitle);
+    if (sanitizedDisplayTitle !== undefined) {
+      if (entry.displayTitle !== sanitizedDisplayTitle) {
+        changed = true;
+      }
+      entry.displayTitle = sanitizedDisplayTitle;
+    } else if (entry.displayTitle) {
+      changed = true;
+      delete entry.displayTitle;
+    } else if (Object.prototype.hasOwnProperty.call(entry, 'displayTitle')) {
+      delete entry.displayTitle;
+    }
+  }
+
+  if (hasBaseNameField) {
+    const sanitizedBaseName = sanitizeFileBaseName(updates.baseName);
+    if (!sanitizedBaseName) {
+      throw Object.assign(new Error('Invalid baseName'), { code: 'INVALID_BASE_NAME' });
+    }
+    if (entry.baseName !== sanitizedBaseName) {
+      changed = true;
+    }
+    entry.baseName = sanitizedBaseName;
+
+    const svgFilename = `${sanitizedBaseName}.svg`;
+    const pngFilename = `${sanitizedBaseName}.png`;
+
+    if (entry.filename !== svgFilename) {
+      entry.filename = svgFilename;
+      changed = true;
+    }
+    if (entry.svgFilename !== svgFilename) {
+      entry.svgFilename = svgFilename;
+      changed = true;
+    }
+    if (entry.files && entry.files.svg) {
+      if (entry.files.svg.filename !== svgFilename) {
+        entry.files.svg.filename = svgFilename;
+        changed = true;
+      }
+    }
+    const hasPngFile = Boolean(entry.files && entry.files.png);
+    if (hasPngFile) {
+      if (entry.files.png.filename !== pngFilename) {
+        entry.files.png.filename = pngFilename;
+        changed = true;
+      }
+      if (entry.pngFilename !== pngFilename) {
+        entry.pngFilename = pngFilename;
+        changed = true;
+      }
+    } else if (entry.pngFilename && entry.pngFilename !== pngFilename) {
+      entry.pngFilename = pngFilename;
+      changed = true;
+    }
+  }
+
+  if (hasTitleField || hasDisplayTitleField || hasBaseNameField) {
+    const nameCandidates = [entry.displayTitle, entry.title, entry.baseName, entry.name, entry.slug];
+    const resolvedName = nameCandidates.find(value => typeof value === 'string' && value.trim());
+    if (resolvedName) {
+      const trimmedName = resolvedName.trim();
+      if (entry.name !== trimmedName) {
+        entry.name = trimmedName;
+        changed = true;
+      }
+    } else if (entry.name) {
+      delete entry.name;
+      changed = true;
+    }
   }
 
   if (!changed) {
@@ -780,6 +871,7 @@ module.exports = {
     buildSvgEntry,
     stripAssetExtension,
     normalizeEntrySlug,
-    loadKvClient
+    loadKvClient,
+    sanitizeFileBaseName
   }
 };

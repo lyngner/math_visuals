@@ -48,6 +48,25 @@
           </button>
         </section>
 
+        <section class="svg-archive__actions" data-selection-bar aria-label="Valg for figurer">
+          <label class="svg-archive__checkbox-label svg-archive__select-all">
+            <input
+              type="checkbox"
+              class="svg-archive__checkbox-input"
+              data-select-all
+              aria-label="Marker alle synlige figurer"
+            />
+            <span class="svg-archive__checkbox-visual" aria-hidden="true"></span>
+            <span class="svg-archive__select-all-text">Marker alle</span>
+          </label>
+          <p class="svg-archive__selection-count" data-selection-count aria-live="polite" hidden></p>
+          <div class="svg-archive__actions-buttons">
+            <button type="button" class="svg-archive__actions-button" data-selection-rename disabled>
+              Gi nytt navn
+            </button>
+          </div>
+        </section>
+
         <p class="svg-archive__status" data-status role="status">Laster eksempelarkivet …</p>
 
         <section
