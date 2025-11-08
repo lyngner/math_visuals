@@ -26,6 +26,19 @@ if (globalObj && !globalObj.mathVisMeasurementFigures) {
   globalObj.mathVisMeasurementFigures = measurementFigureManifest;
 }
 
+function normalizeOptions(options = {}) {
+  if (typeof options === 'string') {
+    return { app: options };
+  }
+  if (Array.isArray(options)) {
+    return { allowedApps: options };
+  }
+  if (!options || typeof options !== 'object') {
+    return {};
+  }
+  return options;
+}
+
 export {
   CUSTOM_CATEGORY_ID,
   CUSTOM_FIGURE_ID,
@@ -39,19 +52,19 @@ export {
 };
 
 export function createFigureLibrary(options = {}) {
-  return createMeasurementFigureLibrary(options);
+  return createMeasurementFigureLibrary(normalizeOptions(options));
 }
 
 export function buildFigureData(options = {}) {
-  return buildMeasurementFigureDataInternal(options);
+  return buildMeasurementFigureDataInternal(normalizeOptions(options));
 }
 
 export function getMeasurementFiguresGroupedByCategory(options = {}) {
-  return getMeasurementFiguresGroupedByCategoryInternal(options);
+  return getMeasurementFiguresGroupedByCategoryInternal(normalizeOptions(options));
 }
 
 export function getFiguresGroupedByCategory(options = {}) {
-  return getMeasurementFiguresGroupedByCategoryInternal(options);
+  return getMeasurementFiguresGroupedByCategoryInternal(normalizeOptions(options));
 }
 
 export function loadFigureLibrary(options = {}) {
