@@ -3,7 +3,10 @@
   "rewrites": [
     { "source": "/bildearkiv/(.*)", "destination": "/api/svg/raw?path=/$1" },
     { "source": "/svg/(.*)", "destination": "/api/svg/raw?path=/$1" },
-    { "source": "/figure-library/(.*)", "destination": "/api/figure-library/raw?path=/$1" },
+    {
+      "source": "/figure-library/(.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|json|zip|csv))",
+      "destination": "/api/figure-library/raw?path=/$1"
+    },
     { "source": "/sortering", "destination": "/sortering.html" },
     { "source": "/sortering/eksempel:example([0-9]+)", "destination": "/index.html" },
     { "source": "/sortering/eksempel:example([0-9]+)/", "destination": "/index.html" },
