@@ -2529,34 +2529,41 @@ async function loadCustomEntries() {
     }
   }
 
-  if (insertedLocalEntries) {
+  if (insertedLocalEntries || localFallbackEntries.length) {
     refreshLibrary({ maintainFilter: true });
   }
+
+  let updatedFromServer = false;
 
   try {
     const result = await fetchFigureLibraryEntries();
     const entries = Array.isArray(result.entries) ? result.entries : [];
-    entries.forEach((entry) => {
-      upsertCustomEntryLocal(entry);
-    });
+    for (const entry of entries) {
+      const normalized = upsertCustomEntryLocal(entry);
+      if (normalized) {
+        updatedFromServer = true;
+      }
+    }
     if (figureLibraryMetadata.storageMode === 'memory' && localFallbackEntries.length) {
       for (const entry of localFallbackEntries) {
         if (!entry || !entry.id || customEntryMap.has(entry.id)) {
           continue;
         }
-        upsertCustomEntryLocal(entry);
+        const normalized = upsertCustomEntryLocal(entry);
+        if (normalized) {
+          updatedFromServer = true;
+        }
       }
     }
-    refreshLibrary({ maintainFilter: true });
-  } catch (error) {
-    console.error('Kunne ikke hente figurer fra API-et', error);
-    if (!insertedLocalEntries && localFallbackEntries.length) {
+    if (updatedFromServer) {
       refreshLibrary({ maintainFilter: true });
     }
+  } catch (error) {
+    console.error('Kunne ikke hente figurer fra API-et', error);
+  } finally {
+    persistLocalEntriesIfNeeded();
+    refreshStatusWithStorageWarning();
   }
-
-  persistLocalEntriesIfNeeded();
-  refreshStatusWithStorageWarning();
 }
 
 function readLocalCustomEntries() {
