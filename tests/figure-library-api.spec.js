@@ -4,6 +4,7 @@ const TEST_PNG_DATA_URL =
   'data:image/png;base64,' + Buffer.from('figure-library-test-png').toString('base64');
 const TEST_SVG_MARKUP =
   '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="90"><rect width="120" height="90" fill="#2563eb" /></svg>';
+const FIGURE_LIBRARY_RAW_PREFIX = '/api/figure-library/raw';
 
 const TEST_KV_URL = 'https://kv.figure-library.test';
 const TEST_KV_TOKEN = 'figure-library-token';
@@ -78,6 +79,9 @@ test.describe('figure library API memory mode', () => {
     expectStorageHeaders(createResponse, 'memory');
     expect(createResponse.json?.entry?.slug).toBe('memory/test-figur');
     expect(createResponse.json?.entry?.storage).toBe('memory');
+    expect(createResponse.json?.entry?.urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
+    expect(createResponse.json?.entry?.files?.svg?.url).toContain(FIGURE_LIBRARY_RAW_PREFIX);
+    expect(createResponse.json?.entry?.urls?.png).toContain(FIGURE_LIBRARY_RAW_PREFIX);
     expect(createResponse.json?.persistent).toBe(false);
     expect(createResponse.json?.ephemeral).toBe(true);
     expect(createResponse.json?.limitation).toContain('midlertidig minnelagring');
@@ -93,6 +97,7 @@ test.describe('figure library API memory mode', () => {
     expect(listResponse.json.entries).toHaveLength(1);
     expect(listResponse.json.entries[0].category?.label).toBe('Testkategori');
     expect(listResponse.json.entries[0].category?.apps).toEqual(['bibliotek', 'viewer']);
+    expect(listResponse.json.entries[0].urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
     expect(listResponse.json.categories?.[0]?.figureSlugs).toContain('memory/test-figur');
     expect(listResponse.json.categories?.[0]?.apps).toEqual(['bibliotek', 'viewer']);
 
@@ -113,6 +118,7 @@ test.describe('figure library API memory mode', () => {
     expect(updateResponse.json?.entry?.title).toBe('Oppdatert figur');
     expect(updateResponse.json?.entry?.category?.id).toBe('oppdatert-kategori');
     expect(updateResponse.json?.entry?.tags).toEqual(['oppdatert', 'shapes']);
+    expect(updateResponse.json?.entry?.urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
     expect(updateResponse.json?.categories?.some(cat => cat.id === 'oppdatert-kategori')).toBe(true);
     const updatedCategory = updateResponse.json?.categories?.find(cat => cat.id === 'oppdatert-kategori');
     expect(updatedCategory?.apps).toEqual(['viewer', 'bibliotek']);
@@ -150,6 +156,7 @@ test.describe('figure library API memory mode', () => {
     expect(createResponse.statusCode).toBe(200);
     expectStorageHeaders(createResponse, 'memory');
     expect(createResponse.json?.entry?.slug).toBe('memory/svg-only');
+    expect(createResponse.json?.entry?.urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
     expect(createResponse.json?.entry?.png).toBeUndefined();
     expect(createResponse.json?.entry?.pngSlug).toBeUndefined();
     expect(createResponse.json?.entry?.files?.png).toBeUndefined();
@@ -161,6 +168,7 @@ test.describe('figure library API memory mode', () => {
 
     expect(fetchResponse.statusCode).toBe(200);
     expect(fetchResponse.json?.entry?.svg).toBe(TEST_SVG_MARKUP);
+    expect(fetchResponse.json?.entry?.urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
     expect(fetchResponse.json?.entry?.png).toBeUndefined();
     expect(fetchResponse.json?.entry?.files?.png).toBeUndefined();
 
@@ -176,6 +184,7 @@ test.describe('figure library API memory mode', () => {
 
     expect(updateResponse.statusCode).toBe(200);
     expect(updateResponse.json?.entry?.title).toBe('Oppdatert SVG uten PNG');
+    expect(updateResponse.json?.entry?.urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
     expect(updateResponse.json?.entry?.png).toBeUndefined();
     expect(updateResponse.json?.entry?.files?.png).toBeUndefined();
 
@@ -185,6 +194,7 @@ test.describe('figure library API memory mode', () => {
 
     expect(refetched.statusCode).toBe(200);
     expect(refetched.json?.entry?.title).toBe('Oppdatert SVG uten PNG');
+    expect(refetched.json?.entry?.urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
     expect(refetched.json?.entry?.pngSlug).toBeUndefined();
     expect(refetched.json?.entry?.urls?.png).toBeUndefined();
   });
@@ -227,6 +237,9 @@ test.describe('figure library API kv mode', () => {
     expect(createResponse.json?.persistent).toBe(true);
     expect(createResponse.json?.limitation).toBeUndefined();
     expect(createResponse.json?.entry?.storage).toBe('kv');
+    expect(createResponse.json?.entry?.urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
+    expect(createResponse.json?.entry?.files?.svg?.url).toContain(FIGURE_LIBRARY_RAW_PREFIX);
+    expect(createResponse.json?.entry?.urls?.png).toContain(FIGURE_LIBRARY_RAW_PREFIX);
     expect(createResponse.json?.entry?.category?.apps).toEqual(['bibliotek', 'kv-app']);
     expect(createResponse.json?.categories?.[0]?.apps).toEqual(['bibliotek', 'kv-app']);
 
@@ -237,6 +250,7 @@ test.describe('figure library API kv mode', () => {
     expect(initialList.statusCode).toBe(200);
     expect(initialList.json?.entries?.[0]?.category?.label).toBe('KV-kategori');
     expect(initialList.json?.entries?.[0]?.category?.apps).toEqual(['bibliotek', 'kv-app']);
+    expect(initialList.json?.entries?.[0]?.urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
 
     clearFigureLibraryMemoryStores();
 
@@ -245,6 +259,7 @@ test.describe('figure library API kv mode', () => {
     expect(listAfterReset.json?.entries).toHaveLength(1);
     expect(listAfterReset.json?.entries?.[0]?.storage).toBe('kv');
     expect(listAfterReset.json?.entries?.[0]?.category?.apps).toEqual(['bibliotek', 'kv-app']);
+    expect(listAfterReset.json?.entries?.[0]?.urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
 
     const updateResponse = await invokeFigureLibraryApi({
       method: 'PATCH',
@@ -261,6 +276,7 @@ test.describe('figure library API kv mode', () => {
     expect(updateResponse.json?.entry?.category?.id).toBe('oppdatert-kv');
     expect(updateResponse.json?.entry?.tags).toEqual(['oppdatert']);
     expect(updateResponse.json?.entry?.category?.apps).toEqual(['kv-app', 'bibliotek']);
+    expect(updateResponse.json?.entry?.urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
     const kvUpdatedCategory = updateResponse.json?.categories?.find(cat => cat.id === 'oppdatert-kv');
     expect(kvUpdatedCategory?.apps).toEqual(['kv-app', 'bibliotek']);
 
@@ -299,6 +315,7 @@ test.describe('figure library API kv mode', () => {
     });
 
     expect(createResponse.statusCode).toBe(200);
+    expect(createResponse.json?.entry?.urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
 
     const conflictResponse = await invokeFigureLibraryApi({
       method: 'DELETE',

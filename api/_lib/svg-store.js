@@ -773,5 +773,13 @@ module.exports = {
   KvOperationError,
   KvConfigurationError,
   isKvConfigured,
-  getStoreMode
+  getStoreMode,
+  __helpers: {
+    clone,
+    applyStorageMetadata,
+    buildSvgEntry,
+    stripAssetExtension,
+    normalizeEntrySlug,
+    loadKvClient
+  }
 };
