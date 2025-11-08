@@ -2760,19 +2760,31 @@ function normalizeServerEntry(entry) {
   const rawSvgUrl = buildFigureLibraryRawUrl(svgSlugCandidate, 'svg');
   const rawPngUrl = entry.png || (entry.files && entry.files.png) ? buildFigureLibraryRawUrl(pngSlugCandidate, 'png') : null;
 
-  let dataUrl = typeof entry.dataUrl === 'string' && entry.dataUrl.trim() ? entry.dataUrl.trim() : '';
   const svgMarkup = typeof entry.svg === 'string' ? entry.svg : null;
-  if (!dataUrl && svgMarkup) {
-    dataUrl = encodeSvgToDataUrl(svgMarkup);
+  let dataUrl = '';
+  const urlCandidates = [];
+  if (entry.urls && typeof entry.urls.svg === 'string' && entry.urls.svg.trim()) {
+    urlCandidates.push(entry.urls.svg.trim());
   }
-  if (!dataUrl && entry.urls && typeof entry.urls.svg === 'string') {
-    dataUrl = entry.urls.svg;
+  if (
+    entry.files &&
+    entry.files.svg &&
+    typeof entry.files.svg.url === 'string' &&
+    entry.files.svg.url.trim()
+  ) {
+    urlCandidates.push(entry.files.svg.url.trim());
   }
-  if (!dataUrl && entry.files && entry.files.svg && typeof entry.files.svg.url === 'string') {
-    dataUrl = entry.files.svg.url;
+  if (typeof entry.dataUrl === 'string' && entry.dataUrl.trim()) {
+    urlCandidates.push(entry.dataUrl.trim());
   }
-  if (!dataUrl && rawSvgUrl) {
-    dataUrl = rawSvgUrl;
+  if (rawSvgUrl) {
+    urlCandidates.push(rawSvgUrl);
+  }
+  for (const candidate of urlCandidates) {
+    if (candidate) {
+      dataUrl = candidate;
+      break;
+    }
   }
   if (!dataUrl) {
     return null;
@@ -2792,7 +2804,7 @@ function normalizeServerEntry(entry) {
     dataUrl,
     summary: typeof entry.summary === 'string' ? entry.summary.trim() : '',
     createdAt: typeof entry.createdAt === 'string' && entry.createdAt ? entry.createdAt : new Date().toISOString(),
-    svg: svgMarkup || (dataUrl.startsWith('data:image/svg+xml') ? decodeSvgDataUrl(dataUrl) : null),
+    svg: svgMarkup,
     png: typeof entry.png === 'string' ? entry.png : null,
   };
   if (rawSvgUrl) {
@@ -3015,8 +3027,17 @@ function applyFigureLibraryMetadata(metadata, response) {
   return figureLibraryMetadata;
 }
 
+let hasRequestedSummaryView = false;
+
 async function fetchFigureLibraryEntries() {
-  const { data, response } = await fetchFigureLibrary('GET');
+  const fetchOptions = {};
+  if (!hasRequestedSummaryView) {
+    const params = new URLSearchParams();
+    params.set('view', 'summary');
+    fetchOptions.searchParams = params;
+    hasRequestedSummaryView = true;
+  }
+  const { data, response } = await fetchFigureLibrary('GET', undefined, fetchOptions);
   applyFigureLibraryMetadata(data, response);
   if (Array.isArray(data.categories)) {
     applyServerCategories(data.categories);
@@ -3125,19 +3146,54 @@ async function deleteFigureEntries(slugs = []) {
   return { deleted, failed };
 }
 
-async function fetchFigureLibrary(method = 'GET', payload) {
+async function fetchFigureLibrary(method = 'GET', payload, requestConfig = {}) {
+  const normalizedMethod = typeof method === 'string' ? method.trim().toUpperCase() : 'GET';
   const options = {
-    method,
+    method: normalizedMethod,
     headers: {
       Accept: 'application/json',
     },
     cache: 'no-store',
   };
-  if (payload !== undefined) {
+  if (payload !== undefined && normalizedMethod !== 'GET' && normalizedMethod !== 'HEAD') {
     options.headers['Content-Type'] = 'application/json';
     options.body = JSON.stringify(payload);
   }
-  const response = await fetch(FIGURE_LIBRARY_ENDPOINT, options);
+
+  let requestUrl = FIGURE_LIBRARY_ENDPOINT;
+  if (requestConfig && requestConfig.searchParams) {
+    const rawParams = requestConfig.searchParams;
+    let params = null;
+    if (rawParams instanceof URLSearchParams) {
+      params = rawParams;
+    } else if (typeof rawParams === 'string') {
+      params = new URLSearchParams(rawParams);
+    } else if (rawParams && typeof rawParams === 'object') {
+      params = new URLSearchParams();
+      for (const [key, value] of Object.entries(rawParams)) {
+        if (value == null) {
+          continue;
+        }
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            if (item != null) {
+              params.append(key, `${item}`);
+            }
+          }
+        } else {
+          params.append(key, `${value}`);
+        }
+      }
+    }
+    if (params) {
+      const query = params.toString();
+      if (query) {
+        requestUrl = `${FIGURE_LIBRARY_ENDPOINT}?${query}`;
+      }
+    }
+  }
+
+  const response = await fetch(requestUrl, options);
   let data = {};
   let text = '';
   try {
