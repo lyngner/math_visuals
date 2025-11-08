@@ -26,6 +26,8 @@ const editorNameInput = editorDialog?.querySelector('[data-editor-name]') || nul
 const editorCategoryInput = editorDialog?.querySelector('[data-editor-category]') || null;
 const editorErrorEl = editorDialog?.querySelector('[data-editor-error]') || null;
 const editorCancelButton = editorDialog?.querySelector('[data-editor-cancel]') || null;
+const addCategoryAppsFieldset = addCategoryForm?.querySelector('[data-category-apps="add"]') || null;
+const addCategoryAppsContainer = addCategoryAppsFieldset?.querySelector('[data-category-apps-options]') || null;
 const uploadCategoryAppsFieldset = uploadForm?.querySelector('[data-category-apps="upload"]') || null;
 const uploadCategoryAppsContainer = uploadCategoryAppsFieldset?.querySelector('[data-category-apps-options]') || null;
 const editorCategoryAppsFieldset = editorForm?.querySelector('[data-category-apps="editor"]') || null;
@@ -145,6 +147,7 @@ const DEFAULT_VISIBLE_CATEGORY_APPS = ['måling', 'sortering'];
 const categoryAppOptionOrder = [];
 const categoryAppOptionMap = new Map();
 const categoryAppFormContexts = {
+  add: { fieldset: addCategoryAppsFieldset, container: addCategoryAppsContainer, inputs: new Map() },
   upload: { fieldset: uploadCategoryAppsFieldset, container: uploadCategoryAppsContainer, inputs: new Map() },
   editor: { fieldset: editorCategoryAppsFieldset, container: editorCategoryAppsContainer, inputs: new Map() },
 };
@@ -402,6 +405,7 @@ function renderCategoryAppControls() {
 function initializeCategoryAppControls() {
   categoryAppControlsReady = true;
   renderCategoryAppControls();
+  resetCategoryAppSelection('add');
   resetCategoryAppSelection('upload');
   resetCategoryAppSelection('editor');
   if (uploadCategoryInput) {
@@ -413,6 +417,11 @@ function initializeCategoryAppControls() {
     const handleEditorCategoryAppsChange = () => handleCategoryAppInputChange('editor', editorCategoryInput.value || '');
     editorCategoryInput.addEventListener('input', handleEditorCategoryAppsChange);
     editorCategoryInput.addEventListener('change', handleEditorCategoryAppsChange);
+  }
+  if (addCategoryInput) {
+    const handleAddCategoryAppsChange = () => handleCategoryAppInputChange('add', addCategoryInput.value || '');
+    addCategoryInput.addEventListener('input', handleAddCategoryAppsChange);
+    addCategoryInput.addEventListener('change', handleAddCategoryAppsChange);
   }
 }
 
@@ -1039,6 +1048,8 @@ function normalizeCategoryMeta(category) {
       ? `/images/amounts/${category.sampleSlug}.svg`
       : DEFAULT_CATEGORY_THUMBNAIL;
   const sampleAlt = category.sampleAlt || `Eksempel på ${name}`;
+  const apps = getCategoryApps(category);
+  const normalizedApps = Array.isArray(apps) ? apps.slice() : [];
   return {
     ...category,
     id,
@@ -1047,7 +1058,8 @@ function normalizeCategoryMeta(category) {
     description,
     sampleImage,
     sampleAlt,
-    apps: getCategoryApps(category),
+    apps: normalizedApps,
+    categoryApps: normalizedApps.slice(),
   };
 }
 
@@ -1115,6 +1127,9 @@ function buildCustomCategories(baseCategories, entries) {
     const sampleAlt = entry.name
       ? `Egendefinert figur: ${entry.name}`
       : `Egendefinert figur i kategorien ${categoryName}`;
+    const entryApps = Array.isArray(entry.categoryApps) && entry.categoryApps.length
+      ? sanitizeCategoryApps(entry.categoryApps, { includeDefaults: false })
+      : sanitizeCategoryApps(undefined);
 
     if (!customById.has(categoryId)) {
       customById.set(categoryId, {
@@ -1125,6 +1140,8 @@ function buildCustomCategories(baseCategories, entries) {
         description: '',
         sampleImage,
         sampleAlt,
+        apps: entryApps,
+        categoryApps: entryApps.slice(),
       });
     } else {
       const meta = customById.get(categoryId);
@@ -1132,6 +1149,12 @@ function buildCustomCategories(baseCategories, entries) {
         meta.sampleImage = sampleImage;
         meta.sampleAlt = sampleAlt;
       }
+      const combinedApps = Array.isArray(meta.apps) && meta.apps.length
+        ? meta.apps.concat(entryApps)
+        : entryApps;
+      const mergedApps = sanitizeCategoryApps(combinedApps, { includeDefaults: false });
+      meta.apps = mergedApps;
+      meta.categoryApps = mergedApps.slice();
     }
   }
 
@@ -2029,6 +2052,7 @@ function showAddCategoryForm() {
   if (!addCategoryForm) return;
   addCategoryForm.removeAttribute('hidden');
   addCategoryToggleButton?.setAttribute('aria-expanded', 'true');
+  resetCategoryAppSelection('add');
   requestAnimationFrame(() => {
     if (addCategoryInput) {
       addCategoryInput.focus();
@@ -2044,6 +2068,7 @@ function hideAddCategoryForm(options = {}) {
   addCategoryToggleButton?.setAttribute('aria-expanded', 'false');
   if (resetInput && addCategoryInput) {
     addCategoryInput.value = '';
+    resetCategoryAppSelection('add');
   }
   if (clearFeedback) {
     clearAddCategoryFeedback();
@@ -2078,7 +2103,8 @@ function handleAddCategorySubmit(event) {
     return;
   }
 
-  const newCategory = createCustomCategoryFromName(trimmedName);
+  const selectedCategoryApps = getSelectedCategoryApps('add');
+  const newCategory = createCustomCategoryFromName(trimmedName, { apps: selectedCategoryApps });
   if (!newCategory) {
     showAddCategoryFeedback('Kunne ikke legge til kategorien. Prøv igjen.', { isError: true });
     return;
@@ -2473,6 +2499,7 @@ function normalizeCustomCategory(category) {
     : rawName;
   const origin = category.origin === 'server' ? 'server' : 'local';
   const apps = getCategoryApps(category);
+  const normalizedApps = Array.isArray(apps) ? apps.slice() : [];
 
   return {
     id,
@@ -2483,7 +2510,8 @@ function normalizeCustomCategory(category) {
     sampleImage,
     sampleAlt,
     origin,
-    apps,
+    apps: normalizedApps,
+    categoryApps: normalizedApps.slice(),
   };
 }
 
@@ -2883,20 +2911,32 @@ function ensureCategoryFromEntry(entry) {
   if (!categoryId && !categoryName) {
     return;
   }
-  if (categoryId && customCategoryMap.has(categoryId)) {
-    return;
-  }
   const normalized = categoryId
     ? normalizeServerCategory({ id: categoryId, label: categoryName || categoryId, apps: entry.categoryApps })
     : normalizeCustomCategory({ name: categoryName || 'Egendefinert', apps: entry.categoryApps });
   if (!normalized) {
     return;
   }
-  if (!customCategoryMap.has(normalized.id)) {
-    customCategoryMap.set(normalized.id, normalized);
-    if (!customCategories.some((category) => category && category.id === normalized.id)) {
-      customCategories.push(normalized);
+  const sanitizedApps = Array.isArray(normalized.apps)
+    ? sanitizeCategoryApps(normalized.apps, { includeDefaults: false })
+    : sanitizeCategoryApps(undefined);
+  const finalCategory = { ...normalized, apps: sanitizedApps, categoryApps: sanitizedApps.slice() };
+  const existing = customCategoryMap.get(finalCategory.id);
+  if (existing) {
+    const merged = { ...existing, ...finalCategory };
+    customCategoryMap.set(finalCategory.id, merged);
+    const existingIndex = customCategories.findIndex((category) => category && category.id === finalCategory.id);
+    if (existingIndex >= 0) {
+      customCategories[existingIndex] = merged;
     }
+    return;
+  }
+  customCategoryMap.set(finalCategory.id, finalCategory);
+  const listIndex = customCategories.findIndex((category) => category && category.id === finalCategory.id);
+  if (listIndex >= 0) {
+    customCategories[listIndex] = finalCategory;
+  } else {
+    customCategories.push(finalCategory);
   }
 }
 
@@ -2927,6 +2967,7 @@ function normalizeServerCategory(category) {
     ? category.sampleAlt.trim()
     : `Eksempel på ${name}`;
   const apps = getCategoryApps(category);
+  const normalizedApps = Array.isArray(apps) ? apps.slice() : [];
   return {
     id,
     type: 'custom',
@@ -2936,7 +2977,8 @@ function normalizeServerCategory(category) {
     sampleImage,
     sampleAlt,
     origin: 'server',
-    apps,
+    apps: normalizedApps,
+    categoryApps: normalizedApps.slice(),
   };
 }
 
@@ -2954,7 +2996,7 @@ function applyServerCategories(categoryList) {
         : Array.isArray(existing?.apps)
           ? sanitizeCategoryApps(existing.apps, { includeDefaults: false })
           : sanitizeCategoryApps(undefined);
-      const merged = { ...existing, ...normalized, apps: mergedApps };
+      const merged = { ...existing, ...normalized, apps: mergedApps, categoryApps: mergedApps.slice() };
       customCategoryMap.set(normalized.id, merged);
       const index = customCategories.findIndex((entry) => entry && entry.id === normalized.id);
       if (index >= 0) {
@@ -2965,7 +3007,7 @@ function applyServerCategories(categoryList) {
     const normalizedApps = Array.isArray(normalized.apps)
       ? sanitizeCategoryApps(normalized.apps, { includeDefaults: false })
       : sanitizeCategoryApps(undefined);
-    const finalCategory = { ...normalized, apps: normalizedApps };
+    const finalCategory = { ...normalized, apps: normalizedApps, categoryApps: normalizedApps.slice() };
     customCategoryMap.set(normalized.id, finalCategory);
     customCategories.push(finalCategory);
   }
@@ -3255,8 +3297,13 @@ function buildFigureEntryPayload(entry, options = {}) {
   if (Object.keys(categoryPayload).length) {
     payload.category = categoryPayload;
   }
-  if (entry.categoryApps !== undefined) {
-    const categoryApps = sanitizeCategoryApps(entry.categoryApps, { includeDefaults: entry.categoryApps == null });
+  const categoryAppsSource = Object.prototype.hasOwnProperty.call(entry, 'categoryApps')
+    ? entry.categoryApps
+    : entry.category && Object.prototype.hasOwnProperty.call(entry.category, 'apps')
+      ? entry.category.apps
+      : undefined;
+  if (categoryAppsSource !== undefined) {
+    const categoryApps = sanitizeCategoryApps(categoryAppsSource, { includeDefaults: categoryAppsSource == null });
     if (categoryApps.length) {
       payload.categoryApps = categoryApps;
       if (payload.category) {

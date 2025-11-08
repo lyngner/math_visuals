@@ -1045,6 +1045,27 @@
             </label>
           </div>
         </header>
+        <form class="categoryAddForm" data-add-category-form hidden>
+          <label>
+            <span>Navn på kategori</span>
+            <input
+              type="text"
+              class="categoryAddInput"
+              data-add-category-input
+              placeholder="F.eks. Nye figurer"
+              autocomplete="off"
+            />
+          </label>
+          <fieldset class="categoryAppsField" data-category-apps="add">
+            <legend>Tilgjengelig i apper</legend>
+            <div class="categoryAppsOptions" data-category-apps-options></div>
+          </fieldset>
+          <p class="categoryAddMessage" data-add-category-feedback hidden></p>
+          <div class="categoryAddControls">
+            <button type="submit" class="categoryAddSubmit">Legg til kategori</button>
+            <button type="button" class="categoryAddCancel" data-add-category-cancel>Avbryt</button>
+          </div>
+        </form>
         <ul class="categoryGrid" data-category-grid></ul>
       </section>
     </div>
