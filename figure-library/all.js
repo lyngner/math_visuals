@@ -17,6 +17,19 @@ const AMOUNT_IMAGE_BASE_PATH = '/images/amounts/';
 const AMOUNT_FALLBACK_CATEGORY_ID = 'mengder';
 const AMOUNT_FALLBACK_CATEGORY_LABEL = 'Mengder';
 
+function normalizeOptions(options = {}) {
+  if (typeof options === 'string') {
+    return { app: options };
+  }
+  if (Array.isArray(options)) {
+    return { allowedApps: options };
+  }
+  if (!options || typeof options !== 'object') {
+    return {};
+  }
+  return options;
+}
+
 const amountCategoryDefinitions = [
   {
     id: 'tierbrett',
@@ -191,7 +204,7 @@ function buildAmountFigureData(manifest = amountManifest) {
 }
 
 export function buildFigureData(options = {}) {
-  const measurementData = buildMeasurementFigureData(options);
+  const measurementData = buildMeasurementFigureData(normalizeOptions(options));
   const amountData = buildAmountFigureData();
 
   const categories = amountData.categories.concat(measurementData.categories);
