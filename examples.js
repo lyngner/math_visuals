@@ -1479,7 +1479,7 @@
         data.set(normalized, value == null ? 'null' : String(value));
       });
     }
-    return {
+    const storage = {
       get length() {
         return data.size;
       },
@@ -1510,6 +1510,17 @@
         data.clear();
       }
     };
+    try {
+      Object.defineProperty(storage, '__isMemoryStorage', {
+        value: true,
+        configurable: true,
+        enumerable: false,
+        writable: true
+      });
+    } catch (_) {
+      storage.__isMemoryStorage = true;
+    }
+    return storage;
   }
   let sharedMemoryStorage = null;
   function getSharedMemoryStorage() {
@@ -1913,6 +1924,133 @@
   const trashMigratedKey = key + '_trash_migrated_v1';
   const updatedAtKey = key + '_updatedAtMs';
   const OPEN_REQUEST_STORAGE_KEY = 'archive_open_request';
+  const OPEN_REQUEST_WINDOW_NAME_PREFIX = 'mathvis:archive-open-request:';
+  const OPEN_REQUEST_TRANSPORT_METADATA_KEY = '__mathvisArchiveOpenTransport';
+  let lastArchiveOpenRequestTransport = null;
+
+  function attachArchiveOpenRequestTransportMetadata(target, metadata) {
+    if (!target || typeof target !== 'object') return metadata || null;
+    try {
+      Object.defineProperty(target, OPEN_REQUEST_TRANSPORT_METADATA_KEY, {
+        value: metadata || null,
+        configurable: true,
+        enumerable: false,
+        writable: true
+      });
+    } catch (_) {
+      try {
+        target[OPEN_REQUEST_TRANSPORT_METADATA_KEY] = metadata || null;
+      } catch (error) {}
+    }
+    return metadata || null;
+  }
+
+  function getArchiveOpenRequestTransportMetadata(target) {
+    if (!target || typeof target !== 'object') return null;
+    try {
+      return target[OPEN_REQUEST_TRANSPORT_METADATA_KEY] || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function recordArchiveOpenRequestTransport(metadata) {
+    lastArchiveOpenRequestTransport = metadata || null;
+  }
+
+  function readWindowNameArchiveOpenRequest() {
+    if (typeof window === 'undefined') return null;
+    let windowName = '';
+    try {
+      windowName = typeof window.name === 'string' ? window.name : '';
+    } catch (error) {
+      windowName = '';
+    }
+    if (!windowName || typeof windowName !== 'string') return null;
+    if (!windowName.startsWith(OPEN_REQUEST_WINDOW_NAME_PREFIX)) return null;
+    const payload = windowName.slice(OPEN_REQUEST_WINDOW_NAME_PREFIX.length);
+    if (!payload) return null;
+    let parsed = null;
+    try {
+      parsed = JSON.parse(payload);
+    } catch (error) {
+      parsed = null;
+    }
+    if (!parsed || typeof parsed !== 'object') return null;
+    const metadata = {
+      type: 'window-name',
+      payload: windowName,
+      prefix: OPEN_REQUEST_WINDOW_NAME_PREFIX
+    };
+    attachArchiveOpenRequestTransportMetadata(parsed, metadata);
+    return { request: parsed, metadata };
+  }
+
+  function persistArchiveOpenRequestData(request) {
+    const result = {
+      metadata: null,
+      serialized: null,
+      persisted: false
+    };
+    if (!request || typeof request !== 'object') {
+      try {
+        storageRemoveItem(OPEN_REQUEST_STORAGE_KEY);
+      } catch (_) {}
+      recordArchiveOpenRequestTransport(null);
+      return result;
+    }
+    let serialized = null;
+    try {
+      serialized = JSON.stringify(request);
+    } catch (error) {
+      serialized = null;
+    }
+    if (!serialized) {
+      recordArchiveOpenRequestTransport(null);
+      return result;
+    }
+    result.serialized = serialized;
+    let store = null;
+    try {
+      store = getSharedMemoryStorage();
+    } catch (error) {
+      store = null;
+    }
+    let persistedViaStorage = false;
+    if (store && typeof store.setItem === 'function') {
+      try {
+        store.setItem(OPEN_REQUEST_STORAGE_KEY, serialized);
+        persistedViaStorage = store.__isMemoryStorage === true ? false : true;
+        if (!persistedViaStorage && typeof store.removeItem === 'function') {
+          store.removeItem(OPEN_REQUEST_STORAGE_KEY);
+        }
+      } catch (error) {
+        if (store && typeof store.removeItem === 'function') {
+          try {
+            store.removeItem(OPEN_REQUEST_STORAGE_KEY);
+          } catch (_) {}
+        }
+        persistedViaStorage = false;
+      }
+    }
+    if (persistedViaStorage) {
+      result.metadata = {
+        type: 'storage',
+        storageKey: OPEN_REQUEST_STORAGE_KEY
+      };
+      result.persisted = true;
+    } else {
+      result.metadata = {
+        type: 'window-name',
+        payload: `${OPEN_REQUEST_WINDOW_NAME_PREFIX}${serialized}`,
+        prefix: OPEN_REQUEST_WINDOW_NAME_PREFIX
+      };
+      result.persisted = false;
+    }
+    attachArchiveOpenRequestTransportMetadata(request, result.metadata);
+    recordArchiveOpenRequestTransport(result.metadata);
+    return result;
+  }
   const TEMPORARY_EXAMPLE_FLAG = '__isTemporaryExample';
   const TEMPORARY_EXAMPLE_REQUEST_ID = '__openRequestId';
   const TEMPORARY_EXAMPLE_SOURCE_PATH = '__openRequestSourcePath';
@@ -5473,23 +5611,38 @@
     } catch (_) {
       raw = null;
     }
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw);
-    } catch (error) {
-      return null;
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          const metadata = attachArchiveOpenRequestTransportMetadata(parsed, {
+            type: 'storage',
+            storageKey: OPEN_REQUEST_STORAGE_KEY
+          });
+          recordArchiveOpenRequestTransport(metadata);
+          return parsed;
+        }
+      } catch (error) {}
     }
+    const windowNameResult = readWindowNameArchiveOpenRequest();
+    if (windowNameResult && windowNameResult.request) {
+      const metadata =
+        windowNameResult.metadata || getArchiveOpenRequestTransportMetadata(windowNameResult.request) || null;
+      recordArchiveOpenRequestTransport(metadata);
+      return windowNameResult.request;
+    }
+    recordArchiveOpenRequestTransport(null);
+    return null;
   }
   function writeArchiveOpenRequest(payload) {
     if (!payload || typeof payload !== 'object') {
       try {
         storageRemoveItem(OPEN_REQUEST_STORAGE_KEY);
       } catch (_) {}
+      recordArchiveOpenRequestTransport(null);
       return;
     }
-    try {
-      storageSetItem(OPEN_REQUEST_STORAGE_KEY, JSON.stringify(payload));
-    } catch (error) {}
+    persistArchiveOpenRequestData(payload);
   }
   function prepareArchiveOpenRequest(rawRequest, options) {
     const request = rawRequest && typeof rawRequest === 'object' ? { ...rawRequest } : {};
@@ -5570,15 +5723,44 @@
         }
       } catch (_) {}
     }
-    try {
-      writeArchiveOpenRequest(request);
-    } catch (_) {}
+    const persistence = persistArchiveOpenRequestData(request);
+    if (!persistence.metadata) {
+      return null;
+    }
     return request;
   }
   function clearArchiveOpenRequest() {
     try {
       storageRemoveItem(OPEN_REQUEST_STORAGE_KEY);
     } catch (_) {}
+    const metadata = lastArchiveOpenRequestTransport;
+    recordArchiveOpenRequestTransport(null);
+    if (typeof window === 'undefined') {
+      return;
+    }
+    let windowName = '';
+    try {
+      windowName = typeof window.name === 'string' ? window.name : '';
+    } catch (error) {
+      windowName = '';
+    }
+    if (!windowName) {
+      return;
+    }
+    const prefixes = [];
+    if (metadata && typeof metadata.prefix === 'string' && metadata.prefix) {
+      prefixes.push(metadata.prefix);
+    }
+    prefixes.push(OPEN_REQUEST_WINDOW_NAME_PREFIX);
+    for (let i = 0; i < prefixes.length; i += 1) {
+      const prefix = prefixes[i];
+      if (typeof prefix !== 'string' || !prefix) continue;
+      if (!windowName.startsWith(prefix)) continue;
+      try {
+        window.name = '';
+      } catch (_) {}
+      break;
+    }
   }
   const USER_INITIATED_REASONS = new Set(['manual-save', 'manual-update', 'delete', 'history']);
   function isUserInitiatedReason(reason) {
