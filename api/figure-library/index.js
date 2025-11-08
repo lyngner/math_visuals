@@ -249,6 +249,9 @@ module.exports = async function handler(req, res) {
   }
 
   const querySlug = normalizeFigureSlug(url.searchParams.get('slug'));
+  const viewParam = url.searchParams.get('view');
+  const normalizedView = typeof viewParam === 'string' ? viewParam.trim().toLowerCase() : '';
+  const summaryView = !querySlug && normalizedView === 'summary';
 
   try {
     if (req.method === 'GET') {
@@ -264,7 +267,10 @@ module.exports = async function handler(req, res) {
         sendJson(res, 200, { ...metadata, entry: withCategoryApps(entry), categories });
         return;
       }
-      const [entries, categories] = await Promise.all([listFigures(), buildCategoriesPayload()]);
+      const [entries, categories] = await Promise.all([
+        listFigures(summaryView ? { summary: true } : undefined),
+        buildCategoriesPayload()
+      ]);
       const normalizedEntries = Array.isArray(entries) ? entries.map(withCategoryApps) : [];
       const effectiveMode = normalizedEntries && normalizedEntries.length ? normalizedEntries[0].mode : currentMode;
       const metadata = applyModeHeaders(res, effectiveMode) || buildModeMetadata(effectiveMode);
