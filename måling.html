@@ -350,21 +350,16 @@
       border: none;
       box-shadow: none;
       background: transparent;
-      transform: translate(0, -100%);
       cursor: grab;
+      opacity: 0;
+      padding: 0;
+      transform: none;
+      transform-origin: left center;
+      z-index: 3;
     }
 
     .segment.segment--tape-beta .segment__handle::after {
-      content: '';
-      position: absolute;
-      left: 0;
-      bottom: 0;
-      width: 100%;
-      height: 100%;
-      background-position: left bottom;
-      background-repeat: no-repeat;
-      background-size: contain;
-      pointer-events: none;
+      content: none;
     }
 
     .segment.segment--tape-beta .segment__handle--a {
@@ -372,21 +367,63 @@
       height: 47px;
     }
 
-    .segment.segment--tape-beta .segment__handle--a::after {
-      background-image: url('/images/measure/måleredskaper/målebåndSluttstykke.svg');
-    }
-
     .segment.segment--tape-beta .segment__handle--b {
       width: 136px;
       height: 72px;
     }
 
-    .segment.segment--tape-beta .segment__handle--b::after {
-      background-image: url('/images/measure/måleredskaper/målebåndhus.svg');
-    }
-
     .segment.segment--tape-beta .segment__handle:active {
       cursor: grabbing;
+    }
+
+    .segment.segment--tape-beta .segment__handle:focus-visible {
+      opacity: 1;
+      outline: 2px solid rgba(15, 109, 143, 0.9);
+      outline-offset: 2px;
+      background: rgba(15, 109, 143, 0.1);
+    }
+
+    .segment.segment--tape-beta .segment__svg,
+    .segment.segment--tape-beta .segment__label {
+      display: none;
+    }
+
+    .segment__tape-beta-strap {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 0;
+      height: 47px;
+      pointer-events: none;
+      transform-origin: left center;
+      display: none;
+      z-index: 1;
+    }
+
+    .segment__tape-beta-strap svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .segment.segment--tape-beta .segment__tape-beta-strap[data-visible='true'] {
+      display: block;
+    }
+
+    .segment__tape-beta-housing {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 136px;
+      height: 72px;
+      transform-origin: left center;
+      pointer-events: none;
+      display: none;
+      z-index: 2;
+    }
+
+    .segment.segment--tape-beta [data-tape-beta-housing][data-visible='true'] {
+      display: block;
     }
 
     .segment__label {
@@ -884,6 +921,27 @@
                   <line class="segment__line" data-segment-line x1="0" y1="0" x2="0" y2="0"></line>
                 </svg>
                 <div class="segment__label" data-segment-label></div>
+                <div
+                  class="segment__tape-beta-strap"
+                  data-tape-beta-strap
+                  aria-hidden="true"
+                >
+                  <svg
+                    class="tape-measure__strap-svg"
+                    data-tape-beta-strap-svg
+                    viewBox="0 0 600 47"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                    focusable="false"
+                  ></svg>
+                </div>
+                <img
+                  class="segment__tape-beta-housing"
+                  data-tape-beta-housing
+                  src="/images/measure/måleredskaper/målebåndhus.svg"
+                  alt=""
+                  aria-hidden="true"
+                />
                 <button
                   type="button"
                   class="segment__handle segment__handle--a"
