@@ -1514,6 +1514,163 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     return /\\[a-zA-Z]+|\$\$?|\\\(|\\\[/.test(text);
   }
 
+  function getFigureFromMap(map, key) {
+    if (!map || typeof map.get !== 'function') {
+      return null;
+    }
+    try {
+      const direct = map.get(key);
+      if (direct) {
+        return direct;
+      }
+      if (typeof key === 'string') {
+        const lowerKey = key.toLowerCase();
+        if (lowerKey !== key) {
+          const lowerMatch = map.get(lowerKey);
+          if (lowerMatch) {
+            return lowerMatch;
+          }
+        }
+        if (typeof map.forEach === 'function') {
+          let resolved = null;
+          map.forEach((value, mapKey) => {
+            if (resolved || typeof mapKey !== 'string') {
+              return;
+            }
+            if (mapKey === key || mapKey.toLowerCase() === lowerKey) {
+              resolved = value;
+            }
+          });
+          if (resolved) {
+            return resolved;
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function figureMatchesValue(figure, candidate, lowerCandidate) {
+    if (!figure || typeof candidate !== 'string') {
+      return false;
+    }
+    const comparisons = [];
+    const id = typeof figure.id === 'string' ? figure.id.trim() : '';
+    if (id) {
+      comparisons.push(id);
+    }
+    const slug = typeof figure.slug === 'string' ? figure.slug.trim() : '';
+    if (slug) {
+      comparisons.push(slug);
+    }
+    const imagePath = typeof figure.image === 'string' ? figure.image.trim() : '';
+    if (imagePath) {
+      comparisons.push(imagePath);
+    }
+    const assetPath = typeof figure.asset === 'string' ? figure.asset.trim() : '';
+    if (assetPath) {
+      comparisons.push(assetPath);
+    }
+    const fileName = typeof figure.fileName === 'string' ? figure.fileName.trim() : '';
+    if (fileName) {
+      comparisons.push(fileName);
+      const withoutExt = fileName.replace(/\.svg$/i, '');
+      if (withoutExt && withoutExt !== fileName) {
+        comparisons.push(withoutExt);
+      }
+    }
+    for (const entry of comparisons) {
+      if (typeof entry !== 'string') {
+        continue;
+      }
+      const trimmedEntry = entry.trim();
+      if (!trimmedEntry) {
+        continue;
+      }
+      if (trimmedEntry === candidate) {
+        return true;
+      }
+      if (lowerCandidate && trimmedEntry.toLowerCase() === lowerCandidate) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function findFigureInData(value) {
+    if (!figureData || typeof value !== 'string') {
+      return null;
+    }
+    const lower = value.toLowerCase();
+    const fromId = getFigureFromMap(figureData.byId, value);
+    if (fromId) {
+      return fromId;
+    }
+    const fromImage = getFigureFromMap(figureData.byImage, value);
+    if (fromImage) {
+      return fromImage;
+    }
+    if (Array.isArray(figureData.categories)) {
+      for (const category of figureData.categories) {
+        if (!category || !Array.isArray(category.figures)) {
+          continue;
+        }
+        for (const figure of category.figures) {
+          if (figureMatchesValue(figure, value, lower)) {
+            return figure;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function findFigureInManifest(value) {
+    if (!measurementFigureManifest || typeof value !== 'string') {
+      return null;
+    }
+    const lower = value.toLowerCase();
+    const categories = Array.isArray(measurementFigureManifest.categories)
+      ? measurementFigureManifest.categories
+      : [];
+    for (const category of categories) {
+      if (!category || !Array.isArray(category.figures)) {
+        continue;
+      }
+      for (const figure of category.figures) {
+        if (figureMatchesValue(figure, value, lower)) {
+          return figure;
+        }
+      }
+    }
+    return null;
+  }
+
+  function resolveFigureAsset(figure) {
+    if (!figure || typeof figure !== 'object') {
+      return '';
+    }
+    const imagePath = typeof figure.image === 'string' ? figure.image.trim() : '';
+    if (imagePath) {
+      return imagePath;
+    }
+    const assetPath = typeof figure.asset === 'string' ? figure.asset.trim() : '';
+    if (assetPath) {
+      return assetPath;
+    }
+    const fileName = typeof figure.fileName === 'string' ? figure.fileName.trim() : '';
+    if (fileName) {
+      const baseCandidate = typeof figure.basePath === 'string' && figure.basePath.trim()
+        ? figure.basePath.trim()
+        : measurementFigureManifest && typeof measurementFigureManifest.basePath === 'string'
+          ? measurementFigureManifest.basePath
+          : '/images/measure/';
+      const basePath = ensureTrailingSlash(baseCandidate);
+      return encodeURI(`${basePath}${fileName}`);
+    }
+    return '';
+  }
+
   function buildFigureAssetPath(value) {
     if (typeof value !== 'string') return '';
     const trimmed = value.trim();
@@ -1521,23 +1678,17 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
 
     const option = figurePicker.findOptionByValue(trimmed);
     if (option && option.figure) {
-      const figure = option.figure;
-      const imagePath = typeof figure.image === 'string' ? figure.image.trim() : '';
-      if (imagePath) {
-        return imagePath;
+      const resolved = resolveFigureAsset(option.figure);
+      if (resolved) {
+        return resolved;
       }
-      const assetPath = typeof figure.asset === 'string' ? figure.asset.trim() : '';
-      if (assetPath) {
-        return assetPath;
-      }
-      const fileName = typeof figure.fileName === 'string' ? figure.fileName.trim() : '';
-      if (fileName) {
-        const basePath = ensureTrailingSlash(
-          measurementFigureManifest && typeof measurementFigureManifest.basePath === 'string'
-            ? measurementFigureManifest.basePath
-            : '/images/measure/'
-        );
-        return encodeURI(`${basePath}${fileName}`);
+    }
+
+    const fallbackFigure = findFigureInData(trimmed) || findFigureInManifest(trimmed);
+    if (fallbackFigure) {
+      const resolved = resolveFigureAsset(fallbackFigure);
+      if (resolved) {
+        return resolved;
       }
     }
 

@@ -11,6 +11,53 @@ function getSorteringState(page) {
 }
 
 test.describe('sortering figure editor', () => {
+  test('resolves slug-only figure values via manifest lookup', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.STATE = {
+        sortering: {
+          items: [
+            {
+              id: 'item-slug',
+              type: 'figure',
+              label: 'Stegosaurus',
+              alt: 'Stegosaurus',
+              figures: [
+                {
+                  id: 'item-slug-figure-1',
+                  categoryId: 'prehistoric-animals',
+                  value: 'stegosaurus'
+                }
+              ]
+            }
+          ],
+          order: ['item-slug'],
+          retning: 'horisontal',
+          gap: 32,
+          hideOutline: false,
+          randomisering: false,
+          altText: '',
+          altTextSource: 'auto'
+        }
+      };
+    });
+
+    await page.goto('/sortering.html', { waitUntil: 'load' });
+
+    const figureItem = page.locator('.sortering__item[data-item-id="item-slug"]');
+    await expect(figureItem).toBeVisible();
+
+    const figureImage = figureItem.locator('.sortering__item-image');
+    await expect(figureImage).toHaveAttribute('src', /Stegosaurus%209m_4,5m%201_90\.svg$/);
+    await expect(figureImage).not.toHaveAttribute('src', /\/images\/measure\/stegosaurus(?:\.svg)?$/i);
+
+    const state = await getSorteringState(page);
+    expect(state).not.toBeNull();
+    const figureState = state.items.find(item => item && item.id === 'item-slug');
+    expect(figureState).toBeDefined();
+    expect(Array.isArray(figureState.figures)).toBe(true);
+    expect(figureState.figures[0].value).toBe('stegosaurus');
+  });
+
   test('blocks reordering while inline editor is active', async ({ page }) => {
     await page.goto('/sortering.html', { waitUntil: 'load' });
 
