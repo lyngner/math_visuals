@@ -1518,13 +1518,33 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     if (typeof value !== 'string') return '';
     const trimmed = value.trim();
     if (!trimmed) return '';
+
+    const option = figurePicker.findOptionByValue(trimmed);
+    if (option && option.figure) {
+      const figure = option.figure;
+      const imagePath = typeof figure.image === 'string' ? figure.image.trim() : '';
+      if (imagePath) {
+        return imagePath;
+      }
+      const assetPath = typeof figure.asset === 'string' ? figure.asset.trim() : '';
+      if (assetPath) {
+        return assetPath;
+      }
+      const fileName = typeof figure.fileName === 'string' ? figure.fileName.trim() : '';
+      if (fileName) {
+        const basePath = ensureTrailingSlash(
+          measurementFigureManifest && typeof measurementFigureManifest.basePath === 'string'
+            ? measurementFigureManifest.basePath
+            : '/images/measure/'
+        );
+        return encodeURI(`${basePath}${fileName}`);
+      }
+    }
+
     if (/^https?:\/\//i.test(trimmed)) {
       return trimmed;
     }
-    if (trimmed.startsWith('/')) {
-      return trimmed;
-    }
-    if (trimmed.includes('/')) {
+    if (trimmed.startsWith('/') || trimmed.includes('/') || trimmed.startsWith('data:')) {
       return trimmed;
     }
     return `${FIGURE_LIBRARY_BASE_PATH}${trimmed}`;
