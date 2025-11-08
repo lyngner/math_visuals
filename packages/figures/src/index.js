@@ -680,11 +680,17 @@ function shapeRemoteMeasurementFigure(remoteFigure, options = {}) {
     description
   );
   const tags = Array.isArray(remoteFigure.tags) ? remoteFigure.tags.slice() : [];
-  const categoryApps = Array.isArray(remoteFigure.categoryApps)
-    ? normalizeAppList(remoteFigure.categoryApps)
-    : Array.isArray(remoteFigure.apps)
-      ? normalizeAppList(remoteFigure.apps)
-      : [];
+  let figureAppScopeProvided = false;
+  let categoryApps;
+  if (Array.isArray(remoteFigure.categoryApps)) {
+    figureAppScopeProvided = true;
+    categoryApps = normalizeAppList(remoteFigure.categoryApps);
+  } else if (Array.isArray(remoteFigure.apps)) {
+    figureAppScopeProvided = true;
+    categoryApps = normalizeAppList(remoteFigure.apps);
+  } else {
+    categoryApps = [];
+  }
   return {
     id: remoteFigure.id,
     slug: remoteFigure.slug,
@@ -705,7 +711,8 @@ function shapeRemoteMeasurementFigure(remoteFigure, options = {}) {
     source: 'api',
     custom: true,
     remote: true,
-    apps: categoryApps
+    apps: categoryApps,
+    scopesApps: figureAppScopeProvided
   };
 }
 
@@ -853,7 +860,7 @@ export function buildMeasurementFigureData(options = {}) {
       const existingAppList = remoteCategoryApps.has(targetCategoryId)
         ? remoteCategoryApps.get(targetCategoryId)
         : null;
-      const figureProvidesApps = Array.isArray(shaped.apps);
+      const figureProvidesApps = shaped.scopesApps === true;
       const categoryApps = figureProvidesApps
         ? cloneAppList(shaped.apps)
         : Array.isArray(existingAppList)
@@ -883,8 +890,9 @@ export function buildMeasurementFigureData(options = {}) {
       } else if (Array.isArray(categoryApps) && categoryApps.length) {
         category.apps = categoryApps.slice();
       }
+      const { scopesApps, ...figureData } = shaped;
       const figure = {
-        ...shaped,
+        ...figureData,
         categoryId: category.id
       };
       category.figures.push(figure);
