@@ -271,10 +271,6 @@ function getCategoryAppOptions() {
   return categoryAppOptionOrder.map((id) => categoryAppOptionMap.get(id)).filter(Boolean);
 }
 
-function getVisibleCategoryAppOptions() {
-  return getCategoryAppOptions().filter((option) => !option.locked);
-}
-
 function registerCategoryApps(apps) {
   if (!apps) return;
   const beforeSize = categoryAppOptionMap.size;
@@ -352,7 +348,7 @@ function getCategoryAppSelectionFromInputs(context) {
   }
   const selection = [];
   config.inputs.forEach((input, appId) => {
-    if (input && input.checked) {
+    if (input && input.checked && !input.disabled) {
       selection.push(appId);
     }
   });
@@ -373,28 +369,45 @@ function updateCategoryAppFieldsetState(context) {
 }
 
 function renderCategoryAppControls() {
-  const options = getVisibleCategoryAppOptions();
+  const options = getCategoryAppOptions();
   Object.entries(categoryAppFormContexts).forEach(([context, config]) => {
     if (!config || !config.container) return;
     const previousSelection = getCategoryAppSelectionFromInputs(context);
-    const fallbackSelection = previousSelection.length ? previousSelection : DEFAULT_VISIBLE_CATEGORY_APPS.slice();
+    const fallbackSelection = previousSelection.length
+      ? previousSelection
+      : sanitizeCategoryApps(undefined).filter((appId) => appId !== DEFAULT_CATEGORY_APP);
     config.container.innerHTML = '';
     config.inputs.clear();
     options.forEach((option) => {
       const checkboxId = `category-app-${context}-${option.id}`;
       const label = document.createElement('label');
       label.className = 'categoryAppsOption';
+      if (option.locked) {
+        label.dataset.locked = 'true';
+      }
       label.htmlFor = checkboxId;
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.id = checkboxId;
       input.value = option.id;
-      input.checked = fallbackSelection.includes(option.id);
+      const shouldCheck = option.locked || fallbackSelection.includes(option.id);
+      input.checked = shouldCheck;
+      if (option.locked) {
+        input.disabled = true;
+        input.setAttribute('aria-disabled', 'true');
+      }
       input.addEventListener('change', () => updateCategoryAppFieldsetState(context));
       const text = document.createElement('span');
       text.textContent = option.label || formatCategoryAppLabel(option.id);
       label.appendChild(input);
       label.appendChild(text);
+      if (option.locked) {
+        const hint = document.createElement('span');
+        hint.className = 'categoryAppsOptionHint';
+        hint.textContent = 'Alltid valgt';
+        hint.setAttribute('aria-hidden', 'true');
+        label.appendChild(hint);
+      }
       config.container.appendChild(label);
       config.inputs.set(option.id, input);
     });
@@ -435,11 +448,12 @@ function setCategoryAppSelection(context, apps) {
     return;
   }
   const sanitized = sanitizeCategoryApps(apps, { includeDefaults: apps == null });
-  const selected = new Set(sanitized.filter((appId) => appId !== DEFAULT_CATEGORY_APP));
-  getVisibleCategoryAppOptions().forEach((option) => {
+  const selected = new Set(sanitized);
+  getCategoryAppOptions().forEach((option) => {
     const input = config.inputs.get(option.id);
     if (!input) return;
-    input.checked = selected.has(option.id);
+    const shouldCheck = selected.has(option.id) || option.locked;
+    input.checked = shouldCheck;
   });
   updateCategoryAppFieldsetState(context);
 }

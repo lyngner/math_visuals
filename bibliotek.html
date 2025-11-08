@@ -227,9 +227,22 @@
       gap: 6px;
       font-size: 14px;
       color: #1f2937;
+      flex-wrap: wrap;
     }
     .categoryAppsOption input {
       accent-color: var(--beta-color);
+    }
+    .categoryAppsOption[data-locked] {
+      color: #475569;
+      opacity: 0.9;
+    }
+    .categoryAppsOption[data-locked] input {
+      cursor: not-allowed;
+    }
+    .categoryAppsOptionHint {
+      font-size: 12px;
+      color: #64748b;
+      margin-left: 4px;
     }
     .categoryAddSubmit,
     .categoryAddCancel {
