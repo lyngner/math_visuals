@@ -35,6 +35,11 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   const segmentLine = segmentSvg ? segmentSvg.querySelector('[data-segment-line]') : null;
   const segmentLabel = segment ? segment.querySelector('[data-segment-label]') : null;
   const segmentHandles = segment ? segment.querySelectorAll('[data-segment-handle]') : null;
+  const tapeBetaStrapElement = segment ? segment.querySelector('[data-tape-beta-strap]') : null;
+  const tapeBetaStrapSvg = tapeBetaStrapElement
+    ? tapeBetaStrapElement.querySelector('[data-tape-beta-strap-svg]')
+    : null;
+  const tapeBetaHousingImage = segment ? segment.querySelector('[data-tape-beta-housing]') : null;
   const hasRuler = !!(ruler && rulerSvg);
   const hasTapeMeasure = !!(
     tapeMeasure &&
@@ -133,9 +138,28 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
 
   const TAPE_BETA_TOOL_KEY = 'tape-beta';
   const TAPE_BETA_HANDLE_SPECS = {
-    a: { width: 40, height: 47, href: '/images/measure/måleredskaper/målebåndSluttstykke.svg' },
-    b: { width: 136, height: 72, href: '/images/measure/måleredskaper/målebåndhus.svg' }
+    a: {
+      width: 40,
+      height: 47,
+      anchorX: 0,
+      anchorY: 23.5,
+      href: '/images/measure/måleredskaper/målebåndSluttstykke.svg'
+    },
+    b: {
+      width: 136,
+      height: 72,
+      anchorX: 0,
+      anchorY: 36,
+      href: '/images/measure/måleredskaper/målebåndhus.svg'
+    }
   };
+
+  function resolveTapeBetaAnchor(spec) {
+    const anchorX = spec && Number.isFinite(spec.anchorX) ? spec.anchorX : 0;
+    const fallbackHeight = spec && Number.isFinite(spec.height) ? spec.height : 0;
+    const anchorY = spec && Number.isFinite(spec.anchorY) ? spec.anchorY : fallbackHeight;
+    return { anchorX, anchorY };
+  }
   const transformStates = {
     ruler: { x: 0, y: 0, rotation: 0 },
     tape: { x: 0, y: 0, rotation: 0 },
@@ -160,6 +184,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     tapeExtension: new Map(),
     tapeHousing: new Map()
   };
+  let tapeBetaVisualState = null;
   const boardPanState = { entry: null, enabled: false };
   const boardPanTransform = { x: 0, y: 0 };
   let boardRect = board.getBoundingClientRect();
@@ -2125,17 +2150,51 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       segmentLine.setAttribute('x2', formatSvgNumber(b.x));
       segmentLine.setAttribute('y2', formatSvgNumber(b.y));
     }
+    const isTapeBeta = appState.activeTool === TAPE_BETA_TOOL_KEY;
     const handleA = segmentHandlesByKey.get('a');
     if (handleA) {
-      handleA.style.left = `${a.x}px`;
-      handleA.style.top = `${a.y}px`;
+      if (isTapeBeta) {
+        const spec = TAPE_BETA_HANDLE_SPECS.a;
+        const { anchorX, anchorY } = resolveTapeBetaAnchor(spec);
+        handleA.style.left = `${a.x - anchorX}px`;
+        handleA.style.top = `${a.y - anchorY}px`;
+        handleA.style.transformOrigin = `${anchorX}px ${anchorY}px`;
+      } else {
+        handleA.style.left = `${a.x}px`;
+        handleA.style.top = `${a.y}px`;
+        handleA.style.transform = '';
+        handleA.style.transformOrigin = '';
+        handleA.style.width = '';
+        handleA.style.height = '';
+      }
     }
     const handleB = segmentHandlesByKey.get('b');
     if (handleB) {
-      handleB.style.left = `${b.x}px`;
-      handleB.style.top = `${b.y}px`;
+      if (isTapeBeta) {
+        const spec = TAPE_BETA_HANDLE_SPECS.b;
+        const { anchorX, anchorY } = resolveTapeBetaAnchor(spec);
+        handleB.style.left = `${b.x - anchorX}px`;
+        handleB.style.top = `${b.y - anchorY}px`;
+        handleB.style.transformOrigin = `${anchorX}px ${anchorY}px`;
+      } else {
+        handleB.style.left = `${b.x}px`;
+        handleB.style.top = `${b.y}px`;
+        handleB.style.transform = '';
+        handleB.style.transformOrigin = '';
+        handleB.style.width = '';
+        handleB.style.height = '';
+      }
     }
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const distance = Math.hypot(dx, dy);
+    const rotation = Math.atan2(dy, dx);
     updateSegmentLabel(a, b, settings, metrics);
+    if (isTapeBeta) {
+      updateTapeBetaVisuals({ a, b, distance, rotation }, settings, metrics);
+    } else {
+      clearTapeBetaVisuals();
+    }
   }
 
   function enforceSegmentDirectionLockForSettings(settings) {
@@ -2198,6 +2257,129 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     }
     enforceSegmentDirectionLockForSettings(settings || appState.settings);
     renderSegment(settings, scaleMetrics);
+  }
+
+  function updateTapeBetaVisuals(geometry, settings, metrics) {
+    if (!geometry || !tapeBetaStrapElement || !tapeBetaStrapSvg) {
+      return;
+    }
+    const { a, b, distance, rotation } = geometry;
+    if (!Number.isFinite(distance) || distance <= 0.5) {
+      clearTapeBetaVisuals();
+      return;
+    }
+    const activeSettings = settings || appState.settings || defaults;
+    const scaleMetrics = metrics || resolveScaleMetrics(activeSettings);
+    let unitSpacing = Number.isFinite(lastRenderedUnitSpacing) && lastRenderedUnitSpacing > 0
+      ? lastRenderedUnitSpacing
+      : scaleMetrics && Number.isFinite(scaleMetrics.unitSpacing) && scaleMetrics.unitSpacing > 0
+      ? scaleMetrics.unitSpacing
+      : DEFAULT_UNIT_SPACING_PX;
+    if (!Number.isFinite(unitSpacing) || unitSpacing <= 0) {
+      unitSpacing = DEFAULT_UNIT_SPACING_PX;
+    }
+    const strapHeight = TAPE_STRAP_DEFAULT_HEIGHT;
+    const housingShift = resolveTapeHousingShiftPx();
+    const strapData = buildTapeBetaStrapMarkup({
+      distance,
+      unitSpacing,
+      housingShift,
+      strapHeight,
+      settings: activeSettings,
+      metrics: scaleMetrics
+    });
+    if (!strapData) {
+      clearTapeBetaVisuals();
+      return;
+    }
+
+    tapeBetaStrapSvg.setAttribute('viewBox', `0 0 ${strapData.strapLength} ${strapData.strapHeight}`);
+    tapeBetaStrapSvg.setAttribute('width', formatSvgNumber(strapData.strapLength));
+    tapeBetaStrapSvg.setAttribute('height', formatSvgNumber(strapData.strapHeight));
+    tapeBetaStrapSvg.innerHTML = strapData.markup;
+
+    const strapAnchorY = strapData.strapHeight / 2;
+    tapeBetaStrapElement.style.left = `${a.x}px`;
+    tapeBetaStrapElement.style.top = `${a.y - strapAnchorY}px`;
+    tapeBetaStrapElement.style.width = `${strapData.strapLength}px`;
+    tapeBetaStrapElement.style.height = `${strapData.strapHeight}px`;
+    tapeBetaStrapElement.style.transformOrigin = `0px ${strapAnchorY}px`;
+    tapeBetaStrapElement.style.transform = `rotate(${rotation}rad)`;
+    tapeBetaStrapElement.setAttribute('data-visible', 'true');
+
+    updateTapeBetaHandle('a', a, rotation);
+    updateTapeBetaHandle('b', b, rotation);
+    updateTapeBetaHousing(b, rotation);
+
+    tapeBetaVisualState = {
+      pointA: { x: a.x, y: a.y },
+      pointB: { x: b.x, y: b.y },
+      rotation,
+      strapHeight: strapData.strapHeight,
+      strapLength: strapData.strapLength
+    };
+  }
+
+  function updateTapeBetaHandle(handleKey, point, rotation) {
+    const handle = segmentHandlesByKey.get(handleKey);
+    const spec = TAPE_BETA_HANDLE_SPECS[handleKey];
+    if (!handle || !spec || !point) {
+      return;
+    }
+    const { anchorX, anchorY } = resolveTapeBetaAnchor(spec);
+    handle.style.left = `${point.x - anchorX}px`;
+    handle.style.top = `${point.y - anchorY}px`;
+    if (Number.isFinite(spec.width)) {
+      handle.style.width = `${spec.width}px`;
+    }
+    if (Number.isFinite(spec.height)) {
+      handle.style.height = `${spec.height}px`;
+    }
+    handle.style.transformOrigin = `${anchorX}px ${anchorY}px`;
+    handle.style.transform = `rotate(${rotation}rad)`;
+  }
+
+  function updateTapeBetaHousing(point, rotation) {
+    if (!tapeBetaHousingImage) {
+      return;
+    }
+    const spec = TAPE_BETA_HANDLE_SPECS.b;
+    const { anchorX, anchorY } = resolveTapeBetaAnchor(spec);
+    tapeBetaHousingImage.style.left = `${point.x - anchorX}px`;
+    tapeBetaHousingImage.style.top = `${point.y - anchorY}px`;
+    tapeBetaHousingImage.style.width = `${spec.width}px`;
+    tapeBetaHousingImage.style.height = `${spec.height}px`;
+    tapeBetaHousingImage.style.transformOrigin = `${anchorX}px ${anchorY}px`;
+    tapeBetaHousingImage.style.transform = `rotate(${rotation}rad)`;
+    tapeBetaHousingImage.setAttribute('data-visible', 'true');
+  }
+
+  function clearTapeBetaVisuals() {
+    if (tapeBetaStrapElement) {
+      tapeBetaStrapElement.removeAttribute('data-visible');
+      tapeBetaStrapElement.style.transform = '';
+      tapeBetaStrapElement.style.transformOrigin = '';
+    }
+    if (tapeBetaHousingImage) {
+      tapeBetaHousingImage.removeAttribute('data-visible');
+      tapeBetaHousingImage.style.transform = '';
+      tapeBetaHousingImage.style.transformOrigin = '';
+    }
+    const handleA = segmentHandlesByKey.get('a');
+    if (handleA) {
+      handleA.style.transform = '';
+      handleA.style.transformOrigin = '';
+      handleA.style.width = '';
+      handleA.style.height = '';
+    }
+    const handleB = segmentHandlesByKey.get('b');
+    if (handleB) {
+      handleB.style.transform = '';
+      handleB.style.transformOrigin = '';
+      handleB.style.width = '';
+      handleB.style.height = '';
+    }
+    tapeBetaVisualState = null;
   }
 
   function ensureFigureImageDimensions(imageUrl) {
@@ -2946,6 +3128,135 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     const rawValue = view.getComputedStyle(target).getPropertyValue(TAPE_HOUSING_SHIFT_VARIABLE);
     const parsed = Number.parseFloat(rawValue);
     return Number.isFinite(parsed) ? parsed : DEFAULT_TAPE_HOUSING_SHIFT_PX;
+  }
+
+  function buildTapeBetaStrapMarkup({
+    distance,
+    unitSpacing,
+    housingShift,
+    strapHeight: desiredHeight,
+    settings,
+    metrics
+  }) {
+    if (!Number.isFinite(unitSpacing) || unitSpacing <= 0) {
+      return null;
+    }
+    const strapHeight = Number.isFinite(desiredHeight) && desiredHeight > 0
+      ? desiredHeight
+      : TAPE_STRAP_DEFAULT_HEIGHT;
+    const strapEndScaleValue = strapHeight / TAPE_STRAP_DEFAULT_HEIGHT;
+    const strapEndWidth = TAPE_STRAP_END_WIDTH * (Number.isFinite(strapEndScaleValue) ? strapEndScaleValue : 1);
+    const strapMinimumLength = Math.max(unitSpacing, strapEndWidth * 1.25);
+    const overlap = Number.isFinite(housingShift) ? housingShift : DEFAULT_TAPE_HOUSING_SHIFT_PX;
+    const strapLength = Math.max(distance + overlap, strapMinimumLength);
+    if (!(strapLength > 0)) {
+      return null;
+    }
+    const strapBackgroundWidth = Math.max(strapLength - strapEndWidth, 0);
+    const subdivisions = Number.isFinite(settings && settings.subdivisions)
+      ? settings.subdivisions
+      : defaults.subdivisions;
+    const bandInset = Math.min(Math.max(strapHeight * 0.12, 6), strapHeight / 2.2);
+    const topBaselineY = bandInset;
+    const bottomBaselineY = strapHeight - bandInset;
+    const labelPadding = Math.max(strapHeight * 0.12, 10);
+    const tickLabelGap = Math.max(strapHeight * 0.18, 12);
+    const labelY = bottomBaselineY - labelPadding;
+    const majorTickBottom = labelY - tickLabelGap;
+    const minorTickBottom = topBaselineY + (majorTickBottom - topBaselineY) * 0.65;
+    const unitLabelY = topBaselineY + Math.max(10, (majorTickBottom - topBaselineY) * 0.5);
+
+    const strapUnitsExact = unitSpacing > 0 ? distance / unitSpacing : 0;
+    const fullUnits = Math.max(Math.floor(strapUnitsExact), 0);
+    const clampedFullUnits = Math.min(fullUnits, 400);
+    const remainder = distance - fullUnits * unitSpacing;
+    const hasRemainder = remainder > 0.001;
+
+    const valueMultiplier = resolveRulerValueMultiplier(settings, metrics);
+    const unitSuffixValue = resolveUnitSuffix(settings.unitLabel);
+    const unitSuffix = unitSuffixValue ? String(unitSuffixValue).trim() : '';
+    const showUnitLabel = !!(settings && settings.showUnitLabel);
+
+    let majorTickMarkup = '';
+    for (let tickIndex = 0; tickIndex <= clampedFullUnits; tickIndex += 1) {
+      const x = unitSpacing * tickIndex;
+      majorTickMarkup += `<line x1="${formatSvgNumber(x)}" y1="${formatSvgNumber(topBaselineY)}" x2="${formatSvgNumber(x)}" y2="${formatSvgNumber(majorTickBottom)}" class="tape-svg__tick tape-svg__tick--major" />`;
+    }
+    if (hasRemainder) {
+      const endX = Math.min(distance, strapLength);
+      majorTickMarkup += `<line x1="${formatSvgNumber(endX)}" y1="${formatSvgNumber(topBaselineY)}" x2="${formatSvgNumber(endX)}" y2="${formatSvgNumber(majorTickBottom)}" class="tape-svg__tick tape-svg__tick--major" />`;
+    }
+
+    let minorTickMarkup = '';
+    if (subdivisions > 1) {
+      const step = unitSpacing / subdivisions;
+      for (let unitIndex = 0; unitIndex < clampedFullUnits; unitIndex += 1) {
+        const unitStart = unitSpacing * unitIndex;
+        for (let subIndex = 1; subIndex < subdivisions; subIndex += 1) {
+          const x = unitStart + step * subIndex;
+          minorTickMarkup += `<line x1="${formatSvgNumber(x)}" y1="${formatSvgNumber(topBaselineY)}" x2="${formatSvgNumber(x)}" y2="${formatSvgNumber(minorTickBottom)}" class="tape-svg__tick tape-svg__tick--minor" />`;
+        }
+      }
+      if (hasRemainder) {
+        const unitStart = unitSpacing * fullUnits;
+        for (let subIndex = 1; subIndex < subdivisions; subIndex += 1) {
+          const x = unitStart + step * subIndex;
+          if (x < distance - 0.001) {
+            minorTickMarkup += `<line x1="${formatSvgNumber(x)}" y1="${formatSvgNumber(topBaselineY)}" x2="${formatSvgNumber(x)}" y2="${formatSvgNumber(minorTickBottom)}" class="tape-svg__tick tape-svg__tick--minor" />`;
+          }
+        }
+      }
+    }
+
+    let labelMarkup = '';
+    for (let tickIndex = 1; tickIndex <= clampedFullUnits; tickIndex += 1) {
+      const rawValue = tickIndex * valueMultiplier;
+      const labelValue = roundForDisplay(convertValueToDisplayUnits(rawValue, settings.unitLabel));
+      const baseLabelText = formatNumber(labelValue);
+      const includeUnit = showUnitLabel && unitSuffix && tickIndex === 1;
+      const labelWithUnit = includeUnit ? `${baseLabelText} ${unitSuffix}` : baseLabelText;
+      const safeLabelText = escapeHtml(labelWithUnit);
+      const x = unitSpacing * tickIndex;
+      const anchor = tickIndex === clampedFullUnits && !hasRemainder ? 'end' : 'middle';
+      const dx = anchor === 'end' ? -6 : 0;
+      labelMarkup += `<text x="${formatSvgNumber(x)}" y="${formatSvgNumber(labelY)}" text-anchor="${anchor}"${dx !== 0 ? ` dx="${dx}"` : ''} class="tape-svg__label">${safeLabelText}</text>`;
+    }
+
+    const unitLabelMarkup = unitSuffix && !showUnitLabel
+      ? `<text x="${formatSvgNumber(Math.max(distance, unitSpacing))}" y="${formatSvgNumber(unitLabelY)}" text-anchor="end" class="tape-svg__unit-label">${escapeHtml(unitSuffix)}</text>`
+      : '';
+
+    const markup = `
+      <rect x="${formatSvgNumber(strapEndWidth)}" y="0" width="${formatSvgNumber(strapBackgroundWidth)}" height="${formatSvgNumber(strapHeight)}" class="tape-svg__background" />
+      <g class="tape-svg__end-cap" transform="scale(${formatSvgNumber(strapEndScaleValue)})">
+        <path d="M0.6875 39.9463L1.66457 23.2943L0.6875 6.72093L1.47297 6.7916C1.53337 6.79694 1.84017 6.82629 2.34324 6.91029V39.7569C1.84017 39.8409 1.53337 39.8716 1.47297 39.8756L0.6875 39.9463Z" fill="#EBEBEB" />
+        <path d="M2.34375 39.7568V6.91019C3.17348 7.05019 4.53908 7.34084 6.22348 7.92084L7.58335 8.42884C10.3751 9.55284 13.7761 11.4315 17.0256 14.5568H35.0636C37.6885 14.5568 39.8245 16.6782 39.8245 19.2848V27.3809C39.8245 29.9875 37.6885 32.1102 35.0636 32.1102H17.0256C13.7761 35.2355 10.3751 37.1142 7.58335 38.2382L6.22348 38.7462C4.53908 39.3262 3.17348 39.6155 2.34375 39.7568Z" fill="#EAD32A" />
+        <path d="M1.41406 7.46953L2.34473 23.3349L1.41406 39.2002C1.41406 39.2002 9.55833 38.4762 16.7505 31.4309H35.0651C37.3171 31.4309 39.1453 29.6175 39.1453 27.3815V23.3349C39.1453 23.3349 39.1453 21.5229 39.1453 19.2869C39.1453 17.0509 37.3171 15.2375 35.0651 15.2375H16.7505C9.55833 8.19353 1.41406 7.46953 1.41406 7.46953Z" fill="#ACACAC" />
+        <path d="M2.32913 23.5975L1.41406 39.2002C1.41406 39.2002 9.55833 38.4762 16.7505 31.4309H35.0651C37.3171 31.4309 39.1453 29.6175 39.1453 27.3815V23.5975H2.32913Z" fill="#D2D1D9" />
+        <path d="M33.3827 23.3355C33.3827 25.4369 31.6771 27.1436 29.5739 27.1436C27.4714 27.1436 25.7656 25.4369 25.7656 23.3355C25.7656 21.2329 27.4714 19.5275 29.5739 19.5275C31.6771 19.5275 33.3827 21.2329 33.3827 23.3355Z" fill="#CCCCCC" />
+        <path d="M31.4742 20.0529C31.7992 20.6142 31.9992 21.2569 31.9992 21.9502C31.9992 24.0542 30.2946 25.7595 28.1919 25.7595C27.4966 25.7595 26.8544 25.5595 26.293 25.2342C26.9512 26.3702 28.167 27.1436 29.5752 27.1436C31.6784 27.1436 33.384 25.4369 33.384 23.3355C33.384 21.9275 32.6107 20.7129 31.4742 20.0529Z" fill="#787878" />
+        <path d="M29.8856 21.9031C29.8856 22.7511 29.1981 23.4404 28.3487 23.4404C27.4987 23.4404 26.8105 22.7511 26.8105 21.9031C26.8105 21.0538 27.4987 20.3658 28.3487 20.3658C29.1981 20.3658 29.8856 21.0538 29.8856 21.9031Z" fill="#FAFAFA" />
+        <path d="M15.6351 23.3355C15.6351 25.4369 13.931 27.1436 11.8269 27.1436C9.72367 27.1436 8.01953 25.4369 8.01953 23.3355C8.01953 21.2329 9.72367 19.5275 11.8269 19.5275C13.931 19.5275 15.6351 21.2329 15.6351 23.3355Z" fill="#CCCCCC" />
+        <path d="M12.1291 21.9031C12.1291 22.7511 11.4416 23.4404 10.5922 23.4404C9.74269 23.4404 9.05469 22.7511 9.05469 21.9031C9.05469 21.0538 9.74269 20.3658 10.5922 20.3658C11.4416 20.3658 12.1291 21.0538 12.1291 21.9031Z" fill="#FAFAFA" />
+        <path d="M13.7658 20.0529C14.0902 20.6142 14.2903 21.2569 14.2903 21.9502C14.2903 24.0542 12.5861 25.7595 10.482 25.7595C9.78718 25.7595 9.14438 25.5595 8.58398 25.2342C9.24292 26.3702 10.4585 27.1436 11.8662 27.1436C13.9694 27.1436 15.6736 25.4369 15.6736 23.3355C15.6736 21.9275 14.9017 20.7129 13.7658 20.0529Z" fill="#787878" />
+        <path d="M0.482422 46.667H2.34442V0.000328302H0.482422V46.667Z" fill="#ACACAC" />
+        <path d="M0 46.667H0.482265V0.000328302H0V46.667Z" fill="#D2D1D9" />
+      </g>
+      <line x1="0" y1="${formatSvgNumber(topBaselineY)}" x2="${formatSvgNumber(strapLength)}" y2="${formatSvgNumber(topBaselineY)}" class="tape-svg__baseline" />
+      <line x1="0" y1="${formatSvgNumber(bottomBaselineY)}" x2="${formatSvgNumber(strapLength)}" y2="${formatSvgNumber(bottomBaselineY)}" class="tape-svg__baseline" />
+      ${minorTickMarkup}
+      ${majorTickMarkup}
+      ${labelMarkup}
+      ${unitLabelMarkup}
+    `;
+
+    return {
+      markup,
+      strapLength,
+      strapHeight,
+      unitSpacing,
+      distance
+    };
   }
 
   function renderTapeMeasureStrap(settings, unitSpacing, scaleMetrics) {
@@ -3875,7 +4186,21 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       return null;
     }
     if (isTapeBetaActive()) {
-      return { x: rect.left, y: rect.bottom };
+      const key = handle.getAttribute('data-segment-handle');
+      const spec = key ? TAPE_BETA_HANDLE_SPECS[key] : null;
+      if (spec) {
+        const { anchorX, anchorY } = resolveTapeBetaAnchor(spec);
+        const safeAnchorX = Number.isFinite(anchorX) ? anchorX : 0;
+        const safeAnchorY = Number.isFinite(anchorY) ? anchorY : rect.height;
+        return {
+          x: rect.left + safeAnchorX,
+          y: rect.top + safeAnchorY
+        };
+      }
+      return {
+        x: rect.left,
+        y: rect.top + rect.height / 2
+      };
     }
     return {
       x: rect.left + rect.width / 2,
@@ -6373,13 +6698,105 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     const group = createSvgElement('g');
     group.setAttribute('class', isTapeBeta ? 'mv-segment mv-segment--tape-beta' : 'mv-segment');
 
-    const line = createSvgElement('line');
-    line.setAttribute('class', 'mv-segment__line');
-    line.setAttribute('x1', formatSvgNumber(points.a.x));
-    line.setAttribute('y1', formatSvgNumber(points.a.y));
-    line.setAttribute('x2', formatSvgNumber(points.b.x));
-    line.setAttribute('y2', formatSvgNumber(points.b.y));
-    group.appendChild(line);
+    if (!isTapeBeta) {
+      const line = createSvgElement('line');
+      line.setAttribute('class', 'mv-segment__line');
+      line.setAttribute('x1', formatSvgNumber(points.a.x));
+      line.setAttribute('y1', formatSvgNumber(points.a.y));
+      line.setAttribute('x2', formatSvgNumber(points.b.x));
+      line.setAttribute('y2', formatSvgNumber(points.b.y));
+      group.appendChild(line);
+    }
+
+    if (isTapeBeta) {
+      let exportState = tapeBetaVisualState && Number.isFinite(tapeBetaVisualState.strapLength)
+        ? tapeBetaVisualState
+        : null;
+      let strapClone = null;
+      if (exportState && tapeBetaStrapSvg) {
+        strapClone = tapeBetaStrapSvg.cloneNode(true);
+      } else {
+        const dx = points.b.x - points.a.x;
+        const dy = points.b.y - points.a.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance > 0.5) {
+          const rotation = Math.atan2(dy, dx);
+          const activeSettings = appState.settings || defaults;
+          const scaleMetrics = resolveScaleMetrics(activeSettings);
+          let unitSpacing = Number.isFinite(lastRenderedUnitSpacing) && lastRenderedUnitSpacing > 0
+            ? lastRenderedUnitSpacing
+            : scaleMetrics && Number.isFinite(scaleMetrics.unitSpacing) && scaleMetrics.unitSpacing > 0
+            ? scaleMetrics.unitSpacing
+            : DEFAULT_UNIT_SPACING_PX;
+          if (!Number.isFinite(unitSpacing) || unitSpacing <= 0) {
+            unitSpacing = DEFAULT_UNIT_SPACING_PX;
+          }
+          const strapHeight = TAPE_STRAP_DEFAULT_HEIGHT;
+          const housingShift = resolveTapeHousingShiftPx();
+          const strapData = buildTapeBetaStrapMarkup({
+            distance,
+            unitSpacing,
+            housingShift,
+            strapHeight,
+            settings: activeSettings,
+            metrics: scaleMetrics
+          });
+          if (strapData) {
+            exportState = {
+              pointA: { x: points.a.x, y: points.a.y },
+              pointB: { x: points.b.x, y: points.b.y },
+              rotation,
+              strapHeight: strapData.strapHeight,
+              strapLength: strapData.strapLength
+            };
+            const svg = createSvgElement('svg');
+            svg.setAttribute('viewBox', `0 0 ${formatSvgNumber(strapData.strapLength)} ${formatSvgNumber(strapData.strapHeight)}`);
+            svg.setAttribute('preserveAspectRatio', 'none');
+            svg.setAttribute('width', formatSvgNumber(strapData.strapLength));
+            svg.setAttribute('height', formatSvgNumber(strapData.strapHeight));
+            svg.innerHTML = strapData.markup;
+            strapClone = svg;
+          }
+        }
+      }
+
+      if (exportState && strapClone) {
+        strapClone.removeAttribute('aria-hidden');
+        strapClone.removeAttribute('focusable');
+        strapClone.setAttribute('width', formatSvgNumber(exportState.strapLength));
+        strapClone.setAttribute('height', formatSvgNumber(exportState.strapHeight));
+
+        const strapGroup = createSvgElement('g');
+        strapGroup.setAttribute('class', 'mv-tape__strap');
+        const exportStrapAnchorY = exportState.strapHeight / 2;
+        strapGroup.setAttribute(
+          'transform',
+          `translate(${formatSvgNumber(exportState.pointA.x)} ${formatSvgNumber(exportState.pointA.y)}) rotate(${formatSvgNumber(exportState.rotation)}) translate(0 ${formatSvgNumber(-exportStrapAnchorY)})`
+        );
+        strapGroup.appendChild(strapClone);
+        group.appendChild(strapGroup);
+
+        const housingSpec = TAPE_BETA_HANDLE_SPECS.b;
+        const housingGroup = createSvgElement('g');
+        housingGroup.setAttribute('class', 'mv-tape__housing');
+        const housingAnchor = resolveTapeBetaAnchor(housingSpec);
+        const housingAnchorX = Number.isFinite(housingAnchor.anchorX) ? housingAnchor.anchorX : 0;
+        const housingAnchorY = Number.isFinite(housingAnchor.anchorY) ? housingAnchor.anchorY : housingSpec.height;
+        housingGroup.setAttribute(
+          'transform',
+          `translate(${formatSvgNumber(exportState.pointB.x || points.b.x)} ${formatSvgNumber(exportState.pointB.y || points.b.y)}) rotate(${formatSvgNumber(exportState.rotation)}) translate(${formatSvgNumber(-housingAnchorX)} ${formatSvgNumber(-housingAnchorY)})`
+        );
+        const housingImage = createSvgElement('image');
+        housingImage.setAttribute('x', '0');
+        housingImage.setAttribute('y', '0');
+        housingImage.setAttribute('width', formatSvgNumber(housingSpec.width));
+        housingImage.setAttribute('height', formatSvgNumber(housingSpec.height));
+        housingImage.setAttributeNS(XLINK_NS, 'xlink:href', housingSpec.href);
+        housingImage.setAttribute('href', housingSpec.href);
+        housingGroup.appendChild(housingImage);
+        group.appendChild(housingGroup);
+      }
+    }
 
     const handleKeys = ['a', 'b'];
     for (const key of handleKeys) {
@@ -6390,20 +6807,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       const handleGroup = createSvgElement('g');
       handleGroup.setAttribute('class', `mv-segment__handle mv-segment__handle--${key}`);
 
-      if (isTapeBeta) {
-        const spec = TAPE_BETA_HANDLE_SPECS[key];
-        if (spec) {
-          const image = createSvgElement('image');
-          image.setAttribute('class', `mv-segment__handle-image mv-segment__handle-image--${key}`);
-          image.setAttribute('width', formatSvgNumber(spec.width));
-          image.setAttribute('height', formatSvgNumber(spec.height));
-          image.setAttribute('x', formatSvgNumber(point.x));
-          image.setAttribute('y', formatSvgNumber(point.y - spec.height));
-          image.setAttributeNS(XLINK_NS, 'xlink:href', spec.href);
-          image.setAttribute('href', spec.href);
-          handleGroup.appendChild(image);
-        }
-      } else {
+      if (!isTapeBeta) {
         const circle = createSvgElement('circle');
         circle.setAttribute('class', 'mv-segment__handle-circle');
         circle.setAttribute('cx', formatSvgNumber(point.x));
@@ -6415,7 +6819,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       group.appendChild(handleGroup);
     }
 
-    if (segmentLabel && board) {
+    if (!isTapeBeta && segmentLabel && board) {
       const labelText = collapseWhitespace(segmentLabel.textContent);
       const labelRect = segmentLabel.getBoundingClientRect();
       const boardBounds = board.getBoundingClientRect();
