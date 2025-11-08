@@ -180,11 +180,12 @@ test.describe('Figurbibliotek opplastinger', () => {
     expect(patchPayload.categoryApps).toEqual(['bibliotek', 'sortering']);
   });
 
-  test('lar redaktører velge apper for nye kategorier', async ({ page }) => {
+  test('viser kun appvalg uten navnefelt når redaktører åpner skjemaet for ny kategori', async ({ page }) => {
     await page.getByRole('button', { name: 'Ny kategori' }).click();
 
     const addForm = page.locator('[data-add-category-form]');
     await expect(addForm).toBeVisible();
+    await expect(addForm.locator('[data-add-category-input]')).toHaveCount(0);
 
     const addAppsFieldset = addForm.locator('[data-category-apps="add"]');
     await expect(addAppsFieldset).toBeVisible();
@@ -197,28 +198,13 @@ test.describe('Figurbibliotek opplastinger', () => {
     await expect(sortingCheckbox).toBeChecked();
 
     await sortingCheckbox.uncheck();
+    await expect(sortingCheckbox).not.toBeChecked();
 
-    await addForm.locator('[data-add-category-input]').fill('Geometrikategori');
     await addForm.getByRole('button', { name: 'Legg til kategori' }).click();
 
-    const newCategoryTile = page
-      .locator('[data-category-grid] .categoryItem')
-      .filter({ has: page.locator('h3', { hasText: 'Geometrikategori' }) });
-    await expect(newCategoryTile).toHaveCount(1);
-
-    const storedCategories = await page.evaluate(() => {
-      try {
-        const raw = window.localStorage.getItem('mathvis:figureLibrary:customCategories:v1');
-        return raw ? JSON.parse(raw) : null;
-      } catch (error) {
-        return null;
-      }
-    });
-
-    const storedCategory = Array.isArray(storedCategories)
-      ? storedCategories.find((category) => category?.name === 'Geometrikategori')
-      : null;
-    expect(storedCategory?.apps).toEqual(['bibliotek', 'måling']);
+    // Uten navnefelt forventer vi at skjemaet forblir åpent og ingen kategori blir lagt til.
+    await expect(addForm).toBeVisible();
+    await expect(page.locator('[data-category-grid] .categoryItem')).not.toContainText('Geometrikategori');
 
     await page.getByRole('button', { name: 'Ny kategori' }).click();
 
