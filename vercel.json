@@ -4,6 +4,14 @@
     { "source": "/bildearkiv/(.*)", "destination": "/api/svg/raw?path=/$1" },
     { "source": "/svg/(.*)", "destination": "/api/svg/raw?path=/$1" },
     {
+      "source": "/figure-library/:slug(([^/.]+/)*[^/.]+)",
+      "destination": "/api/figure-library/raw?path=/:slug"
+    },
+    {
+      "source": "/figure-library/:slug(([^/.]+/)*[^/.]+)/",
+      "destination": "/api/figure-library/raw?path=/:slug/"
+    },
+    {
       "source": "/figure-library/(.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|json|zip|csv))",
       "destination": "/api/figure-library/raw?path=/$1"
     },
