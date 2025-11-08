@@ -75,6 +75,18 @@ test.describe('SVG API archive filtering', () => {
       summary: 'Skal filtreres bort pga. toolId',
       svg: TEST_SVG_MARKUP
     });
+    const customSlug = await setSvg('custom-draft.svg', {
+      title: 'Tilpasset bibliotek-ressurs',
+      tool: 'graftegner',
+      summary: 'Slug skal filtreres bort',
+      svg: TEST_SVG_MARKUP
+    });
+    const categorized = await setSvg('Archive/Categorized.svg', {
+      title: 'Bibliotek-metadata',
+      tool: 'graftegner',
+      summary: 'Har category/apps metadata og skal filtreres bort',
+      svg: TEST_SVG_MARKUP
+    });
 
     const memoryStore = global.__SVG_MEMORY_STORE__;
     const toolIdKey = `svg:${toolIdMatch.slug}`;
@@ -84,9 +96,22 @@ test.describe('SVG API archive filtering', () => {
       memoryStore.set(toolIdKey, storedToolIdEntry);
     }
 
+    if (memoryStore && typeof memoryStore.get === 'function' && typeof memoryStore.set === 'function') {
+      const categorizedKey = categorized ? `svg:${categorized.slug}` : null;
+      const storedCategorized = categorizedKey ? memoryStore.get(categorizedKey) : null;
+      if (storedCategorized) {
+        storedCategorized.categoryId = 'legacy';
+        storedCategorized.category = 'Tilpassede figurer';
+        storedCategorized.apps = ['figure-library'];
+        memoryStore.set(categorizedKey, storedCategorized);
+      }
+    }
+
     expect(regular).not.toBeNull();
     expect(library).not.toBeNull();
     expect(toolIdMatch).not.toBeNull();
+    expect(customSlug).not.toBeNull();
+    expect(categorized).not.toBeNull();
 
     const response = await invokeSvgApi();
 
@@ -100,8 +125,13 @@ test.describe('SVG API archive filtering', () => {
     expect(entrySlugs).toContain(regular.slug);
     expect(entrySlugs).not.toContain(library.slug);
     expect(entrySlugs).not.toContain(toolIdMatch.slug);
+    expect(entrySlugs).not.toContain(customSlug.slug);
+    expect(entrySlugs).not.toContain(categorized.slug);
     expect(entries.every(entry => entry.tool !== FIGURE_LIBRARY_UPLOAD_TOOL_ID)).toBe(true);
     expect(entries.every(entry => (entry.toolId || '').trim() !== FIGURE_LIBRARY_UPLOAD_TOOL_ID)).toBe(true);
+    expect(entries.every(entry => !Object.prototype.hasOwnProperty.call(entry, 'categoryId'))).toBe(true);
+    expect(entries.every(entry => !Object.prototype.hasOwnProperty.call(entry, 'category'))).toBe(true);
+    expect(entries.every(entry => !Object.prototype.hasOwnProperty.call(entry, 'apps'))).toBe(true);
   });
 
   test('does not expose library uploads via svg API slug lookup', async () => {

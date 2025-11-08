@@ -234,13 +234,29 @@ module.exports = async function handler(req, res) {
       }
       const filteredEntries = entries.filter(entry => {
         if (!entry) return false;
+
         const normalizedTool = typeof entry.tool === 'string' ? entry.tool.trim() : '';
         const normalizedToolId = typeof entry.toolId === 'string' ? entry.toolId.trim() : '';
-        if (!normalizedTool && !normalizedToolId) return true;
-        return (
-          normalizedTool !== FIGURE_LIBRARY_UPLOAD_TOOL_ID &&
-          normalizedToolId !== FIGURE_LIBRARY_UPLOAD_TOOL_ID
+
+        const slug = typeof entry.slug === 'string' ? entry.slug.trim().toLowerCase() : '';
+        const isCustomSlug = slug.startsWith('custom-');
+
+        const hasCategoryIdField = Object.prototype.hasOwnProperty.call(entry, 'categoryId');
+        const hasCategoryField = Object.prototype.hasOwnProperty.call(entry, 'category');
+        const hasAppsField = Object.prototype.hasOwnProperty.call(entry, 'apps');
+
+        const matchesLibraryTool = (
+          normalizedTool === FIGURE_LIBRARY_UPLOAD_TOOL_ID ||
+          normalizedToolId === FIGURE_LIBRARY_UPLOAD_TOOL_ID
         );
+
+        const hasLibraryMetadata = isCustomSlug || hasCategoryIdField || hasCategoryField || hasAppsField;
+
+        if (matchesLibraryTool || hasLibraryMetadata) {
+          return false;
+        }
+
+        return true;
       });
       const modeSource = filteredEntries.length ? filteredEntries : entries;
       const firstEntry = modeSource.length ? modeSource[0] : null;

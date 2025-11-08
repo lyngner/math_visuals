@@ -21,6 +21,7 @@ Denne siden dokumenterer hvordan `examples.js` samhandler med API-et på `/api/e
 * Figurbiblioteket bruker nå en egen lagring (`figureAsset:`-nøkler i KV/minne) og et dedikert rå-endepunkt på `/api/figure-library/raw`. Klienter genererer forhåndsvisninger via denne URL-en i stedet for `bildearkiv`.
 * Eksempelarkivet forholder seg kun til `/api/svg`. Figurbibliotekets metadata (`/api/figure-library`) og media (`/api/figure-library/raw`) påvirker ikke arkivsiden.
 * Skriptet `scripts/migrate-figure-library-assets.js` flytter historiske `bibliotek-upload`-oppføringer fra `/api/svg` til den nye lagringen og rydder dem bort fra arkivet. Kjør skriptet med `--dry-run` først for å se hvilke slugs som berøres.
+* Endepunktet `/api/svg` filtrerer bort figurbibliotek-resurser ved å se etter `tool`/`toolId` som matcher bibliotekopplasteren, `slug`-verdier som starter med `custom-`, samt metadatafeltene `categoryId`, `category` og `apps`. Disse kjennetegnene brukes av bibliotekklienten og sørger for at biblioteket ikke dukker opp i SVG-arkivet.
 
 ## Tilgjengelighet for eksempeltjenesten
 
