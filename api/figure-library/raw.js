@@ -32,8 +32,19 @@ function normalizeAssetFormat(value) {
   return null;
 }
 
+function decodeQueryValue(value) {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  try {
+    return decodeURIComponent(trimmed);
+  } catch (error) {
+    return trimmed;
+  }
+}
+
 function resolveAssetDescriptor(rawSlug, queryFormat) {
-  const normalized = normalizeSlug(rawSlug);
+  const normalized = normalizeSlug(decodeQueryValue(rawSlug));
   if (!normalized) return null;
   const match = normalized.match(/^(.*?)(?:\.(svg|png))?$/i);
   const base = match && match[1] ? match[1] : normalized;
