@@ -853,11 +853,13 @@ export function buildMeasurementFigureData(options = {}) {
       const existingAppList = remoteCategoryApps.has(targetCategoryId)
         ? remoteCategoryApps.get(targetCategoryId)
         : null;
-      const categoryAppsSource = existingAppList != null ? existingAppList : shaped.apps;
-      const categoryApps = Array.isArray(categoryAppsSource)
-        ? cloneAppList(categoryAppsSource)
-        : [];
-      if (existingAppList == null) {
+      const figureProvidesApps = Array.isArray(shaped.apps);
+      const categoryApps = figureProvidesApps
+        ? cloneAppList(shaped.apps)
+        : Array.isArray(existingAppList)
+          ? cloneAppList(existingAppList)
+          : [];
+      if (existingAppList == null && (figureProvidesApps || categoryApps.length)) {
         remoteCategoryApps.set(targetCategoryId, categoryApps.slice());
       }
       if (!isCategoryAllowed(categoryApps, allowedApps)) {
