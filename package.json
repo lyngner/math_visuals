@@ -33,16 +33,16 @@
     "@babel/plugin-transform-nullish-coalescing-operator": "^7.27.1",
     "@babel/plugin-transform-optional-chaining": "^7.27.1",
     "@playwright/test": "^1.42.0",
+    "http-server": "^14.1.1",
+    "pngjs": "^7.0.0"
+  },
+  "dependencies": {
     "@rollup/plugin-commonjs": "^25.0.8",
     "@rollup/plugin-node-resolve": "^15.2.3",
-    "http-server": "^14.1.1",
+    "@vercel/kv": "^3.0.0",
     "jsxgraph": "^1.12.0",
     "katex": "^0.16.23",
     "mathlive": "^0.107.1",
-    "pngjs": "^7.0.0",
     "rollup": "^4.17.2"
-  },
-  "dependencies": {
-    "@vercel/kv": "^3.0.0"
   }
 }
