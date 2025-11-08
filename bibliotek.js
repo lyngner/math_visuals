@@ -2506,9 +2506,11 @@ async function loadCustomEntries() {
   }
 
   let updatedFromServer = false;
+  let refreshAfterServerFetch = false;
 
   try {
     const result = await fetchFigureLibraryEntries();
+    refreshAfterServerFetch = true;
     const entries = Array.isArray(result.entries) ? result.entries : [];
     for (const entry of entries) {
       const normalized = upsertCustomEntryLocal(entry);
@@ -2529,10 +2531,14 @@ async function loadCustomEntries() {
     }
     if (updatedFromServer) {
       refreshLibrary({ maintainFilter: true });
+      refreshAfterServerFetch = false;
     }
   } catch (error) {
     console.error('Kunne ikke hente figurer fra API-et', error);
   } finally {
+    if (refreshAfterServerFetch) {
+      refreshLibrary({ maintainFilter: true });
+    }
     persistLocalEntriesIfNeeded();
     refreshStatusWithStorageWarning();
   }
