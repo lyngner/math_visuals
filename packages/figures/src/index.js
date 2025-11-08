@@ -683,11 +683,11 @@ function shapeRemoteMeasurementFigure(remoteFigure, options = {}) {
   let figureAppScopeProvided = false;
   let categoryApps;
   if (Array.isArray(remoteFigure.categoryApps)) {
-    figureAppScopeProvided = true;
     categoryApps = normalizeAppList(remoteFigure.categoryApps);
+    figureAppScopeProvided = categoryApps.length > 0;
   } else if (Array.isArray(remoteFigure.apps)) {
-    figureAppScopeProvided = true;
     categoryApps = normalizeAppList(remoteFigure.apps);
+    figureAppScopeProvided = categoryApps.length > 0;
   } else {
     categoryApps = [];
   }
