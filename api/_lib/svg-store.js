@@ -397,6 +397,20 @@ function ensureEntryShape(slug, payload, existing) {
     }
   };
 
+  const hasToolIdField = payload && Object.prototype.hasOwnProperty.call(payload, 'toolId');
+  const payloadToolId = hasToolIdField ? sanitizeOptionalText(payload.toolId) : undefined;
+  const existingToolId = existing && typeof existing.toolId === 'string' ? sanitizeOptionalText(existing.toolId) : undefined;
+
+  if (hasToolIdField) {
+    if (payloadToolId !== undefined) {
+      entry.toolId = payloadToolId;
+    } else {
+      delete entry.toolId;
+    }
+  } else if (existingToolId !== undefined) {
+    entry.toolId = existingToolId;
+  }
+
   const hasPngData = typeof pngDataUrl === 'string' && pngDataUrl.trim();
   if (hasPngData) {
     const pngFileOverrides = existing && existing.files && existing.files.png ? { ...existing.files.png } : {};

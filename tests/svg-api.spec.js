@@ -76,14 +76,6 @@ test.describe('SVG API archive filtering', () => {
       svg: TEST_SVG_MARKUP
     });
 
-    const memoryStore = global.__SVG_MEMORY_STORE__;
-    const toolIdKey = `svg:${toolIdMatch.slug}`;
-    const storedToolIdEntry = memoryStore && memoryStore.get ? memoryStore.get(toolIdKey) : null;
-    if (storedToolIdEntry) {
-      storedToolIdEntry.toolId = `  ${FIGURE_LIBRARY_UPLOAD_TOOL_ID}  `;
-      memoryStore.set(toolIdKey, storedToolIdEntry);
-    }
-
     expect(regular).not.toBeNull();
     expect(library).not.toBeNull();
     expect(toolIdMatch).not.toBeNull();
