@@ -68,9 +68,25 @@ test.describe('SVG API archive filtering', () => {
       summary: 'Skal ikke dukke opp i arkivet',
       svg: TEST_SVG_MARKUP
     });
+    const toolIdMatch = await setSvg('Archive/ToolIdMatch.svg', {
+      title: 'ToolId filtrering',
+      tool: 'graftegner',
+      toolId: `  ${FIGURE_LIBRARY_UPLOAD_TOOL_ID}  `,
+      summary: 'Skal filtreres bort pga. toolId',
+      svg: TEST_SVG_MARKUP
+    });
+
+    const memoryStore = global.__SVG_MEMORY_STORE__;
+    const toolIdKey = `svg:${toolIdMatch.slug}`;
+    const storedToolIdEntry = memoryStore && memoryStore.get ? memoryStore.get(toolIdKey) : null;
+    if (storedToolIdEntry) {
+      storedToolIdEntry.toolId = `  ${FIGURE_LIBRARY_UPLOAD_TOOL_ID}  `;
+      memoryStore.set(toolIdKey, storedToolIdEntry);
+    }
 
     expect(regular).not.toBeNull();
     expect(library).not.toBeNull();
+    expect(toolIdMatch).not.toBeNull();
 
     const response = await invokeSvgApi();
 
@@ -83,7 +99,9 @@ test.describe('SVG API archive filtering', () => {
 
     expect(entrySlugs).toContain(regular.slug);
     expect(entrySlugs).not.toContain(library.slug);
+    expect(entrySlugs).not.toContain(toolIdMatch.slug);
     expect(entries.every(entry => entry.tool !== FIGURE_LIBRARY_UPLOAD_TOOL_ID)).toBe(true);
+    expect(entries.every(entry => (entry.toolId || '').trim() !== FIGURE_LIBRARY_UPLOAD_TOOL_ID)).toBe(true);
   });
 
   test('does not expose library uploads via svg API slug lookup', async () => {
