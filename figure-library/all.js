@@ -7,7 +7,6 @@ import {
   extractRealWorldSize,
   createFigurePickerHelpers,
   buildMeasurementFigureData,
-  getMeasurementFiguresGroupedByCategory,
   loadFigureLibrary as loadMeasurementFigureLibrary,
   getFigureLibraryMetadata as getMeasurementFigureLibraryMetadata,
   createFigureLibrary as createMeasurementFigureLibrary
@@ -229,6 +228,20 @@ export function buildFigureData(options = {}) {
     byImage,
     metadata: measurementData.metadata
   };
+}
+
+function getMeasurementFiguresGroupedByCategory(options = {}) {
+  const data = buildMeasurementFigureData(normalizeOptions(options));
+  return data.categories.map(category => ({
+    id: category.id,
+    label: category.label,
+    figures: category.figures.map(figure => ({
+      id: figure.id,
+      name: figure.name,
+      summary: figure.summary,
+      image: figure.image
+    }))
+  }));
 }
 
 export function getFiguresGroupedByCategory(options = {}) {
