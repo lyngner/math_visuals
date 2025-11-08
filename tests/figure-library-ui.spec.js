@@ -188,6 +188,9 @@ test.describe('Figurbibliotek opplastinger', () => {
 
     const addAppsFieldset = addForm.locator('[data-category-apps="add"]');
     await expect(addAppsFieldset).toBeVisible();
+    const libraryCheckbox = addAppsFieldset.getByRole('checkbox', { name: 'Figurbibliotek' });
+    await expect(libraryCheckbox).toBeChecked();
+    await expect(libraryCheckbox).toBeDisabled();
     const measurementCheckbox = addAppsFieldset.getByRole('checkbox', { name: 'Måling' });
     const sortingCheckbox = addAppsFieldset.getByRole('checkbox', { name: 'Sortering' });
     await expect(measurementCheckbox).toBeChecked();
