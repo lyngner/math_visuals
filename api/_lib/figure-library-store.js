@@ -166,7 +166,8 @@ function resolveCategoryRequest(payload, existing) {
   const hasCategoryNameField = Object.prototype.hasOwnProperty.call(source, 'categoryName');
   const hasCategoryAppsField =
     (categoryObject && Object.prototype.hasOwnProperty.call(categoryObject, 'apps')) ||
-    Object.prototype.hasOwnProperty.call(source, 'categoryApps');
+    Object.prototype.hasOwnProperty.call(source, 'categoryApps') ||
+    Object.prototype.hasOwnProperty.call(source, 'apps');
 
   let candidateId = null;
   if (hasCategoryIdField) {
@@ -192,6 +193,8 @@ function resolveCategoryRequest(payload, existing) {
     candidateApps = sanitizeApps(categoryObject.apps);
   } else if (Object.prototype.hasOwnProperty.call(source, 'categoryApps')) {
     candidateApps = sanitizeApps(source.categoryApps);
+  } else if (Object.prototype.hasOwnProperty.call(source, 'apps')) {
+    candidateApps = sanitizeApps(source.apps);
   }
 
   const normalizedId = normalizeCategoryId(candidateId);
@@ -264,9 +267,12 @@ function ensureCategoryEntryShape(id, payload, existing) {
   const existingLabel = existing && typeof existing.label === 'string' ? existing.label : '';
   const label = sanitizeCategoryLabel(base.label || base.name || base.title || existingLabel || resolvedId);
   const description = sanitizeCategoryDescription(base.description);
-  const hasAppsField = Object.prototype.hasOwnProperty.call(base, 'apps');
+  const hasAppsField =
+    Object.prototype.hasOwnProperty.call(base, 'apps') || Object.prototype.hasOwnProperty.call(base, 'categoryApps');
   const existingApps = existing && Array.isArray(existing.apps) ? sanitizeApps(existing.apps) : [];
-  const apps = hasAppsField ? sanitizeApps(base.apps) : existingApps;
+  const apps = hasAppsField
+    ? sanitizeApps(Object.prototype.hasOwnProperty.call(base, 'apps') ? base.apps : base.categoryApps)
+    : existingApps;
   const figureSlugs = Array.isArray(base.figureSlugs) ? base.figureSlugs : existing && Array.isArray(existing.figureSlugs) ? existing.figureSlugs : [];
   const normalizedFigures = [];
   const seen = new Set();
@@ -479,7 +485,12 @@ async function getCategory(id) {
     }
   }
   if (!entry) return null;
-  return clone(entry);
+  const result = clone(entry);
+  if (!result || typeof result !== 'object') {
+    return result;
+  }
+  result.apps = sanitizeApps(result.apps);
+  return result;
 }
 
 async function listCategories() {
@@ -502,7 +513,9 @@ async function listCategories() {
       const shaped = ensureCategoryEntryShape(normalized, stored, stored);
       applyStorageMetadata(shaped, 'kv');
       writeCategoryToMemory(normalized, shaped);
-      categories.push(clone(shaped));
+      const result = clone(shaped);
+      result.apps = sanitizeApps(result.apps);
+      categories.push(result);
     }
     return categories;
   }
@@ -513,7 +526,9 @@ async function listCategories() {
     if (!stored) return;
     const shaped = ensureCategoryEntryShape(normalized, stored, stored);
     applyStorageMetadata(shaped, storeMode);
-    categories.push(clone(shaped));
+    const result = clone(shaped);
+    result.apps = sanitizeApps(result.apps);
+    categories.push(result);
   });
   return categories;
 }
