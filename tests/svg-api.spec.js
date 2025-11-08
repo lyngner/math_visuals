@@ -118,4 +118,110 @@ test.describe('SVG API archive filtering', () => {
 
     expect(response.statusCode).toBe(404);
   });
+
+  test('updates display title and filenames via PATCH', async () => {
+    const stored = await setSvg('Archive/RenameTarget.svg', {
+      title: 'Opprinnelig navn',
+      tool: 'graftegner',
+      summary: 'Navn skal oppdateres',
+      svg: TEST_SVG_MARKUP
+    });
+
+    expect(stored).not.toBeNull();
+
+    const response = await invokeSvgApi({
+      method: 'PATCH',
+      url: '/api/svg',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slug: stored.slug,
+        title: 'Nytt navn',
+        displayTitle: 'Nytt navn',
+        baseName: 'Nytt navn 2024!.svg'
+      })
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json).toBeTruthy();
+
+    const payload = response.json;
+    expect(payload.slug).toBe(stored.slug);
+    expect(payload.displayTitle).toBe('Nytt navn');
+    expect(payload.title).toBe('Nytt navn');
+    expect(payload.baseName).toBe('Nytt-navn-2024');
+    expect(payload.filename).toBe('Nytt-navn-2024.svg');
+    expect(payload.svgFilename).toBe('Nytt-navn-2024.svg');
+    if (payload.files && payload.files.svg) {
+      expect(payload.files.svg.filename).toBe('Nytt-navn-2024.svg');
+    }
+    if (payload.files && payload.files.png) {
+      expect(payload.files.png.filename).toBe('Nytt-navn-2024.png');
+    }
+    expect(payload.name).toBe('Nytt navn');
+  });
+
+  test('rejects invalid baseName updates', async () => {
+    const stored = await setSvg('Archive/InvalidRename.svg', {
+      title: 'Gyldig navn',
+      tool: 'graftegner',
+      summary: 'Forsøk på ugyldig navn',
+      svg: TEST_SVG_MARKUP
+    });
+
+    expect(stored).not.toBeNull();
+
+    const response = await invokeSvgApi({
+      method: 'PATCH',
+      url: '/api/svg',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slug: stored.slug,
+        displayTitle: 'Oppdatert navn',
+        baseName: '!!!'
+      })
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json).toBeTruthy();
+    expect(response.json.error).toMatch(/baseName/);
+  });
+
+  test('rejects non-string title or displayTitle updates', async () => {
+    const stored = await setSvg('Archive/InvalidTitle.svg', {
+      title: 'Gyldig navn',
+      tool: 'graftegner',
+      summary: 'Forsøk på ugyldig felttype',
+      svg: TEST_SVG_MARKUP
+    });
+
+    expect(stored).not.toBeNull();
+
+    const invalidTitleResponse = await invokeSvgApi({
+      method: 'PATCH',
+      url: '/api/svg',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slug: stored.slug,
+        title: 12345
+      })
+    });
+
+    expect(invalidTitleResponse.statusCode).toBe(400);
+    expect(invalidTitleResponse.json).toBeTruthy();
+    expect(invalidTitleResponse.json.error).toMatch(/Title must be a string value/i);
+
+    const invalidDisplayResponse = await invokeSvgApi({
+      method: 'PATCH',
+      url: '/api/svg',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slug: stored.slug,
+        displayTitle: { label: 'nope' }
+      })
+    });
+
+    expect(invalidDisplayResponse.statusCode).toBe(400);
+    expect(invalidDisplayResponse.json).toBeTruthy();
+    expect(invalidDisplayResponse.json.error).toMatch(/displayTitle must be a string value/i);
+  });
 });

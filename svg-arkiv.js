@@ -11,13 +11,19 @@
   const trashStatus = document.querySelector('[data-trash-status]');
   const trashList = document.querySelector('[data-trash-list]');
   const trashEmpty = document.querySelector('[data-trash-empty]');
+  const selectionBar = document.querySelector('[data-selection-bar]');
+  const selectAllToggle = document.querySelector('[data-select-all]');
+  const selectionCountElement = document.querySelector('[data-selection-count]');
+  const renameSelectedButton = document.querySelector('[data-selection-rename]');
 
   if (!grid || !statusElement) {
     return;
   }
 
   let allEntries = [];
+  let visibleEntries = [];
   let archiveDialog = null;
+  let renameDialog = null;
   let trashRestoreFocusTo = null;
   const defaultTrashToggleLabel = (trashToggle?.dataset.labelDefault || trashToggle?.textContent || '').trim() || 'Vis slettede figurer';
   const activeTrashToggleLabel = (trashToggle?.dataset.labelActive || '').trim() || 'Skjul slettede figurer';
@@ -58,6 +64,8 @@
   const entryDetailsCache = new Map();
   const entryDetailsPending = new Map();
   const entryAltTextCache = new Map();
+  const selectedSlugs = new Set();
+  let cardIdCounter = 0;
 
   function getGlobalTrashQueue() {
     const globalObject = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
@@ -2042,6 +2050,17 @@
     return normalized;
   }
 
+  function sanitizeBaseName(value) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return '';
+    }
+    return trimmed.replace(/\.[^/.]+$/g, '').replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '');
+  }
+
   function createArchiveDialog(options = {}) {
     const dialog = document.querySelector('dialog[data-archive-viewer]') || (() => {
       const dialogElement = document.createElement('dialog');
@@ -2834,57 +2853,655 @@
     };
   }
 
+  function createRenameDialog() {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'svg-archive__dialog svg-archive__dialog--rename';
+    dialog.dataset.renameDialog = 'true';
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-labelledby', 'svg-archive-rename-title');
+
+    const surface = document.createElement('div');
+    surface.className = 'svg-archive__dialog-surface';
+
+    const header = document.createElement('header');
+    header.className = 'svg-archive__dialog-header';
+
+    const title = document.createElement('h2');
+    title.id = 'svg-archive-rename-title';
+    title.className = 'svg-archive__dialog-title';
+    title.textContent = 'Gi nytt navn';
+    header.appendChild(title);
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'svg-archive__dialog-close';
+    closeButton.setAttribute('aria-label', 'Lukk omdøpingsvindu');
+    closeButton.innerHTML = '&times;';
+    header.appendChild(closeButton);
+
+    const form = document.createElement('form');
+    form.className = 'svg-archive__dialog-body svg-archive__rename-body';
+    form.noValidate = true;
+
+    const messageElement = document.createElement('p');
+    messageElement.className = 'svg-archive__rename-message';
+    messageElement.hidden = true;
+    form.appendChild(messageElement);
+
+    const listElement = document.createElement('ul');
+    listElement.className = 'svg-archive__rename-list';
+    form.appendChild(listElement);
+
+    const actionsElement = document.createElement('div');
+    actionsElement.className = 'svg-archive__rename-actions';
+
+    const cancelButton = document.createElement('button');
+    cancelButton.type = 'button';
+    cancelButton.className = 'svg-archive__dialog-action svg-archive__dialog-action--secondary';
+    cancelButton.textContent = 'Avbryt';
+    actionsElement.appendChild(cancelButton);
+
+    const submitButton = document.createElement('button');
+    submitButton.type = 'submit';
+    submitButton.className = 'svg-archive__dialog-action';
+    submitButton.textContent = 'Lagre endringer';
+    submitButton.disabled = true;
+    actionsElement.appendChild(submitButton);
+
+    form.appendChild(actionsElement);
+
+    surface.appendChild(header);
+    surface.appendChild(form);
+    dialog.appendChild(surface);
+    document.body.appendChild(dialog);
+
+    let activeEntries = [];
+    let restoreFocusTo = null;
+    let fieldCounter = 0;
+    const renameState = new Map();
+
+    function showMessage(text, state = 'info') {
+      if (!messageElement) {
+        return;
+      }
+      if (text) {
+        messageElement.textContent = text;
+        messageElement.dataset.state = state;
+        messageElement.hidden = false;
+      } else {
+        messageElement.textContent = '';
+        messageElement.dataset.state = '';
+        messageElement.hidden = true;
+      }
+    }
+
+    function updateSubmitState() {
+      if (!submitButton) {
+        return;
+      }
+      const inputs = Array.from(listElement.querySelectorAll('.svg-archive__rename-input'));
+      if (!inputs.length) {
+        submitButton.disabled = true;
+        return;
+      }
+      let hasChange = false;
+      for (const input of inputs) {
+        const trimmed = input.value.trim();
+        if (!trimmed) {
+          submitButton.disabled = true;
+          return;
+        }
+        const slug = normalizeSlugValue(input.dataset.renameInput);
+        const state = renameState.get(slug) || { label: '', baseName: '' };
+        const sanitized = sanitizeBaseName(trimmed);
+        if (trimmed !== state.label || (sanitized && sanitized !== state.baseName)) {
+          hasChange = true;
+        }
+      }
+      submitButton.disabled = !hasChange;
+    }
+
+    function setBusy(busy) {
+      dialog.dataset.state = busy ? 'busy' : 'idle';
+      const inputs = listElement.querySelectorAll('.svg-archive__rename-input');
+      inputs.forEach(input => {
+        input.disabled = busy;
+      });
+      cancelButton.disabled = busy;
+      if (busy) {
+        submitButton.disabled = true;
+      } else {
+        updateSubmitState();
+      }
+    }
+
+    function closeDialog(options = {}) {
+      const { returnFocus = true } = options;
+      if (dialog.open) {
+        dialog.close();
+      }
+      dialog.removeEventListener('keydown', trapFocus, true);
+      dialog.removeEventListener('cancel', handleCancel, true);
+      dialog.removeEventListener('click', handleBackdropClick);
+      if (returnFocus && restoreFocusTo && typeof restoreFocusTo.focus === 'function') {
+        restoreFocusTo.focus();
+      }
+      restoreFocusTo = null;
+      activeEntries = [];
+      renameState.clear();
+      listElement.innerHTML = '';
+      showMessage('', 'info');
+      dialog.dataset.state = 'idle';
+    }
+
+    function trapFocus(event) {
+      if (event.key !== 'Tab') {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          closeDialog();
+        }
+        return;
+      }
+
+      const focusable = getFocusableElements(dialog);
+      if (!focusable.length) {
+        event.preventDefault();
+        closeDialog();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    function handleCancel(event) {
+      event.preventDefault();
+      closeDialog();
+    }
+
+    function handleBackdropClick(event) {
+      if (event.target === dialog) {
+        closeDialog();
+      }
+    }
+
+    function populate(entries) {
+      fieldCounter = 0;
+      renameState.clear();
+      listElement.innerHTML = '';
+      activeEntries = Array.isArray(entries) ? entries.filter(entry => entry && entry.slug) : [];
+      const fragment = document.createDocumentFragment();
+      for (const entry of activeEntries) {
+        const slug = normalizeSlugValue(entry.slug);
+        if (!slug) {
+          continue;
+        }
+        const displayLabel = extractEntryName(entry) || entry.baseName || slug;
+        const initialBaseName = typeof entry.baseName === 'string' && entry.baseName.trim()
+          ? entry.baseName.trim()
+          : sanitizeBaseName(slug) || sanitizeBaseName(displayLabel);
+        renameState.set(slug, {
+          slug,
+          label: displayLabel,
+          baseName: initialBaseName || ''
+        });
+
+        const item = document.createElement('li');
+        item.className = 'svg-archive__rename-item';
+
+        const inputId = `svg-archive-rename-${++fieldCounter}`;
+
+        const label = document.createElement('label');
+        label.className = 'svg-archive__rename-label';
+        label.setAttribute('for', inputId);
+        label.textContent = displayLabel;
+        item.appendChild(label);
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'svg-archive__rename-input';
+        input.id = inputId;
+        input.value = displayLabel;
+        input.dataset.renameInput = slug;
+        input.addEventListener('input', () => {
+          showMessage('', 'info');
+          updateSubmitState();
+        });
+        item.appendChild(input);
+
+        const hint = document.createElement('span');
+        hint.className = 'svg-archive__rename-hint';
+        hint.textContent = slug;
+        item.appendChild(hint);
+
+        fragment.appendChild(item);
+      }
+      listElement.appendChild(fragment);
+      showMessage('', 'info');
+      updateSubmitState();
+    }
+
+    async function handleSubmit(event) {
+      event.preventDefault();
+      if (!dialog.open) {
+        return;
+      }
+      const inputs = Array.from(listElement.querySelectorAll('.svg-archive__rename-input'));
+      if (!inputs.length) {
+        closeDialog({ returnFocus: true });
+        return;
+      }
+
+      const renameRequests = [];
+      for (const input of inputs) {
+        const slug = normalizeSlugValue(input.dataset.renameInput);
+        if (!slug) {
+          continue;
+        }
+        const state = renameState.get(slug) || { label: '', baseName: '' };
+        const trimmed = input.value.trim();
+        if (!trimmed) {
+          showMessage('Navnet kan ikke være tomt.', 'error');
+          input.focus();
+          return;
+        }
+        const sanitized = sanitizeBaseName(trimmed);
+        if (!sanitized) {
+          showMessage('Navnet må inneholde bokstaver eller tall.', 'error');
+          input.focus();
+          return;
+        }
+        const changedName = trimmed !== state.label;
+        const changedBase = sanitized !== state.baseName;
+        if (!changedName && !changedBase) {
+          continue;
+        }
+        renameRequests.push({ slug, name: trimmed, baseName: sanitized, state });
+      }
+
+      if (!renameRequests.length) {
+        closeDialog({ returnFocus: true });
+        return;
+      }
+
+      setBusy(true);
+      showMessage(`Lagrer ${renameRequests.length} ${renameRequests.length === 1 ? 'figur' : 'figurer'} …`, 'pending');
+
+      try {
+        for (const request of renameRequests) {
+          const payload = {
+            slug: request.slug,
+            displayTitle: request.name,
+            title: request.name,
+            baseName: request.baseName
+          };
+          let response;
+          try {
+            response = await fetch('/api/svg', {
+              method: 'PATCH',
+              headers: {
+                'content-type': 'application/json',
+                Accept: 'application/json'
+              },
+              body: JSON.stringify(payload)
+            });
+          } catch (error) {
+            throw Object.assign(new Error('Kunne ikke kontakte lagringstjenesten. Prøv igjen senere.'), { cause: error });
+          }
+
+          let responseBody = null;
+          try {
+            responseBody = await response.json();
+          } catch (error) {
+            responseBody = null;
+          }
+
+          if (!response.ok) {
+            const message = responseBody && typeof responseBody.error === 'string' && responseBody.error.trim()
+              ? responseBody.error.trim()
+              : `Kunne ikke lagre navnet for «${request.name}».`;
+            throw new Error(message);
+          }
+
+          if (responseBody) {
+            const normalized = normalizeArchiveEntries([responseBody])[0] || null;
+            if (normalized) {
+              allEntries = allEntries.map(entry => (entry.slug === normalized.slug ? { ...entry, ...normalized } : entry));
+            } else {
+              allEntries = allEntries.map(entry => {
+                if (entry.slug !== request.slug) {
+                  return entry;
+                }
+                return {
+                  ...entry,
+                  displayTitle: request.name,
+                  title: request.name,
+                  baseName: responseBody.baseName || request.baseName
+                };
+              });
+            }
+            const cachedDetails = entryDetailsCache.get(request.slug);
+            if (cachedDetails && typeof cachedDetails === 'object') {
+              cachedDetails.title = responseBody.title || request.name;
+              cachedDetails.displayTitle = responseBody.displayTitle || request.name;
+              if (responseBody.baseName) {
+                cachedDetails.baseName = responseBody.baseName;
+              }
+              entryDetailsCache.set(request.slug, cachedDetails);
+            }
+            renameState.set(request.slug, {
+              slug: request.slug,
+              label: responseBody.displayTitle || request.name,
+              baseName: responseBody.baseName || request.baseName
+            });
+          }
+        }
+
+        setBusy(false);
+        closeDialog({ returnFocus: true });
+        render();
+        const successMessage = renameRequests.length === 1
+          ? 'Figurnavnet er oppdatert.'
+          : `Oppdaterte ${renameRequests.length} figurnavn.`;
+        setStatus(successMessage, 'success');
+      } catch (error) {
+        console.error('Kunne ikke lagre nye figurnavn.', error);
+        setBusy(false);
+        showMessage(error.message || 'Kunne ikke lagre nye figurnavn. Prøv igjen senere.', 'error');
+        updateSubmitState();
+      }
+    }
+
+    closeButton.addEventListener('click', () => {
+      closeDialog();
+    });
+    cancelButton.addEventListener('click', () => {
+      closeDialog();
+    });
+    form.addEventListener('submit', handleSubmit);
+
+    return {
+      open(entries, { trigger = null } = {}) {
+        if (!Array.isArray(entries) || !entries.length) {
+          return;
+        }
+        restoreFocusTo = trigger || document.activeElement;
+        populate(entries);
+        dialog.showModal();
+        dialog.addEventListener('keydown', trapFocus, true);
+        dialog.addEventListener('cancel', handleCancel, true);
+        dialog.addEventListener('click', handleBackdropClick);
+        requestAnimationFrame(() => {
+          const firstInput = listElement.querySelector('.svg-archive__rename-input');
+          if (firstInput) {
+            firstInput.focus();
+            firstInput.select();
+          }
+        });
+      },
+      close: closeDialog,
+      isOpen: () => dialog.open
+    };
+  }
+
   archiveDialog = createArchiveDialog({
     onAction: performEntryAction
   });
 
+  renameDialog = createRenameDialog();
+
   function createCard(entry) {
-    const slugValue = entry.slug || entry.svgSlug || entry.baseName || '';
+    const rawSlug = entry.slug || entry.svgSlug || entry.baseName || '';
+    const slugValue = typeof rawSlug === 'string' ? rawSlug.trim() : '';
+    const displayLabel = extractEntryName(entry) || entry.baseName || slugValue || 'Uten tittel';
+    const isSelected = slugValue ? selectedSlugs.has(slugValue) : false;
 
     const item = document.createElement('li');
     item.className = 'svg-archive__item';
     item.dataset.svgItem = slugValue;
+    if (isSelected) {
+      item.classList.add('svg-archive__item--selected');
+    }
 
     const card = document.createElement('article');
     card.className = 'svg-archive__card';
+    if (isSelected) {
+      card.classList.add('svg-archive__card--selected');
+    }
     card.dataset.slug = slugValue;
     card.dataset.svgUrl = normalizeAssetUrl(entry.svgUrl, 'svg') || entry.svgUrl || '';
     card.dataset.pngUrl = normalizeAssetUrl(entry.pngUrl, 'png') || entry.pngUrl || '';
+
+    const toolbar = document.createElement('div');
+    toolbar.className = 'svg-archive__card-toolbar';
+
+    const checkboxId = `svg-archive-select-${++cardIdCounter}`;
+    const selectionLabel = document.createElement('label');
+    selectionLabel.className = 'svg-archive__checkbox-label svg-archive__card-select';
+    selectionLabel.setAttribute('for', checkboxId);
+    selectionLabel.title = `Velg ${displayLabel}`;
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'svg-archive__checkbox-input svg-archive__card-checkbox';
+    checkbox.id = checkboxId;
+    checkbox.dataset.selectEntry = slugValue;
+    checkbox.checked = isSelected;
+    checkbox.setAttribute('aria-label', `Velg ${displayLabel}`);
+    selectionLabel.appendChild(checkbox);
+
+    const checkboxVisual = document.createElement('span');
+    checkboxVisual.className = 'svg-archive__checkbox-visual';
+    checkboxVisual.setAttribute('aria-hidden', 'true');
+    selectionLabel.appendChild(checkboxVisual);
 
     const menuTrigger = document.createElement('button');
     menuTrigger.type = 'button';
     menuTrigger.className = 'svg-archive__menu-trigger';
     menuTrigger.setAttribute('aria-haspopup', 'dialog');
-    menuTrigger.setAttribute('aria-label', `Åpne meny for ${entry.displayTitle}`);
+    menuTrigger.setAttribute('aria-label', `Åpne meny for ${displayLabel}`);
     menuTrigger.dataset.slug = slugValue;
     menuTrigger.dataset.svgUrl = card.dataset.svgUrl;
     menuTrigger.dataset.pngUrl = card.dataset.pngUrl;
+
+    toolbar.appendChild(selectionLabel);
+    toolbar.appendChild(menuTrigger);
 
     const preview = document.createElement('button');
     preview.type = 'button';
     preview.className = 'svg-archive__preview';
     preview.dataset.previewTrigger = 'true';
     preview.setAttribute('aria-haspopup', 'dialog');
-    preview.setAttribute('aria-label', `Vis detaljer for ${entry.displayTitle}`);
+    preview.setAttribute('aria-label', `Vis detaljer for ${displayLabel}`);
 
     const img = document.createElement('img');
     img.src = normalizeAssetUrl(entry.thumbnailUrl, 'png') || entry.thumbnailUrl || '';
-    img.alt = entry.altText || `Forhåndsvisning av ${entry.displayTitle}`;
+    img.alt = entry.altText || `Forhåndsvisning av ${displayLabel}`;
     img.loading = 'lazy';
     img.decoding = 'async';
 
     preview.appendChild(img);
 
-    const toolbar = document.createElement('div');
-    toolbar.className = 'svg-archive__card-toolbar';
-    toolbar.appendChild(menuTrigger);
+    const nameElement = document.createElement('p');
+    nameElement.className = 'svg-archive__card-name';
+    nameElement.textContent = displayLabel;
 
     card.appendChild(toolbar);
     card.appendChild(preview);
+    card.appendChild(nameElement);
 
     item.appendChild(card);
 
     return item;
+  }
+
+  function normalizeSlugValue(value) {
+    return typeof value === 'string' ? value.trim() : '';
+  }
+
+  function getVisibleSlugs() {
+    return visibleEntries
+      .map(entry => (entry && typeof entry.slug === 'string' ? entry.slug : ''))
+      .map(normalizeSlugValue)
+      .filter(Boolean);
+  }
+
+  function pruneSelection() {
+    if (!selectedSlugs.size) {
+      return false;
+    }
+    const validSlugs = new Set(
+      allEntries
+        .map(entry => (entry && typeof entry.slug === 'string' ? entry.slug : ''))
+        .map(normalizeSlugValue)
+        .filter(Boolean)
+    );
+    let changed = false;
+    for (const slug of Array.from(selectedSlugs)) {
+      if (!validSlugs.has(slug)) {
+        selectedSlugs.delete(slug);
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  function findCardContainer(slug) {
+    if (!grid) {
+      return null;
+    }
+    const normalized = normalizeSlugValue(slug);
+    if (!normalized) {
+      return null;
+    }
+    const escaped = escapeSelectorValue(normalized);
+    if (!escaped) {
+      return null;
+    }
+    return grid.querySelector(`[data-svg-item="${escaped}"]`);
+  }
+
+  function applySelectionStateToCard(slug, isSelected) {
+    const container = findCardContainer(slug);
+    if (!container) {
+      return;
+    }
+    container.classList.toggle('svg-archive__item--selected', Boolean(isSelected));
+    const card = container.querySelector('.svg-archive__card');
+    if (card) {
+      card.classList.toggle('svg-archive__card--selected', Boolean(isSelected));
+    }
+    const checkbox = container.querySelector('.svg-archive__card-checkbox');
+    if (checkbox) {
+      checkbox.checked = Boolean(isSelected);
+    }
+  }
+
+  function buildSelectionLabel(totalCount, visibleSelectedCount, visibleCount) {
+    const noun = totalCount === 1 ? 'figur' : 'figurer';
+    let label = `${totalCount} ${noun} valgt`;
+    if (visibleCount > 0 && visibleSelectedCount !== totalCount) {
+      const suffix = visibleSelectedCount === 1 ? 'synlig' : 'synlige';
+      label += ` (${visibleSelectedCount} ${suffix})`;
+    }
+    return label;
+  }
+
+  function updateSelectionSummary() {
+    const totalSelected = selectedSlugs.size;
+    const visibleSlugs = getVisibleSlugs();
+    const visibleCount = visibleSlugs.length;
+    const visibleSelectedCount = visibleSlugs.reduce(
+      (count, slug) => (selectedSlugs.has(slug) ? count + 1 : count),
+      0
+    );
+
+    if (selectionBar) {
+      selectionBar.classList.toggle('svg-archive__actions--active', totalSelected > 0);
+    }
+
+    if (selectionCountElement) {
+      if (totalSelected > 0) {
+        selectionCountElement.textContent = buildSelectionLabel(totalSelected, visibleSelectedCount, visibleCount);
+        selectionCountElement.hidden = false;
+      } else {
+        selectionCountElement.textContent = '';
+        selectionCountElement.hidden = true;
+      }
+    }
+
+    if (renameSelectedButton) {
+      renameSelectedButton.disabled = totalSelected === 0;
+    }
+
+    if (selectAllToggle) {
+      if (!visibleCount) {
+        selectAllToggle.checked = false;
+        selectAllToggle.indeterminate = false;
+        selectAllToggle.disabled = true;
+      } else {
+        const allVisibleSelected = visibleSelectedCount === visibleCount;
+        selectAllToggle.disabled = false;
+        selectAllToggle.checked = allVisibleSelected;
+        selectAllToggle.indeterminate = visibleSelectedCount > 0 && !allVisibleSelected;
+      }
+    }
+  }
+
+  function setSelectionForSlug(slug, shouldSelect) {
+    const normalized = normalizeSlugValue(slug);
+    if (!normalized) {
+      return false;
+    }
+    const currentlySelected = selectedSlugs.has(normalized);
+    if (shouldSelect) {
+      if (!currentlySelected) {
+        selectedSlugs.add(normalized);
+        applySelectionStateToCard(normalized, true);
+        updateSelectionSummary();
+      }
+      return true;
+    }
+    if (currentlySelected) {
+      selectedSlugs.delete(normalized);
+      applySelectionStateToCard(normalized, false);
+      updateSelectionSummary();
+    }
+    return false;
+  }
+
+  function toggleSelectionForSlug(slug) {
+    const normalized = normalizeSlugValue(slug);
+    if (!normalized) {
+      return;
+    }
+    const shouldSelect = !selectedSlugs.has(normalized);
+    setSelectionForSlug(normalized, shouldSelect);
+  }
+
+  function getSelectedEntriesOrdered() {
+    if (!selectedSlugs.size) {
+      return [];
+    }
+    const visibleOrdered = getVisibleSlugs().filter(slug => selectedSlugs.has(slug));
+    const orderedSlugs = Array.from(selectedSlugs).reduce((list, slug) => {
+      if (!visibleOrdered.includes(slug)) {
+        list.push(slug);
+      }
+      return list;
+    }, [...visibleOrdered]);
+    const entriesBySlug = new Map(allEntries.map(entry => [entry.slug, entry]));
+    return orderedSlugs.map(slug => entriesBySlug.get(slug)).filter(Boolean);
   }
 
   function sortEntries(entries, sortValue) {
@@ -2914,6 +3531,7 @@
   }
 
   function render({ announceSort = false } = {}) {
+    pruneSelection();
     const selectedTool = filterSelect && filterSelect.value !== 'all' ? filterSelect.value : null;
     const filteredEntries = selectedTool
       ? allEntries.filter(entry => entry.tool === selectedTool)
@@ -2923,17 +3541,22 @@
       archiveDialog.close({ returnFocus: false });
     }
     grid.innerHTML = '';
+    cardIdCounter = 0;
 
     if (!filteredEntries.length) {
       const message = allEntries.length
         ? 'Ingen SVG-er matcher valgt filter.'
         : 'Ingen SVG-er funnet ennå.';
       setStatus(message);
+      visibleEntries = [];
+      updateSelectionSummary();
       return;
     }
 
     const sortValue = sortSelect ? sortSelect.value : 'newest';
     const sortedEntries = sortEntries(filteredEntries, sortValue);
+
+    visibleEntries = sortedEntries.slice();
 
     if (announceSort && sortSelect) {
       const selectedOption = sortSelect.options && sortSelect.selectedIndex >= 0
@@ -2954,6 +3577,8 @@
       fragment.appendChild(createCard(entry));
     }
     grid.appendChild(fragment);
+
+    updateSelectionSummary();
   }
 
   function updateFilterOptions() {
@@ -3548,6 +4173,7 @@
       ensureAltTextRecord(entry.slug, entry, cachedDetails);
     });
 
+    pruneSelection();
     updateFilterOptions();
     applyStorageNote(metadata);
     render();
@@ -3580,6 +4206,11 @@
       } else {
         setStatus('Klarte ikke å hente arkivet akkurat nå. Prøv igjen senere.', 'error');
         grid.innerHTML = '';
+        visibleEntries = [];
+        if (selectedSlugs.size) {
+          selectedSlugs.clear();
+        }
+        updateSelectionSummary();
         if (storageNote) {
           storageNote.hidden = true;
           storageNote.textContent = '';
@@ -3599,6 +4230,47 @@
   if (sortSelect) {
     sortSelect.addEventListener('change', () => {
       render({ announceSort: true });
+    });
+  }
+
+  if (renameSelectedButton && renameDialog) {
+    renameSelectedButton.addEventListener('click', event => {
+      event.preventDefault();
+      const entries = getSelectedEntriesOrdered();
+      if (!entries.length) {
+        return;
+      }
+      renameDialog.open(entries, { trigger: renameSelectedButton });
+    });
+  }
+
+  if (selectAllToggle) {
+    selectAllToggle.addEventListener('change', () => {
+      const slugs = getVisibleSlugs();
+      if (!slugs.length) {
+        selectAllToggle.checked = false;
+        selectAllToggle.indeterminate = false;
+        return;
+      }
+      const shouldSelectAll = Boolean(selectAllToggle.checked);
+      if (shouldSelectAll) {
+        for (const slug of slugs) {
+          const normalized = normalizeSlugValue(slug);
+          if (normalized && !selectedSlugs.has(normalized)) {
+            selectedSlugs.add(normalized);
+            applySelectionStateToCard(normalized, true);
+          }
+        }
+      } else {
+        for (const slug of slugs) {
+          const normalized = normalizeSlugValue(slug);
+          if (normalized && selectedSlugs.delete(normalized)) {
+            applySelectionStateToCard(normalized, false);
+          }
+        }
+      }
+      selectAllToggle.indeterminate = false;
+      updateSelectionSummary();
     });
   }
 
@@ -3840,6 +4512,9 @@
             throw new Error(`Uventet svar: ${response.status}`);
           }
 
+          if (entry.slug) {
+            selectedSlugs.delete(entry.slug);
+          }
           allEntries = allEntries.filter(item => item.slug !== entry.slug);
           entryDetailsCache.delete(entry.slug);
           entryAltTextCache.delete(entry.slug);
@@ -3879,6 +4554,16 @@
       return;
     }
 
+    const checkbox = event.target.closest('input[type="checkbox"][data-select-entry]');
+    if (checkbox && grid.contains(checkbox)) {
+      return;
+    }
+
+    const selectionToggle = event.target.closest('.svg-archive__card-select');
+    if (selectionToggle && grid.contains(selectionToggle)) {
+      return;
+    }
+
     const previewTrigger = event.target.closest('[data-preview-trigger="true"]');
     if (previewTrigger && grid.contains(previewTrigger)) {
       event.preventDefault();
@@ -3890,6 +4575,25 @@
     if (menuTrigger && grid.contains(menuTrigger)) {
       event.preventDefault();
       openEntryForTrigger(menuTrigger, { focusActions: true });
+      return;
+    }
+
+    const card = event.target.closest('.svg-archive__card');
+    if (card && grid.contains(card)) {
+      event.preventDefault();
+      const slug = card.dataset.slug;
+      toggleSelectionForSlug(slug);
+    }
+  });
+
+  grid.addEventListener('change', event => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+    if (target.matches('input[type="checkbox"][data-select-entry]')) {
+      const slug = target.dataset.selectEntry;
+      setSelectionForSlug(slug, target.checked);
     }
   });
 })();

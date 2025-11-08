@@ -1,6 +1,7 @@
 'use strict';
 
 const { URL } = require('url');
+const svgStore = require('../_lib/svg-store');
 const {
   normalizeSlug,
   getSvg,
@@ -11,10 +12,23 @@ const {
   KvOperationError,
   KvConfigurationError,
   getStoreMode
-} = require('../_lib/svg-store');
+} = svgStore;
+const { sanitizeFileBaseName: exportedSanitizeFileBaseName } = svgStore.__helpers || {};
 const { FIGURE_LIBRARY_UPLOAD_TOOL_ID } = require('../_lib/figure-library-store');
 
 const MEMORY_LIMITATION_NOTE = 'Denne instansen bruker midlertidig minnelagring. SVG-er tilbakestilles når serveren starter på nytt.';
+
+function sanitizeBaseName(value) {
+  const sanitizer = typeof exportedSanitizeFileBaseName === 'function'
+    ? exportedSanitizeFileBaseName
+    : (input => {
+        if (typeof input !== 'string') return '';
+        const trimmed = input.trim();
+        if (!trimmed) return '';
+        return trimmed.replace(/\.[^/.]+$/g, '').replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '');
+      });
+  return sanitizer(value);
+}
 
 function normalizeStoreMode(value) {
   if (typeof value !== 'string') return null;
@@ -294,11 +308,46 @@ module.exports = async function handler(req, res) {
       if (body && Object.prototype.hasOwnProperty.call(body, 'altTextSource')) {
         updates.altTextSource = body.altTextSource;
       }
+      if (body && Object.prototype.hasOwnProperty.call(body, 'title')) {
+        if (body.title != null && typeof body.title !== 'string') {
+          sendJson(res, 400, { error: 'Title must be a string value.' });
+          return;
+        }
+        updates.title = typeof body.title === 'string' ? body.title : '';
+      }
+      if (body && Object.prototype.hasOwnProperty.call(body, 'displayTitle')) {
+        if (body.displayTitle != null && typeof body.displayTitle !== 'string') {
+          sendJson(res, 400, { error: 'displayTitle must be a string value.' });
+          return;
+        }
+        updates.displayTitle = typeof body.displayTitle === 'string' ? body.displayTitle : '';
+      }
+      if (body && Object.prototype.hasOwnProperty.call(body, 'baseName')) {
+        if (body.baseName != null && typeof body.baseName !== 'string') {
+          sendJson(res, 400, { error: 'baseName must be a string value.' });
+          return;
+        }
+        const sanitizedBaseName = sanitizeBaseName(body.baseName || '');
+        if (!sanitizedBaseName) {
+          sendJson(res, 400, { error: 'baseName må inneholde bokstaver eller tall.' });
+          return;
+        }
+        updates.baseName = sanitizedBaseName;
+      }
       if (!Object.keys(updates).length) {
         sendJson(res, 400, { error: 'No updatable fields provided' });
         return;
       }
-      const updated = await updateSvgMetadata(slugFromBody, updates);
+      let updated;
+      try {
+        updated = await updateSvgMetadata(slugFromBody, updates);
+      } catch (error) {
+        if (error && error.code === 'INVALID_BASE_NAME') {
+          sendJson(res, 400, { error: 'baseName må inneholde bokstaver eller tall.' });
+          return;
+        }
+        throw error;
+      }
       if (!updated) {
         const metadata = applyModeHeaders(res, currentMode);
         sendJson(res, 404, { error: 'Not Found', ...metadata });

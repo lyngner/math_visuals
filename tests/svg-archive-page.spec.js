@@ -4,6 +4,17 @@ test.describe.configure({ mode: 'skip' }); // Temporarily disable due to persist
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
+function sanitizeBaseName(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed.replace(/\.[^/.]+$/g, '').replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '');
+}
+
 const TEST_ENTRIES = [
   {
     slug: 'bildearkiv/graftegner/koordinater',
@@ -283,6 +294,132 @@ test.describe('Eksempelarkiv', () => {
     await expect(status).toHaveText('Figur slettet.');
     await expect(dialog).toBeHidden();
     await expect(page.locator('[data-svg-grid] [data-svg-item]')).toHaveCount(TEST_ENTRIES.length - 1);
+  });
+
+  test('kan velge figurer, markere alle og gi nytt navn', async ({ page }) => {
+    const renameCalls = [];
+
+    await page.route('**/api/svg', async route => {
+      const request = route.request();
+      if (request.method() === 'PATCH') {
+        const body = JSON.parse(request.postData() || '{}');
+        renameCalls.push(body);
+        const original = TEST_ENTRIES.find(entry => entry.slug === body.slug);
+        const fallbackBase = original?.baseName || original?.title || original?.slug || 'figur';
+        const normalizedBase = sanitizeBaseName(body.baseName || body.displayTitle || body.title || fallbackBase);
+        const resolvedBase = normalizedBase || sanitizeBaseName(fallbackBase);
+        const files = original?.files ? { ...original.files } : {};
+        if (files.svg) {
+          files.svg = { ...files.svg, filename: `${resolvedBase}.svg` };
+        }
+        if (files.png) {
+          files.png = { ...files.png, filename: `${resolvedBase}.png` };
+        }
+        const updated = original
+          ? {
+              ...original,
+              title: typeof body.title === 'string'
+                ? body.title
+                : typeof body.displayTitle === 'string'
+                  ? body.displayTitle
+                  : original.title,
+              displayTitle: typeof body.displayTitle === 'string'
+                ? body.displayTitle
+                : typeof body.title === 'string'
+                  ? body.title
+                  : original.displayTitle || original.title,
+              baseName: resolvedBase,
+              filename: `${resolvedBase}.svg`,
+              svgFilename: `${resolvedBase}.svg`,
+              pngFilename: `${resolvedBase}.png`,
+              files,
+              urls: original.urls ? { ...original.urls } : undefined,
+              svgUrl: original.urls?.svg || original.files?.svg?.url || original.svgUrl || '',
+              pngUrl: original.urls?.png || original.files?.png?.url || original.pngUrl || '',
+              thumbnailUrl: original.thumbnailUrl || original.urls?.png || original.files?.png?.url || original.pngUrl || '',
+              updatedAt: new Date().toISOString()
+            }
+          : body;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(updated)
+        });
+        return;
+      }
+      await route.fallback();
+    });
+
+    const selectAll = page.locator('[data-select-all]');
+    const selectionCount = page.locator('[data-selection-count]');
+    const renameButton = page.locator('[data-selection-rename]');
+
+    await expect(renameButton).toBeDisabled();
+
+    const firstCard = page.locator('[data-svg-item="bildearkiv/graftegner/koordinater"] .svg-archive__card');
+    await firstCard.click();
+    await expect(firstCard).toHaveClass(/svg-archive__card--selected/);
+    await expect(renameButton).toBeEnabled();
+    await expect(selectionCount).toHaveText('1 figur valgt');
+    await expect(selectAll).not.toBeChecked();
+    await expect(selectAll).toHaveJSProperty('indeterminate', true);
+
+    await selectAll.check();
+    await expect(page.locator('.svg-archive__card--selected')).toHaveCount(TEST_ENTRIES.length);
+    await expect(selectionCount).toHaveText(`${TEST_ENTRIES.length} figurer valgt`);
+    await expect(selectAll).toBeChecked();
+    await expect(selectAll).toHaveJSProperty('indeterminate', false);
+
+    await selectAll.uncheck();
+    await expect(page.locator('.svg-archive__card--selected')).toHaveCount(0);
+    await expect(selectionCount).toBeHidden();
+    await expect(renameButton).toBeDisabled();
+    await expect(selectAll).toHaveJSProperty('indeterminate', false);
+
+    const secondCard = page.locator('[data-svg-item="bildearkiv/kvikkbilder-monster/tiervenner"] .svg-archive__card');
+    await firstCard.click();
+    await secondCard.click();
+    await expect(renameButton).toBeEnabled();
+    await expect(selectionCount).toHaveText('2 figurer valgt');
+    await expect(selectAll).toHaveJSProperty('indeterminate', true);
+
+    await renameButton.click();
+    const dialog = page.locator('dialog.svg-archive__dialog--rename');
+    await expect(dialog).toBeVisible();
+
+    const inputs = dialog.locator('.svg-archive__rename-input');
+    await expect(inputs).toHaveCount(2);
+    await inputs.nth(0).fill('Koordinatfigur oppdatert');
+    await inputs.nth(1).fill('Tiervenner justert');
+
+    await dialog.locator('button[type="submit"]').click();
+    await expect(dialog).toBeHidden();
+
+    await expect.poll(() => renameCalls.length).toBe(2);
+    expect(renameCalls.map(call => call.slug)).toEqual([
+      'bildearkiv/graftegner/koordinater',
+      'bildearkiv/kvikkbilder-monster/tiervenner'
+    ]);
+    expect(renameCalls[0]).toMatchObject({
+      baseName: 'Koordinatfigur-oppdatert',
+      displayTitle: 'Koordinatfigur oppdatert',
+      title: 'Koordinatfigur oppdatert'
+    });
+    expect(renameCalls[1]).toMatchObject({
+      baseName: 'Tiervenner-justert',
+      displayTitle: 'Tiervenner justert'
+    });
+
+    const status = page.locator('[data-status]');
+    await expect(status).toHaveText('Oppdaterte 2 figurnavn.');
+
+    const firstName = page.locator('[data-svg-item="bildearkiv/graftegner/koordinater"] .svg-archive__card-name');
+    const secondName = page.locator('[data-svg-item="bildearkiv/kvikkbilder-monster/tiervenner"] .svg-archive__card-name');
+    await expect(firstName).toHaveText('Koordinatfigur oppdatert');
+    await expect(secondName).toHaveText('Tiervenner justert');
+    await expect(selectAll).toHaveJSProperty('indeterminate', true);
+    await expect(selectionCount).toHaveText('2 figurer valgt');
+    await expect(renameButton).toBeEnabled();
   });
 });
 

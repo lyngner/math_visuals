@@ -64,6 +64,196 @@ body {
   margin-bottom: 20px;
 }
 
+.svg-archive__actions {
+  position: sticky;
+  top: clamp(10px, 1.8vw, 24px);
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.96), rgba(226, 232, 240, 0.9));
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  backdrop-filter: blur(6px);
+}
+
+.svg-archive__actions--active {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 18px 36px rgba(37, 99, 235, 0.18);
+  background: linear-gradient(135deg, rgba(219, 234, 254, 0.96), rgba(191, 219, 254, 0.92));
+}
+
+.svg-archive__checkbox-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.svg-archive__checkbox-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.svg-archive__checkbox-visual {
+  inline-size: 22px;
+  block-size: 22px;
+  border-radius: 6px;
+  border: 2px solid rgba(148, 163, 184, 0.6);
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.svg-archive__checkbox-input:focus-visible + .svg-archive__checkbox-visual {
+  outline: 3px solid rgba(59, 130, 246, 0.45);
+  outline-offset: 2px;
+}
+
+.svg-archive__checkbox-input:checked + .svg-archive__checkbox-visual {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.32);
+}
+
+.svg-archive__checkbox-input:checked + .svg-archive__checkbox-visual::after {
+  content: '\2713';
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.svg-archive__checkbox-input:indeterminate + .svg-archive__checkbox-visual {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.32);
+}
+
+.svg-archive__checkbox-input:indeterminate + .svg-archive__checkbox-visual::after {
+  content: '\2212';
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.svg-archive__checkbox-input:disabled + .svg-archive__checkbox-visual {
+  opacity: 0.55;
+  border-color: rgba(148, 163, 184, 0.45);
+  background: rgba(241, 245, 249, 0.85);
+  box-shadow: none;
+}
+
+.svg-archive__checkbox-input:disabled + .svg-archive__checkbox-visual::after {
+  content: '';
+}
+
+.svg-archive__checkbox-input:disabled + .svg-archive__checkbox-visual,
+.svg-archive__checkbox-input:disabled + .svg-archive__checkbox-visual + .svg-archive__select-all-text {
+  cursor: not-allowed;
+}
+
+.svg-archive__checkbox-input:disabled + .svg-archive__checkbox-visual + .svg-archive__select-all-text {
+  color: #94a3b8;
+}
+
+.svg-archive__select-all {
+  gap: 14px;
+}
+
+.svg-archive__card-select .svg-archive__checkbox-visual {
+  inline-size: 20px;
+  block-size: 20px;
+}
+
+.svg-archive__select-all-text {
+  font-size: 1rem;
+}
+
+.svg-archive__selection-count {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #475569;
+}
+
+.svg-archive__actions--active .svg-archive__selection-count {
+  color: #1e3a8a;
+  font-weight: 600;
+}
+
+.svg-archive__actions-buttons {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.svg-archive__actions-button {
+  padding: 9px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.16), rgba(59, 130, 246, 0.2));
+  color: #1d4ed8;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.svg-archive__actions-button:hover:not([disabled]),
+.svg-archive__actions-button:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.2);
+  border-color: rgba(37, 99, 235, 0.55);
+  outline: none;
+}
+
+.svg-archive__actions-button:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.45);
+  outline-offset: 2px;
+}
+
+.svg-archive__actions-button[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  background: rgba(226, 232, 240, 0.8);
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+@media (max-width: 720px) {
+  .svg-archive__actions {
+    gap: 12px;
+  }
+
+  .svg-archive__actions-buttons {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .svg-archive__actions-button {
+    width: 100%;
+    text-align: center;
+  }
+}
+
 .svg-archive__filter {
   display: inline-flex;
   flex-direction: column;
@@ -252,13 +442,14 @@ body {
 }
 
 
+
 .svg-archive__card {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: clamp(10px, 1vw, 14px);
+  gap: clamp(12px, 1.2vw, 18px);
   height: 100%;
-  padding: clamp(12px, 1.2vw, 18px);
+  padding: clamp(14px, 1.4vw, 20px);
   border-radius: 22px;
   background: #fff;
   border: 1px solid rgba(148, 163, 184, 0.28);
@@ -267,11 +458,10 @@ body {
 }
 
 .svg-archive__card-toolbar {
-  position: absolute;
-  top: clamp(12px, 1.2vw, 16px);
-  right: clamp(12px, 1.2vw, 16px);
   display: flex;
-  z-index: 2;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .svg-archive__preview {
@@ -312,6 +502,18 @@ body {
   margin-top: 0;
 }
 
+.svg-archive__card-name {
+  margin: 0;
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.svg-archive__item--selected .svg-archive__card-name {
+  color: #1d4ed8;
+}
+
 
 dialog.svg-archive__dialog {
   border: none;
@@ -319,6 +521,11 @@ dialog.svg-archive__dialog {
   background: transparent;
   max-width: min(960px, 92vw);
   width: min(960px, 92vw);
+}
+
+dialog.svg-archive__dialog--rename {
+  max-width: min(720px, 92vw);
+  width: min(720px, 92vw);
 }
 
 dialog.svg-archive__dialog::backdrop {
@@ -408,6 +615,95 @@ dialog.svg-archive__dialog::backdrop {
   overflow: auto;
   min-height: 0;
   align-content: start;
+}
+
+.svg-archive__dialog--rename .svg-archive__dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.svg-archive__rename-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.svg-archive__rename-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.svg-archive__rename-item {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 720px) {
+  .svg-archive__rename-item {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    align-items: center;
+  }
+
+  .svg-archive__rename-item .svg-archive__rename-hint {
+    grid-column: 1 / -1;
+  }
+}
+
+.svg-archive__rename-label {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.svg-archive__rename-hint {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.svg-archive__rename-input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  font: inherit;
+  width: 100%;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.svg-archive__rename-input:focus-visible {
+  border-color: rgba(37, 99, 235, 0.55);
+  outline: 3px solid rgba(59, 130, 246, 0.35);
+  outline-offset: 1px;
+}
+
+.svg-archive__rename-input[disabled] {
+  background: rgba(226, 232, 240, 0.5);
+  cursor: not-allowed;
+}
+
+.svg-archive__rename-message {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.svg-archive__rename-message[data-state="error"] {
+  color: #b91c1c;
+}
+
+.svg-archive__rename-message[data-state="info"],
+.svg-archive__rename-message[data-state="pending"] {
+  color: #1d4ed8;
+}
+
+.svg-archive__rename-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 .svg-archive__dialog-figure {
@@ -592,10 +888,21 @@ dialog.svg-archive__dialog::backdrop {
   transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
+.svg-archive__dialog-action--secondary {
+  background: rgba(226, 232, 240, 0.7);
+  border-color: rgba(148, 163, 184, 0.5);
+  color: #1f2937;
+}
+
 .svg-archive__dialog-action:hover {
   background: #eff6ff;
   color: #1d4ed8;
   border-color: #93c5fd;
+}
+
+.svg-archive__dialog-action--secondary:hover {
+  background: rgba(191, 219, 254, 0.6);
+  border-color: rgba(59, 130, 246, 0.45);
 }
 
 .svg-archive__dialog-action:focus-visible {
@@ -615,12 +922,18 @@ dialog.svg-archive__dialog::backdrop {
   border-color: rgba(59, 130, 246, 0.35);
 }
 
+.svg-archive__card--selected {
+  border-color: rgba(37, 99, 235, 0.55);
+  box-shadow: 0 22px 42px rgba(37, 99, 235, 0.2);
+}
+
 .svg-archive__menu-trigger {
   inline-size: 34px;
   block-size: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin-left: auto;
   border-radius: 999px;
   border: none;
   background: rgba(15, 23, 42, 0.72);
