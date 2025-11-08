@@ -642,7 +642,45 @@ async function unlinkFigureFromCategory(categoryId, slug) {
   return entry;
 }
 
-async function finalizeFigureEntry(entry) {
+function projectSummaryFigureEntry(entry) {
+  if (!entry || typeof entry !== 'object') return entry;
+  const projected = { ...entry };
+  delete projected.svg;
+  delete projected.png;
+
+  if (projected.files && typeof projected.files === 'object') {
+    const projectedFiles = {};
+    if (projected.files.svg && typeof projected.files.svg === 'object') {
+      const svgFile = { ...projected.files.svg };
+      projectedFiles.svg = {};
+      if (svgFile.url != null) projectedFiles.svg.url = svgFile.url;
+      if (svgFile.slug != null) projectedFiles.svg.slug = svgFile.slug;
+      if (svgFile.filename != null) projectedFiles.svg.filename = svgFile.filename;
+      if (svgFile.contentType != null) projectedFiles.svg.contentType = svgFile.contentType;
+    }
+    if (projected.files.png && typeof projected.files.png === 'object') {
+      const pngFile = { ...projected.files.png };
+      const pngProjection = {};
+      if (pngFile.url != null) pngProjection.url = pngFile.url;
+      if (pngFile.width != null) pngProjection.width = pngFile.width;
+      if (pngFile.height != null) pngProjection.height = pngFile.height;
+      if (pngFile.slug != null) pngProjection.slug = pngFile.slug;
+      if (pngFile.filename != null) pngProjection.filename = pngFile.filename;
+      if (pngFile.contentType != null) pngProjection.contentType = pngFile.contentType;
+      if (Object.keys(pngProjection).length > 0) {
+        projectedFiles.png = pngProjection;
+      }
+    }
+    projected.files = Object.keys(projectedFiles).length ? projectedFiles : undefined;
+    if (!projected.files) {
+      delete projected.files;
+    }
+  }
+
+  return projected;
+}
+
+async function finalizeFigureEntry(entry, options = {}) {
   if (!entry) return null;
   const result = ensureFigureEntryShape(entry.slug, entry);
   result.tags = sanitizeTags(result.tags);
@@ -690,6 +728,9 @@ async function finalizeFigureEntry(entry) {
   }
   if (result.category && typeof result.category === 'object') {
     result.category.apps = sanitizeApps(result.category.apps);
+  }
+  if (options && options.summary) {
+    return projectSummaryFigureEntry(result);
   }
   return result;
 }
@@ -783,9 +824,10 @@ async function setFigure(slug, payload = {}) {
   return finalized ? clone(finalized) : null;
 }
 
-async function listFigures() {
+async function listFigures(options = {}) {
   const entries = [];
   const storeMode = getStoreMode();
+  const finalizeOptions = options && typeof options === 'object' ? options : {};
   if (storeMode === 'kv') {
     const kv = await loadKvClient();
     let slugs = [];
@@ -803,7 +845,7 @@ async function listFigures() {
       const shaped = ensureFigureEntryShape(normalized, stored);
       applyStorageMetadata(shaped, 'kv');
       writeFigureToMemory(normalized, shaped);
-      const finalized = await finalizeFigureEntry(shaped);
+      const finalized = await finalizeFigureEntry(shaped, finalizeOptions);
       if (finalized) {
         entries.push(clone(finalized));
       }
@@ -817,7 +859,7 @@ async function listFigures() {
     if (!stored) continue;
     const shaped = ensureFigureEntryShape(normalized, stored);
     applyStorageMetadata(shaped, storeMode);
-    const finalized = await finalizeFigureEntry(shaped);
+    const finalized = await finalizeFigureEntry(shaped, finalizeOptions);
     if (finalized) {
       entries.push(clone(finalized));
     }

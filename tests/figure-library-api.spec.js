@@ -98,8 +98,26 @@ test.describe('figure library API memory mode', () => {
     expect(listResponse.json.entries[0].category?.label).toBe('Testkategori');
     expect(listResponse.json.entries[0].category?.apps).toEqual(['bibliotek', 'viewer']);
     expect(listResponse.json.entries[0].urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
+    expect(listResponse.json.entries[0].svg).toBe(TEST_SVG_MARKUP);
+    expect(listResponse.json.entries[0].png).toBe(TEST_PNG_DATA_URL);
     expect(listResponse.json.categories?.[0]?.figureSlugs).toContain('memory/test-figur');
     expect(listResponse.json.categories?.[0]?.apps).toEqual(['bibliotek', 'viewer']);
+
+    const summaryResponse = await invokeFigureLibraryApi({ url: '/api/figure-library?view=summary' });
+
+    expect(summaryResponse.statusCode).toBe(200);
+    expectStorageHeaders(summaryResponse, 'memory');
+    expect(Array.isArray(summaryResponse.json?.entries)).toBe(true);
+    expect(summaryResponse.json.entries).toHaveLength(1);
+    const summaryEntry = summaryResponse.json.entries[0];
+    expect(summaryEntry.title).toBe('Testfigur');
+    expect(summaryEntry.svg).toBeUndefined();
+    expect(summaryEntry.png).toBeUndefined();
+    expect(summaryEntry.urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
+    expect(summaryEntry.files?.svg?.url).toContain(FIGURE_LIBRARY_RAW_PREFIX);
+    expect(summaryEntry.urls?.png).toContain(FIGURE_LIBRARY_RAW_PREFIX);
+    expect(summaryEntry.category?.apps).toEqual(['bibliotek', 'viewer']);
+    expect(summaryResponse.json.categories?.[0]?.figureSlugs).toContain('memory/test-figur');
 
     const fetchResponse = await invokeFigureLibraryApi({ url: '/api/figure-library?slug=memory/test-figur' });
 
