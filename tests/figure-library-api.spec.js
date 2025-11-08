@@ -101,6 +101,13 @@ test.describe('figure library API memory mode', () => {
     expect(listResponse.json.categories?.[0]?.figureSlugs).toContain('memory/test-figur');
     expect(listResponse.json.categories?.[0]?.apps).toEqual(['bibliotek', 'viewer']);
 
+    const fetchResponse = await invokeFigureLibraryApi({ url: '/api/figure-library?slug=memory/test-figur' });
+
+    expect(fetchResponse.statusCode).toBe(200);
+    expect(fetchResponse.json?.entry?.category?.apps).toEqual(['bibliotek', 'viewer']);
+    const fetchedCategory = fetchResponse.json?.categories?.find(cat => cat.id === 'testkategori');
+    expect(fetchedCategory?.apps).toEqual(['bibliotek', 'viewer']);
+
     const updateResponse = await invokeFigureLibraryApi({
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -123,6 +130,13 @@ test.describe('figure library API memory mode', () => {
     const updatedCategory = updateResponse.json?.categories?.find(cat => cat.id === 'oppdatert-kategori');
     expect(updatedCategory?.apps).toEqual(['viewer', 'bibliotek']);
     expect(updateResponse.json?.entry?.category?.apps).toEqual(['viewer', 'bibliotek']);
+
+    const fetchUpdated = await invokeFigureLibraryApi({ url: '/api/figure-library?slug=memory/test-figur' });
+
+    expect(fetchUpdated.statusCode).toBe(200);
+    expect(fetchUpdated.json?.entry?.category?.apps).toEqual(['viewer', 'bibliotek']);
+    const fetchedUpdatedCategory = fetchUpdated.json?.categories?.find(cat => cat.id === 'oppdatert-kategori');
+    expect(fetchedUpdatedCategory?.apps).toEqual(['viewer', 'bibliotek']);
 
     const deleteResponse = await invokeFigureLibraryApi({
       method: 'DELETE',
@@ -243,6 +257,13 @@ test.describe('figure library API kv mode', () => {
     expect(createResponse.json?.entry?.category?.apps).toEqual(['bibliotek', 'kv-app']);
     expect(createResponse.json?.categories?.[0]?.apps).toEqual(['bibliotek', 'kv-app']);
 
+    const fetchResponse = await invokeFigureLibraryApi({ url: '/api/figure-library?slug=kv/test-figur' });
+
+    expect(fetchResponse.statusCode).toBe(200);
+    expect(fetchResponse.json?.entry?.category?.apps).toEqual(['bibliotek', 'kv-app']);
+    const fetchedCategory = fetchResponse.json?.categories?.find(cat => cat.id === 'kv-kategori');
+    expect(fetchedCategory?.apps).toEqual(['bibliotek', 'kv-app']);
+
     const storedFigure = await mockKv.api.get('figure:kv/test-figur');
     expect(storedFigure?.mode).toBe('kv');
 
@@ -279,6 +300,13 @@ test.describe('figure library API kv mode', () => {
     expect(updateResponse.json?.entry?.urls?.svg).toContain(FIGURE_LIBRARY_RAW_PREFIX);
     const kvUpdatedCategory = updateResponse.json?.categories?.find(cat => cat.id === 'oppdatert-kv');
     expect(kvUpdatedCategory?.apps).toEqual(['kv-app', 'bibliotek']);
+
+    const fetchUpdated = await invokeFigureLibraryApi({ url: '/api/figure-library?slug=kv/test-figur' });
+
+    expect(fetchUpdated.statusCode).toBe(200);
+    expect(fetchUpdated.json?.entry?.category?.apps).toEqual(['kv-app', 'bibliotek']);
+    const fetchedUpdatedCategory = fetchUpdated.json?.categories?.find(cat => cat.id === 'oppdatert-kv');
+    expect(fetchedUpdatedCategory?.apps).toEqual(['kv-app', 'bibliotek']);
 
     const kvCategory = await mockKv.api.get('figure:category:oppdatert-kv');
     expect(Array.isArray(kvCategory?.figureSlugs)).toBe(true);

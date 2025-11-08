@@ -121,6 +121,25 @@ function buildOrigin(req) {
   return `${protocol}://${host}`;
 }
 
+function ensureCategoryApps(category) {
+  if (!category || typeof category !== 'object') {
+    return category;
+  }
+  const apps = Array.isArray(category.apps) ? category.apps.filter(app => typeof app === 'string') : [];
+  return { ...category, apps };
+}
+
+function withCategoryApps(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return entry;
+  }
+  const normalized = { ...entry };
+  if (normalized.category) {
+    normalized.category = ensureCategoryApps(normalized.category);
+  }
+  return normalized;
+}
+
 function extractSlugFromBody(body, fallback) {
   if (body && typeof body.slug === 'string') {
     const normalized = normalizeFigureSlug(body.slug);
@@ -191,7 +210,10 @@ function normalizePngPayload(body) {
 async function buildCategoriesPayload() {
   try {
     const categories = await listCategories();
-    return Array.isArray(categories) ? categories : [];
+    if (!Array.isArray(categories)) {
+      return [];
+    }
+    return categories.map(category => ensureCategoryApps(category));
   } catch (error) {
     return [];
   }
@@ -239,13 +261,14 @@ module.exports = async function handler(req, res) {
         }
         const categories = await buildCategoriesPayload();
         const metadata = applyModeHeaders(res, entry.mode || currentMode) || buildModeMetadata(entry.mode || currentMode);
-        sendJson(res, 200, { ...metadata, entry, categories });
+        sendJson(res, 200, { ...metadata, entry: withCategoryApps(entry), categories });
         return;
       }
       const [entries, categories] = await Promise.all([listFigures(), buildCategoriesPayload()]);
-      const effectiveMode = entries && entries.length ? entries[0].mode : currentMode;
+      const normalizedEntries = Array.isArray(entries) ? entries.map(withCategoryApps) : [];
+      const effectiveMode = normalizedEntries && normalizedEntries.length ? normalizedEntries[0].mode : currentMode;
       const metadata = applyModeHeaders(res, effectiveMode) || buildModeMetadata(effectiveMode);
-      sendJson(res, 200, { ...metadata, entries: Array.isArray(entries) ? entries : [], categories });
+      sendJson(res, 200, { ...metadata, entries: normalizedEntries, categories });
       return;
     }
 
@@ -303,7 +326,7 @@ module.exports = async function handler(req, res) {
       }
       const categories = await buildCategoriesPayload();
       const metadata = applyModeHeaders(res, stored.mode || currentMode) || buildModeMetadata(stored.mode || currentMode);
-      sendJson(res, 200, { ...metadata, entry: stored, categories });
+      sendJson(res, 200, { ...metadata, entry: withCategoryApps(stored), categories });
       return;
     }
 
@@ -364,7 +387,7 @@ module.exports = async function handler(req, res) {
       }
       const categories = await buildCategoriesPayload();
       const metadata = applyModeHeaders(res, stored.mode || currentMode) || buildModeMetadata(stored.mode || currentMode);
-      sendJson(res, 200, { ...metadata, entry: stored, categories });
+      sendJson(res, 200, { ...metadata, entry: withCategoryApps(stored), categories });
       return;
     }
 
