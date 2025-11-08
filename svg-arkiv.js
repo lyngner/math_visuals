@@ -1203,6 +1203,38 @@
   })();
 
   const OPEN_REQUEST_STORAGE_KEY = 'archive_open_request';
+  const ARCHIVE_OPEN_REQUEST_WINDOW_NAME_PREFIX = 'mathvis:archive-open-request:';
+  const ARCHIVE_OPEN_REQUEST_TRANSPORT_METADATA_KEY = '__mathvisArchiveOpenTransport';
+
+  function attachArchiveOpenRequestTransportMetadata(target, metadata) {
+    if (!target || typeof target !== 'object') {
+      return metadata || null;
+    }
+    try {
+      Object.defineProperty(target, ARCHIVE_OPEN_REQUEST_TRANSPORT_METADATA_KEY, {
+        value: metadata || null,
+        configurable: true,
+        enumerable: false,
+        writable: true
+      });
+    } catch (error) {
+      try {
+        target[ARCHIVE_OPEN_REQUEST_TRANSPORT_METADATA_KEY] = metadata || null;
+      } catch (_) {}
+    }
+    return metadata || null;
+  }
+
+  function getArchiveOpenRequestTransportMetadata(target) {
+    if (!target || typeof target !== 'object') {
+      return null;
+    }
+    try {
+      return target[ARCHIVE_OPEN_REQUEST_TRANSPORT_METADATA_KEY] || null;
+    } catch (error) {
+      return null;
+    }
+  }
 
   function getLocalStorage() {
     if (typeof window === 'undefined') {
@@ -1351,14 +1383,35 @@
         break;
       }
     }
+    let transportMetadata = null;
     const saved = writeArchiveOpenRequest(request);
-    if (!saved) {
+    if (saved) {
+      transportMetadata = {
+        type: 'storage',
+        storageKey: OPEN_REQUEST_STORAGE_KEY
+      };
+    } else {
+      let serialized = null;
       try {
-        console.error('Kunne ikke lagre åpningstilstanden for arkivet i localStorage.');
-      } catch (_) {}
-      return null;
+        serialized = JSON.stringify(request);
+      } catch (error) {
+        serialized = null;
+      }
+      if (!serialized) {
+        try {
+          console.error('Kunne ikke serialisere åpningstilstanden for arkivet for reserve-løsningen.');
+        } catch (_) {}
+        return null;
+      }
+      const payload = `${ARCHIVE_OPEN_REQUEST_WINDOW_NAME_PREFIX}${serialized}`;
+      transportMetadata = {
+        type: 'window-name',
+        payload,
+        prefix: ARCHIVE_OPEN_REQUEST_WINDOW_NAME_PREFIX
+      };
     }
-    return request;
+    attachArchiveOpenRequestTransportMetadata(request, transportMetadata);
+    return { request, transport: transportMetadata };
   }
 
   function generateArchiveRequestId(entry) {
@@ -4421,19 +4474,33 @@
           };
 
           let prepared = false;
+          let transportMetadata = null;
           try {
             if (window.MathVisExamples && typeof window.MathVisExamples.prepareOpenRequest === 'function') {
-              window.MathVisExamples.prepareOpenRequest(openRequest);
-              prepared = true;
+              const preparedResult = window.MathVisExamples.prepareOpenRequest(openRequest);
+              if (preparedResult && typeof preparedResult === 'object') {
+                openRequest = preparedResult;
+                transportMetadata = getArchiveOpenRequestTransportMetadata(preparedResult);
+                prepared = true;
+              } else if (preparedResult === true) {
+                transportMetadata = getArchiveOpenRequestTransportMetadata(openRequest);
+                prepared = true;
+              }
             }
           } catch (error) {
             console.error('Kunne ikke forberede åpning av eksempel via MathVisExamples', error);
           }
           if (!prepared) {
             try {
-              const fallbackRequest = prepareArchiveOpenRequestFallback(openRequest);
+              const fallbackResult = prepareArchiveOpenRequestFallback(openRequest);
+              const fallbackRequest = fallbackResult && fallbackResult.request;
               prepared = !!fallbackRequest;
-              if (!prepared) {
+              if (prepared) {
+                openRequest = fallbackRequest || openRequest;
+                transportMetadata =
+                  (fallbackResult && fallbackResult.transport) ||
+                  getArchiveOpenRequestTransportMetadata(fallbackRequest);
+              } else {
                 try {
                   console.error('Kunne ikke lagre åpningstilstanden for figuren via reserve-løsningen.');
                 } catch (_) {}
@@ -4458,6 +4525,18 @@
 
           const popup = window.open(targetUrl, '_blank', 'noopener');
           if (popup) {
+            if (
+              transportMetadata &&
+              transportMetadata.type === 'window-name' &&
+              typeof transportMetadata.payload === 'string' &&
+              transportMetadata.payload
+            ) {
+              try {
+                popup.name = transportMetadata.payload;
+              } catch (error) {
+                console.error('Kunne ikke sette vindusnavn for reserve-transport av eksempeldata.', error);
+              }
+            }
             const successMessage = launchedViaMainMenu
               ? `Figuren åpnes i ${toolLabel} via hovedmenyen med et midlertidig eksempel.`
               : `Figuren åpnes i ${toolLabel} med et midlertidig eksempel.`;
