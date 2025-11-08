@@ -2036,6 +2036,18 @@
       return trimmed;
     }
 
+    if (!trimmed.startsWith('/') && /\.(?:svg|png)(?:[?#].*)?$/i.test(trimmed)) {
+      const searchParams = new URLSearchParams();
+      searchParams.set('path', trimmed.replace(/^\/+/, ''));
+      const extensionMatch = trimmed.match(/\.([a-z0-9]+)(?:[?#].*)?$/i);
+      const derivedFormat = extensionMatch ? extensionMatch[1].toLowerCase() : '';
+      const format = (typeof formatHint === 'string' && formatHint.trim()) || derivedFormat;
+      if (format) {
+        searchParams.set('format', format);
+      }
+      return `/api/svg/raw?${searchParams.toString()}`;
+    }
+
     const normalized = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 
     if (normalized.startsWith('/bildearkiv/')) {
