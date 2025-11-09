@@ -26,12 +26,6 @@ const editorNameInput = editorDialog?.querySelector('[data-editor-name]') || nul
 const editorCategoryInput = editorDialog?.querySelector('[data-editor-category]') || null;
 const editorErrorEl = editorDialog?.querySelector('[data-editor-error]') || null;
 const editorCancelButton = editorDialog?.querySelector('[data-editor-cancel]') || null;
-const addCategoryAppsFieldset = addCategoryForm?.querySelector('[data-category-apps="add"]') || null;
-const addCategoryAppsContainer = addCategoryAppsFieldset?.querySelector('[data-category-apps-options]') || null;
-const uploadCategoryAppsFieldset = uploadForm?.querySelector('[data-category-apps="upload"]') || null;
-const uploadCategoryAppsContainer = uploadCategoryAppsFieldset?.querySelector('[data-category-apps-options]') || null;
-const editorCategoryAppsFieldset = editorForm?.querySelector('[data-category-apps="editor"]') || null;
-const editorCategoryAppsContainer = editorCategoryAppsFieldset?.querySelector('[data-category-apps-options]') || null;
 const categoryDialog = document.querySelector('[data-category-dialog]');
 const categoryDialogTitle = categoryDialog?.querySelector('[data-category-title]') || null;
 const categoryDialogDescription = categoryDialog?.querySelector('[data-category-description]') || null;
@@ -41,6 +35,11 @@ const categoryDialogEmpty = categoryDialog?.querySelector('[data-category-empty]
 const categoryDialogCloseButton = categoryDialog?.querySelector('[data-category-close]') || null;
 const categoryDialogUploadButton = categoryDialog?.querySelector('[data-category-upload]') || null;
 const categoryDialogDeleteButton = categoryDialog?.querySelector('[data-category-delete]') || null;
+const categoryDialogAppsSection = categoryDialog?.querySelector('[data-category-apps-section]') || null;
+const categoryDialogAppsFieldset = categoryDialogAppsSection?.querySelector('[data-category-apps="category"]') || null;
+const categoryDialogAppsContainer = categoryDialogAppsFieldset?.querySelector('[data-category-apps-options]') || null;
+const categoryDialogAppsSaveButton = categoryDialogAppsSection?.querySelector('[data-category-apps-save]') || null;
+const categoryDialogAppsStatus = categoryDialogAppsSection?.querySelector('[data-category-apps-status]') || null;
 const categoryMenu = document.querySelector('[data-category-menu]');
 const categoryMenuSurface = categoryMenu?.querySelector('[data-category-menu-surface]') || null;
 const copyFeedbackTimers = new WeakMap();
@@ -140,6 +139,7 @@ let categoryMenuCategory = null;
 const categoryDialogState = {
   categoryId: null,
   selectedSlugs: new Set(),
+  categoryApps: [],
 };
 
 const DEFAULT_CATEGORY_APP = 'bibliotek';
@@ -147,9 +147,7 @@ const DEFAULT_VISIBLE_CATEGORY_APPS = ['måling', 'sortering'];
 const categoryAppOptionOrder = [];
 const categoryAppOptionMap = new Map();
 const categoryAppFormContexts = {
-  add: { fieldset: addCategoryAppsFieldset, container: addCategoryAppsContainer, inputs: new Map() },
-  upload: { fieldset: uploadCategoryAppsFieldset, container: uploadCategoryAppsContainer, inputs: new Map() },
-  editor: { fieldset: editorCategoryAppsFieldset, container: editorCategoryAppsContainer, inputs: new Map() },
+  category: { fieldset: categoryDialogAppsFieldset, container: categoryDialogAppsContainer, inputs: new Map() },
 };
 let categoryAppControlsReady = false;
 
@@ -418,24 +416,7 @@ function renderCategoryAppControls() {
 function initializeCategoryAppControls() {
   categoryAppControlsReady = true;
   renderCategoryAppControls();
-  resetCategoryAppSelection('add');
-  resetCategoryAppSelection('upload');
-  resetCategoryAppSelection('editor');
-  if (uploadCategoryInput) {
-    const handleUploadCategoryAppsChange = () => handleCategoryAppInputChange('upload', uploadCategoryInput.value || '');
-    uploadCategoryInput.addEventListener('input', handleUploadCategoryAppsChange);
-    uploadCategoryInput.addEventListener('change', handleUploadCategoryAppsChange);
-  }
-  if (editorCategoryInput) {
-    const handleEditorCategoryAppsChange = () => handleCategoryAppInputChange('editor', editorCategoryInput.value || '');
-    editorCategoryInput.addEventListener('input', handleEditorCategoryAppsChange);
-    editorCategoryInput.addEventListener('change', handleEditorCategoryAppsChange);
-  }
-  if (addCategoryInput) {
-    const handleAddCategoryAppsChange = () => handleCategoryAppInputChange('add', addCategoryInput.value || '');
-    addCategoryInput.addEventListener('input', handleAddCategoryAppsChange);
-    addCategoryInput.addEventListener('change', handleAddCategoryAppsChange);
-  }
+  resetCategoryAppSelection('category');
 }
 
 function resetCategoryAppSelection(context) {
@@ -461,18 +442,6 @@ function setCategoryAppSelection(context, apps) {
 function getSelectedCategoryApps(context) {
   const selection = getCategoryAppSelectionFromInputs(context);
   return sanitizeCategoryApps(selection, { includeDefaults: false });
-}
-
-function handleCategoryAppInputChange(context, rawValue) {
-  const value = typeof rawValue === 'string' ? rawValue.trim() : '';
-  if (!value) {
-    resetCategoryAppSelection(context);
-    return;
-  }
-  const match = findCategoryByValue(value);
-  if (match) {
-    setCategoryAppSelection(context, match.apps || match.categoryApps || []);
-  }
 }
 
 function refreshLibrary(options = {}) {
@@ -1320,6 +1289,12 @@ function closeCategoryDialog(options = {}) {
 function resetCategoryDialogState() {
   categoryDialogState.categoryId = null;
   categoryDialogState.selectedSlugs.clear();
+  categoryDialogState.categoryApps = [];
+  resetCategoryAppSelection('category');
+  clearCategoryAppsStatus();
+  setCategoryAppsControlsDisabled(false);
+  setCategoryAppsSaveState('idle');
+  updateCategoryAppsSaveButtonState();
 }
 
 function renderCategoryDialog(categoryId) {
@@ -1384,6 +1359,14 @@ function renderCategoryDialog(categoryId) {
     categoryDialogUploadButton.dataset.categoryName = displayName;
   }
 
+  const categoryApps = getCategoryApps(category);
+  categoryDialogState.categoryApps = categoryApps.slice();
+  setCategoryAppSelection('category', categoryApps);
+  setCategoryAppsControlsDisabled(false);
+  setCategoryAppsSaveState('idle');
+  clearCategoryAppsStatus();
+  updateCategoryAppsSaveButtonState();
+
   if (categoryDialogFigures) {
     categoryDialogFigures.innerHTML = '';
     const fragment = document.createDocumentFragment();
@@ -1416,6 +1399,160 @@ function renderCategoryDialog(categoryId) {
   updateCategoryDialogDeleteButtonState();
 
   return true;
+}
+
+function areCategoryAppListsEqual(listA, listB) {
+  const appsA = sanitizeCategoryApps(listA, { includeDefaults: false });
+  const appsB = sanitizeCategoryApps(listB, { includeDefaults: false });
+  if (appsA.length !== appsB.length) {
+    return false;
+  }
+  for (let index = 0; index < appsA.length; index += 1) {
+    if (appsA[index] !== appsB[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function setCategoryAppsControlsDisabled(disabled) {
+  if (!(categoryDialogAppsFieldset instanceof HTMLFieldSetElement)) {
+    return;
+  }
+  const shouldDisable = Boolean(disabled);
+  categoryDialogAppsFieldset.disabled = shouldDisable;
+  if (shouldDisable) {
+    categoryDialogAppsFieldset.setAttribute('aria-busy', 'true');
+  } else {
+    categoryDialogAppsFieldset.removeAttribute('aria-busy');
+  }
+}
+
+function setCategoryAppsSaveState(state) {
+  if (!(categoryDialogAppsSaveButton instanceof HTMLButtonElement)) {
+    return;
+  }
+  if (state === 'busy') {
+    categoryDialogAppsSaveButton.dataset.state = 'busy';
+    categoryDialogAppsSaveButton.disabled = true;
+  } else {
+    delete categoryDialogAppsSaveButton.dataset.state;
+  }
+}
+
+function updateCategoryAppsSaveButtonState() {
+  if (!(categoryDialogAppsSaveButton instanceof HTMLButtonElement)) {
+    return;
+  }
+  if (categoryDialogAppsSaveButton.dataset.state === 'busy') {
+    categoryDialogAppsSaveButton.disabled = true;
+    return;
+  }
+  const original = categoryDialogState.categoryApps || [];
+  const selection = getSelectedCategoryApps('category');
+  const hasChange = !areCategoryAppListsEqual(selection, original);
+  categoryDialogAppsSaveButton.disabled = !hasChange;
+}
+
+function clearCategoryAppsStatus() {
+  if (!categoryDialogAppsStatus) {
+    return;
+  }
+  categoryDialogAppsStatus.textContent = '';
+  categoryDialogAppsStatus.hidden = true;
+  delete categoryDialogAppsStatus.dataset.state;
+}
+
+function showCategoryAppsStatus(message, state = 'info') {
+  if (!categoryDialogAppsStatus) {
+    return;
+  }
+  categoryDialogAppsStatus.textContent = message;
+  categoryDialogAppsStatus.hidden = false;
+  categoryDialogAppsStatus.dataset.state = state;
+}
+
+function handleCategoryAppsSelectionChange() {
+  clearCategoryAppsStatus();
+  updateCategoryAppsSaveButtonState();
+}
+
+function applyCategoryAppUpdateLocal(categoryId, apps) {
+  if (typeof categoryId !== 'string' || !categoryId.trim()) {
+    return;
+  }
+  const normalized = sanitizeCategoryApps(apps, { includeDefaults: false });
+  const id = categoryId.trim();
+
+  if (categoryMetaById.has(id)) {
+    const meta = categoryMetaById.get(id);
+    if (meta && typeof meta === 'object') {
+      meta.apps = normalized.slice();
+      meta.categoryApps = normalized.slice();
+      categoryMetaById.set(id, meta);
+    }
+  }
+
+  if (customCategoryMap.has(id)) {
+    const entry = customCategoryMap.get(id);
+    if (entry && typeof entry === 'object') {
+      const updated = { ...entry, apps: normalized.slice(), categoryApps: normalized.slice() };
+      customCategoryMap.set(id, updated);
+      for (let index = 0; index < customCategories.length; index += 1) {
+        if (customCategories[index]?.id === id) {
+          customCategories[index] = updated;
+          break;
+        }
+      }
+    }
+  }
+}
+
+async function handleCategoryAppsSaveClick() {
+  if (!categoryDialogState.categoryId) {
+    return;
+  }
+
+  const categoryId = categoryDialogState.categoryId;
+  const selection = getSelectedCategoryApps('category');
+  const normalizedSelection = sanitizeCategoryApps(selection, { includeDefaults: false });
+
+  if (areCategoryAppListsEqual(normalizedSelection, categoryDialogState.categoryApps)) {
+    showCategoryAppsStatus('Ingen endringer å lagre.', 'info');
+    updateCategoryAppsSaveButtonState();
+    return;
+  }
+
+  clearCategoryAppsStatus();
+  setCategoryAppsSaveState('busy');
+  setCategoryAppsControlsDisabled(true);
+
+  try {
+    const { data, response } = await fetchFigureLibrary('PATCH', {
+      categoryId,
+      categoryApps: normalizedSelection,
+    });
+    applyFigureLibraryMetadata(data, response);
+    if (Array.isArray(data.categories)) {
+      applyServerCategories(data.categories);
+    } else {
+      applyCategoryAppUpdateLocal(categoryId, normalizedSelection);
+    }
+    saveCustomCategories();
+    categoryDialogState.categoryApps = normalizedSelection.slice();
+    refreshLibrary({ maintainFilter: true });
+    renderCategoryDialog(categoryId);
+    showCategoryAppsStatus('Tilgjengelighet oppdatert.', 'success');
+  } catch (error) {
+    console.error('Kunne ikke oppdatere kategoriapper', error);
+    const message = extractApiErrorMessage(error, 'Kunne ikke oppdatere app-tilgjengeligheten. Prøv igjen.');
+    showCategoryAppsStatus(message, 'error');
+    setCategoryAppSelection('category', categoryDialogState.categoryApps);
+  } finally {
+    setCategoryAppsControlsDisabled(false);
+    setCategoryAppsSaveState('idle');
+    updateCategoryAppsSaveButtonState();
+  }
 }
 
 function createCategoryDialogListItem(item) {
@@ -2066,7 +2203,6 @@ function showAddCategoryForm() {
   if (!addCategoryForm) return;
   addCategoryForm.removeAttribute('hidden');
   addCategoryToggleButton?.setAttribute('aria-expanded', 'true');
-  resetCategoryAppSelection('add');
   requestAnimationFrame(() => {
     if (addCategoryInput) {
       addCategoryInput.focus();
@@ -2082,7 +2218,6 @@ function hideAddCategoryForm(options = {}) {
   addCategoryToggleButton?.setAttribute('aria-expanded', 'false');
   if (resetInput && addCategoryInput) {
     addCategoryInput.value = '';
-    resetCategoryAppSelection('add');
   }
   if (clearFeedback) {
     clearAddCategoryFeedback();
@@ -2117,8 +2252,7 @@ function handleAddCategorySubmit(event) {
     return;
   }
 
-  const selectedCategoryApps = getSelectedCategoryApps('add');
-  const newCategory = createCustomCategoryFromName(trimmedName, { apps: selectedCategoryApps });
+  const newCategory = createCustomCategoryFromName(trimmedName);
   if (!newCategory) {
     showAddCategoryFeedback('Kunne ikke legge til kategorien. Prøv igjen.', { isError: true });
     return;
@@ -2170,8 +2304,8 @@ function clearAddCategoryFeedback() {
   delete addCategoryFeedback.dataset.state;
 }
 
-function createCustomCategoryFromName(name, options = {}) {
-  return normalizeCustomCategory({ name, apps: options.apps });
+function createCustomCategoryFromName(name) {
+  return normalizeCustomCategory({ name });
 }
 
 function isCategoryNameTaken(name) {
@@ -2208,8 +2342,6 @@ function openUploadDialog(options = {}) {
   if (uploadFileInput) {
     uploadFileInput.value = '';
   }
-
-  resetCategoryAppSelection('upload');
 
   if (category && uploadCategoryInput) {
     const displayName = getCategoryDisplayName(category) || category.id || '';
@@ -2271,7 +2403,6 @@ function closeUploadDialog(options = {}) {
     });
   }
 
-  resetCategoryAppSelection('upload');
 }
 
 function setupUploadForm() {
@@ -2343,6 +2474,14 @@ function setupCategoryDialog() {
 
   if (categoryDialogDeleteButton) {
     categoryDialogDeleteButton.addEventListener('click', handleCategoryDeleteClick);
+  }
+
+  if (categoryDialogAppsFieldset instanceof HTMLFieldSetElement) {
+    categoryDialogAppsFieldset.addEventListener('change', handleCategoryAppsSelectionChange);
+  }
+
+  if (categoryDialogAppsSaveButton) {
+    categoryDialogAppsSaveButton.addEventListener('click', handleCategoryAppsSaveClick);
   }
 }
 
@@ -3516,7 +3655,6 @@ async function handleUploadSubmit(event) {
 
   const desiredName = uploadNameInput && uploadNameInput.value ? uploadNameInput.value.trim() : '';
   const categoryInputValue = uploadCategoryInput && uploadCategoryInput.value ? uploadCategoryInput.value : '';
-  const selectedCategoryApps = getSelectedCategoryApps('upload');
   const results = [];
   const progressDetails = [];
   let successfulUploads = 0;
@@ -3551,9 +3689,7 @@ async function handleUploadSubmit(event) {
         throw new Error('Filen er ikke en gyldig SVG.');
       }
       const name = determineUploadName(desiredName, files.length, index, file.name);
-      const categoryDetails = resolveCategoryDetails(categoryInputValue, null, name, {
-        selectedApps: selectedCategoryApps,
-      });
+      const categoryDetails = resolveCategoryDetails(categoryInputValue, null, name);
       const id = createCustomEntryId(name, reservedUploadIds);
       const entry = {
         id,
@@ -3724,12 +3860,6 @@ function openCustomEditor(entryId, trigger) {
     editorErrorEl.hidden = true;
     editorErrorEl.textContent = '';
   }
-  const categoryApps = Array.isArray(entry.categoryApps) && entry.categoryApps.length
-    ? entry.categoryApps
-    : entry.categoryId && categoryMetaById.has(entry.categoryId)
-      ? categoryMetaById.get(entry.categoryId)?.apps
-      : undefined;
-  setCategoryAppSelection('editor', categoryApps);
   try {
     if (typeof editorDialog.showModal === 'function') {
       editorDialog.showModal();
@@ -3759,7 +3889,6 @@ function closeCustomEditor() {
   }
   if (editorNameInput) editorNameInput.value = '';
   if (editorCategoryInput) editorCategoryInput.value = '';
-  resetCategoryAppSelection('editor');
   const returnTarget = editorReturnFocus;
   editingEntryId = null;
   editorReturnFocus = null;
@@ -3790,10 +3919,7 @@ async function handleEditorSubmit(event) {
   }
   const categoryValue = editorCategoryInput && editorCategoryInput.value ? editorCategoryInput.value : '';
   const previousCategoryId = entry.categoryId;
-  const selectedCategoryApps = getSelectedCategoryApps('editor');
-  const categoryDetails = resolveCategoryDetails(categoryValue, previousCategoryId, nameValue, {
-    selectedApps: selectedCategoryApps,
-  });
+  const categoryDetails = resolveCategoryDetails(categoryValue, previousCategoryId, nameValue);
   entry.name = nameValue;
   entry.categoryId = categoryDetails.id;
   entry.categoryName = categoryDetails.name;

@@ -86,11 +86,6 @@ test.describe('Figurbibliotek opplastinger', () => {
     await page.locator('[data-upload-file]').setInputFiles(files);
     await page.locator('[data-upload-name]').fill('Tilpasset figur');
     await page.locator('[data-upload-category]').fill('Testkategori');
-    const uploadAppsFieldset = page.locator('[data-category-apps="upload"]');
-    await expect(uploadAppsFieldset).toBeVisible();
-    await expect(uploadAppsFieldset.getByRole('checkbox', { name: 'Måling' })).toBeChecked();
-    await uploadAppsFieldset.getByRole('checkbox', { name: 'Sortering' }).uncheck();
-
     await page.getByRole('button', { name: 'Legg til figur' }).click();
 
     const testCategory = page
@@ -104,6 +99,28 @@ test.describe('Figurbibliotek opplastinger', () => {
     const categoryDialog = page.locator('[data-category-dialog]');
     await expect(categoryDialog).toBeVisible();
 
+    const categoryAppsFieldset = categoryDialog.locator('[data-category-apps="category"]');
+    await expect(categoryAppsFieldset).toBeVisible();
+    const measurementCheckbox = categoryAppsFieldset.getByRole('checkbox', { name: 'Måling' });
+    const sortingCheckbox = categoryAppsFieldset.getByRole('checkbox', { name: 'Sortering' });
+    await expect(measurementCheckbox).toBeChecked();
+    await expect(sortingCheckbox).toBeChecked();
+
+    const saveAvailabilityButton = categoryDialog.getByRole('button', { name: 'Lagre tilgjengelighet' });
+    await expect(saveAvailabilityButton).toBeDisabled();
+    await sortingCheckbox.uncheck();
+    await expect(saveAvailabilityButton).toBeEnabled();
+
+    const firstCategoryPatchPromise = page.waitForRequest((request) => {
+      if (!request.url().includes('/api/figure-library')) return false;
+      if (request.method() !== 'PATCH') return false;
+      const payload = request.postDataJSON();
+      return payload && !payload.slug;
+    });
+    await Promise.all([firstCategoryPatchPromise, saveAvailabilityButton.click()]);
+    await expect(categoryDialog.locator('[data-category-apps-status]')).toHaveText('Tilgjengelighet oppdatert.');
+    await expect(saveAvailabilityButton).toBeDisabled();
+
     const initialItems = categoryDialog.locator('[data-category-figures] .bibliotekItem');
     await expect(initialItems).toHaveCount(2);
     await expect(initialItems.nth(0).locator('h2')).toHaveText('Tilpasset figur 1');
@@ -113,13 +130,8 @@ test.describe('Figurbibliotek opplastinger', () => {
 
     const editorDialog = page.locator('dialog[data-custom-editor]');
     await expect(editorDialog).toBeVisible();
-    const editorAppsFieldset = editorDialog.locator('[data-category-apps="editor"]');
-    await expect(editorAppsFieldset.getByRole('checkbox', { name: 'Måling' })).toBeChecked();
-    await expect(editorAppsFieldset.getByRole('checkbox', { name: 'Sortering' })).not.toBeChecked();
     await editorDialog.locator('[data-editor-name]').fill('Oppdatert figur');
     await editorDialog.locator('[data-editor-category]').fill('Oppdatert kategori');
-    await editorAppsFieldset.getByRole('checkbox', { name: 'Sortering' }).check();
-    await editorAppsFieldset.getByRole('checkbox', { name: 'Måling' }).uncheck();
     await editorDialog.getByRole('button', { name: 'Lagre endringer' }).click();
     await expect(editorDialog).toBeHidden();
 
@@ -130,6 +142,26 @@ test.describe('Figurbibliotek opplastinger', () => {
 
     await updatedCategory.locator('button.categoryButton').click();
     await expect(categoryDialog).toBeVisible();
+
+    const updatedAppsFieldset = categoryDialog.locator('[data-category-apps="category"]');
+    const updatedMeasurementCheckbox = updatedAppsFieldset.getByRole('checkbox', { name: 'Måling' });
+    const updatedSortingCheckbox = updatedAppsFieldset.getByRole('checkbox', { name: 'Sortering' });
+    await expect(updatedMeasurementCheckbox).toBeChecked();
+    await expect(updatedSortingCheckbox).toBeChecked();
+
+    const updatedSaveButton = categoryDialog.getByRole('button', { name: 'Lagre tilgjengelighet' });
+    await updatedMeasurementCheckbox.uncheck();
+    await expect(updatedSaveButton).toBeEnabled();
+    const secondCategoryPatchPromise = page.waitForRequest((request) => {
+      if (!request.url().includes('/api/figure-library')) return false;
+      if (request.method() !== 'PATCH') return false;
+      const payload = request.postDataJSON();
+      return payload && !payload.slug;
+    });
+    await Promise.all([secondCategoryPatchPromise, updatedSaveButton.click()]);
+    await expect(categoryDialog.locator('[data-category-apps-status]')).toHaveText('Tilgjengelighet oppdatert.');
+    await expect(updatedSaveButton).toBeDisabled();
+
     const updatedItems = categoryDialog.locator('[data-category-figures] .bibliotekItem');
     await expect(updatedItems).toHaveCount(1);
     await expect(updatedItems.first().locator('h2')).toHaveText('Oppdatert figur');
@@ -149,16 +181,9 @@ test.describe('Figurbibliotek opplastinger', () => {
         .locator('[data-category-dialog] [data-category-figures] .bibliotekItem h2')
         .first()
     ).toHaveText('Oppdatert figur');
-    const reloadedItem = page
-      .locator('[data-category-dialog] [data-category-figures] .bibliotekItem')
-      .first();
-    await reloadedItem.getByRole('button', { name: 'Rediger' }).click();
-    await expect(editorDialog).toBeVisible();
-    const reloadedEditorApps = editorDialog.locator('[data-category-apps="editor"]');
-    await expect(reloadedEditorApps.getByRole('checkbox', { name: 'Måling' })).not.toBeChecked();
-    await expect(reloadedEditorApps.getByRole('checkbox', { name: 'Sortering' })).toBeChecked();
-    await editorDialog.getByRole('button', { name: 'Avbryt' }).click();
-    await expect(editorDialog).toBeHidden();
+    const reloadedAppsFieldset = page.locator('[data-category-dialog] [data-category-apps="category"]');
+    await expect(reloadedAppsFieldset.getByRole('checkbox', { name: 'Måling' })).not.toBeChecked();
+    await expect(reloadedAppsFieldset.getByRole('checkbox', { name: 'Sortering' })).toBeChecked();
 
     await page.locator('[data-category-dialog] [data-category-close]').click();
 
@@ -170,47 +195,53 @@ test.describe('Figurbibliotek opplastinger', () => {
     const postRequests = figureLibraryRequests.filter((request) => request.method() === 'POST');
     expect(postRequests).toHaveLength(2);
     const postPayload = postRequests[0].postDataJSON();
-    expect(postPayload.category?.apps).toEqual(['bibliotek', 'måling']);
-    expect(postPayload.categoryApps).toEqual(['bibliotek', 'måling']);
+    expect(postPayload.category?.apps).toEqual(['bibliotek', 'måling', 'sortering']);
+    expect(postPayload.categoryApps).toEqual(['bibliotek', 'måling', 'sortering']);
 
     const patchRequests = figureLibraryRequests.filter((request) => request.method() === 'PATCH');
-    expect(patchRequests).toHaveLength(1);
-    const patchPayload = patchRequests[0].postDataJSON();
-    expect(patchPayload.category?.apps).toEqual(['bibliotek', 'sortering']);
-    expect(patchPayload.categoryApps).toEqual(['bibliotek', 'sortering']);
+    const categoryPatchRequests = patchRequests.filter((request) => {
+      const payload = request.postDataJSON();
+      return payload && !payload.slug;
+    });
+    const figurePatchRequests = patchRequests.filter((request) => {
+      const payload = request.postDataJSON();
+      return payload && payload.slug;
+    });
+
+    expect(categoryPatchRequests).toHaveLength(2);
+    expect(figurePatchRequests).toHaveLength(1);
+
+    const firstCategoryPayload = categoryPatchRequests[0].postDataJSON();
+    expect(firstCategoryPayload.category?.apps).toEqual(['bibliotek', 'måling']);
+    expect(firstCategoryPayload.categoryApps).toEqual(['bibliotek', 'måling']);
+
+    const figurePatchPayload = figurePatchRequests[0].postDataJSON();
+    expect(figurePatchPayload.category?.apps).toEqual(['bibliotek', 'måling', 'sortering']);
+    expect(figurePatchPayload.categoryApps).toEqual(['bibliotek', 'måling', 'sortering']);
+
+    const secondCategoryPayload = categoryPatchRequests[1].postDataJSON();
+    expect(secondCategoryPayload.category?.apps).toEqual(['bibliotek', 'sortering']);
+    expect(secondCategoryPayload.categoryApps).toEqual(['bibliotek', 'sortering']);
   });
 
-  test('viser kun appvalg uten navnefelt når redaktører åpner skjemaet for ny kategori', async ({ page }) => {
-    await page.getByRole('button', { name: 'Ny kategori' }).click();
+  test('viser appvalg i kategoridialogen og ikke i skjemaet for ny kategori', async ({ page }) => {
+    const fixturesDir = path.join(__dirname, 'fixtures', 'figure-library');
+    const file = path.join(fixturesDir, 'grid-figure.svg');
 
+    await page.locator('[data-upload-file]').setInputFiles(file);
+    await page.locator('[data-upload-name]').fill('Kategoriinspeksjon');
+    await page.locator('[data-upload-category]').fill('Testkategori');
+    await page.getByRole('button', { name: 'Legg til figur' }).click();
+
+    await page.locator('[data-category-grid] .categoryItem button.categoryButton').first().click();
+    const categoryDialog = page.locator('[data-category-dialog]');
+    await expect(categoryDialog.locator('[data-category-apps="category"]')).toBeVisible();
+    await categoryDialog.locator('[data-category-close]').click();
+
+    await page.getByRole('button', { name: 'Ny kategori' }).click();
     const addForm = page.locator('[data-add-category-form]');
     await expect(addForm).toBeVisible();
-    await expect(addForm.locator('[data-add-category-input]')).toHaveCount(0);
-
-    const addAppsFieldset = addForm.locator('[data-category-apps="add"]');
-    await expect(addAppsFieldset).toBeVisible();
-    const libraryCheckbox = addAppsFieldset.getByRole('checkbox', { name: 'Figurbibliotek' });
-    await expect(libraryCheckbox).toBeChecked();
-    await expect(libraryCheckbox).toBeDisabled();
-    const measurementCheckbox = addAppsFieldset.getByRole('checkbox', { name: 'Måling' });
-    const sortingCheckbox = addAppsFieldset.getByRole('checkbox', { name: 'Sortering' });
-    await expect(measurementCheckbox).toBeChecked();
-    await expect(sortingCheckbox).toBeChecked();
-
-    await sortingCheckbox.uncheck();
-    await expect(sortingCheckbox).not.toBeChecked();
-
-    await addForm.getByRole('button', { name: 'Legg til kategori' }).click();
-
-    // Uten navnefelt forventer vi at skjemaet forblir åpent og ingen kategori blir lagt til.
-    await expect(addForm).toBeVisible();
-    await expect(page.locator('[data-category-grid] .categoryItem')).not.toContainText('Geometrikategori');
-
-    await page.getByRole('button', { name: 'Ny kategori' }).click();
-
-    const reopenedFieldset = page.locator('[data-add-category-form] [data-category-apps="add"]');
-    await expect(reopenedFieldset.getByRole('checkbox', { name: 'Sortering' })).toBeChecked();
-    await expect(reopenedFieldset.getByRole('checkbox', { name: 'Måling' })).toBeChecked();
+    await expect(addForm.locator('[data-category-apps]')).toHaveCount(0);
   });
 
   test('lar brukere slette tomme egendefinerte kategorier', async ({ page }) => {
