@@ -2066,8 +2066,10 @@ function hideAddCategoryForm(options = {}) {
   const { resetInput = false, clearFeedback = true } = options;
   addCategoryForm.setAttribute('hidden', '');
   addCategoryToggleButton?.setAttribute('aria-expanded', 'false');
-  if (resetInput && addCategoryInput) {
-    addCategoryInput.value = '';
+  if (resetInput) {
+    if (addCategoryInput) {
+      addCategoryInput.value = '';
+    }
     resetCategoryAppSelection('add');
   }
   if (clearFeedback) {
