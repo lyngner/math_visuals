@@ -3146,9 +3146,8 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       : TAPE_STRAP_DEFAULT_HEIGHT;
     const strapEndScaleValue = strapHeight / TAPE_STRAP_DEFAULT_HEIGHT;
     const strapEndWidth = TAPE_STRAP_END_WIDTH * (Number.isFinite(strapEndScaleValue) ? strapEndScaleValue : 1);
-    const strapMinimumLength = Math.max(unitSpacing, strapEndWidth * 1.25);
     const overlap = Number.isFinite(housingShift) ? housingShift : DEFAULT_TAPE_HOUSING_SHIFT_PX;
-    const strapLength = Math.max(distance + overlap, strapMinimumLength);
+    const strapLength = Math.max(distance + overlap, strapEndWidth);
     if (!(strapLength > 0)) {
       return null;
     }
@@ -3183,7 +3182,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       majorTickMarkup += `<line x1="${formatSvgNumber(x)}" y1="${formatSvgNumber(topBaselineY)}" x2="${formatSvgNumber(x)}" y2="${formatSvgNumber(majorTickBottom)}" class="tape-svg__tick tape-svg__tick--major" />`;
     }
     if (hasRemainder) {
-      const endX = Math.min(distance, strapLength);
+      const endX = distance;
       majorTickMarkup += `<line x1="${formatSvgNumber(endX)}" y1="${formatSvgNumber(topBaselineY)}" x2="${formatSvgNumber(endX)}" y2="${formatSvgNumber(majorTickBottom)}" class="tape-svg__tick tape-svg__tick--major" />`;
     }
 
