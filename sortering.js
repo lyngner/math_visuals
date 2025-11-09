@@ -1533,9 +1533,9 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
       const fileName = typeof figure.fileName === 'string' ? figure.fileName.trim() : '';
       if (fileName) {
         const basePath = ensureTrailingSlash(
-          measurementFigureManifest && typeof measurementFigureManifest.basePath === 'string'
-            ? measurementFigureManifest.basePath
-            : '/images/measure/'
+          typeof FIGURE_LIBRARY_BASE_PATH === 'string' && FIGURE_LIBRARY_BASE_PATH
+            ? FIGURE_LIBRARY_BASE_PATH
+            : FIGURE_LIBRARY_RELATIVE_BASE_PATH
         );
         return encodeURI(`${basePath}${fileName}`);
       }
