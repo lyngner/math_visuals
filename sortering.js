@@ -1155,13 +1155,48 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     return aliases;
   }
 
-  const figureData = buildFigureData({ app: FIGURE_LIBRARY_APP_KEY });
+  function sanitizeFigureDataForSortering(source) {
+    const categories = [];
+    const byId = new Map();
+    const byImage = new Map();
+
+    if (source && Array.isArray(source.categories)) {
+      source.categories.forEach(category => {
+        if (!category || category.id === CUSTOM_CATEGORY_ID) {
+          return;
+        }
+        const figures = Array.isArray(category.figures)
+          ? category.figures.filter(figure => figure && figure.custom !== true)
+          : [];
+        const sanitizedCategory = {
+          ...category,
+          figures
+        };
+        categories.push(sanitizedCategory);
+        figures.forEach(figure => {
+          if (figure && figure.id != null && !byId.has(figure.id)) {
+            byId.set(figure.id, figure);
+          }
+          if (figure && figure.image && !byImage.has(figure.image)) {
+            byImage.set(figure.image, figure);
+          }
+        });
+      });
+    }
+
+    return {
+      categories,
+      byId,
+      byImage,
+      metadata: source ? source.metadata : undefined
+    };
+  }
+
+  const figureData = sanitizeFigureDataForSortering(buildFigureData({ app: FIGURE_LIBRARY_APP_KEY }));
   if (!storageWarningMessage) {
     storageWarningMessage = resolveStorageWarningMessage(figureData.metadata);
   }
-  const nonCustomFigureCategories = figureData.categories.filter(category => category.id !== CUSTOM_CATEGORY_ID);
   const DEFAULT_FIGURE_CATEGORY_ID = (
-    (nonCustomFigureCategories[0] && nonCustomFigureCategories[0].id) ||
     (figureData.categories[0] && figureData.categories[0].id) ||
     ''
   );
