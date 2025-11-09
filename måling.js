@@ -200,7 +200,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   const TAPE_STRAP_HANDLE_RATIO = 0.45;
   const TAPE_STRAP_HANDLE_MIN_PX = 24;
   const TAPE_HOUSING_SHIFT_VARIABLE = '--tape-housing-shift';
-  const DEFAULT_TAPE_HOUSING_SHIFT_PX = 36;
+  const DEFAULT_TAPE_HOUSING_SHIFT_PX = 40;
   const TAPE_STRAP_END_WIDTH = 40;
   const TAPE_DIRECTION = -1;
   const TAPE_HOUSING_HANDOFF_TOLERANCE_PX = 6;
@@ -4973,6 +4973,27 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     }
   }
 
+  function beginTapeMoveSessionFromZeroHandle(event) {
+    if (!event || appState.activeTool !== 'tape') {
+      return;
+    }
+    const session = getInstrumentPointerSession('tape');
+    if (!session || session.has(event.pointerId)) {
+      return;
+    }
+    if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
+      return;
+    }
+    const entry = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      prevX: event.clientX,
+      prevY: event.clientY
+    };
+    session.set(event.pointerId, entry);
+  }
+
   function handleTapeHousingPointerDown(event, captureTarget) {
     if (!captureTarget || appState.activeTool !== 'tape') {
       return;
@@ -5260,9 +5281,6 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   function handleTapeExtensionPointerDown(event, captureTarget) {
     const isZeroHandleEvent =
       captureTarget === tapeZeroHandle || isEventFromTapeZeroHandle(event);
-    if (isZeroHandleEvent) {
-      consumeTapeZeroHandleEvent(event);
-    }
     if (!captureTarget || appState.activeTool !== 'tape') {
       return;
     }
@@ -5273,7 +5291,11 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       return;
     }
     const moveSession = getInstrumentPointerSession('tape');
-    if (moveSession && moveSession.size > 0) {
+    if (isZeroHandleEvent) {
+      beginTapeMoveSessionFromZeroHandle(event);
+      consumeTapeZeroHandleEvent(event);
+    }
+    if (moveSession && moveSession.size > 0 && !moveSession.has(event.pointerId)) {
       if (isZeroHandleEvent) {
         consumeTapeZeroHandleEvent(event);
       }
