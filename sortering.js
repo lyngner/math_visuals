@@ -1162,18 +1162,15 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
 
     if (source && Array.isArray(source.categories)) {
       source.categories.forEach(category => {
-        if (!category || category.id === CUSTOM_CATEGORY_ID) {
+        if (!category) {
           return;
         }
-        const figures = Array.isArray(category.figures)
-          ? category.figures.filter(figure => figure && figure.custom !== true)
+
+        const rawFigures = Array.isArray(category.figures)
+          ? category.figures.filter(Boolean)
           : [];
-        const sanitizedCategory = {
-          ...category,
-          figures
-        };
-        categories.push(sanitizedCategory);
-        figures.forEach(figure => {
+
+        rawFigures.forEach(figure => {
           if (figure && figure.id != null && !byId.has(figure.id)) {
             byId.set(figure.id, figure);
           }
@@ -1181,6 +1178,17 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
             byImage.set(figure.image, figure);
           }
         });
+
+        if (category.id === CUSTOM_CATEGORY_ID) {
+          return;
+        }
+
+        const sanitizedFigures = rawFigures.filter(figure => figure && figure.custom !== true);
+        const sanitizedCategory = {
+          ...category,
+          figures: sanitizedFigures
+        };
+        categories.push(sanitizedCategory);
       });
     }
 
