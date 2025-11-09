@@ -1059,10 +1059,6 @@
           </div>
         </header>
         <form class="categoryAddForm" data-add-category-form hidden>
-          <fieldset class="categoryAppsField" data-category-apps="add">
-            <legend>Tilgjengelig i apper</legend>
-            <div class="categoryAppsOptions" data-category-apps-options></div>
-          </fieldset>
           <p class="categoryAddMessage" data-add-category-feedback hidden></p>
           <div class="categoryAddControls">
             <button type="submit" class="categoryAddSubmit">Legg til kategori</button>
@@ -1105,10 +1101,6 @@
             autocomplete="off"
           />
         </label>
-        <fieldset class="categoryAppsField" data-category-apps="upload">
-          <legend>Tilgjengelig i apper</legend>
-          <div class="categoryAppsOptions" data-category-apps-options></div>
-        </fieldset>
         <p class="uploadHelper">Velg en eksisterende kategori eller skriv inn en ny.</p>
         <div class="uploadActions">
           <button type="submit" class="uploadButton">Legg til figur</button>
@@ -1169,6 +1161,18 @@
           </button>
         </div>
       </div>
+      <div class="categoryDialog__apps" data-category-apps-section>
+        <fieldset class="categoryAppsField" data-category-apps="category">
+          <legend>Tilgjengelig i apper</legend>
+          <div class="categoryAppsOptions" data-category-apps-options></div>
+        </fieldset>
+        <div class="categoryDialog__appsActions">
+          <button type="button" class="categoryDialog__appsSave" data-category-apps-save>
+            Lagre tilgjengelighet
+          </button>
+          <p class="categoryDialog__appsStatus" data-category-apps-status aria-live="polite" hidden></p>
+        </div>
+      </div>
       <div class="categoryDialog__body">
         <ul class="categoryDialog__grid" data-category-figures aria-live="polite"></ul>
         <p class="categoryDialog__empty" data-category-empty hidden>
@@ -1194,10 +1198,6 @@
           autocomplete="off"
         />
       </label>
-      <fieldset class="categoryAppsField" data-category-apps="editor">
-        <legend>Tilgjengelig i apper</legend>
-        <div class="categoryAppsOptions" data-category-apps-options></div>
-      </fieldset>
       <p class="customEditorHelper">Velg en eksisterende kategori eller skriv inn en ny.</p>
       <p class="customEditorError" data-editor-error hidden></p>
       <div class="customEditorActions">
