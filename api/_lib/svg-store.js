@@ -3,6 +3,16 @@
 const KEY_PREFIX = 'svg:';
 const INDEX_KEY = 'svg:__slugs__';
 const INJECTED_KV_CLIENT_KEY = '__MATH_VISUALS_KV_CLIENT__';
+const PRIMARY_KV_URL_KEY = 'KV_REST_API_URL';
+const PRIMARY_KV_TOKEN_KEY = 'KV_REST_API_TOKEN';
+const KV_ENV_ALIAS_PAIRS = [
+  ['MATH_VISUALS_KV_REST_API_URL', 'MATH_VISUALS_KV_REST_API_TOKEN'],
+  ['FIGURE_LIBRARY_KV_REST_API_URL', 'FIGURE_LIBRARY_KV_REST_API_TOKEN'],
+  ['EXAMPLES_KV_REST_API_URL', 'EXAMPLES_KV_REST_API_TOKEN'],
+  ['SVG_KV_REST_API_URL', 'SVG_KV_REST_API_TOKEN'],
+  ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN'],
+  ['UPSTASH_KV_REST_URL', 'UPSTASH_KV_REST_TOKEN']
+];
 
 const globalScope = typeof globalThis === 'object' && globalThis ? globalThis : global;
 const memoryStore = globalScope.__SVG_MEMORY_STORE__ || new Map();
@@ -12,6 +22,54 @@ globalScope.__SVG_MEMORY_STORE__ = memoryStore;
 globalScope.__SVG_MEMORY_INDEX__ = memoryIndex;
 
 let kvClientPromise = null;
+
+function readEnvValue(key) {
+  if (!key) return null;
+  const raw = process.env[key];
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  return trimmed ? trimmed : null;
+}
+
+function isLikelyHttpUrl(value) {
+  return typeof value === 'string' && /^https?:\/\//i.test(value);
+}
+
+function ensureKvEnvironment() {
+  let url = readEnvValue(PRIMARY_KV_URL_KEY);
+  let token = readEnvValue(PRIMARY_KV_TOKEN_KEY);
+
+  if (!isLikelyHttpUrl(url)) {
+    url = null;
+  }
+  if (!url || !token) {
+    for (const [urlKey, tokenKey] of KV_ENV_ALIAS_PAIRS) {
+      const candidateUrl = readEnvValue(urlKey);
+      const candidateToken = readEnvValue(tokenKey);
+      if (isLikelyHttpUrl(candidateUrl) && candidateToken) {
+        if (!url) {
+          url = candidateUrl;
+        }
+        if (!token) {
+          token = candidateToken;
+        }
+        break;
+      }
+    }
+  }
+
+  if (isLikelyHttpUrl(url) && token) {
+    if (!readEnvValue(PRIMARY_KV_URL_KEY)) {
+      process.env[PRIMARY_KV_URL_KEY] = url;
+    }
+    if (!readEnvValue(PRIMARY_KV_TOKEN_KEY)) {
+      process.env[PRIMARY_KV_TOKEN_KEY] = token;
+    }
+    return { url, token };
+  }
+
+  return null;
+}
 
 class KvOperationError extends Error {
   constructor(message, options) {
@@ -31,7 +89,7 @@ class KvConfigurationError extends Error {
 }
 
 function isKvConfigured() {
-  return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+  return Boolean(ensureKvEnvironment());
 }
 
 function getStoreMode() {
@@ -82,7 +140,8 @@ async function loadKvClient() {
     }
     return kvClientPromise;
   }
-  if (!isKvConfigured()) {
+  const kvEnv = ensureKvEnvironment();
+  if (!kvEnv) {
     throw new KvConfigurationError(
       'SVG storage KV is not configured. Set KV_REST_API_URL and KV_REST_API_TOKEN to enable persistent storage.'
     );

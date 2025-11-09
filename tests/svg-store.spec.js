@@ -173,6 +173,22 @@ test.describe('svg-store memory mode', () => {
 });
 
 test.describe('svg-store kv mode', () => {
+  test('getStoreMode uses alias environment variables when primary keys are missing', async () => {
+    delete process.env.KV_REST_API_URL;
+    delete process.env.KV_REST_API_TOKEN;
+    process.env.FIGURE_LIBRARY_KV_REST_API_URL = TEST_KV_URL;
+    process.env.FIGURE_LIBRARY_KV_REST_API_TOKEN = TEST_KV_TOKEN;
+
+    expect(getStoreMode()).toBe('kv');
+    expect(process.env.KV_REST_API_URL).toBe(TEST_KV_URL);
+    expect(process.env.KV_REST_API_TOKEN).toBe(TEST_KV_TOKEN);
+
+    delete process.env.FIGURE_LIBRARY_KV_REST_API_URL;
+    delete process.env.FIGURE_LIBRARY_KV_REST_API_TOKEN;
+    process.env.KV_REST_API_URL = originalKvUrl || TEST_KV_URL;
+    process.env.KV_REST_API_TOKEN = originalKvToken || TEST_KV_TOKEN;
+  });
+
   test('setSvg persists to kv and listSvgs hydrates from kv', async () => {
     const statePayload = { foo: 'kv', nested: { list: ['a', 'b'] } };
     const stored = await setSvg('Icons/Star.svg', {
