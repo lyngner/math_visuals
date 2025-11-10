@@ -1166,7 +1166,7 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
           return;
         }
         const figures = Array.isArray(category.figures)
-          ? category.figures.filter(figure => figure && figure.custom !== true)
+          ? category.figures.filter(figure => figure && figure.id != null)
           : [];
         const sanitizedCategory = {
           ...category,
