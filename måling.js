@@ -143,7 +143,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       height: 47,
       anchorX: 0,
       anchorY: 23.5,
-      href: '/images/measure/måleredskaper/målebåndSluttstykke.svg'
+      href: '/images/measure/måleredskaper/målebåndSluttstykkeGult.svg'
     },
     b: {
       width: 136,
