@@ -408,6 +408,18 @@
 
     .segment.segment--tape-beta .segment__tape-beta-strap[data-visible='true'] {
       display: block;
+      pointer-events: auto;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .segment.segment--tape-beta .segment__tape-beta-strap[data-visible='true']:active {
+      cursor: grabbing;
+    }
+
+    .segment.segment--tape-beta .segment__tape-beta-strap[data-visible='true'] svg {
+      pointer-events: none;
     }
 
     .segment__tape-beta-housing {
