@@ -3171,7 +3171,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (!(strapLength > 0)) {
       return null;
     }
-    const strapBackgroundWidth = Math.max(strapLength - strapEndWidth, 0);
+    const strapBackgroundWidth = Math.max(strapLength, 0);
     const subdivisions = Number.isFinite(settings && settings.subdivisions)
       ? settings.subdivisions
       : defaults.subdivisions;
@@ -3256,7 +3256,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     const strapEndMarkup = `<image class="tape-svg__end-cap" ${strapEndScaleAttribute} href="${strapEndHref}" xlink:href="${strapEndHref}" width="${formatSvgNumber(TAPE_STRAP_END_WIDTH)}" height="${formatSvgNumber(TAPE_STRAP_DEFAULT_HEIGHT)}" />`;
 
     const markup = `
-      <rect x="${formatSvgNumber(strapEndWidth)}" y="0" width="${formatSvgNumber(strapBackgroundWidth)}" height="${formatSvgNumber(strapHeight)}" class="tape-svg__background" />
+      <rect x="0" y="0" width="${formatSvgNumber(strapBackgroundWidth)}" height="${formatSvgNumber(strapHeight)}" class="tape-svg__background" />
       ${strapEndMarkup}
       <line x1="0" y1="${formatSvgNumber(topBaselineY)}" x2="${formatSvgNumber(strapLength)}" y2="${formatSvgNumber(topBaselineY)}" class="tape-svg__baseline" />
       <line x1="0" y1="${formatSvgNumber(bottomBaselineY)}" x2="${formatSvgNumber(strapLength)}" y2="${formatSvgNumber(bottomBaselineY)}" class="tape-svg__baseline" />
@@ -3338,7 +3338,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
         tapeMeasure.style.removeProperty('--tape-zero-handle-width');
       }
     }
-    const strapBackgroundWidth = Math.max(strapLengthWithOverlap - strapEndWidth, 0);
+    const strapBackgroundWidth = Math.max(strapLengthWithOverlap, 0);
     const bandInset = Math.min(Math.max(strapHeight * 0.12, 6), strapHeight / 2.2);
     const topBaselineY = bandInset;
     const bottomBaselineY = strapHeight - bandInset;
@@ -3420,7 +3420,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     tapeStrapSvg.setAttribute('width', formatSvgNumber(strapLengthWithOverlap));
     tapeStrapSvg.setAttribute('height', formatSvgNumber(strapHeight));
     tapeStrapSvg.innerHTML = `
-      <rect x="${formatSvgNumber(strapEndWidth)}" y="0" width="${formatSvgNumber(strapBackgroundWidth)}" height="${strapHeight}" class="tape-svg__background" />
+      <rect x="0" y="0" width="${formatSvgNumber(strapBackgroundWidth)}" height="${strapHeight}" class="tape-svg__background" />
       ${strapEndMarkup}
       <line x1="0" y1="${topBaselineY}" x2="${strapLengthWithOverlap}" y2="${topBaselineY}" class="tape-svg__baseline" />
       <line x1="0" y1="${bottomBaselineY}" x2="${strapLengthWithOverlap}" y2="${bottomBaselineY}" class="tape-svg__baseline" />
