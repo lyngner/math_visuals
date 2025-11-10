@@ -209,6 +209,7 @@
       padding: 12px 14px;
       display: grid;
       gap: 10px;
+      width: 100%;
     }
     .categoryAppsField legend {
       font-size: 14px;
@@ -767,14 +768,22 @@
       max-height: min(540px, 60vh);
     }
     .categoryDialog__header {
+      display: grid;
+      gap: clamp(16px, 2.5vw, 24px);
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+    }
+    .categoryDialog__headerContent {
       display: flex;
+      flex-wrap: wrap;
+      gap: clamp(14px, 2vw, 20px);
       align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
     }
     .categoryDialog__intro {
       display: grid;
       gap: 6px;
+      flex: 1 1 min(260px, 100%);
+      min-width: min(260px, 100%);
     }
     .categoryDialog__title {
       margin: 0;
@@ -787,6 +796,45 @@
       color: #475569;
       font-size: 0.95rem;
       max-width: 65ch;
+    }
+    .categoryDialog__apps {
+      flex: 0 1 320px;
+      min-width: min(260px, 100%);
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+    .categoryDialog__appsActions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+    }
+    .categoryDialog__appsSave {
+      border-radius: 999px;
+      border: 1px solid rgba(37, 99, 235, 0.45);
+      background: rgba(59, 130, 246, 0.16);
+      color: #1d4ed8;
+      font-weight: 600;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+    .categoryDialog__appsSave:hover,
+    .categoryDialog__appsSave:focus-visible {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.18);
+      border-color: rgba(37, 99, 235, 0.6);
+      outline: none;
+    }
+    .categoryDialog__appsSave:focus-visible {
+      outline: 3px solid rgba(59, 130, 246, 0.45);
+      outline-offset: 2px;
+    }
+    .categoryDialog__appsStatus {
+      font-size: 13px;
+      color: #1f2937;
+      margin: 0;
     }
     .categoryDialog__close {
       border-radius: 999px;
@@ -808,6 +856,22 @@
     .categoryDialog__close:focus-visible {
       outline: 3px solid rgba(59, 130, 246, 0.45);
       outline-offset: 3px;
+    }
+    @media (max-width: 640px) {
+      .categoryDialog__header {
+        grid-template-columns: 1fr;
+      }
+      .categoryDialog__headerContent {
+        flex-direction: column;
+        gap: 14px;
+      }
+      .categoryDialog__close {
+        justify-self: end;
+      }
+      .categoryDialog__apps,
+      .categoryDialog__intro {
+        min-width: 100%;
+      }
     }
     .categoryDialog__meta {
       display: flex;
@@ -1137,9 +1201,23 @@
   <dialog class="categoryDialog" data-category-dialog>
     <div class="categoryDialog__layout" role="document">
       <header class="categoryDialog__header">
-        <div class="categoryDialog__intro">
-          <h2 class="categoryDialog__title" data-category-title></h2>
-          <p class="categoryDialog__description" data-category-description hidden></p>
+        <div class="categoryDialog__headerContent">
+          <div class="categoryDialog__intro">
+            <h2 class="categoryDialog__title" data-category-title></h2>
+            <p class="categoryDialog__description" data-category-description hidden></p>
+          </div>
+          <div class="categoryDialog__apps" data-category-apps-section>
+            <fieldset class="categoryAppsField" data-category-apps="category">
+              <legend>Tilgjengelig i apper</legend>
+              <div class="categoryAppsOptions" data-category-apps-options></div>
+            </fieldset>
+            <div class="categoryDialog__appsActions">
+              <button type="button" class="categoryDialog__appsSave" data-category-apps-save>
+                Lagre tilgjengelighet
+              </button>
+              <p class="categoryDialog__appsStatus" data-category-apps-status aria-live="polite" hidden></p>
+            </div>
+          </div>
         </div>
         <button type="button" class="categoryDialog__close" data-category-close>
           Lukk
@@ -1159,18 +1237,6 @@
           <button type="button" class="categoryDialog__upload" data-category-upload>
             Last opp filer
           </button>
-        </div>
-      </div>
-      <div class="categoryDialog__apps" data-category-apps-section>
-        <fieldset class="categoryAppsField" data-category-apps="category">
-          <legend>Tilgjengelig i apper</legend>
-          <div class="categoryAppsOptions" data-category-apps-options></div>
-        </fieldset>
-        <div class="categoryDialog__appsActions">
-          <button type="button" class="categoryDialog__appsSave" data-category-apps-save>
-            Lagre tilgjengelighet
-          </button>
-          <p class="categoryDialog__appsStatus" data-category-apps-status aria-live="polite" hidden></p>
         </div>
       </div>
       <div class="categoryDialog__body">
