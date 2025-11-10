@@ -1,5 +1,3 @@
-const amountManifestUrl = '/images/amounts/manifest.json';
-const measureManifestUrl = '/images/measure/manifest.json';
 const statusEl = document.querySelector('[data-status]');
 const filterInput = document.querySelector('[data-filter]');
 const countEl = document.querySelector('[data-count]');
@@ -58,59 +56,6 @@ const FIGURE_LIBRARY_ENDPOINT = '/api/figure-library';
 const FIGURE_LIBRARY_RAW_ENDPOINT = '/api/figure-library/raw';
 const FIGURE_LIBRARY_TOOL = 'bibliotek-upload';
 
-const amountCategories = [
-  {
-    id: 'tierbrett',
-    type: 'amount',
-    name: 'Tierbrett',
-    filter: 'Tierbrett',
-    sampleSlug: 'tb10',
-    sampleAlt: 'Eksempel på tierbrett',
-    description: 'Tierbrett med markører som representerer antall.',
-    matches: (slug) => slug.startsWith('tb'),
-  },
-  {
-    id: 'tallbrikker',
-    type: 'amount',
-    name: 'Tallbrikker',
-    filter: 'Tallbrikker',
-    sampleSlug: 'n53',
-    sampleAlt: 'Eksempel på tallbrikker',
-    description: 'Tallbrikker som viser grupperte mengder.',
-    matches: (slug) => slug.startsWith('n'),
-  },
-  {
-    id: 'penger',
-    type: 'amount',
-    name: 'Penger',
-    filter: 'Penger',
-    sampleSlug: 'v50',
-    sampleAlt: 'Eksempel på penger',
-    description: 'Sedler og mynter til arbeid med kroner og øre.',
-    matches: (slug) => slug.startsWith('v'),
-  },
-  {
-    id: 'terninger',
-    type: 'amount',
-    name: 'Terninger',
-    filter: 'Terninger',
-    sampleSlug: 'd5',
-    sampleAlt: 'Eksempel på terninger',
-    description: 'Terninger for sannsynlighet og telling.',
-    matches: (slug) => slug.startsWith('d'),
-  },
-  {
-    id: 'hender',
-    type: 'amount',
-    name: 'Hender',
-    filter: 'Hender',
-    sampleSlug: 'h05G',
-    sampleAlt: 'Eksempel på tellehender',
-    description: 'Hender som viser fingre for tallrepresentasjon.',
-    matches: (slug) => slug.startsWith('h'),
-  },
-];
-
 let categories = [];
 const categoryMetaById = new Map();
 
@@ -123,9 +68,6 @@ const figuresByCategory = new Map();
 const UNCATEGORIZED_KEY = '__uncategorized__';
 
 let figureItems = [];
-let allAmountSlugs = [];
-let measurementItems = [];
-let measurementCategoryList = [];
 
 const customCategories = [];
 const customCategoryMap = new Map();
@@ -180,7 +122,6 @@ async function init() {
     console.error('Kunne ikke laste egendefinerte figurer', error);
   }
   refreshLibrary({ maintainFilter: false });
-  loadLibraries();
   filterInput?.addEventListener('input', handleFilterInput);
   categorySortSelect?.addEventListener('change', handleCategorySortChange);
   setupAddCategoryForm();
@@ -195,41 +136,6 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
   init();
-}
-
-async function loadLibraries() {
-  try {
-    const [amountPayload, measurePayload] = await Promise.all([
-      fetchJson(amountManifestUrl),
-      fetchJson(measureManifestUrl).catch((error) => {
-        console.error('Kunne ikke laste målemanifestet', error);
-        return null;
-      }),
-    ]);
-
-    if (!amountPayload || !Array.isArray(amountPayload.slugs)) {
-      throw new Error('Ugyldig manifest for mengder');
-    }
-
-    allAmountSlugs = amountPayload.slugs;
-
-    const measurementCatalog = Array.isArray(measurePayload?.categories)
-      ? measurePayload.categories
-      : [];
-
-    const { categoryList: measurementCategories, items: measurementData } =
-      buildMeasurementData(measurementCatalog);
-
-    measurementItems = measurementData;
-    measurementCategoryList = measurementCategories;
-
-    refreshLibrary();
-  } catch (error) {
-    console.error('Kunne ikke laste manifestet', error);
-    setStatusMessage('Kunne ikke laste figurene. Prøv å laste siden på nytt.', 'error', {
-      includeStorageWarning: false,
-    });
-  }
 }
 
 function normalizeCategoryAppId(value) {
@@ -453,13 +359,12 @@ function getSelectedCategoryApps(context) {
 
 function refreshLibrary(options = {}) {
   const { maintainFilter = true } = options;
-  const baseCategories = amountCategories.concat(Array.isArray(measurementCategoryList) ? measurementCategoryList : []);
-  const augmentedBase = baseCategories.concat(customCategories);
+  const baseCategories = Array.isArray(customCategories) ? customCategories.slice() : [];
 
-  alignCustomEntriesWithBaseCategories(augmentedBase);
+  alignCustomEntriesWithBaseCategories(baseCategories);
 
-  prepareFigureItems(allAmountSlugs, measurementItems, customEntries);
-  recomputeCategories(augmentedBase);
+  prepareFigureItems(customEntries);
+  recomputeCategories(baseCategories);
 
   let shouldCloseCategoryDialog = false;
   if (!maintainFilter) {
@@ -1054,7 +959,7 @@ function normalizeCategoryMeta(category) {
 }
 
 function recomputeCategories(baseCategories) {
-  const baseList = Array.isArray(baseCategories) ? baseCategories : amountCategories;
+  const baseList = Array.isArray(baseCategories) ? baseCategories : [];
   const normalizedBase = baseList
     .map(normalizeCategoryMeta)
     .filter(Boolean);
@@ -2036,7 +1941,7 @@ function updateCategoryVisibility(normalizedQuery, hasQueryFilter) {
   }
 }
 
-function prepareFigureItems(amountSlugs, measureEntries, customFigures = []) {
+function prepareFigureItems(entries = []) {
   if (observer && Array.isArray(figureItems) && figureItems.length) {
     for (const item of figureItems) {
       if (item?.image) {
@@ -2048,15 +1953,10 @@ function prepareFigureItems(amountSlugs, measureEntries, customFigures = []) {
   }
 
   figuresByCategory.clear();
-  const amountEntries = Array.isArray(amountSlugs)
-    ? amountSlugs.map((slug) => createAmountFigureData(slug)).filter(Boolean)
-    : [];
-  const measurementEntries = Array.isArray(measureEntries) ? measureEntries : [];
-  const customEntriesData = Array.isArray(customFigures)
-    ? customFigures.map((entry) => createCustomFigureData(entry)).filter(Boolean)
-    : [];
-  const combinedEntries = amountEntries.concat(measurementEntries, customEntriesData);
-  figureItems = combinedEntries.map((entry) => createFigureItem(entry));
+  const combinedEntries = Array.isArray(entries) ? entries : [];
+  figureItems = combinedEntries
+    .map((entry) => createFigureItem(entry))
+    .filter(Boolean);
 
   for (const item of figureItems) {
     const key = getCategoryKey(item.data.categoryId);
@@ -2067,14 +1967,25 @@ function prepareFigureItems(amountSlugs, measureEntries, customFigures = []) {
   }
 }
 
-function createFigureItem(data) {
-  const { path, slug, id, name, summary, categoryId, categoryName, type, custom, entryId } = data;
+function createFigureItem(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const { slug, id, name, summary, categoryId, categoryName, type, custom, entryId } = entry;
+  const assetUrl = typeof entry.assetUrl === 'string' && entry.assetUrl.trim() ? entry.assetUrl.trim() : '';
+  const dataUrl = typeof entry.dataUrl === 'string' && entry.dataUrl.trim() ? entry.dataUrl.trim() : '';
+  const resolvedPath = assetUrl || dataUrl;
+  if (!resolvedPath) {
+    return null;
+  }
+  const isInlineAsset = resolvedPath.startsWith('data:');
+  const displayPath = resolvedPath;
   const searchTokens = [
     slug,
     id,
     name,
     summary,
-    path,
+    assetUrl,
+    dataUrl,
+    displayPath,
     categoryName,
     categoryId ? `category:${categoryId}` : null,
     type ? `type:${type}` : null,
@@ -2090,8 +2001,9 @@ function createFigureItem(data) {
   li.dataset.categoryId = categoryId || '';
   li.dataset.type = type || '';
   li.dataset.search = searchText;
-  li.dataset.custom = custom ? 'true' : 'false';
-  if (custom && entryId) {
+  const isEditable = Boolean(custom);
+  li.dataset.custom = isEditable ? 'true' : 'false';
+  if (isEditable && entryId) {
     li.dataset.customId = entryId;
   }
 
@@ -2102,11 +2014,10 @@ function createFigureItem(data) {
   const img = document.createElement('img');
   const altLabel = name || slug || id || 'Figur';
   img.alt = altLabel;
-  const isCustom = Boolean(custom);
-  if (isCustom) {
-    img.src = path;
+  if (isInlineAsset) {
+    img.src = displayPath;
   } else {
-    img.dataset.src = path;
+    img.dataset.src = displayPath;
   }
   img.loading = 'lazy';
   img.decoding = 'async';
@@ -2120,10 +2031,10 @@ function createFigureItem(data) {
     figure.dataset.error = 'true';
   });
   figure.appendChild(img);
-  if (!isCustom && observer) {
+  if (!isInlineAsset && observer) {
     observer.observe(img);
-  } else if (!isCustom) {
-    img.src = path;
+  } else if (!isInlineAsset) {
+    img.src = displayPath;
     img.removeAttribute('data-src');
   }
 
@@ -2134,7 +2045,7 @@ function createFigureItem(data) {
   header.className = 'bibliotekHeader';
 
   const title = document.createElement('h2');
-  title.textContent = name || slug || path;
+  title.textContent = name || slug || displayPath;
   header.appendChild(title);
 
   const actions = document.createElement('div');
@@ -2142,26 +2053,26 @@ function createFigureItem(data) {
 
   const copyButton = document.createElement('button');
   copyButton.type = 'button';
-  copyButton.dataset.path = path;
+  copyButton.dataset.path = displayPath;
   copyButton.textContent = 'Kopier sti';
-  copyButton.setAttribute('aria-label', `Kopier ${path}`);
-  copyButton.title = `Kopier ${path}`;
+  copyButton.setAttribute('aria-label', `Kopier ${displayPath}`);
+  copyButton.title = `Kopier ${displayPath}`;
   copyButton.addEventListener('click', handleCopyClick);
   actions.appendChild(copyButton);
 
   const openLink = document.createElement('a');
-  openLink.href = path;
+  openLink.href = displayPath;
   openLink.target = '_blank';
   openLink.rel = 'noreferrer noopener';
   openLink.textContent = 'Vis SVG';
-  openLink.setAttribute('aria-label', `Vis ${path} i en ny fane`);
-  openLink.title = `Åpne ${path}`;
-  if (isCustom) {
+  openLink.setAttribute('aria-label', `Vis ${displayPath} i en ny fane`);
+  openLink.title = `Åpne ${displayPath}`;
+  if (isInlineAsset) {
     openLink.download = `${slug || id || 'figur'}.svg`;
   }
   actions.appendChild(openLink);
 
-  if (isCustom) {
+  if (isEditable) {
     const editButton = document.createElement('button');
     editButton.type = 'button';
     editButton.textContent = 'Rediger';
@@ -2182,8 +2093,8 @@ function createFigureItem(data) {
 
   const pathEl = document.createElement('div');
   pathEl.className = 'bibliotekPath';
-  pathEl.textContent = path;
-  pathEl.setAttribute('aria-label', `Filsti ${path}`);
+  pathEl.textContent = displayPath;
+  pathEl.setAttribute('aria-label', `Filsti ${displayPath}`);
   meta.appendChild(pathEl);
 
   const feedback = document.createElement('p');
@@ -2198,10 +2109,11 @@ function createFigureItem(data) {
 
   return {
     data: {
-      ...data,
+      ...entry,
+      path: displayPath,
       searchText,
     },
-    path,
+    path: displayPath,
     searchText,
     element: li,
     image: img,
@@ -2307,7 +2219,7 @@ function applyFilter(rawQuery) {
 function updateCount(visible, total, query, hasQueryFilter) {
   if (!countEl) return;
   if (total === 0) {
-    countEl.textContent = 'Ingen figurer tilgjengelig ennå.';
+    countEl.textContent = getEmptyLibraryMessage();
     return;
   }
 
@@ -2326,7 +2238,7 @@ function updateStatus(visible, total, query, hasQueryFilter) {
     return;
   }
   if (total === 0) {
-    setStatusMessage('Ingen figurer tilgjengelig ennå.', 'info');
+    setStatusMessage(getEmptyLibraryMessage(), 'info');
     return;
   }
 
@@ -2338,13 +2250,29 @@ function updateStatus(visible, total, query, hasQueryFilter) {
   setStatusMessage(`Totalt ${total} figurer tilgjengelig. Velg en kategori for å se detaljene.`, 'info');
 }
 
+function getEmptyLibraryMessage() {
+  const storageMode = normalizeStorageMode(figureLibraryMetadata?.storageMode);
+  const hasServerCategories = customCategories.some((category) => {
+    if (!category || typeof category !== 'object') return false;
+    const origin = typeof category.origin === 'string' ? category.origin.trim().toLowerCase() : '';
+    return origin === 'server' || origin === 'kv';
+  });
+  if (!hasServerCategories && customEntries.length === 0) {
+    if (storageMode === 'memory') {
+      return 'Biblioteket er tomt. Backend er ikke seedet ennå, så last opp figurer eller be en administrator om å konfigurere lagringen.';
+    }
+    return 'Biblioteket er tomt. Backend er ikke seedet ennå, så last opp figurer eller be en administrator om å fylle biblioteket.';
+  }
+  return 'Biblioteket er tomt. Last opp en figur for å komme i gang.';
+}
+
 function updateHelperState(hasItems) {
   if (!helperEl) return;
   helperEl.hidden = false;
   if (hasItems) {
     helperEl.textContent = 'Velg en kategori for å åpne detaljvisningen med figurene i biblioteket.';
   } else {
-    helperEl.textContent = 'Ingen figurer tilgjengelig ennå.';
+    helperEl.textContent = getEmptyLibraryMessage();
   }
 }
 
@@ -3747,30 +3675,6 @@ async function submitFigureEntry(entry, options = {}) {
   return normalized || entry;
 }
 
-function createCustomFigureData(entry) {
-  if (!entry || typeof entry !== 'object') return null;
-  const path = entry.dataUrl;
-  if (typeof path !== 'string' || !path) return null;
-  const id = entry.id || createCustomEntryId(entry.name || 'figur');
-  const entryId = typeof entry.entryId === 'string' && entry.entryId.trim()
-    ? entry.entryId.trim()
-    : typeof entry.slug === 'string' && entry.slug.trim()
-      ? entry.slug.trim()
-      : id;
-  return {
-    id,
-    slug: entry.slug || id,
-    type: 'custom',
-    name: entry.name || entry.slug || 'Egendefinert figur',
-    summary: entry.summary || '',
-    path,
-    categoryId: entry.categoryId || 'custom',
-    categoryName: entry.categoryName || 'Egendefinert',
-    custom: true,
-    entryId,
-  };
-}
-
 function createCategoryPreviewElement(category, titleText) {
   const container = document.createElement('div');
   container.className = 'categoryFigure';
@@ -4240,7 +4144,9 @@ function resolveCategoryDetails(rawValue, fallbackId = null, fallbackName = '', 
 function getKnownCategories() {
   const base = Array.isArray(categories) && categories.length
     ? categories.slice()
-    : amountCategories.concat(Array.isArray(measurementCategoryList) ? measurementCategoryList : []);
+    : Array.isArray(customCategories)
+      ? customCategories.slice()
+      : [];
 
   if (!customCategories.length) {
     return base;
@@ -4396,72 +4302,6 @@ async function copyToClipboard(text) {
     selection.addRange(selected);
   }
   return succeeded;
-}
-
-async function fetchJson(url) {
-  const response = await fetch(url, { cache: 'no-store' });
-  if (!response || !response.ok) {
-    throw new Error(`HTTP ${response ? response.status : 'error'}`);
-  }
-  return response.json();
-}
-
-function buildMeasurementData(catalog) {
-  const items = [];
-  const categoryList = [];
-  if (!Array.isArray(catalog)) {
-    return { items, categoryList };
-  }
-
-  for (const category of catalog) {
-    const itemList = Array.isArray(category?.items) ? category.items : [];
-    const firstItem = itemList[0] || null;
-    const normalizedCategory = {
-      id: category.id,
-      type: 'measure',
-      name: category.name || category.id || 'Måling',
-      filter: category.name || category.id || 'måling',
-      description: category.description || '',
-      sampleImage: firstItem ? firstItem.image : null,
-      sampleAlt: firstItem ? `Eksempel på ${category.name || firstItem.name || 'måling'}` : '',
-      matches: (slug) => Boolean(slug) && slug === category.id,
-    };
-    categoryList.push(normalizedCategory);
-
-    for (const entry of itemList) {
-      if (!entry || typeof entry !== 'object') continue;
-      const path = entry.image || '';
-      if (!path) continue;
-      const slug = entry.id || entry.fileName || path;
-      items.push({
-        id: entry.id || path,
-        slug,
-        type: 'measure',
-        name: entry.name || entry.id || path,
-        summary: entry.summary || entry.dimensions || '',
-        path,
-        categoryId: category.id || '',
-        categoryName: category.name || '',
-      });
-    }
-  }
-
-  return { categoryList, items };
-}
-
-function createAmountFigureData(slug) {
-  const category = amountCategories.find((entry) => entry.matches(slug)) || null;
-  const path = `/images/amounts/${slug}.svg`;
-  return {
-    id: slug,
-    slug,
-    type: 'amount',
-    name: slug,
-    summary: '',
-    path,
-    categoryId: category ? category.id : '',
-    categoryName: category ? category.name : '',
-  };
 }
 
 function resolveCategorySamplePath(category) {
