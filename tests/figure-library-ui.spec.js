@@ -3,7 +3,8 @@ const { test, expect } = require('@playwright/test');
 
 const {
   createFigureLibraryRouteHandler,
-  clearFigureLibraryMemoryStores
+  clearFigureLibraryMemoryStores,
+  invokeFigureLibraryApi
 } = require('./helpers/figure-library-api-utils');
 const { setupKvMock } = require('./helpers/kv-mock');
 
@@ -83,6 +84,74 @@ test.describe('Figurbibliotek opplastinger', () => {
       }
     });
 
+    const categoryDialog = page.locator('[data-category-dialog]');
+    const editorDialog = page.locator('dialog[data-custom-editor]');
+
+    const serverFigureResponse = await invokeFigureLibraryApi({
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slug: 'serverfigur',
+        title: 'Serverfigur',
+        summary: 'Serverfigur fra API',
+        categoryId: 'server-kategori',
+        categoryName: 'Serverkategori',
+        category: { id: 'server-kategori', label: 'Serverkategori' },
+        svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12"><rect width="12" height="12" fill="#336699"/></svg>',
+        tool: 'bibliotek-upload'
+      })
+    });
+    expect(serverFigureResponse.statusCode).toBe(200);
+
+    await page.reload({ waitUntil: 'networkidle' });
+
+    const serverCategory = page
+      .locator('[data-category-grid] .categoryItem')
+      .filter({ has: page.locator('h3', { hasText: 'Serverkategori' }) });
+    await expect(serverCategory.locator('.categoryCount')).toHaveText('1 figur');
+
+    await serverCategory.locator('button.categoryButton').click();
+    await expect(categoryDialog).toBeVisible();
+
+    const serverItems = categoryDialog.locator('[data-category-figures] .bibliotekItem');
+    await expect(serverItems).toHaveCount(1);
+    await expect(serverItems.first().locator('h2')).toHaveText('Serverfigur');
+
+    const serverFigurePatchRequestPromise = page.waitForRequest((request) => {
+      if (!request.url().includes('/api/figure-library')) return false;
+      if (request.method() !== 'PATCH') return false;
+      const payload = request.postDataJSON();
+      return payload && payload.slug === 'serverfigur';
+    });
+    const serverFigurePatchResponsePromise = page.waitForResponse((response) => {
+      if (!response.url().includes('/api/figure-library')) return false;
+      if (response.request().method() !== 'PATCH') return false;
+      const payload = response.request().postDataJSON();
+      return payload && payload.slug === 'serverfigur';
+    });
+
+    await serverItems.first().getByRole('button', { name: 'Rediger' }).click();
+    await expect(editorDialog).toBeVisible();
+    await editorDialog.locator('[data-editor-name]').fill('Oppdatert serverfigur');
+
+    const [serverFigurePatchRequest, serverFigurePatchResponse] = await Promise.all([
+      serverFigurePatchRequestPromise,
+      serverFigurePatchResponsePromise,
+      editorDialog.getByRole('button', { name: 'Lagre endringer' }).click()
+    ]);
+
+    await expect(editorDialog).toBeHidden();
+    expect(serverFigurePatchResponse.ok()).toBeTruthy();
+    const serverFigurePatchRequestPayload = serverFigurePatchRequest.postDataJSON();
+    expect(serverFigurePatchRequestPayload.slug).toBe('serverfigur');
+    expect(serverFigurePatchRequestPayload.title).toBe('Oppdatert serverfigur');
+    const serverPatchBody = await serverFigurePatchResponse.json();
+    expect(serverPatchBody.entry?.title || serverPatchBody.entry?.name).toBe('Oppdatert serverfigur');
+    await expect(categoryDialog.locator('[data-category-figures] .bibliotekItem').first().locator('h2')).toHaveText('Oppdatert serverfigur');
+
+    await categoryDialog.locator('[data-category-close]').click();
+    await expect(categoryDialog).toBeHidden();
+
     await page.locator('[data-upload-file]').setInputFiles(files);
     await page.locator('[data-upload-name]').fill('Tilpasset figur');
     await page.locator('[data-upload-category]').fill('Testkategori');
@@ -96,7 +165,6 @@ test.describe('Figurbibliotek opplastinger', () => {
     const categoryButton = testCategory.locator('button.categoryButton');
     await categoryButton.click();
 
-    const categoryDialog = page.locator('[data-category-dialog]');
     await expect(categoryDialog).toBeVisible();
 
     const categoryAppsFieldset = categoryDialog.locator('[data-category-apps="category"]');
@@ -138,7 +206,6 @@ test.describe('Figurbibliotek opplastinger', () => {
 
     await initialItems.nth(0).getByRole('button', { name: 'Rediger' }).click();
 
-    const editorDialog = page.locator('dialog[data-custom-editor]');
     await expect(editorDialog).toBeVisible();
     await editorDialog.locator('[data-editor-name]').fill('Oppdatert figur');
     await editorDialog.locator('[data-editor-category]').fill('Oppdatert kategori');
@@ -229,15 +296,20 @@ test.describe('Figurbibliotek opplastinger', () => {
     });
 
     expect(categoryPatchRequests).toHaveLength(2);
-    expect(figurePatchRequests).toHaveLength(1);
+    expect(figurePatchRequests).toHaveLength(2);
 
     const firstCategoryPayload = categoryPatchRequests[0].postDataJSON();
     expect(firstCategoryPayload.category?.apps).toEqual(['bibliotek', 'måling']);
     expect(firstCategoryPayload.categoryApps).toEqual(['bibliotek', 'måling']);
 
-    const figurePatchPayload = figurePatchRequests[0].postDataJSON();
-    expect(figurePatchPayload.category?.apps).toEqual(['bibliotek', 'måling', 'sortering']);
-    expect(figurePatchPayload.categoryApps).toEqual(['bibliotek', 'måling', 'sortering']);
+    const figurePatchPayloads = figurePatchRequests.map((request) => request.postDataJSON());
+    const serverFigurePatchPayload = figurePatchPayloads.find((payload) => payload.slug === 'serverfigur');
+    expect(serverFigurePatchPayload).toBeDefined();
+    expect(serverFigurePatchPayload.title).toBe('Oppdatert serverfigur');
+    const uploadedFigurePatchPayload = figurePatchPayloads.find((payload) => payload.slug !== 'serverfigur');
+    expect(uploadedFigurePatchPayload).toBeDefined();
+    expect(uploadedFigurePatchPayload.category?.apps).toEqual(['bibliotek', 'måling', 'sortering']);
+    expect(uploadedFigurePatchPayload.categoryApps).toEqual(['bibliotek', 'måling', 'sortering']);
 
     const secondCategoryPayload = categoryPatchRequests[1].postDataJSON();
     expect(secondCategoryPayload.category?.apps).toEqual(['bibliotek', 'sortering']);
