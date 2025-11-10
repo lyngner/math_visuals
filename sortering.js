@@ -1160,27 +1160,109 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     const byId = new Map();
     const byImage = new Map();
 
+    const addToMap = (map, key, figure) => {
+      if (!map || !figure) return;
+      if (typeof key === 'string' && key.trim()) {
+        const trimmed = key.trim();
+        if (!map.has(trimmed)) {
+          map.set(trimmed, figure);
+        }
+      }
+    };
+
+    const collectFigureIdentifiers = figure => {
+      if (!figure || typeof figure !== 'object') {
+        return { identifiers: [], imageIdentifiers: [] };
+      }
+      const identifiers = [];
+      const imageIdentifiers = [];
+      const seen = new Set();
+      const addIdentifier = value => {
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          if (trimmed && !seen.has(trimmed)) {
+            seen.add(trimmed);
+            identifiers.push(trimmed);
+          }
+        } else if (Number.isFinite(value)) {
+          const normalized = `${value}`;
+          if (!seen.has(normalized)) {
+            seen.add(normalized);
+            identifiers.push(normalized);
+          }
+        }
+      };
+      const imageSeen = new Set();
+      const addImage = value => {
+        if (typeof value !== 'string') return;
+        const trimmed = value.trim();
+        if (!trimmed || imageSeen.has(trimmed)) return;
+        imageSeen.add(trimmed);
+        imageIdentifiers.push(trimmed);
+      };
+
+      addIdentifier(typeof figure.slug === 'string' ? figure.slug : null);
+      addIdentifier(typeof figure.id === 'string' ? figure.id : Number.isFinite(figure.id) ? `${figure.id}` : null);
+      addIdentifier(typeof figure.fileName === 'string' ? figure.fileName : null);
+      addImage(typeof figure.image === 'string' ? figure.image : null);
+      addImage(typeof figure.asset === 'string' ? figure.asset : null);
+
+      if (!identifiers.length && imageIdentifiers.length) {
+        identifiers.push(imageIdentifiers[0]);
+      }
+
+      return { identifiers, imageIdentifiers };
+    };
+
     if (source && Array.isArray(source.categories)) {
       source.categories.forEach(category => {
         if (!category || category.id === CUSTOM_CATEGORY_ID) {
           return;
         }
-        const figures = Array.isArray(category.figures)
-          ? category.figures.filter(figure => figure && figure.id != null)
-          : [];
+
+        const figures = Array.isArray(category.figures) ? category.figures : [];
+        const sanitizedFigures = [];
+
+        figures.forEach(figure => {
+          const { identifiers, imageIdentifiers } = collectFigureIdentifiers(figure);
+          if (!identifiers.length && !imageIdentifiers.length) {
+            return;
+          }
+
+          const sanitizedFigure = figure && typeof figure === 'object' ? { ...figure } : figure;
+          if (sanitizedFigure && typeof sanitizedFigure === 'object') {
+            if (typeof sanitizedFigure.id === 'number') {
+              sanitizedFigure.id = `${sanitizedFigure.id}`;
+            }
+            const hasValidId = typeof sanitizedFigure.id === 'string' && sanitizedFigure.id.trim();
+            if (!hasValidId && identifiers.length) {
+              sanitizedFigure.id = identifiers[0];
+            }
+          }
+
+          sanitizedFigures.push(sanitizedFigure);
+
+          identifiers.forEach(identifier => {
+            addToMap(byId, identifier, sanitizedFigure);
+            const lower = typeof identifier === 'string' ? identifier.toLowerCase() : '';
+            if (lower && lower !== identifier) {
+              addToMap(byId, lower, sanitizedFigure);
+            }
+          });
+          imageIdentifiers.forEach(imageIdentifier => {
+            addToMap(byImage, imageIdentifier, sanitizedFigure);
+            const lower = typeof imageIdentifier === 'string' ? imageIdentifier.toLowerCase() : '';
+            if (lower && lower !== imageIdentifier) {
+              addToMap(byImage, lower, sanitizedFigure);
+            }
+          });
+        });
+
         const sanitizedCategory = {
           ...category,
-          figures
+          figures: sanitizedFigures
         };
         categories.push(sanitizedCategory);
-        figures.forEach(figure => {
-          if (figure && figure.id != null && !byId.has(figure.id)) {
-            byId.set(figure.id, figure);
-          }
-          if (figure && figure.image && !byImage.has(figure.image)) {
-            byImage.set(figure.image, figure);
-          }
-        });
       });
     }
 
