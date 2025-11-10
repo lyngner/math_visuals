@@ -2987,6 +2987,26 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     }
   }
 
+  function getBoardPanOffset(axis) {
+    if (boardGridOverlay && boardGridOverlay.style) {
+      const transform = boardGridOverlay.style.transform;
+      if (typeof transform === 'string' && transform.length > 0) {
+        const match = transform.match(/translate3d\(([-0-9.]+)px,\s*([-0-9.]+)px/i);
+        if (match) {
+          const index = axis === 'y' ? 2 : 1;
+          const parsed = Number.parseFloat(match[index]);
+          if (Number.isFinite(parsed)) {
+            return parsed;
+          }
+        }
+      }
+    }
+    if (boardPanTransform && Number.isFinite(boardPanTransform[axis])) {
+      return boardPanTransform[axis];
+    }
+    return 0;
+  }
+
   function applyScaleLabel(settings) {
     if (!boardScaleLabel) {
       return;
@@ -4411,20 +4431,23 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (!(stepX > 0) || !(stepY > 0)) {
       return { x, y };
     }
-    const snapValue = (value, step) => {
+    const panX = getBoardPanOffset('x');
+    const panY = getBoardPanOffset('y');
+    const snapValue = (value, step, offset) => {
       if (!Number.isFinite(value)) {
         return value;
       }
-      return Math.round(value / step) * step;
+      const relative = value - offset;
+      return Math.round(relative / step) * step + offset;
     };
     if (mode === 'horizontal') {
-      return { x: snapValue(x, stepX), y };
+      return { x: snapValue(x, stepX, panX), y };
     }
     if (mode === 'vertical') {
-      return { x, y: snapValue(y, stepY) };
+      return { x, y: snapValue(y, stepY, panY) };
     }
     if (!mode || mode === 'none') {
-      return { x: snapValue(x, stepX), y: snapValue(y, stepY) };
+      return { x: snapValue(x, stepX, panX), y: snapValue(y, stepY, panY) };
     }
     return { x, y };
   }
@@ -5894,11 +5917,17 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     const rotatedOffsetX = offsetX * cos - offsetY * sin;
     const rotatedOffsetY = offsetX * sin + offsetY * cos;
 
+    const panX = getBoardPanOffset('x');
+    const panY = getBoardPanOffset('y');
+
     const zeroX = transformState.x + originX + rotatedOffsetX;
     const zeroY = transformState.y + originY + rotatedOffsetY;
 
-    const snappedZeroX = Math.round(zeroX / cellWidth) * cellWidth;
-    const snappedZeroY = Math.round(zeroY / cellHeight) * cellHeight;
+    const adjustedZeroX = zeroX - panX;
+    const adjustedZeroY = zeroY - panY;
+
+    const snappedZeroX = Math.round(adjustedZeroX / cellWidth) * cellWidth + panX;
+    const snappedZeroY = Math.round(adjustedZeroY / cellHeight) * cellHeight + panY;
 
     const dx = snappedZeroX - zeroX;
     const dy = snappedZeroY - zeroY;
