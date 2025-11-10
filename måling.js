@@ -56,6 +56,12 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     segmentHandles &&
     segmentHandles.length >= 2
   );
+  const hasTapeBeta = !!(
+    hasSegment &&
+    tapeBetaStrapElement &&
+    tapeBetaStrapSvg &&
+    tapeBetaHousingImage
+  );
   const boardGridOverlay = board ? board.querySelector('[data-grid-overlay]') : null;
   if (!board || (!hasRuler && !hasTapeMeasure && !hasSegment)) {
     return;
@@ -162,7 +168,6 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   }
   const transformStates = {
     ruler: { x: 0, y: 0, rotation: 0 },
-    tape: { x: 0, y: 0, rotation: 0 },
     segment: { x: 0, y: 0, rotation: 0 },
     [TAPE_BETA_TOOL_KEY]: { x: 0, y: 0, rotation: 0 }
   };
@@ -171,7 +176,8 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     housing: null,
     zero: null
   };
-  const defaultActiveTool = hasRuler ? 'ruler' : hasTapeMeasure ? 'tape' : hasSegment ? 'segment' : 'ruler';
+  const defaultActiveTool =
+    hasRuler ? 'ruler' : hasTapeBeta ? TAPE_BETA_TOOL_KEY : hasSegment ? 'segment' : 'ruler';
   let transformState = transformStates[defaultActiveTool];
   let suspendTransformPersistence = true;
   const BASE_BOARD_DIMENSIONS = { width: 1000, height: 700 };
@@ -190,7 +196,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   let boardRect = board.getBoundingClientRect();
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const XLINK_NS = 'http://www.w3.org/1999/xlink';
-  const activeInstrumentForSize = hasRuler ? ruler : tapeMeasure;
+  const activeInstrumentForSize = hasRuler ? ruler : hasTapeMeasure ? tapeMeasure : segment;
   const baseSize = {
     width: activeInstrumentForSize ? activeInstrumentForSize.offsetWidth : 0,
     height: activeInstrumentForSize ? activeInstrumentForSize.offsetHeight : 0
@@ -278,7 +284,6 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     },
     directionLockMemory: {
       ruler: 0,
-      tape: 0,
       segment: 0,
       [TAPE_BETA_TOOL_KEY]: 0
     },
@@ -293,7 +298,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   let exportClipIdCounter = 0;
 
   function isTapeToolKey(value) {
-    return value === 'tape';
+    return value === TAPE_BETA_TOOL_KEY;
   }
 
   function isSegmentToolKey(value) {
@@ -509,7 +514,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   const initialToolKey = appState.activeTool;
   const initialTransform = sanitizeRulerTransform(
     appState.settings &&
-      (initialToolKey === 'tape'
+      (isTapeToolKey(initialToolKey)
         ? appState.settings.tapeMeasureTransform
         : appState.settings.rulerTransform),
     null
@@ -1077,39 +1082,39 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
 
   function sanitizeActiveTool(value, fallback) {
     const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
-    if (normalized === TAPE_BETA_TOOL_KEY && hasSegment) {
+    if (normalized === TAPE_BETA_TOOL_KEY && hasTapeBeta) {
+      return TAPE_BETA_TOOL_KEY;
+    }
+    if (normalized === 'tape' && hasTapeBeta) {
       return TAPE_BETA_TOOL_KEY;
     }
     if (normalized === 'segment' && hasSegment) {
       return 'segment';
     }
-    if (normalized === 'tape' && hasTapeMeasure) {
-      return 'tape';
-    }
     if (normalized === 'ruler' && hasRuler) {
       return 'ruler';
     }
     const fallbackNormalized = typeof fallback === 'string' ? fallback.trim().toLowerCase() : '';
-    if (fallbackNormalized === TAPE_BETA_TOOL_KEY && hasSegment) {
+    if (fallbackNormalized === TAPE_BETA_TOOL_KEY && hasTapeBeta) {
+      return TAPE_BETA_TOOL_KEY;
+    }
+    if (fallbackNormalized === 'tape' && hasTapeBeta) {
       return TAPE_BETA_TOOL_KEY;
     }
     if (fallbackNormalized === 'segment' && hasSegment) {
       return 'segment';
     }
-    if (fallbackNormalized === 'tape' && hasTapeMeasure) {
-      return 'tape';
-    }
     if (fallbackNormalized === 'ruler' && hasRuler) {
       return 'ruler';
+    }
+    if (hasTapeBeta) {
+      return TAPE_BETA_TOOL_KEY;
     }
     if (hasSegment) {
       return 'segment';
     }
     if (hasRuler) {
       return 'ruler';
-    }
-    if (hasTapeMeasure) {
-      return 'tape';
     }
     return fallbackNormalized || 'ruler';
   }
@@ -1812,7 +1817,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     }
     const multiplier = resolveRulerValueMultiplier(settings, metrics);
     const lengthValue =
-      toolKey === 'tape'
+      isTapeToolKey(toolKey)
         ? getVisibleTapeMeasureUnits(settings)
         : Number.isFinite(settings.length)
         ? settings.length
@@ -2684,13 +2689,13 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       null
     );
     if (sanitizedTapeTransform) {
-      Object.assign(transformStates.tape, sanitizedTapeTransform);
+      Object.assign(transformStates[TAPE_BETA_TOOL_KEY], sanitizedTapeTransform);
     } else {
-      transformStates.tape.x = 0;
-      transformStates.tape.y = 0;
-      transformStates.tape.rotation = 0;
+      transformStates[TAPE_BETA_TOOL_KEY].x = 0;
+      transformStates[TAPE_BETA_TOOL_KEY].y = 0;
+      transformStates[TAPE_BETA_TOOL_KEY].rotation = 0;
     }
-    updateFreeRotationMemoryForTool('tape');
+    updateFreeRotationMemoryForTool(TAPE_BETA_TOOL_KEY);
 
     const previousTool = appState.activeTool;
     const desiredTool = sanitizeActiveTool(settings && settings.activeTool, previousTool);
@@ -2698,7 +2703,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       cancelAllPointerSessions();
     }
     appState.activeTool = desiredTool;
-    if (desiredTool === 'tape') {
+    if (isTapeToolKey(desiredTool)) {
       resetTapeMeasureLengthState();
       const configurationRequestsInfinity =
         (settings && isTapeLengthInfinite(settings.tapeMeasureLength)) ||
@@ -2730,7 +2735,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       }
     }
     if (tapeMeasure) {
-      if (desiredTool === 'tape') {
+      if (isTapeToolKey(desiredTool)) {
         tapeMeasure.hidden = false;
         tapeMeasure.removeAttribute('hidden');
         tapeMeasure.setAttribute('aria-hidden', 'false');
@@ -2756,10 +2761,9 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     }
 
     applyToolTransform('ruler');
-    applyToolTransform('tape');
     applyToolTransform('segment');
     applyToolTransform(TAPE_BETA_TOOL_KEY);
-    if (desiredTool === 'tape') {
+    if (isTapeToolKey(desiredTool)) {
       initializeTapeEndpointsFromDom();
     }
     updateBaseSize();
@@ -3441,17 +3445,15 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     const { unitLabel } = settings;
     const activeToolKey = sanitizeActiveTool(settings && settings.activeTool, appState.activeTool);
     const info = getToolDisplayInfo(activeToolKey);
-    const effectiveLengthRaw =
-      activeToolKey === 'tape'
-        ? getVisibleTapeMeasureLength(settings)
-        : getEffectiveToolLength(settings, activeToolKey);
+    const effectiveLengthRaw = isTapeToolKey(activeToolKey)
+      ? getVisibleTapeMeasureLength(settings)
+      : getEffectiveToolLength(settings, activeToolKey);
     const effectiveLength = roundForDisplay(effectiveLengthRaw);
     const formattedLength = formatNumber(effectiveLength);
     const unitSuffixValue = resolveUnitSuffix(unitLabel);
     const unitSuffix = unitSuffixValue ? ` ${unitSuffixValue}` : '';
     const toolElements = [
       { keys: ['ruler'], element: hasRuler ? ruler : null },
-      { keys: ['tape'], element: hasTapeMeasure ? tapeMeasure : null },
       { keys: ['segment', TAPE_BETA_TOOL_KEY], element: hasSegment ? segment : null }
     ];
     for (const entry of toolElements) {
@@ -3461,7 +3463,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       const isActive = entry.keys.includes(activeToolKey);
       if (isActive) {
         const labelParts = [`Flyttbart ${info.label}`];
-        if (entry.keys.includes('tape')) {
+        if (isTapeToolKey(activeToolKey)) {
           const visibleUnitsRaw = tapeMeasure
             ? Number.parseFloat(tapeMeasure.getAttribute('data-visible-length'))
             : NaN;
@@ -3534,10 +3536,9 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   function buildStatusMessage(settings) {
     const activeToolKey = sanitizeActiveTool(settings && settings.activeTool, appState.activeTool);
     const info = getToolDisplayInfo(activeToolKey);
-    const effectiveLengthRaw =
-      activeToolKey === 'tape'
-        ? getVisibleTapeMeasureLength(settings)
-        : getEffectiveToolLength(settings, activeToolKey);
+    const effectiveLengthRaw = isTapeToolKey(activeToolKey)
+      ? getVisibleTapeMeasureLength(settings)
+      : getEffectiveToolLength(settings, activeToolKey);
     const effectiveLength = roundForDisplay(effectiveLengthRaw);
     const formattedLength = formatNumber(effectiveLength);
     const unitSuffixValue = resolveUnitSuffix(settings.unitLabel);
@@ -3546,7 +3547,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (!target) {
       return '';
     }
-    if (activeToolKey === 'tape') {
+    if (isTapeToolKey(activeToolKey)) {
       const visibleUnitsRaw = tapeMeasure
         ? Number.parseFloat(tapeMeasure.getAttribute('data-visible-length'))
         : NaN;
@@ -3636,9 +3637,11 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       if (inputs.figureSummary) inputs.figureSummary.value = settings.figureSummary || '';
       if (inputs.figureScaleLabel) inputs.figureScaleLabel.value = settings.figureScaleLabel || '';
       const activeToolKey = sanitizeActiveTool(settings && settings.activeTool, appState.activeTool);
-      const activeLength = activeToolKey === 'tape' ? settings.tapeMeasureLength : settings.length;
+      const activeLength = isTapeToolKey(activeToolKey)
+        ? settings.tapeMeasureLength
+        : settings.length;
       if (inputs.length) {
-        if (activeToolKey === 'tape' && isTapeLengthInfinite(activeLength)) {
+        if (isTapeToolKey(activeToolKey) && isTapeLengthInfinite(activeLength)) {
           inputs.length.value = TAPE_LENGTH_INFINITY_SYMBOL;
         } else {
           inputs.length.value = activeLength;
@@ -3747,7 +3750,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
           appState.settings && appState.settings.activeTool,
           appState.activeTool
         );
-        const payloadKey = activeToolKey === 'tape' ? 'tapeMeasureLength' : 'length';
+        const payloadKey = isTapeToolKey(activeToolKey) ? 'tapeMeasureLength' : 'length';
         updateSettings({ [payloadKey]: event.target.value });
       });
     }
@@ -3826,10 +3829,13 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (inputs.measurementTool) {
       inputs.measurementTool.addEventListener('change', event => {
         if (appState.syncingInputs) return;
-        const nextTool = event.target.value;
+        const nextTool = sanitizeActiveTool(event.target.value, appState.activeTool);
+        if (event.target && event.target.value !== nextTool) {
+          event.target.value = nextTool;
+        }
         persistActiveInstrumentState();
         updateLengthFieldVisibility(nextTool);
-        if (nextTool === 'tape') {
+        if (isTapeToolKey(nextTool)) {
           resetTapeMeasureLengthState();
           const updates = { activeTool: nextTool };
           if (isTapeLengthInfinite(appState.settings && appState.settings.tapeMeasureLength)) {
@@ -3988,7 +3994,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
 
   function getToolElement(toolKey) {
     if (isTapeToolKey(toolKey)) {
-      return tapeMeasure;
+      return tapeMeasure || segment;
     }
     if (isSegmentToolKey(toolKey)) {
       return segment;
@@ -4008,9 +4014,6 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   }
 
   function getToolDisplayInfo(toolKey) {
-    if (toolKey === 'tape') {
-      return { key: 'tape', label: 'målebånd', title: 'Målebånd', possessive: 'Målebåndets' };
-    }
     if (toolKey === TAPE_BETA_TOOL_KEY) {
       return {
         key: TAPE_BETA_TOOL_KEY,
@@ -4026,7 +4029,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   }
 
   function getInstrumentPointerSession(toolKey = appState.activeTool) {
-    if (toolKey === 'tape') {
+    if (isTapeToolKey(toolKey)) {
       return activePointers.tape;
     }
     if (isSegmentToolKey(toolKey)) {
@@ -4054,7 +4057,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (!session) {
       return;
     }
-    const element = toolKey === 'tape' ? tapeHousing : ruler;
+    const element = isTapeToolKey(toolKey) ? tapeHousing : ruler;
     if (!skipRelease && element) {
       for (const entry of session.values()) {
         if (!entry || entry.pointerId == null) continue;
@@ -4081,7 +4084,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       }
     }
     session.clear();
-    if (hadEntries && appState.activeTool === 'tape') {
+    if (hadEntries && isTapeToolKey(appState.activeTool)) {
       persistTapeMeasureState();
     }
   }
@@ -4101,7 +4104,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       }
     }
     session.clear();
-    if (hadEntries && appState.activeTool === 'tape') {
+    if (hadEntries && isTapeToolKey(appState.activeTool)) {
       persistTapeMeasureState();
     }
   }
@@ -4153,7 +4156,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       if (event.pointerId != null) {
         const session = activePointers.tapeHousing;
         const wasTracked = session.delete(event.pointerId);
-        if (wasTracked && session.size === 0 && appState.activeTool === 'tape') {
+        if (wasTracked && session.size === 0 && isTapeToolKey(appState.activeTool)) {
           persistTapeMeasureState();
         }
       }
@@ -4176,7 +4179,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       if (event.pointerId != null) {
         const session = activePointers.tapeExtension;
         const wasTracked = session.delete(event.pointerId);
-        if (wasTracked && session.size === 0 && appState.activeTool === 'tape') {
+        if (wasTracked && session.size === 0 && isTapeToolKey(appState.activeTool)) {
           persistTapeMeasureState();
         }
       }
@@ -4560,8 +4563,8 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (!measureRect || !zeroRect || !housingRect) {
       return null;
     }
-    const rotation = Number.isFinite(transformStates.tape.rotation)
-      ? transformStates.tape.rotation
+    const rotation = Number.isFinite(transformStates[TAPE_BETA_TOOL_KEY].rotation)
+      ? transformStates[TAPE_BETA_TOOL_KEY].rotation
       : 0;
     const center = getRectCenter(measureRect);
     const zeroWorld = getRectCenter(zeroRect);
@@ -4666,8 +4669,8 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       return;
     }
     const allowFreeMovement = shouldUseFreeTapeMovement();
-    const rotation = Number.isFinite(transformStates.tape.rotation)
-      ? transformStates.tape.rotation
+    const rotation = Number.isFinite(transformStates[TAPE_BETA_TOOL_KEY].rotation)
+      ? transformStates[TAPE_BETA_TOOL_KEY].rotation
       : 0;
     const sessions = [extensionSession, housingSession];
     for (const session of sessions) {
@@ -4805,8 +4808,8 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       normalizedDirection = normalizeVector(vector);
     }
     if (!normalizedDirection || (normalizedDirection.x === 0 && normalizedDirection.y === 0)) {
-      const rotationFallback = Number.isFinite(transformStates.tape.rotation)
-        ? transformStates.tape.rotation
+      const rotationFallback = Number.isFinite(transformStates[TAPE_BETA_TOOL_KEY].rotation)
+        ? transformStates[TAPE_BETA_TOOL_KEY].rotation
         : 0;
       normalizedDirection = { x: Math.cos(rotationFallback), y: Math.sin(rotationFallback) };
     }
@@ -4830,9 +4833,9 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       x: worldMidpoint.x - rotatedMidpoint.x,
       y: worldMidpoint.y - rotatedMidpoint.y
     };
-    transformStates.tape.rotation = rotation;
-    transformStates.tape.x = center.x - baseWidth / 2;
-    transformStates.tape.y = center.y - baseHeight / 2;
+    transformStates[TAPE_BETA_TOOL_KEY].rotation = rotation;
+    transformStates[TAPE_BETA_TOOL_KEY].x = center.x - baseWidth / 2;
+    transformStates[TAPE_BETA_TOOL_KEY].y = center.y - baseHeight / 2;
     setTapeEndpointsState(housingWorld, zeroWorld);
   }
 
@@ -4847,8 +4850,8 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (!desiredAnchorWorld) {
       return false;
     }
-    const rotation = Number.isFinite(transformStates.tape.rotation)
-      ? transformStates.tape.rotation
+    const rotation = Number.isFinite(transformStates[TAPE_BETA_TOOL_KEY].rotation)
+      ? transformStates[TAPE_BETA_TOOL_KEY].rotation
       : 0;
     const housingStart = getTapeEndpointState('housing', data.housingWorldStart);
     const zeroStart = getTapeEndpointState('zero', data.zeroWorldStart);
@@ -4917,7 +4920,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   }
 
   function applyToolTransform(toolKey) {
-    if (toolKey === 'tape') {
+    if (isTapeToolKey(toolKey)) {
       applyTapeMeasureTransform();
       return;
     }
@@ -4984,7 +4987,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (!session) {
       return;
     }
-    const isTapeZeroHandleEvent = toolKey === 'tape' && isEventFromTapeZeroHandle(event);
+    const isTapeZeroHandleEvent = isTapeToolKey(toolKey) && isEventFromTapeZeroHandle(event);
     if (session.size >= 2 && !session.has(event.pointerId)) {
       if (isTapeZeroHandleEvent) {
         consumeTapeZeroHandleEvent(event);
@@ -4995,7 +4998,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       return;
     }
     if (
-      toolKey === 'tape' &&
+      isTapeToolKey(toolKey) &&
       ((activePointers.tapeExtension && activePointers.tapeExtension.size > 0) ||
         (activePointers.tapeHousing && activePointers.tapeHousing.size > 0))
     ) {
@@ -5005,7 +5008,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       return;
     }
     event.preventDefault();
-    if (toolKey === 'tape') {
+    if (isTapeToolKey(toolKey)) {
       event.stopPropagation();
     }
     const entry = {
@@ -5049,7 +5052,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       return;
     }
     session.delete(event.pointerId);
-    const element = toolKey === 'tape' ? tapeHousing : ruler;
+    const element = isTapeToolKey(toolKey) ? tapeHousing : ruler;
     try {
       if (element) {
         element.releasePointerCapture(event.pointerId);
@@ -5125,8 +5128,8 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     }
     event.preventDefault();
     event.stopPropagation();
-    const rotation = Number.isFinite(transformStates.tape.rotation)
-      ? transformStates.tape.rotation
+    const rotation = Number.isFinite(transformStates[TAPE_BETA_TOOL_KEY].rotation)
+      ? transformStates[TAPE_BETA_TOOL_KEY].rotation
       : 0;
     const entry = {
       pointerId: event.pointerId,
@@ -5137,8 +5140,8 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       startX: event.clientX,
       startY: event.clientY,
       startVisible: tapeLengthState.visiblePx,
-      startTransformX: transformStates.tape.x || 0,
-      startTransformY: transformStates.tape.y || 0,
+      startTransformX: transformStates[TAPE_BETA_TOOL_KEY].x || 0,
+      startTransformY: transformStates[TAPE_BETA_TOOL_KEY].y || 0,
       lastPersistedUnits: Number.isFinite(tapeLengthState.configuredUnits)
         ? tapeLengthState.configuredUnits
         : isTapeLengthInfinite(tapeLengthState.configuredUnits)
@@ -5329,8 +5332,8 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       direction = anchor.axisUnitWorld || getTapeDirectionFromEndpoints();
     }
     if (!direction || (direction.x === 0 && direction.y === 0)) {
-      const rotation = Number.isFinite(transformStates.tape.rotation)
-        ? transformStates.tape.rotation
+      const rotation = Number.isFinite(transformStates[TAPE_BETA_TOOL_KEY].rotation)
+        ? transformStates[TAPE_BETA_TOOL_KEY].rotation
         : 0;
       direction = { x: Math.cos(rotation), y: Math.sin(rotation) };
     }
@@ -5360,7 +5363,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
         tapeHousing.releasePointerCapture(event.pointerId);
       }
     } catch (_) {}
-    if (session.size === 0 && appState.activeTool === 'tape') {
+    if (session.size === 0 && isTapeToolKey(appState.activeTool)) {
       persistTapeMeasureState();
     }
   }
@@ -5423,8 +5426,8 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       startX: event.clientX,
       startY: event.clientY,
       startVisible: tapeLengthState.visiblePx,
-      startTransformX: transformStates.tape.x || 0,
-      startTransformY: transformStates.tape.y || 0,
+      startTransformX: transformStates[TAPE_BETA_TOOL_KEY].x || 0,
+      startTransformY: transformStates[TAPE_BETA_TOOL_KEY].y || 0,
       lastPersistedUnits: Number.isFinite(tapeLengthState.configuredUnits)
         ? tapeLengthState.configuredUnits
         : isTapeLengthInfinite(tapeLengthState.configuredUnits)
@@ -5504,8 +5507,8 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       direction = anchor.axisUnitWorld || getTapeDirectionFromEndpoints();
     }
     if (!direction || (direction.x === 0 && direction.y === 0)) {
-      const rotation = Number.isFinite(transformStates.tape.rotation)
-        ? transformStates.tape.rotation
+      const rotation = Number.isFinite(transformStates[TAPE_BETA_TOOL_KEY].rotation)
+        ? transformStates[TAPE_BETA_TOOL_KEY].rotation
         : 0;
       direction = { x: Math.cos(rotation), y: Math.sin(rotation) };
     }
@@ -5533,13 +5536,13 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
         tapeStrap.releasePointerCapture(event.pointerId);
       }
     } catch (_) {}
-    if (session.size === 0 && appState.activeTool === 'tape') {
+    if (session.size === 0 && isTapeToolKey(appState.activeTool)) {
       persistTapeMeasureState();
     }
   }
 
   function applyTransform() {
-    if (appState.activeTool === 'tape') {
+    if (isTapeToolKey(appState.activeTool)) {
       applyTapeMeasureTransform();
       return;
     }
@@ -5577,7 +5580,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       updateFreeRotationMemoryForTool(appState.activeTool);
     }
     if (persist && !suspendTransformPersistence) {
-      if (appState.activeTool === 'tape') {
+      if (isTapeToolKey(appState.activeTool)) {
         persistTapeMeasureState();
       } else {
         persistTransformState();
@@ -5594,7 +5597,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (hasActiveExtension || hasActiveHousing) {
       return;
     }
-    const state = transformStates.tape;
+    const state = transformStates[TAPE_BETA_TOOL_KEY];
     if (!state) {
       return;
     }
@@ -5611,7 +5614,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (!tapeMeasure) {
       return;
     }
-    const state = transformStates.tape;
+    const state = transformStates[TAPE_BETA_TOOL_KEY];
     if (state) {
       tapeMeasure.style.transform = `translate3d(${state.x}px, ${state.y}px, 0) rotate(${state.rotation}rad)`;
     }
@@ -5632,7 +5635,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (tapeMeasure) {
       tapeMeasure.setAttribute('data-visible-length', String(roundForDisplay(effectiveUnits)));
     }
-    if (appState.activeTool === 'tape' && appState.settings) {
+    if (isTapeToolKey(appState.activeTool) && appState.settings) {
       updateAccessibility(appState.settings);
     }
   }
@@ -5645,7 +5648,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (suspendTransformPersistence) {
       return;
     }
-    if (appState.activeTool === 'tape') {
+    if (isTapeToolKey(appState.activeTool)) {
       persistTapeMeasureState();
     } else if (isSegmentToolKey(appState.activeTool)) {
       persistSegmentState();
@@ -5659,7 +5662,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   }
 
   function persistTapeMeasureState() {
-    persistTransformStateForTool('tape');
+    persistTransformStateForTool(TAPE_BETA_TOOL_KEY);
   }
 
   function persistTapeMeasureLength(lengthValue, { updateSettingsState = true, updateAppearance = true } = {}) {
@@ -5736,14 +5739,14 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       return;
     }
     if (appState.settings) {
-      const key = toolKey === 'tape' ? 'tapeMeasureTransform' : 'rulerTransform';
+      const key = isTapeToolKey(toolKey) ? 'tapeMeasureTransform' : 'rulerTransform';
       if (!areRulerTransformsEqual(appState.settings[key], sanitized)) {
         appState.settings = { ...appState.settings, [key]: { ...sanitized } };
       } else if (!appState.settings[key]) {
         appState.settings[key] = { ...sanitized };
       }
     }
-    if (toolKey === 'tape') {
+    if (isTapeToolKey(toolKey)) {
       storeTapeMeasureState(sanitized);
     } else {
       storeRulerTransform(sanitized);
@@ -6051,7 +6054,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     const previousAngle = appState.currentDirectionLockAngle;
     const normalizedAngle = Number.isFinite(angle) ? normalizeAngle(angle) : null;
     const normalizedPrevious = Number.isFinite(previousAngle) ? normalizeAngle(previousAngle) : null;
-    const tools = ['ruler', 'tape'];
+    const tools = ['ruler', TAPE_BETA_TOOL_KEY];
     if (mode === 'none') {
       rememberFreeRotationForTools(tools);
       if (previousMode !== 'none') {
@@ -6269,7 +6272,9 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     }
     const activeToolKey = sanitizeActiveTool(nextSettings && nextSettings.activeTool, appState.activeTool);
     const nextTransform = sanitizeRulerTransform(
-      activeToolKey === 'tape' ? nextSettings.tapeMeasureTransform : nextSettings.rulerTransform,
+      isTapeToolKey(activeToolKey)
+        ? nextSettings.tapeMeasureTransform
+        : nextSettings.rulerTransform,
       null
     );
     const shouldUpdate = !previousSettings || !areSettingsEqual(nextSettings, previousSettings);
@@ -6320,7 +6325,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       const shouldPersist =
         Object.prototype.hasOwnProperty.call(options, 'persist') ? options.persist : false;
       if (shouldPersist && !suspendTransformPersistence) {
-        if (toolKey === 'tape') {
+        if (isTapeToolKey(toolKey)) {
           persistTapeMeasureState();
         } else if (toolKey === 'ruler') {
           persistTransformState();
@@ -6397,10 +6402,9 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     const toolInfo = getToolDisplayInfo(activeToolKey);
     const toolTitle = toolInfo.title;
     const valueMultiplier = resolveRulerValueMultiplier(settings);
-    const effectiveLengthRaw =
-      activeToolKey === 'tape'
-        ? getVisibleTapeMeasureLength(settings)
-        : getEffectiveToolLength(settings, activeToolKey);
+    const effectiveLengthRaw = isTapeToolKey(activeToolKey)
+      ? getVisibleTapeMeasureLength(settings)
+      : getEffectiveToolLength(settings, activeToolKey);
     const effectiveLength = roundForDisplay(effectiveLengthRaw);
     const slugBaseParts = [
       'måling',
@@ -6445,7 +6449,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       unit: unitLabel || null,
       valueMultiplier
     };
-    if (activeToolKey === 'tape') {
+    if (isTapeToolKey(activeToolKey)) {
       const tapeUnitsRaw = getVisibleTapeMeasureUnits(settings);
       summary.tool.visibleUnits = Number.isFinite(tapeUnitsRaw)
         ? roundForDisplay(tapeUnitsRaw)
@@ -7307,9 +7311,8 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     const instrumentOrder = [
       sanitizedTool,
       'ruler',
-      'tape',
-      'segment',
-      TAPE_BETA_TOOL_KEY
+      TAPE_BETA_TOOL_KEY,
+      'segment'
     ].filter(
       (value, index, array) => value && array.indexOf(value) === index
     );
@@ -7324,7 +7327,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
           svg.appendChild(rulerGroup);
           instrumentAttached = true;
         }
-      } else if (tool === 'tape') {
+      } else if (isTapeToolKey(tool)) {
         const tapeResult = await createTapeMeasureGroupForExport(helper, settings);
         if (tapeResult && tapeResult.group) {
           if (tapeResult.clipPath) {
