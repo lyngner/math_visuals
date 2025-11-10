@@ -290,18 +290,21 @@ test.describe('Figurbibliotek opplastinger', () => {
     const categoryDialog = page.locator('[data-category-dialog]');
     await expect(categoryDialog).toBeVisible();
 
+    const deleteCategoryButton = categoryDialog.locator('[data-category-delete-category]');
+    await expect(deleteCategoryButton).toBeHidden();
+
     const figureToggle = categoryDialog.locator('[data-category-figures] [data-category-item]').first().locator('[data-category-toggle]');
     await figureToggle.click();
     await categoryDialog.locator('[data-category-delete]').click();
     await expect(categoryDialog.locator('[data-category-empty]')).toBeVisible();
-    await categoryDialog.locator('[data-category-close]').click();
-    await expect(categoryDialog).toBeHidden();
+    await expect(deleteCategoryButton).toBeVisible();
+    await expect(deleteCategoryButton).toBeEnabled();
 
     await expect(deleteCategoryTile.locator('.categoryCount')).toHaveText('0 figurer');
 
-    await menuButton.click();
     page.once('dialog', (dialog) => dialog.accept());
-    await page.getByRole('menuitem', { name: 'Slett kategori' }).click();
+    await deleteCategoryButton.click();
+    await expect(categoryDialog).toBeHidden();
 
     await expect(deleteCategoryTile).toHaveCount(0);
     await expect(status).toHaveText('Kategorien «Slettekategori» ble slettet.');

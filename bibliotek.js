@@ -35,6 +35,8 @@ const categoryDialogEmpty = categoryDialog?.querySelector('[data-category-empty]
 const categoryDialogCloseButton = categoryDialog?.querySelector('[data-category-close]') || null;
 const categoryDialogUploadButton = categoryDialog?.querySelector('[data-category-upload]') || null;
 const categoryDialogDeleteButton = categoryDialog?.querySelector('[data-category-delete]') || null;
+const categoryDialogDeleteCategoryButton =
+  categoryDialog?.querySelector('[data-category-delete-category]') || null;
 const categoryDialogSelectAllButton = categoryDialog?.querySelector('[data-category-select-all]') || null;
 const categoryDialogSelectAllLabel = categoryDialogSelectAllButton?.querySelector(
   '[data-category-select-all-label]'
@@ -1301,6 +1303,10 @@ function resetCategoryDialogState() {
   setCategoryAppsControlsDisabled(false);
   setCategoryAppsSaveState('idle');
   updateCategoryAppsSaveButtonState();
+  if (categoryDialogDeleteCategoryButton) {
+    categoryDialogDeleteCategoryButton.dataset.loading = 'false';
+  }
+  updateCategoryDialogDeleteCategoryState();
 }
 
 function renderCategoryDialog(categoryId) {
@@ -1403,6 +1409,7 @@ function renderCategoryDialog(categoryId) {
 
   updateCategoryDialogSelectionIndicators();
   updateCategoryDialogDeleteButtonState();
+  updateCategoryDialogDeleteCategoryState({ category, figureCount: allFigures.length });
   updateCategoryDialogSelectAllButtonState({
     totalCount: allFigures.length,
     visibleCount: visibleFigures.length,
@@ -1662,6 +1669,55 @@ function updateCategoryDialogDeleteButtonState() {
   categoryDialogDeleteButton.textContent = label;
 }
 
+function updateCategoryDialogDeleteCategoryState(context = {}) {
+  if (!(categoryDialogDeleteCategoryButton instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  const hasLoadingState = categoryDialogDeleteCategoryButton.dataset.loading === 'true';
+  if (hasLoadingState) {
+    categoryDialogDeleteCategoryButton.disabled = true;
+    categoryDialogDeleteCategoryButton.setAttribute('aria-disabled', 'true');
+    return;
+  }
+
+  let category = null;
+  if (context && typeof context === 'object' && context.category) {
+    category = context.category;
+  }
+  if (!category && categoryDialogState.categoryId) {
+    category = categoryMetaById.get(categoryDialogState.categoryId) || null;
+  }
+
+  const providedCount = context && typeof context.figureCount === 'number'
+    ? context.figureCount
+    : null;
+
+  let figureCount = providedCount;
+  if (figureCount == null && category && typeof category.id === 'string') {
+    const figures = getFiguresForCategory(category.id);
+    figureCount = Array.isArray(figures) ? figures.length : 0;
+  }
+
+  const canDeleteCategory = Boolean(category) && isCategoryDeletable(category) && figureCount === 0;
+
+  if (canDeleteCategory) {
+    const categoryId = category.id || '';
+    const categoryName = getCategoryDisplayName(category) || categoryId;
+    categoryDialogDeleteCategoryButton.hidden = false;
+    categoryDialogDeleteCategoryButton.disabled = false;
+    categoryDialogDeleteCategoryButton.setAttribute('aria-disabled', 'false');
+    categoryDialogDeleteCategoryButton.dataset.categoryId = categoryId;
+    categoryDialogDeleteCategoryButton.dataset.categoryName = categoryName;
+  } else {
+    categoryDialogDeleteCategoryButton.hidden = true;
+    categoryDialogDeleteCategoryButton.disabled = true;
+    categoryDialogDeleteCategoryButton.setAttribute('aria-disabled', 'true');
+    delete categoryDialogDeleteCategoryButton.dataset.categoryId;
+    delete categoryDialogDeleteCategoryButton.dataset.categoryName;
+  }
+}
+
 function updateCategoryDialogSelectAllButtonState(context) {
   if (!(categoryDialogSelectAllButton instanceof HTMLButtonElement)) {
     return;
@@ -1825,20 +1881,53 @@ async function handleCategoryDeleteClick(event) {
   }
 }
 
+async function handleCategoryDialogDeleteCategoryClick(event) {
+  event.preventDefault();
+  if (!(categoryDialogDeleteCategoryButton instanceof HTMLButtonElement)) {
+    return;
+  }
+
+  const categoryId = categoryDialogState.categoryId || '';
+  if (!categoryId) {
+    return;
+  }
+  const category = categoryMetaById.get(categoryId) || null;
+  if (!category) {
+    return;
+  }
+
+  categoryDialogDeleteCategoryButton.dataset.loading = 'true';
+  updateCategoryDialogDeleteCategoryState();
+
+  try {
+    const success = await handleCategoryDeleteAction(category, categoryDialogDeleteCategoryButton);
+    if (success) {
+      closeCategoryDialog({ restoreFocus: false });
+    }
+  } finally {
+    categoryDialogDeleteCategoryButton.dataset.loading = 'false';
+    if (isCategoryDialogOpen()) {
+      updateCategoryDialogDeleteCategoryState({ category });
+    } else {
+      updateCategoryDialogDeleteCategoryState();
+    }
+  }
+}
+
 async function handleCategoryDeleteAction(category, trigger) {
   if (!category || typeof category.id !== 'string') {
-    return;
+    return false;
   }
   const categoryId = category.id.trim();
   if (!categoryId) {
-    return;
+    return false;
   }
 
   if (!isCategoryDeletable(category)) {
     const message = `Kategorien «${getCategoryDisplayName(category) || categoryId}» kan ikke slettes.`;
     setStatusMessage(message, 'error', { includeStorageWarning: false });
     announceStatus(message);
-    return;
+    return false;
   }
 
   const figures = getFiguresForCategory(categoryId);
@@ -1852,7 +1941,7 @@ async function handleCategoryDeleteAction(category, trigger) {
     setStatusMessage(message, 'error', { includeStorageWarning: false });
     showUploadStatus(message, 'error', { duration: 6000 });
     announceStatus(message);
-    return;
+    return false;
   }
 
   const displayName = getCategoryDisplayName(category) || categoryId;
@@ -1863,7 +1952,7 @@ async function handleCategoryDeleteAction(category, trigger) {
   }
   if (!confirmed) {
     announceStatus(`Avbrøt sletting av kategorien «${displayName}».`);
-    return;
+    return false;
   }
 
   let focusTarget = trigger instanceof HTMLElement ? trigger : null;
@@ -1897,6 +1986,7 @@ async function handleCategoryDeleteAction(category, trigger) {
         }
       });
     }
+    return true;
   } catch (error) {
     console.error('Kunne ikke slette kategori', error);
     const message = extractApiErrorMessage(error, `Kunne ikke slette kategorien «${displayName}».`);
@@ -1904,6 +1994,7 @@ async function handleCategoryDeleteAction(category, trigger) {
     showUploadStatus(message, 'error', { duration: 6000 });
     announceStatus(message);
   }
+  return false;
 }
 
 function updateCategorySelection() {
@@ -2587,6 +2678,11 @@ function setupCategoryDialog() {
   if (categoryDialogSelectAllButton) {
     categoryDialogSelectAllButton.addEventListener('click', handleCategorySelectAllClick);
     updateCategoryDialogSelectAllButtonState({ totalCount: 0, visibleCount: 0, hasQueryFilter: false });
+  }
+
+  if (categoryDialogDeleteCategoryButton) {
+    categoryDialogDeleteCategoryButton.addEventListener('click', handleCategoryDialogDeleteCategoryClick);
+    updateCategoryDialogDeleteCategoryState();
   }
 
   if (categoryDialogAppsFieldset instanceof HTMLFieldSetElement) {
