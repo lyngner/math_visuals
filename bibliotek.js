@@ -155,6 +155,7 @@ ensureCategoryAppOption(DEFAULT_CATEGORY_APP, { label: 'Figurbibliotek', locked:
 DEFAULT_VISIBLE_CATEGORY_APPS.forEach((appId) => ensureCategoryAppOption(appId));
 
 let figureLibraryMetadata = { storageMode: 'memory', persistent: false, limitation: '' };
+let hasRequestedSummaryView = false;
 
 const observer = 'IntersectionObserver' in window
   ? new IntersectionObserver(handleIntersection, {
@@ -3228,8 +3229,6 @@ function applyFigureLibraryMetadata(metadata, response) {
   refreshStatusWithStorageWarning();
   return figureLibraryMetadata;
 }
-
-let hasRequestedSummaryView = false;
 
 async function fetchFigureLibraryEntries() {
   const fetchOptions = {};
