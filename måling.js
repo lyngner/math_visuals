@@ -3226,9 +3226,15 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       ? `<text x="${formatSvgNumber(Math.max(distance, unitSpacing))}" y="${formatSvgNumber(unitLabelY)}" text-anchor="end" class="tape-svg__unit-label">${escapeHtml(unitSuffix)}</text>`
       : '';
 
-    const markup = `
-      <rect x="${formatSvgNumber(strapEndWidth)}" y="0" width="${formatSvgNumber(strapBackgroundWidth)}" height="${formatSvgNumber(strapHeight)}" class="tape-svg__background" />
-      <g class="tape-svg__end-cap" transform="scale(${formatSvgNumber(strapEndScaleValue)})">
+    const strapEndHrefRaw =
+      TAPE_BETA_HANDLE_SPECS.a && TAPE_BETA_HANDLE_SPECS.a.href
+        ? String(TAPE_BETA_HANDLE_SPECS.a.href)
+        : '';
+    const strapEndHref = strapEndHrefRaw ? escapeHtml(strapEndHrefRaw) : '';
+    const strapEndScaleAttribute = `transform="scale(${formatSvgNumber(strapEndScaleValue)})"`;
+    const strapEndMarkup = strapEndHref
+      ? `<image class="tape-svg__end-cap" ${strapEndScaleAttribute} href="${strapEndHref}" xlink:href="${strapEndHref}" width="${formatSvgNumber(TAPE_STRAP_END_WIDTH)}" height="${formatSvgNumber(TAPE_STRAP_DEFAULT_HEIGHT)}" />`
+      : `<g class="tape-svg__end-cap" ${strapEndScaleAttribute}>
         <path d="M0.6875 39.9463L1.66457 23.2943L0.6875 6.72093L1.47297 6.7916C1.53337 6.79694 1.84017 6.82629 2.34324 6.91029V39.7569C1.84017 39.8409 1.53337 39.8716 1.47297 39.8756L0.6875 39.9463Z" fill="#EBEBEB" />
         <path d="M2.34375 39.7568V6.91019C3.17348 7.05019 4.53908 7.34084 6.22348 7.92084L7.58335 8.42884C10.3751 9.55284 13.7761 11.4315 17.0256 14.5568H35.0636C37.6885 14.5568 39.8245 16.6782 39.8245 19.2848V27.3809C39.8245 29.9875 37.6885 32.1102 35.0636 32.1102H17.0256C13.7761 35.2355 10.3751 37.1142 7.58335 38.2382L6.22348 38.7462C4.53908 39.3262 3.17348 39.6155 2.34375 39.7568Z" fill="#EAD32A" />
         <path d="M1.41406 7.46953L2.34473 23.3349L1.41406 39.2002C1.41406 39.2002 9.55833 38.4762 16.7505 31.4309H35.0651C37.3171 31.4309 39.1453 29.6175 39.1453 27.3815V23.3349C39.1453 23.3349 39.1453 21.5229 39.1453 19.2869C39.1453 17.0509 37.3171 15.2375 35.0651 15.2375H16.7505C9.55833 8.19353 1.41406 7.46953 1.41406 7.46953Z" fill="#ACACAC" />
@@ -3241,7 +3247,11 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
         <path d="M13.7658 20.0529C14.0902 20.6142 14.2903 21.2569 14.2903 21.9502C14.2903 24.0542 12.5861 25.7595 10.482 25.7595C9.78718 25.7595 9.14438 25.5595 8.58398 25.2342C9.24292 26.3702 10.4585 27.1436 11.8662 27.1436C13.9694 27.1436 15.6736 25.4369 15.6736 23.3355C15.6736 21.9275 14.9017 20.7129 13.7658 20.0529Z" fill="#787878" />
         <path d="M0.482422 46.667H2.34442V0.000328302H0.482422V46.667Z" fill="#ACACAC" />
         <path d="M0 46.667H0.482265V0.000328302H0V46.667Z" fill="#D2D1D9" />
-      </g>
+      </g>`;
+
+    const markup = `
+      <rect x="${formatSvgNumber(strapEndWidth)}" y="0" width="${formatSvgNumber(strapBackgroundWidth)}" height="${formatSvgNumber(strapHeight)}" class="tape-svg__background" />
+      ${strapEndMarkup}
       <line x1="0" y1="${formatSvgNumber(topBaselineY)}" x2="${formatSvgNumber(strapLength)}" y2="${formatSvgNumber(topBaselineY)}" class="tape-svg__baseline" />
       <line x1="0" y1="${formatSvgNumber(bottomBaselineY)}" x2="${formatSvgNumber(strapLength)}" y2="${formatSvgNumber(bottomBaselineY)}" class="tape-svg__baseline" />
       ${minorTickMarkup}
@@ -3377,12 +3387,15 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       ? `<text x="${safeWidth}" y="${unitLabelY}" text-anchor="end" class="tape-svg__unit-label">${escapeHtml(unitSuffix)}</text>`
       : '';
 
-    tapeStrapSvg.setAttribute('viewBox', `0 0 ${strapLengthWithOverlap} ${strapHeight}`);
-    tapeStrapSvg.setAttribute('width', formatSvgNumber(strapLengthWithOverlap));
-    tapeStrapSvg.setAttribute('height', formatSvgNumber(strapHeight));
-    tapeStrapSvg.innerHTML = `
-      <rect x="${formatSvgNumber(strapEndWidth)}" y="0" width="${formatSvgNumber(strapBackgroundWidth)}" height="${strapHeight}" class="tape-svg__background" />
-      <g class="tape-svg__end-cap" transform="scale(${formatSvgNumber(strapEndScaleValue)})">
+    const strapEndHrefRaw =
+      TAPE_BETA_HANDLE_SPECS.a && TAPE_BETA_HANDLE_SPECS.a.href
+        ? String(TAPE_BETA_HANDLE_SPECS.a.href)
+        : '';
+    const strapEndHref = strapEndHrefRaw ? escapeHtml(strapEndHrefRaw) : '';
+    const strapEndScaleAttribute = `transform="scale(${formatSvgNumber(strapEndScaleValue)})"`;
+    const strapEndMarkup = strapEndHref
+      ? `<image class="tape-svg__end-cap" ${strapEndScaleAttribute} href="${strapEndHref}" xlink:href="${strapEndHref}" width="${formatSvgNumber(TAPE_STRAP_END_WIDTH)}" height="${formatSvgNumber(TAPE_STRAP_DEFAULT_HEIGHT)}" />`
+      : `<g class="tape-svg__end-cap" ${strapEndScaleAttribute}>
         <path d="M0.6875 39.9463L1.66457 23.2943L0.6875 6.72093L1.47297 6.7916C1.53337 6.79694 1.84017 6.82629 2.34324 6.91029V39.7569C1.84017 39.8409 1.53337 39.8716 1.47297 39.8756L0.6875 39.9463Z" fill="#EBEBEB" />
         <path d="M2.34375 39.7568V6.91019C3.17348 7.05019 4.53908 7.34084 6.22348 7.92084L7.58335 8.42884C10.3751 9.55284 13.7761 11.4315 17.0256 14.5568H35.0636C37.6885 14.5568 39.8245 16.6782 39.8245 19.2848V27.3809C39.8245 29.9875 37.6885 32.1102 35.0636 32.1102H17.0256C13.7761 35.2355 10.3751 37.1142 7.58335 38.2382L6.22348 38.7462C4.53908 39.3262 3.17348 39.6155 2.34375 39.7568Z" fill="#EAD32A" />
         <path d="M1.41406 7.46953L2.34473 23.3349L1.41406 39.2002C1.41406 39.2002 9.55833 38.4762 16.7505 31.4309H35.0651C37.3171 31.4309 39.1453 29.6175 39.1453 27.3815V23.3349C39.1453 23.3349 39.1453 21.5229 39.1453 19.2869C39.1453 17.0509 37.3171 15.2375 35.0651 15.2375H16.7505C9.55833 8.19353 1.41406 7.46953 1.41406 7.46953Z" fill="#ACACAC" />
@@ -3395,7 +3408,14 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
         <path d="M13.7658 20.0529C14.0902 20.6142 14.2903 21.2569 14.2903 21.9502C14.2903 24.0542 12.5861 25.7595 10.482 25.7595C9.78718 25.7595 9.14438 25.5595 8.58398 25.2342C9.24292 26.3702 10.4585 27.1436 11.8662 27.1436C13.9694 27.1436 15.6736 25.4369 15.6736 23.3355C15.6736 21.9275 14.9017 20.7129 13.7658 20.0529Z" fill="#787878" />
         <path d="M0.482422 46.667H2.34442V0.000328302H0.482422V46.667Z" fill="#ACACAC" />
         <path d="M0 46.667H0.482265V0.000328302H0V46.667Z" fill="#D2D1D9" />
-      </g>
+      </g>`;
+
+    tapeStrapSvg.setAttribute('viewBox', `0 0 ${strapLengthWithOverlap} ${strapHeight}`);
+    tapeStrapSvg.setAttribute('width', formatSvgNumber(strapLengthWithOverlap));
+    tapeStrapSvg.setAttribute('height', formatSvgNumber(strapHeight));
+    tapeStrapSvg.innerHTML = `
+      <rect x="${formatSvgNumber(strapEndWidth)}" y="0" width="${formatSvgNumber(strapBackgroundWidth)}" height="${strapHeight}" class="tape-svg__background" />
+      ${strapEndMarkup}
       <line x1="0" y1="${topBaselineY}" x2="${strapLengthWithOverlap}" y2="${topBaselineY}" class="tape-svg__baseline" />
       <line x1="0" y1="${bottomBaselineY}" x2="${strapLengthWithOverlap}" y2="${bottomBaselineY}" class="tape-svg__baseline" />
       ${minorTickMarkup}
