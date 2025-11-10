@@ -198,7 +198,6 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   const RULER_SHADOW_FILTER_ID = 'rulerSvgDropShadow';
   const TAPE_STRAP_DEFAULT_HEIGHT = 47;
   const TAPE_STRAP_HANDLE_RATIO = 0.45;
-  const TAPE_BETA_PARALLEL_EPSILON = 0.0001;
   const TAPE_STRAP_HANDLE_MIN_PX = 24;
   const TAPE_HOUSING_SHIFT_VARIABLE = '--tape-housing-shift';
   const DEFAULT_TAPE_HOUSING_SHIFT_PX = 40;
@@ -558,6 +557,26 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
         }
       });
     }
+  }
+  if (tapeBetaStrapElement) {
+    tapeBetaStrapElement.addEventListener('pointerdown', handleTapeBetaStrapPointerDown, {
+      passive: false
+    });
+    tapeBetaStrapElement.addEventListener('pointermove', handleSegmentPointerMove);
+    tapeBetaStrapElement.addEventListener('pointerup', handleSegmentPointerEnd);
+    tapeBetaStrapElement.addEventListener('pointercancel', handleSegmentPointerEnd);
+    tapeBetaStrapElement.addEventListener('lostpointercapture', event => {
+      if (event.pointerId == null) {
+        return;
+      }
+      if (
+        activePointers.segment.delete(event.pointerId) &&
+        activePointers.segment.size === 0 &&
+        isSegmentToolKey(appState.activeTool)
+      ) {
+        persistSegmentState();
+      }
+    });
   }
   attachInstrumentFocusHandlers(segment, 'segment');
 
@@ -4249,10 +4268,6 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       pointerOffset,
       captureTarget: handle
     };
-    const tapeBetaParallel = buildTapeBetaParallelDragState(key);
-    if (tapeBetaParallel) {
-      entry.tapeBetaParallel = tapeBetaParallel;
-    }
     session.set(event.pointerId, entry);
     try {
       handle.setPointerCapture(event.pointerId);
@@ -4260,94 +4275,41 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     event.preventDefault();
   }
 
-  function buildTapeBetaParallelDragState(handleKey) {
-    if (!isTapeBetaActive() || handleKey !== 'a') {
-      return null;
+  function handleTapeBetaStrapPointerDown(event) {
+    if (!hasSegment || event.button > 0) {
+      return;
     }
+    if (!isTapeBetaActive() || !isSegmentToolKey(appState.activeTool)) {
+      return;
+    }
+    if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
+      return;
+    }
+    const strapTarget = event.currentTarget || tapeBetaStrapElement;
+    if (!strapTarget) {
+      return;
+    }
+    boardRect = board.getBoundingClientRect();
     const geometry = getSegmentPointsInPx();
     if (!geometry || !geometry.a || !geometry.b) {
-      return null;
+      return;
     }
-    const direction = normalizeVector({
-      x: geometry.b.x - geometry.a.x,
-      y: geometry.b.y - geometry.a.y
-    });
-    if (
-      !direction ||
-      (Math.abs(direction.x) < TAPE_BETA_PARALLEL_EPSILON &&
-        Math.abs(direction.y) < TAPE_BETA_PARALLEL_EPSILON)
-    ) {
-      return null;
-    }
-    return {
+    const session = activePointers.segment;
+    const entry = {
+      pointerId: event.pointerId,
+      handleKey: 'strap',
+      captureTarget: strapTarget,
+      strapStartPointer: { x: event.clientX, y: event.clientY },
       startPoints: {
         a: { x: geometry.a.x, y: geometry.a.y },
         b: { x: geometry.b.x, y: geometry.b.y }
-      },
-      direction,
-      boardWidth: geometry.width,
-      boardHeight: geometry.height
-    };
-  }
-
-  function clampTapeBetaParallelProjection(parallelState, projection, width, height) {
-    if (!parallelState || !parallelState.startPoints || !parallelState.direction) {
-      return projection;
-    }
-    const points = [parallelState.startPoints.a, parallelState.startPoints.b];
-    const direction = parallelState.direction;
-    const boardWidth = Number.isFinite(width) && width > 0 ? width : parallelState.boardWidth;
-    const boardHeight = Number.isFinite(height) && height > 0 ? height : parallelState.boardHeight;
-    if (!Number.isFinite(boardWidth) || !Number.isFinite(boardHeight)) {
-      return projection;
-    }
-    let minProjection = -Infinity;
-    let maxProjection = Infinity;
-    const updateRange = (coordinate, axisDirection, minValue, maxValue) => {
-      if (!Number.isFinite(coordinate)) {
-        return;
-      }
-      if (Math.abs(axisDirection) < TAPE_BETA_PARALLEL_EPSILON) {
-        if (coordinate < minValue || coordinate > maxValue) {
-          minProjection = Infinity;
-          maxProjection = -Infinity;
-        }
-        return;
-      }
-      let lower = (minValue - coordinate) / axisDirection;
-      let upper = (maxValue - coordinate) / axisDirection;
-      if (lower > upper) {
-        const temp = lower;
-        lower = upper;
-        upper = temp;
-      }
-      if (lower > minProjection) {
-        minProjection = lower;
-      }
-      if (upper < maxProjection) {
-        maxProjection = upper;
       }
     };
-    for (const point of points) {
-      if (!point) {
-        continue;
-      }
-      updateRange(point.x, direction.x, 0, boardWidth);
-      updateRange(point.y, direction.y, 0, boardHeight);
-      if (minProjection > maxProjection) {
-        return projection;
-      }
-    }
-    if (minProjection === -Infinity && maxProjection === Infinity) {
-      return projection;
-    }
-    if (projection < minProjection) {
-      return minProjection;
-    }
-    if (projection > maxProjection) {
-      return maxProjection;
-    }
-    return projection;
+    session.set(event.pointerId, entry);
+    try {
+      strapTarget.setPointerCapture(event.pointerId);
+    } catch (error) {}
+    event.preventDefault();
   }
 
   function handleSegmentPointerMove(event) {
@@ -4370,38 +4332,29 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     let targetX = event.clientX - pointerOffset.x - (boardRect ? boardRect.left : 0);
     let targetY = event.clientY - pointerOffset.y - (boardRect ? boardRect.top : 0);
     const width = boardRect && Number.isFinite(boardRect.width) ? boardRect.width : BASE_BOARD_DIMENSIONS.width;
-    const height = boardRect && Number.isFinite(boardRect.height) ? boardRect.height : BASE_BOARD_DIMENSIONS.height;
-    if (isTapeBetaActive() && entry.handleKey === 'a' && entry.tapeBetaParallel) {
-      const parallelState = entry.tapeBetaParallel;
-      const direction = parallelState.direction;
+    const height =
+      boardRect && Number.isFinite(boardRect.height) ? boardRect.height : BASE_BOARD_DIMENSIONS.height;
+    if (entry.handleKey === 'strap') {
+      const strapStart = entry.strapStartPointer;
+      const startPoints = entry.startPoints;
       if (
-        direction &&
-        (Math.abs(direction.x) > TAPE_BETA_PARALLEL_EPSILON ||
-          Math.abs(direction.y) > TAPE_BETA_PARALLEL_EPSILON)
+        !strapStart ||
+        !startPoints ||
+        !startPoints.a ||
+        !startPoints.b ||
+        !Number.isFinite(strapStart.x) ||
+        !Number.isFinite(strapStart.y)
       ) {
-        parallelState.boardWidth = width;
-        parallelState.boardHeight = height;
-        const projection =
-          (targetX - parallelState.startPoints.a.x) * direction.x +
-          (targetY - parallelState.startPoints.a.y) * direction.y;
-        const clampedProjection = clampTapeBetaParallelProjection(
-          parallelState,
-          projection,
-          width,
-          height
-        );
-        if (!Number.isFinite(clampedProjection)) {
-          event.preventDefault();
-          return;
-        }
-        const offsetX = direction.x * clampedProjection;
-        const offsetY = direction.y * clampedProjection;
-        setSegmentPointFromPx('a', parallelState.startPoints.a.x + offsetX, parallelState.startPoints.a.y + offsetY);
-        setSegmentPointFromPx('b', parallelState.startPoints.b.x + offsetX, parallelState.startPoints.b.y + offsetY);
-        renderSegment(appState.settings);
         event.preventDefault();
         return;
       }
+      const deltaX = event.clientX - strapStart.x;
+      const deltaY = event.clientY - strapStart.y;
+      setSegmentPointFromPx('a', startPoints.a.x + deltaX, startPoints.a.y + deltaY);
+      setSegmentPointFromPx('b', startPoints.b.x + deltaX, startPoints.b.y + deltaY);
+      renderSegment(appState.settings);
+      event.preventDefault();
+      return;
     }
     const mode = resolveDirectionLockMode(appState.settings);
     if (mode && mode !== 'none') {
