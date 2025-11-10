@@ -182,15 +182,8 @@
       opacity: 1;
     }
 
-    .board[data-active-tool='ruler'] [data-tape-measure],
-    .board[data-active-tool='tape'] [data-ruler] {
-      display: none !important;
-    }
-
     .board[data-active-tool='segment'] [data-ruler],
-    .board[data-active-tool='segment'] [data-tape-measure],
-    .board[data-active-tool='tape-beta'] [data-ruler],
-    .board[data-active-tool='tape-beta'] [data-tape-measure] {
+    .board[data-active-tool='tape-beta'] [data-ruler] {
       display: none !important;
     }
 
@@ -878,44 +871,6 @@
                 <span class="ruler__zero-anchor" data-zero-anchor aria-hidden="true"></span>
               </div>
               <div
-                class="tape-measure"
-                data-tape-measure
-                aria-label="Flyttbart målebånd"
-                role="img"
-                hidden
-              >
-                <div class="tape-measure__body">
-                  <div class="tape-measure__strap" data-tape-strap>
-                    <div class="tape-measure__strap-track" data-tape-strap-track>
-                      <div class="tape-measure__zero-handle" data-tape-zero-handle aria-hidden="true">
-                        <span class="tape-measure__zero-anchor" data-tape-zero-anchor></span>
-                      </div>
-                      <div class="tape-measure__move-handle" data-tape-move-handle aria-hidden="true"></div>
-                      <svg
-                        class="tape-measure__strap-svg"
-                        viewBox="0 0 600 47"
-                        preserveAspectRatio="none"
-                        aria-hidden="true"
-                        focusable="false"
-                        data-tape-strap-svg
-                      ></svg>
-                  </div>
-                </div>
-                <div class="tape-measure__housing" data-tape-housing>
-                  <div
-                    class="tape-measure__housing-shift-handle"
-                    data-tape-housing-shift-handle
-                    aria-hidden="true"
-                  ></div>
-                  <img
-                    src="/images/measure/måleredskaper/målebåndhus.svg"
-                    alt=""
-                    aria-hidden="true"
-                  />
-                  </div>
-                </div>
-              </div>
-              <div
                 class="segment"
                 data-segment
                 role="img"
@@ -997,7 +952,6 @@
                 <label for="cfg-measurement-tool">Verktøy</label>
                 <select id="cfg-measurement-tool">
                   <option value="ruler" selected>Linjal</option>
-                  <option value="tape">Målebånd</option>
                   <option value="tape-beta">Målebånd (beta)</option>
                   <option value="segment">Linjestykke</option>
                 </select>
