@@ -100,3 +100,13 @@ Playwright-testene `tests/figure-library-api.spec.js` og `tests/figure-library-u
 isert KV-klient (`tests/helpers/kv-mock.js`) for å simulere Vercel KV og et in-memory-fallbakkscenario. Kjør `npx playwright test
 tests/figure-library-api.spec.js tests/figure-library-ui.spec.js` for å verifisere at både back-end og UI fungerer med den ønskede
 lagringskonfigurasjonen.
+
+## Populere lagringen med standardfigurer
+
+Skriptet `scripts/seed-figure-library.mjs` leser manifestene fra `figure-library/all.js` og pakkene i `packages/figures` og oppretter kategorier og figurer i lagringen.
+
+* For å se hva som ville blitt skrevet uten å gjøre endringer: `node scripts/seed-figure-library.mjs --dry-run`.
+* For å fylle den delte minnelagringen lokalt holder det å kjøre `node scripts/seed-figure-library.mjs` (uten KV-variabler).
+* For å skrive direkte til Vercel KV setter du `KV_REST_API_URL` og `KV_REST_API_TOKEN` i samme shell før skriptet kjøres, f.eks. `KV_REST_API_URL=… KV_REST_API_TOKEN=… node scripts/seed-figure-library.mjs`.
+
+Skriptet logger hver kategori og figur som behandles, og gir en oppsummering på slutten. Alle figurer får SVG-data fra repoet, og PNG-data inkluderes automatisk dersom tilsvarende filer finnes.
