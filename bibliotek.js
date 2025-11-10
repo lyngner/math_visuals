@@ -3219,6 +3219,18 @@ function normalizeServerEntry(entry) {
   if (Number.isFinite(entry.pngHeight)) {
     normalized.pngHeight = Number(entry.pngHeight);
   }
+  if (!normalized.type) {
+    normalized.type = 'custom';
+  }
+  normalized.custom = true;
+  const entryId = normalized.slug || normalized.id;
+  if (entryId) {
+    normalized.entryId = entryId;
+    customEntryMap.set(entryId, normalized);
+  }
+  if (normalized.id && normalized.id !== entryId) {
+    customEntryMap.set(normalized.id, normalized);
+  }
   return normalized;
 }
 
@@ -3636,7 +3648,11 @@ async function fetchFigureLibrary(method = 'GET', payload, requestConfig = {}) {
 
 function buildFigureEntryPayload(entry, options = {}) {
   if (!entry || typeof entry !== 'object') return null;
-  const slug = typeof entry.slug === 'string' && entry.slug.trim() ? entry.slug.trim() : entry.id;
+  const slug = typeof entry.slug === 'string' && entry.slug.trim()
+    ? entry.slug.trim()
+    : typeof entry.entryId === 'string' && entry.entryId.trim()
+      ? entry.entryId.trim()
+      : entry.id;
   if (!slug) return null;
   const toolValue = typeof entry.tool === 'string' && entry.tool.trim() ? entry.tool.trim() : FIGURE_LIBRARY_TOOL;
   const payload = {
@@ -3736,6 +3752,11 @@ function createCustomFigureData(entry) {
   const path = entry.dataUrl;
   if (typeof path !== 'string' || !path) return null;
   const id = entry.id || createCustomEntryId(entry.name || 'figur');
+  const entryId = typeof entry.entryId === 'string' && entry.entryId.trim()
+    ? entry.entryId.trim()
+    : typeof entry.slug === 'string' && entry.slug.trim()
+      ? entry.slug.trim()
+      : id;
   return {
     id,
     slug: entry.slug || id,
@@ -3746,7 +3767,7 @@ function createCustomFigureData(entry) {
     categoryId: entry.categoryId || 'custom',
     categoryName: entry.categoryName || 'Egendefinert',
     custom: true,
-    entryId: entry.id || id,
+    entryId,
   };
 }
 
@@ -4131,7 +4152,30 @@ async function handleEditorSubmit(event) {
   entry.categoryId = categoryDetails.id;
   entry.categoryName = categoryDetails.name;
   entry.categoryApps = categoryDetails.apps;
-  customEntryMap.set(entry.id, entry);
+  const normalizedSlug = typeof entry.slug === 'string' && entry.slug.trim() ? entry.slug.trim() : '';
+  if (normalizedSlug) {
+    entry.slug = normalizedSlug;
+  } else if (typeof entry.entryId === 'string' && entry.entryId.trim()) {
+    entry.slug = entry.entryId.trim();
+  } else if (typeof entry.id === 'string' && entry.id.trim()) {
+    entry.slug = entry.id.trim();
+  }
+  if (!entry.entryId) {
+    entry.entryId = entry.slug || entry.id || editingEntryId;
+  }
+  entry.custom = true;
+  if (typeof entry.entryId === 'string') {
+    entry.entryId = entry.entryId.trim();
+  }
+  if (entry.entryId) {
+    customEntryMap.set(entry.entryId, entry);
+  }
+  if (typeof entry.id === 'string') {
+    entry.id = entry.id.trim();
+  }
+  if (entry.id) {
+    customEntryMap.set(entry.id, entry);
+  }
   try {
     const updatedEntry = await submitFigureEntry(entry, { method: 'PATCH' });
     const finalEntry = updatedEntry || entry;
