@@ -117,7 +117,17 @@ test.describe('Figurbibliotek opplastinger', () => {
       const payload = request.postDataJSON();
       return payload && !payload.slug;
     });
-    await Promise.all([firstCategoryPatchPromise, saveAvailabilityButton.click()]);
+    const firstCategoryPatchResponsePromise = page.waitForResponse((response) => {
+      if (!response.url().includes('/api/figure-library')) return false;
+      if (response.request().method() !== 'PATCH') return false;
+      const payload = response.request().postDataJSON();
+      return payload && !payload.slug;
+    });
+    await Promise.all([firstCategoryPatchPromise, firstCategoryPatchResponsePromise, saveAvailabilityButton.click()]);
+    const firstCategoryPatchResponse = await firstCategoryPatchResponsePromise;
+    expect(firstCategoryPatchResponse.ok()).toBeTruthy();
+    const firstCategoryPatchBody = await firstCategoryPatchResponse.json();
+    expect(firstCategoryPatchBody.category?.apps).toEqual(['bibliotek', 'måling']);
     await expect(categoryDialog.locator('[data-category-apps-status]')).toHaveText('Tilgjengelighet oppdatert.');
     await expect(saveAvailabilityButton).toBeDisabled();
 
@@ -158,7 +168,17 @@ test.describe('Figurbibliotek opplastinger', () => {
       const payload = request.postDataJSON();
       return payload && !payload.slug;
     });
-    await Promise.all([secondCategoryPatchPromise, updatedSaveButton.click()]);
+    const secondCategoryPatchResponsePromise = page.waitForResponse((response) => {
+      if (!response.url().includes('/api/figure-library')) return false;
+      if (response.request().method() !== 'PATCH') return false;
+      const payload = response.request().postDataJSON();
+      return payload && !payload.slug;
+    });
+    await Promise.all([secondCategoryPatchPromise, secondCategoryPatchResponsePromise, updatedSaveButton.click()]);
+    const secondCategoryPatchResponse = await secondCategoryPatchResponsePromise;
+    expect(secondCategoryPatchResponse.ok()).toBeTruthy();
+    const secondCategoryPatchBody = await secondCategoryPatchResponse.json();
+    expect(secondCategoryPatchBody.category?.apps).toEqual(['bibliotek', 'sortering']);
     await expect(categoryDialog.locator('[data-category-apps-status]')).toHaveText('Tilgjengelighet oppdatert.');
     await expect(updatedSaveButton).toBeDisabled();
 

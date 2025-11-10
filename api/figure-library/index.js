@@ -163,6 +163,95 @@ function extractCategoryIdFromBody(body) {
   return null;
 }
 
+function getCategoryObject(body) {
+  if (!body || typeof body !== 'object') {
+    return null;
+  }
+  return body.category && typeof body.category === 'object' ? body.category : null;
+}
+
+function isCategoryUpdateRequest(slugFromBody, body) {
+  if (slugFromBody) {
+    return false;
+  }
+  if (!body || typeof body !== 'object') {
+    return false;
+  }
+  if (extractCategoryIdFromBody(body)) {
+    return true;
+  }
+  const categoryObject = getCategoryObject(body);
+  if (categoryObject) {
+    return true;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'categoryApps')) {
+    return true;
+  }
+  if (typeof body.categoryLabel === 'string' && body.categoryLabel.trim()) {
+    return true;
+  }
+  if (typeof body.categoryName === 'string' && body.categoryName.trim()) {
+    return true;
+  }
+  return false;
+}
+
+function buildCategoryPayload(body) {
+  const categoryPayload = {};
+  const bodyCategoryId = extractCategoryIdFromBody(body);
+  const categoryObject = getCategoryObject(body);
+
+  if (bodyCategoryId) {
+    categoryPayload.id = bodyCategoryId;
+  }
+  if (categoryObject && Object.prototype.hasOwnProperty.call(categoryObject, 'id') && categoryObject.id) {
+    categoryPayload.id = categoryPayload.id || categoryObject.id;
+  }
+  if (categoryObject && typeof categoryObject.label === 'string') {
+    categoryPayload.label = categoryObject.label;
+  }
+  if (typeof body.categoryLabel === 'string') {
+    categoryPayload.label = categoryPayload.label || body.categoryLabel;
+  }
+  if (typeof body.categoryName === 'string') {
+    categoryPayload.label = categoryPayload.label || body.categoryName;
+  }
+  if (categoryObject && Object.prototype.hasOwnProperty.call(categoryObject, 'apps')) {
+    categoryPayload.apps = categoryObject.apps;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'categoryApps')) {
+    categoryPayload.apps = body.categoryApps;
+  }
+  if (categoryObject && Object.prototype.hasOwnProperty.call(categoryObject, 'description')) {
+    categoryPayload.description = categoryObject.description;
+  }
+
+  return categoryPayload;
+}
+
+async function handleCategoryUpdate(body, res, currentMode) {
+  const categoryPayload = buildCategoryPayload(body);
+
+  if (!categoryPayload.id && !categoryPayload.label) {
+    const metadata = applyModeHeaders(res, currentMode) || buildModeMetadata(currentMode);
+    sendJson(res, 400, { error: 'categoryId or category label is required', ...metadata });
+    return true;
+  }
+
+  const ensured = await ensureCategory(categoryPayload);
+  if (!ensured) {
+    const metadata = applyModeHeaders(res, currentMode) || buildModeMetadata(currentMode);
+    sendJson(res, 400, { error: 'Unable to update category', ...metadata });
+    return true;
+  }
+
+  const categories = await buildCategoriesPayload();
+  const metadata = applyModeHeaders(res, ensured.mode || currentMode) ||
+    buildModeMetadata(ensured.mode || currentMode);
+  sendJson(res, 200, { ...metadata, category: ensureCategoryApps(ensured), categories });
+  return true;
+}
+
 function normalizePngPayload(body) {
   if (!body || typeof body !== 'object') {
     return { dataUrl: null, width: null, height: null };
@@ -288,55 +377,8 @@ module.exports = async function handler(req, res) {
         return;
       }
       const slugFromBody = extractSlugFromBody(body, querySlug);
-      const bodyCategoryId = extractCategoryIdFromBody(body);
-      const categoryObject = body && typeof body.category === 'object' ? body.category : null;
-      const hasCategoryPayload =
-        (!slugFromBody && (bodyCategoryId || categoryObject || Object.prototype.hasOwnProperty.call(body, 'categoryApps')));
-
-      if (!slugFromBody && hasCategoryPayload) {
-        const categoryPayload = {};
-        if (bodyCategoryId) {
-          categoryPayload.id = bodyCategoryId;
-        }
-        if (categoryObject && Object.prototype.hasOwnProperty.call(categoryObject, 'id') && categoryObject.id) {
-          categoryPayload.id = categoryPayload.id || categoryObject.id;
-        }
-        if (categoryObject && typeof categoryObject.label === 'string') {
-          categoryPayload.label = categoryObject.label;
-        }
-        if (typeof body.categoryLabel === 'string') {
-          categoryPayload.label = categoryPayload.label || body.categoryLabel;
-        }
-        if (typeof body.categoryName === 'string') {
-          categoryPayload.label = categoryPayload.label || body.categoryName;
-        }
-        if (categoryObject && Object.prototype.hasOwnProperty.call(categoryObject, 'apps')) {
-          categoryPayload.apps = categoryObject.apps;
-        }
-        if (Object.prototype.hasOwnProperty.call(body, 'categoryApps')) {
-          categoryPayload.apps = body.categoryApps;
-        }
-        if (categoryObject && Object.prototype.hasOwnProperty.call(categoryObject, 'description')) {
-          categoryPayload.description = categoryObject.description;
-        }
-
-        if (!categoryPayload.id && !categoryPayload.label) {
-          const metadata = applyModeHeaders(res, currentMode);
-          sendJson(res, 400, { error: 'categoryId or category label is required', ...metadata });
-          return;
-        }
-
-        const ensured = await ensureCategory(categoryPayload);
-        if (!ensured) {
-          const metadata = applyModeHeaders(res, currentMode);
-          sendJson(res, 400, { error: 'Unable to update category', ...metadata });
-          return;
-        }
-
-        const categories = await buildCategoriesPayload();
-        const metadata = applyModeHeaders(res, ensured.mode || currentMode) ||
-          buildModeMetadata(ensured.mode || currentMode);
-        sendJson(res, 200, { ...metadata, category: ensureCategoryApps(ensured), categories });
+      if (isCategoryUpdateRequest(slugFromBody, body)) {
+        await handleCategoryUpdate(body, res, currentMode);
         return;
       }
 
@@ -398,6 +440,10 @@ module.exports = async function handler(req, res) {
         return;
       }
       const slugFromBody = extractSlugFromBody(body, querySlug);
+      if (isCategoryUpdateRequest(slugFromBody, body)) {
+        await handleCategoryUpdate(body, res, currentMode);
+        return;
+      }
       if (!slugFromBody) {
         sendJson(res, 400, { error: 'Slug is required' });
         return;
