@@ -306,4 +306,65 @@ test.describe('Figurbibliotek opplastinger', () => {
     await expect(deleteCategoryTile).toHaveCount(0);
     await expect(status).toHaveText('Kategorien «Slettekategori» ble slettet.');
   });
+
+  test('støtter massevalg i kategoridialogen', async ({ page }) => {
+    const fixturesDir = path.join(__dirname, 'fixtures', 'figure-library');
+    const files = [
+      path.join(fixturesDir, 'grid-figure.svg'),
+      path.join(fixturesDir, 'triangle-figure.svg')
+    ];
+
+    await page.locator('[data-upload-file]').setInputFiles(files);
+    await page.locator('[data-upload-name]').fill('Bulkvalg');
+    await page.locator('[data-upload-category]').fill('Bulkategori');
+    await page.getByRole('button', { name: 'Legg til figur' }).click();
+
+    const bulkCategoryTile = page
+      .locator('[data-category-grid] .categoryItem')
+      .filter({ has: page.locator('h3', { hasText: 'Bulkategori' }) });
+    await expect(bulkCategoryTile.locator('.categoryCount')).toHaveText('2 figurer');
+
+    await bulkCategoryTile.locator('button.categoryButton').click();
+
+    const categoryDialog = page.locator('[data-category-dialog]');
+    await expect(categoryDialog).toBeVisible();
+
+    const selectAllButton = categoryDialog.locator('[data-category-select-all]');
+    const deleteButton = categoryDialog.locator('[data-category-delete]');
+    const toggles = categoryDialog.locator('[data-category-toggle]');
+
+    await expect(selectAllButton).toBeEnabled();
+    await expect(selectAllButton).toHaveAttribute('data-mode', 'select');
+    await expect(selectAllButton).toContainText('Velg alle figurer');
+
+    await selectAllButton.click();
+
+    await expect(selectAllButton).toBeEnabled();
+    await expect(selectAllButton).toHaveAttribute('data-mode', 'clear');
+    await expect(selectAllButton).toContainText('Fjern alle figurer');
+    await expect(deleteButton).toContainText('Slett figurer');
+    await expect(toggles).toHaveCount(2);
+    await expect(toggles.first()).toHaveAttribute('aria-pressed', 'true');
+    await expect(toggles.nth(1)).toHaveAttribute('aria-pressed', 'true');
+
+    const filter = page.locator('[data-filter]');
+    await filter.fill('Bulk');
+
+    await expect(selectAllButton).toBeEnabled();
+    await expect(selectAllButton).toContainText('Fjern alle figurer');
+
+    await selectAllButton.click();
+
+    await expect(selectAllButton).toContainText('Velg alle figurer');
+    await expect(selectAllButton).toHaveAttribute('data-mode', 'select');
+    await expect(selectAllButton).toBeDisabled();
+    await expect(deleteButton).toContainText('Slett figur(er)');
+    await expect(toggles.first()).toHaveAttribute('aria-pressed', 'false');
+    await expect(toggles.nth(1)).toHaveAttribute('aria-pressed', 'false');
+
+    await filter.fill('');
+
+    await expect(selectAllButton).toBeEnabled();
+    await expect(selectAllButton).toContainText('Velg alle figurer');
+  });
 });
