@@ -36,5 +36,16 @@ For å verifisere nye testscenarier isolert kan du be Playwright om å kjøre en
 
 - Minnelagringslogikk for eksempellageret: `npx playwright test tests/examples-store.spec.js`
 - Viewer-siden i minnemodus (bruker backend-mocken i «memory»): `npx playwright test tests/examples-viewer.spec.js`
+- Fjernoppdateringer i figurbiblioteket uten lokale fallbacks: `npx playwright test tests/figure-library-backend-sync.spec.js`
 
-Begge kommandoene starter samme lokale testserver som `npm test`, men hopper over øvrige tester slik at det går raskere å iterere.
+Alle kommandoene starter samme lokale testserver som `npm test`, men hopper over øvrige tester slik at det går raskere å iterere.
+
+## Enhetstester for seeding-skriptet
+
+Seeding-scriptet for figurbiblioteket har en egen tørrkjøringstest som bekrefter hvilke payloads som sendes til lagringslaget. Kjør testen alene med:
+
+```bash
+node tests/unit/seed-figure-library.test.mjs
+```
+
+Testen mocker `ensureCategory` og `setFigure`, så ingen eksterne tjenester berøres. I CI kjøres den automatisk som en del av `npm test`-kjeden før Playwright-suitene.
