@@ -4037,8 +4037,8 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (toolKey === TAPE_BETA_TOOL_KEY) {
       return {
         key: TAPE_BETA_TOOL_KEY,
-        label: 'målebånd (beta)',
-        title: 'Målebånd (beta)',
+        label: 'målebånd',
+        title: 'Målebånd',
         possessive: 'Målebåndets'
       };
     }
