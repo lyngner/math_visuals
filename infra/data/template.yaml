@@ -1,0 +1,246 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  VPC networking, security groups and Redis cluster infrastructure for the data
+  plane workloads that back the math visuals services.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Networking configuration
+        Parameters:
+          - EnvironmentName
+          - VpcCidr
+          - PrivateSubnet1Cidr
+          - PrivateSubnet2Cidr
+      - Label:
+          default: Redis configuration
+        Parameters:
+          - RedisNodeType
+          - RedisEngineVersion
+          - RedisNumCacheClusters
+          - RedisMaintenanceWindow
+          - RedisSnapshotWindow
+          - RedisAuthToken
+    ParameterLabels:
+      EnvironmentName:
+        default: Environment name (used as resource prefix)
+      VpcCidr:
+        default: VPC CIDR block
+      PrivateSubnet1Cidr:
+        default: Private subnet 1 CIDR block
+      PrivateSubnet2Cidr:
+        default: Private subnet 2 CIDR block
+      RedisNodeType:
+        default: ElastiCache node instance type
+      RedisEngineVersion:
+        default: Redis engine version
+      RedisNumCacheClusters:
+        default: Number of cache nodes in the replication group
+      RedisMaintenanceWindow:
+        default: Preferred maintenance window (UTC)
+      RedisSnapshotWindow:
+        default: Preferred snapshot window (UTC)
+      RedisAuthToken:
+        default: Redis auth token (use Secrets Manager dynamic reference)
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: Name used to namespace resources (e.g. dev, staging, prod).
+  VpcCidr:
+    Type: String
+    Default: 10.42.0.0/16
+    Description: The CIDR block for the VPC.
+  PrivateSubnet1Cidr:
+    Type: String
+    Default: 10.42.1.0/24
+    Description: CIDR block for the first private subnet.
+  PrivateSubnet2Cidr:
+    Type: String
+    Default: 10.42.2.0/24
+    Description: CIDR block for the second private subnet.
+  RedisNodeType:
+    Type: String
+    Default: cache.t4g.small
+    AllowedPattern: '^cache\.'
+    Description: >-
+      ElastiCache node instance type. Choose a family that supports Redis and
+      TLS (TransitEncryptionEnabled).
+  RedisEngineVersion:
+    Type: String
+    Default: '7.1'
+    Description: Redis engine version.
+  RedisNumCacheClusters:
+    Type: Number
+    Default: 2
+    MinValue: 1
+    Description: Number of cache nodes in the replication group.
+  RedisMaintenanceWindow:
+    Type: String
+    Default: sun:23:00-mon:01:30
+    Description: Preferred maintenance window (UTC).
+  RedisSnapshotWindow:
+    Type: String
+    Default: 02:00-03:00
+    Description: Preferred snapshot window (UTC).
+  RedisAuthToken:
+    Type: String
+    NoEcho: true
+    Description: >-
+      Auth token used for Redis AUTH. Supply a Secrets Manager dynamic reference
+      such as {{resolve:secretsmanager:redis/auth:SecretString:authToken}}.
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-data-vpc'
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Ref PrivateSubnet1Cidr
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-private-a'
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Ref PrivateSubnet2Cidr
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-private-b'
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-private-rt'
+
+  PrivateSubnet1RouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateSubnet2RouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet2
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub 'Lambda access to Redis for ${EnvironmentName}'
+      VpcId: !Ref Vpc
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-lambda-sg'
+
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub 'Redis access control for ${EnvironmentName}'
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-redis-sg'
+
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: !Sub 'Private subnets for Redis in ${EnvironmentName}'
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      CacheSubnetGroupName: !Sub '${EnvironmentName}-redis-subnets'
+
+  RedisReplicationGroup:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupId: !Sub '${EnvironmentName}-redis'
+      ReplicationGroupDescription: !Sub '${EnvironmentName} Redis replication group'
+      Engine: redis
+      EngineVersion: !Ref RedisEngineVersion
+      CacheNodeType: !Ref RedisNodeType
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      NumCacheClusters: !Ref RedisNumCacheClusters
+      AtRestEncryptionEnabled: true
+      TransitEncryptionEnabled: true
+      AuthToken: !Ref RedisAuthToken
+      AutomaticFailoverEnabled: true
+      MultiAZEnabled: true
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+      PreferredMaintenanceWindow: !Ref RedisMaintenanceWindow
+      SnapshotRetentionLimit: 7
+      SnapshotWindow: !Ref RedisSnapshotWindow
+
+Outputs:
+  VpcId:
+    Description: Identifier for the VPC hosting the data plane workloads.
+    Value: !Ref Vpc
+    Export:
+      Name: !Sub '${EnvironmentName}:VpcId'
+
+  PrivateSubnetIds:
+    Description: Private subnet identifiers available for Lambdas or other compute.
+    Value: !Join
+      - ','
+      - - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+    Export:
+      Name: !Sub '${EnvironmentName}:PrivateSubnetIds'
+
+  LambdaSecurityGroupId:
+    Description: Security group to associate with Lambda functions needing Redis access.
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: !Sub '${EnvironmentName}:LambdaSecurityGroupId'
+
+  RedisSecurityGroupId:
+    Description: Security group applied to the Redis replication group.
+    Value: !Ref RedisSecurityGroup
+
+  RedisPrimaryEndpoint:
+    Description: Writer endpoint for the Redis replication group.
+    Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
+
+  RedisReaderEndpoint:
+    Description: Reader endpoint for the Redis replication group.
+    Value: !GetAtt RedisReplicationGroup.ReaderEndPoint.Address
+
+  RedisPort:
+    Description: TLS port for Redis.
+    Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
+
+  RedisTlsRequired:
+    Description: Indicates that Redis requires TLS for in-transit encryption.
+    Value: true
