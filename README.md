@@ -41,6 +41,23 @@ Eksempeltjenesten er navet som binder appene sammen. Den gjør det mulig å lagr
 * **Frontend:** Vanilla HTML, CSS og JavaScript supplert med JSXGraph, MathLive og skreddersydde UI-komponenter.
 * **Bygg og deling:** Rollup for pakkene i `packages/`, `npm`-skript for utvikleropplevelsen og Vercel for distribusjon av både statiske filer og serverløse funksjoner.
 * **Testing og kvalitet:** Playwright-scenarier og interne verktøy i `scripts/` sikrer at appene leverer konsistent oppførsel og at API-kontraktene opprettholdes.
+
+## Drift og distribusjon
+
+AWS-infrastrukturen kan deployes via GitHub Actions-workflowen [Deploy infrastructure](.github/workflows/deploy-infra.yml). Workflowen kan startes manuelt (`workflow_dispatch`) eller trigges automatisk ved push til `main`, og ruller ut CloudFormation-stakkene for det statiske nettstedet (`infra/static-site/template.yaml`), API-et (`infra/api/template.yaml`) og konfigurasjons-/datakomponentene (`infra/data/template.yaml`). Etter vellykket deploy kan workflowen også invalidere CloudFront-distribusjonen som eksponerer nettstedet.
+
+Før workflowen tas i bruk må følgende secrets legges inn i GitHub-repoet:
+
+- `AWS_DEPLOY_ROLE_ARN` – ARN til IAM-rollen som er åpnet for GitHub OIDC.
+- `AWS_REGION` – Regionen som skal motta infrastrukturen (for eksempel `eu-north-1`).
+- `DEPLOY_STACK_SUFFIX` – Valgfritt suffiks (f.eks. `-prod`) som legges til stakk-navn.
+- `SITE_BUCKET_NAME`, `API_GATEWAY_DOMAIN_NAME`, `API_GATEWAY_ORIGIN_PATH` (valgfri) og `CLOUDFRONT_PRICE_CLASS` (valgfri) for statisk-side-stakken.
+- `LAMBDA_CODE_S3_BUCKET`, `LAMBDA_CODE_S3_KEY`, `LAMBDA_CODE_S3_OBJECT_VERSION` (valgfri) og `API_STAGE_NAME` (valgfri) for API-stakken.
+- `KV_REST_API_URL_SECRET_NAME`, `KV_REST_API_URL`, `KV_REST_API_TOKEN_SECRET_NAME`, `KV_REST_API_TOKEN`, `EXAMPLES_ALLOWED_ORIGINS_PARAMETER_NAME`, `EXAMPLES_ALLOWED_ORIGINS_VALUE` (valgfri), `SVG_ALLOWED_ORIGINS_PARAMETER_NAME` og `SVG_ALLOWED_ORIGINS_VALUE` (valgfri) for data-/konfigurasjonsstakken.
+- `CLOUDFRONT_DISTRIBUTION_ID` for å invaliderere cache etter deploy.
+
+Workflowen bruker `aws-actions/configure-aws-credentials@v4` og forutsetter at den oppgitte IAM-rollen kan deploye de tre stakkene og lese/oppdatere CloudFront-distribusjonen.
+
 ## Videre arbeid
 
 Math Visuals videreutvikles i tett dialog med lærere, elever og spesialpedagoger. Nye konsepter prototypers ofte i dedikerte mapper (`old_projects/`, `kvikkbilder`, `tallinje` m.fl.) før de flyttes inn i hovedkatalogen. Prosjektet søker å balansere eksperimentell utforskning med robuste, dokumenterte verktøy, og inviterer til samskaping gjennom issues, pull requests og deling av undervisningsopplegg.

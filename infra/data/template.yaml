@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Secrets and configuration parameters required by Math Visuals backend services.
+
+Parameters:
+  KvRestApiUrlSecretName:
+    Type: String
+    Description: Name of the Secrets Manager secret that stores the KV REST API base URL.
+  KvRestApiUrlSecretValue:
+    Type: String
+    NoEcho: true
+    Description: Value to store in the KV REST API base URL secret.
+  KvRestApiTokenSecretName:
+    Type: String
+    Description: Name of the Secrets Manager secret that stores the KV REST API token.
+  KvRestApiTokenSecretValue:
+    Type: String
+    NoEcho: true
+    Description: Value to store in the KV REST API token secret.
+  ExamplesAllowedOriginsParameterName:
+    Type: String
+    Description: Name of the SSM parameter that stores the allowed origins for the examples API.
+  ExamplesAllowedOriginsValue:
+    Type: String
+    Default: '*'
+    Description: Allowed origins value to place in the SSM parameter for the examples API.
+  SvgAllowedOriginsParameterName:
+    Type: String
+    Description: Name of the SSM parameter that stores allowed origins for the SVG API.
+  SvgAllowedOriginsValue:
+    Type: String
+    Default: '*'
+    Description: Allowed origins value to place in the SSM parameter for the SVG API.
+
+Resources:
+  KvRestApiUrlSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Ref KvRestApiUrlSecretName
+      Description: Math Visuals KV REST API base URL
+      SecretString: !Ref KvRestApiUrlSecretValue
+
+  KvRestApiTokenSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Ref KvRestApiTokenSecretName
+      Description: Math Visuals KV REST API token
+      SecretString: !Ref KvRestApiTokenSecretValue
+
+  ExamplesAllowedOriginsParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Ref ExamplesAllowedOriginsParameterName
+      Type: String
+      Value: !Ref ExamplesAllowedOriginsValue
+      Description: Allowed origins for Math Visuals examples endpoints.
+
+  SvgAllowedOriginsParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Ref SvgAllowedOriginsParameterName
+      Type: String
+      Value: !Ref SvgAllowedOriginsValue
+      Description: Allowed origins for Math Visuals SVG endpoints.
+
+Outputs:
+  KvRestApiUrlSecretArn:
+    Description: ARN of the secret that stores the KV REST API base URL.
+    Value: !GetAtt KvRestApiUrlSecret.Arn
+  KvRestApiTokenSecretArn:
+    Description: ARN of the secret that stores the KV REST API token.
+    Value: !GetAtt KvRestApiTokenSecret.Arn
+  ExamplesAllowedOriginsParameterArn:
+    Description: ARN of the SSM parameter containing allowed origins for the examples API.
+    Value: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ExamplesAllowedOriginsParameterName}'
+  SvgAllowedOriginsParameterArn:
+    Description: ARN of the SSM parameter containing allowed origins for the SVG API.
+    Value: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${SvgAllowedOriginsParameterName}'

@@ -1,0 +1,140 @@
+name: Deploy infrastructure
+
+# Required secrets:
+# - AWS_DEPLOY_ROLE_ARN: ARN of the IAM role configured for GitHub OIDC.
+# - AWS_REGION: AWS region that hosts the infrastructure (e.g., eu-north-1).
+# - DEPLOY_STACK_SUFFIX: Optional stack suffix (e.g., -prod) to avoid name clashes.
+# - SITE_BUCKET_NAME: Globally unique S3 bucket name for the static site.
+# - API_GATEWAY_DOMAIN_NAME: Domain name of the API Gateway stage backing the site.
+# - API_GATEWAY_ORIGIN_PATH: (Optional) Stage path to append when routing through CloudFront.
+# - CLOUDFRONT_PRICE_CLASS: (Optional) CloudFront price class to apply.
+# - LAMBDA_CODE_S3_BUCKET: Bucket that stores the packaged Lambda artefact.
+# - LAMBDA_CODE_S3_KEY: Object key for the packaged Lambda artefact.
+# - LAMBDA_CODE_S3_OBJECT_VERSION: (Optional) Version for the Lambda artefact object.
+# - API_STAGE_NAME: (Optional) Stage name for the HTTP API deployment.
+# - KV_REST_API_URL_SECRET_NAME: Secrets Manager name that should hold the KV REST API URL.
+# - KV_REST_API_URL: The KV REST API base URL value.
+# - KV_REST_API_TOKEN_SECRET_NAME: Secrets Manager name that should hold the KV REST API token.
+# - KV_REST_API_TOKEN: The KV REST API token value.
+# - EXAMPLES_ALLOWED_ORIGINS_PARAMETER_NAME: SSM parameter name for Examples API allowed origins.
+# - EXAMPLES_ALLOWED_ORIGINS_VALUE: (Optional) Allowed origins value for Examples API.
+# - SVG_ALLOWED_ORIGINS_PARAMETER_NAME: SSM parameter name for SVG API allowed origins.
+# - SVG_ALLOWED_ORIGINS_VALUE: (Optional) Allowed origins value for SVG API.
+# - CLOUDFRONT_DISTRIBUTION_ID: Distribution ID to invalidate after deploy.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-iac:
+    name: deploy-iac
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      DEPLOY_STACK_SUFFIX: ${{ secrets.DEPLOY_STACK_SUFFIX }}
+      SITE_BUCKET_NAME: ${{ secrets.SITE_BUCKET_NAME }}
+      API_GATEWAY_DOMAIN_NAME: ${{ secrets.API_GATEWAY_DOMAIN_NAME }}
+      API_GATEWAY_ORIGIN_PATH: ${{ secrets.API_GATEWAY_ORIGIN_PATH }}
+      CLOUDFRONT_PRICE_CLASS: ${{ secrets.CLOUDFRONT_PRICE_CLASS }}
+      LAMBDA_CODE_S3_BUCKET: ${{ secrets.LAMBDA_CODE_S3_BUCKET }}
+      LAMBDA_CODE_S3_KEY: ${{ secrets.LAMBDA_CODE_S3_KEY }}
+      LAMBDA_CODE_S3_OBJECT_VERSION: ${{ secrets.LAMBDA_CODE_S3_OBJECT_VERSION }}
+      API_STAGE_NAME: ${{ secrets.API_STAGE_NAME }}
+      KV_REST_API_URL_SECRET_NAME: ${{ secrets.KV_REST_API_URL_SECRET_NAME }}
+      KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
+      KV_REST_API_TOKEN_SECRET_NAME: ${{ secrets.KV_REST_API_TOKEN_SECRET_NAME }}
+      KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
+      EXAMPLES_ALLOWED_ORIGINS_PARAMETER_NAME: ${{ secrets.EXAMPLES_ALLOWED_ORIGINS_PARAMETER_NAME }}
+      EXAMPLES_ALLOWED_ORIGINS_VALUE: ${{ secrets.EXAMPLES_ALLOWED_ORIGINS_VALUE }}
+      SVG_ALLOWED_ORIGINS_PARAMETER_NAME: ${{ secrets.SVG_ALLOWED_ORIGINS_PARAMETER_NAME }}
+      SVG_ALLOWED_ORIGINS_VALUE: ${{ secrets.SVG_ALLOWED_ORIGINS_VALUE }}
+      CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy static site stack
+        run: |
+          set -euo pipefail
+          PARAMS=(
+            "SiteBucketName=${SITE_BUCKET_NAME}"
+            "ApiGatewayDomainName=${API_GATEWAY_DOMAIN_NAME}"
+          )
+          if [ -n "${API_GATEWAY_ORIGIN_PATH:-}" ]; then
+            PARAMS+=("ApiGatewayOriginPath=${API_GATEWAY_ORIGIN_PATH}")
+          fi
+          if [ -n "${CLOUDFRONT_PRICE_CLASS:-}" ]; then
+            PARAMS+=("CloudFrontPriceClass=${CLOUDFRONT_PRICE_CLASS}")
+          fi
+
+          aws cloudformation deploy \
+            --template-file infra/static-site/template.yaml \
+            --stack-name "math-visuals-static${DEPLOY_STACK_SUFFIX:-}" \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides "${PARAMS[@]}"
+
+      - name: Deploy API stack
+        run: |
+          set -euo pipefail
+          PARAMS=(
+            "LambdaCodeS3Bucket=${LAMBDA_CODE_S3_BUCKET}"
+            "LambdaCodeS3Key=${LAMBDA_CODE_S3_KEY}"
+          )
+          if [ -n "${LAMBDA_CODE_S3_OBJECT_VERSION:-}" ]; then
+            PARAMS+=("LambdaCodeS3ObjectVersion=${LAMBDA_CODE_S3_OBJECT_VERSION}")
+          fi
+          if [ -n "${API_STAGE_NAME:-}" ]; then
+            PARAMS+=("StageName=${API_STAGE_NAME}")
+          fi
+
+          aws cloudformation deploy \
+            --template-file infra/api/template.yaml \
+            --stack-name "math-visuals-api${DEPLOY_STACK_SUFFIX:-}" \
+            --capabilities CAPABILITY_IAM \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides "${PARAMS[@]}"
+
+      - name: Deploy data stack
+        run: |
+          set -euo pipefail
+          PARAMS=(
+            "KvRestApiUrlSecretName=${KV_REST_API_URL_SECRET_NAME}"
+            "KvRestApiUrlSecretValue=${KV_REST_API_URL}"
+            "KvRestApiTokenSecretName=${KV_REST_API_TOKEN_SECRET_NAME}"
+            "KvRestApiTokenSecretValue=${KV_REST_API_TOKEN}"
+            "ExamplesAllowedOriginsParameterName=${EXAMPLES_ALLOWED_ORIGINS_PARAMETER_NAME}"
+            "SvgAllowedOriginsParameterName=${SVG_ALLOWED_ORIGINS_PARAMETER_NAME}"
+          )
+          if [ -n "${EXAMPLES_ALLOWED_ORIGINS_VALUE:-}" ]; then
+            PARAMS+=("ExamplesAllowedOriginsValue=${EXAMPLES_ALLOWED_ORIGINS_VALUE}")
+          fi
+          if [ -n "${SVG_ALLOWED_ORIGINS_VALUE:-}" ]; then
+            PARAMS+=("SvgAllowedOriginsValue=${SVG_ALLOWED_ORIGINS_VALUE}")
+          fi
+
+          aws cloudformation deploy \
+            --template-file infra/data/template.yaml \
+            --stack-name "math-visuals-data${DEPLOY_STACK_SUFFIX:-}" \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides "${PARAMS[@]}"
+
+      - name: Invalidate CloudFront distribution
+        if: ${{ env.CLOUDFRONT_DISTRIBUTION_ID != '' }}
+        run: |
+          set -euo pipefail
+          aws cloudfront create-invalidation \
+            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
+            --paths "/*"
