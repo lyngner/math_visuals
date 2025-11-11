@@ -20,16 +20,6 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
 
   let storageWarningMessage = '';
   let storageWarningEl = null;
-  try {
-    const result = await loadMeasurementFigureLibrary({ app: FIGURE_LIBRARY_APP_KEY });
-    if (result && result.metadata) {
-      storageWarningMessage = resolveStorageWarningMessage(result.metadata);
-    }
-  } catch (error) {
-    if (globalObj && globalObj.console && typeof globalObj.console.warn === 'function') {
-      globalObj.console.warn('mathVisSortering: kunne ikke laste figurbiblioteket', error);
-    }
-  }
 
   function getSettingsApi() {
     const api = globalObj && typeof globalObj === 'object' ? globalObj.MathVisualsSettings : null;
@@ -1274,50 +1264,63 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     };
   }
 
-  const figureData = sanitizeFigureDataForSortering(buildFigureData({ app: FIGURE_LIBRARY_APP_KEY }));
-  if (!storageWarningMessage) {
-    storageWarningMessage = resolveStorageWarningMessage(figureData.metadata);
+  let figureData = null;
+  let defaultFigureCategoryId = '';
+  let figurePicker = null;
+
+  function applyStorageWarningMetadata(metadata) {
+    const message = resolveStorageWarningMessage(metadata);
+    storageWarningMessage = message;
+    updateStorageWarningDisplay(storageWarningMessage);
   }
-  const DEFAULT_FIGURE_CATEGORY_ID = (
-    (figureData.categories[0] && figureData.categories[0].id) ||
-    ''
-  );
-  const figurePicker = createFigurePickerHelpers({
-    doc,
-    figureData,
-    fallbackCategoryId: DEFAULT_FIGURE_CATEGORY_ID,
-    getFigureValue: figure => {
-      if (!figure || typeof figure !== 'object') {
+
+  function rebuildFigureLibraryData() {
+    const nextData = sanitizeFigureDataForSortering(buildFigureData({ app: FIGURE_LIBRARY_APP_KEY }));
+    figureData = nextData;
+    defaultFigureCategoryId = (nextData.categories[0] && nextData.categories[0].id) || '';
+    figurePicker = createFigurePickerHelpers({
+      doc,
+      figureData: nextData,
+      fallbackCategoryId: defaultFigureCategoryId,
+      getFigureValue: figure => {
+        if (!figure || typeof figure !== 'object') {
+          return '';
+        }
+        const slug = typeof figure.slug === 'string' ? figure.slug.trim() : '';
+        if (slug) {
+          return slug;
+        }
+        const id = typeof figure.id === 'string' ? figure.id.trim() : '';
+        if (id) {
+          return id;
+        }
+        const fileName = typeof figure.fileName === 'string' ? figure.fileName.trim() : '';
+        if (fileName) {
+          return fileName;
+        }
+        const imagePath = typeof figure.image === 'string' ? figure.image.trim() : '';
+        if (imagePath) {
+          return imagePath;
+        }
+        const assetPath = typeof figure.asset === 'string' ? figure.asset.trim() : '';
+        if (assetPath) {
+          return assetPath;
+        }
         return '';
-      }
-      const slug = typeof figure.slug === 'string' ? figure.slug.trim() : '';
-      if (slug) {
-        return slug;
-      }
-      const id = typeof figure.id === 'string' ? figure.id.trim() : '';
-      if (id) {
-        return id;
-      }
-      const fileName = typeof figure.fileName === 'string' ? figure.fileName.trim() : '';
-      if (fileName) {
-        return fileName;
-      }
-      const imagePath = typeof figure.image === 'string' ? figure.image.trim() : '';
-      if (imagePath) {
-        return imagePath;
-      }
-      const assetPath = typeof figure.asset === 'string' ? figure.asset.trim() : '';
-      if (assetPath) {
-        return assetPath;
-      }
-      return '';
-    },
-    getFigureAliases: buildFigureValueAliases
-  });
+      },
+      getFigureAliases: buildFigureValueAliases
+    });
+    applyStorageWarningMetadata(nextData ? nextData.metadata : null);
+    return nextData;
+  }
+
+  rebuildFigureLibraryData();
+
   const figureLibraryState = {
-    loaded: true,
+    loaded: false,
     loading: null,
-    error: false
+    error: false,
+    metadata: figureData ? figureData.metadata : null
   };
 
   function refreshFigureInlineEditors() {
@@ -1332,15 +1335,42 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     });
   }
 
-  function loadFigureLibrary() {
-    if (figureLibraryState.loaded) {
-      return Promise.resolve(null);
+  function loadFigureLibrary(options = {}) {
+    const { force = false, refresh = false, skipRefresh = false, ...requestOptions } = options || {};
+    if (!force && !refresh && figureLibraryState.loaded) {
+      return Promise.resolve(figureLibraryState.metadata || null);
     }
-    figureLibraryState.loaded = true;
-    figureLibraryState.loading = null;
+    if (figureLibraryState.loading) {
+      return figureLibraryState.loading;
+    }
     figureLibraryState.error = false;
-    refreshFigureInlineEditors();
-    return Promise.resolve(null);
+    const request = loadMeasurementFigureLibrary({
+      app: FIGURE_LIBRARY_APP_KEY,
+      ...requestOptions,
+      force: force || undefined,
+      refresh: refresh || undefined
+    })
+      .then(result => {
+        figureLibraryState.loaded = true;
+        figureLibraryState.error = false;
+        rebuildFigureLibraryData();
+        figureLibraryState.metadata = figureData ? figureData.metadata : figureLibraryState.metadata;
+        if (!skipRefresh) {
+          refreshFigureInlineEditors();
+        }
+        return result;
+      })
+      .catch(error => {
+        figureLibraryState.error = true;
+        figureLibraryState.loaded = false;
+        applyStorageWarningMetadata(figureData && figureData.metadata);
+        throw error;
+      })
+      .finally(() => {
+        figureLibraryState.loading = null;
+      });
+    figureLibraryState.loading = request;
+    return request;
   }
 
   function figureEntryHasContent(entry) {
@@ -1418,13 +1448,13 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
 
   function sanitizeFigureCategory(candidate, value) {
     const resolved = figurePicker.resolveCategoryId(candidate, value);
-    return resolved || DEFAULT_FIGURE_CATEGORY_ID;
+    return resolved || defaultFigureCategoryId;
   }
 
   function normalizeFigureEntry(raw, index = 0) {
     if (!raw) return null;
     let value = '';
-    let categoryId = DEFAULT_FIGURE_CATEGORY_ID;
+    let categoryId = defaultFigureCategoryId;
     let id = '';
     if (typeof raw === 'string') {
       value = raw.trim();
@@ -4066,7 +4096,11 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     applyOrder({ randomize: !!state.randomisering, resetToBase: !state.randomisering });
     setupSettingsForm();
     attachExampleButtonGuards();
-    loadFigureLibrary();
+    loadFigureLibrary().catch(error => {
+      if (globalObj && globalObj.console && typeof globalObj.console.warn === 'function') {
+        globalObj.console.warn('mathVisSortering: kunne ikke laste figurbiblioteket', error);
+      }
+    });
     if (typeof globalObj.addEventListener === 'function') {
       globalObj.addEventListener('examples:loaded', () => {
         applyStateFromGlobal();

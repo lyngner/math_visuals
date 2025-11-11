@@ -3,6 +3,15 @@
 Denne siden dokumenterer hvordan `/api/figure-library` lagrer figurer, hvilke miljøvariabler som kreves for vedvarende lagring og
 hvordan klienter bør tolke API-responsene.
 
+## Backend som sannhetskilde
+
+`/api/figure-library` er nå eneste autoritative kilde for målefigurer og opplastede ressurser. De statiske manifestene i
+`packages/figures` beholdes kun som kilde for seed-data og vil fases ut når alle klienter har tatt i bruk API-et. Benytt
+seeding-skriptet (se under) for å fylle lagringen med standardfigurer når et miljø startes opp.
+
+Når API-et mottar nye figurer eller kategorier oppdateres alle klienter ved å hente biblioteket på nytt. Ingen repo-endringer er
+nødvendige for å lagre eller flytte figurer når backend er i bruk.
+
 ## Lagringsmoduser
 
 * **KV (vedvarende):** Når både `KV_REST_API_URL` og `KV_REST_API_TOKEN` er satt, bruker API-et Vercel KV til å lagre både SVG-da
@@ -84,6 +93,23 @@ Oppdaterer en eksisterende figur. Bruk `slug` for å identifisere posten. Felter
 Sletter en figur. Du kan sende `slug` som query-parameter eller i JSON-body. Svaret inneholder `deleted.slug` samt en oppdatert k
 ategoriliste.
 
+## Klientintegrasjoner
+
+Klientapper skal hente katalogen fra API-et via hjelpefunksjonene i `figure-library/measurement.js` eller `figure-library/all.js`.
+Et typisk oppsett ser slik ut:
+
+```js
+import { buildFigureData, loadFigureLibrary } from './figure-library/measurement.js';
+
+await loadFigureLibrary({ app: 'sortering' });
+const figureData = buildFigureData({ app: 'sortering' });
+```
+
+`loadFigureLibrary` henter `/api/figure-library`, oppdaterer interne caches og eksponerer metadata (`storage`, `limitation` osv.).
+`buildFigureData` kombinerer seed-data fra repoet med dataene som backend returnerte, slik at eksisterende logikk for figurlister kan gjenbrukes.
+
+Når API-et ikke er tilgjengelig, faller klienten tilbake til de statiske seed-dataene. Bruk `metadata.limitation` for å vise advarsler om midlertidig lagring, og logg feil slik at tjenesten kan retrye når backend er tilbake.
+
 ## Fallback og klientatferd
 
 * UI-et (`bibliotek.js`) leser `storage`/`mode` og viser en tydelig advarsel basert på `limitation` når data er flyktige.
@@ -110,3 +136,12 @@ Skriptet `scripts/seed-figure-library.mjs` leser manifestene fra `figure-library
 * For å skrive direkte til Vercel KV setter du `KV_REST_API_URL` og `KV_REST_API_TOKEN` i samme shell før skriptet kjøres, f.eks. `KV_REST_API_URL=… KV_REST_API_TOKEN=… node scripts/seed-figure-library.mjs`.
 
 Skriptet logger hver kategori og figur som behandles, og gir en oppsummering på slutten. Alle figurer får SVG-data fra repoet, og PNG-data inkluderes automatisk dersom tilsvarende filer finnes.
+
+Dette skriptet er den autoritative kilden til startdata i overgangsperioden. Kjør det ved nye deployer eller når minnelageret er tomt for å sikre at API-et alltid speiler manifestet. Outputen fra `--dry-run` kan arkiveres sammen med release-notater slik at andre apper har en oppdatert oversikt over tilgjengelige figurer.
+
+## Kommunikasjon og midlertidig fallback
+
+* **Informer teamet:** Del en kort oppsummering i `#math-visuals` om at manifestfilene fases ut, at `/api/figure-library` er ny sannhetskilde og at `loadFigureLibrary()` må kalles før `buildFigureData()`.
+* **Koordiner dato:** Avklar hvilken dato manifestene fjernes helt, og påminn app-eiere minst én sprint i forkant.
+* **Fallback for avhengige apper:** Hvis en app trenger statiske data i en overgangsperiode, bruk `node scripts/seed-figure-library.mjs --dry-run > figure-library.json` og del JSON-filen via Notion/Drive. Da kan appen lese fra fil midlertidig uten at API-et må mokkes manuelt.
+* **Oppfølging:** Registrer en oppgave i teamets board for å bekrefte at alle apper har byttet til API-et, og kryss den av når verifisering er gjort.
