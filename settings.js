@@ -348,9 +348,14 @@
           settingsApi.refresh({ force: true, notify: true });
         } catch (_) {}
       }
+      const savedPalette = colorsForSave.get(activeProject);
+      const contrastStatus = buildContrastStatus(normalizedId, savedPalette);
       const successMessage = `Fargene for ${combinedLabel} er lagret.`;
-      setStatus(successMessage, 'success');
-      setGroupStatusMessage(normalizedId, `${combinedLabel} er lagret.`, 'success');
+      const contrastMessage = contrastStatus && contrastStatus.message ? ` ${contrastStatus.message}` : '';
+      const tone = contrastStatus ? (contrastStatus.passes ? 'success' : 'warning') : 'success';
+      setStatus(`${successMessage}${contrastMessage}`, tone);
+      const groupMessage = `${combinedLabel} er lagret.${contrastMessage}`;
+      setGroupStatusMessage(normalizedId, groupMessage, tone);
     } catch (error) {
       console.error(error);
       const errorMessage = `Kunne ikke lagre fargene for ${combinedLabel}.`;
@@ -412,6 +417,116 @@
       }
     }
     return result;
+  }
+
+  const CONTRAST_THRESHOLD_NORMAL_TEXT = 4.5;
+
+  function calculateRelativeLuminance(color) {
+    const sanitized = sanitizeColor(color);
+    if (!sanitized || sanitized.length !== 7) return null;
+    const hex = sanitized.slice(1);
+    const red = parseInt(hex.slice(0, 2), 16) / 255;
+    const green = parseInt(hex.slice(2, 4), 16) / 255;
+    const blue = parseInt(hex.slice(4, 6), 16) / 255;
+    const toLinear = channel =>
+      channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+    const r = toLinear(red);
+    const g = toLinear(green);
+    const b = toLinear(blue);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  function calculateContrastRatio(luminanceA, luminanceB) {
+    if (typeof luminanceA !== 'number' || typeof luminanceB !== 'number') return null;
+    if (!isFinite(luminanceA) || !isFinite(luminanceB)) return null;
+    const lighter = Math.max(luminanceA, luminanceB);
+    const darker = Math.min(luminanceA, luminanceB);
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  function calculateBestTextContrast(color) {
+    const luminance = calculateRelativeLuminance(color);
+    if (typeof luminance !== 'number') return null;
+    const contrastBlack = calculateContrastRatio(luminance, 0);
+    const contrastWhite = calculateContrastRatio(luminance, 1);
+    if (contrastBlack === null || contrastWhite === null) return null;
+    const bestRatio = Math.max(contrastBlack, contrastWhite);
+    const textColor = contrastBlack >= contrastWhite ? '#000000' : '#ffffff';
+    return {
+      luminance,
+      contrasts: {
+        black: contrastBlack,
+        white: contrastWhite
+      },
+      best: {
+        color: textColor,
+        ratio: bestRatio
+      },
+      passes: bestRatio >= CONTRAST_THRESHOLD_NORMAL_TEXT
+    };
+  }
+
+  function formatContrastRatio(ratio) {
+    if (typeof ratio !== 'number' || !isFinite(ratio)) return null;
+    const formatted = ratio.toLocaleString('nb-NO', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1
+    });
+    return `${formatted}:1`;
+  }
+
+  function buildContrastStatus(groupId, palette) {
+    if (!groupId || !palette || typeof palette !== 'object') return null;
+    if (groupId === 'fractions') {
+      const colors = Array.isArray(palette[groupId]) ? palette[groupId] : [];
+      const evaluation = evaluateContrastForSlot(colors[0]);
+      if (!evaluation) {
+        return {
+          message: 'Kontrast kunne ikke beregnes.',
+          passes: false
+        };
+      }
+      return {
+        message: `Kontrast ${evaluation.display} – ${evaluation.passes ? 'OK' : 'for lav'}`,
+        passes: evaluation.passes
+      };
+    }
+    if (groupId === 'arealmodell') {
+      const colors = Array.isArray(palette[groupId]) ? palette[groupId] : [];
+      const messages = [];
+      let passes = true;
+      for (let index = 0; index < 4; index += 1) {
+        const label = `Kontrast rute ${index + 1}`;
+        const evaluation = evaluateContrastForSlot(colors[index]);
+        if (!evaluation) {
+          messages.push(`${label}: ikke tilgjengelig`);
+          passes = false;
+          continue;
+        }
+        messages.push(`${label}: ${evaluation.display} – ${evaluation.passes ? 'OK' : 'for lav'}`);
+        if (!evaluation.passes) {
+          passes = false;
+        }
+      }
+      return {
+        message: messages.join(' '),
+        passes
+      };
+    }
+    return null;
+  }
+
+  function evaluateContrastForSlot(color) {
+    const sanitized = sanitizeColor(color);
+    if (!sanitized) return null;
+    const contrast = calculateBestTextContrast(sanitized);
+    if (!contrast) return null;
+    const display = formatContrastRatio(contrast.best.ratio);
+    if (!display) return null;
+    return {
+      display,
+      passes: contrast.passes
+    };
   }
 
   function getSanitizedFallbackBase(project) {
