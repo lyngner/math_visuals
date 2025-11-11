@@ -1,0 +1,178 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  CloudFormation template provisioning a versioned S3 bucket and CloudFront distribution
+  for the math visuals static site, routing selected paths to an API Gateway origin.
+
+Parameters:
+  SiteBucketName:
+    Type: String
+    Description: Globally-unique name for the S3 bucket hosting the static site.
+  ApiGatewayDomainName:
+    Type: String
+    Description: >-
+      Fully-qualified domain name of the API Gateway stage (for example,
+      a1b2c3d4.execute-api.us-east-1.amazonaws.com).
+  ApiGatewayOriginPath:
+    Type: String
+    Default: /prod
+    Description: Optional origin path appended to the API Gateway domain (e.g., /prod).
+  CloudFrontPriceClass:
+    Type: String
+    Default: PriceClass_100
+    AllowedValues:
+      - PriceClass_100
+      - PriceClass_200
+      - PriceClass_All
+    Description: Price class to use for the CloudFront distribution.
+
+Resources:
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref SiteBucketName
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  CloudFrontOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: Access identity for math visuals static assets bucket
+
+  SiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipalReadOnly
+            Effect: Allow
+            Principal:
+              CanonicalUser: !GetAtt CloudFrontOriginAccessIdentity.S3CanonicalUserId
+            Action:
+              - s3:GetObject
+            Resource: !Sub '${SiteBucket.Arn}/*'
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        PriceClass: !Ref CloudFrontPriceClass
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        Origins:
+          - Id: SiteBucketOrigin
+            DomainName: !GetAtt SiteBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}'
+          - Id: ApiGatewayOrigin
+            DomainName: !Ref ApiGatewayDomainName
+            OriginPath: !Ref ApiGatewayOriginPath
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+              HTTPPort: 80
+              HTTPSPort: 443
+        DefaultCacheBehavior:
+          TargetOriginId: SiteBucketOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        CacheBehaviors:
+          - PathPattern: '/sortering*'
+            TargetOriginId: SiteBucketOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            ForwardedValues:
+              QueryString: true
+              Cookies:
+                Forward: none
+          - PathPattern: '/bildearkiv/*'
+            TargetOriginId: ApiGatewayOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            ForwardedValues:
+              QueryString: true
+              Cookies:
+                Forward: none
+          - PathPattern: '/svg/*'
+            TargetOriginId: ApiGatewayOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            ForwardedValues:
+              QueryString: true
+              Cookies:
+                Forward: none
+          - PathPattern: '/figure-library/*'
+            TargetOriginId: ApiGatewayOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            ForwardedValues:
+              QueryString: true
+              Cookies:
+                Forward: none
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+Outputs:
+  StaticSiteBucketName:
+    Description: Name of the S3 bucket hosting the static site artifacts.
+    Value: !Ref SiteBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-StaticSiteBucketName'
+  CloudFrontDistributionId:
+    Description: Identifier of the CloudFront distribution serving the site.
+    Value: !Ref Distribution
+    Export:
+      Name: !Sub '${AWS::StackName}-DistributionId'
+  CloudFrontDistributionDomainName:
+    Description: Domain name of the CloudFront distribution.
+    Value: !GetAtt Distribution.DomainName
+    Export:
+      Name: !Sub '${AWS::StackName}-DistributionDomainName'
