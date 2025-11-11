@@ -563,6 +563,24 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       });
     }
   }
+  if (segmentLine) {
+    segmentLine.addEventListener('pointerdown', handleSegmentBodyPointerDown, { passive: false });
+    segmentLine.addEventListener('pointermove', handleSegmentPointerMove);
+    segmentLine.addEventListener('pointerup', handleSegmentPointerEnd);
+    segmentLine.addEventListener('pointercancel', handleSegmentPointerEnd);
+    segmentLine.addEventListener('lostpointercapture', event => {
+      if (event.pointerId == null) {
+        return;
+      }
+      if (
+        activePointers.segment.delete(event.pointerId) &&
+        activePointers.segment.size === 0 &&
+        isSegmentToolKey(appState.activeTool)
+      ) {
+        persistSegmentState();
+      }
+    });
+  }
   if (tapeBetaStrapElement) {
     tapeBetaStrapElement.addEventListener('pointerdown', handleTapeBetaStrapPointerDown, {
       passive: false
@@ -4298,6 +4316,42 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     event.preventDefault();
   }
 
+  function handleSegmentBodyPointerDown(event) {
+    if (!hasSegment || event.button > 0) {
+      return;
+    }
+    if (appState.activeTool !== 'segment') {
+      return;
+    }
+    if (!segmentLine) {
+      return;
+    }
+    if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) {
+      return;
+    }
+    boardRect = board.getBoundingClientRect();
+    const geometry = getSegmentPointsInPx();
+    if (!geometry || !geometry.a || !geometry.b) {
+      return;
+    }
+    const session = activePointers.segment;
+    const entry = {
+      pointerId: event.pointerId,
+      handleKey: 'body',
+      captureTarget: segmentLine,
+      dragStartPointer: { x: event.clientX, y: event.clientY },
+      startPoints: {
+        a: { x: geometry.a.x, y: geometry.a.y },
+        b: { x: geometry.b.x, y: geometry.b.y }
+      }
+    };
+    session.set(event.pointerId, entry);
+    try {
+      segmentLine.setPointerCapture(event.pointerId);
+    } catch (error) {}
+    event.preventDefault();
+  }
+
   function handleTapeBetaStrapPointerDown(event) {
     if (!hasSegment || event.button > 0) {
       return;
@@ -4323,6 +4377,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       handleKey: 'strap',
       captureTarget: strapTarget,
       strapStartPointer: { x: event.clientX, y: event.clientY },
+      dragStartPointer: { x: event.clientX, y: event.clientY },
       startPoints: {
         a: { x: geometry.a.x, y: geometry.a.y },
         b: { x: geometry.b.x, y: geometry.b.y }
@@ -4357,22 +4412,22 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     const width = boardRect && Number.isFinite(boardRect.width) ? boardRect.width : BASE_BOARD_DIMENSIONS.width;
     const height =
       boardRect && Number.isFinite(boardRect.height) ? boardRect.height : BASE_BOARD_DIMENSIONS.height;
-    if (entry.handleKey === 'strap') {
-      const strapStart = entry.strapStartPointer;
+    if (entry.handleKey === 'strap' || entry.handleKey === 'body') {
+      const dragStart = entry.dragStartPointer || entry.strapStartPointer;
       const startPoints = entry.startPoints;
       if (
-        !strapStart ||
+        !dragStart ||
         !startPoints ||
         !startPoints.a ||
         !startPoints.b ||
-        !Number.isFinite(strapStart.x) ||
-        !Number.isFinite(strapStart.y)
+        !Number.isFinite(dragStart.x) ||
+        !Number.isFinite(dragStart.y)
       ) {
         event.preventDefault();
         return;
       }
-      const deltaX = event.clientX - strapStart.x;
-      const deltaY = event.clientY - strapStart.y;
+      const deltaX = event.clientX - dragStart.x;
+      const deltaY = event.clientY - dragStart.y;
       setSegmentPointFromPx('a', startPoints.a.x + deltaX, startPoints.a.y + deltaY);
       setSegmentPointFromPx('b', startPoints.b.x + deltaX, startPoints.b.y + deltaY);
       renderSegment(appState.settings);
@@ -4968,6 +5023,42 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     }
     baseSize.width = element.offsetWidth;
     baseSize.height = element.offsetHeight;
+    if (isTapeToolKey(appState.activeTool)) {
+      updateTapeZeroOffset();
+    }
+  }
+
+  function updateTapeZeroOffset() {
+    if (!tapeMeasure) {
+      return;
+    }
+    const measureRect = tapeMeasure.getBoundingClientRect();
+    if (!measureRect) {
+      return;
+    }
+    const defaultX = Number.isFinite(measureRect.width) ? measureRect.width / 2 : null;
+    const defaultY = Number.isFinite(measureRect.height) ? measureRect.height / 2 : null;
+    if (Number.isFinite(defaultX)) {
+      zeroOffset.x = defaultX;
+    }
+    if (Number.isFinite(defaultY)) {
+      zeroOffset.y = defaultY;
+    }
+    if (!tapeZeroAnchor) {
+      return;
+    }
+    const anchorRect = tapeZeroAnchor.getBoundingClientRect();
+    if (!anchorRect) {
+      return;
+    }
+    const anchorX = anchorRect.left - measureRect.left + anchorRect.width / 2;
+    const anchorY = anchorRect.top - measureRect.top + anchorRect.height / 2;
+    if (Number.isFinite(anchorX)) {
+      zeroOffset.x = anchorX;
+    }
+    if (Number.isFinite(anchorY)) {
+      zeroOffset.y = anchorY;
+    }
   }
 
   function isEventFromTapeZeroHandle(event) {
@@ -5660,6 +5751,9 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     }
     if (isTapeToolKey(appState.activeTool) && appState.settings) {
       updateAccessibility(appState.settings);
+    }
+    if (isTapeToolKey(appState.activeTool)) {
+      updateTapeZeroOffset();
     }
   }
 
