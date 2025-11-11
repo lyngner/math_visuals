@@ -18,6 +18,7 @@
       --tb-font-family: "Inter", "Segoe UI", system-ui, sans-serif;
       --tb-fill: #dbe7ff;
       --tb-line: #333333;
+      --tb-text: #111;
     }
     /* Figur */
     .tb-board{
@@ -131,10 +132,10 @@
     .tb-sep{stroke:var(--tb-line, #333);stroke-width:2;stroke-dasharray:8 8;opacity:.6}
     .tb-brace{fill:none;stroke:var(--tb-line, #101828);stroke-width:6;stroke-linecap:round}
     .tb-brace--union{fill:var(--tb-line, #101828);stroke:none}
-    .tb-total{font-size:34px;fill:#000;text-anchor:middle}
-    .tb-val{font-size:34px;fill:#111;text-anchor:middle;dominant-baseline:middle}
+    .tb-total{font-size:34px;fill:var(--tb-text, #111);text-anchor:middle}
+    .tb-val{font-size:34px;fill:var(--tb-text, #111);text-anchor:middle;dominant-baseline:middle}
     .tb-frac{text-anchor:middle;}
-    .tb-frac text{font-size:28px;fill:#111;text-anchor:middle;font-variant-numeric:tabular-nums;}
+    .tb-frac text{font-size:28px;fill:var(--tb-text, #111);text-anchor:middle;font-variant-numeric:tabular-nums;}
     .tb-frac-line{stroke:var(--tb-line, #111);stroke-width:2;stroke-linecap:square}
     .tb-handle{cursor:grab;user-select:none;touch-action:none}
     .tb-handle.is-grabbing{cursor:grabbing}
