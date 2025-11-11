@@ -711,18 +711,3 @@ export {
   resolveGroupPalette
 };
 
-export default {
-  PROJECT_FALLBACKS,
-  GRAFTEGNER_AXIS_DEFAULTS,
-  COLOR_SLOT_GROUPS,
-  COLOR_GROUP_IDS,
-  GROUP_SLOT_INDICES,
-  MIN_COLOR_SLOTS,
-  DEFAULT_GROUP_ORDER,
-  DEFAULT_PROJECT_ORDER,
-  PALETTE_CONFIG,
-  ensurePalette,
-  getProjectFallbackPalette,
-  createPaletteService,
-  resolveGroupPalette
-};

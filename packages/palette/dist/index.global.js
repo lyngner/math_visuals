@@ -698,22 +698,6 @@ var MathVisualsPalettePackage = (function (exports) {
     return defaultPaletteService.resolveGroupPalette(options);
   }
 
-  var index = {
-    PROJECT_FALLBACKS,
-    GRAFTEGNER_AXIS_DEFAULTS,
-    COLOR_SLOT_GROUPS,
-    COLOR_GROUP_IDS,
-    GROUP_SLOT_INDICES,
-    MIN_COLOR_SLOTS,
-    DEFAULT_GROUP_ORDER,
-    DEFAULT_PROJECT_ORDER,
-    PALETTE_CONFIG,
-    ensurePalette,
-    getProjectFallbackPalette,
-    createPaletteService,
-    resolveGroupPalette
-  };
-
   exports.COLOR_GROUP_IDS = COLOR_GROUP_IDS;
   exports.COLOR_SLOT_GROUPS = COLOR_SLOT_GROUPS;
   exports.DEFAULT_GROUP_ORDER = DEFAULT_GROUP_ORDER;
@@ -724,12 +708,9 @@ var MathVisualsPalettePackage = (function (exports) {
   exports.PALETTE_CONFIG = PALETTE_CONFIG;
   exports.PROJECT_FALLBACKS = PROJECT_FALLBACKS;
   exports.createPaletteService = createPaletteService;
-  exports.default = index;
   exports.ensurePalette = ensurePalette;
   exports.getProjectFallbackPalette = getProjectFallbackPalette;
   exports.resolveGroupPalette = resolveGroupPalette;
-
-  Object.defineProperty(exports, '__esModule', { value: true });
 
   return exports;
 

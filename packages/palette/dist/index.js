@@ -695,21 +695,5 @@ function resolveGroupPalette(options) {
   return defaultPaletteService.resolveGroupPalette(options);
 }
 
-var index = {
-  PROJECT_FALLBACKS,
-  GRAFTEGNER_AXIS_DEFAULTS,
-  COLOR_SLOT_GROUPS,
-  COLOR_GROUP_IDS,
-  GROUP_SLOT_INDICES,
-  MIN_COLOR_SLOTS,
-  DEFAULT_GROUP_ORDER,
-  DEFAULT_PROJECT_ORDER,
-  PALETTE_CONFIG,
-  ensurePalette,
-  getProjectFallbackPalette,
-  createPaletteService,
-  resolveGroupPalette
-};
-
-export { COLOR_GROUP_IDS, COLOR_SLOT_GROUPS, DEFAULT_GROUP_ORDER, DEFAULT_PROJECT_ORDER, GRAFTEGNER_AXIS_DEFAULTS, GROUP_SLOT_INDICES, MIN_COLOR_SLOTS, PALETTE_CONFIG, PROJECT_FALLBACKS, createPaletteService, index as default, ensurePalette, getProjectFallbackPalette, resolveGroupPalette };
+export { COLOR_GROUP_IDS, COLOR_SLOT_GROUPS, DEFAULT_GROUP_ORDER, DEFAULT_PROJECT_ORDER, GRAFTEGNER_AXIS_DEFAULTS, GROUP_SLOT_INDICES, MIN_COLOR_SLOTS, PALETTE_CONFIG, PROJECT_FALLBACKS, createPaletteService, ensurePalette, getProjectFallbackPalette, resolveGroupPalette };
 //# sourceMappingURL=index.js.map
