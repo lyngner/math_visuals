@@ -1354,6 +1354,9 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
         figureLibraryState.loaded = true;
         figureLibraryState.error = false;
         rebuildFigureLibraryData();
+        if (!skipRefresh) {
+          applyOrder();
+        }
         figureLibraryState.metadata = figureData ? figureData.metadata : figureLibraryState.metadata;
         if (!skipRefresh) {
           refreshFigureInlineEditors();
