@@ -159,6 +159,16 @@ let activeFractionColors = {
   text: getContrastTextColor(FRACTION_FALLBACK_COLORS[0])
 };
 
+function getSegmentTextColor(isFilled) {
+  if (isFilled) {
+    const activeText = typeof activeFractionColors.text === 'string' ? activeFractionColors.text.trim() : '';
+    if (activeText) {
+      return activeText;
+    }
+  }
+  return '#000';
+}
+
 function hexToRgb(color) {
   if (typeof color !== 'string') return null;
   const trimmed = color.trim();
@@ -2622,11 +2632,17 @@ function drawBlock(block) {
   block.gFill.innerHTML = '';
   block.gSep.innerHTML = '';
   block.gVals.innerHTML = '';
-  const cellW = !blockHidden && cfg.n ? innerWidth / cfg.n : 0;
+  const denominatorValue = Number(cfg.n);
+  const denominator = Number.isFinite(denominatorValue) && denominatorValue > 0 ? Math.round(denominatorValue) : 0;
+  const numeratorValue = Number(cfg.k);
+  let numeratorCount = Number.isFinite(numeratorValue) ? Math.round(numeratorValue) : 0;
+  if (numeratorCount < 0) numeratorCount = 0;
+  if (numeratorCount > denominator) numeratorCount = denominator;
+  const cellW = !blockHidden && denominator ? innerWidth / denominator : 0;
   if (!blockHidden && cellW > 0) {
     const showCustomText = customTextEnabled;
     const customLabel = typeof cfg.customText === 'string' ? cfg.customText.trim() : '';
-    for (let i = 0; i < cfg.k; i++) {
+    for (let i = 0; i < numeratorCount; i++) {
       createSvgElement(block.gFill, 'rect', {
         x: left + i * cellW,
         y: top,
@@ -2635,7 +2651,7 @@ function drawBlock(block) {
         class: 'tb-rect'
       });
     }
-    for (let i = 1; i < cfg.n; i++) {
+    for (let i = 1; i < denominator; i++) {
       const x = left + i * cellW;
       createSvgElement(block.gSep, 'line', {
         x1: x,
@@ -2646,20 +2662,24 @@ function drawBlock(block) {
       });
     }
     const displayMode = sanitizeDisplayMode(cfg.valueDisplay) || 'number';
-    const per = cfg.n ? cfg.total / cfg.n : 0;
-    const percentValue = cfg.n ? 100 / cfg.n : 0;
+    const per = denominator ? cfg.total / denominator : 0;
+    const percentValue = denominator ? 100 / denominator : 0;
     const rowToken = getRowToken(block.row);
     const columnToken = getColumnToken(block.col);
     const segmentVariableLabel = formatProductLabel(rowToken, columnToken);
     const useVariableLabel = displayMode === 'number' && !!segmentVariableLabel;
-    for (let i = 0; i < cfg.n; i++) {
+    for (let i = 0; i < denominator; i++) {
       const cx = left + (i + 0.5) * cellW;
       const cy = top + innerHeight / 2;
+      const isFilled = i < numeratorCount;
+      const segmentTextColor = getSegmentTextColor(isFilled);
       if (showCustomText) {
         const text = createSvgElement(block.gVals, 'text', {
           x: cx,
           y: cy,
-          class: 'tb-val'
+          class: 'tb-val',
+          fill: segmentTextColor,
+          'data-tb-explicit-fill': 'true'
         });
         text.textContent = customLabel;
         continue;
@@ -2668,25 +2688,29 @@ function drawBlock(block) {
         const text = createSvgElement(block.gVals, 'text', {
           x: cx,
           y: cy,
-          class: 'tb-val'
+          class: 'tb-val',
+          fill: segmentTextColor,
+          'data-tb-explicit-fill': 'true'
         });
         text.textContent = segmentVariableLabel;
         continue;
       }
       if (displayMode === 'fraction') {
-        renderFractionLabel(block.gVals, cx, cy, 1, cfg.n);
+        renderFractionLabel(block.gVals, cx, cy, 1, denominator, segmentTextColor);
         continue;
       }
       const text = createSvgElement(block.gVals, 'text', {
         x: cx,
         y: cy,
-        class: 'tb-val'
+        class: 'tb-val',
+        fill: segmentTextColor,
+        'data-tb-explicit-fill': 'true'
       });
       const label = displayMode === 'percent' ? `${fmt(percentValue)} %` : fmt(per);
       text.textContent = label;
     }
   }
-  const hx = cellW > 0 ? left + cfg.k * cellW : left;
+  const hx = cellW > 0 ? left + numeratorCount * cellW : left;
   const hy = top + innerHeight / 2;
   if (block.handle) {
     setHandleIconPosition(block.handle, hx, hy);
@@ -3060,6 +3084,10 @@ function refreshTenkeblokkerPaletteAttributes(root) {
     }
     elements.forEach(el => {
       if (!el) return;
+      const explicitFill = meta.attribute === 'fill' && typeof el.getAttribute === 'function' && el.getAttribute('data-tb-explicit-fill') === 'true';
+      if (explicitFill) {
+        return;
+      }
       let value = '';
       try {
         value = window.getComputedStyle(el).getPropertyValue(meta.property);
@@ -3083,7 +3111,7 @@ function setHandleIconPosition(handle, cx, cy) {
   handle.setAttribute('x', cx - half);
   handle.setAttribute('y', cy - half);
 }
-function renderFractionLabel(parent, cx, cy, numerator, denominator) {
+function renderFractionLabel(parent, cx, cy, numerator, denominator, textColor) {
   if (!parent) return;
   const numText = typeof numerator === 'number' ? numerator.toString() : `${numerator !== null && numerator !== void 0 ? numerator : ''}`;
   const denText = typeof denominator === 'number' ? denominator.toString() : `${denominator !== null && denominator !== void 0 ? denominator : ''}`;
@@ -3097,11 +3125,14 @@ function renderFractionLabel(parent, cx, cy, numerator, denominator) {
   const group = createSvgElement(parent, 'g', {
     class: 'tb-frac'
   });
+  const resolvedTextColor = typeof textColor === 'string' && textColor.trim() ? textColor : '#000';
   const numeratorEl = createSvgElement(group, 'text', {
     x: 0,
     y: numeratorY,
     class: 'tb-frac-num',
-    'text-anchor': 'middle'
+    'text-anchor': 'middle',
+    fill: resolvedTextColor,
+    'data-tb-explicit-fill': 'true'
   });
   numeratorEl.textContent = numText;
   const lineEl = createSvgElement(group, 'line', {
@@ -3115,7 +3146,9 @@ function renderFractionLabel(parent, cx, cy, numerator, denominator) {
     x: 0,
     y: denominatorY,
     class: 'tb-frac-den',
-    'text-anchor': 'middle'
+    'text-anchor': 'middle',
+    fill: resolvedTextColor,
+    'data-tb-explicit-fill': 'true'
   });
   denominatorEl.textContent = denText;
   let appliedCenter = fallbackCenter;
