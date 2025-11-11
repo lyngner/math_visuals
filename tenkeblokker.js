@@ -155,8 +155,50 @@ const FRACTION_GROUP_ID = 'fractions';
 const FRACTION_FALLBACK_COLORS = Object.freeze(['#dbe7ff', '#333333']);
 let activeFractionColors = {
   fill: FRACTION_FALLBACK_COLORS[0],
-  line: FRACTION_FALLBACK_COLORS[1]
+  line: FRACTION_FALLBACK_COLORS[1],
+  text: getContrastTextColor(FRACTION_FALLBACK_COLORS[0])
 };
+
+function hexToRgb(color) {
+  if (typeof color !== 'string') return null;
+  const trimmed = color.trim();
+  if (!trimmed) return null;
+  const hex = trimmed.startsWith('#') ? trimmed.slice(1) : trimmed;
+  if (hex.length !== 3 && hex.length !== 6) return null;
+  const normalized = hex.length === 3
+    ? hex.split('').map(part => part + part).join('')
+    : hex;
+  const r = Number.parseInt(normalized.slice(0, 2), 16);
+  const g = Number.parseInt(normalized.slice(2, 4), 16);
+  const b = Number.parseInt(normalized.slice(4, 6), 16);
+  if ([r, g, b].some(channel => Number.isNaN(channel))) return null;
+  return { r, g, b };
+}
+
+function getRelativeLuminance(rgb) {
+  if (!rgb || !Number.isFinite(rgb.r) || !Number.isFinite(rgb.g) || !Number.isFinite(rgb.b)) {
+    return 0;
+  }
+  const toLinear = value => {
+    const channel = value / 255;
+    if (channel <= 0.03928) {
+      return channel / 12.92;
+    }
+    return Math.pow((channel + 0.055) / 1.055, 2.4);
+  };
+  const r = toLinear(rgb.r);
+  const g = toLinear(rgb.g);
+  const b = toLinear(rgb.b);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function getContrastTextColor(color) {
+  const rgb = hexToRgb(color);
+  const luminance = getRelativeLuminance(rgb);
+  const blackContrast = (luminance + 0.05) / 0.05;
+  const whiteContrast = 1.05 / (luminance + 0.05);
+  return blackContrast >= whiteContrast ? '#000' : '#fff';
+}
 const DEFAULT_FRACTION_SLOT_INDICES = Object.freeze([13, 14]);
 let cachedPaletteConfig = null;
 let paletteConfigResolved = false;
@@ -539,20 +581,24 @@ function applyFractionPalette(force = false) {
   const fill =
     typeof safe[0] === 'string' && safe[0] ? safe[0] : effectiveFallback[0] || FRACTION_FALLBACK_COLORS[0];
   const line = typeof safe[1] === 'string' && safe[1] ? safe[1] : effectiveFallback[1] || fill;
+  const text = getContrastTextColor(fill);
+  const prevFill = typeof activeFractionColors.fill === 'string' ? activeFractionColors.fill : '';
+  const prevLine = typeof activeFractionColors.line === 'string' ? activeFractionColors.line : '';
+  const prevText = typeof activeFractionColors.text === 'string' ? activeFractionColors.text : '';
   const changed =
-    force ||
-    fill.toLowerCase() !== activeFractionColors.fill.toLowerCase() ||
-    line.toLowerCase() !== activeFractionColors.line.toLowerCase();
-  if (!changed) {
-    if (force) refreshTenkeblokkerPaletteAttributes();
+    prevFill.toLowerCase() !== String(fill || '').toLowerCase() ||
+    prevLine.toLowerCase() !== String(line || '').toLowerCase() ||
+    prevText.toLowerCase() !== String(text || '').toLowerCase();
+  activeFractionColors = { fill, line, text };
+  if (!changed && !force) {
     return;
   }
-  activeFractionColors = { fill, line };
   const targets = getPaletteTargets();
   targets.forEach(target => {
     try {
       target.style.setProperty('--tb-fill', fill);
       target.style.setProperty('--tb-line', line);
+      target.style.setProperty('--tb-text', text);
     } catch (err) {}
   });
   refreshTenkeblokkerPaletteAttributes();
@@ -876,6 +922,7 @@ const EXPORT_STYLE_RULES = `
     --tb-font-family: "Inter", "Segoe UI", system-ui, sans-serif;
     --tb-fill: #dbe7ff;
     --tb-line: #333333;
+    --tb-text: #111;
   }
 
   .tb-rect {
@@ -924,13 +971,13 @@ const EXPORT_STYLE_RULES = `
 
   .tb-total {
     font-size: 34px;
-    fill: #000;
+    fill: var(--tb-text, #111);
     text-anchor: middle;
   }
 
   .tb-val {
     font-size: 34px;
-    fill: #111;
+    fill: var(--tb-text, #111);
     text-anchor: middle;
     dominant-baseline: middle;
   }
@@ -941,7 +988,7 @@ const EXPORT_STYLE_RULES = `
 
   .tb-frac text {
     font-size: 28px;
-    fill: #111;
+    fill: var(--tb-text, #111);
     text-anchor: middle;
     font-variant-numeric: tabular-nums;
   }
@@ -2999,7 +3046,10 @@ function refreshTenkeblokkerPaletteAttributes(root) {
     { selector: '.tb-sep', property: 'stroke', attribute: 'stroke' },
     { selector: '.tb-brace', property: 'stroke', attribute: 'stroke' },
     { selector: '.tb-brace--union', property: 'fill', attribute: 'fill' },
-    { selector: '.tb-frac-line', property: 'stroke', attribute: 'stroke' }
+    { selector: '.tb-frac-line', property: 'stroke', attribute: 'stroke' },
+    { selector: '.tb-total', property: 'fill', attribute: 'fill' },
+    { selector: '.tb-val', property: 'fill', attribute: 'fill' },
+    { selector: '.tb-frac text', property: 'fill', attribute: 'fill' }
   ];
   targets.forEach(meta => {
     let elements;
@@ -3373,6 +3423,10 @@ function getExportSvg() {
       if (lineColor && lineColor.trim()) {
         exportSvg.style.setProperty('--tb-line', lineColor.trim());
       }
+      const textColor = computed.getPropertyValue('--tb-text');
+      if (textColor && textColor.trim()) {
+        exportSvg.style.setProperty('--tb-text', textColor.trim());
+      }
     }
   }
   if (exportSvg && exportSvg.style) {
@@ -3381,6 +3435,9 @@ function getExportSvg() {
     }
     if (activeFractionColors.line) {
       exportSvg.style.setProperty('--tb-line', activeFractionColors.line);
+    }
+    if (activeFractionColors.text) {
+      exportSvg.style.setProperty('--tb-text', activeFractionColors.text);
     }
   }
   const styleEl = document.createElementNS(ns, 'style');
