@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Math Visuals API – Lambda + HTTP API Gateway
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: S3 bucket that stores the zipped Lambda artefact.
+  LambdaCodeS3Key:
+    Type: String
+    Description: Object key for the zipped Lambda artefact.
+  LambdaCodeS3ObjectVersion:
+    Type: String
+    Description: Optional version of the Lambda artefact object.
+    Default: ''
+  StageName:
+    Type: String
+    Default: prod
+    Description: Deployment stage name for the HTTP API.
+
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    Timeout: 30
+    MemorySize: 256
+    Tracing: Active
+
+Resources:
+  ApiFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AllowSecretReads
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource: '*'
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Aggregated Lambda handler that mounts existing /api routes via serverless-express.
+      Handler: index.handler
+      Role: !GetAtt ApiFunctionRole.Arn
+      CodeUri:
+        Bucket: !Ref LambdaCodeS3Bucket
+        Key: !Ref LambdaCodeS3Key
+        Version: !If
+          - HasLambdaCodeVersion
+          - !Ref LambdaCodeS3ObjectVersion
+          - !Ref AWS::NoValue
+      Environment:
+        Variables:
+          NODE_OPTIONS: --enable-source-maps
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: MathVisualsHttpApi
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowCredentials: true
+        AllowHeaders:
+          - '*'
+        AllowMethods:
+          - '*'
+        AllowOrigins:
+          - '*'
+        ExposeHeaders:
+          - Access-Control-Allow-Origin
+          - Access-Control-Allow-Headers
+          - Access-Control-Allow-Methods
+
+  HttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: !Ref StageName
+      AutoDeploy: true
+
+  LambdaIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiFunction.Arn}/invocations
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 30000
+
+  ApiRouteExamplesRoot:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /api/examples
+      Target: !Sub integrations/${LambdaIntegration}
+
+  ApiRouteExamplesProxy:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /api/examples/{proxy+}
+      Target: !Sub integrations/${LambdaIntegration}
+
+  ApiRouteSvgRaw:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /api/svg/raw
+      Target: !Sub integrations/${LambdaIntegration}
+
+  ApiRouteFigureLibraryRaw:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /api/figure-library/raw
+      Target: !Sub integrations/${LambdaIntegration}
+
+  ApiFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/*
+
+Conditions:
+  HasLambdaCodeVersion: !Not [!Equals [!Ref LambdaCodeS3ObjectVersion, '']]
+
+Outputs:
+  ApiEndpoint:
+    Description: Invoke URL for the deployed HTTP API stage.
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}
+  ApiFunctionArn:
+    Description: ARN of the Lambda function that serves the API routes.
+    Value: !GetAtt ApiFunction.Arn
