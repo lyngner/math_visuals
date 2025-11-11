@@ -1721,6 +1721,10 @@ function draw() {
     set(t, "class", classes.labelCell);
     set(t, "text-anchor", "middle");
   });
+  set(tTL, 'data-cell-index', '0');
+  set(tTR, 'data-cell-index', '1');
+  set(tBL, 'data-cell-index', '2');
+  set(tBR, 'data-cell-index', '3');
   const leftTop = el("text"),
     leftBot = el("text"),
     botLeft = el("text"),
@@ -2752,6 +2756,51 @@ function draw() {
   // === FARGER/typografi ===
   function getInlineStyleDefaults() {
     const cols = ensureColors(ADV.colors, DEFAULT_RECT_COLORS, 4);
+    const luminance = color => {
+      if (typeof color !== 'string') return 0;
+      const hexMatch = color.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+      let r = 0,
+        g = 0,
+        b = 0;
+      if (hexMatch) {
+        let hex = hexMatch[1];
+        if (hex.length === 3) {
+          hex = hex
+            .split('')
+            .map(ch => ch + ch)
+            .join('');
+        }
+        r = parseInt(hex.slice(0, 2), 16);
+        g = parseInt(hex.slice(2, 4), 16);
+        b = parseInt(hex.slice(4, 6), 16);
+      } else {
+        const rgbMatch = color
+          .replace(/\s+/g, '')
+          .match(/^rgba?\((\d{1,3}),(\d{1,3}),(\d{1,3})(?:,(0|0?\.\d+|1))?\)$/i);
+        if (rgbMatch) {
+          r = parseInt(rgbMatch[1], 10);
+          g = parseInt(rgbMatch[2], 10);
+          b = parseInt(rgbMatch[3], 10);
+        }
+      }
+      const toLinear = v => {
+        const channel = Math.max(0, Math.min(255, v)) / 255;
+        return channel <= 0.03928
+          ? channel / 12.92
+          : Math.pow((channel + 0.055) / 1.055, 2.4);
+      };
+      const R = toLinear(r);
+      const G = toLinear(g);
+      const B = toLinear(b);
+      return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+    };
+    const pickTextColor = color => {
+      const L = luminance(color);
+      const contrastWhite = (1.0 + 0.05) / (L + 0.05);
+      const contrastBlack = (L + 0.05) / 0.05;
+      return contrastWhite >= contrastBlack ? '#fff' : '#000';
+    };
+    const textColors = cols.map(pickTextColor);
     return `
 .outer { fill: white; stroke: #333; stroke-width: 3; pointer-events: none; }
 .split { stroke: #333; stroke-width: 3; transition: stroke-width .12s ease; pointer-events: none; }
@@ -2762,6 +2811,11 @@ function draw() {
 .c2 { fill: ${cols[1]}; }
 .c3 { fill: ${cols[2]}; }
 .c4 { fill: ${cols[3]}; }
+
+.labelCell[data-cell-index="0"] { fill: ${textColors[0]}; }
+.labelCell[data-cell-index="1"] { fill: ${textColors[1]}; }
+.labelCell[data-cell-index="2"] { fill: ${textColors[2]}; }
+.labelCell[data-cell-index="3"] { fill: ${textColors[3]}; }
 
 
 .grid line { stroke: #000; stroke-opacity: .28; stroke-width: 1; pointer-events: none; }
@@ -2873,10 +2927,10 @@ svg text { user-select: none; -webkit-user-select: none; }
     const labelBR = showBR ? formatCellLabelFromParts(rightPart, bottomPart, cellMode, dot, equals) : '';
     const horizontalSumLabel = sumEnabled ? buildSumLabel(leftPart, rightPart) : '';
     const verticalSumLabel = sumEnabled ? buildSumLabel(bottomPart, topPart) : '';
-    parts.push('<text id="tTL" class="labelCell" x="' + (ML + leftWidth / 2) + '" y="' + (MT + topHeight / 2 + 8) + '" text-anchor="middle">' + labelTL + '</text>');
-    parts.push('<text id="tTR" class="labelCell" x="' + (ML + leftWidth + rightWidth / 2) + '" y="' + (MT + topHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(showTR) + '>' + (showTR ? labelTR : '') + '</text>');
-    parts.push('<text id="tBL" class="labelCell" x="' + (ML + leftWidth / 2) + '" y="' + (MT + topHeight + bottomHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(showBL) + '>' + (showBL ? labelBL : '') + '</text>');
-    parts.push('<text id="tBR" class="labelCell" x="' + (ML + leftWidth + rightWidth / 2) + '" y="' + (MT + topHeight + bottomHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(showBR) + '>' + (showBR ? labelBR : '') + '</text>');
+    parts.push('<text id="tTL" class="labelCell" data-cell-index="0" x="' + (ML + leftWidth / 2) + '" y="' + (MT + topHeight / 2 + 8) + '" text-anchor="middle">' + labelTL + '</text>');
+    parts.push('<text id="tTR" class="labelCell" data-cell-index="1" x="' + (ML + leftWidth + rightWidth / 2) + '" y="' + (MT + topHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(showTR) + '>' + (showTR ? labelTR : '') + '</text>');
+    parts.push('<text id="tBL" class="labelCell" data-cell-index="2" x="' + (ML + leftWidth / 2) + '" y="' + (MT + topHeight + bottomHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(showBL) + '>' + (showBL ? labelBL : '') + '</text>');
+    parts.push('<text id="tBR" class="labelCell" data-cell-index="3" x="' + (ML + leftWidth + rightWidth / 2) + '" y="' + (MT + topHeight + bottomHeight / 2 + 8) + '" text-anchor="middle"' + displayAttr(showBR) + '>' + (showBR ? labelBR : '') + '</text>');
 
     // kant-tekst Utenfor, med luft:
     const xL = ML - HS / 2 - gapX;
