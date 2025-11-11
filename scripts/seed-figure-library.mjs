@@ -240,6 +240,17 @@ async function main() {
   }
 }
 
+export {
+  parseArgs,
+  sanitizeCategoryPayload,
+  buildMeasurementCategoryIndex,
+  resolveAssetPath,
+  loadSvgMarkup,
+  loadPngDataUrl,
+  seedFigures,
+  main
+};
+
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }
