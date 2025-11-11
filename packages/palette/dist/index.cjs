@@ -1,7 +1,5 @@
 'use strict';
 
-Object.defineProperty(exports, '__esModule', { value: true });
-
 const MAX_COLORS = 48;
 const DEFAULT_PROJECT = 'campus';
 
@@ -699,22 +697,6 @@ function resolveGroupPalette(options) {
   return defaultPaletteService.resolveGroupPalette(options);
 }
 
-var index = {
-  PROJECT_FALLBACKS,
-  GRAFTEGNER_AXIS_DEFAULTS,
-  COLOR_SLOT_GROUPS,
-  COLOR_GROUP_IDS,
-  GROUP_SLOT_INDICES,
-  MIN_COLOR_SLOTS,
-  DEFAULT_GROUP_ORDER,
-  DEFAULT_PROJECT_ORDER,
-  PALETTE_CONFIG,
-  ensurePalette,
-  getProjectFallbackPalette,
-  createPaletteService,
-  resolveGroupPalette
-};
-
 exports.COLOR_GROUP_IDS = COLOR_GROUP_IDS;
 exports.COLOR_SLOT_GROUPS = COLOR_SLOT_GROUPS;
 exports.DEFAULT_GROUP_ORDER = DEFAULT_GROUP_ORDER;
@@ -725,7 +707,6 @@ exports.MIN_COLOR_SLOTS = MIN_COLOR_SLOTS;
 exports.PALETTE_CONFIG = PALETTE_CONFIG;
 exports.PROJECT_FALLBACKS = PROJECT_FALLBACKS;
 exports.createPaletteService = createPaletteService;
-exports.default = index;
 exports.ensurePalette = ensurePalette;
 exports.getProjectFallbackPalette = getProjectFallbackPalette;
 exports.resolveGroupPalette = resolveGroupPalette;
