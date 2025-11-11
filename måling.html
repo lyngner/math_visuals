@@ -314,6 +314,23 @@
       stroke-linecap: round;
     }
 
+    .board[data-active-tool='segment'] .segment {
+      pointer-events: auto;
+    }
+
+    .board[data-active-tool='segment'] .segment__svg {
+      pointer-events: auto;
+    }
+
+    .board[data-active-tool='segment'] .segment__line {
+      pointer-events: stroke;
+      cursor: grab;
+    }
+
+    .board[data-active-tool='segment'] .segment__line:active {
+      cursor: grabbing;
+    }
+
     .segment__handle {
       position: absolute;
       left: 0;
