@@ -987,9 +987,12 @@ const EXPORT_STYLE_RULES = `
 
   .tb-val {
     font-size: 34px;
-    fill: var(--tb-text, #111);
     text-anchor: middle;
     dominant-baseline: middle;
+  }
+
+  .tb-val:not([data-tb-explicit-fill="true"]) {
+    fill: var(--tb-text, #111);
   }
 
   .tb-frac {
@@ -998,9 +1001,12 @@ const EXPORT_STYLE_RULES = `
 
   .tb-frac text {
     font-size: 28px;
-    fill: var(--tb-text, #111);
     text-anchor: middle;
     font-variant-numeric: tabular-nums;
+  }
+
+  .tb-frac text:not([data-tb-explicit-fill="true"]) {
+    fill: var(--tb-text, #111);
   }
 
   .tb-frac-line {
