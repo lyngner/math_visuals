@@ -44,3 +44,39 @@ Eksempeltjenesten er navet som binder appene sammen. Den gjør det mulig å lagr
 ## Videre arbeid
 
 Math Visuals videreutvikles i tett dialog med lærere, elever og spesialpedagoger. Nye konsepter prototypers ofte i dedikerte mapper (`old_projects/`, `kvikkbilder`, `tallinje` m.fl.) før de flyttes inn i hovedkatalogen. Prosjektet søker å balansere eksperimentell utforskning med robuste, dokumenterte verktøy, og inviterer til samskaping gjennom issues, pull requests og deling av undervisningsopplegg.
+
+## Drift og distribusjon
+
+Produksjonsmiljøet deployes via GitHub Actions-workflowen [`deploy-infra.yml`](.github/workflows/deploy-infra.yml). Den trigges både manuelt (`workflow_dispatch`) og automatisk ved push til `main`. Workflowen kjører et enkelt `deploy-iac`-jobbløp som
+
+- konfigurerer AWS-legitimasjon ved hjelp av OIDC-rollens ARN,
+- oppdaterer datastrukturen i [`infra/data/template.yaml`](infra/data/template.yaml) slik at KV REST API-nøkler fra GitHub Secrets replikeres til Secrets Manager og Parameter Store,
+- ruller ut API-stacken fra [`infra/api/template.yaml`](infra/api/template.yaml) med den forhåndsbyggede Lambda-pakken, og
+- oppdaterer den statiske nettsiden gjennom CloudFormation-malen [`infra/static-site/template.yaml`](infra/static-site/template.yaml).
+
+Når alle stacker er oppdatert kan workflowen (valgfritt) invalidere CloudFront-distribusjonen slik at nye filer serveres umiddelbart.
+
+### Påkrevde secrets
+
+Følgende GitHub Secrets må være definert for at workflowen skal lykkes:
+
+| Secret | Beskrivelse |
+| --- | --- |
+| `AWS_REGION` | AWS-regionen alle stackene deployes i. |
+| `AWS_IAC_ROLE_ARN` | ARN til IAM-rollen som Actions skal anta via OIDC. |
+| `STATIC_SITE_BUCKET_NAME` | Navnet på S3-bøtta som huser de statiske filene. |
+| `STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID` | ID til CloudFront-distribusjonen som skal invaliders etter opplasting. |
+| `STATIC_SITE_API_DOMAIN` | Domene til API Gateway-distribusjonen som CloudFront peker mot. |
+| `STATIC_SITE_API_ORIGIN_PATH` | Eventuelt underpath (f.eks. `/prod`) for API Gateway-opprinnelsen. |
+| `STATIC_SITE_CLOUDFRONT_PRICE_CLASS` | Prisnivå for CloudFront (`PriceClass_100`, `PriceClass_200` eller `PriceClass_All`). |
+| `API_ARTIFACT_BUCKET` | S3-bøtta som inneholder det pakkede Lambda-artefaktet. |
+| `API_ARTIFACT_KEY` | Objekt-nøkkel til Lambda-pakken i S3. |
+| `API_ARTIFACT_VERSION` | Valgfritt objektversjon for Lambda-pakken. |
+| `API_STAGE_NAME` | HTTP API-staget som skal oppdateres (for eksempel `prod`). |
+| `DATA_KV_REST_API_URL` | Base-URL til Vercel KV-instansen som brukes av `/api/examples`. |
+| `DATA_KV_REST_API_TOKEN` | Skrivetokenet for Vercel KV-instansen som brukes av `/api/examples`. |
+| `FIGURE_LIBRARY_KV_REST_API_URL` | Base-URL til Vercel KV-instansen for `/api/figure-library`. |
+| `FIGURE_LIBRARY_KV_REST_API_TOKEN` | Skrivetoken for Vercel KV-instansen for `/api/figure-library`. |
+| `CLOUDFRONT_INVALIDATION_PATHS` | Mellomromsseparert liste over stier som skal invaliders (standard `/*`). |
+
+Secretsene over injiseres som miljøvariabler i de respektive deploy-stegene. Dersom `STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID` er tom hoppes invalidasjonssteget over automatisk.
