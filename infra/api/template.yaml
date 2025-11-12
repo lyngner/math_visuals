@@ -17,6 +17,9 @@ Parameters:
     Type: String
     Default: prod
     Description: Deployment stage name for the HTTP API.
+  SharedParametersStackName:
+    Type: String
+    Description: Name of the CloudFormation stack that exports shared parameter names.
 
 Globals:
   Function:
@@ -68,6 +71,26 @@ Resources:
       Environment:
         Variables:
           NODE_OPTIONS: --enable-source-maps
+          REDIS_ENDPOINT: !Sub
+            - '{{resolve:ssm:${RedisEndpointParameterName}}}'
+            - RedisEndpointParameterName: !ImportValue
+                Fn::Sub: '${SharedParametersStackName}-RedisEndpointParameterName'
+          REDIS_PORT: !Sub
+            - '{{resolve:ssm:${RedisPortParameterName}}}'
+            - RedisPortParameterName: !ImportValue
+                Fn::Sub: '${SharedParametersStackName}-RedisPortParameterName'
+          REDIS_PASSWORD: !Sub
+            - '{{resolve:secretsmanager:${RedisPasswordSecretName}:SecretString}}'
+            - RedisPasswordSecretName: !ImportValue
+                Fn::Sub: '${SharedParametersStackName}-RedisPasswordSecretName'
+          EXAMPLES_ALLOWED_ORIGINS: !Sub
+            - '{{resolve:ssm:${ExamplesAllowedOriginsParameterName}}}'
+            - ExamplesAllowedOriginsParameterName: !ImportValue
+                Fn::Sub: '${SharedParametersStackName}-ExamplesAllowedOriginsParameterName'
+          SVG_ALLOWED_ORIGINS: !Sub
+            - '{{resolve:ssm:${SvgAllowedOriginsParameterName}}}'
+            - SvgAllowedOriginsParameterName: !ImportValue
+                Fn::Sub: '${SharedParametersStackName}-SvgAllowedOriginsParameterName'
 
   HttpApi:
     Type: AWS::ApiGatewayV2::Api
@@ -80,8 +103,12 @@ Resources:
           - '*'
         AllowMethods:
           - '*'
-        AllowOrigins:
-          - '*'
+        AllowOrigins: !Split
+          - ','
+          - !Sub
+            - '{{resolve:ssm:${ExamplesAllowedOriginsParameterName}}}'
+            - ExamplesAllowedOriginsParameterName: !ImportValue
+                Fn::Sub: '${SharedParametersStackName}-ExamplesAllowedOriginsParameterName'
         ExposeHeaders:
           - Access-Control-Allow-Origin
           - Access-Control-Allow-Headers

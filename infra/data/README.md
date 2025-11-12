@@ -11,7 +11,9 @@ fullisolert dataplattform for Redis i AWS. Malen etablerer
 
 Bruk AWS CLI eller CloudFormation-konsollet for å opprette et stack basert på
 `template.yaml`. Parameterne lar deg tilpasse CIDR-blokker, instanstype, antall
-noder og vedlikeholdsvinduer. `RedisAuthToken`-parameteren skal leveres som en
+noder og vedlikeholdsvinduer. Sett også `SharedParametersStackName` til navnet
+på stacken som deployes fra `infra/shared-parameters.yaml` slik at malen kan
+importere Secrets Manager-/SSM-navn. `RedisAuthToken`-parameteren skal leveres som en
 [dynamic reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html)
 til Secrets Manager slik at selve tokenet ikke sjekkes inn i koden.
 
@@ -59,23 +61,42 @@ Eksempel på kommandoer i et CI/CD-script:
 
 ```bash
 STACK_NAME=math-visuals-data
+SHARED_STACK=math-visuals-shared
 REGION=eu-north-1
 
-REDIS_ENDPOINT=$(aws cloudformation describe-stacks \
+REDIS_ENDPOINT_PARAMETER=$(aws cloudformation describe-stacks \
   --region "$REGION" \
-  --stack-name "$STACK_NAME" \
-  --query 'Stacks[0].Outputs[?OutputKey==`RedisPrimaryEndpoint`].OutputValue' \
+  --stack-name "$SHARED_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`RedisEndpointParameterName`].OutputValue' \
   --output text)
 
-REDIS_PORT=$(aws cloudformation describe-stacks \
+REDIS_PORT_PARAMETER=$(aws cloudformation describe-stacks \
   --region "$REGION" \
-  --stack-name "$STACK_NAME" \
-  --query 'Stacks[0].Outputs[?OutputKey==`RedisPort`].OutputValue' \
+  --stack-name "$SHARED_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`RedisPortParameterName`].OutputValue' \
+  --output text)
+
+REDIS_ENDPOINT=$(aws ssm get-parameter \
+  --region "$REGION" \
+  --name "$REDIS_ENDPOINT_PARAMETER" \
+  --query 'Parameter.Value' \
+  --output text)
+
+REDIS_PORT=$(aws ssm get-parameter \
+  --region "$REGION" \
+  --name "$REDIS_PORT_PARAMETER" \
+  --query 'Parameter.Value' \
+  --output text)
+
+REDIS_SECRET_NAME=$(aws cloudformation describe-stacks \
+  --region "$REGION" \
+  --stack-name "$SHARED_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`RedisPasswordSecretName`].OutputValue' \
   --output text)
 
 REDIS_PASSWORD=$(aws secretsmanager get-secret-value \
   --region "$REGION" \
-  --secret-id redis/auth \
+  --secret-id "$REDIS_SECRET_NAME" \
   --query 'SecretString' \
   --output text | jq -r '.authToken')
 

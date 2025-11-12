@@ -22,6 +22,9 @@ Parameters:
     Type: String
     NoEcho: true
     Description: Write token for the figure library Vercel KV instance.
+  SharedParametersStackName:
+    Type: String
+    Description: Name of the CloudFormation stack that exports shared parameter names.
 
 Resources:
   ExamplesKvRestApiUrlParameter:
@@ -75,3 +78,15 @@ Outputs:
   FigureLibraryKvRestApiTokenSecretArn:
     Description: ARN to the secret storing the /api/figure-library KV REST API token.
     Value: !Ref FigureLibraryKvRestApiTokenSecret
+  RedisPasswordSecretName:
+    Description: Shared Secrets Manager secret name used for the Redis password/auth token.
+    Value: !ImportValue
+      Fn::Sub: '${SharedParametersStackName}-RedisPasswordSecretName'
+  RedisEndpointParameterName:
+    Description: Shared SSM parameter name that stores the Redis endpoint.
+    Value: !ImportValue
+      Fn::Sub: '${SharedParametersStackName}-RedisEndpointParameterName'
+  RedisPortParameterName:
+    Description: Shared SSM parameter name that stores the Redis port.
+    Value: !ImportValue
+      Fn::Sub: '${SharedParametersStackName}-RedisPortParameterName'

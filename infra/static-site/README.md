@@ -31,6 +31,7 @@ The [`template.yaml`](./template.yaml) file configures the following resources:
 | `ApiGatewayDomainName`| Domain name of the API Gateway stage (e.g. `abc123.execute-api.us-east-1.amazonaws.com`). |
 | `ApiGatewayOriginPath`| Optional origin path that points to the API stage (default `/prod`). |
 | `CloudFrontPriceClass`| CloudFront price class to use (defaults to `PriceClass_100`). |
+| `SharedParametersStackName` | Name of the stack created from `infra/shared-parameters.yaml`. |
 
 ## Outputs
 
@@ -54,7 +55,8 @@ aws cloudformation deploy \
   --parameter-overrides \
       SiteBucketName=my-unique-math-visuals-site-bucket \
       ApiGatewayDomainName=abc123.execute-api.us-east-1.amazonaws.com \
-      ApiGatewayOriginPath=/prod
+      ApiGatewayOriginPath=/prod \
+      SharedParametersStackName=math-visuals-shared
 ```
 
 After the deployment completes, you can retrieve the outputs with:
@@ -64,3 +66,7 @@ aws cloudformation describe-stacks \
   --stack-name math-visuals-static-site \
   --query 'Stacks[0].Outputs'
 ```
+
+The outputs `ExamplesAllowedOriginsParameterName` and `SvgAllowedOriginsParameterName`
+mirror the shared stack so that deployment pipelines can retrieve the allow-list
+parameter names alongside the CloudFront distribution metadata.
