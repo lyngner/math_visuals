@@ -59,6 +59,146 @@ Fase 1 anbefaler å etablere følgende ressurser i mål-arkitekturen:
 
 Miljøvariabler og secrets må oppdateres slik at `KV_REST_API_URL`/`KV_REST_API_TOKEN` erstattes av Redis-tilkoblingsdetaljer (host, port, passord/TLS) og eventuelle nye konfigurasjonsnøkler (f.eks. `REDIS_ENDPOINT`, `REDIS_PASSWORD`). Frontend-relaterte variabler som `EXAMPLES_ALLOWED_ORIGINS` og `SVG_ALLOWED_ORIGINS` beholdes og injiseres i Lambda/CloudFront-konfigurasjonen.
 
+## 6. Praktiske CLI-instruksjoner
+
+Følgende AWS CLI-kommandoer og steg dokumenterer hvordan infrastrukturen i fase 1 kan settes opp fra CloudShell. Erstatter du
+plassholdere (`<...>`) med konkrete verdier kan resultatet brukes direkte i fase 2 for automatisering.
+
+### S3 bucket for statiske artefakter
+
+```bash
+aws s3api create-bucket \
+  --bucket <bucket-navn> \
+  --create-bucket-configuration LocationConstraint=$(aws configure get region)
+
+aws s3api put-bucket-versioning \
+  --bucket <bucket-navn> \
+  --versioning-configuration Status=Enabled
+
+aws s3 sync public/ s3://<bucket-navn>/ --delete
+```
+
+Opprett en Origin Access Control (OAC) på forhånd, eller gjenbruk eksisterende OAC-ID som referanse i CloudFront-trinnet under.
+
+### CloudFront-distribusjon med eksisterende OAC
+
+1. Hent distributions-ID og nåværende konfigurasjon:
+
+   ```bash
+   DISTRIBUTION_ID=<cloudfront-distribution-id>
+   aws cloudfront get-distribution-config --id "$DISTRIBUTION_ID" > cf.json
+   ```
+
+2. Oppdater `cf.json` manuelt slik at S3-origin peker til `s3://<bucket-navn>` med `OriginAccessControlId=<oac-id>` og legg
+   inn behaviors for `/bildearkiv/*`, `/svg/*`, `/figure-library/*`, `/sortering`, `/sortering/*` med riktige origins (API Gateway
+   vs. S3) og `CachePolicyId`/`OriginRequestPolicyId` som forwarder query-parametere (`AllViewerExceptHostHeader` + egendefinert
+   request-policy som inkluderer `QueryStrings` og `Headers: Origin`).
+
+3. Lagre versjons-taggen fra `ETag`-feltet og oppdater distribusjonen:
+
+   ```bash
+   ETAG=$(jq -r '.ETag' cf.json)
+   cat cf.json | jq '.DistributionConfig' > cf-config.json
+   aws cloudfront update-distribution \
+     --id "$DISTRIBUTION_ID" \
+     --if-match "$ETAG" \
+     --distribution-config file://cf-config.json
+   ```
+
+### API Gateway + Lambda
+
+```bash
+# Bygg Lambda-pakken lokalt (samme artefakt kan lastes opp med aws lambda update-function-code)
+npm install --omit=dev
+zip -r function.zip api/ node_modules/ package.json package-lock.json
+
+aws lambda create-function \
+  --function-name math-visuals-api \
+  --runtime nodejs18.x \
+  --handler api/index.handler \
+  --role <lambda-execution-role-arn> \
+  --timeout 30 \
+  --memory-size 1024 \
+  --zip-file fileb://function.zip
+
+aws apigatewayv2 create-api \
+  --name math-visuals-http \
+  --protocol-type HTTP \
+  --target arn:aws:lambda:<region>:<account-id>:function:math-visuals-api
+
+API_ID=$(aws apigatewayv2 get-apis --query "Items[?Name=='math-visuals-http'].ApiId" --output text)
+aws lambda add-permission \
+  --function-name math-visuals-api \
+  --statement-id apigw \
+  --action lambda:InvokeFunction \
+  --principal apigateway.amazonaws.com \
+  --source-arn arn:aws:execute-api:<region>:<account-id>:$API_ID/*/*/*
+
+aws apigatewayv2 create-stage \
+  --api-id $API_ID \
+  --stage-name prod \
+  --auto-deploy
+
+API_GATEWAY_DOMAIN=$(aws apigatewayv2 get-api --api-id $API_ID --query "ApiEndpoint" --output text)
+echo "API Gateway URL: $API_GATEWAY_DOMAIN"
+```
+
+Når du har `API_GATEWAY_DOMAIN`, oppdater CloudFront-behavioren(e) som peker til API Gateway slik at origin host settes til dette
+domene-navnet og `OriginPath` samsvarer med valgt stage (`/prod`).
+
+### MemoryDB eller ElastiCache
+
+```bash
+aws memorydb create-subnet-group \
+  --subnet-group-name math-visuals-subnets \
+  --subnet-ids <subnet-id-1> <subnet-id-2>
+
+aws memorydb create-cluster \
+  --cluster-name math-visuals \
+  --node-type db.t4g.small \
+  --subnet-group-name math-visuals-subnets \
+  --security-group-ids <sg-id> \
+  --tls-enabled \
+  --acl-name open-access
+
+# Alternativt for ElastiCache
+aws elasticache create-replication-group \
+  --replication-group-id math-visuals \
+  --replication-group-description "Math Visuals Redis" \
+  --engine redis \
+  --cache-node-type cache.t3.small \
+  --num-node-groups 1 \
+  --replicas-per-node-group 1 \
+  --security-group-ids <sg-id> \
+  --cache-subnet-group-name <cache-subnet-gruppe>
+```
+
+Når klyngen er opprettet, hent `PrimaryEndpoint` (`ConfigurationEndpoint` for MemoryDB) for å fylle secrets/parametere under.
+
+### Secrets Manager og Parameter Store
+
+Legg inn Redis-tilkobling og CORS-opprinnelser slik at Lambda kan hente dem ved oppstart:
+
+```bash
+aws secretsmanager create-secret \
+  --name math-visuals/redis \
+  --secret-string '{"host":"<redis-endpoint>","port":6379,"password":"<passord>"}'
+
+aws ssm put-parameter \
+  --name /math-visuals/cors/examples \
+  --type StringList \
+  --value "https://mathvisuals.no,https://app.mathvisuals.no"
+
+aws ssm put-parameter \
+  --name /math-visuals/cors/svg \
+  --type StringList \
+  --value "https://mathvisuals.no,https://app.mathvisuals.no"
+```
+
+Gi Lambda-funksjonen IAM-policyer for å lese `math-visuals/redis` og relevante SSM-parametere. Verdiene kan lastes inn ved hjelp av
+`AWS.SecretsManager` og `AWS.SSM` i Lambda-koden eller gjennom miljøvariabler under `aws lambda update-function-configuration`.
+
 ---
 
-**Status:** Fase 1-dokumentasjon er klar for gjennomgang før infrastrukturen implementeres.
+**Status:** Fase 1 inkluderer nå både målarkitektur og konkrete CLI-instruksjoner som grunnlag for fase 2-automatisering og
+implementering.
