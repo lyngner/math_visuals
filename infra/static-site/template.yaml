@@ -107,6 +107,7 @@ Resources:
             CachedMethods:
               - GET
               - HEAD
+              - OPTIONS
             Compress: true
             ForwardedValues:
               QueryString: true
@@ -119,9 +120,13 @@ Resources:
               - GET
               - HEAD
               - OPTIONS
+              - POST
+              - PATCH
+              - DELETE
             CachedMethods:
               - GET
               - HEAD
+              - OPTIONS
             Compress: true
             ForwardedValues:
               QueryString: true
@@ -134,24 +139,32 @@ Resources:
               - GET
               - HEAD
               - OPTIONS
+              - POST
+              - PATCH
+              - DELETE
             CachedMethods:
               - GET
               - HEAD
+              - OPTIONS
             Compress: true
             ForwardedValues:
               QueryString: true
               Cookies:
                 Forward: none
-          - PathPattern: '/figure-library/*'
+          - PathPattern: '/api/figure-library/*'
             TargetOriginId: ApiGatewayOrigin
             ViewerProtocolPolicy: https-only
             AllowedMethods:
               - GET
               - HEAD
               - OPTIONS
+              - POST
+              - PATCH
+              - DELETE
             CachedMethods:
               - GET
               - HEAD
+              - OPTIONS
             Compress: true
             ForwardedValues:
               QueryString: true
