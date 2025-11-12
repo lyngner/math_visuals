@@ -146,6 +146,20 @@ Resources:
           return true;
         }
 
+        function getAssetRoot(target, override) {
+          if (typeof override === 'string' && override) {
+            return override;
+          }
+          if (typeof target !== 'string' || !target) {
+            return '/';
+          }
+          var lastSlash = target.lastIndexOf('/');
+          if (lastSlash <= 0) {
+            return '/';
+          }
+          return target.slice(0, lastSlash + 1);
+        }
+
         function handler(event) {
           var request = event && event.request ? event.request : null;
           if (!request || typeof request.uri !== 'string') {
@@ -185,6 +199,7 @@ Resources:
           for (var i = 0; i < routes.length; i++) {
             var route = routes[i];
             var aliases = route.aliases;
+            var assetRoot = getAssetRoot(route.target, route.assetRoot);
             for (var j = 0; j < aliases.length; j++) {
               var normalized = normalizeAlias(aliases[j]);
               if (!normalized) {
@@ -196,6 +211,14 @@ Resources:
               }
               if (route.includeExamples && matchesExample(lowerUri, normalized)) {
                 request.uri = route.target;
+                return request;
+              }
+              if (lowerUri.length > normalized.length && lowerUri.startsWith(normalized) && lowerUri.charCodeAt(normalized.length) === 47) {
+                var remainder = request.uri.slice(normalized.length + 1);
+                if (!remainder || remainder.indexOf('.') === -1) {
+                  continue;
+                }
+                request.uri = assetRoot + remainder;
                 return request;
               }
             }
